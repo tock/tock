@@ -8,7 +8,7 @@ Amit: Let's start with updates. Who has updates?
 
 Amit: Hudson, can I volunteer you to talk about our call and your PR?
 
-Hudson: I put in a PR, then closed it, and put it back to my repo. I've been working on the scheduler interface, with an undergrad here and now with one of Amit's students. I had an interface that I was pretty happy with yesterday, but Amit pointed out that the scheduler might want to store processes in different data structures than just an array, e.g., in sets f queues. So the question is how I can make it so that rather than assuming an array, to have some kind of Container abstraction which a scheduler can specify. THis would also force us to make it so IPC no longer uses process array indices as a naming mechanism.
+Hudson: I put in a PR, then closed it, and put it back to my repo. I've been working on the scheduler interface, with an undergrad here and now with one of Amit's students. I had an interface that I was pretty happy with yesterday, but Amit pointed out that the scheduler might want to store processes in different data structures than just an array, e.g., in sets of queues. So the question is how I can make it so that rather than assuming an array, to have some kind of Container abstraction which a scheduler can specify. This would also force us to make it so IPC no longer uses process array indices as a naming mechanism.
 
 Amit: Also, if you have thoughts on what would be a useful scheduler, please let us know. The design we come up with will be a compromise, based on the kinds of schedulers we expect being important. So know which is important.
 
@@ -86,4 +86,3 @@ Johnathan: Yeah, I have some things in libtock-rs. Maybe sizing should be in toc
 Phil: Should I put my size tool in the main repository?
 
 Amit: Yes.
-
