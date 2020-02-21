@@ -14,7 +14,7 @@ Amit: Also, if you have thoughts on what would be a useful scheduler, please let
 
 Hudson: I have an RR and a deadline based scheduler and a multilevel feedback queue scheduler, if there are others that people are interested in let me know.
 
-Amit: Johnathan is here now. Another update from Brad is that it looks like all of the necessary functionality and fixes to safely restart processes is done and waiting in PR. So that's a big deal if it's true. Let's move on to agenda items. Let's start with the more admin one: where do tests for the kernel from userspace liove?
+Amit: Johnathan is here now. Another update from Brad is that it looks like all of the necessary functionality and fixes to safely restart processes is done and waiting in PR. So that's a big deal if it's true. Let's move on to agenda items. Let's start with the more admin one: where do tests for the kernel from userspace live?
 
 Johnathan: This has come up repeatedly. Both Alistair and Guillaume have tried adding regression tests for the kernel to libtock-rs. Both received strong pushback from Torfmaster and Voyten, external contributors. Those tests are important, and they belong somewhere, but they aren't userspace library tests. Or do they belong in another repository, or what? I'm mainly looking for opinions.
 
@@ -86,5 +86,4 @@ Johnathan: Yeah, I have some things in libtock-rs. Maybe sizing should be in toc
 Phil: Should I put my size tool in the main repository?
 
 Amit: Yes.
-
 
