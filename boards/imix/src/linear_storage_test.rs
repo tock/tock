@@ -21,7 +21,7 @@ use kernel::common::dynamic_deferred_call::DynamicDeferredCall;
 use kernel::debug;
 use kernel::hil::flash;
 use kernel::hil::storage_interface::{
-    LogRead, LogReadClient, LogWrite, LogWriteClient, StorageCookie, StorageLen,
+    LogRead, LogReadClient, LogWrite, LogWriteClient, StorageCookie,
 };
 use kernel::hil::time::{Alarm, AlarmClient, Frequency};
 use kernel::static_init;
@@ -125,8 +125,8 @@ impl<A: Alarm<'static>> LogStorageTest<A> {
     ) -> LogStorageTest<A> {
         debug!(
             "Log recovered from flash (Start and end cookies: {:?} to {:?})",
-            storage.current_read_offset(),
-            storage.current_append_offset()
+            storage.current_read_cookie(),
+            storage.current_append_cookie()
         );
 
         LogStorageTest {
@@ -169,8 +169,8 @@ impl<A: Alarm<'static>> LogStorageTest<A> {
                             // No more entries, start writing again.
                             debug!(
                                 "READ DONE: READ OFFSET: {:?} / WRITE OFFSET: {:?}",
-                                self.storage.current_read_offset(),
-                                self.storage.current_append_offset()
+                                self.storage.current_read_cookie(),
+                                self.storage.current_append_cookie()
                             );
                             self.op_index.increment();
                             self.run();
@@ -190,7 +190,7 @@ impl<A: Alarm<'static>> LogStorageTest<A> {
         self.buffer
             .take()
             .map(move |buffer| {
-                let expect_write_fail = match self.storage.current_append_offset() {
+                let expect_write_fail = match self.storage.current_append_cookie() {
                     StorageCookie::Cookie(cookie) => cookie + len > LINEAR_TEST_LOG.len(),
                     _ => false
                 };
@@ -220,8 +220,8 @@ impl<A: Alarm<'static>> LogStorageTest<A> {
                                 panic!(
                                     "Write failed unexpectedly on {} byte write (read cookie: {:?}, append cookie: {:?})",
                                     len,
-                                    self.storage.current_read_offset(),
-                                    self.storage.current_append_offset()
+                                    self.storage.current_read_cookie(),
+                                    self.storage.current_append_cookie()
                                 );
                             }
                         ReturnCode::EBUSY => self.wait(),
@@ -231,8 +231,8 @@ impl<A: Alarm<'static>> LogStorageTest<A> {
                     panic!(
                         "Write succeeded unexpectedly on {} byte write (read cookie: {:?}, append cookie: {:?})",
                         len,
-                        self.storage.current_read_offset(),
-                        self.storage.current_append_offset()
+                        self.storage.current_read_cookie(),
+                        self.storage.current_append_cookie()
                     );
                 }
             })
@@ -254,7 +254,7 @@ impl<A: Alarm<'static>> LogStorageTest<A> {
 }
 
 impl<A: Alarm<'static>> LogReadClient for LogStorageTest<A> {
-    fn read_done(&self, buffer: &'static mut [u8], length: StorageLen, error: ReturnCode) {
+    fn read_done(&self, buffer: &'static mut [u8], length: usize, error: ReturnCode) {
         match error {
             ReturnCode::SUCCESS => {
                 // Verify correct value was read.
@@ -287,7 +287,7 @@ impl<A: Alarm<'static>> LogWriteClient for LogStorageTest<A> {
     fn append_done(
         &self,
         buffer: &'static mut [u8],
-        length: StorageLen,
+        length: usize,
         records_lost: bool,
         error: ReturnCode,
     ) {
@@ -308,8 +308,8 @@ impl<A: Alarm<'static>> LogWriteClient for LogStorageTest<A> {
         if error == ReturnCode::SUCCESS {
             debug!(
                 "SYNC DONE: READ OFFSET: {:?} / WRITE OFFSET: {:?}",
-                self.storage.current_read_offset(),
-                self.storage.current_append_offset()
+                self.storage.current_read_cookie(),
+                self.storage.current_append_cookie()
             );
         } else {
             panic!("Sync failed: {:?}", error);

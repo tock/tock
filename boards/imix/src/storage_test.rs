@@ -34,7 +34,7 @@ use kernel::debug;
 use kernel::hil::flash;
 use kernel::hil::gpio::{self, Interrupt};
 use kernel::hil::storage_interface::{
-    LogRead, LogReadClient, LogWrite, LogWriteClient, StorageCookie, StorageLen,
+    LogRead, LogReadClient, LogWrite, LogWriteClient, StorageCookie,
 };
 use kernel::hil::time::{Alarm, AlarmClient, Frequency};
 use kernel::static_init;
@@ -187,13 +187,13 @@ impl<A: Alarm<'static>> LogStorageTest<A> {
         ops: &'static [TestOp],
     ) -> LogStorageTest<A> {
         // Recover test state.
-        let read_val = cookie_to_test_value(storage.current_read_offset());
-        let write_val = cookie_to_test_value(storage.current_append_offset());
+        let read_val = cookie_to_test_value(storage.current_read_cookie());
+        let write_val = cookie_to_test_value(storage.current_append_cookie());
 
         debug!(
             "Log recovered from flash (Start and end cookies: {:?} to {:?}; read and write values: {} and {})",
-            storage.current_read_offset(),
-            storage.current_append_offset(),
+            storage.current_read_cookie(),
+            storage.current_append_cookie(),
             read_val,
             write_val
         );
@@ -235,8 +235,8 @@ impl<A: Alarm<'static>> LogStorageTest<A> {
             TestState::CleanUp => {
                 debug!(
                     "Log Storage test succeeded! (Final log start and end cookies: {:?} to {:?})",
-                    self.storage.current_read_offset(),
-                    self.storage.current_append_offset()
+                    self.storage.current_read_cookie(),
+                    self.storage.current_append_cookie()
                 );
             }
         }
@@ -260,13 +260,13 @@ impl<A: Alarm<'static>> LogStorageTest<A> {
     fn read(&self) {
         // Update read value if clobbered by previous operation.
         if self.op_start.get() {
-            let next_read_val = cookie_to_test_value(self.storage.current_read_offset());
+            let next_read_val = cookie_to_test_value(self.storage.current_read_cookie());
             if self.read_val.get() < next_read_val {
                 debug!(
                     "Increasing read value from {} to {} due to clobbering (read cookie is {:?})!",
                     self.read_val.get(),
                     next_read_val,
-                    self.storage.current_read_offset()
+                    self.storage.current_read_cookie()
                 );
                 self.read_val.set(next_read_val);
             }
@@ -286,8 +286,8 @@ impl<A: Alarm<'static>> LogStorageTest<A> {
                             // No more entries, start writing again.
                             debug!(
                                 "READ DONE: READ OFFSET: {:?} / WRITE OFFSET: {:?}",
-                                self.storage.current_read_offset(),
-                                self.storage.current_append_offset()
+                                self.storage.current_read_cookie(),
+                                self.storage.current_append_cookie()
                             );
                             self.next_op();
                             self.run();
@@ -363,7 +363,7 @@ impl<A: Alarm<'static>> LogStorageTest<A> {
     }
 
     fn bad_write(&self) {
-        let original_offset = self.storage.current_append_offset();
+        let original_offset = self.storage.current_append_cookie();
 
         // Ensure failure if entry length is 0.
         self.buffer
@@ -402,7 +402,7 @@ impl<A: Alarm<'static>> LogStorageTest<A> {
         }
 
         // Make sure that append offset was not changed by failed writes.
-        assert_eq!(original_offset, self.storage.current_append_offset());
+        assert_eq!(original_offset, self.storage.current_append_cookie());
         self.next_op();
         self.run();
     }
@@ -423,7 +423,7 @@ impl<A: Alarm<'static>> LogStorageTest<A> {
 
     fn bad_seek(&self, cookie: StorageCookie) {
         // Make sure seek fails with EINVAL.
-        let original_offset = self.storage.current_read_offset();
+        let original_offset = self.storage.current_read_cookie();
         match self.storage.seek(cookie) {
             ReturnCode::EINVAL => (),
             ReturnCode::SUCCESS => panic!(
@@ -437,7 +437,7 @@ impl<A: Alarm<'static>> LogStorageTest<A> {
         }
 
         // Make sure that read offset was not changed by failed seek.
-        assert_eq!(original_offset, self.storage.current_read_offset());
+        assert_eq!(original_offset, self.storage.current_read_cookie());
         self.next_op();
         self.run();
     }
@@ -450,7 +450,7 @@ impl<A: Alarm<'static>> LogStorageTest<A> {
 }
 
 impl<A: Alarm<'static>> LogReadClient for LogStorageTest<A> {
-    fn read_done(&self, buffer: &'static mut [u8], length: StorageLen, error: ReturnCode) {
+    fn read_done(&self, buffer: &'static mut [u8], length: usize, error: ReturnCode) {
         match error {
             ReturnCode::SUCCESS => {
                 // Verify correct number of bytes were read.
@@ -460,7 +460,7 @@ impl<A: Alarm<'static>> LogReadClient for LogStorageTest<A> {
                         length,
                         BUFFER_LEN,
                         self.read_val.get(),
-                        self.storage.current_read_offset(),
+                        self.storage.current_read_cookie(),
                         &buffer[0..length],
                     );
                 }
@@ -474,7 +474,7 @@ impl<A: Alarm<'static>> LogReadClient for LogStorageTest<A> {
                             &expected[0..BUFFER_LEN],
                             &buffer[0..BUFFER_LEN],
                             self.read_val.get(),
-                            self.storage.current_read_offset(),
+                            self.storage.current_read_cookie(),
                         );
                     }
                 }
@@ -494,7 +494,7 @@ impl<A: Alarm<'static>> LogReadClient for LogStorageTest<A> {
         if error == ReturnCode::SUCCESS {
             debug!("Seeked");
             self.read_val
-                .set(cookie_to_test_value(self.storage.current_read_offset()));
+                .set(cookie_to_test_value(self.storage.current_read_cookie()));
         } else {
             panic!("Seek failed: {:?}", error);
         }
@@ -510,7 +510,7 @@ impl<A: Alarm<'static>> LogWriteClient for LogStorageTest<A> {
     fn append_done(
         &self,
         buffer: &'static mut [u8],
-        length: StorageLen,
+        length: usize,
         records_lost: bool,
         error: ReturnCode,
     ) {
@@ -525,7 +525,7 @@ impl<A: Alarm<'static>> LogWriteClient for LogStorageTest<A> {
                         length,
                         BUFFER_LEN,
                         self.write_val.get(),
-                        self.storage.current_append_offset()
+                        self.storage.current_append_cookie()
                     );
                 }
                 let expected_records_lost = self.write_val.get()
@@ -535,7 +535,7 @@ impl<A: Alarm<'static>> LogWriteClient for LogStorageTest<A> {
                            records_lost,
                            expected_records_lost,
                            self.write_val.get(),
-                           self.storage.current_append_offset()
+                           self.storage.current_append_cookie()
                     );
                 }
 
@@ -543,8 +543,8 @@ impl<A: Alarm<'static>> LogWriteClient for LogStorageTest<A> {
                 if (self.write_val.get() + 1) % ENTRIES_PER_WRITE == 0 {
                     debug!(
                         "WRITE DONE: READ OFFSET: {:?} / WRITE OFFSET: {:?}",
-                        self.storage.current_read_offset(),
-                        self.storage.current_append_offset()
+                        self.storage.current_read_cookie(),
+                        self.storage.current_append_cookie()
                     );
                     self.next_op();
                 }
@@ -566,8 +566,8 @@ impl<A: Alarm<'static>> LogWriteClient for LogStorageTest<A> {
         if error == ReturnCode::SUCCESS {
             debug!(
                 "SYNC DONE: READ OFFSET: {:?} / WRITE OFFSET: {:?}",
-                self.storage.current_read_offset(),
-                self.storage.current_append_offset()
+                self.storage.current_read_cookie(),
+                self.storage.current_append_cookie()
             );
         } else {
             panic!("Sync failed: {:?}", error);

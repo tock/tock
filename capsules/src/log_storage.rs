@@ -6,13 +6,13 @@
 //! statically allocated at compile time and cannot be dynamically created at runtime.
 //!
 //! Logs support the following basic operations:
-//!     * Read:     Read back previously written entries in whole. Entries are read sequentially,
-//!                 from oldest to newest.
-//!     * Seek:     Seek to different entries to begin reads starting from a different entry. Valid
-//!                 locations to seek to can be retrieved via the
-//!                 `current_read_offset` and `current_append_offset` functions. These locations
-//!                 are represented by cookies, which internally represent the logical offset of an
-//!                 entry from the first byte written to the log.
+//!     * Read:     Read back previously written entries in whole. Entries are read in their
+//!                 entirety (no partial reads) from oldest to newest.
+//!     * Seek:     Seek to different entries to begin reading from a different entry (can only
+//!                 seek to the start of entries).  Entries are represented by cookies, which
+//!                 interally represent the logical offset of an entry from the first byte written
+//!                 to the log. Valid cookies to seek to can be retrieved via the
+//!                 `current_read_cookie()` and `current_append_cookie()` functions.
 //!     * Append:   Append new data entries onto the end of a log. Can fail if the new entry is too
 //!                 large to fit within the log.
 //!     * Sync:     Sync a log to flash to ensure that all changes are persistent.
@@ -62,7 +62,7 @@ use kernel::common::dynamic_deferred_call::{
 };
 use kernel::hil::flash::{self, Flash};
 use kernel::hil::storage_interface::{
-    LogRead, LogReadClient, LogWrite, LogWriteClient, OperationResult, StorageCookie, StorageLen,
+    LogRead, LogReadClient, LogWrite, LogWriteClient, StorageCookie,
 };
 use kernel::ReturnCode;
 
@@ -89,7 +89,7 @@ pub struct LogStorage<'a, F: Flash + 'static> {
     /// Underlying storage volume.
     volume: &'static [u8],
     /// Capacity of log in bytes.
-    capacity: StorageLen,
+    capacity: usize,
     /// Flash interface.
     driver: &'a F,
     /// Buffer for a flash page.
@@ -121,7 +121,7 @@ pub struct LogStorage<'a, F: Flash + 'static> {
     /// Client-provided buffer to write from.
     buffer: TakeCell<'static, [u8]>,
     /// Length of data within buffer.
-    length: Cell<StorageLen>,
+    length: Cell<usize>,
     /// Whether or not records were lost in the previous append.
     records_lost: Cell<bool>,
     /// Error returned by previously executed operation (or SUCCESS).
@@ -569,8 +569,8 @@ impl<'a, F: Flash + 'static> LogRead<'a> for LogStorage<'a, F> {
         self.read_client.set(read_client);
     }
 
-    /// Read a log entry into a buffer, if there are any remaining. Updates the read cookie to
-    /// point at the next entry when done.
+    /// Read an entire log entry into a buffer, if there are any remaining. Updates the read cookie
+    /// to point at the next entry when done.
     /// Returns:
     ///     * Ok(()) on success.
     ///     * Err((ReturnCode, Option<buffer>)) on failure. The buffer will only be `None` if the
@@ -584,7 +584,11 @@ impl<'a, F: Flash + 'static> LogRead<'a> for LogStorage<'a, F> {
     ///     * ESIZE: buffer not large enough to contain entry being read.
     /// ReturnCodes used in read_done callback:
     ///     * SUCCESS: read succeeded.
-    fn read(&self, buffer: &'static mut [u8], length: usize) -> OperationResult {
+    fn read(
+        &self,
+        buffer: &'static mut [u8],
+        length: usize,
+    ) -> Result<(), (ReturnCode, Option<&'static mut [u8]>)> {
         // Check for failure cases.
         if self.state.get() != State::Idle {
             // Log busy, try reading again later.
@@ -615,12 +619,14 @@ impl<'a, F: Flash + 'static> LogRead<'a> for LogStorage<'a, F> {
         }
     }
 
-    /// Get cookie representing current read offset.
-    fn current_read_offset(&self) -> StorageCookie {
+    /// Get cookie representing current read cookie.
+    fn current_read_cookie(&self) -> StorageCookie {
         StorageCookie::Cookie(self.read_cookie.get())
     }
 
-    /// Seek to a new read cookie.
+    /// Seek to a new read cookie. It is only legal to seek to the start of entry via
+    /// `StorageCookie::SeekBeginning` or a cookie retrived through `current_read_cookie()` or
+    /// `current_append_cookie()`.
     /// ReturnCodes used:
     ///     * SUCCESS: seek succeeded.
     ///     * EINVAL: cookie not valid seek position within current log.
@@ -651,7 +657,7 @@ impl<'a, F: Flash + 'static> LogRead<'a> for LogStorage<'a, F> {
     }
 
     /// Get approximate log capacity in bytes.
-    fn get_size(&self) -> StorageLen {
+    fn get_size(&self) -> usize {
         self.capacity
     }
 }
@@ -678,7 +684,11 @@ impl<'a, F: Flash + 'static> LogWrite<'a> for LogStorage<'a, F> {
     ///     * SUCCESS: append succeeded.
     ///     * FAIL: write failed due to flash error.
     ///     * ECANCEL: write failed due to reaching the end of a non-circular log.
-    fn append(&self, buffer: &'static mut [u8], length: usize) -> OperationResult {
+    fn append(
+        &self,
+        buffer: &'static mut [u8],
+        length: usize,
+    ) -> Result<(), (ReturnCode, Option<&'static mut [u8]>)> {
         let entry_size = length + ENTRY_HEADER_SIZE;
 
         // Check for failure cases.
@@ -731,8 +741,8 @@ impl<'a, F: Flash + 'static> LogWrite<'a> for LogStorage<'a, F> {
         }
     }
 
-    /// Get cookie representing current append offset.
-    fn current_append_offset(&self) -> StorageCookie {
+    /// Get cookie representing current append cookie.
+    fn current_append_cookie(&self) -> StorageCookie {
         StorageCookie::Cookie(self.append_cookie.get())
     }
 
