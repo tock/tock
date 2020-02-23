@@ -14,8 +14,6 @@
 // Author: Amit Levy <amit@amitlevy.com>
 // Last modified: 12/04/2019
 
-#![allow(dead_code)] // Components are intended to be conditionally included
-
 use capsules::low_level_debug;
 use capsules::virtual_uart::{MuxUart, UartDevice};
 use kernel::capabilities;

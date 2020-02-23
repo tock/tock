@@ -42,6 +42,16 @@ pub fn load_processes<C: Chip>(
     let mut apps_in_flash_ptr = start_of_flash;
     let mut app_memory_ptr = app_memory.as_mut_ptr();
     let mut app_memory_size = app_memory.len();
+
+    if config::CONFIG.debug_load_processes {
+        debug!(
+            "Loading processes from flash={:#010X} into sram=[{:#010X}:{:#010X}]",
+            start_of_flash as usize,
+            app_memory_ptr as usize,
+            app_memory_ptr as usize + app_memory_size
+        );
+    }
+
     for i in 0..procs.len() {
         unsafe {
             let (process, flash_offset, memory_offset) = Process::create(
@@ -53,6 +63,18 @@ pub fn load_processes<C: Chip>(
                 fault_response,
                 i,
             );
+
+            if config::CONFIG.debug_load_processes {
+                debug!(
+                    "Loaded process[{}] from flash=[{:#010X}:{:#010X}] into sram=[{:#010X}:{:#010X}] = {:?}",
+                    i,
+                    apps_in_flash_ptr as usize,
+                    apps_in_flash_ptr as usize + flash_offset,
+                    app_memory_ptr as usize,
+                    app_memory_ptr as usize + memory_offset,
+                    process.map(|p| p.get_process_name())
+                );
+            }
 
             if process.is_none() {
                 // We did not get a valid process, but we may have gotten a disabled
@@ -219,8 +241,13 @@ pub trait ProcessType {
     /// Context switch to a specific process.
     unsafe fn switch_to(&self) -> Option<syscall::ContextSwitchReason>;
 
-    unsafe fn fault_fmt(&self, writer: &mut dyn Write);
-    unsafe fn process_detail_fmt(&self, writer: &mut dyn Write);
+    /// Print out the memory map (Grant region, heap, stack, program
+    /// memory, BSS, and data sections) of this process.
+    unsafe fn print_memory_map(&self, writer: &mut dyn Write);
+
+    /// Print out the full state of the process: its memory map, its
+    /// context, and the state of the memory protection unit (MPU).
+    unsafe fn print_full_process(&self, writer: &mut dyn Write);
 
     // debug
 
@@ -1010,18 +1037,13 @@ impl<C: Chip> ProcessType for Process<'a, C> {
         self.debug.map(|debug| debug.syscall_count += 1);
     }
 
-    unsafe fn fault_fmt(&self, writer: &mut dyn Write) {
-        self.chip.userspace_kernel_boundary().fault_fmt(writer);
-    }
-
-    unsafe fn process_detail_fmt(&self, writer: &mut dyn Write) {
+    unsafe fn print_memory_map(&self, writer: &mut dyn Write) {
         // Flash
         let flash_end = self.flash.as_ptr().add(self.flash.len()) as usize;
         let flash_start = self.flash.as_ptr() as usize;
         let flash_protected_size = self.header.get_protected_size() as usize;
         let flash_app_start = flash_start + flash_protected_size;
         let flash_app_size = flash_end - flash_app_start;
-        let flash_init_fn = flash_start + self.header.get_init_function_offset() as usize;
 
         // SRAM addresses
         let sram_end = self.memory.as_ptr().add(self.memory.len()) as usize;
@@ -1172,8 +1194,12 @@ impl<C: Chip> ProcessType for Process<'a, C> {
             flash_protected_size,
             flash_start
         ));
+    }
 
-        self.chip.userspace_kernel_boundary().process_detail_fmt(
+    unsafe fn print_full_process(&self, writer: &mut dyn Write) {
+        self.print_memory_map(writer);
+
+        self.chip.userspace_kernel_boundary().print_context(
             self.sp(),
             &self.stored_state.get(),
             writer,
@@ -1183,6 +1209,10 @@ impl<C: Chip> ProcessType for Process<'a, C> {
         self.mpu_config.map(|config| {
             let _ = writer.write_fmt(format_args!("{}", config));
         });
+
+        let sram_start = self.memory.as_ptr() as usize;
+        let flash_start = self.flash.as_ptr() as usize;
+        let flash_init_fn = flash_start + self.header.get_init_function_offset() as usize;
 
         let _ = writer.write_fmt(format_args!(
             "\
@@ -1214,16 +1244,34 @@ impl<C: 'static + Chip> Process<'a, C> {
     ) -> (Option<&'static dyn ProcessType>, usize, usize) {
         if let Some(tbf_header) = tbfheader::parse_and_validate_tbf_header(app_flash_address) {
             let app_flash_size = tbf_header.get_total_size() as usize;
+            let process_name = tbf_header.get_package_name();
 
             // If this isn't an app (i.e. it is padding) or it is an app but it
             // isn't enabled, then we can skip it but increment past its flash.
             if !tbf_header.is_app() || !tbf_header.enabled() {
+                if config::CONFIG.debug_load_processes {
+                    if !tbf_header.is_app() {
+                        debug!(
+                            "[!] flash=[{:#010X}:{:#010X}] process={:?} - process isn't an app",
+                            app_flash_address as usize,
+                            app_flash_address as usize + app_flash_size,
+                            process_name
+                        );
+                    }
+                    if !tbf_header.enabled() {
+                        debug!(
+                            "[!] flash=[{:#010X}:{:#010X}] process={:?} - process isn't enabled",
+                            app_flash_address as usize,
+                            app_flash_address as usize + app_flash_size,
+                            process_name
+                        );
+                    }
+                }
                 return (None, app_flash_size, 0);
             }
 
             // Otherwise, actually load the app.
             let mut min_app_ram_size = tbf_header.get_minimum_app_ram_size() as usize;
-            let process_name = tbf_header.get_package_name();
             let init_fn =
                 app_flash_address.offset(tbf_header.get_init_function_offset() as isize) as usize;
 
@@ -1231,13 +1279,25 @@ impl<C: 'static + Chip> Process<'a, C> {
             let mut mpu_config: <<C as Chip>::MPU as MPU>::MpuConfig = Default::default();
 
             // Allocate MPU region for flash.
-            if let None = chip.mpu().allocate_region(
-                app_flash_address,
-                app_flash_size,
-                app_flash_size,
-                mpu::Permissions::ReadExecuteOnly,
-                &mut mpu_config,
-            ) {
+            if chip
+                .mpu()
+                .allocate_region(
+                    app_flash_address,
+                    app_flash_size,
+                    app_flash_size,
+                    mpu::Permissions::ReadExecuteOnly,
+                    &mut mpu_config,
+                )
+                .is_none()
+            {
+                if config::CONFIG.debug_load_processes {
+                    debug!(
+                        "[!] flash=[{:#010X}:{:#010X}] process={:?} - couldn't allocate flash region",
+                            app_flash_address as usize,
+                            app_flash_address as usize + app_flash_size,
+                            process_name
+                    );
+                }
                 return (None, app_flash_size, 0);
             }
 
@@ -1284,6 +1344,15 @@ impl<C: 'static + Chip> Process<'a, C> {
                 Some((memory_start, memory_size)) => (memory_start, memory_size),
                 None => {
                     // Failed to load process. Insufficient memory.
+                    if config::CONFIG.debug_load_processes {
+                        debug!(
+                            "[!] flash=[{:#010X}:{:#010X}] process={:?} - couldn't allocate memory region of size >= {:#X}",
+                            app_flash_address as usize,
+                            app_flash_address as usize + app_flash_size,
+                            process_name,
+                            min_total_memory_size
+                        );
+                    }
                     return (None, app_flash_size, 0);
                 }
             };
@@ -1365,7 +1434,7 @@ impl<C: 'static + Chip> Process<'a, C> {
                 Cell::new(None),
             ];
             process.tasks = MapCell::new(tasks);
-            process.process_name = process_name;
+            process.process_name = process_name.unwrap_or("");
 
             process.debug = MapCell::new(ProcessDebug {
                 app_heap_start_pointer: app_heap_start_pointer,
@@ -1407,6 +1476,14 @@ impl<C: 'static + Chip> Process<'a, C> {
                     process.stored_state.set(stored_state);
                 }
                 Err(_) => {
+                    if config::CONFIG.debug_load_processes {
+                        debug!(
+                            "[!] flash=[{:#010X}:{:#010X}] process={:?} - couldn't initialize process",
+                            app_flash_address as usize,
+                            app_flash_address as usize + app_flash_size,
+                            process_name
+                        );
+                    }
                     return (None, app_flash_size, 0);
                 }
             };
@@ -1418,6 +1495,12 @@ impl<C: 'static + Chip> Process<'a, C> {
                 Some(process),
                 app_flash_size,
                 memory_padding_size + memory_size,
+            );
+        }
+        if config::CONFIG.debug_load_processes {
+            debug!(
+                "[!] flash={:#010X} - not a valid TBF header",
+                app_flash_address as usize
             );
         }
         (None, 0, 0)

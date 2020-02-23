@@ -17,8 +17,6 @@
 //! ));
 //! ```
 
-#![allow(dead_code)] // Components are intended to be conditionally included
-
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;

@@ -12,8 +12,6 @@
 // Author: Brad Campbell <bradjc@virginia.edu>
 // Last modified: 11/07/2019
 
-#![allow(dead_code)] // Components are intended to be conditionally included
-
 use capsules::virtual_uart::{MuxUart, UartDevice};
 use kernel::capabilities;
 use kernel::common::ring_buffer::RingBuffer;

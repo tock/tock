@@ -114,6 +114,9 @@ static mut APP_MEMORY: [u8; 32768] = [0; 32768];
 static mut PROCESSES: [Option<&'static dyn kernel::procs::ProcessType>; NUM_PROCS] =
     [None, None, None, None];
 
+// Static reference to chip for panic dumps
+static mut CHIP: Option<&'static nrf52832::chip::Chip> = None;
+
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
 #[link_section = ".stack_buffer"]
@@ -189,6 +192,7 @@ pub unsafe fn reset_handler() {
         )
     ));
     let chip = static_init!(nrf52832::chip::Chip, nrf52832::chip::new());
+    CHIP = Some(chip);
 
     nrf52dk_base::setup_board(
         board_kernel,

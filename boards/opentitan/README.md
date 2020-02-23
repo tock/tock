@@ -12,7 +12,7 @@ You can get started with OpenTitan using either the Nexys Video FPGA board or si
 Programming
 -----------
 
-OpenTitan requires commit 12d48111539c765567467c12c6f5486ce6d1140c "[rv_plic] Work around sim/synth mismatch in Vivado" or newer.
+Tock on OpenTitan requires lowRISC/opentitan@3c5b86f1ad4077caa080b7cc19a8e1aecd23edee or newer.
 
 For more information you can follow the [OpenTitan development flow](https://docs.opentitan.org/doc/ug/getting_started_fpga/index.html#testing-the-demo-design) to flash the image.
 

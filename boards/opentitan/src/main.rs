@@ -15,6 +15,9 @@ use kernel::Platform;
 use kernel::{create_capability, debug, static_init};
 use rv32i::csr;
 
+#[allow(dead_code)]
+mod aes_test;
+
 pub mod io;
 //
 // Actual memory for holding the active process structures. Need an empty list
@@ -22,12 +25,14 @@ pub mod io;
 static mut PROCESSES: [Option<&'static dyn kernel::procs::ProcessType>; 4] =
     [None, None, None, None];
 
+static mut CHIP: Option<&'static ibex::chip::Ibex> = None;
+
 // How should the kernel respond when a process faults.
 const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultResponse::Panic;
 
 // RAM to be shared by all application processes.
 #[link_section = ".app_memory"]
-static mut APP_MEMORY: [u8; 8192] = [0; 8192];
+static mut APP_MEMORY: [u8; 16384] = [0; 16384];
 
 // Force the emission of the `.apps` segment in the kernel elf image
 // NOTE: This will cause the kernel to overwrite any existing apps when flashed!
@@ -43,10 +48,15 @@ pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 /// A structure representing this platform that holds references to all
 /// capsules for this platform. We've included an alarm and console.
 struct OpenTitan {
+    led: &'static capsules::led::LED<'static>,
     console: &'static capsules::console::Console<'static>,
     alarm: &'static capsules::alarm::AlarmDriver<
         'static,
         VirtualMuxAlarm<'static, ibex::timer::RvTimer<'static>>,
+    >,
+    lldb: &'static capsules::low_level_debug::LowLevelDebug<
+        'static,
+        capsules::virtual_uart::UartDevice<'static>,
     >,
 }
 
@@ -57,8 +67,10 @@ impl Platform for OpenTitan {
         F: FnOnce(Option<&dyn kernel::Driver>) -> R,
     {
         match driver_num {
+            capsules::led::DRIVER_NUM => f(Some(self.led)),
             capsules::console::DRIVER_NUM => f(Some(self.console)),
             capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
+            capsules::low_level_debug::DRIVER_NUM => f(Some(self.lldb)),
             _ => f(None),
         }
     }
@@ -99,6 +111,7 @@ pub unsafe fn reset_handler() {
     );
 
     let chip = static_init!(ibex::chip::Ibex, ibex::chip::Ibex::new());
+    CHIP = Some(chip);
 
     // Need to enable all interrupts for Tock Kernel
     chip.enable_plic_interrupts();
@@ -116,15 +129,42 @@ pub unsafe fn reset_handler() {
     )
     .finalize(());
 
-    // Initialise the three GPIOs which are useful for debugging.
-    hil::gpio::Pin::make_output(&ibex::gpio::PORT[8]);
-    hil::gpio::Pin::set(&ibex::gpio::PORT[8]);
-
-    hil::gpio::Pin::make_output(&ibex::gpio::PORT[9]);
-    hil::gpio::Pin::set(&ibex::gpio::PORT[9]);
-
-    hil::gpio::Pin::make_output(&ibex::gpio::PORT[10]);
-    hil::gpio::Pin::set(&ibex::gpio::PORT[10]);
+    // LEDs
+    // Start with half on and half off
+    let led = components::led::LedsComponent::new().finalize(components::led_component_helper!(
+        (
+            &ibex::gpio::PORT[7],
+            capsules::led::ActivationMode::ActiveLow
+        ),
+        (
+            &ibex::gpio::PORT[8],
+            capsules::led::ActivationMode::ActiveLow
+        ),
+        (
+            &ibex::gpio::PORT[9],
+            capsules::led::ActivationMode::ActiveLow
+        ),
+        (
+            &ibex::gpio::PORT[10],
+            capsules::led::ActivationMode::ActiveLow
+        ),
+        (
+            &ibex::gpio::PORT[11],
+            capsules::led::ActivationMode::ActiveHigh
+        ),
+        (
+            &ibex::gpio::PORT[12],
+            capsules::led::ActivationMode::ActiveHigh
+        ),
+        (
+            &ibex::gpio::PORT[13],
+            capsules::led::ActivationMode::ActiveHigh
+        ),
+        (
+            &ibex::gpio::PORT[14],
+            capsules::led::ActivationMode::ActiveHigh
+        )
+    ));
 
     let alarm = &ibex::timer::TIMER;
     alarm.setup();
@@ -156,6 +196,9 @@ pub unsafe fn reset_handler() {
     // Create the debugger object that handles calls to `debug!()`.
     components::debug_writer::DebugWriterComponent::new(uart_mux).finalize(());
 
+    let lldb = components::lldb::LowLevelDebugComponent::new(board_kernel, uart_mux).finalize(());
+
+    aes_test::run_aes128_ecb();
     debug!("OpenTitan initialisation complete. Entering main loop");
 
     extern "C" {
@@ -166,8 +209,10 @@ pub unsafe fn reset_handler() {
     }
 
     let opentitan = OpenTitan {
+        led: led,
         console: console,
         alarm: alarm,
+        lldb: lldb,
     };
 
     kernel::procs::load_processes(
@@ -179,9 +224,6 @@ pub unsafe fn reset_handler() {
         FAULT_RESPONSE,
         &process_mgmt_cap,
     );
-
-    // Turn off the fourth GPIO so we know we got here
-    hil::gpio::Pin::clear(&ibex::gpio::PORT[10]);
 
     board_kernel.kernel_loop(&opentitan, chip, None, &main_loop_cap);
 }

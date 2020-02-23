@@ -1,6 +1,7 @@
 use crate::deferred_call_tasks::DeferredCallTask;
 use crate::interrupt_service::InterruptService;
 use crate::nvmc;
+use core::fmt::Write;
 use cortexm4::{self, nvic};
 use kernel::common::deferred_call;
 use kernel::debug;
@@ -78,5 +79,9 @@ impl<I: InterruptService> kernel::Chip for NRF52<I> {
         F: FnOnce() -> R,
     {
         cortexm4::support::atomic(f)
+    }
+
+    unsafe fn print_state(&self, write: &mut dyn Write) {
+        cortexm4::print_cortexm4_state(write);
     }
 }

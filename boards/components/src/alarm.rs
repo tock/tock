@@ -18,8 +18,6 @@
 // Author: Philip Levis <pal@cs.stanford.edu>
 // Last modified: 12/21/2019
 
-#![allow(dead_code)] // Components are intended to be conditionally included
-
 use core::mem::MaybeUninit;
 
 use capsules::alarm::AlarmDriver;
