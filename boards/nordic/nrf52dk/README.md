@@ -38,7 +38,7 @@ You can program an application via JTAG and there are two ways to do so:
 The same options (`--jlink --board nrf52dk`) must be passed for other tockloader commands
 such as `erase-apps` or `list`.
 
-Viewing console output on the nrf52840dk is slightly different from other boards. You must use
+Viewing console output on the nrf52dk is slightly different from other boards. You must use
 ```bash
 $ tockloader listen
 ```
