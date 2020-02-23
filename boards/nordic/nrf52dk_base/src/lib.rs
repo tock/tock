@@ -6,19 +6,17 @@
 use kernel::{create_capability, debug, debug_gpio, debug_verbose, static_init};
 
 use capsules::analog_comparator;
-use capsules::lora::radio::{DRIVER_NUM, Radio};
 use capsules::virtual_alarm::VirtualMuxAlarm;
 use capsules::virtual_spi::{MuxSpiMaster, VirtualSpiMasterDevice};
 use kernel::capabilities;
 use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::component::Component;
 use kernel::hil;
-use kernel::hil::spi;
 use nrf52::gpio::{GPIOPin, Pin};
 use nrf52::rtc::Rtc;
 use nrf52::uicr::Regulator0Output;
 
-use components::spi::{SpiComponent, SpiSyscallComponent};
+use components::spi::SpiComponent;
 pub mod nrf52_components;
 use nrf52_components::ble::BLEComponent;
 use nrf52_components::ieee802154::Ieee802154Component;
@@ -69,11 +67,20 @@ pub struct UartPins {
     rxd: Pin,
 }
 
-/// Pins for the LoRa Module
-pub struct LoRaPins {
+/// Pins for the Lora Module
+pub struct LoraPins {
     chip_select: &'static GPIOPin,
     reset: &'static GPIOPin,
     interrupt: &'static GPIOPin,
+}
+impl LoraPins {
+    pub fn new(
+    chip_select: &'static GPIOPin,
+    reset: &'static GPIOPin,
+    interrupt: &'static GPIOPin,
+) -> Self {
+        Self { chip_select, reset, interrupt }
+    }
 }
 
 impl UartPins {
@@ -90,7 +97,7 @@ pub struct Platform {
         VirtualMuxAlarm<'static, Rtc<'static>>,
     >,
     ieee802154_radio: Option<&'static capsules::ieee802154::RadioDriver<'static>>,
-    lora_radio: Option<&'static capsules::lora::radio::RadioDriver<'static, VirtualSpiMasterDevice<'static, nrf52::spi::SPIM>>>,
+    lora_radio: Option<&'static capsules::lora::driver::RadioDriver<'static, VirtualSpiMasterDevice<'static, nrf52::spi::SPIM>>>,
     button: &'static capsules::button::Button<'static>,
     pconsole: &'static capsules::process_console::ProcessConsole<
         'static,
@@ -130,10 +137,11 @@ impl kernel::Platform for Platform {
                 Some(radio) => f(Some(radio)),
                 None => f(None),
             },
-            DRIVER_NUM => match self.lora_radio {
-                Some(lora) => f(Some(lora)),
+            capsules::lora::driver::DRIVER_NUM => match self.lora_radio {
+                Some(radio) => f(Some(radio)),
                 None => f(None),
             },
+
             capsules::temperature::DRIVER_NUM => f(Some(self.temp)),
             capsules::analog_comparator::DRIVER_NUM => f(Some(self.analog_comparator)),
             capsules::nonvolatile_storage_driver::DRIVER_NUM => {
@@ -161,7 +169,7 @@ pub unsafe fn setup_board<I: nrf52::interrupt_service::InterruptService>(
     mx25r6435f: &Option<SpiMX25R6435FPins>,
     button: &'static capsules::button::Button<'static>,
     ieee802154: bool,
-    lora_pins: &Option<LoRaPins>,
+    lora_pins: &Option<LoraPins>,
     app_memory: &mut [u8],
     process_pointers: &'static mut [Option<&'static dyn kernel::procs::ProcessType>],
     app_fault_response: kernel::procs::FaultResponse,
@@ -325,24 +333,23 @@ pub unsafe fn setup_board<I: nrf52::interrupt_service::InterruptService>(
     );
 
     let lora_radio = if let Some(pins) = lora_pins {
-        let lora_spi = SpiComponent::new(mux_spi, pins.chip_select) //Bad syntax
-            .finalize(components::spi_component_helper!(nrf52::spi::SPIM));
+      let lora_spi = SpiComponent::new(mux_spi, pins.chip_select)
+          .finalize(components::spi_component_helper!(nrf52::spi::SPIM));
 
-        let RADIO: Radio<'static, VirtualSpiMasterDevice<'static, nrf52::spi::SPIM>> = Radio::new(
-            &lora_spi,
-            pins.reset, //spi_pins.mosi, // reset
-            pins.interrupt, //spi_pins.miso, // irq
-        );
-        let (radio,) = LoraComponent::new(
-            board_kernel,
-            &RADIO,
-        )
-        .finalize(());
-        Some(radio)
+      let RADIO = static_init!(capsules::lora::radio::Radio<'static, VirtualSpiMasterDevice<'static, nrf52::spi::SPIM>>, capsules::lora::radio::Radio::new(
+        &lora_spi,
+        pins.reset,
+        pins.interrupt,
+      ));
+      let (radio,) = LoraComponent::new(
+        board_kernel,
+        RADIO,
+      )
+      .finalize(());
+      Some(radio)
     } else {
         None
     };
-
 
     let nonvolatile_storage: Option<
         &'static capsules::nonvolatile_storage_driver::NonvolatileStorage<'static>,

@@ -2,11 +2,8 @@
 use core::cell::Cell;
 use kernel::common::cells::{TakeCell};
 use kernel::hil::gpio;
-use kernel::hil::spi;
-use kernel::{AppId, Callback, Driver, Grant, ReturnCode};
-
-use crate::driver;
-pub const DRIVER_NUM: usize = driver::NUM::Lora as usize;
+use kernel::hil::spi::{SpiMasterDevice};
+use kernel::ReturnCode;
 
 // registers
 enum InternalState {
@@ -74,7 +71,7 @@ const PaBoost: u8           = 0x80;
 const MaxPktLength: u8      = 255;
 
 // The modem
-pub struct Radio<'a, S: spi::SpiMasterDevice> {
+pub struct Radio<'a, S: SpiMasterDevice> {
   spi: &'a S,
   spi_rx: TakeCell<'static, [u8]>,
   spi_tx: TakeCell<'static, [u8]>,
@@ -95,7 +92,7 @@ pub struct Radio<'a, S: spi::SpiMasterDevice> {
   rx_done: bool,
 }
 
-impl<S: spi::SpiMasterDevice> Radio<'a, S> {
+impl<S: SpiMasterDevice> Radio<'a, S> {
     pub fn new(
         spi: &'a S,
         //ss: &'a dyn gpio::Pin,
@@ -206,7 +203,7 @@ impl<S: spi::SpiMasterDevice> Radio<'a, S> {
   //
   // Packet functions
   //
-  fn beginPacket(&mut self, implicitHeader: bool) -> ReturnCode {
+  pub fn beginPacket(&self, implicitHeader: bool) -> ReturnCode {
     if self.isTransmitting() {
       return ReturnCode::SUCCESS;
     }
@@ -214,9 +211,9 @@ impl<S: spi::SpiMasterDevice> Radio<'a, S> {
     self.idle();
   
     if implicitHeader {
-      self.implicitHeaderMode();
+      //self.implicitHeaderMode();
     } else {
-      self.explicitHeaderMode();
+      //self.explicitHeaderMode();
     }
   
     // reset Fifo address and paload length
@@ -245,7 +242,7 @@ impl<S: spi::SpiMasterDevice> Radio<'a, S> {
     ReturnCode::SUCCESS
   }
 
-  fn isTransmitting(&mut self) -> bool {
+  fn isTransmitting(&self) -> bool {
     if (self.register_return(RegMap::RegOpMode) & Mode::ModeTx as u8) == Mode::ModeTx as u8 {
       return true;
     }
@@ -670,60 +667,4 @@ impl<S: spi::SpiMasterDevice> Radio<'a, S> {
     }
   }
 }
-
-//
-// DRIVER
-//
-
-pub struct App {
-  callback: Option<Callback>,
-}
-
-pub struct RadioDriver<'a, S: spi::SpiMasterDevice> {
-  /// Underlying physical device
-  device: &'a Radio<'a, S>,
-
-  /// Grant of apps that use this radio driver.
-  apps: Grant<App>,
-}
-
-impl Default for App {
-    fn default() -> Self {
-        App {
-            callback: None,
-        }
-    }
-}
-
-impl<S: spi::SpiMasterDevice> RadioDriver<'a, S> {
-    pub fn new(
-      device: &'a Radio<'a, S>,
-      grant: Grant<App>,
-    ) -> RadioDriver<'a, S> {
-      RadioDriver {
-        device: device,
-        apps: grant,
-    }
-  }
-}
-
-
-impl<S: spi::SpiMasterDevice> Driver for RadioDriver<'a, S> {
-  /// Command interface.
-  ///
-  /// ### `command_num`
-  ///
-  /// - `0`: Return SUCCESS if this driver is included on the platform.
-  /// - `1`: Start the radio.
-  fn command(&self, command_num: usize, arg1: usize, _: usize, appid: AppId) -> ReturnCode {
-    match command_num {
-      0 => ReturnCode::SUCCESS,
-
-      1 => self.device.begin(0),
-
-      _ => ReturnCode::ENOSUPPORT,
-    }
-  }
-}
-
 

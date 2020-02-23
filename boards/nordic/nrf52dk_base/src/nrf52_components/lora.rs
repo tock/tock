@@ -4,7 +4,8 @@ use kernel::component::Component;
 use kernel::capabilities;
 use kernel::{create_capability, static_init};
 
-use capsules::lora::radio::{Radio, RadioDriver};
+use capsules::lora::radio::{Radio};
+use capsules::lora::driver::{RadioDriver};
 
 pub struct LoraComponent {
     board_kernel: &'static kernel::Kernel,
@@ -33,6 +34,7 @@ impl Component for LoraComponent {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
         self.radio.begin(865000000);
+        self.radio.beginPacket(true);
 
         let radio_driver = static_init!(
             RadioDriver<'static, VirtualSpiMasterDevice<'static, nrf52::spi::SPIM>>,
