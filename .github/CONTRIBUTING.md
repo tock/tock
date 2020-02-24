@@ -169,7 +169,7 @@ $ git rebase upstream/master
 $ git push origin my-branch
 ```
 
-Go to https://github.com/<yourusername>/tock and select your branch.
+Go to `https://github.com/<yourusername>/tock` and select your branch.
 Click the 'Pull Request' button and fill out the form.
 
 ### Step 6: Discuss and update
