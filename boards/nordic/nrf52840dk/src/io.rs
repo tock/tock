@@ -19,7 +19,7 @@ static mut WRITER: Writer = Writer::WriterUart(false);
 fn wait() {
     let mut x = 0;
     for i in 0..5000 {
-        unsafe { core::ptr::write_volatile(&mut x as *mut _, i) };
+        cortexm4::support::nop();
     }
 }
 

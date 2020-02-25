@@ -112,6 +112,7 @@ pub struct SeggerRttMemory<'a> {
     id: VolatileCell<[u8; 16]>,
     number_up_buffers: VolatileCell<u32>,
     number_down_buffers: VolatileCell<u32>,
+    // marked `pub` to allow access in panic handler
     pub up_buffer: SeggerRttBuffer<'a>,
     down_buffer: SeggerRttBuffer<'a>,
 }

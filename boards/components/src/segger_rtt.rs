@@ -3,7 +3,7 @@
 //! This provides two `Component`s:
 //! - `SeggerRttMemoryComponent`, which creates suitable memory for the Segger
 //!   RTT capsule.
-//! - `SeggerRttComponent`, which instanciates the Segger RTT capsule.
+//! - `SeggerRttComponent`, which instantiates the Segger RTT capsule.
 //!
 //! Usage
 //! -----
