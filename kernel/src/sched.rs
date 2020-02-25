@@ -245,7 +245,6 @@ impl Kernel {
         process: &dyn process::ProcessType,
         ipc: Option<&crate::ipc::IPC>,
     ) {
-        let appid = process.appid();
         let systick = chip.systick();
         systick.reset();
         systick.set_timer(KERNEL_TICK_DURATION_US);
@@ -290,7 +289,7 @@ impl Kernel {
                                     if config::CONFIG.trace_syscalls {
                                         debug!(
                                             "[{:?}] memop({}, {:#x}) = {:#x} = {:?}",
-                                            appid,
+                                            process.appid(),
                                             operand,
                                             arg0,
                                             usize::from(res),
@@ -301,7 +300,7 @@ impl Kernel {
                                 }
                                 Syscall::YIELD => {
                                     if config::CONFIG.trace_syscalls {
-                                        debug!("[{:?}] yield", appid);
+                                        debug!("[{:?}] yield", process.appid());
                                     }
                                     process.set_yielded_state();
 
@@ -321,23 +320,30 @@ impl Kernel {
                                     process.remove_pending_callbacks(callback_id);
 
                                     let callback = NonNull::new(callback_ptr).map(|ptr| {
-                                        Callback::new(appid, callback_id, appdata, ptr.cast())
+                                        Callback::new(
+                                            process.appid(),
+                                            callback_id,
+                                            appdata,
+                                            ptr.cast(),
+                                        )
                                     });
 
                                     let res =
                                         platform.with_driver(
                                             driver_number,
                                             |driver| match driver {
-                                                Some(d) => {
-                                                    d.subscribe(subdriver_number, callback, appid)
-                                                }
+                                                Some(d) => d.subscribe(
+                                                    subdriver_number,
+                                                    callback,
+                                                    process.appid(),
+                                                ),
                                                 None => ReturnCode::ENODEVICE,
                                             },
                                         );
                                     if config::CONFIG.trace_syscalls {
                                         debug!(
                                             "[{:?}] subscribe({:#x}, {}, @{:#x}, {:#x}) = {:#x} = {:?}",
-                                            appid,
+                                            process.appid(),
                                             driver_number,
                                             subdriver_number,
                                             callback_ptr as usize,
@@ -358,16 +364,19 @@ impl Kernel {
                                         platform.with_driver(
                                             driver_number,
                                             |driver| match driver {
-                                                Some(d) => {
-                                                    d.command(subdriver_number, arg0, arg1, appid)
-                                                }
+                                                Some(d) => d.command(
+                                                    subdriver_number,
+                                                    arg0,
+                                                    arg1,
+                                                    process.appid(),
+                                                ),
                                                 None => ReturnCode::ENODEVICE,
                                             },
                                         );
                                     if config::CONFIG.trace_syscalls {
                                         debug!(
                                             "[{:?}] cmd({:#x}, {}, {:#x}, {:#x}) = {:#x} = {:?}",
-                                            appid,
+                                            process.appid(),
                                             driver_number,
                                             subdriver_number,
                                             arg0,
@@ -388,9 +397,11 @@ impl Kernel {
                                         match driver {
                                             Some(d) => {
                                                 match process.allow(allow_address, allow_size) {
-                                                    Ok(oslice) => {
-                                                        d.allow(appid, subdriver_number, oslice)
-                                                    }
+                                                    Ok(oslice) => d.allow(
+                                                        process.appid(),
+                                                        subdriver_number,
+                                                        oslice,
+                                                    ),
                                                     Err(err) => err, /* memory not valid */
                                                 }
                                             }
@@ -400,7 +411,7 @@ impl Kernel {
                                     if config::CONFIG.trace_syscalls {
                                         debug!(
                                             "[{:?}] allow({:#x}, {}, @{:#x}, {:#x}) = {:#x} = {:?}",
-                                            appid,
+                                            process.appid(),
                                             driver_number,
                                             subdriver_number,
                                             allow_address as usize,
@@ -440,7 +451,7 @@ impl Kernel {
                             if config::CONFIG.trace_syscalls {
                                 debug!(
                                     "[{:?}] function_call @{:#x}({:#x}, {:#x}, {:#x}, {:#x})",
-                                    appid,
+                                    process.appid(),
                                     ccb.pc,
                                     ccb.argument0,
                                     ccb.argument1,
@@ -459,7 +470,7 @@ impl Kernel {
                                     );
                                 },
                                 |ipc| {
-                                    ipc.schedule_callback(appid, otherapp, ipc_type);
+                                    ipc.schedule_callback(process.appid(), otherapp, ipc_type);
                                 },
                             );
                         }
