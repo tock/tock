@@ -66,7 +66,7 @@ pub struct AppId {
 
 impl PartialEq for AppId {
     fn eq(&self, other: &AppId) -> bool {
-        self.index == other.index && self.identifier == other.identifier
+        self.identifier == other.identifier
     }
 }
 
