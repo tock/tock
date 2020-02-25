@@ -10,8 +10,6 @@
 //! let (ieee802154_radio, _) = Ieee802154Component::new(board_kernel, &nrf52::ieee802154_radio::RADIO, PAN_ID, SRC_MAC).finalize();
 //! ```
 
-#![allow(dead_code)] // Components are intended to be conditionally included
-
 use capsules;
 use capsules::ieee802154::device::MacDevice;
 use capsules::ieee802154::mac::{AwakeMac, Mac};
