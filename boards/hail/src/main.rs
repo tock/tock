@@ -240,9 +240,12 @@ pub unsafe fn reset_handler() {
     sam4l::usart::USART3.set_mode(sam4l::usart::UsartMode::Uart);
     // Create the Nrf51822Serialization driver for passing BLE commands
     // over UART to the nRF51822 radio.
-    let nrf_serialization =
-        components::nrf51822::Nrf51822Component::new(&sam4l::usart::USART3, &sam4l::gpio::PA[17])
-            .finalize(());
+    let nrf_serialization = components::nrf51822::Nrf51822Component::new(
+        &sam4l::usart::USART3,
+        &sam4l::gpio::PA[17],
+        board_kernel,
+    )
+    .finalize(());
 
     let ast = &sam4l::ast::AST;
     let mux_alarm = components::alarm::AlarmMuxComponent::new(ast)
@@ -409,8 +412,7 @@ pub unsafe fn reset_handler() {
         dac: dac,
     };
 
-    // Reset the nRF and setup the UART bus.
-    hail.nrf51822.reset();
+    // Setup the UART bus for nRF51 serialization..
     hail.nrf51822.initialize();
 
     process_console.start();
