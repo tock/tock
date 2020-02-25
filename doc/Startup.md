@@ -8,9 +8,12 @@ This document walks through how all of the components of Tock start up.
 <!-- toc -->
 
 - [Optional Bootloader](#optional-bootloader)
-- [Tock Vector Table and IRQ table](#tock-vector-table-and-irq-table)
+- [Tock first instructions](#tock-first-instructions)
+  * [ARM Vector Table and IRQ table](#arm-vector-table-and-irq-table)
+  * [RISC-V](#risc-v)
 - [Reset Handler](#reset-handler)
   * [Memory Initialization](#memory-initialization)
+  * [RISC-V Trap setup](#risc-v-trap-setup)
   * [MCU Setup](#mcu-setup)
   * [Peripheral and Capsule Initialization](#peripheral-and-capsule-initialization)
 - [Application Startup](#application-startup)
@@ -26,6 +29,12 @@ thus it is placed in a special section for linking.
 Cortex-M microcontrollers expect a vector table to be at address 0x00000000.
 This can either be a software bootloader or the Tock kernel itself.
 
+RISC-V gives hardware designers a great deal of design freedom for how
+booting works. Typically, after coming out of reset, a RISC-V processor
+will start executing out of ROM but this may be configurable. The HiFive1
+board, for example, supports booting out ROM, One-Time programmable (OTP)
+memory or a QSPI flash controller.
+
 ## Optional Bootloader
 
 Many Tock boards (including Hail and imix) use a software bootloader that
@@ -35,11 +44,13 @@ administrative tasks. When the bootloader has finished, it tells the MCU that
 the vector table has moved (to a known address), and then jumps to a new
 address.
 
-## Tock Vector Table and IRQ table
+## Tock first instructions
 
-Tock splits the vector table into two sections, `.vectors` which hold the first
-16 entries, common to all ARM cores, and `.irqs`, which is appended to the end
-and holds chip-specific interrupts.
+### ARM Vector Table and IRQ table
+
+On ARM chips, Tock splits the vector table into two sections, `.vectors` which
+hold the first 16 entries, common to all ARM cores, and `.irqs`, which is
+appended to the end and holds chip-specific interrupts.
 
 In the source code then, the vector table will appear as an array that is
 marked to be placed into the `.vectors` section.
@@ -74,6 +85,23 @@ At the time of this writing (November 2018), typical chips (like the `sam4l` and
 pub static IRQS: [unsafe extern "C" fn(); 80] = [generic_isr; 80];
 ```
 
+### RISC-V
+
+All RISC-V boards are linked to run the `_start` function as the first
+function that gets run before jumping to `reset_handler`. This is currently
+inline assembly as of this writing:
+
+```rust
+#[cfg(all(target_arch = "riscv32", target_os = "none"))]
+#[link_section = ".riscv.start"]
+#[export_name = "_start"]
+#[naked]
+pub extern "C" fn _start() {
+    unsafe {
+        asm! ("
+
+```
+
 ## Reset Handler
 
 On boot, the MCU calls the reset handler function defined in vector
@@ -86,6 +114,12 @@ board.
 The first operation the reset handler does is setup the kernel's memory by
 copying it from flash. For the SAM4L, this is in the `init()` function in
 `chips/sam4l/src/lib.rs`.
+
+### RISC-V Trap setup
+
+The `mtvec` register needs to be set on RISC-V to handle traps. Setting
+of the vectors is handled by chip specific functions. The common RISC-V trap
+handler is `_start_trap`, defined in `arch/rv32i/src/lib.rs`. 
 
 ### MCU Setup
 

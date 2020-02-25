@@ -18,8 +18,6 @@
 // Author: Philip Levis <pal@cs.stanford.edu>
 // Last modified: 6/20/2018
 
-#![allow(dead_code)] // Components are intended to be conditionally included
-
 use core::mem::MaybeUninit;
 
 use capsules::humidity::HumiditySensor;

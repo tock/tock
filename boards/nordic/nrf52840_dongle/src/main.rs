@@ -49,6 +49,9 @@ static mut APP_MEMORY: [u8; 0x3C000] = [0; 0x3C000];
 static mut PROCESSES: [Option<&'static dyn kernel::procs::ProcessType>; NUM_PROCS] =
     [None, None, None, None, None, None, None, None];
 
+// Static reference to chip for panic dumps
+static mut CHIP: Option<&'static nrf52840::chip::Chip> = None;
+
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
 #[link_section = ".stack_buffer"]
@@ -96,7 +99,8 @@ pub unsafe fn reset_handler() {
     let button = components::button::ButtonComponent::new(board_kernel).finalize(
         components::button_component_helper!((
             &nrf52840::gpio::PORT[BUTTON_PIN],
-            capsules::button::GpioMode::LowWhenPressed
+            capsules::button::GpioMode::LowWhenPressed,
+            kernel::hil::gpio::FloatingState::PullUp
         )),
     );
 
@@ -119,6 +123,7 @@ pub unsafe fn reset_handler() {
         )
     ));
     let chip = static_init!(nrf52840::chip::Chip, nrf52840::chip::new());
+    CHIP = Some(chip);
 
     nrf52dk_base::setup_board(
         board_kernel,

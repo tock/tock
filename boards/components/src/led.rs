@@ -10,8 +10,6 @@
 //! ));
 //! ```
 
-#![allow(dead_code)] // Components are intended to be conditionally included
-
 use capsules;
 use kernel::component::Component;
 use kernel::static_init;

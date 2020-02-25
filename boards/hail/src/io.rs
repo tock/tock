@@ -7,6 +7,7 @@ use kernel::debug::IoWrite;
 use kernel::hil::led;
 use kernel::hil::uart::{self, Configure};
 
+use crate::CHIP;
 use crate::PROCESSES;
 
 struct Writer {
@@ -66,5 +67,6 @@ pub unsafe extern "C" fn panic_fmt(pi: &PanicInfo) -> ! {
         pi,
         &cortexm4::support::nop,
         &PROCESSES,
+        &CHIP,
     )
 }

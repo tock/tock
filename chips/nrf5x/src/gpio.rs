@@ -8,7 +8,7 @@ use core::ops::{Index, IndexMut};
 use enum_primitive::cast::FromPrimitive;
 use enum_primitive::enum_from_primitive;
 use kernel::common::cells::OptionalCell;
-use kernel::common::registers::{register_bitfields, FieldValue, ReadWrite};
+use kernel::common::registers::{register_bitfields, ReadWrite};
 use kernel::common::StaticRef;
 use kernel::debug;
 use kernel::hil;
@@ -376,31 +376,24 @@ impl GPIOPin {
             gpiote_registers: GPIOTE_BASE,
         }
     }
-
-    pub fn write_config(&self, config: FieldValue<u32, PinConfig::Register>) {
-        let gpio_regs = &*self.gpio_registers;
-        gpio_regs.pin_cnf[self.pin as usize].write(config);
-    }
-
-    pub fn read_config(&self) -> Option<PinConfig::PULL::Value> {
-        let gpio_regs = &*self.gpio_registers;
-        gpio_regs.pin_cnf[self.pin as usize].read_as_enum(PinConfig::PULL)
-    }
 }
 
 impl hil::gpio::Configure for GPIOPin {
     fn set_floating_state(&self, mode: hil::gpio::FloatingState) {
+        let gpio_regs = &*self.gpio_registers;
         let pin_config = match mode {
             hil::gpio::FloatingState::PullUp => PinConfig::PULL::Pullup,
             hil::gpio::FloatingState::PullDown => PinConfig::PULL::Pulldown,
             hil::gpio::FloatingState::PullNone => PinConfig::PULL::Disabled,
         };
-        self.write_config(pin_config);
+        // PIN_CNF also holds the direction and the pin driving mode, settings we don't
+        // want to overwrite!
+        gpio_regs.pin_cnf[self.pin as usize].modify(pin_config);
     }
 
     fn floating_state(&self) -> hil::gpio::FloatingState {
-        let pin_config = self.read_config();
-        match pin_config {
+        let gpio_regs = &*self.gpio_registers;
+        match gpio_regs.pin_cnf[self.pin as usize].read_as_enum(PinConfig::PULL) {
             Some(PinConfig::PULL::Value::Pullup) => hil::gpio::FloatingState::PullUp,
             Some(PinConfig::PULL::Value::Pulldown) => hil::gpio::FloatingState::PullDown,
             Some(PinConfig::PULL::Value::Disabled) => hil::gpio::FloatingState::PullNone,
@@ -410,7 +403,7 @@ impl hil::gpio::Configure for GPIOPin {
 
     fn make_output(&self) -> hil::gpio::Configuration {
         let gpio_regs = &*self.gpio_registers;
-        gpio_regs.dirset.set(1 << self.pin);
+        gpio_regs.pin_cnf[self.pin as usize].modify(PinConfig::DIR::Output);
         hil::gpio::Configuration::Output
     }
 
@@ -418,11 +411,10 @@ impl hil::gpio::Configure for GPIOPin {
         self.make_input()
     }
 
-    // Configuration constants stolen from
-    // mynewt/hw/mcu/nordic/nrf51xxx/include/mcu/nrf51_bitfields.h
     fn make_input(&self) -> hil::gpio::Configuration {
         let gpio_regs = &*self.gpio_registers;
-        gpio_regs.dirclr.set(1 << self.pin);
+        gpio_regs.pin_cnf[self.pin as usize]
+            .modify(PinConfig::DIR::Input + PinConfig::INPUT::Connect);
         hil::gpio::Configuration::Input
     }
 
@@ -435,15 +427,25 @@ impl hil::gpio::Configure for GPIOPin {
 
     fn configuration(&self) -> hil::gpio::Configuration {
         let gpio_regs = &*self.gpio_registers;
-        if gpio_regs.dirclr.get() & 1 << self.pin == 0 {
-            hil::gpio::Configuration::Input
-        } else {
-            hil::gpio::Configuration::Output
+        let dir = gpio_regs.pin_cnf[self.pin as usize].read_as_enum(PinConfig::DIR);
+        let connected = gpio_regs.pin_cnf[self.pin as usize].read_as_enum(PinConfig::INPUT);
+        match (dir, connected) {
+            (Some(PinConfig::DIR::Value::Input), Some(PinConfig::INPUT::Value::Connect)) => {
+                hil::gpio::Configuration::Input
+            }
+            (Some(PinConfig::DIR::Value::Input), Some(PinConfig::INPUT::Value::Disconnect)) => {
+                hil::gpio::Configuration::LowPower
+            }
+            (Some(PinConfig::DIR::Value::Output), _) => hil::gpio::Configuration::Output,
+            _ => hil::gpio::Configuration::Other,
         }
     }
 
     fn deactivate_to_low_power(&self) {
-        GPIOPin::set_floating_state(self, hil::gpio::FloatingState::PullNone);
+        let gpio_regs = &*self.gpio_registers;
+        gpio_regs.pin_cnf[self.pin as usize].write(
+            PinConfig::DIR::Input + PinConfig::INPUT::Disconnect + PinConfig::PULL::Disabled,
+        );
     }
 }
 

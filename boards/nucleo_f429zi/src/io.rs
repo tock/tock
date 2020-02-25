@@ -12,6 +12,7 @@ use kernel::hil::uart::Configure;
 use stm32f4xx;
 use stm32f4xx::gpio::PinId;
 
+use crate::CHIP;
 use crate::PROCESSES;
 
 /// Writer is used by kernel::debug to panic message to the serial port.
@@ -74,6 +75,7 @@ pub unsafe extern "C" fn panic_fmt(info: &PanicInfo) -> ! {
             info,
             &cortexm4::support::nop,
             &PROCESSES,
+            &CHIP,
         )
     });
 

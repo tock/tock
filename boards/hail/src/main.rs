@@ -41,6 +41,7 @@ static mut APP_MEMORY: [u8; 49152] = [0; 49152];
 // Actual memory for holding the active process structures.
 static mut PROCESSES: [Option<&'static dyn kernel::procs::ProcessType>; NUM_PROCS] =
     [None; NUM_PROCS];
+static mut CHIP: Option<&'static sam4l::chip::Sam4l> = None;
 
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
@@ -203,6 +204,7 @@ pub unsafe fn reset_handler() {
     );
 
     let chip = static_init!(sam4l::chip::Sam4l, sam4l::chip::Sam4l::new());
+    CHIP = Some(&chip);
 
     let dynamic_deferred_call_clients =
         static_init!([DynamicDeferredCallClientState; 2], Default::default());
@@ -238,9 +240,12 @@ pub unsafe fn reset_handler() {
     sam4l::usart::USART3.set_mode(sam4l::usart::UsartMode::Uart);
     // Create the Nrf51822Serialization driver for passing BLE commands
     // over UART to the nRF51822 radio.
-    let nrf_serialization =
-        components::nrf51822::Nrf51822Component::new(&sam4l::usart::USART3, &sam4l::gpio::PA[17])
-            .finalize(());
+    let nrf_serialization = components::nrf51822::Nrf51822Component::new(
+        &sam4l::usart::USART3,
+        &sam4l::gpio::PA[17],
+        board_kernel,
+    )
+    .finalize(());
 
     let ast = &sam4l::ast::AST;
     let mux_alarm = components::alarm::AlarmMuxComponent::new(ast)
@@ -315,7 +320,8 @@ pub unsafe fn reset_handler() {
     let button = components::button::ButtonComponent::new(board_kernel).finalize(
         components::button_component_helper!((
             &sam4l::gpio::PA[16],
-            capsules::button::GpioMode::LowWhenPressed
+            capsules::button::GpioMode::LowWhenPressed,
+            kernel::hil::gpio::FloatingState::PullNone
         )),
     );
 
@@ -377,8 +383,6 @@ pub unsafe fn reset_handler() {
     // unsafe impl capabilities::ProcessManagementCapability for ProcessMgmtCap {}
     // let debug_process_restart = static_init!(
     //     capsules::debug_process_restart::DebugProcessRestart<
-    //         'static,
-    //         sam4l::gpio::GPIOPin,
     //         ProcessMgmtCap,
     //     >,
     //     capsules::debug_process_restart::DebugProcessRestart::new(
@@ -408,8 +412,7 @@ pub unsafe fn reset_handler() {
         dac: dac,
     };
 
-    // Reset the nRF and setup the UART bus.
-    hail.nrf51822.reset();
+    // Setup the UART bus for nRF51 serialization..
     hail.nrf51822.initialize();
 
     process_console.start();

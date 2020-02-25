@@ -23,6 +23,7 @@ pub mod ipc;
 pub mod syscall;
 
 mod callback;
+mod config;
 mod driver;
 mod grant;
 mod mem;
@@ -50,6 +51,7 @@ pub use crate::sched::Kernel;
 /// Publicly available process-related objects.
 pub mod procs {
     pub use crate::process::{
-        load_processes, Error, FaultResponse, FunctionCall, Process, ProcessType,
+        load_processes, AlwaysRestart, Error, FaultResponse, FunctionCall, Process,
+        ProcessRestartPolicy, ProcessType, ThresholdRestart,
     };
 }

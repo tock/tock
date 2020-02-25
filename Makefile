@@ -18,6 +18,7 @@ usage:
 	@echo "  allboards: Compiles Tock for all supported boards"
 	@echo "   allcheck: Checks, but does not compile, Tock for all supported boards"
 	@echo "     alldoc: Builds Tock documentation for all boards"
+	@echo "      audit: Audit Cargo dependencies for all kernel sources"
 	@echo "         ci: Run all continuous integration tests"
 	@echo "      clean: Clean all builds"
 	@echo "     format: Runs the rustfmt tool on all kernel sources"
@@ -45,6 +46,10 @@ ci-travis:
 	@printf "$$(tput bold)******************$$(tput sgr0)\n"
 	@CI=true ./tools/run_cargo_fmt.sh diff
 	@./tools/check_wildcard_imports.sh
+	@printf "$$(tput bold)*************$$(tput sgr0)\n"
+	@printf "$$(tput bold)* CI: Tools *$$(tput sgr0)\n"
+	@printf "$$(tput bold)*************$$(tput sgr0)\n"
+	@for f in `./tools/list_tools.sh`; do echo "$$(tput bold)Build & Test $$f"; cd tools/$$f && CI=true RUSTFLAGS="-D warnings" cargo build --all-targets || exit 1; cd - > /dev/null; done
 	@printf "$$(tput bold)*****************$$(tput sgr0)\n"
 	@printf "$$(tput bold)* CI: Libraries *$$(tput sgr0)\n"
 	@printf "$$(tput bold)*****************$$(tput sgr0)\n"
@@ -92,6 +97,10 @@ ci-netlify:
 
 .PHONY: ci
 ci: ci-travis ci-netlify
+
+.PHONY: audit
+audit:
+	@for f in `./tools/list_lock.sh`; do echo "$$(tput bold)Auditing $$f"; (cd "$$f" && cargo audit || exit 1); done
 
 .PHONY: clean
 clean:

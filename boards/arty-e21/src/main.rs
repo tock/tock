@@ -26,11 +26,14 @@ const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultRespons
 
 // RAM to be shared by all application processes.
 #[link_section = ".app_memory"]
-static mut APP_MEMORY: [u8; 8192] = [0; 8192];
+static mut APP_MEMORY: [u8; 49152] = [0; 49152];
 
 // Actual memory for holding the active process structures.
 static mut PROCESSES: [Option<&'static dyn kernel::procs::ProcessType>; NUM_PROCS] =
     [None, None, None, None];
+
+// Reference to the chip for panic dumps.
+static mut CHIP: Option<&'static arty_e21::chip::ArtyExx> = None;
 
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
@@ -81,6 +84,7 @@ pub unsafe fn reset_handler() {
     rv32i::init_memory();
 
     let chip = static_init!(arty_e21::chip::ArtyExx, arty_e21::chip::ArtyExx::new());
+    CHIP = Some(chip);
     chip.initialize();
 
     let process_mgmt_cap = create_capability!(capabilities::ProcessManagementCapability);
@@ -169,30 +173,13 @@ pub unsafe fn reset_handler() {
     );
 
     // BUTTONs
-    let button_pins = static_init!(
-        [(
-            &'static dyn kernel::hil::gpio::InterruptValuePin,
-            capsules::button::GpioMode
-        ); 1],
-        [(
-            static_init!(
-                kernel::hil::gpio::InterruptValueWrapper,
-                kernel::hil::gpio::InterruptValueWrapper::new(&arty_e21::gpio::PORT[4])
-            )
-            .finalize(),
-            capsules::button::GpioMode::HighWhenPressed
-        )]
+    let button = components::button::ButtonComponent::new(board_kernel).finalize(
+        components::button_component_helper!((
+            &arty_e21::gpio::PORT[4],
+            capsules::button::GpioMode::HighWhenPressed,
+            kernel::hil::gpio::FloatingState::PullNone
+        )),
     );
-    let button = static_init!(
-        capsules::button::Button<'static>,
-        capsules::button::Button::new(
-            button_pins,
-            board_kernel.create_grant(&memory_allocation_cap)
-        )
-    );
-    for &(btn, _) in button_pins.iter() {
-        btn.set_client(button);
-    }
 
     // set GPIO driver controlling remaining GPIO pins
     let gpio_pins = static_init!(

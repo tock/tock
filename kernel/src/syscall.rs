@@ -69,12 +69,22 @@ pub trait UserspaceKernelBoundary {
     /// Some architecture-specific struct containing per-process state that must
     /// be kept while the process is not running. For example, for keeping CPU
     /// registers that aren't stored on the stack.
+    ///
+    /// Implementations should **not** rely on the `Default` constructor (custom
+    /// or derived) for any initialization of a process's stored state. The
+    /// initialization must happen in the `initialize_process()` function.
     type StoredState: Default + Copy;
 
-    /// Called by the kernel after a new process has been created by before it
+    /// Called by the kernel after it has memory allocated to it but before it
     /// is allowed to begin executing. Allows for architecture-specific process
     /// setup, e.g. allocating a syscall stack frame.
-    unsafe fn initialize_new_process(
+    ///
+    /// This function must also initialize the stored state (if needed).
+    ///
+    /// This function may be called multiple times on the same process. For
+    /// example, if a process crashes and is to be restarted, this must be
+    /// called. Or if the process is moved this may need to be called.
+    unsafe fn initialize_process(
         &self,
         stack_pointer: *const usize,
         stack_size: usize,
@@ -142,12 +152,9 @@ pub trait UserspaceKernelBoundary {
         state: &mut Self::StoredState,
     ) -> (*mut usize, ContextSwitchReason);
 
-    /// Display any general information about the fault.
-    unsafe fn fault_fmt(&self, writer: &mut dyn Write);
-
     /// Display architecture specific (e.g. CPU registers or status flags) data
     /// for a process identified by its stack pointer.
-    unsafe fn process_detail_fmt(
+    unsafe fn print_context(
         &self,
         stack_pointer: *const usize,
         state: &Self::StoredState,

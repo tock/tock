@@ -1,0 +1,26 @@
+[package]
+name = "opentitan"
+version = "0.1.0"
+authors = ["Tock Project Developers <tock-dev@googlegroups.com>"]
+build = "build.rs"
+edition = "2018"
+
+[profile.dev]
+panic = "abort"
+lto = false
+opt-level = "z"
+debug = true
+
+[profile.release]
+panic = "abort"
+lto = true
+opt-level = "z"
+debug = true
+
+[dependencies]
+components = { path = "../components" }
+rv32i = { path = "../../arch/rv32i" }
+capsules = { path = "../../capsules" }
+kernel = { path = "../../kernel" }
+ibex = { path = "../../chips/ibex" }
+lowrisc = { path = "../../chips/lowrisc" }

@@ -117,6 +117,8 @@ static mut APP_MEMORY: [u8; 0x3A000] = [0; 0x3A000];
 static mut PROCESSES: [Option<&'static dyn kernel::procs::ProcessType>; NUM_PROCS] =
     [None, None, None, None, None, None, None, None];
 
+static mut CHIP: Option<&'static nrf52840::chip::Chip> = None;
+
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
 #[link_section = ".stack_buffer"]
@@ -169,19 +171,23 @@ pub unsafe fn reset_handler() {
         components::button_component_helper!(
             (
                 &nrf52840::gpio::PORT[BUTTON1_PIN],
-                capsules::button::GpioMode::LowWhenPressed
+                capsules::button::GpioMode::LowWhenPressed,
+                kernel::hil::gpio::FloatingState::PullUp
             ), //13
             (
                 &nrf52840::gpio::PORT[BUTTON2_PIN],
-                capsules::button::GpioMode::LowWhenPressed
+                capsules::button::GpioMode::LowWhenPressed,
+                kernel::hil::gpio::FloatingState::PullUp
             ), //14
             (
                 &nrf52840::gpio::PORT[BUTTON3_PIN],
-                capsules::button::GpioMode::LowWhenPressed
+                capsules::button::GpioMode::LowWhenPressed,
+                kernel::hil::gpio::FloatingState::PullUp
             ), //15
             (
                 &nrf52840::gpio::PORT[BUTTON4_PIN],
-                capsules::button::GpioMode::LowWhenPressed
+                capsules::button::GpioMode::LowWhenPressed,
+                kernel::hil::gpio::FloatingState::PullUp
             ) //16
         ),
     );
@@ -205,6 +211,7 @@ pub unsafe fn reset_handler() {
         )
     ));
     let chip = static_init!(nrf52840::chip::Chip, nrf52840::chip::new());
+    CHIP = Some(chip);
 
     nrf52dk_base::setup_board(
         board_kernel,

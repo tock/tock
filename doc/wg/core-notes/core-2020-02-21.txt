@@ -1,0 +1,88 @@
+2/21/2020
+
+Attending: Phil, Alistair, Pat, Amit, Patrick, Garret, Sam, Holly, Branden, Hudson
+
+Johnathan is stuck in traffic.
+
+Amit: Let's start with updates. Who has updates?
+
+Amit: Hudson, can I volunteer you to talk about our call and your PR?
+
+Hudson: I put in a PR, then closed it, and put it back to my repo. I've been working on the scheduler interface, with an undergrad here and now with one of Amit's students. I had an interface that I was pretty happy with yesterday, but Amit pointed out that the scheduler might want to store processes in different data structures than just an array, e.g., in sets of queues. So the question is how I can make it so that rather than assuming an array, to have some kind of Container abstraction which a scheduler can specify. This would also force us to make it so IPC no longer uses process array indices as a naming mechanism.
+
+Amit: Also, if you have thoughts on what would be a useful scheduler, please let us know. The design we come up with will be a compromise, based on the kinds of schedulers we expect being important. So know which is important.
+
+Hudson: I have an RR and a deadline based scheduler and a multilevel feedback queue scheduler, if there are others that people are interested in let me know.
+
+Amit: Johnathan is here now. Another update from Brad is that it looks like all of the necessary functionality and fixes to safely restart processes is done and waiting in PR. So that's a big deal if it's true. Let's move on to agenda items. Let's start with the more admin one: where do tests for the kernel from userspace live?
+
+Johnathan: This has come up repeatedly. Both Alistair and Guillaume have tried adding regression tests for the kernel to libtock-rs. Both received strong pushback from Torfmaster and Woyten, external contributors. Those tests are important, and they belong somewhere, but they aren't userspace library tests. Or do they belong in another repository, or what? I'm mainly looking for opinions.
+
+Amit: We do have a bunch of tests in libtock-c that are similarly end-to-end.
+
+Phil: We care about testing, not dogmatic boundaries.
+
+Amit: There are issues of having tests in userspace libraries. Why are kernel tests in userspace? Where do the tests actually live? What are the set of tests we should actually run? We could just wite these tests as apps, they depend on libtock-rs through their cargo file.
+
+Johnathan: libtock-rs is still in flux, differences between git and cargo.
+
+Patrick: Making these possible to run can be non-trivial. Alistair's PMP test, for example, took about 10 steps with QEMU. So these aren't things you can just run.
+
+Johnathan: I'm in favor of pulling kernel tests into the kernel repository, with the cargo dependency.
+
+Amit: Userspace apps that are not in the library repository, they can be difficult, but you do have the custom layout script for the kernel if you need it. What do people think? Why are these tests libtock-rs? Why are they in userland, why are they in Rust?
+
+Johnathan: In userspace because they test the userspace boundary. E.g., Guillaume's tests callbacks. Alistair's tests the PMP. Why in Rust? Because that's what the developers wanted to use..
+
+Phil: I think Guillaume's is the "what happens if you have a pending callback and resubscribe"?
+
+Johnathan: I could see it either way.
+
+Amit: We've also talked about restructuring libtock-c. There isn't a clean way for C tests to be in the kernel because there isn't a package manager.
+
+Johnathan: Four options: Kernel repo, separate repo, libtock-c, libtock-rs?
+
+Alistair: libtock-language should have the tests. No more repos!
+Pat: Pro separate repo, negative on kernel repo.
+Patrick: short term: language repos, long-term: separate or kernel.
+Garret: In line with Patrick.
+Sam: Agree with emerging consensus: for now in language repos, too many repos let's not add more.
+Holly: In libtock, in kernel add a note where to go.
+Branden: In libtock repos.
+Phil: agree in language repos, long term we will understand the problem better.
+
+Amit: consensus is to put them in whatever language-specific lib repo they should be in, if it gets unwieldy we can revisit.
+
+Johnathan: I'll respond to Alistair's PR and say this was the consensus.
+
+Amit: I can do it.
+
+Johnathan: OK.
+
+Amit: Should we be using unsafe or capabilities from using kernel interfaces that are not language unsafe but should not be allowed to be used?
+
+Johnathan: Examples would be chip interfaces to memory management. So untrusted capsules should not be able to use this interface. From the threat model discussion at Tock World, my impression was that these should be marked unsafe. Guillaume commented that this is a confusion of unsafe, and that it should be capabilities. I think this would be a change to several interfaces.
+
+Amit: I hope this wouldn't be the case, but it might be. After we implemented capabilities, my sense of the consensus was that we should only use unsafe to denote things which are Rust unsafe, and that otherwise, we should use visibility and capabilities to restrict which capsules have access to which services. So if there's a module in the kernel that has global functions, that capsules in general should not be able to use, those should not be exposed outside the kernel crate. If there are things which we want to allow some capsules to use but not others, we either want to use a capability, a capsule can't construct one, it has to be passed a reference.
+
+Phil: My recollection is Amit's. References are for coupled abstractions. Capabilities are for global functions and for cross-cutting concerns, such as memory allocation and control of execution.
+
+Amit: We definitely used unsafe to just denote stuff that should be hidden, there are probably some more.
+
+Phil: One example is processor state dumps, there's an unsafe. Brad pointed out this was weird, I pointed out the earlier implementations were unsafe and I didn't want to change it. Sounds like such a relic.
+
+Sam: Are capabilities doing what we want them to? We might want to look at how they are working. I recall a problem at Tock World 4.
+
+Amit: Yeah. This specific case, we had written a macro to create capabilities, and it turned out our protections were incorrect. The unsafe restriction doesn't apply to macros. So we had a problem that code which can't use unsafe could call the macro even though the macro used unsafe. We've fixed that. The mechanism we're using is the same one Rust uses to protect things passed between threads. Similar, not strictly language level safety feature. In standard Rust, with pthreads, you can pass things through channels, or with mutexes, only if they implement the Sync and Send traits, which are unsafe. So you must be able to use unsafe to be able to mark something Send or Sync. Now this doesn't mean Capabilities don't deserve more scrutiny, we've seen sometimes our understanding is flawed in ways that is very significant.
+
+Amit: Unsafe versus Capabilities versus other mechanisms.
+
+Hudson: I suspect there are still some relics for unsafe, where we used it to prevent processes from calling it.
+
+Pat: Random last-minute: comment from Torfmaster, has some tools, suggested another repo. I think we can sort out on Slack.
+
+Johnathan: Yeah, I have some things in libtock-rs. Maybe sizing should be in tock/tock.
+
+Phil: Should I put my size tool in the main repository?
+
+Amit: Yes.

@@ -12,8 +12,6 @@
 // Author: Hudson Ayers <hayers@cs.stanford.edu>
 // Last modified: 07/12/2019
 
-#![allow(dead_code)] // Components are intended to be conditionally included
-
 use capsules::rng;
 use kernel::capabilities;
 use kernel::component::Component;

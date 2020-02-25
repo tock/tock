@@ -145,10 +145,10 @@ impl TbfHeader {
     }
 
     /// Get the name of the app.
-    crate fn get_package_name(&self) -> &'static str {
+    crate fn get_package_name(&self) -> Option<&'static str> {
         match *self {
-            TbfHeader::TbfHeaderV2(hd) => hd.package_name.unwrap_or(""),
-            _ => "",
+            TbfHeader::TbfHeaderV2(hd) => hd.package_name,
+            _ => None,
         }
     }
 

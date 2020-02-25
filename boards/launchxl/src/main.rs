@@ -40,6 +40,9 @@ const NUM_PROCS: usize = 3;
 static mut PROCESSES: [Option<&'static dyn kernel::procs::ProcessType>; NUM_PROCS] =
     [None, None, None];
 
+// Reference to chip for panic dumps.
+static mut CHIP: Option<&'static cc26x2::chip::Cc26X2> = None;
+
 #[link_section = ".app_memory"]
 // Give half of RAM to be dedicated APP memory
 static mut APP_MEMORY: [u8; 0x10000] = [0; 0x10000];
@@ -184,6 +187,9 @@ pub unsafe fn reset_handler() {
 
     configure_pins(pinmap);
 
+    let chip = static_init!(cc26x2::chip::Cc26X2, cc26x2::chip::Cc26X2::new(HFREQ));
+    CHIP = Some(chip);
+
     // LEDs
     let led_pins = static_init!(
         [(
@@ -207,43 +213,20 @@ pub unsafe fn reset_handler() {
     );
 
     // BUTTONS
-    let button_pins = static_init!(
-        [(
-            &'static dyn gpio::InterruptValuePin,
-            capsules::button::GpioMode
-        ); 2],
-        [
+    let button = components::button::ButtonComponent::new(board_kernel).finalize(
+        components::button_component_helper!(
             (
-                static_init!(
-                    gpio::InterruptValueWrapper,
-                    gpio::InterruptValueWrapper::new(&cc26x2::gpio::PORT[pinmap.button1])
-                )
-                .finalize(),
-                capsules::button::GpioMode::LowWhenPressed
+                &cc26x2::gpio::PORT[pinmap.button1],
+                capsules::button::GpioMode::LowWhenPressed,
+                hil::gpio::FloatingState::PullUp
             ),
             (
-                static_init!(
-                    gpio::InterruptValueWrapper,
-                    gpio::InterruptValueWrapper::new(&cc26x2::gpio::PORT[pinmap.button2])
-                )
-                .finalize(),
-                capsules::button::GpioMode::LowWhenPressed
+                &cc26x2::gpio::PORT[pinmap.button2],
+                capsules::button::GpioMode::LowWhenPressed,
+                hil::gpio::FloatingState::PullUp
             )
-        ]
+        ),
     );
-
-    let button = static_init!(
-        capsules::button::Button<'static>,
-        capsules::button::Button::new(
-            button_pins,
-            board_kernel.create_grant(&memory_allocation_capability)
-        )
-    );
-
-    for (pin, _) in button_pins.iter() {
-        pin.set_client(button);
-        pin.set_floating_state(hil::gpio::FloatingState::PullUp);
-    }
 
     // UART
     cc26x2::uart::UART0.initialize();
@@ -365,8 +348,6 @@ pub unsafe fn reset_handler() {
         i2c_master,
         ipc,
     };
-
-    let chip = static_init!(cc26x2::chip::Cc26X2, cc26x2::chip::Cc26X2::new(HFREQ));
 
     extern "C" {
         /// Beginning of the ROM region containing app images.

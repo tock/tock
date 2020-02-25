@@ -19,6 +19,7 @@ use crate::trng;
 use crate::usart;
 use crate::usbc;
 
+use core::fmt::Write;
 use cortexm4;
 use kernel::common::deferred_call;
 use kernel::Chip;
@@ -203,5 +204,9 @@ impl Chip for Sam4l {
         F: FnOnce() -> R,
     {
         cortexm4::support::atomic(f)
+    }
+
+    unsafe fn print_state(&self, writer: &mut dyn Write) {
+        cortexm4::print_cortexm4_state(writer);
     }
 }

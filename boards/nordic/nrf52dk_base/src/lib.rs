@@ -5,6 +5,7 @@
 #[allow(unused_imports)]
 use kernel::{create_capability, debug, debug_gpio, debug_verbose, static_init};
 
+use capsules::analog_comparator;
 use capsules::virtual_alarm::VirtualMuxAlarm;
 use capsules::virtual_spi::MuxSpiMaster;
 use kernel::capabilities;
@@ -94,6 +95,8 @@ pub struct Platform {
     rng: &'static capsules::rng::RngDriver<'static>,
     temp: &'static capsules::temperature::TemperatureSensor<'static>,
     ipc: kernel::ipc::IPC,
+    analog_comparator:
+        &'static capsules::analog_comparator::AnalogComparator<'static, nrf52::acomp::Comparator>,
     alarm: &'static capsules::alarm::AlarmDriver<
         'static,
         capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc<'static>>,
@@ -121,6 +124,7 @@ impl kernel::Platform for Platform {
                 None => f(None),
             },
             capsules::temperature::DRIVER_NUM => f(Some(self.temp)),
+            capsules::analog_comparator::DRIVER_NUM => f(Some(self.analog_comparator)),
             capsules::nonvolatile_storage_driver::DRIVER_NUM => {
                 f(self.nonvolatile_storage.map_or(None, |nv| Some(nv)))
             }
@@ -389,6 +393,18 @@ pub unsafe fn setup_board<I: nrf52::interrupt_service::InterruptService>(
         None
     };
 
+    // Initialize AC using AIN5 (P0.29) as VIN+ and VIN- as AIN0 (P0.02)
+    // These are hardcoded pin assignments specified in the driver
+    let ac_channels = static_init!(
+        [&'static nrf52::acomp::Channel; 1],
+        [&nrf52::acomp::CHANNEL_AC0,]
+    );
+    let analog_comparator = static_init!(
+        analog_comparator::AnalogComparator<'static, nrf52::acomp::Comparator>,
+        analog_comparator::AnalogComparator::new(&mut nrf52::acomp::ACOMP, ac_channels)
+    );
+    nrf52::acomp::ACOMP.set_client(analog_comparator);
+
     // Start all of the clocks. Low power operation will require a better
     // approach than this.
     nrf52::clock::CLOCK.low_stop();
@@ -420,6 +436,7 @@ pub unsafe fn setup_board<I: nrf52::interrupt_service::InterruptService>(
         rng: rng,
         temp: temp,
         alarm: alarm,
+        analog_comparator: analog_comparator,
         nonvolatile_storage: nonvolatile_storage,
         ipc: kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability),
     };
