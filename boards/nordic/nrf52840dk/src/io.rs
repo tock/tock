@@ -18,8 +18,7 @@ enum Writer {
 static mut WRITER: Writer = Writer::WriterUart(false);
 
 fn wait() {
-    let mut x = 0;
-    for i in 0..5000 {
+    for _ in 0..100 {
         cortexm4::support::nop();
     }
 }
