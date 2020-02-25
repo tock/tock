@@ -201,14 +201,10 @@ pub trait ProcessType {
     /// Debug function to update the kernel on where the stack starts for this
     /// process. Processes are not required to call this through the memop
     /// system call, but it aids in debugging the process.
-    ///
-    /// This will fail (i.e. not do anything) if the process is not active.
     fn update_stack_start_pointer(&self, stack_pointer: *const u8);
 
     /// Debug function to update the kernel on where the process heap starts.
     /// Also optional.
-    ///
-    /// This will fail (i.e. not do anything) if the process is not active.
     fn update_heap_start_pointer(&self, heap_pointer: *const u8);
 
     // additional memop like functions
@@ -245,16 +241,16 @@ pub trait ProcessType {
 
     /// Configure the MPU to use the process's allocated regions.
     ///
-    /// This will fail (i.e. not do anything) if the process is inactive and
-    /// will not resume executing.
+    /// It is not valid to call this function when the process is inactive (i.e.
+    /// the process will not run again).
     fn setup_mpu(&self);
 
     /// Allocate a new MPU region for the process that is at least
     /// `min_region_size` bytes and lies within the specified stretch of
     /// unallocated memory.
     ///
-    /// This will return `None` if the process is inactive and will not resume
-    /// executing.
+    /// It is not valid to call this function when the process is inactive (i.e.
+    /// the process will not run again).
     fn add_mpu_region(
         &self,
         unallocated_memory_start: *const u8,
@@ -283,12 +279,14 @@ pub trait ProcessType {
     /// Set the return value the process should see when it begins executing
     /// again after the syscall.
     ///
-    /// This will fail (i.e. not do anything) if the process is inactive.
+    /// It is not valid to call this function when the process is inactive (i.e.
+    /// the process will not run again).
     unsafe fn set_syscall_return_value(&self, return_value: isize);
 
     /// Set the function that is to be executed when the process is resumed.
     ///
-    /// This will fail (i.e. not do anything) if the process is inactive.
+    /// It is not valid to call this function when the process is inactive (i.e.
+    /// the process will not run again).
     unsafe fn set_process_function(&self, callback: FunctionCall);
 
     /// Context switch to a specific process.
@@ -894,11 +892,6 @@ impl<C: Chip> ProcessType for Process<'a, C> {
     }
 
     fn setup_mpu(&self) {
-        // Do not modify an inactive process.
-        if !self.is_active() {
-            return;
-        }
-
         self.mpu_config.map(|config| {
             self.chip.mpu().configure_mpu(&config);
         });
@@ -910,11 +903,6 @@ impl<C: Chip> ProcessType for Process<'a, C> {
         unallocated_memory_size: usize,
         min_region_size: usize,
     ) -> Option<mpu::Region> {
-        // Do not modify an inactive process.
-        if !self.is_active() {
-            return None;
-        }
-
         self.mpu_config.and_then(|mut config| {
             let new_region = self.chip.mpu().allocate_region(
                 unallocated_memory_start,
@@ -1051,11 +1039,6 @@ impl<C: Chip> ProcessType for Process<'a, C> {
     }
 
     unsafe fn set_syscall_return_value(&self, return_value: isize) {
-        // Do not modify an inactive process.
-        if !self.is_active() {
-            return;
-        }
-
         let mut stored_state = self.stored_state.get();
         self.chip
             .userspace_kernel_boundary()
@@ -1064,11 +1047,6 @@ impl<C: Chip> ProcessType for Process<'a, C> {
     }
 
     unsafe fn set_process_function(&self, callback: FunctionCall) {
-        // Do not modify an inactive process.
-        if !self.is_active() {
-            return;
-        }
-
         // First we need to get how much memory is available for this app's
         // stack. Since the stack is at the bottom of the process's memory
         // region, this is straightforward.
