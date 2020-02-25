@@ -12,7 +12,7 @@ use crate::PROCESSES;
 
 enum Writer {
     WriterUart(/* initialized */ bool),
-    WriterRtt(&'static mut capsules::segger_rtt::SeggerRttMemory<'static>),
+    WriterRtt(&'static capsules::segger_rtt::SeggerRttMemory<'static>),
 }
 
 static mut WRITER: Writer = Writer::WriterUart(false);
@@ -60,7 +60,7 @@ impl IoWrite for Writer {
                 }
             }
             Writer::WriterRtt(rtt_memory) => {
-                let up_buffer = &mut rtt_memory.up_buffer;
+                let up_buffer = unsafe { &*rtt_memory.get_up_buffer_ptr() };
                 let buffer_len = up_buffer.length.get();
                 let buffer = unsafe {
                     core::slice::from_raw_parts_mut(

@@ -112,14 +112,14 @@ pub struct SeggerRttMemory<'a> {
     id: VolatileCell<[u8; 16]>,
     number_up_buffers: VolatileCell<u32>,
     number_down_buffers: VolatileCell<u32>,
-    // marked `pub` to allow access in panic handler
-    pub up_buffer: SeggerRttBuffer<'a>,
+    up_buffer: SeggerRttBuffer<'a>,
     down_buffer: SeggerRttBuffer<'a>,
 }
 
 #[repr(C)]
 pub struct SeggerRttBuffer<'a> {
     name: VolatileCell<*const u8>, // Pointer to the name of this channel. Must be a 4 byte thin pointer.
+    // These fields are marked as `pub` to allow access in the panic handler.
     pub buffer: VolatileCell<*const u8>, // Pointer to the buffer for this channel.
     pub length: VolatileCell<u32>,
     pub write_position: VolatileCell<u32>,
@@ -163,6 +163,13 @@ impl SeggerRttMemory<'a> {
                 _lifetime: PhantomData,
             },
         }
+    }
+
+    /// This getter allows access to the underlying buffer in the panic handler.
+    /// The result is a pointer so that only `unsafe` code can actually dereference it - this is to
+    /// restrict this priviledged access to the panic handler.
+    pub fn get_up_buffer_ptr(&self) -> *const SeggerRttBuffer<'a> {
+        &self.up_buffer
     }
 }
 
