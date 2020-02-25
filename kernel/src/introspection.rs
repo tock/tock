@@ -111,7 +111,7 @@ impl KernelInfo {
         _capability: &dyn ProcessManagementCapability,
     ) -> usize {
         self.kernel
-            .process_map_or(0, app.idx(), |process| process.debug_restart_count())
+            .process_map_or(0, app.idx(), |process| process.get_restart_count())
     }
 
     /// Returns the number of time this app has exceeded its timeslice.

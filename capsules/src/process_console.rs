@@ -236,7 +236,7 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                                         proc.debug_timeslice_expiration_count(),
                                         proc.debug_syscall_count(),
                                         proc.debug_dropped_callback_count(),
-                                        proc.debug_restart_count(),
+                                        proc.get_restart_count(),
                                         proc.get_state()
                                     );
                                 });
