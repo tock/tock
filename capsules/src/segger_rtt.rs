@@ -138,9 +138,13 @@ impl SeggerRttMemory<'a> {
         down_buffer_len: usize,
     ) -> SeggerRttMemory<'a> {
         SeggerRttMemory {
-            // TODO: only write this ID when the object is fully initialized, to avoid having
-            // these bytes elsewhere in (flash) memory.
-            // Must be "SEGGER RTT".
+            // This field is a magic value that must be set to "SEGGER RTT" for the debugger to
+            // recognize it when scanning the memory.
+            //
+            // In principle, there could be a risk that the value is duplicated elsewhere in
+            // memory, therefore confusing the debugger. However in practice this hasn't caused any
+            // known problem so far. If needed, this ID could be scrambled here, with the real magic
+            // value being written only when this object is fully initialized.
             id: VolatileCell::new(*b"SEGGER RTT\0\0\0\0\0\0"),
             number_up_buffers: VolatileCell::new(1),
             number_down_buffers: VolatileCell::new(1),
