@@ -55,7 +55,7 @@ is enabled by setting the `USB_DEBUGGING` constant to `true` in the
 This disables the UART interface.
 
 For instructions about how to receive RTT messages on the host, see the
-[corresponding capsule](../../capsules/src/segger_rtt.rs).
+[corresponding capsule](../../../capsules/src/segger_rtt.rs).
 
 ## Debugging
 
