@@ -36,7 +36,7 @@ impl Component for DebugWriterComponent {
     type StaticInput = ();
     type Output = ();
 
-    unsafe fn finalize(&mut self, _s: Self::StaticInput) -> Self::Output {
+    unsafe fn finalize(self, _s: Self::StaticInput) -> Self::Output {
         // The sum of the output_buf and internal_buf is set to 1024 bytes in order to avoid excessive
         // padding between kernel memory and application memory (which often needs to be aligned to at
         // least a 1kB boundary). This is not _semantically_ critical, but helps keep buffers on 1kB

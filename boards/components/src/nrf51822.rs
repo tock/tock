@@ -51,7 +51,7 @@ impl<U: 'static + hil::uart::UartAdvanced<'static>, G: 'static + hil::gpio::Pin>
     type StaticInput = ();
     type Output = &'static nrf51822_serialization::Nrf51822Serialization<'static>;
 
-    unsafe fn finalize(&mut self, _s: Self::StaticInput) -> Self::Output {
+    unsafe fn finalize(self, _s: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
         let nrf_serialization = static_init!(

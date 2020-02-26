@@ -17,5 +17,6 @@ pub mod lldb;
 pub mod nrf51822;
 pub mod process_console;
 pub mod rng;
+pub mod segger_rtt;
 pub mod si7021;
 pub mod spi;

@@ -68,7 +68,7 @@ use kernel::component::Component;
 #[allow(unused_imports)]
 use kernel::{debug, debug_gpio, debug_verbose, static_init};
 use nrf52832::gpio::Pin;
-use nrf52dk_base::{SpiPins, UartPins};
+use nrf52dk_base::{SpiPins, UartChannel, UartPins};
 
 // The nRF52 DK LEDs (see back of board)
 const LED1_PIN: Pin = Pin::P0_17;
@@ -203,7 +203,7 @@ pub unsafe fn reset_handler() {
         LED2_PIN,
         LED3_PIN,
         led,
-        &UartPins::new(UART_RTS, UART_TXD, UART_CTS, UART_RXD),
+        UartChannel::Pins(UartPins::new(UART_RTS, UART_TXD, UART_CTS, UART_RXD)),
         &SpiPins::new(SPI_MOSI, SPI_MISO, SPI_CLK),
         &None,
         button,

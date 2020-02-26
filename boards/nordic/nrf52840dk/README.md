@@ -39,6 +39,24 @@ $ tockloader listen
 sequence. Notably, you should not
 pass the `--jlink` option to `tockloader listen`.
 
+## Console output
+
+This board supports two methods for writing messages to a console interface
+(console driver for applications as well as debug statements in the kernel).
+
+By default, messages are written to a UART interface over the GPIO pins `P0.05`
+to `P0.08` (see the [main.rs](src/main.rs) file).
+
+If you don't have any UART cables or want to use a different interface, there is
+also a console over the Segger RTT protocol. This only requires a micro-USB
+cable on the USB debugging port (the same used to flash Tock on the board), and
+is enabled by setting the `USB_DEBUGGING` constant to `true` in the
+[main.rs](src/main.rs) file.
+This disables the UART interface.
+
+For instructions about how to receive RTT messages on the host, see the
+[corresponding capsule](../../../capsules/src/segger_rtt.rs).
+
 ## Debugging
 
 See the [nrf52dk README](../nrf52dk/README.md) for information about debugging

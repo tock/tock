@@ -58,7 +58,7 @@ impl Component for GpioComponent {
     type StaticInput = &'static [&'static dyn kernel::hil::gpio::InterruptValuePin];
     type Output = &'static capsules::gpio::GPIO<'static>;
 
-    unsafe fn finalize(&mut self, gpio_pins: Self::StaticInput) -> Self::Output {
+    unsafe fn finalize(self, gpio_pins: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
         let gpio = static_init!(
             capsules::gpio::GPIO<'static>,

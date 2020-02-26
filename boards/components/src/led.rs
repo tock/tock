@@ -48,7 +48,7 @@ impl Component for LedsComponent {
     )];
     type Output = &'static capsules::led::LED<'static>;
 
-    unsafe fn finalize(&mut self, pins: Self::StaticInput) -> Self::Output {
+    unsafe fn finalize(self, pins: Self::StaticInput) -> Self::Output {
         static_init!(capsules::led::LED<'static>, capsules::led::LED::new(pins))
     }
 }
