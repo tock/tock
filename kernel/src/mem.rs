@@ -17,14 +17,14 @@ pub struct Shared;
 
 /// Base type for an AppSlice that holds the raw pointer to the memory region
 /// the app shared with the kernel.
-pub struct AppPtr<L, T> {
+pub struct AppPtr<'ker, L, T> {
     ptr: Unique<T>,
-    process: AppId,
+    process: AppId<'ker>,
     _phantom: PhantomData<L>,
 }
 
-impl<L, T> AppPtr<L, T> {
-    unsafe fn new(ptr: *mut T, appid: AppId) -> AppPtr<L, T> {
+impl<'ker, L, T> AppPtr<'ker, L, T> {
+    unsafe fn new(ptr: *mut T, appid: AppId<'ker>) -> AppPtr<'ker, L, T> {
         AppPtr {
             ptr: Unique::new_unchecked(ptr),
             process: appid,
@@ -33,7 +33,7 @@ impl<L, T> AppPtr<L, T> {
     }
 }
 
-impl<L, T> Deref for AppPtr<L, T> {
+impl<L, T> Deref for AppPtr<'_, L, T> {
     type Target = T;
 
     fn deref(&self) -> &T {
@@ -41,13 +41,13 @@ impl<L, T> Deref for AppPtr<L, T> {
     }
 }
 
-impl<L, T> DerefMut for AppPtr<L, T> {
+impl<L, T> DerefMut for AppPtr<'_, L, T> {
     fn deref_mut(&mut self) -> &mut T {
         unsafe { self.ptr.as_mut() }
     }
 }
 
-impl<L, T> Drop for AppPtr<L, T> {
+impl<L, T> Drop for AppPtr<'_, L, T> {
     fn drop(&mut self) {
         self.process
             .kernel
@@ -60,13 +60,13 @@ impl<L, T> Drop for AppPtr<L, T> {
 /// Buffer of memory shared from an app to the kernel.
 ///
 /// This is the type created after an app calls the `allow` syscall.
-pub struct AppSlice<L, T> {
-    ptr: AppPtr<L, T>,
+pub struct AppSlice<'ker, L, T> {
+    ptr: AppPtr<'ker, L, T>,
     len: usize,
 }
 
-impl<L, T> AppSlice<L, T> {
-    crate fn new(ptr: *mut T, len: usize, appid: AppId) -> AppSlice<L, T> {
+impl<'ker, L, T> AppSlice<'ker, L, T> {
+    crate fn new(ptr: *mut T, len: usize, appid: AppId<'ker>) -> AppSlice<'ker, L, T> {
         unsafe {
             AppSlice {
                 ptr: AppPtr::new(ptr, appid),
@@ -88,7 +88,7 @@ impl<L, T> AppSlice<L, T> {
 
     /// Provide access to one app's AppSlice to another app. This is used for
     /// IPC.
-    crate unsafe fn expose_to(&self, appid: AppId) -> bool {
+    crate unsafe fn expose_to(&self, appid: AppId<'ker>) -> bool {
         if appid.idx() != self.ptr.process.idx() {
             self.ptr
                 .process
@@ -120,13 +120,13 @@ impl<L, T> AppSlice<L, T> {
     }
 }
 
-impl<L, T> AsRef<[T]> for AppSlice<L, T> {
+impl<L, T> AsRef<[T]> for AppSlice<'_, L, T> {
     fn as_ref(&self) -> &[T] {
         unsafe { slice::from_raw_parts(self.ptr.ptr.as_ref(), self.len) }
     }
 }
 
-impl<L, T> AsMut<[T]> for AppSlice<L, T> {
+impl<L, T> AsMut<[T]> for AppSlice<'_, L, T> {
     fn as_mut(&mut self) -> &mut [T] {
         unsafe { slice::from_raw_parts_mut(self.ptr.ptr.as_mut(), self.len) }
     }

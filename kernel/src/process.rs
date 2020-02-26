@@ -30,12 +30,12 @@ use core::cmp::max;
 /// number of processes are created, with process structures placed in the
 /// provided array. How process faults are handled by the kernel is also
 /// selected.
-pub fn load_processes<C: Chip>(
-    kernel: &'static Kernel,
+pub fn load_processes<'ker, C: Chip>(
+    kernel: &'ker Kernel<'ker>,
     chip: &'static C,
     start_of_flash: *const u8,
     app_memory: &mut [u8],
-    procs: &'static mut [Option<&'static dyn ProcessType>],
+    procs: &mut [Option<&'ker dyn ProcessType<'ker>>],
     fault_response: FaultResponse,
     _capability: &dyn ProcessManagementCapability,
 ) {
@@ -96,9 +96,9 @@ pub fn load_processes<C: Chip>(
 }
 
 /// This trait is implemented by process structs.
-pub trait ProcessType {
+pub trait ProcessType<'ker> {
     /// Returns the process's identifier
-    fn appid(&self) -> AppId;
+    fn appid(&self) -> AppId<'ker>;
 
     /// Queue a `Task` for the process. This will be added to a per-process
     /// buffer and executed by the scheduler. `Task`s are some function the app
@@ -107,14 +107,14 @@ pub trait ProcessType {
     /// This function returns `true` if the `Task` was successfully enqueued,
     /// and `false` otherwise. This is represented as a simple `bool` because
     /// this is passed to the capsule that tried to schedule the `Task`.
-    fn enqueue_task(&self, task: Task) -> bool;
+    fn enqueue_task(&self, task: Task<'ker>) -> bool;
 
     /// Remove the scheduled operation from the front of the queue and return it
     /// to be handled by the scheduler.
     ///
     /// If there are no `Task`s in the queue for this process this will return
     /// `None`.
-    fn dequeue_task(&self) -> Option<Task>;
+    fn dequeue_task(&self) -> Option<Task<'ker>>;
 
     /// Remove all scheduled callbacks for a given callback id from the task
     /// queue.
@@ -199,7 +199,7 @@ pub trait ProcessType {
         &self,
         buf_start_addr: *const u8,
         size: usize,
-    ) -> Result<Option<AppSlice<Shared, u8>>, ReturnCode>;
+    ) -> Result<Option<AppSlice<'ker, Shared, u8>>, ReturnCode>;
 
     /// Get the first address of process's flash that isn't protected by the
     /// kernel. The protected range of flash contains the TBF header and
@@ -409,9 +409,9 @@ pub enum IPCType {
 }
 
 #[derive(Copy, Clone)]
-pub enum Task {
+pub enum Task<'ker> {
     FunctionCall(FunctionCall),
-    IPC((AppId, IPCType)),
+    IPC((AppId<'ker>, IPCType)),
 }
 
 /// Enumeration to identify whether a function call comes directly from the
@@ -474,14 +474,14 @@ struct ProcessDebug {
     timeslice_expiration_count: usize,
 }
 
-pub struct Process<'a, C: 'static + Chip> {
+pub struct Process<'a, 'ker, C: 'static + Chip> {
     /// Index of the process in the process table.
     ///
     /// Corresponds to AppId
     app_idx: usize,
 
     /// Pointer to the main Kernel struct.
-    kernel: &'static Kernel,
+    kernel: &'ker Kernel<'ker>,
 
     /// Pointer to the struct that defines the actual chip the kernel is running
     /// on. This is used because processes have subtle hardware-based
@@ -562,7 +562,7 @@ pub struct Process<'a, C: 'static + Chip> {
 
     /// Essentially a list of callbacks that want to call functions in the
     /// process.
-    tasks: MapCell<RingBuffer<'a, Task>>,
+    tasks: MapCell<RingBuffer<'a, Task<'ker>>>,
 
     /// Count of how many times this process has entered the fault condition and
     /// been restarted. This is used by some `ProcessRestartPolicy`s to
@@ -576,12 +576,12 @@ pub struct Process<'a, C: 'static + Chip> {
     debug: MapCell<ProcessDebug>,
 }
 
-impl<C: Chip> ProcessType for Process<'a, C> {
-    fn appid(&self) -> AppId {
+impl<'ker, C: Chip> ProcessType<'ker> for Process<'_, 'ker, C> {
+    fn appid(&self) -> AppId<'ker> {
         AppId::new(self.kernel, self.app_idx)
     }
 
-    fn enqueue_task(&self, task: Task) -> bool {
+    fn enqueue_task(&self, task: Task<'ker>) -> bool {
         // If this app is in the `Fault` state then we shouldn't schedule
         // any work for it.
         if self.state.get() == State::Fault {
@@ -772,7 +772,7 @@ impl<C: Chip> ProcessType for Process<'a, C> {
         self.restart_count.get()
     }
 
-    fn dequeue_task(&self) -> Option<Task> {
+    fn dequeue_task(&self) -> Option<Task<'ker>> {
         self.tasks.map_or(None, |tasks| {
             tasks.dequeue().map(|cb| {
                 self.kernel.decrement_work();
@@ -902,7 +902,7 @@ impl<C: Chip> ProcessType for Process<'a, C> {
         &self,
         buf_start_addr: *const u8,
         size: usize,
-    ) -> Result<Option<AppSlice<Shared, u8>>, ReturnCode> {
+    ) -> Result<Option<AppSlice<'ker, Shared, u8>>, ReturnCode> {
         if buf_start_addr == ptr::null_mut() {
             // A null buffer means pass in `None` to the capsule
             Ok(None)
@@ -1265,17 +1265,17 @@ fn exceeded_check(size: usize, allocated: usize) -> &'static str {
     }
 }
 
-impl<C: 'static + Chip> Process<'a, C> {
+impl<C: 'static + Chip> Process<'_, 'ker, C> {
     #[allow(clippy::cast_ptr_alignment)]
     crate unsafe fn create(
-        kernel: &'static Kernel,
+        kernel: &'ker Kernel<'ker>,
         chip: &'static C,
         app_flash_address: *const u8,
         remaining_app_memory: *mut u8,
         remaining_app_memory_size: usize,
         fault_response: FaultResponse,
         index: usize,
-    ) -> (Option<&'static dyn ProcessType>, usize, usize) {
+    ) -> (Option<&'ker dyn ProcessType<'ker>>, usize, usize) {
         if let Some(tbf_header) = tbfheader::parse_and_validate_tbf_header(app_flash_address) {
             let app_flash_size = tbf_header.get_total_size() as usize;
             let process_name = tbf_header.get_package_name();
@@ -1436,7 +1436,7 @@ impl<C: 'static + Chip> Process<'a, C> {
 
             // Create the Process struct in the app grant region.
             let mut process: &mut Process<C> =
-                &mut *(process_struct_memory_location as *mut Process<'static, C>);
+                &mut *(process_struct_memory_location as *mut Process<'_, 'ker, C>);
 
             process.app_idx = index;
             process.kernel = kernel;

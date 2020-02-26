@@ -37,12 +37,12 @@ crate mod systick;
 ///     }
 /// }
 /// ```
-pub trait Platform {
+pub trait Platform<'ker> {
     /// Platform-specific mapping of syscall numbers to objects that implement
     /// the Driver methods for that syscall.
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
     where
-        F: FnOnce(Option<&dyn Driver>) -> R;
+        F: FnOnce(Option<&dyn Driver<'ker>>) -> R;
 }
 
 /// Interface for individual MCUs.

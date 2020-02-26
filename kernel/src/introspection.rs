@@ -19,12 +19,12 @@ use crate::process;
 use crate::sched::Kernel;
 
 /// This struct provides the inspection functions.
-pub struct KernelInfo {
-    kernel: &'static Kernel,
+pub struct KernelInfo<'ker> {
+    kernel: &'ker Kernel<'ker>,
 }
 
-impl KernelInfo {
-    pub fn new(kernel: &'static Kernel) -> KernelInfo {
+impl KernelInfo<'ker> {
+    pub fn new(kernel: &'ker Kernel<'ker>) -> KernelInfo {
         KernelInfo { kernel: kernel }
     }
 
@@ -74,7 +74,7 @@ impl KernelInfo {
     /// Get the name of the process.
     pub fn process_name(
         &self,
-        app: AppId,
+        app: AppId<'ker>,
         _capability: &dyn ProcessManagementCapability,
     ) -> &'static str {
         self.kernel
@@ -84,7 +84,7 @@ impl KernelInfo {
     /// Returns the number of syscalls the app has called.
     pub fn number_app_syscalls(
         &self,
-        app: AppId,
+        app: AppId<'ker>,
         _capability: &dyn ProcessManagementCapability,
     ) -> usize {
         self.kernel
@@ -96,7 +96,7 @@ impl KernelInfo {
     /// tries to schedule a callback.
     pub fn number_app_dropped_callbacks(
         &self,
-        app: AppId,
+        app: AppId<'ker>,
         _capability: &dyn ProcessManagementCapability,
     ) -> usize {
         self.kernel.process_map_or(0, app.idx(), |process| {
@@ -107,7 +107,7 @@ impl KernelInfo {
     /// Returns the number of time this app has been restarted.
     pub fn number_app_restarts(
         &self,
-        app: AppId,
+        app: AppId<'ker>,
         _capability: &dyn ProcessManagementCapability,
     ) -> usize {
         self.kernel
@@ -117,7 +117,7 @@ impl KernelInfo {
     /// Returns the number of time this app has exceeded its timeslice.
     pub fn number_app_timeslice_expirations(
         &self,
-        app: AppId,
+        app: AppId<'ker>,
         _capability: &dyn ProcessManagementCapability,
     ) -> usize {
         self.kernel.process_map_or(0, app.idx(), |process| {

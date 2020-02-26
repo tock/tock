@@ -25,12 +25,12 @@ const KERNEL_TICK_DURATION_US: u32 = 10000;
 const MIN_QUANTA_THRESHOLD_US: u32 = 500;
 
 /// Main object for the kernel. Each board will need to create one.
-pub struct Kernel {
+pub struct Kernel<'ker> {
     /// How many "to-do" items exist at any given time. These include
     /// outstanding callbacks and processes in the Running state.
     work: Cell<usize>,
     /// This holds a pointer to the static array of Process pointers.
-    processes: &'static [Option<&'static dyn process::ProcessType>],
+    processes: &'ker [Option<&'ker dyn process::ProcessType<'ker>>],
     /// How many grant regions have been setup. This is incremented on every
     /// call to `create_grant()`. We need to explicitly track this so that when
     /// processes are created they can allocated pointers for each grant.
@@ -42,8 +42,8 @@ pub struct Kernel {
     grants_finalized: Cell<bool>,
 }
 
-impl Kernel {
-    pub fn new(processes: &'static [Option<&'static dyn process::ProcessType>]) -> Kernel {
+impl<'ker> Kernel<'ker> {
+    pub fn new(processes: &'ker [Option<&'ker dyn process::ProcessType<'ker>>]) -> Kernel {
         Kernel {
             work: Cell::new(0),
             processes: processes,
@@ -75,7 +75,7 @@ impl Kernel {
     /// reference to the process.
     crate fn process_map_or<F, R>(&self, default: R, process_index: usize, closure: F) -> R
     where
-        F: FnOnce(&dyn process::ProcessType) -> R,
+        F: FnOnce(&dyn process::ProcessType<'ker>) -> R,
     {
         if process_index > self.processes.len() {
             return default;
@@ -87,7 +87,7 @@ impl Kernel {
     /// processes and call the closure on every process that exists.
     crate fn process_each<F>(&self, closure: F)
     where
-        F: Fn(&dyn process::ProcessType),
+        F: Fn(&dyn process::ProcessType<'ker>),
     {
         for process in self.processes.iter() {
             match process {
@@ -104,11 +104,11 @@ impl Kernel {
     /// exists. Ths method is available outside the kernel crate but
     /// requires a `ProcessManagementCapability` to use.
     pub fn process_each_capability<F>(
-        &'static self,
+        &self,
         _capability: &dyn capabilities::ProcessManagementCapability,
         closure: F,
     ) where
-        F: Fn(usize, &dyn process::ProcessType),
+        F: Fn(usize, &dyn process::ProcessType<'ker>),
     {
         for (i, process) in self.processes.iter().enumerate() {
             match process {
@@ -126,7 +126,7 @@ impl Kernel {
     /// of the array of processes will stop.
     crate fn process_until<F>(&self, closure: F) -> ReturnCode
     where
-        F: Fn(&dyn process::ProcessType) -> ReturnCode,
+        F: Fn(&dyn process::ProcessType<'ker>) -> ReturnCode,
     {
         for process in self.processes.iter() {
             match process {
@@ -159,9 +159,9 @@ impl Kernel {
     /// enforce this calling this function requires the
     /// `MemoryAllocationCapability` capability.
     pub fn create_grant<T: Default>(
-        &'static self,
+        &'ker self,
         _capability: &dyn capabilities::MemoryAllocationCapability,
-    ) -> Grant<T> {
+    ) -> Grant<'ker, T> {
         if self.grants_finalized.get() {
             panic!("Grants finalized. Cannot create a new grant.");
         }
@@ -203,13 +203,13 @@ impl Kernel {
     }
 
     /// Main loop.
-    pub fn kernel_loop<P: Platform, C: Chip>(
-        &'static self,
+    pub fn kernel_loop<P: Platform<'ker>, C: Chip>(
+        &self,
         platform: &P,
         chip: &C,
-        ipc: Option<&ipc::IPC>,
+        ipc: Option<&ipc::IPC<'ker>>,
         _capability: &dyn capabilities::MainLoopCapability,
-    ) {
+    ) -> ! {
         loop {
             unsafe {
                 chip.service_pending_interrupts();
@@ -238,12 +238,12 @@ impl Kernel {
         }
     }
 
-    unsafe fn do_process<P: Platform, C: Chip>(
+    unsafe fn do_process<P: Platform<'ker>, C: Chip>(
         &self,
         platform: &P,
         chip: &C,
-        process: &dyn process::ProcessType,
-        ipc: Option<&crate::ipc::IPC>,
+        process: &dyn process::ProcessType<'ker>,
+        ipc: Option<&crate::ipc::IPC<'ker>>,
     ) {
         let systick = chip.systick();
         systick.reset();
