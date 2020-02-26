@@ -5,13 +5,20 @@
 //! when the underlying flash volume is full). The storage volumes that logs operate upon are
 //! statically allocated at compile time and cannot be dynamically created at runtime.
 //!
+//! The locations of entries are abstractly represented by numerical cookies. Cookies can be used
+//! to determine the ordering of entries - an entry with a larger cookie is newer and thus comes
+//! after an entry with a smaller cookie. Cookies can also be used to determine the physical
+//! location of an entry within the log's underlying storage volume - taking the cookie modulo the
+//! size of the storage volume yields the offset of the entry's header relative to the start of the
+//! storage volume. Cookies should not be created manually by clients. Instead, they should only be
+//! retrieved via the `current_read_cookie()` and `current_append_cookie()` functions (unless the
+//! special cookie `LogCookie::SeekBeginning` is being used, which is fine to create manually).
+//!
 //! Logs support the following basic operations:
 //!     * Read:     Read back previously written entries in whole. Entries are read in their
 //!                 entirety (no partial reads) from oldest to newest.
 //!     * Seek:     Seek to different entries to begin reading from a different entry (can only
-//!                 seek to the start of entries).  Entries are represented by cookies, which
-//!                 interally represent the logical offset of an entry from the first byte written
-//!                 to the log. Valid cookies to seek to can be retrieved via the
+//!                 seek to the start of entries). Valid cookies to seek to can be retrieved via the
 //!                 `current_read_cookie()` and `current_append_cookie()` functions.
 //!     * Append:   Append new data entries onto the end of a log. Can fail if the new entry is too
 //!                 large to fit within the log.
@@ -35,9 +42,9 @@
 //!         DynamicDeferredCall::new(dynamic_deferred_call_clients)
 //!     );
 //!
-//!     let log_storage = static_init!(
-//!         capsules::log_storage::LogStorage,
-//!         capsules::log_storage::LogStorage::new(
+//!     let log = static_init!(
+//!         capsules::log::Log,
+//!         capsules::log::Log::new(
 //!             &VOLUME,
 //!             &mut sam4l::flashcalw::FLASH_CONTROLLER,
 //!             &mut PAGEBUFFER,
@@ -45,11 +52,11 @@
 //!             true
 //!         )
 //!     );
-//!     kernel::hil::flash::HasClient::set_client(&sam4l::flashcalw::FLASH_CONTROLLER, log_storage);
-//!     log_storage.initialize_callback_handle(dynamic_deferred_caller.register(log_storage).expect("no deferred call slot available for log storage"));
+//!     kernel::hil::flash::HasClient::set_client(&sam4l::flashcalw::FLASH_CONTROLLER, log);
+//!     log.initialize_callback_handle(dynamic_deferred_caller.register(log).expect("no deferred call slot available for log storage"));
 //!
-//!     log_storage.set_read_client(log_storage_read_client);
-//!     log_storage.set_append_client(log_storage_append_client);
+//!     log.set_read_client(log_storage_read_client);
+//!     log.set_append_client(log_storage_append_client);
 //! ```
 
 use core::cell::Cell;
@@ -61,9 +68,7 @@ use kernel::common::dynamic_deferred_call::{
     DeferredCallHandle, DynamicDeferredCall, DynamicDeferredCallClient,
 };
 use kernel::hil::flash::{self, Flash};
-use kernel::hil::storage_interface::{
-    LogRead, LogReadClient, LogWrite, LogWriteClient, StorageCookie,
-};
+use kernel::hil::log::{LogCookie, LogRead, LogReadClient, LogWrite, LogWriteClient};
 use kernel::ReturnCode;
 
 /// Maximum page header size.
@@ -85,7 +90,7 @@ enum State {
     Erase,
 }
 
-pub struct LogStorage<'a, F: Flash + 'static> {
+pub struct Log<'a, F: Flash + 'static> {
     /// Underlying storage volume.
     volume: &'static [u8],
     /// Capacity of log in bytes.
@@ -98,9 +103,9 @@ pub struct LogStorage<'a, F: Flash + 'static> {
     page_size: usize,
     /// Whether or not the log is circular.
     circular: bool,
-    /// Read client using LogStorage.
+    /// Read client using Log.
     read_client: OptionalCell<&'a dyn LogReadClient>,
-    /// Append client using LogStorage.
+    /// Append client using Log.
     append_client: OptionalCell<&'a dyn LogWriteClient>,
 
     /// Current operation being executed, if asynchronous.
@@ -128,18 +133,18 @@ pub struct LogStorage<'a, F: Flash + 'static> {
     error: Cell<ReturnCode>,
 }
 
-impl<'a, F: Flash + 'static> LogStorage<'a, F> {
+impl<'a, F: Flash + 'static> Log<'a, F> {
     pub fn new(
         volume: &'static [u8],
         driver: &'a F,
         pagebuffer: &'static mut F::Page,
         deferred_caller: &'a DynamicDeferredCall,
         circular: bool,
-    ) -> LogStorage<'a, F> {
+    ) -> Log<'a, F> {
         let page_size = pagebuffer.as_mut().len();
         let capacity = volume.len() - PAGE_HEADER_SIZE * (volume.len() / page_size);
 
-        let log_storage: LogStorage<'a, F> = LogStorage {
+        let log: Log<'a, F> = Log {
             volume,
             capacity,
             driver,
@@ -160,8 +165,8 @@ impl<'a, F: Flash + 'static> LogStorage<'a, F> {
             error: Cell::new(ReturnCode::ENODEVICE),
         };
 
-        log_storage.reconstruct();
-        log_storage
+        log.reconstruct();
+        log
     }
 
     /// Returns the page number of the page containing a cookie.
@@ -563,7 +568,7 @@ impl<'a, F: Flash + 'static> LogStorage<'a, F> {
     }
 }
 
-impl<'a, F: Flash + 'static> LogRead<'a> for LogStorage<'a, F> {
+impl<'a, F: Flash + 'static> LogRead<'a> for Log<'a, F> {
     /// Set the client for read operation callbacks.
     fn set_read_client(&self, read_client: &'a dyn LogReadClient) {
         self.read_client.set(read_client);
@@ -620,24 +625,24 @@ impl<'a, F: Flash + 'static> LogRead<'a> for LogStorage<'a, F> {
     }
 
     /// Get cookie representing current read cookie.
-    fn current_read_cookie(&self) -> StorageCookie {
-        StorageCookie::Cookie(self.read_cookie.get())
+    fn current_read_cookie(&self) -> LogCookie {
+        LogCookie::Cookie(self.read_cookie.get())
     }
 
     /// Seek to a new read cookie. It is only legal to seek to the start of entry via
-    /// `StorageCookie::SeekBeginning` or a cookie retrived through `current_read_cookie()` or
+    /// `LogCookie::SeekBeginning` or a cookie retrived through `current_read_cookie()` or
     /// `current_append_cookie()`.
     /// ReturnCodes used:
     ///     * SUCCESS: seek succeeded.
     ///     * EINVAL: cookie not valid seek position within current log.
     ///     * ERESERVE: no log client set.
-    fn seek(&self, cookie: StorageCookie) -> ReturnCode {
+    fn seek(&self, cookie: LogCookie) -> ReturnCode {
         let status = match cookie {
-            StorageCookie::SeekBeginning => {
+            LogCookie::SeekBeginning => {
                 self.read_cookie.set(self.oldest_cookie.get());
                 ReturnCode::SUCCESS
             }
-            StorageCookie::Cookie(cookie) => {
+            LogCookie::Cookie(cookie) => {
                 if cookie <= self.append_cookie.get() && cookie >= self.oldest_cookie.get() {
                     self.read_cookie.set(cookie);
                     ReturnCode::SUCCESS
@@ -662,7 +667,7 @@ impl<'a, F: Flash + 'static> LogRead<'a> for LogStorage<'a, F> {
     }
 }
 
-impl<'a, F: Flash + 'static> LogWrite<'a> for LogStorage<'a, F> {
+impl<'a, F: Flash + 'static> LogWrite<'a> for Log<'a, F> {
     /// Set the client for append operation callbacks.
     fn set_append_client(&self, append_client: &'a dyn LogWriteClient) {
         self.append_client.set(append_client);
@@ -742,8 +747,8 @@ impl<'a, F: Flash + 'static> LogWrite<'a> for LogStorage<'a, F> {
     }
 
     /// Get cookie representing current append cookie.
-    fn current_append_cookie(&self) -> StorageCookie {
-        StorageCookie::Cookie(self.append_cookie.get())
+    fn current_append_cookie(&self) -> LogCookie {
+        LogCookie::Cookie(self.append_cookie.get())
     }
 
     /// Sync log to storage.
@@ -791,7 +796,7 @@ impl<'a, F: Flash + 'static> LogWrite<'a> for LogStorage<'a, F> {
     }
 }
 
-impl<'a, F: Flash + 'static> flash::Client<F> for LogStorage<'a, F> {
+impl<'a, F: Flash + 'static> flash::Client<F> for Log<'a, F> {
     fn read_complete(&self, _read_buffer: &'static mut F::Page, _error: flash::Error) {
         // Reads are made directly from the storage volume, not through the flash interface.
         unreachable!();
@@ -885,7 +890,7 @@ impl<'a, F: Flash + 'static> flash::Client<F> for LogStorage<'a, F> {
     }
 }
 
-impl<'a, F: Flash + 'static> DynamicDeferredCallClient for LogStorage<'a, F> {
+impl<'a, F: Flash + 'static> DynamicDeferredCallClient for Log<'a, F> {
     fn call(&self, _handle: DeferredCallHandle) {
         self.client_callback();
     }
