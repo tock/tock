@@ -113,37 +113,48 @@ static mut CHIP: Option<&'static sam4l::chip::Sam4l> = None;
 #[link_section = ".stack_buffer"]
 pub static mut STACK_MEMORY: [u8; 0x2000] = [0; 0x2000];
 
-struct Imix {
+struct Imix<'ker>
+where
+    'ker: 'static,
+{
     pconsole: &'static capsules::process_console::ProcessConsole<
         'static,
+        'ker,
         components::process_console::Capability,
     >,
-    console: &'static capsules::console::Console<'static>,
-    gpio: &'static capsules::gpio::GPIO<'static>,
-    alarm: &'static AlarmDriver<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>,
-    temp: &'static capsules::temperature::TemperatureSensor<'static>,
-    humidity: &'static capsules::humidity::HumiditySensor<'static>,
-    ambient_light: &'static capsules::ambient_light::AmbientLight<'static>,
-    adc: &'static capsules::adc::Adc<'static, sam4l::adc::Adc>,
+    console: &'static capsules::console::Console<'static, 'ker>,
+    gpio: &'static capsules::gpio::GPIO<'static, 'ker>,
+    alarm: &'static AlarmDriver<'static, 'ker, VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>,
+    temp: &'static capsules::temperature::TemperatureSensor<'static, 'ker>,
+    humidity: &'static capsules::humidity::HumiditySensor<'static, 'ker>,
+    ambient_light: &'static capsules::ambient_light::AmbientLight<'static, 'ker>,
+    adc: &'static capsules::adc::Adc<'static, 'ker, sam4l::adc::Adc>,
     led: &'static capsules::led::LED<'static>,
-    button: &'static capsules::button::Button<'static>,
-    rng: &'static capsules::rng::RngDriver<'static>,
+    button: &'static capsules::button::Button<'static, 'ker>,
+    rng: &'static capsules::rng::RngDriver<'static, 'ker>,
     analog_comparator: &'static capsules::analog_comparator::AnalogComparator<
         'static,
+        'ker,
         sam4l::acifc::Acifc<'static>,
     >,
-    spi: &'static capsules::spi::Spi<'static, VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw>>,
-    ipc: kernel::ipc::IPC,
-    ninedof: &'static capsules::ninedof::NineDof<'static>,
-    radio_driver: &'static capsules::ieee802154::RadioDriver<'static>,
-    udp_driver: &'static capsules::net::udp::UDPDriver<'static>,
-    crc: &'static capsules::crc::Crc<'static, sam4l::crccu::Crccu<'static>>,
+    spi: &'static capsules::spi::Spi<
+        'static,
+        'ker,
+        VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw>,
+    >,
+    ipc: kernel::ipc::IPC<'ker>,
+    ninedof: &'static capsules::ninedof::NineDof<'static, 'ker>,
+    radio_driver: &'static capsules::ieee802154::RadioDriver<'static, 'ker>,
+    udp_driver: &'static capsules::net::udp::UDPDriver<'static, 'ker>,
+    crc: &'static capsules::crc::Crc<'static, 'ker, sam4l::crccu::Crccu<'static>>,
     usb_driver: &'static capsules::usb::usb_user::UsbSyscallDriver<
         'static,
+        'ker,
         capsules::usb::usbc_client::Client<'static, sam4l::usbc::Usbc<'static>>,
     >,
-    nrf51822: &'static capsules::nrf51822_serialization::Nrf51822Serialization<'static>,
-    nonvolatile_storage: &'static capsules::nonvolatile_storage_driver::NonvolatileStorage<'static>,
+    nrf51822: &'static capsules::nrf51822_serialization::Nrf51822Serialization<'static, 'ker>,
+    nonvolatile_storage:
+        &'static capsules::nonvolatile_storage_driver::NonvolatileStorage<'static, 'ker>,
 }
 
 // The RF233 radio stack requires our buffers for its SPI operations:
@@ -159,10 +170,10 @@ static mut RF233_BUF: [u8; radio::MAX_BUF_SIZE] = [0x00; radio::MAX_BUF_SIZE];
 static mut RF233_REG_WRITE: [u8; 2] = [0x00; 2];
 static mut RF233_REG_READ: [u8; 2] = [0x00; 2];
 
-impl kernel::Platform for Imix {
+impl<'ker> kernel::Platform<'ker> for Imix<'ker> {
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
     where
-        F: FnOnce(Option<&dyn kernel::Driver>) -> R,
+        F: FnOnce(Option<&dyn kernel::Driver<'ker>>) -> R,
     {
         match driver_num {
             capsules::console::DRIVER_NUM => f(Some(self.console)),

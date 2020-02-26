@@ -72,39 +72,48 @@ impl UartPins {
 }
 
 /// Supported drivers by the platform
-pub struct Platform {
+pub struct Platform<'ker>
+where
+    'ker: 'static,
+{
     ble_radio: &'static capsules::ble_advertising_driver::BLE<
         'static,
+        'ker,
         nrf52::ble_radio::Radio,
         VirtualMuxAlarm<'static, Rtc<'static>>,
     >,
-    ieee802154_radio: Option<&'static capsules::ieee802154::RadioDriver<'static>>,
-    button: &'static capsules::button::Button<'static>,
+    ieee802154_radio: Option<&'static capsules::ieee802154::RadioDriver<'static, 'ker>>,
+    button: &'static capsules::button::Button<'static, 'ker>,
     pconsole: &'static capsules::process_console::ProcessConsole<
         'static,
+        'ker,
         components::process_console::Capability,
     >,
-    console: &'static capsules::console::Console<'static>,
-    gpio: &'static capsules::gpio::GPIO<'static>,
+    console: &'static capsules::console::Console<'static, 'ker>,
+    gpio: &'static capsules::gpio::GPIO<'static, 'ker>,
     led: &'static capsules::led::LED<'static>,
-    rng: &'static capsules::rng::RngDriver<'static>,
-    temp: &'static capsules::temperature::TemperatureSensor<'static>,
-    ipc: kernel::ipc::IPC,
-    analog_comparator:
-        &'static capsules::analog_comparator::AnalogComparator<'static, nrf52::acomp::Comparator>,
+    rng: &'static capsules::rng::RngDriver<'static, 'ker>,
+    temp: &'static capsules::temperature::TemperatureSensor<'static, 'ker>,
+    ipc: kernel::ipc::IPC<'ker>,
+    analog_comparator: &'static capsules::analog_comparator::AnalogComparator<
+        'static,
+        'ker,
+        nrf52::acomp::Comparator,
+    >,
     alarm: &'static capsules::alarm::AlarmDriver<
         'static,
+        'ker,
         capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc<'static>>,
     >,
     // The nRF52dk does not have the flash chip on it, so we make this optional.
     nonvolatile_storage:
-        Option<&'static capsules::nonvolatile_storage_driver::NonvolatileStorage<'static>>,
+        Option<&'static capsules::nonvolatile_storage_driver::NonvolatileStorage<'static, 'ker>>,
 }
 
-impl kernel::Platform for Platform {
+impl<'ker> kernel::Platform<'ker> for Platform<'ker> {
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
     where
-        F: FnOnce(Option<&dyn kernel::Driver>) -> R,
+        F: FnOnce(Option<&dyn kernel::Driver<'ker>>) -> R,
     {
         match driver_num {
             capsules::console::DRIVER_NUM => f(Some(self.console)),
@@ -131,11 +140,11 @@ impl kernel::Platform for Platform {
 
 /// Generic function for starting an nrf52dk board.
 #[inline]
-pub unsafe fn setup_board<I: nrf52::interrupt_service::InterruptService>(
-    board_kernel: &'static kernel::Kernel,
+pub unsafe fn setup_board<'ker, I: nrf52::interrupt_service::InterruptService>(
+    board_kernel: &'ker kernel::Kernel<'ker>,
     button_rst_pin: Pin,
     gpio_port: &'static nrf52::gpio::Port,
-    gpio: &'static capsules::gpio::GPIO<'static>,
+    gpio: &'static capsules::gpio::GPIO<'static, 'ker>,
     debug_pin1_index: Pin,
     debug_pin2_index: Pin,
     debug_pin3_index: Pin,
@@ -143,10 +152,10 @@ pub unsafe fn setup_board<I: nrf52::interrupt_service::InterruptService>(
     uart_pins: &UartPins,
     spi_pins: &SpiPins,
     mx25r6435f: &Option<SpiMX25R6435FPins>,
-    button: &'static capsules::button::Button<'static>,
+    button: &'static capsules::button::Button<'static, 'ker>,
     ieee802154: bool,
     app_memory: &mut [u8],
-    process_pointers: &'static mut [Option<&'static dyn kernel::procs::ProcessType>],
+    process_pointers: &'ker mut [Option<&'ker dyn kernel::procs::ProcessType<'ker>>],
     app_fault_response: kernel::procs::FaultResponse,
     reg_vout: Regulator0Output,
     nfc_as_gpios: bool,
@@ -284,7 +293,7 @@ pub unsafe fn setup_board<I: nrf52::interrupt_service::InterruptService>(
     };
 
     let temp = static_init!(
-        capsules::temperature::TemperatureSensor<'static>,
+        capsules::temperature::TemperatureSensor<'static, '_>,
         capsules::temperature::TemperatureSensor::new(
             &nrf52::temperature::TEMP,
             board_kernel.create_grant(&memory_allocation_capability)
@@ -308,7 +317,7 @@ pub unsafe fn setup_board<I: nrf52::interrupt_service::InterruptService>(
     );
 
     let nonvolatile_storage: Option<
-        &'static capsules::nonvolatile_storage_driver::NonvolatileStorage<'static>,
+        &'static capsules::nonvolatile_storage_driver::NonvolatileStorage<'static, 'ker>,
     > = if let Some(driver) = mx25r6435f {
         // Create a SPI device for the mx25r6435f flash chip.
         let mx25r6435f_spi = static_init!(
@@ -363,7 +372,7 @@ pub unsafe fn setup_board<I: nrf52::interrupt_service::InterruptService>(
         hil::flash::HasClient::set_client(mx25r6435f, nv_to_page);
 
         let nonvolatile_storage = static_init!(
-            capsules::nonvolatile_storage_driver::NonvolatileStorage<'static>,
+            capsules::nonvolatile_storage_driver::NonvolatileStorage<'static, '_>,
             capsules::nonvolatile_storage_driver::NonvolatileStorage::new(
                 nv_to_page,
                 board_kernel.create_grant(&memory_allocation_capability),
@@ -387,7 +396,7 @@ pub unsafe fn setup_board<I: nrf52::interrupt_service::InterruptService>(
         [&nrf52::acomp::CHANNEL_AC0,]
     );
     let analog_comparator = static_init!(
-        analog_comparator::AnalogComparator<'static, nrf52::acomp::Comparator>,
+        analog_comparator::AnalogComparator<'static, '_, nrf52::acomp::Comparator>,
         analog_comparator::AnalogComparator::new(&mut nrf52::acomp::ACOMP, ac_channels)
     );
     nrf52::acomp::ACOMP.set_client(analog_comparator);

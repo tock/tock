@@ -157,12 +157,12 @@ pub struct LowpanTest<'a, A: time::Alarm<'a>> {
     test_mode: Cell<TestMode>,
 }
 
-pub unsafe fn initialize_all(
+pub unsafe fn initialize_all<'ker>(
     udp_send_mux: &'static MuxUdpSender<
         'static,
         IP6SendStruct<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>,
     >,
-    udp_recv_mux: &'static MuxUdpReceiver<'static>,
+    udp_recv_mux: &'static MuxUdpReceiver<'static, 'static, 'ker>,
     port_table: &'static UdpPortManager,
     mux_alarm: &'static MuxAlarm<'static, sam4l::ast::Ast>,
 ) -> &'static LowpanTest<
