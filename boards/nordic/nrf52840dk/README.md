@@ -54,6 +54,9 @@ is enabled by setting the `USB_DEBUGGING` constant to `true` in the
 [main.rs](src/main.rs) file.
 This disables the UART interface.
 
+For instructions about how to receive RTT messages on the host, see the
+[corresponding capsule](../../capsules/src/segger_rtt.rs).
+
 ## Debugging
 
 See the [nrf52dk README](../nrf52dk/README.md) for information about debugging
