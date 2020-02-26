@@ -43,28 +43,31 @@ const PAYLOAD_LEN: usize = super::udp_mux::PAYLOAD_LEN;
 
 static mut DRIVER_BUF: [u8; PAYLOAD_LEN - UDP_HDR_SIZE] = [0; PAYLOAD_LEN - UDP_HDR_SIZE];
 
-pub struct UDPDriverComponent {
-    board_kernel: &'static kernel::Kernel,
+pub struct UDPDriverComponent<'ker>
+where
+    'ker: 'static,
+{
+    board_kernel: &'ker kernel::Kernel<'ker>,
     udp_send_mux: &'static MuxUdpSender<
         'static,
         IP6SendStruct<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>,
     >,
-    udp_recv_mux: &'static MuxUdpReceiver<'static>,
+    udp_recv_mux: &'static MuxUdpReceiver<'static, 'static, 'ker>,
     port_table: &'static UdpPortManager,
     interface_list: &'static [IPAddr],
 }
 
-impl UDPDriverComponent {
+impl UDPDriverComponent<'ker> {
     pub fn new(
-        board_kernel: &'static kernel::Kernel,
+        board_kernel: &'ker kernel::Kernel<'ker>,
         udp_send_mux: &'static MuxUdpSender<
             'static,
             IP6SendStruct<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>,
         >,
-        udp_recv_mux: &'static MuxUdpReceiver<'static>,
+        udp_recv_mux: &'static MuxUdpReceiver<'static, 'static, 'ker>,
         port_table: &'static UdpPortManager,
         interface_list: &'static [IPAddr],
-    ) -> UDPDriverComponent {
+    ) -> UDPDriverComponent<'ker> {
         UDPDriverComponent {
             board_kernel: board_kernel,
             udp_send_mux: udp_send_mux,
@@ -75,9 +78,9 @@ impl UDPDriverComponent {
     }
 }
 
-impl Component for UDPDriverComponent {
+impl Component for UDPDriverComponent<'ker> {
     type StaticInput = ();
-    type Output = &'static capsules::net::udp::UDPDriver<'static>;
+    type Output = &'static capsules::net::udp::UDPDriver<'static, 'ker>;
 
     unsafe fn finalize(&mut self, _s: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
@@ -98,7 +101,7 @@ impl Component for UDPDriverComponent {
         static DRIVER_CAP: DriverCap = DriverCap;
 
         let udp_driver = static_init!(
-            capsules::net::udp::UDPDriver<'static>,
+            capsules::net::udp::UDPDriver<'static, '_>,
             capsules::net::udp::UDPDriver::new(
                 udp_send,
                 self.board_kernel.create_grant(&grant_cap),

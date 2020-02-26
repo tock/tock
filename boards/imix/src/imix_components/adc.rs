@@ -21,21 +21,24 @@ use kernel::component::Component;
 use kernel::create_capability;
 use kernel::static_init;
 
-pub struct AdcComponent {
-    board_kernel: &'static kernel::Kernel,
+pub struct AdcComponent<'ker> {
+    board_kernel: &'ker kernel::Kernel<'ker>,
 }
 
-impl AdcComponent {
-    pub fn new(board_kernel: &'static kernel::Kernel) -> AdcComponent {
+impl AdcComponent<'ker> {
+    pub fn new(board_kernel: &'ker kernel::Kernel<'ker>) -> AdcComponent<'ker> {
         AdcComponent {
             board_kernel: board_kernel,
         }
     }
 }
 
-impl Component for AdcComponent {
+impl Component for AdcComponent<'ker>
+where
+    'ker: 'static,
+{
     type StaticInput = ();
-    type Output = &'static adc::Adc<'static, sam4l::adc::Adc>;
+    type Output = &'static adc::Adc<'static, 'ker, sam4l::adc::Adc>;
 
     unsafe fn finalize(&mut self, _s: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
@@ -51,7 +54,7 @@ impl Component for AdcComponent {
             ]
         );
         let adc = static_init!(
-            adc::Adc<'static, sam4l::adc::Adc>,
+            adc::Adc<'static, '_, sam4l::adc::Adc>,
             adc::Adc::new(
                 &mut sam4l::adc::ADC0,
                 self.board_kernel.create_grant(&grant_cap),

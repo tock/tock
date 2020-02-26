@@ -23,20 +23,20 @@ use kernel::{create_capability, static_init};
 
 // Save some deep nesting
 
-pub struct Ieee802154Component {
-    board_kernel: &'static kernel::Kernel,
+pub struct Ieee802154Component<'ker> {
+    board_kernel: &'ker kernel::Kernel<'ker>,
     radio: &'static nrf52::ieee802154_radio::Radio,
     pan_id: capsules::net::ieee802154::PanID,
     short_addr: u16,
 }
 
-impl Ieee802154Component {
+impl<'ker> Ieee802154Component<'ker> {
     pub fn new(
-        board_kernel: &'static kernel::Kernel,
+        board_kernel: &'ker kernel::Kernel<'ker>,
         radio: &'static nrf52::ieee802154_radio::Radio,
         pan_id: capsules::net::ieee802154::PanID,
         addr: u16,
-    ) -> Ieee802154Component {
+    ) -> Ieee802154Component<'ker> {
         Ieee802154Component {
             board_kernel: board_kernel,
             radio: radio,
@@ -56,10 +56,13 @@ static mut RADIO_RX_BUF: [u8; radio::MAX_BUF_SIZE] = [0x00; radio::MAX_BUF_SIZE]
 const CRYPT_SIZE: usize = 1;
 static mut CRYPT_BUF: [u8; CRYPT_SIZE] = [0x00; CRYPT_SIZE];
 
-impl Component for Ieee802154Component {
+impl<'ker> Component for Ieee802154Component<'ker>
+where
+    'ker: 'static,
+{
     type StaticInput = ();
     type Output = (
-        &'static capsules::ieee802154::RadioDriver<'static>,
+        &'static capsules::ieee802154::RadioDriver<'static, 'ker>,
         &'static capsules::ieee802154::virtual_mac::MuxMac<'static>,
     );
 
@@ -106,7 +109,7 @@ impl Component for Ieee802154Component {
         mux_mac.add_user(radio_mac);
 
         let radio_driver = static_init!(
-            capsules::ieee802154::RadioDriver<'static>,
+            capsules::ieee802154::RadioDriver<'static, '_>,
             capsules::ieee802154::RadioDriver::new(
                 radio_mac,
                 self.board_kernel.create_grant(&grant_cap),

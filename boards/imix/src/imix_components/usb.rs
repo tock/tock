@@ -19,26 +19,30 @@ use kernel::component::Component;
 use kernel::create_capability;
 use kernel::static_init;
 
-pub struct UsbComponent {
-    board_kernel: &'static kernel::Kernel,
+pub struct UsbComponent<'ker> {
+    board_kernel: &'ker kernel::Kernel<'ker>,
 }
 
-type UsbDevice = capsules::usb::usb_user::UsbSyscallDriver<
+type UsbDevice<'ker> = capsules::usb::usb_user::UsbSyscallDriver<
     'static,
+    'ker,
     capsules::usb::usbc_client::Client<'static, sam4l::usbc::Usbc<'static>>,
 >;
 
-impl UsbComponent {
-    pub fn new(board_kernel: &'static kernel::Kernel) -> UsbComponent {
+impl UsbComponent<'ker> {
+    pub fn new(board_kernel: &'ker kernel::Kernel<'ker>) -> UsbComponent<'ker> {
         UsbComponent {
             board_kernel: board_kernel,
         }
     }
 }
 
-impl Component for UsbComponent {
+impl Component for UsbComponent<'ker>
+where
+    'ker: 'static,
+{
     type StaticInput = ();
-    type Output = &'static UsbDevice;
+    type Output = &'static UsbDevice<'ker>;
 
     unsafe fn finalize(&mut self, _s: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
@@ -54,6 +58,7 @@ impl Component for UsbComponent {
         let usb_driver = static_init!(
             capsules::usb::usb_user::UsbSyscallDriver<
                 'static,
+                '_,
                 capsules::usb::usbc_client::Client<'static, sam4l::usbc::Usbc<'static>>,
             >,
             capsules::usb::usb_user::UsbSyscallDriver::new(

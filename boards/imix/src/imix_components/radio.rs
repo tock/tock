@@ -32,20 +32,20 @@ use kernel::static_init;
 type RF233Device =
     capsules::rf233::RF233<'static, VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw>>;
 
-pub struct RadioComponent {
-    board_kernel: &'static kernel::Kernel,
+pub struct RadioComponent<'ker> {
+    board_kernel: &'ker kernel::Kernel<'ker>,
     rf233: &'static RF233Device,
     pan_id: capsules::net::ieee802154::PanID,
     short_addr: u16,
 }
 
-impl RadioComponent {
+impl RadioComponent<'ker> {
     pub fn new(
-        board_kernel: &'static kernel::Kernel,
+        board_kernel: &'ker kernel::Kernel<'ker>,
         rf233: &'static RF233Device,
         pan_id: capsules::net::ieee802154::PanID,
         addr: u16,
-    ) -> RadioComponent {
+    ) -> RadioComponent<'ker> {
         RadioComponent {
             board_kernel: board_kernel,
             rf233: rf233,
@@ -67,10 +67,13 @@ static mut RF233_RX_BUF: [u8; radio::MAX_BUF_SIZE] = [0x00; radio::MAX_BUF_SIZE]
 const CRYPT_SIZE: usize = 3 * symmetric_encryption::AES128_BLOCK_SIZE + radio::MAX_BUF_SIZE;
 static mut CRYPT_BUF: [u8; CRYPT_SIZE] = [0x00; CRYPT_SIZE];
 
-impl Component for RadioComponent {
+impl Component for RadioComponent<'ker>
+where
+    'ker: 'static,
+{
     type StaticInput = ();
     type Output = (
-        &'static capsules::ieee802154::RadioDriver<'static>,
+        &'static capsules::ieee802154::RadioDriver<'static, 'ker>,
         &'static capsules::ieee802154::virtual_mac::MuxMac<'static>,
     );
 
@@ -117,7 +120,7 @@ impl Component for RadioComponent {
         mux_mac.add_user(radio_mac);
 
         let radio_driver = static_init!(
-            capsules::ieee802154::RadioDriver<'static>,
+            capsules::ieee802154::RadioDriver<'static, '_>,
             capsules::ieee802154::RadioDriver::new(
                 radio_mac,
                 self.board_kernel.create_grant(&grant_cap),

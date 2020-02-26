@@ -93,16 +93,16 @@ impl<A: 'static + time::Alarm<'static>> Component for SI7021Component<A> {
     }
 }
 
-pub struct TemperatureComponent<A: 'static + time::Alarm<'static>> {
-    board_kernel: &'static kernel::Kernel,
+pub struct TemperatureComponent<'ker, A: 'static + time::Alarm<'static>> {
+    board_kernel: &'ker kernel::Kernel<'ker>,
     si7021: &'static SI7021<'static, VirtualMuxAlarm<'static, A>>,
 }
 
-impl<A: 'static + time::Alarm<'static>> TemperatureComponent<A> {
+impl<A: 'static + time::Alarm<'static>> TemperatureComponent<'ker, A> {
     pub fn new(
-        board_kernel: &'static kernel::Kernel,
+        board_kernel: &'ker kernel::Kernel<'ker>,
         si: &'static SI7021<'static, VirtualMuxAlarm<'static, A>>,
-    ) -> TemperatureComponent<A> {
+    ) -> TemperatureComponent<'ker, A> {
         TemperatureComponent {
             board_kernel: board_kernel,
             si7021: si,
@@ -110,15 +110,18 @@ impl<A: 'static + time::Alarm<'static>> TemperatureComponent<A> {
     }
 }
 
-impl<A: 'static + time::Alarm<'static>> Component for TemperatureComponent<A> {
+impl<A: 'static + time::Alarm<'static>> Component for TemperatureComponent<'ker, A>
+where
+    'ker: 'static,
+{
     type StaticInput = ();
-    type Output = &'static TemperatureSensor<'static>;
+    type Output = &'static TemperatureSensor<'static, 'ker>;
 
     unsafe fn finalize(&mut self, _s: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
         let temp = static_init!(
-            TemperatureSensor<'static>,
+            TemperatureSensor<'static, '_>,
             TemperatureSensor::new(self.si7021, self.board_kernel.create_grant(&grant_cap))
         );
 
@@ -127,16 +130,16 @@ impl<A: 'static + time::Alarm<'static>> Component for TemperatureComponent<A> {
     }
 }
 
-pub struct HumidityComponent<A: 'static + time::Alarm<'static>> {
-    board_kernel: &'static kernel::Kernel,
+pub struct HumidityComponent<'ker, A: 'static + time::Alarm<'static>> {
+    board_kernel: &'ker kernel::Kernel<'ker>,
     si7021: &'static SI7021<'static, VirtualMuxAlarm<'static, A>>,
 }
 
-impl<A: 'static + time::Alarm<'static>> HumidityComponent<A> {
+impl<A: 'static + time::Alarm<'static>> HumidityComponent<'ker, A> {
     pub fn new(
-        board_kernel: &'static kernel::Kernel,
+        board_kernel: &'ker kernel::Kernel<'ker>,
         si: &'static SI7021<'static, VirtualMuxAlarm<'static, A>>,
-    ) -> HumidityComponent<A> {
+    ) -> HumidityComponent<'ker, A> {
         HumidityComponent {
             board_kernel: board_kernel,
             si7021: si,
@@ -144,15 +147,18 @@ impl<A: 'static + time::Alarm<'static>> HumidityComponent<A> {
     }
 }
 
-impl<A: 'static + time::Alarm<'static>> Component for HumidityComponent<A> {
+impl<A: 'static + time::Alarm<'static>> Component for HumidityComponent<'ker, A>
+where
+    'ker: 'static,
+{
     type StaticInput = ();
-    type Output = &'static HumiditySensor<'static>;
+    type Output = &'static HumiditySensor<'static, 'ker>;
 
     unsafe fn finalize(&mut self, _s: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
         let hum = static_init!(
-            HumiditySensor<'static>,
+            HumiditySensor<'static, '_>,
             HumiditySensor::new(self.si7021, self.board_kernel.create_grant(&grant_cap))
         );
 

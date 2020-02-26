@@ -18,18 +18,18 @@ use kernel::{create_capability, static_init};
 
 // Save some deep nesting
 
-pub struct BLEComponent {
-    board_kernel: &'static kernel::Kernel,
+pub struct BLEComponent<'ker> {
+    board_kernel: &'ker kernel::Kernel<'ker>,
     radio: &'static nrf52::ble_radio::Radio,
     mux_alarm: &'static capsules::virtual_alarm::MuxAlarm<'static, nrf52::rtc::Rtc<'static>>,
 }
 
-impl BLEComponent {
+impl<'ker> BLEComponent<'ker> {
     pub fn new(
-        board_kernel: &'static kernel::Kernel,
+        board_kernel: &'ker kernel::Kernel<'ker>,
         radio: &'static nrf52::ble_radio::Radio,
         mux_alarm: &'static capsules::virtual_alarm::MuxAlarm<'static, nrf52::rtc::Rtc>,
-    ) -> BLEComponent {
+    ) -> BLEComponent<'ker> {
         BLEComponent {
             board_kernel: board_kernel,
             radio: radio,
@@ -38,10 +38,14 @@ impl BLEComponent {
     }
 }
 
-impl Component for BLEComponent {
+impl<'ker> Component for BLEComponent<'ker>
+where
+    'ker: 'static,
+{
     type StaticInput = ();
     type Output = &'static capsules::ble_advertising_driver::BLE<
         'static,
+        'ker,
         nrf52::ble_radio::Radio,
         VirtualMuxAlarm<'static, Rtc<'static>>,
     >;
@@ -57,6 +61,7 @@ impl Component for BLEComponent {
         let ble_radio = static_init!(
             capsules::ble_advertising_driver::BLE<
                 'static,
+                '_,
                 nrf52::ble_radio::Radio,
                 VirtualMuxAlarm<'static, Rtc>,
             >,

@@ -49,7 +49,7 @@ macro_rules! spi_syscall_component_helper {
         use capsules::spi::Spi;
         use core::mem::MaybeUninit;
         static mut BUF1: MaybeUninit<VirtualSpiMasterDevice<'static, $S>> = MaybeUninit::uninit();
-        static mut BUF2: MaybeUninit<Spi<'static, VirtualSpiMasterDevice<'static, $S>>> =
+        static mut BUF2: MaybeUninit<Spi<'static, '_, VirtualSpiMasterDevice<'static, $S>>> =
             MaybeUninit::uninit();
         (&mut BUF1, &mut BUF2)
     };};
@@ -68,9 +68,10 @@ pub struct SpiMuxComponent<S: 'static + spi::SpiMaster> {
     spi: &'static S,
 }
 
-pub struct SpiSyscallComponent<S: 'static + spi::SpiMaster> {
+pub struct SpiSyscallComponent<'ker, S: 'static + spi::SpiMaster> {
     spi_mux: &'static MuxSpiMaster<'static, S>,
     chip_select: S::ChipSelect,
+    _lifetime: core::marker::PhantomData<&'ker ()>,
 }
 
 pub struct SpiComponent<S: 'static + spi::SpiMaster> {
@@ -102,21 +103,25 @@ impl<S: 'static + spi::SpiMaster> Component for SpiMuxComponent<S> {
     }
 }
 
-impl<S: 'static + spi::SpiMaster> SpiSyscallComponent<S> {
+impl<S: 'static + spi::SpiMaster> SpiSyscallComponent<'ker, S> {
     pub fn new(mux: &'static MuxSpiMaster<'static, S>, chip_select: S::ChipSelect) -> Self {
         SpiSyscallComponent {
             spi_mux: mux,
             chip_select: chip_select,
+            _lifetime: core::marker::PhantomData,
         }
     }
 }
 
-impl<S: 'static + spi::SpiMaster> Component for SpiSyscallComponent<S> {
+impl<'ker, S: 'static + spi::SpiMaster> Component for SpiSyscallComponent<'ker, S>
+where
+    'ker: 'static,
+{
     type StaticInput = (
         &'static mut MaybeUninit<VirtualSpiMasterDevice<'static, S>>,
-        &'static mut MaybeUninit<Spi<'static, VirtualSpiMasterDevice<'static, S>>>,
+        &'static mut MaybeUninit<Spi<'static, 'ker, VirtualSpiMasterDevice<'static, S>>>,
     );
-    type Output = &'static Spi<'static, VirtualSpiMasterDevice<'static, S>>;
+    type Output = &'static Spi<'static, 'ker, VirtualSpiMasterDevice<'static, S>>;
 
     unsafe fn finalize(&mut self, static_buffer: Self::StaticInput) -> Self::Output {
         let syscall_spi_device = static_init_half!(
@@ -127,7 +132,7 @@ impl<S: 'static + spi::SpiMaster> Component for SpiSyscallComponent<S> {
 
         let spi_syscalls = static_init_half!(
             static_buffer.1,
-            Spi<'static, VirtualSpiMasterDevice<'static, S>>,
+            Spi<'static, '_, VirtualSpiMasterDevice<'static, S>>,
             Spi::new(syscall_spi_device)
         );
 

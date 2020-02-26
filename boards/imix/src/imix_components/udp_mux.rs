@@ -76,7 +76,7 @@ static mut UDP_DGRAM: [u8; PAYLOAD_LEN - UDP_HDR_SIZE] = [0; PAYLOAD_LEN - UDP_H
 static mut USED_KERNEL_PORTS: [Option<SocketBindingEntry>; MAX_NUM_BOUND_PORTS] =
     [None; MAX_NUM_BOUND_PORTS];
 
-pub struct UDPMuxComponent {
+pub struct UDPMuxComponent<'ker> {
     mux_mac: &'static capsules::ieee802154::virtual_mac::MuxMac<'static>,
     ctx_pfix_len: u8,
     ctx_pfix: [u8; 16],
@@ -84,9 +84,10 @@ pub struct UDPMuxComponent {
     src_mac_addr: MacAddress,
     interface_list: &'static [IPAddr],
     alarm_mux: &'static MuxAlarm<'static, sam4l::ast::Ast<'static>>,
+    _lifetime: core::marker::PhantomData<&'ker ()>,
 }
 
-impl UDPMuxComponent {
+impl UDPMuxComponent<'ker> {
     pub fn new(
         mux_mac: &'static capsules::ieee802154::virtual_mac::MuxMac<'static>,
         ctx_pfix_len: u8,
@@ -95,7 +96,7 @@ impl UDPMuxComponent {
         src_mac_addr: MacAddress,
         interface_list: &'static [IPAddr],
         alarm: &'static MuxAlarm<'static, sam4l::ast::Ast<'static>>,
-    ) -> UDPMuxComponent {
+    ) -> UDPMuxComponent<'ker> {
         UDPMuxComponent {
             mux_mac: mux_mac,
             ctx_pfix_len: ctx_pfix_len,
@@ -104,18 +105,22 @@ impl UDPMuxComponent {
             src_mac_addr: src_mac_addr,
             interface_list: interface_list,
             alarm_mux: alarm,
+            _lifetime: core::marker::PhantomData,
         }
     }
 }
 
-impl Component for UDPMuxComponent {
+impl Component for UDPMuxComponent<'ker>
+where
+    'ker: 'static,
+{
     type StaticInput = ();
     type Output = (
         &'static MuxUdpSender<
             'static,
             IP6SendStruct<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>,
         >,
-        &'static MuxUdpReceiver<'static>,
+        &'static MuxUdpReceiver<'static, 'static, 'ker>,
         &'static UdpPortManager,
     );
 
@@ -199,7 +204,8 @@ impl Component for UDPMuxComponent {
             capsules::net::ipv6::ipv6_recv::IP6RecvStruct::new()
         );
         sixlowpan_state.set_rx_client(ip_receive);
-        let udp_recv_mux = static_init!(MuxUdpReceiver<'static>, MuxUdpReceiver::new());
+        let udp_recv_mux =
+            static_init!(MuxUdpReceiver<'static, 'static, '_>, MuxUdpReceiver::new());
         ip_receive.set_client(udp_recv_mux);
 
         let udp_send_mux = static_init!(

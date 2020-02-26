@@ -23,21 +23,24 @@ use kernel::create_capability;
 use kernel::hil;
 use kernel::static_init;
 
-pub struct NonvolatileStorageComponent {
-    board_kernel: &'static kernel::Kernel,
+pub struct NonvolatileStorageComponent<'ker> {
+    board_kernel: &'ker kernel::Kernel<'ker>,
 }
 
-impl NonvolatileStorageComponent {
-    pub fn new(board_kernel: &'static kernel::Kernel) -> Self {
+impl NonvolatileStorageComponent<'ker> {
+    pub fn new(board_kernel: &'ker kernel::Kernel<'ker>) -> Self {
         NonvolatileStorageComponent {
             board_kernel: board_kernel,
         }
     }
 }
 
-impl Component for NonvolatileStorageComponent {
+impl Component for NonvolatileStorageComponent<'ker>
+where
+    'ker: 'static,
+{
     type StaticInput = ();
-    type Output = &'static NonvolatileStorage<'static>;
+    type Output = &'static NonvolatileStorage<'static, 'ker>;
 
     unsafe fn finalize(&mut self, _s: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
@@ -67,7 +70,7 @@ impl Component for NonvolatileStorageComponent {
         let kernel_len = kernel_end - kernel_start;
 
         let nonvolatile_storage = static_init!(
-            NonvolatileStorage<'static>,
+            NonvolatileStorage<'static, '_>,
             NonvolatileStorage::new(
                 nv_to_page,
                 self.board_kernel.create_grant(&grant_cap),

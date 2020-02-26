@@ -76,16 +76,16 @@ impl Component for UartMuxComponent {
     }
 }
 
-pub struct ConsoleComponent {
-    board_kernel: &'static kernel::Kernel,
+pub struct ConsoleComponent<'ker> {
+    board_kernel: &'ker kernel::Kernel<'ker>,
     uart_mux: &'static MuxUart<'static>,
 }
 
-impl ConsoleComponent {
+impl ConsoleComponent<'ker> {
     pub fn new(
-        board_kernel: &'static kernel::Kernel,
+        board_kernel: &'ker kernel::Kernel<'ker>,
         uart_mux: &'static MuxUart,
-    ) -> ConsoleComponent {
+    ) -> ConsoleComponent<'ker> {
         ConsoleComponent {
             board_kernel: board_kernel,
             uart_mux: uart_mux,
@@ -93,9 +93,12 @@ impl ConsoleComponent {
     }
 }
 
-impl Component for ConsoleComponent {
+impl Component for ConsoleComponent<'ker>
+where
+    'ker: 'static,
+{
     type StaticInput = ();
-    type Output = &'static console::Console<'static>;
+    type Output = &'static console::Console<'static, 'ker>;
 
     unsafe fn finalize(&mut self, _s: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
@@ -105,7 +108,7 @@ impl Component for ConsoleComponent {
         console_uart.setup();
 
         let console = static_init!(
-            console::Console<'static>,
+            console::Console<'static, '_>,
             console::Console::new(
                 console_uart,
                 &mut console::WRITE_BUF,

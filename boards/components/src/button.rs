@@ -45,30 +45,33 @@ macro_rules! button_component_helper {
     };};
 }
 
-pub struct ButtonComponent {
-    board_kernel: &'static kernel::Kernel,
+pub struct ButtonComponent<'ker> {
+    board_kernel: &'ker kernel::Kernel<'ker>,
 }
 
-impl ButtonComponent {
-    pub fn new(board_kernel: &'static kernel::Kernel) -> ButtonComponent {
+impl ButtonComponent<'ker> {
+    pub fn new(board_kernel: &'ker kernel::Kernel<'ker>) -> ButtonComponent<'ker> {
         ButtonComponent {
             board_kernel: board_kernel,
         }
     }
 }
 
-impl Component for ButtonComponent {
+impl Component for ButtonComponent<'ker>
+where
+    'ker: 'static,
+{
     type StaticInput = &'static [(
         &'static dyn kernel::hil::gpio::InterruptValuePin,
         capsules::button::GpioMode,
         kernel::hil::gpio::FloatingState,
     )];
-    type Output = &'static capsules::button::Button<'static>;
+    type Output = &'static capsules::button::Button<'static, 'ker>;
 
     unsafe fn finalize(&mut self, button_pins: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
         let button = static_init!(
-            capsules::button::Button<'static>,
+            capsules::button::Button<'static, '_>,
             capsules::button::Button::new(button_pins, self.board_kernel.create_grant(&grant_cap))
         );
         for (pin, _, _) in button_pins.iter() {

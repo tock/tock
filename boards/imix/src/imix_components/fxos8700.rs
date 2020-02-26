@@ -65,18 +65,18 @@ impl Component for Fxos8700Component {
     }
 }
 
-pub struct NineDofComponent {
-    board_kernel: &'static kernel::Kernel,
+pub struct NineDofComponent<'ker> {
+    board_kernel: &'ker kernel::Kernel<'ker>,
     i2c_mux: &'static MuxI2C<'static>,
     gpio: &'static sam4l::gpio::GPIOPin,
 }
 
-impl NineDofComponent {
+impl NineDofComponent<'ker> {
     pub fn new(
-        board_kernel: &'static kernel::Kernel,
+        board_kernel: &'ker kernel::Kernel<'ker>,
         i2c: &'static MuxI2C<'static>,
         gpio: &'static sam4l::gpio::GPIOPin,
-    ) -> NineDofComponent {
+    ) -> NineDofComponent<'ker> {
         NineDofComponent {
             board_kernel: board_kernel,
             i2c_mux: i2c,
@@ -85,9 +85,12 @@ impl NineDofComponent {
     }
 }
 
-impl Component for NineDofComponent {
+impl Component for NineDofComponent<'ker>
+where
+    'ker: 'static,
+{
     type StaticInput = ();
-    type Output = &'static NineDof<'static>;
+    type Output = &'static NineDof<'static, 'ker>;
 
     unsafe fn finalize(&mut self, _s: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
@@ -101,7 +104,7 @@ impl Component for NineDofComponent {
         self.gpio.set_client(fxos8700);
 
         let ninedof = static_init!(
-            NineDof<'static>,
+            NineDof<'static, '_>,
             NineDof::new(fxos8700, self.board_kernel.create_grant(&grant_cap))
         );
         hil::sensors::NineDof::set_client(fxos8700, ninedof);

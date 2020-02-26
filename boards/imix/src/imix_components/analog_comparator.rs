@@ -19,18 +19,25 @@ use capsules::analog_comparator;
 use kernel::component::Component;
 use kernel::static_init;
 
-pub struct AcComponent {}
+pub struct AcComponent<'ker> {
+    _lifetime: core::marker::PhantomData<&'ker ()>,
+}
 
-impl AcComponent {
-    pub fn new() -> AcComponent {
-        AcComponent {}
+impl AcComponent<'ker> {
+    pub fn new() -> AcComponent<'ker> {
+        AcComponent {
+            _lifetime: core::marker::PhantomData,
+        }
     }
 }
 
-impl Component for AcComponent {
+impl Component for AcComponent<'ker>
+where
+    'ker: 'static,
+{
     type StaticInput = ();
     type Output =
-        &'static analog_comparator::AnalogComparator<'static, sam4l::acifc::Acifc<'static>>;
+        &'static analog_comparator::AnalogComparator<'static, 'ker, sam4l::acifc::Acifc<'static>>;
 
     unsafe fn finalize(&mut self, _s: Self::StaticInput) -> Self::Output {
         let ac_channels = static_init!(
@@ -43,7 +50,7 @@ impl Component for AcComponent {
             ]
         );
         let analog_comparator = static_init!(
-            analog_comparator::AnalogComparator<'static, sam4l::acifc::Acifc>,
+            analog_comparator::AnalogComparator<'static, '_, sam4l::acifc::Acifc>,
             analog_comparator::AnalogComparator::new(&mut sam4l::acifc::ACIFC, ac_channels)
         );
         sam4l::acifc::ACIFC.set_client(analog_comparator);

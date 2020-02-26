@@ -96,15 +96,15 @@ impl<A: 'static + time::Alarm<'static>> Component for Isl29035Component<A> {
     }
 }
 
-pub struct AmbientLightComponent<A: 'static + time::Alarm<'static>> {
-    board_kernel: &'static kernel::Kernel,
+pub struct AmbientLightComponent<'ker, A: 'static + time::Alarm<'static>> {
+    board_kernel: &'ker kernel::Kernel<'ker>,
     i2c_mux: &'static MuxI2C<'static>,
     alarm_mux: &'static MuxAlarm<'static, A>,
 }
 
-impl<A: 'static + time::Alarm<'static>> AmbientLightComponent<A> {
+impl<A: 'static + time::Alarm<'static>> AmbientLightComponent<'ker, A> {
     pub fn new(
-        board_kernel: &'static kernel::Kernel,
+        board_kernel: &'ker kernel::Kernel<'ker>,
         i2c: &'static MuxI2C<'static>,
         alarm: &'static MuxAlarm<'static, A>,
     ) -> Self {
@@ -116,12 +116,15 @@ impl<A: 'static + time::Alarm<'static>> AmbientLightComponent<A> {
     }
 }
 
-impl<A: 'static + time::Alarm<'static>> Component for AmbientLightComponent<A> {
+impl<A: 'static + time::Alarm<'static>> Component for AmbientLightComponent<'ker, A>
+where
+    'ker: 'static,
+{
     type StaticInput = (
         &'static mut MaybeUninit<VirtualMuxAlarm<'static, A>>,
         &'static mut MaybeUninit<Isl29035<'static, VirtualMuxAlarm<'static, A>>>,
     );
-    type Output = &'static AmbientLight<'static>;
+    type Output = &'static AmbientLight<'static, 'ker>;
 
     unsafe fn finalize(&mut self, static_buffer: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
@@ -140,7 +143,7 @@ impl<A: 'static + time::Alarm<'static>> Component for AmbientLightComponent<A> {
         isl29035_i2c.set_client(isl29035);
         isl29035_virtual_alarm.set_client(isl29035);
         let ambient_light = static_init!(
-            AmbientLight<'static>,
+            AmbientLight<'static, '_>,
             AmbientLight::new(isl29035, self.board_kernel.create_grant(&grant_cap))
         );
         hil::sensors::AmbientLight::set_client(isl29035, ambient_light);

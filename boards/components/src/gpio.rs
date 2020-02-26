@@ -42,26 +42,29 @@ macro_rules! gpio_component_helper {
     };};
 }
 
-pub struct GpioComponent {
-    board_kernel: &'static kernel::Kernel,
+pub struct GpioComponent<'ker> {
+    board_kernel: &'ker kernel::Kernel<'ker>,
 }
 
-impl GpioComponent {
-    pub fn new(board_kernel: &'static kernel::Kernel) -> GpioComponent {
+impl GpioComponent<'ker> {
+    pub fn new(board_kernel: &'ker kernel::Kernel<'ker>) -> GpioComponent<'ker> {
         GpioComponent {
             board_kernel: board_kernel,
         }
     }
 }
 
-impl Component for GpioComponent {
+impl Component for GpioComponent<'ker>
+where
+    'ker: 'static,
+{
     type StaticInput = &'static [&'static dyn kernel::hil::gpio::InterruptValuePin];
-    type Output = &'static capsules::gpio::GPIO<'static>;
+    type Output = &'static capsules::gpio::GPIO<'static, 'ker>;
 
     unsafe fn finalize(&mut self, gpio_pins: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
         let gpio = static_init!(
-            capsules::gpio::GPIO<'static>,
+            capsules::gpio::GPIO<'static, '_>,
             capsules::gpio::GPIO::new(gpio_pins, self.board_kernel.create_grant(&grant_cap))
         );
         for pin in gpio_pins.iter() {

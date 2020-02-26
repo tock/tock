@@ -20,16 +20,16 @@ use kernel::component::Component;
 use kernel::hil;
 use kernel::static_init;
 
-pub struct ProcessConsoleComponent {
-    board_kernel: &'static kernel::Kernel,
+pub struct ProcessConsoleComponent<'ker> {
+    board_kernel: &'ker kernel::Kernel<'ker>,
     uart_mux: &'static MuxUart<'static>,
 }
 
-impl ProcessConsoleComponent {
+impl ProcessConsoleComponent<'ker> {
     pub fn new(
-        board_kernel: &'static kernel::Kernel,
+        board_kernel: &'ker kernel::Kernel<'ker>,
         uart_mux: &'static MuxUart,
-    ) -> ProcessConsoleComponent {
+    ) -> ProcessConsoleComponent<'ker> {
         ProcessConsoleComponent {
             board_kernel: board_kernel,
             uart_mux: uart_mux,
@@ -40,9 +40,12 @@ impl ProcessConsoleComponent {
 pub struct Capability;
 unsafe impl capabilities::ProcessManagementCapability for Capability {}
 
-impl Component for ProcessConsoleComponent {
+impl Component for ProcessConsoleComponent<'ker>
+where
+    'ker: 'static,
+{
     type StaticInput = ();
-    type Output = &'static process_console::ProcessConsole<'static, Capability>;
+    type Output = &'static process_console::ProcessConsole<'static, 'ker, Capability>;
 
     unsafe fn finalize(&mut self, _s: Self::StaticInput) -> Self::Output {
         // Create virtual device for console.
@@ -50,7 +53,7 @@ impl Component for ProcessConsoleComponent {
         console_uart.setup();
 
         let console = static_init!(
-            process_console::ProcessConsole<'static, Capability>,
+            process_console::ProcessConsole<'static, '_, Capability>,
             process_console::ProcessConsole::new(
                 console_uart,
                 &mut process_console::WRITE_BUF,

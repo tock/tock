@@ -22,16 +22,16 @@ use kernel::create_capability;
 use kernel::hil;
 use kernel::static_init;
 
-pub struct LowLevelDebugComponent {
-    board_kernel: &'static kernel::Kernel,
+pub struct LowLevelDebugComponent<'ker> {
+    board_kernel: &'ker kernel::Kernel<'ker>,
     uart_mux: &'static MuxUart<'static>,
 }
 
-impl LowLevelDebugComponent {
+impl LowLevelDebugComponent<'ker> {
     pub fn new(
-        board_kernel: &'static kernel::Kernel,
+        board_kernel: &'ker kernel::Kernel<'ker>,
         uart_mux: &'static MuxUart,
-    ) -> LowLevelDebugComponent {
+    ) -> LowLevelDebugComponent<'ker> {
         LowLevelDebugComponent {
             board_kernel: board_kernel,
             uart_mux: uart_mux,
@@ -39,9 +39,12 @@ impl LowLevelDebugComponent {
     }
 }
 
-impl Component for LowLevelDebugComponent {
+impl Component for LowLevelDebugComponent<'ker>
+where
+    'ker: 'static,
+{
     type StaticInput = ();
-    type Output = &'static low_level_debug::LowLevelDebug<'static, UartDevice<'static>>;
+    type Output = &'static low_level_debug::LowLevelDebug<'static, 'ker, UartDevice<'static>>;
 
     unsafe fn finalize(&mut self, _s: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
@@ -53,7 +56,7 @@ impl Component for LowLevelDebugComponent {
         static mut MYBUF: [u8; low_level_debug::BUF_LEN] = [0; low_level_debug::BUF_LEN];
 
         let lldb = static_init!(
-            low_level_debug::LowLevelDebug<'static, UartDevice<'static>>,
+            low_level_debug::LowLevelDebug<'static, '_, UartDevice<'static>>,
             low_level_debug::LowLevelDebug::new(
                 &mut MYBUF,
                 lldb_uart,

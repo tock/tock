@@ -15,13 +15,16 @@ use kernel::component::Component;
 use kernel::hil::time::Alarm;
 use kernel::static_init;
 
-pub struct MockUDPComponent {
+pub struct MockUDPComponent<'ker>
+where
+    'ker: 'static,
+{
     // TODO: consider putting bound_port_table in a TakeCell
     udp_send_mux: &'static MuxUdpSender<
         'static,
         IP6SendStruct<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>,
     >,
-    udp_recv_mux: &'static MuxUdpReceiver<'static>,
+    udp_recv_mux: &'static MuxUdpReceiver<'static, 'static, 'ker>,
     bound_port_table: &'static UdpPortManager,
     alarm_mux: &'static MuxAlarm<'static, sam4l::ast::Ast<'static>>,
     udp_payload: TakeCell<'static, [u8]>,
@@ -29,19 +32,19 @@ pub struct MockUDPComponent {
     dst_port: u16,
 }
 
-impl MockUDPComponent {
+impl MockUDPComponent<'ker> {
     pub fn new(
         udp_send_mux: &'static MuxUdpSender<
             'static,
             IP6SendStruct<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>,
         >,
-        udp_recv_mux: &'static MuxUdpReceiver<'static>,
+        udp_recv_mux: &'static MuxUdpReceiver<'static, 'static, 'ker>,
         bound_port_table: &'static UdpPortManager,
         alarm: &'static MuxAlarm<'static, sam4l::ast::Ast<'static>>,
         udp_payload: &'static mut [u8],
         id: u16,
         dst_port: u16,
-    ) -> MockUDPComponent {
+    ) -> MockUDPComponent<'ker> {
         MockUDPComponent {
             udp_send_mux: udp_send_mux,
             udp_recv_mux: udp_recv_mux,
@@ -54,7 +57,7 @@ impl MockUDPComponent {
     }
 }
 
-impl Component for MockUDPComponent {
+impl Component for MockUDPComponent<'ker> {
     type StaticInput = ();
     type Output = &'static capsules::test::udp::MockUdp<
         'static,

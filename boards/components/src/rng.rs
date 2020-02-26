@@ -20,16 +20,16 @@ use kernel::hil::entropy::Entropy32;
 use kernel::hil::rng::Rng;
 use kernel::static_init;
 
-pub struct RngComponent {
-    board_kernel: &'static kernel::Kernel,
+pub struct RngComponent<'ker> {
+    board_kernel: &'ker kernel::Kernel<'ker>,
     trng: &'static dyn Entropy32<'static>,
 }
 
-impl RngComponent {
+impl RngComponent<'ker> {
     pub fn new(
-        board_kernel: &'static kernel::Kernel,
+        board_kernel: &'ker kernel::Kernel<'ker>,
         trng: &'static dyn Entropy32<'static>,
-    ) -> RngComponent {
+    ) -> RngComponent<'ker> {
         RngComponent {
             board_kernel: board_kernel,
             trng: trng,
@@ -37,9 +37,12 @@ impl RngComponent {
     }
 }
 
-impl Component for RngComponent {
+impl Component for RngComponent<'ker>
+where
+    'ker: 'static,
+{
     type StaticInput = ();
-    type Output = &'static rng::RngDriver<'static>;
+    type Output = &'static rng::RngDriver<'static, 'ker>;
 
     unsafe fn finalize(&mut self, _static_buffer: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
@@ -49,7 +52,7 @@ impl Component for RngComponent {
             rng::Entropy32ToRandom::new(self.trng)
         );
         let rng = static_init!(
-            rng::RngDriver<'static>,
+            rng::RngDriver<'static, '_>,
             rng::RngDriver::new(
                 entropy_to_random,
                 self.board_kernel.create_grant(&grant_cap)

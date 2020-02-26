@@ -28,18 +28,18 @@ macro_rules! crc_component_helper {
     ($C:ty) => {{
         use capsules::crc;
         use core::mem::MaybeUninit;
-        static mut BUF: MaybeUninit<crc::Crc<'static, $C>> = MaybeUninit::uninit();
+        static mut BUF: MaybeUninit<crc::Crc<'static, '_, $C>> = MaybeUninit::uninit();
         &mut BUF
     };};
 }
 
-pub struct CrcComponent<C: 'static + hil::crc::CRC> {
-    board_kernel: &'static kernel::Kernel,
+pub struct CrcComponent<'ker, C: 'static + hil::crc::CRC> {
+    board_kernel: &'ker kernel::Kernel<'ker>,
     crc: &'static C,
 }
 
-impl<C: 'static + hil::crc::CRC> CrcComponent<C> {
-    pub fn new(board_kernel: &'static kernel::Kernel, crc: &'static C) -> CrcComponent<C> {
+impl<C: 'static + hil::crc::CRC> CrcComponent<'ker, C> {
+    pub fn new(board_kernel: &'ker kernel::Kernel<'ker>, crc: &'static C) -> CrcComponent<'ker, C> {
         CrcComponent {
             board_kernel: board_kernel,
             crc: crc,
@@ -47,16 +47,19 @@ impl<C: 'static + hil::crc::CRC> CrcComponent<C> {
     }
 }
 
-impl<C: 'static + hil::crc::CRC> Component for CrcComponent<C> {
-    type StaticInput = &'static mut MaybeUninit<crc::Crc<'static, C>>;
-    type Output = &'static crc::Crc<'static, C>;
+impl<C: 'static + hil::crc::CRC> Component for CrcComponent<'ker, C>
+where
+    'ker: 'static,
+{
+    type StaticInput = &'static mut MaybeUninit<crc::Crc<'static, 'ker, C>>;
+    type Output = &'static crc::Crc<'static, 'ker, C>;
 
     unsafe fn finalize(&mut self, static_buffer: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
         let crc = static_init_half!(
             static_buffer,
-            crc::Crc<'static, C>,
+            crc::Crc<'static, '_, C>,
             crc::Crc::new(self.crc, self.board_kernel.create_grant(&grant_cap))
         );
 

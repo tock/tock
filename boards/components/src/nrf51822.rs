@@ -21,22 +21,23 @@ use kernel::hil;
 use kernel::static_init;
 
 pub struct Nrf51822Component<
+    'ker,
     U: 'static + hil::uart::UartAdvanced<'static>,
     G: 'static + hil::gpio::Pin,
 > {
     uart: &'static U,
     reset_pin: &'static G,
-    board_kernel: &'static kernel::Kernel,
+    board_kernel: &'ker kernel::Kernel<'ker>,
 }
 
 impl<U: 'static + hil::uart::UartAdvanced<'static>, G: 'static + hil::gpio::Pin>
-    Nrf51822Component<U, G>
+    Nrf51822Component<'ker, U, G>
 {
     pub fn new(
         uart: &'static U,
         reset_pin: &'static G,
-        board_kernel: &'static kernel::Kernel,
-    ) -> Nrf51822Component<U, G> {
+        board_kernel: &'ker kernel::Kernel<'ker>,
+    ) -> Nrf51822Component<'ker, U, G> {
         Nrf51822Component {
             uart: uart,
             reset_pin: reset_pin,
@@ -46,16 +47,18 @@ impl<U: 'static + hil::uart::UartAdvanced<'static>, G: 'static + hil::gpio::Pin>
 }
 
 impl<U: 'static + hil::uart::UartAdvanced<'static>, G: 'static + hil::gpio::Pin> Component
-    for Nrf51822Component<U, G>
+    for Nrf51822Component<'ker, U, G>
+where
+    'ker: 'static,
 {
     type StaticInput = ();
-    type Output = &'static nrf51822_serialization::Nrf51822Serialization<'static>;
+    type Output = &'static nrf51822_serialization::Nrf51822Serialization<'static, 'ker>;
 
     unsafe fn finalize(&mut self, _s: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
         let nrf_serialization = static_init!(
-            nrf51822_serialization::Nrf51822Serialization<'static>,
+            nrf51822_serialization::Nrf51822Serialization<'static, '_>,
             nrf51822_serialization::Nrf51822Serialization::new(
                 self.uart,
                 self.board_kernel.create_grant(&grant_cap),
