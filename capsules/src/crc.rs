@@ -76,9 +76,9 @@ pub const DRIVER_NUM: usize = driver::NUM::Crc as usize;
 
 /// An opaque value maintaining state for one application's request
 #[derive(Default)]
-pub struct App {
-    callback: Option<Callback>,
-    buffer: Option<AppSlice<Shared, u8>>,
+pub struct App<'ker> {
+    callback: Option<Callback<'ker>>,
+    buffer: Option<AppSlice<'ker, Shared, u8>>,
 
     // if Some, the application is awaiting the result of a CRC
     //   using the given algorithm
@@ -87,13 +87,13 @@ pub struct App {
 
 /// Struct that holds the state of the CRC driver and implements the `Driver` trait for use by
 /// processes through the system call interface.
-pub struct Crc<'a, C: hil::crc::CRC> {
+pub struct Crc<'a, 'ker, C: hil::crc::CRC> {
     crc_unit: &'a C,
-    apps: Grant<App>,
-    serving_app: OptionalCell<AppId>,
+    apps: Grant<'ker, App<'ker>>,
+    serving_app: OptionalCell<AppId<'ker>>,
 }
 
-impl<C: hil::crc::CRC> Crc<'a, C> {
+impl<C: hil::crc::CRC> Crc<'a, 'ker, C> {
     /// Create a `Crc` driver
     ///
     /// The argument `crc_unit` must implement the abstract `CRC`
@@ -108,7 +108,7 @@ impl<C: hil::crc::CRC> Crc<'a, C> {
     ///
     /// ```
     ///
-    pub fn new(crc_unit: &'a C, apps: Grant<App>) -> Crc<'a, C> {
+    pub fn new(crc_unit: &'a C, apps: Grant<'ker, App<'ker>>) -> Crc<'a, 'ker, C> {
         Crc {
             crc_unit: crc_unit,
             apps: apps,
@@ -165,16 +165,16 @@ impl<C: hil::crc::CRC> Crc<'a, C> {
 /// the `subscribe` system call and `allow`s the driver access to the buffer over-which to compute.
 /// Then, it initiates a CRC computation using the `command` system call. See function-specific
 /// comments for details.
-impl<C: hil::crc::CRC> Driver for Crc<'a, C> {
+impl<C: hil::crc::CRC> Driver<'ker> for Crc<'a, 'ker, C> {
     /// The `allow` syscall for this driver supports the single
     /// `allow_num` zero, which is used to provide a buffer over which
     /// to compute a CRC computation.
     ///
     fn allow(
         &self,
-        appid: AppId,
+        appid: AppId<'ker>,
         allow_num: usize,
-        slice: Option<AppSlice<Shared, u8>>,
+        slice: Option<AppSlice<'ker, Shared, u8>>,
     ) -> ReturnCode {
         match allow_num {
             // Provide user buffer to compute CRC over
@@ -209,8 +209,8 @@ impl<C: hil::crc::CRC> Driver for Crc<'a, C> {
     fn subscribe(
         &self,
         subscribe_num: usize,
-        callback: Option<Callback>,
-        app_id: AppId,
+        callback: Option<Callback<'ker>>,
+        app_id: AppId<'ker>,
     ) -> ReturnCode {
         match subscribe_num {
             // Set callback for CRC result
@@ -284,7 +284,13 @@ impl<C: hil::crc::CRC> Driver for Crc<'a, C> {
     ///   * `4: SAM4L-32C`  This algorithm uses the same polynomial as
     ///   `CRC-32C`, but does no post-processing on the output value.  It
     ///   can be performed purely in hardware on the SAM4L.
-    fn command(&self, command_num: usize, algorithm: usize, _: usize, appid: AppId) -> ReturnCode {
+    fn command(
+        &self,
+        command_num: usize,
+        algorithm: usize,
+        _: usize,
+        appid: AppId<'ker>,
+    ) -> ReturnCode {
         match command_num {
             // This driver is present
             0 => ReturnCode::SUCCESS,
@@ -322,7 +328,7 @@ impl<C: hil::crc::CRC> Driver for Crc<'a, C> {
     }
 }
 
-impl<C: hil::crc::CRC> hil::crc::Client for Crc<'a, C> {
+impl<C: hil::crc::CRC> hil::crc::Client for Crc<'a, 'ker, C> {
     fn receive_result(&self, result: u32) {
         self.serving_app.take().map(|appid| {
             self.apps

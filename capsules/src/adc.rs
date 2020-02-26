@@ -41,7 +41,7 @@ pub const DRIVER_NUM: usize = driver::NUM::Adc as usize;
 
 /// ADC application driver, used by applications to interact with ADC.
 /// Not currently virtualized, only one application can use it at a time.
-pub struct Adc<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed> {
+pub struct Adc<'a, 'ker, A: hil::adc::Adc + hil::adc::AdcHighSpeed> {
     // ADC driver
     adc: &'a A,
     channels: &'a [&'a <A as hil::adc::Adc>::Channel],
@@ -51,8 +51,8 @@ pub struct Adc<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed> {
     mode: Cell<AdcMode>,
 
     // App state
-    apps: Grant<App>,
-    appid: OptionalCell<AppId>,
+    apps: Grant<'ker, App<'ker>>,
+    appid: OptionalCell<AppId<'ker>>,
     channel: Cell<usize>,
 
     // ADC buffers
@@ -73,10 +73,10 @@ enum AdcMode {
 }
 
 /// Holds buffers that the application has passed us
-pub struct App {
-    app_buf1: Option<AppSlice<Shared, u8>>,
-    app_buf2: Option<AppSlice<Shared, u8>>,
-    callback: OptionalCell<Callback>,
+pub struct App<'ker> {
+    app_buf1: Option<AppSlice<'ker, Shared, u8>>,
+    app_buf2: Option<AppSlice<'ker, Shared, u8>>,
+    callback: OptionalCell<Callback<'ker>>,
     app_buf_offset: Cell<usize>,
     samples_remaining: Cell<usize>,
     samples_outstanding: Cell<usize>,
@@ -84,8 +84,8 @@ pub struct App {
     using_app_buf1: Cell<bool>,
 }
 
-impl Default for App {
-    fn default() -> App {
+impl<'ker> Default for App<'ker> {
+    fn default() -> App<'ker> {
         App {
             app_buf1: None,
             app_buf2: None,
@@ -108,7 +108,7 @@ pub static mut ADC_BUFFER2: [u16; 128] = [0; 128];
 pub static mut ADC_BUFFER3: [u16; 128] = [0; 128];
 
 /// Functions to create, initialize, and interact with the ADC
-impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> Adc<'a, A> {
+impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> Adc<'a, 'ker, A> {
     /// Create a new `Adc` application interface.
     ///
     /// - `adc` - ADC driver to provide application access to
@@ -117,12 +117,12 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> Adc<'a, A> {
     /// - `adc_buf2` - second buffer used when continuously sampling ADC
     pub fn new(
         adc: &'a A,
-        grant: Grant<App>,
+        grant: Grant<'ker, App<'ker>>,
         channels: &'a [&'a <A as hil::adc::Adc>::Channel],
         adc_buf1: &'static mut [u16; 128],
         adc_buf2: &'static mut [u16; 128],
         adc_buf3: &'static mut [u16; 128],
-    ) -> Adc<'a, A> {
+    ) -> Adc<'a, 'ker, A> {
         Adc {
             // ADC driver
             adc: adc,
@@ -538,7 +538,7 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> Adc<'a, A> {
 }
 
 /// Callbacks from the ADC driver
-impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> hil::adc::Client for Adc<'a, A> {
+impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> hil::adc::Client for Adc<'a, 'ker, A> {
     /// Single sample operation complete.
     ///
     /// Collects the sample and provides a callback to the application.
@@ -604,7 +604,7 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> hil::adc::Client for Adc<'a, A> 
 }
 
 /// Callbacks from the High Speed ADC driver
-impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> hil::adc::HighSpeedClient for Adc<'a, A> {
+impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> hil::adc::HighSpeedClient for Adc<'a, 'ker, A> {
     /// Internal buffer has filled from a buffered sampling operation.
     /// Copies data over to application buffer, determines if more data is
     /// needed, and performs a callback to the application if ready. If
@@ -903,7 +903,7 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> hil::adc::HighSpeedClient for Ad
 }
 
 /// Implementations of application syscalls
-impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> Driver for Adc<'a, A> {
+impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> Driver<'ker> for Adc<'a, 'ker, A> {
     /// Provides access to a buffer from the application to store data in or
     /// read data from.
     ///
@@ -912,9 +912,9 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> Driver for Adc<'a, A> {
     /// - `slice` - representation of application memory to copy data into
     fn allow(
         &self,
-        appid: AppId,
+        appid: AppId<'ker>,
         allow_num: usize,
-        slice: Option<AppSlice<Shared, u8>>,
+        slice: Option<AppSlice<'ker, Shared, u8>>,
     ) -> ReturnCode {
         // check that this is either the first syscall to use the adc or that the this is the same
         // application that has already used the adc
@@ -974,8 +974,8 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> Driver for Adc<'a, A> {
     fn subscribe(
         &self,
         subscribe_num: usize,
-        callback: Option<Callback>,
-        appid: AppId,
+        callback: Option<Callback<'ker>>,
+        appid: AppId<'ker>,
     ) -> ReturnCode {
         // check that this is either the first syscall to use the adc or that the this is the same
         // application that has already used the adc
@@ -1019,7 +1019,7 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> Driver for Adc<'a, A> {
         command_num: usize,
         channel: usize,
         frequency: usize,
-        appid: AppId,
+        appid: AppId<'ker>,
     ) -> ReturnCode {
         let match_or_empty = self.appid.map(|id| id == &appid).unwrap_or(true);
         if match_or_empty {

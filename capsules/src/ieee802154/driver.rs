@@ -144,16 +144,16 @@ impl KeyDescriptor {
     }
 }
 
-pub struct App {
-    rx_callback: Option<Callback>,
-    tx_callback: Option<Callback>,
-    app_read: Option<AppSlice<Shared, u8>>,
-    app_write: Option<AppSlice<Shared, u8>>,
-    app_cfg: Option<AppSlice<Shared, u8>>,
+pub struct App<'ker> {
+    rx_callback: Option<Callback<'ker>>,
+    tx_callback: Option<Callback<'ker>>,
+    app_read: Option<AppSlice<'ker, Shared, u8>>,
+    app_write: Option<AppSlice<'ker, Shared, u8>>,
+    app_cfg: Option<AppSlice<'ker, Shared, u8>>,
     pending_tx: Option<(u16, Option<(SecurityLevel, KeyId)>)>,
 }
 
-impl Default for App {
+impl<'ker> Default for App<'ker> {
     fn default() -> Self {
         App {
             rx_callback: None,
@@ -166,7 +166,7 @@ impl Default for App {
     }
 }
 
-pub struct RadioDriver<'a> {
+pub struct RadioDriver<'a, 'ker> {
     /// Underlying MAC device, possibly multiplexed
     mac: &'a dyn device::MacDevice<'a>,
 
@@ -183,20 +183,20 @@ pub struct RadioDriver<'a> {
     num_keys: Cell<usize>,
 
     /// Grant of apps that use this radio driver.
-    apps: Grant<App>,
+    apps: Grant<'ker, App<'ker>>,
     /// ID of app whose transmission request is being processed.
-    current_app: OptionalCell<AppId>,
+    current_app: OptionalCell<AppId<'ker>>,
 
     /// Buffer that stores the IEEE 802.15.4 frame to be transmitted.
     kernel_tx: TakeCell<'static, [u8]>,
 }
 
-impl RadioDriver<'a> {
+impl<'a, 'ker> RadioDriver<'a, 'ker> {
     pub fn new(
         mac: &'a dyn device::MacDevice<'a>,
-        grant: Grant<App>,
+        grant: Grant<'ker, App<'ker>>,
         kernel_tx: &'static mut [u8],
-    ) -> RadioDriver<'a> {
+    ) -> RadioDriver<'a, 'ker> {
         RadioDriver {
             mac: mac,
             neighbors: MapCell::new(Default::default()),
@@ -321,9 +321,9 @@ impl RadioDriver<'a> {
 
     /// Utility function to perform an action on an app in a system call.
     #[inline]
-    fn do_with_app<F>(&self, appid: AppId, closure: F) -> ReturnCode
+    fn do_with_app<F>(&self, appid: AppId<'ker>, closure: F) -> ReturnCode
     where
-        F: FnOnce(&mut App) -> ReturnCode,
+        F: FnOnce(&mut App<'ker>) -> ReturnCode,
     {
         self.apps
             .enter(appid, |app, _| closure(app))
@@ -332,7 +332,7 @@ impl RadioDriver<'a> {
 
     /// Utility function to perform an action using an app's config buffer.
     #[inline]
-    fn do_with_cfg<F>(&self, appid: AppId, len: usize, closure: F) -> ReturnCode
+    fn do_with_cfg<F>(&self, appid: AppId<'ker>, len: usize, closure: F) -> ReturnCode
     where
         F: FnOnce(&[u8]) -> ReturnCode,
     {
@@ -353,7 +353,7 @@ impl RadioDriver<'a> {
 
     /// Utility function to perform a write to an app's config buffer.
     #[inline]
-    fn do_with_cfg_mut<F>(&self, appid: AppId, len: usize, closure: F) -> ReturnCode
+    fn do_with_cfg_mut<F>(&self, appid: AppId<'ker>, len: usize, closure: F) -> ReturnCode
     where
         F: FnOnce(&mut [u8]) -> ReturnCode,
     {
@@ -374,7 +374,7 @@ impl RadioDriver<'a> {
 
     /// If the driver is currently idle and there are pending transmissions,
     /// pick an app with a pending transmission and return its `AppId`.
-    fn get_next_tx_if_idle(&self) -> Option<AppId> {
+    fn get_next_tx_if_idle(&self) -> Option<AppId<'ker>> {
         if self.current_app.is_some() {
             return None;
         }
@@ -397,7 +397,7 @@ impl RadioDriver<'a> {
     /// `tx_callback`. Assumes that the driver is currently idle and the app has
     /// a pending transmission.
     #[inline]
-    fn perform_tx_async(&self, appid: AppId) {
+    fn perform_tx_async(&self, appid: AppId<'ker>) {
         let result = self.perform_tx_sync(appid);
         if result != ReturnCode::SUCCESS {
             let _ = self.apps.enter(appid, |app, _| {
@@ -412,7 +412,7 @@ impl RadioDriver<'a> {
     /// returned immediately to the app. Assumes that the driver is currently
     /// idle and the app has a pending transmission.
     #[inline]
-    fn perform_tx_sync(&self, appid: AppId) -> ReturnCode {
+    fn perform_tx_sync(&self, appid: AppId<'ker>) -> ReturnCode {
         self.do_with_app(appid, |app| {
             let (dst_addr, security_needed) = match app.pending_tx.take() {
                 Some(pending_tx) => pending_tx,
@@ -480,7 +480,7 @@ impl RadioDriver<'a> {
     /// On the other hand, if it is some other app, then return any errors via
     /// callbacks.
     #[inline]
-    fn do_next_tx_sync(&self, new_appid: AppId) -> ReturnCode {
+    fn do_next_tx_sync(&self, new_appid: AppId<'ker>) -> ReturnCode {
         self.get_next_tx_if_idle()
             .map_or(ReturnCode::SUCCESS, |appid| {
                 if appid == new_appid {
@@ -493,7 +493,7 @@ impl RadioDriver<'a> {
     }
 }
 
-impl framer::DeviceProcedure for RadioDriver<'a> {
+impl framer::DeviceProcedure for RadioDriver<'a, 'ker> {
     /// Gets the long address corresponding to the neighbor that matches the given
     /// MAC address. If no such neighbor exists, returns `None`.
     fn lookup_addr_long(&self, addr: MacAddress) -> Option<[u8; 8]> {
@@ -509,7 +509,7 @@ impl framer::DeviceProcedure for RadioDriver<'a> {
     }
 }
 
-impl framer::KeyProcedure for RadioDriver<'a> {
+impl framer::KeyProcedure for RadioDriver<'a, 'ker> {
     /// Gets the key corresponding to the key that matches the given security
     /// level `level` and key ID `key_id`. If no such key matches, returns
     /// `None`.
@@ -523,7 +523,7 @@ impl framer::KeyProcedure for RadioDriver<'a> {
     }
 }
 
-impl Driver for RadioDriver<'a> {
+impl Driver<'ker> for RadioDriver<'a, 'ker> {
     /// Setup buffers to read/write from.
     ///
     /// ### `allow_num`
@@ -535,9 +535,9 @@ impl Driver for RadioDriver<'a> {
     ///        not enough to convey the desired information.
     fn allow(
         &self,
-        appid: AppId,
+        appid: AppId<'ker>,
         allow_num: usize,
-        slice: Option<AppSlice<Shared, u8>>,
+        slice: Option<AppSlice<'ker, Shared, u8>>,
     ) -> ReturnCode {
         match allow_num {
             0 | 1 | 2 => self.do_with_app(appid, |app| {
@@ -562,8 +562,8 @@ impl Driver for RadioDriver<'a> {
     fn subscribe(
         &self,
         subscribe_num: usize,
-        callback: Option<Callback>,
-        app_id: AppId,
+        callback: Option<Callback<'ker>>,
+        app_id: AppId<'ker>,
     ) -> ReturnCode {
         match subscribe_num {
             0 => self.do_with_app(app_id, |app| {
@@ -627,7 +627,7 @@ impl Driver for RadioDriver<'a> {
     ///                      9 bytes: the key ID (might not use all bytes) +
     ///                      16 bytes: the key.
     /// - `25`: Remove the key at an index.
-    fn command(&self, command_num: usize, arg1: usize, _: usize, appid: AppId) -> ReturnCode {
+    fn command(&self, command_num: usize, arg1: usize, _: usize, appid: AppId<'ker>) -> ReturnCode {
         match command_num {
             0 => ReturnCode::SUCCESS,
             1 => {
@@ -797,7 +797,7 @@ impl Driver for RadioDriver<'a> {
     }
 }
 
-impl device::TxClient for RadioDriver<'a> {
+impl device::TxClient for RadioDriver<'a, 'ker> {
     fn send_done(&self, spi_buf: &'static mut [u8], acked: bool, result: ReturnCode) {
         self.kernel_tx.replace(spi_buf);
         self.current_app.take().map(|appid| {
@@ -827,7 +827,7 @@ fn encode_address(addr: &Option<MacAddress>) -> usize {
     ((AddressMode::from(addr) as usize) << 16) | short_addr_only
 }
 
-impl device::RxClient for RadioDriver<'a> {
+impl device::RxClient for RadioDriver<'a, 'ker> {
     fn receive<'b>(&self, buf: &'b [u8], header: Header<'b>, data_offset: usize, data_len: usize) {
         self.apps.each(|app| {
             app.app_read.take().as_mut().map(|rbuf| {

@@ -96,23 +96,23 @@ enum ProtocolState {
     ReadingDieTemperature(SensorVoltage),
 }
 
-pub struct TMP006<'a> {
+pub struct TMP006<'a, 'ker> {
     i2c: &'a dyn i2c::I2CDevice,
     interrupt_pin: &'a dyn gpio::InterruptPin,
     sampling_period: Cell<u8>,
     repeated_mode: Cell<bool>,
-    callback: OptionalCell<Callback>,
+    callback: OptionalCell<Callback<'ker>>,
     protocol_state: Cell<ProtocolState>,
     buffer: TakeCell<'static, [u8]>,
 }
 
-impl TMP006<'a> {
+impl TMP006<'a, 'ker> {
     /// The `interrupt_pin` must be pulled-up since the TMP006 is open-drain.
     pub fn new(
         i2c: &'a dyn i2c::I2CDevice,
         interrupt_pin: &'a dyn gpio::InterruptPin,
         buffer: &'static mut [u8],
-    ) -> TMP006<'a> {
+    ) -> TMP006<'a, 'ker> {
         // setup and return struct
         TMP006 {
             i2c: i2c,
@@ -190,7 +190,7 @@ fn calculate_temperature(sensor_voltage: i16, die_temperature: i16) -> f32 {
     t_celsius
 }
 
-impl i2c::I2CClient for TMP006<'a> {
+impl i2c::I2CClient for TMP006<'a, 'ker> {
     fn command_complete(&self, buffer: &'static mut [u8], _error: i2c::Error) {
         // TODO(alevy): handle protocol errors
         match self.protocol_state.get() {
@@ -256,7 +256,7 @@ impl i2c::I2CClient for TMP006<'a> {
     }
 }
 
-impl gpio::Client for TMP006<'a> {
+impl gpio::Client for TMP006<'a, 'ker> {
     fn fired(&self) {
         self.buffer.take().map(|buf| {
             // turn on i2c to send commands
@@ -270,12 +270,12 @@ impl gpio::Client for TMP006<'a> {
     }
 }
 
-impl Driver for TMP006<'a> {
+impl Driver<'ker> for TMP006<'a, 'ker> {
     fn subscribe(
         &self,
         subscribe_num: usize,
-        callback: Option<Callback>,
-        _app_id: AppId,
+        callback: Option<Callback<'ker>>,
+        _app_id: AppId<'ker>,
     ) -> ReturnCode {
         match subscribe_num {
             // single temperature reading with callback
@@ -312,7 +312,7 @@ impl Driver for TMP006<'a> {
         }
     }
 
-    fn command(&self, command_num: usize, data: usize, _: usize, _: AppId) -> ReturnCode {
+    fn command(&self, command_num: usize, data: usize, _: usize, _: AppId<'ker>) -> ReturnCode {
         match command_num {
             0 /* check if present */ => ReturnCode::SUCCESS,
             // set period for sensing

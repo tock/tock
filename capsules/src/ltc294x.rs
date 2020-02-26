@@ -403,13 +403,13 @@ impl gpio::Client for LTC294X<'a> {
 
 /// Default implementation of the LTC2941 driver that provides a Driver
 /// interface for providing access to applications.
-pub struct LTC294XDriver<'a> {
+pub struct LTC294XDriver<'a, 'ker> {
     ltc294x: &'a LTC294X<'a>,
-    callback: OptionalCell<Callback>,
+    callback: OptionalCell<Callback<'ker>>,
 }
 
-impl LTC294XDriver<'a> {
-    pub fn new(ltc: &'a LTC294X) -> LTC294XDriver<'a> {
+impl LTC294XDriver<'a, 'ker> {
+    pub fn new(ltc: &'a LTC294X) -> LTC294XDriver<'a, 'ker> {
         LTC294XDriver {
             ltc294x: ltc,
             callback: OptionalCell::empty(),
@@ -417,7 +417,7 @@ impl LTC294XDriver<'a> {
     }
 }
 
-impl LTC294XClient for LTC294XDriver<'a> {
+impl LTC294XClient for LTC294XDriver<'a, 'ker> {
     fn interrupt(&self) {
         self.callback.map(|cb| {
             cb.schedule(0, 0, 0);
@@ -467,7 +467,7 @@ impl LTC294XClient for LTC294XDriver<'a> {
     }
 }
 
-impl Driver for LTC294XDriver<'a> {
+impl Driver<'ker> for LTC294XDriver<'a, 'ker> {
     /// Setup callbacks.
     ///
     /// ### `subscribe_num`
@@ -484,8 +484,8 @@ impl Driver for LTC294XDriver<'a> {
     fn subscribe(
         &self,
         subscribe_num: usize,
-        callback: Option<Callback>,
-        _app_id: AppId,
+        callback: Option<Callback<'ker>>,
+        _app_id: AppId<'ker>,
     ) -> ReturnCode {
         match subscribe_num {
             0 => {
@@ -515,7 +515,7 @@ impl Driver for LTC294XDriver<'a> {
     /// - `9`: Get the current reading. Only supported on the LTC2943.
     /// - `10`: Set the model of the LTC294X actually being used. `data` is the
     ///   value of the X.
-    fn command(&self, command_num: usize, data: usize, _: usize, _: AppId) -> ReturnCode {
+    fn command(&self, command_num: usize, data: usize, _: usize, _: AppId<'ker>) -> ReturnCode {
         match command_num {
             // Check this driver exists.
             0 => ReturnCode::SUCCESS,

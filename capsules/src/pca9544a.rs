@@ -53,15 +53,15 @@ enum ControlField {
     SelectedChannels,
 }
 
-pub struct PCA9544A<'a> {
+pub struct PCA9544A<'a, 'ker> {
     i2c: &'a dyn i2c::I2CDevice,
     state: Cell<State>,
     buffer: TakeCell<'static, [u8]>,
-    callback: OptionalCell<Callback>,
+    callback: OptionalCell<Callback<'ker>>,
 }
 
-impl PCA9544A<'a> {
-    pub fn new(i2c: &'a dyn i2c::I2CDevice, buffer: &'static mut [u8]) -> PCA9544A<'a> {
+impl PCA9544A<'a, 'ker> {
+    pub fn new(i2c: &'a dyn i2c::I2CDevice, buffer: &'static mut [u8]) -> PCA9544A<'a, 'ker> {
         PCA9544A {
             i2c: i2c,
             state: Cell::new(State::Idle),
@@ -118,7 +118,7 @@ impl PCA9544A<'a> {
     }
 }
 
-impl i2c::I2CClient for PCA9544A<'a> {
+impl i2c::I2CClient for PCA9544A<'a, 'ker> {
     fn command_complete(&self, buffer: &'static mut [u8], _error: i2c::Error) {
         match self.state.get() {
             State::ReadControl(field) => {
@@ -146,7 +146,7 @@ impl i2c::I2CClient for PCA9544A<'a> {
     }
 }
 
-impl Driver for PCA9544A<'a> {
+impl Driver<'ker> for PCA9544A<'a, 'ker> {
     /// Setup callback for event done.
     ///
     /// ### `subscribe_num`
@@ -156,8 +156,8 @@ impl Driver for PCA9544A<'a> {
     fn subscribe(
         &self,
         subscribe_num: usize,
-        callback: Option<Callback>,
-        _app_id: AppId,
+        callback: Option<Callback<'ker>>,
+        _app_id: AppId<'ker>,
     ) -> ReturnCode {
         match subscribe_num {
             0 => {
@@ -179,7 +179,7 @@ impl Driver for PCA9544A<'a> {
     /// - `2`: Disable all channels.
     /// - `3`: Read the list of fired interrupts.
     /// - `4`: Read which channels are selected.
-    fn command(&self, command_num: usize, data: usize, _: usize, _: AppId) -> ReturnCode {
+    fn command(&self, command_num: usize, data: usize, _: usize, _: AppId<'ker>) -> ReturnCode {
         match command_num {
             // Check if present.
             0 => ReturnCode::SUCCESS,

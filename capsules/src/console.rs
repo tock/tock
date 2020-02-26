@@ -44,37 +44,37 @@ use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::Console as usize;
 
 #[derive(Default)]
-pub struct App {
-    write_callback: Option<Callback>,
-    write_buffer: Option<AppSlice<Shared, u8>>,
+pub struct App<'ker> {
+    write_callback: Option<Callback<'ker>>,
+    write_buffer: Option<AppSlice<'ker, Shared, u8>>,
     write_len: usize,
     write_remaining: usize, // How many bytes didn't fit in the buffer and still need to be printed.
     pending_write: bool,
 
-    read_callback: Option<Callback>,
-    read_buffer: Option<AppSlice<Shared, u8>>,
+    read_callback: Option<Callback<'ker>>,
+    read_buffer: Option<AppSlice<'ker, Shared, u8>>,
     read_len: usize,
 }
 
 pub static mut WRITE_BUF: [u8; 64] = [0; 64];
 pub static mut READ_BUF: [u8; 64] = [0; 64];
 
-pub struct Console<'a> {
+pub struct Console<'a, 'ker> {
     uart: &'a dyn uart::UartData<'a>,
-    apps: Grant<App>,
-    tx_in_progress: OptionalCell<AppId>,
+    apps: Grant<'ker, App<'ker>>,
+    tx_in_progress: OptionalCell<AppId<'ker>>,
     tx_buffer: TakeCell<'static, [u8]>,
-    rx_in_progress: OptionalCell<AppId>,
+    rx_in_progress: OptionalCell<AppId<'ker>>,
     rx_buffer: TakeCell<'static, [u8]>,
 }
 
-impl Console<'a> {
+impl Console<'a, 'ker> {
     pub fn new(
         uart: &'a dyn uart::UartData<'a>,
         tx_buffer: &'static mut [u8],
         rx_buffer: &'static mut [u8],
-        grant: Grant<App>,
-    ) -> Console<'a> {
+        grant: Grant<'ker, App<'ker>>,
+    ) -> Console<'a, 'ker> {
         Console {
             uart: uart,
             apps: grant,
@@ -86,7 +86,7 @@ impl Console<'a> {
     }
 
     /// Internal helper function for setting up a new send transaction
-    fn send_new(&self, app_id: AppId, app: &mut App, len: usize) -> ReturnCode {
+    fn send_new(&self, app_id: AppId<'ker>, app: &mut App<'ker>, len: usize) -> ReturnCode {
         match app.write_buffer.take() {
             Some(slice) => {
                 app.write_len = cmp::min(len, slice.len());
@@ -100,7 +100,7 @@ impl Console<'a> {
 
     /// Internal helper function for continuing a previously set up transaction
     /// Returns true if this send is still active, or false if it has completed
-    fn send_continue(&self, app_id: AppId, app: &mut App) -> Result<bool, ReturnCode> {
+    fn send_continue(&self, app_id: AppId<'ker>, app: &mut App<'ker>) -> Result<bool, ReturnCode> {
         if app.write_remaining > 0 {
             app.write_buffer
                 .take()
@@ -115,7 +115,7 @@ impl Console<'a> {
 
     /// Internal helper function for sending data for an existing transaction.
     /// Cannot fail. If can't send now, it will schedule for sending later.
-    fn send(&self, app_id: AppId, app: &mut App, slice: AppSlice<Shared, u8>) {
+    fn send(&self, app_id: AppId<'ker>, app: &mut App<'ker>, slice: AppSlice<'ker, Shared, u8>) {
         if self.tx_in_progress.is_none() {
             self.tx_in_progress.set(app_id);
             self.tx_buffer.take().map(|buffer| {
@@ -149,7 +149,7 @@ impl Console<'a> {
     }
 
     /// Internal helper function for starting a receive operation
-    fn receive_new(&self, app_id: AppId, app: &mut App, len: usize) -> ReturnCode {
+    fn receive_new(&self, app_id: AppId<'ker>, app: &mut App<'ker>, len: usize) -> ReturnCode {
         if self.rx_buffer.is_none() {
             // For now, we tolerate only one concurrent receive operation on this console.
             // Competing apps will have to retry until success.
@@ -181,7 +181,7 @@ impl Console<'a> {
     }
 }
 
-impl Driver for Console<'a> {
+impl Driver<'ker> for Console<'a, 'ker> {
     /// Setup shared buffers.
     ///
     /// ### `allow_num`
@@ -190,9 +190,9 @@ impl Driver for Console<'a> {
     /// - `2`: Writeable buffer for read buffer
     fn allow(
         &self,
-        appid: AppId,
+        appid: AppId<'ker>,
         allow_num: usize,
-        slice: Option<AppSlice<Shared, u8>>,
+        slice: Option<AppSlice<'ker, Shared, u8>>,
     ) -> ReturnCode {
         match allow_num {
             1 => self
@@ -221,8 +221,8 @@ impl Driver for Console<'a> {
     fn subscribe(
         &self,
         subscribe_num: usize,
-        callback: Option<Callback>,
-        app_id: AppId,
+        callback: Option<Callback<'ker>>,
+        app_id: AppId<'ker>,
     ) -> ReturnCode {
         match subscribe_num {
             1 /* putstr/write_done */ => {
@@ -252,7 +252,7 @@ impl Driver for Console<'a> {
     ///        passed in `arg1`
     /// - `3`: Cancel any in progress receives and return (via callback)
     ///        what has been received so far.
-    fn command(&self, cmd_num: usize, arg1: usize, _: usize, appid: AppId) -> ReturnCode {
+    fn command(&self, cmd_num: usize, arg1: usize, _: usize, appid: AppId<'ker>) -> ReturnCode {
         match cmd_num {
             0 /* check if present */ => ReturnCode::SUCCESS,
             1 /* putstr */ => {
@@ -276,7 +276,7 @@ impl Driver for Console<'a> {
     }
 }
 
-impl uart::TransmitClient for Console<'a> {
+impl uart::TransmitClient for Console<'a, 'ker> {
     fn transmitted_buffer(&self, buffer: &'static mut [u8], _tx_len: usize, _rcode: ReturnCode) {
         // Either print more from the AppSlice or send a callback to the
         // application.
@@ -341,7 +341,7 @@ impl uart::TransmitClient for Console<'a> {
     }
 }
 
-impl uart::ReceiveClient for Console<'a> {
+impl uart::ReceiveClient for Console<'a, 'ker> {
     fn received_buffer(
         &self,
         buffer: &'static mut [u8],

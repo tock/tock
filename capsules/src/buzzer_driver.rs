@@ -59,31 +59,31 @@ pub enum BuzzerCommand {
 }
 
 #[derive(Default)]
-pub struct App {
-    callback: Option<Callback>, // Optional callback to signal when the buzzer event is over.
+pub struct App<'ker> {
+    callback: Option<Callback<'ker>>, // Optional callback to signal when the buzzer event is over.
     pending_command: Option<BuzzerCommand>, // What command to run when the buzzer is free.
 }
 
-pub struct Buzzer<'a, A: hil::time::Alarm<'a>> {
+pub struct Buzzer<'a, 'ker, A: hil::time::Alarm<'a>> {
     // The underlying PWM generator to make the buzzer buzz.
     pwm_pin: &'a dyn hil::pwm::PwmPin,
     // Alarm to stop the buzzer after some time.
     alarm: &'a A,
     // Per-app state.
-    apps: Grant<App>,
+    apps: Grant<'ker, App<'ker>>,
     // Which app is currently using the buzzer.
-    active_app: OptionalCell<AppId>,
+    active_app: OptionalCell<AppId<'ker>>,
     // Max buzz time.
     max_duration_ms: usize,
 }
 
-impl<A: hil::time::Alarm<'a>> Buzzer<'a, A> {
+impl<A: hil::time::Alarm<'a>> Buzzer<'a, 'ker, A> {
     pub fn new(
         pwm_pin: &'a dyn hil::pwm::PwmPin,
         alarm: &'a A,
         max_duration_ms: usize,
-        grant: Grant<App>,
-    ) -> Buzzer<'a, A> {
+        grant: Grant<'ker, App<'ker>>,
+    ) -> Buzzer<'a, 'ker, A> {
         Buzzer {
             pwm_pin: pwm_pin,
             alarm: alarm,
@@ -96,7 +96,7 @@ impl<A: hil::time::Alarm<'a>> Buzzer<'a, A> {
     // Check so see if we are doing something. If not, go ahead and do this
     // command. If so, this is queued and will be run when the pending
     // command completes.
-    fn enqueue_command(&self, command: BuzzerCommand, app_id: AppId) -> ReturnCode {
+    fn enqueue_command(&self, command: BuzzerCommand, app_id: AppId<'ker>) -> ReturnCode {
         if self.active_app.is_none() {
             // No app is currently using the buzzer, so we just use this app.
             self.active_app.set(app_id);
@@ -162,7 +162,7 @@ impl<A: hil::time::Alarm<'a>> Buzzer<'a, A> {
     }
 }
 
-impl<A: hil::time::Alarm<'a>> hil::time::AlarmClient for Buzzer<'a, A> {
+impl<A: hil::time::Alarm<'a>> hil::time::AlarmClient for Buzzer<'a, 'ker, A> {
     fn fired(&self) {
         // All we have to do is stop the PWM and check if there are any pending
         // uses of the buzzer.
@@ -180,7 +180,7 @@ impl<A: hil::time::Alarm<'a>> hil::time::AlarmClient for Buzzer<'a, A> {
 }
 
 /// Provide an interface for userland.
-impl<A: hil::time::Alarm<'a>> Driver for Buzzer<'a, A> {
+impl<A: hil::time::Alarm<'a>> Driver<'ker> for Buzzer<'a, 'ker, A> {
     /// Setup callbacks.
     ///
     /// ### `subscribe_num`
@@ -189,8 +189,8 @@ impl<A: hil::time::Alarm<'a>> Driver for Buzzer<'a, A> {
     fn subscribe(
         &self,
         subscribe_num: usize,
-        callback: Option<Callback>,
-        app_id: AppId,
+        callback: Option<Callback<'ker>>,
+        app_id: AppId<'ker>,
     ) -> ReturnCode {
         self.apps
             .enter(app_id, |app, _| {
@@ -211,7 +211,13 @@ impl<A: hil::time::Alarm<'a>> Driver for Buzzer<'a, A> {
     /// - `1`: Buzz the buzzer. `arg1` is used for the frequency in hertz, and
     ///   `arg2` is the duration in ms. Note the duration is capped at 5000
     ///   milliseconds.
-    fn command(&self, command_num: usize, arg1: usize, arg2: usize, appid: AppId) -> ReturnCode {
+    fn command(
+        &self,
+        command_num: usize,
+        arg1: usize,
+        arg2: usize,
+        appid: AppId<'ker>,
+    ) -> ReturnCode {
         match command_num {
             0 =>
             /* This driver exists. */

@@ -32,22 +32,22 @@ use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::UsbUser as usize;
 
 #[derive(Default)]
-pub struct App {
-    callback: Option<Callback>,
+pub struct App<'ker> {
+    callback: Option<Callback<'ker>>,
     awaiting: Option<Request>,
 }
 
-pub struct UsbSyscallDriver<'a, C: hil::usb::Client<'a>> {
+pub struct UsbSyscallDriver<'a, 'ker, C: hil::usb::Client<'a>> {
     usbc_client: &'a C,
-    apps: Grant<App>,
-    serving_app: OptionalCell<AppId>,
+    apps: Grant<'ker, App<'ker>>,
+    serving_app: OptionalCell<AppId<'ker>>,
 }
 
-impl<C> UsbSyscallDriver<'a, C>
+impl<C> UsbSyscallDriver<'a, 'ker, C>
 where
     C: hil::usb::Client<'a>,
 {
-    pub fn new(usbc_client: &'a C, apps: Grant<App>) -> Self {
+    pub fn new(usbc_client: &'a C, apps: Grant<'ker, App<'ker>>) -> Self {
         UsbSyscallDriver {
             usbc_client: usbc_client,
             apps: apps,
@@ -98,15 +98,15 @@ enum Request {
     EnableAndAttach,
 }
 
-impl<'a, C> Driver for UsbSyscallDriver<'a, C>
+impl<C> Driver<'ker> for UsbSyscallDriver<'a, 'ker, C>
 where
     C: hil::usb::Client<'a>,
 {
     fn subscribe(
         &self,
         subscribe_num: usize,
-        callback: Option<Callback>,
-        app_id: AppId,
+        callback: Option<Callback<'ker>>,
+        app_id: AppId<'ker>,
     ) -> ReturnCode {
         match subscribe_num {
             // Set callback for result
@@ -121,7 +121,7 @@ where
         }
     }
 
-    fn command(&self, command_num: usize, _arg: usize, _: usize, appid: AppId) -> ReturnCode {
+    fn command(&self, command_num: usize, _arg: usize, _: usize, appid: AppId<'ker>) -> ReturnCode {
         match command_num {
             // This driver is present
             0 => ReturnCode::SUCCESS,

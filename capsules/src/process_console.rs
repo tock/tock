@@ -111,7 +111,7 @@ pub static mut READ_BUF: [u8; 4] = [0; 4];
 // characters, limiting arguments to 25 bytes or so seems fine for now.
 pub static mut COMMAND_BUF: [u8; 32] = [0; 32];
 
-pub struct ProcessConsole<'a, C: ProcessManagementCapability> {
+pub struct ProcessConsole<'a, 'ker, C: ProcessManagementCapability> {
     uart: &'a dyn uart::UartData<'a>,
     tx_in_progress: Cell<bool>,
     tx_buffer: TakeCell<'static, [u8]>,
@@ -120,19 +120,19 @@ pub struct ProcessConsole<'a, C: ProcessManagementCapability> {
     command_buffer: TakeCell<'static, [u8]>,
     command_index: Cell<usize>,
     running: Cell<bool>,
-    kernel: &'static Kernel,
+    kernel: &'ker Kernel<'ker>,
     capability: C,
 }
 
-impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
+impl<C: ProcessManagementCapability> ProcessConsole<'a, 'ker, C> {
     pub fn new(
         uart: &'a dyn uart::UartData<'a>,
         tx_buffer: &'static mut [u8],
         rx_buffer: &'static mut [u8],
         cmd_buffer: &'static mut [u8],
-        kernel: &'static Kernel,
+        kernel: &'ker Kernel<'ker>,
         capability: C,
-    ) -> ProcessConsole<'a, C> {
+    ) -> ProcessConsole<'a, 'ker, C> {
         ProcessConsole {
             uart: uart,
             tx_in_progress: Cell::new(false),
@@ -298,7 +298,7 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
     }
 }
 
-impl<'a, C: ProcessManagementCapability> uart::TransmitClient for ProcessConsole<'a, C> {
+impl<C: ProcessManagementCapability> uart::TransmitClient for ProcessConsole<'a, 'ker, C> {
     fn transmitted_buffer(&self, buffer: &'static mut [u8], _tx_len: usize, _rcode: ReturnCode) {
         // Either print more from the AppSlice or send a callback to the
         // application.
@@ -306,7 +306,7 @@ impl<'a, C: ProcessManagementCapability> uart::TransmitClient for ProcessConsole
         self.tx_in_progress.set(false);
     }
 }
-impl<'a, C: ProcessManagementCapability> uart::ReceiveClient for ProcessConsole<'a, C> {
+impl<C: ProcessManagementCapability> uart::ReceiveClient for ProcessConsole<'a, 'ker, C> {
     fn received_buffer(
         &self,
         read_buf: &'static mut [u8],

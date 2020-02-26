@@ -15,13 +15,13 @@ enum Expiration {
 }
 
 #[derive(Copy, Clone)]
-pub struct AlarmData {
+pub struct AlarmData<'ker> {
     expiration: Expiration,
-    callback: Option<Callback>,
+    callback: Option<Callback<'ker>>,
 }
 
-impl Default for AlarmData {
-    fn default() -> AlarmData {
+impl<'ker> Default for AlarmData<'ker> {
+    fn default() -> AlarmData<'ker> {
         AlarmData {
             expiration: Expiration::Disabled,
             callback: None,
@@ -29,15 +29,18 @@ impl Default for AlarmData {
     }
 }
 
-pub struct AlarmDriver<'a, A: Alarm<'a>> {
+pub struct AlarmDriver<'a, 'ker, A: Alarm<'a>> {
     alarm: &'a A,
     num_armed: Cell<usize>,
-    app_alarm: Grant<AlarmData>,
+    app_alarm: Grant<'ker, AlarmData<'ker>>,
     prev: Cell<u32>,
 }
 
-impl<A: Alarm<'a>> AlarmDriver<'a, A> {
-    pub const fn new(alarm: &'a A, grant: Grant<AlarmData>) -> AlarmDriver<'a, A> {
+impl<A: Alarm<'a>> AlarmDriver<'a, 'ker, A> {
+    pub const fn new(
+        alarm: &'a A,
+        grant: Grant<'ker, AlarmData<'ker>>,
+    ) -> AlarmDriver<'a, 'ker, A> {
         AlarmDriver {
             alarm: alarm,
             num_armed: Cell::new(0),
@@ -71,7 +74,7 @@ impl<A: Alarm<'a>> AlarmDriver<'a, A> {
     }
 }
 
-impl<A: Alarm<'a>> Driver for AlarmDriver<'a, A> {
+impl<A: Alarm<'a>> Driver<'ker> for AlarmDriver<'a, 'ker, A> {
     /// Subscribe to alarm expiration
     ///
     /// ### `_subscribe_num`
@@ -80,8 +83,8 @@ impl<A: Alarm<'a>> Driver for AlarmDriver<'a, A> {
     fn subscribe(
         &self,
         _subscribe_num: usize,
-        callback: Option<Callback>,
-        app_id: AppId,
+        callback: Option<Callback<'ker>>,
+        app_id: AppId<'ker>,
     ) -> ReturnCode {
         self.app_alarm
             .enter(app_id, |td, _allocator| {
@@ -100,7 +103,13 @@ impl<A: Alarm<'a>> Driver for AlarmDriver<'a, A> {
     /// - `2`: Read the the current clock value
     /// - `3`: Stop the alarm if it is outstanding
     /// - `4`: Set an alarm to fire at a given clock value `time`.
-    fn command(&self, cmd_type: usize, data: usize, _: usize, caller_id: AppId) -> ReturnCode {
+    fn command(
+        &self,
+        cmd_type: usize,
+        data: usize,
+        _: usize,
+        caller_id: AppId<'ker>,
+    ) -> ReturnCode {
         // Returns the error code to return to the user and whether we need to
         // reset which is the next active alarm. We only _don't_ reset if we're
         // disabling the underlying alarm anyway, if the underlying alarm is
@@ -162,7 +171,7 @@ fn has_expired(alarm: u32, now: u32, prev: u32) -> bool {
     now.wrapping_sub(prev) >= alarm.wrapping_sub(prev)
 }
 
-impl<A: Alarm<'a>> time::AlarmClient for AlarmDriver<'a, A> {
+impl<A: Alarm<'a>> time::AlarmClient for AlarmDriver<'a, 'ker, A> {
     fn fired(&self) {
         let now = self.alarm.now();
         self.app_alarm.each(|alarm| {

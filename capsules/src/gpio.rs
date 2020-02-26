@@ -50,16 +50,16 @@ pub const DRIVER_NUM: usize = driver::NUM::Gpio as usize;
 use kernel::hil::gpio;
 use kernel::{AppId, Callback, Driver, Grant, ReturnCode};
 
-pub struct GPIO<'a> {
+pub struct GPIO<'a, 'ker> {
     pins: &'a [&'a dyn gpio::InterruptValuePin],
-    apps: Grant<Option<Callback>>,
+    apps: Grant<'ker, Option<Callback<'ker>>>,
 }
 
-impl<'a> GPIO<'a> {
+impl GPIO<'a, 'ker> {
     pub fn new(
         pins: &'a [&'a dyn gpio::InterruptValuePin],
-        grant: Grant<Option<Callback>>,
-    ) -> GPIO<'a> {
+        grant: Grant<'ker, Option<Callback<'ker>>>,
+    ) -> GPIO<'a, 'ker> {
         for (i, pin) in pins.iter().enumerate() {
             pin.set_value(i as u32);
         }
@@ -113,7 +113,7 @@ impl<'a> GPIO<'a> {
     }
 }
 
-impl<'a> gpio::ClientWithValue for GPIO<'a> {
+impl gpio::ClientWithValue for GPIO<'a, 'ker> {
     fn fired(&self, pin_num: u32) {
         // read the value of the pin
         let pins = self.pins.as_ref();
@@ -126,7 +126,7 @@ impl<'a> gpio::ClientWithValue for GPIO<'a> {
     }
 }
 
-impl<'a> Driver for GPIO<'a> {
+impl Driver<'ker> for GPIO<'a, 'ker> {
     /// Subscribe to GPIO pin events.
     ///
     /// ### `subscribe_num`
@@ -136,8 +136,8 @@ impl<'a> Driver for GPIO<'a> {
     fn subscribe(
         &self,
         subscribe_num: usize,
-        callback: Option<Callback>,
-        app_id: AppId,
+        callback: Option<Callback<'ker>>,
+        app_id: AppId<'ker>,
     ) -> ReturnCode {
         match subscribe_num {
             // subscribe to all pin interrupts (no affect or reliance on
@@ -185,7 +185,13 @@ impl<'a> Driver for GPIO<'a> {
     /// - `7`: Configure interrupt on `pin` with `irq_config` in 0x00XX00000
     /// - `8`: Disable interrupt on `pin`.
     /// - `9`: Disable `pin`.
-    fn command(&self, command_num: usize, data1: usize, data2: usize, _: AppId) -> ReturnCode {
+    fn command(
+        &self,
+        command_num: usize,
+        data1: usize,
+        data2: usize,
+        _: AppId<'ker>,
+    ) -> ReturnCode {
         let pins = self.pins.as_ref();
         let pin = data1;
         match command_num {

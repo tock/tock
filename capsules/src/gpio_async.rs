@@ -32,14 +32,14 @@ use kernel::{AppId, Callback, Driver};
 use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::GpioAsync as usize;
 
-pub struct GPIOAsync<'a, Port: hil::gpio_async::Port> {
+pub struct GPIOAsync<'a, 'ker, Port: hil::gpio_async::Port> {
     ports: &'a [&'a Port],
-    callback: OptionalCell<Callback>,
-    interrupt_callback: OptionalCell<Callback>,
+    callback: OptionalCell<Callback<'ker>>,
+    interrupt_callback: OptionalCell<Callback<'ker>>,
 }
 
-impl<Port: hil::gpio_async::Port> GPIOAsync<'a, Port> {
-    pub fn new(ports: &'a [&'a Port]) -> GPIOAsync<'a, Port> {
+impl<Port: hil::gpio_async::Port> GPIOAsync<'a, 'ker, Port> {
+    pub fn new(ports: &'a [&'a Port]) -> GPIOAsync<'a, 'ker, Port> {
         GPIOAsync {
             ports: ports,
             callback: OptionalCell::empty(),
@@ -70,7 +70,7 @@ impl<Port: hil::gpio_async::Port> GPIOAsync<'a, Port> {
     }
 }
 
-impl<Port: hil::gpio_async::Port> hil::gpio_async::Client for GPIOAsync<'a, Port> {
+impl<Port: hil::gpio_async::Port> hil::gpio_async::Client for GPIOAsync<'a, 'ker, Port> {
     fn fired(&self, pin: usize, identifier: usize) {
         self.interrupt_callback
             .map(|cb| cb.schedule(identifier, pin, 0));
@@ -81,7 +81,7 @@ impl<Port: hil::gpio_async::Port> hil::gpio_async::Client for GPIOAsync<'a, Port
     }
 }
 
-impl<Port: hil::gpio_async::Port> Driver for GPIOAsync<'a, Port> {
+impl<Port: hil::gpio_async::Port> Driver<'ker> for GPIOAsync<'a, 'ker, Port> {
     /// Setup callbacks for gpio_async events.
     ///
     /// ### `subscribe_num`
@@ -99,8 +99,8 @@ impl<Port: hil::gpio_async::Port> Driver for GPIOAsync<'a, Port> {
     fn subscribe(
         &self,
         subscribe_num: usize,
-        callback: Option<Callback>,
-        _app_id: AppId,
+        callback: Option<Callback<'ker>>,
+        _app_id: AppId<'ker>,
     ) -> ReturnCode {
         match subscribe_num {
             // Set callback for `done()` events
@@ -144,7 +144,7 @@ impl<Port: hil::gpio_async::Port> Driver for GPIOAsync<'a, Port> {
     ///   interrupt, and 2 for a falling edge interrupt.
     /// - `8`: Disable an interrupt on a pin.
     /// - `9`: Disable a GPIO pin.
-    fn command(&self, command_num: usize, pin: usize, data: usize, _: AppId) -> ReturnCode {
+    fn command(&self, command_num: usize, pin: usize, data: usize, _: AppId<'ker>) -> ReturnCode {
         let port = data & 0xFFFF;
         let other = (data >> 16) & 0xFFFF;
         let ports = self.ports.as_ref();

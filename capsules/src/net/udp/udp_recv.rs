@@ -15,13 +15,13 @@ use kernel::common::cells::{MapCell, OptionalCell};
 use kernel::common::{List, ListLink, ListNode};
 use kernel::debug;
 
-pub struct MuxUdpReceiver<'a> {
+pub struct MuxUdpReceiver<'a, 'b, 'ker> {
     rcvr_list: List<'a, UDPReceiver<'a>>,
-    driver: OptionalCell<&'static UDPDriver<'static>>,
+    driver: OptionalCell<&'b UDPDriver<'b, 'ker>>,
 }
 
-impl<'a> MuxUdpReceiver<'a> {
-    pub fn new() -> MuxUdpReceiver<'a> {
+impl MuxUdpReceiver<'a, 'b, 'ker> {
+    pub fn new() -> MuxUdpReceiver<'a, 'b, 'ker> {
         MuxUdpReceiver {
             rcvr_list: List::new(),
             driver: OptionalCell::empty(),
@@ -32,12 +32,12 @@ impl<'a> MuxUdpReceiver<'a> {
         self.rcvr_list.push_tail(rcvr);
     }
 
-    pub fn set_driver(&self, driver_ref: &'static UDPDriver) {
+    pub fn set_driver(&self, driver_ref: &'b UDPDriver<'b, 'ker>) {
         self.driver.replace(driver_ref);
     }
 }
 
-impl<'a> IP6RecvClient for MuxUdpReceiver<'a> {
+impl IP6RecvClient for MuxUdpReceiver<'a, 'b, 'ker> {
     fn receive(&self, ip_header: IP6Header, payload: &[u8]) {
         match UDPHeader::decode(payload).done() {
             Some((offset, udp_header)) => {

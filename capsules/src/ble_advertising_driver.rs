@@ -162,12 +162,12 @@ const CONNECT_IND: AdvPduType = 0b0101;
 const ADV_SCAN_IND: AdvPduType = 0b0110;
 
 /// Process specific memory
-pub struct App {
+pub struct App<'ker> {
     process_status: Option<BLEState>,
     alarm_data: AlarmData,
 
     // Advertising meta-data
-    adv_data: Option<kernel::AppSlice<kernel::Shared, u8>>,
+    adv_data: Option<kernel::AppSlice<'ker, kernel::Shared, u8>>,
     address: [u8; PACKET_ADDR_LEN],
     pdu_type: AdvPduType,
     advertisement_interval_ms: u32,
@@ -180,12 +180,12 @@ pub struct App {
     random_nonce: u32,
 
     // Scanning meta-data
-    scan_buffer: Option<kernel::AppSlice<kernel::Shared, u8>>,
-    scan_callback: Option<kernel::Callback>,
+    scan_buffer: Option<kernel::AppSlice<'ker, kernel::Shared, u8>>,
+    scan_callback: Option<kernel::Callback<'ker>>,
 }
 
-impl Default for App {
-    fn default() -> App {
+impl<'ker> Default for App<'ker> {
+    fn default() -> App<'ker> {
         App {
             alarm_data: AlarmData::new(),
             adv_data: None,
@@ -202,7 +202,7 @@ impl Default for App {
     }
 }
 
-impl App {
+impl App<'ker> {
     // Bluetooth Core Specification:Vol. 6, Part B, section 1.3.2.1 Static Device Address
     //
     // A static address is a 48-bit randomly generated address and shall meet the following
@@ -219,7 +219,7 @@ impl App {
     // Byte 2-5          random
     // Byte 6            0xf0
     // FIXME: For now use AppId as "randomness"
-    fn generate_random_address(&mut self, appid: kernel::AppId) -> ReturnCode {
+    fn generate_random_address(&mut self, appid: kernel::AppId<'ker>) -> ReturnCode {
         self.address = [
             0xf0,
             (appid.idx() & 0xff) as u8,
@@ -231,7 +231,11 @@ impl App {
         ReturnCode::SUCCESS
     }
 
-    fn send_advertisement<'a, B, A>(&self, ble: &BLE<'a, B, A>, channel: RadioChannel) -> ReturnCode
+    fn send_advertisement<'a, B, A>(
+        &self,
+        ble: &BLE<'a, 'ker, B, A>,
+        channel: RadioChannel,
+    ) -> ReturnCode
     where
         B: ble_advertising::BleAdvertisementDriver + ble_advertising::BleConfig,
         A: kernel::hil::time::Alarm<'a>,
@@ -293,31 +297,31 @@ impl App {
     }
 }
 
-pub struct BLE<'a, B, A>
+pub struct BLE<'a, 'ker, B, A>
 where
     B: ble_advertising::BleAdvertisementDriver + ble_advertising::BleConfig,
     A: kernel::hil::time::Alarm<'a>,
 {
     radio: &'a B,
     busy: Cell<bool>,
-    app: kernel::Grant<App>,
+    app: kernel::Grant<'ker, App<'ker>>,
     kernel_tx: kernel::common::cells::TakeCell<'static, [u8]>,
     alarm: &'a A,
-    sending_app: OptionalCell<kernel::AppId>,
-    receiving_app: OptionalCell<kernel::AppId>,
+    sending_app: OptionalCell<kernel::AppId<'ker>>,
+    receiving_app: OptionalCell<kernel::AppId<'ker>>,
 }
 
-impl<B, A> BLE<'a, B, A>
+impl<B, A> BLE<'a, 'ker, B, A>
 where
     B: ble_advertising::BleAdvertisementDriver + ble_advertising::BleConfig,
     A: kernel::hil::time::Alarm<'a>,
 {
     pub fn new(
         radio: &'a B,
-        container: kernel::Grant<App>,
+        container: kernel::Grant<'ker, App<'ker>>,
         tx_buf: &'static mut [u8],
         alarm: &'a A,
-    ) -> BLE<'a, B, A> {
+    ) -> BLE<'a, 'ker, B, A> {
         BLE {
             radio: radio,
             busy: Cell::new(false),
@@ -359,7 +363,7 @@ where
 }
 
 // Timer alarm
-impl<B, A> kernel::hil::time::AlarmClient for BLE<'a, B, A>
+impl<B, A> kernel::hil::time::AlarmClient for BLE<'a, 'ker, B, A>
 where
     B: ble_advertising::BleAdvertisementDriver + ble_advertising::BleConfig,
     A: kernel::hil::time::Alarm<'a>,
@@ -428,7 +432,7 @@ where
 }
 
 // Callback from the radio once a RX event occur
-impl<B, A> ble_advertising::RxClient for BLE<'a, B, A>
+impl<B, A> ble_advertising::RxClient for BLE<'a, 'ker, B, A>
 where
     B: ble_advertising::BleAdvertisementDriver + ble_advertising::BleConfig,
     A: kernel::hil::time::Alarm<'a>,
@@ -495,7 +499,7 @@ where
 }
 
 // Callback from the radio once a TX event occur
-impl<B, A> ble_advertising::TxClient for BLE<'a, B, A>
+impl<B, A> ble_advertising::TxClient for BLE<'a, 'ker, B, A>
 where
     B: ble_advertising::BleAdvertisementDriver + ble_advertising::BleConfig,
     A: kernel::hil::time::Alarm<'a>,
@@ -536,7 +540,7 @@ where
 }
 
 // System Call implementation
-impl<B, A> kernel::Driver for BLE<'a, B, A>
+impl<B, A> kernel::Driver<'ker> for BLE<'a, 'ker, B, A>
 where
     B: ble_advertising::BleAdvertisementDriver + ble_advertising::BleConfig,
     A: kernel::hil::time::Alarm<'a>,
@@ -546,7 +550,7 @@ where
         command_num: usize,
         data: usize,
         interval: usize,
-        appid: kernel::AppId,
+        appid: kernel::AppId<'ker>,
     ) -> ReturnCode {
         match command_num {
             // Start periodic advertisements
@@ -637,9 +641,9 @@ where
 
     fn allow(
         &self,
-        appid: kernel::AppId,
+        appid: kernel::AppId<'ker>,
         allow_num: usize,
-        slice: Option<kernel::AppSlice<kernel::Shared, u8>>,
+        slice: Option<kernel::AppSlice<'ker, kernel::Shared, u8>>,
     ) -> ReturnCode {
         match allow_num {
             // Advertisement buffer
@@ -677,8 +681,8 @@ where
     fn subscribe(
         &self,
         subscribe_num: usize,
-        callback: Option<kernel::Callback>,
-        app_id: kernel::AppId,
+        callback: Option<kernel::Callback<'ker>>,
+        app_id: kernel::AppId<'ker>,
     ) -> ReturnCode {
         match subscribe_num {
             // Callback for scanning

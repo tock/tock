@@ -56,22 +56,22 @@ use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::Temperature as usize;
 
 #[derive(Default)]
-pub struct App {
-    callback: Option<Callback>,
+pub struct App<'ker> {
+    callback: Option<Callback<'ker>>,
     subscribed: bool,
 }
 
-pub struct TemperatureSensor<'a> {
+pub struct TemperatureSensor<'a, 'ker> {
     driver: &'a dyn hil::sensors::TemperatureDriver,
-    apps: Grant<App>,
+    apps: Grant<'ker, App<'ker>>,
     busy: Cell<bool>,
 }
 
-impl TemperatureSensor<'a> {
+impl TemperatureSensor<'a, 'ker> {
     pub fn new(
         driver: &'a dyn hil::sensors::TemperatureDriver,
-        grant: Grant<App>,
-    ) -> TemperatureSensor<'a> {
+        grant: Grant<'ker, App<'ker>>,
+    ) -> TemperatureSensor<'a, 'ker> {
         TemperatureSensor {
             driver: driver,
             apps: grant,
@@ -79,7 +79,7 @@ impl TemperatureSensor<'a> {
         }
     }
 
-    fn enqueue_command(&self, appid: AppId) -> ReturnCode {
+    fn enqueue_command(&self, appid: AppId<'ker>) -> ReturnCode {
         self.apps
             .enter(appid, |app, _| {
                 if !self.busy.get() {
@@ -93,7 +93,11 @@ impl TemperatureSensor<'a> {
             .unwrap_or_else(|err| err.into())
     }
 
-    fn configure_callback(&self, callback: Option<Callback>, app_id: AppId) -> ReturnCode {
+    fn configure_callback(
+        &self,
+        callback: Option<Callback<'ker>>,
+        app_id: AppId<'ker>,
+    ) -> ReturnCode {
         self.apps
             .enter(app_id, |app, _| {
                 app.callback = callback;
@@ -103,7 +107,7 @@ impl TemperatureSensor<'a> {
     }
 }
 
-impl hil::sensors::TemperatureClient for TemperatureSensor<'a> {
+impl hil::sensors::TemperatureClient for TemperatureSensor<'a, 'ker> {
     fn callback(&self, temp_val: usize) {
         for cntr in self.apps.iter() {
             cntr.enter(|app, _| {
@@ -117,12 +121,12 @@ impl hil::sensors::TemperatureClient for TemperatureSensor<'a> {
     }
 }
 
-impl Driver for TemperatureSensor<'a> {
+impl Driver<'ker> for TemperatureSensor<'a, 'ker> {
     fn subscribe(
         &self,
         subscribe_num: usize,
-        callback: Option<Callback>,
-        app_id: AppId,
+        callback: Option<Callback<'ker>>,
+        app_id: AppId<'ker>,
     ) -> ReturnCode {
         match subscribe_num {
             // subscribe to temperature reading with callback
@@ -131,7 +135,7 @@ impl Driver for TemperatureSensor<'a> {
         }
     }
 
-    fn command(&self, command_num: usize, _: usize, _: usize, appid: AppId) -> ReturnCode {
+    fn command(&self, command_num: usize, _: usize, _: usize, appid: AppId<'ker>) -> ReturnCode {
         match command_num {
             // check whether the driver exists!!
             0 => ReturnCode::SUCCESS,

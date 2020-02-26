@@ -39,20 +39,20 @@ use core::cell::Cell;
 use kernel::hil;
 use kernel::{AppId, Callback, Driver, ReturnCode};
 
-pub struct AnalogComparator<'a, A: hil::analog_comparator::AnalogComparator + 'a> {
+pub struct AnalogComparator<'a, 'ker, A: hil::analog_comparator::AnalogComparator + 'a> {
     // Analog Comparator driver
     analog_comparator: &'a A,
     channels: &'a [&'a <A as hil::analog_comparator::AnalogComparator>::Channel],
 
     // App state
-    callback: Cell<Option<Callback>>,
+    callback: Cell<Option<Callback<'ker>>>,
 }
 
-impl<'a, A: hil::analog_comparator::AnalogComparator> AnalogComparator<'a, A> {
+impl<A: hil::analog_comparator::AnalogComparator> AnalogComparator<'a, 'ker, A> {
     pub fn new(
         analog_comparator: &'a A,
         channels: &'a [&'a <A as hil::analog_comparator::AnalogComparator>::Channel],
-    ) -> AnalogComparator<'a, A> {
+    ) -> AnalogComparator<'a, 'ker, A> {
         AnalogComparator {
             // Analog Comparator driver
             analog_comparator: analog_comparator,
@@ -102,7 +102,7 @@ impl<'a, A: hil::analog_comparator::AnalogComparator> AnalogComparator<'a, A> {
     }
 }
 
-impl<'a, A: hil::analog_comparator::AnalogComparator> Driver for AnalogComparator<'a, A> {
+impl<A: hil::analog_comparator::AnalogComparator> Driver<'ker> for AnalogComparator<'a, 'ker, A> {
     /// Control the analog comparator.
     ///
     /// ### `command_num`
@@ -117,7 +117,7 @@ impl<'a, A: hil::analog_comparator::AnalogComparator> Driver for AnalogComparato
     /// - `3`: Stop interrupt-based comparisons.
     ///        Input x chooses the desired comparator ACx (e.g. 0 or 1 for
     ///        hail, 0-3 for imix)
-    fn command(&self, command_num: usize, channel: usize, _: usize, _: AppId) -> ReturnCode {
+    fn command(&self, command_num: usize, channel: usize, _: usize, _: AppId<'ker>) -> ReturnCode {
         match command_num {
             0 => ReturnCode::SuccessWithValue {
                 value: self.channels.len() as usize,
@@ -137,8 +137,8 @@ impl<'a, A: hil::analog_comparator::AnalogComparator> Driver for AnalogComparato
     fn subscribe(
         &self,
         subscribe_num: usize,
-        callback: Option<Callback>,
-        _app_id: AppId,
+        callback: Option<Callback<'ker>>,
+        _app_id: AppId<'ker>,
     ) -> ReturnCode {
         match subscribe_num {
             // Subscribe to all interrupts
@@ -152,8 +152,8 @@ impl<'a, A: hil::analog_comparator::AnalogComparator> Driver for AnalogComparato
     }
 }
 
-impl<'a, A: hil::analog_comparator::AnalogComparator> hil::analog_comparator::Client
-    for AnalogComparator<'a, A>
+impl<A: hil::analog_comparator::AnalogComparator> hil::analog_comparator::Client
+    for AnalogComparator<'a, 'ker, A>
 {
     /// Callback to userland, signaling the application
     fn fired(&self, channel: usize) {

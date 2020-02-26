@@ -27,12 +27,12 @@ use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::I2cMasterSlave as usize;
 
 #[derive(Default)]
-pub struct App {
-    callback: Option<Callback>,
-    master_tx_buffer: Option<AppSlice<Shared, u8>>,
-    master_rx_buffer: Option<AppSlice<Shared, u8>>,
-    slave_tx_buffer: Option<AppSlice<Shared, u8>>,
-    slave_rx_buffer: Option<AppSlice<Shared, u8>>,
+pub struct App<'ker> {
+    callback: Option<Callback<'ker>>,
+    master_tx_buffer: Option<AppSlice<'ker, Shared, u8>>,
+    master_rx_buffer: Option<AppSlice<'ker, Shared, u8>>,
+    slave_tx_buffer: Option<AppSlice<'ker, Shared, u8>>,
+    slave_rx_buffer: Option<AppSlice<'ker, Shared, u8>>,
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -42,23 +42,23 @@ enum MasterAction {
     WriteRead(u8),
 }
 
-pub struct I2CMasterSlaveDriver<'a> {
+pub struct I2CMasterSlaveDriver<'a, 'ker> {
     i2c: &'a dyn hil::i2c::I2CMasterSlave,
     listening: Cell<bool>,
     master_action: Cell<MasterAction>, // Whether we issued a write or read as master
     master_buffer: TakeCell<'static, [u8]>,
     slave_buffer1: TakeCell<'static, [u8]>,
     slave_buffer2: TakeCell<'static, [u8]>,
-    app: MapCell<App>,
+    app: MapCell<App<'ker>>,
 }
 
-impl I2CMasterSlaveDriver<'a> {
+impl I2CMasterSlaveDriver<'a, 'ker> {
     pub fn new(
         i2c: &'a dyn hil::i2c::I2CMasterSlave,
         master_buffer: &'static mut [u8],
         slave_buffer1: &'static mut [u8],
         slave_buffer2: &'static mut [u8],
-    ) -> I2CMasterSlaveDriver<'a> {
+    ) -> I2CMasterSlaveDriver<'a, 'ker> {
         I2CMasterSlaveDriver {
             i2c: i2c,
             listening: Cell::new(false),
@@ -71,7 +71,7 @@ impl I2CMasterSlaveDriver<'a> {
     }
 }
 
-impl hil::i2c::I2CHwMasterClient for I2CMasterSlaveDriver<'a> {
+impl hil::i2c::I2CHwMasterClient for I2CMasterSlaveDriver<'a, 'ker> {
     fn command_complete(&self, buffer: &'static mut [u8], error: hil::i2c::Error) {
         // Map I2C error to a number we can pass back to the application
         let err: isize = match error {
@@ -137,7 +137,7 @@ impl hil::i2c::I2CHwMasterClient for I2CMasterSlaveDriver<'a> {
     }
 }
 
-impl hil::i2c::I2CHwSlaveClient for I2CMasterSlaveDriver<'a> {
+impl hil::i2c::I2CHwSlaveClient for I2CMasterSlaveDriver<'a, 'ker> {
     fn command_complete(
         &self,
         buffer: &'static mut [u8],
@@ -209,12 +209,12 @@ impl hil::i2c::I2CHwSlaveClient for I2CMasterSlaveDriver<'a> {
     }
 }
 
-impl Driver for I2CMasterSlaveDriver<'a> {
+impl Driver<'ker> for I2CMasterSlaveDriver<'a, 'ker> {
     fn allow(
         &self,
-        _appid: AppId,
+        _appid: AppId<'ker>,
         allow_num: usize,
-        slice: Option<AppSlice<Shared, u8>>,
+        slice: Option<AppSlice<'ker, Shared, u8>>,
     ) -> ReturnCode {
         match allow_num {
             // Pass in a buffer for transmitting a `write` to another
@@ -253,8 +253,8 @@ impl Driver for I2CMasterSlaveDriver<'a> {
     fn subscribe(
         &self,
         subscribe_num: usize,
-        callback: Option<Callback>,
-        _app_id: AppId,
+        callback: Option<Callback<'ker>>,
+        _app_id: AppId<'ker>,
     ) -> ReturnCode {
         match subscribe_num {
             0 => {
@@ -269,7 +269,7 @@ impl Driver for I2CMasterSlaveDriver<'a> {
         }
     }
 
-    fn command(&self, command_num: usize, data: usize, _: usize, _: AppId) -> ReturnCode {
+    fn command(&self, command_num: usize, data: usize, _: usize, _: AppId<'ker>) -> ReturnCode {
         match command_num {
             0 /* check if present */ => ReturnCode::SUCCESS,
 

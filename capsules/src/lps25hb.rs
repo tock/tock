@@ -91,20 +91,20 @@ enum State {
     Done,
 }
 
-pub struct LPS25HB<'a> {
+pub struct LPS25HB<'a, 'ker> {
     i2c: &'a dyn i2c::I2CDevice,
     interrupt_pin: &'a dyn gpio::InterruptPin,
-    callback: OptionalCell<Callback>,
+    callback: OptionalCell<Callback<'ker>>,
     state: Cell<State>,
     buffer: TakeCell<'static, [u8]>,
 }
 
-impl LPS25HB<'a> {
+impl LPS25HB<'a, 'ker> {
     pub fn new(
         i2c: &'a dyn i2c::I2CDevice,
         interrupt_pin: &'a dyn gpio::InterruptPin,
         buffer: &'static mut [u8],
-    ) -> LPS25HB<'a> {
+    ) -> LPS25HB<'a, 'ker> {
         // setup and return struct
         LPS25HB {
             i2c: i2c,
@@ -146,7 +146,7 @@ impl LPS25HB<'a> {
     }
 }
 
-impl i2c::I2CClient for LPS25HB<'a> {
+impl i2c::I2CClient for LPS25HB<'a, 'ker> {
     fn command_complete(&self, buffer: &'static mut [u8], _error: i2c::Error) {
         match self.state.get() {
             State::SelectWhoAmI => {
@@ -205,7 +205,7 @@ impl i2c::I2CClient for LPS25HB<'a> {
     }
 }
 
-impl gpio::Client for LPS25HB<'a> {
+impl gpio::Client for LPS25HB<'a, 'ker> {
     fn fired(&self) {
         self.buffer.take().map(|buf| {
             // turn on i2c to send commands
@@ -219,12 +219,12 @@ impl gpio::Client for LPS25HB<'a> {
     }
 }
 
-impl Driver for LPS25HB<'a> {
+impl Driver<'ker> for LPS25HB<'a, 'ker> {
     fn subscribe(
         &self,
         subscribe_num: usize,
-        callback: Option<Callback>,
-        _app_id: AppId,
+        callback: Option<Callback<'ker>>,
+        _app_id: AppId<'ker>,
     ) -> ReturnCode {
         match subscribe_num {
             // Set a callback
@@ -238,7 +238,7 @@ impl Driver for LPS25HB<'a> {
         }
     }
 
-    fn command(&self, command_num: usize, _: usize, _: usize, _: AppId) -> ReturnCode {
+    fn command(&self, command_num: usize, _: usize, _: usize, _: AppId<'ker>) -> ReturnCode {
         match command_num {
             0 /* check if present */ => ReturnCode::SUCCESS,
             // Take a pressure measurement

@@ -85,7 +85,7 @@ impl<'a> LED<'a> {
     }
 }
 
-impl<'a> Driver for LED<'a> {
+impl<'a, 'ker> Driver<'ker> for LED<'a> {
     /// Control the LEDs.
     ///
     /// ### `command_num`
@@ -98,7 +98,7 @@ impl<'a> Driver for LED<'a> {
     ///        if the LED index is not valid.
     /// - `3`: Toggle the LED at index specified by `data` on or off. Returns
     ///        `EINVAL` if the LED index is not valid.
-    fn command(&self, command_num: usize, data: usize, _: usize, _: AppId) -> ReturnCode {
+    fn command(&self, command_num: usize, data: usize, _: usize, _: AppId<'ker>) -> ReturnCode {
         let pins_init = self.pins_init.as_ref();
         match command_num {
             // get number of LEDs

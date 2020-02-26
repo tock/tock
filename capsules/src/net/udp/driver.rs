@@ -60,26 +60,26 @@ impl UDPEndpoint {
 }
 
 #[derive(Default)]
-pub struct App {
-    rx_callback: Option<Callback>,
-    tx_callback: Option<Callback>,
-    app_read: Option<AppSlice<Shared, u8>>,
-    app_write: Option<AppSlice<Shared, u8>>,
-    app_cfg: Option<AppSlice<Shared, u8>>,
-    app_rx_cfg: Option<AppSlice<Shared, u8>>,
+pub struct App<'ker> {
+    rx_callback: Option<Callback<'ker>>,
+    tx_callback: Option<Callback<'ker>>,
+    app_read: Option<AppSlice<'ker, Shared, u8>>,
+    app_write: Option<AppSlice<'ker, Shared, u8>>,
+    app_cfg: Option<AppSlice<'ker, Shared, u8>>,
+    app_rx_cfg: Option<AppSlice<'ker, Shared, u8>>,
     pending_tx: Option<[UDPEndpoint; 2]>,
     bound_port: Option<UDPEndpoint>,
 }
 
 #[allow(dead_code)]
-pub struct UDPDriver<'a> {
+pub struct UDPDriver<'a, 'ker> {
     /// UDP sender
     sender: &'a dyn UDPSender<'a>,
 
     /// Grant of apps that use this radio driver.
-    apps: Grant<App>,
+    apps: Grant<'ker, App<'ker>>,
     /// ID of app whose transmission request is being processed.
-    current_app: Cell<Option<AppId>>,
+    current_app: Cell<Option<AppId<'ker>>>,
 
     /// List of IP Addresses of the interfaces on the device
     interface_list: &'static [IPAddr],
@@ -95,16 +95,16 @@ pub struct UDPDriver<'a> {
     driver_send_cap: &'static dyn UdpDriverCapability,
 }
 
-impl<'a> UDPDriver<'a> {
+impl<'a, 'ker> UDPDriver<'a, 'ker> {
     pub fn new(
         sender: &'a dyn UDPSender<'a>,
-        grant: Grant<App>,
+        grant: Grant<'ker, App<'ker>>,
         interface_list: &'static [IPAddr],
         max_tx_pyld_len: usize,
         port_table: &'static UdpPortManager,
         kernel_buffer: LeasableBuffer<'static, u8>,
         driver_send_cap: &'static dyn UdpDriverCapability,
-    ) -> UDPDriver<'a> {
+    ) -> UDPDriver<'a, 'ker> {
         UDPDriver {
             sender: sender,
             apps: grant,
@@ -119,9 +119,9 @@ impl<'a> UDPDriver<'a> {
 
     /// Utility function to perform an action on an app in a system call.
     #[inline]
-    fn do_with_app<F>(&self, appid: AppId, closure: F) -> ReturnCode
+    fn do_with_app<F>(&self, appid: AppId<'ker>, closure: F) -> ReturnCode
     where
-        F: FnOnce(&mut App) -> ReturnCode,
+        F: FnOnce(&mut App<'ker>) -> ReturnCode,
     {
         self.apps
             .enter(appid, |app, _| closure(app))
@@ -131,7 +131,7 @@ impl<'a> UDPDriver<'a> {
     /// Utility function to perform an action using an app's config buffer.
     #[inline]
     #[allow(dead_code)]
-    fn do_with_cfg<F>(&self, appid: AppId, len: usize, closure: F) -> ReturnCode
+    fn do_with_cfg<F>(&self, appid: AppId<'ker>, len: usize, closure: F) -> ReturnCode
     where
         F: FnOnce(&[u8]) -> ReturnCode,
     {
@@ -149,7 +149,7 @@ impl<'a> UDPDriver<'a> {
 
     /// Utility function to perform a write to an app's config buffer.
     #[inline]
-    fn do_with_cfg_mut<F>(&self, appid: AppId, len: usize, closure: F) -> ReturnCode
+    fn do_with_cfg_mut<F>(&self, appid: AppId<'ker>, len: usize, closure: F) -> ReturnCode
     where
         F: FnOnce(&mut [u8]) -> ReturnCode,
     {
@@ -169,7 +169,7 @@ impl<'a> UDPDriver<'a> {
     /// (quick and dirty ctrl-c, ctrl-v from above)
     #[inline]
     #[allow(dead_code)]
-    fn do_with_rx_cfg<F>(&self, appid: AppId, closure: F) -> ReturnCode
+    fn do_with_rx_cfg<F>(&self, appid: AppId<'ker>, closure: F) -> ReturnCode
     where
         F: FnOnce(&[u8]) -> ReturnCode,
     {
@@ -186,7 +186,7 @@ impl<'a> UDPDriver<'a> {
     /// (also a quick and dirty ctrl-c)
     #[inline]
     #[allow(dead_code)]
-    fn do_with_rx_cfg_mut<F>(&self, appid: AppId, len: usize, closure: F) -> ReturnCode
+    fn do_with_rx_cfg_mut<F>(&self, appid: AppId<'ker>, len: usize, closure: F) -> ReturnCode
     where
         F: FnOnce(&mut [u8]) -> ReturnCode,
     {
@@ -204,7 +204,7 @@ impl<'a> UDPDriver<'a> {
 
     /// If the driver is currently idle and there are pending transmissions,
     /// pick an app with a pending transmission and return its `AppId`.
-    fn get_next_tx_if_idle(&self) -> Option<AppId> {
+    fn get_next_tx_if_idle(&self) -> Option<AppId<'ker>> {
         if self.current_app.get().is_some() {
             // Tx already in progress
             return None;
@@ -228,7 +228,7 @@ impl<'a> UDPDriver<'a> {
     /// `tx_callback`. Assumes that the driver is currently idle and the app has
     /// a pending transmission.
     #[inline]
-    fn perform_tx_async(&self, appid: AppId) {
+    fn perform_tx_async(&self, appid: AppId<'ker>) {
         let result = self.perform_tx_sync(appid);
         if result != ReturnCode::SUCCESS {
             let _ = self.apps.enter(appid, |app, _| {
@@ -242,7 +242,7 @@ impl<'a> UDPDriver<'a> {
     /// returned immediately to the app. Assumes that the driver is currently
     /// idle and the app has a pending transmission.
     #[inline]
-    fn perform_tx_sync(&self, appid: AppId) -> ReturnCode {
+    fn perform_tx_sync(&self, appid: AppId<'ker>) -> ReturnCode {
         self.do_with_app(appid, |app| {
             let addr_ports = match app.pending_tx.take() {
                 Some(pending_tx) => pending_tx,
@@ -303,7 +303,7 @@ impl<'a> UDPDriver<'a> {
     /// On the other hand, if it is some other app, then return any errors via
     /// callbacks.
     #[inline]
-    fn do_next_tx_immediate(&self, new_appid: AppId) -> ReturnCode {
+    fn do_next_tx_immediate(&self, new_appid: AppId<'ker>) -> ReturnCode {
         self.get_next_tx_if_idle()
             .map_or(ReturnCode::SUCCESS, |appid| {
                 if appid == new_appid {
@@ -342,7 +342,7 @@ impl<'a> UDPDriver<'a> {
     }
 }
 
-impl<'a> Driver for UDPDriver<'a> {
+impl Driver<'ker> for UDPDriver<'a, 'ker> {
     /// Setup buffers to read/write from.
     ///
     /// ### `allow_num`
@@ -356,9 +356,9 @@ impl<'a> Driver for UDPDriver<'a> {
     ///        be waiting for an incoming packet asynchronously).
     fn allow(
         &self,
-        appid: AppId,
+        appid: AppId<'ker>,
         allow_num: usize,
-        slice: Option<AppSlice<Shared, u8>>,
+        slice: Option<AppSlice<'ker, Shared, u8>>,
     ) -> ReturnCode {
         match allow_num {
             0 | 1 | 2 | 3 => self.do_with_app(appid, |app| {
@@ -403,8 +403,8 @@ impl<'a> Driver for UDPDriver<'a> {
     fn subscribe(
         &self,
         subscribe_num: usize,
-        callback: Option<Callback>,
-        app_id: AppId,
+        callback: Option<Callback<'ker>>,
+        app_id: AppId<'ker>,
     ) -> ReturnCode {
         match subscribe_num {
             0 => self.do_with_app(app_id, |app| {
@@ -471,7 +471,7 @@ impl<'a> Driver for UDPDriver<'a> {
     ///        This represents the size of the payload buffer in the kernel. Apps can use this
     ///        syscall to ensure they do not attempt to send too-large messages.
 
-    fn command(&self, command_num: usize, arg1: usize, _: usize, appid: AppId) -> ReturnCode {
+    fn command(&self, command_num: usize, arg1: usize, _: usize, appid: AppId<'ker>) -> ReturnCode {
         match command_num {
             0 => ReturnCode::SUCCESS,
 
@@ -610,7 +610,7 @@ impl<'a> Driver for UDPDriver<'a> {
     }
 }
 
-impl<'a> UDPSendClient for UDPDriver<'a> {
+impl UDPSendClient for UDPDriver<'a, 'ker> {
     fn send_done(&self, result: ReturnCode, mut dgram: LeasableBuffer<'static, u8>) {
         // Replace the returned kernel buffer. Now we can send the next msg.
         dgram.reset();
@@ -626,7 +626,7 @@ impl<'a> UDPSendClient for UDPDriver<'a> {
     }
 }
 
-impl<'a> UDPRecvClient for UDPDriver<'a> {
+impl UDPRecvClient for UDPDriver<'a, 'ker> {
     fn receive(
         &self,
         src_addr: IPAddr,
@@ -676,7 +676,7 @@ impl<'a> UDPRecvClient for UDPDriver<'a> {
     }
 }
 
-impl<'a> PortQuery for UDPDriver<'a> {
+impl PortQuery for UDPDriver<'a, 'ker> {
     // Returns true if |port| is bound (on any iface), false otherwise.
     fn is_bound(&self, port: u16) -> bool {
         let mut port_bound = false;

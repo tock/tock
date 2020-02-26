@@ -30,26 +30,26 @@ use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::AppFlash as usize;
 
 #[derive(Default)]
-pub struct App {
-    callback: Option<Callback>,
-    buffer: Option<AppSlice<Shared, u8>>,
+pub struct App<'ker> {
+    callback: Option<Callback<'ker>>,
+    buffer: Option<AppSlice<'ker, Shared, u8>>,
     pending_command: bool,
     flash_address: usize,
 }
 
-pub struct AppFlash<'a> {
+pub struct AppFlash<'a, 'ker> {
     driver: &'a dyn hil::nonvolatile_storage::NonvolatileStorage<'static>,
-    apps: Grant<App>,
-    current_app: OptionalCell<AppId>,
+    apps: Grant<'ker, App<'ker>>,
+    current_app: OptionalCell<AppId<'ker>>,
     buffer: TakeCell<'static, [u8]>,
 }
 
-impl AppFlash<'a> {
+impl AppFlash<'a, 'ker> {
     pub fn new(
         driver: &'a dyn hil::nonvolatile_storage::NonvolatileStorage<'static>,
-        grant: Grant<App>,
+        grant: Grant<'ker, App<'ker>>,
         buffer: &'static mut [u8],
-    ) -> AppFlash<'a> {
+    ) -> AppFlash<'a, 'ker> {
         AppFlash {
             driver: driver,
             apps: grant,
@@ -61,7 +61,7 @@ impl AppFlash<'a> {
     // Check to see if we are doing something. If not, go ahead and do this
     // command. If so, this is queued and will be run when the pending command
     // completes.
-    fn enqueue_write(&self, flash_address: usize, appid: AppId) -> ReturnCode {
+    fn enqueue_write(&self, flash_address: usize, appid: AppId<'ker>) -> ReturnCode {
         self.apps
             .enter(appid, |app, _| {
                 // Check that this is a valid range in the app's flash.
@@ -106,7 +106,7 @@ impl AppFlash<'a> {
     }
 }
 
-impl hil::nonvolatile_storage::NonvolatileStorageClient<'static> for AppFlash<'a> {
+impl hil::nonvolatile_storage::NonvolatileStorageClient<'static> for AppFlash<'a, 'ker> {
     fn read_done(&self, _buffer: &'static mut [u8], _length: usize) {}
 
     fn write_done(&self, buffer: &'static mut [u8], _length: usize) {
@@ -158,7 +158,7 @@ impl hil::nonvolatile_storage::NonvolatileStorageClient<'static> for AppFlash<'a
     }
 }
 
-impl Driver for AppFlash<'a> {
+impl Driver<'ker> for AppFlash<'a, 'ker> {
     /// Setup buffer to write from.
     ///
     /// ### `allow_num`
@@ -166,9 +166,9 @@ impl Driver for AppFlash<'a> {
     /// - `0`: Set write buffer. This entire buffer will be written to flash.
     fn allow(
         &self,
-        appid: AppId,
+        appid: AppId<'ker>,
         allow_num: usize,
-        slice: Option<AppSlice<Shared, u8>>,
+        slice: Option<AppSlice<'ker, Shared, u8>>,
     ) -> ReturnCode {
         match allow_num {
             0 => self
@@ -190,8 +190,8 @@ impl Driver for AppFlash<'a> {
     fn subscribe(
         &self,
         subscribe_num: usize,
-        callback: Option<Callback>,
-        app_id: AppId,
+        callback: Option<Callback<'ker>>,
+        app_id: AppId<'ker>,
     ) -> ReturnCode {
         match subscribe_num {
             0 => self
@@ -211,7 +211,7 @@ impl Driver for AppFlash<'a> {
     ///
     /// - `0`: Driver check.
     /// - `1`: Write the memory from the `allow` buffer to the address in flash.
-    fn command(&self, command_num: usize, arg1: usize, _: usize, appid: AppId) -> ReturnCode {
+    fn command(&self, command_num: usize, arg1: usize, _: usize, appid: AppId<'ker>) -> ReturnCode {
         match command_num {
             0 =>
             /* This driver exists. */

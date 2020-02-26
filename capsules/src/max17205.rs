@@ -357,13 +357,13 @@ impl i2c::I2CClient for MAX17205<'a> {
     }
 }
 
-pub struct MAX17205Driver<'a> {
+pub struct MAX17205Driver<'a, 'ker> {
     max17205: &'a MAX17205<'a>,
-    callback: OptionalCell<Callback>,
+    callback: OptionalCell<Callback<'ker>>,
 }
 
-impl MAX17205Driver<'a> {
-    pub fn new(max: &'a MAX17205) -> MAX17205Driver<'a> {
+impl MAX17205Driver<'a, 'ker> {
+    pub fn new(max: &'a MAX17205) -> MAX17205Driver<'a, 'ker> {
         MAX17205Driver {
             max17205: max,
             callback: OptionalCell::empty(),
@@ -371,7 +371,7 @@ impl MAX17205Driver<'a> {
     }
 }
 
-impl MAX17205Client for MAX17205Driver<'a> {
+impl MAX17205Client for MAX17205Driver<'a, 'ker> {
     fn status(&self, status: u16, error: ReturnCode) {
         self.callback
             .map(|cb| cb.schedule(From::from(error), status as usize, 0));
@@ -408,7 +408,7 @@ impl MAX17205Client for MAX17205Driver<'a> {
     }
 }
 
-impl Driver for MAX17205Driver<'a> {
+impl Driver<'ker> for MAX17205Driver<'a, 'ker> {
     /// Setup callback.
     ///
     /// ### `subscribe_num`
@@ -417,8 +417,8 @@ impl Driver for MAX17205Driver<'a> {
     fn subscribe(
         &self,
         subscribe_num: usize,
-        callback: Option<Callback>,
-        _app_id: AppId,
+        callback: Option<Callback<'ker>>,
+        _app_id: AppId<'ker>,
     ) -> ReturnCode {
         match subscribe_num {
             0 => {
@@ -441,7 +441,7 @@ impl Driver for MAX17205Driver<'a> {
     /// - `3`: Read the current voltage and current draw.
     /// - `4`: Read the raw coulomb count.
     /// - `5`: Read the unique 64 bit RomID.
-    fn command(&self, command_num: usize, _data: usize, _: usize, _: AppId) -> ReturnCode {
+    fn command(&self, command_num: usize, _data: usize, _: usize, _: AppId<'ker>) -> ReturnCode {
         match command_num {
             0 => ReturnCode::SUCCESS,
 

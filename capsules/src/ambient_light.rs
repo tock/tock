@@ -20,19 +20,22 @@ pub const DRIVER_NUM: usize = driver::NUM::AmbientLight as usize;
 
 /// Per-process metadata
 #[derive(Default)]
-pub struct App {
-    callback: Option<Callback>,
+pub struct App<'ker> {
+    callback: Option<Callback<'ker>>,
     pending: bool,
 }
 
-pub struct AmbientLight<'a> {
+pub struct AmbientLight<'a, 'ker> {
     sensor: &'a dyn hil::sensors::AmbientLight,
     command_pending: Cell<bool>,
-    apps: Grant<App>,
+    apps: Grant<'ker, App<'ker>>,
 }
 
-impl AmbientLight<'a> {
-    pub fn new(sensor: &'a dyn hil::sensors::AmbientLight, grant: Grant<App>) -> AmbientLight {
+impl AmbientLight<'a, 'ker> {
+    pub fn new(
+        sensor: &'a dyn hil::sensors::AmbientLight,
+        grant: Grant<'ker, App<'ker>>,
+    ) -> AmbientLight<'a, 'ker> {
         AmbientLight {
             sensor: sensor,
             command_pending: Cell::new(false),
@@ -40,7 +43,7 @@ impl AmbientLight<'a> {
         }
     }
 
-    fn enqueue_sensor_reading(&self, appid: AppId) -> ReturnCode {
+    fn enqueue_sensor_reading(&self, appid: AppId<'ker>) -> ReturnCode {
         self.apps
             .enter(appid, |app, _| {
                 if app.pending {
@@ -58,7 +61,7 @@ impl AmbientLight<'a> {
     }
 }
 
-impl Driver for AmbientLight<'a> {
+impl Driver<'ker> for AmbientLight<'a, 'ker> {
     /// Subscribe to light intensity readings
     ///
     /// ### `subscribe`
@@ -68,8 +71,8 @@ impl Driver for AmbientLight<'a> {
     fn subscribe(
         &self,
         subscribe_num: usize,
-        callback: Option<Callback>,
-        app_id: AppId,
+        callback: Option<Callback<'ker>>,
+        app_id: AppId<'ker>,
     ) -> ReturnCode {
         match subscribe_num {
             0 => self
@@ -94,7 +97,13 @@ impl Driver for AmbientLight<'a> {
     ///
     /// - `0`: Check driver presence
     /// - `1`: Start a light sensor reading
-    fn command(&self, command_num: usize, _arg1: usize, _: usize, appid: AppId) -> ReturnCode {
+    fn command(
+        &self,
+        command_num: usize,
+        _arg1: usize,
+        _: usize,
+        appid: AppId<'ker>,
+    ) -> ReturnCode {
         match command_num {
             0 /* check if present */ => ReturnCode::SUCCESS,
             1 => {
@@ -106,7 +115,7 @@ impl Driver for AmbientLight<'a> {
     }
 }
 
-impl hil::sensors::AmbientLightClient for AmbientLight<'a> {
+impl hil::sensors::AmbientLightClient for AmbientLight<'a, 'ker> {
     fn callback(&self, lux: usize) {
         self.command_pending.set(false);
         self.apps.each(|app| {

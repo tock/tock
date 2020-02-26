@@ -1385,25 +1385,25 @@ impl<A: hil::time::Alarm<'a>> hil::gpio::Client for SDCard<'a, A> {
 /// This is used if the SDCard is going to be attached directly to userspace
 /// syscalls. SDCardDriver can be ignored if another capsule is going to build
 /// off of the SDCard instead
-pub struct SDCardDriver<'a, A: hil::time::Alarm<'a>> {
+pub struct SDCardDriver<'a, 'ker, A: hil::time::Alarm<'a>> {
     sdcard: &'a SDCard<'a, A>,
-    app: MapCell<App>,
+    app: MapCell<App<'ker>>,
     kernel_buf: TakeCell<'static, [u8]>,
 }
 
 /// Holds buffers and whatnot that the application has passed us.
 #[derive(Default)]
-struct App {
-    callback: Option<Callback>,
-    write_buffer: Option<AppSlice<Shared, u8>>,
-    read_buffer: Option<AppSlice<Shared, u8>>,
+struct App<'ker> {
+    callback: Option<Callback<'ker>>,
+    write_buffer: Option<AppSlice<'ker, Shared, u8>>,
+    read_buffer: Option<AppSlice<'ker, Shared, u8>>,
 }
 
 /// Buffer for SD card driver, assigned in board `main.rs` files
 pub static mut KERNEL_BUFFER: [u8; 512] = [0; 512];
 
 /// Functions for SDCardDriver
-impl<A: hil::time::Alarm<'a>> SDCardDriver<'a, A> {
+impl<A: hil::time::Alarm<'a>> SDCardDriver<'a, 'ker, A> {
     /// Create new SD card userland interface
     ///
     /// sdcard - SDCard interface to provide application access to
@@ -1412,7 +1412,7 @@ impl<A: hil::time::Alarm<'a>> SDCardDriver<'a, A> {
     pub fn new(
         sdcard: &'a SDCard<'a, A>,
         kernel_buf: &'static mut [u8; 512],
-    ) -> SDCardDriver<'a, A> {
+    ) -> SDCardDriver<'a, 'ker, A> {
         // return new SDCardDriver
         SDCardDriver {
             sdcard: sdcard,
@@ -1423,7 +1423,7 @@ impl<A: hil::time::Alarm<'a>> SDCardDriver<'a, A> {
 }
 
 /// Handle callbacks from SDCard
-impl<A: hil::time::Alarm<'a>> SDCardClient for SDCardDriver<'a, A> {
+impl<A: hil::time::Alarm<'a>> SDCardClient for SDCardDriver<'a, 'ker, A> {
     fn card_detection_changed(&self, installed: bool) {
         self.app.map(|app| {
             app.callback.map(|mut cb| {
@@ -1488,12 +1488,12 @@ impl<A: hil::time::Alarm<'a>> SDCardClient for SDCardDriver<'a, A> {
 }
 
 /// Connections to userspace syscalls
-impl<A: hil::time::Alarm<'a>> Driver for SDCardDriver<'a, A> {
+impl<A: hil::time::Alarm<'a>> Driver<'ker> for SDCardDriver<'a, 'ker, A> {
     fn allow(
         &self,
-        _appid: AppId,
+        _appid: AppId<'ker>,
         allow_num: usize,
-        slice: Option<AppSlice<Shared, u8>>,
+        slice: Option<AppSlice<'ker, Shared, u8>>,
     ) -> ReturnCode {
         match allow_num {
             // Pass read buffer in from application
@@ -1515,8 +1515,8 @@ impl<A: hil::time::Alarm<'a>> Driver for SDCardDriver<'a, A> {
     fn subscribe(
         &self,
         subscribe_num: usize,
-        callback: Option<Callback>,
-        _app_id: AppId,
+        callback: Option<Callback<'ker>>,
+        _app_id: AppId<'ker>,
     ) -> ReturnCode {
         match subscribe_num {
             // Set callback
@@ -1529,7 +1529,7 @@ impl<A: hil::time::Alarm<'a>> Driver for SDCardDriver<'a, A> {
         }
     }
 
-    fn command(&self, command_num: usize, data: usize, _: usize, _: AppId) -> ReturnCode {
+    fn command(&self, command_num: usize, data: usize, _: usize, _: AppId<'ker>) -> ReturnCode {
         match command_num {
             // check if present
             0 => ReturnCode::SUCCESS,

@@ -10,30 +10,34 @@ use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::I2cMaster as usize;
 
 #[derive(Default)]
-pub struct App {
-    callback: Option<Callback>,
-    slice: Option<AppSlice<Shared, u8>>,
+pub struct App<'ker> {
+    callback: Option<Callback<'ker>>,
+    slice: Option<AppSlice<'ker, Shared, u8>>,
 }
 
 pub static mut BUF: [u8; 64] = [0; 64];
 
-struct Transaction {
+struct Transaction<'ker> {
     /// The buffer containing the bytes to transmit as it should be returned to
     /// the client
-    app_id: AppId,
+    app_id: AppId<'ker>,
     /// The total amount to transmit
     read_len: OptionalCell<usize>,
 }
 
-pub struct I2CMasterDriver<I: 'static + i2c::I2CMaster> {
+pub struct I2CMasterDriver<'ker, I: 'static + i2c::I2CMaster> {
     i2c: &'static I,
     buf: TakeCell<'static, [u8]>,
-    tx: MapCell<Transaction>,
-    apps: Grant<App>,
+    tx: MapCell<Transaction<'ker>>,
+    apps: Grant<'ker, App<'ker>>,
 }
 
-impl<I: 'static + i2c::I2CMaster> I2CMasterDriver<I> {
-    pub fn new(i2c: &'static I, buf: &'static mut [u8], apps: Grant<App>) -> I2CMasterDriver<I> {
+impl<I: 'static + i2c::I2CMaster> I2CMasterDriver<'ker, I> {
+    pub fn new(
+        i2c: &'static I,
+        buf: &'static mut [u8],
+        apps: Grant<'ker, App<'ker>>,
+    ) -> I2CMasterDriver<'ker, I> {
         I2CMasterDriver {
             i2c,
             buf: TakeCell::new(buf),
@@ -44,7 +48,7 @@ impl<I: 'static + i2c::I2CMaster> I2CMasterDriver<I> {
 
     fn operation(
         &self,
-        app_id: AppId,
+        app_id: AppId<'ker>,
         app: &mut App,
         command: Cmd,
         addr: u8,
@@ -102,7 +106,7 @@ pub enum Cmd {
 }
 }
 
-impl<I: i2c::I2CMaster> Driver for I2CMasterDriver<I> {
+impl<I: i2c::I2CMaster> Driver<'ker> for I2CMasterDriver<'ker, I> {
     /// Setup shared buffers.
     ///
     /// ### `allow_num`
@@ -110,9 +114,9 @@ impl<I: i2c::I2CMaster> Driver for I2CMasterDriver<I> {
     /// - `1`: buffer for command
     fn allow(
         &self,
-        appid: AppId,
+        appid: AppId<'ker>,
         allow_num: usize,
-        slice: Option<AppSlice<Shared, u8>>,
+        slice: Option<AppSlice<'ker, Shared, u8>>,
     ) -> ReturnCode {
         match allow_num {
             1 => self
@@ -134,8 +138,8 @@ impl<I: i2c::I2CMaster> Driver for I2CMasterDriver<I> {
     fn subscribe(
         &self,
         subscribe_num: usize,
-        callback: Option<Callback>,
-        app_id: AppId,
+        callback: Option<Callback<'ker>>,
+        app_id: AppId<'ker>,
     ) -> ReturnCode {
         match subscribe_num {
             1 /* write_read_done */ => {
@@ -149,7 +153,7 @@ impl<I: i2c::I2CMaster> Driver for I2CMasterDriver<I> {
     }
 
     /// Initiate transfers
-    fn command(&self, cmd_num: usize, arg1: usize, arg2: usize, appid: AppId) -> ReturnCode {
+    fn command(&self, cmd_num: usize, arg1: usize, arg2: usize, appid: AppId<'ker>) -> ReturnCode {
         if let Some(cmd) = Cmd::from_usize(cmd_num) {
             match cmd {
                 Cmd::Ping => ReturnCode::SUCCESS,
@@ -196,7 +200,7 @@ impl<I: i2c::I2CMaster> Driver for I2CMasterDriver<I> {
     }
 }
 
-impl<I: i2c::I2CMaster> i2c::I2CHwMasterClient for I2CMasterDriver<I> {
+impl<I: i2c::I2CMaster> i2c::I2CHwMasterClient for I2CMasterDriver<'ker, I> {
     fn command_complete(&self, buffer: &'static mut [u8], _error: i2c::Error) {
         self.tx.take().map(|tx| {
             self.apps.enter(tx.app_id, |app, _| {

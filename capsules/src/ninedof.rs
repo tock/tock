@@ -29,15 +29,15 @@ pub enum NineDofCommand {
     ReadGyroscope,
 }
 
-pub struct App {
-    callback: Option<Callback>,
+pub struct App<'ker> {
+    callback: Option<Callback<'ker>>,
     pending_command: bool,
     command: NineDofCommand,
     arg1: usize,
 }
 
-impl Default for App {
-    fn default() -> App {
+impl<'ker> Default for App<'ker> {
+    fn default() -> App<'ker> {
         App {
             callback: None,
             pending_command: false,
@@ -47,14 +47,17 @@ impl Default for App {
     }
 }
 
-pub struct NineDof<'a> {
+pub struct NineDof<'a, 'ker> {
     driver: &'a dyn hil::sensors::NineDof,
-    apps: Grant<App>,
-    current_app: OptionalCell<AppId>,
+    apps: Grant<'ker, App<'ker>>,
+    current_app: OptionalCell<AppId<'ker>>,
 }
 
-impl NineDof<'a> {
-    pub fn new(driver: &'a dyn hil::sensors::NineDof, grant: Grant<App>) -> NineDof<'a> {
+impl NineDof<'a, 'ker> {
+    pub fn new(
+        driver: &'a dyn hil::sensors::NineDof,
+        grant: Grant<'ker, App<'ker>>,
+    ) -> NineDof<'a, 'ker> {
         NineDof {
             driver: driver,
             apps: grant,
@@ -65,7 +68,12 @@ impl NineDof<'a> {
     // Check so see if we are doing something. If not,
     // go ahead and do this command. If so, this is queued
     // and will be run when the pending command completes.
-    fn enqueue_command(&self, command: NineDofCommand, arg1: usize, appid: AppId) -> ReturnCode {
+    fn enqueue_command(
+        &self,
+        command: NineDofCommand,
+        arg1: usize,
+        appid: AppId<'ker>,
+    ) -> ReturnCode {
         self.apps
             .enter(appid, |app, _| {
                 if self.current_app.is_none() {
@@ -95,7 +103,7 @@ impl NineDof<'a> {
     }
 }
 
-impl hil::sensors::NineDofClient for NineDof<'a> {
+impl hil::sensors::NineDofClient for NineDof<'a, 'ker> {
     fn callback(&self, arg1: usize, arg2: usize, arg3: usize) {
         // Notify the current application that the command finished.
         // Also keep track of what just finished to see if we can re-use
@@ -142,12 +150,12 @@ impl hil::sensors::NineDofClient for NineDof<'a> {
     }
 }
 
-impl Driver for NineDof<'a> {
+impl Driver<'ker> for NineDof<'a, 'ker> {
     fn subscribe(
         &self,
         subscribe_num: usize,
-        callback: Option<Callback>,
-        app_id: AppId,
+        callback: Option<Callback<'ker>>,
+        app_id: AppId<'ker>,
     ) -> ReturnCode {
         match subscribe_num {
             0 => self
@@ -161,7 +169,7 @@ impl Driver for NineDof<'a> {
         }
     }
 
-    fn command(&self, command_num: usize, arg1: usize, _: usize, appid: AppId) -> ReturnCode {
+    fn command(&self, command_num: usize, arg1: usize, _: usize, appid: AppId<'ker>) -> ReturnCode {
         match command_num {
             0 =>
             /* This driver exists. */

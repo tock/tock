@@ -28,10 +28,10 @@ use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::Nrf51822Serialization as usize;
 
 #[derive(Default)]
-pub struct App {
-    callback: Option<Callback>,
-    tx_buffer: Option<AppSlice<Shared, u8>>,
-    rx_buffer: Option<AppSlice<Shared, u8>>,
+pub struct App<'ker> {
+    callback: Option<Callback<'ker>>,
+    tx_buffer: Option<AppSlice<'ker, Shared, u8>>,
+    rx_buffer: Option<AppSlice<'ker, Shared, u8>>,
     rx_recv_so_far: usize, // How many RX bytes we have currently received.
     rx_recv_total: usize,  // The total number of bytes we expect to receive.
 }
@@ -43,23 +43,23 @@ pub static mut READ_BUF: [u8; 600] = [0; 600];
 
 // We need two resources: a UART HW driver and driver state for each
 // application.
-pub struct Nrf51822Serialization<'a> {
+pub struct Nrf51822Serialization<'a, 'ker> {
     uart: &'a dyn uart::UartAdvanced<'a>,
     reset_pin: &'a dyn hil::gpio::Pin,
-    apps: Grant<App>,
-    active_app: OptionalCell<AppId>,
+    apps: Grant<'ker, App<'ker>>,
+    active_app: OptionalCell<AppId<'ker>>,
     tx_buffer: TakeCell<'static, [u8]>,
     rx_buffer: TakeCell<'static, [u8]>,
 }
 
-impl Nrf51822Serialization<'a> {
+impl Nrf51822Serialization<'a, 'ker> {
     pub fn new(
         uart: &'a dyn uart::UartAdvanced<'a>,
-        grant: Grant<App>,
+        grant: Grant<'ker, App<'ker>>,
         reset_pin: &'a dyn hil::gpio::Pin,
         tx_buffer: &'static mut [u8],
         rx_buffer: &'static mut [u8],
-    ) -> Nrf51822Serialization<'a> {
+    ) -> Nrf51822Serialization<'a, 'ker> {
         Nrf51822Serialization {
             uart: uart,
             reset_pin: reset_pin,
@@ -91,7 +91,7 @@ impl Nrf51822Serialization<'a> {
     }
 }
 
-impl Driver for Nrf51822Serialization<'a> {
+impl Driver<'ker> for Nrf51822Serialization<'a, 'ker> {
     /// Pass application space memory to this driver.
     ///
     /// This also sets which app is currently using this driver. Only one app
@@ -103,9 +103,9 @@ impl Driver for Nrf51822Serialization<'a> {
     /// - `1`: Provide a TX buffer.
     fn allow(
         &self,
-        appid: AppId,
+        appid: AppId<'ker>,
         allow_type: usize,
-        slice: Option<AppSlice<Shared, u8>>,
+        slice: Option<AppSlice<'ker, Shared, u8>>,
     ) -> ReturnCode {
         match allow_type {
             // Provide an RX buffer.
@@ -146,8 +146,8 @@ impl Driver for Nrf51822Serialization<'a> {
     fn subscribe(
         &self,
         subscribe_type: usize,
-        callback: Option<Callback>,
-        appid: AppId,
+        callback: Option<Callback<'ker>>,
+        appid: AppId<'ker>,
     ) -> ReturnCode {
         match subscribe_type {
             // Add a callback
@@ -177,7 +177,7 @@ impl Driver for Nrf51822Serialization<'a> {
     /// - `0`: Driver check.
     /// - `1`: Send the allowed buffer to the nRF.
     /// - `2`: Reset the nRF51822.
-    fn command(&self, command_type: usize, _: usize, _: usize, appid: AppId) -> ReturnCode {
+    fn command(&self, command_type: usize, _: usize, _: usize, appid: AppId<'ker>) -> ReturnCode {
         match command_type {
             0 /* check if present */ => ReturnCode::SUCCESS,
 
@@ -209,7 +209,7 @@ impl Driver for Nrf51822Serialization<'a> {
 }
 
 // Callbacks from the underlying UART driver.
-impl uart::TransmitClient for Nrf51822Serialization<'a> {
+impl uart::TransmitClient for Nrf51822Serialization<'a, 'ker> {
     // Called when the UART TX has finished.
     fn transmitted_buffer(&self, buffer: &'static mut [u8], _tx_len: usize, _rcode: ReturnCode) {
         self.tx_buffer.replace(buffer);
@@ -227,7 +227,7 @@ impl uart::TransmitClient for Nrf51822Serialization<'a> {
     fn transmitted_word(&self, _rcode: ReturnCode) {}
 }
 
-impl uart::ReceiveClient for Nrf51822Serialization<'a> {
+impl uart::ReceiveClient for Nrf51822Serialization<'a, 'ker> {
     // Called when a buffer is received on the UART.
     fn received_buffer(
         &self,

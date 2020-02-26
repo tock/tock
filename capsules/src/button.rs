@@ -80,24 +80,24 @@ pub enum ButtonState {
 
 /// Manages the list of GPIO pins that are connected to buttons and which apps
 /// are listening for interrupts from which buttons.
-pub struct Button<'a> {
+pub struct Button<'a, 'ker> {
     pins: &'a [(
         &'a dyn gpio::InterruptValuePin,
         GpioMode,
         gpio::FloatingState,
     )],
-    apps: Grant<(Option<Callback>, SubscribeMap)>,
+    apps: Grant<'ker, (Option<Callback<'ker>>, SubscribeMap)>,
 }
 
-impl<'a> Button<'a> {
+impl Button<'a, 'ker> {
     pub fn new(
         pins: &'a [(
             &'a dyn gpio::InterruptValuePin,
             GpioMode,
             gpio::FloatingState,
         )],
-        grant: Grant<(Option<Callback>, SubscribeMap)>,
-    ) -> Button<'a> {
+        grant: Grant<'ker, (Option<Callback<'ker>>, SubscribeMap)>,
+    ) -> Button<'a, 'ker> {
         for (i, &(pin, _, floating_state)) in pins.iter().enumerate() {
             pin.make_input();
             pin.set_value(i as u32);
@@ -126,7 +126,7 @@ impl<'a> Button<'a> {
     }
 }
 
-impl<'a> Driver for Button<'a> {
+impl Driver<'ker> for Button<'a, 'ker> {
     /// Set callbacks.
     ///
     /// ### `subscribe_num`
@@ -139,8 +139,8 @@ impl<'a> Driver for Button<'a> {
     fn subscribe(
         &self,
         subscribe_num: usize,
-        callback: Option<Callback>,
-        app_id: AppId,
+        callback: Option<Callback<'ker>>,
+        app_id: AppId<'ker>,
     ) -> ReturnCode {
         match subscribe_num {
             0 => self
@@ -172,7 +172,7 @@ impl<'a> Driver for Button<'a> {
     /// - `2`: Disable interrupts for a button. No affect or reliance on
     ///   registered callback.
     /// - `3`: Read the current state of the button.
-    fn command(&self, command_num: usize, data: usize, _: usize, appid: AppId) -> ReturnCode {
+    fn command(&self, command_num: usize, data: usize, _: usize, appid: AppId<'ker>) -> ReturnCode {
         let pins = self.pins;
         match command_num {
             // return button count
@@ -247,7 +247,7 @@ impl<'a> Driver for Button<'a> {
     }
 }
 
-impl<'a> gpio::ClientWithValue for Button<'a> {
+impl gpio::ClientWithValue for Button<'a, 'ker> {
     fn fired(&self, pin_num: u32) {
         // Read the value of the pin and get the button state.
         let button_state = self.get_button_state(pin_num);

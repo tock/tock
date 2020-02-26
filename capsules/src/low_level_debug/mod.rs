@@ -12,9 +12,9 @@ pub use fmt::BUF_LEN;
 
 pub const DRIVER_NUM: usize = 0x8;
 
-pub struct LowLevelDebug<'u, U: Transmit<'u>> {
+pub struct LowLevelDebug<'u, 'ker, U: Transmit<'u>> {
     buffer: Cell<Option<&'static mut [u8]>>,
-    grant: Grant<AppData>,
+    grant: Grant<'ker, AppData>,
     // grant_failed is set to true when LowLevelDebug fails to allocate an app's
     // grant region. When it has a chance, LowLevelDebug will print a message
     // indicating a grant initialization has failed, then set this back to
@@ -25,12 +25,12 @@ pub struct LowLevelDebug<'u, U: Transmit<'u>> {
     uart: &'u U,
 }
 
-impl<'u, U: Transmit<'u>> LowLevelDebug<'u, U> {
+impl<U: Transmit<'u>> LowLevelDebug<'u, 'ker, U> {
     pub fn new(
         buffer: &'static mut [u8],
         uart: &'u U,
-        grant: Grant<AppData>,
-    ) -> LowLevelDebug<'u, U> {
+        grant: Grant<'ker, AppData>,
+    ) -> LowLevelDebug<'u, 'ker, U> {
         LowLevelDebug {
             buffer: Cell::new(Some(buffer)),
             grant,
@@ -40,8 +40,14 @@ impl<'u, U: Transmit<'u>> LowLevelDebug<'u, U> {
     }
 }
 
-impl<'u, U: Transmit<'u>> kernel::Driver for LowLevelDebug<'u, U> {
-    fn command(&self, minor_num: usize, r2: usize, r3: usize, caller_id: AppId) -> ReturnCode {
+impl<U: Transmit<'u>> kernel::Driver<'ker> for LowLevelDebug<'u, 'ker, U> {
+    fn command(
+        &self,
+        minor_num: usize,
+        r2: usize,
+        r3: usize,
+        caller_id: AppId<'ker>,
+    ) -> ReturnCode {
         match minor_num {
             0 => return ReturnCode::SUCCESS,
             1 => self.push_entry(DebugEntry::AlertCode(r2), caller_id),
@@ -53,7 +59,7 @@ impl<'u, U: Transmit<'u>> kernel::Driver for LowLevelDebug<'u, U> {
     }
 }
 
-impl<'u, U: Transmit<'u>> TransmitClient for LowLevelDebug<'u, U> {
+impl<U: Transmit<'u>> TransmitClient for LowLevelDebug<'u, 'ker, U> {
     fn transmitted_buffer(&self, tx_buffer: &'static mut [u8], _tx_len: usize, _rval: ReturnCode) {
         // Identify and transmit the next queued entry. If there are no queued
         // entries remaining, store buffer.
@@ -91,10 +97,10 @@ impl<'u, U: Transmit<'u>> TransmitClient for LowLevelDebug<'u, U> {
 // Implementation details below
 // -----------------------------------------------------------------------------
 
-impl<'u, U: Transmit<'u>> LowLevelDebug<'u, U> {
+impl<U: Transmit<'u>> LowLevelDebug<'u, 'ker, U> {
     // If the UART is not busy (the buffer is available), transmits the entry.
     // Otherwise, adds it to the app's queue.
-    fn push_entry(&self, entry: DebugEntry, appid: AppId) {
+    fn push_entry(&self, entry: DebugEntry, appid: AppId<'ker>) {
         use DebugEntry::Dropped;
 
         if let Some(buffer) = self.buffer.take() {

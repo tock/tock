@@ -73,24 +73,24 @@ pub enum NonvolatileCommand {
 }
 
 #[derive(Clone, Copy)]
-pub enum NonvolatileUser {
-    App { app_id: AppId },
+pub enum NonvolatileUser<'ker> {
+    App { app_id: AppId<'ker> },
     Kernel,
 }
 
-pub struct App {
-    callback_read: Option<Callback>,
-    callback_write: Option<Callback>,
+pub struct App<'ker> {
+    callback_read: Option<Callback<'ker>>,
+    callback_write: Option<Callback<'ker>>,
     pending_command: bool,
     command: NonvolatileCommand,
     offset: usize,
     length: usize,
-    buffer_read: Option<AppSlice<Shared, u8>>,
-    buffer_write: Option<AppSlice<Shared, u8>>,
+    buffer_read: Option<AppSlice<'ker, Shared, u8>>,
+    buffer_write: Option<AppSlice<'ker, Shared, u8>>,
 }
 
-impl Default for App {
-    fn default() -> App {
+impl<'ker> Default for App<'ker> {
+    fn default() -> App<'ker> {
         App {
             callback_read: None,
             callback_write: None,
@@ -104,16 +104,16 @@ impl Default for App {
     }
 }
 
-pub struct NonvolatileStorage<'a> {
+pub struct NonvolatileStorage<'a, 'ker> {
     // The underlying physical storage device.
     driver: &'a dyn hil::nonvolatile_storage::NonvolatileStorage<'static>,
     // Per-app state.
-    apps: Grant<App>,
+    apps: Grant<'ker, App<'ker>>,
 
     // Internal buffer for copying appslices into.
     buffer: TakeCell<'static, [u8]>,
     // What issued the currently executing call. This can be an app or the kernel.
-    current_user: OptionalCell<NonvolatileUser>,
+    current_user: OptionalCell<NonvolatileUser<'ker>>,
 
     // The first byte that is accessible from userspace.
     userspace_start_address: usize,
@@ -140,16 +140,16 @@ pub struct NonvolatileStorage<'a> {
     kernel_readwrite_address: Cell<usize>,
 }
 
-impl NonvolatileStorage<'a> {
+impl NonvolatileStorage<'a, 'ker> {
     pub fn new(
         driver: &'a dyn hil::nonvolatile_storage::NonvolatileStorage<'static>,
-        grant: Grant<App>,
+        grant: Grant<'ker, App<'ker>>,
         userspace_start_address: usize,
         userspace_length: usize,
         kernel_start_address: usize,
         kernel_length: usize,
         buffer: &'static mut [u8],
-    ) -> NonvolatileStorage<'a> {
+    ) -> NonvolatileStorage<'a, 'ker> {
         NonvolatileStorage {
             driver: driver,
             apps: grant,
@@ -176,7 +176,7 @@ impl NonvolatileStorage<'a> {
         command: NonvolatileCommand,
         offset: usize,
         length: usize,
-        app_id: Option<AppId>,
+        app_id: Option<AppId<'ker>>,
     ) -> ReturnCode {
         // Do bounds check.
         match command {
@@ -387,7 +387,7 @@ impl NonvolatileStorage<'a> {
 }
 
 /// This is the callback client for the underlying physical storage driver.
-impl hil::nonvolatile_storage::NonvolatileStorageClient<'static> for NonvolatileStorage<'a> {
+impl hil::nonvolatile_storage::NonvolatileStorageClient<'static> for NonvolatileStorage<'a, 'ker> {
     fn read_done(&self, buffer: &'static mut [u8], length: usize) {
         // Switch on which user of this capsule generated this callback.
         self.current_user.take().map(|user| {
@@ -448,7 +448,7 @@ impl hil::nonvolatile_storage::NonvolatileStorageClient<'static> for Nonvolatile
 }
 
 /// Provide an interface for the kernel.
-impl hil::nonvolatile_storage::NonvolatileStorage<'static> for NonvolatileStorage<'a> {
+impl hil::nonvolatile_storage::NonvolatileStorage<'static> for NonvolatileStorage<'a, 'ker> {
     fn set_client(&self, client: &'static dyn hil::nonvolatile_storage::NonvolatileStorageClient) {
         self.kernel_client.set(client);
     }
@@ -465,7 +465,7 @@ impl hil::nonvolatile_storage::NonvolatileStorage<'static> for NonvolatileStorag
 }
 
 /// Provide an interface for userland.
-impl Driver for NonvolatileStorage<'a> {
+impl Driver<'ker> for NonvolatileStorage<'a, 'ker> {
     /// Setup shared buffers.
     ///
     /// ### `allow_num`
@@ -474,9 +474,9 @@ impl Driver for NonvolatileStorage<'a> {
     /// - `1`: Setup a buffer to write bytes to the nonvolatile storage.
     fn allow(
         &self,
-        appid: AppId,
+        appid: AppId<'ker>,
         allow_num: usize,
-        slice: Option<AppSlice<Shared, u8>>,
+        slice: Option<AppSlice<'ker, Shared, u8>>,
     ) -> ReturnCode {
         self.apps
             .enter(appid, |app, _| {
@@ -499,8 +499,8 @@ impl Driver for NonvolatileStorage<'a> {
     fn subscribe(
         &self,
         subscribe_num: usize,
-        callback: Option<Callback>,
-        app_id: AppId,
+        callback: Option<Callback<'ker>>,
+        app_id: AppId<'ker>,
     ) -> ReturnCode {
         self.apps
             .enter(app_id, |app, _| {
@@ -524,7 +524,7 @@ impl Driver for NonvolatileStorage<'a> {
     /// - `1`: Return the number of bytes available to userspace.
     /// - `2`: Start a read from the nonvolatile storage.
     /// - `3`: Start a write to the nonvolatile_storage.
-    fn command(&self, arg0: usize, arg1: usize, _: usize, appid: AppId) -> ReturnCode {
+    fn command(&self, arg0: usize, arg1: usize, _: usize, appid: AppId<'ker>) -> ReturnCode {
         let command_num = arg0 & 0xFF;
 
         match command_num {

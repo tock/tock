@@ -201,20 +201,20 @@ enum State {
     Done,
 }
 
-pub struct TSL2561<'a> {
+pub struct TSL2561<'a, 'ker> {
     i2c: &'a dyn i2c::I2CDevice,
     interrupt_pin: &'a dyn gpio::InterruptPin,
-    callback: OptionalCell<Callback>,
+    callback: OptionalCell<Callback<'ker>>,
     state: Cell<State>,
     buffer: TakeCell<'static, [u8]>,
 }
 
-impl TSL2561<'a> {
+impl TSL2561<'a, 'ker> {
     pub fn new(
         i2c: &'a dyn i2c::I2CDevice,
         interrupt_pin: &'a dyn gpio::InterruptPin,
         buffer: &'static mut [u8],
-    ) -> TSL2561<'a> {
+    ) -> TSL2561<'a, 'ker> {
         // setup and return struct
         TSL2561 {
             i2c: i2c,
@@ -345,7 +345,7 @@ impl TSL2561<'a> {
     }
 }
 
-impl i2c::I2CClient for TSL2561<'a> {
+impl i2c::I2CClient for TSL2561<'a, 'ker> {
     fn command_complete(&self, buffer: &'static mut [u8], _error: i2c::Error) {
         match self.state.get() {
             State::SelectId => {
@@ -422,7 +422,7 @@ impl i2c::I2CClient for TSL2561<'a> {
     }
 }
 
-impl gpio::Client for TSL2561<'a> {
+impl gpio::Client for TSL2561<'a, 'ker> {
     fn fired(&self) {
         self.buffer.take().map(|buffer| {
             // turn on i2c to send commands
@@ -436,12 +436,12 @@ impl gpio::Client for TSL2561<'a> {
     }
 }
 
-impl Driver for TSL2561<'a> {
+impl Driver<'ker> for TSL2561<'a, 'ker> {
     fn subscribe(
         &self,
         subscribe_num: usize,
-        callback: Option<Callback>,
-        _app_id: AppId,
+        callback: Option<Callback<'ker>>,
+        _app_id: AppId<'ker>,
     ) -> ReturnCode {
         match subscribe_num {
             // Set a callback
@@ -455,7 +455,7 @@ impl Driver for TSL2561<'a> {
         }
     }
 
-    fn command(&self, command_num: usize, _: usize, _: usize, _: AppId) -> ReturnCode {
+    fn command(&self, command_num: usize, _: usize, _: usize, _: AppId<'ker>) -> ReturnCode {
         match command_num {
             0 /* check if present */ => ReturnCode::SUCCESS,
             // Take a measurement

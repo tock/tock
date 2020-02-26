@@ -30,21 +30,21 @@ use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::Rng as usize;
 
 #[derive(Default)]
-pub struct App {
-    callback: Option<Callback>,
-    buffer: Option<AppSlice<Shared, u8>>,
+pub struct App<'ker> {
+    callback: Option<Callback<'ker>>,
+    buffer: Option<AppSlice<'ker, Shared, u8>>,
     remaining: usize,
     idx: usize,
 }
 
-pub struct RngDriver<'a> {
+pub struct RngDriver<'a, 'ker> {
     rng: &'a dyn Rng<'a>,
-    apps: Grant<App>,
+    apps: Grant<'ker, App<'ker>>,
     getting_randomness: Cell<bool>,
 }
 
-impl RngDriver<'a> {
-    pub fn new(rng: &'a dyn Rng<'a>, grant: Grant<App>) -> RngDriver<'a> {
+impl RngDriver<'a, 'ker> {
+    pub fn new(rng: &'a dyn Rng<'a>, grant: Grant<'ker, App<'ker>>) -> RngDriver<'a, 'ker> {
         RngDriver {
             rng: rng,
             apps: grant,
@@ -53,7 +53,7 @@ impl RngDriver<'a> {
     }
 }
 
-impl<'a> rng::Client for RngDriver<'a> {
+impl rng::Client for RngDriver<'a, 'ker> {
     fn randomness_available(
         &self,
         randomness: &mut dyn Iterator<Item = u32>,
@@ -131,12 +131,12 @@ impl<'a> rng::Client for RngDriver<'a> {
     }
 }
 
-impl<'a> Driver for RngDriver<'a> {
+impl Driver<'ker> for RngDriver<'a, 'ker> {
     fn allow(
         &self,
-        appid: AppId,
+        appid: AppId<'ker>,
         allow_num: usize,
-        slice: Option<AppSlice<Shared, u8>>,
+        slice: Option<AppSlice<'ker, Shared, u8>>,
     ) -> ReturnCode {
         // pass buffer in from application
         match allow_num {
@@ -154,8 +154,8 @@ impl<'a> Driver for RngDriver<'a> {
     fn subscribe(
         &self,
         subscribe_num: usize,
-        callback: Option<Callback>,
-        app_id: AppId,
+        callback: Option<Callback<'ker>>,
+        app_id: AppId<'ker>,
     ) -> ReturnCode {
         match subscribe_num {
             0 => self
@@ -171,7 +171,7 @@ impl<'a> Driver for RngDriver<'a> {
         }
     }
 
-    fn command(&self, command_num: usize, data: usize, _: usize, appid: AppId) -> ReturnCode {
+    fn command(&self, command_num: usize, data: usize, _: usize, appid: AppId<'ker>) -> ReturnCode {
         match command_num {
             0 =>
             /* Check if exists */
