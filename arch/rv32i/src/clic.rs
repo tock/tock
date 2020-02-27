@@ -83,33 +83,33 @@ struct ConfigRegisters {
 }
 
 register_bitfields![u8,
-      intpend [
-          IntPend OFFSET(0) NUMBITS(1) []
-      ]
-  ];
+    intpend [
+        IntPend OFFSET(0) NUMBITS(1) []
+    ]
+];
 
 register_bitfields![u8,
-      inten [
-          IntEn OFFSET(0) NUMBITS(1) []
-      ]
-  ];
+    inten [
+        IntEn OFFSET(0) NUMBITS(1) []
+    ]
+];
 
 // The data sheet isn't completely clear on this field, but it looks like there
 // are four bits for priority and level, and the lowest for bits of the register
 // are reserved.
 register_bitfields![u8,
-      intcon [
-          IntCon OFFSET(4) NUMBITS(4) []
-      ]
-  ];
+    intcon [
+        IntCon OFFSET(4) NUMBITS(4) []
+    ]
+];
 
 register_bitfields![u8,
-      conreg [
-          nvbits OFFSET(0) NUMBITS(1) [],
-          nlbits OFFSET(1) NUMBITS(4) [],
-          nmbits OFFSET(5) NUMBITS(2) []
-      ]
-  ];
+    conreg [
+        nvbits OFFSET(0) NUMBITS(1) [],
+        nlbits OFFSET(1) NUMBITS(4) [],
+        nmbits OFFSET(5) NUMBITS(2) []
+    ]
+];
 
 const CLIC_BASE: StaticRef<ClicRegisters> =
     unsafe { StaticRef::new(0x0280_0000 as *const ClicRegisters) };
