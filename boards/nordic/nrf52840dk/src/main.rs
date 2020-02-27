@@ -196,6 +196,12 @@ pub unsafe fn reset_handler() {
     let LORA_RESET: &GPIOPin = &nrf52840::gpio::PORT[Pin::P1_02]; // fixme
     let LORA_INT: &GPIOPin = &nrf52840::gpio::PORT[Pin::P1_03]; // fixme
 
+    kernel::debug::assign_gpios(  //leds
+      Some(&nrf52840::gpio::PORT[Pin::P0_13]),
+      Some(&nrf52840::gpio::PORT[Pin::P0_14]),
+      Some(&nrf52840::gpio::PORT[Pin::P0_15]),
+    );
+
     nrf52dk_base::setup_board(
         board_kernel,
         BUTTON_RST_PIN,

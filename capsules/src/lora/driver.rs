@@ -52,6 +52,10 @@ impl<S: SpiMasterDevice> Driver for RadioDriver<'a, S> {
 
       1 => self.device.begin(865000000),
 
+      2 => self.device.begin_packet(arg1 != 0),
+
+      3 => self.device.end_packet(arg1 != 0),
+
       _ => ReturnCode::ENOSUPPORT,
     }
   }

@@ -4,6 +4,7 @@ use kernel::common::cells::{TakeCell};
 use kernel::hil::gpio;
 use kernel::hil::spi::{SpiMasterDevice};
 use kernel::ReturnCode;
+use kernel::debug_gpio;
 
 // registers
 enum InternalState {
@@ -140,7 +141,7 @@ impl<S: SpiMasterDevice> Radio<'a, S> {
   }
 
   fn register_write(&self, reg: RegMap, val: u8) -> ReturnCode {
-      //digitalWrite(ss_pin, Low);
+      debug_gpio!(1, toggle);
       if self.spi_busy.get() || self.spi_tx.is_none() || self.spi_rx.is_none() {
           return ReturnCode::EBUSY;
       }
@@ -150,12 +151,11 @@ impl<S: SpiMasterDevice> Radio<'a, S> {
       wbuf[1] = val;
       self.spi.read_write_bytes(wbuf, Some(rbuf), 2);
       self.spi_busy.set(true);
-      //digitalWrite(ss_pin, High);
       ReturnCode::SUCCESS
   }
 
   fn register_read(&self, reg: RegMap) -> ReturnCode {
-      //digitalWrite(ss_pin, Low);
+      debug_gpio!(0, toggle);
       if self.spi_busy.get() || self.spi_tx.is_none() || self.spi_rx.is_none() {
           return ReturnCode::EBUSY;
       }
@@ -165,7 +165,6 @@ impl<S: SpiMasterDevice> Radio<'a, S> {
       wbuf[1] = 0;
       self.spi.read_write_bytes(wbuf, Some(rbuf), 2);
       self.spi_busy.set(true);
-      //digitalWrite(ss_pin, High);
       ReturnCode::SUCCESS
   }
 
@@ -190,12 +189,12 @@ impl<S: SpiMasterDevice> Radio<'a, S> {
     self.register_write(RegMap::RegOpMode,Mode::ModeLongRangeMode as u8 | Mode::ModeSleep as u8);
   }
 
-  fn explicitHeaderMode(&mut self) {
+  fn explicit_header_mode(&mut self) {
     self.implicit_header = false; 
     self.register_write(RegMap::RegModemConfig1,self.register_return(RegMap::RegModemConfig1) as u8 & 0xfe);
   }
 
-  fn implicitHeaderMode(&mut self) {
+  fn implicit_header_mode(&mut self) {
     self.implicit_header = true;
     self.register_write(RegMap::RegModemConfig1,self.register_return(RegMap::RegModemConfig1) as u8 | 0x01);
   }
@@ -203,27 +202,27 @@ impl<S: SpiMasterDevice> Radio<'a, S> {
   //
   // Packet functions
   //
-  pub fn beginPacket(&self, implicitHeader: bool) -> ReturnCode {
-    if self.isTransmitting() {
-      return ReturnCode::SUCCESS;
+  pub fn begin_packet(&self, implicitHeader: bool) -> ReturnCode {
+    if self.is_transmitting() {
+      return ReturnCode::FAIL;
     }
   
     self.idle();
   
     if implicitHeader {
-      //self.implicitHeaderMode();
+      //self.implicit_header_mode();
     } else {
-      //self.explicitHeaderMode();
+      //self.explicit_header_mode();
     }
   
     // reset Fifo address and paload length
     self.register_write(RegMap::RegFifoAddrPtr,0);
     self.register_write(RegMap::RegPayloadLength,0);
   
-    ReturnCode::FAIL
+    ReturnCode::SUCCESS
   }
 
-  fn endPacket(&mut self, asyn: bool) -> ReturnCode {
+  pub fn end_packet(&self, asyn: bool) -> ReturnCode {
     if (asyn) && (self.tx_done) {
         self.register_write(RegMap::RegDioMapping1,0x40); // Dio0 => Txdone
     }
@@ -242,7 +241,7 @@ impl<S: SpiMasterDevice> Radio<'a, S> {
     ReturnCode::SUCCESS
   }
 
-  fn isTransmitting(&self) -> bool {
+  fn is_transmitting(&self) -> bool {
     if (self.register_return(RegMap::RegOpMode) & Mode::ModeTx as u8) == Mode::ModeTx as u8 {
       return true;
     }
@@ -255,15 +254,15 @@ impl<S: SpiMasterDevice> Radio<'a, S> {
     return false;
   }
 
-  fn parsePacket(&mut self, size: u8) -> u8 {
+  fn parse_packet(&mut self, size: u8) -> u8 {
     let mut packetLength = 0 as u8;
     let mut irqFlags = self.register_return(RegMap::RegIrqFlags) as u8;
   
     if size > 0 {
-      self.implicitHeaderMode(); 
+      self.implicit_header_mode(); 
       self.register_write(RegMap::RegPayloadLength,size & 0xff);
     } else {
-      self.explicitHeaderMode();
+      self.explicit_header_mode();
     }
   
     // clear Irq's
@@ -298,7 +297,7 @@ impl<S: SpiMasterDevice> Radio<'a, S> {
     return packetLength;
   }
 
-  fn packetRssi(&mut self) -> u8 {
+  fn packet_rssi(&mut self) -> u8 {
     let mut freq = self.frequency as f64;
     let mut rssiBase;
     if freq < 868E6 {
@@ -309,11 +308,11 @@ impl<S: SpiMasterDevice> Radio<'a, S> {
     self.register_return(RegMap::RegPktRssiValue) - rssiBase
   }
   
-  fn packetSnr(&mut self) -> f32 {
+  fn packet_snr(&mut self) -> f32 {
     self.register_return(RegMap::RegPktSnrValue) as f32 * 0.25
   }
   
-  fn packetFrequencyError(&mut self) -> i64 {
+  fn packet_frequency_error(&mut self) -> i64 {
     let mut freqError;
     freqError = self.register_return(RegMap::RegFreqErrorMsb) & 0b111;
     freqError <<= 8;
@@ -326,7 +325,7 @@ impl<S: SpiMasterDevice> Radio<'a, S> {
     }
   
     let mut fXtal = 32E6 as f64; // Fxosc: crystal oscillator (Xtal) frequency (2.5. Chip Specification, p. 14)
-    let mut fError = ((freqError << 24) as f64 / fXtal) * (self.getSignalBandwidth() as f64 / 500000.0); // p. 37
+    let mut fError = ((freqError << 24) as f64 / fXtal) * (self.get_signal_bandwidth() as f64 / 500000.0); // p. 37
   
     return fError as i64;
   }
@@ -388,21 +387,20 @@ impl<S: SpiMasterDevice> Radio<'a, S> {
   // Init functions
   //
   pub fn begin(&self, frequency: u64) -> ReturnCode {
-    //self.ss_pin.set();
+    // reset //Fix me
+    //if self.reset_pin.read() {
+    //  //return ReturnCode::FAIL;
+    //}
   
-    if self.reset_pin.read() {
-      return ReturnCode::SUCCESS;
-    }
-  
-    // check version
-    let mut version = self.register_return(RegMap::RegVersion) as u8;
-    if version != 0x12 {
-      return ReturnCode::SUCCESS;
-    }
+    // check version //Fix me
+    //let mut version = self.register_return(RegMap::RegVersion) as u8;
+    //if version != 0x12 {
+    //  return ReturnCode::FAIL;
+    //}
   
     self.sleep();
   
-    self.setFrequency(frequency);
+    self.set_frequency(frequency);
   
     // set base addresses
     self.register_write(RegMap::RegFifoTxBaseAddr,0);
@@ -415,11 +413,11 @@ impl<S: SpiMasterDevice> Radio<'a, S> {
     self.register_write(RegMap::RegModemConfig3,0x04);
   
     // set output power to 17 dBm
-    self.setPower(17, 0);
+    self.set_power(17, 0);
   
     self.idle();
   
-    ReturnCode::FAIL
+    ReturnCode::SUCCESS
   }
 
   fn end(&mut self) {
@@ -434,17 +432,17 @@ impl<S: SpiMasterDevice> Radio<'a, S> {
     self.register_write(RegMap::RegDioMapping1,0x00); // Dio0 => Rxdone
   
     if size > 0 {
-      self.implicitHeaderMode();
+      self.implicit_header_mode();
   
       self.register_write(RegMap::RegPayloadLength,size & 0xff);
     } else {
-      self.explicitHeaderMode();
+      self.explicit_header_mode();
     }
   
     self.register_write(RegMap::RegOpMode,Mode::ModeLongRangeMode as u8 | Mode::ModeRxContinuous as u8);
   }
 
-  fn setPower(&self, mut level: u8, outputPin: u8) {
+  fn set_power(&self, mut level: u8, outputPin: u8) {
     if outputPin == 0 {
       // Rfo
       if level < 0 {
@@ -466,21 +464,21 @@ impl<S: SpiMasterDevice> Radio<'a, S> {
   
         // High Power +20 dBm Operation (Semtech Sx1276/77/78/79 5.4.3.)
         self.register_write(RegMap::RegPaDac,0x87);
-        self.setOcp(140);
+        self.set_ocp(140);
       } else {
         if level < 2 {
           level = 2;
         }
         //Default value PaHf/Lf or +17dBm
         self.register_write(RegMap::RegPaDac,0x84);
-        self.setOcp(100);
+        self.set_ocp(100);
       }
   
       self.register_write(RegMap::RegPaConfig,PaBoost | (level - 2));
     }
   }
 
-  fn setFrequency(&self, frequency: u64) {
+  fn set_frequency(&self, frequency: u64) {
     //self.frequency = frequency;
   
     let mut frf = (frequency << 19) / 32000000;
@@ -490,11 +488,11 @@ impl<S: SpiMasterDevice> Radio<'a, S> {
     self.register_write(RegMap::RegFrfLsb,(frf >> 0) as u8);
   }
 
-  fn getSpreadingFactor(&mut self) -> u8 {
+  fn get_spreading_factor(&mut self) -> u8 {
     self.register_return(RegMap::RegModemConfig2) >> 4
   }
 
-  fn setSpreadingFactor(&mut self, mut sf: u8) {
+  fn set_spreading_factor(&mut self, mut sf: u8) {
     if sf < 6 {
       sf = 6;
     } else if sf > 12 {
@@ -510,10 +508,10 @@ impl<S: SpiMasterDevice> Radio<'a, S> {
     }
   
     self.register_write(RegMap::RegModemConfig2,(self.register_return(RegMap::RegModemConfig2) as u8 & 0x0f) | ((sf << 4) & 0xf0));
-    self.setLdoFlag();
+    self.set_ldo_flag();
   }
 
-  fn getSignalBandwidth(&mut self) -> f64 {
+  fn get_signal_bandwidth(&mut self) -> f64 {
     let mut bw = (self.register_return(RegMap::RegModemConfig1) >> 4) as u8;
   
     match bw {
@@ -530,7 +528,7 @@ impl<S: SpiMasterDevice> Radio<'a, S> {
     }
   }
 
-  fn setSignalBandwidth(&mut self, sbw: f64) {
+  fn set_signal_bandwidth(&mut self, sbw: f64) {
     let mut bw: u8;
   
     if sbw <= 7.8E3 {
@@ -556,12 +554,12 @@ impl<S: SpiMasterDevice> Radio<'a, S> {
     }
   
     self.register_write(RegMap::RegModemConfig1,(self.register_return(RegMap::RegModemConfig1) & 0x0f) as u8 | (bw << 4));
-    self.setLdoFlag();
+    self.set_ldo_flag();
   }
 
-  fn setLdoFlag(&mut self) {
+  fn set_ldo_flag(&mut self) {
   // Section 4.1.1.5
-    let mut symbolDuration = 1000 / ( self.getSignalBandwidth() / (1 << self.getSpreadingFactor()) as f64 )  as i64;
+    let mut symbolDuration = 1000 / ( self.get_signal_bandwidth() / (1 << self.get_spreading_factor()) as f64 )  as i64;
   
     // Section 4.1.1.6
     let mut ldoOn: bool = symbolDuration > 16;
@@ -573,7 +571,7 @@ impl<S: SpiMasterDevice> Radio<'a, S> {
     self.register_write(RegMap::RegModemConfig3,config3);
   }
 
-  fn setCodingRate4(&mut self, mut denominator: u8) {
+  fn set_coding_rate4(&mut self, mut denominator: u8) {
     if denominator < 5 {
       denominator = 5;
     } else if denominator > 8 {
@@ -585,34 +583,34 @@ impl<S: SpiMasterDevice> Radio<'a, S> {
     self.register_write(RegMap::RegModemConfig1,(self.register_return(RegMap::RegModemConfig1) as u8 & 0xf1) | (cr << 1));
   }
 
-  fn setPreambleLength(&mut self, length: i64) {
+  fn set_preamble_length(&mut self, length: i64) {
     self.register_write(RegMap::RegPreambleMsb,(length >> 8) as u8);
     self.register_write(RegMap::RegPreambleLsb,(length >> 0) as u8);
   }
 
-  fn setSyncWord(&mut self, sw: u8) {
+  fn set_sync_word(&mut self, sw: u8) {
     self.register_write(RegMap::RegSyncWord,sw);
   }
 
-  fn enableCrc(&mut self) {
+  fn enable_crc(&mut self) {
     self.register_write(RegMap::RegModemConfig2,self.register_return(RegMap::RegModemConfig2) as u8 | 0x04);
   }
 
-  fn disableCrc(&mut self) {
+  fn disable_crc(&mut self) {
     self.register_write(RegMap::RegModemConfig2,self.register_return(RegMap::RegModemConfig2) as u8 & 0xfb);
   }
 
-  fn enableInvertIq(&mut self) {
+  fn enable_invert_iq(&mut self) {
     self.register_write(RegMap::RegInvertiq,0x66);
     self.register_write(RegMap::RegInvertiq2,0x19);
   }
 
-  fn disableInvertIq(&mut self) {
+  fn disable_invert_iq(&mut self) {
     self.register_write(RegMap::RegInvertiq,0x27);
     self.register_write(RegMap::RegInvertiq2,0x1d);
   }
 
-  fn setOcp(&self, mA: u8) {
+  fn set_ocp(&self, mA: u8) {
     let mut ocpTrim = 27 as u8;
   
     if mA <= 120 {
@@ -629,7 +627,7 @@ impl<S: SpiMasterDevice> Radio<'a, S> {
   }
 
   // handle LoRa interrupt
-  fn handleLoraIrq(&mut self) {
+  fn handle_lora_irq(&mut self) {
     let mut irqFlags = self.register_return(RegMap::RegIrqFlags) as u8;
   
     // clear Irq's

@@ -33,9 +33,6 @@ impl Component for LoraComponent {
     unsafe fn finalize(&mut self, _s: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
-        self.radio.begin(865000000);
-        self.radio.beginPacket(true);
-
         let radio_driver = static_init!(
             RadioDriver<'static, VirtualSpiMasterDevice<'static, nrf52::spi::SPIM>>,
             RadioDriver::new(

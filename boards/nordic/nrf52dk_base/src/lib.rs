@@ -3,7 +3,7 @@
 #![no_std]
 
 #[allow(unused_imports)]
-use kernel::{create_capability, debug, debug_gpio, debug_verbose, static_init};
+use kernel::{create_capability, debug, debug_verbose, static_init};
 
 use capsules::analog_comparator;
 use capsules::virtual_alarm::VirtualMuxAlarm;
@@ -98,6 +98,7 @@ pub struct Platform {
     >,
     ieee802154_radio: Option<&'static capsules::ieee802154::RadioDriver<'static>>,
     lora_radio: Option<&'static capsules::lora::driver::RadioDriver<'static, VirtualSpiMasterDevice<'static, nrf52::spi::SPIM>>>,
+    spi: Option<capsules::spi::Spi<'static, VirtualSpiMasterDevice<'static, nrf52::spi::SPIM>>>,
     button: &'static capsules::button::Button<'static>,
     pconsole: &'static capsules::process_console::ProcessConsole<
         'static,
@@ -139,6 +140,10 @@ impl kernel::Platform for Platform {
             },
             capsules::lora::driver::DRIVER_NUM => match self.lora_radio {
                 Some(radio) => f(Some(radio)),
+                None => f(None),
+            },
+            capsules::spi::DRIVER_NUM => match &self.spi {
+                Some(spi) => f(Some(spi)),
                 None => f(None),
             },
 
@@ -332,9 +337,10 @@ pub unsafe fn setup_board<I: nrf52::interrupt_service::InterruptService>(
         nrf52::pinmux::Pinmux::new(spi_pins.clk as u32),
     );
 
-    let lora_radio = if let Some(pins) = lora_pins {
+    let (lora_radio,spi) = if let Some(pins) = lora_pins {
       let lora_spi = SpiComponent::new(mux_spi, pins.chip_select)
-          .finalize(components::spi_component_helper!(nrf52::spi::SPIM));
+          .finalize(components::spi_component_helper!(nrf52::spi::SPIM)); //virtual
+      let spi = capsules::spi::Spi::new(lora_spi);
 
       let RADIO = static_init!(capsules::lora::radio::Radio<'static, VirtualSpiMasterDevice<'static, nrf52::spi::SPIM>>, capsules::lora::radio::Radio::new(
         &lora_spi,
@@ -346,9 +352,9 @@ pub unsafe fn setup_board<I: nrf52::interrupt_service::InterruptService>(
         RADIO,
       )
       .finalize(());
-      Some(radio)
+      (Some(radio),Some(spi))
     } else {
-        None
+      (None,None)
     };
 
     let nonvolatile_storage: Option<
@@ -461,6 +467,7 @@ pub unsafe fn setup_board<I: nrf52::interrupt_service::InterruptService>(
         ble_radio: ble_radio,
         ieee802154_radio: ieee802154_radio,
         lora_radio: lora_radio,
+        spi: spi,
         pconsole: pconsole,
         console: console,
         led: led,
