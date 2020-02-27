@@ -2,28 +2,65 @@
 //!
 //! <http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.dui0553a/CIHFDJCA.html>
 
-use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite};
+use kernel::common::registers::{register_bitfields, register_structs, ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
 
-#[repr(C)]
-struct ScbRegisters {
-    cpuid: ReadOnly<u32, CpuId::Register>,
-    icsr: ReadWrite<u32, InterruptControlAndState::Register>,
-    vtor: ReadWrite<u32, VectorTableOffset::Register>,
-    aircr: ReadWrite<u32, ApplicationInterruptAndReset::Register>,
-    scr: ReadWrite<u32, SystemControl::Register>,
-    ccr: ReadWrite<u32, ConfigurationAndControl::Register>,
-    shp: [ReadWrite<u32, SystemHandlerPriority::Register>; 3],
-    shcsr: ReadWrite<u32, SystemHandlerControlAndState::Register>,
-    cfsr: ReadWrite<u32, ConfigurableFaultStatus::Register>,
-    hfsr: ReadWrite<u32, HardFaultStatus::Register>,
-    dfsr: ReadWrite<u32, DebugFaultStatus::Register>,
-    mmfar: ReadWrite<u32, FaultAddress::Register>,
-    bfar: ReadWrite<u32, FaultAddress::Register>,
-    afsr: ReadWrite<u32, FaultAddress::Register>,
-    _reserved0: [u32; 15], // 0xE000ED40-7C, Reserved for CPUID registers.
-    _reserved1: [u32; 1],  // 0xE000ED80-84, Reserved.
-    cpacr: ReadWrite<u32, CoprocessorAccessControl::Register>,
+register_structs! {
+    /// In an ARMv7-M processor, a System Control Block (SCB) in the SCS
+    /// provides key status information and control features for the processor.
+    ScbRegisters {
+        /// CPUID Base Register
+        (0x00 => cpuid: ReadOnly<u32, CpuId::Register>),
+
+        /// Interrupt Control and State Register
+        (0x04 => icsr: ReadWrite<u32, InterruptControlAndState::Register>),
+
+        /// Vector Table Offset Register
+        (0x08 => vtor: ReadWrite<u32, VectorTableOffset::Register>),
+
+        /// Application Interrupt and Reset Control Register
+        (0x0c => aircr: ReadWrite<u32, ApplicationInterruptAndReset::Register>),
+
+        /// System Control Register
+        (0x10 => scr: ReadWrite<u32, SystemControl::Register>),
+
+        /// Configuration and Control Register
+        (0x14 => ccr: ReadWrite<u32, ConfigurationAndControl::Register>),
+
+        /// System Handler Priority Register (1-4)
+        (0x18 => shp: [ReadWrite<u32, SystemHandlerPriority::Register>; 3]),
+
+        /// System Handler Control and State Register
+        (0x24 => shcsr: ReadWrite<u32, SystemHandlerControlAndState::Register>),
+
+        /// Configurable Fault Status Register
+        (0x28 => cfsr: ReadWrite<u32, ConfigurableFaultStatus::Register>),
+
+        /// HardFault Status Register
+        (0x2c => hfsr: ReadWrite<u32, HardFaultStatus::Register>),
+
+        /// Debug Fault Status Register
+        (0x30 => dfsr: ReadWrite<u32, DebugFaultStatus::Register>),
+
+        /// MemManage Fault Address Register
+        (0x34 => mmfar: ReadWrite<u32, FaultAddress::Register>),
+
+        /// BusFault Address Register
+        (0x38 => bfar: ReadWrite<u32, FaultAddress::Register>),
+
+        /// Auxiliary Fault Status Register
+        (0x3c => afsr: ReadWrite<u32, FaultAddress::Register>),
+
+        (0x40 => _reserved0: [u32; 16]), // 0xE000ED40-7C, Reserved for CPUID registers.
+        (0x80 => _reserved1: [u32; 2]),  // 0xE000ED80-84, Reserved.
+
+        /// Coprocessor Access Control Register
+        (0x88 => cpacr: ReadWrite<u32, CoprocessorAccessControl::Register>),
+
+        (0x8c => _reserved2: [u32; 1]),  // 0xE000ED8C, Reserved.
+
+        (0x90 => @END),
+    }
 }
 
 register_bitfields![u32,
