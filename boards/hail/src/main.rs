@@ -204,7 +204,7 @@ pub unsafe fn reset_handler() {
     );
 
     let chip = static_init!(sam4l::chip::Sam4l, sam4l::chip::Sam4l::new());
-    CHIP = Some(&chip);
+    CHIP = Some(chip);
 
     let dynamic_deferred_call_clients =
         static_init!([DynamicDeferredCallClientState; 2], Default::default());
