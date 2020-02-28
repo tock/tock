@@ -14,6 +14,7 @@ use kernel::component::Component;
 use kernel::hil::time::Alarm;
 use kernel::Platform;
 use kernel::{create_capability, debug, static_init};
+use components::gpio::GpioComponent;
 
 /// Support routines for debugging I/O.
 pub mod io;
@@ -58,6 +59,7 @@ struct NucleoF429ZI {
         'static,
         VirtualMuxAlarm<'static, stm32f4xx::tim2::Tim2<'static>>,
     >,
+    gpio: &'static capsules::gpio::GPIO<'static>,
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
@@ -72,6 +74,7 @@ impl Platform for NucleoF429ZI {
             capsules::button::DRIVER_NUM => f(Some(self.button)),
             capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
+            capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
             _ => f(None),
         }
     }
@@ -301,12 +304,22 @@ pub unsafe fn reset_handler() {
     );
     virtual_alarm.set_client(alarm);
 
+    let gpio = GpioComponent::new(board_kernel).finalize(components::gpio_component_helper!(
+        stm32f4xx::gpio::PIN[3][7].as_ref().unwrap ()
+        // stm32f4xx::gpio::PIN[0][1].as_ref().unwrap (),
+        // stm32f4xx::gpio::PIN[0][2].as_ref().unwrap (),
+        // stm32f4xx::gpio::PIN[0][3].as_ref().unwrap (),
+        // stm32f4xx::gpio::PIN[0][4].as_ref().unwrap (),
+        // stm32f4xx::gpio::PIN[0][5].as_ref().unwrap ()
+    ));
+
     let nucleo_f429zi = NucleoF429ZI {
         console: console,
         ipc: kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability),
         led: led,
         button: button,
         alarm: alarm,
+        gpio:  gpio
     };
 
     // // Optional kernel tests
