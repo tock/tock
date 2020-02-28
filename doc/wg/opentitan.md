@@ -34,7 +34,7 @@ and issues, rather than a complete group. Group membership is decided by
 the group: the exact process is not yet determined and may organically
 evolve as the group gains momentum.
 
-The group has a weekly teleconference call. All working group members  
+The group has a weekly teleconference call. All working group members
 participate in the call. Other people may be invited to participate to
 help contribute to particular topics or on-going discussions. The
 working group chair decides who beyond the working group members may
@@ -43,7 +43,7 @@ participate in the call.
 The working group publishes detailed notes of its calls. These will be
 posted within a week of a call. This delay is to give participants an
 opportunity to correct any errors or better explain points that came up.
-They are intended to be a communication mechanism of the group, its 
+They are intended to be a communication mechanism of the group, its
 discussions, the technical issues, and decisions, not a literal
 transcription of what is said.
 
@@ -62,11 +62,15 @@ responsible for:
 
 - `arch/rv32i`
 
+Similarly, the OT working group is also responsible for RISC-V support in
+libtock-rs.
+
 As interest and breadth of efforts into RISC-V change, it may no longer be
 necessary for OT group to be responsible for the RISC-V architecture-level
 support, or it may be moved to a different working group. In general, changes to
 `arch/rv32i` should be in consultation with other RISC-V chip and board
-maintainers.
+maintainers, and changes to libtock-rs should be in consultation with other
+libtock-rs maintainers.
 
 Also, the set of directories under the purview of the OT group may change or
 grow as code is re-organized or new boards emerge.
@@ -75,6 +79,6 @@ All members of the OpenTitan working group have the ability to merge pull
 requests to code in these directories, following the working group's code
 review process. The working group may also grant pull request merging
 abilities to people outside the group. In cases when a pull request modifies
-directories under the purview of more than one  working group, the approval of 
-all responsible working groups is required. 
+directories under the purview of more than one  working group, the approval of
+all responsible working groups is required.
 
