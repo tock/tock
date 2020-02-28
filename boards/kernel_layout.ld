@@ -216,6 +216,8 @@ SECTIONS
            kernel and apps into a single image */
         KEEP (*(.app.*))
     } > prog
+    /* _lapps symbol used by tock to calculate the length of app flash */
+    _lapps = LENGTH(prog);
 
 
 
