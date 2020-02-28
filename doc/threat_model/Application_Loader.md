@@ -46,15 +46,18 @@ loader.
 ## TBF Verification Requirement
 
 The application loader is required to confirm that the TBF's `total_size` field
-is correct before deploying an application. This is to prevent the
-newly-deployed application from executing the following attacks:
+is correct (as specified in the [Tock Binary
+Format](../TockBinaryFormat.md#tbf-header-base)) before deploying an
+application. This is to prevent the newly-deployed application from executing
+the following attacks:
 
-1. Specifying an incorrect `total_size`, preventing the remaining application(s)
-   from launching (impacting availability).
+1. Specifying an incorrect `total_size`, preventing the kernel from finding the
+   remaining application(s), which prevents the remaining application(s) from
+   launching (impacting availability).
 
-1. Specifying a too-large `total_size` that include the subsequent
+1. Specifying a too-large `total_size` that includes the subsequent
    application(s) image(s), allowing the malicious application to read the
-   images(s) (impacting confidentiality).
+   images(s) (impacting availability and confidentiality).
 
 ## Trusted Compute Base in the Application Loader
 
@@ -69,10 +72,12 @@ application loader takes. For example:
 1. A build system that combines apps into a single image must be trusted to
    correctly compile and merge the apps and kernel. The build system must be
    trusted to provide confidentiality, integrity, and availability guarantees.
-   If the resulting image is signed (and the signature verified by a
-   bootloader), then the firmware deployment mechanism need not be trusted. If
-   there is no signature verification in the bootloader then the firmware
-   deployment mechanism must be trusted as well.
+   The firmware deployment mechanism must be trusted for confidentiality and
+   availability guarantees. If the resulting image is signed (and the signature
+   verified by a bootloader), then the firmware deployment mechanism need not be
+   trusted for integrity. If there is no signature verification in the
+   bootloader then the firmware deployment mechanism must be trusted for
+   integrity as well.
 
 1. An application loader that performs the nonvolatile storage write from within
    Tock's kernel may make its confidentiality, integrity, and availability
