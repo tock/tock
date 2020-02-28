@@ -255,7 +255,7 @@ impl<
         &self,
         sector_index: u32,
         sector: &'static mut Mx25r6435fSector,
-    ) -> (ReturnCode, Option<&'static mut Mx25r6435fSector>) {
+    ) -> Result<(), (ReturnCode, &'static mut Mx25r6435fSector)> {
         self.configure_spi();
         // Save the user buffer for later
         self.client_sector.replace(sector);
@@ -287,9 +287,9 @@ impl<
             });
 
         if retval == ReturnCode::SUCCESS {
-            (retval, None)
+            Ok(())
         } else {
-            (retval, Some(self.client_sector.take().unwrap()))
+            Err((retval, self.client_sector.take().unwrap()))
         }
     }
 
@@ -297,7 +297,7 @@ impl<
         &self,
         sector_index: u32,
         sector: &'static mut Mx25r6435fSector,
-    ) -> (ReturnCode, Option<&'static mut Mx25r6435fSector>) {
+    ) -> Result<(), (ReturnCode, &'static mut Mx25r6435fSector)> {
         self.client_sector.replace(sector);
         self.configure_spi();
         self.state.set(State::EraseSectorWriteEnable {
@@ -307,9 +307,9 @@ impl<
         let retval = self.enable_write();
 
         if retval == ReturnCode::SUCCESS {
-            (retval, None)
+            Ok(())
         } else {
-            (retval, Some(self.client_sector.take().unwrap()))
+            Err((retval, self.client_sector.take().unwrap()))
         }
     }
 }
@@ -572,7 +572,7 @@ impl<
         &self,
         page_number: usize,
         buf: &'static mut Self::Page,
-    ) -> (ReturnCode, Option<&'static mut Self::Page>) {
+    ) -> Result<(), (ReturnCode, &'static mut Self::Page)> {
         self.read_sector(page_number as u32, buf)
     }
 
@@ -580,7 +580,7 @@ impl<
         &self,
         page_number: usize,
         buf: &'static mut Self::Page,
-    ) -> (ReturnCode, Option<&'static mut Self::Page>) {
+    ) -> Result<(), (ReturnCode, &'static mut Self::Page)> {
         self.write_sector(page_number as u32, buf)
     }
 

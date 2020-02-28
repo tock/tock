@@ -53,8 +53,8 @@
 //! impl hil::flash::Flash for NewChipStruct {
 //!     type Page = NewChipPage;
 //!
-//!     fn read_page(&self, page_number: usize, buf: &'static mut Self::Page) -> (ReturnCode, Option<&'static mut Self::Page>) { (ReturnCode::FAIL, Some(buf)) }
-//!     fn write_page(&self, page_number: usize, buf: &'static mut Self::Page) -> (ReturnCode, Option<&'static mut Self::Page>) { (ReturnCode::FAIL, Some(buf)) }
+//!     fn read_page(&self, page_number: usize, buf: &'static mut Self::Page) -> Result<(), (ReturnCode, &'static mut Self::Page)> { Err((ReturnCode::FAIL, buf)) }
+//!     fn write_page(&self, page_number: usize, buf: &'static mut Self::Page) -> Result<(), (ReturnCode, &'static mut Self::Page)> { Err((ReturnCode::FAIL, buf)) }
 //!     fn erase_page(&self, page_number: usize) -> ReturnCode { ReturnCode::FAIL }
 //! }
 //! ```
@@ -114,14 +114,14 @@ pub trait Flash {
         &self,
         page_number: usize,
         buf: &'static mut Self::Page,
-    ) -> (ReturnCode, Option<&'static mut Self::Page>);
+    ) -> Result<(), (ReturnCode, &'static mut Self::Page)>;
 
     /// Write a page of flash from the buffer.
     fn write_page(
         &self,
         page_number: usize,
         buf: &'static mut Self::Page,
-    ) -> (ReturnCode, Option<&'static mut Self::Page>);
+    ) -> Result<(), (ReturnCode, &'static mut Self::Page)>;
 
     /// Erase a page of flash.
     fn erase_page(&self, page_number: usize) -> ReturnCode;
