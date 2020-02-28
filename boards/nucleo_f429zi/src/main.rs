@@ -45,7 +45,7 @@ static APP_HACK: u8 = 0;
 #[link_section = ".stack_buffer"]
 pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 
-const NUM_LEDS: usize = 1;
+const NUM_LEDS: usize = 3;
 
 /// A structure representing this platform that holds references to all
 /// capsules for this platform.
@@ -252,7 +252,15 @@ pub unsafe fn reset_handler() {
             capsules::led::ActivationMode
         ); NUM_LEDS],
         [(
+            stm32f4xx::gpio::PinId::PB00.get_pin().as_ref().unwrap(),
+            capsules::led::ActivationMode::ActiveHigh
+        ),
+        (
             stm32f4xx::gpio::PinId::PB07.get_pin().as_ref().unwrap(),
+            capsules::led::ActivationMode::ActiveHigh
+        ),
+        (
+            stm32f4xx::gpio::PinId::PB14.get_pin().as_ref().unwrap(),
             capsules::led::ActivationMode::ActiveHigh
         )]
     );
