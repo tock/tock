@@ -22,9 +22,10 @@
  *    The `_szero` and `_ezero` symbols define the range of the BSS, SRAM that
  *    Tock will zero on boot.
  *
- * `_sapps`
+ * `_sapps`, `_lapps`
  *
  *    The `_sapps` symbol marks the beginning of application memory in flash.
+ *    The `_lapps` symbol is how long the application flash region is.
  */
 
 
