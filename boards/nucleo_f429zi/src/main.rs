@@ -251,18 +251,20 @@ pub unsafe fn reset_handler() {
             &'static dyn kernel::hil::gpio::Pin,
             capsules::led::ActivationMode
         ); NUM_LEDS],
-        [(
-            stm32f4xx::gpio::PinId::PB00.get_pin().as_ref().unwrap(),
-            capsules::led::ActivationMode::ActiveHigh
-        ),
-        (
-            stm32f4xx::gpio::PinId::PB07.get_pin().as_ref().unwrap(),
-            capsules::led::ActivationMode::ActiveHigh
-        ),
-        (
-            stm32f4xx::gpio::PinId::PB14.get_pin().as_ref().unwrap(),
-            capsules::led::ActivationMode::ActiveHigh
-        )]
+        [
+            (
+                stm32f4xx::gpio::PinId::PB00.get_pin().as_ref().unwrap(),
+                capsules::led::ActivationMode::ActiveHigh
+            ),
+            (
+                stm32f4xx::gpio::PinId::PB07.get_pin().as_ref().unwrap(),
+                capsules::led::ActivationMode::ActiveHigh
+            ),
+            (
+                stm32f4xx::gpio::PinId::PB14.get_pin().as_ref().unwrap(),
+                capsules::led::ActivationMode::ActiveHigh
+            )
+        ]
     );
     let led = static_init!(
         capsules::led::LED<'static>,
