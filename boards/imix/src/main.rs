@@ -474,7 +474,7 @@ pub unsafe fn reset_handler() {
     };
 
     let chip = static_init!(sam4l::chip::Sam4l, sam4l::chip::Sam4l::new());
-    CHIP = Some(&chip);
+    CHIP = Some(chip);
 
     // Need to initialize the UART for the nRF51 serialization.
     imix.nrf51822.initialize();

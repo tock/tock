@@ -190,7 +190,7 @@ pub unsafe extern "C" fn switch_to_user(
     "
     : "={r0}"(user_stack)
     : "{r0}"(user_stack), "{r1}"(process_regs)
-    : "r4","r5","r6","r7","r8","r9","r10","r11" : "volatile" );
+    : "r4","r5","r6","r8","r9","r10","r11" : "volatile" );
     user_stack as *mut u8
 }
 
