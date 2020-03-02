@@ -4,7 +4,7 @@
 
 #![no_std]
 #![no_main]
-#![feature(asm, core_intrinsics)]
+#![feature(asm)]
 #![deny(missing_docs)]
 
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
