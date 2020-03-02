@@ -152,6 +152,15 @@ unsafe fn set_pin_primary_functions() {
     });
     // EXTI13 interrupts is delivered at IRQn 40 (EXTI15_10)
     cortexm4::nvic::Nvic::new(stm32f4xx::nvic::EXTI15_10).enable();
+
+    // Enable clocks for GPIO Ports
+    // Disable some of them if you don't need some of the GPIOs
+    PORT[PortId::A as usize].enable_clock();
+    // Ports B, C and D are already enabled
+    PORT[PortId::E as usize].enable_clock();
+    PORT[PortId::F as usize].enable_clock();
+    PORT[PortId::G as usize].enable_clock();
+    PORT[PortId::H as usize].enable_clock();
 }
 
 /// Helper function for miscellaneous peripheral functions
@@ -305,7 +314,6 @@ pub unsafe fn reset_handler() {
     virtual_alarm.set_client(alarm);
 
     // GPIO
-
     let gpio = GpioComponent::new(board_kernel).finalize(components::gpio_component_helper!(
         // Arduino like RX/TX
         stm32f4xx::gpio::PIN[6][9].as_ref().unwrap(), //D0
@@ -388,6 +396,7 @@ pub unsafe fn reset_handler() {
         stm32f4xx::gpio::PIN[5][2].as_ref().unwrap(), //D70
         stm32f4xx::gpio::PIN[0][7].as_ref().unwrap(), //D71
         // ADC Pins
+        // Enable the to use the ADC pins as GPIO
         stm32f4xx::gpio::PIN[0][3].as_ref().unwrap(), //A0
         stm32f4xx::gpio::PIN[2][0].as_ref().unwrap(), //A1
         stm32f4xx::gpio::PIN[2][3].as_ref().unwrap(), //A2
