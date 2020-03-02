@@ -11,6 +11,7 @@ use crate::common::cells::{MapCell, NumericCellExt};
 use crate::common::{Queue, RingBuffer};
 use crate::config;
 use crate::debug;
+use crate::ipc;
 use crate::mem::{AppSlice, Shared};
 use crate::platform::mpu::{self, MPU};
 use crate::platform::Chip;
@@ -107,6 +108,9 @@ pub trait ProcessType {
     /// This function returns `true` if the `Task` was successfully enqueued,
     /// and `false` otherwise. This is represented as a simple `bool` because
     /// this is passed to the capsule that tried to schedule the `Task`.
+    ///
+    /// This will fail if the process is no longer active, and therefore cannot
+    /// execute any new tasks.
     fn enqueue_task(&self, task: Task) -> bool;
 
     /// Remove the scheduled operation from the front of the queue and return it
@@ -125,12 +129,21 @@ pub trait ProcessType {
     fn get_state(&self) -> State;
 
     /// Move this process from the running state to the yielded state.
+    ///
+    /// This will fail (i.e. not do anything) if the process was not previously
+    /// running.
     fn set_yielded_state(&self);
 
-    /// Move this process from running or yielded state into the stopped state
+    /// Move this process from running or yielded state into the stopped state.
+    ///
+    /// This will fail (i.e. not do anything) if the process was not either
+    /// running or yielded.
     fn stop(&self);
 
-    /// Move this stopped process back into its original state
+    /// Move this stopped process back into its original state.
+    ///
+    /// This transitions a process from `StoppedRunning` -> `Running` or
+    /// `StoppedYielded` -> `Yielded`.
     fn resume(&self);
 
     /// Put this process in the fault state. This will trigger the
@@ -147,10 +160,18 @@ pub trait ProcessType {
 
     /// Change the location of the program break and reallocate the MPU region
     /// covering program memory.
+    ///
+    /// This will fail with an error if the process is no longer active. An
+    /// inactive process will not run again without being reset, and changing
+    /// the memory pointers is not valid at this point.
     fn brk(&self, new_break: *const u8) -> Result<*const u8, Error>;
 
     /// Change the location of the program break, reallocate the MPU region
     /// covering program memory, and return the previous break address.
+    ///
+    /// This will fail with an error if the process is no longer active. An
+    /// inactive process will not run again without being reset, and changing
+    /// the memory pointers is not valid at this point.
     fn sbrk(&self, increment: isize) -> Result<*const u8, Error>;
 
     /// The start address of allocated RAM for this process.
@@ -190,11 +211,20 @@ pub trait ProcessType {
 
     /// Creates an `AppSlice` from the given offset and size in process memory.
     ///
+    /// If `buf_start_addr` is NULL this will have no effect and the return
+    /// value will be `None` to signal the capsule to drop the buffer.
+    ///
+    /// If the process is not active then this will return an error as it is not
+    /// valid to "allow" a buffer for a process that will not resume executing.
+    /// In practice this case should not happen as the process will not be
+    /// executing to call the allow syscall.
+    ///
     /// ## Returns
     ///
-    /// If the buffer is null (a zero-valued offset), return None, signaling the capsule to delete
-    /// the entry.  If the buffer is within the process's accessible memory, returns an AppSlice
-    /// wrapping that buffer. Otherwise, returns an error `ReturnCode`.
+    /// If the buffer is null (a zero-valued offset) this returns `None`,
+    /// signaling the capsule to delete the entry. If the buffer is within the
+    /// process's accessible memory, returns an `AppSlice` wrapping that buffer.
+    /// Otherwise, returns an error `ReturnCode`.
     fn allow(
         &self,
         buf_start_addr: *const u8,
@@ -210,10 +240,17 @@ pub trait ProcessType {
     // mpu
 
     /// Configure the MPU to use the process's allocated regions.
+    ///
+    /// It is not valid to call this function when the process is inactive (i.e.
+    /// the process will not run again).
     fn setup_mpu(&self);
 
-    /// Allocate a new MPU region for the process that is at least `min_region_size`
-    /// bytes and lies within the specified stretch of unallocated memory.
+    /// Allocate a new MPU region for the process that is at least
+    /// `min_region_size` bytes and lies within the specified stretch of
+    /// unallocated memory.
+    ///
+    /// It is not valid to call this function when the process is inactive (i.e.
+    /// the process will not run again).
     fn add_mpu_region(
         &self,
         unallocated_memory_start: *const u8,
@@ -225,23 +262,37 @@ pub trait ProcessType {
 
     /// Create new memory in the grant region, and check that the MPU region
     /// covering program memory does not extend past the kernel memory break.
+    ///
+    /// This will return `None` and fail if the process is inactive.
     unsafe fn alloc(&self, size: usize, align: usize) -> Option<&mut [u8]>;
 
     unsafe fn free(&self, _: *mut u8);
 
     /// Get a pointer to the grant pointer for this grant number.
-    unsafe fn grant_ptr(&self, grant_num: usize) -> *mut *mut u8;
+    ///
+    /// This will return `None` if the process is inactive and the grant region
+    /// cannot be used.
+    unsafe fn grant_ptr(&self, grant_num: usize) -> Option<*mut *mut u8>;
 
     // functions for processes that are architecture specific
 
     /// Set the return value the process should see when it begins executing
     /// again after the syscall.
+    ///
+    /// It is not valid to call this function when the process is inactive (i.e.
+    /// the process will not run again).
     unsafe fn set_syscall_return_value(&self, return_value: isize);
 
     /// Set the function that is to be executed when the process is resumed.
+    ///
+    /// It is not valid to call this function when the process is inactive (i.e.
+    /// the process will not run again).
     unsafe fn set_process_function(&self, callback: FunctionCall);
 
     /// Context switch to a specific process.
+    ///
+    /// This will return `None` if the process is inactive and cannot be
+    /// switched to.
     unsafe fn switch_to(&self) -> Option<syscall::ContextSwitchReason>;
 
     /// Print out the memory map (Grant region, heap, stack, program
@@ -322,8 +373,12 @@ pub enum Error {
     NoSuchApp,
     OutOfMemory,
     AddressOutOfBounds,
-    KernelError, // This likely indicates a bug in the kernel and that some
-                 // state is inconsistent in the kernel.
+    /// The process is inactive (likely in a fault or exit state) and the
+    /// attempted operation is therefore invalid.
+    InactiveApp,
+    /// This likely indicates a bug in the kernel and that some state is
+    /// inconsistent in the kernel.
+    KernelError,
 }
 
 impl From<Error> for ReturnCode {
@@ -332,6 +387,7 @@ impl From<Error> for ReturnCode {
             Error::OutOfMemory => ReturnCode::ENOMEM,
             Error::AddressOutOfBounds => ReturnCode::EINVAL,
             Error::NoSuchApp => ReturnCode::EINVAL,
+            Error::InactiveApp => ReturnCode::FAIL,
             Error::KernelError => ReturnCode::FAIL,
         }
     }
@@ -403,16 +459,10 @@ pub enum FaultResponse {
     Stop,
 }
 
-#[derive(Copy, Clone, Debug)]
-pub enum IPCType {
-    Service,
-    Client,
-}
-
 #[derive(Copy, Clone)]
 pub enum Task {
     FunctionCall(FunctionCall),
-    IPC((AppId, IPCType)),
+    IPC((AppId, ipc::IPCCallbackType)),
 }
 
 /// Enumeration to identify whether a function call comes directly from the
@@ -475,11 +525,11 @@ struct ProcessDebug {
     timeslice_expiration_count: usize,
 }
 
+/// A type for userspace processes in Tock.
 pub struct Process<'a, C: 'static + Chip> {
-    /// Index of the process in the process table.
-    ///
-    /// Corresponds to AppId
-    app_idx: usize,
+    /// Identifier of this process and the index of the process in the process
+    /// table.
+    app_id: AppId,
 
     /// Pointer to the main Kernel struct.
     kernel: &'static Kernel,
@@ -549,7 +599,15 @@ pub struct Process<'a, C: 'static + Chip> {
     stored_state:
         Cell<<<C as Chip>::UserspaceKernelBoundary as UserspaceKernelBoundary>::StoredState>,
 
-    /// Whether the scheduler can schedule this app.
+    /// The current state of the app. The scheduler uses this to determine
+    /// whether it can schedule this app to execute.
+    ///
+    /// The `state` is used both for bookkeeping for the scheduler as well as
+    /// for enabling control by other parts of the system. The scheduler keeps
+    /// track of if a process is ready to run or not by switching between the
+    /// `Running` and `Yielded` states. The system can control the process by
+    /// switching it to a "stopped" state to prevent the scheduler from
+    /// scheduling it.
     state: Cell<State>,
 
     /// How to deal with Faults occurring in the process
@@ -579,13 +637,13 @@ pub struct Process<'a, C: 'static + Chip> {
 
 impl<C: Chip> ProcessType for Process<'a, C> {
     fn appid(&self) -> AppId {
-        AppId::new(self.kernel, self.app_idx)
+        self.app_id
     }
 
     fn enqueue_task(&self, task: Task) -> bool {
-        // If this app is in the `Fault` state then we shouldn't schedule
+        // If this app is in a `Fault` state then we shouldn't schedule
         // any work for it.
-        if self.state.get() == State::Fault {
+        if !self.is_active() {
             return false;
         }
 
@@ -619,8 +677,8 @@ impl<C: Chip> ProcessType for Process<'a, C> {
             if config::CONFIG.trace_syscalls {
                 let count_after = tasks.len();
                 debug!(
-                    "[{}] remove_pending_callbacks[{:#x}:{}] = {} callback(s) removed",
-                    self.app_idx,
+                    "[{:?}] remove_pending_callbacks[{:#x}:{}] = {} callback(s) removed",
+                    self.app_id,
                     callback_id.driver_num,
                     callback_id.subscribe_num,
                     count_before - count_after,
@@ -872,11 +930,21 @@ impl<C: Chip> ProcessType for Process<'a, C> {
     }
 
     fn sbrk(&self, increment: isize) -> Result<*const u8, Error> {
+        // Do not modify an inactive process.
+        if !self.is_active() {
+            return Err(Error::InactiveApp);
+        }
+
         let new_break = unsafe { self.app_break.get().offset(increment) };
         self.brk(new_break)
     }
 
     fn brk(&self, new_break: *const u8) -> Result<*const u8, Error> {
+        // Do not modify an inactive process.
+        if !self.is_active() {
+            return Err(Error::InactiveApp);
+        }
+
         self.mpu_config
             .map_or(Err(Error::KernelError), |mut config| {
                 if new_break < self.allow_high_water_mark.get() || new_break >= self.mem_end() {
@@ -904,7 +972,10 @@ impl<C: Chip> ProcessType for Process<'a, C> {
         buf_start_addr: *const u8,
         size: usize,
     ) -> Result<Option<AppSlice<Shared, u8>>, ReturnCode> {
-        if buf_start_addr == ptr::null_mut() {
+        if !self.is_active() {
+            // Do not modify an inactive process.
+            Err(ReturnCode::FAIL)
+        } else if buf_start_addr == ptr::null_mut() {
             // A null buffer means pass in `None` to the capsule
             Ok(None)
         } else if self.in_app_owned_memory(buf_start_addr, size) {
@@ -924,6 +995,11 @@ impl<C: Chip> ProcessType for Process<'a, C> {
     }
 
     unsafe fn alloc(&self, size: usize, align: usize) -> Option<&mut [u8]> {
+        // Do not modify an inactive process.
+        if !self.is_active() {
+            return None;
+        }
+
         self.mpu_config.and_then(|mut config| {
             let new_break_unaligned = self.kernel_memory_break.get().offset(-(size as isize));
             // The alignment must be a power of two, 2^a. The expression `!(align - 1)` then
@@ -949,9 +1025,14 @@ impl<C: Chip> ProcessType for Process<'a, C> {
     unsafe fn free(&self, _: *mut u8) {}
 
     #[allow(clippy::cast_ptr_alignment)]
-    unsafe fn grant_ptr(&self, grant_num: usize) -> *mut *mut u8 {
+    unsafe fn grant_ptr(&self, grant_num: usize) -> Option<*mut *mut u8> {
+        // Do not try to access the grant region of inactive process.
+        if !self.is_active() {
+            return None;
+        }
+
         let grant_num = grant_num as isize;
-        (self.mem_end() as *mut *mut u8).offset(-(grant_num + 1))
+        Some((self.mem_end() as *mut *mut u8).offset(-(grant_num + 1)))
     }
 
     fn get_process_name(&self) -> &'static str {
@@ -1024,6 +1105,11 @@ impl<C: Chip> ProcessType for Process<'a, C> {
     }
 
     unsafe fn switch_to(&self) -> Option<syscall::ContextSwitchReason> {
+        // Cannot switch to an invalid process
+        if !self.is_active() {
+            return None;
+        }
+
         let mut stored_state = self.stored_state.get();
         let (stack_pointer, switch_reason) = self
             .chip
@@ -1442,7 +1528,7 @@ impl<C: 'static + Chip> Process<'a, C> {
             let mut process: &mut Process<C> =
                 &mut *(process_struct_memory_location as *mut Process<'static, C>);
 
-            process.app_idx = index;
+            process.app_id = AppId::new(kernel, index, index);
             process.kernel = kernel;
             process.chip = chip;
             process.memory = app_memory;
@@ -1608,5 +1694,20 @@ impl<C: 'static + Chip> Process<'a, C> {
                 debug.min_stack_pointer = self.current_stack_pointer.get();
             }
         });
+    }
+
+    /// Check if the process is active.
+    ///
+    /// "Active" is defined as the process can resume executing in the future.
+    /// This means its state in the `Process` struct is still valid, and that
+    /// the kernel could resume its execution without completely restarting and
+    /// resetting its state.
+    ///
+    /// A process is inactive if the kernel cannot resume its execution, such as
+    /// if the process faults and is in an invalid state, or if the process
+    /// explicitly exits.
+    fn is_active(&self) -> bool {
+        let current_state = self.state.get();
+        current_state != State::StoppedFaulted && current_state != State::Fault
     }
 }

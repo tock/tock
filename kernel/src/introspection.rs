@@ -78,7 +78,7 @@ impl KernelInfo {
         _capability: &dyn ProcessManagementCapability,
     ) -> &'static str {
         self.kernel
-            .process_map_or("unknown", app.idx(), |process| process.get_process_name())
+            .process_map_or("unknown", app, |process| process.get_process_name())
     }
 
     /// Returns the number of syscalls the app has called.
@@ -88,7 +88,7 @@ impl KernelInfo {
         _capability: &dyn ProcessManagementCapability,
     ) -> usize {
         self.kernel
-            .process_map_or(0, app.idx(), |process| process.debug_syscall_count())
+            .process_map_or(0, app, |process| process.debug_syscall_count())
     }
 
     /// Returns the number of dropped callbacks the app has experience.
@@ -99,9 +99,8 @@ impl KernelInfo {
         app: AppId,
         _capability: &dyn ProcessManagementCapability,
     ) -> usize {
-        self.kernel.process_map_or(0, app.idx(), |process| {
-            process.debug_dropped_callback_count()
-        })
+        self.kernel
+            .process_map_or(0, app, |process| process.debug_dropped_callback_count())
     }
 
     /// Returns the number of time this app has been restarted.
@@ -111,7 +110,7 @@ impl KernelInfo {
         _capability: &dyn ProcessManagementCapability,
     ) -> usize {
         self.kernel
-            .process_map_or(0, app.idx(), |process| process.get_restart_count())
+            .process_map_or(0, app, |process| process.get_restart_count())
     }
 
     /// Returns the number of time this app has exceeded its timeslice.
@@ -120,9 +119,8 @@ impl KernelInfo {
         app: AppId,
         _capability: &dyn ProcessManagementCapability,
     ) -> usize {
-        self.kernel.process_map_or(0, app.idx(), |process| {
-            process.debug_timeslice_expiration_count()
-        })
+        self.kernel
+            .process_map_or(0, app, |process| process.debug_timeslice_expiration_count())
     }
 
     /// Returns the total number of times all processes have exceeded
