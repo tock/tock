@@ -280,7 +280,7 @@ impl Kernel {
                             process.set_fault_state();
                         }
                         Some(ContextSwitchReason::SyscallFired { syscall }) => {
-                            process.debug_syscall_called();
+                            process.debug_syscall_called(syscall);
 
                             // Handle each of the syscalls.
                             match syscall {

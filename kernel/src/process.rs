@@ -266,8 +266,9 @@ pub trait ProcessType {
     /// Increment the number of times the process has exceeded its timeslice.
     fn debug_timeslice_expired(&self);
 
-    /// Increment the number of times the process called a syscall.
-    fn debug_syscall_called(&self);
+    /// Increment the number of times the process called a syscall and record
+    /// the last syscall that was called.
+    fn debug_syscall_called(&self, last_syscall: Syscall);
 }
 
 /// Generic trait for implementing process restart policies.
@@ -1067,8 +1068,11 @@ impl<C: Chip> ProcessType for Process<'a, C> {
             .map(|debug| debug.timeslice_expiration_count += 1);
     }
 
-    fn debug_syscall_called(&self) {
-        self.debug.map(|debug| debug.syscall_count += 1);
+    fn debug_syscall_called(&self, last_syscall: Syscall) {
+        self.debug.map(|debug| {
+            debug.syscall_count += 1;
+            debug.last_syscall = Some(last_syscall);
+        });
     }
 
     unsafe fn print_memory_map(&self, writer: &mut dyn Write) {
