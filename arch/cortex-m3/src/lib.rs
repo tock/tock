@@ -2,7 +2,7 @@
 
 #![crate_name = "cortexm3"]
 #![crate_type = "rlib"]
-#![feature(asm, const_fn, core_intrinsics, naked_functions)]
+#![feature(asm, core_intrinsics, naked_functions)]
 #![no_std]
 
 pub mod mpu;
