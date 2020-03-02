@@ -394,19 +394,19 @@ pub unsafe fn reset_handler() {
         stm32f4xx::gpio::PIN[5][0].as_ref().unwrap(), //D68
         stm32f4xx::gpio::PIN[5][1].as_ref().unwrap(), //D69
         stm32f4xx::gpio::PIN[5][2].as_ref().unwrap(), //D70
-        stm32f4xx::gpio::PIN[0][7].as_ref().unwrap() //D71
+        stm32f4xx::gpio::PIN[0][7].as_ref().unwrap()  //D71
 
-        // ADC Pins
-        // Enable the to use the ADC pins as GPIO
-        // stm32f4xx::gpio::PIN[0][3].as_ref().unwrap(), //A0
-        // stm32f4xx::gpio::PIN[2][0].as_ref().unwrap(), //A1
-        // stm32f4xx::gpio::PIN[2][3].as_ref().unwrap(), //A2
-        // stm32f4xx::gpio::PIN[5][3].as_ref().unwrap(), //A3
-        // stm32f4xx::gpio::PIN[5][5].as_ref().unwrap(), //A4
-        // stm32f4xx::gpio::PIN[5][10].as_ref().unwrap(), //A5
-        // stm32f4xx::gpio::PIN[1][1].as_ref().unwrap(), //A6
-        // stm32f4xx::gpio::PIN[2][2].as_ref().unwrap(), //A7
-        // stm32f4xx::gpio::PIN[5][4].as_ref().unwrap()  //A8
+                                                      // ADC Pins
+                                                      // Enable the to use the ADC pins as GPIO
+                                                      // stm32f4xx::gpio::PIN[0][3].as_ref().unwrap(), //A0
+                                                      // stm32f4xx::gpio::PIN[2][0].as_ref().unwrap(), //A1
+                                                      // stm32f4xx::gpio::PIN[2][3].as_ref().unwrap(), //A2
+                                                      // stm32f4xx::gpio::PIN[5][3].as_ref().unwrap(), //A3
+                                                      // stm32f4xx::gpio::PIN[5][5].as_ref().unwrap(), //A4
+                                                      // stm32f4xx::gpio::PIN[5][10].as_ref().unwrap(), //A5
+                                                      // stm32f4xx::gpio::PIN[1][1].as_ref().unwrap(), //A6
+                                                      // stm32f4xx::gpio::PIN[2][2].as_ref().unwrap(), //A7
+                                                      // stm32f4xx::gpio::PIN[5][4].as_ref().unwrap()  //A8
     ));
 
     let nucleo_f429zi = NucleoF429ZI {
