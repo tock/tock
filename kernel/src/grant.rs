@@ -3,7 +3,7 @@
 use core::marker::PhantomData;
 use core::mem::{align_of, size_of};
 use core::ops::{Deref, DerefMut};
-use core::ptr::{write, write_volatile, Unique};
+use core::ptr::{write, write_volatile, NonNull};
 
 use crate::callback::AppId;
 use crate::process::{Error, ProcessType};
@@ -39,14 +39,14 @@ pub struct Allocator {
 }
 
 pub struct Owned<T: ?Sized> {
-    data: Unique<T>,
+    data: NonNull<T>,
     appid: AppId,
 }
 
 impl<T: ?Sized> Owned<T> {
     unsafe fn new(data: *mut T, appid: AppId) -> Owned<T> {
         Owned {
-            data: Unique::new_unchecked(data),
+            data: NonNull::new_unchecked(data),
             appid: appid,
         }
     }

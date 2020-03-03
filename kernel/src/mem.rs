@@ -2,7 +2,7 @@
 
 use core::marker::PhantomData;
 use core::ops::{Deref, DerefMut};
-use core::ptr::Unique;
+use core::ptr::NonNull;
 use core::slice;
 
 use crate::callback::AppId;
@@ -18,7 +18,7 @@ pub struct Shared;
 /// Base type for an AppSlice that holds the raw pointer to the memory region
 /// the app shared with the kernel.
 pub struct AppPtr<L, T> {
-    ptr: Unique<T>,
+    ptr: NonNull<T>,
     process: AppId,
     _phantom: PhantomData<L>,
 }
@@ -26,7 +26,7 @@ pub struct AppPtr<L, T> {
 impl<L, T> AppPtr<L, T> {
     unsafe fn new(ptr: *mut T, appid: AppId) -> AppPtr<L, T> {
         AppPtr {
-            ptr: Unique::new_unchecked(ptr),
+            ptr: NonNull::new_unchecked(ptr),
             process: appid,
             _phantom: PhantomData,
         }
