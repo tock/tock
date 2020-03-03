@@ -982,11 +982,11 @@ pub fn get_system_frequency() -> u32 {
 ///
 /// It takes one of two forms:
 ///
-///     mask_clock!(CLOCK: pm_register | value)
+///     mask_clock!(CLOCK_MASK_OFFSET_MASK_OFFSET: pm_register | value)
 ///
 /// which performs a logical-or on the existing register value, or
 ///
-///     mask_clock!(CLOCK: pm_register & value)
+///     mask_clock!(CLOCK_MASK_OFFSET_MASK_OFFSET: pm_register & value)
 ///
 /// which performs a logical-and.
 ///
@@ -995,14 +995,14 @@ pub fn get_system_frequency() -> u32 {
 /// pm_register is one of hsbmask, pbamask, pbbmask, pbcmask or pbdmask.
 ///
 macro_rules! mask_clock {
-    ($module:ident : $field:ident | $mask:expr) => {{
-        unlock(concat_idents!($module, _MASK_OFFSET));
+    ($mask_offset:ident : $field:ident | $mask:expr) => {{
+        unlock($mask_offset);
         let val = PM_REGS.$field.get() | ($mask);
         PM_REGS.$field.set(val);
     }};
 
-    ($module:ident : $field:ident & $mask:expr) => {{
-        unlock(concat_idents!($module, _MASK_OFFSET));
+    ($mask_offset:ident : $field:ident & $mask:expr) => {{
+        unlock($mask_offset);
         let val = PM_REGS.$field.get() & ($mask);
         PM_REGS.$field.set(val);
     }};
@@ -1011,8 +1011,8 @@ macro_rules! mask_clock {
 /// Utility macro to get value of clock register. Used to check if a specific
 /// clock is enabled or not. See above description of `make_clock!`.
 macro_rules! get_clock {
-    ($module:ident : $field:ident & $mask:expr) => {{
-        unlock(concat_idents!($module, _MASK_OFFSET));
+    ($mask_offset:ident : $field:ident & $mask:expr) => {{
+        unlock($mask_offset);
         (PM_REGS.$field.get() & ($mask)) != 0
     }};
 }
@@ -1075,61 +1075,61 @@ pub fn deep_sleep_ready() -> bool {
 impl ClockInterface for Clock {
     fn is_enabled(&self) -> bool {
         match self {
-            &Clock::HSB(v) => get_clock!(HSB: hsbmask & (1 << (v as u32))),
-            &Clock::PBA(v) => get_clock!(PBA: pbamask & (1 << (v as u32))),
-            &Clock::PBB(v) => get_clock!(PBB: pbbmask & (1 << (v as u32))),
-            &Clock::PBC(v) => get_clock!(PBC: pbcmask & (1 << (v as u32))),
-            &Clock::PBD(v) => get_clock!(PBD: pbdmask & (1 << (v as u32))),
+            &Clock::HSB(v) => get_clock!(HSB_MASK_OFFSET: hsbmask & (1 << (v as u32))),
+            &Clock::PBA(v) => get_clock!(PBA_MASK_OFFSET: pbamask & (1 << (v as u32))),
+            &Clock::PBB(v) => get_clock!(PBB_MASK_OFFSET: pbbmask & (1 << (v as u32))),
+            &Clock::PBC(v) => get_clock!(PBC_MASK_OFFSET: pbcmask & (1 << (v as u32))),
+            &Clock::PBD(v) => get_clock!(PBD_MASK_OFFSET: pbdmask & (1 << (v as u32))),
         }
     }
 
     fn enable(&self) {
         match self {
-            &Clock::HSB(v) => mask_clock!(HSB: hsbmask | 1 << (v as u32)),
-            &Clock::PBA(v) => mask_clock!(PBA: pbamask | 1 << (v as u32)),
-            &Clock::PBB(v) => mask_clock!(PBB: pbbmask | 1 << (v as u32)),
-            &Clock::PBC(v) => mask_clock!(PBC: pbcmask | 1 << (v as u32)),
-            &Clock::PBD(v) => mask_clock!(PBD: pbdmask | 1 << (v as u32)),
+            &Clock::HSB(v) => mask_clock!(HSB_MASK_OFFSET: hsbmask | 1 << (v as u32)),
+            &Clock::PBA(v) => mask_clock!(PBA_MASK_OFFSET: pbamask | 1 << (v as u32)),
+            &Clock::PBB(v) => mask_clock!(PBB_MASK_OFFSET: pbbmask | 1 << (v as u32)),
+            &Clock::PBC(v) => mask_clock!(PBC_MASK_OFFSET: pbcmask | 1 << (v as u32)),
+            &Clock::PBD(v) => mask_clock!(PBD_MASK_OFFSET: pbdmask | 1 << (v as u32)),
         }
     }
 
     fn disable(&self) {
         match self {
-            &Clock::HSB(v) => mask_clock!(HSB: hsbmask & !(1 << (v as u32))),
-            &Clock::PBA(v) => mask_clock!(PBA: pbamask & !(1 << (v as u32))),
-            &Clock::PBB(v) => mask_clock!(PBB: pbbmask & !(1 << (v as u32))),
-            &Clock::PBC(v) => mask_clock!(PBC: pbcmask & !(1 << (v as u32))),
-            &Clock::PBD(v) => mask_clock!(PBD: pbdmask & !(1 << (v as u32))),
+            &Clock::HSB(v) => mask_clock!(HSB_MASK_OFFSET: hsbmask & !(1 << (v as u32))),
+            &Clock::PBA(v) => mask_clock!(PBA_MASK_OFFSET: pbamask & !(1 << (v as u32))),
+            &Clock::PBB(v) => mask_clock!(PBB_MASK_OFFSET: pbbmask & !(1 << (v as u32))),
+            &Clock::PBC(v) => mask_clock!(PBC_MASK_OFFSET: pbcmask & !(1 << (v as u32))),
+            &Clock::PBD(v) => mask_clock!(PBD_MASK_OFFSET: pbdmask & !(1 << (v as u32))),
         }
     }
 }
 
 pub fn enable_clock(clock: Clock) {
     match clock {
-        Clock::HSB(v) => mask_clock!(HSB: hsbmask | 1 << (v as u32)),
-        Clock::PBA(v) => mask_clock!(PBA: pbamask | 1 << (v as u32)),
-        Clock::PBB(v) => mask_clock!(PBB: pbbmask | 1 << (v as u32)),
-        Clock::PBC(v) => mask_clock!(PBC: pbcmask | 1 << (v as u32)),
-        Clock::PBD(v) => mask_clock!(PBD: pbdmask | 1 << (v as u32)),
+        Clock::HSB(v) => mask_clock!(HSB_MASK_OFFSET: hsbmask | 1 << (v as u32)),
+        Clock::PBA(v) => mask_clock!(PBA_MASK_OFFSET: pbamask | 1 << (v as u32)),
+        Clock::PBB(v) => mask_clock!(PBB_MASK_OFFSET: pbbmask | 1 << (v as u32)),
+        Clock::PBC(v) => mask_clock!(PBC_MASK_OFFSET: pbcmask | 1 << (v as u32)),
+        Clock::PBD(v) => mask_clock!(PBD_MASK_OFFSET: pbdmask | 1 << (v as u32)),
     }
 }
 
 pub fn disable_clock(clock: Clock) {
     match clock {
-        Clock::HSB(v) => mask_clock!(HSB: hsbmask & !(1 << (v as u32))),
-        Clock::PBA(v) => mask_clock!(PBA: pbamask & !(1 << (v as u32))),
-        Clock::PBB(v) => mask_clock!(PBB: pbbmask & !(1 << (v as u32))),
-        Clock::PBC(v) => mask_clock!(PBC: pbcmask & !(1 << (v as u32))),
-        Clock::PBD(v) => mask_clock!(PBD: pbdmask & !(1 << (v as u32))),
+        Clock::HSB(v) => mask_clock!(HSB_MASK_OFFSET: hsbmask & !(1 << (v as u32))),
+        Clock::PBA(v) => mask_clock!(PBA_MASK_OFFSET: pbamask & !(1 << (v as u32))),
+        Clock::PBB(v) => mask_clock!(PBB_MASK_OFFSET: pbbmask & !(1 << (v as u32))),
+        Clock::PBC(v) => mask_clock!(PBC_MASK_OFFSET: pbcmask & !(1 << (v as u32))),
+        Clock::PBD(v) => mask_clock!(PBD_MASK_OFFSET: pbdmask & !(1 << (v as u32))),
     }
 }
 
 pub fn is_clock_enabled(clock: Clock) -> bool {
     match clock {
-        Clock::HSB(v) => get_clock!(HSB: hsbmask & (1 << (v as u32))),
-        Clock::PBA(v) => get_clock!(PBA: pbamask & (1 << (v as u32))),
-        Clock::PBB(v) => get_clock!(PBB: pbbmask & (1 << (v as u32))),
-        Clock::PBC(v) => get_clock!(PBC: pbcmask & (1 << (v as u32))),
-        Clock::PBD(v) => get_clock!(PBD: pbdmask & (1 << (v as u32))),
+        Clock::HSB(v) => get_clock!(HSB_MASK_OFFSET: hsbmask & (1 << (v as u32))),
+        Clock::PBA(v) => get_clock!(PBA_MASK_OFFSET: pbamask & (1 << (v as u32))),
+        Clock::PBB(v) => get_clock!(PBB_MASK_OFFSET: pbbmask & (1 << (v as u32))),
+        Clock::PBC(v) => get_clock!(PBC_MASK_OFFSET: pbcmask & (1 << (v as u32))),
+        Clock::PBD(v) => get_clock!(PBD_MASK_OFFSET: pbdmask & (1 << (v as u32))),
     }
 }
