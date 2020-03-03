@@ -150,16 +150,34 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> Adc<'a, A> {
     ///
     /// - `buf` - buffer to be stored
     fn replace_buffer(&self, buf: &'static mut [u16]) -> &TakeCell<'static, [u16]> {
-        if self.adc_buf1.is_none() {
-            self.adc_buf1.replace(buf);
-            &self.adc_buf1
-        } else if self.adc_buf2.is_none() {
-            self.adc_buf2.replace(buf);
-            &self.adc_buf2
-        } else {
+        // We play a little trick here where we always insert replaced buffers
+        // in the last position but pull new buffers (in `take_and_map_buffer`)
+        // from the beginning. We do this to get around Rust ownership rules
+        // when handling errors. When we are doing continuous buffering, we need
+        // to make sure that we re-gain ownership of the buffer passed back from
+        // the ADC driver, AND we have to copy from that buffer the samples the
+        // ADC driver took. To allow us to ensure we re-gain ownership, even if
+        // an error occurs (like the app crashes), we unconditionally save
+        // ownership of the returned buffer first (by calling this function).
+        // However, we also pass zero or one buffers back to the ADC driver, and
+        // we must ensure we do not pass the same buffer right back to the
+        // driver before we have had a chance to save the samples.
+
+        if self.adc_buf3.is_none() {
             self.adc_buf3.replace(buf);
-            &self.adc_buf3
+        } else {
+            let temp = self.adc_buf3.take();
+            self.adc_buf3.replace(buf);
+
+            // Find a place to insert the buffer we removed from the last slot.
+            if self.adc_buf2.is_none() {
+                temp.map(|likely_buffer| self.adc_buf2.replace(likely_buffer));
+            } else {
+                temp.map(|likely_buffer| self.adc_buf1.replace(likely_buffer));
+            }
         }
+
+        &self.adc_buf3
     }
 
     /// Find a buffer to give to the ADC to store samples in.
@@ -276,7 +294,9 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> Adc<'a, A> {
                     state.app_buf1.is_some()
                 })
                 .map_err(|err| {
-                    if err == kernel::procs::Error::NoSuchApp {
+                    if err == kernel::procs::Error::NoSuchApp
+                        || err == kernel::procs::Error::InactiveApp
+                    {
                         self.appid.clear();
                     }
                 })
@@ -334,7 +354,9 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> Adc<'a, A> {
                     res
                 })
                 .map_err(|err| {
-                    if err == kernel::procs::Error::NoSuchApp {
+                    if err == kernel::procs::Error::NoSuchApp
+                        || err == kernel::procs::Error::InactiveApp
+                    {
                         self.appid.clear();
                     }
                 })
@@ -351,7 +373,9 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> Adc<'a, A> {
                         app.samples_outstanding.set(0);
                     })
                     .map_err(|err| {
-                        if err == kernel::procs::Error::NoSuchApp {
+                        if err == kernel::procs::Error::NoSuchApp
+                            || err == kernel::procs::Error::InactiveApp
+                        {
                             self.appid.clear();
                         }
                     })
@@ -391,7 +415,9 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> Adc<'a, A> {
                     state.app_buf1.is_some() && state.app_buf2.is_some()
                 })
                 .map_err(|err| {
-                    if err == kernel::procs::Error::NoSuchApp {
+                    if err == kernel::procs::Error::NoSuchApp
+                        || err == kernel::procs::Error::InactiveApp
+                    {
                         self.appid.clear();
                     }
                 })
@@ -463,7 +489,9 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> Adc<'a, A> {
                     })
                 })
                 .map_err(|err| {
-                    if err == kernel::procs::Error::NoSuchApp {
+                    if err == kernel::procs::Error::NoSuchApp
+                        || err == kernel::procs::Error::InactiveApp
+                    {
                         self.appid.clear();
                     }
                 })
@@ -480,7 +508,9 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> Adc<'a, A> {
                         app.samples_outstanding.set(0);
                     })
                     .map_err(|err| {
-                        if err == kernel::procs::Error::NoSuchApp {
+                        if err == kernel::procs::Error::NoSuchApp
+                            || err == kernel::procs::Error::InactiveApp
+                        {
                             self.appid.clear();
                         }
                     })
@@ -528,7 +558,9 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> Adc<'a, A> {
                     rc
                 })
                 .map_err(|err| {
-                    if err == kernel::procs::Error::NoSuchApp {
+                    if err == kernel::procs::Error::NoSuchApp
+                        || err == kernel::procs::Error::InactiveApp
+                    {
                         self.appid.clear();
                     }
                 })
@@ -566,7 +598,9 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> hil::adc::Client for Adc<'a, A> 
                         });
                     })
                     .map_err(|err| {
-                        if err == kernel::procs::Error::NoSuchApp {
+                        if err == kernel::procs::Error::NoSuchApp
+                            || err == kernel::procs::Error::InactiveApp
+                        {
                             self.appid.clear();
                         }
                     })
@@ -588,7 +622,9 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> hil::adc::Client for Adc<'a, A> 
                         });
                     })
                     .map_err(|err| {
-                        if err == kernel::procs::Error::NoSuchApp {
+                        if err == kernel::procs::Error::NoSuchApp
+                            || err == kernel::procs::Error::InactiveApp
+                        {
                             self.appid.clear();
                         }
                     })
@@ -599,6 +635,10 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> hil::adc::Client for Adc<'a, A> 
             // callback
             self.active.set(false);
             self.mode.set(AdcMode::NoMode);
+
+            // Also make sure that no more samples are taken if we were in
+            // continuous mode.
+            self.adc.stop_sampling();
         }
     }
 }
@@ -616,6 +656,13 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> hil::adc::HighSpeedClient for Ad
     /// - `length` - number of valid samples in the buffer, guaranteed to be
     ///   less than or equal to buffer length
     fn samples_ready(&self, buf: &'static mut [u16], length: usize) {
+        let mut unexpected_state = false;
+
+        // Make sure in all cases we regain ownership of the buffer. However,
+        // we also get a reference back to it so we can copy the sampled values
+        // out and to an application.
+        let buffer_with_samples = self.replace_buffer(buf);
+
         // do we expect a buffer?
         if self.active.get()
             && (self.mode.get() == AdcMode::SingleBuffer
@@ -763,7 +810,7 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> hil::adc::HighSpeedClient for Ad
                                 }
                             }
                         } else {
-                            // we need to get more samples from the current app_buffer
+                            // we need to get more samples for the current app_buffer
                             perform_callback = false;
 
                             // provide a new buffer and update state
@@ -792,10 +839,9 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> hil::adc::HighSpeedClient for Ad
                         }
                         // next we should copy bytes to the app buffer
                         app_buf.map(move |app_buf| {
-                            // copy bytes to app buffer
-                            // first, regain ownership of the buffer and then iterate
-                            // over the data
-                            self.replace_buffer(buf).map(|adc_buf| {
+                            // Copy bytes to app buffer by iterating over the
+                            // data.
+                            buffer_with_samples.map(|adc_buf| {
                                 // The `for` commands:
                                 //  * `chunks_mut`: get sets of two bytes from the app
                                 //                  buffer
@@ -874,14 +920,21 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> hil::adc::HighSpeedClient for Ad
                         });
                     })
                     .map_err(|err| {
-                        if err == kernel::procs::Error::NoSuchApp {
+                        if err == kernel::procs::Error::NoSuchApp
+                            || err == kernel::procs::Error::InactiveApp
+                        {
                             self.appid.clear();
+                            unexpected_state = true;
                         }
                     })
             });
         } else {
-            // operation was likely canceled. Make sure state is consistent. No
-            // callback
+            unexpected_state = true;
+        }
+
+        if unexpected_state {
+            // Operation was likely canceled, or the app crashed. Make sure
+            // state is consistent. No callback.
             self.active.set(false);
             self.mode.set(AdcMode::NoMode);
             self.appid.map(|id| {
@@ -890,14 +943,26 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> hil::adc::HighSpeedClient for Ad
                         app.app_buf_offset.set(0);
                     })
                     .map_err(|err| {
-                        if err == kernel::procs::Error::NoSuchApp {
+                        if err == kernel::procs::Error::NoSuchApp
+                            || err == kernel::procs::Error::InactiveApp
+                        {
                             self.appid.clear();
                         }
                     })
             });
 
-            // still need to replace the buffer
-            self.replace_buffer(buf);
+            // Make sure we do not take more samples since we know no app
+            // is currently waiting on samples.
+            self.adc.stop_sampling();
+
+            // Also retrieve any buffers we passed to the underlying ADC driver.
+            let (_, buf1, buf2) = self.adc.retrieve_buffers();
+            buf1.map(|buf| {
+                self.replace_buffer(buf);
+            });
+            buf2.map(|buf| {
+                self.replace_buffer(buf);
+            });
         }
     }
 }
@@ -916,10 +981,19 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> Driver for Adc<'a, A> {
         allow_num: usize,
         slice: Option<AppSlice<Shared, u8>>,
     ) -> ReturnCode {
-        // check that this is either the first syscall to use the adc or that the this is the same
-        // application that has already used the adc
-        let match_or_empty = self.appid.map(|id| id == &appid).unwrap_or(true);
-        if match_or_empty {
+        // Return true if this app already owns the ADC capsule, if no app owns
+        // the ADC capsule, or if the app that is marked as owning the ADC
+        // capsule no longer exists.
+        let match_or_empty_or_nonexistant = self.appid.map_or(true, |owning_app| {
+            if self.active.get() {
+                owning_app == &appid
+            } else {
+                self.apps
+                    .enter(*owning_app, |_, _| owning_app == &appid)
+                    .unwrap_or(true)
+            }
+        });
+        if match_or_empty_or_nonexistant {
             self.appid.set(appid);
         } else {
             return ReturnCode::ENOMEM;
@@ -935,7 +1009,9 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> Driver for Adc<'a, A> {
                             ReturnCode::SUCCESS
                         })
                         .map_err(|err| {
-                            if err == kernel::procs::Error::NoSuchApp {
+                            if err == kernel::procs::Error::NoSuchApp
+                                || err == kernel::procs::Error::InactiveApp
+                            {
                                 self.appid.clear();
                             }
                         })
@@ -953,7 +1029,9 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> Driver for Adc<'a, A> {
                             ReturnCode::SUCCESS
                         })
                         .map_err(|err| {
-                            if err == kernel::procs::Error::NoSuchApp {
+                            if err == kernel::procs::Error::NoSuchApp
+                                || err == kernel::procs::Error::InactiveApp
+                            {
                                 self.appid.clear();
                             }
                         })
@@ -977,10 +1055,19 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> Driver for Adc<'a, A> {
         callback: Option<Callback>,
         appid: AppId,
     ) -> ReturnCode {
-        // check that this is either the first syscall to use the adc or that the this is the same
-        // application that has already used the adc
-        let match_or_empty = self.appid.map(|id| id == &appid).unwrap_or(true);
-        if match_or_empty {
+        // Return true if this app already owns the ADC capsule, if no app owns
+        // the ADC capsule, or if the app that is marked as owning the ADC
+        // capsule no longer exists.
+        let match_or_empty_or_nonexistant = self.appid.map_or(true, |owning_app| {
+            if self.active.get() {
+                owning_app == &appid
+            } else {
+                self.apps
+                    .enter(*owning_app, |_, _| owning_app == &appid)
+                    .unwrap_or(true)
+            }
+        });
+        if match_or_empty_or_nonexistant {
             self.appid.set(appid);
         } else {
             return ReturnCode::ENOMEM;
@@ -996,7 +1083,9 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> Driver for Adc<'a, A> {
                             ReturnCode::SUCCESS
                         })
                         .map_err(|err| {
-                            if err == kernel::procs::Error::NoSuchApp {
+                            if err == kernel::procs::Error::NoSuchApp
+                                || err == kernel::procs::Error::InactiveApp
+                            {
                                 self.appid.clear();
                             }
                         })
@@ -1021,8 +1110,33 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> Driver for Adc<'a, A> {
         frequency: usize,
         appid: AppId,
     ) -> ReturnCode {
-        let match_or_empty = self.appid.map(|id| id == &appid).unwrap_or(true);
-        if match_or_empty {
+        // Return true if this app already owns the ADC capsule, if no app owns
+        // the ADC capsule, or if the app that is marked as owning the ADC
+        // capsule no longer exists.
+        let match_or_empty_or_nonexistant = self.appid.map_or(true, |owning_app| {
+            // We have recorded that an app has ownership of the ADC.
+
+            // If the ADC is still active, then we need to wait for the operation
+            // to finish and the app, whether it exists or not (it may have crashed),
+            // still owns this capsule. If the ADC is not active, then
+            // we need to verify that that application still exists, and remove
+            // it as owner if not.
+            if self.active.get() {
+                owning_app == &appid
+            } else {
+                // Check the app still exists.
+                //
+                // If the `.enter()` succeeds, then the app is still valid, and
+                // we can check if the owning app matches the one that called
+                // the command. If the `.enter()` fails, then the owning app no
+                // longer exists and we return `true` to signify the
+                // "or_nonexistant" case.
+                self.apps
+                    .enter(*owning_app, |_, _| owning_app == &appid)
+                    .unwrap_or(true)
+            }
+        });
+        if match_or_empty_or_nonexistant {
             self.appid.set(appid);
         } else {
             return ReturnCode::ENOMEM;
