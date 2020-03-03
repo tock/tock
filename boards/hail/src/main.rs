@@ -31,9 +31,6 @@ mod test_take_map_cell;
 // Number of concurrent processes this platform supports.
 const NUM_PROCS: usize = 20;
 
-// How should the kernel respond when a process faults.
-const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultResponse::Panic;
-
 // RAM to be shared by all application processes.
 #[link_section = ".app_memory"]
 static mut APP_MEMORY: [u8; 49152] = [0; 49152];
@@ -393,6 +390,13 @@ pub unsafe fn reset_handler() {
     // );
     // sam4l::gpio::PA[16].set_client(debug_process_restart);
 
+    // Configure application fault policy
+    let restart_policy = static_init!(
+        kernel::procs::ThresholdRestartThenPanic,
+        kernel::procs::ThresholdRestartThenPanic::new(4)
+    );
+    let fault_response = kernel::procs::FaultResponse::Restart(restart_policy);
+
     let hail = Hail {
         console: console,
         gpio: gpio,
@@ -435,7 +439,7 @@ pub unsafe fn reset_handler() {
         &_sapps as *const u8,
         &mut APP_MEMORY,
         &mut PROCESSES,
-        FAULT_RESPONSE,
+        fault_response,
         &process_management_capability,
     );
     board_kernel.kernel_loop(&hail, chip, Some(&hail.ipc), &main_loop_capability);
