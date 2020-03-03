@@ -106,7 +106,7 @@ pub struct TMP006<'a> {
     buffer: TakeCell<'static, [u8]>,
 }
 
-impl TMP006<'a> {
+impl<'a> TMP006<'a> {
     /// The `interrupt_pin` must be pulled-up since the TMP006 is open-drain.
     pub fn new(
         i2c: &'a dyn i2c::I2CDevice,
@@ -190,7 +190,7 @@ fn calculate_temperature(sensor_voltage: i16, die_temperature: i16) -> f32 {
     t_celsius
 }
 
-impl i2c::I2CClient for TMP006<'a> {
+impl i2c::I2CClient for TMP006<'_> {
     fn command_complete(&self, buffer: &'static mut [u8], _error: i2c::Error) {
         // TODO(alevy): handle protocol errors
         match self.protocol_state.get() {
@@ -256,7 +256,7 @@ impl i2c::I2CClient for TMP006<'a> {
     }
 }
 
-impl gpio::Client for TMP006<'a> {
+impl gpio::Client for TMP006<'_> {
     fn fired(&self) {
         self.buffer.take().map(|buf| {
             // turn on i2c to send commands
@@ -270,7 +270,7 @@ impl gpio::Client for TMP006<'a> {
     }
 }
 
-impl Driver for TMP006<'a> {
+impl Driver for TMP006<'_> {
     fn subscribe(
         &self,
         subscribe_num: usize,

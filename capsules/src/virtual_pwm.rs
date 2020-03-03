@@ -29,7 +29,7 @@ pub struct MuxPwm<'a, P: hil::pwm::Pwm> {
     inflight: OptionalCell<&'a PwmPinUser<'a, P>>,
 }
 
-impl<P: hil::pwm::Pwm> MuxPwm<'a, P> {
+impl<'a, P: hil::pwm::Pwm> MuxPwm<'a, P> {
     pub const fn new(pwm: &'a P) -> MuxPwm<'a, P> {
         MuxPwm {
             pwm: pwm,
@@ -109,7 +109,7 @@ pub struct PwmPinUser<'a, P: hil::pwm::Pwm> {
     next: ListLink<'a, PwmPinUser<'a, P>>,
 }
 
-impl<P: hil::pwm::Pwm> PwmPinUser<'a, P> {
+impl<'a, P: hil::pwm::Pwm> PwmPinUser<'a, P> {
     pub const fn new(mux: &'a MuxPwm<'a, P>, pin: P::Pin) -> PwmPinUser<'a, P> {
         PwmPinUser {
             mux: mux,
@@ -124,13 +124,13 @@ impl<P: hil::pwm::Pwm> PwmPinUser<'a, P> {
     }
 }
 
-impl<P: hil::pwm::Pwm> ListNode<'a, PwmPinUser<'a, P>> for PwmPinUser<'a, P> {
+impl<'a, P: hil::pwm::Pwm> ListNode<'a, PwmPinUser<'a, P>> for PwmPinUser<'a, P> {
     fn next(&'a self) -> &'a ListLink<'a, PwmPinUser<'a, P>> {
         &self.next
     }
 }
 
-impl<P: hil::pwm::Pwm> hil::pwm::PwmPin for PwmPinUser<'a, P> {
+impl<P: hil::pwm::Pwm> hil::pwm::PwmPin for PwmPinUser<'_, P> {
     fn start(&self, frequency_hz: usize, duty_cycle: usize) -> ReturnCode {
         self.operation.set(Operation::Simple {
             frequency_hz,

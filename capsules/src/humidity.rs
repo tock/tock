@@ -73,7 +73,7 @@ pub struct HumiditySensor<'a> {
     busy: Cell<bool>,
 }
 
-impl HumiditySensor<'a> {
+impl<'a> HumiditySensor<'a> {
     pub fn new(
         driver: &'a dyn hil::sensors::HumidityDriver,
         grant: Grant<App>,
@@ -116,7 +116,7 @@ impl HumiditySensor<'a> {
     }
 }
 
-impl hil::sensors::HumidityClient for HumiditySensor<'a> {
+impl hil::sensors::HumidityClient for HumiditySensor<'_> {
     fn callback(&self, tmp_val: usize) {
         for cntr in self.apps.iter() {
             cntr.enter(|app, _| {
@@ -130,7 +130,7 @@ impl hil::sensors::HumidityClient for HumiditySensor<'a> {
     }
 }
 
-impl Driver for HumiditySensor<'a> {
+impl Driver for HumiditySensor<'_> {
     fn subscribe(
         &self,
         subscribe_num: usize,

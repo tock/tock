@@ -67,8 +67,8 @@ pub struct Rtc<'a> {
 
 pub static mut RTC: Rtc<'static> = Rtc::new();
 
-impl Rtc<'a> {
-    const fn new() -> Rtc<'static> {
+impl<'a> Rtc<'a> {
+    const fn new() -> Rtc<'a> {
         Rtc {
             registers: RTC_BASE,
             callback: OptionalCell::empty(),
@@ -153,7 +153,7 @@ impl Frequency for RtcFreq {
     }
 }
 
-impl Time for Rtc<'a> {
+impl Time for Rtc<'_> {
     type Frequency = RtcFreq;
 
     fn now(&self) -> u32 {
@@ -165,7 +165,7 @@ impl Time for Rtc<'a> {
     }
 }
 
-impl Alarm<'a> for Rtc<'a> {
+impl<'a> Alarm<'a> for Rtc<'a> {
     fn set_client(&self, client: &'a dyn time::AlarmClient) {
         self.callback.set(client);
     }

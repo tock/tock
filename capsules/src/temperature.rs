@@ -71,7 +71,7 @@ pub struct TemperatureSensor<'a> {
     busy: Cell<bool>,
 }
 
-impl TemperatureSensor<'a> {
+impl<'a> TemperatureSensor<'a> {
     pub fn new(
         driver: &'a dyn hil::sensors::TemperatureDriver,
         grant: Grant<App>,
@@ -107,7 +107,7 @@ impl TemperatureSensor<'a> {
     }
 }
 
-impl hil::sensors::TemperatureClient for TemperatureSensor<'a> {
+impl hil::sensors::TemperatureClient for TemperatureSensor<'_> {
     fn callback(&self, temp_val: usize) {
         for cntr in self.apps.iter() {
             cntr.enter(|app, _| {
@@ -121,7 +121,7 @@ impl hil::sensors::TemperatureClient for TemperatureSensor<'a> {
     }
 }
 
-impl Driver for TemperatureSensor<'a> {
+impl Driver for TemperatureSensor<'_> {
     fn subscribe(
         &self,
         subscribe_num: usize,

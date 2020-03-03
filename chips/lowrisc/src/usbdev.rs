@@ -297,7 +297,7 @@ pub struct Usb<'a> {
     state: OptionalCell<State>,
 }
 
-impl Usb<'a> {
+impl<'a> Usb<'a> {
     pub const fn new(base: StaticRef<UsbRegisters>) -> Self {
         Usb {
             registers: base,
@@ -364,7 +364,7 @@ impl Usb<'a> {
     }
 }
 
-impl hil::usb::UsbController<'a> for Usb<'a> {
+impl<'a> hil::usb::UsbController<'a> for Usb<'a> {
     fn endpoint_set_ctrl_buffer(&self, buf: &'a [VolatileCell<u8>]) {
         self._endpoint_bank_set_buffer(0, buf);
     }

@@ -1,4 +1,4 @@
-#![feature(const_fn, in_band_lifetimes)]
+#![feature(const_fn)]
 #![forbid(unsafe_code)]
 #![no_std]
 

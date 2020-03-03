@@ -170,7 +170,7 @@ pub static mut SPI3: Spi = Spi::new(
     Dma1Peripheral::SPI3_RX,
 );
 
-impl Spi<'a> {
+impl<'a> Spi<'a> {
     const fn new(
         base_addr: StaticRef<SpiRegisters>,
         clock: SpiClock,
@@ -337,7 +337,7 @@ impl Spi<'a> {
     }
 }
 
-impl spi::SpiMaster for Spi<'a> {
+impl spi::SpiMaster for Spi<'_> {
     type ChipSelect = PinId;
 
     fn set_client(&self, client: &'static dyn SpiMasterClient) {
@@ -455,7 +455,7 @@ impl spi::SpiMaster for Spi<'a> {
     }
 }
 
-impl dma1::StreamClient for Spi<'a> {
+impl dma1::StreamClient for Spi<'_> {
     fn transfer_done(&self, pid: dma1::Dma1Peripheral) {
         if pid == self.tx_dma_pid {
             self.disable_tx();

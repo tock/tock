@@ -261,9 +261,9 @@ pub static mut I2C1: I2C = I2C::new(
     I2CClock(rcc::PeripheralClock::APB1(rcc::PCLK1::I2C1)),
 );
 
-impl I2C<'a> {
-    const fn new(base_addr: StaticRef<I2CRegisters>, clock: I2CClock) -> I2C<'a> {
-        I2C {
+impl I2C<'_> {
+    const fn new(base_addr: StaticRef<I2CRegisters>, clock: I2CClock) -> Self {
+        Self {
             registers: base_addr,
             clock,
 
@@ -465,7 +465,7 @@ impl I2C<'a> {
     }
 }
 
-impl i2c::I2CMaster for I2C<'a> {
+impl i2c::I2CMaster for I2C<'_> {
     fn set_master_client(&self, master_client: &'static dyn I2CHwMasterClient) {
         self.master_client.replace(master_client);
     }

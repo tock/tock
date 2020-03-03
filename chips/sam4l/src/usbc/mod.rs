@@ -423,7 +423,7 @@ register_bitfields![u32,
     ]
 ];
 
-impl Usbc<'a> {
+impl<'a> Usbc<'a> {
     const fn new() -> Self {
         Usbc {
             client: None,
@@ -1437,7 +1437,7 @@ fn endpoint_enable_interrupts(endpoint: usize, mask: FieldValue<u32, EndpointCon
     usbc_regs().ueconset[endpoint].write(mask);
 }
 
-impl hil::usb::UsbController<'a> for Usbc<'a> {
+impl<'a> hil::usb::UsbController<'a> for Usbc<'a> {
     fn endpoint_set_ctrl_buffer(&self, buf: &'a [VolatileCell<u8>]) {
         if buf.len() != 8 {
             client_err!("Bad endpoint buffer size");
