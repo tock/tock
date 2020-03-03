@@ -29,12 +29,19 @@ pub struct Kernel {
     /// How many "to-do" items exist at any given time. These include
     /// outstanding callbacks and processes in the Running state.
     work: Cell<usize>,
+
     /// This holds a pointer to the static array of Process pointers.
     processes: &'static [Option<&'static dyn process::ProcessType>],
+
+    /// A counter which keeps track of how many process identifiers have been
+    /// created. This is used to create new unique identifiers for processes.
+    process_identifier_max: Cell<usize>,
+
     /// How many grant regions have been setup. This is incremented on every
     /// call to `create_grant()`. We need to explicitly track this so that when
     /// processes are created they can allocated pointers for each grant.
     grant_counter: Cell<usize>,
+
     /// Flag to mark that grants have been finalized. This means that the kernel
     /// cannot support creating new grants because processes have already been
     /// created and the data structures for grants have already been
@@ -47,6 +54,7 @@ impl Kernel {
         Kernel {
             work: Cell::new(0),
             processes: processes,
+            process_identifier_max: Cell::new(0),
             grant_counter: Cell::new(0),
             grants_finalized: Cell::new(false),
         }
@@ -245,6 +253,14 @@ impl Kernel {
     crate fn get_grant_count_and_finalize(&self) -> usize {
         self.grants_finalized.set(true);
         self.grant_counter.get()
+    }
+
+    /// Create a new unique identifier for a process and return the identifier.
+    ///
+    /// Typically we just choose a larger number than we have used for any process
+    /// before which ensures that the identifier is unique.
+    crate fn create_process_identifier(&self) -> usize {
+        self.process_identifier_max.get_and_increment()
     }
 
     /// Cause all apps to fault.
