@@ -5,21 +5,28 @@
 //! when the underlying flash volume is full). The storage volumes that logs operate upon are
 //! statically allocated at compile time and cannot be dynamically created at runtime.
 //!
-//! The locations of entries are abstractly represented by numerical cookies. Cookies can be used
-//! to determine the ordering of entries - an entry with a larger cookie is newer and thus comes
-//! after an entry with a smaller cookie. Cookies can also be used to determine the physical
-//! location of an entry within the log's underlying storage volume - taking the cookie modulo the
-//! size of the storage volume yields the offset of the entry's header relative to the start of the
-//! storage volume. Cookies should not be created manually by clients. Instead, they should only be
-//! retrieved via the `current_read_cookie()` and `current_append_cookie()` functions (unless the
-//! special cookie `LogCookie::SeekBeginning` is being used, which is fine to create manually).
+//! Entries can be identified and seeked-to with their unique Entry IDs. Entry IDs maintain the
+//! ordering of the underlying entries, and an entry with a larger entry ID is newer and comes
+//! after an entry with a smaller ID. IDs can also be used to determing the physical position of
+//! entries within the log's underlying storage volume - taking the ID modulo the size of the
+//! underlying storage volume yields the position of the entry's header relative to the start of
+//! the volume. Entries should not be created manually by clients, only retrieved through the
+//! `log_start()`, `log_end()`, and `next_read_entry_id()` functions.
+//!
+//! Entry IDs are not explicitly stored in the log. Instead, each page of the log contains a header
+//! containing the page's offset relative to the start of the log (i.e. if the page size is 512
+//! bytes, then page #0 will have an offset of 0, page #1 an offset of 512, etc.). The offsets
+//! continue to increase even after a circular log wraps around (so if 5 512-byte pages of data are
+//! written to a 4 page log, then page #0 will now have an offset of 2048). Thus, the ID of an
+//! entry can be calculated by taking the offset of the page within the log and adding the offset
+//! of the entry within the page to find the position of the entry within the log (which is the
+//! ID). Entries also have a header of their own, which contains the length of the entry.
 //!
 //! Logs support the following basic operations:
 //!     * Read:     Read back previously written entries in whole. Entries are read in their
 //!                 entirety (no partial reads) from oldest to newest.
 //!     * Seek:     Seek to different entries to begin reading from a different entry (can only
-//!                 seek to the start of entries). Valid cookies to seek to can be retrieved via the
-//!                 `current_read_cookie()` and `current_append_cookie()` functions.
+//!                 seek to the start of entries).
 //!     * Append:   Append new data entries onto the end of a log. Can fail if the new entry is too
 //!                 large to fit within the log.
 //!     * Sync:     Sync a log to flash to ensure that all changes are persistent.
@@ -68,11 +75,14 @@ use kernel::common::dynamic_deferred_call::{
     DeferredCallHandle, DynamicDeferredCall, DynamicDeferredCallClient,
 };
 use kernel::hil::flash::{self, Flash};
-use kernel::hil::log::{LogCookie, LogRead, LogReadClient, LogWrite, LogWriteClient};
+use kernel::hil::log::{LogRead, LogReadClient, LogWrite, LogWriteClient};
 use kernel::ReturnCode;
 
+/// Globally declare entry ID type.
+type EntryID = usize;
+
 /// Maximum page header size.
-pub const PAGE_HEADER_SIZE: usize = size_of::<usize>();
+pub const PAGE_HEADER_SIZE: usize = size_of::<EntryID>();
 /// Maximum entry header size.
 pub const ENTRY_HEADER_SIZE: usize = size_of::<usize>();
 
@@ -110,12 +120,12 @@ pub struct Log<'a, F: Flash + 'static> {
 
     /// Current operation being executed, if asynchronous.
     state: Cell<State>,
-    /// Cookie within log to read from.
-    read_cookie: Cell<usize>,
-    /// Cookie within log to append to.
-    append_cookie: Cell<usize>,
-    /// Oldest cookie still in log.
-    oldest_cookie: Cell<usize>,
+    /// Entry ID of oldest entry remaining in log.
+    oldest_entry_id: Cell<EntryID>,
+    /// Entry ID of next entry to read.
+    read_entry_id: Cell<EntryID>,
+    /// Entry ID of next entry to append.
+    append_entry_id: Cell<EntryID>,
 
     /// Deferred caller for deferring client callbacks.
     deferred_caller: &'a DynamicDeferredCall,
@@ -154,9 +164,9 @@ impl<'a, F: Flash + 'static> Log<'a, F> {
             read_client: OptionalCell::empty(),
             append_client: OptionalCell::empty(),
             state: Cell::new(State::Idle),
-            read_cookie: Cell::new(PAGE_HEADER_SIZE),
-            append_cookie: Cell::new(PAGE_HEADER_SIZE),
-            oldest_cookie: Cell::new(PAGE_HEADER_SIZE),
+            oldest_entry_id: Cell::new(PAGE_HEADER_SIZE),
+            read_entry_id: Cell::new(PAGE_HEADER_SIZE),
+            append_entry_id: Cell::new(PAGE_HEADER_SIZE),
             deferred_caller,
             handle: OptionalCell::empty(),
             buffer: TakeCell::empty(),
@@ -169,46 +179,42 @@ impl<'a, F: Flash + 'static> Log<'a, F> {
         log
     }
 
-    /// Returns the page number of the page containing a cookie.
-    fn page_number(&self, cookie: usize) -> usize {
-        (self.volume.as_ptr() as usize + cookie % self.volume.len()) / self.page_size
+    /// Returns the page number of the page containing the entry with the given ID.
+    fn page_number(&self, entry_id: EntryID) -> usize {
+        (self.volume.as_ptr() as usize + entry_id % self.volume.len()) / self.page_size
     }
 
-    /// Gets the buffer containing the given cookie.
-    fn get_buffer<'b>(&self, cookie: usize, pagebuffer: &'b mut F::Page) -> &'b [u8] {
-        // Subtract 1 from append cookie to get cookie of last bit written. This is needed because
-        // the pagebuffer always contains the last written bit, but not necessarily the append
-        // cookie (i.e. the pagebuffer isn't flushed yet when append_cookie % page_size == 0).
-        if cookie / self.page_size == (self.append_cookie.get() - 1) / self.page_size {
+    /// Gets the buffer containing the byte at the given position in the log.
+    fn get_buffer<'b>(&self, pos: usize, pagebuffer: &'b mut F::Page) -> &'b [u8] {
+        // Subtract 1 from append entry ID to get position of last bit written. This is needed
+        // because the pagebuffer always contains the last written bit, but not necessarily the
+        // position represented by the append entry ID (i.e. the pagebuffer isn't flushed yet when
+        // `append_entry_id % page_size == 0`).
+        if pos / self.page_size == (self.append_entry_id.get() - 1) / self.page_size {
             pagebuffer.as_mut()
         } else {
             self.volume
         }
     }
 
-    /// Gets the byte pointed to by a cookie.
-    fn get_byte(&self, cookie: usize, pagebuffer: &mut F::Page) -> u8 {
-        let buffer = self.get_buffer(cookie, pagebuffer);
-        buffer[cookie % buffer.len()]
+    /// Gets the byte at the given position in the log.
+    fn get_byte(&self, pos: usize, pagebuffer: &mut F::Page) -> u8 {
+        let buffer = self.get_buffer(pos, pagebuffer);
+        buffer[pos % buffer.len()]
     }
 
-    /// Gets a `num_bytes` long slice of bytes starting from a cookie.
-    fn get_bytes<'b>(
-        &self,
-        cookie: usize,
-        num_bytes: usize,
-        pagebuffer: &'b mut F::Page,
-    ) -> &'b [u8] {
-        let buffer = self.get_buffer(cookie, pagebuffer);
-        let offset = cookie % buffer.len();
+    /// Gets a `num_bytes` long slice of bytes starting from a position within the log.
+    fn get_bytes<'b>(&self, pos: usize, num_bytes: usize, pagebuffer: &'b mut F::Page) -> &'b [u8] {
+        let buffer = self.get_buffer(pos, pagebuffer);
+        let offset = pos % buffer.len();
         &buffer[offset..offset + num_bytes]
     }
 
     /// Resets a log back to an empty log. Returns whether or not the log was reset successfully.
     fn reset(&self) -> bool {
-        self.oldest_cookie.set(PAGE_HEADER_SIZE);
-        self.read_cookie.set(PAGE_HEADER_SIZE);
-        self.append_cookie.set(PAGE_HEADER_SIZE);
+        self.oldest_entry_id.set(PAGE_HEADER_SIZE);
+        self.read_entry_id.set(PAGE_HEADER_SIZE);
+        self.append_entry_id.set(PAGE_HEADER_SIZE);
         self.pagebuffer.take().map_or(false, move |pagebuffer| {
             for e in pagebuffer.as_mut().iter_mut() {
                 *e = 0;
@@ -220,35 +226,36 @@ impl<'a, F: Flash + 'static> Log<'a, F> {
 
     /// Reconstructs a log from flash.
     fn reconstruct(&self) {
-        // Read page headers, get oldest and newest cookies.
-        let mut oldest_cookie = core::usize::MAX;
-        let mut newest_cookie: usize = 0;
-        for header_cookie in (0..self.volume.len()).step_by(self.page_size) {
-            let cookie = {
-                const COOKIE_SIZE: usize = size_of::<usize>();
-                let cookie_bytes = &self.volume[header_cookie..header_cookie + COOKIE_SIZE];
-                let cookie_bytes = <[u8; COOKIE_SIZE]>::try_from(cookie_bytes).unwrap();
-                usize::from_ne_bytes(cookie_bytes)
+        // Read page headers, get IDs of oldest and newest pages.
+        let mut oldest_page_id: EntryID = core::usize::MAX;
+        let mut newest_page_id: EntryID = 0;
+        for header_pos in (0..self.volume.len()).step_by(self.page_size) {
+            let page_id = {
+                const ID_SIZE: usize = size_of::<EntryID>();
+                let id_bytes = &self.volume[header_pos..header_pos + ID_SIZE];
+                let id_bytes = <[u8; ID_SIZE]>::try_from(id_bytes).unwrap();
+                usize::from_ne_bytes(id_bytes)
             };
 
-            // Validate cookie read from header.
-            if cookie % self.volume.len() == header_cookie {
-                if cookie < oldest_cookie {
-                    oldest_cookie = cookie;
+            // Validate page ID read from header.
+            if page_id % self.volume.len() == header_pos {
+                if page_id < oldest_page_id {
+                    oldest_page_id = page_id;
                 }
-                if cookie > newest_cookie {
-                    newest_cookie = cookie;
+                if page_id > newest_page_id {
+                    newest_page_id = page_id;
                 }
             }
         }
 
-        // Reconstruct log if at least one valid page was found (meaning oldest cookie was set).
-        if oldest_cookie != core::usize::MAX {
+        // Reconstruct log if at least one valid page was found (meaning oldest page ID was set to
+        // something not usize::MAX).
+        if oldest_page_id != core::usize::MAX {
             // Walk entries in last (newest) page to calculate last page length.
             let mut last_page_len = PAGE_HEADER_SIZE;
             loop {
                 // Check if next byte is start of valid entry.
-                let volume_offset = newest_cookie % self.volume.len() + last_page_len;
+                let volume_offset = newest_page_id % self.volume.len() + last_page_len;
                 if self.volume[volume_offset] == 0 || self.volume[volume_offset] == PAD_BYTE {
                     break;
                 }
@@ -272,10 +279,10 @@ impl<'a, F: Flash + 'static> Log<'a, F> {
                 }
             }
 
-            // Set cookies.
-            self.oldest_cookie.set(oldest_cookie + PAGE_HEADER_SIZE);
-            self.read_cookie.set(oldest_cookie + PAGE_HEADER_SIZE);
-            self.append_cookie.set(newest_cookie + last_page_len);
+            // Set tracked entry IDs.
+            self.oldest_entry_id.set(oldest_page_id + PAGE_HEADER_SIZE);
+            self.read_entry_id.set(oldest_page_id + PAGE_HEADER_SIZE);
+            self.append_entry_id.set(newest_page_id + last_page_len);
 
             // Populate page buffer.
             self.pagebuffer
@@ -291,7 +298,7 @@ impl<'a, F: Flash + 'static> Log<'a, F> {
                         // Copy last page into pagebuffer.
                         for i in 0..self.page_size {
                             pagebuffer.as_mut()[i] =
-                                self.volume[newest_cookie % self.volume.len() + i];
+                                self.volume[newest_page_id % self.volume.len() + i];
                         }
                     }
                     self.pagebuffer.replace(pagebuffer);
@@ -303,46 +310,45 @@ impl<'a, F: Flash + 'static> Log<'a, F> {
         }
     }
 
-    /// Returns the cookie of the next entry to read or an error if no entry could be retrieved.
+    /// Returns the ID of the next entry to read or an error if no entry could be retrieved.
     /// ReturnCodes used:
     ///     * FAIL: reached end of log, nothing to read.
     ///     * ERESERVE: client or internal pagebuffer missing.
-    fn get_next_entry(&self) -> Result<usize, ReturnCode> {
+    fn get_next_entry(&self) -> Result<EntryID, ReturnCode> {
         self.pagebuffer
             .take()
             .map_or(Err(ReturnCode::ERESERVE), move |pagebuffer| {
-                let mut entry_cookie = self.read_cookie.get();
+                let mut entry_id = self.read_entry_id.get();
 
                 // Skip page header if at start of page or skip padded bytes if at end of page.
-                if entry_cookie % self.page_size == 0 {
-                    entry_cookie += PAGE_HEADER_SIZE;
-                } else if self.get_byte(entry_cookie, pagebuffer) == PAD_BYTE {
-                    entry_cookie +=
-                        self.page_size - entry_cookie % self.page_size + PAGE_HEADER_SIZE;
+                if entry_id % self.page_size == 0 {
+                    entry_id += PAGE_HEADER_SIZE;
+                } else if self.get_byte(entry_id, pagebuffer) == PAD_BYTE {
+                    entry_id += self.page_size - entry_id % self.page_size + PAGE_HEADER_SIZE;
                 }
 
                 // Check if end of log was reached and return.
                 self.pagebuffer.replace(pagebuffer);
-                if entry_cookie >= self.append_cookie.get() {
+                if entry_id >= self.append_entry_id.get() {
                     Err(ReturnCode::FAIL)
                 } else {
-                    Ok(entry_cookie)
+                    Ok(entry_id)
                 }
             })
     }
 
-    /// Reads and returns the contents of an entry header at the given cookie. Fails if the header
+    /// Reads and returns the contents of an entry header with the given ID. Fails if the header
     /// data is invalid.
     /// ReturnCodes used:
     ///     * FAIL: entry header invalid.
     ///     * ERESERVE: client or internal pagebuffer missing.
-    fn read_entry_header(&self, entry_cookie: usize) -> Result<usize, ReturnCode> {
+    fn read_entry_header(&self, entry_id: EntryID) -> Result<usize, ReturnCode> {
         self.pagebuffer
             .take()
             .map_or(Err(ReturnCode::ERESERVE), move |pagebuffer| {
                 // Get length.
                 const LENGTH_SIZE: usize = size_of::<usize>();
-                let length_bytes = self.get_bytes(entry_cookie, LENGTH_SIZE, pagebuffer);
+                let length_bytes = self.get_bytes(entry_id, LENGTH_SIZE, pagebuffer);
                 let length_bytes = <[u8; LENGTH_SIZE]>::try_from(length_bytes).unwrap();
                 let length = usize::from_ne_bytes(length_bytes);
 
@@ -364,8 +370,8 @@ impl<'a, F: Flash + 'static> Log<'a, F> {
     ///     * ESIZE: buffer not large enough to contain entry being read.
     fn read_entry(&self, buffer: &mut [u8], length: usize) -> Result<usize, ReturnCode> {
         // Get next entry to read. Immediately returns FAIL in event of failure.
-        let entry_cookie = self.get_next_entry()?;
-        let entry_length = self.read_entry_header(entry_cookie)?;
+        let entry_id = self.get_next_entry()?;
+        let entry_length = self.read_entry_header(entry_id)?;
 
         // Read entry into buffer.
         self.pagebuffer
@@ -376,27 +382,27 @@ impl<'a, F: Flash + 'static> Log<'a, F> {
                     self.pagebuffer.replace(pagebuffer);
                     return Err(ReturnCode::ESIZE);
                 }
-                let entry_cookie = entry_cookie + ENTRY_HEADER_SIZE;
+                let entry_id = entry_id + ENTRY_HEADER_SIZE;
 
                 // Copy data into client buffer.
-                let data = self.get_bytes(entry_cookie, entry_length, pagebuffer);
+                let data = self.get_bytes(entry_id, entry_length, pagebuffer);
                 for i in 0..entry_length {
                     buffer[i] = data[i];
                 }
 
-                // Update read cookie and return number of bytes read.
-                self.read_cookie.set(entry_cookie + entry_length);
+                // Update read entry ID and return number of bytes read.
+                self.read_entry_id.set(entry_id + entry_length);
                 self.pagebuffer.replace(pagebuffer);
                 Ok(entry_length)
             })
     }
 
-    /// Writes an entry header at the given cookie within a page. Must write at most
+    /// Writes an entry header at the given position within a page. Must write at most
     /// ENTRY_HEADER_SIZE bytes.
-    fn write_entry_header(&self, length: usize, cookie: usize, pagebuffer: &mut F::Page) {
+    fn write_entry_header(&self, length: usize, pos: usize, pagebuffer: &mut F::Page) {
         let mut offset = 0;
         for byte in &length.to_ne_bytes() {
-            pagebuffer.as_mut()[cookie + offset] = *byte;
+            pagebuffer.as_mut()[pos + offset] = *byte;
             offset += 1;
         }
     }
@@ -410,8 +416,8 @@ impl<'a, F: Flash + 'static> Log<'a, F> {
         pagebuffer: &'static mut F::Page,
     ) {
         // Offset within page to append to.
-        let append_cookie = self.append_cookie.get();
-        let mut page_offset = append_cookie % self.page_size;
+        let append_entry_id = self.append_entry_id.get();
+        let mut page_offset = append_entry_id % self.page_size;
 
         // Write entry header to pagebuffer.
         self.write_entry_header(length, page_offset, pagebuffer);
@@ -423,14 +429,14 @@ impl<'a, F: Flash + 'static> Log<'a, F> {
         }
 
         // Increment append offset by number of bytes appended.
-        let append_cookie = append_cookie + length + ENTRY_HEADER_SIZE;
-        self.append_cookie.set(append_cookie);
+        let append_entry_id = append_entry_id + length + ENTRY_HEADER_SIZE;
+        self.append_entry_id.set(append_entry_id);
 
         // Replace pagebuffer and callback client.
         self.pagebuffer.replace(pagebuffer);
         self.buffer.replace(buffer);
         self.records_lost
-            .set(self.oldest_cookie.get() != PAGE_HEADER_SIZE);
+            .set(self.oldest_entry_id.get() != PAGE_HEADER_SIZE);
         self.error.set(ReturnCode::SUCCESS);
         self.client_callback();
     }
@@ -443,31 +449,30 @@ impl<'a, F: Flash + 'static> Log<'a, F> {
     ///     * EBUSY: flash driver busy.
     fn flush_pagebuffer(&self, pagebuffer: &'static mut F::Page) -> ReturnCode {
         // Pad end of page.
-        let mut append_cookie = self.append_cookie.get();
-        while append_cookie % self.page_size != 0 {
-            pagebuffer.as_mut()[append_cookie % self.page_size] = PAD_BYTE;
-            append_cookie += 1;
+        let mut pad_ptr = self.append_entry_id.get();
+        while pad_ptr % self.page_size != 0 {
+            pagebuffer.as_mut()[pad_ptr % self.page_size] = PAD_BYTE;
+            pad_ptr += 1;
         }
 
         // Get flash page to write to and log page being overwritten. Subtract page_size since
-        // append cookie points to start of the page following the one we want to flush after the
+        // padding pointer points to start of the page following the one we want to flush after the
         // padding operation.
-        let page_number = self.page_number(append_cookie - self.page_size);
-        let overwritten_page =
-            (append_cookie - self.volume.len() - self.page_size) / self.page_size;
+        let page_number = self.page_number(pad_ptr - self.page_size);
+        let overwritten_page = (pad_ptr - self.volume.len() - self.page_size) / self.page_size;
 
-        // Advance read and oldest cookies, if within flash page being overwritten.
-        let read_cookie = self.read_cookie.get();
-        if read_cookie / self.page_size == overwritten_page {
-            // Move read cookie to start of next page.
-            self.read_cookie.set(
-                read_cookie + self.page_size + PAGE_HEADER_SIZE - read_cookie % self.page_size,
+        // Advance read and oldest entry IDs, if within flash page being overwritten.
+        let read_entry_id = self.read_entry_id.get();
+        if read_entry_id / self.page_size == overwritten_page {
+            // Move read entry ID to start of next page.
+            self.read_entry_id.set(
+                read_entry_id + self.page_size + PAGE_HEADER_SIZE - read_entry_id % self.page_size,
             );
         }
 
-        let oldest_cookie = self.oldest_cookie.get();
-        if oldest_cookie / self.page_size == overwritten_page {
-            self.oldest_cookie.set(oldest_cookie + self.page_size);
+        let oldest_entry_id = self.oldest_entry_id.get();
+        if oldest_entry_id / self.page_size == overwritten_page {
+            self.oldest_entry_id.set(oldest_entry_id + self.page_size);
         }
 
         // Sync page to flash.
@@ -475,39 +480,39 @@ impl<'a, F: Flash + 'static> Log<'a, F> {
     }
 
     /// Resets the pagebuffer so that new data can be written. Note that this also increments the
-    /// append cookie to point to the start of writable data in this new page. Does not reset
-    /// pagebuffer or modify append cookie if the end of a non-circular log is reached. Returns
+    /// append entry ID to point to the start of writable data in this new page. Does not reset
+    /// pagebuffer or modify append entry ID if the end of a non-circular log is reached. Returns
     /// whether or not the pagebuffer was reset.
     fn reset_pagebuffer(&self, pagebuffer: &mut F::Page) -> bool {
         // Make sure this is not the last page of a non-circular buffer.
-        let mut append_cookie = self.append_cookie.get();
-        if !self.circular && append_cookie + self.page_size > self.volume.len() {
+        let mut append_entry_id = self.append_entry_id.get();
+        if !self.circular && append_entry_id + self.page_size > self.volume.len() {
             return false;
         }
 
-        // Increment append cookie to point at start of next page.
-        if append_cookie % self.page_size != 0 {
-            append_cookie += self.page_size - append_cookie % self.page_size;
+        // Increment append entry ID to point at start of next page.
+        if append_entry_id % self.page_size != 0 {
+            append_entry_id += self.page_size - append_entry_id % self.page_size;
         }
 
         // Write page header to pagebuffer.
-        let cookie_bytes = append_cookie.to_ne_bytes();
-        for index in 0..cookie_bytes.len() {
-            pagebuffer.as_mut()[index] = cookie_bytes[index];
+        let id_bytes = append_entry_id.to_ne_bytes();
+        for index in 0..id_bytes.len() {
+            pagebuffer.as_mut()[index] = id_bytes[index];
         }
 
-        // Note: this is the only place where the append cookie can cross page boundaries.
-        self.append_cookie.set(append_cookie + PAGE_HEADER_SIZE);
+        // Note: this is the only place where the append entry ID can cross page boundaries.
+        self.append_entry_id.set(append_entry_id + PAGE_HEADER_SIZE);
         true
     }
 
     /// Erases a single page from storage.
     fn erase_page(&self) -> ReturnCode {
-        // Uses oldest cookie to keep track of which page to erase. Thus, the oldest pages will be
+        // Uses oldest entry ID to keep track of which page to erase. Thus, the oldest pages will be
         // erased first and the log will remain in a valid state even if it fails to be erased
         // completely.
         self.driver
-            .erase_page(self.page_number(self.oldest_cookie.get()))
+            .erase_page(self.page_number(self.oldest_entry_id.get()))
     }
 
     /// Initializes a callback handle for deferred callbacks.
@@ -569,13 +574,15 @@ impl<'a, F: Flash + 'static> Log<'a, F> {
 }
 
 impl<'a, F: Flash + 'static> LogRead<'a> for Log<'a, F> {
+    type EntryID = EntryID;
+
     /// Set the client for read operation callbacks.
     fn set_read_client(&self, read_client: &'a dyn LogReadClient) {
         self.read_client.set(read_client);
     }
 
-    /// Read an entire log entry into a buffer, if there are any remaining. Updates the read cookie
-    /// to point at the next entry when done.
+    /// Read an entire log entry into a buffer, if there are any remaining. Updates the read entry
+    /// ID to point at the next entry when done.
     /// Returns:
     ///     * Ok(()) on success.
     ///     * Err((ReturnCode, Option<buffer>)) on failure. The buffer will only be `None` if the
@@ -584,7 +591,7 @@ impl<'a, F: Flash + 'static> LogRead<'a> for Log<'a, F> {
     ///     * FAIL: reached end of log, nothing to read.
     ///     * EBUSY: log busy with another operation, try again later.
     ///     * EINVAL: provided client buffer is too small.
-    ///     * ECANCEL: invalid internal state, read cookie was reset to SeekBeginning.
+    ///     * ECANCEL: invalid internal state, read entry ID was reset to start of log.
     ///     * ERESERVE: client or internal pagebuffer missing.
     ///     * ESIZE: buffer not large enough to contain entry being read.
     /// ReturnCodes used in read_done callback:
@@ -601,9 +608,9 @@ impl<'a, F: Flash + 'static> LogRead<'a> for Log<'a, F> {
         } else if buffer.len() < length {
             // Client buffer too small for provided length.
             return Err((ReturnCode::EINVAL, Some(buffer)));
-        } else if self.read_cookie.get() > self.append_cookie.get() {
-            // Read cookie beyond append cookie, must be invalid.
-            self.read_cookie.set(self.oldest_cookie.get());
+        } else if self.read_entry_id.get() > self.append_entry_id.get() {
+            // Read entry ID beyond append entry ID, must be invalid.
+            self.read_entry_id.set(self.oldest_entry_id.get());
             return Err((ReturnCode::ECANCEL, Some(buffer)));
         } else if self.read_client.is_none() {
             // No client for callback.
@@ -624,41 +631,38 @@ impl<'a, F: Flash + 'static> LogRead<'a> for Log<'a, F> {
         }
     }
 
-    /// Get cookie representing current read cookie.
-    fn current_read_cookie(&self) -> LogCookie {
-        LogCookie::Cookie(self.read_cookie.get())
+    /// Returns the ID of the oldest remaining entry in the log.
+    fn log_start(&self) -> Self::EntryID {
+        self.oldest_entry_id.get()
     }
 
-    /// Seek to a new read cookie. It is only legal to seek to the start of entry via
-    /// `LogCookie::SeekBeginning` or a cookie retrived through `current_read_cookie()` or
-    /// `current_append_cookie()`.
+    /// Returns the ID of the newest entry in the log.
+    fn log_end(&self) -> Self::EntryID {
+        self.append_entry_id.get()
+    }
+
+    /// Returns the ID of the next entry to be read.
+    fn next_read_entry_id(&self) -> Self::EntryID {
+        self.read_entry_id.get()
+    }
+
+    /// Seek to a new read entry ID. It is only legal to seek to entry IDs retrieved through the
+    /// `log_start()`, `log_end()`, and `next_read_entry_id()` functions.
     /// ReturnCodes used:
     ///     * SUCCESS: seek succeeded.
-    ///     * EINVAL: cookie not valid seek position within current log.
+    ///     * EINVAL: entry ID not valid seek position within current log.
     ///     * ERESERVE: no log client set.
-    fn seek(&self, cookie: LogCookie) -> ReturnCode {
-        let status = match cookie {
-            LogCookie::SeekBeginning => {
-                self.read_cookie.set(self.oldest_cookie.get());
-                ReturnCode::SUCCESS
-            }
-            LogCookie::Cookie(cookie) => {
-                if cookie <= self.append_cookie.get() && cookie >= self.oldest_cookie.get() {
-                    self.read_cookie.set(cookie);
-                    ReturnCode::SUCCESS
-                } else {
-                    ReturnCode::EINVAL
-                }
-            }
-        };
+    fn seek(&self, entry_id: Self::EntryID) -> ReturnCode {
+        if entry_id <= self.append_entry_id.get() && entry_id >= self.oldest_entry_id.get() {
+            self.read_entry_id.set(entry_id);
 
-        // Make client callback on success.
-        if status == ReturnCode::SUCCESS {
             self.state.set(State::Seek);
             self.error.set(ReturnCode::SUCCESS);
             self.deferred_client_callback();
+            ReturnCode::SUCCESS
+        } else {
+            ReturnCode::EINVAL
         }
-        status
     }
 
     /// Get approximate log capacity in bytes.
@@ -706,7 +710,7 @@ impl<'a, F: Flash + 'static> LogWrite<'a> for Log<'a, F> {
         } else if entry_size + PAGE_HEADER_SIZE > self.page_size {
             // Entry too big, won't fit within a single page.
             return Err((ReturnCode::ESIZE, Some(buffer)));
-        } else if !self.circular && self.append_cookie.get() + entry_size > self.volume.len() {
+        } else if !self.circular && self.append_entry_id.get() + entry_size > self.volume.len() {
             // End of non-circular log has been reached.
             return Err((ReturnCode::FAIL, Some(buffer)));
         }
@@ -719,9 +723,9 @@ impl<'a, F: Flash + 'static> LogWrite<'a> for Log<'a, F> {
 
                 // Check if previous page needs to be flushed and new entry will fit within space
                 // remaining in current page.
-                let append_cookie = self.append_cookie.get();
-                let flush_prev_page = append_cookie % self.page_size == 0;
-                let space_remaining = self.page_size - append_cookie % self.page_size;
+                let append_entry_id = self.append_entry_id.get();
+                let flush_prev_page = append_entry_id % self.page_size == 0;
+                let space_remaining = self.page_size - append_entry_id % self.page_size;
                 if !flush_prev_page && entry_size <= space_remaining {
                     // Entry fits, append it.
                     self.append_entry(buffer, length, pagebuffer);
@@ -746,11 +750,6 @@ impl<'a, F: Flash + 'static> LogWrite<'a> for Log<'a, F> {
         }
     }
 
-    /// Get cookie representing current append cookie.
-    fn current_append_cookie(&self) -> LogCookie {
-        LogCookie::Cookie(self.append_cookie.get())
-    }
-
     /// Sync log to storage.
     /// ReturnCodes used:
     ///     * SUCCESS: flush started successfully.
@@ -761,7 +760,10 @@ impl<'a, F: Flash + 'static> LogWrite<'a> for Log<'a, F> {
     ///     * SUCCESS: append succeeded.
     ///     * FAIL: write failed due to flash error.
     fn sync(&self) -> ReturnCode {
-        if self.state.get() != State::Idle {
+        if self.append_entry_id.get() % self.page_size == PAGE_HEADER_SIZE {
+            // Pagebuffer empty, don't need to flush.
+            return ReturnCode::SUCCESS;
+        } else if self.state.get() != State::Idle {
             // Log busy, try appending again later.
             return ReturnCode::EBUSY;
         }
@@ -802,6 +804,8 @@ impl<'a, F: Flash + 'static> flash::Client<F> for Log<'a, F> {
         unreachable!();
     }
 
+    /// If in the middle of a write operation, reset pagebuffer and finish write. If syncing, make
+    /// successful client callback.
     fn write_complete(&self, pagebuffer: &'static mut F::Page, error: flash::Error) {
         match error {
             flash::Error::CommandComplete => {
@@ -825,7 +829,7 @@ impl<'a, F: Flash + 'static> flash::Client<F> for Log<'a, F> {
                     }
                     State::Sync => {
                         // Reset pagebuffer if synced page was full.
-                        if self.append_cookie.get() % self.page_size == 0 {
+                        if self.append_entry_id.get() % self.page_size == 0 {
                             self.reset_pagebuffer(pagebuffer);
                         }
 
@@ -856,11 +860,13 @@ impl<'a, F: Flash + 'static> flash::Client<F> for Log<'a, F> {
         }
     }
 
+    /// Erase next page if log erase complete, else make client callback. Fails with EBUSY if flash
+    /// is busy and erase cannot be completed.
     fn erase_complete(&self, error: flash::Error) {
         match error {
             flash::Error::CommandComplete => {
-                let oldest_cookie = self.oldest_cookie.get();
-                if oldest_cookie >= self.append_cookie.get() - self.page_size {
+                let oldest_entry_id = self.oldest_entry_id.get();
+                if oldest_entry_id >= self.append_entry_id.get() - self.page_size {
                     // Erased all pages. Reset state and callback client.
                     if self.reset() {
                         self.error.set(ReturnCode::SUCCESS);
@@ -870,13 +876,13 @@ impl<'a, F: Flash + 'static> flash::Client<F> for Log<'a, F> {
                     self.client_callback();
                 } else {
                     // Not done, erase next page.
-                    self.oldest_cookie.set(oldest_cookie + self.page_size);
+                    self.oldest_entry_id.set(oldest_entry_id + self.page_size);
                     let status = self.erase_page();
 
                     // Abort and alert client if flash driver is busy.
                     if status == ReturnCode::EBUSY {
-                        self.read_cookie
-                            .set(core::cmp::max(self.read_cookie.get(), oldest_cookie));
+                        self.read_entry_id
+                            .set(core::cmp::max(self.read_entry_id.get(), oldest_entry_id));
                         self.error.set(ReturnCode::EBUSY);
                         self.client_callback();
                     }

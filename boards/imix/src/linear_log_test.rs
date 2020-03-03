@@ -20,7 +20,7 @@ use kernel::common::cells::{NumericCellExt, TakeCell};
 use kernel::common::dynamic_deferred_call::DynamicDeferredCall;
 use kernel::debug;
 use kernel::hil::flash;
-use kernel::hil::log::{LogCookie, LogRead, LogReadClient, LogWrite, LogWriteClient};
+use kernel::hil::log::{LogRead, LogReadClient, LogWrite, LogWriteClient};
 use kernel::hil::time::{Alarm, AlarmClient, Frequency};
 use kernel::static_init;
 use kernel::storage_volume;
@@ -117,9 +117,9 @@ impl<A: Alarm<'static>> LogTest<A> {
         ops: &'static [TestOp],
     ) -> LogTest<A> {
         debug!(
-            "Log recovered from flash (Start and end cookies: {:?} to {:?})",
-            log.current_read_cookie(),
-            log.current_append_cookie()
+            "Log recovered from flash (Start and end entry IDs: {:?} to {:?})",
+            log.log_start(),
+            log.log_end()
         );
 
         LogTest {
@@ -162,8 +162,8 @@ impl<A: Alarm<'static>> LogTest<A> {
                             // No more entries, start writing again.
                             debug!(
                                 "READ DONE: READ OFFSET: {:?} / WRITE OFFSET: {:?}",
-                                self.log.current_read_cookie(),
-                                self.log.current_append_cookie()
+                                self.log.next_read_entry_id(),
+                                self.log.log_end()
                             );
                             self.op_index.increment();
                             self.run();
@@ -183,10 +183,7 @@ impl<A: Alarm<'static>> LogTest<A> {
         self.buffer
             .take()
             .map(move |buffer| {
-                let expect_write_fail = match self.log.current_append_cookie() {
-                    LogCookie::Cookie(cookie) => cookie + len > LINEAR_TEST_LOG.len(),
-                    _ => false
-                };
+                let expect_write_fail = self.log.log_end() + len > LINEAR_TEST_LOG.len();
 
                 // Set buffer value.
                 for i in 0..buffer.len() {
@@ -211,10 +208,10 @@ impl<A: Alarm<'static>> LogTest<A> {
                                 self.run();
                             } else {
                                 panic!(
-                                    "Write failed unexpectedly on {} byte write (read cookie: {:?}, append cookie: {:?})",
+                                    "Write failed unexpectedly on {} byte write (read entry ID: {:?}, append entry ID: {:?})",
                                     len,
-                                    self.log.current_read_cookie(),
-                                    self.log.current_append_cookie()
+                                    self.log.next_read_entry_id(),
+                                    self.log.log_end()
                                 );
                             }
                         ReturnCode::EBUSY => self.wait(),
@@ -222,10 +219,10 @@ impl<A: Alarm<'static>> LogTest<A> {
                     }
                 } else if expect_write_fail {
                     panic!(
-                        "Write succeeded unexpectedly on {} byte write (read cookie: {:?}, append cookie: {:?})",
+                        "Write succeeded unexpectedly on {} byte write (read entry ID: {:?}, append entry ID: {:?})",
                         len,
-                        self.log.current_read_cookie(),
-                        self.log.current_append_cookie()
+                        self.log.next_read_entry_id(),
+                        self.log.log_end()
                     );
                 }
             })
@@ -301,8 +298,8 @@ impl<A: Alarm<'static>> LogWriteClient for LogTest<A> {
         if error == ReturnCode::SUCCESS {
             debug!(
                 "SYNC DONE: READ OFFSET: {:?} / WRITE OFFSET: {:?}",
-                self.log.current_read_cookie(),
-                self.log.current_append_cookie()
+                self.log.next_read_entry_id(),
+                self.log.log_end()
             );
         } else {
             panic!("Sync failed: {:?}", error);

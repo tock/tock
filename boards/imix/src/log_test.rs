@@ -33,7 +33,7 @@ use kernel::common::dynamic_deferred_call::DynamicDeferredCall;
 use kernel::debug;
 use kernel::hil::flash;
 use kernel::hil::gpio::{self, Interrupt};
-use kernel::hil::log::{LogCookie, LogRead, LogReadClient, LogWrite, LogWriteClient};
+use kernel::hil::log::{LogRead, LogReadClient, LogWrite, LogWriteClient};
 use kernel::hil::time::{Alarm, AlarmClient, Frequency};
 use kernel::static_init;
 use kernel::storage_volume;
@@ -99,10 +99,10 @@ static TEST_OPS: [TestOp; 24] = [
     TestOp::Write,
     TestOp::Read,
     // Seek to beginning and re-verify entire log.
-    TestOp::Seek(LogCookie::SeekBeginning),
+    TestOp::SeekBeginning,
     TestOp::Read,
     // Write multiple pages, over-filling log and overwriting oldest entries.
-    TestOp::Seek(LogCookie::SeekBeginning),
+    TestOp::SeekBeginning,
     TestOp::Write,
     // Read offset should be incremented since it was invalidated by previous write.
     TestOp::BadRead,
@@ -112,10 +112,10 @@ static TEST_OPS: [TestOp; 24] = [
     TestOp::Write,
     TestOp::Sync,
     TestOp::Read,
-    // Try bad seeks, should fail and not change read cookie.
+    // Try bad seeks, should fail and not change read entry ID.
     TestOp::Write,
-    TestOp::BadSeek(LogCookie::Cookie(0)),
-    TestOp::BadSeek(LogCookie::Cookie(core::usize::MAX)),
+    TestOp::BadSeek(0),
+    TestOp::BadSeek(core::usize::MAX),
     TestOp::Read,
     // Try bad write, nothing should change.
     TestOp::BadWrite,
@@ -155,8 +155,8 @@ enum TestOp {
     Write,
     BadWrite,
     Sync,
-    Seek(LogCookie),
-    BadSeek(LogCookie),
+    SeekBeginning,
+    BadSeek(usize),
 }
 
 type Log = log::Log<'static, flashcalw::FLASHCALW>;
@@ -180,13 +180,13 @@ impl<A: Alarm<'static>> LogTest<A> {
         ops: &'static [TestOp],
     ) -> LogTest<A> {
         // Recover test state.
-        let read_val = cookie_to_test_value(log.current_read_cookie());
-        let write_val = cookie_to_test_value(log.current_append_cookie());
+        let read_val = entry_id_to_test_value(log.next_read_entry_id());
+        let write_val = entry_id_to_test_value(log.log_end());
 
         debug!(
-            "Log recovered from flash (Start and end cookies: {:?} to {:?}; read and write values: {} and {})",
-            log.current_read_cookie(),
-            log.current_append_cookie(),
+            "Log recovered from flash (Start and end entry IDs: {:?} to {:?}; read and write values: {} and {})",
+            log.next_read_entry_id(),
+            log.log_end(),
             read_val,
             write_val
         );
@@ -210,7 +210,7 @@ impl<A: Alarm<'static>> LogTest<A> {
                 let op_index = self.op_index.get();
                 if op_index == self.ops.len() {
                     self.state.set(TestState::CleanUp);
-                    self.log.seek(LogCookie::SeekBeginning);
+                    self.log.seek(self.log.log_start());
                     return;
                 }
 
@@ -220,16 +220,16 @@ impl<A: Alarm<'static>> LogTest<A> {
                     TestOp::Write => self.write(),
                     TestOp::BadWrite => self.bad_write(),
                     TestOp::Sync => self.sync(),
-                    TestOp::Seek(cookie) => self.seek(cookie),
-                    TestOp::BadSeek(cookie) => self.bad_seek(cookie),
+                    TestOp::SeekBeginning => self.seek_beginning(),
+                    TestOp::BadSeek(entry_id) => self.bad_seek(entry_id),
                 }
             }
             TestState::Erase => self.erase(),
             TestState::CleanUp => {
                 debug!(
-                    "Log Storage test succeeded! (Final log start and end cookies: {:?} to {:?})",
-                    self.log.current_read_cookie(),
-                    self.log.current_append_cookie()
+                    "Log Storage test succeeded! (Final log start and end entry IDs: {:?} to {:?})",
+                    self.log.next_read_entry_id(),
+                    self.log.log_end()
                 );
             }
         }
@@ -253,13 +253,13 @@ impl<A: Alarm<'static>> LogTest<A> {
     fn read(&self) {
         // Update read value if clobbered by previous operation.
         if self.op_start.get() {
-            let next_read_val = cookie_to_test_value(self.log.current_read_cookie());
+            let next_read_val = entry_id_to_test_value(self.log.next_read_entry_id());
             if self.read_val.get() < next_read_val {
                 debug!(
-                    "Increasing read value from {} to {} due to clobbering (read cookie is {:?})!",
+                    "Increasing read value from {} to {} due to clobbering (read entry ID is {:?})!",
                     self.read_val.get(),
                     next_read_val,
-                    self.log.current_read_cookie()
+                    self.log.next_read_entry_id()
                 );
                 self.read_val.set(next_read_val);
             }
@@ -279,8 +279,8 @@ impl<A: Alarm<'static>> LogTest<A> {
                             // No more entries, start writing again.
                             debug!(
                                 "READ DONE: READ OFFSET: {:?} / WRITE OFFSET: {:?}",
-                                self.log.current_read_cookie(),
-                                self.log.current_append_cookie()
+                                self.log.next_read_entry_id(),
+                                self.log.log_end()
                             );
                             self.next_op();
                             self.run();
@@ -354,7 +354,7 @@ impl<A: Alarm<'static>> LogTest<A> {
     }
 
     fn bad_write(&self) {
-        let original_offset = self.log.current_append_cookie();
+        let original_offset = self.log.log_end();
 
         // Ensure failure if entry length is 0.
         self.buffer
@@ -393,7 +393,7 @@ impl<A: Alarm<'static>> LogTest<A> {
         }
 
         // Make sure that append offset was not changed by failed writes.
-        assert_eq!(original_offset, self.log.current_append_cookie());
+        assert_eq!(original_offset, self.log.log_end());
         self.next_op();
         self.run();
     }
@@ -405,30 +405,31 @@ impl<A: Alarm<'static>> LogTest<A> {
         }
     }
 
-    fn seek(&self, cookie: LogCookie) {
-        match self.log.seek(cookie) {
-            ReturnCode::SUCCESS => debug!("Seeking to {:?}...", cookie),
+    fn seek_beginning(&self) {
+        let entry_id = self.log.log_start();
+        match self.log.seek(entry_id) {
+            ReturnCode::SUCCESS => debug!("Seeking to {:?}...", entry_id),
             error => panic!("Seek failed: {:?}", error),
         }
     }
 
-    fn bad_seek(&self, cookie: LogCookie) {
+    fn bad_seek(&self, entry_id: usize) {
         // Make sure seek fails with EINVAL.
-        let original_offset = self.log.current_read_cookie();
-        match self.log.seek(cookie) {
+        let original_offset = self.log.next_read_entry_id();
+        match self.log.seek(entry_id) {
             ReturnCode::EINVAL => (),
             ReturnCode::SUCCESS => panic!(
-                "Seek to invalid cookie {:?} succeeded unexpectedly!",
-                cookie
+                "Seek to invalid entry ID {:?} succeeded unexpectedly!",
+                entry_id
             ),
             error => panic!(
-                "Seek to invalid cookie {:?} failed with unexpected error {:?}!",
-                cookie, error
+                "Seek to invalid entry ID {:?} failed with unexpected error {:?}!",
+                entry_id, error
             ),
         }
 
         // Make sure that read offset was not changed by failed seek.
-        assert_eq!(original_offset, self.log.current_read_cookie());
+        assert_eq!(original_offset, self.log.next_read_entry_id());
         self.next_op();
         self.run();
     }
@@ -451,7 +452,7 @@ impl<A: Alarm<'static>> LogReadClient for LogTest<A> {
                         length,
                         BUFFER_LEN,
                         self.read_val.get(),
-                        self.log.current_read_cookie(),
+                        self.log.next_read_entry_id(),
                         &buffer[0..length],
                     );
                 }
@@ -465,7 +466,7 @@ impl<A: Alarm<'static>> LogReadClient for LogTest<A> {
                             &expected[0..BUFFER_LEN],
                             &buffer[0..BUFFER_LEN],
                             self.read_val.get(),
-                            self.log.current_read_cookie(),
+                            self.log.next_read_entry_id(),
                         );
                     }
                 }
@@ -485,7 +486,7 @@ impl<A: Alarm<'static>> LogReadClient for LogTest<A> {
         if error == ReturnCode::SUCCESS {
             debug!("Seeked");
             self.read_val
-                .set(cookie_to_test_value(self.log.current_read_cookie()));
+                .set(entry_id_to_test_value(self.log.next_read_entry_id()));
         } else {
             panic!("Seek failed: {:?}", error);
         }
@@ -516,17 +517,17 @@ impl<A: Alarm<'static>> LogWriteClient for LogTest<A> {
                         length,
                         BUFFER_LEN,
                         self.write_val.get(),
-                        self.log.current_append_cookie()
+                        self.log.log_end()
                     );
                 }
                 let expected_records_lost =
-                    self.write_val.get() > cookie_to_test_value(LogCookie::Cookie(TEST_LOG.len()));
+                    self.write_val.get() > entry_id_to_test_value(TEST_LOG.len());
                 if records_lost && records_lost != expected_records_lost {
                     panic!("Append callback states records_lost = {}, expected {} (write #{}, offset {:?})!",
                            records_lost,
                            expected_records_lost,
                            self.write_val.get(),
-                           self.log.current_append_cookie()
+                           self.log.log_end()
                     );
                 }
 
@@ -534,8 +535,8 @@ impl<A: Alarm<'static>> LogWriteClient for LogTest<A> {
                 if (self.write_val.get() + 1) % ENTRIES_PER_WRITE == 0 {
                     debug!(
                         "WRITE DONE: READ OFFSET: {:?} / WRITE OFFSET: {:?}",
-                        self.log.current_read_cookie(),
-                        self.log.current_append_cookie()
+                        self.log.next_read_entry_id(),
+                        self.log.log_end()
                     );
                     self.next_op();
                 }
@@ -557,8 +558,8 @@ impl<A: Alarm<'static>> LogWriteClient for LogTest<A> {
         if error == ReturnCode::SUCCESS {
             debug!(
                 "SYNC DONE: READ OFFSET: {:?} / WRITE OFFSET: {:?}",
-                self.log.current_read_cookie(),
-                self.log.current_append_cookie()
+                self.log.next_read_entry_id(),
+                self.log.log_end()
             );
         } else {
             panic!("Sync failed: {:?}", error);
@@ -637,22 +638,17 @@ impl<A: Alarm<'static>> gpio::Client for LogTest<A> {
     }
 }
 
-fn cookie_to_test_value(cookie: LogCookie) -> u64 {
+fn entry_id_to_test_value(entry_id: usize) -> u64 {
     // Page and entry header sizes for log storage.
     const PAGE_SIZE: usize = 512;
 
-    match cookie {
-        LogCookie::Cookie(cookie) => {
-            let pages_written = cookie / PAGE_SIZE;
-            let entry_size = log::ENTRY_HEADER_SIZE + BUFFER_LEN;
-            let entries_per_page = (PAGE_SIZE - log::PAGE_HEADER_SIZE) / entry_size;
-            let entries_last_page = if cookie % PAGE_SIZE >= log::PAGE_HEADER_SIZE {
-                (cookie % PAGE_SIZE - log::PAGE_HEADER_SIZE) / entry_size
-            } else {
-                0
-            };
-            (pages_written * entries_per_page + entries_last_page) as u64
-        }
-        LogCookie::SeekBeginning => 0,
-    }
+    let pages_written = entry_id / PAGE_SIZE;
+    let entry_size = log::ENTRY_HEADER_SIZE + BUFFER_LEN;
+    let entries_per_page = (PAGE_SIZE - log::PAGE_HEADER_SIZE) / entry_size;
+    let entries_last_page = if entry_id % PAGE_SIZE >= log::PAGE_HEADER_SIZE {
+        (entry_id % PAGE_SIZE - log::PAGE_HEADER_SIZE) / entry_size
+    } else {
+        0
+    };
+    (pages_written * entries_per_page + entries_last_page) as u64
 }
