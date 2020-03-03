@@ -147,21 +147,23 @@ impl Kernel {
         self.processes.iter()
     }
 
-    /// Run a closure on every valid process. This will iterate the
-    /// array of processes and call the closure on every process that
-    /// exists. Ths method is available outside the kernel crate but
-    /// requires a `ProcessManagementCapability` to use.
+    /// Run a closure on every valid process. This will iterate the array of
+    /// processes and call the closure on every process that exists.
+    ///
+    /// This is functionally the same as `process_each()`, but this method is
+    /// available outside the kernel crate and requires a
+    /// `ProcessManagementCapability` to use.
     pub fn process_each_capability<F>(
         &'static self,
         _capability: &dyn capabilities::ProcessManagementCapability,
         closure: F,
     ) where
-        F: Fn(usize, &dyn process::ProcessType),
+        F: Fn(&dyn process::ProcessType),
     {
-        for (i, process) in self.processes.iter().enumerate() {
+        for process in self.processes.iter() {
             match process {
                 Some(p) => {
-                    closure(i, *p);
+                    closure(*p);
                 }
                 None => {}
             }

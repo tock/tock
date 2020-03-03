@@ -187,7 +187,7 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                             argument.map(|name| {
                                 self.kernel.process_each_capability(
                                     &self.capability,
-                                    |_i, proc| {
+                                    |proc| {
                                         let proc_name = proc.get_process_name();
                                         if proc_name == name {
                                             proc.resume();
@@ -201,7 +201,7 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                             argument.map(|name| {
                                 self.kernel.process_each_capability(
                                     &self.capability,
-                                    |_i, proc| {
+                                    |proc| {
                                         let proc_name = proc.get_process_name();
                                         if proc_name == name {
                                             proc.stop();
@@ -215,7 +215,7 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                             argument.map(|name| {
                                 self.kernel.process_each_capability(
                                     &self.capability,
-                                    |_i, proc| {
+                                    |proc| {
                                         let proc_name = proc.get_process_name();
                                         if proc_name == name {
                                             proc.set_fault_state();
@@ -227,11 +227,11 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                         } else if clean_str.starts_with("list") {
                             debug!(" PID    Name                Quanta  Syscalls  Dropped Callbacks  Restarts    State");
                             self.kernel
-                                .process_each_capability(&self.capability, |i, proc| {
+                                .process_each_capability(&self.capability, |proc| {
                                     let pname = proc.get_process_name();
                                     debug!(
-                                        "  {:02}\t{:<20}{:6}{:10}{:19}{:10}  {:?}",
-                                        i,
+                                        "  {:?}\t{:<20}{:6}{:10}{:19}{:10}  {:?}",
+                                        proc.appid(),
                                         pname,
                                         proc.debug_timeslice_expiration_count(),
                                         proc.debug_syscall_count(),
