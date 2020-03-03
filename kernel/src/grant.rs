@@ -11,7 +11,7 @@ use crate::sched::Kernel;
 
 /// Region of process memory reserved for the kernel.
 pub struct Grant<T: Default> {
-    crate kernel: &'static Kernel,
+    pub(crate) kernel: &'static Kernel,
     grant_num: usize,
     ptr: PhantomData<T>,
 }
@@ -143,7 +143,7 @@ impl<T: 'a + ?Sized> DerefMut for Borrowed<'a, T> {
 }
 
 impl<T: Default> Grant<T> {
-    crate fn new(kernel: &'static Kernel, grant_index: usize) -> Grant<T> {
+    pub(crate) fn new(kernel: &'static Kernel, grant_index: usize) -> Grant<T> {
         Grant {
             kernel: kernel,
             grant_num: grant_index,

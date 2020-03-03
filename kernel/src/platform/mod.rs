@@ -7,7 +7,7 @@ use crate::syscall;
 use core::fmt::Write;
 
 pub mod mpu;
-crate mod systick;
+pub(crate) mod systick;
 
 /// Interface for individual boards.
 ///
