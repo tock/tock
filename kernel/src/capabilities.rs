@@ -73,8 +73,4 @@ pub unsafe trait UdpDriverCapability {}
 /// instantiated once by the kernel
 pub unsafe trait CreatePortTableCapability {}
 
-pub unsafe trait UdpVisibilityCapability {}
-
-pub unsafe trait IpVisibilityCapability {}
-
 pub unsafe trait NetworkCapabilityCreationCapability {}

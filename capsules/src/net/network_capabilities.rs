@@ -23,7 +23,7 @@ use crate::net::ipv6::ip_utils::IPAddr;
 const MAX_ADDR_SET_SIZE: usize = 8;
 const MAX_PORT_SET_SIZE: usize = 8;
 
-use kernel::capabilities::{UdpVisibilityCapability, IpVisibilityCapability, NetworkCapabilityCreationCapability};
+use kernel::capabilities::{NetworkCapabilityCreationCapability};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum AddrRange {
@@ -77,6 +77,31 @@ impl PortRange {
     }
 }
 
+/// The UdpVisibilityCapability and IpVisibilityCapability has an empty private
+/// field to make it so the only way to create these structs is via a call to
+/// `new` which requires a NetworkCapabilityCreationCapability. 
+pub struct UdpVisibilityCapability {
+    _priv: (), // an empty private field
+}
+
+pub struct IpVisibilityCapability {
+    _priv: (), // an empty private field
+}
+
+impl UdpVisibilityCapability {
+    pub fn new(_create_net_cap: &dyn NetworkCapabilityCreationCapability)
+        -> UdpVisibilityCapability {
+        UdpVisibilityCapability {_priv: ()}
+    }
+}
+
+impl IpVisibilityCapability {
+    pub fn new(_create_net_cap: &dyn NetworkCapabilityCreationCapability)
+        -> IpVisibilityCapability {
+        IpVisibilityCapability {_priv: ()}
+    }
+}
+
 /// The NetworkCapability specifies access to network resourcess across the UDP
 /// and IP layers. Access to layer-specific information is mediated by the
 /// UdpVsibilityCapability and the IpVisibilityCapability. 
@@ -101,27 +126,27 @@ impl NetworkCapability {
         }
     }
 
-    pub fn get_range(&self, _ip_cap: &dyn IpVisibilityCapability) -> AddrRange {
+    pub fn get_range(&self, _ip_cap: &'static IpVisibilityCapability) -> AddrRange {
         self.remote_addrs
     }
 
-    pub fn remote_addr_valid(&self, remote_addr: IPAddr, _ip_cap: &dyn IpVisibilityCapability) -> bool {
+    pub fn remote_addr_valid(&self, remote_addr: IPAddr, _ip_cap: &'static IpVisibilityCapability) -> bool {
         self.remote_addrs.is_addr_valid(remote_addr)
     }
 
-    pub fn get_remote_ports(&self, _udp_cap: &dyn UdpVisibilityCapability) -> PortRange {
+    pub fn get_remote_ports(&self, _udp_cap: &'static UdpVisibilityCapability) -> PortRange {
         self.remote_ports
     }
 
-    pub fn get_local_ports(&self, _udp_cap: &dyn UdpVisibilityCapability) -> PortRange {
+    pub fn get_local_ports(&self, _udp_cap: &'static UdpVisibilityCapability) -> PortRange {
         self.local_ports
     }
 
-    pub fn remote_port_valid(&self, remote_port: u16, _udp_cap: &dyn UdpVisibilityCapability) -> bool {
+    pub fn remote_port_valid(&self, remote_port: u16, _udp_cap: &'static UdpVisibilityCapability) -> bool {
         self.remote_ports.is_port_valid(remote_port)
     }
 
-    pub fn local_port_valid(&self, local_port: u16, _udp_cap: &dyn UdpVisibilityCapability) -> bool {
+    pub fn local_port_valid(&self, local_port: u16, _udp_cap: &'static UdpVisibilityCapability) -> bool {
         self.local_ports.is_port_valid(local_port)
     }
 }

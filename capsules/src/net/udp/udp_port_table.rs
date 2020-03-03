@@ -32,9 +32,9 @@
 //! userspace UDP driver to check which ports are bound, and vice-versa, such that
 //! exclusive access to ports between userspace apps and capsules is still enforced.
 
-use crate::net::network_capabilities::NetworkCapability;
+use crate::net::network_capabilities::{NetworkCapability, UdpVisibilityCapability};
 use core::fmt;
-use kernel::capabilities::{CreatePortTableCapability, UdpDriverCapability, UdpVisibilityCapability};
+use kernel::capabilities::{CreatePortTableCapability, UdpDriverCapability};
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::ReturnCode;
 
@@ -73,7 +73,7 @@ pub struct UdpSocket {
 pub struct UdpPortManager {
     port_array: TakeCell<'static, [Option<SocketBindingEntry>]>,
     user_ports: OptionalCell<&'static dyn PortQuery>,
-    udp_vis: &'static dyn UdpVisibilityCapability,
+    udp_vis: &'static UdpVisibilityCapability,
 }
 
 impl fmt::Debug for UdpPortManager {
@@ -146,7 +146,7 @@ impl UdpPortManager {
     pub fn new(
         _cap: &dyn CreatePortTableCapability,
         used_kernel_ports: &'static mut [Option<SocketBindingEntry>],
-        udp_vis: &'static dyn UdpVisibilityCapability,
+        udp_vis: &'static UdpVisibilityCapability,
     ) -> UdpPortManager {
         UdpPortManager {
             port_array: TakeCell::new(used_kernel_ports),

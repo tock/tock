@@ -33,6 +33,7 @@ use capsules::net::ipv6::ipv6::{IP6Packet, IPPayload, TransportHeader};
 use capsules::net::ipv6::ipv6_recv::IP6Receiver;
 use capsules::net::ipv6::ipv6_send::IP6SendStruct;
 use capsules::net::ipv6::ipv6_send::IP6Sender;
+use capsules::net::network_capabilities::{IpVisibilityCapability, UdpVisibilityCapability};
 use capsules::net::sixlowpan::{sixlowpan_compression, sixlowpan_state};
 use capsules::net::udp::udp::UDPHeader;
 use capsules::net::udp::udp_port_table::{SocketBindingEntry, UdpPortManager, MAX_NUM_BOUND_PORTS};
@@ -41,9 +42,8 @@ use capsules::net::udp::udp_send::MuxUdpSender;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use kernel;
 use kernel::capabilities;
-use kernel::capabilities::{IpVisibilityCapability, UdpVisibilityCapability};
 use kernel::component::Component;
-use kernel::{create_capability, create_static_capability};
+use kernel::create_capability;
 use kernel::hil::radio;
 use kernel::hil::time::Alarm;
 use kernel::static_init;
@@ -132,10 +132,11 @@ impl Component for UDPMuxComponent {
             capsules::ieee802154::virtual_mac::MacUser::new(self.mux_mac)
         );
         self.mux_mac.add_user(udp_mac);
-        let udp_vis = create_static_capability!(UdpVisibilityCapability);
-        let ip_vis = create_static_capability!(IpVisibilityCapability);
-
-
+        let create_cap = create_capability!(capabilities::NetworkCapabilityCreationCapability);
+        let udp_vis = static_init!(UdpVisibilityCapability,
+            UdpVisibilityCapability::new(&create_cap));
+        let ip_vis = static_init!(IpVisibilityCapability,
+            IpVisibilityCapability::new(&create_cap));
 
         let sixlowpan = static_init!(
             sixlowpan_state::Sixlowpan<

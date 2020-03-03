@@ -26,18 +26,19 @@
 use capsules;
 use capsules::net::ipv6::ip_utils::IPAddr;
 use capsules::net::ipv6::ipv6_send::IP6SendStruct;
-use capsules::net::network_capabilities::{NetworkCapability, PortRange, AddrRange};
+use capsules::net::network_capabilities::{NetworkCapability, PortRange,
+    AddrRange, UdpVisibilityCapability};
 use capsules::net::udp::udp_port_table::UdpPortManager;
 use capsules::net::udp::udp_recv::MuxUdpReceiver;
 use capsules::net::udp::udp_recv::UDPReceiver;
 use capsules::net::udp::udp_send::{MuxUdpSender, UDPSendStruct, UDPSender};
 use capsules::virtual_alarm::VirtualMuxAlarm;
 
-use kernel::{create_capability, create_static_capability, static_init};
+use kernel::{create_capability, static_init};
 
 use kernel;
 use kernel::capabilities;
-use kernel::capabilities::{UdpVisibilityCapability, NetworkCapabilityCreationCapability};
+use kernel::capabilities::NetworkCapabilityCreationCapability;
 use kernel::component::Component;
 use sam4l;
 
@@ -84,7 +85,10 @@ impl Component for UDPDriverComponent {
 
     unsafe fn finalize(&mut self, _s: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
-        let udp_vis = create_static_capability!(UdpVisibilityCapability);
+        // TODO: change initialization below
+        let create_cap = create_capability!(NetworkCapabilityCreationCapability);
+        let udp_vis = static_init!(UdpVisibilityCapability,
+            UdpVisibilityCapability::new(&create_cap));
         let udp_send = static_init!(
             UDPSendStruct<
                 'static,
@@ -95,24 +99,17 @@ impl Component for UDPDriverComponent {
             >,
             UDPSendStruct::new(self.udp_send_mux, udp_vis)
         );
+
         // Can't use create_capability bc need capability to have a static lifetime
         // so that UDP driver can use it as needed
-        // struct DriverCap;
-        // unsafe impl capabilities::UdpDriverCapability for DriverCap {}
-        // static DRIVER_CAP: DriverCap = DriverCap;
-        let driver_cap = create_static_capability!(capabilities::UdpDriverCapability);
-
-        // struct NetworkCapabilityCreationCapabilityStruct;
-        // unsafe impl NetworkCapabilityCreationCapability for NetworkCapabilityCreationCapabilityStruct {}
-        // static mut CREATE_CAP: NetworkCapabilityCreationCapabilityStruct = NetworkCapabilityCreationCapabilityStruct;
-        let create_cap = create_static_capability!(NetworkCapabilityCreationCapability);
-
-
+        struct DriverCap;
+        unsafe impl capabilities::UdpDriverCapability for DriverCap {}
+        static DRIVER_CAP: DriverCap = DriverCap;
 
         let net_cap = static_init!(
             NetworkCapability,
-            NetworkCapability::new(AddrRange::Any, PortRange::Any, PortRange::Any, create_cap)
-        );
+            NetworkCapability::new(AddrRange::Any, PortRange::Any, PortRange::Any,
+                &create_cap));
 
         let udp_driver = static_init!(
             capsules::net::udp::UDPDriver<'static>,
@@ -123,12 +120,12 @@ impl Component for UDPDriverComponent {
                 PAYLOAD_LEN,
                 self.port_table,
                 kernel::common::leasable_buffer::LeasableBuffer::new(&mut DRIVER_BUF),
-                driver_cap,
+                &DRIVER_CAP,
                 net_cap,
             )
         );
         udp_send.set_client(udp_driver);
-        self.port_table.set_user_ports(udp_driver, driver_cap);
+        self.port_table.set_user_ports(udp_driver, &DRIVER_CAP);
 
         let udp_driver_rcvr = static_init!(UDPReceiver<'static>, UDPReceiver::new());
         self.udp_recv_mux.set_driver(udp_driver);

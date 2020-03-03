@@ -18,12 +18,11 @@
 use crate::net::ipv6::ip_utils::IPAddr;
 use crate::net::ipv6::ipv6::TransportHeader;
 use crate::net::ipv6::ipv6_send::{IP6SendClient, IP6Sender};
-use crate::net::network_capabilities::NetworkCapability;
+use crate::net::network_capabilities::{NetworkCapability, UdpVisibilityCapability};
 use crate::net::udp::udp::UDPHeader;
 use crate::net::udp::udp_port_table::UdpPortBindingTx;
 use core::cell::Cell;
 use kernel::capabilities::UdpDriverCapability;
-use kernel::capabilities::UdpVisibilityCapability;
 use kernel::common::cells::{MapCell, OptionalCell};
 use kernel::common::leasable_buffer::LeasableBuffer;
 use kernel::common::{List, ListLink, ListNode};
@@ -247,7 +246,7 @@ pub struct UDPSendStruct<'a, T: IP6Sender<'a>> {
     next_dest: Cell<IPAddr>,
     next_th: OptionalCell<TransportHeader>,
     binding: MapCell<UdpPortBindingTx>,
-    udp_vis: &'static dyn UdpVisibilityCapability,
+    udp_vis: &'static UdpVisibilityCapability,
 }
 
 impl<'a, T: IP6Sender<'a>> ListNode<'a, UDPSendStruct<'a, T>> for UDPSendStruct<'a, T> {
@@ -343,7 +342,7 @@ impl<T: IP6Sender<'a>> UDPSender<'a> for UDPSendStruct<'a, T> {
 impl<T: IP6Sender<'a>> UDPSendStruct<'a, T> {
     pub fn new(
         udp_mux_sender: &'a MuxUdpSender<'a, T>, /*binding: UdpPortBindingTx*/
-        udp_vis: &'static dyn UdpVisibilityCapability,
+        udp_vis: &'static UdpVisibilityCapability,
     ) -> UDPSendStruct<'a, T> {
         UDPSendStruct {
             udp_mux_sender: udp_mux_sender,

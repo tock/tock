@@ -27,13 +27,12 @@ use capsules::net::ieee802154::MacAddress;
 use capsules::net::ipv6::ip_utils::IPAddr;
 use capsules::net::ipv6::ipv6::{IP6Packet, IPPayload, TransportHeader};
 use capsules::net::ipv6::ipv6_send::{IP6SendStruct, IP6Sender};
-use capsules::net::network_capabilities::NetworkCapability;
+use capsules::net::network_capabilities::{IpVisibilityCapability, NetworkCapability};
 use capsules::net::sixlowpan::sixlowpan_compression;
 use capsules::net::sixlowpan::sixlowpan_state::{Sixlowpan, SixlowpanState, TxState};
 
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use core::cell::Cell;
-use kernel::capabilities::IpVisibilityCapability;
 use kernel::debug;
 use kernel::hil::radio;
 use kernel::hil::time::Frequency;
@@ -75,7 +74,7 @@ pub unsafe fn initialize_all(
     mux_mac: &'static capsules::ieee802154::virtual_mac::MuxMac<'static>,
     mux_alarm: &'static MuxAlarm<'static, sam4l::ast::Ast>,
     net_cap: &'static NetworkCapability,
-    ip_vis: &'static dyn IpVisibilityCapability,
+    ip_vis: &'static IpVisibilityCapability,
 ) -> &'static LowpanICMPTest<
     'static,
     capsules::virtual_alarm::VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>,
