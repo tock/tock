@@ -17,54 +17,20 @@ struct RccRegisters {
     apb1rstr: ReadWrite<u32, APB1RSTR::Register>,
     /// AHB peripheral clock register
     ahbenr: ReadWrite<u32, AHBENR::Register>,
-
-    // /// AHB2 peripheral reset register
-    // ahb2rstr: ReadWrite<u32, AHB2RSTR::Register>,
-    // /// AHB3 peripheral reset register
-    // ahb3rstr: ReadWrite<u32, AHB3RSTR::Register>,
-    // _reserved0: [u8; 4],
-    // /// APB1 peripheral reset register
-    // apb1rstr: ReadWrite<u32, APB1RSTR::Register>,
-    // _reserved1: [u8; 8],
-    // /// AHB2 peripheral clock enable register
-    // ahb2enr: ReadWrite<u32, AHB2ENR::Register>,
-    // /// AHB3 peripheral clock enable register
-    // ahb3enr: ReadWrite<u32, AHB3ENR::Register>,
-    // _reserved2: [u8; 4],
-    // /// APB1 peripheral clock enable register
-    // apb1enr: ReadWrite<u32, APB1ENR::Register>,
-    // /// APB2 peripheral clock enable register
-    // apb2enr: ReadWrite<u32, APB2ENR::Register>,
-    // _reserved3: [u8; 8],
-    // /// AHB1 peripheral clock enable in low power mode register
-    // ahb1lpenr: ReadWrite<u32, AHB1LPENR::Register>,
-    // /// AHB2 peripheral clock enable in low power mode register
-    // ahb2lpenr: ReadWrite<u32, AHB2LPENR::Register>,
-    // /// AHB3 peripheral clock enable in low power mode register
-    // ahb3lpenr: ReadWrite<u32, AHB3LPENR::Register>,
-    // _reserved4: [u8; 4],
-    // /// APB1 peripheral clock enable in low power mode register
-    // apb1lpenr: ReadWrite<u32, APB1LPENR::Register>,
-    // /// APB2 peripheral clock enabled in low power mode register
-    // apb2lpenr: ReadWrite<u32, APB2LPENR::Register>,
-    // _reserved5: [u8; 8],
-    // /// Backup domain control register
-    // bdcr: ReadWrite<u32, BDCR::Register>,
-    // /// clock control & status register
-    // csr: ReadWrite<u32, CSR::Register>,
-    // _reserved6: [u8; 8],
-    // /// spread spectrum clock generation register
-    // sscgr: ReadWrite<u32, SSCGR::Register>,
-    // /// PLLI2S configuration register
-    // plli2scfgr: ReadWrite<u32, PLLI2SCFGR::Register>,
-    // /// PLL configuration register
-    // pllsaicfgr: ReadWrite<u32, PLLSAICFGR::Register>,
-    // /// Dedicated Clock Configuration Register
-    // dckcfgr: ReadWrite<u32, DCKCFGR::Register>,
-    // /// clocks gated enable register
-    // ckgatenr: ReadWrite<u32, CKGATENR::Register>,
-    // /// dedicated clocks configuration register 2
-    // dckcfgr2: ReadWrite<u32, DCKCFGR2::Register>,
+    /// APB2 peripheral clock enable register
+    apb2enr: ReadWrite<u32, APB2ENR::Register>,
+    /// APB1 peripheral clock enable register
+    apb1enr: ReadWrite<u32, APB1ENR::Register>,
+    /// Backup domain control register
+    bdcr: ReadWrite<u32, BDCR::Register>,
+    /// clock control & status register
+    csr: ReadWrite<u32, CSR::Register>,
+    /// AHB peripheral reset register
+    ahbrstr: ReadWrite<u32, AHBRSTR::Register>,
+    /// clocks configuration register 2
+    cfgr2: ReadWrite<u32, CFGR2::Register>,
+    /// clocks configuration register 3
+    cfgr3: ReadWrite<u32, CFGR3::Register>,
 }
 
 register_bitfields![u32,
@@ -262,400 +228,166 @@ register_bitfields![u32,
         DMA2EN OFFSET(1) NUMBITS(1) [],
         /// DMA1 clock enable
         DMA1EN OFFSET(0) NUMBITS(1) []
+    ],
+    APB2ENR [
+        /// TIM20 clock enable
+        TIM20EN OFFSET(20) NUMBITS(1) [],
+        /// TIM17 clock enable
+        TIM17EN OFFSET(18) NUMBITS(1) [],
+        /// TIM16 clock enable
+        TIM16EN OFFSET(17) NUMBITS(1) [],
+        /// TIM15 clock enable
+        TIM15EN OFFSET(16) NUMBITS(1) [],
+        /// SPI4 clock enable
+        SPI4EN OFFSET(15) NUMBITS(1) [],
+        /// USART1 clock enable
+        USART1EN OFFSET(14) NUMBITS(1) [],
+        /// TIM8 clock enable
+        TIM8EN OFFSET(13) NUMBITS(1) [],
+        /// SPI1 clock enable
+        SPI1EN OFFSET(12) NUMBITS(1) [],
+        /// TIM1 clock enable
+        TIM1EN OFFSET(11) NUMBITS(1) [],
+        /// SYSCFG clock enable
+        SYSCFGEN OFFSET(0) NUMBITS(1) []
+    ],
+    APB1ENR [
+        /// TIM2 clock enable
+        TIM2EN OFFSET(0) NUMBITS(1) [],
+        /// TIM3 clock enable
+        TIM3EN OFFSET(1) NUMBITS(1) [],
+        /// TIM4 clock enable
+        TIM4EN OFFSET(2) NUMBITS(1) [],
+        /// TIM6 clock enable
+        TIM6EN OFFSET(4) NUMBITS(1) [],
+        /// TIM7 clock enable
+        TIM7EN OFFSET(5) NUMBITS(1) [],
+        /// Window watchdog clock enable
+        WWDGEN OFFSET(11) NUMBITS(1) [],
+        /// SPI2 clock enable
+        SPI2EN OFFSET(14) NUMBITS(1) [],
+        /// SPI3 clock enable
+        SPI3EN OFFSET(15) NUMBITS(1) [],
+        /// USART 2 clock enable
+        USART2EN OFFSET(17) NUMBITS(1) [],
+        /// USART3 clock enable
+        USART3EN OFFSET(18) NUMBITS(1) [],
+        /// UART4 clock enable
+        UART4EN OFFSET(19) NUMBITS(1) [],
+        /// UART5 clock enable
+        UART5EN OFFSET(20) NUMBITS(1) [],
+        /// I2C1 clock enable
+        I2C1EN OFFSET(21) NUMBITS(1) [],
+        /// I2C2 clock enable
+        I2C2EN OFFSET(22) NUMBITS(1) [],
+        /// USB clock enable
+        #[cfg(feature = "stm32f303vct6")]
+        USBEN OFFSET(23) NUMBITS(1) [],
+        /// I2CFMP1 clock enable
+        I2CFMP1EN OFFSET(24) NUMBITS(1) [],
+        /// CAN clock enable
+        CANEN OFFSET(25) NUMBITS(1) [],
+        /// DAC 2 clock enable
+        DAC2EN OFFSET(26) NUMBITS(1) [],
+        /// Power interface clock enable
+        PWREN OFFSET(28) NUMBITS(1) [],
+        /// DAC 1 clock enable
+        DAC1EN OFFSET(29) NUMBITS(1) [],
+        /// I2C 3 interface clock enable
+        I2C3EN OFFSET(30) NUMBITS(1) []
+    ],
+    BDCR [
+        /// Backup domain software reset
+        BDRST OFFSET(16) NUMBITS(1) [],
+        /// RTC clock enable
+        RTCEN OFFSET(15) NUMBITS(1) [],
+        /// RTC clock source selection
+        RTCSEL OFFSET(8) NUMBITS(2) [],
+        /// External low-speed oscillator mode
+        LSEDRV OFFSET(3) NUMBITS(2) [],
+        /// External low-speed oscillator bypass
+        LSEBYP OFFSET(2) NUMBITS(1) [],
+        /// External low-speed oscillator ready
+        LSERDY OFFSET(1) NUMBITS(1) [],
+        /// External low-speed oscillator enable
+        LSEON OFFSET(0) NUMBITS(1) []
+    ],
+    CSR [
+        /// Low-power reset flag
+        LPWRRSTF OFFSET(31) NUMBITS(1) [],
+        /// Window watchdog reset flag
+        WWDGRSTF OFFSET(30) NUMBITS(1) [],
+        /// Independent watchdog reset flag
+        IWDGRSTF OFFSET(29) NUMBITS(1) [],
+        /// Software reset flag
+        SFTRSTF OFFSET(28) NUMBITS(1) [],
+        /// POR/PDR reset flag
+        PORRSTF OFFSET(27) NUMBITS(1) [],
+        /// PIN reset flag
+        PINRSTF OFFSET(26) NUMBITS(1) [],
+        /// Option byte loader reset flag
+        OBLRSTF OFFSET(25) NUMBITS(1) [],
+        /// Remove reset flag
+        RMVF OFFSET(24) NUMBITS(1) [],
+        /// Reset flag of the 1.8 V domain
+        V18PWRRSTF OFFSET(23) NUMBITS(1) [],
+        /// Internal low-speed oscillator ready
+        LSIRDY OFFSET(1) NUMBITS(1) [],
+        /// Internal low-speed oscillator enable
+        LSION OFFSET(0) NUMBITS(1) []
+    ],
+    AHBRSTR [
+        /// ADC3 and ADC4
+        #[cfg(feature = "stm32f303vct6")]
+        ADC34RST OFFSET(29) NUMBITS(1) [],
+        /// ADC1 and ADC2 reset
+        ADC12RST OFFSET(28) NUMBITS(1) [],
+        /// Touch sensing controller reset
+        TSCRST OFFSET(24) NUMBITS(1) [],
+        /// IO port F reset
+        IOPFRST OFFSET(22) NUMBITS(1) [],
+        /// IO port E reset
+        IOPERST OFFSET(21) NUMBITS(1) [],
+        /// IO port D reset
+        IOPDRST OFFSET(20) NUMBITS(1) [],
+        /// IO port C reset
+        IOPCRST OFFSET(19) NUMBITS(1) [],
+        /// IO port B reset
+        IOPBRST OFFSET(18) NUMBITS(1) [],
+        /// IO port A reset
+        IOPARST OFFSET(17) NUMBITS(1) []
+    ],
+    CFGR2 [
+        /// ADC34 prescaler
+        #[cfg(feature = "stm32f303vct6")]
+        ADC34PRES OFFSET(9) NUMBITS(5) [],
+        /// ADC12 prescaler
+        ADC12PRES OFFSET(4) NUMBITS(5) [],
+        /// PREDIV division factor
+        PREDIV OFFSET(0) NUMBITS(4) []
+    ],
+    CFGR3 [
+        /// USART5 clock source selection
+        #[cfg(feature = "stm32f303vct6")]
+        USART5SW OFFSET(22) NUMBITS(2) [],
+        /// USART4 clock source selection
+        #[cfg(feature = "stm32f303vct6")]
+        USART4SW OFFSET(20) NUMBITS(2) [],
+        /// USART2 clock source selection
+        USART2SW OFFSET(16) NUMBITS(2) [],
+        /// Timer8 clock source selection
+        #[cfg(feature = "stm32f303vct6")]
+        TIM8SW OFFSET(9) NUMBITS(1) [],
+        /// Timer1 clock source selection
+        TIM1SW OFFSET(8) NUMBITS(1) [],
+        /// I2C2 clock source selection
+        #[cfg(feature = "stm32f303vct6")]
+        I2C2SW OFFSET(5) NUMBITS(1) [],
+        /// I2C1 clock source selection
+        I2C1SW OFFSET(4) NUMBITS(1) [],
+        /// USART1 clock source selection
+        USART1SW OFFSET(0) NUMBITS(2) []
     ]
-
-
-    // AHB1RSTR [
-    //     /// USB OTG HS module reset
-    //     OTGHSRST OFFSET(29) NUMBITS(1) [],
-    //     /// DMA2 reset
-    //     DMA2RST OFFSET(22) NUMBITS(1) [],
-    //     /// DMA2 reset
-    //     DMA1RST OFFSET(21) NUMBITS(1) [],
-    //     /// CRC reset
-    //     CRCRST OFFSET(12) NUMBITS(1) [],
-    //     /// IO port H reset
-    //     GPIOHRST OFFSET(7) NUMBITS(1) [],
-    //     /// IO port G reset
-    //     GPIOGRST OFFSET(6) NUMBITS(1) [],
-    //     /// IO port F reset
-    //     GPIOFRST OFFSET(5) NUMBITS(1) [],
-    //     /// IO port E reset
-    //     GPIOERST OFFSET(4) NUMBITS(1) [],
-    //     /// IO port D reset
-    //     GPIODRST OFFSET(3) NUMBITS(1) [],
-    //     /// IO port C reset
-    //     GPIOCRST OFFSET(2) NUMBITS(1) [],
-    //     /// IO port B reset
-    //     GPIOBRST OFFSET(1) NUMBITS(1) [],
-    //     /// IO port A reset
-    //     GPIOARST OFFSET(0) NUMBITS(1) []
-    // ],
-    // AHB2RSTR [
-    //     /// USB OTG FS module reset
-    //     OTGFSRST OFFSET(7) NUMBITS(1) [],
-    //     /// Camera interface reset
-    //     DCMIRST OFFSET(0) NUMBITS(1) []
-    // ],
-    // AHB3RSTR [
-    //     /// Flexible memory controller module reset
-    //     FMCRST OFFSET(0) NUMBITS(1) [],
-    //     /// QUADSPI module reset
-    //     QSPIRST OFFSET(1) NUMBITS(1) []
-    // ],
-    
-    
-    
-    // AHB2ENR [
-    //     /// USB OTG FS clock enable
-    //     OTGFSEN OFFSET(7) NUMBITS(1) [],
-    //     /// Camera interface enable
-    //     DCMIEN OFFSET(0) NUMBITS(1) []
-    // ],
-    // AHB3ENR [
-    //     /// Flexible memory controller module clock enable
-    //     FMCEN OFFSET(0) NUMBITS(1) [],
-    //     /// QUADSPI memory controller module clock enable
-    //     QSPIEN OFFSET(1) NUMBITS(1) []
-    // ],
-    // APB1ENR [
-    //     /// TIM2 clock enable
-    //     TIM2EN OFFSET(0) NUMBITS(1) [],
-    //     /// TIM3 clock enable
-    //     TIM3EN OFFSET(1) NUMBITS(1) [],
-    //     /// TIM4 clock enable
-    //     TIM4EN OFFSET(2) NUMBITS(1) [],
-    //     /// TIM5 clock enable
-    //     TIM5EN OFFSET(3) NUMBITS(1) [],
-    //     /// TIM6 clock enable
-    //     TIM6EN OFFSET(4) NUMBITS(1) [],
-    //     /// TIM7 clock enable
-    //     TIM7EN OFFSET(5) NUMBITS(1) [],
-    //     /// TIM12 clock enable
-    //     TIM12EN OFFSET(6) NUMBITS(1) [],
-    //     /// TIM13 clock enable
-    //     TIM13EN OFFSET(7) NUMBITS(1) [],
-    //     /// TIM14 clock enable
-    //     TIM14EN OFFSET(8) NUMBITS(1) [],
-    //     /// Window watchdog clock enable
-    //     WWDGEN OFFSET(11) NUMBITS(1) [],
-    //     /// SPI2 clock enable
-    //     SPI2EN OFFSET(14) NUMBITS(1) [],
-    //     /// SPI3 clock enable
-    //     SPI3EN OFFSET(15) NUMBITS(1) [],
-    //     /// SPDIF-IN clock enable
-    //     SPDIFEN OFFSET(16) NUMBITS(1) [],
-    //     /// USART 2 clock enable
-    //     USART2EN OFFSET(17) NUMBITS(1) [],
-    //     /// USART3 clock enable
-    //     USART3EN OFFSET(18) NUMBITS(1) [],
-    //     /// UART4 clock enable
-    //     UART4EN OFFSET(19) NUMBITS(1) [],
-    //     /// UART5 clock enable
-    //     UART5EN OFFSET(20) NUMBITS(1) [],
-    //     /// I2C1 clock enable
-    //     I2C1EN OFFSET(21) NUMBITS(1) [],
-    //     /// I2C2 clock enable
-    //     I2C2EN OFFSET(22) NUMBITS(1) [],
-    //     /// I2C3 clock enable
-    //     I2C3EN OFFSET(23) NUMBITS(1) [],
-    //     /// I2CFMP1 clock enable
-    //     I2CFMP1EN OFFSET(24) NUMBITS(1) [],
-    //     /// CAN 1 clock enable
-    //     CAN1EN OFFSET(25) NUMBITS(1) [],
-    //     /// CAN 2 clock enable
-    //     CAN2EN OFFSET(26) NUMBITS(1) [],
-    //     /// CEC interface clock enable
-    //     CEC OFFSET(27) NUMBITS(1) [],
-    //     /// Power interface clock enable
-    //     PWREN OFFSET(28) NUMBITS(1) [],
-    //     /// DAC interface clock enable
-    //     DACEN OFFSET(29) NUMBITS(1) []
-    // ],
-    // APB2ENR [
-    //     /// TIM1 clock enable
-    //     TIM1EN OFFSET(0) NUMBITS(1) [],
-    //     /// TIM8 clock enable
-    //     TIM8EN OFFSET(1) NUMBITS(1) [],
-    //     /// USART1 clock enable
-    //     USART1EN OFFSET(4) NUMBITS(1) [],
-    //     /// USART6 clock enable
-    //     USART6EN OFFSET(5) NUMBITS(1) [],
-    //     /// ADC1 clock enable
-    //     ADC1EN OFFSET(8) NUMBITS(1) [],
-    //     /// ADC2 clock enable
-    //     ADC2EN OFFSET(9) NUMBITS(1) [],
-    //     /// ADC3 clock enable
-    //     ADC3EN OFFSET(10) NUMBITS(1) [],
-    //     /// SDIO clock enable
-    //     SDIOEN OFFSET(11) NUMBITS(1) [],
-    //     /// SPI1 clock enable
-    //     SPI1EN OFFSET(12) NUMBITS(1) [],
-    //     /// SPI4 clock enable
-    //     SPI4ENR OFFSET(13) NUMBITS(1) [],
-    //     /// System configuration controller clock enable
-    //     SYSCFGEN OFFSET(14) NUMBITS(1) [],
-    //     /// TIM9 clock enable
-    //     TIM9EN OFFSET(16) NUMBITS(1) [],
-    //     /// TIM10 clock enable
-    //     TIM10EN OFFSET(17) NUMBITS(1) [],
-    //     /// TIM11 clock enable
-    //     TIM11EN OFFSET(18) NUMBITS(1) [],
-    //     /// SAI1 clock enable
-    //     SAI1EN OFFSET(22) NUMBITS(1) [],
-    //     /// SAI2 clock enable
-    //     SAI2EN OFFSET(23) NUMBITS(1) []
-    // ],
-    // AHB1LPENR [
-    //     /// IO port A clock enable during sleep mode
-    //     GPIOALPEN OFFSET(0) NUMBITS(1) [],
-    //     /// IO port B clock enable during Sleep mode
-    //     GPIOBLPEN OFFSET(1) NUMBITS(1) [],
-    //     /// IO port C clock enable during Sleep mode
-    //     GPIOCLPEN OFFSET(2) NUMBITS(1) [],
-    //     /// IO port D clock enable during Sleep mode
-    //     GPIODLPEN OFFSET(3) NUMBITS(1) [],
-    //     /// IO port E clock enable during Sleep mode
-    //     GPIOELPEN OFFSET(4) NUMBITS(1) [],
-    //     /// IO port F clock enable during Sleep mode
-    //     GPIOFLPEN OFFSET(5) NUMBITS(1) [],
-    //     /// IO port G clock enable during Sleep mode
-    //     GPIOGLPEN OFFSET(6) NUMBITS(1) [],
-    //     /// IO port H clock enable during Sleep mode
-    //     GPIOHLPEN OFFSET(7) NUMBITS(1) [],
-    //     /// CRC clock enable during Sleep mode
-    //     CRCLPEN OFFSET(12) NUMBITS(1) [],
-    //     /// Flash interface clock enable during Sleep mode
-    //     FLITFLPEN OFFSET(15) NUMBITS(1) [],
-    //     /// SRAM 1interface clock enable during Sleep mode
-    //     SRAM1LPEN OFFSET(16) NUMBITS(1) [],
-    //     /// SRAM 2 interface clock enable during Sleep mode
-    //     SRAM2LPEN OFFSET(17) NUMBITS(1) [],
-    //     /// Backup SRAM interface clock enable during Sleep mode
-    //     BKPSRAMLPEN OFFSET(18) NUMBITS(1) [],
-    //     /// DMA1 clock enable during Sleep mode
-    //     DMA1LPEN OFFSET(21) NUMBITS(1) [],
-    //     /// DMA2 clock enable during Sleep mode
-    //     DMA2LPEN OFFSET(22) NUMBITS(1) [],
-    //     /// USB OTG HS clock enable during Sleep mode
-    //     OTGHSLPEN OFFSET(29) NUMBITS(1) [],
-    //     /// USB OTG HS ULPI clock enable during Sleep mode
-    //     OTGHSULPILPEN OFFSET(30) NUMBITS(1) []
-    // ],
-    // AHB2LPENR [
-    //     /// USB OTG FS clock enable during Sleep mode
-    //     OTGFSLPEN OFFSET(7) NUMBITS(1) [],
-    //     /// Camera interface enable during Sleep mode
-    //     DCMILPEN OFFSET(0) NUMBITS(1) []
-    // ],
-    // AHB3LPENR [
-    //     /// Flexible memory controller module clock enable during Sleep mode
-    //     FMCLPEN OFFSET(0) NUMBITS(1) [],
-    //     /// QUADSPI memory controller module clock enable during Sleep mode
-    //     QSPILPEN OFFSET(1) NUMBITS(1) []
-    // ],
-    // APB1LPENR [
-    //     /// TIM2 clock enable during Sleep mode
-    //     TIM2LPEN OFFSET(0) NUMBITS(1) [],
-    //     /// TIM3 clock enable during Sleep mode
-    //     TIM3LPEN OFFSET(1) NUMBITS(1) [],
-    //     /// TIM4 clock enable during Sleep mode
-    //     TIM4LPEN OFFSET(2) NUMBITS(1) [],
-    //     /// TIM5 clock enable during Sleep mode
-    //     TIM5LPEN OFFSET(3) NUMBITS(1) [],
-    //     /// TIM6 clock enable during Sleep mode
-    //     TIM6LPEN OFFSET(4) NUMBITS(1) [],
-    //     /// TIM7 clock enable during Sleep mode
-    //     TIM7LPEN OFFSET(5) NUMBITS(1) [],
-    //     /// TIM12 clock enable during Sleep mode
-    //     TIM12LPEN OFFSET(6) NUMBITS(1) [],
-    //     /// TIM13 clock enable during Sleep mode
-    //     TIM13LPEN OFFSET(7) NUMBITS(1) [],
-    //     /// TIM14 clock enable during Sleep mode
-    //     TIM14LPEN OFFSET(8) NUMBITS(1) [],
-    //     /// Window watchdog clock enable during Sleep mode
-    //     WWDGLPEN OFFSET(11) NUMBITS(1) [],
-    //     /// SPI2 clock enable during Sleep mode
-    //     SPI2LPEN OFFSET(14) NUMBITS(1) [],
-    //     /// SPI3 clock enable during Sleep mode
-    //     SPI3LPEN OFFSET(15) NUMBITS(1) [],
-    //     /// SPDIF clock enable during Sleep mode
-    //     SPDIFLPEN OFFSET(16) NUMBITS(1) [],
-    //     /// USART2 clock enable during Sleep mode
-    //     USART2LPEN OFFSET(17) NUMBITS(1) [],
-    //     /// USART3 clock enable during Sleep mode
-    //     USART3LPEN OFFSET(18) NUMBITS(1) [],
-    //     /// UART4 clock enable during Sleep mode
-    //     UART4LPEN OFFSET(19) NUMBITS(1) [],
-    //     /// UART5 clock enable during Sleep mode
-    //     UART5LPEN OFFSET(20) NUMBITS(1) [],
-    //     /// I2C1 clock enable during Sleep mode
-    //     I2C1LPEN OFFSET(21) NUMBITS(1) [],
-    //     /// I2C2 clock enable during Sleep mode
-    //     I2C2LPEN OFFSET(22) NUMBITS(1) [],
-    //     /// I2C3 clock enable during Sleep mode
-    //     I2C3LPEN OFFSET(23) NUMBITS(1) [],
-    //     /// I2CFMP1 clock enable during Sleep mode
-    //     I2CFMP1LPEN OFFSET(24) NUMBITS(1) [],
-    //     /// CAN 1 clock enable during Sleep mode
-    //     CAN1LPEN OFFSET(25) NUMBITS(1) [],
-    //     /// CAN 2 clock enable during Sleep mode
-    //     CAN2LPEN OFFSET(26) NUMBITS(1) [],
-    //     /// CEC clock enable during Sleep mode
-    //     CECLPEN OFFSET(27) NUMBITS(1) [],
-    //     /// Power interface clock enable during Sleep mode
-    //     PWRLPEN OFFSET(28) NUMBITS(1) [],
-    //     /// DAC interface clock enable during Sleep mode
-    //     DACLPEN OFFSET(29) NUMBITS(1) []
-    // ],
-    // APB2LPENR [
-    //     /// TIM1 clock enable during Sleep mode
-    //     TIM1LPEN OFFSET(0) NUMBITS(1) [],
-    //     /// TIM8 clock enable during Sleep mode
-    //     TIM8LPEN OFFSET(1) NUMBITS(1) [],
-    //     /// USART1 clock enable during Sleep mode
-    //     USART1LPEN OFFSET(4) NUMBITS(1) [],
-    //     /// USART6 clock enable during Sleep mode
-    //     USART6LPEN OFFSET(5) NUMBITS(1) [],
-    //     /// ADC1 clock enable during Sleep mode
-    //     ADC1LPEN OFFSET(8) NUMBITS(1) [],
-    //     /// ADC2 clock enable during Sleep mode
-    //     ADC2LPEN OFFSET(9) NUMBITS(1) [],
-    //     /// ADC 3 clock enable during Sleep mode
-    //     ADC3LPEN OFFSET(10) NUMBITS(1) [],
-    //     /// SDIO clock enable during Sleep mode
-    //     SDIOLPEN OFFSET(11) NUMBITS(1) [],
-    //     /// SPI 1 clock enable during Sleep mode
-    //     SPI1LPEN OFFSET(12) NUMBITS(1) [],
-    //     /// SPI 4 clock enable during Sleep mode
-    //     SPI4LPEN OFFSET(13) NUMBITS(1) [],
-    //     /// System configuration controller clock enable during Sleep mode
-    //     SYSCFGLPEN OFFSET(14) NUMBITS(1) [],
-    //     /// TIM9 clock enable during sleep mode
-    //     TIM9LPEN OFFSET(16) NUMBITS(1) [],
-    //     /// TIM10 clock enable during Sleep mode
-    //     TIM10LPEN OFFSET(17) NUMBITS(1) [],
-    //     /// TIM11 clock enable during Sleep mode
-    //     TIM11LPEN OFFSET(18) NUMBITS(1) [],
-    //     /// SAI1 clock enable
-    //     SAI1LPEN OFFSET(22) NUMBITS(1) [],
-    //     /// SAI2 clock enable
-    //     SAI2LPEN OFFSET(23) NUMBITS(1) []
-    // ],
-    // BDCR [
-    //     /// Backup domain software reset
-    //     BDRST OFFSET(16) NUMBITS(1) [],
-    //     /// RTC clock enable
-    //     RTCEN OFFSET(15) NUMBITS(1) [],
-    //     /// RTC clock source selection
-    //     RTCSEL OFFSET(8) NUMBITS(2) [],
-    //     /// External low-speed oscillator mode
-    //     LSEMOD OFFSET(3) NUMBITS(1) [],
-    //     /// External low-speed oscillator bypass
-    //     LSEBYP OFFSET(2) NUMBITS(1) [],
-    //     /// External low-speed oscillator ready
-    //     LSERDY OFFSET(1) NUMBITS(1) [],
-    //     /// External low-speed oscillator enable
-    //     LSEON OFFSET(0) NUMBITS(1) []
-    // ],
-    // CSR [
-    //     /// Low-power reset flag
-    //     LPWRRSTF OFFSET(31) NUMBITS(1) [],
-    //     /// Window watchdog reset flag
-    //     WWDGRSTF OFFSET(30) NUMBITS(1) [],
-    //     /// Independent watchdog reset flag
-    //     WDGRSTF OFFSET(29) NUMBITS(1) [],
-    //     /// Software reset flag
-    //     SFTRSTF OFFSET(28) NUMBITS(1) [],
-    //     /// POR/PDR reset flag
-    //     PORRSTF OFFSET(27) NUMBITS(1) [],
-    //     /// PIN reset flag
-    //     PADRSTF OFFSET(26) NUMBITS(1) [],
-    //     /// BOR reset flag
-    //     BORRSTF OFFSET(25) NUMBITS(1) [],
-    //     /// Remove reset flag
-    //     RMVF OFFSET(24) NUMBITS(1) [],
-    //     /// Internal low-speed oscillator ready
-    //     LSIRDY OFFSET(1) NUMBITS(1) [],
-    //     /// Internal low-speed oscillator enable
-    //     LSION OFFSET(0) NUMBITS(1) []
-    // ],
-    // SSCGR [
-    //     /// Spread spectrum modulation enable
-    //     SSCGEN OFFSET(31) NUMBITS(1) [],
-    //     /// Spread Select
-    //     SPREADSEL OFFSET(30) NUMBITS(1) [],
-    //     /// Incrementation step
-    //     INCSTEP OFFSET(13) NUMBITS(15) [],
-    //     /// Modulation period
-    //     MODPER OFFSET(0) NUMBITS(13) []
-    // ],
-    // PLLI2SCFGR [
-    //     /// Division factor for audio PLL (PLLI2S) input clock
-    //     PLLI2SM OFFSET(0) NUMBITS(6) [],
-    //     /// PLLI2S multiplication factor for VCO
-    //     PLLI2SN OFFSET(6) NUMBITS(9) [],
-    //     /// PLLI2S division factor for SPDIF-IN clock
-    //     PLLI2SP OFFSET(16) NUMBITS(2) [],
-    //     /// PLLI2S division factor for SAI1 clock
-    //     PLLI2SQ OFFSET(24) NUMBITS(4) [],
-    //     /// PLLI2S division factor for I2S clocks
-    //     PLLI2SR OFFSET(28) NUMBITS(3) []
-    // ],
-    // PLLSAICFGR [
-    //     /// Division factor for audio PLLSAI input clock
-    //     PLLSAIM OFFSET(0) NUMBITS(6) [],
-    //     /// PLLSAI division factor for VCO
-    //     PLLSAIN OFFSET(6) NUMBITS(9) [],
-    //     /// PLLSAI division factor for 48 MHz clock
-    //     PLLSAIP OFFSET(16) NUMBITS(2) [],
-    //     /// PLLSAI division factor for SAIs clock
-    //     PLLSAIQ OFFSET(24) NUMBITS(4) []
-    // ],
-    // DCKCFGR [
-    //     /// PLLI2S division factor for SAIs clock
-    //     PLLI2SDIVQ OFFSET(0) NUMBITS(5) [],
-    //     /// PLLSAI division factor for SAIs clock
-    //     PLLSAIDIVQ OFFSET(8) NUMBITS(5) [],
-    //     /// SAI1 clock source selection
-    //     SAI1SRC OFFSET(20) NUMBITS(2) [],
-    //     /// SAI2 clock source selection
-    //     SAI2SRC OFFSET(22) NUMBITS(2) [],
-    //     /// Timers clocks prescalers selection
-    //     TIMPRE OFFSET(24) NUMBITS(1) [],
-    //     /// I2S APB1 clock source selection
-    //     I2S1SRC OFFSET(25) NUMBITS(2) [],
-    //     /// I2S APB2 clock source selection
-    //     I2S2SRC OFFSET(27) NUMBITS(2) []
-    // ],
-    // CKGATENR [
-    //     /// AHB to APB1 Bridge clock enable
-    //     AHB2APB1_CKEN OFFSET(0) NUMBITS(1) [],
-    //     /// AHB to APB2 Bridge clock enable
-    //     AHB2APB2_CKEN OFFSET(1) NUMBITS(1) [],
-    //     /// Cortex M4 ETM clock enable
-    //     CM4DBG_CKEN OFFSET(2) NUMBITS(1) [],
-    //     /// Spare clock enable
-    //     SPARE_CKEN OFFSET(3) NUMBITS(1) [],
-    //     /// SRQAM controller clock enable
-    //     SRAM_CKEN OFFSET(4) NUMBITS(1) [],
-    //     /// Flash Interface clock enable
-    //     FLITF_CKEN OFFSET(5) NUMBITS(1) [],
-    //     /// RCC clock enable
-    //     RCC_CKEN OFFSET(6) NUMBITS(1) []
-    // ],
-    // DCKCFGR2 [
-    //     /// I2C4 kernel clock source selection
-    //     FMPI2C1SEL OFFSET(22) NUMBITS(2) [],
-    //     /// HDMI CEC clock source selection
-    //     CECSEL OFFSET(26) NUMBITS(1) [],
-    //     /// SDIO/USBFS/HS clock selection
-    //     CK48MSEL OFFSET(27) NUMBITS(1) [],
-    //     /// SDIO clock selection
-    //     SDIOSEL OFFSET(28) NUMBITS(1) [],
-    //     /// SPDIF clock selection
-    //     SPDIFSEL OFFSET(29) NUMBITS(1) []
-    // ]
 ];
 
 const RCC_BASE: StaticRef<RccRegisters> =
@@ -676,59 +408,59 @@ impl Rcc {
 
     // SPI3 clock
 
-    // fn is_enabled_spi3_clock(&self) -> bool {
-    //     self.registers.apb1enr.is_set(APB1ENR::SPI3EN)
-    // }
+    fn is_enabled_spi3_clock(&self) -> bool {
+        self.registers.apb1enr.is_set(APB1ENR::SPI3EN)
+    }
 
-    // fn enable_spi3_clock(&self) {
-    //     self.registers.apb1enr.modify(APB1ENR::SPI3EN::SET)
-    // }
+    fn enable_spi3_clock(&self) {
+        self.registers.apb1enr.modify(APB1ENR::SPI3EN::SET)
+    }
 
-    // fn disable_spi3_clock(&self) {
-    //     self.registers.apb1enr.modify(APB1ENR::SPI3EN::CLEAR)
-    // }
+    fn disable_spi3_clock(&self) {
+        self.registers.apb1enr.modify(APB1ENR::SPI3EN::CLEAR)
+    }
 
     // TIM2 clock
 
-    // fn is_enabled_tim2_clock(&self) -> bool {
-    //     self.registers.apb1enr.is_set(APB1ENR::TIM2EN)
-    // }
+    fn is_enabled_tim2_clock(&self) -> bool {
+        self.registers.apb1enr.is_set(APB1ENR::TIM2EN)
+    }
 
-    // fn enable_tim2_clock(&self) {
-    //     self.registers.apb1enr.modify(APB1ENR::TIM2EN::SET)
-    // }
+    fn enable_tim2_clock(&self) {
+        self.registers.apb1enr.modify(APB1ENR::TIM2EN::SET)
+    }
 
-    // fn disable_tim2_clock(&self) {
-    //     self.registers.apb1enr.modify(APB1ENR::TIM2EN::CLEAR)
-    // }
+    fn disable_tim2_clock(&self) {
+        self.registers.apb1enr.modify(APB1ENR::TIM2EN::CLEAR)
+    }
 
     // SYSCFG clock
 
-    // fn is_enabled_syscfg_clock(&self) -> bool {
-    //     self.registers.apb2enr.is_set(APB2ENR::SYSCFGEN)
-    // }
+    fn is_enabled_syscfg_clock(&self) -> bool {
+        self.registers.apb2enr.is_set(APB2ENR::SYSCFGEN)
+    }
 
-    // fn enable_syscfg_clock(&self) {
-    //     self.registers.apb2enr.modify(APB2ENR::SYSCFGEN::SET)
-    // }
+    fn enable_syscfg_clock(&self) {
+        self.registers.apb2enr.modify(APB2ENR::SYSCFGEN::SET)
+    }
 
-    // fn disable_syscfg_clock(&self) {
-    //     self.registers.apb2enr.modify(APB2ENR::SYSCFGEN::CLEAR)
-    // }
+    fn disable_syscfg_clock(&self) {
+        self.registers.apb2enr.modify(APB2ENR::SYSCFGEN::CLEAR)
+    }
 
     // DMA1 clock
 
-    // fn is_enabled_dma1_clock(&self) -> bool {
-    //     self.registers.ahb1enr.is_set(AHB1ENR::DMA1EN)
-    // }
+    fn is_enabled_dma1_clock(&self) -> bool {
+        self.registers.ahbenr.is_set(AHBENR::DMA1EN)
+    }
 
-    // fn enable_dma1_clock(&self) {
-    //     self.registers.ahb1enr.modify(AHB1ENR::DMA1EN::SET)
-    // }
+    fn enable_dma1_clock(&self) {
+        self.registers.ahbenr.modify(AHBENR::DMA1EN::SET)
+    }
 
-    // fn disable_dma1_clock(&self) {
-    //     self.registers.ahb1enr.modify(AHB1ENR::DMA1EN::CLEAR)
-    // }
+    fn disable_dma1_clock(&self) {
+        self.registers.ahbenr.modify(AHBENR::DMA1EN::CLEAR)
+    }
 
     // GPIOF clock
 
@@ -816,39 +548,38 @@ impl Rcc {
 
     // USART2 clock
 
-    // fn is_enabled_usart2_clock(&self) -> bool {
-    //     self.registers.apb1enr.is_set(APB1ENR::USART2EN)
-    // }
+    fn is_enabled_usart2_clock(&self) -> bool {
+        self.registers.apb1enr.is_set(APB1ENR::USART2EN)
+    }
 
-    // fn enable_usart2_clock(&self) {
-    //     self.registers.apb1enr.modify(APB1ENR::USART2EN::SET)
-    // }
+    fn enable_usart2_clock(&self) {
+        self.registers.apb1enr.modify(APB1ENR::USART2EN::SET)
+    }
 
-    // fn disable_usart2_clock(&self) {
-    //     self.registers.apb1enr.modify(APB1ENR::USART2EN::CLEAR)
-    // }
+    fn disable_usart2_clock(&self) {
+        self.registers.apb1enr.modify(APB1ENR::USART2EN::CLEAR)
+    }
 
     // USART3 clock
 
-    // fn is_enabled_usart3_clock(&self) -> bool {
-    //     self.registers.apb1enr.is_set(APB1ENR::USART3EN)
-    // }
+    fn is_enabled_usart3_clock(&self) -> bool {
+        self.registers.apb1enr.is_set(APB1ENR::USART3EN)
+    }
 
-    // fn enable_usart3_clock(&self) {
-    //     self.registers.apb1enr.modify(APB1ENR::USART3EN::SET)
-    // }
+    fn enable_usart3_clock(&self) {
+        self.registers.apb1enr.modify(APB1ENR::USART3EN::SET)
+    }
 
-    // fn disable_usart3_clock(&self) {
-    //     self.registers.apb1enr.modify(APB1ENR::USART3EN::CLEAR)
-    // }
+    fn disable_usart3_clock(&self) {
+        self.registers.apb1enr.modify(APB1ENR::USART3EN::CLEAR)
+    }
 }
 
 /// Clock sources for CPU
 pub enum CPUClock {
     HSE,
     HSI,
-    LSE,
-    PLLCLK
+    PLLCLK,
 }
 
 /// Bus + Clock name for the peripherals
@@ -861,6 +592,8 @@ pub enum CPUClock {
 /// APB2(PCLK2),
 pub enum PeripheralClock {
     AHB(HCLK),
+    APB2(PCLK2),
+    APB1(PCLK1),
 }
 
 /// Peripherals clocked by HCLK1
@@ -874,17 +607,17 @@ pub enum HCLK {
 }
 
 /// Peripherals clocked by PCLK1
-// pub enum PCLK1 {
-//     TIM2,
-//     USART2,
-//     USART3,
-//     SPI3,
-// }
+pub enum PCLK1 {
+    TIM2,
+    // USART2,
+    // USART3,
+    // SPI3,
+}
 
 /// Peripherals clocked by PCLK2
-// pub enum PCLK2 {
-//     SYSCFG,
-// }
+pub enum PCLK2 {
+    SYSCFG,
+}
 
 impl ClockInterface for PeripheralClock {
     fn is_enabled(&self) -> bool {
@@ -897,15 +630,15 @@ impl ClockInterface for PeripheralClock {
                 HCLK::GPIOB => unsafe { RCC.is_enabled_gpiob_clock() },
                 HCLK::GPIOA => unsafe { RCC.is_enabled_gpioa_clock() },
             },
-            // &PeripheralClock::APB1(ref v) => match v {
-            //     PCLK1::TIM2 => unsafe { RCC.is_enabled_tim2_clock() },
+            &PeripheralClock::APB1(ref v) => match v {
+                PCLK1::TIM2 => unsafe { RCC.is_enabled_tim2_clock() },
             //     PCLK1::USART2 => unsafe { RCC.is_enabled_usart2_clock() },
             //     PCLK1::USART3 => unsafe { RCC.is_enabled_usart3_clock() },
             //     PCLK1::SPI3 => unsafe { RCC.is_enabled_spi3_clock() },
-            // },
-            // &PeripheralClock::APB2(ref v) => match v {
-            //     PCLK2::SYSCFG => unsafe { RCC.is_enabled_syscfg_clock() },
-            // },
+            },
+            &PeripheralClock::APB2(ref v) => match v {
+                PCLK2::SYSCFG => unsafe { RCC.is_enabled_syscfg_clock() },
+            },
         }
     }
 
@@ -931,10 +664,10 @@ impl ClockInterface for PeripheralClock {
                     RCC.enable_gpioa_clock();
                 },
             },
-            // &PeripheralClock::APB1(ref v) => match v {
-            //     PCLK1::TIM2 => unsafe {
-            //         RCC.enable_tim2_clock();
-            //     },
+            &PeripheralClock::APB1(ref v) => match v {
+                PCLK1::TIM2 => unsafe {
+                    RCC.enable_tim2_clock();
+                },
             //     PCLK1::USART2 => unsafe {
             //         RCC.enable_usart2_clock();
             //     },
@@ -944,12 +677,12 @@ impl ClockInterface for PeripheralClock {
             //     PCLK1::SPI3 => unsafe {
             //         RCC.enable_spi3_clock();
             //     },
-            // },
-            // &PeripheralClock::APB2(ref v) => match v {
-            //     PCLK2::SYSCFG => unsafe {
-            //         RCC.enable_syscfg_clock();
-            //     },
-            // },
+            },
+            &PeripheralClock::APB2(ref v) => match v {
+                PCLK2::SYSCFG => unsafe {
+                    RCC.enable_syscfg_clock();
+                },
+            },
         }
     }
 
@@ -973,6 +706,25 @@ impl ClockInterface for PeripheralClock {
                 },
                 HCLK::GPIOA => unsafe {
                     RCC.disable_gpioa_clock();
+                },
+            },
+            &PeripheralClock::APB1(ref v) => match v {
+                PCLK1::TIM2 => unsafe {
+                    RCC.disable_tim2_clock();
+                },
+                // PCLK1::USART2 => unsafe {
+            //         RCC.disable_usart2_clock();
+            //     },
+            //     PCLK1::USART3 => unsafe {
+            //         RCC.disable_usart3_clock();
+            //     },
+            //     PCLK1::SPI3 => unsafe {
+            //         RCC.disable_spi3_clock();
+            //     },
+            },
+            &PeripheralClock::APB2(ref v) => match v {
+                PCLK2::SYSCFG => unsafe {
+                    RCC.disable_syscfg_clock();
                 },
             },
         }

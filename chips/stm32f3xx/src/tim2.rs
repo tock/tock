@@ -56,6 +56,8 @@ struct Tim2Registers {
 
 register_bitfields![u32,
     CR1 [
+        /// UIF status bit remapping
+        UIFREMAP OFFSET(11) NUMBITS(1) [],
         /// Clock division
         CKD OFFSET(8) NUMBITS(2) [],
         /// Auto-reload preload enable

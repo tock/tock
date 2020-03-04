@@ -11,11 +11,12 @@ use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use kernel::capabilities;
 use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::component::Component;
-use kernel::hil::gpio::Output;
 use kernel::hil::gpio::Configure;
+use kernel::hil::gpio::Output;
 use kernel::hil::time::Alarm;
 use kernel::Platform;
 use kernel::{create_capability, debug, static_init};
+use cortex_m_semihosting::hprintln;
 
 /// Support routines for debugging I/O.
 pub mod io;
@@ -26,6 +27,9 @@ mod virtual_uart_rx_test;
 
 // Number of concurrent processes this platform supports.
 const NUM_PROCS: usize = 4;
+
+// Number of LEDs
+const NUM_LEDS: usize = 8;
 
 // Actual memory for holding the active process structures.
 static mut PROCESSES: [Option<&'static dyn kernel::procs::ProcessType>; NUM_PROCS] =
@@ -57,12 +61,12 @@ pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 struct STM32F3Discovery {
     // console: &'static capsules::console::Console<'static>,
     ipc: kernel::ipc::IPC,
-    // led: &'static capsules::led::LED<'static>,
-    // button: &'static capsules::button::Button<'static>,
-    // alarm: &'static capsules::alarm::AlarmDriver<
-    //     'static,
-    //     VirtualMuxAlarm<'static, stm32f4xx::tim2::Tim2<'static>>,
-    // >,
+    led: &'static capsules::led::LED<'static>,
+    button: &'static capsules::button::Button<'static>,
+    alarm: &'static capsules::alarm::AlarmDriver<
+        'static,
+        VirtualMuxAlarm<'static, stm32f3xx::tim2::Tim2<'static>>,
+    >,
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
@@ -73,10 +77,10 @@ impl Platform for STM32F3Discovery {
     {
         match driver_num {
             // capsules::console::DRIVER_NUM => f(Some(self.console)),
-            // capsules::led::DRIVER_NUM => f(Some(self.led)),
-            // capsules::button::DRIVER_NUM => f(Some(self.button)),
-            // capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
-            // kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
+            capsules::led::DRIVER_NUM => f(Some(self.led)),
+            capsules::button::DRIVER_NUM => f(Some(self.button)),
+            capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
+            kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             _ => f(None),
         }
     }
@@ -112,24 +116,25 @@ impl Platform for STM32F3Discovery {
 unsafe fn set_pin_primary_functions() {
     // use stm32f4xx::exti::{LineId, EXTI};
     use stm32f3xx::gpio::{AlternateFunction, Mode, PinId, PortId, PORT};
-    // use stm32f4xx::syscfg::SYSCFG;
+    use stm32f3xx::syscfg::SYSCFG;
 
-    // SYSCFG.enable_clock();
+    SYSCFG.enable_clock();
 
+    PORT[PortId::A as usize].enable_clock();
     PORT[PortId::E as usize].enable_clock();
 
-    PinId::PE14.get_pin().as_ref().map(|pin| {
-        pin.make_output ();
-        pin.set ();
-    });
-
-    // User LD2 is connected to PA05. Configure PA05 as `debug_gpio!(0, ...)`
-    // PinId::PA05.get_pin().as_ref().map(|pin| {
-    //     pin.make_output();
-
-    //     // Configure kernel debug gpios as early as possible
-    //     kernel::debug::assign_gpios(Some(pin), None, None);
+    // PinId::PE14.get_pin().as_ref().map(|pin| {
+    //     pin.make_output ();
+    //     pin.set ();
     // });
+
+    // User LD3 is connected to PE09. Configure PE09 as `debug_gpio!(0, ...)`
+    PinId::PE09.get_pin().as_ref().map(|pin| {
+        pin.make_output();
+
+        // Configure kernel debug gpios as early as possible
+        kernel::debug::assign_gpios(Some(pin), None, None);
+    });
 
     // // pa2 and pa3 (USART2) is connected to ST-LINK virtual COM port
     // PinId::PA02.get_pin().as_ref().map(|pin| {
@@ -160,15 +165,15 @@ unsafe fn set_pin_primary_functions() {
 
 /// Helper function for miscellaneous peripheral functions
 unsafe fn setup_peripherals() {
-    // use stm32f4xx::tim2::TIM2;
+    use stm32f3xx::tim2::TIM2;
 
     // USART2 IRQn is 38
-    cortexm4::nvic::Nvic::new(stm32f3xx::nvic::USART2).enable();
+    // cortexm4::nvic::Nvic::new(stm32f3xx::nvic::USART2).enable();
 
     // TIM2 IRQn is 28
-    // TIM2.enable_clock();
-    // TIM2.start();
-    // cortexm4::nvic::Nvic::new(stm32f4xx::nvic::TIM2).enable();
+    TIM2.enable_clock();
+    TIM2.start();
+    cortexm4::nvic::Nvic::new(stm32f3xx::nvic::TIM2).enable();
 }
 
 /// Reset Handler.
@@ -253,57 +258,87 @@ pub unsafe fn reset_handler() {
 
     // LEDs
 
-    // Clock to Port A is enabled in `set_pin_primary_functions()`
-    // let led_pins = static_init!(
-    //     [(
-    //         &'static dyn kernel::hil::gpio::Pin,
-    //         capsules::led::ActivationMode
-    //     ); 1],
-    //     [(
-    //         stm32f4xx::gpio::PinId::PA05.get_pin().as_ref().unwrap(),
-    //         capsules::led::ActivationMode::ActiveHigh
-    //     )]
-    // );
-    // let led = static_init!(
-    //     capsules::led::LED<'static>,
-    //     capsules::led::LED::new(&led_pins[..])
-    // );
+    // Clock to Port E is enabled in `set_pin_primary_functions()`
+    let led_pins = static_init!(
+        [(
+            &'static dyn kernel::hil::gpio::Pin,
+            capsules::led::ActivationMode
+        ); NUM_LEDS],
+        [
+            (
+                stm32f3xx::gpio::PinId::PE09.get_pin().as_ref().unwrap(),
+                capsules::led::ActivationMode::ActiveHigh
+            ),
+            (
+                stm32f3xx::gpio::PinId::PE08.get_pin().as_ref().unwrap(),
+                capsules::led::ActivationMode::ActiveHigh
+            ),
+            (
+                stm32f3xx::gpio::PinId::PE10.get_pin().as_ref().unwrap(),
+                capsules::led::ActivationMode::ActiveHigh
+            ),
+            (
+                stm32f3xx::gpio::PinId::PE15.get_pin().as_ref().unwrap(),
+                capsules::led::ActivationMode::ActiveHigh
+            ),
+            (
+                stm32f3xx::gpio::PinId::PE11.get_pin().as_ref().unwrap(),
+                capsules::led::ActivationMode::ActiveHigh
+            ),
+            (
+                stm32f3xx::gpio::PinId::PE14.get_pin().as_ref().unwrap(),
+                capsules::led::ActivationMode::ActiveHigh
+            ),
+            (
+                stm32f3xx::gpio::PinId::PE12.get_pin().as_ref().unwrap(),
+                capsules::led::ActivationMode::ActiveHigh
+            ),
+            (
+                stm32f3xx::gpio::PinId::PE13.get_pin().as_ref().unwrap(),
+                capsules::led::ActivationMode::ActiveHigh
+            ),
+        ]
+    );
+    let led = static_init!(
+        capsules::led::LED<'static>,
+        capsules::led::LED::new(&led_pins[..])
+    );
 
     // BUTTONs
-    // let button = components::button::ButtonComponent::new(board_kernel).finalize(
-    //     components::button_component_helper!((
-    //         stm32f4xx::gpio::PinId::PC13.get_pin().as_ref().unwrap(),
-    //         capsules::button::GpioMode::LowWhenPressed,
-    //         kernel::hil::gpio::FloatingState::PullNone
-    //     )),
-    // );
+    let button = components::button::ButtonComponent::new(board_kernel).finalize(
+        components::button_component_helper!((
+            stm32f3xx::gpio::PinId::PA00.get_pin().as_ref().unwrap(),
+            capsules::button::GpioMode::LowWhenPressed,
+            kernel::hil::gpio::FloatingState::PullNone
+        )),
+    );
 
     // ALARM
-    // let mux_alarm = static_init!(
-    //     MuxAlarm<'static, stm32f4xx::tim2::Tim2>,
-    //     MuxAlarm::new(&stm32f4xx::tim2::TIM2)
-    // );
-    // stm32f4xx::tim2::TIM2.set_client(mux_alarm);
+    let mux_alarm = static_init!(
+        MuxAlarm<'static, stm32f3xx::tim2::Tim2>,
+        MuxAlarm::new(&stm32f3xx::tim2::TIM2)
+    );
+    stm32f3xx::tim2::TIM2.set_client(mux_alarm);
 
-    // let virtual_alarm = static_init!(
-    //     VirtualMuxAlarm<'static, stm32f4xx::tim2::Tim2>,
-    //     VirtualMuxAlarm::new(mux_alarm)
-    // );
-    // let alarm = static_init!(
-    //     capsules::alarm::AlarmDriver<'static, VirtualMuxAlarm<'static, stm32f4xx::tim2::Tim2>>,
-    //     capsules::alarm::AlarmDriver::new(
-    //         virtual_alarm,
-    //         board_kernel.create_grant(&memory_allocation_capability)
-    //     )
-    // );
-    // virtual_alarm.set_client(alarm);
+    let virtual_alarm = static_init!(
+        VirtualMuxAlarm<'static, stm32f3xx::tim2::Tim2>,
+        VirtualMuxAlarm::new(mux_alarm)
+    );
+    let alarm = static_init!(
+        capsules::alarm::AlarmDriver<'static, VirtualMuxAlarm<'static, stm32f3xx::tim2::Tim2>>,
+        capsules::alarm::AlarmDriver::new(
+            virtual_alarm,
+            board_kernel.create_grant(&memory_allocation_capability)
+        )
+    );
+    virtual_alarm.set_client(alarm);
 
     let stm32f3discovery = STM32F3Discovery {
         // console: console,
         ipc: kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability),
-        // led: led,
-        // button: button,
-        // alarm: alarm,
+        led: led,
+        button: button,
+        alarm: alarm,
     };
 
     // // Optional kernel tests
@@ -311,7 +346,8 @@ pub unsafe fn reset_handler() {
     // // See comment in `boards/imix/src/main.rs`
     // virtual_uart_rx_test::run_virtual_uart_receive(mux_uart);
 
-    debug!("Initialization complete. Entering main loop");
+    hprintln!("Initialization complete. Entering main loop").unwrap ();
+    // debug!("Initialization complete. Entering main loop");
 
     extern "C" {
         /// Beginning of the ROM region containing app images.

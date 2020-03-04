@@ -95,7 +95,7 @@ register_bitfields![u32,
 ];
 
 const SYSCFG_BASE: StaticRef<SyscfgRegisters> =
-    unsafe { StaticRef::new(0x40013800 as *const SyscfgRegisters) };
+    unsafe { StaticRef::new(0x40010000 as *const SyscfgRegisters) };
 
 /// SYSCFG EXTI configuration [^1]
 ///
