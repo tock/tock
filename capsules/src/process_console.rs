@@ -15,8 +15,12 @@
 //!
 //! ### `list` Command Fields:
 //!
+//! - `PID`: The identifier for the process. This can change if the process
+//!   restarts.
+//! - `Name`: The process name.
 //! - `Quanta`: How many times this process has exceeded its alloted time
 //!   quanta.
+//! - `Syscalls`: The number of system calls the process has made to the kernel.
 //! - `Dropped Callbacks`: How many callbacks were dropped for this process
 //!   because the queue was full.
 //! - `Restarts`: How many times this process has crashed and been restarted by
