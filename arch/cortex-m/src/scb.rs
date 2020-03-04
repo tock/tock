@@ -51,13 +51,17 @@ register_structs! {
         /// Auxiliary Fault Status Register
         (0x3c => afsr: ReadWrite<u32, FaultAddress::Register>),
 
-        (0x40 => _reserved0: [u32; 16]), // 0xE000ED40-7C, Reserved for CPUID registers.
-        (0x80 => _reserved1: [u32; 2]),  // 0xE000ED80-84, Reserved.
+        /// 0xE000ED40-7C, Reserved for CPUID registers.
+        (0x40 => _reserved0),
+
+        /// 0xE000ED80-84, Reserved.
+        (0x80 => _reserved1),
 
         /// Coprocessor Access Control Register
         (0x88 => cpacr: ReadWrite<u32, CoprocessorAccessControl::Register>),
 
-        (0x8c => _reserved2: [u32; 1]),  // 0xE000ED8C, Reserved.
+        /// 0xE000ED8C, Reserved.
+        (0x8c => _reserved2),
 
         (0x90 => @END),
     }
