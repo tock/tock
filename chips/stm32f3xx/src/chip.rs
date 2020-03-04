@@ -10,7 +10,7 @@ use crate::deferred_call_tasks::Task;
 // use crate::exti;
 use crate::nvic;
 // use crate::spi;
-// use crate::tim2;
+use crate::tim2;
 // use crate::usart;
 
 pub struct Stm32f3xx {
@@ -75,8 +75,7 @@ impl Chip for Stm32f3xx {
                         // nvic::EXTI9_5 => exti::EXTI.handle_interrupt(),
                         // nvic::EXTI15_10 => exti::EXTI.handle_interrupt(),
 
-                        // nvic::TIM2 => tim2::TIM2.handle_interrupt(),
-
+                        nvic::TIM2 => tim2::TIM2.handle_interrupt(),
                         _ => {
                             panic!("unhandled interrupt {}", interrupt);
                         }

@@ -561,7 +561,7 @@ pub enum AlternateFunction {
 
 /// GPIO pin internal pull-up and pull-down [^1]
 ///
-/// [^1]: Section 7.4.4, page 189 of reference manual
+/// [^1]: Section 11.4.4, page 238 of reference manual
 enum_from_primitive! {
     #[repr(u32)]
     enum PullUpPullDown {
@@ -638,7 +638,7 @@ pub struct Pin<'a> {
     pinid: PinId,
     client: OptionalCell<&'a dyn hil::gpio::Client>,
     exti_lineid: OptionalCell<u32>,
-    // exti_lineid: OptionalCell<exti::LineId>,
+    // exti_lineid: OptionalCell<exti::LineId>, // TODO
 }
 
 macro_rules! declare_gpio_pins {
@@ -675,7 +675,7 @@ pub static mut PIN: [[Option<Pin<'static>>; 16]; 6] = [
     declare_gpio_pins! {
         PF00 PF01 PF02 PF03 PF04 PF05 PF06 PF07
         PF08 PF09 PF10 PF11 PF12 PF13 PF14 PF15
-    }
+    },
 ];
 
 impl Pin<'a> {
@@ -1053,6 +1053,7 @@ impl hil::gpio::Input for Pin<'a> {
     }
 }
 
+// TODO
 impl hil::gpio::Interrupt for Pin<'a> {
     fn enable_interrupts(&self, mode: hil::gpio::InterruptEdge) {
         // unsafe {
