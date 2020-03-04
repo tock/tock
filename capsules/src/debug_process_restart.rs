@@ -12,13 +12,14 @@
 //! let debug_process_restart = static_init!(
 //!     capsules::debug_process_restart::DebugProcessRestart<
 //!         'static,
-//!         sam4l::gpio::GPIOPin,
 //!         ProcessMgmtCap,
 //!     >,
 //!     capsules::debug_process_restart::DebugProcessRestart::new(
 //!         board_kernel,
-//!         &sam4l::gpio::PA[16],
 //!         ProcessMgmtCap
+//!         &sam4l::gpio::PA[16],
+//!         kernel::hil::gpio::ButtonMode::LowWhenPressed,
+//!         kernel::hil::gpio::FloatingState::PullUp
 //!     )
 //! );
 //! sam4l::gpio::PA[16].set_client(debug_process_restart);
@@ -28,29 +29,38 @@ use kernel::capabilities::ProcessManagementCapability;
 use kernel::hil::gpio;
 use kernel::Kernel;
 
-pub struct DebugProcessRestart<C: ProcessManagementCapability> {
+pub struct DebugProcessRestart<'a, C: ProcessManagementCapability> {
     kernel: &'static Kernel,
     capability: C,
+    pin: &'a dyn gpio::InterruptPin,
+    mode: gpio::ButtonMode,
 }
 
-impl<'a, C: ProcessManagementCapability> DebugProcessRestart<C> {
+impl<'a, C: ProcessManagementCapability> DebugProcessRestart<'a, C> {
     pub fn new(
         kernel: &'static Kernel,
-        pin: &'a dyn gpio::InterruptPin,
         cap: C,
-    ) -> DebugProcessRestart<C> {
+        pin: &'a dyn gpio::InterruptPin,
+        mode: gpio::ButtonMode,
+        floating_state: gpio::FloatingState,
+    ) -> Self {
         pin.make_input();
-        pin.enable_interrupts(gpio::InterruptEdge::RisingEdge);
+        pin.set_floating_state(floating_state);
+        pin.enable_interrupts(gpio::InterruptEdge::EitherEdge);
 
         DebugProcessRestart {
             kernel: kernel,
             capability: cap,
+            pin,
+            mode,
         }
     }
 }
 
-impl<'a, C: ProcessManagementCapability> gpio::Client for DebugProcessRestart<C> {
+impl<C: ProcessManagementCapability> gpio::Client for DebugProcessRestart<'_, C> {
     fn fired(&self) {
-        self.kernel.hardfault_all_apps(&self.capability);
+        if self.pin.read_button(self.mode) == gpio::ButtonState::Pressed {
+            self.kernel.hardfault_all_apps(&self.capability);
+        }
     }
 }

@@ -39,6 +39,22 @@ pub enum Configuration {
     Other,
 }
 
+/// Whether the GPIOs for the buttons on this platform are low when the button
+/// is pressed or high.
+#[derive(Clone, Copy)]
+pub enum ButtonMode {
+    LowWhenPressed,
+    HighWhenPressed,
+}
+
+/// Values that are passed to userspace to identify if a button GPIO is pressed
+/// or not.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum ButtonState {
+    NotPressed = 0,
+    Pressed = 1,
+}
+
 /// The Pin trait allows a pin to be used as either input
 /// or output and to be configured.
 pub trait Pin: Input + Output + Configure {}
@@ -137,6 +153,27 @@ pub trait Input {
     /// pin, return the output; for an input pin, return the input;
     /// for disabled or function pins the value is undefined.
     fn read(&self) -> bool;
+
+    /// Get the current state of a button GPIO pin, for a given button mode.
+    fn read_button(&self, mode: ButtonMode) -> ButtonState {
+        let value = self.read();
+        match mode {
+            ButtonMode::LowWhenPressed => {
+                if value {
+                    ButtonState::NotPressed
+                } else {
+                    ButtonState::Pressed
+                }
+            }
+            ButtonMode::HighWhenPressed => {
+                if value {
+                    ButtonState::Pressed
+                } else {
+                    ButtonState::NotPressed
+                }
+            }
+        }
+    }
 }
 
 pub trait Interrupt: Input {

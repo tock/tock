@@ -217,12 +217,12 @@ pub unsafe fn reset_handler() {
         components::button_component_helper!(
             (
                 &cc26x2::gpio::PORT[pinmap.button1],
-                capsules::button::GpioMode::LowWhenPressed,
+                hil::gpio::ButtonMode::LowWhenPressed,
                 hil::gpio::FloatingState::PullUp
             ),
             (
                 &cc26x2::gpio::PORT[pinmap.button2],
-                capsules::button::GpioMode::LowWhenPressed,
+                hil::gpio::ButtonMode::LowWhenPressed,
                 hil::gpio::FloatingState::PullUp
             )
         ),

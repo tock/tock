@@ -320,7 +320,7 @@ pub unsafe fn reset_handler() {
     let button = components::button::ButtonComponent::new(board_kernel).finalize(
         components::button_component_helper!((
             &sam4l::gpio::PA[16],
-            capsules::button::GpioMode::LowWhenPressed,
+            kernel::hil::gpio::ButtonMode::LowWhenPressed,
             kernel::hil::gpio::FloatingState::PullNone
         )),
     );

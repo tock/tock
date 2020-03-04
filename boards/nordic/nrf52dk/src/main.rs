@@ -152,22 +152,22 @@ pub unsafe fn reset_handler() {
         components::button_component_helper!(
             (
                 &nrf52832::gpio::PORT[BUTTON1_PIN],
-                capsules::button::GpioMode::LowWhenPressed,
+                kernel::hil::gpio::ButtonMode::LowWhenPressed,
                 kernel::hil::gpio::FloatingState::PullUp
             ), //13
             (
                 &nrf52832::gpio::PORT[BUTTON2_PIN],
-                capsules::button::GpioMode::LowWhenPressed,
+                kernel::hil::gpio::ButtonMode::LowWhenPressed,
                 kernel::hil::gpio::FloatingState::PullUp
             ), //14
             (
                 &nrf52832::gpio::PORT[BUTTON3_PIN],
-                capsules::button::GpioMode::LowWhenPressed,
+                kernel::hil::gpio::ButtonMode::LowWhenPressed,
                 kernel::hil::gpio::FloatingState::PullUp
             ), //15
             (
                 &nrf52832::gpio::PORT[BUTTON4_PIN],
-                capsules::button::GpioMode::LowWhenPressed,
+                kernel::hil::gpio::ButtonMode::LowWhenPressed,
                 kernel::hil::gpio::FloatingState::PullUp
             ) //16
         ),
