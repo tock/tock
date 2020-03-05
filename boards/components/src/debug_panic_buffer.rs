@@ -13,22 +13,20 @@
 // Author: Guillaume Endignoux <guillaumee@google.com>
 // Last modified: 05 Mar 2020
 
-use kernel::common::ring_buffer::RingBuffer;
 use kernel::component::Component;
-use kernel::hil;
 use kernel::static_init;
 
 pub struct DebugPanicBufferComponent {
-    buffer: &'static [u8],
+    buffer: &'static mut [u8],
 }
 
 impl DebugPanicBufferComponent {
-    pub fn new(buffer: &'static [u8]) -> Self {
+    pub fn new(buffer: &'static mut [u8]) -> Self {
         Self { buffer }
     }
 }
 
-impl Component for DebugWriterComponent {
+impl Component for DebugPanicBufferComponent {
     type StaticInput = ();
     type Output = ();
 
