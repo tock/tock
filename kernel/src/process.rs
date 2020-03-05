@@ -7,7 +7,7 @@ use core::{mem, ptr, slice, str};
 
 use crate::callback::{AppId, CallbackId};
 use crate::capabilities::ProcessManagementCapability;
-use crate::common::cells::{MapCell, NumericCellExt};
+use crate::common::cells::{MapCell, NumericCellExt, OptionalCell};
 use crate::common::{Queue, RingBuffer};
 use crate::config;
 use crate::debug;
@@ -320,6 +320,9 @@ pub trait ProcessType {
     /// Increment the number of times the process called a syscall and record
     /// the last syscall that was called.
     fn debug_syscall_called(&self, last_syscall: Syscall);
+
+    /// Determine if this process can access the provided driver.
+    fn can_access_driver(&self, driver_number: usize) -> bool;
 }
 
 /// Generic trait for implementing process restart policies.
@@ -633,6 +636,10 @@ pub struct Process<'a, C: 'static + Chip> {
 
     /// Values kept so that we can print useful debug messages when apps fault.
     debug: MapCell<ProcessDebug>,
+
+    /// Filter function that determines if the process can interact with the
+    /// given driver number.  If None, does not filter any driver access.
+    driver_filter: OptionalCell<&'a dyn Fn(usize) -> bool>,
 }
 
 impl<C: Chip> ProcessType for Process<'a, C> {
@@ -1355,6 +1362,11 @@ impl<C: Chip> ProcessType for Process<'a, C> {
              \r\nin the app's folder and open the .lst file.\r\n\r\n",
             sram_start, flash_init_fn
         ));
+    }
+
+    fn can_access_driver(&self, driver_number: usize) -> bool {
+        self.driver_filter
+            .map_or(true, |driver_filter| driver_filter(driver_number))
     }
 }
 

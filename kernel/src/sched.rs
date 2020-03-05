@@ -394,6 +394,12 @@ impl Kernel {
                                     callback_ptr,
                                     appdata,
                                 } => {
+                                    if !process.can_access_driver(driver_number) {
+                                        process
+                                            .set_syscall_return_value(ReturnCode::ENODEVICE.into());
+                                        break;
+                                    }
+
                                     let callback_id = CallbackId {
                                         driver_num: driver_number,
                                         subscribe_num: subdriver_number,
@@ -441,6 +447,12 @@ impl Kernel {
                                     arg0,
                                     arg1,
                                 } => {
+                                    if !process.can_access_driver(driver_number) {
+                                        process
+                                            .set_syscall_return_value(ReturnCode::ENODEVICE.into());
+                                        break;
+                                    }
+
                                     let res =
                                         platform.with_driver(
                                             driver_number,
@@ -474,6 +486,12 @@ impl Kernel {
                                     allow_address,
                                     allow_size,
                                 } => {
+                                    if !process.can_access_driver(driver_number) {
+                                        process
+                                            .set_syscall_return_value(ReturnCode::ENODEVICE.into());
+                                        break;
+                                    }
+
                                     let res = platform.with_driver(driver_number, |driver| {
                                         match driver {
                                             Some(d) => {
