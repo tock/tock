@@ -123,6 +123,35 @@ impl KernelInfo {
             .process_map_or(0, app, |process| process.debug_timeslice_expiration_count())
     }
 
+    /// Returns a tuple of the (the number of grants in the grant region this
+    /// app has allocated, total number of grants that exist in the system).
+    pub fn number_app_grant_uses(
+        &self,
+        app: AppId,
+        _capability: &dyn ProcessManagementCapability,
+    ) -> (usize, usize) {
+        // Just need to get the number, this has already been finalized, but it
+        // doesn't hurt to call this again.
+        let number_of_grants = self.kernel.get_grant_count_and_finalize();
+        let mut used = 0;
+        self.kernel.process_map_or((), app, |process| {
+            for i in 0..number_of_grants {
+                unsafe {
+                    if let Some(ctr_ptr) = process.grant_ptr(i) {
+                        // If the pointer at that location is not NULL then the
+                        // grant memory has been allocated and the grant is
+                        // being used.
+                        if !(*ctr_ptr).is_null() {
+                            used += 1;
+                        }
+                    }
+                }
+            }
+        });
+
+        (used, number_of_grants)
+    }
+
     /// Returns the total number of times all processes have exceeded
     /// their timeslices.
     pub fn timeslice_expirations(&self, _capability: &dyn ProcessManagementCapability) -> usize {
