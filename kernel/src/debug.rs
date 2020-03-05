@@ -272,6 +272,28 @@ pub fn debug_panic_fmt(args: Arguments) {
     }
 }
 
+pub fn debug_panic_flush_() {
+    unsafe {
+        let writer = get_debug_writer();
+
+        DEBUG_PANIC_BUFFER.as_deref_mut().map(|buffer| {
+            buffer.dw.map(|dw| {
+                dw.ring_buffer.map(|ring_buffer| {
+                    let (left, right) = ring_buffer.as_slices();
+                    if let Some(slice) = left {
+                        writer.write(slice);
+                    }
+                    if let Some(slice) = right {
+                        writer.write(slice);
+                    }
+
+                    ring_buffer.empty();
+                });
+            });
+        });
+    }
+}
+
 /// This macro prints a new line to an internal ring buffer, the contents of
 /// which are only displayed in the panic handler.
 #[macro_export]
@@ -285,6 +307,15 @@ macro_rules! debug_panic {
     ($fmt:expr, $($arg:tt)+) => ({
         $crate::debug::debug_panic_fmt(format_args!($fmt, $($arg)+))
     });
+}
+
+/// This macro flushes the contents of the debug panic buffer into the regular
+/// debug output.
+#[macro_export]
+macro_rules! debug_panic_flush {
+    () => {{
+        $crate::debug::debug_panic_flush_()
+    }};
 }
 
 ///////////////////////////////////////////////////////////////////
@@ -356,7 +387,7 @@ impl DebugWriter {
 
     /// Write as many of the bytes from the internal_buffer to the output
     /// mechanism as possible.
-    fn publish_str(&self) {
+    fn publish_bytes(&self) {
         // Can only publish if we have the output_buffer. If we don't that is
         // fine, we will do it when the transmit done callback happens.
         self.internal_buffer.map(|ring_buffer| {
@@ -396,7 +427,7 @@ impl hil::uart::TransmitClient for DebugWriter {
 
         if self.internal_buffer.map_or(false, |buf| buf.has_elements()) {
             // Buffer not empty, go around again
-            self.publish_str();
+            self.publish_bytes();
         }
     }
     fn transmitted_word(&self, _rcode: ReturnCode) {}
@@ -414,9 +445,9 @@ impl DebugWriterWrapper {
         self.dw.map_or(0, |dw| dw.get_count())
     }
 
-    fn publish_str(&self) {
+    fn publish_bytes(&self) {
         self.dw.map(|dw| {
-            dw.publish_str();
+            dw.publish_bytes();
         });
     }
 
@@ -425,13 +456,11 @@ impl DebugWriterWrapper {
     }
 }
 
-impl Write for DebugWriterWrapper {
-    fn write_str(&mut self, s: &str) -> Result {
+impl IoWrite for DebugWriterWrapper {
+    fn write(&mut self, bytes: &[u8]) {
         const FULL_MSG: &[u8] = b"\n*** DEBUG BUFFER FULL ***\n";
         self.dw.map(|dw| {
             dw.internal_buffer.map(|ring_buffer| {
-                let bytes = s.as_bytes();
-
                 let available_len_for_msg =
                     ring_buffer.available_len().saturating_sub(FULL_MSG.len());
 
@@ -451,7 +480,12 @@ impl Write for DebugWriterWrapper {
                 }
             });
         });
+    }
+}
 
+impl Write for DebugWriterWrapper {
+    fn write_str(&mut self, s: &str) -> Result {
+        self.write(s.as_bytes());
         Ok(())
     }
 }
@@ -461,7 +495,7 @@ pub fn begin_debug_fmt(args: Arguments) {
 
     let _ = write(writer, args);
     let _ = writer.write_str("\r\n");
-    writer.publish_str();
+    writer.publish_bytes();
 }
 
 pub fn begin_debug_verbose_fmt(args: Arguments, file_line: &(&'static str, u32)) {
@@ -474,7 +508,7 @@ pub fn begin_debug_verbose_fmt(args: Arguments, file_line: &(&'static str, u32))
     let _ = writer.write_fmt(format_args!("TOCK_DEBUG({}): {}:{}: ", count, file, line));
     let _ = write(writer, args);
     let _ = writer.write_str("\r\n");
-    writer.publish_str();
+    writer.publish_bytes();
 }
 
 /// In-kernel `println()` debugging.
