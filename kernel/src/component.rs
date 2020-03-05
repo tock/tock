@@ -34,7 +34,7 @@ pub trait Component {
     /// `static_memory` argument to allow the board initialization code to pass
     /// in references to static memory that the component will use to setup the
     /// Output type object.
-    unsafe fn finalize(&mut self, static_memory: Self::StaticInput) -> Self::Output;
+    unsafe fn finalize(self, static_memory: Self::StaticInput) -> Self::Output;
 }
 
 pub trait CreateComponent {

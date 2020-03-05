@@ -1,5 +1,4 @@
 #![no_std]
-#![feature(in_band_lifetimes)]
 
 #[macro_use]
 pub mod gpio;
@@ -17,6 +16,7 @@ pub mod lldb;
 pub mod nrf51822;
 pub mod process_console;
 pub mod rng;
+pub mod segger_rtt;
 pub mod si7021;
 pub mod spi;
 

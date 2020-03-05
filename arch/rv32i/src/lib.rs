@@ -7,7 +7,6 @@
     const_fn,
     lang_items,
     global_asm,
-    crate_visibility_modifier,
     naked_functions,
     in_band_lifetimes
 )]

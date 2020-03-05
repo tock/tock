@@ -6,8 +6,6 @@
 //! let ble_radio = BLEComponent::new(board_kernel, &nrf52::ble_radio::RADIO, mux_alarm).finalize();
 //! ```
 
-#![allow(dead_code)] // Components are intended to be conditionally included
-
 use capsules;
 use capsules::virtual_alarm::VirtualMuxAlarm;
 
@@ -48,7 +46,7 @@ impl Component for BLEComponent {
         VirtualMuxAlarm<'static, Rtc<'static>>,
     >;
 
-    unsafe fn finalize(&mut self, _s: Self::StaticInput) -> Self::Output {
+    unsafe fn finalize(self, _s: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
         let ble_radio_virtual_alarm = static_init!(
@@ -63,19 +61,17 @@ impl Component for BLEComponent {
                 VirtualMuxAlarm<'static, Rtc>,
             >,
             capsules::ble_advertising_driver::BLE::new(
-                &nrf52::ble_radio::RADIO,
+                self.radio,
                 self.board_kernel.create_grant(&grant_cap),
                 &mut capsules::ble_advertising_driver::BUF,
                 ble_radio_virtual_alarm
             )
         );
         kernel::hil::ble_advertising::BleAdvertisementDriver::set_receive_client(
-            &nrf52::ble_radio::RADIO,
-            ble_radio,
+            self.radio, ble_radio,
         );
         kernel::hil::ble_advertising::BleAdvertisementDriver::set_transmit_client(
-            &nrf52::ble_radio::RADIO,
-            ble_radio,
+            self.radio, ble_radio,
         );
         hil::time::Alarm::set_client(ble_radio_virtual_alarm, ble_radio);
 
