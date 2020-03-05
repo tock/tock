@@ -548,18 +548,23 @@ pub unsafe fn flush<W: Write + IoWrite>(writer: &mut W) {
         }
     }
 
-    let _ = writer.write_str("\r\n---| Flushing debug panic buffer:\r\n");
-    DEBUG_PANIC_BUFFER.as_deref_mut().map(|buffer| {
-        buffer.dw.map(|dw| {
-            dw.ring_buffer.map(|ring_buffer| {
-                let (left, right) = ring_buffer.as_slices();
-                if let Some(slice) = left {
-                    writer.write(slice);
-                }
-                if let Some(slice) = right {
-                    writer.write(slice);
-                }
+    match DEBUG_PANIC_BUFFER.as_deref_mut() {
+        None => {
+            let _ = writer.write_str("\r\n---| No debug panic buffer found. You can set it with the DebugPanicBuffer component.\r\n");
+        }
+        Some(buffer) => {
+            let _ = writer.write_str("\r\n---| Flushing debug panic buffer:\r\n");
+            buffer.dw.map(|dw| {
+                dw.ring_buffer.map(|ring_buffer| {
+                    let (left, right) = ring_buffer.as_slices();
+                    if let Some(slice) = left {
+                        writer.write(slice);
+                    }
+                    if let Some(slice) = right {
+                        writer.write(slice);
+                    }
+                });
             });
-        });
-    });
+        }
+    }
 }
