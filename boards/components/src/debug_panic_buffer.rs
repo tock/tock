@@ -7,7 +7,7 @@
 //! -----
 //! ```rust
 //! let buf = static_init!([u8; 1024], [0; 1024]);
-//! DebugPanicBuffer::new(buf).finalize(());
+//! DebugPanicBufferComponent::new(buf).finalize(());
 //! ```
 
 // Author: Guillaume Endignoux <guillaumee@google.com>
