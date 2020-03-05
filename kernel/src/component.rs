@@ -36,3 +36,11 @@ pub trait Component {
     /// Output type object.
     unsafe fn finalize(&mut self, static_memory: Self::StaticInput) -> Self::Output;
 }
+
+pub trait CreateComponent {
+    type Input;
+    type StaticInput;
+    type Output;
+
+    unsafe fn create(input: Self::Input, static_input: Self::StaticInput) -> Self::Output;
+}

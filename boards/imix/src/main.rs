@@ -17,7 +17,7 @@ use capsules::virtual_i2c::MuxI2C;
 use capsules::virtual_spi::{MuxSpiMaster, VirtualSpiMasterDevice};
 use kernel::capabilities;
 use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
-use kernel::component::Component;
+use kernel::component::{Component, CreateComponent};
 use kernel::hil::radio;
 #[allow(unused_imports)]
 use kernel::hil::radio::{RadioConfig, RadioData};
@@ -26,7 +26,7 @@ use kernel::hil::Controller;
 use kernel::{create_capability, debug, debug_gpio, static_init};
 
 use components;
-use components::alarm::{alarm_driver_component, alarm_mux_component};
+use components::alarm::{AlarmDriverComponent, AlarmMuxComponent};
 use components::console::{ConsoleComponent, UartMuxComponent};
 use components::crc::CrcComponent;
 use components::debug_writer::DebugWriterComponent;
@@ -322,11 +322,10 @@ pub unsafe fn reset_handler() {
     // # TIMER
     let ast = &sam4l::ast::AST;
     let mux_alarm =
-        alarm_mux_component::create(ast, components::alarm_mux_component_buf!(sam4l::ast::Ast));
+        AlarmMuxComponent::create(ast, components::alarm_mux_component_buf!(sam4l::ast::Ast));
     ast.configure(mux_alarm);
-    let alarm = alarm_driver_component::create(
-        board_kernel,
-        mux_alarm,
+    let alarm = AlarmDriverComponent::create(
+        (board_kernel, mux_alarm),
         components::alarm_component_buf!(sam4l::ast::Ast),
     );
 
