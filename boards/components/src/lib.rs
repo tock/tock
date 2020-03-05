@@ -10,6 +10,7 @@ pub mod button;
 pub mod alarm;
 pub mod console;
 pub mod crc;
+pub mod debug_panic_buffer;
 pub mod debug_writer;
 pub mod isl29035;
 pub mod lldb;

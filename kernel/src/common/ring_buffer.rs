@@ -73,7 +73,7 @@ impl<T: Copy> queue::Queue<T> for RingBuffer<'a, T> {
     }
 
     fn enqueue(&mut self, val: T) -> bool {
-        if ((self.tail + 1) % self.ring.len()) == self.head {
+        if self.is_full() {
             // Incrementing tail will overwrite head
             false
         } else {
@@ -81,6 +81,20 @@ impl<T: Copy> queue::Queue<T> for RingBuffer<'a, T> {
             self.tail = (self.tail + 1) % self.ring.len();
             true
         }
+    }
+
+    fn push(&mut self, val: T) -> Option<T> {
+        let result = if self.is_full() {
+            let val = self.ring[self.head];
+            self.head = (self.head + 1) % self.ring.len();
+            Some(val)
+        } else {
+            None
+        };
+
+        self.ring[self.tail] = val;
+        self.tail = (self.tail + 1) % self.ring.len();
+        result
     }
 
     fn dequeue(&mut self) -> Option<T> {

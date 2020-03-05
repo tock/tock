@@ -40,7 +40,6 @@
 use core::cell::Cell;
 use core::fmt::{write, Arguments, Result, Write};
 use core::panic::PanicInfo;
-use core::ptr;
 use core::str;
 
 use crate::common::cells::NumericCellExt;
@@ -214,6 +213,81 @@ macro_rules! debug_gpio {
 }
 
 ///////////////////////////////////////////////////////////////////
+// debug_panic! support
+
+/// Wrapper type that we need a mutable reference to for the core::fmt::Write
+/// interface.
+pub struct DebugPanicBufferWrapper {
+    dw: MapCell<&'static DebugPanicBuffer>,
+}
+
+impl DebugPanicBufferWrapper {
+    pub fn new(dw: &'static DebugPanicBuffer) -> Self {
+        Self {
+            dw: MapCell::new(dw),
+        }
+    }
+}
+
+pub struct DebugPanicBuffer {
+    ring_buffer: TakeCell<'static, RingBuffer<'static, u8>>,
+}
+
+impl DebugPanicBuffer {
+    pub fn new(ring_buffer: &'static mut RingBuffer<'static, u8>) -> Self {
+        Self {
+            ring_buffer: TakeCell::new(ring_buffer),
+        }
+    }
+}
+
+static mut DEBUG_PANIC_BUFFER: Option<&'static mut DebugPanicBufferWrapper> = None;
+
+/// Function used by board main.rs to set a reference to the panic buffer.
+pub unsafe fn set_debug_panic_buffer(buffer: &'static mut DebugPanicBufferWrapper) {
+    DEBUG_PANIC_BUFFER = Some(buffer);
+}
+
+impl Write for DebugPanicBufferWrapper {
+    fn write_str(&mut self, s: &str) -> Result {
+        self.dw.map(|dw| {
+            dw.ring_buffer.map(|ring_buffer| {
+                let bytes = s.as_bytes();
+                for &b in bytes {
+                    ring_buffer.push(b);
+                }
+            });
+        });
+
+        Ok(())
+    }
+}
+
+pub fn debug_panic_fmt(args: Arguments) {
+    unsafe {
+        DEBUG_PANIC_BUFFER.as_deref_mut().map(|buffer| {
+            let _ = write(buffer, args);
+            let _ = buffer.write_str("\r\n");
+        });
+    }
+}
+
+/// This macro prints a new line to an internal ring buffer, the contents of
+/// which are only displayed in the panic handler.
+#[macro_export]
+macro_rules! debug_panic {
+    () => ({
+        debug_panic!("")
+    });
+    ($msg:expr) => ({
+        $crate::debug::debug_panic_fmt(format_args!($msg))
+    });
+    ($fmt:expr, $($arg:tt)+) => ({
+        $crate::debug::debug_panic_fmt(format_args!($fmt, $($arg)+))
+    });
+}
+
+///////////////////////////////////////////////////////////////////
 // debug! and debug_verbose! support
 
 /// Wrapper type that we need a mutable reference to for the core::fmt::Write
@@ -240,10 +314,9 @@ pub struct DebugWriter {
 static mut DEBUG_WRITER: Option<&'static mut DebugWriterWrapper> = None;
 
 pub unsafe fn get_debug_writer() -> &'static mut DebugWriterWrapper {
-    match ptr::read(&DEBUG_WRITER) {
-        Some(x) => x,
-        None => panic!("Must call `set_debug_writer_wrapper` in board initialization."),
-    }
+    DEBUG_WRITER
+        .as_deref_mut()
+        .expect("Must call `set_debug_writer_wrapper` in board initialization.")
 }
 
 /// Function used by board main.rs to set a reference to the writer.
@@ -384,27 +457,24 @@ impl Write for DebugWriterWrapper {
 }
 
 pub fn begin_debug_fmt(args: Arguments) {
-    unsafe {
-        let writer = get_debug_writer();
-        let _ = write(writer, args);
-        let _ = writer.write_str("\r\n");
-        writer.publish_str();
-    }
+    let writer = unsafe { get_debug_writer() };
+
+    let _ = write(writer, args);
+    let _ = writer.write_str("\r\n");
+    writer.publish_str();
 }
 
 pub fn begin_debug_verbose_fmt(args: Arguments, file_line: &(&'static str, u32)) {
-    unsafe {
-        let writer = get_debug_writer();
+    let writer = unsafe { get_debug_writer() };
 
-        writer.increment_count();
-        let count = writer.get_count();
+    writer.increment_count();
+    let count = writer.get_count();
 
-        let (file, line) = *file_line;
-        let _ = writer.write_fmt(format_args!("TOCK_DEBUG({}): {}:{}: ", count, file, line));
-        let _ = write(writer, args);
-        let _ = writer.write_str("\r\n");
-        writer.publish_str();
-    }
+    let (file, line) = *file_line;
+    let _ = writer.write_fmt(format_args!("TOCK_DEBUG({}): {}:{}: ", count, file, line));
+    let _ = write(writer, args);
+    let _ = writer.write_str("\r\n");
+    writer.publish_str();
 }
 
 /// In-kernel `println()` debugging.
@@ -477,4 +547,19 @@ pub unsafe fn flush<W: Write + IoWrite>(writer: &mut W) {
             }
         }
     }
+
+    let _ = writer.write_str("\r\n---| Flushing debug panic buffer:\r\n");
+    DEBUG_PANIC_BUFFER.as_deref_mut().map(|buffer| {
+        buffer.dw.map(|dw| {
+            dw.ring_buffer.map(|ring_buffer| {
+                let (left, right) = ring_buffer.as_slices();
+                if let Some(slice) = left {
+                    writer.write(slice);
+                }
+                if let Some(slice) = right {
+                    writer.write(slice);
+                }
+            });
+        });
+    });
 }
