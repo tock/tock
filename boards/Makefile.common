@@ -4,6 +4,7 @@ MAKEFLAGS += -r
 MAKEFLAGS += -R
 
 MAKEFILE_COMMON_PATH := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
+MAKEFILE_PARENT_PATH := $(dir $(abspath $(MAKEFILE_COMMON_PATH)/..))
 
 # Common defaults that specific boards can override, but likely do not need to.
 TOOLCHAIN ?= llvm
@@ -14,14 +15,18 @@ RUSTUP    ?= rustup
 # lld uses the page size to align program sections. It defaults to 4096 and this
 # puts a gap between before the .relocate section. `zmax-page-size=512` tells
 # lld the actual page size so it doesn't have to be conservative.
-RUSTFLAGS_FOR_CARGO_LINKING ?= -C link-arg=-Tlayout.ld -C linker=rust-lld \
--C linker-flavor=ld.lld -C relocation-model=dynamic-no-pic \
--C link-arg=-zmax-page-size=512
+RUSTFLAGS_FOR_CARGO ?= \
+  -C link-arg=-Tlayout.ld \
+  -C linker=rust-lld \
+  -C linker-flavor=ld.lld \
+  -C relocation-model=dynamic-no-pic \
+  -C link-arg=-zmax-page-size=512 \
+  --remap-path-prefix=$(MAKEFILE_PARENT_PATH)= \
 
 # Disallow warnings for continuous integration builds. Disallowing them here
 # ensures that warnings during testing won't prevent compilation from succeeding.
 ifeq ($(CI),true)
-  RUSTFLAGS_FOR_CARGO_LINKING += -D warnings
+  RUSTFLAGS_FOR_CARGO += -D warnings
 endif
 
 # http://stackoverflow.com/questions/10858261/abort-makefile-if-variable-not-set
@@ -102,7 +107,7 @@ ifneq ($(V),)
   $(info PLATFORM            = $(PLATFORM))
   $(info TARGET              = $(TARGET))
   $(info TOCK_KERNEL_VERSION = $(TOCK_KERNEL_VERSION))
-  $(info RUSTFLAGS_FOR_CARGO = $(RUSTFLAGS_FOR_CARGO_LINKING))
+  $(info RUSTFLAGS_FOR_CARGO = $(RUSTFLAGS_FOR_CARGO))
   $(info MAKEFLAGS           = $(MAKEFLAGS))
   $(info OBJDUMP_FLAGS       = $(OBJDUMP_FLAGS))
   $(info )
@@ -131,7 +136,7 @@ all: release
 # binary. This makes checking for Rust errors much faster.
 .PHONY: check
 check:
-	$(Q)RUSTFLAGS="$(RUSTFLAGS_FOR_CARGO_LINKING)" $(CARGO) check --target=$(TARGET) $(VERBOSE) --release
+	$(Q)RUSTFLAGS="$(RUSTFLAGS_FOR_CARGO)" $(CARGO) check --target=$(TARGET) $(VERBOSE) --release
 
 .PHONY: clean
 clean::
@@ -181,10 +186,10 @@ target:
 
 .PHONY: target/$(TARGET)/release/$(PLATFORM)
 target/$(TARGET)/release/$(PLATFORM):
-	$(Q)RUSTFLAGS="$(RUSTFLAGS_FOR_CARGO_LINKING)" $(CARGO) build --target=$(TARGET) $(VERBOSE) --release
+	$(Q)RUSTFLAGS="$(RUSTFLAGS_FOR_CARGO)" $(CARGO) build --target=$(TARGET) $(VERBOSE) --release
 	$(Q)$(SIZE) $@
 
 .PHONY: target/$(TARGET)/debug/$(PLATFORM)
 target/$(TARGET)/debug/$(PLATFORM):
-	$(Q)RUSTFLAGS="$(RUSTFLAGS_FOR_CARGO_LINKING)" $(CARGO) build $(VERBOSE) --target=$(TARGET)
+	$(Q)RUSTFLAGS="$(RUSTFLAGS_FOR_CARGO)" $(CARGO) build $(VERBOSE) --target=$(TARGET)
 	$(Q)$(SIZE) $@
