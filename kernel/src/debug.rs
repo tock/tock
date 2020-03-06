@@ -28,7 +28,7 @@
 //! -------
 //!
 //! ```no_run
-//! # use kernel::{debug, debug_gpio, debug_verbose};
+//! # use kernel::{debug, debug_enqueue, debug_flush_queue, debug_gpio, debug_verbose};
 //! # fn main() {
 //! # let i = 42;
 //! debug!("Yes the code gets here with value {}", i);
