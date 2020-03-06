@@ -73,6 +73,16 @@ use crate::ReturnCode;
 /// See also the tracking issue: https://github.com/rust-lang/rfcs/issues/2262
 pub trait IoWrite {
     fn write(&mut self, buf: &[u8]);
+
+    fn write_ring_buffer<'a>(&mut self, buf: &RingBuffer<'a, u8>) {
+        let (left, right) = buf.as_slices();
+        if let Some(slice) = left {
+            self.write(slice);
+        }
+        if let Some(slice) = right {
+            self.write(slice);
+        }
+    }
 }
 
 ///////////////////////////////////////////////////////////////////
@@ -288,14 +298,7 @@ pub fn debug_flush_queue_() {
     unsafe { DEBUG_QUEUE.as_deref_mut() }.map(|buffer| {
         buffer.dw.map(|dw| {
             dw.ring_buffer.map(|ring_buffer| {
-                let (left, right) = ring_buffer.as_slices();
-                if let Some(slice) = left {
-                    writer.write(slice);
-                }
-                if let Some(slice) = right {
-                    writer.write(slice);
-                }
-
+                writer.write_ring_buffer(ring_buffer);
                 ring_buffer.empty();
             });
         });
@@ -580,13 +583,7 @@ pub unsafe fn flush<W: Write + IoWrite>(writer: &mut W) {
                 "\r\n---| Debug buffer not empty. Flushing. May repeat some of last message(s):\r\n",
             );
 
-            let (left, right) = ring_buffer.as_slices();
-            if let Some(slice) = left {
-                writer.write(slice);
-            }
-            if let Some(slice) = right {
-                writer.write(slice);
-            }
+            writer.write_ring_buffer(ring_buffer);
         }
     }
 
@@ -600,13 +597,7 @@ pub unsafe fn flush<W: Write + IoWrite>(writer: &mut W) {
             let _ = writer.write_str("\r\n---| Flushing debug queue:\r\n");
             buffer.dw.map(|dw| {
                 dw.ring_buffer.map(|ring_buffer| {
-                    let (left, right) = ring_buffer.as_slices();
-                    if let Some(slice) = left {
-                        writer.write(slice);
-                    }
-                    if let Some(slice) = right {
-                        writer.write(slice);
-                    }
+                    writer.write_ring_buffer(ring_buffer);
                 });
             });
         }
