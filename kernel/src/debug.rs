@@ -213,27 +213,27 @@ macro_rules! debug_gpio {
 }
 
 ///////////////////////////////////////////////////////////////////
-// debug_panic! support
+// debug_enqueue! support
 
 /// Wrapper type that we need a mutable reference to for the core::fmt::Write
 /// interface.
-pub struct DebugPanicBufferWrapper {
-    dw: MapCell<&'static DebugPanicBuffer>,
+pub struct DebugQueueWrapper {
+    dw: MapCell<&'static DebugQueue>,
 }
 
-impl DebugPanicBufferWrapper {
-    pub fn new(dw: &'static DebugPanicBuffer) -> Self {
+impl DebugQueueWrapper {
+    pub fn new(dw: &'static DebugQueue) -> Self {
         Self {
             dw: MapCell::new(dw),
         }
     }
 }
 
-pub struct DebugPanicBuffer {
+pub struct DebugQueue {
     ring_buffer: TakeCell<'static, RingBuffer<'static, u8>>,
 }
 
-impl DebugPanicBuffer {
+impl DebugQueue {
     pub fn new(ring_buffer: &'static mut RingBuffer<'static, u8>) -> Self {
         Self {
             ring_buffer: TakeCell::new(ring_buffer),
@@ -241,14 +241,14 @@ impl DebugPanicBuffer {
     }
 }
 
-static mut DEBUG_PANIC_BUFFER: Option<&'static mut DebugPanicBufferWrapper> = None;
+static mut DEBUG_QUEUE: Option<&'static mut DebugQueueWrapper> = None;
 
-/// Function used by board main.rs to set a reference to the panic buffer.
-pub unsafe fn set_debug_panic_buffer(buffer: &'static mut DebugPanicBufferWrapper) {
-    DEBUG_PANIC_BUFFER = Some(buffer);
+/// Function used by board main.rs to set a reference to the debug queue.
+pub unsafe fn set_debug_queue(buffer: &'static mut DebugQueueWrapper) {
+    DEBUG_QUEUE = Some(buffer);
 }
 
-impl Write for DebugPanicBufferWrapper {
+impl Write for DebugQueueWrapper {
     fn write_str(&mut self, s: &str) -> Result {
         self.dw.map(|dw| {
             dw.ring_buffer.map(|ring_buffer| {
@@ -263,58 +263,54 @@ impl Write for DebugPanicBufferWrapper {
     }
 }
 
-pub fn debug_panic_fmt(args: Arguments) {
-    unsafe {
-        DEBUG_PANIC_BUFFER.as_deref_mut().map(|buffer| {
-            let _ = write(buffer, args);
-            let _ = buffer.write_str("\r\n");
-        });
-    }
+pub fn debug_enqueue_fmt(args: Arguments) {
+    unsafe { DEBUG_QUEUE.as_deref_mut() }.map(|buffer| {
+        let _ = write(buffer, args);
+        let _ = buffer.write_str("\r\n");
+    });
 }
 
-pub fn debug_panic_flush_() {
-    unsafe {
-        let writer = get_debug_writer();
+pub fn debug_flush_queue_() {
+    let writer = unsafe { get_debug_writer() };
 
-        DEBUG_PANIC_BUFFER.as_deref_mut().map(|buffer| {
-            buffer.dw.map(|dw| {
-                dw.ring_buffer.map(|ring_buffer| {
-                    let (left, right) = ring_buffer.as_slices();
-                    if let Some(slice) = left {
-                        writer.write(slice);
-                    }
-                    if let Some(slice) = right {
-                        writer.write(slice);
-                    }
+    unsafe { DEBUG_QUEUE.as_deref_mut() }.map(|buffer| {
+        buffer.dw.map(|dw| {
+            dw.ring_buffer.map(|ring_buffer| {
+                let (left, right) = ring_buffer.as_slices();
+                if let Some(slice) = left {
+                    writer.write(slice);
+                }
+                if let Some(slice) = right {
+                    writer.write(slice);
+                }
 
-                    ring_buffer.empty();
-                });
+                ring_buffer.empty();
             });
         });
-    }
+    });
 }
 
 /// This macro prints a new line to an internal ring buffer, the contents of
-/// which are only displayed in the panic handler.
+/// which are only flushed with `debug_flush_queue!` and in the panic handler.
 #[macro_export]
-macro_rules! debug_panic {
+macro_rules! debug_enqueue {
     () => ({
-        debug_panic!("")
+        debug_enqueue!("")
     });
     ($msg:expr) => ({
-        $crate::debug::debug_panic_fmt(format_args!($msg))
+        $crate::debug::debug_enqueue_fmt(format_args!($msg))
     });
     ($fmt:expr, $($arg:tt)+) => ({
-        $crate::debug::debug_panic_fmt(format_args!($fmt, $($arg)+))
+        $crate::debug::debug_enqueue_fmt(format_args!($fmt, $($arg)+))
     });
 }
 
-/// This macro flushes the contents of the debug panic buffer into the regular
+/// This macro flushes the contents of the debug queue into the regular
 /// debug output.
 #[macro_export]
-macro_rules! debug_panic_flush {
+macro_rules! debug_flush_queue {
     () => {{
-        $crate::debug::debug_panic_flush_()
+        $crate::debug::debug_flush_queue_()
     }};
 }
 
@@ -582,12 +578,14 @@ pub unsafe fn flush<W: Write + IoWrite>(writer: &mut W) {
         }
     }
 
-    match DEBUG_PANIC_BUFFER.as_deref_mut() {
+    match DEBUG_QUEUE.as_deref_mut() {
         None => {
-            let _ = writer.write_str("\r\n---| No debug panic buffer found. You can set it with the DebugPanicBuffer component.\r\n");
+            let _ = writer.write_str(
+                "\r\n---| No debug queue found. You can set it with the DebugQueue component.\r\n",
+            );
         }
         Some(buffer) => {
-            let _ = writer.write_str("\r\n---| Flushing debug panic buffer:\r\n");
+            let _ = writer.write_str("\r\n---| Flushing debug queue:\r\n");
             buffer.dw.map(|dw| {
                 dw.ring_buffer.map(|ring_buffer| {
                     let (left, right) = ring_buffer.as_slices();
