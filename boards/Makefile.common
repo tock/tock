@@ -9,6 +9,7 @@ MAKEFILE_COMMON_PATH := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 TOOLCHAIN ?= llvm
 CARGO     ?= cargo
 RUSTUP    ?= rustup
+SHA256SUM ?= sha256sum
 
 # This will hopefully move into Cargo.toml (or Cargo.toml.local) eventually.
 # lld uses the page size to align program sections. It defaults to 4096 and this
@@ -108,6 +109,7 @@ ifneq ($(V),)
   $(info )
   $(info TOOLCHAIN           = $(TOOLCHAIN))
   $(info SIZE                = $(SIZE))
+  $(info SHA256SUM           = $(SHA256SUM))
   $(info OBJCOPY             = $(OBJCOPY))
   $(info OBJDUMP             = $(OBJDUMP))
   $(info CARGO               = $(CARGO))
@@ -170,6 +172,7 @@ target:
 
 %.bin: %.elf
 	$(Q)$(OBJCOPY) --output-target=binary $^ $@
+	$(Q)$(SHA256SUM) $@
 
 %.lst: %.elf
 	$(Q)$(OBJDUMP) $(OBJDUMP_FLAGS) $< > $@
