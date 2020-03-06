@@ -181,7 +181,7 @@ mod test {
 
         for i in 0..LEN {
             assert!(buf.has_elements());
-            assert_eq!(buf.len(), LEN - 1);
+            assert_eq!(buf.len(), LEN - i);
             assert_eq!(buf.dequeue(), Some(MAX - LEN + i));
             assert!(!buf.is_full());
         }
