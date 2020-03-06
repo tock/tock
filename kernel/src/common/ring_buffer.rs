@@ -160,6 +160,35 @@ mod test {
         }
     }
 
+    #[test]
+    fn test_push() {
+        const LEN: usize = 10;
+        const MAX: usize = 100;
+        let mut ring = [0; LEN + 1];
+        let mut buf = RingBuffer::new(&mut ring);
+
+        for i in 0..LEN {
+            assert_eq!(buf.len(), i);
+            assert!(!buf.is_full());
+            assert_eq!(buf.push(i), None);
+            assert!(buf.has_elements());
+        }
+
+        for i in LEN..MAX {
+            assert!(buf.is_full());
+            assert_eq!(buf.push(i), Some(i - LEN));
+        }
+
+        for i in 0..LEN {
+            assert!(buf.has_elements());
+            assert_eq!(buf.len(), LEN - 1);
+            assert_eq!(buf.dequeue(), Some(MAX - LEN + i));
+            assert!(!buf.is_full());
+        }
+
+        assert!(!buf.has_elements());
+    }
+
     // Enqueue integers 1 <= n < len, checking that it succeeds and that the
     // queue is full at the end.
     // See std::iota in C++.
