@@ -11,12 +11,17 @@
 //!     Some(&sam4l::gpio::PA[13]),
 //!     Some(&sam4l::gpio::PA[15]),
 //!     None,
-//!     );
+//! );
 //!
-//! let kc = static_init!(
-//!     capsules::console::App,
-//!     capsules::console::App::default());
-//! kernel::debug::assign_console_driver(Some(hail.console), kc);
+//! components::debug_writer::DebugWriterComponent::new(uart_mux).finalize(());
+//! ```
+//!
+//! The debug queue is optional, if not set in the board it is just ignored.
+//! You can add one in the board file as follows:
+//!
+//! ```ignore
+//! let buf = static_init!([u8; 1024], [0; 1024]);
+//! components::debug_queue::DebugQueueComponent::new(buf).finalize(());
 //! ```
 //!
 //! Example
@@ -27,8 +32,15 @@
 //! # fn main() {
 //! # let i = 42;
 //! debug!("Yes the code gets here with value {}", i);
-//! debug_verbose!("got here"); // includes message count, file, and line
-//! debug_gpio!(0, toggle); // Toggles the first debug GPIO
+//! debug_verbose!("got here"); // Includes message count, file, and line.
+//!
+//! debug_gpio!(0, toggle); // Toggles the first debug GPIO.
+//!
+//! debug_enqueue!("foo"); // Adds some message to the debug queue.
+//! debug_flush_queue!(); // Flushes the queue, writing "foo".
+//! debug_enqueue!("bar");
+//! panic!("42"); // Flushes the queue, writing "bar" in the debug queue section
+//!               // of the panic diagnostic.
 //! # }
 //! ```
 //!
