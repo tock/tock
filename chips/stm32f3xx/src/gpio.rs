@@ -399,7 +399,7 @@ const GPIOB_BASE: StaticRef<GpioRegisters> =
 const GPIOA_BASE: StaticRef<GpioRegisters> =
     unsafe { StaticRef::new(0x48000000 as *const GpioRegisters) };
 
-/// STM32F303vct6 has six GPIO ports labeled from A-F [^1]. This is represented
+/// STM32F303VCT6 has six GPIO ports labeled from A-F [^1]. This is represented
 /// by three bits.
 ///
 /// [^1]: Figure 20. STM32F303xB/C table, page 54 of the datasheet
