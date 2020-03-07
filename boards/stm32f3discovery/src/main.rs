@@ -103,10 +103,10 @@ unsafe fn set_pin_primary_functions() {
     PORT[PortId::E as usize].enable_clock();
     PORT[PortId::F as usize].enable_clock();
 
-    // PinId::PE14.get_pin().as_ref().map(|pin| {
-    //     pin.make_output ();
-    //     pin.set ();
-    // });
+    PinId::PE14.get_pin().as_ref().map(|pin| {
+        pin.make_output ();
+        pin.set ();
+    });
 
     // User LD3 is connected to PE09. Configure PE09 as `debug_gpio!(0, ...)`
     PinId::PE09.get_pin().as_ref().map(|pin| {

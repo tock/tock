@@ -1,5 +1,5 @@
-use cortexm4;
-use cortexm4::support::atomic;
+// use cortexm4;
+// use cortexm4::support::atomic;
 use enum_primitive::cast::FromPrimitive;
 use enum_primitive::enum_from_primitive;
 use kernel::common::cells::OptionalCell;
@@ -637,7 +637,7 @@ impl ClockInterface for PortClock {
 pub struct Pin<'a> {
     pinid: PinId,
     client: OptionalCell<&'a dyn hil::gpio::Client>,
-    exti_lineid: OptionalCell<u32>,
+    // exti_lineid: OptionalCell<u32>,
     // exti_lineid: OptionalCell<exti::LineId>, // TODO
 }
 
@@ -697,7 +697,6 @@ impl Pin<'a> {
         Pin {
             pinid: pinid,
             client: OptionalCell::empty(),
-            exti_lineid: OptionalCell::empty(),
         }
     }
 
@@ -1069,7 +1068,7 @@ impl hil::gpio::Input for Pin<'a> {
 
 // TODO
 impl hil::gpio::Interrupt for Pin<'a> {
-    fn enable_interrupts(&self, mode: hil::gpio::InterruptEdge) {
+    fn enable_interrupts(&self, _mode: hil::gpio::InterruptEdge) {
         // unsafe {
         //     atomic(|| {
         //         self.exti_lineid.map(|lineid| {
@@ -1101,15 +1100,15 @@ impl hil::gpio::Interrupt for Pin<'a> {
     }
 
     fn disable_interrupts(&self) {
-        unsafe {
-            // atomic(|| {
-            //     self.exti_lineid.map(|lineid| {
-            //         let l = lineid.clone();
-            //         exti::EXTI.mask_interrupt(l);
-            //         exti::EXTI.clear_pending(l);
-            //     });
-            // });
-        }
+        // unsafe {
+        //     atomic(|| {
+        //         self.exti_lineid.map(|lineid| {
+        //             let l = lineid.clone();
+        //             exti::EXTI.mask_interrupt(l);
+        //             exti::EXTI.clear_pending(l);
+        //         });
+        //     });
+        // }
     }
 
     fn set_client(&self, client: &'static dyn hil::gpio::Client) {
