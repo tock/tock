@@ -345,14 +345,14 @@ impl Tim2<'a> {
 
     // starts the timer
     pub fn start(&self) {
-        // TIM2 uses PCLK1. By default PCLK1 uses HSI running at 16Mhz.
+        // TIM2 uses PCLK1. By default PCLK1 uses HSI running at 8Mhz.
         // Before calling set_alarm, we assume clock to TIM2 has been
         // enabled.
 
         self.registers.arr.set(0xFFFF_FFFF - 1);
-        // Prescale 16Mhz to 16Khz, by dividing it by 1000. We need set EGR.UG
+        // Prescale 8Mhz to 16Khz, by dividing it by 500. We need set EGR.UG
         // in order for the prescale value to become active.
-        self.registers.psc.set((999 - 1) as u32);
+        self.registers.psc.set((499 - 1) as u32);
         self.registers.egr.write(EGR::UG::SET);
         self.registers.cr1.modify(CR1::CEN::SET);
     }

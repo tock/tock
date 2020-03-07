@@ -11,7 +11,7 @@ use crate::deferred_call_tasks::Task;
 use crate::nvic;
 // use crate::spi;
 use crate::tim2;
-// use crate::usart;
+use crate::usart;
 
 pub struct Stm32f3xx {
     mpu: cortexm4::mpu::MPU,
@@ -43,37 +43,7 @@ impl Chip for Stm32f3xx {
                     }
                 } else if let Some(interrupt) = cortexm4::nvic::next_pending() {
                     match interrupt {
-                        // nvic::DMA1_Stream1 => dma1::Dma1Peripheral::USART3_RX
-                        //     .get_stream()
-                        //     .handle_interrupt(),
-                        // nvic::DMA1_Stream2 => dma1::Dma1Peripheral::SPI3_RX
-                        //     .get_stream()
-                        //     .handle_interrupt(),
-                        // nvic::DMA1_Stream3 => dma1::Dma1Peripheral::USART3_TX
-                        //     .get_stream()
-                        //     .handle_interrupt(),
-                        // nvic::DMA1_Stream5 => dma1::Dma1Peripheral::USART2_RX
-                        //     .get_stream()
-                        //     .handle_interrupt(),
-                        // nvic::DMA1_Stream6 => dma1::Dma1Peripheral::USART2_TX
-                        //     .get_stream()
-                        //     .handle_interrupt(),
-                        // nvic::DMA1_Stream7 => dma1::Dma1Peripheral::SPI3_TX
-                        //     .get_stream()
-                        //     .handle_interrupt(),
-
-                        // nvic::USART2 => usart::USART2.handle_interrupt(),
-                        // nvic::USART3 => usart::USART3.handle_interrupt(),
-
-                        // nvic::SPI3 => spi::SPI3.handle_interrupt(),
-
-                        // nvic::EXTI0 => exti::EXTI.handle_interrupt(),
-                        // nvic::EXTI1 => exti::EXTI.handle_interrupt(),
-                        // nvic::EXTI2 => exti::EXTI.handle_interrupt(),
-                        // nvic::EXTI3 => exti::EXTI.handle_interrupt(),
-                        // nvic::EXTI4 => exti::EXTI.handle_interrupt(),
-                        // nvic::EXTI9_5 => exti::EXTI.handle_interrupt(),
-                        // nvic::EXTI15_10 => exti::EXTI.handle_interrupt(),
+                        nvic::USART1 => usart::USART1.handle_interrupt(),
 
                         nvic::TIM2 => tim2::TIM2.handle_interrupt(),
                         _ => {
