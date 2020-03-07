@@ -637,7 +637,7 @@ impl ClockInterface for PortClock {
 pub struct Pin<'a> {
     pinid: PinId,
     client: OptionalCell<&'a dyn hil::gpio::Client>,
-    exti_lineid: OptionalCell<u32>,
+    // exti_lineid: OptionalCell<u32>,
     // exti_lineid: OptionalCell<exti::LineId>, // TODO
 }
 
@@ -697,7 +697,7 @@ impl Pin<'a> {
         Pin {
             pinid: pinid,
             client: OptionalCell::empty(),
-            exti_lineid: OptionalCell::empty(),
+            // exti_lineid: OptionalCell::empty(),
         }
     }
 

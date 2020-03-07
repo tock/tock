@@ -1,4 +1,4 @@
-use core::cell::Cell;
+// use core::cell::Cell;
 use kernel::common::cells::OptionalCell;
 use kernel::common::registers::{register_bitfields, ReadWrite};
 use kernel::common::StaticRef;
@@ -279,9 +279,8 @@ pub struct Usart<'a> {
 
     tx_client: OptionalCell<&'a dyn hil::uart::TransmitClient>,
     rx_client: OptionalCell<&'a dyn hil::uart::ReceiveClient>,
-
-    tx_len: Cell<usize>,
-    rx_len: Cell<usize>,
+    // tx_len: Cell<usize>,
+    // rx_len: Cell<usize>,
 }
 
 pub static mut USART1: Usart = Usart::new(
@@ -307,9 +306,8 @@ impl Usart<'a> {
 
             tx_client: OptionalCell::empty(),
             rx_client: OptionalCell::empty(),
-
-            tx_len: Cell::new(0),
-            rx_len: Cell::new(0),
+            // tx_len: Cell::new(0),
+            // rx_len: Cell::new(0),
         }
     }
 
