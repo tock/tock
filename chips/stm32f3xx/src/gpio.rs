@@ -650,7 +650,7 @@ macro_rules! declare_gpio_pins {
 }
 
 // We need to use `Option<Pin>`, instead of just `Pin` because GPIOH has
-// only two pins - PH00 and PH01, rather than the usual sixteen pins.
+// only two pins - PF00 and PF10, rather than the usual sixteen pins.
 pub static mut PIN: [[Option<Pin<'static>>; 16]; 6] = [
     declare_gpio_pins! {
         PA00 PA01 PA02 PA03 PA04 PA05 PA06 PA07
@@ -672,10 +672,24 @@ pub static mut PIN: [[Option<Pin<'static>>; 16]; 6] = [
         PE00 PE01 PE02 PE03 PE04 PE05 PE06 PE07
         PE08 PE09 PE10 PE11 PE12 PE13 PE14 PE15
     },
-    declare_gpio_pins! {
-        PF00 PF01 PF02 PF03 PF04 PF05 PF06 PF07
-        PF08 PF09 PF10 PF11 PF12 PF13 PF14 PF15
-    },
+    [
+        Some(Pin::new(PinId::PF00)),
+        Some(Pin::new(PinId::PF01)),
+        Some(Pin::new(PinId::PF02)),
+        Some(Pin::new(PinId::PF03)),
+        Some(Pin::new(PinId::PF04)),
+        Some(Pin::new(PinId::PF05)),
+        Some(Pin::new(PinId::PF06)),
+        Some(Pin::new(PinId::PF07)),
+        Some(Pin::new(PinId::PF08)),
+        Some(Pin::new(PinId::PF09)),
+        Some(Pin::new(PinId::PF10)),
+        None,
+        None,
+        None,
+        None,
+        None,
+    ],
 ];
 
 impl Pin<'a> {

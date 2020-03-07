@@ -6,10 +6,8 @@ use core::panic::PanicInfo;
 use kernel::debug;
 use kernel::debug::IoWrite;
 use kernel::hil::led;
-// use kernel::hil::uart;
-// use kernel::hil::uart::Configure;
-
-use cortex_m_semihosting::hprint;
+use kernel::hil::uart;
+use kernel::hil::uart::Configure;
 
 use stm32f3xx;
 use stm32f3xx::gpio::PinId;
@@ -35,31 +33,30 @@ impl Writer {
 
 impl Write for Writer {
     fn write_str(&mut self, s: &str) -> ::core::fmt::Result {
-        // self.write(s.as_bytes());
-        hprint! ("{}", s);
+        self.write(s.as_bytes());
         Ok(())
     }
 }
 
 impl IoWrite for Writer {
     fn write(&mut self, buf: &[u8]) {
-        // let uart = unsafe { &mut stm32f3xx::usart::USART2 };
+        let uart = unsafe { &mut stm32f3xx::usart::USART2 };
 
-        // if !self.initialized {
-        //     self.initialized = true;
+        if !self.initialized {
+            self.initialized = true;
 
-        //     uart.configure(uart::Parameters {
-        //         baud_rate: 115200,
-        //         stop_bits: uart::StopBits::One,
-        //         parity: uart::Parity::None,
-        //         hw_flow_control: false,
-        //         width: uart::Width::Eight,
-        //     });
-        // }
+            uart.configure(uart::Parameters {
+                baud_rate: 11500,
+                stop_bits: uart::StopBits::One,
+                parity: uart::Parity::None,
+                hw_flow_control: false,
+                width: uart::Width::Eight,
+            });
+        }
 
-        // for &c in buf {
-            // uart.send_byte(c);
-        // }
+        for &c in buf {
+            uart.send_byte(c);
+        }
     }
 }
 
