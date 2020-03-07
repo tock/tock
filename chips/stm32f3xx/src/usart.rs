@@ -363,7 +363,7 @@ impl hil::uart::Transmit<'a> for Usart<'a> {
     fn transmit_buffer(
         &self,
         tx_data: &'static mut [u8],
-        tx_len: usize,
+        _tx_len: usize,
     ) -> (ReturnCode, Option<&'static mut [u8]>) {
         for byte in tx_data {
             self.send_byte(*byte);
@@ -431,10 +431,10 @@ impl hil::uart::Receive<'a> for Usart<'a> {
 
     fn receive_buffer(
         &self,
-        rx_buffer: &'static mut [u8],
-        rx_len: usize,
+        _rx_buffer: &'static mut [u8],
+        _rx_len: usize,
     ) -> (ReturnCode, Option<&'static mut [u8]>) {
-        (ReturnCode::SUCCESS, None)
+        (ReturnCode::FAIL, None)
     }
 
     fn receive_word(&self) -> ReturnCode {

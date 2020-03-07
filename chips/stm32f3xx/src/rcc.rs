@@ -406,20 +406,6 @@ impl Rcc {
         }
     }
 
-    // SPI3 clock
-
-    fn is_enabled_spi3_clock(&self) -> bool {
-        self.registers.apb1enr.is_set(APB1ENR::SPI3EN)
-    }
-
-    fn enable_spi3_clock(&self) {
-        self.registers.apb1enr.modify(APB1ENR::SPI3EN::SET)
-    }
-
-    fn disable_spi3_clock(&self) {
-        self.registers.apb1enr.modify(APB1ENR::SPI3EN::CLEAR)
-    }
-
     // TIM2 clock
 
     fn is_enabled_tim2_clock(&self) -> bool {
@@ -448,20 +434,6 @@ impl Rcc {
         self.registers.apb2enr.modify(APB2ENR::SYSCFGEN::CLEAR)
     }
 
-    // DMA1 clock
-
-    fn is_enabled_dma1_clock(&self) -> bool {
-        self.registers.ahbenr.is_set(AHBENR::DMA1EN)
-    }
-
-    fn enable_dma1_clock(&self) {
-        self.registers.ahbenr.modify(AHBENR::DMA1EN::SET)
-    }
-
-    fn disable_dma1_clock(&self) {
-        self.registers.ahbenr.modify(AHBENR::DMA1EN::CLEAR)
-    }
-
     // GPIOF clock
 
     fn is_enabled_gpiof_clock(&self) -> bool {
@@ -478,14 +450,17 @@ impl Rcc {
 
     // GPIOE clock
 
+    #[cfg(feature = "stm32f303vct6")]
     fn is_enabled_gpioe_clock(&self) -> bool {
         self.registers.ahbenr.is_set(AHBENR::IOPEEN)
     }
 
+    #[cfg(feature = "stm32f303vct6")]
     fn enable_gpioe_clock(&self) {
         self.registers.ahbenr.modify(AHBENR::IOPEEN::SET)
     }
 
+    #[cfg(feature = "stm32f303vct6")]
     fn disable_gpioe_clock(&self) {
         self.registers.ahbenr.modify(AHBENR::IOPEEN::CLEAR)
     }
