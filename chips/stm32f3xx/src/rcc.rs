@@ -207,7 +207,6 @@ register_bitfields![u32,
         /// IO port F clock enable
         IOPFEN OFFSET(22) NUMBITS(1) [],
         /// IO port E clock enable
-        #[cfg(feature = "stm32f303vct6")]
         IOPEEN OFFSET(21) NUMBITS(1) [],
         /// IO port D clock enable
         IOPDEN OFFSET(20) NUMBITS(1) [],
@@ -450,17 +449,14 @@ impl Rcc {
 
     // GPIOE clock
 
-    #[cfg(feature = "stm32f303vct6")]
     fn is_enabled_gpioe_clock(&self) -> bool {
         self.registers.ahbenr.is_set(AHBENR::IOPEEN)
     }
 
-    #[cfg(feature = "stm32f303vct6")]
     fn enable_gpioe_clock(&self) {
         self.registers.ahbenr.modify(AHBENR::IOPEEN::SET)
     }
 
-    #[cfg(feature = "stm32f303vct6")]
     fn disable_gpioe_clock(&self) {
         self.registers.ahbenr.modify(AHBENR::IOPEEN::CLEAR)
     }
