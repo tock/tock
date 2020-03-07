@@ -83,7 +83,7 @@ pub static BASE_VECTORS: [unsafe extern "C" fn(); 16] = [
     systick_handler,     // SysTick
 ];
 
-// STM32F303vct6 has total of 82 interrupts
+// STM32F303VCT6 has total of 82 interrupts
 // Extracted from `CMSIS/Device/ST/STM32F3xx/Include/stm32f303xc.h`
 // NOTE: There are missing IRQn between 0 and 81
 #[cfg(feature = "stm32f303vct6")]

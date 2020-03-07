@@ -1,12 +1,12 @@
 STM32 Discovery kit development board with STM32F303 MCU
-======================================================
+========================================================
 
 For more details [visit the Discovery kit
 website](https://www.st.com/en/evaluation-tools/stm32f3discovery.html).
 
 ## Flashing the kernel
 
-The kernel can be programmed using OpenOCD. `cd` into `boards/nucleo_f446re`
+The kernel can be programmed using OpenOCD. `cd` into `boards/stm32f3discovery`
 directory and run:
 
 ```bash
@@ -31,8 +31,8 @@ apps included.
 ```bash
 $ arm-none-eabi-objcopy  \
     --update-section .apps=../../../libtock-c/examples/c_hello/build/cortex-m4/cortex-m4.tbf \
-    target/thumbv7em-none-eabi/debug/nucleo_f446re.elf \
-    target/thumbv7em-none-eabi/debug/nucleo_f446re-app.elf
+    target/thumbv7em-none-eabi/debug/stm32f3discovery.elf \
+    target/thumbv7em-none-eabi/debug/stm32f3discovery-app.elf
 ```
 
 For example, you can update `Makefile` as follows.
