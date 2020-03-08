@@ -289,6 +289,22 @@ impl<'a> Driver for GPIO<'a> {
                 }
             }
 
+            // get pin by id
+            10 => {
+                let mut res = ReturnCode::EINVAL;
+                let mut index: usize = 0;
+                for &pin in pins {
+                    if let ReturnCode::SuccessWithValue { value } = pin.pin_id() {
+                        if value == data1 {
+                            res = ReturnCode::SuccessWithValue { value: index };
+                            break;
+                        }
+                    }
+                    index = index + 1;
+                }
+                res
+            }
+
             // default
             _ => ReturnCode::ENOSUPPORT,
         }

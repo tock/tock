@@ -7,6 +7,7 @@ use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOn
 use kernel::common::StaticRef;
 use kernel::hil;
 use kernel::ClockInterface;
+use kernel::ReturnCode;
 
 use crate::exti;
 use crate::rcc;
@@ -1074,6 +1075,13 @@ impl hil::gpio::Configure for Pin<'a> {
 
     fn is_output(&self) -> bool {
         self.get_mode() == Mode::GeneralPurposeOutputMode
+    }
+
+    fn pin_id(&self) -> ReturnCode {
+        ReturnCode::SuccessWithValue {
+            value: (self.pinid.get_port_number() as usize) << 4
+                | (self.pinid.get_pin_number() as usize),
+        }
     }
 }
 

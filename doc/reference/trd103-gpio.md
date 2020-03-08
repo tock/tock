@@ -43,8 +43,8 @@ The rest of this document discusses each in turn.
 2 `Pin` trait
 ========================================
 
-The `Pin` trait is for requesting a single ADC conversion. It has
-three functions:
+The `Pin` trait is for a GPIO Pin. It has
+the following functions:
 
 ```rust
 pub trait Pin {
@@ -78,6 +78,10 @@ pub trait Pin {
 
     /// Disable the interrupt for the GPIO pin.
     fn disable_interrupt(&self);
+
+    /// Return PinID as ReturnCode::SuccessWithValue
+    /// return ENOSUPORT if not implmented
+    fn pin_id(&self) -> ReturnCode;
 }
 ```
 

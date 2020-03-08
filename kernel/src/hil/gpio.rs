@@ -104,6 +104,18 @@ pub trait Configure {
             _ => false,
         }
     }
+
+    /// Return PinID as ReturnCode::SuccessWithValue
+    /// or ReturnCode::ENOSUPORT if the chip does not
+    /// implement this function
+    /// This is useful for accessing a certain GPIO as
+    /// most boards do not number GPIOs in the continous way
+    /// Usespace libraries may use a command syscall to get the
+    /// index of a certain pin by supplying the board
+    /// dependant pinid
+    fn pin_id(&self) -> ReturnCode {
+        ReturnCode::ENOSUPPORT
+    }
 }
 
 /// Configuration trait for pins that can be simultaneously
@@ -302,6 +314,10 @@ impl Configure for InterruptValueWrapper {
 
     fn is_output(&self) -> bool {
         self.source.is_input()
+    }
+
+    fn pin_id(&self) -> ReturnCode {
+        self.source.pin_id()
     }
 }
 
