@@ -11,8 +11,8 @@ pub struct App {
 }
 
 pub struct RadioDriver<'a, S: SpiMasterDevice> {
-  /// Underlying physical device
-  device: &'a Radio<'a, S>,
+  /// Underlying physical device; FIX make private
+  pub device: &'a Radio<'a, S>,
 
   /// Grant of apps that use this radio driver.
   apps: Grant<App>,

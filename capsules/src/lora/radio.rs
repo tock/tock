@@ -1,17 +1,27 @@
 
 use core::cell::Cell;
 use kernel::common::cells::{TakeCell};
+use kernel::hil::radio;
 use kernel::hil::gpio;
+use kernel::hil::spi;
 use kernel::hil::spi::{SpiMasterDevice};
 use kernel::ReturnCode;
 use kernel::debug_gpio;
 
-// registers
+// not written to registers unlike Modes
+// only help in programming for SPI layer ops
+#[derive(Copy, Clone, PartialEq)]
 enum InternalState {
-  RxOn,
-  RxOff
+  START,
+  TX_ON,
+  TX_OFF,
+  RX_ON,
+  RX_OFF,
+  SLEEP,
+  READY,
 }
 
+// registers
 enum RegMap {
   RegFifo                 = 0x00,
   RegOpMode               = 0x01,
@@ -59,7 +69,6 @@ enum Mode {
   ModeRxSingle            = 0x06
 }
 
-
 // Irq masks
 enum Irq {
   IrqTxDoneMask           = 0x08,
@@ -74,14 +83,18 @@ const MaxPktLength: u8      = 255;
 // The modem
 pub struct Radio<'a, S: SpiMasterDevice> {
   spi: &'a S,
+  spi_buf: TakeCell<'static, [u8]>,
   spi_rx: TakeCell<'static, [u8]>,
   spi_tx: TakeCell<'static, [u8]>,
+  spi_busy: Cell<bool>,
   //Pins
   //ss_pin: &'a dyn gpio::Pin,
   reset_pin: &'a dyn gpio::Pin,
   irq_pin: &'a dyn gpio::InterruptPin,
-  //State
-  spi_busy: Cell<bool>,
+  //State params
+  transmitting: Cell<bool>,
+  sleep_pending: Cell<bool>,
+  wake_pending: Cell<bool>,
   interrupt_handling: Cell<bool>,
   interrupt_pending: Cell<bool>,
   state: Cell<InternalState>,
@@ -102,13 +115,17 @@ impl<S: SpiMasterDevice> Radio<'a, S> {
     ) -> Radio<'a, S> {
         Radio {
             spi: spi,
+            spi_buf: TakeCell::empty(),
             spi_rx: TakeCell::empty(),
             spi_tx: TakeCell::empty(),
             spi_busy: Cell::new(false),
             //ss_pin: ss,
             reset_pin: reset,
             irq_pin: irq,
-            state: Cell::new(InternalState::RxOff),
+            state: Cell::new(InternalState::TX_OFF),
+            transmitting: Cell::new(false),
+            sleep_pending: Cell::new(false),
+            wake_pending: Cell::new(false),
             interrupt_handling: Cell::new(false),
             interrupt_pending: Cell::new(false),
             frequency: 0,
@@ -118,6 +135,72 @@ impl<S: SpiMasterDevice> Radio<'a, S> {
             rx_done: false,
         }
     }
+
+    pub fn initialize(
+        &self,
+        buf: &'static mut [u8],
+        reg_write: &'static mut [u8],
+        reg_read: &'static mut [u8],
+    ) -> ReturnCode {
+        if (buf.len() < radio::MAX_BUF_SIZE || reg_read.len() != 2 || reg_write.len() != 2) {
+            return ReturnCode::ESIZE;
+        }
+        self.spi_buf.replace(buf);
+        self.spi_rx.replace(reg_read);
+        self.spi_tx.replace(reg_write);
+        ReturnCode::SUCCESS
+    }
+
+    pub fn reset(&self) -> ReturnCode {
+        self.spi.configure(
+            spi::ClockPolarity::IdleLow,
+            spi::ClockPhase::SampleLeading,
+            100000,
+        );
+        self.reset_pin.make_output();
+        for _i in 0..10000 {
+            self.reset_pin.clear();
+        }
+        self.reset_pin.set();
+        self.transmitting.set(false);
+        ReturnCode::SUCCESS
+    }
+
+    pub fn start(&self) -> ReturnCode {
+        self.sleep_pending.set(false);
+
+        if self.state.get() != InternalState::START && self.state.get() != InternalState::SLEEP {
+            return ReturnCode::EALREADY;
+        }
+
+        if self.state.get() == InternalState::SLEEP {
+            self.state.set(InternalState::READY);
+        } else {
+            // Delay wakeup until the radio turns all the way off
+            self.wake_pending.set(true);
+        }
+
+        ReturnCode::SUCCESS
+    }
+
+    pub fn stop(&self) -> ReturnCode {
+        if self.state.get() == InternalState::SLEEP || self.state.get() == InternalState::TX_OFF
+        {
+            return ReturnCode::EALREADY;
+        }
+
+        match self.state.get() {
+            InternalState::READY => {
+                self.state.set(InternalState::START);
+            }
+            _ => {
+                self.sleep_pending.set(true);
+            }
+        }
+
+        ReturnCode::SUCCESS
+    }
+
   // SPI handle for LoRa interrupts
   fn handle_interrupt(&mut self) {
       // In most cases, the first thing the driver does on handling an interrupt is
@@ -126,18 +209,18 @@ impl<S: SpiMasterDevice> Radio<'a, S> {
       // packet from being overwritten before reading it from the radio,
       // the driver needs to disable reception. This has to be done in the first
       // SPI operation.
-      //if self.spi_busy.get() == false {
-      //    if self.state.get() == InternalState::RxOn {
-      //        // We've received a complete frame; need to disable
-      //        // reception until we've read it out from RAM,
-      //        // otherwise subsequent packets may corrupt it.
-      //       self.state.set(InternalState::RxOff);
-      //    } else {
-      //        self.interrupt_handling.set(true);
-      //    }
-      //} else {
-      //    self.interrupt_pending.set(true);
-      //}
+      if self.spi_busy.get() == false {
+          if self.state.get() == InternalState::RX_ON {
+              // We've received a complete frame; need to disable
+              // reception until we've read it out from RAM,
+              // otherwise subsequent packets may corrupt it.
+             self.state.set(InternalState::RX_OFF);
+          } else {
+              self.interrupt_handling.set(true);
+          }
+      } else {
+          self.interrupt_pending.set(true);
+      }
   }
 
   fn register_write(&self, reg: RegMap, val: u8) -> ReturnCode {

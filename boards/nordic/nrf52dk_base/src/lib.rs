@@ -12,11 +12,12 @@ use kernel::capabilities;
 use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::component::Component;
 use kernel::hil;
+use kernel::hil::radio;
 use nrf52::gpio::{GPIOPin, Pin};
 use nrf52::rtc::Rtc;
 use nrf52::uicr::Regulator0Output;
 
-use components::spi::SpiComponent;
+use components::spi::{SpiComponent, SpiSyscallComponent};
 pub mod nrf52_components;
 use nrf52_components::ble::BLEComponent;
 use nrf52_components::ieee802154::Ieee802154Component;
@@ -25,6 +26,11 @@ use nrf52_components::lora::LoraComponent;
 // Constants related to the configuration of the 15.4 network stack
 const SRC_MAC: u16 = 0xf00f;
 const PAN_ID: u16 = 0xABCD;
+
+// The LoRa radio requires buffers for its SPI operations:
+static mut LORA_BUF: [u8; radio::MAX_BUF_SIZE] = [0x00; radio::MAX_BUF_SIZE];
+static mut LORA_REG_WRITE: [u8; 2] = [0x00; 2];
+static mut LORA_REG_READ: [u8; 2] = [0x00; 2];
 
 /// Pins for SPI for the flash chip MX25R6435F
 #[derive(Debug)]
@@ -98,7 +104,7 @@ pub struct Platform {
     >,
     ieee802154_radio: Option<&'static capsules::ieee802154::RadioDriver<'static>>,
     lora_radio: Option<&'static capsules::lora::driver::RadioDriver<'static, VirtualSpiMasterDevice<'static, nrf52::spi::SPIM>>>,
-    spi: Option<capsules::spi::Spi<'static, VirtualSpiMasterDevice<'static, nrf52::spi::SPIM>>>,
+    spi: Option<&'static capsules::spi::Spi<'static, VirtualSpiMasterDevice<'static, nrf52::spi::SPIM>>>,
     button: &'static capsules::button::Button<'static>,
     pconsole: &'static capsules::process_console::ProcessConsole<
         'static,
@@ -142,7 +148,7 @@ impl kernel::Platform for Platform {
                 Some(radio) => f(Some(radio)),
                 None => f(None),
             },
-            capsules::spi::DRIVER_NUM => match &self.spi {
+            capsules::spi::DRIVER_NUM => match self.spi {
                 Some(spi) => f(Some(spi)),
                 None => f(None),
             },
@@ -338,12 +344,14 @@ pub unsafe fn setup_board<I: nrf52::interrupt_service::InterruptService>(
     );
 
     let (lora_radio,spi) = if let Some(pins) = lora_pins {
-      let lora_spi = SpiComponent::new(mux_spi, pins.chip_select)
+      let spi_comp = SpiComponent::new(mux_spi, pins.chip_select)
           .finalize(components::spi_component_helper!(nrf52::spi::SPIM)); //virtual
-      let spi = capsules::spi::Spi::new(lora_spi);
+      let spi_syscalls = SpiSyscallComponent::new(mux_spi, pins.chip_select)
+          .finalize(components::spi_syscall_component_helper!(nrf52::spi::SPIM));
+      //let spi = spi_syscalls;
 
       let RADIO = static_init!(capsules::lora::radio::Radio<'static, VirtualSpiMasterDevice<'static, nrf52::spi::SPIM>>, capsules::lora::radio::Radio::new(
-        &lora_spi,
+        &spi_comp,
         pins.reset,
         pins.interrupt,
       ));
@@ -352,10 +360,14 @@ pub unsafe fn setup_board<I: nrf52::interrupt_service::InterruptService>(
         RADIO,
       )
       .finalize(());
-      (Some(radio),Some(spi))
+      (Some(radio),Some(spi_syscalls))
     } else {
       (None,None)
     };
+    match lora_radio {
+      Some(radio) => { radio.device.initialize(&mut LORA_BUF, &mut LORA_REG_WRITE, &mut LORA_REG_READ); },
+      None => ()
+    }
 
     let nonvolatile_storage: Option<
         &'static capsules::nonvolatile_storage_driver::NonvolatileStorage<'static>,
@@ -480,6 +492,16 @@ pub unsafe fn setup_board<I: nrf52::interrupt_service::InterruptService>(
         ipc: kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability),
     };
 
+    // These two lines need to be below the creation of the chip for
+    // initialization to work.
+    match lora_radio {
+      Some(radio) => {
+        radio.device.reset();
+        radio.device.start();
+      },
+      None => ()
+    }
+    
     platform.pconsole.start();
     debug!("Initialization complete. Entering main loop\r");
     debug!("{}", &nrf52::ficr::FICR_INSTANCE);
