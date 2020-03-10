@@ -73,4 +73,8 @@ pub unsafe trait UdpDriverCapability {}
 /// instantiated once by the kernel
 pub unsafe trait CreatePortTableCapability {}
 
+/// The `NetworkCapabilityCreationCapability` allows the holder to instantiate
+/// `NetworkCapability`S and visibility capabilities for the IP and UDP layers
+/// of the networking stack. A capsule would never hold this capability although
+/// it may hold capabilities created via this capability.
 pub unsafe trait NetworkCapabilityCreationCapability {}

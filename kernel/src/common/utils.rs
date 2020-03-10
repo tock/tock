@@ -81,10 +81,3 @@ macro_rules! create_capability {
         Cap
     };};
 }
-
-
-
-
-
-
-
