@@ -26,8 +26,9 @@
 use capsules;
 use capsules::net::ipv6::ip_utils::IPAddr;
 use capsules::net::ipv6::ipv6_send::IP6SendStruct;
-use capsules::net::network_capabilities::{NetworkCapability, PortRange,
-    AddrRange, UdpVisibilityCapability};
+use capsules::net::network_capabilities::{
+    AddrRange, NetworkCapability, PortRange, UdpVisibilityCapability,
+};
 use capsules::net::udp::udp_port_table::UdpPortManager;
 use capsules::net::udp::udp_recv::MuxUdpReceiver;
 use capsules::net::udp::udp_recv::UDPReceiver;
@@ -87,8 +88,10 @@ impl Component for UDPDriverComponent {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
         // TODO: change initialization below
         let create_cap = create_capability!(NetworkCapabilityCreationCapability);
-        let udp_vis = static_init!(UdpVisibilityCapability,
-            UdpVisibilityCapability::new(&create_cap));
+        let udp_vis = static_init!(
+            UdpVisibilityCapability,
+            UdpVisibilityCapability::new(&create_cap)
+        );
         let udp_send = static_init!(
             UDPSendStruct<
                 'static,
@@ -108,8 +111,8 @@ impl Component for UDPDriverComponent {
 
         let net_cap = static_init!(
             NetworkCapability,
-            NetworkCapability::new(AddrRange::Any, PortRange::Any, PortRange::Any,
-                &create_cap));
+            NetworkCapability::new(AddrRange::Any, PortRange::Any, PortRange::Any, &create_cap)
+        );
 
         let udp_driver = static_init!(
             capsules::net::udp::UDPDriver<'static>,

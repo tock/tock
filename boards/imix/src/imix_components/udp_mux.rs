@@ -133,10 +133,14 @@ impl Component for UDPMuxComponent {
         );
         self.mux_mac.add_user(udp_mac);
         let create_cap = create_capability!(capabilities::NetworkCapabilityCreationCapability);
-        let udp_vis = static_init!(UdpVisibilityCapability,
-            UdpVisibilityCapability::new(&create_cap));
-        let ip_vis = static_init!(IpVisibilityCapability,
-            IpVisibilityCapability::new(&create_cap));
+        let udp_vis = static_init!(
+            UdpVisibilityCapability,
+            UdpVisibilityCapability::new(&create_cap)
+        );
+        let ip_vis = static_init!(
+            IpVisibilityCapability,
+            IpVisibilityCapability::new(&create_cap)
+        );
 
         let sixlowpan = static_init!(
             sixlowpan_state::Sixlowpan<
