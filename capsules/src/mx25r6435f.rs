@@ -257,8 +257,6 @@ impl<
         sector: &'static mut Mx25r6435fSector,
     ) -> Result<(), (ReturnCode, &'static mut Mx25r6435fSector)> {
         self.configure_spi();
-        // Save the user buffer for later
-        self.client_sector.replace(sector);
 
         let retval = self
             .txbuffer
@@ -287,9 +285,10 @@ impl<
             });
 
         if retval == ReturnCode::SUCCESS {
+            self.client_sector.replace(sector);
             Ok(())
         } else {
-            Err((retval, self.client_sector.take().unwrap()))
+            Err((retval, sector))
         }
     }
 
@@ -298,7 +297,6 @@ impl<
         sector_index: u32,
         sector: &'static mut Mx25r6435fSector,
     ) -> Result<(), (ReturnCode, &'static mut Mx25r6435fSector)> {
-        self.client_sector.replace(sector);
         self.configure_spi();
         self.state.set(State::EraseSectorWriteEnable {
             sector_index,
@@ -307,9 +305,10 @@ impl<
         let retval = self.enable_write();
 
         if retval == ReturnCode::SUCCESS {
+            self.client_sector.replace(sector);
             Ok(())
         } else {
-            Err((retval, self.client_sector.take().unwrap()))
+            Err((retval, sector))
         }
     }
 }
