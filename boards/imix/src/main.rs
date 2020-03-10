@@ -439,9 +439,9 @@ pub unsafe fn reset_handler() {
     .finalize(());
 
     // Only include to run kernel tests, do not include during normal operation
-    let udp_lowpan_test =
-        udp_lowpan_test::initialize_all(udp_send_mux, udp_recv_mux, udp_port_table, mux_alarm);
-    udp_lowpan_test.start();
+    // let udp_lowpan_test =
+    //     udp_lowpan_test::initialize_all(udp_send_mux, udp_recv_mux, udp_port_table, mux_alarm);
+    // udp_lowpan_test.start();
 
     let imix = Imix {
         pconsole,
