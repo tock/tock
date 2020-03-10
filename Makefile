@@ -104,9 +104,10 @@ audit:
 
 .PHONY: clean
 clean:
-	@for f in `./tools/list_archs.sh`; do echo "$$(tput bold)Clean arch/$$f"; cd "arch/$$f" && cargo clean || exit 1; cd ../..; done
-	@for f in `./tools/list_chips.sh`; do echo "$$(tput bold)Clean chips/$$f"; cd "chips/$$f" && cargo clean || exit 1; cd ../..; done
+	@for f in `./tools/list_archs.sh`; do echo "$$(tput bold)Clean arch/$$f"; cargo clean --manifest-path "arch/$$f/Cargo.toml" || exit 1; done
+	@for f in `./tools/list_chips.sh`; do echo "$$(tput bold)Clean chips/$$f"; cargo clean --manifest-path "chips/$$f/Cargo.toml" || exit 1; done
 	@for f in `./tools/list_boards.sh`; do echo "$$(tput bold)Clean boards/$$f"; $(MAKE) -C "boards/$$f" clean || exit 1; done
+	@for f in `./tools/list_tools.sh`; do echo "$$(tput bold)Clean tools/$$f"; cargo clean --manifest-path "tools/$$f/Cargo.toml" || exit 1; done
 	@cd kernel && echo "$$(tput bold)Clean kernel" && cargo clean
 	@cd libraries/tock-cells && echo "$$(tput bold)Clean libraries/tock-cells" && cargo clean
 	@cd libraries/tock-register-interface && echo "$$(tput bold)Clean libraries/tock-register-interface" && cargo clean
