@@ -1,6 +1,8 @@
 //! Interface for chips and boards.
 
 use crate::driver::Driver;
+use crate::process;
+use crate::returncode;
 use crate::syscall;
 use core::fmt::Write;
 
@@ -43,6 +45,18 @@ pub trait Platform {
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
     where
         F: FnOnce(Option<&dyn Driver>) -> R;
+
+    /// Check the platform-provided system call filter.  If the system call is allowed for the
+    /// provied process then return Ok(()).  Otherwise, return Err with a ReturnCode that will be
+    /// returned to the calling application.  The default implementation allows all system calls.
+    /// This API should be considered unstable, and is likely to change in the future.
+    fn filter_syscall(
+        &self,
+        _process: &dyn process::ProcessType,
+        _syscall: &syscall::Syscall,
+    ) -> Result<(), returncode::ReturnCode> {
+        Ok(())
+    }
 }
 
 /// Interface for individual MCUs.

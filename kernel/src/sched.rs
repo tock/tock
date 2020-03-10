@@ -363,6 +363,17 @@ impl Kernel {
                         Some(ContextSwitchReason::SyscallFired { syscall }) => {
                             process.debug_syscall_called(syscall);
 
+                            // Enforce platform-specific syscall filtering here. Before continuing
+                            // to handle non-yield syscalls the kernel first checks if the platform wants
+                            // to block that syscall for the process, and if it does, sets a return
+                            // value which is returned to the calling process.
+                            if syscall != Syscall::YIELD {
+                                if let Err(response) = platform.filter_syscall(process, &syscall) {
+                                    process.set_syscall_return_value(response.into());
+                                    break;
+                                }
+                            }
+
                             // Handle each of the syscalls.
                             match syscall {
                                 Syscall::MEMOP { operand, arg0 } => {
