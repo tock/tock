@@ -276,8 +276,10 @@ impl<T: IP6Sender<'a>> UDPSender<'a> for UDPSendStruct<'a, T> {
                 if !net_cap.remote_port_valid(dst_port, self.udp_vis)
                     || !net_cap.local_port_valid(binding.get_port(), self.udp_vis)
                 {
+                    self.binding.replace(binding);
                     Err(buf)
                 } else if binding.get_port() == 0 {
+                    self.binding.replace(binding);
                     Err(buf)
                 } else {
                     udp_header.set_src_port(binding.get_port());
