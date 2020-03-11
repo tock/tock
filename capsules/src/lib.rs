@@ -32,6 +32,7 @@ pub mod i2c_master_slave_driver;
 pub mod ieee802154;
 pub mod isl29035;
 pub mod led;
+pub mod log;
 pub mod low_level_debug;
 pub mod lps25hb;
 pub mod ltc294x;
