@@ -14,6 +14,7 @@
 //! ).finalize(());
 //! ```
 
+use capsules::panic_button::PanicButton;
 use kernel::component::Component;
 use kernel::hil::gpio;
 use kernel::static_init;
@@ -48,32 +49,5 @@ impl Component for PanicButtonComponent<'static> {
             PanicButton::new(self.pin, self.mode, self.floating_state)
         );
         self.pin.set_client(panic_button);
-    }
-}
-
-struct PanicButton<'a> {
-    pin: &'a dyn gpio::InterruptPin,
-    mode: gpio::ActivationMode,
-}
-
-impl<'a> PanicButton<'a> {
-    fn new(
-        pin: &'a dyn gpio::InterruptPin,
-        mode: gpio::ActivationMode,
-        floating_state: gpio::FloatingState,
-    ) -> Self {
-        pin.make_input();
-        pin.set_floating_state(floating_state);
-        pin.enable_interrupts(gpio::InterruptEdge::EitherEdge);
-
-        PanicButton { pin, mode }
-    }
-}
-
-impl gpio::Client for PanicButton<'_> {
-    fn fired(&self) {
-        if self.pin.read_activation(self.mode) == gpio::ActivationState::Active {
-            panic!("Panic button pressed");
-        }
     }
 }
