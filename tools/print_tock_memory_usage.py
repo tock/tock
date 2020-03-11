@@ -39,7 +39,7 @@ import os
 import re
 import sys
 import getopt
-import cxxfilt   # Demanging C++/Rust symbol names
+import cxxfilt   # Demangling C++/Rust symbol names
 
 
 verbose = False
