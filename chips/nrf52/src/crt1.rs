@@ -168,8 +168,12 @@ pub unsafe extern "C" fn init() {
     tock_rt0::init_data(&mut _etext, &mut _srelocate, &mut _erelocate);
     tock_rt0::zero_bss(&mut _szero, &mut _ezero);
 
-    // Ensure that we are compatible with a bootloader.
-    // For this we need to offset our vector table
+    // Explicitly tell the core where Tock's vector table is located. If Tock is the
+    // only thing on the chip then this is effectively a no-op. If, however, there is
+    // a bootloader present then we want to ensure that the vector table is set
+    // correctly for Tock. The bootloader _may_ set this for us, but it may not
+    // so that any errors early in the Tock boot process trap back to the bootloader.
+    // To be safe we unconditionally set the vector table.
     scb::set_vector_table_offset(BASE_VECTORS.as_ptr() as *const ());
 
     nvic::enable_all();
