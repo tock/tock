@@ -1,0 +1,13 @@
+[package]
+name = "imxrt1052"
+version = "0.1.0"
+authors = ["Tock Project Developers <tock-dev@googlegroups.com>"]
+edition = "2018"
+
+[dependencies]
+cortexm7 = { path = "../../arch/cortex-m7" }
+enum_primitive = { path = "../../libraries/enum_primitive" }
+kernel = { path = "../../kernel" }
+tock_rt0 = { path = "../../libraries/tock-rt0" }
+
+[features]

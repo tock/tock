@@ -1,5 +1,5 @@
-//! Implementation of the memory protection unit for the Cortex-M3 and
-//! Cortex-M4.
+//! Implementation of the memory protection unit for the 
+//! Cortex-M7.
 
 use core::cmp;
 use core::fmt;
