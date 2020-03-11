@@ -136,35 +136,35 @@ pub unsafe fn reset_handler() {
     let led = components::led::LedsComponent::new().finalize(components::led_component_helper!(
         (
             &ibex::gpio::PORT[7],
-            capsules::led::ActivationMode::ActiveLow
+            kernel::hil::gpio::ActivationMode::ActiveLow
         ),
         (
             &ibex::gpio::PORT[8],
-            capsules::led::ActivationMode::ActiveLow
+            kernel::hil::gpio::ActivationMode::ActiveLow
         ),
         (
             &ibex::gpio::PORT[9],
-            capsules::led::ActivationMode::ActiveLow
+            kernel::hil::gpio::ActivationMode::ActiveLow
         ),
         (
             &ibex::gpio::PORT[10],
-            capsules::led::ActivationMode::ActiveLow
+            kernel::hil::gpio::ActivationMode::ActiveLow
         ),
         (
             &ibex::gpio::PORT[11],
-            capsules::led::ActivationMode::ActiveHigh
+            kernel::hil::gpio::ActivationMode::ActiveHigh
         ),
         (
             &ibex::gpio::PORT[12],
-            capsules::led::ActivationMode::ActiveHigh
+            kernel::hil::gpio::ActivationMode::ActiveHigh
         ),
         (
             &ibex::gpio::PORT[13],
-            capsules::led::ActivationMode::ActiveHigh
+            kernel::hil::gpio::ActivationMode::ActiveHigh
         ),
         (
             &ibex::gpio::PORT[14],
-            capsules::led::ActivationMode::ActiveHigh
+            kernel::hil::gpio::ActivationMode::ActiveHigh
         )
     ));
 

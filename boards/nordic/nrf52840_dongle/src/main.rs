@@ -99,7 +99,7 @@ pub unsafe fn reset_handler() {
     let button = components::button::ButtonComponent::new(board_kernel).finalize(
         components::button_component_helper!((
             &nrf52840::gpio::PORT[BUTTON_PIN],
-            capsules::button::GpioMode::LowWhenPressed,
+            kernel::hil::gpio::ActivationMode::ActiveLow,
             kernel::hil::gpio::FloatingState::PullUp
         )),
     );
@@ -107,19 +107,19 @@ pub unsafe fn reset_handler() {
     let led = components::led::LedsComponent::new().finalize(components::led_component_helper!(
         (
             &nrf52840::gpio::PORT[LED1_PIN],
-            capsules::led::ActivationMode::ActiveLow
+            kernel::hil::gpio::ActivationMode::ActiveLow
         ),
         (
             &nrf52840::gpio::PORT[LED2_R_PIN],
-            capsules::led::ActivationMode::ActiveLow
+            kernel::hil::gpio::ActivationMode::ActiveLow
         ),
         (
             &nrf52840::gpio::PORT[LED2_G_PIN],
-            capsules::led::ActivationMode::ActiveLow
+            kernel::hil::gpio::ActivationMode::ActiveLow
         ),
         (
             &nrf52840::gpio::PORT[LED2_B_PIN],
-            capsules::led::ActivationMode::ActiveLow
+            kernel::hil::gpio::ActivationMode::ActiveLow
         )
     ));
     let chip = static_init!(nrf52840::chip::Chip, nrf52840::chip::new());

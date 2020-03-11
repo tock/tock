@@ -15,6 +15,7 @@ pub mod debug_writer;
 pub mod isl29035;
 pub mod lldb;
 pub mod nrf51822;
+pub mod panic_button;
 pub mod process_console;
 pub mod rng;
 pub mod segger_rtt;
