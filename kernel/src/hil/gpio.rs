@@ -173,20 +173,12 @@ pub trait Input {
     /// Get the current state of a GPIO pin, for a given activation mode.
     fn read_activation(&self, mode: ActivationMode) -> ActivationState {
         let value = self.read();
-        match mode {
-            ActivationMode::ActiveLow => {
-                if value {
-                    ActivationState::Inactive
-                } else {
-                    ActivationState::Active
-                }
+        match (mode, value) {
+            (ActivationMode::ActiveHigh, true) | (ActivationMode::ActiveLow, false) => {
+                ActivationState::Active
             }
-            ActivationMode::ActiveHigh => {
-                if value {
-                    ActivationState::Active
-                } else {
-                    ActivationState::Inactive
-                }
+            (ActivationMode::ActiveLow, true) | (ActivationMode::ActiveHigh, false) => {
+                ActivationState::Inactive
             }
         }
     }
