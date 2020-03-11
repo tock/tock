@@ -388,7 +388,7 @@ for hline in header_lines:
     if hmatch != None:
         arch = hmatch.group(1)
         if arch != 'elf32-littlearm':
-            usage(arch + " architecture not supported, only elf32-littlearm supportd")
+            usage(arch + " architecture not supported, only elf32-littlearm supported")
             sys.exit(-1)
 
 if arch == "UNKNOWN":
