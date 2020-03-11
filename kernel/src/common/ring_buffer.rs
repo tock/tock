@@ -73,7 +73,7 @@ impl<T: Copy> queue::Queue<T> for RingBuffer<'a, T> {
     }
 
     fn enqueue(&mut self, val: T) -> bool {
-        if ((self.tail + 1) % self.ring.len()) == self.head {
+        if self.is_full() {
             // Incrementing tail will overwrite head
             false
         } else {
@@ -81,6 +81,20 @@ impl<T: Copy> queue::Queue<T> for RingBuffer<'a, T> {
             self.tail = (self.tail + 1) % self.ring.len();
             true
         }
+    }
+
+    fn push(&mut self, val: T) -> Option<T> {
+        let result = if self.is_full() {
+            let val = self.ring[self.head];
+            self.head = (self.head + 1) % self.ring.len();
+            Some(val)
+        } else {
+            None
+        };
+
+        self.ring[self.tail] = val;
+        self.tail = (self.tail + 1) % self.ring.len();
+        result
     }
 
     fn dequeue(&mut self) -> Option<T> {
@@ -144,6 +158,35 @@ mod test {
             assert_eq!(buf.len(), 0);
             assert!(!buf.has_elements());
         }
+    }
+
+    #[test]
+    fn test_push() {
+        const LEN: usize = 10;
+        const MAX: usize = 100;
+        let mut ring = [0; LEN + 1];
+        let mut buf = RingBuffer::new(&mut ring);
+
+        for i in 0..LEN {
+            assert_eq!(buf.len(), i);
+            assert!(!buf.is_full());
+            assert_eq!(buf.push(i), None);
+            assert!(buf.has_elements());
+        }
+
+        for i in LEN..MAX {
+            assert!(buf.is_full());
+            assert_eq!(buf.push(i), Some(i - LEN));
+        }
+
+        for i in 0..LEN {
+            assert!(buf.has_elements());
+            assert_eq!(buf.len(), LEN - i);
+            assert_eq!(buf.dequeue(), Some(MAX - LEN + i));
+            assert!(!buf.is_full());
+        }
+
+        assert!(!buf.has_elements());
     }
 
     // Enqueue integers 1 <= n < len, checking that it succeeds and that the
