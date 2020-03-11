@@ -168,23 +168,26 @@ pub unsafe fn reset_handler() {
 
     // LEDs
     let led_pins = static_init!(
-        [(&'static dyn hil::gpio::Pin, capsules::led::ActivationMode); 4],
+        [(
+            &'static dyn hil::gpio::Pin,
+            kernel::hil::gpio::ActivationMode
+        ); 4],
         [
             (
                 &nrf52832::gpio::PORT[LED1_PIN],
-                capsules::led::ActivationMode::ActiveLow
+                kernel::hil::gpio::ActivationMode::ActiveLow
             ),
             (
                 &nrf52832::gpio::PORT[LED2_PIN],
-                capsules::led::ActivationMode::ActiveLow
+                kernel::hil::gpio::ActivationMode::ActiveLow
             ),
             (
                 &nrf52832::gpio::PORT[LED3_PIN],
-                capsules::led::ActivationMode::ActiveLow
+                kernel::hil::gpio::ActivationMode::ActiveLow
             ),
             (
                 &nrf52832::gpio::PORT[LED4_PIN],
-                capsules::led::ActivationMode::ActiveLow
+                kernel::hil::gpio::ActivationMode::ActiveLow
             ),
         ]
     );
@@ -235,25 +238,25 @@ pub unsafe fn reset_handler() {
             // 13
             (
                 &nrf52832::gpio::PORT[BUTTON1_PIN],
-                hil::gpio::ButtonMode::LowWhenPressed,
+                hil::gpio::ActivationMode::ActiveLow,
                 hil::gpio::FloatingState::PullUp
             ),
             // 14
             (
                 &nrf52832::gpio::PORT[BUTTON2_PIN],
-                hil::gpio::ButtonMode::LowWhenPressed,
+                hil::gpio::ActivationMode::ActiveLow,
                 hil::gpio::FloatingState::PullUp
             ),
             // 15
             (
                 &nrf52832::gpio::PORT[BUTTON3_PIN],
-                hil::gpio::ButtonMode::LowWhenPressed,
+                hil::gpio::ActivationMode::ActiveLow,
                 hil::gpio::FloatingState::PullUp
             ),
             // 16
             (
                 &nrf52832::gpio::PORT[BUTTON4_PIN],
-                hil::gpio::ButtonMode::LowWhenPressed,
+                hil::gpio::ActivationMode::ActiveLow,
                 hil::gpio::FloatingState::PullUp
             )
         ),

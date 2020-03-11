@@ -6,14 +6,14 @@
 //! let button = components::button::ButtonComponent::new(board_kernel).finalize(
 //!     components::button_component_helper!((
 //!         &sam4l::gpio::PC[24],
-//!         kernel::hil::gpio::ButtonMode::LowWhenPressed,
+//!         kernel::hil::gpio::ActivationMode::ActiveLow,
 //!         kernel::hil::gpio::FloatingState::PullUp
 //!     )),
 //! );
 //! ```
 //!
-//! Typically, `ButtonMode::LowWhenPressed` will be associated with `FloatingState::PullUp`
-//! whereas `ButtonMode::HighWhenPressed` will be paired with `FloatingState::PullDown`.
+//! Typically, `ActivationMode::ActiveLow` will be associated with `FloatingState::PullUp`
+//! whereas `ActivationMode::ActiveHigh` will be paired with `FloatingState::PullDown`.
 //! `FloatingState::None` will be used when the board provides external pull-up/pull-down
 //! resistors.
 
@@ -31,7 +31,7 @@ macro_rules! button_component_helper {
         const NUM_BUTTONS: usize = count_expressions!($($P),+);
 
         static_init!(
-            [(&'static dyn kernel::hil::gpio::InterruptValuePin, kernel::hil::gpio::ButtonMode, kernel::hil::gpio::FloatingState); NUM_BUTTONS],
+            [(&'static dyn kernel::hil::gpio::InterruptValuePin, kernel::hil::gpio::ActivationMode, kernel::hil::gpio::FloatingState); NUM_BUTTONS],
             [
                 $(
                     (static_init!(InterruptValueWrapper, InterruptValueWrapper::new($P))
@@ -60,7 +60,7 @@ impl ButtonComponent {
 impl Component for ButtonComponent {
     type StaticInput = &'static [(
         &'static dyn kernel::hil::gpio::InterruptValuePin,
-        kernel::hil::gpio::ButtonMode,
+        kernel::hil::gpio::ActivationMode,
         kernel::hil::gpio::FloatingState,
     )];
     type Output = &'static capsules::button::Button<'static>;

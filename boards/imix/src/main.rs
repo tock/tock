@@ -371,12 +371,12 @@ pub unsafe fn reset_handler() {
 
     let led = LedsComponent::new().finalize(components::led_component_helper!((
         &sam4l::gpio::PC[10],
-        capsules::led::ActivationMode::ActiveHigh
+        kernel::hil::gpio::ActivationMode::ActiveHigh
     )));
     let button = components::button::ButtonComponent::new(board_kernel).finalize(
         components::button_component_helper!((
             &sam4l::gpio::PC[24],
-            kernel::hil::gpio::ButtonMode::LowWhenPressed,
+            kernel::hil::gpio::ActivationMode::ActiveLow,
             kernel::hil::gpio::FloatingState::PullNone
         )),
     );

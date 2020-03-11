@@ -261,20 +261,20 @@ pub unsafe fn reset_handler() {
     let led_pins = static_init!(
         [(
             &'static dyn kernel::hil::gpio::Pin,
-            capsules::led::ActivationMode
+            kernel::hil::gpio::ActivationMode
         ); NUM_LEDS],
         [
             (
                 stm32f4xx::gpio::PinId::PB00.get_pin().as_ref().unwrap(),
-                capsules::led::ActivationMode::ActiveHigh
+                kernel::hil::gpio::ActivationMode::ActiveHigh
             ),
             (
                 stm32f4xx::gpio::PinId::PB07.get_pin().as_ref().unwrap(),
-                capsules::led::ActivationMode::ActiveHigh
+                kernel::hil::gpio::ActivationMode::ActiveHigh
             ),
             (
                 stm32f4xx::gpio::PinId::PB14.get_pin().as_ref().unwrap(),
-                capsules::led::ActivationMode::ActiveHigh
+                kernel::hil::gpio::ActivationMode::ActiveHigh
             )
         ]
     );
@@ -287,7 +287,7 @@ pub unsafe fn reset_handler() {
     let button = components::button::ButtonComponent::new(board_kernel).finalize(
         components::button_component_helper!((
             stm32f4xx::gpio::PinId::PC13.get_pin().as_ref().unwrap(),
-            kernel::hil::gpio::ButtonMode::LowWhenPressed,
+            kernel::hil::gpio::ActivationMode::ActiveLow,
             kernel::hil::gpio::FloatingState::PullNone
         )),
     );

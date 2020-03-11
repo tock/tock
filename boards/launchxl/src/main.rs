@@ -194,16 +194,16 @@ pub unsafe fn reset_handler() {
     let led_pins = static_init!(
         [(
             &'static dyn kernel::hil::gpio::Pin,
-            capsules::led::ActivationMode
+            kernel::hil::gpio::ActivationMode
         ); 2],
         [
             (
                 &cc26x2::gpio::PORT[pinmap.red_led],
-                capsules::led::ActivationMode::ActiveHigh
+                kernel::hil::gpio::ActivationMode::ActiveHigh
             ), // Red
             (
                 &cc26x2::gpio::PORT[pinmap.green_led],
-                capsules::led::ActivationMode::ActiveHigh
+                kernel::hil::gpio::ActivationMode::ActiveHigh
             ), // Green
         ]
     );
@@ -217,12 +217,12 @@ pub unsafe fn reset_handler() {
         components::button_component_helper!(
             (
                 &cc26x2::gpio::PORT[pinmap.button1],
-                hil::gpio::ButtonMode::LowWhenPressed,
+                hil::gpio::ActivationMode::ActiveLow,
                 hil::gpio::FloatingState::PullUp
             ),
             (
                 &cc26x2::gpio::PORT[pinmap.button2],
-                hil::gpio::ButtonMode::LowWhenPressed,
+                hil::gpio::ActivationMode::ActiveLow,
                 hil::gpio::FloatingState::PullUp
             )
         ),

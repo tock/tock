@@ -9,7 +9,7 @@
 //! ```rust
 //! components::panic_button::PanicButtonComponent::new(
 //!     &sam4l::gpio::PC[24],
-//!     kernel::hil::gpio::ButtonMode::LowWhenPressed,
+//!     kernel::hil::gpio::ActivationMode::ActiveLow,
 //!     kernel::hil::gpio::FloatingState::PullUp
 //! ).finalize(());
 //! ```
@@ -20,14 +20,14 @@ use kernel::static_init;
 
 pub struct PanicButtonComponent<'a> {
     pin: &'a dyn gpio::InterruptPin,
-    mode: gpio::ButtonMode,
+    mode: gpio::ActivationMode,
     floating_state: gpio::FloatingState,
 }
 
 impl<'a> PanicButtonComponent<'a> {
     pub fn new(
         pin: &'a dyn gpio::InterruptPin,
-        mode: gpio::ButtonMode,
+        mode: gpio::ActivationMode,
         floating_state: gpio::FloatingState,
     ) -> Self {
         PanicButtonComponent {
@@ -53,13 +53,13 @@ impl Component for PanicButtonComponent<'static> {
 
 struct PanicButton<'a> {
     pin: &'a dyn gpio::InterruptPin,
-    mode: gpio::ButtonMode,
+    mode: gpio::ActivationMode,
 }
 
 impl<'a> PanicButton<'a> {
     fn new(
         pin: &'a dyn gpio::InterruptPin,
-        mode: gpio::ButtonMode,
+        mode: gpio::ActivationMode,
         floating_state: gpio::FloatingState,
     ) -> Self {
         pin.make_input();
@@ -72,7 +72,7 @@ impl<'a> PanicButton<'a> {
 
 impl gpio::Client for PanicButton<'_> {
     fn fired(&self) {
-        if self.pin.read_button(self.mode) == gpio::ButtonState::Pressed {
+        if self.pin.read_activation(self.mode) == gpio::ActivationState::Active {
             panic!("Panic button pressed");
         }
     }

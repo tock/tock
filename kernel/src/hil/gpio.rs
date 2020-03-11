@@ -39,20 +39,22 @@ pub enum Configuration {
     Other,
 }
 
-/// Whether the GPIOs for the buttons on this platform are low when the button
-/// is pressed or high.
-#[derive(Clone, Copy)]
-pub enum ButtonMode {
-    LowWhenPressed,
-    HighWhenPressed,
+/// Some GPIOs can be semantically active or not.
+/// For example:
+/// - a LED is active when emitting light,
+/// - a button GPIO is active when pressed.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum ActivationState {
+    Inactive = 0,
+    Active = 1,
 }
 
-/// Values that are passed to userspace to identify if a button GPIO is pressed
-/// or not.
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub enum ButtonState {
-    NotPressed = 0,
-    Pressed = 1,
+/// Whether a GPIO is in the `ActivationState::Active` when the signal is high
+/// or low.
+#[derive(Clone, Copy)]
+pub enum ActivationMode {
+    ActiveHigh,
+    ActiveLow,
 }
 
 /// The Pin trait allows a pin to be used as either input
@@ -146,6 +148,20 @@ pub trait Output {
     /// input/output, this call is ignored. Return the new value
     /// of the pin.
     fn toggle(&self) -> bool;
+
+    /// Activate or deactivate a GPIO pin, for a given activation mode.
+    fn write_activation(&self, state: ActivationState, mode: ActivationMode) {
+        match (state, mode) {
+            (ActivationState::Active, ActivationMode::ActiveHigh)
+            | (ActivationState::Inactive, ActivationMode::ActiveLow) => {
+                self.set();
+            }
+            (ActivationState::Active, ActivationMode::ActiveLow)
+            | (ActivationState::Inactive, ActivationMode::ActiveHigh) => {
+                self.clear();
+            }
+        }
+    }
 }
 
 pub trait Input {
@@ -154,22 +170,22 @@ pub trait Input {
     /// for disabled or function pins the value is undefined.
     fn read(&self) -> bool;
 
-    /// Get the current state of a button GPIO pin, for a given button mode.
-    fn read_button(&self, mode: ButtonMode) -> ButtonState {
+    /// Get the current state of a GPIO pin, for a given activation mode.
+    fn read_activation(&self, mode: ActivationMode) -> ActivationState {
         let value = self.read();
         match mode {
-            ButtonMode::LowWhenPressed => {
+            ActivationMode::ActiveLow => {
                 if value {
-                    ButtonState::NotPressed
+                    ActivationState::Inactive
                 } else {
-                    ButtonState::Pressed
+                    ActivationState::Active
                 }
             }
-            ButtonMode::HighWhenPressed => {
+            ActivationMode::ActiveHigh => {
                 if value {
-                    ButtonState::Pressed
+                    ActivationState::Active
                 } else {
-                    ButtonState::NotPressed
+                    ActivationState::Inactive
                 }
             }
         }

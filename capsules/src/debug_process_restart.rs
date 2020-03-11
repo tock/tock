@@ -18,7 +18,7 @@
 //!         board_kernel,
 //!         ProcessMgmtCap
 //!         &sam4l::gpio::PA[16],
-//!         kernel::hil::gpio::ButtonMode::LowWhenPressed,
+//!         kernel::hil::gpio::ActivationMode::ActiveLow,
 //!         kernel::hil::gpio::FloatingState::PullUp
 //!     )
 //! );
@@ -33,7 +33,7 @@ pub struct DebugProcessRestart<'a, C: ProcessManagementCapability> {
     kernel: &'static Kernel,
     capability: C,
     pin: &'a dyn gpio::InterruptPin,
-    mode: gpio::ButtonMode,
+    mode: gpio::ActivationMode,
 }
 
 impl<'a, C: ProcessManagementCapability> DebugProcessRestart<'a, C> {
@@ -41,7 +41,7 @@ impl<'a, C: ProcessManagementCapability> DebugProcessRestart<'a, C> {
         kernel: &'static Kernel,
         cap: C,
         pin: &'a dyn gpio::InterruptPin,
-        mode: gpio::ButtonMode,
+        mode: gpio::ActivationMode,
         floating_state: gpio::FloatingState,
     ) -> Self {
         pin.make_input();
@@ -59,7 +59,7 @@ impl<'a, C: ProcessManagementCapability> DebugProcessRestart<'a, C> {
 
 impl<C: ProcessManagementCapability> gpio::Client for DebugProcessRestart<'_, C> {
     fn fired(&self) {
-        if self.pin.read_button(self.mode) == gpio::ButtonState::Pressed {
+        if self.pin.read_activation(self.mode) == gpio::ActivationState::Active {
             self.kernel.hardfault_all_apps(&self.capability);
         }
     }

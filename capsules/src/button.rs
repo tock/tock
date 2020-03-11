@@ -67,7 +67,7 @@ pub type SubscribeMap = u32;
 pub struct Button<'a> {
     pins: &'a [(
         &'a dyn gpio::InterruptValuePin,
-        gpio::ButtonMode,
+        gpio::ActivationMode,
         gpio::FloatingState,
     )],
     apps: Grant<(Option<Callback>, SubscribeMap)>,
@@ -77,7 +77,7 @@ impl<'a> Button<'a> {
     pub fn new(
         pins: &'a [(
             &'a dyn gpio::InterruptValuePin,
-            gpio::ButtonMode,
+            gpio::ActivationMode,
             gpio::FloatingState,
         )],
         grant: Grant<(Option<Callback>, SubscribeMap)>,
@@ -94,9 +94,9 @@ impl<'a> Button<'a> {
         }
     }
 
-    fn get_button_state(&self, pin_num: u32) -> gpio::ButtonState {
+    fn get_button_state(&self, pin_num: u32) -> gpio::ActivationState {
         let pin = &self.pins[pin_num as usize];
-        pin.0.read_button(pin.1)
+        pin.0.read_activation(pin.1)
     }
 }
 
