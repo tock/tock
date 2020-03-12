@@ -83,9 +83,9 @@ const BUTTON3_PIN: Pin = Pin::P0_24;
 const BUTTON4_PIN: Pin = Pin::P0_25;
 const BUTTON_RST_PIN: Pin = Pin::P0_18;
 
-const UART_RTS: Pin = Pin::P0_05;
+const UART_RTS: Option<Pin> = Some(Pin::P0_05);
 const UART_TXD: Pin = Pin::P0_06;
-const UART_CTS: Pin = Pin::P0_07;
+const UART_CTS: Option<Pin> = Some(Pin::P0_07);
 const UART_RXD: Pin = Pin::P0_08;
 
 const SPI_MOSI: Pin = Pin::P0_20;

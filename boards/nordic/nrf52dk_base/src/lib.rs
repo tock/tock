@@ -59,14 +59,14 @@ impl SpiPins {
 /// Pins for the UART
 #[derive(Debug)]
 pub struct UartPins {
-    rts: Pin,
+    rts: Option<Pin>,
     txd: Pin,
-    cts: Pin,
+    cts: Option<Pin>,
     rxd: Pin,
 }
 
 impl UartPins {
-    pub fn new(rts: Pin, txd: Pin, cts: Pin, rxd: Pin) -> Self {
+    pub fn new(rts: Option<Pin>, txd: Pin, cts: Option<Pin>, rxd: Pin) -> Self {
         Self { rts, txd, cts, rxd }
     }
 }
@@ -246,8 +246,8 @@ pub unsafe fn setup_board<I: nrf52::interrupt_service::InterruptService>(
             nrf52::uart::UARTE0.initialize(
                 nrf52::pinmux::Pinmux::new(uart_pins.txd as u32),
                 nrf52::pinmux::Pinmux::new(uart_pins.rxd as u32),
-                Some(nrf52::pinmux::Pinmux::new(uart_pins.cts as u32)),
-                Some(nrf52::pinmux::Pinmux::new(uart_pins.rts as u32)),
+                uart_pins.cts.map(|x| nrf52::pinmux::Pinmux::new(x as u32)),
+                uart_pins.rts.map(|x| nrf52::pinmux::Pinmux::new(x as u32)),
             );
             &nrf52::uart::UARTE0
         }

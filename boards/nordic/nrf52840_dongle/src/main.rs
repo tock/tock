@@ -23,9 +23,9 @@ const LED2_B_PIN: Pin = Pin::P0_12;
 const BUTTON_PIN: Pin = Pin::P1_06;
 const BUTTON_RST_PIN: Pin = Pin::P0_18;
 
-const UART_RTS: Pin = Pin::P0_13;
+const UART_RTS: Option<Pin> = Some(Pin::P0_13);
 const UART_TXD: Pin = Pin::P0_15;
-const UART_CTS: Pin = Pin::P0_17;
+const UART_CTS: Option<Pin> = Some(Pin::P0_17);
 const UART_RXD: Pin = Pin::P0_20;
 
 const SPI_MOSI: Pin = Pin::P1_01;
