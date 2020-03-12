@@ -24,6 +24,7 @@ RUSTFLAGS_FOR_CARGO ?= \
   -C linker-flavor=ld.lld \
   -C relocation-model=dynamic-no-pic \
   -C link-arg=-zmax-page-size=512 \
+  -C force-frame-pointers=no \
   --remap-path-prefix=$(MAKEFILE_PARENT_PATH)= \
 
 # Disallow warnings for continuous integration builds. Disallowing them here
