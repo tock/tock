@@ -304,15 +304,15 @@ pub unsafe fn reset_handler() {
     let led = components::led::LedsComponent::new().finalize(components::led_component_helper!(
         (
             &sam4l::gpio::PA[13],
-            capsules::led::ActivationMode::ActiveLow
+            kernel::hil::gpio::ActivationMode::ActiveLow
         ), // Red
         (
             &sam4l::gpio::PA[15],
-            capsules::led::ActivationMode::ActiveLow
+            kernel::hil::gpio::ActivationMode::ActiveLow
         ), // Green
         (
             &sam4l::gpio::PA[14],
-            capsules::led::ActivationMode::ActiveLow
+            kernel::hil::gpio::ActivationMode::ActiveLow
         ) // Blue
     ));
 
@@ -320,7 +320,7 @@ pub unsafe fn reset_handler() {
     let button = components::button::ButtonComponent::new(board_kernel).finalize(
         components::button_component_helper!((
             &sam4l::gpio::PA[16],
-            capsules::button::GpioMode::LowWhenPressed,
+            kernel::hil::gpio::ActivationMode::ActiveLow,
             kernel::hil::gpio::FloatingState::PullNone
         )),
     );

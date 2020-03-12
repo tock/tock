@@ -1,0 +1,129 @@
+3/6/2020
+
+Attending: Amit, Branden, Jean-Luc, Alistair, Samuel Jero, Garret Kelly, Hudson, Phil, Jonathan
+
+--Updates!--
+ * Phil: I have the teensy running and giving a panic dump
+ * Hudson: We submitted a workshop paper about the Tock threat model, based on Jonathan's work
+
+--Re-entrant Code--
+ * Alistair: I think the current method of "yield" is clumsy for some applications, like long-running computation with event handling. Can only do one or the other. Similarly for IPC. If you're doing a long-running thing, no IPC. It would be nice to interrupt a process that wants to be interrupted. But this led to a whole discussion on reentrancy.
+ * Amit: Do you have a concrete example in mind?
+ * Alistair: Running software crypto thing, but want to respond to inputs from GPIO while running. No way to do that in a single app.
+ * Phil: Would a "yield-no-wait" help?
+ * Amit: So you would manually put these in your algorithm to check? (yes)
+ * Alistair: We're calling crypto functions that we didn't write and can take a while between calls.
+ * Jonathan: Having something interrupt your call stack is bad for Rust. We've seen it with interrupts. Multi-threaded userspace could be better solution for this.
+ * Alistair: Doesn't have to be a callback, could just be some indication app could check.
+ * Phil: This doesn't solve your "deep in a library function" though
+ * Amit: Could imagine an interface where whether you are interrupted is optional (yes) If we had something like that, it wouldn't interfere with typical rust programs, but could be used in cases where you're willing to reason about interruptions.
+ * Alistair: I think this makes sense. Most cases are the current yield model, but we should have something extra for some cases.
+ * Phil: That's a totally fine abstraction model, like signals, but it can't be a global bit because if the library wants to be interrupted then it could conflict with your desires. Signals do this with a namespace of which signals can interrupt, but this gets bad for our sparse namespace of callbacks. You would need ability to mask things off when you can't be interrupted. Need a way to manage that namespace.
+ * Amit: Would doing this require providing a method for mutual exclusion?
+ * Phil: No, because this is happening on the same stack. Mutex would block forever on main thread. Two options: either add multi-threading or masking of signals
+ * Jonathan: This is starting to sound like the ?RTFM? framework where you have different priorities of interrupt and grabbing a lock is masking off one of those.
+ * Amit: Then you hit the priority inversion problem grabbing a lock.
+ * Branden: Why is the interrupt and masking model better than multi-threading?
+ * Phil: One advantage of signals model is that you don't have to handle many threads. But signals downside is that you have to manage the namespaces.
+ * Amit: Downside of multiple threads is the management of space for multiple stacks. Interruptable model shares a stack so no worries.
+ * Jonathan: What are the benefits of multithreading for having libraries working together. Could a library spawn a thread to do something in Tock? This might be "needed" by apps in the future.
+ * Amit: From a programming perspective, threads are nice. It's just that they're more expensive than a purely event-based single threaded model.
+ * Phil: Problem with single threaded model is always long-running computation. This is a general problem everyone has.
+ * Jonathan: Maybe we can get away with just two threads: foreground and background
+ * Phil: If you look at HTML5. Going to threading at all has all the problems, mutual exclusion, condition variables, etc. We could go down that route. But HTML5 does background computation and gets a callback when it completes. That call back is in your single-threaded main event loop. You're handling events with the main thread, but other threads can do things in the background.
+ * Phil: I'm worried that this is a 40-year-old problem approached in many ways, and we shouldn't be reinventing the wheel here.
+ * Amit: There are many ways to approach it, and it's unclear which would be better.
+ * Jonathan: What Phil said about HTML5 sounds like what tokIO does
+ * Pat: It feels like the kernel should allow arbitrary multi-threading. Rust runtime could have full multithreading or this foreground/background model.
+ * Jonathan: I think all kernel needs to do is reconfigure low end of the MPU region to implement stack pages. I think we could handle preemption of userspace.
+ * Amit: You would need to be able to preempt a process at least on timer, and maybe you'd need to modify the MPU to do ?large pages?. Not strictly necessary maybe
+ * Jonathan: It would be necessary for Rust safety guarantees
+ * Amit: My sense is we want two things: 1) a set of reasonable target applications 2) prototype solution for this
+ * Alistair: Would it be worth making threading opt-in for boards? Hifive is resource limited so we don't want to make apps bigger.
+ * Jonathan: I think applications need to opt-in (yes).
+ * Amit: Kernel could mostly be uninvolved. Just small features to allow for userspace threading. Then app would opt-in on threads
+ * Jonathan: Kernel would need MPU range, for libtock-rs, and running callbacks pre-emptively. Those maybe should be opt-in per board
+ * Phil: Then you turn off preemptive callbacks when you do things that modify shared state? Do you just have a global flip?
+ * Amit: You would have two live threads, one is the control thread that operates an event loop. Whenever you're in that thread you would turn interrupts off but all that does is receive interrupts and then swap the user-level thread and context switch into that and turn interrupts back on.
+ * Phil: I'm having trouble envisioning this process model
+ * Amit: It would look a lot like the kernel and process. The trick is the kernel-like-thread and the process-like-thread should never touch the same memory
+ * Phil: So my CPU thread is running, no callbacks pending. Kernel sets a callback, which would signal to userspace, which would switch to event thread. Evokes callback on CPU thread which can be preempted, and context switches to event thread to handle it. (yes)
+ * Jonathan: And would need to switch back to Event thread before re-enabling preemption
+ * Phil: But then what happens if the callback modifies state that the computational thread is touching?
+ * Amit: It would be up to the runtime library to not do that.
+ * Jonathan: You would need mutexes in that case.
+ * Phil: We have something like this in the kernel and interrupts fire and set bits in a queue. And that's implicitly the dense namespace we can check bits on.
+ * Phil: Seems like something that can work with Green Threads approach. When I call yield, really I call "yield and run those other threads"
+ * Alistair: So it would almost all be handled by the userspace library, kernel would just see one process
+ * Phil: How do we push state onto the stack though? Does the background computational thread get a function call with registers, that stack frame, and copy it over to the yielding event thread?
+ * Amit: yeah
+ * Jonathan: Callback that kernel evokes would be a "fun" bit of assembly to write. Might be possible to avoid generating a stack frame
+ * Phil: Callback, something triggers in kernel, kernel pushes a stack frame onto background thread, that then when it resumes executes this handler to copy state over to userspace event thread. Then context switches to userspace event thread which handles the event properly.
+ * Amit: Exactly. Callback would store background thread state with registers, then switch stack to event thread stack, then service the callback. Then switch back
+ * Phil: So how do the threads share state? Safely?
+ * Jonathan: Which state? (arbitrary)
+ * Amit: They don't.
+ * Jonathan: I was not thinking that. I thought they would be cooperative with mutexes.
+ * Amit: In my mind: We have an arbitrary number of background threads, like language-level Green Threads, one special event thread which is like the language runtime
+ * Jonathan: I wasn't imagining any sandbox around the CPU threads or anything
+ * Amit: Rust wouldn't need a sandbox because the regular language boundaries. C you're screwed anyways and don't need one.
+ * Jonathan: I don't think you can express that in the way you need to.
+ * Amit: All you need to enforce is that the event thread doesn't share state with background threads.
+ * Jonathan: And if the background thread and event thread are application threads that bring in the same library with a shared global variable...?
+ * Amit: No, the event thread is part of libtock-rs or whatever. It's part of the trusted compute base of the userland. It doesn't have application code.
+ * Jonathan: Doesn't it need application code to be able to react to events?
+ * Amit: Yes, but the runtime can expose whatever version of yield you want.
+ * Amit: Background threads wouldn't call yield directly to kernel
+ * Phil: Digress. This is something you can do but is complicated in several ways. Historically, long-running computation is narrow enough such that people have handled them as special cases with manual check for events. So you just make long-running things cooperative. Because machinery to handle this uncommon but important edge case is a lot of machinery.
+ * Amit: Generally agree with sentiment. Convincing to me otherwise are motivating examples and prototype that solves problems well. I agree with Phil about tradeoff
+ * Phil: To do this, we do need a "yield-no-wait". Some kind of check for callbacks.
+ * Amit: Or a preemptable process in a way that can be turned off.
+ * Jonathan: yield-no-wait could be useful for side-channel mitigation. If an app wants to hide whether or not its using the CPU but still respond to callbacks, there isn't currently a way to do that. However, for the sidechannel you'd really want to put the CPU to sleep where here you'd want to return to the application.
+ * Amit: Suggestion: branch off to task force to look at this. Alistair is clearly interested. Jonathan is (aligned with libtock-rs redesign). Pat has idea and Amit has opinions. Lets coordinate and chat on the side. Come back to group with more thoughts.
+ * Alistair: Can we advance yield-no-wait for Tock 2.0 independently
+ * Amit: Would be happy to see proposal for it. Sounds good
+ * Jonathan: I already though yield needed arguments for Tock 2.0
+ * Phil: My one comment for task group is not to reinvent the wheel. Lets not repeat terrible mistakes.
+
+--Considerations for Time HIL Redesign--
+ * Phil: Discussion on tock-dev email list about issues with current alarm time abstractions. wrt issues for RISC-V. Also series of bugs in alarm virtualization code which seem tricky to deal with. What happens if userspace sets an alarm and it's in the past before the kernel deals with it. Tricky situation. Guillaume is advocating for timer wide enough that it never wraps around, monotonically increasing. A decision would should have. Passing a 64-bit value around is the question.
+ * Amit: What's the problem with 64-bit counter?
+ * Phil: Passing 64-bits of data around and storing it
+ * Jonathan: Most usages are just very small amounts of time
+ * Phil: When userspace specifies an alarm, 64-bits needs two registers. Getting into userspace is tough. Needs a buffer? 64-bits is a lot when you only care about 3 milliseconds.
+ * Amit: Could just use three registers instead of two. We use 4 to make a system call. We may as well just allow up to 4 for returning as well.
+ * Phil: What are the costs of that?
+ * Jonathan: Extra register pressure
+ * Amit: Arguably costs would be low compared to buggy timer implementation
+ * Phil: Or use a buffer (expensive, but not in the common case)
+ * Phil: One proposal was kernel has 64-bit counter, but most APIs use 32-bits. Allocating elements in virtualized array only has 32-bit values for example.
+ * Phil: In depth discussion of tradeoffs, I recommend everyone look at the thread. I'm going to try an implementation this weekend
+
+--Nightly vs Stable Rust--
+ * Amit: Should be moving towards stable Rust instead of nightly. Historically used nightly because there was not a Rust core library compiled for some architectures. We had to use nightly to compile some architectures. There were also a bunch of features that were useful like inline assembly we were using too.
+ * Amit: At this point, ARM thumb doesn't need nightly. RISC-V does, but that will eventually go away too.
+ * Amit: But now there are language features we use in nightly that are not available in stable. Miguel brought up several PRs to remove language features to change syntax to match Rust stable. Tracking issue of unstable features.
+ * Amit: Question is do we want to move to stable? Nightly has features that feel ergonomically useful. And we would have to move all assembly into .S files.
+ * Garret: Background on why Miguel is looking into this. Chromebooks are interested in Open-titan. Two questions they are interested in is size and trust for compiler, wrt unstable nightly rust. Concerned about nightly because there aren't as many eyes on it as the stable compiler.
+ * Amit: Totally valid concern. My understanding is they branch betas from nightly then beta evolves independently from nightly with bug fixes and soundness for a while. Making sure features in rust stable are sound. Bigger likelihood that rust nightly has soundness issues.
+ * Garret: Also code generation issues (could be incorrect code)
+ * Jonathan: I agree stable is less likely to be broken
+ * Phil: Suppose ChromeOS wants to use Tock, but to use Tock it needs to be on stable. Would we be willing to do that, or should it be a fork? We don't have to answer now, but we should think about how we feel about it.
+ * Phil: I think inline assembly is gross and should use .S files.
+ * Amit: Nice thing about inline assembly in Rust is that compiler will still inline uses of arguments. .S files have to have extern C interface that forces a function call
+ * Phil: Places we are using inline assembly link no-ops is important. But most places the overhead of function call is less relevant.
+ * Amit: My perspective on your question is that none of the features we are currently using are so central to Tock that it would overshadow the benefit of Chromebook or other security-oriented projects using Tock. Many of these features individually, if that was the only remaining feature in the way, it wouldn't be important enough.
+ * Pat: I agree with assessment. But in aggregate we have benefited from being ahead of the curve with improved ergonomics. Maybe chasm between nightly and stable is less than it used to be, but the risk of adopting new features willy-nilly in nightly hasn't bit us. I'm less convinced that moving to stable is implicitly good.
+ * Phil: We are using features that will never be included in stable, so we're off the curve
+ * Pat: I can't think of an example of something we relied on in nightly that was removed. But maybe there are things that won't be removed from nightly but will never be added to stable.
+ * Jonathan: Inline assembly in current form is never gonna make it in. Needs a redesign.
+ * Pat: What about inband lifetimes. Why don't they remove it if they aren't going to stabilize it?
+ * Amit: We've been picking features not really willy-nilly. A lot of whether a feature gets stabilized is a lot about support for pushing it through the stabilization process. In band lifetimes for example, just doesn't have that support. Other syntax of just having an underscore for lifetimes has removed urgency.
+ * Pat: There's a difference between something not urgent and something that will be removed.
+ * Amit: Three cases: removed, stabilized, purgatory of hangs around for a long time
+ * Pat: Why does that purgatory exist?
+ * Garret: Determining when it's in that state is tough
+ * Amit: One last thought (out of time), if we get rid of low-hanging fruit features, and it's just the features that want to be stabilized but aren't yet. We could push on the Rust community for those if they were standing in our way.
+ * Pat: I would like to understand which of the features we are relying on are in purgatory versus on the path to stabilization. I'd like to keep features that will be stabilized to minimize churn.
+ * Amit: We could reach out to Niko and others for insight into this.
+
