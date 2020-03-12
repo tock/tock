@@ -176,11 +176,16 @@ target:
 %.elf: %
 	$(Q)cp $< $@
 
-%.bin: %.elf
-	$(Q)$(OBJCOPY) --output-target=binary $^ $@
+%.bin: %.elf $(MAKEFILE_COMMON_PATH)../tools/sha256sum/target/debug/sha256sum
+	$(Q)$(OBJCOPY) --output-target=binary $< $@
+	$(Q)$(MAKEFILE_COMMON_PATH)../tools/sha256sum/target/debug/sha256sum $@
 
 %.lst: %.elf
 	$(Q)$(OBJDUMP) $(OBJDUMP_FLAGS) $< > $@
+
+
+$(MAKEFILE_COMMON_PATH)../tools/sha256sum/target/debug/sha256sum:
+	$(Q)$(CARGO) build $(VERBOSE) --manifest-path $(MAKEFILE_COMMON_PATH)../tools/sha256sum/Cargo.toml
 
 
 # Cargo-drivers
