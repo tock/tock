@@ -160,6 +160,29 @@ cd tock/boards/hail
 make program
 ```
 
+### Tock Kernel Application Restart Policy
+
+The Tock kernel decides what happens when an application faults (e.g. the app
+tries to access memory not allocated to it). By default, recent versions of the
+Hail kernel will try to restart a failed application. If the process continues
+to fail and restart, the kernel will stop trying to restart it and instead will
+panic and print diagnostic information.
+
+If you want to try restarting applications manually, you can use the process
+console to do that. After running `tockloader listen`, run the "list" command to
+see what apps are installed, and the "fault" command to cause an app to fail and
+then be restarted.
+
+```bash
+$ tockloader listen
+list
+PID    Name                Quanta  Syscalls  Dropped Callbacks  Restarts    State
+00     hail                     0       235                  0         0  Yielded
+
+fault hail
+Process hail now faulted
+```
+
 ### Debugging the Kernel
 
 You can use gdb to debug a running kernel. The `jlink/` folder has some scripts
