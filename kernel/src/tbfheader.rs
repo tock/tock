@@ -433,10 +433,6 @@ crate fn parse_tbf_header(header: &'static [u8], version: u16) -> Result<TbfHead
                 }
             }
 
-            // DO WE NEED TO PARSE THE REMAINDER (AKA DO APPS HAVE HEADERS
-            // NOT MULTIPLE OF 4)??
-            // let extra = header_iter.remainder();
-
             // Verify the header matches.
             if checksum != tbf_header_base.checksum {
                 return Err(TbfParseError::ChecksumMismatch(
