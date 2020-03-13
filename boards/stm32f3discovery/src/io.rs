@@ -67,7 +67,7 @@ pub unsafe extern "C" fn panic_fmt(info: &PanicInfo) -> ! {
     // User LD3 is connected to PE09
     let led = &mut led::LedHigh::new(PinId::PE09.get_pin_mut().as_mut().unwrap());
     let writer = &mut WRITER;
-    
+
     debug::panic(
         &mut [led],
         writer,
