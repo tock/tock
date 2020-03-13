@@ -7,14 +7,13 @@
 #![feature(asm, core_intrinsics)]
 #![deny(missing_docs)]
 
-use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+use capsules::virtual_alarm::VirtualMuxAlarm;
 use components::gpio::GpioComponent;
 use kernel::capabilities;
 use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::component::Component;
 use kernel::hil::gpio::Configure;
 use kernel::hil::gpio::Output;
-use kernel::hil::time::Alarm;
 use kernel::Platform;
 use kernel::{create_capability, debug, static_init};
 
@@ -27,9 +26,6 @@ mod virtual_uart_rx_test;
 
 // Number of concurrent processes this platform supports.
 const NUM_PROCS: usize = 4;
-
-// Number of LEDs
-const NUM_LEDS: usize = 8;
 
 // Actual memory for holding the active process structures.
 static mut PROCESSES: [Option<&'static dyn kernel::procs::ProcessType>; NUM_PROCS] =
@@ -223,50 +219,41 @@ pub unsafe fn reset_handler() {
     // LEDs
 
     // Clock to Port E is enabled in `set_pin_primary_functions()`
-    let led_pins = static_init!(
-        [(
-            &'static dyn kernel::hil::gpio::Pin,
-            capsules::led::ActivationMode
-        ); NUM_LEDS],
-        [
-            (
-                stm32f3xx::gpio::PinId::PE09.get_pin().as_ref().unwrap(),
-                capsules::led::ActivationMode::ActiveHigh
-            ),
-            (
-                stm32f3xx::gpio::PinId::PE08.get_pin().as_ref().unwrap(),
-                capsules::led::ActivationMode::ActiveHigh
-            ),
-            (
-                stm32f3xx::gpio::PinId::PE10.get_pin().as_ref().unwrap(),
-                capsules::led::ActivationMode::ActiveHigh
-            ),
-            (
-                stm32f3xx::gpio::PinId::PE15.get_pin().as_ref().unwrap(),
-                capsules::led::ActivationMode::ActiveHigh
-            ),
-            (
-                stm32f3xx::gpio::PinId::PE11.get_pin().as_ref().unwrap(),
-                capsules::led::ActivationMode::ActiveHigh
-            ),
-            (
-                stm32f3xx::gpio::PinId::PE14.get_pin().as_ref().unwrap(),
-                capsules::led::ActivationMode::ActiveHigh
-            ),
-            (
-                stm32f3xx::gpio::PinId::PE12.get_pin().as_ref().unwrap(),
-                capsules::led::ActivationMode::ActiveHigh
-            ),
-            (
-                stm32f3xx::gpio::PinId::PE13.get_pin().as_ref().unwrap(),
-                capsules::led::ActivationMode::ActiveHigh
-            ),
-        ]
-    );
-    let led = static_init!(
-        capsules::led::LED<'static>,
-        capsules::led::LED::new(&led_pins[..])
-    );
+
+    let led = components::led::LedsComponent::new().finalize(components::led_component_helper!(
+        (
+            stm32f3xx::gpio::PinId::PE09.get_pin().as_ref().unwrap(),
+            capsules::led::ActivationMode::ActiveHigh
+        ),
+        (
+            stm32f3xx::gpio::PinId::PE08.get_pin().as_ref().unwrap(),
+            capsules::led::ActivationMode::ActiveHigh
+        ),
+        (
+            stm32f3xx::gpio::PinId::PE10.get_pin().as_ref().unwrap(),
+            capsules::led::ActivationMode::ActiveHigh
+        ),
+        (
+            stm32f3xx::gpio::PinId::PE15.get_pin().as_ref().unwrap(),
+            capsules::led::ActivationMode::ActiveHigh
+        ),
+        (
+            stm32f3xx::gpio::PinId::PE11.get_pin().as_ref().unwrap(),
+            capsules::led::ActivationMode::ActiveHigh
+        ),
+        (
+            stm32f3xx::gpio::PinId::PE14.get_pin().as_ref().unwrap(),
+            capsules::led::ActivationMode::ActiveHigh
+        ),
+        (
+            stm32f3xx::gpio::PinId::PE12.get_pin().as_ref().unwrap(),
+            capsules::led::ActivationMode::ActiveHigh
+        ),
+        (
+            stm32f3xx::gpio::PinId::PE13.get_pin().as_ref().unwrap(),
+            capsules::led::ActivationMode::ActiveHigh
+        )
+    ));
 
     // BUTTONs
     let button = components::button::ButtonComponent::new(board_kernel).finalize(
@@ -278,24 +265,18 @@ pub unsafe fn reset_handler() {
     );
 
     // ALARM
-    let mux_alarm = static_init!(
-        MuxAlarm<'static, stm32f3xx::tim2::Tim2>,
-        MuxAlarm::new(&stm32f3xx::tim2::TIM2)
-    );
-    stm32f3xx::tim2::TIM2.set_client(mux_alarm);
+    // let mux_alarm = static_init!(
+    //     MuxAlarm<'static, stm32f3xx::tim2::Tim2>,
+    //     MuxAlarm::new(&stm32f3xx::tim2::TIM2)
+    // );
 
-    let virtual_alarm = static_init!(
-        VirtualMuxAlarm<'static, stm32f3xx::tim2::Tim2>,
-        VirtualMuxAlarm::new(mux_alarm)
+    let tim2 = &stm32f3xx::tim2::TIM2;
+    let mux_alarm = components::alarm::AlarmMuxComponent::new(tim2).finalize(
+        components::alarm_mux_component_helper!(stm32f3xx::tim2::Tim2),
     );
-    let alarm = static_init!(
-        capsules::alarm::AlarmDriver<'static, VirtualMuxAlarm<'static, stm32f3xx::tim2::Tim2>>,
-        capsules::alarm::AlarmDriver::new(
-            virtual_alarm,
-            board_kernel.create_grant(&memory_allocation_capability)
-        )
-    );
-    virtual_alarm.set_client(alarm);
+
+    let alarm = components::alarm::AlarmDriverComponent::new(board_kernel, mux_alarm)
+        .finalize(components::alarm_component_helper!(stm32f3xx::tim2::Tim2));
 
     // GPIO
     let gpio = GpioComponent::new(board_kernel).finalize(components::gpio_component_helper!(
