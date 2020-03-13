@@ -25,7 +25,8 @@
  * `_sapps`, `_lapps`
  *
  *    The `_sapps` symbol marks the beginning of application memory in flash.
- *    The `_lapps` symbol is how long the application flash region is.
+ *    The `_eapps` symbol marks the end of application memory in flash by
+ *    pointing to next address after application flash.
  */
 
 
@@ -217,8 +218,8 @@ SECTIONS
            kernel and apps into a single image */
         KEEP (*(.app.*))
     } > prog
-    /* _lapps symbol used by tock to calculate the length of app flash */
-    _lapps = LENGTH(prog);
+    /* _eapps symbol used by tock to calculate the length of app flash */
+    _eapps = _sapps + LENGTH(prog);
 
 
 
