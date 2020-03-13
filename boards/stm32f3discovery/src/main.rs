@@ -223,35 +223,35 @@ pub unsafe fn reset_handler() {
     let led = components::led::LedsComponent::new().finalize(components::led_component_helper!(
         (
             stm32f3xx::gpio::PinId::PE09.get_pin().as_ref().unwrap(),
-            capsules::led::ActivationMode::ActiveHigh
+            kernel::hil::gpio::ActivationMode::ActiveHigh
         ),
         (
             stm32f3xx::gpio::PinId::PE08.get_pin().as_ref().unwrap(),
-            capsules::led::ActivationMode::ActiveHigh
+            kernel::hil::gpio::ActivationMode::ActiveHigh
         ),
         (
             stm32f3xx::gpio::PinId::PE10.get_pin().as_ref().unwrap(),
-            capsules::led::ActivationMode::ActiveHigh
+            kernel::hil::gpio::ActivationMode::ActiveHigh
         ),
         (
             stm32f3xx::gpio::PinId::PE15.get_pin().as_ref().unwrap(),
-            capsules::led::ActivationMode::ActiveHigh
+            kernel::hil::gpio::ActivationMode::ActiveHigh
         ),
         (
             stm32f3xx::gpio::PinId::PE11.get_pin().as_ref().unwrap(),
-            capsules::led::ActivationMode::ActiveHigh
+            kernel::hil::gpio::ActivationMode::ActiveHigh
         ),
         (
             stm32f3xx::gpio::PinId::PE14.get_pin().as_ref().unwrap(),
-            capsules::led::ActivationMode::ActiveHigh
+            kernel::hil::gpio::ActivationMode::ActiveHigh
         ),
         (
             stm32f3xx::gpio::PinId::PE12.get_pin().as_ref().unwrap(),
-            capsules::led::ActivationMode::ActiveHigh
+            kernel::hil::gpio::ActivationMode::ActiveHigh
         ),
         (
             stm32f3xx::gpio::PinId::PE13.get_pin().as_ref().unwrap(),
-            capsules::led::ActivationMode::ActiveHigh
+            kernel::hil::gpio::ActivationMode::ActiveHigh
         )
     ));
 
@@ -259,7 +259,7 @@ pub unsafe fn reset_handler() {
     let button = components::button::ButtonComponent::new(board_kernel).finalize(
         components::button_component_helper!((
             stm32f3xx::gpio::PinId::PA00.get_pin().as_ref().unwrap(),
-            capsules::button::GpioMode::LowWhenPressed,
+            kernel::hil::gpio::ActivationMode::ActiveLow,
             kernel::hil::gpio::FloatingState::PullNone
         )),
     );
