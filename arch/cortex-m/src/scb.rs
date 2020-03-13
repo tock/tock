@@ -9,7 +9,7 @@ use kernel::common::StaticRef;
 struct ScbRegisters {
     cpuid: VolatileCell<u32>,
     icsr: VolatileCell<u32>,
-    vtor: VolatileCell<u32>,
+    vtor: VolatileCell<*const ()>,
     aircr: VolatileCell<u32>,
     scr: VolatileCell<u32>,
     ccr: VolatileCell<u32>,
@@ -53,4 +53,9 @@ pub unsafe fn reset() {
     let aircr = SCB.aircr.get();
     let reset = (0x5FA << 16) | (aircr & (0x7 << 8)) | (1 << 2);
     SCB.aircr.set(reset);
+}
+
+/// relocate interrupt vector table
+pub unsafe fn set_vector_table_offset(offset: *const ()) {
+    SCB.vtor.set(offset);
 }

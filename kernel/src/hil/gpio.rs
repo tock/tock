@@ -39,6 +39,24 @@ pub enum Configuration {
     Other,
 }
 
+/// Some GPIOs can be semantically active or not.
+/// For example:
+/// - a LED is active when emitting light,
+/// - a button GPIO is active when pressed.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum ActivationState {
+    Inactive = 0,
+    Active = 1,
+}
+
+/// Whether a GPIO is in the `ActivationState::Active` when the signal is high
+/// or low.
+#[derive(Clone, Copy)]
+pub enum ActivationMode {
+    ActiveHigh,
+    ActiveLow,
+}
+
 /// The Pin trait allows a pin to be used as either input
 /// or output and to be configured.
 pub trait Pin: Input + Output + Configure {}
@@ -130,6 +148,20 @@ pub trait Output {
     /// input/output, this call is ignored. Return the new value
     /// of the pin.
     fn toggle(&self) -> bool;
+
+    /// Activate or deactivate a GPIO pin, for a given activation mode.
+    fn write_activation(&self, state: ActivationState, mode: ActivationMode) {
+        match (state, mode) {
+            (ActivationState::Active, ActivationMode::ActiveHigh)
+            | (ActivationState::Inactive, ActivationMode::ActiveLow) => {
+                self.set();
+            }
+            (ActivationState::Active, ActivationMode::ActiveLow)
+            | (ActivationState::Inactive, ActivationMode::ActiveHigh) => {
+                self.clear();
+            }
+        }
+    }
 }
 
 pub trait Input {
@@ -137,6 +169,19 @@ pub trait Input {
     /// pin, return the output; for an input pin, return the input;
     /// for disabled or function pins the value is undefined.
     fn read(&self) -> bool;
+
+    /// Get the current state of a GPIO pin, for a given activation mode.
+    fn read_activation(&self, mode: ActivationMode) -> ActivationState {
+        let value = self.read();
+        match (mode, value) {
+            (ActivationMode::ActiveHigh, true) | (ActivationMode::ActiveLow, false) => {
+                ActivationState::Active
+            }
+            (ActivationMode::ActiveLow, true) | (ActivationMode::ActiveHigh, false) => {
+                ActivationState::Inactive
+            }
+        }
+    }
 }
 
 pub trait Interrupt: Input {

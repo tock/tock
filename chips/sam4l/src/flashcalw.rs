@@ -568,6 +568,9 @@ impl FLASHCALW {
                 self.flashcalw_erase_page(page);
             }
             FlashState::EraseErasing => {
+                // Flush the cache
+                self.invalidate_cache();
+
                 self.current_state.set(FlashState::Ready);
 
                 self.client.map(|client| {

@@ -80,6 +80,12 @@ mod power;
 #[allow(dead_code)]
 mod virtual_uart_rx_test;
 
+#[allow(dead_code)]
+mod log_test;
+
+#[allow(dead_code)]
+mod linear_log_test;
+
 // State for loading apps.
 
 const NUM_PROCS: usize = 4;
@@ -373,12 +379,12 @@ pub unsafe fn reset_handler() {
 
     let led = LedsComponent::new().finalize(components::led_component_helper!((
         &sam4l::gpio::PC[10],
-        capsules::led::ActivationMode::ActiveHigh
+        kernel::hil::gpio::ActivationMode::ActiveHigh
     )));
     let button = components::button::ButtonComponent::new(board_kernel).finalize(
         components::button_component_helper!((
             &sam4l::gpio::PC[24],
-            capsules::button::GpioMode::LowWhenPressed,
+            kernel::hil::gpio::ActivationMode::ActiveLow,
             kernel::hil::gpio::FloatingState::PullNone
         )),
     );
@@ -499,6 +505,8 @@ pub unsafe fn reset_handler() {
     // aes_ccm_test::run();
     // aes_test::run_aes128_ctr();
     // aes_test::run_aes128_cbc();
+    // log_test::run(mux_alarm, dynamic_deferred_caller);
+    // linear_log_test::run(mux_alarm, dynamic_deferred_caller);
 
     debug!("Initialization complete. Entering main loop");
 
