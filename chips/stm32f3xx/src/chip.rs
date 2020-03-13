@@ -6,10 +6,7 @@ use kernel::common::deferred_call;
 use kernel::Chip;
 
 use crate::deferred_call_tasks::Task;
-// use crate::dma1;
-// use crate::exti;
 use crate::nvic;
-// use crate::spi;
 use crate::tim2;
 use crate::usart;
 

@@ -265,10 +265,6 @@ pub unsafe fn reset_handler() {
     );
 
     // ALARM
-    // let mux_alarm = static_init!(
-    //     MuxAlarm<'static, stm32f3xx::tim2::Tim2>,
-    //     MuxAlarm::new(&stm32f3xx::tim2::TIM2)
-    // );
 
     let tim2 = &stm32f3xx::tim2::TIM2;
     let mux_alarm = components::alarm::AlarmMuxComponent::new(tim2).finalize(
