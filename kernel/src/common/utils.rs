@@ -31,11 +31,9 @@ macro_rules! static_init {
 /// Before the static buffer can be used it must be initialized. For example:
 ///
 /// ```ignore
-/// let mut static_buffer = static_buf!(<data structure type>);
-/// let static_reference = static_buffer.initialize(<data structure>::new());
+/// let mut static_buffer = static_buf!(T);
+/// let static_reference: &'static mut T = static_buffer.initialize(T::new());
 /// ```
-///
-/// `static_reference` is a `&'static mut` reference.
 ///
 /// Separating the creation of the static buffer into its own macro is not
 /// strictly necessary, but it allows for more flexibility in Rust when boards
@@ -72,15 +70,15 @@ use core::mem::MaybeUninit;
 /// `StaticUninitializedBuffer`, pass the `UninitializedBuffer` to it, and call
 /// `initialize()`. This structure ensures that:
 ///
-/// 1. A static buffer is not initialized twice. Since the underlying memory is
+/// 1. The static buffer is not used while uninitialized. Since the only way to
+///    get the necessary `&'static mut T` is to call `initialize()`, the memory
+///    is guaranteed to be initialized.
+///
+/// 2. A static buffer is not initialized twice. Since the underlying memory is
 ///    owned by `UninitializedBuffer` nothing else can initialize it. Also, once
 ///    the memory is initialized via `StaticUninitializedBuffer.initialize()`,
 ///    the internal buffer is consumed and `initialize()` cannot be called
 ///    again.
-///
-/// 2. The static buffer is not used while uninitialized. Since the only way to
-///    get the necessary `&'static mut T` is to call `initialize()`, the memory
-///    is guaranteed to be initialized.
 #[repr(transparent)]
 pub struct UninitializedBuffer<T>(MaybeUninit<T>);
 
@@ -99,9 +97,9 @@ impl<T> UninitializedBuffer<T> {
 /// Upon initialization, a static mutable reference is returned and the
 /// `StaticUninitializedBuffer` is consumed.
 ///
-/// This type is implemented as wrapper containing a static mutable reference to
-/// an `UninitializedBuffer`. This guarantees that the memory at the reference
-/// has not already been initialized.
+/// This type is implemented as a wrapper containing a static mutable reference to
+/// an `UninitializedBuffer`. This guarantees that the memory pointed to by the
+/// reference has not already been initialized.
 ///
 /// `StaticUninitializedBuffer` provides one operation: `initialize()` that returns a
 /// `&'static mut T` reference. This is the only way to get the reference, and
@@ -132,6 +130,9 @@ impl<T> StaticUninitializedBuffer<T> {
     }
 }
 
+/// This macro is deprecated. You should migrate to using `static_buf!`
+/// followed by a call to `StaticUninitializedBuffer::initialize()`.
+///
 /// Same as `static_init!()` but without actually creating the static buffer.
 /// The static buffer must be passed in.
 #[macro_export]
