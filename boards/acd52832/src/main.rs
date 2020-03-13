@@ -4,8 +4,6 @@
 #![no_main]
 #![deny(missing_docs)]
 
-use core::slice;
-
 use capsules::virtual_alarm::VirtualMuxAlarm;
 use kernel::capabilities;
 use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
