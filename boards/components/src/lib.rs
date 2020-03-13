@@ -20,5 +20,5 @@ pub mod segger_rtt;
 pub mod si7021;
 pub mod spi;
 
-// Needed for the helper macros to resolve uninit_static_buf.
-pub use kernel::uninit_static_buf;
+// Needed for the helper macros to resolve static_buf.
+pub use kernel::static_buf;

@@ -26,7 +26,7 @@ use capsules::alarm::AlarmDriver;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use kernel::component::CreateComponent;
 use kernel::hil::time;
-use kernel::UninitStaticBuf;
+use kernel::StaticUninitializedBuffer;
 use kernel::{capabilities, create_capability};
 
 // Setup static space for the objects.
@@ -34,7 +34,7 @@ use kernel::{capabilities, create_capability};
 macro_rules! alarm_mux_component_buf {
     ($A:ty) => {{
         use capsules::virtual_alarm::MuxAlarm;
-        $crate::uninit_static_buf!(MuxAlarm<'static, $A>)
+        $crate::static_buf!(MuxAlarm<'static, $A>)
     };};
 }
 
@@ -45,8 +45,8 @@ macro_rules! alarm_component_buf {
         use capsules::alarm::AlarmDriver;
         use capsules::virtual_alarm::VirtualMuxAlarm;
         (
-            $crate::uninit_static_buf!(VirtualMuxAlarm<'static, $A>),
-            $crate::uninit_static_buf!(AlarmDriver<'static, VirtualMuxAlarm<'static, $A>>),
+            $crate::static_buf!(VirtualMuxAlarm<'static, $A>),
+            $crate::static_buf!(AlarmDriver<'static, VirtualMuxAlarm<'static, $A>>),
         )
     };};
 }
@@ -57,7 +57,7 @@ pub struct AlarmMuxComponent<A: 'static + time::Alarm<'static>> {
 
 impl<A: 'static + time::Alarm<'static>> CreateComponent for AlarmMuxComponent<A> {
     type Input = &'static A;
-    type StaticInput = UninitStaticBuf<MuxAlarm<'static, A>>;
+    type StaticInput = StaticUninitializedBuffer<MuxAlarm<'static, A>>;
     type Output = &'static MuxAlarm<'static, A>;
 
     unsafe fn create(alarm: Self::Input, static_input: Self::StaticInput) -> Self::Output {
@@ -75,8 +75,8 @@ pub struct AlarmDriverComponent<A: 'static + time::Alarm<'static>> {
 impl<A: 'static + time::Alarm<'static>> CreateComponent for AlarmDriverComponent<A> {
     type Input = (&'static kernel::Kernel, &'static MuxAlarm<'static, A>);
     type StaticInput = (
-        UninitStaticBuf<VirtualMuxAlarm<'static, A>>,
-        UninitStaticBuf<AlarmDriver<'static, VirtualMuxAlarm<'static, A>>>,
+        StaticUninitializedBuffer<VirtualMuxAlarm<'static, A>>,
+        StaticUninitializedBuffer<AlarmDriver<'static, VirtualMuxAlarm<'static, A>>>,
     );
     type Output = &'static AlarmDriver<'static, VirtualMuxAlarm<'static, A>>;
 

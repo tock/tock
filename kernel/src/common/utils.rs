@@ -16,7 +16,7 @@
 #[macro_export]
 macro_rules! static_init {
     ($T:ty, $e:expr) => {{
-        let mut buf = $crate::uninit_static_buf!($T);
+        let mut buf = $crate::static_buf!($T);
         buf.initialize($e)
     }};
 }
