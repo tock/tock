@@ -97,7 +97,7 @@ crate enum TbfHeaderTypes {
     /// Some field in the header that we do not understand. Since the TLV format
     /// specifies the length of each section, if we get a field we do not
     /// understand we just skip it, rather than throwing an error.
-    Unknown = 5,
+    Unknown,
 }
 
 /// The TLV header (T and L).
