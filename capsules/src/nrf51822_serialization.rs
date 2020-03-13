@@ -18,17 +18,17 @@
 
 use core::cmp;
 
-use kernel::common::cells::{MapCell, TakeCell};
+use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil;
 use kernel::hil::uart;
-use kernel::{AppId, AppSlice, Callback, Driver, ReturnCode, Shared};
+use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
 
 /// Syscall driver number.
 use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::Nrf51822Serialization as usize;
 
 #[derive(Default)]
-struct App {
+pub struct App {
     callback: Option<Callback>,
     tx_buffer: Option<AppSlice<Shared, u8>>,
     rx_buffer: Option<AppSlice<Shared, u8>>,
@@ -46,7 +46,8 @@ pub static mut READ_BUF: [u8; 600] = [0; 600];
 pub struct Nrf51822Serialization<'a> {
     uart: &'a dyn uart::UartAdvanced<'a>,
     reset_pin: &'a dyn hil::gpio::Pin,
-    app: MapCell<App>,
+    apps: Grant<App>,
+    active_app: OptionalCell<AppId>,
     tx_buffer: TakeCell<'static, [u8]>,
     rx_buffer: TakeCell<'static, [u8]>,
 }
@@ -54,6 +55,7 @@ pub struct Nrf51822Serialization<'a> {
 impl Nrf51822Serialization<'a> {
     pub fn new(
         uart: &'a dyn uart::UartAdvanced<'a>,
+        grant: Grant<App>,
         reset_pin: &'a dyn hil::gpio::Pin,
         tx_buffer: &'static mut [u8],
         rx_buffer: &'static mut [u8],
@@ -61,7 +63,8 @@ impl Nrf51822Serialization<'a> {
         Nrf51822Serialization {
             uart: uart,
             reset_pin: reset_pin,
-            app: MapCell::new(App::default()),
+            apps: grant,
+            active_app: OptionalCell::empty(),
             tx_buffer: TakeCell::new(tx_buffer),
             rx_buffer: TakeCell::new(rx_buffer),
         }
@@ -91,30 +94,43 @@ impl Nrf51822Serialization<'a> {
 impl Driver for Nrf51822Serialization<'a> {
     /// Pass application space memory to this driver.
     ///
+    /// This also sets which app is currently using this driver. Only one app
+    /// can control the nRF51 serialization driver.
+    ///
     /// ### `allow_num`
     ///
     /// - `0`: Provide a RX buffer.
     /// - `1`: Provide a TX buffer.
     fn allow(
         &self,
-        _appid: AppId,
+        appid: AppId,
         allow_type: usize,
         slice: Option<AppSlice<Shared, u8>>,
     ) -> ReturnCode {
         match allow_type {
             // Provide an RX buffer.
-            0 => self.app.map_or(ReturnCode::FAIL, |app| {
-                app.rx_buffer = slice;
-                app.rx_recv_so_far = 0;
-                app.rx_recv_total = 0;
-                ReturnCode::SUCCESS
-            }),
+            0 => {
+                self.active_app.set(appid);
+                self.apps
+                    .enter(appid, |app, _| {
+                        app.rx_buffer = slice;
+                        app.rx_recv_so_far = 0;
+                        app.rx_recv_total = 0;
+                        ReturnCode::SUCCESS
+                    })
+                    .unwrap_or(ReturnCode::FAIL)
+            }
 
             // Provide a TX buffer.
-            1 => self.app.map_or(ReturnCode::FAIL, |app| {
-                app.tx_buffer = slice;
-                ReturnCode::SUCCESS
-            }),
+            1 => {
+                self.active_app.set(appid);
+                self.apps
+                    .enter(appid, |app, _| {
+                        app.tx_buffer = slice;
+                        ReturnCode::SUCCESS
+                    })
+                    .unwrap_or(ReturnCode::FAIL)
+            }
             _ => ReturnCode::ENOSUPPORT,
         }
     }
@@ -131,22 +147,24 @@ impl Driver for Nrf51822Serialization<'a> {
         &self,
         subscribe_type: usize,
         callback: Option<Callback>,
-        _app_id: AppId,
+        appid: AppId,
     ) -> ReturnCode {
         match subscribe_type {
             // Add a callback
             0 => {
-                // work-around because `MapCell` don't provide `map_or_else`
-                if self.app.map(|app| app.callback = callback).is_none() == true {
-                    return ReturnCode::FAIL;
-                }
+                // Save the callback for the app.
+                let _ = self.apps.enter(appid, |app, _| {
+                    app.callback = callback;
+                });
 
-                // Start the receive now that we have a callback.
-                self.rx_buffer.take().map_or(ReturnCode::FAIL, |buffer| {
+                // Start the receive now that we have a callback. If there is no
+                // buffer then the receive has already been started.
+                self.rx_buffer.take().map(|buffer| {
                     let len = buffer.len();
                     self.uart.receive_automatic(buffer, len, 250);
-                    ReturnCode::SUCCESS
-                })
+                });
+
+                ReturnCode::SUCCESS
             }
             _ => ReturnCode::ENOSUPPORT,
         }
@@ -159,15 +177,13 @@ impl Driver for Nrf51822Serialization<'a> {
     /// - `0`: Driver check.
     /// - `1`: Send the allowed buffer to the nRF.
     /// - `2`: Reset the nRF51822.
-    fn command(&self, command_type: usize, _: usize, _: usize, _: AppId) -> ReturnCode {
+    fn command(&self, command_type: usize, _: usize, _: usize, appid: AppId) -> ReturnCode {
         match command_type {
             0 /* check if present */ => ReturnCode::SUCCESS,
 
             // Send a buffer to the nRF51822 over UART.
             1 => {
-                // TODO(bradjc): Need to match this to the correct app!
-                //               Can't just use 0!
-                self.app.map_or(ReturnCode::FAIL, |app| {
+                self.apps.enter(appid, |app, _| {
                     app.tx_buffer.take().map_or(ReturnCode::FAIL, |slice| {
                         let write_len = slice.len();
                         self.tx_buffer.take().map_or(ReturnCode::FAIL, |buffer| {
@@ -178,7 +194,7 @@ impl Driver for Nrf51822Serialization<'a> {
                             ReturnCode::SUCCESS
                         })
                     })
-                })
+                }).unwrap_or(ReturnCode::FAIL)
             }
 
             // Initialize the nRF51822 by resetting it.
@@ -197,12 +213,13 @@ impl uart::TransmitClient for Nrf51822Serialization<'a> {
     // Called when the UART TX has finished.
     fn transmitted_buffer(&self, buffer: &'static mut [u8], _tx_len: usize, _rcode: ReturnCode) {
         self.tx_buffer.replace(buffer);
-        // TODO(bradjc): Need to match this to the correct app!
-        //               Can't just use 0!
-        self.app.map(|appst| {
-            // Call the callback after TX has finished
-            appst.callback.as_mut().map(|cb| {
-                cb.schedule(1, 0, 0);
+
+        self.active_app.map(|appid| {
+            let _ = self.apps.enter(*appid, |app, _| {
+                // Call the callback after TX has finished
+                app.callback.as_mut().map(|cb| {
+                    cb.schedule(1, 0, 0);
+                });
             });
         });
     }
@@ -221,24 +238,26 @@ impl uart::ReceiveClient for Nrf51822Serialization<'a> {
     ) {
         self.rx_buffer.replace(buffer);
 
-        self.app.map(|appst| {
-            appst.rx_buffer = appst.rx_buffer.take().map(|mut rb| {
-                // Figure out length to copy.
-                let max_len = cmp::min(rx_len, rb.len());
+        self.active_app.map(|appid| {
+            let _ = self.apps.enter(*appid, |app, _| {
+                app.rx_buffer = app.rx_buffer.take().map(|mut rb| {
+                    // Figure out length to copy.
+                    let max_len = cmp::min(rx_len, rb.len());
 
-                // Copy over data to app buffer.
-                self.rx_buffer.map(|buffer| {
-                    for idx in 0..max_len {
-                        rb.as_mut()[idx] = buffer[idx];
-                    }
-                });
-                appst.callback.as_mut().map(|cb| {
-                    // Notify the serialization library in userspace about the
-                    // received buffer.
-                    cb.schedule(4, rx_len, 0);
-                });
+                    // Copy over data to app buffer.
+                    self.rx_buffer.map(|buffer| {
+                        for idx in 0..max_len {
+                            rb.as_mut()[idx] = buffer[idx];
+                        }
+                    });
+                    app.callback.as_mut().map(|cb| {
+                        // Notify the serialization library in userspace about the
+                        // received buffer.
+                        cb.schedule(4, rx_len, 0);
+                    });
 
-                rb
+                    rb
+                });
             });
         });
 

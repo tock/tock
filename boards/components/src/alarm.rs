@@ -67,7 +67,7 @@ impl<A: 'static + time::Alarm<'static>> Component for AlarmMuxComponent<A> {
     type StaticInput = &'static mut MaybeUninit<MuxAlarm<'static, A>>;
     type Output = &'static MuxAlarm<'static, A>;
 
-    unsafe fn finalize(&mut self, static_buffer: Self::StaticInput) -> Self::Output {
+    unsafe fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let mux_alarm = static_init_half!(
             static_buffer,
             MuxAlarm<'static, A>,
@@ -103,7 +103,7 @@ impl<A: 'static + time::Alarm<'static>> Component for AlarmDriverComponent<A> {
     );
     type Output = &'static AlarmDriver<'static, VirtualMuxAlarm<'static, A>>;
 
-    unsafe fn finalize(&mut self, static_buffer: Self::StaticInput) -> Self::Output {
+    unsafe fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
         let virtual_alarm1 = static_init_half!(

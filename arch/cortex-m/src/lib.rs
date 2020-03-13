@@ -2,7 +2,7 @@
 
 #![crate_name = "cortexm"]
 #![crate_type = "rlib"]
-#![feature(asm, const_fn, lang_items)]
+#![feature(asm, lang_items)]
 #![no_std]
 
 use core::fmt::Write;

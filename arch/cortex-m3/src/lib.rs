@@ -2,7 +2,7 @@
 
 #![crate_name = "cortexm3"]
 #![crate_type = "rlib"]
-#![feature(asm, const_fn, core_intrinsics, naked_functions)]
+#![feature(asm, core_intrinsics, naked_functions)]
 #![no_std]
 
 pub mod mpu;
@@ -192,7 +192,7 @@ pub unsafe extern "C" fn switch_to_user(
     mrs $0, PSP /* PSP into r0 */"
     : "={r0}"(user_stack)
     : "{r0}"(user_stack), "{r1}"(process_regs)
-    : "r4","r5","r6","r7","r8","r9","r10","r11" : "volatile" );
+    : "r4","r5","r6","r8","r9","r10","r11" : "volatile" );
     user_stack
 }
 

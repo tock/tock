@@ -204,7 +204,7 @@ pub unsafe fn reset_handler() {
     );
 
     let chip = static_init!(sam4l::chip::Sam4l, sam4l::chip::Sam4l::new());
-    CHIP = Some(&chip);
+    CHIP = Some(chip);
 
     let dynamic_deferred_call_clients =
         static_init!([DynamicDeferredCallClientState; 2], Default::default());
@@ -240,9 +240,12 @@ pub unsafe fn reset_handler() {
     sam4l::usart::USART3.set_mode(sam4l::usart::UsartMode::Uart);
     // Create the Nrf51822Serialization driver for passing BLE commands
     // over UART to the nRF51822 radio.
-    let nrf_serialization =
-        components::nrf51822::Nrf51822Component::new(&sam4l::usart::USART3, &sam4l::gpio::PA[17])
-            .finalize(());
+    let nrf_serialization = components::nrf51822::Nrf51822Component::new(
+        &sam4l::usart::USART3,
+        &sam4l::gpio::PA[17],
+        board_kernel,
+    )
+    .finalize(());
 
     let ast = &sam4l::ast::AST;
     let mux_alarm = components::alarm::AlarmMuxComponent::new(ast)
@@ -301,15 +304,15 @@ pub unsafe fn reset_handler() {
     let led = components::led::LedsComponent::new().finalize(components::led_component_helper!(
         (
             &sam4l::gpio::PA[13],
-            capsules::led::ActivationMode::ActiveLow
+            kernel::hil::gpio::ActivationMode::ActiveLow
         ), // Red
         (
             &sam4l::gpio::PA[15],
-            capsules::led::ActivationMode::ActiveLow
+            kernel::hil::gpio::ActivationMode::ActiveLow
         ), // Green
         (
             &sam4l::gpio::PA[14],
-            capsules::led::ActivationMode::ActiveLow
+            kernel::hil::gpio::ActivationMode::ActiveLow
         ) // Blue
     ));
 
@@ -317,7 +320,7 @@ pub unsafe fn reset_handler() {
     let button = components::button::ButtonComponent::new(board_kernel).finalize(
         components::button_component_helper!((
             &sam4l::gpio::PA[16],
-            capsules::button::GpioMode::LowWhenPressed,
+            kernel::hil::gpio::ActivationMode::ActiveLow,
             kernel::hil::gpio::FloatingState::PullNone
         )),
     );
@@ -409,8 +412,7 @@ pub unsafe fn reset_handler() {
         dac: dac,
     };
 
-    // Reset the nRF and setup the UART bus.
-    hail.nrf51822.reset();
+    // Setup the UART bus for nRF51 serialization..
     hail.nrf51822.initialize();
 
     process_console.start();

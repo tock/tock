@@ -87,188 +87,188 @@ struct AcifcRegisters {
 }
 
 register_bitfields![u32,
-	Control [
-		/// Analog comparator test mode. Equal to 1 means AC outputs will be
-		/// bypassed with values in AC test register.
-		ACTEST 7,
-		/// This bit is set when an enabled peripheral event is received (called
-		/// by EVENTEN), and starts a single comparison.
-		ESTART 5,
-		/// This bit can be set by the user and starts a single comparison.
-		USTART 4,
-		/// This bit sets ESTART to 1 on receiving a peripheral event from
-		/// another hardware module.
-		EVENTEN 1,
-		/// Enables or disables the ACIFC.
-		EN 0
-	],
+    Control [
+        /// Analog comparator test mode. Equal to 1 means AC outputs will be
+        /// bypassed with values in AC test register.
+        ACTEST 7,
+        /// This bit is set when an enabled peripheral event is received (called
+        /// by EVENTEN), and starts a single comparison.
+        ESTART 5,
+        /// This bit can be set by the user and starts a single comparison.
+        USTART 4,
+        /// This bit sets ESTART to 1 on receiving a peripheral event from
+        /// another hardware module.
+        EVENTEN 1,
+        /// Enables or disables the ACIFC.
+        EN 0
+    ],
 
-	Status [
-		/// This bit represents an output for the window mode, and reads one
-		/// when the common input voltage is inside the window of the two
-		/// non-common inputs.
-		WFCS3 27,
-		WFCS2 26,
-		WFCS1 25,
-		WFCS0 24,
-		/// ACRDY is set when the AC output is ready. ACCS is set when the
-		/// positive input voltage V_{INP} is greater than the negative input
-		/// voltage V_{INN}.
-		ACRDY7 15,
-		ACCS7 14,
-		ACRDY6 13,
-		ACCS6 12,
-		ACRDY5 11,
-		ACCS5 10,
-		ACRDY4 9,
-		ACCS4 8,
-		ACRDY3 7,
-		ACCS3 6,
-		ACRDY2 5,
-		ACCS2 4,
-		ACRDY1 3,
-		ACCS1 2,
-		ACRDY0 1,
-		ACCS0 0
-	],
+    Status [
+        /// This bit represents an output for the window mode, and reads one
+        /// when the common input voltage is inside the window of the two
+        /// non-common inputs.
+        WFCS3 27,
+        WFCS2 26,
+        WFCS1 25,
+        WFCS0 24,
+        /// ACRDY is set when the AC output is ready. ACCS is set when the
+        /// positive input voltage V_{INP} is greater than the negative input
+        /// voltage V_{INN}.
+        ACRDY7 15,
+        ACCS7 14,
+        ACRDY6 13,
+        ACCS6 12,
+        ACRDY5 11,
+        ACCS5 10,
+        ACRDY4 9,
+        ACCS4 8,
+        ACRDY3 7,
+        ACCS3 6,
+        ACRDY2 5,
+        ACCS2 4,
+        ACRDY1 3,
+        ACCS1 2,
+        ACRDY0 1,
+        ACCS0 0
+    ],
 
-	/// - IER: Writing a one to a bit in this register will set the
-	///   corresponding bit in IMR.
-	/// - IDR: Writing a one to a bit in this register will clear the
-	///   corresponding bit in IMR.
-	/// - IMR: Writing a one in any of these bits will enable the corresponding
-	///   interrupt.
-	/// - ISR: WFINTx shows if a window mode interrupt is pending. SUTINTx shows
-	///   if a startup time interrupt is pending. ACINTx shows if a normal mode
-	///   interrupt is pending.
-	/// - ICR: Writing a one to a bit in this register will clear the
-	///   corresponding bit in ISR and the corresponding interrupt request.
-	Interrupt [
-		WFINT3 27,
-		WFINT2 26,
-		WFINT1 25,
-		WFINT0 24,
-		SUTINT7 15,
-		ACINT7 14,
-		SUTINT6 13,
-		ACINT6 12,
-		SUTINT5 11,
-		ACINT5 10,
-		SUTINT4 9,
-		ACINT4 8,
-		SUTINT3 7,
-		ACINT3 6,
-		SUTINT2 5,
-		ACINT2 4,
-		SUTINT1 3,
-		ACINT1 2,
-		SUTINT0 1,
-		ACINT0 0
-	],
+    /// - IER: Writing a one to a bit in this register will set the
+    ///   corresponding bit in IMR.
+    /// - IDR: Writing a one to a bit in this register will clear the
+    ///   corresponding bit in IMR.
+    /// - IMR: Writing a one in any of these bits will enable the corresponding
+    ///   interrupt.
+    /// - ISR: WFINTx shows if a window mode interrupt is pending. SUTINTx shows
+    ///   if a startup time interrupt is pending. ACINTx shows if a normal mode
+    ///   interrupt is pending.
+    /// - ICR: Writing a one to a bit in this register will clear the
+    ///   corresponding bit in ISR and the corresponding interrupt request.
+    Interrupt [
+        WFINT3 27,
+        WFINT2 26,
+        WFINT1 25,
+        WFINT0 24,
+        SUTINT7 15,
+        ACINT7 14,
+        SUTINT6 13,
+        ACINT6 12,
+        SUTINT5 11,
+        ACINT5 10,
+        SUTINT4 9,
+        ACINT4 8,
+        SUTINT3 7,
+        ACINT3 6,
+        SUTINT2 5,
+        ACINT2 4,
+        SUTINT1 3,
+        ACINT1 2,
+        SUTINT0 1,
+        ACINT0 0
+    ],
 
-	Test [
-		/// If equal to one, overrides ACx output with the value of ACTESTx.
-		ACTEST7 7,
-		ACTEST6 6,
-		ACTEST5 5,
-		ACTEST4 4,
-		ACTEST3 3,
-		ACTEST2 2,
-		ACTEST1 1,
-		ACTEST0 0
-	],
+    Test [
+        /// If equal to one, overrides ACx output with the value of ACTESTx.
+        ACTEST7 7,
+        ACTEST6 6,
+        ACTEST5 5,
+        ACTEST4 4,
+        ACTEST3 3,
+        ACTEST2 2,
+        ACTEST1 1,
+        ACTEST0 0
+    ],
 
-	Parameter [
-		/// If equal to one, window mode x is implemented.
-		WIMPL3 19,
-		WIMPL2 18,
-		WIMPL1 17,
-		WIMPL0 16,
-		/// If equal to one, analog comparator x is implemented.
-		ACIMPL7 7,
-		ACIMPL6 6,
-		ACIMPL5 5,
-		ACIMPL4 4,
-		ACIMPL3 3,
-		ACIMPL2 2,
-		ACIMPL1 1,
-		ACIMPL0 0
-		],
+    Parameter [
+        /// If equal to one, window mode x is implemented.
+        WIMPL3 19,
+        WIMPL2 18,
+        WIMPL1 17,
+        WIMPL0 16,
+        /// If equal to one, analog comparator x is implemented.
+        ACIMPL7 7,
+        ACIMPL6 6,
+        ACIMPL5 5,
+        ACIMPL4 4,
+        ACIMPL3 3,
+        ACIMPL2 2,
+        ACIMPL1 1,
+        ACIMPL0 0
+        ],
 
-	WindowConfiguration [
-		/// If equal to one, window mode is enabled.
-		WFEN OFFSET(16) NUMBITS(1) [],
-		/// If equal to one, peripheral event from ACWOUT is enabled.
-		WEVEN OFFSET(11) NUMBITS(1) [],
-		/// Peripheral Event Source Selection for Window Mode
-		WEVSRC OFFSET (8) NUMBITS(3) [
-			AcwoutRisingEdge = 0,
-			AcwoutFallingEdge = 1,
-			AcwoutRisingOrFallingEdge = 2,
-			InsideWindow = 3,
-			OutsideWindow = 4,
-			MeasureDone = 5
-		],
-			/// Window Mode Interrupt Settings
-		WIS OFFSET(0) NUMBITS (3)[
-			/// Window interrupt as soon as the common input voltage is inside
-			/// the window
-			InterruptInsideWindow = 0,
-			/// Window interrupt as soon as the common input voltage is outside
-			/// the window
-			InterruptOutsideWindow = 1,
-			/// Window interrupt on toggle of ACWOUT
-			InterruptToggleAcwout = 2,
-			/// Window interrupt when evaluation of common input voltage is done
-			InterruptAfterEvaluation = 3,
-			/// Window interrupt when the common input voltage enters the window
-			/// (i.e., rising-edge of ACWOUT)
-			InterruptEnterWindow = 4,
-			/// Window interrupt when the common input voltage leaves the window
-			/// (i.e., falling-edge of ACWOUT)
-			InterruptLeaveWindow = 5
-	]
-	],
+    WindowConfiguration [
+        /// If equal to one, window mode is enabled.
+        WFEN OFFSET(16) NUMBITS(1) [],
+        /// If equal to one, peripheral event from ACWOUT is enabled.
+        WEVEN OFFSET(11) NUMBITS(1) [],
+        /// Peripheral Event Source Selection for Window Mode
+        WEVSRC OFFSET (8) NUMBITS(3) [
+            AcwoutRisingEdge = 0,
+            AcwoutFallingEdge = 1,
+            AcwoutRisingOrFallingEdge = 2,
+            InsideWindow = 3,
+            OutsideWindow = 4,
+            MeasureDone = 5
+        ],
+            /// Window Mode Interrupt Settings
+        WIS OFFSET(0) NUMBITS (3)[
+            /// Window interrupt as soon as the common input voltage is inside
+            /// the window
+            InterruptInsideWindow = 0,
+            /// Window interrupt as soon as the common input voltage is outside
+            /// the window
+            InterruptOutsideWindow = 1,
+            /// Window interrupt on toggle of ACWOUT
+            InterruptToggleAcwout = 2,
+            /// Window interrupt when evaluation of common input voltage is done
+            InterruptAfterEvaluation = 3,
+            /// Window interrupt when the common input voltage enters the window
+            /// (i.e., rising-edge of ACWOUT)
+            InterruptEnterWindow = 4,
+            /// Window interrupt when the common input voltage leaves the window
+            /// (i.e., falling-edge of ACWOUT)
+            InterruptLeaveWindow = 5
+    ]
+    ],
 
-	ACConfiguration [
-		/// If equal to one, AC is always enabled.
-		ALWAYSON OFFSET(27) NUMBITS(1) [],
-		/// 0: Low-power mode. 1: Fastm ode.
-		FAST OFFSET(26) NUMBITS(1) [],
-		/// Hysteresis voltage value: 0/25/50/75 mV
-		HYS OFFSET(24) NUMBITS(2) [
-			HysteresisVoltage0mV = 0,
-			HysteresisVoltage25mV = 1,
-			HysteresisVoltage50mV = 2,
-			HysteresisVoltage75mV = 3
-		],
-		/// Setting this to one will output peripheral event when ACOUT is zero.
-		EVENP OFFSET(17) NUMBITS(1) [],
-		/// Setting this to one will output peripheral event when ACOUT is one.
-		EVENN OFFSET(16) NUMBITS(1) [],
-		/// Negative input select. 00: ACANx pint selected, others reserved.
-		INSELN OFFSET(8) NUMBITS(2) [],
-		/// Choose between analog comparator mode.
-		MODE OFFSET(4) NUMBITS(2) [
-			Off = 0,
-			ContinuousMeasurementMode = 1,
-			/// User Triggered Single Measurement Mode
-			UserMode = 2,
-			/// Peripheral Event Single Measurement Mode
-			PeripheralMode = 3
-		],
-		/// Interrupt settings
-		IS OFFSET(0) NUMBITS(2) [
-			/// When Vinp > Vinn
-			WhenVinpGtVinn = 0,
-			/// When Vinp < Vinn
-			WhenVinpLtVinn = 1,
-			/// On toggle of ACOUT
-			OnToggleOfACOUT = 2,
-			/// When comparison of Vinp and Vinn is done
-			WhenComparisonDone = 3
-		]
-	]
+    ACConfiguration [
+        /// If equal to one, AC is always enabled.
+        ALWAYSON OFFSET(27) NUMBITS(1) [],
+        /// 0: Low-power mode. 1: Fastm ode.
+        FAST OFFSET(26) NUMBITS(1) [],
+        /// Hysteresis voltage value: 0/25/50/75 mV
+        HYS OFFSET(24) NUMBITS(2) [
+            HysteresisVoltage0mV = 0,
+            HysteresisVoltage25mV = 1,
+            HysteresisVoltage50mV = 2,
+            HysteresisVoltage75mV = 3
+        ],
+        /// Setting this to one will output peripheral event when ACOUT is zero.
+        EVENP OFFSET(17) NUMBITS(1) [],
+        /// Setting this to one will output peripheral event when ACOUT is one.
+        EVENN OFFSET(16) NUMBITS(1) [],
+        /// Negative input select. 00: ACANx pint selected, others reserved.
+        INSELN OFFSET(8) NUMBITS(2) [],
+        /// Choose between analog comparator mode.
+        MODE OFFSET(4) NUMBITS(2) [
+            Off = 0,
+            ContinuousMeasurementMode = 1,
+            /// User Triggered Single Measurement Mode
+            UserMode = 2,
+            /// Peripheral Event Single Measurement Mode
+            PeripheralMode = 3
+        ],
+        /// Interrupt settings
+        IS OFFSET(0) NUMBITS(2) [
+            /// When Vinp > Vinn
+            WhenVinpGtVinn = 0,
+            /// When Vinp < Vinn
+            WhenVinpLtVinn = 1,
+            /// On toggle of ACOUT
+            OnToggleOfACOUT = 2,
+            /// When comparison of Vinp and Vinn is done
+            WhenComparisonDone = 3
+        ]
+    ]
 ];
 
 const ACIFC_BASE: StaticRef<AcifcRegisters> =

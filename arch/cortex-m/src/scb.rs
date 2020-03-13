@@ -16,7 +16,7 @@ register_structs! {
         (0x04 => icsr: ReadWrite<u32, InterruptControlAndState::Register>),
 
         /// Vector Table Offset Register
-        (0x08 => vtor: ReadWrite<u32, VectorTableOffset::Register>),
+        (0x08 => vtor: ReadWrite<*const (), VectorTableOffset::Register>),
 
         /// Application Interrupt and Reset Control Register
         (0x0c => aircr: ReadWrite<u32, ApplicationInterruptAndReset::Register>),
@@ -287,4 +287,9 @@ pub unsafe fn reset() {
             + ApplicationInterruptAndReset::PRIGROUP.val(0b111)
             + ApplicationInterruptAndReset::SYSRESETREQ::SET,
     );
+}
+
+/// relocate interrupt vector table
+pub unsafe fn set_vector_table_offset(offset: *const ()) {
+    SCB.vtor.set(offset);
 }

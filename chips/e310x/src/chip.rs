@@ -117,7 +117,7 @@ pub unsafe fn handle_trap() {
                         Some(ext_interrupt_id) => {
                             debug!("interrupt triggered {}\n", ext_interrupt_id);
                             plic::complete(ext_interrupt_id);
-                            plic::surpress_all();
+                            plic::suppress_all();
                         }
                     }
                 }

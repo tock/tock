@@ -14,10 +14,10 @@
 //!
 //! ```rust
 //! let led_pins = static_init!(
-//!     [(&'static sam4l::gpio::GPIOPin, capsules::led::ActivationMode); 3],
-//!     [(&sam4l::gpio::PA[13], capsules::led::ActivationMode::ActiveLow),   // Red
-//!      (&sam4l::gpio::PA[15], capsules::led::ActivationMode::ActiveLow),   // Green
-//!      (&sam4l::gpio::PA[14], capsules::led::ActivationMode::ActiveLow)]); // Blue
+//!     [(&'static sam4l::gpio::GPIOPin, kernel::hil::gpio::ActivationMode); 3],
+//!     [(&sam4l::gpio::PA[13], kernel::hil::gpio::ActivationMode::ActiveLow),   // Red
+//!      (&sam4l::gpio::PA[15], kernel::hil::gpio::ActivationMode::ActiveLow),   // Green
+//!      (&sam4l::gpio::PA[14], kernel::hil::gpio::ActivationMode::ActiveLow)]); // Blue
 //! let led = static_init!(
 //!     capsules::led::LED<'static, sam4l::gpio::GPIOPin>,
 //!     capsules::led::LED::new(led_pins));
@@ -55,28 +55,18 @@ use kernel::{AppId, Driver, ReturnCode};
 use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::Led as usize;
 
-/// Whether the LEDs are active high or active low on this platform.
-#[derive(Clone, Copy)]
-pub enum ActivationMode {
-    ActiveHigh,
-    ActiveLow,
-}
-
 /// Holds the array of GPIO pins attached to the LEDs and implements a `Driver`
 /// interface to control them.
 pub struct LED<'a> {
-    pins_init: &'a [(&'a dyn gpio::Pin, ActivationMode)],
+    pins_init: &'a [(&'a dyn gpio::Pin, gpio::ActivationMode)],
 }
 
 impl<'a> LED<'a> {
-    pub fn new(pins_init: &'a [(&'a dyn gpio::Pin, ActivationMode)]) -> LED<'a> {
+    pub fn new(pins_init: &'a [(&'a dyn gpio::Pin, gpio::ActivationMode)]) -> LED<'a> {
         // Make all pins output and off
         for &(pin, mode) in pins_init.as_ref().iter() {
             pin.make_output();
-            match mode {
-                ActivationMode::ActiveHigh => pin.clear(),
-                ActivationMode::ActiveLow => pin.set(),
-            }
+            pin.write_activation(gpio::ActivationState::Inactive, mode);
         }
 
         LED {
@@ -112,10 +102,7 @@ impl<'a> Driver for LED<'a> {
                     ReturnCode::EINVAL /* impossible pin */
                 } else {
                     let (pin, mode) = pins_init[data];
-                    match mode {
-                        ActivationMode::ActiveHigh => pin.set(),
-                        ActivationMode::ActiveLow => pin.clear(),
-                    }
+                    pin.write_activation(gpio::ActivationState::Active, mode);
                     ReturnCode::SUCCESS
                 }
             }
@@ -126,10 +113,7 @@ impl<'a> Driver for LED<'a> {
                     ReturnCode::EINVAL /* impossible pin */
                 } else {
                     let (pin, mode) = pins_init[data];
-                    match mode {
-                        ActivationMode::ActiveHigh => pin.clear(),
-                        ActivationMode::ActiveLow => pin.set(),
-                    }
+                    pin.write_activation(gpio::ActivationState::Inactive, mode);
                     ReturnCode::SUCCESS
                 }
             }

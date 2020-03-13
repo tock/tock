@@ -126,7 +126,7 @@ register_structs! {
 }
 
 register_bitfields! [
-    u32, 
+    u32,
     InterruptEnable [
         /// enable / disable interrupts for each event
         READY OFFSET(0) NUMBITS(1) [],
@@ -136,7 +136,7 @@ register_bitfields! [
     ],
     ComparisonResult [
         RESULT OFFSET(1) NUMBITS(1) [
-            /// VIN+ < VIN- 
+            /// VIN+ < VIN-
             Below = 0,
             /// VIN+ > VIN-
             Above = 1
@@ -198,7 +198,7 @@ register_bitfields! [
             Low = 0,
             Normal = 1,
             High = 2
-        ], 
+        ],
         OperatingMode OFFSET(8) NUMBITS(1) [
             SingleEnded = 0,
             Differential = 1

@@ -11,7 +11,7 @@ use kernel::component::Component;
 #[allow(unused_imports)]
 use kernel::{debug, debug_gpio, debug_verbose, static_init};
 use nrf52840::gpio::Pin;
-use nrf52dk_base::{SpiPins, UartPins};
+use nrf52dk_base::{SpiPins, UartChannel, UartPins};
 
 // The nRF52840 Dongle LEDs
 const LED1_PIN: Pin = Pin::P0_06;
@@ -23,9 +23,9 @@ const LED2_B_PIN: Pin = Pin::P0_12;
 const BUTTON_PIN: Pin = Pin::P1_06;
 const BUTTON_RST_PIN: Pin = Pin::P0_18;
 
-const UART_RTS: Pin = Pin::P0_13;
+const UART_RTS: Option<Pin> = Some(Pin::P0_13);
 const UART_TXD: Pin = Pin::P0_15;
-const UART_CTS: Pin = Pin::P0_17;
+const UART_CTS: Option<Pin> = Some(Pin::P0_17);
 const UART_RXD: Pin = Pin::P0_20;
 
 const SPI_MOSI: Pin = Pin::P1_01;
@@ -99,7 +99,7 @@ pub unsafe fn reset_handler() {
     let button = components::button::ButtonComponent::new(board_kernel).finalize(
         components::button_component_helper!((
             &nrf52840::gpio::PORT[BUTTON_PIN],
-            capsules::button::GpioMode::LowWhenPressed,
+            kernel::hil::gpio::ActivationMode::ActiveLow,
             kernel::hil::gpio::FloatingState::PullUp
         )),
     );
@@ -107,19 +107,19 @@ pub unsafe fn reset_handler() {
     let led = components::led::LedsComponent::new().finalize(components::led_component_helper!(
         (
             &nrf52840::gpio::PORT[LED1_PIN],
-            capsules::led::ActivationMode::ActiveLow
+            kernel::hil::gpio::ActivationMode::ActiveLow
         ),
         (
             &nrf52840::gpio::PORT[LED2_R_PIN],
-            capsules::led::ActivationMode::ActiveLow
+            kernel::hil::gpio::ActivationMode::ActiveLow
         ),
         (
             &nrf52840::gpio::PORT[LED2_G_PIN],
-            capsules::led::ActivationMode::ActiveLow
+            kernel::hil::gpio::ActivationMode::ActiveLow
         ),
         (
             &nrf52840::gpio::PORT[LED2_B_PIN],
-            capsules::led::ActivationMode::ActiveLow
+            kernel::hil::gpio::ActivationMode::ActiveLow
         )
     ));
     let chip = static_init!(nrf52840::chip::Chip, nrf52840::chip::new());
@@ -134,7 +134,7 @@ pub unsafe fn reset_handler() {
         LED2_G_PIN,
         LED2_B_PIN,
         led,
-        &UartPins::new(UART_RTS, UART_TXD, UART_CTS, UART_RXD),
+        UartChannel::Pins(UartPins::new(UART_RTS, UART_TXD, UART_CTS, UART_RXD)),
         &SpiPins::new(SPI_MOSI, SPI_MISO, SPI_CLK),
         &None,
         button,

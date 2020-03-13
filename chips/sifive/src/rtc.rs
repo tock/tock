@@ -20,20 +20,20 @@ pub struct RtcRegisters {
 }
 
 register_bitfields![u32,
-	rtccfg [
-	    cmpip OFFSET(28) NUMBITS(1) [],
-	    enalways OFFSET(12) NUMBITS(1) [],
-	    scale OFFSET(0) NUMBITS(4) []
-	],
-	rtclo [
-		rtclo OFFSET(0) NUMBITS(32) []
-	],
-	rtchi [
-		rtchi OFFSET(0) NUMBITS(16) []
-	],
-	rtccmp [
-		rtccmp OFFSET(0) NUMBITS(32) []
-	]
+    rtccfg [
+        cmpip OFFSET(28) NUMBITS(1) [],
+        enalways OFFSET(12) NUMBITS(1) [],
+        scale OFFSET(0) NUMBITS(4) []
+    ],
+    rtclo [
+        rtclo OFFSET(0) NUMBITS(32) []
+    ],
+    rtchi [
+        rtchi OFFSET(0) NUMBITS(16) []
+    ],
+    rtccmp [
+        rtccmp OFFSET(0) NUMBITS(32) []
+    ]
 ];
 
 pub struct Rtc {

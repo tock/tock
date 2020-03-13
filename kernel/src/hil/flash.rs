@@ -4,7 +4,6 @@
 //! `page`. Here is an example of a page type and implementation of this trait:
 //!
 //! ```rust
-//! # #![feature(const_fn)]
 //! use core::ops::{Index, IndexMut};
 //!
 //! use kernel::hil;

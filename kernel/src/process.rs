@@ -7,10 +7,11 @@ use core::{mem, ptr, slice, str};
 
 use crate::callback::{AppId, CallbackId};
 use crate::capabilities::ProcessManagementCapability;
-use crate::common::cells::MapCell;
+use crate::common::cells::{MapCell, NumericCellExt};
 use crate::common::{Queue, RingBuffer};
 use crate::config;
 use crate::debug;
+use crate::ipc;
 use crate::mem::{AppSlice, Shared};
 use crate::platform::mpu::{self, MPU};
 use crate::platform::Chip;
@@ -107,6 +108,9 @@ pub trait ProcessType {
     /// This function returns `true` if the `Task` was successfully enqueued,
     /// and `false` otherwise. This is represented as a simple `bool` because
     /// this is passed to the capsule that tried to schedule the `Task`.
+    ///
+    /// This will fail if the process is no longer active, and therefore cannot
+    /// execute any new tasks.
     fn enqueue_task(&self, task: Task) -> bool;
 
     /// Remove the scheduled operation from the front of the queue and return it
@@ -125,17 +129,29 @@ pub trait ProcessType {
     fn get_state(&self) -> State;
 
     /// Move this process from the running state to the yielded state.
+    ///
+    /// This will fail (i.e. not do anything) if the process was not previously
+    /// running.
     fn set_yielded_state(&self);
 
-    /// Move this process from running or yielded state into the stopped state
+    /// Move this process from running or yielded state into the stopped state.
+    ///
+    /// This will fail (i.e. not do anything) if the process was not either
+    /// running or yielded.
     fn stop(&self);
 
-    /// Move this stopped process back into its original state
+    /// Move this stopped process back into its original state.
+    ///
+    /// This transitions a process from `StoppedRunning` -> `Running` or
+    /// `StoppedYielded` -> `Yielded`.
     fn resume(&self);
 
     /// Put this process in the fault state. This will trigger the
     /// `FaultResponse` for this process to occur.
     fn set_fault_state(&self);
+
+    /// Returns how many times this process has been restarted.
+    fn get_restart_count(&self) -> usize;
 
     /// Get the name of the process. Used for IPC.
     fn get_process_name(&self) -> &'static str;
@@ -144,10 +160,18 @@ pub trait ProcessType {
 
     /// Change the location of the program break and reallocate the MPU region
     /// covering program memory.
+    ///
+    /// This will fail with an error if the process is no longer active. An
+    /// inactive process will not run again without being reset, and changing
+    /// the memory pointers is not valid at this point.
     fn brk(&self, new_break: *const u8) -> Result<*const u8, Error>;
 
     /// Change the location of the program break, reallocate the MPU region
     /// covering program memory, and return the previous break address.
+    ///
+    /// This will fail with an error if the process is no longer active. An
+    /// inactive process will not run again without being reset, and changing
+    /// the memory pointers is not valid at this point.
     fn sbrk(&self, increment: isize) -> Result<*const u8, Error>;
 
     /// The start address of allocated RAM for this process.
@@ -187,11 +211,20 @@ pub trait ProcessType {
 
     /// Creates an `AppSlice` from the given offset and size in process memory.
     ///
+    /// If `buf_start_addr` is NULL this will have no effect and the return
+    /// value will be `None` to signal the capsule to drop the buffer.
+    ///
+    /// If the process is not active then this will return an error as it is not
+    /// valid to "allow" a buffer for a process that will not resume executing.
+    /// In practice this case should not happen as the process will not be
+    /// executing to call the allow syscall.
+    ///
     /// ## Returns
     ///
-    /// If the buffer is null (a zero-valued offset), return None, signaling the capsule to delete
-    /// the entry.  If the buffer is within the process's accessible memory, returns an AppSlice
-    /// wrapping that buffer. Otherwise, returns an error `ReturnCode`.
+    /// If the buffer is null (a zero-valued offset) this returns `None`,
+    /// signaling the capsule to delete the entry. If the buffer is within the
+    /// process's accessible memory, returns an `AppSlice` wrapping that buffer.
+    /// Otherwise, returns an error `ReturnCode`.
     fn allow(
         &self,
         buf_start_addr: *const u8,
@@ -207,10 +240,17 @@ pub trait ProcessType {
     // mpu
 
     /// Configure the MPU to use the process's allocated regions.
+    ///
+    /// It is not valid to call this function when the process is inactive (i.e.
+    /// the process will not run again).
     fn setup_mpu(&self);
 
-    /// Allocate a new MPU region for the process that is at least `min_region_size`
-    /// bytes and lies within the specified stretch of unallocated memory.
+    /// Allocate a new MPU region for the process that is at least
+    /// `min_region_size` bytes and lies within the specified stretch of
+    /// unallocated memory.
+    ///
+    /// It is not valid to call this function when the process is inactive (i.e.
+    /// the process will not run again).
     fn add_mpu_region(
         &self,
         unallocated_memory_start: *const u8,
@@ -222,23 +262,37 @@ pub trait ProcessType {
 
     /// Create new memory in the grant region, and check that the MPU region
     /// covering program memory does not extend past the kernel memory break.
+    ///
+    /// This will return `None` and fail if the process is inactive.
     unsafe fn alloc(&self, size: usize, align: usize) -> Option<&mut [u8]>;
 
     unsafe fn free(&self, _: *mut u8);
 
     /// Get a pointer to the grant pointer for this grant number.
-    unsafe fn grant_ptr(&self, grant_num: usize) -> *mut *mut u8;
+    ///
+    /// This will return `None` if the process is inactive and the grant region
+    /// cannot be used.
+    unsafe fn grant_ptr(&self, grant_num: usize) -> Option<*mut *mut u8>;
 
     // functions for processes that are architecture specific
 
     /// Set the return value the process should see when it begins executing
     /// again after the syscall.
+    ///
+    /// It is not valid to call this function when the process is inactive (i.e.
+    /// the process will not run again).
     unsafe fn set_syscall_return_value(&self, return_value: isize);
 
     /// Set the function that is to be executed when the process is resumed.
+    ///
+    /// It is not valid to call this function when the process is inactive (i.e.
+    /// the process will not run again).
     unsafe fn set_process_function(&self, callback: FunctionCall);
 
     /// Context switch to a specific process.
+    ///
+    /// This will return `None` if the process is inactive and cannot be
+    /// switched to.
     unsafe fn switch_to(&self) -> Option<syscall::ContextSwitchReason>;
 
     /// Print out the memory map (Grant region, heap, stack, program
@@ -257,17 +311,61 @@ pub trait ProcessType {
     /// Returns how many callbacks for this process have been dropped.
     fn debug_dropped_callback_count(&self) -> usize;
 
-    /// Returns how many times this process has been restarted.
-    fn debug_restart_count(&self) -> usize;
-
     /// Returns how many times this process has exceeded its timeslice.
     fn debug_timeslice_expiration_count(&self) -> usize;
 
     /// Increment the number of times the process has exceeded its timeslice.
     fn debug_timeslice_expired(&self);
 
-    /// Increment the number of times the process called a syscall.
-    fn debug_syscall_called(&self);
+    /// Increment the number of times the process called a syscall and record
+    /// the last syscall that was called.
+    fn debug_syscall_called(&self, last_syscall: Syscall);
+}
+
+/// Generic trait for implementing process restart policies.
+///
+/// This policy allows a board to specify how the kernel should decide whether
+/// to restart an app after it crashes.
+pub trait ProcessRestartPolicy {
+    /// Decide whether to restart the `process` or not.
+    ///
+    /// Returns `true` if the process should be restarted, `false` otherwise.
+    fn should_restart(&self, process: &dyn ProcessType) -> bool;
+}
+
+/// Implementation of `ProcessRestartPolicy` that uses a threshold to decide
+/// whether to restart an app. If the app has been restarted more times than the
+/// threshold then the app will no longer be restarted.
+pub struct ThresholdRestart {
+    threshold: usize,
+}
+
+impl ThresholdRestart {
+    pub const fn new(threshold: usize) -> ThresholdRestart {
+        ThresholdRestart { threshold }
+    }
+}
+
+impl ProcessRestartPolicy for ThresholdRestart {
+    fn should_restart(&self, process: &dyn ProcessType) -> bool {
+        process.get_restart_count() <= self.threshold
+    }
+}
+
+/// Implementation of `ProcessRestartPolicy` that unconditionally restarts the
+/// app.
+pub struct AlwaysRestart {}
+
+impl AlwaysRestart {
+    pub const fn new() -> AlwaysRestart {
+        AlwaysRestart {}
+    }
+}
+
+impl ProcessRestartPolicy for AlwaysRestart {
+    fn should_restart(&self, _process: &dyn ProcessType) -> bool {
+        true
+    }
 }
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -275,8 +373,12 @@ pub enum Error {
     NoSuchApp,
     OutOfMemory,
     AddressOutOfBounds,
-    KernelError, // This likely indicates a bug in the kernel and that some
-                 // state is inconsistent in the kernel.
+    /// The process is inactive (likely in a fault or exit state) and the
+    /// attempted operation is therefore invalid.
+    InactiveApp,
+    /// This likely indicates a bug in the kernel and that some state is
+    /// inconsistent in the kernel.
+    KernelError,
 }
 
 impl From<Error> for ReturnCode {
@@ -285,6 +387,7 @@ impl From<Error> for ReturnCode {
             Error::OutOfMemory => ReturnCode::ENOMEM,
             Error::AddressOutOfBounds => ReturnCode::EINVAL,
             Error::NoSuchApp => ReturnCode::EINVAL,
+            Error::InactiveApp => ReturnCode::FAIL,
             Error::KernelError => ReturnCode::FAIL,
         }
     }
@@ -317,7 +420,8 @@ pub enum State {
 
     /// The process is stopped, and it was stopped after it faulted. This
     /// basically means the app crashed, and the kernel decided to just stop it
-    /// and continue executing other things.
+    /// and continue executing other things. The process cannot be restarted
+    /// without being reset first.
     StoppedFaulted,
 
     /// The process has caused a fault.
@@ -336,7 +440,7 @@ pub enum State {
 /// app trying to access memory outside of its allowed regions) the system will
 /// trap back to the kernel, and the kernel has to decide what to do with the
 /// app at that point.
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[derive(Copy, Clone)]
 pub enum FaultResponse {
     /// Generate a `panic!()` call and crash the entire system. This is useful
     /// for debugging applications as the error is displayed immediately after
@@ -346,22 +450,19 @@ pub enum FaultResponse {
     /// Attempt to cleanup and restart the app which caused the fault. This
     /// resets the app's memory to how it was when the app was started and
     /// schedules the app to run again from its init function.
-    Restart,
+    ///
+    /// The provided restart policy is used to determine whether to reset the
+    /// app, and can be specified on a per-app basis.
+    Restart(&'static dyn ProcessRestartPolicy),
 
     /// Stop the app by no longer scheduling it to run.
     Stop,
 }
 
-#[derive(Copy, Clone, Debug)]
-pub enum IPCType {
-    Service,
-    Client,
-}
-
 #[derive(Copy, Clone)]
 pub enum Task {
     FunctionCall(FunctionCall),
-    IPC((AppId, IPCType)),
+    IPC((AppId, ipc::IPCCallbackType)),
 }
 
 /// Enumeration to identify whether a function call comes directly from the
@@ -419,20 +520,16 @@ struct ProcessDebug {
     /// long.
     dropped_callback_count: usize,
 
-    /// How many times this process has entered into a fault condition and the
-    /// kernel has restarted it.
-    restart_count: usize,
-
     /// How many times this process has been paused because it exceeded its
     /// timeslice.
     timeslice_expiration_count: usize,
 }
 
+/// A type for userspace processes in Tock.
 pub struct Process<'a, C: 'static + Chip> {
-    /// Index of the process in the process table.
-    ///
-    /// Corresponds to AppId
-    app_idx: usize,
+    /// Identifier of this process and the index of the process in the process
+    /// table.
+    app_id: Cell<AppId>,
 
     /// Pointer to the main Kernel struct.
     kernel: &'static Kernel,
@@ -502,7 +599,15 @@ pub struct Process<'a, C: 'static + Chip> {
     stored_state:
         Cell<<<C as Chip>::UserspaceKernelBoundary as UserspaceKernelBoundary>::StoredState>,
 
-    /// Whether the scheduler can schedule this app.
+    /// The current state of the app. The scheduler uses this to determine
+    /// whether it can schedule this app to execute.
+    ///
+    /// The `state` is used both for bookkeeping for the scheduler as well as
+    /// for enabling control by other parts of the system. The scheduler keeps
+    /// track of if a process is ready to run or not by switching between the
+    /// `Running` and `Yielded` states. The system can control the process by
+    /// switching it to a "stopped" state to prevent the scheduler from
+    /// scheduling it.
     state: Cell<State>,
 
     /// How to deal with Faults occurring in the process
@@ -518,6 +623,11 @@ pub struct Process<'a, C: 'static + Chip> {
     /// process.
     tasks: MapCell<RingBuffer<'a, Task>>,
 
+    /// Count of how many times this process has entered the fault condition and
+    /// been restarted. This is used by some `ProcessRestartPolicy`s to
+    /// determine if the process should be restarted or not.
+    restart_count: Cell<usize>,
+
     /// Name of the app.
     process_name: &'static str,
 
@@ -527,13 +637,13 @@ pub struct Process<'a, C: 'static + Chip> {
 
 impl<C: Chip> ProcessType for Process<'a, C> {
     fn appid(&self) -> AppId {
-        AppId::new(self.kernel, self.app_idx)
+        self.app_id.get()
     }
 
     fn enqueue_task(&self, task: Task) -> bool {
-        // If this app is in the `Fault` state then we shouldn't schedule
+        // If this app is in a `Fault` state then we shouldn't schedule
         // any work for it.
-        if self.state.get() == State::Fault {
+        if !self.is_active() {
             return false;
         }
 
@@ -567,8 +677,8 @@ impl<C: Chip> ProcessType for Process<'a, C> {
             if config::CONFIG.trace_syscalls {
                 let count_after = tasks.len();
                 debug!(
-                    "[{}] remove_pending_callbacks[{:#x}:{}] = {} callback(s) removed",
-                    self.app_idx,
+                    "[{:?}] remove_pending_callbacks[{:#x}:{}] = {} callback(s) removed",
+                    self.app_id,
                     callback_id.driver_num,
                     callback_id.subscribe_num,
                     count_before - count_after,
@@ -612,28 +722,41 @@ impl<C: Chip> ProcessType for Process<'a, C> {
                 // process faulted. Panic and print status
                 panic!("Process {} had a fault", self.process_name);
             }
-            FaultResponse::Restart => {
-                // Remove the tasks that were scheduled for the app from the
-                // amount of work queue.
-                let tasks_len = self.tasks.map_or(0, |tasks| tasks.len());
-                for _ in 0..tasks_len {
-                    self.kernel.decrement_work();
+            FaultResponse::Restart(restart_policy) => {
+                // Start with the generic terminate operations. This frees state
+                // for this process and removes any pending tasks from the
+                // scheduler's queue.
+                self.terminate();
+
+                // Decide what to do with this process. Should it be restarted?
+                // Or should we leave it in a stopped & faulted state? If the
+                // process is faulting too often we might not want to restart.
+                // If we are not going to restart the process then we can just
+                // leave it in the stopped faulted state by returning
+                // immediately. This has the same effect as using the
+                // `FaultResponse::Stop` policy.
+                if !restart_policy.should_restart(self) {
+                    return;
                 }
 
-                // And remove those tasks
-                self.tasks.map(|tasks| {
-                    tasks.empty();
-                });
+                // We need a new process identifier for this app since the
+                // restarted version is in effect a new process. This is also
+                // necessary to invalidate any stored `AppId`s that point to the
+                // old version of the app. However, the app has not moved
+                // locations in the processes array, so we copy the existing
+                // index.
+                let old_index = self.app_id.get().index;
+                let new_identifier = self.kernel.create_process_identifier();
+                self.app_id
+                    .set(AppId::new(self.kernel, new_identifier, old_index));
 
                 // Update debug information
                 self.debug.map(|debug| {
-                    // Mark that we restarted this process.
-                    debug.restart_count += 1;
-
                     // Reset some state for the process.
                     debug.syscall_count = 0;
                     debug.last_syscall = None;
                     debug.dropped_callback_count = 0;
+                    debug.timeslice_expiration_count = 0;
                 });
 
                 // We are going to start this process over again, so need
@@ -643,16 +766,10 @@ impl<C: Chip> ProcessType for Process<'a, C> {
                     app_flash_address.offset(self.header.get_init_function_offset() as isize)
                         as usize
                 };
-                self.state.set(State::Unstarted);
 
-                // Need to reset the grant region.
-                unsafe {
-                    self.grant_ptrs_reset();
-                }
+                // Reset memory pointers.
                 self.kernel_memory_break
                     .set(self.original_kernel_memory_break);
-
-                // Reset other memory pointers.
                 self.app_break.set(self.original_app_break);
                 self.current_stack_pointer.set(self.original_stack_pointer);
                 self.allow_high_water_mark
@@ -679,9 +796,8 @@ impl<C: Chip> ProcessType for Process<'a, C> {
                         // state for this process. This shouldn't happen since
                         // the app was able to be started before, but at this
                         // point the app is no longer valid. The best thing we
-                        // can do now is mark the app as still faulted and not
+                        // can do now is leave the app as still faulted and not
                         // schedule it.
-                        self.state.set(State::Fault);
                         return;
                     }
                 };
@@ -690,8 +806,14 @@ impl<C: Chip> ProcessType for Process<'a, C> {
                 let flash_protected_size = self.header.get_protected_size() as usize;
                 let flash_app_start = app_flash_address as usize + flash_protected_size;
 
+                // Mark the state as `Unstarted` for the scheduler.
+                self.state.set(State::Unstarted);
+
+                // Mark that we restarted this process.
+                self.restart_count.increment();
+
+                // Enqueue the initial function.
                 self.tasks.map(|tasks| {
-                    tasks.empty();
                     tasks.enqueue(Task::FunctionCall(FunctionCall {
                         source: FunctionCallSource::Kernel,
                         pc: init_fn,
@@ -702,6 +824,7 @@ impl<C: Chip> ProcessType for Process<'a, C> {
                     }));
                 });
 
+                // Mark that the process is ready to run.
                 self.kernel.increment_work();
             }
             FaultResponse::Stop => {
@@ -710,28 +833,13 @@ impl<C: Chip> ProcessType for Process<'a, C> {
                 // all of the app's todo work it will not be scheduled, and
                 // clearing all of the grant regions will cause capsules to drop
                 // this app as well.
-
-                // Remove the tasks that were scheduled for the app from the
-                // amount of work queue.
-                let tasks_len = self.tasks.map_or(0, |tasks| tasks.len());
-                for _ in 0..tasks_len {
-                    self.kernel.decrement_work();
-                }
-
-                // And remove those tasks
-                self.tasks.map(|tasks| {
-                    tasks.empty();
-                });
-
-                // Clear any grant regions this app has setup with any capsules.
-                unsafe {
-                    self.grant_ptrs_reset();
-                }
-
-                // Mark the app as stopped so the scheduler won't try to run it.
-                self.state.set(State::StoppedFaulted);
+                self.terminate();
             }
         }
+    }
+
+    fn get_restart_count(&self) -> usize {
+        self.restart_count.get()
     }
 
     fn dequeue_task(&self) -> Option<Task> {
@@ -833,11 +941,21 @@ impl<C: Chip> ProcessType for Process<'a, C> {
     }
 
     fn sbrk(&self, increment: isize) -> Result<*const u8, Error> {
+        // Do not modify an inactive process.
+        if !self.is_active() {
+            return Err(Error::InactiveApp);
+        }
+
         let new_break = unsafe { self.app_break.get().offset(increment) };
         self.brk(new_break)
     }
 
     fn brk(&self, new_break: *const u8) -> Result<*const u8, Error> {
+        // Do not modify an inactive process.
+        if !self.is_active() {
+            return Err(Error::InactiveApp);
+        }
+
         self.mpu_config
             .map_or(Err(Error::KernelError), |mut config| {
                 if new_break < self.allow_high_water_mark.get() || new_break >= self.mem_end() {
@@ -865,7 +983,10 @@ impl<C: Chip> ProcessType for Process<'a, C> {
         buf_start_addr: *const u8,
         size: usize,
     ) -> Result<Option<AppSlice<Shared, u8>>, ReturnCode> {
-        if buf_start_addr == ptr::null_mut() {
+        if !self.is_active() {
+            // Do not modify an inactive process.
+            Err(ReturnCode::FAIL)
+        } else if buf_start_addr == ptr::null_mut() {
             // A null buffer means pass in `None` to the capsule
             Ok(None)
         } else if self.in_app_owned_memory(buf_start_addr, size) {
@@ -885,6 +1006,11 @@ impl<C: Chip> ProcessType for Process<'a, C> {
     }
 
     unsafe fn alloc(&self, size: usize, align: usize) -> Option<&mut [u8]> {
+        // Do not modify an inactive process.
+        if !self.is_active() {
+            return None;
+        }
+
         self.mpu_config.and_then(|mut config| {
             let new_break_unaligned = self.kernel_memory_break.get().offset(-(size as isize));
             // The alignment must be a power of two, 2^a. The expression `!(align - 1)` then
@@ -910,9 +1036,14 @@ impl<C: Chip> ProcessType for Process<'a, C> {
     unsafe fn free(&self, _: *mut u8) {}
 
     #[allow(clippy::cast_ptr_alignment)]
-    unsafe fn grant_ptr(&self, grant_num: usize) -> *mut *mut u8 {
+    unsafe fn grant_ptr(&self, grant_num: usize) -> Option<*mut *mut u8> {
+        // Do not try to access the grant region of inactive process.
+        if !self.is_active() {
+            return None;
+        }
+
         let grant_num = grant_num as isize;
-        (self.mem_end() as *mut *mut u8).offset(-(grant_num + 1))
+        Some((self.mem_end() as *mut *mut u8).offset(-(grant_num + 1)))
     }
 
     fn get_process_name(&self) -> &'static str {
@@ -985,6 +1116,11 @@ impl<C: Chip> ProcessType for Process<'a, C> {
     }
 
     unsafe fn switch_to(&self) -> Option<syscall::ContextSwitchReason> {
+        // Cannot switch to an invalid process
+        if !self.is_active() {
+            return None;
+        }
+
         let mut stored_state = self.stored_state.get();
         let (stack_pointer, switch_reason) = self
             .chip
@@ -1019,10 +1155,6 @@ impl<C: Chip> ProcessType for Process<'a, C> {
         self.debug.map_or(0, |debug| debug.dropped_callback_count)
     }
 
-    fn debug_restart_count(&self) -> usize {
-        self.debug.map_or(0, |debug| debug.restart_count)
-    }
-
     fn debug_timeslice_expiration_count(&self) -> usize {
         self.debug
             .map_or(0, |debug| debug.timeslice_expiration_count)
@@ -1033,8 +1165,11 @@ impl<C: Chip> ProcessType for Process<'a, C> {
             .map(|debug| debug.timeslice_expiration_count += 1);
     }
 
-    fn debug_syscall_called(&self) {
-        self.debug.map(|debug| debug.syscall_count += 1);
+    fn debug_syscall_called(&self, last_syscall: Syscall) {
+        self.debug.map(|debug| {
+            debug.syscall_count += 1;
+            debug.last_syscall = Some(last_syscall);
+        });
     }
 
     unsafe fn print_memory_map(&self, writer: &mut dyn Write) {
@@ -1069,7 +1204,7 @@ impl<C: Chip> ProcessType for Process<'a, C> {
         let syscall_count = self.debug.map_or(0, |debug| debug.syscall_count);
         let last_syscall = self.debug.map(|debug| debug.last_syscall);
         let dropped_callback_count = self.debug.map_or(0, |debug| debug.dropped_callback_count);
-        let restart_count = self.debug.map_or(0, |debug| debug.restart_count);
+        let restart_count = self.restart_count.get();
 
         let _ = writer.write_fmt(format_args!(
             "\
@@ -1404,7 +1539,13 @@ impl<C: 'static + Chip> Process<'a, C> {
             let mut process: &mut Process<C> =
                 &mut *(process_struct_memory_location as *mut Process<'static, C>);
 
-            process.app_idx = index;
+            // Ask the kernel for a unique identifier for this process that is
+            // being created.
+            let unique_identifier = kernel.create_process_identifier();
+
+            process
+                .app_id
+                .set(AppId::new(kernel, unique_identifier, index));
             process.kernel = kernel;
             process.chip = chip;
             process.memory = app_memory;
@@ -1423,6 +1564,7 @@ impl<C: 'static + Chip> Process<'a, C> {
             process.stored_state = Cell::new(Default::default());
             process.state = Cell::new(State::Unstarted);
             process.fault_response = fault_response;
+            process.restart_count = Cell::new(0);
 
             process.mpu_config = MapCell::new(mpu_config);
             process.mpu_regions = [
@@ -1443,7 +1585,6 @@ impl<C: 'static + Chip> Process<'a, C> {
                 syscall_count: 0,
                 last_syscall: None,
                 dropped_callback_count: 0,
-                restart_count: 0,
                 timeslice_expiration_count: 0,
             });
 
@@ -1506,6 +1647,35 @@ impl<C: 'static + Chip> Process<'a, C> {
         (None, 0, 0)
     }
 
+    /// Stop and clear a process's state.
+    ///
+    /// This will end the process, but does not reset it such that it could be
+    /// restarted and run again. This function instead frees grants and any
+    /// queued tasks for this process, but leaves the debug information about
+    /// the process and other state intact.
+    fn terminate(&self) {
+        // Remove the tasks that were scheduled for the app from the
+        // amount of work queue.
+        let tasks_len = self.tasks.map_or(0, |tasks| tasks.len());
+        for _ in 0..tasks_len {
+            self.kernel.decrement_work();
+        }
+
+        // And remove those tasks
+        self.tasks.map(|tasks| {
+            tasks.empty();
+        });
+
+        // Clear any grant regions this app has setup with any capsules.
+        unsafe {
+            self.grant_ptrs_reset();
+        }
+
+        // Mark the app as stopped so the scheduler won't try to run it.
+        self.state.set(State::StoppedFaulted);
+    }
+
+    /// Get the current stack pointer as a pointer.
     #[allow(clippy::cast_ptr_alignment)]
     fn sp(&self) -> *const usize {
         self.current_stack_pointer.get() as *const usize
@@ -1541,5 +1711,20 @@ impl<C: 'static + Chip> Process<'a, C> {
                 debug.min_stack_pointer = self.current_stack_pointer.get();
             }
         });
+    }
+
+    /// Check if the process is active.
+    ///
+    /// "Active" is defined as the process can resume executing in the future.
+    /// This means its state in the `Process` struct is still valid, and that
+    /// the kernel could resume its execution without completely restarting and
+    /// resetting its state.
+    ///
+    /// A process is inactive if the kernel cannot resume its execution, such as
+    /// if the process faults and is in an invalid state, or if the process
+    /// explicitly exits.
+    fn is_active(&self) -> bool {
+        let current_state = self.state.get();
+        current_state != State::StoppedFaulted && current_state != State::Fault
     }
 }

@@ -4,7 +4,7 @@
 
 #![no_std]
 #![no_main]
-#![feature(asm, core_intrinsics)]
+#![feature(asm)]
 #![deny(missing_docs)]
 
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
@@ -251,11 +251,11 @@ pub unsafe fn reset_handler() {
     let led_pins = static_init!(
         [(
             &'static dyn kernel::hil::gpio::Pin,
-            capsules::led::ActivationMode
+            kernel::hil::gpio::ActivationMode
         ); 1],
         [(
             stm32f4xx::gpio::PinId::PA05.get_pin().as_ref().unwrap(),
-            capsules::led::ActivationMode::ActiveHigh
+            kernel::hil::gpio::ActivationMode::ActiveHigh
         )]
     );
     let led = static_init!(
@@ -267,7 +267,7 @@ pub unsafe fn reset_handler() {
     let button = components::button::ButtonComponent::new(board_kernel).finalize(
         components::button_component_helper!((
             stm32f4xx::gpio::PinId::PC13.get_pin().as_ref().unwrap(),
-            capsules::button::GpioMode::LowWhenPressed,
+            kernel::hil::gpio::ActivationMode::ActiveLow,
             kernel::hil::gpio::FloatingState::PullNone
         )),
     );

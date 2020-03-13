@@ -119,7 +119,7 @@ impl Component for UDPMuxComponent {
         &'static UdpPortManager,
     );
 
-    unsafe fn finalize(&mut self, _s: Self::StaticInput) -> Self::Output {
+    unsafe fn finalize(self, _s: Self::StaticInput) -> Self::Output {
         let ipsender_virtual_alarm = static_init!(
             VirtualMuxAlarm<'static, sam4l::ast::Ast>,
             VirtualMuxAlarm::new(self.alarm_mux)

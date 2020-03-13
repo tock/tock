@@ -1,4 +1,4 @@
-#![feature(asm, const_fn, core_intrinsics)]
+#![feature(asm, const_fn)]
 #![no_std]
 #![crate_name = "nrf52"]
 #![crate_type = "rlib"]

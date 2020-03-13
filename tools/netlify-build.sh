@@ -11,7 +11,7 @@ set -e
 set -u
 set -x
 
-curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain nightly-2020-01-16
+curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain nightly-2020-03-06
 
 export PATH="$PATH:$HOME/.cargo/bin"
 

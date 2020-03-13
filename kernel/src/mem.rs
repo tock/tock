@@ -51,7 +51,7 @@ impl<L, T> Drop for AppPtr<L, T> {
     fn drop(&mut self) {
         self.process
             .kernel
-            .process_map_or((), self.process.idx(), |process| unsafe {
+            .process_map_or((), self.process, |process| unsafe {
                 process.free(self.ptr.as_ptr() as *mut u8)
             })
     }
@@ -89,11 +89,11 @@ impl<L, T> AppSlice<L, T> {
     /// Provide access to one app's AppSlice to another app. This is used for
     /// IPC.
     crate unsafe fn expose_to(&self, appid: AppId) -> bool {
-        if appid.idx() != self.ptr.process.idx() {
+        if appid != self.ptr.process {
             self.ptr
                 .process
                 .kernel
-                .process_map_or(false, appid.idx(), |process| {
+                .process_map_or(false, appid, |process| {
                     process
                         .add_mpu_region(self.ptr() as *const u8, self.len(), self.len())
                         .is_some()

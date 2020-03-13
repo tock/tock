@@ -80,6 +80,12 @@ mod power;
 #[allow(dead_code)]
 mod virtual_uart_rx_test;
 
+#[allow(dead_code)]
+mod log_test;
+
+#[allow(dead_code)]
+mod linear_log_test;
+
 // State for loading apps.
 
 const NUM_PROCS: usize = 4;
@@ -317,7 +323,8 @@ pub unsafe fn reset_handler() {
     // Allow processes to communicate over BLE through the nRF51822
     sam4l::usart::USART2.set_mode(sam4l::usart::UsartMode::Uart);
     let nrf_serialization =
-        Nrf51822Component::new(&sam4l::usart::USART2, &sam4l::gpio::PB[07]).finalize(());
+        Nrf51822Component::new(&sam4l::usart::USART2, &sam4l::gpio::PB[07], board_kernel)
+            .finalize(());
 
     // # TIMER
     let ast = &sam4l::ast::AST;
@@ -370,12 +377,12 @@ pub unsafe fn reset_handler() {
 
     let led = LedsComponent::new().finalize(components::led_component_helper!((
         &sam4l::gpio::PC[10],
-        capsules::led::ActivationMode::ActiveHigh
+        kernel::hil::gpio::ActivationMode::ActiveHigh
     )));
     let button = components::button::ButtonComponent::new(board_kernel).finalize(
         components::button_component_helper!((
             &sam4l::gpio::PC[24],
-            capsules::button::GpioMode::LowWhenPressed,
+            kernel::hil::gpio::ActivationMode::ActiveLow,
             kernel::hil::gpio::FloatingState::PullNone
         )),
     );
@@ -473,10 +480,9 @@ pub unsafe fn reset_handler() {
     };
 
     let chip = static_init!(sam4l::chip::Sam4l, sam4l::chip::Sam4l::new());
-    CHIP = Some(&chip);
+    CHIP = Some(chip);
 
-    // Need to reset the nRF on boot, toggle it's SWDIO
-    imix.nrf51822.reset();
+    // Need to initialize the UART for the nRF51 serialization.
     imix.nrf51822.initialize();
 
     // These two lines need to be below the creation of the chip for
@@ -497,6 +503,8 @@ pub unsafe fn reset_handler() {
     // aes_ccm_test::run();
     // aes_test::run_aes128_ctr();
     // aes_test::run_aes128_cbc();
+    // log_test::run(mux_alarm, dynamic_deferred_caller);
+    // linear_log_test::run(mux_alarm, dynamic_deferred_caller);
 
     debug!("Initialization complete. Entering main loop");
 

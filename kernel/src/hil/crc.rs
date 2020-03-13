@@ -25,6 +25,9 @@ pub enum CrcAlg {
 }
 
 pub trait CRC {
+    /// Set the client to be used for callbacks.
+    fn set_client(&self, client: &'static dyn Client);
+
     /// Initiate a CRC calculation
     fn compute(&self, data: &[u8], _: CrcAlg) -> ReturnCode;
 

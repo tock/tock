@@ -119,7 +119,7 @@ register_bitfields![
         /// 1: This bit enables external interrupt test mode.
         TESTEN OFFSET(31) NUMBITS(1) [],
 
-        /// Writing a zero to this bit will set the input value to INTn to zero, if test mode is enabled. 
+        /// Writing a zero to this bit will set the input value to INTn to zero, if test mode is enabled.
         /// Writing a one to this bit will set the input value to INTn to one, if test mode is enabled.
         INT OFFSET(0) NUMBITS(31) []
     ]
