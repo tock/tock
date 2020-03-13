@@ -78,6 +78,4 @@ pub unsafe extern "C" fn panic_fmt(info: &PanicInfo) -> ! {
             &CHIP,
         )
     });
-
-    loop {}
 }
