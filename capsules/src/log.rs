@@ -476,7 +476,13 @@ impl<'a, F: Flash + 'static> Log<'a, F> {
         }
 
         // Sync page to flash.
-        self.driver.write_page(page_number, pagebuffer)
+        match self.driver.write_page(page_number, pagebuffer) {
+            Ok(()) => ReturnCode::SUCCESS,
+            Err((return_code, pagebuffer)) => {
+                self.pagebuffer.replace(pagebuffer);
+                return_code
+            }
+        }
     }
 
     /// Resets the pagebuffer so that new data can be written. Note that this also increments the
