@@ -19,7 +19,7 @@ pub mod nvic;
 pub mod gpio;
 pub mod rcc;
 // pub mod spi;
-pub mod dma;
+// pub mod dma;
 pub mod syscfg;
 pub mod tim2;
 pub mod usart;
