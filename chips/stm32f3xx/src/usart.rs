@@ -1,13 +1,12 @@
 // use core::cell::Cell;
-use kernel::common::cells::OptionalCell;
+use core::cell::Cell;
+use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::common::registers::{register_bitfields, ReadWrite};
 use kernel::common::StaticRef;
 use kernel::ClockInterface;
 use kernel::ReturnCode;
 use kernel::{debug, hil};
 
-// use crate::dma1;
-// use crate::dma1::Dma1Peripheral;
 use crate::rcc;
 
 /// Universal synchronous asynchronous receiver transmitter
@@ -273,14 +272,25 @@ const USART2_BASE: StaticRef<UsartRegisters> =
 const USART3_BASE: StaticRef<UsartRegisters> =
     unsafe { StaticRef::new(0x40004800 as *const UsartRegisters) };
 
+#[allow(non_camel_case_types)]
+#[derive(Copy, Clone, PartialEq)]
+enum USARTStateTX {
+    Idle,
+    Transmitting,
+    AbortRequested,
+}
+
 pub struct Usart<'a> {
     registers: StaticRef<UsartRegisters>,
     clock: UsartClock,
 
     tx_client: OptionalCell<&'a dyn hil::uart::TransmitClient>,
     rx_client: OptionalCell<&'a dyn hil::uart::ReceiveClient>,
-    // tx_len: Cell<usize>,
-    // rx_len: Cell<usize>,
+
+    tx_buffer: TakeCell<'static, [u8]>,
+    tx_position: Cell<usize>,
+    tx_len: Cell<usize>,
+    tx_status: Cell<USARTStateTX>, // rx_len: Cell<usize>,
 }
 
 pub static mut USART1: Usart = Usart::new(
@@ -306,8 +316,11 @@ impl Usart<'a> {
 
             tx_client: OptionalCell::empty(),
             rx_client: OptionalCell::empty(),
-            // tx_len: Cell::new(0),
-            // rx_len: Cell::new(0),
+
+            tx_buffer: TakeCell::empty(),
+            tx_position: Cell::new(0),
+            tx_len: Cell::new(0),
+            tx_status: Cell::new(USARTStateTX::Idle), // rx_len: Cell::new(0),
         }
     }
 
@@ -346,9 +359,35 @@ impl Usart<'a> {
         self.clear_transmit_complete();
         self.disable_transmit_complete_interrupt();
 
-        debug!("transmit");
-
-        self.enable_transmit_complete_interrupt();
+        // ignore IRQ if not transmitting
+        if self.tx_status.get() == USARTStateTX::Transmitting {
+            let position = self.tx_position.get();
+            if position < self.tx_len.get() {
+                self.tx_buffer.map(|buf| {
+                    self.registers.tdr.set(buf[position].into());
+                    self.tx_position.replace(self.tx_position.get() + 1);
+                    self.enable_transmit_complete_interrupt();
+                });
+            } else {
+                // transmission done
+                self.tx_status.replace(USARTStateTX::Idle);
+            }
+            // notify client if transfer is done
+            if self.tx_status.get() == USARTStateTX::Idle {
+                self.tx_client.map(|client| {
+                    if let Some(buf) = self.tx_buffer.take() {
+                        client.transmitted_buffer(buf, self.tx_len.get(), ReturnCode::SUCCESS);
+                    }
+                });
+            }
+        } else if self.tx_status.get() == USARTStateTX::AbortRequested {
+            self.tx_status.replace(USARTStateTX::Idle);
+            self.tx_client.map(|client| {
+                if let Some(buf) = self.tx_buffer.take() {
+                    client.transmitted_buffer(buf, self.tx_position.get(), ReturnCode::ECANCEL);
+                }
+            });
+        }
     }
 }
 
@@ -357,16 +396,25 @@ impl hil::uart::Transmit<'a> for Usart<'a> {
         self.tx_client.set(client);
     }
 
-    // TODO
     fn transmit_buffer(
         &self,
         tx_data: &'static mut [u8],
-        _tx_len: usize,
+        tx_len: usize,
     ) -> (ReturnCode, Option<&'static mut [u8]>) {
-        for byte in tx_data {
-            self.send_byte(*byte);
+        if self.tx_status.get() == USARTStateTX::Idle {
+            if tx_len <= tx_data.len() {
+                self.tx_buffer.put(Some(tx_data));
+                self.tx_position.set(0);
+                self.tx_len.set(tx_len);
+                self.tx_status.set(USARTStateTX::Transmitting);
+                self.enable_transmit_complete_interrupt();
+                (ReturnCode::SUCCESS, None)
+            } else {
+                (ReturnCode::ESIZE, Some(tx_data))
+            }
+        } else {
+            (ReturnCode::EBUSY, Some(tx_data))
         }
-        (ReturnCode::SUCCESS, None)
     }
 
     fn transmit_word(&self, _word: u32) -> ReturnCode {
@@ -374,7 +422,12 @@ impl hil::uart::Transmit<'a> for Usart<'a> {
     }
 
     fn transmit_abort(&self) -> ReturnCode {
-        ReturnCode::SUCCESS
+        if self.tx_status.get() != USARTStateTX::Idle {
+            self.tx_status.set(USARTStateTX::AbortRequested);
+            ReturnCode::EBUSY
+        } else {
+            ReturnCode::SUCCESS
+        }
     }
 }
 

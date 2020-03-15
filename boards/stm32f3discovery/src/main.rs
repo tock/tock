@@ -129,7 +129,7 @@ unsafe fn set_pin_primary_functions() {
 unsafe fn setup_peripherals() {
     use stm32f3xx::tim2::TIM2;
 
-    // USART2 IRQn is 38
+    // USART1 IRQn is 37
     cortexm4::nvic::Nvic::new(stm32f3xx::nvic::USART1).enable();
 
     // TIM2 IRQn is 28
@@ -140,7 +140,7 @@ unsafe fn setup_peripherals() {
 
 /// Reset Handler.
 ///
-/// This symbol is loaded into vector table by the STM32F446RE chip crate.
+/// This symbol is loaded into vector table by the STM32F303VCT6 chip crate.
 /// When the chip first powers on or later does a hard reset, after the core
 /// initializes all the hardware, the address of this function is loaded and
 /// execution begins here.
