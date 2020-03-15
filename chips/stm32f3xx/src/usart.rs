@@ -3,9 +3,9 @@ use core::cell::Cell;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::common::registers::{register_bitfields, ReadWrite};
 use kernel::common::StaticRef;
+use kernel::hil;
 use kernel::ClockInterface;
 use kernel::ReturnCode;
-use kernel::{debug, hil};
 
 use crate::rcc;
 
