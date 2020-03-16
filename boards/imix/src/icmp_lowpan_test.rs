@@ -27,8 +27,10 @@ use capsules::net::ieee802154::MacAddress;
 use capsules::net::ipv6::ip_utils::IPAddr;
 use capsules::net::ipv6::ipv6::{IP6Packet, IPPayload, TransportHeader};
 use capsules::net::ipv6::ipv6_send::{IP6SendStruct, IP6Sender};
+use capsules::net::network_capabilities::{IpVisibilityCapability, NetworkCapability};
 use capsules::net::sixlowpan::sixlowpan_compression;
 use capsules::net::sixlowpan::sixlowpan_state::{Sixlowpan, SixlowpanState, TxState};
+
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use core::cell::Cell;
 use kernel::debug;
@@ -65,11 +67,14 @@ pub struct LowpanICMPTest<'a, A: time::Alarm<'a>> {
     alarm: A,
     test_counter: Cell<usize>,
     icmp_sender: &'a dyn ICMP6Sender<'a>,
+    net_cap: &'static NetworkCapability,
 }
 
 pub unsafe fn initialize_all(
     mux_mac: &'static capsules::ieee802154::virtual_mac::MuxMac<'static>,
     mux_alarm: &'static MuxAlarm<'static, sam4l::ast::Ast>,
+    net_cap: &'static NetworkCapability,
+    ip_vis: &'static IpVisibilityCapability,
 ) -> &'static LowpanICMPTest<
     'static,
     capsules::virtual_alarm::VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>,
@@ -118,7 +123,8 @@ pub unsafe fn initialize_all(
             sixlowpan_tx,
             radio_mac,
             DST_MAC_ADDR,
-            SRC_MAC_ADDR
+            SRC_MAC_ADDR,
+            ip_vis
         )
     );
     radio_mac.set_transmit_client(ip6_sender);
@@ -137,7 +143,8 @@ pub unsafe fn initialize_all(
             //sixlowpan_tx,
             //radio_mac,
             VirtualMuxAlarm::new(mux_alarm),
-            icmp_send_struct
+            icmp_send_struct,
+            net_cap
         )
     );
 
@@ -167,11 +174,16 @@ impl<'a, A: time::Alarm<'a>> capsules::net::icmpv6::icmpv6_send::ICMP6SendClient
 }
 
 impl<A: time::Alarm<'a>> LowpanICMPTest<'a, A> {
-    pub fn new(alarm: A, icmp_sender: &'a dyn ICMP6Sender<'a>) -> LowpanICMPTest<'a, A> {
+    pub fn new(
+        alarm: A,
+        icmp_sender: &'a dyn ICMP6Sender<'a>,
+        net_cap: &'static NetworkCapability,
+    ) -> LowpanICMPTest<'a, A> {
         LowpanICMPTest {
             alarm: alarm,
             test_counter: Cell::new(0),
             icmp_sender: icmp_sender,
+            net_cap: net_cap,
         }
     }
 
@@ -219,7 +231,10 @@ impl<A: time::Alarm<'a>> LowpanICMPTest<'a, A> {
 
     fn send_next(&self) {
         let icmp_hdr = ICMP6Header::new(ICMP6Type::Type128); // Echo Request
-        unsafe { self.icmp_sender.send(DST_ADDR, icmp_hdr, &mut ICMP_PAYLOAD) };
+        unsafe {
+            self.icmp_sender
+                .send(DST_ADDR, icmp_hdr, &mut ICMP_PAYLOAD, self.net_cap)
+        };
     }
 }
 
