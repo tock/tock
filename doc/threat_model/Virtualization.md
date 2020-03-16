@@ -12,7 +12,7 @@ clients. Furthermore, data from a client should not end up in a capsule the
 client is unaware of.
 
 When a capsule with multiple clients is given a buffer by one of those clients,
-it must done one of the following:
+it must do one of the following:
 
 1. Avoid sharing the buffer with any other kernel code. Return the buffer to the
    same client.

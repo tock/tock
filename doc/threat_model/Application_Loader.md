@@ -8,8 +8,8 @@ applications to a Tock system. It can take several forms; here are a few
 examples:
 
 1. Tockloader is an application loader that runs on a host system. It uses
-   programming interfaces to manipulate applications on the Tock system's
-   nonvolatile storage.
+   various host-to-board interfaces (e.g. JTAG, UART bootloader, etc) to
+   manipulate applications on the Tock system's nonvolatile storage.
 
 1. Some build systems combine the kernel and apps at build time into a single,
    monolithic image. This monolithic image is then deployed using a programming
@@ -43,13 +43,13 @@ access-control hardware between its flash storage and the application loader may
 use that hardware to protect the kernel's data without trusting the application
 loader.
 
-## TBF Verification Requirement
+## Tock Binary Format (TBF) Verification Requirement
 
-The application loader is required to confirm that the TBF's `total_size` field
-is correct (as specified in the [Tock Binary
-Format](../TockBinaryFormat.md#tbf-header-base)) before deploying an
-application. This is to prevent the newly-deployed application from executing
-the following attacks:
+The application loader is required to confirm that the TBF header's
+`total_size` field is correct for the specified format version (as specified in
+the [Tock Binary Format](../TockBinaryFormat.md#tbf-header-base)) before
+deploying an application. This is to prevent the newly-deployed application
+from executing the following attacks:
 
 1. Specifying an incorrect `total_size`, preventing the kernel from finding the
    remaining application(s), which prevents the remaining application(s) from

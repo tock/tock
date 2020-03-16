@@ -41,7 +41,8 @@ conceptual owner. For example, an ADC driver's sample buffer is capsule data
 associated with that ADC.
 
 **Secrets** are pieces of application data, kernel data, and capsule data that
-owning code wishes to keep confidential. This term is used to give an overview
+owning code wishes to keep confidential (that is, data the owning code does not
+opt to share with another OS component). This term is used to give an overview
 of confidentiality guarantees, and is always elaborated upon in this document.
 
 **Tock's users** refers to entities that make use of Tock OS. In the context of
