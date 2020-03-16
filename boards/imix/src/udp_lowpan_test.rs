@@ -299,7 +299,7 @@ impl<'a, A: time::Alarm<'a>> LowpanTest<'a, A> {
                     4 => self.addr_range_valid_test(),
                     5 => self.port_range_valid_test(),
                     6 => self.capsule_send_valid_net_cap_test(),
-                    7 => self.capsule_send_invalid_net_cap_port_test(), // TODO: fix last three
+                    7 => self.capsule_send_invalid_net_cap_port_test(),
                     8 => self.capsule_send_invalid_net_cap_addr_test(),
                     9 => self.capsule_send_invalid_net_cap_addr_port_test(),
                     _ => return,
@@ -465,7 +465,6 @@ impl<'a, A: time::Alarm<'a>> LowpanTest<'a, A> {
     }
 
     // Test network capability enforcement for addrs
-    // TODO: include a positive and negative test for each (as apporpriate)
     fn addr_range_valid_test(&self) {
         let ip_addr1 = IPAddr([
             0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d,

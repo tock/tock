@@ -36,11 +36,14 @@ use crate::net::network_capabilities::{NetworkCapability, UdpVisibilityCapabilit
 use core::fmt;
 use kernel::capabilities::{CreatePortTableCapability, UdpDriverCapability};
 use kernel::common::cells::{OptionalCell, TakeCell};
-use kernel::ReturnCode; // TODO: remove debug
+use kernel::ReturnCode;
 
 // Sets the maximum number of UDP ports that can be bound by capsules. Reducing this number
 // can save a small amount of memory, and slightly reduces the overhead of iterating through the
-// table to check whether a port is already bound.
+// table to check whether a port is already bound. Note: if this numberis changed,
+// port_table_test2 in udp_lowpan_test.rs will fail since it tests the capacity of
+// the port table -- therefore that test should be modified when MAX_NUM_BOUND_PORTS
+// is.
 pub const MAX_NUM_BOUND_PORTS: usize = 16;
 
 /// The SocketBindingEntry struct is stored in the PORT_TABLE and conveys what port is bound

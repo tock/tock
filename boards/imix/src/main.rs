@@ -410,12 +410,6 @@ pub unsafe fn reset_handler() {
         ]
     );
 
-    // TODO: remove commented code below
-    // let net_cap = static_init!(
-    //     NetworkCapability,
-    //     NetworkCapability::new(AddrRange::Any, PortRange::Any, PortRange::Any, &CREATE_CAP)
-    // );
-
     let (udp_send_mux, udp_recv_mux, udp_port_table) = UDPMuxComponent::new(
         mux_mac,
         DEFAULT_CTX_PREFIX_LEN,
@@ -492,8 +486,6 @@ pub unsafe fn reset_handler() {
     // Only include to run kernel tests, do not include during normal operation
     // let udp_lowpan_test =
     //     udp_lowpan_test::initialize_all(udp_send_mux, udp_recv_mux, udp_port_table, mux_alarm);
-    // Include below to run udp tests
-    // udp_lowpan_test.start();
 
     extern "C" {
         /// Beginning of the ROM region containing app images.
