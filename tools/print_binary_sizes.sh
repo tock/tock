@@ -37,6 +37,7 @@ if [ -n "$TRAVIS_PULL_REQUEST_BRANCH" ]; then
     # Bench the pull request base or master
     #if [ -n "$TRAVIS_PULL_REQUEST_BRANCH" ]; then
     git checkout -f "$TRAVIS_BRANCH"
+    ./tools/print_tock_memory_usage.py #TODO: Remove
     #else # this is a push build
     #  # This could be replaced with something better like asking git which
     #  # branch is the base of $TRAVIS_BRANCH

@@ -36,6 +36,9 @@ rust:
 
 before_script:
   - npm install -g markdown-toc
+#TODO: Move below lines to after_success once actual script moves there
+#- sudo apt install python3
+  - pip3 install cxxfilt
 
 script:
   - export PATH=$HOME/.cargo/bin:$PATH
