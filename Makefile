@@ -42,6 +42,11 @@ alldoc:
 .PHONY: ci-travis
 ci-travis:
 	@printf "$$(tput bold)******************$$(tput sgr0)\n"
+	@printf "$$(tput bold)* CI: Memory Use *$$(tput sgr0)\n"
+	@printf "$$(tput bold)******************$$(tput sgr0)\n"
+	@CI=true ./tools/print_binary_sizes.sh
+# begin original script
+	@printf "$$(tput bold)******************$$(tput sgr0)\n"
 	@printf "$$(tput bold)* CI: Formatting *$$(tput sgr0)\n"
 	@printf "$$(tput bold)******************$$(tput sgr0)\n"
 	@CI=true ./tools/run_cargo_fmt.sh diff
