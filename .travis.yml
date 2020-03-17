@@ -3,7 +3,9 @@ language: rust
 
 addons:
   apt:
-    packages: libusb-1.0-0-dev
+    packages:
+      - libusb-1.0-0-dev
+      - gcc-arm-none-eabi
 
 
 # bors default configuration:
