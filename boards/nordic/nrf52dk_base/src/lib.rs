@@ -3,7 +3,7 @@
 #![no_std]
 
 #[allow(unused_imports)]
-use kernel::{create_capability, debug, debug_verbose, static_init};
+use kernel::{create_capability, debug, debug_gpio, debug_verbose, static_init};
 
 use capsules::analog_comparator;
 use capsules::virtual_alarm::VirtualMuxAlarm;
@@ -17,7 +17,7 @@ use nrf52::gpio::{GPIOPin, Pin};
 use nrf52::rtc::Rtc;
 use nrf52::uicr::Regulator0Output;
 
-use components::spi::{SpiComponent, SpiSyscallComponent};
+use components::spi::{SpiComponent, SpiMuxComponent, SpiSyscallComponent};
 pub mod nrf52_components;
 use nrf52_components::ble::BLEComponent;
 use nrf52_components::ieee802154::Ieee802154Component;
@@ -73,25 +73,25 @@ pub struct UartPins {
     rxd: Pin,
 }
 
-/// Pins for the Lora Module
-pub struct LoraPins {
-    chip_select: &'static GPIOPin,
-    reset: &'static GPIOPin,
-    interrupt: &'static GPIOPin,
-}
-impl LoraPins {
-    pub fn new(
-    chip_select: &'static GPIOPin,
-    reset: &'static GPIOPin,
-    interrupt: &'static GPIOPin,
-) -> Self {
-        Self { chip_select, reset, interrupt }
-    }
-}
-
 impl UartPins {
     pub fn new(rts: Pin, txd: Pin, cts: Pin, rxd: Pin) -> Self {
         Self { rts, txd, cts, rxd }
+    }
+}
+
+/// Pins for the LoRa Module
+pub struct LoraPins {
+    chip_select: Pin,
+    reset: Pin,
+    interrupt: Pin,
+}
+impl LoraPins {
+    pub fn new(
+    chip_select: Pin,
+    reset: Pin,
+    interrupt: Pin,
+) -> Self {
+        Self { chip_select, reset, interrupt }
     }
 }
 
@@ -104,7 +104,7 @@ pub struct Platform {
     >,
     ieee802154_radio: Option<&'static capsules::ieee802154::RadioDriver<'static>>,
     lora_radio: Option<&'static capsules::lora::driver::RadioDriver<'static, VirtualSpiMasterDevice<'static, nrf52::spi::SPIM>>>,
-    spi: Option<&'static capsules::spi::Spi<'static, VirtualSpiMasterDevice<'static, nrf52::spi::SPIM>>>,
+    spi: &'static capsules::spi::Spi<'static, VirtualSpiMasterDevice<'static, nrf52::spi::SPIM>>,
     button: &'static capsules::button::Button<'static>,
     pconsole: &'static capsules::process_console::ProcessConsole<
         'static,
@@ -148,11 +148,7 @@ impl kernel::Platform for Platform {
                 Some(radio) => f(Some(radio)),
                 None => f(None),
             },
-            capsules::spi::DRIVER_NUM => match self.spi {
-                Some(spi) => f(Some(spi)),
-                None => f(None),
-            },
-
+            capsules::spi::DRIVER_NUM => f(Some(self.spi)),
             capsules::temperature::DRIVER_NUM => f(Some(self.temp)),
             capsules::analog_comparator::DRIVER_NUM => f(Some(self.analog_comparator)),
             capsules::nonvolatile_storage_driver::DRIVER_NUM => {
@@ -180,7 +176,7 @@ pub unsafe fn setup_board<I: nrf52::interrupt_service::InterruptService>(
     mx25r6435f: &Option<SpiMX25R6435FPins>,
     button: &'static capsules::button::Button<'static>,
     ieee802154: bool,
-    lora_pins: &Option<LoraPins>,
+    lora: Option<&LoraPins>,
     app_memory: &mut [u8],
     process_pointers: &'static mut [Option<&'static dyn kernel::procs::ProcessType>],
     app_fault_response: kernel::procs::FaultResponse,
@@ -259,11 +255,11 @@ pub unsafe fn setup_board<I: nrf52::interrupt_service::InterruptService>(
     let memory_allocation_capability = create_capability!(capabilities::MemoryAllocationCapability);
 
     // Configure kernel debug gpios as early as possible
-    kernel::debug::assign_gpios(
-        Some(&gpio_port[debug_pin1_index]),
-        Some(&gpio_port[debug_pin2_index]),
-        Some(&gpio_port[debug_pin3_index]),
-    );
+    //kernel::debug::assign_gpios(
+    //    Some(&gpio_port[debug_pin1_index]),
+    //    Some(&gpio_port[debug_pin2_index]),
+    //    Some(&gpio_port[debug_pin3_index]),
+    //);
 
     let rtc = &nrf52::rtc::RTC;
     rtc.start();
@@ -331,10 +327,13 @@ pub unsafe fn setup_board<I: nrf52::interrupt_service::InterruptService>(
     let rng = components::rng::RngComponent::new(board_kernel, &nrf52::trng::TRNG).finalize(());
 
     // SPI and Lora radio
-    let mux_spi = static_init!(
-        MuxSpiMaster<'static, nrf52::spi::SPIM>,
-        MuxSpiMaster::new(&nrf52::spi::SPIM0)
-    );
+    let mux_spi = //static_init!(
+    //    MuxSpiMaster<'static, nrf52::spi::SPIM>,
+    //    MuxSpiMaster::new(&nrf52::spi::SPIM0)
+    //)
+    SpiMuxComponent::new(&nrf52::spi::SPIM0)
+        .finalize(components::spi_mux_component_helper!(nrf52::spi::SPIM));
+;
     hil::spi::SpiMaster::set_client(&nrf52::spi::SPIM0, mux_spi);
     hil::spi::SpiMaster::init(&nrf52::spi::SPIM0);
     nrf52::spi::SPIM0.configure(
@@ -343,29 +342,44 @@ pub unsafe fn setup_board<I: nrf52::interrupt_service::InterruptService>(
         nrf52::pinmux::Pinmux::new(spi_pins.clk as u32),
     );
 
-    let (lora_radio,spi) = if let Some(pins) = lora_pins {
-      let spi_comp = SpiComponent::new(mux_spi, pins.chip_select)
-          .finalize(components::spi_component_helper!(nrf52::spi::SPIM)); //virtual
-      let spi_syscalls = SpiSyscallComponent::new(mux_spi, pins.chip_select)
+    //userland SPI --- for test
+    let spi = SpiSyscallComponent::new(mux_spi, &gpio_port[Pin::P1_10])
           .finalize(components::spi_syscall_component_helper!(nrf52::spi::SPIM));
-      //let spi = spi_syscalls;
 
-      let RADIO = static_init!(capsules::lora::radio::Radio<'static, VirtualSpiMasterDevice<'static, nrf52::spi::SPIM>>, capsules::lora::radio::Radio::new(
-        &spi_comp,
-        pins.reset,
-        pins.interrupt,
-      ));
+    let lora_radio = if let Some(pins) = lora {
+      //let lora_spi = SpiComponent::new(mux_spi, pins.chip_select)
+      //    .finalize(components::spi_component_helper!(nrf52::spi::SPIM)); //virtual
+      let lora_spi = static_init!(
+        capsules::virtual_spi::VirtualSpiMasterDevice<'static, nrf52::spi::SPIM>,
+        capsules::virtual_spi::VirtualSpiMasterDevice::new(
+          mux_spi,
+          &gpio_port[pins.chip_select],
+        )
+      );
+
+      let RADIO = static_init!(
+        capsules::lora::radio::Radio<'static, VirtualSpiMasterDevice<'static, nrf52::spi::SPIM>>,
+        capsules::lora::radio::Radio::new(
+          lora_spi,
+          &gpio_port[pins.reset],
+          &gpio_port[pins.interrupt],
+        )
+      );
+
       let (radio,) = LoraComponent::new(
         board_kernel,
         RADIO,
       )
       .finalize(());
-      (Some(radio),Some(spi_syscalls))
+      //lora_spi.set_client(radio);      
+    Some(radio)
     } else {
-      (None,None)
+      None
     };
     match lora_radio {
-      Some(radio) => { radio.device.initialize(&mut LORA_BUF, &mut LORA_REG_WRITE, &mut LORA_REG_READ); },
+      Some(radio) => { 
+        radio.device.initialize(&mut LORA_BUF, &mut LORA_REG_WRITE, &mut LORA_REG_READ);
+      },
       None => ()
     }
 
@@ -496,8 +510,8 @@ pub unsafe fn setup_board<I: nrf52::interrupt_service::InterruptService>(
     // initialization to work.
     match lora_radio {
       Some(radio) => {
-        radio.device.reset();
-        radio.device.start();
+      radio.device.reset();
+      radio.device.start();
       },
       None => ()
     }

@@ -67,7 +67,7 @@
 use kernel::component::Component;
 #[allow(unused_imports)]
 use kernel::{debug, debug_gpio, debug_verbose, static_init};
-use nrf52840::gpio::{Pin, GPIOPin};
+use nrf52840::gpio::Pin;
 use nrf52dk_base::{SpiMX25R6435FPins, SpiPins, UartPins, LoraPins};
 
 // The nRF52840DK LEDs (see back of board)
@@ -96,6 +96,10 @@ const SPI_MX25R6435F_CHIP_SELECT: Pin = Pin::P0_17;
 const SPI_MX25R6435F_WRITE_PROTECT_PIN: Pin = Pin::P0_22;
 const SPI_MX25R6435F_HOLD_PIN: Pin = Pin::P0_23;
 
+//const LORA_CHIP_SELECT: Pin = Pin::P1_01; // fixme
+//const LORA_RESET: Pin = Pin::P1_02; // fixme
+//const LORA_INT: Pin = Pin::P1_03; // fixme
+
 /// UART Writer
 pub mod io;
 
@@ -107,7 +111,7 @@ const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultRespons
 const NUM_PROCS: usize = 8;
 
 #[link_section = ".app_memory"]
-static mut APP_MEMORY: [u8; 245760] = [0; 245760];
+static mut APP_MEMORY: [u8; 145760] = [0; 145760];
 
 static mut PROCESSES: [Option<&'static dyn kernel::procs::ProcessType>; NUM_PROCS] =
     [None, None, None, None, None, None, None, None];
@@ -192,10 +196,6 @@ pub unsafe fn reset_handler() {
     let chip = static_init!(nrf52840::chip::Chip, nrf52840::chip::new());
     CHIP = Some(chip);
 
-    let LORA_CHIP_SELECT: &GPIOPin = &nrf52840::gpio::PORT[Pin::P1_01]; // fixme
-    let LORA_RESET: &GPIOPin = &nrf52840::gpio::PORT[Pin::P1_02]; // fixme
-    let LORA_INT: &GPIOPin = &nrf52840::gpio::PORT[Pin::P1_03]; // fixme
-
     //kernel::debug::assign_gpios(  //leds
     //  Some(&nrf52840::gpio::PORT[Pin::P0_13]),
     //  Some(&nrf52840::gpio::PORT[Pin::P0_14]),
@@ -220,7 +220,7 @@ pub unsafe fn reset_handler() {
         )),
         button,
         true,
-        &Some(LoraPins::new(LORA_CHIP_SELECT, LORA_RESET, LORA_INT)),
+        None,//Some(&LoraPins::new(LORA_CHIP_SELECT, LORA_RESET, LORA_INT)),
         &mut APP_MEMORY,
         &mut PROCESSES,
         FAULT_RESPONSE,

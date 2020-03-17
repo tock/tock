@@ -122,7 +122,7 @@ impl<S: SpiMasterDevice> Radio<'a, S> {
             //ss_pin: ss,
             reset_pin: reset,
             irq_pin: irq,
-            state: Cell::new(InternalState::TX_OFF),
+            state: Cell::new(InternalState::START),
             transmitting: Cell::new(false),
             sleep_pending: Cell::new(false),
             wake_pending: Cell::new(false),
@@ -167,7 +167,7 @@ impl<S: SpiMasterDevice> Radio<'a, S> {
     }
 
     pub fn start(&self) -> ReturnCode {
-        self.sleep_pending.set(false);
+        //self.sleep_pending.set(false);
 
         if self.state.get() != InternalState::START && self.state.get() != InternalState::SLEEP {
             return ReturnCode::EALREADY;
@@ -177,7 +177,7 @@ impl<S: SpiMasterDevice> Radio<'a, S> {
             self.state.set(InternalState::READY);
         } else {
             // Delay wakeup until the radio turns all the way off
-            self.wake_pending.set(true);
+            //self.wake_pending.set(true);
         }
 
         ReturnCode::SUCCESS
