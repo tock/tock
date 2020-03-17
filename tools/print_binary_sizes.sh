@@ -43,8 +43,8 @@ if [ -n "$TRAVIS_PULL_REQUEST_BRANCH" ]; then
     #  git checkout -f master
     #fi
     make allboards > /dev/null
-    cp ~/tock/tools/print_tock_memory_usage.py tools/ #TODO: REMOVE ME
-    cp ~/tock/tools/diff_memory_usage.py tools/ #TODO: REMOVE ME
+    #cp ~/tock/tools/print_tock_memory_usage.py tools/ #TODO: REMOVE ME
+    #cp ~/tock/tools/diff_memory_usage.py tools/ #TODO: REMOVE ME
     # Find elfs compiled for release (for use in analyzing binaries in CI),
     # ignore riscv binaries for now because Phil's tool does not support RISC-V
     for elf in $(find boards -maxdepth 8 | grep 'release' | egrep '\.elf$' | grep -v 'riscv'); do
