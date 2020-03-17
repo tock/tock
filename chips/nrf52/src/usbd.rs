@@ -623,7 +623,7 @@ pub enum UsbState {
 pub enum EndpointState {
     Disabled,
     Ctrl(CtrlState),
-    Bulk(TransferType, Option<BulkInState>, Option<BulkOutState>),
+    Bulk(TransferType, EndpointDirection, BulkState),
 }
 
 impl EndpointState {
@@ -634,10 +634,10 @@ impl EndpointState {
         }
     }
 
-    fn bulk_state(self) -> (TransferType, Option<BulkInState>, Option<BulkOutState>) {
+    fn bulk_state(self) -> (TransferType, EndpointDirection, BulkState) {
         match self {
-            EndpointState::Bulk(transfer_type, in_state, out_state) => {
-                (transfer_type, in_state, out_state)
+            EndpointState::Bulk(transfer_type, direction, state) => {
+                (transfer_type, direction, state)
             }
             _ => panic!("Expected EndpointState::Bulk"),
         }
@@ -651,18 +651,31 @@ pub enum CtrlState {
     ReadStatus,
 }
 
-#[derive(Copy, Clone, PartialEq, Debug)]
-pub enum BulkInState {
-    // The endpoint is ready to perform transactions.
-    Init,
-    // There is a pending DMA transfer on this IN endpoint.
-    InDma,
-    // There is a pending IN packet transfer on this endpoint.
-    InData,
+#[derive(Copy, Clone, Debug)]
+pub enum EndpointDirection {
+    In,
+    Out,
+    InOut,
+}
+
+impl EndpointDirection {
+    fn has_in(&self) -> bool {
+        match self {
+            EndpointDirection::In | EndpointDirection::InOut => true,
+            EndpointDirection::Out => false,
+        }
+    }
+
+    fn has_out(&self) -> bool {
+        match self {
+            EndpointDirection::Out | EndpointDirection::InOut => true,
+            EndpointDirection::In => false,
+        }
+    }
 }
 
 #[derive(Copy, Clone, PartialEq, Debug)]
-pub enum BulkOutState {
+pub enum BulkState {
     // The endpoint is ready to perform transactions.
     Init,
     // There is a pending OUT packet in this endpoint's buffer, to be read by
@@ -672,11 +685,14 @@ pub enum BulkOutState {
     OutData,
     // There is a pending DMA transfer on this OUT endpoint.
     OutDma,
+    // There is a pending DMA transfer on this IN endpoint.
+    InDma,
+    // There is a pending IN packet transfer on this endpoint.
+    InData,
 }
 
 pub struct Endpoint<'a> {
-    slice_in: OptionalCell<&'a [VolatileCell<u8>]>,
-    slice_out: OptionalCell<&'a [VolatileCell<u8>]>,
+    slice: OptionalCell<&'a [VolatileCell<u8>]>,
     state: Cell<EndpointState>,
     // The USB controller can only process one DMA transfer at a time (over all endpoints). The
     // request_transmit_* bits allow to queue transfers until the DMA becomes available again.
@@ -689,8 +705,7 @@ pub struct Endpoint<'a> {
 impl Endpoint<'_> {
     const fn new() -> Self {
         Endpoint {
-            slice_in: OptionalCell::empty(),
-            slice_out: OptionalCell::empty(),
+            slice: OptionalCell::empty(),
             state: Cell::new(EndpointState::Disabled),
             request_transmit_in: Cell::new(false),
             request_transmit_out: Cell::new(false),
@@ -899,9 +914,15 @@ impl<'a> Usbd<'a> {
                     chip_revision.get()
                 );
             }
-            Some(ChipRevision::REV::Value::REVC) | Some(ChipRevision::REV::Value::REVD) => {
+            Some(ChipRevision::REV::Value::REVC) => {
                 debug_info!(
                     "Your chip is NRF52840 revision {}. The USB stack was tested on your chip :)",
+                    chip_revision.get()
+                );
+            }
+            Some(ChipRevision::REV::Value::REVD) => {
+                internal_warn!(
+                    "Your chip is NRF52840 revision {}. Although this USB implementation should be compatible, your chip hasn't been tested.",
                     chip_revision.get()
                 );
             }
@@ -1005,7 +1026,7 @@ impl<'a> Usbd<'a> {
         });
         self.descriptors[endpoint].state.set(match endpoint {
             0 => EndpointState::Ctrl(CtrlState::Init),
-            1..=7 => EndpointState::Bulk(transfer_type, Some(BulkInState::Init), None),
+            1..=7 => EndpointState::Bulk(transfer_type, EndpointDirection::In, BulkState::Init),
             8 => unimplemented!("isochronous endpoint"),
             _ => unreachable!("unexisting endpoint"),
         });
@@ -1043,7 +1064,7 @@ impl<'a> Usbd<'a> {
         });
         self.descriptors[endpoint].state.set(match endpoint {
             0 => EndpointState::Ctrl(CtrlState::Init),
-            1..=7 => EndpointState::Bulk(transfer_type, None, Some(BulkOutState::Init)),
+            1..=7 => EndpointState::Bulk(transfer_type, EndpointDirection::Out, BulkState::Init),
             8 => unimplemented!("isochronous endpoint"),
             _ => unreachable!("unexisting endpoint"),
         });
@@ -1093,11 +1114,7 @@ impl<'a> Usbd<'a> {
         });
         self.descriptors[endpoint].state.set(match endpoint {
             0 => EndpointState::Ctrl(CtrlState::Init),
-            1..=7 => EndpointState::Bulk(
-                transfer_type,
-                Some(BulkInState::Init),
-                Some(BulkOutState::Init),
-            ),
+            1..=7 => EndpointState::Bulk(transfer_type, EndpointDirection::InOut, BulkState::Init),
             8 => unimplemented!("isochronous endpoint"),
             _ => unreachable!("unexisting endpoint"),
         });
@@ -1287,13 +1304,13 @@ impl<'a> Usbd<'a> {
             match desc.state.get() {
                 EndpointState::Disabled => {}
                 EndpointState::Ctrl(_) => desc.state.set(EndpointState::Ctrl(CtrlState::Init)),
-                EndpointState::Bulk(transfer_type, in_state, out_state) => {
+                EndpointState::Bulk(transfer_type, direction, _) => {
                     desc.state.set(EndpointState::Bulk(
                         transfer_type,
-                        in_state.map(|_| BulkInState::Init),
-                        out_state.map(|_| BulkOutState::Init),
+                        direction,
+                        BulkState::Init,
                     ));
-                    if out_state.is_some() {
+                    if direction.has_out() {
                         // Accept incoming OUT packets.
                         regs.size_epout[ep].set(0);
                     }
@@ -1330,13 +1347,13 @@ impl<'a> Usbd<'a> {
         match endpoint {
             0 => {}
             1..=7 => {
-                let (transfer_type, in_state, out_state) =
+                let (transfer_type, direction, state) =
                     self.descriptors[endpoint].state.get().bulk_state();
-                assert_eq!(in_state, Some(BulkInState::InDma));
+                assert_eq!(state, BulkState::InDma);
                 self.descriptors[endpoint].state.set(EndpointState::Bulk(
                     transfer_type,
-                    Some(BulkInState::InData),
-                    out_state,
+                    direction,
+                    BulkState::InData,
                 ));
             }
             8 => unimplemented!("isochronous endpoint"),
@@ -1388,25 +1405,25 @@ impl<'a> Usbd<'a> {
             1..=7 => {
                 // Notify the client about the new packet.
                 let packet_bytes = regs.size_epout[endpoint].get();
-                let (transfer_type, in_state, out_state) =
+                let (transfer_type, direction, state) =
                     self.descriptors[endpoint].state.get().bulk_state();
-                assert_eq!(out_state, Some(BulkOutState::OutDma));
+                assert_eq!(state, BulkState::OutDma);
 
-                self.debug_out_packet(packet_bytes as usize, endpoint);
+                self.debug_packet("out", packet_bytes as usize, endpoint);
 
                 self.client.map(|client| {
                     let result = client.packet_out(transfer_type, endpoint, packet_bytes);
                     debug_packets!("packet_out => {:?}", result);
-                    let new_out_state = match result {
+                    let newstate = match result {
                         hil::usb::OutResult::Ok => {
                             // Indicate that the endpoint is ready to receive data again.
                             regs.size_epout[endpoint].set(0);
-                            BulkOutState::Init
+                            BulkState::Init
                         }
 
                         hil::usb::OutResult::Delay => {
                             // We can't send the packet now. Wait for a resume_out call from the client.
-                            BulkOutState::OutDelay
+                            BulkState::OutDelay
                         }
 
                         hil::usb::OutResult::Error => {
@@ -1415,13 +1432,13 @@ impl<'a> Usbd<'a> {
                                     + EndpointStall::IO::Out
                                     + EndpointStall::STALL::Stall,
                             );
-                            BulkOutState::Init
+                            BulkState::Init
                         }
                     };
                     self.descriptors[endpoint].state.set(EndpointState::Bulk(
                         transfer_type,
-                        in_state,
-                        Some(new_out_state),
+                        direction,
+                        newstate,
                     ));
                 });
             }
@@ -1480,27 +1497,13 @@ impl<'a> Usbd<'a> {
         // Endpoint 8 (isochronous) doesn't receive any EPDATA event.
         for endpoint in 1..NUM_ENDPOINTS {
             if epdatastatus.is_set(status_epin(endpoint)) {
-                let (transfer_type, in_state, out_state) =
+                let (transfer_type, direction, state) =
                     self.descriptors[endpoint].state.get().bulk_state();
-                assert!(in_state.is_some());
-                match in_state.unwrap() {
-                    BulkInState::InData => {
-                        // Totally expected state. Nothing to do.
-                    }
-                    BulkInState::Init => {
-                        internal_warn!(
-                            "Received a stale epdata IN in an unexpected state: {:?}",
-                            in_state
-                        );
-                    }
-                    BulkInState::InDma => {
-                        internal_err!("Unexpected state: {:?}", in_state);
-                    }
-                }
+                assert_eq!(state, BulkState::InData);
                 self.descriptors[endpoint].state.set(EndpointState::Bulk(
                     transfer_type,
-                    Some(BulkInState::Init),
-                    out_state,
+                    direction,
+                    BulkState::Init,
                 ));
                 self.client
                     .map(|client| client.packet_transmitted(endpoint));
@@ -1511,26 +1514,28 @@ impl<'a> Usbd<'a> {
         // Endpoint 8 (isochronous) doesn't receive any EPDATA event.
         for ep in 1..NUM_ENDPOINTS {
             if epdatastatus.is_set(status_epout(ep)) {
-                let (transfer_type, in_state, out_state) =
+                let (transfer_type, direction, state) =
                     self.descriptors[ep].state.get().bulk_state();
-                assert!(out_state.is_some());
-                match out_state.unwrap() {
-                    BulkOutState::Init => {
+                match state {
+                    BulkState::Init => {
                         // The endpoint is ready to receive data. Request a transmit_out.
                         self.descriptors[ep].request_transmit_out.set(true);
                     }
-                    BulkOutState::OutDelay => {
+                    BulkState::OutDelay => {
                         // The endpoint will be resumed later by the client application with transmit_out().
                     }
-                    BulkOutState::OutData | BulkOutState::OutDma => {
-                        internal_err!("Unexpected state: {:?}", out_state);
+                    BulkState::OutData
+                    | BulkState::OutDma
+                    | BulkState::InDma
+                    | BulkState::InData => {
+                        internal_err!("Unexpected state: {:?}", state);
                     }
                 }
                 // Indicate that the endpoint now has data available.
                 self.descriptors[ep].state.set(EndpointState::Bulk(
                     transfer_type,
-                    in_state,
-                    Some(BulkOutState::OutData),
+                    direction,
+                    BulkState::OutData,
                 ));
             }
         }
@@ -1543,8 +1548,8 @@ impl<'a> Usbd<'a> {
         let state = self.descriptors[endpoint].state.get().ctrl_state();
         match state {
             CtrlState::Init => {
-                let ep_buf = &self.descriptors[endpoint].slice_out;
-                let ep_buf = ep_buf.expect("No OUT slice set for this descriptor");
+                let ep_buf = &self.descriptors[endpoint].slice;
+                let ep_buf = ep_buf.expect("No slice set for this descriptor");
                 if ep_buf.len() < 8 {
                     panic!("EP0 DMA buffer length < 8");
                 }
@@ -1672,25 +1677,25 @@ impl<'a> Usbd<'a> {
     }
 
     fn transmit_in(&self, endpoint: usize) {
-        debug_events!("transmit_in({})", endpoint);
+        debug_info!("transmit_in({})", endpoint);
         let regs = &*self.registers;
 
         self.client.map(|client| {
-            let (transfer_type, in_state, out_state) =
+            let (transfer_type, direction, state) =
                 self.descriptors[endpoint].state.get().bulk_state();
-            assert_eq!(in_state, Some(BulkInState::Init));
+            assert_eq!(state, BulkState::Init);
 
             let result = client.packet_in(transfer_type, endpoint);
             debug_packets!("packet_in => {:?}", result);
-            let new_in_state = match result {
+            let newstate = match result {
                 hil::usb::InResult::Packet(size) => {
                     self.start_dma_in(endpoint, size);
-                    BulkInState::InDma
+                    BulkState::InDma
                 }
 
                 hil::usb::InResult::Delay => {
                     // No packet to send now. Wait for a resume call from the client.
-                    BulkInState::Init
+                    BulkState::Init
                 }
 
                 hil::usb::InResult::Error => {
@@ -1699,31 +1704,30 @@ impl<'a> Usbd<'a> {
                             + EndpointStall::IO::In
                             + EndpointStall::STALL::Stall,
                     );
-                    BulkInState::Init
+                    BulkState::Init
                 }
             };
 
             self.descriptors[endpoint].state.set(EndpointState::Bulk(
                 transfer_type,
-                Some(new_in_state),
-                out_state,
+                direction,
+                newstate,
             ));
         });
     }
 
     fn transmit_out(&self, endpoint: usize) {
-        debug_events!("transmit_out({})", endpoint);
+        debug_info!("transmit_out({})", endpoint);
 
-        let (transfer_type, in_state, out_state) =
-            self.descriptors[endpoint].state.get().bulk_state();
+        let (transfer_type, direction, state) = self.descriptors[endpoint].state.get().bulk_state();
         // Starting the DMA can only happen in the OutData state, i.e. after an EPDATA event.
-        assert_eq!(out_state, Some(BulkOutState::OutData));
+        assert_eq!(state, BulkState::OutData);
         self.start_dma_out(endpoint);
 
         self.descriptors[endpoint].state.set(EndpointState::Bulk(
             transfer_type,
-            in_state,
-            Some(BulkOutState::OutDma),
+            direction,
+            BulkState::OutDma,
         ));
     }
 
@@ -1731,9 +1735,9 @@ impl<'a> Usbd<'a> {
         let regs = &*self.registers;
 
         let slice = self.descriptors[endpoint]
-            .slice_in
-            .expect("No IN slice set for this descriptor");
-        self.debug_in_packet(size, endpoint);
+            .slice
+            .expect("No slice set for this descriptor");
+        self.debug_packet("in", size, endpoint);
 
         // Start DMA transfer
         self.set_pending_dma();
@@ -1746,8 +1750,8 @@ impl<'a> Usbd<'a> {
         let regs = &*self.registers;
 
         let slice = self.descriptors[endpoint]
-            .slice_out
-            .expect("No OUT slice set for this descriptor");
+            .slice
+            .expect("No slice set for this descriptor");
 
         // Start DMA transfer
         self.set_pending_dma();
@@ -1757,10 +1761,10 @@ impl<'a> Usbd<'a> {
     }
 
     // Debug-only function
-    fn debug_in_packet(&self, size: usize, endpoint: usize) {
+    fn debug_packet(&self, _title: &str, size: usize, endpoint: usize) {
         let slice = self.descriptors[endpoint]
-            .slice_in
-            .expect("No IN slice set for this descriptor");
+            .slice
+            .expect("No slice set for this descriptor");
         if size > slice.len() {
             panic!("Packet is too large: {}", size);
         }
@@ -1768,24 +1772,8 @@ impl<'a> Usbd<'a> {
         let mut packet_hex = [0; 128];
         packet_to_hex(slice, &mut packet_hex);
         debug_packets!(
-            "in={}",
-            core::str::from_utf8(&packet_hex[..(2 * size)]).unwrap()
-        );
-    }
-
-    // Debug-only function
-    fn debug_out_packet(&self, size: usize, endpoint: usize) {
-        let slice = self.descriptors[endpoint]
-            .slice_out
-            .expect("No OUT slice set for this descriptor");
-        if size > slice.len() {
-            panic!("Packet is too large: {}", size);
-        }
-
-        let mut packet_hex = [0; 128];
-        packet_to_hex(slice, &mut packet_hex);
-        debug_packets!(
-            "out={}",
+            "{}={}",
+            _title,
             core::str::from_utf8(&packet_hex[..(2 * size)]).unwrap()
         );
     }
@@ -1803,41 +1791,17 @@ impl<'a> power::PowerClient for Usbd<'a> {
 }
 
 impl<'a> hil::usb::UsbController<'a> for Usbd<'a> {
-    fn endpoint_set_ctrl_buffer(&self, buf: &'a [VolatileCell<u8>]) {
+    fn endpoint_set_buffer(&self, endpoint: usize, buf: &'a [VolatileCell<u8>]) {
         if buf.len() < 8 {
             panic!("Endpoint buffer must be at least 8 bytes");
         }
         if !buf.len().is_power_of_two() {
             panic!("Buffer size must be a power of 2");
         }
-        self.descriptors[0].slice_in.set(buf);
-        self.descriptors[0].slice_out.set(buf);
-    }
-
-    fn endpoint_set_in_buffer(&self, endpoint: usize, buf: &'a [VolatileCell<u8>]) {
-        if buf.len() < 8 {
-            panic!("Endpoint buffer must be at least 8 bytes");
+        if endpoint >= NUM_ENDPOINTS {
+            panic!("Endpoint number is too high");
         }
-        if !buf.len().is_power_of_two() {
-            panic!("Buffer size must be a power of 2");
-        }
-        if endpoint == 0 || endpoint >= NUM_ENDPOINTS {
-            panic!("Endpoint number is invalid");
-        }
-        self.descriptors[endpoint].slice_in.set(buf);
-    }
-
-    fn endpoint_set_out_buffer(&self, endpoint: usize, buf: &'a [VolatileCell<u8>]) {
-        if buf.len() < 8 {
-            panic!("Endpoint buffer must be at least 8 bytes");
-        }
-        if !buf.len().is_power_of_two() {
-            panic!("Buffer size must be a power of 2");
-        }
-        if endpoint == 0 || endpoint >= NUM_ENDPOINTS {
-            panic!("Endpoint number is invalid");
-        }
-        self.descriptors[endpoint].slice_out.set(buf);
+        self.descriptors[endpoint].slice.set(buf);
     }
 
     fn enable_as_device(&self, speed: hil::usb::DeviceSpeed) {
@@ -1918,13 +1882,11 @@ impl<'a> hil::usb::UsbController<'a> for Usbd<'a> {
     }
 
     fn endpoint_resume_in(&self, endpoint: usize) {
-        debug_events!("endpoint_resume_in({})", endpoint);
-
-        let (_, in_state, _) = self.descriptors[endpoint].state.get().bulk_state();
-        assert!(in_state.is_some());
+        let (_, direction, _) = self.descriptors[endpoint].state.get().bulk_state();
+        assert!(direction.has_in());
 
         if self.dma_pending.get() {
-            debug_events!("requesting resume_in[{}]", endpoint);
+            debug_info!("requesting resume_in[{}]", endpoint);
             // A DMA is already pending. Schedule the resume for later.
             self.descriptors[endpoint].request_transmit_in.set(true);
         } else {
@@ -1934,28 +1896,25 @@ impl<'a> hil::usb::UsbController<'a> for Usbd<'a> {
     }
 
     fn endpoint_resume_out(&self, endpoint: usize) {
-        debug_events!("endpoint_resume_out({})", endpoint);
+        let (transfer_type, direction, state) = self.descriptors[endpoint].state.get().bulk_state();
+        assert!(direction.has_out());
 
-        let (transfer_type, in_state, out_state) =
-            self.descriptors[endpoint].state.get().bulk_state();
-        assert!(out_state.is_some());
-
-        match out_state.unwrap() {
-            BulkOutState::OutDelay => {
+        match state {
+            BulkState::OutDelay => {
                 // The endpoint has now finished processing the last ENDEPOUT. No EPDATA event
                 // happened in the meantime, so the state is now back to Init.
                 self.descriptors[endpoint].state.set(EndpointState::Bulk(
                     transfer_type,
-                    in_state,
-                    Some(BulkOutState::Init),
+                    direction,
+                    BulkState::Init,
                 ));
             }
-            BulkOutState::OutData => {
+            BulkState::OutData => {
                 // Although the client reported a delay before, an EPDATA event has
                 // happened in the meantime. This pending transaction will now
                 // continue in transmit_out().
                 if self.dma_pending.get() {
-                    debug_events!("requesting resume_out[{}]", endpoint);
+                    debug_info!("requesting resume_out[{}]", endpoint);
                     // A DMA is already pending. Schedule the resume for later.
                     self.descriptors[endpoint].request_transmit_out.set(true);
                 } else {
@@ -1963,8 +1922,8 @@ impl<'a> hil::usb::UsbController<'a> for Usbd<'a> {
                     self.transmit_out(endpoint);
                 }
             }
-            BulkOutState::Init | BulkOutState::OutDma => {
-                internal_err!("Unexpected state: {:?}", out_state);
+            BulkState::Init | BulkState::OutDma | BulkState::InDma | BulkState::InData => {
+                internal_err!("Unexpected state: {:?}", state);
             }
         }
     }
