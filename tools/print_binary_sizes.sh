@@ -10,10 +10,10 @@ if [ -n "$TRAVIS_PULL_REQUEST_BRANCH" ]; then
 
     # Clone the repository fresh..for some reason checking out master fails
     # from a normal PR build's provided directory
-    cd ${TRAVIS_BUILD_DIR}/..
-    #cd ~/ #TODO: Bring me back above
-    git clone ${REMOTE_URL} "${TRAVIS_REPO_SLUG}_tock_bench" #TODO: Bring me back
-    cd  "${TRAVIS_REPO_SLUG}_tock_bench"
+    #cd ${TRAVIS_BUILD_DIR}/..
+    cd ${TRAVIS_BUILD_DIR}
+    #git clone ${REMOTE_URL} "${TRAVIS_REPO_SLUG}_tock_bench" #TODO: Bring me back
+    #cd  "${TRAVIS_REPO_SLUG}_tock_bench"
     #git checkout master
 
     # The Travis environment variables behave like so:
@@ -36,7 +36,8 @@ if [ -n "$TRAVIS_PULL_REQUEST_BRANCH" ]; then
     #TODO: Restore below lines for when running on actual Travis
     # Bench the pull request base or master
     #if [ -n "$TRAVIS_PULL_REQUEST_BRANCH" ]; then
-    git checkout -f "$TRAVIS_BRANCH"
+    #TODO: Can remove both lines below if this comes after success and we swap testing order of current and prev?
+    git checkout -f "${TRAVIS_BRANCH}"
     #else # this is a push build
     #  # This could be replaced with something better like asking git which
     #  # branch is the base of $TRAVIS_BRANCH
@@ -53,7 +54,7 @@ if [ -n "$TRAVIS_PULL_REQUEST_BRANCH" ]; then
         ./tools/print_tock_memory_usage.py ${elf} > previous-benchmark-${b}
     done
     # Bench the current commit that was pushed
-    git checkout -f "${TRAVIS_PULL_REQUEST_BRANCH}"
+    git checkout -f "${TRAVIS_COMMIT}"
     #git checkout layered_net_caps
     make allboards > /dev/null
     for elf in $(find boards -maxdepth 8 | grep 'release' | egrep '\.elf$' | grep -v 'riscv'); do
@@ -66,6 +67,7 @@ if [ -n "$TRAVIS_PULL_REQUEST_BRANCH" ]; then
         tmp=${elf#*release/}
         b=${tmp%.elf}
         ./tools/diff_memory_usage.py previous-benchmark-${b} current-benchmark-${b} size-diffs.txt ${b}
+        curl -X POST -H 'Content-Type: application/json' --data '{"state": "success", ...}' https://<token>:x-oauth-basic@api.github.com/repos/politrons/proyectV/statuses/6dcb09b5b57875f334f61aebed695e2e4193db5e
     done
     echo SIZE CHANGES \(if any\):
     grep -hs ^ size-diffs.txt # Used instead of cat to prevent errors on no match
