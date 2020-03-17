@@ -37,7 +37,12 @@ rust:
 before_script:
   - npm install -g markdown-toc
 #TODO: Move below lines to after_success once actual script moves there
-#- sudo apt install python3
+#- sudo apt install python3 
+  - python3 -m venv env --without-pip
+  - source env/bin/activate
+  - curl https://bootstrap.pypa.io/get-pip.py | python3
+  - python3 -m pip --version
+  - python3 -m pip --install --upgrade pip
   - pip3 install cxxfilt
 
 script:
