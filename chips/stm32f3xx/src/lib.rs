@@ -18,6 +18,7 @@ pub mod nvic;
 // pub mod exti;
 pub mod gpio;
 pub mod rcc;
+pub mod adc;
 // pub mod spi;
 // pub mod dma;
 pub mod syscfg;
