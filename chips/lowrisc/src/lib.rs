@@ -6,4 +6,5 @@
 #![crate_type = "rlib"]
 
 pub mod gpio;
+pub mod hmac;
 pub mod uart;
