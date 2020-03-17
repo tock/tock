@@ -701,7 +701,7 @@ impl<C: Chip> ProcessType for Process<'a, C> {
                 let count_after = tasks.len();
                 debug!(
                     "[{:?}] remove_pending_callbacks[{:#x}:{}] = {} callback(s) removed",
-                    self.app_id,
+                    self.appid(),
                     callback_id.driver_num,
                     callback_id.subscribe_num,
                     count_before - count_after,
