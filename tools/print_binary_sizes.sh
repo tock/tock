@@ -50,7 +50,7 @@ if [ -n "$TRAVIS_PULL_REQUEST_BRANCH" ]; then
     for elf in $(find boards -maxdepth 8 | grep 'release' | egrep '\.elf$' | grep -v 'riscv'); do
         tmp=${elf#*release/}
         b=${tmp%.elf}
-        ./tools/print_tock_memory_usage.py ${elf} > previous-benchmark-${b}
+        ./tools/print_tock_memory_usage.py ${elf} > ${TRAVIS_BUILD_DIR}/previous-benchmark-${b}
     done
     # Bench the current commit that was pushed. Requires navigating back to build directory
     cd ${TRAVIS_BUILD_DIR}
@@ -67,7 +67,7 @@ if [ -n "$TRAVIS_PULL_REQUEST_BRANCH" ]; then
         tmp=${elf#*release/}
         b=${tmp%.elf}
         ./tools/diff_memory_usage.py previous-benchmark-${b} current-benchmark-${b} size-diffs.txt ${b}
-        #curl -X POST -H 'Content-Type: application/json' --data '{"state": "success", ...}' https://<token>:x-oauth-basic@api.github.com/repos/politrons/proyectV/statuses/6dcb09b5b57875f334f61aebed695e2e4193db5e
+        #curl -X POST -H 'Content-Type: application/json' --data '{"state": "success", "description": "Put size here"}' ${TRAVIS_STATUS_URL}
     done
     echo SIZE CHANGES \(if any\):
     grep -hs ^ size-diffs.txt # Used instead of cat to prevent errors on no match
