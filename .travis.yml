@@ -3,7 +3,9 @@ language: rust
 
 addons:
   apt:
-    packages: libusb-1.0-0-dev
+    packages:
+      - libusb-1.0-0-dev
+      - llvm # Used by memory reporting script
 
 
 # bors default configuration:
@@ -36,8 +38,16 @@ rust:
 
 before_script:
   - npm install -g markdown-toc
+#TODO: Move below lines to after_success once actual script moves there
+#- sudo apt install python3
+  - python3 -m venv env --without-pip
+  - source env/bin/activate
+  - curl https://bootstrap.pypa.io/get-pip.py | python3
+  - pip3 install cxxfilt
 
 script:
   - export PATH=$HOME/.cargo/bin:$PATH
   - make ci-travis
 
+after_success:
+  - ./tools/print_binary_sizes.sh
