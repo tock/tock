@@ -31,10 +31,9 @@ pub enum ProcessLoadError {
     /// Not enough flash remaining to parse an app and its header.
     NotEnoughFlash,
 
+    /// Process loading error due (likely) to a bug in the kernel. If you get
+    /// this error please open a bug report.
     InternalError,
-
-    /// Other error.
-    Error,
 }
 
 impl From<tbfheader::TbfParseError> for ProcessLoadError {
@@ -60,8 +59,6 @@ impl fmt::Debug for ProcessLoadError {
             }
 
             ProcessLoadError::InternalError => write!(f, "Error in kernel. Likely a bug."),
-
-            ProcessLoadError::Error => write!(f, "Other error occurred"),
         }
     }
 }
