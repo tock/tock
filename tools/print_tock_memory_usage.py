@@ -42,7 +42,7 @@ import getopt
 import cxxfilt   # Demangling C++/Rust symbol names
 
 
-OBJDUMP = "arm-none-eabi-objdump"
+OBJDUMP = "llvm-objdump"
 
 verbose = False
 show_waste = False
@@ -72,7 +72,9 @@ Options:
                       depth=2 will group all h1b::uart:: symbols
                       together. Default: 1
   -v, --verbose       Print verbose output (RAM waste and embedded flash data)
-  -s, --show-waste    Show where RAM is wasted (due to padding)""")
+  -s, --show-waste    Show where RAM is wasted (due to padding)
+
+Note: depends on llvm-objdump to extract symbols""")
 
 
 
@@ -90,7 +92,7 @@ def process_section_line(line):
 def trim_hash_from_symbol(symbol):
     """If the passed symbol ends with a hash of the form h[16-hex number]
        trim this and return the trimmed symbol."""
-    # Remove the hash off the end
+     # Remove the hash off the end
     tokens = symbol.split('::')
     last = tokens[-1]
     if last[0] == 'h':
@@ -385,7 +387,7 @@ if __name__ == "__main__":
          usage(str(err))
          sys.exit(-1)
 
-    header_lines = os.popen(OBJDUMP + ' -f ' + elf_name).readlines()
+    header_lines = os.popen(OBJDUMP + ' -section-headers ' + elf_name).readlines()
 
     print("Tock memory usage report for " + elf_name)
     arch = "UNKNOWN"
@@ -395,15 +397,15 @@ if __name__ == "__main__":
         hmatch = re.search('file format (\S+)', hline)
         if hmatch != None:
             arch = hmatch.group(1)
-            if arch != 'elf32-littlearm':
-                usage(arch + " architecture not supported, only elf32-littlearm supported")
+            if arch != 'ELF32-arm-little':
+                usage(arch + " architecture not supported, only ELF32-arm-little supported")
                 sys.exit(-1)
 
     if arch == "UNKNOWN":
         usage("could not detect architecture of ELF")
         sys.exit(-1)
 
-    objdump_lines = os.popen(OBJDUMP + ' -x ' + elf_name).readlines()
+    objdump_lines = os.popen(OBJDUMP + ' -t -section-headers ' + elf_name).readlines()
     objdump_output_section = "start"
 
     for oline in objdump_lines:
