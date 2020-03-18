@@ -2,8 +2,8 @@
 
 ## Abstract
 
-This document describes how the Tock [core team](../CoreTeam.md) merges pull
-requests for and makes releases of the main Tock repository.
+This document describes how the Tock [core working group](../wg/core.md) merges
+pull requests for and makes releases of the main Tock repository.
 
 <!-- npm i -g markdown-toc; markdown-toc -i Abstract.md -->
 
