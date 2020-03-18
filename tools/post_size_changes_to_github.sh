@@ -1,5 +1,14 @@
 #!/usr/bin/env bash
 
+# Post commit statuses to github indicating how a PR affects flash and RAM use for different boards.
+# This script is run by Travis after successful PR builds. It reports resource differences between
+# the target branch before and after merging in the PR.
+# This script also prints more detailed size analysis to the Travis build log.
+# This script only reports updates for boards whose size have changed as a result of the PR being
+# tested, and does not currently support analyzing size differences in RISC-V boards.
+# This file relies on a travis enviroment variable to post to github, which is the value of a
+# Github OAuth personal token associated with @hudson-ayers Github identity.
+
 set -e
 set -x
 
@@ -30,7 +39,7 @@ if [ -n "$TRAVIS_PULL_REQUEST_BRANCH" ]; then
     #     TRAVIS_BRANCH=master
     #     TRAVIS_PULL_REQUEST_BRANCH=foo
 
-    #Travis-ci uses a shallow clone, so to checkout target branch you must fetch it
+    # Travis-ci uses a shallow clone, so to checkout target branch you must fetch it
     git remote set-branches origin "${TRAVIS_BRANCH}"
     git fetch --depth 1 origin "${TRAVIS_BRANCH}"
     git checkout -f "${TRAVIS_BRANCH}"
