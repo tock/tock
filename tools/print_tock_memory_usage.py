@@ -42,6 +42,8 @@ import getopt
 import cxxfilt   # Demangling C++/Rust symbol names
 
 
+OBJDUMP = "arm-none-eabi-objdump"
+
 verbose = False
 show_waste = False
 symbol_depth = 1
@@ -69,7 +71,7 @@ Options:
   -dn, --depth=n      Group symbols at depth n or greater. E.g.,
                       depth=2 will group all h1b::uart:: symbols
                       together. Default: 1
-  -v, --verbose       Print verbose output.
+  -v, --verbose       Print verbose output (RAM waste and embedded flash data)
   -s, --show-waste    Show where RAM is wasted (due to padding)""")
 
 
@@ -205,10 +207,14 @@ def print_section_information():
 #
 # The 'waste' and 'section' parameters are used to specify whether detected
 # waste should be printed and the name of the section for waste information.
+#
+# Returns a string representation of any detected waste. This is returned
+# as a string to it can be later output.
 def group_symbols(groups, symbols, waste, section):
     """Take a list of symbols and group them into 'groups' for reporting
        aggregate flash/RAM use."""
     global symbol_depth
+    output = ""
     expected_addr = 0
     waste_sum = 0
     prev_symbol = ""
@@ -219,8 +225,8 @@ def group_symbols(groups, symbols, waste, section):
         # have waste. But this is only true if it's not the first symbol and
         # this is actually a variable and just just a symbol (e.g., _estart)
         if addr != expected_addr and expected_addr != 0 and size != 0 and (waste or verbose):
-            print("  ! " + str(addr - expected_addr) + " bytes wasted after " + prev_symbol)
-        waste_sum = waste_sum + (addr - expected_addr)
+            output = output + "   ! " + str(addr - expected_addr) + " bytes of data or padding after " + prev_symbol + "\n"
+            waste_sum = waste_sum + (addr - expected_addr)
         tokens = symbol.split("::")
         key = symbol[0] # Default to first character (_) if not a proper symbol
         name = symbol
@@ -255,8 +261,10 @@ def group_symbols(groups, symbols, waste, section):
         prev_symbol = symbol
 
     if waste and waste_sum > 0:
-        print("Total of " + str(waste_sum) + " bytes wasted in " + section)
-
+        output = output + "Total of " + str(waste_sum) + " bytes wasted in " + section + "\n"
+        
+    return output
+        
 def string_for_group(key, padding_size, group_size, num_elements):
     """Return the string for a group of variables, with padding added on the
        right; decides whether to add a * or not based on the name of the group
@@ -292,29 +300,26 @@ def print_groups(title, groups):
         group_sum = group_sum + group_size
 
     print(title + ": " + str(group_sum) + " bytes")
-    print(output, end = ' ')
+    print(output, end = '')
 
 def print_symbol_information():
     """Print out all of the variable and function groups with their flash/RAM
        use."""
     variable_groups = {}
-    group_symbols(variable_groups, kernel_initialized, show_waste, "RAM")
-    group_symbols(variable_groups, kernel_uninitialized, show_waste, "Flash+RAM")
-    if (show_waste):
-        print() # Place an newline after waste reports
-
+    gaps = group_symbols(variable_groups, kernel_initialized, show_waste, "RAM")
+    gaps = gaps + group_symbols(variable_groups, kernel_uninitialized, show_waste, "Flash+RAM")
     print_groups("Variable groups (RAM)", variable_groups)
-
-    print()
-    print("Embedded data (in flash): " + str(padding_text) + " bytes")
+    print(gaps)
+    
+    print("Embedded data (flash): " + str(padding_text) + " bytes")
     print()
     function_groups = {}
     # Embedded constants in code (e.g., after functions) aren't counted
     # in the symbol's size, so detecting waste in code has too many false
     # positives.
-    group_symbols(function_groups, kernel_functions, False, "Flash")
-    print_groups("Function groups (in flash)", function_groups)
-    print()
+    gaps = group_symbols(function_groups, kernel_functions, False, "Flash")
+    print_groups("Function groups (flash)", function_groups)
+    print(gaps)
 
 def get_addr(symbol_entry):
     """Helper function for sorting symbols by start address."""
@@ -340,7 +345,7 @@ def compute_padding(symbols):
 def parse_options(opts):
     """Parse command line options."""
     global symbol_depth, verbose, show_waste
-    valid = 'd:vs'
+    valid = 'd:vs' 
     long_valid = ['depth=', 'verbose', 'show-waste']
     optlist, leftover = getopt.getopt(opts, valid, long_valid)
     for (opt, val) in optlist:
@@ -377,7 +382,7 @@ except getopt.GetoptError as err:
     usage(str(err))
     sys.exit(-1)
 
-header_lines = os.popen('arm-none-eabi-objdump -f ' + elf_name).readlines()
+header_lines = os.popen(OBJDUMP + ' -f ' + elf_name).readlines()
 
 print("Tock memory usage report for " + elf_name)
 arch = "UNKNOWN"
@@ -395,7 +400,7 @@ if arch == "UNKNOWN":
     usage("could not detect architecture of ELF")
     sys.exit(-1)
 
-objdump_lines = os.popen('arm-none-eabi-objdump -x ' + elf_name).readlines()
+objdump_lines = os.popen(OBJDUMP + ' -x ' + elf_name).readlines()
 objdump_output_section = "start"
 
 for oline in objdump_lines:
