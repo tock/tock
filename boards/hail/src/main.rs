@@ -63,7 +63,6 @@ struct Hail {
     adc: &'static capsules::adc::Adc<'static, sam4l::adc::Adc>,
     led: &'static capsules::led::LED<'static>,
     button: &'static capsules::button::Button<'static>,
-    rng: &'static capsules::rng::RngDriver<'static>,
     ipc: kernel::ipc::IPC,
     crc: &'static capsules::crc::Crc<'static, sam4l::crccu::Crccu<'static>>,
     dac: &'static capsules::dac::Dac<'static>,
@@ -89,8 +88,6 @@ impl Platform for Hail {
             capsules::humidity::DRIVER_NUM => f(Some(self.humidity)),
             capsules::temperature::DRIVER_NUM => f(Some(self.temp)),
             capsules::ninedof::DRIVER_NUM => f(Some(self.ninedof)),
-
-            capsules::rng::DRIVER_NUM => f(Some(self.rng)),
 
             capsules::crc::DRIVER_NUM => f(Some(self.crc)),
 
@@ -347,9 +344,6 @@ pub unsafe fn reset_handler() {
     );
     sam4l::adc::ADC0.set_client(adc);
 
-    // Setup RNG
-    let rng = components::rng::RngComponent::new(board_kernel, &sam4l::trng::TRNG).finalize(());
-
     // set GPIO driver controlling remaining GPIO pins
     let gpio = components::gpio::GpioComponent::new(board_kernel).finalize(
         components::gpio_component_helper!(
@@ -410,7 +404,6 @@ pub unsafe fn reset_handler() {
         adc: adc,
         led: led,
         button: button,
-        rng: rng,
         ipc: kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability),
         crc: crc,
         dac: dac,
