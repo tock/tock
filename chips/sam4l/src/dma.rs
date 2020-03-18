@@ -230,11 +230,7 @@ impl DMAChannel {
 
         if !self.enabled.get() {
             unsafe {
-                let num_enabled = intrinsics::atomic_xadd(&mut NUM_ENABLED, 1);
-                if num_enabled == 1 {
-                    pm::enable_clock(pm::Clock::HSB(pm::HSBClock::PDCA));
-                    pm::enable_clock(pm::Clock::PBB(pm::PBBClock::PDCA));
-                }
+                intrinsics::atomic_xadd(&mut NUM_ENABLED, 1);
             }
             let registers: &DMARegisters = &*self.registers;
             // Disable all interrupts
