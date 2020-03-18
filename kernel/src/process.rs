@@ -536,8 +536,10 @@ struct ProcessDebug {
     /// How many syscalls have occurred since the process started.
     syscall_count: usize,
 
-    /// What was the most recent syscall.
-    last_syscall: Option<Syscall>,
+    /// An ordered list of the last five syscalls the process called along with
+    /// the return values the kernel passed back to the app. Index 0 is the most
+    /// recent syscall.
+    last_syscalls: [(Option<Syscall>, Option<isize>); 5],
 
     /// How many callbacks were dropped because the queue was insufficiently
     /// long.
@@ -777,7 +779,7 @@ impl<C: Chip> ProcessType for Process<'a, C> {
                 self.debug.map(|debug| {
                     // Reset some state for the process.
                     debug.syscall_count = 0;
-                    debug.last_syscall = None;
+                    debug.last_syscalls = [(None, None); 5];
                     debug.dropped_callback_count = 0;
                     debug.timeslice_expiration_count = 0;
                 });
@@ -1074,6 +1076,11 @@ impl<C: Chip> ProcessType for Process<'a, C> {
     }
 
     unsafe fn set_syscall_return_value(&self, return_value: isize) {
+        // Record the return value for debugging.
+        self.debug.map(|debug| {
+            debug.last_syscalls[0].1 = Some(return_value);
+        });
+
         let mut stored_state = self.stored_state.get();
         self.chip
             .userspace_kernel_boundary()
@@ -1191,7 +1198,11 @@ impl<C: Chip> ProcessType for Process<'a, C> {
     fn debug_syscall_called(&self, last_syscall: Syscall) {
         self.debug.map(|debug| {
             debug.syscall_count += 1;
-            debug.last_syscall = Some(last_syscall);
+            debug.last_syscalls[4] = debug.last_syscalls[3];
+            debug.last_syscalls[3] = debug.last_syscalls[2];
+            debug.last_syscalls[2] = debug.last_syscalls[1];
+            debug.last_syscalls[1] = debug.last_syscalls[0];
+            debug.last_syscalls[0] = (Some(last_syscall), None);
         });
     }
 
@@ -1225,7 +1236,7 @@ impl<C: Chip> ProcessType for Process<'a, C> {
         // application statistics
         let events_queued = self.tasks.map_or(0, |tasks| tasks.len());
         let syscall_count = self.debug.map_or(0, |debug| debug.syscall_count);
-        let last_syscall = self.debug.map(|debug| debug.last_syscall);
+        let last_syscalls = self.debug.map(|debug| debug.last_syscalls);
         let dropped_callback_count = self.debug.map_or(0, |debug| debug.dropped_callback_count);
         let restart_count = self.restart_count.get();
 
@@ -1242,10 +1253,39 @@ impl<C: Chip> ProcessType for Process<'a, C> {
             restart_count,
         ));
 
-        let _ = match last_syscall {
-            Some(syscall) => writer.write_fmt(format_args!(" Last Syscall: {:?}", syscall)),
-            None => writer.write_str(" Last Syscall: None"),
-        };
+        // Print a list of the app's most recently called syscalls and the value
+        // the kernel returned. Should look like:
+        //
+        // ```
+        //  Last Syscalls (most recent first):
+        //     0. YIELD -> None
+        //     1. COMMAND { driver_number: 3, subdriver_number: 1, arg0: 0, arg1: 0 } -> 0
+        //     2. SUBSCRIBE { driver_number: 3, subdriver_number: 0, callback_ptr: 0x300a1, appdata: 0 } -> 0
+        //     3. YIELD -> None
+        //     4. COMMAND { driver_number: 1, subdriver_number: 1, arg0: 5, arg1: 0 } -> 0
+        // ```
+        match last_syscalls {
+            Some(syscalls) => {
+                let _ = writer.write_fmt(format_args!(" Last Syscalls (most recent first):\n"));
+                for i in 0..5 {
+                    match syscalls[i].0 {
+                        Some(syscall) => {
+                            let _ = writer.write_fmt(format_args!("   • {:?} -> ", syscall));
+                            match syscalls[i].1 {
+                                Some(return_value) => {
+                                    let _ = writer.write_fmt(format_args!("{}\n", return_value));
+                                }
+                                None => {
+                                    let _ = writer.write_fmt(format_args!("None\n"));
+                                }
+                            }
+                        }
+                        None => {}
+                    }
+                }
+            }
+            None => {}
+        }
 
         let _ = writer.write_fmt(format_args!(
             "\
@@ -1606,7 +1646,7 @@ impl<C: 'static + Chip> Process<'a, C> {
                 app_stack_start_pointer: app_stack_start_pointer,
                 min_stack_pointer: initial_stack_pointer,
                 syscall_count: 0,
-                last_syscall: None,
+                last_syscalls: [(None, None); 5],
                 dropped_callback_count: 0,
                 timeslice_expiration_count: 0,
             });
