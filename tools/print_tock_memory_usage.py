@@ -361,67 +361,70 @@ def parse_options(opts):
 
     return leftover
 
+
+
  # Script starts here ######################################
-arguments = sys.argv[1:]
-if len(arguments) < 1:
-    usage("no ELF specified")
-    sys.exit(-1)
-
- # The ELF is always the last argument; pull it out, then parse
- # the others.
-elf_name = ""
-options = arguments
-try:
-    remaining = parse_options(options)
-    if len(remaining) != 1:
-        usage("")
+if __name__ == "__main__": 
+    arguments = sys.argv[1:]
+    if len(arguments) < 1:
+        usage("no ELF specified")
         sys.exit(-1)
-    else:
-        elf_name = remaining[0]
-except getopt.GetoptError as err:
-    usage(str(err))
-    sys.exit(-1)
 
-header_lines = os.popen(OBJDUMP + ' -f ' + elf_name).readlines()
-
-print("Tock memory usage report for " + elf_name)
-arch = "UNKNOWN"
-
-for hline in header_lines:
-    # pylint: disable=anomalous-backslash-in-string
-    hmatch = re.search('file format (\S+)', hline)
-    if hmatch != None:
-        arch = hmatch.group(1)
-        if arch != 'elf32-littlearm':
-            usage(arch + " architecture not supported, only elf32-littlearm supported")
+   # The ELF is always the last argument; pull it out, then parse
+   # the others.
+    elf_name = ""
+    options = arguments
+    try:
+        remaining = parse_options(options)
+        if len(remaining) != 1:
+            usage("")
             sys.exit(-1)
+        else:
+            elf_name = remaining[0]
+    except getopt.GetoptError as err:
+         usage(str(err))
+         sys.exit(-1)
 
-if arch == "UNKNOWN":
-    usage("could not detect architecture of ELF")
-    sys.exit(-1)
+    header_lines = os.popen(OBJDUMP + ' -f ' + elf_name).readlines()
 
-objdump_lines = os.popen(OBJDUMP + ' -x ' + elf_name).readlines()
-objdump_output_section = "start"
+    print("Tock memory usage report for " + elf_name)
+    arch = "UNKNOWN"
 
-for oline in objdump_lines:
-    oline = oline.strip()
-    # First, move to a new section if we've reached it; use continue
-    # to break out and reduce nesting.
-    if oline == "Sections:":
-        objdump_output_section = "sections"
-        continue
-    elif oline == "SYMBOL TABLE:":
-        objdump_output_section = "symbol_table"
-        continue
-    elif objdump_output_section == "sections":
-        process_section_line(oline)
-    elif objdump_output_section == "symbol_table":
-        process_symbol_line(oline)
+    for hline in header_lines:
+        # pylint: disable=anomalous-backslash-in-string
+        hmatch = re.search('file format (\S+)', hline)
+        if hmatch != None:
+            arch = hmatch.group(1)
+            if arch != 'elf32-littlearm':
+                usage(arch + " architecture not supported, only elf32-littlearm supported")
+                sys.exit(-1)
 
-padding_init = compute_padding(kernel_initialized)
-padding_uninit = compute_padding(kernel_uninitialized)
-padding_text = compute_padding(kernel_functions)
+    if arch == "UNKNOWN":
+        usage("could not detect architecture of ELF")
+        sys.exit(-1)
 
-print_section_information()
-print()
-print_symbol_information()
+    objdump_lines = os.popen(OBJDUMP + ' -x ' + elf_name).readlines()
+    objdump_output_section = "start"
+
+    for oline in objdump_lines:
+        oline = oline.strip()
+        # First, move to a new section if we've reached it; use continue
+        # to break out and reduce nesting.
+        if oline == "Sections:":
+            objdump_output_section = "sections"
+            continue
+        elif oline == "SYMBOL TABLE:":
+            objdump_output_section = "symbol_table"
+            continue
+        elif objdump_output_section == "sections":
+            process_section_line(oline)
+        elif objdump_output_section == "symbol_table":
+            process_symbol_line(oline)
+
+    padding_init = compute_padding(kernel_initialized)
+    padding_uninit = compute_padding(kernel_uninitialized)
+    padding_text = compute_padding(kernel_functions)
+
+    print_section_information()
+    print()
+    print_symbol_information()
