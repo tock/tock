@@ -9,7 +9,8 @@ use core::convert::TryFrom;
 /// A type of task to defer a call for
 #[derive(Copy, Clone)]
 pub enum Task {
-    Nop = 0,
+    // ... add deffred tasks here
+    // Example = 0,
 }
 
 impl TryFrom<usize> for Task {
@@ -17,7 +18,7 @@ impl TryFrom<usize> for Task {
 
     fn try_from(value: usize) -> Result<Task, ()> {
         match value {
-            0 => Ok(Task::Nop),
+            0 => Ok(Task::Example),
             _ => Err(()),
         }
     }

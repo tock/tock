@@ -5,7 +5,8 @@ use cortexm4;
 use kernel::common::deferred_call;
 use kernel::Chip;
 
-use crate::deferred_call_tasks::Task;
+// uncomment this if you are using deffered tasks
+// use crate::deferred_call_tasks::Task;
 use crate::exti;
 use crate::nvic;
 use crate::tim2;
@@ -35,11 +36,13 @@ impl Chip for Stm32f3xx {
     fn service_pending_interrupts(&self) {
         unsafe {
             loop {
-                if let Some(task) = deferred_call::DeferredCall::next_pending() {
-                    match task {
-                        Task::Nop => {}
-                    }
-                } else if let Some(interrupt) = cortexm4::nvic::next_pending() {
+                // uncomment this if you are using deffered call tasks
+                // if let Some(task) = deferred_call::DeferredCall::next_pending() {
+                //     match task {
+                //         Task::Nop => {}
+                //     }
+                // } else
+                if let Some(interrupt) = cortexm4::nvic::next_pending() {
                     match interrupt {
                         nvic::USART1 => usart::USART1.handle_interrupt(),
 
