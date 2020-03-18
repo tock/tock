@@ -86,7 +86,7 @@ impl Platform for STM32F3Discovery {
 
 /// Helper function called during bring-up that configures multiplexed I/O.
 unsafe fn set_pin_primary_functions() {
-    // use stm32f3xx::exti::{LineId, EXTI};
+    use stm32f3xx::exti::{LineId, EXTI};
     use stm32f3xx::gpio::{AlternateFunction, Mode, PinId, PortId, PORT};
     use stm32f3xx::syscfg::SYSCFG;
 
@@ -123,6 +123,17 @@ unsafe fn set_pin_primary_functions() {
         // AF7 is USART1_RX
         pin.set_alternate_function(AlternateFunction::AF7);
     });
+
+    // button is connected on pa00
+    PinId::PA00.get_pin().as_ref().map(|pin| {
+        // By default, upon reset, the pin is in input mode, with no internal
+        // pull-up, no internal pull-down (i.e., floating).
+        //
+        // Only set the mapping between EXTI line and the Pin and let capsule do
+        // the rest.
+        EXTI.associate_line_gpiopin(LineId::Exti0, pin);
+    });
+    cortexm4::nvic::Nvic::new(stm32f3xx::nvic::EXTI0).enable();
 }
 
 /// Helper function for miscellaneous peripheral functions
@@ -302,7 +313,7 @@ pub unsafe fn reset_handler() {
         stm32f3xx::gpio::PinId::PC00.get_pin().as_ref().unwrap(),
         stm32f3xx::gpio::PinId::PC02.get_pin().as_ref().unwrap(),
         stm32f3xx::gpio::PinId::PF02.get_pin().as_ref().unwrap(),
-        stm32f3xx::gpio::PinId::PA00.get_pin().as_ref().unwrap(),
+        // stm32f3xx::gpio::PinId::PA00.get_pin().as_ref().unwrap(),
         stm32f3xx::gpio::PinId::PA02.get_pin().as_ref().unwrap(),
         stm32f3xx::gpio::PinId::PA04.get_pin().as_ref().unwrap(),
         stm32f3xx::gpio::PinId::PA06.get_pin().as_ref().unwrap(),

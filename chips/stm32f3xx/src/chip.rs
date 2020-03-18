@@ -6,6 +6,7 @@ use kernel::common::deferred_call;
 use kernel::Chip;
 
 use crate::deferred_call_tasks::Task;
+use crate::exti;
 use crate::nvic;
 use crate::tim2;
 use crate::usart;
@@ -43,6 +44,15 @@ impl Chip for Stm32f3xx {
                         nvic::USART1 => usart::USART1.handle_interrupt(),
 
                         nvic::TIM2 => tim2::TIM2.handle_interrupt(),
+
+                        nvic::EXTI0 => exti::EXTI.handle_interrupt(),
+                        nvic::EXTI1 => exti::EXTI.handle_interrupt(),
+                        nvic::EXTI2 => exti::EXTI.handle_interrupt(),
+                        nvic::EXTI3 => exti::EXTI.handle_interrupt(),
+                        nvic::EXTI4 => exti::EXTI.handle_interrupt(),
+                        nvic::EXTI9_5 => exti::EXTI.handle_interrupt(),
+                        nvic::EXTI15_10 => exti::EXTI.handle_interrupt(),
+
                         _ => {
                             panic!("unhandled interrupt {}", interrupt);
                         }

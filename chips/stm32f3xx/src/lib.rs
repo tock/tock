@@ -13,13 +13,10 @@ mod deferred_call_tasks;
 pub mod chip;
 pub mod nvic;
 
-// // Peripherals
-// pub mod dbg;
-// pub mod exti;
+// Peripherals
+pub mod exti;
 pub mod gpio;
 pub mod rcc;
-// pub mod spi;
-// pub mod dma;
 pub mod syscfg;
 pub mod tim2;
 pub mod usart;
