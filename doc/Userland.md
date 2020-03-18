@@ -188,44 +188,50 @@ Fault Status Register (CFSR):       0x00000082
 Hard Fault Status Register (HFSR):  0x40000000
 
 ---| App Status |---
-App: crash_dummy   -   [Fault]
- Events Queued: 0   Syscall Count: 0   Dropped Callback Count: 0
- Restart Count: 0
- Last Syscall: None
+App: crash_dummy   -   [StoppedFaulted]
+ Events Queued: 0   Syscall Count: 15   Dropped Callback Count: 0
+ Restart Count: 5
+ Last Syscalls (most recent first):
+   • YIELD -> None
+   • COMMAND { driver_number: 3, subdriver_number: 1, arg0: 0, arg1: 0 } -> 0
+   • SUBSCRIBE { driver_number: 3, subdriver_number: 0, callback_ptr: 0x300a1, appdata: 0 } -> 0
+   • YIELD -> None
+   • COMMAND { driver_number: 1, subdriver_number: 1, arg0: 5, arg1: 0 } -> 0
+
 
  ╔═══════════╤══════════════════════════════════════════╗
  ║  Address  │ Region Name    Used | Allocated (bytes)  ║
  ╚0x20006000═╪══════════════════════════════════════════╝
-             │ ▼ Grant         948 |    948
-  0x20005C4C ┼───────────────────────────────────────────
+             │ ▼ Grant        1216 |   1216
+  0x20005B40 ┼───────────────────────────────────────────
              │ Unused
-  0x200049F0 ┼───────────────────────────────────────────
-             │ ▲ Heap            0 |   4700               S
-  0x200049F0 ┼─────────────────────────────────────────── R
-             │ Data            496 |    496               A
+  0x20005020 ┼───────────────────────────────────────────
+             │ ▲ Heap         1508 |   4356               S
+  0x20004A3C ┼─────────────────────────────────────────── R
+             │ Data            572 |    572               A
   0x20004800 ┼─────────────────────────────────────────── M
-             │ ▼ Stack          72 |   2048
-  0x200047B8 ┼───────────────────────────────────────────
+             │ ▼ Stack         312 |   2048
+  0x200046C8 ┼───────────────────────────────────────────
              │ Unused
   0x20004000 ┴───────────────────────────────────────────
              .....
-  0x00030400 ┬─────────────────────────────────────────── F
-             │ App Flash       976                        L
+  0x00032000 ┬─────────────────────────────────────────── F
+             │ App Flash      8144                        L
   0x00030030 ┼─────────────────────────────────────────── A
              │ Protected        48                        S
   0x00030000 ┴─────────────────────────────────────────── H
 
-  R0 : 0x00000000    R6 : 0x20004894
+  R0 : 0x00000000    R6 : 0x00030FE0
   R1 : 0x00000001    R7 : 0x20004000
   R2 : 0x00000000    R8 : 0x00000000
   R3 : 0x00000000    R10: 0x00000000
-  R4 : 0x00000000    R11: 0x00000000
-  R5 : 0x20004800    R12: 0x12E36C82
+  R4 : 0x00030030    R11: 0x00000000
+  R5 : 0x20004800    R12: 0x00000408
   R9 : 0x20004800 (Static Base Register)
-  SP : 0x200047B8 (Process Stack Pointer)
-  LR : 0x000301B7
+  SP : 0x200047C8 (Process Stack Pointer)
+  LR : 0x000301C5
   PC : 0x000300AA
- YPC : 0x000301B6
+ YPC : 0x000301C4
 
  APSR: N 0 Z 1 C 1 V 0 Q 0
        GE 0 0 0 0
@@ -233,8 +239,24 @@ App: crash_dummy   -   [Fault]
        ThumbBit true
 
  Cortex-M MPU
-  Region 0: base: 0x20004000, length: 8192 bytes; ReadWrite (0x3)
-  Region 1: base:    0x30000, length: 1024 bytes; ReadOnly (0x6)
+  Region 0: [0x20004000:0x20006000], length: 8192 bytes; ReadWrite (0x3)
+    Sub-region 0: [0x20004000:0x20004400], Enabled
+    Sub-region 1: [0x20004400:0x20004800], Enabled
+    Sub-region 2: [0x20004800:0x20004C00], Enabled
+    Sub-region 3: [0x20004C00:0x20005000], Enabled
+    Sub-region 4: [0x20005000:0x20005400], Enabled
+    Sub-region 5: [0x20005400:0x20005800], Disabled
+    Sub-region 6: [0x20005800:0x20005C00], Disabled
+    Sub-region 7: [0x20005C00:0x20006000], Disabled
+  Region 1: [0x00030000:0x00032000], length: 8192 bytes; ReadOnly (0x6)
+    Sub-region 0: [0x00030000:0x00030400], Enabled
+    Sub-region 1: [0x00030400:0x00030800], Enabled
+    Sub-region 2: [0x00030800:0x00030C00], Enabled
+    Sub-region 3: [0x00030C00:0x00031000], Enabled
+    Sub-region 4: [0x00031000:0x00031400], Enabled
+    Sub-region 5: [0x00031400:0x00031800], Enabled
+    Sub-region 6: [0x00031800:0x00031C00], Enabled
+    Sub-region 7: [0x00031C00:0x00032000], Enabled
   Region 2: Unused
   Region 3: Unused
   Region 4: Unused
