@@ -6,6 +6,7 @@ addons:
     packages:
       - libusb-1.0-0-dev
       - llvm # Used by memory reporting script
+      - python3-pip
 
 
 # bors default configuration:
@@ -44,8 +45,6 @@ script:
   - make ci-travis
 
 after_success:
-  - python3 -m venv env --without-pip
-  - source env/bin/activate
-  - curl https://bootstrap.pypa.io/get-pip.py | python3
-  - pip3 install cxxfilt
+  - export PATH=$HOME/.local/bin:$PATH
+  - pip3 install --user cxxfilt
   - ./tools/post_size_changes_to_github.sh
