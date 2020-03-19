@@ -27,7 +27,10 @@ def main():
             elif "Applications allocated" in line:
                 if "RAM" in line and prev_RAM > 0:
                     prev_RAM -= int(line.split()[2])
-                    break
+            elif "Total of" in line and "wasted" in line and "RAM" in line:
+                # Don't count wasted RAM as contributing to the count
+                prev_RAM -= int(line.split()[2])
+                break
 
     if prev_flash == -1 or prev_RAM == -1:
         sys.exit("Failed to parse prev_bench for board: {}".format(board))
@@ -42,7 +45,10 @@ def main():
             elif "Applications allocated" in line:
                 if "RAM" in line and cur_RAM > 0:
                     cur_RAM -= int(line.split()[2])
-                    break
+            elif "Total of" in line and "wasted" in line and "RAM" in line:
+                # Don't count wasted RAM as contributing to the count
+                cur_RAM -= int(line.split()[2])
+                break
     if cur_flash == -1 or cur_RAM == -1:
         sys.exit("Failed to parse cur_bench for board: {}".format(board))
 

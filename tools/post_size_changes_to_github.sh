@@ -58,7 +58,7 @@ if [ -n "$TRAVIS_PULL_REQUEST_BRANCH" ]; then
     for elf in $(find boards -maxdepth 8 | grep 'release' | egrep '\.elf$' | grep -v 'riscv'); do
         tmp=${elf#*release/}
         b=${tmp%.elf}
-        ${TRAVIS_BUILD_DIR}/tools/diff_memory_usage.py previous-benchmark-${b} current-benchmark-${b} size-diffs-${b}.txt ${b}
+        ${TRAVIS_BUILD_DIR}/tools/diff_memory_usage.py -s previous-benchmark-${b} current-benchmark-${b} size-diffs-${b}.txt ${b}
         if [ -s "size-diffs-${b}.txt" ]; then
             RES="$( grep -hs ^ size-diffs-${b}.txt )" #grep instead of cat to prevent errors on no match
             curl -X POST -H "Content-Type: application/json" --header "Authorization: token ${TRAVIS_GITHUB_TOKEN}" --data '{"state": "success", "context": "'"${b}"'", "description": "'"${RES}"'"}' https://api.github.com/repos/tock/tock/statuses/${TRAVIS_PULL_REQUEST_SHA}
