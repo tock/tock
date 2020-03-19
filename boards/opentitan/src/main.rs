@@ -213,7 +213,6 @@ pub unsafe fn reset_handler() {
 
     let lldb = components::lldb::LowLevelDebugComponent::new(board_kernel, uart_mux).finalize(());
 
-    aes_test::run_aes128_ecb();
     debug!("OpenTitan initialisation complete. Entering main loop");
 
     extern "C" {
