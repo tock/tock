@@ -96,9 +96,9 @@ const SPI_MX25R6435F_CHIP_SELECT: Pin = Pin::P0_17;
 const SPI_MX25R6435F_WRITE_PROTECT_PIN: Pin = Pin::P0_22;
 const SPI_MX25R6435F_HOLD_PIN: Pin = Pin::P0_23;
 
-//const LORA_CHIP_SELECT: Pin = Pin::P1_01; // fixme
-//const LORA_RESET: Pin = Pin::P1_02; // fixme
-//const LORA_INT: Pin = Pin::P1_03; // fixme
+//const LORA_CHIP_SELECT: Pin = Pin::P0_17; // fixme
+//const LORA_RESET: Pin = Pin::P0_22; // fixme
+//const LORA_INT: Pin = Pin::P0_23; // fixme
 
 /// UART Writer
 pub mod io;
@@ -214,13 +214,13 @@ pub unsafe fn reset_handler() {
         &UartPins::new(UART_RTS, UART_TXD, UART_CTS, UART_RXD),
         &SpiPins::new(SPI_MOSI, SPI_MISO, SPI_CLK),
         &Some(SpiMX25R6435FPins::new(
-            SPI_MX25R6435F_CHIP_SELECT,
-            SPI_MX25R6435F_WRITE_PROTECT_PIN,
-            SPI_MX25R6435F_HOLD_PIN,
+          SPI_MX25R6435F_CHIP_SELECT,
+          SPI_MX25R6435F_WRITE_PROTECT_PIN,
+          SPI_MX25R6435F_HOLD_PIN,
         )),
         button,
         true,
-        None,//Some(&LoraPins::new(LORA_CHIP_SELECT, LORA_RESET, LORA_INT)),
+        &None,//&LoraPins::new(LORA_CHIP_SELECT, LORA_RESET, LORA_INT),
         &mut APP_MEMORY,
         &mut PROCESSES,
         FAULT_RESPONSE,

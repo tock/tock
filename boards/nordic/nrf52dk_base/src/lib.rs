@@ -176,7 +176,7 @@ pub unsafe fn setup_board<I: nrf52::interrupt_service::InterruptService>(
     mx25r6435f: &Option<SpiMX25R6435FPins>,
     button: &'static capsules::button::Button<'static>,
     ieee802154: bool,
-    lora: Option<&LoraPins>,
+    lora: &Option<LoraPins>,
     app_memory: &mut [u8],
     process_pointers: &'static mut [Option<&'static dyn kernel::procs::ProcessType>],
     app_fault_response: kernel::procs::FaultResponse,
@@ -326,16 +326,8 @@ pub unsafe fn setup_board<I: nrf52::interrupt_service::InterruptService>(
 
     let rng = components::rng::RngComponent::new(board_kernel, &nrf52::trng::TRNG).finalize(());
 
-    // SPI and Lora radio
-    let mux_spi = //static_init!(
-    //    MuxSpiMaster<'static, nrf52::spi::SPIM>,
-    //    MuxSpiMaster::new(&nrf52::spi::SPIM0)
-    //)
-    SpiMuxComponent::new(&nrf52::spi::SPIM0)
+    let mux_spi = SpiMuxComponent::new(&nrf52::spi::SPIM0)
         .finalize(components::spi_mux_component_helper!(nrf52::spi::SPIM));
-;
-    hil::spi::SpiMaster::set_client(&nrf52::spi::SPIM0, mux_spi);
-    hil::spi::SpiMaster::init(&nrf52::spi::SPIM0);
     nrf52::spi::SPIM0.configure(
         nrf52::pinmux::Pinmux::new(spi_pins.mosi as u32),
         nrf52::pinmux::Pinmux::new(spi_pins.miso as u32),
@@ -346,16 +338,10 @@ pub unsafe fn setup_board<I: nrf52::interrupt_service::InterruptService>(
     let spi = SpiSyscallComponent::new(mux_spi, &gpio_port[Pin::P1_10])
           .finalize(components::spi_syscall_component_helper!(nrf52::spi::SPIM));
 
+    // SPI and Lora radio
     let lora_radio = if let Some(pins) = lora {
-      //let lora_spi = SpiComponent::new(mux_spi, pins.chip_select)
-      //    .finalize(components::spi_component_helper!(nrf52::spi::SPIM)); //virtual
-      let lora_spi = static_init!(
-        capsules::virtual_spi::VirtualSpiMasterDevice<'static, nrf52::spi::SPIM>,
-        capsules::virtual_spi::VirtualSpiMasterDevice::new(
-          mux_spi,
-          &gpio_port[pins.chip_select],
-        )
-      );
+      let lora_spi = SpiComponent::new(mux_spi, &gpio_port[pins.chip_select])
+          .finalize(components::spi_component_helper!(nrf52::spi::SPIM)); //virtual
 
       let RADIO = static_init!(
         capsules::lora::radio::Radio<'static, VirtualSpiMasterDevice<'static, nrf52::spi::SPIM>>,
