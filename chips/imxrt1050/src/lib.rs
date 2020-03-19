@@ -1,28 +1,28 @@
-//! Peripheral implementations for the STM32F4xx MCU.
+//! Peripheral implementations for the IMXRT1050 MCU.
 //!
 //! STM32F446RE: <https://www.st.com/en/microcontrollers/stm32f4.html>
 
-#![crate_name = "imxrt1052"]
+#![crate_name = "imxrt1050"]
 #![crate_type = "rlib"]
 #![feature(asm, const_fn, in_band_lifetimes)]
 #![no_std]
 #![allow(unused_doc_comments)]
 
-// mod deferred_call_tasks;
+mod deferred_call_tasks;
 
-// pub mod chip;
-// pub mod nvic;
+pub mod chip;
+pub mod nvic;
 
 // // Peripherals
 // pub mod dbg;
 // pub mod dma1;
 // pub mod exti;
 // pub mod gpio;
-// pub mod rcc;
+pub mod ccm;
 // pub mod spi;
 // pub mod syscfg;
 // pub mod tim2;
-// pub mod usart;
+pub mod usart;
 
 use cortexm7::{generic_isr, hard_fault_handler, svc_handler, systick_handler};
 
