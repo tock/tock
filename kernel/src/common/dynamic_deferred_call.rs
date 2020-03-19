@@ -226,23 +226,25 @@ impl DynamicDeferredCall {
     /// `call_global_instance_while`.
     pub(self) fn call_while<F: Fn() -> bool>(&self, f: F) {
         if self.call_pending.get() {
-            // Reset call_pending here, as it may be set again in the deferred calls
-            self.call_pending.set(false);
+            for (i, client_state) in self.client_states.iter().enumerate() {
+                if !f() {
+                    break;
+                }
+                if client_state.scheduled.get() {
+                    client_state.client.map(|client| {
+                        client_state.scheduled.set(false);
+                        client.call(DeferredCallHandle(i));
+                    });
+                }
+            }
 
-            self.client_states
-                .iter()
-                .enumerate()
-                .filter(|(_i, client_state)| client_state.scheduled.get())
-                .filter_map(|(i, client_state)| {
-                    client_state
-                        .client
-                        .map(|c| (i, &client_state.scheduled, *c))
-                })
-                .take_while(|_| f())
-                .for_each(|(i, call_reqd, client)| {
-                    call_reqd.set(false);
-                    client.call(DeferredCallHandle(i));
-                });
+            // Recompute call_pending here, as some deferred calls may have been skipped due to the
+            // `f` predicate becoming false.
+            self.call_pending.set(
+                self.client_states
+                    .iter()
+                    .any(|client_state| client_state.scheduled.get()),
+            );
         }
     }
 }

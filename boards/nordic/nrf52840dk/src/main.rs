@@ -68,7 +68,7 @@ use kernel::component::Component;
 #[allow(unused_imports)]
 use kernel::{debug, debug_gpio, debug_verbose, static_init};
 use nrf52840::gpio::Pin;
-use nrf52dk_base::{SpiMX25R6435FPins, SpiPins, UartPins, LoraPins};
+use nrf52dk_base::{SpiMX25R6435FPins, SpiPins, UartChannel, UartPins};
 
 // The nRF52840DK LEDs (see back of board)
 const LED1_PIN: Pin = Pin::P0_13;
@@ -83,9 +83,9 @@ const BUTTON3_PIN: Pin = Pin::P0_24;
 const BUTTON4_PIN: Pin = Pin::P0_25;
 const BUTTON_RST_PIN: Pin = Pin::P0_18;
 
-const UART_RTS: Pin = Pin::P0_05;
+const UART_RTS: Option<Pin> = Some(Pin::P0_05);
 const UART_TXD: Pin = Pin::P0_06;
-const UART_CTS: Pin = Pin::P0_07;
+const UART_CTS: Option<Pin> = Some(Pin::P0_07);
 const UART_RXD: Pin = Pin::P0_08;
 
 const SPI_MOSI: Pin = Pin::P0_20;
@@ -100,8 +100,13 @@ const SPI_MX25R6435F_HOLD_PIN: Pin = Pin::P0_23;
 //const LORA_RESET: Pin = Pin::P0_22; // fixme
 //const LORA_INT: Pin = Pin::P0_23; // fixme
 
-/// UART Writer
+/// Debug Writer
 pub mod io;
+
+// Whether to use UART debugging or Segger RTT (USB) debugging.
+// - Set to false to use UART.
+// - Set to true to use Segger RTT over USB.
+const USB_DEBUGGING: bool = false;
 
 // State for loading and holding applications.
 // How should the kernel respond when a process faults.
@@ -110,8 +115,7 @@ const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultRespons
 // Number of concurrent processes this platform supports.
 const NUM_PROCS: usize = 8;
 
-#[link_section = ".app_memory"]
-static mut APP_MEMORY: [u8; 145760] = [0; 145760];
+static mut APP_MEMORY: [u8; 0x3C000] = [0; 0x3C000];
 
 static mut PROCESSES: [Option<&'static dyn kernel::procs::ProcessType>; NUM_PROCS] =
     [None, None, None, None, None, None, None, None];
@@ -128,6 +132,22 @@ pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 pub unsafe fn reset_handler() {
     // Loads relocations and clears BSS
     nrf52840::init();
+
+    let uart_channel = if USB_DEBUGGING {
+        // Initialize Segger RTT as early as possible so that any panic beyond this point can use the
+        // RTT memory object.
+        let mut rtt_memory_refs =
+            components::segger_rtt::SeggerRttMemoryComponent::new().finalize(());
+
+        // XXX: This is inherently unsafe as it aliases the mutable reference to rtt_memory. This
+        // aliases reference is only used inside a panic handler, which should be OK, but maybe we
+        // should use a const reference to rtt_memory and leverage interior mutability instead.
+        self::io::set_rtt_memory(&mut *rtt_memory_refs.get_rtt_memory_ptr());
+
+        UartChannel::Rtt(rtt_memory_refs)
+    } else {
+        UartChannel::Pins(UartPins::new(UART_RTS, UART_TXD, UART_CTS, UART_RXD))
+    };
 
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
     let gpio = components::gpio::GpioComponent::new(board_kernel).finalize(
@@ -154,22 +174,22 @@ pub unsafe fn reset_handler() {
         components::button_component_helper!(
             (
                 &nrf52840::gpio::PORT[BUTTON1_PIN],
-                capsules::button::GpioMode::LowWhenPressed,
+                kernel::hil::gpio::ActivationMode::ActiveLow,
                 kernel::hil::gpio::FloatingState::PullUp
             ), //13
             (
                 &nrf52840::gpio::PORT[BUTTON2_PIN],
-                capsules::button::GpioMode::LowWhenPressed,
+                kernel::hil::gpio::ActivationMode::ActiveLow,
                 kernel::hil::gpio::FloatingState::PullUp
             ), //14
             (
                 &nrf52840::gpio::PORT[BUTTON3_PIN],
-                capsules::button::GpioMode::LowWhenPressed,
+                kernel::hil::gpio::ActivationMode::ActiveLow,
                 kernel::hil::gpio::FloatingState::PullUp
             ), //15
             (
                 &nrf52840::gpio::PORT[BUTTON4_PIN],
-                capsules::button::GpioMode::LowWhenPressed,
+                kernel::hil::gpio::ActivationMode::ActiveLow,
                 kernel::hil::gpio::FloatingState::PullUp
             ) //16
         ),
@@ -178,19 +198,19 @@ pub unsafe fn reset_handler() {
     let led = components::led::LedsComponent::new().finalize(components::led_component_helper!(
         (
             &nrf52840::gpio::PORT[LED1_PIN],
-            capsules::led::ActivationMode::ActiveLow
+            kernel::hil::gpio::ActivationMode::ActiveLow
         ),
         (
             &nrf52840::gpio::PORT[LED2_PIN],
-            capsules::led::ActivationMode::ActiveLow
+            kernel::hil::gpio::ActivationMode::ActiveLow
         ),
         (
             &nrf52840::gpio::PORT[LED3_PIN],
-            capsules::led::ActivationMode::ActiveLow
+            kernel::hil::gpio::ActivationMode::ActiveLow
         ),
         (
             &nrf52840::gpio::PORT[LED4_PIN],
-            capsules::led::ActivationMode::ActiveLow
+            kernel::hil::gpio::ActivationMode::ActiveLow
         )
     ));
     let chip = static_init!(nrf52840::chip::Chip, nrf52840::chip::new());
@@ -211,7 +231,7 @@ pub unsafe fn reset_handler() {
         LED2_PIN,
         LED3_PIN,
         led,
-        &UartPins::new(UART_RTS, UART_TXD, UART_CTS, UART_RXD),
+        uart_channel,
         &SpiPins::new(SPI_MOSI, SPI_MISO, SPI_CLK),
         &Some(SpiMX25R6435FPins::new(
           SPI_MX25R6435F_CHIP_SELECT,

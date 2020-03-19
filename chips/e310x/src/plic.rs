@@ -94,7 +94,7 @@ pub unsafe fn has_pending() -> bool {
 
 /// This is a generic implementation. There may be board specific versions as
 /// some platforms have added more bits to the `mtvec` register.
-pub unsafe fn surpress_all() {
+pub unsafe fn suppress_all() {
     let plic: &PlicRegisters = &*PLIC_BASE;
     // Accept all interrupts.
     plic.threshold.write(priority::Priority.val(0));

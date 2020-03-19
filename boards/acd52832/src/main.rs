@@ -168,23 +168,26 @@ pub unsafe fn reset_handler() {
 
     // LEDs
     let led_pins = static_init!(
-        [(&'static dyn hil::gpio::Pin, capsules::led::ActivationMode); 4],
+        [(
+            &'static dyn hil::gpio::Pin,
+            kernel::hil::gpio::ActivationMode
+        ); 4],
         [
             (
                 &nrf52832::gpio::PORT[LED1_PIN],
-                capsules::led::ActivationMode::ActiveLow
+                kernel::hil::gpio::ActivationMode::ActiveLow
             ),
             (
                 &nrf52832::gpio::PORT[LED2_PIN],
-                capsules::led::ActivationMode::ActiveLow
+                kernel::hil::gpio::ActivationMode::ActiveLow
             ),
             (
                 &nrf52832::gpio::PORT[LED3_PIN],
-                capsules::led::ActivationMode::ActiveLow
+                kernel::hil::gpio::ActivationMode::ActiveLow
             ),
             (
                 &nrf52832::gpio::PORT[LED4_PIN],
-                capsules::led::ActivationMode::ActiveLow
+                kernel::hil::gpio::ActivationMode::ActiveLow
             ),
         ]
     );
@@ -235,25 +238,25 @@ pub unsafe fn reset_handler() {
             // 13
             (
                 &nrf52832::gpio::PORT[BUTTON1_PIN],
-                capsules::button::GpioMode::LowWhenPressed,
+                hil::gpio::ActivationMode::ActiveLow,
                 hil::gpio::FloatingState::PullUp
             ),
             // 14
             (
                 &nrf52832::gpio::PORT[BUTTON2_PIN],
-                capsules::button::GpioMode::LowWhenPressed,
+                hil::gpio::ActivationMode::ActiveLow,
                 hil::gpio::FloatingState::PullUp
             ),
             // 15
             (
                 &nrf52832::gpio::PORT[BUTTON3_PIN],
-                capsules::button::GpioMode::LowWhenPressed,
+                hil::gpio::ActivationMode::ActiveLow,
                 hil::gpio::FloatingState::PullUp
             ),
             // 16
             (
                 &nrf52832::gpio::PORT[BUTTON4_PIN],
-                capsules::button::GpioMode::LowWhenPressed,
+                hil::gpio::ActivationMode::ActiveLow,
                 hil::gpio::FloatingState::PullUp
             )
         ),
@@ -297,32 +300,10 @@ pub unsafe fn reset_handler() {
     // RTT and Console and `debug!()`
     //
 
-    // Virtual alarm for the Segger RTT communication channel
-    let virtual_alarm_rtt = static_init!(
-        capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52832::rtc::Rtc>,
-        capsules::virtual_alarm::VirtualMuxAlarm::new(mux_alarm)
-    );
-
     // RTT communication channel
-    let rtt_memory = static_init!(
-        capsules::segger_rtt::SeggerRttMemory,
-        capsules::segger_rtt::SeggerRttMemory::new(
-            b"Terminal\0",
-            &mut capsules::segger_rtt::UP_BUFFER,
-            b"Terminal\0",
-            &mut capsules::segger_rtt::DOWN_BUFFER
-        )
-    );
-    let rtt = static_init!(
-        capsules::segger_rtt::SeggerRtt<VirtualMuxAlarm<'static, nrf52832::rtc::Rtc>>,
-        capsules::segger_rtt::SeggerRtt::new(
-            virtual_alarm_rtt,
-            rtt_memory,
-            &mut capsules::segger_rtt::UP_BUFFER,
-            &mut capsules::segger_rtt::DOWN_BUFFER
-        )
-    );
-    hil::time::Alarm::set_client(virtual_alarm_rtt, rtt);
+    let rtt_memory = components::segger_rtt::SeggerRttMemoryComponent::new().finalize(());
+    let rtt = components::segger_rtt::SeggerRttComponent::new(mux_alarm, rtt_memory)
+        .finalize(components::segger_rtt_component_helper!(nrf52832::rtc::Rtc));
 
     //
     // Virtual UART

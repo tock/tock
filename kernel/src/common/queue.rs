@@ -10,8 +10,12 @@ pub trait Queue<T> {
     /// Returns how many elements are in the queue.
     fn len(&self) -> usize;
 
-    /// Add a new element to the back of the queue.
+    /// If the queue isn't full, add a new element to the back of the queue.
+    /// Returns whether the element was added.
     fn enqueue(&mut self, val: T) -> bool;
+
+    /// Add a new element to the back of the queue, poping one from the front if necessary.
+    fn push(&mut self, val: T) -> Option<T>;
 
     /// Remove the element from the front of the queue.
     fn dequeue(&mut self) -> Option<T>;

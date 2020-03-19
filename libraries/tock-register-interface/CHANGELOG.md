@@ -3,6 +3,7 @@
 ## master
 
  - #1554: Allow lifetime parameters for `register_structs! { Foo<'a> { ..`
+ - #1661: Add `Aliased` register type for MMIO with differing R/W behavior
 
 ## v0.5
 

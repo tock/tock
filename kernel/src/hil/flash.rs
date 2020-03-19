@@ -4,7 +4,6 @@
 //! `page`. Here is an example of a page type and implementation of this trait:
 //!
 //! ```rust
-//! # #![feature(const_fn)]
 //! use core::ops::{Index, IndexMut};
 //!
 //! use kernel::hil;
@@ -54,8 +53,8 @@
 //! impl hil::flash::Flash for NewChipStruct {
 //!     type Page = NewChipPage;
 //!
-//!     fn read_page(&self, page_number: usize, buf: &'static mut Self::Page) -> ReturnCode { ReturnCode::FAIL }
-//!     fn write_page(&self, page_number: usize, buf: &'static mut Self::Page) -> ReturnCode { ReturnCode::FAIL }
+//!     fn read_page(&self, page_number: usize, buf: &'static mut Self::Page) -> Result<(), (ReturnCode, &'static mut Self::Page)> { Err((ReturnCode::FAIL, buf)) }
+//!     fn write_page(&self, page_number: usize, buf: &'static mut Self::Page) -> Result<(), (ReturnCode, &'static mut Self::Page)> { Err((ReturnCode::FAIL, buf)) }
 //!     fn erase_page(&self, page_number: usize) -> ReturnCode { ReturnCode::FAIL }
 //! }
 //! ```
@@ -111,10 +110,18 @@ pub trait Flash {
     type Page: AsMut<[u8]>;
 
     /// Read a page of flash into the buffer.
-    fn read_page(&self, page_number: usize, buf: &'static mut Self::Page) -> ReturnCode;
+    fn read_page(
+        &self,
+        page_number: usize,
+        buf: &'static mut Self::Page,
+    ) -> Result<(), (ReturnCode, &'static mut Self::Page)>;
 
     /// Write a page of flash from the buffer.
-    fn write_page(&self, page_number: usize, buf: &'static mut Self::Page) -> ReturnCode;
+    fn write_page(
+        &self,
+        page_number: usize,
+        buf: &'static mut Self::Page,
+    ) -> Result<(), (ReturnCode, &'static mut Self::Page)>;
 
     /// Erase a page of flash.
     fn erase_page(&self, page_number: usize) -> ReturnCode;

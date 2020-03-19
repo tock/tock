@@ -3,7 +3,7 @@
 use core::cell::Cell;
 use core::ptr::NonNull;
 
-use crate::callback::{Callback, CallbackId};
+use crate::callback::{AppId, Callback, CallbackId};
 use crate::capabilities;
 use crate::common::cells::NumericCellExt;
 use crate::common::dynamic_deferred_call::DynamicDeferredCall;
@@ -29,12 +29,19 @@ pub struct Kernel {
     /// How many "to-do" items exist at any given time. These include
     /// outstanding callbacks and processes in the Running state.
     work: Cell<usize>,
+
     /// This holds a pointer to the static array of Process pointers.
     processes: &'static [Option<&'static dyn process::ProcessType>],
+
+    /// A counter which keeps track of how many process identifiers have been
+    /// created. This is used to create new unique identifiers for processes.
+    process_identifier_max: Cell<usize>,
+
     /// How many grant regions have been setup. This is incremented on every
     /// call to `create_grant()`. We need to explicitly track this so that when
     /// processes are created they can allocated pointers for each grant.
     grant_counter: Cell<usize>,
+
     /// Flag to mark that grants have been finalized. This means that the kernel
     /// cannot support creating new grants because processes have already been
     /// created and the data structures for grants have already been
@@ -47,6 +54,7 @@ impl Kernel {
         Kernel {
             work: Cell::new(0),
             processes: processes,
+            process_identifier_max: Cell::new(0),
             grant_counter: Cell::new(0),
             grants_finalized: Cell::new(false),
         }
@@ -69,18 +77,44 @@ impl Kernel {
         self.work.get() == 0
     }
 
-    /// Run a closure on a specific process if it exists. If the process does
-    /// not exist (i.e. it is `None` in the `processes` array) then `default`
-    /// will be returned. Otherwise the closure will executed and passed a
-    /// reference to the process.
-    crate fn process_map_or<F, R>(&self, default: R, process_index: usize, closure: F) -> R
+    /// Run a closure on a specific process if it exists. If the process with a
+    /// matching `AppId` does not exist at the index specified within the
+    /// `AppId`, then `default` will be returned.
+    ///
+    /// A match will not be found if the process was removed (and there is a
+    /// `None` in the process array), if the process changed its identifier
+    /// (likely after being restarted), or if the process was moved to a
+    /// different index in the processes array. Note that a match _will_ be
+    /// found if the process still exists in the correct location in the array
+    /// but is in any "stopped" state.
+    crate fn process_map_or<F, R>(&self, default: R, appid: AppId, closure: F) -> R
     where
         F: FnOnce(&dyn process::ProcessType) -> R,
     {
-        if process_index > self.processes.len() {
-            return default;
-        }
-        self.processes[process_index].map_or(default, |process| closure(process))
+        // We use the index in the `appid` so we can do a direct lookup.
+        // However, we are not guaranteed that the app still exists at that
+        // index in the processes array. To avoid additional overhead, we do the
+        // lookup and check here, rather than calling `.index()`.
+        let tentative_index = appid.index;
+
+        // Get the process at that index, and if it matches, run the closure
+        // on it.
+        self.processes
+            .get(tentative_index)
+            .map_or(None, |process_entry| {
+                // Check if there is any process state here, or if the entry is
+                // `None`.
+                process_entry.map_or(None, |process| {
+                    // Check that the process stored here matches the identifier
+                    // in the `appid`.
+                    if process.appid() == appid {
+                        Some(closure(process))
+                    } else {
+                        None
+                    }
+                })
+            })
+            .unwrap_or(default)
     }
 
     /// Run a closure on every valid process. This will iterate the array of
@@ -99,21 +133,37 @@ impl Kernel {
         }
     }
 
-    /// Run a closure on every valid process. This will iterate the
-    /// array of processes and call the closure on every process that
-    /// exists. Ths method is available outside the kernel crate but
-    /// requires a `ProcessManagementCapability` to use.
+    /// Return an iterator for all of the items in the processes array on this
+    /// board.
+    ///
+    /// NOTE: This would be better if it returned an iterator to only processes.
+    /// While with `filter_map()` it is straightforward to create an object that
+    /// implements `Iterator` and only iterates over `Some(process)` items in
+    /// the processes array, Rust doesn't seem to support the types necessary to
+    /// actually make that work and be usable. Perhaps as
+    /// https://github.com/rust-lang/rust/issues/63066 progresses this will be
+    /// possible in the future.
+    crate fn get_process_iter(&self) -> core::slice::Iter<Option<&dyn process::ProcessType>> {
+        self.processes.iter()
+    }
+
+    /// Run a closure on every valid process. This will iterate the array of
+    /// processes and call the closure on every process that exists.
+    ///
+    /// This is functionally the same as `process_each()`, but this method is
+    /// available outside the kernel crate and requires a
+    /// `ProcessManagementCapability` to use.
     pub fn process_each_capability<F>(
         &'static self,
         _capability: &dyn capabilities::ProcessManagementCapability,
         closure: F,
     ) where
-        F: Fn(usize, &dyn process::ProcessType),
+        F: Fn(&dyn process::ProcessType),
     {
-        for (i, process) in self.processes.iter().enumerate() {
+        for process in self.processes.iter() {
             match process {
                 Some(p) => {
-                    closure(i, *p);
+                    closure(*p);
                 }
                 None => {}
             }
@@ -142,9 +192,32 @@ impl Kernel {
         ReturnCode::FAIL
     }
 
-    /// Return how many processes this board supports.
-    crate fn number_of_process_slots(&self) -> usize {
-        self.processes.len()
+    /// Retrieve the `AppId` of the given app based on its identifier. This is
+    /// useful if an app identifier is passed to the kernel from somewhere (such
+    /// as from userspace) and needs to be expanded to a full `AppId` for use
+    /// with other APIs.
+    crate fn lookup_app_by_identifier(&self, identifier: usize) -> Option<AppId> {
+        self.processes.iter().find_map(|&p| {
+            p.map_or(None, |p2| {
+                if p2.appid().id() == identifier {
+                    Some(p2.appid())
+                } else {
+                    None
+                }
+            })
+        })
+    }
+
+    /// Checks if the provided `AppId` is still valid given the processes stored
+    /// in the processes array. Returns `true` if the AppId still refers to
+    /// a valid process, and `false` if not.
+    ///
+    /// This is needed for `AppId` itself to implement the `.index()` command to
+    /// verify that the referenced app is still at the correct index.
+    crate fn appid_is_valid(&self, appid: &AppId) -> bool {
+        self.processes.get(appid.index).map_or(false, |p| {
+            p.map_or(false, |process| process.appid().id() == appid.id())
+        })
     }
 
     /// Create a new grant. This is used in board initialization to setup grants
@@ -182,6 +255,14 @@ impl Kernel {
     crate fn get_grant_count_and_finalize(&self) -> usize {
         self.grants_finalized.set(true);
         self.grant_counter.get()
+    }
+
+    /// Create a new unique identifier for a process and return the identifier.
+    ///
+    /// Typically we just choose a larger number than we have used for any process
+    /// before which ensures that the identifier is unique.
+    crate fn create_process_identifier(&self) -> usize {
+        self.process_identifier_max.get_and_increment()
     }
 
     /// Cause all apps to fault.
@@ -245,7 +326,6 @@ impl Kernel {
         process: &dyn process::ProcessType,
         ipc: Option<&crate::ipc::IPC>,
     ) {
-        let appid = process.appid();
         let systick = chip.systick();
         systick.reset();
         systick.set_timer(KERNEL_TICK_DURATION_US);
@@ -281,7 +361,7 @@ impl Kernel {
                             process.set_fault_state();
                         }
                         Some(ContextSwitchReason::SyscallFired { syscall }) => {
-                            process.debug_syscall_called();
+                            process.debug_syscall_called(syscall);
 
                             // Handle each of the syscalls.
                             match syscall {
@@ -290,7 +370,7 @@ impl Kernel {
                                     if config::CONFIG.trace_syscalls {
                                         debug!(
                                             "[{:?}] memop({}, {:#x}) = {:#x} = {:?}",
-                                            appid,
+                                            process.appid(),
                                             operand,
                                             arg0,
                                             usize::from(res),
@@ -301,7 +381,7 @@ impl Kernel {
                                 }
                                 Syscall::YIELD => {
                                     if config::CONFIG.trace_syscalls {
-                                        debug!("[{:?}] yield", appid);
+                                        debug!("[{:?}] yield", process.appid());
                                     }
                                     process.set_yielded_state();
 
@@ -321,23 +401,30 @@ impl Kernel {
                                     process.remove_pending_callbacks(callback_id);
 
                                     let callback = NonNull::new(callback_ptr).map(|ptr| {
-                                        Callback::new(appid, callback_id, appdata, ptr.cast())
+                                        Callback::new(
+                                            process.appid(),
+                                            callback_id,
+                                            appdata,
+                                            ptr.cast(),
+                                        )
                                     });
 
                                     let res =
                                         platform.with_driver(
                                             driver_number,
                                             |driver| match driver {
-                                                Some(d) => {
-                                                    d.subscribe(subdriver_number, callback, appid)
-                                                }
+                                                Some(d) => d.subscribe(
+                                                    subdriver_number,
+                                                    callback,
+                                                    process.appid(),
+                                                ),
                                                 None => ReturnCode::ENODEVICE,
                                             },
                                         );
                                     if config::CONFIG.trace_syscalls {
                                         debug!(
                                             "[{:?}] subscribe({:#x}, {}, @{:#x}, {:#x}) = {:#x} = {:?}",
-                                            appid,
+                                            process.appid(),
                                             driver_number,
                                             subdriver_number,
                                             callback_ptr as usize,
@@ -358,16 +445,19 @@ impl Kernel {
                                         platform.with_driver(
                                             driver_number,
                                             |driver| match driver {
-                                                Some(d) => {
-                                                    d.command(subdriver_number, arg0, arg1, appid)
-                                                }
+                                                Some(d) => d.command(
+                                                    subdriver_number,
+                                                    arg0,
+                                                    arg1,
+                                                    process.appid(),
+                                                ),
                                                 None => ReturnCode::ENODEVICE,
                                             },
                                         );
                                     if config::CONFIG.trace_syscalls {
                                         debug!(
                                             "[{:?}] cmd({:#x}, {}, {:#x}, {:#x}) = {:#x} = {:?}",
-                                            appid,
+                                            process.appid(),
                                             driver_number,
                                             subdriver_number,
                                             arg0,
@@ -388,9 +478,11 @@ impl Kernel {
                                         match driver {
                                             Some(d) => {
                                                 match process.allow(allow_address, allow_size) {
-                                                    Ok(oslice) => {
-                                                        d.allow(appid, subdriver_number, oslice)
-                                                    }
+                                                    Ok(oslice) => d.allow(
+                                                        process.appid(),
+                                                        subdriver_number,
+                                                        oslice,
+                                                    ),
                                                     Err(err) => err, /* memory not valid */
                                                 }
                                             }
@@ -400,7 +492,7 @@ impl Kernel {
                                     if config::CONFIG.trace_syscalls {
                                         debug!(
                                             "[{:?}] allow({:#x}, {}, @{:#x}, {:#x}) = {:#x} = {:?}",
-                                            appid,
+                                            process.appid(),
                                             driver_number,
                                             subdriver_number,
                                             allow_address as usize,
@@ -440,7 +532,7 @@ impl Kernel {
                             if config::CONFIG.trace_syscalls {
                                 debug!(
                                     "[{:?}] function_call @{:#x}({:#x}, {:#x}, {:#x}, {:#x})",
-                                    appid,
+                                    process.appid(),
                                     ccb.pc,
                                     ccb.argument0,
                                     ccb.argument1,
@@ -459,7 +551,7 @@ impl Kernel {
                                     );
                                 },
                                 |ipc| {
-                                    ipc.schedule_callback(appid, otherapp, ipc_type);
+                                    ipc.schedule_callback(process.appid(), otherapp, ipc_type);
                                 },
                             );
                         }

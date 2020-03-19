@@ -4,15 +4,14 @@
 
 #![no_std]
 #![no_main]
-#![feature(asm, core_intrinsics)]
+#![feature(asm)]
 #![deny(missing_docs)]
 
-use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+use capsules::virtual_alarm::VirtualMuxAlarm;
 use kernel::capabilities;
 use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::component::Component;
 use kernel::hil::gpio::Configure;
-use kernel::hil::time::Alarm;
 use kernel::Platform;
 use kernel::{create_capability, debug, static_init};
 
@@ -248,49 +247,28 @@ pub unsafe fn reset_handler() {
     // LEDs
 
     // Clock to Port A is enabled in `set_pin_primary_functions()`
-    let led_pins = static_init!(
-        [(
-            &'static dyn kernel::hil::gpio::Pin,
-            capsules::led::ActivationMode
-        ); 1],
-        [(
-            stm32f4xx::gpio::PinId::PA05.get_pin().as_ref().unwrap(),
-            capsules::led::ActivationMode::ActiveHigh
-        )]
-    );
-    let led = static_init!(
-        capsules::led::LED<'static>,
-        capsules::led::LED::new(&led_pins[..])
-    );
+    let led = components::led::LedsComponent::new().finalize(components::led_component_helper!((
+        stm32f4xx::gpio::PinId::PA05.get_pin().as_ref().unwrap(),
+        kernel::hil::gpio::ActivationMode::ActiveHigh
+    )));
 
     // BUTTONs
     let button = components::button::ButtonComponent::new(board_kernel).finalize(
         components::button_component_helper!((
             stm32f4xx::gpio::PinId::PC13.get_pin().as_ref().unwrap(),
-            capsules::button::GpioMode::LowWhenPressed,
+            kernel::hil::gpio::ActivationMode::ActiveLow,
             kernel::hil::gpio::FloatingState::PullNone
         )),
     );
 
     // ALARM
-    let mux_alarm = static_init!(
-        MuxAlarm<'static, stm32f4xx::tim2::Tim2>,
-        MuxAlarm::new(&stm32f4xx::tim2::TIM2)
+    let tim2 = &stm32f4xx::tim2::TIM2;
+    let mux_alarm = components::alarm::AlarmMuxComponent::new(tim2).finalize(
+        components::alarm_mux_component_helper!(stm32f4xx::tim2::Tim2),
     );
-    stm32f4xx::tim2::TIM2.set_client(mux_alarm);
 
-    let virtual_alarm = static_init!(
-        VirtualMuxAlarm<'static, stm32f4xx::tim2::Tim2>,
-        VirtualMuxAlarm::new(mux_alarm)
-    );
-    let alarm = static_init!(
-        capsules::alarm::AlarmDriver<'static, VirtualMuxAlarm<'static, stm32f4xx::tim2::Tim2>>,
-        capsules::alarm::AlarmDriver::new(
-            virtual_alarm,
-            board_kernel.create_grant(&memory_allocation_capability)
-        )
-    );
-    virtual_alarm.set_client(alarm);
+    let alarm = components::alarm::AlarmDriverComponent::new(board_kernel, mux_alarm)
+        .finalize(components::alarm_component_helper!(stm32f4xx::tim2::Tim2));
 
     let nucleo_f446re = NucleoF446RE {
         console: console,

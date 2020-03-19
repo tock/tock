@@ -22,6 +22,7 @@ pub enum NUM {
 
     // HW Buses
     Spi                   = 0x20001,
+    I2cMaster             = 0x20003,
     UsbUser               = 0x20005,
     I2cMasterSlave        = 0x20006,
 
@@ -34,7 +35,6 @@ pub enum NUM {
     // Cryptography
     Rng                   = 0x40001,
     Crc                   = 0x40002,
-    I2cMaster             = 0x40006,
 
     // Storage
     AppFlash              = 0x50000,

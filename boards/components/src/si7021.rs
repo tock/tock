@@ -74,7 +74,7 @@ impl<A: 'static + time::Alarm<'static>> Component for SI7021Component<A> {
     );
     type Output = &'static SI7021<'static, VirtualMuxAlarm<'static, A>>;
 
-    unsafe fn finalize(&mut self, static_buffer: Self::StaticInput) -> Self::Output {
+    unsafe fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let si7021_i2c = static_init!(I2CDevice, I2CDevice::new(self.i2c_mux, self.i2c_address));
         let si7021_alarm = static_init_half!(
             static_buffer.0,
@@ -114,7 +114,7 @@ impl<A: 'static + time::Alarm<'static>> Component for TemperatureComponent<A> {
     type StaticInput = ();
     type Output = &'static TemperatureSensor<'static>;
 
-    unsafe fn finalize(&mut self, _s: Self::StaticInput) -> Self::Output {
+    unsafe fn finalize(self, _s: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
         let temp = static_init!(
@@ -148,7 +148,7 @@ impl<A: 'static + time::Alarm<'static>> Component for HumidityComponent<A> {
     type StaticInput = ();
     type Output = &'static HumiditySensor<'static>;
 
-    unsafe fn finalize(&mut self, _s: Self::StaticInput) -> Self::Output {
+    unsafe fn finalize(self, _s: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
         let hum = static_init!(

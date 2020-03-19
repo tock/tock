@@ -11,6 +11,7 @@ The current members of the core team are:
  * Philip Levis - [phil-levis](https://github.com/phil-levis)
  * Amit Levy - [alevy](https://github.com/alevy)
  * Pat Pannuto - [ppannuto](https://github.com/ppannuto)
+ * Johnathan Van Why - [jrvanwhy](https://github.com/jrvanwhy)
 
 
 ## Updates to the Core Team

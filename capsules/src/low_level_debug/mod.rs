@@ -72,7 +72,7 @@ impl<'u, U: Transmit<'u>> TransmitClient for LowLevelDebug<'u, U> {
             let (app_num, first_entry) = applied_grant.enter(|owned_app_data, _| {
                 owned_app_data.queue.rotate_left(1);
                 (
-                    owned_app_data.appid().idx(),
+                    owned_app_data.appid().id(),
                     owned_app_data.queue[QUEUE_SIZE - 1].take(),
                 )
             });
@@ -98,7 +98,7 @@ impl<'u, U: Transmit<'u>> LowLevelDebug<'u, U> {
         use DebugEntry::Dropped;
 
         if let Some(buffer) = self.buffer.take() {
-            self.transmit_entry(buffer, appid.idx(), entry);
+            self.transmit_entry(buffer, appid.id(), entry);
             return;
         }
 

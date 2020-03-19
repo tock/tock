@@ -33,6 +33,7 @@ use capsules::net::ipv6::ipv6::{IP6Packet, IPPayload, TransportHeader};
 use capsules::net::ipv6::ipv6_recv::IP6Receiver;
 use capsules::net::ipv6::ipv6_send::IP6SendStruct;
 use capsules::net::ipv6::ipv6_send::IP6Sender;
+use capsules::net::network_capabilities::{IpVisibilityCapability, UdpVisibilityCapability};
 use capsules::net::sixlowpan::{sixlowpan_compression, sixlowpan_state};
 use capsules::net::udp::udp::UDPHeader;
 use capsules::net::udp::udp_port_table::{SocketBindingEntry, UdpPortManager, MAX_NUM_BOUND_PORTS};
@@ -46,6 +47,7 @@ use kernel::create_capability;
 use kernel::hil::radio;
 use kernel::hil::time::Alarm;
 use kernel::static_init;
+
 use sam4l;
 
 // The UDP stack requires exactly one of several packet buffers:
@@ -119,7 +121,7 @@ impl Component for UDPMuxComponent {
         &'static UdpPortManager,
     );
 
-    unsafe fn finalize(&mut self, _s: Self::StaticInput) -> Self::Output {
+    unsafe fn finalize(self, _s: Self::StaticInput) -> Self::Output {
         let ipsender_virtual_alarm = static_init!(
             VirtualMuxAlarm<'static, sam4l::ast::Ast>,
             VirtualMuxAlarm::new(self.alarm_mux)
@@ -130,6 +132,15 @@ impl Component for UDPMuxComponent {
             capsules::ieee802154::virtual_mac::MacUser::new(self.mux_mac)
         );
         self.mux_mac.add_user(udp_mac);
+        let create_cap = create_capability!(capabilities::NetworkCapabilityCreationCapability);
+        let udp_vis = static_init!(
+            UdpVisibilityCapability,
+            UdpVisibilityCapability::new(&create_cap)
+        );
+        let ip_vis = static_init!(
+            IpVisibilityCapability,
+            IpVisibilityCapability::new(&create_cap)
+        );
 
         let sixlowpan = static_init!(
             sixlowpan_state::Sixlowpan<
@@ -183,6 +194,7 @@ impl Component for UDPMuxComponent {
                 udp_mac,
                 self.dst_mac_addr,
                 self.src_mac_addr,
+                ip_vis,
             )
         );
         ipsender_virtual_alarm.set_client(ip_send);
@@ -217,7 +229,7 @@ impl Component for UDPMuxComponent {
         let create_table_cap = create_capability!(capabilities::CreatePortTableCapability);
         let udp_port_table = static_init!(
             UdpPortManager,
-            UdpPortManager::new(&create_table_cap, &mut USED_KERNEL_PORTS)
+            UdpPortManager::new(&create_table_cap, &mut USED_KERNEL_PORTS, udp_vis)
         );
 
         (udp_send_mux, udp_recv_mux, udp_port_table)

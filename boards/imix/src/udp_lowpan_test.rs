@@ -117,14 +117,20 @@
 
 use super::imix_components::test::mock_udp::MockUDPComponent;
 use super::imix_components::test::mock_udp2::MockUDPComponent2;
+use capsules::net::ipv6::ip_utils::IPAddr;
 use capsules::net::ipv6::ipv6_send::IP6SendStruct;
+use capsules::net::network_capabilities::{
+    AddrRange, NetworkCapability, PortRange, UdpVisibilityCapability,
+};
 use capsules::net::udp::udp_port_table::UdpPortManager;
 use capsules::net::udp::udp_recv::MuxUdpReceiver;
 use capsules::net::udp::udp_send::MuxUdpSender;
 use capsules::test::udp::MockUdp;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use core::cell::Cell;
+use kernel::capabilities::NetworkCapabilityCreationCapability;
 use kernel::component::Component;
+use kernel::create_capability;
 use kernel::debug;
 use kernel::hil::time::Frequency;
 use kernel::hil::time::{self, Alarm};
@@ -169,6 +175,15 @@ pub unsafe fn initialize_all(
     'static,
     capsules::virtual_alarm::VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>,
 > {
+    let create_cap = create_capability!(NetworkCapabilityCreationCapability);
+    let net_cap = static_init!(
+        NetworkCapability,
+        NetworkCapability::new(AddrRange::Any, PortRange::Any, PortRange::Any, &create_cap)
+    );
+    let udp_vis = static_init!(
+        UdpVisibilityCapability,
+        UdpVisibilityCapability::new(&create_cap)
+    );
     let mock_udp1 = MockUDPComponent::new(
         udp_send_mux,
         udp_recv_mux,
@@ -177,6 +192,8 @@ pub unsafe fn initialize_all(
         &mut UDP_PAYLOAD1,
         1, //id
         3, //dst_port
+        net_cap,
+        udp_vis,
     )
     .finalize(());
 
@@ -188,6 +205,8 @@ pub unsafe fn initialize_all(
         &mut UDP_PAYLOAD2,
         2, //id
         4, //dst_port
+        net_cap,
+        udp_vis,
     )
     .finalize(());
 
@@ -200,7 +219,7 @@ pub unsafe fn initialize_all(
             ),
             port_table,
             mock_udp1,
-            mock_udp2
+            mock_udp2,
         )
     );
 
@@ -261,7 +280,7 @@ impl<'a, A: time::Alarm<'a>> LowpanTest<'a, A> {
     }
 
     fn num_tests(&self) -> usize {
-        4
+        10
     }
 
     fn run_test(&self, test_id: usize) {
@@ -277,6 +296,12 @@ impl<'a, A: time::Alarm<'a>> LowpanTest<'a, A> {
                     1 => self.port_table_test(),
                     2 => self.port_table_test2(),
                     3 => self.capsule_send_test(),
+                    4 => self.addr_range_valid_test(),
+                    5 => self.port_range_valid_test(),
+                    6 => self.capsule_send_valid_net_cap_test(),
+                    7 => self.capsule_send_invalid_net_cap_port_test(),
+                    8 => self.capsule_send_invalid_net_cap_addr_test(),
+                    9 => self.capsule_send_invalid_net_cap_addr_port_test(),
                     _ => return,
                 }
             }
@@ -300,14 +325,24 @@ impl<'a, A: time::Alarm<'a>> LowpanTest<'a, A> {
     // This test ensures that an app and capsule cant bind to the same port
     // but can bind to different ports
     fn bind_test(&self) {
+        let create_cap = create_capability!(NetworkCapabilityCreationCapability);
+        let net_cap = unsafe {
+            static_init!(
+                NetworkCapability,
+                NetworkCapability::new(AddrRange::Any, PortRange::Any, PortRange::Any, &create_cap)
+            )
+        };
         let mut socket1 = self.port_table.create_socket().unwrap();
         // Attempt to bind to a port that has already been bound by an app.
-        let result = self.port_table.bind(socket1, 1000);
+        let result = self.port_table.bind(socket1, 1000, net_cap);
         assert!(result.is_err());
         socket1 = result.unwrap_err(); // Get the socket back
 
         //now bind to an open port
-        let (_send_bind, _recv_bind) = self.port_table.bind(socket1, 1001).expect("UDP Bind fail");
+        let (_send_bind, _recv_bind) = self
+            .port_table
+            .bind(socket1, 1001, net_cap)
+            .expect("UDP Bind fail");
         //dont unbind, so we can test if app will still be able to bind it
 
         debug!("bind_test passed");
@@ -318,17 +353,30 @@ impl<'a, A: time::Alarm<'a>> LowpanTest<'a, A> {
     // This test ensures that two capsules could not bind to the same port,
     // that single bindings work correctly,
     fn port_table_test(&self) {
+        let create_cap = create_capability!(NetworkCapabilityCreationCapability);
+        let net_cap = unsafe {
+            static_init!(
+                NetworkCapability,
+                NetworkCapability::new(AddrRange::Any, PortRange::Any, PortRange::Any, &create_cap)
+            )
+        };
         // Initialize bindings.
         let socket1 = self.port_table.create_socket().unwrap();
         let mut socket2 = self.port_table.create_socket().unwrap();
         let socket3 = self.port_table.create_socket().unwrap();
         //debug!("Finished creating sockets");
         // Attempt to bind to a port that has already been bound.
-        let (send_bind, recv_bind) = self.port_table.bind(socket1, 4000).expect("UDP Bind fail1");
-        let result = self.port_table.bind(socket2, 4000);
+        let (send_bind, recv_bind) = self
+            .port_table
+            .bind(socket1, 4000, net_cap)
+            .expect("UDP Bind fail1");
+        let result = self.port_table.bind(socket2, 4000, net_cap);
         assert!(result.is_err());
         socket2 = result.unwrap_err(); // This is how you get the socket back
-        let (send_bind2, recv_bind2) = self.port_table.bind(socket2, 4001).expect("UDP Bind fail2");
+        let (send_bind2, recv_bind2) = self
+            .port_table
+            .bind(socket2, 4001, net_cap)
+            .expect("UDP Bind fail2");
 
         // Ensure that only the first binding is able to send
         assert_eq!(send_bind.get_port(), 4000);
@@ -336,7 +384,10 @@ impl<'a, A: time::Alarm<'a>> LowpanTest<'a, A> {
         assert!(self.port_table.unbind(send_bind, recv_bind).is_ok());
 
         // Show that you can bind to a port once another socket has unbound it
-        let (send_bind3, recv_bind3) = self.port_table.bind(socket3, 4000).expect("UDP Bind fail3");
+        let (send_bind3, recv_bind3) = self
+            .port_table
+            .bind(socket3, 4000, net_cap)
+            .expect("UDP Bind fail3");
 
         //clean up remaining bindings
         assert!(self.port_table.unbind(send_bind3, recv_bind3).is_ok());
@@ -411,6 +462,228 @@ impl<'a, A: time::Alarm<'a>> LowpanTest<'a, A> {
     fn capsule_dual_receive_test(&self) {
         self.mock_udp1.bind(16123);
         self.mock_udp2.bind(16124);
+    }
+
+    // Test network capability enforcement for addrs
+    fn addr_range_valid_test(&self) {
+        let ip_addr1 = IPAddr([
+            0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d,
+            0x0e, 0x0f,
+        ]);
+        let ip_addr2 = IPAddr([
+            0x01, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d,
+            0x0e, 0x0f,
+        ]); // differs in first byte from ip_addr1
+        let ip_addr3 = IPAddr([
+            0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d,
+            0x0e, 0x00,
+        ]); // differs in last byte from ip_addr1
+            // Any
+        let any_addr = AddrRange::Any;
+        for ip_addr in [ip_addr1, ip_addr2, ip_addr3].iter() {
+            assert!(any_addr.is_addr_valid(*ip_addr))
+        }
+        // No addrs
+        let no_addrs = AddrRange::NoAddrs;
+        for ip_addr in [ip_addr1, ip_addr2, ip_addr3].iter() {
+            assert!(!no_addrs.is_addr_valid(*ip_addr))
+        }
+        let addr_set = AddrRange::AddrSet([
+            IPAddr::new(),
+            IPAddr::new(),
+            IPAddr::new(),
+            IPAddr::new(),
+            IPAddr::new(),
+            IPAddr::new(),
+            ip_addr3,
+            ip_addr1,
+        ]);
+        assert!(addr_set.is_addr_valid(ip_addr1));
+        assert!(!addr_set.is_addr_valid(ip_addr2));
+        assert!(addr_set.is_addr_valid(ip_addr3));
+        // Single addr
+        let single_addr = AddrRange::Addr(ip_addr1);
+        assert!(single_addr.is_addr_valid(ip_addr1));
+        assert!(!single_addr.is_addr_valid(ip_addr2));
+        // Subnet
+        let subnet = AddrRange::Subnet(ip_addr1, 120);
+        assert!(subnet.is_addr_valid(ip_addr1));
+        assert!(!subnet.is_addr_valid(ip_addr2));
+        assert!(subnet.is_addr_valid(ip_addr3));
+        debug!("AddrRange tests passed");
+    }
+
+    // Test enforcement for ports
+    fn port_range_valid_test(&self) {
+        // Any
+        let any_port = PortRange::Any;
+        assert!(any_port.is_port_valid(1000));
+        // No ports
+        let no_ports = PortRange::NoPorts;
+        assert!(!no_ports.is_port_valid(1000));
+        // Port set
+        let port_set = PortRange::PortSet([80, 22, 100, 200, 300, 400, 500, 8888]);
+        for port in [80, 22, 100, 200, 300, 400, 500, 8888].iter() {
+            assert!(port_set.is_port_valid(*port));
+        }
+        assert!(!port_set.is_port_valid(1000));
+        // Port range pair
+        let port_range = PortRange::Range(1000, 2000);
+        assert!(port_range.is_port_valid(1000));
+        assert!(port_range.is_port_valid(1500));
+        assert!(port_range.is_port_valid(2000));
+        assert!(!port_range.is_port_valid(2001));
+        assert!(!port_range.is_port_valid(900));
+        // Single port
+        let single_port = PortRange::Port(8888);
+        assert!(single_port.is_port_valid(8888));
+        assert!(!single_port.is_port_valid(8000));
+        debug!("PortRange tests passed");
+    }
+
+    fn capsule_send_net_cap_test(
+        &self,
+        net_cap1: &'static NetworkCapability,
+        net_cap2: &'static NetworkCapability,
+    ) -> (ReturnCode, ReturnCode) {
+        // from capsule send_test
+        self.mock_udp1.update_capability(net_cap1);
+        self.mock_udp1.bind(14000);
+        self.mock_udp1.set_dst(15000);
+        self.mock_udp2.update_capability(net_cap2);
+        self.mock_udp2.bind(14001);
+        self.mock_udp2.set_dst(15001);
+        // Send from 2 different capsules in quick succession - second send should execute once
+        // first completes, assuming valid capabilities for each.
+        let ret1 = self.mock_udp1.send(22);
+        let ret2 = self.mock_udp2.send(23);
+        debug!("send_test executed, look at printed results once callbacks arrive");
+        (ret1, ret2)
+    }
+
+    fn capsule_send_valid_net_cap_test(&self) {
+        let create_cap = create_capability!(NetworkCapabilityCreationCapability);
+        let net_cap1 = unsafe {
+            static_init!(
+                NetworkCapability,
+                NetworkCapability::new(
+                    AddrRange::Any,
+                    PortRange::Port(15000),
+                    PortRange::Any,
+                    &create_cap
+                )
+            )
+        };
+        let net_cap2 = unsafe {
+            static_init!(
+                NetworkCapability,
+                NetworkCapability::new(
+                    AddrRange::Any,
+                    PortRange::Port(15001),
+                    PortRange::Any,
+                    &create_cap
+                )
+            )
+        };
+        let (ret1, ret2) = self.capsule_send_net_cap_test(net_cap1, net_cap2);
+        assert_eq!(ret1, ReturnCode::SUCCESS);
+        assert_eq!(ret2, ReturnCode::SUCCESS);
+        debug!("send_valid_net_cap test executed, look at printed results once callbacks arrive");
+    }
+
+    // Invalid network capability (valid addr, invalid port)
+    fn capsule_send_invalid_net_cap_port_test(&self) {
+        let create_cap = create_capability!(NetworkCapabilityCreationCapability);
+        let net_cap1 = unsafe {
+            static_init!(
+                NetworkCapability,
+                NetworkCapability::new(
+                    AddrRange::Any,
+                    PortRange::Port(15000),
+                    PortRange::Any,
+                    &create_cap
+                )
+            )
+        };
+        // net_cap2 has an invalid dst port
+        let net_cap2 = unsafe {
+            static_init!(
+                NetworkCapability,
+                NetworkCapability::new(
+                    AddrRange::Any,
+                    PortRange::Port(15002),
+                    PortRange::Any,
+                    &create_cap
+                )
+            )
+        };
+        let (ret1, ret2) = self.capsule_send_net_cap_test(net_cap1, net_cap2);
+        assert_eq!(ret1, ReturnCode::SUCCESS);
+        assert_eq!(ret2, ReturnCode::ERESERVE);
+        debug!("send_invalid_net_cap_port test executed, expect one send with Result: SUCCESS");
+    }
+
+    // Invalid network capability (invalid addr, valid port)
+    fn capsule_send_invalid_net_cap_addr_test(&self) {
+        let create_cap = create_capability!(NetworkCapabilityCreationCapability);
+        let net_cap1 = unsafe {
+            static_init!(
+                NetworkCapability,
+                NetworkCapability::new(AddrRange::Any, PortRange::Any, PortRange::Any, &create_cap)
+            )
+        };
+        // net_cap2 has an invalid address range
+        let net_cap2 = unsafe {
+            static_init!(
+                NetworkCapability,
+                NetworkCapability::new(
+                    AddrRange::NoAddrs,
+                    PortRange::Port(15000),
+                    PortRange::Any,
+                    &create_cap
+                )
+            )
+        };
+
+        let (ret1, ret2) = self.capsule_send_net_cap_test(net_cap1, net_cap2);
+        assert_eq!(ret1, ReturnCode::SUCCESS);
+        assert_eq!(ret2, ReturnCode::ERESERVE);
+        debug!("send_invalid_net_cap_addr executed, expect one send with Result: SUCCESS");
+    }
+
+    // Invalid network capability (invalid addr, invalid port)
+    fn capsule_send_invalid_net_cap_addr_port_test(&self) {
+        let create_cap = create_capability!(NetworkCapabilityCreationCapability);
+        let net_cap1 = unsafe {
+            static_init!(
+                NetworkCapability,
+                NetworkCapability::new(
+                    AddrRange::Any,
+                    PortRange::Port(15000),
+                    PortRange::Any,
+                    &create_cap
+                )
+            )
+        };
+
+        // net_cap2 has an invalid address range and port
+        let net_cap2 = unsafe {
+            static_init!(
+                NetworkCapability,
+                NetworkCapability::new(
+                    AddrRange::NoAddrs,
+                    PortRange::Port(15002),
+                    PortRange::Any,
+                    &create_cap
+                )
+            )
+        };
+        let (ret1, ret2) = self.capsule_send_net_cap_test(net_cap1, net_cap2);
+        assert_eq!(ret1, ReturnCode::SUCCESS);
+        assert_eq!(ret2, ReturnCode::ERESERVE);
+        debug!(
+            "send_invalid_net_cap_addr_port test executed, expect one send with Result: SUCCESS"
+        );
     }
 }
 

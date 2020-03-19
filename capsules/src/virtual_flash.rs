@@ -93,10 +93,14 @@ impl<F: hil::flash::Flash> MuxFlash<'a, F> {
                     |buf| {
                         match node.operation.get() {
                             Op::Write(page_number) => {
-                                self.flash.write_page(page_number, buf);
+                                if let Err((_, buf)) = self.flash.write_page(page_number, buf) {
+                                    node.buffer.replace(buf);
+                                }
                             }
                             Op::Read(page_number) => {
-                                self.flash.read_page(page_number, buf);
+                                if let Err((_, buf)) = self.flash.read_page(page_number, buf) {
+                                    node.buffer.replace(buf);
+                                }
                             }
                             Op::Erase(page_number) => {
                                 self.flash.erase_page(page_number);
@@ -182,18 +186,26 @@ impl<F: hil::flash::Flash> ListNode<'a, FlashUser<'a, F>> for FlashUser<'a, F> {
 impl<F: hil::flash::Flash> hil::flash::Flash for FlashUser<'a, F> {
     type Page = F::Page;
 
-    fn read_page(&self, page_number: usize, buf: &'static mut Self::Page) -> ReturnCode {
+    fn read_page(
+        &self,
+        page_number: usize,
+        buf: &'static mut Self::Page,
+    ) -> Result<(), (ReturnCode, &'static mut Self::Page)> {
         self.buffer.replace(buf);
         self.operation.set(Op::Read(page_number));
         self.mux.do_next_op();
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
-    fn write_page(&self, page_number: usize, buf: &'static mut Self::Page) -> ReturnCode {
+    fn write_page(
+        &self,
+        page_number: usize,
+        buf: &'static mut Self::Page,
+    ) -> Result<(), (ReturnCode, &'static mut Self::Page)> {
         self.buffer.replace(buf);
         self.operation.set(Op::Write(page_number));
         self.mux.do_next_op();
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
     fn erase_page(&self, page_number: usize) -> ReturnCode {

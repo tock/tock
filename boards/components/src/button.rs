@@ -6,14 +6,14 @@
 //! let button = components::button::ButtonComponent::new(board_kernel).finalize(
 //!     components::button_component_helper!((
 //!         &sam4l::gpio::PC[24],
-//!         capsules::button::GpioMode::LowWhenPressed,
+//!         kernel::hil::gpio::ActivationMode::ActiveLow,
 //!         kernel::hil::gpio::FloatingState::PullUp
 //!     )),
 //! );
 //! ```
 //!
-//! Typically, `GpioMode::LowWhenPressed` will be associated with `FloatingState::PullUp`
-//! whereas `GpioMode::HighWhenPressed` will be paired with `FloatingState::PullDown`.
+//! Typically, `ActivationMode::ActiveLow` will be associated with `FloatingState::PullUp`
+//! whereas `ActivationMode::ActiveHigh` will be paired with `FloatingState::PullDown`.
 //! `FloatingState::None` will be used when the board provides external pull-up/pull-down
 //! resistors.
 
@@ -31,7 +31,7 @@ macro_rules! button_component_helper {
         const NUM_BUTTONS: usize = count_expressions!($($P),+);
 
         static_init!(
-            [(&'static dyn kernel::hil::gpio::InterruptValuePin, capsules::button::GpioMode, kernel::hil::gpio::FloatingState); NUM_BUTTONS],
+            [(&'static dyn kernel::hil::gpio::InterruptValuePin, kernel::hil::gpio::ActivationMode, kernel::hil::gpio::FloatingState); NUM_BUTTONS],
             [
                 $(
                     (static_init!(InterruptValueWrapper, InterruptValueWrapper::new($P))
@@ -60,12 +60,12 @@ impl ButtonComponent {
 impl Component for ButtonComponent {
     type StaticInput = &'static [(
         &'static dyn kernel::hil::gpio::InterruptValuePin,
-        capsules::button::GpioMode,
+        kernel::hil::gpio::ActivationMode,
         kernel::hil::gpio::FloatingState,
     )];
     type Output = &'static capsules::button::Button<'static>;
 
-    unsafe fn finalize(&mut self, button_pins: Self::StaticInput) -> Self::Output {
+    unsafe fn finalize(self, button_pins: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
         let button = static_init!(
             capsules::button::Button<'static>,

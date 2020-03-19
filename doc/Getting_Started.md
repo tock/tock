@@ -70,7 +70,7 @@ of installing some of these tools, but you can also install them yourself.
 
 #### Rust (nightly)
 
-We are using `nightly-2020-01-16`. We require
+We are using `nightly-2020-03-06`. We require
 installing it with [rustup](http://www.rustup.rs) so you can manage multiple
 versions of Rust and continue using stable versions for other Rust code:
 
@@ -85,7 +85,7 @@ to your `$PATH`.
 Then install the correct nightly version of Rust:
 
 ```bash
-$ rustup install nightly-2020-01-16
+$ rustup install nightly-2020-03-06
 ```
 
 #### Tockloader
