@@ -12,10 +12,11 @@ pub mod mpu;
 pub use cortexm::support;
 
 pub use cortexm::nvic;
-pub use cortexm::print_cortexm_state as print_cortexm4_state;
+pub use cortexm::print_cortexm_state as print_cortexm7_state;
 pub use cortexm::scb;
 pub use cortexm::syscall;
 pub use cortexm::systick;
+use cortex_m_semihosting::{hprintln};
 
 extern "C" {
     // _estack is not really a function, but it makes the types work
@@ -41,6 +42,7 @@ pub unsafe extern "C" fn systick_handler() {
 #[cfg(all(target_arch = "arm", target_os = "none"))]
 #[naked]
 pub unsafe extern "C" fn systick_handler() {
+    hprintln!("SysTick").unwrap();
     asm!(
         "
     // Mark that the systick handler was called meaning that the process stopped

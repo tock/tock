@@ -1,0 +1,29 @@
+[package]
+name = "imxrt1050-evkb"
+version = "0.1.0"
+authors = ["Tock Project Developers <tock-dev@googlegroups.com>"]
+build = "build.rs"
+edition = "2018"
+
+[profile.dev]
+panic = "abort"
+lto = false
+opt-level = "z"
+debug = true
+
+[profile.release]
+panic = "abort"
+lto = true
+opt-level = "z"
+debug = true
+
+[dependencies]
+components = { path = "../components" }
+cortexm7 = { path = "../../arch/cortex-m7" }
+capsules = { path = "../../capsules" }
+kernel = { path = "../../kernel" }
+imxrt1050 = { path = "../../chips/imxrt1050" }
+cortex-m-semihosting = "0.3.3"
+
+[build-dependencies]
+cc = "1.0.25"

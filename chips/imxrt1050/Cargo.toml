@@ -1,5 +1,5 @@
 [package]
-name = "imxrt1052"
+name = "imxrt1050"
 version = "0.1.0"
 authors = ["Tock Project Developers <tock-dev@googlegroups.com>"]
 edition = "2018"
@@ -9,5 +9,6 @@ cortexm7 = { path = "../../arch/cortex-m7" }
 enum_primitive = { path = "../../libraries/enum_primitive" }
 kernel = { path = "../../kernel" }
 tock_rt0 = { path = "../../libraries/tock-rt0" }
+cortex-m-semihosting = "0.3.3"
 
 [features]

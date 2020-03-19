@@ -138,7 +138,7 @@ pub fn load_processes<C: Chip>(
     let mut app_memory_size = app_memory.len();
 
     if config::CONFIG.debug_load_processes {
-        debug!(
+        hprintln!(
             "Loading processes from flash={:#010X} into sram=[{:#010X}:{:#010X}]",
             app_flash.as_ptr() as usize,
             app_memory_ptr as usize,
@@ -146,6 +146,7 @@ pub fn load_processes<C: Chip>(
         );
     }
 
+    hprintln!("Procs.len: {:?}", procs.len()).unwrap();
     for i in 0..procs.len() {
         unsafe {
             // Get the first eight bytes of flash to check if there is another
@@ -848,7 +849,7 @@ impl<C: Chip> ProcessType for Process<'_, C> {
             });
             if config::CONFIG.trace_syscalls {
                 let count_after = tasks.len();
-                debug!(
+                hprintln!(
                     "[{:?}] remove_pending_callbacks[{:#x}:{}] = {} callback(s) removed",
                     self.appid(),
                     callback_id.driver_num,
