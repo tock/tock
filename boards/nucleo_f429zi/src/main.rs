@@ -1,4 +1,4 @@
-//! Board file for Nucleo-F429ZI development board.
+//! Board file for Nucleo-F429ZI development board
 //!
 //! - <https://www.st.com/en/evaluation-tools/nucleo-f429zi.html>
 
