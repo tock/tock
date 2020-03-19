@@ -8,6 +8,10 @@ include ../Makefile.common
 OPENOCD=openocd
 OPENOCD_OPTIONS=-f openocd.cfg
 
+APP=../../../libtock-c/examples/lcd_16x2/build/cortex-m4/cortex-m4.tbf
+KERNEL=$(CWD)/target/$(TARGET)/debug/$(PLATFORM).elf
+KERNEL_WITH_APP=$(CWD)/target/$(TARGET)/debug/$(PLATFORM)-app.elf
+
 # OpenOCD requires fullpath
 CWD=$(shell pwd)
 
@@ -23,4 +27,5 @@ flash: target/$(TARGET)/release/$(PLATFORM).elf
 
 .PHONY: program
 program: target/$(TARGET)/debug/$(PLATFORM).elf
-	$(error See README.md and update this section accordingly)
+	arm-none-eabi-objcopy --update-section .apps=$(APP) $(KERNEL) $(KERNEL_WITH_APP)
+    # sudo $(OPENOCD) $(OPENOCD_OPTIONS) -c "init; reset halt; flash write_image erase $(KERNEL_WITH_APP); verify_image $(KERNEL_WITH_APP); reset; shutdown"

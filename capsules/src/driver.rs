@@ -16,6 +16,7 @@ pub enum NUM {
     Adc                   = 0x00005,
     Dac                   = 0x00006,
     AnalogComparator      = 0x00007,
+    Lcd1602              = 0x00008,
 
     // Kernel
     Ipc                   = 0x10000,
