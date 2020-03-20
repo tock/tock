@@ -67,33 +67,33 @@ static HIGH: u8 = 1;
 
 // commands
 static LCD_CLEARDISPLAY: u8 = 0x01;
-// static LCD_RETURNHOME: u8 = 0x02;
+static LCD_RETURNHOME: u8 = 0x02;
 static LCD_ENTRYMODESET: u8 = 0x04;
 static LCD_DISPLAYCONTROL: u8 = 0x08;
-// static LCD_CURSORSHIFT: u8 = 0x10;
+static LCD_CURSORSHIFT: u8 = 0x10;
 static LCD_FUNCTIONSET: u8 = 0x20;
-// static LCD_SETCGRAMADDR: u8 = 0x40;
+static LCD_SETCGRAMADDR: u8 = 0x40;
 static LCD_SETDDRAMADDR: u8 = 0x80;
 
 // flags for display entry mode
-// static LCD_ENTRYRIGHT: u8 = 0x00;
+static LCD_ENTRYRIGHT: u8 = 0x00;
 static LCD_ENTRYLEFT: u8 = 0x02;
-// static LCD_ENTRYSHIFTINCREMENT: u8 = 0x01;
+static LCD_ENTRYSHIFTINCREMENT: u8 = 0x01;
 static LCD_ENTRYSHIFTDECREMENT: u8 = 0x00;
 
 // flags for display on/off control
 static LCD_DISPLAYON: u8 = 0x04;
-// static LCD_DISPLAYOFF: u8 =  0x00;
+static LCD_DISPLAYOFF: u8 =  0x00;
 static LCD_CURSORON: u8 = 0x02;
-// static LCD_CURSOROFF: u8 =  0x00;
+static LCD_CURSOROFF: u8 =  0x00;
 static LCD_BLINKON: u8 = 0x01;
 static LCD_BLINKOFF: u8 = 0x00;
 
 // flags for display/cursor shift
-// static LCD_DISPLAYMOVE: u8 = 0x08;
-// static LCD_CURSORMOVE: u8 = 0x00;
-// static LCD_MOVERIGHT: u8 = 0x04;
-// static LCD_MOVELEFT: u8 = 0x00;
+static LCD_DISPLAYMOVE: u8 = 0x08;
+static LCD_CURSORMOVE: u8 = 0x00;
+static LCD_MOVERIGHT: u8 = 0x04;
+static LCD_MOVELEFT: u8 = 0x00;
 
 // flags for function set
 static LCD_8BITMODE: u8 = 0x10;
@@ -122,25 +122,20 @@ enum LCDStatus {
     Begin3,
     Begin4,
     Begin5,
-    Begin5_6,
     Begin6,
     Begin7,
-    Begin7_8,
     Begin8,
     Begin9,
     Begin10,
     Begin11,
     Begin12,
     Begin13,
-    Begin14,
-    Begin15,
-    Begin16,
-    Begin17,
-    Begin18,
-    Other,
-    Other1,
+    Home,
+    Printing,
     PulseLow,
     PulseHigh,
+    Command,
+    Clear,
 }
 
 pub struct LCD<'a, A: Alarm<'a>> {
@@ -154,8 +149,6 @@ pub struct LCD<'a, A: Alarm<'a>> {
     display_control: Cell<u8>,
     display_mode: Cell<u8>,
     num_lines: Cell<u8>,
-    current_method: Cell<i8>,
-    current_counter: Cell<i8>,
     row_offsets: TakeCell<'static, [u8]>,
     command_buffer: TakeCell<'static, [u8]>,
     command_len: Cell<u8>,
@@ -165,6 +158,8 @@ pub struct LCD<'a, A: Alarm<'a>> {
     lcd_status: Cell<LCDStatus>,
     lcd_prev_status: Cell<LCDStatus>,
     lcd_after_pulse_status: Cell<LCDStatus>,
+    lcd_after_command_status: Cell<LCDStatus>,
+    lcd_after_delay_status: Cell<LCDStatus>,
     command_to_finish: Cell<u8>,
 }
 
@@ -182,7 +177,6 @@ impl<'a, A: Alarm<'a>> LCD<'a, A> {
         board_kernel: &'static kernel::Kernel,
         grant: Grant<App>,
     ) -> LCD<'a, A> {
-        // Make all pins output and off
         rs_pin.make_output();
         en_pin.make_output();
         data_4_pin.make_output();
@@ -200,8 +194,6 @@ impl<'a, A: Alarm<'a>> LCD<'a, A> {
             display_control: Cell::new(0),
             display_mode: Cell::new(0),
             num_lines: Cell::new(0),
-            current_method: Cell::new(0),
-            current_counter: Cell::new(0),
             row_offsets: TakeCell::new(row_offsets),
             command_buffer: TakeCell::new(command_buffer),
             command_len: Cell::new(0),
@@ -211,14 +203,11 @@ impl<'a, A: Alarm<'a>> LCD<'a, A> {
             lcd_status: Cell::new(LCDStatus::Idle),
             lcd_prev_status: Cell::new(LCDStatus::Idle),
             lcd_after_pulse_status: Cell::new(LCDStatus::Idle),
+            lcd_after_command_status: Cell::new(LCDStatus::Idle),
+            lcd_after_delay_status: Cell::new(LCDStatus::Idle),
             command_to_finish: Cell::new(0),
         }
     }
-
-    // pub fn start(&self, timer: u32) {
-    //     // debug!(" {} ", <A::Frequency>::frequency()/timer);
-    //     debug! ("aici?");
-    // }
 
     fn set_rows(&self, row0: u8, row1: u8, row2: u8, row3: u8) -> ReturnCode {
         self.row_offsets.map(|buffer| {
@@ -231,9 +220,10 @@ impl<'a, A: Alarm<'a>> LCD<'a, A> {
     }
 
     fn handle_commands(&self) -> ReturnCode {
+        self.bring_to_0();
         if self.lcd_status.get() == LCDStatus::Idle {
             let mut offset = self.command_offset.get() as usize;
-            debug! ("       Citim de pe pozitia {}", offset);
+            // debug! ("       Citim de pe pozitia {}", offset);
             if offset < self.command_len.get() as usize {
                 self.command_buffer.map(|buffer| {
                     
@@ -243,7 +233,6 @@ impl<'a, A: Alarm<'a>> LCD<'a, A> {
                         130 => {
                             let cols = buffer[offset + 1];
                             let lines = buffer[offset + 2];
-                            debug!("avem un begin cu {} si {} ", cols, lines);
 
                             if lines > 1 {
                                 self.display_function
@@ -254,11 +243,11 @@ impl<'a, A: Alarm<'a>> LCD<'a, A> {
                             self.set_rows(0x00, 0x40, 0x00 + cols, 0x40 + cols);
                             
                             self.command_offset.replace((offset + 3) as u8);
-          
                             self.set_delay(10, LCDStatus::Begin0);
                    
                         }
 
+                        // set cursor
                         131 => {
                             let mut col_number: u8 = buffer[offset + 1];
                             let mut line_number: u8 = buffer[offset + 2];
@@ -277,16 +266,146 @@ impl<'a, A: Alarm<'a>> LCD<'a, A> {
                             self.command_offset.replace((offset + 3) as u8);
                             self.command_to_finish
                                 .replace(LCD_SETDDRAMADDR | (col_number + value));
-                            self.rs_pin.clear();
-                            self.write_4_bits(self.command_to_finish.get() >> 4, LCDStatus::Other);
-                        }
+                            self.lcd_command(self.command_to_finish.get(), LCDStatus::Idle);
+                        },
+
+                        // clear
+                        133 => {
+                            self.command_offset.replace((offset + 1) as u8);
+                            self.lcd_clear(LCDStatus::Idle);
+                        },
+
+                        // home
+                        132 => {
+                            self.command_offset.replace((offset + 1) as u8);
+                            self.lcd_home(LCDStatus::Idle);
+                        },
+
+                        // left right
+                        134 => {
+                            self.command_offset.replace((offset + 1) as u8);
+                            self.display_mode.set(self.display_mode.get() | LCD_ENTRYLEFT);
+                            self.command_to_finish.replace(
+                                LCD_ENTRYMODESET | 
+                                self.display_mode.get());
+                            self.lcd_command(self.command_to_finish.get(), LCDStatus::Idle);
+                        },
+
+                        // right left
+                        144 => {
+                            self.command_offset.replace((offset + 1) as u8);
+                            self.display_mode.set(self.display_mode.get() & !LCD_ENTRYLEFT);
+                            self.command_to_finish.replace(
+                                LCD_ENTRYMODESET | 
+                                self.display_mode.get());
+                            self.lcd_command(self.command_to_finish.get(), LCDStatus::Idle);
+                        },
+
+                        // autoscroll
+                        135 => {
+                            self.command_offset.replace((offset + 1) as u8);
+                            self.display_mode.set(self.display_mode.get() | LCD_ENTRYSHIFTINCREMENT);
+                            self.command_to_finish.replace(
+                                LCD_ENTRYMODESET | 
+                                self.display_mode.get());
+                            self.lcd_command(self.command_to_finish.get(), LCDStatus::Idle);
+                        },
+
+                        // no autoscroll
+                        145 => {
+                            self.command_offset.replace((offset + 1) as u8);
+                            self.display_mode.set(self.display_mode.get() & !LCD_ENTRYSHIFTINCREMENT);
+                            self.command_to_finish.replace(
+                                LCD_ENTRYMODESET | 
+                                self.display_mode.get());
+                            self.lcd_command(self.command_to_finish.get(), LCDStatus::Idle);
+                        },
+
+
+                        // display
+                        137 => {
+                            self.command_offset.replace((offset + 1) as u8);
+                            self.display_control.set(self.display_control.get() | LCD_DISPLAYON);
+                            self.command_to_finish.replace(
+                                LCD_DISPLAYCONTROL | 
+                                self.display_control.get());
+                            self.lcd_command(self.command_to_finish.get(), LCDStatus::Idle);
+                        },
+
+                        // no display
+                        147 => {
+                            self.command_offset.replace((offset + 1) as u8);
+                            self.display_control.set(self.display_control.get() & !LCD_DISPLAYON);
+                            self.command_to_finish.replace(
+                                LCD_DISPLAYCONTROL | 
+                                self.display_control.get());
+                            self.lcd_command(self.command_to_finish.get(), LCDStatus::Idle);
+                        },
+
+                        // blink
+                        138 => {
+                            self.command_offset.replace((offset + 1) as u8);
+                            self.display_control.set(self.display_control.get() | LCD_BLINKON);
+                            self.command_to_finish.replace(
+                                LCD_DISPLAYCONTROL | 
+                                self.display_control.get());
+                            self.lcd_command(self.command_to_finish.get(), LCDStatus::Idle);
+                        },
+
+                        // no blink
+                        148 => {
+                            self.command_offset.replace((offset + 1) as u8);
+                            self.display_control.set(self.display_control.get() & !LCD_BLINKON);
+                            self.command_to_finish.replace(
+                                LCD_DISPLAYCONTROL | 
+                                self.display_control.get());
+                            self.lcd_command(self.command_to_finish.get(), LCDStatus::Idle);
+                        },
+
+                        // cursor
+                        136 => {
+                            self.command_offset.replace((offset + 1) as u8);
+                            self.display_control.set(self.display_control.get() | LCD_CURSORON);
+                            self.command_to_finish.replace(
+                                LCD_DISPLAYCONTROL | 
+                                self.display_control.get());
+                            self.lcd_command(self.command_to_finish.get(), LCDStatus::Idle);
+                        },
+
+                        // no cursor
+                        146 => {
+                            self.command_offset.replace((offset + 1) as u8);
+                            self.display_control.set(self.display_control.get() & !LCD_CURSORON);
+                            self.command_to_finish.replace(
+                                LCD_DISPLAYCONTROL | 
+                                self.display_control.get());
+                            self.lcd_command(self.command_to_finish.get(), LCDStatus::Idle);
+                        },
+
+                        // scroll left 
+                        139 => {
+                            self.command_offset.replace((offset + 1) as u8);
+                            self.command_to_finish.replace(
+                                LCD_CURSORSHIFT | LCD_DISPLAYMOVE | LCD_MOVELEFT);
+                            self.lcd_command(self.command_to_finish.get(), LCDStatus::Idle);
+                        },
+
+                        // scroll right
+                        149 => {
+                            self.command_offset.replace((offset + 1) as u8);
+                            self.command_to_finish.replace(
+                                LCD_CURSORSHIFT | LCD_DISPLAYMOVE | LCD_MOVERIGHT);
+                            self.lcd_command(self.command_to_finish.get(), LCDStatus::Idle);
+                        },
+
 
                         _ => {
                             // command cu HIGH
+                            // debug! ("afisam {} ", current);
                             self.rs_pin.set();
                             self.command_to_finish.replace(current);
                             self.command_offset.replace((offset + 1) as u8);
-                            self.write_4_bits(self.command_to_finish.get() >> 4, LCDStatus::Other);
+                            self.write_4_bits(self.command_to_finish.get() >> 4, LCDStatus::Printing);
                         }
                     }
                 });
@@ -294,6 +413,23 @@ impl<'a, A: Alarm<'a>> LCD<'a, A> {
         }
         ReturnCode::SUCCESS
     }
+
+    fn bring_to_0(&self) {
+        let index = self.command_offset.get() as usize;
+        let len = self.command_len.get() as usize;
+
+        if index < len {
+            self.command_buffer.map(|buffer| {
+                for i in index..len {
+                    buffer[i-index] = buffer[i];
+                }
+                self.command_len.replace((len - index) as u8);
+                self.command_offset.replace(0);
+            });
+
+        }
+    }
+
     fn pulse(&self, after_pulse_status: LCDStatus) {
         self.lcd_after_pulse_status.set(after_pulse_status);
         self.en_pin.clear();
@@ -326,6 +462,29 @@ impl<'a, A: Alarm<'a>> LCD<'a, A> {
         }
 
         self.pulse(next_status);
+    }
+
+    fn lcd_display(&self, next_state: LCDStatus) {
+        // self.display_control.set(self.display_control.get() | LCD_DISPLAYON);
+        self.command_to_finish.set(LCD_DISPLAYCONTROL | self.display_control.get());
+        self.lcd_command(LCD_DISPLAYCONTROL | self.display_control.get(), next_state);
+    }
+
+    fn lcd_command(&self, value: u8, next_state: LCDStatus) {
+        self.lcd_after_command_status.set(next_state);
+        self.command_to_finish.set(value);
+        self.rs_pin.clear();    
+        self.write_4_bits(value >> 4, LCDStatus::Command);
+    }
+
+    fn lcd_clear(&self, next_state: LCDStatus) {
+        self.lcd_after_delay_status.set(next_state);
+        self.lcd_command(LCD_CLEARDISPLAY, LCDStatus::Clear);
+    }
+
+    fn lcd_home(&self, next_state: LCDStatus) {
+        self.lcd_after_delay_status.set(next_state);
+        // self.lcd_command(LCD_RETURNHOME, LCDStatus::Home);
     }
 
     fn set_delay(&self, timer: u32, next_status: LCDStatus) {
@@ -371,7 +530,6 @@ impl<'a, A: Alarm<'a>> Driver for LCD<'a, A> {
         match command_num {
             // begin
             0 => {
-                debug! ("avem un command de begin cu {} si {} ", data, data_3);
                 let mut index = self.command_len.get() as usize;
 
                 self.command_buffer.map(|buffer| {
@@ -386,11 +544,10 @@ impl<'a, A: Alarm<'a>> Driver for LCD<'a, A> {
                 self.handle_commands();
 
                 ReturnCode::SUCCESS
-            }
+            },
 
-            1 => ReturnCode::SUCCESS,
             // set cursor
-            5 => {
+            1 => {
                 let mut index = self.command_len.get() as usize;
 
                 self.command_buffer.map(|buffer| {
@@ -404,100 +561,191 @@ impl<'a, A: Alarm<'a>> Driver for LCD<'a, A> {
                 self.command_len.replace(index as u8);
                 self.handle_commands();
                 ReturnCode::SUCCESS
-            }
-
-            // print number
-            6 => ReturnCode::SUCCESS,
-
-            // print string
-            4 => ReturnCode::SUCCESS,
+            },
 
             // Home
-            2 => ReturnCode::SUCCESS,
+            2 => {
+                let mut index = self.command_len.get() as usize;
+
+                self.command_buffer.map(|buffer| {
+                    buffer[index] = 132;
+                    index += 1;
+                });
+                self.command_len.replace(index as u8);
+                self.handle_commands();
+                ReturnCode::SUCCESS
+            },
 
             // clear
-            3 => ReturnCode::SUCCESS,
+            3 => {
+                let mut index = self.command_len.get() as usize;
+
+                self.command_buffer.map(|buffer| {
+                    buffer[index] = 133;
+                    index += 1;
+                });
+                self.command_len.replace(index as u8);
+                self.handle_commands();
+                ReturnCode::SUCCESS
+            },
+
+            // Left/Right to Right/Left
+            4 => {
+                let mut index = self.command_len.get() as usize;
+                match data { 
+                    // left right - 134
+                    0 => {
+                        self.command_buffer.map(|buffer| {
+                            buffer[index] = 134;
+                            index += 1;
+                        });
+                    }
+
+                    // right left - 144
+                    1 => {
+                        self.command_buffer.map(|buffer| {
+                            buffer[index] = 144;
+                            index += 1;
+                        });
+                    }
+
+                    _ => {}
+                }
+                self.command_len.replace(index as u8);
+                self.handle_commands();
+                ReturnCode::SUCCESS
+            },
+
+            // autoscroll
+            5 => {
+                let mut index = self.command_len.get() as usize;
+                match data { 
+                    // autoscroll - 135
+                    0 => {
+                        self.command_buffer.map(|buffer| {
+                            buffer[index] = 135;
+                            index += 1;
+                        });
+                    }
+
+                    // no autoscroll - 145
+                    1 => {
+                        self.command_buffer.map(|buffer| {
+                            buffer[index] = 145;
+                            index += 1;
+                        });
+                    }
+                    _ => {}
+                }
+                self.command_len.replace(index as u8);
+                self.handle_commands();
+                ReturnCode::SUCCESS
+            },
+
+            // Cursor/No
+            6 => {
+                let mut index = self.command_len.get() as usize;
+                match data { 
+                    // cursor - 136
+                    0 => {
+                        self.command_buffer.map(|buffer| {
+                            buffer[index] = 136;
+                            index += 1;
+                        });
+                    }
+
+                    // no cursor - 146
+                    1 => {
+                        self.command_buffer.map(|buffer| {
+                            buffer[index] = 146;
+                            index += 1;
+                        });
+                    }
+                    _ => {}
+                }
+                self.command_len.replace(index as u8);
+                self.handle_commands();
+                ReturnCode::SUCCESS
+            },
 
             // Display/No
             7 => {
-                match data {
-                    // Display
-                    0 => {}
+                let mut index = self.command_len.get() as usize;
+                match data { 
+                    // Display - 137
+                    0 => {
+                        self.command_buffer.map(|buffer| {
+                            buffer[index] = 137;
+                            index += 1;
+                        });
+                    }
 
-                    // no display
-                    1 => {}
-
+                    // no display - 147
+                    1 => {
+                        self.command_buffer.map(|buffer| {
+                            buffer[index] = 147;
+                            index += 1;
+                        });
+                    }
                     _ => {}
                 }
+                self.command_len.replace(index as u8);
+                self.handle_commands();
                 ReturnCode::SUCCESS
-            }
+            },
 
             // Blink/No
             8 => {
-                match data {
-                    // Blink
-                    0 => {}
+                let mut index = self.command_len.get() as usize;
+                match data { 
+                    // Blink - 138
+                    0 => {
+                        self.command_buffer.map(|buffer| {
+                            buffer[index] = 138;
+                            index += 1;
+                        });
+                    }
 
-                    // no blink
-                    1 => {}
-
+                    // no blink - 148
+                    1 => {
+                        self.command_buffer.map(|buffer| {
+                            buffer[index] = 148;
+                            index += 1;
+                        });
+                    }
                     _ => {}
                 }
+                self.command_len.replace(index as u8);
+                self.handle_commands();
                 ReturnCode::SUCCESS
-            }
-            // Cursor/No
-            9 => {
-                // Cursor
-                match data {
-                    0 => {}
-
-                    // no cursor
-                    1 => {}
-                    _ => {}
-                }
-                ReturnCode::SUCCESS
-            }
+            },
 
             // Scroll Left/Right
-            10 => {
-                match data {
-                    // scroll left
-                    0 => {}
+            9 => {
+                let mut index = self.command_len.get() as usize;
+                match data { 
+                    // scroll left - 139
+                    0 => {
+                        self.command_buffer.map(|buffer| {
+                            buffer[index] = 139;
+                            index += 1;
+                        });
+                    }
 
-                    // scroll right
-                    1 => {}
-
+                    // scroll right - 149
+                    1 => {
+                        self.command_buffer.map(|buffer| {
+                            buffer[index] = 149;
+                            index += 1;
+                        });
+                    }
                     _ => {}
                 }
+                self.command_len.replace(index as u8);
+                self.handle_commands();
                 ReturnCode::SUCCESS
             }
 
-            // Left/Right to Right/Left
-            11 => {
-                // Left to Right
-                match data {
-                    0 => {}
-
-                    // Right to Left
-                    1 => {}
-                    _ => {}
-                }
-                ReturnCode::SUCCESS
-            }
-
-            // Autoscroll/No
-            12 => {
-                match data {
-                    // Autoscroll
-                    0 => {}
-
-                    // no autoscroll
-                    1 => {}
-
-                    _ => {}
-                }
-                ReturnCode::SUCCESS
-            }
             // default
             _ => ReturnCode::ENOSUPPORT,
         }
@@ -523,9 +771,9 @@ impl<'a, A: Alarm<'a>> time::AlarmClient for LCD<'a, A> {
                     self.write_4_bits(0x03, LCDStatus::Begin0_1);
                 } else {
                     self.rs_pin.clear();
-                    self.write_4_bits(
+                    self.lcd_command(
                         (LCD_FUNCTIONSET | self.display_function.get()) >> 4,
-                        LCDStatus::Begin4,
+                        LCDStatus::Begin4
                     );
                 }
             }
@@ -557,170 +805,83 @@ impl<'a, A: Alarm<'a>> time::AlarmClient for LCD<'a, A> {
 
             LCDStatus::Begin3 => {
                 // debug! ("in begin3");
-                self.write_4_bits(0x02, LCDStatus::Begin10);
+                self.write_4_bits(0x02, LCDStatus::Begin9);
             },
 
             LCDStatus::Begin4 => {
                 // debug! ("in begin4");
-                self.rs_pin.clear();
-                self.write_4_bits((LCD_FUNCTIONSET | self.display_function.get()) >> 4, LCDStatus::Begin4);
+                self.command_to_finish.set(LCD_FUNCTIONSET | self.display_function.get());
+                self.lcd_command(LCD_FUNCTIONSET | self.display_function.get(), LCDStatus::Begin5);
             },
 
             LCDStatus::Begin5 => {
                 // debug!("in begin5");
-                self.write_4_bits(LCD_FUNCTIONSET | self.display_function.get(), LCDStatus::Begin5_6);
-            }
-
-            LCDStatus::Begin5_6 => {
-                // debug!("in begin5_6");
-                // self.lcd_prev_status.replace(LCDStatus::Begin5_6);
-                // self.lcd_status.replace(LCDStatus::Begin6);
-
-                self.set_delay(200, LCDStatus::Begin6);
+                self.set_delay(200, LCDStatus::Begin6)
             }
 
             LCDStatus::Begin6 => {
                 // debug!("in begin6");
-                // self.lcd_prev_status.replace(LCDStatus::Begin6);
-
-                self.rs_pin.clear();
-                self.write_4_bits((LCD_FUNCTIONSET | self.display_function.get()) >> 4, LCDStatus::Begin7);
+                self.lcd_command(LCD_FUNCTIONSET | self.display_function.get(), LCDStatus::Begin7);
             }
 
             LCDStatus::Begin7 => {
                 // debug!("in begin7");
-                // self.lcd_prev_status.replace(LCDStatus::Begin7);
-                self.write_4_bits(LCD_FUNCTIONSET | self.display_function.get(), LCDStatus::Begin7_8);
-            }
-
-            LCDStatus::Begin7_8 => {
-                // debug!("in begin7_8");
-                // self.lcd_prev_status.replace(LCDStatus::Begin7_8);
-                // self.lcd_status.replace(LCDStatus::Begin8);
-
                 self.set_delay(500, LCDStatus::Begin8);
-                // self.alarm.set_alarm(
-                //     self.alarm.now().wrapping_add(<A::Frequency>::frequency()/500);
-                // )
             }
 
             LCDStatus::Begin8 => {
                 // debug!("in begin8");
-                // self.lcd_prev_status.replace(LCDStatus::Begin8);
-
-                self.rs_pin.clear();
-                self.write_4_bits((LCD_FUNCTIONSET | self.display_function.get()) >> 4, LCDStatus::Begin9);
+                self.lcd_command(LCD_FUNCTIONSET | self.display_function.get(), LCDStatus::Begin9);
             }
 
             LCDStatus::Begin9 => {
                 // debug!("in begin9");
-                // self.lcd_prev_status.replace(LCDStatus::Begin9);
-                self.write_4_bits(LCD_FUNCTIONSET | self.display_function.get(), LCDStatus::Begin10);
+                self.command_to_finish.set(LCD_FUNCTIONSET | self.display_function.get());
+                self.lcd_command(LCD_FUNCTIONSET | self.display_function.get(), LCDStatus::Begin10);
             }
 
             LCDStatus::Begin10 => {
                 // debug!("in begin10");
-                // self.lcd_prev_status.replace(LCDStatus::Begin10);
-
-                self.rs_pin.clear();
-                self.write_4_bits((LCD_FUNCTIONSET | self.display_function.get()) >> 4, LCDStatus::Begin11);
+                self.display_control.set(LCD_DISPLAYON | LCD_CURSORON | LCD_BLINKOFF);
+                self.lcd_display(LCDStatus::Begin11);
             }
 
             LCDStatus::Begin11 => {
                 // debug!("in begin11");
-                // self.lcd_prev_status.replace(LCDStatus::Begin11);
-                self.write_4_bits(LCD_FUNCTIONSET | self.display_function.get(), LCDStatus::Begin12);
+                self.lcd_clear(LCDStatus::Begin12);
             }
 
             LCDStatus::Begin12 => {
                 // debug!("in begin12");
-                // self.lcd_prev_status.replace(LCDStatus::Begin12);
-                self.rs_pin.clear();
-
-                self.write_4_bits(
-                    (LCD_DISPLAYON | LCD_CURSORON | LCD_BLINKOFF | LCD_DISPLAYCONTROL) >> 4,
-                    LCDStatus::Begin13
-                );
+                self.display_mode.set(LCD_ENTRYLEFT | LCD_ENTRYSHIFTDECREMENT);
+                self.command_to_finish.set(LCD_ENTRYMODESET | self.display_mode.get());
+                self.lcd_command(self.command_to_finish.get(), LCDStatus::Idle);
             }
 
-            LCDStatus::Begin13 => {
-                // debug!("in begin13");
-                // self.lcd_prev_status.replace(LCDStatus::Begin13);
-                self.write_4_bits(
-                    LCD_DISPLAYON | LCD_CURSORON | LCD_BLINKON | LCD_DISPLAYCONTROL,
-                    LCDStatus::Begin14
-                );
-            }
+            LCDStatus::Clear => {
+                self.set_delay(500, self.lcd_after_delay_status.get());
+            }, 
 
-            LCDStatus::Begin14 => {
-                // debug!("in begin14");
-                // self.lcd_prev_status.replace(LCDStatus::Begin14);
-                self.rs_pin.clear();
+            LCDStatus::Home => {
+                self.set_delay(500, self.lcd_after_delay_status.get());
+            },
 
-                self.write_4_bits(LCD_CLEARDISPLAY >> 4, LCDStatus::Begin15);
-            }
-
-            LCDStatus::Begin15 => {
-                // debug!("in begin15");
-                // self.lcd_prev_status.replace(LCDStatus::Begin15);
-                self.write_4_bits(LCD_CLEARDISPLAY, LCDStatus::Begin16);
-            }
-
-            LCDStatus::Begin16 => {
-                // debug!("in begin16");
-                // self.lcd_prev_status.replace(LCDStatus::Begin16);
-                // self.lcd_status.replace(LCDStatus::Begin18);
-                self.set_delay(500, LCDStatus::Begin17);
-                // self.alarm.set_alarm(
-                //     self.alarm.now().wrapping_add(<A::Frequency>::frequency()/500);
-                // )
-            }
-
-            LCDStatus::Begin17 => {
-                // debug!("in begin17");
-                // self.lcd_prev_status.replace(LCDStatus::Begin17);
-
-                self.rs_pin.clear();
-                self.write_4_bits(
-                    (LCD_ENTRYLEFT | LCD_ENTRYSHIFTDECREMENT | LCD_ENTRYMODESET) >> 4,
-                    LCDStatus::Begin18
-                );
-            }
-
-            LCDStatus::Begin18 => {
-                // debug!("in begin18");
-                // self.lcd_prev_status.replace(LCDStatus::Begin18);
-
-                self.write_4_bits(LCD_ENTRYLEFT | LCD_ENTRYSHIFTDECREMENT | LCD_ENTRYMODESET, LCDStatus::Idle);
-            }
-
-            LCDStatus::Other => {
+            LCDStatus::Printing => {
                 // debug!("in other1");
-                // self.lcd_prev_status.replace(LCDStatus::Other1);
-                // debug! ("{}", self.command_to_finish.get());
                 self.write_4_bits(self.command_to_finish.get(), LCDStatus::Idle);
-            }
-
-            LCDStatus::Printing1 => {
-                // debug!("in printing1");
-                // let offset = self.command_offset.get() as usize;
-                // let mut current = 0;
-                // self.command_buffer.map(|buffer| {
-                //     current = buffer[offset];
-                // });
-                // // debug! ("{}", current);
-                // // debug! ("avem de printat a doua oara {}", current & 15);
-                // self.lcd_prev_status.replace(LCDStatus::Printing1);
-                // self.write_4_bits(current & 15);
-            }
+            },
 
             LCDStatus::PulseLow => {
                 // debug!("in pulseLow");
                 self.en_pin.set();
-
                 self.set_delay(500, LCDStatus::PulseHigh);
                 
-            }
+            },
+
+            LCDStatus::Command => {
+                // debug!("ajungem in command, deci e ok");
+                self.write_4_bits(self.command_to_finish.get(), self.lcd_after_command_status.get());
+            },
 
             LCDStatus::PulseHigh => {
                 // debug!("in pulseHigh");
@@ -731,7 +892,5 @@ impl<'a, A: Alarm<'a>> time::AlarmClient for LCD<'a, A> {
 
             _ => {}
         }
-        // self.lcd_status.replace(LCDStatus::Idle);
-        // self.handle_commands();
     }
 }
