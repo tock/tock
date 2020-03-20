@@ -295,16 +295,6 @@ pub unsafe fn reset_handler() {
     let alarm = components::alarm::AlarmDriverComponent::new(board_kernel, mux_alarm)
         .finalize(components::alarm_component_helper!(stm32f4xx::tim2::Tim2));
 
-    // TEST ALARM
-    let test_alarm = static_init!(
-        VirtualMuxAlarm<'static, stm32f4xx::tim2::Tim2>,
-        VirtualMuxAlarm::new(mux_alarm));
-    let test = static_init!(
-        capsules::test_al::Test<'static, 
-                    VirtualMuxAlarm<'static, stm32f4xx::tim2::Tim2>>,
-        capsules::test_al::Test::new(test_alarm));
-    test_alarm.set_client(test);
-
     // LCD ALARM
     let lcd_alarm = static_init!(
         VirtualMuxAlarm<'static, stm32f4xx::tim2::Tim2>,
