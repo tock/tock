@@ -572,6 +572,34 @@ impl Rcc {
     fn disable_usart3_clock(&self) {
         self.registers.apb1enr.modify(APB1ENR::USART3EN::CLEAR)
     }
+
+    // ADC12 clock
+    
+    fn is_enabled_adc12_clock(&self) -> bool {
+        self.registers.ahbenr.is_set(AHBENR::ADC12EN)
+    }
+
+    fn enable_adc12_clock(&self) {
+        self.registers.ahbenr.modify(AHBENR::ADC12EN::SET)
+    }
+
+    fn disable_adc12_clock(&self) {
+        self.registers.ahbenr.modify(AHBENR::ADC12EN::CLEAR)
+    }
+
+    // ADC34 clock
+
+    // fn is_enabled_adc34_clock(&self) -> bool {
+    //     self.registers.ahbenr.is_set(AHBENR::ADC34EN)
+    // }
+
+    // fn enable_adc34_clock(&self) {
+    //     self.registers.ahbenr.modify(AHBENR::ADC34EN::SET)
+    // }
+
+    // fn disable_adc34_clock(&self) {
+    //     self.registers.ahbenr.modify(AHBENR::ADC34EN::CLEAR)
+    // }
 }
 
 /// Clock sources for CPU
@@ -598,6 +626,8 @@ pub enum PeripheralClock {
 /// Peripherals clocked by HCLK1
 pub enum HCLK {
     DMA1,
+    ADC12,
+    // ADC34,
     GPIOF,
     GPIOE,
     GPIOD,
@@ -625,6 +655,8 @@ impl ClockInterface for PeripheralClock {
         match self {
             &PeripheralClock::AHB(ref v) => match v {
                 HCLK::DMA1 => unsafe { RCC.is_enabled_dma1_clock() },
+                HCLK::ADC12 => unsafe { RCC.is_enabled_adc12_clock() },
+                // HCLK::ADC34 => unsafe { RCC.is_enabled_adc34_clock() },
                 HCLK::GPIOF => unsafe { RCC.is_enabled_gpiof_clock() },
                 HCLK::GPIOE => unsafe { RCC.is_enabled_gpioe_clock() },
                 HCLK::GPIOD => unsafe { RCC.is_enabled_gpiod_clock() },
@@ -651,6 +683,12 @@ impl ClockInterface for PeripheralClock {
                 HCLK::DMA1 => unsafe {
                     RCC.enable_dma1_clock();
                 },
+                HCLK::ADC12 => unsafe {
+                    RCC.enable_adc12_clock();
+                },
+                // HCLK::ADC34 => unsafe {
+                //     RCC.enable_adc34_clock();
+                // },
                 HCLK::GPIOF => unsafe {
                     RCC.enable_gpiof_clock();
                 },
@@ -701,6 +739,12 @@ impl ClockInterface for PeripheralClock {
                 HCLK::DMA1 => unsafe {
                     RCC.disable_dma1_clock();
                 },
+                HCLK::ADC12 => unsafe {
+                    RCC.enable_adc12_clock();
+                },
+                // HCLK::ADC34 => unsafe {
+                //     RCC.enable_adc34_clock();
+                // },
                 HCLK::GPIOF => unsafe {
                     RCC.disable_gpiof_clock();
                 },
