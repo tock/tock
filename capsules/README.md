@@ -133,6 +133,7 @@ Other capsules that implement reusable logic.
 - **[Nonvolatile to Pages](src/nonvolatile_to_pages.rs)**: Map arbitrary reads
   and writes to flash pages.
 - **[AES Encryption](src/aes_ccm.rs)**: AES-CCM encryption.
+- **[HMAC](src/hmac.rs)**: Hash-based Message Authentication Code (HMAC) digest engine.
 - **[Log Storage](src/log_storage.rs)**: Log storage abstraction on top of flash devices.
 
 
