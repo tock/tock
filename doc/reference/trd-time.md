@@ -142,15 +142,22 @@ particular time. For hardware that has a limited number of
 compare registers, allocating one of them when the compare itself
 isn't needed would be wasteful.
 
+A `Counter` implementation MUST NOT provide a `Frequency` of a higher
+resolution than an underlying hardware counter. For example, if the
+underlying hardware counter has a frequency of 32kHz, then a `Counter`
+cannot say it has a frequency of 1MHz by multiplying the underlying
+counter by 32. A `Counter` implementation MAY provide a `Frequency` of
+a lower resolution (e.g., by stripping bits).
+
 
 
 4 `Alarm` and `AlarmClient` traits
 ===============================
 
 Instances of the `Alarm` trait track an incrementing clock and can
-trigger callbacks when the clock reaches a specific value and when it
-overflows. The trait is derived from `Time` trait and, as a result,
-has associated `Time::Frequency` and `Ticks` types.
+trigger callbacks when the clock reaches a specific value as well as
+when it overflows. The trait is derived from `Time` trait and
+therefore has associated `Time::Frequency` and `Ticks` types.
 
 The `AlarmClient` trait handles callbacks from an instance of `Alarm`.
 The trait derives from `OverflowClient` and adds an additional callback
@@ -159,8 +166,11 @@ denoting that the time specified to the `Alarm` has been reached.
 `Alarm` and `Timer` (presented below) differ in their level of
 abstraction. An `Alarm` presents the abstraction of receiving a
 callback when a point in time is reached or on an overflow. In
-contrast, `Timer` allows one to set up callbacks that occur
-regularly at a fixed interval.
+contrast, `Timer` allows one to request callbacks at some interval in
+the future, either once or periodically. `Alarm` requests a callback
+at an absolute moment while `Timer` requests a callback at a point
+relative to now.
+
 
 
 ```rust
@@ -186,62 +196,107 @@ case occurs when the underlying counter increments past the compare
 value between when the call was made and the compare register is
 actually set. Because the counter has moved past the intended compare
 value, it will have to wrap around before the alarm will
-fire. However, one cannot assume that it was supposed to fire because
-it could have been that the software did request an alarm very far in
-the future, close to the width of the counter.
+fire. However, one cannot assume that the counter has moved past the
+intended compare and issue a callback: the software may have requested
+an alarm very far in the future, close to the width of the counter.
 
+Having a `now` and `dt` parameters disambiguates these two
+cases. Suppose the current counter value is `current`. If, using
+unsigned arithmetic, `(current - now) >= dt` then the callback should
+be issued immediately (e.g., with a deferred procedure call).
 
-
-4 `Timer` trait
+5 `Timer` and `TimerClient` traits
 ===============================
 
-Instances of the `Timer` trait counts underlying clock tics and trigger an
-event when a certain number of tics has elapsed. The trait is a subtype of the
-`Time` trait and, as a result, has access to the `Time::Frequency` associated
-type. Whenever the trait referes to "tics", they are interpreted in native
-clock tics.
+The `Timer` trait presents the abstraction of a software timer. The
+timer can either be one-shot or periodic with a fixed
+interval. `Timer` derives from `Time`, therefore has associated
+`Time::Frequency` and `Ticks` types.
+
+The `TimerClient` trait handles callbacks from an instance of `Timer`.
+The trait has a single callback, denoting that the timer has fired.
 
 ```rust
-pub trait Timer: Time {
-    fn oneshot(&self, interval: u32);
-    fn repeat(&self, interval: u32);
+pub trait TimerClient {
+  fn fired(&self);
+}
+
+pub trait Timer<'a>: Time {
+  fn set_client(&'a self, &'a dyn TimerClient);
+  fn oneshot(&self, interval: Self::Ticks) -> Self::Ticks;
+  fn repeating(&self, interval: Self::Ticks) -> Self::Ticks;
+
+  fn interval(&self) -> Option<Self::Ticks>;
+  fn is_oneshot(&self) -> bool;
+  fn is_repeating(&self) -> bool;
+
+  fn time_remaining(&self) -> Option<Self::Ticks>;
+  fn is_enabled(&self) -> bool;
+
+  fn cancel(&self) -> ReturnCode;
 }
 ```
 
-The `oneshot` method causes the alarm to call the `Client`'s `fired` method
-(below) exactly once when the the given number of clock tics have elapsed.
+The `oneshot` method causes the timer to issue the `TimerClient`'s
+`fired` method exactly once when `interval` clock ticks have elapsed.
 Calling `oneshot` MUST invalidate and replace any previous calls to
-`oneshot` or `repeat`.
+`oneshot` or `repeating`. The method returns the actual number of
+ticks in the future that the callback will execute. This value MAY be
+greater than `interval` to prevent certain timer race conditions
+(e.g., that require a compare be set at least N ticks in the future)
+but MUST NOT be less than `interval`.
 
-The `repeat` method causes the alarm to call the `Client`'s `fired` method
-(below) each time the given number of clock tics have elapsed, continuously. An
-implementation MAY incur negligable delay between firing an event and reseting
-the timer. Many hardware timers can be configured to automatically reset the
-timer, though, and implementations SHOULD use this facility when available.
-Calling `oneshot` MUST invalidate and replace any previous calls to `oneshot`
-or `repeat`.
+The `repeating` method causes the timer to call the `Client`'s `fired`
+method periodically, every `interval` clock ticks. Calling `oneshot`
+MUST invalidate and replace any previous calls to `oneshot` or
+`repeat`. The method returns the actual number of ticks in the future
+that the first callback will execute. This value MAY be greater than
+`interval` to prevent certain timer race conditions (e.g., that
+require a compare be set at least N ticks in the future) but MUST NOT
+be less than `interval`.
 
-5 `Client` trait
-===============================
 
-The `Client` trait is how a caller provides a callback to a `Timer` or `Alarm`
-implementation. Using a function defined outside these traits, it registers a
-reference implementing the `Client` trait.
 
-```rust
-pub trait Client {
-    fn fired(&self);
-}
-```
-
-Whenever an alarm or timer event occures, the implementation MUST call the
-`Client`'s `fired` method.
-
-6 Example Implementation
+6 `Frequency` Implementations
 =================================
 
-7 Authors' Address
+The time HIL provides four standard implementations of `Frequency`:
+
+```rust
+pub struct Freq16MHz;
+pub struct Freq1MHz;
+pub struct Freq32KHz;
+pub struct Freq16KHz;
+pub struct Freq1KHz;
+```
+
+7 Capsules
+===============================
+
+The Tock kernel provides two standard
+capsules. `capsules::alarm::AlarmDriver` provides a system call driver
+for an `Alarm`. `capsules::virtual_alarm` provides a set of
+abstractions for virtualizing a single `Alarm` into many.
+
+8 Required Modules
+===============================
+
+A chip MUST provide an `Alarm` with a `Frequency` of `Freq32KHz`.
+
+A chip SHOULD provide an Alarm with a `Frequency` of `Freq1MHz`.
+
+
+9 Acknowledgements
+===============================
+
+The traits and abstractions in this document draw from contributions
+and ideas from Patrick Mooney and Guillaume Endignoux as well as
+others.
+
+
+10 Authors' Address
 =================================
 
 email - amit@amitlevy.com
 
+email - pal@cs.stanford.edu
