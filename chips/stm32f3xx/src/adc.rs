@@ -353,7 +353,7 @@ impl Adc {
 	const fn new() -> Adc {
 		Adc {
 			registers: ADC_BASE,
-			clock: AdcClock(rcc::PeripheralClock::AHB(rcc::HCLK::ADC12)),
+			clock: AdcClock(rcc::PeripheralClock::AHB3(rcc::HCLK3::ADC12)),
 		}
 	}
 

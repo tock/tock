@@ -619,6 +619,7 @@ pub enum CPUClock {
 /// APB2(PCLK2),
 pub enum PeripheralClock {
     AHB(HCLK),
+    AHB3(HCLK3),
     APB2(PCLK2),
     APB1(PCLK1),
 }
@@ -626,14 +627,19 @@ pub enum PeripheralClock {
 /// Peripherals clocked by HCLK1
 pub enum HCLK {
     DMA1,
-    ADC12,
-    // ADC34,
     GPIOF,
     GPIOE,
     GPIOD,
     GPIOC,
     GPIOB,
     GPIOA,
+}
+
+/// Peripherals clocked by HCLK3
+pub enum HCLK3 {
+    DMA1,
+    ADC12,
+    // ADC34,
 }
 
 /// Peripherals clocked by PCLK1
@@ -655,14 +661,17 @@ impl ClockInterface for PeripheralClock {
         match self {
             &PeripheralClock::AHB(ref v) => match v {
                 HCLK::DMA1 => unsafe { RCC.is_enabled_dma1_clock() },
-                HCLK::ADC12 => unsafe { RCC.is_enabled_adc12_clock() },
-                // HCLK::ADC34 => unsafe { RCC.is_enabled_adc34_clock() },
                 HCLK::GPIOF => unsafe { RCC.is_enabled_gpiof_clock() },
                 HCLK::GPIOE => unsafe { RCC.is_enabled_gpioe_clock() },
                 HCLK::GPIOD => unsafe { RCC.is_enabled_gpiod_clock() },
                 HCLK::GPIOC => unsafe { RCC.is_enabled_gpioc_clock() },
                 HCLK::GPIOB => unsafe { RCC.is_enabled_gpiob_clock() },
                 HCLK::GPIOA => unsafe { RCC.is_enabled_gpioa_clock() },
+            },
+            &PeripheralClock::AHB3(ref v) => match v {
+                HCLK3::DMA1 => unsafe { RCC.is_enabled_dma1_clock() },
+                HCLK3::ADC12 => unsafe { RCC.is_enabled_adc12_clock() },
+                // HCLK::ADC34 => unsafe { RCC.is_enabled_adc34_clock() },
             },
             &PeripheralClock::APB1(ref v) => match v {
                 PCLK1::TIM2 => unsafe { RCC.is_enabled_tim2_clock() },
@@ -683,12 +692,6 @@ impl ClockInterface for PeripheralClock {
                 HCLK::DMA1 => unsafe {
                     RCC.enable_dma1_clock();
                 },
-                HCLK::ADC12 => unsafe {
-                    RCC.enable_adc12_clock();
-                },
-                // HCLK::ADC34 => unsafe {
-                //     RCC.enable_adc34_clock();
-                // },
                 HCLK::GPIOF => unsafe {
                     RCC.enable_gpiof_clock();
                 },
@@ -707,6 +710,17 @@ impl ClockInterface for PeripheralClock {
                 HCLK::GPIOA => unsafe {
                     RCC.enable_gpioa_clock();
                 },
+            },
+            &PeripheralClock::AHB3(ref v) => match v {
+                HCLK3::DMA1 => unsafe {
+                    RCC.enable_dma1_clock();
+                },
+                HCLK3::ADC12 => unsafe {
+                    RCC.enable_adc12_clock();
+                },
+                // HCLK3::ADC34 => unsafe {
+                //     RCC.enable_adc34_clock();
+                // },
             },
             &PeripheralClock::APB1(ref v) => match v {
                 PCLK1::TIM2 => unsafe {
@@ -739,12 +753,6 @@ impl ClockInterface for PeripheralClock {
                 HCLK::DMA1 => unsafe {
                     RCC.disable_dma1_clock();
                 },
-                HCLK::ADC12 => unsafe {
-                    RCC.enable_adc12_clock();
-                },
-                // HCLK::ADC34 => unsafe {
-                //     RCC.enable_adc34_clock();
-                // },
                 HCLK::GPIOF => unsafe {
                     RCC.disable_gpiof_clock();
                 },
@@ -763,6 +771,17 @@ impl ClockInterface for PeripheralClock {
                 HCLK::GPIOA => unsafe {
                     RCC.disable_gpioa_clock();
                 },
+            },
+            &PeripheralClock::AHB3(ref v) => match v {
+                HCLK3::DMA1 => unsafe {
+                    RCC.disable_dma1_clock();
+                },
+                HCLK3::ADC12 => unsafe {
+                    RCC.enable_adc12_clock();
+                },
+                // HCLK3::ADC34 => unsafe {
+                //     RCC.enable_adc34_clock();
+                // },
             },
             &PeripheralClock::APB1(ref v) => match v {
                 PCLK1::TIM2 => unsafe {
