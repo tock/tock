@@ -103,7 +103,7 @@ static LCD_1LINE: u8 = 0x00;
 // static LCD_5X10DOTS: u8 = 0x04;
 static LCD_5X8DOTS: u8 = 0x00;
 
-pub static mut BUFFER: [u8; 700] = [0; 700];
+pub static mut BUFFER: [u8; 200] = [0; 200];
 pub static mut ROW_OFFSETS: [u8; 4] = [0; 4];
 
 #[derive(Default)]
@@ -137,11 +137,8 @@ enum LCDStatus {
     Begin16,
     Begin17,
     Begin18,
-    Other0,
+    Other,
     Other1,
-    Printing0,
-    Printing1,
-
     PulseLow,
     PulseHigh,
 }
@@ -213,7 +210,7 @@ impl<'a, A: Alarm<'a>> LCD<'a, A> {
             apps: grant,
             lcd_status: Cell::new(LCDStatus::Idle),
             lcd_prev_status: Cell::new(LCDStatus::Idle),
-            lcd_after_pulse_status: Cell::New(LCDStatus::Idle),
+            lcd_after_pulse_status: Cell::new(LCDStatus::Idle),
             command_to_finish: Cell::new(0),
         }
     }
@@ -234,24 +231,19 @@ impl<'a, A: Alarm<'a>> LCD<'a, A> {
     }
 
     fn handle_commands(&self) -> ReturnCode {
-        // debug! ("am fost apelati");
         if self.lcd_status.get() == LCDStatus::Idle {
-            let len = self.command_len.get() as usize;
             let mut offset = self.command_offset.get() as usize;
-            // debug! ("len {} offset {} ", len, offset);
-            self.command_buffer.map(|buffer| {
-                while offset < len {
-                    // debug! ("{} offset {} len", offset, len);
-                    // for i in 0..len {
-                    //     debug! ("pe poz {} aici avem {}", i as usize, buffer[i as usize]);
-                    // }
+            debug! ("       Citim de pe pozitia {}", offset);
+            if offset < self.command_len.get() as usize {
+                self.command_buffer.map(|buffer| {
+                    
                     let current = buffer[offset];
-
                     match current {
                         // begin
                         130 => {
                             let cols = buffer[offset + 1];
                             let lines = buffer[offset + 2];
+                            debug!("avem un begin cu {} si {} ", cols, lines);
 
                             if lines > 1 {
                                 self.display_function
@@ -260,16 +252,11 @@ impl<'a, A: Alarm<'a>> LCD<'a, A> {
 
                             self.num_lines.replace(lines);
                             self.set_rows(0x00, 0x40, 0x00 + cols, 0x40 + cols);
-                            self.lcd_prev_status.replace(LCDStatus::Idle);
-                            self.lcd_status.replace(LCDStatus::Begin0);
-
-                            // /10
-                            self.alarm.set_alarm(
-                                self.alarm
-                                    .now()
-                                    .wrapping_add(<A::Frequency>::frequency() * 2),
-                            );
-                            break;
+                            
+                            self.command_offset.replace((offset + 3) as u8);
+          
+                            self.set_delay(10, LCDStatus::Begin0);
+                   
                         }
 
                         131 => {
@@ -282,58 +269,38 @@ impl<'a, A: Alarm<'a>> LCD<'a, A> {
                             if line_number >= self.num_lines.get() {
                                 line_number = self.num_lines.get() - 1;
                             }
-
-                            self.lcd_prev_status.replace(LCDStatus::Other0);
-                            self.rs_pin.clear();
-
+                            
                             let mut value: u8 = 0;
-                            // debug! ("{}, {}, {}", col_number, line_number, self.num_lines.get());
                             self.row_offsets.map(|buffer| {
                                 value = buffer[line_number as usize];
-                            });
-                            self.row_offsets.map(|buffer| {
-                                // debug! ("{}, {}, {}, {}", buffer[0], buffer[1], buffer[2], buffer[3]);
                             });
                             self.command_offset.replace((offset + 3) as u8);
                             self.command_to_finish
                                 .replace(LCD_SETDDRAMADDR | (col_number + value));
-                            // debug! ("{}, {}",value, self.command_to_finish.get());
-                            self.write_4_bits(self.command_to_finish.get() >> 4);
-                            break;
+                            self.rs_pin.clear();
+                            self.write_4_bits(self.command_to_finish.get() >> 4, LCDStatus::Other);
                         }
 
                         _ => {
                             // command cu HIGH
-                            // debug!("avem de scris {} ", current >> 4);
                             self.rs_pin.set();
-                            self.lcd_prev_status.replace(LCDStatus::Printing0);
                             self.command_to_finish.replace(current);
-                            // offset = offset + 1;
-                            // self.command_offset.replace(offset as u8);
-                            self.write_4_bits(self.command_to_finish.get() >> 4);
-                            break;
+                            self.command_offset.replace((offset + 1) as u8);
+                            self.write_4_bits(self.command_to_finish.get() >> 4, LCDStatus::Other);
                         }
                     }
-                }
-                offset += 1;
-            });
+                });
+            }
         }
         ReturnCode::SUCCESS
     }
     fn pulse(&self, after_pulse_status: LCDStatus) {
-        // if self.lcd_prev_status.get() == LCDStatus::Begin12 {
-        //     debug! ("in pulse, urmeaza pulse0");
-        // }
         self.lcd_after_pulse_status.set(after_pulse_status);
         self.en_pin.clear();
         self.set_delay(500, LCDStatus::PulseLow);
     }
 
     fn write_4_bits(&self, value: u8, next_status: LCDStatus) {
-        // if self.lcd_prev_status.get() == LCDStatus::Begin12 {
-        //     debug! ("in write_4_bits");
-        // }
-        // debug! ("printam {} ", value);
         if (value >> 0) & 0x01 != 0 {
             self.data_4_pin.set();
         } else {
@@ -366,7 +333,7 @@ impl<'a, A: Alarm<'a>> LCD<'a, A> {
         self.alarm.set_alarm(
             self.alarm
                 .now()
-                .wrapping_add(<A::Frequency>::frequency() / timer),
+                .wrapping_add(<A::Frequency>::frequency()/timer),
         )
     }
 }
@@ -383,7 +350,6 @@ impl<'a, A: Alarm<'a>> Driver for LCD<'a, A> {
                 .apps
                 .enter(appid, |app, _| {
                     if let Some(ref s) = slice {
-                        // debug! ("am primit {:?}", s.len());
                         let mut leng = self.command_len.get() as usize;
                         self.command_buffer.map(|buffer| {
                             for byte in s.iter() {
@@ -394,7 +360,6 @@ impl<'a, A: Alarm<'a>> Driver for LCD<'a, A> {
                         self.command_len.replace(leng as u8);
                     };
                     app.text_buffer = slice;
-                    // debug! (" am pus pana acum {} chestii in vector/900", self.command_len.get());
                     self.handle_commands();
                     ReturnCode::SUCCESS
                 })
@@ -403,11 +368,10 @@ impl<'a, A: Alarm<'a>> Driver for LCD<'a, A> {
         }
     }
     fn command(&self, command_num: usize, data: usize, data_3: usize, _: AppId) -> ReturnCode {
-        // debug! (" col {}", data);
-        // debug! (" row {}", data_3);
         match command_num {
             // begin
             0 => {
+                debug! ("avem un command de begin cu {} si {} ", data, data_3);
                 let mut index = self.command_len.get() as usize;
 
                 self.command_buffer.map(|buffer| {
@@ -546,12 +510,12 @@ impl<'a, A: Alarm<'a>> time::AlarmClient for LCD<'a, A> {
 
         match state {
             LCDStatus::Idle => {
-                debug!("in idle");
+                // debug!("in idle");
                 self.handle_commands();
             }
 
             LCDStatus::Begin0 => {
-                debug!("in begin0");
+                // debug!("in begin0");
                 self.rs_pin.clear();
                 self.en_pin.clear();
 
@@ -567,287 +531,200 @@ impl<'a, A: Alarm<'a>> time::AlarmClient for LCD<'a, A> {
             }
 
             LCDStatus::Begin0_1 => {
-                debug!("in begin0_1");
+                // debug!("in begin0_1");
                 self.set_delay(200, LCDStatus::Begin1);
             }
 
             LCDStatus::Begin1 => {
-                debug!("in begin1");
+                // debug!("in begin1");
                 self.write_4_bits(0x03, LCDStatus::Begin1_2);
             }
 
             LCDStatus::Begin1_2 => {
-                debug!("in begin1_2");
+                // debug!("in begin1_2");
                 self.set_delay(200, LCDStatus::Begin2);
             }
 
             LCDStatus::Begin2 => {
-                debug!("in begin2");
+                // debug!("in begin2");
                 self.write_4_bits(0x03, LCDStatus::Begin2_3);
             }
 
             LCDStatus::Begin2_3 => {
+                // debug! ("in begin2_3");
                 self.set_delay(500, LCDStatus::Begin3);
             }
 
             LCDStatus::Begin3 => {
+                // debug! ("in begin3");
                 self.write_4_bits(0x02, LCDStatus::Begin10);
-            }
+            },
+
+            LCDStatus::Begin4 => {
+                // debug! ("in begin4");
+                self.rs_pin.clear();
+                self.write_4_bits((LCD_FUNCTIONSET | self.display_function.get()) >> 4, LCDStatus::Begin4);
+            },
 
             LCDStatus::Begin5 => {
-                debug!("in begin5");
-                self.write_4_bits((LCD_FUNCTIONSET | self.display_function.get()) >> 4);
+                // debug!("in begin5");
+                self.write_4_bits(LCD_FUNCTIONSET | self.display_function.get(), LCDStatus::Begin5_6);
             }
 
             LCDStatus::Begin5_6 => {
-                debug!("in begin5_6");
-                self.lcd_prev_status.replace(LCDStatus::Begin5_6);
-                self.lcd_status.replace(LCDStatus::Begin6);
+                // debug!("in begin5_6");
+                // self.lcd_prev_status.replace(LCDStatus::Begin5_6);
+                // self.lcd_status.replace(LCDStatus::Begin6);
 
-                self.set_delay(200);
+                self.set_delay(200, LCDStatus::Begin6);
             }
 
             LCDStatus::Begin6 => {
-                debug!("in begin6");
-                self.lcd_prev_status.replace(LCDStatus::Begin6);
+                // debug!("in begin6");
+                // self.lcd_prev_status.replace(LCDStatus::Begin6);
 
                 self.rs_pin.clear();
-                self.write_4_bits((LCD_FUNCTIONSET | self.display_function.get()) >> 4);
+                self.write_4_bits((LCD_FUNCTIONSET | self.display_function.get()) >> 4, LCDStatus::Begin7);
             }
 
             LCDStatus::Begin7 => {
-                debug!("in begin7");
-                self.lcd_prev_status.replace(LCDStatus::Begin7);
-                self.write_4_bits(LCD_FUNCTIONSET | self.display_function.get());
+                // debug!("in begin7");
+                // self.lcd_prev_status.replace(LCDStatus::Begin7);
+                self.write_4_bits(LCD_FUNCTIONSET | self.display_function.get(), LCDStatus::Begin7_8);
             }
 
             LCDStatus::Begin7_8 => {
-                debug!("in begin7_8");
-                self.lcd_prev_status.replace(LCDStatus::Begin7_8);
-                self.lcd_status.replace(LCDStatus::Begin8);
+                // debug!("in begin7_8");
+                // self.lcd_prev_status.replace(LCDStatus::Begin7_8);
+                // self.lcd_status.replace(LCDStatus::Begin8);
 
-                self.set_delay(500);
+                self.set_delay(500, LCDStatus::Begin8);
                 // self.alarm.set_alarm(
                 //     self.alarm.now().wrapping_add(<A::Frequency>::frequency()/500);
                 // )
             }
 
             LCDStatus::Begin8 => {
-                debug!("in begin8");
-                self.lcd_prev_status.replace(LCDStatus::Begin8);
+                // debug!("in begin8");
+                // self.lcd_prev_status.replace(LCDStatus::Begin8);
 
                 self.rs_pin.clear();
-                self.write_4_bits((LCD_FUNCTIONSET | self.display_function.get()) >> 4);
+                self.write_4_bits((LCD_FUNCTIONSET | self.display_function.get()) >> 4, LCDStatus::Begin9);
             }
 
             LCDStatus::Begin9 => {
-                debug!("in begin9");
-                self.lcd_prev_status.replace(LCDStatus::Begin9);
-                self.write_4_bits(LCD_FUNCTIONSET | self.display_function.get());
+                // debug!("in begin9");
+                // self.lcd_prev_status.replace(LCDStatus::Begin9);
+                self.write_4_bits(LCD_FUNCTIONSET | self.display_function.get(), LCDStatus::Begin10);
             }
 
             LCDStatus::Begin10 => {
-                debug!("in begin10");
-                self.lcd_prev_status.replace(LCDStatus::Begin10);
+                // debug!("in begin10");
+                // self.lcd_prev_status.replace(LCDStatus::Begin10);
 
                 self.rs_pin.clear();
-                self.write_4_bits((LCD_FUNCTIONSET | self.display_function.get()) >> 4);
+                self.write_4_bits((LCD_FUNCTIONSET | self.display_function.get()) >> 4, LCDStatus::Begin11);
             }
 
             LCDStatus::Begin11 => {
-                debug!("in begin11");
-                self.lcd_prev_status.replace(LCDStatus::Begin11);
-                self.write_4_bits(LCD_FUNCTIONSET | self.display_function.get());
+                // debug!("in begin11");
+                // self.lcd_prev_status.replace(LCDStatus::Begin11);
+                self.write_4_bits(LCD_FUNCTIONSET | self.display_function.get(), LCDStatus::Begin12);
             }
 
             LCDStatus::Begin12 => {
-                debug!("in begin12");
-                self.lcd_prev_status.replace(LCDStatus::Begin12);
+                // debug!("in begin12");
+                // self.lcd_prev_status.replace(LCDStatus::Begin12);
                 self.rs_pin.clear();
 
                 self.write_4_bits(
                     (LCD_DISPLAYON | LCD_CURSORON | LCD_BLINKOFF | LCD_DISPLAYCONTROL) >> 4,
+                    LCDStatus::Begin13
                 );
             }
 
             LCDStatus::Begin13 => {
-                debug!("in begin13");
-                self.lcd_prev_status.replace(LCDStatus::Begin13);
-                self.write_4_bits(LCD_DISPLAYON | LCD_CURSORON | LCD_BLINKON | LCD_DISPLAYCONTROL);
+                // debug!("in begin13");
+                // self.lcd_prev_status.replace(LCDStatus::Begin13);
+                self.write_4_bits(
+                    LCD_DISPLAYON | LCD_CURSORON | LCD_BLINKON | LCD_DISPLAYCONTROL,
+                    LCDStatus::Begin14
+                );
             }
 
             LCDStatus::Begin14 => {
-                debug!("in begin14");
-                self.lcd_prev_status.replace(LCDStatus::Begin14);
+                // debug!("in begin14");
+                // self.lcd_prev_status.replace(LCDStatus::Begin14);
                 self.rs_pin.clear();
 
-                self.write_4_bits(LCD_CLEARDISPLAY >> 4);
+                self.write_4_bits(LCD_CLEARDISPLAY >> 4, LCDStatus::Begin15);
             }
 
             LCDStatus::Begin15 => {
-                debug!("in begin15");
-                self.lcd_prev_status.replace(LCDStatus::Begin15);
-                self.write_4_bits(LCD_CLEARDISPLAY);
+                // debug!("in begin15");
+                // self.lcd_prev_status.replace(LCDStatus::Begin15);
+                self.write_4_bits(LCD_CLEARDISPLAY, LCDStatus::Begin16);
             }
 
             LCDStatus::Begin16 => {
-                debug!("in begin16");
-                self.lcd_prev_status.replace(LCDStatus::Begin16);
-                self.lcd_status.replace(LCDStatus::Begin18);
-                self.set_delay(500);
+                // debug!("in begin16");
+                // self.lcd_prev_status.replace(LCDStatus::Begin16);
+                // self.lcd_status.replace(LCDStatus::Begin18);
+                self.set_delay(500, LCDStatus::Begin17);
                 // self.alarm.set_alarm(
                 //     self.alarm.now().wrapping_add(<A::Frequency>::frequency()/500);
                 // )
             }
 
             LCDStatus::Begin17 => {
-                debug!("in begin17");
-                self.lcd_prev_status.replace(LCDStatus::Begin17);
+                // debug!("in begin17");
+                // self.lcd_prev_status.replace(LCDStatus::Begin17);
 
                 self.rs_pin.clear();
                 self.write_4_bits(
                     (LCD_ENTRYLEFT | LCD_ENTRYSHIFTDECREMENT | LCD_ENTRYMODESET) >> 4,
+                    LCDStatus::Begin18
                 );
             }
 
             LCDStatus::Begin18 => {
-                debug!("in begin18");
-                self.lcd_prev_status.replace(LCDStatus::Begin18);
+                // debug!("in begin18");
+                // self.lcd_prev_status.replace(LCDStatus::Begin18);
 
-                self.write_4_bits(LCD_ENTRYLEFT | LCD_ENTRYSHIFTDECREMENT | LCD_ENTRYMODESET);
+                self.write_4_bits(LCD_ENTRYLEFT | LCD_ENTRYSHIFTDECREMENT | LCD_ENTRYMODESET, LCDStatus::Idle);
             }
 
-            LCDStatus::Other1 => {
-                debug!("in other1");
-                self.lcd_prev_status.replace(LCDStatus::Other1);
+            LCDStatus::Other => {
+                // debug!("in other1");
+                // self.lcd_prev_status.replace(LCDStatus::Other1);
                 // debug! ("{}", self.command_to_finish.get());
-                self.write_4_bits(self.command_to_finish.get());
+                self.write_4_bits(self.command_to_finish.get(), LCDStatus::Idle);
             }
 
             LCDStatus::Printing1 => {
-                debug!("in printing1");
-                let offset = self.command_offset.get() as usize;
-                let mut current = 0;
-                self.command_buffer.map(|buffer| {
-                    current = buffer[offset];
-                });
-                // debug! ("{}", current);
-                // debug! ("avem de printat a doua oara {}", current & 15);
-                self.lcd_prev_status.replace(LCDStatus::Printing1);
-                self.write_4_bits(current & 15);
+                // debug!("in printing1");
+                // let offset = self.command_offset.get() as usize;
+                // let mut current = 0;
+                // self.command_buffer.map(|buffer| {
+                //     current = buffer[offset];
+                // });
+                // // debug! ("{}", current);
+                // // debug! ("avem de printat a doua oara {}", current & 15);
+                // self.lcd_prev_status.replace(LCDStatus::Printing1);
+                // self.write_4_bits(current & 15);
             }
 
             LCDStatus::PulseLow => {
-                debug!("in pulse0");
+                // debug!("in pulseLow");
                 self.en_pin.set();
 
                 self.set_delay(500, LCDStatus::PulseHigh);
-                // self.alarm.set_alarm(
-                //     self.alarm.now().wrapping_add(<A::Frequency>::frequency()/500);
-                // )
+                
             }
 
             LCDStatus::PulseHigh => {
-                debug!("in pulse1");
-                // let prev_state = self.lcd_prev_status.get();
-
-                // match prev_state {
-                //     LCDStatus::Begin0 => {
-                //         self.lcd_status.replace(LCDStatus::Begin0_1);
-                //     }
-
-                //     LCDStatus::Begin1 => {
-                //         self.lcd_status.replace(LCDStatus::Begin1_2);
-                //     }
-
-                //     LCDStatus::Begin2 => {
-                //         self.lcd_status.replace(LCDStatus::Begin2_3);
-                //     }
-
-                //     LCDStatus::Begin3 => {
-                //         self.lcd_status.replace(LCDStatus::Begin10);
-                //     }
-
-                //     LCDStatus::Begin4 => {
-                //         self.lcd_status.replace(LCDStatus::Begin5);
-                //     }
-
-                //     LCDStatus::Begin5 => {
-                //         self.lcd_status.replace(LCDStatus::Begin5_6);
-                //     }
-
-                //     LCDStatus::Begin6 => {
-                //         self.lcd_status.replace(LCDStatus::Begin7);
-                //     }
-
-                //     LCDStatus::Begin7 => {
-                //         self.lcd_status.replace(LCDStatus::Begin7_8);
-                //     }
-
-                //     LCDStatus::Begin8 => {
-                //         self.lcd_status.replace(LCDStatus::Begin9);
-                //     }
-
-                //     LCDStatus::Begin9 => {
-                //         self.lcd_status.replace(LCDStatus::Begin10);
-                //     }
-
-                //     LCDStatus::Begin10 => {
-                //         self.lcd_status.replace(LCDStatus::Begin11);
-                //     }
-
-                //     LCDStatus::Begin11 => {
-                //         self.lcd_status.replace(LCDStatus::Begin12);
-                //     }
-                //     LCDStatus::Begin12 => {
-                //         // debug! ("ajung vreodata aici?");
-                //         self.lcd_status.replace(LCDStatus::Begin13);
-                //     }
-
-                //     LCDStatus::Begin13 => {
-                //         self.lcd_status.replace(LCDStatus::Begin14);
-                //     }
-
-                //     LCDStatus::Begin14 => {
-                //         self.lcd_status.replace(LCDStatus::Begin15);
-                //     }
-
-                //     LCDStatus::Begin15 => {
-                //         self.lcd_status.replace(LCDStatus::Begin16);
-                //     }
-
-                //     LCDStatus::Begin16 => {
-                //         self.lcd_status.replace(LCDStatus::Begin17);
-                //     }
-
-                //     LCDStatus::Begin17 => {
-                //         self.lcd_status.replace(LCDStatus::Begin18);
-                //     }
-
-                //     LCDStatus::Begin18 => {
-                //         self.lcd_status.replace(LCDStatus::Idle);
-                //         self.command_offset.replace(self.command_offset.get() + 3);
-                //     }
-
-                //     LCDStatus::Other0 => {
-                //         self.lcd_status.replace(LCDStatus::Other1);
-                //     }
-
-                //     LCDStatus::Other1 => {
-                //         self.lcd_status.replace(LCDStatus::Idle);
-                //     }
-
-                //     LCDStatus::Printing0 => {
-                //         self.lcd_status.replace(LCDStatus::Printing1);
-                //     }
-
-                //     LCDStatus::Printing1 => {
-                //         self.lcd_status.replace(LCDStatus::Idle);
-                //         self.command_offset.replace(self.command_offset.get() + 1);
-                //     }
-
-                //     _ => {}
-                // }
+                // debug!("in pulseHigh");
+                
                 self.en_pin.clear();
                 self.set_delay(500, self.lcd_after_pulse_status.get());
             }
