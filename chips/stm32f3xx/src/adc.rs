@@ -1,16 +1,18 @@
 
 use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
+use kernel::hil;
 use kernel::ClockInterface;
 
+use crate::returncode::ReturnCode;
 use crate::rcc;
 
 #[repr(C)]
 struct AdcRegisters {
-	adc13: AdcSeparateRegisters,
+	adc12: AdcSeparateRegisters,
 	_reserved0: [u32; 48],
 	
-	adc24: AdcSeparateRegisters,
+	adc34: AdcSeparateRegisters,
 	_reserved3: [u32; 109],
 
 	common: AdcCommonRegisters,
@@ -353,20 +355,36 @@ impl Adc {
 	const fn new() -> Adc {
 		Adc {
 			registers: ADC_BASE,
-			clock: AdcClock(rcc::PeripheralClock::AHB3(rcc::HCLK3::ADC12)),
+			clock12: AdcClock(rcc::PeripheralClock::AHB3(rcc::HCLK::ADC12)),
+			#[cfg(feature = "stm32f303vct6")]
+			clock34: AdcClock(rcc::PeripheralClock::AHB3(rcc::HCLK::ADC34)),
 		}
 	}
 
-	pub fn is_enabled_clock(&self) -> bool {
-		self.clock.is_enabled()
+	// 12
+	pub fn is_enabled_clock12(&self) -> bool {
+		self.clock12.is_enabled()
 	}
 
-	pub fn enable_clock(&self) {
-        self.clock.enable();
+	pub fn enable_clock12(&self) {
+        self.clock12.enable();
     }
 
-    pub fn disable_clock(&self) {
-        self.clock.disable();
+    pub fn disable_clock12(&self) {
+        self.clock12.disable();
+	}
+	
+	// 34
+	pub fn is_enabled_clock34(&self) -> bool {
+		self.clock34.is_enabled()
+	}
+
+	pub fn enable_clock34(&self) {
+        self.clock34.enable();
+    }
+
+    pub fn disable_clock34(&self) {
+        self.clock34.disable();
     }
 }
 
@@ -384,4 +402,10 @@ impl ClockInterface for AdcClock {
     fn disable(&self) {
         self.0.disable();
     }
+}
+
+impl hil::adc::Adc for Adc {
+	fn sample(&self, channel: &Self::Channel) -> ReturnCode {
+		
+	}
 }
