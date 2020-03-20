@@ -8,6 +8,8 @@ use kernel::{AppId, Callback, Driver, Grant, ReturnCode};
 use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::Alarm as usize;
 
+const MIN_TICS: usize = 8;
+
 #[derive(Copy, Clone, Debug)]
 enum Expiration {
     Disabled,
@@ -100,6 +102,7 @@ impl<A: Alarm<'a>> Driver for AlarmDriver<'a, A> {
     /// - `2`: Read the the current clock value
     /// - `3`: Stop the alarm if it is outstanding
     /// - `4`: Set an alarm to fire at a given clock value `time`.
+    /// - `5`: Set an alarm to fire at a given clock value `time` relative to `bow`.
     fn command(&self, cmd_type: usize, data: usize, _: usize, caller_id: AppId) -> ReturnCode {
         // Returns the error code to return to the user and whether we need to
         // reset which is the next active alarm. We only _don't_ reset if we're
@@ -140,6 +143,18 @@ impl<A: Alarm<'a>> Driver for AlarmDriver<'a, A> {
                     },
                     4 /* Set absolute expiration */ => {
                         let time = data;
+                        // if previously unarmed, but now will become armed
+                        if let Expiration::Disabled = td.expiration {
+                            self.num_armed.set(self.num_armed.get() + 1);
+                        }
+                        td.expiration = Expiration::Abs(time as u32);
+                        (ReturnCode::SuccessWithValue { value: time }, true)
+                    },
+                    5 /* Set relative expiration */ => {
+                        let mut time = now.wrapping_add (data as u32) as usize;
+                        if time.wrapping_sub (now as usize) <= MIN_TICS {
+                            time = time.wrapping_add (MIN_TICS);
+                        }
                         // if previously unarmed, but now will become armed
                         if let Expiration::Disabled = td.expiration {
                             self.num_armed.set(self.num_armed.get() + 1);
