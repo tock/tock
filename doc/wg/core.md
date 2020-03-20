@@ -34,7 +34,7 @@ are to:
 The core working group membership is a subset of the people who have commit
 (pull request merge) permissions on the Tock repository. It is intended to be a
 smaller group that represents the major perspectives and issues, rather than a
-complete group. Contributors who are actively help develop Tock will be
+complete group. Contributors who actively help develop Tock will be
 considered to join the core team. Generally, a core team member:
 
 - Understands the core design principles of Tock and is capable of judging the
@@ -47,9 +47,9 @@ considered to join the core team. Generally, a core team member:
 
 A core team member is expected to:
 
--Help review a percentage of new pull requests to the Tock code base. -Provide
-opinions and input on substantial design decisions or major changes to Tock.
--Help test Tock prior to releases.
+- Help review a percentage of new pull requests to the Tock code base.
+- Provide opinions and input on substantial design decisions or major changes to Tock.
+- Help test Tock prior to releases.
 
 To join the core team, a contributor must be nominated by an existing core team
 member. The nominator will open a pull request updating this document with the
@@ -60,7 +60,7 @@ request is merged.
 ## Communication
 
 The group has a weekly teleconference call. All working group members are
-invited to   participate in the call. Other people may be invited to participate
+invited to participate in the call. Other people may be invited to participate
 to help contribute to particular topics or on-going discussions. The working
 group chair decides who beyond the working group members may participate in the
 call.
