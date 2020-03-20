@@ -52,9 +52,11 @@ use kernel::hil::gpio;
 use kernel::hil::time::{self, Alarm, Frequency};
 // use std::thread::sleep;
 // use std::ops::BitOrAssign;
-use kernel::{AppId, Driver, ReturnCode, debug, Shared, Grant, AppSlice, capabilities, create_capability};
 use core::cell::Cell;
-use kernel::common::cells::{TakeCell};
+use kernel::common::cells::TakeCell;
+use kernel::{
+    capabilities, create_capability, debug, AppId, AppSlice, Driver, Grant, ReturnCode, Shared,
+};
 
 /// Syscall driver number.
 use crate::driver;
@@ -80,12 +82,12 @@ static LCD_ENTRYLEFT: u8 = 0x02;
 static LCD_ENTRYSHIFTDECREMENT: u8 = 0x00;
 
 // flags for display on/off control
-static LCD_DISPLAYON: u8 =  0x04;
+static LCD_DISPLAYON: u8 = 0x04;
 // static LCD_DISPLAYOFF: u8 =  0x00;
-static LCD_CURSORON: u8 =  0x02;
+static LCD_CURSORON: u8 = 0x02;
 // static LCD_CURSOROFF: u8 =  0x00;
-static LCD_BLINKON: u8 =  0x01;
-static LCD_BLINKOFF: u8 =  0x00;
+static LCD_BLINKON: u8 = 0x01;
+static LCD_BLINKOFF: u8 = 0x00;
 
 // flags for display/cursor shift
 // static LCD_DISPLAYMOVE: u8 = 0x08;
@@ -106,7 +108,7 @@ pub static mut ROW_OFFSETS: [u8; 4] = [0; 4];
 
 #[derive(Default)]
 pub struct App {
-    text_buffer: Option<AppSlice<Shared, u8>>, 
+    text_buffer: Option<AppSlice<Shared, u8>>,
 }
 #[derive(Copy, Clone, PartialEq)]
 enum LCDStatus {
@@ -140,8 +142,8 @@ enum LCDStatus {
     Printing0,
     Printing1,
 
-    Pulse0,
-    Pulse1,
+    PulseLow,
+    PulseHigh,
 }
 
 pub struct LCD<'a, A: Alarm<'a>> {
@@ -165,6 +167,7 @@ pub struct LCD<'a, A: Alarm<'a>> {
     apps: Grant<App>,
     lcd_status: Cell<LCDStatus>,
     lcd_prev_status: Cell<LCDStatus>,
+    lcd_after_pulse_status: Cell<LCDStatus>,
     command_to_finish: Cell<u8>,
 }
 
@@ -196,8 +199,8 @@ impl<'a, A: Alarm<'a>> LCD<'a, A> {
             data_5_pin: data_5_pin,
             data_6_pin: data_6_pin,
             data_7_pin: data_7_pin,
-            display_function: Cell::new (LCD_4BITMODE | LCD_1LINE | LCD_5X8DOTS),
-            display_control: Cell::new (0),
+            display_function: Cell::new(LCD_4BITMODE | LCD_1LINE | LCD_5X8DOTS),
+            display_control: Cell::new(0),
             display_mode: Cell::new(0),
             num_lines: Cell::new(0),
             current_method: Cell::new(0),
@@ -210,14 +213,13 @@ impl<'a, A: Alarm<'a>> LCD<'a, A> {
             apps: grant,
             lcd_status: Cell::new(LCDStatus::Idle),
             lcd_prev_status: Cell::new(LCDStatus::Idle),
+            lcd_after_pulse_status: Cell::New(LCDStatus::Idle),
             command_to_finish: Cell::new(0),
         }
     }
 
-  
     // pub fn start(&self, timer: u32) {
     //     // debug!(" {} ", <A::Frequency>::frequency()/timer);
-        
     //     debug! ("aici?");
     // }
 
@@ -230,8 +232,6 @@ impl<'a, A: Alarm<'a>> LCD<'a, A> {
         });
         ReturnCode::SUCCESS
     }
-
-    
 
     fn handle_commands(&self) -> ReturnCode {
         // debug! ("am fost apelati");
@@ -254,21 +254,23 @@ impl<'a, A: Alarm<'a>> LCD<'a, A> {
                             let lines = buffer[offset + 2];
 
                             if lines > 1 {
-                                self.display_function.replace(self.display_function.get() | LCD_2LINE);
+                                self.display_function
+                                    .replace(self.display_function.get() | LCD_2LINE);
                             }
 
                             self.num_lines.replace(lines);
                             self.set_rows(0x00, 0x40, 0x00 + cols, 0x40 + cols);
-    
                             self.lcd_prev_status.replace(LCDStatus::Idle);
                             self.lcd_status.replace(LCDStatus::Begin0);
 
                             // /10
                             self.alarm.set_alarm(
-                                self.alarm.now().wrapping_add(<A::Frequency>::frequency()*2)
+                                self.alarm
+                                    .now()
+                                    .wrapping_add(<A::Frequency>::frequency() * 2),
                             );
                             break;
-                        },
+                        }
 
                         131 => {
                             let mut col_number: u8 = buffer[offset + 1];
@@ -293,13 +295,14 @@ impl<'a, A: Alarm<'a>> LCD<'a, A> {
                                 // debug! ("{}, {}, {}, {}", buffer[0], buffer[1], buffer[2], buffer[3]);
                             });
                             self.command_offset.replace((offset + 3) as u8);
-                            self.command_to_finish.replace(LCD_SETDDRAMADDR | (col_number + value));
+                            self.command_to_finish
+                                .replace(LCD_SETDDRAMADDR | (col_number + value));
                             // debug! ("{}, {}",value, self.command_to_finish.get());
                             self.write_4_bits(self.command_to_finish.get() >> 4);
                             break;
-                        },
+                        }
 
-                         _ => {
+                        _ => {
                             // command cu HIGH
                             // debug!("avem de scris {} ", current >> 4);
                             self.rs_pin.set();
@@ -307,7 +310,6 @@ impl<'a, A: Alarm<'a>> LCD<'a, A> {
                             self.command_to_finish.replace(current);
                             // offset = offset + 1;
                             // self.command_offset.replace(offset as u8);
-                            
                             self.write_4_bits(self.command_to_finish.get() >> 4);
                             break;
                         }
@@ -318,21 +320,16 @@ impl<'a, A: Alarm<'a>> LCD<'a, A> {
         }
         ReturnCode::SUCCESS
     }
-   
-    fn pulse(&self) {
+    fn pulse(&self, after_pulse_status: LCDStatus) {
         // if self.lcd_prev_status.get() == LCDStatus::Begin12 {
         //     debug! ("in pulse, urmeaza pulse0");
         // }
+        self.lcd_after_pulse_status.set(after_pulse_status);
         self.en_pin.clear();
-        self.lcd_status.replace(LCDStatus::Pulse0);
-
-        // /500
-        self.alarm.set_alarm(
-            self.alarm.now().wrapping_add(<A::Frequency>::frequency()*2)
-        )
+        self.set_delay(500, LCDStatus::PulseLow);
     }
 
-    fn write_4_bits(&self, value: u8) {
+    fn write_4_bits(&self, value: u8, next_status: LCDStatus) {
         // if self.lcd_prev_status.get() == LCDStatus::Begin12 {
         //     debug! ("in write_4_bits");
         // }
@@ -361,17 +358,20 @@ impl<'a, A: Alarm<'a>> LCD<'a, A> {
             self.data_7_pin.clear();
         }
 
-        self.pulse();
+        self.pulse(next_status);
     }
 
-    fn set_delay(&self, timer: u32) {
+    fn set_delay(&self, timer: u32, next_status: LCDStatus) {
+        self.lcd_status.set(next_status);
         self.alarm.set_alarm(
-            self.alarm.now().wrapping_add(<A::Frequency>::frequency()*2)
+            self.alarm
+                .now()
+                .wrapping_add(<A::Frequency>::frequency() / timer),
         )
     }
 }
 
-impl<'a, A:Alarm<'a>> Driver for LCD<'a, A> {
+impl<'a, A: Alarm<'a>> Driver for LCD<'a, A> {
     fn allow(
         &self,
         appid: AppId,
@@ -385,7 +385,6 @@ impl<'a, A:Alarm<'a>> Driver for LCD<'a, A> {
                     if let Some(ref s) = slice {
                         // debug! ("am primit {:?}", s.len());
                         let mut leng = self.command_len.get() as usize;
-                       
                         self.command_buffer.map(|buffer| {
                             for byte in s.iter() {
                                 buffer[leng] = *byte;
@@ -393,9 +392,8 @@ impl<'a, A:Alarm<'a>> Driver for LCD<'a, A> {
                             }
                         });
                         self.command_len.replace(leng as u8);
-                    }; 
+                    };
                     app.text_buffer = slice;
-                   
                     // debug! (" am pus pana acum {} chestii in vector/900", self.command_len.get());
                     self.handle_commands();
                     ReturnCode::SUCCESS
@@ -404,7 +402,6 @@ impl<'a, A:Alarm<'a>> Driver for LCD<'a, A> {
             _ => ReturnCode::ENOSUPPORT,
         }
     }
-    
     fn command(&self, command_num: usize, data: usize, data_3: usize, _: AppId) -> ReturnCode {
         // debug! (" col {}", data);
         // debug! (" row {}", data_3);
@@ -423,14 +420,11 @@ impl<'a, A:Alarm<'a>> Driver for LCD<'a, A> {
                 });
                 self.command_len.replace(index as u8);
                 self.handle_commands();
-               
-                ReturnCode::SUCCESS              
+
+                ReturnCode::SUCCESS
             }
 
-            1 => {
-                ReturnCode::SUCCESS
-            },
-
+            1 => ReturnCode::SUCCESS,
             // set cursor
             5 => {
                 let mut index = self.command_len.get() as usize;
@@ -445,42 +439,29 @@ impl<'a, A:Alarm<'a>> Driver for LCD<'a, A> {
                 });
                 self.command_len.replace(index as u8);
                 self.handle_commands();
-                
                 ReturnCode::SUCCESS
             }
 
             // print number
-            6 => {
-                ReturnCode::SUCCESS
-            }
+            6 => ReturnCode::SUCCESS,
 
             // print string
-            4 => {
-                ReturnCode::SUCCESS
-            }
+            4 => ReturnCode::SUCCESS,
 
             // Home
-            2 => {
-                ReturnCode::SUCCESS
-            }
+            2 => ReturnCode::SUCCESS,
 
             // clear
-            3 => {
-                ReturnCode::SUCCESS
-            }
+            3 => ReturnCode::SUCCESS,
 
             // Display/No
             7 => {
                 match data {
                     // Display
-                    0 => {
-
-                    }
+                    0 => {}
 
                     // no display
-                    1 => {
-
-                    }
+                    1 => {}
 
                     _ => {}
                 }
@@ -491,33 +472,23 @@ impl<'a, A:Alarm<'a>> Driver for LCD<'a, A> {
             8 => {
                 match data {
                     // Blink
-                    0 => {
-
-                    }
+                    0 => {}
 
                     // no blink
-                    1 => {
-
-                    }
+                    1 => {}
 
                     _ => {}
                 }
                 ReturnCode::SUCCESS
             }
-            
             // Cursor/No
             9 => {
                 // Cursor
                 match data {
-                    0 => {
+                    0 => {}
 
-                    }
-    
                     // no cursor
-                    1 => {
-    
-                    }
-    
+                    1 => {}
                     _ => {}
                 }
                 ReturnCode::SUCCESS
@@ -527,14 +498,10 @@ impl<'a, A:Alarm<'a>> Driver for LCD<'a, A> {
             10 => {
                 match data {
                     // scroll left
-                    0 => {
-
-                    }
+                    0 => {}
 
                     // scroll right
-                    1 => {
-
-                    }
+                    1 => {}
 
                     _ => {}
                 }
@@ -545,15 +512,10 @@ impl<'a, A:Alarm<'a>> Driver for LCD<'a, A> {
             11 => {
                 // Left to Right
                 match data {
-                    0 => {
+                    0 => {}
 
-                    }
-    
                     // Right to Left
-                    1 => {
-    
-                    }
-    
+                    1 => {}
                     _ => {}
                 }
                 ReturnCode::SUCCESS
@@ -562,18 +524,14 @@ impl<'a, A:Alarm<'a>> Driver for LCD<'a, A> {
             // Autoscroll/No
             12 => {
                 match data {
-                     // Autoscroll
-                0 => {
+                    // Autoscroll
+                    0 => {}
 
+                    // no autoscroll
+                    1 => {}
+
+                    _ => {}
                 }
-
-                // no autoscroll
-                1 => {
-
-                }
-
-                _ => {}
-                }    
                 ReturnCode::SUCCESS
             }
             // default
@@ -590,74 +548,56 @@ impl<'a, A: Alarm<'a>> time::AlarmClient for LCD<'a, A> {
             LCDStatus::Idle => {
                 debug!("in idle");
                 self.handle_commands();
-            },
+            }
 
             LCDStatus::Begin0 => {
                 debug!("in begin0");
                 self.rs_pin.clear();
                 self.en_pin.clear();
 
-
                 if (self.display_function.get() & LCD_8BITMODE) == 0 {
-                    self.lcd_prev_status.replace(LCDStatus::Begin0);
-                    
-                    self.write_4_bits(0x03);
+                    self.write_4_bits(0x03, LCDStatus::Begin0_1);
                 } else {
-                    self.lcd_prev_status.replace(LCDStatus::Begin4);
                     self.rs_pin.clear();
-
-                    self.write_4_bits((LCD_FUNCTIONSET | self.display_function.get()) >> 4);
+                    self.write_4_bits(
+                        (LCD_FUNCTIONSET | self.display_function.get()) >> 4,
+                        LCDStatus::Begin4,
+                    );
                 }
-            },
+            }
 
             LCDStatus::Begin0_1 => {
                 debug!("in begin0_1");
-                self.lcd_prev_status.replace(LCDStatus::Begin0_1);
-                self.lcd_status.replace(LCDStatus::Begin1);
-
-                self.set_delay(200);
-            },
+                self.set_delay(200, LCDStatus::Begin1);
+            }
 
             LCDStatus::Begin1 => {
                 debug!("in begin1");
-                self.lcd_prev_status.replace(LCDStatus::Begin1);
-                self.write_4_bits(0x03);
-            },
+                self.write_4_bits(0x03, LCDStatus::Begin1_2);
+            }
 
             LCDStatus::Begin1_2 => {
                 debug!("in begin1_2");
-                self.lcd_prev_status.replace(LCDStatus::Begin1_2);
-                self.lcd_status.replace(LCDStatus::Begin2);
-
-                self.set_delay(200);
-            }, 
+                self.set_delay(200, LCDStatus::Begin2);
+            }
 
             LCDStatus::Begin2 => {
                 debug!("in begin2");
-                self.lcd_prev_status.replace(LCDStatus::Begin2);
-                self.write_4_bits(0x03);
-            },
+                self.write_4_bits(0x03, LCDStatus::Begin2_3);
+            }
 
             LCDStatus::Begin2_3 => {
-                debug!("in begin2_3");
-                self.lcd_prev_status.replace(LCDStatus::Begin2_3);
-                self.lcd_status.replace(LCDStatus::Begin3);
-
-                self.set_delay(500);
-            }, 
+                self.set_delay(500, LCDStatus::Begin3);
+            }
 
             LCDStatus::Begin3 => {
-                debug!("in begin3");
-                self.lcd_prev_status.replace(LCDStatus::Begin3);
-                self.write_4_bits(0x02);
-                
-            },
+                self.write_4_bits(0x02, LCDStatus::Begin10);
+            }
 
             LCDStatus::Begin5 => {
                 debug!("in begin5");
-                self.lcd_prev_status.replace(LCDStatus::Begin5);
                 self.write_4_bits((LCD_FUNCTIONSET | self.display_function.get()) >> 4);
-            },
+            }
 
             LCDStatus::Begin5_6 => {
                 debug!("in begin5_6");
@@ -665,7 +605,7 @@ impl<'a, A: Alarm<'a>> time::AlarmClient for LCD<'a, A> {
                 self.lcd_status.replace(LCDStatus::Begin6);
 
                 self.set_delay(200);
-            },
+            }
 
             LCDStatus::Begin6 => {
                 debug!("in begin6");
@@ -673,13 +613,13 @@ impl<'a, A: Alarm<'a>> time::AlarmClient for LCD<'a, A> {
 
                 self.rs_pin.clear();
                 self.write_4_bits((LCD_FUNCTIONSET | self.display_function.get()) >> 4);
-            },
+            }
 
             LCDStatus::Begin7 => {
                 debug!("in begin7");
                 self.lcd_prev_status.replace(LCDStatus::Begin7);
                 self.write_4_bits(LCD_FUNCTIONSET | self.display_function.get());
-            },
+            }
 
             LCDStatus::Begin7_8 => {
                 debug!("in begin7_8");
@@ -690,7 +630,7 @@ impl<'a, A: Alarm<'a>> time::AlarmClient for LCD<'a, A> {
                 // self.alarm.set_alarm(
                 //     self.alarm.now().wrapping_add(<A::Frequency>::frequency()/500);
                 // )
-            },
+            }
 
             LCDStatus::Begin8 => {
                 debug!("in begin8");
@@ -698,7 +638,7 @@ impl<'a, A: Alarm<'a>> time::AlarmClient for LCD<'a, A> {
 
                 self.rs_pin.clear();
                 self.write_4_bits((LCD_FUNCTIONSET | self.display_function.get()) >> 4);
-            },
+            }
 
             LCDStatus::Begin9 => {
                 debug!("in begin9");
@@ -710,30 +650,31 @@ impl<'a, A: Alarm<'a>> time::AlarmClient for LCD<'a, A> {
                 debug!("in begin10");
                 self.lcd_prev_status.replace(LCDStatus::Begin10);
 
-                self.rs_pin.clear();  
+                self.rs_pin.clear();
                 self.write_4_bits((LCD_FUNCTIONSET | self.display_function.get()) >> 4);
-                
-            },
+            }
 
             LCDStatus::Begin11 => {
                 debug!("in begin11");
                 self.lcd_prev_status.replace(LCDStatus::Begin11);
                 self.write_4_bits(LCD_FUNCTIONSET | self.display_function.get());
-            },
+            }
 
             LCDStatus::Begin12 => {
                 debug!("in begin12");
                 self.lcd_prev_status.replace(LCDStatus::Begin12);
                 self.rs_pin.clear();
 
-                self.write_4_bits((LCD_DISPLAYON | LCD_CURSORON | LCD_BLINKOFF | LCD_DISPLAYCONTROL) >> 4);
-            },
+                self.write_4_bits(
+                    (LCD_DISPLAYON | LCD_CURSORON | LCD_BLINKOFF | LCD_DISPLAYCONTROL) >> 4,
+                );
+            }
 
             LCDStatus::Begin13 => {
                 debug!("in begin13");
                 self.lcd_prev_status.replace(LCDStatus::Begin13);
                 self.write_4_bits(LCD_DISPLAYON | LCD_CURSORON | LCD_BLINKON | LCD_DISPLAYCONTROL);
-            },
+            }
 
             LCDStatus::Begin14 => {
                 debug!("in begin14");
@@ -741,31 +682,32 @@ impl<'a, A: Alarm<'a>> time::AlarmClient for LCD<'a, A> {
                 self.rs_pin.clear();
 
                 self.write_4_bits(LCD_CLEARDISPLAY >> 4);
-            },
+            }
 
             LCDStatus::Begin15 => {
                 debug!("in begin15");
                 self.lcd_prev_status.replace(LCDStatus::Begin15);
                 self.write_4_bits(LCD_CLEARDISPLAY);
-            },
+            }
 
             LCDStatus::Begin16 => {
                 debug!("in begin16");
                 self.lcd_prev_status.replace(LCDStatus::Begin16);
                 self.lcd_status.replace(LCDStatus::Begin18);
-   
                 self.set_delay(500);
                 // self.alarm.set_alarm(
                 //     self.alarm.now().wrapping_add(<A::Frequency>::frequency()/500);
                 // )
-            },
+            }
 
             LCDStatus::Begin17 => {
                 debug!("in begin17");
                 self.lcd_prev_status.replace(LCDStatus::Begin17);
 
-                self.rs_pin.clear();  
-                self.write_4_bits((LCD_ENTRYLEFT | LCD_ENTRYSHIFTDECREMENT | LCD_ENTRYMODESET) >> 4);
+                self.rs_pin.clear();
+                self.write_4_bits(
+                    (LCD_ENTRYLEFT | LCD_ENTRYSHIFTDECREMENT | LCD_ENTRYMODESET) >> 4,
+                );
             }
 
             LCDStatus::Begin18 => {
@@ -773,19 +715,19 @@ impl<'a, A: Alarm<'a>> time::AlarmClient for LCD<'a, A> {
                 self.lcd_prev_status.replace(LCDStatus::Begin18);
 
                 self.write_4_bits(LCD_ENTRYLEFT | LCD_ENTRYSHIFTDECREMENT | LCD_ENTRYMODESET);
-            },
+            }
 
             LCDStatus::Other1 => {
-                debug! ("in other1");
+                debug!("in other1");
                 self.lcd_prev_status.replace(LCDStatus::Other1);
                 // debug! ("{}", self.command_to_finish.get());
                 self.write_4_bits(self.command_to_finish.get());
-            },
+            }
 
             LCDStatus::Printing1 => {
-                debug! ("in printing1");
+                debug!("in printing1");
                 let offset = self.command_offset.get() as usize;
-                let mut current = 0; 
+                let mut current = 0;
                 self.command_buffer.map(|buffer| {
                     current = buffer[offset];
                 });
@@ -795,134 +737,124 @@ impl<'a, A: Alarm<'a>> time::AlarmClient for LCD<'a, A> {
                 self.write_4_bits(current & 15);
             }
 
-            LCDStatus::Pulse0 => {
+            LCDStatus::PulseLow => {
                 debug!("in pulse0");
                 self.en_pin.set();
 
-                self.lcd_status.replace(LCDStatus::Pulse1);
-
-                self.set_delay(500);
+                self.set_delay(500, LCDStatus::PulseHigh);
                 // self.alarm.set_alarm(
                 //     self.alarm.now().wrapping_add(<A::Frequency>::frequency()/500);
                 // )
-            },
+            }
 
-            LCDStatus::Pulse1 => {
+            LCDStatus::PulseHigh => {
                 debug!("in pulse1");
-                
-                let prev_state = self.lcd_prev_status.get();
+                // let prev_state = self.lcd_prev_status.get();
 
-                match prev_state {
-                    LCDStatus::Begin0 => {
-                        self.lcd_status.replace(LCDStatus::Begin0_1);
-                    }, 
+                // match prev_state {
+                //     LCDStatus::Begin0 => {
+                //         self.lcd_status.replace(LCDStatus::Begin0_1);
+                //     }
 
-                    LCDStatus::Begin1 => {
-                        self.lcd_status.replace(LCDStatus::Begin1_2);
-                    }, 
+                //     LCDStatus::Begin1 => {
+                //         self.lcd_status.replace(LCDStatus::Begin1_2);
+                //     }
 
-                    LCDStatus::Begin2 => {
-                        self.lcd_status.replace(LCDStatus::Begin2_3);
-                    }, 
+                //     LCDStatus::Begin2 => {
+                //         self.lcd_status.replace(LCDStatus::Begin2_3);
+                //     }
 
-                    LCDStatus::Begin3 => {
-                        self.lcd_status.replace(LCDStatus::Begin10);
-                    },
+                //     LCDStatus::Begin3 => {
+                //         self.lcd_status.replace(LCDStatus::Begin10);
+                //     }
 
-                    LCDStatus::Begin4 => {
-                        self.lcd_status.replace(LCDStatus::Begin5);
-                    },
+                //     LCDStatus::Begin4 => {
+                //         self.lcd_status.replace(LCDStatus::Begin5);
+                //     }
 
-                    LCDStatus::Begin5 => {
-                        self.lcd_status.replace(LCDStatus::Begin5_6);
-                    },
+                //     LCDStatus::Begin5 => {
+                //         self.lcd_status.replace(LCDStatus::Begin5_6);
+                //     }
 
-                    LCDStatus::Begin6 => {
-                        self.lcd_status.replace(LCDStatus::Begin7);
-                    },
+                //     LCDStatus::Begin6 => {
+                //         self.lcd_status.replace(LCDStatus::Begin7);
+                //     }
 
-                    LCDStatus::Begin7 => {
-                        self.lcd_status.replace(LCDStatus::Begin7_8);
-                    },
+                //     LCDStatus::Begin7 => {
+                //         self.lcd_status.replace(LCDStatus::Begin7_8);
+                //     }
 
-                    LCDStatus::Begin8 => {
-                        self.lcd_status.replace(LCDStatus::Begin9);
-                    },
+                //     LCDStatus::Begin8 => {
+                //         self.lcd_status.replace(LCDStatus::Begin9);
+                //     }
 
-                    LCDStatus::Begin9 => {
-                        self.lcd_status.replace(LCDStatus::Begin10);
-                    }
+                //     LCDStatus::Begin9 => {
+                //         self.lcd_status.replace(LCDStatus::Begin10);
+                //     }
 
-                    LCDStatus::Begin10 => {
-                        self.lcd_status.replace(LCDStatus::Begin11);
-                    },
+                //     LCDStatus::Begin10 => {
+                //         self.lcd_status.replace(LCDStatus::Begin11);
+                //     }
 
-                    LCDStatus::Begin11 => {
-                        self.lcd_status.replace(LCDStatus::Begin12);
-                    },
-                    
-                    LCDStatus::Begin12 => {
-                        // debug! ("ajung vreodata aici?");
-                        self.lcd_status.replace(LCDStatus::Begin13);
-                    },
+                //     LCDStatus::Begin11 => {
+                //         self.lcd_status.replace(LCDStatus::Begin12);
+                //     }
+                //     LCDStatus::Begin12 => {
+                //         // debug! ("ajung vreodata aici?");
+                //         self.lcd_status.replace(LCDStatus::Begin13);
+                //     }
 
-                    LCDStatus::Begin13 => {
-                        self.lcd_status.replace(LCDStatus::Begin14);
-                    },
+                //     LCDStatus::Begin13 => {
+                //         self.lcd_status.replace(LCDStatus::Begin14);
+                //     }
 
-                    LCDStatus::Begin14 => {
-                        self.lcd_status.replace(LCDStatus::Begin15);
-                    },
+                //     LCDStatus::Begin14 => {
+                //         self.lcd_status.replace(LCDStatus::Begin15);
+                //     }
 
-                    LCDStatus::Begin15 => {
-                        self.lcd_status.replace(LCDStatus::Begin16);
-                    },
+                //     LCDStatus::Begin15 => {
+                //         self.lcd_status.replace(LCDStatus::Begin16);
+                //     }
 
-                    LCDStatus::Begin16 => {
-                        self.lcd_status.replace(LCDStatus::Begin17);
-                    },
+                //     LCDStatus::Begin16 => {
+                //         self.lcd_status.replace(LCDStatus::Begin17);
+                //     }
 
-                    LCDStatus::Begin17 => {
-                        self.lcd_status.replace(LCDStatus::Begin18);
-                    },
+                //     LCDStatus::Begin17 => {
+                //         self.lcd_status.replace(LCDStatus::Begin18);
+                //     }
 
-                    LCDStatus::Begin18 => {
-                        self.lcd_status.replace(LCDStatus::Idle);
-                        self.command_offset.replace(self.command_offset.get() + 3);
-                    },
+                //     LCDStatus::Begin18 => {
+                //         self.lcd_status.replace(LCDStatus::Idle);
+                //         self.command_offset.replace(self.command_offset.get() + 3);
+                //     }
 
-                    LCDStatus::Other0 => {
-                        self.lcd_status.replace(LCDStatus::Other1);
-                    },
+                //     LCDStatus::Other0 => {
+                //         self.lcd_status.replace(LCDStatus::Other1);
+                //     }
 
-                    LCDStatus::Other1 => {
-                        self.lcd_status.replace(LCDStatus::Idle);
-                    },
+                //     LCDStatus::Other1 => {
+                //         self.lcd_status.replace(LCDStatus::Idle);
+                //     }
 
-                    LCDStatus::Printing0 => {
-                        self.lcd_status.replace(LCDStatus::Printing1);
-                    },
+                //     LCDStatus::Printing0 => {
+                //         self.lcd_status.replace(LCDStatus::Printing1);
+                //     }
 
-                    LCDStatus::Printing1 => {
-                        self.lcd_status.replace(LCDStatus::Idle);
-                        self.command_offset.replace(self.command_offset.get() + 1);
-                    }
+                //     LCDStatus::Printing1 => {
+                //         self.lcd_status.replace(LCDStatus::Idle);
+                //         self.command_offset.replace(self.command_offset.get() + 1);
+                //     }
 
-                    _ => {}
-                }
+                //     _ => {}
+                // }
                 self.en_pin.clear();
-                self.set_delay(500);
-                // self.alarm.set_alarm(
-                //     self.alarm.now().wrapping_add(<A::Frequency>::frequency()/500);
-                // )
-
-            },
+                self.set_delay(500, self.lcd_after_pulse_status.get());
+            }
 
             _ => {}
-
         }
         // self.lcd_status.replace(LCDStatus::Idle);
         // self.handle_commands();
     }
 }
-
