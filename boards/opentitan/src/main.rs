@@ -7,6 +7,7 @@
 #![feature(asm)]
 
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+use capsules::virtual_hmac::VirtualMuxHmac;
 use kernel::capabilities;
 use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::component::Component;
@@ -55,6 +56,11 @@ struct OpenTitan {
         'static,
         VirtualMuxAlarm<'static, ibex::timer::RvTimer<'static>>,
     >,
+    hmac: &'static capsules::hmac::HmacDriver<
+        'static,
+        VirtualMuxHmac<'static, lowrisc::hmac::Hmac<'static>, [u8; 32]>,
+        [u8; 32],
+    >,
     lldb: &'static capsules::low_level_debug::LowLevelDebug<
         'static,
         capsules::virtual_uart::UartDevice<'static>,
@@ -69,6 +75,7 @@ impl Platform for OpenTitan {
     {
         match driver_num {
             capsules::led::DRIVER_NUM => f(Some(self.led)),
+            capsules::hmac::DRIVER_NUM => f(Some(self.hmac)),
             capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
             capsules::console::DRIVER_NUM => f(Some(self.console)),
             capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
@@ -213,6 +220,24 @@ pub unsafe fn reset_handler() {
 
     let lldb = components::lldb::LowLevelDebugComponent::new(board_kernel, uart_mux).finalize(());
 
+    let hmac_data_buffer = static_init!([u8; 64], [0; 64]);
+    let hmac_dest_buffer = static_init!([u8; 32], [0; 32]);
+
+    let mux_hmac = components::hmac::HmacMuxComponent::new(&ibex::hmac::HMAC).finalize(
+        components::hmac_mux_component_helper!(lowrisc::hmac::Hmac, [u8; 32]),
+    );
+
+    let hmac = components::hmac::HmacComponent::new(
+        board_kernel,
+        &mux_hmac,
+        hmac_data_buffer,
+        hmac_dest_buffer,
+    )
+    .finalize(components::hmac_component_helper!(
+        lowrisc::hmac::Hmac,
+        [u8; 32]
+    ));
+
     debug!("OpenTitan initialisation complete. Entering main loop");
 
     extern "C" {
@@ -232,6 +257,7 @@ pub unsafe fn reset_handler() {
         led: led,
         console: console,
         alarm: alarm,
+        hmac,
         lldb: lldb,
     };
 
