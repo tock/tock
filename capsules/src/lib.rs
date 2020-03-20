@@ -60,6 +60,7 @@ pub mod tmp006;
 pub mod tsl2561;
 pub mod usb;
 pub mod virtual_alarm;
+pub mod virtual_digest;
 pub mod virtual_flash;
 pub mod virtual_i2c;
 pub mod virtual_pwm;
