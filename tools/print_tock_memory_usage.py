@@ -293,8 +293,8 @@ def print_symbol_information():
     """Print out all of the variable and function groups with their flash/RAM
        use."""
     variable_groups = {}
-    gaps = group_symbols(variable_groups, kernel_initialized, show_waste, "RAM")
-    gaps = gaps + group_symbols(variable_groups, kernel_uninitialized, show_waste, "Flash+RAM")
+    gaps = group_symbols(variable_groups, kernel_initialized, show_waste, "Flash+RAM")
+    gaps = gaps + group_symbols(variable_groups, kernel_uninitialized, show_waste, "RAM")
     print_groups("Variable groups (RAM)", variable_groups)
     print(gaps)
     
