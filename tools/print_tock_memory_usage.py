@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 
-#
 # Prints out the memory usage of a Tock kernel binary ELF.
+# Currently only works on ARM binaries.
 #
-# Usage: print_memory_usage.py ELF
+# Usage: print_tock_memory_usage.py ELF
 #
-# Author: Philip Levis <philip.levis@gmail.com>
+# Author: Philip Levis <pal@cs.stanford.edu>
 
 # pylint: disable=superfluous-parens
 '''
@@ -24,8 +24,10 @@ import os
 import re
 import sys
 import getopt
-import cxxfilt   # Demanging C++/Rust symbol names
+import cxxfilt   # Demangling C++/Rust symbol names
 
+
+OBJDUMP = "llvm-objdump"
 
 verbose = False
 show_waste = False
@@ -54,8 +56,10 @@ Options:
   -dn, --depth=n      Group symbols at depth n or greater. E.g.,
                       depth=2 will group all h1b::uart:: symbols
                       together. Default: 1
-  -v, --verbose       Print verbose output.
-  -s, --show-waste    Show where RAM is wasted (due to padding)""")
+  -v, --verbose       Print verbose output (RAM waste and embedded flash data)
+  -s, --show-waste    Show where RAM is wasted (due to padding)
+
+Note: depends on llvm-objdump to extract symbols""")
 
 
 
@@ -73,7 +77,7 @@ def process_section_line(line):
 def trim_hash_from_symbol(symbol):
     """If the passed symbol ends with a hash of the form h[16-hex number]
        trim this and return the trimmed symbol."""
-    # Remove the hash off the end
+     # Remove the hash off the end
     tokens = symbol.split('::')
     last = tokens[-1]
     if last[0] == 'h':
@@ -190,10 +194,14 @@ def print_section_information():
 #
 # The 'waste' and 'section' parameters are used to specify whether detected
 # waste should be printed and the name of the section for waste information.
+#
+# Returns a string representation of any detected waste. This is returned
+# as a string to it can be later output.
 def group_symbols(groups, symbols, waste, section):
     """Take a list of symbols and group them into 'groups' for reporting
        aggregate flash/RAM use."""
     global symbol_depth
+    output = ""
     expected_addr = 0
     waste_sum = 0
     prev_symbol = ""
@@ -204,8 +212,8 @@ def group_symbols(groups, symbols, waste, section):
         # have waste. But this is only true if it's not the first symbol and
         # this is actually a variable and just just a symbol (e.g., _estart)
         if addr != expected_addr and expected_addr != 0 and size != 0 and (waste or verbose):
-            print("  ! " + str(addr - expected_addr) + " bytes wasted after " + prev_symbol)
-        waste_sum = waste_sum + (addr - expected_addr)
+            output = output + "   ! " + str(addr - expected_addr) + " bytes of data or padding after " + prev_symbol + "\n"
+            waste_sum = waste_sum + (addr - expected_addr)
         tokens = symbol.split("::")
         key = symbol[0] # Default to first character (_) if not a proper symbol
         name = symbol
@@ -240,8 +248,10 @@ def group_symbols(groups, symbols, waste, section):
         prev_symbol = symbol
 
     if waste and waste_sum > 0:
-        print("Total of " + str(waste_sum) + " bytes wasted in " + section)
-
+        output = output + "Total of " + str(waste_sum) + " bytes wasted in " + section + "\n"
+        
+    return output
+        
 def string_for_group(key, padding_size, group_size, num_elements):
     """Return the string for a group of variables, with padding added on the
        right; decides whether to add a * or not based on the name of the group
@@ -277,29 +287,26 @@ def print_groups(title, groups):
         group_sum = group_sum + group_size
 
     print(title + ": " + str(group_sum) + " bytes")
-    print(output, end = ' ')
+    print(output, end = '')
 
 def print_symbol_information():
     """Print out all of the variable and function groups with their flash/RAM
        use."""
     variable_groups = {}
-    group_symbols(variable_groups, kernel_initialized, show_waste, "RAM")
-    group_symbols(variable_groups, kernel_uninitialized, show_waste, "Flash+RAM")
-    if (show_waste):
-        print() # Place an newline after waste reports
-
+    gaps = group_symbols(variable_groups, kernel_initialized, show_waste, "RAM")
+    gaps = gaps + group_symbols(variable_groups, kernel_uninitialized, show_waste, "Flash+RAM")
     print_groups("Variable groups (RAM)", variable_groups)
-
-    print()
-    print("Embedded data (in flash): " + str(padding_text) + " bytes")
+    print(gaps)
+    
+    print("Embedded data (flash): " + str(padding_text) + " bytes")
     print()
     function_groups = {}
     # Embedded constants in code (e.g., after functions) aren't counted
     # in the symbol's size, so detecting waste in code has too many false
     # positives.
-    group_symbols(function_groups, kernel_functions, False, "Flash")
-    print_groups("Function groups (in flash)", function_groups)
-    print()
+    gaps = group_symbols(function_groups, kernel_functions, False, "Flash")
+    print_groups("Function groups (flash)", function_groups)
+    print(gaps)
 
 def get_addr(symbol_entry):
     """Helper function for sorting symbols by start address."""
@@ -325,7 +332,7 @@ def compute_padding(symbols):
 def parse_options(opts):
     """Parse command line options."""
     global symbol_depth, verbose, show_waste
-    valid = 'd:vs'
+    valid = 'd:vs' 
     long_valid = ['depth=', 'verbose', 'show-waste']
     optlist, leftover = getopt.getopt(opts, valid, long_valid)
     for (opt, val) in optlist:
@@ -341,67 +348,70 @@ def parse_options(opts):
 
     return leftover
 
+
+
  # Script starts here ######################################
-arguments = sys.argv[1:]
-if len(arguments) < 1:
-    usage("no ELF specified")
-    sys.exit(-1)
-
- # The ELF is always the last argument; pull it out, then parse
- # the others.
-elf_name = ""
-options = arguments
-try:
-    remaining = parse_options(options)
-    if len(remaining) != 1:
-        usage("")
+if __name__ == "__main__": 
+    arguments = sys.argv[1:]
+    if len(arguments) < 1:
+        usage("no ELF specified")
         sys.exit(-1)
-    else:
-        elf_name = remaining[0]
-except getopt.GetoptError as err:
-    usage(str(err))
-    sys.exit(-1)
 
-header_lines = os.popen('arm-none-eabi-objdump -f ' + elf_name).readlines()
-
-print("Tock memory usage report for " + elf_name)
-arch = "UNKNOWN"
-
-for hline in header_lines:
-    # pylint: disable=anomalous-backslash-in-string
-    hmatch = re.search('file format (\S+)', hline)
-    if hmatch != None:
-        arch = hmatch.group(1)
-        if arch != 'elf32-littlearm':
-            usage(arch + " architecture not supported, only elf32-littlearm supportd")
+   # The ELF is always the last argument; pull it out, then parse
+   # the others.
+    elf_name = ""
+    options = arguments
+    try:
+        remaining = parse_options(options)
+        if len(remaining) != 1:
+            usage("")
             sys.exit(-1)
+        else:
+            elf_name = remaining[0]
+    except getopt.GetoptError as err:
+         usage(str(err))
+         sys.exit(-1)
 
-if arch == "UNKNOWN":
-    usage("could not detect architecture of ELF")
-    sys.exit(-1)
+    header_lines = os.popen(OBJDUMP + ' -section-headers ' + elf_name).readlines()
 
-objdump_lines = os.popen('arm-none-eabi-objdump -x ' + elf_name).readlines()
-objdump_output_section = "start"
+    print("Tock memory usage report for " + elf_name)
+    arch = "UNKNOWN"
 
-for oline in objdump_lines:
-    oline = oline.strip()
-    # First, move to a new section if we've reached it; use continue
-    # to break out and reduce nesting.
-    if oline == "Sections:":
-        objdump_output_section = "sections"
-        continue
-    elif oline == "SYMBOL TABLE:":
-        objdump_output_section = "symbol_table"
-        continue
-    elif objdump_output_section == "sections":
-        process_section_line(oline)
-    elif objdump_output_section == "symbol_table":
-        process_symbol_line(oline)
+    for hline in header_lines:
+        # pylint: disable=anomalous-backslash-in-string
+        hmatch = re.search('file format (\S+)', hline)
+        if hmatch != None:
+            arch = hmatch.group(1)
+            if arch != 'ELF32-arm-little':
+                usage(arch + " architecture not supported, only ELF32-arm-little supported")
+                sys.exit(-1)
 
-padding_init = compute_padding(kernel_initialized)
-padding_uninit = compute_padding(kernel_uninitialized)
-padding_text = compute_padding(kernel_functions)
+    if arch == "UNKNOWN":
+        usage("could not detect architecture of ELF")
+        sys.exit(-1)
 
-print_section_information()
-print()
-print_symbol_information()
+    objdump_lines = os.popen(OBJDUMP + ' -t -section-headers ' + elf_name).readlines()
+    objdump_output_section = "start"
+
+    for oline in objdump_lines:
+        oline = oline.strip()
+        # First, move to a new section if we've reached it; use continue
+        # to break out and reduce nesting.
+        if oline == "Sections:":
+            objdump_output_section = "sections"
+            continue
+        elif oline == "SYMBOL TABLE:":
+            objdump_output_section = "symbol_table"
+            continue
+        elif objdump_output_section == "sections":
+            process_section_line(oline)
+        elif objdump_output_section == "symbol_table":
+            process_symbol_line(oline)
+
+    padding_init = compute_padding(kernel_initialized)
+    padding_uninit = compute_padding(kernel_uninitialized)
+    padding_text = compute_padding(kernel_functions)
+
+    print_section_information()
+    print()
+    print_symbol_information()
