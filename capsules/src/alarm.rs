@@ -1,6 +1,7 @@
 //! Provides userspace applications with a alarm API.
 
 use core::cell::Cell;
+use kernel::common::cells::OptionalCell;
 use kernel::hil::time::{self, Alarm, Frequency};
 use kernel::{AppId, Callback, Driver, Grant, ReturnCode};
 
@@ -8,7 +9,10 @@ use kernel::{AppId, Callback, Driver, Grant, ReturnCode};
 use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::Alarm as usize;
 
-const MIN_TICS: usize = 8;
+/// This is based on an exprimental observation (using 16KHz timers) to make sure
+/// that the new tics value is not below the current counter
+/// so the alarm gets fired
+const MIN_TICS_AT_16KHZ: usize = 5;
 
 #[derive(Copy, Clone, Debug)]
 enum Expiration {
@@ -36,6 +40,7 @@ pub struct AlarmDriver<'a, A: Alarm<'a>> {
     num_armed: Cell<usize>,
     app_alarm: Grant<AlarmData>,
     prev: Cell<u32>,
+    min_tics: OptionalCell<usize>,
 }
 
 impl<A: Alarm<'a>> AlarmDriver<'a, A> {
@@ -45,6 +50,7 @@ impl<A: Alarm<'a>> AlarmDriver<'a, A> {
             num_armed: Cell::new(0),
             app_alarm: grant,
             prev: Cell::new(0),
+            min_tics: OptionalCell::empty(),
         }
     }
 
@@ -102,7 +108,7 @@ impl<A: Alarm<'a>> Driver for AlarmDriver<'a, A> {
     /// - `2`: Read the the current clock value
     /// - `3`: Stop the alarm if it is outstanding
     /// - `4`: Set an alarm to fire at a given clock value `time`.
-    /// - `5`: Set an alarm to fire at a given clock value `time` relative to `bow`.
+    /// - `5`: Set an alarm to fire at a given clock value `time` relative to `now` (EXPERIMENTAL).
     fn command(&self, cmd_type: usize, data: usize, _: usize, caller_id: AppId) -> ReturnCode {
         // Returns the error code to return to the user and whether we need to
         // reset which is the next active alarm. We only _don't_ reset if we're
@@ -152,8 +158,14 @@ impl<A: Alarm<'a>> Driver for AlarmDriver<'a, A> {
                     },
                     5 /* Set relative expiration */ => {
                         let mut time = now.wrapping_add (data as u32) as usize;
-                        if time.wrapping_sub (now as usize) <= MIN_TICS {
-                            time = time.wrapping_add (MIN_TICS);
+                        let min_tics = self.min_tics.unwrap_or_else(|| {
+                            // scale the min tics from 16Khz to the actual frequency of the CPU
+                            let min_tics = (MIN_TICS_AT_16KHZ * 16000) / (<A::Frequency>::frequency() as usize);
+                            self.min_tics.set(min_tics);
+                            min_tics
+                        });
+                        if time.wrapping_sub (now as usize) <= min_tics {
+                            time = time.wrapping_add (min_tics);
                         }
                         // if previously unarmed, but now will become armed
                         if let Expiration::Disabled = td.expiration {
