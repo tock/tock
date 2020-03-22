@@ -160,7 +160,7 @@ impl<A: Alarm<'a>> Driver for AlarmDriver<'a, A> {
                         let mut time = now.wrapping_add (data as u32) as usize;
                         let min_tics = self.min_tics.unwrap_or_else(|| {
                             // scale the min tics from 16Khz to the actual frequency of the CPU
-                            let min_tics = (MIN_TICS_AT_16KHZ * 16000) / (<A::Frequency>::frequency() as usize);
+                            let min_tics = (MIN_TICS_AT_16KHZ * (<A::Frequency>::frequency() as usize)) / 16000;
                             self.min_tics.set(min_tics);
                             min_tics
                         });
