@@ -149,7 +149,7 @@ impl<A: Alarm<'a>> Driver for AlarmDriver<'a, A> {
                         // debug!("set relative tics {}", time);
                         // if previously unarmed, but now will become armed
                         if let Expiration::Disabled = td.expiration {
-                            self.num_armed.set(self.num_armed.get());
+                            self.num_armed.set(self.num_armed.get() + 1);
                         }
                         td.expiration = Expiration::Abs(time as u32);
                         (ReturnCode::SuccessWithValue { value: time }, true)
@@ -159,9 +159,9 @@ impl<A: Alarm<'a>> Driver for AlarmDriver<'a, A> {
                         // debug!("set relative tics {}", time);
                         // if previously unarmed, but now will become armed
                         if let Expiration::Disabled = td.expiration {
-                            self.num_armed.set(now as usize + self.num_armed.get());
+                            self.num_armed.set(self.num_armed.get() + 1);
                         }
-                        td.expiration = Expiration::Abs(time as u32);
+                        td.expiration = Expiration::Abs(now + time as u32);
                         (ReturnCode::SuccessWithValue { value: time }, true)
                     },
                     _ => (ReturnCode::ENOSUPPORT, false)

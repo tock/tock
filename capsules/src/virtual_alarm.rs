@@ -62,6 +62,9 @@ impl<A: Alarm<'a>> Alarm<'a> for VirtualMuxAlarm<'a, A> {
         self.armed.set(false);
 
         self.mux.alarm.disable();
+        // checks whether the mux has been notified of the new alarm
+        // if yes, than the mux is alreafy in a reschedule function
+        // is not, it notifies it
         if !self.mux.notified.get() {
             self.mux.reschedule();
         }
@@ -78,6 +81,9 @@ impl<A: Alarm<'a>> Alarm<'a> for VirtualMuxAlarm<'a, A> {
 
         self.when.set(tics);
         self.mux.alarm.disable();
+        // checks whether the mux has been notified of the new alarm
+        // if yes, than the mux is alreafy in a reschedule function
+        // is not, it notifies it
         if !self.mux.notified.get() {
             self.mux.reschedule();
         }
@@ -120,6 +126,7 @@ impl<A: Alarm<'a>> MuxAlarm<'a, A> {
     }
 
     pub fn reschedule(&self) {
+        // the mux has been notified
         self.notified.set(true);
         // if we are in the fired handler, reschedule will be called
         // from update
