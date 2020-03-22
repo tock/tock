@@ -1,4 +1,4 @@
-//! Board file for Hail development platform
+//! Board file for Hail development platform.
 //!
 //! - <https://github.com/tock/tock/tree/master/boards/hail>
 //! - <https://github.com/lab11/hail>
