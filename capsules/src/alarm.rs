@@ -143,12 +143,22 @@ impl<A: Alarm<'a>> Driver for AlarmDriver<'a, A> {
                             }
                         }
                     },
-                    4|5 /* Set absolute expiration */ => {
+                    4 /* Set absolute expiration */ => {
                         let time = data;
                         // debug!("set relative tics {}", time);
                         // if previously unarmed, but now will become armed
                         if let Expiration::Disabled = td.expiration {
-                            self.num_armed.set(self.num_armed.get() + 1);
+                            self.num_armed.set(self.num_armed.get());
+                        }
+                        td.expiration = Expiration::Abs(time as u32);
+                        (ReturnCode::SuccessWithValue { value: time }, true)
+                    },
+                    5 /* Set absolute expiration from now */ => {
+                        let time = data;
+                        // debug!("set relative tics {}", time);
+                        // if previously unarmed, but now will become armed
+                        if let Expiration::Disabled = td.expiration {
+                            self.num_armed.set(now as usize + self.num_armed.get());
                         }
                         td.expiration = Expiration::Abs(time as u32);
                         (ReturnCode::SuccessWithValue { value: time }, true)
@@ -213,7 +223,11 @@ impl<A: Alarm<'a>> time::AlarmClient for AlarmDriver<'a, A> {
                     self.num_armed.set(self.num_armed.get() - 1);
                     alarm.callback.map(|mut cb| {
                         // debug!("callback");
-                        cb.schedule(0 as usize, alarm.original_expiration as usize, 0)
+                        cb.schedule(
+                            alarm.original_expiration as usize,
+                            alarm.original_expiration as usize,
+                            0,
+                        )
                     });
                 } else {
                     // alarm has now expired yet, set the new expiration
