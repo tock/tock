@@ -3,6 +3,7 @@ use cortexm4::support::atomic;
 use kernel::common::cells::OptionalCell;
 use kernel::common::registers::{register_bitfields, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
+use kernel::debug;
 use kernel::hil;
 use kernel::ClockInterface;
 
@@ -336,6 +337,7 @@ impl Tim2<'a> {
     }
 
     pub fn handle_interrupt(&self) {
+        // debug!("fired");
         self.registers.sr.modify(SR::CC1IF::CLEAR);
 
         self.client.map(|client| client.fired());
@@ -364,6 +366,8 @@ impl hil::time::Alarm<'a> for Tim2<'a> {
     fn set_alarm(&self, tics: u32) {
         self.registers.ccr1.set(tics);
         self.registers.dier.modify(DIER::CC1IE::SET);
+        // reset alarm counter, alarm will be oneshot
+        self.registers.egr.write(EGR::UG::SET);
     }
 
     fn get_alarm(&self) -> u32 {

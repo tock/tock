@@ -4,6 +4,8 @@
 use core::cell::Cell;
 use kernel::common::cells::OptionalCell;
 use kernel::common::{List, ListLink, ListNode};
+use kernel::debug;
+use kernel::hil::time::AlarmClient;
 use kernel::hil::time::{self, Alarm, Time};
 
 pub struct VirtualMuxAlarm<'a, A: Alarm<'a>> {
@@ -59,13 +61,9 @@ impl<A: Alarm<'a>> Alarm<'a> for VirtualMuxAlarm<'a, A> {
 
         self.armed.set(false);
 
-        let enabled = self.mux.enabled.get() - 1;
-        self.mux.enabled.set(enabled);
-
-        // If there are not more enabled alarms, disable the underlying alarm
-        // completely.
-        if enabled == 0 {
-            self.mux.alarm.disable();
+        self.mux.alarm.disable();
+        if !self.mux.notified.get() {
+            self.mux.reschedule();
         }
     }
 
@@ -73,28 +71,16 @@ impl<A: Alarm<'a>> Alarm<'a> for VirtualMuxAlarm<'a, A> {
         self.armed.get()
     }
 
-    fn set_alarm(&self, when: u32) {
-        let enabled = self.mux.enabled.get();
-
+    fn set_alarm(&self, tics: u32) {
         if !self.armed.get() {
-            self.mux.enabled.set(enabled + 1);
             self.armed.set(true);
         }
 
-        if enabled > 0 {
-            let cur_alarm = self.mux.alarm.get_alarm();
-            let now = self.now();
-
-            if cur_alarm.wrapping_sub(now) > when.wrapping_sub(now) {
-                self.mux.prev.set(self.mux.alarm.now());
-                self.mux.alarm.set_alarm(when);
-            }
-        } else {
-            self.mux.prev.set(self.mux.alarm.now());
-            self.mux.alarm.set_alarm(when);
+        self.when.set(tics);
+        self.mux.alarm.disable();
+        if !self.mux.notified.get() {
+            self.mux.reschedule();
         }
-
-        self.when.set(when);
     }
 
     fn get_alarm(&self) -> u32 {
@@ -106,71 +92,107 @@ impl<A: Alarm<'a>> time::AlarmClient for VirtualMuxAlarm<'a, A> {
     fn fired(&self) {
         self.client.map(|client| client.fired());
     }
+
+    fn update(&self, tics: usize) {
+        self.client.map(|client| client.update(tics));
+    }
 }
 
 // MuxAlarm
 
 pub struct MuxAlarm<'a, A: Alarm<'a>> {
     virtual_alarms: List<'a, VirtualMuxAlarm<'a, A>>,
-    enabled: Cell<usize>,
-    prev: Cell<u32>,
     alarm: &'a A,
+    notified: Cell<bool>,
 }
 
 impl<A: Alarm<'a>> MuxAlarm<'a, A> {
     pub const fn new(alarm: &'a A) -> MuxAlarm<'a, A> {
         MuxAlarm {
             virtual_alarms: List::new(),
-            enabled: Cell::new(0),
-            prev: Cell::new(0),
             alarm: alarm,
+            notified: Cell::new(false),
+        }
+    }
+
+    pub fn disable(&self) {
+        self.alarm.disable();
+    }
+
+    pub fn reschedule(&self) {
+        self.notified.set(true);
+        // if we are in the fired handler, reschedule will be called
+        // from update
+        // debug!("reschedule");
+        // disable timer so that is does not fire while we are
+        // in this function
+        self.alarm.disable();
+        let tics = self.alarm.get_alarm() as usize;
+        let next = self
+            .virtual_alarms
+            .iter()
+            .map(|cur| {
+                cur.update(tics);
+                cur
+            })
+            .filter(|cur| cur.armed.get())
+            .min_by_key(|cur| cur.when.get());
+
+        if let Some(valarm) = next {
+            // debug!("reschedule alarm to {}", actual_tics);
+            self.alarm.set_alarm(valarm.when.get());
+        } else {
+            self.alarm.disable();
+            self.notified.set(false);
         }
     }
 }
 
-fn has_expired(alarm: u32, now: u32, prev: u32) -> bool {
-    now.wrapping_sub(prev) >= alarm.wrapping_sub(prev)
-}
-
 impl<A: Alarm<'a>> time::AlarmClient for MuxAlarm<'a, A> {
     fn fired(&self) {
-        let now = self.alarm.now();
+        // get the number of tics that fired the alarm
 
-        // Capture this before the loop because it can change while checking
-        // each alarm. If a timer fires, it can immediately set a new timer
-        // by calling `VirtualMuxAlarm.set_alarm()` which can change `self.prev`
-        // to the current timer time.
-        let prev = self.prev.get();
+        // iterate every virtual alarm in the mux and inform it
+        // that a number of tics have expirted and get the
+        // next minimum tics to set
+        self.reschedule();
+        // let now = self.alarm.now();
 
-        // Check whether to fire each alarm. At this level, alarms are one-shot,
-        // so a repeating client will set it again in the fired() callback.
-        self.virtual_alarms
-            .iter()
-            .filter(|cur| cur.armed.get() && has_expired(cur.when.get(), now, prev))
-            .for_each(|cur| {
-                cur.armed.set(false);
-                self.enabled.set(self.enabled.get() - 1);
-                cur.fired();
-            });
+        // // Capture this before the loop because it can change while checking
+        // // each alarm. If a timer fires, it can immediately set a new timer
+        // // by calling `VirtualMuxAlarm.set_alarm()` which can change `self.prev`
+        // // to the current timer time.
+        // let prev = self.prev.get();
 
-        // Find the soonest alarm client (if any) and set the "next" underlying
-        // alarm based on it.  This needs to happen after firing all expired
-        // alarms since those may have reset new alarms.
-        let next = self
-            .virtual_alarms
-            .iter()
-            .filter(|cur| cur.armed.get())
-            .min_by_key(|cur| cur.when.get().wrapping_sub(now));
+        // // Check whether to fire each alarm. At this level, alarms are one-shot,
+        // // so a repeating client will set it again in the fired() callback.
+        // self.virtual_alarms
+        //     .iter()
+        //     .filter(|cur| cur.armed.get() && has_expired(cur.when.get(), now, prev))
+        //     .for_each(|cur| {
+        //         cur.armed.set(false);
+        //         self.enabled.set(self.enabled.get() - 1);
+        //         cur.fired();
+        //     });
 
-        self.prev.set(now);
-        // If there is an alarm to fire, set the underlying alarm to it
-        if let Some(valrm) = next {
-            self.alarm.set_alarm(valrm.when.get());
-            if has_expired(valrm.when.get(), self.alarm.now(), prev) {
-                self.fired();
-            }
-        } else {
-            self.alarm.disable();
-        }
+        // // Find the soonest alarm client (if any) and set the "next" underlying
+        // // alarm based on it.  This needs to happen after firing all expired
+        // // alarms since those may have reset new alarms.
+        // let next = self
+        //     .virtual_alarms
+        //     .iter()
+        //     .filter(|cur| cur.armed.get())
+        //     .min_by_key(|cur| cur.when.get().wrapping_sub(now));
+
+        // self.prev.set(now);
+        // // If there is an alarm to fire, set the underlying alarm to it
+        // if let Some(valrm) = next {
+        //     self.alarm.set_alarm(valrm.when.get());
+        //     if has_expired(valrm.when.get(), self.alarm.now(), prev) {
+        //         self.fired();
+        //     }
+        // } else {
+        //     self.alarm.disable();
+        // }
     }
 }

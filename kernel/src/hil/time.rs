@@ -119,6 +119,10 @@ pub trait AlarmClient {
     /// Callback signaled when the alarm's clock reaches the value set in
     /// [`Alarm#set_alarm`](trait.Alarm.html#tymethod.set_alarm).
     fn fired(&self);
+
+    /// Inform the alarm that a number of tics have elapsed
+    /// empty function if it is ignored
+    fn update(&self, _tics: usize) {}
 }
 
 /// The `Timer` trait models a timer that can notify when a particular interval

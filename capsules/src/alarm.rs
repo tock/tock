@@ -1,6 +1,7 @@
 //! Provides userspace applications with a alarm API.
 
 use core::cell::Cell;
+use kernel::debug;
 use kernel::hil::time::{self, Alarm, Frequency};
 use kernel::{AppId, Callback, Driver, Grant, ReturnCode};
 
@@ -17,6 +18,7 @@ enum Expiration {
 #[derive(Copy, Clone)]
 pub struct AlarmData {
     expiration: Expiration,
+    original_expiration: u32,
     callback: Option<Callback>,
 }
 
@@ -24,6 +26,7 @@ impl Default for AlarmData {
     fn default() -> AlarmData {
         AlarmData {
             expiration: Expiration::Disabled,
+            original_expiration: 0,
             callback: None,
         }
     }
@@ -46,26 +49,27 @@ impl<A: Alarm<'a>> AlarmDriver<'a, A> {
         }
     }
 
-    fn reset_active_alarm(&self, now: u32) -> Option<u32> {
-        self.prev.set(now);
+    fn reset_active_alarm(&self) -> Option<u32> {
+        // self.prev.set(now);
         let mut next_alarm = u32::max_value();
-        let mut next_dist = u32::max_value();
+        let mut next_expiration = u32::max_value();
         for alarm in self.app_alarm.iter() {
             alarm.enter(|alarm, _| match alarm.expiration {
                 Expiration::Abs(exp) => {
-                    let t_dist = exp.wrapping_sub(now);
-                    if next_dist > t_dist {
+                    if next_expiration > exp {
                         next_alarm = exp;
-                        next_dist = t_dist;
+                        next_expiration = next_expiration;
                     }
                 }
                 Expiration::Disabled => {}
             });
         }
         if next_alarm != u32::max_value() {
+            // debug!("next alarm to {}", next_alarm);
             self.alarm.set_alarm(next_alarm);
             Some(next_alarm)
         } else {
+            self.alarm.disable();
             None
         }
     }
@@ -126,20 +130,22 @@ impl<A: Alarm<'a>> Driver for AlarmDriver<'a, A> {
                                 // Request to stop when already stopped
                                 (ReturnCode::EALREADY, false)
                             },
-                            Expiration::Abs(exp) if exp != alarm_id => {
+                            Expiration::Abs(exp) if td.original_expiration != alarm_id => {
                                 // Request to stop invalid alarm id
                                 (ReturnCode::EINVAL, false)
                             },
                             _ => {
                                 td.expiration = Expiration::Disabled;
+                                td.original_expiration = 0;
                                 let new_num_armed = self.num_armed.get() - 1;
                                 self.num_armed.set(new_num_armed);
                                 (ReturnCode::SUCCESS, true)
                             }
                         }
                     },
-                    4 /* Set absolute expiration */ => {
+                    4|5 /* Set absolute expiration */ => {
                         let time = data;
+                        // debug!("set relative tics {}", time);
                         // if previously unarmed, but now will become armed
                         if let Expiration::Disabled = td.expiration {
                             self.num_armed.set(self.num_armed.get() + 1);
@@ -150,7 +156,7 @@ impl<A: Alarm<'a>> Driver for AlarmDriver<'a, A> {
                     _ => (ReturnCode::ENOSUPPORT, false)
                 };
                 if reset {
-                    self.reset_active_alarm(now);
+                    self.reset_active_alarm();
                 }
                 return_code
             })
@@ -164,32 +170,59 @@ fn has_expired(alarm: u32, now: u32, prev: u32) -> bool {
 
 impl<A: Alarm<'a>> time::AlarmClient for AlarmDriver<'a, A> {
     fn fired(&self) {
-        let now = self.alarm.now();
+        // will never be called by mux
+        // self.app_alarm.each(|alarm| {
+        //     if let Expiration::Abs(exp) = alarm.expiration {
+        //         let expired = has_expired(exp, now, self.prev.get());
+        //         if expired {
+        //             alarm.expiration = Expiration::Disabled;
+        //             self.num_armed.set(self.num_armed.get() - 1);
+        //             alarm
+        //                 .callback
+        //                 .map(|mut cb| cb.schedule(now as usize, exp as usize, 0));
+        //         }
+        //     }
+        // });
+
+        // // If there are armed alarms left, reset the underlying alarm to the
+        // // nearest interval.  Otherwise, disable the underlying alarm.
+        // if self.num_armed.get() == 0 {
+        //     self.alarm.disable();
+        // } else if let Some(next_alarm) = self.reset_active_alarm(now) {
+        //     let new_now = self.alarm.now();
+        //     if has_expired(next_alarm, new_now, now) {
+        //         self.fired();
+        //     }
+        // } else {
+        //     self.alarm.disable();
+        // }
+    }
+    fn update(&self, tics: usize) {
+        // debug!("update");
         self.app_alarm.each(|alarm| {
             if let Expiration::Abs(exp) = alarm.expiration {
-                let expired = has_expired(exp, now, self.prev.get());
-                if expired {
+                // debug!("expiration {}", exp);
+                let new_expiration = if exp > tics as u32 {
+                    0
+                } else {
+                    tics as u32 - exp
+                };
+                if new_expiration == 0 {
+                    // alarm has expired, fire the callback
                     alarm.expiration = Expiration::Disabled;
                     self.num_armed.set(self.num_armed.get() - 1);
-                    alarm
-                        .callback
-                        .map(|mut cb| cb.schedule(now as usize, exp as usize, 0));
+                    alarm.callback.map(|mut cb| {
+                        // debug!("callback");
+                        cb.schedule(0 as usize, alarm.original_expiration as usize, 0)
+                    });
+                } else {
+                    // alarm has now expired yet, set the new expiration
+                    alarm.expiration = Expiration::Abs(new_expiration as u32);
                 }
             }
         });
-
-        // If there are armed alarms left, reset the underlying alarm to the
-        // nearest interval.  Otherwise, disable the underlying alarm.
-        if self.num_armed.get() == 0 {
-            self.alarm.disable();
-        } else if let Some(next_alarm) = self.reset_active_alarm(now) {
-            let new_now = self.alarm.now();
-            if has_expired(next_alarm, new_now, now) {
-                self.fired();
-            }
-        } else {
-            self.alarm.disable();
-        }
+        // set the next active alarm
+        self.reset_active_alarm();
     }
 }
 
