@@ -76,7 +76,8 @@ pub trait Ticks: Clone + Copy + From<u32> {
     fn wrapping_add(self, other: Self) -> Self;
     fn wrapping_sub(self, other: Self) -> Self;
 
-    fn expired(reference: Self, now: Self, when: Self) -> bool;
+    // Returns whether when is in the range of [start, end)
+    fn within_range(start: Self, when: Self, end: Self) -> bool;
     fn max_value() -> Self;
 }
 
