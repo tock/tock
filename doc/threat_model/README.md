@@ -1,6 +1,10 @@
 Tock Threat Model
 =================
 
+
+**Note: This threat model is not descriptive of Tock's current implementation.
+It describes how we intend Tock to work in a future release, such as 2.0.**
+
 ## Overview
 
 Tock provides hardware-based isolation between applications as well as
@@ -40,11 +44,6 @@ This data can be either kernel data or application data, depending on its
 conceptual owner. For example, an ADC driver's sample buffer is capsule data
 associated with that ADC.
 
-**Secrets** are pieces of application data, kernel data, and capsule data that
-owning code wishes to keep confidential (that is, data the owning code does not
-opt to share with another OS component). This term is used to give an overview
-of confidentiality guarantees, and is always elaborated upon in this document.
-
 **Tock's users** refers to entities that make use of Tock OS. In the context of
 threat modelling, this typically refers to board integrators (entities that
 combine Tock components into an OS to run on a specific piece of hardware) and
@@ -52,12 +51,12 @@ application developers (who consume Tock's APIs and rely on the OS' guarantees).
 
 ## Isolation Provided to Applications
 
-**Confidentiality:** Application secrets may not be accessed by other
-applications or by untrusted capsules. Note that Tock does not generally provide
-defense against side channel attacks; see the [Side Channel
-Defense](#side-channel-defense) heading below for more details. Additionally,
-[Virtualization](Virtualization.md) describes some limitations on isolation for
-shared resources.
+**Confidentiality:** Application data may not be accessed by other applications
+or by untrusted capsules, unless explicitly permitted by the application. Note
+that Tock does not generally provide defense against side channel attacks; see
+the [Side Channel Defense](#side-channel-defense) heading below for more
+details. Additionally, [Virtualization](Virtualization.md) describes some
+limitations on isolation for shared resources.
 
 **Integrity:** Application data may not be modified by other applications or by
 untrusted capsules, except when allowed by the application.
@@ -69,11 +68,12 @@ first-come-first-served basis. This exception is described in detail in
 
 ## Isolation Provided to Kernel Code
 
-**Confidentiality:** Kernel secrets may not be accessed by applications. Kernel
-code's secrets may not be accessed by untrusted capsules. The limitations about
-[side channel defense](#side-channel-defense) and
-[Virtualization](Virtualization.md) that apply to application data also apply to
-kernel data.
+**Confidentiality:** Kernel data may not be accessed by applications, except
+where explicitly permitted by the owning component. Kernel data may not be
+accessed by untrusted capsules, except where explicitly permitted by the owning
+component. The limitations about [side channel defense](#side-channel-defense)
+and [Virtualization](Virtualization.md) that apply to application data also
+apply to kernel data.
 
 **Integrity:** Applications and untrusted capsules may not modify kernel data
 except through APIs intentionally exposed by the owning code.
