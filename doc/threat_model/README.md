@@ -57,7 +57,7 @@ applications or by untrusted capsules. Note that Tock does not generally provide
 defense against side channel attacks; see the [Side Channel
 Defense](#side-channel-defense) heading below for more details. Additionally,
 [Virtualization](Virtualization.md) describes some limitations on isolation for
-application data transferred over shared buses.
+shared resources.
 
 **Integrity:** Application data may not be modified by other applications or by
 untrusted capsules, except when allowed by the application.
@@ -71,8 +71,9 @@ first-come-first-served basis. This exception is described in detail in
 
 **Confidentiality:** Kernel secrets may not be accessed by applications. Kernel
 code's secrets may not be accessed by untrusted capsules. The limitations about
-[side channel defense](#side-channel-defense) and [shared buses](#shared-buses)
-that apply to application data also apply to kernel data.
+[side channel defense](#side-channel-defense) and
+[Virtualization](Virtualization.md) that apply to application data also apply to
+kernel data.
 
 **Integrity:** Applications and untrusted capsules may not modify kernel data
 except through APIs intentionally exposed by the owning code.
@@ -119,22 +120,6 @@ mitigating that side channel. For example:
    implementations, and protecting the secrecy of plaintext is valuable. As
    such, it may make sense for a Tock board to expose a cryptographic API with
    some side channel defenses.
-
-### Shared Buses
-
-External communication buses (for instance, an internet connection or a UART)
-may be shared between applications. When buses are shared between applications,
-Tock should provide isolation commensurate with the isolation provided by the
-underlying communication technology. For example:
-
-1. A UDP API can provide a mechanism for clients (applications and/or untrusted
-   capsules) to gain exclusive access to a port. The UDP API should then prevent
-   clients from reading messages sent to other clients or impersonating other
-   clients.
-
-1. A UART API with multiple clients cannot determine which client owns received
-   data. Tock is unable to prevent one application from reading UART data meant
-   for a different application.
 
 ## Components Trusted to Provide Isolation
 
