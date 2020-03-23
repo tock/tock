@@ -1,26 +1,11 @@
 #!/usr/bin/env python3
 
-# Copyright 2019 Google LLC
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     https://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-
-#
 # Prints out the memory usage of a Tock kernel binary ELF.
 # Currently only works on ARM binaries.
 #
 # Usage: print_tock_memory_usage.py ELF
 #
-# Author: Philip Levis <philip.levis@gmail.com>
+# Author: Philip Levis <pal@cs.stanford.edu>
 
 # pylint: disable=superfluous-parens
 '''
@@ -308,8 +293,8 @@ def print_symbol_information():
     """Print out all of the variable and function groups with their flash/RAM
        use."""
     variable_groups = {}
-    gaps = group_symbols(variable_groups, kernel_initialized, show_waste, "RAM")
-    gaps = gaps + group_symbols(variable_groups, kernel_uninitialized, show_waste, "Flash+RAM")
+    gaps = group_symbols(variable_groups, kernel_initialized, show_waste, "Flash+RAM")
+    gaps = gaps + group_symbols(variable_groups, kernel_uninitialized, show_waste, "RAM")
     print_groups("Variable groups (RAM)", variable_groups)
     print(gaps)
     

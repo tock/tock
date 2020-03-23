@@ -32,6 +32,7 @@
 //! userspace UDP driver to check which ports are bound, and vice-versa, such that
 //! exclusive access to ports between userspace apps and capsules is still enforced.
 
+use crate::net::network_capabilities::{NetworkCapability, UdpVisibilityCapability};
 use core::fmt;
 use kernel::capabilities::{CreatePortTableCapability, UdpDriverCapability};
 use kernel::common::cells::{OptionalCell, TakeCell};
@@ -39,8 +40,11 @@ use kernel::ReturnCode;
 
 // Sets the maximum number of UDP ports that can be bound by capsules. Reducing this number
 // can save a small amount of memory, and slightly reduces the overhead of iterating through the
-// table to check whether a port is already bound.
-pub const MAX_NUM_BOUND_PORTS: usize = 5;
+// table to check whether a port is already bound. Note: if this numberis changed,
+// port_table_test2 in udp_lowpan_test.rs will fail since it tests the capacity of
+// the port table -- therefore that test should be modified when MAX_NUM_BOUND_PORTS
+// is.
+pub const MAX_NUM_BOUND_PORTS: usize = 16;
 
 /// The SocketBindingEntry struct is stored in the PORT_TABLE and conveys what port is bound
 /// at the given index if one is bound. If no port is bound, the value stored
@@ -72,6 +76,7 @@ pub struct UdpSocket {
 pub struct UdpPortManager {
     port_array: TakeCell<'static, [Option<SocketBindingEntry>]>,
     user_ports: OptionalCell<&'static dyn PortQuery>,
+    udp_vis: &'static UdpVisibilityCapability,
 }
 
 impl fmt::Debug for UdpPortManager {
@@ -144,10 +149,12 @@ impl UdpPortManager {
     pub fn new(
         _cap: &dyn CreatePortTableCapability,
         used_kernel_ports: &'static mut [Option<SocketBindingEntry>],
+        udp_vis: &'static UdpVisibilityCapability,
     ) -> UdpPortManager {
         UdpPortManager {
             port_array: TakeCell::new(used_kernel_ports),
             user_ports: OptionalCell::empty(),
+            udp_vis: udp_vis,
         }
     }
 
@@ -239,26 +246,31 @@ impl UdpPortManager {
         &self,
         socket: UdpSocket,
         port: u16,
+        net_cap: &'static NetworkCapability,
     ) -> Result<(UdpPortBindingTx, UdpPortBindingRx), UdpSocket> {
-        match self.is_bound(port) {
-            Ok(bound) => {
-                if bound {
-                    Err(socket)
-                } else {
-                    self.port_array
-                        .map(|table| {
-                            table[socket.idx] = Some(SocketBindingEntry::Port(port));
-                            let binding_pair = (
-                                UdpPortBindingTx::new(socket.idx, port),
-                                UdpPortBindingRx::new(socket.idx, port),
-                            );
-                            // Add socket to the linked list.
-                            Ok(binding_pair)
-                        })
-                        .unwrap()
+        if net_cap.local_port_valid(port, self.udp_vis) {
+            match self.is_bound(port) {
+                Ok(bound) => {
+                    if bound {
+                        Err(socket)
+                    } else {
+                        self.port_array
+                            .map(|table| {
+                                table[socket.idx] = Some(SocketBindingEntry::Port(port));
+                                let binding_pair = (
+                                    UdpPortBindingTx::new(socket.idx, port),
+                                    UdpPortBindingRx::new(socket.idx, port),
+                                );
+                                // Add socket to the linked list.
+                                Ok(binding_pair)
+                            })
+                            .unwrap()
+                    }
                 }
+                Err(_) => Err(socket),
             }
-            Err(_) => Err(socket),
+        } else {
+            Err(socket)
         }
     }
 

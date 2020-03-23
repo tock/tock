@@ -65,19 +65,15 @@ impl IoWrite for Writer {
 #[panic_handler]
 pub unsafe extern "C" fn panic_fmt(info: &PanicInfo) -> ! {
     // User LD2 is connected to PA05
-    PinId::PA05.get_pin_mut().as_mut().map(|pa5| {
-        let led = &mut led::LedHigh::new(pa5);
-        let writer = &mut WRITER;
+    let led = &mut led::LedHigh::new(PinId::PA05.get_pin_mut().as_mut().unwrap());
+    let writer = &mut WRITER;
 
-        debug::panic(
-            &mut [led],
-            writer,
-            info,
-            &cortexm4::support::nop,
-            &PROCESSES,
-            &CHIP,
-        )
-    });
-
-    loop {}
+    debug::panic(
+        &mut [led],
+        writer,
+        info,
+        &cortexm4::support::nop,
+        &PROCESSES,
+        &CHIP,
+    )
 }

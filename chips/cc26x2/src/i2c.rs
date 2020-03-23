@@ -2,60 +2,19 @@
 
 use core::cmp;
 use kernel::common::cells::{MapCell, OptionalCell};
-use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
+use kernel::common::registers::{register_bitfields, Aliased, ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil::i2c;
 
 use crate::prcm;
 
-/// A wrapper module for interal register types.
-///
-/// The module allows us to hide construction of these internal types since arbitrarily creating
-/// them can have safety consequences.
-mod regs {
-    use kernel::common::registers::{ReadOnly, WriteOnly};
-    /// Models the `mctrl` and `mstat` registers, which occupy the same address, but have completely
-    /// different meanings for the same bits.
-    ///
-    /// When written, it is `mctrl` and it configures the I2C controller operation.
-    /// When read, it is `mstat` and indicates the state of the I2C controller
-    /// (CC13x2, CC26x2 SimpleLink Wireless MCU Technical Reference Manual pg. 1777)
-    ///
-    /// ## Safety
-    ///
-    /// Since this allows the client to access the same 32-bits using different types, it's important
-    /// that this type is only instantiated to occupy the memory of the control and status registers.
-    pub union ControlStatReg {
-        /// The control register modality
-        ctrl: WriteOnly<u32, super::Control::Register>,
-        /// The status register modality
-        stat: ReadOnly<u32, super::Status::Register>,
-    }
-
-    // This implements access to the union fields as methods, since access to untagged union fields is
-    // unsafe (for good reason in general). In this case, though, it's actually representing how
-    // memory accesses work assuming `ControlStatReg` is only instanitated to model the
-    // combined control/status register.
-    impl ControlStatReg {
-        /// Returns the control register modality
-        pub fn ctrl(&self) -> &WriteOnly<u32, super::Control::Register> {
-            unsafe { &self.ctrl }
-        }
-
-        /// Returns the status register modality
-        pub fn stat(&self) -> &ReadOnly<u32, super::Status::Register> {
-            unsafe { &self.stat }
-        }
-    }
-}
-
-use self::regs::ControlStatReg;
-
 #[repr(C)]
 struct I2CMasterRegisters {
     /// Master slave address
     msa: ReadWrite<u32, Address::Register>,
-    mstat_ctrl: ControlStatReg,
+    // The `mctrl` and `mstat` registers are aliased on the same address, with different meanings
+    // for bits which are read or written.
+    mstat_ctrl: Aliased<u32, Status::Register, Control::Register>,
     mdr: ReadWrite<u8>,
     _reserved: [u8; 3],
     mtpr: ReadWrite<u32, TimerPeriod::Register>,
@@ -154,7 +113,7 @@ impl<'a> I2CMaster<'a> {
     ///             condition)
     fn write_byte(&self, byte: u8, first: bool, last: bool) {
         self.registers.mdr.set(byte);
-        self.registers.mstat_ctrl.ctrl().write(
+        self.registers.mstat_ctrl.write(
             Control::RUN.val(1) + Control::START.val(first as u32) + Control::STOP.val(last as u32),
         );
     }
@@ -167,7 +126,7 @@ impl<'a> I2CMaster<'a> {
     /// * `last`  - whether this is the last byte in a transfer (i.e. whether to include a "STOP"
     ///             condition)
     fn read_byte(&self, first: bool, last: bool) {
-        self.registers.mstat_ctrl.ctrl().write(
+        self.registers.mstat_ctrl.write(
             Control::RUN.val(1)
                 + Control::RUN.val(1)
                 + Control::ACK.val(!last as u32)
@@ -179,7 +138,7 @@ impl<'a> I2CMaster<'a> {
     pub fn handle_interrupt(&self) {
         self.registers.micr.write(Interrupt::IM::SET);
         if let Some(mut transfer) = self.transfer.take() {
-            let status = self.registers.mstat_ctrl.stat();
+            let status = self.registers.mstat_ctrl.extract();
 
             if status.is_set(Status::ADRACK_N) {
                 self.client.map(move |client| {

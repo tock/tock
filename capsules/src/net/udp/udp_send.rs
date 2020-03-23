@@ -18,6 +18,7 @@
 use crate::net::ipv6::ip_utils::IPAddr;
 use crate::net::ipv6::ipv6::TransportHeader;
 use crate::net::ipv6::ipv6_send::{IP6SendClient, IP6Sender};
+use crate::net::network_capabilities::{NetworkCapability, UdpVisibilityCapability};
 use crate::net::udp::udp::UDPHeader;
 use crate::net::udp::udp_port_table::UdpPortBindingTx;
 use core::cell::Cell;
@@ -31,6 +32,8 @@ use kernel::ReturnCode;
 pub struct MuxUdpSender<'a, T: IP6Sender<'a>> {
     sender_list: List<'a, UDPSendStruct<'a, T>>,
     ip_sender: &'a dyn IP6Sender<'a>,
+    // OptionalCell needed to store net_cap for send_done
+    net_cap: OptionalCell<&'static NetworkCapability>,
 }
 
 impl<T: IP6Sender<'a>> MuxUdpSender<'a, T> {
@@ -39,6 +42,7 @@ impl<T: IP6Sender<'a>> MuxUdpSender<'a, T> {
         MuxUdpSender {
             sender_list: List::new(),
             ip_sender: ip6_sender,
+            net_cap: OptionalCell::empty(),
         }
     }
 
@@ -47,6 +51,7 @@ impl<T: IP6Sender<'a>> MuxUdpSender<'a, T> {
         dest: IPAddr,
         transport_header: TransportHeader,
         caller: &'a UDPSendStruct<'a, T>,
+        net_cap: &'static NetworkCapability,
     ) -> ReturnCode {
         // Add this sender to the tail of the sender_list
         let list_empty = self.sender_list.head().is_none();
@@ -55,7 +60,10 @@ impl<T: IP6Sender<'a>> MuxUdpSender<'a, T> {
         if list_empty {
             ret = match caller.tx_buffer.take() {
                 Some(buf) => {
-                    let ret = self.ip_sender.send_to(dest, transport_header, &buf);
+                    let ret = self
+                        .ip_sender
+                        .send_to(dest, transport_header, &buf, net_cap);
+                    self.net_cap.replace(net_cap);
                     caller.tx_buffer.replace(buf); //Replace buffer as soon as sent.
                     ret
                 }
@@ -100,16 +108,22 @@ impl<T: IP6Sender<'a>> IP6SendClient for MuxUdpSender<'a, T> {
                 //send next packet in queue
                 match next_sender.tx_buffer.take() {
                     Some(buf) => match next_sender.next_th.take() {
-                        Some(th) => {
-                            let ret = self
-                                .ip_sender
-                                .send_to(next_sender.next_dest.get(), th, &buf);
-                            next_sender.tx_buffer.replace(buf);
-                            if ret != ReturnCode::SUCCESS {
-                                debug!("IP send_to failed: {:?}", ret);
+                        Some(th) => match self.net_cap.take() {
+                            Some(net_cap) => {
+                                let ret = self.ip_sender.send_to(
+                                    next_sender.next_dest.get(),
+                                    th,
+                                    &buf,
+                                    net_cap,
+                                );
+                                next_sender.tx_buffer.replace(buf);
+                                if ret != ReturnCode::SUCCESS {
+                                    debug!("IP send_to failed: {:?}", ret);
+                                }
+                                ret
                             }
-                            ret
-                        }
+                            None => ReturnCode::FAIL,
+                        },
 
                         None => {
                             debug!("Missing transport header.");
@@ -169,6 +183,7 @@ pub trait UDPSender<'a> {
         dst_port: u16,
         //src_port: u16,
         buf: LeasableBuffer<'static, u8>,
+        net_cap: &'static NetworkCapability,
     ) -> Result<(), LeasableBuffer<'static, u8>>;
 
     /// This function is identical to `send_to()` except that it takes in
@@ -191,6 +206,7 @@ pub trait UDPSender<'a> {
         src_port: u16,
         buf: LeasableBuffer<'static, u8>,
         driver_send_cap: &dyn UdpDriverCapability,
+        net_cap: &'static NetworkCapability,
     ) -> Result<(), LeasableBuffer<'static, u8>>;
 
     /// This function constructs an IP packet from the completed `UDPHeader`
@@ -209,6 +225,7 @@ pub trait UDPSender<'a> {
         dest: IPAddr,
         udp_header: UDPHeader,
         buf: LeasableBuffer<'static, u8>,
+        net_cap: &'static NetworkCapability,
     ) -> Result<(), LeasableBuffer<'static, u8>>;
 
     fn get_binding(&self) -> Option<UdpPortBindingTx>;
@@ -229,6 +246,7 @@ pub struct UDPSendStruct<'a, T: IP6Sender<'a>> {
     next_dest: Cell<IPAddr>,
     next_th: OptionalCell<TransportHeader>,
     binding: MapCell<UdpPortBindingTx>,
+    udp_vis: &'static UdpVisibilityCapability,
 }
 
 impl<'a, T: IP6Sender<'a>> ListNode<'a, UDPSendStruct<'a, T>> for UDPSendStruct<'a, T> {
@@ -249,23 +267,31 @@ impl<T: IP6Sender<'a>> UDPSender<'a> for UDPSendStruct<'a, T> {
         dest: IPAddr,
         dst_port: u16,
         buf: LeasableBuffer<'static, u8>,
+        net_cap: &'static NetworkCapability,
     ) -> Result<(), LeasableBuffer<'static, u8>> {
         let mut udp_header = UDPHeader::new();
         udp_header.set_dst_port(dst_port);
         match self.binding.take() {
             Some(binding) => {
-                if binding.get_port() == 0 {
+                if !net_cap.remote_port_valid(dst_port, self.udp_vis)
+                    || !net_cap.local_port_valid(binding.get_port(), self.udp_vis)
+                {
+                    self.binding.replace(binding);
+                    Err(buf)
+                } else if binding.get_port() == 0 {
+                    self.binding.replace(binding);
                     Err(buf)
                 } else {
                     udp_header.set_src_port(binding.get_port());
                     self.binding.replace(binding);
-                    self.send(dest, udp_header, buf)
+                    self.send(dest, udp_header, buf, net_cap)
                 }
             }
             None => Err(buf),
         }
     }
 
+    // TODO: different capabilities for driver_send_to?
     fn driver_send_to(
         &'a self,
         dest: IPAddr,
@@ -273,11 +299,12 @@ impl<T: IP6Sender<'a>> UDPSender<'a> for UDPSendStruct<'a, T> {
         src_port: u16,
         buf: LeasableBuffer<'static, u8>,
         _driver_send_cap: &dyn UdpDriverCapability,
+        net_cap: &'static NetworkCapability,
     ) -> Result<(), LeasableBuffer<'static, u8>> {
         let mut udp_header = UDPHeader::new();
         udp_header.set_dst_port(dst_port);
         udp_header.set_src_port(src_port);
-        self.send(dest, udp_header, buf)
+        self.send(dest, udp_header, buf, net_cap)
     }
 
     fn send(
@@ -285,13 +312,17 @@ impl<T: IP6Sender<'a>> UDPSender<'a> for UDPSendStruct<'a, T> {
         dest: IPAddr,
         mut udp_header: UDPHeader,
         buf: LeasableBuffer<'static, u8>,
+        net_cap: &'static NetworkCapability,
     ) -> Result<(), LeasableBuffer<'static, u8>> {
         udp_header.set_len((buf.len() + udp_header.get_hdr_size()) as u16);
         let transport_header = TransportHeader::UDP(udp_header);
         self.tx_buffer.replace(buf);
         self.next_dest.replace(dest);
         self.next_th.replace(transport_header); // th = transport header
-        match self.udp_mux_sender.send_to(dest, transport_header, &self) {
+        match self
+            .udp_mux_sender
+            .send_to(dest, transport_header, &self, net_cap)
+        {
             ReturnCode::SUCCESS => Ok(()),
             _ => Err(self.tx_buffer.take().unwrap()),
         }
@@ -313,6 +344,7 @@ impl<T: IP6Sender<'a>> UDPSender<'a> for UDPSendStruct<'a, T> {
 impl<T: IP6Sender<'a>> UDPSendStruct<'a, T> {
     pub fn new(
         udp_mux_sender: &'a MuxUdpSender<'a, T>, /*binding: UdpPortBindingTx*/
+        udp_vis: &'static UdpVisibilityCapability,
     ) -> UDPSendStruct<'a, T> {
         UDPSendStruct {
             udp_mux_sender: udp_mux_sender,
@@ -322,6 +354,7 @@ impl<T: IP6Sender<'a>> UDPSendStruct<'a, T> {
             next_dest: Cell::new(IPAddr::new()),
             next_th: OptionalCell::empty(),
             binding: MapCell::empty(),
+            udp_vis: udp_vis,
         }
     }
 }

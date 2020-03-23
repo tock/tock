@@ -20,6 +20,7 @@ use crate::ieee802154::device::{MacDevice, TxClient};
 use crate::net::ieee802154::MacAddress;
 use crate::net::ipv6::ip_utils::IPAddr;
 use crate::net::ipv6::ipv6::{IP6Header, IP6Packet, TransportHeader};
+use crate::net::network_capabilities::{IpVisibilityCapability, NetworkCapability};
 use crate::net::sixlowpan::sixlowpan_state::TxState;
 use core::cell::Cell;
 use kernel::common::cells::{OptionalCell, TakeCell};
@@ -83,6 +84,7 @@ pub trait IP6Sender<'a> {
         dst: IPAddr,
         transport_header: TransportHeader,
         payload: &LeasableBuffer<'static, u8>,
+        net_cap: &'static NetworkCapability,
     ) -> ReturnCode;
 }
 
@@ -102,6 +104,7 @@ pub struct IP6SendStruct<'a, A: time::Alarm<'a>> {
     dst_mac_addr: MacAddress,
     src_mac_addr: MacAddress,
     client: OptionalCell<&'a dyn IP6SendClient>,
+    ip_vis: &'static IpVisibilityCapability,
 }
 
 impl<A: time::Alarm<'a>> IP6Sender<'a> for IP6SendStruct<'a, A> {
@@ -127,7 +130,11 @@ impl<A: time::Alarm<'a>> IP6Sender<'a> for IP6SendStruct<'a, A> {
         dst: IPAddr,
         transport_header: TransportHeader,
         payload: &LeasableBuffer<'static, u8>,
+        net_cap: &'static NetworkCapability,
     ) -> ReturnCode {
+        if !net_cap.remote_addr_valid(dst, self.ip_vis) {
+            return ReturnCode::FAIL;
+        }
         self.sixlowpan.init(
             self.src_mac_addr,
             self.dst_mac_addr,
@@ -149,6 +156,7 @@ impl<A: time::Alarm<'a>> IP6SendStruct<'a, A> {
         radio: &'a dyn MacDevice<'a>,
         dst_mac_addr: MacAddress,
         src_mac_addr: MacAddress,
+        ip_vis: &'static IpVisibilityCapability,
     ) -> IP6SendStruct<'a, A> {
         IP6SendStruct {
             ip6_packet: TakeCell::new(ip6_packet),
@@ -161,6 +169,7 @@ impl<A: time::Alarm<'a>> IP6SendStruct<'a, A> {
             dst_mac_addr: dst_mac_addr,
             src_mac_addr: src_mac_addr,
             client: OptionalCell::empty(),
+            ip_vis: ip_vis,
         }
     }
 

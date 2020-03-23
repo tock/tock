@@ -6,6 +6,7 @@
 //! Example use of this capsule can be found in `udp_lowpan_test.rs` in the Imix board directory.
 
 use crate::net::ipv6::ip_utils::IPAddr;
+use crate::net::network_capabilities::NetworkCapability;
 use crate::net::udp::udp_port_table::UdpPortManager;
 use crate::net::udp::udp_recv::{UDPReceiver, UDPRecvClient};
 use crate::net::udp::udp_send::{UDPSendClient, UDPSender};
@@ -34,6 +35,7 @@ pub struct MockUdp<'a, A: Alarm<'a>> {
     src_port: Cell<u16>,
     dst_port: Cell<u16>,
     send_loop: Cell<bool>,
+    net_cap: Cell<&'static NetworkCapability>,
 }
 
 impl<'a, A: Alarm<'a>> MockUdp<'a, A> {
@@ -45,6 +47,7 @@ impl<'a, A: Alarm<'a>> MockUdp<'a, A> {
         port_table: &'static UdpPortManager,
         udp_dgram: LeasableBuffer<'static, u8>,
         dst_port: u16,
+        net_cap: &'static NetworkCapability,
     ) -> MockUdp<'a, A> {
         MockUdp {
             id: id,
@@ -56,6 +59,7 @@ impl<'a, A: Alarm<'a>> MockUdp<'a, A> {
             src_port: Cell::new(0), // invalid initial value
             dst_port: Cell::new(dst_port),
             send_loop: Cell::new(false),
+            net_cap: Cell::new(net_cap),
         }
     }
 
@@ -70,6 +74,10 @@ impl<'a, A: Alarm<'a>> MockUdp<'a, A> {
         );
     }
 
+    pub fn update_capability(&self, new_cap: &'static NetworkCapability) {
+        self.net_cap.set(new_cap);
+    }
+
     pub fn stop_sending(&self) {
         self.alarm.disable();
     }
@@ -79,7 +87,11 @@ impl<'a, A: Alarm<'a>> MockUdp<'a, A> {
     pub fn bind(&self, src_port: u16) {
         self.src_port.set(src_port);
         if self.udp_sender.is_bound() != self.udp_receiver.is_bound() {
-            debug!("Error: bindings should match.");
+            debug!(
+                "Error: bindings should match. sender bound: {} rcvr bound: {}",
+                self.udp_sender.is_bound(),
+                self.udp_receiver.is_bound()
+            );
         }
         match self.udp_sender.is_bound() {
             true => {
@@ -87,16 +99,22 @@ impl<'a, A: Alarm<'a>> MockUdp<'a, A> {
                     self.udp_sender.get_binding().expect("missing1"),
                     self.udp_receiver.get_binding().expect("missing2"),
                 ) {
-                    Ok(sock) => match self.port_table.bind(sock, self.src_port.get()) {
-                        Ok((send_bind, rcv_bind)) => {
-                            self.udp_sender.set_binding(send_bind);
-                            self.udp_receiver.set_binding(rcv_bind);
+                    Ok(sock) => {
+                        match self
+                            .port_table
+                            .bind(sock, self.src_port.get(), self.net_cap.get())
+                        {
+                            Ok((send_bind, rcv_bind)) => {
+                                debug!("Resetting binding"); //TODO: Delete me
+                                self.udp_sender.set_binding(send_bind);
+                                self.udp_receiver.set_binding(rcv_bind);
+                            }
+                            Err(_sock) => {
+                                debug!("Binding error in mock_udp");
+                                // dropping sock destroys it!
+                            }
                         }
-                        Err(_sock) => {
-                            debug!("Binding error in mock_udp");
-                            // dropping sock destroys it!
-                        }
-                    },
+                    }
                     Err((_send_bind, _rcv_bind)) => {
                         debug!("TEST FAIL: attempted to unbind with mismatched bindings.");
                     }
@@ -107,7 +125,10 @@ impl<'a, A: Alarm<'a>> MockUdp<'a, A> {
                 let socket = self.port_table.create_socket();
                 match socket {
                     Ok(sock) => {
-                        match self.port_table.bind(sock, self.src_port.get()) {
+                        match self
+                            .port_table
+                            .bind(sock, self.src_port.get(), self.net_cap.get())
+                        {
                             Ok((send_bind, rcv_bind)) => {
                                 self.udp_sender.set_binding(send_bind);
                                 self.udp_receiver.set_binding(rcv_bind);
@@ -138,10 +159,12 @@ impl<'a, A: Alarm<'a>> MockUdp<'a, A> {
                 dgram[0] = (value >> 8) as u8;
                 dgram[1] = (value & 0x00ff) as u8;
                 dgram.slice(0..2);
-                match self
-                    .udp_sender
-                    .send_to(DST_ADDR, self.dst_port.get(), dgram)
-                {
+                match self.udp_sender.send_to(
+                    DST_ADDR,
+                    self.dst_port.get(),
+                    dgram,
+                    self.net_cap.get(),
+                ) {
                     Ok(_) => ReturnCode::SUCCESS,
                     Err(mut buf) => {
                         buf.reset();

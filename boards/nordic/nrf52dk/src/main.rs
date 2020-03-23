@@ -83,9 +83,9 @@ const BUTTON3_PIN: Pin = Pin::P0_15;
 const BUTTON4_PIN: Pin = Pin::P0_16;
 const BUTTON_RST_PIN: Pin = Pin::P0_21;
 
-const UART_RTS: Pin = Pin::P0_05;
+const UART_RTS: Option<Pin> = Some(Pin::P0_05);
 const UART_TXD: Pin = Pin::P0_06;
-const UART_CTS: Pin = Pin::P0_07;
+const UART_CTS: Option<Pin> = Some(Pin::P0_07);
 const UART_RXD: Pin = Pin::P0_08;
 
 const SPI_MOSI: Pin = Pin::P0_22;
@@ -152,22 +152,22 @@ pub unsafe fn reset_handler() {
         components::button_component_helper!(
             (
                 &nrf52832::gpio::PORT[BUTTON1_PIN],
-                capsules::button::GpioMode::LowWhenPressed,
+                kernel::hil::gpio::ActivationMode::ActiveLow,
                 kernel::hil::gpio::FloatingState::PullUp
             ), //13
             (
                 &nrf52832::gpio::PORT[BUTTON2_PIN],
-                capsules::button::GpioMode::LowWhenPressed,
+                kernel::hil::gpio::ActivationMode::ActiveLow,
                 kernel::hil::gpio::FloatingState::PullUp
             ), //14
             (
                 &nrf52832::gpio::PORT[BUTTON3_PIN],
-                capsules::button::GpioMode::LowWhenPressed,
+                kernel::hil::gpio::ActivationMode::ActiveLow,
                 kernel::hil::gpio::FloatingState::PullUp
             ), //15
             (
                 &nrf52832::gpio::PORT[BUTTON4_PIN],
-                capsules::button::GpioMode::LowWhenPressed,
+                kernel::hil::gpio::ActivationMode::ActiveLow,
                 kernel::hil::gpio::FloatingState::PullUp
             ) //16
         ),
@@ -176,19 +176,19 @@ pub unsafe fn reset_handler() {
     let led = components::led::LedsComponent::new().finalize(components::led_component_helper!(
         (
             &nrf52832::gpio::PORT[LED1_PIN],
-            capsules::led::ActivationMode::ActiveLow
+            kernel::hil::gpio::ActivationMode::ActiveLow
         ),
         (
             &nrf52832::gpio::PORT[LED2_PIN],
-            capsules::led::ActivationMode::ActiveLow
+            kernel::hil::gpio::ActivationMode::ActiveLow
         ),
         (
             &nrf52832::gpio::PORT[LED3_PIN],
-            capsules::led::ActivationMode::ActiveLow
+            kernel::hil::gpio::ActivationMode::ActiveLow
         ),
         (
             &nrf52832::gpio::PORT[LED4_PIN],
-            capsules::led::ActivationMode::ActiveLow
+            kernel::hil::gpio::ActivationMode::ActiveLow
         )
     ));
     let chip = static_init!(nrf52832::chip::Chip, nrf52832::chip::new());

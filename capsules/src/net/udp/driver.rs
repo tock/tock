@@ -7,6 +7,7 @@
 //! hard-coded).
 
 use crate::net::ipv6::ip_utils::IPAddr;
+use crate::net::network_capabilities::NetworkCapability;
 use crate::net::stream::encode_u16;
 use crate::net::stream::encode_u8;
 use crate::net::stream::SResult;
@@ -93,6 +94,8 @@ pub struct UDPDriver<'a> {
     kernel_buffer: MapCell<LeasableBuffer<'static, u8>>,
 
     driver_send_cap: &'static dyn UdpDriverCapability,
+
+    net_cap: &'static NetworkCapability,
 }
 
 impl<'a> UDPDriver<'a> {
@@ -104,6 +107,7 @@ impl<'a> UDPDriver<'a> {
         port_table: &'static UdpPortManager,
         kernel_buffer: LeasableBuffer<'static, u8>,
         driver_send_cap: &'static dyn UdpDriverCapability,
+        net_cap: &'static NetworkCapability,
     ) -> UDPDriver<'a> {
         UDPDriver {
             sender: sender,
@@ -114,6 +118,7 @@ impl<'a> UDPDriver<'a> {
             port_table: port_table,
             kernel_buffer: MapCell::new(kernel_buffer),
             driver_send_cap: driver_send_cap,
+            net_cap: net_cap,
         }
     }
 
@@ -271,6 +276,7 @@ impl<'a> UDPDriver<'a> {
                                 src_port,
                                 kernel_buffer,
                                 self.driver_send_cap,
+                                self.net_cap,
                             ) {
                                 Ok(_) => ReturnCode::SUCCESS,
                                 Err(mut buf) => {

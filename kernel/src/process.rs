@@ -352,6 +352,29 @@ impl ProcessRestartPolicy for ThresholdRestart {
     }
 }
 
+/// Implementation of `ProcessRestartPolicy` that uses a threshold to decide
+/// whether to restart an app. If the app has been restarted more times than the
+/// threshold then the system will panic.
+pub struct ThresholdRestartThenPanic {
+    threshold: usize,
+}
+
+impl ThresholdRestartThenPanic {
+    pub const fn new(threshold: usize) -> ThresholdRestartThenPanic {
+        ThresholdRestartThenPanic { threshold }
+    }
+}
+
+impl ProcessRestartPolicy for ThresholdRestartThenPanic {
+    fn should_restart(&self, process: &dyn ProcessType) -> bool {
+        if process.get_restart_count() <= self.threshold {
+            true
+        } else {
+            panic!("Restart threshold surpassed!");
+        }
+    }
+}
+
 /// Implementation of `ProcessRestartPolicy` that unconditionally restarts the
 /// app.
 pub struct AlwaysRestart {}
@@ -678,7 +701,7 @@ impl<C: Chip> ProcessType for Process<'a, C> {
                 let count_after = tasks.len();
                 debug!(
                     "[{:?}] remove_pending_callbacks[{:#x}:{}] = {} callback(s) removed",
-                    self.app_id,
+                    self.appid(),
                     callback_id.driver_num,
                     callback_id.subscribe_num,
                     count_before - count_after,
