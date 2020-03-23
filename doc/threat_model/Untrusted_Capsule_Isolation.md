@@ -18,6 +18,9 @@ programming techniques (stealthy obfuscation), and is a weaker form of isolation
 than the hardware-backed isolation used to isolate the kernel (and other
 applications) from applications.
 
+Untrusted capsules are scheduled cooperatively with the rest of the kernel, and
+as such they can deny service to the rest of the system.
+
 ## Impact on Kernel API Design
 
 Kernel APIs should be designed to limit the data that untrusted capsules have

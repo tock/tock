@@ -1,6 +1,9 @@
 TBF Headers
 ===========
 
+TBF is the [Tock Binary Format](../TockBinaryFormat.md). It is the format of
+applications in a Tock system's flash storage.
+
 TBF headers are considered part of an application, and are similarly untrusted.
 As such, TBF header parsing must be robust against malicious inputs (e.g.
 pointers must be checked to confirm they are in-bounds for the app).

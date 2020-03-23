@@ -152,7 +152,7 @@ and its security-relevant dependencies:
   application deployment mechanism.
 
 - [TBF Headers](TBF_Headers.md) describes the trust model associated with the
-  TBF headers.
+  [Tock Binary Format](../TockBinaryFormat.md) headers.
 
 - [Third Party Dependencies](Third_Party_Dependencies.md) describes Tock's
   policy on auditing third-party code.
