@@ -226,8 +226,8 @@ register_bitfields! [
 
 ## Register Interface Summary
 
-There are three types provided by the register interface: `ReadOnly`,
-`WriteOnly`, and `ReadWrite`. They provide the following functions:
+There are four types provided by the register interface: `ReadOnly`,
+`WriteOnly`, `ReadWrite`, and `Aliased`. They provide the following functions:
 
 ```rust
 ReadOnly<T: IntLike, R: RegisterLongName = ()>
@@ -243,8 +243,6 @@ WriteOnly<T: IntLike, R: RegisterLongName = ()>
 .set(value: T)                                 // Set the raw register value
 .write(value: FieldValue<T, R>)                // Write the value of one or more fields,
                                                //  overwriting other fields to zero
-
-
 ReadWrite<T: IntLike, R: RegisterLongName = ()>
 .get() -> T                                    // Get the raw register value
 .set(value: T)                                 // Set the raw register value
@@ -262,7 +260,21 @@ ReadWrite<T: IntLike, R: RegisterLongName = ()>
 .matches_all(value: FieldValue<T, R>) -> bool  // Check if all specified parts of a field match
 .extract() -> LocalRegisterCopy<T, R>          // Make local copy of register
 
+Aliased<T: IntLike, R: RegisterLongName = (), W: RegisterLongName = ()>
+.get() -> T                                    // Get the raw register value
+.set(value: T)                                 // Set the raw register value
+.read(field: Field<T, R>) -> T                 // Read the value of the given field
+.read_as_enum<E>(field: Field<T, R>) -> Option<E> // Read value of the given field as a enum member
+.write(value: FieldValue<T, W>)                // Write the value of one or more fields,
+                                               //  overwriting other fields to zero
+.is_set(field: Field<T, R>) -> bool            // Check if one or more bits in a field are set
+.matches_any(value: FieldValue<T, R>) -> bool  // Check if any specified parts of a field match
+.matches_all(value: FieldValue<T, R>) -> bool  // Check if all specified parts of a field match
+.extract() -> LocalRegisterCopy<T, R>          // Make local copy of register
 ```
+
+The `Aliased` type represents cases where read-only and write-only registers,
+with different meanings, are aliased to the same memory location.
 
 The first type parameter (the `IntLike` type) is `u8`, `u16`, `u32`, or `u64`.
 

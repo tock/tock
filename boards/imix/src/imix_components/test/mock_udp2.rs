@@ -8,6 +8,7 @@
 #![allow(dead_code)] // Components are intended to be conditionally included
 
 use capsules::net::ipv6::ipv6_send::IP6SendStruct;
+use capsules::net::network_capabilities::{NetworkCapability, UdpVisibilityCapability};
 use capsules::net::udp::udp_recv::{MuxUdpReceiver, UDPReceiver};
 use capsules::net::udp::udp_send::{MuxUdpSender, UDPSendStruct, UDPSender};
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
@@ -30,6 +31,8 @@ pub struct MockUDPComponent2 {
     udp_payload: TakeCell<'static, [u8]>,
     id: u16,
     dst_port: u16,
+    net_cap: &'static NetworkCapability,
+    udp_vis: &'static UdpVisibilityCapability,
 }
 
 impl MockUDPComponent2 {
@@ -44,6 +47,8 @@ impl MockUDPComponent2 {
         udp_payload: &'static mut [u8],
         id: u16,
         dst_port: u16,
+        net_cap: &'static NetworkCapability,
+        udp_vis: &'static UdpVisibilityCapability,
     ) -> MockUDPComponent2 {
         MockUDPComponent2 {
             udp_send_mux: udp_send_mux,
@@ -53,6 +58,8 @@ impl MockUDPComponent2 {
             udp_payload: TakeCell::new(udp_payload),
             id: id,
             dst_port: dst_port,
+            net_cap: net_cap,
+            udp_vis: udp_vis,
         }
     }
 }
@@ -73,7 +80,7 @@ impl Component for MockUDPComponent2 {
                     VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>,
                 >,
             >,
-            UDPSendStruct::new(self.udp_send_mux)
+            UDPSendStruct::new(self.udp_send_mux, self.udp_vis)
         );
 
         let udp_recv = static_init!(UDPReceiver<'static>, UDPReceiver::new());
@@ -95,6 +102,7 @@ impl Component for MockUDPComponent2 {
                     self.udp_payload.take().expect("missing payload")
                 ),
                 self.dst_port,
+                self.net_cap,
             )
         );
         udp_send.set_client(mock_udp);

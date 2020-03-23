@@ -201,7 +201,7 @@ impl<'a, 'b, C: hil::usb::UsbController<'a>> ClientCtrl<'a, 'b, C> {
     pub fn enable(&'a self) {
         // Set up the default control endpoint
         self.controller
-            .endpoint_set_buffer(0, &self.ctrl_buffer.buf);
+            .endpoint_set_ctrl_buffer(&self.ctrl_buffer.buf);
         self.controller
             .enable_as_device(hil::usb::DeviceSpeed::Full); // must be Full for Bulk transfers
         self.controller

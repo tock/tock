@@ -76,7 +76,11 @@ pub trait Ticks: Clone + Copy + From<u32> {
     fn wrapping_add(self, other: Self) -> Self;
     fn wrapping_sub(self, other: Self) -> Self;
 
-    // Returns whether when is in the range of [start, end)
+    // Returns whether when is in the range of [start, end), using
+    // unsigned arithmetic and considering wraparound. It returns true
+    // if, incrementing from start, when will be reached before end.
+    // Put another way, it returns (when - start) < (end - start) in
+    // unsigned arithmetic.
     fn within_range(start: Self, when: Self, end: Self) -> bool;
     fn max_value() -> Self;
 }
@@ -91,9 +95,17 @@ pub trait Time {
 
     fn now(&self) -> Self::Ticks;
 
+    // Returns the number of ticks in the provided number of seconds,
+    // rounding down any fractions.
     fn ticks_from_seconds(s: u32) -> Self::Ticks;
-    fn ticks_from_ms(s: u32) -> Self::Ticks;
-    fn ticks_from_us(s: u32) -> Self::Ticks;
+    
+    // Returns the number of ticks in the provided number of milliseconds,
+    // rounding down any fractions.
+    fn ticks_from_ms(ms: u32) -> Self::Ticks;
+
+    // Returns the number of ticks in the provided number of microseconds,
+    // rounding down any fractions.
+    fn ticks_from_us(us: u32) -> Self::Ticks;
 }
 ```
 
@@ -109,8 +121,10 @@ precision, then the associated type can be used to statically check
 that is is not put on top of an implementation with 32kHz precision.
 
 The three `ticks_from` methods are helper functions to convert values
-in seconds, milliseconds, or microseconds to a number of ticks.
-
+in seconds, milliseconds, or microseconds to a number of ticks. These
+three methods all round down the result. This means, for example, that 
+if the `Time` instance has a frequency of 32kHz, calling `ticks_from_us(20)`
+returns 0, because a single tick of a 32kHz clock is 30.5 microseconds.
 
 [associated type]: https://doc.rust-lang.org/book/associated-types.html
 
@@ -258,7 +272,7 @@ be less than `interval`.
 
 
 
-6 `Frequency` Implementations
+6 `Frequency` and `Ticks` Implementations
 =================================
 
 The time HIL provides four standard implementations of `Frequency`:
@@ -271,6 +285,18 @@ pub struct Freq16KHz;
 pub struct Freq1KHz;
 ```
 
+The time HIL provides three standard implementaitons of `Ticks`:
+
+```rust
+pub struct Ticks24Bits(u32);
+pub struct Ticks32Bits(u32);
+pub struct Ticks64Bits(u64);
+```
+
+The 24 bits implementation is to support some Nordic Semiconductor
+nRF platforms (e.g. nRF52840) that only support a 24 bit counter.
+
+
 7 Capsules
 ===============================
 
@@ -282,9 +308,14 @@ abstractions for virtualizing a single `Alarm` into many.
 8 Required Modules
 ===============================
 
-A chip MUST provide an `Alarm` with a `Frequency` of `Freq32KHz`.
+A chip MUST provide an instance of `Alarm` with a `Frequency` of `Freq32KHz` 
+and a `Ticks` of `Ticks32Bits`.
+
+A chip MUST provide an instance of `Time` with a `Frequency` of `Freq1MHz` and
+a `Ticks` of `Ticks64Bits`.
 
 A chip SHOULD provide an Alarm with a `Frequency` of `Freq1MHz`.
+
 
 
 9 Acknowledgements

@@ -1,0 +1,157 @@
+2/28/2020
+
+Attending: Amit, Patrick, Johnathan, Hudson, Holly, Phil, Jean-Luc, Brad
+
+-- Updates! --
+    
+    * Phil: Minor point - OpenTitan WG would like to include RISC-V support for libtock-rs in its charter. Is that ok?
+
+    Johnathan: OpenTitan WG shouldn't own libtock-rs. Hard to draw boundaries?
+
+    Phil: Told them that Johnathan should be involved at least in the WG. Can figure out the right boundaries, maybe create a libtock-rs working group as well.
+
+
+    * Amit: had a conversation yesterday on libtock-rs with Johnathan. Library is a bit of a mess: complexity, code bloat, futures. Feeling is that a re-engineering/restructuring effort would make sense, but hard to make that happen incrementally. Thought is it might be easier to explore alternative design altogether and see how it works.
+      Johnathan: feeling like a rewrite is in the cards, needs to think more about what would be radically different in a new implementation.
+      
+    * Amit: undergraduate student is going to pick up a project to build a simulator for Tock (maybe: port of Tock to POSIX processes). Not the same as writing a QEMU simulator, but should be flexible for testing applications.
+      Johnathan: plan for libtock-rs rework was to virtualize system call interface. Seem pretty similar to that proposal but a little weaker?
+      Amit: current prototype intent is to replace the current SVC calls (in libtock-c, for example), with communicating through pip to a process running the kernel compiled for POSIX.
+      Johnathan: proposing even not a real kernel, just different implementation under the syscalls.
+      Phil: in general, ability to test capsule implementations in general computing env. is pretty useful when just testing the software.
+      Johnathan: when you start having multiple components (each real or fake, on different OSes), you can run into a combinatorial explosion of possible combinations. So at some point, it's worth diagramming out what options we have. Which specific testing strategies (3-4) are most useful? E.g. full end-to-end tests on the HW, little software unit tests that don't run on the HW at all, maybe running on a POSIX kernel is useful, but we need to well specify which ones we want to maintain. How easy are the tests to run? How many bugs are they going to uncover that other testing strategies won't?
+      Phil: one other datapoint is (TOSSIM?) where we would simulate a specific hardware platform, which was totally sufficient for testing higher-level software.
+      Amit: this could be nice for application development, to have a simulator that you could extend with some mock piece of hardware.
+      Phil: 140E (OS class) implements a serial protocol that reads/writes addresses on the RPi, allows for standard debugging on the host side, albeit at a much slower pace.
+      
+    * Brad: got rewrite of TBF parsing code in the kernel working for the blink app. Some rough edges on the PR, but progress has been made in removing unsafe from the parsing code itself.
+    
+    * Johnathan: security model is a PR on the repo. NGOSCPS paper should look at that before submitting.
+    
+-- Next Releases --
+
+* Tock 2.0
+
+Phil: open issue on it with some discussion. Have collected some changes that may require an ABI change, and are becoming more important. Came up with four main changes:
+    (1) Currently, the syscall ABI returns a single 32-bit word. Might want to return 2 values instead (e.g. error code). Most OSes solve this by returning two 32-bit word, we could do the same here.
+    (2) Move to a unified return value in the ABI (e.g. switching the kernel over to the Result type), instead of status codes or other values.
+    (3) Need a RO-only allow syscall because it's hard to do that from applications.
+    (4) Adding a process exit syscall (some discussion in PR).
+    
+    (5) Adding an `only-once` callback pattern.
+    
+    What changes do we want to make? Some will generate many, many changes.
+    
+Amit: we should consider whether we're happy with how callbacks work?
+
+Phil: Alistair mentioned that he'd love asynchronous callbacks. Many issues with handling signals.
+
+Amit: May not be worthwhile. Rather than having the kernel push callbacks onto the process' stack frame, why not have the kernel return an identifier, and have the machinery for handling callbacks left to the userspace implementation?
+
+Phil: How does a call frame actually get invoked?
+
+Amit: Rather than yield resulting in a cb getting called by the kernel, it returns an id/event, and it's up to userspace to figure out how to handle that event. Could be just a function pointer or a key into a map of callbacks, etc.
+
+Phil: Challenge with that is building higher-layer abstractions is hard because the core loop has to be aware of everything. Boost ends up putting a full wrapper on top of `epoll`.
+
+Patrick: The runtime could handle that for the application.
+
+Phil: Let's separate that from what the runtime does vs. what interface the kernel provides.
+
+Amit: The callback style has worked pretty well for C runtime, but makes it harder to implement the Rust runtime. In Rust, you might want to have a slightly different interface. It might very well be that C applications would look very much like they do now (callback functionality in the runtime), but Rust applications might differ drastically.
+
+Phil: If they both look the same, then we can make a tradeoff decision between which one the kernel implements and what the runtime implements, then that's fine. Might need an additional allow from userspace to place return values on the stack, making the implementation more complex. If you can efficiently implement either, then we have a judgement call. If not, we can't go down that path.
+
+Johnathan: If yield resulted in one callback per call, you could very efficiently implement the identifier-based method. Would have a global where we can stuff the identifier.
+
+Amit: Sounds like there isn't much of a reason to tack this onto 2.0.
+
+Phil: Do the yield semantics promise you'll only get one callback? Amit: Yes.
+
+Brad: Hesitant about changing the return type -> Result. Could delay release by a lot; we need to have some idea of what changes would be necessary to make it work.
+
+Patrick: Would just have to change the interface itself -- changes in the kernel could be made later, but the userspace libraries need to know when to expect the old vs. new returns.
+
+Phil: Middle ground? There are cases where we do want to switch to result (e.g. tuple option, return code option of a buffer, success with value). We could change ReturnCode so that it no longer has success with value, but any place where we return data, we move to result, as it's the right way to do thos operations.
+
+Brad: That's a worthy goal, there's no reason to think bigger.
+
+Phil: Let's do this last. Put it as a requirement that we put it for the syscall.
+
+Patrick: Not saying we shouldn't do it, but that it's not strictly necessary for 2.0 release as long as the interface is correct. Then if someone really wants to do it, they can change it whenever they want.
+
+Brad: Removing success with value is very concrete driver to switching to Result in a lot of different places.
+
+Amit: In terms of engineering overhead, doesn't seem like _too_ much work. 
+
+Phil: Success with value only appears in UART, SPI, Radio, ADC. 
+
+Brad: Seeing deja-vu from the Tock 1.0 register interface (some parts haven't yet been swapped over).
+
+Phil: Let's not make it blocking. Shouldn't be a lot of work, but last thing we want to do is block the release on my coding cycles.
+
+Amit: What about read-only allow? Seems like an obvious, but fairly deep change to the interface and drivers. Definite want.
+
+Patrick: Is there a flag day associated with that? In terms of the syscall interface change (1 vs 2 word breaks everything), does read-only allow break a lot?
+
+Amit: I think so. Would probably have to be a different system call, so anything that is currently using a non-read-only-allow would stop working because the buffers are wrong. But, I can't think of any cases where the semantics of RW and RO allow differently for old applications already written with RW allow.
+
+Phil: main thing we're trying to get around is the kernel checking that a buffer is writable and panicking if not.
+
+Brad: in favor of making all of these changes batched in one release without trying to deploy new features at different times.
+
+Amit: Agreed that this would consist of a 2.0 release. We would probably want separate PRs for all of them.
+
+Brad: Should merge them into a separate branch before PRing into master.
+
+Hudson: Would all other PRs go to that branch as well?
+
+Brad: All syscall-related PRs would go into the branch, all others to master. We'd need to pull master every once in a while to merge other changes.
+
+Phil: I think we want to be serializing these changes, rather than trying to implement all in parallel. There is also a discussion on the repo of more than the 4 things suggested, that we should think about.
+
+Patrick: We should discuss the Alarm stuff, because of its impact on timing for apps. The gist is that many things are relying on the traditional model where an exact match between time and compare, when RISC-V does a GTE comparison, the overflow behavior is different. Hope is that we can come up with an interface for kernel users and userspace that layers over these differences.
+
+Phil: Some of the low-level APIs in the kernel should be more robust (e.g. when you expect the callback to happen?). That was vague: if you set a normal microcontroller timer and it's going to wrap around/when you see a timer that's a lot different from the current timer, can't disambiguate between a very close timer that was delayed in software or something that's supposed to trigger in the far future? Idea is that you pass your current counter value _and_ the value you expect it to trigger on.
+
+Patrick: <notetaker missed this part a bit> Sounds like overkill?
+    
+Amit: Proposal to allocate even up to 3 or 4 values in the return type.
+
+Phil: Let's have this discussion on the issue.
+
+Patrick: Interesting question about platforms where that is actually a resource constraint.
+
+Amit: Last (don't think this is controversial) is a mechanism to exit from a process.
+
+Hudson: note that Guillaume/others were arguing for that to be merged right now and not wait for 2.0
+
+Patrick: Is there also a proposed mechanism to start a process when it's exited? Amit: No, but can propose it.
+
+Amit: One version of exit is that you have an option to exit, that's it. The other version is that you can ask for the app to be restarted, which might be useful from the application level. Spawn seems slightly more complicated because we don't have a way of naming processes.
+
+Phil: Assumptions about storage make this impossible. The app can allocate some flash storage within it, but can't run two versions of that.
+
+Phil: What's the case where you'd want to restart? If the system got borked?
+
+Amit: You could view this as an application-level watchdog timer.
+
+Brad: Application could be comprised of multiple processes, need to run them in a specific order.
+
+Amit: You could imagine shipping some one-time computation to a node.
+
+Phil: A bit different? How do we know how to execute it? Memory allocation issues.
+
+Patrick: What happens if you don't have enough memory on the device for that app?
+
+Amit: Think of this as dynamic loading. A VM can exit but there's no spawn for them.
+
+Phil: The one that's compelling to me is runnign apps at boot (e.g. run a diagnostic, then some boot, then an app that can use the entire RAM resources).
+
+Amit: This would give you the semantics to let an application tell the kernel it's done.
+
+Amit: Seems like there is a rough consensus on this call, but we should continue to discuss on the issue.
+
+Hudson: Teaser on Tock 1.5: I think the main idea is to verify that all of the changes since 1.4 are valid before we start making all of the big changes for 2.0. Would include all the improvements for pre-2.0 applications. Brad +1s that idea.
+
+Amit: Let's put that on the agenda for the next meeting - exactly what strategy to test, etc.

@@ -1438,11 +1438,28 @@ fn endpoint_enable_interrupts(endpoint: usize, mask: FieldValue<u32, EndpointCon
 }
 
 impl hil::usb::UsbController<'a> for Usbc<'a> {
-    fn endpoint_set_buffer(&self, endpoint: usize, buf: &'a [VolatileCell<u8>]) {
+    fn endpoint_set_ctrl_buffer(&self, buf: &'a [VolatileCell<u8>]) {
         if buf.len() != 8 {
             client_err!("Bad endpoint buffer size");
         }
 
+        self._endpoint_bank_set_buffer(EndpointIndex::new(0), BankIndex::Bank0, buf);
+    }
+
+    fn endpoint_set_in_buffer(&self, endpoint: usize, buf: &'a [VolatileCell<u8>]) {
+        if buf.len() != 8 {
+            client_err!("Bad endpoint buffer size");
+        }
+
+        self._endpoint_bank_set_buffer(EndpointIndex::new(endpoint), BankIndex::Bank0, buf);
+    }
+
+    fn endpoint_set_out_buffer(&self, endpoint: usize, buf: &'a [VolatileCell<u8>]) {
+        if buf.len() != 8 {
+            client_err!("Bad endpoint buffer size");
+        }
+
+        // XXX: when implementing in_out endpoints, this should probably set a different slice than endpoint_set_in_buffer.
         self._endpoint_bank_set_buffer(EndpointIndex::new(endpoint), BankIndex::Bank0, buf);
     }
 
