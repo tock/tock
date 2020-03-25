@@ -306,10 +306,17 @@ nRF platforms (e.g. nRF52840) that only support a 24 bit counter.
 7 Capsules
 ===============================
 
-The Tock kernel provides two standard
-capsules. `capsules::alarm::AlarmDriver` provides a system call driver
-for an `Alarm`. `capsules::virtual_alarm` provides a set of
-abstractions for virtualizing a single `Alarm` into many.
+The Tock kernel provides four standard capsules:
+
+  * `capsules::alarm::AlarmDriver` provides a system call driver for
+    an `Alarm`.
+  * `capsules::virtual_alarm` provides a set of
+    abstractions for virtualizing a single `Alarm` into many.
+  * `capsules::frequency` provides a set of abstractions for
+    scaling down from a higher `Frequency` to a lower one.
+  * `capsules::ticks` provides a set of abstractions for transforming
+    `Counter` instances between different `Tick` widths.
+
 
 8 Required Modules
 ===============================
