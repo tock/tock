@@ -16,7 +16,6 @@ pub enum NUM {
     Adc                   = 0x00005,
     Dac                   = 0x00006,
     AnalogComparator      = 0x00007,
-    Lcd1602              = 0x00008,
 
     // Kernel
     Ipc                   = 0x10000,
@@ -58,6 +57,7 @@ pub enum NUM {
     Pca9544a              = 0x80002,
     GpioAsync             = 0x80003,
     Nrf51822Serialization = 0x80004,
+    Hd44780               = 0x80005,
 
     // Misc
     Buzzer                = 0x90000,

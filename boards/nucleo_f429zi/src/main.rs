@@ -57,7 +57,7 @@ struct NucleoF429ZI {
         VirtualMuxAlarm<'static, stm32f4xx::tim2::Tim2<'static>>,
     >,
     gpio: &'static capsules::gpio::GPIO<'static>,
-    lcd: &'static capsules::lcd_1602::LCD<
+    lcd: &'static capsules::hd44780::HD44780<
         'static,
         VirtualMuxAlarm<'static, stm32f4xx::tim2::Tim2<'static>>,
     >,
@@ -76,7 +76,7 @@ impl Platform for NucleoF429ZI {
             capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
-            capsules::lcd_1602::DRIVER_NUM => f(Some(self.lcd)),
+            capsules::hd44780::DRIVER_NUM => f(Some(self.lcd)),
             _ => f(None),
         }
     }
@@ -299,33 +299,21 @@ pub unsafe fn reset_handler() {
     let lcd_alarm = static_init!(
         VirtualMuxAlarm<'static, stm32f4xx::tim2::Tim2>,
         VirtualMuxAlarm::new(mux_alarm)
-    );  
-
-    let grant_cap_lcd = create_capability!(capabilities::MemoryAllocationCapability);
-    let grant_lcd = board_kernel.create_grant(&grant_cap_lcd);
+    );
 
     // LCD GPIO PINS
-    let lcd = static_init!(
-        capsules::lcd_1602::LCD<'static,
-                    VirtualMuxAlarm<'static, stm32f4xx::tim2::Tim2>>,
-        capsules::lcd_1602::LCD::new(
-            lcd_alarm,
-            stm32f4xx::gpio::PinId::PF13.get_pin().as_ref().unwrap(),
-            stm32f4xx::gpio::PinId::PE11.get_pin().as_ref().unwrap(),
-            stm32f4xx::gpio::PinId::PF14.get_pin().as_ref().unwrap(),
-            stm32f4xx::gpio::PinId::PE13.get_pin().as_ref().unwrap(),
-            stm32f4xx::gpio::PinId::PF15.get_pin().as_ref().unwrap(),
-            stm32f4xx::gpio::PinId::PG14.get_pin().as_ref().unwrap(),
-            &mut capsules::lcd_1602::BUFFER,
-            &mut capsules::lcd_1602::ROW_OFFSETS,
-            board_kernel,
-            grant_lcd,
-        )
+    let lcd = components::hd44780::HD44780Component::new(board_kernel).finalize(
+        stm32f4xx::gpio::PinId::PF13.get_pin().as_ref().unwrap(),
+        stm32f4xx::gpio::PinId::PE11.get_pin().as_ref().unwrap(),
+        stm32f4xx::gpio::PinId::PF14.get_pin().as_ref().unwrap(),
+        stm32f4xx::gpio::PinId::PE13.get_pin().as_ref().unwrap(),
+        stm32f4xx::gpio::PinId::PF15.get_pin().as_ref().unwrap(),
+        stm32f4xx::gpio::PinId::PG14.get_pin().as_ref().unwrap(),
+        &mut capsules::hd44780::BUFFER,
+        &mut capsules::hd44780::ROW_OFFSETS,
+        lcd_alarm
     );
-    lcd_alarm.set_client(lcd);
-
-    
-    // test.start();
+    lcd_alarm.set_client(lcd);    
 
     // GPIO
     let gpio = GpioComponent::new(board_kernel).finalize(components::gpio_component_helper!(
