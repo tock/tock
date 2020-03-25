@@ -117,6 +117,15 @@ impl<A: Alarm<'a>> Driver for AlarmDriver<'a, A> {
         // (i.e. no change to the alarms).
         self.app_alarm
             .enter(caller_id, |td, _alloc| {
+                // helper function to rearm alarm
+                let mut rearm = |time: usize|
+                {
+                    if let Expiration::Disabled = td.expiration {
+                        self.num_armed.set(self.num_armed.get() + 1);
+                    }
+                    td.expiration = Expiration::Abs(time as u32);
+                    (ReturnCode::SuccessWithValue { value: time }, true)
+                };
                 let now = self.alarm.now();
                 let (return_code, reset) = match cmd_type {
                     0 /* check if present */ => (ReturnCode::SuccessWithValue { value: 1 }, false),
@@ -148,13 +157,8 @@ impl<A: Alarm<'a>> Driver for AlarmDriver<'a, A> {
                         }
                     },
                     4 /* Set absolute expiration */ => {
-                        let time = data;
                         // if previously unarmed, but now will become armed
-                        if let Expiration::Disabled = td.expiration {
-                            self.num_armed.set(self.num_armed.get() + 1);
-                        }
-                        td.expiration = Expiration::Abs(time as u32);
-                        (ReturnCode::SuccessWithValue { value: time }, true)
+                        rearm(data)
                     },
                     5 /* Set relative expiration */ => {
                         let mut time = now.wrapping_add (data as u32) as usize;
@@ -168,11 +172,7 @@ impl<A: Alarm<'a>> Driver for AlarmDriver<'a, A> {
                             time = time.wrapping_add (min_tics);
                         }
                         // if previously unarmed, but now will become armed
-                        if let Expiration::Disabled = td.expiration {
-                            self.num_armed.set(self.num_armed.get() + 1);
-                        }
-                        td.expiration = Expiration::Abs(time as u32);
-                        (ReturnCode::SuccessWithValue { value: time }, true)
+                        rearm(time)
                     },
                     _ => (ReturnCode::ENOSUPPORT, false)
                 };
