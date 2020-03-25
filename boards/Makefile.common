@@ -143,7 +143,7 @@ all: release
 # binary. This makes checking for Rust errors much faster.
 .PHONY: check
 check:
-	$(Q)RUSTFLAGS="$(RUSTFLAGS_FOR_CARGO)" $(CARGO) check $(VERBOSE) --target=$(TARGET) --manifest-path $(MAKEFILE_PARENT_PATH)Cargo.toml --package $(PLATFORM) --release
+	$(Q)RUSTFLAGS="$(RUSTFLAGS_FOR_CARGO)" $(CARGO) check $(VERBOSE) --target=$(TARGET) --package $(PLATFORM) --release
 
 .PHONY: clean
 clean::
@@ -160,7 +160,7 @@ debug-lst: $(MAKEFILE_PARENT_PATH)target/$(TARGET)/debug/$(PLATFORM).lst
 
 .PHONY: doc
 doc: | target
-	$(Q)RUSTDOCFLAGS='-Z unstable-options --document-hidden-items' $(CARGO) doc $(VERBOSE) --release --target=$(TARGET) --manifest-path $(MAKEFILE_PARENT_PATH)Cargo.toml --package $(PLATFORM)
+	$(Q)RUSTDOCFLAGS='-Z unstable-options --document-hidden-items' $(CARGO) doc $(VERBOSE) --release --target=$(TARGET) --package $(PLATFORM)
 
 .PHONY: lst
 lst: $(MAKEFILE_PARENT_PATH)target/$(TARGET)/release/$(PLATFORM).lst
@@ -198,10 +198,10 @@ $(MAKEFILE_PARENT_PATH)tools/sha256sum/target/debug/sha256sum:
 
 .PHONY: $(MAKEFILE_PARENT_PATH)target/$(TARGET)/release/$(PLATFORM)
 $(MAKEFILE_PARENT_PATH)target/$(TARGET)/release/$(PLATFORM):
-	$(Q)RUSTFLAGS="$(RUSTFLAGS_FOR_CARGO)" $(CARGO) build $(VERBOSE) --target=$(TARGET) --manifest-path $(MAKEFILE_PARENT_PATH)Cargo.toml --package $(PLATFORM) --release
+	$(Q)RUSTFLAGS="$(RUSTFLAGS_FOR_CARGO)" $(CARGO) build $(VERBOSE) --target=$(TARGET) --package $(PLATFORM) --release
 	$(Q)$(SIZE) $@
 
 .PHONY: $(MAKEFILE_PARENT_PATH)target/$(TARGET)/debug/$(PLATFORM)
 $(MAKEFILE_PARENT_PATH)target/$(TARGET)/debug/$(PLATFORM):
-	$(Q)RUSTFLAGS="$(RUSTFLAGS_FOR_CARGO)" $(CARGO) build $(VERBOSE) --target=$(TARGET) --manifest-path $(MAKEFILE_PARENT_PATH)Cargo.toml --package $(PLATFORM)
+	$(Q)RUSTFLAGS="$(RUSTFLAGS_FOR_CARGO)" $(CARGO) build $(VERBOSE) --target=$(TARGET) --package $(PLATFORM)
 	$(Q)$(SIZE) $@
