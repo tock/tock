@@ -4,7 +4,7 @@ MAKEFLAGS += -r
 MAKEFLAGS += -R
 
 MAKEFILE_COMMON_PATH := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
-MAKEFILE_PARENT_PATH := $(dir $(abspath $(MAKEFILE_COMMON_PATH)/..))
+MAKEFILE_PARENT_PATH := $(dir $(abspath $(MAKEFILE_COMMON_PATH)))
 
 # Common defaults that specific boards can override, but likely do not need to.
 TOOLCHAIN ?= llvm
@@ -19,6 +19,7 @@ RUSTUP    ?= rustup
 # We use `remap-path-prefix` to remove user-specific filepath strings for error
 # reporting from appearing in the generated binary.
 RUSTFLAGS_FOR_CARGO ?= \
+  -C link-arg=-L$(abspath .) \
   -C link-arg=-Tlayout.ld \
   -C linker=rust-lld \
   -C linker-flavor=ld.lld \
@@ -60,7 +61,7 @@ export TOCK_KERNEL_VERSION := $(shell git describe --tags --always 2> /dev/null 
 # Validate that rustup is new enough.
 MINIMUM_RUSTUP_VERSION := 1.11.0
 RUSTUP_VERSION := $(strip $(word 2, $(shell $(RUSTUP) --version)))
-ifeq ($(shell $(MAKEFILE_COMMON_PATH)../tools/semver.sh $(RUSTUP_VERSION) \< $(MINIMUM_RUSTUP_VERSION)), true)
+ifeq ($(shell $(MAKEFILE_PARENT_PATH)tools/semver.sh $(RUSTUP_VERSION) \< $(MINIMUM_RUSTUP_VERSION)), true)
   $(warning Required tool `$(RUSTUP)` is out-of-date.)
   $(warning Running `$(RUSTUP) update` in 3 seconds (ctrl-c to cancel))
   $(shell sleep 3s)
@@ -107,23 +108,26 @@ ifneq ($(V),)
   $(info *******************************************************)
   $(info TOCK KERNEL BUILD SYSTEM -- VERBOSE BUILD CONFIGURATION)
   $(info *******************************************************)
-  $(info PLATFORM            = $(PLATFORM))
-  $(info TARGET              = $(TARGET))
-  $(info TOCK_KERNEL_VERSION = $(TOCK_KERNEL_VERSION))
-  $(info RUSTFLAGS_FOR_CARGO = $(RUSTFLAGS_FOR_CARGO))
-  $(info MAKEFLAGS           = $(MAKEFLAGS))
-  $(info OBJDUMP_FLAGS       = $(OBJDUMP_FLAGS))
+  $(info MAKEFILE_COMMON_PATH = $(MAKEFILE_COMMON_PATH))
+  $(info MAKEFILE_PARENT_PATH = $(MAKEFILE_PARENT_PATH))
   $(info )
-  $(info TOOLCHAIN           = $(TOOLCHAIN))
-  $(info SIZE                = $(SIZE))
-  $(info OBJCOPY             = $(OBJCOPY))
-  $(info OBJDUMP             = $(OBJDUMP))
-  $(info CARGO               = $(CARGO))
-  $(info RUSTUP              = $(RUSTUP))
+  $(info PLATFORM             = $(PLATFORM))
+  $(info TARGET               = $(TARGET))
+  $(info TOCK_KERNEL_VERSION  = $(TOCK_KERNEL_VERSION))
+  $(info RUSTFLAGS_FOR_CARGO  = $(RUSTFLAGS_FOR_CARGO))
+  $(info MAKEFLAGS            = $(MAKEFLAGS))
+  $(info OBJDUMP_FLAGS        = $(OBJDUMP_FLAGS))
   $(info )
-  $(info cargo --version     = $(shell $(CARGO) --version))
-  $(info rustc --version     = $(shell rustc --version))
-  $(info rustup --version    = $(shell $(RUSTUP) --version))
+  $(info TOOLCHAIN            = $(TOOLCHAIN))
+  $(info SIZE                 = $(SIZE))
+  $(info OBJCOPY              = $(OBJCOPY))
+  $(info OBJDUMP              = $(OBJDUMP))
+  $(info CARGO                = $(CARGO))
+  $(info RUSTUP               = $(RUSTUP))
+  $(info )
+  $(info cargo --version      = $(shell $(CARGO) --version))
+  $(info rustc --version      = $(shell rustc --version))
+  $(info rustup --version     = $(shell $(RUSTUP) --version))
   $(info *******************************************************)
   $(info )
 endif
@@ -139,27 +143,27 @@ all: release
 # binary. This makes checking for Rust errors much faster.
 .PHONY: check
 check:
-	$(Q)RUSTFLAGS="$(RUSTFLAGS_FOR_CARGO)" $(CARGO) check --target=$(TARGET) $(VERBOSE) --release
+	$(Q)RUSTFLAGS="$(RUSTFLAGS_FOR_CARGO)" $(CARGO) check $(VERBOSE) --target=$(TARGET) --manifest-path $(MAKEFILE_PARENT_PATH)Cargo.toml --package $(PLATFORM) --release
 
 .PHONY: clean
 clean::
 	$(Q)$(CARGO) clean $(VERBOSE)
 
 .PHONY: release
-release: target/$(TARGET)/release/$(PLATFORM).bin
+release: $(MAKEFILE_PARENT_PATH)target/$(TARGET)/release/$(PLATFORM).bin
 
 .PHONY: debug
-debug: target/$(TARGET)/debug/$(PLATFORM).bin
+debug: $(MAKEFILE_PARENT_PATH)target/$(TARGET)/debug/$(PLATFORM).bin
 
 .PHONY: debug-lst
-debug-lst: target/$(TARGET)/debug/$(PLATFORM).lst
+debug-lst: $(MAKEFILE_PARENT_PATH)target/$(TARGET)/debug/$(PLATFORM).lst
 
 .PHONY: doc
 doc: | target
-	$(Q)RUSTDOCFLAGS='-Z unstable-options --document-hidden-items' $(CARGO) doc $(VERBOSE) --release --target=$(TARGET)
+	$(Q)RUSTDOCFLAGS='-Z unstable-options --document-hidden-items' $(CARGO) doc $(VERBOSE) --release --target=$(TARGET) --manifest-path $(MAKEFILE_PARENT_PATH)Cargo.toml --package $(PLATFORM)
 
 .PHONY: lst
-lst: target/$(TARGET)/release/$(PLATFORM).lst
+lst: $(MAKEFILE_PARENT_PATH)target/$(TARGET)/release/$(PLATFORM).lst
 
 # Helper rule for showing the TARGET used by this board. Useful when building
 # the documentation for all boards.
@@ -170,34 +174,34 @@ show-target:
 # Support rules
 
 target:
-	@mkdir -p target
+	@mkdir -p $(MAKEFILE_PARENT_PATH)target
 
 # Cargo outputs an elf file (just without a file extension)
 %.elf: %
 	$(Q)cp $< $@
 
-%.bin: %.elf $(MAKEFILE_COMMON_PATH)../tools/sha256sum/target/debug/sha256sum
+%.bin: %.elf $(MAKEFILE_PARENT_PATH)tools/sha256sum/target/debug/sha256sum
 	$(Q)$(OBJCOPY) --output-target=binary $< $@
-	$(Q)$(MAKEFILE_COMMON_PATH)../tools/sha256sum/target/debug/sha256sum $@
+	$(Q)$(MAKEFILE_PARENT_PATH)tools/sha256sum/target/debug/sha256sum $@
 
 %.lst: %.elf
 	$(Q)$(OBJDUMP) $(OBJDUMP_FLAGS) $< > $@
 
 
-$(MAKEFILE_COMMON_PATH)../tools/sha256sum/target/debug/sha256sum:
-	$(Q)$(CARGO) build $(VERBOSE) --manifest-path $(MAKEFILE_COMMON_PATH)../tools/sha256sum/Cargo.toml
+$(MAKEFILE_PARENT_PATH)tools/sha256sum/target/debug/sha256sum:
+	$(Q)$(CARGO) build $(VERBOSE) --manifest-path $(MAKEFILE_PARENT_PATH)tools/sha256sum/Cargo.toml
 
 
 # Cargo-drivers
 # We want to always invoke cargo (yay nested build systems), so these need to
 # be phony, which means they can't be pattern rules.
 
-.PHONY: target/$(TARGET)/release/$(PLATFORM)
-target/$(TARGET)/release/$(PLATFORM):
-	$(Q)RUSTFLAGS="$(RUSTFLAGS_FOR_CARGO)" $(CARGO) build --target=$(TARGET) $(VERBOSE) --release
+.PHONY: $(MAKEFILE_PARENT_PATH)target/$(TARGET)/release/$(PLATFORM)
+$(MAKEFILE_PARENT_PATH)target/$(TARGET)/release/$(PLATFORM):
+	$(Q)RUSTFLAGS="$(RUSTFLAGS_FOR_CARGO)" $(CARGO) build $(VERBOSE) --target=$(TARGET) --manifest-path $(MAKEFILE_PARENT_PATH)Cargo.toml --package $(PLATFORM) --release
 	$(Q)$(SIZE) $@
 
-.PHONY: target/$(TARGET)/debug/$(PLATFORM)
-target/$(TARGET)/debug/$(PLATFORM):
-	$(Q)RUSTFLAGS="$(RUSTFLAGS_FOR_CARGO)" $(CARGO) build $(VERBOSE) --target=$(TARGET)
+.PHONY: $(MAKEFILE_PARENT_PATH)target/$(TARGET)/debug/$(PLATFORM)
+$(MAKEFILE_PARENT_PATH)target/$(TARGET)/debug/$(PLATFORM):
+	$(Q)RUSTFLAGS="$(RUSTFLAGS_FOR_CARGO)" $(CARGO) build $(VERBOSE) --target=$(TARGET) --manifest-path $(MAKEFILE_PARENT_PATH)Cargo.toml --package $(PLATFORM)
 	$(Q)$(SIZE) $@

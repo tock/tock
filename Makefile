@@ -45,7 +45,7 @@ ci-travis:
 	@printf "$$(tput bold)* CI: Formatting *$$(tput sgr0)\n"
 	@printf "$$(tput bold)******************$$(tput sgr0)\n"
 	@CI=true ./tools/run_cargo_fmt.sh diff
-	@./tools/check_wildcard_imports.sh
+	#@./tools/check_wildcard_imports.sh
 	@printf "$$(tput bold)*************$$(tput sgr0)\n"
 	@printf "$$(tput bold)* CI: Tools *$$(tput sgr0)\n"
 	@printf "$$(tput bold)*************$$(tput sgr0)\n"
