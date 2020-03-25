@@ -17,14 +17,16 @@ pub mod nvic;
 // pub mod dbg;
 // pub mod dma1;
 // pub mod exti;
-// pub mod gpio;
+pub mod gpio;
 pub mod ccm;
+pub mod iomuxc;
 // pub mod spi;
 // pub mod syscfg;
 // pub mod tim2;
 pub mod usart;
 
 use cortexm7::{generic_isr, hard_fault_handler, svc_handler, systick_handler};
+use cortexm::scb::{set_vector_table_offset};
 
 #[cfg(not(any(target_arch = "arm", target_os = "none")))]
 unsafe extern "C" fn unhandled_interrupt() {
@@ -190,9 +192,11 @@ extern "C" {
 }
 
 pub unsafe fn init() {
+    cortexm::scb::set_vector_table_offset(&BASE_VECTORS as *const [unsafe extern "C" fn(); 16] as *const());
     tock_rt0::init_data(&mut _etext, &mut _srelocate, &mut _erelocate);
     tock_rt0::zero_bss(&mut _szero, &mut _ezero);
 
     cortexm7::nvic::disable_all();
     cortexm7::nvic::clear_all_pending();
+
 }

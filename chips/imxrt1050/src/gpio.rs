@@ -1,5 +1,5 @@
-use cortexm4;
-use cortexm4::support::atomic;
+use cortexm7;
+use cortexm7::support::atomic;
 use enum_primitive::cast::FromPrimitive;
 use enum_primitive::enum_from_primitive;
 use kernel::common::cells::OptionalCell;
@@ -8,469 +8,479 @@ use kernel::common::StaticRef;
 use kernel::hil;
 use kernel::ClockInterface;
 
-use crate::exti;
-use crate::rcc;
+// use crate::exti;
+use crate::ccm;
+use crate::iomuxc;
 
 /// General-purpose I/Os
 #[repr(C)]
 struct GpioRegisters {
-    /// GPIO port mode register
-    moder: ReadWrite<u32, MODER::Register>,
-    /// GPIO port output type register
-    otyper: ReadWrite<u32, OTYPER::Register>,
-    /// GPIO port output speed register
-    ospeedr: ReadWrite<u32, OSPEEDR::Register>,
-    /// GPIO port pull-up/pull-down register
-    pupdr: ReadWrite<u32, PUPDR::Register>,
-    /// GPIO port input data register
-    idr: ReadOnly<u32, IDR::Register>,
-    /// GPIO port output data register
-    odr: ReadWrite<u32, ODR::Register>,
-    /// GPIO port bit set/reset register
-    bsrr: WriteOnly<u32, BSRR::Register>,
-    /// GPIO port configuration lock register
-    lckr: ReadWrite<u32, LCKR::Register>,
-    /// GPIO alternate function low register
-    afrl: ReadWrite<u32, AFRL::Register>,
-    /// GPIO alternate function high register
-    afrh: ReadWrite<u32, AFRH::Register>,
+	// GPIO data register
+	dr: ReadWrite<u32, DR::Register>,
+    // GPIO direction register
+    gdir: ReadWrite<u32, GDIR::Register>,
+    // GPIO pad status register
+    psr: ReadOnly<u32, PSR::Register>,
+    // GPIO Interrupt configuration register 1
+    icr1: ReadWrite<u32, ICR1::Register>,
+    // GPIO Interrupt configuration register 2
+    icr2: ReadWrite<u32, ICR2::Register>,
+	// GPIO interrupt mask register
+	imr: ReadWrite<u32, IMR::Register>,
+    // GPIO interrupt status register -- W1C - Write 1 to clear
+    isr: ReadWrite<u32, ISR::Register>,
+    // GPIO edge select register
+    edge_sel: ReadWrite<u32, EDGE_SEL::Register>,
+	_reserved1: [u8; 100],
+    // GPIO data register set
+    dr_set: WriteOnly<u32, DR_SET::Register>,
+    // GPIO data register clear
+    dr_clear: WriteOnly<u32, DR_CLEAR::Register>,
+    // GPIO data register toggle
+    dr_toggle: WriteOnly<u32, DR_TOGGLE::Register>
 }
 
 register_bitfields![u32,
-    MODER [
-        /// Port x configuration bits (y = 0..15)
-        MODER15 OFFSET(30) NUMBITS(2) [],
-        /// Port x configuration bits (y = 0..15)
-        MODER14 OFFSET(28) NUMBITS(2) [],
-        /// Port x configuration bits (y = 0..15)
-        MODER13 OFFSET(26) NUMBITS(2) [],
-        /// Port x configuration bits (y = 0..15)
-        MODER12 OFFSET(24) NUMBITS(2) [],
-        /// Port x configuration bits (y = 0..15)
-        MODER11 OFFSET(22) NUMBITS(2) [],
-        /// Port x configuration bits (y = 0..15)
-        MODER10 OFFSET(20) NUMBITS(2) [],
-        /// Port x configuration bits (y = 0..15)
-        MODER9 OFFSET(18) NUMBITS(2) [],
-        /// Port x configuration bits (y = 0..15)
-        MODER8 OFFSET(16) NUMBITS(2) [],
-        /// Port x configuration bits (y = 0..15)
-        MODER7 OFFSET(14) NUMBITS(2) [],
-        /// Port x configuration bits (y = 0..15)
-        MODER6 OFFSET(12) NUMBITS(2) [],
-        /// Port x configuration bits (y = 0..15)
-        MODER5 OFFSET(10) NUMBITS(2) [],
-        /// Port x configuration bits (y = 0..15)
-        MODER4 OFFSET(8) NUMBITS(2) [],
-        /// Port x configuration bits (y = 0..15)
-        MODER3 OFFSET(6) NUMBITS(2) [],
-        /// Port x configuration bits (y = 0..15)
-        MODER2 OFFSET(4) NUMBITS(2) [],
-        /// Port x configuration bits (y = 0..15)
-        MODER1 OFFSET(2) NUMBITS(2) [],
-        /// Port x configuration bits (y = 0..15)
-        MODER0 OFFSET(0) NUMBITS(2) []
+    DR [
+        // the value of the GPIO output when the signal is configured as an output 
+        DR31 OFFSET(31) NUMBITS(1) [],
+        DR30 OFFSET(30) NUMBITS(1) [],
+        DR29 OFFSET(29) NUMBITS(1) [],
+        DR28 OFFSET(28) NUMBITS(1) [],
+        DR27 OFFSET(27) NUMBITS(1) [],
+        DR26 OFFSET(26) NUMBITS(1) [],
+        DR25 OFFSET(25) NUMBITS(1) [],
+        DR24 OFFSET(24) NUMBITS(1) [],
+        DR23 OFFSET(23) NUMBITS(1) [],
+        DR22 OFFSET(22) NUMBITS(1) [],
+        DR21 OFFSET(21) NUMBITS(1) [],
+        DR20 OFFSET(20) NUMBITS(1) [],
+        DR19 OFFSET(19) NUMBITS(1) [],
+        DR18 OFFSET(18) NUMBITS(1) [],
+        DR17 OFFSET(17) NUMBITS(1) [],
+        DR16 OFFSET(16) NUMBITS(1) [],
+        DR15 OFFSET(15) NUMBITS(1) [],
+        DR14 OFFSET(14) NUMBITS(1) [],
+        DR13 OFFSET(13) NUMBITS(1) [],
+        DR12 OFFSET(12) NUMBITS(1) [],
+        DR11 OFFSET(11) NUMBITS(1) [],
+        DR10 OFFSET(10) NUMBITS(1) [],
+        DR9 OFFSET(9) NUMBITS(1) [],
+        DR8 OFFSET(8) NUMBITS(1) [],
+        DR7 OFFSET(7) NUMBITS(1) [],
+        DR6 OFFSET(6) NUMBITS(1) [],
+        DR5 OFFSET(5) NUMBITS(1) [],
+        DR4 OFFSET(4) NUMBITS(1) [],
+        DR3 OFFSET(3) NUMBITS(1) [],
+        DR2 OFFSET(2) NUMBITS(1) [],
+        DR1 OFFSET(1) NUMBITS(1) [],
+        DR0 OFFSET(0) NUMBITS(1) []
     ],
-    OTYPER [
-        /// Port x configuration bits (y = 0..15)
-        OT15 OFFSET(15) NUMBITS(1) [],
-        /// Port x configuration bits (y = 0..15)
-        OT14 OFFSET(14) NUMBITS(1) [],
-        /// Port x configuration bits (y = 0..15)
-        OT13 OFFSET(13) NUMBITS(1) [],
-        /// Port x configuration bits (y = 0..15)
-        OT12 OFFSET(12) NUMBITS(1) [],
-        /// Port x configuration bits (y = 0..15)
-        OT11 OFFSET(11) NUMBITS(1) [],
-        /// Port x configuration bits (y = 0..15)
-        OT10 OFFSET(10) NUMBITS(1) [],
-        /// Port x configuration bits (y = 0..15)
-        OT9 OFFSET(9) NUMBITS(1) [],
-        /// Port x configuration bits (y = 0..15)
-        OT8 OFFSET(8) NUMBITS(1) [],
-        /// Port x configuration bits (y = 0..15)
-        OT7 OFFSET(7) NUMBITS(1) [],
-        /// Port x configuration bits (y = 0..15)
-        OT6 OFFSET(6) NUMBITS(1) [],
-        /// Port x configuration bits (y = 0..15)
-        OT5 OFFSET(5) NUMBITS(1) [],
-        /// Port x configuration bits (y = 0..15)
-        OT4 OFFSET(4) NUMBITS(1) [],
-        /// Port x configuration bits (y = 0..15)
-        OT3 OFFSET(3) NUMBITS(1) [],
-        /// Port x configuration bits (y = 0..15)
-        OT2 OFFSET(2) NUMBITS(1) [],
-        /// Port x configuration bits (y = 0..15)
-        OT1 OFFSET(1) NUMBITS(1) [],
-        /// Port x configuration bits (y = 0..15)
-        OT0 OFFSET(0) NUMBITS(1) []
+
+    GDIR [
+    	// bit n of this register defines the direction of the GPIO[n] signal
+    	GDIR31 OFFSET(31) NUMBITS(1) [],
+        GDIR30 OFFSET(30) NUMBITS(1) [],
+        GDIR29 OFFSET(29) NUMBITS(1) [],
+        GDIR28 OFFSET(28) NUMBITS(1) [],
+        GDIR27 OFFSET(27) NUMBITS(1) [],
+        GDIR26 OFFSET(26) NUMBITS(1) [],
+        GDIR25 OFFSET(25) NUMBITS(1) [],
+        GDIR24 OFFSET(24) NUMBITS(1) [],
+        GDIR23 OFFSET(23) NUMBITS(1) [],
+        GDIR22 OFFSET(22) NUMBITS(1) [],
+        GDIR21 OFFSET(21) NUMBITS(1) [],
+        GDIR20 OFFSET(20) NUMBITS(1) [],
+        GDIR19 OFFSET(19) NUMBITS(1) [],
+        GDIR18 OFFSET(18) NUMBITS(1) [],
+        GDIR17 OFFSET(17) NUMBITS(1) [],
+        GDIR16 OFFSET(16) NUMBITS(1) [],
+        GDIR15 OFFSET(15) NUMBITS(1) [],
+        GDIR14 OFFSET(14) NUMBITS(1) [],
+        GDIR13 OFFSET(13) NUMBITS(1) [],
+        GDIR12 OFFSET(12) NUMBITS(1) [],
+        GDIR11 OFFSET(11) NUMBITS(1) [],
+        GDIR10 OFFSET(10) NUMBITS(1) [],
+        GDIR9 OFFSET(9) NUMBITS(1) [],
+        GDIR8 OFFSET(8) NUMBITS(1) [],
+        GDIR7 OFFSET(7) NUMBITS(1) [],
+        GDIR6 OFFSET(6) NUMBITS(1) [],
+        GDIR5 OFFSET(5) NUMBITS(1) [],
+        GDIR4 OFFSET(4) NUMBITS(1) [],
+        GDIR3 OFFSET(3) NUMBITS(1) [],
+        GDIR2 OFFSET(2) NUMBITS(1) [],
+        GDIR1 OFFSET(1) NUMBITS(1) [],
+        GDIR0 OFFSET(0) NUMBITS(1) []
     ],
-    OSPEEDR [
-        /// Port x configuration bits (y = 0..15)
-        OSPEEDR15 OFFSET(30) NUMBITS(2) [],
-        /// Port x configuration bits (y = 0..15)
-        OSPEEDR14 OFFSET(28) NUMBITS(2) [],
-        /// Port x configuration bits (y = 0..15)
-        OSPEEDR13 OFFSET(26) NUMBITS(2) [],
-        /// Port x configuration bits (y = 0..15)
-        OSPEEDR12 OFFSET(24) NUMBITS(2) [],
-        /// Port x configuration bits (y = 0..15)
-        OSPEEDR11 OFFSET(22) NUMBITS(2) [],
-        /// Port x configuration bits (y = 0..15)
-        OSPEEDR10 OFFSET(20) NUMBITS(2) [],
-        /// Port x configuration bits (y = 0..15)
-        OSPEEDR9 OFFSET(18) NUMBITS(2) [],
-        /// Port x configuration bits (y = 0..15)
-        OSPEEDR8 OFFSET(16) NUMBITS(2) [],
-        /// Port x configuration bits (y = 0..15)
-        OSPEEDR7 OFFSET(14) NUMBITS(2) [],
-        /// Port x configuration bits (y = 0..15)
-        OSPEEDR6 OFFSET(12) NUMBITS(2) [],
-        /// Port x configuration bits (y = 0..15)
-        OSPEEDR5 OFFSET(10) NUMBITS(2) [],
-        /// Port x configuration bits (y = 0..15)
-        OSPEEDR4 OFFSET(8) NUMBITS(2) [],
-        /// Port x configuration bits (y = 0..15)
-        OSPEEDR3 OFFSET(6) NUMBITS(2) [],
-        /// Port x configuration bits (y = 0..15)
-        OSPEEDR2 OFFSET(4) NUMBITS(2) [],
-        /// Port x configuration bits (y = 0..15)
-        OSPEEDR1 OFFSET(2) NUMBITS(2) [],
-        /// Port x configuration bits (y = 0..15)
-        OSPEEDR0 OFFSET(0) NUMBITS(2) []
+
+    PSR [
+        // bit n of this register returns the state of the corresponding GPIO[n] signal
+        PSR31 OFFSET(31) NUMBITS(1) [],
+        PSR30 OFFSET(30) NUMBITS(1) [],
+        PSR29 OFFSET(29) NUMBITS(1) [],
+        PSR28 OFFSET(28) NUMBITS(1) [],
+        PSR27 OFFSET(27) NUMBITS(1) [],
+        PSR26 OFFSET(26) NUMBITS(1) [],
+        PSR25 OFFSET(25) NUMBITS(1) [],
+        PSR24 OFFSET(24) NUMBITS(1) [],
+        PSR23 OFFSET(23) NUMBITS(1) [],
+        PSR22 OFFSET(22) NUMBITS(1) [],
+        PSR21 OFFSET(21) NUMBITS(1) [],
+        PSR20 OFFSET(20) NUMBITS(1) [],
+        PSR19 OFFSET(19) NUMBITS(1) [],
+        PSR18 OFFSET(18) NUMBITS(1) [],
+        PSR17 OFFSET(17) NUMBITS(1) [],
+        PSR16 OFFSET(16) NUMBITS(1) [],
+        PSR15 OFFSET(15) NUMBITS(1) [],
+        PSR14 OFFSET(14) NUMBITS(1) [],
+        PSR13 OFFSET(13) NUMBITS(1) [],
+        PSR12 OFFSET(12) NUMBITS(1) [],
+        PSR11 OFFSET(11) NUMBITS(1) [],
+        PSR10 OFFSET(10) NUMBITS(1) [],
+        PSR9 OFFSET(9) NUMBITS(1) [],
+        PSR8 OFFSET(8) NUMBITS(1) [],
+        PSR7 OFFSET(7) NUMBITS(1) [],
+        PSR6 OFFSET(6) NUMBITS(1) [],
+        PSR5 OFFSET(5) NUMBITS(1) [],
+        PSR4 OFFSET(4) NUMBITS(1) [],
+        PSR3 OFFSET(3) NUMBITS(1) [],
+        PSR2 OFFSET(2) NUMBITS(1) [],
+        PSR1 OFFSET(1) NUMBITS(1) [],
+        PSR0 OFFSET(0) NUMBITS(1) []
     ],
-    PUPDR [
-        /// Port x configuration bits (y = 0..15)
-        PUPDR15 OFFSET(30) NUMBITS(2) [],
-        /// Port x configuration bits (y = 0..15)
-        PUPDR14 OFFSET(28) NUMBITS(2) [],
-        /// Port x configuration bits (y = 0..15)
-        PUPDR13 OFFSET(26) NUMBITS(2) [],
-        /// Port x configuration bits (y = 0..15)
-        PUPDR12 OFFSET(24) NUMBITS(2) [],
-        /// Port x configuration bits (y = 0..15)
-        PUPDR11 OFFSET(22) NUMBITS(2) [],
-        /// Port x configuration bits (y = 0..15)
-        PUPDR10 OFFSET(20) NUMBITS(2) [],
-        /// Port x configuration bits (y = 0..15)
-        PUPDR9 OFFSET(18) NUMBITS(2) [],
-        /// Port x configuration bits (y = 0..15)
-        PUPDR8 OFFSET(16) NUMBITS(2) [],
-        /// Port x configuration bits (y = 0..15)
-        PUPDR7 OFFSET(14) NUMBITS(2) [],
-        /// Port x configuration bits (y = 0..15)
-        PUPDR6 OFFSET(12) NUMBITS(2) [],
-        /// Port x configuration bits (y = 0..15)
-        PUPDR5 OFFSET(10) NUMBITS(2) [],
-        /// Port x configuration bits (y = 0..15)
-        PUPDR4 OFFSET(8) NUMBITS(2) [],
-        /// Port x configuration bits (y = 0..15)
-        PUPDR3 OFFSET(6) NUMBITS(2) [],
-        /// Port x configuration bits (y = 0..15)
-        PUPDR2 OFFSET(4) NUMBITS(2) [],
-        /// Port x configuration bits (y = 0..15)
-        PUPDR1 OFFSET(2) NUMBITS(2) [],
-        /// Port x configuration bits (y = 0..15)
-        PUPDR0 OFFSET(0) NUMBITS(2) []
+
+    ICR1 [
+        // IRCn of this register defines interrupt condition for signal n
+        ICR15 OFFSET(15) NUMBITS(2) [],
+        ICR14 OFFSET(14) NUMBITS(2) [],
+        ICR13 OFFSET(13) NUMBITS(2) [],
+        ICR12 OFFSET(12) NUMBITS(2) [],
+        ICR11 OFFSET(11) NUMBITS(2) [],
+        ICR10 OFFSET(10) NUMBITS(2) [],
+        ICR9 OFFSET(9) NUMBITS(2) [],
+        ICR8 OFFSET(8) NUMBITS(2) [],
+        ICR7 OFFSET(7) NUMBITS(2) [],
+        ICR6 OFFSET(6) NUMBITS(2) [],
+        ICR5 OFFSET(5) NUMBITS(2) [],
+        ICR4 OFFSET(4) NUMBITS(2) [],
+        ICR3 OFFSET(3) NUMBITS(2) [],
+        ICR2 OFFSET(2) NUMBITS(2) [],
+        ICR1 OFFSET(1) NUMBITS(2) [],
+        ICR0 OFFSET(0) NUMBITS(2) []
     ],
-    IDR [
-        /// Port input data (y = 0..15)
-        IDR15 OFFSET(15) NUMBITS(1) [],
-        /// Port input data (y = 0..15)
-        IDR14 OFFSET(14) NUMBITS(1) [],
-        /// Port input data (y = 0..15)
-        IDR13 OFFSET(13) NUMBITS(1) [],
-        /// Port input data (y = 0..15)
-        IDR12 OFFSET(12) NUMBITS(1) [],
-        /// Port input data (y = 0..15)
-        IDR11 OFFSET(11) NUMBITS(1) [],
-        /// Port input data (y = 0..15)
-        IDR10 OFFSET(10) NUMBITS(1) [],
-        /// Port input data (y = 0..15)
-        IDR9 OFFSET(9) NUMBITS(1) [],
-        /// Port input data (y = 0..15)
-        IDR8 OFFSET(8) NUMBITS(1) [],
-        /// Port input data (y = 0..15)
-        IDR7 OFFSET(7) NUMBITS(1) [],
-        /// Port input data (y = 0..15)
-        IDR6 OFFSET(6) NUMBITS(1) [],
-        /// Port input data (y = 0..15)
-        IDR5 OFFSET(5) NUMBITS(1) [],
-        /// Port input data (y = 0..15)
-        IDR4 OFFSET(4) NUMBITS(1) [],
-        /// Port input data (y = 0..15)
-        IDR3 OFFSET(3) NUMBITS(1) [],
-        /// Port input data (y = 0..15)
-        IDR2 OFFSET(2) NUMBITS(1) [],
-        /// Port input data (y = 0..15)
-        IDR1 OFFSET(1) NUMBITS(1) [],
-        /// Port input data (y = 0..15)
-        IDR0 OFFSET(0) NUMBITS(1) []
+
+    ICR2 [
+        // IRCn of this register defines interrupt condition for signal n
+        ICR31 OFFSET(31) NUMBITS(2) [],
+        ICR30 OFFSET(30) NUMBITS(2) [],
+        ICR29 OFFSET(29) NUMBITS(2) [],
+        ICR28 OFFSET(28) NUMBITS(2) [],
+        ICR27 OFFSET(27) NUMBITS(2) [],
+        ICR26 OFFSET(26) NUMBITS(2) [],
+        ICR25 OFFSET(25) NUMBITS(2) [],
+        ICR24 OFFSET(24) NUMBITS(2) [],
+        ICR23 OFFSET(23) NUMBITS(2) [],
+        ICR22 OFFSET(22) NUMBITS(2) [],
+        ICR21 OFFSET(21) NUMBITS(2) [],
+        ICR20 OFFSET(20) NUMBITS(2) [],
+        ICR19 OFFSET(19) NUMBITS(2) [],
+        ICR18 OFFSET(18) NUMBITS(2) [],
+        ICR17 OFFSET(17) NUMBITS(2) [],
+        ICR16 OFFSET(16) NUMBITS(2) []
     ],
-    ODR [
-        /// Port output data (y = 0..15)
-        ODR15 OFFSET(15) NUMBITS(1) [],
-        /// Port output data (y = 0..15)
-        ODR14 OFFSET(14) NUMBITS(1) [],
-        /// Port output data (y = 0..15)
-        ODR13 OFFSET(13) NUMBITS(1) [],
-        /// Port output data (y = 0..15)
-        ODR12 OFFSET(12) NUMBITS(1) [],
-        /// Port output data (y = 0..15)
-        ODR11 OFFSET(11) NUMBITS(1) [],
-        /// Port output data (y = 0..15)
-        ODR10 OFFSET(10) NUMBITS(1) [],
-        /// Port output data (y = 0..15)
-        ODR9 OFFSET(9) NUMBITS(1) [],
-        /// Port output data (y = 0..15)
-        ODR8 OFFSET(8) NUMBITS(1) [],
-        /// Port output data (y = 0..15)
-        ODR7 OFFSET(7) NUMBITS(1) [],
-        /// Port output data (y = 0..15)
-        ODR6 OFFSET(6) NUMBITS(1) [],
-        /// Port output data (y = 0..15)
-        ODR5 OFFSET(5) NUMBITS(1) [],
-        /// Port output data (y = 0..15)
-        ODR4 OFFSET(4) NUMBITS(1) [],
-        /// Port output data (y = 0..15)
-        ODR3 OFFSET(3) NUMBITS(1) [],
-        /// Port output data (y = 0..15)
-        ODR2 OFFSET(2) NUMBITS(1) [],
-        /// Port output data (y = 0..15)
-        ODR1 OFFSET(1) NUMBITS(1) [],
-        /// Port output data (y = 0..15)
-        ODR0 OFFSET(0) NUMBITS(1) []
+
+    IMR [
+    	// enable or disable the interrupt function on each of the 32 GPIO signals
+    	IMR31 OFFSET(31) NUMBITS(1) [],
+        IMR30 OFFSET(30) NUMBITS(1) [],
+        IMR29 OFFSET(29) NUMBITS(1) [],
+        IMR28 OFFSET(28) NUMBITS(1) [],
+        IMR27 OFFSET(27) NUMBITS(1) [],
+        IMR26 OFFSET(26) NUMBITS(1) [],
+        IMR25 OFFSET(25) NUMBITS(1) [],
+        IMR24 OFFSET(24) NUMBITS(1) [],
+        IMR23 OFFSET(23) NUMBITS(1) [],
+        IMR22 OFFSET(22) NUMBITS(1) [],
+        IMR21 OFFSET(21) NUMBITS(1) [],
+        IMR20 OFFSET(20) NUMBITS(1) [],
+        IMR19 OFFSET(19) NUMBITS(1) [],
+        IMR18 OFFSET(18) NUMBITS(1) [],
+        IMR17 OFFSET(17) NUMBITS(1) [],
+        IMR16 OFFSET(16) NUMBITS(1) [],
+        IMR15 OFFSET(15) NUMBITS(1) [],
+        IMR14 OFFSET(14) NUMBITS(1) [],
+        IMR13 OFFSET(13) NUMBITS(1) [],
+        IMR12 OFFSET(12) NUMBITS(1) [],
+        IMR11 OFFSET(11) NUMBITS(1) [],
+        IMR10 OFFSET(10) NUMBITS(1) [],
+        IMR9 OFFSET(9) NUMBITS(1) [],
+        IMR8 OFFSET(8) NUMBITS(1) [],
+        IMR7 OFFSET(7) NUMBITS(1) [],
+        IMR6 OFFSET(6) NUMBITS(1) [],
+        IMR5 OFFSET(5) NUMBITS(1) [],
+        IMR4 OFFSET(4) NUMBITS(1) [],
+        IMR3 OFFSET(3) NUMBITS(1) [],
+        IMR2 OFFSET(2) NUMBITS(1) [],
+        IMR1 OFFSET(1) NUMBITS(1) [],
+        IMR0 OFFSET(0) NUMBITS(1) []
     ],
-    BSRR [
-        /// Port x reset bit y (y = 0..15)
-        BR15 OFFSET(31) NUMBITS(1) [],
-        /// Port x reset bit y (y = 0..15)
-        BR14 OFFSET(30) NUMBITS(1) [],
-        /// Port x reset bit y (y = 0..15)
-        BR13 OFFSET(29) NUMBITS(1) [],
-        /// Port x reset bit y (y = 0..15)
-        BR12 OFFSET(28) NUMBITS(1) [],
-        /// Port x reset bit y (y = 0..15)
-        BR11 OFFSET(27) NUMBITS(1) [],
-        /// Port x reset bit y (y = 0..15)
-        BR10 OFFSET(26) NUMBITS(1) [],
-        /// Port x reset bit y (y = 0..15)
-        BR9 OFFSET(25) NUMBITS(1) [],
-        /// Port x reset bit y (y = 0..15)
-        BR8 OFFSET(24) NUMBITS(1) [],
-        /// Port x reset bit y (y = 0..15)
-        BR7 OFFSET(23) NUMBITS(1) [],
-        /// Port x reset bit y (y = 0..15)
-        BR6 OFFSET(22) NUMBITS(1) [],
-        /// Port x reset bit y (y = 0..15)
-        BR5 OFFSET(21) NUMBITS(1) [],
-        /// Port x reset bit y (y = 0..15)
-        BR4 OFFSET(20) NUMBITS(1) [],
-        /// Port x reset bit y (y = 0..15)
-        BR3 OFFSET(19) NUMBITS(1) [],
-        /// Port x reset bit y (y = 0..15)
-        BR2 OFFSET(18) NUMBITS(1) [],
-        /// Port x reset bit y (y = 0..15)
-        BR1 OFFSET(17) NUMBITS(1) [],
-        /// Port x set bit y (y= 0..15)
-        BR0 OFFSET(16) NUMBITS(1) [],
-        /// Port x set bit y (y= 0..15)
-        BS15 OFFSET(15) NUMBITS(1) [],
-        /// Port x set bit y (y= 0..15)
-        BS14 OFFSET(14) NUMBITS(1) [],
-        /// Port x set bit y (y= 0..15)
-        BS13 OFFSET(13) NUMBITS(1) [],
-        /// Port x set bit y (y= 0..15)
-        BS12 OFFSET(12) NUMBITS(1) [],
-        /// Port x set bit y (y= 0..15)
-        BS11 OFFSET(11) NUMBITS(1) [],
-        /// Port x set bit y (y= 0..15)
-        BS10 OFFSET(10) NUMBITS(1) [],
-        /// Port x set bit y (y= 0..15)
-        BS9 OFFSET(9) NUMBITS(1) [],
-        /// Port x set bit y (y= 0..15)
-        BS8 OFFSET(8) NUMBITS(1) [],
-        /// Port x set bit y (y= 0..15)
-        BS7 OFFSET(7) NUMBITS(1) [],
-        /// Port x set bit y (y= 0..15)
-        BS6 OFFSET(6) NUMBITS(1) [],
-        /// Port x set bit y (y= 0..15)
-        BS5 OFFSET(5) NUMBITS(1) [],
-        /// Port x set bit y (y= 0..15)
-        BS4 OFFSET(4) NUMBITS(1) [],
-        /// Port x set bit y (y= 0..15)
-        BS3 OFFSET(3) NUMBITS(1) [],
-        /// Port x set bit y (y= 0..15)
-        BS2 OFFSET(2) NUMBITS(1) [],
-        /// Port x set bit y (y= 0..15)
-        BS1 OFFSET(1) NUMBITS(1) [],
-        /// Port x set bit y (y= 0..15)
-        BS0 OFFSET(0) NUMBITS(1) []
+
+    ISR [
+        // Bit n of this register is asserted (active high) when the active condition is detected
+        // on the GPIO input and waiting for service
+        ISR31 OFFSET(31) NUMBITS(1) [],
+        ISR30 OFFSET(30) NUMBITS(1) [],
+        ISR29 OFFSET(29) NUMBITS(1) [],
+        ISR28 OFFSET(28) NUMBITS(1) [],
+        ISR27 OFFSET(27) NUMBITS(1) [],
+        ISR26 OFFSET(26) NUMBITS(1) [],
+        ISR25 OFFSET(25) NUMBITS(1) [],
+        ISR24 OFFSET(24) NUMBITS(1) [],
+        ISR23 OFFSET(23) NUMBITS(1) [],
+        ISR22 OFFSET(22) NUMBITS(1) [],
+        ISR21 OFFSET(21) NUMBITS(1) [],
+        ISR20 OFFSET(20) NUMBITS(1) [],
+        ISR19 OFFSET(19) NUMBITS(1) [],
+        ISR18 OFFSET(18) NUMBITS(1) [],
+        ISR17 OFFSET(17) NUMBITS(1) [],
+        ISR16 OFFSET(16) NUMBITS(1) [],
+        ISR15 OFFSET(15) NUMBITS(1) [],
+        ISR14 OFFSET(14) NUMBITS(1) [],
+        ISR13 OFFSET(13) NUMBITS(1) [],
+        ISR12 OFFSET(12) NUMBITS(1) [],
+        ISR11 OFFSET(11) NUMBITS(1) [],
+        ISR10 OFFSET(10) NUMBITS(1) [],
+        ISR9 OFFSET(9) NUMBITS(1) [],
+        ISR8 OFFSET(8) NUMBITS(1) [],
+        ISR7 OFFSET(7) NUMBITS(1) [],
+        ISR6 OFFSET(6) NUMBITS(1) [],
+        ISR5 OFFSET(5) NUMBITS(1) [],
+        ISR4 OFFSET(4) NUMBITS(1) [],
+        ISR3 OFFSET(3) NUMBITS(1) [],
+        ISR2 OFFSET(2) NUMBITS(1) [],
+        ISR1 OFFSET(1) NUMBITS(1) [],
+        ISR0 OFFSET(0) NUMBITS(1) []
     ],
-    LCKR [
-        /// Port x lock bit y (y= 0..15)
-        LCKK OFFSET(16) NUMBITS(1) [],
-        /// Port x lock bit y (y= 0..15)
-        LCK15 OFFSET(15) NUMBITS(1) [],
-        /// Port x lock bit y (y= 0..15)
-        LCK14 OFFSET(14) NUMBITS(1) [],
-        /// Port x lock bit y (y= 0..15)
-        LCK13 OFFSET(13) NUMBITS(1) [],
-        /// Port x lock bit y (y= 0..15)
-        LCK12 OFFSET(12) NUMBITS(1) [],
-        /// Port x lock bit y (y= 0..15)
-        LCK11 OFFSET(11) NUMBITS(1) [],
-        /// Port x lock bit y (y= 0..15)
-        LCK10 OFFSET(10) NUMBITS(1) [],
-        /// Port x lock bit y (y= 0..15)
-        LCK9 OFFSET(9) NUMBITS(1) [],
-        /// Port x lock bit y (y= 0..15)
-        LCK8 OFFSET(8) NUMBITS(1) [],
-        /// Port x lock bit y (y= 0..15)
-        LCK7 OFFSET(7) NUMBITS(1) [],
-        /// Port x lock bit y (y= 0..15)
-        LCK6 OFFSET(6) NUMBITS(1) [],
-        /// Port x lock bit y (y= 0..15)
-        LCK5 OFFSET(5) NUMBITS(1) [],
-        /// Port x lock bit y (y= 0..15)
-        LCK4 OFFSET(4) NUMBITS(1) [],
-        /// Port x lock bit y (y= 0..15)
-        LCK3 OFFSET(3) NUMBITS(1) [],
-        /// Port x lock bit y (y= 0..15)
-        LCK2 OFFSET(2) NUMBITS(1) [],
-        /// Port x lock bit y (y= 0..15)
-        LCK1 OFFSET(1) NUMBITS(1) [],
-        /// Port x lock bit y (y= 0..15)
-        LCK0 OFFSET(0) NUMBITS(1) []
+
+    EDGE_SEL [
+        // When EDGE_SELn is set, the GPIO disregards the ICRn setting
+        EDGE_SEL31 OFFSET(31) NUMBITS(1) [],
+        EDGE_SEL30 OFFSET(30) NUMBITS(1) [],
+        EDGE_SEL29 OFFSET(29) NUMBITS(1) [],
+        EDGE_SEL28 OFFSET(28) NUMBITS(1) [],
+        EDGE_SEL27 OFFSET(27) NUMBITS(1) [],
+        EDGE_SEL26 OFFSET(26) NUMBITS(1) [],
+        EDGE_SEL25 OFFSET(25) NUMBITS(1) [],
+        EDGE_SEL24 OFFSET(24) NUMBITS(1) [],
+        EDGE_SEL23 OFFSET(23) NUMBITS(1) [],
+        EDGE_SEL22 OFFSET(22) NUMBITS(1) [],
+        EDGE_SEL21 OFFSET(21) NUMBITS(1) [],
+        EDGE_SEL20 OFFSET(20) NUMBITS(1) [],
+        EDGE_SEL19 OFFSET(19) NUMBITS(1) [],
+        EDGE_SEL18 OFFSET(18) NUMBITS(1) [],
+        EDGE_SEL17 OFFSET(17) NUMBITS(1) [],
+        EDGE_SEL16 OFFSET(16) NUMBITS(1) [],
+        EDGE_SEL15 OFFSET(15) NUMBITS(1) [],
+        EDGE_SEL14 OFFSET(14) NUMBITS(1) [],
+        EDGE_SEL13 OFFSET(13) NUMBITS(1) [],
+        EDGE_SEL12 OFFSET(12) NUMBITS(1) [],
+        EDGE_SEL11 OFFSET(11) NUMBITS(1) [],
+        EDGE_SEL10 OFFSET(10) NUMBITS(1) [],
+        EDGE_SEL9 OFFSET(9) NUMBITS(1) [],
+        EDGE_SEL8 OFFSET(8) NUMBITS(1) [],
+        EDGE_SEL7 OFFSET(7) NUMBITS(1) [],
+        EDGE_SEL6 OFFSET(6) NUMBITS(1) [],
+        EDGE_SEL5 OFFSET(5) NUMBITS(1) [],
+        EDGE_SEL4 OFFSET(4) NUMBITS(1) [],
+        EDGE_SEL3 OFFSET(3) NUMBITS(1) [],
+        EDGE_SEL2 OFFSET(2) NUMBITS(1) [],
+        EDGE_SEL1 OFFSET(1) NUMBITS(1) [],
+        EDGE_SEL0 OFFSET(0) NUMBITS(1) []
     ],
-    AFRL [
-        /// Alternate function selection for port x bit y (y = 0..7)
-        AFRL7 OFFSET(28) NUMBITS(4) [],
-        /// Alternate function selection for port x bit y (y = 0..7)
-        AFRL6 OFFSET(24) NUMBITS(4) [],
-        /// Alternate function selection for port x bit y (y = 0..7)
-        AFRL5 OFFSET(20) NUMBITS(4) [],
-        /// Alternate function selection for port x bit y (y = 0..7)
-        AFRL4 OFFSET(16) NUMBITS(4) [],
-        /// Alternate function selection for port x bit y (y = 0..7)
-        AFRL3 OFFSET(12) NUMBITS(4) [],
-        /// Alternate function selection for port x bit y (y = 0..7)
-        AFRL2 OFFSET(8) NUMBITS(4) [],
-        /// Alternate function selection for port x bit y (y = 0..7)
-        AFRL1 OFFSET(4) NUMBITS(4) [],
-        /// Alternate function selection for port x bit y (y = 0..7)
-        AFRL0 OFFSET(0) NUMBITS(4) []
+
+    DR_SET [
+        // The set register of DR
+        DR_SET31 OFFSET(31) NUMBITS(1) [],
+        DR_SET30 OFFSET(30) NUMBITS(1) [],
+        DR_SET29 OFFSET(29) NUMBITS(1) [],
+        DR_SET28 OFFSET(28) NUMBITS(1) [],
+        DR_SET27 OFFSET(27) NUMBITS(1) [],
+        DR_SET26 OFFSET(26) NUMBITS(1) [],
+        DR_SET25 OFFSET(25) NUMBITS(1) [],
+        DR_SET24 OFFSET(24) NUMBITS(1) [],
+        DR_SET23 OFFSET(23) NUMBITS(1) [],
+        DR_SET22 OFFSET(22) NUMBITS(1) [],
+        DR_SET21 OFFSET(21) NUMBITS(1) [],
+        DR_SET20 OFFSET(20) NUMBITS(1) [],
+        DR_SET19 OFFSET(19) NUMBITS(1) [],
+        DR_SET18 OFFSET(18) NUMBITS(1) [],
+        DR_SET17 OFFSET(17) NUMBITS(1) [],
+        DR_SET16 OFFSET(16) NUMBITS(1) [],
+        DR_SET15 OFFSET(15) NUMBITS(1) [],
+        DR_SET14 OFFSET(14) NUMBITS(1) [],
+        DR_SET13 OFFSET(13) NUMBITS(1) [],
+        DR_SET12 OFFSET(12) NUMBITS(1) [],
+        DR_SET11 OFFSET(11) NUMBITS(1) [],
+        DR_SET10 OFFSET(10) NUMBITS(1) [],
+        DR_SET9 OFFSET(9) NUMBITS(1) [],
+        DR_SET8 OFFSET(8) NUMBITS(1) [],
+        DR_SET7 OFFSET(7) NUMBITS(1) [],
+        DR_SET6 OFFSET(6) NUMBITS(1) [],
+        DR_SET5 OFFSET(5) NUMBITS(1) [],
+        DR_SET4 OFFSET(4) NUMBITS(1) [],
+        DR_SET3 OFFSET(3) NUMBITS(1) [],
+        DR_SET2 OFFSET(2) NUMBITS(1) [],
+        DR_SET1 OFFSET(1) NUMBITS(1) [],
+        DR_SET0 OFFSET(0) NUMBITS(1) []
     ],
-    AFRH [
-        /// Alternate function selection for port x bit y (y = 8..15)
-        AFRH15 OFFSET(28) NUMBITS(4) [],
-        /// Alternate function selection for port x bit y (y = 8..15)
-        AFRH14 OFFSET(24) NUMBITS(4) [],
-        /// Alternate function selection for port x bit y (y = 8..15)
-        AFRH13 OFFSET(20) NUMBITS(4) [],
-        /// Alternate function selection for port x bit y (y = 8..15)
-        AFRH12 OFFSET(16) NUMBITS(4) [],
-        /// Alternate function selection for port x bit y (y = 8..15)
-        AFRH11 OFFSET(12) NUMBITS(4) [],
-        /// Alternate function selection for port x bit y (y = 8..15)
-        AFRH10 OFFSET(8) NUMBITS(4) [],
-        /// Alternate function selection for port x bit y (y = 8..15)
-        AFRH9 OFFSET(4) NUMBITS(4) [],
-        /// Alternate function selection for port x bit y (y = 8..15)
-        AFRH8 OFFSET(0) NUMBITS(4) []
+
+    DR_CLEAR [
+        // The clear register of DR
+        DR_CLEAR31 OFFSET(31) NUMBITS(1) [],
+        DR_CLEAR30 OFFSET(30) NUMBITS(1) [],
+        DR_CLEAR29 OFFSET(29) NUMBITS(1) [],
+        DR_CLEAR28 OFFSET(28) NUMBITS(1) [],
+        DR_CLEAR27 OFFSET(27) NUMBITS(1) [],
+        DR_CLEAR26 OFFSET(26) NUMBITS(1) [],
+        DR_CLEAR25 OFFSET(25) NUMBITS(1) [],
+        DR_CLEAR24 OFFSET(24) NUMBITS(1) [],
+        DR_CLEAR23 OFFSET(23) NUMBITS(1) [],
+        DR_CLEAR22 OFFSET(22) NUMBITS(1) [],
+        DR_CLEAR21 OFFSET(21) NUMBITS(1) [],
+        DR_CLEAR20 OFFSET(20) NUMBITS(1) [],
+        DR_CLEAR19 OFFSET(19) NUMBITS(1) [],
+        DR_CLEAR18 OFFSET(18) NUMBITS(1) [],
+        DR_CLEAR17 OFFSET(17) NUMBITS(1) [],
+        DR_CLEAR16 OFFSET(16) NUMBITS(1) [],
+        DR_CLEAR15 OFFSET(15) NUMBITS(1) [],
+        DR_CLEAR14 OFFSET(14) NUMBITS(1) [],
+        DR_CLEAR13 OFFSET(13) NUMBITS(1) [],
+        DR_CLEAR12 OFFSET(12) NUMBITS(1) [],
+        DR_CLEAR11 OFFSET(11) NUMBITS(1) [],
+        DR_CLEAR10 OFFSET(10) NUMBITS(1) [],
+        DR_CLEAR9 OFFSET(9) NUMBITS(1) [],
+        DR_CLEAR8 OFFSET(8) NUMBITS(1) [],
+        DR_CLEAR7 OFFSET(7) NUMBITS(1) [],
+        DR_CLEAR6 OFFSET(6) NUMBITS(1) [],
+        DR_CLEAR5 OFFSET(5) NUMBITS(1) [],
+        DR_CLEAR4 OFFSET(4) NUMBITS(1) [],
+        DR_CLEAR3 OFFSET(3) NUMBITS(1) [],
+        DR_CLEAR2 OFFSET(2) NUMBITS(1) [],
+        DR_CLEAR1 OFFSET(1) NUMBITS(1) [],
+        DR_CLEAR0 OFFSET(0) NUMBITS(1) []
+    ],
+
+    DR_TOGGLE [
+        // The toggle register of DR
+        DR_TOGGLE31 OFFSET(31) NUMBITS(1) [],
+        DR_TOGGLE30 OFFSET(30) NUMBITS(1) [],
+        DR_TOGGLE29 OFFSET(29) NUMBITS(1) [],
+        DR_TOGGLE28 OFFSET(28) NUMBITS(1) [],
+        DR_TOGGLE27 OFFSET(27) NUMBITS(1) [],
+        DR_TOGGLE26 OFFSET(26) NUMBITS(1) [],
+        DR_TOGGLE25 OFFSET(25) NUMBITS(1) [],
+        DR_TOGGLE24 OFFSET(24) NUMBITS(1) [],
+        DR_TOGGLE23 OFFSET(23) NUMBITS(1) [],
+        DR_TOGGLE22 OFFSET(22) NUMBITS(1) [],
+        DR_TOGGLE21 OFFSET(21) NUMBITS(1) [],
+        DR_TOGGLE20 OFFSET(20) NUMBITS(1) [],
+        DR_TOGGLE19 OFFSET(19) NUMBITS(1) [],
+        DR_TOGGLE18 OFFSET(18) NUMBITS(1) [],
+        DR_TOGGLE17 OFFSET(17) NUMBITS(1) [],
+        DR_TOGGLE16 OFFSET(16) NUMBITS(1) [],
+        DR_TOGGLE15 OFFSET(15) NUMBITS(1) [],
+        DR_TOGGLE14 OFFSET(14) NUMBITS(1) [],
+        DR_TOGGLE13 OFFSET(13) NUMBITS(1) [],
+        DR_TOGGLE12 OFFSET(12) NUMBITS(1) [],
+        DR_TOGGLE11 OFFSET(11) NUMBITS(1) [],
+        DR_TOGGLE10 OFFSET(10) NUMBITS(1) [],
+        DR_TOGGLE9 OFFSET(9) NUMBITS(1) [],
+        DR_TOGGLE8 OFFSET(8) NUMBITS(1) [],
+        DR_TOGGLE7 OFFSET(7) NUMBITS(1) [],
+        DR_TOGGLE6 OFFSET(6) NUMBITS(1) [],
+        DR_TOGGLE5 OFFSET(5) NUMBITS(1) [],
+        DR_TOGGLE4 OFFSET(4) NUMBITS(1) [],
+        DR_TOGGLE3 OFFSET(3) NUMBITS(1) [],
+        DR_TOGGLE2 OFFSET(2) NUMBITS(1) [],
+        DR_TOGGLE1 OFFSET(1) NUMBITS(1) [],
+        DR_TOGGLE0 OFFSET(0) NUMBITS(1) []
     ]
 ];
 
-const GPIOH_BASE: StaticRef<GpioRegisters> =
-    unsafe { StaticRef::new(0x40021C00 as *const GpioRegisters) };
+const GPIO1_BASE: StaticRef<GpioRegisters> =
+    unsafe { StaticRef::new(0x401B8000 as *const GpioRegisters) };
 
-const GPIOG_BASE: StaticRef<GpioRegisters> =
-    unsafe { StaticRef::new(0x40021800 as *const GpioRegisters) };
+const GPIO2_BASE: StaticRef<GpioRegisters> =
+    unsafe { StaticRef::new(0x401BC000 as *const GpioRegisters) };
 
-const GPIOF_BASE: StaticRef<GpioRegisters> =
-    unsafe { StaticRef::new(0x40021400 as *const GpioRegisters) };
+const GPIO3_BASE: StaticRef<GpioRegisters> =
+    unsafe { StaticRef::new(0x401C0000 as *const GpioRegisters) };
 
-const GPIOE_BASE: StaticRef<GpioRegisters> =
-    unsafe { StaticRef::new(0x40021000 as *const GpioRegisters) };
+const GPIO4_BASE: StaticRef<GpioRegisters> =
+    unsafe { StaticRef::new(0x401C4000 as *const GpioRegisters) };
 
-const GPIOD_BASE: StaticRef<GpioRegisters> =
-    unsafe { StaticRef::new(0x40020C00 as *const GpioRegisters) };
+const GPIO5_BASE: StaticRef<GpioRegisters> =
+    unsafe { StaticRef::new(0x400C0000 as *const GpioRegisters) };
 
-const GPIOC_BASE: StaticRef<GpioRegisters> =
-    unsafe { StaticRef::new(0x40020800 as *const GpioRegisters) };
-
-const GPIOB_BASE: StaticRef<GpioRegisters> =
-    unsafe { StaticRef::new(0x40020400 as *const GpioRegisters) };
-
-const GPIOA_BASE: StaticRef<GpioRegisters> =
-    unsafe { StaticRef::new(0x40020000 as *const GpioRegisters) };
-
-/// STM32F446RE has eight GPIO ports labeled from A-H [^1]. This is represented
-/// by three bits.
-///
-/// [^1]: Figure 3. STM32F446xC/E block diagram, page 16 of the datasheet
 #[repr(u32)]
 pub enum PortId {
-    A = 0b000,
-    B = 0b001,
-    C = 0b010,
-    D = 0b011,
-    E = 0b100,
-    F = 0b101,
-    G = 0b110,
-    H = 0b111,
+    P1 = 0b000,
+    P2 = 0b001,
+    P3 = 0b010,
+    P4 = 0b011,
+    P5 = 0b100,
 }
 
-/// Name of the GPIO pin on the STM32F446RE.
-///
-/// The "Pinout and pin description" section [^1] of the STM32F446RE datasheet
-/// shows the mapping between the names and the hardware pins on different chip
-/// packages.
-///
-/// The first three bits represent the port and last four bits represent the
-/// pin.
-///
-/// [^1]: Section 4, Pinout and pin description, pages 41-45
+
+// Name of the GPIO pins 
 #[rustfmt::skip]
 #[repr(u8)]
 #[derive(Copy, Clone)]
 pub enum PinId {
-    PA00 = 0b0000000, PA01 = 0b0000001, PA02 = 0b0000010, PA03 = 0b0000011,
-    PA04 = 0b0000100, PA05 = 0b0000101, PA06 = 0b0000110, PA07 = 0b0000111,
-    PA08 = 0b0001000, PA09 = 0b0001001, PA10 = 0b0001010, PA11 = 0b0001011,
-    PA12 = 0b0001100, PA13 = 0b0001101, PA14 = 0b0001110, PA15 = 0b0001111,
+    P1_00 = 0b00000000, P1_01 = 0b00000001, P1_02 = 0b00000010, P1_03 = 0b00000011,
+    P1_04 = 0b00000100, P1_05 = 0b00000101, P1_06 = 0b00000110, P1_07 = 0b00000111,
+    P1_08 = 0b00001000, P1_09 = 0b00001001, P1_10 = 0b00001010, P1_11 = 0b00001011,
+    P1_12 = 0b00001100, P1_13 = 0b00001101, P1_14 = 0b00001110, P1_15 = 0b00001111,
+    P1_16 = 0b00010000, P1_17 = 0b00010001, P1_18 = 0b00010010, P1_19 = 0b00010011,
+    P1_20 = 0b00010100, P1_21 = 0b00010101, P1_22 = 0b00010110, P1_23 = 0b00010111,
+    P1_24 = 0b00011000, P1_25 = 0b00011001, P1_26 = 0b00011010, P1_27 = 0b00011011,
+    P1_28 = 0b00011100, P1_29 = 0b00011101, P1_30 = 0b00011110, P1_31 = 0b00011111,
 
-    PB00 = 0b0010000, PB01 = 0b0010001, PB02 = 0b0010010, PB03 = 0b0010011,
-    PB04 = 0b0010100, PB05 = 0b0010101, PB06 = 0b0010110, PB07 = 0b0010111,
-    PB08 = 0b0011000, PB09 = 0b0011001, PB10 = 0b0011010, PB11 = 0b0011011,
-    PB12 = 0b0011100, PB13 = 0b0011101, PB14 = 0b0011110, PB15 = 0b0011111,
+    P2_00 = 0b00100000, P2_01 = 0b00100001, P2_02 = 0b00100010, P2_03 = 0b00100011,
+    P2_04 = 0b00100100, P2_05 = 0b00100101, P2_06 = 0b00100110, P2_07 = 0b00100111,
+    P2_08 = 0b00101000, P2_09 = 0b00101001, P2_10 = 0b00101010, P2_11 = 0b00101011,
+    P2_12 = 0b00101100, P2_13 = 0b00101101, P2_14 = 0b00101110, P2_15 = 0b00101111,
+    P2_16 = 0b00110000, P2_17 = 0b00110001, P2_18 = 0b00110010, P2_19 = 0b00110011,
+    P2_20 = 0b00110100, P2_21 = 0b00110101, P2_22 = 0b00110110, P2_23 = 0b00110111,
+    P2_24 = 0b00111000, P2_25 = 0b00111001, P2_26 = 0b00111010, P2_27 = 0b00111011,
+    P2_28 = 0b00111100, P2_29 = 0b00111101, P2_30 = 0b00111110, P2_31 = 0b00111111,
 
-    PC00 = 0b0100000, PC01 = 0b0100001, PC02 = 0b0100010, PC03 = 0b0100011,
-    PC04 = 0b0100100, PC05 = 0b0100101, PC06 = 0b0100110, PC07 = 0b0100111,
-    PC08 = 0b0101000, PC09 = 0b0101001, PC10 = 0b0101010, PC11 = 0b0101011,
-    PC12 = 0b0101100, PC13 = 0b0101101, PC14 = 0b0101110, PC15 = 0b0101111,
+    P3_00 = 0b01000000, P3_01 = 0b01000001, P3_02 = 0b01000010, P3_03 = 0b01000011,
+    P3_04 = 0b01000100, P3_05 = 0b01000101, P3_06 = 0b01000110, P3_07 = 0b01000111,
+    P3_08 = 0b01001000, P3_09 = 0b01001001, P3_10 = 0b01001010, P3_11 = 0b01001011,
+    P3_12 = 0b01001100, P3_13 = 0b01001101, P3_14 = 0b01001110, P3_15 = 0b01001111,
+    P3_16 = 0b01010000, P3_17 = 0b01010001, P3_18 = 0b01010010, P3_19 = 0b01010011,
+    P3_20 = 0b01010100, P3_21 = 0b01010101, P3_22 = 0b01010110, P3_23 = 0b01010111,
+    P3_24 = 0b01011000, P3_25 = 0b01011001, P3_26 = 0b01011010, P3_27 = 0b01011011,
+    P3_28 = 0b01011100, P3_29 = 0b01011101, P3_30 = 0b01011110, P3_31 = 0b01011111,
 
-    PD00 = 0b0110000, PD01 = 0b0110001, PD02 = 0b0110010, PD03 = 0b0110011,
-    PD04 = 0b0110100, PD05 = 0b0110101, PD06 = 0b0110110, PD07 = 0b0110111,
-    PD08 = 0b0111000, PD09 = 0b0111001, PD10 = 0b0111010, PD11 = 0b0111011,
-    PD12 = 0b0111100, PD13 = 0b0111101, PD14 = 0b0111110, PD15 = 0b0111111,
+    P4_00 = 0b01100000, P4_01 = 0b01100001, P4_02 = 0b01100010, P4_03 = 0b01100011,
+    P4_04 = 0b01100100, P4_05 = 0b01100101, P4_06 = 0b01100110, P4_07 = 0b01100111,
+    P4_08 = 0b01101000, P4_09 = 0b01101001, P4_10 = 0b01101010, P4_11 = 0b01101011,
+    P4_12 = 0b01101100, P4_13 = 0b01101101, P4_14 = 0b01101110, P4_15 = 0b01101111,
+    P4_16 = 0b01110000, P4_17 = 0b01110001, P4_18 = 0b01110010, P4_19 = 0b01110011,
+    P4_20 = 0b01110100, P4_21 = 0b01110101, P4_22 = 0b01110110, P4_23 = 0b01110111,
+    P4_24 = 0b01111000, P4_25 = 0b01111001, P4_26 = 0b01111010, P4_27 = 0b01111011,
+    P4_28 = 0b01111100, P4_29 = 0b01111101, P4_30 = 0b01111110, P4_31 = 0b01111111,
 
-    PE00 = 0b1000000, PE01 = 0b1000001, PE02 = 0b1000010, PE03 = 0b1000011,
-    PE04 = 0b1000100, PE05 = 0b1000101, PE06 = 0b1000110, PE07 = 0b1000111,
-    PE08 = 0b1001000, PE09 = 0b1001001, PE10 = 0b1001010, PE11 = 0b1001011,
-    PE12 = 0b1001100, PE13 = 0b1001101, PE14 = 0b1001110, PE15 = 0b1001111,
-
-    PF00 = 0b1010000, PF01 = 0b1010001, PF02 = 0b1010010, PF03 = 0b1010011,
-    PF04 = 0b1010100, PF05 = 0b1010101, PF06 = 0b1010110, PF07 = 0b1010111,
-    PF08 = 0b1011000, PF09 = 0b1011001, PF10 = 0b1011010, PF11 = 0b1011011,
-    PF12 = 0b1011100, PF13 = 0b1011101, PF14 = 0b1011110, PF15 = 0b1011111,
-
-    PG00 = 0b1100000, PG01 = 0b1100001, PG02 = 0b1100010, PG03 = 0b1100011,
-    PG04 = 0b1100100, PG05 = 0b1100101, PG06 = 0b1100110, PG07 = 0b1100111,
-    PG08 = 0b1101000, PG09 = 0b1101001, PG10 = 0b1101010, PG11 = 0b1101011,
-    PG12 = 0b1101100, PG13 = 0b1101101, PG14 = 0b1101110, PG15 = 0b1101111,
-
-    PH00 = 0b1110000, PH01 = 0b1110001,
+    P5_00 = 0b10000000, P5_01 = 0b10000001, P5_02 = 0b10000010, P5_03 = 0b10000011,
+    P5_04 = 0b10000100, P5_05 = 0b10000101, P5_06 = 0b10000110, P5_07 = 0b10000111,
+    P5_08 = 0b10001000, P5_09 = 0b10001001, P5_10 = 0b10001010, P5_11 = 0b10001011,
+    P5_12 = 0b10001100, P5_13 = 0b10001101, P5_14 = 0b10001110, P5_15 = 0b10001111,
+    P5_16 = 0b10010000, P5_17 = 0b10010001, P5_18 = 0b10010010, P5_19 = 0b10010011,
+    P5_20 = 0b10010100, P5_21 = 0b10010101, P5_22 = 0b10010110, P5_23 = 0b10010111,
+    P5_24 = 0b10011000, P5_25 = 0b10011001, P5_26 = 0b10011010, P5_27 = 0b10011011,
+    P5_28 = 0b10011100, P5_29 = 0b10011101, P5_30 = 0b10011110, P5_31 = 0b10011111,
 }
 
 impl PinId {
@@ -478,24 +488,24 @@ impl PinId {
         let mut port_num: u8 = *self as u8;
 
         // Right shift p by 4 bits, so we can get rid of pin bits
-        port_num >>= 4;
+        port_num >>= 5;
 
         let mut pin_num: u8 = *self as u8;
         // Mask top 3 bits, so can get only the suffix
-        pin_num &= 0b0001111;
+        pin_num &= 0b00011111;
 
-        unsafe { &PIN[usize::from(port_num)][usize::from(pin_num)] }
+        unsafe {&PIN[usize::from(port_num)][usize::from(pin_num)] }
     }
 
     pub fn get_pin_mut(&self) -> &mut Option<Pin<'static>> {
         let mut port_num: u8 = *self as u8;
 
         // Right shift p by 4 bits, so we can get rid of pin bits
-        port_num >>= 4;
+        port_num >>= 5;
 
         let mut pin_num: u8 = *self as u8;
         // Mask top 3 bits, so can get only the suffix
-        pin_num &= 0b0001111;
+        pin_num &= 0b00011111;
 
         unsafe { &mut PIN[usize::from(port_num)][usize::from(pin_num)] }
     }
@@ -504,7 +514,7 @@ impl PinId {
         let mut port_num: u8 = *self as u8;
 
         // Right shift p by 4 bits, so we can get rid of pin bits
-        port_num >>= 4;
+        port_num >>= 5;
         unsafe { &PORT[usize::from(port_num)] }
     }
 
@@ -513,7 +523,7 @@ impl PinId {
     pub fn get_pin_number(&self) -> u8 {
         let mut pin_num = *self as u8;
 
-        pin_num = pin_num & 0b00001111;
+        pin_num = pin_num & 0b00011111;
         pin_num
     }
 
@@ -522,7 +532,7 @@ impl PinId {
         let mut port_num: u8 = *self as u8;
 
         // Right shift p by 4 bits, so we can get rid of pin bits
-        port_num >>= 4;
+        port_num >>= 5;
         port_num
     }
 }
@@ -534,55 +544,25 @@ enum_from_primitive! {
     #[repr(u32)]
     #[derive(PartialEq)]
     pub enum Mode {
-        Input = 0b00,
-        GeneralPurposeOutputMode = 0b01,
-        AlternateFunctionMode = 0b10,
-        AnalogMode = 0b11,
+        Input = 0b0,
+        Output = 0b1
     }
 }
 
-/// Alternate functions that may be assigned to a `Pin`.
-///
-/// GPIO pins on the STM32F446RE may serve multiple functions. In addition to
-/// the default functionality, each pin can be assigned up to sixteen different
-/// alternate functions. The various functions for each pin are described in
-/// "Alternate Function"" section of the STM32F446RE datasheet[^1].
-///
-/// Alternate Function bit mapping is shown here[^2].
-///
-/// [^1]: Section 4, Pinout and pin description, Table 11. Alternate function,
-///       pages 59-66
-///
-/// [^2]: Section 7.4.9, page 192 of Reference Manual
+/// Aici ar fi venit Alternative Functions...
 #[repr(u32)]
 pub enum AlternateFunction {
-    AF0 = 0b0000,
-    AF1 = 0b0001,
-    AF2 = 0b0010,
-    AF3 = 0b0011,
-    AF4 = 0b0100,
-    AF5 = 0b0101,
-    AF6 = 0b0110,
-    AF7 = 0b0111,
-    AF8 = 0b1000,
-    AF9 = 0b1001,
-    AF10 = 0b1010,
-    AF11 = 0b1011,
-    AF12 = 0b1100,
-    AF13 = 0b1101,
-    AF14 = 0b1110,
-    AF15 = 0b1111,
+    None = 0
 }
 
 /// GPIO pin internal pull-up and pull-down [^1]
-///
-/// [^1]: Section 7.4.4, page 189 of reference manual
 enum_from_primitive! {
     #[repr(u32)]
     enum PullUpPullDown {
-        NoPullUpPullDown = 0b00,
-        PullUp = 0b01,
-        PullDown = 0b10,
+        Pus0_100kOhmPullDown = 0b00,    // 100K Ohm Pull Down
+        Pus1_47kOhmPullUp = 0b01,       // 47K Ohm Pull Up
+        Pus2_100kOhmPullUp = 0b10,      // 100K Ohm Pull Up
+        Pus3_22kOhmPullUp = 0b11,       // 22K Ohm Pull Up
     }
 }
 
@@ -591,38 +571,10 @@ pub struct Port {
     clock: PortClock,
 }
 
-pub static mut PORT: [Port; 8] = [
+pub static mut PORT: [Port; 1] = [
     Port {
-        registers: GPIOA_BASE,
-        clock: PortClock(rcc::PeripheralClock::AHB1(rcc::HCLK1::GPIOA)),
-    },
-    Port {
-        registers: GPIOB_BASE,
-        clock: PortClock(rcc::PeripheralClock::AHB1(rcc::HCLK1::GPIOB)),
-    },
-    Port {
-        registers: GPIOC_BASE,
-        clock: PortClock(rcc::PeripheralClock::AHB1(rcc::HCLK1::GPIOC)),
-    },
-    Port {
-        registers: GPIOD_BASE,
-        clock: PortClock(rcc::PeripheralClock::AHB1(rcc::HCLK1::GPIOD)),
-    },
-    Port {
-        registers: GPIOE_BASE,
-        clock: PortClock(rcc::PeripheralClock::AHB1(rcc::HCLK1::GPIOE)),
-    },
-    Port {
-        registers: GPIOF_BASE,
-        clock: PortClock(rcc::PeripheralClock::AHB1(rcc::HCLK1::GPIOF)),
-    },
-    Port {
-        registers: GPIOG_BASE,
-        clock: PortClock(rcc::PeripheralClock::AHB1(rcc::HCLK1::GPIOG)),
-    },
-    Port {
-        registers: GPIOH_BASE,
-        clock: PortClock(rcc::PeripheralClock::AHB1(rcc::HCLK1::GPIOH)),
+        registers: GPIO1_BASE,
+        clock: PortClock(ccm::PeripheralClock::CCGR1(ccm::HCLK1::GPIO1)),
     },
 ];
 
@@ -640,7 +592,7 @@ impl Port {
     }
 }
 
-struct PortClock(rcc::PeripheralClock);
+struct PortClock(ccm::PeripheralClock);
 
 impl ClockInterface for PortClock {
     fn is_enabled(&self) -> bool {
@@ -656,11 +608,11 @@ impl ClockInterface for PortClock {
     }
 }
 
-// `exti_lineid` is used to configure EXTI settings for the Pin.
+// no `exti_lineid` for the moment
 pub struct Pin<'a> {
     pinid: PinId,
     client: OptionalCell<&'a dyn hil::gpio::Client>,
-    exti_lineid: OptionalCell<exti::LineId>,
+    // exti_lineid: OptionalCell<exti::LineId>,
 }
 
 macro_rules! declare_gpio_pins {
@@ -671,55 +623,37 @@ macro_rules! declare_gpio_pins {
     }
 }
 
-// We need to use `Option<Pin>`, instead of just `Pin` because GPIOH has
-// only two pins - PH00 and PH01, rather than the usual sixteen pins.
-pub static mut PIN: [[Option<Pin<'static>>; 16]; 8] = [
+pub static mut PIN: [[Option<Pin<'static>>; 32]; 5] = [
     declare_gpio_pins! {
-        PA00 PA01 PA02 PA03 PA04 PA05 PA06 PA07
-        PA08 PA09 PA10 PA11 PA12 PA13 PA14 PA15
+        P1_00 P1_01 P1_02 P1_03 P1_04 P1_05 P1_06 P1_07
+        P1_08 P1_09 P1_10 P1_11 P1_12 P1_13 P1_14 P1_15
+        P1_16 P1_17 P1_18 P1_19 P1_20 P1_21 P1_22 P1_23
+        P1_24 P1_25 P1_26 P1_27 P1_28 P1_29 P1_30 P1_31
     },
     declare_gpio_pins! {
-        PB00 PB01 PB02 PB03 PB04 PB05 PB06 PB07
-        PB08 PB09 PB10 PB11 PB12 PB13 PB14 PB15
+        P2_00 P2_01 P2_02 P2_03 P2_04 P2_05 P2_06 P2_07
+        P2_08 P2_09 P2_10 P2_11 P2_12 P2_13 P2_14 P2_15
+        P2_16 P2_17 P2_18 P2_19 P2_20 P2_21 P2_22 P2_23
+        P2_24 P2_25 P2_26 P2_27 P2_28 P2_29 P2_30 P2_31
+    },    
+    declare_gpio_pins! {
+        P3_00 P3_01 P3_02 P3_03 P3_04 P3_05 P3_06 P3_07
+        P3_08 P3_09 P3_10 P3_11 P3_12 P3_13 P3_14 P3_15
+        P3_16 P3_17 P3_18 P3_19 P3_20 P3_21 P3_22 P3_23
+        P3_24 P3_25 P3_26 P3_27 P3_28 P3_29 P3_30 P3_31
     },
     declare_gpio_pins! {
-        PC00 PC01 PC02 PC03 PC04 PC05 PC06 PC07
-        PC08 PC09 PC10 PC11 PC12 PC13 PC14 PC15
+        P4_00 P4_01 P4_02 P4_03 P4_04 P4_05 P4_06 P4_07
+        P4_08 P4_09 P4_10 P4_11 P4_12 P4_13 P4_14 P4_15
+        P4_16 P4_17 P4_18 P4_19 P4_20 P4_21 P4_22 P4_23
+        P4_24 P4_25 P4_26 P4_27 P4_28 P4_29 P4_30 P4_31
     },
     declare_gpio_pins! {
-        PD00 PD01 PD02 PD03 PD04 PD05 PD06 PD07
-        PD08 PD09 PD10 PD11 PD12 PD13 PD14 PD15
+        P5_00 P5_01 P5_02 P5_03 P5_04 P5_05 P5_06 P5_07
+        P5_08 P5_09 P5_10 P5_11 P5_12 P5_13 P5_14 P5_15
+        P5_16 P5_17 P5_18 P5_19 P5_20 P5_21 P5_22 P5_23
+        P5_24 P5_25 P5_26 P5_27 P5_28 P5_29 P5_30 P5_31
     },
-    declare_gpio_pins! {
-        PE00 PE01 PE02 PE03 PE04 PE05 PE06 PE07
-        PE08 PE09 PE10 PE11 PE12 PE13 PE14 PE15
-    },
-    declare_gpio_pins! {
-        PF00 PF01 PF02 PF03 PF04 PF05 PF06 PF07
-        PF08 PF09 PF10 PF11 PF12 PF13 PF14 PF15
-    },
-    declare_gpio_pins! {
-        PG00 PG01 PG02 PG03 PG04 PG05 PG06 PG07
-        PG08 PG09 PG10 PG11 PG12 PG13 PG14 PG15
-    },
-    [
-        Some(Pin::new(PinId::PH00)),
-        Some(Pin::new(PinId::PH01)),
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-    ],
 ];
 
 impl Pin<'a> {
@@ -727,7 +661,7 @@ impl Pin<'a> {
         Pin {
             pinid: pinid,
             client: OptionalCell::empty(),
-            exti_lineid: OptionalCell::empty(),
+            // no exti for the moment
         }
     }
 
@@ -743,22 +677,7 @@ impl Pin<'a> {
         let port = self.pinid.get_port();
 
         let val = match self.pinid.get_pin_number() {
-            0b0000 => port.registers.moder.read(MODER::MODER0),
-            0b0001 => port.registers.moder.read(MODER::MODER1),
-            0b0010 => port.registers.moder.read(MODER::MODER2),
-            0b0011 => port.registers.moder.read(MODER::MODER3),
-            0b0100 => port.registers.moder.read(MODER::MODER4),
-            0b0101 => port.registers.moder.read(MODER::MODER5),
-            0b0110 => port.registers.moder.read(MODER::MODER6),
-            0b0111 => port.registers.moder.read(MODER::MODER7),
-            0b1000 => port.registers.moder.read(MODER::MODER8),
-            0b1001 => port.registers.moder.read(MODER::MODER9),
-            0b1010 => port.registers.moder.read(MODER::MODER10),
-            0b1011 => port.registers.moder.read(MODER::MODER11),
-            0b1100 => port.registers.moder.read(MODER::MODER12),
-            0b1101 => port.registers.moder.read(MODER::MODER13),
-            0b1110 => port.registers.moder.read(MODER::MODER14),
-            0b1111 => port.registers.moder.read(MODER::MODER15),
+            0b01001 => port.registers.gdir.read(GDIR::GDIR9),
             _ => 0,
         };
 
@@ -769,46 +688,22 @@ impl Pin<'a> {
         let port = self.pinid.get_port();
 
         match self.pinid.get_pin_number() {
-            0b0000 => port.registers.moder.modify(MODER::MODER0.val(mode as u32)),
-            0b0001 => port.registers.moder.modify(MODER::MODER1.val(mode as u32)),
-            0b0010 => port.registers.moder.modify(MODER::MODER2.val(mode as u32)),
-            0b0011 => port.registers.moder.modify(MODER::MODER3.val(mode as u32)),
-            0b0100 => port.registers.moder.modify(MODER::MODER4.val(mode as u32)),
-            0b0101 => port.registers.moder.modify(MODER::MODER5.val(mode as u32)),
-            0b0110 => port.registers.moder.modify(MODER::MODER6.val(mode as u32)),
-            0b0111 => port.registers.moder.modify(MODER::MODER7.val(mode as u32)),
-            0b1000 => port.registers.moder.modify(MODER::MODER8.val(mode as u32)),
-            0b1001 => port.registers.moder.modify(MODER::MODER9.val(mode as u32)),
-            0b1010 => port.registers.moder.modify(MODER::MODER10.val(mode as u32)),
-            0b1011 => port.registers.moder.modify(MODER::MODER11.val(mode as u32)),
-            0b1100 => port.registers.moder.modify(MODER::MODER12.val(mode as u32)),
-            0b1101 => port.registers.moder.modify(MODER::MODER13.val(mode as u32)),
-            0b1110 => port.registers.moder.modify(MODER::MODER14.val(mode as u32)),
-            0b1111 => port.registers.moder.modify(MODER::MODER15.val(mode as u32)),
+            0b01001 => {
+                unsafe {
+                    iomuxc::IOMUXC.enable_gpio1_09();
+                }
+                port.registers.gdir.modify(GDIR::GDIR9.val(mode as u32));
+            },
             _ => {}
         }
     }
 
-    pub fn set_alternate_function(&self, af: AlternateFunction) {
+    // no alternate function for the moment
+    pub fn set_alternate_function(&self, _af: AlternateFunction) {
         let port = self.pinid.get_port();
 
         match self.pinid.get_pin_number() {
-            0b0000 => port.registers.afrl.modify(AFRL::AFRL0.val(af as u32)),
-            0b0001 => port.registers.afrl.modify(AFRL::AFRL1.val(af as u32)),
-            0b0010 => port.registers.afrl.modify(AFRL::AFRL2.val(af as u32)),
-            0b0011 => port.registers.afrl.modify(AFRL::AFRL3.val(af as u32)),
-            0b0100 => port.registers.afrl.modify(AFRL::AFRL4.val(af as u32)),
-            0b0101 => port.registers.afrl.modify(AFRL::AFRL5.val(af as u32)),
-            0b0110 => port.registers.afrl.modify(AFRL::AFRL6.val(af as u32)),
-            0b0111 => port.registers.afrl.modify(AFRL::AFRL7.val(af as u32)),
-            0b1000 => port.registers.afrh.modify(AFRH::AFRH8.val(af as u32)),
-            0b1001 => port.registers.afrh.modify(AFRH::AFRH9.val(af as u32)),
-            0b1010 => port.registers.afrh.modify(AFRH::AFRH10.val(af as u32)),
-            0b1011 => port.registers.afrh.modify(AFRH::AFRH11.val(af as u32)),
-            0b1100 => port.registers.afrh.modify(AFRH::AFRH12.val(af as u32)),
-            0b1101 => port.registers.afrh.modify(AFRH::AFRH13.val(af as u32)),
-            0b1110 => port.registers.afrh.modify(AFRH::AFRH14.val(af as u32)),
-            0b1111 => port.registers.afrh.modify(AFRH::AFRH15.val(af as u32)),
+            // 0b1001 => port.registers.afrh.modify(AFRH::AFRH9.val(af as u32)),
             _ => {}
         }
     }
@@ -817,80 +712,42 @@ impl Pin<'a> {
         self.pinid
     }
 
-    pub fn set_exti_lineid(&self, lineid: exti::LineId) {
-        self.exti_lineid.set(lineid);
-    }
+    // no exti line for tge moment
+    // pub fn set_exti_lineid(&self, lineid: exti::LineId) {
+    //     self.exti_lineid.set(lineid);
+    // }
 
+    // none for the momenent
     fn set_mode_output_pushpull(&self) {
         let port = self.pinid.get_port();
 
         match self.pinid.get_pin_number() {
-            0b0000 => port.registers.otyper.modify(OTYPER::OT0::CLEAR),
-            0b0001 => port.registers.otyper.modify(OTYPER::OT1::CLEAR),
-            0b0010 => port.registers.otyper.modify(OTYPER::OT2::CLEAR),
-            0b0011 => port.registers.otyper.modify(OTYPER::OT3::CLEAR),
-            0b0100 => port.registers.otyper.modify(OTYPER::OT4::CLEAR),
-            0b0101 => port.registers.otyper.modify(OTYPER::OT5::CLEAR),
-            0b0110 => port.registers.otyper.modify(OTYPER::OT6::CLEAR),
-            0b0111 => port.registers.otyper.modify(OTYPER::OT7::CLEAR),
-            0b1000 => port.registers.otyper.modify(OTYPER::OT8::CLEAR),
-            0b1001 => port.registers.otyper.modify(OTYPER::OT9::CLEAR),
-            0b1010 => port.registers.otyper.modify(OTYPER::OT10::CLEAR),
-            0b1011 => port.registers.otyper.modify(OTYPER::OT11::CLEAR),
-            0b1100 => port.registers.otyper.modify(OTYPER::OT12::CLEAR),
-            0b1101 => port.registers.otyper.modify(OTYPER::OT13::CLEAR),
-            0b1110 => port.registers.otyper.modify(OTYPER::OT14::CLEAR),
-            0b1111 => port.registers.otyper.modify(OTYPER::OT15::CLEAR),
+            // 0b1001 => port.registers.otyper.modify(OTYPER::OT9::CLEAR),
             _ => {}
         }
     }
 
+    // oarecum inutile momentan
     fn get_pullup_pulldown(&self) -> PullUpPullDown {
         let port = self.pinid.get_port();
 
         let val = match self.pinid.get_pin_number() {
-            0b0000 => port.registers.pupdr.read(PUPDR::PUPDR0),
-            0b0001 => port.registers.pupdr.read(PUPDR::PUPDR1),
-            0b0010 => port.registers.pupdr.read(PUPDR::PUPDR2),
-            0b0011 => port.registers.pupdr.read(PUPDR::PUPDR3),
-            0b0100 => port.registers.pupdr.read(PUPDR::PUPDR4),
-            0b0101 => port.registers.pupdr.read(PUPDR::PUPDR5),
-            0b0110 => port.registers.pupdr.read(PUPDR::PUPDR6),
-            0b0111 => port.registers.pupdr.read(PUPDR::PUPDR7),
-            0b1000 => port.registers.pupdr.read(PUPDR::PUPDR8),
-            0b1001 => port.registers.pupdr.read(PUPDR::PUPDR9),
-            0b1010 => port.registers.pupdr.read(PUPDR::PUPDR10),
-            0b1011 => port.registers.pupdr.read(PUPDR::PUPDR11),
-            0b1100 => port.registers.pupdr.read(PUPDR::PUPDR12),
-            0b1101 => port.registers.pupdr.read(PUPDR::PUPDR13),
-            0b1110 => port.registers.pupdr.read(PUPDR::PUPDR14),
-            0b1111 => port.registers.pupdr.read(PUPDR::PUPDR15),
+            // 0b01001 => iomuxc::registers.sw_pad_ctl_pad_gpio_ad_b0_09.read(SW_PAD_CTL_PAD_GPIO_AD_B0_09::PUS),
             _ => 0,
         };
 
-        PullUpPullDown::from_u32(val).unwrap_or(PullUpPullDown::NoPullUpPullDown)
+        PullUpPullDown::from_u32(val).unwrap_or(PullUpPullDown::Pus0_100kOhmPullDown)
     }
 
+    // oarecum inutile momentan
     fn set_pullup_pulldown(&self, pupd: PullUpPullDown) {
         let port = self.pinid.get_port();
 
         match self.pinid.get_pin_number() {
-            0b0000 => port.registers.pupdr.modify(PUPDR::PUPDR0.val(pupd as u32)),
-            0b0001 => port.registers.pupdr.modify(PUPDR::PUPDR1.val(pupd as u32)),
-            0b0010 => port.registers.pupdr.modify(PUPDR::PUPDR2.val(pupd as u32)),
-            0b0011 => port.registers.pupdr.modify(PUPDR::PUPDR3.val(pupd as u32)),
-            0b0100 => port.registers.pupdr.modify(PUPDR::PUPDR4.val(pupd as u32)),
-            0b0101 => port.registers.pupdr.modify(PUPDR::PUPDR5.val(pupd as u32)),
-            0b0110 => port.registers.pupdr.modify(PUPDR::PUPDR6.val(pupd as u32)),
-            0b0111 => port.registers.pupdr.modify(PUPDR::PUPDR7.val(pupd as u32)),
-            0b1000 => port.registers.pupdr.modify(PUPDR::PUPDR8.val(pupd as u32)),
-            0b1001 => port.registers.pupdr.modify(PUPDR::PUPDR9.val(pupd as u32)),
-            0b1010 => port.registers.pupdr.modify(PUPDR::PUPDR10.val(pupd as u32)),
-            0b1011 => port.registers.pupdr.modify(PUPDR::PUPDR11.val(pupd as u32)),
-            0b1100 => port.registers.pupdr.modify(PUPDR::PUPDR12.val(pupd as u32)),
-            0b1101 => port.registers.pupdr.modify(PUPDR::PUPDR13.val(pupd as u32)),
-            0b1110 => port.registers.pupdr.modify(PUPDR::PUPDR14.val(pupd as u32)),
-            0b1111 => port.registers.pupdr.modify(PUPDR::PUPDR15.val(pupd as u32)),
+            // 0b01001 => { 
+            //     iomuxc::IOMUXC.registers.sw_pad_ctl_pad_gpio_ad_b0_09.modify(SW_PAD_CTL_PAD_GPIO_AD_B0_09::PKE::SET);   
+            //     iomuxc.registers.sw_pad_ctl_pad_gpio_ad_b0_09.modify(SW_PAD_CTL_PAD_GPIO_AD_B0_09::PUS.val(pupd as u32));
+            // },
             _ => {}
         }
     }
@@ -899,22 +756,9 @@ impl Pin<'a> {
         let port = self.pinid.get_port();
 
         match self.pinid.get_pin_number() {
-            0b0000 => port.registers.bsrr.write(BSRR::BS0::SET),
-            0b0001 => port.registers.bsrr.write(BSRR::BS1::SET),
-            0b0010 => port.registers.bsrr.write(BSRR::BS2::SET),
-            0b0011 => port.registers.bsrr.write(BSRR::BS3::SET),
-            0b0100 => port.registers.bsrr.write(BSRR::BS4::SET),
-            0b0101 => port.registers.bsrr.write(BSRR::BS5::SET),
-            0b0110 => port.registers.bsrr.write(BSRR::BS6::SET),
-            0b0111 => port.registers.bsrr.write(BSRR::BS7::SET),
-            0b1000 => port.registers.bsrr.write(BSRR::BS8::SET),
-            0b1001 => port.registers.bsrr.write(BSRR::BS9::SET),
-            0b1010 => port.registers.bsrr.write(BSRR::BS10::SET),
-            0b1011 => port.registers.bsrr.write(BSRR::BS11::SET),
-            0b1100 => port.registers.bsrr.write(BSRR::BS12::SET),
-            0b1101 => port.registers.bsrr.write(BSRR::BS13::SET),
-            0b1110 => port.registers.bsrr.write(BSRR::BS14::SET),
-            0b1111 => port.registers.bsrr.write(BSRR::BS15::SET),
+            0b01001 => {
+                port.registers.dr.write(DR::DR9::SET);
+            },
             _ => {}
         }
     }
@@ -923,22 +767,7 @@ impl Pin<'a> {
         let port = self.pinid.get_port();
 
         match self.pinid.get_pin_number() {
-            0b0000 => port.registers.bsrr.write(BSRR::BR0::SET),
-            0b0001 => port.registers.bsrr.write(BSRR::BR1::SET),
-            0b0010 => port.registers.bsrr.write(BSRR::BR2::SET),
-            0b0011 => port.registers.bsrr.write(BSRR::BR3::SET),
-            0b0100 => port.registers.bsrr.write(BSRR::BR4::SET),
-            0b0101 => port.registers.bsrr.write(BSRR::BR5::SET),
-            0b0110 => port.registers.bsrr.write(BSRR::BR6::SET),
-            0b0111 => port.registers.bsrr.write(BSRR::BR7::SET),
-            0b1000 => port.registers.bsrr.write(BSRR::BR8::SET),
-            0b1001 => port.registers.bsrr.write(BSRR::BR9::SET),
-            0b1010 => port.registers.bsrr.write(BSRR::BR10::SET),
-            0b1011 => port.registers.bsrr.write(BSRR::BR11::SET),
-            0b1100 => port.registers.bsrr.write(BSRR::BR12::SET),
-            0b1101 => port.registers.bsrr.write(BSRR::BR13::SET),
-            0b1110 => port.registers.bsrr.write(BSRR::BR14::SET),
-            0b1111 => port.registers.bsrr.write(BSRR::BR15::SET),
+            0b01001 => port.registers.dr.write(DR::DR9::CLEAR),
             _ => {}
         }
     }
@@ -947,22 +776,7 @@ impl Pin<'a> {
         let port = self.pinid.get_port();
 
         match self.pinid.get_pin_number() {
-            0b0000 => port.registers.odr.is_set(ODR::ODR0),
-            0b0001 => port.registers.odr.is_set(ODR::ODR1),
-            0b0010 => port.registers.odr.is_set(ODR::ODR2),
-            0b0011 => port.registers.odr.is_set(ODR::ODR3),
-            0b0100 => port.registers.odr.is_set(ODR::ODR4),
-            0b0101 => port.registers.odr.is_set(ODR::ODR5),
-            0b0110 => port.registers.odr.is_set(ODR::ODR6),
-            0b0111 => port.registers.odr.is_set(ODR::ODR7),
-            0b1000 => port.registers.odr.is_set(ODR::ODR8),
-            0b1001 => port.registers.odr.is_set(ODR::ODR9),
-            0b1010 => port.registers.odr.is_set(ODR::ODR10),
-            0b1011 => port.registers.odr.is_set(ODR::ODR11),
-            0b1100 => port.registers.odr.is_set(ODR::ODR12),
-            0b1101 => port.registers.odr.is_set(ODR::ODR13),
-            0b1110 => port.registers.odr.is_set(ODR::ODR14),
-            0b1111 => port.registers.odr.is_set(ODR::ODR15),
+            0b01001 => port.registers.dr.is_set(DR::DR9) , 
             _ => false,
         }
     }
@@ -981,22 +795,7 @@ impl Pin<'a> {
         let port = self.pinid.get_port();
 
         match self.pinid.get_pin_number() {
-            0b0000 => port.registers.idr.is_set(IDR::IDR0),
-            0b0001 => port.registers.idr.is_set(IDR::IDR1),
-            0b0010 => port.registers.idr.is_set(IDR::IDR2),
-            0b0011 => port.registers.idr.is_set(IDR::IDR3),
-            0b0100 => port.registers.idr.is_set(IDR::IDR4),
-            0b0101 => port.registers.idr.is_set(IDR::IDR5),
-            0b0110 => port.registers.idr.is_set(IDR::IDR6),
-            0b0111 => port.registers.idr.is_set(IDR::IDR7),
-            0b1000 => port.registers.idr.is_set(IDR::IDR8),
-            0b1001 => port.registers.idr.is_set(IDR::IDR9),
-            0b1010 => port.registers.idr.is_set(IDR::IDR10),
-            0b1011 => port.registers.idr.is_set(IDR::IDR11),
-            0b1100 => port.registers.idr.is_set(IDR::IDR12),
-            0b1101 => port.registers.idr.is_set(IDR::IDR13),
-            0b1110 => port.registers.idr.is_set(IDR::IDR14),
-            0b1111 => port.registers.idr.is_set(IDR::IDR15),
+            0b1001 => port.registers.dr.is_set(DR::DR9),
             _ => false,
         }
     }
@@ -1008,8 +807,8 @@ impl hil::gpio::InterruptPin for Pin<'a> {}
 impl hil::gpio::Configure for Pin<'a> {
     /// Output mode default is push-pull
     fn make_output(&self) -> hil::gpio::Configuration {
-        self.set_mode(Mode::GeneralPurposeOutputMode);
-        self.set_mode_output_pushpull();
+        self.set_mode(Mode::Output);
+        // self.set_mode_output_pushpull();
         hil::gpio::Configuration::Output
     }
 
@@ -1026,45 +825,44 @@ impl hil::gpio::Configure for Pin<'a> {
     /// internal schmitt trigger. We do not disable clock to the GPIO port,
     /// because there could be other pins active on the port.
     fn deactivate_to_low_power(&self) {
-        self.set_mode(Mode::AnalogMode);
+        // self.set_mode(Mode::AnalogMode);
     }
 
     fn disable_output(&self) -> hil::gpio::Configuration {
-        self.set_mode(Mode::AnalogMode);
+        // self.set_mode(Mode::AnalogMode);
         hil::gpio::Configuration::LowPower
     }
 
     fn disable_input(&self) -> hil::gpio::Configuration {
-        self.set_mode(Mode::AnalogMode);
+        // self.set_mode(Mode::AnalogMode);
         hil::gpio::Configuration::LowPower
     }
 
     fn set_floating_state(&self, mode: hil::gpio::FloatingState) {
         match mode {
-            hil::gpio::FloatingState::PullUp => self.set_pullup_pulldown(PullUpPullDown::PullUp),
+            hil::gpio::FloatingState::PullUp => self.set_pullup_pulldown(PullUpPullDown::Pus2_100kOhmPullUp),
             hil::gpio::FloatingState::PullDown => {
-                self.set_pullup_pulldown(PullUpPullDown::PullDown)
+                self.set_pullup_pulldown(PullUpPullDown::Pus2_100kOhmPullUp)
             }
             hil::gpio::FloatingState::PullNone => {
-                self.set_pullup_pulldown(PullUpPullDown::NoPullUpPullDown)
+                self.set_pullup_pulldown(PullUpPullDown::Pus0_100kOhmPullDown)
             }
         }
     }
 
     fn floating_state(&self) -> hil::gpio::FloatingState {
-        match self.get_pullup_pulldown() {
-            PullUpPullDown::PullUp => hil::gpio::FloatingState::PullUp,
-            PullUpPullDown::PullDown => hil::gpio::FloatingState::PullDown,
-            PullUpPullDown::NoPullUpPullDown => hil::gpio::FloatingState::PullNone,
-        }
+        // match self.get_pullup_pulldown() {
+        //     PullUpPullDown::PullUp => hil::gpio::FloatingState::PullUp,
+        //     PullUpPullDown::PullDown => hil::gpio::FloatingState::PullDown,
+            // PullUpPullDown::NoPullUpPullDown => hil::gpio::FloatingState::PullNone,
+        // }
+        hil::gpio::FloatingState::PullNone
     }
 
     fn configuration(&self) -> hil::gpio::Configuration {
         match self.get_mode() {
             Mode::Input => hil::gpio::Configuration::Input,
-            Mode::GeneralPurposeOutputMode => hil::gpio::Configuration::Output,
-            Mode::AnalogMode => hil::gpio::Configuration::LowPower,
-            Mode::AlternateFunctionMode => hil::gpio::Configuration::Function,
+            Mode::Output => hil::gpio::Configuration::Output,
         }
     }
 
@@ -1073,7 +871,7 @@ impl hil::gpio::Configure for Pin<'a> {
     }
 
     fn is_output(&self) -> bool {
-        self.get_mode() == Mode::GeneralPurposeOutputMode
+        self.get_mode() == Mode::Output
     }
 }
 
@@ -1099,46 +897,46 @@ impl hil::gpio::Input for Pin<'a> {
 
 impl hil::gpio::Interrupt for Pin<'a> {
     fn enable_interrupts(&self, mode: hil::gpio::InterruptEdge) {
-        unsafe {
-            atomic(|| {
-                self.exti_lineid.map(|lineid| {
-                    let l = lineid.clone();
+        // unsafe {
+        //     atomic(|| {
+        //         self.exti_lineid.map(|lineid| {
+        //             let l = lineid.clone();
 
-                    // disable the interrupt
-                    exti::EXTI.mask_interrupt(l);
-                    exti::EXTI.clear_pending(l);
+        //             // disable the interrupt
+        //             exti::EXTI.mask_interrupt(l);
+        //             exti::EXTI.clear_pending(l);
 
-                    match mode {
-                        hil::gpio::InterruptEdge::EitherEdge => {
-                            exti::EXTI.select_rising_trigger(l);
-                            exti::EXTI.select_falling_trigger(l);
-                        }
-                        hil::gpio::InterruptEdge::RisingEdge => {
-                            exti::EXTI.select_rising_trigger(l);
-                            exti::EXTI.deselect_falling_trigger(l);
-                        }
-                        hil::gpio::InterruptEdge::FallingEdge => {
-                            exti::EXTI.deselect_rising_trigger(l);
-                            exti::EXTI.select_falling_trigger(l);
-                        }
-                    }
+        //             match mode {
+        //                 hil::gpio::InterruptEdge::EitherEdge => {
+        //                     exti::EXTI.select_rising_trigger(l);
+        //                     exti::EXTI.select_falling_trigger(l);
+        //                 }
+        //                 hil::gpio::InterruptEdge::RisingEdge => {
+        //                     exti::EXTI.select_rising_trigger(l);
+        //                     exti::EXTI.deselect_falling_trigger(l);
+        //                 }
+        //                 hil::gpio::InterruptEdge::FallingEdge => {
+        //                     exti::EXTI.deselect_rising_trigger(l);
+        //                     exti::EXTI.select_falling_trigger(l);
+        //                 }
+        //             }
 
-                    exti::EXTI.unmask_interrupt(l);
-                });
-            });
-        }
+        //             exti::EXTI.unmask_interrupt(l);
+        //         });
+        //     });
+        // }
     }
 
     fn disable_interrupts(&self) {
-        unsafe {
-            atomic(|| {
-                self.exti_lineid.map(|lineid| {
-                    let l = lineid.clone();
-                    exti::EXTI.mask_interrupt(l);
-                    exti::EXTI.clear_pending(l);
-                });
-            });
-        }
+        // unsafe {
+        //     atomic(|| {
+        //         self.exti_lineid.map(|lineid| {
+        //             let l = lineid.clone();
+        //             exti::EXTI.mask_interrupt(l);
+        //             exti::EXTI.clear_pending(l);
+        //         });
+        //     });
+        // }
     }
 
     fn set_client(&self, client: &'static dyn hil::gpio::Client) {
@@ -1146,9 +944,10 @@ impl hil::gpio::Interrupt for Pin<'a> {
     }
 
     fn is_pending(&self) -> bool {
-        unsafe {
-            self.exti_lineid
-                .map_or(false, |&mut lineid| exti::EXTI.is_pending(lineid))
-        }
+        // unsafe {
+        //     self.exti_lineid
+        //         .map_or(false, |&mut lineid| exti::EXTI.is_pending(lineid))
+        // }
+        false
     }
 }

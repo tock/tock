@@ -1,4 +1,4 @@
-//! Shared implementations for ARM Cortex-M7 MCUs.
+//! Shared implementations for ARM Cortex-M4 MCUs.
 
 #![crate_name = "cortexm7"]
 #![crate_type = "rlib"]
@@ -8,7 +8,7 @@
 pub mod mpu;
 
 // Re-export the base generic cortex-m functions here as they are
-// valid on cortex-m7.
+// valid on cortex-m4.
 pub use cortexm::support;
 
 pub use cortexm::nvic;
@@ -16,7 +16,6 @@ pub use cortexm::print_cortexm_state as print_cortexm7_state;
 pub use cortexm::scb;
 pub use cortexm::syscall;
 pub use cortexm::systick;
-use cortex_m_semihosting::{hprintln};
 
 extern "C" {
     // _estack is not really a function, but it makes the types work
@@ -42,7 +41,6 @@ pub unsafe extern "C" fn systick_handler() {
 #[cfg(all(target_arch = "arm", target_os = "none"))]
 #[naked]
 pub unsafe extern "C" fn systick_handler() {
-    hprintln!("SysTick").unwrap();
     asm!(
         "
     // Mark that the systick handler was called meaning that the process stopped
@@ -219,6 +217,7 @@ pub unsafe extern "C" fn switch_to_user(
 
     // Load bottom of stack into Process Stack Pointer.
     msr psp, $0
+    isb
 
     // Load non-hardware-stacked registers from the process stored state. Ensure
     // that $2 is stored in a callee saved register.
@@ -238,7 +237,8 @@ pub unsafe extern "C" fn switch_to_user(
 
     // Update the user stack pointer with the current value after the
     // application has executed.
-    mrs $0, PSP   // r0 = PSP"
+    mrs $0, PSP   // r0 = PSP
+    isb"
     : "={r0}"(user_stack)
     : "{r0}"(user_stack), "{r1}"(process_regs)
     : "r4","r5","r6","r8","r9","r10","r11" : "volatile" );
