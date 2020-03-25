@@ -5,7 +5,7 @@ use kernel::ClockInterface;
 /// IOMUX Controller Module
 #[repr(C)]
 struct IomuxcRegisters {
-    _reserved1: [u8; 204],
+    _reserved0: [u8; 204],
     /// MUX Control register for gpio_ad_b0_09
     sw_mux_ctl_pad_gpio_ad_b0_09: ReadWrite<u32, SW_MUX_CTL_PAD_GPIO_AD_B0_09::Register>,
     _reserved1: [u8; 492],
@@ -50,7 +50,7 @@ register_bitfields![u32,
 ];
 
 const IOMUXC_BASE: StaticRef<IomuxcRegisters> =
-    unsafe { StaticRef::new(0x401F8014 as *const IomuxcRegistersIom) };
+    unsafe { StaticRef::new(0x401F8014 as *const IomuxcRegisters) };
 
 pub struct Iomuxc {
     registers: StaticRef<IomuxcRegisters>,
@@ -84,7 +84,7 @@ impl Iomuxc {
     // }
 
     // Enable GPIO1 on pin 9
-    fn enable_gpio1_09(&self) {
+    pub fn enable_gpio1_09(&self) {
         self.registers.sw_pad_ctl_pad_gpio_ad_b0_09.modify(SW_PAD_CTL_PAD_GPIO_AD_B0_09::DSE.val(0b110 as u32));
         self.registers.sw_pad_ctl_pad_gpio_ad_b0_09.modify(SW_PAD_CTL_PAD_GPIO_AD_B0_09::SPEED.val(0b10 as u32));
         self.registers.sw_pad_ctl_pad_gpio_ad_b0_09.modify(SW_PAD_CTL_PAD_GPIO_AD_B0_09::PKE::SET);   

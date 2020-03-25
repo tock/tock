@@ -18,11 +18,7 @@ use crate::platform::{Chip, Platform};
 use crate::process::{self, Task};
 use crate::returncode::ReturnCode;
 use crate::syscall::{ContextSwitchReason, Syscall};
-
-/// The time a process is permitted to run before being pre-empted
-const KERNEL_TICK_DURATION_US: u32 = 10000;
-/// Skip re-scheduling a process if its quanta is nearly exhausted
-const MIN_QUANTA_THRESHOLD_US: u32 = 500;
+use cortex_m_semihosting::{hprintln};
 
 /// Main object for the kernel. Each board will need to create one.
 pub struct Kernel {
@@ -298,6 +294,7 @@ impl Kernel {
                 DynamicDeferredCall::call_global_instance_while(|| !chip.has_pending_interrupts());
 
                 for p in self.processes.iter() {
+
                     p.map(|process| {
                         self.do_process(platform, chip, process, ipc);
                     });
@@ -329,7 +326,7 @@ impl Kernel {
     ) {
         let systick = chip.systick();
         systick.reset();
-        systick.set_timer(KERNEL_TICK_DURATION_US);
+        systick.set_timer(config::CONFIG.kernel_tick_duration_us);
         systick.enable(false);
 
         loop {
@@ -339,7 +336,8 @@ impl Kernel {
                 break;
             }
 
-            if systick.overflowed() || !systick.greater_than(MIN_QUANTA_THRESHOLD_US) {
+            if systick.overflowed() || !systick.greater_than(config::CONFIG.min_quanta_threshold_us) {
+                hprintln!("Cuanta expirata!").unwrap();
                 process.debug_timeslice_expired();
                 break;
             }
@@ -392,7 +390,7 @@ impl Kernel {
                                 Syscall::MEMOP { operand, arg0 } => {
                                     let res = memop::memop(process, operand, arg0);
                                     if config::CONFIG.trace_syscalls {
-                                        debug!(
+                                        hprintln!(
                                             "[{:?}] memop({}, {:#x}) = {:#x} = {:?}",
                                             process.appid(),
                                             operand,
@@ -405,7 +403,7 @@ impl Kernel {
                                 }
                                 Syscall::YIELD => {
                                     if config::CONFIG.trace_syscalls {
-                                        debug!("[{:?}] yield", process.appid());
+                                        hprintln!("[{:?}] yield", process.appid());
                                     }
                                     process.set_yielded_state();
 
@@ -446,7 +444,7 @@ impl Kernel {
                                             },
                                         );
                                     if config::CONFIG.trace_syscalls {
-                                        debug!(
+                                        hprintln!(
                                             "[{:?}] subscribe({:#x}, {}, @{:#x}, {:#x}) = {:#x} = {:?}",
                                             process.appid(),
                                             driver_number,
@@ -479,7 +477,7 @@ impl Kernel {
                                             },
                                         );
                                     if config::CONFIG.trace_syscalls {
-                                        debug!(
+                                        hprintln!(
                                             "[{:?}] cmd({:#x}, {}, {:#x}, {:#x}) = {:#x} = {:?}",
                                             process.appid(),
                                             driver_number,
@@ -514,7 +512,7 @@ impl Kernel {
                                         }
                                     });
                                     if config::CONFIG.trace_syscalls {
-                                        debug!(
+                                        hprintln!(
                                             "[{:?}] allow({:#x}, {}, @{:#x}, {:#x}) = {:#x} = {:?}",
                                             process.appid(),
                                             driver_number,
@@ -554,7 +552,7 @@ impl Kernel {
                     Some(cb) => match cb {
                         Task::FunctionCall(ccb) => {
                             if config::CONFIG.trace_syscalls {
-                                debug!(
+                                hprintln!(
                                     "[{:?}] function_call @{:#x}({:#x}, {:#x}, {:#x}, {:#x})",
                                     process.appid(),
                                     ccb.pc,

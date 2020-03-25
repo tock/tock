@@ -15,6 +15,8 @@ use kernel::component::Component;
 // use kernel::hil::time::Alarm;
 use kernel::Platform;
 use kernel::{create_capability, debug, static_init};
+use kernel::hil::gpio::Configure;
+use kernel::hil::gpio::Output;
 use cortex_m_semihosting::{hprintln};
 
 /// Support routines for debugging I/O.
@@ -47,14 +49,14 @@ static APP_HACK: u8 = 0;
 #[link_section = ".stack_buffer"]
 pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 
-const NUM_LEDS: usize = 3;
+const NUM_LEDS: usize = 1;
 
 /// A structure representing this platform that holds references to all
 /// capsules for this platform.
 struct Imxrt1050EVKB {
     console: &'static capsules::console::Console<'static>,
     ipc: kernel::ipc::IPC,
-    // led: &'static capsules::led::LED<'static>,
+    led: &'static capsules::led::LED<'static>,
     // button: &'static capsules::button::Button<'static>,
     // alarm: &'static capsules::alarm::AlarmDriver<
     //     'static,
@@ -71,7 +73,7 @@ impl Platform for Imxrt1050EVKB {
     {
         match driver_num {
             capsules::console::DRIVER_NUM => f(Some(self.console)),
-            // capsules::led::DRIVER_NUM => f(Some(self.led)),
+            capsules::led::DRIVER_NUM => f(Some(self.led)),
             // capsules::button::DRIVER_NUM => f(Some(self.button)),
             // capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
@@ -111,7 +113,7 @@ impl Platform for Imxrt1050EVKB {
 unsafe fn set_pin_primary_functions() {
     // use kernel::hil::gpio::Configure;
     // use stm32f4xx::exti::{LineId, EXTI};
-    // use stm32f4xx::gpio::{AlternateFunction, Mode, PinId, PortId, PORT};
+    use imxrt1050::gpio::{AlternateFunction, Mode, PinId, PortId, PORT};
     // use stm32f4xx::syscfg::SYSCFG;
     use imxrt1050::ccm::CCM;
 
@@ -119,10 +121,10 @@ unsafe fn set_pin_primary_functions() {
     CCM.enable_gpio1_clock();
     // SYSCFG.enable_clock();
 
-    // PORT[PortId::B as usize].enable_clock();
+    // PORT[PortId::P1 as usize].enable_clock();
 
-    // // User LD2 is connected to PB07. Configure PB07 as `debug_gpio!(0, ...)`
-    // PinId::PB07.get_pin().as_ref().map(|pin| {
+    // // User_LED is connected to P1_09. Configure P1_09 as `debug_gpio!(0, ...)`
+    // PinId::P1_09.get_pin().as_ref().map(|pin| {
     //     pin.make_output();
 
     //     // Configure kernel debug gpios as early as possible
@@ -159,7 +161,7 @@ unsafe fn set_pin_primary_functions() {
 
     // // Enable clocks for GPIO Ports
     // // Disable some of them if you don't need some of the GPIOs
-    // PORT[PortId::A as usize].enable_clock();
+    PORT[PortId::P1 as usize].enable_clock();
     // // Ports B, C and D are already enabled
     // PORT[PortId::E as usize].enable_clock();
     // PORT[PortId::F as usize].enable_clock();
@@ -263,30 +265,22 @@ pub unsafe fn reset_handler() {
     // LEDs
 
     // Clock to Port A is enabled in `set_pin_primary_functions()`
-    // let led_pins = static_init!(
-    //     [(
-    //         &'static dyn kernel::hil::gpio::Pin,
-    //         capsules::led::ActivationMode
-    //     ); NUM_LEDS],
-    //     [
-    //         (
-    //             stm32f4xx::gpio::PinId::PB00.get_pin().as_ref().unwrap(),
-    //             capsules::led::ActivationMode::ActiveHigh
-    //         ),
-    //         (
-    //             stm32f4xx::gpio::PinId::PB07.get_pin().as_ref().unwrap(),
-    //             capsules::led::ActivationMode::ActiveHigh
-    //         ),
-    //         (
-    //             stm32f4xx::gpio::PinId::PB14.get_pin().as_ref().unwrap(),
-    //             capsules::led::ActivationMode::ActiveHigh
-    //         )
-    //     ]
-    // );
-    // let led = static_init!(
-    //     capsules::led::LED<'static>,
-    //     capsules::led::LED::new(&led_pins[..])
-    // );
+    let led_pins = static_init!(
+        [(
+            &'static dyn kernel::hil::gpio::Pin,
+            capsules::led::ActivationMode
+        ); NUM_LEDS],
+        [
+            (
+                imxrt1050::gpio::PinId::P1_09.get_pin().as_ref().unwrap(),
+                capsules::led::ActivationMode::ActiveLow
+            )
+        ]
+    );
+    let led = static_init!(
+        capsules::led::LED<'static>,
+        capsules::led::LED::new(&led_pins[..])
+    );
 
     // BUTTONs
     // let button = components::button::ButtonComponent::new(board_kernel).finalize(
@@ -327,7 +321,7 @@ pub unsafe fn reset_handler() {
     let imxrt1050 = Imxrt1050EVKB {
         console: console,
         ipc: kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability),
-        // led: led,
+        led: led,
         // button: button,
         // alarm: alarm,
         // gpio: gpio,
@@ -347,8 +341,9 @@ pub unsafe fn reset_handler() {
         static _sapps: u8;
     }
 
-    debug!("Scriuuuuuuuuuuuuuuuuuu");
-    debug!("Si iaaaarasssi scriu");
+    // let pin = imxrt1050::gpio::PinId::P1_09.get_pin().as_ref().unwrap();
+    // pin.make_output();
+    // pin.clear();
     // debug!("Almost loaded!");
 
     // hprintln!("{:?}", PROCESSES);
@@ -361,8 +356,6 @@ pub unsafe fn reset_handler() {
         FAULT_RESPONSE,
         &process_management_capability,
     );
-
-    debug!("Processes loaded wa!\n");
 
     board_kernel.kernel_loop(
         &imxrt1050,
