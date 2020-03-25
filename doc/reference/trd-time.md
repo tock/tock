@@ -5,7 +5,7 @@ Kernel Time HIL
 **Working Group:** Kernel<br/>
 **Type:** Documentary<br/>
 **Status:** Draft <br/>
-**Author:** Amit Levy and Philip Levis <br/>
+**Author:** Guillaume Endignoux, Amit Levy and Philip Levis <br/>
 **Draft-Created:** Feb 06, 2017<br/>
 **Draft-Modified:** March 18, 2020<br/>
 **Draft-Version:** 2<br/>
@@ -76,7 +76,7 @@ pub trait Ticks: Clone + Copy + From<u32> {
     fn wrapping_add(self, other: Self) -> Self;
     fn wrapping_sub(self, other: Self) -> Self;
 
-    // Returns whether when is in the range of [start, end), using
+    // Returns whether `when` is in the range of [`start`, `end`), using
     // unsigned arithmetic and considering wraparound. It returns true
     // if, incrementing from start, when will be reached before end.
     // Put another way, it returns (when - start) < (end - start) in
@@ -113,7 +113,15 @@ Frequency is defined with an [associated type] of the `Time` trait
 (`Time::Frequencey`). It MUST implement the `Frequency` trait, which
 has a single method, `frequency`. `frequency` returns the frequency in
 Hz, e.g. 1MHz is 1000000. Clients can use this to write code that is
-independent of the underlying frequency. However, at the same time,
+independent of the underlying frequency.
+
+An instance of `Time` or derived trait MUST NOT have a `Frequency`
+which is greater than its underlying frequency precision.  It must be
+able to accurately return every possible value in the range of `Ticks`
+without further quantization. It is therefore not allowed to take a
+32kHz clock and present it as an instance of `Time` with a frequency
+of `Freq16MHz`.
+
 `Frequency` allows a user of `Time` to know the granularity of ticks
 and so avoid quantization error when two different times map to the
 same time tick. For example, if a user of `Time` needs microsecond
@@ -122,9 +130,10 @@ that is is not put on top of an implementation with 32kHz precision.
 
 The three `ticks_from` methods are helper functions to convert values
 in seconds, milliseconds, or microseconds to a number of ticks. These
-three methods all round down the result. This means, for example, that 
-if the `Time` instance has a frequency of 32kHz, calling `ticks_from_us(20)`
-returns 0, because a single tick of a 32kHz clock is 30.5 microseconds.
+three methods all round down the result. This means, for example, that
+if the `Time` instance has a frequency of 32kHz, calling
+`ticks_from_us(20)` returns 0, because a single tick of a 32kHz clock
+is 30.5 microseconds.
 
 [associated type]: https://doc.rust-lang.org/book/associated-types.html
 
@@ -185,8 +194,6 @@ contrast, `Timer` allows one to request callbacks at some interval in
 the future, either once or periodically. `Alarm` requests a callback
 at an absolute moment while `Timer` requests a callback at a point
 relative to now.
-
-
 
 ```rust
 pub trait AlarmClient: OverflowClient {
@@ -271,7 +278,6 @@ require a compare be set at least N ticks in the future) but MUST NOT
 be less than `interval`.
 
 
-
 6 `Frequency` and `Ticks` Implementations
 =================================
 
@@ -311,11 +317,11 @@ abstractions for virtualizing a single `Alarm` into many.
 A chip MUST provide an instance of `Alarm` with a `Frequency` of `Freq32KHz` 
 and a `Ticks` of `Ticks32Bits`.
 
-A chip MUST provide an instance of `Time` with a `Frequency` of `Freq1MHz` and
+A chip MUST provide an instance of `Time` with a `Frequency` of `Freq32KHz` and
 a `Ticks` of `Ticks64Bits`.
 
-A chip SHOULD provide an Alarm with a `Frequency` of `Freq1MHz`.
-
+A chip SHOULD provide an Alarm with a `Frequency` of `Freq1MHz` and a `Ticks`
+of `Ticks32Bits`.
 
 
 9 Acknowledgements
@@ -329,6 +335,14 @@ others.
 10 Authors' Address
 =================================
 
-email - amit@amitlevy.com
+Amit Levy
+amit@amitlevy.com
 
-email - pal@cs.stanford.edu
+Philip Levis
+409 Gates Hall
+Stanford University
+Stanford, CA 94305
+USA
+pal@cs.stanford.edu
+
+Guillaume Endignoux
