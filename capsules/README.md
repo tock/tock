@@ -93,6 +93,7 @@ These provide common and better abstractions for userspace.
 - **[Button](src/button.rs)**: Detect button presses.
 - **[Buzzer](src/buzzer_driver.rs)**: Simple buzzer.
 - **[Console](src/console.rs)**: UART console support.
+- **[HD44780 LCD](src/hd44780.rs)**: HD44780 LCD screen.
 - **[Humidity](src/humidity.rs)**: Query humidity sensors.
 - **[LED](src/led.rs)**: Turn on and off LEDs.
 - **[Temperature](src/temperature.rs)**: Query temperature sensors.
