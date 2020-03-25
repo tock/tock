@@ -57,10 +57,11 @@ struct NucleoF429ZI {
         VirtualMuxAlarm<'static, stm32f4xx::tim2::Tim2<'static>>,
     >,
     gpio: &'static capsules::gpio::GPIO<'static>,
+    /* uncomment to use an HD47880 LCD
     lcd: &'static capsules::hd44780::HD44780<
         'static,
         VirtualMuxAlarm<'static, stm32f4xx::tim2::Tim2<'static>>,
-    >,
+    >,*/
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
@@ -76,7 +77,9 @@ impl Platform for NucleoF429ZI {
             capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
+            /* uncomment to use an HD44780 LCD
             capsules::hd44780::DRIVER_NUM => f(Some(self.lcd)),
+            */
             _ => f(None),
         }
     }
@@ -295,25 +298,26 @@ pub unsafe fn reset_handler() {
     let alarm = components::alarm::AlarmDriverComponent::new(board_kernel, mux_alarm)
         .finalize(components::alarm_component_helper!(stm32f4xx::tim2::Tim2));
 
-    // LCD ALARM
-    let lcd_alarm = static_init!(
-        VirtualMuxAlarm<'static, stm32f4xx::tim2::Tim2>,
-        VirtualMuxAlarm::new(mux_alarm)
+    // HD44780
+    /* uncomment to use a HD47800 LCD
+    let lcd = components::hd44780::HD44780Component::new(board_kernel, mux_alarm).finalize(
+        components::hd44780_component_helper!(
+            stm32f4xx::tim2::Tim2,
+            // rs pin
+            stm32f4xx::gpio::PinId::PF13.get_pin().as_ref().unwrap(),
+            // en pin
+            stm32f4xx::gpio::PinId::PE11.get_pin().as_ref().unwrap(),
+            // data 4 pin
+            stm32f4xx::gpio::PinId::PF14.get_pin().as_ref().unwrap(),
+            // data 5 pin
+            stm32f4xx::gpio::PinId::PE13.get_pin().as_ref().unwrap(),
+            // data 6 pin
+            stm32f4xx::gpio::PinId::PF15.get_pin().as_ref().unwrap(),
+            // data 7 pin
+            stm32f4xx::gpio::PinId::PG14.get_pin().as_ref().unwrap()
+        ),
     );
-
-    // LCD GPIO PINS
-    let lcd = components::hd44780::HD44780Component::new(board_kernel).finalize(
-        stm32f4xx::gpio::PinId::PF13.get_pin().as_ref().unwrap(),
-        stm32f4xx::gpio::PinId::PE11.get_pin().as_ref().unwrap(),
-        stm32f4xx::gpio::PinId::PF14.get_pin().as_ref().unwrap(),
-        stm32f4xx::gpio::PinId::PE13.get_pin().as_ref().unwrap(),
-        stm32f4xx::gpio::PinId::PF15.get_pin().as_ref().unwrap(),
-        stm32f4xx::gpio::PinId::PG14.get_pin().as_ref().unwrap(),
-        &mut capsules::hd44780::BUFFER,
-        &mut capsules::hd44780::ROW_OFFSETS,
-        lcd_alarm
-    );
-    lcd_alarm.set_client(lcd);    
+    */
 
     // GPIO
     let gpio = GpioComponent::new(board_kernel).finalize(components::gpio_component_helper!(
@@ -418,7 +422,9 @@ pub unsafe fn reset_handler() {
         button: button,
         alarm: alarm,
         gpio: gpio,
+        /* uncomment to use an HD4480 LCD
         lcd: lcd,
+        */
     };
 
     // // Optional kernel tests

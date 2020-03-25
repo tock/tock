@@ -22,27 +22,26 @@
 //! Usage
 //! -----
 //!
+//! Usage
+//! -----
 //! ```rust
-//! let grant_cap_lcd = create_capability!(capabilities::MemoryAllocationCapability);
-//! let grant_lcd = board_kernel.create_grant(&grant_cap_lcd);
-//! // LCD GPIO PINS
-//! let lcd = static_init!(
-//!     capsules::lcd_1602::HD44780<'static,
-//!                 VirtualMuxAlarm<'static, stm32f4xx::tim2::Tim2>>,
-//!     capsules::lcd_1602::LCD::new(
-//!         lcd_alarm,
-//!         stm32f4xx::gpio::PinId::PF13.get_pin().as_ref().unwrap(), // RS pin
-//!         stm32f4xx::gpio::PinId::PE11.get_pin().as_ref().unwrap(), // EN pin
-//!         stm32f4xx::gpio::PinId::PF14.get_pin().as_ref().unwrap(), // DATA4 pin
-//!         stm32f4xx::gpio::PinId::PE13.get_pin().as_ref().unwrap(), // DATA5 pin
-//!         stm32f4xx::gpio::PinId::PF15.get_pin().as_ref().unwrap(), // DATA6 pin
-//!         stm32f4xx::gpio::PinId::PG14.get_pin().as_ref().unwrap(), // DATA7 pin
-//!         &mut capsules::lcd_1602::BUFFER,
-//!         &mut capsules::lcd_1602::ROW_OFFSETS,
-//!         grant_lcd,
+//! let lcd = components::hd44780::HD44780Component::new(board_kernel, mux_alarm).finalize(
+//!     components::hd44780_component_helper!(
+//!         stm32f4xx::tim2::Tim2,
+//!         // rs pin
+//!         stm32f4xx::gpio::PinId::PF13.get_pin().as_ref().unwrap(),
+//!         // en pin
+//!         stm32f4xx::gpio::PinId::PE11.get_pin().as_ref().unwrap(),
+//!         // data 4 pin
+//!         stm32f4xx::gpio::PinId::PF14.get_pin().as_ref().unwrap(),
+//!         // data 5 pin
+//!         stm32f4xx::gpio::PinId::PE13.get_pin().as_ref().unwrap(),
+//!         // data 6 pin
+//!         stm32f4xx::gpio::PinId::PF15.get_pin().as_ref().unwrap(),
+//!         // data 7 pin
+//!         stm32f4xx::gpio::PinId::PG14.get_pin().as_ref().unwrap()
 //!     )
 //! );
-//! lcd_alarm.set_client(lcd);
 //! ```
 //!
 //! Syscall Interface
@@ -126,51 +125,47 @@
 //!   - `data_2`: Unused.
 //!   - Return: `SUCCESS` if the command was saved successfully, `EBUSY`
 //! otherwise.
+//!
+//! Author: Teona Severin <teona.severin9@gmail.com>
 
 use crate::driver;
 use core::cell::Cell;
 use kernel::common::cells::TakeCell;
 use kernel::hil::gpio;
 use kernel::hil::time::{self, Alarm, Frequency};
-use kernel::{
-    capabilities, create_capability, debug, AppId, AppSlice, Callback, Driver, Grant, ReturnCode,
-    Shared,
-};
+use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
 
 /// Syscall driver number.
 
 pub const DRIVER_NUM: usize = driver::NUM::Hd44780 as usize;
 
-static LOW: u8 = 0;
-static HIGH: u8 = 1;
-
 // commands
 static LCD_CLEARDISPLAY: u8 = 0x01;
-static LCD_RETURNHOME: u8 = 0x02;
+// static LCD_RETURNHOME: u8 = 0x02;
 static LCD_ENTRYMODESET: u8 = 0x04;
 static LCD_DISPLAYCONTROL: u8 = 0x08;
 static LCD_CURSORSHIFT: u8 = 0x10;
 static LCD_FUNCTIONSET: u8 = 0x20;
-static LCD_SETCGRAMADDR: u8 = 0x40;
+// static LCD_SETCGRAMADDR: u8 = 0x40;
 static LCD_SETDDRAMADDR: u8 = 0x80;
 
 // flags for display entry mode
-static LCD_ENTRYRIGHT: u8 = 0x00;
+// static LCD_ENTRYRIGHT: u8 = 0x00;
 static LCD_ENTRYLEFT: u8 = 0x02;
 static LCD_ENTRYSHIFTINCREMENT: u8 = 0x01;
 static LCD_ENTRYSHIFTDECREMENT: u8 = 0x00;
 
 // flags for display on/off control
 static LCD_DISPLAYON: u8 = 0x04;
-static LCD_DISPLAYOFF: u8 = 0x00;
+// static LCD_DISPLAYOFF: u8 = 0x00;
 static LCD_CURSORON: u8 = 0x02;
-static LCD_CURSOROFF: u8 = 0x00;
+// static LCD_CURSOROFF: u8 = 0x00;
 static LCD_BLINKON: u8 = 0x01;
 static LCD_BLINKOFF: u8 = 0x00;
 
 // flags for display/cursor shift
 static LCD_DISPLAYMOVE: u8 = 0x08;
-static LCD_CURSORMOVE: u8 = 0x00;
+// static LCD_CURSORMOVE: u8 = 0x00;
 static LCD_MOVERIGHT: u8 = 0x04;
 static LCD_MOVELEFT: u8 = 0x00;
 
@@ -203,7 +198,7 @@ const BUFFER_FULL: i16 = -1;
 const BUFSIZE: usize = 200;
 const ALLOW_BAD_VALUE: usize = BUFSIZE;
 
-pub static mut BUFFER: [u8; 200] = [0; 200];
+pub static mut BUFFER: [u8; BUFSIZE] = [0; BUFSIZE];
 pub static mut ROW_OFFSETS: [u8; 4] = [0; 4];
 
 #[derive(Default)]
@@ -231,7 +226,6 @@ enum LCDStatus {
     Begin10,
     Begin11,
     Begin12,
-    Begin13,
     Home,
     Printing,
     PulseLow,
@@ -258,7 +252,6 @@ pub struct HD44780<'a, A: Alarm<'a>> {
     alarm: &'a A,
     apps: Grant<App>,
     lcd_status: Cell<LCDStatus>,
-    lcd_prev_status: Cell<LCDStatus>,
     lcd_after_pulse_status: Cell<LCDStatus>,
     lcd_after_command_status: Cell<LCDStatus>,
     lcd_after_delay_status: Cell<LCDStatus>,
@@ -302,7 +295,6 @@ impl<'a, A: Alarm<'a>> HD44780<'a, A> {
             alarm: alarm,
             apps: grant,
             lcd_status: Cell::new(LCDStatus::Idle),
-            lcd_prev_status: Cell::new(LCDStatus::Idle),
             lcd_after_pulse_status: Cell::new(LCDStatus::Idle),
             lcd_after_command_status: Cell::new(LCDStatus::Idle),
             lcd_after_delay_status: Cell::new(LCDStatus::Idle),
@@ -325,7 +317,7 @@ impl<'a, A: Alarm<'a>> HD44780<'a, A> {
         ReturnCode::SUCCESS
     }
 
-    /* handle_commands calls the bring_to_0() function and then starts 
+    /* handle_commands calls the bring_to_0() function and then starts
      * executing the first command saved in the buffer.
      *
      * Example:
@@ -334,7 +326,7 @@ impl<'a, A: Alarm<'a>> HD44780<'a, A> {
     fn handle_commands(&self) -> ReturnCode {
         self.bring_to_0();
         if self.lcd_status.get() == LCDStatus::Idle {
-            let mut offset = self.command_offset.get() as usize;
+            let offset = self.command_offset.get() as usize;
             if offset < self.command_len.get() as usize {
                 self.command_buffer.map(|buffer| {
                     let current = buffer[offset];
@@ -356,7 +348,7 @@ impl<'a, A: Alarm<'a>> HD44780<'a, A> {
                         }
 
                         SET_CURSOR => {
-                            let mut col_number: u8 = buffer[offset + 1];
+                            let col_number: u8 = buffer[offset + 1];
                             let mut line_number: u8 = buffer[offset + 2];
                             if line_number >= 4 {
                                 line_number = 3;
@@ -491,9 +483,9 @@ impl<'a, A: Alarm<'a>> HD44780<'a, A> {
                         }
 
                         _ => {
-                            if offset < 111 {
-                                debug!("{} {}/{}", current - 48, offset, self.command_len.get());
-                            }
+                            // if offset < 111 {
+                            //     debug!("{} {}/{}", current - 48, offset, self.command_len.get());
+                            // }
                             self.rs_pin.set();
                             self.command_to_finish.replace(current);
                             self.command_offset.replace((offset + 1) as u8);
@@ -675,7 +667,7 @@ impl<'a, A: Alarm<'a>> HD44780<'a, A> {
     fn check_buffer(&self, to_check: usize) -> i16 {
         let current_len = self.command_len.get() as usize;
         if current_len > 197 {
-            debug!("current_len from check_buffer {}", current_len);
+            // debug!("current_len from check_buffer {}", current_len);
         }
         if current_len >= BUFSIZE {
             return BUFFER_FULL;
@@ -812,7 +804,6 @@ impl<'a, A: Alarm<'a>> Driver for HD44780<'a, A> {
                     buffer[index] = data_2 as u8;
                     index += 1;
                 });
-                debug!("am scris pana la {}", index);
                 self.command_len.replace(index as u8);
                 self.handle_commands();
 
@@ -1030,9 +1021,9 @@ impl<'a, A: Alarm<'a>> Driver for HD44780<'a, A> {
      */
     fn subscribe(
         &self,
-        subscribe_num: usize,
-        callback: Option<Callback>,
-        app_id: AppId,
+        _subscribe_num: usize,
+        _callback: Option<Callback>,
+        _app_id: AppId,
     ) -> ReturnCode {
         return ReturnCode::ENOSUPPORT;
     }
@@ -1173,8 +1164,6 @@ impl<'a, A: Alarm<'a>> time::AlarmClient for HD44780<'a, A> {
                 self.en_pin.clear();
                 self.set_delay(500, self.lcd_after_pulse_status.get());
             }
-
-            _ => {}
         }
     }
 }
