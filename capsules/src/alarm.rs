@@ -1,7 +1,6 @@
 //! Provides userspace applications with a alarm API.
 
 use core::cell::Cell;
-use kernel::common::cells::OptionalCell;
 use kernel::hil::time::{self, Alarm, Frequency};
 use kernel::{AppId, Callback, Driver, Grant, ReturnCode};
 
@@ -40,7 +39,6 @@ pub struct AlarmDriver<'a, A: Alarm<'a>> {
     num_armed: Cell<usize>,
     app_alarm: Grant<AlarmData>,
     prev: Cell<u32>,
-    min_tics: OptionalCell<usize>,
 }
 
 impl<A: Alarm<'a>> AlarmDriver<'a, A> {
@@ -50,7 +48,6 @@ impl<A: Alarm<'a>> AlarmDriver<'a, A> {
             num_armed: Cell::new(0),
             app_alarm: grant,
             prev: Cell::new(0),
-            min_tics: OptionalCell::empty(),
         }
     }
 
@@ -118,8 +115,7 @@ impl<A: Alarm<'a>> Driver for AlarmDriver<'a, A> {
         self.app_alarm
             .enter(caller_id, |td, _alloc| {
                 // helper function to rearm alarm
-                let mut rearm = |time: usize|
-                {
+                let mut rearm = |time: usize| {
                     if let Expiration::Disabled = td.expiration {
                         self.num_armed.set(self.num_armed.get() + 1);
                     }
@@ -162,12 +158,7 @@ impl<A: Alarm<'a>> Driver for AlarmDriver<'a, A> {
                     },
                     5 /* Set relative expiration */ => {
                         let mut time = now.wrapping_add (data as u32) as usize;
-                        let min_tics = self.min_tics.unwrap_or_else(|| {
-                            // scale the min tics from 16Khz to the actual frequency of the CPU
-                            let min_tics = (MIN_TICS_AT_16KHZ * (<A::Frequency>::frequency() as usize)) / 16000;
-                            self.min_tics.set(min_tics);
-                            min_tics
-                        });
+                        let min_tics = (MIN_TICS_AT_16KHZ * (<A::Frequency>::frequency() as usize)) / 16000;
                         if time.wrapping_sub (now as usize) <= min_tics {
                             time = time.wrapping_add (min_tics);
                         }
