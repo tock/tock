@@ -8,6 +8,7 @@ use kernel::common::math;
 use kernel::common::registers::{register_bitfields, FieldValue, ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
 use kernel::mpu;
+use kernel::AppId;
 
 /// MPU Registers for the Cortex-M3 and Cortex-M4 families
 /// Described in section 4.5 of
@@ -649,7 +650,7 @@ impl kernel::mpu::MPU for MPU {
         Ok(())
     }
 
-    fn configure_mpu(&self, config: &Self::MpuConfig) {
+    fn configure_mpu(&self, config: &Self::MpuConfig, _app_id: &AppId) {
         let regs = &*self.0;
 
         // Set MPU regions

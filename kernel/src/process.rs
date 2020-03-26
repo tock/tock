@@ -942,7 +942,7 @@ impl<C: Chip> ProcessType for Process<'a, C> {
 
     fn setup_mpu(&self) {
         self.mpu_config.map(|config| {
-            self.chip.mpu().configure_mpu(&config);
+            self.chip.mpu().configure_mpu(&config, &self.appid());
         });
     }
 
@@ -1009,7 +1009,7 @@ impl<C: Chip> ProcessType for Process<'a, C> {
                 } else {
                     let old_break = self.app_break.get();
                     self.app_break.set(new_break);
-                    self.chip.mpu().configure_mpu(&config);
+                    self.chip.mpu().configure_mpu(&config, &self.appid());
                     Ok(old_break)
                 }
             })
