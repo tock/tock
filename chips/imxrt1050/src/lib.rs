@@ -209,12 +209,13 @@ extern "C" {
 }
 
 pub unsafe fn init() {
-    cortexm::scb::set_vector_table_offset(&BASE_VECTORS as *const [unsafe extern "C" fn(); 16] as *const());
-    ccm::CCM.set_low_power_mode();
-    tock_rt0::init_data(&mut _etext, &mut _srelocate, &mut _erelocate);
-    tock_rt0::zero_bss(&mut _szero, &mut _ezero);
-
     cortexm7::nvic::disable_all();
     cortexm7::nvic::clear_all_pending();
 
+    tock_rt0::init_data(&mut _etext, &mut _srelocate, &mut _erelocate);
+    tock_rt0::zero_bss(&mut _szero, &mut _ezero);
+
+    cortexm::scb::set_vector_table_offset(&BASE_VECTORS as *const [unsafe extern "C" fn(); 16] as *const());
+
+    ccm::CCM.set_low_power_mode();
 }
