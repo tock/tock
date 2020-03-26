@@ -13,13 +13,15 @@ struct CcmRegisters {
     // CCM status register
     csr: ReadOnly<u32, CSR::Register>,
     // unimplemented
-    _reserved2: [u8; 96],
+    _reserved2: [u8; 72],
+    clpcr: ReadWrite<u32, CLPCR::Register>,
+    _reserved3: [u8; 20],
     // clock gating register 1
     ccgr1: ReadWrite<u32, CCGR1::Register>,
-    _reserved3: [u8; 12],
+    _reserved4: [u8; 12],
     // clock gating register 4
     ccgr4: ReadWrite<u32, CCGR4::Register>,
-    _reserved4: [u8; 12],
+    _reserved5: [u8; 12],
 }
 
 register_bitfields![u32,
@@ -46,6 +48,10 @@ register_bitfields![u32,
 
     	// Status of the value of CCM_REF_EN_B output of ccm
     	REF_EN_B OFFSET(0) NUMBITS(1) []
+    ],
+
+    CLPCR [
+        LPM OFFSET(0) NUMBITS(2) []
     ],
 
     CCGR1 [
@@ -165,7 +171,11 @@ impl Ccm {
         }
     }
 
-    // Iomuxc clock
+    pub fn set_low_power_mode(&self) {
+        self.registers.clpcr.modify(CLPCR::LPM.val(0b00 as u32));
+    }
+
+    /// Iomuxc clock
     pub fn is_enabled_iomuxc_clock(&self) -> bool {
         self.registers.ccgr4.is_set(CCGR4::CG0) &&
         self.registers.ccgr4.is_set(CCGR4::CG1)
@@ -181,7 +191,7 @@ impl Ccm {
         self.registers.ccgr4.modify(CCGR4::CG1::CLEAR)
     }
 
-    // // GPIO1 clock 
+    /// GPIO1 clock 
     pub fn is_enabled_gpio1_clock(&self) -> bool {
         self.registers.ccgr1.is_set(CCGR1::CG13)
     }
@@ -192,6 +202,21 @@ impl Ccm {
 
     pub fn disable_gpio1_clock(&self) {
         self.registers.ccgr1.modify(CCGR1::CG13::CLEAR)
+    }
+
+    // GPT1 clock 
+    pub fn is_enabled_gpt1_clock(&self) -> bool {
+        self.registers.ccgr1.is_set(CCGR1::CG11)
+    }
+
+    pub fn enable_gpt1_clock(&self) {
+        self.registers.ccgr1.modify(CCGR1::CG10.val(0b11 as u32));
+        self.registers.ccgr1.modify(CCGR1::CG11.val(0b11 as u32));
+    }
+
+    pub fn disable_gpt1_clock(&self) {
+        self.registers.ccgr1.modify(CCGR1::CG10::CLEAR);
+        self.registers.ccgr1.modify(CCGR1::CG11::CLEAR);
     }
 
 }
@@ -206,7 +231,8 @@ pub enum PeripheralClock {
 }
 
 pub enum HCLK1 {
-    GPIO1
+    GPIO1,
+    GPT1
     // si restul ...
 }
 
@@ -220,6 +246,7 @@ impl ClockInterface for PeripheralClock {
         match self {
             &PeripheralClock::CCGR1(ref v) => match v {
                 HCLK1::GPIO1 => unsafe { CCM.is_enabled_gpio1_clock() },
+                HCLK1::GPT1 => unsafe { CCM.is_enabled_gpt1_clock() },
             },
             &PeripheralClock::CCGR4(ref v) => match v {
                 HCLK4::IOMUXC => unsafe { CCM.is_enabled_iomuxc_clock() },
@@ -232,6 +259,9 @@ impl ClockInterface for PeripheralClock {
             &PeripheralClock::CCGR1(ref v) => match v {
                 HCLK1::GPIO1 => unsafe {
                     CCM.enable_gpio1_clock();
+                },
+                HCLK1::GPT1 => unsafe {
+                    CCM.enable_gpt1_clock();
                 },
             },
             &PeripheralClock::CCGR4(ref v) => match v {
@@ -247,6 +277,9 @@ impl ClockInterface for PeripheralClock {
             &PeripheralClock::CCGR1(ref v) => match v {
                 HCLK1::GPIO1 => unsafe {
                     CCM.disable_gpio1_clock();
+                },
+                HCLK1::GPT1 => unsafe {
+                    CCM.disable_gpt1_clock();
                 },
             },
             &PeripheralClock::CCGR4(ref v) => match v {

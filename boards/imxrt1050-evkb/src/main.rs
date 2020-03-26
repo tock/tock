@@ -7,12 +7,12 @@
 #![feature(asm)]
 #![deny(missing_docs)]
 
-// use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 // use components::gpio::GpioComponent;
 use kernel::capabilities;
 use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::component::Component;
-// use kernel::hil::time::Alarm;
+use kernel::hil::time::Alarm;
 use kernel::Platform;
 use kernel::{create_capability, debug, static_init};
 use kernel::hil::gpio::Configure;
@@ -58,10 +58,10 @@ struct Imxrt1050EVKB {
     ipc: kernel::ipc::IPC,
     led: &'static capsules::led::LED<'static>,
     // button: &'static capsules::button::Button<'static>,
-    // alarm: &'static capsules::alarm::AlarmDriver<
-    //     'static,
-    //     VirtualMuxAlarm<'static, stm32f4xx::tim2::Tim2<'static>>,
-    // >,
+    alarm: &'static capsules::alarm::AlarmDriver<
+        'static,
+        VirtualMuxAlarm<'static, imxrt1050::gpt1::Gpt1<'static>>,
+    >,
     // gpio: &'static capsules::gpio::GPIO<'static>,
 }
 
@@ -75,7 +75,7 @@ impl Platform for Imxrt1050EVKB {
             capsules::console::DRIVER_NUM => f(Some(self.console)),
             capsules::led::DRIVER_NUM => f(Some(self.led)),
             // capsules::button::DRIVER_NUM => f(Some(self.button)),
-            // capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
+            capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             // capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
             _ => f(None),
@@ -121,15 +121,15 @@ unsafe fn set_pin_primary_functions() {
     CCM.enable_gpio1_clock();
     // SYSCFG.enable_clock();
 
-    // PORT[PortId::P1 as usize].enable_clock();
+    PORT[PortId::P1 as usize].enable_clock();
 
-    // // User_LED is connected to P1_09. Configure P1_09 as `debug_gpio!(0, ...)`
-    // PinId::P1_09.get_pin().as_ref().map(|pin| {
-    //     pin.make_output();
+    // User_LED is connected to P1_09. Configure P1_09 as `debug_gpio!(0, ...)`
+    PinId::P1_09.get_pin().as_ref().map(|pin| {
+        pin.make_output();
 
-    //     // Configure kernel debug gpios as early as possible
-    //     kernel::debug::assign_gpios(Some(pin), None, None);
-    // });
+        // Configure kernel debug gpios as early as possible
+        kernel::debug::assign_gpios(Some(pin), None, None);
+    });
 
     // PORT[PortId::D as usize].enable_clock();
 
@@ -161,7 +161,7 @@ unsafe fn set_pin_primary_functions() {
 
     // // Enable clocks for GPIO Ports
     // // Disable some of them if you don't need some of the GPIOs
-    PORT[PortId::P1 as usize].enable_clock();
+    // PORT[PortId::P1 as usize].enable_clock();
     // // Ports B, C and D are already enabled
     // PORT[PortId::E as usize].enable_clock();
     // PORT[PortId::F as usize].enable_clock();
@@ -170,17 +170,17 @@ unsafe fn set_pin_primary_functions() {
 }
 
 /// Helper function for miscellaneous peripheral functions
-// unsafe fn setup_peripherals() {
-//     use stm32f4xx::tim2::TIM2;
+unsafe fn setup_peripherals() {
+    use imxrt1050::gpt1::GPT1;
 
-//     // USART3 IRQn is 39
-//     cortexm4::nvic::Nvic::new(stm32f4xx::nvic::USART3).enable();
+    // USART3 IRQn is 39
+    // cortexm7::nvic::Nvic::new(stm32f4xx::nvic::USART3).enable();
 
-//     // TIM2 IRQn is 28
-//     TIM2.enable_clock();
-//     TIM2.start();
-//     cortexm4::nvic::Nvic::new(stm32f4xx::nvic::TIM2).enable();
-// }
+    // TIM2 IRQn is 28
+    GPT1.enable_clock();
+    GPT1.start();
+    cortexm7::nvic::Nvic::new(imxrt1050::nvic::GPT1).enable();
+}
 
 /// Reset Handler.
 ///
@@ -199,7 +199,7 @@ pub unsafe fn reset_handler() {
 
     // setup_dma();
 
-    // setup_peripherals();
+    setup_peripherals();
 
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
 
@@ -293,24 +293,24 @@ pub unsafe fn reset_handler() {
 
     // ALARM
 
-    // let mux_alarm = static_init!(
-    //     MuxAlarm<'static, stm32f4xx::tim2::Tim2>,
-    //     MuxAlarm::new(&stm32f4xx::tim2::TIM2)
-    // );
-    // stm32f4xx::tim2::TIM2.set_client(mux_alarm);
+    let mux_alarm = static_init!(
+        MuxAlarm<'static, imxrt1050::gpt1::Gpt1>,
+        MuxAlarm::new(&imxrt1050::gpt1::GPT1)
+    );
+    imxrt1050::gpt1::GPT1.set_client(mux_alarm);
 
-    // let virtual_alarm = static_init!(
-    //     VirtualMuxAlarm<'static, stm32f4xx::tim2::Tim2>,
-    //     VirtualMuxAlarm::new(mux_alarm)
-    // );
-    // let alarm = static_init!(
-    //     capsules::alarm::AlarmDriver<'static, VirtualMuxAlarm<'static, stm32f4xx::tim2::Tim2>>,
-    //     capsules::alarm::AlarmDriver::new(
-    //         virtual_alarm,
-    //         board_kernel.create_grant(&memory_allocation_capability)
-    //     )
-    // );
-    // virtual_alarm.set_client(alarm);
+    let virtual_alarm = static_init!(
+        VirtualMuxAlarm<'static, imxrt1050::gpt1::Gpt1>,
+        VirtualMuxAlarm::new(mux_alarm)
+    );
+    let alarm = static_init!(
+        capsules::alarm::AlarmDriver<'static, VirtualMuxAlarm<'static, imxrt1050::gpt1::Gpt1>>,
+        capsules::alarm::AlarmDriver::new(
+            virtual_alarm,
+            board_kernel.create_grant(&memory_allocation_capability)
+        )
+    );
+    virtual_alarm.set_client(alarm);
 
     // GPIO
     // let gpio = GpioComponent::new(board_kernel).finalize(components::gpio_component_helper!(
@@ -323,7 +323,7 @@ pub unsafe fn reset_handler() {
         ipc: kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability),
         led: led,
         // button: button,
-        // alarm: alarm,
+        alarm: alarm,
         // gpio: gpio,
     };
 

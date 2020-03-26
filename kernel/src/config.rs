@@ -50,8 +50,8 @@ pub(crate) struct Config {
 /// A unique instance of `Config` where compile-time configuration options are defined. These
 /// options are available in the kernel crate to be used for relevant configuration.
 pub(crate) const CONFIG: Config = Config {
-    trace_syscalls: true,
-    debug_load_processes: true,
+    trace_syscalls: false,
+    debug_load_processes: false,
     kernel_tick_duration_us: 1000000,
     min_quanta_threshold_us: 50000,
 };

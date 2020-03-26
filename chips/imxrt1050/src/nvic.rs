@@ -1,6 +1,6 @@
 // //! Named constants for NVIC ids
 
-// #![allow(non_upper_case_globals)]
+#![allow(non_upper_case_globals)]
 
 // pub const WWDG: u32 = 0;
 // pub const PVD: u32 = 1;
@@ -116,3 +116,4 @@
 // pub const FMPI2C1_EV: u32 = 95;
 // #[cfg(feature = "stm32f446re")]
 // pub const FMPI2C1_ER: u32 = 96;
+pub const GPT1: u32 = 100;

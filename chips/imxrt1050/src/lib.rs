@@ -22,7 +22,7 @@ pub mod ccm;
 pub mod iomuxc;
 // pub mod spi;
 // pub mod syscfg;
-// pub mod tim2;
+pub mod gpt1;
 pub mod usart;
 
 use cortexm7::{generic_isr, hard_fault_handler, svc_handler, systick_handler};
@@ -89,7 +89,7 @@ pub static BASE_VECTORS: [unsafe extern "C" fn(); 16] = [
 #[cfg_attr(all(target_arch = "arm", target_os = "none"), link_section = ".irqs")]
 // used Ensures that the symbol is kept until the final binary
 #[cfg_attr(all(target_arch = "arm", target_os = "none"), used)]
-pub static IRQS: [unsafe extern "C" fn(); 91] = [
+pub static IRQS: [unsafe extern "C" fn(); 108] = [
     generic_isr, // WWDG (0)
     generic_isr, // PVD (1)
     generic_isr, // TAMP_STAMP (2)
@@ -181,6 +181,23 @@ pub static IRQS: [unsafe extern "C" fn(); 91] = [
     generic_isr, // LCD-TFT (88)
     generic_isr, // LCD-TFT (89)
     generic_isr, // DMA2D(90)
+    generic_isr, // DMA2_Stream4 (60)
+    generic_isr, // ETH (61)
+    generic_isr, // ETH_WKUP (62)
+    generic_isr, // CAN2_TX (63)
+    generic_isr, // CAN2_RX0 (64)
+    generic_isr, // CAN2_RX1 (65)
+    generic_isr, // CAN2_SCE (66)
+    generic_isr, // OTG_FS (67)
+    generic_isr, // DMA2_Stream5 (68)
+    generic_isr, // DMA2_Stream6 (69)
+    generic_isr, // DMA2_Stream7 (70)
+    generic_isr, // USART6 (71)
+    generic_isr, // I2C3_EV (72)
+    generic_isr, // I2C3_ER (73)
+    generic_isr, // OTG_HS_EP1_OUT (74)
+    generic_isr, // OTG_HS_EP1_IN (75)
+    generic_isr, // DMA2D(90)
 ];
 
 extern "C" {
@@ -193,6 +210,7 @@ extern "C" {
 
 pub unsafe fn init() {
     cortexm::scb::set_vector_table_offset(&BASE_VECTORS as *const [unsafe extern "C" fn(); 16] as *const());
+    ccm::CCM.set_low_power_mode();
     tock_rt0::init_data(&mut _etext, &mut _srelocate, &mut _erelocate);
     tock_rt0::zero_bss(&mut _szero, &mut _ezero);
 
