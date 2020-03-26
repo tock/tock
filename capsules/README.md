@@ -39,6 +39,7 @@ These implement a driver to setup and read various physical sensors.
 These drivers provide support for various ICs.
 
 - **[FM25CL](src/fm25cl.rs)**: FRAM chip.
+- **[HD44780 LCD](src/hd44780.rs)**: HD44780 LCD screen.
 - **[LTC294X](src/ltc294x.rs)**: LTC294X series of coulomb counters.
 - **[MAX17205](src/max17205.rs)**: Battery fuel gauge.
 - **[MCP230xx](src/mcp230xx.rs)**: I2C GPIO extender.
@@ -93,7 +94,6 @@ These provide common and better abstractions for userspace.
 - **[Button](src/button.rs)**: Detect button presses.
 - **[Buzzer](src/buzzer_driver.rs)**: Simple buzzer.
 - **[Console](src/console.rs)**: UART console support.
-- **[HD44780 LCD](src/hd44780.rs)**: HD44780 LCD screen.
 - **[Humidity](src/humidity.rs)**: Query humidity sensors.
 - **[LED](src/led.rs)**: Turn on and off LEDs.
 - **[Temperature](src/temperature.rs)**: Query temperature sensors.
