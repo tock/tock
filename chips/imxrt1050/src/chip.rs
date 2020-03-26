@@ -10,7 +10,7 @@ use crate::deferred_call_tasks::Task;
 // use crate::exti;
 use crate::nvic;
 // use crate::spi;
-// use crate::tim2;
+use crate::gpt1;
 // use crate::usart;
 
 pub struct Imxrt1050 {
@@ -76,6 +76,7 @@ impl Chip for Imxrt1050 {
                         // nvic::EXTI15_10 => exti::EXTI.handle_interrupt(),
 
                         // nvic::TIM2 => tim2::TIM2.handle_interrupt(),
+                        nvic::GPT1 => gpt1::GPT1.handle_interrupt(),
 
                         _ => {
                             panic!("unhandled interrupt {}", interrupt);
