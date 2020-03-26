@@ -39,6 +39,7 @@ These implement a driver to setup and read various physical sensors.
 These drivers provide support for various ICs.
 
 - **[FM25CL](src/fm25cl.rs)**: FRAM chip.
+- **[HD44780 LCD](src/hd44780.rs)**: HD44780 LCD screen.
 - **[LTC294X](src/ltc294x.rs)**: LTC294X series of coulomb counters.
 - **[MAX17205](src/max17205.rs)**: Battery fuel gauge.
 - **[MCP230xx](src/mcp230xx.rs)**: I2C GPIO extender.

@@ -57,6 +57,7 @@ pub enum NUM {
     Pca9544a              = 0x80002,
     GpioAsync             = 0x80003,
     Nrf51822Serialization = 0x80004,
+    Hd44780               = 0x80005,
 
     // Misc
     Buzzer                = 0x90000,
