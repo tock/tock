@@ -1,5 +1,6 @@
 //! Implementation of the MEMOP family of syscalls.
 
+use crate::config;
 use crate::process::ProcessType;
 use crate::returncode::ReturnCode;
 
@@ -98,13 +99,17 @@ crate fn memop(process: &dyn ProcessType, op_type: usize, r1: usize) -> ReturnCo
 
         // Op Type 10: Specify where the start of the app stack is.
         10 => {
-            process.update_stack_start_pointer(r1 as *const u8);
+            if config::CONFIG.debug_processes {
+                process.debug_update_stack_start_pointer(r1 as *const u8);
+            }
             ReturnCode::SUCCESS
         }
 
         // Op Type 11: Specify where the start of the app heap is.
         11 => {
-            process.update_heap_start_pointer(r1 as *const u8);
+            if config::CONFIG.debug_processes {
+                process.debug_update_heap_start_pointer(r1 as *const u8);
+            }
             ReturnCode::SUCCESS
         }
 

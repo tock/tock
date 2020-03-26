@@ -299,15 +299,6 @@ pub trait ProcessType {
     /// writeable flash region.
     fn get_writeable_flash_region(&self, region_index: usize) -> (u32, u32);
 
-    /// Debug function to update the kernel on where the stack starts for this
-    /// process. Processes are not required to call this through the memop
-    /// system call, but it aids in debugging the process.
-    fn update_stack_start_pointer(&self, stack_pointer: *const u8);
-
-    /// Debug function to update the kernel on where the process heap starts.
-    /// Also optional.
-    fn update_heap_start_pointer(&self, heap_pointer: *const u8);
-
     // additional memop like functions
 
     /// Creates an `AppSlice` from the given offset and size in process memory.
@@ -415,6 +406,15 @@ pub trait ProcessType {
     unsafe fn print_full_process(&self, writer: &mut dyn Write);
 
     // debug
+
+    /// Debug function to update the kernel on where the stack starts for this
+    /// process. Processes are not required to call this through the memop
+    /// system call, but it aids in debugging the process.
+    fn debug_update_stack_start_pointer(&self, stack_pointer: *const u8);
+
+    /// Debug function to update the kernel on where the process heap starts.
+    /// Also optional.
+    fn debug_update_heap_start_pointer(&self, heap_pointer: *const u8);
 
     /// Returns how many syscalls this app has called.
     fn debug_syscall_count(&self) -> usize;
@@ -793,9 +793,7 @@ impl<C: Chip> ProcessType for Process<'a, C> {
         // Make a note that we lost this callback if the enqueue function
         // fails.
         if ret == false {
-            self.debug.map(|debug| {
-                debug.dropped_callback_count += 1;
-            });
+            self.debug_callback_dropped();
         }
 
         ret
@@ -918,26 +916,6 @@ impl<C: Chip> ProcessType for Process<'a, C> {
 
     fn get_writeable_flash_region(&self, region_index: usize) -> (u32, u32) {
         self.header.get_writeable_flash_region(region_index)
-    }
-
-    fn update_stack_start_pointer(&self, stack_pointer: *const u8) {
-        if stack_pointer >= self.mem_start() && stack_pointer < self.mem_end() {
-            self.debug.map(|debug| {
-                debug.app_stack_start_pointer = Some(stack_pointer);
-
-                // We also reset the minimum stack pointer because whatever value
-                // we had could be entirely wrong by now.
-                debug.min_stack_pointer = stack_pointer;
-            });
-        }
-    }
-
-    fn update_heap_start_pointer(&self, heap_pointer: *const u8) {
-        if heap_pointer >= self.mem_start() && heap_pointer < self.mem_end() {
-            self.debug.map(|debug| {
-                debug.app_heap_start_pointer = Some(heap_pointer);
-            });
-        }
     }
 
     fn setup_mpu(&self) {
@@ -1182,7 +1160,7 @@ impl<C: Chip> ProcessType for Process<'a, C> {
 
                 // Update helpful debugging metadata.
                 self.current_stack_pointer.set(stack_bottom as *mut u8);
-                self.debug_set_max_stack_depth();
+                self.debug_update_max_stack_depth();
             }
 
             Some(Err(bad_stack_bottom)) => {
@@ -1193,12 +1171,7 @@ impl<C: Chip> ProcessType for Process<'a, C> {
                 // We also update the debugging metadata so that if the process
                 // fault message prints then it should be easier to debug that
                 // the process exceeded its stack.
-                self.debug.map(|debug| {
-                    let bad_stack_bottom = bad_stack_bottom as *const u8;
-                    if bad_stack_bottom < debug.min_stack_pointer {
-                        debug.min_stack_pointer = bad_stack_bottom;
-                    }
-                });
+                self.debug_update_max_stack_depth_using_pointer(bad_stack_bottom as *const u8);
                 self.set_fault_state();
             }
 
@@ -1225,21 +1198,30 @@ impl<C: Chip> ProcessType for Process<'a, C> {
         });
 
         // Update debug state as needed after running this process.
-        self.debug.map(|debug| {
-            // Update max stack depth if needed.
-            if self.current_stack_pointer.get() < debug.min_stack_pointer {
-                debug.min_stack_pointer = self.current_stack_pointer.get();
-            }
-
-            // More debugging help. If this occurred because of a timeslice
-            // expiration, mark that so we can check later if a process is
-            // exceeding its timeslices too often.
-            if switch_reason == Some(syscall::ContextSwitchReason::TimesliceExpired) {
-                debug.timeslice_expiration_count += 1;
-            }
-        });
+        self.debug_update_max_stack_depth();
+        self.debug_context_switch(&switch_reason);
 
         switch_reason
+    }
+
+    fn debug_update_stack_start_pointer(&self, stack_pointer: *const u8) {
+        self.debug.map(|debug| {
+            if stack_pointer >= self.mem_start() && stack_pointer < self.mem_end() {
+                debug.app_stack_start_pointer = Some(stack_pointer);
+
+                // We also reset the minimum stack pointer because whatever value
+                // we had could be entirely wrong by now.
+                debug.min_stack_pointer = stack_pointer;
+            }
+        });
+    }
+
+    fn debug_update_heap_start_pointer(&self, heap_pointer: *const u8) {
+        self.debug.map(|debug| {
+            if heap_pointer >= self.mem_start() && heap_pointer < self.mem_end() {
+                debug.app_heap_start_pointer = Some(heap_pointer);
+            }
+        });
     }
 
     fn debug_syscall_count(&self) -> usize {
@@ -1427,6 +1409,15 @@ impl<C: Chip> ProcessType for Process<'a, C> {
     }
 
     unsafe fn print_full_process(&self, writer: &mut dyn Write) {
+        if config::CONFIG.debug_processes == false {
+            let _ = writer.write_str(
+                "\
+                \r\nWARNING: Values reported below are inaccurate because\
+                \r\nprocess debugging is currently disabled. This setting\
+                \r\ncan be enabled in `kernel/src/config.rs`.\
+                \r\n",
+            );
+        }
         self.print_memory_map(writer);
 
         self.stored_state.map(|stored_state| {
@@ -1698,15 +1689,17 @@ impl<C: 'static + Chip> Process<'a, C> {
         process.tasks = MapCell::new(tasks);
         process.process_name = process_name.unwrap_or("");
 
-        process.debug = MapCell::new(ProcessDebug {
-            app_heap_start_pointer: app_heap_start_pointer,
-            app_stack_start_pointer: app_stack_start_pointer,
-            min_stack_pointer: initial_stack_pointer,
-            syscall_count: 0,
-            last_syscall: None,
-            dropped_callback_count: 0,
-            timeslice_expiration_count: 0,
-        });
+        if config::CONFIG.debug_processes {
+            process.debug = MapCell::new(ProcessDebug {
+                app_heap_start_pointer: app_heap_start_pointer,
+                app_stack_start_pointer: app_stack_start_pointer,
+                min_stack_pointer: initial_stack_pointer,
+                syscall_count: 0,
+                last_syscall: None,
+                dropped_callback_count: 0,
+                timeslice_expiration_count: 0,
+            });
+        }
 
         let flash_protected_size = process.header.get_protected_size() as usize;
         let flash_app_start_addr = app_flash.as_ptr() as usize + flash_protected_size;
@@ -1734,7 +1727,7 @@ impl<C: 'static + Chip> Process<'a, C> {
                 process
                     .current_stack_pointer
                     .set(new_stack_pointer as *mut u8);
-                process.debug_set_max_stack_depth();
+                process.debug_update_max_stack_depth();
             }
             _ => {
                 if config::CONFIG.debug_load_processes {
@@ -1818,12 +1811,7 @@ impl<C: 'static + Chip> Process<'a, C> {
             .set(AppId::new(self.kernel, new_identifier, old_index));
 
         // Reset debug information that is per-execution and not per-process.
-        self.debug.map(|debug| {
-            debug.syscall_count = 0;
-            debug.last_syscall = None;
-            debug.dropped_callback_count = 0;
-            debug.timeslice_expiration_count = 0;
-        });
+        self.debug_restarted();
 
         // We are going to start this process over again, so need the init_fn
         // location.
@@ -1855,7 +1843,7 @@ impl<C: 'static + Chip> Process<'a, C> {
         match new_stack_pointer_res {
             Ok(new_stack_pointer) => {
                 self.current_stack_pointer.set(new_stack_pointer as *mut u8);
-                self.debug_set_max_stack_depth();
+                self.debug_update_max_stack_depth();
             }
             Err(_) => {
                 // We couldn't initialize the architecture-specific
@@ -1964,14 +1952,6 @@ impl<C: 'static + Chip> Process<'a, C> {
         }
     }
 
-    fn debug_set_max_stack_depth(&self) {
-        self.debug.map(|debug| {
-            if self.current_stack_pointer.get() < debug.min_stack_pointer {
-                debug.min_stack_pointer = self.current_stack_pointer.get();
-            }
-        });
-    }
-
     /// Check if the process is active.
     ///
     /// "Active" is defined as the process can resume executing in the future.
@@ -1985,5 +1965,60 @@ impl<C: 'static + Chip> Process<'a, C> {
     fn is_active(&self) -> bool {
         let current_state = self.state.get();
         current_state != State::StoppedFaulted && current_state != State::Fault
+    }
+
+    /// Update the maximum stack depth that the process has ever used.
+    fn debug_update_max_stack_depth(&self) {
+        if config::CONFIG.debug_processes {
+            self.debug_update_max_stack_depth_using_pointer(self.current_stack_pointer.get());
+        }
+    }
+
+    /// Update the maximum stack depth that the process has ever used using
+    /// a pointer.
+    fn debug_update_max_stack_depth_using_pointer(&self, stack_pointer: *const u8) {
+        if config::CONFIG.debug_processes {
+            self.debug.map(|debug| {
+                if stack_pointer < debug.min_stack_pointer {
+                    debug.min_stack_pointer = stack_pointer;
+                }
+            });
+        }
+    }
+
+    /// Increment the number of times the process has dropped callbacks.
+    fn debug_callback_dropped(&self) {
+        if config::CONFIG.debug_processes {
+            self.debug.map(|debug| {
+                debug.dropped_callback_count += 1;
+            });
+        }
+    }
+
+    /// Reset debug information that is per-execution and not per-process after the process restarts.
+    fn debug_restarted(&self) {
+        if config::CONFIG.debug_processes {
+            self.debug.map(|debug| {
+                debug.syscall_count = 0;
+                debug.last_syscall = None;
+                debug.dropped_callback_count = 0;
+                debug.timeslice_expiration_count = 0;
+            });
+        }
+    }
+
+    /// Collect information about context switches. Currently only counts
+    /// the number of context switches due to timeslice expirations.
+    fn debug_context_switch(&self, switch_reason: &Option<syscall::ContextSwitchReason>) {
+        if config::CONFIG.debug_processes {
+            self.debug.map(|debug| {
+                // If this occurred because of a timeslice expiration, mark that
+                // so we can check later if a process is exceeding its timeslices
+                // too often.
+                if *switch_reason == Some(syscall::ContextSwitchReason::TimesliceExpired) {
+                    debug.timeslice_expiration_count += 1;
+                }
+            });
+        }
     }
 }

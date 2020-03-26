@@ -21,6 +21,7 @@
 pub mod capabilities;
 pub mod common;
 pub mod component;
+pub mod config;
 pub mod debug;
 pub mod hil;
 pub mod introspection;
@@ -28,7 +29,6 @@ pub mod ipc;
 pub mod syscall;
 
 mod callback;
-mod config;
 mod driver;
 mod grant;
 mod mem;

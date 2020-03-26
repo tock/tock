@@ -340,7 +340,9 @@ impl Kernel {
             }
 
             if systick.overflowed() || !systick.greater_than(MIN_QUANTA_THRESHOLD_US) {
-                process.debug_timeslice_expired();
+                if config::CONFIG.debug_processes {
+                    process.debug_timeslice_expired();
+                }
                 break;
             }
 
@@ -364,7 +366,9 @@ impl Kernel {
                             process.set_fault_state();
                         }
                         Some(ContextSwitchReason::SyscallFired { syscall }) => {
-                            process.debug_syscall_called(syscall);
+                            if config::CONFIG.debug_processes {
+                                process.debug_syscall_called(syscall);
+                            }
 
                             // Enforce platform-specific syscall filtering here.
                             //

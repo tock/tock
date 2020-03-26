@@ -111,6 +111,7 @@ use core::cmp;
 use core::str;
 use kernel::capabilities::ProcessManagementCapability;
 use kernel::common::cells::TakeCell;
+use kernel::config;
 use kernel::debug;
 use kernel::hil::uart;
 use kernel::introspection::KernelInfo;
@@ -249,6 +250,10 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                                 );
                             });
                         } else if clean_str.starts_with("list") {
+                            if config::CONFIG.debug_processes == false {
+                                debug!("WARNING: Values reported below are inaccurate because process debugging is currently disabled.");
+                                debug!("This setting can be enabled in `kernel/src/config.rs`.");
+                            }
                             debug!(" PID    Name                Quanta  Syscalls  Dropped Callbacks  Restarts    State  Grants");
                             self.kernel
                                 .process_each_capability(&self.capability, |proc| {
