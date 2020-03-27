@@ -1,6 +1,6 @@
 target remote localhost:2331
 monitor speed 30
-file ../target/thumbv7em-none-eabi/release/hail
+file ../../../target/thumbv7em-none-eabi/release/hail
 monitor reset
 #
 # CPU core initialization (to be done by user)

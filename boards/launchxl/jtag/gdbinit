@@ -5,7 +5,7 @@ set remotetimeout 20000
 # Connect to openocd at port 3333
 target remote localhost:3333
 
-file target/thumbv7em-none-eabi/release/launchxl
+file ../../target/thumbv7em-none-eabi/release/launchxl
 
 #monitor reset halt
 

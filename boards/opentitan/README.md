@@ -45,7 +45,7 @@ OpenTitan initialisation complete. Entering main loop
 You can also just use the `spiflash` program manually to download the image to the board if you don't want to use `make flash`.
 
 ```shell
-./sw/host/spiflash/spiflash --input=./target/riscv32imc-unknown-none-elf/release/opentitan.bin
+./sw/host/spiflash/spiflash --input=../../target/riscv32imc-unknown-none-elf/release/opentitan.bin
 ```
 
 NOTE: You will need to download the Tock binary after every power cycle.
