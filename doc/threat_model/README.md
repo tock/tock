@@ -3,7 +3,8 @@ Tock Threat Model
 
 
 **Note: This threat model is not descriptive of Tock's current implementation.
-It describes how we intend Tock to work in a future release, such as 2.0.**
+It describes how we intend Tock to work as of some future release, perhaps
+2.0.**
 
 ## Overview
 
@@ -41,8 +42,9 @@ scheduler's data structures are kernel data.
 
 **Capsule data** is data that is associated with a particular kernel capsule.
 This data can be either kernel data or application data, depending on its
-conceptual owner. For example, an ADC driver's sample buffer is capsule data
-associated with that ADC.
+conceptual owner. For example, an ADC driver's configuration is kernel data,
+while samples an ADC driver takes on behalf of an application are application
+data.
 
 **Tock's users** refers to entities that make use of Tock OS. In the context of
 threat modelling, this typically refers to board integrators (entities that
@@ -61,8 +63,8 @@ limitations on isolation for shared resources.
 **Integrity:** Application data may not be modified by other applications or by
 untrusted capsules, except when allowed by the application.
 
-**Availability:** Applications may not deny service to each other. As an
-exception to this rule, some finite resources may be allocated on a
+**Availability:** Applications may not deny service to each other at runtime. As
+an exception to this rule, some finite resources may be allocated on a
 first-come-first-served basis. This exception is described in detail in
 [Virtualization](Virtualization.md).
 
@@ -120,6 +122,15 @@ mitigating that side channel. For example:
    implementations, and protecting the secrecy of plaintext is valuable. As
    such, it may make sense for a Tock board to expose a cryptographic API with
    some side channel defenses.
+
+### Guaranteed Launching of Applications
+
+Tock does not guarantee that applications it finds are launched. For example, if
+there is not enough RAM available to launch every application then the kernel
+will skip some applications.
+
+This parallels the "first-come, first-served" resource reservation process
+described in [Virtualization](Virtualization.md#availability).
 
 ## Components Trusted to Provide Isolation
 
