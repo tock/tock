@@ -2,7 +2,7 @@
 
 #![feature(asm)]
 #![no_std]
-#![crate_name = "arty_e21"]
+#![crate_name = "arty_e21_chip"]
 #![crate_type = "rlib"]
 
 mod interrupts;

@@ -33,7 +33,7 @@ static mut PROCESSES: [Option<&'static dyn kernel::procs::ProcessType>; NUM_PROC
     [None, None, None, None];
 
 // Reference to the chip for panic dumps.
-static mut CHIP: Option<&'static arty_e21::chip::ArtyExx> = None;
+static mut CHIP: Option<&'static arty_e21_chip::chip::ArtyExx> = None;
 
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
@@ -83,7 +83,10 @@ pub unsafe fn reset_handler() {
     // Basic setup of the platform.
     rv32i::init_memory();
 
-    let chip = static_init!(arty_e21::chip::ArtyExx, arty_e21::chip::ArtyExx::new());
+    let chip = static_init!(
+        arty_e21_chip::chip::ArtyExx,
+        arty_e21_chip::chip::ArtyExx::new()
+    );
     CHIP = Some(chip);
     chip.initialize();
 
@@ -103,14 +106,14 @@ pub unsafe fn reset_handler() {
 
     // Configure kernel debug gpios as early as possible
     kernel::debug::assign_gpios(
-        Some(&arty_e21::gpio::PORT[0]), // Red
-        Some(&arty_e21::gpio::PORT[1]),
-        Some(&arty_e21::gpio::PORT[8]),
+        Some(&arty_e21_chip::gpio::PORT[0]), // Red
+        Some(&arty_e21_chip::gpio::PORT[1]),
+        Some(&arty_e21_chip::gpio::PORT[8]),
     );
 
     // Create a shared UART channel for the console and for kernel debug.
     let uart_mux = components::console::UartMuxComponent::new(
-        &arty_e21::uart::UART0,
+        &arty_e21_chip::uart::UART0,
         115200,
         dynamic_deferred_caller,
     )
@@ -122,9 +125,9 @@ pub unsafe fn reset_handler() {
     // alarm.
     let mux_alarm = static_init!(
         MuxAlarm<'static, rv32i::machine_timer::MachineTimer>,
-        MuxAlarm::new(&arty_e21::timer::MACHINETIMER)
+        MuxAlarm::new(&arty_e21_chip::timer::MACHINETIMER)
     );
-    hil::time::Alarm::set_client(&arty_e21::timer::MACHINETIMER, mux_alarm);
+    hil::time::Alarm::set_client(&arty_e21_chip::timer::MACHINETIMER, mux_alarm);
 
     // Alarm
     let alarm = components::alarm::AlarmDriverComponent::new(board_kernel, mux_alarm).finalize(
@@ -152,17 +155,17 @@ pub unsafe fn reset_handler() {
         [
             (
                 // Red
-                &arty_e21::gpio::PORT[0],
+                &arty_e21_chip::gpio::PORT[0],
                 kernel::hil::gpio::ActivationMode::ActiveHigh
             ),
             (
                 // Green
-                &arty_e21::gpio::PORT[1],
+                &arty_e21_chip::gpio::PORT[1],
                 kernel::hil::gpio::ActivationMode::ActiveHigh
             ),
             (
                 // Blue
-                &arty_e21::gpio::PORT[2],
+                &arty_e21_chip::gpio::PORT[2],
                 kernel::hil::gpio::ActivationMode::ActiveHigh
             ),
         ]
@@ -175,7 +178,7 @@ pub unsafe fn reset_handler() {
     // BUTTONs
     let button = components::button::ButtonComponent::new(board_kernel).finalize(
         components::button_component_helper!((
-            &arty_e21::gpio::PORT[4],
+            &arty_e21_chip::gpio::PORT[4],
             kernel::hil::gpio::ActivationMode::ActiveHigh,
             kernel::hil::gpio::FloatingState::PullNone
         )),
@@ -187,17 +190,17 @@ pub unsafe fn reset_handler() {
         [
             static_init!(
                 kernel::hil::gpio::InterruptValueWrapper,
-                kernel::hil::gpio::InterruptValueWrapper::new(&arty_e21::gpio::PORT[7])
+                kernel::hil::gpio::InterruptValueWrapper::new(&arty_e21_chip::gpio::PORT[7])
             )
             .finalize(),
             static_init!(
                 kernel::hil::gpio::InterruptValueWrapper,
-                kernel::hil::gpio::InterruptValueWrapper::new(&arty_e21::gpio::PORT[5])
+                kernel::hil::gpio::InterruptValueWrapper::new(&arty_e21_chip::gpio::PORT[5])
             )
             .finalize(),
             static_init!(
                 kernel::hil::gpio::InterruptValueWrapper,
-                kernel::hil::gpio::InterruptValueWrapper::new(&arty_e21::gpio::PORT[6])
+                kernel::hil::gpio::InterruptValueWrapper::new(&arty_e21_chip::gpio::PORT[6])
             )
             .finalize(),
         ]
@@ -224,7 +227,7 @@ pub unsafe fn reset_handler() {
     // Create virtual device for kernel debug.
     components::debug_writer::DebugWriterComponent::new(uart_mux).finalize(());
 
-    // arty_e21::uart::UART0.initialize_gpio_pins(&arty_e21::gpio::PORT[17], &arty_e21::gpio::PORT[16]);
+    // arty_e21_chip::uart::UART0.initialize_gpio_pins(&arty_e21_chip::gpio::PORT[17], &arty_e21_chip::gpio::PORT[16]);
 
     debug!("Initialization complete. Entering main loop.");
 
