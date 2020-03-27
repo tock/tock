@@ -1,6 +1,5 @@
 # Makefile for building the tock kernel for the launchxl development kit
 
-TOCK_ARCH=cortex-m4
 TOCK_BOARD=launchxl
 TARGET=thumbv7em-none-eabi
 PLATFORM=launchxl
