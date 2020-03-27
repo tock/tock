@@ -18,16 +18,16 @@ endif
 TOCKLOADER_JTAG_FLAGS = --jtag --board hail --arch cortex-m4 --jtag-device ATSAM4LC8C
 
 .PHONY: program
-program: target/$(TARGET)/release/$(PLATFORM).bin
+program: $(MAKEFILE_PARENT_PATH)target/$(TARGET)/release/$(PLATFORM).bin
 	$(TOCKLOADER) $(TOCKLOADER_GENERAL_FLAGS) flash --address $(KERNEL_ADDRESS) $<
 
 # upload kernel over JTAG
 .PHONY: flash
-flash: target/$(TARGET)/release/$(PLATFORM).bin
+flash: $(MAKEFILE_PARENT_PATH)target/$(TARGET)/release/$(PLATFORM).bin
 	$(TOCKLOADER) $(TOCKLOADER_GENERAL_FLAGS) flash --address $(KERNEL_ADDRESS) $(TOCKLOADER_JTAG_FLAGS) $<
 
 .PHONY: flash-debug
-flash-debug: target/$(TARGET)/debug/$(PLATFORM).bin
+flash-debug: $(MAKEFILE_PARENT_PATH)target/$(TARGET)/debug/$(PLATFORM).bin
 	$(TOCKLOADER) $(TOCKLOADER_GENERAL_FLAGS) flash --address $(KERNEL_ADDRESS) $(TOCKLOADER_JTAG_FLAGS) $<
 
 # Command to flash the bootloader. Flashes the bootloader onto the SAM4L.

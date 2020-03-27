@@ -11,14 +11,14 @@ JLINK_ARGUMENTS ?= -device $(JLINK_DEVICE) -if jtag -speed 4000 -AutoConnect 1 -
 
 include ../Makefile.common
 
-flash: target/$(TARGET)/release/launchxl.bin
+flash: $(MAKEFILE_PARENT_PATH)target/$(TARGET)/release/launchxl.bin
 	$(OPENOCD) -f flash-kernel.openocd
 
-flash-ccfg: target/$(TARGET)/release/launchxlccfg.bin
+flash-ccfg: $(MAKEFILE_PARENT_PATH)target/$(TARGET)/release/launchxlccfg.bin
 	$(OPENOCD) -f flash-ccfg.openocd
 
-flash-jlink: target/$(TARGET)/release/launchxl.bin
+flash-jlink: $(MAKEFILE_PARENT_PATH)target/$(TARGET)/release/launchxl.bin
 	$(JLINK_EXE) $(JLINK_ARGUMENTS) -CommanderScript flash-kernel.jlink
 
-flash-ccfg-jlink: target/$(TARGET)/release/launchxlccfg.bin
+flash-ccfg-jlink: $(MAKEFILE_PARENT_PATH)target/$(TARGET)/release/launchxlccfg.bin
 	$(JLINK_EXE) $(JLINK_ARGUMENTS) -CommanderScript flash-ccfg.jlink
