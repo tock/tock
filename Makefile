@@ -106,6 +106,7 @@ audit:
 clean:
 	@echo "$$(tput bold)Clean top-level Cargo workspace" && cargo clean
 	@for f in `./tools/list_tools.sh`; do echo "$$(tput bold)Clean tools/$$f"; cargo clean --manifest-path "tools/$$f/Cargo.toml" || exit 1; done
+	@echo "$$(tput bold)Clean rustdoc" && rm -Rf doc/rustdoc
 
 .PHONY: fmt format formatall
 fmt format formatall:

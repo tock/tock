@@ -160,7 +160,7 @@ debug-lst: $(MAKEFILE_PARENT_PATH)target/$(TARGET)/debug/$(PLATFORM).lst
 
 .PHONY: doc
 doc: | target
-	$(Q)RUSTDOCFLAGS='-Z unstable-options --document-hidden-items' $(CARGO) doc $(VERBOSE) --release --target=$(TARGET) --package $(PLATFORM)
+	$(Q)RUSTDOCFLAGS='-Z unstable-options --document-hidden-items' $(CARGO) doc $(VERBOSE) --release --package $(PLATFORM)
 
 .PHONY: lst
 lst: $(MAKEFILE_PARENT_PATH)target/$(TARGET)/release/$(PLATFORM).lst
