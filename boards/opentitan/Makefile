@@ -5,5 +5,5 @@ PLATFORM=opentitan
 
 include ../Makefile.common
 
-flash: $(MAKEFILE_PARENT_PATH)target/$(TARGET)/release/$(PLATFORM).bin
-	$(OPENTITAN_TREE)/sw/host/spiflash/spiflash --input=$(MAKEFILE_PARENT_PATH)target/$(TARGET)/release/$(PLATFORM).bin
+flash: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).bin
+	$(OPENTITAN_TREE)/sw/host/spiflash/spiflash --input=$(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).bin

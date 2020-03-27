@@ -3,8 +3,12 @@
 MAKEFLAGS += -r
 MAKEFLAGS += -R
 
+# The absolute path of the directory containing this `Makefile.common` file.
 MAKEFILE_COMMON_PATH := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
-MAKEFILE_PARENT_PATH := $(dir $(abspath $(MAKEFILE_COMMON_PATH)))
+
+# The absolute path of Tock's root directory.
+# This is currently the parent directory of MAKEFILE_COMMON_PATH.
+TOCK_ROOT_DIRECTORY := $(dir $(abspath $(MAKEFILE_COMMON_PATH)))
 
 # Common defaults that specific boards can override, but likely do not need to.
 TOOLCHAIN ?= llvm
@@ -25,7 +29,7 @@ RUSTFLAGS_FOR_CARGO ?= \
   -C linker-flavor=ld.lld \
   -C relocation-model=dynamic-no-pic \
   -C link-arg=-zmax-page-size=512 \
-  --remap-path-prefix=$(MAKEFILE_PARENT_PATH)= \
+  --remap-path-prefix=$(TOCK_ROOT_DIRECTORY)= \
 
 # Disallow warnings for continuous integration builds. Disallowing them here
 # ensures that warnings during testing won't prevent compilation from succeeding.
@@ -61,7 +65,7 @@ export TOCK_KERNEL_VERSION := $(shell git describe --tags --always 2> /dev/null 
 # Validate that rustup is new enough.
 MINIMUM_RUSTUP_VERSION := 1.11.0
 RUSTUP_VERSION := $(strip $(word 2, $(shell $(RUSTUP) --version)))
-ifeq ($(shell $(MAKEFILE_PARENT_PATH)tools/semver.sh $(RUSTUP_VERSION) \< $(MINIMUM_RUSTUP_VERSION)), true)
+ifeq ($(shell $(TOCK_ROOT_DIRECTORY)tools/semver.sh $(RUSTUP_VERSION) \< $(MINIMUM_RUSTUP_VERSION)), true)
   $(warning Required tool `$(RUSTUP)` is out-of-date.)
   $(warning Running `$(RUSTUP) update` in 3 seconds (ctrl-c to cancel))
   $(shell sleep 3s)
@@ -109,7 +113,7 @@ ifneq ($(V),)
   $(info TOCK KERNEL BUILD SYSTEM -- VERBOSE BUILD CONFIGURATION)
   $(info *******************************************************)
   $(info MAKEFILE_COMMON_PATH = $(MAKEFILE_COMMON_PATH))
-  $(info MAKEFILE_PARENT_PATH = $(MAKEFILE_PARENT_PATH))
+  $(info TOCK_ROOT_DIRECTORY = $(TOCK_ROOT_DIRECTORY))
   $(info )
   $(info PLATFORM             = $(PLATFORM))
   $(info TARGET               = $(TARGET))
@@ -150,20 +154,20 @@ clean::
 	$(Q)$(CARGO) clean $(VERBOSE)
 
 .PHONY: release
-release: $(MAKEFILE_PARENT_PATH)target/$(TARGET)/release/$(PLATFORM).bin
+release: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).bin
 
 .PHONY: debug
-debug: $(MAKEFILE_PARENT_PATH)target/$(TARGET)/debug/$(PLATFORM).bin
+debug: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/debug/$(PLATFORM).bin
 
 .PHONY: debug-lst
-debug-lst: $(MAKEFILE_PARENT_PATH)target/$(TARGET)/debug/$(PLATFORM).lst
+debug-lst: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/debug/$(PLATFORM).lst
 
 .PHONY: doc
 doc: | target
 	$(Q)RUSTDOCFLAGS='-Z unstable-options --document-hidden-items' $(CARGO) doc $(VERBOSE) --release --package $(PLATFORM)
 
 .PHONY: lst
-lst: $(MAKEFILE_PARENT_PATH)target/$(TARGET)/release/$(PLATFORM).lst
+lst: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).lst
 
 # Helper rule for showing the TARGET used by this board. Useful when building
 # the documentation for all boards.
@@ -174,34 +178,34 @@ show-target:
 # Support rules
 
 target:
-	@mkdir -p $(MAKEFILE_PARENT_PATH)target
+	@mkdir -p $(TOCK_ROOT_DIRECTORY)target
 
 # Cargo outputs an elf file (just without a file extension)
 %.elf: %
 	$(Q)cp $< $@
 
-%.bin: %.elf $(MAKEFILE_PARENT_PATH)tools/sha256sum/target/debug/sha256sum
+%.bin: %.elf $(TOCK_ROOT_DIRECTORY)tools/sha256sum/target/debug/sha256sum
 	$(Q)$(OBJCOPY) --output-target=binary $< $@
-	$(Q)$(MAKEFILE_PARENT_PATH)tools/sha256sum/target/debug/sha256sum $@
+	$(Q)$(TOCK_ROOT_DIRECTORY)tools/sha256sum/target/debug/sha256sum $@
 
 %.lst: %.elf
 	$(Q)$(OBJDUMP) $(OBJDUMP_FLAGS) $< > $@
 
 
-$(MAKEFILE_PARENT_PATH)tools/sha256sum/target/debug/sha256sum:
-	$(Q)$(CARGO) build $(VERBOSE) --manifest-path $(MAKEFILE_PARENT_PATH)tools/sha256sum/Cargo.toml
+$(TOCK_ROOT_DIRECTORY)tools/sha256sum/target/debug/sha256sum:
+	$(Q)$(CARGO) build $(VERBOSE) --manifest-path $(TOCK_ROOT_DIRECTORY)tools/sha256sum/Cargo.toml
 
 
 # Cargo-drivers
 # We want to always invoke cargo (yay nested build systems), so these need to
 # be phony, which means they can't be pattern rules.
 
-.PHONY: $(MAKEFILE_PARENT_PATH)target/$(TARGET)/release/$(PLATFORM)
-$(MAKEFILE_PARENT_PATH)target/$(TARGET)/release/$(PLATFORM):
+.PHONY: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM)
+$(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM):
 	$(Q)RUSTFLAGS="$(RUSTFLAGS_FOR_CARGO)" $(CARGO) build $(VERBOSE) --target=$(TARGET) --package $(PLATFORM) --release
 	$(Q)$(SIZE) $@
 
-.PHONY: $(MAKEFILE_PARENT_PATH)target/$(TARGET)/debug/$(PLATFORM)
-$(MAKEFILE_PARENT_PATH)target/$(TARGET)/debug/$(PLATFORM):
+.PHONY: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/debug/$(PLATFORM)
+$(TOCK_ROOT_DIRECTORY)target/$(TARGET)/debug/$(PLATFORM):
 	$(Q)RUSTFLAGS="$(RUSTFLAGS_FOR_CARGO)" $(CARGO) build $(VERBOSE) --target=$(TARGET) --package $(PLATFORM)
 	$(Q)$(SIZE) $@

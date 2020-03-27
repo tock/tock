@@ -19,10 +19,10 @@ TOCKLOADER_JTAG_FLAGS = --jlink --board nrf52dk
 
 # Upload the kernel over JTAG
 .PHONY: flash
-flash: $(MAKEFILE_PARENT_PATH)target/$(TARGET)/release/$(PLATFORM).bin
+flash: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).bin
 	$(TOCKLOADER) $(TOCKLOADER_GENERAL_FLAGS) flash --address $(KERNEL_ADDRESS) $(TOCKLOADER_JTAG_FLAGS) $<
 
 # Upload the kernel over serial/bootloader
 .PHONY: program
-program: $(MAKEFILE_PARENT_PATH)target/$(TARGET)/release/$(PLATFORM).hex
+program: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).hex
 	$(error Cannot program nRF52840-Dongle over USB. Use \`make flash\` and JTAG)

@@ -5,6 +5,6 @@ PLATFORM=hifive1
 
 include ../Makefile.common
 
-flash: $(MAKEFILE_PARENT_PATH)target/$(TARGET)/release/$(PLATFORM).elf
+flash: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf
 	openocd \
 		-c "source [find board/sifive-hifive1.cfg]; flash protect 0 64 last off; program $<; resume 0x20400000; exit"
