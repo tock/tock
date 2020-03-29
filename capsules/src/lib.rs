@@ -54,6 +54,7 @@ pub mod rng;
 pub mod sdcard;
 pub mod segger_rtt;
 pub mod si7021;
+pub mod softaes;
 pub mod spi;
 pub mod temperature;
 pub mod tmp006;
