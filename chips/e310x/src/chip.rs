@@ -9,6 +9,7 @@ use rv32i::csr;
 use crate::gpio;
 use crate::interrupts;
 use crate::plic;
+use crate::spi;
 use crate::timer;
 use crate::uart;
 
@@ -52,6 +53,7 @@ impl kernel::Chip for E310x {
             while let Some(interrupt) = plic::next_pending() {
                 match interrupt {
                     interrupts::UART0 => uart::UART0.handle_interrupt(),
+                    interrupts::QSPI2 => spi::QSPI2.handle_interrupt(),
                     index @ interrupts::GPIO0..interrupts::GPIO31 => {
                         gpio::PORT[index as usize].handle_interrupt()
                     }
