@@ -47,4 +47,4 @@ script:
 after_success:
   - export PATH=$HOME/.local/bin:$PATH
   - pip3 install --user cxxfilt
-  - ./tools/post_size_changes_to_github.sh
+    #- ./tools/post_size_changes_to_github.sh
