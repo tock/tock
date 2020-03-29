@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # Find archs based on folders with Cargo.toml
 for b in $(find arch -maxdepth 4 -name 'Cargo.toml'); do
