@@ -4,7 +4,6 @@ use core::cmp;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
-use kernel::debug;
 use kernel::hil;
 use kernel::hil::gpio::Output;
 use kernel::hil::spi::{self, ClockPhase, ClockPolarity, SpiMaster, SpiMasterClient};
@@ -396,13 +395,6 @@ impl spi::SpiMaster for Spi<'a> {
     fn init(&self) {
         // enable error interrupt (used only for debugging)
         // self.registers.cr2.modify(CR2::ERRIE::SET);
-
-        unsafe {
-            debug!(
-                "regsiter address {}",
-                &self.registers.dr as *const ReadWrite<u8, DR::Register> as u32
-            );
-        }
 
         self.registers.cr2.modify(
             // Set 8 bit mode
