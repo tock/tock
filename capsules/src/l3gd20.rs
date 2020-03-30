@@ -145,8 +145,8 @@ const L3GD20_REG_INT1_TSH_ZL: u8 = 0x37;
 const L3GD20_REG_INT1_DURATION: u8 = 0x38;
 */
 
-pub const L3GD20_TX_SIZE: usize = 100;
-pub const L3GD20_RX_SIZE: usize = 100;
+pub const L3GD20_TX_SIZE: usize = 10;
+pub const L3GD20_RX_SIZE: usize = 10;
 
 pub static mut TXBUFFER: [u8; L3GD20_TX_SIZE] = [0; L3GD20_TX_SIZE];
 pub static mut RXBUFFER: [u8; L3GD20_RX_SIZE] = [0; L3GD20_RX_SIZE];
