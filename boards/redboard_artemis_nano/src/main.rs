@@ -6,6 +6,7 @@
 // Disable this attribute when documenting, as a workaround for
 // https://github.com/rust-lang/rust/issues/62184.
 #![cfg_attr(not(doc), no_main)]
+#![feature(const_in_array_repeat_expressions)]
 #![deny(missing_docs)]
 
 use capsules::virtual_alarm::VirtualMuxAlarm;
@@ -25,8 +26,7 @@ pub mod io;
 const NUM_PROCS: usize = 4;
 
 // Actual memory for holding the active process structures.
-static mut PROCESSES: [Option<&'static dyn kernel::procs::ProcessType>; NUM_PROCS] =
-    [None, None, None, None];
+static mut PROCESSES: [Option<&'static dyn kernel::procs::ProcessType>; NUM_PROCS] = [None; 4];
 
 // Static reference to chip for panic dumps.
 static mut CHIP: Option<&'static apollo3::chip::Apollo3> = None;
@@ -238,5 +238,7 @@ pub unsafe fn reset_handler() {
         debug!("{:?}", err);
     });
 
-    board_kernel.kernel_loop(&artemis_nano, chip, None, &main_loop_cap);
+    let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
+        .finalize(components::rr_component_helper!(NUM_PROCS));
+    board_kernel.kernel_loop(&artemis_nano, chip, None, scheduler, &main_loop_cap);
 }

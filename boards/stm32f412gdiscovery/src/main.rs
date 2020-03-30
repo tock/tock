@@ -6,6 +6,7 @@
 // Disable this attribute when documenting, as a workaround for
 // https://github.com/rust-lang/rust/issues/62184.
 #![cfg_attr(not(doc), no_main)]
+#![feature(const_in_array_repeat_expressions)]
 #![deny(missing_docs)]
 
 use capsules::virtual_alarm::VirtualMuxAlarm;
@@ -581,10 +582,14 @@ pub unsafe fn reset_handler() {
         debug!("{:?}", err);
     });
 
+    let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
+        .finalize(components::rr_component_helper!(NUM_PROCS));
+
     board_kernel.kernel_loop(
         &stm32f412g,
         chip,
         Some(&stm32f412g.ipc),
+        scheduler,
         &main_loop_capability,
     );
 }

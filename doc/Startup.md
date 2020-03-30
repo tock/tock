@@ -179,5 +179,8 @@ invalid TBF header in flash.
 
 ## Scheduler Execution
 
-The final thing that the reset handler must do is call `kernel.kernel_loop()`.
+Tock provides a `Scheduler` trait that serves as an abstraction to allow for
+plugging in different scheduling algorithms. Schedulers should be initialized
+at the end of the reset handler.
+The final thing that the reset handler must do is call `scheduler.kernel_loop()`.
 This starts the Tock scheduler and the main operation of the kernel.
