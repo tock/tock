@@ -78,12 +78,15 @@ pub trait Ticks: Clone + Copy + From<u32> {
     fn wrapping_add(self, other: Self) -> Self;
     fn wrapping_sub(self, other: Self) -> Self;
 
-    // Returns whether `when` is in the range of [`start`, `end`), using
+    // Returns whether `self` is in the range of [`start`, `end`), using
     // unsigned arithmetic and considering wraparound. It returns true
-    // if, incrementing from start, when will be reached before end.
-    // Put another way, it returns (when - start) < (end - start) in
+    // if, incrementing from `start`, `self` will be reached before `end`.
+    // Put another way, it returns `self - start < end - start` in
     // unsigned arithmetic.
-    fn within_range(start: Self, when: Self, end: Self) -> bool;
+    fn within_range(self, start: Self, end: Self) -> bool {
+        self.wrapping_sub(start) < end.wrapping_sub(start)
+    }
+
     fn max_value() -> Self;
 }
 
@@ -355,3 +358,4 @@ USA
 pal@cs.stanford.edu
 
 Guillaume Endignoux
+guillaumee@google.com
