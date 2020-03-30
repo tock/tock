@@ -19,7 +19,7 @@ if [ -n "$TRAVIS_PULL_REQUEST_BRANCH" ]; then
     # Bench the current commit that was pushed. Requires navigating back to build directory
     cd ${TRAVIS_BUILD_DIR}
     make allboards #TODO: Can remove?
-    for elf in $(find boards -maxdepth 8 | grep 'release' | egrep '\.elf$' | grep -v 'riscv'); do
+    for elf in $(find . -maxdepth 8 | grep 'release' | egrep '\.elf$' | grep -v 'riscv'); do
         tmp=${elf#*release/}
         b=${tmp%.elf}
         ${TRAVIS_BUILD_DIR}/tools/print_tock_memory_usage.py -s ${elf} | tee ${TRAVIS_BUILD_DIR}/current-benchmark-${b}
@@ -47,7 +47,7 @@ if [ -n "$TRAVIS_PULL_REQUEST_BRANCH" ]; then
 
     # Find elfs compiled for release (for use in analyzing binaries in CI),
     # ignore riscv binaries for now because Phil's tool does not support RISC-V
-    for elf in $(find boards -maxdepth 8 | grep 'release' | egrep '\.elf$' | grep -v 'riscv'); do
+    for elf in $(find . -maxdepth 8 | grep 'release' | egrep '\.elf$' | grep -v 'riscv'); do
         tmp=${elf#*release/}
         b=${tmp%.elf}
         ${TRAVIS_BUILD_DIR}/tools/print_tock_memory_usage.py -s ${elf} | tee ${TRAVIS_BUILD_DIR}/previous-benchmark-${b}
@@ -55,7 +55,7 @@ if [ -n "$TRAVIS_PULL_REQUEST_BRANCH" ]; then
 
     # now calculate diff for each board, and post status to github for each non-0 diff
     cd ${TRAVIS_BUILD_DIR}
-    for elf in $(find boards -maxdepth 8 | grep 'release' | egrep '\.elf$' | grep -v 'riscv'); do
+    for elf in $(find . -maxdepth 8 | grep 'release' | egrep '\.elf$' | grep -v 'riscv'); do
         tmp=${elf#*release/}
         b=${tmp%.elf}
         ${TRAVIS_BUILD_DIR}/tools/diff_memory_usage.py previous-benchmark-${b} current-benchmark-${b} size-diffs-${b}.txt ${b}
