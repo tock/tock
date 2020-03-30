@@ -23,13 +23,15 @@ RUSTUP    ?= rustup
 # We use `remap-path-prefix` to remove user-specific filepath strings for error
 # reporting from appearing in the generated binary.
 RUSTFLAGS_FOR_CARGO ?= \
-  -C link-arg=-L$(abspath .) \
   -C link-arg=-Tlayout.ld \
   -C linker=rust-lld \
   -C linker-flavor=ld.lld \
   -C relocation-model=dynamic-no-pic \
   -C link-arg=-zmax-page-size=512 \
   --remap-path-prefix=$(TOCK_ROOT_DIRECTORY)= \
+
+RUSTFLAGS_FOR_BIN ?= \
+  -C link-arg=-L$(abspath .) \
 
 # Disallow warnings for continuous integration builds. Disallowing them here
 # ensures that warnings during testing won't prevent compilation from succeeding.
@@ -202,10 +204,10 @@ $(TOCK_ROOT_DIRECTORY)tools/sha256sum/target/debug/sha256sum:
 
 .PHONY: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM)
 $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM):
-	$(Q)RUSTFLAGS="$(RUSTFLAGS_FOR_CARGO)" $(CARGO) build $(VERBOSE) --target=$(TARGET) --package $(PLATFORM) --release
+	$(Q)RUSTFLAGS="$(RUSTFLAGS_FOR_CARGO)" $(CARGO) rustc $(VERBOSE) --target=$(TARGET) --package $(PLATFORM) --bin $(PLATFORM) --release -- $(RUSTFLAGS_FOR_BIN)
 	$(Q)$(SIZE) $@
 
 .PHONY: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/debug/$(PLATFORM)
 $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/debug/$(PLATFORM):
-	$(Q)RUSTFLAGS="$(RUSTFLAGS_FOR_CARGO)" $(CARGO) build $(VERBOSE) --target=$(TARGET) --package $(PLATFORM)
+	$(Q)RUSTFLAGS="$(RUSTFLAGS_FOR_CARGO)" $(CARGO) rustc $(VERBOSE) --target=$(TARGET) --package $(PLATFORM) --bin $(PLATFORM) -- $(RUSTFLAGS_FOR_BIN)
 	$(Q)$(SIZE) $@
