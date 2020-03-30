@@ -9,6 +9,7 @@ use kernel::Chip;
 // use crate::deferred_call_tasks::Task;
 use crate::exti;
 use crate::nvic;
+use crate::spi;
 use crate::tim2;
 use crate::usart;
 
@@ -47,6 +48,8 @@ impl Chip for Stm32f3xx {
                         nvic::USART1 => usart::USART1.handle_interrupt(),
 
                         nvic::TIM2 => tim2::TIM2.handle_interrupt(),
+
+                        nvic::SPI1 => spi::SPI1.handle_interrupt(),
 
                         nvic::EXTI0 => exti::EXTI.handle_interrupt(),
                         nvic::EXTI1 => exti::EXTI.handle_interrupt(),
