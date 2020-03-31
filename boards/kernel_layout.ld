@@ -22,9 +22,11 @@
  *    The `_szero` and `_ezero` symbols define the range of the BSS, SRAM that
  *    Tock will zero on boot.
  *
- * `_sapps`
+ * `_sapps`, `_eapps`
  *
  *    The `_sapps` symbol marks the beginning of application memory in flash.
+ *    The `_eapps` symbol marks the end of application memory in flash by
+ *    pointing to next address after application flash.
  */
 
 
@@ -216,6 +218,8 @@ SECTIONS
            kernel and apps into a single image */
         KEEP (*(.app.*))
     } > prog
+    /* _eapps symbol used by tock to calculate the length of app flash */
+    _eapps = _sapps + LENGTH(prog);
 
 
 
