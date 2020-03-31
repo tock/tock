@@ -21,23 +21,10 @@
 
 // Author: Alexandru Radovici <msg4alex@gmail.com>
 
-use core::mem::MaybeUninit;
-
-use capsules::i2c_master::I2CMasterDriver;
 use capsules::virtual_i2c::{I2CDevice, MuxI2C};
 use kernel::component::Component;
 use kernel::hil::i2c;
 use kernel::static_init;
-
-// Setup static space for the objects.
-// #[macro_export]
-// macro_rules! i2c_mux_component_helper {
-// 	($S:ty) => {{
-// 		use core::mem::MaybeUninit;
-// 		static mut BUF: MaybeUninit<MuxI2C<'static>> = MaybeUninit::uninit();
-// 		&mut BUF
-// 		};};
-// }
 
 pub struct I2CMuxComponent {
     i2c: &'static dyn i2c::I2CMaster,
@@ -119,7 +106,7 @@ impl Component for I2CComponent {
     type StaticInput = ();
     type Output = &'static I2CDevice<'static>;
 
-    unsafe fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
+    unsafe fn finalize(self, _static_buffer: Self::StaticInput) -> Self::Output {
         let i2c_device = static_init!(
             I2CDevice<'static>,
             I2CDevice::new(self.i2c_mux, self.address)
