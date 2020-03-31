@@ -50,13 +50,13 @@
 //!
 //! #### subscribe num
 //! - `0`: Done callback
-//!   - 'data1`: dependes on command
+//!   - 'data1`: depends on command
 //!     - `1` - 1 for is present, 0 for not present
 //!     - `6` - X rotation
 //!     - `7` - temperature in deg C
-//!   - 'data2`: dependes on command
+//!   - 'data2`: depends on command
 //!     - `6` - Y rotation
-//!   - 'data3`: dependes on command
+//!   - 'data3`: depends on command
 //!     - `6` - Z rotation
 //!
 //! Usage
@@ -84,7 +84,7 @@
 //!
 //! ```
 //!
-//! Temperature Example
+//! Temperature Exemple
 //!
 //! ```rust
 //! let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
