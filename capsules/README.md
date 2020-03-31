@@ -119,6 +119,7 @@ These allow for multiple users of shared hardware resources in the kernel.
 - **[Virtual Alarm](src/virtual_alarm.rs)**: Shared alarm resource.
 - **[Virtual Digest](src/virtual_digest.rs)**: Shared digest resource.
 - **[Virtual Flash](src/virtual_flash.rs)**: Shared flash resource.
+- **[Virtual HMAC](src/virtual_hmac.rs)**: Shared HMAC resource.
 - **[Virtual I2C](src/virtual_i2c.rs)**: Shared I2C and fixed addresses.
 - **[Virtual PWM](src/virtual_pwm.rs)**: Shared PWM hardware.
 - **[Virtual SPI](src/virtual_spi.rs)**: Shared SPI and fixed chip select pins.
