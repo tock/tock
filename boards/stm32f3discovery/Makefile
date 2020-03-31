@@ -15,11 +15,11 @@ CWD=$(shell pwd)
 
 .PHONY: flash-debug
 flash-debug: target/$(TARGET)/debug/$(PLATFORM).elf
-	sudo $(OPENOCD) $(OPENOCD_OPTIONS) -c "init; reset halt; flash write_image erase $(CWD)/$<; verify_image $(CWD)/$<; reset; shutdown"
+	$(OPENOCD) $(OPENOCD_OPTIONS) -c "init; reset halt; flash write_image erase $(CWD)/$<; verify_image $(CWD)/$<; reset; shutdown"
 
 .PHONY: flash
 flash: target/$(TARGET)/release/$(PLATFORM).elf
-	sudo $(OPENOCD) $(OPENOCD_OPTIONS) -c "init; reset halt; flash write_image erase $(CWD)/$<; verify_image $(CWD)/$<; reset; shutdown"
+	$(OPENOCD) $(OPENOCD_OPTIONS) -c "init; reset halt; flash write_image erase $(CWD)/$<; verify_image $(CWD)/$<; reset; shutdown"
 
 .PHONY: program
 program: target/$(TARGET)/debug/$(PLATFORM).elf
