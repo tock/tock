@@ -110,7 +110,7 @@ stabilized or not (a "✓" indicates stability) in the Tock 1.0 release.
 |   | 0x70000       | TSL2561                   | Light sensor                               |
 |   | 0x70001       | TMP006                    | Temperature sensor                         |
 |   | 0x70004       | LPS25HB                   | Pressure sensor                            |
-| ✓ | 0x70005       | [L3GD20](70005_l3gd20.md) | 3 axis gyroscope and temperature sensor    |
+|   | 0x70005       | [L3GD20](70005_l3gd20.md) | 3 axis gyroscope and temperature sensor    |
 
 ### Other ICs
 

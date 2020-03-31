@@ -71,7 +71,7 @@
 //!
 //! ```
 //!
-//! NineDof Exemple
+//! NineDof Example
 //!
 //! ```rust
 //! let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
@@ -85,7 +85,7 @@
 //!
 //! ```
 //!
-//! Temperature Exemple
+//! Temperature Example
 //!
 //! ```rust
 //! let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
