@@ -1,4 +1,4 @@
-#![feature(const_fn, in_band_lifetimes, associated_type_defaults)]
+#![feature(const_fn, in_band_lifetimes, associated_type_defaults, cell_update)]
 #![forbid(unsafe_code)]
 #![no_std]
 
@@ -53,6 +53,7 @@ pub mod rf233_const;
 pub mod rng;
 pub mod sdcard;
 pub mod segger_rtt;
+pub mod sha;
 pub mod si7021;
 pub mod spi;
 pub mod temperature;
