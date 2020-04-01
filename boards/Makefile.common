@@ -30,6 +30,24 @@ RUSTFLAGS_FOR_CARGO ?= \
   -C link-arg=-zmax-page-size=512 \
   --remap-path-prefix=$(TOCK_ROOT_DIRECTORY)= \
 
+# The following flags should only be passed to the board's binary crate, but
+# not to any of its dependencies (the kernel, capsules, chips, etc.). The
+# dependencies wouldn't use it, but because the link path is different for each
+# board, Cargo wouldn't be able to cache builds of the dependencies.
+#
+# Indeed, as far as Cargo is concerned, building the kernel with
+# `-C link-arg=-L/tock/boards/imix` is different than building the kernel with
+# `-C link-arg=-L/tock/boards/hail`, so Cargo would have to rebuild the kernel
+# for each board instead of caching it per board (even if in reality the same
+# kernel is built because the link-arg isn't used by the kernel).
+#
+# Ultimately, this should move to the Cargo.toml, for example when
+# https://github.com/rust-lang/cargo/pull/7811 is merged into Cargo.
+#
+# The difference between `RUSTFLAGS_FOR_CARGO` and `RUSTFLAGS_FOR_BIN` is that
+# the former is forwarded to all the dependencies (being passed to cargo via
+# the `RUSTFLAGS` environment variable), whereas the latter is only applied to
+# the final binary crate (being passed as parameter to `cargo rustc`).
 RUSTFLAGS_FOR_BIN ?= \
   -C link-arg=-L$(abspath .) \
 
