@@ -26,7 +26,7 @@
 //! - `2`: Power On
 //!   - `data`: unused
 //!   - Return: `SUCCESS` if no other command is in progress, `EBUSY` otherwise.
-//! - `3`: Set Sensitivity
+//! - `3`: Set Scale
 //!   - `data1`: 0, 1 or 2
 //!   - Return: `SUCCESS` if no other command is in progress, `EBUSY` otherwise.
 //! - `4`: Enable high pass filter
@@ -154,9 +154,9 @@ pub static mut TXBUFFER: [u8; L3GD20_TX_SIZE] = [0; L3GD20_TX_SIZE];
 pub static mut RXBUFFER: [u8; L3GD20_RX_SIZE] = [0; L3GD20_RX_SIZE];
 
 /* Sensitivity factors, datasheet pg. 9 */
-const L3GD20_SENSITIVITY_250: isize = 875; /* 8.75 mdps/digit */
-const L3GD20_SENSITIVITY_500: isize = 1750; /* 17.5 mdps/digit */
-const L3GD20_SENSITIVITY_2000: isize = 7000; /* 70 mdps/digit */
+const L3GD20_SCALE_250: isize = 875; /* 8.75 mdps/digit */
+const L3GD20_SCALE_500: isize = 1750; /* 17.5 mdps/digit */
+const L3GD20_SCALE_2000: isize = 7000; /* 70 mdps/digit */
 
 #[derive(Copy, Clone, PartialEq)]
 enum L3gd20Status {
@@ -165,7 +165,7 @@ enum L3gd20Status {
     PowerOn,
     EnableHpf,
     SetHpfParameters,
-    SetSenzitivity,
+    SetScale,
     ReadXYZ,
     ReadTemperature,
 }
@@ -183,7 +183,7 @@ pub struct L3gd20Spi<'a> {
     hpf_enabled: Cell<bool>,
     hpf_mode: Cell<u8>,
     hpf_divider: Cell<u8>,
-    sensitivity: Cell<u8>,
+    scale: Cell<u8>,
     callback: OptionalCell<Callback>,
     nine_dof_client: OptionalCell<&'a dyn sensors::NineDofClient>,
     temperature_client: OptionalCell<&'a dyn sensors::TemperatureClient>,
@@ -204,7 +204,7 @@ impl L3gd20Spi<'a> {
             hpf_enabled: Cell::new(false),
             hpf_mode: Cell::new(0),
             hpf_divider: Cell::new(0),
-            sensitivity: Cell::new(0),
+            scale: Cell::new(0),
             callback: OptionalCell::empty(),
             nine_dof_client: OptionalCell::empty(),
             temperature_client: OptionalCell::empty(),
@@ -251,12 +251,12 @@ impl L3gd20Spi<'a> {
         });
     }
 
-    fn set_sensitivity(&self, sensitivity: u8) {
-        self.status.set(L3gd20Status::SetSenzitivity);
-        self.sensitivity.set(sensitivity);
+    fn set_scale(&self, scale: u8) {
+        self.status.set(L3gd20Status::SetScale);
+        self.scale.set(scale);
         self.txbuffer.take().map(|buf| {
             buf[0] = L3GD20_REG_CTRL_REG4;
-            buf[1] = (sensitivity & 0x03) << 4;
+            buf[1] = (scale & 0x03) << 4;
             self.spi.read_write_bytes(buf, None, 2);
         });
     }
@@ -320,11 +320,11 @@ impl Driver for L3gd20Spi<'a> {
 					ReturnCode::EBUSY
 				}
 			}
-			// Set Sensitivity
+			// Set Scale
             3 => {
 				if self.status.get () == L3gd20Status::Idle {
-					let sensitivity = data1 as u8;
-					self.set_sensitivity (sensitivity);
+					let scale = data1 as u8;
+					self.set_scale (scale);
 					ReturnCode::SUCCESS
 				}
 				else
@@ -433,19 +433,19 @@ impl spi::SpiMasterClient for L3gd20Spi<'a> {
                     if len >= 7 {
                         self.nine_dof_client.map(|client| {
                             // compute using only integers
-                            let sensitivity = match self.sensitivity.get() {
-                                0 => L3GD20_SENSITIVITY_250,
-                                1 => L3GD20_SENSITIVITY_500,
-                                _ => L3GD20_SENSITIVITY_2000,
+                            let scale = match self.scale.get() {
+                                0 => L3GD20_SCALE_250,
+                                1 => L3GD20_SCALE_500,
+                                _ => L3GD20_SCALE_2000,
                             };
                             let x: usize = ((buf[1] as i16 | ((buf[2] as i16) << 8)) as isize
-                                * sensitivity
+                                * scale
                                 / 100000) as usize;
                             let y: usize = ((buf[3] as i16 | ((buf[4] as i16) << 8)) as isize
-                                * sensitivity
+                                * scale
                                 / 100000) as usize;
                             let z: usize = ((buf[5] as i16 | ((buf[6] as i16) << 8)) as isize
-                                * sensitivity
+                                * scale
                                 / 100000) as usize;
                             client.callback(x, y, z);
                         });
