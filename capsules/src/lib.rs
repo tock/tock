@@ -1,4 +1,4 @@
-#![feature(const_fn, in_band_lifetimes)]
+#![feature(const_fn, in_band_lifetimes, associated_type_defaults)]
 #![forbid(unsafe_code)]
 #![no_std]
 
@@ -26,6 +26,7 @@ pub mod fm25cl;
 pub mod fxos8700cq;
 pub mod gpio;
 pub mod gpio_async;
+pub mod hash;
 pub mod hd44780;
 pub mod humidity;
 pub mod i2c_master;
