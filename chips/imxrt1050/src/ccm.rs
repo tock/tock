@@ -23,7 +23,9 @@ struct CcmRegisters {
     _reserved4: [u8; 12],
     // clock gating register 4
     ccgr4: ReadWrite<u32, CCGR4::Register>,
-    _reserved5: [u8; 12],
+    // clock gating register 5
+    ccgr5: ReadWrite<u32, CCGR5::Register>,
+    _reserved5: [u8; 8],
 }
 
 register_bitfields![u32,
@@ -155,6 +157,56 @@ register_bitfields![u32,
 
         // sim_m7 register access clock (sim_m7_mainclk_r_enable)
         CG0 OFFSET(0) NUMBITS(2) []
+    ],
+
+    CCGR5 [
+         // snvs_lp clock (snvs_lp_clk_enable)
+        CG15 OFFSET(30) NUMBITS(2) [],
+   
+        // snvs_hp clock (snvs_hp_clk_enable)
+        CG14 OFFSET(28) NUMBITS(2) [],
+
+        // lpuart7 clock (lpuart7_clk_enable)
+        CG13 OFFSET(26) NUMBITS(2) [],
+        
+        // lpuart1 clock (lpuart1_clk_enable)
+        CG12 OFFSET(24) NUMBITS(2) [],
+
+        // sai3 clock (sai3_clk_enable)
+        CG11 OFFSET(22) NUMBITS(2) [],
+
+        // sai2 clock (sai2_clk_enable)
+        CG10 OFFSET(20) NUMBITS(2) [],
+
+        // sai1 clock (sai1_clk_enable)
+        CG9 OFFSET(18) NUMBITS(2) [],
+
+        // sim_main clock (sim_main_clk_enable)
+        CG8 OFFSET(16) NUMBITS(2) [],
+
+        // spdif clock (spdif_clk_enable)
+        CG7 OFFSET(14) NUMBITS(2) [],
+   
+        // aipstz4 clocks (aips_tz4_clk_enable)
+        CG6 OFFSET(12) NUMBITS(2) [],
+
+        // wdog2 clock (wdog2_clk_enable)
+        CG5 OFFSET(10) NUMBITS(2) [],
+        
+        // kpp clock (kpp_clk_enable)
+        CG4 OFFSET(8) NUMBITS(2) [],
+
+        // dma clock (dma_clk_enable)
+        CG3 OFFSET(6) NUMBITS(2) [],
+
+        // wdog3 clock (wdog3_clk_enable)
+        CG2 OFFSET(4) NUMBITS(2) [],
+
+        // flexio1 clock (flexio1_clk_enable)
+        CG1 OFFSET(2) NUMBITS(2) [],
+
+        // rom clock (rom_clk_enable)
+        CG0 OFFSET(0) NUMBITS(2) []
     ]
 ];
 
@@ -224,6 +276,18 @@ impl Ccm {
         self.registers.ccgr1.modify(CCGR1::CG11::CLEAR);
     }
 
+    // LPUART1 clock
+    pub fn is_enabled_lpuart1_clock(&self) -> bool {
+        self.registers.ccgr5.is_set(CCGR5::CG12)
+    }
+
+    pub fn enable_lpuart1_clock(&self) {
+        self.registers.ccgr5.modify(CCGR5::CG12.val(0b11 as u32));
+    }
+
+    pub fn disable_lpuart1_clock(&self) {
+        self.registers.ccgr5.modify(CCGR5::CG12::CLEAR);
+    }
 }
 
 // TBD - chiar nu stiu ce si cum la asta
@@ -232,7 +296,8 @@ pub enum CPUClock {
 
 pub enum PeripheralClock {
     CCGR1(HCLK1),
-    CCGR4(HCLK4)
+    CCGR4(HCLK4),
+    CCGR5(HCLK5),
 }
 
 pub enum HCLK1 {
@@ -246,6 +311,11 @@ pub enum HCLK4 {
     // si restul ...
 }
 
+pub enum HCLK5 {
+    LPUART1,
+    // si restul ...
+}
+
 impl ClockInterface for PeripheralClock {
     fn is_enabled(&self) -> bool {
         match self {
@@ -255,6 +325,9 @@ impl ClockInterface for PeripheralClock {
             },
             &PeripheralClock::CCGR4(ref v) => match v {
                 HCLK4::IOMUXC => unsafe { CCM.is_enabled_iomuxc_clock() },
+            },
+            &PeripheralClock::CCGR5(ref v) => match v {
+                HCLK5::LPUART1 => unsafe { CCM.is_enabled_lpuart1_clock() },
             },
         }
     }
@@ -274,6 +347,11 @@ impl ClockInterface for PeripheralClock {
                     CCM.enable_iomuxc_clock();
                 },
             },
+            &PeripheralClock::CCGR5(ref v) => match v {
+                HCLK5::LPUART1 => unsafe {
+                    CCM.enable_lpuart1_clock();
+                },
+            },
         }
     }
 
@@ -290,6 +368,11 @@ impl ClockInterface for PeripheralClock {
             &PeripheralClock::CCGR4(ref v) => match v {
                 HCLK4::IOMUXC => unsafe {
                     CCM.disable_iomuxc_clock();
+                },
+            },
+            &PeripheralClock::CCGR5(ref v) => match v {
+                HCLK5::LPUART1 => unsafe {
+                    CCM.disable_lpuart1_clock();
                 },
             },
         }
