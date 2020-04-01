@@ -18,6 +18,7 @@ use capsules::virtual_spi::{MuxSpiMaster, VirtualSpiMasterDevice};
 use kernel::capabilities;
 use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::component::Component;
+use kernel::hil::i2c::I2CMaster;
 use kernel::hil::radio;
 #[allow(unused_imports)]
 use kernel::hil::radio::{RadioConfig, RadioData};
