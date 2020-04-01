@@ -6,6 +6,22 @@
 
 set -e
 
+
+# Use copy-on-write cp if available
+touch _COW
+if `cp -c _COW _COW2 2> /dev/null`; then
+    # BSD (OS X) default
+    CP_COW="cp -c"
+elif `cp --reflink=auto _COW _COW2 2> /dev/null`; then
+    # Coreutils (unix) default
+    CP_COW="cp --reflink=auto"
+else
+    echo "$(tput bold)Warn: No copy-on-write cp available. Doc build will be slower.$(tput sgr0)"
+    CP_COW="cp"
+fi
+rm -f _COW _COW2
+
+
 # Parse a search-index.js file to get the known crates.
 function get_known_crates {
 	FILE=$1
@@ -34,7 +50,7 @@ function add_board {
 
 	# Copy those crates over.
 	for item in ${NEW_CRATES[@]}; do
-		cp -r boards/$BOARD/target/$TARGET/doc/$item doc/rustdoc/
+		$CP_COW -r boards/$BOARD/target/$TARGET/doc/$item doc/rustdoc/
 
 		# Add the line to the search-index.js file.
 		grep "searchIndex\[\"$item\"\]" boards/$BOARD/target/$TARGET/doc/search-index.js >> doc/rustdoc/search-index.js
@@ -61,7 +77,7 @@ function build_all_docs {
     make doc
     TARGET=`make -s show-target`
     popd > /dev/null
-    cp -r boards/$BOARD/target/$TARGET/doc doc/rustdoc
+    $CP_COW -r boards/$BOARD/target/$TARGET/doc doc/rustdoc
     ## Now can do all the rest.
     for BOARD in $*
     do
