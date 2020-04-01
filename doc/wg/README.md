@@ -7,4 +7,5 @@ particular aspect of Tock.
 Existing Working Groups
 -----------------------
 
+- [Core](core.md)
 - [OpenTitan](opentitan.md)

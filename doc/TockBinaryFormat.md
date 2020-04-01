@@ -129,6 +129,10 @@ struct TbfHeaderWriteableFlashRegions {
 }
 ```
 
+Since all headers are a multiple of four bytes, and all TLV structures must be a
+multiple of four bytes, the entire TBF header will always be a multiple of four
+bytes.
+
 
 ### TBF Header Base
 
