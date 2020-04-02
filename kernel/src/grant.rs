@@ -198,36 +198,35 @@ impl<T: Default> Grant<T> {
                     //
                     // Get a pointer to where the grant pointer is stored in the
                     // process memory.
-                    if let Some(grant_ptr) = process.grant_ptr(self.grant_num) {
-                        let ctr_ptr = *grant_ptr as *mut T;
+                    if let Some(untyped_grant_ptr_ref) = process.grant_ptr(self.grant_num) {
+                        let typed_grant_ptr = *untyped_grant_ptr_ref as *mut T;
                         // If the pointer at that location is NULL then the grant
                         // memory needs to be allocated.
-                        let grant = if (ctr_ptr).is_null() {
+                        let grant_ptr = if (typed_grant_ptr).is_null() {
                             process
                                 .alloc(size_of::<T>(), align_of::<T>())
                                 .map(|root_arr| {
-                                    let new_ctr_ptr = root_arr.as_mut_ptr() as *mut T;
+                                    let new_grant = root_arr.as_mut_ptr() as *mut T;
                                     // Initialize the grant contents using ptr::write, to
                                     // ensure that we don't try to drop the contents of
                                     // uninitialized memory when T implements Drop.
-                                    write(new_ctr_ptr, Default::default());
+                                    write(new_grant, Default::default());
                                     // Record the location in the grant pointer.
-                                    *grant_ptr = new_ctr_ptr as *mut u8;
+                                    *untyped_grant_ptr_ref = new_grant as *mut u8;
                                     // Return the newly allocated and intialized grant
-                                    new_ctr_ptr
+                                    new_grant
                                 })
                         } else {
-                            Some(ctr_ptr)
+                            Some(typed_grant_ptr)
                         };
 
                         // If the grant region already exists or there was enough
                         // memory to allocate it, call the passed in closure with
                         // the borrowed grant region.
-                        grant.map_or(Err(Error::OutOfMemory), move |root_ptr| {
-                            let root_ptr = root_ptr as *mut T;
-                            let mut root = Borrowed::new(&mut *root_ptr, appid);
+                        grant_ptr.map_or(Err(Error::OutOfMemory), move |grant_ptr| {
+                            let mut grant = Borrowed::new(&mut *grant_ptr, appid);
                             let mut allocator = Allocator { appid: appid };
-                            let res = fun(&mut root, &mut allocator);
+                            let res = fun(&mut grant, &mut allocator);
                             Ok(res)
                         })
                     } else {
