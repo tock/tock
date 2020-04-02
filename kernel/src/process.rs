@@ -355,7 +355,9 @@ pub trait ProcessType {
     ///
     /// This will return `None` if the process is inactive and the grant region
     /// cannot be used.
-    unsafe fn grant_ptr(&self, grant_num: usize) -> Option<*mut *mut u8>;
+    ///
+    /// Caution: Pointer may be null if the grant has not yet been allocated.
+    fn grant_ptr(&self, grant_num: usize) -> Option<&mut *mut u8>;
 
     // functions for processes that are architecture specific
 
@@ -1142,14 +1144,24 @@ impl<C: Chip> ProcessType for Process<'a, C> {
     unsafe fn free(&self, _: *mut u8) {}
 
     #[allow(clippy::cast_ptr_alignment)]
-    unsafe fn grant_ptr(&self, grant_num: usize) -> Option<*mut *mut u8> {
+    fn grant_ptr(&self, grant_num: usize) -> Option<&mut *mut u8> {
         // Do not try to access the grant region of inactive process.
         if !self.is_active() {
             return None;
         }
 
+        // Sanity check the argument
+        if grant_num >= self.kernel.get_grant_count_and_finalize() {
+            return None;
+        }
+
         let grant_num = grant_num as isize;
-        Some((self.mem_end() as *mut *mut u8).offset(-(grant_num + 1)))
+        unsafe {
+            let pointer_to_grant_pointer =
+                (self.mem_end() as *mut *mut u8).offset(-(grant_num + 1));
+            let reference_to_grant_pointer = &mut *pointer_to_grant_pointer;
+            Some(reference_to_grant_pointer)
+        }
     }
 
     fn get_process_name(&self) -> &'static str {

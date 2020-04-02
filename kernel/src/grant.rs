@@ -3,7 +3,7 @@
 use core::marker::PhantomData;
 use core::mem::{align_of, size_of};
 use core::ops::{Deref, DerefMut};
-use core::ptr::{write, write_volatile, NonNull};
+use core::ptr::{write, NonNull};
 
 use crate::callback::AppId;
 use crate::process::{Error, ProcessType};
@@ -18,7 +18,7 @@ pub struct Grant<T: Default> {
 
 pub struct AppliedGrant<T> {
     appid: AppId,
-    grant: *mut T,
+    grant: NonNull<T>,
     _phantom: PhantomData<T>,
 }
 
@@ -29,7 +29,7 @@ impl<T> AppliedGrant<T> {
         R: Copy,
     {
         let mut allocator = Allocator { appid: self.appid };
-        let mut root = unsafe { Owned::new(self.grant, self.appid) };
+        let mut root = Owned::new(self.grant, self.appid);
         fun(&mut root, &mut allocator)
     }
 }
@@ -44,9 +44,9 @@ pub struct Owned<T: ?Sized> {
 }
 
 impl<T: ?Sized> Owned<T> {
-    unsafe fn new(data: *mut T, appid: AppId) -> Owned<T> {
+    fn new(data: NonNull<T>, appid: AppId) -> Owned<T> {
         Owned {
-            data: NonNull::new_unchecked(data),
+            data: data,
             appid: appid,
         }
     }
@@ -93,7 +93,9 @@ impl Allocator {
                             // We use `ptr::write` to avoid `Drop`ping the uninitialized memory in
                             // case `T` implements the `Drop` trait.
                             write(ptr, data);
-                            Ok(Owned::new(ptr, self.appid))
+                            // Unchecked is safe as we just created this
+                            let data = NonNull::new_unchecked(ptr);
+                            Ok(Owned::new(data, self.appid))
                         },
                     )
                 })
@@ -142,24 +144,30 @@ impl<T: Default> Grant<T> {
     }
 
     pub fn grant(&self, appid: AppId) -> Option<AppliedGrant<T>> {
-        unsafe {
-            appid.kernel.process_map_or(None, appid, |process| {
-                if let Some(grant_ptr_ref) = process.grant_ptr(self.grant_num) {
-                    let cntr = *(grant_ptr_ref as *mut *mut T);
-                    if cntr.is_null() {
+        appid.kernel.process_map_or(None, appid, |process| {
+            if let Some(grant_ptr) = process.grant_ptr(self.grant_num) {
+                // Check if this grant has been allocated yet
+                let grant = {
+                    if grant_ptr.is_null() {
                         None
                     } else {
-                        Some(AppliedGrant {
-                            appid: appid,
-                            grant: cntr,
-                            _phantom: PhantomData,
-                        })
+                        // Requirement: If grant has been allocated, it is sized for T
+                        unsafe { Some(NonNull::new_unchecked(*grant_ptr as *mut T)) }
                     }
+                };
+                if let Some(grant) = grant {
+                    Some(AppliedGrant {
+                        appid: appid,
+                        grant: grant,
+                        _phantom: PhantomData,
+                    })
                 } else {
                     None
                 }
-            })
-        }
+            } else {
+                None
+            }
+        })
     }
 
     pub fn enter<F, R>(&self, appid: AppId, fun: F) -> Result<R, Error>
@@ -201,31 +209,32 @@ impl<T: Default> Grant<T> {
                     //
                     // Get a pointer to where the grant pointer is stored in the
                     // process memory.
-                    if let Some(grant_ptr_ref) = process.grant_ptr(self.grant_num) {
-                        let ctr_ptr = grant_ptr_ref as *mut *mut T;
+                    if let Some(grant_ptr) = process.grant_ptr(self.grant_num) {
+                        let ctr_ptr = *grant_ptr as *mut T;
                         // If the pointer at that location is NULL then the grant
                         // memory needs to be allocated.
-                        let new_grant = if (*ctr_ptr).is_null() {
+                        let grant = if (ctr_ptr).is_null() {
                             process
                                 .alloc(size_of::<T>(), align_of::<T>())
                                 .map(|root_arr| {
-                                    let root_ptr = root_arr.as_mut_ptr() as *mut T;
+                                    let new_ctr_ptr = root_arr.as_mut_ptr() as *mut T;
                                     // Initialize the grant contents using ptr::write, to
                                     // ensure that we don't try to drop the contents of
                                     // uninitialized memory when T implements Drop.
-                                    write(root_ptr, Default::default());
+                                    write(new_ctr_ptr, Default::default());
                                     // Record the location in the grant pointer.
-                                    write_volatile(ctr_ptr, root_ptr);
-                                    root_ptr
+                                    *grant_ptr = new_ctr_ptr as *mut u8;
+                                    // Return the newly allocated and intialized grant
+                                    new_ctr_ptr
                                 })
                         } else {
-                            Some(*ctr_ptr)
+                            Some(ctr_ptr)
                         };
 
                         // If the grant region already exists or there was enough
                         // memory to allocate it, call the passed in closure with
                         // the borrowed grant region.
-                        new_grant.map_or(Err(Error::OutOfMemory), move |root_ptr| {
+                        grant.map_or(Err(Error::OutOfMemory), move |root_ptr| {
                             let root_ptr = root_ptr as *mut T;
                             let mut root = Borrowed::new(&mut *root_ptr, appid);
                             let mut allocator = Allocator { appid: appid };
@@ -243,11 +252,19 @@ impl<T: Default> Grant<T> {
     where
         F: Fn(&mut Owned<T>),
     {
-        self.kernel.process_each(|process| unsafe {
-            if let Some(grant_ptr_ref) = process.grant_ptr(self.grant_num) {
-                let root_ptr = *(grant_ptr_ref as *mut *mut T);
-                if !root_ptr.is_null() {
-                    let mut root = Owned::new(root_ptr, process.appid());
+        self.kernel.process_each(|process| {
+            if let Some(grant_ptr) = process.grant_ptr(self.grant_num) {
+                // Check if this grant has been allocated yet
+                let grant = {
+                    if grant_ptr.is_null() {
+                        None
+                    } else {
+                        // Requirement: If grant has been allocated, it is sized for T
+                        unsafe { Some(NonNull::new_unchecked(*grant_ptr as *mut T)) }
+                    }
+                };
+                if let Some(grant) = grant {
+                    let mut root = Owned::new(grant, process.appid());
                     fun(&mut root);
                 }
             }
@@ -288,13 +305,10 @@ impl<T: Default> Iterator for Iter<'a, T> {
             // processes array. Now we have to check if this grant is setup
             // for this process. If not, we have to skip it and keep
             // looking.
-            unsafe {
-                if let Some(grant_ptr_ref) = p.grant_ptr(grant_num) {
-                    let cntr = *(grant_ptr_ref as *mut *mut T);
-                    !cntr.is_null()
-                } else {
-                    false
-                }
+            if let Some(grant_ptr) = p.grant_ptr(grant_num) {
+                !grant_ptr.is_null()
+            } else {
+                false
             }
         });
 
