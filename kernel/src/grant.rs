@@ -146,24 +146,13 @@ impl<T: Default> Grant<T> {
     pub fn grant(&self, appid: AppId) -> Option<AppliedGrant<T>> {
         appid.kernel.process_map_or(None, appid, |process| {
             if let Some(grant_ptr) = process.grant_ptr(self.grant_num) {
-                // Check if this grant has been allocated yet
-                let grant = {
-                    if grant_ptr.is_null() {
-                        None
-                    } else {
-                        // Requirement: If grant has been allocated, it is sized for T
-                        unsafe { Some(NonNull::new_unchecked(*grant_ptr as *mut T)) }
-                    }
-                };
-                if let Some(grant) = grant {
+                NonNull::new(grant_ptr).map_or(None, |grant| {
                     Some(AppliedGrant {
                         appid: appid,
-                        grant: grant,
+                        grant: grant.cast::<T>(),
                         _phantom: PhantomData,
                     })
-                } else {
-                    None
-                }
+                })
             } else {
                 None
             }
@@ -254,19 +243,10 @@ impl<T: Default> Grant<T> {
     {
         self.kernel.process_each(|process| {
             if let Some(grant_ptr) = process.grant_ptr(self.grant_num) {
-                // Check if this grant has been allocated yet
-                let grant = {
-                    if grant_ptr.is_null() {
-                        None
-                    } else {
-                        // Requirement: If grant has been allocated, it is sized for T
-                        unsafe { Some(NonNull::new_unchecked(*grant_ptr as *mut T)) }
-                    }
-                };
-                if let Some(grant) = grant {
-                    let mut root = Owned::new(grant, process.appid());
+                NonNull::new(grant_ptr).map(|grant| {
+                    let mut root = Owned::new(grant.cast::<T>(), process.appid());
                     fun(&mut root);
-                }
+                });
             }
         });
     }
