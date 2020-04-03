@@ -152,8 +152,8 @@ and its security-relevant dependencies:
 - [TBF Headers](TBF_Headers.md) describes the trust model associated with the
   [Tock Binary Format](../TockBinaryFormat.md) headers.
 
-- [Third Party Dependencies](Third_Party_Dependencies.md) describes Tock's
-  policy on auditing third-party code.
+- [Code Review](Code_Review.md) describes code review practices used to ensure
+  the trustworthiness of Tock's codebase.
 
 ## What is an "Application"?
 

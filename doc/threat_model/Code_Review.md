@@ -1,5 +1,17 @@
-Third Party Dependencies
-========================
+Code Review
+===========
+
+## Kernel Code Review
+
+Changes to the Tock OS kernel (in the kernel/ directory of the repository) are
+reviewed by the Tock core working group. However, not all ports of Tock (which
+include chip crates, board crates, and hardware-specific capsules) are
+maintained by the Tock core working group.
+
+The Tock repository must document which working group (if any) is responsible
+for each hardware-specific crate or capsule.
+
+## Third-Party Dependencies
 
 Tock OS repositories permit third party dependencies for critical components
 that are impractical to author directly. Each repository containing embedded
