@@ -8,7 +8,7 @@ It describes how we intend Tock to work as of some future release, perhaps
 
 ## Overview
 
-Tock provides hardware-based isolation between applications as well as
+Tock provides hardware-based isolation between processes as well as
 language-based isolation between untrusted kernel capsules.
 
 Tock supports a variety of hardware, including boards defined in the Tock
@@ -29,62 +29,65 @@ provide Tock's isolation guarantees.
 
 These definitions are shared between the documents in this directory.
 
-**Application data** includes an application's image in non-volatile storage,
-its memory footprint in RAM, and any data that conceptually belongs to the
-application that is held by the kernel or other applications. For example, if an
-application requests samples from an ADC then those samples are considered the
-application's data, even when they are stored in a location in RAM only readable
-by the kernel.
+A **process** is a runtime instantiation of an application binary. When an
+application binary "restarts", its process is terminated and a new process is
+started using the same binary. Note that the kernel is not considered a process,
+although it is a thread of execution.
+
+**Process data** includes a process' binary in non-volatile storage, its memory
+footprint in RAM, and any data that conceptually belongs to the process that is
+held by the kernel or other processes. For example, if a process requests
+samples from an ADC then those samples are considered the process' data, even
+when they are stored in a location in RAM only readable by the kernel.
 
 **Kernel data** includes the kernel's image in non-volatile storage as well as
-data in RAM that does not conceptually belong to applications. For example, the
+data in RAM that does not conceptually belong to processes. For example, the
 scheduler's data structures are kernel data.
 
 **Capsule data** is data that is associated with a particular kernel capsule.
-This data can be either kernel data or application data, depending on its
+This data can be either kernel data or process data, depending on its
 conceptual owner. For example, an ADC driver's configuration is kernel data,
-while samples an ADC driver takes on behalf of an application are application
-data.
+while samples an ADC driver takes on behalf of a process are process data.
 
 **Tock's users** refers to entities that make use of Tock OS. In the context of
 threat modelling, this typically refers to board integrators (entities that
 combine Tock components into an OS to run on a specific piece of hardware) and
 application developers (who consume Tock's APIs and rely on the OS' guarantees).
 
-## Isolation Provided to Applications
+## Isolation Provided to Processes
 
-**Confidentiality:** Application data may not be accessed by other applications
-or by untrusted capsules, unless explicitly permitted by the application. Note
-that Tock does not generally provide defense against side channel attacks; see
-the [Side Channel Defense](#side-channel-defense) heading below for more
-details. Additionally, [Virtualization](Virtualization.md) describes some
-limitations on isolation for shared resources.
+**Confidentiality:** A process' data may not be accessed by other processes or
+by untrusted capsules, unless explicitly permitted by the process. Note that
+Tock does not generally provide defense against side channel attacks; see the
+[Side Channel Defense](#side-channel-defense) heading below for more details.
+Additionally, [Virtualization](Virtualization.md) describes some limitations on
+isolation for shared resources.
 
-**Integrity:** Application data may not be modified by other applications or by
-untrusted capsules, except when allowed by the application.
+**Integrity:** Process data may not be modified by other processes or by
+untrusted capsules, except when allowed by the process.
 
-**Availability:** Applications may not deny service to each other at runtime. As
-an exception to this rule, some finite resources may be allocated on a
+**Availability:** Processes may not deny service to each other at runtime. As an
+exception to this rule, some finite resources may be allocated on a
 first-come-first-served basis. This exception is described in detail in
 [Virtualization](Virtualization.md).
 
 ## Isolation Provided to Kernel Code
 
-**Confidentiality:** Kernel data may not be accessed by applications, except
+**Confidentiality:** Kernel data may not be accessed by processes, except
 where explicitly permitted by the owning component. Kernel data may not be
 accessed by untrusted capsules, except where explicitly permitted by the owning
 component. The limitations about [side channel defense](#side-channel-defense)
-and [Virtualization](Virtualization.md) that apply to application data also
-apply to kernel data.
+and [Virtualization](Virtualization.md) that apply to process data also apply to
+kernel data.
 
-**Integrity:** Applications and untrusted capsules may not modify kernel data
+**Integrity:** Processes and untrusted capsules may not modify kernel data
 except through APIs intentionally exposed by the owning code.
 
-**Availability:** Applications cannot starve the kernel of resources or
-otherwise perform denial-of-service attacks against the kernel. This does not
-extend to untrusted capsule code; untrusted capsule code may deny service to
-trusted kernel code. As described in [Virtualization](Virtualization.md), kernel
-APIs should be designed to prevent starvation.
+**Availability:** Processes cannot starve the kernel of resources or otherwise
+perform denial-of-service attacks against the kernel. This does not extend to
+untrusted capsule code; untrusted capsule code may deny service to trusted
+kernel code. As described in [Virtualization](Virtualization.md), kernel APIs
+should be designed to prevent starvation.
 
 ## Isolation that Tock does NOT Provide
 
@@ -109,25 +112,25 @@ In deciding whether to mitigate a side channel, Tock developers should consider
 both the cost of mitigating the side channel as well as the value provided by
 mitigating that side channel. For example:
 
-1. Tock does not hide an application's CPU usage from other applications. Hiding
-   CPU utilization generally requires making significant performance tradeoffs,
-   and CPU utilization is not a particularly sensitive signal.
+1. Tock does not hide a process' CPU usage from other processes. Hiding CPU
+   utilization generally requires making significant performance tradeoffs, and
+   CPU utilization is not a particularly sensitive signal.
 
-1. Although Tock protects an application's data from unauthorized access, Tock
-   does not hide the size of an application's data regions. Without virtual
-   memory hardware, it is very difficult to hide an application's size, and that
-   size is not particularly sensitive.
+1. Although Tock protects a process' data from unauthorized access, Tock does
+   not hide the size of a process' data regions. Without virtual memory
+   hardware, it is very difficult to hide a process' size, and that size is not
+   particularly sensitive.
 
 1. It is often practical to build constant-time cryptographic API
    implementations, and protecting the secrecy of plaintext is valuable. As
    such, it may make sense for a Tock board to expose a cryptographic API with
    some side channel defenses.
 
-### Guaranteed Launching of Applications
+### Guaranteed Launching of Binaries
 
-Tock does not guarantee that applications it finds are launched. For example, if
-there is not enough RAM available to launch every application then the kernel
-will skip some applications.
+Tock does not guarantee that binaries it finds are launched as processes. For
+example, if there is not enough RAM available to launch every binary then the
+kernel will skip some binaries.
 
 This parallels the "first-come, first-served" resource reservation process
 described in [Virtualization](Virtualization.md#availability).

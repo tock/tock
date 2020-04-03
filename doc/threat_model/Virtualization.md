@@ -2,7 +2,7 @@ Virtualization
 ==============
 
 Tock components that share resources between multiple clients (which may be
-kernel components, applications, or a mix of both) are responsible for providing
+kernel components, processes, or a mix of both) are responsible for providing
 confidentiality and availability guarantees to those clients.
 
 ## Data Sharing (Confidentiality)
@@ -28,7 +28,7 @@ clients must implement isolation commensurate with their functionality. When
 possible, components reading from shared buses should mux data transferred over
 those buses. For example:
 
-1. A UDP API can provide a mechanism for clients (applications and/or untrusted
+1. A UDP API can provide a mechanism for clients (processes and/or untrusted
    capsules) to gain exclusive access to a port. The UDP API should then prevent
    clients from reading messages sent to other clients or impersonating other
    clients.
@@ -47,11 +47,11 @@ those buses. For example:
 ## Fairness (Availability)
 
 Tock components do not need to guarantee fairness between clients. For example,
-a UART virtualization layer may allow capsules/apps using large buffers to see
-higher throughputs than capsules/apps using small buffers. However, components
-should prevent starvation when the semantics of the operation allow it. For the
-UART example, this means using round-robin scheduling rather than preferring
-lower-numbered clients.
+a UART virtualization layer may allow capsules/processes using large buffers to
+see higher throughputs than capsules/processes using small buffers. However,
+components should prevent starvation when the semantics of the operation allow
+it. For the UART example, this means using round-robin scheduling rather than
+preferring lower-numbered clients.
 
 When it is not possible to prevent starvation — such as shared resources that
 may be locked for indefinite amounts of time — then components have two
@@ -66,8 +66,8 @@ options:
 
 An example of an API that would allow first-come-first-served reservations is
 crypto hardware with a finite number of non-sharable registers. In this case,
-different apps can use different registers, but if the registers are
-overcommitted then later/slower apps will be unable to reserve resources.
+different processes can use different registers, but if the registers are
+overcommitted then later/slower processes will be unable to reserve resources.
 
 An example of an API that would be protected via a kernel capability is
 indefinite continuous ADC sampling that blocks other ADC requests. In this case,

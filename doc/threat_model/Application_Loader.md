@@ -9,27 +9,28 @@ examples:
 
 1. Tockloader is an application loader that runs on a host system. It uses
    various host-to-board interfaces (e.g. JTAG, UART bootloader, etc) to
-   manipulate applications on the Tock system's nonvolatile storage.
+   manipulate application binaries on the Tock system's nonvolatile storage.
 
 1. Some build systems combine the kernel and apps at build time into a single,
    monolithic image. This monolithic image is then deployed using a programming
    tool.
 
-1. A kernel-assisted installer may be a Tock capsule that receives an
-   application over USB and writes it into flash.
+1. A kernel-assisted installer may be a Tock capsule that receives application
+   binaries over USB and writes them into flash.
 
 ## Why Must We Trust It?
 
-The application loader has the ability to read and modify applications. As a
-result, the application loader must be trusted to provide confidentiality and
-sometimes integrity guarantees to applications. For example, the application
+The application loader has the ability to read and modify application binaries.
+As a result, the application loader must be trusted to provide confidentiality
+and sometimes integrity guarantees to applications. For example, the application
 loader must not modify or exfiltrate applications other than the application(s)
 it was asked to operate on.
 
-Tock kernels that require all applications to be signed do not need to trust the
-application loader for application integrity, as that is done by validating the
-signature instead. Tock kernels that do not require signed applications must
-trust the application loader to not maliciously modify applications.
+Tock kernels that require all application binaries to be signed do not need to
+trust the application loader for application integrity, as that is done by
+validating the signature instead. Tock kernels that do not require signed
+application binaries must trust the application loader to not maliciously modify
+applications.
 
 To protect the kernel's confidentiality, integrity, and availability the
 application loader must not modify, erase, or exfiltrate kernel data. On most
@@ -45,15 +46,16 @@ loader.
 The application loader is required to confirm that the TBF header's
 `total_size` field is correct for the specified format version (as specified in
 the [Tock Binary Format](../TockBinaryFormat.md#tbf-header-base)) before
-deploying an application. This is to prevent the newly-deployed application
-from executing the following attacks:
+deploying an application binary. This is to prevent the newly-deployed
+application from executing the following attacks:
 
 1. Specifying a too-large `total_size` that includes the subsequent
-   application(s) image(s), allowing the malicious application to read the
-   images(s) (impacting confidentiality).
+   application(s) binary, allowing the malicious application to read the binary
+   (impacting confidentiality).
 
 1. Specifying a too-small `total_size` and making the kernel parse the end of
-   its image as the subsequent application's TBF headers (impacting integrity).
+   its image as the subsequent application binary's TBF headers (impacting
+   integrity).
 
 ## Trusted Compute Base in the Application Loader
 

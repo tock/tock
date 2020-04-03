@@ -16,7 +16,7 @@ malicious behavior. The use of Rust's type system as a security isolation
 mechanism relies in part on Rust's resistance to underhanded
 programming techniques (stealthy obfuscation), and is a weaker form of isolation
 than the hardware-backed isolation used to isolate the kernel (and other
-applications) from applications.
+processes) from processes.
 
 Untrusted capsules are scheduled cooperatively with the rest of the kernel, and
 as such they can deny service to the rest of the system.
