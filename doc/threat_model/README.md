@@ -155,3 +155,20 @@ and its security-relevant dependencies:
 
 - [Third Party Dependencies](Third_Party_Dependencies.md) describes Tock's
   policy on auditing third-party code.
+
+## What is an "Application"?
+
+Tock does not currently have a precise definition of "application", although
+there is consensus on the following:
+
+- Unlike a process, an application persists across reboots and updates. For
+  example, an application binary can be updated without becoming a new
+  application but the update will create a new process.
+
+- An application consists of at least one application binary (in the Tock Binary
+  Format), although it is unclear whether multiple application binaries can
+  collectively be considered a single application (e.g. if they implement a
+  single piece of functionality).
+
+This section will be updated when we have a more precise definition of
+"application".
