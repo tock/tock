@@ -28,10 +28,9 @@ clients must implement isolation commensurate with their functionality. When
 possible, components reading from shared buses should mux data transferred over
 those buses. For example:
 
-1. A UDP API can provide a mechanism for clients (processes and/or untrusted
-   capsules) to gain exclusive access to a port. The UDP API should then prevent
-   clients from reading messages sent to other clients or impersonating other
-   clients.
+1. A UDP API can provide a mechanism for clients (processes and/or capsules) to
+   gain exclusive access to a port. The UDP API should then prevent clients from
+   reading messages sent to other clients or impersonating other clients.
 
 1. A UART API with multiple clients should implement a protocol that allows the
    UART API to determine which client a received packet belongs to and route it

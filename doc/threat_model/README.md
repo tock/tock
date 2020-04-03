@@ -9,7 +9,7 @@ It describes how we intend Tock to work as of some future release, perhaps
 ## Overview
 
 Tock provides hardware-based isolation between processes as well as
-language-based isolation between untrusted kernel capsules.
+language-based isolation between kernel capsules.
 
 Tock supports a variety of hardware, including boards defined in the Tock
 repository and boards defined "out of tree" in a separate repository.
@@ -57,14 +57,14 @@ application developers (who consume Tock's APIs and rely on the OS' guarantees).
 ## Isolation Provided to Processes
 
 **Confidentiality:** A process' data may not be accessed by other processes or
-by untrusted capsules, unless explicitly permitted by the process. Note that
-Tock does not generally provide defense against side channel attacks; see the
-[Side Channel Defense](#side-channel-defense) heading below for more details.
-Additionally, [Virtualization](Virtualization.md) describes some limitations on
-isolation for shared resources.
+by capsules, unless explicitly permitted by the process. Note that Tock does not
+generally provide defense against side channel attacks; see the [Side Channel
+Defense](#side-channel-defense) heading below for more details. Additionally,
+[Virtualization](Virtualization.md) describes some limitations on isolation for
+shared resources.
 
 **Integrity:** Process data may not be modified by other processes or by
-untrusted capsules, except when allowed by the process.
+capsules, except when allowed by the process.
 
 **Availability:** Processes may not deny service to each other at runtime. As an
 exception to this rule, some finite resources may be allocated on a
@@ -73,21 +73,21 @@ first-come-first-served basis. This exception is described in detail in
 
 ## Isolation Provided to Kernel Code
 
-**Confidentiality:** Kernel data may not be accessed by processes, except
-where explicitly permitted by the owning component. Kernel data may not be
-accessed by untrusted capsules, except where explicitly permitted by the owning
-component. The limitations about [side channel defense](#side-channel-defense)
-and [Virtualization](Virtualization.md) that apply to process data also apply to
+**Confidentiality:** Kernel data may not be accessed by processes, except where
+explicitly permitted by the owning component. Kernel data may not be accessed by
+capsules, except where explicitly permitted by the owning component. The
+limitations about [side channel defense](#side-channel-defense) and
+[Virtualization](Virtualization.md) that apply to process data also apply to
 kernel data.
 
-**Integrity:** Processes and untrusted capsules may not modify kernel data
-except through APIs intentionally exposed by the owning code.
+**Integrity:** Processes and capsules may not modify kernel data except through
+APIs intentionally exposed by the owning code.
 
 **Availability:** Processes cannot starve the kernel of resources or otherwise
 perform denial-of-service attacks against the kernel. This does not extend to
-untrusted capsule code; untrusted capsule code may deny service to trusted
-kernel code. As described in [Virtualization](Virtualization.md), kernel APIs
-should be designed to prevent starvation.
+capsule code; capsule code may deny service to trusted kernel code. As described
+in [Virtualization](Virtualization.md), kernel APIs should be designed to
+prevent starvation.
 
 ## Isolation that Tock does NOT Provide
 
@@ -143,9 +143,8 @@ such as the application loader, may vary depending on Tock's use case. The
 following documents describe the trust model that exists between the Tock kernel
 and its security-relevant dependencies:
 
-- [Untrusted Capsule Isolation](Untrusted_Capsule_Isolation.md) describes the
-  coding practices used to isolate untrusted capsules from the remainder of the
-  kernel.
+- [Capsule Isolation](Capsule_Isolation.md) describes the coding practices used
+  to isolate capsules from the remainder of the kernel.
 
 - [Application Loader](Application_Loader.md) describes the trust placed in the
   application deployment mechanism.
