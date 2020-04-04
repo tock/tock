@@ -9,7 +9,7 @@ use core::convert::TryFrom;
 /// A type of task to defer a call for
 #[derive(Copy, Clone)]
 pub enum Task {
-    // ... add deffred tasks here
+    // ... add deferred tasks here
     // Example = 0,
 }
 

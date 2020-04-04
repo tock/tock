@@ -118,7 +118,7 @@ unsafe fn set_pin_primary_functions() {
         // AF7 is USART1_TX
         pin.set_alternate_function(AlternateFunction::AF7);
     });
-    PinId::PA05.get_pin().as_ref().map(|pin| {
+    PinId::PC05.get_pin().as_ref().map(|pin| {
         pin.set_mode(Mode::AlternateFunctionMode);
         // AF7 is USART1_RX
         pin.set_alternate_function(AlternateFunction::AF7);

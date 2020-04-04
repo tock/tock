@@ -1,7 +1,7 @@
 // use core::cell::Cell;
 use core::cell::Cell;
 use kernel::common::cells::{OptionalCell, TakeCell};
-use kernel::common::registers::{register_bitfields, ReadWrite};
+use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
 use kernel::hil;
 use kernel::ClockInterface;
@@ -29,9 +29,9 @@ struct UsartRegisters {
     /// Interrupt and status register
     isr: ReadWrite<u32, ISR::Register>,
     /// Interrupt flag clear register
-    icr: ReadWrite<u32, ISR::Register>,
+    icr: ReadWrite<u32, ICR::Register>,
     /// Receive data register
-    rdr: ReadWrite<u32>,
+    rdr: ReadOnly<u32>,
     /// Transmit data register
     tdr: ReadWrite<u32>,
 }
@@ -280,6 +280,14 @@ enum USARTStateTX {
     AbortRequested,
 }
 
+#[allow(non_camel_case_types)]
+#[derive(Copy, Clone, PartialEq)]
+enum USARTStateRX {
+    Idle,
+    Receiving,
+    AbortRequested,
+}
+
 pub struct Usart<'a> {
     registers: StaticRef<UsartRegisters>,
     clock: UsartClock,
@@ -290,7 +298,12 @@ pub struct Usart<'a> {
     tx_buffer: TakeCell<'static, [u8]>,
     tx_position: Cell<usize>,
     tx_len: Cell<usize>,
-    tx_status: Cell<USARTStateTX>, // rx_len: Cell<usize>,
+    tx_status: Cell<USARTStateTX>,
+
+    rx_buffer: TakeCell<'static, [u8]>,
+    rx_position: Cell<usize>,
+    rx_len: Cell<usize>,
+    rx_status: Cell<USARTStateRX>,
 }
 
 pub static mut USART1: Usart = Usart::new(
@@ -320,7 +333,12 @@ impl Usart<'a> {
             tx_buffer: TakeCell::empty(),
             tx_position: Cell::new(0),
             tx_len: Cell::new(0),
-            tx_status: Cell::new(USARTStateTX::Idle), // rx_len: Cell::new(0),
+            tx_status: Cell::new(USARTStateTX::Idle),
+
+            rx_buffer: TakeCell::empty(),
+            rx_position: Cell::new(0),
+            rx_len: Cell::new(0),
+            rx_status: Cell::new(USARTStateRX::Idle),
         }
     }
 
@@ -343,48 +361,119 @@ impl Usart<'a> {
         self.registers.tdr.set(byte.into());
     }
 
-    fn enable_transmit_complete_interrupt(&self) {
-        self.registers.cr1.modify(CR1::TCIE::SET);
+    fn enable_transmit_interrupt(&self) {
+        self.registers.cr1.modify(CR1::TXEIE::SET);
     }
 
-    fn disable_transmit_complete_interrupt(&self) {
-        self.registers.cr1.modify(CR1::TCIE::CLEAR);
+    fn disable_transmit_interrupt(&self) {
+        self.registers.cr1.modify(CR1::TXEIE::CLEAR);
     }
 
-    fn clear_transmit_complete(&self) {
-        self.registers.isr.modify(ISR::TC::CLEAR);
+    fn enable_receive_interrupt(&self) {
+        self.registers.cr1.modify(CR1::RXNEIE::SET);
+    }
+
+    fn disable_receive_interrupt(&self) {
+        self.registers.cr1.modify(CR1::RXNEIE::CLEAR);
+    }
+
+    fn clear_overrun(&self) {
+        self.registers.icr.modify(ICR::ORECF::SET);
     }
 
     pub fn handle_interrupt(&self) {
-        self.clear_transmit_complete();
-        self.disable_transmit_complete_interrupt();
+        if self.registers.isr.is_set(ISR::TXE) {
+            self.disable_transmit_interrupt();
 
-        // ignore IRQ if not transmitting
-        if self.tx_status.get() == USARTStateTX::Transmitting {
-            let position = self.tx_position.get();
-            if position < self.tx_len.get() {
-                self.tx_buffer.map(|buf| {
-                    self.registers.tdr.set(buf[position].into());
-                    self.tx_position.replace(self.tx_position.get() + 1);
-                    self.enable_transmit_complete_interrupt();
-                });
-            } else {
-                // transmission done
+            // ignore IRQ if not transmitting
+            if self.tx_status.get() == USARTStateTX::Transmitting {
+                if self.tx_position.get() < self.tx_len.get() {
+                    self.tx_buffer.map(|buf| {
+                        self.registers.tdr.set(buf[self.tx_position.get()].into());
+                        self.tx_position.replace(self.tx_position.get() + 1);
+                    });
+                }
+                if self.tx_position.get() == self.tx_len.get() {
+                    // transmission done
+                    self.tx_status.replace(USARTStateTX::Idle);
+                } else {
+                    self.enable_transmit_interrupt();
+                }
+                // notify client if transfer is done
+                if self.tx_status.get() == USARTStateTX::Idle {
+                    self.tx_client.map(|client| {
+                        if let Some(buf) = self.tx_buffer.take() {
+                            client.transmitted_buffer(buf, self.tx_len.get(), ReturnCode::SUCCESS);
+                        }
+                    });
+                }
+            } else if self.tx_status.get() == USARTStateTX::AbortRequested {
                 self.tx_status.replace(USARTStateTX::Idle);
-            }
-            // notify client if transfer is done
-            if self.tx_status.get() == USARTStateTX::Idle {
                 self.tx_client.map(|client| {
                     if let Some(buf) = self.tx_buffer.take() {
-                        client.transmitted_buffer(buf, self.tx_len.get(), ReturnCode::SUCCESS);
+                        client.transmitted_buffer(buf, self.tx_position.get(), ReturnCode::ECANCEL);
                     }
                 });
             }
-        } else if self.tx_status.get() == USARTStateTX::AbortRequested {
-            self.tx_status.replace(USARTStateTX::Idle);
-            self.tx_client.map(|client| {
-                if let Some(buf) = self.tx_buffer.take() {
-                    client.transmitted_buffer(buf, self.tx_position.get(), ReturnCode::ECANCEL);
+        }
+
+        if self.registers.isr.is_set(ISR::RXNE) {
+            let byte = self.registers.rdr.get() as u8;
+            self.disable_receive_interrupt();
+
+            // ignore IRQ if not receiving
+            if self.rx_status.get() == USARTStateRX::Receiving {
+                if self.rx_position.get() < self.rx_len.get() {
+                    self.rx_buffer.map(|buf| {
+                        buf[self.rx_position.get()] = byte;
+                        self.rx_position.replace(self.rx_position.get() + 1);
+                    });
+                }
+                if self.rx_position.get() == self.rx_len.get() {
+                    // reception done
+                    self.rx_status.replace(USARTStateRX::Idle);
+                } else {
+                    self.enable_receive_interrupt();
+                }
+                // notify client if transfer is done
+                if self.rx_status.get() == USARTStateRX::Idle {
+                    self.rx_client.map(|client| {
+                        if let Some(buf) = self.rx_buffer.take() {
+                            client.received_buffer(
+                                buf,
+                                self.rx_len.get(),
+                                ReturnCode::SUCCESS,
+                                hil::uart::Error::None,
+                            );
+                        }
+                    });
+                }
+            } else if self.rx_status.get() == USARTStateRX::AbortRequested {
+                self.rx_status.replace(USARTStateRX::Idle);
+                self.rx_client.map(|client| {
+                    if let Some(buf) = self.rx_buffer.take() {
+                        client.received_buffer(
+                            buf,
+                            self.rx_position.get(),
+                            ReturnCode::ECANCEL,
+                            hil::uart::Error::Aborted,
+                        );
+                    }
+                });
+            }
+        }
+
+        if self.registers.isr.is_set(ISR::ORE) {
+            self.clear_overrun();
+            self.rx_status.replace(USARTStateRX::Idle);
+            self.rx_client.map(|client| {
+                if let Some(buf) = self.rx_buffer.take() {
+                    client.received_buffer(
+                        buf,
+                        self.rx_position.get(),
+                        ReturnCode::ECANCEL,
+                        hil::uart::Error::OverrunError,
+                    );
                 }
             });
         }
@@ -407,7 +496,7 @@ impl hil::uart::Transmit<'a> for Usart<'a> {
                 self.tx_position.set(0);
                 self.tx_len.set(tx_len);
                 self.tx_status.set(USARTStateTX::Transmitting);
-                self.enable_transmit_complete_interrupt();
+                self.enable_transmit_interrupt();
                 (ReturnCode::SUCCESS, None)
             } else {
                 (ReturnCode::ESIZE, Some(tx_data))
@@ -482,10 +571,23 @@ impl hil::uart::Receive<'a> for Usart<'a> {
 
     fn receive_buffer(
         &self,
-        _rx_buffer: &'static mut [u8],
-        _rx_len: usize,
+        rx_buffer: &'static mut [u8],
+        rx_len: usize,
     ) -> (ReturnCode, Option<&'static mut [u8]>) {
-        (ReturnCode::FAIL, None)
+        if self.rx_status.get() == USARTStateRX::Idle {
+            if rx_len <= rx_buffer.len() {
+                self.rx_buffer.put(Some(rx_buffer));
+                self.rx_position.set(0);
+                self.rx_len.set(rx_len);
+                self.rx_status.set(USARTStateRX::Receiving);
+                self.enable_receive_interrupt();
+                (ReturnCode::SUCCESS, None)
+            } else {
+                (ReturnCode::ESIZE, Some(rx_buffer))
+            }
+        } else {
+            (ReturnCode::EBUSY, Some(rx_buffer))
+        }
     }
 
     fn receive_word(&self) -> ReturnCode {
@@ -493,7 +595,12 @@ impl hil::uart::Receive<'a> for Usart<'a> {
     }
 
     fn receive_abort(&self) -> ReturnCode {
-        ReturnCode::EBUSY
+        if self.rx_status.get() != USARTStateRX::Idle {
+            self.rx_status.set(USARTStateRX::AbortRequested);
+            ReturnCode::EBUSY
+        } else {
+            ReturnCode::SUCCESS
+        }
     }
 }
 
