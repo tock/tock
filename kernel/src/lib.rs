@@ -22,6 +22,7 @@ pub mod capabilities;
 pub mod common;
 pub mod component;
 pub mod debug;
+pub mod driver_registry;
 pub mod hil;
 pub mod introspection;
 pub mod ipc;

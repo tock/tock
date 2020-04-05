@@ -44,6 +44,8 @@ pub static mut STACK_MEMORY: [u8; 0x800] = [0; 0x800];
 /// A structure representing this platform that holds references to all
 /// capsules for this platform. We've included an alarm and console.
 struct HiFive1 {
+    driver_registry:
+        &'static kernel::driver_registry::DriverRegistry<'static, capsules::driver::NUM>,
     led: &'static capsules::led::LED<'static, sifive::gpio::GpioPin>,
     console: &'static capsules::console::Console<'static>,
     lldb: &'static capsules::low_level_debug::LowLevelDebug<
@@ -62,12 +64,17 @@ impl Platform for HiFive1 {
     where
         F: FnOnce(Option<&dyn kernel::Driver>) -> R,
     {
-        match driver_num {
-            capsules::led::DRIVER_NUM => f(Some(self.led)),
-            capsules::console::DRIVER_NUM => f(Some(self.console)),
-            capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
-            capsules::low_level_debug::DRIVER_NUM => f(Some(self.lldb)),
-            _ => f(None),
+        if let Some(driver) = self.driver_registry.from_syscall_id(driver_num) {
+            f(Some(driver))
+        } else {
+            // Compatability with legacy code
+            match driver_num {
+                capsules::led::DRIVER_NUM => f(Some(self.led)),
+                capsules::console::DRIVER_NUM => f(Some(self.console)),
+                capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
+                capsules::low_level_debug::DRIVER_NUM => f(Some(self.lldb)),
+                _ => f(None),
+            }
         }
     }
 }
@@ -186,6 +193,19 @@ pub unsafe fn reset_handler() {
 
     let lldb = components::lldb::LowLevelDebugComponent::new(board_kernel, uart_mux).finalize(());
 
+    let driver_registry_array = static_init!(
+        [&'static dyn kernel::driver_registry::DriverInfo<capsules::driver::NUM>; 3],
+        [console, alarm, lldb]
+    );
+    let driver_registry = static_init!(
+        kernel::driver_registry::DriverRegistry<'static, capsules::driver::NUM>,
+        kernel::driver_registry::DriverRegistry::new(
+            0x90000,
+            driver_registry_array,
+            board_kernel.create_grant(&memory_allocation_cap)
+        )
+    );
+
     // Need two debug!() calls to actually test with QEMU. QEMU seems to have
     // a much larger UART TX buffer (or it transmits faster).
     debug!("HiFive1 initialization complete.");
@@ -204,6 +224,7 @@ pub unsafe fn reset_handler() {
     }
 
     let hifive1 = HiFive1 {
+        driver_registry: driver_registry,
         console: console,
         alarm: alarm,
         lldb: lldb,

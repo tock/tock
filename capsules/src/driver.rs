@@ -16,6 +16,7 @@ pub enum NUM {
     Adc                   = 0x00005,
     Dac                   = 0x00006,
     AnalogComparator      = 0x00007,
+    LowLevelDebug         = 0x00008,
 
     // Kernel
     Ipc                   = 0x10000,
@@ -65,4 +66,10 @@ pub enum NUM {
     // Misc
     Buzzer                = 0x90000,
 }
+}
+
+impl From<NUM> for usize {
+    fn from(num: NUM) -> usize {
+        num as usize
+    }
 }

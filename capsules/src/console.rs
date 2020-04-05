@@ -36,12 +36,15 @@
 
 use core::cmp;
 use kernel::common::cells::{OptionalCell, TakeCell};
+use kernel::driver_registry::DriverInfo;
 use kernel::hil::uart;
 use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
 
 /// Syscall driver number.
 use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::Console as usize;
+
+pub const PRIMARY_CONSOLE_ID: &'static str = "console0";
 
 #[derive(Default)]
 pub struct App {
@@ -60,6 +63,7 @@ pub static mut WRITE_BUF: [u8; 64] = [0; 64];
 pub static mut READ_BUF: [u8; 64] = [0; 64];
 
 pub struct Console<'a> {
+    id: &'a str,
     uart: &'a dyn uart::UartData<'a>,
     apps: Grant<App>,
     tx_in_progress: OptionalCell<AppId>,
@@ -70,12 +74,14 @@ pub struct Console<'a> {
 
 impl Console<'a> {
     pub fn new(
+        id: &'a str,
         uart: &'a dyn uart::UartData<'a>,
         tx_buffer: &'static mut [u8],
         rx_buffer: &'static mut [u8],
         grant: Grant<App>,
     ) -> Console<'a> {
         Console {
+            id: id,
             uart: uart,
             apps: grant,
             tx_in_progress: OptionalCell::empty(),
@@ -384,5 +390,23 @@ impl uart::ReceiveClient for Console<'a> {
 
         // Whatever happens, we want to make sure to replace the rx_buffer for future transactions
         self.rx_buffer.replace(buffer);
+    }
+}
+
+impl DriverInfo<crate::driver::NUM> for Console<'a> {
+    fn driver(&self) -> &dyn Driver {
+        self
+    }
+
+    fn driver_type(&self) -> crate::driver::NUM {
+        crate::driver::NUM::Console
+    }
+
+    fn driver_name(&self) -> &'static str {
+        "console"
+    }
+
+    fn instance_identifier<'b>(&'b self) -> &'b str {
+        self.id
     }
 }

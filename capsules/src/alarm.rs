@@ -1,6 +1,7 @@
 //! Provides userspace applications with a alarm API.
 
 use core::cell::Cell;
+use kernel::driver_registry::DriverInfo;
 use kernel::hil::time::{self, Alarm, Frequency};
 use kernel::{AppId, Callback, Driver, Grant, ReturnCode};
 
@@ -236,5 +237,24 @@ mod test {
     #[test]
     pub fn alarm_after_systick_wrap_time_after_systick_wrap_not_expired() {
         assert_eq!(super::has_expired(1u32, 0u32, 3u32), false);
+    }
+}
+
+impl<'a, A: Alarm<'a>> DriverInfo<crate::driver::NUM> for AlarmDriver<'a, A> {
+    fn driver(&self) -> &dyn Driver {
+        self
+    }
+
+    fn driver_type(&self) -> crate::driver::NUM {
+        crate::driver::NUM::Alarm
+    }
+
+    fn driver_name(&self) -> &'static str {
+        "alarm"
+    }
+
+    fn instance_identifier<'b>(&'b self) -> &'b str {
+        // TODO: Change this to something more meaningful
+        "alarm0"
     }
 }

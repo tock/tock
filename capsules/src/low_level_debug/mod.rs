@@ -10,7 +10,7 @@ use kernel::{AppId, Grant, ReturnCode};
 // LowLevelDebug requires a &mut [u8] buffer of length at least BUF_LEN.
 pub use fmt::BUF_LEN;
 
-pub const DRIVER_NUM: usize = 0x8;
+pub const DRIVER_NUM: usize = crate::driver::NUM::LowLevelDebug as usize;
 
 pub struct LowLevelDebug<'u, U: Transmit<'u>> {
     buffer: Cell<Option<&'static mut [u8]>>,
@@ -153,4 +153,25 @@ pub(crate) enum DebugEntry {
     AlertCode(usize),     // Display a predefined alert code
     Print1(usize),        // Print a single number
     Print2(usize, usize), // Print two numbers
+}
+
+impl<'u, U: Transmit<'u>> kernel::driver_registry::DriverInfo<crate::driver::NUM>
+    for LowLevelDebug<'u, U>
+{
+    fn driver(&self) -> &dyn kernel::Driver {
+        self
+    }
+
+    fn driver_type(&self) -> crate::driver::NUM {
+        crate::driver::NUM::LowLevelDebug
+    }
+
+    fn driver_name(&self) -> &'static str {
+        "low_level_debug"
+    }
+
+    fn instance_identifier<'b>(&'b self) -> &'b str {
+        // TODO: This should be changed to something more meaningful
+        "lld0"
+    }
 }

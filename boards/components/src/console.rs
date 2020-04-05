@@ -107,6 +107,7 @@ impl Component for ConsoleComponent {
         let console = static_init!(
             console::Console<'static>,
             console::Console::new(
+                console::PRIMARY_CONSOLE_ID,
                 console_uart,
                 &mut console::WRITE_BUF,
                 &mut console::READ_BUF,
