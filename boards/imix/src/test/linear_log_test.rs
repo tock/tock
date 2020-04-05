@@ -8,7 +8,7 @@
 //!
 //! To run the test, add the following line to the imix boot sequence:
 //! ```
-//!     linear_log_test::run(mux_alarm, dynamic_deferred_caller);
+//!     test::linear_log_test::run(mux_alarm, dynamic_deferred_caller);
 //! ```
 //! and use the `USER` and `RESET` buttons to manually erase the log and reboot the imix,
 //! respectively.

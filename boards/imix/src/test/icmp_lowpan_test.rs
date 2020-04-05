@@ -11,7 +11,7 @@
 //! ...
 //! // Radio initialization code
 //! ...
-//!    let icmp_lowpan_test = icmp_lowpan_test::initialize_all(
+//!    let icmp_lowpan_test = test::icmp_lowpan_test::initialize_all(
 //!        mux_mac,
 //!        mux_alarm as &'static MuxAlarm<'static, sam4l::ast::Ast>,
 //!    );
