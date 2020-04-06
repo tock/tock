@@ -11,7 +11,7 @@
 //! ...
 //! // Radio initialization code
 //! ...
-//!    let udp_lowpan_test = udp_lowpan_test::initialize_all(
+//!    let udp_lowpan_test = test::udp_lowpan_test::initialize_all(
 //!        udp_mux,
 //!        mux_alarm as &'static MuxAlarm<'static, sam4l::ast::Ast>,
 //!    );
@@ -115,8 +115,8 @@
 //! [MOCK_UDP 2] Received packet from IPAddr([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]):81, contents: [72, 101, 108, 108, 111, 32, 87, 111, 114, 108, 100, 32, 45, 32, 65, 112, 112, 50, 10]
 //! -------------------------------------------------------------------------------
 
-use super::imix_components::test::mock_udp::MockUDPComponent;
-use super::imix_components::test::mock_udp2::MockUDPComponent2;
+use super::super::imix_components::test::mock_udp::MockUDPComponent;
+use super::super::imix_components::test::mock_udp2::MockUDPComponent2;
 use capsules::net::ipv6::ip_utils::IPAddr;
 use capsules::net::ipv6::ipv6_send::IP6SendStruct;
 use capsules::net::network_capabilities::{
@@ -142,7 +142,7 @@ pub const TEST_LOOP: bool = false;
 static mut UDP_PAYLOAD: [u8; PAYLOAD_LEN] = [0; PAYLOAD_LEN]; //Becomes payload of UDP packet
 
 const UDP_HDR_SIZE: usize = 8;
-const PAYLOAD_LEN: usize = super::imix_components::udp_mux::PAYLOAD_LEN;
+const PAYLOAD_LEN: usize = super::super::imix_components::udp_mux::PAYLOAD_LEN;
 static mut UDP_PAYLOAD1: [u8; PAYLOAD_LEN - UDP_HDR_SIZE] = [0; PAYLOAD_LEN - UDP_HDR_SIZE];
 static mut UDP_PAYLOAD2: [u8; PAYLOAD_LEN - UDP_HDR_SIZE] = [0; PAYLOAD_LEN - UDP_HDR_SIZE];
 

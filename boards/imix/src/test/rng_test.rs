@@ -2,7 +2,7 @@
 //! transformations between 8-bit and 32-bit entropy. To run this test,
 //! add this line to the imix boot sequence:
 //! ```
-//!     rng_test::run_entropy32();
+//!     test::rng_test::run_entropy32();
 //! ```
 //! This test takes a 32-bit entropy generator, puts its output into a
 //! 32-8 conversion to be an 8-bit generator, puts that output into an

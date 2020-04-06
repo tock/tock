@@ -29,7 +29,7 @@
 //! ...
 //! // Radio initialization code
 //! ...
-//! let lowpan_frag_test = ipv6_lowpan_test::initialize_all(
+//! let lowpan_frag_test = test::ipv6_lowpan_test::initialize_all(
 //!    mux_mac,
 //!    mux_alarm as &'static MuxAlarm<'static, sam4l::ast::Ast>,
 //! );
