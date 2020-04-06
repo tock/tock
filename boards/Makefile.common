@@ -26,6 +26,14 @@ RUSTFLAGS_FOR_CARGO ?= \
   -C link-arg=-zmax-page-size=512 \
   --remap-path-prefix=$(MAKEFILE_PARENT_PATH)= \
 
+# RISC-V-specific flags.
+ifneq ($(findstring riscv32i, $(TARGET)),)
+  # NOTE: This flag causes kernel panics on some ARM cores. Since the
+  # size benefit is almost exclusively for RISC-V, we only apply it for
+  # those targets.
+  RUSTFLAGS_FOR_CARGO += -C force-frame-pointers=no
+endif
+
 # Disallow warnings for continuous integration builds. Disallowing them here
 # ensures that warnings during testing won't prevent compilation from succeeding.
 ifeq ($(CI),true)
