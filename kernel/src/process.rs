@@ -1180,11 +1180,11 @@ impl<C: Chip> ProcessType for Process<'a, C> {
         }
 
         let grant_num = grant_num as isize;
-        unsafe {
+        let grant_pointer = unsafe {
             let grant_pointer_array = self.mem_end() as *const *mut u8;
-            let grant_pointer = *grant_pointer_array.offset(-(grant_num + 1));
-            Some(grant_pointer)
-        }
+            *grant_pointer_array.offset(-(grant_num + 1))
+        };
+        Some(grant_pointer)
     }
 
     unsafe fn set_grant_ptr(&self, grant_num: usize, grant_ptr: *mut u8) {
