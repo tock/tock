@@ -6,9 +6,6 @@
 //!
 //! 2. `I2CComponent` provides a virtualized client to the I2C bus.
 //!
-//! `SpiSyscallComponent` is used for processes, while `I2CComponent` is used
-//! for kernel capsules that need access to the SPI bus.
-//!
 //! Usage
 //! -----
 //! ```rust
