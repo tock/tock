@@ -351,14 +351,21 @@ pub trait ProcessType {
 
     unsafe fn free(&self, _: *mut u8);
 
-    /// Get a reference to the grant pointer for this grant number.
+    /// Get the grant pointer for this grant number.
     ///
     /// This will return `None` if the process is inactive and the grant region
     /// cannot be used.
     ///
     /// Caution: The grant may not have been allocated yet, so it is possible
     /// for this grant pointer to be null.
-    fn grant_ptr(&self, grant_num: usize) -> Option<&mut *mut u8>;
+    fn get_grant_ptr(&self, grant_num: usize) -> Option<*mut u8>;
+
+    /// Set the grant pointer for this grant number.
+    ///
+    /// Note: This method trusts arguments completely, that is, it assumes the
+    /// index into the grant array is valid and the pointer is to an allocated
+    /// grant region in the process memory.
+    unsafe fn set_grant_ptr(&self, grant_num: usize, grant_ptr: *mut u8);
 
     // functions for processes that are architecture specific
 
@@ -1161,7 +1168,7 @@ impl<C: Chip> ProcessType for Process<'a, C> {
     unsafe fn free(&self, _: *mut u8) {}
 
     #[allow(clippy::cast_ptr_alignment)]
-    fn grant_ptr(&self, grant_num: usize) -> Option<&mut *mut u8> {
+    fn get_grant_ptr(&self, grant_num: usize) -> Option<*mut u8> {
         // Do not try to access the grant region of inactive process.
         if !self.is_active() {
             return None;
@@ -1174,11 +1181,17 @@ impl<C: Chip> ProcessType for Process<'a, C> {
 
         let grant_num = grant_num as isize;
         unsafe {
-            let pointer_to_grant_pointer =
-                (self.mem_end() as *mut *mut u8).offset(-(grant_num + 1));
-            let reference_to_grant_pointer = &mut *pointer_to_grant_pointer;
-            Some(reference_to_grant_pointer)
+            let grant_pointer_array = self.mem_end() as *const *mut u8;
+            let grant_pointer = *grant_pointer_array.offset(-(grant_num + 1));
+            Some(grant_pointer)
         }
+    }
+
+    unsafe fn set_grant_ptr(&self, grant_num: usize, grant_ptr: *mut u8) {
+        let grant_num = grant_num as isize;
+        let grant_pointer_array = self.mem_end() as *mut *mut u8;
+        let grant_pointer_pointer = grant_pointer_array.offset(-(grant_num + 1));
+        *grant_pointer_pointer = grant_ptr;
     }
 
     fn get_process_name(&self) -> &'static str {

@@ -136,11 +136,11 @@ impl KernelInfo {
         let mut used = 0;
         self.kernel.process_map_or((), app, |process| {
             for i in 0..number_of_grants {
-                if let Some(grant_ptr) = process.grant_ptr(i) {
+                if let Some(grant_ptr) = process.get_grant_ptr(i) {
                     // If the pointer at that location is not NULL then the
                     // grant memory has been allocated and the grant is
                     // being used.
-                    if !(*grant_ptr).is_null() {
+                    if !(grant_ptr.is_null()) {
                         used += 1;
                     }
                 }

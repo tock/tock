@@ -153,7 +153,7 @@ impl<T: Default> Grant<T> {
 
     pub fn grant(&self, appid: AppId) -> Option<AppliedGrant<T>> {
         appid.kernel.process_map_or(None, appid, |process| {
-            if let Some(grant_ptr) = process.grant_ptr(self.grant_num) {
+            if let Some(grant_ptr) = process.get_grant_ptr(self.grant_num) {
                 NonNull::new(grant_ptr).map(|grant| AppliedGrant {
                     appid: appid,
                     grant: grant.cast::<T>(),
@@ -202,24 +202,28 @@ impl<T: Default> Grant<T> {
                 // process memory if needed.
 
                 // Get the GrantPointer to start
-                if let Some(untyped_grant_ptr_ref) = process.grant_ptr(self.grant_num) {
+                if let Some(mut untyped_grant_ptr) = process.get_grant_ptr(self.grant_num) {
                     // This is the allocator for this process when needed
                     let mut allocator = Allocator { appid: appid };
 
                     // If the pointer at that location is NULL then the memory
                     // for the GrantRegion needs to be allocated.
-                    let region = if (untyped_grant_ptr_ref).is_null() {
+                    if untyped_grant_ptr.is_null() {
                         unsafe {
                             // Note: This allocation is intentionally never
                             // freed.  A grant region is valid once allocated
                             // for the lifetime of the process.
-                            let new_grant_region = allocator.alloc_unowned(Default::default())?;
-                            &mut *new_grant_region.as_ptr()
+                            let new_region = allocator.alloc_unowned(Default::default())?;
+
+                            untyped_grant_ptr = new_region.as_ptr();
+
+                            // Update the grant pointer in the process
+                            process.set_grant_ptr(self.grant_num, untyped_grant_ptr);
                         }
-                    } else {
-                        // Dereference GrantPointer to make GrantRegion reference
-                        unsafe { &mut *(*untyped_grant_ptr_ref as *mut T) }
-                    };
+                    }
+
+                    // Dereference GrantPointer to make GrantRegion reference
+                    let region = unsafe { &mut *(*untyped_grant_ptr as *mut T) };
 
                     // Wrap the grant reference in something that knows
                     // what app its a part of
@@ -239,7 +243,7 @@ impl<T: Default> Grant<T> {
         F: Fn(&mut Owned<T>),
     {
         self.kernel.process_each(|process| {
-            if let Some(grant_ptr) = process.grant_ptr(self.grant_num) {
+            if let Some(grant_ptr) = process.get_grant_ptr(self.grant_num) {
                 NonNull::new(grant_ptr).map(|grant| {
                     let mut root = Owned::new(grant.cast::<T>(), process.appid());
                     fun(&mut root);
@@ -277,12 +281,12 @@ impl<T: Default> Iterator for Iter<'a, T> {
         // Get the next `AppId` from the kernel processes array that is setup to use this grant.
         // Since the iterator itself is saved calling this function
         // again will start where we left off.
-        let res = self.subiter.find(|p| {
+        let res = self.subiter.find(|process| {
             // We have found a candidate process that exists in the
             // processes array. Now we have to check if this grant is setup
             // for this process. If not, we have to skip it and keep
             // looking.
-            if let Some(grant_ptr) = p.grant_ptr(grant_num) {
+            if let Some(grant_ptr) = process.get_grant_ptr(grant_num) {
                 !grant_ptr.is_null()
             } else {
                 false
@@ -292,6 +296,6 @@ impl<T: Default> Iterator for Iter<'a, T> {
         // Check if our find above returned another `AppId`, or if we hit the
         // end of the iterator. If we found another app, try to access its grant
         // region.
-        res.map_or(None, |proc| self.grant.grant(proc.appid()))
+        res.map_or(None, |process| self.grant.grant(process.appid()))
     }
 }
