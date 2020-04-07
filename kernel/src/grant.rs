@@ -146,12 +146,10 @@ impl<T: Default> Grant<T> {
     pub fn grant(&self, appid: AppId) -> Option<AppliedGrant<T>> {
         appid.kernel.process_map_or(None, appid, |process| {
             if let Some(grant_ptr) = process.grant_ptr(self.grant_num) {
-                NonNull::new(grant_ptr).map_or(None, |grant| {
-                    Some(AppliedGrant {
-                        appid: appid,
-                        grant: grant.cast::<T>(),
-                        _phantom: PhantomData,
-                    })
+                NonNull::new(grant_ptr).map(|grant| AppliedGrant {
+                    appid: appid,
+                    grant: grant.cast::<T>(),
+                    _phantom: PhantomData,
                 })
             } else {
                 None
