@@ -24,9 +24,9 @@ pub struct AppPtr<L, T> {
 }
 
 impl<L, T> AppPtr<L, T> {
-    unsafe fn new(ptr: *mut T, appid: AppId) -> AppPtr<L, T> {
+    fn new(ptr: NonNull<T>, appid: AppId) -> AppPtr<L, T> {
         AppPtr {
-            ptr: NonNull::new_unchecked(ptr),
+            ptr: ptr,
             process: appid,
             _phantom: PhantomData,
         }
@@ -66,12 +66,10 @@ pub struct AppSlice<L, T> {
 }
 
 impl<L, T> AppSlice<L, T> {
-    crate fn new(ptr: *mut T, len: usize, appid: AppId) -> AppSlice<L, T> {
-        unsafe {
-            AppSlice {
-                ptr: AppPtr::new(ptr, appid),
-                len: len,
-            }
+    crate fn new(ptr: NonNull<T>, len: usize, appid: AppId) -> AppSlice<L, T> {
+        AppSlice {
+            ptr: AppPtr::new(ptr, appid),
+            len: len,
         }
     }
 

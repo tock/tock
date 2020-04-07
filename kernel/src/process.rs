@@ -1106,16 +1106,16 @@ impl<C: Chip> ProcessType for Process<'a, C> {
             // A null buffer means pass in `None` to the capsule
             Ok(None)
         } else if self.in_app_owned_memory(buf_start_addr, size) {
+            // Capture that we've verified this pointer
+            let buf_start = unsafe { NonNull::new_unchecked(buf_start_addr as *mut u8) };
+
             // Valid slice, we need to adjust the app's watermark
             // in_app_owned_memory eliminates this offset actually wrapping
             let buf_end_addr = buf_start_addr.wrapping_add(size);
             let new_water_mark = max(self.allow_high_water_mark.get(), buf_end_addr);
             self.allow_high_water_mark.set(new_water_mark);
-            Ok(Some(AppSlice::new(
-                buf_start_addr as *mut u8,
-                size,
-                self.appid(),
-            )))
+
+            Ok(Some(AppSlice::new(buf_start, size, self.appid())))
         } else {
             Err(ReturnCode::EINVAL)
         }
