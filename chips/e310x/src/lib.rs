@@ -1,6 +1,6 @@
 //! Chip support for the E310 from SiFive.
 
-#![feature(asm, exclusive_range_pattern)]
+#![feature(asm)]
 #![no_std]
 #![crate_name = "e310x"]
 #![crate_type = "rlib"]
