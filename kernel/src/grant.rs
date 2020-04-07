@@ -266,7 +266,10 @@ impl<T: Default> Grant<T> {
 
 pub struct Iter<'a, T: 'a + Default> {
     grant: &'a Grant<T>,
-    subiter: core::slice::Iter<'a, Option<&'a dyn ProcessType>>,
+    subiter: core::iter::FilterMap<
+        core::slice::Iter<'a, Option<&'static dyn ProcessType>>,
+        fn(&Option<&'static dyn ProcessType>) -> Option<&'static dyn ProcessType>,
+    >,
 }
 
 impl<T: Default> Iterator for Iter<'a, T> {
@@ -277,34 +280,27 @@ impl<T: Default> Iterator for Iter<'a, T> {
         // in the closure below.
         let grant_num = self.grant.grant_num;
 
-        // Get the next `AppId` from the kernel processes array. There can be
-        // empty slots in the processes array, so we use `find_map()` to skip
-        // over those. Since the iterator itself is saved calling this function
+        // Get the next `AppId` from the kernel processes array that is setup to use this grant.
+        // Since the iterator itself is saved calling this function
         // again will start where we left off.
-        let res = self.subiter.find_map(|pi| {
-            pi.map_or(None, |p| {
-                // We have found a candidate process that exists in the
-                // processes array. Now we have to check if this grant is setup
-                // for this process. If not, we have to skip it and keep
-                // looking.
-                unsafe {
-                    if let Some(grant_ptr_ref) = p.grant_ptr(grant_num) {
-                        let cntr = *(grant_ptr_ref as *mut *mut T);
-                        if cntr.is_null() {
-                            None
-                        } else {
-                            Some(p.appid())
-                        }
-                    } else {
-                        None
-                    }
+        let res = self.subiter.find(|p| {
+            // We have found a candidate process that exists in the
+            // processes array. Now we have to check if this grant is setup
+            // for this process. If not, we have to skip it and keep
+            // looking.
+            unsafe {
+                if let Some(grant_ptr_ref) = p.grant_ptr(grant_num) {
+                    let cntr = *(grant_ptr_ref as *mut *mut T);
+                    !cntr.is_null()
+                } else {
+                    false
                 }
-            })
+            }
         });
 
         // Check if our find above returned another `AppId`, or if we hit the
         // end of the iterator. If we found another app, try to access its grant
         // region.
-        res.map_or(None, |app| self.grant.grant(app))
+        res.map_or(None, |proc| self.grant.grant(proc.appid()))
     }
 }
