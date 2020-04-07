@@ -36,12 +36,12 @@ those buses. For example:
    UART API to determine which client a received packet belongs to and route it
    accordingly (in other words, it should implement some form of muxing).
 
-1. An Analog-to-Digital Converter (ADC) does not have a concept of which process
-   "owns" data, nor is there a way to implement such a concept. As such, an ADC
-   API that allows clients to take samples upon request does not need to take
-   separate samples for different clients. An ADC API that receives simultaneous
-   requests to sample the same source may take a single reading and distribute
-   it to multiple clients.
+1. Analog-to-Digital Converter (ADC) hardware does not have a concept of which
+   process "owns" data, nor is there a way to implement such a concept. As such,
+   an ADC API that allows clients to take samples upon request does not need to
+   take separate samples for different clients. An ADC API that receives
+   simultaneous requests to sample the same source may take a single reading and
+   distribute it to multiple clients.
 
 ## Fairness (Availability)
 

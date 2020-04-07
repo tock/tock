@@ -7,9 +7,10 @@ The term "application loader" refers to the mechanism used to add Tock
 applications to a Tock system. It can take several forms; here are a few
 examples:
 
-1. Tockloader is an application loader that runs on a host system. It uses
-   various host-to-board interfaces (e.g. JTAG, UART bootloader, etc) to
-   manipulate application binaries on the Tock system's nonvolatile storage.
+1. [Tockloader](https://www.github.com/tock/tockloader) is an application loader
+   that runs on a host system. It uses various host-to-board interfaces (e.g.
+   JTAG, UART bootloader, etc) to manipulate application binaries on the Tock
+   system's nonvolatile storage.
 
 1. Some build systems combine the kernel and apps at build time into a single,
    monolithic image. This monolithic image is then deployed using a programming

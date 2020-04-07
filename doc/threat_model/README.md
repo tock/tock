@@ -36,9 +36,9 @@ although it is a thread of execution.
 
 **Process data** includes a process' binary in non-volatile storage, its memory
 footprint in RAM, and any data that conceptually belongs to the process that is
-held by the kernel or other processes. For example, if a process requests
-samples from an ADC then those samples are considered the process' data, even
-when they are stored in a location in RAM only readable by the kernel.
+held by the kernel or other processes. For example, if a process is reading from
+a UART then the data in the UART buffer is considered the process' data, even
+when it is stored in a location in RAM only readable by the kernel.
 
 **Kernel data** includes the kernel's image in non-volatile storage as well as
 data in RAM that does not conceptually belong to processes. For example, the
