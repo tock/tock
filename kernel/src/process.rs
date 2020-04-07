@@ -4,7 +4,7 @@ use core::cell::Cell;
 use core::convert::TryInto;
 use core::fmt;
 use core::fmt::Write;
-use core::ptr::write_volatile;
+use core::ptr::{write_volatile, NonNull};
 use core::{mem, ptr, slice, str};
 
 use crate::callback::{AppId, CallbackId};
@@ -347,7 +347,7 @@ pub trait ProcessType {
     /// covering program memory does not extend past the kernel memory break.
     ///
     /// This will return `None` and fail if the process is inactive.
-    unsafe fn alloc(&self, size: usize, align: usize) -> Option<&mut [u8]>;
+    fn alloc(&self, size: usize, align: usize) -> Option<NonNull<u8>>;
 
     unsafe fn free(&self, _: *mut u8);
 
@@ -1114,19 +1114,32 @@ impl<C: Chip> ProcessType for Process<'a, C> {
         }
     }
 
-    unsafe fn alloc(&self, size: usize, align: usize) -> Option<&mut [u8]> {
+    fn alloc(&self, size: usize, align: usize) -> Option<NonNull<u8>> {
         // Do not modify an inactive process.
         if !self.is_active() {
             return None;
         }
 
         self.mpu_config.and_then(|mut config| {
-            let new_break_unaligned = self.kernel_memory_break.get().offset(-(size as isize));
-            // The alignment must be a power of two, 2^a. The expression `!(align - 1)` then
-            // returns a mask with leading ones, followed by `a` trailing zeros.
+            // First, compute the candidate new pointer. Note that at this
+            // point we have not yet checked whether there is space for
+            // this allocation or that it meets alignment requirements.
+            let new_break_unaligned = self
+                .kernel_memory_break
+                .get()
+                .wrapping_offset(-(size as isize));
+
+            // The alignment must be a power of two, 2^a. The expression
+            // `!(align - 1)` then returns a mask with leading ones,
+            // followed by `a` trailing zeros.
             let alignment_mask = !(align - 1);
             let new_break = (new_break_unaligned as usize & alignment_mask) as *const u8;
+
+            // Verify there is space for this allocation
             if new_break < self.app_break.get() {
+                None
+            // Verify it didn't wrap around
+            } else if new_break > self.kernel_memory_break.get() {
                 None
             } else if let Err(_) = self.chip.mpu().update_app_memory_region(
                 self.app_break.get(),
@@ -1137,7 +1150,10 @@ impl<C: Chip> ProcessType for Process<'a, C> {
                 None
             } else {
                 self.kernel_memory_break.set(new_break);
-                Some(slice::from_raw_parts_mut(new_break as *mut u8, size))
+                unsafe {
+                    // Two unsafe steps here, both okay as we just made this pointer
+                    Some(NonNull::new_unchecked(new_break as *mut u8))
+                }
             }
         })
     }
