@@ -351,7 +351,7 @@ pub trait ProcessType {
 
     unsafe fn free(&self, _: *mut u8);
 
-    /// Get the grant pointer for this grant number.
+    /// Get a reference to the grant pointer for this grant number.
     ///
     /// This will return `None` if the process is inactive and the grant region
     /// cannot be used.
