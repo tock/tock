@@ -24,6 +24,7 @@ RUSTFLAGS_FOR_CARGO ?= \
   -C linker-flavor=ld.lld \
   -C relocation-model=dynamic-no-pic \
   -C link-arg=-zmax-page-size=512 \
+  -C link-arg=-icf=all \
   --remap-path-prefix=$(MAKEFILE_PARENT_PATH)= \
 
 # RISC-V-specific flags.
