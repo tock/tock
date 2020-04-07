@@ -98,7 +98,7 @@ impl Allocator {
                     Err(Error::OutOfMemory),
                     |buf| {
                         // Convert untyped `*mut u8` allocation to allocated type
-                        let ptr = NonNull::new_unchecked(buf.as_ptr() as *mut T);
+                        let ptr = NonNull::cast::<T>(buf);
 
                         // We use `ptr::write` to avoid `Drop`ping the uninitialized memory in
                         // case `T` implements the `Drop` trait.
