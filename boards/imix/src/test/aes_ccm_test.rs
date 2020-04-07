@@ -1,6 +1,6 @@
 //! To run this test, include the code
 //! ```
-//!    aes_ccm_test::run();
+//!    test::aes_ccm_test::run();
 //! ```
 //! In the boot sequence. If it runs correctly, you should see the following
 //! output:

@@ -2,7 +2,7 @@
 //!
 //! To test CBC mode, add the following line to the imix boot sequence:
 //! ```
-//!     aes_test::run_aes128_cbc();
+//!     test::aes_test::run_aes128_cbc();
 //! ```
 //! You should see the following output:
 //! ```
@@ -13,7 +13,7 @@
 //! ```
 //! To test CTR mode, add the following line to the imix boot sequence:
 //! ```
-//!     aes_test::run_aes128_ctr();
+//!     test::aes_test::run_aes128_ctr();
 //! ```
 //! You should see the following output:
 //! ```

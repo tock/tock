@@ -133,18 +133,19 @@ impl Kernel {
         }
     }
 
-    /// Return an iterator for all of the items in the processes array on this
-    /// board.
-    ///
-    /// NOTE: This would be better if it returned an iterator to only processes.
-    /// While with `filter_map()` it is straightforward to create an object that
-    /// implements `Iterator` and only iterates over `Some(process)` items in
-    /// the processes array, Rust doesn't seem to support the types necessary to
-    /// actually make that work and be usable. Perhaps as
-    /// https://github.com/rust-lang/rust/issues/63066 progresses this will be
-    /// possible in the future.
-    crate fn get_process_iter(&self) -> core::slice::Iter<Option<&dyn process::ProcessType>> {
-        self.processes.iter()
+    /// Returns an iterator over all processes loaded by the kernel
+    crate fn get_process_iter(
+        &self,
+    ) -> core::iter::FilterMap<
+        core::slice::Iter<Option<&dyn process::ProcessType>>,
+        fn(&Option<&'static dyn process::ProcessType>) -> Option<&'static dyn process::ProcessType>,
+    > {
+        fn keep_some(
+            &x: &Option<&'static dyn process::ProcessType>,
+        ) -> Option<&'static dyn process::ProcessType> {
+            x
+        }
+        self.processes.iter().filter_map(keep_some)
     }
 
     /// Run a closure on every valid process. This will iterate the array of
