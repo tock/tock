@@ -55,7 +55,7 @@ impl kernel::Chip for E310x {
                     int_pin @ interrupts::GPIO0..=interrupts::GPIO31 => {
                         let pin = &gpio::PORT[(int_pin - interrupts::GPIO0) as usize];
                         pin.handle_interrupt();
-                    },
+                    }
                     _ => debug!("Pidx {}", interrupt),
                 }
 
