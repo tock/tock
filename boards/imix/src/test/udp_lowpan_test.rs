@@ -47,7 +47,8 @@
 //! apps be flashed simultaneously.
 //!
 //! start() is an in-kernel only test. Its expected output follows:
-//! -------------------------------------------------------------------------------
+//!
+//! ```
 //! Running test 0:
 //! send_fail test passed
 //! Running test 1:
@@ -61,12 +62,13 @@
 //! Mock UDP done sending. Result: SUCCESS
 //!
 //! All UDP kernel tests complete.
-//! -------------------------------------------------------------------------------
+//! ```
 //!
 //! start_with_app() should be used alongside the userland app `examples/tests/udp/udp_virt_app_kernel`
 //!
 //! start_with_app() expected output:
-//! -------------------------------------------------------------------------------
+//!
+//! ```
 //! [UDP VIRT] Starting Kernel Coop UDP Test App.
 //! bind_test passed
 //! send_test executed, look at printed results once callbacks arrive
@@ -75,7 +77,7 @@
 //! Mock UDP done sending. Result: SUCCESS
 //!
 //! App part of app/kernel test successful!
-//! -------------------------------------------------------------------------------
+//! ```
 //!
 //! start_rx() should be run alongside the userland app
 //! `examples/tests/udp/udp_virt_rx_tests/app1`. It also requires that a second board with the
@@ -85,7 +87,8 @@
 //! this test.
 //!
 //! start_rx() expected output:
-//! -------------------------------------------------------------------------------
+//!
+//! ```
 //! [UDP_RCV_APP1]: Rcvd UDP Packet from: 0001:0203:0405:0607:0809:0a0b:0c0d:0e0f : 26411
 //! Packet Payload: Hello World - App1
 //!
@@ -95,7 +98,7 @@
 //! Packet Payload: Hello World - App1
 //!
 //! [MOCK_UDP 1] Received packet from IPAddr([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]):81, contents: [72, 101, 108, 108, 111, 32, 87, 111, 114, 108, 100, 32, 45, 32, 65, 112, 112, 50, 10]
-//! -------------------------------------------------------------------------------
+//! ```
 //!
 //! start_dual_rx() has the same instructions as start_rx(), but it should be run with no userspace
 //! apps on the receiving board. This test also requires additional changes to main.rs --
@@ -105,7 +108,8 @@
 //! we do not currently expose this functionality to capsules).
 //!
 //! start_dual_rx() expected output:
-//! -------------------------------------------------------------------------------
+//!
+//! ```
 //![MOCK_UDP 1] Received packet from IPAddr([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]):11111, contents: [72, 101, 108, 108, 111, 32, 87, 111, 114, 108, 100, 32, 45, 32, 65, 112, 112, 49, 10]
 //!
 //! [MOCK_UDP 2] Received packet from IPAddr([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]):22222, contents: [72, 101, 108, 108, 111, 32, 87, 111, 114, 108, 100, 32, 45, 32, 65, 112, 112, 50, 10]
@@ -113,7 +117,7 @@
 //! [MOCK_UDP 1] Received packet from IPAddr([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]):80, contents: [72, 101, 108, 108, 111, 32, 87, 111, 114, 108, 100, 32, 45, 32, 65, 112, 112, 49, 10]
 //!
 //! [MOCK_UDP 2] Received packet from IPAddr([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]):81, contents: [72, 101, 108, 108, 111, 32, 87, 111, 114, 108, 100, 32, 45, 32, 65, 112, 112, 50, 10]
-//! -------------------------------------------------------------------------------
+//! ```
 
 use super::super::imix_components::test::mock_udp::MockUDPComponent;
 use super::super::imix_components::test::mock_udp2::MockUDPComponent2;

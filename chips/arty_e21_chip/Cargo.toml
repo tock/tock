@@ -1,14 +1,11 @@
 [package]
-name = "hifive1"
+name = "arty_e21_chip"
 version = "0.1.0"
 authors = ["Tock Project Developers <tock-dev@googlegroups.com>"]
-build = "build.rs"
 edition = "2018"
 
 [dependencies]
-components = { path = "../components" }
+sifive = { path = "../sifive" }
 rv32i = { path = "../../arch/rv32i" }
-capsules = { path = "../../capsules" }
 kernel = { path = "../../kernel" }
-e310x = { path = "../../chips/e310x" }
-sifive = { path = "../../chips/sifive" }
+
