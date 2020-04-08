@@ -39,68 +39,147 @@ allcheck:
 alldoc:
 	@for f in `./tools/list_boards.sh`; do echo "$$(tput bold)Documenting $$f"; $(MAKE) -C "boards/$$f" doc || exit 1; done
 
+
+
+###################################################################
+##
+## Continuous Integration Targets
+##
+## To run all CI locally, use the meta-target `make ci`.
+##
+## Each of the phases of CI is broken into its own target to enable
+## quick local iteration without re-running all phases of CI.
+##
+
+
+## Meta-Targets
+
+.PHONY: ci
+ci: ci-travis ci-netlify
+
 .PHONY: ci-travis
-ci-travis:
+ci-travis:\
+	ci-formatting\
+	ci-tools\
+	ci-libraries\
+	ci-archs\
+	ci-kernel\
+	ci-chips\
+	ci-capsules\
+	ci-syntax\
+	ci-compilation\
+	ci-special-targets\
+	ci-documentation
+	@printf "$$(tput bold)********************$$(tput sgr0)\n"
+	@printf "$$(tput bold)* CI-Travis: Done! *$$(tput sgr0)\n"
+	@printf "$$(tput bold)********************$$(tput sgr0)\n"
+
+.PHONY: ci-netlify
+ci-netlify:\
+	ci-rustdoc
+	@printf "$$(tput bold)*********************$$(tput sgr0)\n"
+	@printf "$$(tput bold)* CI-Netlify: Done! *$$(tput sgr0)\n"
+	@printf "$$(tput bold)*********************$$(tput sgr0)\n"
+
+## Actual Rules (Travis)
+
+.PHONY: ci-capsules
+ci-capsules:
+	@printf "$$(tput bold)**************$$(tput sgr0)\n"
+	@printf "$$(tput bold)* CI: Capsules *$$(tput sgr0)\n"
+	@printf "$$(tput bold)**************$$(tput sgr0)\n"
+	@cd capsules && CI=true TOCK_KERNEL_VERSION=ci_test cargo test
+
+.PHONY: ci-formatting
+ci-formatting:
 	@printf "$$(tput bold)******************$$(tput sgr0)\n"
 	@printf "$$(tput bold)* CI: Formatting *$$(tput sgr0)\n"
 	@printf "$$(tput bold)******************$$(tput sgr0)\n"
 	@CI=true ./tools/run_cargo_fmt.sh diff
 	@./tools/check_wildcard_imports.sh
+
+.PHONY: ci-tools
+ci-tools:
 	@printf "$$(tput bold)*************$$(tput sgr0)\n"
 	@printf "$$(tput bold)* CI: Tools *$$(tput sgr0)\n"
 	@printf "$$(tput bold)*************$$(tput sgr0)\n"
 	@for f in `./tools/list_tools.sh`; do echo "$$(tput bold)Build & Test $$f"; cd tools/$$f && CI=true RUSTFLAGS="-D warnings" cargo build --all-targets || exit 1; cd - > /dev/null; done
+
+.PHONY: ci-libraries
+ci-libraries:
 	@printf "$$(tput bold)*****************$$(tput sgr0)\n"
 	@printf "$$(tput bold)* CI: Libraries *$$(tput sgr0)\n"
 	@printf "$$(tput bold)*****************$$(tput sgr0)\n"
 	@cd libraries/tock-cells && CI=true cargo test
 	@cd libraries/tock-register-interface && CI=true cargo test
+
+.PHONY: ci-archs
+ci-archs:
 	@printf "$$(tput bold)*************$$(tput sgr0)\n"
 	@printf "$$(tput bold)* CI: Archs *$$(tput sgr0)\n"
 	@printf "$$(tput bold)*************$$(tput sgr0)\n"
 	@for f in `./tools/list_archs.sh`; do echo "$$(tput bold)Test $$f"; cd arch/$$f; CI=true TOCK_KERNEL_VERSION=ci_test cargo test || exit 1; cd ../..; done
+
+.PHONY: ci-chips
+ci-chips:
 	@printf "$$(tput bold)*************$$(tput sgr0)\n"
 	@printf "$$(tput bold)* CI: Chips *$$(tput sgr0)\n"
 	@printf "$$(tput bold)*************$$(tput sgr0)\n"
 	@for f in `./tools/list_chips.sh`; do echo "$$(tput bold)Test $$f"; cd chips/$$f; CI=true TOCK_KERNEL_VERSION=ci_test cargo test || exit 1; cd ../..; done
+
+.PHONY: ci-kernel
+ci-kernel:
 	@printf "$$(tput bold)**************$$(tput sgr0)\n"
 	@printf "$$(tput bold)* CI: Kernel *$$(tput sgr0)\n"
 	@printf "$$(tput bold)**************$$(tput sgr0)\n"
 	@cd kernel && CI=true TOCK_KERNEL_VERSION=ci_test cargo test
-	@printf "$$(tput bold)**************$$(tput sgr0)\n"
-	@printf "$$(tput bold)* CI: Capsules *$$(tput sgr0)\n"
-	@printf "$$(tput bold)**************$$(tput sgr0)\n"
-	@cd capsules && CI=true TOCK_KERNEL_VERSION=ci_test cargo test
+
+.PHONY: ci-syntax
+ci-syntax:
 	@printf "$$(tput bold)**************$$(tput sgr0)\n"
 	@printf "$$(tput bold)* CI: Syntax *$$(tput sgr0)\n"
 	@printf "$$(tput bold)**************$$(tput sgr0)\n"
 	@CI=true $(MAKE) allcheck
+
+.PHONY: ci-compilation
+ci-compilation:
 	@printf "$$(tput bold)*******************$$(tput sgr0)\n"
 	@printf "$$(tput bold)* CI: Compilation *$$(tput sgr0)\n"
 	@printf "$$(tput bold)*******************$$(tput sgr0)\n"
 	@CI=true $(MAKE) allboards
+
+.PHONY: ci-special-targets
+ci-special-targets:
 	@printf "$$(tput bold)***********************$$(tput sgr0)\n"
 	@printf "$$(tput bold)* CI: Special Targets *$$(tput sgr0)\n"
 	@printf "$$(tput bold)***********************$$(tput sgr0)\n"
 	@CI=true $(MAKE) -C boards/nordic/nrf52dk lst
 	@CI=true $(MAKE) -C boards/nordic/nrf52dk debug
 	@CI=true $(MAKE) -C boards/nordic/nrf52dk debug-lst
+
+.PHONY: ci-documentation
+ci-documentation:
 	@printf "$$(tput bold)*********************$$(tput sgr0)\n"
 	@printf "$$(tput bold)* CI: Documentation *$$(tput sgr0)\n"
 	@printf "$$(tput bold)*********************$$(tput sgr0)\n"
 	@CI=true tools/toc.sh
-	@printf "$$(tput bold)*************$$(tput sgr0)\n"
-	@printf "$$(tput bold)* CI: Done! *$$(tput sgr0)\n"
-	@printf "$$(tput bold)*************$$(tput sgr0)\n"
 
-.PHONY: ci-netlify
-ci-netlify:
+
+## Actual Rules (Netlify)
+
+.PHONY: ci-rustdoc
+ci-rustdoc:
+	@printf "$$(tput bold)*****************************$$(tput sgr0)\n"
+	@printf "$$(tput bold)* CI: Rustdoc Documentation *$$(tput sgr0)\n"
+	@printf "$$(tput bold)*****************************$$(tput sgr0)\n"
 	@#n.b. netlify calls tools/netlify-build.sh, which is a wrapper
 	@#     that first installs toolchains, then calls this.
 	@tools/build-all-docs.sh
 
-.PHONY: ci
-ci: ci-travis ci-netlify
+## End CI rules
+##
+###################################################################
+
 
 .PHONY: audit
 audit:
