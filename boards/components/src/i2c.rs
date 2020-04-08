@@ -1,6 +1,6 @@
 //! Components for I2C.
 //!
-//! This provides three components.
+//! This provides two components.
 //!
 //! 1. `I2CMuxComponent` provides a virtualization layer for a I2C bus.
 //!
