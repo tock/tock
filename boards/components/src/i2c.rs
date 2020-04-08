@@ -9,7 +9,7 @@
 //! Usage
 //! -----
 //! ```rust
-//! llet mux_i2c = components::i2c::I2CMuxComponent::new(&stm32f3xx::i2c::I2C1).finalize(components::i2c_mux_component_helper!());
+//! let mux_i2c = components::i2c::I2CMuxComponent::new(&stm32f3xx::i2c::I2C1).finalize(components::i2c_mux_component_helper!());
 //! let client_i2c = components::i2c::I2CComponent::new(mux_i2c, 0x19).finalize(components::i2c_component_helper!());
 //! ```
 
@@ -19,7 +19,7 @@ use capsules::virtual_i2c::{I2CDevice, MuxI2C};
 use core::mem::MaybeUninit;
 use kernel::component::Component;
 use kernel::hil::i2c;
-use kernel::{static_init, static_init_half};
+use kernel::static_init_half;
 
 // Setup static space for the objects.
 #[macro_export]
