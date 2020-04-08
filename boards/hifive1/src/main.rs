@@ -64,16 +64,16 @@ impl Platform for HiFive1 {
     where
         F: FnOnce(Option<&dyn kernel::Driver>) -> R,
     {
-        if let Some(driver) = self.driver_registry.from_syscall_id(driver_num) {
-            f(Some(driver))
-        } else {
-            // Compatability with legacy code
-            match driver_num {
-                capsules::led::DRIVER_NUM => f(Some(self.led)),
-                capsules::console::DRIVER_NUM => f(Some(self.console)),
-                capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
-                capsules::low_level_debug::DRIVER_NUM => f(Some(self.lldb)),
-                _ => f(None),
+        match driver_num {
+            // Drivers reachable at a fixed driver_num
+            capsules::led::DRIVER_NUM => f(Some(self.led)),
+            capsules::console::DRIVER_NUM => f(Some(self.console)),
+            capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
+            capsules::low_level_debug::DRIVER_NUM => f(Some(self.lldb)),
+            dynamic_num => {
+                // Check whether this driver num is registered by the
+                // registry
+                f(self.driver_registry.from_syscall_id(dynamic_num))
             }
         }
     }

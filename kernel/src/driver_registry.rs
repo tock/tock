@@ -46,9 +46,9 @@ impl<'a, T: Into<usize>> DriverRegistry<'a, T> {
     }
 
     pub fn find_instance(
-        &'b self,
+        &self,
         driver_type: usize,
-        instance_id: &'b [u8],
+        instance_id: Option<&[u8]>,
     ) -> Option<(usize, &'a dyn Driver)> {
         let dtype: usize = driver_type.into();
 
@@ -57,8 +57,14 @@ impl<'a, T: Into<usize>> DriverRegistry<'a, T> {
             .iter()
             .enumerate()
             .find(|(_, driver)| {
-                driver.driver_type().into() == dtype
-                    && driver.instance_identifier().as_bytes() == instance_id
+                // If the desired instance id is None (get primary
+                // instance), return true. The iterator find method
+                // will return the first (primary) instance
+                let instance_id_match = instance_id
+                    .map(|id| driver.instance_identifier().as_bytes() == id)
+                    .unwrap_or(true);
+
+                driver.driver_type().into() == dtype && instance_id_match
             })
             .and_then(|(index, driver)| {
                 index
@@ -68,6 +74,12 @@ impl<'a, T: Into<usize>> DriverRegistry<'a, T> {
     }
 
     pub fn from_syscall_id(&self, syscall_id: usize) -> Option<&dyn Driver> {
+        // The implementation of this must be as efficient as
+        // possible, as this will be run for every syscall. The
+        // current approach is to check whether the driver registry
+        // itself is addressed and then choose the corresponding
+        // driver based on a bounds-checked array access alone.
+
         if syscall_id == self.syscall_offset {
             Some(self)
         } else {
@@ -93,11 +105,17 @@ impl<'a, T: Into<usize>> Driver for DriverRegistry<'a, T> {
             0 /* Check if the driver is available */ => {
                 ReturnCode::SUCCESS
 	    },
-            1 /* Find syscall number for driver identifier */ => {
+	    1 /* Find syscall number of first instance of given driver type */ => {
+		self.find_instance(r2, None)
+		    .map(|(syscall_id, _)| ReturnCode::SuccessWithValue {
+			value: syscall_id,
+		    }).unwrap_or(ReturnCode::ENODEVICE)
+	    },
+            2 /* Find syscall number for specific driver identifier */ => {
                 self.apps
                     .enter(app_id, |app, _| {
                         if let Some(id_buf) = &app.identifier_buffer {
-                            self.find_instance(r2, id_buf.as_ref())
+                            self.find_instance(r2, Some(id_buf.as_ref()))
                                 .map(|(syscall_id, _)| ReturnCode::SuccessWithValue {
                                     value: syscall_id,
                                 })
