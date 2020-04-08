@@ -8,8 +8,6 @@
 #![no_std]
 #![allow(unused_doc_comments)]
 
-mod deferred_call_tasks;
-
 pub mod chip;
 pub mod nvic;
 
