@@ -1101,29 +1101,33 @@ impl<C: Chip> ProcessType for Process<'a, C> {
     ) -> Result<Option<AppSlice<Shared, u8>>, ReturnCode> {
         if !self.is_active() {
             // Do not modify an inactive process.
-            Err(ReturnCode::FAIL)
-        } else if buf_start_addr == ptr::null_mut() {
-            // A null buffer means pass in `None` to the capsule
-            Ok(None)
-        } else if self.in_app_owned_memory(buf_start_addr, size) {
-            // Capture that we've verified this pointer
-            let buf_start = unsafe { NonNull::new_unchecked(buf_start_addr as *mut u8) };
+            return Err(ReturnCode::FAIL);
+        }
 
-            // Valid slice, we need to adjust the app's watermark
-            // in_app_owned_memory eliminates this offset actually wrapping
-            let buf_end_addr = buf_start_addr.wrapping_add(size);
-            let new_water_mark = max(self.allow_high_water_mark.get(), buf_end_addr);
-            self.allow_high_water_mark.set(new_water_mark);
+        match NonNull::new(buf_start_addr as *mut u8) {
+            None => {
+                // A null buffer means pass in `None` to the capsule
+                Ok(None)
+            }
+            Some(buf_start) => {
+                if self.in_app_owned_memory(buf_start_addr, size) {
+                    // Valid slice, we need to adjust the app's watermark
+                    // note: in_app_owned_memory ensures this offset does not wrap
+                    let buf_end_addr = buf_start_addr.wrapping_add(size);
+                    let new_water_mark = max(self.allow_high_water_mark.get(), buf_end_addr);
+                    self.allow_high_water_mark.set(new_water_mark);
 
-            // The `unsafe` promise we should be making here is that this
-            // buffer is inside of app memory and that it does not create any
-            // aliases (i.e. the same buffer has not been `allow`ed twice).
-            //
-            // TODO: We do not currently satisfy the second promise.
-            let slice = unsafe { AppSlice::new(buf_start, size, self.appid()) };
-            Ok(Some(slice))
-        } else {
-            Err(ReturnCode::EINVAL)
+                    // The `unsafe` promise we should be making here is that this
+                    // buffer is inside of app memory and that it does not create any
+                    // aliases (i.e. the same buffer has not been `allow`ed twice).
+                    //
+                    // TODO: We do not currently satisfy the second promise.
+                    let slice = unsafe { AppSlice::new(buf_start, size, self.appid()) };
+                    Ok(Some(slice))
+                } else {
+                    Err(ReturnCode::EINVAL)
+                }
+            }
         }
     }
 
