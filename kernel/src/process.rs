@@ -1115,7 +1115,13 @@ impl<C: Chip> ProcessType for Process<'a, C> {
             let new_water_mark = max(self.allow_high_water_mark.get(), buf_end_addr);
             self.allow_high_water_mark.set(new_water_mark);
 
-            Ok(Some(AppSlice::new(buf_start, size, self.appid())))
+            // The `unsafe` promise we should be making here is that this
+            // buffer is inside of app memory and that it does not create any
+            // aliases (i.e. the same buffer has not been `allow`ed twice).
+            //
+            // TODO: We do not currently satisfy the second promise.
+            let slice = unsafe { AppSlice::new(buf_start, size, self.appid()) };
+            Ok(Some(slice))
         } else {
             Err(ReturnCode::EINVAL)
         }
