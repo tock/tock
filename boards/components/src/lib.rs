@@ -15,6 +15,7 @@ pub mod debug_writer;
 pub mod hd44780;
 pub mod i2c;
 pub mod isl29035;
+pub mod l3gd20;
 pub mod lldb;
 pub mod nrf51822;
 pub mod panic_button;
