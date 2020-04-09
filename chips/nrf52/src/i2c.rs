@@ -122,6 +122,9 @@ impl TWIM {
 }
 
 impl hil::i2c::I2CMaster for TWIM {
+    fn set_master_client(&self, client: &'static dyn hil::i2c::I2CHwMasterClient) {
+        self.set_client(client);
+    }
     fn enable(&self) {
         self.enable();
     }
