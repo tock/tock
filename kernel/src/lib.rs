@@ -8,7 +8,6 @@
 
 #![feature(
     core_intrinsics,
-    ptr_internals,
     const_fn,
     panic_info_message,
     in_band_lifetimes,
