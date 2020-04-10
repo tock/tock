@@ -27,7 +27,7 @@
 
 use core::mem::MaybeUninit;
 
-use capsules::spi::{Spi, SPI_WRITE_BUF, SPI_READ_BUF};
+use capsules::spi::{Spi, SPI_READ_BUF, SPI_WRITE_BUF};
 use capsules::virtual_spi::{MuxSpiMaster, VirtualSpiMasterDevice};
 use kernel::component::Component;
 use kernel::hil::spi;
