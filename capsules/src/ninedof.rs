@@ -17,6 +17,7 @@
 //! ```
 
 use kernel::common::cells::OptionalCell;
+use kernel::common::{List, ListLink, ListNode};
 use kernel::hil;
 use kernel::ReturnCode;
 use kernel::{AppId, Callback, Driver, Grant};
@@ -51,8 +52,29 @@ impl Default for App {
     }
 }
 
+pub struct NineDofNode<'a, P> {
+    driver: P,
+    next: ListLink<'a, NineDofNode<'a, P>>,
+}
+
+impl<P> NineDofNode<'a, P> {
+    pub fn new(driver: P) -> Self {
+        NineDofNode {
+            driver: driver,
+            next: ListLink::empty(),
+        }
+    }
+}
+
+impl<P> ListNode<'a, NineDofNode<'a, P>> for NineDofNode<'a, P> {
+    fn next(&'a self) -> &'a ListLink<'a, NineDofNode<'a, P>> {
+        &self.next
+    }
+}
+
 pub struct NineDof<'a> {
     driver: &'a dyn hil::sensors::NineDof,
+    additional_drivers: List<'a, NineDofNode<'a, &'a dyn hil::sensors::NineDof>>,
     apps: Grant<App>,
     current_app: OptionalCell<AppId>,
 }
@@ -61,9 +83,17 @@ impl NineDof<'a> {
     pub fn new(driver: &'a dyn hil::sensors::NineDof, grant: Grant<App>) -> NineDof<'a> {
         NineDof {
             driver: driver,
+            additional_drivers: List::new(),
             apps: grant,
             current_app: OptionalCell::empty(),
         }
+    }
+
+    pub fn add_additional_driver(
+        &self,
+        additional_driver: &'a NineDofNode<'a, &'a dyn hil::sensors::NineDof>,
+    ) {
+        self.additional_drivers.push_tail(additional_driver);
     }
 
     // Check so see if we are doing something. If not,
@@ -91,9 +121,42 @@ impl NineDof<'a> {
 
     fn call_driver(&self, command: NineDofCommand, _: usize) -> ReturnCode {
         match command {
-            NineDofCommand::ReadAccelerometer => self.driver.read_accelerometer(),
-            NineDofCommand::ReadMagnetometer => self.driver.read_magnetometer(),
-            NineDofCommand::ReadGyroscope => self.driver.read_gyroscope(),
+            NineDofCommand::ReadAccelerometer => {
+                let mut data = self.driver.read_accelerometer();
+                if data == ReturnCode::ENODEVICE {
+                    for driver in self.additional_drivers.iter() {
+                        data = driver.driver.read_accelerometer();
+                        if data == ReturnCode::SUCCESS {
+                            break;
+                        }
+                    }
+                }
+                data
+            }
+            NineDofCommand::ReadMagnetometer => {
+                let mut data = self.driver.read_magnetometer();
+                if data == ReturnCode::ENODEVICE {
+                    for driver in self.additional_drivers.iter() {
+                        data = driver.driver.read_magnetometer();
+                        if data == ReturnCode::SUCCESS {
+                            break;
+                        }
+                    }
+                }
+                data
+            }
+            NineDofCommand::ReadGyroscope => {
+                let mut data = self.driver.read_gyroscope();
+                if data == ReturnCode::ENODEVICE {
+                    for driver in self.additional_drivers.iter() {
+                        data = driver.driver.read_gyroscope();
+                        if data == ReturnCode::SUCCESS {
+                            break;
+                        }
+                    }
+                }
+                data
+            }
             _ => ReturnCode::ENOSUPPORT,
         }
     }

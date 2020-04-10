@@ -12,6 +12,7 @@ use components::gpio::GpioComponent;
 use kernel::capabilities;
 use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::component::Component;
+use kernel::hil;
 use kernel::hil::gpio::Configure;
 use kernel::hil::gpio::Output;
 use kernel::Platform;
@@ -32,7 +33,7 @@ static mut PROCESSES: [Option<&'static dyn kernel::procs::ProcessType>; NUM_PROC
     [None, None, None, None];
 
 // Static reference to chip for panic dumps.
-static mut CHIP: Option<&'static stm32f303xc::chip::Stm32f3xx> = None;
+static mut CHIP: Option<&'static stm32f303xc::chip::stm32f303xc> = None;
 
 // How should the kernel respond when a process faults.
 const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultResponse::Panic;
@@ -78,6 +79,10 @@ impl Platform for STM32F3Discovery {
             capsules::button::DRIVER_NUM => f(Some(self.button)),
             capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
             capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
+            // capsules::l3gd20::DRIVER_NUM => f(Some(self.l3gd20)),
+            // capsules::lsm303dlhc::DRIVER_NUM => f(Some(self.lsm303dlhc)),
+            // capsules::ninedof::DRIVER_NUM => f(Some(self.ninedof)),
+            // capsules::temperature::DRIVER_NUM => f(Some(self.temp)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             _ => f(None),
         }
@@ -112,7 +117,7 @@ unsafe fn set_pin_primary_functions() {
         kernel::debug::assign_gpios(Some(pin), None, None);
     });
 
-    // // pc4 and pc5 (USART1) is connected to ST-LINK virtual COM port
+    // pc4 and pc5 (USART1) is connected to ST-LINK virtual COM port
     PinId::PC04.get_pin().as_ref().map(|pin| {
         pin.set_mode(Mode::AlternateFunctionMode);
         // AF7 is USART1_TX
@@ -134,6 +139,54 @@ unsafe fn set_pin_primary_functions() {
         EXTI.associate_line_gpiopin(LineId::Exti0, pin);
     });
     cortexm4::nvic::Nvic::new(stm32f303xc::nvic::EXTI0).enable();
+
+    // SPI1 has the l3gd20 sensor connected
+    PinId::PA06.get_pin().as_ref().map(|pin| {
+        pin.set_mode(Mode::AlternateFunctionMode);
+        pin.set_floating_state(kernel::hil::gpio::FloatingState::PullNone);
+        // AF5 is SPI1/SPI2
+        pin.set_alternate_function(AlternateFunction::AF5);
+    });
+    PinId::PA07.get_pin().as_ref().map(|pin| {
+        pin.make_output();
+        pin.set_floating_state(kernel::hil::gpio::FloatingState::PullNone);
+        pin.set_mode(Mode::AlternateFunctionMode);
+        // AF5 is SPI1/SPI2
+        pin.set_alternate_function(AlternateFunction::AF5);
+    });
+    PinId::PA05.get_pin().as_ref().map(|pin| {
+        pin.make_output();
+        pin.set_floating_state(kernel::hil::gpio::FloatingState::PullNone);
+        pin.set_mode(Mode::AlternateFunctionMode);
+        // AF5 is SPI1/SPI2
+        pin.set_alternate_function(AlternateFunction::AF5);
+    });
+    // PE03 is the chip select pin from the l3gd20 sensor
+    PinId::PE03.get_pin().as_ref().map(|pin| {
+        pin.make_output();
+        pin.set_floating_state(kernel::hil::gpio::FloatingState::PullNone);
+        pin.set();
+    });
+
+    stm32f303xc::spi::SPI1.enable_clock();
+
+    // I2C1 has the LSM303DLHC sensor connected
+    PinId::PB06.get_pin().as_ref().map(|pin| {
+        pin.set_mode(Mode::AlternateFunctionMode);
+        pin.set_floating_state(kernel::hil::gpio::FloatingState::PullNone);
+        // AF4 is I2C
+        pin.set_alternate_function(AlternateFunction::AF4);
+    });
+    PinId::PB07.get_pin().as_ref().map(|pin| {
+        pin.make_output();
+        pin.set_floating_state(kernel::hil::gpio::FloatingState::PullNone);
+        pin.set_mode(Mode::AlternateFunctionMode);
+        // AF4 is I2C
+        pin.set_alternate_function(AlternateFunction::AF4);
+    });
+
+    stm32f303xc::i2c::I2C1.enable_clock();
+    stm32f303xc::i2c::I2C1.set_speed(stm32f303xc::i2c::I2CSpeed::Speed400k, 8);
 }
 
 /// Helper function for miscellaneous peripheral functions
@@ -175,8 +228,8 @@ pub unsafe fn reset_handler() {
     DynamicDeferredCall::set_global_instance(dynamic_deferred_caller);
 
     let chip = static_init!(
-        stm32f303xc::chip::Stm32f3xx,
-        stm32f303xc::chip::Stm32f3xx::new()
+        stm32f303xc::chip::stm32f303xc,
+        stm32f303xc::chip::stm32f303xc::new()
     );
     CHIP = Some(chip);
 
@@ -307,8 +360,8 @@ pub unsafe fn reset_handler() {
             stm32f303xc::gpio::PinId::PA01.get_pin().as_ref().unwrap(),
             stm32f303xc::gpio::PinId::PA03.get_pin().as_ref().unwrap(),
             stm32f303xc::gpio::PinId::PF04.get_pin().as_ref().unwrap(),
-            stm32f303xc::gpio::PinId::PA05.get_pin().as_ref().unwrap(),
-            stm32f303xc::gpio::PinId::PA07.get_pin().as_ref().unwrap(),
+            // stm32f303xc::gpio::PinId::PA05.get_pin().as_ref().unwrap(),
+            // stm32f303xc::gpio::PinId::PA07.get_pin().as_ref().unwrap(),
             stm32f303xc::gpio::PinId::PC05.get_pin().as_ref().unwrap(),
             stm32f303xc::gpio::PinId::PB01.get_pin().as_ref().unwrap(),
             stm32f303xc::gpio::PinId::PE07.get_pin().as_ref().unwrap(),
@@ -330,7 +383,7 @@ pub unsafe fn reset_handler() {
             // stm32f303xc::gpio::PinId::PA00.get_pin().as_ref().unwrap(),
             stm32f303xc::gpio::PinId::PA02.get_pin().as_ref().unwrap(),
             stm32f303xc::gpio::PinId::PA04.get_pin().as_ref().unwrap(),
-            stm32f303xc::gpio::PinId::PA06.get_pin().as_ref().unwrap(),
+            // stm32f303xc::gpio::PinId::PA06.get_pin().as_ref().unwrap(),
             stm32f303xc::gpio::PinId::PC04.get_pin().as_ref().unwrap(),
             stm32f303xc::gpio::PinId::PB00.get_pin().as_ref().unwrap(),
             stm32f303xc::gpio::PinId::PB02.get_pin().as_ref().unwrap(),
@@ -349,7 +402,7 @@ pub unsafe fn reset_handler() {
             stm32f303xc::gpio::PinId::PF09.get_pin().as_ref().unwrap(),
             stm32f303xc::gpio::PinId::PF00.get_pin().as_ref().unwrap(),
             stm32f303xc::gpio::PinId::PC14.get_pin().as_ref().unwrap(),
-            stm32f303xc::gpio::PinId::PE06.get_pin().as_ref().unwrap(),
+            // stm32f303xc::gpio::PinId::PE06.get_pin().as_ref().unwrap(),
             stm32f303xc::gpio::PinId::PE04.get_pin().as_ref().unwrap(),
             stm32f303xc::gpio::PinId::PE02.get_pin().as_ref().unwrap(),
             stm32f303xc::gpio::PinId::PB08.get_pin().as_ref().unwrap(),
@@ -374,7 +427,7 @@ pub unsafe fn reset_handler() {
             stm32f303xc::gpio::PinId::PE05.get_pin().as_ref().unwrap(),
             stm32f303xc::gpio::PinId::PE03.get_pin().as_ref().unwrap(),
             stm32f303xc::gpio::PinId::PB09.get_pin().as_ref().unwrap(),
-            stm32f303xc::gpio::PinId::PB07.get_pin().as_ref().unwrap(),
+            // stm32f303xc::gpio::PinId::PB07.get_pin().as_ref().unwrap(),
             stm32f303xc::gpio::PinId::PB05.get_pin().as_ref().unwrap(),
             stm32f303xc::gpio::PinId::PB03.get_pin().as_ref().unwrap(),
             stm32f303xc::gpio::PinId::PD06.get_pin().as_ref().unwrap(),
@@ -392,6 +445,56 @@ pub unsafe fn reset_handler() {
         stm32f303xc::gpio::Pin<'static>
     ));
 
+    // L3GD20 sensor
+    // let spi_mux = components::spi::SpiMuxComponent::new(&stm32f303xc::spi::SPI1)
+    //     .finalize(components::spi_mux_component_helper!(stm32f303xc::spi::Spi));
+
+    // let l3gd20 = components::l3gd20::L3gd20SpiComponent::new().finalize(
+    //     components::l3gd20_spi_component_helper!(
+    //         // spi type
+    //         stm32f303xc::spi::Spi,
+    //         // chip select
+    //         stm32f303xc::gpio::PinId::PE03,
+    //         // spi mux
+    //         spi_mux
+    //     ),
+    // );
+
+    // l3gd20.power_on();
+
+    // let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
+    // let grant_ninedof = board_kernel.create_grant(&grant_cap);
+
+    // let ninedof = static_init!(
+    //     capsules::ninedof::NineDof<'static>,
+    //     capsules::ninedof::NineDof::new(l3gd20, grant_ninedof)
+    // );
+    // hil::sensors::NineDof::set_client(l3gd20, ninedof);
+
+    // let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
+    // let grant_temperature = board_kernel.create_grant(&grant_cap);
+
+    // let temp = static_init!(
+    //     capsules::temperature::TemperatureSensor<'static>,
+    //     capsules::temperature::TemperatureSensor::new(l3gd20, grant_temperature)
+    // );
+    // kernel::hil::sensors::TemperatureDriver::set_client(l3gd20, temp);
+
+    // LSM303DLHC
+
+    // let mux_i2c = components::i2c::I2CMuxComponent::new(&stm32f303xc::i2c::I2C1)
+    //     .finalize(components::i2c_mux_component_helper!());
+
+    // let lsm303dlhc = components::lsm303dlhc::Lsm303dlhcI2CComponent::new()
+    //     .finalize(components::lsm303dlhc_i2c_component_helper!(mux_i2c));
+
+    // let lsm303dlhc_additional = static_init!(
+    //     capsules::ninedof::NineDofNode<'static, &'static dyn hil::sensors::NineDof>,
+    //     capsules::ninedof::NineDofNode::new(lsm303dlhc)
+    // );
+
+    // ninedof.add_additional_driver(lsm303dlhc_additional);
+
     let stm32f3discovery = STM32F3Discovery {
         console: console,
         ipc: kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability),
@@ -399,6 +502,10 @@ pub unsafe fn reset_handler() {
         led: led,
         button: button,
         alarm: alarm,
+        // l3gd20: l3gd20,
+        // lsm303dlhc: lsm303dlhc,
+        // ninedof: ninedof,
+        // temp: temp,
     };
 
     // // Optional kernel tests

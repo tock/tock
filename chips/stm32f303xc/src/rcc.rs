@@ -1,6 +1,5 @@
 use kernel::common::registers::{register_bitfields, ReadWrite};
 use kernel::common::StaticRef;
-use kernel::debug;
 use kernel::ClockInterface;
 
 /// Reset and clock control
