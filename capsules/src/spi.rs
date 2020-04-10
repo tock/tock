@@ -44,6 +44,9 @@ struct SlaveApp {
     index: usize,
 }
 
+pub static mut SPI_WRITE_BUF: [u8; 1024] = [0; 1024];
+pub static mut SPI_READ_BUF: [u8; 1024] = [0; 1024];
+
 pub struct Spi<'a, S: SpiMasterDevice> {
     spi_master: &'a S,
     busy: Cell<bool>,

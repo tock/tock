@@ -27,7 +27,7 @@
 
 use core::mem::MaybeUninit;
 
-use capsules::spi::Spi;
+use capsules::spi::{Spi, SPI_WRITE_BUF, SPI_READ_BUF};
 use capsules::virtual_spi::{MuxSpiMaster, VirtualSpiMasterDevice};
 use kernel::component::Component;
 use kernel::hil::spi;
@@ -130,9 +130,6 @@ impl<S: 'static + spi::SpiMaster> Component for SpiSyscallComponent<S> {
             Spi<'static, VirtualSpiMasterDevice<'static, S>>,
             Spi::new(syscall_spi_device)
         );
-
-        static mut SPI_READ_BUF: [u8; 1024] = [0; 1024];
-        static mut SPI_WRITE_BUF: [u8; 1024] = [0; 1024];
 
         spi_syscalls.config_buffers(&mut SPI_READ_BUF, &mut SPI_WRITE_BUF);
         syscall_spi_device.set_client(spi_syscalls);
