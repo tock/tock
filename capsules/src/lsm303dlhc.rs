@@ -127,7 +127,7 @@ const RANGE_FACTOR_Z: [i16; 8] = [
     980, 760, 600, 400, 355, 295, 205,
 ];
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq, Debug)]
 enum State {
     Idle,
     IsPresent,
@@ -305,7 +305,6 @@ impl Lsm303dlhc<'a> {
 
 impl i2c::I2CClient for Lsm303dlhc<'a> {
     fn command_complete(&self, buffer: &'static mut [u8], error: Error) {
-        self.state.set(State::Idle);
         match self.state.get() {
             State::IsPresent => {
                 let present = if error == Error::CommandComplete && buffer[0] == 60 {
@@ -318,6 +317,7 @@ impl i2c::I2CClient for Lsm303dlhc<'a> {
                     callback.schedule(if present { 1 } else { 0 }, 0, 0);
                 });
                 self.buffer.replace(buffer);
+                self.state.set(State::Idle);
             }
             State::SetPowerMode => {
                 let set_power = error == Error::CommandComplete;
@@ -326,6 +326,7 @@ impl i2c::I2CClient for Lsm303dlhc<'a> {
                     callback.schedule(if set_power { 1 } else { 0 }, 0, 0);
                 });
                 self.buffer.replace(buffer);
+                self.state.set(State::Idle);
                 if self.config_in_progress.get() {
                     self.set_scale_and_resolution(
                         self.accel_scale.get(),
@@ -340,6 +341,7 @@ impl i2c::I2CClient for Lsm303dlhc<'a> {
                     callback.schedule(if set_scale_and_resolution { 1 } else { 0 }, 0, 0);
                 });
                 self.buffer.replace(buffer);
+                self.state.set(State::Idle);
                 if self.config_in_progress.get() {
                     self.set_temperature_and_magneto_data_rate(
                         self.temperature.get(),
@@ -389,6 +391,8 @@ impl i2c::I2CClient for Lsm303dlhc<'a> {
                         callback.schedule(0, 0, 0);
                     });
                 }
+                self.buffer.replace(buffer);
+                self.state.set(State::Idle);
             }
             State::SetTemperatureDataRate => {
                 let set_temperature_and_magneto_data_rate = error == Error::CommandComplete;
@@ -405,6 +409,7 @@ impl i2c::I2CClient for Lsm303dlhc<'a> {
                     );
                 });
                 self.buffer.replace(buffer);
+                self.state.set(State::Idle);
                 if self.config_in_progress.get() {
                     self.set_range(self.mag_range.get());
                 }
@@ -415,6 +420,11 @@ impl i2c::I2CClient for Lsm303dlhc<'a> {
                 self.callback.map(|callback| {
                     callback.schedule(if set_range { 1 } else { 0 }, 0, 0);
                 });
+                if self.config_in_progress.get() {
+                    self.config_in_progress.set(false);
+                }
+                self.buffer.replace(buffer);
+                self.state.set(State::Idle);
             }
             State::ReadTemperature => {
                 let mut temp: usize = 0;
@@ -440,9 +450,7 @@ impl i2c::I2CClient for Lsm303dlhc<'a> {
                     });
                 }
                 self.buffer.replace(buffer);
-                if self.config_in_progress.get() {
-                    self.config_in_progress.set(false);
-                }
+                self.state.set(State::Idle);
             }
             State::ReadMagnetometerXYZ => {
                 let mut x: usize = 0;
@@ -481,6 +489,7 @@ impl i2c::I2CClient for Lsm303dlhc<'a> {
                     });
                 }
                 self.buffer.replace(buffer);
+                self.state.set(State::Idle);
             }
             _ => {
                 debug!("buffer {:?} error {:?}", buffer, error);
