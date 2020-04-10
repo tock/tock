@@ -201,32 +201,49 @@ impl<T: Default> Grant<T> {
                 // grant memory, and allocates the grant region in the
                 // process memory if needed.
 
-                // Get the GrantPointer to start
-                if let Some(mut untyped_grant_ptr) = process.get_grant_ptr(self.grant_num) {
+                // Get the GrantPointer to start. Since process.rs does not know
+                // anything about the datatype of the grant, and the grant
+                // memory may not yet be allocated, it can only return a `*mut
+                // u8` here. We will eventually convert this to a `*mut T`.
+                if let Some(untyped_grant_ptr) = process.get_grant_ptr(self.grant_num) {
                     // This is the allocator for this process when needed
                     let mut allocator = Allocator { appid: appid };
 
-                    // If the pointer at that location is NULL then the memory
-                    // for the GrantRegion needs to be allocated.
-                    if untyped_grant_ptr.is_null() {
+                    // If the grant pointer is NULL then the memory for the
+                    // GrantRegion needs to be allocated. Otherwise, we can
+                    // convert the pointer to a `*mut T` because we know we
+                    // previously allocated enough memory for type T.
+                    let typed_grant_pointer = if untyped_grant_ptr.is_null() {
                         unsafe {
+                            // Allocate space in the process's memory for
+                            // something of type `T` for the grant.
+                            //
                             // Note: This allocation is intentionally never
                             // freed.  A grant region is valid once allocated
                             // for the lifetime of the process.
-                            let new_region = allocator.alloc_unowned(Default::default())?;
+                            let new_region = allocator.alloc_unowned(T::default())?;
 
-                            untyped_grant_ptr = new_region.as_ptr();
+                            // Update the grant pointer in the process. Again,
+                            // since the process struct does not know about the
+                            // grant type we must use a `*mut u8` here.
+                            process.set_grant_ptr(self.grant_num, new_region.as_ptr() as *mut u8);
 
-                            // Update the grant pointer in the process
-                            process.set_grant_ptr(self.grant_num, untyped_grant_ptr);
+                            // The allocator returns a `NonNull`, we just want
+                            // the raw pointer.
+                            new_region.as_ptr()
                         }
-                    }
+                    } else {
+                        // Grant region previously allocated, just convert the
+                        // pointer.
+                        untyped_grant_ptr as *mut T
+                    };
 
-                    // Dereference GrantPointer to make GrantRegion reference
-                    let region = unsafe { &mut *(*untyped_grant_ptr as *mut T) };
+                    // Dereference the typed GrantPointer to make a GrantRegion
+                    // reference.
+                    let region = unsafe { &mut *typed_grant_pointer };
 
                     // Wrap the grant reference in something that knows
-                    // what app its a part of
+                    // what app its a part of.
                     let mut borrowed_region = Borrowed::new(region, appid);
 
                     // Call the passed in closure with the borrowed grant region.
