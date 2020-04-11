@@ -19,11 +19,11 @@ use kernel::{create_capability, debug, static_init};
 pub mod io;
 
 // Number of concurrent processes this platform supports.
-const NUM_PROCS: usize = 4;
+const NUM_PROCS: usize = 20;
 
 // Actual memory for holding the active process structures.
 static mut PROCESSES: [Option<&'static dyn kernel::procs::ProcessType>; NUM_PROCS] =
-    [None, None, None, None];
+    [None; NUM_PROCS];
 
 static mut CHIP: Option<&'static stm32f4xx::chip::Stm32f4xx> = None;
 
