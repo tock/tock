@@ -18,7 +18,7 @@ if [ -n "$TRAVIS_PULL_REQUEST_BRANCH" ]; then
 
     # Bench the current commit that was pushed. Requires navigating back to build directory
     cd ${TRAVIS_BUILD_DIR}
-    make allboards #TODO: Can remove?
+    make allboards
     for elf in $(find . -maxdepth 8 | grep 'release' | egrep '\.elf$' | grep -v 'riscv'); do
         tmp=${elf#*release/}
         b=${tmp%.elf}
@@ -61,7 +61,11 @@ if [ -n "$TRAVIS_PULL_REQUEST_BRANCH" ]; then
         ${TRAVIS_BUILD_DIR}/tools/diff_memory_usage.py previous-benchmark-${b} current-benchmark-${b} size-diffs-${b}.txt ${b}
         if [ -s "size-diffs-${b}.txt" ]; then
             RES="$( grep -hs ^ size-diffs-${b}.txt )" #grep instead of cat to prevent errors on no match
-            curl -X POST -H "Content-Type: application/json" --header "Authorization: token ${TRAVIS_GITHUB_TOKEN}" --data '{"state": "success", "context": "'"${b}"'", "description": "'"${RES}"'"}' https://api.github.com/repos/tock/tock/statuses/${TRAVIS_PULL_REQUEST_SHA}
+            if [ -s "${TRAVIS_GITHUB_TOKEN}"]; then
+                # Only attempt to post statuses if the token is available (will not post for PRs from forks)
+                curl -X POST -H "Content-Type: application/json" --header "Authorization: token ${TRAVIS_GITHUB_TOKEN}" --data '{"state": "success", "context": "'"${b}"'", "description": "'"${RES}"'"}' https://api.github.com/repos/tock/tock/statuses/${TRAVIS_PULL_REQUEST_SHA}
+            fi
+            echo "SIZE CHANGE DETECTED: ${b}: ${RES}"
         fi
     done
 fi
