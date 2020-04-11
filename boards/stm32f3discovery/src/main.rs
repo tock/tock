@@ -7,6 +7,7 @@
 #![feature(asm, core_intrinsics)]
 #![deny(missing_docs)]
 
+use capsules::lsm303dlhc;
 use capsules::virtual_alarm::VirtualMuxAlarm;
 use components::gpio::GpioComponent;
 use kernel::capabilities;
@@ -61,6 +62,11 @@ struct STM32F3Discovery {
     gpio: &'static capsules::gpio::GPIO<'static, stm32f303xc::gpio::Pin<'static>>,
     led: &'static capsules::led::LED<'static, stm32f303xc::gpio::Pin<'static>>,
     button: &'static capsules::button::Button<'static, stm32f303xc::gpio::Pin<'static>>,
+    ninedof: &'static capsules::ninedof::NineDof<'static>,
+    // uncomment this is you need low level acces to the l3gd20 sensor
+    l3gd20: &'static capsules::l3gd20::L3gd20Spi<'static>,
+    lsm303dlhc: &'static capsules::lsm303dlhc::Lsm303dlhc<'static>,
+    temp: &'static capsules::temperature::TemperatureSensor<'static>,
     alarm: &'static capsules::alarm::AlarmDriver<
         'static,
         VirtualMuxAlarm<'static, stm32f303xc::tim2::Tim2<'static>>,
@@ -79,10 +85,10 @@ impl Platform for STM32F3Discovery {
             capsules::button::DRIVER_NUM => f(Some(self.button)),
             capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
             capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
-            // capsules::l3gd20::DRIVER_NUM => f(Some(self.l3gd20)),
-            // capsules::lsm303dlhc::DRIVER_NUM => f(Some(self.lsm303dlhc)),
-            // capsules::ninedof::DRIVER_NUM => f(Some(self.ninedof)),
-            // capsules::temperature::DRIVER_NUM => f(Some(self.temp)),
+            capsules::l3gd20::DRIVER_NUM => f(Some(self.l3gd20)),
+            capsules::lsm303dlhc::DRIVER_NUM => f(Some(self.lsm303dlhc)),
+            capsules::ninedof::DRIVER_NUM => f(Some(self.ninedof)),
+            capsules::temperature::DRIVER_NUM => f(Some(self.temp)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             _ => f(None),
         }
@@ -446,54 +452,65 @@ pub unsafe fn reset_handler() {
     ));
 
     // L3GD20 sensor
-    // let spi_mux = components::spi::SpiMuxComponent::new(&stm32f303xc::spi::SPI1)
-    //     .finalize(components::spi_mux_component_helper!(stm32f303xc::spi::Spi));
+    let spi_mux = components::spi::SpiMuxComponent::new(&stm32f303xc::spi::SPI1)
+        .finalize(components::spi_mux_component_helper!(stm32f303xc::spi::Spi));
 
-    // let l3gd20 = components::l3gd20::L3gd20SpiComponent::new().finalize(
-    //     components::l3gd20_spi_component_helper!(
-    //         // spi type
-    //         stm32f303xc::spi::Spi,
-    //         // chip select
-    //         stm32f303xc::gpio::PinId::PE03,
-    //         // spi mux
-    //         spi_mux
-    //     ),
-    // );
+    let l3gd20 = components::l3gd20::L3gd20SpiComponent::new().finalize(
+        components::l3gd20_spi_component_helper!(
+            // spi type
+            stm32f303xc::spi::Spi,
+            // chip select
+            stm32f303xc::gpio::PinId::PE03,
+            // spi mux
+            spi_mux
+        ),
+    );
 
-    // l3gd20.power_on();
+    l3gd20.power_on();
 
-    // let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
-    // let grant_ninedof = board_kernel.create_grant(&grant_cap);
+    let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
+    let grant_ninedof = board_kernel.create_grant(&grant_cap);
 
-    // let ninedof = static_init!(
-    //     capsules::ninedof::NineDof<'static>,
-    //     capsules::ninedof::NineDof::new(l3gd20, grant_ninedof)
-    // );
-    // hil::sensors::NineDof::set_client(l3gd20, ninedof);
+    let ninedof = static_init!(
+        capsules::ninedof::NineDof<'static>,
+        capsules::ninedof::NineDof::new(l3gd20, grant_ninedof)
+    );
+    hil::sensors::NineDof::set_client(l3gd20, ninedof);
 
-    // let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
-    // let grant_temperature = board_kernel.create_grant(&grant_cap);
+    let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
+    let grant_temperature = board_kernel.create_grant(&grant_cap);
 
-    // let temp = static_init!(
-    //     capsules::temperature::TemperatureSensor<'static>,
-    //     capsules::temperature::TemperatureSensor::new(l3gd20, grant_temperature)
-    // );
-    // kernel::hil::sensors::TemperatureDriver::set_client(l3gd20, temp);
+    let temp = static_init!(
+        capsules::temperature::TemperatureSensor<'static>,
+        capsules::temperature::TemperatureSensor::new(l3gd20, grant_temperature)
+    );
+    kernel::hil::sensors::TemperatureDriver::set_client(l3gd20, temp);
 
     // LSM303DLHC
 
-    // let mux_i2c = components::i2c::I2CMuxComponent::new(&stm32f303xc::i2c::I2C1)
-    //     .finalize(components::i2c_mux_component_helper!());
+    let mux_i2c = components::i2c::I2CMuxComponent::new(&stm32f303xc::i2c::I2C1)
+        .finalize(components::i2c_mux_component_helper!());
 
-    // let lsm303dlhc = components::lsm303dlhc::Lsm303dlhcI2CComponent::new()
-    //     .finalize(components::lsm303dlhc_i2c_component_helper!(mux_i2c));
+    let lsm303dlhc = components::lsm303dlhc::Lsm303dlhcI2CComponent::new()
+        .finalize(components::lsm303dlhc_i2c_component_helper!(mux_i2c));
 
-    // let lsm303dlhc_additional = static_init!(
-    //     capsules::ninedof::NineDofNode<'static, &'static dyn hil::sensors::NineDof>,
-    //     capsules::ninedof::NineDofNode::new(lsm303dlhc)
-    // );
+    lsm303dlhc.configure(
+        lsm303dlhc::Lsm303dlhcAccelDataRate::DataRate25Hz,
+        false,
+        lsm303dlhc::Lsm303dlhcScale::Scale2G,
+        false,
+        true,
+        lsm303dlhc::Lsm303dlhcMagnetoDataRate::DataRate3_0Hz,
+        lsm303dlhc::Lsm303dlhcRange::Range1_9G,
+    );
 
-    // ninedof.add_additional_driver(lsm303dlhc_additional);
+    let lsm303dlhc_additional = static_init!(
+        capsules::ninedof::NineDofNode<'static, &'static dyn hil::sensors::NineDof>,
+        capsules::ninedof::NineDofNode::new(lsm303dlhc)
+    );
+
+    ninedof.add_additional_driver(lsm303dlhc_additional);
+    hil::sensors::NineDof::set_client(lsm303dlhc, ninedof);
 
     let stm32f3discovery = STM32F3Discovery {
         console: console,
@@ -502,10 +519,10 @@ pub unsafe fn reset_handler() {
         led: led,
         button: button,
         alarm: alarm,
-        // l3gd20: l3gd20,
-        // lsm303dlhc: lsm303dlhc,
-        // ninedof: ninedof,
-        // temp: temp,
+        l3gd20: l3gd20,
+        lsm303dlhc: lsm303dlhc,
+        ninedof: ninedof,
+        temp: temp,
     };
 
     // // Optional kernel tests

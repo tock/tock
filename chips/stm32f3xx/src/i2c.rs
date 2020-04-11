@@ -368,13 +368,13 @@ impl I2C<'a> {
                     //     self.rx_position.get()
                     // );
                     if self.tx_position.get() < self.tx_len.get() {
+                        self.registers.cr2.modify(CR2::STOP::SET);
+                        self.stop();
                         self.master_client.map(|client| {
                             self.buffer
                                 .take()
                                 .map(|buf| client.command_complete(buf, Error::DataNak))
                         });
-                        self.registers.cr2.modify(CR2::STOP::SET);
-                        self.stop();
                     } else {
                         // debug!(
                         //     "Write transfer complete {}, {}",
@@ -382,13 +382,13 @@ impl I2C<'a> {
                         //     self.rx_position.get()
                         // );
                         if self.status.get() == I2CStatus::Writing {
+                            self.registers.cr2.modify(CR2::STOP::SET);
+                            self.stop();
                             self.master_client.map(|client| {
                                 self.buffer
                                     .take()
                                     .map(|buf| client.command_complete(buf, Error::CommandComplete))
                             });
-                            self.registers.cr2.modify(CR2::STOP::SET);
-                            self.stop();
                         } else {
                             self.status.set(I2CStatus::Reading);
                             self.start_read();
@@ -406,13 +406,13 @@ impl I2C<'a> {
                     } else {
                         Error::DataNak
                     };
+                    self.registers.cr2.modify(CR2::STOP::SET);
+                    self.stop();
                     self.master_client.map(|client| {
                         self.buffer
                             .take()
                             .map(|buf| client.command_complete(buf, error))
                     });
-                    self.registers.cr2.modify(CR2::STOP::SET);
-                    self.stop();
                 }
                 _ => panic!("i2c should noy be here"),
             }
@@ -463,14 +463,14 @@ impl I2C<'a> {
         if self.registers.isr.is_set(ISR::NACKF) {
             // abort transfer due to NACK
             // debug!("i2c not ack");
+            self.registers.cr2.modify(CR2::STOP::SET);
+            self.stop();
             self.registers.icr.modify(ICR::NACKCF::SET);
             self.master_client.map(|client| {
                 self.buffer
                     .take()
                     .map(|buf| client.command_complete(buf, Error::AddressNak))
             });
-            self.registers.cr2.modify(CR2::STOP::SET);
-            self.stop();
         }
     }
 

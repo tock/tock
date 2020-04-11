@@ -275,6 +275,8 @@ impl Spi<'a> {
         }
 
         if self.transfers.get() == SPI_IN_PROGRESS {
+            self.release_low();
+            self.transfers.set(SPI_IDLE);
             self.master_client.map(|client| {
                 self.tx_buffer
                     .take()

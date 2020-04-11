@@ -30,7 +30,7 @@ use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::Lsm303dlch as usize;
 
 // Buffer to use for I2C messages
-pub static mut BUFFER: [u8; 5] = [0; 5];
+pub static mut BUFFER: [u8; 8] = [0; 8];
 
 /// Register values
 const REGISTER_AUTO_INCREMENT: u8 = 0x80;
@@ -184,7 +184,7 @@ impl Lsm303dlhc<'a> {
         }
     }
 
-    pub fn config(
+    pub fn configure(
         &self,
         accel_data_rate: Lsm303dlhcAccelDataRate,
         low_power: bool,
@@ -357,18 +357,18 @@ impl i2c::I2CClient for Lsm303dlhc<'a> {
                     self.nine_dof_client.map(|client| {
                         // compute using only integers
                         let scale_factor = self.accel_scale.get() as usize;
-                        x = ((buffer[0] as i16 | ((buffer[1] as i16) << 8))
-                            * (SCALE_FACTOR[scale_factor] as i16)
-                            * 1000) as usize
-                            / 32768;
-                        y = ((buffer[2] as i16 | ((buffer[3] as i16) << 8))
-                            * (SCALE_FACTOR[scale_factor] as i16)
-                            * 1000) as usize
-                            / 32768;
-                        z = ((buffer[4] as i16 | ((buffer[5] as i16) << 8))
-                            * (SCALE_FACTOR[scale_factor] as i16)
-                            * 1000) as usize
-                            / 32768;
+                        x = (((buffer[0] as i16 | ((buffer[1] as i16) << 8)) as i32)
+                            * (SCALE_FACTOR[scale_factor] as i32)
+                            * 1000
+                            / 32768) as usize;
+                        y = (((buffer[2] as i16 | ((buffer[3] as i16) << 8)) as i32)
+                            * (SCALE_FACTOR[scale_factor] as i32)
+                            * 1000
+                            / 32768) as usize;
+                        z = (((buffer[4] as i16 | ((buffer[5] as i16) << 8)) as i32)
+                            * (SCALE_FACTOR[scale_factor] as i32)
+                            * 1000
+                            / 32768) as usize;
                         client.callback(x, y, z);
                     });
 
@@ -377,9 +377,9 @@ impl i2c::I2CClient for Lsm303dlhc<'a> {
                     z = (buffer[4] as i16 | ((buffer[5] as i16) << 8)) as usize;
                     true
                 } else {
-                    // self.nine_dof_client.map(|client| {
-                    //     client.callback(0, 0, 0);
-                    // });
+                    self.nine_dof_client.map(|client| {
+                        client.callback(0, 0, 0);
+                    });
                     false
                 };
                 if values {

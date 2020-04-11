@@ -62,6 +62,7 @@ impl Component for Lsm303dlhcI2CComponent {
             )
         );
         static_buffer.0.set_client(lsm303dlhc);
+        static_buffer.1.set_client(lsm303dlhc);
 
         lsm303dlhc
     }
