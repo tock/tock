@@ -41,7 +41,6 @@ impl Write for Writer {
 
 impl IoWrite for Writer {
     fn write(&mut self, buf: &[u8]) {
-        hprintln!("Setez writer: {:?}", buf).unwrap();
         let uart = unsafe { &mut imxrt1050::lpuart::LPUART1 };
 
         if !self.initialized {
@@ -56,7 +55,6 @@ impl IoWrite for Writer {
             });
         }
 
-        hprintln!("Var cu hprn: {:?}", buf).unwrap();
         for &c in buf {
             uart.send_byte(c);
         }

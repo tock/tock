@@ -335,7 +335,6 @@ impl Kernel {
             }
 
             if systick.overflowed() || !systick.greater_than(config::CONFIG.min_quanta_threshold_us) {
-                // hprintln!("Cuanta expirata!").unwrap();
                 process.debug_timeslice_expired();
                 break;
             }

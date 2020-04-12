@@ -358,7 +358,7 @@ pub unsafe fn reset_handler() {
     // // See comment in `boards/imix/src/main.rs`
     // virtual_uart_rx_test::run_virtual_uart_receive(mux_uart);
 
-    // debug!("Initialization complete. Entering main loop");
+    debug!("Initialization complete. Entering main loop");
 
     extern "C" {
         /// Beginning of the ROM region containing app images.
@@ -367,12 +367,11 @@ pub unsafe fn reset_handler() {
         static _sapps: u8;
     }
 
-    let pin = imxrt1050::gpio::PinId::P1_09.get_pin().as_ref().unwrap();
-    pin.make_output();
-    pin.clear();
-    debug!("Almost loaded!");
+    // let pin = imxrt1050::gpio::PinId::P1_09.get_pin().as_ref().unwrap();
+    // pin.make_output();
+    // pin.clear();
+    // debug!("Almost loaded!");
 
-    // hprintln!("{:?}", PROCESSES);
     kernel::procs::load_processes(
         board_kernel,
         chip,
