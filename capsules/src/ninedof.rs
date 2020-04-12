@@ -122,7 +122,11 @@ impl NineDof<'a> {
             .enter(appid, |app, _| {
                 if self.current_app.is_none() {
                     self.current_app.set(appid);
-                    self.call_driver(command, arg1)
+                    let value = self.call_driver(command, arg1);
+                    if value != ReturnCode::SUCCESS {
+                        self.current_app.clear();
+                    }
+                    value
                 } else {
                     if app.pending_command == true {
                         ReturnCode::ENOMEM
