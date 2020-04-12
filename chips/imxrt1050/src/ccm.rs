@@ -2,8 +2,6 @@ use kernel::common::registers::{register_bitfields, ReadWrite, ReadOnly};
 use kernel::common::StaticRef;
 use kernel::ClockInterface;
 
-use cortex_m_semihosting::{hprintln};
-
 // Clock Controller Module
 // CCGR1
 // CCGR4
@@ -252,8 +250,6 @@ impl Ccm {
     }
 
     pub fn set_low_power_mode(&self) {
-        // let x = self.registers.clpcr.get();
-        // hprintln!("{:?}", x);
         self.registers.clpcr.modify(CLPCR::LPM.val(0b00 as u32));
     }
 

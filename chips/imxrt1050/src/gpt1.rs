@@ -5,7 +5,6 @@ use kernel::common::registers::{register_bitfields, ReadWrite, ReadOnly};
 use kernel::common::StaticRef;
 use kernel::hil;
 use kernel::ClockInterface;
-use cortex_m_semihosting::{hprintln};
 
 use crate::nvic;
 use crate::ccm;
@@ -200,7 +199,6 @@ impl Gpt1<'a> {
     }
 
     pub fn handle_interrupt(&self) {
-        // hprintln!("Am intrat in handler!! Si cnt: {}", self.registers.cnt.get()).unwrap();
         self.registers.sr.modify(SR::OF1::SET);
         // self.registers.ir.modify(IR::OF1IE::CLEAR);
 
@@ -210,7 +208,6 @@ impl Gpt1<'a> {
     // starts the timer
     pub fn start(&self) {
     	// Disable GPT and the GPT interrupt register first
-        // hprintln!("Am intrat in functia start!!").unwrap();
     	self.registers.cr.modify(CR::EN::CLEAR);
     	
     	self.registers.ir.modify(IR::ROVIE::CLEAR);
@@ -282,7 +279,6 @@ impl hil::time::Alarm<'a> for Gpt1<'a> {
     }
 
     fn set_alarm(&self, tics: u32) {
-        // hprintln!("sunt aici! tics: {:?} si cnt: {:?}", tics, self.registers.cnt.get()).unwrap();
         self.registers.ocr1.set(tics);
         self.registers.ir.modify(IR::OF1IE::SET);
         // self.registers.cr.modify(CR::OM1::SET);

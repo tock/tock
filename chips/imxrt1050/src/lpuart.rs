@@ -376,15 +376,11 @@ impl Lpuart<'a> {
     pub fn set_baud(&self) {
         // Set the Baud Rate Modulo Divisor
         // let mut initial = self.registers.baud.read(BAUD::SBR);
-        // hprintln!("Val initial: {:?}", initial).unwrap();
         self.registers.baud.modify(BAUD::SBR.val(139 as u32));
         // initial = self.registers.baud.read(BAUD::SBR);
-        // hprintln!("Val dupa: {:?}", initial).unwrap();
     }
 	// for use by panic in io.rs
 	pub fn send_byte(&self, byte: u8) {
-        // hprintln!("Sunt in send_byte!! si TDRE: {} si byte: {}", self.registers.stat.is_set(STAT::TDRE), byte).unwrap();
-
 		// loop till TXE (Transmit data register empty) becomes 1
 		while !self.registers.stat.is_set(STAT::TDRE) {}
 		// self.registers.tdr.set(byte.into());
@@ -446,7 +442,6 @@ impl Lpuart<'a> {
     }
 
 	pub fn handle_interrupt(&self) {
-        // hprintln!("Sunt in handle_interrupt!!").unwrap();
 
         if self.registers.stat.is_set(STAT::TDRE) {
     		self.clear_transmit_complete();
@@ -550,7 +545,6 @@ impl Lpuart<'a> {
 
 impl hil::uart::Transmit<'a> for Lpuart<'a> {
 	fn set_transmit_client(&self, client: &'a dyn hil::uart::TransmitClient) {
-        hprintln!("Sunt in set_transmit_client!!").unwrap();
 		self.tx_client.set(client);
     }
 
@@ -602,15 +596,10 @@ impl hil::uart::Configure for Lpuart<'a> {
 			);
         }
 
-        hprintln!("Sunt in configure!!").unwrap();
-
         unsafe {
             self.disable_clock();
             ccm::CCM.disable_uart_clock_mux();
             ccm::CCM.disable_uart_clock_podf();
-            // if ccm::CCM.just_for_debug() {
-            //     hprintln!("E activat!").unwrap();
-            // }
             self.enable_clock();
         }
         // Reset the LPUART using software
@@ -625,10 +614,8 @@ impl hil::uart::Configure for Lpuart<'a> {
 
         // Set the Baud Rate Modulo Divisor
         // let mut initial = self.registers.baud.read(BAUD::SBR);
-        // hprintln!("Val initial: {:?}", initial).unwrap();
         self.registers.baud.modify(BAUD::SBR.val(139 as u32));
         // initial = self.registers.baud.read(BAUD::SBR);
-        // hprintln!("Val dupa: {:?}", initial).unwrap();
 
         // unsafe {
         //     if ccm::CCM.is_enabled_uart_clock_podf() {

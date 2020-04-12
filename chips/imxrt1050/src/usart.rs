@@ -115,7 +115,6 @@ impl hil::uart::Transmit<'a> for Usart<'a> {
             self.send_byte(*byte);
         }
 
-        hprintln!("[usart] Ba am trimis datele").unwrap();
         self.tx_buffer.put(Some(tx_data));
         self.tx_client.map(|client| {
             if let Some(buf) = self.tx_buffer.take() {

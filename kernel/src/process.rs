@@ -146,7 +146,6 @@ pub fn load_processes<C: Chip>(
         );
     }
 
-    hprintln!("Procs.len: {:?}", procs.len()).unwrap();
     for i in 0..procs.len() {
         unsafe {
             // Get the first eight bytes of flash to check if there is another

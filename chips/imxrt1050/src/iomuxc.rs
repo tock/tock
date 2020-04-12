@@ -189,7 +189,7 @@ impl Iomuxc {
 
 }
 
-// // TBD - chiar nu stiu ce si cum la asta
+// 
 // pub enum CPUClock {
 // }
 
