@@ -60,8 +60,6 @@ mod test;
 // Helper functions for enabling/disabling power on Imix submodules
 mod power;
 
-// State for loading apps.
-
 const NUM_PROCS: usize = 4;
 
 // Constants related to the configuration of the 15.4 network stack
