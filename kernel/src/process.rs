@@ -87,7 +87,7 @@ pub fn load_processes<C: Chip>(
     let mut app_memory_size = app_memory.len();
 
     if config::CONFIG.debug_load_processes {
-        hprintln!(
+        debug!(
             "Loading processes from flash={:#010X} into sram=[{:#010X}:{:#010X}]",
             app_flash.as_ptr() as usize,
             app_memory_ptr as usize,
@@ -792,7 +792,7 @@ impl<C: Chip> ProcessType for Process<'a, C> {
             });
             if config::CONFIG.trace_syscalls {
                 let count_after = tasks.len();
-                hprintln!(
+                debug!(
                     "[{:?}] remove_pending_callbacks[{:#x}:{}] = {} callback(s) removed",
                     self.appid(),
                     callback_id.driver_num,

@@ -2,7 +2,7 @@ use core::fmt::Write;
 use core::panic::PanicInfo;
 
 
-// use kernel::debug;
+use kernel::debug;
 use kernel::debug::IoWrite;
 // use kernel::hil::led;
 use kernel::hil::uart;
@@ -13,8 +13,6 @@ use imxrt1050;
 
 // use crate::CHIP;
 // use crate::PROCESSES;
-
-use cortex_m_semihosting::{hprintln};
 
 /// Writer is used by kernel::debug to panic message to the serial port.
 pub struct Writer {
@@ -79,7 +77,7 @@ pub unsafe extern "C" fn panic_fmt(info: &PanicInfo) -> ! {
         //     &CHIP,
         // )
     // });
-    hprintln!("Panic! {:?}", info).unwrap();
+    debug!("Panic! {:?}", info);
 
     loop {}
 }
