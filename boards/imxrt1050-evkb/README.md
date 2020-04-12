@@ -1,8 +1,7 @@
 i.MX RT1050 Crossover MCU with Arm® Cortex®-M7 core
 ====================================================
 
-For more details about the board[visit the NXP  board website]
-(https://www.nxp.com/products/processors-and-microcontrollers/arm-microcontrollers/i-mx-rt-crossover-mcus/i-mx-rt1050-crossover-mcu-with-arm-cortex-m7-core:i.MX-RT1050).
+For more details about the board[visit the NXP  board website](https://www.nxp.com/products/processors-and-microcontrollers/arm-microcontrollers/i-mx-rt-crossover-mcus/i-mx-rt1050-crossover-mcu-with-arm-cortex-m7-core:i.MX-RT1050).
 
 
 ## Building the app
@@ -45,7 +44,7 @@ Prerequirements: You will need to have the MCU Expresso and the SDK for the IMXR
 
 First step: Import a Hello World example project from the SDK and build the project. This way you will have the following file hierarchy in the Project Explorer Tab:
 
-![image info](./pictures/project-explorer.png)
+![image info](./pictures/poject-explorer.png)
 
 Second step: Copy the app image from target/thumbv7em-none-eabi/debug/imxrt1050-evkb-app.axf to the Debug folder in MCU Expresso (via drag and drop):
 
