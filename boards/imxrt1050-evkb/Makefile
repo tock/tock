@@ -18,12 +18,13 @@ CWD=$(shell pwd)
 
 .PHONY: flash-debug
 flash-debug: target/$(TARGET)/debug/$(PLATFORM).elf
-# 	sudo $(OPENOCD) $(OPENOCD_OPTIONS) -c "init; reset halt; flash write_image erase $(CWD)/$<; verify_image $(CWD)/$<; reset; shutdown"
+	$(error See README.md file. You will need to use MCUExpresso in order to flash on the device.)
 
 .PHONY: flash
 flash: target/$(TARGET)/release/$(PLATFORM).elf
-	sudo $(OPENOCD) $(OPENOCD_OPTIONS) -c "init; reset halt; flash write_image erase $(CWD)/$<; verify_image $(CWD)/$<; reset; shutdown"
+	$(error See README.md file. You will need to use MCUExpresso in order to flash on the device.)
 
 .PHONY: program
 program: target/$(TARGET)/debug/$(PLATFORM).elf
 	arm-none-eabi-objcopy --update-section .apps=$(APP) $(KERNEL) $(KERNEL_WITH_APP)
+	$(warning Tock OS was compiled. In order to flash it on the board, you will need MCUExpresso. See README.md for details.)
