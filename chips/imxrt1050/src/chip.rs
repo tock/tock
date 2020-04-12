@@ -11,7 +11,7 @@ use crate::deferred_call_tasks::Task;
 use crate::nvic;
 // use crate::spi;
 use crate::gpt1;
-// use crate::usart;
+use crate::lpuart;
 
 pub struct Imxrt1050 {
     mpu: cortexm7::mpu::MPU,
@@ -62,6 +62,7 @@ impl Chip for Imxrt1050 {
                         //     .get_stream()
                         //     .handle_interrupt(),
 
+                        nvic::LPUART1 => lpuart::LPUART1.handle_interrupt(),
                         // nvic::USART2 => usart::USART2.handle_interrupt(),
                         // nvic::USART3 => usart::USART3.handle_interrupt(),
 

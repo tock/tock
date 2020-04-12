@@ -22,7 +22,7 @@
 // pub const DMA1_Stream6: u32 = 17;
 // pub const ADC: u32 = 18;
 // pub const CAN1_TX: u32 = 19;
-// pub const CAN1_RX0: u32 = 20;
+pub const LPUART1: u32 = 20;
 // pub const CAN1_RX1: u32 = 21;
 // pub const CAN1_SCE: u32 = 22;
 // pub const EXTI9_5: u32 = 23;

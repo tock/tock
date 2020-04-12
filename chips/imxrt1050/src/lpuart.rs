@@ -29,7 +29,7 @@ struct LpuartRegisters {
 	/// LPUART Data Register
 	data: ReadWrite<u32, DATA::Register>,
 	/// LPUART Match Address Register
-	match: ReadWrite<u32, MATCH::Register>,
+	r#match: ReadWrite<u32, MATCH::Register>,
 	/// LPUART Modem IrDA Register
 	modir: ReadWrite<u32, MODIR::Register>,
 	/// LPUART FIFO Register
@@ -45,24 +45,24 @@ register_bitfields![u32,
         /// Minor Version Number
         MINOR OFFSET(16) NUMBITS(8) [],
         /// Feature Identification Number
-        FEATURE OFFSET(0) NUMBITS(16) [],
+        FEATURE OFFSET(0) NUMBITS(16) []
     ],
 	
 	PARAM [
         /// Receive FIFO Size
         RXFIFO OFFSET(8) NUMBITS(8) [],
         /// Transmit FIFO Size
-        TXFIFO OFFSET(0) NUMBITS(8) [],
+        TXFIFO OFFSET(0) NUMBITS(8) []
     ],
 
     GLOBAL [
         /// Software reset
-        RST OFFSET(1) NUMBITS(1) [],
+        RST OFFSET(1) NUMBITS(1) []
     ],
 
     PINCFG [
         /// Trigger Select for input trigger usage
-        TRGSEL OFFSET(0) NUMBITS(2) [],
+        TRGSEL OFFSET(0) NUMBITS(2) []
     ],
 
     BAUD [
@@ -93,7 +93,7 @@ register_bitfields![u32,
         /// Stop Bit Number Select
         SBNS OFFSET(13) NUMBITS(1) [],
         /// Baud Rate Modulo Divisor
-        SBR OFFSET(0) NUMBITS(12) [],
+        SBR OFFSET(0) NUMBITS(13) []
     ],
 
     STAT [
@@ -132,7 +132,7 @@ register_bitfields![u32,
         /// Match 1 Flag
         MA1F OFFSET(15) NUMBITS(1) [],
         /// Match 2 Flag
-        MA2F OFFSET(14) NUMBITS(1) [],
+        MA2F OFFSET(14) NUMBITS(1) []
     ],
 
     CTRL [
@@ -224,14 +224,14 @@ register_bitfields![u32,
         /// R1T1
         R1T1 OFFSET(1) NUMBITS(8) [],
         /// R0T0
-        R0T0 OFFSET(0) NUMBITS(8) [],
+        R0T0 OFFSET(0) NUMBITS(8) []
     ],
 
     MATCH [
         /// Match Address 2
         MA2 OFFSET(16) NUMBITS(10) [],
         /// Match Address 1
-        MA1 OFFSET(0) NUMBITS(10) [],
+        MA1 OFFSET(0) NUMBITS(10) []
     ],
 
     MODIR [
@@ -252,7 +252,7 @@ register_bitfields![u32,
         /// Transmitter request-to-send enable
         TXRTSE OFFSET(1) NUMBITS(1) [],
         /// Transmitter clear-to-send enable
-        TXCTSE OFFSET(0) NUMBITS(1) [],
+        TXCTSE OFFSET(0) NUMBITS(1) []
     ],
 
     FIFO [
@@ -281,7 +281,7 @@ register_bitfields![u32,
         /// Receive FIFO Enable
         RXFE OFFSET(3) NUMBITS(1) [],
         /// Receive FIFO Buffer Depth
-        RXFIFOSIZE OFFSET(0) NUMBITS(3) [],
+        RXFIFOSIZE OFFSET(0) NUMBITS(3) []
     ],
 
     WATER [
@@ -292,9 +292,9 @@ register_bitfields![u32,
         /// Transmit Counter
         TXCOUNT OFFSET(8) NUMBITS(3) [],
         /// Transmit Watermark
-        TXWATER OFFSET(0) NUMBITS(2) [],
-    ],
-]
+        TXWATER OFFSET(0) NUMBITS(2) []
+    ]
+];
 
 const LPUART1_BASE: StaticRef<LpuartRegisters> =
     unsafe { StaticRef::new(0x40184000 as *const LpuartRegisters) };
@@ -307,15 +307,31 @@ enum LPUARTStateTX {
     AbortRequested,
 }
 
+#[allow(non_camel_case_types)]
+#[derive(Copy, Clone, PartialEq)]
+enum USARTStateRX {
+    Idle,
+    Receiving,
+    AbortRequested,
+}
+
+
 pub struct Lpuart<'a> {
     registers: StaticRef<LpuartRegisters>,
     clock: LpuartClock,
+
     tx_client: OptionalCell<&'a dyn hil::uart::TransmitClient>,
     rx_client: OptionalCell<&'a dyn hil::uart::ReceiveClient>,
+
     tx_buffer: TakeCell<'static, [u8]>,
     tx_position: Cell<usize>,
     tx_len: Cell<usize>,
-    tx_status: Cell<LpuartStateTX>, // rx_len: Cell<usize>,
+    tx_status: Cell<LPUARTStateTX>, // rx_len: Cell<usize>,
+
+    rx_buffer: TakeCell<'static, [u8]>,
+    rx_position: Cell<usize>,
+    rx_len: Cell<usize>,
+    rx_status: Cell<USARTStateRX>,
 }
 
 pub static mut LPUART1: Lpuart = Lpuart::new(
@@ -329,12 +345,19 @@ impl Lpuart<'a> {
         Lpuart {
             registers: base_addr,
             clock: clock,
+
             tx_client: OptionalCell::empty(),
             rx_client: OptionalCell::empty(),
+
             tx_buffer: TakeCell::empty(),
             tx_position: Cell::new(0),
             tx_len: Cell::new(0),
-            tx_status: Cell::new(LPUARTStateTX::Idle), // rx_len: Cell::new(0),
+            tx_status: Cell::new(LPUARTStateTX::Idle), 
+
+            rx_buffer: TakeCell::empty(),
+            rx_position: Cell::new(0),
+            rx_len: Cell::new(0),
+            rx_status: Cell::new(USARTStateRX::Idle),
         }
     }
 
@@ -350,66 +373,184 @@ impl Lpuart<'a> {
 		self.clock.disable();
 	}
 
+    pub fn set_baud(&self) {
+        // Set the Baud Rate Modulo Divisor
+        // let mut initial = self.registers.baud.read(BAUD::SBR);
+        // hprintln!("Val initial: {:?}", initial).unwrap();
+        self.registers.baud.modify(BAUD::SBR.val(139 as u32));
+        // initial = self.registers.baud.read(BAUD::SBR);
+        // hprintln!("Val dupa: {:?}", initial).unwrap();
+    }
 	// for use by panic in io.rs
 	pub fn send_byte(&self, byte: u8) {
-		// TO BE DONE
+        // hprintln!("Sunt in send_byte!! si TDRE: {} si byte: {}", self.registers.stat.is_set(STAT::TDRE), byte).unwrap();
 
 		// loop till TXE (Transmit data register empty) becomes 1
-		// while !self.registers.isr.is_set(ISR::TXE) {}
+		while !self.registers.stat.is_set(STAT::TDRE) {}
 		// self.registers.tdr.set(byte.into());
+        self.registers.data.set(byte.into());
+
+        while !self.registers.stat.is_set(STAT::TC) {}
+        // self.registers.baud.modify(BAUD::LBKDIE::SET);
+        // self.registers.baud.modify(BAUD::RXEDGIE::SET);
+        // self.registers.fifo.modify(FIFO::TXOF::CLEAR);
+        // self.registers.fifo.modify(FIFO::TXOF::CLEAR);
+        // self.registers.fifo.modify(FIFO::TXOFE::SET);
+        // self.registers.fifo.modify(FIFO::RXUFE::SET);
+
+        // Enable CTRL
+        // self.registers.ctrl.modify(CTRL::R8T9::SET);
+        // self.registers.ctrl.modify(CTRL::R9T8::SET);
+        // self.registers.ctrl.modify(CTRL::TXDIR::SET);
+        // self.registers.ctrl.modify(CTRL::TXINV::SET);
+        // self.registers.ctrl.modify(CTRL::ORIE::SET);
+        // self.registers.ctrl.modify(CTRL::NEIE::SET);
+        // self.registers.ctrl.modify(CTRL::FEIE::SET);
+        // self.registers.ctrl.modify(CTRL::PEIE::SET);
+        // self.registers.ctrl.modify(CTRL::TIE::SET);
+        // self.registers.ctrl.modify(CTRL::TCIE::SET);
+        // self.registers.ctrl.modify(CTRL::RIE::SET);
+        // self.registers.ctrl.modify(CTRL::ILIE::SET);
+        // self.registers.ctrl.modify(CTRL::TE::SET);
+        // self.registers.ctrl.modify(CTRL::RE::SET);
+        // self.registers.ctrl.modify(CTRL::RWU::SET);
+        // self.registers.ctrl.modify(CTRL::SBK::SET);
+        // self.registers.ctrl.modify(CTRL::MA1IE::SET);
+        // self.registers.ctrl.modify(CTRL::MA2IE::SET);
+        // self.registers.ctrl.modify(CTRL::M7::SET);
+        // self.registers.ctrl.modify(CTRL::IDLECFG.val(0b111 as u32));
 	}
 
 	fn enable_transmit_complete_interrupt(&self) {
-		// self.registers.cr1.modify(CR1::TCIE::SET);
+		self.registers.ctrl.modify(CTRL::TIE::SET);
     }
 
 	fn disable_transmit_complete_interrupt(&self) {
-		// self.registers.cr1.modify(CR1::TCIE::CLEAR);
+		self.registers.ctrl.modify(CTRL::TIE::CLEAR);
     }
 	
 	fn clear_transmit_complete(&self) {
-		// self.registers.isr.modify(ISR::TC::CLEAR);
+		self.registers.stat.modify(STAT::TDRE::CLEAR);
+    }
+
+    fn enable_receive_interrupt(&self) {
+        self.registers.ctrl.modify(CTRL::RIE::SET);
+    }
+
+    fn disable_receive_interrupt(&self) {
+        self.registers.ctrl.modify(CTRL::RIE::CLEAR);
+    }
+
+    fn clear_overrun(&self) {
+        self.registers.ctrl.modify(CTRL::ORIE::CLEAR);
     }
 
 	pub fn handle_interrupt(&self) {
-		// self.clear_transmit_complete();
-		// self.disable_transmit_complete_interrupt();
+        // hprintln!("Sunt in handle_interrupt!!").unwrap();
 
-		// // ignore IRQ if not transmitting
-		// if self.tx_status.get() == USARTStateTX::Transmitting {
-		// 	let position = self.tx_position.get();
-		// 	if position < self.tx_len.get() {
-		// 		self.tx_buffer.map(|buf| {
-		// 			self.registers.tdr.set(buf[position].into());
-		// 			self.tx_position.replace(self.tx_position.get() + 1);
-		// 			self.enable_transmit_complete_interrupt();
-		// 		});
-		// 	} else {
-		// 		// transmission done
-		// 		self.tx_status.replace(USARTStateTX::Idle);
-		// 	}
-		// 	// notify client if transfer is done
-		// 	if self.tx_status.get() == USARTStateTX::Idle {
-		// 		self.tx_client.map(|client| {
-		// 			if let Some(buf) = self.tx_buffer.take() {
-		//                 client.transmitted_buffer(buf, self.tx_len.get(), ReturnCode::SUCCESS);
-		//             }
-		//         });
-		// 	}
-  //       } else if self.tx_status.get() == USARTStateTX::AbortRequested {
-		// 	self.tx_status.replace(USARTStateTX::Idle);
-		// 	self.tx_client.map(|client| {
-		// 		if let Some(buf) = self.tx_buffer.take() {
-	 //                client.transmitted_buffer(buf, self.tx_position.get(), ReturnCode::ECANCEL);
-	 //            }
-  //           });
-  //       }
+        if self.registers.stat.is_set(STAT::TDRE) {
+    		self.clear_transmit_complete();
+    		self.disable_transmit_complete_interrupt();
+
+    		// ignore IRQ if not transmitting
+    		if self.tx_status.get() == LPUARTStateTX::Transmitting {
+    			let position = self.tx_position.get();
+    			if position < self.tx_len.get() {
+    				self.tx_buffer.map(|buf| {
+                        self.registers.data.set(buf[position].into());
+    					self.tx_position.replace(self.tx_position.get() + 1);
+    					self.enable_transmit_complete_interrupt();
+    				});
+    			} else {
+    				// transmission done
+    				self.tx_status.replace(LPUARTStateTX::Idle);
+    			}
+    			// notify client if transfer is done
+    			if self.tx_status.get() == LPUARTStateTX::Idle {
+    				self.tx_client.map(|client| {
+    					if let Some(buf) = self.tx_buffer.take() {
+    		                client.transmitted_buffer(buf, self.tx_len.get(), ReturnCode::SUCCESS);
+    		            }
+    		        });
+    			}
+            } else if self.tx_status.get() == LPUARTStateTX::AbortRequested {
+    			self.tx_status.replace(LPUARTStateTX::Idle);
+    			self.tx_client.map(|client| {
+    				if let Some(buf) = self.tx_buffer.take() {
+    	                client.transmitted_buffer(buf, self.tx_position.get(), ReturnCode::ECANCEL);
+    	            }
+                });
+            }
+        }
+
+        if self.registers.stat.is_set(STAT::RDRF) {
+            let byte = self.registers.data.get() as u8;
+            self.disable_receive_interrupt();
+
+            // ignore IRQ if not receiving
+            if self.rx_status.get() == USARTStateRX::Receiving {
+                if self.rx_position.get() < self.rx_len.get() {
+                    self.rx_buffer.map(|buf| {
+                        buf[self.rx_position.get()] = byte;
+                        self.rx_position.replace(self.rx_position.get() + 1);
+                    });
+                }
+                if self.rx_position.get() == self.rx_len.get() {
+                    // reception done
+                    self.rx_status.replace(USARTStateRX::Idle);
+                } else {
+                    self.enable_receive_interrupt();
+                }
+                // notify client if transfer is done
+                if self.rx_status.get() == USARTStateRX::Idle {
+                    self.rx_client.map(|client| {
+                        if let Some(buf) = self.rx_buffer.take() {
+                            client.received_buffer(
+                                buf,
+                                self.rx_len.get(),
+                                ReturnCode::SUCCESS,
+                                hil::uart::Error::None,
+                            );
+                        }
+                    });
+                }
+            } else if self.rx_status.get() == USARTStateRX::AbortRequested {
+                self.rx_status.replace(USARTStateRX::Idle);
+                self.rx_client.map(|client| {
+                    if let Some(buf) = self.rx_buffer.take() {
+                        client.received_buffer(
+                            buf,
+                            self.rx_position.get(),
+                            ReturnCode::ECANCEL,
+                            hil::uart::Error::Aborted,
+                        );
+                    }
+                });
+            }
+        }
+
+        if self.registers.stat.is_set(STAT::OR) {
+            self.clear_overrun();
+            self.rx_status.replace(USARTStateRX::Idle);
+            self.rx_client.map(|client| {
+                if let Some(buf) = self.rx_buffer.take() {
+                    client.received_buffer(
+                        buf,
+                        self.rx_position.get(),
+                        ReturnCode::ECANCEL,
+                        hil::uart::Error::OverrunError,
+                    );
+                }
+            });
+        }
+
     }
 
 }
 
 impl hil::uart::Transmit<'a> for Lpuart<'a> {
 	fn set_transmit_client(&self, client: &'a dyn hil::uart::TransmitClient) {
+        hprintln!("Sunt in set_transmit_client!!").unwrap();
 		self.tx_client.set(client);
     }
 
@@ -417,20 +558,20 @@ impl hil::uart::Transmit<'a> for Lpuart<'a> {
 	        tx_data: &'static mut [u8],
 	        tx_len: usize,
 	    ) -> (ReturnCode, Option<&'static mut [u8]>) {
-			// if self.tx_status.get() == USARTStateTX::Idle {
-			// 	if tx_len <= tx_data.len() {
-			// 		self.tx_buffer.put(Some(tx_data));
-			// 		self.tx_position.set(0);
-			// 		self.tx_len.set(tx_len);
-			// 		self.tx_status.set(USARTStateTX::Transmitting);
-			// 		self.enable_transmit_complete_interrupt();
-	  //               (ReturnCode::SUCCESS, None)
-	  //           } else {
-	  //               (ReturnCode::ESIZE, Some(tx_data))
-	  //           }
-	  //       } else {
-	  //           (ReturnCode::EBUSY, Some(tx_data))
-	  //       }
+			if self.tx_status.get() == LPUARTStateTX::Idle {
+				if tx_len <= tx_data.len() {
+					self.tx_buffer.put(Some(tx_data));
+					self.tx_position.set(0);
+					self.tx_len.set(tx_len);
+					self.tx_status.set(LPUARTStateTX::Transmitting);
+					self.enable_transmit_complete_interrupt();
+                    (ReturnCode::SUCCESS, None)
+                } else {
+                    (ReturnCode::ESIZE, Some(tx_data))
+                }
+	        } else {
+	            (ReturnCode::EBUSY, Some(tx_data))
+	        }
     }
 
 	fn transmit_word(&self, _word: u32) -> ReturnCode {
@@ -461,6 +602,17 @@ impl hil::uart::Configure for Lpuart<'a> {
 			);
         }
 
+        hprintln!("Sunt in configure!!").unwrap();
+
+        unsafe {
+            self.disable_clock();
+            ccm::CCM.disable_uart_clock_mux();
+            ccm::CCM.disable_uart_clock_podf();
+            // if ccm::CCM.just_for_debug() {
+            //     hprintln!("E activat!").unwrap();
+            // }
+            self.enable_clock();
+        }
         // Reset the LPUART using software
         self.registers.global.modify(GLOBAL::RST::SET);
         self.registers.global.modify(GLOBAL::RST::CLEAR);
@@ -472,7 +624,18 @@ impl hil::uart::Configure for Lpuart<'a> {
         self.registers.baud.modify(BAUD::OSR.val(0b100 as u32));
 
         // Set the Baud Rate Modulo Divisor
+        // let mut initial = self.registers.baud.read(BAUD::SBR);
+        // hprintln!("Val initial: {:?}", initial).unwrap();
         self.registers.baud.modify(BAUD::SBR.val(139 as u32));
+        // initial = self.registers.baud.read(BAUD::SBR);
+        // hprintln!("Val dupa: {:?}", initial).unwrap();
+
+        // unsafe {
+        //     if ccm::CCM.is_enabled_uart_clock_podf() {
+        //         hprintln!("uart_clock_podf enabled!").unwrap();
+        //     }
+        //     self.enable_clock();
+        // }
 
         // Set bit count and parity mode
         self.registers.baud.modify(BAUD::M10::CLEAR);
@@ -491,8 +654,8 @@ impl hil::uart::Configure for Lpuart<'a> {
         self.registers.water.modify(WATER::TXWATER::CLEAR);
 
        	// Enable TX and RX FIFO
-       	self.registers.fifo.modify(FIFO::TXFE::SET);
-       	self.registers.fifo.modify(FIFO::RXFE::SET);
+       	self.registers.fifo.modify(FIFO::TXFE::CLEAR);
+       	self.registers.fifo.modify(FIFO::RXFE::CLEAR);
 
        	// Flush RX FIFO and TX FIFO
        	self.registers.fifo.modify(FIFO::TXFLUSH::CLEAR);
@@ -509,8 +672,8 @@ impl hil::uart::Configure for Lpuart<'a> {
        	self.registers.stat.modify(STAT::MA2F::SET);
 
        	// Set the CTS configuration/TX CTS source.
-       	self.registers.moder.modify(MODER::TXCTSC::CLEAR);
-       	self.registers.moder.modify(MODER::TXCTSSRC::CLEAR);
+       	self.registers.modir.modify(MODIR::TXCTSC::CLEAR);
+       	self.registers.modir.modify(MODIR::TXCTSSRC::CLEAR);
 
        	// Set as LSB
        	self.registers.stat.modify(STAT::MSBF::CLEAR);
@@ -523,26 +686,44 @@ impl hil::uart::Configure for Lpuart<'a> {
     }
 }
 
+
 impl hil::uart::Receive<'a> for Lpuart<'a> {
-	
-	fn set_receive_client(&self, client: &'a dyn hil::uart::ReceiveClient) {
-		self.rx_client.set(client);
+    fn set_receive_client(&self, client: &'a dyn hil::uart::ReceiveClient) {
+        self.rx_client.set(client);
     }
 
-	fn receive_buffer(
-		&self,
-        _rx_buffer: &'static mut [u8],
-        _rx_len: usize,
+    fn receive_buffer(
+        &self,
+        rx_buffer: &'static mut [u8],
+        rx_len: usize,
     ) -> (ReturnCode, Option<&'static mut [u8]>) {
-        (ReturnCode::FAIL, None)
+        if self.rx_status.get() == USARTStateRX::Idle {
+            if rx_len <= rx_buffer.len() {
+                self.rx_buffer.put(Some(rx_buffer));
+                self.rx_position.set(0);
+                self.rx_len.set(rx_len);
+                self.rx_status.set(USARTStateRX::Receiving);
+                self.enable_receive_interrupt();
+                (ReturnCode::SUCCESS, None)
+            } else {
+                (ReturnCode::ESIZE, Some(rx_buffer))
+            }
+        } else {
+            (ReturnCode::EBUSY, Some(rx_buffer))
+        }
     }
 
-	fn receive_word(&self) -> ReturnCode {
+    fn receive_word(&self) -> ReturnCode {
         ReturnCode::FAIL
     }
 
-	fn receive_abort(&self) -> ReturnCode {
-        ReturnCode::EBUSY
+    fn receive_abort(&self) -> ReturnCode {
+        if self.rx_status.get() != USARTStateRX::Idle {
+            self.rx_status.set(USARTStateRX::AbortRequested);
+            ReturnCode::EBUSY
+        } else {
+            ReturnCode::SUCCESS
+        }
     }
 }
 

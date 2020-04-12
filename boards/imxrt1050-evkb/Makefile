@@ -1,6 +1,6 @@
 # Makefile for building the tock kernel for the NUCLEO-429ZI platform
 #
-APP=../../../libtock-c/examples/blink/build/cortex-m7/cortex-m7.tbf
+APP=../../../libtock-c/examples/c_hello/build/cortex-m7/cortex-m7.tbf
 KERNEL=$(CWD)/target/$(TARGET)/debug/$(PLATFORM).elf
 KERNEL_WITH_APP=$(CWD)/target/$(TARGET)/debug/$(PLATFORM)-app.axf
 TARGET=thumbv7em-none-eabi

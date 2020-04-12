@@ -23,6 +23,7 @@ pub mod iomuxc;
 // pub mod spi;
 // pub mod syscfg;
 pub mod gpt1;
+pub mod lpuart;
 pub mod usart;
 
 use cortexm7::{generic_isr, hard_fault_handler, svc_handler, systick_handler};
@@ -110,7 +111,7 @@ pub static IRQS: [unsafe extern "C" fn(); 108] = [
     generic_isr, // DMA1_Stream6 (17)
     generic_isr, // ADC (18)
     generic_isr, // CAN1_TX (19)
-    generic_isr, // CAN1_RX0 (20)
+    generic_isr, // LPUART1 (20)
     generic_isr, // CAN1_RX1 (21)
     generic_isr, // CAN1_SCE (22)
     generic_isr, // EXTI9_5 (23)

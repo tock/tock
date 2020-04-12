@@ -2,17 +2,17 @@ use core::fmt::Write;
 use core::panic::PanicInfo;
 
 
-use kernel::debug;
+// use kernel::debug;
 use kernel::debug::IoWrite;
-use kernel::hil::led;
+// use kernel::hil::led;
 use kernel::hil::uart;
 use kernel::hil::uart::Configure;
 
 use imxrt1050;
 // use stm32f4xx::gpio::PinId;
 
-use crate::CHIP;
-use crate::PROCESSES;
+// use crate::CHIP;
+// use crate::PROCESSES;
 
 use cortex_m_semihosting::{hprintln};
 
@@ -41,7 +41,8 @@ impl Write for Writer {
 
 impl IoWrite for Writer {
     fn write(&mut self, buf: &[u8]) {
-        let uart = unsafe { &mut imxrt1050::usart::USART_SEMIHOSTING };
+        hprintln!("Setez writer: {:?}", buf).unwrap();
+        let uart = unsafe { &mut imxrt1050::lpuart::LPUART1 };
 
         if !self.initialized {
             self.initialized = true;
@@ -55,7 +56,7 @@ impl IoWrite for Writer {
             });
         }
 
-        // hprintln!("Var cu hprn: {:?}", buf).unwrap();
+        hprintln!("Var cu hprn: {:?}", buf).unwrap();
         for &c in buf {
             uart.send_byte(c);
         }
