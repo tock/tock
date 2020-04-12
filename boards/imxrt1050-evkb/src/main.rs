@@ -19,6 +19,10 @@ use kernel::hil::gpio::Configure;
 use kernel::hil::gpio::Output;
 use cortex_m_semihosting::{hprintln};
 
+// Unit Tests for drivers.
+// #[allow(dead_code)]
+// mod virtual_uart_rx_test;
+
 /// Support routines for debugging I/O.
 pub mod io;
 
@@ -176,6 +180,9 @@ unsafe fn setup_peripherals() {
     // USART3 IRQn is 39
     // cortexm7::nvic::Nvic::new(stm32f4xx::nvic::USART3).enable();
 
+    // LPUART1 IRQn is 20
+    cortexm7::nvic::Nvic::new(imxrt1050::nvic::LPUART1).enable();
+
     // TIM2 IRQn is 28
     GPT1.enable_clock();
     GPT1.start();
@@ -192,6 +199,7 @@ unsafe fn setup_peripherals() {
 pub unsafe fn reset_handler() {
     hprintln!("Booting TockOS!!").unwrap();
     imxrt1050::init();
+    imxrt1050::lpuart::LPUART1.set_baud();
 
     // We use the default HSI 16Mhz clock
 
@@ -217,18 +225,36 @@ pub unsafe fn reset_handler() {
     );
     CHIP = Some(chip);
 
-    // UART
+    // LPUART
+    // Enable clock
+    // imxrt1050::lpuart::LPUART1.enable_clock();
 
-    // Create a shared UART channel for kernel debug.
-    // stm32f4xx::usart::USART3.enable_clock();
-    let uart_mux = components::console::UartMuxComponent::new(
-        &imxrt1050::usart::USART_SEMIHOSTING,
+    // Enable tx and rx from iomuxc
+    imxrt1050::iomuxc::IOMUXC.enable_lpuart1_tx();
+    imxrt1050::iomuxc::IOMUXC.enable_lpuart1_rx();
+    imxrt1050::iomuxc::IOMUXC.set_pin_config_lpuart1();
+
+    let lpuart_mux = components::console::UartMuxComponent::new(
+       &imxrt1050::lpuart::LPUART1,
         115200,
         dynamic_deferred_caller,
     )
     .finalize(());
-
     io::WRITER.set_initialized();
+
+    // UART
+
+    // Create a shared UART channel for kernel debug.
+    // stm32f4xx::usart::USART3.enable_clock();
+
+    // let uart_mux = components::console::UartMuxComponent::new(
+    //     &imxrt1050::usart::USART_SEMIHOSTING,
+    //     115200,
+    //     dynamic_deferred_caller,
+    // )
+    // .finalize(());
+
+    // io::WRITER.set_initialized();
 
     // Create capabilities that the board needs to call certain protected kernel
     // functions.
@@ -238,9 +264,9 @@ pub unsafe fn reset_handler() {
         create_capability!(capabilities::ProcessManagementCapability);
 
     // Setup the console.
-    let console = components::console::ConsoleComponent::new(board_kernel, uart_mux).finalize(());
-    // // Create the debugger object that handles calls to `debug!()`.
-    components::debug_writer::DebugWriterComponent::new(uart_mux).finalize(());
+    let console = components::console::ConsoleComponent::new(board_kernel, lpuart_mux).finalize(());
+    // Create the debugger object that handles calls to `debug!()`.
+    components::debug_writer::DebugWriterComponent::new(lpuart_mux).finalize(());
 
     // // Setup the process inspection console
     // let process_console_uart = static_init!(UartDevice, UartDevice::new(mux_uart, true));
@@ -341,10 +367,10 @@ pub unsafe fn reset_handler() {
         static _sapps: u8;
     }
 
-    // let pin = imxrt1050::gpio::PinId::P1_09.get_pin().as_ref().unwrap();
-    // pin.make_output();
-    // pin.clear();
-    // debug!("Almost loaded!");
+    let pin = imxrt1050::gpio::PinId::P1_09.get_pin().as_ref().unwrap();
+    pin.make_output();
+    pin.clear();
+    debug!("Almost loaded!");
 
     // hprintln!("{:?}", PROCESSES);
     kernel::procs::load_processes(

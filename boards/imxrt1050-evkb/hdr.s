@@ -1,2 +1,2 @@
 .section .boot_hdr, "ax"
-.incbin "hdr"
+.incbin "boot_hdr-usart"

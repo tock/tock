@@ -14,18 +14,22 @@ struct CcmRegisters {
     _reserved1: [u8; 4],
     // CCM status register
     csr: ReadOnly<u32, CSR::Register>,
+    // CCM Clock Switcher Register
+    ccsr: ReadWrite<u32, CCSR::Register>,
     // unimplemented
-    _reserved2: [u8; 72],
+    _reserved2: [u8; 20],
+    cscdr1: ReadWrite<u32, CSCDR1::Register>,
+    _reserved3: [u8; 44],
     clpcr: ReadWrite<u32, CLPCR::Register>,
-    _reserved3: [u8; 20],
+    _reserved4: [u8; 20],
     // clock gating register 1
     ccgr1: ReadWrite<u32, CCGR1::Register>,
-    _reserved4: [u8; 12],
+    _reserved5: [u8; 12],
     // clock gating register 4
     ccgr4: ReadWrite<u32, CCGR4::Register>,
     // clock gating register 5
     ccgr5: ReadWrite<u32, CCGR5::Register>,
-    _reserved5: [u8; 8],
+    _reserved6: [u8; 8],
 }
 
 register_bitfields![u32,
@@ -52,6 +56,27 @@ register_bitfields![u32,
 
     	// Status of the value of CCM_REF_EN_B output of ccm
     	REF_EN_B OFFSET(0) NUMBITS(1) []
+    ],
+
+    CCSR [
+        PLL3_SW_CLK_SEL OFFSET(0) NUMBITS(1) []
+    ],
+
+    CSCDR1 [
+        // Divider for trace clock
+        TRACE_PODF OFFSET(25) NUMBITS(2) [],
+
+        // Divider for usdhc2 clock
+        USDHC2_PODF OFFSET(16) NUMBITS(3) [],
+
+        // Divider for usdhc2 clock
+        USDHC1_PODF OFFSET(11) NUMBITS(3) [],
+
+        // Selector for the UART clock multiplexor
+        UART_CLK_SEL OFFSET(6) NUMBITS(1) [],
+
+        // Divider for uart clock podf
+        UART_CLK_PODF OFFSET(0) NUMBITS(6) []
     ],
 
     CLPCR [
@@ -288,6 +313,36 @@ impl Ccm {
     pub fn disable_lpuart1_clock(&self) {
         self.registers.ccgr5.modify(CCGR5::CG12::CLEAR);
     }
+
+    // UART clock multiplexor
+    pub fn is_enabled_uart_clock_mux(&self) -> bool {
+        self.registers.cscdr1.is_set(CSCDR1::UART_CLK_SEL)
+    }
+
+    pub fn enable_uart_clock_mux(&self) {
+        self.registers.cscdr1.modify(CSCDR1::UART_CLK_SEL::SET);
+    }
+
+    pub fn disable_uart_clock_mux(&self) {
+        self.registers.cscdr1.modify(CSCDR1::UART_CLK_SEL::CLEAR);
+    }
+
+    // UART_CLK_PODF
+    pub fn is_enabled_uart_clock_podf(&self) -> bool {
+        self.registers.cscdr1.is_set(CSCDR1::UART_CLK_PODF)
+    }
+
+    pub fn enable_uart_clock_podf(&self) {
+        self.registers.cscdr1.modify(CSCDR1::UART_CLK_PODF.val(0b111111 as u32));
+    }
+
+    pub fn disable_uart_clock_podf(&self) {
+        self.registers.cscdr1.modify(CSCDR1::UART_CLK_PODF::CLEAR);
+    }
+
+    // pub fn just_for_debug(&self) -> bool {
+    //     self.registers.ccsr.is_set(CCSR::PLL3_SW_CLK_SEL)
+    // }
 }
 
 // TBD - chiar nu stiu ce si cum la asta
