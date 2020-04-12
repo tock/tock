@@ -196,7 +196,6 @@ unsafe fn setup_peripherals() {
 /// execution begins here.
 #[no_mangle]
 pub unsafe fn reset_handler() {
-    debug!("Booting TockOS!!");
     imxrt1050::init();
     imxrt1050::lpuart::LPUART1.set_baud();
 
