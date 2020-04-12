@@ -50,7 +50,6 @@
 
 use kernel::hil::gpio;
 use kernel::{AppId, Driver, ReturnCode};
-use cortex_m_semihosting::{hprintln};
 
 /// Syscall driver number.
 use crate::driver;
@@ -91,7 +90,6 @@ impl<P: gpio::Pin> Driver for LED<'_, P> {
     ///        `EINVAL` if the LED index is not valid.
     fn command(&self, command_num: usize, data: usize, _: usize, _: AppId) -> ReturnCode {
         let pins_init = self.pins_init.as_ref();
-        // hprintln!("Am nr de pini: {:?}", pins_init.len()).unwrap();
         // let (pin, mode) = pins_init[0];
         // pin.clear();
         // pin.set();
@@ -104,10 +102,8 @@ impl<P: gpio::Pin> Driver for LED<'_, P> {
             // on
             1 => {
                 if data >= pins_init.len() {
-                    // hprintln!("Intru aici!!!: {:?}", data).unwrap();
                     ReturnCode::EINVAL /* impossible pin */
                 } else {
-                    // hprintln!("Incerc sa aprind led!").unwrap();
                     let (pin, mode) = pins_init[data];
                     pin.write_activation(gpio::ActivationState::Active, mode);
                     ReturnCode::SUCCESS

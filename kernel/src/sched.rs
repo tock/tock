@@ -18,7 +18,6 @@ use crate::platform::{Chip, Platform};
 use crate::process::{self, Task};
 use crate::returncode::ReturnCode;
 use crate::syscall::{ContextSwitchReason, Syscall};
-use cortex_m_semihosting::{hprintln};
 
 /// Main object for the kernel. Each board will need to create one.
 pub struct Kernel {
@@ -389,7 +388,7 @@ impl Kernel {
                                 Syscall::MEMOP { operand, arg0 } => {
                                     let res = memop::memop(process, operand, arg0);
                                     if config::CONFIG.trace_syscalls {
-                                        hprintln!(
+                                        debug!(
                                             "[{:?}] memop({}, {:#x}) = {:#x} = {:?}",
                                             process.appid(),
                                             operand,
@@ -402,7 +401,7 @@ impl Kernel {
                                 }
                                 Syscall::YIELD => {
                                     if config::CONFIG.trace_syscalls {
-                                        hprintln!("[{:?}] yield", process.appid());
+                                        debug!("[{:?}] yield", process.appid());
                                     }
                                     process.set_yielded_state();
 
@@ -443,7 +442,7 @@ impl Kernel {
                                             },
                                         );
                                     if config::CONFIG.trace_syscalls {
-                                        hprintln!(
+                                        debug!(
                                             "[{:?}] subscribe({:#x}, {}, @{:#x}, {:#x}) = {:#x} = {:?}",
                                             process.appid(),
                                             driver_number,
@@ -476,7 +475,7 @@ impl Kernel {
                                             },
                                         );
                                     if config::CONFIG.trace_syscalls {
-                                        hprintln!(
+                                        debug!(
                                             "[{:?}] cmd({:#x}, {}, {:#x}, {:#x}) = {:#x} = {:?}",
                                             process.appid(),
                                             driver_number,
@@ -511,7 +510,7 @@ impl Kernel {
                                         }
                                     });
                                     if config::CONFIG.trace_syscalls {
-                                        hprintln!(
+                                        debug!(
                                             "[{:?}] allow({:#x}, {}, @{:#x}, {:#x}) = {:#x} = {:?}",
                                             process.appid(),
                                             driver_number,
@@ -551,7 +550,7 @@ impl Kernel {
                     Some(cb) => match cb {
                         Task::FunctionCall(ccb) => {
                             if config::CONFIG.trace_syscalls {
-                                hprintln!(
+                                debug!(
                                     "[{:?}] function_call @{:#x}({:#x}, {:#x}, {:#x}, {:#x})",
                                     process.appid(),
                                     ccb.pc,

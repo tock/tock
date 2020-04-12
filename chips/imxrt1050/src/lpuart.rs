@@ -6,7 +6,6 @@ use kernel::hil;
 use kernel::ClockInterface;
 use kernel::ReturnCode;
 
-use cortex_m_semihosting::{hprint, hprintln};
 use crate::ccm;
 
 /// Universal synchronous asynchronous receiver transmitter

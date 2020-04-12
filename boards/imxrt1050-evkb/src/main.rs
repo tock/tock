@@ -17,7 +17,6 @@ use kernel::Platform;
 use kernel::{create_capability, debug, static_init};
 use kernel::hil::gpio::Configure;
 use kernel::hil::gpio::Output;
-use cortex_m_semihosting::{hprintln};
 
 // Unit Tests for drivers.
 // #[allow(dead_code)]
@@ -197,7 +196,7 @@ unsafe fn setup_peripherals() {
 /// execution begins here.
 #[no_mangle]
 pub unsafe fn reset_handler() {
-    hprintln!("Booting TockOS!!").unwrap();
+    debug!("Booting TockOS!!");
     imxrt1050::init();
     imxrt1050::lpuart::LPUART1.set_baud();
 

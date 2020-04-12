@@ -6,7 +6,6 @@ use kernel::hil;
 use kernel::ClockInterface;
 use kernel::ReturnCode;
 
-use cortex_m_semihosting::{hprint, hprintln};
 use crate::ccm;
 
 /// Universal synchronous asynchronous receiver transmitter
@@ -96,7 +95,7 @@ impl Usart<'a> {
         // while !self.registers.sr.is_set(SR::TXE) {}
 
         // self.registers.dr.set(byte.into());
-        hprint!("{}", char::from(byte)).unwrap();
+        // hprint!("{}", char::from(byte)).unwrap();
     }
 }
 
