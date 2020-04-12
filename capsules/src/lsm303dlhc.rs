@@ -1,20 +1,138 @@
 //! Driver for the LSM303DLHC 3D accelerometer and 3D magnetometer sensor.
 //!
+//! May be used with NineDof and Temperature
+//!
+//! I2C Interface
+//!
 //! <https://www.st.com/en/mems-and-sensors/lsm303dlhc.html>
+//!
+//! Syscall Interface
+//! -----------------
+//!
+//! ### Command
+//!
+//! All commands are asynchronous, they return a one shot callback when done
+//! Only one command can be issued at a time.
+//!
+//! #### command num
+//! - `0`: Returns SUCCESS
+//!   - `data`: Unused.
+//!   - Return: 0
+//! - `1`: Is Present
+//!   - `data`: unused
+//!   - Return: `SUCCESS` if no other command is in progress, `EBUSY` otherwise.
+//! - `2`: Set Accelerometer Power Mode
+//!   - `data1`: Accelerometer Data rate defined in manual table 20, page 25
+//!   - `data2`: Low power mode (1 on, 0 off)
+//!   - Return: `SUCCESS` if no other command is in progress, `EBUSY` otherwise.
+//! - `3`: Set Accelerometer Scale and Resolution
+//!   - `data1`: Accelerometer scale defined in manual table 27, page 27
+//!   - `data2`: High resolution (1 on, 0 off)
+//!   - Return: `SUCCESS` if no other command is in progress, `EBUSY` otherwise.
+//! - `4`: Set Magnetometer Temperature Enable and Data Rate
+//!   - `data1`: Temperature enable (1 on, 0 off)
+//!   - `data2`: Magnetometer Data rate defined in manual table 72, page 37
+//!   - Return: `SUCCESS` if no other command is in progress, `EBUSY` otherwise.
+//! - `5`: Set magnetometer range
+//!   - `data1`: Magnetometer range defined in manual table 75, page 38
+//!   - Return: `SUCCESS` if no other command is in progress, `EBUSY` otherwise.
+//! - `6`: Read Acceleration XYZ
+//!   - `data`: unused
+//!   - Return: `SUCCESS` if no other command is in progress, `EBUSY` otherwise.
+//! - `7`: Read Temperature
+//!   - `data`: unused
+//!   - Return: `SUCCESS` if no other command is in progress, `EBUSY` otherwise.
+//! - `6`: Read Magnetometer XYZ
+//!   - `data`: unused
+//!   - Return: `SUCCESS` if no other command is in progress, `EBUSY` otherwise.
+//!
+//! ### Subscribe
+//!
+//! All commands call this callback when done, usually subscribes
+//! should be one time functions
+//!
+//! #### subscribe num
+//! - `0`: Done callback
+//!   - 'data1`: depends on command
+//!     - `1` - 1 for is present, 0 for not present
+//!     - `6` - X acceleration in m/s2 (not scaled)
+//!     - `7` - temperature in deg C * 8
+//!     - `8` - X magnetometer in Gauss (not scaled)
+//!   - 'data2`: depends on command
+//!     - `6` - Y acceleration in m/s2 (not scaled)
+//!     - `8` - Y magnetometer in Gauss (not scaled)
+//!   - 'data3`: depends on command
+//!     - `6` - Z acceleration in m/s2 (not scaled)
+//!     - `8` - Z magnetometer in Gauss (not scaled)
 //!
 //! Usage
 //! -----
 //!
 //! ```rust
-//! let lps25hb_i2c = static_init!(I2CDevice, I2CDevice::new(i2c_bus, 0x5C));
-//! let lps25hb = static_init!(
-//!     capsules::lps25hb::LPS25HB<'static>,
-//!     capsules::lps25hb::LPS25HB::new(lps25hb_i2c,
-//!         &sam4l::gpio::PA[10],
-//!         &mut capsules::lps25hb::BUFFER));
-//! lps25hb_i2c.set_client(lps25hb);
-//! sam4l::gpio::PA[10].set_client(lps25hb);
+//! let mux_i2c = components::i2c::I2CMuxComponent::new(&stm32f3xx::i2c::I2C1)
+//!     .finalize(components::i2c_mux_component_helper!());
+//!
+//! let lsm303dlhc = components::lsm303dlhc::Lsm303dlhcI2CComponent::new()
+//!    .finalize(components::lsm303dlhc_i2c_component_helper!(mux_i2c));
+//!
+//! lsm303dlhc.configure(
+//!    lsm303dlhc::Lsm303dlhcAccelDataRate::DataRate25Hz,
+//!    false,
+//!    lsm303dlhc::Lsm303dlhcScale::Scale2G,
+//!    false,
+//!    true,
+//!    lsm303dlhc::Lsm303dlhcMagnetoDataRate::DataRate3_0Hz,
+//!    lsm303dlhc::Lsm303dlhcRange::Range4_7G,
+//!);
 //! ```
+//!
+//! NideDof Example
+//!
+//! let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
+//! let grant_ninedof = board_kernel.create_grant(&grant_cap);
+//!
+//! // use as primary NineDof Sensor
+//! let ninedof = static_init!(
+//!    capsules::ninedof::NineDof<'static>,
+//!    capsules::ninedof::NineDof::new(lsm303dlhc, grant_ninedof)
+//! );
+//!
+//! hil::sensors::NineDof::set_client(lsm303dlhc, ninedof);
+//!
+//! // use as secondary NineDof Sensor
+//! let lsm303dlhc_secondary = static_init!(
+//!    capsules::ninedof::NineDofNode<'static, &'static dyn hil::sensors::NineDof>,
+//!    capsules::ninedof::NineDofNode::new(lsm303dlhc)
+//! );
+//! ninedof.add_secondary_driver(lsm303dlhc_secondary);
+//! hil::sensors::NineDof::set_client(lsm303dlhc, ninedof);
+//!
+//! ```
+//!
+//! Temperature Example
+//!
+//! ```rust
+//! let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
+//! let grant_temp = board_kernel.create_grant(&grant_cap);
+//!
+//! lsm303dlhc.configure(
+//!    lsm303dlhc::Lsm303dlhcAccelDataRate::DataRate25Hz,
+//!    false,
+//!    lsm303dlhc::Lsm303dlhcScale::Scale2G,
+//!    false,
+//!    true,
+//!    lsm303dlhc::Lsm303dlhcMagnetoDataRate::DataRate3_0Hz,
+//!    lsm303dlhc::Lsm303dlhcRange::Range4_7G,
+//!);
+//! let temp = static_init!(
+//! capsules::temperature::TemperatureSensor<'static>,
+//!     capsules::temperature::TemperatureSensor::new(lsm303dlhc, grant_temperature));
+//! kernel::hil::sensors::TemperatureDriver::set_client(lsm303dlhc, temp);
+//!
+//! ```
+//!
+//! Author: Alexandru Radovici <msg4alex@gmail.com>
+//!
 
 use core::cell::Cell;
 use enum_primitive::cast::FromPrimitive;
@@ -61,6 +179,7 @@ const TEMP_OUT_H_M: u8 = 0x31;
 // Experimental
 const TEMP_OFFSET: i8 = 17;
 
+// Manual page Table 20, page 25
 enum_from_primitive! {
     #[derive(Clone, Copy, PartialEq)]
     pub enum Lsm303dlhcAccelDataRate {
@@ -77,6 +196,7 @@ enum_from_primitive! {
     }
 }
 
+// Manual table 72, page 25
 enum_from_primitive! {
     #[derive(Clone, Copy, PartialEq)]
     pub enum Lsm303dlhcMagnetoDataRate {
@@ -101,8 +221,10 @@ enum_from_primitive! {
     }
 }
 
+// Manual table 27, page 27
 const SCALE_FACTOR: [u8; 4] = [2, 4, 8, 16];
 
+// Manual table 75, page 38
 enum_from_primitive! {
     #[derive(Clone, Copy, PartialEq)]
     pub enum Lsm303dlhcRange {
@@ -117,13 +239,15 @@ enum_from_primitive! {
     }
 }
 
+// Manual table 75, page 38
 const RANGE_FACTOR_X_Y: [i16; 8] = [
-    1, // placeholder
+    1000, // placeholder
     1100, 855, 670, 450, 400, 330, 230,
 ];
 
+// Manual table 75, page 38
 const RANGE_FACTOR_Z: [i16; 8] = [
-    1, // placeholder
+    1000, // placeholder
     980, 760, 600, 400, 355, 295, 205,
 ];
 
@@ -140,7 +264,7 @@ enum State {
     ReadMagnetometerXYZ,
 }
 
-pub struct Lsm303dlhc<'a> {
+pub struct Lsm303dlhcI2C<'a> {
     config_in_progress: Cell<bool>,
     i2c_accelerometer: &'a dyn i2c::I2CDevice,
     i2c_magnetometer: &'a dyn i2c::I2CDevice,
@@ -158,14 +282,14 @@ pub struct Lsm303dlhc<'a> {
     temperature_client: OptionalCell<&'a dyn sensors::TemperatureClient>,
 }
 
-impl Lsm303dlhc<'a> {
+impl Lsm303dlhcI2C<'a> {
     pub fn new(
         i2c_accelerometer: &'a dyn i2c::I2CDevice,
         i2c_magnetometer: &'a dyn i2c::I2CDevice,
         buffer: &'static mut [u8],
-    ) -> Lsm303dlhc<'a> {
+    ) -> Lsm303dlhcI2C<'a> {
         // setup and return struct
-        Lsm303dlhc {
+        Lsm303dlhcI2C {
             config_in_progress: Cell::new(false),
             i2c_accelerometer: i2c_accelerometer,
             i2c_magnetometer: i2c_magnetometer,
@@ -303,7 +427,7 @@ impl Lsm303dlhc<'a> {
     }
 }
 
-impl i2c::I2CClient for Lsm303dlhc<'a> {
+impl i2c::I2CClient for Lsm303dlhcI2C<'a> {
     fn command_complete(&self, buffer: &'static mut [u8], error: Error) {
         match self.state.get() {
             State::IsPresent => {
@@ -460,18 +584,18 @@ impl i2c::I2CClient for Lsm303dlhc<'a> {
                     self.nine_dof_client.map(|client| {
                         // compute using only integers
                         let range = self.mag_range.get() as usize;
-                        x = ((buffer[1] as i16 | ((buffer[0] as i16) << 8)) * 10
-                            / RANGE_FACTOR_X_Y[range]) as usize;
-                        z = ((buffer[3] as i16 | ((buffer[2] as i16) << 8)) * 10
-                            / RANGE_FACTOR_X_Y[range]) as usize;
-                        y = ((buffer[5] as i16 | ((buffer[4] as i16) << 8)) * 10
-                            / RANGE_FACTOR_Z[range]) as usize;
+                        x = (((buffer[1] as i16 | ((buffer[0] as i16) << 8)) as i32) * 100
+                            / RANGE_FACTOR_X_Y[range] as i32) as usize;
+                        z = (((buffer[3] as i16 | ((buffer[2] as i16) << 8)) as i32) * 100
+                            / RANGE_FACTOR_X_Y[range] as i32) as usize;
+                        y = (((buffer[5] as i16 | ((buffer[4] as i16) << 8)) as i32) * 100
+                            / RANGE_FACTOR_Z[range] as i32) as usize;
                         client.callback(x, y, z);
                     });
 
-                    x = (buffer[1] as i16 | ((buffer[0] as i16) << 8)) as usize;
-                    z = (buffer[3] as i16 | ((buffer[2] as i16) << 8)) as usize;
-                    y = (buffer[5] as i16 | ((buffer[4] as i16) << 8)) as usize;
+                    x = ((buffer[1] as u16 | ((buffer[0] as u16) << 8)) as i16) as usize;
+                    z = ((buffer[3] as u16 | ((buffer[2] as u16) << 8)) as i16) as usize;
+                    y = ((buffer[5] as u16 | ((buffer[4] as u16) << 8)) as i16) as usize;
                     true
                 } else {
                     self.nine_dof_client.map(|client| {
@@ -499,7 +623,7 @@ impl i2c::I2CClient for Lsm303dlhc<'a> {
     }
 }
 
-impl Driver for Lsm303dlhc<'a> {
+impl Driver for Lsm303dlhcI2C<'a> {
     fn command(&self, command_num: usize, data1: usize, data2: usize, _: AppId) -> ReturnCode {
         match command_num {
             0 /* check if present */ => ReturnCode::SUCCESS,
@@ -637,7 +761,7 @@ impl Driver for Lsm303dlhc<'a> {
     }
 }
 
-impl sensors::NineDof for Lsm303dlhc<'a> {
+impl sensors::NineDof for Lsm303dlhcI2C<'a> {
     fn set_client(&self, nine_dof_client: &'a dyn sensors::NineDofClient) {
         self.nine_dof_client.replace(nine_dof_client);
     }
@@ -661,7 +785,7 @@ impl sensors::NineDof for Lsm303dlhc<'a> {
     }
 }
 
-impl sensors::TemperatureDriver for Lsm303dlhc<'a> {
+impl sensors::TemperatureDriver for Lsm303dlhcI2C<'a> {
     fn set_client(&self, temperature_client: &'a dyn sensors::TemperatureClient) {
         self.temperature_client.replace(temperature_client);
     }

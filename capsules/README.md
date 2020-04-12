@@ -32,6 +32,7 @@ These implement a driver to setup and read various physical sensors.
 - **[FXOS8700CQ](src/fxos8700cq.rs)**: Accelerometer and magnetometer.
 - **[ISL29035](src/isl29035.rs)**: Light sensor.
 - **[L3GD20](src/l3gd20.rs)**: MEMS 3 axys digital gyroscope and temperature sensor.
+- **[LSM303DLHC](src/lsm303dlhc.rs)**: MEMS 3 axys digital accelerometer, magnetometer and temperature sensor.
 - **[LPS25HB](src/lps25hb.rs)**: Pressure sensor.
 - **[SI7021](src/si7021.rs)**: Temperature and humidity sensor.
 - **[TMP006](src/tmp006.rs)**: Infrared temperature sensor.
