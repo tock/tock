@@ -13,7 +13,6 @@ use components::gpio::GpioComponent;
 use kernel::capabilities;
 use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::component::Component;
-use kernel::hil;
 use kernel::hil::gpio::Configure;
 use kernel::hil::gpio::Output;
 use kernel::Platform;
