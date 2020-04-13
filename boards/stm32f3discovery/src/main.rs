@@ -524,7 +524,7 @@ pub unsafe fn reset_handler() {
         alarm: alarm,
         // uncomment this is you need low level acces to the l3gd20 sensor
         // l3gd20: l3gd20,
-        // uncomment this is you need low level acces to the lsm303dlhc sensor
+        // uncomment this if you need low level access to the lsm303dlhc sensor
         // lsm303dlhc: lsm303dlhc,
         ninedof: ninedof,
         temp: temp,
