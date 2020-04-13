@@ -296,88 +296,73 @@ impl L3gd20Spi<'a> {
 impl Driver for L3gd20Spi<'a> {
     fn command(&self, command_num: usize, data1: usize, data2: usize, _: AppId) -> ReturnCode {
         match command_num {
-            0 /* check if present */ => ReturnCode::SUCCESS,
+            0 => ReturnCode::SUCCESS,
             // Check is sensor is correctly connected
             1 => {
-				if self.status.get () == L3gd20Status::Idle {
-					self.is_present ();
-					ReturnCode::SUCCESS
-				}
-				else
-				{
-					ReturnCode::EBUSY
-				}
-
-			}
-			// Power On
+                if self.status.get() == L3gd20Status::Idle {
+                    self.is_present();
+                    ReturnCode::SUCCESS
+                } else {
+                    ReturnCode::EBUSY
+                }
+            }
+            // Power On
             2 => {
-				if self.status.get () == L3gd20Status::Idle {
-					self.power_on ();
-					ReturnCode::SUCCESS
-				}
-				else
-				{
-					ReturnCode::EBUSY
-				}
-			}
-			// Set Scale
+                if self.status.get() == L3gd20Status::Idle {
+                    self.power_on();
+                    ReturnCode::SUCCESS
+                } else {
+                    ReturnCode::EBUSY
+                }
+            }
+            // Set Scale
             3 => {
-				if self.status.get () == L3gd20Status::Idle {
-					let scale = data1 as u8;
-					self.set_scale (scale);
-					ReturnCode::SUCCESS
-				}
-				else
-				{
-					ReturnCode::EBUSY
-				}
+                if self.status.get() == L3gd20Status::Idle {
+                    let scale = data1 as u8;
+                    self.set_scale(scale);
+                    ReturnCode::SUCCESS
+                } else {
+                    ReturnCode::EBUSY
+                }
             }
-			// Enable High Pass Filter
+            // Enable High Pass Filter
             4 => {
-				if self.status.get () == L3gd20Status::Idle {
-					let mode = data1 as u8;
-					let divider = data2 as u8;
-					self.set_hpf_parameters (mode, divider);
-					ReturnCode::SUCCESS
-				}
-				else
-				{
-					ReturnCode::EBUSY
-				}
-			}
-			// Set High Pass Filter Mode and Divider
-            5 => {
-				if self.status.get () == L3gd20Status::Idle {
-					let enabled = if data1 == 1 { true } else { false };
-					self.enable_hpf (enabled);
-					ReturnCode::SUCCESS
-				}
-				else
-				{
-					ReturnCode::EBUSY
-				}
+                if self.status.get() == L3gd20Status::Idle {
+                    let mode = data1 as u8;
+                    let divider = data2 as u8;
+                    self.set_hpf_parameters(mode, divider);
+                    ReturnCode::SUCCESS
+                } else {
+                    ReturnCode::EBUSY
+                }
             }
-			// Read XYZ
+            // Set High Pass Filter Mode and Divider
+            5 => {
+                if self.status.get() == L3gd20Status::Idle {
+                    let enabled = if data1 == 1 { true } else { false };
+                    self.enable_hpf(enabled);
+                    ReturnCode::SUCCESS
+                } else {
+                    ReturnCode::EBUSY
+                }
+            }
+            // Read XYZ
             6 => {
-				if self.status.get () == L3gd20Status::Idle {
-					self.read_xyz ();
-					ReturnCode::SUCCESS
-				}
-				else
-				{
-					ReturnCode::EBUSY
-				}
-			}
-			// Read Temperature
+                if self.status.get() == L3gd20Status::Idle {
+                    self.read_xyz();
+                    ReturnCode::SUCCESS
+                } else {
+                    ReturnCode::EBUSY
+                }
+            }
+            // Read Temperature
             7 => {
-				if self.status.get () == L3gd20Status::Idle {
-					self.read_temperature ();
-					ReturnCode::SUCCESS
-				}
-				else
-				{
-					ReturnCode::EBUSY
-				}
+                if self.status.get() == L3gd20Status::Idle {
+                    self.read_temperature();
+                    ReturnCode::SUCCESS
+                } else {
+                    ReturnCode::EBUSY
+                }
             }
             // default
             _ => ReturnCode::ENOSUPPORT,
