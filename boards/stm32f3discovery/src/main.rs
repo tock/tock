@@ -63,10 +63,8 @@ struct STM32F3Discovery {
     led: &'static capsules::led::LED<'static, stm32f303xc::gpio::Pin<'static>>,
     button: &'static capsules::button::Button<'static, stm32f303xc::gpio::Pin<'static>>,
     ninedof: &'static capsules::ninedof::NineDof<'static>,
-    // uncomment this is you need low level acces to the l3gd20 sensor
-    // l3gd20: &'static capsules::l3gd20::L3gd20Spi<'static>,
-    // uncomment this is you need low level acces to the lsm303dlhc sensor
-    // lsm303dlhc: &'static capsules::lsm303dlhc::Lsm303dlhcI2C<'static>,
+    l3gd20: &'static capsules::l3gd20::L3gd20Spi<'static>,
+    lsm303dlhc: &'static capsules::lsm303dlhc::Lsm303dlhcI2C<'static>,
     temp: &'static capsules::temperature::TemperatureSensor<'static>,
     alarm: &'static capsules::alarm::AlarmDriver<
         'static,
@@ -86,10 +84,8 @@ impl Platform for STM32F3Discovery {
             capsules::button::DRIVER_NUM => f(Some(self.button)),
             capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
             capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
-            // uncomment this is you need low level acces to the l3gd20 sensor
-            // capsules::l3gd20::DRIVER_NUM => f(Some(self.l3gd20)),
-            // uncomment this is you need low level acces to the lsm303dlhc sensor
-            // capsules::lsm303dlhc::DRIVER_NUM => f(Some(self.lsm303dlhc)),
+            capsules::l3gd20::DRIVER_NUM => f(Some(self.l3gd20)),
+            capsules::lsm303dlhc::DRIVER_NUM => f(Some(self.lsm303dlhc)),
             capsules::ninedof::DRIVER_NUM => f(Some(self.ninedof)),
             capsules::temperature::DRIVER_NUM => f(Some(self.temp)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
@@ -471,14 +467,10 @@ pub unsafe fn reset_handler() {
 
     l3gd20.power_on();
 
-    let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
-    let grant_ninedof = board_kernel.create_grant(&grant_cap);
+    let ninedof = components::ninedof::NineDofComponent::new(board_kernel).finalize(());
 
-    let ninedof = static_init!(
-        capsules::ninedof::NineDof<'static>,
-        capsules::ninedof::NineDof::new(l3gd20, grant_ninedof)
-    );
-    hil::sensors::NineDof::set_client(l3gd20, ninedof);
+    components::ninedof::NineDofDriverComponent::new(ninedof, l3gd20)
+        .finalize(components::ninedof_driver_helper!());
 
     let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
     let grant_temperature = board_kernel.create_grant(&grant_cap);
@@ -507,13 +499,8 @@ pub unsafe fn reset_handler() {
         lsm303dlhc::Lsm303dlhcRange::Range1_9G,
     );
 
-    let lsm303dlhc_secondary = static_init!(
-        capsules::ninedof::NineDofNode<'static, &'static dyn hil::sensors::NineDof>,
-        capsules::ninedof::NineDofNode::new(lsm303dlhc)
-    );
-
-    ninedof.add_secondary_driver(lsm303dlhc_secondary);
-    hil::sensors::NineDof::set_client(lsm303dlhc, ninedof);
+    components::ninedof::NineDofDriverComponent::new(ninedof, lsm303dlhc)
+        .finalize(components::ninedof_driver_helper!());
 
     let stm32f3discovery = STM32F3Discovery {
         console: console,
@@ -522,10 +509,8 @@ pub unsafe fn reset_handler() {
         led: led,
         button: button,
         alarm: alarm,
-        // uncomment this is you need low level acces to the l3gd20 sensor
-        // l3gd20: l3gd20,
-        // uncomment this if you need low level access to the lsm303dlhc sensor
-        // lsm303dlhc: lsm303dlhc,
+        l3gd20: l3gd20,
+        lsm303dlhc: lsm303dlhc,
         ninedof: ninedof,
         temp: temp,
     };
@@ -535,7 +520,6 @@ pub unsafe fn reset_handler() {
     // // See comment in `boards/imix/src/main.rs`
     // virtual_uart_rx_test::run_virtual_uart_receive(mux_uart);
 
-    // hprintln!("Initialization complete. Entering main loop").unwrap ();
     debug!("Initialization complete. Entering main loop");
 
     extern "C" {

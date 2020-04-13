@@ -19,6 +19,7 @@ pub mod isl29035;
 pub mod l3gd20;
 pub mod lldb;
 pub mod lsm303dlhc;
+pub mod ninedof;
 pub mod nrf51822;
 pub mod panic_button;
 pub mod process_console;

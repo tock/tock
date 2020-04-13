@@ -12,26 +12,9 @@
 //!
 //! let ninedof = static_init!(
 //!     capsules::ninedof::NineDof<'static>,
-//!     capsules::ninedof::NineDof::new(fxos8700, grant_ninedof));
+//!     capsules::ninedof::NineDof::new(grant_ninedof));
+//! ninedof.add_driver(fxos8700);
 //! hil::sensors::NineDof::set_client(fxos8700, ninedof);
-//! ```
-//!
-//! Use secondary sensors
-//! Not all sensors provide all the three components for the NineDof sensor,
-//! so you may add secondary sensors besides the primary sensor.
-//!
-//! If one of the functionallities is not implemeneted by the primary sensor,
-//! the secondary sensors will be queried.
-//!
-//!
-//! ```rust
-//!
-//! let lsm303dlhc_secondary = static_init!(
-//!    capsules::ninedof::NineDofNode<'static, &'static dyn hil::sensors::NineDof>,
-//!    capsules::ninedof::NineDofNode::new(lsm303dlhc)
-//! );
-//! ninedof.add_secondary_driver(lsm303dlhc_secondary);
-//! hil::sensors::NineDof::set_client(lsm303dlhc, ninedof);
 //! ```
 
 use kernel::common::cells::OptionalCell;
@@ -91,27 +74,22 @@ impl<P> ListNode<'a, NineDofNode<'a, P>> for NineDofNode<'a, P> {
 }
 
 pub struct NineDof<'a> {
-    driver: &'a dyn hil::sensors::NineDof,
-    secondary_drivers: List<'a, NineDofNode<'a, &'a dyn hil::sensors::NineDof>>,
+    drivers: List<'a, NineDofNode<'a, &'a dyn hil::sensors::NineDof>>,
     apps: Grant<App>,
     current_app: OptionalCell<AppId>,
 }
 
 impl NineDof<'a> {
-    pub fn new(driver: &'a dyn hil::sensors::NineDof, grant: Grant<App>) -> NineDof<'a> {
+    pub fn new(grant: Grant<App>) -> NineDof<'a> {
         NineDof {
-            driver: driver,
-            secondary_drivers: List::new(),
+            drivers: List::new(),
             apps: grant,
             current_app: OptionalCell::empty(),
         }
     }
 
-    pub fn add_secondary_driver(
-        &self,
-        secondary_driver: &'a NineDofNode<'a, &'a dyn hil::sensors::NineDof>,
-    ) {
-        self.secondary_drivers.push_tail(secondary_driver);
+    pub fn add_driver(&self, secondary_driver: &'a NineDofNode<'a, &'a dyn hil::sensors::NineDof>) {
+        self.drivers.push_tail(secondary_driver);
     }
 
     // Check so see if we are doing something. If not,
@@ -144,37 +122,31 @@ impl NineDof<'a> {
     fn call_driver(&self, command: NineDofCommand, _: usize) -> ReturnCode {
         match command {
             NineDofCommand::ReadAccelerometer => {
-                let mut data = self.driver.read_accelerometer();
-                if data == ReturnCode::ENODEVICE {
-                    for driver in self.secondary_drivers.iter() {
-                        data = driver.driver.read_accelerometer();
-                        if data == ReturnCode::SUCCESS {
-                            break;
-                        }
+                let mut data = ReturnCode::ENODEVICE;
+                for driver in self.drivers.iter() {
+                    data = driver.driver.read_accelerometer();
+                    if data == ReturnCode::SUCCESS {
+                        break;
                     }
                 }
                 data
             }
             NineDofCommand::ReadMagnetometer => {
-                let mut data = self.driver.read_magnetometer();
-                if data == ReturnCode::ENODEVICE {
-                    for driver in self.secondary_drivers.iter() {
-                        data = driver.driver.read_magnetometer();
-                        if data == ReturnCode::SUCCESS {
-                            break;
-                        }
+                let mut data = ReturnCode::ENODEVICE;
+                for driver in self.drivers.iter() {
+                    data = driver.driver.read_magnetometer();
+                    if data == ReturnCode::SUCCESS {
+                        break;
                     }
                 }
                 data
             }
             NineDofCommand::ReadGyroscope => {
-                let mut data = self.driver.read_gyroscope();
-                if data == ReturnCode::ENODEVICE {
-                    for driver in self.secondary_drivers.iter() {
-                        data = driver.driver.read_gyroscope();
-                        if data == ReturnCode::SUCCESS {
-                            break;
-                        }
+                let mut data = ReturnCode::ENODEVICE;
+                for driver in self.drivers.iter() {
+                    data = driver.driver.read_gyroscope();
+                    if data == ReturnCode::SUCCESS {
+                        break;
                     }
                 }
                 data

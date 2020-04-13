@@ -626,118 +626,96 @@ impl i2c::I2CClient for Lsm303dlhcI2C<'a> {
 impl Driver for Lsm303dlhcI2C<'a> {
     fn command(&self, command_num: usize, data1: usize, data2: usize, _: AppId) -> ReturnCode {
         match command_num {
-            0 /* check if present */ => ReturnCode::SUCCESS,
+            0 => ReturnCode::SUCCESS,
             // Check is sensor is correctly connected
             1 => {
-				if self.state.get () == State::Idle {
-					self.is_present ();
-					ReturnCode::SUCCESS
-				}
-				else
-				{
-					ReturnCode::EBUSY
-				}
-
-			}
-			// Set Accelerometer Power Mode
+                if self.state.get() == State::Idle {
+                    self.is_present();
+                    ReturnCode::SUCCESS
+                } else {
+                    ReturnCode::EBUSY
+                }
+            }
+            // Set Accelerometer Power Mode
             2 => {
-				if self.state.get () == State::Idle {
-                    if let Some (data_rate) = Lsm303dlhcAccelDataRate::from_usize (data1) {
+                if self.state.get() == State::Idle {
+                    if let Some(data_rate) = Lsm303dlhcAccelDataRate::from_usize(data1) {
                         self.set_power_mode(data_rate, if data2 != 0 { true } else { false });
                         ReturnCode::SUCCESS
-                    }
-                    else
-                    {
+                    } else {
                         ReturnCode::EINVAL
                     }
-				}
-				else
-				{
-					ReturnCode::EBUSY
-				}
-			}
-			// Set Accelerometer Scale And Resolution
+                } else {
+                    ReturnCode::EBUSY
+                }
+            }
+            // Set Accelerometer Scale And Resolution
             3 => {
-				if self.state.get () == State::Idle {
-					if let Some (scale) = Lsm303dlhcScale::from_usize(data1) {
+                if self.state.get() == State::Idle {
+                    if let Some(scale) = Lsm303dlhcScale::from_usize(data1) {
                         self.set_scale_and_resolution(scale, if data2 != 0 { true } else { false });
                         ReturnCode::SUCCESS
-                    }
-                    else
-                    {
+                    } else {
                         ReturnCode::EINVAL
                     }
-				}
-				else
-				{
-					ReturnCode::EBUSY
-				}
+                } else {
+                    ReturnCode::EBUSY
+                }
             }
-            // Set Magnetometer Temperature Enable and Data Rate 
+            // Set Magnetometer Temperature Enable and Data Rate
             4 => {
-				if self.state.get () == State::Idle {
-                    if let Some (data_rate) = Lsm303dlhcMagnetoDataRate::from_usize (data2) {
-                        self.set_temperature_and_magneto_data_rate (if data1 != 0 { true } else { false }, data_rate);
+                if self.state.get() == State::Idle {
+                    if let Some(data_rate) = Lsm303dlhcMagnetoDataRate::from_usize(data2) {
+                        self.set_temperature_and_magneto_data_rate(
+                            if data1 != 0 { true } else { false },
+                            data_rate,
+                        );
                         ReturnCode::SUCCESS
-                    }
-                    else
-                    {
+                    } else {
                         ReturnCode::EINVAL
                     }
-				}
-				else
-				{
-					ReturnCode::EBUSY
-				}
-			}
-			// Set Magnetometer Range
+                } else {
+                    ReturnCode::EBUSY
+                }
+            }
+            // Set Magnetometer Range
             5 => {
-				if self.state.get () == State::Idle {
-					if let Some (range) = Lsm303dlhcRange::from_usize(data1) {
+                if self.state.get() == State::Idle {
+                    if let Some(range) = Lsm303dlhcRange::from_usize(data1) {
                         self.set_range(range);
                         ReturnCode::SUCCESS
-                    }
-                    else
-                    {
+                    } else {
                         ReturnCode::EINVAL
                     }
-				}
-				else
-				{
-					ReturnCode::EBUSY
-				}
+                } else {
+                    ReturnCode::EBUSY
+                }
             }
-			// Read Acceleration XYZ
+            // Read Acceleration XYZ
             6 => {
-				if self.state.get () == State::Idle {
-					self.read_acceleration_xyz ();
-					ReturnCode::SUCCESS
-				}
-				else
-				{
-					ReturnCode::EBUSY
-				}
+                if self.state.get() == State::Idle {
+                    self.read_acceleration_xyz();
+                    ReturnCode::SUCCESS
+                } else {
+                    ReturnCode::EBUSY
+                }
             }
             // Read Temperature
             7 => {
-				if self.state.get () == State::Idle {
-					self.read_temperature ();
-					ReturnCode::SUCCESS
-				}
-				else
-				{
-					ReturnCode::EBUSY
-				}
-			}
-			8 => {
-				if self.state.get () == State::Idle {
-					self.read_magnetometer_xyz ();
-					ReturnCode::SUCCESS
-				}
-				else
-				{
-					ReturnCode::EBUSY
-				}
+                if self.state.get() == State::Idle {
+                    self.read_temperature();
+                    ReturnCode::SUCCESS
+                } else {
+                    ReturnCode::EBUSY
+                }
+            }
+            8 => {
+                if self.state.get() == State::Idle {
+                    self.read_magnetometer_xyz();
+                    ReturnCode::SUCCESS
+                } else {
+                    ReturnCode::EBUSY
+                }
             }
             // default
             _ => ReturnCode::ENOSUPPORT,
