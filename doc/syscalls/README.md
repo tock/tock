@@ -121,4 +121,4 @@ stabilized or not (a "✓" indicates stability) in the Tock 1.0 release.
 |   | 0x80002       | PCA9544A         | I2C address multiplexing                   |
 |   | 0x80003       | GPIO Async       | Asynchronous GPIO pins                     |
 |   | 0x80004       | nRF51822         | nRF serialization link to nRF51822 BLE SoC |
-| ✓ | 0x80005       | [HD44780](80005_hd44780.md)          | LCD HD44780 capsule                        |
+|   | 0x80005       | [HD44780](80005_hd44780.md)          | LCD HD44780 capsule                        |
