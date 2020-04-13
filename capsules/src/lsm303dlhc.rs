@@ -30,8 +30,8 @@
 //!   - `data2`: High resolution (1 on, 0 off)
 //!   - Return: `SUCCESS` if no other command is in progress, `EBUSY` otherwise.
 //! - `4`: Set Magnetometer Temperature Enable and Data Rate
-//!   - `data1`: Temperature enable (1 on, 0 off)
-//!   - `data2`: Magnetometer Data rate defined in manual table 72, page 37
+//!   - `data1`: Magnetometer Data rate defined in manual table 72, page 37
+//!   - `data2`: Temperature enable (1 on, 0 off)
 //!   - Return: `SUCCESS` if no other command is in progress, `EBUSY` otherwise.
 //! - `5`: Set magnetometer range
 //!   - `data1`: Magnetometer range defined in manual table 75, page 38
@@ -665,9 +665,9 @@ impl Driver for Lsm303dlhcI2C<'a> {
             // Set Magnetometer Temperature Enable and Data Rate
             4 => {
                 if self.state.get() == State::Idle {
-                    if let Some(data_rate) = Lsm303dlhcMagnetoDataRate::from_usize(data2) {
+                    if let Some(data_rate) = Lsm303dlhcMagnetoDataRate::from_usize(data1) {
                         self.set_temperature_and_magneto_data_rate(
-                            if data1 != 0 { true } else { false },
+                            if data2 != 0 { true } else { false },
                             data_rate,
                         );
                         ReturnCode::SUCCESS
