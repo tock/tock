@@ -45,19 +45,15 @@ if git status --porcelain | grep '^.M.*\.rs' -q; then
 fi
 
 set +e
-let FAIL=0
-set -e
 
-# Find folders with Cargo.toml files in them and run `cargo fmt`.
 if [ "$1" == "diff" ]; then
-	# Just print out diffs and count errors, used by Travis
+	# Just print out diffs, used by Travis.
 	CARGO_FMT_ARGS="-- --check"
 fi
-for f in $(find . | grep Cargo.toml); do
-	pushd $(dirname $f) > /dev/null
-	cargo-fmt $CARGO_FMT_ARGS || let FAIL=FAIL+1
-	popd > /dev/null
-done
+
+# Format all crates in the workspace.
+cargo fmt --all $CARGO_FMT_ARGS
+FAIL=$?
 
 if [[ $FAIL -ne 0 ]]; then
 	echo
