@@ -128,10 +128,6 @@ impl<'a> uart::ReceiveClient for MuxUart<'a> {
                     if remaining == 0 {
                         device.state.set(UartDeviceReceiveState::Idle);
                         device.received_buffer(rxbuf, position, rcode, error);
-                        // Need to check if receive was called in callback
-                        if device.state.get() == UartDeviceReceiveState::Receiving {
-                            read_pending = true;
-                        }
                     } else if state == UartDeviceReceiveState::Aborting {
                         device.state.set(UartDeviceReceiveState::Idle);
                         device.received_buffer(
@@ -140,10 +136,6 @@ impl<'a> uart::ReceiveClient for MuxUart<'a> {
                             ReturnCode::ECANCEL,
                             uart::Error::Aborted,
                         );
-                        // Need to check if receive was called in callback
-                        if device.state.get() == UartDeviceReceiveState::Receiving {
-                            read_pending = true;
-                        }
                     } else {
                         device.rx_buffer.replace(rxbuf);
                         next_read_len = cmp::min(next_read_len, remaining);
