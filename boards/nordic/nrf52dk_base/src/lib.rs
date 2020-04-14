@@ -8,6 +8,7 @@ use kernel::{create_capability, debug, debug_gpio, debug_verbose, static_init};
 use capsules::analog_comparator;
 use capsules::virtual_alarm::VirtualMuxAlarm;
 use capsules::virtual_spi::{MuxSpiMaster, VirtualSpiMasterDevice};
+use capsules::lora::radio::{RadioConfig};
 use kernel::capabilities;
 use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::component::Component;
@@ -22,7 +23,6 @@ pub mod nrf52_components;
 use nrf52_components::ble::BLEComponent;
 use nrf52_components::ieee802154::Ieee802154Component;
 use nrf52_components::lora::LoraComponent;
-
 // Constants related to the configuration of the 15.4 network stack
 const SRC_MAC: u16 = 0xf00f;
 const PAN_ID: u16 = 0xABCD;
@@ -109,7 +109,7 @@ pub struct Platform {
     >,
     ieee802154_radio: Option<&'static capsules::ieee802154::RadioDriver<'static>>,
     lora_radio: Option<&'static capsules::lora::driver::RadioDriver<'static, VirtualSpiMasterDevice<'static, nrf52::spi::SPIM>>>,
-    spi: &'static capsules::spi::Spi<'static, VirtualSpiMasterDevice<'static, nrf52::spi::SPIM>>,
+    //spi: &'static capsules::spi::Spi<'static, VirtualSpiMasterDevice<'static, nrf52::spi::SPIM>>,
     button: &'static capsules::button::Button<'static>,
     pconsole: &'static capsules::process_console::ProcessConsole<
         'static,
@@ -153,7 +153,7 @@ impl kernel::Platform for Platform {
                 Some(radio) => f(Some(radio)),
                 None => f(None),
             },
-            capsules::spi::DRIVER_NUM => f(Some(self.spi)),
+            //capsules::spi::DRIVER_NUM => f(Some(self.spi)),
             capsules::temperature::DRIVER_NUM => f(Some(self.temp)),
             capsules::analog_comparator::DRIVER_NUM => f(Some(self.analog_comparator)),
             capsules::nonvolatile_storage_driver::DRIVER_NUM => {
@@ -260,11 +260,11 @@ pub unsafe fn setup_board<I: nrf52::interrupt_service::InterruptService>(
     let memory_allocation_capability = create_capability!(capabilities::MemoryAllocationCapability);
 
     // Configure kernel debug gpios as early as possible
-    //kernel::debug::assign_gpios(
-    //    Some(&gpio_port[debug_pin1_index]),
-    //    Some(&gpio_port[debug_pin2_index]),
-    //    Some(&gpio_port[debug_pin3_index]),
-    //);
+    kernel::debug::assign_gpios(
+        Some(&gpio_port[debug_pin1_index]),
+        Some(&gpio_port[debug_pin2_index]),
+        Some(&gpio_port[debug_pin3_index]),
+    );
 
     let rtc = &nrf52::rtc::RTC;
     rtc.start();
@@ -348,8 +348,8 @@ pub unsafe fn setup_board<I: nrf52::interrupt_service::InterruptService>(
     );
 
     //userland SPI --- for test
-    let spi = SpiSyscallComponent::new(mux_spi, &gpio_port[Pin::P1_10])
-          .finalize(components::spi_syscall_component_helper!(nrf52::spi::SPIM));
+    //let spi = SpiSyscallComponent::new(mux_spi, &gpio_port[Pin::P1_10])   //fix it
+    //      .finalize(components::spi_syscall_component_helper!(nrf52::spi::SPIM));
 
     // SPI and Lora radio
     let lora_radio = if let Some(pins) = lora {
@@ -484,7 +484,7 @@ pub unsafe fn setup_board<I: nrf52::interrupt_service::InterruptService>(
         ble_radio: ble_radio,
         ieee802154_radio: ieee802154_radio,
         lora_radio: lora_radio,
-        spi: spi,
+        //spi: spi,
         pconsole: pconsole,
         console: console,
         led: led,

@@ -30,7 +30,7 @@ impl Component for LoraComponent {
         &'static RadioDriver<'static, VirtualSpiMasterDevice<'static, nrf52::spi::SPIM>>,
     );
 
-    unsafe fn finalize(&mut self, _s: Self::StaticInput) -> Self::Output {
+    unsafe fn finalize(self, _s: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
         let radio_driver = static_init!(

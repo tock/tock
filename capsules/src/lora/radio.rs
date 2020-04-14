@@ -1,4 +1,6 @@
 
+// Based on https://github.com/sandeepmistry/arduino-LoRa
+
 use core::cell::Cell;
 use kernel::common::cells::{TakeCell};
 use kernel::hil::radio;
@@ -80,63 +82,27 @@ enum Irq {
 const PaBoost: u8           = 0x80;
 const MaxPktLength: u8      = 255;
 
-// The modem
-pub struct Radio<'a, S: SpiMasterDevice> {
-  spi: &'a S,
-  spi_buf: TakeCell<'static, [u8]>,
-  spi_rx: TakeCell<'static, [u8]>,
-  spi_tx: TakeCell<'static, [u8]>,
-  spi_busy: Cell<bool>,
-  //Pins
-  //ss_pin: &'a dyn gpio::Pin,
-  reset_pin: &'a dyn gpio::Pin,
-  irq_pin: &'a dyn gpio::InterruptPin,
-  //State params
-  transmitting: Cell<bool>,
-  sleep_pending: Cell<bool>,
-  wake_pending: Cell<bool>,
-  interrupt_handling: Cell<bool>,
-  interrupt_pending: Cell<bool>,
-  state: Cell<InternalState>,
-  //LoRa params
-  frequency: u64,
-  packet_index: u8,
-  implicit_header: bool,
-  tx_done: bool,
-  rx_done: bool,
+//
+// SPI functions
+// Implementing a public trait to cleanly pass to board. TO DO: move to kernel/hil
+// Note: initialize, start, stop are specific to SPI
+//
+pub trait RadioConfig {
+    /// buf must be at least MAX_BUF_SIZE in length, and
+    /// reg_read and reg_write must be 2 bytes.
+    fn initialize(
+        &self,
+        spi_buf: &'static mut [u8],
+        reg_write: &'static mut [u8],
+        reg_read: &'static mut [u8],
+    ) -> ReturnCode;
+    fn reset(&self) -> ReturnCode;
+    fn start(&self) -> ReturnCode;
+    fn stop(&self) -> ReturnCode;
 }
 
-impl<S: SpiMasterDevice> Radio<'a, S> {
-    pub fn new(
-        spi: &'a S,
-        //ss: &'a dyn gpio::Pin,
-        reset: &'a dyn gpio::Pin,
-        irq: &'a dyn gpio::InterruptPin,
-    ) -> Radio<'a, S> {
-        Radio {
-            spi: spi,
-            spi_buf: TakeCell::empty(),
-            spi_rx: TakeCell::empty(),
-            spi_tx: TakeCell::empty(),
-            spi_busy: Cell::new(false),
-            //ss_pin: ss,
-            reset_pin: reset,
-            irq_pin: irq,
-            state: Cell::new(InternalState::START),
-            transmitting: Cell::new(false),
-            sleep_pending: Cell::new(false),
-            wake_pending: Cell::new(false),
-            interrupt_handling: Cell::new(false),
-            interrupt_pending: Cell::new(false),
-            frequency: 0,
-            packet_index: 0,
-            implicit_header: false,
-            tx_done: false,
-            rx_done: false,
-        }
-    }
-
-    pub fn initialize(
+impl<S: spi::SpiMasterDevice> RadioConfig for Radio<'a, S> {
+    fn initialize(
         &self,
         buf: &'static mut [u8],
         reg_write: &'static mut [u8],
@@ -151,7 +117,7 @@ impl<S: SpiMasterDevice> Radio<'a, S> {
         ReturnCode::SUCCESS
     }
 
-    pub fn reset(&self) -> ReturnCode {
+    fn reset(&self) -> ReturnCode {
         self.spi.configure(
             spi::ClockPolarity::IdleLow,
             spi::ClockPhase::SampleLeading,
@@ -162,11 +128,10 @@ impl<S: SpiMasterDevice> Radio<'a, S> {
             self.reset_pin.clear();
         }
         self.reset_pin.set();
-        self.transmitting.set(false);
         ReturnCode::SUCCESS
     }
 
-    pub fn start(&self) -> ReturnCode {
+    fn start(&self) -> ReturnCode {
         //self.sleep_pending.set(false);
 
         if self.state.get() != InternalState::START && self.state.get() != InternalState::SLEEP {
@@ -183,7 +148,7 @@ impl<S: SpiMasterDevice> Radio<'a, S> {
         ReturnCode::SUCCESS
     }
 
-    pub fn stop(&self) -> ReturnCode {
+    fn stop(&self) -> ReturnCode {
         if self.state.get() == InternalState::SLEEP || self.state.get() == InternalState::TX_OFF
         {
             return ReturnCode::EALREADY;
@@ -200,15 +165,64 @@ impl<S: SpiMasterDevice> Radio<'a, S> {
 
         ReturnCode::SUCCESS
     }
+}
 
-  // SPI handle for LoRa interrupts
-  fn handle_interrupt(&mut self) {
-      // In most cases, the first thing the driver does on handling an interrupt is
-      // read the IRQ status; this pushes most logic to the SPI handler.
-      // The one exception is when the radio receives a packet; to prevent this
-      // packet from being overwritten before reading it from the radio,
-      // the driver needs to disable reception. This has to be done in the first
-      // SPI operation.
+// The modem
+pub struct Radio<'a, S: SpiMasterDevice> {
+  spi: &'a S,
+  spi_buf: TakeCell<'static, [u8]>,
+  spi_rx: TakeCell<'static, [u8]>,
+  spi_tx: TakeCell<'static, [u8]>,
+  spi_busy: Cell<bool>,
+  //Pins
+  //cs_pin: &'a dyn gpio::Pin,
+  reset_pin: &'a dyn gpio::Pin,
+  irq_pin: &'a dyn gpio::InterruptPin,
+  //State params
+  sleep_pending: Cell<bool>,
+  wake_pending: Cell<bool>,
+  interrupt_handling: Cell<bool>,
+  interrupt_pending: Cell<bool>,
+  state: Cell<InternalState>,
+  //LoRa params
+  frequency: Cell<u64>,
+  packet_index: Cell<u8>,
+  implicit_header: Cell<bool>,
+  tx_done: bool,
+  rx_done: bool,
+}
+
+impl<S: SpiMasterDevice> Radio<'a, S> {
+  pub fn new(
+      spi: &'a S,
+      //cs: &'a dyn gpio::Pin,
+      reset: &'a dyn gpio::Pin,
+      irq: &'a dyn gpio::InterruptPin,
+  ) -> Radio<'a, S> {
+      Radio {
+          spi: spi,
+          spi_buf: TakeCell::empty(),
+          spi_rx: TakeCell::empty(),
+          spi_tx: TakeCell::empty(),
+          spi_busy: Cell::new(false),
+          //cs_pin: cs,
+          reset_pin: reset,
+          irq_pin: irq,
+          state: Cell::new(InternalState::START),
+          sleep_pending: Cell::new(false),
+          wake_pending: Cell::new(false),
+          interrupt_handling: Cell::new(false),
+          interrupt_pending: Cell::new(false),
+          frequency: Cell::new(0),
+          packet_index: Cell::new(0),
+          implicit_header: Cell::new(false),
+          tx_done: false,
+          rx_done: false,
+      }
+  }
+
+  // SPI operations for handling LoRa IRQ
+  fn handle_interrupt(&self) {
       if self.spi_busy.get() == false {
           if self.state.get() == InternalState::RX_ON {
               // We've received a complete frame; need to disable
@@ -222,12 +236,11 @@ impl<S: SpiMasterDevice> Radio<'a, S> {
           self.interrupt_pending.set(true);
       }
   }
-
+    
   fn register_write(&self, reg: RegMap, val: u8) -> ReturnCode {
-      debug_gpio!(1, toggle);
-      if self.spi_busy.get() || self.spi_tx.is_none() || self.spi_rx.is_none() {
-          return ReturnCode::EBUSY;
-      }
+      //if self.spi_busy.get() || self.spi_tx.is_none() || self.spi_rx.is_none() {
+      //    return ReturnCode::EBUSY;
+      //}
       let wbuf = self.spi_tx.take().unwrap();
       let rbuf = self.spi_rx.take().unwrap();
       wbuf[0] = (reg as u8) | 0x80;
@@ -238,10 +251,9 @@ impl<S: SpiMasterDevice> Radio<'a, S> {
   }
 
   fn register_read(&self, reg: RegMap) -> ReturnCode {
-      debug_gpio!(0, toggle);
-      if self.spi_busy.get() || self.spi_tx.is_none() || self.spi_rx.is_none() {
-          return ReturnCode::EBUSY;
-      }
+      //if self.spi_busy.get() || self.spi_tx.is_none() || self.spi_rx.is_none() {
+      //    return ReturnCode::EBUSY;
+      //}
       let wbuf = self.spi_tx.take().unwrap();
       let rbuf = self.spi_rx.take().unwrap();
       wbuf[0] = (reg as u8) | 0x7f;
@@ -259,10 +271,8 @@ impl<S: SpiMasterDevice> Radio<'a, S> {
     }
   }
 
-  // Based on https://github.com/sandeepmistry/arduino-LoRa
-
   //
-  // Config functions
+  // State functions
   //
   fn idle(&self) {
     self.register_write(RegMap::RegOpMode,Mode::ModeLongRangeMode as u8 | Mode::ModeStdby as u8);
@@ -272,13 +282,13 @@ impl<S: SpiMasterDevice> Radio<'a, S> {
     self.register_write(RegMap::RegOpMode,Mode::ModeLongRangeMode as u8 | Mode::ModeSleep as u8);
   }
 
-  fn explicit_header_mode(&mut self) {
-    self.implicit_header = false; 
+  fn explicit_header_mode(&self) {
+    self.implicit_header.set(false); 
     self.register_write(RegMap::RegModemConfig1,self.register_return(RegMap::RegModemConfig1) as u8 & 0xfe);
   }
 
-  fn implicit_header_mode(&mut self) {
-    self.implicit_header = true;
+  fn implicit_header_mode(&self) {
+    self.implicit_header.set(true);
     self.register_write(RegMap::RegModemConfig1,self.register_return(RegMap::RegModemConfig1) as u8 | 0x01);
   }
 
@@ -293,9 +303,9 @@ impl<S: SpiMasterDevice> Radio<'a, S> {
     self.idle();
   
     if implicitHeader {
-      //self.implicit_header_mode();
+      self.implicit_header_mode();
     } else {
-      //self.explicit_header_mode();
+      self.explicit_header_mode();
     }
   
     // reset Fifo address and paload length
@@ -337,9 +347,9 @@ impl<S: SpiMasterDevice> Radio<'a, S> {
     return false;
   }
 
-  fn parse_packet(&mut self, size: u8) -> u8 {
+  fn parse_packet(&self, size: u8) -> u8 {
     let mut packetLength = 0 as u8;
-    let mut irqFlags = self.register_return(RegMap::RegIrqFlags) as u8;
+    let irqFlags = self.register_return(RegMap::RegIrqFlags) as u8;
   
     if size > 0 {
       self.implicit_header_mode(); 
@@ -353,10 +363,10 @@ impl<S: SpiMasterDevice> Radio<'a, S> {
   
     if (irqFlags & Irq::IrqRxDoneMask as u8 != 0) && (irqFlags & Irq::IrqPayloadCrcErrorMask as u8 != 0) {
       // received a packet
-      self.packet_index = 0;
+      self.packet_index.set(0);
   
       // read packet length
-      if self.implicit_header {
+      if self.implicit_header.get() == true {
         packetLength = self.register_return(RegMap::RegPayloadLength) as u8;
       } else {
         packetLength = self.register_return(RegMap::RegRxNbBytes) as u8;
@@ -380,9 +390,9 @@ impl<S: SpiMasterDevice> Radio<'a, S> {
     return packetLength;
   }
 
-  fn packet_rssi(&mut self) -> u8 {
-    let mut freq = self.frequency as f64;
-    let mut rssiBase;
+  fn packet_rssi(&self) -> u8 {
+    let freq = self.frequency.get() as f64;
+    let rssiBase;
     if freq < 868E6 {
       rssiBase = 164;
     } else {
@@ -391,11 +401,12 @@ impl<S: SpiMasterDevice> Radio<'a, S> {
     self.register_return(RegMap::RegPktRssiValue) - rssiBase
   }
   
-  fn packet_snr(&mut self) -> f32 {
+  fn packet_snr(&self) -> f32 {
     self.register_return(RegMap::RegPktSnrValue) as f32 * 0.25
   }
   
-  fn packet_frequency_error(&mut self) -> i64 {
+#[allow(arithmetic_overflow)]
+  fn packet_frequency_error(&self) -> i64 {
     let mut freqError;
     freqError = self.register_return(RegMap::RegFreqErrorMsb) & 0b111;
     freqError <<= 8;
@@ -404,11 +415,11 @@ impl<S: SpiMasterDevice> Radio<'a, S> {
     freqError += self.register_return(RegMap::RegFreqErrorLsb);
   
     if self.register_return(RegMap::RegFreqErrorMsb) & 0b1000 != 0 { // Sign bit is on
-       //freqError -= 524288; // B1000'0000'0000'0000'0000
+       //freqError 24288; // B1000'0000'0000'0000'0000
     }
   
-    let mut fXtal = 32E6 as f64; // Fxosc: crystal oscillator (Xtal) frequency (2.5. Chip Specification, p. 14)
-    let mut fError = ((freqError << 24) as f64 / fXtal) * (self.get_signal_bandwidth() as f64 / 500000.0); // p. 37
+    let fXtal = 32E6 as f64; // Fxosc: crystal oscillator (Xtal) frequency (2.5. Chip Specification, p. 14)
+    let fError = ((freqError << 24) as f64 / fXtal) * (self.get_signal_bandwidth() as f64 / 500000.0); // p. 37
   
     return fError as i64;
   }
@@ -416,20 +427,20 @@ impl<S: SpiMasterDevice> Radio<'a, S> {
   //
   // FIFO functions
   //
-  fn available(&mut self) -> bool {
-    return self.register_return(RegMap::RegRxNbBytes) > self.packet_index;
+  fn available(&self) -> bool {
+    return self.register_return(RegMap::RegRxNbBytes) > self.packet_index.get();
   }
 
-  fn peek(&mut self) -> u8 {
+  fn peek(&self) -> u8 {
     if !self.available() {
       return 0;
     }
   
     // store current Fifo address
-    let mut currentAddress = self.register_return(RegMap::RegFifoAddrPtr) as u8;
+    let currentAddress = self.register_return(RegMap::RegFifoAddrPtr) as u8;
   
     // read
-    let mut b = self.register_return(RegMap::RegFifo) as u8;
+    let b = self.register_return(RegMap::RegFifo) as u8;
   
     // restore Fifo address
     self.register_write(RegMap::RegFifoAddrPtr,currentAddress);
@@ -438,19 +449,19 @@ impl<S: SpiMasterDevice> Radio<'a, S> {
   }
 
   // read value at FIFO
-  fn read(&mut self) -> u8 {
+  fn read(&self) -> u8 {
     if !self.available() {
       return 0;
     }
   
-    self.packet_index += 1;
+    self.packet_index.set(self.packet_index.get() + 1);
   
     self.register_return(RegMap::RegFifo)
   }
   
   // n-byte writes
-  fn write(&mut self, buf: &[u8], mut size: u8) {
-    let mut currentLength = self.register_return(RegMap::RegPayloadLength) as u8;
+  fn write(&self, buf: &[u8], mut size: u8) {
+    let currentLength = self.register_return(RegMap::RegPayloadLength) as u8;
   
     // check size
     if (currentLength + size) > MaxPktLength {
@@ -470,13 +481,11 @@ impl<S: SpiMasterDevice> Radio<'a, S> {
   // Init functions
   //
   pub fn begin(&self, frequency: u64) -> ReturnCode {
-    // reset //Fix me
     //if self.reset_pin.read() {
-    //  //return ReturnCode::FAIL;
+    //  return ReturnCode::FAIL;
     //}
-  
-    // check version //Fix me
-    //let mut version = self.register_return(RegMap::RegVersion) as u8;
+    //
+    //let version = self.register_return(RegMap::RegVersion) as u8;
     //if version != 0x12 {
     //  return ReturnCode::FAIL;
     //}
@@ -503,14 +512,14 @@ impl<S: SpiMasterDevice> Radio<'a, S> {
     ReturnCode::SUCCESS
   }
 
-  fn end(&mut self) {
+  fn end(&self) {
     self.sleep();
   }
 
   //
   // Transmission functions
   //
-  fn receive(&mut self, size: u8) {
+  fn receive(&self, size: u8) {
   
     self.register_write(RegMap::RegDioMapping1,0x00); // Dio0 => Rxdone
   
@@ -562,20 +571,20 @@ impl<S: SpiMasterDevice> Radio<'a, S> {
   }
 
   fn set_frequency(&self, frequency: u64) {
-    //self.frequency = frequency;
+    self.frequency.set(frequency);
   
-    let mut frf = (frequency << 19) / 32000000;
+    let frf = (frequency << 19) / 32000000;
   
     self.register_write(RegMap::RegFrfMsb,(frf >> 16) as u8);
     self.register_write(RegMap::RegFrfMid,(frf >> 8) as u8);
     self.register_write(RegMap::RegFrfLsb,(frf >> 0) as u8);
   }
 
-  fn get_spreading_factor(&mut self) -> u8 {
+  fn get_spreading_factor(&self) -> u8 {
     self.register_return(RegMap::RegModemConfig2) >> 4
   }
 
-  fn set_spreading_factor(&mut self, mut sf: u8) {
+  fn set_spreading_factor(&self, mut sf: u8) {
     if sf < 6 {
       sf = 6;
     } else if sf > 12 {
@@ -594,8 +603,8 @@ impl<S: SpiMasterDevice> Radio<'a, S> {
     self.set_ldo_flag();
   }
 
-  fn get_signal_bandwidth(&mut self) -> f64 {
-    let mut bw = (self.register_return(RegMap::RegModemConfig1) >> 4) as u8;
+  fn get_signal_bandwidth(&self) -> f64 {
+    let bw = (self.register_return(RegMap::RegModemConfig1) >> 4) as u8;
   
     match bw {
       0 => return 7.8E3,
@@ -611,8 +620,8 @@ impl<S: SpiMasterDevice> Radio<'a, S> {
     }
   }
 
-  fn set_signal_bandwidth(&mut self, sbw: f64) {
-    let mut bw: u8;
+  fn set_signal_bandwidth(&self, sbw: f64) {
+    let bw: u8;
   
     if sbw <= 7.8E3 {
       bw = 0;
@@ -640,55 +649,55 @@ impl<S: SpiMasterDevice> Radio<'a, S> {
     self.set_ldo_flag();
   }
 
-  fn set_ldo_flag(&mut self) {
+  fn set_ldo_flag(&self) {
   // Section 4.1.1.5
-    let mut symbolDuration = 1000 / ( self.get_signal_bandwidth() / (1 << self.get_spreading_factor()) as f64 )  as i64;
+    let symbolDuration = 1000 / ( self.get_signal_bandwidth() / (1 << self.get_spreading_factor()) as f64 )  as i64;
   
     // Section 4.1.1.6
-    let mut ldoOn: bool = symbolDuration > 16;
+    let ldoOn: bool = symbolDuration > 16;
   
-    let mut config3 = self.register_return(RegMap::RegModemConfig3) as u8;
+    let config3 = self.register_return(RegMap::RegModemConfig3) as u8;
     if ldoOn {
       //config3 |= 0x1000;
     }
     self.register_write(RegMap::RegModemConfig3,config3);
   }
 
-  fn set_coding_rate4(&mut self, mut denominator: u8) {
+  fn set_coding_rate4(&self, mut denominator: u8) {
     if denominator < 5 {
       denominator = 5;
     } else if denominator > 8 {
       denominator = 8;
     }
   
-    let mut cr = denominator - 4 as u8;
+    let cr = denominator - 4 as u8;
   
     self.register_write(RegMap::RegModemConfig1,(self.register_return(RegMap::RegModemConfig1) as u8 & 0xf1) | (cr << 1));
   }
 
-  fn set_preamble_length(&mut self, length: i64) {
+  fn set_preamble_length(&self, length: i64) {
     self.register_write(RegMap::RegPreambleMsb,(length >> 8) as u8);
     self.register_write(RegMap::RegPreambleLsb,(length >> 0) as u8);
   }
 
-  fn set_sync_word(&mut self, sw: u8) {
+  fn set_sync_word(&self, sw: u8) {
     self.register_write(RegMap::RegSyncWord,sw);
   }
 
-  fn enable_crc(&mut self) {
+  fn enable_crc(&self) {
     self.register_write(RegMap::RegModemConfig2,self.register_return(RegMap::RegModemConfig2) as u8 | 0x04);
   }
 
-  fn disable_crc(&mut self) {
+  fn disable_crc(&self) {
     self.register_write(RegMap::RegModemConfig2,self.register_return(RegMap::RegModemConfig2) as u8 & 0xfb);
   }
 
-  fn enable_invert_iq(&mut self) {
+  fn enable_invert_iq(&self) {
     self.register_write(RegMap::RegInvertiq,0x66);
     self.register_write(RegMap::RegInvertiq2,0x19);
   }
 
-  fn disable_invert_iq(&mut self) {
+  fn disable_invert_iq(&self) {
     self.register_write(RegMap::RegInvertiq,0x27);
     self.register_write(RegMap::RegInvertiq2,0x1d);
   }
@@ -705,13 +714,13 @@ impl<S: SpiMasterDevice> Radio<'a, S> {
     self.register_write(RegMap::RegOcp,0x20 | (0x1F & ocpTrim));
   }
 
-  fn random(&mut self) -> u8 {
+  fn random(&self) -> u8 {
     self.register_return(RegMap::RegRssiWideband)
   }
 
-  // handle LoRa interrupt
-  fn handle_lora_irq(&mut self) {
-    let mut irqFlags = self.register_return(RegMap::RegIrqFlags) as u8;
+  // Radio operations for handling LoRa IRQ
+  fn handle_lora_irq(&self) {
+    let irqFlags = self.register_return(RegMap::RegIrqFlags) as u8;
   
     // clear Irq's
     self.register_write(RegMap::RegIrqFlags,irqFlags);
@@ -720,15 +729,16 @@ impl<S: SpiMasterDevice> Radio<'a, S> {
   
       if (irqFlags & Irq::IrqRxDoneMask as u8) != 0 {
         // received a packet
-        self.packet_index = 0;
+        self.packet_index.set(0);
   
         // read packet length
-        let mut packetLength;
-        if self.implicit_header {
+        let packetLength;
+        if self.implicit_header.get() == true {
           packetLength = self.register_return(RegMap::RegPayloadLength) as u8;
         } else {
           packetLength = self.register_return(RegMap::RegRxNbBytes) as u8;
-        }
+      
+      }
   
         // set Fifo address to current Rx address
         self.register_write(RegMap::RegFifoAddrPtr,self.register_return(RegMap::RegFifoRxCurrentAddr));

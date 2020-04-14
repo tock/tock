@@ -68,7 +68,7 @@ use kernel::component::Component;
 #[allow(unused_imports)]
 use kernel::{debug, debug_gpio, debug_verbose, static_init};
 use nrf52840::gpio::Pin;
-use nrf52dk_base::{SpiMX25R6435FPins, SpiPins, UartChannel, UartPins};
+use nrf52dk_base::{SpiMX25R6435FPins, SpiPins, LoraPins, UartChannel, UartPins};
 
 // The nRF52840DK LEDs (see back of board)
 const LED1_PIN: Pin = Pin::P0_13;
@@ -88,17 +88,17 @@ const UART_TXD: Pin = Pin::P0_06;
 const UART_CTS: Option<Pin> = Some(Pin::P0_07);
 const UART_RXD: Pin = Pin::P0_08;
 
-const SPI_MOSI: Pin = Pin::P0_20;
-const SPI_MISO: Pin = Pin::P0_21;
-const SPI_CLK: Pin = Pin::P0_19;
+const SPI_MOSI: Pin = Pin::P0_29;
+const SPI_MISO: Pin = Pin::P0_30;
+const SPI_CLK: Pin = Pin::P0_26;
 
 const SPI_MX25R6435F_CHIP_SELECT: Pin = Pin::P0_17;
 const SPI_MX25R6435F_WRITE_PROTECT_PIN: Pin = Pin::P0_22;
 const SPI_MX25R6435F_HOLD_PIN: Pin = Pin::P0_23;
 
-//const LORA_CHIP_SELECT: Pin = Pin::P0_17; // fixme
-//const LORA_RESET: Pin = Pin::P0_22; // fixme
-//const LORA_INT: Pin = Pin::P0_23; // fixme
+const LORA_CHIP_SELECT: Pin = Pin::P0_19; // fixme
+const LORA_RESET: Pin = Pin::P0_21; // fixme
+const LORA_INT: Pin = Pin::P0_22; // fixme
 
 /// Debug Writer
 pub mod io;
@@ -115,7 +115,7 @@ const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultRespons
 // Number of concurrent processes this platform supports.
 const NUM_PROCS: usize = 8;
 
-static mut APP_MEMORY: [u8; 0x3C000] = [0; 0x3C000];
+static mut APP_MEMORY: [u8; 0x2C000] = [0; 0x2C000];
 
 static mut PROCESSES: [Option<&'static dyn kernel::procs::ProcessType>; NUM_PROCS] =
     [None, None, None, None, None, None, None, None];
@@ -216,12 +216,6 @@ pub unsafe fn reset_handler() {
     let chip = static_init!(nrf52840::chip::Chip, nrf52840::chip::new());
     CHIP = Some(chip);
 
-    //kernel::debug::assign_gpios(  //leds
-    //  Some(&nrf52840::gpio::PORT[Pin::P0_13]),
-    //  Some(&nrf52840::gpio::PORT[Pin::P0_14]),
-    //  Some(&nrf52840::gpio::PORT[Pin::P0_15]),
-    //);
-
     nrf52dk_base::setup_board(
         board_kernel,
         BUTTON_RST_PIN,
@@ -240,7 +234,7 @@ pub unsafe fn reset_handler() {
         )),
         button,
         true,
-        &None,//&LoraPins::new(LORA_CHIP_SELECT, LORA_RESET, LORA_INT),
+        &Some(LoraPins::new(LORA_CHIP_SELECT, LORA_RESET, LORA_INT)),
         &mut APP_MEMORY,
         &mut PROCESSES,
         FAULT_RESPONSE,

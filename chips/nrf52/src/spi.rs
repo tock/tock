@@ -37,6 +37,7 @@ use kernel::common::StaticRef;
 use kernel::hil;
 use kernel::ReturnCode;
 use nrf5x::pinmux::Pinmux;
+use kernel::debug_gpio;
 
 /// SPI master instance 0.
 pub static mut SPIM0: SPIM = SPIM::new(0);
@@ -382,7 +383,9 @@ impl hil::spi::SpiMaster for SPIM {
 
         // Start the transfer
         self.busy.set(true);
+      debug_gpio!(1, toggle);
         self.registers.tasks_start.write(TASK::TASK::SET);
+      debug_gpio!(1, toggle);
         ReturnCode::SUCCESS
     }
 
