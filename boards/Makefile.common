@@ -10,6 +10,7 @@ MAKEFILE_PARENT_PATH := $(dir $(abspath $(MAKEFILE_COMMON_PATH)/..))
 TOOLCHAIN ?= llvm
 CARGO     ?= cargo
 RUSTUP    ?= rustup
+TARGET_DIR ?= target
 
 # This will hopefully move into Cargo.toml (or Cargo.toml.local) eventually.
 # lld uses the page size to align program sections. It defaults to 4096 and this
@@ -43,6 +44,7 @@ check_defined = $(strip $(foreach 1,$1,$(if $(value $1),,$(error Undefined varia
 $(call check_defined, PLATFORM)
 $(call check_defined, TARGET)
 
+TARGET_PATH = $(TARGET_DIR)/$(TARGET)
 # If environment variable V is non-empty, be verbose.
 ifneq ($(V),)
   Q =
@@ -139,27 +141,31 @@ all: release
 # binary. This makes checking for Rust errors much faster.
 .PHONY: check
 check:
-	$(Q)RUSTFLAGS="$(RUSTFLAGS_FOR_CARGO)" $(CARGO) check --target=$(TARGET) $(VERBOSE) --release
+	$(Q)RUSTFLAGS="$(RUSTFLAGS_FOR_CARGO)" $(CARGO) check --target=$(TARGET) \
+		--target-dir=$(TARGET_DIR) $(VERBOSE) --release
 
 .PHONY: clean
 clean::
-	$(Q)$(CARGO) clean $(VERBOSE)
+	$(Q)$(CARGO) clean --target-dir=$(TARGET_DIR) $(VERBOSE)
 
 .PHONY: release
-release: target/$(TARGET)/release/$(PLATFORM).bin
+release: $(TARGET_PATH)/release/$(PLATFORM).bin
 
 .PHONY: debug
-debug: target/$(TARGET)/debug/$(PLATFORM).bin
+debug: $(TARGET_PATH)/debug/$(PLATFORM).bin
+
+
 
 .PHONY: debug-lst
-debug-lst: target/$(TARGET)/debug/$(PLATFORM).lst
+debug-lst: $(TARGET_PATH)/debug/$(PLATFORM).lst
 
 .PHONY: doc
 doc: | target
-	$(Q)RUSTDOCFLAGS='-Z unstable-options --document-hidden-items' $(CARGO) doc $(VERBOSE) --release --target=$(TARGET)
+	$(Q)RUSTDOCFLAGS='-Z unstable-options --document-hidden-items' $(CARGO) doc \
+		$(VERBOSE) --release --target=$(TARGET) --target-dir=$(TARGET_DIR)
 
 .PHONY: lst
-lst: target/$(TARGET)/release/$(PLATFORM).lst
+lst: $(TARGET_PATH)/release/$(PLATFORM).lst
 
 # Helper rule for showing the TARGET used by this board. Useful when building
 # the documentation for all boards.
@@ -170,7 +176,7 @@ show-target:
 # Support rules
 
 target:
-	@mkdir -p target
+	@mkdir -p $(TARGET_PATH)
 
 # Cargo outputs an elf file (just without a file extension)
 %.elf: %
@@ -192,12 +198,14 @@ $(MAKEFILE_COMMON_PATH)../tools/sha256sum/target/debug/sha256sum:
 # We want to always invoke cargo (yay nested build systems), so these need to
 # be phony, which means they can't be pattern rules.
 
-.PHONY: target/$(TARGET)/release/$(PLATFORM)
-target/$(TARGET)/release/$(PLATFORM):
-	$(Q)RUSTFLAGS="$(RUSTFLAGS_FOR_CARGO)" $(CARGO) build --target=$(TARGET) $(VERBOSE) --release
+.PHONY: $(TARGET_PATH)/release/$(PLATFORM)
+$(TARGET_PATH)/release/$(PLATFORM):
+	$(Q)RUSTFLAGS="$(RUSTFLAGS_FOR_CARGO)" $(CARGO) build $(VERBOSE) --release \
+		--target-dir=$(TARGET_DIR) --target=$(TARGET)
 	$(Q)$(SIZE) $@
 
-.PHONY: target/$(TARGET)/debug/$(PLATFORM)
-target/$(TARGET)/debug/$(PLATFORM):
-	$(Q)RUSTFLAGS="$(RUSTFLAGS_FOR_CARGO)" $(CARGO) build $(VERBOSE) --target=$(TARGET)
+.PHONY: $(TARGET_PATH)/debug/$(PLATFORM)
+$(TARGET_PATH)/debug/$(PLATFORM):
+	$(Q)RUSTFLAGS="$(RUSTFLAGS_FOR_CARGO)" $(CARGO) build $(VERBOSE) \
+		--target-dir=$(TARGET_DIR)  --target=$(TARGET)
 	$(Q)$(SIZE) $@
