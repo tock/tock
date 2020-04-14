@@ -44,20 +44,19 @@ if git status --porcelain | grep '^.M.*\.rs' -q; then
 	fi
 fi
 
-set +e
-
 if [ "$1" == "diff" ]; then
 	# Just print out diffs, used by Travis.
 	CARGO_FMT_ARGS="-- --check"
 fi
 
-# Format all crates in the workspace.
-cargo fmt --all $CARGO_FMT_ARGS
-FAIL=$?
-
-if [[ $FAIL -ne 0 ]]; then
+function on_error() {
 	echo
 	echo "$(tput bold)Formatting errors.$(tput sgr0)"
 	echo "See above for details"
-fi
-exit $FAIL
+}
+
+# Print a helpful message if there are formatting errors:
+trap on_error ERR
+
+# Format all crates in the workspace.
+cargo fmt --all $CARGO_FMT_ARGS
