@@ -275,7 +275,7 @@ impl Spi<'a> {
         }
 
         if self.transfers.get() == SPI_IN_PROGRESS {
-            // we elease the line and put the SPI in IDLE as the client might
+            // we release the line and put the SPI in IDLE as the client might
             // initiate another SPI transfer right away
             self.release_low();
             self.transfers.set(SPI_IDLE);
