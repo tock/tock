@@ -352,17 +352,29 @@ pub unsafe fn reset_handler() {
     extern "C" {
         /// Beginning of the ROM region containing app images.
         static _sapps: u8;
+
+        /// End of the ROM region containing app images.
+        ///
+        /// This symbol is defined in the linker script.
+        static _eapps: u8;
     }
 
     kernel::procs::load_processes(
         board_kernel,
         chip,
-        &_sapps as *const u8,
+        core::slice::from_raw_parts(
+            &_sapps as *const u8,
+            &_eapps as *const u8 as usize - &_sapps as *const u8 as usize,
+        ),
         &mut APP_MEMORY,
         &mut PROCESSES,
         FAULT_RESPONSE,
         &process_management_capability,
-    );
+    )
+    .unwrap_or_else(|err| {
+        debug!("Error loading processes!");
+        debug!("{:?}", err);
+    });
 
     board_kernel.kernel_loop(&launchxl, chip, Some(&launchxl.ipc), &main_loop_capability);
 }

@@ -51,6 +51,7 @@ pub enum NUM {
     Tsl2561               = 0x70000,
     Tmp006                = 0x70001,
     Lps25hb               = 0x70004,
+    L3gd20                = 0x70005,
 
     // Other ICs
     Ltc294x               = 0x80000,
@@ -58,6 +59,7 @@ pub enum NUM {
     Pca9544a              = 0x80002,
     GpioAsync             = 0x80003,
     Nrf51822Serialization = 0x80004,
+    Hd44780               = 0x80005,
 
     // Misc
     Buzzer                = 0x90000,

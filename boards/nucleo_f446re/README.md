@@ -39,8 +39,8 @@ For example, you can update `Makefile` as follows.
 
 ```
 APP=../../../libtock-c/examples/c_hello/build/cortex-m4/cortex-m4.tbf
-KERNEL=$(CWD)/target/$(TARGET)/debug/$(PLATFORM).elf
-KERNEL_WITH_APP=$(CWD)/target/$(TARGET)/debug/$(PLATFORM)-app.elf
+KERNEL=$(TOCK_ROOT_DIRECTORY)/target/$(TARGET)/debug/$(PLATFORM).elf
+KERNEL_WITH_APP=$(TOCK_ROOT_DIRECTORY)/target/$(TARGET)/debug/$(PLATFORM)-app.elf
 
 .PHONY: program
 program: target/$(TARGET)/debug/$(PLATFORM).elf

@@ -479,14 +479,6 @@ pub unsafe fn setup_board<I: nrf52::interrupt_service::InterruptService>(
     while !nrf52::clock::CLOCK.low_started() {}
     while !nrf52::clock::CLOCK.high_started() {}
 
-    let dynamic_deferred_call_clients =
-        static_init!([DynamicDeferredCallClientState; 1], Default::default());
-    let dynamic_deferred_call = static_init!(
-        DynamicDeferredCall,
-        DynamicDeferredCall::new(dynamic_deferred_call_clients)
-    );
-    DynamicDeferredCall::set_global_instance(dynamic_deferred_call);
-
     let platform = Platform {
         button: button,
         ble_radio: ble_radio,
@@ -522,16 +514,28 @@ pub unsafe fn setup_board<I: nrf52::interrupt_service::InterruptService>(
     extern "C" {
         /// Beginning of the ROM region containing app images.
         static _sapps: u8;
+
+        /// End of the ROM region containing app images.
+        ///
+        /// This symbol is defined in the linker script.
+        static _eapps: u8;
     }
     kernel::procs::load_processes(
         board_kernel,
         chip,
-        &_sapps as *const u8,
+        core::slice::from_raw_parts(
+            &_sapps as *const u8,
+            &_eapps as *const u8 as usize - &_sapps as *const u8 as usize,
+        ),
         app_memory,
         process_pointers,
         app_fault_response,
         &process_management_capability,
-    );
+    )
+    .unwrap_or_else(|err| {
+        debug!("Error loading processes!");
+        debug!("{:?}", err);
+    });
 
     board_kernel.kernel_loop(&platform, chip, Some(&platform.ipc), &main_loop_capability);
 }

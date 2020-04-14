@@ -18,6 +18,7 @@ use capsules::virtual_spi::{MuxSpiMaster, VirtualSpiMasterDevice};
 use kernel::capabilities;
 use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::component::Component;
+use kernel::hil::i2c::I2CMaster;
 use kernel::hil::radio;
 #[allow(unused_imports)]
 use kernel::hil::radio::{RadioConfig, RadioData};
@@ -55,36 +56,10 @@ pub mod io;
 
 // Unit Tests for drivers.
 #[allow(dead_code)]
-mod i2c_dummy;
-#[allow(dead_code)]
-mod icmp_lowpan_test;
-#[allow(dead_code)]
-mod ipv6_lowpan_test;
-#[allow(dead_code)]
-mod spi_dummy;
-#[allow(dead_code)]
-mod udp_lowpan_test;
+mod test;
 
-#[allow(dead_code)]
-mod aes_test;
-
-#[allow(dead_code)]
-mod aes_ccm_test;
-
-#[allow(dead_code)]
-mod rng_test;
-
-#[allow(dead_code)]
+// Helper functions for enabling/disabling power on Imix submodules
 mod power;
-
-#[allow(dead_code)]
-mod virtual_uart_rx_test;
-
-#[allow(dead_code)]
-mod log_test;
-
-#[allow(dead_code)]
-mod linear_log_test;
 
 // State for loading apps.
 
@@ -494,33 +469,45 @@ pub unsafe fn reset_handler() {
     // Once everything is virtualized in the kernel this won't be a problem.
     // -pal, 11/20/18
     //
-    // virtual_uart_rx_test::run_virtual_uart_receive(uart_mux);
-    // rng_test::run_entropy32();
-    // aes_ccm_test::run();
-    // aes_test::run_aes128_ctr();
-    // aes_test::run_aes128_cbc();
-    // log_test::run(mux_alarm, dynamic_deferred_caller);
-    // linear_log_test::run(mux_alarm, dynamic_deferred_caller);
+    //test::virtual_uart_rx_test::run_virtual_uart_receive(uart_mux);
+    //test::rng_test::run_entropy32();
+    //test::aes_ccm_test::run();
+    //test::aes_test::run_aes128_ctr();
+    //test::aes_test::run_aes128_cbc();
+    //test::log_test::run(mux_alarm, dynamic_deferred_caller);
+    //test::linear_log_test::run(mux_alarm, dynamic_deferred_caller);
 
     debug!("Initialization complete. Entering main loop");
 
     // Only include to run kernel tests, do not include during normal operation
     // let udp_lowpan_test =
-    //     udp_lowpan_test::initialize_all(udp_send_mux, udp_recv_mux, udp_port_table, mux_alarm);
+    //     test::udp_lowpan_test::initialize_all(udp_send_mux, udp_recv_mux, udp_port_table, mux_alarm);
 
     extern "C" {
         /// Beginning of the ROM region containing app images.
         static _sapps: u8;
+
+        /// End of the ROM region containing app images.
+        ///
+        /// This symbol is defined in the linker script.
+        static _eapps: u8;
     }
     kernel::procs::load_processes(
         board_kernel,
         chip,
-        &_sapps as *const u8,
+        core::slice::from_raw_parts(
+            &_sapps as *const u8,
+            &_eapps as *const u8 as usize - &_sapps as *const u8 as usize,
+        ),
         &mut APP_MEMORY,
         &mut PROCESSES,
         FAULT_RESPONSE,
         &process_mgmt_cap,
-    );
+    )
+    .unwrap_or_else(|err| {
+        debug!("Error loading processes!");
+        debug!("{:?}", err);
+    });
 
     board_kernel.kernel_loop(&imix, chip, Some(&imix.ipc), &main_cap);
 }
