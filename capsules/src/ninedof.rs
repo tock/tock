@@ -17,7 +17,7 @@
 //! hil::sensors::NineDof::set_client(fxos8700, ninedof);
 //! ```
 
-use kernel::common::cells::OptionalCell;dof 
+use kernel::common::cells::OptionalCell;
 use kernel::hil;
 use kernel::ReturnCode;
 use kernel::{AppId, Callback, Driver, Grant};
