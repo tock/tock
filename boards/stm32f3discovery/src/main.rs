@@ -466,11 +466,6 @@ pub unsafe fn reset_handler() {
 
     l3gd20.power_on();
 
-    let ninedof = components::ninedof::NineDofComponent::new(board_kernel).finalize(());
-
-    components::ninedof::NineDofDriverComponent::new(ninedof, l3gd20)
-        .finalize(components::ninedof_driver_helper!());
-
     let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
     let grant_temperature = board_kernel.create_grant(&grant_cap);
 
@@ -498,8 +493,8 @@ pub unsafe fn reset_handler() {
         lsm303dlhc::Lsm303dlhcRange::Range1_9G,
     );
 
-    components::ninedof::NineDofDriverComponent::new(ninedof, lsm303dlhc)
-        .finalize(components::ninedof_driver_helper!());
+    let ninedof = components::ninedof::NineDofComponent::new(board_kernel)
+        .finalize(components::ninedof_component_helper!(l3gd20, lsm303dlhc));
 
     let stm32f3discovery = STM32F3Discovery {
         console: console,

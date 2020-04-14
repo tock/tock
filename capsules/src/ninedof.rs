@@ -17,8 +17,7 @@
 //! hil::sensors::NineDof::set_client(fxos8700, ninedof);
 //! ```
 
-use kernel::common::cells::OptionalCell;
-use kernel::common::{List, ListLink, ListNode};
+use kernel::common::cells::OptionalCell;dof 
 use kernel::hil;
 use kernel::ReturnCode;
 use kernel::{AppId, Callback, Driver, Grant};
@@ -53,43 +52,19 @@ impl Default for App {
     }
 }
 
-pub struct NineDofNode<'a, P> {
-    driver: P,
-    next: ListLink<'a, NineDofNode<'a, P>>,
-}
-
-impl<P> NineDofNode<'a, P> {
-    pub fn new(driver: P) -> Self {
-        NineDofNode {
-            driver: driver,
-            next: ListLink::empty(),
-        }
-    }
-}
-
-impl<P> ListNode<'a, NineDofNode<'a, P>> for NineDofNode<'a, P> {
-    fn next(&'a self) -> &'a ListLink<'a, NineDofNode<'a, P>> {
-        &self.next
-    }
-}
-
 pub struct NineDof<'a> {
-    drivers: List<'a, NineDofNode<'a, &'a dyn hil::sensors::NineDof>>,
+    drivers: &'a [&'a dyn hil::sensors::NineDof],
     apps: Grant<App>,
     current_app: OptionalCell<AppId>,
 }
 
 impl NineDof<'a> {
-    pub fn new(grant: Grant<App>) -> NineDof<'a> {
+    pub fn new(drivers: &'a [&'a dyn hil::sensors::NineDof], grant: Grant<App>) -> NineDof<'a> {
         NineDof {
-            drivers: List::new(),
+            drivers: drivers,
             apps: grant,
             current_app: OptionalCell::empty(),
         }
-    }
-
-    pub fn add_driver(&self, secondary_driver: &'a NineDofNode<'a, &'a dyn hil::sensors::NineDof>) {
-        self.drivers.push_tail(secondary_driver);
     }
 
     // Check so see if we are doing something. If not,
@@ -124,7 +99,7 @@ impl NineDof<'a> {
             NineDofCommand::ReadAccelerometer => {
                 let mut data = ReturnCode::ENODEVICE;
                 for driver in self.drivers.iter() {
-                    data = driver.driver.read_accelerometer();
+                    data = driver.read_accelerometer();
                     if data == ReturnCode::SUCCESS {
                         break;
                     }
@@ -134,7 +109,7 @@ impl NineDof<'a> {
             NineDofCommand::ReadMagnetometer => {
                 let mut data = ReturnCode::ENODEVICE;
                 for driver in self.drivers.iter() {
-                    data = driver.driver.read_magnetometer();
+                    data = driver.read_magnetometer();
                     if data == ReturnCode::SUCCESS {
                         break;
                     }
@@ -144,7 +119,7 @@ impl NineDof<'a> {
             NineDofCommand::ReadGyroscope => {
                 let mut data = ReturnCode::ENODEVICE;
                 for driver in self.drivers.iter() {
-                    data = driver.driver.read_gyroscope();
+                    data = driver.read_gyroscope();
                     if data == ReturnCode::SUCCESS {
                         break;
                     }

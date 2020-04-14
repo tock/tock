@@ -281,10 +281,8 @@ pub unsafe fn reset_handler() {
     fxos8700_i2c.set_client(fxos8700);
     sam4l::gpio::PA[9].set_client(fxos8700);
 
-    let ninedof = components::ninedof::NineDofComponent::new(board_kernel).finalize(());
-
-    components::ninedof::NineDofDriverComponent::new(ninedof, fxos8700)
-        .finalize(components::ninedof_driver_helper!());
+    let ninedof = components::ninedof::NineDofComponent::new(board_kernel)
+        .finalize(components::ninedof_component_helper!(fxos8700));
 
     // SPI
     // Set up a SPI MUX, so there can be multiple clients.

@@ -1,41 +1,40 @@
-//! Components for NineDof
-//!
-//! Provides two components:
-//! 	1. NineDofComponent used ofr the ninedof driver
-//! 	2. NineDofDriverComponent
+//! Component for 9DOF
 //!
 //! Usage
 //! -----
 //! NineDof
 //!
 //! ```rust
-//! let ninedof = components::ninedof::NineDofComponent::new(board_kernel).finalize(());
-//! ```
-//!
-//!
-//! NineDof Driver
-//!
-//! components::ninedof::NineDofDriverComponent::new(ninedof, l3gd20)
-//!     .finalize(components::ninedof_driver_helper!());
+//! let ninedof = components::ninedof::NineDofComponent::new(board_kernel)
+//!     .finalize(components::ninedof_component_helper!(driver1, driver2, ...));
 //! ```
 
-use capsules::ninedof::NineDofNode;
+use capsules::ninedof::NineDof;
 use core::mem::MaybeUninit;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
-use kernel::hil;
-use kernel::{static_init, static_init_half};
+use kernel::static_init_half;
 
 #[macro_export]
-macro_rules! ninedof_driver_helper {
-    () => {{
-        use capsules::ninedof::{NineDof, NineDofNode};
+macro_rules! ninedof_component_helper {
+    ($($P:expr),+ ) => {{
+        use capsules::ninedof::NineDof;
         use core::mem::MaybeUninit;
         use kernel::hil;
-        static mut BUF: MaybeUninit<NineDofNode<'static, &'static dyn hil::sensors::NineDof>> =
+        use kernel::count_expressions;
+        use kernel::static_init;
+        const NUM_DRIVERS: usize = count_expressions!($($P),+);
+
+        let drivers = static_init!(
+            [&'static dyn kernel::hil::sensors::NineDof; NUM_DRIVERS],
+            [
+                $($P,)*
+            ]
+        );
+        static mut BUF: MaybeUninit<NineDof<'static>> =
             MaybeUninit::uninit();
-        &mut BUF
+        (&mut BUF, drivers)
     };};
 }
 
@@ -52,55 +51,26 @@ impl NineDofComponent {
 }
 
 impl Component for NineDofComponent {
-    type StaticInput = ();
+    type StaticInput = (
+        &'static mut MaybeUninit<NineDof<'static>>,
+        &'static [&'static dyn kernel::hil::sensors::NineDof],
+    );
     type Output = &'static capsules::ninedof::NineDof<'static>;
 
-    unsafe fn finalize(self, _static_buffer: Self::StaticInput) -> Self::Output {
+    unsafe fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
         let grant_ninedof = self.board_kernel.create_grant(&grant_cap);
 
-        let ninedof = static_init!(
+        let ninedof = static_init_half!(
+            static_buffer.0,
             capsules::ninedof::NineDof<'static>,
-            capsules::ninedof::NineDof::new(grant_ninedof)
+            capsules::ninedof::NineDof::new(static_buffer.1, grant_ninedof)
         );
+
+        for driver in static_buffer.1 {
+            kernel::hil::sensors::NineDof::set_client(*driver, ninedof);
+        }
 
         ninedof
-    }
-}
-
-pub struct NineDofDriverComponent {
-    driver: &'static dyn hil::sensors::NineDof,
-    ninedof: &'static capsules::ninedof::NineDof<'static>,
-}
-
-impl NineDofDriverComponent {
-    pub fn new(
-        ninedof: &'static capsules::ninedof::NineDof<'static>,
-        driver: &'static dyn hil::sensors::NineDof,
-    ) -> NineDofDriverComponent {
-        NineDofDriverComponent {
-            driver: driver,
-            ninedof: ninedof,
-        }
-    }
-}
-
-impl Component for NineDofDriverComponent {
-    type StaticInput =
-        &'static mut MaybeUninit<NineDofNode<'static, &'static dyn hil::sensors::NineDof>>;
-    type Output =
-        &'static capsules::ninedof::NineDofNode<'static, &'static dyn hil::sensors::NineDof>;
-
-    unsafe fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
-        let ninedof_driver = static_init_half!(
-            static_buffer,
-            NineDofNode<'static, &'static dyn hil::sensors::NineDof>,
-            NineDofNode::new(self.driver)
-        );
-
-        self.ninedof.add_driver(ninedof_driver);
-        hil::sensors::NineDof::set_client(self.driver, self.ninedof);
-
-        ninedof_driver
     }
 }

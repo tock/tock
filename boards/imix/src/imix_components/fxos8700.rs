@@ -98,10 +98,8 @@ impl Component for NineDofComponent {
         fxos8700_i2c.set_client(fxos8700);
         self.gpio.set_client(fxos8700);
 
-        let ninedof = components::ninedof::NineDofComponent::new(self.board_kernel).finalize(());
-
-        components::ninedof::NineDofDriverComponent::new(ninedof, fxos8700)
-            .finalize(components::ninedof_driver_helper!());
+        let ninedof = components::ninedof::NineDofComponent::new(self.board_kernel)
+            .finalize(components::ninedof_component_helper!(fxos8700));
 
         ninedof
     }
