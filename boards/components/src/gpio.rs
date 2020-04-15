@@ -32,8 +32,12 @@ use kernel::static_init_half;
 
 #[macro_export]
 macro_rules! gpio_helper {
-    (Some => $P:expr) => { Some(static_init!(InterruptValueWrapper, InterruptValueWrapper::new($P)).finalize()) };
-    (None => $P:expr) => { None };
+    (($id:literal =>  $P:expr)) => {
+        Some(static_init!(InterruptValueWrapper, InterruptValueWrapper::new($P)).finalize())
+    };
+    ((@gap)) => {
+        None
+    };
 }
 
 #[macro_export]

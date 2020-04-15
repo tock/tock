@@ -93,7 +93,7 @@ impl<'a, IP: gpio::InterruptPin> GPIO<'a, IP> {
                 _ => ReturnCode::ENOSUPPORT,
             }
         } else {
-            ReturnCode::ENOSUPPORT
+            ReturnCode::ENODEVICE
         }
     }
 
