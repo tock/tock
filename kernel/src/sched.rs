@@ -363,14 +363,24 @@ impl Kernel {
                         Some(ContextSwitchReason::SyscallFired { syscall }) => {
                             process.debug_syscall_called(syscall);
 
-                            // Enforce platform-specific syscall filtering here. Before continuing
-                            // to handle non-yield syscalls the kernel first checks if the platform wants
-                            // to block that syscall for the process, and if it does, sets a return
-                            // value which is returned to the calling process.
+                            // Enforce platform-specific syscall filtering here.
+                            //
+                            // Before continuing to handle non-yield syscalls
+                            // the kernel first checks if the platform wants to
+                            // block that syscall for the process, and if it
+                            // does, sets a return value which is returned to
+                            // the calling process.
+                            //
+                            // Filtering a syscall (i.e. blocking the syscall
+                            // from running) does not cause the process to loose
+                            // its timeslice. The error will be returned
+                            // immediately (assuming the process has not already
+                            // exhausted its timeslice) allowing the process to
+                            // decide how to handle the error.
                             if syscall != Syscall::YIELD {
                                 if let Err(response) = platform.filter_syscall(process, &syscall) {
                                     process.set_syscall_return_value(response.into());
-                                    break;
+                                    continue;
                                 }
                             }
 
