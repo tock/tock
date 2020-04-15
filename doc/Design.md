@@ -22,8 +22,8 @@ Tock Design
 <!-- tocstop -->
 
 Most operating systems provide isolation between components using a process-like
-abstraction: each component is given it's own slice of the system memory (for
-it's stack, heap, data) that is not accessible by other components. Processes
+abstraction: each component is given its own slice of the system memory (for
+its stack, heap, data) that is not accessible by other components. Processes
 are great because they provide a convenient abstraction for both isolation and
 concurrency. However, on resource-limited systems, like microcontrollers with
 much less than 1MB of memory, this approach leads to a trade-off between
@@ -35,8 +35,8 @@ kernel. As a result, isolation is (more or less) free in terms of resource
 consumption at the expense of preemptive scheduling (so a malicious component
 could block the system by, e.g., spinning in an infinite loop).
 
-To first order, all component in Tock, including those in the kernel, are
-mutually distrustful. Inside the kernel Tock, achieves this with a
+To first order, all components in Tock, including those in the kernel, are
+mutually distrustful. Inside the kernel, Tock achieves this with a
 language-based isolation abstraction called _capsules_ that incurs no memory or
 computation overhead. In user-space, Tock uses (more-or-less) a traditional
 process model where process are isolated from the kernel and each other using
@@ -50,11 +50,11 @@ mind. Tock favors overall reliability of the system and discourages components
 
 ![Tock architecture](architecture.png)
 
-Tock includes three architectural components. A small trusted kernel, written in
-Rust, implements a hardware abstraction layer (HAL), scheduler and
+Tock includes three architectural components: a small trusted kernel, written in
+Rust, which implements a hardware abstraction layer (HAL), scheduler, and
 platform-specific configuration. Other system components are implemented in one
-of two protection mechanisms: capsules, which are compiled with the kernel and
-use Rust’s type and module systems for safety, and processes, which use the MPU
+of two protection mechanisms: **capsules**, which are compiled with the kernel and
+use Rust’s type and module systems for safety, and **processes**, which use the MPU
 for protection at runtime.
 
 System components (an application, driver, virtualization layer, etc.) can be
@@ -186,8 +186,8 @@ Generally, the Tock kernel is structured into three layers:
    the ideal.
 
 2. Chip-agnostic, portable, peripheral drivers and subsystems. These
-   typically live in the `capsules` crate. These includes things like
-   the virtual alarms and virtual I2C stack, as well as drivers for
+   typically live in the `capsules` crate. These include things like
+   virtual alarms and virtual I2C stack, as well as drivers for
    hardware peripherals not on the chip itself (e.g. sensors, radios,
    etc). These drivers typically rely on the chip-specific drivers
    through the HILs.
@@ -246,7 +246,7 @@ general principles we follow:
    `receive_automatic()` which receives bytes on the UART until a pause between
    bytes is detected. This is supported directly by the SAM4L hardware, but can
    also be emulated using timers and GPIO interrupts. By including this in an
-   advanced trait capsules can still use the interface but other UART
+   advanced trait, capsules can still use the interface but other UART
    implementations that do not have that required feature do not have to
    implement it.
 
@@ -348,7 +348,7 @@ function. However, this muddles the use of unsafe, and makes it difficult to
 understand if code potentially violates safety or is a restricted API.
 
 Instead, Tock uses
-[capabilities](../Soundness.md#capabilities-restricting-access-to-certain-functions-and-operations)
+[capabilities](./Soundness.md#capabilities-restricting-access-to-certain-functions-and-operations)
 to restrict access to important APIs. As such, any public APIs inside the kernel
 that should be very restricted in what other code can use them should require a
 specific capability in their function signatures. This prevents code that has
