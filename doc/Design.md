@@ -51,7 +51,7 @@ mind. Tock favors overall reliability of the system and discourages components
 ![Tock architecture](architecture.png)
 
 Tock includes three architectural components: a small trusted kernel, written in
-Rust, which implements a hardware abstraction layer (HAL), scheduler, and
+Rust, which implements a hardware abstraction layer (HAL); scheduler; and
 platform-specific configuration. Other system components are implemented in one
 of two protection mechanisms: **capsules**, which are compiled with the kernel and
 use Rust’s type and module systems for safety, and **processes**, which use the MPU
@@ -348,7 +348,7 @@ function. However, this muddles the use of unsafe, and makes it difficult to
 understand if code potentially violates safety or is a restricted API.
 
 Instead, Tock uses
-[capabilities](./Soundness.md#capabilities-restricting-access-to-certain-functions-and-operations)
+[capabilities](Soundness.md#capabilities-restricting-access-to-certain-functions-and-operations)
 to restrict access to important APIs. As such, any public APIs inside the kernel
 that should be very restricted in what other code can use them should require a
 specific capability in their function signatures. This prevents code that has
