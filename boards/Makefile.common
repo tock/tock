@@ -14,31 +14,40 @@ TOCK_ROOT_DIRECTORY := $(dir $(abspath $(MAKEFILE_COMMON_PATH)))
 TOOLCHAIN ?= llvm
 CARGO     ?= cargo
 RUSTUP    ?= rustup
-TARGET_DIR ?= $(TOCK_ROOT_DIRECTORY)target
 
+# Default location of target directory (relative to board makefile)
+# passed to cargo --target_dir
+TARGET_DIRECTORY ?= $(TOCK_ROOT_DIRECTORY)target/
+
+# RUSTFLAGS_FOR_BOARD allows boards to define board-specific options.
 # This will hopefully move into Cargo.toml (or Cargo.toml.local) eventually.
 # lld uses the page size to align program sections. It defaults to 4096 and this
 # puts a gap between before the .relocate section. `zmax-page-size=512` tells
 # lld the actual page size so it doesn't have to be conservative.
-#
-# We use `remap-path-prefix` to remove user-specific filepath strings for error
-# reporting from appearing in the generated binary.
-RUSTFLAGS_FOR_CARGO ?= \
+RUSTFLAGS_FOR_BOARD ?= \
   -C link-arg=-Tlayout.ld \
   -C linker=rust-lld \
   -C linker-flavor=ld.lld \
   -C relocation-model=dynamic-no-pic \
   -C link-arg=-zmax-page-size=512 \
   -C link-arg=-icf=all \
-  --remap-path-prefix=$(TOCK_ROOT_DIRECTORY)= \
 
 # RISC-V-specific flags.
 ifneq ($(findstring riscv32i, $(TARGET)),)
   # NOTE: This flag causes kernel panics on some ARM cores. Since the
   # size benefit is almost exclusively for RISC-V, we only apply it for
   # those targets.
-  RUSTFLAGS_FOR_CARGO += -C force-frame-pointers=no
+  RUSTFLAGS_FOR_BOARD += -C force-frame-pointers=no
 endif
+
+# RUSTFLAGS_FOR_CARGO by default extends RUSTFLAGS_FOR_BOARD with options
+# depending on parameters defined in boards/Makefile.common to reduce a need
+# for board's makefile to change in case of common changes.
+# We use `remap-path-prefix` to remove user-specific filepath strings for error
+# reporting from appearing in the generated binary.
+RUSTFLAGS_FOR_CARGO ?= \
+  $(RUSTFLAGS_FOR_BOARD) \
+  --remap-path-prefix=$(TOCK_ROOT_DIRECTORY)= \
 
 # Disallow warnings for continuous integration builds. Disallowing them here
 # ensures that warnings during testing won't prevent compilation from succeeding.
@@ -78,7 +87,9 @@ check_defined = $(strip $(foreach 1,$1,$(if $(value $1),,$(error Undefined varia
 $(call check_defined, PLATFORM)
 $(call check_defined, TARGET)
 
-TARGET_PATH = $(TARGET_DIR)/$(TARGET)
+# Location of target-specific build
+TARGET_PATH := $(TARGET_DIRECTORY)$(TARGET)
+
 # If environment variable V is non-empty, be verbose.
 ifneq ($(V),)
   Q =
@@ -129,8 +140,19 @@ SIZE      ?= $(TOOLCHAIN)-size
 OBJCOPY   ?= $(TOOLCHAIN)-objcopy
 OBJDUMP   ?= $(TOOLCHAIN)-objdump
 
+# Set additional flags to produce binary from .elf
+OBJCOPY_FLAGS ?= -S
+# This make variable allows board-specific Makefiles to pass down options to
+# the Cargo build command. For example, in board/<custom_board>/Makefile:
+# `CARGO_OPTIONS += --features=foo` would pass feature `foo` to the top level
+# Cargo.toml.
+CARGO_OPTIONS ?=
+# Add default flags to cargo. Boards can add additional options in CARGO_OPTIONS
+CARGO_FLAGS ?= $(VERBOSE) --target=$(TARGET) --package $(PLATFORM) --target-dir=$(TARGET_DIRECTORY) $(CARGO_OPTIONS)
 # Set the default flags we need for objdump to get a .lst file.
-OBJDUMP_FLAGS += --disassemble-all --source --section-headers
+OBJDUMP_FLAGS ?= --disassemble-all --source --section-headers --demangle
+# Set default flags for size
+SIZE_FLAGS ?=
 
 # Need an extra flag for OBJDUMP if we are on a thumb platform.
 ifneq (,$(findstring thumb,$(TARGET)))
@@ -145,6 +167,7 @@ ifneq ($(V),)
   $(info *******************************************************)
   $(info MAKEFILE_COMMON_PATH = $(MAKEFILE_COMMON_PATH))
   $(info TOCK_ROOT_DIRECTORY  = $(TOCK_ROOT_DIRECTORY))
+  $(info TARGET_DIRECTORY     = $(TARGET_DIRECTORY))
   $(info )
   $(info PLATFORM             = $(PLATFORM))
   $(info TARGET               = $(TARGET))
@@ -152,6 +175,9 @@ ifneq ($(V),)
   $(info RUSTFLAGS_FOR_CARGO  = $(RUSTFLAGS_FOR_CARGO))
   $(info MAKEFLAGS            = $(MAKEFLAGS))
   $(info OBJDUMP_FLAGS        = $(OBJDUMP_FLAGS))
+  $(info OBJCOPY_FLAGS        = $(OBJCOPY_FLAGS))
+  $(info CARGO_FLAGS          = $(CARGO_FLAGS))
+  $(info SIZE_FLAGS           = $(SIZE_FLAGS))
   $(info )
   $(info TOOLCHAIN            = $(TOOLCHAIN))
   $(info SIZE                 = $(SIZE))
@@ -178,28 +204,24 @@ all: release
 # binary. This makes checking for Rust errors much faster.
 .PHONY: check
 check:
-	$(Q)RUSTFLAGS="$(RUSTFLAGS_FOR_CARGO)" $(CARGO) check $(VERBOSE) --target=$(TARGET) \
-		--package $(PLATFORM) --target-dir=$(TARGET_DIR) --release
+	$(Q)RUSTFLAGS="$(RUSTFLAGS_FOR_CARGO)" $(CARGO) check $(CARGO_FLAGS) --release
 
 .PHONY: clean
 clean::
-	$(Q)$(CARGO) clean --target-dir=$(TARGET_DIR) $(VERBOSE)
+	$(Q)$(CARGO) clean $(VERBOSE) --target-dir=$(TARGET_DIRECTORY)
 
 .PHONY: release
-release: $(TARGET_PATH)/release/$(PLATFORM).bin
+release:  $(TARGET_PATH)/release/$(PLATFORM).bin
 
 .PHONY: debug
-debug: $(TARGET_PATH)/debug/$(PLATFORM).bin
-
-
+debug:  $(TARGET_PATH)/debug/$(PLATFORM).bin
 
 .PHONY: debug-lst
-debug-lst: $(TARGET_PATH)/debug/$(PLATFORM).lst
+debug-lst:  $(TARGET_PATH)/debug/$(PLATFORM).lst
 
 .PHONY: doc
 doc: | target
-	$(Q)RUSTDOCFLAGS='-Z unstable-options --document-hidden-items' $(CARGO) doc \
-		$(VERBOSE) --release  --package $(PLATFORM) --target=$(TARGET) --target-dir=$(TARGET_DIR)
+	$(Q)RUSTDOCFLAGS='-Z unstable-options --document-hidden-items' $(CARGO) doc $(VERBOSE) --release --package $(PLATFORM) --target-dir=$(TARGET_DIRECTORY)
 
 .PHONY: lst
 lst: $(TARGET_PATH)/release/$(PLATFORM).lst
@@ -220,7 +242,7 @@ target:
 	$(Q)cp $< $@
 
 %.bin: %.elf $(TOCK_ROOT_DIRECTORY)tools/sha256sum/target/debug/sha256sum
-	$(Q)$(OBJCOPY) --output-target=binary $< $@
+	$(Q)$(OBJCOPY) --output-target=binary $(OBJCOPY_FLAGS) $< $@
 	$(Q)$(TOCK_ROOT_DIRECTORY)tools/sha256sum/target/debug/sha256sum $@
 
 %.lst: %.elf
@@ -237,14 +259,10 @@ $(TOCK_ROOT_DIRECTORY)tools/sha256sum/target/debug/sha256sum:
 
 .PHONY: $(TARGET_PATH)/release/$(PLATFORM)
 $(TARGET_PATH)/release/$(PLATFORM):
-	$(Q)RUSTFLAGS="$(RUSTFLAGS_FOR_CARGO)" $(CARGO) rustc $(VERBOSE) --target=$(TARGET) \
-		--target-dir=$(TARGET_DIR) --package $(PLATFORM) --bin $(PLATFORM) --release \
-		-- $(RUSTFLAGS_FOR_BIN)
-	$(Q)$(SIZE) $@
+	$(Q)RUSTFLAGS="$(RUSTFLAGS_FOR_CARGO)" $(CARGO) rustc  $(CARGO_FLAGS) --bin $(PLATFORM) --release -- $(RUSTFLAGS_FOR_BIN)
+	$(Q)$(SIZE) $(SIZE_FLAGS) $@
 
 .PHONY: $(TARGET_PATH)/debug/$(PLATFORM)
 $(TARGET_PATH)/debug/$(PLATFORM):
-	$(Q)RUSTFLAGS="$(RUSTFLAGS_FOR_CARGO)" $(CARGO) rustc $(VERBOSE) --target=$(TARGET) \
-		--target-dir=$(TARGET_DIR) --package $(PLATFORM) --bin $(PLATFORM) \
-		-- $(RUSTFLAGS_FOR_BIN)
-	$(Q)$(SIZE) $@
+	$(Q)RUSTFLAGS="$(RUSTFLAGS_FOR_CARGO)" $(CARGO) rustc  $(CARGO_FLAGS) --bin $(PLATFORM) -- $(RUSTFLAGS_FOR_BIN)
+	$(Q)$(SIZE) $(SIZE_FLAGS) $@
