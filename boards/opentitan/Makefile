@@ -5,6 +5,11 @@ PLATFORM=opentitan
 
 include ../Makefile.common
 
+# Passing a feature to cargo through `FEATURES` environment variable.
+ifneq ($(FEATURES),)
+	CARGO_FLAGS += --features=$(FEATURES)
+endif
+
 qemu: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf
 	$(call check_defined, OPENTITAN_BOOT_ROM)
 	qemu-system-riscv32 -M opentitan -kernel $^ -bios $(OPENTITAN_BOOT_ROM) -nographic -serial mon:stdio
