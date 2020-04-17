@@ -15,23 +15,34 @@
 //! ```
 
 use capsules::panic_button::PanicButton;
+use core::mem::MaybeUninit;
 use kernel::component::Component;
 use kernel::hil::gpio;
-use kernel::static_init;
+use kernel::static_init_half;
 
-pub struct PanicButtonComponent<'a> {
-    pin: &'a dyn gpio::InterruptPin,
+#[macro_export]
+macro_rules! panic_button_component_buf {
+    ($Pin:ty) => {{
+        use capsules::button::PanicButton;
+        use core::mem::MaybeUninit;
+        static mut BUF: MaybeUninit<PanicButton<'static, $Pin>> = MaybeUninit::uninit();
+        &mut BUF
+    };};
+}
+
+pub struct PanicButtonComponent<'a, IP: gpio::InterruptPin> {
+    pin: &'a IP,
     mode: gpio::ActivationMode,
     floating_state: gpio::FloatingState,
 }
 
-impl<'a> PanicButtonComponent<'a> {
+impl<'a, IP: gpio::InterruptPin> PanicButtonComponent<'a, IP> {
     pub fn new(
-        pin: &'a dyn gpio::InterruptPin,
+        pin: &'a IP,
         mode: gpio::ActivationMode,
         floating_state: gpio::FloatingState,
     ) -> Self {
-        PanicButtonComponent {
+        Self {
             pin,
             mode,
             floating_state,
@@ -39,13 +50,14 @@ impl<'a> PanicButtonComponent<'a> {
     }
 }
 
-impl Component for PanicButtonComponent<'static> {
-    type StaticInput = ();
+impl<IP: 'static + gpio::InterruptPin> Component for PanicButtonComponent<'static, IP> {
+    type StaticInput = &'static mut MaybeUninit<PanicButton<'static, IP>>;
     type Output = ();
 
-    unsafe fn finalize(self, _: Self::StaticInput) -> Self::Output {
-        let panic_button = static_init!(
-            PanicButton,
+    unsafe fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
+        let panic_button = static_init_half!(
+            static_buffer,
+            PanicButton<'static, IP>,
             PanicButton::new(self.pin, self.mode, self.floating_state)
         );
         self.pin.set_client(panic_button);

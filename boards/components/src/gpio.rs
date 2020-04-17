@@ -17,24 +17,28 @@
 //! ));
 //! ```
 
+use capsules::gpio::GPIO;
+use core::mem::MaybeUninit;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
-use kernel::static_init;
+use kernel::hil::gpio;
+use kernel::hil::gpio::InterruptWithValue;
+use kernel::static_init_half;
 
 #[macro_export]
 macro_rules! gpio_component_helper {
-    ($($P:expr),+ ) => {{
+    ($Pin:ty, $($P:expr),+ ) => {{
         use kernel::static_init;
         use kernel::count_expressions;
         use kernel::hil::gpio::InterruptValueWrapper;
         const NUM_PINS: usize = count_expressions!($($P),+);
 
         static_init!(
-            [&'static dyn kernel::hil::gpio::InterruptValuePin; NUM_PINS],
+            [&'static InterruptValueWrapper<'static, $Pin>; NUM_PINS],
             [
                 $(
-                    static_init!(InterruptValueWrapper, InterruptValueWrapper::new($P))
+                    static_init!(InterruptValueWrapper<$Pin>, InterruptValueWrapper::new($P))
                     .finalize(),
                 )*
             ]
@@ -42,29 +46,45 @@ macro_rules! gpio_component_helper {
     };};
 }
 
-pub struct GpioComponent {
-    board_kernel: &'static kernel::Kernel,
+#[macro_export]
+macro_rules! gpio_component_buf {
+    ($Pin:ty) => {{
+        use capsules::gpio::GPIO;
+        use core::mem::MaybeUninit;
+        static mut BUF: MaybeUninit<GPIO<'static, $Pin>> = MaybeUninit::uninit();
+        &mut BUF
+    };};
 }
 
-impl GpioComponent {
-    pub fn new(board_kernel: &'static kernel::Kernel) -> GpioComponent {
-        GpioComponent {
+pub struct GpioComponent<IP: 'static + gpio::InterruptPin> {
+    board_kernel: &'static kernel::Kernel,
+    gpio_pins: &'static [&'static gpio::InterruptValueWrapper<'static, IP>],
+}
+
+impl<IP: 'static + gpio::InterruptPin> GpioComponent<IP> {
+    pub fn new(
+        board_kernel: &'static kernel::Kernel,
+        gpio_pins: &'static [&'static gpio::InterruptValueWrapper<'static, IP>],
+    ) -> Self {
+        Self {
             board_kernel: board_kernel,
+            gpio_pins,
         }
     }
 }
 
-impl Component for GpioComponent {
-    type StaticInput = &'static [&'static dyn kernel::hil::gpio::InterruptValuePin];
-    type Output = &'static capsules::gpio::GPIO<'static>;
+impl<IP: 'static + gpio::InterruptPin> Component for GpioComponent<IP> {
+    type StaticInput = &'static mut MaybeUninit<GPIO<'static, IP>>;
+    type Output = &'static GPIO<'static, IP>;
 
-    unsafe fn finalize(self, gpio_pins: Self::StaticInput) -> Self::Output {
+    unsafe fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
-        let gpio = static_init!(
-            capsules::gpio::GPIO<'static>,
-            capsules::gpio::GPIO::new(gpio_pins, self.board_kernel.create_grant(&grant_cap))
+        let gpio = static_init_half!(
+            static_buffer,
+            GPIO<'static, IP>,
+            GPIO::new(self.gpio_pins, self.board_kernel.create_grant(&grant_cap))
         );
-        for pin in gpio_pins.iter() {
+        for pin in self.gpio_pins.iter() {
             pin.set_client(gpio);
         }
 
