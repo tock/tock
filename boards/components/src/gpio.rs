@@ -51,7 +51,7 @@ macro_rules! gpio_component_helper {
             [a, b][(a < b) as usize]
         }
 
-        const NUM_PINS: usize = $crate::gpio_component_helper_max_pin! ($($nr,)*);
+        const NUM_PINS: usize = $crate::gpio_component_helper_max_pin! ($($nr,)*) + 1;
 
         let mut pins = static_init!(
             [Option<&'static InterruptValueWrapper<'static, $Pin>>; NUM_PINS],
