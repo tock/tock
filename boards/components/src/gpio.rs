@@ -41,7 +41,7 @@ macro_rules! gpio_component_helper_max_pin {
 macro_rules! gpio_component_helper {
     (
         $Pin:ty,
-        $($nr:expr => $pin:expr),*
+        $($nr:literal => $pin:expr),*
     ) => {{
         use kernel::count_expressions;
         use kernel::hil::gpio::InterruptValueWrapper;
