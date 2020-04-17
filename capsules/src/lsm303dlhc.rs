@@ -134,6 +134,8 @@
 //! Author: Alexandru Radovici <msg4alex@gmail.com>
 //!
 
+#![allow(non_camel_case_types)]
+
 use core::cell::Cell;
 use enum_primitive::cast::FromPrimitive;
 use enum_primitive::enum_from_primitive;
@@ -153,28 +155,33 @@ pub static mut BUFFER: [u8; 8] = [0; 8];
 /// Register values
 const REGISTER_AUTO_INCREMENT: u8 = 0x80;
 
-/// Accelerometer Registers
-const CTRL_REG1: u8 = 0x20;
-const CTRL_REG4: u8 = 0x23;
-const OUT_X_L_A: u8 = 0x28;
-// const OUT_X_H_A: u8 = 0x29;
-// const OUT_Y_L_A: u8 = 0x2A;
-// const OUT_Y_H_A: u8 = 0x2B;
-// const OUT_Z_L_A: u8 = 0x2C;
-// const OUT_Z_H_A: u8 = 0x2D;
+enum_from_primitive! {
+    enum AccelerometerRegisters {
+        CTRL_REG1 = 0x20,
+        CTRL_REG4 = 0x23,
+        OUT_X_L_A = 0x28,
+        OUT_X_H_A = 0x29,
+        OUT_Y_L_A = 0x2A,
+        OUT_Y_H_A = 0x2B,
+        OUT_Z_L_A = 0x2C,
+        OUT_Z_H_A = 0x2D,
+    }
+}
 
-/// Magnetometer Registers
-const CRA_REG_M: u8 = 0x00;
-const CRB_REG_M: u8 = 0x01;
-const OUT_X_H_M: u8 = 0x03;
-// const OUT_X_L_M: u8 = 0x04;
-// const OUT_Z_H_M: u8 = 0x05;
-// const OUT_Z_L_M: u8 = 0x06;
-// const OUT_Y_H_M: u8 = 0x07;
-// const OUT_Y_L_M: u8 = 0x08;
-
-const TEMP_OUT_H_M: u8 = 0x31;
-// const TEMP_OUT_L_M: u8 = 0x32;
+enum_from_primitive! {
+    enum MagnetometerRegisters {
+        CRA_REG_M = 0x00,
+        CRB_REG_M = 0x01,
+        OUT_X_H_M = 0x03,
+        OUT_X_L_M = 0x04,
+        OUT_Z_H_M = 0x05,
+        OUT_Z_L_M = 0x06,
+        OUT_Y_H_M = 0x07,
+        OUT_Y_L_M = 0x08,
+        TEMP_OUT_H_M = 0x31,
+        TEMP_OUT_L_M = 0x32,
+    }
+}
 
 // Experimental
 const TEMP_OFFSET: i8 = 17;
@@ -346,7 +353,7 @@ impl Lsm303dlhcI2C<'a> {
         if self.state.get() == State::Idle {
             self.state.set(State::SetPowerMode);
             self.buffer.take().map(|buf| {
-                buf[0] = CTRL_REG1;
+                buf[0] = AccelerometerRegisters::CTRL_REG1 as u8;
                 buf[1] = ((data_rate as u8) << 4) | if low_power { 1 << 3 } else { 0 } | 0x7;
                 self.i2c_accelerometer.write(buf, 2);
             });
@@ -360,7 +367,7 @@ impl Lsm303dlhcI2C<'a> {
             self.accel_scale.set(scale);
             self.accel_high_resolution.set(high_resolution);
             self.buffer.take().map(|buf| {
-                buf[0] = CTRL_REG4;
+                buf[0] = AccelerometerRegisters::CTRL_REG4 as u8;
                 buf[1] = (scale as u8) << 4 | if high_resolution { 1 } else { 0 } << 3;
                 self.i2c_accelerometer.write(buf, 2);
             });
@@ -371,7 +378,7 @@ impl Lsm303dlhcI2C<'a> {
         if self.state.get() == State::Idle {
             self.state.set(State::ReadAccelerationXYZ);
             self.buffer.take().map(|buf| {
-                buf[0] = OUT_X_L_A | REGISTER_AUTO_INCREMENT;
+                buf[0] = AccelerometerRegisters::OUT_X_L_A as u8 | REGISTER_AUTO_INCREMENT;
                 self.i2c_accelerometer.write_read(buf, 1, 6);
             });
         }
@@ -385,7 +392,7 @@ impl Lsm303dlhcI2C<'a> {
         if self.state.get() == State::Idle {
             self.state.set(State::SetTemperatureDataRate);
             self.buffer.take().map(|buf| {
-                buf[0] = CRA_REG_M;
+                buf[0] = MagnetometerRegisters::CRA_REG_M as u8;
                 buf[1] = ((data_rate as u8) << 2) | if temperature { 1 << 7 } else { 0 };
                 self.i2c_magnetometer.write(buf, 2);
             });
@@ -398,7 +405,7 @@ impl Lsm303dlhcI2C<'a> {
             // TODO move these in completed
             self.mag_range.set(range);
             self.buffer.take().map(|buf| {
-                buf[0] = CRB_REG_M;
+                buf[0] = MagnetometerRegisters::CRB_REG_M as u8;
                 buf[1] = (range as u8) << 5;
                 buf[2] = 0;
                 self.i2c_magnetometer.write(buf, 3);
@@ -410,7 +417,7 @@ impl Lsm303dlhcI2C<'a> {
         if self.state.get() == State::Idle {
             self.state.set(State::ReadTemperature);
             self.buffer.take().map(|buf| {
-                buf[0] = TEMP_OUT_H_M;
+                buf[0] = MagnetometerRegisters::TEMP_OUT_H_M as u8;
                 self.i2c_magnetometer.write_read(buf, 1, 2);
             });
         }
@@ -420,7 +427,7 @@ impl Lsm303dlhcI2C<'a> {
         if self.state.get() == State::Idle {
             self.state.set(State::ReadMagnetometerXYZ);
             self.buffer.take().map(|buf| {
-                buf[0] = OUT_X_H_M;
+                buf[0] = MagnetometerRegisters::OUT_X_H_M as u8;
                 self.i2c_magnetometer.write_read(buf, 1, 6);
             });
         }
