@@ -53,13 +53,13 @@ use kernel::{AppId, Callback, Driver, Grant, ReturnCode};
 
 
 pub struct GPIO<'a, IP: gpio::InterruptPin> {
-    pins: &'a [Option<&'a gpio::InterruptValueWrapper<'a, IP>],
+    pins: &'a [Option<&'a gpio::InterruptValueWrapper<'a, IP>>],
     apps: Grant<Option<Callback>>,
 }
 
 impl<'a, IP: gpio::InterruptPin> GPIO<'a, IP> {
     pub fn new(
-        pins: &'a [&'a gpio::InterruptValueWrapper<'a, IP>],
+        pins: &'a [Option<&'a gpio::InterruptValueWrapper<'a, IP>>],
         grant: Grant<Option<Callback>>,
     ) -> Self {
         for (i, maybe_pin) in pins.iter().enumerate() {
