@@ -143,7 +143,7 @@ use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::common::registers::register_bitfields;
 use kernel::hil::i2c::{self, Error};
 use kernel::hil::sensors;
-use kernel::{debug, i2c_modify_register, i2c_read_register_value};
+use kernel::{debug, i2c_modify_register, i2c_read_register_field_value};
 use kernel::{AppId, Callback, Driver, ReturnCode};
 
 register_bitfields![u8,
@@ -693,7 +693,7 @@ impl i2c::I2CClient for Lsm303dlhcI2C<'a> {
             State::ReadLowPower => {
                 let mut value = 0;
                 let read = if error == Error::CommandComplete {
-                    value = i2c_read_register_value!(buffer, CTRL_REG1::LPEN) as usize;
+                    value = i2c_read_register_field_value!(buffer, CTRL_REG1::LPEN) as usize;
                     true
                 } else {
                     false

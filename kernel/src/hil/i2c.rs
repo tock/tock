@@ -12,7 +12,7 @@ macro_rules! i2c_modify_register {
 }
 
 #[macro_export]
-macro_rules! i2c_read_register_value {
+macro_rules! i2c_read_register_field_value {
     ($buffer:expr, $field_value:expr) => {
         $field_value.val($buffer[0]).read($field_value)
     };
