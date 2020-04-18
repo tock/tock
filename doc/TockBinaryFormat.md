@@ -63,7 +63,7 @@ is to match MPU rules about alignment.
 
 ## Empty Tock Apps
 
-An "app" need not contain any code. An app can be marked as disabled an
+An "app" need not contain any code. An app can be marked as disabled and
 effectively act as padding between apps.
 
 ## TBF Header
@@ -179,7 +179,7 @@ elements are little-endian. The base header is 16 bytes, and has 5 fields:
 ### TLV Elements
 
 The header is followed immediately by a sequence of TLV elements. TLV
-elements are aligned to 4 bytes. If a TLV element size is not 4-byte aligned it
+elements are aligned to 4 bytes. If a TLV element size is not 4-byte aligned, it
 will be padded with up to 3 bytes. Each element begins with a 16-bit type and
 16-bit length followed by the element data:
 
@@ -214,7 +214,7 @@ The `Main` element has three 32-bit fields:
 +---------------------------+---------------------------+
 ```
 
-  * `init_offset` is the offset in bytes from the beginning of binary payload
+  * `init_offset` the offset in bytes from the beginning of binary payload
     (i.e. the actual application binary) that contains the first instruction to
     execute (typically the `_start` symbol).
   * `protected_size` the amount of flash, in bytes, after the header, to
