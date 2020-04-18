@@ -15,6 +15,10 @@ TOOLCHAIN ?= llvm
 CARGO     ?= cargo
 RUSTUP    ?= rustup
 
+# Default location of target directory (relative to board makefile)
+# passed to cargo --target_dir
+TARGET_DIRECTORY ?= $(TOCK_ROOT_DIRECTORY)target/
+
 # This will hopefully move into Cargo.toml (or Cargo.toml.local) eventually.
 # lld uses the page size to align program sections. It defaults to 4096 and this
 # puts a gap between before the .relocate section. `zmax-page-size=512` tells
@@ -77,6 +81,9 @@ check_defined = $(strip $(foreach 1,$1,$(if $(value $1),,$(error Undefined varia
 $(call check_defined, PLATFORM)
 $(call check_defined, TARGET)
 
+# Location of target-specific build
+TARGET_PATH = $(TARGET_DIRECTORY)$(TARGET)
+
 # If environment variable V is non-empty, be verbose.
 ifneq ($(V),)
   Q =
@@ -127,8 +134,12 @@ SIZE      ?= $(TOOLCHAIN)-size
 OBJCOPY   ?= $(TOOLCHAIN)-objcopy
 OBJDUMP   ?= $(TOOLCHAIN)-objdump
 
+# Set default flags to produce binary from .elf
+OBJCOPY_FLAGS ?= --output-target=binary
+# Add default flags to cargo. Boards can add additional options
+CARGO_FLAGS += $(VERBOSE) --target=$(TARGET) --package $(PLATFORM)  --target-dir=$(TARGET_DIRECTORY)
 # Set the default flags we need for objdump to get a .lst file.
-OBJDUMP_FLAGS += --disassemble-all --source --section-headers
+OBJDUMP_FLAGS ?= --disassemble-all --source --section-headers --demangle
 
 # Need an extra flag for OBJDUMP if we are on a thumb platform.
 ifneq (,$(findstring thumb,$(TARGET)))
@@ -143,6 +154,7 @@ ifneq ($(V),)
   $(info *******************************************************)
   $(info MAKEFILE_COMMON_PATH = $(MAKEFILE_COMMON_PATH))
   $(info TOCK_ROOT_DIRECTORY  = $(TOCK_ROOT_DIRECTORY))
+  $(info TARGET_DIRECTORY     = $(TARGET_DIRECTORY))
   $(info )
   $(info PLATFORM             = $(PLATFORM))
   $(info TARGET               = $(TARGET))
@@ -150,6 +162,8 @@ ifneq ($(V),)
   $(info RUSTFLAGS_FOR_CARGO  = $(RUSTFLAGS_FOR_CARGO))
   $(info MAKEFLAGS            = $(MAKEFLAGS))
   $(info OBJDUMP_FLAGS        = $(OBJDUMP_FLAGS))
+  $(info OBJCOPY_FLAGS        = $(OBJCOPY_FLAGS))
+  $(info CARGO_FLAGS          = $(CARGO_FLAGS))
   $(info )
   $(info TOOLCHAIN            = $(TOOLCHAIN))
   $(info SIZE                 = $(SIZE))
@@ -176,27 +190,27 @@ all: release
 # binary. This makes checking for Rust errors much faster.
 .PHONY: check
 check:
-	$(Q)RUSTFLAGS="$(RUSTFLAGS_FOR_CARGO)" $(CARGO) check $(VERBOSE) --target=$(TARGET) --package $(PLATFORM) --release
+	$(Q)RUSTFLAGS="$(RUSTFLAGS_FOR_CARGO)" $(CARGO) check $(CARGO_FLAGS) --release
 
 .PHONY: clean
 clean::
-	$(Q)$(CARGO) clean $(VERBOSE)
+	$(Q)$(CARGO) clean  $(VERBOSE) --target-dir=$(TARGET_DIRECTORY)
 
 .PHONY: release
-release: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).bin
+release:  $(TARGET_PATH)/release/$(PLATFORM).bin
 
 .PHONY: debug
-debug: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/debug/$(PLATFORM).bin
+debug:  $(TARGET_PATH)/debug/$(PLATFORM).bin
 
 .PHONY: debug-lst
-debug-lst: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/debug/$(PLATFORM).lst
+debug-lst:  $(TARGET_PATH)/debug/$(PLATFORM).lst
 
 .PHONY: doc
 doc: | target
-	$(Q)RUSTDOCFLAGS='-Z unstable-options --document-hidden-items' $(CARGO) doc $(VERBOSE) --release --package $(PLATFORM)
+	$(Q)RUSTDOCFLAGS='-Z unstable-options --document-hidden-items' $(CARGO) doc $(CARGO_FLAGS) --release
 
 .PHONY: lst
-lst: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).lst
+lst: $(TARGET_PATH)/release/$(PLATFORM).lst
 
 # Helper rule for showing the TARGET used by this board. Useful when building
 # the documentation for all boards.
@@ -207,14 +221,14 @@ show-target:
 # Support rules
 
 target:
-	@mkdir -p $(TOCK_ROOT_DIRECTORY)target
+	@mkdir -p $(TARGET_PATH)
 
 # Cargo outputs an elf file (just without a file extension)
 %.elf: %
 	$(Q)cp $< $@
 
 %.bin: %.elf $(TOCK_ROOT_DIRECTORY)tools/sha256sum/target/debug/sha256sum
-	$(Q)$(OBJCOPY) --output-target=binary $< $@
+	$(Q)$(OBJCOPY) $(OBJCOPY_FLAGS) $< $@
 	$(Q)$(TOCK_ROOT_DIRECTORY)tools/sha256sum/target/debug/sha256sum $@
 
 %.lst: %.elf
@@ -229,12 +243,12 @@ $(TOCK_ROOT_DIRECTORY)tools/sha256sum/target/debug/sha256sum:
 # We want to always invoke cargo (yay nested build systems), so these need to
 # be phony, which means they can't be pattern rules.
 
-.PHONY: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM)
-$(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM):
-	$(Q)RUSTFLAGS="$(RUSTFLAGS_FOR_CARGO)" $(CARGO) rustc $(VERBOSE) --target=$(TARGET) --package $(PLATFORM) --bin $(PLATFORM) --release -- $(RUSTFLAGS_FOR_BIN)
+.PHONY: $(TARGET_PATH)/release/$(PLATFORM)
+$(TARGET_PATH)/release/$(PLATFORM):
+	$(Q)RUSTFLAGS="$(RUSTFLAGS_FOR_CARGO)" $(CARGO) rustc  $(CARGO_FLAGS) --bin $(PLATFORM) --release -- $(RUSTFLAGS_FOR_BIN)
 	$(Q)$(SIZE) $@
 
-.PHONY: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/debug/$(PLATFORM)
-$(TOCK_ROOT_DIRECTORY)target/$(TARGET)/debug/$(PLATFORM):
-	$(Q)RUSTFLAGS="$(RUSTFLAGS_FOR_CARGO)" $(CARGO) rustc $(VERBOSE) --target=$(TARGET) --package $(PLATFORM) --bin $(PLATFORM) -- $(RUSTFLAGS_FOR_BIN)
+.PHONY: $(TARGET_PATH)/debug/$(PLATFORM)
+$(TARGET_PATH)/debug/$(PLATFORM):
+	$(Q)RUSTFLAGS="$(RUSTFLAGS_FOR_CARGO)" $(CARGO) rustc  $(CARGO_FLAGS) --bin $(PLATFORM) -- $(RUSTFLAGS_FOR_BIN)
 	$(Q)$(SIZE) $@
