@@ -140,6 +140,8 @@ OBJCOPY_FLAGS ?= --output-target=binary
 CARGO_FLAGS += $(VERBOSE) --target=$(TARGET) --package $(PLATFORM)  --target-dir=$(TARGET_DIRECTORY)
 # Set the default flags we need for objdump to get a .lst file.
 OBJDUMP_FLAGS ?= --disassemble-all --source --section-headers --demangle
+# Set default flags for size
+SIZE_FLAGS ?= 
 
 # Need an extra flag for OBJDUMP if we are on a thumb platform.
 ifneq (,$(findstring thumb,$(TARGET)))
@@ -164,6 +166,7 @@ ifneq ($(V),)
   $(info OBJDUMP_FLAGS        = $(OBJDUMP_FLAGS))
   $(info OBJCOPY_FLAGS        = $(OBJCOPY_FLAGS))
   $(info CARGO_FLAGS          = $(CARGO_FLAGS))
+  $(info SIZE_FLAGS           = $(SIZE_FLAGS))
   $(info )
   $(info TOOLCHAIN            = $(TOOLCHAIN))
   $(info SIZE                 = $(SIZE))
@@ -207,7 +210,7 @@ debug-lst:  $(TARGET_PATH)/debug/$(PLATFORM).lst
 
 .PHONY: doc
 doc: | target
-	$(Q)RUSTDOCFLAGS='-Z unstable-options --document-hidden-items' $(CARGO) doc $(CARGO_FLAGS) --release
+	$(Q)RUSTDOCFLAGS='-Z unstable-options --document-hidden-items' $(CARGO) doc $(VERBOSE) --release --package $(PLATFORM) --target-dir=$(TARGET_DIRECTORY)
 
 .PHONY: lst
 lst: $(TARGET_PATH)/release/$(PLATFORM).lst
@@ -246,9 +249,9 @@ $(TOCK_ROOT_DIRECTORY)tools/sha256sum/target/debug/sha256sum:
 .PHONY: $(TARGET_PATH)/release/$(PLATFORM)
 $(TARGET_PATH)/release/$(PLATFORM):
 	$(Q)RUSTFLAGS="$(RUSTFLAGS_FOR_CARGO)" $(CARGO) rustc  $(CARGO_FLAGS) --bin $(PLATFORM) --release -- $(RUSTFLAGS_FOR_BIN)
-	$(Q)$(SIZE) $@
+	$(Q)$(SIZE) $(SIZE_FLAGS) $@
 
 .PHONY: $(TARGET_PATH)/debug/$(PLATFORM)
 $(TARGET_PATH)/debug/$(PLATFORM):
 	$(Q)RUSTFLAGS="$(RUSTFLAGS_FOR_CARGO)" $(CARGO) rustc  $(CARGO_FLAGS) --bin $(PLATFORM) -- $(RUSTFLAGS_FOR_BIN)
-	$(Q)$(SIZE) $@
+	$(Q)$(SIZE) $(SIZE_FLAGS) $@
