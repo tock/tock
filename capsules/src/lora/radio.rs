@@ -1,5 +1,6 @@
 
-// Based on https://github.com/sandeepmistry/arduino-LoRa
+// For details on LoRa parameters, see Semtech SX1276/77/78/79 Datasheet.
+// For understanding how the `Radio` capsule is architected around the `SpiMasterDevice`, see similiar implementation for the RF233.
 
 use core::cell::Cell;
 use kernel::common::cells::{TakeCell};

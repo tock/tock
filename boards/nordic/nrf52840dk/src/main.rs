@@ -88,17 +88,19 @@ const UART_TXD: Pin = Pin::P0_06;
 const UART_CTS: Option<Pin> = Some(Pin::P0_07);
 const UART_RXD: Pin = Pin::P0_08;
 
-const SPI_MOSI: Pin = Pin::P0_29;
-const SPI_MISO: Pin = Pin::P0_30;
-const SPI_CLK: Pin = Pin::P0_26;
+// FIX: nRF52 SPI seems to work only when respective pins are P0_29,P0_30,P0_26
+const SPI_MOSI: Pin = Pin::P0_20;
+const SPI_MISO: Pin = Pin::P0_21;
+const SPI_CLK: Pin = Pin::P0_19;
 
 const SPI_MX25R6435F_CHIP_SELECT: Pin = Pin::P0_17;
 const SPI_MX25R6435F_WRITE_PROTECT_PIN: Pin = Pin::P0_22;
 const SPI_MX25R6435F_HOLD_PIN: Pin = Pin::P0_23;
 
-const LORA_CHIP_SELECT: Pin = Pin::P0_19; // fixme
-const LORA_RESET: Pin = Pin::P0_21; // fixme
-const LORA_INT: Pin = Pin::P0_22; // fixme
+// FIX: better assignments
+const LORA_CHIP_SELECT: Pin = Pin::P1_01;
+const LORA_RESET: Pin = Pin::P1_02;
+const LORA_INT: Pin = Pin::P1_03;
 
 /// Debug Writer
 pub mod io;

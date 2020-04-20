@@ -111,7 +111,6 @@ impl<S: SpiMasterDevice> Driver for Spi<'a, S> {
         allow_num: usize,
         slice: Option<AppSlice<Shared, u8>>,
     ) -> ReturnCode {
-
         match allow_num {
             // Pass in a read buffer to receive bytes into.
             0 => {
@@ -122,7 +121,6 @@ impl<S: SpiMasterDevice> Driver for Spi<'a, S> {
             }
             // Pass in a write buffer to transmit bytes from.
             1 => {
-
                 self.app.map(|app| {
                     app.app_write = slice;
                 });
