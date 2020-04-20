@@ -13,6 +13,10 @@ use kernel::{AppId, AppSlice, Callback, Driver, ReturnCode, Shared};
 use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::Spi as usize;
 
+/// Suggested length for the Spi read and write buffer
+pub const DEFAULT_READ_BUF_LENGTH: usize = 1024;
+pub const DEFAULT_WRITE_BUF_LENGTH: usize = 1024;
+
 // SPI operations are handled by coping into a kernel buffer for
 // writes and copying out of a kernel buffer for reads.
 //

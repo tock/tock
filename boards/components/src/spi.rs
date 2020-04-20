@@ -27,11 +27,11 @@
 
 use core::mem::MaybeUninit;
 
-use capsules::spi::{Spi, SPI_READ_BUF, SPI_WRITE_BUF};
+use capsules::spi::{Spi, DEFAULT_READ_BUF_LENGTH, DEFAULT_WRITE_BUF_LENGTH};
 use capsules::virtual_spi::{MuxSpiMaster, VirtualSpiMasterDevice};
 use kernel::component::Component;
 use kernel::hil::spi;
-use kernel::static_init_half;
+use kernel::{static_init, static_init_half};
 
 // Setup static space for the objects.
 #[macro_export]
@@ -131,7 +131,15 @@ impl<S: 'static + spi::SpiMaster> Component for SpiSyscallComponent<S> {
             Spi::new(syscall_spi_device)
         );
 
-        spi_syscalls.config_buffers(&mut SPI_READ_BUF, &mut SPI_WRITE_BUF);
+        let spi_read_buf =
+            static_init!([u8; DEFAULT_READ_BUF_LENGTH], [0; DEFAULT_READ_BUF_LENGTH]);
+
+        let spi_write_buf = static_init!(
+            [u8; DEFAULT_WRITE_BUF_LENGTH],
+            [0; DEFAULT_WRITE_BUF_LENGTH]
+        );
+
+        spi_syscalls.config_buffers(spi_read_buf, spi_write_buf);
         syscall_spi_device.set_client(spi_syscalls);
 
         spi_syscalls
