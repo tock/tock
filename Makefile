@@ -114,7 +114,6 @@ clean:
 .PHONY: fmt format formatall
 fmt format formatall:
 	@./tools/run_cargo_fmt.sh
-	@./tools/check_wildcard_imports.sh
 
 .PHONY: list list-boards list-platforms
 list list-boards list-platforms:
