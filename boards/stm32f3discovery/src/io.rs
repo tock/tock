@@ -38,7 +38,7 @@ impl Write for Writer {
 
 impl IoWrite for Writer {
     fn write(&mut self, buf: &[u8]) {
-        let uart = unsafe { &mut stm32f3xx::usart::USART2 };
+        let uart = unsafe { &mut stm32f3xx::usart::USART1 };
 
         if !self.initialized {
             self.initialized = true;

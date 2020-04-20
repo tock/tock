@@ -122,7 +122,7 @@ the following requirements:
  3. The application binary must start with a header detailing the location of
     sections in the binary.
 
-The first requirement is explained directly below while the second two are
+The first requirement is explained directly below while the other two are
 detailed in [Tock Binary Format](#tock-binary-format).
 
 
@@ -167,7 +167,7 @@ at Flash to be easily differentiated from relocations pointing at RAM.
 ### Tock Binary Format
 
 In order to be loaded correctly, applications must follow the [Tock Binary
-Format](TockBinaryFormat.md). This means the first bytes of a Tock app must
+Format](TockBinaryFormat.md). This means the initial bytes of a Tock app must
 follow this format so that Tock can load the application correctly.
 
 In practice, this is automatically handled for applications. As part of the
@@ -194,7 +194,9 @@ and not when it is compiled.
 `metadata.toml` file that includes some extra information about the application.
 A simplified example command that creates a `.tab` file is:
 
-    tar cf app.tab cortex-m0.bin cortex-m4.bin metadata.toml
+```bash
+tar cf app.tab cortex-m0.bin cortex-m4.bin metadata.toml
+```
 
 #### Metadata
 

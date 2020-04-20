@@ -417,14 +417,6 @@ pub unsafe fn setup_board<I: nrf52::interrupt_service::InterruptService>(
     while !nrf52::clock::CLOCK.low_started() {}
     while !nrf52::clock::CLOCK.high_started() {}
 
-    let dynamic_deferred_call_clients =
-        static_init!([DynamicDeferredCallClientState; 1], Default::default());
-    let dynamic_deferred_call = static_init!(
-        DynamicDeferredCall,
-        DynamicDeferredCall::new(dynamic_deferred_call_clients)
-    );
-    DynamicDeferredCall::set_global_instance(dynamic_deferred_call);
-
     let platform = Platform {
         button: button,
         ble_radio: ble_radio,
