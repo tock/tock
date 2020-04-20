@@ -36,6 +36,11 @@ pub enum ProcessLoadError {
     /// increase the size of the region your board reserves for app memory.
     NotEnoughMemory,
 
+    /// An app was loaded with a length in flash that the MPU does not support.
+    /// The fix is probably to correct the app size, but this could also be caused
+    /// by a bad MPU implementation.
+    MpuInvalidFlashLength,
+
     /// Process loading error due (likely) to a bug in the kernel. If you get
     /// this error please open a bug report.
     InternalError,
@@ -65,6 +70,10 @@ impl fmt::Debug for ProcessLoadError {
 
             ProcessLoadError::NotEnoughMemory => {
                 write!(f, "Not able to meet memory requirements requested by apps")
+            }
+
+            ProcessLoadError::MpuInvalidFlashLength => {
+                write!(f, "App flash length not supported by MPU")
             }
 
             ProcessLoadError::InternalError => write!(f, "Error in kernel. Likely a bug."),
@@ -1610,7 +1619,7 @@ impl<C: 'static + Chip> Process<'a, C> {
                     process_name
                 );
             }
-            return Err(ProcessLoadError::InternalError);
+            return Err(ProcessLoadError::MpuInvalidFlashLength);
         }
 
         // Determine how much space we need in the application's
