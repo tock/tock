@@ -31,6 +31,7 @@ CLIPPY_ARGS="
 -D clippy::empty_line_after_outer_attr
 -D clippy::option_map_unwrap_or
 -D clippy::option_map_unwrap_or_else
+-D clippy::wildcard_imports
 "
 
 cargo clippy -- $CLIPPY_ARGS

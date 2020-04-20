@@ -19,8 +19,8 @@ set +e
 let FAIL=0
 set -e
 
-# Clippy doesn't have an option for this, so do it manually (see
-# https://github.com/rust-lang/rust-clippy/issues/1228).
+# Clippy does have an option for this -- wildcard_imports -- but we
+# have not yet enabled clippy in CI so for now we check manually here
 
 # Find folders with Cargo.toml files in them and check them (avoids matching
 # this script!). Use a minimum depth of 2 to avoid matching the workspace's
