@@ -4,6 +4,11 @@ version = "0.1.0"
 authors = ["Tock Project Developers <tock-dev@googlegroups.com>"]
 edition = "2018"
 
+[features]
+config_fpga_nexysvideo = ["config_disable_default"]
+config_sim_verilator = ["config_disable_default"]
+config_disable_default = []
+
 [dependencies]
 lowrisc = { path = "../lowrisc" }
 rv32i = { path = "../../arch/rv32i" }

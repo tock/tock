@@ -1,13 +1,17 @@
 # Makefile for building the tock kernel for the OpenTitan platform
 
+DEFAULT_BOARD_CONFIGURATION=fpga_nexysvideo
 TARGET=riscv32imc-unknown-none-elf
 PLATFORM=opentitan
 
 include ../Makefile.common
 
-# Passing a feature to cargo through `FEATURES` environment variable.
-ifneq ($(FEATURES),)
-	CARGO_FLAGS += --features=$(FEATURES)
+# Pass OpenTitan board configuration option in `BOARD_CONFIGURATION` through
+# Cargo `--features`. Please see `Cargo.toml` for available options.
+ifneq ($(BOARD_CONFIGURATION),)
+	CARGO_FLAGS += --features=$(BOARD_CONFIGURATION)
+else
+	CARGO_FLAGS += --features=$(DEFAULT_BOARD_CONFIGURATION)
 endif
 
 qemu: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf
