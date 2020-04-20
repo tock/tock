@@ -148,7 +148,7 @@ use kernel::{AppId, Callback, Driver, ReturnCode};
 
 register_bitfields![u8,
     CTRL_REG1 [
-        /// PEC enable
+        /// Output data rate
         ODR OFFSET(4) NUMBITS(4) [],
         /// Low Power enable
         LPEN OFFSET(3) NUMBITS(1) [],
