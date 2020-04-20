@@ -487,6 +487,7 @@ impl PinId {
         unsafe { &PIN[usize::from(port_num)][usize::from(pin_num)] }
     }
 
+    #[allow(clippy::mut_from_ref)]
     pub fn get_pin_mut(&self) -> &mut Option<Pin<'static>> {
         let mut port_num: u8 = *self as u8;
 

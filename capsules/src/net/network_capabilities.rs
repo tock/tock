@@ -48,7 +48,7 @@ impl AddrRange {
                 if &allowed_addr.0[0..full_bytes] != &addr.0[0..full_bytes] {
                     false
                 } else {
-                    allowed_addr.0[full_bytes] >> (8 - remainder_bits)
+                    addr.0[full_bytes] >> (8 - remainder_bits)
                         == allowed_addr.0[full_bytes] >> (8 - remainder_bits)
                 }
             }

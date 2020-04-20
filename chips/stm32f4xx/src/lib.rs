@@ -85,6 +85,7 @@ pub static BASE_VECTORS: [unsafe extern "C" fn(); 16] = [
 // Extracted from `CMSIS/Device/ST/STM32F4xx/Include/stm32f446xx.h`
 // NOTE: There are missing IRQn between 0 and 96
 #[cfg(feature = "stm32f446re")]
+#[cfg(not(feature = "cargo-clippy"))] //prevents error from clippy seeing two IRQS defined
 #[cfg_attr(all(target_arch = "arm", target_os = "none"), link_section = ".irqs")]
 // used Ensures that the symbol is kept until the final binary
 #[cfg_attr(all(target_arch = "arm", target_os = "none"), used)]

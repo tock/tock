@@ -396,7 +396,7 @@ pub unsafe fn reset_handler() {
     let temp = static_init!(
         capsules::temperature::TemperatureSensor<'static>,
         capsules::temperature::TemperatureSensor::new(
-            &mut nrf52832::temperature::TEMP,
+            &nrf52832::temperature::TEMP,
             board_kernel.create_grant(&memory_allocation_capability)
         )
     );

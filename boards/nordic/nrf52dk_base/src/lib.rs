@@ -401,7 +401,7 @@ pub unsafe fn setup_board<I: nrf52::interrupt_service::InterruptService>(
     );
     let analog_comparator = static_init!(
         analog_comparator::AnalogComparator<'static, nrf52::acomp::Comparator>,
-        analog_comparator::AnalogComparator::new(&mut nrf52::acomp::ACOMP, ac_channels)
+        analog_comparator::AnalogComparator::new(&nrf52::acomp::ACOMP, ac_channels)
     );
     nrf52::acomp::ACOMP.set_client(analog_comparator);
 

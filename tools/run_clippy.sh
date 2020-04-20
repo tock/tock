@@ -24,11 +24,11 @@ CLIPPY_ARGS="
 -A clippy::restriction
 
 -A clippy::if_same_then_else
+-A clippy::enum_clike_unportable_variant
 
 -D clippy::needless_return
 -D clippy::unnecessary_mut_passed
 -D clippy::empty_line_after_outer_attr
--D clippy::default_trait_access
 -D clippy::option_map_unwrap_or
 -D clippy::option_map_unwrap_or_else
 "

@@ -487,6 +487,7 @@ impl<'a, A: time::Alarm<'a>> TxClient for LowpanTest<'a, A> {
     }
 }
 
+#[allow(clippy::cast_ptr_alignment)]
 fn ipv6_check_receive_packet(
     tf: TF,
     hop_limit: u8,

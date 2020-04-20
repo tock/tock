@@ -710,7 +710,7 @@ impl<'a, F: Flash + 'static> LogWrite<'a> for Log<'a, F> {
         if self.state.get() != State::Idle {
             // Log busy, try appending again later.
             return Err((ReturnCode::EBUSY, Some(buffer)));
-        } else if length <= 0 || buffer.len() < length {
+        } else if buffer.len() < length {
             // Invalid length provided.
             return Err((ReturnCode::EINVAL, Some(buffer)));
         } else if entry_size + PAGE_HEADER_SIZE > self.page_size {
