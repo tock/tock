@@ -11,6 +11,7 @@ use kernel::Chip;
 use rv32i::csr::{mcause, mie::mie, mip::mip, mtvec::mtvec, CSR};
 use rv32i::syscall::SysCall;
 
+use crate::chip_config::CONFIG;
 use crate::gpio;
 use crate::hmac;
 use crate::interrupts;
@@ -20,7 +21,7 @@ use crate::timer;
 use crate::uart;
 use crate::usbdev;
 
-pub const CHIP_FREQ: u32 = 50_000_000;
+pub const CHIP_FREQ: u32 = CONFIG.chip_freq;
 
 pub struct EarlGrey<A: 'static + Alarm<'static>> {
     userspace_kernel_boundary: SysCall,

@@ -132,7 +132,7 @@ pub unsafe fn reset_handler() {
     // Create a shared UART channel for the console and for kernel debug.
     let uart_mux = components::console::UartMuxComponent::new(
         &earlgrey::uart::UART0,
-        230400,
+        earlgrey::uart::UART0_BAUDRATE,
         dynamic_deferred_caller,
     )
     .finalize(());
