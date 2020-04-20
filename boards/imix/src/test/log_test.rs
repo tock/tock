@@ -57,7 +57,7 @@ pub unsafe fn run(
         Log,
         log::Log::new(
             &TEST_LOG,
-            &mut flashcalw::FLASH_CONTROLLER,
+            &flashcalw::FLASH_CONTROLLER,
             &mut PAGEBUFFER,
             deferred_caller,
             true
@@ -599,7 +599,6 @@ impl<A: Alarm<'static>> LogWriteClient for LogTest<A> {
                             ReturnCode::FAIL => (),
                             ReturnCode::EBUSY => {
                                 self.wait();
-                                return;
                             }
                             _ => panic!("Read on empty log did not fail as expected: {:?}", error),
                         }
