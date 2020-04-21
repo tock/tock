@@ -34,7 +34,7 @@ unsafe extern "C" fn unhandled_interrupt() {
     let mut interrupt_number: u32;
 
     // IPSR[8:0] holds the currently active interrupt
-    asm!(
+    llvm_asm!(
     "mrs    r0, ipsr                    "
     : "={r0}"(interrupt_number)
     :

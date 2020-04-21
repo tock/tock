@@ -1,6 +1,6 @@
 //! Implementations for generic SiFive MCU peripherals.
 
-#![feature(asm, const_fn, in_band_lifetimes)]
+#![feature(llvm_asm, const_fn, in_band_lifetimes)]
 #![no_std]
 #![crate_name = "sifive"]
 #![crate_type = "rlib"]

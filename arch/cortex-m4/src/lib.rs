@@ -2,7 +2,7 @@
 
 #![crate_name = "cortexm4"]
 #![crate_type = "rlib"]
-#![feature(asm, core_intrinsics, naked_functions)]
+#![feature(llvm_asm, core_intrinsics, naked_functions)]
 #![no_std]
 
 pub mod mpu;
@@ -41,7 +41,7 @@ pub unsafe extern "C" fn systick_handler() {
 #[cfg(all(target_arch = "arm", target_os = "none"))]
 #[naked]
 pub unsafe extern "C" fn systick_handler() {
-    asm!(
+    llvm_asm!(
         "
     // Mark that the systick handler was called meaning that the process stopped
     // executing because it has exceeded its timeslice. This is a global
@@ -81,7 +81,7 @@ pub unsafe extern "C" fn generic_isr() {
 #[cfg(all(target_arch = "arm", target_os = "none"))]
 #[naked]
 pub unsafe extern "C" fn generic_isr() {
-    asm!(
+    llvm_asm!(
         "
     // Set thread mode to privileged to ensure we are executing as the kernel.
     // This may be redundant if the interrupt happened while the kernel code
@@ -152,7 +152,7 @@ pub unsafe extern "C" fn svc_handler() {
 #[cfg(all(target_arch = "arm", target_os = "none"))]
 #[naked]
 pub unsafe extern "C" fn svc_handler() {
-    asm!(
+    llvm_asm!(
         "
     // First check to see which direction we are going in. If the link register
     // is something other than 0xfffffff9, then we are coming from an app which
@@ -209,7 +209,7 @@ pub unsafe extern "C" fn switch_to_user(
     mut user_stack: *const usize,
     process_regs: &mut [usize; 8],
 ) -> *const usize {
-    asm!(
+    llvm_asm!(
         "
     // The arguments passed in are:
     // - `r0` is the top of the user stack
@@ -400,7 +400,7 @@ pub unsafe extern "C" fn hard_fault_handler() {
     let faulting_stack: *mut u32;
     let kernel_stack: bool;
 
-    asm!(
+    llvm_asm!(
      "/* Read the SCB registers. */
      ldr r0, =SCB_REGISTERS
      ldr r1, =0xE000ED14
@@ -432,7 +432,7 @@ pub unsafe extern "C" fn hard_fault_handler() {
     } else {
         // hard fault occurred in an app, not the kernel. The app should be
         //  marked as in an error state and handled by the kernel
-        asm!(
+        llvm_asm!(
             "ldr r0, =APP_HARD_FAULT
               mov r1, #1 /* Fault */
               str r1, [r0, #0]

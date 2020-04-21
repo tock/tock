@@ -223,7 +223,7 @@ pub extern "C" fn _start_trap_vectored() -> ! {
         // Below are 32 (non-compressed) jumps to cover the entire possible
         // range of vectored traps.
         #[cfg(all(target_arch = "riscv32", target_os = "none"))]
-        asm!("
+        llvm_asm!("
             j _start_trap
             j _start_trap
             j _start_trap

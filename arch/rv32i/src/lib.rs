@@ -3,7 +3,7 @@
 #![crate_name = "rv32i"]
 #![crate_type = "rlib"]
 #![feature(
-    asm,
+    llvm_asm,
     const_fn,
     lang_items,
     global_asm,
@@ -50,7 +50,7 @@ extern "C" {
 #[naked]
 pub extern "C" fn _start() {
     unsafe {
-        asm! ("
+        llvm_asm! ("
             // Set the global pointer register using the variable defined in the
             // linker script. This register is only set once. The global pointer
             // is a method for sharing state between the linker and the CPU so
@@ -155,7 +155,7 @@ pub extern "C" fn _start_trap() {
 #[naked]
 pub extern "C" fn _start_trap() {
     unsafe {
-        asm! ("
+        llvm_asm! ("
             // The first thing we have to do is determine if we came from user
             // mode or kernel mode, as we need to save state and proceed
             // differently. We cannot, however, use any registers because we do
@@ -341,7 +341,7 @@ pub extern "C" fn _start_trap() {
 #[export_name = "abort"]
 pub extern "C" fn abort() {
     unsafe {
-        asm! ("
+        llvm_asm! ("
             // Simply go back to the start as if we had just booted.
             j    _start
         "
