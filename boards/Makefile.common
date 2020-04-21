@@ -134,10 +134,10 @@ SIZE      ?= $(TOOLCHAIN)-size
 OBJCOPY   ?= $(TOOLCHAIN)-objcopy
 OBJDUMP   ?= $(TOOLCHAIN)-objdump
 
-# Set default flags to produce binary from .elf
-OBJCOPY_FLAGS ?= --output-target=binary
+# Set additional flags to produce binary from .elf
+OBJCOPY_FLAGS ?= -S
 # Add default flags to cargo. Boards can add additional options
-CARGO_FLAGS += $(VERBOSE) --target=$(TARGET) --package $(PLATFORM)  --target-dir=$(TARGET_DIRECTORY)
+CARGO_FLAGS ?= $(VERBOSE) --target=$(TARGET) --package $(PLATFORM)  --target-dir=$(TARGET_DIRECTORY)
 # Set the default flags we need for objdump to get a .lst file.
 OBJDUMP_FLAGS ?= --disassemble-all --source --section-headers --demangle
 # Set default flags for size
@@ -231,7 +231,7 @@ target:
 	$(Q)cp $< $@
 
 %.bin: %.elf $(TOCK_ROOT_DIRECTORY)tools/sha256sum/target/debug/sha256sum
-	$(Q)$(OBJCOPY) $(OBJCOPY_FLAGS) $< $@
+	$(Q)$(OBJCOPY) --output-target=binary $(OBJCOPY_FLAGS) $< $@
 	$(Q)$(TOCK_ROOT_DIRECTORY)tools/sha256sum/target/debug/sha256sum $@
 
 %.lst: %.elf
