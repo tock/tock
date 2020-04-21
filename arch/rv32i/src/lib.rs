@@ -150,7 +150,7 @@ pub extern "C" fn _start_trap() {
 /// save the application state and then resume the `switch_to()` function to
 /// correctly return back to the kernel.
 #[cfg(all(target_arch = "riscv32", target_os = "none"))]
-#[link_section = ".riscv.trap"]
+#[link_section = ".riscv,trap"]
 #[export_name = "_start_trap"]
 #[naked]
 pub extern "C" fn _start_trap() {

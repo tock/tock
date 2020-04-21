@@ -210,7 +210,7 @@ pub unsafe fn configure_trap_handler() {
         .write(mtvec::trap_addr.val(_start_trap_vectored as u32 >> 2) + mtvec::mode::Vectored)
 }
 
-#[link_section = ".riscv.trap_vectored"]
+#[link_section = ".riscv,trap_vectored"]
 #[export_name = "_start_trap_vectored"]
 #[naked]
 pub extern "C" fn _start_trap_vectored() -> ! {
