@@ -5,7 +5,6 @@ use core::fmt;
 
 use crate::csr;
 use kernel;
-use kernel::common::math;
 use kernel::common::registers::register_bitfields;
 use kernel::mpu;
 
@@ -398,8 +397,6 @@ impl kernel::mpu::MPU for PMPConfig {
 
         // RISC-V PMP is not inclusive of the final address, while Tock is, increase the memory_size by 1
         let mut region_size = memory_size as usize + 1;
-
-        region_size = math::PowerOfTwo::ceiling(region_size as u32).as_num::<u32>() as usize;
 
         // Region size always has to align to 4 bytes
         if region_size % 4 != 0 {
