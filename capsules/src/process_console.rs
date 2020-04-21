@@ -311,9 +311,8 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
             self.tx_in_progress.set(true);
             self.tx_buffer.take().map(|buffer| {
                 let len = cmp::min(bytes.len(), buffer.len());
-                for i in 0..len {
-                    buffer[i] = bytes[i];
-                }
+                // Copy elements of `bytes` into `buffer`
+                (&mut buffer[..len]).copy_from_slice(&bytes[..len]);
                 self.uart.transmit_buffer(buffer, len);
             });
             ReturnCode::SUCCESS
