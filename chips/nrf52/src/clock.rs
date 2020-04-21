@@ -126,10 +126,10 @@ const CLOCK_BASE: StaticRef<ClockRegisters> =
 
 /// Interrupt sources
 pub enum InterruptField {
-    HFCLKSTARTED = (1 << 0),
-    LFCLKSTARTED = (1 << 1),
-    DONE = (1 << 3),
-    CTTO = (1 << 4),
+    HFCLKSTARTED = 1 << 0,
+    LFCLKSTARTED = 1 << 1,
+    DONE = 1 << 3,
+    CTTO = 1 << 4,
 }
 
 /// Low frequency clock source
