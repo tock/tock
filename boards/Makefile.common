@@ -82,7 +82,7 @@ $(call check_defined, PLATFORM)
 $(call check_defined, TARGET)
 
 # Location of target-specific build
-TARGET_PATH = $(TARGET_DIRECTORY)$(TARGET)
+TARGET_PATH := $(TARGET_DIRECTORY)$(TARGET)
 
 # If environment variable V is non-empty, be verbose.
 ifneq ($(V),)
