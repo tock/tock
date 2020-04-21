@@ -29,9 +29,12 @@ echo Updating Rust to $NIGHTLY
 echo $NIGHTLY > rust-toolchain
 
 # Update all relevant files with the new version string.
-sed -i "s/nightly-[0-9]*-[0-9]*-[0-9]*/${NIGHTLY}/g" .travis.yml
-sed -i "s/nightly-[0-9]*-[0-9]*-[0-9]*/${NIGHTLY}/g" .vscode/settings.json
-sed -i "s/nightly-[0-9]*-[0-9]*-[0-9]*/${NIGHTLY}/g" doc/Getting_Started.md
-sed -i "s/nightly-[0-9]*-[0-9]*-[0-9]*/${NIGHTLY}/g" rust-toolchain
-sed -i "s/nightly-[0-9]*-[0-9]*-[0-9]*/${NIGHTLY}/g" tools/netlify-build.sh
-sed -i "s/[0-9]*-[0-9]*-[0-9]*/${BEST_DATE}/g" shell.nix
+#
+# Note, x-platform `sed -i` has odd, but particular syntax
+# https://stackoverflow.com/questions/5694228/sed-in-place-flag-that-works-both-on-mac-bsd-and-linux
+sed -i.bak "s/nightly-[0-9]*-[0-9]*-[0-9]*/${NIGHTLY}/g" .travis.yml
+sed -i.bak "s/nightly-[0-9]*-[0-9]*-[0-9]*/${NIGHTLY}/g" .vscode/settings.json
+sed -i.bak "s/nightly-[0-9]*-[0-9]*-[0-9]*/${NIGHTLY}/g" doc/Getting_Started.md
+sed -i.bak "s/nightly-[0-9]*-[0-9]*-[0-9]*/${NIGHTLY}/g" rust-toolchain
+sed -i.bak "s/nightly-[0-9]*-[0-9]*-[0-9]*/${NIGHTLY}/g" tools/netlify-build.sh
+sed -i.bak "s/[0-9]*-[0-9]*-[0-9]*/${BEST_DATE}/g" shell.nix
