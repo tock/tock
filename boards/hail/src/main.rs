@@ -354,10 +354,10 @@ pub unsafe fn reset_handler() {
     // set GPIO driver controlling remaining GPIO pins
     let gpio = components::gpio::GpioComponent::new(board_kernel).finalize(
         components::gpio_component_helper!(
-            &sam4l::gpio::PC[14], // DO
-            &sam4l::gpio::PC[15], // D1
-            &sam4l::gpio::PC[11], // D6
-            &sam4l::gpio::PC[12]  // D7
+            &sam4l::gpio::PB[14], // D0
+            &sam4l::gpio::PB[15], // D1
+            &sam4l::gpio::PB[11], // D6
+            &sam4l::gpio::PB[12]  // D7
         ),
     );
 
