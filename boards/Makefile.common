@@ -197,7 +197,7 @@ check:
 
 .PHONY: clean
 clean::
-	$(Q)$(CARGO) clean  $(VERBOSE) --target-dir=$(TARGET_DIRECTORY)
+	$(Q)$(CARGO) clean $(VERBOSE) --target-dir=$(TARGET_DIRECTORY)
 
 .PHONY: release
 release:  $(TARGET_PATH)/release/$(PLATFORM).bin
