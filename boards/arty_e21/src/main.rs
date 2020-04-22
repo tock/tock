@@ -5,13 +5,13 @@
 #![feature(const_fn, in_band_lifetimes)]
 
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+use components::gpio::GpioComponent;
 use kernel::capabilities;
 use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::component::Component;
 use kernel::hil;
 use kernel::Platform;
 use kernel::{create_capability, debug, static_init};
-use components::gpio::GpioComponent;
 
 mod timer_test;
 

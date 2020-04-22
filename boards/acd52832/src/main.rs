@@ -5,6 +5,7 @@
 #![deny(missing_docs)]
 
 use capsules::virtual_alarm::VirtualMuxAlarm;
+use components::gpio::GpioComponent;
 use kernel::capabilities;
 use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::component::Component;
@@ -16,7 +17,6 @@ use kernel::hil::rng::Rng;
 use kernel::{create_capability, debug, debug_gpio, static_init};
 use nrf52832::gpio::Pin;
 use nrf52832::rtc::Rtc;
-use components::gpio::GpioComponent;
 
 use nrf52dk_base::nrf52_components::ble::BLEComponent;
 
