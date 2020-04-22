@@ -376,44 +376,55 @@ well as the return address (`ra`) register.
 
 ## How System Calls Connect to Drivers
 
-After a system call is made, Tock routes the call to the appropriate driver.
+After a system call is made, the call is handled and routed by the Tock kernel
+in [`sched.rs`](../kernel/src/sched.rs) through a series of steps.
 
-First, in [`sched.rs`](../kernel/src/sched.rs) the number of the `svc` is
-matched against the valid syscall types. `yield` and `memop` have special
-functionality that is handled by the kernel. `command`, `subscribe`, and
-`allow` are routed to drivers for handling.
+1. The kernel calls a platform-provided syscall filter function to determine if
+   it should process the syscall or not. This does not apply to `yield()`. The
+   filter function uses the syscall and which process called it and returns a
+   `Result((), ReturnCode)` to signal if the syscall should be handled or if an
+   error should be returned to the process.
 
-To route the `command`, `subscribe`, and `allow` syscalls, each board creates a
-struct that implements the `Platform` trait. Implementing that trait only
-requires implementing a `with_driver()` function that takes one argument, the
-driver number, and returns a reference to the correct driver if it is supported
-or `None` otherwise. The kernel then calls the appropriate syscall function on
-that driver with the remaining syscall arguments.
+    If the filter function disallows the syscall it returns `Err(ReturnCode)` and
+    the `ReturnCode` is provided to the app as the return code for the syscall.
+    Otherwise, the syscall proceeds.
 
-An example board that implements the `Platform` trait looks something like this:
+2. The number of the syscall is matched against the valid syscall types. `yield`
+   and `memop` have special functionality that is handled by the kernel.
+   `command`, `subscribe`, and `allow` are routed to drivers for handling.
 
-```rust
-struct TestBoard {
-    console: &'static Console<'static, usart::USART>,
-}
+3. To route the `command`, `subscribe`, and `allow` syscalls, each board creates
+   a struct that implements the `Platform` trait. Implementing that trait only
+   requires implementing a `with_driver()` function that takes one argument, the
+   driver number, and returns a reference to the correct driver if it is
+   supported or `None` otherwise. The kernel then calls the appropriate syscall
+   function on that driver with the remaining syscall arguments.
 
-impl Platform for TestBoard {
-    fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
-        where F: FnOnce(Option<&kernel::Driver>) -> R
-    {
+    An example board that implements the `Platform` trait looks something like
+    this:
 
-        match driver_num {
-            0 => f(Some(self.console)),
-            _ => f(None),
+    ```rust
+    struct TestBoard {
+        console: &'static Console<'static, usart::USART>,
+    }
+
+    impl Platform for TestBoard {
+        fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
+            where F: FnOnce(Option<&kernel::Driver>) -> R
+        {
+
+            match driver_num {
+                0 => f(Some(self.console)),
+                _ => f(None),
+            }
         }
     }
-}
-```
+    ```
 
-`TestBoard` then supports one driver, the UART console, and maps it to driver
-number 0. Any `command`, `subscribe`, and `allow` sycalls to driver number 0
-will get routed to the console, and all other driver numbers will return
-`ReturnCode::ENODEVICE`.
+    `TestBoard` then supports one driver, the UART console, and maps it to driver
+    number 0. Any `command`, `subscribe`, and `allow` sycalls to driver number 0
+    will get routed to the console, and all other driver numbers will return
+    `ReturnCode::ENODEVICE`.
 
 
 
