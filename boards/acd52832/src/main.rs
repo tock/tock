@@ -16,6 +16,7 @@ use kernel::hil::rng::Rng;
 use kernel::{create_capability, debug, debug_gpio, static_init};
 use nrf52832::gpio::Pin;
 use nrf52832::rtc::Rtc;
+use components::gpio::GpioComponent;
 
 use nrf52dk_base::nrf52_components::ble::BLEComponent;
 
@@ -124,6 +125,43 @@ pub unsafe fn reset_handler() {
     );
     DynamicDeferredCall::set_global_instance(dynamic_deferred_caller);
 
+    // GPIOs
+    let gpio = GpioComponent::new(board_kernel).finalize(components::gpio_component_helper!(
+        0 => &nrf52832::gpio::PORT[Pin::P0_25],
+        1 => &nrf52832::gpio::PORT[Pin::P0_26],
+        2 => &nrf52832::gpio::PORT[Pin::P0_27],
+        3 => &nrf52832::gpio::PORT[Pin::P0_28],
+        4 => &nrf52832::gpio::PORT[Pin::P0_29],
+        5 => &nrf52832::gpio::PORT[Pin::P0_30],
+        6 => &nrf52832::gpio::PORT[Pin::P0_31]
+    ));
+
+    // LEDs
+    let led_pins = static_init!(
+        [(
+            &'static dyn hil::gpio::Pin,
+            kernel::hil::gpio::ActivationMode
+        ); 4],
+        [
+            (
+                &nrf52832::gpio::PORT[LED1_PIN],
+                kernel::hil::gpio::ActivationMode::ActiveLow
+            ),
+            (
+                &nrf52832::gpio::PORT[LED2_PIN],
+                kernel::hil::gpio::ActivationMode::ActiveLow
+            ),
+            (
+                &nrf52832::gpio::PORT[LED3_PIN],
+                kernel::hil::gpio::ActivationMode::ActiveLow
+            ),
+            (
+                &nrf52832::gpio::PORT[LED4_PIN],
+                kernel::hil::gpio::ActivationMode::ActiveLow
+            ),
+        ]
+    );
+
     // Make non-volatile memory writable and activate the reset button
     let uicr = nrf52832::uicr::Uicr::new();
     nrf52832::nvmc::NVMC.erase_uicr();
@@ -139,24 +177,6 @@ pub unsafe fn reset_handler() {
         Some(&nrf52832::gpio::PORT[LED3_PIN]),
         Some(&nrf52832::gpio::PORT[LED4_PIN]),
     );
-
-    //
-    // GPIO Pins
-    //
-    let gpio = components::gpio::GpioComponent::new(
-        board_kernel,
-        components::gpio_component_helper!(
-            nrf52832::gpio::GPIOPin,
-            &nrf52832::gpio::PORT[Pin::P0_25],
-            &nrf52832::gpio::PORT[Pin::P0_26],
-            &nrf52832::gpio::PORT[Pin::P0_27],
-            &nrf52832::gpio::PORT[Pin::P0_28],
-            &nrf52832::gpio::PORT[Pin::P0_29],
-            &nrf52832::gpio::PORT[Pin::P0_30],
-            &nrf52832::gpio::PORT[Pin::P0_31]
-        ),
-    )
-    .finalize(components::gpio_component_buf!(nrf52832::gpio::GPIOPin));
 
     //
     // LEDs

@@ -11,6 +11,7 @@ use kernel::component::Component;
 use kernel::hil;
 use kernel::Platform;
 use kernel::{create_capability, debug, static_init};
+use components::gpio::GpioComponent;
 
 mod timer_test;
 
@@ -187,9 +188,9 @@ pub unsafe fn reset_handler() {
         board_kernel,
         components::gpio_component_helper!(
             arty_e21_chip::gpio::GpioPin,
-            &arty_e21_chip::gpio::PORT[7],
-            &arty_e21_chip::gpio::PORT[5],
-            &arty_e21_chip::gpio::PORT[6]
+            0 => &arty_e21_chip::gpio::PORT[7],
+            1 => &arty_e21_chip::gpio::PORT[5],
+            2 => &arty_e21_chip::gpio::PORT[6]
         ),
     )
     .finalize(components::gpio_component_buf!(

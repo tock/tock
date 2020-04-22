@@ -6,8 +6,9 @@
 //! let gpio = components::gpio::GpioComponent::new(
 //!     board_kernel,
 //!     components::gpio_component_helper!(
-//!         // pin number => pin reference
+//!         // pin struct type
 //!         sam4l::gpio::GPIOPin,
+//!         // pin number => pin reference
 //!         2 => &nrf52840::gpio::PORT[GPIO_D2],
 //!         3 => &nrf52840::gpio::PORT[GPIO_D3],
 //!         4 => &nrf52840::gpio::PORT[GPIO_D4],

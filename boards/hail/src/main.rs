@@ -365,8 +365,8 @@ pub unsafe fn reset_handler() {
             sam4l::gpio::GPIOPin,
             0 => &sam4l::gpio::PC[14], // DO
             1 => &sam4l::gpio::PC[15], // D1
-            6 => &sam4l::gpio::PC[11], // D6
-            7 => &sam4l::gpio::PC[12]  // D7
+            2 => &sam4l::gpio::PC[11], // D6
+            3 => &sam4l::gpio::PC[12]  // D7
         ),
     )
     .finalize(components::gpio_component_buf!(sam4l::gpio::GPIOPin));
