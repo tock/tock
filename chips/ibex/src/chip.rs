@@ -210,7 +210,18 @@ pub unsafe fn configure_trap_handler() {
         .write(mtvec::trap_addr.val(_start_trap_vectored as u32 >> 2) + mtvec::mode::Vectored)
 }
 
-#[link_section = ".riscv,trap_vectored"]
+// Mock implementation for crate tests that does not include the section
+// specifier, as the test will not use our linker script, and the host
+// compilation environment may not allow the section name.
+#[cfg(not(any(target_arch = "riscv32", target_os = "none")))]
+pub extern "C" fn _start_trap_vectored() {
+    unsafe {
+        unreachable_unchecked();
+    }
+}
+
+#[cfg(all(target_arch = "riscv32", target_os = "none"))]
+#[link_section = ".riscv.trap_vectored"]
 #[export_name = "_start_trap_vectored"]
 #[naked]
 pub extern "C" fn _start_trap_vectored() -> ! {
