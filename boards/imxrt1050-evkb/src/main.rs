@@ -368,7 +368,7 @@ pub unsafe fn reset_handler() {
     // let pin = imxrt1050::gpio::PinId::P1_09.get_pin().as_ref().unwrap();
     // pin.make_output();
     // pin.clear();
-    // debug!("Almost loaded!");
+    debug!("Almost loaded!");
 
     kernel::procs::load_processes(
         board_kernel,

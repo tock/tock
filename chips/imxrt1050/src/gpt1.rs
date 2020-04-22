@@ -12,31 +12,31 @@ use crate::ccm;
 /// General purpose timers
 #[repr(C)]
 struct Gpt1Registers {
-	/// GPT Control Register
-	cr: ReadWrite<u32, CR::Register>,
-	/// GPT Prescaler Register
-	pr: ReadWrite<u32, PR::Register>,
-	/// GPT Status Register
-	sr: ReadWrite<u32, SR::Register>,
-	/// GPT Interrupt Register
-	ir: ReadWrite<u32, IR::Register>,
-	/// GPT Output Compare Register 1
-	ocr1: ReadWrite<u32, OCR1::Register>,
-	/// GPT Output Compare Register 2
-	ocr2: ReadWrite<u32, OCR2::Register>,
-	/// GPT Output Compare Register 3
-	ocr3: ReadWrite<u32, OCR3::Register>,
-	/// GPT Input Capture Register 1
-	icr1: ReadOnly<u32, ICR1::Register>,
-	/// GPT Input Capture Register 2
-	icr2: ReadOnly<u32, ICR2::Register>,
-	/// GPT Counter Register
-	cnt: ReadOnly<u32, CNT::Register>,
+    /// GPT Control Register
+    cr: ReadWrite<u32, CR::Register>,
+    /// GPT Prescaler Register
+    pr: ReadWrite<u32, PR::Register>,
+    /// GPT Status Register
+    sr: ReadWrite<u32, SR::Register>,
+    /// GPT Interrupt Register
+    ir: ReadWrite<u32, IR::Register>,
+    /// GPT Output Compare Register 1
+    ocr1: ReadWrite<u32, OCR1::Register>,
+    /// GPT Output Compare Register 2
+    ocr2: ReadWrite<u32, OCR2::Register>,
+    /// GPT Output Compare Register 3
+    ocr3: ReadWrite<u32, OCR3::Register>,
+    /// GPT Input Capture Register 1
+    icr1: ReadOnly<u32, ICR1::Register>,
+    /// GPT Input Capture Register 2
+    icr2: ReadOnly<u32, ICR2::Register>,
+    /// GPT Counter Register
+    cnt: ReadOnly<u32, CNT::Register>,
 }
 
 register_bitfields![u32,
-	CR [
-		/// Force Output Compare Channel 3
+    CR [
+        /// Force Output Compare Channel 3
         FO3 OFFSET(31) NUMBITS(1) [],
 
         /// Force Output Compare Channel 2
@@ -45,7 +45,7 @@ register_bitfields![u32,
         /// Force Output Compare Channel 1
         FO1 OFFSET(29) NUMBITS(1) [],
 
-		/// Controls the Output Compare Channel 3 operating mode
+        /// Controls the Output Compare Channel 3 operating mode
         OM3 OFFSET(26) NUMBITS(3) [],
 
         /// Controls the Output Compare Channel 2 operating mode
@@ -89,79 +89,79 @@ register_bitfields![u32,
 
         /// GPT Enable
         EN OFFSET(0) NUMBITS(1) []
-	],
+    ],
 
-	PR [
-		/// Prescaler bits for 24M crystal clock
-		PRESCALER24M OFFSET(12) NUMBITS(4),
+    PR [
+        /// Prescaler bits for 24M crystal clock
+        PRESCALER24M OFFSET(12) NUMBITS(4),
 
-		/// Prescaler bits
-		PRESCALER OFFSET(0) NUMBITS(12)
-	],
+        /// Prescaler bits
+        PRESCALER OFFSET(0) NUMBITS(12)
+    ],
 
-	SR [
-		/// Rollover Flag
-		ROV OFFSET(5) NUMBITS(1),
+    SR [
+        /// Rollover Flag
+        ROV OFFSET(5) NUMBITS(1),
 
-		/// Input capture 2 Flag
-		IF2 OFFSET(4) NUMBITS(1),
+        /// Input capture 2 Flag
+        IF2 OFFSET(4) NUMBITS(1),
 
-		/// Input capture 1 Flag
-		IF1 OFFSET(3) NUMBITS(1),
+        /// Input capture 1 Flag
+        IF1 OFFSET(3) NUMBITS(1),
 
-		/// Output Compare 3 Flag
-		OF3 OFFSET(2) NUMBITS(1),
+        /// Output Compare 3 Flag
+        OF3 OFFSET(2) NUMBITS(1),
 
-		/// Output Compare 2 Flag
-		OF2 OFFSET(1) NUMBITS(1),
+        /// Output Compare 2 Flag
+        OF2 OFFSET(1) NUMBITS(1),
 
-		/// Output Compare 1 Flag
-		OF1 OFFSET(0) NUMBITS(1)
-	],
+        /// Output Compare 1 Flag
+        OF1 OFFSET(0) NUMBITS(1)
+    ],
 
-	IR [
-		/// Rollover Interrupt Enable
-		ROVIE OFFSET(5) NUMBITS(1),
+    IR [
+        /// Rollover Interrupt Enable
+        ROVIE OFFSET(5) NUMBITS(1),
 
-		/// Input capture 2 Interrupt Enable
-		IF2IE OFFSET(4) NUMBITS(1),
+        /// Input capture 2 Interrupt Enable
+        IF2IE OFFSET(4) NUMBITS(1),
 
-		/// Input capture 1 Interrupt Enable
-		IF1IE OFFSET(3) NUMBITS(1),
+        /// Input capture 1 Interrupt Enable
+        IF1IE OFFSET(3) NUMBITS(1),
 
-		/// Output Compare 3 Interrupt Enable
-		OF3IE OFFSET(2) NUMBITS(1),
+        /// Output Compare 3 Interrupt Enable
+        OF3IE OFFSET(2) NUMBITS(1),
 
-		/// Output Compare 2 Interrupt Enable
-		OF2IE OFFSET(1) NUMBITS(1),
+        /// Output Compare 2 Interrupt Enable
+        OF2IE OFFSET(1) NUMBITS(1),
 
-		/// Output Compare 1 Interrupt Enable
-		OF1IE OFFSET(0) NUMBITS(1)
-	],
+        /// Output Compare 1 Interrupt Enable
+        OF1IE OFFSET(0) NUMBITS(1)
+    ],
 
-	OCR1 [
-		COMP OFFSET(0) NUMBITS(32)
-	],
+    OCR1 [
+        COMP OFFSET(0) NUMBITS(32)
+    ],
 
-	OCR2 [
-		COMP OFFSET(0) NUMBITS(32)
-	],
+    OCR2 [
+        COMP OFFSET(0) NUMBITS(32)
+    ],
 
-	OCR3 [
-		COMP OFFSET(0) NUMBITS(32)
-	],
+    OCR3 [
+        COMP OFFSET(0) NUMBITS(32)
+    ],
 
-	ICR1 [
-		CAPT OFFSET(0) NUMBITS(32)
-	],
+    ICR1 [
+        CAPT OFFSET(0) NUMBITS(32)
+    ],
 
-	ICR2 [
-		CAPT OFFSET(0) NUMBITS(32)
-	],
+    ICR2 [
+        CAPT OFFSET(0) NUMBITS(32)
+    ],
 
-	CNT [
-		COUNT OFFSET(0) NUMBITS(32)
-	]
+    CNT [
+        COUNT OFFSET(0) NUMBITS(32)
+    ]
 ];
 
 const GPT1_BASE: StaticRef<Gpt1Registers> =
@@ -207,35 +207,35 @@ impl Gpt1<'a> {
 
     // starts the timer
     pub fn start(&self) {
-    	// Disable GPT and the GPT interrupt register first
-    	self.registers.cr.modify(CR::EN::CLEAR);
-    	
-    	self.registers.ir.modify(IR::ROVIE::CLEAR);
-    	self.registers.ir.modify(IR::IF1IE::CLEAR);
-    	self.registers.ir.modify(IR::IF2IE::CLEAR);
-    	self.registers.ir.modify(IR::OF1IE::CLEAR);
-    	self.registers.ir.modify(IR::OF2IE::CLEAR);
-    	self.registers.ir.modify(IR::OF3IE::CLEAR);
+        // Disable GPT and the GPT interrupt register first
+        self.registers.cr.modify(CR::EN::CLEAR);
+        
+        self.registers.ir.modify(IR::ROVIE::CLEAR);
+        self.registers.ir.modify(IR::IF1IE::CLEAR);
+        self.registers.ir.modify(IR::IF2IE::CLEAR);
+        self.registers.ir.modify(IR::OF1IE::CLEAR);
+        self.registers.ir.modify(IR::OF2IE::CLEAR);
+        self.registers.ir.modify(IR::OF3IE::CLEAR);
 
-    	// Clear Output mode to disconnected
-    	self.registers.cr.modify(CR::OM1::CLEAR);
-    	self.registers.cr.modify(CR::OM2::CLEAR);
-    	self.registers.cr.modify(CR::OM3::CLEAR);
+        // Clear Output mode to disconnected
+        self.registers.cr.modify(CR::OM1::CLEAR);
+        self.registers.cr.modify(CR::OM2::CLEAR);
+        self.registers.cr.modify(CR::OM3::CLEAR);
 
-    	// Disable Input Capture Mode
-    	self.registers.cr.modify(CR::IM1::CLEAR);
-    	self.registers.cr.modify(CR::IM2::CLEAR);
+        // Disable Input Capture Mode
+        self.registers.cr.modify(CR::IM1::CLEAR);
+        self.registers.cr.modify(CR::IM2::CLEAR);
 
 
-    	// Reset all the registers to the their default values, except EN,
-		// ENMOD, STOPEN, DOZEEN, WAITEN, and DBGEN bits in the CR
-		self.registers.cr.modify(CR::SWR::SET);
+        // Reset all the registers to the their default values, except EN,
+        // ENMOD, STOPEN, DOZEEN, WAITEN, and DBGEN bits in the CR
+        self.registers.cr.modify(CR::SWR::SET);
 
         // wait until registers are cleared
         while self.registers.cr.is_set(CR::SWR) {}
 
-		// Clear the GPT status register
-		self.registers.sr.set(31 as u32);
+        // Clear the GPT status register
+        self.registers.sr.set(31 as u32);
 
         // Enable free run mode
         self.registers.cr.modify(CR::FRR::SET);
@@ -258,11 +258,11 @@ impl Gpt1<'a> {
         // We will use the ipg_clk_highfreq provided by perclk_clk_root,
         // which runs at 6 MHz. Before calling set_alarm, we assume clock 
         // to GPT1 has been enabled. 
-        self.registers.cr.modify(CR::CLKSRC.val(0x2 as u32));
+        self.registers.cr.modify(CR::CLKSRC.val(0x5 as u32));
 
         // Prescale 6Mhz to 16Khz, by dividing it by 375. The change in the
         // prescaler value immediately affects the output clock frequency
-        self.registers.pr.modify(PR::PRESCALER.val(8 as u32));
+        self.registers.pr.modify(PR::PRESCALER.val(25 as u32));
 
         // Enable the GPT 
         self.registers.cr.modify(CR::EN::SET);
@@ -305,7 +305,7 @@ impl hil::time::Alarm<'a> for Gpt1<'a> {
 }
 
 impl hil::time::Time for Gpt1<'a> {
-    type Frequency = hil::time::Freq16MHz;
+    type Frequency = hil::time::Freq3MHz;
 
     fn now(&self) -> u32 {
         self.registers.cnt.get()
