@@ -120,7 +120,7 @@ impl<'a, IP: gpio::InterruptPin> GPIO<'a, IP> {
                 _ => ReturnCode::ENOSUPPORT,
             }
         } else {
-            ReturnCode::ENOSUPPORT
+            ReturnCode::ENODEVICE
         }
     }
 }
@@ -217,7 +217,7 @@ impl<IP: gpio::InterruptPin> Driver for GPIO<'_, IP> {
                         pin.make_output();
                         ReturnCode::SUCCESS
                     } else {
-                        ReturnCode::ENOSUPPORT
+                        ReturnCode::ENODEVICE
                     }
                 }
             }
@@ -231,7 +231,7 @@ impl<IP: gpio::InterruptPin> Driver for GPIO<'_, IP> {
                         pin.set();
                         ReturnCode::SUCCESS
                     } else {
-                        ReturnCode::ENOSUPPORT
+                        ReturnCode::ENODEVICE
                     }
                 }
             }
@@ -245,7 +245,7 @@ impl<IP: gpio::InterruptPin> Driver for GPIO<'_, IP> {
                         pin.clear();
                         ReturnCode::SUCCESS
                     } else {
-                        ReturnCode::ENOSUPPORT
+                        ReturnCode::ENODEVICE
                     }
                 }
             }
@@ -259,7 +259,7 @@ impl<IP: gpio::InterruptPin> Driver for GPIO<'_, IP> {
                         pin.toggle();
                         ReturnCode::SUCCESS
                     } else {
-                        ReturnCode::ENOSUPPORT
+                        ReturnCode::ENODEVICE
                     }
                 }
             }
@@ -285,7 +285,7 @@ impl<IP: gpio::InterruptPin> Driver for GPIO<'_, IP> {
                             value: pin_state as usize,
                         }
                     } else {
-                        ReturnCode::ENOSUPPORT
+                        ReturnCode::ENODEVICE
                     }
                 }
             }
@@ -312,7 +312,7 @@ impl<IP: gpio::InterruptPin> Driver for GPIO<'_, IP> {
                         pin.deactivate_to_low_power();
                         ReturnCode::SUCCESS
                     } else {
-                        ReturnCode::ENOSUPPORT
+                        ReturnCode::ENODEVICE
                     }
                 }
             }
@@ -326,7 +326,7 @@ impl<IP: gpio::InterruptPin> Driver for GPIO<'_, IP> {
                         pin.deactivate_to_low_power();
                         ReturnCode::SUCCESS
                     } else {
-                        ReturnCode::ENOSUPPORT
+                        ReturnCode::ENODEVICE
                     }
                 }
             }
