@@ -476,12 +476,18 @@ pub unsafe fn reset_handler() {
     //test::aes_test::run_aes128_cbc();
     //test::log_test::run(mux_alarm, dynamic_deferred_caller);
     //test::linear_log_test::run(mux_alarm, dynamic_deferred_caller);
+    //test::icmp_lowpan_test::run(mux_mac, mux_alarm);
+    //let lowpan_frag_test = test::ipv6_lowpan_test::initialize_all(mux_mac, mux_alarm);
+    //lowpan_frag_test.start(); // If flashing the transmitting Imix
+    /*let udp_lowpan_test = test::udp_lowpan_test::initialize_all(
+       udp_send_mux,
+        udp_recv_mux,
+        udp_port_table,
+        mux_alarm,
+    );*/
+    //udp_lowpan_test.start();
 
     debug!("Initialization complete. Entering main loop");
-
-    // Only include to run kernel tests, do not include during normal operation
-    // let udp_lowpan_test =
-    //     test::udp_lowpan_test::initialize_all(udp_send_mux, udp_recv_mux, udp_port_table, mux_alarm);
 
     extern "C" {
         /// Beginning of the ROM region containing app images.
