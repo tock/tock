@@ -144,7 +144,7 @@ and can then install the kernel by running
 
     $ make flash
 
-Depending on the apapter, you will need either the free `openocd` or
+Depending on the adapter, you will need either the free `openocd` or
 Segger's proprietary `JLinkExe`. Programming adapters are available as
 standalone devices (for example the [JLink EDU JTAG
 debugger](https://www.segger.com/j-link-edu.html) available on

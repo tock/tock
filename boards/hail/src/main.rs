@@ -14,6 +14,7 @@ use kernel::capabilities;
 use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::component::Component;
 use kernel::hil;
+use kernel::hil::i2c::I2CMaster;
 use kernel::hil::Controller;
 use kernel::Platform;
 #[allow(unused_imports)]

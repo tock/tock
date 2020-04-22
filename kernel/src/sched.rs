@@ -133,18 +133,19 @@ impl Kernel {
         }
     }
 
-    /// Return an iterator for all of the items in the processes array on this
-    /// board.
-    ///
-    /// NOTE: This would be better if it returned an iterator to only processes.
-    /// While with `filter_map()` it is straightforward to create an object that
-    /// implements `Iterator` and only iterates over `Some(process)` items in
-    /// the processes array, Rust doesn't seem to support the types necessary to
-    /// actually make that work and be usable. Perhaps as
-    /// https://github.com/rust-lang/rust/issues/63066 progresses this will be
-    /// possible in the future.
-    crate fn get_process_iter(&self) -> core::slice::Iter<Option<&dyn process::ProcessType>> {
-        self.processes.iter()
+    /// Returns an iterator over all processes loaded by the kernel
+    crate fn get_process_iter(
+        &self,
+    ) -> core::iter::FilterMap<
+        core::slice::Iter<Option<&dyn process::ProcessType>>,
+        fn(&Option<&'static dyn process::ProcessType>) -> Option<&'static dyn process::ProcessType>,
+    > {
+        fn keep_some(
+            &x: &Option<&'static dyn process::ProcessType>,
+        ) -> Option<&'static dyn process::ProcessType> {
+            x
+        }
+        self.processes.iter().filter_map(keep_some)
     }
 
     /// Run a closure on every valid process. This will iterate the array of
@@ -362,6 +363,27 @@ impl Kernel {
                         }
                         Some(ContextSwitchReason::SyscallFired { syscall }) => {
                             process.debug_syscall_called(syscall);
+
+                            // Enforce platform-specific syscall filtering here.
+                            //
+                            // Before continuing to handle non-yield syscalls
+                            // the kernel first checks if the platform wants to
+                            // block that syscall for the process, and if it
+                            // does, sets a return value which is returned to
+                            // the calling process.
+                            //
+                            // Filtering a syscall (i.e. blocking the syscall
+                            // from running) does not cause the process to loose
+                            // its timeslice. The error will be returned
+                            // immediately (assuming the process has not already
+                            // exhausted its timeslice) allowing the process to
+                            // decide how to handle the error.
+                            if syscall != Syscall::YIELD {
+                                if let Err(response) = platform.filter_syscall(process, &syscall) {
+                                    process.set_syscall_return_value(response.into());
+                                    continue;
+                                }
+                            }
 
                             // Handle each of the syscalls.
                             match syscall {

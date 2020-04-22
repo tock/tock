@@ -396,11 +396,10 @@ impl kernel::mpu::MPU for PMPConfig {
             initial_app_memory_size + initial_kernel_memory_size,
         );
 
-        let mut region_size =
-            math::PowerOfTwo::ceiling(memory_size as u32).as_num::<u32>() as usize;
-
         // RISC-V PMP is not inclusive of the final address, while Tock is, increase the memory_size by 1
-        region_size += 1;
+        let mut region_size = memory_size as usize + 1;
+
+        region_size = math::PowerOfTwo::ceiling(region_size as u32).as_num::<u32>() as usize;
 
         // Region size always has to align to 4 bytes
         if region_size % 4 != 0 {

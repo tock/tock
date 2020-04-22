@@ -4,7 +4,7 @@ use core::cell::Cell;
 use core::convert::TryInto;
 use core::fmt;
 use core::fmt::Write;
-use core::ptr::write_volatile;
+use core::ptr::{write_volatile, NonNull};
 use core::{mem, ptr, slice, str};
 
 use crate::callback::{AppId, CallbackId};
@@ -347,15 +347,25 @@ pub trait ProcessType {
     /// covering program memory does not extend past the kernel memory break.
     ///
     /// This will return `None` and fail if the process is inactive.
-    unsafe fn alloc(&self, size: usize, align: usize) -> Option<&mut [u8]>;
+    fn alloc(&self, size: usize, align: usize) -> Option<NonNull<u8>>;
 
     unsafe fn free(&self, _: *mut u8);
 
-    /// Get a pointer to the grant pointer for this grant number.
+    /// Get the grant pointer for this grant number.
     ///
     /// This will return `None` if the process is inactive and the grant region
     /// cannot be used.
-    unsafe fn grant_ptr(&self, grant_num: usize) -> Option<*mut *mut u8>;
+    ///
+    /// Caution: The grant may not have been allocated yet, so it is possible
+    /// for this grant pointer to be null.
+    fn get_grant_ptr(&self, grant_num: usize) -> Option<*mut u8>;
+
+    /// Set the grant pointer for this grant number.
+    ///
+    /// Note: This method trusts arguments completely, that is, it assumes the
+    /// index into the grant array is valid and the pointer is to an allocated
+    /// grant region in the process memory.
+    unsafe fn set_grant_ptr(&self, grant_num: usize, grant_ptr: *mut u8);
 
     // functions for processes that are architecture specific
 
@@ -1091,39 +1101,62 @@ impl<C: Chip> ProcessType for Process<'a, C> {
     ) -> Result<Option<AppSlice<Shared, u8>>, ReturnCode> {
         if !self.is_active() {
             // Do not modify an inactive process.
-            Err(ReturnCode::FAIL)
-        } else if buf_start_addr == ptr::null_mut() {
-            // A null buffer means pass in `None` to the capsule
-            Ok(None)
-        } else if self.in_app_owned_memory(buf_start_addr, size) {
-            // Valid slice, we need to adjust the app's watermark
-            // in_app_owned_memory eliminates this offset actually wrapping
-            let buf_end_addr = buf_start_addr.wrapping_add(size);
-            let new_water_mark = max(self.allow_high_water_mark.get(), buf_end_addr);
-            self.allow_high_water_mark.set(new_water_mark);
-            Ok(Some(AppSlice::new(
-                buf_start_addr as *mut u8,
-                size,
-                self.appid(),
-            )))
-        } else {
-            Err(ReturnCode::EINVAL)
+            return Err(ReturnCode::FAIL);
+        }
+
+        match NonNull::new(buf_start_addr as *mut u8) {
+            None => {
+                // A null buffer means pass in `None` to the capsule
+                Ok(None)
+            }
+            Some(buf_start) => {
+                if self.in_app_owned_memory(buf_start_addr, size) {
+                    // Valid slice, we need to adjust the app's watermark
+                    // note: in_app_owned_memory ensures this offset does not wrap
+                    let buf_end_addr = buf_start_addr.wrapping_add(size);
+                    let new_water_mark = max(self.allow_high_water_mark.get(), buf_end_addr);
+                    self.allow_high_water_mark.set(new_water_mark);
+
+                    // The `unsafe` promise we should be making here is that this
+                    // buffer is inside of app memory and that it does not create any
+                    // aliases (i.e. the same buffer has not been `allow`ed twice).
+                    //
+                    // TODO: We do not currently satisfy the second promise.
+                    let slice = unsafe { AppSlice::new(buf_start, size, self.appid()) };
+                    Ok(Some(slice))
+                } else {
+                    Err(ReturnCode::EINVAL)
+                }
+            }
         }
     }
 
-    unsafe fn alloc(&self, size: usize, align: usize) -> Option<&mut [u8]> {
+    fn alloc(&self, size: usize, align: usize) -> Option<NonNull<u8>> {
         // Do not modify an inactive process.
         if !self.is_active() {
             return None;
         }
 
         self.mpu_config.and_then(|mut config| {
-            let new_break_unaligned = self.kernel_memory_break.get().offset(-(size as isize));
-            // The alignment must be a power of two, 2^a. The expression `!(align - 1)` then
-            // returns a mask with leading ones, followed by `a` trailing zeros.
+            // First, compute the candidate new pointer. Note that at this
+            // point we have not yet checked whether there is space for
+            // this allocation or that it meets alignment requirements.
+            let new_break_unaligned = self
+                .kernel_memory_break
+                .get()
+                .wrapping_offset(-(size as isize));
+
+            // The alignment must be a power of two, 2^a. The expression
+            // `!(align - 1)` then returns a mask with leading ones,
+            // followed by `a` trailing zeros.
             let alignment_mask = !(align - 1);
             let new_break = (new_break_unaligned as usize & alignment_mask) as *const u8;
+
+            // Verify there is space for this allocation
             if new_break < self.app_break.get() {
+                None
+            // Verify it didn't wrap around
+            } else if new_break > self.kernel_memory_break.get() {
                 None
             } else if let Err(_) = self.chip.mpu().update_app_memory_region(
                 self.app_break.get(),
@@ -1134,7 +1167,10 @@ impl<C: Chip> ProcessType for Process<'a, C> {
                 None
             } else {
                 self.kernel_memory_break.set(new_break);
-                Some(slice::from_raw_parts_mut(new_break as *mut u8, size))
+                unsafe {
+                    // Two unsafe steps here, both okay as we just made this pointer
+                    Some(NonNull::new_unchecked(new_break as *mut u8))
+                }
             }
         })
     }
@@ -1142,14 +1178,30 @@ impl<C: Chip> ProcessType for Process<'a, C> {
     unsafe fn free(&self, _: *mut u8) {}
 
     #[allow(clippy::cast_ptr_alignment)]
-    unsafe fn grant_ptr(&self, grant_num: usize) -> Option<*mut *mut u8> {
+    fn get_grant_ptr(&self, grant_num: usize) -> Option<*mut u8> {
         // Do not try to access the grant region of inactive process.
         if !self.is_active() {
             return None;
         }
 
+        // Sanity check the argument
+        if grant_num >= self.kernel.get_grant_count_and_finalize() {
+            return None;
+        }
+
         let grant_num = grant_num as isize;
-        Some((self.mem_end() as *mut *mut u8).offset(-(grant_num + 1)))
+        let grant_pointer = unsafe {
+            let grant_pointer_array = self.mem_end() as *const *mut u8;
+            *grant_pointer_array.offset(-(grant_num + 1))
+        };
+        Some(grant_pointer)
+    }
+
+    unsafe fn set_grant_ptr(&self, grant_num: usize, grant_ptr: *mut u8) {
+        let grant_num = grant_num as isize;
+        let grant_pointer_array = self.mem_end() as *mut *mut u8;
+        let grant_pointer_pointer = grant_pointer_array.offset(-(grant_num + 1));
+        *grant_pointer_pointer = grant_ptr;
     }
 
     fn get_process_name(&self) -> &'static str {
