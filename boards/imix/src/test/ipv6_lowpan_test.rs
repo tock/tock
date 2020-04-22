@@ -16,27 +16,17 @@
 //! to remain in sync, they must both be started at the same time. Any dropped
 //! frames will prevent the test from completing successfully.
 //!
-//! To use this test suite, allocate space for a new LowpanTest structure, and
-//! set it as the client for the Sixlowpan struct and for the respective TxState
-//! struct. For the transmit side, call the LowpanTest::start method. The
-//! `initialize_all` function performs this initialization; simply call this
-//! function in `boards/imix/src/main.rs` as follows:
+//! To use this test, the `initialize_all` is called on both boards; and `start()`
+//! is called on the transmitting board. Simply call these
+//! functions in `boards/imix/src/main.rs` as follows:
 //!
-//! Alternatively, you can call the `initialize_all` function, which performs
-//! the initialization routines for the 6LoWPAN, TxState, RxState, and Sixlowpan
-//! structs. Insert the code into `boards/imix/src/main.rs` as follows:
-//!
-//! ...
-//! // Radio initialization code
-//! ...
+//! ```rust
 //! let lowpan_frag_test = test::ipv6_lowpan_test::initialize_all(
 //!    mux_mac,
-//!    mux_alarm as &'static MuxAlarm<'static, sam4l::ast::Ast>,
+//!    mux_alarm,
 //! );
-//! ...
-//! // Imix initialization
-//! ...
 //! lowpan_frag_test.start(); // If flashing the transmitting Imix
+//! ```
 
 use capsules::ieee802154::device::{MacDevice, TxClient};
 use capsules::net::ieee802154::MacAddress;
@@ -59,12 +49,6 @@ use kernel::ReturnCode;
 
 pub const MLP: [u8; 8] = [0xc0, 0xc1, 0xc2, 0xc3, 0xc4, 0xc5, 0xc6, 0xc7];
 
-/* pub const SRC_ADDR: IPAddr = IPAddr([0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-                                     0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);
-
-pub const DST_ADDR: IPAddr = IPAddr([0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-                                     0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);*/
-
 pub const SRC_ADDR: IPAddr = IPAddr([
     0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f,
 ]);
@@ -73,8 +57,6 @@ pub const DST_ADDR: IPAddr = IPAddr([
 ]);
 pub const SRC_MAC_ADDR: MacAddress =
     MacAddress::Long([0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17]);
-//pub const DST_MAC_ADDR: MacAddress =
-//    MacAddress::Long([0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f]);
 pub const DST_MAC_ADDR: MacAddress = MacAddress::Short(57326);
 //TODO: No longer pass MAC addresses to 6lowpan code, so these values arent used rn
 pub const IP6_HDR_SIZE: usize = 40;
@@ -780,7 +762,7 @@ fn ipv6_prepare_packet(tf: TF, hop_limit: u8, sac: SAC, dac: DAC) {
                 } //This bracket ends mutable borrow of ip6_packet for header
                   //Now that packet is fully prepared, set checksum
                 ip6_packet.set_transport_checksum(); //calculates and sets UDP cksum
-            } //End of Some{}
+            }
             None => debug!("Error! tried to prepare uninitialized IP6Packet"),
         }
     }
