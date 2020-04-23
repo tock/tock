@@ -15,6 +15,7 @@ pub mod registers {
     pub use tock_registers::{register_bitfields, register_structs};
 }
 
+pub mod cfg_if;
 pub mod deferred_call;
 pub mod dynamic_deferred_call;
 pub mod leasable_buffer;
