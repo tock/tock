@@ -58,6 +58,10 @@ if [ -n "$TRAVIS_PULL_REQUEST_BRANCH" ]; then
     for elf in $(find . -maxdepth 8 | grep 'release' | egrep '\.elf$' | grep -v 'riscv'); do
         tmp=${elf#*release/}
         b=${tmp%.elf}
+        # Print a detailed by raw line-by-line diff. Can be useful to
+        # understand where the size differences come from.
+        git diff --no-index previous-benchmark-${b} current-benchmark-${b}
+        # Compute a summary suitable for GitHub.
         ${TRAVIS_BUILD_DIR}/tools/diff_memory_usage.py previous-benchmark-${b} current-benchmark-${b} size-diffs-${b}.txt ${b}
         if [ -s "size-diffs-${b}.txt" ]; then
             RES="$( grep -hs ^ size-diffs-${b}.txt )" #grep instead of cat to prevent errors on no match
