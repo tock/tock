@@ -70,7 +70,8 @@ ci-travis:\
 	ci-syntax\
 	ci-compilation\
 	ci-debug-support-targets\
-	ci-documentation
+	ci-documentation \
+	emulation-check
 	@printf "$$(tput bold)********************$$(tput sgr0)\n"
 	@printf "$$(tput bold)* CI-Travis: Done! *$$(tput sgr0)\n"
 	@printf "$$(tput bold)********************$$(tput sgr0)\n"

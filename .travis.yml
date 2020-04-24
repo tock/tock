@@ -25,9 +25,10 @@ branches:
     - staging.tmp
     - trying.tmp
 
-
 cache:
   cargo: true
+  directories:
+    - tools/qemu
 
 os:
   - linux
