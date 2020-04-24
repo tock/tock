@@ -67,7 +67,7 @@ ci-travis:\
 	ci-chips\
 	ci-syntax\
 	ci-compilation\
-	ci-special-targets\
+	ci-debug-support-targets\
 	ci-documentation
 	@printf "$$(tput bold)********************$$(tput sgr0)\n"
 	@printf "$$(tput bold)* CI-Travis: Done! *$$(tput sgr0)\n"
@@ -141,11 +141,16 @@ ci-compilation:
 	@printf "$$(tput bold)*******************$$(tput sgr0)\n"
 	@CI=true $(MAKE) allboards
 
-.PHONY: ci-special-targets
-ci-special-targets:
-	@printf "$$(tput bold)***********************$$(tput sgr0)\n"
-	@printf "$$(tput bold)* CI: Special Targets *$$(tput sgr0)\n"
-	@printf "$$(tput bold)***********************$$(tput sgr0)\n"
+.PHONY: ci-debug-support-targets
+ci-debug-support-targets:
+	# These are rules that build additional debugging information, but are
+	# also quite time consuming. So we want to verify that the rules still
+	# work, but don't build them for every board.
+	#
+	# The choice of building for the nrf52dk was chosen by random die roll.
+	@printf "$$(tput bold)*****************************$$(tput sgr0)\n"
+	@printf "$$(tput bold)* CI: Debug Support Targets *$$(tput sgr0)\n"
+	@printf "$$(tput bold)*****************************$$(tput sgr0)\n"
 	@CI=true $(MAKE) -C boards/nordic/nrf52dk lst
 	@CI=true $(MAKE) -C boards/nordic/nrf52dk debug
 	@CI=true $(MAKE) -C boards/nordic/nrf52dk debug-lst
