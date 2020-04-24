@@ -443,6 +443,8 @@ impl<'a> uart::Receive<'a> for UartDevice<'a> {
     ) -> (ReturnCode, Option<&'static mut [u8]>) {
         if self.rx_buffer.is_some() {
             (ReturnCode::EBUSY, Some(rx_buffer))
+        } else if rx_len > rx_buffer.len() {
+            (ReturnCode::ESIZE, Some(rx_buffer))
         } else {
             self.rx_buffer.replace(rx_buffer);
             self.rx_len.set(rx_len);
