@@ -19,7 +19,7 @@ RUSTUP    ?= rustup
 # passed to cargo --target_dir
 TARGET_DIRECTORY ?= $(TOCK_ROOT_DIRECTORY)target/
 
-# RUSTFLAGS_FOR_BOARD allows board to define board-specific options
+# RUSTFLAGS_FOR_BOARD allows boards to define board-specific options.
 # This will hopefully move into Cargo.toml (or Cargo.toml.local) eventually.
 # lld uses the page size to align program sections. It defaults to 4096 and this
 # puts a gap between before the .relocate section. `zmax-page-size=512` tells
