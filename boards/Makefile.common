@@ -32,6 +32,14 @@ RUSTFLAGS_FOR_BOARD ?= \
   -C link-arg=-zmax-page-size=512 \
   -C link-arg=-icf=all \
 
+# RISC-V-specific flags.
+ifneq ($(findstring riscv32i, $(TARGET)),)
+  # NOTE: This flag causes kernel panics on some ARM cores. Since the
+  # size benefit is almost exclusively for RISC-V, we only apply it for
+  # those targets.
+  RUSTFLAGS_FOR_BOARD += -C force-frame-pointers=no
+endif
+
 # RUSTFLAGS_FOR_CARGO by default extends RUSTFLAGS_FOR_BOARD with options
 # depending on parameters defined in boards/Makefile.common to reduce a need
 # for board's makefile to change in case of common changes.
@@ -40,14 +48,6 @@ RUSTFLAGS_FOR_BOARD ?= \
 RUSTFLAGS_FOR_CARGO ?= \
   $(RUSTFLAGS_FOR_BOARD) \
   --remap-path-prefix=$(TOCK_ROOT_DIRECTORY)= \
-
-# RISC-V-specific flags.
-ifneq ($(findstring riscv32i, $(TARGET)),)
-  # NOTE: This flag causes kernel panics on some ARM cores. Since the
-  # size benefit is almost exclusively for RISC-V, we only apply it for
-  # those targets.
-  RUSTFLAGS_FOR_CARGO += -C force-frame-pointers=no
-endif
 
 # Disallow warnings for continuous integration builds. Disallowing them here
 # ensures that warnings during testing won't prevent compilation from succeeding.
@@ -146,13 +146,13 @@ OBJCOPY_FLAGS ?= -S
 # the Cargo build command. For example, in board/<custom_board>/Makefile:
 # `CARGO_OPTIONS += --features=foo` would pass feature `foo` to the top level
 # Cargo.toml.
-CARGO_OPTIONS ?= 
+CARGO_OPTIONS ?=
 # Add default flags to cargo. Boards can add additional options in CARGO_OPTIONS
 CARGO_FLAGS ?= $(VERBOSE) --target=$(TARGET) --package $(PLATFORM) --target-dir=$(TARGET_DIRECTORY) $(CARGO_OPTIONS)
 # Set the default flags we need for objdump to get a .lst file.
 OBJDUMP_FLAGS ?= --disassemble-all --source --section-headers --demangle
 # Set default flags for size
-SIZE_FLAGS ?= 
+SIZE_FLAGS ?=
 
 # Need an extra flag for OBJDUMP if we are on a thumb platform.
 ifneq (,$(findstring thumb,$(TARGET)))
