@@ -1197,6 +1197,7 @@ impl<C: Chip> ProcessType for Process<'a, C> {
         Some(grant_pointer)
     }
 
+    #[allow(clippy::cast_ptr_alignment)]
     unsafe fn set_grant_ptr(&self, grant_num: usize, grant_ptr: *mut u8) {
         let grant_num = grant_num as isize;
         let grant_pointer_array = self.mem_end() as *mut *mut u8;
