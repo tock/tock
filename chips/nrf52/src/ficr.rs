@@ -127,6 +127,8 @@ register_bitfields! [u32,
     ],
     /// Part code
     InfoPart [
+        // clippy allow needed for same reason overflowing_literals needed below
+        #[allow(clippy::enum_clike_unportable_variant)]
         PART OFFSET(0) NUMBITS(32) [
             /// nRF52832
             N52832 = 0x52832,
@@ -144,6 +146,7 @@ register_bitfields! [u32,
         /// Part Variant, Hardware version and Production configuration, encoded as ASCII
         // Note, some of these are not present in datasheets
         // but are in nrf52.svd or are observed in the wild
+        #[allow(clippy::enum_clike_unportable_variant)]
         VARIANT OFFSET(0) NUMBITS(32) [
             /// AAA0
             AAA0 = 0x41414130,
@@ -181,6 +184,7 @@ register_bitfields! [u32,
     /// Package option
     // Note, some of these are not present in datasheet but is in nrf52.svd
     InfoPackage [
+        #[allow(clippy::enum_clike_unportable_variant)]
         PACKAGE OFFSET(0) NUMBITS(32) [
             /// QFxx - 48-pin QFN
             QF = 0x2000,
@@ -199,6 +203,7 @@ register_bitfields! [u32,
     ],
     /// RAM variant
     InfoRam [
+        #[allow(clippy::enum_clike_unportable_variant)]
         RAM OFFSET(0) NUMBITS(32) [
             /// 16 kByte RAM
             K16 = 0x10,
@@ -217,6 +222,7 @@ register_bitfields! [u32,
     ],
     /// Flash
     InfoFlash [
+        #[allow(clippy::enum_clike_unportable_variant)]
         FLASH OFFSET(0) NUMBITS(32) [
             /// 128 kByte FLASH
             K128 = 0x80,
