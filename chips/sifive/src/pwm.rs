@@ -61,6 +61,6 @@ impl Pwm {
         let regs = self.registers;
 
         // Turn the interrupt compare off so we don't get any RTC interrupts.
-        regs.cfg.write(cfg::enalways::CLEAR + cfg::enalways::CLEAR);
+        regs.cfg.write(cfg::enalways::CLEAR + cfg::enoneshot::CLEAR);
     }
 }
