@@ -95,7 +95,7 @@ pub mod hash_functions {
     //! Definitions of common hash functions as HashTypes
     use crate::hash::HashType;
 
-    pub struct MD5;
+    pub enum MD5 {}
     impl HashType for MD5 {
         type Output = [u8; 16];
 
@@ -108,7 +108,7 @@ pub mod hash_functions {
         }
     }
 
-    pub struct SHA1;
+    pub enum SHA1 {}
     impl HashType for SHA1 {
         type Output = [u8; 20];
 
@@ -121,7 +121,7 @@ pub mod hash_functions {
         }
     }
 
-    pub struct SHA2_224;
+    pub enum SHA2_224 {}
     impl HashType for SHA2_224 {
         type Output = [u8; 28];
 
@@ -134,7 +134,7 @@ pub mod hash_functions {
         }
     }
 
-    pub struct SHA2_256;
+    pub enum SHA2_256 {}
     impl HashType for SHA2_256 {
         type Output = [u8; 32];
 
@@ -147,7 +147,7 @@ pub mod hash_functions {
         }
     }
 
-    pub struct SHA2_384;
+    pub enum SHA2_384 {}
     impl HashType for SHA2_384 {
         type Output = [u8; 48];
 
@@ -160,7 +160,7 @@ pub mod hash_functions {
         }
     }
 
-    pub struct SHA2_512;
+    pub enum SHA2_512 {}
     impl HashType for SHA2_512 {
         type Output = [u8; 64];
 
@@ -173,7 +173,7 @@ pub mod hash_functions {
         }
     }
 
-    pub struct SHA3_224;
+    pub enum SHA3_224 {}
     impl HashType for SHA3_224 {
         type Output = [u8; 28];
 
@@ -186,7 +186,7 @@ pub mod hash_functions {
         }
     }
 
-    pub struct SHA3_256;
+    pub enum SHA3_256 {}
     impl HashType for SHA3_256 {
         type Output = [u8; 32];
 
@@ -199,7 +199,7 @@ pub mod hash_functions {
         }
     }
 
-    pub struct SHA3_384;
+    pub enum SHA3_384 {}
     impl HashType for SHA3_384 {
         type Output = [u8; 48];
 
@@ -212,7 +212,7 @@ pub mod hash_functions {
         }
     }
 
-    pub struct SHA3_512;
+    pub enum SHA3_512 {}
     impl HashType for SHA3_512 {
         type Output = [u8; 64];
 
