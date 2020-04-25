@@ -13,7 +13,7 @@
 //! * Daniel Rutz <info@danielrutz.com>
 //! * April 01, 2020
 
-use kernel::ReturnCode;
+use crate::ReturnCode;
 
 /// A trait to be implemented on zero-sized types indicating
 /// properties and types of hash functions
@@ -93,7 +93,7 @@ pub trait HasherClient<T: HashType> {
 // ----- HASH FUNCTION DEFINITIONS -----
 pub mod hash_functions {
     //! Definitions of common hash functions as HashTypes
-    use crate::hash::HashType;
+    use crate::hil::hash::HashType;
 
     pub enum MD5 {}
     impl HashType for MD5 {
