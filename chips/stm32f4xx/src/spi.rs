@@ -14,6 +14,8 @@ use crate::dma1::Dma1Peripheral;
 use crate::gpio::PinId;
 use crate::rcc;
 
+use kernel::debug;
+
 /// Serial peripheral interface
 #[repr(C)]
 struct SpiRegisters {
