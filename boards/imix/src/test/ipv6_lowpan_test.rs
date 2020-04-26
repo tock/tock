@@ -471,7 +471,7 @@ impl<'a, A: time::Alarm<'a>> TxClient for LowpanTest<'a, A> {
 
 #[allow(clippy::cast_ptr_alignment)]
 // This test contains non-idiomatic rust that involves casting
-// rarw packet buffers to headers, but it works for this platform
+// raw packet buffers to headers, but it works for this platform
 // and is just a test, so we included a clippy allow.
 fn ipv6_check_receive_packet(
     tf: TF,
