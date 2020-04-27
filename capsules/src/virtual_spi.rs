@@ -189,6 +189,14 @@ impl<Spi: hil::spi::SpiMaster> hil::spi::SpiMasterDevice for VirtualSpiMasterDev
     fn get_rate(&self) -> u32 {
         self.mux.spi.get_rate()
     }
+
+    fn hold_low (&self) {
+        self.mux.spi.hold_low();
+    }
+
+    fn release_low (&self) {
+        self.mux.spi.release_low();
+    }
 }
 
 pub struct VirtualSpiSlaveDevice<'a, Spi: hil::spi::SpiSlave> {
