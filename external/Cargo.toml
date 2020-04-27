@@ -1,0 +1,7 @@
+[package]
+name = "external"
+version = "0.1.0"
+authors = ["Tock Project Developers <tock-dev@googlegroups.com>"]
+
+[dependencies]
+cfg-if = "0.1.10"

@@ -7,6 +7,7 @@ edition = "2018"
 [dependencies]
 cortexm4 = { path = "../../arch/cortex-m4" }
 enum_primitive = { path = "../../libraries/enum_primitive" }
+external = { path = "../../external" }
 kernel = { path = "../../kernel" }
 tock_rt0 = { path = "../../libraries/tock-rt0" }
 
