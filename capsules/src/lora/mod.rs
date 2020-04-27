@@ -1,3 +1,2 @@
-
-pub mod radio;
 pub mod driver;
+pub mod radio;

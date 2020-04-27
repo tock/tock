@@ -68,7 +68,7 @@ use kernel::component::Component;
 #[allow(unused_imports)]
 use kernel::{debug, debug_gpio, debug_verbose, static_init};
 use nrf52840::gpio::Pin;
-use nrf52dk_base::{SpiMX25R6435FPins, SpiPins, LoraPins, UartChannel, UartPins};
+use nrf52dk_base::{LoraPins, SpiMX25R6435FPins, SpiPins, UartChannel, UartPins};
 
 // The nRF52840DK LEDs (see back of board)
 const LED1_PIN: Pin = Pin::P0_13;
@@ -230,9 +230,9 @@ pub unsafe fn reset_handler() {
         uart_channel,
         &SpiPins::new(SPI_MOSI, SPI_MISO, SPI_CLK),
         &Some(SpiMX25R6435FPins::new(
-          SPI_MX25R6435F_CHIP_SELECT,
-          SPI_MX25R6435F_WRITE_PROTECT_PIN,
-          SPI_MX25R6435F_HOLD_PIN,
+            SPI_MX25R6435F_CHIP_SELECT,
+            SPI_MX25R6435F_WRITE_PROTECT_PIN,
+            SPI_MX25R6435F_HOLD_PIN,
         )),
         button,
         true,

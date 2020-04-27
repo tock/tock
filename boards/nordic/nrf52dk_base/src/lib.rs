@@ -6,9 +6,9 @@
 use kernel::{create_capability, debug, debug_gpio, debug_verbose, static_init};
 
 use capsules::analog_comparator;
+use capsules::lora::radio::RadioConfig;
 use capsules::virtual_alarm::VirtualMuxAlarm;
 use capsules::virtual_spi::{MuxSpiMaster, VirtualSpiMasterDevice};
-use capsules::lora::radio::{RadioConfig};
 use kernel::capabilities;
 use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::component::Component;
@@ -91,12 +91,12 @@ pub struct LoraPins {
     interrupt: Pin,
 }
 impl LoraPins {
-    pub fn new(
-    chip_select: Pin,
-    reset: Pin,
-    interrupt: Pin,
-) -> Self {
-        Self { chip_select, reset, interrupt }
+    pub fn new(chip_select: Pin, reset: Pin, interrupt: Pin) -> Self {
+        Self {
+            chip_select,
+            reset,
+            interrupt,
+        }
     }
 }
 
@@ -108,7 +108,12 @@ pub struct Platform {
         VirtualMuxAlarm<'static, Rtc<'static>>,
     >,
     ieee802154_radio: Option<&'static capsules::ieee802154::RadioDriver<'static>>,
-    lora_radio: Option<&'static capsules::lora::driver::RadioDriver<'static, VirtualSpiMasterDevice<'static, nrf52::spi::SPIM>>>,
+    lora_radio: Option<
+        &'static capsules::lora::driver::RadioDriver<
+            'static,
+            VirtualSpiMasterDevice<'static, nrf52::spi::SPIM>,
+        >,
+    >,
     //spi: &'static capsules::spi::Spi<'static, VirtualSpiMasterDevice<'static, nrf52::spi::SPIM>>,
     button: &'static capsules::button::Button<'static>,
     pconsole: &'static capsules::process_console::ProcessConsole<
@@ -353,33 +358,34 @@ pub unsafe fn setup_board<I: nrf52::interrupt_service::InterruptService>(
 
     // SPI and Lora radio
     let lora_radio = if let Some(pins) = lora {
-      let lora_spi = SpiComponent::new(mux_spi, &gpio_port[pins.chip_select])
-          .finalize(components::spi_component_helper!(nrf52::spi::SPIM)); //virtual
+        let lora_spi = SpiComponent::new(mux_spi, &gpio_port[pins.chip_select])
+            .finalize(components::spi_component_helper!(nrf52::spi::SPIM)); //virtual
 
-      let RADIO = static_init!(
-        capsules::lora::radio::Radio<'static, VirtualSpiMasterDevice<'static, nrf52::spi::SPIM>>,
-        capsules::lora::radio::Radio::new(
-          lora_spi,
-          &gpio_port[pins.reset],
-          &gpio_port[pins.interrupt],
-        )
-      );
+        let RADIO = static_init!(
+            capsules::lora::radio::Radio<
+                'static,
+                VirtualSpiMasterDevice<'static, nrf52::spi::SPIM>,
+            >,
+            capsules::lora::radio::Radio::new(
+                lora_spi,
+                &gpio_port[pins.reset],
+                &gpio_port[pins.interrupt],
+            )
+        );
 
-      let (radio,) = LoraComponent::new(
-        board_kernel,
-        RADIO,
-      )
-      .finalize(());
-      //lora_spi.set_client(radio);      
-    Some(radio)
+        let (radio,) = LoraComponent::new(board_kernel, RADIO).finalize(());
+        //lora_spi.set_client(radio);
+        Some(radio)
     } else {
-      None
+        None
     };
     match lora_radio {
-      Some(radio) => { 
-        radio.device.initialize(&mut LORA_BUF, &mut LORA_REG_WRITE, &mut LORA_REG_READ);
-      },
-      None => ()
+        Some(radio) => {
+            radio
+                .device
+                .initialize(&mut LORA_BUF, &mut LORA_REG_WRITE, &mut LORA_REG_READ);
+        }
+        None => (),
     }
 
     let nonvolatile_storage: Option<
@@ -500,13 +506,13 @@ pub unsafe fn setup_board<I: nrf52::interrupt_service::InterruptService>(
     // These two lines need to be below the creation of the chip for
     // initialization to work.
     match lora_radio {
-      Some(radio) => {
-      radio.device.reset();
-      radio.device.start();
-      },
-      None => ()
+        Some(radio) => {
+            radio.device.reset();
+            radio.device.start();
+        }
+        None => (),
     }
-    
+
     platform.pconsole.start();
     debug!("Initialization complete. Entering main loop\r");
     debug!("{}", &nrf52::ficr::FICR_INSTANCE);
