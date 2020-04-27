@@ -190,11 +190,11 @@ impl<Spi: hil::spi::SpiMaster> hil::spi::SpiMasterDevice for VirtualSpiMasterDev
         self.mux.spi.get_rate()
     }
 
-    fn hold_low (&self) {
+    fn hold_low(&self) {
         self.mux.spi.hold_low();
     }
 
-    fn release_low (&self) {
+    fn release_low(&self) {
         self.mux.spi.release_low();
     }
 }
