@@ -1177,6 +1177,11 @@ impl<C: Chip> ProcessType for Process<'a, C> {
 
     unsafe fn free(&self, _: *mut u8) {}
 
+    // This is safe today, as MPU constraints ensure that `mem_end` will always
+    // be aligned on at least a word boundary. While this is unlikely to
+    // change, it should be more proactively enforced.
+    //
+    // TODO: https://github.com/tock/tock/issues/1739
     #[allow(clippy::cast_ptr_alignment)]
     fn get_grant_ptr(&self, grant_num: usize) -> Option<*mut u8> {
         // Do not try to access the grant region of inactive process.
@@ -1197,6 +1202,11 @@ impl<C: Chip> ProcessType for Process<'a, C> {
         Some(grant_pointer)
     }
 
+    // This is safe today, as MPU constraints ensure that `mem_end` will always
+    // be aligned on at least a word boundary. While this is unlikely to
+    // change, it should be more proactively enforced.
+    //
+    // TODO: https://github.com/tock/tock/issues/1739
     #[allow(clippy::cast_ptr_alignment)]
     unsafe fn set_grant_ptr(&self, grant_num: usize, grant_ptr: *mut u8) {
         let grant_num = grant_num as isize;
@@ -1834,6 +1844,13 @@ impl<C: 'static + Chip> Process<'a, C> {
     }
 
     /// Get the current stack pointer as a pointer.
+    // This is currently safe as the the userspace/kernel boundary
+    // implementations of both Risc-V and ARM would fault on context switch if
+    // the stack pointer were misaligned.
+    //
+    // This is a bit of an undocumented assumption, but not sure there is
+    // likely to be an architecture in the near future where this is
+    // realistically a risk.
     #[allow(clippy::cast_ptr_alignment)]
     fn sp(&self) -> *const usize {
         self.current_stack_pointer.get() as *const usize
@@ -1853,6 +1870,11 @@ impl<C: 'static + Chip> Process<'a, C> {
     }
 
     /// Reset all `grant_ptr`s to NULL.
+    // This is safe today, as MPU constraints ensure that `mem_end` will always
+    // be aligned on at least a word boundary. While this is unlikely to
+    // change, it should be more proactively enforced.
+    //
+    // TODO: https://github.com/tock/tock/issues/1739
     #[allow(clippy::cast_ptr_alignment)]
     unsafe fn grant_ptrs_reset(&self) {
         let grant_ptrs_num = self.kernel.get_grant_count_and_finalize();
