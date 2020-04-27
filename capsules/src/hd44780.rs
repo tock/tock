@@ -27,19 +27,19 @@
 //! ```rust
 //! let lcd = components::hd44780::HD44780Component::new(board_kernel, mux_alarm).finalize(
 //!     components::hd44780_component_helper!(
-//!         stm32f4xx::tim2::Tim2,
+//!         stm32f429zi::tim2::Tim2,
 //!         // rs pin
-//!         stm32f4xx::gpio::PinId::PF13.get_pin().as_ref().unwrap(),
+//!         stm32f429zi::gpio::PinId::PF13.get_pin().as_ref().unwrap(),
 //!         // en pin
-//!         stm32f4xx::gpio::PinId::PE11.get_pin().as_ref().unwrap(),
+//!         stm32f429zi::gpio::PinId::PE11.get_pin().as_ref().unwrap(),
 //!         // data 4 pin
-//!         stm32f4xx::gpio::PinId::PF14.get_pin().as_ref().unwrap(),
+//!         stm32f429zi::gpio::PinId::PF14.get_pin().as_ref().unwrap(),
 //!         // data 5 pin
-//!         stm32f4xx::gpio::PinId::PE13.get_pin().as_ref().unwrap(),
+//!         stm32f429zi::gpio::PinId::PE13.get_pin().as_ref().unwrap(),
 //!         // data 6 pin
-//!         stm32f4xx::gpio::PinId::PF15.get_pin().as_ref().unwrap(),
+//!         stm32f429zi::gpio::PinId::PF15.get_pin().as_ref().unwrap(),
 //!         // data 7 pin
-//!         stm32f4xx::gpio::PinId::PG14.get_pin().as_ref().unwrap()
+//!         stm32f429zi::gpio::PinId::PG14.get_pin().as_ref().unwrap()
 //!     )
 //! );
 //! ```

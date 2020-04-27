@@ -1,4 +1,4 @@
-//! Named constants for NVIC ids
+//! Named constants for NVIC ids shared across the stm32f4xx family of chips
 
 #![allow(non_upper_case_globals)]
 
@@ -83,36 +83,6 @@ pub const OTG_HS_EP1_IN: u32 = 75;
 pub const OTG_HS_WKUP: u32 = 76;
 pub const OTG_HS: u32 = 77;
 pub const DCMI: u32 = 78;
-#[cfg(feature = "stm32f429zi")]
-pub const CRYP: u32 = 79;
-#[cfg(feature = "stm32f429zi")]
-pub const HASH_RNG: u32 = 80;
 pub const FPU: u32 = 81;
-#[cfg(feature = "stm32f429zi")]
-pub const UART7: u32 = 82;
-#[cfg(feature = "stm32f429zi")]
-pub const UART8: u32 = 83;
 pub const SPI4: u32 = 84;
-#[cfg(feature = "stm32f429zi")]
-pub const SPI5: u32 = 85;
-#[cfg(feature = "stm32f429zi")]
-pub const SPI6: u32 = 86;
 pub const SAI1: u32 = 87;
-#[cfg(feature = "stm32f429zi")]
-pub const LTDC: u32 = 88;
-#[cfg(feature = "stm32f429zi")]
-pub const LTDCE: u32 = 89;
-#[cfg(feature = "stm32f429zi")]
-pub const DMA2D: u32 = 90;
-#[cfg(feature = "stm32f446re")]
-pub const SAI2: u32 = 91;
-#[cfg(feature = "stm32f446re")]
-pub const QUADSPI: u32 = 92;
-#[cfg(feature = "stm32f446re")]
-pub const CEC: u32 = 93;
-#[cfg(feature = "stm32f446re")]
-pub const SPDIF_RX: u32 = 94;
-#[cfg(feature = "stm32f446re")]
-pub const FMPI2C1_EV: u32 = 95;
-#[cfg(feature = "stm32f446re")]
-pub const FMPI2C1_ER: u32 = 96;

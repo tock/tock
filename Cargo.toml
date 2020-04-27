@@ -32,6 +32,8 @@ members = [
     "chips/sifive",
     "chips/stm32f3xx",
     "chips/stm32f4xx",
+    "chips/stm32f446re",
+    "chips/stm32f429zi",
     "kernel",
     "libraries/enum_primitive",
     "libraries/riscv-csr",
