@@ -123,7 +123,7 @@ pub unsafe fn reset_handler() {
     // enable interrupts globally
     csr::CSR
         .mie
-        .modify(csr::mie::mie::msoft::SET + csr::mie::mie::mtimer::SET);
+        .modify(csr::mie::mie::mext::SET + csr::mie::mie::msoft::SET + csr::mie::mie::mtimer::SET);
     csr::CSR.mstatus.modify(csr::mstatus::mstatus::mie::SET);
 
     // Create a shared UART channel for the console and for kernel debug.
@@ -135,12 +135,15 @@ pub unsafe fn reset_handler() {
     .finalize(());
 
     // Initialize some GPIOs which are useful for debugging.
+    // Red LED
     hil::gpio::Pin::make_output(&e310x::gpio::PORT[22]);
     hil::gpio::Pin::set(&e310x::gpio::PORT[22]);
 
+    // Green LED
     hil::gpio::Pin::make_output(&e310x::gpio::PORT[19]);
     hil::gpio::Pin::set(&e310x::gpio::PORT[19]);
 
+    // Blue LED
     hil::gpio::Pin::make_output(&e310x::gpio::PORT[21]);
     hil::gpio::Pin::clear(&e310x::gpio::PORT[21]);
 
@@ -178,7 +181,10 @@ pub unsafe fn reset_handler() {
 
     let lldb = components::lldb::LowLevelDebugComponent::new(board_kernel, uart_mux).finalize(());
 
-    debug!("HiFive1 initialization complete. Entering main loop");
+    // Need two debug!() calls to actually test with QEMU. QEMU seems to have
+    // a much larger UART TX buffer (or it transmits faster).
+    debug!("HiFive1 initialization complete.");
+    debug!("Entering main loop.");
 
     extern "C" {
         /// Beginning of the ROM region containing app images.

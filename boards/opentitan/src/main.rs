@@ -135,20 +135,16 @@ pub unsafe fn reset_handler() {
     // Start with half on and half off
     let led = components::led::LedsComponent::new().finalize(components::led_component_helper!(
         (
-            &ibex::gpio::PORT[7],
-            kernel::hil::gpio::ActivationMode::ActiveLow
-        ),
-        (
             &ibex::gpio::PORT[8],
-            kernel::hil::gpio::ActivationMode::ActiveLow
+            kernel::hil::gpio::ActivationMode::ActiveHigh
         ),
         (
             &ibex::gpio::PORT[9],
-            kernel::hil::gpio::ActivationMode::ActiveLow
+            kernel::hil::gpio::ActivationMode::ActiveHigh
         ),
         (
             &ibex::gpio::PORT[10],
-            kernel::hil::gpio::ActivationMode::ActiveLow
+            kernel::hil::gpio::ActivationMode::ActiveHigh
         ),
         (
             &ibex::gpio::PORT[11],
@@ -164,6 +160,10 @@ pub unsafe fn reset_handler() {
         ),
         (
             &ibex::gpio::PORT[14],
+            kernel::hil::gpio::ActivationMode::ActiveHigh
+        ),
+        (
+            &ibex::gpio::PORT[15],
             kernel::hil::gpio::ActivationMode::ActiveHigh
         )
     ));

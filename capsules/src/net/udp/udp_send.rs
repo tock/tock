@@ -32,8 +32,6 @@ use kernel::ReturnCode;
 pub struct MuxUdpSender<'a, T: IP6Sender<'a>> {
     sender_list: List<'a, UDPSendStruct<'a, T>>,
     ip_sender: &'a dyn IP6Sender<'a>,
-    // OptionalCell needed to store net_cap for send_done
-    net_cap: OptionalCell<&'static NetworkCapability>,
 }
 
 impl<T: IP6Sender<'a>> MuxUdpSender<'a, T> {
@@ -42,7 +40,6 @@ impl<T: IP6Sender<'a>> MuxUdpSender<'a, T> {
         MuxUdpSender {
             sender_list: List::new(),
             ip_sender: ip6_sender,
-            net_cap: OptionalCell::empty(),
         }
     }
 
@@ -57,13 +54,14 @@ impl<T: IP6Sender<'a>> MuxUdpSender<'a, T> {
         let list_empty = self.sender_list.head().is_none();
         self.add_client(caller);
         let mut ret = ReturnCode::SUCCESS;
+        // If list empty, initiate send immediately, and return result.
+        // Otherwise, packet is queued.
         if list_empty {
             ret = match caller.tx_buffer.take() {
                 Some(buf) => {
                     let ret = self
                         .ip_sender
                         .send_to(dest, transport_header, &buf, net_cap);
-                    self.net_cap.replace(net_cap);
                     caller.tx_buffer.replace(buf); //Replace buffer as soon as sent.
                     ret
                 }
@@ -72,6 +70,8 @@ impl<T: IP6Sender<'a>> MuxUdpSender<'a, T> {
                     ReturnCode::FAIL
                 }
             }
+        } else {
+            caller.net_cap.replace(net_cap); //store capability with sender
         }
         ret
     }
@@ -108,7 +108,7 @@ impl<T: IP6Sender<'a>> IP6SendClient for MuxUdpSender<'a, T> {
                 //send next packet in queue
                 match next_sender.tx_buffer.take() {
                     Some(buf) => match next_sender.next_th.take() {
-                        Some(th) => match self.net_cap.take() {
+                        Some(th) => match next_sender.net_cap.take() {
                             Some(net_cap) => {
                                 let ret = self.ip_sender.send_to(
                                     next_sender.next_dest.get(),
@@ -124,7 +124,6 @@ impl<T: IP6Sender<'a>> IP6SendClient for MuxUdpSender<'a, T> {
                             }
                             None => ReturnCode::FAIL,
                         },
-
                         None => {
                             debug!("Missing transport header.");
                             ReturnCode::FAIL
@@ -247,6 +246,7 @@ pub struct UDPSendStruct<'a, T: IP6Sender<'a>> {
     next_th: OptionalCell<TransportHeader>,
     binding: MapCell<UdpPortBindingTx>,
     udp_vis: &'static UdpVisibilityCapability,
+    net_cap: OptionalCell<&'static NetworkCapability>,
 }
 
 impl<'a, T: IP6Sender<'a>> ListNode<'a, UDPSendStruct<'a, T>> for UDPSendStruct<'a, T> {
@@ -355,6 +355,7 @@ impl<T: IP6Sender<'a>> UDPSendStruct<'a, T> {
             next_th: OptionalCell::empty(),
             binding: MapCell::empty(),
             udp_vis: udp_vis,
+            net_cap: OptionalCell::empty(),
         }
     }
 }
