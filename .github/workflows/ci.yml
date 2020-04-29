@@ -22,10 +22,13 @@ jobs:
       - uses: actions-rs/toolchain@v1 # pulls version from rust-toolchain file
         with:
           components: rustfmt, clippy
+      - uses: bahmutov/npm-install@v1
       - name: rustfmt
         run: make ci-formatting
       - name: docs
-        run: make ci-documentation
+        run: |
+          npm install -g markdown-toc
+          make ci-documentation
 
   build:
     runs-on: ubuntu-latest
