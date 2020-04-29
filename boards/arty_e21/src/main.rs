@@ -106,8 +106,8 @@ pub unsafe fn reset_handler() {
 
     // Configure kernel debug gpios as early as possible
     kernel::debug::assign_gpios(
-        Some(&arty_e21_chip::gpio::PORT[0]), // Red
-        Some(&arty_e21_chip::gpio::PORT[1]),
+        Some(&arty_e21_chip::gpio::PORT[0]), // Blue
+        Some(&arty_e21_chip::gpio::PORT[1]), // Green
         Some(&arty_e21_chip::gpio::PORT[8]),
     );
 
@@ -155,7 +155,7 @@ pub unsafe fn reset_handler() {
         [
             (
                 // Red
-                &arty_e21_chip::gpio::PORT[0],
+                &arty_e21_chip::gpio::PORT[2],
                 kernel::hil::gpio::ActivationMode::ActiveHigh
             ),
             (
@@ -165,7 +165,7 @@ pub unsafe fn reset_handler() {
             ),
             (
                 // Blue
-                &arty_e21_chip::gpio::PORT[2],
+                &arty_e21_chip::gpio::PORT[0],
                 kernel::hil::gpio::ActivationMode::ActiveHigh
             ),
         ]
