@@ -22,22 +22,23 @@ jobs:
       - uses: actions-rs/toolchain@v1 # pulls version from rust-toolchain file
         with:
           components: rustfmt, clippy
-      - name: Formatting checks
-        run: |
-          make ci-formatting
-          make ci-documentation
+      - name: rustfmt
+        run: make ci-formatting
+      - name: docs
+        run: make ci-documentation
 
-  compilation:
+  build:
     runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v2
       - uses: actions-rs/toolchain@v1
-      - name: Compilation
-        run: |
-          make ci-syntax
-          make ci-compilation
-          make ci-debug-support-targets
+      - name: syntax
+        run: make ci-syntax
+      - name: compilation
+        run: make ci-compilation
+      - name: debug-support-targets
+        run: make ci-debug-support-targets
 
   tests:
     runs-on: ubuntu-latest
@@ -51,5 +52,7 @@ jobs:
           make ci-archs
           make ci-kernel
           make ci-chips
+      - name: tool tests
+        run: |
           sudo apt install libusb-1.0-0-dev
           make ci-tools
