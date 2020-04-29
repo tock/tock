@@ -406,16 +406,18 @@ impl spi::SpiMaster for Spi<'_> {
     /// We *only* support 1Mhz. If `rate` is set to any value other than
     /// `1_000_000`, then this function panics
     fn set_rate(&self, rate: u32) -> u32 {
-        if rate != 1_000_000 {
-            panic!("rate must be 1_000_000");
+        match rate {
+            1_000_000 => self.set_cr(|| {
+                // HSI is 16Mhz and Fpclk is also 16Mhz. 0b011 is Fpclk / 16
+                self.registers.cr1.modify(CR1::BR.val(0b011));
+            }),
+            4_000_000 => self.set_cr(|| {
+                // HSI is 16Mhz and Fpclk is also 16Mhz. 0b001 is Fpclk / 4
+                self.registers.cr1.modify(CR1::BR.val(0b001));
+            }),
+            _ => panic!("rate must be 1_000_000, 4_000_000"),
         }
-
-        self.set_cr(|| {
-            // HSI is 16Mhz and Fpclk is also 16Mhz. 0b011 is Fpclk / 16
-            self.registers.cr1.modify(CR1::BR.val(0b011));
-        });
-
-        1_000_000
+        rate
     }
 
     /// We *only* support 1Mhz. If we need to return any other value other than

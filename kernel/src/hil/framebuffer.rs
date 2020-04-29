@@ -1,6 +1,7 @@
 //! Hil for FrameBuffer
 use crate::returncode::ReturnCode;
 
+#[derive(Copy, Clone, PartialEq)]
 pub enum ScreenRotation {
     Normal = 0,
     Rotated90 = 1,
@@ -8,6 +9,7 @@ pub enum ScreenRotation {
     Rotated270 = 3,
 }
 
+#[derive(Copy, Clone, PartialEq)]
 pub enum ScreenFormat {
     /// Monochromatic display
     Mono = 0,

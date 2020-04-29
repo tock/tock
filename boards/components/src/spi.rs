@@ -39,7 +39,6 @@ macro_rules! spi_mux_component_helper {
     ($S:ty) => {{
         use capsules::virtual_spi::MuxSpiMaster;
         use core::mem::MaybeUninit;
-        use capsules::virtual_spi::MuxSpiMaster;
         static mut BUF: MaybeUninit<MuxSpiMaster<'static, $S>> = MaybeUninit::uninit();
         &mut BUF
     };};

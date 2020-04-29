@@ -60,7 +60,7 @@ impl<S: 'static + spi::SpiMaster, A: 'static + time::Alarm<'static>> ST7735Compo
     pub fn new(alarm_mux: &'static MuxAlarm<'static, A>) -> ST7735Component<S, A> {
         ST7735Component {
             _select: PhantomData,
-            alarm_mux: alarm_mux
+            alarm_mux: alarm_mux,
         }
     }
 }
@@ -78,7 +78,6 @@ impl<S: 'static + spi::SpiMaster, A: 'static + time::Alarm<'static>> Component
     type Output = &'static ST7735<'static, VirtualMuxAlarm<'static, A>>;
 
     unsafe fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
-
         let st7735_alarm = static_init_half!(
             static_buffer.1,
             VirtualMuxAlarm<'static, A>,
@@ -93,7 +92,8 @@ impl<S: 'static + spi::SpiMaster, A: 'static + time::Alarm<'static>> Component
                 st7735_alarm,
                 static_buffer.2,
                 static_buffer.3,
-                &mut capsules::st7735::BUFFER
+                &mut capsules::st7735::BUFFER,
+                &mut capsules::st7735::SEQUENCE_BUFFER
             )
         );
         static_buffer.0.set_client(st7735);
