@@ -11,20 +11,22 @@ use rv32i;
 use crate::CHIP;
 use crate::PROCESSES;
 
-struct Writer;
+struct Writer {}
 
 static mut WRITER: Writer = Writer {};
 
 impl Write for Writer {
     fn write_str(&mut self, s: &str) -> ::core::fmt::Result {
-        debug!("{}", s);
+        self.write(s.as_bytes());
         Ok(())
     }
 }
 
 impl IoWrite for Writer {
     fn write(&mut self, buf: &[u8]) {
-        let _ = self.write_str(unsafe { str::from_utf8_unchecked(buf) });
+        unsafe {
+            arty_e21_chip::uart::UART0.transmit_sync(buf);
+        }
     }
 }
 
@@ -34,15 +36,15 @@ impl IoWrite for Writer {
 #[panic_handler]
 pub unsafe extern "C" fn panic_fmt(pi: &PanicInfo) -> ! {
     // turn off the non panic leds, just in case
-    let led_green = &arty_e21_chip::gpio::PORT[19];
+    let led_green = &arty_e21_chip::gpio::PORT[1];
     gpio::Pin::make_output(led_green);
-    gpio::Pin::set(led_green);
+    gpio::Pin::clear(led_green);
 
-    let led_blue = &arty_e21_chip::gpio::PORT[21];
+    let led_blue = &arty_e21_chip::gpio::PORT[0];
     gpio::Pin::make_output(led_blue);
-    gpio::Pin::set(led_blue);
+    gpio::Pin::clear(led_blue);
 
-    let led_red = &mut led::LedLow::new(&mut arty_e21_chip::gpio::PORT[22]);
+    let led_red = &mut led::LedHigh::new(&mut arty_e21_chip::gpio::PORT[2]);
     let writer = &mut WRITER;
     debug::panic(
         &mut [led_red],
