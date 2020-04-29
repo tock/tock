@@ -1,7 +1,9 @@
 # List of commit statuses that must pass on the merge commit before it is
 # pushed to master.
 status = [
-  "continuous-integration/travis-ci/push",
+  "format",
+  "build",
+  "tests",
 ]
 
 # List of PR labels that may not be attached to a PR when it is r+-ed.

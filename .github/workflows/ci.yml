@@ -2,7 +2,7 @@
 
 name: tock-ci
 env:
-  TERM: xterm
+  TERM: xterm # Makes tput work in actions output
 
 # Controls when the action will run. Triggers the workflow on push or pull request
 # events but only for the master branch
