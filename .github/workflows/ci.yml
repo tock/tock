@@ -20,12 +20,12 @@ jobs:
     steps:
       - uses: actions/checkout@v2
       - uses: actions-rs/toolchain@v1 # pulls version from rust-toolchain file
+      - uses: actions/setup-node@v1
         with:
           components: rustfmt, clippy
       - name: rustfmt
         run: make ci-formatting
       - name: docs
-        uses: actions/setup-node@v1
         run: |
           npm install -g markdown-toc
           make ci-documentation
