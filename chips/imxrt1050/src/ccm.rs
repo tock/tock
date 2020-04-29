@@ -3,8 +3,6 @@ use kernel::common::StaticRef;
 use kernel::ClockInterface;
 
 // Clock Controller Module
-// CCGR1
-// CCGR4
 #[repr(C)]
 struct CcmRegisters {
     // CCM control register
@@ -22,7 +20,10 @@ struct CcmRegisters {
     _reserved4: [u8; 20],
     // clock gating register 1
     ccgr1: ReadWrite<u32, CCGR1::Register>,
-    _reserved5: [u8; 12],
+    // clock gating register 2
+    ccgr2: ReadWrite<u32, CCGR2::Register>,
+    // clock gating register 3
+    ccgr3: ReadWrite<u32, CCGR3::Register>,
     // clock gating register 4
     ccgr4: ReadWrite<u32, CCGR4::Register>,
     // clock gating register 5
@@ -130,6 +131,106 @@ register_bitfields![u32,
 
     	// lpspi1 clocks (lpspi1_clk_enable)
     	CG0 OFFSET(0) NUMBITS(2) []
+    ],
+
+    CCGR2 [
+        // pxp clocks (pxp_clk_enable)
+        CG15 OFFSET(30) NUMBITS(2) [],
+   
+        // lcd clocks (lcd_clk_enable)
+        CG14 OFFSET(28) NUMBITS(2) [],
+
+        // gpio3 clock (gpio3_clk_enable)
+        CG13 OFFSET(26) NUMBITS(2) [],
+        
+        // xbar2 clock (xbar2_clk_enable)
+        CG12 OFFSET(24) NUMBITS(2) [],
+
+        // xbar1 clock (xbar1_clk_enable)
+        CG11 OFFSET(22) NUMBITS(2) [],
+
+        // ipmux3 clock (ipmux3_clk_enable)
+        CG10 OFFSET(20) NUMBITS(2) [],
+
+        // ipmux2 clock (ipmux2_clk_enable)
+        CG9 OFFSET(18) NUMBITS(2) [],
+
+        // ipmux1 clock (ipmux1_clk_enable)
+        CG8 OFFSET(16) NUMBITS(2) [],
+
+        // xbar3 clock (xbar3_clk_enable)
+        CG7 OFFSET(14) NUMBITS(2) [],
+   
+        // OCOTP_CTRL clock (iim_clk_enable)
+        CG6 OFFSET(12) NUMBITS(2) [],
+
+        // lpi2c3 clock (lpi2c3_clk_enable)
+        CG5 OFFSET(10) NUMBITS(2) [],
+        
+        // lpi2c2 clock (lpi2c2_clk_enable)
+        CG4 OFFSET(8) NUMBITS(2) [],
+
+        // lpi2c1 clock (lpi2c1_clk_enable)
+        CG3 OFFSET(6) NUMBITS(2) [],
+
+        // iomuxc_snvs clock (iomuxc_snvs_clk_enable)
+        CG2 OFFSET(4) NUMBITS(2) [],
+
+        // csi clock (csi_clk_enable)
+        CG1 OFFSET(2) NUMBITS(2) [],
+
+        // ocram_exsc clock (ocram_exsc_clk_enable)
+        CG0 OFFSET(0) NUMBITS(2) []
+    ],
+
+    CCGR3 [
+        // iomuxc_snvs_gpr clock (iomuxc_snvs_gpr_clk_enable)
+        CG15 OFFSET(30) NUMBITS(2) [],
+   
+        // ocram clock(ocram_clk_enable)
+        CG14 OFFSET(28) NUMBITS(2) [],
+
+        // acmp4 clocks (acmp4_clk_enable)
+        CG13 OFFSET(26) NUMBITS(2) [],
+        
+        // acmp3 clocks (acmp3_clk_enable)
+        CG12 OFFSET(24) NUMBITS(2) [],
+
+        // acmp2 clocks (acmp2_clk_enable)
+        CG11 OFFSET(22) NUMBITS(2) [],
+
+        // acmp1 clocks (acmp1_clk_enable)
+        CG10 OFFSET(20) NUMBITS(2) [],
+
+        // flexram clock (flexram_clk_enable)
+        CG9 OFFSET(18) NUMBITS(2) [],
+
+        // wdog1 clock (wdog1_clk_enable)
+        CG8 OFFSET(16) NUMBITS(2) [],
+
+        // ewm clocks (ewm_clk_enable)
+        CG7 OFFSET(14) NUMBITS(2) [],
+   
+        // gpio4 clock (gpio4_clk_enable)
+        CG6 OFFSET(12) NUMBITS(2) [],
+
+        // lcdif pix clock (lcdif_pix_clk_enable)
+        CG5 OFFSET(10) NUMBITS(2) [],
+        
+        // aoi1 clock (aoi1_clk_enable)
+        CG4 OFFSET(8) NUMBITS(2) [],
+
+        // lpuart6 clock (lpuart6_clk_enable)
+        CG3 OFFSET(6) NUMBITS(2) [],
+
+        // semc clocks (semc_clk_enable)
+        CG2 OFFSET(4) NUMBITS(2) [],
+
+        // lpuart5 clock (lpuart5_clk_enable)
+        CG1 OFFSET(2) NUMBITS(2) [],
+
+        // flexio2 clocks (flexio2_clk_enable)
+        CG0 OFFSET(0) NUMBITS(2) []
     ],
 
     CCGR4 [
@@ -297,6 +398,19 @@ impl Ccm {
         self.registers.ccgr1.modify(CCGR1::CG11::CLEAR);
     }
 
+    // LPI2C1 clock
+    pub fn is_enabled_lpi2c1_clock(&self) -> bool {
+        self.registers.ccgr2.is_set(CCGR2::CG3)
+    }
+
+    pub fn enable_lpi2c1_clock(&self) {
+        self.registers.ccgr2.modify(CCGR2::CG3.val(0b11 as u32));
+    }
+
+    pub fn disable_lpi2c1_clock(&self) {
+        self.registers.ccgr2.modify(CCGR2::CG3::CLEAR);
+    }
+
     // LPUART1 clock
     pub fn is_enabled_lpuart1_clock(&self) -> bool {
         self.registers.ccgr5.is_set(CCGR5::CG12)
@@ -347,6 +461,7 @@ pub enum CPUClock {
 
 pub enum PeripheralClock {
     CCGR1(HCLK1),
+    CCGR2(HCLK2),
     CCGR4(HCLK4),
     CCGR5(HCLK5),
 }
@@ -354,17 +469,21 @@ pub enum PeripheralClock {
 pub enum HCLK1 {
     GPIO1,
     GPT1
-    // si restul ...
+    // and others ...
+}
+pub enum HCLK2 {
+    LPI2C1,
+    // and others ...
 }
 
 pub enum HCLK4 {
     IOMUXC,
-    // si restul ...
+    // and others ...
 }
 
 pub enum HCLK5 {
     LPUART1,
-    // si restul ...
+    // and others ...
 }
 
 impl ClockInterface for PeripheralClock {
@@ -373,6 +492,9 @@ impl ClockInterface for PeripheralClock {
             &PeripheralClock::CCGR1(ref v) => match v {
                 HCLK1::GPIO1 => unsafe { CCM.is_enabled_gpio1_clock() },
                 HCLK1::GPT1 => unsafe { CCM.is_enabled_gpt1_clock() },
+            },
+            &PeripheralClock::CCGR2(ref v) => match v {
+                HCLK2::LPI2C1 => unsafe { CCM.is_enabled_lpi2c1_clock() },
             },
             &PeripheralClock::CCGR4(ref v) => match v {
                 HCLK4::IOMUXC => unsafe { CCM.is_enabled_iomuxc_clock() },
@@ -391,6 +513,11 @@ impl ClockInterface for PeripheralClock {
                 },
                 HCLK1::GPT1 => unsafe {
                     CCM.enable_gpt1_clock();
+                },
+            },
+            &PeripheralClock::CCGR2(ref v) => match v {
+                HCLK2::LPI2C1 => unsafe {
+                    CCM.enable_lpi2c1_clock();
                 },
             },
             &PeripheralClock::CCGR4(ref v) => match v {
@@ -414,6 +541,11 @@ impl ClockInterface for PeripheralClock {
                 },
                 HCLK1::GPT1 => unsafe {
                     CCM.disable_gpt1_clock();
+                },
+            },
+            &PeripheralClock::CCGR2(ref v) => match v {
+                HCLK2::LPI2C1 => unsafe {
+                    CCM.disable_lpi2c1_clock();
                 },
             },
             &PeripheralClock::CCGR4(ref v) => match v {

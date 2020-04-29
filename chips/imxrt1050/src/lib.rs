@@ -25,6 +25,7 @@ pub mod iomuxc;
 pub mod gpt1;
 pub mod lpuart;
 pub mod usart;
+pub mod lpi2c;
 
 use cortexm7::{generic_isr, hard_fault_handler, svc_handler, systick_handler};
 use cortexm::scb::{set_vector_table_offset};
@@ -119,7 +120,7 @@ pub static IRQS: [unsafe extern "C" fn(); 108] = [
     generic_isr, // TIM1_UP_TIM10 (25)
     generic_isr, // TIM1_TRG_COM_TIM11 (26)
     generic_isr, // TIM1_CC (27)
-    generic_isr, // TIM2 (28)
+    generic_isr, // LPI2C1 (28)
     generic_isr, // TIM3 (29)
     generic_isr, // TIM4 (30)
     generic_isr, // I2C1_EV (31)
