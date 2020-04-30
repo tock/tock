@@ -8,10 +8,11 @@ env:
 # events but only for the master branch
 on:
   push:
-    branches-ignore: [ staging.tmp, trying.tmp ]
-  pull_request:
+    branches-ignore: [ staging.tmp, trying.tmp ] # Run CI for all branches except bors tmp branches
+  pull_request: # Run CI for PRs on any branch
 
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
+# If you add additional jobs, remember to add them to bors.toml
 jobs:
   format:
     # The type of runner that the job will run on
