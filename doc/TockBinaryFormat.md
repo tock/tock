@@ -96,7 +96,9 @@ enum TbfHeaderTypes {
 
 // Type-length-value header to identify each struct.
 struct TbfHeaderTlv {
-    tipe: TbfHeaderTypes,    // 16 byte specifier of which struct follows
+    tipe: TbfHeaderTypes,    // 16 bit specifier of which struct follows
+                             // When highest bit of the 16 bit specifier is set
+                             // it indicates out-of-tree (private) TLV entry
     length: u16,             // Number of bytes of the following struct
 }
 
@@ -198,8 +200,11 @@ will be padded with up to 3 bytes. Each element begins with a 16-bit type and
 
 ### TLV Types
 
-TBF may contain arbitrary element types. A standard set of element types are
-standardized.
+TBF may contain arbitrary element types. To avoid type ID collisions
+between elements defined by the Tock project and elements defined
+out-of-tree, the ID space is partitioned into two segments. Type IDs
+defined by the Tock project will have their high bit (bit 15) unset,
+and type IDs defined out-of-tree should have their high bit set.
 
 #### `1` Main
 
