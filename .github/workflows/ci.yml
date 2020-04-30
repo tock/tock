@@ -8,9 +8,8 @@ env:
 # events but only for the master branch
 on:
   push:
-    branches: [ master, staging, trying ]
+    branches-ignore: [ staging.tmp, trying.tmp ]
   pull_request:
-    branches: [ master ]
 
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
