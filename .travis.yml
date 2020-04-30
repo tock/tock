@@ -35,7 +35,7 @@ os:
 # If you change this, you must also change Getting_Started.md, Makefile.common,
 # .vscode/settings.json, and tools/netlify-build.sh.
 rust:
-  - nightly-2020-04-21
+  - nightly-2020-04-30
 
 before_script:
   - npm install -g markdown-toc
