@@ -178,7 +178,7 @@ impl kernel::mpu::MPU for PMPConfig {
     fn enable_mpu(&self) {}
 
     fn disable_mpu(&self) {
-        for x in 0..16 {
+        for x in 0..self.total_regions {
             // If PMP is supported by the core then all 16 register sets must exist
             // They don't all have to do anything, but let's zero them all just in case.
             match x {
