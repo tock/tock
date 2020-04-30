@@ -8,7 +8,7 @@ env:
 # events but only for the master branch
 on:
   push:
-    branches: [ master, staging.tmp, trying.tmp ]
+    branches: [ master, staging, trying ]
   pull_request:
     branches: [ master ]
 
