@@ -14,3 +14,13 @@ qemu: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf
 
 qemu-app: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf
 	qemu-system-riscv32 -M sifive_e -kernel $^ -device loader,file=$(APP),addr=0x20430000 -nographic
+
+
+TOCKLOADER=tockloader
+TOCKLOADER_JTAG_FLAGS = --jlink --board hifive1b
+KERNEL_ADDRESS = 0x20010000
+
+# upload kernel over JTAG
+.PHONY: flash
+flash-jlink: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).bin
+	$(TOCKLOADER) $(TOCKLOADER_GENERAL_FLAGS) flash --address $(KERNEL_ADDRESS) $(TOCKLOADER_JTAG_FLAGS) $<
