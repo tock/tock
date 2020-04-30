@@ -2,8 +2,6 @@
 # pushed to master.
 status = [
   "format",
-  "build",
-  "tests",
 ]
 
 # List of PR labels that may not be attached to a PR when it is r+-ed.
