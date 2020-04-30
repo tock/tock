@@ -661,14 +661,19 @@ pub struct Process<'a, C: 'static + Chip> {
     ///
     /// ```text
     ///     ╒════════ ← memory[memory.len()]
-    ///  ╔═ │ Grant
-    ///     │   ↓
-    ///  D  │ ──────  ← kernel_memory_break
-    ///  Y  │
-    ///  N  │ ──────  ← app_break               ═╗
-    ///  A  │                                    ║
-    ///  M  │   ↑                                  A
-    ///     │  Heap                              P C
+    ///  ╔═ │ Grant Pointers
+    ///  ║  │ ──────
+    ///     │ Process Control Block
+    ///  D  │ ──────
+    ///  Y  │ Grant Regions
+    ///  N  │
+    ///  A  │   ↓
+    ///  M  │ ──────  ← kernel_memory_break
+    ///  I  │
+    ///  C  │ ──────  ← app_break               ═╗
+    ///     │                                    ║
+    ///  ║  │   ↑                                  A
+    ///  ║  │  Heap                              P C
     ///  ╠═ │ ──────  ← app_heap_start           R C
     ///     │  Data                              O E
     ///  F  │ ──────  ← data_start_pointer       C S
