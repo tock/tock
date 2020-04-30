@@ -1,10 +1,10 @@
 SiFive HiFive1 RISC-V Board
 =================
 
-- https://www.sifive.com/boards/hifive1
+- https://www.sifive.com/boards/hifive1-rev-b
 
-Arduino-compatible dev board for RISC-V. This is the first release of this
-board ("Rev A01").
+Arduino-compatible dev board for RISC-V. This is the second release of this
+board ("Rev B").
 
 Programming
 -----------
