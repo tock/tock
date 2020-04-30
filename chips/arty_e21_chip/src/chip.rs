@@ -127,9 +127,9 @@ impl kernel::Chip for ArtyExx {
                 match interrupt {
                     interrupts::MTIP => timer::MACHINETIMER.handle_interrupt(),
 
-                    interrupts::GPIO0 => gpio::PORT[3].handle_interrupt(),
-                    interrupts::GPIO1 => gpio::PORT[3].handle_interrupt(),
-                    interrupts::GPIO2 => gpio::PORT[3].handle_interrupt(),
+                    interrupts::GPIO0 => gpio::PORT[0].handle_interrupt(),
+                    interrupts::GPIO1 => gpio::PORT[1].handle_interrupt(),
+                    interrupts::GPIO2 => gpio::PORT[2].handle_interrupt(),
                     interrupts::GPIO3 => gpio::PORT[3].handle_interrupt(),
                     interrupts::GPIO4 => gpio::PORT[4].handle_interrupt(),
                     interrupts::GPIO5 => gpio::PORT[5].handle_interrupt(),
