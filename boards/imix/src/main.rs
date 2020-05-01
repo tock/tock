@@ -63,7 +63,7 @@ mod power;
 
 // State for loading apps.
 
-const NUM_PROCS: usize = 20;
+const NUM_PROCS: usize = 4;
 
 // Constants related to the configuration of the 15.4 network stack
 // TODO: Notably, the radio MAC addresses can be configured from userland at the moment
