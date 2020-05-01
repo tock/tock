@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # Post commit statuses to github indicating how a PR affects flash and RAM use for different boards.
-# This script is run by Travis after successful PR builds. It reports resource differences between
+# This script is run by Github actions after successful PR builds. It reports resource differences between
 # the target branch before and after merging in the PR.
 # This script also prints more detailed size analysis to the Travis build log.
 # This script only reports updates for boards whose size have changed as a result of the PR being
@@ -10,6 +10,8 @@
 # Github OAuth personal token associated with @hudson-ayers Github identity.
 
 set -e
+
+env
 
 # Bench the current commit that was pushed. Requires navigating back to build directory
 make allboards > /dev/null 2>&1
