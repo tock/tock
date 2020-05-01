@@ -23,7 +23,7 @@ done
 #TODO: Usw GITHUB_BASE_REF
 git remote set-branches origin master #TODO: needed?
 git fetch --depth 1 origin master
-git merge master #TODO: What happens if this fails?
+git merge origin/master #TODO: What happens if this fails?
 make allboards
 
 # Find elfs compiled for release (for use in analyzing binaries in CI),
