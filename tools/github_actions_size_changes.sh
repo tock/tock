@@ -16,7 +16,7 @@ make allboards > /dev/null 2>&1
 for elf in $(find . -maxdepth 8 | grep 'release' | egrep '\.elf$' | grep -v 'riscv'); do
     tmp=${elf#*release/}
     b=${tmp%.elf}
-    ./tools/print_tock_memory_usage.py -s ${elf} | current-benchmark-${b}
+    ./tools/print_tock_memory_usage.py -s ${elf} > current-benchmark-${b}
 done
 
 git remote set-branches origin master  > /dev/null 2>&1
@@ -29,7 +29,7 @@ make allboards > /dev/null 2>&1
 for elf in $(find . -maxdepth 8 | grep 'release' | egrep '\.elf$' | grep -v 'riscv'); do
     tmp=${elf#*release/}
     b=${tmp%.elf}
-    ./tools/print_tock_memory_usage.py -s ${elf} | previous-benchmark-${b}
+    ./tools/print_tock_memory_usage.py -s ${elf} > previous-benchmark-${b}
 done
 
 # now calculate diff for each board, and post status to github for each non-0 diff
