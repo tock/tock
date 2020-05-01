@@ -28,7 +28,10 @@ jobs:
         with:
           python-version: '3.x'
       - name: Install dependencies
-        run: python -m pip install --upgrade pip setuptools wheel
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+          pip install --user cxxfilt
+          sudo apt install llvm
       - name: size report
         run: |
           ./tools/github_actions_size_changes.sh
