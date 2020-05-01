@@ -175,6 +175,14 @@ impl Uart<'a> {
         let len = self.tx_len.get();
 
         if idx < len {
+            // If we are going to transmit anything, we first need to enable the
+            // TX interrupt. This ensures that we will get an interrupt, where
+            // we can either call the callback from, or continue transmitting
+            // bytes.
+            self.enable_tx_interrupt();
+
+            // Read from the transmit buffer and send bytes to the UART hardware
+            // until either the buffer is empty or the UART hardware is full.
             self.tx_buffer.map(|tx_buf| {
                 let tx_len = len - idx;
 
@@ -187,33 +195,6 @@ impl Uart<'a> {
                     self.tx_index.set(tx_idx + 1)
                 }
             });
-
-            // If the FIFO started empty above, when the first character was written, it would have
-            // been immediately dispatched to the shift register, latching the TX_EMPTY state.
-            // That should be cleared before enabling the interrupt, so a subsequent empty state
-            // will latch the state transition again.
-            regs.intr_state.write(intr::tx_empty::SET);
-
-            // With data queued, (re)enable the TX interrupt if the FIFO is not empty
-            if !regs.status.is_set(status::txempty) {
-                self.enable_tx_interrupt();
-                if !regs.status.is_set(status::txempty) {
-                    // Assuming the FIFO stayed non-empty while the interrupt was being enabled,
-                    // our work here is done
-                    return;
-                } else {
-                    // Otherwise, turn off the interrupt and handle below
-                    self.disable_tx_interrupt();
-                }
-            }
-        }
-
-        if self.tx_index.get() == self.tx_len.get() {
-            self.tx_client.map(|client| {
-                self.tx_buffer.take().map(|tx_buf| {
-                    client.transmitted_buffer(tx_buf, self.tx_len.get(), ReturnCode::SUCCESS);
-                });
-            });
         }
     }
 
@@ -223,7 +204,19 @@ impl Uart<'a> {
 
         if intrs.is_set(intr::tx_empty) {
             self.disable_tx_interrupt();
-            self.tx_progress();
+
+            if self.tx_index.get() == self.tx_len.get() {
+                // We sent everything to the UART hardware, now from an
+                // interrupt callback we can issue the callback.
+                self.tx_client.map(|client| {
+                    self.tx_buffer.take().map(|tx_buf| {
+                        client.transmitted_buffer(tx_buf, self.tx_len.get(), ReturnCode::SUCCESS);
+                    });
+                });
+            } else {
+                // We have more to transmit, so continue in tx_progress().
+                self.tx_progress();
+            }
         } else if intrs.is_set(intr::rx_watermark) {
             self.disable_rx_interrupt();
             // TODO: real RX processing
@@ -268,7 +261,7 @@ impl hil::uart::Transmit<'a> for Uart<'a> {
         tx_data: &'static mut [u8],
         tx_len: usize,
     ) -> (ReturnCode, Option<&'static mut [u8]>) {
-        if tx_len == 0 {
+        if tx_len == 0 || tx_len > tx_data.len() {
             (ReturnCode::ESIZE, Some(tx_data))
         } else if self.tx_buffer.is_some() {
             (ReturnCode::EBUSY, Some(tx_data))
