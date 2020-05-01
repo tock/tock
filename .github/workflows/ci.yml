@@ -1,0 +1,72 @@
+# This workflow contains all tock-ci, seperated into jobs
+
+name: tock-ci
+env:
+  TERM: xterm # Makes tput work in actions output
+
+# Controls when the action will run. Triggers the workflow on push or pull request
+# events but only for the master branch
+on:
+  push:
+    branches-ignore: [ staging.tmp, trying.tmp ] # Run CI for all branches except bors tmp branches
+  pull_request: # Run CI for PRs on any branch
+
+# A workflow run is made up of one or more jobs that can run sequentially or in parallel
+# If you add additional jobs, remember to add them to bors.toml
+jobs:
+  format:
+    # The type of runner that the job will run on
+    runs-on: ubuntu-latest
+
+    # Steps represent a sequence of tasks that will be executed as part of the job
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1 # pulls version from rust-toolchain file
+      - uses: actions/setup-node@v1
+        with:
+          components: rustfmt, clippy
+      - name: rustfmt
+        run: make ci-formatting
+      - name: docs
+        run: |
+          npm install -g markdown-toc
+          make ci-documentation
+
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+
+      - name: syntax
+        run: make ci-syntax
+      - name: compilation
+        run: make ci-compilation
+      - name: debug-support-targets
+        run: make ci-debug-support-targets
+
+      - name: collect-build-artifacts
+        run: make ci-collect-artifacts
+      - name: upload-build-artifacts
+        uses: actions/upload-artifact@v2
+        with:
+          name: build-artifacts
+          path: ci-artifacts
+
+  tests:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+      - name: cargo tests
+        run: |
+          make ci-libraries
+          make ci-archs
+          make ci-kernel
+          make ci-chips
+      - name: tool tests
+        run: |
+          sudo apt install libusb-1.0-0-dev
+          make ci-tools

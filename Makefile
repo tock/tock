@@ -210,6 +210,7 @@ clean:
 	@echo "$$(tput bold)Clean top-level Cargo workspace" && cargo clean
 	@for f in `./tools/list_tools.sh`; do echo "$$(tput bold)Clean tools/$$f"; cargo clean --manifest-path "tools/$$f/Cargo.toml" || exit 1; done
 	@echo "$$(tput bold)Clean rustdoc" && rm -Rf doc/rustdoc
+	@echo "$$(tput bold)Clean ci-artifacts" && rm -Rf ./ci-artifacts
 
 .PHONY: fmt format formatall
 fmt format formatall:
@@ -226,3 +227,9 @@ list list-boards list-platforms:
 	@echo "    cd boards/hail"
 	@echo "    make"
 
+.PHONY: ci-collect-artifacts
+ci-collect-artifacts:
+	@test -d ./target || (echo "Target directory not found! Build some boards first to have their artifacts collected"; exit 1)
+	@mkdir -p ./ci-artifacts
+	@rm -rf "./ci-artifacts/*"
+	@for f in $$(find ./target -iname '*.bin' | grep -E "release/.*\.bin"); do mkdir -p "ci-artifacts/$$(dirname $$f)"; cp "$$f" "ci-artifacts/$$f"; done
