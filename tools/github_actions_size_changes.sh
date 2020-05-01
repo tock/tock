@@ -43,6 +43,6 @@ for elf in $(find . -maxdepth 8 | grep 'release' | egrep '\.elf$' | grep -v 'ris
             # Only attempt to post statuses if the token is available (will not post for PRs from forks)
         #    curl -X POST -H "Content-Type: application/json" --header "Authorization: token ${TRAVIS_GITHUB_TOKEN}" --data '{"state": "success", "context": "'"${b}"'", "description": "'"${RES}"'"}' https://api.github.com/repos/tock/tock/statuses/${TRAVIS_PULL_REQUEST_SHA}
         #fi
-        echo "SIZE CHANGE DETECTED: ${b}: ${RES}"
+        echo "${b}: ${RES}"
     fi
 done

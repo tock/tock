@@ -1,8 +1,6 @@
 # This workflow calculates size diffs for the compiled binary of each supported tock board
 
-name: Size Changes
-env:
-  TERM: xterm # Makes tput work in actions output
+name: Benchmarks
 
 # Controls when the action will run. Triggers the workflow on pull request
 # events but only for the master branch
