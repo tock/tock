@@ -10,27 +10,26 @@
 # Github OAuth personal token associated with @hudson-ayers Github identity.
 
 set -e
-set -x
 
 # Bench the current commit that was pushed. Requires navigating back to build directory
-make allboards
+make allboards > /dev/null
 for elf in $(find . -maxdepth 8 | grep 'release' | egrep '\.elf$' | grep -v 'riscv'); do
     tmp=${elf#*release/}
     b=${tmp%.elf}
-    ./tools/print_tock_memory_usage.py -s ${elf} | tee ./current-benchmark-${b}
+    ./tools/print_tock_memory_usage.py -s ${elf} | current-benchmark-${b}
 done
 
 git remote set-branches origin master #TODO: needed?
 git fetch --depth 1 origin master
 git checkout master
-make allboards
+make allboards > /dev/null
 
 # Find elfs compiled for release (for use in analyzing binaries in CI),
 # ignore riscv binaries for now because size tool does not support RISC-V
 for elf in $(find . -maxdepth 8 | grep 'release' | egrep '\.elf$' | grep -v 'riscv'); do
     tmp=${elf#*release/}
     b=${tmp%.elf}
-    ./tools/print_tock_memory_usage.py -s ${elf} | tee ./previous-benchmark-${b}
+    ./tools/print_tock_memory_usage.py -s ${elf} | previous-benchmark-${b}
 done
 
 # now calculate diff for each board, and post status to github for each non-0 diff
