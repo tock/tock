@@ -117,7 +117,9 @@ simultaneously) support for generic sensor interfaces.
 These allow for multiple users of shared hardware resources in the kernel.
 
 - **[Virtual Alarm](src/virtual_alarm.rs)**: Shared alarm resource.
+- **[Virtual Digest](src/virtual_digest.rs)**: Shared digest resource.
 - **[Virtual Flash](src/virtual_flash.rs)**: Shared flash resource.
+- **[Virtual HMAC](src/virtual_hmac.rs)**: Shared HMAC resource.
 - **[Virtual I2C](src/virtual_i2c.rs)**: Shared I2C and fixed addresses.
 - **[Virtual PWM](src/virtual_pwm.rs)**: Shared PWM hardware.
 - **[Virtual SPI](src/virtual_spi.rs)**: Shared SPI and fixed chip select pins.
@@ -131,6 +133,7 @@ Other capsules that implement reusable logic.
 - **[Nonvolatile to Pages](src/nonvolatile_to_pages.rs)**: Map arbitrary reads
   and writes to flash pages.
 - **[AES Encryption](src/aes_ccm.rs)**: AES-CCM encryption.
+- **[HMAC](src/hmac.rs)**: Hash-based Message Authentication Code (HMAC) digest engine.
 - **[Log Storage](src/log_storage.rs)**: Log storage abstraction on top of flash devices.
 
 

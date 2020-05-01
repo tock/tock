@@ -10,6 +10,7 @@ use rv32i::csr::{mcause, mie::mie, mip::mip, mtvec::mtvec, CSR};
 use rv32i::syscall::SysCall;
 
 use crate::gpio;
+use crate::hmac;
 use crate::interrupts;
 use crate::plic;
 use crate::timer;
@@ -45,6 +46,9 @@ impl Ibex {
                 int_pin @ interrupts::GPIO_PIN0..=interrupts::GPIO_PIN31 => {
                     let pin = &gpio::PORT[(int_pin - interrupts::GPIO_PIN0) as usize];
                     pin.handle_interrupt();
+                }
+                interrupts::HMAC_HMAC_DONE..=interrupts::HMAC_HMAC_ERR => {
+                    hmac::HMAC.handle_interrupt()
                 }
                 _ => debug!("Pidx {}", interrupt),
             }
