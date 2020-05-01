@@ -20,11 +20,9 @@ for elf in $(find . -maxdepth 8 | grep 'release' | egrep '\.elf$' | grep -v 'ris
     ./tools/print_tock_memory_usage.py -s ${elf} | tee ./current-benchmark-${b}
 done
 
-#TODO: Usw GITHUB_BASE_REF
 git remote set-branches origin master #TODO: needed?
 git fetch --depth 1 origin master
-git status
-git merge origin/master #TODO: What happens if this fails?
+git checkout master
 make allboards
 
 # Find elfs compiled for release (for use in analyzing binaries in CI),
