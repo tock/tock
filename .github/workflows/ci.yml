@@ -61,11 +61,7 @@ jobs:
       - uses: actions/checkout@v2
       - uses: actions-rs/toolchain@v1
       - name: cargo tests
-        run: |
-          make ci-libraries
-          make ci-archs
-          make ci-kernel
-          make ci-chips
+        run: make ci-cargo-tests
       - name: tool tests
         run: |
           sudo apt install libusb-1.0-0-dev

@@ -83,6 +83,12 @@ ci-netlify:\
 	@printf "$$(tput bold)* CI-Netlify: Done! *$$(tput sgr0)\n"
 	@printf "$$(tput bold)*********************$$(tput sgr0)\n"
 
+.PHONY: ci-cargo-tests
+ci-cargo-tests:\
+	ci-libraries\
+	ci-archs\
+	ci-kernel\
+	ci-chips\
 
 ## Actual Rules (Travis)
 
