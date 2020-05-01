@@ -23,6 +23,7 @@ done
 #TODO: Usw GITHUB_BASE_REF
 git remote set-branches origin master #TODO: needed?
 git fetch --depth 1 origin master
+git status
 git merge origin/master #TODO: What happens if this fails?
 make allboards
 
