@@ -23,6 +23,7 @@ pub mod dac;
 pub mod debug_process_restart;
 pub mod driver;
 pub mod fm25cl;
+pub mod framebuffer;
 pub mod fxos8700cq;
 pub mod gpio;
 pub mod gpio_async;

@@ -1,5 +1,6 @@
 //! Hil for FrameBuffer
 use crate::returncode::ReturnCode;
+use crate::{AppSlice, Shared};
 
 #[derive(Copy, Clone, PartialEq)]
 pub enum ScreenRotation {
@@ -10,7 +11,7 @@ pub enum ScreenRotation {
 }
 
 #[derive(Copy, Clone, PartialEq)]
-pub enum ScreenFormat {
+pub enum ScreenColorFormat {
     /// Monochromatic display
     Mono = 0,
     /// 24 bit color display
@@ -22,27 +23,40 @@ pub enum ScreenFormat {
 }
 
 pub trait Screen {
-    fn size(&self) -> (usize, usize);
+    fn get_resolution(&self) -> (usize, usize);
 
-    fn format(&self) -> ScreenFormat;
-    fn rotation(&self) -> ScreenRotation;
+    fn get_color_format(&self) -> ScreenColorFormat;
+    fn get_rotation(&self) -> ScreenRotation;
 
-    fn write(
+    fn write_slice(
+        &self,
+        x: usize,
+        y: usize,
+        width: usize,
+        height: usize,
+        slice: AppSlice<Shared, u8>,
+        len: usize
+    ) -> ReturnCode;
+
+    fn write_buffer(
         &self,
         x: usize,
         y: usize,
         width: usize,
         height: usize,
         buffer: &'static [u8],
+        len: usize
     ) -> ReturnCode;
+
+    fn set_client (&self, client: Option<&'static dyn ScreenClient>);
 }
 
-pub trait Configuration {
-    fn set_size(&self, width: usize, height: usize) -> ReturnCode;
-    fn set_format(&self, format: ScreenFormat) -> ReturnCode;
+pub trait ScreenConfiguration {
+    fn set_resolution(&self, width: usize, height: usize) -> ReturnCode;
+    fn set_color_format(&self, format: ScreenColorFormat) -> ReturnCode;
     fn set_rotation(&self, format: ScreenRotation) -> ReturnCode;
 }
 
-pub trait FrameBufferClient {
-    fn write_complete(&self, buffer: &'static [u8], r: ReturnCode);
+pub trait ScreenClient {
+    fn write_complete(&self, r: ReturnCode);
 }

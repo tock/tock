@@ -65,5 +65,6 @@ pub enum NUM {
 
     // Misc
     Buzzer                = 0x90000,
+    Framebuffer           = 0x90001
 }
 }
