@@ -488,19 +488,19 @@ impl Lpi2c<'a> {
         match speed {
             Lpi2cSpeed::Speed100k => {
                 let prescaler = 4;
-                self.registers.MCCR0.modify(MCCR0::CLKHI.val(12));
-                self.registers.MCCR0.modify(MCCR0::CLKLO.val(24));
-                self.registers.MCCR0.modify(MCCR0::SETHOLD.val(12));
-                self.registers.MCCR0.modify(MCCR0::DATAVD.val(6));
-                self.registers.MCFGR1.modify(MCFGR1::PRESCALE.val(prescaler as u32));
+                self.registers.mccr0.modify(MCCR0::CLKHI.val(12));
+                self.registers.mccr0.modify(MCCR0::CLKLO.val(24));
+                self.registers.mccr0.modify(MCCR0::SETHOLD.val(12));
+                self.registers.mccr0.modify(MCCR0::DATAVD.val(6));
+                self.registers.mcfgr1.modify(MCFGR1::PRESCALE.val(prescaler as u32));
             }
             Lpi2cSpeed::Speed400k => {
                 let prescaler = 1;
-                self.registers.MCCR0.modify(MCCR0::CLKHI.val(12));
-                self.registers.MCCR0.modify(MCCR0::CLKLO.val(24));
-                self.registers.MCCR0.modify(MCCR0::SETHOLD.val(12));
-                self.registers.MCCR0.modify(MCCR0::DATAVD.val(6));
-                self.registers.MCFGR1.modify(MCFGR1::PRESCALE.val(prescaler as u32));
+                self.registers.mccr0.modify(MCCR0::CLKHI.val(12));
+                self.registers.mccr0.modify(MCCR0::CLKLO.val(24));
+                self.registers.mccr0.modify(MCCR0::SETHOLD.val(12));
+                self.registers.mccr0.modify(MCCR0::DATAVD.val(6));
+                self.registers.mcfgr1.modify(MCFGR1::PRESCALE.val(prescaler as u32));
             }
             Lpi2cSpeed::Speed1M => {
                 panic!("i2c speed 1MHz not implemented");
@@ -575,7 +575,7 @@ impl Lpi2c<'a> {
                         //     self.tx_position.get(),
                         //     self.rx_position.get()
                         // );
-                        if self.status.get() == I2CStatus::Writing {
+                        if self.status.get() == Lpi2cStatus::Writing {
                             self.master_client.map(|client| {
                                 self.buffer
                                     .take()
@@ -584,7 +584,7 @@ impl Lpi2c<'a> {
                             self.registers.mcfgr1.modify(MCFGR1::AUTOSTOP::SET);
                             self.stop();
                         } else {
-                            self.status.set(I2CStatus::Reading);
+                            self.status.set(Lpi2cStatus::Reading);
                             self.start_read();
                         }
                     }
@@ -605,7 +605,7 @@ impl Lpi2c<'a> {
                             .take()
                             .map(|buf| client.command_complete(buf, error))
                     });
-                    self.registers.cr2.modify(CR2::STOP::SET);
+                    self.registers.mcfgr1.modify(MCFGR1::AUTOSTOP::SET);
                     self.stop();
                 }
                 _ => panic!("i2c should not arrive here"),
