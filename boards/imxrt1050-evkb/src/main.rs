@@ -1,6 +1,6 @@
-//! Board file for Nucleo-F429ZI development board
+//! Board file for Imxrt-1052 development board
 //!
-//! - <https://www.st.com/en/evaluation-tools/nucleo-f429zi.html>
+//! - <https://www.nxp.com/webapp/Download?colCode=IMXRT1050RM>
 
 #![no_std]
 #![no_main]
@@ -65,6 +65,7 @@ struct Imxrt1050EVKB {
         'static,
         VirtualMuxAlarm<'static, imxrt1050::gpt1::Gpt1<'static>>,
     >,
+    accel: &'static capsules::fxos8700cq::Fxos8700cq<'static>,
     // gpio: &'static capsules::gpio::GPIO<'static>,
 }
 
@@ -175,9 +176,6 @@ unsafe fn set_pin_primary_functions() {
 /// Helper function for miscellaneous peripheral functions
 unsafe fn setup_peripherals() {
     use imxrt1050::gpt1::GPT1;
-
-    // USART3 IRQn is 39
-    // cortexm7::nvic::Nvic::new(stm32f4xx::nvic::USART3).enable();
 
     // LPUART1 IRQn is 20
     cortexm7::nvic::Nvic::new(imxrt1050::nvic::LPUART1).enable();
