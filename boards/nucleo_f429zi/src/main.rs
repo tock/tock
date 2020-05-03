@@ -57,6 +57,7 @@ struct NucleoF429ZI {
         'static,
         VirtualMuxAlarm<'static, stm32f429zi::tim2::Tim2<'static>>,
     >,
+    framebuffer: &'static capsules::framebuffer::Framebuffer<'static>,
     alarm: &'static capsules::alarm::AlarmDriver<
         'static,
         VirtualMuxAlarm<'static, stm32f429zi::tim2::Tim2<'static>>,
@@ -74,6 +75,7 @@ impl Platform for NucleoF429ZI {
             capsules::console::DRIVER_NUM => f(Some(self.console)),
             capsules::led::DRIVER_NUM => f(Some(self.led)),
             capsules::st7735::DRIVER_NUM => f(Some(self.st7735)),
+            capsules::framebuffer::DRIVER_NUM => f(Some(self.framebuffer)),
             capsules::button::DRIVER_NUM => f(Some(self.button)),
             capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
@@ -454,6 +456,9 @@ pub unsafe fn reset_handler() {
         ),
     );
 
+    let framebuffer =
+        components::framebuffer::FramebufferComponent::new(board_kernel).finalize(tft);
+
     // tft.init();
 
     // GPIO
@@ -557,6 +562,7 @@ pub unsafe fn reset_handler() {
         ipc: kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability),
         led: led,
         st7735: tft,
+        framebuffer: framebuffer,
         button: button,
         alarm: alarm,
         gpio: gpio,

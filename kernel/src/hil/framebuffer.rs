@@ -34,8 +34,6 @@ pub trait Screen {
         y: usize,
         width: usize,
         height: usize,
-        slice: AppSlice<Shared, u8>,
-        len: usize
     ) -> ReturnCode;
 
     fn write_buffer(
@@ -44,7 +42,7 @@ pub trait Screen {
         y: usize,
         width: usize,
         height: usize,
-        buffer: &'static [u8],
+        buffer: &'static mut [u8],
         len: usize
     ) -> ReturnCode;
 
@@ -58,5 +56,6 @@ pub trait ScreenConfiguration {
 }
 
 pub trait ScreenClient {
-    fn write_complete(&self, r: ReturnCode);
+    fn fill_buffer_for_write_slice (&self, buffer:&'a mut [u8]) -> usize;
+    fn write_complete(&self, buffer:Option<&'static mut [u8]>, r: ReturnCode);
 }

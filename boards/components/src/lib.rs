@@ -7,6 +7,7 @@ pub mod console;
 pub mod crc;
 pub mod debug_queue;
 pub mod debug_writer;
+pub mod framebuffer;
 pub mod gpio;
 pub mod hd44780;
 pub mod hmac;
