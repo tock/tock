@@ -14,7 +14,7 @@ on:
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 # If you add additional jobs, remember to add them to bors.toml
 jobs:
-  format:
+  ci-format:
     # The type of runner that the job will run on
     runs-on: ubuntu-latest
 
@@ -25,25 +25,25 @@ jobs:
       - uses: actions/setup-node@v1
         with:
           components: rustfmt, clippy
-      - name: rustfmt
+      - name: ci-formatting
         run: make ci-formatting
-      - name: docs
+      - name: ci-documentation
         run: |
           npm install -g markdown-toc
           make ci-documentation
 
-  build:
+  ci-build:
     runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v2
       - uses: actions-rs/toolchain@v1
 
-      - name: syntax
+      - name: ci-syntax
         run: make ci-syntax
-      - name: compilation
+      - name: ci-compilation
         run: make ci-compilation
-      - name: debug-support-targets
+      - name: ci-debug-support-targets
         run: make ci-debug-support-targets
 
       - name: collect-build-artifacts
@@ -54,15 +54,15 @@ jobs:
           name: build-artifacts
           path: ci-artifacts
 
-  tests:
+  ci-tests:
     runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v2
       - uses: actions-rs/toolchain@v1
-      - name: cargo tests
+      - name: ci-cargo-tests
         run: make ci-cargo-tests
-      - name: tool tests
+      - name: ci-tools
         run: |
           sudo apt install libusb-1.0-0-dev
           make ci-tools

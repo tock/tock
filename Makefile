@@ -90,6 +90,22 @@ ci-cargo-tests:\
 	ci-kernel\
 	ci-chips\
 
+.PHONY: ci-format
+ci-format:\
+	ci-formatting\
+	ci-documentation\
+
+.PHONY: ci-build
+ci-build:\
+	ci-syntax\
+	ci-compilation\
+	ci-debug-support-targets\
+
+.PHONY: ci-tests
+ci-tests:\
+	ci-cargo-tests\
+	ci-tools\
+
 ## Actual Rules (Travis)
 
 .PHONY: ci-formatting
