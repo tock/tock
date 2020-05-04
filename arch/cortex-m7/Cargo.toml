@@ -7,4 +7,3 @@ edition = "2018"
 [dependencies]
 kernel = { path = "../../kernel" }
 cortexm = { path = "../cortex-m" }
-cortex-m-semihosting = "0.3.3"

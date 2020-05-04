@@ -65,7 +65,7 @@ struct Imxrt1050EVKB {
         'static,
         VirtualMuxAlarm<'static, imxrt1050::gpt1::Gpt1<'static>>,
     >,
-    accel: &'static capsules::fxos8700cq::Fxos8700cq<'static>,
+    // accel: &'static capsules::fxos8700cq::Fxos8700cq<'static>,
     // gpio: &'static capsules::gpio::GPIO<'static>,
 }
 
@@ -290,12 +290,12 @@ pub unsafe fn reset_handler() {
     let led_pins = static_init!(
         [(
             &'static dyn kernel::hil::gpio::Pin,
-            capsules::led::ActivationMode
+            kernel::hil::gpio::ActivationMode
         ); NUM_LEDS],
         [
             (
                 imxrt1050::gpio::PinId::P1_09.get_pin().as_ref().unwrap(),
-                capsules::led::ActivationMode::ActiveLow
+                kernel::hil::gpio::ActivationMode::ActiveLow
             )
         ]
     );
@@ -354,29 +354,39 @@ pub unsafe fn reset_handler() {
     // // See comment in `boards/imix/src/main.rs`
     // virtual_uart_rx_test::run_virtual_uart_receive(mux_uart);
 
-    debug!("Initialization complete. Entering main loop");
+    // let pin = imxrt1050::gpio::PinId::P1_09.get_pin().as_ref().unwrap();
+    // pin.make_output();
+    // pin.clear();
 
+    debug!("Initialization complete. Entering main loop");
     extern "C" {
         /// Beginning of the ROM region containing app images.
         ///
         /// This symbol is defined in the linker script.
         static _sapps: u8;
-    }
 
-    // let pin = imxrt1050::gpio::PinId::P1_09.get_pin().as_ref().unwrap();
-    // pin.make_output();
-    // pin.clear();
-    debug!("Almost loaded!");
+        /// End of the ROM region containing app images.
+        ///
+        /// This symbol is defined in the linker script.
+        static _eapps: u8;
+    }
 
     kernel::procs::load_processes(
         board_kernel,
         chip,
-        &_sapps as *const u8,
+        core::slice::from_raw_parts(
+            &_sapps as *const u8,
+            &_eapps as *const u8 as usize - &_sapps as *const u8 as usize,
+        ),
         &mut APP_MEMORY,
         &mut PROCESSES,
         FAULT_RESPONSE,
         &process_management_capability,
-    );
+    )
+    .unwrap_or_else(|err| {
+        debug!("Error loading processes!");
+        debug!("{:?}", err);
+    });
 
     board_kernel.kernel_loop(
         &imxrt1050,

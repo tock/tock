@@ -642,9 +642,9 @@ impl Lpi2c<'a> {
         //     self.tx_len.get()
         // );
         self.tx_position.set(0);
-        self.registers.mcr.modify(PARAM::MTXFIFO.val(self.tx_len.get() as u32));
+        // self.registers.param.modify(PARAM::MTXFIFO.val(self.tx_len.get() as u32));
         
-        self.registers.cr2.modify(MIER::EPIE::CLEAR);
+        self.registers.mier.modify(MIER::EPIE::CLEAR);
         self.registers.mtdr.modify(MTDR::CMD.val(100) + MTDR::DATA.val((self.slave_address.get() << 1) as u32));
 
         self.registers.mcfgr1.modify(MCFGR1::PINCFG::CLEAR);
@@ -673,10 +673,10 @@ impl Lpi2c<'a> {
         //     self.rx_len.get()
         // );
         self.rx_position.set(0);
-        self.registers.mcr.modify(PARAM::MRXFIFO.val(self.rx_len.get() as u32));
+        // self.registers.param.modify(PARAM::MRXFIFO.val(self.rx_len.get() as u32));
 
         // setting slave address
-        self.registers.cr2.modify(MIER::EPIE::CLEAR);
+        self.registers.mier.modify(MIER::EPIE::CLEAR);
         self.registers.mtdr.modify(MTDR::CMD.val(100) + MTDR::DATA.val((self.slave_address.get() << 1 + 1) as u32));
 
         self.registers.mcfgr1.modify(MCFGR1::PINCFG::CLEAR);
