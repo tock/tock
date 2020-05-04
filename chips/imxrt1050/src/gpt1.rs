@@ -262,7 +262,7 @@ impl Gpt1<'a> {
 
         // Prescale 6Mhz to 16Khz, by dividing it by 375. The change in the
         // prescaler value immediately affects the output clock frequency
-        self.registers.pr.modify(PR::PRESCALER.val(25 as u32));
+        self.registers.pr.modify(PR::PRESCALER.val(3061 as u32));
 
         // Enable the GPT 
         self.registers.cr.modify(CR::EN::SET);
@@ -305,7 +305,7 @@ impl hil::time::Alarm<'a> for Gpt1<'a> {
 }
 
 impl hil::time::Time for Gpt1<'a> {
-    type Frequency = hil::time::Freq3MHz;
+    type Frequency = hil::time::Freq32KHz;
 
     fn now(&self) -> u32 {
         self.registers.cnt.get()
