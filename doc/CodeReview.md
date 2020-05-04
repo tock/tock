@@ -107,11 +107,11 @@ Release branches are named `release-[version]`. For example, 'release-1.4.1'.
 
 Patches may be made against release branches to fix bugs.
 
-Note, previously Tock operated with a time-based release policy with the goal of
-creating a release every two months. The intent was these periodic stable
+Note: Previously, Tock operated with a time-based release policy with the goal
+of creating a release every two months. The intent was these periodic stable
 releases would make it easier for users to install and track changes to Tock.
 However, the overhead of keeping to that schedule was too daunting to make the
-releases reliably timed, and if often did not fit well with the inclusion of
+releases reliably timed, and it often did not fit well with the inclusion of
 major features which might be in-flight at a release point.
 
 ## Other Tock Repositories
@@ -137,6 +137,7 @@ Tock has two userland environments that are heavily developed and supported:
     - @Woyten
     - @torfmaster
     - @jrvanwhy
+   
    However the Tock core working group reserves the right to make final
    authoritative decisions if need merits.
 
