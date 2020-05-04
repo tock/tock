@@ -1536,7 +1536,6 @@ fn exceeded_check(size: usize, allocated: usize) -> &'static str {
 }
 
 impl<C: 'static + Chip> Process<'a, C> {
-    #[allow(clippy::cast_ptr_alignment)]
     crate unsafe fn create(
         kernel: &'static Kernel,
         chip: &'static C,
@@ -1688,6 +1687,14 @@ impl<C: 'static + Chip> Process<'a, C> {
         // pointers.
         kernel_memory_break = kernel_memory_break.offset(-(grant_ptrs_offset as isize));
 
+        // This is safe today, as MPU constraints ensure that `memory_start` will always
+        // be aligned on at least a word boundary, and that memory_size will be aligned on at least
+        // a word boundary, and `grant_ptrs_offset` is a multiple of the word size.
+        // Thus, `kernel_memory_break` must be word aligned.
+        // While this is unlikely to change, it should be more proactively enforced.
+        //
+        // TODO: https://github.com/tock/tock/issues/1739
+        #[allow(clippy::cast_ptr_alignment)]
         // Set all pointers to null.
         let opts =
             slice::from_raw_parts_mut(kernel_memory_break as *mut *const usize, grant_ptrs_num);
@@ -1699,6 +1706,14 @@ impl<C: 'static + Chip> Process<'a, C> {
         // for the callbacks.
         kernel_memory_break = kernel_memory_break.offset(-(callbacks_offset as isize));
 
+        // This is safe today, as MPU constraints ensure that `memory_start` will always
+        // be aligned on at least a word boundary, and that memory_size will be aligned on at least
+        // a word boundary, and `grant_ptrs_offset` is a multiple of the word size.
+        // Thus, `kernel_memory_break` must be word aligned.
+        // While this is unlikely to change, it should be more proactively enforced.
+        //
+        // TODO: https://github.com/tock/tock/issues/1739
+        #[allow(clippy::cast_ptr_alignment)]
         // Set up ring buffer.
         let callback_buf =
             slice::from_raw_parts_mut(kernel_memory_break as *mut Task, callback_len);
