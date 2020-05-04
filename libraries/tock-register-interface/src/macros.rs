@@ -51,8 +51,74 @@ macro_rules! register_bitmasks {
     {
         $valtype:ty, $reg_desc:ident, $(#[$outer:meta])* $field:ident,
                     $offset:expr, $numbits:expr,
-                    [$( $(#[$inner:meta])* $valname:ident = $value:expr ),*]
+                    [$( $(#[$inner:meta])* $valname:ident = $value:expr ),+]
     } => {
+        #[allow(non_upper_case_globals)]
+        #[allow(unused)]
+        pub const $field: Field<$valtype, $reg_desc> =
+            Field::<$valtype, $reg_desc>::new((1<<($numbits-1))+((1<<($numbits-1))-1), $offset);
+
+        #[allow(non_snake_case)]
+        #[allow(unused)]
+        $(#[$outer])*
+        pub mod $field {
+            #[allow(unused_imports)]
+            use $crate::registers::{FieldValue, TryFromValue};
+            use super::$reg_desc;
+
+            $(
+            #[allow(non_upper_case_globals)]
+            #[allow(unused)]
+            $(#[$inner])*
+            pub const $valname: FieldValue<$valtype, $reg_desc> =
+                FieldValue::<$valtype, $reg_desc>::new((1<<($numbits-1))+((1<<($numbits-1))-1),
+                    $offset, $value);
+            )*
+
+            #[allow(non_upper_case_globals)]
+            #[allow(unused)]
+            pub const SET: FieldValue<$valtype, $reg_desc> =
+                FieldValue::<$valtype, $reg_desc>::new((1<<($numbits-1))+((1<<($numbits-1))-1),
+                    $offset, (1<<($numbits-1))+((1<<($numbits-1))-1));
+
+            #[allow(non_upper_case_globals)]
+            #[allow(unused)]
+            pub const CLEAR: FieldValue<$valtype, $reg_desc> =
+                FieldValue::<$valtype, $reg_desc>::new((1<<($numbits-1))+((1<<($numbits-1))-1),
+                    $offset, 0);
+
+            #[allow(dead_code)]
+            #[allow(non_camel_case_types)]
+            #[repr(usize)] //use repr(usize) so that unsigned literals larger than max isize can be stored
+            $(#[$outer])*
+            pub enum Value {
+                $(
+                    $(#[$inner])*
+                    $valname = $value,
+                )*
+            }
+
+            impl TryFromValue<$valtype> for Value {
+                type EnumType = Value;
+
+                fn try_from(v: $valtype) -> Option<Self::EnumType> {
+                    match v {
+                        $(
+                            $(#[$inner])*
+                            x if x == Value::$valname as $valtype => Some(Value::$valname),
+                        )*
+
+                        _ => Option::None
+                    }
+                }
+            }
+        }
+    };
+    {
+        $valtype:ty, $reg_desc:ident, $(#[$outer:meta])* $field:ident,
+                    $offset:expr, $numbits:expr,
+                    [$( $(#[$inner:meta])* $valname:ident = $value:expr ),*]
+    } => { //same pattern as previous match arm, except allows for 0 elements in array. Required because [repr(usize)] cannot be used for zero-variant enums.
         #[allow(non_upper_case_globals)]
         #[allow(unused)]
         pub const $field: Field<$valtype, $reg_desc> =
