@@ -15,15 +15,17 @@ usage:
 	@echo "Check out the README in your board's folder for more information."
 	@echo
 	@echo "This root Makefile has a few useful targets as well:"
-	@echo "  allboards: Compiles Tock for all supported boards"
-	@echo "   allcheck: Checks, but does not compile, Tock for all supported boards"
-	@echo "     alldoc: Builds Tock documentation for all boards"
-	@echo "      audit: Audit Cargo dependencies for all kernel sources"
-	@echo "         ci: Run all continuous integration tests"
-	@echo "      clean: Clean all builds"
-	@echo "     format: Runs the rustfmt tool on all kernel sources"
-	@echo "  formatall: Runs all formatting tools"
-	@echo "       list: Lists available boards"
+	@echo "        allboards: Compiles Tock for all supported boards"
+	@echo "        allcheck: Checks, but does not compile, Tock for all supported boards"
+	@echo "          alldoc: Builds Tock documentation for all boards"
+	@echo "           audit: Audit Cargo dependencies for all kernel sources"
+	@echo "              ci: Run all continuous integration tests"
+	@echo " emulation-setup: Setup QEMU for the emulation tests"
+	@echo " emulation-check: Run the emulation tests for supported boards"
+	@echo "           clean: Clean all builds"
+	@echo "          format: Runs the rustfmt tool on all kernel sources"
+	@echo "       formatall: Runs all formatting tools"
+	@echo "            list: Lists available boards"
 	@echo
 	@echo "$$(tput bold)Happy Hacking!$$(tput sgr0)"
 
@@ -68,7 +70,8 @@ ci-travis:\
 	ci-syntax\
 	ci-compilation\
 	ci-debug-support-targets\
-	ci-documentation
+	ci-documentation \
+	emulation-check
 	@printf "$$(tput bold)********************$$(tput sgr0)\n"
 	@printf "$$(tput bold)* CI-Travis: Done! *$$(tput sgr0)\n"
 	@printf "$$(tput bold)********************$$(tput sgr0)\n"
@@ -182,6 +185,25 @@ ci-rustdoc:
 .PHONY: audit
 audit:
 	@for f in `./tools/list_lock.sh`; do echo "$$(tput bold)Auditing $$f"; (cd "$$f" && cargo audit || exit 1); done
+
+.PHONY: emulation-setup
+emulation-setup: SHELL:=/usr/bin/env bash
+emulation-setup:
+	@#Use the latest QEMU as it has OpenTitan support
+	@if [[ ! -d tools/qemu || ! -f tools/qemu/VERSION ]]; then \
+		rm -rf tools/qemu; \
+		cd tools; git clone https://github.com/qemu/qemu.git; \
+		cd qemu; ./configure --target-list=riscv32-softmmu; \
+	fi
+	@$(MAKE) -C "tools/qemu" > /dev/null
+
+.PHONY: emulation-check
+emulation-check: emulation-setup
+	@$(MAKE) -C "boards/hifive1"
+	$(eval TMPFILE := $(shell mktemp))
+	@PATH="${PATH}:../../tools/qemu/riscv32-softmmu/" timeout --foreground 10s $(MAKE) qemu -C "boards/hifive1" | tee $(TMPFILE) > /dev/null
+	grep "Entering main loop" $(TMPFILE) > /dev/null;
+	rm "$(TMPFILE)"
 
 .PHONY: clean
 clean:
