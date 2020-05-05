@@ -3,18 +3,22 @@
 //! Usage
 //! -----
 //! ```rust
-//! let gpio = components::gpio::GpioComponent::new(board_kernel).finalize(
+//! let gpio = components::gpio::GpioComponent::new(
+//!     board_kernel,
 //!     components::gpio_component_helper!(
-//!     &nrf52840::gpio::PORT[GPIO_D2],
-//!     &nrf52840::gpio::PORT[GPIO_D3],
-//!     &nrf52840::gpio::PORT[GPIO_D4],
-//!     &nrf52840::gpio::PORT[GPIO_D5],
-//!     &nrf52840::gpio::PORT[GPIO_D6],
-//!     &nrf52840::gpio::PORT[GPIO_D7],
-//!     &nrf52840::gpio::PORT[GPIO_D8],
-//!     &nrf52840::gpio::PORT[GPIO_D9],
-//!     &nrf52840::gpio::PORT[GPIO_D10]
-//! ));
+//!         sam4l::gpio::GPIOPin,
+//!         &nrf52840::gpio::PORT[GPIO_D2],
+//!         &nrf52840::gpio::PORT[GPIO_D3],
+//!         &nrf52840::gpio::PORT[GPIO_D4],
+//!         &nrf52840::gpio::PORT[GPIO_D5],
+//!         &nrf52840::gpio::PORT[GPIO_D6],
+//!         &nrf52840::gpio::PORT[GPIO_D7],
+//!         &nrf52840::gpio::PORT[GPIO_D8],
+//!         &nrf52840::gpio::PORT[GPIO_D9],
+//!         &nrf52840::gpio::PORT[GPIO_D10]
+//!     )
+//! )
+//! .finalize(gpio_component_buf!(sam4l::gpio::GPIOPin));
 //! ```
 
 use capsules::gpio::GPIO;

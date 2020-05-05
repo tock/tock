@@ -3,11 +3,22 @@
 //! Usage
 //! -----
 //! ```rust
-//! let led = components::led::LedsComponent::new().finalize(components::led_component_helper!(
-//!     (&nrf52840::gpio::PORT[LED_RED_PIN], kernel::hil::gpio::ActivationMode::ActiveLow),
-//!     (&nrf52840::gpio::PORT[LED_GREEN_PIN], kernel::hil::gpio::ActivationMode::ActiveLow),
-//!     (&nrf52840::gpio::PORT[LED_BLUE_PIN], kernel::hil::gpio::ActivationMode::ActiveLow)
-//! ));
+//! let led = components::led::LedsComponent::new(components::led_component_helper!(
+//!     sam4l::gpio::GPIOPin,
+//!     (
+//!         &sam4l::gpio::PORT[LED_RED_PIN],
+//!         kernel::hil::gpio::ActivationMode::ActiveLow
+//!     ),
+//!     (
+//!         &sam4l::gpio::PORT[LED_GREEN_PIN],
+//!         kernel::hil::gpio::ActivationMode::ActiveLow
+//!     ),
+//!     (
+//!         &sam4l::gpio::PORT[LED_BLUE_PIN],
+//!         kernel::hil::gpio::ActivationMode::ActiveLow
+//!     )
+//! ))
+//! .finalize(led_component_buf!(sam4l::gpio::GPIOPin));
 //! ```
 
 use capsules::led::LED;

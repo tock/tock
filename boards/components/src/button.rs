@@ -3,13 +3,18 @@
 //! Usage
 //! -----
 //! ```rust
-//! let button = components::button::ButtonComponent::new(board_kernel).finalize(
-//!     components::button_component_helper!((
-//!         &sam4l::gpio::PC[24],
-//!         kernel::hil::gpio::ActivationMode::ActiveLow,
-//!         kernel::hil::gpio::FloatingState::PullUp
-//!     )),
-//! );
+//! let button = components::button::ButtonComponent::new(
+//!     board_kernel,
+//!     components::button_component_helper!(
+//!         sam4l::gpio::GPIOPin,
+//!         (
+//!             &sam4l::gpio::PC[24],
+//!             kernel::hil::gpio::ActivationMode::ActiveLow,
+//!             kernel::hil::gpio::FloatingState::PullUp
+//!         )
+//!     ),
+//! )
+//! .finalize(button_component_buf!(sam4l::gpio::GPIOPin));
 //! ```
 //!
 //! Typically, `ActivationMode::ActiveLow` will be associated with `FloatingState::PullUp`

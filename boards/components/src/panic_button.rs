@@ -11,7 +11,8 @@
 //!     &sam4l::gpio::PC[24],
 //!     kernel::hil::gpio::ActivationMode::ActiveLow,
 //!     kernel::hil::gpio::FloatingState::PullUp
-//! ).finalize(());
+//! )
+//! .finalize(panic_button_component_buf!(sam4l::gpio::GPIOPin));
 //! ```
 
 use capsules::panic_button::PanicButton;
