@@ -15,8 +15,11 @@ on:
 # If you add additional jobs, remember to add them to bors.toml
 jobs:
   ci-format:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
     # The type of runner that the job will run on
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
 
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
@@ -33,7 +36,10 @@ jobs:
           make ci-documentation
 
   ci-build:
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
 
     steps:
       - uses: actions/checkout@v2
@@ -55,17 +61,28 @@ jobs:
           path: ci-artifacts
 
   ci-tests:
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
 
     steps:
       - uses: actions/checkout@v2
       - uses: actions-rs/toolchain@v1
       - name: ci-cargo-tests
         run: make ci-cargo-tests
+      - name: ci-tools-install-dependencies
+        run:   |
+               if [ ${{ matrix.os }} == "ubuntu-latest" ]; then
+                    sudo apt-get install libusb-1.0-0-dev
+               elif [ ${{ matrix.os }} == "macos-latest" ]; then
+                    brew install libusb-compat pkg-config
+               else
+                    echo "${{ matrix.os }} not supported"
+                    exit 1
+               fi
       - name: ci-tools
-        run: |
-          sudo apt install libusb-1.0-0-dev
-          make ci-tools
+        run: make ci-tools
 
   emulation-check:
     runs-on: ubuntu-latest
