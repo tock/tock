@@ -24,7 +24,8 @@ usage:
 	@echo " emulation-check: Run the emulation tests for supported boards"
 	@echo "           clean: Clean all builds"
 	@echo "          format: Runs the rustfmt tool on all kernel sources"
-	@echo "       formatall: Runs all formatting tools"
+	@echo "          clippy: Runs the clippy code linter on all kernel sources"
+	@echo "       formatall: Runs all formatting tools (rustfmt and clippy)"
 	@echo "            list: Lists available boards"
 	@echo
 	@echo "$$(tput bold)Happy Hacking!$$(tput sgr0)"
@@ -94,6 +95,7 @@ ci-cargo-tests:\
 ci-format:\
 	ci-formatting\
 	ci-documentation\
+	clippy\
 
 .PHONY: ci-build
 ci-build:\
@@ -106,6 +108,11 @@ ci-tests:\
 	ci-cargo-tests\
 	ci-tools\
 
+.PHONY: formatall
+formatall:\
+	format\
+	clippy\
+
 ## Actual Rules (Travis)
 
 .PHONY: ci-formatting
@@ -114,7 +121,7 @@ ci-formatting:
 	@printf "$$(tput bold)* CI: Formatting *$$(tput sgr0)\n"
 	@printf "$$(tput bold)******************$$(tput sgr0)\n"
 	@CI=true ./tools/run_cargo_fmt.sh diff
-	@./tools/check_wildcard_imports.sh
+	@./tools/run_clippy.sh
 
 .PHONY: ci-tools
 ci-tools:
@@ -234,10 +241,13 @@ clean:
 	@echo "$$(tput bold)Clean rustdoc" && rm -Rf doc/rustdoc
 	@echo "$$(tput bold)Clean ci-artifacts" && rm -Rf ./ci-artifacts
 
-.PHONY: fmt format formatall
-fmt format formatall:
+.PHONY: fmt format
+fmt format:
 	@./tools/run_cargo_fmt.sh
-	@./tools/check_wildcard_imports.sh
+
+.PHONY: clippy
+clippy:
+	@./tools/run_clippy.sh
 
 .PHONY: list list-boards list-platforms
 list list-boards list-platforms:
