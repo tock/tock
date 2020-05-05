@@ -52,7 +52,9 @@ macro_rules! register_bitmasks {
         $valtype:ty, $reg_desc:ident, $(#[$outer:meta])* $field:ident,
                     $offset:expr, $numbits:expr,
                     [$( $(#[$inner:meta])* $valname:ident = $value:expr ),+]
-    } => {
+    } => { // this match arm is duplicated below with an allowance for 0 elements in the valname -> value array,
+        // to seperately support the case of zero-variant enums not supporting non-default
+        // representations.
         #[allow(non_upper_case_globals)]
         #[allow(unused)]
         pub const $field: Field<$valtype, $reg_desc> =
@@ -89,7 +91,7 @@ macro_rules! register_bitmasks {
 
             #[allow(dead_code)]
             #[allow(non_camel_case_types)]
-            #[repr(usize)] //use repr(usize) so that unsigned literals larger than max isize can be stored
+            #[repr(u64)] // use repr(u64) so that any value supported by the interface can be stored
             $(#[$outer])*
             pub enum Value {
                 $(
