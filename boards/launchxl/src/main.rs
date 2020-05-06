@@ -18,7 +18,6 @@ use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferred
 use kernel::component::Component;
 use kernel::hil;
 use kernel::hil::entropy::Entropy32;
-use kernel::hil::gpio;
 use kernel::hil::i2c::I2CMaster;
 use kernel::hil::rng::Rng;
 
@@ -53,10 +52,10 @@ static mut APP_MEMORY: [u8; 0x10000] = [0; 0x10000];
 pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 
 pub struct Platform {
-    gpio: &'static capsules::gpio::GPIO<'static>,
-    led: &'static capsules::led::LED<'static>,
+    gpio: &'static capsules::gpio::GPIO<'static, cc26x2::gpio::GPIOPin>,
+    led: &'static capsules::led::LED<'static, cc26x2::gpio::GPIOPin>,
     console: &'static capsules::console::Console<'static>,
-    button: &'static capsules::button::Button<'static>,
+    button: &'static capsules::button::Button<'static, cc26x2::gpio::GPIOPin>,
     alarm: &'static capsules::alarm::AlarmDriver<
         'static,
         capsules::virtual_alarm::VirtualMuxAlarm<'static, cc26x2::rtc::Rtc<'static>>,
@@ -191,30 +190,24 @@ pub unsafe fn reset_handler() {
     CHIP = Some(chip);
 
     // LEDs
-    let led_pins = static_init!(
-        [(
-            &'static dyn kernel::hil::gpio::Pin,
-            kernel::hil::gpio::ActivationMode
-        ); 2],
-        [
-            (
-                &cc26x2::gpio::PORT[pinmap.red_led],
-                kernel::hil::gpio::ActivationMode::ActiveHigh
-            ), // Red
-            (
-                &cc26x2::gpio::PORT[pinmap.green_led],
-                kernel::hil::gpio::ActivationMode::ActiveHigh
-            ), // Green
-        ]
-    );
-    let led = static_init!(
-        capsules::led::LED<'static>,
-        capsules::led::LED::new(led_pins)
-    );
+    let led = components::led::LedsComponent::new(components::led_component_helper!(
+        cc26x2::gpio::GPIOPin,
+        (
+            &cc26x2::gpio::PORT[pinmap.red_led],
+            kernel::hil::gpio::ActivationMode::ActiveHigh
+        ), // Red
+        (
+            &cc26x2::gpio::PORT[pinmap.green_led],
+            kernel::hil::gpio::ActivationMode::ActiveHigh
+        ) // Green
+    ))
+    .finalize(components::led_component_buf!(cc26x2::gpio::GPIOPin));
 
     // BUTTONS
-    let button = components::button::ButtonComponent::new(board_kernel).finalize(
+    let button = components::button::ButtonComponent::new(
+        board_kernel,
         components::button_component_helper!(
+            cc26x2::gpio::GPIOPin,
             (
                 &cc26x2::gpio::PORT[pinmap.button1],
                 hil::gpio::ActivationMode::ActiveLow,
@@ -226,7 +219,8 @@ pub unsafe fn reset_handler() {
                 hil::gpio::FloatingState::PullUp
             )
         ),
-    );
+    )
+    .finalize(components::button_component_buf!(cc26x2::gpio::GPIOPin));
 
     // UART
     cc26x2::uart::UART0.initialize();
@@ -257,29 +251,16 @@ pub unsafe fn reset_handler() {
     cc26x2::i2c::I2C0.enable();
 
     // Setup for remaining GPIO pins
-    let gpio_pins = static_init!(
-        [&'static dyn kernel::hil::gpio::InterruptValuePin; 1],
-        [
+    let gpio = components::gpio::GpioComponent::new(
+        board_kernel,
+        components::gpio_component_helper!(
+            cc26x2::gpio::GPIOPin,
             // This is the order they appear on the launchxl headers.
             // Pins 5, 8, 11, 29, 30
-            static_init!(
-                gpio::InterruptValueWrapper,
-                gpio::InterruptValueWrapper::new(&cc26x2::gpio::PORT[pinmap.gpio0])
-            )
-            .finalize()
-        ]
-    );
-    let gpio = static_init!(
-        capsules::gpio::GPIO<'static>,
-        capsules::gpio::GPIO::new(
-            gpio_pins,
-            board_kernel.create_grant(&memory_allocation_capability)
-        )
-    );
-
-    for pin in gpio_pins.iter() {
-        pin.set_client(gpio);
-    }
+            &cc26x2::gpio::PORT[pinmap.gpio0]
+        ),
+    )
+    .finalize(components::gpio_component_buf!(cc26x2::gpio::GPIOPin));
 
     let rtc = &cc26x2::rtc::RTC;
     rtc.start();

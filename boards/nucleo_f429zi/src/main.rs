@@ -50,13 +50,13 @@ pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 struct NucleoF429ZI {
     console: &'static capsules::console::Console<'static>,
     ipc: kernel::ipc::IPC,
-    led: &'static capsules::led::LED<'static>,
-    button: &'static capsules::button::Button<'static>,
+    led: &'static capsules::led::LED<'static, stm32f429zi::gpio::Pin<'static>>,
+    button: &'static capsules::button::Button<'static, stm32f429zi::gpio::Pin<'static>>,
     alarm: &'static capsules::alarm::AlarmDriver<
         'static,
         VirtualMuxAlarm<'static, stm32f429zi::tim2::Tim2<'static>>,
     >,
-    gpio: &'static capsules::gpio::GPIO<'static>,
+    gpio: &'static capsules::gpio::GPIO<'static, stm32f429zi::gpio::Pin<'static>>,
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
@@ -256,7 +256,8 @@ pub unsafe fn reset_handler() {
 
     // Clock to Port A is enabled in `set_pin_primary_functions()`
 
-    let led = components::led::LedsComponent::new().finalize(components::led_component_helper!(
+    let led = components::led::LedsComponent::new(components::led_component_helper!(
+        stm32f429zi::gpio::Pin,
         (
             stm32f429zi::gpio::PinId::PB00.get_pin().as_ref().unwrap(),
             kernel::hil::gpio::ActivationMode::ActiveHigh
@@ -269,16 +270,22 @@ pub unsafe fn reset_handler() {
             stm32f429zi::gpio::PinId::PB14.get_pin().as_ref().unwrap(),
             kernel::hil::gpio::ActivationMode::ActiveHigh
         )
-    ));
+    ))
+    .finalize(components::led_component_buf!(stm32f429zi::gpio::Pin));
 
     // BUTTONs
-    let button = components::button::ButtonComponent::new(board_kernel).finalize(
-        components::button_component_helper!((
-            stm32f429zi::gpio::PinId::PC13.get_pin().as_ref().unwrap(),
-            kernel::hil::gpio::ActivationMode::ActiveLow,
-            kernel::hil::gpio::FloatingState::PullNone
-        )),
-    );
+    let button = components::button::ButtonComponent::new(
+        board_kernel,
+        components::button_component_helper!(
+            stm32f429zi::gpio::Pin,
+            (
+                stm32f429zi::gpio::PinId::PC13.get_pin().as_ref().unwrap(),
+                kernel::hil::gpio::ActivationMode::ActiveLow,
+                kernel::hil::gpio::FloatingState::PullNone
+            )
+        ),
+    )
+    .finalize(components::button_component_buf!(stm32f429zi::gpio::Pin));
 
     // ALARM
 
@@ -291,100 +298,105 @@ pub unsafe fn reset_handler() {
         .finalize(components::alarm_component_helper!(stm32f429zi::tim2::Tim2));
 
     // GPIO
-    let gpio = GpioComponent::new(board_kernel).finalize(components::gpio_component_helper!(
-        // ADC Pins
-        // Enable below to use the ADC pins as GPIO
-        // stm32f429zi::gpio::PIN[0][3].as_ref().unwrap(), //A0
-        // stm32f429zi::gpio::PIN[2][0].as_ref().unwrap(), //A1
-        // stm32f429zi::gpio::PIN[2][3].as_ref().unwrap(), //A2
-        // stm32f429zi::gpio::PIN[5][3].as_ref().unwrap(), //A3
-        // stm32f429zi::gpio::PIN[5][5].as_ref().unwrap(), //A4
-        // stm32f429zi::gpio::PIN[5][10].as_ref().unwrap(), //A5
-        // stm32f429zi::gpio::PIN[1][1].as_ref().unwrap(), //A6
-        // stm32f429zi::gpio::PIN[2][2].as_ref().unwrap(), //A7
-        // stm32f429zi::gpio::PIN[5][4].as_ref().unwrap(), //A8
+    let gpio = GpioComponent::new(
+        board_kernel,
+        components::gpio_component_helper!(
+            stm32f429zi::gpio::Pin,
+            // ADC Pins
+            // Enable the to use the ADC pins as GPIO
+            // stm32f429zi::gpio::PIN[0][3].as_ref().unwrap(), //A0
+            // stm32f429zi::gpio::PIN[2][0].as_ref().unwrap(), //A1
+            // stm32f429zi::gpio::PIN[2][3].as_ref().unwrap(), //A2
+            // stm32f429zi::gpio::PIN[5][3].as_ref().unwrap(), //A3
+            // stm32f429zi::gpio::PIN[5][5].as_ref().unwrap(), //A4
+            // stm32f429zi::gpio::PIN[5][10].as_ref().unwrap(), //A5
+            // stm32f429zi::gpio::PIN[1][1].as_ref().unwrap(), //A6
+            // stm32f429zi::gpio::PIN[2][2].as_ref().unwrap(), //A7
+            // stm32f429zi::gpio::PIN[5][4].as_ref().unwrap(), //A8
 
-        // Arduino like RX/TX
-        stm32f429zi::gpio::PIN[6][9].as_ref().unwrap(), //D0
-        stm32f429zi::gpio::PIN[6][14].as_ref().unwrap(), //D1
-        stm32f429zi::gpio::PIN[5][15].as_ref().unwrap(), //D2
-        stm32f429zi::gpio::PIN[4][13].as_ref().unwrap(), //D3
-        stm32f429zi::gpio::PIN[5][14].as_ref().unwrap(), //D4
-        stm32f429zi::gpio::PIN[4][11].as_ref().unwrap(), //D5
-        stm32f429zi::gpio::PIN[4][9].as_ref().unwrap(), //D6
-        stm32f429zi::gpio::PIN[5][13].as_ref().unwrap(), //D7
-        stm32f429zi::gpio::PIN[5][12].as_ref().unwrap(), //D8
-        stm32f429zi::gpio::PIN[3][15].as_ref().unwrap(), //D9
-        // SPI Pins
-        stm32f429zi::gpio::PIN[3][14].as_ref().unwrap(), //D10
-        stm32f429zi::gpio::PIN[0][7].as_ref().unwrap(),  //D11
-        stm32f429zi::gpio::PIN[0][6].as_ref().unwrap(),  //D12
-        stm32f429zi::gpio::PIN[0][5].as_ref().unwrap(),  //D13
-        // I2C Pins
-        stm32f429zi::gpio::PIN[1][9].as_ref().unwrap(), //D14
-        stm32f429zi::gpio::PIN[1][8].as_ref().unwrap(), //D15
-        stm32f429zi::gpio::PIN[2][6].as_ref().unwrap(), //D16
-        stm32f429zi::gpio::PIN[1][15].as_ref().unwrap(), //D17
-        stm32f429zi::gpio::PIN[1][13].as_ref().unwrap(), //D18
-        stm32f429zi::gpio::PIN[1][12].as_ref().unwrap(), //D19
-        stm32f429zi::gpio::PIN[0][15].as_ref().unwrap(), //D20
-        stm32f429zi::gpio::PIN[2][7].as_ref().unwrap(), //D21
-        // SPI B Pins
-        stm32f429zi::gpio::PIN[1][5].as_ref().unwrap(), //D22
-        stm32f429zi::gpio::PIN[1][3].as_ref().unwrap(), //D23
-        stm32f429zi::gpio::PIN[0][4].as_ref().unwrap(), //D24
-        stm32f429zi::gpio::PIN[1][4].as_ref().unwrap(), //D25
-        // QSPI
-        stm32f429zi::gpio::PIN[1][6].as_ref().unwrap(), //D26
-        stm32f429zi::gpio::PIN[1][2].as_ref().unwrap(), //D27
-        stm32f429zi::gpio::PIN[3][13].as_ref().unwrap(), //D28
-        stm32f429zi::gpio::PIN[3][12].as_ref().unwrap(), //D29
-        stm32f429zi::gpio::PIN[3][11].as_ref().unwrap(), //D30
-        stm32f429zi::gpio::PIN[4][2].as_ref().unwrap(), //D31
-        // Timer Pins
-        stm32f429zi::gpio::PIN[0][0].as_ref().unwrap(), //D32
-        stm32f429zi::gpio::PIN[1][0].as_ref().unwrap(), //D33
-        stm32f429zi::gpio::PIN[4][0].as_ref().unwrap(), //D34
-        stm32f429zi::gpio::PIN[1][11].as_ref().unwrap(), //D35
-        stm32f429zi::gpio::PIN[1][10].as_ref().unwrap(), //D36
-        stm32f429zi::gpio::PIN[4][15].as_ref().unwrap(), //D37
-        stm32f429zi::gpio::PIN[4][14].as_ref().unwrap(), //D38
-        stm32f429zi::gpio::PIN[4][12].as_ref().unwrap(), //D39
-        stm32f429zi::gpio::PIN[4][10].as_ref().unwrap(), //D40
-        stm32f429zi::gpio::PIN[4][7].as_ref().unwrap(), //D41
-        stm32f429zi::gpio::PIN[4][8].as_ref().unwrap(), //D42
-        // SDMMC
-        stm32f429zi::gpio::PIN[2][8].as_ref().unwrap(), //D43
-        stm32f429zi::gpio::PIN[2][9].as_ref().unwrap(), //D44
-        stm32f429zi::gpio::PIN[2][10].as_ref().unwrap(), //D45
-        stm32f429zi::gpio::PIN[2][11].as_ref().unwrap(), //D46
-        stm32f429zi::gpio::PIN[2][12].as_ref().unwrap(), //D47
-        stm32f429zi::gpio::PIN[3][2].as_ref().unwrap(), //D48
-        stm32f429zi::gpio::PIN[6][2].as_ref().unwrap(), //D49
-        stm32f429zi::gpio::PIN[6][3].as_ref().unwrap(), //D50
-        // USART
-        stm32f429zi::gpio::PIN[3][7].as_ref().unwrap(), //D51
-        stm32f429zi::gpio::PIN[3][6].as_ref().unwrap(), //D52
-        stm32f429zi::gpio::PIN[3][5].as_ref().unwrap(), //D53
-        stm32f429zi::gpio::PIN[3][4].as_ref().unwrap(), //D54
-        stm32f429zi::gpio::PIN[3][3].as_ref().unwrap(), //D55
-        stm32f429zi::gpio::PIN[4][2].as_ref().unwrap(), //D56
-        stm32f429zi::gpio::PIN[4][4].as_ref().unwrap(), //D57
-        stm32f429zi::gpio::PIN[4][5].as_ref().unwrap(), //D58
-        stm32f429zi::gpio::PIN[4][6].as_ref().unwrap(), //D59
-        stm32f429zi::gpio::PIN[4][3].as_ref().unwrap(), //D60
-        stm32f429zi::gpio::PIN[5][8].as_ref().unwrap(), //D61
-        stm32f429zi::gpio::PIN[5][7].as_ref().unwrap(), //D62
-        stm32f429zi::gpio::PIN[5][9].as_ref().unwrap(), //D63
-        stm32f429zi::gpio::PIN[6][1].as_ref().unwrap(), //D64
-        stm32f429zi::gpio::PIN[6][0].as_ref().unwrap(), //D65
-        stm32f429zi::gpio::PIN[3][1].as_ref().unwrap(), //D66
-        stm32f429zi::gpio::PIN[3][0].as_ref().unwrap(), //D67
-        stm32f429zi::gpio::PIN[5][0].as_ref().unwrap(), //D68
-        stm32f429zi::gpio::PIN[5][1].as_ref().unwrap(), //D69
-        stm32f429zi::gpio::PIN[5][2].as_ref().unwrap(), //D70
-        stm32f429zi::gpio::PIN[0][7].as_ref().unwrap()  //D71
-    ));
+            // Arduino like RX/TX
+            stm32f429zi::gpio::PIN[6][9].as_ref().unwrap(), //D0
+            stm32f429zi::gpio::PIN[6][14].as_ref().unwrap(), //D1
+            stm32f429zi::gpio::PIN[5][15].as_ref().unwrap(), //D2
+            stm32f429zi::gpio::PIN[4][13].as_ref().unwrap(), //D3
+            stm32f429zi::gpio::PIN[5][14].as_ref().unwrap(), //D4
+            stm32f429zi::gpio::PIN[4][11].as_ref().unwrap(), //D5
+            stm32f429zi::gpio::PIN[4][9].as_ref().unwrap(), //D6
+            stm32f429zi::gpio::PIN[5][13].as_ref().unwrap(), //D7
+            stm32f429zi::gpio::PIN[5][12].as_ref().unwrap(), //D8
+            stm32f429zi::gpio::PIN[3][15].as_ref().unwrap(), //D9
+            // SPI Pins
+            stm32f429zi::gpio::PIN[3][14].as_ref().unwrap(), //D10
+            stm32f429zi::gpio::PIN[0][7].as_ref().unwrap(),  //D11
+            stm32f429zi::gpio::PIN[0][6].as_ref().unwrap(),  //D12
+            stm32f429zi::gpio::PIN[0][5].as_ref().unwrap(),  //D13
+            // I2C Pins
+            stm32f429zi::gpio::PIN[1][9].as_ref().unwrap(), //D14
+            stm32f429zi::gpio::PIN[1][8].as_ref().unwrap(), //D15
+            stm32f429zi::gpio::PIN[2][6].as_ref().unwrap(), //D16
+            stm32f429zi::gpio::PIN[1][15].as_ref().unwrap(), //D17
+            stm32f429zi::gpio::PIN[1][13].as_ref().unwrap(), //D18
+            stm32f429zi::gpio::PIN[1][12].as_ref().unwrap(), //D19
+            stm32f429zi::gpio::PIN[0][15].as_ref().unwrap(), //D20
+            stm32f429zi::gpio::PIN[2][7].as_ref().unwrap(), //D21
+            // SPI B Pins
+            stm32f429zi::gpio::PIN[1][5].as_ref().unwrap(), //D22
+            stm32f429zi::gpio::PIN[1][3].as_ref().unwrap(), //D23
+            stm32f429zi::gpio::PIN[0][4].as_ref().unwrap(), //D24
+            stm32f429zi::gpio::PIN[1][4].as_ref().unwrap(), //D25
+            // QSPI
+            stm32f429zi::gpio::PIN[1][6].as_ref().unwrap(), //D26
+            stm32f429zi::gpio::PIN[1][2].as_ref().unwrap(), //D27
+            stm32f429zi::gpio::PIN[3][13].as_ref().unwrap(), //D28
+            stm32f429zi::gpio::PIN[3][12].as_ref().unwrap(), //D29
+            stm32f429zi::gpio::PIN[3][11].as_ref().unwrap(), //D30
+            stm32f429zi::gpio::PIN[4][2].as_ref().unwrap(), //D31
+            // Timer Pins
+            stm32f429zi::gpio::PIN[0][0].as_ref().unwrap(), //D32
+            stm32f429zi::gpio::PIN[1][0].as_ref().unwrap(), //D33
+            stm32f429zi::gpio::PIN[4][0].as_ref().unwrap(), //D34
+            stm32f429zi::gpio::PIN[1][11].as_ref().unwrap(), //D35
+            stm32f429zi::gpio::PIN[1][10].as_ref().unwrap(), //D36
+            stm32f429zi::gpio::PIN[4][15].as_ref().unwrap(), //D37
+            stm32f429zi::gpio::PIN[4][14].as_ref().unwrap(), //D38
+            stm32f429zi::gpio::PIN[4][12].as_ref().unwrap(), //D39
+            stm32f429zi::gpio::PIN[4][10].as_ref().unwrap(), //D40
+            stm32f429zi::gpio::PIN[4][7].as_ref().unwrap(), //D41
+            stm32f429zi::gpio::PIN[4][8].as_ref().unwrap(), //D42
+            // SDMMC
+            stm32f429zi::gpio::PIN[2][8].as_ref().unwrap(), //D43
+            stm32f429zi::gpio::PIN[2][9].as_ref().unwrap(), //D44
+            stm32f429zi::gpio::PIN[2][10].as_ref().unwrap(), //D45
+            stm32f429zi::gpio::PIN[2][11].as_ref().unwrap(), //D46
+            stm32f429zi::gpio::PIN[2][12].as_ref().unwrap(), //D47
+            stm32f429zi::gpio::PIN[3][2].as_ref().unwrap(), //D48
+            stm32f429zi::gpio::PIN[6][2].as_ref().unwrap(), //D49
+            stm32f429zi::gpio::PIN[6][3].as_ref().unwrap(), //D50
+            // USART
+            stm32f429zi::gpio::PIN[3][7].as_ref().unwrap(), //D51
+            stm32f429zi::gpio::PIN[3][6].as_ref().unwrap(), //D52
+            stm32f429zi::gpio::PIN[3][5].as_ref().unwrap(), //D53
+            stm32f429zi::gpio::PIN[3][4].as_ref().unwrap(), //D54
+            stm32f429zi::gpio::PIN[3][3].as_ref().unwrap(), //D55
+            stm32f429zi::gpio::PIN[4][2].as_ref().unwrap(), //D56
+            stm32f429zi::gpio::PIN[4][4].as_ref().unwrap(), //D57
+            stm32f429zi::gpio::PIN[4][5].as_ref().unwrap(), //D58
+            stm32f429zi::gpio::PIN[4][6].as_ref().unwrap(), //D59
+            stm32f429zi::gpio::PIN[4][3].as_ref().unwrap(), //D60
+            stm32f429zi::gpio::PIN[5][8].as_ref().unwrap(), //D61
+            stm32f429zi::gpio::PIN[5][7].as_ref().unwrap(), //D62
+            stm32f429zi::gpio::PIN[5][9].as_ref().unwrap(), //D63
+            stm32f429zi::gpio::PIN[6][1].as_ref().unwrap(), //D64
+            stm32f429zi::gpio::PIN[6][0].as_ref().unwrap(), //D65
+            stm32f429zi::gpio::PIN[3][1].as_ref().unwrap(), //D66
+            stm32f429zi::gpio::PIN[3][0].as_ref().unwrap(), //D67
+            stm32f429zi::gpio::PIN[5][0].as_ref().unwrap(), //D68
+            stm32f429zi::gpio::PIN[5][1].as_ref().unwrap(), //D69
+            stm32f429zi::gpio::PIN[5][2].as_ref().unwrap(), //D70
+            stm32f429zi::gpio::PIN[0][7].as_ref().unwrap()  //D71
+        ),
+    )
+    .finalize(components::gpio_component_buf!(stm32f429zi::gpio::Pin));
 
     let nucleo_f429zi = NucleoF429ZI {
         console: console,

@@ -3,7 +3,8 @@
 use core::ops::{Index, IndexMut};
 
 use kernel::common::StaticRef;
-use lowrisc::gpio::{pins, GpioPin, GpioRegisters};
+pub use lowrisc::gpio::GpioPin;
+use lowrisc::gpio::{pins, GpioRegisters};
 
 const GPIO0_BASE: StaticRef<GpioRegisters> =
     unsafe { StaticRef::new(0x4001_0000 as *const GpioRegisters) };

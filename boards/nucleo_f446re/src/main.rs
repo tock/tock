@@ -55,8 +55,8 @@ pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 struct NucleoF446RE {
     console: &'static capsules::console::Console<'static>,
     ipc: kernel::ipc::IPC,
-    led: &'static capsules::led::LED<'static>,
-    button: &'static capsules::button::Button<'static>,
+    led: &'static capsules::led::LED<'static, stm32f446re::gpio::Pin<'static>>,
+    button: &'static capsules::button::Button<'static, stm32f446re::gpio::Pin<'static>>,
     alarm: &'static capsules::alarm::AlarmDriver<
         'static,
         VirtualMuxAlarm<'static, stm32f446re::tim2::Tim2<'static>>,
@@ -247,19 +247,28 @@ pub unsafe fn reset_handler() {
     // LEDs
 
     // Clock to Port A is enabled in `set_pin_primary_functions()`
-    let led = components::led::LedsComponent::new().finalize(components::led_component_helper!((
-        stm32f446re::gpio::PinId::PA05.get_pin().as_ref().unwrap(),
-        kernel::hil::gpio::ActivationMode::ActiveHigh
-    )));
+    let led = components::led::LedsComponent::new(components::led_component_helper!(
+        stm32f446re::gpio::Pin,
+        (
+            stm32f446re::gpio::PinId::PA05.get_pin().as_ref().unwrap(),
+            kernel::hil::gpio::ActivationMode::ActiveHigh
+        )
+    ))
+    .finalize(components::led_component_buf!(stm32f446re::gpio::Pin));
 
     // BUTTONs
-    let button = components::button::ButtonComponent::new(board_kernel).finalize(
-        components::button_component_helper!((
-            stm32f446re::gpio::PinId::PC13.get_pin().as_ref().unwrap(),
-            kernel::hil::gpio::ActivationMode::ActiveLow,
-            kernel::hil::gpio::FloatingState::PullNone
-        )),
-    );
+    let button = components::button::ButtonComponent::new(
+        board_kernel,
+        components::button_component_helper!(
+            stm32f446re::gpio::Pin,
+            (
+                stm32f446re::gpio::PinId::PC13.get_pin().as_ref().unwrap(),
+                kernel::hil::gpio::ActivationMode::ActiveLow,
+                kernel::hil::gpio::FloatingState::PullNone
+            )
+        ),
+    )
+    .finalize(components::button_component_buf!(stm32f446re::gpio::Pin));
 
     // ALARM
     let tim2 = &stm32f446re::tim2::TIM2;

@@ -49,8 +49,8 @@ pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 /// A structure representing this platform that holds references to all
 /// capsules for this platform. We've included an alarm and console.
 struct OpenTitan {
-    led: &'static capsules::led::LED<'static>,
-    gpio: &'static capsules::gpio::GPIO<'static>,
+    led: &'static capsules::led::LED<'static, ibex::gpio::GpioPin>,
+    gpio: &'static capsules::gpio::GPIO<'static, ibex::gpio::GpioPin>,
     console: &'static capsules::console::Console<'static>,
     alarm: &'static capsules::alarm::AlarmDriver<
         'static,
@@ -140,7 +140,8 @@ pub unsafe fn reset_handler() {
 
     // LEDs
     // Start with half on and half off
-    let led = components::led::LedsComponent::new().finalize(components::led_component_helper!(
+    let led = components::led::LedsComponent::new(components::led_component_helper!(
+        ibex::gpio::GpioPin,
         (
             &ibex::gpio::PORT[8],
             kernel::hil::gpio::ActivationMode::ActiveHigh
@@ -173,10 +174,13 @@ pub unsafe fn reset_handler() {
             &ibex::gpio::PORT[15],
             kernel::hil::gpio::ActivationMode::ActiveHigh
         )
-    ));
+    ))
+    .finalize(components::led_component_buf!(ibex::gpio::GpioPin));
 
-    let gpio = components::gpio::GpioComponent::new(board_kernel).finalize(
+    let gpio = components::gpio::GpioComponent::new(
+        board_kernel,
         components::gpio_component_helper!(
+            ibex::gpio::GpioPin,
             &ibex::gpio::PORT[0],
             &ibex::gpio::PORT[1],
             &ibex::gpio::PORT[2],
@@ -186,7 +190,8 @@ pub unsafe fn reset_handler() {
             &ibex::gpio::PORT[6],
             &ibex::gpio::PORT[15]
         ),
-    );
+    )
+    .finalize(components::gpio_component_buf!(ibex::gpio::GpioPin));
 
     let alarm = &ibex::timer::TIMER;
     alarm.setup();

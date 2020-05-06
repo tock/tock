@@ -50,7 +50,7 @@ pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 /// capsules for this platform.
 struct Hail {
     console: &'static capsules::console::Console<'static>,
-    gpio: &'static capsules::gpio::GPIO<'static>,
+    gpio: &'static capsules::gpio::GPIO<'static, sam4l::gpio::GPIOPin>,
     alarm: &'static capsules::alarm::AlarmDriver<
         'static,
         VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>,
@@ -62,8 +62,8 @@ struct Hail {
     spi: &'static capsules::spi::Spi<'static, VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw>>,
     nrf51822: &'static capsules::nrf51822_serialization::Nrf51822Serialization<'static>,
     adc: &'static capsules::adc::Adc<'static, sam4l::adc::Adc>,
-    led: &'static capsules::led::LED<'static>,
-    button: &'static capsules::button::Button<'static>,
+    led: &'static capsules::led::LED<'static, sam4l::gpio::GPIOPin>,
+    button: &'static capsules::button::Button<'static, sam4l::gpio::GPIOPin>,
     rng: &'static capsules::rng::RngDriver<'static>,
     ipc: kernel::ipc::IPC,
     crc: &'static capsules::crc::Crc<'static, sam4l::crccu::Crccu<'static>>,
@@ -299,7 +299,8 @@ pub unsafe fn reset_handler() {
         .finalize(components::spi_syscall_component_helper!(sam4l::spi::SpiHw));
 
     // LEDs
-    let led = components::led::LedsComponent::new().finalize(components::led_component_helper!(
+    let led = components::led::LedsComponent::new(components::led_component_helper!(
+        sam4l::gpio::GPIOPin,
         (
             &sam4l::gpio::PA[13],
             kernel::hil::gpio::ActivationMode::ActiveLow
@@ -312,16 +313,22 @@ pub unsafe fn reset_handler() {
             &sam4l::gpio::PA[14],
             kernel::hil::gpio::ActivationMode::ActiveLow
         ) // Blue
-    ));
+    ))
+    .finalize(components::led_component_buf!(sam4l::gpio::GPIOPin));
 
     // BUTTONs
-    let button = components::button::ButtonComponent::new(board_kernel).finalize(
-        components::button_component_helper!((
-            &sam4l::gpio::PA[16],
-            kernel::hil::gpio::ActivationMode::ActiveLow,
-            kernel::hil::gpio::FloatingState::PullNone
-        )),
-    );
+    let button = components::button::ButtonComponent::new(
+        board_kernel,
+        components::button_component_helper!(
+            sam4l::gpio::GPIOPin,
+            (
+                &sam4l::gpio::PA[16],
+                kernel::hil::gpio::ActivationMode::ActiveLow,
+                kernel::hil::gpio::FloatingState::PullNone
+            )
+        ),
+    )
+    .finalize(components::button_component_buf!(sam4l::gpio::GPIOPin));
 
     // Setup ADC
     let adc_channels = static_init!(
@@ -352,14 +359,17 @@ pub unsafe fn reset_handler() {
     let rng = components::rng::RngComponent::new(board_kernel, &sam4l::trng::TRNG).finalize(());
 
     // set GPIO driver controlling remaining GPIO pins
-    let gpio = components::gpio::GpioComponent::new(board_kernel).finalize(
+    let gpio = components::gpio::GpioComponent::new(
+        board_kernel,
         components::gpio_component_helper!(
-            &sam4l::gpio::PB[14], // D0
-            &sam4l::gpio::PB[15], // D1
-            &sam4l::gpio::PB[11], // D6
-            &sam4l::gpio::PB[12]  // D7
+            sam4l::gpio::GPIOPin,
+            &sam4l::gpio::PC[14], // D0
+            &sam4l::gpio::PC[15], // D1
+            &sam4l::gpio::PC[11], // D6
+            &sam4l::gpio::PC[12]  // D7
         ),
-    );
+    )
+    .finalize(components::gpio_component_buf!(sam4l::gpio::GPIOPin));
 
     // CRC
     let crc = components::crc::CrcComponent::new(board_kernel, &sam4l::crccu::CRCCU)
