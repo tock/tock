@@ -222,10 +222,7 @@ emulation-setup:
 .PHONY: emulation-check
 emulation-check: emulation-setup
 	@$(MAKE) -C "boards/hifive1"
-	$(eval TMPFILE := $(shell mktemp))
-	@PATH="${PATH}:../../tools/qemu/riscv32-softmmu/" timeout --foreground 10s $(MAKE) qemu -C "boards/hifive1" | tee $(TMPFILE) > /dev/null
-	grep "Entering main loop" $(TMPFILE) > /dev/null;
-	rm "$(TMPFILE)"
+	@cd tools/qemu-runner; PATH="$(shell pwd)/tools/qemu/riscv32-softmmu/:${PATH}" cargo run
 
 .PHONY: clean
 clean:
