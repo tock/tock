@@ -670,12 +670,11 @@ impl<'a, A: Alarm<'a>> HD44780<'a, A> {
             // debug!("current_len from check_buffer {}", current_len);
         }
         if current_len >= BUFSIZE {
-            return BUFFER_FULL;
-        }
-        if current_len + to_check > BUFSIZE {
-            return (BUFSIZE - current_len) as i16;
+            BUFFER_FULL
+        } else if current_len + to_check > BUFSIZE {
+            (BUFSIZE - current_len) as i16
         } else {
-            return to_check as i16;
+            to_check as i16
         }
     }
 }
@@ -1025,7 +1024,7 @@ impl<'a, A: Alarm<'a>> Driver for HD44780<'a, A> {
         _callback: Option<Callback>,
         _app_id: AppId,
     ) -> ReturnCode {
-        return ReturnCode::ENOSUPPORT;
+        ReturnCode::ENOSUPPORT
     }
 }
 

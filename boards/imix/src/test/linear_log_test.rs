@@ -44,7 +44,7 @@ pub unsafe fn run(
         Log,
         log::Log::new(
             &LINEAR_TEST_LOG,
-            &mut flashcalw::FLASH_CONTROLLER,
+            &flashcalw::FLASH_CONTROLLER,
             &mut PAGEBUFFER,
             deferred_caller,
             false
