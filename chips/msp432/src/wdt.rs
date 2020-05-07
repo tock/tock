@@ -1,12 +1,10 @@
-use core;
-use core::cell::Cell;
-use core::cmp::min;
-use kernel::common::cells::OptionalCell;
-use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
+use kernel::common::registers::{register_bitfields, ReadWrite};
 use kernel::common::StaticRef;
-use kernel::debug;
 use kernel::hil::watchdog;
-use kernel::ReturnCode;
+
+/// every write access has to set this 'password' in the upper 8 bit of the
+/// register, otherwise the watchdog resets the whole system
+const PASSWORD: u16 = 0x5A00;
 
 const WATCHDOG_BASE: StaticRef<WatchdogRegisters> =
     unsafe { StaticRef::new(0x4000_480C as *const WatchdogRegisters) };
@@ -15,16 +13,22 @@ pub static mut WATCHDOG: Watchdog = Watchdog::new();
 
 #[repr(C)]
 struct WatchdogRegisters {
-    ctl: ReadWrite<u32, WDTCTL::Register>,
+    ctl: ReadWrite<u16, WDTCTL::Register>,
 }
 
-register_bitfields! [u32,
+register_bitfields! [u16,
     WDTCTL [
+        // Watchdog timer interval selection
         WDTIS OFFSET(0) NUMBITS(3),
+        // Watchdog timer counter clear
         WDTCNTCL OFFSET(3) NUMBITS(1),
+        // Watchdog timer mode select
         WDTTMSEL OFFSET(4) NUMBITS(1),
+        // Watchdog timer clock source select
         WDTSSEL OFFSET(5) NUMBITS(2),
+        // Watchdog timer hold -> enable/disable
         WDTHOLD OFFSET(7) NUMBITS(1),
+        // Watchdog timer password
         WDTPW OFFSET(8) NUMBITS(8)
     ]
 ];
@@ -44,18 +48,20 @@ impl Watchdog {
 impl watchdog::Watchdog for Watchdog {
     fn start(&self, period: usize) {
         // TODO: implement the period for the watchdog
-        let regs = &*self.registers;
-        regs.ctl.modify(WDTCTL::WDTTMSEL.val(0)); // set to watchdog mode
-        regs.ctl.modify(WDTCTL::WDTHOLD.val(0)); // enable watchdog
+        self.registers
+            .ctl
+            .modify(WDTCTL::WDTPW.val(PASSWORD) + WDTCTL::WDTHOLD::CLEAR);
     }
 
     fn stop(&self) {
-        let regs = &*self.registers;
-        regs.ctl.modify(WDTCTL::WDTHOLD.val(1));
+        self.registers
+            .ctl
+            .modify(WDTCTL::WDTPW.val(PASSWORD) + WDTCTL::WDTHOLD::SET + WDTCTL::WDTCNTCL::SET);
     }
 
     fn tickle(&self) {
-        let regs = &*self.registers;
-        regs.ctl.modify(WDTCTL::WDTCNTCL.val(1));
+        self.registers
+            .ctl
+            .modify(WDTCTL::WDTPW.val(PASSWORD) + WDTCTL::WDTCNTCL::SET);
     }
 }
