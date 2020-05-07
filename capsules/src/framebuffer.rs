@@ -16,9 +16,12 @@
 //! hil::sensors::NineDof::set_client(fxos8700, ninedof);
 //! ```
 
+use core::cell::Cell;
+use enum_primitive::cast::FromPrimitive;
 use kernel::common::cells::OptionalCell;
 use kernel::debug;
 use kernel::hil;
+use kernel::hil::framebuffer::ScreenRotation;
 use kernel::ReturnCode;
 use kernel::{AppId, AppSlice, Callback, Driver, Grant, Shared};
 
@@ -29,8 +32,29 @@ pub const DRIVER_NUM: usize = driver::NUM::Framebuffer as usize;
 #[derive(Clone, Copy, PartialEq)]
 enum FramebufferCommand {
     Nop,
+    On,
+    Off,
+    GetResolutionModes,
+    GetResolutionSize,
+    GetColorDepthModes,
+    GetColorDepthBits,
+    GetRotation,
+    SetRotation,
+    GetResolution,
+    SetResolution,
+    GetColorDepth,
+    SetColorDepth,
     Write,
-    Fill
+    Fill,
+}
+
+fn pixels_in_bytes(pixels: usize, color_depth: usize) -> usize {
+    let bytes = pixels * color_depth / 8;
+    if pixels * color_depth % 8 != 0 {
+        bytes + 1
+    } else {
+        bytes
+    }
 }
 
 pub struct App {
@@ -45,7 +69,7 @@ pub struct App {
     width: usize,
     height: usize,
     data1: usize,
-    data2: usize
+    data2: usize,
 }
 
 impl Default for App {
@@ -62,7 +86,7 @@ impl Default for App {
             width: 0,
             height: 0,
             write_len: 0,
-            write_position: 0
+            write_position: 0,
         }
     }
 }
@@ -71,6 +95,7 @@ pub struct Framebuffer<'a> {
     screen: &'a dyn hil::framebuffer::Screen,
     apps: Grant<App>,
     current_app: OptionalCell<AppId>,
+    depth: Cell<usize>,
 }
 
 impl Framebuffer<'a> {
@@ -79,6 +104,7 @@ impl Framebuffer<'a> {
             screen: screen,
             apps: grant,
             current_app: OptionalCell::empty(),
+            depth: Cell::new(screen.get_color_depth()),
         }
     }
 
@@ -114,143 +140,103 @@ impl Framebuffer<'a> {
             .unwrap_or_else(|err| err.into())
     }
 
-    fn call_screen(&self, command: FramebufferCommand, data1: usize, data2: usize, appid:AppId) -> ReturnCode {
+    fn call_screen(
+        &self,
+        command: FramebufferCommand,
+        data1: usize,
+        data2: usize,
+        appid: AppId,
+    ) -> ReturnCode {
         match command {
-            FramebufferCommand::Fill => {
-                self
+            FramebufferCommand::On => self.screen.on(),
+            FramebufferCommand::Off => self.screen.off(),
+            FramebufferCommand::SetRotation => self
+                .screen
+                .set_rotation(ScreenRotation::from_usize(data1).unwrap_or(ScreenRotation::Normal)),
+            FramebufferCommand::GetRotation => {
+                let rotation = self.screen.get_rotation();
+                self.run_next_command(usize::from(ReturnCode::SUCCESS), usize::from(rotation), 0);
+                ReturnCode::SUCCESS
+            }
+            FramebufferCommand::SetResolution => self.screen.set_resolution(data1, data2),
+            FramebufferCommand::GetResolution => {
+                let (width, height) = self.screen.get_resolution();
+                self.run_next_command(usize::from(ReturnCode::SUCCESS), width, height);
+                ReturnCode::SUCCESS
+            }
+            FramebufferCommand::SetColorDepth => self.screen.set_color_depth(data1),
+            FramebufferCommand::GetColorDepth => {
+                let color_depth = self.screen.get_color_depth();
+                self.run_next_command(usize::from(ReturnCode::SUCCESS), color_depth, 0);
+                ReturnCode::SUCCESS
+            }
+            FramebufferCommand::GetResolutionModes => {
+                let resolution_modes = self.screen.get_resolution_modes();
+                self.run_next_command(usize::from(ReturnCode::SUCCESS), resolution_modes, 0);
+                ReturnCode::SUCCESS
+            }
+            FramebufferCommand::GetResolutionSize => {
+                let (width, height) = self.screen.get_resolution_size(data1);
+                self.run_next_command(
+                    usize::from(if width > 0 && height > 0 {
+                        ReturnCode::SUCCESS
+                    } else {
+                        ReturnCode::EINVAL
+                    }),
+                    width,
+                    height,
+                );
+                ReturnCode::SUCCESS
+            }
+            FramebufferCommand::GetColorDepthModes => {
+                let color_modes = self.screen.get_color_depth_modes();
+                self.run_next_command(usize::from(ReturnCode::SUCCESS), color_modes, 0);
+                ReturnCode::SUCCESS
+            }
+            FramebufferCommand::GetColorDepthBits => {
+                let color_depth = self.screen.get_color_depth_bits(data1);
+                self.run_next_command(usize::from(ReturnCode::SUCCESS), color_depth, 0);
+                ReturnCode::SUCCESS
+            }
+            FramebufferCommand::Fill => self
                 .apps
                 .enter(appid, |app, _| {
                     if app.shared.is_some() {
                         app.write_position = 0;
-                        app.write_len = app.width * app.height * 2;
-                        debug!("fill len {}", data1);
-                        self.screen.write_slice (app.x, app.y, app.width, app.height)
-                    }
-                    else
-                    {
+                        app.write_len = pixels_in_bytes(app.width * app.height, self.depth.get());
+                        self.screen.write(app.x, app.y, app.width, app.height)
+                    } else {
                         ReturnCode::ENOMEM
                     }
                 })
-                .unwrap_or_else(|err| err.into())
-            }
-            FramebufferCommand::Write => {
-                self
+                .unwrap_or_else(|err| err.into()),
+            FramebufferCommand::Write => self
                 .apps
                 .enter(appid, |app, _| {
-                    if app.shared.is_some() {
+                    let len = if let Some(ref shared) = app.shared {
+                        shared.len()
+                    } else {
+                        0
+                    };
+                    if len > 0 {
                         app.write_position = 0;
-                        app.write_len = data1;
-                        debug!("write len {}", data1);
-                        self.screen.write_slice (app.x, app.y, app.width, app.height)
-                    }
-                    else
-                    {
+                        app.write_len = len;
+                        self.screen.write(app.x, app.y, app.width, app.height)
+                    } else {
                         ReturnCode::ENOMEM
                     }
                 })
-                .unwrap_or_else(|err| err.into())
-            }
+                .unwrap_or_else(|err| err.into()),
             _ => ReturnCode::ENOSUPPORT,
         }
     }
-}
 
-impl hil::framebuffer::ScreenClient for Framebuffer<'a> {
-    fn fill_buffer_for_write_slice (&self, buffer:&'b mut [u8]) -> usize {
-        self.current_app.map_or_else (|| 0, |appid| {
-            self.apps.enter (*appid, |app, _| {
-                let position = app.write_position;
-                debug! ("fill buffer {}", position);
-                let mut len = app.write_len;
-                debug! ("fill len {}", len);
-                if position < len {
-                    debug! ("position < len");
-                    let buffer_size = buffer.len ();
-                    if app.command == FramebufferCommand::Write {
-                        debug! ("command write");
-                        if let Some (ref mut s) = app.shared {
-                            debug! ("shared");
-                            let mut chunks = s.chunks (buffer_size);
-                            let chunk_number = position / buffer_size;
-                            let initial_pos = chunk_number*buffer_size;
-                            
-                            let mut pos = initial_pos;
-                            if let Some (chunk) = chunks.nth (chunk_number) {
-                                for (i, byte) in chunk.iter().enumerate() {
-                                    if pos < len {
-                                        buffer[i] = *byte;
-                                        pos = pos + 1
-                                    }
-                                    else
-                                    {
-                                        break;
-                                    }
-                                }
-                                app.write_position = pos;
-                                app.write_len - initial_pos
-                            }
-                            else
-                            {
-                                // stop writing
-                                0
-                            }
-                        }
-                        else
-                        {
-                            // TODO should panic or report an error?
-                            panic! ("framebuffer has no slice to send");
-                        }
-                    }
-                    else if app.command == FramebufferCommand::Fill {
-                        // TODO bytes per pixel
-                        len = len - position;
-                        let bytes_per_pixel = 2;
-                        let mut write_len = buffer_size / bytes_per_pixel;
-                        if write_len > len { write_len = len };
-                        if let Some (ref mut s) = app.shared {
-                            let mut bytes = s.iter ();
-                            // bytes per pixel
-                            for i in 0..2 {
-                                if let Some (byte) = bytes.next() {
-                                    buffer[i] = *byte;
-                                }
-                            }
-                            for i in 1..write_len {
-                                // bytes per pixel
-                                for j in 0..2 {
-                                    buffer[2*i+j] = buffer[j]
-                                }
-                            }
-                        }
-                        else
-                        {
-                            // TODO should panic or report an error?
-                            panic! ("framebuffer has no slice to send");
-                        }
-                        app.write_position = app.write_position + write_len*2;
-                        write_len*2
-                    }
-                    else
-                    {
-                        // unknown command
-                        // stop writing
-                        debug! ("unknown command");
-                        0
-                    }
-                }
-                else {
-                    0
-                }
-            }).unwrap_or_else(|err| 0)
-        })
-    }
-    fn write_complete(&self, buffer: Option<&'static mut [u8]>, _r: ReturnCode) {
-        debug! ("write complete");
+    fn run_next_command(&self, data1: usize, data2: usize, data3: usize) {
         self.current_app.take().map(|appid| {
             let _ = self.apps.enter(appid, |app, _| {
                 app.pending_command = false;
                 app.callback.map(|mut cb| {
-                    cb.schedule(0, 0, 0);
+                    cb.schedule(data1, data2, data3);
                 });
             });
         });
@@ -261,7 +247,8 @@ impl hil::framebuffer::ScreenClient for Framebuffer<'a> {
                 if app.pending_command {
                     app.pending_command = false;
                     self.current_app.set(app.appid());
-                    self.call_screen(app.command, app.data1, app.data2, app.appid()) == ReturnCode::SUCCESS
+                    self.call_screen(app.command, app.data1, app.data2, app.appid())
+                        == ReturnCode::SUCCESS
                 } else {
                     false
                 }
@@ -270,6 +257,89 @@ impl hil::framebuffer::ScreenClient for Framebuffer<'a> {
                 break;
             }
         }
+    }
+}
+
+impl hil::framebuffer::ScreenClient for Framebuffer<'a> {
+    fn fill_next_buffer_for_write(&self, buffer: &'b mut [u8]) -> usize {
+        self.current_app.map_or_else(
+            || 0,
+            |appid| {
+                self.apps
+                    .enter(*appid, |app, _| {
+                        let position = app.write_position;
+                        let mut len = app.write_len;
+                        if position < len {
+                            let buffer_size = buffer.len();
+                            if app.command == FramebufferCommand::Write {
+                                if let Some(ref mut s) = app.shared {
+                                    let mut chunks = s.chunks(buffer_size);
+                                    let chunk_number = position / buffer_size;
+                                    let initial_pos = chunk_number * buffer_size;
+
+                                    let mut pos = initial_pos;
+                                    if let Some(chunk) = chunks.nth(chunk_number) {
+                                        for (i, byte) in chunk.iter().enumerate() {
+                                            if pos < len {
+                                                buffer[i] = *byte;
+                                                pos = pos + 1
+                                            } else {
+                                                break;
+                                            }
+                                        }
+                                        app.write_position = pos;
+                                        app.write_len - initial_pos
+                                    } else {
+                                        // stop writing
+                                        0
+                                    }
+                                } else {
+                                    // TODO should panic or report an error?
+                                    panic!("framebuffer has no slice to send");
+                                }
+                            } else if app.command == FramebufferCommand::Fill {
+                                // TODO bytes per pixel
+                                len = len - position;
+                                let bytes_per_pixel = pixels_in_bytes(1, self.depth.get());
+                                let mut write_len = buffer_size / bytes_per_pixel;
+                                if write_len > len {
+                                    write_len = len
+                                };
+                                if let Some(ref mut s) = app.shared {
+                                    let mut bytes = s.iter();
+                                    // bytes per pixel
+                                    for i in 0..bytes_per_pixel {
+                                        if let Some(byte) = bytes.next() {
+                                            buffer[i] = *byte;
+                                        }
+                                    }
+                                    for i in 1..write_len {
+                                        // bytes per pixel
+                                        for j in 0..bytes_per_pixel {
+                                            buffer[bytes_per_pixel * i + j] = buffer[j]
+                                        }
+                                    }
+                                } else {
+                                    // TODO should panic or report an error?
+                                    panic!("framebuffer has no slice to send");
+                                }
+                                app.write_position = app.write_position + write_len * 2;
+                                write_len * 2
+                            } else {
+                                // unknown command
+                                // stop writing
+                                0
+                            }
+                        } else {
+                            0
+                        }
+                    })
+                    .unwrap_or_else(|_| 0)
+            },
+        )
+    }
+    fn command_complete(&self, r: ReturnCode) {
+        self.run_next_command(usize::from(r), 0, 0);
     }
 }
 
@@ -300,9 +370,38 @@ impl Driver for Framebuffer<'a> {
                 ReturnCode::SUCCESS
             }
 
-            // Set Window
-            100 => {
-                self
+            // On
+            1 => self.enqueue_command(FramebufferCommand::On, 0, 0, appid),
+            // Off
+            2 => self.enqueue_command(FramebufferCommand::Off, 0, 0, appid),
+
+            // Get Resolution Modes Number
+            11 => self.enqueue_command(FramebufferCommand::GetResolutionModes, 0, 0, appid),
+            // Get Resolution Mode Width and Height
+            12 => self.enqueue_command(FramebufferCommand::GetResolutionSize, data1, 0, appid),
+
+            // Get Color Depth Modes Number
+            13 => self.enqueue_command(FramebufferCommand::GetColorDepthModes, 0, 0, appid),
+            // Get Color Depth Mode Bits per Pixel
+            14 => self.enqueue_command(FramebufferCommand::GetColorDepthBits, data1, 0, appid),
+
+            // Get Rotation
+            21 => self.enqueue_command(FramebufferCommand::GetRotation, 0, 0, appid),
+            // Set Rotation
+            22 => self.enqueue_command(FramebufferCommand::SetRotation, data1, 0, appid),
+
+            // Get Resolution
+            23 => self.enqueue_command(FramebufferCommand::GetResolution, 0, 0, appid),
+            // Set Resolution
+            24 => self.enqueue_command(FramebufferCommand::SetResolution, data1, data2, appid),
+
+            // Get Color Depth
+            25 => self.enqueue_command(FramebufferCommand::GetColorDepth, 0, 0, appid),
+            // Set Color Depth
+            26 => self.enqueue_command(FramebufferCommand::SetResolution, data1, 0, appid),
+
+            // Set Write Window
+            100 => self
                 .apps
                 .enter(appid, |app, _| {
                     app.write_position = 0;
@@ -310,16 +409,13 @@ impl Driver for Framebuffer<'a> {
                     app.y = data1 & 0xFFFF;
                     app.width = (data2 >> 16) & 0xFFFF;
                     app.height = data2 & 0xFFFF;
-                    debug!("x {} y {} width {} height {}", app.x, app.y, app.width, app.height);
                     ReturnCode::SUCCESS
                 })
-                .unwrap_or_else(|err| err.into())
-            }
+                .unwrap_or_else(|err| err.into()),
             // Write
-            200 => self.enqueue_command (FramebufferCommand::Write, data1, data2, appid),
-            
+            200 => self.enqueue_command(FramebufferCommand::Write, data1, data2, appid),
             // Fill
-            300 => self.enqueue_command (FramebufferCommand::Fill, data1, data2, appid),
+            300 => self.enqueue_command(FramebufferCommand::Fill, data1, data2, appid),
 
             _ => ReturnCode::ENOSUPPORT,
         }
@@ -336,9 +432,16 @@ impl Driver for Framebuffer<'a> {
             0 => self
                 .apps
                 .enter(appid, |app, _| {
-                    app.shared = slice;
-                    app.write_position = 0;
-                    ReturnCode::SUCCESS
+                    let depth = pixels_in_bytes(1, self.screen.get_color_depth());
+                    let len = if let Some(ref s) = slice { s.len() } else { 0 };
+                    // allow only if the slice length is a a multiple of color depth
+                    if len == 0 || (len > 0 && (len % depth == 0)) {
+                        app.shared = slice;
+                        app.write_position = 0;
+                        ReturnCode::SUCCESS
+                    } else {
+                        ReturnCode::EINVAL
+                    }
                 })
                 .unwrap_or_else(|err| err.into()),
             _ => ReturnCode::ENOSUPPORT,

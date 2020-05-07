@@ -1,61 +1,53 @@
 //! Hil for FrameBuffer
 use crate::returncode::ReturnCode;
-use crate::{AppSlice, Shared};
+use enum_primitive::cast::FromPrimitive;
+use enum_primitive::enum_from_primitive;
 
-#[derive(Copy, Clone, PartialEq)]
-pub enum ScreenRotation {
-    Normal = 0,
-    Rotated90 = 1,
-    Rotated180 = 2,
-    Rotated270 = 3,
+enum_from_primitive! {
+    #[derive(Copy, Clone, PartialEq)]
+    pub enum ScreenRotation {
+        Normal = 0,
+        Rotated90 = 1,
+        Rotated180 = 2,
+        Rotated270 = 3,
+    }
 }
 
-#[derive(Copy, Clone, PartialEq)]
-pub enum ScreenColorFormat {
-    /// Monochromatic display
-    Mono = 0,
-    /// 24 bit color display
-    Rgb888 = 1,
-    /// 16 bit color display
-    Rgb565 = 2,
-    /// 12 bit color display
-    Rgb444 = 3,
+impl From<ScreenRotation> for usize {
+    fn from(rotation: ScreenRotation) -> usize {
+        match rotation {
+            ScreenRotation::Normal => 0,
+            ScreenRotation::Rotated90 => 1,
+            ScreenRotation::Rotated180 => 2,
+            ScreenRotation::Rotated270 => 3,
+        }
+    }
 }
 
 pub trait Screen {
-    fn get_resolution(&self) -> (usize, usize);
+    fn set_resolution(&self, width: usize, height: usize) -> ReturnCode;
+    fn set_color_depth(&self, depth: usize) -> ReturnCode;
+    fn set_rotation(&self, rotation: ScreenRotation) -> ReturnCode;
 
-    fn get_color_format(&self) -> ScreenColorFormat;
+    fn get_resolution(&self) -> (usize, usize);
+    fn get_color_depth(&self) -> usize;
     fn get_rotation(&self) -> ScreenRotation;
 
-    fn write_slice(
-        &self,
-        x: usize,
-        y: usize,
-        width: usize,
-        height: usize,
-    ) -> ReturnCode;
+    fn get_resolution_modes(&self) -> usize;
+    fn get_resolution_size(&self, index: usize) -> (usize, usize);
 
-    fn write_buffer(
-        &self,
-        x: usize,
-        y: usize,
-        width: usize,
-        height: usize,
-        buffer: &'static mut [u8],
-        len: usize
-    ) -> ReturnCode;
+    fn get_color_depth_modes(&self) -> usize;
+    fn get_color_depth_bits(&self, index: usize) -> usize;
 
-    fn set_client (&self, client: Option<&'static dyn ScreenClient>);
-}
+    fn write(&self, x: usize, y: usize, width: usize, height: usize) -> ReturnCode;
 
-pub trait ScreenConfiguration {
-    fn set_resolution(&self, width: usize, height: usize) -> ReturnCode;
-    fn set_color_format(&self, format: ScreenColorFormat) -> ReturnCode;
-    fn set_rotation(&self, format: ScreenRotation) -> ReturnCode;
+    fn set_client(&self, client: Option<&'static dyn ScreenClient>);
+
+    fn on(&self) -> ReturnCode;
+    fn off(&self) -> ReturnCode;
 }
 
 pub trait ScreenClient {
-    fn fill_buffer_for_write_slice (&self, buffer:&'a mut [u8]) -> usize;
-    fn write_complete(&self, buffer:Option<&'static mut [u8]>, r: ReturnCode);
+    fn fill_next_buffer_for_write(&self, buffer: &'a mut [u8]) -> usize;
+    fn command_complete(&self, r: ReturnCode);
 }

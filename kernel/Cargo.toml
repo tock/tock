@@ -7,3 +7,4 @@ edition = "2018"
 [dependencies]
 tock-registers = { path = "../libraries/tock-register-interface" }
 tock-cells = { path = "../libraries/tock-cells" }
+enum_primitive = { path = "../libraries/enum_primitive" }
