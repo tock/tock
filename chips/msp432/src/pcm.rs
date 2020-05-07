@@ -1,7 +1,14 @@
+// Power Control Manager (PCM)
+
 use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 
-const PCMKEY: u16 = 0x695A; // for unlocking PCMCTL0 and PCMCTL1
+const PCMKEY: u32 = 0x695A; // for unlocking PCMCTL0 and PCMCTL1
+
+const PCM_BASE: StaticRef<PcmRegisters> =
+    unsafe { StaticRef::new(0x4001_0000 as *const PcmRegisters) };
+
+pub static mut PCM: Pcm = Pcm::new();
 
 #[repr(C)]
 struct PcmRegisters {
@@ -64,3 +71,41 @@ register_bitfields![u32,
         DCDC_ERROR_IFG OFFSET(6) NUMBITS(1)
     ]
 ];
+
+#[repr(u32)]
+enum ActiveMode {
+    LdoVcore0 = 0,
+    LdoVcore1 = 1,
+    DcdcVcore0 = 4,
+    DcdcVcore1 = 5,
+    LfVcore0 = 8,
+    LfVcore1 = 9,
+}
+
+#[repr(u32)]
+enum LowPowerMode {
+    Lpm3 = 0x00,
+    Lpm35 = 0x0A,
+    Lpm45 = 0x0C,
+}
+
+pub struct Pcm {
+    registers: StaticRef<PcmRegisters>,
+}
+
+impl Pcm {
+    pub const fn new() -> Pcm {
+        Pcm {
+            registers: PCM_BASE,
+        }
+    }
+    // currently not sure about the interface, so just implement a simple
+    // method for activating AM_LDO_VCORE1 to provide enough power for 48MHz
+    pub fn set_high_power(&self) {
+        while self.registers.ctl1.is_set(PCMCTL1::PMR_BUSY) {}
+        self.registers
+            .ctl0
+            .write(PCMCTL0::PCMKEY.val(PCMKEY) + PCMCTL0::AMR.val(ActiveMode::LdoVcore1 as u32));
+        while self.registers.ctl1.is_set(PCMCTL1::PMR_BUSY) {}
+    }
+}
