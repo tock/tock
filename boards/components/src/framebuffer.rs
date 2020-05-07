@@ -51,7 +51,7 @@ impl Component for FramebufferComponent {
             capsules::framebuffer::Framebuffer::new(screen, grant_framebuffer)
         );
 
-        screen.set_client (Some(framebuffer));
+        screen.set_client(Some(framebuffer));
 
         framebuffer
     }
