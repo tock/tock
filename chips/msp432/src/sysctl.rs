@@ -5,6 +5,9 @@ const WKEY: u8 = 0x69; // for writing to REBOOT_CTL register
 const UNLKEY: u16 = 0x695A; // for unlocking IP protected secure zone
 const UNLOCKED: u16 = 0xA596; // value if zone is unlocked
 
+const SYSCTL_BASE: StaticRef<SysCtlRegisters> =
+    unsafe { StaticRef::new(0xE004_3000 as *const SysCtlRegisters) };
+
 #[repr(C)]
 struct SysCtlRegisters {
     reboot_ctl: ReadWrite<u32, REBOOT_CTL::Register>,
@@ -173,3 +176,19 @@ register_bitfields! [u32,
         IP_PROT_ACT OFFSET(5) NUMBITS(1)
     ]
 ];
+
+pub struct SysCtl {
+    registers: StaticRef<SysCtlRegisters>,
+}
+
+impl SysCtl {
+    pub const fn new() -> SysCtl {
+        SysCtl {
+            registers: SYSCTL_BASE,
+        }
+    }
+
+    pub fn enable_all_sram_banks(&self) {
+        self.registers.sram_banken.modify(SRAM_BANKEN::BNK7_EN::SET);
+    }
+}
