@@ -51,7 +51,6 @@ use kernel::hil::gpio;
 use kernel::hil::gpio::{Configure, Input, InterruptWithValue, Output};
 use kernel::{AppId, Callback, Driver, Grant, ReturnCode};
 
-
 pub struct GPIO<'a, IP: gpio::InterruptPin> {
     pins: &'a [Option<&'a gpio::InterruptValueWrapper<'a, IP>>],
     apps: Grant<Option<Callback>>,

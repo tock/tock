@@ -106,7 +106,7 @@ impl<IP: 'static + gpio::InterruptPin> Component for GpioComponent<IP> {
             GPIO::new(self.gpio_pins, self.board_kernel.create_grant(&grant_cap))
         );
         for maybe_pin in self.gpio_pins.iter() {
-            if let Some (pin) = maybe_pin {
+            if let Some(pin) = maybe_pin {
                 pin.set_client(gpio);
             }
         }
