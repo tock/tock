@@ -13,16 +13,18 @@
 //!
 //! ```rust
 //! let gpio_pins = static_init!(
-//!     [&'static sam4l::gpio::GPIOPin; 4],
-//!     [&sam4l::gpio::PB[14],
-//!      &sam4l::gpio::PB[15],
-//!      &sam4l::gpio::PB[11],
-//!      &sam4l::gpio::PB[12]]);
+//!     [Option<&'static sam4l::gpio::GPIOPin>; 4],
+//!     [Option<&sam4l::gpio::PB[14]>,
+//!      Option<&sam4l::gpio::PB[15]>,
+//!      Option<&sam4l::gpio::PB[11]>,
+//!      Option<&sam4l::gpio::PB[12]>]);
 //! let gpio = static_init!(
 //!     capsules::gpio::GPIO<'static, sam4l::gpio::GPIOPin>,
 //!     capsules::gpio::GPIO::new(gpio_pins));
-//! for pin in gpio_pins.iter() {
-//!     pin.set_client(gpio);
+//! for maybe_pin in gpio_pins.iter() {
+//!     if let Some(pin) = maybe_pin {
+//!         pin.set_client(gpio);
+//!     }
 //! }
 //! ```
 //!
