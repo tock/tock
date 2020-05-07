@@ -51,8 +51,8 @@ pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 struct NucleoF429ZI {
     console: &'static capsules::console::Console<'static>,
     ipc: kernel::ipc::IPC,
-    led: &'static capsules::led::LED<'static>,
-    button: &'static capsules::button::Button<'static>,
+    led: &'static capsules::led::LED<'static, stm32f429zi::gpio::Pin<'static>>,
+    button: &'static capsules::button::Button<'static, stm32f429zi::gpio::Pin<'static>>,
     st7735: &'static capsules::st7735::ST7735<
         'static,
         VirtualMuxAlarm<'static, stm32f429zi::tim2::Tim2<'static>>,
@@ -462,7 +462,8 @@ pub unsafe fn reset_handler() {
     // tft.init();
 
     // GPIO
-    let gpio = GpioComponent::new(board_kernel).finalize(components::gpio_component_helper!(
+    let gpio = GpioComponent::new(board_kernel, components::gpio_component_helper!(
+        stm32f429zi::gpio::Pin<'static>,
         // Arduino like RX/TX
         stm32f429zi::gpio::PIN[6][9].as_ref().unwrap(), //D0
         stm32f429zi::gpio::PIN[6][14].as_ref().unwrap(), //D1
@@ -555,7 +556,7 @@ pub unsafe fn reset_handler() {
                                                         // stm32f429zi::gpio::PIN[1][1].as_ref().unwrap(), //A6
                                                         // stm32f429zi::gpio::PIN[2][2].as_ref().unwrap(), //A7
                                                         // stm32f429zi::gpio::PIN[5][4].as_ref().unwrap()  //A8
-    ));
+    )).finalize(components::gpio_component_buf! (stm32f429zi::gpio::Pin<'static>));
 
     let nucleo_f429zi = NucleoF429ZI {
         console: console,
