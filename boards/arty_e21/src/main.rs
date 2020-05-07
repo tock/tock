@@ -5,7 +5,6 @@
 #![feature(const_fn, in_band_lifetimes)]
 
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
-use components::gpio::GpioComponent;
 use kernel::capabilities;
 use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::component::Component;
