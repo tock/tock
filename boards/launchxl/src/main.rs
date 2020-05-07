@@ -13,7 +13,6 @@ use kernel::{create_capability, debug, debug_gpio, static_init};
 use cc26x2::aon;
 use cc26x2::prcm;
 use cc26x2::pwm;
-use components::gpio::GpioComponent;
 use kernel::capabilities;
 use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::component::Component;
