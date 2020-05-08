@@ -1,5 +1,8 @@
 //! Tock Binary Format Header definitions and parsing code.
 
+// Parsing the headers does not require any unsafe operations.
+#![forbid(unsafe_code)]
+
 use core::convert::TryInto;
 use core::fmt;
 use core::iter::Iterator;
