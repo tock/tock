@@ -115,7 +115,7 @@ impl Hmac<'a> {
                 d |= (slice[data_idx + 3] as u32) << 24;
 
                 regs.msg_fifo.set(d);
-                self.data_index.set(data_idx + 4)
+                self.data_index.set(data_idx + 4);
             }
 
             let idx = self.data_index.get();
