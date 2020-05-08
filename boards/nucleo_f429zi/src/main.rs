@@ -457,9 +457,7 @@ pub unsafe fn reset_handler() {
     );
 
     let framebuffer =
-        components::framebuffer::FramebufferComponent::new(board_kernel).finalize(tft);
-
-    // tft.init();
+        components::framebuffer::FramebufferComponent::new(board_kernel, tft).finalize(());
 
     // GPIO
     let gpio = GpioComponent::new(

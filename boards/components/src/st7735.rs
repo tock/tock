@@ -1,4 +1,4 @@
-//! Components for the ST7735 screen.
+//! Components for the ST7735 SPI screen.
 //!
 //! SPI Interface
 //!

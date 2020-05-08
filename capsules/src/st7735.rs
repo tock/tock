@@ -1,3 +1,28 @@
+//! ST7735 SPI Screen
+//!
+//! Usage
+//! -----
+//!
+//! ```rust
+//!
+//! let tft = components::st7735::ST7735Component::new(alarm_mux).finalize(
+//!     components::st7735_component_helper!(
+//!         // spi type
+//!         stm32f4xx::spi::Spi,
+//!         // chip select
+//!         stm32f4xx::gpio::PinId::PE03,
+//!         // spi mux
+//!         spi_mux,
+//!         // timer type
+//!         stm32f4xx::tim2::Tim2,
+//!         // dc pin
+//!         stm32f4xx::gpio::PinId::PA00.get_pin().as_ref().unwrap(),
+//!         // reset pin
+//!         stm32f4xx::gpio::PinId::PA00.get_pin().as_ref().unwrap()
+//!     )
+//! );
+//! ```
+
 use crate::driver;
 use core::cell::Cell;
 use kernel::common::cells::{OptionalCell, TakeCell};
