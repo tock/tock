@@ -10,4 +10,4 @@ components = { path = "../components" }
 cortexm4 = { path = "../../arch/cortex-m4" }
 capsules = { path = "../../capsules" }
 kernel = { path = "../../kernel" }
-stm32f3xx = { path = "../../chips/stm32f3xx", features = ["stm32f303vct6"] }
+stm32f303xc = { path = "../../chips/stm32f303xc" }
