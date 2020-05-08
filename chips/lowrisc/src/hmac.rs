@@ -100,14 +100,20 @@ impl Hmac<'a> {
 
             for i in 0..(data_len / 4) {
                 if regs.status.is_set(STATUS::FIFO_FULL) {
-                    // Due to: https://github.com/lowRISC/opentitan/issues/1276
-                    //   we can't get back to processing the data as there is no
-                    //   FIFO not full interrupt.
-                    // Let's just keep going and put up with the back pressure.
-                    // break;
+                    self.data.set(Some(LeasableBuffer::new(slice)));
+                    // Enable interrupts
+                    regs.intr_enable.modify(INTR_ENABLE::FIFO_EMPTY::SET);
+                    return;
                 }
 
-                let data_idx = i * 4;
+                if !regs.status.is_set(STATUS::FIFO_EMPTY) {
+                    self.data.set(Some(LeasableBuffer::new(slice)));
+                    // Enable interrupts
+                    regs.intr_enable.modify(INTR_ENABLE::FIFO_EMPTY::SET);
+                    return;
+                }
+
+                let data_idx = idx + i * 4;
 
                 let mut d = (slice[data_idx + 0] as u32) << 0;
                 d |= (slice[data_idx + 1] as u32) << 8;
@@ -132,6 +138,9 @@ impl Hmac<'a> {
         self.client.map(move |client| {
             client.add_data_done(Ok(()), slice);
         });
+
+        // Make sure we don't get any more FIFO empty interrupts
+        regs.intr_enable.modify(INTR_ENABLE::FIFO_EMPTY::CLEAR);
     }
 
     pub fn handle_interrupt(&self) {
@@ -164,6 +173,10 @@ impl Hmac<'a> {
                 client.hash_done(Ok(()), digest);
             });
         } else if intrs.is_set(INTR_STATE::FIFO_EMPTY) {
+            // Clear the FIFO empty interrupt
+            regs.intr_state.modify(INTR_STATE::FIFO_EMPTY::SET);
+
+            self.data_progress();
         } else if intrs.is_set(INTR_STATE::HMAC_ERR) {
             regs.intr_state.modify(INTR_STATE::HMAC_ERR::SET);
 
