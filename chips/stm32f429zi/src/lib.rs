@@ -8,7 +8,12 @@ pub mod stm32f429zi_nvic;
 
 // STM32F42xxx and STM32F43xxx has total of 91 interrupts
 #[cfg_attr(all(target_arch = "arm", target_os = "none"), link_section = ".irqs")]
-// used Ensures that the symbol is kept until the final binary
+// `used` ensures that the symbol is kept until the final binary. However, as of
+// May 2020, due to the compilation process, there must be some other compiled
+// code here to make sure the object file is kept around. That means at minimum
+// there must be an `init()` function here so that compiler does not just ignore
+// the `IRQS` object. See https://github.com/rust-lang/rust/issues/56639 for a
+// related discussion.
 #[cfg_attr(all(target_arch = "arm", target_os = "none"), used)]
 pub static IRQS: [unsafe extern "C" fn(); 91] = [
     generic_isr, // WWDG (0)
