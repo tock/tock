@@ -34,17 +34,17 @@ register_structs! {
 register_bitfields![u32,
     INTR_STATE [
         HMAC_DONE OFFSET(0) NUMBITS(1) [],
-        FIFO_FULL OFFSET(1) NUMBITS(1) [],
+        FIFO_EMPTY OFFSET(1) NUMBITS(1) [],
         HMAC_ERR OFFSET(2) NUMBITS(1) []
     ],
     INTR_ENABLE [
         HMAC_DONE OFFSET(0) NUMBITS(1) [],
-        FIFO_FULL OFFSET(1) NUMBITS(1) [],
+        FIFO_EMPTY OFFSET(1) NUMBITS(1) [],
         HMAC_ERR OFFSET(2) NUMBITS(1) []
     ],
     INTR_TEST [
         HMAC_DONE OFFSET(0) NUMBITS(1) [],
-        FIFO_FULL OFFSET(1) NUMBITS(1) [],
+        FIFO_EMPTY OFFSET(1) NUMBITS(1) [],
         HMAC_ERR OFFSET(2) NUMBITS(1) []
     ],
     CFG [
@@ -138,8 +138,11 @@ impl Hmac<'a> {
         let regs = self.registers;
         let intrs = regs.intr_state.extract();
 
-        regs.intr_enable
-            .modify(INTR_ENABLE::HMAC_DONE::CLEAR + INTR_ENABLE::HMAC_ERR::CLEAR);
+        regs.intr_enable.modify(
+            INTR_ENABLE::HMAC_DONE::CLEAR
+                + INTR_ENABLE::FIFO_EMPTY::CLEAR
+                + INTR_ENABLE::HMAC_ERR::CLEAR,
+        );
 
         if intrs.is_set(INTR_STATE::HMAC_DONE) {
             self.client.map(|client| {
@@ -160,8 +163,7 @@ impl Hmac<'a> {
 
                 client.hash_done(Ok(()), digest);
             });
-        } else if intrs.is_set(INTR_STATE::FIFO_FULL) {
-            // FIFO is full, we can't do anything
+        } else if intrs.is_set(INTR_STATE::FIFO_EMPTY) {
         } else if intrs.is_set(INTR_STATE::HMAC_ERR) {
             regs.intr_state.modify(INTR_STATE::HMAC_ERR::SET);
 
@@ -188,6 +190,9 @@ impl hil::digest::Digest<'a, [u8; 32]> for Hmac<'a> {
             .write(CFG::ENDIAN_SWAP::SET + CFG::SHA_EN::SET + CFG::DIGEST_SWAP::SET);
 
         regs.cmd.modify(CMD::START::SET);
+
+        // Clear the FIFO empty interrupt
+        regs.intr_state.modify(INTR_STATE::FIFO_EMPTY::SET);
 
         // Set the length and data index of the data to write
         self.data_len.set(data.len());
