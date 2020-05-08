@@ -3,12 +3,14 @@
 use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
 
-const WKEY: u8 = 0x69; // for writing to REBOOT_CTL register
-const UNLKEY: u16 = 0x695A; // for unlocking IP protected secure zone
-const UNLOCKED: u16 = 0xA596; // value if zone is unlocked
+pub static mut SYSCTL: SysCtl = SysCtl::new();
 
 const SYSCTL_BASE: StaticRef<SysCtlRegisters> =
     unsafe { StaticRef::new(0xE004_3000 as *const SysCtlRegisters) };
+
+const WKEY: u8 = 0x69; // for writing to REBOOT_CTL register
+const UNLKEY: u16 = 0x695A; // for unlocking IP protected secure zone
+const UNLOCKED: u16 = 0xA596; // value if zone is unlocked
 
 #[repr(C)]
 struct SysCtlRegisters {

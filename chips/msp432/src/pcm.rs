@@ -3,12 +3,12 @@
 use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 
-const PCMKEY: u32 = 0x695A; // for unlocking PCMCTL0 and PCMCTL1
+pub static mut PCM: Pcm = Pcm::new();
 
 const PCM_BASE: StaticRef<PcmRegisters> =
     unsafe { StaticRef::new(0x4001_0000 as *const PcmRegisters) };
 
-pub static mut PCM: Pcm = Pcm::new();
+const PCMKEY: u32 = 0x695A; // for unlocking PCMCTL0 and PCMCTL1
 
 #[repr(C)]
 struct PcmRegisters {
@@ -72,6 +72,7 @@ register_bitfields![u32,
     ]
 ];
 
+#[allow(dead_code)]
 #[repr(u32)]
 enum ActiveMode {
     LdoVcore0 = 0,
@@ -82,6 +83,7 @@ enum ActiveMode {
     LfVcore1 = 9,
 }
 
+#[allow(dead_code)]
 #[repr(u32)]
 enum LowPowerMode {
     Lpm3 = 0x00,

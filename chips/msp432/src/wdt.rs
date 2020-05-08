@@ -4,14 +4,14 @@ use kernel::common::registers::{register_bitfields, ReadWrite};
 use kernel::common::StaticRef;
 use kernel::hil::watchdog;
 
-/// every write access has to set this 'password' in the upper 8 bit of the
-/// register, otherwise the watchdog resets the whole system
-const PASSWORD: u16 = 0x5A00;
+pub static mut WATCHDOG: Watchdog = Watchdog::new();
 
 const WATCHDOG_BASE: StaticRef<WatchdogRegisters> =
     unsafe { StaticRef::new(0x4000_480C as *const WatchdogRegisters) };
 
-pub static mut WATCHDOG: Watchdog = Watchdog::new();
+/// every write access has to set this 'password' in the upper 8 bit of the
+/// register, otherwise the watchdog resets the whole system
+const PASSWORD: u16 = 0x5A00;
 
 #[repr(C)]
 struct WatchdogRegisters {
