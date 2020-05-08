@@ -1,4 +1,4 @@
-//! Hil for FrameBuffer
+//! Interface for FrameBuffer
 use crate::returncode::ReturnCode;
 use enum_primitive::cast::FromPrimitive;
 use enum_primitive::enum_from_primitive;
