@@ -1,7 +1,6 @@
 use crate::driver;
 use core::cell::Cell;
 use kernel::common::cells::{OptionalCell, TakeCell};
-use kernel::debug;
 use kernel::hil::framebuffer::{self, ScreenClient, ScreenRotation};
 use kernel::hil::gpio;
 use kernel::hil::spi;
@@ -34,6 +33,7 @@ static SWRESET: Command = Command {
     delay: 150,
 };
 
+#[allow(dead_code)]
 static SLPIN: Command = Command {
     id: 0x10,
     parameters: None,
@@ -46,6 +46,7 @@ static SLPOUT: Command = Command {
     delay: 255,
 };
 
+#[allow(dead_code)]
 static PLTON: Command = Command {
     id: 0x12,
     parameters: None,
@@ -70,6 +71,7 @@ static INVOFF: Command = Command {
     delay: 0,
 };
 
+#[allow(dead_code)]
 static GAMSET: Command = Command {
     id: 0x26,
     /// Default parameters: Gama Set
@@ -223,16 +225,10 @@ macro_rules! default_parameters_sequence {
     }
 }
 
-static INIT_SEQUENCE: [SendCommand; 21] = default_parameters_sequence!(
+static INIT_SEQUENCE: [SendCommand; 20] = default_parameters_sequence!(
     &SWRESET, &SLPOUT, &FRMCTR1, &FRMCTR2, &FRMCTR3, &INVCTR, &PWCTR1, &PWCTR2, &PWCTR3, &PWCTR4,
-    &PWCTR5, &VMCTR1, &INVOFF, &MADCTL, &COLMOD, &CASET, &RASET, &GMCTRP1, &GMCTRN1, &NORON,
-    &DISPON
+    &PWCTR5, &VMCTR1, &INVOFF, &MADCTL, &COLMOD, &CASET, &RASET, &GMCTRP1, &GMCTRN1, &NORON
 );
-
-static SET_MEMORY_FRAME: [SendCommand; 2] = [
-    SendCommand::Position(&CASET, 1, 4),
-    SendCommand::Position(&RASET, 5, 4),
-];
 
 static WRITE_PIXEL: [SendCommand; 3] = [
     SendCommand::Position(&CASET, 1, 4),
@@ -288,6 +284,8 @@ pub struct ST7735<'a, A: Alarm<'a>> {
     sequence_len: Cell<usize>,
     command: Cell<&'static Command>,
     buffer: TakeCell<'static, [u8]>,
+
+    power_on: Cell<bool>,
 }
 
 impl<'a, A: Alarm<'a>> ST7735<'a, A> {
@@ -324,6 +322,8 @@ impl<'a, A: Alarm<'a>> ST7735<'a, A> {
             position_in_sequence: Cell::new(0),
             command: Cell::new(&NOP),
             buffer: TakeCell::new(buffer),
+
+            power_on: Cell::new(false),
         }
     }
 
@@ -517,8 +517,12 @@ impl<'a, A: Alarm<'a>> ST7735<'a, A> {
 
     fn display_on(&self) -> ReturnCode {
         if self.status.get() == Status::Idle {
-            self.send_command_with_default_parameters(&DISPON);
-            ReturnCode::SUCCESS
+            if !self.power_on.get() {
+                ReturnCode::EOFF
+            } else {
+                self.send_command_with_default_parameters(&DISPON);
+                ReturnCode::SUCCESS
+            }
         } else {
             ReturnCode::EBUSY
         }
@@ -526,8 +530,38 @@ impl<'a, A: Alarm<'a>> ST7735<'a, A> {
 
     fn display_off(&self) -> ReturnCode {
         if self.status.get() == Status::Idle {
-            self.send_command_with_default_parameters(&DISPOFF);
-            ReturnCode::SUCCESS
+            if !self.power_on.get() {
+                ReturnCode::EOFF
+            } else {
+                self.send_command_with_default_parameters(&DISPOFF);
+                ReturnCode::SUCCESS
+            }
+        } else {
+            ReturnCode::EBUSY
+        }
+    }
+
+    fn display_invert_on(&self) -> ReturnCode {
+        if self.status.get() == Status::Idle {
+            if !self.power_on.get() {
+                ReturnCode::EOFF
+            } else {
+                self.send_command_with_default_parameters(&INVON);
+                ReturnCode::SUCCESS
+            }
+        } else {
+            ReturnCode::EBUSY
+        }
+    }
+
+    fn display_invert_off(&self) -> ReturnCode {
+        if self.status.get() == Status::Idle {
+            if !self.power_on.get() {
+                ReturnCode::EOFF
+            } else {
+                self.send_command_with_default_parameters(&INVOFF);
+                ReturnCode::SUCCESS
+            }
         } else {
             ReturnCode::EBUSY
         }
@@ -613,15 +647,15 @@ impl<'a, A: Alarm<'a>> ST7735<'a, A> {
             }
             Status::Reset2 => {
                 self.reset.set();
-                self.set_delay(500, Status::Reset3);
+                self.set_delay(120, Status::Reset3);
             }
             Status::Reset3 => {
                 self.reset.clear();
-                self.set_delay(500, Status::Reset4);
+                self.set_delay(120, Status::Reset4);
             }
             Status::Reset4 => {
                 self.reset.set();
-                self.set_delay(500, Status::Init);
+                self.set_delay(120, Status::Init);
             }
             Status::Init => {
                 self.status.set(Status::Idle);
@@ -718,8 +752,9 @@ impl<'a, A: Alarm<'a>> ST7735<'a, A> {
         }
     }
 
-    fn init(&self) -> ReturnCode {
+    fn display_init(&self) -> ReturnCode {
         if self.status.get() == Status::Idle {
+            self.power_on.set(true);
             self.status.set(Status::Reset1);
             self.do_next_op();
             ReturnCode::SUCCESS
@@ -751,7 +786,7 @@ impl<'a, A: Alarm<'a>> Driver for ST7735<'a, A> {
         match command_num {
             0 => ReturnCode::SUCCESS,
             // reset
-            1 => self.init(),
+            1 => self.display_init(),
             // fill with color (data1)
             2 => self.fill(data1),
             // write pixel (x:data1[15:8], y:data1[7:0], color:data2)
@@ -865,12 +900,24 @@ impl<'a, A: Alarm<'a>> framebuffer::Screen for ST7735<'a, A> {
         }
     }
 
+    fn init(&self) -> ReturnCode {
+        self.display_init()
+    }
+
     fn on(&self) -> ReturnCode {
         self.display_on()
     }
 
     fn off(&self) -> ReturnCode {
         self.display_off()
+    }
+
+    fn invert_on(&self) -> ReturnCode {
+        self.display_invert_on()
+    }
+
+    fn invert_off(&self) -> ReturnCode {
+        self.display_invert_off()
     }
 }
 

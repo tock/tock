@@ -19,7 +19,6 @@
 use core::cell::Cell;
 use enum_primitive::cast::FromPrimitive;
 use kernel::common::cells::OptionalCell;
-use kernel::debug;
 use kernel::hil;
 use kernel::hil::framebuffer::ScreenRotation;
 use kernel::ReturnCode;
@@ -32,8 +31,11 @@ pub const DRIVER_NUM: usize = driver::NUM::Framebuffer as usize;
 #[derive(Clone, Copy, PartialEq)]
 enum FramebufferCommand {
     Nop,
+    Init,
     On,
     Off,
+    InvertOn,
+    InvertOff,
     GetResolutionModes,
     GetResolutionSize,
     GetColorDepthModes,
@@ -148,8 +150,11 @@ impl Framebuffer<'a> {
         appid: AppId,
     ) -> ReturnCode {
         match command {
+            FramebufferCommand::Init => self.screen.init(),
             FramebufferCommand::On => self.screen.on(),
             FramebufferCommand::Off => self.screen.off(),
+            FramebufferCommand::InvertOn => self.screen.invert_on(),
+            FramebufferCommand::InvertOff => self.screen.invert_off(),
             FramebufferCommand::SetRotation => self
                 .screen
                 .set_rotation(ScreenRotation::from_usize(data1).unwrap_or(ScreenRotation::Normal)),
@@ -370,10 +375,16 @@ impl Driver for Framebuffer<'a> {
                 ReturnCode::SUCCESS
             }
 
+            // Init
+            1 => self.enqueue_command(FramebufferCommand::Init, 0, 0, appid),
             // On
-            1 => self.enqueue_command(FramebufferCommand::On, 0, 0, appid),
+            2 => self.enqueue_command(FramebufferCommand::On, 0, 0, appid),
             // Off
-            2 => self.enqueue_command(FramebufferCommand::Off, 0, 0, appid),
+            3 => self.enqueue_command(FramebufferCommand::Off, 0, 0, appid),
+            // Invert On
+            4 => self.enqueue_command(FramebufferCommand::InvertOn, 0, 0, appid),
+            // Invert Off
+            5 => self.enqueue_command(FramebufferCommand::InvertOff, 0, 0, appid),
 
             // Get Resolution Modes Number
             11 => self.enqueue_command(FramebufferCommand::GetResolutionModes, 0, 0, appid),
@@ -398,7 +409,7 @@ impl Driver for Framebuffer<'a> {
             // Get Color Depth
             25 => self.enqueue_command(FramebufferCommand::GetColorDepth, 0, 0, appid),
             // Set Color Depth
-            26 => self.enqueue_command(FramebufferCommand::SetResolution, data1, 0, appid),
+            26 => self.enqueue_command(FramebufferCommand::SetColorDepth, data1, 0, appid),
 
             // Set Write Window
             100 => self

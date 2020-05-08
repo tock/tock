@@ -43,8 +43,12 @@ pub trait Screen {
 
     fn set_client(&self, client: Option<&'static dyn ScreenClient>);
 
+    fn init(&self) -> ReturnCode;
     fn on(&self) -> ReturnCode;
     fn off(&self) -> ReturnCode;
+
+    fn invert_on(&self) -> ReturnCode;
+    fn invert_off(&self) -> ReturnCode;
 }
 
 pub trait ScreenClient {
