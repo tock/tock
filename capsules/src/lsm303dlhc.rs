@@ -143,7 +143,6 @@ use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::common::registers::register_bitfields;
 use kernel::hil::i2c::{self, Error};
 use kernel::hil::sensors;
-use kernel::{debug, i2c_modify_register, i2c_read_register_field_value};
 use kernel::{AppId, Callback, Driver, ReturnCode};
 
 register_bitfields![u8,
@@ -287,7 +286,7 @@ const RANGE_FACTOR_Z: [i16; 8] = [
     980, 760, 600, 400, 355, 295, 205,
 ];
 
-#[derive(Clone, Copy, PartialEq, Debug)]
+#[derive(Clone, Copy, PartialEq)]
 enum State {
     Idle,
     IsPresent,
@@ -467,19 +466,6 @@ impl Lsm303dlhcI2C<'a> {
             self.buffer.take().map(|buf| {
                 buf[0] = MagnetometerRegisters::OUT_X_H_M as u8;
                 self.i2c_magnetometer.write_read(buf, 1, 6);
-            });
-        }
-    }
-
-    fn set_low_power(&self, low_power: bool) {
-        if self.state.get() == State::Idle {
-            self.state.set(State::SetLowPower);
-            self.buffer.take().map(|buf| {
-                self.i2c_accelerometer.modify_register(i2c_modify_register!(
-                    buf,
-                    AccelerometerRegisters::CTRL_REG1,
-                    CTRL_REG1::LPEN.val(low_power as u8)
-                ));
             });
         }
     }
@@ -683,29 +669,7 @@ impl i2c::I2CClient for Lsm303dlhcI2C<'a> {
                 self.buffer.replace(buffer);
                 self.state.set(State::Idle);
             }
-            State::SetLowPower => {
-                self.buffer.replace(buffer);
-                self.state.set(State::Idle);
-                self.callback.map(|callback| {
-                    callback.schedule((error == Error::CommandComplete) as usize, 0, 0);
-                });
-            }
-            State::ReadLowPower => {
-                let mut value = 0;
-                let read = if error == Error::CommandComplete {
-                    value = i2c_read_register_field_value!(buffer, CTRL_REG1::LPEN) as usize;
-                    true
-                } else {
-                    false
-                };
-                self.buffer.replace(buffer);
-                self.state.set(State::Idle);
-                self.callback.map(|callback| {
-                    callback.schedule(read as usize, value, 0);
-                });
-            }
             _ => {
-                debug!("buffer {:?} error {:?}", buffer, error);
                 self.buffer.replace(buffer);
             }
         }
@@ -802,24 +766,6 @@ impl Driver for Lsm303dlhcI2C<'a> {
             8 => {
                 if self.state.get() == State::Idle {
                     self.read_magnetometer_xyz();
-                    ReturnCode::SUCCESS
-                } else {
-                    ReturnCode::EBUSY
-                }
-            }
-            // Set Low Power Mode
-            9 => {
-                if self.state.get() == State::Idle {
-                    self.set_low_power(data1 != 0);
-                    ReturnCode::SUCCESS
-                } else {
-                    ReturnCode::EBUSY
-                }
-            }
-            // Set Low Power Mode
-            10 => {
-                if self.state.get() == State::Idle {
-                    self.read_low_power();
                     ReturnCode::SUCCESS
                 } else {
                     ReturnCode::EBUSY
