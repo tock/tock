@@ -1,27 +1,5 @@
 //! Interface for I2C master and slave peripherals.
 
-#[macro_export]
-macro_rules! i2c_modify_register {
-    ($buffer: expr, $reg_address:expr, $field_value:expr) => {{
-        $buffer[0] = $reg_address as u8;
-        $buffer[1] = $reg_address as u8;
-        $buffer[2] = $field_value.value;
-        $buffer[3] = $field_value.mask;
-        $buffer
-    }};
-}
-
-#[macro_export]
-macro_rules! i2c_read_register_field_value {
-    ($buffer:expr, $field_value:expr) => {
-        $field_value.val($buffer[0]).read($field_value)
-    };
-
-    ($buffer:expr, $index:expr, $field_value:expr) => {
-        $field_value.val($buffer[$expr]).read($field_value)
-    };
-}
-
 use core::fmt::{Display, Formatter, Result};
 
 /// The type of error encoutered during I2C communication.
@@ -133,16 +111,6 @@ pub trait I2CDevice {
     fn write_read(&self, data: &'static mut [u8], write_len: u8, read_len: u8);
     fn write(&self, data: &'static mut [u8], len: u8);
     fn read(&self, buffer: &'static mut [u8], len: u8);
-
-    /// Modify u8 register
-    /// _buffer[0] is register address
-    /// _buffer[1] is register address
-    /// _buffer[2] is register new value
-    /// _buffer[3] is register value mask
-    /// use the i2c_modify_register macro to set the parameters
-    fn modify_register(&self, _buffer: &'static mut [u8]) {
-        panic!("i2c modify register is not implemented");
-    }
 }
 
 /// Client interface for I2CDevice implementations.

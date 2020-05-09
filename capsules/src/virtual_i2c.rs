@@ -90,7 +90,6 @@ pub struct I2CDevice<'a> {
     operation: Cell<Op>,
     next: ListLink<'a, I2CDevice<'a>>,
     client: OptionalCell<&'a dyn I2CClient>,
-    modify_register_in_progess: Cell<bool>,
 }
 
 impl I2CDevice<'a> {
@@ -103,7 +102,6 @@ impl I2CDevice<'a> {
             operation: Cell::new(Op::Idle),
             next: ListLink::empty(),
             client: OptionalCell::empty(),
-            modify_register_in_progess: Cell::new(false),
         }
     }
 
@@ -115,16 +113,9 @@ impl I2CDevice<'a> {
 
 impl I2CClient for I2CDevice<'a> {
     fn command_complete(&self, buffer: &'static mut [u8], error: Error) {
-        if self.modify_register_in_progess.get() && error == Error::CommandComplete {
-            buffer[1] = (buffer[0] & !buffer[3]) | buffer[2];
-            buffer[0] = buffer[1];
-            self.modify_register_in_progess.set(false);
-            i2c::I2CDevice::write(self, buffer, 2);
-        } else {
-            self.client.map(move |client| {
-                client.command_complete(buffer, error);
-            });
-        }
+        self.client.map(move |client| {
+            client.command_complete(buffer, error);
+        });
     }
 }
 
@@ -165,10 +156,5 @@ impl i2c::I2CDevice for I2CDevice<'a> {
         self.buffer.replace(buffer);
         self.operation.set(Op::Read(len));
         self.mux.do_next_op();
-    }
-
-    fn modify_register(&self, buffer: &'static mut [u8]) {
-        self.modify_register_in_progess.set(true);
-        self.write_read(buffer, 1, 1);
     }
 }
