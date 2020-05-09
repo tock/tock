@@ -8,6 +8,7 @@ use cortexm4::{generic_isr, hard_fault_handler, svc_handler, systick_handler};
 
 pub mod cs;
 pub mod flctl;
+pub mod gpio;
 pub mod pcm;
 pub mod sysctl;
 pub mod wdt;
