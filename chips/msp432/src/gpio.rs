@@ -181,7 +181,7 @@ pub enum PinNr {
     P08_0, P08_1, P08_2, P08_3, P08_4, P08_5, P08_6, P08_7,
     P09_0, P09_1, P09_2, P09_3, P09_4, P09_5, P09_6, P09_7,
     P10_0, P10_1, P10_2, P10_3, P10_4, P10_5, P10_6, P10_7,
-    PJ_0, PJ_1, PJ_2, PJ_3, PJ_4, PJ_5, PJ_6, PJ_7,   
+    PJ_0,  PJ_1,  PJ_2,  PJ_3,  PJ_4,  PJ_5,  PJ_6,  PJ_7,
 }
 
 pub struct Pin {
@@ -230,5 +230,92 @@ impl hil::gpio::Output for Pin {
         val ^= 1 << self.pin;
         self.registers.out[self.reg_idx].set(val);
         (val & (1 << self.pin)) > 0
+    }
+}
+
+impl hil::gpio::Configure for Pin {
+    fn configuration(&self) -> hil::gpio::Configuration {
+        let regs = &*self.registers;
+        let dir = regs.dir[self.reg_idx].get();
+        let mut sel = ((regs.sel0[self.reg_idx].get() & (1 << self.pin)) > 0) as u8;
+        sel |= (((regs.sel1[self.reg_idx].get() & (1 << self.pin)) > 0) as u8) << 1;
+
+        if sel > 0 {
+            hil::gpio::Configuration::Function
+        } else {
+            if (dir & (1 << self.pin)) > 0 {
+                hil::gpio::Configuration::Output
+            } else {
+                hil::gpio::Configuration::Input
+            }
+        }
+    }
+
+    fn make_output(&self) -> hil::gpio::Configuration {
+        let mut val = self.registers.dir[self.reg_idx].get();
+        val |= 1 << self.pin;
+        self.registers.dir[self.reg_idx].set(val);
+        hil::gpio::Configuration::Output
+    }
+
+    fn disable_output(&self) -> hil::gpio::Configuration {
+        self.make_input()
+    }
+
+    fn make_input(&self) -> hil::gpio::Configuration {
+        let mut val = self.registers.dir[self.reg_idx].get();
+        val &= !(1 << self.pin);
+        self.registers.dir[self.reg_idx].set(val);
+        hil::gpio::Configuration::Input
+    }
+
+    fn disable_input(&self) -> hil::gpio::Configuration {
+        // it's not possible to deactivate the pin at all, so just return the
+        // current configuration
+        self.configuration()
+    }
+
+    fn deactivate_to_low_power(&self) {
+        // the chip doesn't support any low-power, so set it to input with
+        // a pullup resistor which should not consume much current
+        self.make_input();
+        self.set_floating_state(hil::gpio::FloatingState::PullUp);
+    }
+
+    fn set_floating_state(&self, state: hil::gpio::FloatingState) {
+        let regs = &*self.registers;
+        let mut ren = regs.ren[self.reg_idx].get();
+        let mut out = regs.out[self.reg_idx].get();
+        match state {
+            hil::gpio::FloatingState::PullDown => {
+                ren |= 1 << self.pin;
+                out &= !(1 << self.pin);
+            }
+            hil::gpio::FloatingState::PullUp => {
+                ren |= 1 << self.pin;
+                out |= 1 << self.pin;
+            }
+            hil::gpio::FloatingState::PullNone => {
+                ren &= !(1 << self.pin);
+            }
+            _ => {}
+        }
+        regs.ren[self.reg_idx].set(ren);
+        regs.out[self.reg_idx].set(out);
+    }
+
+    fn floating_state(&self) -> hil::gpio::FloatingState {
+        let ren = self.registers.ren[self.reg_idx].get();
+        let out = self.registers.out[self.reg_idx].get();
+
+        if (ren & (1 << self.pin)) > 0 {
+            if (out & (1 << self.pin)) > 0 {
+                hil::gpio::FloatingState::PullUp
+            } else {
+                hil::gpio::FloatingState::PullDown
+            }
+        } else {
+            hil::gpio::FloatingState::PullNone
+        }
     }
 }
