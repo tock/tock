@@ -24,6 +24,32 @@ impl From<ScreenRotation> for usize {
     }
 }
 
+enum_from_primitive! {
+    #[derive(Copy, Clone, PartialEq)]
+    #[allow(non_camel_case_types)]
+    pub enum ScreenColorDepth {
+        None = 0,
+        Mono = 1,
+        RGB_233 = 8,
+        RGB_565 = 16,
+        RGB_888 = 24,
+        ARGB_8888 = 32,
+    }
+}
+
+impl From<ScreenColorDepth> for usize {
+    fn from(color_depth: ScreenColorDepth) -> usize {
+        match color_depth {
+            ScreenColorDepth::None => 0,
+            ScreenColorDepth::Mono => 1,
+            ScreenColorDepth::RGB_233 => 8,
+            ScreenColorDepth::RGB_565 => 16,
+            ScreenColorDepth::RGB_888 => 16,
+            ScreenColorDepth::ARGB_8888 => 32,
+        }
+    }
+}
+
 pub trait Screen {
     /// Sets the screen resolution (in pixels). Returns ENOSUPPORT if the resolution is
     /// not supported. The function should return SUCCESS for at least one resolution.
@@ -31,7 +57,7 @@ pub trait Screen {
 
     /// Sets the color depth (in bits per pixel). Returns ENOSUPPORT if the color depth is
     /// not supported. The function should return SUCCESS for at least one color depth.
-    fn set_color_depth(&self, depth: usize) -> ReturnCode;
+    fn set_color_depth(&self, depth: ScreenColorDepth) -> ReturnCode;
 
     /// Sets the rotation of the display.
     /// note this can swap the width with height.
@@ -44,7 +70,7 @@ pub trait Screen {
 
     /// Returns the current color depth (in bits per pixel)
     /// This function is synchronous.
-    fn get_color_depth(&self) -> usize;
+    fn get_color_depth(&self) -> ScreenColorDepth;
 
     /// Returns the current rotation.
     /// This function is synchronous.
@@ -68,7 +94,7 @@ pub trait Screen {
     /// Can be called with index 0 .. count-1 and will returns
     /// the value of each color depth mode (in bits per pixel).
     /// This function is synchronous.
-    fn get_color_depth_bits(&self, index: usize) -> usize;
+    fn get_color_depth_bits(&self, index: usize) -> ScreenColorDepth;
 
     /// Sends a write command to write data in the selected video memory window.
     /// The screen will then call ``ScreenClient::fill_next_buffer_for_write`` for

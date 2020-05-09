@@ -26,7 +26,7 @@
 use crate::driver;
 use core::cell::Cell;
 use kernel::common::cells::{OptionalCell, TakeCell};
-use kernel::hil::framebuffer::{self, ScreenClient, ScreenRotation};
+use kernel::hil::framebuffer::{self, ScreenClient, ScreenColorDepth, ScreenRotation};
 use kernel::hil::gpio;
 use kernel::hil::spi;
 use kernel::hil::time::{self, Alarm, Frequency};
@@ -843,8 +843,8 @@ impl<'a, A: Alarm<'a>> framebuffer::Screen for ST7735<'a, A> {
         ReturnCode::ENOSUPPORT
     }
 
-    fn set_color_depth(&self, depth: usize) -> ReturnCode {
-        if depth == 16 {
+    fn set_color_depth(&self, depth: ScreenColorDepth) -> ReturnCode {
+        if depth == ScreenColorDepth::RGB_565 {
             ReturnCode::SUCCESS
         } else {
             ReturnCode::EINVAL
@@ -859,8 +859,8 @@ impl<'a, A: Alarm<'a>> framebuffer::Screen for ST7735<'a, A> {
         (self.width.get(), self.height.get())
     }
 
-    fn get_color_depth(&self) -> usize {
-        16
+    fn get_color_depth(&self) -> ScreenColorDepth {
+        ScreenColorDepth::RGB_565
     }
 
     fn get_rotation(&self) -> ScreenRotation {
@@ -880,10 +880,10 @@ impl<'a, A: Alarm<'a>> framebuffer::Screen for ST7735<'a, A> {
     fn get_color_depth_modes(&self) -> usize {
         1
     }
-    fn get_color_depth_bits(&self, index: usize) -> usize {
+    fn get_color_depth_bits(&self, index: usize) -> ScreenColorDepth {
         match index {
-            0 => 16,
-            _ => 0,
+            0 => ScreenColorDepth::RGB_565,
+            _ => ScreenColorDepth::None,
         }
     }
 

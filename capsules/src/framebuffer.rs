@@ -15,7 +15,7 @@ use core::cell::Cell;
 use enum_primitive::cast::FromPrimitive;
 use kernel::common::cells::OptionalCell;
 use kernel::hil;
-use kernel::hil::framebuffer::ScreenRotation;
+use kernel::hil::framebuffer::{ScreenColorDepth, ScreenRotation};
 use kernel::ReturnCode;
 use kernel::{AppId, AppSlice, Callback, Driver, Grant, Shared};
 
@@ -92,7 +92,7 @@ pub struct Framebuffer<'a> {
     screen: &'a dyn hil::framebuffer::Screen,
     apps: Grant<App>,
     current_app: OptionalCell<AppId>,
-    depth: Cell<usize>,
+    depth: Cell<ScreenColorDepth>,
 }
 
 impl Framebuffer<'a> {
@@ -164,10 +164,16 @@ impl Framebuffer<'a> {
                 self.run_next_command(usize::from(ReturnCode::SUCCESS), width, height);
                 ReturnCode::SUCCESS
             }
-            FramebufferCommand::SetColorDepth => self.screen.set_color_depth(data1),
+            FramebufferCommand::SetColorDepth => self.screen.set_color_depth(
+                ScreenColorDepth::from_usize(data1).unwrap_or(ScreenColorDepth::None),
+            ),
             FramebufferCommand::GetColorDepth => {
                 let color_depth = self.screen.get_color_depth();
-                self.run_next_command(usize::from(ReturnCode::SUCCESS), color_depth, 0);
+                self.run_next_command(
+                    usize::from(ReturnCode::SUCCESS),
+                    usize::from(color_depth),
+                    0,
+                );
                 ReturnCode::SUCCESS
             }
             FramebufferCommand::GetResolutionModes => {
@@ -195,7 +201,11 @@ impl Framebuffer<'a> {
             }
             FramebufferCommand::GetColorDepthBits => {
                 let color_depth = self.screen.get_color_depth_bits(data1);
-                self.run_next_command(usize::from(ReturnCode::SUCCESS), color_depth, 0);
+                self.run_next_command(
+                    usize::from(ReturnCode::SUCCESS),
+                    usize::from(color_depth),
+                    0,
+                );
                 ReturnCode::SUCCESS
             }
             FramebufferCommand::Fill => self
@@ -203,7 +213,8 @@ impl Framebuffer<'a> {
                 .enter(appid, |app, _| {
                     if app.shared.is_some() {
                         app.write_position = 0;
-                        app.write_len = pixels_in_bytes(app.width * app.height, self.depth.get());
+                        app.write_len =
+                            pixels_in_bytes(app.width * app.height, usize::from(self.depth.get()));
                         self.screen.write(app.x, app.y, app.width, app.height)
                     } else {
                         ReturnCode::ENOMEM
@@ -300,7 +311,8 @@ impl hil::framebuffer::ScreenClient for Framebuffer<'a> {
                             } else if app.command == FramebufferCommand::Fill {
                                 // TODO bytes per pixel
                                 len = len - position;
-                                let bytes_per_pixel = pixels_in_bytes(1, self.depth.get());
+                                let bytes_per_pixel =
+                                    pixels_in_bytes(1, usize::from(self.depth.get()));
                                 let mut write_len = buffer_size / bytes_per_pixel;
                                 if write_len > len {
                                     write_len = len
@@ -438,7 +450,7 @@ impl Driver for Framebuffer<'a> {
             0 => self
                 .apps
                 .enter(appid, |app, _| {
-                    let depth = pixels_in_bytes(1, self.screen.get_color_depth());
+                    let depth = pixels_in_bytes(1, usize::from(self.screen.get_color_depth()));
                     let len = if let Some(ref s) = slice { s.len() } else { 0 };
                     // allow only if the slice length is a a multiple of color depth
                     if len == 0 || (len > 0 && (len % depth == 0)) {
