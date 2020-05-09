@@ -297,8 +297,6 @@ enum State {
     SetRange,
     ReadTemperature,
     ReadMagnetometerXYZ,
-    SetLowPower,
-    ReadLowPower,
 }
 
 pub struct Lsm303dlhcI2C<'a> {
@@ -466,16 +464,6 @@ impl Lsm303dlhcI2C<'a> {
             self.buffer.take().map(|buf| {
                 buf[0] = MagnetometerRegisters::OUT_X_H_M as u8;
                 self.i2c_magnetometer.write_read(buf, 1, 6);
-            });
-        }
-    }
-
-    fn read_low_power(&self) {
-        if self.state.get() == State::Idle {
-            self.state.set(State::ReadLowPower);
-            self.buffer.take().map(|buf| {
-                buf[0] = AccelerometerRegisters::CTRL_REG1 as u8;
-                self.i2c_accelerometer.write_read(buf, 1, 1);
             });
         }
     }

@@ -33,7 +33,7 @@ static mut PROCESSES: [Option<&'static dyn kernel::procs::ProcessType>; NUM_PROC
     [None, None, None, None];
 
 // Static reference to chip for panic dumps.
-static mut CHIP: Option<&'static stm32f303xc::chip::stm32f303xc> = None;
+static mut CHIP: Option<&'static stm32f303xc::chip::Stm32f3xx> = None;
 
 // How should the kernel respond when a process faults.
 const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultResponse::Panic;
@@ -232,8 +232,8 @@ pub unsafe fn reset_handler() {
     DynamicDeferredCall::set_global_instance(dynamic_deferred_caller);
 
     let chip = static_init!(
-        stm32f303xc::chip::stm32f303xc,
-        stm32f303xc::chip::stm32f303xc::new()
+        stm32f303xc::chip::Stm32f3xx,
+        stm32f303xc::chip::Stm32f3xx::new()
     );
     CHIP = Some(chip);
 
