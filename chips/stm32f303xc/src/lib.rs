@@ -2,7 +2,7 @@
 //!
 //! STM32F303: <https://www.st.com/en/microcontrollers-microprocessors/stm32f303.html>
 
-#![crate_name = "stm32f3xx"]
+#![crate_name = "stm32f303xc"]
 #![crate_type = "rlib"]
 #![feature(asm, const_fn, in_band_lifetimes)]
 #![no_std]
@@ -82,7 +82,6 @@ pub static BASE_VECTORS: [unsafe extern "C" fn(); 16] = [
 // STM32F303VCT6 has total of 82 interrupts
 // Extracted from `CMSIS/Device/ST/STM32F3xx/Include/stm32f303xc.h`
 // NOTE: There are missing IRQn between 0 and 81
-#[cfg(feature = "stm32f303vct6")]
 #[cfg_attr(all(target_arch = "arm", target_os = "none"), link_section = ".irqs")]
 // used Ensures that the symbol is kept until the final binary
 #[cfg_attr(all(target_arch = "arm", target_os = "none"), used)]
