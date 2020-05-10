@@ -64,9 +64,12 @@ pub unsafe fn reset_handler() {
     nrf52840::init();
 
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
+
     // GPIOs
-    let gpio = components::gpio::GpioComponent::new(board_kernel).finalize(
+    let gpio = components::gpio::GpioComponent::new(
+        board_kernel,
         components::gpio_component_helper!(
+            nrf52840::gpio::GPIOPin,
             // left side of the USB plug
             &nrf52840::gpio::PORT[Pin::P0_13],
             &nrf52840::gpio::PORT[Pin::P0_15],
@@ -95,16 +98,24 @@ pub unsafe fn reset_handler() {
             &nrf52840::gpio::PORT[Pin::P1_04],
             &nrf52840::gpio::PORT[Pin::P1_02]
         ),
-    );
-    let button = components::button::ButtonComponent::new(board_kernel).finalize(
-        components::button_component_helper!((
-            &nrf52840::gpio::PORT[BUTTON_PIN],
-            kernel::hil::gpio::ActivationMode::ActiveLow,
-            kernel::hil::gpio::FloatingState::PullUp
-        )),
-    );
+    )
+    .finalize(components::gpio_component_buf!(nrf52840::gpio::GPIOPin));
 
-    let led = components::led::LedsComponent::new().finalize(components::led_component_helper!(
+    let button = components::button::ButtonComponent::new(
+        board_kernel,
+        components::button_component_helper!(
+            nrf52840::gpio::GPIOPin,
+            (
+                &nrf52840::gpio::PORT[BUTTON_PIN],
+                kernel::hil::gpio::ActivationMode::ActiveLow,
+                kernel::hil::gpio::FloatingState::PullUp
+            )
+        ),
+    )
+    .finalize(components::button_component_buf!(nrf52840::gpio::GPIOPin));
+
+    let led = components::led::LedsComponent::new(components::led_component_helper!(
+        nrf52840::gpio::GPIOPin,
         (
             &nrf52840::gpio::PORT[LED1_PIN],
             kernel::hil::gpio::ActivationMode::ActiveLow
@@ -121,7 +132,9 @@ pub unsafe fn reset_handler() {
             &nrf52840::gpio::PORT[LED2_B_PIN],
             kernel::hil::gpio::ActivationMode::ActiveLow
         )
-    ));
+    ))
+    .finalize(components::led_component_buf!(nrf52840::gpio::GPIOPin));
+
     let chip = static_init!(nrf52840::chip::Chip, nrf52840::chip::new());
     CHIP = Some(chip);
 

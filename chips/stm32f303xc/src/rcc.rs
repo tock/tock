@@ -66,8 +66,7 @@ register_bitfields![u32,
         /// Microcontroller clock output
         MCO OFFSET(24) NUMBITS(3) [],
         /// I2S clock selection
-        #[cfg(feature = "stm32f303vct6")]
-        I2SSRC OFFSET(23) NUMBITS(1) [],
+        I2SSRC OFFSET(23) NUMBITS(1) [], //stm32f303vct6 specific
         /// USB prescaler
         USBPRE OFFSET(22) NUMBITS(1) [],
         /// PLL multiplication factor
@@ -75,8 +74,7 @@ register_bitfields![u32,
         /// HSE divider for PLL input clock
         PLLXTPRE OFFSET(17) NUMBITS(1) [],
         /// PLL entry clock source
-        #[cfg(feature = "stm32f303vct6")]
-        PLLSRC OFFSET(16) NUMBITS(1) [],
+        PLLSRC OFFSET(16) NUMBITS(1) [], //stm32f303vct6 specific
         /// APB high-speed prescaler (APB2)
         PPRE2 OFFSET(11) NUMBITS(3) [],
         /// APB Low speed prescaler (APB1)
@@ -198,8 +196,7 @@ register_bitfields![u32,
     ],
     AHBENR [
         /// ADC3 and ADC4 enable
-        #[cfg(feature = "stm32f303vct6")]
-        ADC34EN OFFSET(29) NUMBITS(1) [],
+        ADC34EN OFFSET(29) NUMBITS(1) [], //stm32f303vct6 specific
         /// ADC1 and ADC2 enable
         ADC12EN OFFSET(28) NUMBITS(1) [],
         /// Touch sensing controller clock enable
@@ -223,8 +220,7 @@ register_bitfields![u32,
         /// SRAM interface clock enable
         SRAMEN OFFSET(2) NUMBITS(1) [],
         /// DMA2 clock enable
-        #[cfg(feature = "stm32f303vct6")]
-        DMA2EN OFFSET(1) NUMBITS(1) [],
+        DMA2EN OFFSET(1) NUMBITS(1) [], //stm32f303vct6 specific
         /// DMA1 clock enable
         DMA1EN OFFSET(0) NUMBITS(1) []
     ],
@@ -280,8 +276,7 @@ register_bitfields![u32,
         /// I2C2 clock enable
         I2C2EN OFFSET(22) NUMBITS(1) [],
         /// USB clock enable
-        #[cfg(feature = "stm32f303vct6")]
-        USBEN OFFSET(23) NUMBITS(1) [],
+        USBEN OFFSET(23) NUMBITS(1) [], //stm32f303vct6 specific
         /// I2CFMP1 clock enable
         I2CFMP1EN OFFSET(24) NUMBITS(1) [],
         /// CAN clock enable
@@ -337,8 +332,7 @@ register_bitfields![u32,
     ],
     AHBRSTR [
         /// ADC3 and ADC4
-        #[cfg(feature = "stm32f303vct6")]
-        ADC34RST OFFSET(29) NUMBITS(1) [],
+        ADC34RST OFFSET(29) NUMBITS(1) [], //stm32f303vct6 specific
         /// ADC1 and ADC2 reset
         ADC12RST OFFSET(28) NUMBITS(1) [],
         /// Touch sensing controller reset
@@ -358,8 +352,7 @@ register_bitfields![u32,
     ],
     CFGR2 [
         /// ADC34 prescaler
-        #[cfg(feature = "stm32f303vct6")]
-        ADC34PRES OFFSET(9) NUMBITS(5) [],
+        ADC34PRES OFFSET(9) NUMBITS(5) [], //stm32f303vct6 specific
         /// ADC12 prescaler
         ADC12PRES OFFSET(4) NUMBITS(5) [],
         /// PREDIV division factor
@@ -367,21 +360,17 @@ register_bitfields![u32,
     ],
     CFGR3 [
         /// USART5 clock source selection
-        #[cfg(feature = "stm32f303vct6")]
-        USART5SW OFFSET(22) NUMBITS(2) [],
+        USART5SW OFFSET(22) NUMBITS(2) [], //stm32f303vct6 specific
         /// USART4 clock source selection
-        #[cfg(feature = "stm32f303vct6")]
-        USART4SW OFFSET(20) NUMBITS(2) [],
+        USART4SW OFFSET(20) NUMBITS(2) [], //stm32f303vct6 specific
         /// USART2 clock source selection
         USART2SW OFFSET(16) NUMBITS(2) [],
         /// Timer8 clock source selection
-        #[cfg(feature = "stm32f303vct6")]
-        TIM8SW OFFSET(9) NUMBITS(1) [],
+        TIM8SW OFFSET(9) NUMBITS(1) [], //stm32f303vct6 specific
         /// Timer1 clock source selection
         TIM1SW OFFSET(8) NUMBITS(1) [],
         /// I2C2 clock source selection
-        #[cfg(feature = "stm32f303vct6")]
-        I2C2SW OFFSET(5) NUMBITS(1) [],
+        I2C2SW OFFSET(5) NUMBITS(1) [], //stm32f303vct6 specific
         /// I2C1 clock source selection
         I2C1SW OFFSET(4) NUMBITS(1) [],
         /// USART1 clock source selection

@@ -212,16 +212,16 @@ impl<A: time::Alarm<'a>> IP6SendStruct<'a, A> {
                             if is_done {
                                 self.tx_buf.replace(frame.into_buf());
                                 //self.send_completed(ReturnCode::SUCCESS);
-                                return (ReturnCode::SUCCESS, true);
+                                (ReturnCode::SUCCESS, true)
                             } else {
                                 let (err, _frame_option) = self.radio.transmit(frame);
-                                return (err, false);
+                                (err, false)
                             }
                         }
                         Err((retcode, buf)) => {
                             self.tx_buf.replace(buf);
                             //self.send_completed(retcode);
-                            return (retcode, true);
+                            (retcode, true)
                         }
                     }
                 }

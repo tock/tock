@@ -115,14 +115,14 @@ pub struct Platform {
         >,
     >,
     //spi: &'static capsules::spi::Spi<'static, VirtualSpiMasterDevice<'static, nrf52::spi::SPIM>>,
-    button: &'static capsules::button::Button<'static>,
+    button: &'static capsules::button::Button<'static, nrf52::gpio::GPIOPin>,
     pconsole: &'static capsules::process_console::ProcessConsole<
         'static,
         components::process_console::Capability,
     >,
     console: &'static capsules::console::Console<'static>,
-    gpio: &'static capsules::gpio::GPIO<'static>,
-    led: &'static capsules::led::LED<'static>,
+    gpio: &'static capsules::gpio::GPIO<'static, nrf52::gpio::GPIOPin>,
+    led: &'static capsules::led::LED<'static, nrf52::gpio::GPIOPin>,
     rng: &'static capsules::rng::RngDriver<'static>,
     temp: &'static capsules::temperature::TemperatureSensor<'static>,
     ipc: kernel::ipc::IPC,
@@ -176,15 +176,15 @@ pub unsafe fn setup_board<I: nrf52::interrupt_service::InterruptService>(
     board_kernel: &'static kernel::Kernel,
     button_rst_pin: Pin,
     gpio_port: &'static nrf52::gpio::Port,
-    gpio: &'static capsules::gpio::GPIO<'static>,
+    gpio: &'static capsules::gpio::GPIO<'static, nrf52::gpio::GPIOPin>,
     debug_pin1_index: Pin,
     debug_pin2_index: Pin,
     debug_pin3_index: Pin,
-    led: &'static capsules::led::LED<'static>,
+    led: &'static capsules::led::LED<'static, nrf52::gpio::GPIOPin>,
     uart_channel: UartChannel<'static>,
     spi_pins: &SpiPins,
     mx25r6435f: &Option<SpiMX25R6435FPins>,
-    button: &'static capsules::button::Button<'static>,
+    button: &'static capsules::button::Button<'static, nrf52::gpio::GPIOPin>,
     ieee802154: bool,
     lora: &Option<LoraPins>,
     app_memory: &mut [u8],
@@ -469,7 +469,7 @@ pub unsafe fn setup_board<I: nrf52::interrupt_service::InterruptService>(
     );
     let analog_comparator = static_init!(
         analog_comparator::AnalogComparator<'static, nrf52::acomp::Comparator>,
-        analog_comparator::AnalogComparator::new(&mut nrf52::acomp::ACOMP, ac_channels)
+        analog_comparator::AnalogComparator::new(&nrf52::acomp::ACOMP, ac_channels)
     );
     nrf52::acomp::ACOMP.set_client(analog_comparator);
 

@@ -6,7 +6,7 @@ use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
 use kernel::hil;
 use kernel::hil::gpio::Output;
-use kernel::hil::spi::{self, ClockPhase, ClockPolarity, SpiMaster, SpiMasterClient};
+use kernel::hil::spi::{self, ClockPhase, ClockPolarity, SpiMasterClient};
 use kernel::{ClockInterface, ReturnCode};
 
 use crate::dma1;
@@ -155,6 +155,8 @@ pub struct Spi<'a> {
     transfers_in_progress: Cell<u8>,
 
     active_slave: OptionalCell<PinId>,
+
+    active_after: Cell<bool>,
 }
 
 // for use by `set_dma`
@@ -190,6 +192,8 @@ impl Spi<'a> {
             transfers_in_progress: Cell::new(0),
 
             active_slave: OptionalCell::empty(),
+
+            active_after: Cell::new(false),
         }
     }
 
@@ -293,7 +297,11 @@ impl Spi<'a> {
             return ReturnCode::EINVAL;
         }
 
-        self.hold_low();
+        self.active_slave.map(|p| {
+            p.get_pin().as_ref().map(|pin| {
+                pin.clear();
+            });
+        });
 
         let mut count: usize = len;
         write_buffer
@@ -435,19 +443,11 @@ impl spi::SpiMaster for Spi<'a> {
     }
 
     fn hold_low(&self) {
-        self.active_slave.map(|p| {
-            p.get_pin().as_ref().map(|pin| {
-                pin.clear();
-            });
-        });
+        self.active_after.set(true);
     }
 
     fn release_low(&self) {
-        self.active_slave.map(|p| {
-            p.get_pin().as_ref().map(|pin| {
-                pin.set();
-            });
-        });
+        self.active_after.set(false);
     }
 
     fn specify_chip_select(&self, cs: Self::ChipSelect) {
@@ -469,7 +469,13 @@ impl dma1::StreamClient for Spi<'a> {
             .set(self.transfers_in_progress.get() - 1);
 
         if self.transfers_in_progress.get() == 0 {
-            self.release_low();
+            if !self.active_after.get() {
+                self.active_slave.map(|p| {
+                    p.get_pin().as_ref().map(|pin| {
+                        pin.set();
+                    });
+                });
+            }
 
             let tx_buffer = self.tx_dma.and_then(|tx_dma| tx_dma.return_buffer());
             let rx_buffer = self.rx_dma.and_then(|rx_dma| rx_dma.return_buffer());

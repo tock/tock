@@ -22,7 +22,7 @@ pub struct Buffer64 {
 impl Default for Buffer64 {
     fn default() -> Self {
         Self {
-            buf: [Default::default(); 64],
+            buf: [VolatileCell::default(); 64],
         }
     }
 }

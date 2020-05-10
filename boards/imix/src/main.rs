@@ -100,14 +100,14 @@ struct Imix {
         components::process_console::Capability,
     >,
     console: &'static capsules::console::Console<'static>,
-    gpio: &'static capsules::gpio::GPIO<'static>,
+    gpio: &'static capsules::gpio::GPIO<'static, sam4l::gpio::GPIOPin>,
     alarm: &'static AlarmDriver<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>,
     temp: &'static capsules::temperature::TemperatureSensor<'static>,
     humidity: &'static capsules::humidity::HumiditySensor<'static>,
     ambient_light: &'static capsules::ambient_light::AmbientLight<'static>,
     adc: &'static capsules::adc::Adc<'static, sam4l::adc::Adc>,
-    led: &'static capsules::led::LED<'static>,
-    button: &'static capsules::button::Button<'static>,
+    led: &'static capsules::led::LED<'static, sam4l::gpio::GPIOPin>,
+    button: &'static capsules::button::Button<'static, sam4l::gpio::GPIOPin>,
     rng: &'static capsules::rng::RngDriver<'static>,
     analog_comparator: &'static capsules::analog_comparator::AnalogComparator<
         'static,
@@ -340,27 +340,41 @@ pub unsafe fn reset_handler() {
     .finalize(());
 
     let adc = AdcComponent::new(board_kernel).finalize(());
-    let gpio = GpioComponent::new(board_kernel).finalize(components::gpio_component_helper!(
-        &sam4l::gpio::PC[31],
-        &sam4l::gpio::PC[30],
-        &sam4l::gpio::PC[29],
-        &sam4l::gpio::PC[28],
-        &sam4l::gpio::PC[27],
-        &sam4l::gpio::PC[26],
-        &sam4l::gpio::PA[20]
-    ));
+    let gpio = GpioComponent::new(
+        board_kernel,
+        components::gpio_component_helper!(
+            sam4l::gpio::GPIOPin,
+            &sam4l::gpio::PC[31],
+            &sam4l::gpio::PC[30],
+            &sam4l::gpio::PC[29],
+            &sam4l::gpio::PC[28],
+            &sam4l::gpio::PC[27],
+            &sam4l::gpio::PC[26],
+            &sam4l::gpio::PA[20]
+        ),
+    )
+    .finalize(components::gpio_component_buf!(sam4l::gpio::GPIOPin));
 
-    let led = LedsComponent::new().finalize(components::led_component_helper!((
-        &sam4l::gpio::PC[10],
-        kernel::hil::gpio::ActivationMode::ActiveHigh
-    )));
-    let button = components::button::ButtonComponent::new(board_kernel).finalize(
-        components::button_component_helper!((
-            &sam4l::gpio::PC[24],
-            kernel::hil::gpio::ActivationMode::ActiveLow,
-            kernel::hil::gpio::FloatingState::PullNone
-        )),
-    );
+    let led = LedsComponent::new(components::led_component_helper!(
+        sam4l::gpio::GPIOPin,
+        (
+            &sam4l::gpio::PC[10],
+            kernel::hil::gpio::ActivationMode::ActiveHigh
+        )
+    ))
+    .finalize(components::led_component_buf!(sam4l::gpio::GPIOPin));
+    let button = components::button::ButtonComponent::new(
+        board_kernel,
+        components::button_component_helper!(
+            sam4l::gpio::GPIOPin,
+            (
+                &sam4l::gpio::PC[24],
+                kernel::hil::gpio::ActivationMode::ActiveLow,
+                kernel::hil::gpio::FloatingState::PullNone
+            )
+        ),
+    )
+    .finalize(components::button_component_buf!(sam4l::gpio::GPIOPin));
     let crc = CrcComponent::new(board_kernel, &sam4l::crccu::CRCCU)
         .finalize(components::crc_component_helper!(sam4l::crccu::Crccu));
     let analog_comparator = AcComponent::new().finalize(());

@@ -48,22 +48,23 @@ use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::Gpio as usize;
 
 use kernel::hil::gpio;
+use kernel::hil::gpio::{Configure, Input, InterruptWithValue, Output};
 use kernel::{AppId, Callback, Driver, Grant, ReturnCode};
 
-pub struct GPIO<'a> {
-    pins: &'a [&'a dyn gpio::InterruptValuePin],
+pub struct GPIO<'a, IP: gpio::InterruptPin> {
+    pins: &'a [&'a gpio::InterruptValueWrapper<'a, IP>],
     apps: Grant<Option<Callback>>,
 }
 
-impl<'a> GPIO<'a> {
+impl<'a, IP: gpio::InterruptPin> GPIO<'a, IP> {
     pub fn new(
-        pins: &'a [&'a dyn gpio::InterruptValuePin],
+        pins: &'a [&'a gpio::InterruptValueWrapper<'a, IP>],
         grant: Grant<Option<Callback>>,
-    ) -> GPIO<'a> {
+    ) -> Self {
         for (i, pin) in pins.iter().enumerate() {
             pin.set_value(i as u32);
         }
-        GPIO {
+        Self {
             pins: pins,
             apps: grant,
         }
@@ -113,7 +114,7 @@ impl<'a> GPIO<'a> {
     }
 }
 
-impl<'a> gpio::ClientWithValue for GPIO<'a> {
+impl<IP: gpio::InterruptPin> gpio::ClientWithValue for GPIO<'_, IP> {
     fn fired(&self, pin_num: u32) {
         // read the value of the pin
         let pins = self.pins.as_ref();
@@ -126,7 +127,7 @@ impl<'a> gpio::ClientWithValue for GPIO<'a> {
     }
 }
 
-impl<'a> Driver for GPIO<'a> {
+impl<IP: gpio::InterruptPin> Driver for GPIO<'_, IP> {
     /// Subscribe to GPIO pin events.
     ///
     /// ### `subscribe_num`

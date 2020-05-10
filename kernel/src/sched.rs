@@ -333,7 +333,9 @@ impl Kernel {
         systick.enable(false);
 
         loop {
-            if chip.has_pending_interrupts() {
+            if chip.has_pending_interrupts()
+                || DynamicDeferredCall::global_instance_calls_pending().unwrap_or(false)
+            {
                 break;
             }
 

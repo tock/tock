@@ -8,9 +8,9 @@
 //! let lcd = components::l3gd20::L3gd20SpiComponent::new(board_kernel).finalize(
 //!     components::l3gd20_spi_component_helper!(
 //!         // spi type
-//!         stm32f4xx::spi::Spi,
+//!         stm32f429zi::spi::Spi,
 //!         // chip select
-//!         stm32f4xx::gpio::PinId::PE03,
+//!         stm32f429zi::gpio::PinId::PE03,
 //!         // spi mux
 //!         spi_mux
 //!     )

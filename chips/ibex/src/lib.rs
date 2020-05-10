@@ -10,6 +10,7 @@ mod interrupts;
 pub mod aes;
 pub mod chip;
 pub mod gpio;
+pub mod hmac;
 pub mod plic;
 pub mod timer;
 pub mod uart;

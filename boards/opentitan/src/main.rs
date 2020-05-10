@@ -7,6 +7,7 @@
 #![feature(asm)]
 
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+use capsules::virtual_hmac::VirtualMuxHmac;
 use kernel::capabilities;
 use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::component::Component;
@@ -48,12 +49,17 @@ pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 /// A structure representing this platform that holds references to all
 /// capsules for this platform. We've included an alarm and console.
 struct OpenTitan {
-    led: &'static capsules::led::LED<'static>,
-    gpio: &'static capsules::gpio::GPIO<'static>,
+    led: &'static capsules::led::LED<'static, ibex::gpio::GpioPin>,
+    gpio: &'static capsules::gpio::GPIO<'static, ibex::gpio::GpioPin>,
     console: &'static capsules::console::Console<'static>,
     alarm: &'static capsules::alarm::AlarmDriver<
         'static,
         VirtualMuxAlarm<'static, ibex::timer::RvTimer<'static>>,
+    >,
+    hmac: &'static capsules::hmac::HmacDriver<
+        'static,
+        VirtualMuxHmac<'static, lowrisc::hmac::Hmac<'static>, [u8; 32]>,
+        [u8; 32],
     >,
     lldb: &'static capsules::low_level_debug::LowLevelDebug<
         'static,
@@ -69,6 +75,7 @@ impl Platform for OpenTitan {
     {
         match driver_num {
             capsules::led::DRIVER_NUM => f(Some(self.led)),
+            capsules::hmac::DRIVER_NUM => f(Some(self.hmac)),
             capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
             capsules::console::DRIVER_NUM => f(Some(self.console)),
             capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
@@ -133,7 +140,8 @@ pub unsafe fn reset_handler() {
 
     // LEDs
     // Start with half on and half off
-    let led = components::led::LedsComponent::new().finalize(components::led_component_helper!(
+    let led = components::led::LedsComponent::new(components::led_component_helper!(
+        ibex::gpio::GpioPin,
         (
             &ibex::gpio::PORT[8],
             kernel::hil::gpio::ActivationMode::ActiveHigh
@@ -166,10 +174,13 @@ pub unsafe fn reset_handler() {
             &ibex::gpio::PORT[15],
             kernel::hil::gpio::ActivationMode::ActiveHigh
         )
-    ));
+    ))
+    .finalize(components::led_component_buf!(ibex::gpio::GpioPin));
 
-    let gpio = components::gpio::GpioComponent::new(board_kernel).finalize(
+    let gpio = components::gpio::GpioComponent::new(
+        board_kernel,
         components::gpio_component_helper!(
+            ibex::gpio::GpioPin,
             &ibex::gpio::PORT[0],
             &ibex::gpio::PORT[1],
             &ibex::gpio::PORT[2],
@@ -179,7 +190,8 @@ pub unsafe fn reset_handler() {
             &ibex::gpio::PORT[6],
             &ibex::gpio::PORT[15]
         ),
-    );
+    )
+    .finalize(components::gpio_component_buf!(ibex::gpio::GpioPin));
 
     let alarm = &ibex::timer::TIMER;
     alarm.setup();
@@ -213,6 +225,24 @@ pub unsafe fn reset_handler() {
 
     let lldb = components::lldb::LowLevelDebugComponent::new(board_kernel, uart_mux).finalize(());
 
+    let hmac_data_buffer = static_init!([u8; 64], [0; 64]);
+    let hmac_dest_buffer = static_init!([u8; 32], [0; 32]);
+
+    let mux_hmac = components::hmac::HmacMuxComponent::new(&ibex::hmac::HMAC).finalize(
+        components::hmac_mux_component_helper!(lowrisc::hmac::Hmac, [u8; 32]),
+    );
+
+    let hmac = components::hmac::HmacComponent::new(
+        board_kernel,
+        &mux_hmac,
+        hmac_data_buffer,
+        hmac_dest_buffer,
+    )
+    .finalize(components::hmac_component_helper!(
+        lowrisc::hmac::Hmac,
+        [u8; 32]
+    ));
+
     debug!("OpenTitan initialisation complete. Entering main loop");
 
     extern "C" {
@@ -232,6 +262,7 @@ pub unsafe fn reset_handler() {
         led: led,
         console: console,
         alarm: alarm,
+        hmac,
         lldb: lldb,
     };
 

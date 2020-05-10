@@ -1,0 +1,77 @@
+# This workflow contains all tock-ci, seperated into jobs
+
+name: tock-ci
+env:
+  TERM: xterm # Makes tput work in actions output
+
+# Controls when the action will run. Triggers the workflow on push or pull request
+# events but only for the master branch
+on:
+  push:
+    branches-ignore: [ staging.tmp, trying.tmp ] # Run CI for all branches except bors tmp branches
+  pull_request: # Run CI for PRs on any branch
+
+# A workflow run is made up of one or more jobs that can run sequentially or in parallel
+# If you add additional jobs, remember to add them to bors.toml
+jobs:
+  ci-format:
+    # The type of runner that the job will run on
+    runs-on: ubuntu-latest
+
+    # Steps represent a sequence of tasks that will be executed as part of the job
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1 # pulls version from rust-toolchain file
+      - uses: actions/setup-node@v1
+        with:
+          components: rustfmt, clippy
+      - name: ci-formatting
+        run: make ci-formatting
+      - name: ci-documentation
+        run: |
+          npm install -g markdown-toc
+          make ci-documentation
+
+  ci-build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+
+      - name: ci-syntax
+        run: make ci-syntax
+      - name: ci-compilation
+        run: make ci-compilation
+      - name: ci-debug-support-targets
+        run: make ci-debug-support-targets
+
+      - name: collect-build-artifacts
+        run: make ci-collect-artifacts
+      - name: upload-build-artifacts
+        uses: actions/upload-artifact@v2
+        with:
+          name: build-artifacts
+          path: ci-artifacts
+
+  ci-tests:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+      - name: ci-cargo-tests
+        run: make ci-cargo-tests
+      - name: ci-tools
+        run: |
+          sudo apt install libusb-1.0-0-dev
+          make ci-tools
+
+  emulation-check:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+      - name: qemu tests
+        run: make emulation-check

@@ -13,6 +13,7 @@ pub mod crc;
 pub mod debug_queue;
 pub mod debug_writer;
 pub mod hd44780;
+pub mod hmac;
 pub mod i2c;
 pub mod isl29035;
 pub mod l3gd20;

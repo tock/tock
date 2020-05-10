@@ -182,6 +182,8 @@ impl<T: Default> Grant<T> {
                 //            │   GrantPointer1 [0x003FFC0]
                 //            │   ...
                 //            │   GrantPointerN [0x0000000 (NULL)]
+                //            ├────────────────────
+                //            │   Process Control Block
                 // 0x003FFE0  ├────────────────────
                 //            │   GrantRegion0
                 // 0x003FFC8  ├────────────────────

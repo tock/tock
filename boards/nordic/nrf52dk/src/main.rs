@@ -129,8 +129,11 @@ pub unsafe fn reset_handler() {
     nrf52832::init();
 
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
-    let gpio = components::gpio::GpioComponent::new(board_kernel).finalize(
+
+    let gpio = components::gpio::GpioComponent::new(
+        board_kernel,
         components::gpio_component_helper!(
+            nrf52832::gpio::GPIOPin,
             // Bottom right header on DK board
             &nrf52832::gpio::PORT[Pin::P0_03],
             &nrf52832::gpio::PORT[Pin::P0_04],
@@ -147,9 +150,13 @@ pub unsafe fn reset_handler() {
             &nrf52832::gpio::PORT[Pin::P0_02],
             &nrf52832::gpio::PORT[Pin::P0_25]
         ),
-    );
-    let button = components::button::ButtonComponent::new(board_kernel).finalize(
+    )
+    .finalize(components::gpio_component_buf!(nrf52832::gpio::GPIOPin));
+
+    let button = components::button::ButtonComponent::new(
+        board_kernel,
         components::button_component_helper!(
+            nrf52832::gpio::GPIOPin,
             (
                 &nrf52832::gpio::PORT[BUTTON1_PIN],
                 kernel::hil::gpio::ActivationMode::ActiveLow,
@@ -171,9 +178,11 @@ pub unsafe fn reset_handler() {
                 kernel::hil::gpio::FloatingState::PullUp
             ) //16
         ),
-    );
+    )
+    .finalize(components::button_component_buf!(nrf52832::gpio::GPIOPin));
 
-    let led = components::led::LedsComponent::new().finalize(components::led_component_helper!(
+    let led = components::led::LedsComponent::new(components::led_component_helper!(
+        nrf52832::gpio::GPIOPin,
         (
             &nrf52832::gpio::PORT[LED1_PIN],
             kernel::hil::gpio::ActivationMode::ActiveLow
@@ -190,7 +199,9 @@ pub unsafe fn reset_handler() {
             &nrf52832::gpio::PORT[LED4_PIN],
             kernel::hil::gpio::ActivationMode::ActiveLow
         )
-    ));
+    ))
+    .finalize(components::led_component_buf!(nrf52832::gpio::GPIOPin));
+
     let chip = static_init!(nrf52832::chip::Chip, nrf52832::chip::new());
     CHIP = Some(chip);
 
