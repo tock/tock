@@ -5,6 +5,89 @@ use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
 use kernel::hil;
 
+pub static mut PINS: [Pin; 80] = [
+    Pin::new(PinNr::P01_0),
+    Pin::new(PinNr::P01_1),
+    Pin::new(PinNr::P01_2),
+    Pin::new(PinNr::P01_3),
+    Pin::new(PinNr::P01_4),
+    Pin::new(PinNr::P01_5),
+    Pin::new(PinNr::P01_6),
+    Pin::new(PinNr::P01_7),
+    Pin::new(PinNr::P02_0),
+    Pin::new(PinNr::P02_1),
+    Pin::new(PinNr::P02_2),
+    Pin::new(PinNr::P02_3),
+    Pin::new(PinNr::P02_4),
+    Pin::new(PinNr::P02_5),
+    Pin::new(PinNr::P02_6),
+    Pin::new(PinNr::P02_7),
+    Pin::new(PinNr::P03_0),
+    Pin::new(PinNr::P03_1),
+    Pin::new(PinNr::P03_2),
+    Pin::new(PinNr::P03_3),
+    Pin::new(PinNr::P03_4),
+    Pin::new(PinNr::P03_5),
+    Pin::new(PinNr::P03_6),
+    Pin::new(PinNr::P03_7),
+    Pin::new(PinNr::P04_0),
+    Pin::new(PinNr::P04_1),
+    Pin::new(PinNr::P04_2),
+    Pin::new(PinNr::P04_3),
+    Pin::new(PinNr::P04_4),
+    Pin::new(PinNr::P04_5),
+    Pin::new(PinNr::P04_6),
+    Pin::new(PinNr::P04_7),
+    Pin::new(PinNr::P05_0),
+    Pin::new(PinNr::P05_1),
+    Pin::new(PinNr::P05_2),
+    Pin::new(PinNr::P05_3),
+    Pin::new(PinNr::P05_4),
+    Pin::new(PinNr::P05_5),
+    Pin::new(PinNr::P05_6),
+    Pin::new(PinNr::P05_7),
+    Pin::new(PinNr::P06_0),
+    Pin::new(PinNr::P06_1),
+    Pin::new(PinNr::P06_2),
+    Pin::new(PinNr::P06_3),
+    Pin::new(PinNr::P06_4),
+    Pin::new(PinNr::P06_5),
+    Pin::new(PinNr::P06_6),
+    Pin::new(PinNr::P06_7),
+    Pin::new(PinNr::P07_0),
+    Pin::new(PinNr::P07_1),
+    Pin::new(PinNr::P07_2),
+    Pin::new(PinNr::P07_3),
+    Pin::new(PinNr::P07_4),
+    Pin::new(PinNr::P07_5),
+    Pin::new(PinNr::P07_6),
+    Pin::new(PinNr::P07_7),
+    Pin::new(PinNr::P08_0),
+    Pin::new(PinNr::P08_1),
+    Pin::new(PinNr::P08_2),
+    Pin::new(PinNr::P08_3),
+    Pin::new(PinNr::P08_4),
+    Pin::new(PinNr::P08_5),
+    Pin::new(PinNr::P08_6),
+    Pin::new(PinNr::P08_7),
+    Pin::new(PinNr::P09_0),
+    Pin::new(PinNr::P09_1),
+    Pin::new(PinNr::P09_2),
+    Pin::new(PinNr::P09_3),
+    Pin::new(PinNr::P09_4),
+    Pin::new(PinNr::P09_5),
+    Pin::new(PinNr::P09_6),
+    Pin::new(PinNr::P09_7),
+    Pin::new(PinNr::P10_0),
+    Pin::new(PinNr::P10_1),
+    Pin::new(PinNr::P10_2),
+    Pin::new(PinNr::P10_3),
+    Pin::new(PinNr::P10_4),
+    Pin::new(PinNr::P10_5),
+    Pin::new(PinNr::P10_6),
+    Pin::new(PinNr::P10_7),
+];
+
 const GPIO_BASES: [StaticRef<GpioRegisters>; 6] = [
     unsafe { StaticRef::new(0x4000_4C00 as *const GpioRegisters) }, // PORT 1&2
     unsafe { StaticRef::new(0x4000_4C20 as *const GpioRegisters) }, // PORT 3&4
@@ -206,6 +289,8 @@ impl Pin {
     }
 }
 
+impl hil::gpio::Pin for Pin {}
+
 impl hil::gpio::Input for Pin {
     fn read(&self) -> bool {
         (self.registers.input[self.reg_idx].get() & (1 << self.pin)) > 0
@@ -298,7 +383,6 @@ impl hil::gpio::Configure for Pin {
             hil::gpio::FloatingState::PullNone => {
                 ren &= !(1 << self.pin);
             }
-            _ => {}
         }
         regs.ren[self.reg_idx].set(ren);
         regs.out[self.reg_idx].set(out);

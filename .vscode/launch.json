@@ -15,6 +15,21 @@
                 "monitor speed auto",
                 "b reset_handler"
             ]
+        },
+        {
+            "name": "MSP-EXP432P401R",
+            "type": "gdb",
+            "request": "attach",
+            "executable": "${workspaceRoot}/target/thumbv7em-none-eabi/debug/msp-exp432p401r",
+            "target": "localhost:3333",
+            "remote": true,
+            "cwd": "${workspaceRoot}",
+            "gdbpath": "arm-none-eabi-gdb",
+            "autorun": [
+                "monitor reset",
+                "monitor speed auto",
+                "b reset_handler"
+            ]
         }
     ]
 }

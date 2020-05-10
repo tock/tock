@@ -236,7 +236,7 @@ impl ClockSystem {
 
     // not sure about the interface, so for testing provide a function to set
     // the clock to 48Mhz
-    fn set_clk_48mhz(&self) {
+    pub fn set_clk_48mhz(&self) {
         self.unlock_registers();
         // set DCO to 48MHz
         self.registers
