@@ -92,6 +92,7 @@ enum TbfHeaderTypes {
     TbfHeaderWriteableFlashRegions = 2,
     TbfHeaderPackageName = 3,
     TbfHeaderPicOption1 = 4,
+    TbfHeaderFixedAddresses = 5,
 }
 
 // Type-length-value header to identify each struct.
@@ -128,6 +129,12 @@ struct TbfHeaderWriteableFlashRegion {
 struct TbfHeaderWriteableFlashRegions {
     base: TbfHeaderTlv,
     writeable_flash_regions: [TbfHeaderWriteableFlashRegion],
+}
+
+// Fixed and required addresses for process RAM and/or process flash.
+struct TbfHeaderV2FixedAddresses {
+    start_process_ram: u32,
+    start_process_flash: u32,
 }
 ```
 
@@ -261,6 +268,29 @@ an UTF-8 encoded package name.
 ```
 
   * `package_name` is an UTF-8 encoded package name
+
+#### `5` Fixed Addresses
+
+`Fixed Addresses` allows processes to specify specific addresses they need for
+flash and RAM. While Tock apps are expected to be position-independent, that is
+not always possible, and this allows the kernel (and other tools) to check that
+the addresses a process expects to be loaded at are being met.
+
+```
+0             2             4             6             8
++-------------+-------------+---------------------------+
+| Type (5)    | Length (8)  | ram_address               |
++-------------+-------------+-------------+-------------+
+| flash_address             |
++---------------------------+
+```
+
+  * `ram_address` the address in memory the process's memory address must start
+    at. If a fixed address is not required this should be set to `0xFFFFFFFF`.
+  * `flash_address` the address in flash that the process binary (not the
+    header) must be located at. This would match the value provided for flash to
+    the linker. If a fixed address is not required this should be set to
+    `0xFFFFFFFF`.
 
 ## Code
 
