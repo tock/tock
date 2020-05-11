@@ -8,7 +8,7 @@ use kernel::syscall::ContextSwitchReason;
 
 /// This holds all of the state that the kernel must keep for the process when
 /// the process is not executing.
-#[derive(Copy, Clone, Default)]
+#[derive(Default)]
 #[repr(C)]
 pub struct RiscvimacStoredState {
     /// Store all of the app registers.
