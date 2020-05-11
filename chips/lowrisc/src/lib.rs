@@ -8,3 +8,4 @@
 pub mod gpio;
 pub mod hmac;
 pub mod uart;
+pub mod usbdev;
