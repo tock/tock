@@ -328,10 +328,10 @@ pub unsafe fn reset_handler() {
             20 => stm32f429zi::gpio::PIN[0][15].as_ref().unwrap(), //D20
             21 => stm32f429zi::gpio::PIN[2][7].as_ref().unwrap(), //D21
             // SPI B Pins
-            // None => 22, // Some => stm32f429zi::gpio::PIN[1][5].as_ref().unwrap(), //D22
-            // None => 23, // Some => stm32f429zi::gpio::PIN[1][3].as_ref().unwrap(), //D23
-            // None => 24, // Some => stm32f429zi::gpio::PIN[0][4].as_ref().unwrap(), //D24
-            // None => 25, // Some => stm32f429zi::gpio::PIN[1][4].as_ref().unwrap(), //D25
+            // 22 => stm32f429zi::gpio::PIN[1][5].as_ref().unwrap(), //D22
+            // 23 => stm32f429zi::gpio::PIN[1][3].as_ref().unwrap(), //D23
+            // 24 => stm32f429zi::gpio::PIN[0][4].as_ref().unwrap(), //D24
+            // 24 => stm32f429zi::gpio::PIN[1][4].as_ref().unwrap(), //D25
             // QSPI
             26 => stm32f429zi::gpio::PIN[1][6].as_ref().unwrap(), //D26
             27 => stm32f429zi::gpio::PIN[1][2].as_ref().unwrap(), //D27
