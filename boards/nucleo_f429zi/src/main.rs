@@ -181,7 +181,7 @@ unsafe fn setup_peripherals() {
 /// execution begins here.
 #[no_mangle]
 pub unsafe fn reset_handler() {
-    stm32f429zi::stm32f4xx::init();
+    stm32f429zi::init();
 
     // We use the default HSI 16Mhz clock
 
