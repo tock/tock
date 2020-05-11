@@ -135,20 +135,20 @@ pub unsafe fn reset_handler() {
         components::gpio_component_helper!(
             nrf52832::gpio::GPIOPin,
             // Bottom right header on DK board
-            3 => &nrf52832::gpio::PORT[Pin::P0_03],
-            4 => &nrf52832::gpio::PORT[Pin::P0_04],
-            28 => &nrf52832::gpio::PORT[Pin::P0_28],
-            29 => &nrf52832::gpio::PORT[Pin::P0_29],
-            30 => &nrf52832::gpio::PORT[Pin::P0_30],
-            31 => &nrf52832::gpio::PORT[Pin::P0_31],
+            0 => &nrf52832::gpio::PORT[Pin::P0_03],
+            1 => &nrf52832::gpio::PORT[Pin::P0_04],
+            2 => &nrf52832::gpio::PORT[Pin::P0_28],
+            3 => &nrf52832::gpio::PORT[Pin::P0_29],
+            4 => &nrf52832::gpio::PORT[Pin::P0_30],
+            5 => &nrf52832::gpio::PORT[Pin::P0_31],
             // Top mid header on DK board
-            12 => &nrf52832::gpio::PORT[Pin::P0_12],
-            11 => &nrf52832::gpio::PORT[Pin::P0_11],
+            6 => &nrf52832::gpio::PORT[Pin::P0_12],
+            7 => &nrf52832::gpio::PORT[Pin::P0_11],
             // Top left header on DK board
-            27 => &nrf52832::gpio::PORT[Pin::P0_27],
-            26 => &nrf52832::gpio::PORT[Pin::P0_26],
-            2 => &nrf52832::gpio::PORT[Pin::P0_02],
-            25 => &nrf52832::gpio::PORT[Pin::P0_25]
+            8 => &nrf52832::gpio::PORT[Pin::P0_27],
+            9 => &nrf52832::gpio::PORT[Pin::P0_26],
+            10 => &nrf52832::gpio::PORT[Pin::P0_02],
+            11 => &nrf52832::gpio::PORT[Pin::P0_25]
         ),
     )
     .finalize(components::gpio_component_buf!(nrf52832::gpio::GPIOPin));

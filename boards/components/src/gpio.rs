@@ -1,25 +1,42 @@
 //! Components for GPIO pins.
 //!
+//!
 //! Usage
 //! -----
 //! ```rust
 //! let gpio = components::gpio::GpioComponent::new(
 //!     board_kernel,
 //!     components::gpio_component_helper!(
-//!         // pin struct type
-//!         sam4l::gpio::GPIOPin,
-//!         // pin number => pin reference
-//!         2 => &nrf52840::gpio::PORT[GPIO_D2],
-//!         3 => &nrf52840::gpio::PORT[GPIO_D3],
-//!         4 => &nrf52840::gpio::PORT[GPIO_D4],
-//!         5 => &nrf52840::gpio::PORT[GPIO_D5],
-//!         6 => &nrf52840::gpio::PORT[GPIO_D6],
-//!         7 => &nrf52840::gpio::PORT[GPIO_D7],
-//!         8 => &nrf52840::gpio::PORT[GPIO_D8],
-//!         9 => &nrf52840::gpio::PORT[GPIO_D9],
-//!         10 => &nrf52840::gpio::PORT[GPIO_D10]
-//!     )
-//! ).finalize(gpio_component_buf!(sam4l::gpio::GPIOPin));;
+//!         nrf52840::gpio::GPIOPin,
+//!         // left side of the USB plug
+//!         0 => &nrf52840::gpio::PORT[Pin::P0_13],
+//!         1 => &nrf52840::gpio::PORT[Pin::P0_15],
+//!         2 => &nrf52840::gpio::PORT[Pin::P0_17],
+//!         3 => &nrf52840::gpio::PORT[Pin::P0_20],
+//!         4 => &nrf52840::gpio::PORT[Pin::P0_22],
+//!         5 => &nrf52840::gpio::PORT[Pin::P0_24],
+//!         6 => &nrf52840::gpio::PORT[Pin::P1_00],
+//!         7 => &nrf52840::gpio::PORT[Pin::P0_09],
+//!         8 => &nrf52840::gpio::PORT[Pin::P0_10],
+//!         // right side of the USB plug
+//!         9 => &nrf52840::gpio::PORT[Pin::P0_31],
+//!         10 => &nrf52840::gpio::PORT[Pin::P0_29],
+//!         11 => &nrf52840::gpio::PORT[Pin::P0_02],
+//!         12 => &nrf52840::gpio::PORT[Pin::P1_15],
+//!         13 => &nrf52840::gpio::PORT[Pin::P1_13],
+//!         14 => &nrf52840::gpio::PORT[Pin::P1_10],
+//!         // Below the PCB
+//!         15 => &nrf52840::gpio::PORT[Pin::P0_26],
+//!         16 => &nrf52840::gpio::PORT[Pin::P0_04],
+//!         17 => &nrf52840::gpio::PORT[Pin::P0_11],
+//!         18 => &nrf52840::gpio::PORT[Pin::P0_14],
+//!         19 => &nrf52840::gpio::PORT[Pin::P1_11],
+//!         20 => &nrf52840::gpio::PORT[Pin::P1_07],
+//!         21 => &nrf52840::gpio::PORT[Pin::P1_01],
+//!         22 => &nrf52840::gpio::PORT[Pin::P1_04],
+//!         23 => &nrf52840::gpio::PORT[Pin::P1_02]
+//!     ),
+//! ).finalize(components::gpio_component_buf!(nrf52840::gpio::GPIOPin));
 //! ```
 
 use capsules::gpio::GPIO;
@@ -39,6 +56,11 @@ macro_rules! gpio_component_helper_max_pin {
 }
 
 #[macro_export]
+/// Pins are declared using the following format:
+///     number => pin
+///
+/// Any pin numbers that are skipped will be declared as None
+/// and using the from the user space will return ENODEVICE
 macro_rules! gpio_component_helper {
     (
         $Pin:ty,
