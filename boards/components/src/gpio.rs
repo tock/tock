@@ -60,7 +60,7 @@ macro_rules! gpio_component_helper_max_pin {
 ///     number => pin
 ///
 /// Any pin numbers that are skipped will be declared as None
-/// and using the from the user space will return ENODEVICE
+/// and using them from user space will return ENODEVICE
 macro_rules! gpio_component_helper {
     (
         $Pin:ty,
