@@ -128,29 +128,32 @@ ci-libraries:
 	@printf "$$(tput bold)*****************$$(tput sgr0)\n"
 	@printf "$$(tput bold)* CI: Libraries *$$(tput sgr0)\n"
 	@printf "$$(tput bold)*****************$$(tput sgr0)\n"
-	@cd libraries/tock-cells && CI=true cargo test
-	@cd libraries/tock-register-interface && CI=true cargo test
+	@cd libraries/enum_primitive && CI=true RUSTFLAGS="-D warnings" cargo test
+	@cd libraries/riscv-csr && CI=true RUSTFLAGS="-D warnings" cargo test
+	@cd libraries/tock-cells && CI=true RUSTFLAGS="-D warnings" cargo test
+	@cd libraries/tock-register-interface && CI=true RUSTFLAGS="-D warnings" cargo test
+	@cd libraries/tock-rt0 && CI=true RUSTFLAGS="-D warnings" cargo test
 
 .PHONY: ci-archs
 ci-archs:
 	@printf "$$(tput bold)*************$$(tput sgr0)\n"
 	@printf "$$(tput bold)* CI: Archs *$$(tput sgr0)\n"
 	@printf "$$(tput bold)*************$$(tput sgr0)\n"
-	@for f in `./tools/list_archs.sh`; do echo "$$(tput bold)Test $$f"; cd arch/$$f; CI=true TOCK_KERNEL_VERSION=ci_test cargo test || exit 1; cd ../..; done
+	@for f in `./tools/list_archs.sh`; do echo "$$(tput bold)Test $$f"; cd arch/$$f; CI=true RUSTFLAGS="-D warnings" TOCK_KERNEL_VERSION=ci_test cargo test || exit 1; cd ../..; done
 
 .PHONY: ci-chips
 ci-chips:
 	@printf "$$(tput bold)*************$$(tput sgr0)\n"
 	@printf "$$(tput bold)* CI: Chips *$$(tput sgr0)\n"
 	@printf "$$(tput bold)*************$$(tput sgr0)\n"
-	@for f in `./tools/list_chips.sh`; do echo "$$(tput bold)Test $$f"; cd chips/$$f; CI=true TOCK_KERNEL_VERSION=ci_test cargo test || exit 1; cd ../..; done
+	@for f in `./tools/list_chips.sh`; do echo "$$(tput bold)Test $$f"; cd chips/$$f; CI=true RUSTFLAGS="-D warnings" TOCK_KERNEL_VERSION=ci_test cargo test || exit 1; cd ../..; done
 
 .PHONY: ci-kernel
 ci-kernel:
 	@printf "$$(tput bold)**************$$(tput sgr0)\n"
 	@printf "$$(tput bold)* CI: Kernel *$$(tput sgr0)\n"
 	@printf "$$(tput bold)**************$$(tput sgr0)\n"
-	@cd kernel && CI=true TOCK_KERNEL_VERSION=ci_test cargo test
+	@cd kernel && CI=true RUSTFLAGS="-D warnings" TOCK_KERNEL_VERSION=ci_test cargo test
 
 .PHONY: ci-syntax
 ci-syntax:
