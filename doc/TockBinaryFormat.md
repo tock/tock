@@ -13,6 +13,7 @@
     + [`1` Main](#1-main)
     + [`2` Writeable Flash Region](#2-writeable-flash-region)
     + [`3` Package Name](#3-package-name)
+    + [`5` Fixed Addresses](#5-fixed-addresses)
 - [Code](#code)
 
 <!-- tocstop -->
