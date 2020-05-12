@@ -6,7 +6,7 @@
 //!
 //! <https://www.st.com/en/mems-and-sensors/lsm303dlhc.html>
 //!
-//! The syscall interface is described in [lsm303dlhc.md](../../doc/syscalls/70006_lsm303dlhc.md)
+//! The syscall interface is described in [lsm303dlhc.md](https://github.com/tock/tock/tree/master/doc/syscalls/70006_lsm303dlhc.md)
 //!
 //! Usage
 //! -----
