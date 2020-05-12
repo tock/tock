@@ -6,7 +6,7 @@ macro_rules! register_bitmasks {
     {
         // BITFIELD_NAME OFFSET(x)
         $(#[$outer:meta])*
-        $valtype:ty, $reg_desc:ident, [
+        $valtype:ident, $reg_desc:ident, [
             $( $(#[$inner:meta])* $field:ident OFFSET($offset:expr)),+
         ]
     } => {
@@ -17,7 +17,7 @@ macro_rules! register_bitmasks {
         // BITFIELD_NAME OFFSET
         // All fields are 1 bit
         $(#[$outer:meta])*
-        $valtype:ty, $reg_desc:ident, [
+        $valtype:ident, $reg_desc:ident, [
             $( $(#[$inner:meta])* $field:ident $offset:expr ),+
         ]
     } => {
@@ -28,7 +28,7 @@ macro_rules! register_bitmasks {
     {
         // BITFIELD_NAME OFFSET(x) NUMBITS(y)
         $(#[$outer:meta])*
-        $valtype:ty, $reg_desc:ident, [
+        $valtype:ident, $reg_desc:ident, [
             $( $(#[$inner:meta])* $field:ident OFFSET($offset:expr) NUMBITS($numbits:expr) ),+
         ]
     } => {
@@ -39,7 +39,7 @@ macro_rules! register_bitmasks {
     {
         // BITFIELD_NAME OFFSET(x) NUMBITS(y) []
         $(#[$outer:meta])*
-        $valtype:ty, $reg_desc:ident, [
+        $valtype:ident, $reg_desc:ident, [
             $( $(#[$inner:meta])* $field:ident OFFSET($offset:expr) NUMBITS($numbits:expr)
                $values:tt ),+
         ]
@@ -49,7 +49,7 @@ macro_rules! register_bitmasks {
                               $values); )*
     };
     {
-        $valtype:ty, $reg_desc:ident, $(#[$outer:meta])* $field:ident,
+        $valtype:ident, $reg_desc:ident, $(#[$outer:meta])* $field:ident,
                     $offset:expr, $numbits:expr,
                     [$( $(#[$inner:meta])* $valname:ident = $value:expr ),+]
     } => { // this match arm is duplicated below with an allowance for 0 elements in the valname -> value array,
@@ -91,7 +91,7 @@ macro_rules! register_bitmasks {
 
             #[allow(dead_code)]
             #[allow(non_camel_case_types)]
-            #[repr(u64)] // use repr(u64) so that any value supported by the interface can be stored
+            #[repr($valtype)] // so that values larger than isize::MAX can be stored
             $(#[$outer])*
             pub enum Value {
                 $(
@@ -117,7 +117,7 @@ macro_rules! register_bitmasks {
         }
     };
     {
-        $valtype:ty, $reg_desc:ident, $(#[$outer:meta])* $field:ident,
+        $valtype:ident, $reg_desc:ident, $(#[$outer:meta])* $field:ident,
                     $offset:expr, $numbits:expr,
                     [$( $(#[$inner:meta])* $valname:ident = $value:expr ),*]
     } => { //same pattern as previous match arm, except allows for 0 elements in array. Required because [repr(usize)] cannot be used for zero-variant enums.
@@ -187,7 +187,7 @@ macro_rules! register_bitmasks {
 #[macro_export]
 macro_rules! register_bitfields {
     {
-        $valtype:ty, $( $(#[$inner:meta])* $vis:vis $reg:ident $fields:tt ),*
+        $valtype:ident, $( $(#[$inner:meta])* $vis:vis $reg:ident $fields:tt ),*
     } => {
         $(
             #[allow(non_snake_case)]
