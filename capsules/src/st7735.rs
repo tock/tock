@@ -26,7 +26,7 @@
 use crate::driver;
 use core::cell::Cell;
 use kernel::common::cells::{OptionalCell, TakeCell};
-use kernel::hil::framebuffer::{self, ScreenClient, ScreenColorDepth, ScreenRotation};
+use kernel::hil::framebuffer::{self, ScreenClient, ScreenPixelFormat, ScreenRotation};
 use kernel::hil::gpio;
 use kernel::hil::spi;
 use kernel::hil::time::{self, Alarm, Frequency};
@@ -839,12 +839,17 @@ impl<'a, A: Alarm<'a>> Driver for ST7735<'a, A> {
 }
 
 impl<'a, A: Alarm<'a>> framebuffer::Screen for ST7735<'a, A> {
-    fn set_resolution(&self, _width: usize, _height: usize) -> ReturnCode {
-        ReturnCode::ENOSUPPORT
+    fn set_resolution(&self, resolution: (usize, usize)) -> ReturnCode {
+        if resolution.0 == self.width.get() && resolution.1 == self.height.get() {
+            ReturnCode::SUCCESS
+        } else {
+            ReturnCode::ENOSUPPORT
+        }
     }
 
-    fn set_color_depth(&self, depth: ScreenColorDepth) -> ReturnCode {
-        if depth == ScreenColorDepth::RGB_565 {
+    fn set_pixel_format(&self, depth: ScreenPixelFormat) -> ReturnCode {
+        if depth == ScreenPixelFormat::RGB_565 {
+            // if not outstanding
             ReturnCode::SUCCESS
         } else {
             ReturnCode::EINVAL
@@ -859,31 +864,31 @@ impl<'a, A: Alarm<'a>> framebuffer::Screen for ST7735<'a, A> {
         (self.width.get(), self.height.get())
     }
 
-    fn get_color_depth(&self) -> ScreenColorDepth {
-        ScreenColorDepth::RGB_565
+    fn get_pixel_format(&self) -> ScreenPixelFormat {
+        ScreenPixelFormat::RGB_565
     }
 
     fn get_rotation(&self) -> ScreenRotation {
         ScreenRotation::Normal
     }
 
-    fn get_resolution_modes(&self) -> usize {
+    fn get_supported_resolutions(&self) -> usize {
         1
     }
-    fn get_resolution_size(&self, index: usize) -> (usize, usize) {
+    fn get_supported_resolution(&self, index: usize) -> (usize, usize) {
         match index {
             0 => (self.width.get(), self.height.get()),
             _ => (0, 0),
         }
     }
 
-    fn get_color_depth_modes(&self) -> usize {
+    fn get_supported_pixel_formats(&self) -> usize {
         1
     }
-    fn get_color_depth_bits(&self, index: usize) -> ScreenColorDepth {
+    fn get_supported_pixel_format(&self, index: usize) -> ScreenPixelFormat {
         match index {
-            0 => ScreenColorDepth::RGB_565,
-            _ => ScreenColorDepth::None,
+            0 => ScreenPixelFormat::RGB_565,
+            _ => ScreenPixelFormat::None,
         }
     }
 

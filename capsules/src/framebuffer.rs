@@ -15,7 +15,7 @@ use core::cell::Cell;
 use enum_primitive::cast::FromPrimitive;
 use kernel::common::cells::OptionalCell;
 use kernel::hil;
-use kernel::hil::framebuffer::{ScreenColorDepth, ScreenRotation};
+use kernel::hil::framebuffer::{ScreenPixelFormat, ScreenRotation};
 use kernel::ReturnCode;
 use kernel::{AppId, AppSlice, Callback, Driver, Grant, Shared};
 
@@ -31,23 +31,23 @@ enum FramebufferCommand {
     Off,
     InvertOn,
     InvertOff,
-    GetResolutionModes,
-    GetResolutionSize,
-    GetColorDepthModes,
-    GetColorDepthBits,
+    GetSupportedResolutionModes,
+    GetSupportedResolution,
+    GetSupportedPixelFormats,
+    GetSupportedPixelFormat,
     GetRotation,
     SetRotation,
     GetResolution,
     SetResolution,
-    GetColorDepth,
-    SetColorDepth,
+    GetPixelFormat,
+    SetPixelFormat,
     Write,
     Fill,
 }
 
-fn pixels_in_bytes(pixels: usize, color_depth: usize) -> usize {
-    let bytes = pixels * color_depth / 8;
-    if pixels * color_depth % 8 != 0 {
+fn pixels_in_bytes(pixels: usize, pixel_format: usize) -> usize {
+    let bytes = pixels * pixel_format / 8;
+    if pixels * pixel_format % 8 != 0 {
         bytes + 1
     } else {
         bytes
@@ -92,7 +92,7 @@ pub struct Framebuffer<'a> {
     screen: &'a dyn hil::framebuffer::Screen,
     apps: Grant<App>,
     current_app: OptionalCell<AppId>,
-    depth: Cell<ScreenColorDepth>,
+    depth: Cell<ScreenPixelFormat>,
 }
 
 impl Framebuffer<'a> {
@@ -101,7 +101,7 @@ impl Framebuffer<'a> {
             screen: screen,
             apps: grant,
             current_app: OptionalCell::empty(),
-            depth: Cell::new(screen.get_color_depth()),
+            depth: Cell::new(screen.get_pixel_format()),
         }
     }
 
@@ -158,31 +158,31 @@ impl Framebuffer<'a> {
                 self.run_next_command(usize::from(ReturnCode::SUCCESS), usize::from(rotation), 0);
                 ReturnCode::SUCCESS
             }
-            FramebufferCommand::SetResolution => self.screen.set_resolution(data1, data2),
+            FramebufferCommand::SetResolution => self.screen.set_resolution((data1, data2)),
             FramebufferCommand::GetResolution => {
                 let (width, height) = self.screen.get_resolution();
                 self.run_next_command(usize::from(ReturnCode::SUCCESS), width, height);
                 ReturnCode::SUCCESS
             }
-            FramebufferCommand::SetColorDepth => self.screen.set_color_depth(
-                ScreenColorDepth::from_usize(data1).unwrap_or(ScreenColorDepth::None),
+            FramebufferCommand::SetPixelFormat => self.screen.set_pixel_format(
+                ScreenPixelFormat::from_usize(data1).unwrap_or(ScreenPixelFormat::None),
             ),
-            FramebufferCommand::GetColorDepth => {
-                let color_depth = self.screen.get_color_depth();
+            FramebufferCommand::GetPixelFormat => {
+                let pixel_format = self.screen.get_pixel_format();
                 self.run_next_command(
                     usize::from(ReturnCode::SUCCESS),
-                    usize::from(color_depth),
+                    usize::from(pixel_format),
                     0,
                 );
                 ReturnCode::SUCCESS
             }
-            FramebufferCommand::GetResolutionModes => {
-                let resolution_modes = self.screen.get_resolution_modes();
+            FramebufferCommand::GetSupportedResolutionModes => {
+                let resolution_modes = self.screen.get_supported_resolutions();
                 self.run_next_command(usize::from(ReturnCode::SUCCESS), resolution_modes, 0);
                 ReturnCode::SUCCESS
             }
-            FramebufferCommand::GetResolutionSize => {
-                let (width, height) = self.screen.get_resolution_size(data1);
+            FramebufferCommand::GetSupportedResolution => {
+                let (width, height) = self.screen.get_supported_resolution(data1);
                 self.run_next_command(
                     usize::from(if width > 0 && height > 0 {
                         ReturnCode::SUCCESS
@@ -194,16 +194,16 @@ impl Framebuffer<'a> {
                 );
                 ReturnCode::SUCCESS
             }
-            FramebufferCommand::GetColorDepthModes => {
-                let color_modes = self.screen.get_color_depth_modes();
+            FramebufferCommand::GetSupportedPixelFormats => {
+                let color_modes = self.screen.get_supported_pixel_formats();
                 self.run_next_command(usize::from(ReturnCode::SUCCESS), color_modes, 0);
                 ReturnCode::SUCCESS
             }
-            FramebufferCommand::GetColorDepthBits => {
-                let color_depth = self.screen.get_color_depth_bits(data1);
+            FramebufferCommand::GetSupportedPixelFormat => {
+                let pixel_format = self.screen.get_supported_pixel_format(data1);
                 self.run_next_command(
                     usize::from(ReturnCode::SUCCESS),
-                    usize::from(color_depth),
+                    usize::from(pixel_format),
                     0,
                 );
                 ReturnCode::SUCCESS
@@ -394,14 +394,18 @@ impl Driver for Framebuffer<'a> {
             5 => self.enqueue_command(FramebufferCommand::InvertOff, 0, 0, appid),
 
             // Get Resolution Modes Number
-            11 => self.enqueue_command(FramebufferCommand::GetResolutionModes, 0, 0, appid),
+            11 => {
+                self.enqueue_command(FramebufferCommand::GetSupportedResolutionModes, 0, 0, appid)
+            }
             // Get Resolution Mode Width and Height
-            12 => self.enqueue_command(FramebufferCommand::GetResolutionSize, data1, 0, appid),
+            12 => self.enqueue_command(FramebufferCommand::GetSupportedResolution, data1, 0, appid),
 
             // Get Color Depth Modes Number
-            13 => self.enqueue_command(FramebufferCommand::GetColorDepthModes, 0, 0, appid),
+            13 => self.enqueue_command(FramebufferCommand::GetSupportedPixelFormats, 0, 0, appid),
             // Get Color Depth Mode Bits per Pixel
-            14 => self.enqueue_command(FramebufferCommand::GetColorDepthBits, data1, 0, appid),
+            14 => {
+                self.enqueue_command(FramebufferCommand::GetSupportedPixelFormat, data1, 0, appid)
+            }
 
             // Get Rotation
             21 => self.enqueue_command(FramebufferCommand::GetRotation, 0, 0, appid),
@@ -414,9 +418,9 @@ impl Driver for Framebuffer<'a> {
             24 => self.enqueue_command(FramebufferCommand::SetResolution, data1, data2, appid),
 
             // Get Color Depth
-            25 => self.enqueue_command(FramebufferCommand::GetColorDepth, 0, 0, appid),
+            25 => self.enqueue_command(FramebufferCommand::GetPixelFormat, 0, 0, appid),
             // Set Color Depth
-            26 => self.enqueue_command(FramebufferCommand::SetColorDepth, data1, 0, appid),
+            26 => self.enqueue_command(FramebufferCommand::SetPixelFormat, data1, 0, appid),
 
             // Set Write Window
             100 => self
@@ -450,7 +454,8 @@ impl Driver for Framebuffer<'a> {
             0 => self
                 .apps
                 .enter(appid, |app, _| {
-                    let depth = pixels_in_bytes(1, usize::from(self.screen.get_color_depth()));
+                    let depth =
+                        pixels_in_bytes(1, self.screen.get_pixel_format().get_bits_per_pixel());
                     let len = if let Some(ref s) = slice { s.len() } else { 0 };
                     // allow only if the slice length is a a multiple of color depth
                     if len == 0 || (len > 0 && (len % depth == 0)) {

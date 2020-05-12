@@ -27,25 +27,39 @@ impl From<ScreenRotation> for usize {
 enum_from_primitive! {
     #[derive(Copy, Clone, PartialEq)]
     #[allow(non_camel_case_types)]
-    pub enum ScreenColorDepth {
+    pub enum ScreenPixelFormat {
         None = 0,
         Mono = 1,
-        RGB_233 = 8,
-        RGB_565 = 16,
-        RGB_888 = 24,
-        ARGB_8888 = 32,
+        RGB_233 = 2,
+        RGB_565 = 3,
+        RGB_888 = 4,
+        ARGB_8888 = 5,
+        // others may be defined firther
     }
 }
 
-impl From<ScreenColorDepth> for usize {
-    fn from(color_depth: ScreenColorDepth) -> usize {
-        match color_depth {
-            ScreenColorDepth::None => 0,
-            ScreenColorDepth::Mono => 1,
-            ScreenColorDepth::RGB_233 => 8,
-            ScreenColorDepth::RGB_565 => 16,
-            ScreenColorDepth::RGB_888 => 16,
-            ScreenColorDepth::ARGB_8888 => 32,
+impl ScreenPixelFormat {
+    pub fn get_bits_per_pixel(&self) -> usize {
+        match self {
+            Self::None => 0,
+            Self::Mono => 1,
+            Self::RGB_233 => 8,
+            Self::RGB_565 => 16,
+            Self::RGB_888 => 24,
+            Self::ARGB_8888 => 32,
+        }
+    }
+}
+
+impl From<ScreenPixelFormat> for usize {
+    fn from(pixel_format: ScreenPixelFormat) -> usize {
+        match pixel_format {
+            ScreenPixelFormat::None => 0,
+            ScreenPixelFormat::Mono => 1,
+            ScreenPixelFormat::RGB_233 => 2,
+            ScreenPixelFormat::RGB_565 => 3,
+            ScreenPixelFormat::RGB_888 => 4,
+            ScreenPixelFormat::ARGB_8888 => 5,
         }
     }
 }
@@ -53,11 +67,11 @@ impl From<ScreenColorDepth> for usize {
 pub trait Screen {
     /// Sets the screen resolution (in pixels). Returns ENOSUPPORT if the resolution is
     /// not supported. The function should return SUCCESS for at least one resolution.
-    fn set_resolution(&self, width: usize, height: usize) -> ReturnCode;
+    fn set_resolution(&self, resolution: (usize, usize)) -> ReturnCode;
 
-    /// Sets the color depth (in bits per pixel). Returns ENOSUPPORT if the color depth is
-    /// not supported. The function should return SUCCESS for at least one color depth.
-    fn set_color_depth(&self, depth: ScreenColorDepth) -> ReturnCode;
+    /// Sets the pixel format. Returns ENOSUPPORT if the pixel format is
+    /// not supported. The function should return SUCCESS for at least one pixel format.
+    fn set_pixel_format(&self, depth: ScreenPixelFormat) -> ReturnCode;
 
     /// Sets the rotation of the display.
     /// note this can swap the width with height.
@@ -68,9 +82,9 @@ pub trait Screen {
     /// This function is synchronous.
     fn get_resolution(&self) -> (usize, usize);
 
-    /// Returns the current color depth (in bits per pixel)
+    /// Returns the current pixel format
     /// This function is synchronous.
-    fn get_color_depth(&self) -> ScreenColorDepth;
+    fn get_pixel_format(&self) -> ScreenPixelFormat;
 
     /// Returns the current rotation.
     /// This function is synchronous.
@@ -79,22 +93,22 @@ pub trait Screen {
     /// Returns the number of the resolutions supported.
     /// should return at least one (the current resolution)
     /// This function is synchronous.
-    fn get_resolution_modes(&self) -> usize;
+    fn get_supported_resolutions(&self) -> usize;
 
     /// Can be called with an index from 0 .. count-1 and will
     /// a tuple (width, height) with the current resolution (in pixels).
     /// note that width and height may change due to rotation
     /// This function is synchronous.
-    fn get_resolution_size(&self, index: usize) -> (usize, usize);
+    fn get_supported_resolution(&self, index: usize) -> (usize, usize);
 
-    /// Returns the number of the color depths supported.
+    /// Returns the number of the pixel formats supported.
     /// This function is synchronous.
-    fn get_color_depth_modes(&self) -> usize;
+    fn get_supported_pixel_formats(&self) -> usize;
 
     /// Can be called with index 0 .. count-1 and will returns
-    /// the value of each color depth mode (in bits per pixel).
+    /// the value of each pixel format mode.
     /// This function is synchronous.
-    fn get_color_depth_bits(&self, index: usize) -> ScreenColorDepth;
+    fn get_supported_pixel_format(&self, index: usize) -> ScreenPixelFormat;
 
     /// Sends a write command to write data in the selected video memory window.
     /// The screen will then call ``ScreenClient::fill_next_buffer_for_write`` for
