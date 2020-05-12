@@ -1,5 +1,13 @@
 //! Macros for cleanly defining peripheral registers.
 
+/// Helper macro for computing bitmask of variable number of bits
+#[macro_export]
+macro_rules! bitmask {
+    ($numbits:expr) => {
+        (1 << ($numbits - 1)) + ((1 << ($numbits - 1)) - 1)
+    };
+}
+
 /// Helper macro for defining register fields.
 #[macro_export]
 macro_rules! register_bitmasks {
@@ -58,7 +66,7 @@ macro_rules! register_bitmasks {
         #[allow(non_upper_case_globals)]
         #[allow(unused)]
         pub const $field: Field<$valtype, $reg_desc> =
-            Field::<$valtype, $reg_desc>::new((1<<($numbits-1))+((1<<($numbits-1))-1), $offset);
+            Field::<$valtype, $reg_desc>::new($crate::bitmask!($numbits), $offset);
 
         #[allow(non_snake_case)]
         #[allow(unused)]
@@ -73,20 +81,20 @@ macro_rules! register_bitmasks {
             #[allow(unused)]
             $(#[$inner])*
             pub const $valname: FieldValue<$valtype, $reg_desc> =
-                FieldValue::<$valtype, $reg_desc>::new((1<<($numbits-1))+((1<<($numbits-1))-1),
+                FieldValue::<$valtype, $reg_desc>::new($crate::bitmask!($numbits),
                     $offset, $value);
             )*
 
             #[allow(non_upper_case_globals)]
             #[allow(unused)]
             pub const SET: FieldValue<$valtype, $reg_desc> =
-                FieldValue::<$valtype, $reg_desc>::new((1<<($numbits-1))+((1<<($numbits-1))-1),
-                    $offset, (1<<($numbits-1))+((1<<($numbits-1))-1));
+                FieldValue::<$valtype, $reg_desc>::new($crate::bitmask!($numbits),
+                    $offset, $crate::bitmask!($numbits));
 
             #[allow(non_upper_case_globals)]
             #[allow(unused)]
             pub const CLEAR: FieldValue<$valtype, $reg_desc> =
-                FieldValue::<$valtype, $reg_desc>::new((1<<($numbits-1))+((1<<($numbits-1))-1),
+                FieldValue::<$valtype, $reg_desc>::new($crate::bitmask!($numbits),
                     $offset, 0);
 
             #[allow(dead_code)]
@@ -124,7 +132,7 @@ macro_rules! register_bitmasks {
         #[allow(non_upper_case_globals)]
         #[allow(unused)]
         pub const $field: Field<$valtype, $reg_desc> =
-            Field::<$valtype, $reg_desc>::new((1<<($numbits-1))+((1<<($numbits-1))-1), $offset);
+            Field::<$valtype, $reg_desc>::new($crate::bitmask!($numbits), $offset);
 
         #[allow(non_snake_case)]
         #[allow(unused)]
@@ -139,20 +147,20 @@ macro_rules! register_bitmasks {
             #[allow(unused)]
             $(#[$inner])*
             pub const $valname: FieldValue<$valtype, $reg_desc> =
-                FieldValue::<$valtype, $reg_desc>::new((1<<($numbits-1))+((1<<($numbits-1))-1),
+                FieldValue::<$valtype, $reg_desc>::new($crate::bitmask!($numbits),
                     $offset, $value);
             )*
 
             #[allow(non_upper_case_globals)]
             #[allow(unused)]
             pub const SET: FieldValue<$valtype, $reg_desc> =
-                FieldValue::<$valtype, $reg_desc>::new((1<<($numbits-1))+((1<<($numbits-1))-1),
-                    $offset, (1<<($numbits-1))+((1<<($numbits-1))-1));
+                FieldValue::<$valtype, $reg_desc>::new($crate::bitmask!($numbits),
+                    $offset, $crate::bitmask!($numbits));
 
             #[allow(non_upper_case_globals)]
             #[allow(unused)]
             pub const CLEAR: FieldValue<$valtype, $reg_desc> =
-                FieldValue::<$valtype, $reg_desc>::new((1<<($numbits-1))+((1<<($numbits-1))-1),
+                FieldValue::<$valtype, $reg_desc>::new($crate::bitmask!($numbits),
                     $offset, 0);
 
             #[allow(dead_code)]
