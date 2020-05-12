@@ -25,24 +25,36 @@ use core::cmp::max;
 
 /// Errors that can occur when trying to load and create processes.
 pub enum ProcessLoadError {
-    /// The TBF header for the app could not be successfully parsed.
+    /// The TBF header for the process could not be successfully parsed.
     TbfHeaderParseFailure(tbfheader::TbfParseError),
 
-    /// Not enough flash remaining to parse an app and its header.
+    /// Not enough flash remaining to parse a process and its header.
     NotEnoughFlash,
 
-    /// Not enough memory to meet the amount requested by an app.
-    /// Modify your app to request less memory or flash fewer apps or
-    /// increase the size of the region your board reserves for app memory.
+    /// Not enough memory to meet the amount requested by a process. Modify the
+    /// process to request less memory, flash fewer processes, or increase the
+    /// size of the region your board reserves for process memory.
     NotEnoughMemory,
 
-    /// An app was loaded with a length in flash that the MPU does not support.
-    /// The fix is probably to correct the app size, but this could also be caused
-    /// by a bad MPU implementation.
+    /// A process was loaded with a length in flash that the MPU does not
+    /// support. The fix is probably to correct the process size, but this could
+    /// also be caused by a bad MPU implementation.
     MpuInvalidFlashLength,
 
-    IncorrectMemoryAddress{actual_address: u32, expected_address: u32},
-    IncorrectFlashAddress{actual_address: u32, expected_address: u32},
+    /// A process specified a fixed memory address that it needs its memory
+    /// range to start at, and the kernel did not or could not give the process
+    /// a memory region starting at that address.
+    MemoryAddressMismatch {
+        actual_address: u32,
+        expected_address: u32,
+    },
+
+    /// A process specified that its binary must start at a particular address,
+    /// and that is not the address the binary is actually placed at.
+    IncorrectFlashAddress {
+        actual_address: u32,
+        expected_address: u32,
+    },
 
     /// Process loading error due (likely) to a bug in the kernel. If you get
     /// this error please open a bug report.
@@ -79,13 +91,23 @@ impl fmt::Debug for ProcessLoadError {
                 write!(f, "App flash length not supported by MPU")
             }
 
-            ProcessLoadError::IncorrectMemoryAddress{actual_address, expected_address} => {
-                write!(f, "App memory does not match requested address Actual:{:#x}, Expected:{:#x}", actual_address, expected_address)
-            }
+            ProcessLoadError::MemoryAddressMismatch {
+                actual_address,
+                expected_address,
+            } => write!(
+                f,
+                "App memory does not match requested address Actual:{:#x}, Expected:{:#x}",
+                actual_address, expected_address
+            ),
 
-            ProcessLoadError::IncorrectFlashAddress{actual_address, expected_address} => {
-                write!(f, "App flash does not match requested address. Actual:{:#x}, Expected:{:#x}", actual_address, expected_address)
-            }
+            ProcessLoadError::IncorrectFlashAddress {
+                actual_address,
+                expected_address,
+            } => write!(
+                f,
+                "App flash does not match requested address. Actual:{:#x}, Expected:{:#x}",
+                actual_address, expected_address
+            ),
 
             ProcessLoadError::InternalError => write!(f, "Error in kernel. Likely a bug."),
         }
@@ -1603,7 +1625,10 @@ impl<C: 'static + Chip> Process<'a, C> {
             if fixed_flash_start + tbf_header.get_protected_size() != app_flash.as_ptr() as u32 {
                 let actual_address = app_flash.as_ptr() as u32 + tbf_header.get_protected_size();
                 let expected_address = fixed_flash_start;
-                return Err(ProcessLoadError::IncorrectFlashAddress{actual_address, expected_address});
+                return Err(ProcessLoadError::IncorrectFlashAddress {
+                    actual_address,
+                    expected_address,
+                });
             }
         }
 
@@ -1736,7 +1761,10 @@ impl<C: 'static + Chip> Process<'a, C> {
             if fixed_memory_start != app_memory.as_ptr() as u32 {
                 let actual_address = app_memory.as_ptr() as u32;
                 let expected_address = fixed_memory_start;
-                return Err(ProcessLoadError::IncorrectMemoryAddress{actual_address, expected_address});
+                return Err(ProcessLoadError::MemoryAddressMismatch {
+                    actual_address,
+                    expected_address,
+                });
             }
         }
 
