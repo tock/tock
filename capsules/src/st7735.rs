@@ -777,7 +777,7 @@ impl<'a, A: Alarm<'a>> ST7735<'a, A> {
         }
     }
 
-    fn display_init(&self) -> ReturnCode {
+    pub fn init(&self) -> ReturnCode {
         if self.status.get() == Status::Idle {
             self.power_on.set(true);
             self.status.set(Status::Reset1);
@@ -811,7 +811,7 @@ impl<'a, A: Alarm<'a>> Driver for ST7735<'a, A> {
         match command_num {
             0 => ReturnCode::SUCCESS,
             // reset
-            1 => self.display_init(),
+            1 => self.init(),
             // fill with color (data1)
             2 => self.fill(data1),
             // write pixel (x:data1[15:8], y:data1[7:0], color:data2)
@@ -928,10 +928,6 @@ impl<'a, A: Alarm<'a>> framebuffer::Screen for ST7735<'a, A> {
         } else {
             self.client.clear();
         }
-    }
-
-    fn init(&self) -> ReturnCode {
-        self.display_init()
     }
 
     fn on(&self) -> ReturnCode {

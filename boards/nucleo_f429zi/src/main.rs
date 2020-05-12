@@ -456,6 +456,8 @@ pub unsafe fn reset_handler() {
         ),
     );
 
+    tft.init();
+
     let framebuffer =
         components::framebuffer::FramebufferComponent::new(board_kernel, tft).finalize(());
 

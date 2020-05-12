@@ -26,7 +26,6 @@ pub const DRIVER_NUM: usize = driver::NUM::Framebuffer as usize;
 #[derive(Clone, Copy, PartialEq)]
 enum FramebufferCommand {
     Nop,
-    Init,
     On,
     Off,
     InvertOn,
@@ -145,7 +144,6 @@ impl Framebuffer<'a> {
         appid: AppId,
     ) -> ReturnCode {
         match command {
-            FramebufferCommand::Init => self.screen.init(),
             FramebufferCommand::On => self.screen.on(),
             FramebufferCommand::Off => self.screen.off(),
             FramebufferCommand::InvertOn => self.screen.invert_on(),
@@ -381,17 +379,14 @@ impl Driver for Framebuffer<'a> {
             {
                 ReturnCode::SUCCESS
             }
-
-            // Init
-            1 => self.enqueue_command(FramebufferCommand::Init, 0, 0, appid),
             // On
-            2 => self.enqueue_command(FramebufferCommand::On, 0, 0, appid),
+            1 => self.enqueue_command(FramebufferCommand::On, 0, 0, appid),
             // Off
-            3 => self.enqueue_command(FramebufferCommand::Off, 0, 0, appid),
+            2 => self.enqueue_command(FramebufferCommand::Off, 0, 0, appid),
             // Invert On
-            4 => self.enqueue_command(FramebufferCommand::InvertOn, 0, 0, appid),
+            3 => self.enqueue_command(FramebufferCommand::InvertOn, 0, 0, appid),
             // Invert Off
-            5 => self.enqueue_command(FramebufferCommand::InvertOff, 0, 0, appid),
+            4 => self.enqueue_command(FramebufferCommand::InvertOff, 0, 0, appid),
 
             // Get Resolution Modes Number
             11 => {
