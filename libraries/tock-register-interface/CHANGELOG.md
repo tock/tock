@@ -1,7 +1,8 @@
 # Changelog
 
-## master
+## v0.6
 
+ - #1823: Allow large unsigned values as bitmasks + add bitmask! helper macro
  - #1554: Allow lifetime parameters for `register_structs! { Foo<'a> { ..`
  - #1661: Add `Aliased` register type for MMIO with differing R/W behavior
 
