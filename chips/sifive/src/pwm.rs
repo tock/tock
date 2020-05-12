@@ -62,5 +62,11 @@ impl Pwm {
 
         // Turn the interrupt compare off so we don't get any RTC interrupts.
         regs.cfg.write(cfg::enalways::CLEAR + cfg::enoneshot::CLEAR);
+
+        // Set the comparitors high to make sure we don't get interrupts
+        regs.cmp0.set(0x0000_FFFF);
+        regs.cmp1.set(0x0000_FFFF);
+        regs.cmp2.set(0x0000_FFFF);
+        regs.cmp3.set(0x0000_FFFF);
     }
 }
