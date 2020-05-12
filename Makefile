@@ -22,6 +22,7 @@ usage:
 	@echo "              ci: Run all continuous integration tests"
 	@echo "    check-format: Checks if the rustfmt tool would require changes, but doesn't make them"
 	@echo "           clean: Clean all builds"
+	@echo "          clippy: Runs the clippy code linter with Tock's default arguments"
 	@echo " emulation-check: Run the emulation tests for supported boards"
 	@echo " emulation-setup: Setup QEMU for the emulation tests"
 	@echo "          format: Runs the rustfmt tool on all kernel sources"
@@ -242,10 +243,15 @@ fmt format:
 check-format:
 	@CI=true ./tools/run_cargo_fmt.sh diff
 
+
+.PHONY: clippy
+clippy:
+	@./tools/run_clippy.sh
+
 .PHONY: lints
 lints:\
-	check-format
-	@./tools/run_clippy.sh
+	check-format\
+	clippy
 
 .PHONY: list list-boards list-platforms
 list list-boards list-platforms:
