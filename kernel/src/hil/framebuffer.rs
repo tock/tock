@@ -28,13 +28,19 @@ enum_from_primitive! {
     #[derive(Copy, Clone, PartialEq)]
     #[allow(non_camel_case_types)]
     pub enum ScreenPixelFormat {
+        /// No pixel format
         None = 0,
+        /// Pixels encoded as 1-bit, used for monochromatic displays
         Mono = 1,
+        /// Pixels encoded as 2-bit red channel, 3-bit green channel, 3-bit blue channel.
         RGB_233 = 2,
+        /// Pixels encoded as 5-bit red channel, 6-bit green channel, 5-bit blue channel.
         RGB_565 = 3,
+        /// Pixels encoded as 8-bit red channel, 8-bit green channel, 8-bit blue channel.
         RGB_888 = 4,
+        /// Pixels encoded as 8-bit alpha channel, 8-bit red channel, 8-bit green channel, 8-bit blue channel.
         ARGB_8888 = 5,
-        // others may be defined firther
+        // other pixel formats may be defined
     }
 }
 
