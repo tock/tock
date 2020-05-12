@@ -93,7 +93,7 @@ pub unsafe fn reset_handler() {
     e310x::pwm::PWM1.disable();
     e310x::pwm::PWM2.disable();
 
-    e310x::prci::PRCI.set_clock_frequency(sifive::prci::ClockFrequency::Freq18Mhz);
+    e310x::prci::PRCI.set_clock_frequency(sifive::prci::ClockFrequency::Freq16Mhz);
 
     let main_loop_cap = create_capability!(capabilities::MainLoopCapability);
 
