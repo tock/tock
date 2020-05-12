@@ -20,12 +20,12 @@ usage:
 	@echo "          alldoc: Builds Tock documentation for all boards"
 	@echo "           audit: Audit Cargo dependencies for all kernel sources"
 	@echo "              ci: Run all continuous integration tests"
+	@echo "    check-format: Checks if the rustfmt tool would require changes, but doesn't make them"
 	@echo "           clean: Clean all builds"
-	@echo "          clippy: Runs the clippy code linter on all kernel sources"
 	@echo " emulation-check: Run the emulation tests for supported boards"
 	@echo " emulation-setup: Setup QEMU for the emulation tests"
 	@echo "          format: Runs the rustfmt tool on all kernel sources"
-	@echo "       formatall: Runs all formatting tools (rustfmt and clippy)"
+	@echo "           lints: Runs check-format and the clippy code linter"
 	@echo "            list: Lists available boards"
 	@echo
 	@echo "$$(tput bold)Happy Hacking!$$(tput sgr0)"
@@ -62,7 +62,7 @@ ci: ci-travis ci-netlify
 
 .PHONY: ci-travis
 ci-travis:\
-	ci-formatting\
+	ci-lints\
 	ci-tools\
 	ci-libraries\
 	ci-archs\
@@ -93,9 +93,8 @@ ci-cargo-tests:\
 
 .PHONY: ci-format
 ci-format:\
-	ci-formatting\
+	ci-lints\
 	ci-documentation\
-	clippy\
 
 .PHONY: ci-build
 ci-build:\
@@ -108,20 +107,14 @@ ci-tests:\
 	ci-cargo-tests\
 	ci-tools\
 
-.PHONY: formatall
-formatall:\
-	format\
-	clippy\
-
 ## Actual Rules (Travis)
 
-.PHONY: ci-formatting
-ci-formatting:
-	@printf "$$(tput bold)******************$$(tput sgr0)\n"
-	@printf "$$(tput bold)* CI: Formatting *$$(tput sgr0)\n"
-	@printf "$$(tput bold)******************$$(tput sgr0)\n"
-	@CI=true ./tools/run_cargo_fmt.sh diff
-	@./tools/run_clippy.sh
+.PHONY: ci-lints
+ci-lints:
+	@printf "$$(tput bold)**************************$$(tput sgr0)\n"
+	@printf "$$(tput bold)* CI: Formatting + Lints *$$(tput sgr0)\n"
+	@printf "$$(tput bold)**************************$$(tput sgr0)\n"
+	@$(MAKE) lints
 
 .PHONY: ci-tools
 ci-tools:
@@ -242,11 +235,16 @@ clean:
 	@echo "$$(tput bold)Clean ci-artifacts" && rm -Rf ./ci-artifacts
 
 .PHONY: fmt format
-fmt format:
+fmt format formatall:
 	@./tools/run_cargo_fmt.sh
 
-.PHONY: clippy
-clippy:
+.PHONY: check-format
+check-format:
+	@CI=true ./tools/run_cargo_fmt.sh diff
+
+.PHONY: lints
+lints:\
+	check-format
 	@./tools/run_clippy.sh
 
 .PHONY: list list-boards list-platforms
