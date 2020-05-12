@@ -6,64 +6,7 @@
 //!
 //! <https://www.st.com/en/mems-and-sensors/lsm303dlhc.html>
 //!
-//! Syscall Interface
-//! -----------------
-//!
-//! ### Command
-//!
-//! All commands are asynchronous, they return a one shot callback when done
-//! Only one command can be issued at a time.
-//!
-//! #### command num
-//! - `0`: Returns SUCCESS
-//!   - `data`: Unused.
-//!   - Return: 0
-//! - `1`: Is Present
-//!   - `data`: unused
-//!   - Return: `SUCCESS` if no other command is in progress, `EBUSY` otherwise.
-//! - `2`: Set Accelerometer Power Mode
-//!   - `data1`: Accelerometer Data rate defined in manual table 20, page 25
-//!   - `data2`: Low power mode (1 on, 0 off)
-//!   - Return: `SUCCESS` if no other command is in progress, `EBUSY` otherwise.
-//! - `3`: Set Accelerometer Scale and Resolution
-//!   - `data1`: Accelerometer scale defined in manual table 27, page 27
-//!   - `data2`: High resolution (1 on, 0 off)
-//!   - Return: `SUCCESS` if no other command is in progress, `EBUSY` otherwise.
-//! - `4`: Set Magnetometer Temperature Enable and Data Rate
-//!   - `data1`: Magnetometer Data rate defined in manual table 72, page 37
-//!   - `data2`: Temperature enable (1 on, 0 off)
-//!   - Return: `SUCCESS` if no other command is in progress, `EBUSY` otherwise.
-//! - `5`: Set magnetometer range
-//!   - `data1`: Magnetometer range defined in manual table 75, page 38
-//!   - Return: `SUCCESS` if no other command is in progress, `EBUSY` otherwise.
-//! - `6`: Read Acceleration XYZ
-//!   - `data`: unused
-//!   - Return: `SUCCESS` if no other command is in progress, `EBUSY` otherwise.
-//! - `7`: Read Temperature
-//!   - `data`: unused
-//!   - Return: `SUCCESS` if no other command is in progress, `EBUSY` otherwise.
-//! - `6`: Read Magnetometer XYZ
-//!   - `data`: unused
-//!   - Return: `SUCCESS` if no other command is in progress, `EBUSY` otherwise.
-//!
-//! ### Subscribe
-//!
-//! All commands call this callback when done, usually subscribes
-//! should be one time functions
-//!
-//! #### subscribe num
-//! - `0`: Done callback
-//!   - 'data1`: depends on command
-//!     - `1` - 1 for is present, 0 for not present
-//!     - `6` - X acceleration in m/s2 (not scaled)
-//!     - `7` - temperature in deg C * 8
-//!     - `8` - X magnetometer in Gauss (not scaled)
-//!   - 'data2`: depends on command
-//!     - `6` - Y acceleration in m/s2 (not scaled)
-//!     - `8` - Y magnetometer in Gauss (not scaled)
-//!   - 'data3`: depends on command
-//!     - `6` - Z acceleration in m/s2 (not scaled)
-//!     - `8` - Z magnetometer in Gauss (not scaled)
+//! The syscall interface is described in [lsm303dlhc.md](../../doc/syscalls/70006_lsm303dlhc.md)
 //!
 //! Usage
 //! -----
