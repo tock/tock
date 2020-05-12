@@ -694,13 +694,23 @@ impl Pin<'a> {
                 }
                 port.registers.gdir.modify(GDIR::GDIR9.val(mode as u32));
             },
+            0b10000 => {
+                unsafe {
+                    iomuxc::IOMUXC.enable_sw_mux_ctl_pad_gpio_ad_b1_00_alt3_mode();
+                    iomuxc::IOMUXC.enable_lpi2c_scl_select_input();
+                    iomuxc::IOMUXC.enable_sw_mux_ctl_pad_gpio_ad_b1_01_alt3_mode();
+                    iomuxc::IOMUXC.enable_lpi2c_sda_select_input();
+                    iomuxc::IOMUXC.enable_lpi2c1_scl_16();
+                    iomuxc::IOMUXC.enable_lpi2c1_sda_17();
+                }
+            },
             _ => {}
         }
     }
 
     // no alternate function for the moment
     pub fn set_alternate_function(&self, _af: AlternateFunction) {
-        let port = self.pinid.get_port();
+        let _port = self.pinid.get_port();
 
         match self.pinid.get_pin_number() {
             // 0b1001 => port.registers.afrh.modify(AFRH::AFRH9.val(af as u32)),
@@ -719,7 +729,7 @@ impl Pin<'a> {
 
     // none for the momenent
     fn set_mode_output_pushpull(&self) {
-        let port = self.pinid.get_port();
+        let _port = self.pinid.get_port();
 
         match self.pinid.get_pin_number() {
             // 0b1001 => port.registers.otyper.modify(OTYPER::OT9::CLEAR),
@@ -729,7 +739,7 @@ impl Pin<'a> {
 
     // oarecum inutile momentan
     fn get_pullup_pulldown(&self) -> PullUpPullDown {
-        let port = self.pinid.get_port();
+        let _port = self.pinid.get_port();
 
         let val = match self.pinid.get_pin_number() {
             // 0b01001 => iomuxc::registers.sw_pad_ctl_pad_gpio_ad_b0_09.read(SW_PAD_CTL_PAD_GPIO_AD_B0_09::PUS),
@@ -740,8 +750,8 @@ impl Pin<'a> {
     }
 
     // oarecum inutile momentan
-    fn set_pullup_pulldown(&self, pupd: PullUpPullDown) {
-        let port = self.pinid.get_port();
+    fn set_pullup_pulldown(&self, _pupd: PullUpPullDown) {
+        let _port = self.pinid.get_port();
 
         match self.pinid.get_pin_number() {
             // 0b01001 => { 
@@ -896,7 +906,7 @@ impl hil::gpio::Input for Pin<'a> {
 }
 
 impl hil::gpio::Interrupt for Pin<'a> {
-    fn enable_interrupts(&self, mode: hil::gpio::InterruptEdge) {
+    fn enable_interrupts(&self, _mode: hil::gpio::InterruptEdge) {
         // unsafe {
         //     atomic(|| {
         //         self.exti_lineid.map(|lineid| {

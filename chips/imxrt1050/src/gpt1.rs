@@ -200,12 +200,12 @@ impl Gpt1<'a> {
 
     pub fn handle_interrupt(&self) {
         self.registers.sr.modify(SR::OF1::SET);
-        // self.registers.ir.modify(IR::OF1IE::CLEAR);
+        self.registers.ir.modify(IR::OF1IE::CLEAR);
+        self.registers.cr.modify(CR::EN::CLEAR);
 
         self.client.map(|client| client.fired());
     }
 
-    // starts the timer
     pub fn start(&self) {
         // Disable GPT and the GPT interrupt register first
         self.registers.cr.modify(CR::EN::CLEAR);
@@ -238,7 +238,7 @@ impl Gpt1<'a> {
         self.registers.sr.set(31 as u32);
 
         // Enable free run mode
-        self.registers.cr.modify(CR::FRR::SET);
+        self.registers.cr.modify(CR::FRR::CLEAR);
 
         // Enable run in wait mode
         self.registers.cr.modify(CR::WAITEN::SET);
@@ -258,18 +258,17 @@ impl Gpt1<'a> {
         // We will use the ipg_clk_highfreq provided by perclk_clk_root,
         // which runs at 6 MHz. Before calling set_alarm, we assume clock 
         // to GPT1 has been enabled. 
-        self.registers.cr.modify(CR::CLKSRC.val(0x5 as u32));
+        self.registers.cr.modify(CR::CLKSRC.val(0x2 as u32));
 
         // Prescale 6Mhz to 16Khz, by dividing it by 375. The change in the
         // prescaler value immediately affects the output clock frequency
-        self.registers.pr.modify(PR::PRESCALER.val(3061 as u32));
+        self.registers.pr.modify(PR::PRESCALER.val(0 as u32));
 
         // Enable the GPT 
         self.registers.cr.modify(CR::EN::SET);
 
         // Enable the Output Compare 1 Interrupt Enable
         self.registers.ir.modify(IR::OF1IE::SET);
-
     }
 }
 
@@ -279,8 +278,19 @@ impl hil::time::Alarm<'a> for Gpt1<'a> {
     }
 
     fn set_alarm(&self, tics: u32) {
+        self.registers.cr.modify(CR::EN::CLEAR);
+        self.registers.cr.modify(CR::SWR::SET);
+
+        // wait until registers are cleared
+        while self.registers.cr.is_set(CR::SWR) {}
+
+        self.registers.cr.modify(CR::FRR::CLEAR);
+        self.registers.cr.modify(CR::CLKSRC.val(0x2 as u32));
+        self.registers.pr.modify(PR::PRESCALER.val(0 as u32));
+
         self.registers.ocr1.set(tics);
         self.registers.ir.modify(IR::OF1IE::SET);
+        self.registers.cr.modify(CR::EN::SET);
         // self.registers.cr.modify(CR::OM1::SET);
     }
 
@@ -305,7 +315,7 @@ impl hil::time::Alarm<'a> for Gpt1<'a> {
 }
 
 impl hil::time::Time for Gpt1<'a> {
-    type Frequency = hil::time::Freq32KHz;
+    type Frequency = hil::time::Freq375MHz;
 
     fn now(&self) -> u32 {
         self.registers.cnt.get()

@@ -5,6 +5,7 @@ use kernel::common::StaticRef;
 use kernel::hil;
 use kernel::ClockInterface;
 use kernel::ReturnCode;
+use cortex_m_semihosting::{hprintln};
 
 use crate::ccm;
 
@@ -441,7 +442,6 @@ impl Lpuart<'a> {
     }
 
 	pub fn handle_interrupt(&self) {
-
         if self.registers.stat.is_set(STAT::TDRE) {
     		self.clear_transmit_complete();
     		self.disable_transmit_complete_interrupt();
@@ -479,6 +479,8 @@ impl Lpuart<'a> {
 
         if self.registers.stat.is_set(STAT::RDRF) {
             let byte = self.registers.data.get() as u8;
+            hprintln!("Am primit un byte! {}", byte).unwrap();
+
             self.disable_receive_interrupt();
 
             // ignore IRQ if not receiving
@@ -551,6 +553,7 @@ impl hil::uart::Transmit<'a> for Lpuart<'a> {
 	        tx_data: &'static mut [u8],
 	        tx_len: usize,
 	    ) -> (ReturnCode, Option<&'static mut [u8]>) {
+            hprintln!("E in transmit!").unwrap();
 			if self.tx_status.get() == LPUARTStateTX::Idle {
 				if tx_len <= tx_data.len() {
 					self.tx_buffer.put(Some(tx_data));
@@ -675,6 +678,7 @@ impl hil::uart::Configure for Lpuart<'a> {
 
 impl hil::uart::Receive<'a> for Lpuart<'a> {
     fn set_receive_client(&self, client: &'a dyn hil::uart::ReceiveClient) {
+        hprintln!("E set_receive_client!").unwrap();
         self.rx_client.set(client);
     }
 
@@ -683,6 +687,7 @@ impl hil::uart::Receive<'a> for Lpuart<'a> {
         rx_buffer: &'static mut [u8],
         rx_len: usize,
     ) -> (ReturnCode, Option<&'static mut [u8]>) {
+        hprintln!("E in receive buffer!").unwrap();
         if self.rx_status.get() == USARTStateRX::Idle {
             if rx_len <= rx_buffer.len() {
                 self.rx_buffer.put(Some(rx_buffer));
@@ -700,10 +705,12 @@ impl hil::uart::Receive<'a> for Lpuart<'a> {
     }
 
     fn receive_word(&self) -> ReturnCode {
+        hprintln!("E receive_word!").unwrap();
         ReturnCode::FAIL
     }
 
     fn receive_abort(&self) -> ReturnCode {
+        hprintln!("E receive_abort!").unwrap();
         if self.rx_status.get() != USARTStateRX::Idle {
             self.rx_status.set(USARTStateRX::AbortRequested);
             ReturnCode::EBUSY

@@ -12,6 +12,7 @@ use crate::nvic;
 // use crate::spi;
 use crate::gpt1;
 use crate::lpuart;
+use crate::lpi2c;
 
 pub struct Imxrt1050 {
     mpu: cortexm7::mpu::MPU,
@@ -63,6 +64,7 @@ impl Chip for Imxrt1050 {
                         //     .handle_interrupt(),
 
                         nvic::LPUART1 => lpuart::LPUART1.handle_interrupt(),
+                        nvic::LPI2C1 => lpi2c::LPI2C1.handle_event(),
                         // nvic::USART2 => usart::USART2.handle_interrupt(),
                         // nvic::USART3 => usart::USART3.handle_interrupt(),
 

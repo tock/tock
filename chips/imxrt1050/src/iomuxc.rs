@@ -1,6 +1,6 @@
-use kernel::common::registers::{register_bitfields, ReadWrite, ReadOnly};
+use kernel::common::registers::{register_bitfields, ReadWrite};
 use kernel::common::StaticRef;
-use kernel::ClockInterface;
+// use kernel::ClockInterface;
 
 /// IOMUX Controller Module
 #[repr(C)]
@@ -10,13 +10,25 @@ struct IomuxcRegisters {
     sw_mux_ctl_pad_gpio_ad_b0_09: ReadWrite<u32, SW_MUX_CTL_PAD_GPIO_AD_B0_09::Register>,
     _reserved1: [u8; 8],
     sw_mux_ctl_pad_gpio_ad_b0_12: ReadWrite<u32, SW_MUX_CTL_PAD_GPIO_AD_B0_12::Register>,
-    sw_mux_ctl_pad_gpio_ad_b0_13: ReadWrite<u32, SW_MUX_CTL_PAD_GPIO_AD_B0_13::Register>,   
-    _reserved2: [u8; 476],
+    sw_mux_ctl_pad_gpio_ad_b0_13: ReadWrite<u32, SW_MUX_CTL_PAD_GPIO_AD_B0_13::Register>,
+    sw_mux_ctl_pad_gpio_ad_b0_14: ReadWrite<u32, SW_MUX_CTL_PAD_GPIO_AD_B0_14::Register>,
+    sw_mux_ctl_pad_gpio_ad_b0_15: ReadWrite<u32, SW_MUX_CTL_PAD_GPIO_AD_B0_15::Register>,
+    sw_mux_ctl_pad_gpio_ad_b1_00: ReadWrite<u32, SW_MUX_CTL_PAD_GPIO_AD_B1_00::Register>,
+    sw_mux_ctl_pad_gpio_ad_b1_01: ReadWrite<u32, SW_MUX_CTL_PAD_GPIO_AD_B1_01::Register>,
+    _reserved2: [u8; 460],
     // PAD Control register for gpio_ad_b0_09
     sw_pad_ctl_pad_gpio_ad_b0_09: ReadWrite<u32, SW_PAD_CTL_PAD_GPIO_AD_B0_09::Register>,
     _reserved3: [u8; 8],
     sw_pad_ctl_pad_gpio_ad_b0_12: ReadWrite<u32, SW_PAD_CTL_PAD_GPIO_AD_B0_12::Register>,
     sw_pad_ctl_pad_gpio_ad_b0_13: ReadWrite<u32, SW_PAD_CTL_PAD_GPIO_AD_B0_13::Register>,
+    sw_pad_ctl_pad_gpio_ad_b0_14: ReadWrite<u32, SW_PAD_CTL_PAD_GPIO_AD_B0_14::Register>,
+    sw_pad_ctl_pad_gpio_ad_b0_15: ReadWrite<u32, SW_PAD_CTL_PAD_GPIO_AD_B0_15::Register>,
+    sw_pad_ctl_pad_gpio_ad_b1_00: ReadWrite<u32, SW_PAD_CTL_PAD_GPIO_AD_B1_00::Register>,
+    sw_pad_ctl_pad_gpio_ad_b1_01: ReadWrite<u32, SW_PAD_CTL_PAD_GPIO_AD_B1_01::Register>,
+    _reserved4: [u8; 472],
+    lpi2c1_scl_select_input: ReadWrite<u32, LPI2C1_SCL_SELECT_INPUT::Register>,
+    lpi2c1_sda_select_input: ReadWrite<u32, LPI2C1_SDA_SELECT_INPUT::Register>
+
 }
 
 register_bitfields![u32,
@@ -37,6 +49,38 @@ register_bitfields![u32,
     ],
 
     SW_MUX_CTL_PAD_GPIO_AD_B0_13 [
+        // Software Input On Field
+        SION OFFSET(4) NUMBITS(1) [],
+
+        // MUX Mode Select Field
+        MUX_MODE OFFSET(0) NUMBITS(3) []
+    ],
+
+    SW_MUX_CTL_PAD_GPIO_AD_B0_14 [
+        // Software Input On Field
+        SION OFFSET(4) NUMBITS(1) [],
+
+        // MUX Mode Select Field
+        MUX_MODE OFFSET(0) NUMBITS(3) []
+    ],
+
+    SW_MUX_CTL_PAD_GPIO_AD_B0_15 [
+        // Software Input On Field
+        SION OFFSET(4) NUMBITS(1) [],
+
+        // MUX Mode Select Field
+        MUX_MODE OFFSET(0) NUMBITS(3) []
+    ],
+
+    SW_MUX_CTL_PAD_GPIO_AD_B1_00 [
+        // Software Input On Field
+        SION OFFSET(4) NUMBITS(1) [],
+
+        // MUX Mode Select Field
+        MUX_MODE OFFSET(0) NUMBITS(3) []
+    ],
+
+    SW_MUX_CTL_PAD_GPIO_AD_B1_01 [
         // Software Input On Field
         SION OFFSET(4) NUMBITS(1) [],
 
@@ -96,7 +140,7 @@ register_bitfields![u32,
         SRE OFFSET(0) NUMBITS(1) []
     ],
 
-     SW_PAD_CTL_PAD_GPIO_AD_B0_13 [
+    SW_PAD_CTL_PAD_GPIO_AD_B0_13 [
         // Hyst. Enable Field
         HYS OFFSET(16) NUMBITS(1) [],
 
@@ -120,6 +164,120 @@ register_bitfields![u32,
 
         // Slew Rate Field
         SRE OFFSET(0) NUMBITS(1) []
+    ],
+
+    SW_PAD_CTL_PAD_GPIO_AD_B0_14 [
+        // Hyst. Enable Field
+        HYS OFFSET(16) NUMBITS(1) [],
+
+        // Pull Up / Down Config Field
+        PUS OFFSET(14) NUMBITS(2) [],
+
+        // Pull / Keep Select Field
+        PUE OFFSET(13) NUMBITS(1) [],
+
+        // Pull / Keep enable field
+        PKE OFFSET(12) NUMBITS(1) [],
+
+        // Open drain enable field
+        ODE OFFSET(11) NUMBITS(1) [],
+
+        // Speed
+        SPEED OFFSET(6) NUMBITS(2) [],
+
+        // Drive Strength Field
+        DSE OFFSET(3) NUMBITS(3) [],
+
+        // Slew Rate Field
+        SRE OFFSET(0) NUMBITS(1) []
+    ],
+
+    SW_PAD_CTL_PAD_GPIO_AD_B0_15 [
+        // Hyst. Enable Field
+        HYS OFFSET(16) NUMBITS(1) [],
+
+        // Pull Up / Down Config Field
+        PUS OFFSET(14) NUMBITS(2) [],
+
+        // Pull / Keep Select Field
+        PUE OFFSET(13) NUMBITS(1) [],
+
+        // Pull / Keep enable field
+        PKE OFFSET(12) NUMBITS(1) [],
+
+        // Open drain enable field
+        ODE OFFSET(11) NUMBITS(1) [],
+
+        // Speed
+        SPEED OFFSET(6) NUMBITS(2) [],
+
+        // Drive Strength Field
+        DSE OFFSET(3) NUMBITS(3) [],
+
+        // Slew Rate Field
+        SRE OFFSET(0) NUMBITS(1) []
+    ],
+
+    SW_PAD_CTL_PAD_GPIO_AD_B1_00 [
+        // Hyst. Enable Field
+        HYS OFFSET(16) NUMBITS(1) [],
+
+        // Pull Up / Down Config Field
+        PUS OFFSET(14) NUMBITS(2) [],
+
+        // Pull / Keep Select Field
+        PUE OFFSET(13) NUMBITS(1) [],
+
+        // Pull / Keep enable field
+        PKE OFFSET(12) NUMBITS(1) [],
+
+        // Open drain enable field
+        ODE OFFSET(11) NUMBITS(1) [],
+
+        // Speed
+        SPEED OFFSET(6) NUMBITS(2) [],
+
+        // Drive Strength Field
+        DSE OFFSET(3) NUMBITS(3) [],
+
+        // Slew Rate Field
+        SRE OFFSET(0) NUMBITS(1) []
+    ],
+
+    SW_PAD_CTL_PAD_GPIO_AD_B1_01 [
+        // Hyst. Enable Field
+        HYS OFFSET(16) NUMBITS(1) [],
+
+        // Pull Up / Down Config Field
+        PUS OFFSET(14) NUMBITS(2) [],
+
+        // Pull / Keep Select Field
+        PUE OFFSET(13) NUMBITS(1) [],
+
+        // Pull / Keep enable field
+        PKE OFFSET(12) NUMBITS(1) [],
+
+        // Open drain enable field
+        ODE OFFSET(11) NUMBITS(1) [],
+
+        // Speed
+        SPEED OFFSET(6) NUMBITS(2) [],
+
+        // Drive Strength Field
+        DSE OFFSET(3) NUMBITS(3) [],
+
+        // Slew Rate Field
+        SRE OFFSET(0) NUMBITS(1) []
+    ],
+
+    LPI2C1_SCL_SELECT_INPUT [
+        // Selecting Pads Involved in Daisy Chain
+        DAISY OFFSET(0) NUMBITS(1) []
+    ],
+    
+    LPI2C1_SDA_SELECT_INPUT [
+        // Selecting Pads Involved in Daisy Chain
+        DAISY OFFSET(0) NUMBITS(1) []
     ]
 ];
 
@@ -140,24 +298,89 @@ impl Iomuxc {
     }
 
     // SW_MUX_CTL_PAD_GPIO_AD_B0_09
-    fn is_enabled_sw_mux_ctl_pad_gpio_ad_b0_09_mode(&self) -> bool {
+    pub fn is_enabled_sw_mux_ctl_pad_gpio_ad_b0_09_mode(&self) -> bool {
         self.registers.sw_mux_ctl_pad_gpio_ad_b0_09.is_set(SW_MUX_CTL_PAD_GPIO_AD_B0_09::MUX_MODE) 
     }
 
-    fn enable_sw_mux_ctl_pad_gpio_ad_b0_09_alt5_mode(&self) {
+    pub fn enable_sw_mux_ctl_pad_gpio_ad_b0_09_alt5_mode(&self) {
         self.registers.sw_mux_ctl_pad_gpio_ad_b0_09.modify(SW_MUX_CTL_PAD_GPIO_AD_B0_09::MUX_MODE.val(0b101 as u32));
     }
 
-    fn disable_sw_mux_ctl_pad_gpio_ad_b0_09_mode(&self) {
+    pub fn disable_sw_mux_ctl_pad_gpio_ad_b0_09_mode(&self) {
         self.registers.sw_mux_ctl_pad_gpio_ad_b0_09.modify(SW_MUX_CTL_PAD_GPIO_AD_B0_09::MUX_MODE::CLEAR);
     }
 
-    // SW_PAD_CTL_PAD_GPIO_AD_B0_09 
-    // fn is_enabled_sw_pad_ctl_pad_gpio_ad_b0_09_clock(&self) -> bool {
-    //     self.registers.sw_pad_ctl_pad_gpio_ad_b0_09.is_set(CCGR1::CG13)
-    // }
+    // SW_MUX_CTL_PAD_GPIO_AD_B1_00 - I2C1 SCL
+    pub fn is_enabled_sw_mux_ctl_pad_gpio_ad_b1_00_mode(&self) -> bool {
+        self.registers.sw_mux_ctl_pad_gpio_ad_b1_00.is_set(SW_MUX_CTL_PAD_GPIO_AD_B1_00::MUX_MODE) 
+    }
 
-    // Enable GPIO1 on pin 9
+    pub fn enable_sw_mux_ctl_pad_gpio_ad_b1_00_alt3_mode(&self) {
+        self.registers.sw_mux_ctl_pad_gpio_ad_b1_00.modify(SW_MUX_CTL_PAD_GPIO_AD_B1_00::MUX_MODE.val(0b101 as u32));
+        self.registers.sw_mux_ctl_pad_gpio_ad_b1_00.modify(SW_MUX_CTL_PAD_GPIO_AD_B1_00::SION::SET);
+    }
+
+    pub fn disable_sw_mux_ctl_pad_gpio_ad_b1_00_mode(&self) {
+        self.registers.sw_mux_ctl_pad_gpio_ad_b1_00.modify(SW_MUX_CTL_PAD_GPIO_AD_B1_00::MUX_MODE::CLEAR);
+    }
+
+    // SW_MUX_CTL_PAD_GPIO_AD_B1_01 - I2C1 SDA
+    pub fn is_enabled_sw_mux_ctl_pad_gpio_ad_b1_01_mode(&self) -> bool {
+        self.registers.sw_mux_ctl_pad_gpio_ad_b1_01.is_set(SW_MUX_CTL_PAD_GPIO_AD_B1_01::MUX_MODE) 
+    }
+
+    pub fn enable_sw_mux_ctl_pad_gpio_ad_b1_01_alt3_mode(&self) {
+        self.registers.sw_mux_ctl_pad_gpio_ad_b1_01.modify(SW_MUX_CTL_PAD_GPIO_AD_B1_01::MUX_MODE.val(0b101 as u32));
+        self.registers.sw_mux_ctl_pad_gpio_ad_b1_01.modify(SW_MUX_CTL_PAD_GPIO_AD_B1_01::SION::SET);
+    }
+
+    pub fn disable_sw_mux_ctl_pad_gpio_ad_b1_01_mode(&self) {
+        self.registers.sw_mux_ctl_pad_gpio_ad_b1_01.modify(SW_MUX_CTL_PAD_GPIO_AD_B1_01::MUX_MODE::CLEAR);
+    }
+
+    // LPI2C1_SCL_SELECT_INPUT 
+    pub fn is_enabled_lpi2c_scl_select_input(&self) -> bool {
+        self.registers.lpi2c1_scl_select_input.is_set(LPI2C1_SCL_SELECT_INPUT::DAISY) 
+    }
+
+    pub fn enable_lpi2c_scl_select_input(&self) {
+        self.registers.lpi2c1_scl_select_input.modify(LPI2C1_SCL_SELECT_INPUT::DAISY::SET) 
+    }
+
+    pub fn disable_lpi2c_scl_select_input(&self) {
+        self.registers.lpi2c1_scl_select_input.modify(LPI2C1_SCL_SELECT_INPUT::DAISY::CLEAR);
+    }
+
+    // LPI2C1_SDA_SELECT_INPUT 
+    pub fn is_enabled_lpi2c_sda_select_input(&self) -> bool {
+        self.registers.lpi2c1_sda_select_input.is_set(LPI2C1_SDA_SELECT_INPUT::DAISY) 
+    }
+
+    pub fn enable_lpi2c_sda_select_input(&self) {
+        self.registers.lpi2c1_sda_select_input.modify(LPI2C1_SDA_SELECT_INPUT::DAISY::SET) 
+    }
+
+    pub fn disable_lpi2c_sda_select_input(&self) {
+        self.registers.lpi2c1_sda_select_input.modify(LPI2C1_SDA_SELECT_INPUT::DAISY::CLEAR);
+    }
+
+    pub fn enable_lpi2c1_scl_16(&self) {
+        self.registers.sw_pad_ctl_pad_gpio_ad_b1_00.modify(SW_PAD_CTL_PAD_GPIO_AD_B1_00::PUS.val(0b11 as u32));
+        self.registers.sw_pad_ctl_pad_gpio_ad_b1_00.modify(SW_PAD_CTL_PAD_GPIO_AD_B1_00::PKE::SET);
+        self.registers.sw_pad_ctl_pad_gpio_ad_b1_00.modify(SW_PAD_CTL_PAD_GPIO_AD_B1_00::ODE::SET);
+        self.registers.sw_pad_ctl_pad_gpio_ad_b1_00.modify(SW_PAD_CTL_PAD_GPIO_AD_B1_00::SPEED.val(0b10 as u32));
+        self.registers.sw_pad_ctl_pad_gpio_ad_b1_00.modify(SW_PAD_CTL_PAD_GPIO_AD_B1_00::DSE.val(0b110 as u32));
+    }
+
+    pub fn enable_lpi2c1_sda_17(&self) {
+        self.registers.sw_pad_ctl_pad_gpio_ad_b1_01.modify(SW_PAD_CTL_PAD_GPIO_AD_B1_01::PUS.val(0b11 as u32));
+        self.registers.sw_pad_ctl_pad_gpio_ad_b1_01.modify(SW_PAD_CTL_PAD_GPIO_AD_B1_01::PKE::SET);
+        self.registers.sw_pad_ctl_pad_gpio_ad_b1_01.modify(SW_PAD_CTL_PAD_GPIO_AD_B1_01::ODE::SET);
+        self.registers.sw_pad_ctl_pad_gpio_ad_b1_01.modify(SW_PAD_CTL_PAD_GPIO_AD_B1_01::SPEED.val(0b10 as u32));
+        self.registers.sw_pad_ctl_pad_gpio_ad_b1_01.modify(SW_PAD_CTL_PAD_GPIO_AD_B1_01::DSE.val(0b110 as u32));
+    }
+
+    // Enable GPIO1 on pin AD_B0_09
     pub fn enable_gpio1_09(&self) {
         self.registers.sw_pad_ctl_pad_gpio_ad_b0_09.modify(SW_PAD_CTL_PAD_GPIO_AD_B0_09::DSE.val(0b110 as u32));
         self.registers.sw_pad_ctl_pad_gpio_ad_b0_09.modify(SW_PAD_CTL_PAD_GPIO_AD_B0_09::SPEED.val(0b10 as u32));

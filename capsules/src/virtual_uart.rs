@@ -42,6 +42,7 @@
 use core::cell::Cell;
 use core::cmp;
 
+use kernel::debug;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::common::dynamic_deferred_call::{
     DeferredCallHandle, DynamicDeferredCall, DynamicDeferredCallClient,
@@ -259,6 +260,7 @@ impl<'a> MuxUart<'a> {
     ///    (return true)
     /// 3. We are idle: start reading (return false)
     fn start_receive(&self, rx_len: usize) -> bool {
+        debug!("Sunt in start_receive in virtual_uart!");
         self.buffer.take().map_or_else(
             || {
                 // No rxbuf which means a read is ongoing
@@ -379,6 +381,7 @@ impl<'a> uart::ReceiveClient for UartDevice<'a> {
         rcode: ReturnCode,
         error: uart::Error,
     ) {
+        debug!("Sunt in receive client in virtual_uart!");
         self.rx_client.map(move |client| {
             self.state.set(UartDeviceReceiveState::Idle);
             client.received_buffer(rx_buffer, rx_len, rcode, error);
@@ -441,6 +444,7 @@ impl<'a> uart::Receive<'a> for UartDevice<'a> {
         rx_buffer: &'static mut [u8],
         rx_len: usize,
     ) -> (ReturnCode, Option<&'static mut [u8]>) {
+        debug!("Sunt in receive buffer in virtual_uart!");
         if self.rx_buffer.is_some() {
             (ReturnCode::EBUSY, Some(rx_buffer))
         } else if rx_len > rx_buffer.len() {
@@ -459,12 +463,14 @@ impl<'a> uart::Receive<'a> for UartDevice<'a> {
     // This virtualized device will abort its read: other devices
     // devices will continue with their reads.
     fn receive_abort(&self) -> ReturnCode {
+        debug!("Sunt in receive abort in virtual_uart!");
         self.state.set(UartDeviceReceiveState::Aborting);
         self.mux.uart.receive_abort();
         ReturnCode::EBUSY
     }
 
     fn receive_word(&self) -> ReturnCode {
+        debug!("Sunt in receive word in virtual_uart!");
         ReturnCode::FAIL
     }
 }

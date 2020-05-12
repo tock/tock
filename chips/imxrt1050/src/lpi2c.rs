@@ -456,7 +456,7 @@ enum Lpi2cStatus {
     Reading,
 }
 
-pub static mut Lpi2c1: Lpi2c = Lpi2c::new(
+pub static mut LPI2C1: Lpi2c = Lpi2c::new(
     Lpi2c1_BASE,
     Lpi2cClock(ccm::PeripheralClock::CCGR2(ccm::HCLK2::LPI2C1)),
 );
@@ -482,7 +482,7 @@ impl Lpi2c<'a> {
         }
     }
 
-    pub fn set_speed(&self, speed: Lpi2cSpeed, system_clock_in_mhz: usize) {
+    pub fn set_speed(&self, speed: Lpi2cSpeed, _system_clock_in_mhz: usize) {
         // debug!("stm32f3 i2c set_speed");
         self.disable();
         match speed {
