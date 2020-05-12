@@ -39,6 +39,16 @@ impl Frequency for Freq16MHz {
     }
 }
 
+/// 5MHz `Frequency`
+#[derive(Debug)]
+pub struct Freq375MHz;
+impl Frequency for Freq375MHz {
+    fn frequency() -> u32 {
+        21570000
+    }
+}
+
+
 /// 32KHz `Frequency`
 #[derive(Debug)]
 pub struct Freq32KHz;

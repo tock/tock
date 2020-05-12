@@ -13,7 +13,7 @@ use kernel::hil::time::Alarm;
 // use kernel::hil::gpio::Output;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use kernel::debug;
-// use imxrt1050_components::fxos8700::NineDofComponent;
+use imxrt1050_components::fxos8700::NineDofComponent;
 // use capsules::fxos8700cq;
 // use components::gpio::GpioComponent;
 use kernel::capabilities;
@@ -72,7 +72,7 @@ struct Imxrt1050EVKB {
         'static,
         VirtualMuxAlarm<'static, imxrt1050::gpt1::Gpt1<'static>>,
     >,
-    // ninedof: &'static capsules::ninedof::NineDof<'static>
+    ninedof: &'static capsules::ninedof::NineDof<'static>
     // accel: &'static capsules::fxos8700cq::Fxos8700cq<'static>,
     // gpio: &'static capsules::gpio::GPIO<'static>,
 }
@@ -89,7 +89,7 @@ impl Platform for Imxrt1050EVKB {
             // capsules::button::DRIVER_NUM => f(Some(self.button)),
             capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
-            // capsules::ninedof::DRIVER_NUM => f(Some(self.ninedof)),
+            capsules::ninedof::DRIVER_NUM => f(Some(self.ninedof)),
             // capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
             _ => f(None),
         }
@@ -181,8 +181,8 @@ unsafe fn set_pin_primary_functions() {
     // PORT[PortId::G as usize].enable_clock();
     // PORT[PortId::H as usize].enable_clock();
 
-    // imxrt1050::lpi2c::LPI2C1.enable_clock();
-    // imxrt1050::lpi2c::LPI2C1.set_speed(imxrt1050::lpi2c::Lpi2cSpeed::Speed100k, 8);
+    imxrt1050::lpi2c::LPI2C1.enable_clock();
+    imxrt1050::lpi2c::LPI2C1.set_speed(imxrt1050::lpi2c::Lpi2cSpeed::Speed100k, 8);
 }
 
 /// Helper function for miscellaneous peripheral functions
@@ -383,13 +383,14 @@ pub unsafe fn reset_handler() {
     //     lsm303dlhc::Lsm303dlhcRange::Range4_7G,
     // );
 
-    // let ninedof = NineDofComponent::new(board_kernel, mux_i2c, &sam4l::gpio::PC[13]).finalize(());
+    let pin = imxrt1050::gpio::PinId::P1_09.get_pin();
+    let ninedof = NineDofComponent::new(board_kernel, mux_i2c, &pin).finalize(());
 
     let imxrt1050 = Imxrt1050EVKB {
         console: console,
         ipc: kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability),
         led: led,
-        // ninedof: ninedof,
+        ninedof: ninedof,
         // button: button,
         alarm: alarm,
         // gpio: gpio,

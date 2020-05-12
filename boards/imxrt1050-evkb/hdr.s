@@ -1,2 +1,2 @@
 .section .boot_hdr, "ax"
-.incbin "blinky-boot"
+.incbin "boot_hdr-usart"
