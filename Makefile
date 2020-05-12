@@ -235,7 +235,7 @@ clean:
 	@echo "$$(tput bold)Clean ci-artifacts" && rm -Rf ./ci-artifacts
 
 .PHONY: fmt format
-fmt format formatall:
+fmt format:
 	@./tools/run_cargo_fmt.sh
 
 .PHONY: check-format
