@@ -333,6 +333,10 @@ impl Usb<'a> {
         self.state.set(state);
     }
 
+    pub fn handle_interrupt(&self) {
+        debug!("USB IRQ");
+    }
+
     /// Provide a buffer for transfers in and out of the given endpoint
     /// (The controller need not be enabled before calling this method.)
     fn _endpoint_bank_set_buffer(&self, endpoint: usize, buf: &[VolatileCell<u8>]) {

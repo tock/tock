@@ -2,6 +2,23 @@
 
 #![allow(dead_code)]
 
+pub const USBDEV_CONNECTED: u32 = 0x4f;
+pub const USBDEV_FRAME: u32 = 0x4e;
+pub const USBDEV_RX_BITSTUFF_ERR: u32 = 0x4d;
+pub const USBDEV_RX_PID_ERR: u32 = 0x4c;
+pub const USBDEV_RX_CRC_ERR: u32 = 0x4b;
+pub const USBDEV_LINK_IN_ERR: u32 = 0x4a;
+pub const USBDEV_AV_OVERFLOW: u32 = 0x49;
+pub const USBDEV_RX_FULL: u32 = 0x48;
+pub const USBDEV_AV_EMPTY: u32 = 0x47;
+pub const USBDEV_LINK_RESUME: u32 = 0x46;
+pub const USBDEV_LINK_SUSPEND: u32 = 0x45;
+pub const USBDEV_LINK_RESET: u32 = 0x44;
+pub const USBDEV_HOST_LOST: u32 = 0x43;
+pub const USBDEV_DISCONNECTED: u32 = 0x42;
+pub const USBDEV_PKT_SENT: u32 = 0x41;
+pub const USBDEV_PKT_RECEIVED: u32 = 0x40;
+
 pub const NMI_ESC3: u32 = 0x3f;
 pub const NMI_ESC2: u32 = 0x3e;
 pub const NMI_ESC1: u32 = 0x3d;
