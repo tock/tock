@@ -1,8 +1,9 @@
 //! USB Client driver.
 
+use core::ptr;
 use kernel::common::cells::{OptionalCell, VolatileCell};
 use kernel::common::registers::{
-    register_bitfields, register_structs, ReadOnly, ReadWrite, WriteOnly,
+    register_bitfields, register_structs, LocalRegisterCopy, ReadOnly, ReadWrite, WriteOnly,
 };
 use kernel::common::StaticRef;
 use kernel::debug;
@@ -177,10 +178,68 @@ register_bitfields![u32,
     ]
 ];
 
+pub const N_ENDPOINTS: usize = 12;
+
+#[derive(Copy, Clone, PartialEq, Debug)]
+pub enum CtrlState {
+    Init,
+    ReadIn,
+    ReadStatus,
+    WriteOut,
+    WriteStatus,
+    WriteStatusWait,
+    InDelay,
+}
+
+#[derive(Copy, Clone, PartialEq, Debug)]
+pub enum BulkInState {
+    Init,
+    Delay,
+}
+
+#[derive(Copy, Clone, PartialEq, Debug)]
+pub enum BulkOutState {
+    Init,
+    Delay,
+}
+
+#[derive(Copy, Clone, Debug)]
+pub enum EndpointState {
+    Disabled,
+    Ctrl(CtrlState),
+    BulkIn(BulkInState),
+    BulkOut(BulkOutState),
+    Iso,
+}
+
+type EndpointConfigValue = LocalRegisterCopy<u32, CONFIGIN::Register>;
+
+#[derive(Copy, Clone, Debug, Default)]
+pub struct DeviceConfig {
+    pub endpoint_configs: [Option<EndpointConfigValue>; N_ENDPOINTS],
+}
+
+#[derive(Copy, Clone, Debug)]
+pub struct DeviceState {
+    pub endpoint_states: [EndpointState; N_ENDPOINTS],
+}
+
+impl Default for DeviceState {
+    fn default() -> Self {
+        DeviceState {
+            endpoint_states: [EndpointState::Disabled; N_ENDPOINTS],
+        }
+    }
+}
+
 #[derive(Copy, Clone, Debug)]
 pub enum Mode {
     Host,
-    Device,
+    Device {
+        speed: hil::usb::DeviceSpeed,
+        config: DeviceConfig,
+        state: DeviceState,
+    },
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -197,8 +256,43 @@ pub enum State {
     Active(Mode),
 }
 
+pub enum BankIndex {
+    Bank0,
+    Bank1,
+}
+
+impl From<BankIndex> for usize {
+    fn from(bi: BankIndex) -> usize {
+        match bi {
+            BankIndex::Bank0 => 0,
+            BankIndex::Bank1 => 1,
+        }
+    }
+}
+
+#[repr(C)]
+pub struct Endpoint {
+    addr: VolatileCell<*mut u8>,
+
+    _reserved: u32,
+}
+
+impl Endpoint {
+    pub const fn new() -> Endpoint {
+        Endpoint {
+            addr: VolatileCell::new(ptr::null_mut()),
+            _reserved: 0,
+        }
+    }
+
+    pub fn set_addr(&self, addr: *mut u8) {
+        self.addr.set(addr);
+    }
+}
+
 pub struct Usb<'a> {
     registers: StaticRef<UsbRegisters>,
+    descriptors: [Endpoint; N_ENDPOINTS],
     client: Option<&'a dyn hil::usb::Client<'a>>,
     state: OptionalCell<State>,
 }
@@ -206,8 +300,22 @@ pub struct Usb<'a> {
 impl Usb<'a> {
     pub const fn new(base: StaticRef<UsbRegisters>) -> Self {
         Usb {
-            client: None,
             registers: base,
+            descriptors: [
+                Endpoint::new(),
+                Endpoint::new(),
+                Endpoint::new(),
+                Endpoint::new(),
+                Endpoint::new(),
+                Endpoint::new(),
+                Endpoint::new(),
+                Endpoint::new(),
+                Endpoint::new(),
+                Endpoint::new(),
+                Endpoint::new(),
+                Endpoint::new(),
+            ],
+            client: None,
             state: OptionalCell::new(State::Reset),
         }
     }
@@ -224,23 +332,56 @@ impl Usb<'a> {
     fn set_state(&self, state: State) {
         self.state.set(state);
     }
+
+    /// Provide a buffer for transfers in and out of the given endpoint
+    /// (The controller need not be enabled before calling this method.)
+    fn _endpoint_bank_set_buffer(&self, endpoint: usize, buf: &[VolatileCell<u8>]) {
+        let e: usize = From::from(endpoint);
+        let p = buf.as_ptr() as *mut u8;
+
+        self.descriptors[e].set_addr(p);
+    }
+
+    /// Enable the controller's clocks and interrupt and transition to Idle state
+    fn _enable(&self, mode: Mode) {
+        let regs = self.registers;
+
+        match self.get_state() {
+            State::Reset => {
+                regs.rxenable_setup.write(RXENABLE_SETUP::SETUP0::SET);
+                regs.rxenable_out.write(RXENABLE_OUT::OUT0::SET);
+
+                regs.usbctrl.write(USBCTRL::ENABLE::SET);
+
+                self.set_state(State::Idle(mode));
+            }
+            _ => panic!("Already enabled"),
+        }
+    }
 }
 
 impl hil::usb::UsbController<'a> for Usb<'a> {
-    fn endpoint_set_ctrl_buffer(&self, _buf: &'a [VolatileCell<u8>]) {
-        unimplemented!()
+    fn endpoint_set_ctrl_buffer(&self, buf: &'a [VolatileCell<u8>]) {
+        self._endpoint_bank_set_buffer(0, buf);
     }
 
-    fn endpoint_set_in_buffer(&self, _endpoint: usize, _buf: &'a [VolatileCell<u8>]) {
-        unimplemented!()
+    fn endpoint_set_in_buffer(&self, endpoint: usize, buf: &'a [VolatileCell<u8>]) {
+        self._endpoint_bank_set_buffer(endpoint, buf);
     }
 
-    fn endpoint_set_out_buffer(&self, _endpoint: usize, _buf: &'a [VolatileCell<u8>]) {
-        unimplemented!()
+    fn endpoint_set_out_buffer(&self, endpoint: usize, buf: &'a [VolatileCell<u8>]) {
+        self._endpoint_bank_set_buffer(endpoint, buf);
     }
 
-    fn enable_as_device(&self, _speed: hil::usb::DeviceSpeed) {
-        unimplemented!()
+    fn enable_as_device(&self, speed: hil::usb::DeviceSpeed) {
+        match self.get_state() {
+            State::Reset => self._enable(Mode::Device {
+                speed: speed,
+                config: DeviceConfig::default(),
+                state: DeviceState::default(),
+            }),
+            _ => debug!("Already enabled"),
+        }
     }
 
     fn attach(&self) {
@@ -272,12 +413,45 @@ impl hil::usb::UsbController<'a> for Usb<'a> {
         unimplemented!()
     }
 
-    fn endpoint_in_enable(&self, _transfer_type: TransferType, _endpoint: usize) {
-        unimplemented!()
+    fn endpoint_in_enable(&self, transfer_type: TransferType, endpoint: usize) {
+        let regs = self.registers;
+
+        match transfer_type {
+            TransferType::Control => {
+                regs.rxenable_setup.set(1 << endpoint);
+                regs.rxenable_out.set(1 << endpoint);
+            }
+            TransferType::Bulk => {
+                // How is this different to control?
+                regs.rxenable_setup.set(1 << endpoint);
+                regs.rxenable_out.set(1 << endpoint);
+            }
+            TransferType::Interrupt => unimplemented!(),
+            TransferType::Isochronous => {
+                regs.rxenable_setup.set(1 << endpoint);
+                regs.rxenable_out.set(1 << endpoint);
+                regs.iso.set(1 << endpoint);
+            }
+        };
     }
 
-    fn endpoint_out_enable(&self, _transfer_type: TransferType, _endpoint: usize) {
-        unimplemented!()
+    fn endpoint_out_enable(&self, transfer_type: TransferType, endpoint: usize) {
+        let regs = self.registers;
+
+        match transfer_type {
+            TransferType::Control => {
+                regs.rxenable_setup.set(1 << endpoint);
+            }
+            TransferType::Bulk => {
+                // How is this different to control?
+                regs.rxenable_setup.set(1 << endpoint);
+            }
+            TransferType::Interrupt => unimplemented!(),
+            TransferType::Isochronous => {
+                regs.rxenable_setup.set(1 << endpoint);
+                regs.iso.set(1 << endpoint);
+            }
+        };
     }
 
     fn endpoint_in_out_enable(&self, _transfer_type: TransferType, _endpoint: usize) {
