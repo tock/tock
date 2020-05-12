@@ -20,6 +20,7 @@ use rv32i::csr;
 mod aes_test;
 
 pub mod io;
+pub mod usb;
 //
 // Actual memory for holding the active process structures. Need an empty list
 // at least.
@@ -65,6 +66,10 @@ struct OpenTitan {
         'static,
         capsules::virtual_uart::UartDevice<'static>,
     >,
+    usb: &'static capsules::usb::usb_user::UsbSyscallDriver<
+        'static,
+        capsules::usb::usbc_client::Client<'static, lowrisc::usbdev::Usb<'static>>,
+    >,
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
@@ -80,6 +85,7 @@ impl Platform for OpenTitan {
             capsules::console::DRIVER_NUM => f(Some(self.console)),
             capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
             capsules::low_level_debug::DRIVER_NUM => f(Some(self.lldb)),
+            capsules::usb::usb_user::DRIVER_NUM => f(Some(self.usb)),
             _ => f(None),
         }
     }
@@ -243,6 +249,8 @@ pub unsafe fn reset_handler() {
         [u8; 32]
     ));
 
+    let usb = usb::UsbComponent::new(board_kernel).finalize(());
+
     debug!("OpenTitan initialisation complete. Entering main loop");
 
     extern "C" {
@@ -264,6 +272,7 @@ pub unsafe fn reset_handler() {
         alarm: alarm,
         hmac,
         lldb: lldb,
+        usb,
     };
 
     kernel::procs::load_processes(
