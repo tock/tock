@@ -46,6 +46,7 @@ pub static mut STACK_MEMORY: [u8; 0x800] = [0; 0x800];
 /// A structure representing this platform that holds references to all
 /// capsules for this platform. We've included an alarm and console.
 struct HiFive1 {
+    led: &'static capsules::led::LED<'static, sifive::gpio::GpioPin>,
     console: &'static capsules::console::Console<'static>,
     lldb: &'static capsules::low_level_debug::LowLevelDebug<
         'static,
@@ -64,6 +65,7 @@ impl Platform for HiFive1 {
         F: FnOnce(Option<&dyn kernel::Driver>) -> R,
     {
         match driver_num {
+            capsules::led::DRIVER_NUM => f(Some(self.led)),
             capsules::console::DRIVER_NUM => f(Some(self.console)),
             capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
             capsules::low_level_debug::DRIVER_NUM => f(Some(self.lldb)),
@@ -134,18 +136,23 @@ pub unsafe fn reset_handler() {
     )
     .finalize(());
 
-    // Initialize some GPIOs which are useful for debugging.
-    // Red LED
-    hil::gpio::Pin::make_output(&e310x::gpio::PORT[22]);
-    hil::gpio::Pin::set(&e310x::gpio::PORT[22]);
-
-    // Green LED
-    hil::gpio::Pin::make_output(&e310x::gpio::PORT[19]);
-    hil::gpio::Pin::set(&e310x::gpio::PORT[19]);
-
-    // Blue LED
-    hil::gpio::Pin::make_output(&e310x::gpio::PORT[21]);
-    hil::gpio::Pin::clear(&e310x::gpio::PORT[21]);
+    // LEDs
+    let led = components::led::LedsComponent::new(components::led_component_helper!(
+        sifive::gpio::GpioPin,
+        (
+            &e310x::gpio::PORT[22], // Red
+            kernel::hil::gpio::ActivationMode::ActiveLow
+        ),
+        (
+            &e310x::gpio::PORT[19], // Green
+            kernel::hil::gpio::ActivationMode::ActiveLow
+        ),
+        (
+            &e310x::gpio::PORT[21], // Blue
+            kernel::hil::gpio::ActivationMode::ActiveLow
+        )
+    ))
+    .finalize(components::led_component_buf!(sifive::gpio::GpioPin));
 
     e310x::uart::UART0.initialize_gpio_pins(&e310x::gpio::PORT[17], &e310x::gpio::PORT[16]);
 
@@ -202,6 +209,7 @@ pub unsafe fn reset_handler() {
         console: console,
         alarm: alarm,
         lldb: lldb,
+        led,
     };
 
     kernel::procs::load_processes(
