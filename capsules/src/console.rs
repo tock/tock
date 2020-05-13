@@ -262,6 +262,7 @@ impl Driver for Console<'a> {
                 }).unwrap_or_else(|err| err.into())
             },
             2 /* getnstr */ => {
+                // debug!("Am intrat in getnstr");
                 let len = arg1;
                 self.apps.enter(appid, |app, _| {
                     self.receive_new(appid, app, len)

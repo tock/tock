@@ -251,7 +251,6 @@ pub unsafe fn reset_handler() {
     .finalize(());
     io::WRITER.set_initialized();
 
-
     // Create capabilities that the board needs to call certain protected kernel
     // functions.
     let memory_allocation_capability = create_capability!(capabilities::MemoryAllocationCapability);
@@ -331,42 +330,7 @@ pub unsafe fn reset_handler() {
         
     // ));
 
-    // stm32f3xx::i2c::I2C1.enable_clock();
-    // stm32f3xx::i2c::I2C1.set_speed(stm32f3xx::i2c::I2CSpeed::Speed400k, 8);
 
-    // let mux_i2c = components::i2c::I2CMuxComponent::new(&stm32f3xx::i2c::I2C1)
-    //     .finalize(components::i2c_mux_component_helper!());
-    // let sensor_accelerometer_i2c = components::i2c::I2CComponent::new(mux_i2c, 0x19)
-    //     .finalize(components::i2c_component_helper!());
-    // let sensor_magnetometer_i2c = components::i2c::I2CComponent::new(mux_i2c, 0x1e)
-    //     .finalize(components::i2c_component_helper!());
-
-    // PinId::PB06.get_pin().as_ref().map(|pin| {
-    //     pin.set_mode(Mode::AlternateFunctionMode);
-    //     pin.set_floating_state(kernel::hil::gpio::FloatingState::PullNone);
-    //     // AF4 is I2C
-    //     pin.set_alternate_function(AlternateFunction::AF4);
-    // });
-    // PinId::PB07.get_pin().as_ref().map(|pin| {
-    //     pin.make_output();
-    //     pin.set_floating_state(kernel::hil::gpio::FloatingState::PullNone);
-    //     pin.set_mode(Mode::AlternateFunctionMode);
-    //     // AF4 is I2C
-    //     pin.set_alternate_function(AlternateFunction::AF4);
-    // });
-
-    // static mut BUFFER: [u8; 120] = [0; 120];
-
-    // let lsm303dlhc = static_init!(
-    //     capsules::lsm303dlhc::Lsm303dlhc,
-    //     capsules::lsm303dlhc::Lsm303dlhc::new(
-    //         sensor_accelerometer_i2c,
-    //         sensor_magnetometer_i2c,
-    //         &mut BUFFER
-    //     )
-    // );
-    // sensor_accelerometer_i2c.set_client(lsm303dlhc);
-    // sensor_magnetometer_i2c.set_client(lsm303dlhc);
     let mux_i2c = components::i2c::I2CMuxComponent::new(&imxrt1050::lpi2c::LPI2C1)
         .finalize(components::i2c_mux_component_helper!());
 
@@ -383,7 +347,7 @@ pub unsafe fn reset_handler() {
     //     lsm303dlhc::Lsm303dlhcRange::Range4_7G,
     // );
 
-    let pin = imxrt1050::gpio::PinId::P1_09.get_pin();
+    let pin = imxrt1050::gpio::PinId::P1_16.get_pin();
     let ninedof = NineDofComponent::new(board_kernel, mux_i2c, &pin).finalize(());
 
     let imxrt1050 = Imxrt1050EVKB {
