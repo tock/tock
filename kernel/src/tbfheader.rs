@@ -147,9 +147,8 @@ crate struct TbfHeaderV2WriteableFlashRegion {
 #[derive(Clone, Copy, Debug, Default)]
 crate struct TbfHeaderV2FixedAddresses {
     /// The absolute address of the start of RAM that the process expects. For
-    /// example, if the process was linked with a RAM region of length 4 kB
-    /// starting at address `0x00023000`, then this would be set to
-    /// `0x00023000`.
+    /// example, if the process was linked with a RAM region starting at 
+    /// address `0x00023000`, then this would be set to `0x00023000`.
     start_process_ram: u32,
     /// The absolute address of the start of the process binary. This does _not_
     /// include the TBF header. This is the address the process used for the
