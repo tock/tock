@@ -221,6 +221,14 @@ emulation-setup:
 		cd qemu; ./configure --target-list=riscv32-softmmu; \
 	fi
 	@$(MAKE) -C "tools/qemu" > /dev/null
+	@printf "Downloading OpenTitan boot rom from: 2aedf641120665b91c3a5d5aa214175d09f71ee6\n"
+	$(eval CURRENT_DIR := $(shell pwd))
+	@pushd `mktemp -d -t`; \
+		curl `curl "https://dev.azure.com/lowrisc/opentitan/_apis/build/builds/13066/artifacts?artifactName=opentitan-dist&api-version=5.1" | cut -d \" -f 38` --output opentitan-dist.zip; \
+		unzip opentitan-dist.zip; \
+		tar  -xf opentitan-dist/opentitan-snapshot-20191101-*.tar.xz; \
+		mv opentitan-snapshot-20191101-*/sw/device/boot_rom/boot_rom_fpga_nexysvideo.elf $(CURRENT_DIR)/opentitan-boot-rom.elf
+
 
 .PHONY: emulation-check
 emulation-check: emulation-setup
