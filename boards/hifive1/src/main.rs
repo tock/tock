@@ -1,12 +1,8 @@
-//! Board file for SiFive HiFive1 RISC-V development platform.
+//! Board file for SiFive HiFive1b RISC-V development platform.
 //!
-//! - <https://www.sifive.com/products/hifive1/>
+//! - <https://www.sifive.com/boards/hifive1-rev-b>
 //!
-//! This board is no longer being produced. However, many were made so it may
-//! be useful for testing Tock with.
-//!
-//! The primary drawback is the original HiFive1 board did not support User
-//! mode, so this board cannot run Tock applications.
+//! This board file is only compatible with revision B of the HiFive1.
 
 #![no_std]
 #![no_main]
