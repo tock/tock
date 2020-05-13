@@ -23,6 +23,23 @@ fn hifive1() -> Result<(), Error> {
     Ok(())
 }
 
+fn opentitan() -> Result<(), Error> {
+    let mut p = spawn(
+        "make OPENTITAN_BOOT_ROM=../../opentitan-boot-rom.elf qemu -C ../../boards/opentitan",
+        Some(10_000),
+    )?;
+
+    p.exp_string("Boot ROM initialisation has completed, jump into flash!")?;
+    p.exp_string("Entering main loop")?;
+
+    // Test completed, kill QEMU
+    kill_qemu(&mut p)?;
+
+    p.exp_eof()?;
+    Ok(())
+}
+
 fn main() {
     hifive1().unwrap_or_else(|e| panic!("hifive1 job failed with {}", e));
+    opentitan().unwrap_or_else(|e| panic!("opentitan job failed with {}", e));
 }

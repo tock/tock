@@ -233,6 +233,7 @@ emulation-setup:
 .PHONY: emulation-check
 emulation-check: emulation-setup
 	@$(MAKE) -C "boards/hifive1"
+	@$(MAKE) -C "boards/opentitan"
 	@cd tools/qemu-runner; PATH="$(shell pwd)/tools/qemu/riscv32-softmmu/:${PATH}" cargo run
 
 .PHONY: clean
