@@ -405,30 +405,26 @@ impl TbfHeader {
     /// Get the address in RAM this process was specifically compiled for. If
     /// the process is position independent, return `None`.
     crate fn get_fixed_address_ram(&self) -> Option<u32> {
-        match *self {
-            TbfHeader::TbfHeaderV2(hd) => hd.fixed_addresses.map_or(None, |fa| {
-                if fa.start_process_ram == 0xFFFFFFFF {
-                    None
-                } else {
-                    Some(fa.start_process_ram)
-                }
-            }),
-            _ => None,
+        let hd = match self {
+            TbfHeader::TbfHeaderV2(hd) => hd,
+            _ => return None,
+        };
+        match hd.fixed_addresses.as_ref()?.start_process_ram {
+            0xFFFFFFFF => None,
+            start => Some(start),
         }
     }
 
     /// Get the address in flash this process was specifically compiled for. If
     /// the process is position independent, return `None`.
     crate fn get_fixed_address_flash(&self) -> Option<u32> {
-        match *self {
-            TbfHeader::TbfHeaderV2(hd) => hd.fixed_addresses.map_or(None, |fa| {
-                if fa.start_process_flash == 0xFFFFFFFF {
-                    None
-                } else {
-                    Some(fa.start_process_flash)
-                }
-            }),
-            _ => None,
+        let hd = match self {
+            TbfHeader::TbfHeaderV2(hd) => hd,
+            _ => return None,
+        };
+        match hd.fixed_addresses.as_ref()?.start_process_flash {
+            0xFFFFFFFF => None,
+            start => Some(start),
         }
     }
 }
@@ -613,7 +609,7 @@ crate fn parse_tbf_header(header: &'static [u8], version: u16) -> Result<TbfHead
                         }
 
                         TbfHeaderTypes::TbfHeaderFixedAddresses => {
-                            let entry_len = mem::size_of::<TbfHeaderV2FixedAddresses>();
+                            let entry_len = 8;
                             if tlv_header.length as usize == entry_len {
                                 fixed_address_pointer = Some(remaining.try_into()?);
                             } else {

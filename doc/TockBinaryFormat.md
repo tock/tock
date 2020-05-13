@@ -273,9 +273,9 @@ an UTF-8 encoded package name.
 #### `5` Fixed Addresses
 
 `Fixed Addresses` allows processes to specify specific addresses they need for
-flash and RAM. While Tock apps are expected to be position-independent, that is
-not always possible, and this allows the kernel (and other tools) to check that
-the addresses a process expects to be loaded at are being met.
+flash and RAM. Tock supports position-independent apps, but not all apps are
+position-independent. This allows the kernel (and other tools) to avoid loading
+a non-position-independent binary at an incorrect location.
 
 ```
 0             2             4             6             8

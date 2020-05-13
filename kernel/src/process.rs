@@ -1622,9 +1622,9 @@ impl<C: 'static + Chip> Process<'a, C> {
         if let Some(fixed_flash_start) = tbf_header.get_fixed_address_flash() {
             // The flash address in the header is based on the app binary,
             // so we need to take into account the header length.
-            if fixed_flash_start + tbf_header.get_protected_size() != app_flash.as_ptr() as u32 {
-                let actual_address = app_flash.as_ptr() as u32 + tbf_header.get_protected_size();
-                let expected_address = fixed_flash_start;
+            let actual_address = app_flash.as_ptr() as u32 + tbf_header.get_protected_size();
+            let expected_address = fixed_flash_start;
+            if actual_address != expected_address {
                 return Err(ProcessLoadError::IncorrectFlashAddress {
                     actual_address,
                     expected_address,
@@ -1758,9 +1758,9 @@ impl<C: 'static + Chip> Process<'a, C> {
         // need a fixed address) then we check that we used the same address
         // when we allocated it RAM.
         if let Some(fixed_memory_start) = tbf_header.get_fixed_address_ram() {
-            if fixed_memory_start != app_memory.as_ptr() as u32 {
-                let actual_address = app_memory.as_ptr() as u32;
-                let expected_address = fixed_memory_start;
+            let actual_address = app_memory.as_ptr() as u32;
+            let expected_address = fixed_memory_start;
+            if actual_address != expected_address {
                 return Err(ProcessLoadError::MemoryAddressMismatch {
                     actual_address,
                     expected_address,
