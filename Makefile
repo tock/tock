@@ -217,7 +217,7 @@ emulation-setup:
 	@#Use the latest QEMU as it has OpenTitan support
 	@if [[ ! -d tools/qemu || ! -f tools/qemu/VERSION ]]; then \
 		rm -rf tools/qemu; \
-		cd tools; git clone https://github.com/qemu/qemu.git; \
+		cd tools; git clone https://github.com/alistair23/qemu.git -b riscv-tock.next; \
 		cd qemu; ./configure --target-list=riscv32-softmmu; \
 	fi
 	@$(MAKE) -C "tools/qemu" > /dev/null
