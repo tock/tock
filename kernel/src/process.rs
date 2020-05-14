@@ -861,109 +861,8 @@ impl<C: Chip> ProcessType for Process<'a, C> {
                 // process faulted. Panic and print status
                 panic!("Process {} had a fault", self.process_name);
             }
-            FaultResponse::Restart(restart_policy) => {
-                // Start with the generic terminate operations. This frees state
-                // for this process and removes any pending tasks from the
-                // scheduler's queue.
-                self.terminate();
-
-                // Decide what to do with this process. Should it be restarted?
-                // Or should we leave it in a stopped & faulted state? If the
-                // process is faulting too often we might not want to restart.
-                // If we are not going to restart the process then we can just
-                // leave it in the stopped faulted state by returning
-                // immediately. This has the same effect as using the
-                // `FaultResponse::Stop` policy.
-                if !restart_policy.should_restart(self) {
-                    return;
-                }
-
-                // We need a new process identifier for this app since the
-                // restarted version is in effect a new process. This is also
-                // necessary to invalidate any stored `AppId`s that point to the
-                // old version of the app. However, the app has not moved
-                // locations in the processes array, so we copy the existing
-                // index.
-                let old_index = self.app_id.get().index;
-                let new_identifier = self.kernel.create_process_identifier();
-                self.app_id
-                    .set(AppId::new(self.kernel, new_identifier, old_index));
-
-                // Update debug information
-                self.debug.map(|debug| {
-                    // Reset some state for the process.
-                    debug.syscall_count = 0;
-                    debug.last_syscall = None;
-                    debug.dropped_callback_count = 0;
-                    debug.timeslice_expiration_count = 0;
-                });
-
-                // We are going to start this process over again, so need
-                // the init_fn location.
-                let app_flash_address = self.flash_start();
-                let init_fn = unsafe {
-                    app_flash_address.offset(self.header.get_init_function_offset() as isize)
-                        as usize
-                };
-
-                // Reset memory pointers.
-                self.kernel_memory_break
-                    .set(self.original_kernel_memory_break);
-                self.app_break.set(self.original_app_break);
-                self.current_stack_pointer.set(self.original_stack_pointer);
-                self.allow_high_water_mark
-                    .set(self.original_allow_high_water_mark);
-
-                // Handle any architecture-specific requirements for a process
-                // when it first starts (as it would when it is new).
-                let new_stack_pointer_res =
-                    self.stored_state.map_or(Err(()), |stored_state| unsafe {
-                        self.chip.userspace_kernel_boundary().initialize_process(
-                            self.sp(),
-                            self.sp() as usize - self.memory.as_ptr() as usize,
-                            stored_state,
-                        )
-                    });
-                match new_stack_pointer_res {
-                    Ok(new_stack_pointer) => {
-                        self.current_stack_pointer.set(new_stack_pointer as *mut u8);
-                        self.debug_set_max_stack_depth();
-                    }
-                    Err(_) => {
-                        // We couldn't initialize the architecture-specific
-                        // state for this process. This shouldn't happen since
-                        // the app was able to be started before, but at this
-                        // point the app is no longer valid. The best thing we
-                        // can do now is leave the app as still faulted and not
-                        // schedule it.
-                        return;
-                    }
-                };
-
-                // And queue up this app to be restarted.
-                let flash_protected_size = self.header.get_protected_size() as usize;
-                let flash_app_start = app_flash_address as usize + flash_protected_size;
-
-                // Mark the state as `Unstarted` for the scheduler.
-                self.state.set(State::Unstarted);
-
-                // Mark that we restarted this process.
-                self.restart_count.increment();
-
-                // Enqueue the initial function.
-                self.tasks.map(|tasks| {
-                    tasks.enqueue(Task::FunctionCall(FunctionCall {
-                        source: FunctionCallSource::Kernel,
-                        pc: init_fn,
-                        argument0: flash_app_start,
-                        argument1: self.memory.as_ptr() as usize,
-                        argument2: self.memory.len() as usize,
-                        argument3: self.app_break.get() as usize,
-                    }));
-                });
-
-                // Mark that the process is ready to run.
-                self.kernel.increment_work();
+            FaultResponse::Restart(_) => {
+                self.restart(State::StoppedFaulted);
             }
             FaultResponse::Stop => {
                 // This looks a lot like restart, except we just leave the app
@@ -1855,6 +1754,144 @@ impl<C: 'static + Chip> Process<'a, C> {
 
         // return
         Ok((Some(process), memory_padding_size + memory_size))
+    }
+
+    /// Attempt to restart the process.
+    ///
+    /// This function can be called when the process is in any state and
+    /// attempts to reset all of its state and re-initialize it so that it can
+    /// start running again.
+    ///
+    /// Restarting can fail for two general reasons:
+    ///
+    /// 1. The kernel chooses not to restart the process based on the policy the
+    ///    kernel is using for restarting a specific process. For example, if a
+    ///    process has restarted a number of times in a row the kernel may
+    ///    decide to stop executing it.
+    ///
+    /// 2. Some state can no long be configured for the process. For example,
+    ///    the syscall state for the process fails to initialize.
+    ///
+    /// After `restart()` runs the process will either be queued to run its
+    /// `_start` function, or it will be left in `failure_state`.
+    fn restart(&self, failure_state: State) {
+        // Start with the generic terminate operations. This frees state for
+        // this process and removes any pending tasks from the scheduler's
+        // queue.
+        self.terminate();
+
+        // Set the state the process will be in if it cannot be restarted.
+        self.state.set(failure_state);
+
+        // Check if the restart policy for this app allows us to continue with
+        // the restart.
+        match self.fault_response {
+            FaultResponse::Restart(restart_policy) => {
+                // Decide what to do with this process. Should it be restarted?
+                // Or should we leave it in a stopped & faulted state? If the
+                // process is faulting too often we might not want to restart.
+                // If we are not going to restart the process then we can just
+                // leave it in the stopped faulted state by returning
+                // immediately. This has the same effect as using the
+                // `FaultResponse::Stop` policy.
+                if !restart_policy.should_restart(self) {
+                    return;
+                }
+            }
+
+            _ => {
+                // In all other cases the kernel has chosen not to restart the
+                // process if it fails or exits for any reason. We can just
+                // leave the process in the `failure_state` and return.
+                return;
+            }
+        }
+
+        // We need a new process identifier for this process since the restarted
+        // version is in effect a new process. This is also necessary to
+        // invalidate any stored `AppId`s that point to the old version of the
+        // process. However, the process has not moved locations in the
+        // processes array, so we copy the existing index.
+        let old_index = self.app_id.get().index;
+        let new_identifier = self.kernel.create_process_identifier();
+        self.app_id
+            .set(AppId::new(self.kernel, new_identifier, old_index));
+
+        // Reset debug information that is per-execution and not per-process.
+        self.debug.map(|debug| {
+            debug.syscall_count = 0;
+            debug.last_syscall = None;
+            debug.dropped_callback_count = 0;
+            debug.timeslice_expiration_count = 0;
+        });
+
+        // We are going to start this process over again, so need the init_fn
+        // location.
+        let app_flash_address = self.flash_start();
+        let init_fn = unsafe {
+            app_flash_address.offset(self.header.get_init_function_offset() as isize) as usize
+        };
+
+        // Reset memory pointers back to how they were when first calculated by
+        // the process create function. Since these are based on properties in
+        // the TBF header, and processes can't change the TBF header, it is fine
+        // to use saved values.
+        self.kernel_memory_break
+            .set(self.original_kernel_memory_break);
+        self.app_break.set(self.original_app_break);
+        self.current_stack_pointer.set(self.original_stack_pointer);
+        self.allow_high_water_mark
+            .set(self.original_allow_high_water_mark);
+
+        // Handle any architecture-specific requirements for a process when it
+        // first starts (as it would when it is new).
+        let new_stack_pointer_res = self.stored_state.map_or(Err(()), |stored_state| unsafe {
+            self.chip.userspace_kernel_boundary().initialize_process(
+                self.sp(),
+                self.sp() as usize - self.memory.as_ptr() as usize,
+                stored_state,
+            )
+        });
+        match new_stack_pointer_res {
+            Ok(new_stack_pointer) => {
+                self.current_stack_pointer.set(new_stack_pointer as *mut u8);
+                self.debug_set_max_stack_depth();
+            }
+            Err(_) => {
+                // We couldn't initialize the architecture-specific
+                // state for this process. This shouldn't happen since
+                // the app was able to be started before, but at this
+                // point the app is no longer valid. The best thing we
+                // can do now is leave the app as still faulted and not
+                // schedule it.
+                return;
+            }
+        };
+
+        // And queue up this app to be restarted.
+        let flash_protected_size = self.header.get_protected_size() as usize;
+        let flash_app_start = app_flash_address as usize + flash_protected_size;
+
+        // Mark the state as `Unstarted` for the scheduler.
+        self.state.set(State::Unstarted);
+
+        // Mark that we restarted this process.
+        self.restart_count.increment();
+
+        // Enqueue the initial function.
+        self.tasks.map(|tasks| {
+            tasks.enqueue(Task::FunctionCall(FunctionCall {
+                source: FunctionCallSource::Kernel,
+                pc: init_fn,
+                argument0: flash_app_start,
+                argument1: self.memory.as_ptr() as usize,
+                argument2: self.memory.len() as usize,
+                argument3: self.app_break.get() as usize,
+            }));
+        });
+
+        // Mark that the process is ready to run.
+        self.kernel.increment_work();
     }
 
     /// Stop and clear a process's state.

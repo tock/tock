@@ -42,7 +42,7 @@ extern "C" {
 
 /// This holds all of the state that the kernel must keep for the process when
 /// the process is not executing.
-#[derive(Copy, Clone, Default)]
+#[derive(Default)]
 pub struct CortexMStoredState {
     regs: [usize; 8],
     yield_pc: usize,

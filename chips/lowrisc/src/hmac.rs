@@ -34,17 +34,17 @@ register_structs! {
 register_bitfields![u32,
     INTR_STATE [
         HMAC_DONE OFFSET(0) NUMBITS(1) [],
-        FIFO_FULL OFFSET(1) NUMBITS(1) [],
+        FIFO_EMPTY OFFSET(1) NUMBITS(1) [],
         HMAC_ERR OFFSET(2) NUMBITS(1) []
     ],
     INTR_ENABLE [
         HMAC_DONE OFFSET(0) NUMBITS(1) [],
-        FIFO_FULL OFFSET(1) NUMBITS(1) [],
+        FIFO_EMPTY OFFSET(1) NUMBITS(1) [],
         HMAC_ERR OFFSET(2) NUMBITS(1) []
     ],
     INTR_TEST [
         HMAC_DONE OFFSET(0) NUMBITS(1) [],
-        FIFO_FULL OFFSET(1) NUMBITS(1) [],
+        FIFO_EMPTY OFFSET(1) NUMBITS(1) [],
         HMAC_ERR OFFSET(2) NUMBITS(1) []
     ],
     CFG [
@@ -100,14 +100,20 @@ impl Hmac<'a> {
 
             for i in 0..(data_len / 4) {
                 if regs.status.is_set(STATUS::FIFO_FULL) {
-                    // Due to: https://github.com/lowRISC/opentitan/issues/1276
-                    //   we can't get back to processing the data as there is no
-                    //   FIFO not full interrupt.
-                    // Let's just keep going and put up with the back pressure.
-                    // break;
+                    self.data.set(Some(LeasableBuffer::new(slice)));
+                    // Enable interrupts
+                    regs.intr_enable.modify(INTR_ENABLE::FIFO_EMPTY::SET);
+                    return;
                 }
 
-                let data_idx = i * 4;
+                if !regs.status.is_set(STATUS::FIFO_EMPTY) {
+                    self.data.set(Some(LeasableBuffer::new(slice)));
+                    // Enable interrupts
+                    regs.intr_enable.modify(INTR_ENABLE::FIFO_EMPTY::SET);
+                    return;
+                }
+
+                let data_idx = idx + i * 4;
 
                 let mut d = (slice[data_idx + 0] as u32) << 0;
                 d |= (slice[data_idx + 1] as u32) << 8;
@@ -115,7 +121,7 @@ impl Hmac<'a> {
                 d |= (slice[data_idx + 3] as u32) << 24;
 
                 regs.msg_fifo.set(d);
-                self.data_index.set(data_idx + 4)
+                self.data_index.set(data_idx + 4);
             }
 
             let idx = self.data_index.get();
@@ -132,14 +138,20 @@ impl Hmac<'a> {
         self.client.map(move |client| {
             client.add_data_done(Ok(()), slice);
         });
+
+        // Make sure we don't get any more FIFO empty interrupts
+        regs.intr_enable.modify(INTR_ENABLE::FIFO_EMPTY::CLEAR);
     }
 
     pub fn handle_interrupt(&self) {
         let regs = self.registers;
         let intrs = regs.intr_state.extract();
 
-        regs.intr_enable
-            .modify(INTR_ENABLE::HMAC_DONE::CLEAR + INTR_ENABLE::HMAC_ERR::CLEAR);
+        regs.intr_enable.modify(
+            INTR_ENABLE::HMAC_DONE::CLEAR
+                + INTR_ENABLE::FIFO_EMPTY::CLEAR
+                + INTR_ENABLE::HMAC_ERR::CLEAR,
+        );
 
         if intrs.is_set(INTR_STATE::HMAC_DONE) {
             self.client.map(|client| {
@@ -160,8 +172,11 @@ impl Hmac<'a> {
 
                 client.hash_done(Ok(()), digest);
             });
-        } else if intrs.is_set(INTR_STATE::FIFO_FULL) {
-            // FIFO is full, we can't do anything
+        } else if intrs.is_set(INTR_STATE::FIFO_EMPTY) {
+            // Clear the FIFO empty interrupt
+            regs.intr_state.modify(INTR_STATE::FIFO_EMPTY::SET);
+
+            self.data_progress();
         } else if intrs.is_set(INTR_STATE::HMAC_ERR) {
             regs.intr_state.modify(INTR_STATE::HMAC_ERR::SET);
 
@@ -188,6 +203,9 @@ impl hil::digest::Digest<'a, [u8; 32]> for Hmac<'a> {
             .write(CFG::ENDIAN_SWAP::SET + CFG::SHA_EN::SET + CFG::DIGEST_SWAP::SET);
 
         regs.cmd.modify(CMD::START::SET);
+
+        // Clear the FIFO empty interrupt
+        regs.intr_state.modify(INTR_STATE::FIFO_EMPTY::SET);
 
         // Set the length and data index of the data to write
         self.data_len.set(data.len());

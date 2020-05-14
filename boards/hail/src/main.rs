@@ -9,7 +9,7 @@
 
 use capsules::virtual_alarm::VirtualMuxAlarm;
 use capsules::virtual_i2c::{I2CDevice, MuxI2C};
-use capsules::virtual_spi::{MuxSpiMaster, VirtualSpiMasterDevice};
+use capsules::virtual_spi::VirtualSpiMasterDevice;
 use kernel::capabilities;
 use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::component::Component;
@@ -281,14 +281,8 @@ pub unsafe fn reset_handler() {
     fxos8700_i2c.set_client(fxos8700);
     sam4l::gpio::PA[9].set_client(fxos8700);
 
-    let ninedof = static_init!(
-        capsules::ninedof::NineDof<'static>,
-        capsules::ninedof::NineDof::new(
-            fxos8700,
-            board_kernel.create_grant(&memory_allocation_capability)
-        )
-    );
-    hil::sensors::NineDof::set_client(fxos8700, ninedof);
+    let ninedof = components::ninedof::NineDofComponent::new(board_kernel)
+        .finalize(components::ninedof_component_helper!(fxos8700));
 
     // SPI
     // Set up a SPI MUX, so there can be multiple clients.

@@ -12,7 +12,7 @@ You can get started with OpenTitan using either the Nexys Video FPGA board or si
 Programming
 -----------
 
-Tock on OpenTitan requires lowRISC/opentitan@f743b4450a057a352540cf3b154ec47b43e14c17 or newer.
+Tock on OpenTitan requires lowRISC/opentitan@0e5d819d61b5bf56f8453ad877eb10e3c52fc542 or newer.
 
 For more information you can follow the [OpenTitan development flow](https://docs.opentitan.org/doc/ug/getting_started_fpga/index.html#testing-the-demo-design) to flash the image.
 
