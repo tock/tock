@@ -41,7 +41,6 @@ use components::si7021::{HumidityComponent, SI7021Component, TemperatureComponen
 use components::spi::{SpiComponent, SpiSyscallComponent};
 use imix_components::adc::AdcComponent;
 use imix_components::fxos8700::NineDofComponent;
-use imix_components::nonvolatile_storage::NonvolatileStorageComponent;
 use imix_components::radio::RadioComponent;
 use imix_components::rf233::RF233Component;
 use imix_components::udp_driver::UDPDriverComponent;
@@ -410,7 +409,13 @@ pub unsafe fn reset_handler() {
     .finalize(());
 
     let usb_driver = UsbComponent::new(board_kernel).finalize(());
-    let nonvolatile_storage = NonvolatileStorageComponent::new(board_kernel).finalize(());
+    let nonvolatile_storage = components::nonvolatile_storage::NonvolatileStorageComponent::new(
+        board_kernel,
+        &sam4l::flashcalw::FLASH_CONTROLLER,
+    )
+    .finalize(components::nv_storage_component_helper!(
+        sam4l::flashcalw::FLASHCALW
+    ));
 
     let local_ip_ifaces = static_init!(
         [IPAddr; 3],

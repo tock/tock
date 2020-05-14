@@ -322,13 +322,9 @@ pub unsafe fn setup_board<I: nrf52::interrupt_service::InterruptService>(
         &'static capsules::nonvolatile_storage_driver::NonvolatileStorage<'static>,
     > = if let Some(driver) = mx25r6435f {
         // Create a SPI device for the mx25r6435f flash chip.
-        let mx25r6435f_spi = static_init!(
-            capsules::virtual_spi::VirtualSpiMasterDevice<'static, nrf52::spi::SPIM>,
-            capsules::virtual_spi::VirtualSpiMasterDevice::new(
-                mux_spi,
-                &gpio_port[driver.chip_select]
-            )
-        );
+        let mx25r6435f_spi =
+            components::spi::SpiComponent::new(mux_spi, &gpio_port[driver.chip_select])
+                .finalize(components::spi_component_helper!(nrf52::spi::SPIM));
         // Create an alarm for this chip.
         let mx25r6435f_virtual_alarm = static_init!(
             VirtualMuxAlarm<'static, nrf52::rtc::Rtc>,
@@ -354,6 +350,7 @@ pub unsafe fn setup_board<I: nrf52::interrupt_service::InterruptService>(
         mx25r6435f_spi.set_client(mx25r6435f);
         hil::time::Alarm::set_client(mx25r6435f_virtual_alarm, mx25r6435f);
 
+        /*
         pub static mut FLASH_PAGEBUFFER: capsules::mx25r6435f::Mx25r6435fSector =
             capsules::mx25r6435f::Mx25r6435fSector::new();
         let nv_to_page = static_init!(
@@ -386,6 +383,20 @@ pub unsafe fn setup_board<I: nrf52::interrupt_service::InterruptService>(
             )
         );
         hil::nonvolatile_storage::NonvolatileStorage::set_client(nv_to_page, nonvolatile_storage);
+        */
+        let nonvolatile_storage =
+            components::nonvolatile_storage::NonvolatileStorageComponent::new(
+                board_kernel,
+                mx25r6435f,
+            )
+            .finalize(components::nv_storage_component_helper!(
+                capsules::mx25r6435f::MX25R6435F<
+                    'static,
+                    capsules::virtual_spi::VirtualSpiMasterDevice<'static, nrf52::spi::SPIM>,
+                    nrf52::gpio::GPIOPin,
+                    VirtualMuxAlarm<'static, nrf52::rtc::Rtc>,
+                >
+            ));
         Some(nonvolatile_storage)
     } else {
         None

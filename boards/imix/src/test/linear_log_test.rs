@@ -20,6 +20,7 @@ use kernel::common::cells::{NumericCellExt, TakeCell};
 use kernel::common::dynamic_deferred_call::DynamicDeferredCall;
 use kernel::debug;
 use kernel::hil::flash;
+use kernel::hil::flash::Flash;
 use kernel::hil::log::{LogRead, LogReadClient, LogWrite, LogWriteClient};
 use kernel::hil::time::{Alarm, AlarmClient, Frequency};
 use kernel::static_init;
@@ -37,7 +38,7 @@ pub unsafe fn run(
 ) {
     // Set up flash controller.
     flashcalw::FLASH_CONTROLLER.configure();
-    static mut PAGEBUFFER: flashcalw::Sam4lPage = flashcalw::Sam4lPage::new();
+    let pagebuffer = static_init!(flashcalw::Sam4lPage, flashcalw::Sam4lPage::default());
 
     // Create actual log storage abstraction on top of flash.
     let log = static_init!(
@@ -45,7 +46,7 @@ pub unsafe fn run(
         log::Log::new(
             &LINEAR_TEST_LOG,
             &flashcalw::FLASH_CONTROLLER,
-            &mut PAGEBUFFER,
+            pagebuffer,
             deferred_caller,
             false
         )

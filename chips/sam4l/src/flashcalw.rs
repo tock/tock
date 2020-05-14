@@ -373,11 +373,15 @@ enum FlashState {
 /// ```
 pub struct Sam4lPage(pub [u8; PAGE_SIZE as usize]);
 
-impl Sam4lPage {
-    pub const fn new() -> Sam4lPage {
-        Sam4lPage([0; PAGE_SIZE as usize])
+impl Default for Sam4lPage {
+    fn default() -> Self {
+        Self {
+            0: [0; PAGE_SIZE as usize],
+        }
     }
+}
 
+impl Sam4lPage {
     fn len(&self) -> usize {
         self.0.len()
     }
@@ -803,36 +807,6 @@ impl FLASHCALW {
 
 // Implementation of high level calls using the low-lv functions.
 impl FLASHCALW {
-    pub fn configure(&mut self) {
-        let regs: &FlashcalwRegisters = &*self.registers;
-
-        // Enable all clocks (if they aren't on already...).
-        pm::enable_clock(self.ahb_clock);
-        pm::enable_clock(self.hramc1_clock);
-        pm::enable_clock(self.pb_clock);
-
-        // Configure all other interrupts explicitly. Note the issue_command
-        // function turns this on when need be.
-        regs.fcr.modify(
-            FlashControl::FRDY::CLEAR
-                + FlashControl::LOCKE::CLEAR
-                + FlashControl::PROGE::CLEAR
-                + FlashControl::ECCE::CLEAR,
-        );
-
-        // Enable wait state 1 optimization.
-        self.enable_ws1_read_opt(true);
-        // Change speed mode.
-        self.set_flash_waitstate_and_readmode(48_000_000, 0, false);
-
-        // By default the picocache ( a cache only for the flash) is turned off.
-        // However the bootloader turns it on. I will explicitly turn it on
-        // here. So if the bootloader changes, nothing breaks.
-        self.enable_picocache(true);
-
-        self.current_state.set(FlashState::Ready);
-    }
-
     // Address is some raw address in flash that you want to read.
     fn read_range(
         &self,
@@ -924,6 +898,36 @@ impl<C: hil::flash::Client<Self>> hil::flash::HasClient<'static, C> for FLASHCAL
 
 impl hil::flash::Flash for FLASHCALW {
     type Page = Sam4lPage;
+
+    fn configure(&self) {
+        let regs: &FlashcalwRegisters = &*self.registers;
+
+        // Enable all clocks (if they aren't on already...).
+        pm::enable_clock(self.ahb_clock);
+        pm::enable_clock(self.hramc1_clock);
+        pm::enable_clock(self.pb_clock);
+
+        // Configure all other interrupts explicitly. Note the issue_command
+        // function turns this on when need be.
+        regs.fcr.modify(
+            FlashControl::FRDY::CLEAR
+                + FlashControl::LOCKE::CLEAR
+                + FlashControl::PROGE::CLEAR
+                + FlashControl::ECCE::CLEAR,
+        );
+
+        // Enable wait state 1 optimization.
+        self.enable_ws1_read_opt(true);
+        // Change speed mode.
+        self.set_flash_waitstate_and_readmode(48_000_000, 0, false);
+
+        // By default the picocache ( a cache only for the flash) is turned off.
+        // However the bootloader turns it on. I will explicitly turn it on
+        // here. So if the bootloader changes, nothing breaks.
+        self.enable_picocache(true);
+
+        self.current_state.set(FlashState::Ready);
+    }
 
     fn read_page(
         &self,

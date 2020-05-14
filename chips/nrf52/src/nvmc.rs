@@ -157,11 +157,14 @@ const PAGE_SIZE: usize = 4096;
 /// ```
 pub struct NrfPage(pub [u8; PAGE_SIZE as usize]);
 
-impl NrfPage {
-    pub const fn new() -> NrfPage {
-        NrfPage([0; PAGE_SIZE as usize])
+impl Default for NrfPage {
+    fn default() -> Self {
+        Self {
+            0: [0; PAGE_SIZE as usize],
+        }
     }
-
+}
+impl NrfPage {
     fn len(&self) -> usize {
         self.0.len()
     }
@@ -369,6 +372,10 @@ impl<C: hil::flash::Client<Self>> hil::flash::HasClient<'static, C> for Nvmc {
 
 impl hil::flash::Flash for Nvmc {
     type Page = NrfPage;
+
+    fn configure(&self) {
+        self.configure_writeable(); // Should this go here? Or stay in general nrf52 configuration? - Hudson
+    }
 
     fn read_page(
         &self,
