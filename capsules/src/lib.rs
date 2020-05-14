@@ -38,6 +38,7 @@ pub mod led;
 pub mod log;
 pub mod low_level_debug;
 pub mod lps25hb;
+pub mod lsm303dlhc;
 pub mod ltc294x;
 pub mod max17205;
 pub mod mcp230xx;

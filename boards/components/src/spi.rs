@@ -37,6 +37,7 @@ use kernel::{static_init, static_init_half};
 #[macro_export]
 macro_rules! spi_mux_component_helper {
     ($S:ty) => {{
+        use capsules::virtual_spi::MuxSpiMaster;
         use core::mem::MaybeUninit;
         static mut BUF: MaybeUninit<MuxSpiMaster<'static, $S>> = MaybeUninit::uninit();
         &mut BUF
@@ -47,6 +48,7 @@ macro_rules! spi_mux_component_helper {
 macro_rules! spi_syscall_component_helper {
     ($S:ty) => {{
         use capsules::spi::Spi;
+        use capsules::virtual_spi::VirtualSpiMasterDevice;
         use core::mem::MaybeUninit;
         static mut BUF1: MaybeUninit<VirtualSpiMasterDevice<'static, $S>> = MaybeUninit::uninit();
         static mut BUF2: MaybeUninit<Spi<'static, VirtualSpiMasterDevice<'static, $S>>> =
@@ -58,6 +60,7 @@ macro_rules! spi_syscall_component_helper {
 #[macro_export]
 macro_rules! spi_component_helper {
     ($S:ty) => {{
+        use capsules::virtual_spi::VirtualSpiMasterDevice;
         use core::mem::MaybeUninit;
         static mut BUF: MaybeUninit<VirtualSpiMasterDevice<'static, $S>> = MaybeUninit::uninit();
         &mut BUF

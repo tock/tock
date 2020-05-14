@@ -12,7 +12,8 @@
 //!
 //! let ninedof = static_init!(
 //!     capsules::ninedof::NineDof<'static>,
-//!     capsules::ninedof::NineDof::new(fxos8700, grant_ninedof));
+//!     capsules::ninedof::NineDof::new(grant_ninedof));
+//! ninedof.add_driver(fxos8700);
 //! hil::sensors::NineDof::set_client(fxos8700, ninedof);
 //! ```
 
@@ -52,15 +53,15 @@ impl Default for App {
 }
 
 pub struct NineDof<'a> {
-    driver: &'a dyn hil::sensors::NineDof,
+    drivers: &'a [&'a dyn hil::sensors::NineDof],
     apps: Grant<App>,
     current_app: OptionalCell<AppId>,
 }
 
 impl NineDof<'a> {
-    pub fn new(driver: &'a dyn hil::sensors::NineDof, grant: Grant<App>) -> NineDof<'a> {
+    pub fn new(drivers: &'a [&'a dyn hil::sensors::NineDof], grant: Grant<App>) -> NineDof<'a> {
         NineDof {
-            driver: driver,
+            drivers: drivers,
             apps: grant,
             current_app: OptionalCell::empty(),
         }
@@ -74,7 +75,11 @@ impl NineDof<'a> {
             .enter(appid, |app, _| {
                 if self.current_app.is_none() {
                     self.current_app.set(appid);
-                    self.call_driver(command, arg1)
+                    let value = self.call_driver(command, arg1);
+                    if value != ReturnCode::SUCCESS {
+                        self.current_app.clear();
+                    }
+                    value
                 } else {
                     if app.pending_command == true {
                         ReturnCode::ENOMEM
@@ -91,9 +96,36 @@ impl NineDof<'a> {
 
     fn call_driver(&self, command: NineDofCommand, _: usize) -> ReturnCode {
         match command {
-            NineDofCommand::ReadAccelerometer => self.driver.read_accelerometer(),
-            NineDofCommand::ReadMagnetometer => self.driver.read_magnetometer(),
-            NineDofCommand::ReadGyroscope => self.driver.read_gyroscope(),
+            NineDofCommand::ReadAccelerometer => {
+                let mut data = ReturnCode::ENODEVICE;
+                for driver in self.drivers.iter() {
+                    data = driver.read_accelerometer();
+                    if data == ReturnCode::SUCCESS {
+                        break;
+                    }
+                }
+                data
+            }
+            NineDofCommand::ReadMagnetometer => {
+                let mut data = ReturnCode::ENODEVICE;
+                for driver in self.drivers.iter() {
+                    data = driver.read_magnetometer();
+                    if data == ReturnCode::SUCCESS {
+                        break;
+                    }
+                }
+                data
+            }
+            NineDofCommand::ReadGyroscope => {
+                let mut data = ReturnCode::ENODEVICE;
+                for driver in self.drivers.iter() {
+                    data = driver.read_gyroscope();
+                    if data == ReturnCode::SUCCESS {
+                        break;
+                    }
+                }
+                data
+            }
             _ => ReturnCode::ENOSUPPORT,
         }
     }
