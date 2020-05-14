@@ -1,5 +1,4 @@
-#![feature(const_fn, untagged_unions)]
-#![feature(in_band_lifetimes)]
+#![feature(const_fn, in_band_lifetimes)]
 #![no_std]
 #![crate_name = "cc26x2"]
 #![crate_type = "rlib"]

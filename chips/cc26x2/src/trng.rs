@@ -41,26 +41,26 @@ struct RngRegisters {
 
 register_bitfields![
     u32,
-    IrqStatus [
+    pub IrqStatus [
         READY OFFSET(0) NUMBITS(1) []
     ],
-    IrqFlagClear [
+    pub IrqFlagClear [
         READY OFFSET(0) NUMBITS(1) []
     ],
-    Control [
+    pub Control [
         STARTUP_CYCLES  OFFSET(16) NUMBITS(16)  [],
         TRNG_EN         OFFSET(10) NUMBITS(1)   []
     ],
-    Config [
+    pub Config [
         MAX_REFILL_CYCLES   OFFSET(16) NUMBITS(16) [],
         SMPL_DIV            OFFSET(8)  NUMBITS(4)  [],
         MIN_REFILL_CYCLES   OFFSET(0)  NUMBITS(8)  []
     ],
-    AlarmControl [
+    pub AlarmControl [
         // Alarm threshold for repeating pattern detectors
         ALARM_THR   OFFSET(0)   NUMBITS(8) []
     ],
-    SoftwareReset [
+    pub SoftwareReset [
         RESET OFFSET(0) NUMBITS(1) []
     ]
 ];

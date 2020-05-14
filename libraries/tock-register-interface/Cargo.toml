@@ -1,6 +1,6 @@
 [package]
 name = "tock-registers"
-version = "0.4.1"
+version = "0.5.0"
 authors = ["Tock Project Developers <tock-dev@googlegroups.com>"]
 description = "Memory-Mapped I/O and register interface developed for Tock."
 homepage = "https://www.tockos.org/"
@@ -13,3 +13,6 @@ edition = "2018"
 
 [badges]
 travis-ci = { repository = "tock/tock", branch = "master" }
+
+[features]
+no_std_unit_tests = []

@@ -50,6 +50,7 @@
 
 use crate::pm::{disable_clock, enable_clock, Clock, HSBClock, PBBClock};
 use core::cell::Cell;
+use kernel::common::cells::OptionalCell;
 use kernel::common::registers::{register_bitfields, FieldValue, ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil::crc::{self, CrcAlg};
@@ -225,7 +226,7 @@ enum State {
 /// State for managing the CRCCU
 pub struct Crccu<'a> {
     registers: StaticRef<CrccuRegisters>,
-    client: Option<&'a dyn crc::Client>,
+    client: OptionalCell<&'a dyn crc::Client>,
     state: Cell<State>,
     alg: Cell<CrcAlg>,
 
@@ -240,7 +241,7 @@ impl Crccu<'a> {
     const fn new(base_address: StaticRef<CrccuRegisters>) -> Self {
         Crccu {
             registers: base_address,
-            client: None,
+            client: OptionalCell::empty(),
             state: Cell::new(State::Invalid),
             alg: Cell::new(CrcAlg::Crc32C),
             descriptor_space: [0; DSCR_RESERVE],
@@ -272,16 +273,6 @@ impl Crccu<'a> {
             disable_clock(Clock::HSB(HSBClock::CRCCU));
             self.state.set(State::Initialized);
         }
-    }
-
-    /// Set a client to receive results from the CRCCU
-    pub fn set_client(&mut self, client: &'a dyn crc::Client) {
-        self.client = Some(client);
-    }
-
-    /// Get the client currently receiving results from the CRCCU
-    fn get_client(&self) -> Option<&'a dyn crc::Client> {
-        self.client
     }
 
     fn set_descriptor(&self, addr: u32, ctrl: TCR, crc: u32) {
@@ -317,10 +308,10 @@ impl Crccu<'a> {
             // A DMA transfer has completed
 
             if self.get_tcr().interrupt_enabled() {
-                if let Some(client) = self.get_client() {
+                self.client.map(|client| {
                     let result = post_process(regs.sr.read(Status::CRC), self.alg.get());
                     client.receive_result(result);
-                }
+                });
 
                 // Disable the unit
                 regs.mr.write(Mode::ENABLE::Disabled);
@@ -340,6 +331,11 @@ impl Crccu<'a> {
 
 // Implement the generic CRC interface with the CRCCU
 impl crc::CRC for Crccu<'a> {
+    /// Set a client to receive results from the CRCCU
+    fn set_client(&self, client: &'a dyn crc::Client) {
+        self.client.set(client);
+    }
+
     fn compute(&self, data: &[u8], alg: CrcAlg) -> ReturnCode {
         let regs: &CrccuRegisters = &*self.registers;
 

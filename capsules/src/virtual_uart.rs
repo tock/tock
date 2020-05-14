@@ -43,6 +43,9 @@ use core::cell::Cell;
 use core::cmp;
 
 use kernel::common::cells::{OptionalCell, TakeCell};
+use kernel::common::dynamic_deferred_call::{
+    DeferredCallHandle, DynamicDeferredCall, DynamicDeferredCallClient,
+};
 use kernel::common::{List, ListLink, ListNode};
 use kernel::hil::uart;
 use kernel::ReturnCode;
@@ -57,6 +60,8 @@ pub struct MuxUart<'a> {
     inflight: OptionalCell<&'a UartDevice<'a>>,
     buffer: TakeCell<'static, [u8]>,
     completing_read: Cell<bool>,
+    deferred_caller: &'a DynamicDeferredCall,
+    handle: OptionalCell<DeferredCallHandle>,
 }
 
 impl<'a> uart::TransmitClient for MuxUart<'a> {
@@ -77,18 +82,23 @@ impl<'a> uart::ReceiveClient for MuxUart<'a> {
         rcode: ReturnCode,
         error: uart::Error,
     ) {
-        let mut next_read_len = RX_BUF_LEN;
+        // Likely we will issue another receive in response to the previous one
+        // finishing. `next_read_len` keeps track of the shortest outstanding
+        // receive requested by any client. We start with the longest it can be,
+        // i.e. the length of the buffer we pass to the UART.
+        let mut next_read_len = buffer.len();
         let mut read_pending = false;
+
+        // Set a flag that we are in this callback handler. This allows us to
+        // note that we can wait until all callbacks are finished before
+        // starting a new UART receive.
         self.completing_read.set(true);
-        // Because clients may issue another read in their callback we need to first
-        // copy out all the data, then make the callbacks.
+
+        // Because clients may issue another read in their callback we need to
+        // first copy out all the data, then make the callbacks.
         //
-        // Multiple client reads of different sizes can be pending. This code copies
-        // the underlying UART read into each of the client buffers; if the
-        // underlying read completes a client read, issue a callback to that
-        // client. In the meanwhile, compute the length of the next underlying
-        // UART read: if any client has more to read, issue another underlying
-        // read.
+        // Multiple client reads of different sizes can be pending. This code
+        // copies the underlying UART read into each of the client buffers.
         self.devices.iter().for_each(|device| {
             if device.receiver {
                 device.rx_buffer.take().map(|rxbuf| {
@@ -100,7 +110,7 @@ impl<'a> uart::ReceiveClient for MuxUart<'a> {
                     if state == UartDeviceReceiveState::Receiving
                         || state == UartDeviceReceiveState::Aborting
                     {
-                        //                        debug!("Have {} bytes, copying in bytes {}-{}, {} remain", rx_len, position, position + len, remaining);
+                        // debug!("Have {} bytes, copying in bytes {}-{}, {} remain", rx_len, position, position + len, remaining);
                         for i in 0..len {
                             rxbuf[position + i] = buffer[i];
                         }
@@ -110,7 +120,11 @@ impl<'a> uart::ReceiveClient for MuxUart<'a> {
                 });
             }
         });
-        self.buffer.replace(buffer);
+        // If the underlying read completes a client read, issue a callback to
+        // that client. In the meanwhile, compute the length of the next
+        // underlying UART read as the shortest outstanding read, including and
+        // new reads setup in the callback. If any client has more to read or
+        // has started a new read, issue another underlying UART receive.
         self.devices.iter().for_each(|device| {
             if device.receiver {
                 device.rx_buffer.take().map(|rxbuf| {
@@ -126,6 +140,7 @@ impl<'a> uart::ReceiveClient for MuxUart<'a> {
                         // Need to check if receive was called in callback
                         if device.state.get() == UartDeviceReceiveState::Receiving {
                             read_pending = true;
+                            next_read_len = cmp::min(next_read_len, device.rx_len.get());
                         }
                     } else if state == UartDeviceReceiveState::Aborting {
                         device.state.set(UartDeviceReceiveState::Idle);
@@ -138,6 +153,7 @@ impl<'a> uart::ReceiveClient for MuxUart<'a> {
                         // Need to check if receive was called in callback
                         if device.state.get() == UartDeviceReceiveState::Receiving {
                             read_pending = true;
+                            next_read_len = cmp::min(next_read_len, device.rx_len.get());
                         }
                     } else {
                         device.rx_buffer.replace(rxbuf);
@@ -147,7 +163,19 @@ impl<'a> uart::ReceiveClient for MuxUart<'a> {
                 });
             }
         });
+
+        // After we have finished all callbacks we can replace this buffer. We
+        // have to wait to replace this to make sure that a client calling
+        // `receive_buffer()` in its callback does not start an underlying UART
+        // receive before all callbacks have finished.
+        self.buffer.replace(buffer);
+
+        // Clear the flag that we are in this handler.
         self.completing_read.set(false);
+
+        // If either our outstanding receive was longer than the number of bytes
+        // we just received, or if a new receive has been started, we start the
+        // underlying UART receive again.
         if read_pending {
             self.start_receive(next_read_len);
         }
@@ -155,7 +183,12 @@ impl<'a> uart::ReceiveClient for MuxUart<'a> {
 }
 
 impl<'a> MuxUart<'a> {
-    pub fn new(uart: &'a dyn uart::Uart<'a>, buffer: &'static mut [u8], speed: u32) -> MuxUart<'a> {
+    pub fn new(
+        uart: &'a dyn uart::Uart<'a>,
+        buffer: &'static mut [u8],
+        speed: u32,
+        deferred_caller: &'a DynamicDeferredCall,
+    ) -> MuxUart<'a> {
         MuxUart {
             uart: uart,
             speed: speed,
@@ -163,6 +196,8 @@ impl<'a> MuxUart<'a> {
             inflight: OptionalCell::empty(),
             buffer: TakeCell::new(buffer),
             completing_read: Cell::new(false),
+            deferred_caller: deferred_caller,
+            handle: OptionalCell::empty(),
         }
     }
 
@@ -174,6 +209,10 @@ impl<'a> MuxUart<'a> {
             parity: uart::Parity::None,
             hw_flow_control: false,
         });
+    }
+
+    pub fn initialize_callback_handle(&self, handle: DeferredCallHandle) {
+        self.handle.replace(handle);
     }
 
     fn do_next_op(&self) {
@@ -212,30 +251,54 @@ impl<'a> MuxUart<'a> {
     /// the reception will issue a callback before the new read. A callback
     /// needs to be issued before the new read if a read was ongoing; the
     /// callback finishes the current read so the new one can start.
+    ///
     /// Three cases:
-    ///    1) We are in the midst of completing a read: let it restart the
-    ///       reads if needed (return false)
-    ///    2) We are in the midst of a read: abort so we can start a new
-    ///       read now (return true)
-    ///    3) We are idle: start reading (return false)
+    /// 1. We are in the midst of completing a read: let the `received_buffer()`
+    ///    handler restart the reads if needed (return false)
+    /// 2. We are in the midst of a read: abort so we can start a new read now
+    ///    (return true)
+    /// 3. We are idle: start reading (return false)
     fn start_receive(&self, rx_len: usize) -> bool {
         self.buffer.take().map_or_else(
             || {
                 // No rxbuf which means a read is ongoing
                 if self.completing_read.get() {
-                    // Do nothing, read completion will call start_receive when ready
+                    // Case (1). Do nothing here, `received_buffer()` handler
+                    // will call start_receive when ready.
                     false
                 } else {
+                    // Case (2). Stop the previous read so we can use the
+                    // `received_buffer()` handler to recalculate the minimum
+                    // length for a read.
                     self.uart.receive_abort();
                     true
                 }
             },
             |rxbuf| {
+                // Case (3). No ongoing receive calls, we can start one now.
                 let len = cmp::min(rx_len, rxbuf.len());
                 self.uart.receive_buffer(rxbuf, len);
                 false
             },
         )
+    }
+
+    /// Asynchronously executes the next operation, if any. Used by calls
+    /// to trigger do_next_op such that it will execute after the call
+    /// returns. This is important in case the operation triggers an error,
+    /// requiring a callback with an error condition; if the operation
+    /// is executed synchronously, the callback may be reentrant (executed
+    /// during the downcall). Please see
+    ///
+    /// https://github.com/tock/tock/issues/1496
+    fn do_next_op_async(&self) {
+        self.handle.map(|handle| self.deferred_caller.set(*handle));
+    }
+}
+
+impl<'a> DynamicDeferredCallClient for MuxUart<'a> {
+    fn call(&self, _handle: DeferredCallHandle) {
+        self.do_next_op();
     }
 }
 
@@ -350,7 +413,7 @@ impl<'a> uart::Transmit<'a> for UartDevice<'a> {
             self.tx_buffer.replace(tx_data);
             self.transmitting.set(true);
             self.operation.set(Operation::Transmit { len: tx_len });
-            self.mux.do_next_op();
+            self.mux.do_next_op_async();
             (ReturnCode::SUCCESS, None)
         }
     }
@@ -361,7 +424,7 @@ impl<'a> uart::Transmit<'a> for UartDevice<'a> {
         } else {
             self.transmitting.set(true);
             self.operation.set(Operation::TransmitWord { word: word });
-            self.mux.do_next_op();
+            self.mux.do_next_op_async();
             ReturnCode::SUCCESS
         }
     }
@@ -380,6 +443,8 @@ impl<'a> uart::Receive<'a> for UartDevice<'a> {
     ) -> (ReturnCode, Option<&'static mut [u8]>) {
         if self.rx_buffer.is_some() {
             (ReturnCode::EBUSY, Some(rx_buffer))
+        } else if rx_len > rx_buffer.len() {
+            (ReturnCode::ESIZE, Some(rx_buffer))
         } else {
             self.rx_buffer.replace(rx_buffer);
             self.rx_len.set(rx_len);

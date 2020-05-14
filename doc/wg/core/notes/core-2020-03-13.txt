@@ -1,0 +1,73 @@
+3/13/2020
+
+Attending: Amit, Hudson, Samuel Jero, Branden, Johnathan, Alistair, Patrick Mooney, Brad, Holly, Garret
+
+--Updates!--
+ * Hudson: Scheduler work. Generic process collection to replace array of processes.  A couple challenges: reliance on global "static mut" variable for processes (used by panic_fmt(), load_processes()) is incompatible with initializing this data type using static_init!(). Also, everything in the kernel having a reference to something that references the Kernel struct makes the use of generic parameters undesirable, and leads to lots of dynamic dispatch where otherwise we could go without it, and makes some things impossible (returning traits on the stack)
+ * Amit: Johnathan added to core working group! While finalizing the core working group charter, I will write something up for the website or blog explaining what the core working group is and announcing the members etc.
+ 
+ --Tock 1.5 Milestones--
+*Brad: background, we had a discussion a ways back and decided on feature based releases not time
+*Brad: Opinion - we have skewed too far away from time based releases
+*Brad: We should figure out features we want as part of that release, so that we can accelerate development on those features and start testing
+*Alistair: Release would be great, bc currently no release has support for RISC-V. Would love the release to have support for yield-no-wait
+*Brad: My thought: everything syscall related should be in 2.0
+*Amit: Agree with Brad, lets us do release sooner rather than later
+*Alistair: Thats fine, in that case I have no additional requests for 1.5
+*Amit: Looking through PRs for stuff that should be included -- PR from OpenSK team that improves Tock tooling for compatibility with OpenSK seems important. Generally important to merge stuff so that OpenSK can move to 1.5 and remove external patches that they have
+*Brad: That seems pretty nebulous -- how many open patches are there?
+*Amit: I just meant PRs open in the main Tock repository, not resolving all of their patches
+*Amit: One answer could be just merge maybe these one or two PRs, test, and release
+*Brad: Filtering issues by release-blocker: restarting processes (done) documentation from tock world 4 (half done) switching to new register interface (almost done, been a milestone for years) virtualizing syscalls (been discussed for years, probaby could wait)
+*Amit: Documentation is important, seems like something we could hammer through. Same for arch to new register interface (pretty much done -- one outstanding PR from Pat)
+*Amit/Brad: Looking through virtualizing major syscalls tracking issue. Some of these probably shouldnt even be syscall drivers (15.4, tmp006, etc.) and should be exposed through higher level drivers.
+*Brad: probably wont happen, these are hyper specific, applications want this hardware specific interface
+*Amit: This sounds like a speciailized enough case to not fall under the purview of virtualizing, and arguably should be in a different crate or something
+*Amit: Many of the other drivers in the list probably don't qualify as "major" anyway
+*Brad: Probably prefer not to block on virtualizing syscalls
+*Amit: Anything else?
+*Hudson: I like the idea of using Travis/Bors to print the added code size of each PR using Phil's tool, but don't know exactly what that would involve
+*Brad: I'm gonna make a list of things to put in a tracking issue for the release, so speak now if you have stuff you are interested in!
+*Alistair: Also would love to add text showing code size increase so stuff doesn't slip through
+*Amit: Lets summarize list -- moving arch to new register interface, documentation, several bullets from the support RISC-V tracking issue (supporting the Hi-Five 1B board)
+*Brad: Can anyone take that on? -- seems most people dont have boards
+*Patrick: Caution, I managed to wipe the bootloader off a similar board (Sparkfun version)
+*Alistair: QEMU support for the rev1b is pretty much there
+*Amit: I'd be willing to take on that bullet point in QEMU
+*Alistair: We should still test it working on hardware (general agreement)
+*Amit: I'll order a board and see how far I get
+*Amit: Other thing on RISC-V tracking issues: Implement systick replacement for providing time slices for apps
+*Brad: That is still not a thing
+*Amit: To summarize: Hi-five 1b board support + arch to new register interface + documentation updates in tracking issue
+*Brad: Will open issue with that stuff. We should also decide on open PRs and decide in or out for testing purposes
+*Amit: I was suggesting that the only thing that seems important to include is the nrf bootloader PR, everything else we would not include
+*Brad: I think we should push that until we get closer to the release
+*Amit: Agreed, we can decide on PRs once remaining release-blockers addressed
+
+--Tockloader release--
+*Brad: Please install from source and use for testing -- I have been using latest master but don't think I get great test coverage
+*Brad: Release soon, if you have anything you want to add speak now or make an issue in the tockloader repo
+*Amit: Thing I think would be nice is Windows support but I have no ability or appetite for this
+*Brad: Windows support has gotten better but yeah I can't promise it really works
+*Everyone: (silence indicates little individual interest in taking on adding/verifying Windows support)
+
+
+--System Call Filter Design--
+*Garret: Goal of this is a mechanism that allows you to filter applications at the syscall level (or even syscall argument level) to prevent applications from accessing certain capsules
+*Garret: Initial PR outstanding, more work to come. Initial PR just adds to the platform trait a filter syscall function which says whether a given syscall should be filtered or allowed.Some discussion there now on what should be returned to the caller in the case of being filtered (no device? permission denied?)
+*Garret: New ReturnCode (permission denied) seems useful, but does that leak too much information? Also, what if we wanted to provide more granular details about why the syscall was denied?
+*Amit: Always returning ENODEVICE seems reasonable for some fixed cases but not for more subtle cases
+*Garret: I would like to be able to return broader classes of errors
+*Brad: I worry that it can be hard as an application develoepr to know what errors might be returned, so I like the idea of making it simpler to handle errors, especially given that most people just copy the convention for error handling
+*Brad: What about new set of ReturnCodes (new enum) just for filter syscalls
+*Brad: One (devils advocate) appraoch might be to have two representations of filter syscall, one for in kernel and one exposed to userspace, with required conversion between the two. 
+*Garret: One concern there is the representability of myriad reasons for why a given syscall might be denied
+*Amit: A lot of these decisions probably reside with the board integrator. Having this all centralized in the point of extensibility that the platform writes is actually the right place.
+*Brad: I agree
+*Amit: And that to me would mean that the decision of what kind of information about policy errors to leak or not leak to userspace or what things to log vs not log etc. should reside in a particular board
+*Brad/Hudson: Interface to applications should not be board controlled, but logging etc. definitely could be
+*Amit: Agree and disagree -- it controls it already, it decides which syscall drivers to include! But it shouldnt in that we want portable applications. However it is perfectly reasonable in theory for a board to use none of the syscall conventions that we have in upstream Tock. 
+*Garret/Brad: Agreement we should have more than one return value
+*Garret: Not sure if it matters whether we make it clear that permission denied is coming from driver vs filter etc.
+*Amit: My preference is to include this in a relatively flexible way without neccessarily claiming that this is a stable interface yet, so that we can start expirementing with different policies
+*Garret: I will summarize the discussion from this call in the associated PR

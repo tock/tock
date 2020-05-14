@@ -2,7 +2,7 @@
 
 use core::marker::PhantomData;
 use core::ops::{Deref, DerefMut};
-use core::ptr::Unique;
+use core::ptr::NonNull;
 use core::slice;
 
 use crate::callback::AppId;
@@ -18,15 +18,16 @@ pub struct Shared;
 /// Base type for an AppSlice that holds the raw pointer to the memory region
 /// the app shared with the kernel.
 pub struct AppPtr<L, T> {
-    ptr: Unique<T>,
+    ptr: NonNull<T>,
     process: AppId,
     _phantom: PhantomData<L>,
 }
 
 impl<L, T> AppPtr<L, T> {
-    unsafe fn new(ptr: *mut T, appid: AppId) -> AppPtr<L, T> {
+    /// Safety: Trusts that `ptr` points to userspace memory in `appid`
+    unsafe fn new(ptr: NonNull<T>, appid: AppId) -> AppPtr<L, T> {
         AppPtr {
-            ptr: Unique::new_unchecked(ptr),
+            ptr: ptr,
             process: appid,
             _phantom: PhantomData,
         }
@@ -51,7 +52,7 @@ impl<L, T> Drop for AppPtr<L, T> {
     fn drop(&mut self) {
         self.process
             .kernel
-            .process_map_or((), self.process.idx(), |process| unsafe {
+            .process_map_or((), self.process, |process| unsafe {
                 process.free(self.ptr.as_ptr() as *mut u8)
             })
     }
@@ -66,12 +67,12 @@ pub struct AppSlice<L, T> {
 }
 
 impl<L, T> AppSlice<L, T> {
-    crate fn new(ptr: *mut T, len: usize, appid: AppId) -> AppSlice<L, T> {
-        unsafe {
-            AppSlice {
-                ptr: AppPtr::new(ptr, appid),
-                len: len,
-            }
+    /// Safety: Trusts that `ptr` + `len` is a buffer in `appid` and that no
+    /// other references to that memory range exist.
+    crate unsafe fn new(ptr: NonNull<T>, len: usize, appid: AppId) -> AppSlice<L, T> {
+        AppSlice {
+            ptr: AppPtr::new(ptr, appid),
+            len: len,
         }
     }
 
@@ -89,11 +90,11 @@ impl<L, T> AppSlice<L, T> {
     /// Provide access to one app's AppSlice to another app. This is used for
     /// IPC.
     crate unsafe fn expose_to(&self, appid: AppId) -> bool {
-        if appid.idx() != self.ptr.process.idx() {
+        if appid != self.ptr.process {
             self.ptr
                 .process
                 .kernel
-                .process_map_or(false, appid.idx(), |process| {
+                .process_map_or(false, appid, |process| {
                     process
                         .add_mpu_region(self.ptr() as *const u8, self.len(), self.len())
                         .is_some()

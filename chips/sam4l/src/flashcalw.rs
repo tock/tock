@@ -365,7 +365,10 @@ enum FlashState {
 ///
 /// An example looks like:
 ///
-/// ```
+/// ```rust
+/// # extern crate sam4l;
+/// # use sam4l::flashcalw::Sam4lPage;
+///
 /// static mut PAGEBUFFER: Sam4lPage = Sam4lPage::new();
 /// ```
 pub struct Sam4lPage(pub [u8; PAGE_SIZE as usize]);
@@ -565,6 +568,9 @@ impl FLASHCALW {
                 self.flashcalw_erase_page(page);
             }
             FlashState::EraseErasing => {
+                // Flush the cache
+                self.invalidate_cache();
+
                 self.current_state.set(FlashState::Ready);
 
                 self.client.map(|client| {
@@ -833,9 +839,9 @@ impl FLASHCALW {
         address: usize,
         size: usize,
         buffer: &'static mut Sam4lPage,
-    ) -> ReturnCode {
+    ) -> Result<(), (ReturnCode, &'static mut Sam4lPage)> {
         if self.current_state.get() == FlashState::Unconfigured {
-            return ReturnCode::FAIL;
+            return Err((ReturnCode::FAIL, buffer));
         }
 
         // Enable clock in case it's off.
@@ -848,7 +854,7 @@ impl FLASHCALW {
             || buffer.len() < size
         {
             // invalid flash address
-            return ReturnCode::EINVAL;
+            return Err((ReturnCode::EINVAL, buffer));
         }
 
         // Actually do a copy from flash into the buffer.
@@ -869,18 +875,22 @@ impl FLASHCALW {
         // we can allow this function to return and then call the callback.
         DEFERRED_CALL.set();
 
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
-    fn write_page(&self, page_num: i32, data: &'static mut Sam4lPage) -> ReturnCode {
+    fn write_page(
+        &self,
+        page_num: i32,
+        data: &'static mut Sam4lPage,
+    ) -> Result<(), (ReturnCode, &'static mut Sam4lPage)> {
         // Enable clock in case it's off.
         pm::enable_clock(self.ahb_clock);
 
         match self.current_state.get() {
-            FlashState::Unconfigured => return ReturnCode::FAIL,
+            FlashState::Unconfigured => return Err((ReturnCode::FAIL, data)),
             FlashState::Ready => {}
             // If we're not ready don't take the command
-            _ => return ReturnCode::EBUSY,
+            _ => return Err((ReturnCode::EBUSY, data)),
         }
 
         // Save the buffer for the future write.
@@ -889,7 +899,7 @@ impl FLASHCALW {
         self.current_state
             .set(FlashState::WriteUnlocking { page: page_num });
         self.lock_page_region(page_num, false);
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
     fn erase_page(&self, page_num: i32) -> ReturnCode {
@@ -915,11 +925,19 @@ impl<C: hil::flash::Client<Self>> hil::flash::HasClient<'static, C> for FLASHCAL
 impl hil::flash::Flash for FLASHCALW {
     type Page = Sam4lPage;
 
-    fn read_page(&self, page_number: usize, buf: &'static mut Self::Page) -> ReturnCode {
+    fn read_page(
+        &self,
+        page_number: usize,
+        buf: &'static mut Self::Page,
+    ) -> Result<(), (ReturnCode, &'static mut Self::Page)> {
         self.read_range(page_number * (PAGE_SIZE as usize), buf.len(), buf)
     }
 
-    fn write_page(&self, page_number: usize, buf: &'static mut Self::Page) -> ReturnCode {
+    fn write_page(
+        &self,
+        page_number: usize,
+        buf: &'static mut Self::Page,
+    ) -> Result<(), (ReturnCode, &'static mut Self::Page)> {
         self.write_page(page_number as i32, buf)
     }
 

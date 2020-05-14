@@ -131,49 +131,49 @@ pub struct Register {
 
 register_bitfields![
     u32,
-    Gpt0A [
+    pub Gpt0A [
         EVENT OFFSET(0) NUMBITS(7) [
             PORT_EVENT0 = 0x55,
             PORT_EVENT1 = 0x56
         ]
     ],
-    Gpt0B [
+    pub Gpt0B [
         EVENT OFFSET(0) NUMBITS(7) [
             PORT_EVENT0 = 0x55,
             PORT_EVENT1 = 0x56
         ]
     ],
-    Gpt1A [
+    pub Gpt1A [
         EVENT OFFSET(0) NUMBITS(7) [
             PORT_EVENT2 = 0x57,
             PORT_EVENT3 = 0x58
         ]
     ],
-    Gpt1B [
+    pub Gpt1B [
         EVENT OFFSET(0) NUMBITS(7) [
             PORT_EVENT2 = 0x57,
             PORT_EVENT3 = 0x58
         ]
     ],
-    Gpt2A [
+    pub Gpt2A [
         EVENT OFFSET(0) NUMBITS(7) [
             PORT_EVENT4 = 0x59,
             PORT_EVENT5 = 0x5A
         ]
     ],
-    Gpt2B [
+    pub Gpt2B [
         EVENT OFFSET(0) NUMBITS(7) [
             PORT_EVENT4 = 0x59,
             PORT_EVENT5 = 0x5A
         ]
     ],
-    Gpt3A [
+    pub Gpt3A [
         EVENT OFFSET(0) NUMBITS(7) [
             PORT_EVENT6 = 0x5B,
             PORT_EVENT7 = 0x5C
         ]
     ],
-    Gpt3B [
+    pub Gpt3B [
         EVENT OFFSET(0) NUMBITS(7) [
             PORT_EVENT6 = 0x5B,
             PORT_EVENT7 = 0x5C

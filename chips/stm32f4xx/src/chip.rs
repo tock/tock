@@ -1,10 +1,9 @@
 //! Chip trait setup.
 
+use core::fmt::Write;
 use cortexm4;
-use kernel::common::deferred_call;
 use kernel::Chip;
 
-use crate::deferred_call_tasks::Task;
 use crate::dma1;
 use crate::exti;
 use crate::nvic;
@@ -36,11 +35,7 @@ impl Chip for Stm32f4xx {
     fn service_pending_interrupts(&self) {
         unsafe {
             loop {
-                if let Some(task) = deferred_call::DeferredCall::next_pending() {
-                    match task {
-                        Task::Nop => {}
-                    }
-                } else if let Some(interrupt) = cortexm4::nvic::next_pending() {
+                if let Some(interrupt) = cortexm4::nvic::next_pending() {
                     match interrupt {
                         nvic::DMA1_Stream1 => dma1::Dma1Peripheral::USART3_RX
                             .get_stream()
@@ -92,7 +87,7 @@ impl Chip for Stm32f4xx {
     }
 
     fn has_pending_interrupts(&self) -> bool {
-        unsafe { cortexm4::nvic::has_pending() || deferred_call::has_tasks() }
+        unsafe { cortexm4::nvic::has_pending() }
     }
 
     fn mpu(&self) -> &cortexm4::mpu::MPU {
@@ -119,5 +114,9 @@ impl Chip for Stm32f4xx {
         F: FnOnce() -> R,
     {
         cortexm4::support::atomic(f)
+    }
+
+    unsafe fn print_state(&self, write: &mut dyn Write) {
+        cortexm4::print_cortexm4_state(write);
     }
 }

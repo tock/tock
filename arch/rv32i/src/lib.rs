@@ -7,16 +7,16 @@
     const_fn,
     lang_items,
     global_asm,
-    crate_visibility_modifier,
     naked_functions,
     in_band_lifetimes
 )]
 #![no_std]
 
+use core::fmt::Write;
+
 pub mod clic;
 pub mod csr;
 pub mod machine_timer;
-pub mod plic;
 pub mod pmp;
 pub mod support;
 pub mod syscall;
@@ -44,6 +44,7 @@ extern "C" {
 /// It initializes the stack pointer, the frame pointer (needed for closures to
 /// work in start_rust) and the global pointer. Then it calls `reset_handler()`,
 /// the main entry point for Tock boards.
+#[cfg(all(target_arch = "riscv32", target_os = "none"))]
 #[link_section = ".riscv.start"]
 #[export_name = "_start"]
 #[naked]
@@ -128,6 +129,12 @@ pub unsafe fn configure_trap_handler(mode: PermissionMode) {
     }
 }
 
+// Mock implementation for tests on Travis-CI.
+#[cfg(not(any(target_arch = "riscv32", target_os = "none")))]
+pub extern "C" fn _start_trap() {
+    unimplemented!()
+}
+
 /// This is the trap handler function. This code is called on all traps,
 /// including interrupts, exceptions, and system calls from applications.
 ///
@@ -142,6 +149,7 @@ pub unsafe fn configure_trap_handler(mode: PermissionMode) {
 /// need to. If the trap happens while and application was executing, we have to
 /// save the application state and then resume the `switch_to()` function to
 /// correctly return back to the kernel.
+#[cfg(all(target_arch = "riscv32", target_os = "none"))]
 #[link_section = ".riscv.trap"]
 #[export_name = "_start_trap"]
 #[naked]
@@ -162,9 +170,8 @@ pub extern "C" fn _start_trap() {
 
 
         _from_kernel:
-            // Read back the stack pointer that we temporarily stored in
-            // mscratch.
-            csrr sp, 0x340    // CSR=0x340=mscratch
+            // Swap back the zero value for the stack pointer in mscratch
+            csrrw sp, 0x340, sp // CSR=0x340=mscratch
 
             // Make room for the caller saved registers we need to restore after
             // running any trap handler code.
@@ -188,14 +195,10 @@ pub extern "C" fn _start_trap() {
             sw   a6, 14*4(sp)
             sw   a7, 15*4(sp)
 
-            // Jump to board-specific trap handler code. Likely this was and
+            // Jump to board-specific trap handler code. Likely this was an
             // interrupt and we want to disable a particular interrupt, but each
             // board/chip can customize this as needed.
             jal ra, _start_trap_rust
-
-            // set mstatus how we expect
-            li   t0, 0x1808
-            csrw 0x300, t0
 
             // Restore the registers from the stack.
             lw   ra, 0*4(sp)
@@ -317,7 +320,7 @@ pub extern "C" fn _start_trap() {
 
             // Need to set mstatus.MPP to 0b11 so that we stay in machine mode.
             csrr t0, 0x300    // CSR=0x300=mstatus
-            li   t1, 0x1808   // Load 0b11 to the MPP bits location in t1
+            li   t1, 0x1800   // Load 0b11 to the MPP bits location in t1
             or   t0, t0, t1   // Set the MPP bits to one
             csrw 0x300, t0    // CSR=0x300=mstatus
 
@@ -333,6 +336,7 @@ pub extern "C" fn _start_trap() {
 }
 
 /// Ensure an abort symbol exists.
+#[cfg(all(target_arch = "riscv32", target_os = "none"))]
 #[link_section = ".init"]
 #[export_name = "abort"]
 pub extern "C" fn abort() {
@@ -346,4 +350,184 @@ pub extern "C" fn abort() {
         :
         : "volatile");
     }
+}
+
+/// Prints out RISCV machine state, including basic system registers
+/// (mcause, mstatus, mtvec, mepc, mtval, interrupt status).
+pub unsafe fn print_riscv_state(writer: &mut dyn Write) {
+    let mcval: csr::mcause::Trap = core::convert::From::from(csr::CSR.mcause.extract());
+    let _ = writer.write_fmt(format_args!("\r\n---| RISC-V Machine State |---\r\n"));
+    let _ = writer.write_fmt(format_args!("Cause (mcause): "));
+    match mcval {
+        csr::mcause::Trap::Interrupt(interrupt) => match interrupt {
+            csr::mcause::Interrupt::UserSoft => {
+                let _ = writer.write_fmt(format_args!("User software interrupt"));
+            }
+            csr::mcause::Interrupt::SupervisorSoft => {
+                let _ = writer.write_fmt(format_args!("Supervisor software interrupt"));
+            }
+            csr::mcause::Interrupt::MachineSoft => {
+                let _ = writer.write_fmt(format_args!("Machine software interrupt"));
+            }
+            csr::mcause::Interrupt::UserTimer => {
+                let _ = writer.write_fmt(format_args!("User timer interrupt"));
+            }
+            csr::mcause::Interrupt::SupervisorTimer => {
+                let _ = writer.write_fmt(format_args!("Supervisor timer interrupt"));
+            }
+            csr::mcause::Interrupt::MachineTimer => {
+                let _ = writer.write_fmt(format_args!("Machine timer interrupt"));
+            }
+            csr::mcause::Interrupt::UserExternal => {
+                let _ = writer.write_fmt(format_args!("User external interrupt"));
+            }
+            csr::mcause::Interrupt::SupervisorExternal => {
+                let _ = writer.write_fmt(format_args!("Supervisor external interrupt"));
+            }
+            csr::mcause::Interrupt::MachineExternal => {
+                let _ = writer.write_fmt(format_args!("Machine external interrupt"));
+            }
+            csr::mcause::Interrupt::Unknown => {
+                let _ = writer.write_fmt(format_args!("Reserved/Unknown"));
+            }
+        },
+        csr::mcause::Trap::Exception(exception) => match exception {
+            csr::mcause::Exception::InstructionMisaligned => {
+                let _ = writer.write_fmt(format_args!("Instruction access misaligned"));
+            }
+            csr::mcause::Exception::InstructionFault => {
+                let _ = writer.write_fmt(format_args!("Instruction access fault"));
+            }
+            csr::mcause::Exception::IllegalInstruction => {
+                let _ = writer.write_fmt(format_args!("Illegal instruction"));
+            }
+            csr::mcause::Exception::Breakpoint => {
+                let _ = writer.write_fmt(format_args!("Breakpoint"));
+            }
+            csr::mcause::Exception::LoadMisaligned => {
+                let _ = writer.write_fmt(format_args!("Load address misaligned"));
+            }
+            csr::mcause::Exception::LoadFault => {
+                let _ = writer.write_fmt(format_args!("Load access fault"));
+            }
+            csr::mcause::Exception::StoreMisaligned => {
+                let _ = writer.write_fmt(format_args!("Store/AMO address misaligned"));
+            }
+            csr::mcause::Exception::StoreFault => {
+                let _ = writer.write_fmt(format_args!("Store/AMO access fault"));
+            }
+            csr::mcause::Exception::UserEnvCall => {
+                let _ = writer.write_fmt(format_args!("Environment call from U-mode"));
+            }
+            csr::mcause::Exception::SupervisorEnvCall => {
+                let _ = writer.write_fmt(format_args!("Environment call from S-mode"));
+            }
+            csr::mcause::Exception::MachineEnvCall => {
+                let _ = writer.write_fmt(format_args!("Environment call from M-mode"));
+            }
+            csr::mcause::Exception::InstructionPageFault => {
+                let _ = writer.write_fmt(format_args!("Instruction page fault"));
+            }
+            csr::mcause::Exception::LoadPageFault => {
+                let _ = writer.write_fmt(format_args!("Load page fault"));
+            }
+            csr::mcause::Exception::StorePageFault => {
+                let _ = writer.write_fmt(format_args!("Store/AMO page fault"));
+            }
+            csr::mcause::Exception::Unknown => {
+                let _ = writer.write_fmt(format_args!("Reserved"));
+            }
+        },
+    }
+    let mval = csr::CSR.mcause.get();
+    let interrupt = (mval & 0x80000000) == 0x80000000;
+    let code = mval & 0x7fffffff;
+    let _ = writer.write_fmt(format_args!(
+        " (interrupt={}, exception code={})",
+        interrupt, code
+    ));
+    let _ = writer.write_fmt(format_args!(
+        "\r\nValue (mtval):  {:#010X}\
+         \r\n\
+         \r\nSystem register dump:\
+         \r\n mepc:    {:#010X}    mstatus:     {:#010X}\
+         \r\n mcycle:  {:#010X}    minstret:    {:#010X}\
+         \r\n mtvec:   {:#010X}",
+        csr::CSR.mtval.get(),
+        csr::CSR.mepc.get(),
+        csr::CSR.mstatus.get(),
+        csr::CSR.mcycle.get(),
+        csr::CSR.minstret.get(),
+        csr::CSR.mtvec.get()
+    ));
+    let mstatus = csr::CSR.mstatus.extract();
+    let uie = mstatus.is_set(csr::mstatus::mstatus::uie);
+    let sie = mstatus.is_set(csr::mstatus::mstatus::sie);
+    let mie = mstatus.is_set(csr::mstatus::mstatus::mie);
+    let upie = mstatus.is_set(csr::mstatus::mstatus::upie);
+    let spie = mstatus.is_set(csr::mstatus::mstatus::spie);
+    let mpie = mstatus.is_set(csr::mstatus::mstatus::mpie);
+    let spp = mstatus.is_set(csr::mstatus::mstatus::spp);
+    let _ = writer.write_fmt(format_args!(
+        "\r\n mstatus:\
+         \r\n  uie:    {}\
+         \r\n  sie:    {}\
+         \r\n  mie:    {}\
+         \r\n  upie:   {}\
+         \r\n  spie:   {}\
+         \r\n  mpie:   {}\
+         \r\n  spp:    {}",
+        uie, sie, mie, upie, spie, mpie, spp
+    ));
+    let e_usoft = csr::CSR.mie.is_set(csr::mie::mie::usoft);
+    let e_ssoft = csr::CSR.mie.is_set(csr::mie::mie::ssoft);
+    let e_msoft = csr::CSR.mie.is_set(csr::mie::mie::msoft);
+    let e_utimer = csr::CSR.mie.is_set(csr::mie::mie::utimer);
+    let e_stimer = csr::CSR.mie.is_set(csr::mie::mie::stimer);
+    let e_mtimer = csr::CSR.mie.is_set(csr::mie::mie::mtimer);
+    let e_uext = csr::CSR.mie.is_set(csr::mie::mie::uext);
+    let e_sext = csr::CSR.mie.is_set(csr::mie::mie::sext);
+    let e_mext = csr::CSR.mie.is_set(csr::mie::mie::mext);
+
+    let p_usoft = csr::CSR.mip.is_set(csr::mip::mip::usoft);
+    let p_ssoft = csr::CSR.mip.is_set(csr::mip::mip::ssoft);
+    let p_msoft = csr::CSR.mip.is_set(csr::mip::mip::msoft);
+    let p_utimer = csr::CSR.mip.is_set(csr::mip::mip::utimer);
+    let p_stimer = csr::CSR.mip.is_set(csr::mip::mip::stimer);
+    let p_mtimer = csr::CSR.mip.is_set(csr::mip::mip::mtimer);
+    let p_uext = csr::CSR.mip.is_set(csr::mip::mip::uext);
+    let p_sext = csr::CSR.mip.is_set(csr::mip::mip::sext);
+    let p_mext = csr::CSR.mip.is_set(csr::mip::mip::mext);
+    let _ = writer.write_fmt(format_args!(
+        "\r\n mie:   0x{:08X}   mip:   0x{:08X}\
+         \r\n  usoft:  {:6}              {:6}\
+         \r\n  ssoft:  {:6}              {:6}\
+         \r\n  msoft:  {:6}              {:6}\
+         \r\n  utimer: {:6}              {:6}\
+         \r\n  stimer: {:6}              {:6}\
+         \r\n  mtimer: {:6}              {:6}\
+         \r\n  uext:   {:6}              {:6}\
+         \r\n  sext:   {:6}              {:6}\
+         \r\n  mext:   {:6}              {:6}\r\n",
+        csr::CSR.mie.get(),
+        csr::CSR.mip.get(),
+        e_usoft,
+        p_usoft,
+        e_ssoft,
+        p_ssoft,
+        e_msoft,
+        p_msoft,
+        e_utimer,
+        p_utimer,
+        e_stimer,
+        p_stimer,
+        e_mtimer,
+        p_mtimer,
+        e_uext,
+        p_uext,
+        e_sext,
+        p_sext,
+        e_mext,
+        p_mext
+    ));
 }

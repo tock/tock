@@ -23,20 +23,20 @@ pub struct WatchdogRegisters {
 }
 
 register_bitfields![u32,
-	cfg [
-	    cmpip OFFSET(28) NUMBITS(1) [],
-	    encoreawake OFFSET(13) NUMBITS(1) [],
-	    enalways OFFSET(12) NUMBITS(1) [],
-	    zerocmp OFFSET(9) NUMBITS(1) [],
-	    rsten OFFSET(8) NUMBITS(1) [],
-	    scale OFFSET(0) NUMBITS(4) []
-	],
-	key [
-		key OFFSET(0) NUMBITS(32) []
-	],
-	feed [
-		feed OFFSET(0) NUMBITS(32) []
-	]
+    cfg [
+        cmpip OFFSET(28) NUMBITS(1) [],
+        encoreawake OFFSET(13) NUMBITS(1) [],
+        enalways OFFSET(12) NUMBITS(1) [],
+        zerocmp OFFSET(9) NUMBITS(1) [],
+        rsten OFFSET(8) NUMBITS(1) [],
+        scale OFFSET(0) NUMBITS(4) []
+    ],
+    key [
+        key OFFSET(0) NUMBITS(32) []
+    ],
+    feed [
+        feed OFFSET(0) NUMBITS(32) []
+    ]
 ];
 
 pub struct Watchdog {

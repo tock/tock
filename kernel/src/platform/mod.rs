@@ -1,7 +1,10 @@
 //! Interface for chips and boards.
 
 use crate::driver::Driver;
+use crate::process;
+use crate::returncode;
 use crate::syscall;
+use core::fmt::Write;
 
 pub mod mpu;
 crate mod systick;
@@ -42,6 +45,20 @@ pub trait Platform {
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
     where
         F: FnOnce(Option<&dyn Driver>) -> R;
+
+    /// Check the platform-provided system call filter for all non-yield system
+    /// calls.  If the system call is allowed for the provided process then
+    /// return Ok(()).  Otherwise, return Err with a ReturnCode that will be
+    /// returned to the calling application.  The default implementation allows
+    /// all system calls. This API should be considered unstable, and is likely
+    /// to change in the future.
+    fn filter_syscall(
+        &self,
+        _process: &dyn process::ProcessType,
+        _syscall: &syscall::Syscall,
+    ) -> Result<(), returncode::ReturnCode> {
+        Ok(())
+    }
 }
 
 /// Interface for individual MCUs.
@@ -100,6 +117,18 @@ pub trait Chip {
     unsafe fn atomic<F, R>(&self, f: F) -> R
     where
         F: FnOnce() -> R;
+
+    /// Print out chip state (system registers) to a supplied
+    /// writer. This does not print out the execution context
+    /// (data registers), as this depends on how they are stored;
+    /// that is implemented by
+    /// `syscall::UserspaceKernelBoundary::print_context`.
+    /// This also does not print out a process memory state,
+    /// that is implemented by `process::Process::print_memory_map`.
+    /// The MPU state is printed by the MPU's implementation of
+    /// the Display trait.
+    /// Used by panic.
+    unsafe fn print_state(&self, writer: &mut dyn Write);
 }
 
 /// Generic operations that clock-like things are expected to support.

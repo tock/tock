@@ -12,8 +12,6 @@
 // Author: Hudson Ayers <hayers@cs.stanford.edu>
 // Last modified: 07/12/2019
 
-#![allow(dead_code)] // Components are intended to be conditionally included
-
 use capsules::rng;
 use kernel::capabilities;
 use kernel::component::Component;
@@ -43,7 +41,7 @@ impl Component for RngComponent {
     type StaticInput = ();
     type Output = &'static rng::RngDriver<'static>;
 
-    unsafe fn finalize(&mut self, _static_buffer: Self::StaticInput) -> Self::Output {
+    unsafe fn finalize(self, _static_buffer: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
         let entropy_to_random = static_init!(

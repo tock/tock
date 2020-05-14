@@ -5,8 +5,10 @@
 //! * Date: August 18, 2016
 
 use core::ops::{Index, IndexMut};
+use enum_primitive::cast::FromPrimitive;
+use enum_primitive::enum_from_primitive;
 use kernel::common::cells::OptionalCell;
-use kernel::common::registers::{register_bitfields, FieldValue, ReadWrite};
+use kernel::common::registers::{register_bitfields, ReadWrite};
 use kernel::common::StaticRef;
 use kernel::debug;
 use kernel::hil;
@@ -15,12 +17,21 @@ use kernel::hil;
 const NUM_GPIOTE: usize = 4;
 #[cfg(feature = "nrf52")]
 const NUM_GPIOTE: usize = 8;
+// Dummy value for testing on Travis-CI.
+#[cfg(all(
+    not(any(target_arch = "arm", target_os = "none")),
+    not(feature = "nrf51"),
+    not(feature = "nrf52"),
+))]
+const NUM_GPIOTE: usize = 4;
+
+const GPIO_PER_PORT: usize = 32;
 
 const GPIOTE_BASE: StaticRef<GpioteRegisters> =
     unsafe { StaticRef::new(0x40006000 as *const GpioteRegisters) };
 
-const GPIO_BASE: StaticRef<GpioRegisters> =
-    unsafe { StaticRef::new(0x50000000 as *const GpioRegisters) };
+const GPIO_BASE_ADDRESS: usize = 0x50000000;
+const GPIO_SIZE: usize = 0x300;
 
 /// The nRF5x doesn't automatically provide GPIO interrupts. Instead, to receive
 /// interrupts from a GPIO line, you must allocate a GPIOTE (GPIO Task and
@@ -95,7 +106,6 @@ struct GpioRegisters {
     #[cfg(feature = "nrf51")]
     /// Reserved
     _reserved2: [u32; 120],
-    #[cfg(feature = "nrf52")]
     /// Latch register indicating what GPIO pins that have met the criteria set in the
     /// PIN_CNF\[n\].SENSE
     /// - Address: 0x520 - 0x524
@@ -105,8 +115,8 @@ struct GpioRegisters {
     /// - Address: 0x524 - 0x528
     #[cfg(feature = "nrf52")]
     detect_mode: ReadWrite<u32, DetectMode::Register>,
-    #[cfg(feature = "nrf52")]
     /// Reserved
+    #[cfg(feature = "nrf52")]
     _reserved2: [u32; 118],
     /// Configuration of GPIO pins
     pin_cnf: [ReadWrite<u32, PinConfig::Register>; 32],
@@ -297,8 +307,10 @@ register_bitfields! [u32,
             Task = 3
         ],
         /// GPIO number associated with SET\[n\], CLR\[n\] and OUT\[n\] tasks
-        /// and IN\[n\] event
-        PSEL OFFSET(8) NUMBITS(5) [],
+        /// and IN\[n\] event. Only 5 bits are used but they are followed by 1 bit
+        /// indicating the port. This allows us to abstract the port away as each port
+        /// is defined for 32 pins.
+        PSEL OFFSET(8) NUMBITS(6) [],
         /// When In task mode: Operation to be performed on output
         /// when OUT\[n\] task is triggered. When In event mode: Operation
         /// on input that shall trigger IN\[n\] event
@@ -327,47 +339,61 @@ register_bitfields! [u32,
     ]
 ];
 
+enum_from_primitive! {
+    #[derive(Copy, Clone, Debug, PartialEq)]
+    #[rustfmt::skip]
+    pub enum Pin {
+        P0_00, P0_01, P0_02, P0_03, P0_04, P0_05, P0_06, P0_07,
+        P0_08, P0_09, P0_10, P0_11, P0_12, P0_13, P0_14, P0_15,
+        P0_16, P0_17, P0_18, P0_19, P0_20, P0_21, P0_22, P0_23,
+        P0_24, P0_25, P0_26, P0_27, P0_28, P0_29, P0_30, P0_31,
+        // Pins only on nrf52840.
+        P1_00, P1_01, P1_02, P1_03, P1_04, P1_05, P1_06, P1_07,
+        P1_08, P1_09, P1_10, P1_11, P1_12, P1_13, P1_14, P1_15,
+    }
+}
+
 pub struct GPIOPin {
     pin: u8,
+    port: u8,
     client: OptionalCell<&'static dyn hil::gpio::Client>,
     gpiote_registers: StaticRef<GpioteRegisters>,
     gpio_registers: StaticRef<GpioRegisters>,
 }
 
 impl GPIOPin {
-    const fn new(pin: u8) -> GPIOPin {
+    pub const fn new(pin: Pin) -> GPIOPin {
         GPIOPin {
-            pin: pin,
+            pin: ((pin as usize) % GPIO_PER_PORT) as u8,
+            port: ((pin as usize) / GPIO_PER_PORT) as u8,
             client: OptionalCell::empty(),
-            gpio_registers: GPIO_BASE,
+            gpio_registers: unsafe {
+                StaticRef::new(
+                    (GPIO_BASE_ADDRESS + ((pin as usize) / GPIO_PER_PORT) * GPIO_SIZE)
+                        as *const GpioRegisters,
+                )
+            },
             gpiote_registers: GPIOTE_BASE,
         }
-    }
-
-    pub fn write_config(&self, config: FieldValue<u32, PinConfig::Register>) {
-        let gpio_regs = &*self.gpio_registers;
-        gpio_regs.pin_cnf[self.pin as usize].write(config);
-    }
-
-    pub fn read_config(&self) -> Option<PinConfig::PULL::Value> {
-        let gpio_regs = &*self.gpio_registers;
-        gpio_regs.pin_cnf[self.pin as usize].read_as_enum(PinConfig::PULL)
     }
 }
 
 impl hil::gpio::Configure for GPIOPin {
     fn set_floating_state(&self, mode: hil::gpio::FloatingState) {
+        let gpio_regs = &*self.gpio_registers;
         let pin_config = match mode {
             hil::gpio::FloatingState::PullUp => PinConfig::PULL::Pullup,
             hil::gpio::FloatingState::PullDown => PinConfig::PULL::Pulldown,
             hil::gpio::FloatingState::PullNone => PinConfig::PULL::Disabled,
         };
-        self.write_config(pin_config);
+        // PIN_CNF also holds the direction and the pin driving mode, settings we don't
+        // want to overwrite!
+        gpio_regs.pin_cnf[self.pin as usize].modify(pin_config);
     }
 
     fn floating_state(&self) -> hil::gpio::FloatingState {
-        let pin_config = self.read_config();
-        match pin_config {
+        let gpio_regs = &*self.gpio_registers;
+        match gpio_regs.pin_cnf[self.pin as usize].read_as_enum(PinConfig::PULL) {
             Some(PinConfig::PULL::Value::Pullup) => hil::gpio::FloatingState::PullUp,
             Some(PinConfig::PULL::Value::Pulldown) => hil::gpio::FloatingState::PullDown,
             Some(PinConfig::PULL::Value::Disabled) => hil::gpio::FloatingState::PullNone,
@@ -377,7 +403,7 @@ impl hil::gpio::Configure for GPIOPin {
 
     fn make_output(&self) -> hil::gpio::Configuration {
         let gpio_regs = &*self.gpio_registers;
-        gpio_regs.dirset.set(1 << self.pin);
+        gpio_regs.pin_cnf[self.pin as usize].modify(PinConfig::DIR::Output);
         hil::gpio::Configuration::Output
     }
 
@@ -385,29 +411,41 @@ impl hil::gpio::Configure for GPIOPin {
         self.make_input()
     }
 
-    // Configuration constants stolen from
-    // mynewt/hw/mcu/nordic/nrf51xxx/include/mcu/nrf51_bitfields.h
     fn make_input(&self) -> hil::gpio::Configuration {
         let gpio_regs = &*self.gpio_registers;
-        gpio_regs.dirclr.set(1 << self.pin);
+        gpio_regs.pin_cnf[self.pin as usize]
+            .modify(PinConfig::DIR::Input + PinConfig::INPUT::Connect);
         hil::gpio::Configuration::Input
     }
 
     fn disable_input(&self) -> hil::gpio::Configuration {
-        self.make_output()
+        // GPIOs are either inputs or outputs on this chip. To "disable" input
+        // would cause this pin to start driving, which is likely undesired, so
+        // this function is a no-op.
+        self.configuration()
     }
 
     fn configuration(&self) -> hil::gpio::Configuration {
         let gpio_regs = &*self.gpio_registers;
-        if gpio_regs.dirclr.get() & 1 << self.pin == 0 {
-            hil::gpio::Configuration::Input
-        } else {
-            hil::gpio::Configuration::Output
+        let dir = gpio_regs.pin_cnf[self.pin as usize].read_as_enum(PinConfig::DIR);
+        let connected = gpio_regs.pin_cnf[self.pin as usize].read_as_enum(PinConfig::INPUT);
+        match (dir, connected) {
+            (Some(PinConfig::DIR::Value::Input), Some(PinConfig::INPUT::Value::Connect)) => {
+                hil::gpio::Configuration::Input
+            }
+            (Some(PinConfig::DIR::Value::Input), Some(PinConfig::INPUT::Value::Disconnect)) => {
+                hil::gpio::Configuration::LowPower
+            }
+            (Some(PinConfig::DIR::Value::Output), _) => hil::gpio::Configuration::Output,
+            _ => hil::gpio::Configuration::Other,
         }
     }
 
     fn deactivate_to_low_power(&self) {
-        GPIOPin::set_floating_state(self, hil::gpio::FloatingState::PullNone);
+        let gpio_regs = &*self.gpio_registers;
+        gpio_regs.pin_cnf[self.pin as usize].write(
+            PinConfig::DIR::Input + PinConfig::INPUT::Disconnect + PinConfig::PULL::Disabled,
+        );
     }
 }
 
@@ -462,8 +500,8 @@ impl hil::gpio::Interrupt for GPIOPin {
                 hil::gpio::InterruptEdge::FallingEdge => Config::POLARITY::HiToLo,
             };
             let regs = &*self.gpiote_registers;
-            regs.config[channel]
-                .write(Config::MODE::Event + Config::PSEL.val(self.pin as u32) + polarity);
+            let pin: u32 = (GPIO_PER_PORT as u32 * self.port as u32) + self.pin as u32;
+            regs.config[channel].write(Config::MODE::Event + Config::PSEL.val(pin) + polarity);
             regs.intenset.set(1 << channel);
         } else {
             debug!("No available GPIOTE interrupt channels");
@@ -500,7 +538,8 @@ impl GPIOPin {
     fn find_channel(&self, pin: u8) -> Result<usize, ()> {
         let regs = &*self.gpiote_registers;
         for (i, ch) in regs.config.iter().enumerate() {
-            if ch.matches_all(Config::PSEL.val(pin as u32)) {
+            let encoded_pin = (GPIO_PER_PORT as u32 * self.port as u32) + pin as u32;
+            if ch.matches_all(Config::PSEL.val(encoded_pin)) {
                 return Ok(i);
             }
         }
@@ -515,20 +554,20 @@ impl GPIOPin {
 }
 
 pub struct Port {
-    pins: [GPIOPin; 32],
+    pub pins: &'static mut [GPIOPin],
 }
 
-impl Index<usize> for Port {
+impl Index<Pin> for Port {
     type Output = GPIOPin;
 
-    fn index(&self, index: usize) -> &GPIOPin {
-        &self.pins[index]
+    fn index(&self, index: Pin) -> &GPIOPin {
+        &self.pins[index as usize]
     }
 }
 
-impl IndexMut<usize> for Port {
-    fn index_mut(&mut self, index: usize) -> &mut GPIOPin {
-        &mut self.pins[index]
+impl IndexMut<Pin> for Port {
+    fn index_mut(&mut self, index: Pin) -> &mut GPIOPin {
+        &mut self.pins[index as usize]
     }
 }
 
@@ -550,40 +589,3 @@ impl Port {
         }
     }
 }
-
-pub static mut PORT: Port = Port {
-    pins: [
-        GPIOPin::new(0),
-        GPIOPin::new(1),
-        GPIOPin::new(2),
-        GPIOPin::new(3),
-        GPIOPin::new(4),
-        GPIOPin::new(5),
-        GPIOPin::new(6),
-        GPIOPin::new(7),
-        GPIOPin::new(8),
-        GPIOPin::new(9),
-        GPIOPin::new(10),
-        GPIOPin::new(11),
-        GPIOPin::new(12),
-        GPIOPin::new(13),
-        GPIOPin::new(14),
-        GPIOPin::new(15),
-        GPIOPin::new(16),
-        GPIOPin::new(17),
-        GPIOPin::new(18),
-        GPIOPin::new(19),
-        GPIOPin::new(20),
-        GPIOPin::new(21),
-        GPIOPin::new(22),
-        GPIOPin::new(23),
-        GPIOPin::new(24),
-        GPIOPin::new(25),
-        GPIOPin::new(26),
-        GPIOPin::new(27),
-        GPIOPin::new(28),
-        GPIOPin::new(29),
-        GPIOPin::new(30),
-        GPIOPin::new(31),
-    ],
-};

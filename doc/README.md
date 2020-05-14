@@ -11,6 +11,7 @@ Tock Guides
 ### Overview and Design of Tock
 - **[Overview](Overview.md)** - Overview of the OS and this repository.
 - **[Design](Design.md)** - Design of the Tock primitives that make safety and security possible.
+- **[Threat Model](threat_model/README.md)** - Detailed description of Tock's security properties.
 
 ### Tock Implementation
 - **[Lifetimes](Lifetimes.md)** - How Rust lifetimes are used in Tock.
@@ -25,6 +26,7 @@ Tock Guides
 - **[Syscalls](Syscalls.md)** - Kernel/Userland abstraction.
 - **[Userland](Userland.md)** - Description of userland applications.
 - **[Networking Stack](Networking_Stack.md)** - Design of the networking stack in Tock.
+- **[Configuration](Configuration.md)** - Configuration options for the kernel.
 
 ### Interface Details
 - **[Syscall Interfaces](syscalls)** - API between userland and the kernel.
@@ -35,7 +37,9 @@ Tock Guides
 - **[Porting Tock](Porting.md)** - Guide to add new platforms.
 - **[Out of Tree Boards](OutOfTree.md)** - Best practices for maintaining boards not in Tock master.
 - **[Debugging Help](debugging)** - Guides for various debugging techniques.
+- **[Style](Style.md)** - Stylistic aspects of Tock code.
 
 ### Management of Tock
+- **[Working Groups](wg)** - Development groups for specific aspects of Tock.
 - **[Code Review Process](CodeReview.md)** - Process for pull request reviews and Tock releases.
 

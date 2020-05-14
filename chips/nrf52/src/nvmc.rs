@@ -156,7 +156,10 @@ const PAGE_MASK: usize = PAGE_SIZE - 1;
 ///
 /// An example looks like:
 ///
-/// ```
+/// ```rust
+/// # extern crate nrf52;
+/// # use nrf52::nvmc::NrfPage;
+///
 /// static mut PAGEBUFFER: NrfPage = NrfPage::new();
 /// ```
 pub struct NrfPage(pub [u8; PAGE_SIZE as usize]);
@@ -293,7 +296,11 @@ impl Nvmc {
         while !regs.ready.is_set(Ready::READY) {}
     }
 
-    fn read_range(&self, page_number: usize, buffer: &'static mut NrfPage) -> ReturnCode {
+    fn read_range(
+        &self,
+        page_number: usize,
+        buffer: &'static mut NrfPage,
+    ) -> Result<(), (ReturnCode, &'static mut NrfPage)> {
         // Actually do a copy from flash into the buffer.
         let mut byte: *const u8 = (page_number * PAGE_SIZE) as *const u8;
         unsafe {
@@ -311,10 +318,14 @@ impl Nvmc {
         self.state.set(FlashState::Read);
         DEFERRED_CALL.set();
 
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
-    fn write_page(&self, page_number: usize, data: &'static mut NrfPage) -> ReturnCode {
+    fn write_page(
+        &self,
+        page_number: usize,
+        data: &'static mut NrfPage,
+    ) -> Result<(), (ReturnCode, &'static mut NrfPage)> {
         let regs = &*self.registers;
 
         // Need to erase the page first.
@@ -346,7 +357,7 @@ impl Nvmc {
         self.state.set(FlashState::Write);
         DEFERRED_CALL.set();
 
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
     fn erase_page(&self, page_number: usize) -> ReturnCode {
@@ -371,11 +382,19 @@ impl<C: hil::flash::Client<Self>> hil::flash::HasClient<'static, C> for Nvmc {
 impl hil::flash::Flash for Nvmc {
     type Page = NrfPage;
 
-    fn read_page(&self, page_number: usize, buf: &'static mut Self::Page) -> ReturnCode {
+    fn read_page(
+        &self,
+        page_number: usize,
+        buf: &'static mut Self::Page,
+    ) -> Result<(), (ReturnCode, &'static mut Self::Page)> {
         self.read_range(page_number, buf)
     }
 
-    fn write_page(&self, page_number: usize, buf: &'static mut Self::Page) -> ReturnCode {
+    fn write_page(
+        &self,
+        page_number: usize,
+        buf: &'static mut Self::Page,
+    ) -> Result<(), (ReturnCode, &'static mut Self::Page)> {
         self.write_page(page_number, buf)
     }
 

@@ -2,7 +2,7 @@
 
 #![crate_name = "cortexm3"]
 #![crate_type = "rlib"]
-#![feature(asm, const_fn, core_intrinsics, naked_functions)]
+#![feature(asm, core_intrinsics, naked_functions)]
 #![no_std]
 
 pub mod mpu;
@@ -12,6 +12,7 @@ pub mod mpu;
 pub use cortexm::support;
 
 pub use cortexm::nvic;
+pub use cortexm::print_cortexm_state as print_cortexm3_state;
 pub use cortexm::scb;
 pub use cortexm::syscall;
 pub use cortexm::systick;
@@ -28,10 +29,13 @@ extern "C" {
     static mut _erelocate: u32;
 }
 
-#[cfg(not(target_os = "none"))]
-pub unsafe extern "C" fn systick_handler() {}
+// Mock implementation for tests on Travis-CI.
+#[cfg(not(any(target_arch = "arm", target_os = "none")))]
+pub unsafe extern "C" fn systick_handler() {
+    unimplemented!()
+}
 
-#[cfg(target_os = "none")]
+#[cfg(all(target_arch = "arm", target_os = "none"))]
 #[naked]
 pub unsafe extern "C" fn systick_handler() {
     asm!(
@@ -51,10 +55,13 @@ pub unsafe extern "C" fn systick_handler() {
     : : : : "volatile" );
 }
 
-#[cfg(not(target_os = "none"))]
-pub unsafe extern "C" fn generic_isr() {}
+// Mock implementation for tests on Travis-CI.
+#[cfg(not(any(target_arch = "arm", target_os = "none")))]
+pub unsafe extern "C" fn generic_isr() {
+    unimplemented!()
+}
 
-#[cfg(target_os = "none")]
+#[cfg(all(target_arch = "arm", target_os = "none"))]
 #[naked]
 /// All ISRs are caught by this handler which disables the NVIC and switches to the kernel.
 pub unsafe extern "C" fn generic_isr() {
@@ -114,10 +121,13 @@ pub unsafe extern "C" fn generic_isr() {
     : : : : "volatile" );
 }
 
-#[cfg(not(target_os = "none"))]
-pub unsafe extern "C" fn svc_handler() {}
+// Mock implementation for tests on Travis-CI.
+#[cfg(not(any(target_arch = "arm", target_os = "none")))]
+pub unsafe extern "C" fn svc_handler() {
+    unimplemented!()
+}
 
-#[cfg(target_os = "none")]
+#[cfg(all(target_arch = "arm", target_os = "none"))]
 #[naked]
 pub unsafe extern "C" fn svc_handler() {
     asm!(
@@ -147,12 +157,16 @@ pub unsafe extern "C" fn svc_handler() {
     : : : : "volatile" );
 }
 
-#[cfg(not(target_os = "none"))]
-pub unsafe extern "C" fn switch_to_user(user_stack: *const u8, process_got: *const u8) -> *mut u8 {
-    user_stack as *mut u8
+// Mock implementation for tests on Travis-CI.
+#[cfg(not(any(target_arch = "arm", target_os = "none")))]
+pub unsafe extern "C" fn switch_to_user(
+    _user_stack: *const u8,
+    _process_regs: &mut [usize; 8],
+) -> *const usize {
+    unimplemented!()
 }
 
-#[cfg(target_os = "none")]
+#[cfg(all(target_arch = "arm", target_os = "none"))]
 #[no_mangle]
 /// r0 is top of user stack, r1 is reference to `CortexMStoredState.regs`
 pub unsafe extern "C" fn switch_to_user(
@@ -178,10 +192,11 @@ pub unsafe extern "C" fn switch_to_user(
     mrs $0, PSP /* PSP into r0 */"
     : "={r0}"(user_stack)
     : "{r0}"(user_stack), "{r1}"(process_regs)
-    : "r4","r5","r6","r7","r8","r9","r10","r11" : "volatile" );
+    : "r4","r5","r6","r8","r9","r10","r11" : "volatile" );
     user_stack
 }
 
+#[cfg(all(target_arch = "arm", target_os = "none"))]
 #[inline(never)]
 unsafe fn kernel_hardfault(faulting_stack: *mut u32) {
     use core::intrinsics::offset;
@@ -326,6 +341,13 @@ unsafe fn kernel_hardfault(faulting_stack: *mut u32) {
     );
 }
 
+// Mock implementation for tests on Travis-CI.
+#[cfg(not(any(target_arch = "arm", target_os = "none")))]
+pub unsafe extern "C" fn hard_fault_handler() {
+    unimplemented!()
+}
+
+#[cfg(all(target_arch = "arm", target_os = "none"))]
 #[naked]
 pub unsafe extern "C" fn hard_fault_handler() {
     let faulting_stack: *mut u32;
@@ -389,13 +411,13 @@ pub fn ipsr_isr_number_to_str(isr_number: usize) -> &'static str {
         4 => "MemManage",
         5 => "BusFault",
         6 => "UsageFault",
-        7...10 => "Reserved",
+        7..=10 => "Reserved",
         11 => "SVCall",
         12 => "Reserved for Debug",
         13 => "Reserved",
         14 => "PendSV",
         15 => "SysTick",
-        16...255 => "IRQn",
+        16..=255 => "IRQn",
         _ => "(Unknown! Illegal value?)",
     }
 }

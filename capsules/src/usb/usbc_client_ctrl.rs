@@ -20,6 +20,7 @@ use super::descriptors::TransferDirection;
 use core::cell::Cell;
 use core::cmp::min;
 use kernel::hil;
+use kernel::hil::usb::TransferType;
 
 const DESCRIPTOR_BUFLEN: usize = 64;
 
@@ -84,7 +85,7 @@ impl Default for State {
     }
 }
 
-impl<C: hil::usb::UsbController> ClientCtrl<'a, 'b, C> {
+impl<'a, 'b, C: hil::usb::UsbController<'a>> ClientCtrl<'a, 'b, C> {
     pub fn new(
         controller: &'a C,
         device_descriptor: DeviceDescriptor,
@@ -107,74 +108,74 @@ impl<C: hil::usb::UsbController> ClientCtrl<'a, 'b, C> {
         ClientCtrl {
             controller: controller,
             state: Default::default(),
-            ctrl_buffer: Default::default(),
+            ctrl_buffer: Buffer64::default(),
             // For the moment, the Default trait is not implemented for arrays of length > 32, and
             // the Cell type is not Copy, so we have to initialize each element manually.
             descriptor_storage: [
-                Default::default(),
-                Default::default(),
-                Default::default(),
-                Default::default(),
-                Default::default(),
-                Default::default(),
-                Default::default(),
-                Default::default(),
-                Default::default(),
-                Default::default(),
-                Default::default(),
-                Default::default(),
-                Default::default(),
-                Default::default(),
-                Default::default(),
-                Default::default(),
-                Default::default(),
-                Default::default(),
-                Default::default(),
-                Default::default(),
-                Default::default(),
-                Default::default(),
-                Default::default(),
-                Default::default(),
-                Default::default(),
-                Default::default(),
-                Default::default(),
-                Default::default(),
-                Default::default(),
-                Default::default(),
-                Default::default(),
-                Default::default(),
-                Default::default(),
-                Default::default(),
-                Default::default(),
-                Default::default(),
-                Default::default(),
-                Default::default(),
-                Default::default(),
-                Default::default(),
-                Default::default(),
-                Default::default(),
-                Default::default(),
-                Default::default(),
-                Default::default(),
-                Default::default(),
-                Default::default(),
-                Default::default(),
-                Default::default(),
-                Default::default(),
-                Default::default(),
-                Default::default(),
-                Default::default(),
-                Default::default(),
-                Default::default(),
-                Default::default(),
-                Default::default(),
-                Default::default(),
-                Default::default(),
-                Default::default(),
-                Default::default(),
-                Default::default(),
-                Default::default(),
-                Default::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
             ],
             device_descriptor,
             configuration_descriptor,
@@ -188,7 +189,7 @@ impl<C: hil::usb::UsbController> ClientCtrl<'a, 'b, C> {
     }
 
     #[inline]
-    pub fn controller(&self) -> &'a C {
+    pub fn controller(&'a self) -> &'a C {
         self.controller
     }
 
@@ -197,21 +198,22 @@ impl<C: hil::usb::UsbController> ClientCtrl<'a, 'b, C> {
         &self.descriptor_storage
     }
 
-    pub fn enable(&self) {
+    pub fn enable(&'a self) {
         // Set up the default control endpoint
         self.controller
-            .endpoint_set_buffer(0, &self.ctrl_buffer.buf);
+            .endpoint_set_ctrl_buffer(&self.ctrl_buffer.buf);
         self.controller
             .enable_as_device(hil::usb::DeviceSpeed::Full); // must be Full for Bulk transfers
-        self.controller.endpoint_ctrl_out_enable(0);
+        self.controller
+            .endpoint_out_enable(TransferType::Control, 0);
     }
 
-    pub fn attach(&self) {
+    pub fn attach(&'a self) {
         self.controller.attach();
     }
 
     /// Handle a Control Setup transaction
-    pub fn ctrl_setup(&self, endpoint: usize) -> hil::usb::CtrlSetupResult {
+    pub fn ctrl_setup(&'a self, endpoint: usize) -> hil::usb::CtrlSetupResult {
         if endpoint != 0 {
             // For now we only support the default Control endpoint
             return hil::usb::CtrlSetupResult::ErrInvalidDeviceIndex;
@@ -257,7 +259,7 @@ impl<C: hil::usb::UsbController> ClientCtrl<'a, 'b, C> {
     }
 
     fn handle_standard_device_request(
-        &self,
+        &'a self,
         endpoint: usize,
         request: StandardRequest,
     ) -> hil::usb::CtrlSetupResult {
@@ -379,7 +381,7 @@ impl<C: hil::usb::UsbController> ClientCtrl<'a, 'b, C> {
     }
 
     fn handle_standard_interface_request(
-        &self,
+        &'a self,
         endpoint: usize,
         request: StandardRequest,
     ) -> hil::usb::CtrlSetupResult {
@@ -421,7 +423,7 @@ impl<C: hil::usb::UsbController> ClientCtrl<'a, 'b, C> {
     }
 
     /// Handle a Control In transaction
-    pub fn ctrl_in(&self, endpoint: usize) -> hil::usb::CtrlInResult {
+    pub fn ctrl_in(&'a self, endpoint: usize) -> hil::usb::CtrlInResult {
         match self.state[endpoint].get() {
             State::CtrlIn(start, end) => {
                 let len = end.saturating_sub(start);
@@ -451,7 +453,7 @@ impl<C: hil::usb::UsbController> ClientCtrl<'a, 'b, C> {
     }
 
     /// Handle a Control Out transaction
-    pub fn ctrl_out(&self, endpoint: usize, _packet_bytes: u32) -> hil::usb::CtrlOutResult {
+    pub fn ctrl_out(&'a self, endpoint: usize, _packet_bytes: u32) -> hil::usb::CtrlOutResult {
         match self.state[endpoint].get() {
             State::CtrlOut => {
                 // Gamely accept the data
@@ -464,12 +466,12 @@ impl<C: hil::usb::UsbController> ClientCtrl<'a, 'b, C> {
         }
     }
 
-    pub fn ctrl_status(&self, _endpoint: usize) {
+    pub fn ctrl_status(&'a self, _endpoint: usize) {
         // Entered Status stage
     }
 
     /// Handle the completion of a Control transfer
-    pub fn ctrl_status_complete(&self, endpoint: usize) {
+    pub fn ctrl_status_complete(&'a self, endpoint: usize) {
         // Control Read: IN request acknowledged
         // Control Write: status sent
 

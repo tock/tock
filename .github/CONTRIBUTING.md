@@ -27,9 +27,9 @@ core kernel live here.
 
 If you are porting Tock to a different hardware platform or building an
 application for an existing platform, that code should go in a [separate
-repository][out-of-tree]. We still encourage you to join the [mailing
+repository](../doc/OutOfTree.md). We still encourage you to join the [mailing
 list][listserv] and [Slack][slack] and ask questions there. Of course, if
-building your application or port requires in changes in this code base, we
+building your application or port requires changes in this code base, we
 encourage you to contribute them here.
 
 ## Feature Requests
@@ -169,7 +169,7 @@ $ git rebase upstream/master
 $ git push origin my-branch
 ```
 
-Go to https://github.com/<yourusername>/tock and select your branch.
+Go to `https://github.com/<yourusername>/tock` and select your branch.
 Click the 'Pull Request' button and fill out the form.
 
 ### Step 6: Discuss and update

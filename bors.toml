@@ -2,6 +2,8 @@
 # pushed to master.
 status = [
   "continuous-integration/travis-ci/push",
+  "ci-format (ubuntu-latest)", "ci-build (ubuntu-latest)", "ci-tests (ubuntu-latest)", "emulation-check",
+  "ci-format (macos-latest)", "ci-build (macos-latest)", "ci-tests (macos-latest)"
 ]
 
 # List of PR labels that may not be attached to a PR when it is r+-ed.

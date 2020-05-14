@@ -18,6 +18,15 @@ This document gives an overview of Tock's architecture, the different
 classes of code in Tock, the protection mechanisms it uses, and how this
 structure is reflected in the software's directory structure.
 
+<!-- npm i -g markdown-toc; markdown-toc -i Overview.md -->
+
+<!-- toc -->
+
+- [Tock Architecture](#tock-architecture)
+- [Tock Directory Structure](#tock-directory-structure)
+
+<!-- tocstop -->
+
 ## Tock Architecture
 
 ![Tock architecture](tock-stack.png)
@@ -103,7 +112,7 @@ specifications for internal interfaces and tutorials.
 
 - **kernel**: contains microcontroller-independent kernel code,
 such as the scheduler, processes, and memory management. This directory
-and arch are were where all core kernel code reside.
+and arch are where all core kernel code reside.
 
 - **libraries**: contains libraries that we use internally and share
 externally. Several primitives have been created for Tock that we think could

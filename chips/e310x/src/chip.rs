@@ -1,14 +1,15 @@
 //! High-level setup and interrupt mapping for the chip.
 
+use core::fmt::Write;
 use kernel;
 use kernel::debug;
 use rv32i;
 use rv32i::csr;
-use rv32i::machine_timer;
-use rv32i::plic;
 
 use crate::gpio;
 use crate::interrupts;
+use crate::plic;
+use crate::timer;
 use crate::uart;
 
 pub struct E310x {
@@ -23,9 +24,9 @@ impl E310x {
     }
 
     pub unsafe fn enable_plic_interrupts(&self) {
-        rv32i::plic::disable_all();
-        rv32i::plic::clear_all_pending();
-        rv32i::plic::enable_all();
+        plic::disable_all();
+        plic::clear_all_pending();
+        plic::enable_all();
     }
 }
 
@@ -51,8 +52,9 @@ impl kernel::Chip for E310x {
             while let Some(interrupt) = plic::next_pending() {
                 match interrupt {
                     interrupts::UART0 => uart::UART0.handle_interrupt(),
-                    index @ interrupts::GPIO0..interrupts::GPIO31 => {
-                        gpio::PORT[index as usize].handle_interrupt()
+                    int_pin @ interrupts::GPIO0..=interrupts::GPIO31 => {
+                        let pin = &gpio::PORT[(int_pin - interrupts::GPIO0) as usize];
+                        pin.handle_interrupt();
                     }
                     _ => debug!("Pidx {}", interrupt),
                 }
@@ -80,13 +82,17 @@ impl kernel::Chip for E310x {
     {
         rv32i::support::atomic(f)
     }
+
+    unsafe fn print_state(&self, writer: &mut dyn Write) {
+        rv32i::print_riscv_state(writer);
+    }
 }
 
 pub unsafe fn handle_trap() {
     let cause = rv32i::csr::CSR.mcause.extract();
     // if most sig bit is set, is interrupt
     // strip off the msb
-    match rv32i::csr::mcause::McauseHelpers::cause(&cause) {
+    match rv32i::csr::mcause::Trap::from(cause) {
         rv32i::csr::mcause::Trap::Interrupt(interrupt) => {
             match interrupt {
                 rv32i::csr::mcause::Interrupt::MachineSoft => {
@@ -96,7 +102,7 @@ pub unsafe fn handle_trap() {
                 rv32i::csr::mcause::Interrupt::SupervisorSoft => (),
 
                 rv32i::csr::mcause::Interrupt::MachineTimer => {
-                    machine_timer::MACHINETIMER.handle_interrupt();
+                    timer::MACHINETIMER.handle_interrupt();
                 }
 
                 // should never occur
@@ -112,7 +118,7 @@ pub unsafe fn handle_trap() {
                         Some(ext_interrupt_id) => {
                             debug!("interrupt triggered {}\n", ext_interrupt_id);
                             plic::complete(ext_interrupt_id);
-                            plic::surpress_all();
+                            plic::suppress_all();
                         }
                     }
                 }
@@ -178,7 +184,7 @@ pub unsafe fn handle_trap() {
 pub fn disable_interrupt_cause() {
     let cause = rv32i::csr::CSR.mcause.extract();
 
-    match rv32i::csr::mcause::McauseHelpers::cause(&cause) {
+    match rv32i::csr::mcause::Trap::from(cause) {
         rv32i::csr::mcause::Trap::Interrupt(interrupt) => match interrupt {
             rv32i::csr::mcause::Interrupt::UserSoft => {
                 csr::CSR.mie.modify(csr::mie::mie::usoft::CLEAR);

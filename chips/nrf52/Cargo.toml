@@ -8,6 +8,7 @@ edition = "2018"
 cortexm4 = { path = "../../arch/cortex-m4" }
 kernel = { path = "../../kernel" }
 tock_rt0 = { path = "../../libraries/tock-rt0" }
+enum_primitive = { path = "../../libraries/enum_primitive" }
 
 [dependencies.nrf5x]
 path = "../nrf5x"

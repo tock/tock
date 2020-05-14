@@ -28,7 +28,6 @@ use kernel::ReturnCode;
 */
 
 pub trait IP6RecvClient {
-    // TODO: What should the upper layers receive?
     fn receive(&self, header: IP6Header, payload: &[u8]);
 }
 
@@ -69,7 +68,7 @@ impl<'a> SixlowpanRxClient for IP6RecvStruct<'a> {
             Some((offset, ip6_header)) => {
                 let checksum_result = ip6_header.check_transport_checksum(&buf[offset..len]);
                 if checksum_result == ReturnCode::FAIL {
-                    debug!("dropped!: {:?}", checksum_result);
+                    debug!("cksum fail!: {:?}", checksum_result);
                     return; //Dropped.
                 }
                 // Note: Protocols for which checksum verification is not implemented (TCP, etc.)
@@ -79,6 +78,7 @@ impl<'a> SixlowpanRxClient for IP6RecvStruct<'a> {
                     .map(|client| client.receive(ip6_header, &buf[offset..len]));
             }
             None => {
+                debug!("failed to decode ipv6 header");
                 // TODO: Report the error somewhere...
             }
         }

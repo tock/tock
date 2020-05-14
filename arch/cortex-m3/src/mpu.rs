@@ -1,7 +1,8 @@
 //! Implementation of the memory protection unit for the Cortex-M3 and
-//! Cortex-M4..
+//! Cortex-M4.
 
 use core::cmp;
+use core::fmt;
 use kernel;
 use kernel::common::math;
 use kernel::common::registers::{register_bitfields, FieldValue, ReadOnly, ReadWrite};
@@ -150,6 +151,60 @@ impl Default for CortexMConfig {
                 CortexMRegion::empty(7),
             ],
         }
+    }
+}
+
+impl fmt::Display for CortexMConfig {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "\r\n Cortex-M MPU")?;
+        for (i, region) in self.regions.iter().enumerate() {
+            if let Some(location) = region.location() {
+                let access_bits = region.attributes().read(RegionAttributes::AP);
+                let access_str = match access_bits {
+                    0b000 => "NoAccess",
+                    0b001 => "PrivilegedOnly",
+                    0b010 => "UnprivilegedReadOnly",
+                    0b011 => "ReadWrite",
+                    0b100 => "Reserved",
+                    0b101 => "PrivilegedOnlyReadOnly",
+                    0b110 => "ReadOnly",
+                    0b111 => "ReadOnlyAlias",
+                    _ => "ERR",
+                };
+                let start = location.0 as usize;
+                write!(
+                    f,
+                    "\
+                     \r\n  Region {}: [{:#010X}:{:#010X}], length: {} bytes; {} ({:#x})",
+                    i,
+                    start,
+                    start + location.1,
+                    location.1,
+                    access_str,
+                    access_bits,
+                )?;
+                let subregion_bits = region.attributes().read(RegionAttributes::SRD);
+                let subregion_size = location.1 / 8;
+                for j in 0..8 {
+                    write!(
+                        f,
+                        "\
+                         \r\n    Sub-region {}: [{:#010X}:{:#010X}], {}",
+                        j,
+                        start + j * subregion_size,
+                        start + (j + 1) * subregion_size,
+                        if (subregion_bits >> j) & 1 == 0 {
+                            "Enabled"
+                        } else {
+                            "Disabled"
+                        },
+                    )?;
+                }
+            } else {
+                write!(f, "\r\n  Region {}: Unused", i)?;
+            }
+        }
+        write!(f, "\r\n")
     }
 }
 

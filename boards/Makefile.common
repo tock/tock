@@ -3,7 +3,12 @@
 MAKEFLAGS += -r
 MAKEFLAGS += -R
 
+# The absolute path of the directory containing this `Makefile.common` file.
 MAKEFILE_COMMON_PATH := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
+
+# The absolute path of Tock's root directory.
+# This is currently the parent directory of MAKEFILE_COMMON_PATH.
+TOCK_ROOT_DIRECTORY := $(dir $(abspath $(MAKEFILE_COMMON_PATH)))
 
 # Common defaults that specific boards can override, but likely do not need to.
 TOOLCHAIN ?= llvm
@@ -14,15 +19,52 @@ RUSTUP    ?= rustup
 # lld uses the page size to align program sections. It defaults to 4096 and this
 # puts a gap between before the .relocate section. `zmax-page-size=512` tells
 # lld the actual page size so it doesn't have to be conservative.
-RUSTFLAGS_FOR_CARGO_LINKING ?= -C link-arg=-Tlayout.ld -C linker=rust-lld \
--C linker-flavor=ld.lld -C relocation-model=dynamic-no-pic \
--C link-arg=-zmax-page-size=512
+#
+# We use `remap-path-prefix` to remove user-specific filepath strings for error
+# reporting from appearing in the generated binary.
+RUSTFLAGS_FOR_CARGO ?= \
+  -C link-arg=-Tlayout.ld \
+  -C linker=rust-lld \
+  -C linker-flavor=ld.lld \
+  -C relocation-model=dynamic-no-pic \
+  -C link-arg=-zmax-page-size=512 \
+  -C link-arg=-icf=all \
+  --remap-path-prefix=$(TOCK_ROOT_DIRECTORY)= \
+
+# RISC-V-specific flags.
+ifneq ($(findstring riscv32i, $(TARGET)),)
+  # NOTE: This flag causes kernel panics on some ARM cores. Since the
+  # size benefit is almost exclusively for RISC-V, we only apply it for
+  # those targets.
+  RUSTFLAGS_FOR_CARGO += -C force-frame-pointers=no
+endif
 
 # Disallow warnings for continuous integration builds. Disallowing them here
 # ensures that warnings during testing won't prevent compilation from succeeding.
 ifeq ($(CI),true)
-  RUSTFLAGS_FOR_CARGO_LINKING += -D warnings
+  RUSTFLAGS_FOR_CARGO += -D warnings
 endif
+
+# The following flags should only be passed to the board's binary crate, but
+# not to any of its dependencies (the kernel, capsules, chips, etc.). The
+# dependencies wouldn't use it, but because the link path is different for each
+# board, Cargo wouldn't be able to cache builds of the dependencies.
+#
+# Indeed, as far as Cargo is concerned, building the kernel with
+# `-C link-arg=-L/tock/boards/imix` is different than building the kernel with
+# `-C link-arg=-L/tock/boards/hail`, so Cargo would have to rebuild the kernel
+# for each board instead of caching it per board (even if in reality the same
+# kernel is built because the link-arg isn't used by the kernel).
+#
+# Ultimately, this should move to the Cargo.toml, for example when
+# https://github.com/rust-lang/cargo/pull/7811 is merged into Cargo.
+#
+# The difference between `RUSTFLAGS_FOR_CARGO` and `RUSTFLAGS_FOR_BIN` is that
+# the former is forwarded to all the dependencies (being passed to cargo via
+# the `RUSTFLAGS` environment variable), whereas the latter is only applied to
+# the final binary crate (being passed as parameter to `cargo rustc`).
+RUSTFLAGS_FOR_BIN ?= \
+  -C link-arg=-L$(abspath .) \
 
 # http://stackoverflow.com/questions/10858261/abort-makefile-if-variable-not-set
 # Check that given variables are set and all have non-empty values, print an
@@ -52,7 +94,7 @@ export TOCK_KERNEL_VERSION := $(shell git describe --tags --always 2> /dev/null 
 # Validate that rustup is new enough.
 MINIMUM_RUSTUP_VERSION := 1.11.0
 RUSTUP_VERSION := $(strip $(word 2, $(shell $(RUSTUP) --version)))
-ifeq ($(shell $(MAKEFILE_COMMON_PATH)../tools/semver.sh $(RUSTUP_VERSION) \< $(MINIMUM_RUSTUP_VERSION)), true)
+ifeq ($(shell $(TOCK_ROOT_DIRECTORY)tools/semver.sh $(RUSTUP_VERSION) \< $(MINIMUM_RUSTUP_VERSION)), true)
   $(warning Required tool `$(RUSTUP)` is out-of-date.)
   $(warning Running `$(RUSTUP) update` in 3 seconds (ctrl-c to cancel))
   $(shell sleep 3s)
@@ -99,23 +141,26 @@ ifneq ($(V),)
   $(info *******************************************************)
   $(info TOCK KERNEL BUILD SYSTEM -- VERBOSE BUILD CONFIGURATION)
   $(info *******************************************************)
-  $(info PLATFORM            = $(PLATFORM))
-  $(info TARGET              = $(TARGET))
-  $(info TOCK_KERNEL_VERSION = $(TOCK_KERNEL_VERSION))
-  $(info RUSTFLAGS_FOR_CARGO = $(RUSTFLAGS_FOR_CARGO_LINKING))
-  $(info MAKEFLAGS           = $(MAKEFLAGS))
-  $(info OBJDUMP_FLAGS       = $(OBJDUMP_FLAGS))
+  $(info MAKEFILE_COMMON_PATH = $(MAKEFILE_COMMON_PATH))
+  $(info TOCK_ROOT_DIRECTORY  = $(TOCK_ROOT_DIRECTORY))
   $(info )
-  $(info TOOLCHAIN           = $(TOOLCHAIN))
-  $(info SIZE                = $(SIZE))
-  $(info OBJCOPY             = $(OBJCOPY))
-  $(info OBJDUMP             = $(OBJDUMP))
-  $(info CARGO               = $(CARGO))
-  $(info RUSTUP              = $(RUSTUP))
+  $(info PLATFORM             = $(PLATFORM))
+  $(info TARGET               = $(TARGET))
+  $(info TOCK_KERNEL_VERSION  = $(TOCK_KERNEL_VERSION))
+  $(info RUSTFLAGS_FOR_CARGO  = $(RUSTFLAGS_FOR_CARGO))
+  $(info MAKEFLAGS            = $(MAKEFLAGS))
+  $(info OBJDUMP_FLAGS        = $(OBJDUMP_FLAGS))
   $(info )
-  $(info cargo --version     = $(shell $(CARGO) --version))
-  $(info rustc --version     = $(shell rustc --version))
-  $(info rustup --version    = $(shell $(RUSTUP) --version))
+  $(info TOOLCHAIN            = $(TOOLCHAIN))
+  $(info SIZE                 = $(SIZE))
+  $(info OBJCOPY              = $(OBJCOPY))
+  $(info OBJDUMP              = $(OBJDUMP))
+  $(info CARGO                = $(CARGO))
+  $(info RUSTUP               = $(RUSTUP))
+  $(info )
+  $(info cargo --version      = $(shell $(CARGO) --version))
+  $(info rustc --version      = $(shell rustc --version))
+  $(info rustup --version     = $(shell $(RUSTUP) --version))
   $(info *******************************************************)
   $(info )
 endif
@@ -131,30 +176,27 @@ all: release
 # binary. This makes checking for Rust errors much faster.
 .PHONY: check
 check:
-	$(Q)RUSTFLAGS="$(RUSTFLAGS_FOR_CARGO_LINKING)" $(CARGO) check --target=$(TARGET) $(VERBOSE) --release
+	$(Q)RUSTFLAGS="$(RUSTFLAGS_FOR_CARGO)" $(CARGO) check $(VERBOSE) --target=$(TARGET) --package $(PLATFORM) --release
 
 .PHONY: clean
 clean::
 	$(Q)$(CARGO) clean $(VERBOSE)
 
 .PHONY: release
-release: target/$(TARGET)/release/$(PLATFORM).bin
+release: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).bin
 
 .PHONY: debug
-debug: target/$(TARGET)/debug/$(PLATFORM).bin
+debug: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/debug/$(PLATFORM).bin
 
 .PHONY: debug-lst
-debug-lst: target/$(TARGET)/debug/$(PLATFORM).lst
+debug-lst: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/debug/$(PLATFORM).lst
 
 .PHONY: doc
 doc: | target
-	$(Q)RUSTDOCFLAGS=--document-private-items $(CARGO) doc $(VERBOSE) --release --target=$(TARGET)
+	$(Q)RUSTDOCFLAGS='-Z unstable-options --document-hidden-items' $(CARGO) doc $(VERBOSE) --release --package $(PLATFORM)
 
 .PHONY: lst
-lst: target/$(TARGET)/release/$(PLATFORM).lst
-
-.PHONY: release
-release: target/$(TARGET)/release/$(PLATFORM).bin
+lst: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).lst
 
 # Helper rule for showing the TARGET used by this board. Useful when building
 # the documentation for all boards.
@@ -165,29 +207,34 @@ show-target:
 # Support rules
 
 target:
-	@mkdir -p target
+	@mkdir -p $(TOCK_ROOT_DIRECTORY)target
 
 # Cargo outputs an elf file (just without a file extension)
 %.elf: %
 	$(Q)cp $< $@
 
-%.bin: %.elf
-	$(Q)$(OBJCOPY) --output-target=binary $^ $@
+%.bin: %.elf $(TOCK_ROOT_DIRECTORY)tools/sha256sum/target/debug/sha256sum
+	$(Q)$(OBJCOPY) --output-target=binary $< $@
+	$(Q)$(TOCK_ROOT_DIRECTORY)tools/sha256sum/target/debug/sha256sum $@
 
 %.lst: %.elf
 	$(Q)$(OBJDUMP) $(OBJDUMP_FLAGS) $< > $@
+
+
+$(TOCK_ROOT_DIRECTORY)tools/sha256sum/target/debug/sha256sum:
+	$(Q)$(CARGO) build $(VERBOSE) --manifest-path $(TOCK_ROOT_DIRECTORY)tools/sha256sum/Cargo.toml
 
 
 # Cargo-drivers
 # We want to always invoke cargo (yay nested build systems), so these need to
 # be phony, which means they can't be pattern rules.
 
-.PHONY: target/$(TARGET)/release/$(PLATFORM)
-target/$(TARGET)/release/$(PLATFORM):
-	$(Q)RUSTFLAGS="$(RUSTFLAGS_FOR_CARGO_LINKING)" $(CARGO) build --target=$(TARGET) $(VERBOSE) --release
+.PHONY: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM)
+$(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM):
+	$(Q)RUSTFLAGS="$(RUSTFLAGS_FOR_CARGO)" $(CARGO) rustc $(VERBOSE) --target=$(TARGET) --package $(PLATFORM) --bin $(PLATFORM) --release -- $(RUSTFLAGS_FOR_BIN)
 	$(Q)$(SIZE) $@
 
-.PHONY: target/$(TARGET)/debug/$(PLATFORM)
-target/$(TARGET)/debug/$(PLATFORM):
-	$(Q)RUSTFLAGS="$(RUSTFLAGS_FOR_CARGO_LINKING)" $(CARGO) build $(VERBOSE) --target=$(TARGET)
+.PHONY: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/debug/$(PLATFORM)
+$(TOCK_ROOT_DIRECTORY)target/$(TARGET)/debug/$(PLATFORM):
+	$(Q)RUSTFLAGS="$(RUSTFLAGS_FOR_CARGO)" $(CARGO) rustc $(VERBOSE) --target=$(TARGET) --package $(PLATFORM) --bin $(PLATFORM) -- $(RUSTFLAGS_FOR_BIN)
 	$(Q)$(SIZE) $@

@@ -4,6 +4,7 @@ use core::cell::Cell;
 use core::convert::From;
 use core::fmt;
 use kernel::common::cells::VolatileCell;
+use kernel::hil::usb::TransferType;
 
 // On Nordic, USB buffers must be 32-bit aligned, with a power-of-2 size. For now we apply these
 // constraints on all platforms.
@@ -21,7 +22,7 @@ pub struct Buffer64 {
 impl Default for Buffer64 {
     fn default() -> Self {
         Self {
-            buf: [Default::default(); 64],
+            buf: [VolatileCell::default(); 64],
         }
     }
 }
@@ -490,14 +491,6 @@ impl EndpointAddress {
     pub const fn new_const(endpoint: usize, direction: TransferDirection) -> Self {
         EndpointAddress(endpoint as u8 & 0xf | (direction as u8) << 7)
     }
-}
-
-#[derive(Copy, Clone)]
-pub enum TransferType {
-    Control = 0,
-    Isochronous,
-    Bulk,
-    Interrupt,
 }
 
 pub struct EndpointDescriptor {

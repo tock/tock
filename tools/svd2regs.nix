@@ -49,7 +49,8 @@ let
 
   svd2regsPythonEnv = python37.withPackages (_: [ cmsis-svd
                                                   pydentifier
-                                                  python37.pkgs.six ]);
+                                                  python37.pkgs.six
+                                                  python37.pkgs.setuptools ]);
 in
 myEnvFun {
   name = "svd2regs";

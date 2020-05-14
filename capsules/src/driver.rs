@@ -22,6 +22,7 @@ pub enum NUM {
 
     // HW Buses
     Spi                   = 0x20001,
+    I2cMaster             = 0x20003,
     UsbUser               = 0x20005,
     I2cMasterSlave        = 0x20006,
 
@@ -33,7 +34,7 @@ pub enum NUM {
     // Cryptography
     Rng                   = 0x40001,
     Crc                   = 0x40002,
-    I2cMaster             = 0x40006,
+    Hmac                  = 0x40003,
 
     // Storage
     AppFlash              = 0x50000,
@@ -50,6 +51,8 @@ pub enum NUM {
     Tsl2561               = 0x70000,
     Tmp006                = 0x70001,
     Lps25hb               = 0x70004,
+    L3gd20                = 0x70005,
+    Lsm303dlch            = 0x70006,
 
     // Other ICs
     Ltc294x               = 0x80000,
@@ -57,6 +60,7 @@ pub enum NUM {
     Pca9544a              = 0x80002,
     GpioAsync             = 0x80003,
     Nrf51822Serialization = 0x80004,
+    Hd44780               = 0x80005,
 
     // Misc
     Buzzer                = 0x90000,

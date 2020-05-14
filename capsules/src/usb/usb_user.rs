@@ -28,7 +28,6 @@ use kernel::common::cells::OptionalCell;
 use kernel::hil;
 use kernel::{AppId, Callback, Driver, Grant, ReturnCode};
 
-/// Syscall number
 use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::UsbUser as usize;
 
@@ -38,7 +37,7 @@ pub struct App {
     awaiting: Option<Request>,
 }
 
-pub struct UsbSyscallDriver<'a, C: hil::usb::Client> {
+pub struct UsbSyscallDriver<'a, C: hil::usb::Client<'a>> {
     usbc_client: &'a C,
     apps: Grant<App>,
     serving_app: OptionalCell<AppId>,
@@ -46,7 +45,7 @@ pub struct UsbSyscallDriver<'a, C: hil::usb::Client> {
 
 impl<C> UsbSyscallDriver<'a, C>
 where
-    C: hil::usb::Client,
+    C: hil::usb::Client<'a>,
 {
     pub fn new(usbc_client: &'a C, apps: Grant<App>) -> Self {
         UsbSyscallDriver {
@@ -99,9 +98,9 @@ enum Request {
     EnableAndAttach,
 }
 
-impl<C> Driver for UsbSyscallDriver<'a, C>
+impl<'a, C> Driver for UsbSyscallDriver<'a, C>
 where
-    C: hil::usb::Client,
+    C: hil::usb::Client<'a>,
 {
     fn subscribe(
         &self,

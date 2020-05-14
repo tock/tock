@@ -53,7 +53,7 @@ impl Component for Fxos8700Component {
     type StaticInput = ();
     type Output = &'static fxos8700cq::Fxos8700cq<'static>;
 
-    unsafe fn finalize(&mut self, _s: Self::StaticInput) -> Self::Output {
+    unsafe fn finalize(self, _s: Self::StaticInput) -> Self::Output {
         let fxos8700_i2c = static_init!(I2CDevice, I2CDevice::new(self.i2c_mux, 0x1e));
         let fxos8700 = static_init!(
             fxos8700cq::Fxos8700cq<'static>,
@@ -89,9 +89,7 @@ impl Component for NineDofComponent {
     type StaticInput = ();
     type Output = &'static NineDof<'static>;
 
-    unsafe fn finalize(&mut self, _s: Self::StaticInput) -> Self::Output {
-        let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
-
+    unsafe fn finalize(self, _s: Self::StaticInput) -> Self::Output {
         let fxos8700_i2c = static_init!(I2CDevice, I2CDevice::new(self.i2c_mux, 0x1e));
         let fxos8700 = static_init!(
             fxos8700cq::Fxos8700cq<'static>,
@@ -100,11 +98,8 @@ impl Component for NineDofComponent {
         fxos8700_i2c.set_client(fxos8700);
         self.gpio.set_client(fxos8700);
 
-        let ninedof = static_init!(
-            NineDof<'static>,
-            NineDof::new(fxos8700, self.board_kernel.create_grant(&grant_cap))
-        );
-        hil::sensors::NineDof::set_client(fxos8700, ninedof);
+        let ninedof = components::ninedof::NineDofComponent::new(self.board_kernel)
+            .finalize(components::ninedof_component_helper!(fxos8700));
 
         ninedof
     }

@@ -4,6 +4,28 @@ Tock Getting Started Guide
 This covers how to install the toolchain on your platform to start using and
 developing Tock.
 
+<!-- npm i -g markdown-toc; markdown-toc -i Getting_Started.md -->
+
+<!-- toc -->
+
+- [Requirements](#requirements)
+  * [Super Quick Setup](#super-quick-setup)
+  * [Installing Requirements](#installing-requirements)
+    + [Rust (nightly)](#rust-nightly)
+    + [Tockloader](#tockloader)
+- [Compiling the Kernel](#compiling-the-kernel)
+- [Loading the kernel onto a board](#loading-the-kernel-onto-a-board)
+  * [Installing `JLinkExe`](#installing-jlinkexe)
+  * [Installing `openocd`](#installing-openocd)
+  * [(Linux): Adding a `udev` rule](#linux-adding-a-udev-rule)
+- [Installing your first application](#installing-your-first-application)
+- [Compiling applications](#compiling-applications)
+- [Developing TockOS](#developing-tockos)
+  * [Formatting Rust source code](#formatting-rust-source-code)
+  * [Keeping build tools up to date](#keeping-build-tools-up-to-date)
+
+<!-- tocstop -->
+
 ## Requirements
 
 1. [Rust](http://www.rust-lang.org/)
@@ -15,6 +37,9 @@ developing Tock.
    the [`boards/` subdirectory](../boards/README.md) and choose one of
    the options with `tockloader` support to load applications, as that
    is the configuration that most examples and tutorials assume.
+
+   * Info about testing Tock on QEMU
+     * 01/08/2020 : Among the boards supported by Tock, [SiFive HiFive1 RISC-V Board](../boards/hifive1/#running-in-qemu) can be tested in QEMU.
 
 ### Super Quick Setup
 
@@ -45,7 +70,7 @@ of installing some of these tools, but you can also install them yourself.
 
 #### Rust (nightly)
 
-We are using `nightly-2019-10-17`. We require
+We are using `nightly-2020-03-06`. We require
 installing it with [rustup](http://www.rustup.rs) so you can manage multiple
 versions of Rust and continue using stable versions for other Rust code:
 
@@ -60,7 +85,7 @@ to your `$PATH`.
 Then install the correct nightly version of Rust:
 
 ```bash
-$ rustup install nightly-2019-10-17
+$ rustup install nightly-2020-03-06
 ```
 
 #### Tockloader
@@ -119,7 +144,7 @@ and can then install the kernel by running
 
     $ make flash
 
-Depending on the apapter, you will need either the free `openocd` or
+Depending on the adapter, you will need either the free `openocd` or
 Segger's proprietary `JLinkExe`. Programming adapters are available as
 standalone devices (for example the [JLink EDU JTAG
 debugger](https://www.segger.com/j-link-edu.html) available on

@@ -1,6 +1,6 @@
 use core::ops::FnOnce;
 
-#[cfg(target_os = "none")]
+#[cfg(all(target_arch = "arm", target_os = "none"))]
 #[inline(always)]
 /// NOP instruction
 pub fn nop() {
@@ -9,30 +9,14 @@ pub fn nop() {
     }
 }
 
-#[cfg(not(target_os = "none"))]
-/// NOP instruction (mock)
-pub fn nop() {}
-
-#[cfg(target_os = "none")]
+#[cfg(all(target_arch = "arm", target_os = "none"))]
 #[inline(always)]
 /// WFI instruction
 pub unsafe fn wfi() {
     asm!("wfi" :::: "volatile");
 }
 
-#[cfg(not(target_os = "none"))]
-/// WFI instruction (mock)
-pub unsafe fn wfi() {}
-
-#[cfg(not(target_os = "none"))]
-pub unsafe fn atomic<F, R>(f: F) -> R
-where
-    F: FnOnce() -> R,
-{
-    f()
-}
-
-#[cfg(target_os = "none")]
+#[cfg(all(target_arch = "arm", target_os = "none"))]
 pub unsafe fn atomic<F, R>(f: F) -> R
 where
     F: FnOnce() -> R,
@@ -47,6 +31,27 @@ where
     return res;
 }
 
-#[cfg(target_os = "none")]
+#[cfg(all(target_arch = "arm", target_os = "none"))]
 #[lang = "eh_personality"]
 pub extern "C" fn eh_personality() {}
+
+// Mock implementations for tests on Travis-CI.
+#[cfg(not(any(target_arch = "arm", target_os = "none")))]
+/// NOP instruction (mock)
+pub fn nop() {
+    unimplemented!()
+}
+
+#[cfg(not(any(target_arch = "arm", target_os = "none")))]
+/// WFI instruction (mock)
+pub unsafe fn wfi() {
+    unimplemented!()
+}
+
+#[cfg(not(any(target_arch = "arm", target_os = "none")))]
+pub unsafe fn atomic<F, R>(_f: F) -> R
+where
+    F: FnOnce() -> R,
+{
+    unimplemented!()
+}

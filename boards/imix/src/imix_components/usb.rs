@@ -40,7 +40,7 @@ impl Component for UsbComponent {
     type StaticInput = ();
     type Output = &'static UsbDevice;
 
-    unsafe fn finalize(&mut self, _s: Self::StaticInput) -> Self::Output {
+    unsafe fn finalize(self, _s: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
         // Configure the USB controller

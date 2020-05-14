@@ -21,9 +21,11 @@ set -e
 
 # Clippy doesn't have an option for this, so do it manually (see
 # https://github.com/rust-lang/rust-clippy/issues/1228).
+
 # Find folders with Cargo.toml files in them and check them (avoids matching
-# this script!)
-for f in $(find . | grep Cargo.toml); do
+# this script!). Use a minimum depth of 2 to avoid matching the workspace's
+# Cargo.toml (located in the top-level directory).
+for f in $(find . -mindepth 2 | grep Cargo.toml); do
 	pushd $(dirname $f) > /dev/null
 	if $(git grep -q 'use .*\*;' -- ':!src/macros.rs'); then
 		echo

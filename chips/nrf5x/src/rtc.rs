@@ -41,13 +41,13 @@ struct RtcRegisters {
     evtenclr: ReadWrite<u32, Inte::Register>,
     _reserved4: [u8; 440],
     /// Current COUNTER value.
-    counter: ReadOnly<u32>,
+    counter: ReadOnly<u32, Counter::Register>,
     /// 12-bit prescaler for COUNTER frequency (32768/(PRESCALER+1)).
     /// Must be written when RTC is stopped.
     prescaler: ReadWrite<u32, Prescaler::Register>,
     _reserved5: [u8; 52],
     /// Capture/compare registers.
-    cc: [ReadWrite<u32, CC::Register>; 4],
+    cc: [ReadWrite<u32, Counter::Register>; 4],
     _reserved6: [u8; 2732],
     /// Peripheral power control.
     power: ReadWrite<u32>,
@@ -77,8 +77,8 @@ register_bitfields![u32,
     Event [
         READY 0
     ],
-    CC [
-        CC OFFSET(0) NUMBITS(24)
+    Counter [
+        VALUE OFFSET(0) NUMBITS(24)
     ]
 ];
 
@@ -114,7 +114,7 @@ impl Rtc<'a> {
     }
 
     pub fn stop(&self) {
-        self.registers.cc[0].write(CC::CC.val(0));
+        self.registers.cc[0].write(Counter::VALUE.val(0));
         self.registers.tasks_stop.write(Task::ENABLE::SET);
     }
 
@@ -135,11 +135,11 @@ impl Time for Rtc<'a> {
     type Frequency = Freq32KHz;
 
     fn now(&self) -> u32 {
-        self.registers.counter.get()
+        self.registers.counter.read(Counter::VALUE)
     }
 
     fn max_tics(&self) -> u32 {
-        core::u32::MAX
+        (1 << 24) - 1
     }
 }
 
@@ -152,12 +152,12 @@ impl Alarm<'a> for Rtc<'a> {
         // Similarly to the disable function, here we don't restart the timer
         // Instead, we just listen for it again
         self.registers.intenset.write(Inte::COMPARE0::SET);
-        self.registers.cc[0].write(CC::CC.val(tics));
+        self.registers.cc[0].write(Counter::VALUE.val(tics));
         self.registers.events_compare[0].write(Event::READY::CLEAR);
     }
 
     fn get_alarm(&self) -> u32 {
-        self.registers.cc[0].read(CC::CC)
+        self.registers.cc[0].read(Counter::VALUE)
     }
 
     fn disable(&self) {

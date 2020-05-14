@@ -10,13 +10,14 @@
 pub mod registers {
     pub use tock_registers::registers::InMemoryRegister;
     pub use tock_registers::registers::RegisterLongName;
+    pub use tock_registers::registers::{Aliased, ReadOnly, ReadWrite, WriteOnly};
     pub use tock_registers::registers::{Field, FieldValue, LocalRegisterCopy};
-    pub use tock_registers::registers::{ReadOnly, ReadWrite, WriteOnly};
     pub use tock_registers::{register_bitfields, register_structs};
 }
 
 pub mod deferred_call;
 pub mod dynamic_deferred_call;
+pub mod leasable_buffer;
 pub mod list;
 pub mod math;
 pub mod peripherals;

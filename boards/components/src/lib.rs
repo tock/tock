@@ -1,24 +1,29 @@
 #![no_std]
-#![feature(in_band_lifetimes)]
+
+#[macro_use]
+pub mod gpio;
+#[macro_use]
+pub mod led;
+#[macro_use]
+pub mod button;
 
 pub mod alarm;
 pub mod console;
 pub mod crc;
+pub mod debug_queue;
 pub mod debug_writer;
+pub mod hd44780;
+pub mod hmac;
+pub mod i2c;
 pub mod isl29035;
+pub mod l3gd20;
+pub mod lldb;
+pub mod lsm303dlhc;
+pub mod ninedof;
 pub mod nrf51822;
+pub mod panic_button;
 pub mod process_console;
 pub mod rng;
+pub mod segger_rtt;
+pub mod si7021;
 pub mod spi;
-
-/// Same as `static_init!()` but without actually creating the static buffer.
-/// The static buffer must be passed in.
-#[macro_export]
-macro_rules! static_init_half {
-    ($B:expr, $T:ty, $e:expr) => {{
-        use core::{mem, ptr};
-        let tmp: &'static mut $T = mem::transmute($B);
-        ptr::write(tmp as *mut $T, $e);
-        tmp
-    };};
-}

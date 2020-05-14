@@ -2,8 +2,22 @@
 
 ## Abstract
 
-This document describes how the Tock core team merges pull requests for and
-makes releases of the main Tock repository.
+This document describes how the Tock [core working group](../wg/core.md) merges
+pull requests for and makes releases of the main Tock repository.
+
+<!-- npm i -g markdown-toc; markdown-toc -i Abstract.md -->
+
+<!-- toc -->
+
+- [1. Introduction](#1-introduction)
+- [2. Pull Requests](#2-pull-requests)
+- [3. Reviews](#3-reviews)
+- [4. Release Process](#4-release-process)
+- [Other Tock Repositories](#other-tock-repositories)
+  * [Userland Repositories](#userland-repositories)
+  * [Tertiary Repositories](#tertiary-repositories)
+
+<!-- tocstop -->
 
 ## 1. Introduction
 
@@ -25,7 +39,8 @@ team. Pull requests fall into two categories:
    Examples of upkeep requests involve bug fixes, documentation (that isn't
    specification), or minor reimplementations of existing modules.
 1. **Significant pull requests** involve new modules, significant
-   re-implementations, new traits, or changes to the build system.
+   re-implementations, new traits, new kernel components, or changes to the
+   build system.
 
 Whether a pull request is upkeep or significant is based not only on the
 magnitude of the change but also what sort of code is changed. For example,
@@ -76,27 +91,81 @@ Comment" vote and a "Request Changes" is considered a "Discuss". If, after
 discussion, non-trivial changes are necessary for the pull request, the review
 window is re-started after the changes are made.
 
-The members of the core team are:
- * Niklas Adolfsson - [niklasad1](https://github.com/niklasad1)
- * Hudson Ayers - [hudson-ayers](https://github.com/hudson-ayers)
- * Brad Campbell - [bradjc](https://github.com/bradjc)
- * Branden Ghena - [brghena](https://github.com/brghena)
- * Philip Levis - [phil-levis](https://github.com/phil-levis)
- * Amit Levy - [alevy](https://github.com/alevy)
- * Pat Pannuto - [ppannuto](https://github.com/ppannuto)
+## 4. Release Process
 
-## 4. Release process
+Tock releases are milestone-based, with a rough expectation that a new release
+of Tock would occur every 3-12 months. Before a release, a set of issues are
+tagged with the `release-blocker` tag, and the release will be tested when all
+of the release-blocker issues are closed. One week before the intended release
+date, all new pull requests are put on hold, and everyone uses/tests the
+software using the established testing process. Bug fixes for the release are
+marked as such (in the title) and applied quickly. Once the release is ready,
+the core team makes a branch with the release number and pull request reviews
+restart.
 
-Having periodic stable releases makes it easier for users to install
-and track changes to Tock. Our intention is to release approximately
-every two months, at the beginning of even months. One week before
-the intended release date, all new pull requests are put on hold, and
-everyone uses/tests the software using the established testing process.
-Bug fixes for the release are marked as such (in the title) and applied
-quickly. Once the release is ready, the core team makes a branch with
-the release number and pull request reviews restart.
-
-Release branches are named 'release-n-mon-year'.
-For example, 'release-0.1-Feb-2018'.
+Release branches are named `release-[version]`. For example, 'release-1.4.1'.
 
 Patches may be made against release branches to fix bugs.
+
+Note: Previously, Tock operated with a time-based release policy with the goal
+of creating a release every two months. The intent was these periodic stable
+releases would make it easier for users to install and track changes to Tock.
+However, the overhead of keeping to that schedule was too daunting to make the
+releases reliably timed, and it often did not fit well with the inclusion of
+major features which might be in-flight at a release point.
+
+## Other Tock Repositories
+
+This document covers the procedure of the core Tock repository
+([tock/tock](https://github.com/tock/tock)). However, there are several other
+repositories that are part of the greater Tock project.
+
+### Userland Repositories
+
+Tock has two userland environments that are heavily developed and supported:
+
+ - [tock/libtock-c](https://github.com/tock/libtock-c) The C/C++ runtime was
+   the first runtime developed. It is fairly stable at this point and sees
+   primarily maintenance support as needed. Its development process follows
+   the main tock repository, with the same core team.
+ - [tock/libtock-rs](https://github.com/tock/libtock-rs) The Rust runtime is an
+   active work-in-progress. While basic application scenarios work, there are
+   still major architectural changes coming as it converges. Thus, the Rust
+   runtime follows a slightly less formal model to allow it to move faster.
+   Primary owners of the Rust runtime are:
+    - @alevy
+    - @Woyten
+    - @torfmaster
+    - @jrvanwhy
+   
+   However the Tock core working group reserves the right to make final
+   authoritative decisions if need merits.
+
+### Tertiary Repositories
+
+Tock has several additional smaller support repositories. These generally do
+not have any formal contribution guidelines beyond pull requests and approval
+from the primary maintainer(s). Any member of the core working group can merge
+PRs in these repositories, however, generally things are deferred to the owner
+of the component.
+
+ - [tock/book](https://github.com/tock/book) Getting start guide and tutorials
+   for Tock.
+   Primarily maintained by @alevy and @bradjc (Dec 2019).
+ - [tock/elf2tab](https://github.com/tock/elf2tab) Tool to convert apps from
+   `.elf` to Tock Application Bundles aka `.tab`s.
+   Primarily maintained by @bradjc (Dec 2019).
+ - [tock/tockloader](https://github.com/tock/tockloader) Tool for loading Tock
+   kernel and applications onto hardware boards.
+   Primarily maintained by @bradjc (Dec 2019).
+ - [tock/tock-archive](https://github.com/tock/tock-archive) Components of Tock
+   (often hardware platforms) no longer under active development.
+   Maintained by the core working group (Dec 2019).
+ - [tock/tock-bootloader](https://github.com/tock/tock-bootloader) Utility for
+   flashing apps via USB; works with tockloader.
+   Primarily maintained by @bradjc (Dec 2019).
+ - [tock/tock-www](https://github.com/tock/tock-www) The tockos.org website.
+   Primarily maintained by @alevy and @ppannuto (Dec 2019).
+
+Other repositories under [tock/](https://github.com/tock) are either
+experimental or archived.

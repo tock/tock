@@ -1,14 +1,19 @@
 //! Support for creating and running userspace applications.
 
 use core::cell::Cell;
+use core::convert::TryInto;
+use core::fmt;
 use core::fmt::Write;
-use core::ptr::write_volatile;
+use core::ptr::{write_volatile, NonNull};
 use core::{mem, ptr, slice, str};
 
 use crate::callback::{AppId, CallbackId};
 use crate::capabilities::ProcessManagementCapability;
-use crate::common::cells::MapCell;
+use crate::common::cells::{MapCell, NumericCellExt};
 use crate::common::{Queue, RingBuffer};
+use crate::config;
+use crate::debug;
+use crate::ipc;
 use crate::mem::{AppSlice, Shared};
 use crate::platform::mpu::{self, MPU};
 use crate::platform::Chip;
@@ -17,6 +22,64 @@ use crate::sched::Kernel;
 use crate::syscall::{self, Syscall, UserspaceKernelBoundary};
 use crate::tbfheader;
 use core::cmp::max;
+
+/// Errors that can occur when trying to load and create processes.
+pub enum ProcessLoadError {
+    /// The TBF header for the app could not be successfully parsed.
+    TbfHeaderParseFailure(tbfheader::TbfParseError),
+
+    /// Not enough flash remaining to parse an app and its header.
+    NotEnoughFlash,
+
+    /// Not enough memory to meet the amount requested by an app.
+    /// Modify your app to request less memory or flash fewer apps or
+    /// increase the size of the region your board reserves for app memory.
+    NotEnoughMemory,
+
+    /// An app was loaded with a length in flash that the MPU does not support.
+    /// The fix is probably to correct the app size, but this could also be caused
+    /// by a bad MPU implementation.
+    MpuInvalidFlashLength,
+
+    /// Process loading error due (likely) to a bug in the kernel. If you get
+    /// this error please open a bug report.
+    InternalError,
+}
+
+impl From<tbfheader::TbfParseError> for ProcessLoadError {
+    /// Convert between a TBF Header parse error and a process load error.
+    ///
+    /// We note that the process load error is because a TBF header failed to
+    /// parse, and just pass through the parse error.
+    fn from(error: tbfheader::TbfParseError) -> Self {
+        ProcessLoadError::TbfHeaderParseFailure(error)
+    }
+}
+
+impl fmt::Debug for ProcessLoadError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            ProcessLoadError::TbfHeaderParseFailure(tbf_parse_error) => {
+                write!(f, "Error parsing TBF header\n")?;
+                write!(f, "{:?}", tbf_parse_error)
+            }
+
+            ProcessLoadError::NotEnoughFlash => {
+                write!(f, "Not enough flash available for app linked list")
+            }
+
+            ProcessLoadError::NotEnoughMemory => {
+                write!(f, "Not able to meet memory requirements requested by apps")
+            }
+
+            ProcessLoadError::MpuInvalidFlashLength => {
+                write!(f, "App flash length not supported by MPU")
+            }
+
+            ProcessLoadError::InternalError => write!(f, "Error in kernel. Likely a bug."),
+        }
+    }
+}
 
 /// Helper function to load processes from flash into an array of active
 /// processes. This is the default template for loading processes, but a board
@@ -31,44 +94,107 @@ use core::cmp::max;
 pub fn load_processes<C: Chip>(
     kernel: &'static Kernel,
     chip: &'static C,
-    start_of_flash: *const u8,
+    app_flash: &'static [u8],
     app_memory: &mut [u8],
     procs: &'static mut [Option<&'static dyn ProcessType>],
     fault_response: FaultResponse,
     _capability: &dyn ProcessManagementCapability,
-) {
-    let mut apps_in_flash_ptr = start_of_flash;
+) -> Result<(), ProcessLoadError> {
+    let mut remaining_flash = app_flash;
     let mut app_memory_ptr = app_memory.as_mut_ptr();
     let mut app_memory_size = app_memory.len();
+
+    if config::CONFIG.debug_load_processes {
+        debug!(
+            "Loading processes from flash={:#010X} into sram=[{:#010X}:{:#010X}]",
+            app_flash.as_ptr() as usize,
+            app_memory_ptr as usize,
+            app_memory_ptr as usize + app_memory_size
+        );
+    }
+
     for i in 0..procs.len() {
         unsafe {
-            let (process, flash_offset, memory_offset) = Process::create(
+            // Get the first eight bytes of flash to check if there is another
+            // app.
+            let test_header_slice = match remaining_flash.get(0..8) {
+                Some(s) => s,
+                None => {
+                    // Not enough flash to test for another app. This just means
+                    // we are at the end of flash, and there are no more apps to
+                    // load.
+                    return Ok(());
+                }
+            };
+
+            // Pass the first eight bytes to tbfheader to parse out the length
+            // of the tbf header and app. We then use those values to see if we
+            // have enough flash remaining to parse the remainder of the header.
+            let (version, header_length, app_length) = match tbfheader::parse_tbf_header_lengths(
+                test_header_slice
+                    .try_into()
+                    .or(Err(ProcessLoadError::InternalError))?,
+            ) {
+                Ok((v, hl, al)) => (v, hl, al),
+                Err(_tbferr) => {
+                    // Since Tock apps use a linked list, it is very possible
+                    // the header we started to parse is intentionally invalid
+                    // to signal the end of apps. This is ok and just means we
+                    // have finished loading apps.
+                    return Ok(());
+                }
+            };
+
+            // Now we can get a slice which only encompasses the app. At this
+            // point, since the version number in the beginning of the header is
+            // valid, we consider further parsing errors to be actual errors and
+            // report them to the caller.
+            let app_flash = remaining_flash
+                .get(0..app_length as usize)
+                .ok_or(ProcessLoadError::NotEnoughFlash)?;
+
+            // Try to create a process object from that app slice.
+            let (process, memory_offset) = Process::create(
                 kernel,
                 chip,
-                apps_in_flash_ptr,
+                app_flash,
+                header_length as usize,
+                version,
                 app_memory_ptr,
                 app_memory_size,
                 fault_response,
                 i,
-            );
+            )?;
 
-            if process.is_none() {
-                // We did not get a valid process, but we may have gotten a disabled
-                // process or padding. Therefore we want to skip this chunk of flash
-                // and see if there is a valid app there. However, if we cannot
-                // advance the flash pointer, then we are done.
-                if flash_offset == 0 && memory_offset == 0 {
-                    break;
+            // Check to see if actually got a valid process to execute. If we
+            // didn't and we didn't get a loading error (aka we got to this
+            // point), then the app is a disabled process or just padding.
+            if process.is_some() {
+                if config::CONFIG.debug_load_processes {
+                    debug!(
+                        "Loaded process[{}] from flash=[{:#010X}:{:#010X}] into sram=[{:#010X}:{:#010X}] = {:?}",
+                        i,
+                        app_flash.as_ptr() as usize,
+                        app_flash.as_ptr() as usize + app_flash.len(),
+                        app_memory_ptr as usize,
+                        app_memory_ptr as usize + memory_offset,
+                        process.map(|p| p.get_process_name())
+                    );
                 }
-            } else {
                 procs[i] = process;
             }
 
-            apps_in_flash_ptr = apps_in_flash_ptr.add(flash_offset);
+            // Advance in our buffers before seeing if there is an additional
+            // process to load.
+            remaining_flash = remaining_flash
+                .get(app_flash.len()..)
+                .ok_or(ProcessLoadError::NotEnoughFlash)?;
             app_memory_ptr = app_memory_ptr.add(memory_offset);
             app_memory_size -= memory_offset;
         }
     }
+
+    Ok(())
 }
 
 /// This trait is implemented by process structs.
@@ -83,6 +209,9 @@ pub trait ProcessType {
     /// This function returns `true` if the `Task` was successfully enqueued,
     /// and `false` otherwise. This is represented as a simple `bool` because
     /// this is passed to the capsule that tried to schedule the `Task`.
+    ///
+    /// This will fail if the process is no longer active, and therefore cannot
+    /// execute any new tasks.
     fn enqueue_task(&self, task: Task) -> bool;
 
     /// Remove the scheduled operation from the front of the queue and return it
@@ -101,17 +230,29 @@ pub trait ProcessType {
     fn get_state(&self) -> State;
 
     /// Move this process from the running state to the yielded state.
+    ///
+    /// This will fail (i.e. not do anything) if the process was not previously
+    /// running.
     fn set_yielded_state(&self);
 
-    /// Move this process from running or yielded state into the stopped state
+    /// Move this process from running or yielded state into the stopped state.
+    ///
+    /// This will fail (i.e. not do anything) if the process was not either
+    /// running or yielded.
     fn stop(&self);
 
-    /// Move this stopped process back into its original state
+    /// Move this stopped process back into its original state.
+    ///
+    /// This transitions a process from `StoppedRunning` -> `Running` or
+    /// `StoppedYielded` -> `Yielded`.
     fn resume(&self);
 
     /// Put this process in the fault state. This will trigger the
     /// `FaultResponse` for this process to occur.
     fn set_fault_state(&self);
+
+    /// Returns how many times this process has been restarted.
+    fn get_restart_count(&self) -> usize;
 
     /// Get the name of the process. Used for IPC.
     fn get_process_name(&self) -> &'static str;
@@ -120,10 +261,18 @@ pub trait ProcessType {
 
     /// Change the location of the program break and reallocate the MPU region
     /// covering program memory.
+    ///
+    /// This will fail with an error if the process is no longer active. An
+    /// inactive process will not run again without being reset, and changing
+    /// the memory pointers is not valid at this point.
     fn brk(&self, new_break: *const u8) -> Result<*const u8, Error>;
 
     /// Change the location of the program break, reallocate the MPU region
     /// covering program memory, and return the previous break address.
+    ///
+    /// This will fail with an error if the process is no longer active. An
+    /// inactive process will not run again without being reset, and changing
+    /// the memory pointers is not valid at this point.
     fn sbrk(&self, increment: isize) -> Result<*const u8, Error>;
 
     /// The start address of allocated RAM for this process.
@@ -163,11 +312,20 @@ pub trait ProcessType {
 
     /// Creates an `AppSlice` from the given offset and size in process memory.
     ///
+    /// If `buf_start_addr` is NULL this will have no effect and the return
+    /// value will be `None` to signal the capsule to drop the buffer.
+    ///
+    /// If the process is not active then this will return an error as it is not
+    /// valid to "allow" a buffer for a process that will not resume executing.
+    /// In practice this case should not happen as the process will not be
+    /// executing to call the allow syscall.
+    ///
     /// ## Returns
     ///
-    /// If the buffer is null (a zero-valued offset), return None, signaling the capsule to delete
-    /// the entry.  If the buffer is within the process's accessible memory, returns an AppSlice
-    /// wrapping that buffer. Otherwise, returns an error `ReturnCode`.
+    /// If the buffer is null (a zero-valued offset) this returns `None`,
+    /// signaling the capsule to delete the entry. If the buffer is within the
+    /// process's accessible memory, returns an `AppSlice` wrapping that buffer.
+    /// Otherwise, returns an error `ReturnCode`.
     fn allow(
         &self,
         buf_start_addr: *const u8,
@@ -183,10 +341,17 @@ pub trait ProcessType {
     // mpu
 
     /// Configure the MPU to use the process's allocated regions.
+    ///
+    /// It is not valid to call this function when the process is inactive (i.e.
+    /// the process will not run again).
     fn setup_mpu(&self);
 
-    /// Allocate a new MPU region for the process that is at least `min_region_size`
-    /// bytes and lies within the specified stretch of unallocated memory.
+    /// Allocate a new MPU region for the process that is at least
+    /// `min_region_size` bytes and lies within the specified stretch of
+    /// unallocated memory.
+    ///
+    /// It is not valid to call this function when the process is inactive (i.e.
+    /// the process will not run again).
     fn add_mpu_region(
         &self,
         unallocated_memory_start: *const u8,
@@ -198,27 +363,56 @@ pub trait ProcessType {
 
     /// Create new memory in the grant region, and check that the MPU region
     /// covering program memory does not extend past the kernel memory break.
-    unsafe fn alloc(&self, size: usize, align: usize) -> Option<&mut [u8]>;
+    ///
+    /// This will return `None` and fail if the process is inactive.
+    fn alloc(&self, size: usize, align: usize) -> Option<NonNull<u8>>;
 
     unsafe fn free(&self, _: *mut u8);
 
-    /// Get a pointer to the grant pointer for this grant number.
-    unsafe fn grant_ptr(&self, grant_num: usize) -> *mut *mut u8;
+    /// Get the grant pointer for this grant number.
+    ///
+    /// This will return `None` if the process is inactive and the grant region
+    /// cannot be used.
+    ///
+    /// Caution: The grant may not have been allocated yet, so it is possible
+    /// for this grant pointer to be null.
+    fn get_grant_ptr(&self, grant_num: usize) -> Option<*mut u8>;
+
+    /// Set the grant pointer for this grant number.
+    ///
+    /// Note: This method trusts arguments completely, that is, it assumes the
+    /// index into the grant array is valid and the pointer is to an allocated
+    /// grant region in the process memory.
+    unsafe fn set_grant_ptr(&self, grant_num: usize, grant_ptr: *mut u8);
 
     // functions for processes that are architecture specific
 
     /// Set the return value the process should see when it begins executing
     /// again after the syscall.
+    ///
+    /// It is not valid to call this function when the process is inactive (i.e.
+    /// the process will not run again).
     unsafe fn set_syscall_return_value(&self, return_value: isize);
 
     /// Set the function that is to be executed when the process is resumed.
+    ///
+    /// It is not valid to call this function when the process is inactive (i.e.
+    /// the process will not run again).
     unsafe fn set_process_function(&self, callback: FunctionCall);
 
     /// Context switch to a specific process.
+    ///
+    /// This will return `None` if the process is inactive and cannot be
+    /// switched to.
     unsafe fn switch_to(&self) -> Option<syscall::ContextSwitchReason>;
 
-    unsafe fn fault_fmt(&self, writer: &mut dyn Write);
-    unsafe fn process_detail_fmt(&self, writer: &mut dyn Write);
+    /// Print out the memory map (Grant region, heap, stack, program
+    /// memory, BSS, and data sections) of this process.
+    unsafe fn print_memory_map(&self, writer: &mut dyn Write);
+
+    /// Print out the full state of the process: its memory map, its
+    /// context, and the state of the memory protection unit (MPU).
+    unsafe fn print_full_process(&self, writer: &mut dyn Write);
 
     // debug
 
@@ -228,13 +422,84 @@ pub trait ProcessType {
     /// Returns how many callbacks for this process have been dropped.
     fn debug_dropped_callback_count(&self) -> usize;
 
-    /// Returns how many times this process has been restarted.
-    fn debug_restart_count(&self) -> usize;
-
     /// Returns how many times this process has exceeded its timeslice.
     fn debug_timeslice_expiration_count(&self) -> usize;
 
+    /// Increment the number of times the process has exceeded its timeslice.
     fn debug_timeslice_expired(&self);
+
+    /// Increment the number of times the process called a syscall and record
+    /// the last syscall that was called.
+    fn debug_syscall_called(&self, last_syscall: Syscall);
+}
+
+/// Generic trait for implementing process restart policies.
+///
+/// This policy allows a board to specify how the kernel should decide whether
+/// to restart an app after it crashes.
+pub trait ProcessRestartPolicy {
+    /// Decide whether to restart the `process` or not.
+    ///
+    /// Returns `true` if the process should be restarted, `false` otherwise.
+    fn should_restart(&self, process: &dyn ProcessType) -> bool;
+}
+
+/// Implementation of `ProcessRestartPolicy` that uses a threshold to decide
+/// whether to restart an app. If the app has been restarted more times than the
+/// threshold then the app will no longer be restarted.
+pub struct ThresholdRestart {
+    threshold: usize,
+}
+
+impl ThresholdRestart {
+    pub const fn new(threshold: usize) -> ThresholdRestart {
+        ThresholdRestart { threshold }
+    }
+}
+
+impl ProcessRestartPolicy for ThresholdRestart {
+    fn should_restart(&self, process: &dyn ProcessType) -> bool {
+        process.get_restart_count() <= self.threshold
+    }
+}
+
+/// Implementation of `ProcessRestartPolicy` that uses a threshold to decide
+/// whether to restart an app. If the app has been restarted more times than the
+/// threshold then the system will panic.
+pub struct ThresholdRestartThenPanic {
+    threshold: usize,
+}
+
+impl ThresholdRestartThenPanic {
+    pub const fn new(threshold: usize) -> ThresholdRestartThenPanic {
+        ThresholdRestartThenPanic { threshold }
+    }
+}
+
+impl ProcessRestartPolicy for ThresholdRestartThenPanic {
+    fn should_restart(&self, process: &dyn ProcessType) -> bool {
+        if process.get_restart_count() <= self.threshold {
+            true
+        } else {
+            panic!("Restart threshold surpassed!");
+        }
+    }
+}
+
+/// Implementation of `ProcessRestartPolicy` that unconditionally restarts the
+/// app.
+pub struct AlwaysRestart {}
+
+impl AlwaysRestart {
+    pub const fn new() -> AlwaysRestart {
+        AlwaysRestart {}
+    }
+}
+
+impl ProcessRestartPolicy for AlwaysRestart {
+    fn should_restart(&self, _process: &dyn ProcessType) -> bool {
+        true
+    }
 }
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -242,8 +507,12 @@ pub enum Error {
     NoSuchApp,
     OutOfMemory,
     AddressOutOfBounds,
-    KernelError, // This likely indicates a bug in the kernel and that some
-                 // state is inconsistent in the kernel.
+    /// The process is inactive (likely in a fault or exit state) and the
+    /// attempted operation is therefore invalid.
+    InactiveApp,
+    /// This likely indicates a bug in the kernel and that some state is
+    /// inconsistent in the kernel.
+    KernelError,
 }
 
 impl From<Error> for ReturnCode {
@@ -252,6 +521,7 @@ impl From<Error> for ReturnCode {
             Error::OutOfMemory => ReturnCode::ENOMEM,
             Error::AddressOutOfBounds => ReturnCode::EINVAL,
             Error::NoSuchApp => ReturnCode::EINVAL,
+            Error::InactiveApp => ReturnCode::FAIL,
             Error::KernelError => ReturnCode::FAIL,
         }
     }
@@ -284,7 +554,8 @@ pub enum State {
 
     /// The process is stopped, and it was stopped after it faulted. This
     /// basically means the app crashed, and the kernel decided to just stop it
-    /// and continue executing other things.
+    /// and continue executing other things. The process cannot be restarted
+    /// without being reset first.
     StoppedFaulted,
 
     /// The process has caused a fault.
@@ -303,7 +574,7 @@ pub enum State {
 /// app trying to access memory outside of its allowed regions) the system will
 /// trap back to the kernel, and the kernel has to decide what to do with the
 /// app at that point.
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[derive(Copy, Clone)]
 pub enum FaultResponse {
     /// Generate a `panic!()` call and crash the entire system. This is useful
     /// for debugging applications as the error is displayed immediately after
@@ -313,22 +584,19 @@ pub enum FaultResponse {
     /// Attempt to cleanup and restart the app which caused the fault. This
     /// resets the app's memory to how it was when the app was started and
     /// schedules the app to run again from its init function.
-    Restart,
+    ///
+    /// The provided restart policy is used to determine whether to reset the
+    /// app, and can be specified on a per-app basis.
+    Restart(&'static dyn ProcessRestartPolicy),
 
     /// Stop the app by no longer scheduling it to run.
     Stop,
 }
 
-#[derive(Copy, Clone, Debug)]
-pub enum IPCType {
-    Service,
-    Client,
-}
-
 #[derive(Copy, Clone)]
 pub enum Task {
     FunctionCall(FunctionCall),
-    IPC((AppId, IPCType)),
+    IPC((AppId, ipc::IPCCallbackType)),
 }
 
 /// Enumeration to identify whether a function call comes directly from the
@@ -386,20 +654,16 @@ struct ProcessDebug {
     /// long.
     dropped_callback_count: usize,
 
-    /// How many times this process has entered into a fault condition and the
-    /// kernel has restarted it.
-    restart_count: usize,
-
     /// How many times this process has been paused because it exceeded its
     /// timeslice.
     timeslice_expiration_count: usize,
 }
 
+/// A type for userspace processes in Tock.
 pub struct Process<'a, C: 'static + Chip> {
-    /// Index of the process in the process table.
-    ///
-    /// Corresponds to AppId
-    app_idx: usize,
+    /// Identifier of this process and the index of the process in the process
+    /// table.
+    app_id: Cell<AppId>,
 
     /// Pointer to the main Kernel struct.
     kernel: &'static Kernel,
@@ -415,14 +679,19 @@ pub struct Process<'a, C: 'static + Chip> {
     ///
     /// ```text
     ///     ╒════════ ← memory[memory.len()]
-    ///  ╔═ │ Grant
-    ///     │   ↓
-    ///  D  │ ──────  ← kernel_memory_break
-    ///  Y  │
-    ///  N  │ ──────  ← app_break               ═╗
-    ///  A  │                                    ║
-    ///  M  │   ↑                                  A
-    ///     │  Heap                              P C
+    ///  ╔═ │ Grant Pointers
+    ///  ║  │ ──────
+    ///     │ Process Control Block
+    ///  D  │ ──────
+    ///  Y  │ Grant Regions
+    ///  N  │
+    ///  A  │   ↓
+    ///  M  │ ──────  ← kernel_memory_break
+    ///  I  │
+    ///  C  │ ──────  ← app_break               ═╗
+    ///     │                                    ║
+    ///  ║  │   ↑                                  A
+    ///  ║  │  Heap                              P C
     ///  ╠═ │ ──────  ← app_heap_start           R C
     ///     │  Data                              O E
     ///  F  │ ──────  ← data_start_pointer       C S
@@ -451,6 +720,7 @@ pub struct Process<'a, C: 'static + Chip> {
 
     /// Pointer to high water mark for process buffers shared through `allow`
     allow_high_water_mark: Cell<*const u8>,
+    original_allow_high_water_mark: *const u8,
 
     /// Saved when the app switches to the kernel.
     current_stack_pointer: Cell<*const u8>,
@@ -466,9 +736,17 @@ pub struct Process<'a, C: 'static + Chip> {
     /// State saved on behalf of the process each time the app switches to the
     /// kernel.
     stored_state:
-        Cell<<<C as Chip>::UserspaceKernelBoundary as UserspaceKernelBoundary>::StoredState>,
+        MapCell<<<C as Chip>::UserspaceKernelBoundary as UserspaceKernelBoundary>::StoredState>,
 
-    /// Whether the scheduler can schedule this app.
+    /// The current state of the app. The scheduler uses this to determine
+    /// whether it can schedule this app to execute.
+    ///
+    /// The `state` is used both for bookkeeping for the scheduler as well as
+    /// for enabling control by other parts of the system. The scheduler keeps
+    /// track of if a process is ready to run or not by switching between the
+    /// `Running` and `Yielded` states. The system can control the process by
+    /// switching it to a "stopped" state to prevent the scheduler from
+    /// scheduling it.
     state: Cell<State>,
 
     /// How to deal with Faults occurring in the process
@@ -484,6 +762,11 @@ pub struct Process<'a, C: 'static + Chip> {
     /// process.
     tasks: MapCell<RingBuffer<'a, Task>>,
 
+    /// Count of how many times this process has entered the fault condition and
+    /// been restarted. This is used by some `ProcessRestartPolicy`s to
+    /// determine if the process should be restarted or not.
+    restart_count: Cell<usize>,
+
     /// Name of the app.
     process_name: &'static str,
 
@@ -493,13 +776,13 @@ pub struct Process<'a, C: 'static + Chip> {
 
 impl<C: Chip> ProcessType for Process<'a, C> {
     fn appid(&self) -> AppId {
-        AppId::new(self.kernel, self.app_idx)
+        self.app_id.get()
     }
 
     fn enqueue_task(&self, task: Task) -> bool {
-        // If this app is in the `Fault` state then we shouldn't schedule
+        // If this app is in a `Fault` state then we shouldn't schedule
         // any work for it.
-        if self.state.get() == State::Fault {
+        if !self.is_active() {
             return false;
         }
 
@@ -520,6 +803,7 @@ impl<C: Chip> ProcessType for Process<'a, C> {
 
     fn remove_pending_callbacks(&self, callback_id: CallbackId) {
         self.tasks.map(|tasks| {
+            let count_before = tasks.len();
             tasks.retain(|task| match task {
                 // Remove only tasks that are function calls with an id equal
                 // to `callback_id`.
@@ -529,6 +813,16 @@ impl<C: Chip> ProcessType for Process<'a, C> {
                 },
                 _ => true,
             });
+            if config::CONFIG.trace_syscalls {
+                let count_after = tasks.len();
+                debug!(
+                    "[{:?}] remove_pending_callbacks[{:#x}:{}] = {} callback(s) removed",
+                    self.appid(),
+                    callback_id.driver_num,
+                    callback_id.subscribe_num,
+                    count_before - count_after,
+                );
+            }
         });
     }
 
@@ -567,67 +861,8 @@ impl<C: Chip> ProcessType for Process<'a, C> {
                 // process faulted. Panic and print status
                 panic!("Process {} had a fault", self.process_name);
             }
-            FaultResponse::Restart => {
-                // Remove the tasks that were scheduled for the app from the
-                // amount of work queue.
-                let tasks_len = self.tasks.map_or(0, |tasks| tasks.len());
-                for _ in 0..tasks_len {
-                    self.kernel.decrement_work();
-                }
-
-                // And remove those tasks
-                self.tasks.map(|tasks| {
-                    tasks.empty();
-                });
-
-                // Update debug information
-                self.debug.map(|debug| {
-                    // Mark that we restarted this process.
-                    debug.restart_count += 1;
-
-                    // Reset some state for the process.
-                    debug.syscall_count = 0;
-                    debug.last_syscall = None;
-                    debug.dropped_callback_count = 0;
-                });
-
-                // We are going to start this process over again, so need
-                // the init_fn location.
-                let app_flash_address = self.flash_start();
-                let init_fn = unsafe {
-                    app_flash_address.offset(self.header.get_init_function_offset() as isize)
-                        as usize
-                };
-                self.state.set(State::Unstarted);
-
-                // Need to reset the grant region.
-                unsafe {
-                    self.grant_ptrs_reset();
-                }
-                self.kernel_memory_break
-                    .set(self.original_kernel_memory_break);
-
-                // Reset other memory pointers.
-                self.app_break.set(self.original_app_break);
-                self.current_stack_pointer.set(self.original_stack_pointer);
-
-                // And queue up this app to be restarted.
-                let flash_protected_size = self.header.get_protected_size() as usize;
-                let flash_app_start = app_flash_address as usize + flash_protected_size;
-
-                self.tasks.map(|tasks| {
-                    tasks.empty();
-                    tasks.enqueue(Task::FunctionCall(FunctionCall {
-                        source: FunctionCallSource::Kernel,
-                        pc: init_fn,
-                        argument0: flash_app_start,
-                        argument1: self.memory.as_ptr() as usize,
-                        argument2: self.memory.len() as usize,
-                        argument3: self.app_break.get() as usize,
-                    }));
-                });
-
-                self.kernel.increment_work();
+            FaultResponse::Restart(_) => {
+                self.restart(State::StoppedFaulted);
             }
             FaultResponse::Stop => {
                 // This looks a lot like restart, except we just leave the app
@@ -635,28 +870,13 @@ impl<C: Chip> ProcessType for Process<'a, C> {
                 // all of the app's todo work it will not be scheduled, and
                 // clearing all of the grant regions will cause capsules to drop
                 // this app as well.
-
-                // Remove the tasks that were scheduled for the app from the
-                // amount of work queue.
-                let tasks_len = self.tasks.map_or(0, |tasks| tasks.len());
-                for _ in 0..tasks_len {
-                    self.kernel.decrement_work();
-                }
-
-                // And remove those tasks
-                self.tasks.map(|tasks| {
-                    tasks.empty();
-                });
-
-                // Clear any grant regions this app has setup with any capsules.
-                unsafe {
-                    self.grant_ptrs_reset();
-                }
-
-                // Mark the app as stopped so the scheduler won't try to run it.
-                self.state.set(State::StoppedFaulted);
+                self.terminate();
             }
         }
+    }
+
+    fn get_restart_count(&self) -> usize {
+        self.restart_count.get()
     }
 
     fn dequeue_task(&self) -> Option<Task> {
@@ -758,11 +978,21 @@ impl<C: Chip> ProcessType for Process<'a, C> {
     }
 
     fn sbrk(&self, increment: isize) -> Result<*const u8, Error> {
+        // Do not modify an inactive process.
+        if !self.is_active() {
+            return Err(Error::InactiveApp);
+        }
+
         let new_break = unsafe { self.app_break.get().offset(increment) };
         self.brk(new_break)
     }
 
     fn brk(&self, new_break: *const u8) -> Result<*const u8, Error> {
+        // Do not modify an inactive process.
+        if !self.is_active() {
+            return Err(Error::InactiveApp);
+        }
+
         self.mpu_config
             .map_or(Err(Error::KernelError), |mut config| {
                 if new_break < self.allow_high_water_mark.get() || new_break >= self.mem_end() {
@@ -790,33 +1020,64 @@ impl<C: Chip> ProcessType for Process<'a, C> {
         buf_start_addr: *const u8,
         size: usize,
     ) -> Result<Option<AppSlice<Shared, u8>>, ReturnCode> {
-        if buf_start_addr == ptr::null_mut() {
-            // A null buffer means pass in `None` to the capsule
-            Ok(None)
-        } else if self.in_app_owned_memory(buf_start_addr, size) {
-            // Valid slice, we need to adjust the app's watermark
-            // in_app_owned_memory eliminates this offset actually wrapping
-            let buf_end_addr = buf_start_addr.wrapping_add(size);
-            let new_water_mark = max(self.allow_high_water_mark.get(), buf_end_addr);
-            self.allow_high_water_mark.set(new_water_mark);
-            Ok(Some(AppSlice::new(
-                buf_start_addr as *mut u8,
-                size,
-                self.appid(),
-            )))
-        } else {
-            Err(ReturnCode::EINVAL)
+        if !self.is_active() {
+            // Do not modify an inactive process.
+            return Err(ReturnCode::FAIL);
+        }
+
+        match NonNull::new(buf_start_addr as *mut u8) {
+            None => {
+                // A null buffer means pass in `None` to the capsule
+                Ok(None)
+            }
+            Some(buf_start) => {
+                if self.in_app_owned_memory(buf_start_addr, size) {
+                    // Valid slice, we need to adjust the app's watermark
+                    // note: in_app_owned_memory ensures this offset does not wrap
+                    let buf_end_addr = buf_start_addr.wrapping_add(size);
+                    let new_water_mark = max(self.allow_high_water_mark.get(), buf_end_addr);
+                    self.allow_high_water_mark.set(new_water_mark);
+
+                    // The `unsafe` promise we should be making here is that this
+                    // buffer is inside of app memory and that it does not create any
+                    // aliases (i.e. the same buffer has not been `allow`ed twice).
+                    //
+                    // TODO: We do not currently satisfy the second promise.
+                    let slice = unsafe { AppSlice::new(buf_start, size, self.appid()) };
+                    Ok(Some(slice))
+                } else {
+                    Err(ReturnCode::EINVAL)
+                }
+            }
         }
     }
 
-    unsafe fn alloc(&self, size: usize, align: usize) -> Option<&mut [u8]> {
+    fn alloc(&self, size: usize, align: usize) -> Option<NonNull<u8>> {
+        // Do not modify an inactive process.
+        if !self.is_active() {
+            return None;
+        }
+
         self.mpu_config.and_then(|mut config| {
-            let new_break_unaligned = self.kernel_memory_break.get().offset(-(size as isize));
-            // The alignment must be a power of two, 2^a. The expression `!(align - 1)` then
-            // returns a mask with leading ones, followed by `a` trailing zeros.
+            // First, compute the candidate new pointer. Note that at this
+            // point we have not yet checked whether there is space for
+            // this allocation or that it meets alignment requirements.
+            let new_break_unaligned = self
+                .kernel_memory_break
+                .get()
+                .wrapping_offset(-(size as isize));
+
+            // The alignment must be a power of two, 2^a. The expression
+            // `!(align - 1)` then returns a mask with leading ones,
+            // followed by `a` trailing zeros.
             let alignment_mask = !(align - 1);
             let new_break = (new_break_unaligned as usize & alignment_mask) as *const u8;
+
+            // Verify there is space for this allocation
             if new_break < self.app_break.get() {
+                None
+            // Verify it didn't wrap around
+            } else if new_break > self.kernel_memory_break.get() {
                 None
             } else if let Err(_) = self.chip.mpu().update_app_memory_region(
                 self.app_break.get(),
@@ -827,17 +1088,52 @@ impl<C: Chip> ProcessType for Process<'a, C> {
                 None
             } else {
                 self.kernel_memory_break.set(new_break);
-                Some(slice::from_raw_parts_mut(new_break as *mut u8, size))
+                unsafe {
+                    // Two unsafe steps here, both okay as we just made this pointer
+                    Some(NonNull::new_unchecked(new_break as *mut u8))
+                }
             }
         })
     }
 
     unsafe fn free(&self, _: *mut u8) {}
 
+    // This is safe today, as MPU constraints ensure that `mem_end` will always
+    // be aligned on at least a word boundary. While this is unlikely to
+    // change, it should be more proactively enforced.
+    //
+    // TODO: https://github.com/tock/tock/issues/1739
     #[allow(clippy::cast_ptr_alignment)]
-    unsafe fn grant_ptr(&self, grant_num: usize) -> *mut *mut u8 {
+    fn get_grant_ptr(&self, grant_num: usize) -> Option<*mut u8> {
+        // Do not try to access the grant region of inactive process.
+        if !self.is_active() {
+            return None;
+        }
+
+        // Sanity check the argument
+        if grant_num >= self.kernel.get_grant_count_and_finalize() {
+            return None;
+        }
+
         let grant_num = grant_num as isize;
-        (self.mem_end() as *mut *mut u8).offset(-(grant_num + 1))
+        let grant_pointer = unsafe {
+            let grant_pointer_array = self.mem_end() as *const *mut u8;
+            *grant_pointer_array.offset(-(grant_num + 1))
+        };
+        Some(grant_pointer)
+    }
+
+    // This is safe today, as MPU constraints ensure that `mem_end` will always
+    // be aligned on at least a word boundary. While this is unlikely to
+    // change, it should be more proactively enforced.
+    //
+    // TODO: https://github.com/tock/tock/issues/1739
+    #[allow(clippy::cast_ptr_alignment)]
+    unsafe fn set_grant_ptr(&self, grant_num: usize, grant_ptr: *mut u8) {
+        let grant_num = grant_num as isize;
+        let grant_pointer_array = self.mem_end() as *mut *mut u8;
+        let grant_pointer_pointer = grant_pointer_array.offset(-(grant_num + 1));
+        *grant_pointer_pointer = grant_ptr;
     }
 
     fn get_process_name(&self) -> &'static str {
@@ -845,11 +1141,11 @@ impl<C: Chip> ProcessType for Process<'a, C> {
     }
 
     unsafe fn set_syscall_return_value(&self, return_value: isize) {
-        let mut stored_state = self.stored_state.get();
-        self.chip
-            .userspace_kernel_boundary()
-            .set_syscall_return_value(self.sp(), &mut stored_state, return_value);
-        self.stored_state.set(stored_state);
+        self.stored_state.map(|stored_state| {
+            self.chip
+                .userspace_kernel_boundary()
+                .set_syscall_return_value(self.sp(), stored_state, return_value);
+        });
     }
 
     unsafe fn set_process_function(&self, callback: FunctionCall) {
@@ -862,15 +1158,15 @@ impl<C: Chip> ProcessType for Process<'a, C> {
         // stack. Architecture-specific code handles actually doing the push
         // since we don't know the details of exactly what the stack frames look
         // like.
-        let mut stored_state = self.stored_state.get();
-
-        match self.chip.userspace_kernel_boundary().set_process_function(
-            self.sp(),
-            remaining_stack_bytes,
-            &mut stored_state,
-            callback,
-        ) {
-            Ok(stack_bottom) => {
+        match self.stored_state.map(|stored_state| {
+            self.chip.userspace_kernel_boundary().set_process_function(
+                self.sp(),
+                remaining_stack_bytes,
+                stored_state,
+                callback,
+            )
+        }) {
+            Some(Ok(stack_bottom)) => {
                 // If we got an `Ok` with the new stack pointer we are all
                 // set and should mark that this process is ready to be
                 // scheduled.
@@ -889,7 +1185,7 @@ impl<C: Chip> ProcessType for Process<'a, C> {
                 self.debug_set_max_stack_depth();
             }
 
-            Err(bad_stack_bottom) => {
+            Some(Err(bad_stack_bottom)) => {
                 // If we got an Error, then there was not enough room on the
                 // stack to allow the process to execute this function given the
                 // details of the particular architecture this is running on.
@@ -905,18 +1201,28 @@ impl<C: Chip> ProcessType for Process<'a, C> {
                 });
                 self.set_fault_state();
             }
+
+            None => {
+                // We should never be here since `stored_state` should always be occupied.
+                self.set_fault_state();
+            }
         }
-        self.stored_state.set(stored_state);
     }
 
     unsafe fn switch_to(&self) -> Option<syscall::ContextSwitchReason> {
-        let mut stored_state = self.stored_state.get();
-        let (stack_pointer, switch_reason) = self
-            .chip
-            .userspace_kernel_boundary()
-            .switch_to_process(self.sp(), &mut stored_state);
-        self.current_stack_pointer.set(stack_pointer as *const u8);
-        self.stored_state.set(stored_state);
+        // Cannot switch to an invalid process
+        if !self.is_active() {
+            return None;
+        }
+
+        let switch_reason = self.stored_state.map(|stored_state| {
+            let (stack_pointer, switch_reason) = self
+                .chip
+                .userspace_kernel_boundary()
+                .switch_to_process(self.sp(), stored_state);
+            self.current_stack_pointer.set(stack_pointer as *const u8);
+            switch_reason
+        });
 
         // Update debug state as needed after running this process.
         self.debug.map(|debug| {
@@ -928,12 +1234,12 @@ impl<C: Chip> ProcessType for Process<'a, C> {
             // More debugging help. If this occurred because of a timeslice
             // expiration, mark that so we can check later if a process is
             // exceeding its timeslices too often.
-            if switch_reason == syscall::ContextSwitchReason::TimesliceExpired {
+            if switch_reason == Some(syscall::ContextSwitchReason::TimesliceExpired) {
                 debug.timeslice_expiration_count += 1;
             }
         });
 
-        Some(switch_reason)
+        switch_reason
     }
 
     fn debug_syscall_count(&self) -> usize {
@@ -942,10 +1248,6 @@ impl<C: Chip> ProcessType for Process<'a, C> {
 
     fn debug_dropped_callback_count(&self) -> usize {
         self.debug.map_or(0, |debug| debug.dropped_callback_count)
-    }
-
-    fn debug_restart_count(&self) -> usize {
-        self.debug.map_or(0, |debug| debug.restart_count)
     }
 
     fn debug_timeslice_expiration_count(&self) -> usize {
@@ -958,18 +1260,20 @@ impl<C: Chip> ProcessType for Process<'a, C> {
             .map(|debug| debug.timeslice_expiration_count += 1);
     }
 
-    unsafe fn fault_fmt(&self, writer: &mut dyn Write) {
-        self.chip.userspace_kernel_boundary().fault_fmt(writer);
+    fn debug_syscall_called(&self, last_syscall: Syscall) {
+        self.debug.map(|debug| {
+            debug.syscall_count += 1;
+            debug.last_syscall = Some(last_syscall);
+        });
     }
 
-    unsafe fn process_detail_fmt(&self, writer: &mut dyn Write) {
+    unsafe fn print_memory_map(&self, writer: &mut dyn Write) {
         // Flash
         let flash_end = self.flash.as_ptr().add(self.flash.len()) as usize;
         let flash_start = self.flash.as_ptr() as usize;
         let flash_protected_size = self.header.get_protected_size() as usize;
         let flash_app_start = flash_start + flash_protected_size;
         let flash_app_size = flash_end - flash_app_start;
-        let flash_init_fn = flash_start + self.header.get_init_function_offset() as usize;
 
         // SRAM addresses
         let sram_end = self.memory.as_ptr().add(self.memory.len()) as usize;
@@ -995,7 +1299,7 @@ impl<C: Chip> ProcessType for Process<'a, C> {
         let syscall_count = self.debug.map_or(0, |debug| debug.syscall_count);
         let last_syscall = self.debug.map(|debug| debug.last_syscall);
         let dropped_callback_count = self.debug.map_or(0, |debug| debug.dropped_callback_count);
-        let restart_count = self.debug.map_or(0, |debug| debug.restart_count);
+        let restart_count = self.restart_count.get();
 
         let _ = writer.write_fmt(format_args!(
             "\
@@ -1120,12 +1424,25 @@ impl<C: Chip> ProcessType for Process<'a, C> {
             flash_protected_size,
             flash_start
         ));
+    }
 
-        self.chip.userspace_kernel_boundary().process_detail_fmt(
-            self.sp(),
-            &self.stored_state.get(),
-            writer,
-        );
+    unsafe fn print_full_process(&self, writer: &mut dyn Write) {
+        self.print_memory_map(writer);
+
+        self.stored_state.map(|stored_state| {
+            self.chip
+                .userspace_kernel_boundary()
+                .print_context(self.sp(), stored_state, writer);
+        });
+
+        // Display the current state of the MPU for this process.
+        self.mpu_config.map(|config| {
+            let _ = writer.write_fmt(format_args!("{}", config));
+        });
+
+        let sram_start = self.memory.as_ptr() as usize;
+        let flash_start = self.flash.as_ptr() as usize;
+        let flash_init_fn = flash_start + self.header.get_init_function_offset() as usize;
 
         let _ = writer.write_fmt(format_args!(
             "\
@@ -1145,226 +1462,474 @@ fn exceeded_check(size: usize, allocated: usize) -> &'static str {
 }
 
 impl<C: 'static + Chip> Process<'a, C> {
-    #[allow(clippy::cast_ptr_alignment)]
     crate unsafe fn create(
         kernel: &'static Kernel,
         chip: &'static C,
-        app_flash_address: *const u8,
+        app_flash: &'static [u8],
+        header_length: usize,
+        app_version: u16,
         remaining_app_memory: *mut u8,
         remaining_app_memory_size: usize,
         fault_response: FaultResponse,
         index: usize,
-    ) -> (Option<&'static dyn ProcessType>, usize, usize) {
-        if let Some(tbf_header) = tbfheader::parse_and_validate_tbf_header(app_flash_address) {
-            let app_flash_size = tbf_header.get_total_size() as usize;
+    ) -> Result<(Option<&'static dyn ProcessType>, usize), ProcessLoadError> {
+        // Get a slice for just the app header.
+        let header_flash = app_flash
+            .get(0..header_length as usize)
+            .ok_or(ProcessLoadError::NotEnoughFlash)?;
 
-            // If this isn't an app (i.e. it is padding) or it is an app but it
-            // isn't enabled, then we can skip it but increment past its flash.
-            if !tbf_header.is_app() || !tbf_header.enabled() {
-                return (None, app_flash_size, 0);
+        // Parse the full TBF header to see if this is a valid app. If the
+        // header can't parse, we will error right here.
+        let tbf_header = tbfheader::parse_tbf_header(header_flash, app_version)?;
+
+        let process_name = tbf_header.get_package_name();
+
+        // If this isn't an app (i.e. it is padding) or it is an app but it
+        // isn't enabled, then we can skip it but increment past its flash.
+        if !tbf_header.is_app() || !tbf_header.enabled() {
+            if config::CONFIG.debug_load_processes {
+                if !tbf_header.is_app() {
+                    debug!(
+                        "[!] flash=[{:#010X}:{:#010X}] process={:?} - process isn't an app",
+                        app_flash.as_ptr() as usize,
+                        app_flash.as_ptr() as usize + app_flash.len(),
+                        process_name
+                    );
+                }
+                if !tbf_header.enabled() {
+                    debug!(
+                        "[!] flash=[{:#010X}:{:#010X}] process={:?} - process isn't enabled",
+                        app_flash.as_ptr() as usize,
+                        app_flash.as_ptr() as usize + app_flash.len(),
+                        process_name
+                    );
+                }
             }
+            return Ok((None, 0));
+        }
 
-            // Otherwise, actually load the app.
-            let mut min_app_ram_size = tbf_header.get_minimum_app_ram_size() as usize;
-            let process_name = tbf_header.get_package_name();
-            let init_fn =
-                app_flash_address.offset(tbf_header.get_init_function_offset() as isize) as usize;
+        // Otherwise, actually load the app.
+        let mut min_app_ram_size = tbf_header.get_minimum_app_ram_size() as usize;
+        let init_fn = app_flash
+            .as_ptr()
+            .offset(tbf_header.get_init_function_offset() as isize) as usize;
 
-            // Initialize MPU region configuration.
-            let mut mpu_config: <<C as Chip>::MPU as MPU>::MpuConfig = Default::default();
+        // Initialize MPU region configuration.
+        let mut mpu_config: <<C as Chip>::MPU as MPU>::MpuConfig = Default::default();
 
-            // Allocate MPU region for flash.
-            if let None = chip.mpu().allocate_region(
-                app_flash_address,
-                app_flash_size,
-                app_flash_size,
+        // Allocate MPU region for flash.
+        if chip
+            .mpu()
+            .allocate_region(
+                app_flash.as_ptr(),
+                app_flash.len(),
+                app_flash.len(),
                 mpu::Permissions::ReadExecuteOnly,
                 &mut mpu_config,
-            ) {
-                return (None, app_flash_size, 0);
+            )
+            .is_none()
+        {
+            if config::CONFIG.debug_load_processes {
+                debug!(
+                    "[!] flash=[{:#010X}:{:#010X}] process={:?} - couldn't allocate MPU region for flash",
+                    app_flash.as_ptr() as usize,
+                    app_flash.as_ptr() as usize + app_flash.len(),
+                    process_name
+                );
             }
+            return Err(ProcessLoadError::MpuInvalidFlashLength);
+        }
 
-            // Determine how much space we need in the application's
-            // memory space just for kernel and grant state. We need to make
-            // sure we allocate enough memory just for that.
+        // Determine how much space we need in the application's
+        // memory space just for kernel and grant state. We need to make
+        // sure we allocate enough memory just for that.
 
-            // Make room for grant pointers.
-            let grant_ptr_size = mem::size_of::<*const usize>();
-            let grant_ptrs_num = kernel.get_grant_count_and_finalize();
-            let grant_ptrs_offset = grant_ptrs_num * grant_ptr_size;
+        // Make room for grant pointers.
+        let grant_ptr_size = mem::size_of::<*const usize>();
+        let grant_ptrs_num = kernel.get_grant_count_and_finalize();
+        let grant_ptrs_offset = grant_ptrs_num * grant_ptr_size;
 
-            // Allocate memory for callback ring buffer.
-            let callback_size = mem::size_of::<Task>();
-            let callback_len = 10;
-            let callbacks_offset = callback_len * callback_size;
+        // Allocate memory for callback ring buffer.
+        let callback_size = mem::size_of::<Task>();
+        let callback_len = 10;
+        let callbacks_offset = callback_len * callback_size;
 
-            // Make room to store this process's metadata.
-            let process_struct_offset = mem::size_of::<Process<C>>();
+        // Make room to store this process's metadata.
+        let process_struct_offset = mem::size_of::<Process<C>>();
 
-            // Initial sizes of the app-owned and kernel-owned parts of process memory.
-            // Provide the app with plenty of initial process accessible memory.
-            let initial_kernel_memory_size =
-                grant_ptrs_offset + callbacks_offset + process_struct_offset;
-            let initial_app_memory_size = 3 * 1024;
+        // Initial sizes of the app-owned and kernel-owned parts of process memory.
+        // Provide the app with plenty of initial process accessible memory.
+        let initial_kernel_memory_size =
+            grant_ptrs_offset + callbacks_offset + process_struct_offset;
+        let initial_app_memory_size = 3 * 1024;
 
-            if min_app_ram_size < initial_app_memory_size {
-                min_app_ram_size = initial_app_memory_size;
-            }
+        if min_app_ram_size < initial_app_memory_size {
+            min_app_ram_size = initial_app_memory_size;
+        }
 
-            // Minimum memory size for the process.
-            let min_total_memory_size = min_app_ram_size + initial_kernel_memory_size;
+        // Minimum memory size for the process.
+        let min_total_memory_size = min_app_ram_size + initial_kernel_memory_size;
 
-            // Determine where process memory will go and allocate MPU region for app-owned memory.
-            let (memory_start, memory_size) = match chip.mpu().allocate_app_memory_region(
-                remaining_app_memory as *const u8,
-                remaining_app_memory_size,
-                min_total_memory_size,
-                initial_app_memory_size,
-                initial_kernel_memory_size,
-                mpu::Permissions::ReadWriteOnly,
-                &mut mpu_config,
-            ) {
-                Some((memory_start, memory_size)) => (memory_start, memory_size),
-                None => {
-                    // Failed to load process. Insufficient memory.
-                    return (None, app_flash_size, 0);
+        // Determine where process memory will go and allocate MPU region for app-owned memory.
+        let (memory_start, memory_size) = match chip.mpu().allocate_app_memory_region(
+            remaining_app_memory as *const u8,
+            remaining_app_memory_size,
+            min_total_memory_size,
+            initial_app_memory_size,
+            initial_kernel_memory_size,
+            mpu::Permissions::ReadWriteOnly,
+            &mut mpu_config,
+        ) {
+            Some((memory_start, memory_size)) => (memory_start, memory_size),
+            None => {
+                // Failed to load process. Insufficient memory.
+                if config::CONFIG.debug_load_processes {
+                    debug!(
+                        "[!] flash=[{:#010X}:{:#010X}] process={:?} - couldn't allocate memory region of size >= {:#X}",
+                        app_flash.as_ptr() as usize,
+                        app_flash.as_ptr() as usize + app_flash.len(),
+                        process_name,
+                        min_total_memory_size
+                    );
                 }
-            };
-
-            // Compute how much padding before start of process memory.
-            let memory_padding_size = (memory_start as usize) - (remaining_app_memory as usize);
-
-            // Set up process memory.
-            let app_memory = slice::from_raw_parts_mut(memory_start as *mut u8, memory_size);
-
-            // Set the initial process stack and memory to 3072 bytes.
-            let initial_stack_pointer = memory_start.add(initial_app_memory_size);
-            let initial_sbrk_pointer = memory_start.add(initial_app_memory_size);
-
-            // Set up initial grant region.
-            let mut kernel_memory_break = app_memory.as_mut_ptr().add(app_memory.len());
-
-            // Now that we know we have the space we can setup the grant
-            // pointers.
-            kernel_memory_break = kernel_memory_break.offset(-(grant_ptrs_offset as isize));
-
-            // Set all pointers to null.
-            let opts =
-                slice::from_raw_parts_mut(kernel_memory_break as *mut *const usize, grant_ptrs_num);
-            for opt in opts.iter_mut() {
-                *opt = ptr::null()
+                return Err(ProcessLoadError::NotEnoughMemory);
             }
+        };
 
-            // Now that we know we have the space we can setup the memory
-            // for the callbacks.
-            kernel_memory_break = kernel_memory_break.offset(-(callbacks_offset as isize));
+        // Compute how much padding before start of process memory.
+        let memory_padding_size = (memory_start as usize) - (remaining_app_memory as usize);
 
-            // Set up ring buffer.
-            let callback_buf =
-                slice::from_raw_parts_mut(kernel_memory_break as *mut Task, callback_len);
-            let tasks = RingBuffer::new(callback_buf);
+        // Set up process memory.
+        let app_memory = slice::from_raw_parts_mut(memory_start as *mut u8, memory_size);
 
-            // Last thing is the process struct.
-            kernel_memory_break = kernel_memory_break.offset(-(process_struct_offset as isize));
-            let process_struct_memory_location = kernel_memory_break;
+        // Set the initial process stack and memory to 3072 bytes.
+        let initial_stack_pointer = memory_start.add(initial_app_memory_size);
+        let initial_sbrk_pointer = memory_start.add(initial_app_memory_size);
 
-            // Determine the debug information to the best of our
-            // understanding. If the app is doing all of the PIC fixup and
-            // memory management we don't know much.
-            let app_heap_start_pointer = None;
-            let app_stack_start_pointer = None;
+        // Set up initial grant region.
+        let mut kernel_memory_break = app_memory.as_mut_ptr().add(app_memory.len());
 
-            // Create the Process struct in the app grant region.
-            let mut process: &mut Process<C> =
-                &mut *(process_struct_memory_location as *mut Process<'static, C>);
+        // Now that we know we have the space we can setup the grant
+        // pointers.
+        kernel_memory_break = kernel_memory_break.offset(-(grant_ptrs_offset as isize));
 
-            process.app_idx = index;
-            process.kernel = kernel;
-            process.chip = chip;
-            process.memory = app_memory;
-            process.header = tbf_header;
-            process.kernel_memory_break = Cell::new(kernel_memory_break);
-            process.original_kernel_memory_break = kernel_memory_break;
-            process.app_break = Cell::new(initial_sbrk_pointer);
-            process.original_app_break = initial_sbrk_pointer;
-            process.allow_high_water_mark = Cell::new(remaining_app_memory);
-            process.current_stack_pointer = Cell::new(initial_stack_pointer);
-            process.original_stack_pointer = initial_stack_pointer;
+        // This is safe today, as MPU constraints ensure that `memory_start` will always
+        // be aligned on at least a word boundary, and that memory_size will be aligned on at least
+        // a word boundary, and `grant_ptrs_offset` is a multiple of the word size.
+        // Thus, `kernel_memory_break` must be word aligned.
+        // While this is unlikely to change, it should be more proactively enforced.
+        //
+        // TODO: https://github.com/tock/tock/issues/1739
+        #[allow(clippy::cast_ptr_alignment)]
+        // Set all pointers to null.
+        let opts =
+            slice::from_raw_parts_mut(kernel_memory_break as *mut *const usize, grant_ptrs_num);
+        for opt in opts.iter_mut() {
+            *opt = ptr::null()
+        }
 
-            process.flash = slice::from_raw_parts(app_flash_address, app_flash_size);
+        // Now that we know we have the space we can setup the memory
+        // for the callbacks.
+        kernel_memory_break = kernel_memory_break.offset(-(callbacks_offset as isize));
 
-            process.stored_state = Cell::new(Default::default());
-            process.state = Cell::new(State::Unstarted);
-            process.fault_response = fault_response;
+        // This is safe today, as MPU constraints ensure that `memory_start` will always
+        // be aligned on at least a word boundary, and that memory_size will be aligned on at least
+        // a word boundary, and `grant_ptrs_offset` is a multiple of the word size.
+        // Thus, `kernel_memory_break` must be word aligned.
+        // While this is unlikely to change, it should be more proactively enforced.
+        //
+        // TODO: https://github.com/tock/tock/issues/1739
+        #[allow(clippy::cast_ptr_alignment)]
+        // Set up ring buffer.
+        let callback_buf =
+            slice::from_raw_parts_mut(kernel_memory_break as *mut Task, callback_len);
+        let tasks = RingBuffer::new(callback_buf);
 
-            process.mpu_config = MapCell::new(mpu_config);
-            process.mpu_regions = [
-                Cell::new(None),
-                Cell::new(None),
-                Cell::new(None),
-                Cell::new(None),
-                Cell::new(None),
-                Cell::new(None),
-            ];
-            process.tasks = MapCell::new(tasks);
-            process.process_name = process_name;
+        // Last thing is the process struct.
+        kernel_memory_break = kernel_memory_break.offset(-(process_struct_offset as isize));
+        let process_struct_memory_location = kernel_memory_break;
 
-            process.debug = MapCell::new(ProcessDebug {
-                app_heap_start_pointer: app_heap_start_pointer,
-                app_stack_start_pointer: app_stack_start_pointer,
-                min_stack_pointer: initial_stack_pointer,
-                syscall_count: 0,
-                last_syscall: None,
-                dropped_callback_count: 0,
-                restart_count: 0,
-                timeslice_expiration_count: 0,
-            });
+        // Determine the debug information to the best of our
+        // understanding. If the app is doing all of the PIC fixup and
+        // memory management we don't know much.
+        let app_heap_start_pointer = None;
+        let app_stack_start_pointer = None;
 
-            let flash_protected_size = process.header.get_protected_size() as usize;
-            let flash_app_start = app_flash_address as usize + flash_protected_size;
+        // Create the Process struct in the app grant region.
+        let mut process: &mut Process<C> =
+            &mut *(process_struct_memory_location as *mut Process<'static, C>);
 
-            process.tasks.map(|tasks| {
-                tasks.enqueue(Task::FunctionCall(FunctionCall {
-                    source: FunctionCallSource::Kernel,
-                    pc: init_fn,
-                    argument0: flash_app_start,
-                    argument1: process.memory.as_ptr() as usize,
-                    argument2: process.memory.len() as usize,
-                    argument3: process.app_break.get() as usize,
-                }));
-            });
+        // Ask the kernel for a unique identifier for this process that is
+        // being created.
+        let unique_identifier = kernel.create_process_identifier();
 
-            // Handle any architecture-specific requirements for a new process
-            let mut stored_state = process.stored_state.get();
-            match chip.userspace_kernel_boundary().initialize_new_process(
+        process
+            .app_id
+            .set(AppId::new(kernel, unique_identifier, index));
+        process.kernel = kernel;
+        process.chip = chip;
+        process.memory = app_memory;
+        process.header = tbf_header;
+        process.kernel_memory_break = Cell::new(kernel_memory_break);
+        process.original_kernel_memory_break = kernel_memory_break;
+        process.app_break = Cell::new(initial_sbrk_pointer);
+        process.original_app_break = initial_sbrk_pointer;
+        process.allow_high_water_mark = Cell::new(remaining_app_memory);
+        process.original_allow_high_water_mark = remaining_app_memory;
+        process.current_stack_pointer = Cell::new(initial_stack_pointer);
+        process.original_stack_pointer = initial_stack_pointer;
+
+        process.flash = app_flash;
+
+        process.stored_state = MapCell::new(Default::default());
+        process.state = Cell::new(State::Unstarted);
+        process.fault_response = fault_response;
+        process.restart_count = Cell::new(0);
+
+        process.mpu_config = MapCell::new(mpu_config);
+        process.mpu_regions = [
+            Cell::new(None),
+            Cell::new(None),
+            Cell::new(None),
+            Cell::new(None),
+            Cell::new(None),
+            Cell::new(None),
+        ];
+        process.tasks = MapCell::new(tasks);
+        process.process_name = process_name.unwrap_or("");
+
+        process.debug = MapCell::new(ProcessDebug {
+            app_heap_start_pointer: app_heap_start_pointer,
+            app_stack_start_pointer: app_stack_start_pointer,
+            min_stack_pointer: initial_stack_pointer,
+            syscall_count: 0,
+            last_syscall: None,
+            dropped_callback_count: 0,
+            timeslice_expiration_count: 0,
+        });
+
+        let flash_protected_size = process.header.get_protected_size() as usize;
+        let flash_app_start_addr = app_flash.as_ptr() as usize + flash_protected_size;
+
+        process.tasks.map(|tasks| {
+            tasks.enqueue(Task::FunctionCall(FunctionCall {
+                source: FunctionCallSource::Kernel,
+                pc: init_fn,
+                argument0: flash_app_start_addr,
+                argument1: process.memory.as_ptr() as usize,
+                argument2: process.memory.len() as usize,
+                argument3: process.app_break.get() as usize,
+            }));
+        });
+
+        // Handle any architecture-specific requirements for a new process
+        match process.stored_state.map(|stored_state| {
+            chip.userspace_kernel_boundary().initialize_process(
                 process.sp(),
                 process.sp() as usize - process.memory.as_ptr() as usize,
-                &mut stored_state,
-            ) {
-                Ok(new_stack_pointer) => {
-                    process
-                        .current_stack_pointer
-                        .set(new_stack_pointer as *mut u8);
-                    process.debug_set_max_stack_depth();
-                    process.stored_state.set(stored_state);
+                stored_state,
+            )
+        }) {
+            Some(Ok(new_stack_pointer)) => {
+                process
+                    .current_stack_pointer
+                    .set(new_stack_pointer as *mut u8);
+                process.debug_set_max_stack_depth();
+            }
+            _ => {
+                if config::CONFIG.debug_load_processes {
+                    debug!(
+                        "[!] flash=[{:#010X}:{:#010X}] process={:?} - couldn't initialize process",
+                        app_flash.as_ptr() as usize,
+                        app_flash.as_ptr() as usize + app_flash.len(),
+                        process_name
+                    );
                 }
-                Err(_) => {
-                    return (None, app_flash_size, 0);
-                }
-            };
+                return Err(ProcessLoadError::InternalError);
+            }
+        };
 
-            // Mark this process as having something to do (it has to start!)
-            kernel.increment_work();
+        // Mark this process as having something to do (it has to start!)
+        kernel.increment_work();
 
-            return (
-                Some(process),
-                app_flash_size,
-                memory_padding_size + memory_size,
-            );
-        }
-        (None, 0, 0)
+        // return
+        Ok((Some(process), memory_padding_size + memory_size))
     }
 
+    /// Attempt to restart the process.
+    ///
+    /// This function can be called when the process is in any state and
+    /// attempts to reset all of its state and re-initialize it so that it can
+    /// start running again.
+    ///
+    /// Restarting can fail for two general reasons:
+    ///
+    /// 1. The kernel chooses not to restart the process based on the policy the
+    ///    kernel is using for restarting a specific process. For example, if a
+    ///    process has restarted a number of times in a row the kernel may
+    ///    decide to stop executing it.
+    ///
+    /// 2. Some state can no long be configured for the process. For example,
+    ///    the syscall state for the process fails to initialize.
+    ///
+    /// After `restart()` runs the process will either be queued to run its
+    /// `_start` function, or it will be left in `failure_state`.
+    fn restart(&self, failure_state: State) {
+        // Start with the generic terminate operations. This frees state for
+        // this process and removes any pending tasks from the scheduler's
+        // queue.
+        self.terminate();
+
+        // Set the state the process will be in if it cannot be restarted.
+        self.state.set(failure_state);
+
+        // Check if the restart policy for this app allows us to continue with
+        // the restart.
+        match self.fault_response {
+            FaultResponse::Restart(restart_policy) => {
+                // Decide what to do with this process. Should it be restarted?
+                // Or should we leave it in a stopped & faulted state? If the
+                // process is faulting too often we might not want to restart.
+                // If we are not going to restart the process then we can just
+                // leave it in the stopped faulted state by returning
+                // immediately. This has the same effect as using the
+                // `FaultResponse::Stop` policy.
+                if !restart_policy.should_restart(self) {
+                    return;
+                }
+            }
+
+            _ => {
+                // In all other cases the kernel has chosen not to restart the
+                // process if it fails or exits for any reason. We can just
+                // leave the process in the `failure_state` and return.
+                return;
+            }
+        }
+
+        // We need a new process identifier for this process since the restarted
+        // version is in effect a new process. This is also necessary to
+        // invalidate any stored `AppId`s that point to the old version of the
+        // process. However, the process has not moved locations in the
+        // processes array, so we copy the existing index.
+        let old_index = self.app_id.get().index;
+        let new_identifier = self.kernel.create_process_identifier();
+        self.app_id
+            .set(AppId::new(self.kernel, new_identifier, old_index));
+
+        // Reset debug information that is per-execution and not per-process.
+        self.debug.map(|debug| {
+            debug.syscall_count = 0;
+            debug.last_syscall = None;
+            debug.dropped_callback_count = 0;
+            debug.timeslice_expiration_count = 0;
+        });
+
+        // We are going to start this process over again, so need the init_fn
+        // location.
+        let app_flash_address = self.flash_start();
+        let init_fn = unsafe {
+            app_flash_address.offset(self.header.get_init_function_offset() as isize) as usize
+        };
+
+        // Reset memory pointers back to how they were when first calculated by
+        // the process create function. Since these are based on properties in
+        // the TBF header, and processes can't change the TBF header, it is fine
+        // to use saved values.
+        self.kernel_memory_break
+            .set(self.original_kernel_memory_break);
+        self.app_break.set(self.original_app_break);
+        self.current_stack_pointer.set(self.original_stack_pointer);
+        self.allow_high_water_mark
+            .set(self.original_allow_high_water_mark);
+
+        // Handle any architecture-specific requirements for a process when it
+        // first starts (as it would when it is new).
+        let new_stack_pointer_res = self.stored_state.map_or(Err(()), |stored_state| unsafe {
+            self.chip.userspace_kernel_boundary().initialize_process(
+                self.sp(),
+                self.sp() as usize - self.memory.as_ptr() as usize,
+                stored_state,
+            )
+        });
+        match new_stack_pointer_res {
+            Ok(new_stack_pointer) => {
+                self.current_stack_pointer.set(new_stack_pointer as *mut u8);
+                self.debug_set_max_stack_depth();
+            }
+            Err(_) => {
+                // We couldn't initialize the architecture-specific
+                // state for this process. This shouldn't happen since
+                // the app was able to be started before, but at this
+                // point the app is no longer valid. The best thing we
+                // can do now is leave the app as still faulted and not
+                // schedule it.
+                return;
+            }
+        };
+
+        // And queue up this app to be restarted.
+        let flash_protected_size = self.header.get_protected_size() as usize;
+        let flash_app_start = app_flash_address as usize + flash_protected_size;
+
+        // Mark the state as `Unstarted` for the scheduler.
+        self.state.set(State::Unstarted);
+
+        // Mark that we restarted this process.
+        self.restart_count.increment();
+
+        // Enqueue the initial function.
+        self.tasks.map(|tasks| {
+            tasks.enqueue(Task::FunctionCall(FunctionCall {
+                source: FunctionCallSource::Kernel,
+                pc: init_fn,
+                argument0: flash_app_start,
+                argument1: self.memory.as_ptr() as usize,
+                argument2: self.memory.len() as usize,
+                argument3: self.app_break.get() as usize,
+            }));
+        });
+
+        // Mark that the process is ready to run.
+        self.kernel.increment_work();
+    }
+
+    /// Stop and clear a process's state.
+    ///
+    /// This will end the process, but does not reset it such that it could be
+    /// restarted and run again. This function instead frees grants and any
+    /// queued tasks for this process, but leaves the debug information about
+    /// the process and other state intact.
+    fn terminate(&self) {
+        // Remove the tasks that were scheduled for the app from the
+        // amount of work queue.
+        let tasks_len = self.tasks.map_or(0, |tasks| tasks.len());
+        for _ in 0..tasks_len {
+            self.kernel.decrement_work();
+        }
+
+        // And remove those tasks
+        self.tasks.map(|tasks| {
+            tasks.empty();
+        });
+
+        // Clear any grant regions this app has setup with any capsules.
+        unsafe {
+            self.grant_ptrs_reset();
+        }
+
+        // Mark the app as stopped so the scheduler won't try to run it.
+        self.state.set(State::StoppedFaulted);
+    }
+
+    /// Get the current stack pointer as a pointer.
+    // This is currently safe as the the userspace/kernel boundary
+    // implementations of both Risc-V and ARM would fault on context switch if
+    // the stack pointer were misaligned.
+    //
+    // This is a bit of an undocumented assumption, but not sure there is
+    // likely to be an architecture in the near future where this is
+    // realistically a risk.
     #[allow(clippy::cast_ptr_alignment)]
     fn sp(&self) -> *const usize {
         self.current_stack_pointer.get() as *const usize
@@ -1384,6 +1949,11 @@ impl<C: 'static + Chip> Process<'a, C> {
     }
 
     /// Reset all `grant_ptr`s to NULL.
+    // This is safe today, as MPU constraints ensure that `mem_end` will always
+    // be aligned on at least a word boundary. While this is unlikely to
+    // change, it should be more proactively enforced.
+    //
+    // TODO: https://github.com/tock/tock/issues/1739
     #[allow(clippy::cast_ptr_alignment)]
     unsafe fn grant_ptrs_reset(&self) {
         let grant_ptrs_num = self.kernel.get_grant_count_and_finalize();
@@ -1400,5 +1970,20 @@ impl<C: 'static + Chip> Process<'a, C> {
                 debug.min_stack_pointer = self.current_stack_pointer.get();
             }
         });
+    }
+
+    /// Check if the process is active.
+    ///
+    /// "Active" is defined as the process can resume executing in the future.
+    /// This means its state in the `Process` struct is still valid, and that
+    /// the kernel could resume its execution without completely restarting and
+    /// resetting its state.
+    ///
+    /// A process is inactive if the kernel cannot resume its execution, such as
+    /// if the process faults and is in an invalid state, or if the process
+    /// explicitly exits.
+    fn is_active(&self) -> bool {
+        let current_state = self.state.get();
+        current_state != State::StoppedFaulted && current_state != State::Fault
     }
 }

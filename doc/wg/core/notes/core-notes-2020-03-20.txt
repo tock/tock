@@ -1,0 +1,122 @@
+3/20/2020
+
+Attending: Branden, Samuel Jero, Alistair, Patrick Mooney, Johnathan, Garret, Hudson, Jean-Luc, Amit, Phil, Guillaume, Brad, Pat Pannuto
+
+--Updates!--
+
+ * Amit: The last Hail has been ordered, no current plans to make more. Hudson has ~50 research imixes available
+ * Hudson: Phil's size tool now integrated as a status check on tock PR's
+
+--Copyright/Licensing--
+
+ * Phil's sizing tool is currently "owned" by Google (contract work for tock-on-titan). How to move this upstream if copyright != tock developers?
+   - Jonathan: the code is currently Apache2 only, (c) Google; desired is likely Apache2/MIT, (c) Tock Dev
+   - Jonathan: slightly annoying, but the easiest path may be to "contribute" the file as-is from tock-on-titan repo, then have Phil reproduce changes
+   - Amit: Concern isn't really _this_ file, but the path forward with stuff like this [especially for things part of the Tock binary image]
+   - Phil: Current challenge, Google contract is over, negotiating new one, but I can't do much
+   - Phil: We should really avoid having multiple copyrights; may need to trigger some process in Google, may need to have stuff on our end
+   - Phil: This specific file should live in a branch for a while until this is resolved
+  * Amit: The real issue is how someone (company) who wants to use Tock would handle multiple owners
+   - Alistair: copyright less of an issue than license, can't change license w/out contacting all owners; rarely want/need to change copyright
+   - Amit: Maybe the answer then is enforcing dual-licensing if needed such that everything is licensed the same inside of Tock
+   - Samuel: I've often seen CLAs used to address this
+   - Guillaume  : The docs do currently already say that any contribution is licensed as dual Apache2/MIT unless contributor specifies otherwise
+   - Samuel: Exactly, license and copyright a wholly orthogonal
+   - Jonathan: Sounds like at some point I will need to contact our lawyers, but for short term, I can re-submit the PR to resolve the short-term
+
+--Timer Redesign--
+
+ * https://github.com/tock/tock/blob/time-redesign-v3/doc/reference/trd-time.md
+ - Phil: This is a first pass from a couple timer discussions, plus Guillaume's arbitrary tick widths
+ - Phil: It's actually built off of Guillaume's PR, then updated with the discussions
+   -- §1: Intro
+   -- §2: Basic time/freq/ticks traits; cover the new tick width parts
+   -- §3: From discussions with Patrick, really need rich handling of overflow
+   -- §4: Alarm & client traits, extends overflow (use counting overflows to handle long alarms). Major change is interface to alarm is now+∆t
+   ---- Amit: Why a ∆t rather than an absolute
+   ---- Phil: Otherwise you're just going to end up doing the add yourself anyway
+   ---- Amit: Only counterexample maybe an alarm clock
+   ---- Phil: Either is fine really
+   -- §5: Time & TimerClient: These were around, but not used so much; they are the true relative time interface
+   -- §6: The basic frequency stuff
+   -- §7: What are standard capsules and what do they do
+   -- §8: what must a chip implement to be usable in a standard Tock?
+ - Guillaume: Thanks for putting this together; seem to capture most concerns.
+ - Guillaume: Some concerns about the naming of "expire", and making sure that happens-before relationships are clear
+ - Phil: Would like to invite Guillaume & Patrick to be TRD co-authors
+ - Amit: Since this seems to capture most issues, would be good to get a branch going trying this out
+ - Phil: Agreed, just want to make sure we have consensus on design before re-re-redoing code a bunch
+ - Amit: I volunteer myself, and if I can volunteer Guillaume and Patrick, to help implement this
+ - Guillaume: Agreed
+ - Patrick: <silence taken as a "yes" by Amit :D>
+
+--Threat Model--
+
+ * https://github.com/tock/tock/pull/1632
+ * Amit: too big to re-read all on the call, but some major q's
+ - Amit: Should this go for 1.5/1.6 or 2.0?
+ - Amit: Some of what we want in the threat model are not currently enforced and only possible with breaking changes
+ - Jonathan: Brad suggested not allowing shared resources e.g. UART be shared by applications naively; need security-aware virtualization; would be 2.0 change; fine either way, but an example of the challenge
+ - Hudson: not sure it needs to target any specific version; difference between this describes the state now vs aspirational
+ - Jonathan: In either case it's aspirational, just a q of whether it's something feasible for 1.x or 2.0
+ - Amit: In favor of something better rather than weaking to match 1.x implementation
+ - Phil, Pat: Agreed
+ - Amit: "Does anyone dissent" <crickets>
+ 
+ * How much trust in application loaders?
+ - Jonathan: Example, if a board has apps A and B (in that order), if A updates-in-place, it could lie about size in its TBF to be able to DoS B and read its code
+ - Jonathan: Thus, I put size validation in the loaders in the threat model, but this doesn't help the DoS
+ - Jonathan: So, should application loaders reject updates to A that stop B from running? How to do this if tockloader doesn't know kernel app ram size & allocation policy; related problem for statically linked apps or fixed slots, then tockloader needs to be layout aware
+ - Amit: Can we sidestep by saying, "the threat model assumes the TBF headers are trusted once they are in flash"
+ - Jean-Luc: That puts a lot of trust in the apps, essentially laying out an attack in the threat model
+ - Amit: Scenario is app/board-specific, e.g. titan will load apps differently than hail; DoS policy will be different (hail best effort, titan precise); so the threat model for Tock _generally_ should defer the trust in the TBF header to the platform (kernel+loader combo)
+ - Jonathan: The answer might just be that TBF headers have to be trusted and validated by the application loader
+ - Jonathan: I thought there were some other things in the header (like flash regions) that we don't need to trust
+ - Amit: Yes, there are only a few critical fields. Tricky q's, how to distinguish legitimate vs. malilcious request for 40kB of RAM
+ - Jonathan: In-field updates are different that first loading (app shouldn't stop b/c other app updated)
+ - Amit: Yes, but that's again a platform-specific policy
+ - Pat: This is good from the Tock kernel perspective, but it punts the problem on how to build secure platforms in a dissatisifying way; means Tock isn't "secure-out-of-the-box" now and requires platform designers to reason every time about correctness
+ - Amit: Putting RAM on the shelf for a second,  is the main problem lying about flash size?
+ - Jonathan: I don't think that's the only thing, just the one example been thinking about / working with -- it's mostly addressable today, but starting to look more broadly (e.g. RAM-aware and MPU-aware) is where things get harder
+ - Jonathan: Could shift promise to say that the DoS gaurentees only start once the process is loaded; easier, but punts on some hard problems
+ - Jonathan: Could try to solve all the rest, harder
+ - Jonathan: A more Tock 2.0 idea might be to specify app locations fully in TBF header
+ - Amit: I'm more confused now, thought the big issue was just the lying about flash? Can DoS and read other apps?
+ - Jonathan: Yes, that is the main issue about flash, but flash not only issue.
+ - Amit: Maybe the problem is that things are a bit of a hack with this ad-hoc linked list; more reasonably maybe the app layout should be a separate kernel data structure, and that's the part that should really be trusted
+ - Jonathan: Do you mean in-ram as now,  or a flash data structure?
+ - Amit: In-flash
+ - Samual: Feels like the flash usage is something that tockloaderr should be able to easily validate
+ - Pat: Implicitly this discussion will shift tockloader from being a convenience tool to a necessary tool
+ - Jean-Luc: Indeed a problem, want this to be a multiprogrammed platform; means one app may not know others, hard to really be multi-app
+ - Amit: Equivalent of tockloader will have to live in the platform to address this
+ - Pat: So really this is an argument for an enhanced tock bootloader?
+ - Amit: Agree that to the extent that we can, we should not overly rely on custom tools
+ - Amit: OpenOCD/etc should still work, you the human have established trust in the TBF headers (not much, but enough for this scenario); for OpenTitan, this is richer, has signed images, validated by the bootloader
+ - Amit: summarizing
+     1) How to we establish trust for setting up MPU regions when switching to a process (current: relies on fields in TBF headers)
+     2) DoS. A process could stop other processes from running
+ - Jonathan: that's 2/3 for confidentiality avaibility intergrity
+ - Jonathan: I will try to write something up for next week
+ - Amit: Thought, (1) is critical, (2) is maybe something Tock kernel doesn't need to be responsible for
+ 
+ * Quickly: Virtualization safety?
+ - Amit: Currently sensors like temperature will report one reading to two processes, less safe for stuff like ADC or UART to send bytes to two places
+ - Amit: Any disagreement to cacheing temp sensors
+ - Pat: We've putting timing side channels out of scope, so instinct is seems safe
+ - Amit: Yeah, and is a problem either way
+ - Jonathan: Is it a security issue to let ADC driver hand readings to multiple apps?
+ - Amit: Not necessarily? Maybe think about in terms of non-interference? i.e. it is okay to cache temp becuase learning temperature data is no new information
+ - Jonathan: Can't the same argument be made for an ADC?
+ - Amit: That's why my instinct is safe, but not sure / confident?
+ - Samuel: What about two quick reads?
+ - Amit: Is stating this in terms of non-interference reasonable? aka is it okay to share so long as the process of sharing does not leak information?
+ - Johnathan: This is kinda a weird way to state it because it sounds like it is asking us to defend against side channels when we are not
+ - Johnathan: It is reasonable to think for this kinda thing to think that this information might be shared between apps
+ - Johnathan: an ADC is a good example of something that can't really be muxed (as opposed to a shared bus)
+ - Samuel: Threat model aside, seems like there are lots of usability/engineering concerns about muxing / exclusive access to hardware resources, which has implications for security but we don't understand well enough yet
+ - Amit: Great example: The current interface for UART is that input is sent to all processes. From a security perspective that is a reasonable answer because the fact that any process could read the UART at any time even if it was exclusive access means that there is no way to reason about which process does or does not get to listen to a specific piece of UART data
+ - Amit: This is the difference between exposing a raw network device vs. exposing TCP sockets. If the Kernel has an abstraction that is exposed to processes that allows the kernel to mutliplex access in a reasonable way then you can reasonably talk about those different streams as private to a particular process, but if the kernel can't do this you cant
+ - Sam: So basically the security gaurantees should be based on the functionality you are providing?
+ - Amit: Yep
+ - Johnathan: I may have some more questions on this next week -- I will take a look at the meeting notes and see if that helps me articulate it

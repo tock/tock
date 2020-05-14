@@ -13,8 +13,6 @@
 // Author: Philip Levis <pal@cs.stanford.edu>
 // Last modified: 6/20/2018
 
-#![allow(dead_code)] // Components are intended to be conditionally included
-
 use capsules::process_console;
 use capsules::virtual_uart::{MuxUart, UartDevice};
 use kernel::capabilities;
@@ -46,7 +44,7 @@ impl Component for ProcessConsoleComponent {
     type StaticInput = ();
     type Output = &'static process_console::ProcessConsole<'static, Capability>;
 
-    unsafe fn finalize(&mut self, _s: Self::StaticInput) -> Self::Output {
+    unsafe fn finalize(self, _s: Self::StaticInput) -> Self::Output {
         // Create virtual device for console.
         let console_uart = static_init!(UartDevice, UartDevice::new(self.uart_mux, true));
         console_uart.setup();

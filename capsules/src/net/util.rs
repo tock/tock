@@ -50,11 +50,17 @@ pub fn matches_prefix(buf1: &[u8], buf2: &[u8], prefix_len: u8) -> bool {
     buf1[..full_bytes].iter().eq(buf2[..full_bytes].iter())
 }
 
-pub fn slice_to_u16(buf: &[u8]) -> u16 {
+// When reading from a buffer in network order
+pub fn network_slice_to_u16(buf: &[u8]) -> u16 {
     ((buf[0] as u16) << 8) | (buf[1] as u16)
 }
 
-pub fn u16_to_slice(short: u16, slice: &mut [u8]) {
+// When reading from a buffer in host order
+pub fn host_slice_to_u16(buf: &[u8]) -> u16 {
+    ((buf[1] as u16) << 8) | (buf[0] as u16)
+}
+
+pub fn u16_to_network_slice(short: u16, slice: &mut [u8]) {
     slice[0] = (short >> 8) as u8;
     slice[1] = (short & 0xff) as u8;
 }

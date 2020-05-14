@@ -3,6 +3,7 @@ use crate::i2c;
 use crate::peripheral_interrupts::NvicIrq;
 use crate::rtc;
 use crate::uart;
+use core::fmt::Write;
 use cortexm4::{self, nvic};
 use enum_primitive::cast::FromPrimitive;
 
@@ -78,5 +79,9 @@ impl kernel::Chip for Cc26X2 {
         F: FnOnce() -> R,
     {
         cortexm4::support::atomic(f)
+    }
+
+    unsafe fn print_state(&self, writer: &mut dyn Write) {
+        cortexm4::print_cortexm4_state(writer);
     }
 }

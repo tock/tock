@@ -154,6 +154,14 @@ impl Uart<'a> {
             }
         }
     }
+
+    pub fn transmit_sync(&self, bytes: &[u8]) {
+        let regs = self.registers;
+        for b in bytes.iter() {
+            while regs.txdata.is_set(txdata::full) {}
+            regs.txdata.write(txdata::data.val(*b as u32));
+        }
+    }
 }
 
 impl hil::uart::UartData<'a> for Uart<'a> {}

@@ -96,6 +96,11 @@ pub trait AES128CBC {
     fn set_mode_aes128cbc(&self, encrypting: bool);
 }
 
+pub trait AES128ECB {
+    /// Call before `AES128::crypt()` to perform AES128ECB
+    fn set_mode_aes128ecb(&self, encrypting: bool);
+}
+
 pub trait CCMClient {
     /// `res` is SUCCESS if the encryption/decryption process succeeded. This
     /// does not mean that the message has been verified in the case of

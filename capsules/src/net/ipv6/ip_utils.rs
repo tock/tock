@@ -177,7 +177,7 @@ pub fn compute_udp_checksum(
     //Finally, flip all bits
     sum = !sum;
     sum = sum & 65535; //Remove upper 16 bits (which should be FFFF after flip)
-    (sum as u16) //Return result as u16 in host byte order */
+    sum as u16 //Return result as u16 in host byte order */
 }
 
 pub fn compute_icmp_checksum(

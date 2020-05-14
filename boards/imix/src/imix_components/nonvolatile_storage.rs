@@ -39,7 +39,7 @@ impl Component for NonvolatileStorageComponent {
     type StaticInput = ();
     type Output = &'static NonvolatileStorage<'static>;
 
-    unsafe fn finalize(&mut self, _s: Self::StaticInput) -> Self::Output {
+    unsafe fn finalize(self, _s: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
         sam4l::flashcalw::FLASH_CONTROLLER.configure();
@@ -47,10 +47,7 @@ impl Component for NonvolatileStorageComponent {
             sam4l::flashcalw::Sam4lPage::new();
         let nv_to_page = static_init!(
             NonvolatileToPages<'static, sam4l::flashcalw::FLASHCALW>,
-            NonvolatileToPages::new(
-                &mut sam4l::flashcalw::FLASH_CONTROLLER,
-                &mut FLASH_PAGEBUFFER
-            )
+            NonvolatileToPages::new(&sam4l::flashcalw::FLASH_CONTROLLER, &mut FLASH_PAGEBUFFER)
         );
         hil::flash::HasClient::set_client(&sam4l::flashcalw::FLASH_CONTROLLER, nv_to_page);
 

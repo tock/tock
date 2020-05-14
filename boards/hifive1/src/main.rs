@@ -13,8 +13,8 @@
 #![feature(asm)]
 
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
-use capsules::virtual_uart::MuxUart;
 use kernel::capabilities;
+use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::component::Component;
 use kernel::hil;
 use kernel::Platform;
@@ -28,22 +28,29 @@ pub mod io;
 static mut PROCESSES: [Option<&'static dyn kernel::procs::ProcessType>; 4] =
     [None, None, None, None];
 
+// Reference to the chip for panic dumps.
+static mut CHIP: Option<&'static e310x::chip::E310x> = None;
+
 // How should the kernel respond when a process faults.
 const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultResponse::Panic;
 
 // RAM to be shared by all application processes.
 #[link_section = ".app_memory"]
-static mut APP_MEMORY: [u8; 8192] = [0; 8192];
+static mut APP_MEMORY: [u8; 5 * 1024] = [0; 5 * 1024];
 
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
 #[link_section = ".stack_buffer"]
-pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
+pub static mut STACK_MEMORY: [u8; 0x800] = [0; 0x800];
 
 /// A structure representing this platform that holds references to all
 /// capsules for this platform. We've included an alarm and console.
 struct HiFive1 {
     console: &'static capsules::console::Console<'static>,
+    lldb: &'static capsules::low_level_debug::LowLevelDebug<
+        'static,
+        capsules::virtual_uart::UartDevice<'static>,
+    >,
     alarm: &'static capsules::alarm::AlarmDriver<
         'static,
         VirtualMuxAlarm<'static, rv32i::machine_timer::MachineTimer<'static>>,
@@ -59,6 +66,7 @@ impl Platform for HiFive1 {
         match driver_num {
             capsules::console::DRIVER_NUM => f(Some(self.console)),
             capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
+            capsules::low_level_debug::DRIVER_NUM => f(Some(self.lldb)),
             _ => f(None),
         }
     }
@@ -91,6 +99,14 @@ pub unsafe fn reset_handler() {
 
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
 
+    let dynamic_deferred_call_clients =
+        static_init!([DynamicDeferredCallClientState; 2], Default::default());
+    let dynamic_deferred_caller = static_init!(
+        DynamicDeferredCall,
+        DynamicDeferredCall::new(dynamic_deferred_call_clients)
+    );
+    DynamicDeferredCall::set_global_instance(dynamic_deferred_caller);
+
     // Configure kernel debug gpios as early as possible
     kernel::debug::assign_gpios(
         Some(&e310x::gpio::PORT[22]), // Red
@@ -99,40 +115,35 @@ pub unsafe fn reset_handler() {
     );
 
     let chip = static_init!(e310x::chip::E310x, e310x::chip::E310x::new());
+    CHIP = Some(chip);
 
     // Need to enable all interrupts for Tock Kernel
     chip.enable_plic_interrupts();
 
-    // Need to enable all interrupts for Tock Kernel
-    chip.enable_plic_interrupts();
     // enable interrupts globally
     csr::CSR
         .mie
-        .modify(csr::mie::mie::msoft::SET + csr::mie::mie::mtimer::SET);
+        .modify(csr::mie::mie::mext::SET + csr::mie::mie::msoft::SET + csr::mie::mie::mtimer::SET);
     csr::CSR.mstatus.modify(csr::mstatus::mstatus::mie::SET);
 
     // Create a shared UART channel for the console and for kernel debug.
-    let uart_mux = static_init!(
-        MuxUart<'static>,
-        MuxUart::new(
-            &e310x::uart::UART0,
-            &mut capsules::virtual_uart::RX_BUF,
-            115200
-        )
-    );
-
-    uart_mux.initialize();
-
-    hil::uart::Transmit::set_transmit_client(&e310x::uart::UART0, uart_mux);
-    hil::uart::Receive::set_receive_client(&e310x::uart::UART0, uart_mux);
+    let uart_mux = components::console::UartMuxComponent::new(
+        &e310x::uart::UART0,
+        115200,
+        dynamic_deferred_caller,
+    )
+    .finalize(());
 
     // Initialize some GPIOs which are useful for debugging.
+    // Red LED
     hil::gpio::Pin::make_output(&e310x::gpio::PORT[22]);
     hil::gpio::Pin::set(&e310x::gpio::PORT[22]);
 
+    // Green LED
     hil::gpio::Pin::make_output(&e310x::gpio::PORT[19]);
     hil::gpio::Pin::set(&e310x::gpio::PORT[19]);
 
+    // Blue LED
     hil::gpio::Pin::make_output(&e310x::gpio::PORT[21]);
     hil::gpio::Pin::clear(&e310x::gpio::PORT[21]);
 
@@ -142,9 +153,9 @@ pub unsafe fn reset_handler() {
     // alarm.
     let mux_alarm = static_init!(
         MuxAlarm<'static, rv32i::machine_timer::MachineTimer>,
-        MuxAlarm::new(&rv32i::machine_timer::MACHINETIMER)
+        MuxAlarm::new(&e310x::timer::MACHINETIMER)
     );
-    hil::time::Alarm::set_client(&rv32i::machine_timer::MACHINETIMER, mux_alarm);
+    hil::time::Alarm::set_client(&e310x::timer::MACHINETIMER, mux_alarm);
 
     // Alarm
     let virtual_alarm_user = static_init!(
@@ -168,29 +179,47 @@ pub unsafe fn reset_handler() {
     // Create the debugger object that handles calls to `debug!()`.
     components::debug_writer::DebugWriterComponent::new(uart_mux).finalize(());
 
-    debug!("HiFive1 initialization complete. Entering main loop");
+    let lldb = components::lldb::LowLevelDebugComponent::new(board_kernel, uart_mux).finalize(());
+
+    // Need two debug!() calls to actually test with QEMU. QEMU seems to have
+    // a much larger UART TX buffer (or it transmits faster).
+    debug!("HiFive1 initialization complete.");
+    debug!("Entering main loop.");
 
     extern "C" {
         /// Beginning of the ROM region containing app images.
         ///
         /// This symbol is defined in the linker script.
         static _sapps: u8;
+
+        /// End of the ROM region containing app images.
+        ///
+        /// This symbol is defined in the linker script.
+        static _eapps: u8;
     }
 
     let hifive1 = HiFive1 {
         console: console,
         alarm: alarm,
+        lldb: lldb,
     };
 
     kernel::procs::load_processes(
         board_kernel,
         chip,
-        &_sapps as *const u8,
+        core::slice::from_raw_parts(
+            &_sapps as *const u8,
+            &_eapps as *const u8 as usize - &_sapps as *const u8 as usize,
+        ),
         &mut APP_MEMORY,
         &mut PROCESSES,
         FAULT_RESPONSE,
         &process_mgmt_cap,
-    );
+    )
+    .unwrap_or_else(|err| {
+        debug!("Error loading processes!");
+        debug!("{:?}", err);
+    });
 
     board_kernel.kernel_loop(&hifive1, chip, None, &main_loop_cap);
 }

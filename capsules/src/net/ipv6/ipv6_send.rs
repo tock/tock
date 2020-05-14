@@ -20,9 +20,11 @@ use crate::ieee802154::device::{MacDevice, TxClient};
 use crate::net::ieee802154::MacAddress;
 use crate::net::ipv6::ip_utils::IPAddr;
 use crate::net::ipv6::ipv6::{IP6Header, IP6Packet, TransportHeader};
+use crate::net::network_capabilities::{IpVisibilityCapability, NetworkCapability};
 use crate::net::sixlowpan::sixlowpan_state::TxState;
 use core::cell::Cell;
 use kernel::common::cells::{OptionalCell, TakeCell};
+use kernel::common::leasable_buffer::LeasableBuffer;
 use kernel::debug;
 use kernel::hil::time::{self, Frequency};
 use kernel::ReturnCode;
@@ -77,8 +79,13 @@ pub trait IP6Sender<'a> {
     /// `dst` - IPv6 address to send the packet to
     /// `transport_header` - The `TransportHeader` for the packet being sent
     /// `payload` - The transport payload for the packet being sent
-    fn send_to(&self, dst: IPAddr, transport_header: TransportHeader, payload: &[u8])
-        -> ReturnCode;
+    fn send_to(
+        &self,
+        dst: IPAddr,
+        transport_header: TransportHeader,
+        payload: &LeasableBuffer<'static, u8>,
+        net_cap: &'static NetworkCapability,
+    ) -> ReturnCode;
 }
 
 /// This struct is a specific implementation of the `IP6Sender` trait. This
@@ -97,6 +104,7 @@ pub struct IP6SendStruct<'a, A: time::Alarm<'a>> {
     dst_mac_addr: MacAddress,
     src_mac_addr: MacAddress,
     client: OptionalCell<&'a dyn IP6SendClient>,
+    ip_vis: &'static IpVisibilityCapability,
 }
 
 impl<A: time::Alarm<'a>> IP6Sender<'a> for IP6SendStruct<'a, A> {
@@ -121,8 +129,12 @@ impl<A: time::Alarm<'a>> IP6Sender<'a> for IP6SendStruct<'a, A> {
         &self,
         dst: IPAddr,
         transport_header: TransportHeader,
-        payload: &[u8],
+        payload: &LeasableBuffer<'static, u8>,
+        net_cap: &'static NetworkCapability,
     ) -> ReturnCode {
+        if !net_cap.remote_addr_valid(dst, self.ip_vis) {
+            return ReturnCode::FAIL;
+        }
         self.sixlowpan.init(
             self.src_mac_addr,
             self.dst_mac_addr,
@@ -144,6 +156,7 @@ impl<A: time::Alarm<'a>> IP6SendStruct<'a, A> {
         radio: &'a dyn MacDevice<'a>,
         dst_mac_addr: MacAddress,
         src_mac_addr: MacAddress,
+        ip_vis: &'static IpVisibilityCapability,
     ) -> IP6SendStruct<'a, A> {
         IP6SendStruct {
             ip6_packet: TakeCell::new(ip6_packet),
@@ -156,17 +169,28 @@ impl<A: time::Alarm<'a>> IP6SendStruct<'a, A> {
             dst_mac_addr: dst_mac_addr,
             src_mac_addr: src_mac_addr,
             client: OptionalCell::empty(),
+            ip_vis: ip_vis,
         }
     }
 
-    fn init_packet(&self, dst_addr: IPAddr, transport_header: TransportHeader, payload: &[u8]) {
-        self.ip6_packet.map(|ip6_packet| {
-            ip6_packet.header = IP6Header::default();
-            ip6_packet.header.src_addr = self.src_addr.get();
-            ip6_packet.header.dst_addr = dst_addr;
-            ip6_packet.set_payload(transport_header, payload);
-            ip6_packet.set_transport_checksum();
-        });
+    fn init_packet(
+        &self,
+        dst_addr: IPAddr,
+        transport_header: TransportHeader,
+        payload: &LeasableBuffer<'static, u8>,
+    ) {
+        self.ip6_packet.map_or_else(
+            || {
+                debug!("init packet failed.");
+            },
+            |ip6_packet| {
+                ip6_packet.header = IP6Header::default();
+                ip6_packet.header.src_addr = self.src_addr.get();
+                ip6_packet.header.dst_addr = dst_addr;
+                ip6_packet.set_payload(transport_header, payload);
+                ip6_packet.set_transport_checksum();
+            },
+        );
     }
 
     // Returns EBUSY if the tx_buf is not there
@@ -182,31 +206,29 @@ impl<A: time::Alarm<'a>> IP6SendStruct<'a, A> {
             .ip6_packet
             .map(move |ip6_packet| match self.tx_buf.take() {
                 Some(tx_buf) => {
-                    let mut send = false;
-                    let mut send_complete_return = ReturnCode::SUCCESS;
                     let next_frame = self.sixlowpan.next_fragment(ip6_packet, tx_buf, self.radio);
                     match next_frame {
                         Ok((is_done, frame)) => {
                             if is_done {
                                 self.tx_buf.replace(frame.into_buf());
                                 //self.send_completed(ReturnCode::SUCCESS);
-                                send = true;
-                                return (send_complete_return, send);
+                                (ReturnCode::SUCCESS, true)
                             } else {
                                 let (err, _frame_option) = self.radio.transmit(frame);
-                                return (err, send);
+                                (err, false)
                             }
                         }
                         Err((retcode, buf)) => {
                             self.tx_buf.replace(buf);
                             //self.send_completed(retcode);
-                            send = true;
-                            send_complete_return = retcode;
+                            (retcode, true)
                         }
                     }
-                    (send_complete_return, send)
                 }
-                None => (ReturnCode::EBUSY, false),
+                None => {
+                    debug!("Missing tx_buf");
+                    (ReturnCode::EBUSY, false)
+                }
             })
             .unwrap_or((ReturnCode::ENOMEM, false));
         if call_send_complete {
@@ -217,7 +239,9 @@ impl<A: time::Alarm<'a>> IP6SendStruct<'a, A> {
     }
 
     fn send_completed(&self, result: ReturnCode) {
-        self.client.map(move |client| client.send_done(result));
+        self.client.map(move |client| {
+            client.send_done(result);
+        });
     }
 }
 
@@ -235,17 +259,21 @@ impl<A: time::Alarm<'a>> TxClient for IP6SendStruct<'a, A> {
         self.tx_buf.replace(tx_buf);
         if result != ReturnCode::SUCCESS {
             debug!("Send Failed: {:?}, acked: {}", result, acked);
+            self.client.map(move |client| {
+                client.send_done(result);
+            });
+        } else {
+            // Below code adds delay between fragments. Despite some efforts
+            // to fix this bug, I find that without it the receiving imix cannot
+            // receive more than 2 fragments in a single packet without hanging
+            // waiting for the third fragments.
+            // Specifically, here we set a timer, which fires and sends the next fragment
+            // One flaw with this is that we also introduce a delay after sending the last
+            // fragment, before passing the send_done callback back to the client. This
+            // could be optimized by checking if it is the last fragment before setting the timer.
+            let interval = (100000 as u32) * <A::Frequency>::frequency() / 1000000;
+            let tics = self.alarm.now().wrapping_add(interval);
+            self.alarm.set_alarm(tics);
         }
-        // Below code adds delay between fragments. Despite some efforts
-        // to fix this bug, I find that without it the receiving imix cannot
-        // receive more than 2 fragments in a single packet without hanging
-        // waiting for the third fragments.
-        // Specifically, here we set a timer, which fires and sends the next fragment
-        // One flaw with this is that we also introduce a delay after sending the last
-        // fragment, before passing the send_done callback back to the client. This
-        // could be optimized by checking if it is the last fragment before setting the timer.
-        let interval = (100000 as u32) * <A::Frequency>::frequency() / 1000000;
-        let tics = self.alarm.now().wrapping_add(interval);
-        self.alarm.set_alarm(tics);
     }
 }

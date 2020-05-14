@@ -119,12 +119,17 @@ macro_rules! register_bitmasks {
 #[macro_export]
 macro_rules! register_bitfields {
     {
-        $valtype:ty, $( $(#[$inner:meta])* $reg:ident $fields:tt ),*
+        $valtype:ty, $( $(#[$inner:meta])* $vis:vis $reg:ident $fields:tt ),*
     } => {
         $(
             #[allow(non_snake_case)]
             $(#[$inner])*
-            pub mod $reg {
+            $vis mod $reg {
+                // Visibility note: This is left always `pub` as it is not
+                // meaningful to restrict access to the `Register` element of
+                // the register module if the module itself is in scope
+                //
+                // (if you can access $reg, you can access $reg::Register)
                 #[derive(Clone, Copy)]
                 pub struct Register;
                 impl $crate::registers::RegisterLongName for Register {}
@@ -140,12 +145,12 @@ macro_rules! register_bitfields {
 #[macro_export]
 macro_rules! register_fields {
     // Macro entry point.
-    (@root $(#[$attr_struct:meta])* $name:ident { $($input:tt)* } ) => {
+    (@root $(#[$attr_struct:meta])* $vis_struct:vis $name:ident $(<$life:lifetime>)? { $($input:tt)* } ) => {
         $crate::register_fields!(
             @munch (
                 $($input)*
             ) -> {
-                struct $(#[$attr_struct])* $name
+                $vis_struct struct $(#[$attr_struct])* $name $(<$life>)?
             }
         );
     };
@@ -156,17 +161,17 @@ macro_rules! register_fields {
             $(#[$attr_end:meta])*
             ($offset:expr => @END),
         )
-        -> {struct $(#[$attr_struct:meta])* $name:ident $(
+        -> {$vis_struct:vis struct $(#[$attr_struct:meta])* $name:ident $(<$life:lifetime>)? $(
                 $(#[$attr:meta])*
-                ($id:ident: $ty:ty)
+                ($vis:vis $id:ident: $ty:ty)
             )*}
     ) => {
         $(#[$attr_struct])*
         #[repr(C)]
-        pub struct $name {
+        $vis_struct struct $name $(<$life>)? {
             $(
                 $(#[$attr])*
-                $id: $ty
+                $vis $id: $ty
             ),*
         }
     };
@@ -175,7 +180,7 @@ macro_rules! register_fields {
     (@munch
         (
             $(#[$attr:meta])*
-            ($offset_start:expr => $field:ident: $ty:ty),
+            ($offset_start:expr => $vis:vis $field:ident: $ty:ty),
             $($after:tt)*
         )
         -> {$($output:tt)*}
@@ -186,7 +191,7 @@ macro_rules! register_fields {
             ) -> {
                 $($output)*
                 $(#[$attr])*
-                ($field: $ty)
+                ($vis $field: $ty)
             }
         );
     };
@@ -219,12 +224,14 @@ macro_rules! register_fields {
 #[macro_export]
 macro_rules! test_fields {
     // Macro entry point.
-    (@root $struct:ident $($input:tt)* ) => {
-        $crate::test_fields!(@munch $struct sum ($($input)*) -> {});
+    (@root $struct:ident $(<$life:lifetime>)? { $($input:tt)* } ) => {
+        $crate::test_fields!(@munch $struct $(<$life>)? sum ($($input)*) -> {});
     };
 
     // Print the tests once all fields have been munched.
-    (@munch $struct:ident $sum:ident
+    // We wrap the tests in a "detail" function that potentially takes a lifetime parameter, so that
+    // the lifetime is declared inside it - therefore all types using the lifetime are well-defined.
+    (@munch $struct:ident $(<$life:lifetime>)? $sum:ident
         (
             $(#[$attr_end:meta])*
             ($size:expr => @END),
@@ -232,24 +239,29 @@ macro_rules! test_fields {
         -> {$($stmts:block)*}
     ) => {
         {
-        let mut $sum: usize = 0;
-        $($stmts)*
-        let size = core::mem::size_of::<$struct>();
-        assert!(
-            size == $size,
-            "Invalid size for struct {} (expected {:#X} but was {:#X})",
-            stringify!($struct),
-            $size,
-            size
-        );
+        fn detail $(<$life>)? ()
+        {
+            let mut $sum: usize = 0;
+            $($stmts)*
+            let size = core::mem::size_of::<$struct $(<$life>)?>();
+            assert!(
+                size == $size,
+                "Invalid size for struct {} (expected {:#X} but was {:#X})",
+                stringify!($struct),
+                $size,
+                size
+            );
+        }
+
+        detail();
         }
     };
 
     // Munch field.
-    (@munch $struct:ident $sum:ident
+    (@munch $struct:ident $(<$life:lifetime>)? $sum:ident
         (
             $(#[$attr:meta])*
-            ($offset_start:expr => $field:ident: $ty:ty),
+            ($offset_start:expr => $vis:vis $field:ident: $ty:ty),
             $(#[$attr_next:meta])*
             ($offset_end:expr => $($next:tt)*),
             $($after:tt)*
@@ -257,7 +269,7 @@ macro_rules! test_fields {
         -> {$($output:block)*}
     ) => {
         $crate::test_fields!(
-            @munch $struct $sum (
+            @munch $struct $(<$life>)? $sum (
                 $(#[$attr_next])*
                 ($offset_end => $($next)*),
                 $($after)*
@@ -293,7 +305,7 @@ macro_rules! test_fields {
     };
 
     // Munch padding.
-    (@munch $struct:ident $sum:ident
+    (@munch $struct:ident $(<$life:lifetime>)? $sum:ident
         (
             $(#[$attr:meta])*
             ($offset_start:expr => $padding:ident),
@@ -304,7 +316,7 @@ macro_rules! test_fields {
         -> {$($output:block)*}
     ) => {
         $crate::test_fields!(
-            @munch $struct $sum (
+            @munch $struct $(<$life>)? $sum (
                 $(#[$attr_next])*
                 ($offset_end => $($next)*),
                 $($after)*
@@ -325,17 +337,18 @@ macro_rules! test_fields {
     };
 }
 
+#[cfg(not(feature = "no_std_unit_tests"))]
 #[macro_export]
 macro_rules! register_structs {
     {
         $(
             $(#[$attr:meta])*
-            $name:ident {
+            $vis_struct:vis $name:ident $(<$life:lifetime>)? {
                 $( $fields:tt )*
             }
         ),*
     } => {
-        $( $crate::register_fields!(@root $(#[$attr])* $name { $($fields)* } ); )*
+        $( $crate::register_fields!(@root $(#[$attr])* $vis_struct $name $(<$life>)? { $($fields)* } ); )*
 
         #[cfg(test)]
         mod test_register_structs {
@@ -345,10 +358,25 @@ macro_rules! register_structs {
                 use super::super::*;
                 #[test]
                 fn test_offsets() {
-                    $crate::test_fields!(@root $name $($fields)* )
+                    $crate::test_fields!(@root $name $(<$life>)? { $($fields)* } )
                 }
             }
         )*
         }
+    };
+}
+
+#[cfg(feature = "no_std_unit_tests")]
+#[macro_export]
+macro_rules! register_structs {
+    {
+        $(
+            $(#[$attr:meta])*
+            $vis_struct:vis $name:ident $(<$life:lifetime>)? {
+                $( $fields:tt )*
+            }
+        ),*
+    } => {
+        $( $crate::register_fields!(@root $(#[$attr])* $vis_struct $name $(<$life>)? { $($fields)* } ); )*
     };
 }

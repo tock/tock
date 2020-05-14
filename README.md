@@ -1,7 +1,7 @@
 # ![TockOS](http://www.tockos.org/assets/img/tock.svg "TockOS Logo")
 
 [![Build Status](https://travis-ci.org/tock/tock.svg?branch=master)](https://travis-ci.org/tock/tock)
-[![irc](https://img.shields.io/badge/irc-%23tock-lightgrey.svg)](https://kiwiirc.com/client/irc.freenode.net/tock)
+[![slack](https://img.shields.io/badge/slack-tockos-informational)][slack]
 
 Tock is an embedded operating system designed for running multiple concurrent, mutually
 distrustful applications on Cortex-M and RISC-V based embedded platforms.
@@ -47,7 +47,8 @@ Find example applications that run on top of the Tock kernel written in both
 
 Read our [getting started guide](doc/Getting_Started.md) to get the correct
 version of the Rust compiler, then look through the `/kernel`, `/capsules`,
-`/chips`, and `/boards` directories.
+`/chips`, and `/boards` directories. There are also generated [source code
+docs](https://docs.tockos.org).
 
 We encourage contributions back to Tock and are happy to accept pull requests
 for anything from small documentation fixes to whole new platforms.
@@ -64,9 +65,24 @@ post series highlights what's new in Tock. Also, follow
 
 You can also browse our
 [email group](https://groups.google.com/forum/#!forum/tock-dev)
-and our [Slack](https://join.slack.com/t/tockos/shared_invite/enQtNDE5ODQyNDU4NTE1LWVjNTgzMTMwYzA1NDI1MjExZjljMjFmOTMxMGIwOGJlMjk0ZTI4YzY0NTYzNWM0ZmJmZGFjYmY5MTJiMDBlOTk) to see
+and our [Slack][slack] to see
 discussions on Tock development.
 
+[slack]: https://join.slack.com/t/tockos/shared_invite/enQtNDE5ODQyNDU4NTE1LWVjNTgzMTMwYzA1NDI1MjExZjljMjFmOTMxMGIwOGJlMjk0ZTI4YzY0NTYzNWM0ZmJmZGFjYmY5MTJiMDBlOTk
+
+
+Code of Conduct
+---------------
+
+The Tock project adheres to the Rust [Code of Conduct][coc].
+
+All contributors, community members, and visitors are expected to familiarize
+themselves with the Code of Conduct and to follow these standards in all
+Tock-affiliated environments, which includes but is not limited to
+repositories, chats, and meetup events. For moderation issues, please contact
+members of the @tock/core-wg.
+
+[coc]: https://www.rust-lang.org/conduct.html
 
 License
 -------

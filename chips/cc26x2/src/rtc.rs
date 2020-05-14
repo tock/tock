@@ -111,7 +111,7 @@ impl Rtc<'a> {
             after_subsec_read = regs.sec.get();
         }
 
-        return (current_sec << 16) | (current_subsec >> 16);
+        (current_sec << 16) | (current_subsec >> 16)
     }
 
     pub fn is_running(&self) -> bool {

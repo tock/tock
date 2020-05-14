@@ -57,3 +57,24 @@ pub unsafe trait MainLoopCapability {}
 /// The `MemoryAllocationCapability` capability allows the holder to allocate
 /// memory, for example by creating grants.
 pub unsafe trait MemoryAllocationCapability {}
+
+/// The `UdpDriverCapability` capability allows the holder to use
+/// two functions only allowed by the UDP driver.
+/// The first `driver_send_to()` function in udp_send.rs, which does
+/// not require being bound to a single port, since the driver manages port
+/// bindings for apps on its own. The second is the `set_user_ports()` function
+/// in `udp_port_table.rs`, which gives the UDP port table a reference to
+/// the UDP driver so that it can check which ports have been bound by apps.
+pub unsafe trait UdpDriverCapability {}
+
+/// The `CreatePortTableCapability` capability allows the holder to instantiate a new
+/// copy of the UdpPortTable struct. There should only ever be one instance of this struct,
+/// so this capability should not be distributed to capsules at all, as the port table should only be
+/// instantiated once by the kernel
+pub unsafe trait CreatePortTableCapability {}
+
+/// The `NetworkCapabilityCreationCapability` allows the holder to instantiate
+/// `NetworkCapability`S and visibility capabilities for the IP and UDP layers
+/// of the networking stack. A capsule would never hold this capability although
+/// it may hold capabilities created via this capability.
+pub unsafe trait NetworkCapabilityCreationCapability {}

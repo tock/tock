@@ -32,7 +32,7 @@ impl Component for AcComponent {
     type Output =
         &'static analog_comparator::AnalogComparator<'static, sam4l::acifc::Acifc<'static>>;
 
-    unsafe fn finalize(&mut self, _s: Self::StaticInput) -> Self::Output {
+    unsafe fn finalize(self, _s: Self::StaticInput) -> Self::Output {
         let ac_channels = static_init!(
             [&'static sam4l::acifc::AcChannel; 4],
             [
@@ -44,7 +44,7 @@ impl Component for AcComponent {
         );
         let analog_comparator = static_init!(
             analog_comparator::AnalogComparator<'static, sam4l::acifc::Acifc>,
-            analog_comparator::AnalogComparator::new(&mut sam4l::acifc::ACIFC, ac_channels)
+            analog_comparator::AnalogComparator::new(&sam4l::acifc::ACIFC, ac_channels)
         );
         sam4l::acifc::ACIFC.set_client(analog_comparator);
 

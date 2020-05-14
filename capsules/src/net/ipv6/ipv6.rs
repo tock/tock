@@ -71,6 +71,7 @@ use crate::net::stream::{decode_bytes, decode_u16, decode_u8};
 use crate::net::stream::{encode_bytes, encode_u16, encode_u8};
 use crate::net::tcp::TCPHeader;
 use crate::net::udp::udp::UDPHeader;
+use kernel::common::leasable_buffer::LeasableBuffer;
 use kernel::ReturnCode;
 
 pub const UDP_HDR_LEN: usize = 8;
@@ -301,12 +302,14 @@ impl IP6Header {
 /// This defines the currently supported `TransportHeader` types. The contents
 /// of each header is encapsulated by the enum type. Note that this definition
 /// of `TransportHeader`s means that recursive headers are not supported.
+/// As of now, there is no support for sending raw IP packets without a transport header.
+/// Currently we accept the overhead of copying these structs in/out of an OptionalCell
+/// in `udp_send.rs`.
+#[derive(Copy, Clone)]
 pub enum TransportHeader {
     UDP(UDPHeader),
     TCP(TCPHeader),
     ICMP(ICMP6Header),
-    // TODO: Need a length in RawIPPacket for the buffer in TransportHeader
-    /* Raw(RawIPPacket<'a>), */
 }
 
 /// The `IPPayload` struct contains a `TransportHeader` and a mutable buffer
@@ -343,11 +346,14 @@ impl IPPayload<'a> {
     /// `(u8, u16)` - Returns a tuple of the `ip6_nh` type of the
     /// `transport_header` and the total length of the `IPPayload`
     /// (when serialized)
-    pub fn set_payload(&mut self, transport_header: TransportHeader, payload: &[u8]) -> (u8, u16) {
-        if self.payload.len() < payload.len() {
-            // TODO: Error
+    pub fn set_payload(
+        &mut self,
+        transport_header: TransportHeader,
+        payload: &LeasableBuffer<'static, u8>,
+    ) -> (u8, u16) {
+        for i in 0..payload.len() {
+            self.payload[i] = payload[i];
         }
-        self.payload[..payload.len()].copy_from_slice(&payload);
         match transport_header {
             TransportHeader::UDP(mut udp_header) => {
                 let length = (payload.len() + udp_header.get_hdr_size()) as u16;
@@ -369,7 +375,7 @@ impl IPPayload<'a> {
     ///
     /// # Arguments
     ///
-    /// `buf` - Buffer to write the serialized `IPPayload` to
+    /// `buf` - LeasableBuffer to write the serialized `IPPayload` to
     /// `offset` - Current offset into the buffer
     ///
     /// # Return Value
@@ -492,7 +498,11 @@ impl IP6Packet<'a> {
     /// `transport_header` - The `TransportHeader` to be set as the next header
     /// `payload` - The transport payload to be copied into the `IPPayload`
     /// transport payload
-    pub fn set_payload(&mut self, transport_header: TransportHeader, payload: &[u8]) {
+    pub fn set_payload(
+        &mut self,
+        transport_header: TransportHeader,
+        payload: &LeasableBuffer<'static, u8>,
+    ) {
         let (next_header, payload_len) = self.payload.set_payload(transport_header, payload);
         self.header.set_next_header(next_header);
         self.header.set_payload_len(payload_len);

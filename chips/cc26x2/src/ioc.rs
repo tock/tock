@@ -11,7 +11,7 @@ pub struct Registers {
 
 register_bitfields![
     u32,
-    Config[
+    pub Config[
         HYST_EN     OFFSET(30) NUMBITS(1) [],
         INPUT_EN OFFSET(29) NUMBITS(1) [],
         IO_MODE     OFFSET(24) NUMBITS(3) [

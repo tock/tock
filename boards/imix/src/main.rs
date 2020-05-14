@@ -12,13 +12,13 @@ mod imix_components;
 use capsules::alarm::AlarmDriver;
 use capsules::net::ieee802154::MacAddress;
 use capsules::net::ipv6::ip_utils::IPAddr;
-use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+use capsules::virtual_alarm::VirtualMuxAlarm;
 use capsules::virtual_i2c::MuxI2C;
-use capsules::virtual_spi::{MuxSpiMaster, VirtualSpiMasterDevice};
-use capsules::virtual_uart::MuxUart;
+use capsules::virtual_spi::VirtualSpiMasterDevice;
 use kernel::capabilities;
+use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::component::Component;
-use kernel::hil;
+use kernel::hil::i2c::I2CMaster;
 use kernel::hil::radio;
 #[allow(unused_imports)]
 use kernel::hil::radio::{RadioConfig, RadioData};
@@ -26,26 +26,27 @@ use kernel::hil::Controller;
 #[allow(unused_imports)]
 use kernel::{create_capability, debug, debug_gpio, static_init};
 
-use components::alarm::AlarmDriverComponent;
-use components::console::ConsoleComponent;
+use components;
+use components::alarm::{AlarmDriverComponent, AlarmMuxComponent};
+use components::console::{ConsoleComponent, UartMuxComponent};
 use components::crc::CrcComponent;
 use components::debug_writer::DebugWriterComponent;
+use components::gpio::GpioComponent;
 use components::isl29035::AmbientLightComponent;
+use components::led::LedsComponent;
 use components::nrf51822::Nrf51822Component;
 use components::process_console::ProcessConsoleComponent;
 use components::rng::RngComponent;
+use components::si7021::{HumidityComponent, SI7021Component, TemperatureComponent};
 use components::spi::{SpiComponent, SpiSyscallComponent};
 use imix_components::adc::AdcComponent;
 use imix_components::analog_comparator::AcComponent;
-use imix_components::button::ButtonComponent;
 use imix_components::fxos8700::NineDofComponent;
-use imix_components::gpio::GpioComponent;
-use imix_components::led::LedComponent;
 use imix_components::nonvolatile_storage::NonvolatileStorageComponent;
 use imix_components::radio::RadioComponent;
 use imix_components::rf233::RF233Component;
-use imix_components::si7021::{HumidityComponent, SI7021Component, TemperatureComponent};
-use imix_components::udp_6lowpan::UDPComponent;
+use imix_components::udp_driver::UDPDriverComponent;
+use imix_components::udp_mux::UDPMuxComponent;
 use imix_components::usb::UsbComponent;
 
 /// Support routines for debugging I/O.
@@ -55,30 +56,10 @@ pub mod io;
 
 // Unit Tests for drivers.
 #[allow(dead_code)]
-mod i2c_dummy;
-#[allow(dead_code)]
-mod icmp_lowpan_test;
-#[allow(dead_code)]
-mod ipv6_lowpan_test;
-#[allow(dead_code)]
-mod spi_dummy;
-#[allow(dead_code)]
-mod udp_lowpan_test;
+mod test;
 
-#[allow(dead_code)]
-mod aes_test;
-
-#[allow(dead_code)]
-mod aes_ccm_test;
-
-#[allow(dead_code)]
-mod rng_test;
-
-#[allow(dead_code)]
+// Helper functions for enabling/disabling power on Imix submodules
 mod power;
-
-#[allow(dead_code)]
-mod virtual_uart_rx_test;
 
 // State for loading apps.
 
@@ -106,6 +87,7 @@ static mut APP_MEMORY: [u8; 32768] = [0; 32768];
 
 static mut PROCESSES: [Option<&'static dyn kernel::procs::ProcessType>; NUM_PROCS] =
     [None; NUM_PROCS];
+static mut CHIP: Option<&'static sam4l::chip::Sam4l> = None;
 
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
@@ -118,14 +100,14 @@ struct Imix {
         components::process_console::Capability,
     >,
     console: &'static capsules::console::Console<'static>,
-    gpio: &'static capsules::gpio::GPIO<'static>,
+    gpio: &'static capsules::gpio::GPIO<'static, sam4l::gpio::GPIOPin>,
     alarm: &'static AlarmDriver<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>,
     temp: &'static capsules::temperature::TemperatureSensor<'static>,
     humidity: &'static capsules::humidity::HumiditySensor<'static>,
     ambient_light: &'static capsules::ambient_light::AmbientLight<'static>,
     adc: &'static capsules::adc::Adc<'static, sam4l::adc::Adc>,
-    led: &'static capsules::led::LED<'static>,
-    button: &'static capsules::button::Button<'static>,
+    led: &'static capsules::led::LED<'static, sam4l::gpio::GPIOPin>,
+    button: &'static capsules::button::Button<'static, sam4l::gpio::GPIOPin>,
     rng: &'static capsules::rng::RngDriver<'static>,
     analog_comparator: &'static capsules::analog_comparator::AnalogComparator<
         'static,
@@ -295,22 +277,19 @@ pub unsafe fn reset_handler() {
 
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
 
+    let dynamic_deferred_call_clients =
+        static_init!([DynamicDeferredCallClientState; 2], Default::default());
+    let dynamic_deferred_caller = static_init!(
+        DynamicDeferredCall,
+        DynamicDeferredCall::new(dynamic_deferred_call_clients)
+    );
+    DynamicDeferredCall::set_global_instance(dynamic_deferred_caller);
+
     // # CONSOLE
     // Create a shared UART channel for the consoles and for kernel debug.
     sam4l::usart::USART3.set_mode(sam4l::usart::UsartMode::Uart);
-    let uart_mux = static_init!(
-        MuxUart<'static>,
-        MuxUart::new(
-            &sam4l::usart::USART3,
-            &mut capsules::virtual_uart::RX_BUF,
-            115200
-        )
-    );
-
-    uart_mux.initialize();
-
-    hil::uart::Transmit::set_transmit_client(&sam4l::usart::USART3, uart_mux);
-    hil::uart::Receive::set_receive_client(&sam4l::usart::USART3, uart_mux);
+    let uart_mux =
+        UartMuxComponent::new(&sam4l::usart::USART3, 115200, dynamic_deferred_caller).finalize(());
 
     let pconsole = ProcessConsoleComponent::new(board_kernel, uart_mux).finalize(());
     let console = ConsoleComponent::new(board_kernel, uart_mux).finalize(());
@@ -319,14 +298,13 @@ pub unsafe fn reset_handler() {
     // Allow processes to communicate over BLE through the nRF51822
     sam4l::usart::USART2.set_mode(sam4l::usart::UsartMode::Uart);
     let nrf_serialization =
-        Nrf51822Component::new(&sam4l::usart::USART2, &sam4l::gpio::PB[07]).finalize(());
+        Nrf51822Component::new(&sam4l::usart::USART2, &sam4l::gpio::PB[07], board_kernel)
+            .finalize(());
 
     // # TIMER
     let ast = &sam4l::ast::AST;
-    let mux_alarm = static_init!(
-        MuxAlarm<'static, sam4l::ast::Ast>,
-        MuxAlarm::new(&sam4l::ast::AST)
-    );
+    let mux_alarm = AlarmMuxComponent::new(ast)
+        .finalize(components::alarm_mux_component_helper!(sam4l::ast::Ast));
     ast.configure(mux_alarm);
     let alarm = AlarmDriverComponent::new(board_kernel, mux_alarm)
         .finalize(components::alarm_component_helper!(sam4l::ast::Ast));
@@ -337,7 +315,8 @@ pub unsafe fn reset_handler() {
 
     let ambient_light = AmbientLightComponent::new(board_kernel, mux_i2c, mux_alarm)
         .finalize(components::isl29035_component_helper!(sam4l::ast::Ast));
-    let si7021 = SI7021Component::new(mux_i2c, mux_alarm).finalize(());
+    let si7021 = SI7021Component::new(mux_i2c, mux_alarm, 0x40)
+        .finalize(components::si7021_component_helper!(sam4l::ast::Ast));
     let temp = TemperatureComponent::new(board_kernel, si7021).finalize(());
     let humidity = HumidityComponent::new(board_kernel, si7021).finalize(());
     let ninedof = NineDofComponent::new(board_kernel, mux_i2c, &sam4l::gpio::PC[13]).finalize(());
@@ -360,11 +339,42 @@ pub unsafe fn reset_handler() {
     )
     .finalize(());
 
-    let adc = AdcComponent::new().finalize(());
-    let gpio = GpioComponent::new(board_kernel).finalize(());
+    let adc = AdcComponent::new(board_kernel).finalize(());
+    let gpio = GpioComponent::new(
+        board_kernel,
+        components::gpio_component_helper!(
+            sam4l::gpio::GPIOPin,
+            &sam4l::gpio::PC[31],
+            &sam4l::gpio::PC[30],
+            &sam4l::gpio::PC[29],
+            &sam4l::gpio::PC[28],
+            &sam4l::gpio::PC[27],
+            &sam4l::gpio::PC[26],
+            &sam4l::gpio::PA[20]
+        ),
+    )
+    .finalize(components::gpio_component_buf!(sam4l::gpio::GPIOPin));
 
-    let led = LedComponent::new().finalize(());
-    let button = ButtonComponent::new(board_kernel).finalize(());
+    let led = LedsComponent::new(components::led_component_helper!(
+        sam4l::gpio::GPIOPin,
+        (
+            &sam4l::gpio::PC[10],
+            kernel::hil::gpio::ActivationMode::ActiveHigh
+        )
+    ))
+    .finalize(components::led_component_buf!(sam4l::gpio::GPIOPin));
+    let button = components::button::ButtonComponent::new(
+        board_kernel,
+        components::button_component_helper!(
+            sam4l::gpio::GPIOPin,
+            (
+                &sam4l::gpio::PC[24],
+                kernel::hil::gpio::ActivationMode::ActiveLow,
+                kernel::hil::gpio::FloatingState::PullNone
+            )
+        ),
+    )
+    .finalize(components::button_component_buf!(sam4l::gpio::GPIOPin));
     let crc = CrcComponent::new(board_kernel, &sam4l::crccu::CRCCU)
         .finalize(components::crc_component_helper!(sam4l::crccu::Crccu));
     let analog_comparator = AcComponent::new().finalize(());
@@ -381,8 +391,14 @@ pub unsafe fn reset_handler() {
 
     // Can this initialize be pushed earlier, or into component? -pal
     rf233.initialize(&mut RF233_BUF, &mut RF233_REG_WRITE, &mut RF233_REG_READ);
-    let (radio_driver, mux_mac) =
-        RadioComponent::new(board_kernel, rf233, PAN_ID, serial_num_bottom_16).finalize(());
+    let (radio_driver, mux_mac) = RadioComponent::new(
+        board_kernel,
+        rf233,
+        PAN_ID,
+        serial_num_bottom_16, //comment out for dual rx test only
+                              //49138, //comment in for dual rx test only
+    )
+    .finalize(());
 
     let usb_driver = UsbComponent::new(board_kernel).finalize(());
     let nonvolatile_storage = NonvolatileStorageComponent::new(board_kernel).finalize(());
@@ -402,15 +418,25 @@ pub unsafe fn reset_handler() {
         ]
     );
 
-    let udp_driver = UDPComponent::new(
-        board_kernel,
+    let (udp_send_mux, udp_recv_mux, udp_port_table) = UDPMuxComponent::new(
         mux_mac,
         DEFAULT_CTX_PREFIX_LEN,
         DEFAULT_CTX_PREFIX,
         DST_MAC_ADDR,
-        src_mac_from_serial_num,
+        src_mac_from_serial_num, //comment out for dual rx test only
+        //MacAddress::Short(49138), //comment in for dual rx test only
         local_ip_ifaces,
         mux_alarm,
+    )
+    .finalize(());
+
+    // UDP driver initialization happens here
+    let udp_driver = UDPDriverComponent::new(
+        board_kernel,
+        udp_send_mux,
+        udp_recv_mux,
+        udp_port_table,
+        local_ip_ifaces,
     )
     .finalize(());
 
@@ -439,9 +465,9 @@ pub unsafe fn reset_handler() {
     };
 
     let chip = static_init!(sam4l::chip::Sam4l, sam4l::chip::Sam4l::new());
+    CHIP = Some(chip);
 
-    // Need to reset the nRF on boot, toggle it's SWDIO
-    imix.nrf51822.reset();
+    // Need to initialize the UART for the nRF51 serialization.
     imix.nrf51822.initialize();
 
     // These two lines need to be below the creation of the chip for
@@ -457,27 +483,51 @@ pub unsafe fn reset_handler() {
     // Once everything is virtualized in the kernel this won't be a problem.
     // -pal, 11/20/18
     //
-    // virtual_uart_rx_test::run_virtual_uart_receive(uart_mux);
-    // rng_test::run_entropy32();
-    // aes_ccm_test::run();
-    // aes_test::run_aes128_ctr();
-    // aes_test::run_aes128_cbc();
+    //test::virtual_uart_rx_test::run_virtual_uart_receive(uart_mux);
+    //test::rng_test::run_entropy32();
+    //test::aes_ccm_test::run();
+    //test::aes_test::run_aes128_ctr();
+    //test::aes_test::run_aes128_cbc();
+    //test::log_test::run(mux_alarm, dynamic_deferred_caller);
+    //test::linear_log_test::run(mux_alarm, dynamic_deferred_caller);
+    //test::icmp_lowpan_test::run(mux_mac, mux_alarm);
+    //let lowpan_frag_test = test::ipv6_lowpan_test::initialize_all(mux_mac, mux_alarm);
+    //lowpan_frag_test.start(); // If flashing the transmitting Imix
+    /*let udp_lowpan_test = test::udp_lowpan_test::initialize_all(
+       udp_send_mux,
+        udp_recv_mux,
+        udp_port_table,
+        mux_alarm,
+    );*/
+    //udp_lowpan_test.start();
 
     debug!("Initialization complete. Entering main loop");
 
     extern "C" {
         /// Beginning of the ROM region containing app images.
         static _sapps: u8;
+
+        /// End of the ROM region containing app images.
+        ///
+        /// This symbol is defined in the linker script.
+        static _eapps: u8;
     }
     kernel::procs::load_processes(
         board_kernel,
         chip,
-        &_sapps as *const u8,
+        core::slice::from_raw_parts(
+            &_sapps as *const u8,
+            &_eapps as *const u8 as usize - &_sapps as *const u8 as usize,
+        ),
         &mut APP_MEMORY,
         &mut PROCESSES,
         FAULT_RESPONSE,
         &process_mgmt_cap,
-    );
+    )
+    .unwrap_or_else(|err| {
+        debug!("Error loading processes!");
+        debug!("{:?}", err);
+    });
 
     board_kernel.kernel_loop(&imix, chip, Some(&imix.ipc), &main_cap);
 }

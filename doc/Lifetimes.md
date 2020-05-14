@@ -22,6 +22,16 @@ Next we'll discuss how Rust's notion of lifetimes maps to the lifetimes of
 values in Tock and how this affects the use of different types of values in the
 kernel.
 
+<!-- npm i -g markdown-toc; markdown-toc -i Lifetimes.md -->
+
+<!-- toc -->
+
+- [Rust lifetimes](#rust-lifetimes)
+- [Buffer management](#buffer-management)
+- [Circular dependencies](#circular-dependencies)
+
+<!-- tocstop -->
+
 ## Rust lifetimes
 
 Each reference (called a _borrow_) in Rust has _lifetime_ associated with its
@@ -39,7 +49,7 @@ struct Foo<'a> {
 ```
 
 defines a data structure `Foo` that contains a reference to another type,
-`Bar`. The reference has a lifetime `'a'`, which is a type parameter of `Foo`.
+`Bar`. The reference has a lifetime `'a`, which is a type parameter of `Foo`.
 Note that `'a` is an arbitrary choice of name for the lifetime, such as `E` in
 a generic `List<E>`.  It is also possible to use the explicit lifetime
 `'static` rather than a type parameter when the reference should always live

@@ -1,6 +1,6 @@
 use kernel::hil::uart::Transmit;
 use kernel::static_init;
-use nrf52::uart::UARTE0;
+use nrf52832::uart::UARTE0;
 
 const BUFFER_SIZE_2048: usize = 2048;
 

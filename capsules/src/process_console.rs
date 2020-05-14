@@ -13,6 +13,22 @@
 //!  - 'start n' starts the stopped process with name n
 //!  - 'fault n' forces the process with name n into a fault state
 //!
+//! ### `list` Command Fields:
+//!
+//! - `PID`: The identifier for the process. This can change if the process
+//!   restarts.
+//! - `Name`: The process name.
+//! - `Quanta`: How many times this process has exceeded its alloted time
+//!   quanta.
+//! - `Syscalls`: The number of system calls the process has made to the kernel.
+//! - `Dropped Callbacks`: How many callbacks were dropped for this process
+//!   because the queue was full.
+//! - `Restarts`: How many times this process has crashed and been restarted by
+//!   the kernel.
+//! - `State`: The state the process is in.
+//! - `Grants`: The number of grants that have been initialized for the process
+//!   out of the total number of grants defined by the kernel.
+//!
 //! Setup
 //! -----
 //!
@@ -69,9 +85,9 @@
 //! Initialization complete. Entering main loop
 //! Hello World!
 //! list
-//! PID    Name    Quanta  Syscalls  Dropped Callbacks    State
-//! 00     blink        0       113                  0  Yielded
-//! 01     c_hello      0         8                  0  Yielded
+//! PID    Name    Quanta  Syscalls  Dropped Callbacks  Restarts    State  Grants
+//! 00     blink        0       113                  0         0  Yielded    1/12
+//! 01     c_hello      0         8                  0         0  Yielded    3/12
 //! ```
 //!
 //! To get a general view of the system, use the status command:
@@ -119,7 +135,14 @@ pub struct ProcessConsole<'a, C: ProcessManagementCapability> {
     rx_buffer: TakeCell<'static, [u8]>,
     command_buffer: TakeCell<'static, [u8]>,
     command_index: Cell<usize>,
+
+    /// Flag to mark that the process console is active and has called receive
+    /// from the underlying UART.
     running: Cell<bool>,
+
+    /// Internal flag that the process console should parse the command it just
+    /// received after finishing echoing the last newline character.
+    execute: Cell<bool>,
     kernel: &'static Kernel,
     capability: C,
 }
@@ -142,6 +165,7 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
             command_buffer: TakeCell::new(cmd_buffer),
             command_index: Cell::new(0),
             running: Cell::new(false),
+            execute: Cell::new(false),
             kernel: kernel,
             capability: capability,
         }
@@ -181,13 +205,13 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                         let clean_str = s.trim();
                         if clean_str.starts_with("help") {
                             debug!("Welcome to the process console.");
-                            debug!("Valid commands are: help status list stop start");
+                            debug!("Valid commands are: help status list stop start fault");
                         } else if clean_str.starts_with("start") {
                             let argument = clean_str.split_whitespace().nth(1);
                             argument.map(|name| {
                                 self.kernel.process_each_capability(
                                     &self.capability,
-                                    |_i, proc| {
+                                    |proc| {
                                         let proc_name = proc.get_process_name();
                                         if proc_name == name {
                                             proc.resume();
@@ -201,7 +225,7 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                             argument.map(|name| {
                                 self.kernel.process_each_capability(
                                     &self.capability,
-                                    |_i, proc| {
+                                    |proc| {
                                         let proc_name = proc.get_process_name();
                                         if proc_name == name {
                                             proc.stop();
@@ -215,7 +239,7 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                             argument.map(|name| {
                                 self.kernel.process_each_capability(
                                     &self.capability,
-                                    |_i, proc| {
+                                    |proc| {
                                         let proc_name = proc.get_process_name();
                                         if proc_name == name {
                                             proc.set_fault_state();
@@ -225,18 +249,26 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                                 );
                             });
                         } else if clean_str.starts_with("list") {
-                            debug!(" PID    Name                Quanta  Syscalls  Dropped Callbacks    State");
+                            debug!(" PID    Name                Quanta  Syscalls  Dropped Callbacks  Restarts    State  Grants");
                             self.kernel
-                                .process_each_capability(&self.capability, |i, proc| {
+                                .process_each_capability(&self.capability, |proc| {
+                                    let info: KernelInfo = KernelInfo::new(self.kernel);
+
                                     let pname = proc.get_process_name();
+                                    let appid = proc.appid();
+                                    let (grants_used, grants_total) = info.number_app_grant_uses(appid, &self.capability);
+
                                     debug!(
-                                        "  {:02}\t{:<20}{:6}{:10}{:19}  {:?}",
-                                        i,
+                                        "  {:?}\t{:<20}{:6}{:10}{:19}{:10}  {:?}{:5}/{}",
+                                        appid,
                                         pname,
                                         proc.debug_timeslice_expiration_count(),
                                         proc.debug_syscall_count(),
                                         proc.debug_dropped_callback_count(),
-                                        proc.get_state()
+                                        proc.get_restart_count(),
+                                        proc.get_state(),
+                                        grants_used,
+                                        grants_total
                                     );
                                 });
                         } else if clean_str.starts_with("status") {
@@ -287,9 +319,8 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
             self.tx_in_progress.set(true);
             self.tx_buffer.take().map(|buffer| {
                 let len = cmp::min(bytes.len(), buffer.len());
-                for i in 0..len {
-                    buffer[i] = bytes[i];
-                }
+                // Copy elements of `bytes` into `buffer`
+                (&mut buffer[..len]).copy_from_slice(&bytes[..len]);
                 self.uart.transmit_buffer(buffer, len);
             });
             ReturnCode::SUCCESS
@@ -299,10 +330,15 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
 
 impl<'a, C: ProcessManagementCapability> uart::TransmitClient for ProcessConsole<'a, C> {
     fn transmitted_buffer(&self, buffer: &'static mut [u8], _tx_len: usize, _rcode: ReturnCode) {
-        // Either print more from the AppSlice or send a callback to the
-        // application.
         self.tx_buffer.replace(buffer);
         self.tx_in_progress.set(false);
+
+        // Check if we just received and echoed a newline character, and
+        // therefore need to process the received message.
+        if self.execute.get() {
+            self.execute.set(false);
+            self.read_command();
+        }
     }
 }
 impl<'a, C: ProcessManagementCapability> uart::ReceiveClient for ProcessConsole<'a, C> {
@@ -313,7 +349,6 @@ impl<'a, C: ProcessManagementCapability> uart::ReceiveClient for ProcessConsole<
         _rcode: ReturnCode,
         error: uart::Error,
     ) {
-        let mut execute = false;
         if error == uart::Error::None {
             match rx_len {
                 0 => debug!("ProcessConsole had read of 0 bytes"),
@@ -321,7 +356,7 @@ impl<'a, C: ProcessManagementCapability> uart::ReceiveClient for ProcessConsole<
                     self.command_buffer.map(|command| {
                         let index = self.command_index.get() as usize;
                         if read_buf[0] == ('\n' as u8) || read_buf[0] == ('\r' as u8) {
-                            execute = true;
+                            self.execute.set(true);
                             self.write_bytes(&['\r' as u8, '\n' as u8]);
                         } else if read_buf[0] == ('\x08' as u8) && index > 0 {
                             // Backspace, echo and remove last byte
@@ -349,8 +384,5 @@ impl<'a, C: ProcessManagementCapability> uart::ReceiveClient for ProcessConsole<
         }
         self.rx_in_progress.set(true);
         self.uart.receive_buffer(read_buf, 1);
-        if execute {
-            self.read_command();
-        }
     }
 }

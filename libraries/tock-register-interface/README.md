@@ -58,9 +58,7 @@ register_structs! {
 }
 ```
 
-This generates a C-style struct of the following form. Unit tests are also
-generated to make sure that the offsets and padding are consistent with the
-actual fields in the struct, and that alignment is correct.
+This generates a C-style struct of the following form.
 
 ```rust
 #[repr(C)]
@@ -89,6 +87,21 @@ struct Registers {
 
     // Etc.
 }
+```
+
+By default, `std` unit tests for the struct are generated as well (that is,
+tests attributed with `#[test]`). The unit tests make sure that the offsets and
+padding are consistent with the actual fields in the struct, and that alignment
+is correct.
+
+Since those tests would break compilation in `custom-test-frameworks`
+environments, it is possible to opt out of the test generation. To do so, add
+the following cargo feature:
+
+```toml
+[dependencies.tock-registers]
+version = "0.4.x"
+features = ["no_std_unit_tests"]
 ```
 
 WARNING: For now, the **unit tests checking offsets and alignments are not yet
@@ -120,6 +133,33 @@ struct Registers {
     bar: ReadOnly<u32>,
 }
 ```
+
+By default, the visibility of the generated structs and fields is private. You
+can make them public using the `pub` keyword, just before the struct name or the
+field identifier.
+
+For example, the following call to the macro:
+
+```rust
+register_structs! {
+    pub Registers {
+        (0x000 => foo: ReadOnly<u32>),
+        (0x004 => pub bar: ReadOnly<u32>),
+        (0x008 => @END),
+    }
+}
+```
+
+will generate the following struct.
+
+```rust
+#[repr(C)]
+pub struct Registers {
+    foo: ReadOnly<u32>,
+    pub bar: ReadOnly<u32>,
+}
+```
+
 ## Defining bitfields
 
 Bitfields are defined through the `register_bitfields!` macro:
@@ -186,8 +226,8 @@ register_bitfields! [
 
 ## Register Interface Summary
 
-There are three types provided by the register interface: `ReadOnly`,
-`WriteOnly`, and `ReadWrite`. They provide the following functions:
+There are four types provided by the register interface: `ReadOnly`,
+`WriteOnly`, `ReadWrite`, and `Aliased`. They provide the following functions:
 
 ```rust
 ReadOnly<T: IntLike, R: RegisterLongName = ()>
@@ -203,8 +243,6 @@ WriteOnly<T: IntLike, R: RegisterLongName = ()>
 .set(value: T)                                 // Set the raw register value
 .write(value: FieldValue<T, R>)                // Write the value of one or more fields,
                                                //  overwriting other fields to zero
-
-
 ReadWrite<T: IntLike, R: RegisterLongName = ()>
 .get() -> T                                    // Get the raw register value
 .set(value: T)                                 // Set the raw register value
@@ -222,7 +260,21 @@ ReadWrite<T: IntLike, R: RegisterLongName = ()>
 .matches_all(value: FieldValue<T, R>) -> bool  // Check if all specified parts of a field match
 .extract() -> LocalRegisterCopy<T, R>          // Make local copy of register
 
+Aliased<T: IntLike, R: RegisterLongName = (), W: RegisterLongName = ()>
+.get() -> T                                    // Get the raw register value
+.set(value: T)                                 // Set the raw register value
+.read(field: Field<T, R>) -> T                 // Read the value of the given field
+.read_as_enum<E>(field: Field<T, R>) -> Option<E> // Read value of the given field as a enum member
+.write(value: FieldValue<T, W>)                // Write the value of one or more fields,
+                                               //  overwriting other fields to zero
+.is_set(field: Field<T, R>) -> bool            // Check if one or more bits in a field are set
+.matches_any(value: FieldValue<T, R>) -> bool  // Check if any specified parts of a field match
+.matches_all(value: FieldValue<T, R>) -> bool  // Check if all specified parts of a field match
+.extract() -> LocalRegisterCopy<T, R>          // Make local copy of register
 ```
+
+The `Aliased` type represents cases where read-only and write-only registers,
+with different meanings, are aliased to the same memory location.
 
 The first type parameter (the `IntLike` type) is `u8`, `u16`, `u32`, or `u64`.
 

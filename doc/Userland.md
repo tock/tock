@@ -154,7 +154,7 @@ with their runtime.
 
 ## Stack and Heap
 
-Applications can memory requirements by setting the `minimum_ram_size` variable
+Applications can specify memory requirements by setting the `minimum_ram_size` variable
 in their TBF headers. Note that the Tock kernel treats this as a minimum,
 depending on the underlying platform, the amount of memory may be larger than
 requested, but will never be smaller.
@@ -188,51 +188,62 @@ Fault Status Register (CFSR):       0x00000082
 Hard Fault Status Register (HFSR):  0x40000000
 
 ---| App Status |---
-App: printf_long   -   [Yielded]
- Events Queued: 0   Syscall Count: 12   Dropped Callback Count: 0
- Last Syscall: YIELD
+App: crash_dummy   -   [Fault]
+ Events Queued: 0   Syscall Count: 0   Dropped Callback Count: 0
+ Restart Count: 0
+ Last Syscall: None
 
  ╔═══════════╤══════════════════════════════════════════╗
  ║  Address  │ Region Name    Used | Allocated (bytes)  ║
  ╚0x20006000═╪══════════════════════════════════════════╝
-             │ ▼ Grant         332 |    332
-  0x20005EB4 ┼───────────────────────────────────────────
+             │ ▼ Grant         948 |    948
+  0x20005C4C ┼───────────────────────────────────────────
              │ Unused
-  0x2000506C ┼───────────────────────────────────────────
-             │ ▲ Heap         1596 |   5252               S
-  0x20004A30 ┼─────────────────────────────────────────── R
-             │ Data              0 |      0               A
+  0x200049F0 ┼───────────────────────────────────────────
+             │ ▲ Heap            0 |   4700               S
+  0x200049F0 ┼─────────────────────────────────────────── R
+             │ Data            496 |    496               A
   0x20004800 ┼─────────────────────────────────────────── M
-             │ ▼ Stack         880 |   2048
-  0x200046C0 ┼───────────────────────────────────────────
+             │ ▼ Stack          72 |   2048
+  0x200047B8 ┼───────────────────────────────────────────
              │ Unused
   0x20004000 ┴───────────────────────────────────────────
              .....
-  0x00031000 ┬─────────────────────────────────────────── F
-             │ App Flash      4000                        L
-  0x00030060 ┼─────────────────────────────────────────── A
-             │ Protected        96                        S
+  0x00030400 ┬─────────────────────────────────────────── F
+             │ App Flash       976                        L
+  0x00030030 ┼─────────────────────────────────────────── A
+             │ Protected        48                        S
   0x00030000 ┴─────────────────────────────────────────── H
 
-  R0 : 0x20004800    R6 : 0x200048CC
-  R1 : 0x00000000    R7 : 0x00000000
+  R0 : 0x00000000    R6 : 0x20004894
+  R1 : 0x00000001    R7 : 0x20004000
   R2 : 0x00000000    R8 : 0x00000000
   R3 : 0x00000000    R10: 0x00000000
   R4 : 0x00000000    R11: 0x00000000
-  R5 : 0x00000000    R12: 0x00000000
+  R5 : 0x20004800    R12: 0x12E36C82
   R9 : 0x20004800 (Static Base Register)
-  SP : 0x200047E0 (Process Stack Pointer)
-  LR : 0x00030093
-  PC : 0x00000000
- YPC : 0x0003010C
+  SP : 0x200047B8 (Process Stack Pointer)
+  LR : 0x000301B7
+  PC : 0x000300AA
+ YPC : 0x000301B6
 
- APSR: N 0 Z 0 C 0 V 0 Q 0
-       GE 0 0 1 1
- IPSR: Exception Type - IRQn
+ APSR: N 0 Z 1 C 1 V 0 Q 0
+       GE 0 0 0 0
  EPSR: ICI.IT 0x00
-       ThumbBit false !!ERROR - Cortex M Thumb only!
- To debug, run `make debug RAM_START=0x20004000 FLASH_INIT=0x30089`
- in the app's folder.
+       ThumbBit true
+
+ Cortex-M MPU
+  Region 0: base: 0x20004000, length: 8192 bytes; ReadWrite (0x3)
+  Region 1: base:    0x30000, length: 1024 bytes; ReadOnly (0x6)
+  Region 2: Unused
+  Region 3: Unused
+  Region 4: Unused
+  Region 5: Unused
+  Region 6: Unused
+  Region 7: Unused
+
+To debug, run `make debug RAM_START=0x20004000 FLASH_INIT=0x30059`
+in the app's folder and open the .lst file.
 ```
 
 ## Applications
