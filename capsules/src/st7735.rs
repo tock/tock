@@ -625,9 +625,16 @@ impl<'a, A: Alarm<'a>> ST7735<'a, A> {
                             self.callback.map(|callback| {
                                 callback.schedule(0, 0, 0);
                             });
-                            self.client.map(|client| {
-                                client.command_complete(ReturnCode::SUCCESS);
-                            });
+                            if !self.power_on.get() {
+                                self.client.map(|client| {
+                                    self.power_on.set(true);
+                                    client.screen_is_ready();
+                                });
+                            } else {
+                                self.client.map(|client| {
+                                    client.command_complete(ReturnCode::SUCCESS);
+                                });
+                            }
                         }
                     },
                 );
@@ -779,7 +786,6 @@ impl<'a, A: Alarm<'a>> ST7735<'a, A> {
 
     pub fn init(&self) -> ReturnCode {
         if self.status.get() == Status::Idle {
-            self.power_on.set(true);
             self.status.set(Status::Reset1);
             self.do_next_op();
             ReturnCode::SUCCESS
@@ -838,7 +844,7 @@ impl<'a, A: Alarm<'a>> Driver for ST7735<'a, A> {
     }
 }
 
-impl<'a, A: Alarm<'a>> framebuffer::Screen for ST7735<'a, A> {
+impl<'a, A: Alarm<'a>> framebuffer::ScreenSetup for ST7735<'a, A> {
     fn set_resolution(&self, resolution: (usize, usize)) -> ReturnCode {
         if resolution.0 == self.width.get() && resolution.1 == self.height.get() {
             ReturnCode::SUCCESS
@@ -860,6 +866,28 @@ impl<'a, A: Alarm<'a>> framebuffer::Screen for ST7735<'a, A> {
         self.rotation(rotation)
     }
 
+    fn get_supported_resolutions(&self) -> usize {
+        1
+    }
+    fn get_supported_resolution(&self, index: usize) -> Option<(usize, usize)> {
+        match index {
+            0 => Some((self.width.get(), self.height.get())),
+            _ => None,
+        }
+    }
+
+    fn get_supported_pixel_formats(&self) -> usize {
+        1
+    }
+    fn get_supported_pixel_format(&self, index: usize) -> Option<ScreenPixelFormat> {
+        match index {
+            0 => Some(ScreenPixelFormat::RGB_565),
+            _ => None,
+        }
+    }
+}
+
+impl<'a, A: Alarm<'a>> framebuffer::Screen for ST7735<'a, A> {
     fn get_resolution(&self) -> (usize, usize) {
         (self.width.get(), self.height.get())
     }
@@ -870,26 +898,6 @@ impl<'a, A: Alarm<'a>> framebuffer::Screen for ST7735<'a, A> {
 
     fn get_rotation(&self) -> ScreenRotation {
         ScreenRotation::Normal
-    }
-
-    fn get_supported_resolutions(&self) -> usize {
-        1
-    }
-    fn get_supported_resolution(&self, index: usize) -> (usize, usize) {
-        match index {
-            0 => (self.width.get(), self.height.get()),
-            _ => (0, 0),
-        }
-    }
-
-    fn get_supported_pixel_formats(&self) -> usize {
-        1
-    }
-    fn get_supported_pixel_format(&self, index: usize) -> ScreenPixelFormat {
-        match index {
-            0 => ScreenPixelFormat::RGB_565,
-            _ => ScreenPixelFormat::None,
-        }
     }
 
     fn write(&self, x: usize, y: usize, width: usize, height: usize) -> ReturnCode {

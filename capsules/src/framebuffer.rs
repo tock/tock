@@ -44,9 +44,9 @@ enum FramebufferCommand {
     Fill,
 }
 
-fn pixels_in_bytes(pixels: usize, pixel_format: usize) -> usize {
-    let bytes = pixels * pixel_format / 8;
-    if pixels * pixel_format % 8 != 0 {
+fn pixels_in_bytes(pixels: usize, bits_per_pixel: usize) -> usize {
+    let bytes = pixels * bits_per_pixel / 8;
+    if pixels * bits_per_pixel % 8 != 0 {
         bytes + 1
     } else {
         bytes
@@ -89,18 +89,26 @@ impl Default for App {
 
 pub struct Framebuffer<'a> {
     screen: &'a dyn hil::framebuffer::Screen,
+    screen_setup: Option<&'a dyn hil::framebuffer::ScreenSetup>,
     apps: Grant<App>,
+    screen_ready: Cell<bool>,
     current_app: OptionalCell<AppId>,
-    depth: Cell<ScreenPixelFormat>,
+    pixel_format: Cell<ScreenPixelFormat>,
 }
 
 impl Framebuffer<'a> {
-    pub fn new(screen: &'a dyn hil::framebuffer::Screen, grant: Grant<App>) -> Framebuffer<'a> {
+    pub fn new(
+        screen: &'a dyn hil::framebuffer::Screen,
+        screen_setup: Option<&'a dyn hil::framebuffer::ScreenSetup>,
+        grant: Grant<App>,
+    ) -> Framebuffer<'a> {
         Framebuffer {
             screen: screen,
+            screen_setup: screen_setup,
             apps: grant,
             current_app: OptionalCell::empty(),
-            depth: Cell::new(screen.get_pixel_format()),
+            screen_ready: Cell::new(false),
+            pixel_format: Cell::new(screen.get_pixel_format()),
         }
     }
 
@@ -116,7 +124,7 @@ impl Framebuffer<'a> {
     ) -> ReturnCode {
         self.apps
             .enter(appid, |app, _| {
-                if self.current_app.is_none() {
+                if self.screen_ready.get() && self.current_app.is_none() {
                     self.current_app.set(appid);
                     app.command = command;
                     self.call_screen(command, data1, data2, appid)
@@ -148,71 +156,111 @@ impl Framebuffer<'a> {
             FramebufferCommand::Off => self.screen.off(),
             FramebufferCommand::InvertOn => self.screen.invert_on(),
             FramebufferCommand::InvertOff => self.screen.invert_off(),
-            FramebufferCommand::SetRotation => self
-                .screen
-                .set_rotation(ScreenRotation::from_usize(data1).unwrap_or(ScreenRotation::Normal)),
+            FramebufferCommand::SetRotation => {
+                if let Some(screen) = self.screen_setup {
+                    screen.set_rotation(
+                        ScreenRotation::from_usize(data1).unwrap_or(ScreenRotation::Normal),
+                    )
+                } else {
+                    ReturnCode::ENOSUPPORT
+                }
+            }
             FramebufferCommand::GetRotation => {
                 let rotation = self.screen.get_rotation();
-                self.run_next_command(usize::from(ReturnCode::SUCCESS), usize::from(rotation), 0);
+                self.run_next_command(usize::from(ReturnCode::SUCCESS), rotation as usize, 0);
                 ReturnCode::SUCCESS
             }
-            FramebufferCommand::SetResolution => self.screen.set_resolution((data1, data2)),
+            FramebufferCommand::SetResolution => {
+                if let Some(screen) = self.screen_setup {
+                    screen.set_resolution((data1, data2))
+                } else {
+                    ReturnCode::ENOSUPPORT
+                }
+            }
             FramebufferCommand::GetResolution => {
                 let (width, height) = self.screen.get_resolution();
                 self.run_next_command(usize::from(ReturnCode::SUCCESS), width, height);
                 ReturnCode::SUCCESS
             }
-            FramebufferCommand::SetPixelFormat => self.screen.set_pixel_format(
-                ScreenPixelFormat::from_usize(data1).unwrap_or(ScreenPixelFormat::None),
-            ),
+            FramebufferCommand::SetPixelFormat => {
+                if let Some(pixel_format) = ScreenPixelFormat::from_usize(data1) {
+                    if let Some(screen) = self.screen_setup {
+                        screen.set_pixel_format(pixel_format)
+                    } else {
+                        ReturnCode::ENOSUPPORT
+                    }
+                } else {
+                    ReturnCode::EINVAL
+                }
+            }
             FramebufferCommand::GetPixelFormat => {
                 let pixel_format = self.screen.get_pixel_format();
-                self.run_next_command(
-                    usize::from(ReturnCode::SUCCESS),
-                    usize::from(pixel_format),
-                    0,
-                );
+                self.run_next_command(usize::from(ReturnCode::SUCCESS), pixel_format as usize, 0);
                 ReturnCode::SUCCESS
             }
             FramebufferCommand::GetSupportedResolutionModes => {
-                let resolution_modes = self.screen.get_supported_resolutions();
-                self.run_next_command(usize::from(ReturnCode::SUCCESS), resolution_modes, 0);
-                ReturnCode::SUCCESS
+                if let Some(screen) = self.screen_setup {
+                    let resolution_modes = screen.get_supported_resolutions();
+                    self.run_next_command(usize::from(ReturnCode::SUCCESS), resolution_modes, 0);
+                    ReturnCode::SUCCESS
+                } else {
+                    ReturnCode::ENOSUPPORT
+                }
             }
             FramebufferCommand::GetSupportedResolution => {
-                let (width, height) = self.screen.get_supported_resolution(data1);
-                self.run_next_command(
-                    usize::from(if width > 0 && height > 0 {
+                if let Some(screen) = self.screen_setup {
+                    if let Some((width, height)) = screen.get_supported_resolution(data1) {
+                        self.run_next_command(
+                            usize::from(if width > 0 && height > 0 {
+                                ReturnCode::SUCCESS
+                            } else {
+                                ReturnCode::EINVAL
+                            }),
+                            width,
+                            height,
+                        );
                         ReturnCode::SUCCESS
                     } else {
                         ReturnCode::EINVAL
-                    }),
-                    width,
-                    height,
-                );
-                ReturnCode::SUCCESS
+                    }
+                } else {
+                    ReturnCode::ENOSUPPORT
+                }
             }
             FramebufferCommand::GetSupportedPixelFormats => {
-                let color_modes = self.screen.get_supported_pixel_formats();
-                self.run_next_command(usize::from(ReturnCode::SUCCESS), color_modes, 0);
-                ReturnCode::SUCCESS
+                if let Some(screen) = self.screen_setup {
+                    let color_modes = screen.get_supported_pixel_formats();
+                    self.run_next_command(usize::from(ReturnCode::SUCCESS), color_modes, 0);
+                    ReturnCode::SUCCESS
+                } else {
+                    ReturnCode::ENOSUPPORT
+                }
             }
             FramebufferCommand::GetSupportedPixelFormat => {
-                let pixel_format = self.screen.get_supported_pixel_format(data1);
-                self.run_next_command(
-                    usize::from(ReturnCode::SUCCESS),
-                    usize::from(pixel_format),
-                    0,
-                );
-                ReturnCode::SUCCESS
+                if let Some(screen) = self.screen_setup {
+                    if let Some(pixel_format) = screen.get_supported_pixel_format(data1) {
+                        self.run_next_command(
+                            usize::from(ReturnCode::SUCCESS),
+                            pixel_format as usize,
+                            0,
+                        );
+                        ReturnCode::SUCCESS
+                    } else {
+                        ReturnCode::EINVAL
+                    }
+                } else {
+                    ReturnCode::ENOSUPPORT
+                }
             }
             FramebufferCommand::Fill => self
                 .apps
                 .enter(appid, |app, _| {
                     if app.shared.is_some() {
                         app.write_position = 0;
-                        app.write_len =
-                            pixels_in_bytes(app.width * app.height, usize::from(self.depth.get()));
+                        app.write_len = pixels_in_bytes(
+                            app.width * app.height,
+                            self.pixel_format.get().get_bits_per_pixel(),
+                        );
                         self.screen.write(app.x, app.y, app.width, app.height)
                     } else {
                         ReturnCode::ENOMEM
@@ -241,14 +289,18 @@ impl Framebuffer<'a> {
     }
 
     fn run_next_command(&self, data1: usize, data2: usize, data3: usize) {
-        self.current_app.take().map(|appid| {
-            let _ = self.apps.enter(appid, |app, _| {
-                app.pending_command = false;
-                app.callback.map(|mut cb| {
-                    cb.schedule(data1, data2, data3);
+        if !self.screen_ready.get() {
+            self.screen_ready.set(true);
+        } else {
+            self.current_app.take().map(|appid| {
+                let _ = self.apps.enter(appid, |app, _| {
+                    app.pending_command = false;
+                    app.callback.map(|mut cb| {
+                        cb.schedule(data1, data2, data3);
+                    });
                 });
             });
-        });
+        }
 
         // Check if there are any pending events.
         for app in self.apps.iter() {
@@ -309,8 +361,10 @@ impl hil::framebuffer::ScreenClient for Framebuffer<'a> {
                             } else if app.command == FramebufferCommand::Fill {
                                 // TODO bytes per pixel
                                 len = len - position;
-                                let bytes_per_pixel =
-                                    pixels_in_bytes(1, usize::from(self.depth.get()));
+                                let bytes_per_pixel = pixels_in_bytes(
+                                    1,
+                                    self.pixel_format.get().get_bits_per_pixel(),
+                                );
                                 let mut write_len = buffer_size / bytes_per_pixel;
                                 if write_len > len {
                                     write_len = len
@@ -351,6 +405,10 @@ impl hil::framebuffer::ScreenClient for Framebuffer<'a> {
     fn command_complete(&self, r: ReturnCode) {
         self.run_next_command(usize::from(r), 0, 0);
     }
+
+    fn screen_is_ready(&self) {
+        self.run_next_command(usize::from(ReturnCode::SUCCESS), 0, 0);
+    }
 }
 
 impl Driver for Framebuffer<'a> {
@@ -379,14 +437,18 @@ impl Driver for Framebuffer<'a> {
             {
                 ReturnCode::SUCCESS
             }
+            // Does it have the screen setup
+            1 => ReturnCode::SuccessWithValue {
+                value: self.screen_setup.is_some() as usize,
+            },
             // On
-            1 => self.enqueue_command(FramebufferCommand::On, 0, 0, appid),
+            2 => self.enqueue_command(FramebufferCommand::On, 0, 0, appid),
             // Off
-            2 => self.enqueue_command(FramebufferCommand::Off, 0, 0, appid),
+            3 => self.enqueue_command(FramebufferCommand::Off, 0, 0, appid),
             // Invert On
-            3 => self.enqueue_command(FramebufferCommand::InvertOn, 0, 0, appid),
+            4 => self.enqueue_command(FramebufferCommand::InvertOn, 0, 0, appid),
             // Invert Off
-            4 => self.enqueue_command(FramebufferCommand::InvertOff, 0, 0, appid),
+            5 => self.enqueue_command(FramebufferCommand::InvertOff, 0, 0, appid),
 
             // Get Resolution Modes Number
             11 => {
