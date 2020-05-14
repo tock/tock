@@ -5,7 +5,6 @@
 #[allow(unused_imports)]
 use kernel::{create_capability, debug, debug_gpio, debug_verbose, static_init};
 
-use capsules::analog_comparator;
 use capsules::virtual_alarm::VirtualMuxAlarm;
 use capsules::virtual_spi::MuxSpiMaster;
 use kernel::capabilities;
@@ -95,8 +94,10 @@ pub struct Platform {
     rng: &'static capsules::rng::RngDriver<'static>,
     temp: &'static capsules::temperature::TemperatureSensor<'static>,
     ipc: kernel::ipc::IPC,
-    analog_comparator:
-        &'static capsules::analog_comparator::AnalogComparator<'static, nrf52::acomp::Comparator>,
+    analog_comparator: &'static capsules::analog_comparator::AnalogComparator<
+        'static,
+        nrf52::acomp::Comparator<'static>,
+    >,
     alarm: &'static capsules::alarm::AlarmDriver<
         'static,
         capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc<'static>>,
@@ -308,12 +309,9 @@ pub unsafe fn setup_board<I: nrf52::interrupt_service::InterruptService>(
     let rng = components::rng::RngComponent::new(board_kernel, &nrf52::trng::TRNG).finalize(());
 
     // SPI
-    let mux_spi = static_init!(
-        MuxSpiMaster<'static, nrf52::spi::SPIM>,
-        MuxSpiMaster::new(&nrf52::spi::SPIM0)
-    );
-    hil::spi::SpiMaster::set_client(&nrf52::spi::SPIM0, mux_spi);
-    hil::spi::SpiMaster::init(&nrf52::spi::SPIM0);
+    let mux_spi = components::spi::SpiMuxComponent::new(&nrf52::spi::SPIM0)
+        .finalize(components::spi_mux_component_helper!(nrf52::spi::SPIM));
+
     nrf52::spi::SPIM0.configure(
         nrf52::pinmux::Pinmux::new(spi_pins.mosi as u32),
         nrf52::pinmux::Pinmux::new(spi_pins.miso as u32),
@@ -395,15 +393,11 @@ pub unsafe fn setup_board<I: nrf52::interrupt_service::InterruptService>(
 
     // Initialize AC using AIN5 (P0.29) as VIN+ and VIN- as AIN0 (P0.02)
     // These are hardcoded pin assignments specified in the driver
-    let ac_channels = static_init!(
-        [&'static nrf52::acomp::Channel; 1],
-        [&nrf52::acomp::CHANNEL_AC0,]
-    );
-    let analog_comparator = static_init!(
-        analog_comparator::AnalogComparator<'static, nrf52::acomp::Comparator>,
-        analog_comparator::AnalogComparator::new(&nrf52::acomp::ACOMP, ac_channels)
-    );
-    nrf52::acomp::ACOMP.set_client(analog_comparator);
+    let analog_comparator = components::analog_comparator::AcComponent::new(
+        &nrf52::acomp::ACOMP,
+        components::acomp_component_helper!(nrf52::acomp::Channel, &nrf52::acomp::CHANNEL_AC0),
+    )
+    .finalize(components::acomp_component_buf!(nrf52::acomp::Comparator));
 
     // Start all of the clocks. Low power operation will require a better
     // approach than this.

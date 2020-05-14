@@ -40,7 +40,6 @@ use components::rng::RngComponent;
 use components::si7021::{HumidityComponent, SI7021Component, TemperatureComponent};
 use components::spi::{SpiComponent, SpiSyscallComponent};
 use imix_components::adc::AdcComponent;
-use imix_components::analog_comparator::AcComponent;
 use imix_components::fxos8700::NineDofComponent;
 use imix_components::nonvolatile_storage::NonvolatileStorageComponent;
 use imix_components::radio::RadioComponent;
@@ -377,7 +376,17 @@ pub unsafe fn reset_handler() {
     .finalize(components::button_component_buf!(sam4l::gpio::GPIOPin));
     let crc = CrcComponent::new(board_kernel, &sam4l::crccu::CRCCU)
         .finalize(components::crc_component_helper!(sam4l::crccu::Crccu));
-    let analog_comparator = AcComponent::new().finalize(());
+    let analog_comparator = components::analog_comparator::AcComponent::new(
+        &sam4l::acifc::ACIFC,
+        components::acomp_component_helper!(
+            <sam4l::acifc::Acifc as kernel::hil::analog_comparator::AnalogComparator>::Channel,
+            &sam4l::acifc::CHANNEL_AC0,
+            &sam4l::acifc::CHANNEL_AC1,
+            &sam4l::acifc::CHANNEL_AC2,
+            &sam4l::acifc::CHANNEL_AC3
+        ),
+    )
+    .finalize(components::acomp_component_buf!(sam4l::acifc::Acifc));
     let rng = RngComponent::new(board_kernel, &sam4l::trng::TRNG).finalize(());
 
     // For now, assign the 802.15.4 MAC address on the device as
