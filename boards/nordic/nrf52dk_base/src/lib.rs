@@ -10,7 +10,6 @@ use capsules::virtual_spi::MuxSpiMaster;
 use kernel::capabilities;
 use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::component::Component;
-use kernel::hil;
 use nrf52::gpio::Pin;
 use nrf52::rtc::Rtc;
 use nrf52::uicr::Regulator0Output;
@@ -321,69 +320,19 @@ pub unsafe fn setup_board<I: nrf52::interrupt_service::InterruptService>(
     let nonvolatile_storage: Option<
         &'static capsules::nonvolatile_storage_driver::NonvolatileStorage<'static>,
     > = if let Some(driver) = mx25r6435f {
-        // Create a SPI device for the mx25r6435f flash chip.
-        let mx25r6435f_spi =
-            components::spi::SpiComponent::new(mux_spi, &gpio_port[driver.chip_select])
-                .finalize(components::spi_component_helper!(nrf52::spi::SPIM));
-        // Create an alarm for this chip.
-        let mx25r6435f_virtual_alarm = static_init!(
-            VirtualMuxAlarm<'static, nrf52::rtc::Rtc>,
-            VirtualMuxAlarm::new(mux_alarm)
-        );
-        // Setup the actual MX25R6435F driver.
-        let mx25r6435f = static_init!(
-            capsules::mx25r6435f::MX25R6435F<
-                'static,
-                capsules::virtual_spi::VirtualSpiMasterDevice<'static, nrf52::spi::SPIM>,
-                nrf52::gpio::GPIOPin,
-                VirtualMuxAlarm<'static, nrf52::rtc::Rtc>,
-            >,
-            capsules::mx25r6435f::MX25R6435F::new(
-                mx25r6435f_spi,
-                mx25r6435f_virtual_alarm,
-                &mut capsules::mx25r6435f::TXBUFFER,
-                &mut capsules::mx25r6435f::RXBUFFER,
-                Some(&gpio_port[driver.write_protect_pin]),
-                Some(&gpio_port[driver.hold_pin])
-            )
-        );
-        mx25r6435f_spi.set_client(mx25r6435f);
-        hil::time::Alarm::set_client(mx25r6435f_virtual_alarm, mx25r6435f);
+        let mx25r6435f = components::mx25r6435f::Mx25r6435fComponent::new(
+            &gpio_port[driver.write_protect_pin],
+            &gpio_port[driver.hold_pin],
+            &gpio_port[driver.chip_select] as &dyn kernel::hil::gpio::Pin,
+            mux_alarm,
+            mux_spi,
+        )
+        .finalize(components::mx25r6435f_component_helper!(
+            nrf52::spi::SPIM,
+            nrf52::gpio::GPIOPin,
+            nrf52::rtc::Rtc
+        ));
 
-        /*
-        pub static mut FLASH_PAGEBUFFER: capsules::mx25r6435f::Mx25r6435fSector =
-            capsules::mx25r6435f::Mx25r6435fSector::new();
-        let nv_to_page = static_init!(
-            capsules::nonvolatile_to_pages::NonvolatileToPages<
-                'static,
-                capsules::mx25r6435f::MX25R6435F<
-                    'static,
-                    capsules::virtual_spi::VirtualSpiMasterDevice<'static, nrf52::spi::SPIM>,
-                    nrf52::gpio::GPIOPin,
-                    VirtualMuxAlarm<'static, nrf52::rtc::Rtc>,
-                >,
-            >,
-            capsules::nonvolatile_to_pages::NonvolatileToPages::new(
-                mx25r6435f,
-                &mut FLASH_PAGEBUFFER
-            )
-        );
-        hil::flash::HasClient::set_client(mx25r6435f, nv_to_page);
-
-        let nonvolatile_storage = static_init!(
-            capsules::nonvolatile_storage_driver::NonvolatileStorage<'static>,
-            capsules::nonvolatile_storage_driver::NonvolatileStorage::new(
-                nv_to_page,
-                board_kernel.create_grant(&memory_allocation_capability),
-                0x60000, // Start address for userspace accessible region
-                0x20000, // Length of userspace accessible region
-                0,       // Start address of kernel accessible region
-                0x60000, // Length of kernel accessible region
-                &mut capsules::nonvolatile_storage_driver::BUFFER
-            )
-        );
-        hil::nonvolatile_storage::NonvolatileStorage::set_client(nv_to_page, nonvolatile_storage);
-        */
         let nonvolatile_storage =
             components::nonvolatile_storage::NonvolatileStorageComponent::new(
                 board_kernel,
