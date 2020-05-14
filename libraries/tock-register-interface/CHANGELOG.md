@@ -1,6 +1,6 @@
 # Changelog
 
-## v0.6
+## master
 
  - #1823: Allow large unsigned values as bitmasks + add bitmask! helper macro
  - #1554: Allow lifetime parameters for `register_structs! { Foo<'a> { ..`
