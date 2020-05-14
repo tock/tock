@@ -430,14 +430,15 @@ impl hil::flash::Flash for Nvmc {
 /// - COMMAND(1, 2): Get the maximum number of word writes between page erasures (always 2).
 /// - COMMAND(1, 3): Get the maximum number page erasures in the lifetime of the flash (always
 ///     10000).
-/// - COMMAND(2, ptr): Write the allow slice to the flash region starting at `ptr`.
+/// - COMMAND(2, ptr, len): Write the allow slice to the flash region starting at `ptr`.
 ///   - `ptr` must be word-aligned.
-///   - The allow slice length must be word aligned.
-///   - The region starting at `ptr` of the same length as the allow slice must be in a writeable
-///     flash region.
-/// - COMMAND(3, ptr): Erase a page.
+///   - `len` must be word-aligned.
+///   - `len` must be equal to the allow slice length.
+///   - The flash slice starting at `ptr` of length `len` must be writable.
+/// - COMMAND(3, ptr, len): Erase a page.
 ///   - `ptr` must be page-aligned.
-///   - The page starting at `ptr` must be in a writeable flash region.
+///   - `len` must be equal to the page size.
+///   - The page starting at `ptr` must be erasable.
 /// - ALLOW(0): The allow slice for COMMAND(2).
 pub struct SyscallDriver {
     nvmc: &'static Nvmc,
@@ -481,11 +482,8 @@ impl SyscallDriver {
     /// Fails with `EINVAL` if any of the following conditions does not hold:
     /// - `ptr` must be word-aligned.
     /// - `slice.len()` must be word-aligned.
-    /// - The slice starting at `ptr` of length `slice.len()` must fit in a writeable flash region.
-    fn write_slice(&self, appid: AppId, ptr: usize, slice: &[u8]) -> ReturnCode {
-        if !appid.in_writeable_flash_region(ptr, slice.len()) {
-            return ReturnCode::EINVAL;
-        }
+    /// - The flash slice starting at `ptr` of length `slice.len()` must be writable.
+    fn write_slice(&self, ptr: usize, slice: &[u8]) -> ReturnCode {
         if ptr & WORD_MASK != 0 || slice.len() & WORD_MASK != 0 {
             return ReturnCode::EINVAL;
         }
@@ -509,11 +507,8 @@ impl SyscallDriver {
     ///
     /// Fails with `EINVAL` if any of the following conditions does not hold:
     /// - `ptr` must be page-aligned.
-    /// - The slice starting at `ptr` of length `PAGE_SIZE` must fit in a writeable flash region.
-    fn erase_page(&self, appid: AppId, ptr: usize) -> ReturnCode {
-        if !appid.in_writeable_flash_region(ptr, PAGE_SIZE) {
-            return ReturnCode::EINVAL;
-        }
+    /// - The page starting at `ptr` must be erasable.
+    fn erase_page(&self, ptr: usize) -> ReturnCode {
         if ptr & PAGE_MASK != 0 {
             return ReturnCode::EINVAL;
         }
@@ -528,32 +523,40 @@ impl Driver for SyscallDriver {
         ReturnCode::ENOSUPPORT
     }
 
-    fn command(&self, cmd: usize, arg: usize, _: usize, appid: AppId) -> ReturnCode {
-        match (cmd, arg) {
-            (0, _) => ReturnCode::SUCCESS,
+    fn command(&self, cmd: usize, arg0: usize, arg1: usize, appid: AppId) -> ReturnCode {
+        match (cmd, arg0, arg1) {
+            (0, _, _) => ReturnCode::SUCCESS,
 
-            (1, 0) => ReturnCode::SuccessWithValue { value: WORD_SIZE },
-            (1, 1) => ReturnCode::SuccessWithValue { value: PAGE_SIZE },
-            (1, 2) => ReturnCode::SuccessWithValue {
+            (1, 0, _) => ReturnCode::SuccessWithValue { value: WORD_SIZE },
+            (1, 1, _) => ReturnCode::SuccessWithValue { value: PAGE_SIZE },
+            (1, 2, _) => ReturnCode::SuccessWithValue {
                 value: MAX_WORD_WRITES,
             },
-            (1, 3) => ReturnCode::SuccessWithValue {
+            (1, 3, _) => ReturnCode::SuccessWithValue {
                 value: MAX_PAGE_ERASES,
             },
-            (1, _) => ReturnCode::EINVAL,
+            (1, _, _) => ReturnCode::EINVAL,
 
-            (2, ptr) => self
+            (2, ptr, len) => self
                 .apps
                 .enter(appid, |app, _| {
                     let slice = match app.slice.take() {
                         None => return ReturnCode::EINVAL,
                         Some(slice) => slice,
                     };
-                    self.write_slice(appid, ptr, slice.as_ref())
+                    if len != slice.len() {
+                        return ReturnCode::EINVAL;
+                    }
+                    self.write_slice(ptr, slice.as_ref())
                 })
                 .unwrap_or_else(|err| err.into()),
 
-            (3, ptr) => self.erase_page(appid, ptr),
+            (3, ptr, len) => {
+                if len != PAGE_SIZE {
+                    return ReturnCode::EINVAL;
+                }
+                self.erase_page(ptr)
+            }
 
             _ => ReturnCode::ENOSUPPORT,
         }

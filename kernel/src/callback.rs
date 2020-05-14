@@ -130,31 +130,6 @@ impl AppId {
             (start, end)
         })
     }
-
-    pub fn in_writeable_flash_region(&self, ptr: usize, len: usize) -> bool {
-        self.kernel.process_map_or(false, self.idx, |process| {
-            let ptr = match ptr.checked_sub(process.flash_start() as usize) {
-                None => return false,
-                Some(ptr) => ptr,
-            };
-            (0..process.number_writeable_flash_regions()).any(|i| {
-                let (region_ptr, region_len) = process.get_writeable_flash_region(i);
-                let region_ptr = region_ptr as usize;
-                let region_len = region_len as usize;
-                // We want to check the 2 following inequalities:
-                // (1) `region_ptr <= ptr`
-                // (2) `ptr + len <= region_ptr + region_len`
-                // However, the second one may overflow written as is. We introduce a third
-                // inequality to solve this issue:
-                // (3) `len <= region_len`
-                // Using this third inequality, we can rewrite the second one as:
-                // (4) `ptr - region_ptr <= region_len - len`
-                // This fourth inequality is equivalent to the second one but doesn't overflow when
-                // the first and third inequalities hold.
-                region_ptr <= ptr && len <= region_len && ptr - region_ptr <= region_len - len
-            })
-        })
-    }
 }
 
 /// Type to uniquely identify a callback subscription across all drivers.
