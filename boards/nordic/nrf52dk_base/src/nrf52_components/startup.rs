@@ -93,3 +93,29 @@ impl Component for NrfStartupComponent {
         }
     }
 }
+
+pub struct NrfClockComponent {}
+
+impl NrfClockComponent {
+    pub fn new() -> Self {
+        Self {}
+    }
+}
+
+impl Component for NrfClockComponent {
+    type StaticInput = ();
+    type Output = ();
+    unsafe fn finalize(self, _s: Self::StaticInput) -> Self::Output {
+        // Start all of the clocks. Low power operation will require a better
+        // approach than this.
+        nrf52::clock::CLOCK.low_stop();
+        nrf52::clock::CLOCK.high_stop();
+
+        nrf52::clock::CLOCK.low_set_source(nrf52::clock::LowClockSource::XTAL);
+        nrf52::clock::CLOCK.low_start();
+        nrf52::clock::CLOCK.high_set_source(nrf52::clock::HighClockSource::XTAL);
+        nrf52::clock::CLOCK.high_start();
+        while !nrf52::clock::CLOCK.low_started() {}
+        while !nrf52::clock::CLOCK.high_started() {}
+    }
+}

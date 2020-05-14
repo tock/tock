@@ -4,4 +4,4 @@ pub mod startup;
 
 pub use self::ble::BLEComponent;
 pub use self::ieee802154::Ieee802154Component;
-pub use self::startup::NrfStartupComponent;
+pub use self::startup::{NrfClockComponent, NrfStartupComponent};

@@ -186,9 +186,7 @@ impl<F: hil::flash::Flash> ListNode<'a, FlashUser<'a, F>> for FlashUser<'a, F> {
 impl<F: hil::flash::Flash> hil::flash::Flash for FlashUser<'a, F> {
     type Page = F::Page;
 
-    fn configure(&self) {
-        todo!()
-    }
+    fn configure(&self) {}
 
     fn read_page(
         &self,

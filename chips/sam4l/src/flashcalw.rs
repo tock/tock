@@ -368,8 +368,9 @@ enum FlashState {
 /// ```rust
 /// # extern crate sam4l;
 /// # use sam4l::flashcalw::Sam4lPage;
+/// # use kernel::static_init;
 ///
-/// static mut PAGEBUFFER: Sam4lPage = Sam4lPage::new();
+/// let pagebuffer = unsafe { static_init!(Sam4lPage, Sam4lPage::default()) };
 /// ```
 pub struct Sam4lPage(pub [u8; PAGE_SIZE as usize]);
 

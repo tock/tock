@@ -296,15 +296,7 @@ pub unsafe fn setup_board<I: nrf52::interrupt_service::InterruptService>(
 
     // Start all of the clocks. Low power operation will require a better
     // approach than this.
-    nrf52::clock::CLOCK.low_stop();
-    nrf52::clock::CLOCK.high_stop();
-
-    nrf52::clock::CLOCK.low_set_source(nrf52::clock::LowClockSource::XTAL);
-    nrf52::clock::CLOCK.low_start();
-    nrf52::clock::CLOCK.high_set_source(nrf52::clock::HighClockSource::XTAL);
-    nrf52::clock::CLOCK.high_start();
-    while !nrf52::clock::CLOCK.low_started() {}
-    while !nrf52::clock::CLOCK.high_started() {}
+    nrf52_components::NrfClockComponent::new().finalize(());
 
     let platform = Platform {
         button,

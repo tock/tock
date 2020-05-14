@@ -569,9 +569,7 @@ impl<
 {
     type Page = Mx25r6435fSector;
 
-    fn configure(&self) {
-        todo!()
-    }
+    fn configure(&self) {}
 
     fn read_page(
         &self,

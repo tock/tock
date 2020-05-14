@@ -14,11 +14,15 @@
 //!
 //! struct NewChipPage(pub [u8; PAGE_SIZE as usize]);
 //!
-//! impl NewChipPage {
-//!     pub const fn new() -> NewChipPage {
-//!         NewChipPage([0; PAGE_SIZE as usize])
+//! impl Default for NewChipPage {
+//!     fn default() -> Self {
+//!         Self {
+//!             0: [0; PAGE_SIZE as usize],
+//!         }
 //!     }
+//! }
 //!
+//! impl NewChipPage {
 //!     fn len(&self) -> usize {
 //!         self.0.len()
 //!     }
@@ -52,6 +56,8 @@
 //!
 //! impl hil::flash::Flash for NewChipStruct {
 //!     type Page = NewChipPage;
+//!
+//!     fn configure(&self) {}
 //!
 //!     fn read_page(&self, page_number: usize, buf: &'static mut Self::Page) -> Result<(), (ReturnCode, &'static mut Self::Page)> { Err((ReturnCode::FAIL, buf)) }
 //!     fn write_page(&self, page_number: usize, buf: &'static mut Self::Page) -> Result<(), (ReturnCode, &'static mut Self::Page)> { Err((ReturnCode::FAIL, buf)) }
