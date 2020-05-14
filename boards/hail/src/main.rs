@@ -256,7 +256,8 @@ pub unsafe fn reset_handler() {
     // SI7021 Temperature / Humidity Sensor, address: 0x40
     let si7021 = components::si7021::SI7021Component::new(sensors_i2c, mux_alarm, 0x40)
         .finalize(components::si7021_component_helper!(sam4l::ast::Ast));
-    let temp = components::si7021::TemperatureComponent::new(board_kernel, si7021).finalize(());
+    let temp =
+        components::temperature::TemperatureComponent::new(board_kernel, si7021).finalize(());
     let humidity = components::si7021::HumidityComponent::new(board_kernel, si7021).finalize(());
 
     // Configure the ISL29035, device address 0x44

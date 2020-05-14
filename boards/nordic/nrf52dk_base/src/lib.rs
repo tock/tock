@@ -296,14 +296,9 @@ pub unsafe fn setup_board<I: nrf52::interrupt_service::InterruptService>(
         None
     };
 
-    let temp = static_init!(
-        capsules::temperature::TemperatureSensor<'static>,
-        capsules::temperature::TemperatureSensor::new(
-            &nrf52::temperature::TEMP,
-            board_kernel.create_grant(&memory_allocation_capability)
-        )
-    );
-    kernel::hil::sensors::TemperatureDriver::set_client(&nrf52::temperature::TEMP, temp);
+    let temp =
+        components::temperature::TemperatureComponent::new(board_kernel, &nrf52::temperature::TEMP)
+            .finalize(());
 
     let rng = components::rng::RngComponent::new(board_kernel, &nrf52::trng::TRNG).finalize(());
 

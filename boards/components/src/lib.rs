@@ -26,3 +26,4 @@ pub mod rng;
 pub mod segger_rtt;
 pub mod si7021;
 pub mod spi;
+pub mod temperature;
