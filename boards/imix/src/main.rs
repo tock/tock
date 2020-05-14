@@ -410,9 +410,20 @@ pub unsafe fn reset_handler() {
     .finalize(());
 
     let usb_driver = UsbComponent::new(board_kernel).finalize(());
+
+    // Kernel storage region, allocated with the storage_volume!
+    // macro in common/utils.rs
+    extern "C" {
+        /// Beginning on the ROM region containing app images.
+        static _sstorage: u8;
+        static _estorage: u8;
+    }
+
     let nonvolatile_storage = components::nonvolatile_storage::NonvolatileStorageComponent::new(
         board_kernel,
         &sam4l::flashcalw::FLASH_CONTROLLER,
+        &_sstorage as *const u8 as usize,
+        &_estorage as *const u8 as usize,
     )
     .finalize(components::nv_storage_component_helper!(
         sam4l::flashcalw::FLASHCALW

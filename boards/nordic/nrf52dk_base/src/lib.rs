@@ -6,7 +6,6 @@
 use kernel::{create_capability, debug, debug_gpio, debug_verbose, static_init};
 
 use capsules::virtual_alarm::VirtualMuxAlarm;
-use capsules::virtual_spi::MuxSpiMaster;
 use kernel::capabilities;
 use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::component::Component;
@@ -272,6 +271,8 @@ pub unsafe fn setup_board<I: nrf52::interrupt_service::InterruptService>(
             components::nonvolatile_storage::NonvolatileStorageComponent::new(
                 board_kernel,
                 mx25r6435f,
+                0,
+                0x60000,
             )
             .finalize(components::nv_storage_component_helper!(
                 capsules::mx25r6435f::MX25R6435F<
