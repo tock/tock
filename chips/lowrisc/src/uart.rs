@@ -9,6 +9,7 @@ use kernel::common::registers::{
 };
 use kernel::common::StaticRef;
 use kernel::hil;
+use kernel::hil::uart;
 use kernel::ReturnCode;
 
 register_structs! {
@@ -102,9 +103,13 @@ pub struct Uart<'a> {
     clock_frequency: u32,
     tx_client: OptionalCell<&'a dyn hil::uart::TransmitClient>,
     rx_client: OptionalCell<&'a dyn hil::uart::ReceiveClient>,
+
     tx_buffer: TakeCell<'static, [u8]>,
     tx_len: Cell<usize>,
     tx_index: Cell<usize>,
+
+    rx_buffer: TakeCell<'static, [u8]>,
+    rx_len: Cell<usize>,
 }
 
 #[derive(Copy, Clone)]
@@ -122,6 +127,8 @@ impl Uart<'a> {
             tx_buffer: TakeCell::empty(),
             tx_len: Cell::new(0),
             tx_index: Cell::new(0),
+            rx_buffer: TakeCell::empty(),
+            rx_len: Cell::new(0),
         }
     }
 
@@ -219,7 +226,26 @@ impl Uart<'a> {
             }
         } else if intrs.is_set(intr::rx_watermark) {
             self.disable_rx_interrupt();
-            // TODO: real RX processing
+
+            self.rx_client.map(|client| {
+                self.rx_buffer.take().map(|rx_buf| {
+                    let mut len = 0;
+                    let mut return_code = ReturnCode::SUCCESS;
+
+                    for i in 0..self.rx_len.get() {
+                        rx_buf[i] = regs.rdata.get() as u8;
+                        len = i + 1;
+
+                        if regs.status.is_set(status::rxempty) {
+                            /* RX is empty */
+                            return_code = ReturnCode::ESIZE;
+                            break;
+                        }
+                    }
+
+                    client.received_buffer(rx_buf, len, return_code, uart::Error::None);
+                });
+            });
         }
     }
 
@@ -293,12 +319,19 @@ impl hil::uart::Receive<'a> for Uart<'a> {
 
     fn receive_buffer(
         &self,
-        _rx_buffer: &'static mut [u8],
-        _rx_len: usize,
+        rx_buffer: &'static mut [u8],
+        rx_len: usize,
     ) -> (ReturnCode, Option<&'static mut [u8]>) {
+        if rx_len == 0 || rx_len > rx_buffer.len() {
+            return (ReturnCode::ESIZE, Some(rx_buffer));
+        }
+
         self.enable_rx_interrupt();
 
-        (ReturnCode::FAIL, None)
+        self.rx_buffer.replace(rx_buffer);
+        self.rx_len.set(rx_len);
+
+        (ReturnCode::SUCCESS, None)
     }
 
     fn receive_abort(&self) -> ReturnCode {
