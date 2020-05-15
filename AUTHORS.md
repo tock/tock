@@ -8,7 +8,7 @@ Organizations that have contributed code to Tock include:
 
   * Atihita
   * Chalmers University
-  * Google
+  * Google LLC
   * Helium
   * MIT
   * MIT Lincoln Laboratory
