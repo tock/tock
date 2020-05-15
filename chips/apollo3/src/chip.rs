@@ -4,6 +4,7 @@ use core::fmt::Write;
 use cortexm4;
 use kernel::Chip;
 
+use crate::gpio;
 use crate::nvic;
 use crate::uart;
 
@@ -35,6 +36,7 @@ impl Chip for Apollo3 {
                     match interrupt {
                         nvic::UART0 => uart::UART0.handle_interrupt(),
                         nvic::UART1 => uart::UART1.handle_interrupt(),
+                        nvic::GPIO => gpio::PORT.handle_interrupt(),
                         _ => {
                             panic!("unhandled interrupt {}", interrupt);
                         }
