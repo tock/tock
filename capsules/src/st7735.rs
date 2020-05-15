@@ -866,7 +866,7 @@ impl<'a, A: Alarm<'a>> framebuffer::ScreenSetup for ST7735<'a, A> {
         self.rotation(rotation)
     }
 
-    fn get_supported_resolutions(&self) -> usize {
+    fn get_num_supported_resolutions(&self) -> usize {
         1
     }
     fn get_supported_resolution(&self, index: usize) -> Option<(usize, usize)> {
@@ -876,7 +876,7 @@ impl<'a, A: Alarm<'a>> framebuffer::ScreenSetup for ST7735<'a, A> {
         }
     }
 
-    fn get_supported_pixel_formats(&self) -> usize {
+    fn get_num_supported_pixel_formats(&self) -> usize {
         1
     }
     fn get_supported_pixel_format(&self, index: usize) -> Option<ScreenPixelFormat> {
