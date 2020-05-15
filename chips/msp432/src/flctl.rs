@@ -6,7 +6,7 @@ use kernel::common::StaticRef;
 pub static mut FLCTL: FlCtl = FlCtl::new();
 
 const FLCTL_BASE: StaticRef<FlCtlRegisters> =
-    unsafe { StaticRef::new(4001_1000 as *const FlCtlRegisters) };
+    unsafe { StaticRef::new(0x4001_1000u32 as *const FlCtlRegisters) };
 
 #[repr(C)]
 struct FlCtlRegisters {

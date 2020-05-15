@@ -7,11 +7,11 @@ use kernel::hil::watchdog;
 pub static mut WATCHDOG: Watchdog = Watchdog::new();
 
 const WATCHDOG_BASE: StaticRef<WatchdogRegisters> =
-    unsafe { StaticRef::new(0x4000_480C as *const WatchdogRegisters) };
+    unsafe { StaticRef::new(0x4000_480Cu32 as *const WatchdogRegisters) };
 
 /// every write access has to set this 'password' in the upper 8 bit of the
 /// register, otherwise the watchdog resets the whole system
-const PASSWORD: u16 = 0x5A00;
+const PASSWORD: u16 = 0x5A;
 
 #[repr(C)]
 struct WatchdogRegisters {
@@ -58,7 +58,7 @@ impl watchdog::Watchdog for Watchdog {
     fn stop(&self) {
         self.registers
             .ctl
-            .modify(WDTCTL::WDTPW.val(PASSWORD) + WDTCTL::WDTHOLD::SET + WDTCTL::WDTCNTCL::SET);
+            .modify(WDTCTL::WDTPW.val(PASSWORD) + WDTCTL::WDTHOLD::SET);
     }
 
     fn tickle(&self) {

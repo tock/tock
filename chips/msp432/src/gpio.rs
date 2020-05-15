@@ -89,12 +89,12 @@ pub static mut PINS: [Pin; 80] = [
 ];
 
 const GPIO_BASES: [StaticRef<GpioRegisters>; 6] = [
-    unsafe { StaticRef::new(0x4000_4C00 as *const GpioRegisters) }, // PORT 1&2
-    unsafe { StaticRef::new(0x4000_4C20 as *const GpioRegisters) }, // PORT 3&4
-    unsafe { StaticRef::new(0x4000_4C40 as *const GpioRegisters) }, // PORT 5&6
-    unsafe { StaticRef::new(0x4000_4C60 as *const GpioRegisters) }, // PORT 7&8
-    unsafe { StaticRef::new(0x4000_4C80 as *const GpioRegisters) }, // PORT 9&10
-    unsafe { StaticRef::new(0x4000_4D20 as *const GpioRegisters) }, // PORT J
+    unsafe { StaticRef::new(0x4000_4C00u32 as *const GpioRegisters) }, // PORT 1&2
+    unsafe { StaticRef::new(0x4000_4C20u32 as *const GpioRegisters) }, // PORT 3&4
+    unsafe { StaticRef::new(0x4000_4C40u32 as *const GpioRegisters) }, // PORT 5&6
+    unsafe { StaticRef::new(0x4000_4C60u32 as *const GpioRegisters) }, // PORT 7&8
+    unsafe { StaticRef::new(0x4000_4C80u32 as *const GpioRegisters) }, // PORT 9&10
+    unsafe { StaticRef::new(0x4000_4D20u32 as *const GpioRegisters) }, // PORT J
 ];
 
 const PINS_PER_PORT: u8 = 8;

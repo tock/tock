@@ -30,9 +30,9 @@ static mut APP_MEMORY: [u8; 32768] = [0; 32768];
 
 // Force the emission of the `.apps` segment in the kernel elf image
 // NOTE: This will cause the kernel to overwrite any existing apps when flashed!
-#[used]
-#[link_section = ".app.hack"]
-static APP_HACK: u8 = 0;
+// #[used]
+// #[link_section = ".app.hack"]
+// static APP_HACK: u8 = 0;
 
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
@@ -60,8 +60,8 @@ impl Platform for MspExp432P401R {
 
 #[no_mangle]
 pub unsafe fn reset_handler() {
-    msp432::wdt::WATCHDOG.stop();
     msp432::init();
+    msp432::wdt::WATCHDOG.stop();
     msp432::sysctl::SYSCTL.enable_all_sram_banks();
     msp432::pcm::PCM.set_high_power();
     msp432::flctl::FLCTL.set_waitstates(msp432::flctl::WaitStates::_1);

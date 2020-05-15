@@ -6,7 +6,7 @@ use kernel::common::StaticRef;
 pub static mut CS: ClockSystem = ClockSystem::new();
 
 const CS_BASE: StaticRef<CsRegisters> =
-    unsafe { StaticRef::new(0x4001_0400 as *const CsRegisters) };
+    unsafe { StaticRef::new(0x4001_0400u32 as *const CsRegisters) };
 
 const KEY: u32 = 0x695A;
 
