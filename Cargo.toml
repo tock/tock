@@ -17,6 +17,7 @@ members = [
     "boards/nucleo_f429zi",
     "boards/nucleo_f446re",
     "boards/opentitan",
+    "boards/redboard_artemis_nano",
     "boards/stm32f3discovery",
     "capsules",
     "chips/apollo3",
