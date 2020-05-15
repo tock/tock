@@ -147,13 +147,13 @@ pub unsafe fn reset_handler() {
         board_kernel,
         components::gpio_component_helper!(
             nrf52832::gpio::GPIOPin,
-            &nrf52832::gpio::PORT[Pin::P0_25],
-            &nrf52832::gpio::PORT[Pin::P0_26],
-            &nrf52832::gpio::PORT[Pin::P0_27],
-            &nrf52832::gpio::PORT[Pin::P0_28],
-            &nrf52832::gpio::PORT[Pin::P0_29],
-            &nrf52832::gpio::PORT[Pin::P0_30],
-            &nrf52832::gpio::PORT[Pin::P0_31]
+            0 => &nrf52832::gpio::PORT[Pin::P0_25],
+            1 => &nrf52832::gpio::PORT[Pin::P0_26],
+            2 => &nrf52832::gpio::PORT[Pin::P0_27],
+            3 => &nrf52832::gpio::PORT[Pin::P0_28],
+            4 => &nrf52832::gpio::PORT[Pin::P0_29],
+            5 => &nrf52832::gpio::PORT[Pin::P0_30],
+            6 => &nrf52832::gpio::PORT[Pin::P0_31]
         ),
     )
     .finalize(components::gpio_component_buf!(nrf52832::gpio::GPIOPin));

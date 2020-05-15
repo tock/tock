@@ -181,14 +181,14 @@ pub unsafe fn reset_handler() {
         board_kernel,
         components::gpio_component_helper!(
             ibex::gpio::GpioPin,
-            &ibex::gpio::PORT[0],
-            &ibex::gpio::PORT[1],
-            &ibex::gpio::PORT[2],
-            &ibex::gpio::PORT[3],
-            &ibex::gpio::PORT[4],
-            &ibex::gpio::PORT[5],
-            &ibex::gpio::PORT[6],
-            &ibex::gpio::PORT[15]
+            0 => &ibex::gpio::PORT[0],
+            1 => &ibex::gpio::PORT[1],
+            2 => &ibex::gpio::PORT[2],
+            3 => &ibex::gpio::PORT[3],
+            4 => &ibex::gpio::PORT[4],
+            5 => &ibex::gpio::PORT[5],
+            6 => &ibex::gpio::PORT[6],
+            7 => &ibex::gpio::PORT[15]
         ),
     )
     .finalize(components::gpio_component_buf!(ibex::gpio::GpioPin));

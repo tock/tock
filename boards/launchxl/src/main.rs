@@ -257,7 +257,7 @@ pub unsafe fn reset_handler() {
             cc26x2::gpio::GPIOPin,
             // This is the order they appear on the launchxl headers.
             // Pins 5, 8, 11, 29, 30
-            &cc26x2::gpio::PORT[pinmap.gpio0]
+            0 => &cc26x2::gpio::PORT[pinmap.gpio0]
         ),
     )
     .finalize(components::gpio_component_buf!(cc26x2::gpio::GPIOPin));
