@@ -313,8 +313,6 @@ pub unsafe fn reset_handler() {
 
     // LEDs
 
-    // Clock to Port A is enabled in `set_pin_primary_functions()`
-
     let led = components::led::LedsComponent::new(components::led_component_helper!(
         stm32f429zi::gpio::Pin,
         (

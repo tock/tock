@@ -46,6 +46,8 @@ impl ScreenPixelFormat {
 }
 
 pub trait ScreenSetup {
+    fn set_client(&self, client: Option<&'static dyn ScreenSetupClient>);
+
     /// Sets the screen resolution (in pixels). Returns ENOSUPPORT if the resolution is
     /// not supported. The function should return SUCCESS if the request is registered
     /// and will be sent to the screen.
@@ -148,6 +150,11 @@ pub trait Screen {
 }
 
 pub trait ScreenAdvanced: Screen + ScreenSetup {}
+
+pub trait ScreenSetupClient {
+    /// The screen will call this function to notify that a command has finished.
+    fn command_complete(&self, r: ReturnCode);
+}
 
 pub trait ScreenClient {
     /// The screen will then call ``ScreenClient::fill_next_buffer_for_write`` for

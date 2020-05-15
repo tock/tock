@@ -411,6 +411,12 @@ impl hil::framebuffer::ScreenClient for Framebuffer<'a> {
     }
 }
 
+impl hil::framebuffer::ScreenSetupClient for Framebuffer<'a> {
+    fn command_complete(&self, r: ReturnCode) {
+        self.run_next_command(usize::from(r), 0, 0);
+    }
+}
+
 impl Driver for Framebuffer<'a> {
     fn subscribe(
         &self,

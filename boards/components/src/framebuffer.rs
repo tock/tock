@@ -56,7 +56,10 @@ impl Component for FramebufferComponent {
             )
         );
 
-        self.screen.set_client(Some(framebuffer));
+        kernel::hil::framebuffer::Screen::set_client(self.screen, Some(framebuffer));
+        if let Some(screen) = self.screen_setup {
+            kernel::hil::framebuffer::ScreenSetup::set_client(screen, Some(framebuffer));
+        }
 
         framebuffer
     }

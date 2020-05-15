@@ -26,7 +26,9 @@
 use crate::driver;
 use core::cell::Cell;
 use kernel::common::cells::{OptionalCell, TakeCell};
-use kernel::hil::framebuffer::{self, ScreenClient, ScreenPixelFormat, ScreenRotation};
+use kernel::hil::framebuffer::{
+    self, ScreenClient, ScreenPixelFormat, ScreenRotation, ScreenSetupClient,
+};
 use kernel::hil::gpio;
 use kernel::hil::spi;
 use kernel::hil::time::{self, Alarm, Frequency};
@@ -303,6 +305,8 @@ pub struct ST7735<'a, A: Alarm<'a>> {
     height: Cell<usize>,
 
     client: OptionalCell<&'static dyn framebuffer::ScreenClient>,
+    setup_client: OptionalCell<&'static dyn framebuffer::ScreenSetupClient>,
+    setup_command: Cell<bool>,
 
     sequence_buffer: TakeCell<'static, [SendCommand]>,
     position_in_sequence: Cell<usize>,
@@ -341,6 +345,8 @@ impl<'a, A: Alarm<'a>> ST7735<'a, A> {
             height: Cell::new(160),
 
             client: OptionalCell::empty(),
+            setup_client: OptionalCell::empty(),
+            setup_command: Cell::new(false),
 
             sequence_buffer: TakeCell::new(sequence_buffer),
             sequence_len: Cell::new(0),
@@ -533,6 +539,7 @@ impl<'a, A: Alarm<'a>> ST7735<'a, A> {
                         rotation_bits | MADCTL.parameters.map_or(0, |parameters| parameters[0])
                 },
             );
+            self.setup_command.set(true);
             self.send_command(&MADCTL, 1, 1, 1);
             ReturnCode::SUCCESS
         } else {
@@ -545,6 +552,7 @@ impl<'a, A: Alarm<'a>> ST7735<'a, A> {
             if !self.power_on.get() {
                 ReturnCode::EOFF
             } else {
+                self.setup_command.set(false);
                 self.send_command_with_default_parameters(&DISPON);
                 ReturnCode::SUCCESS
             }
@@ -558,6 +566,7 @@ impl<'a, A: Alarm<'a>> ST7735<'a, A> {
             if !self.power_on.get() {
                 ReturnCode::EOFF
             } else {
+                self.setup_command.set(false);
                 self.send_command_with_default_parameters(&DISPOFF);
                 ReturnCode::SUCCESS
             }
@@ -571,6 +580,7 @@ impl<'a, A: Alarm<'a>> ST7735<'a, A> {
             if !self.power_on.get() {
                 ReturnCode::EOFF
             } else {
+                self.setup_command.set(false);
                 self.send_command_with_default_parameters(&INVON);
                 ReturnCode::SUCCESS
             }
@@ -584,6 +594,7 @@ impl<'a, A: Alarm<'a>> ST7735<'a, A> {
             if !self.power_on.get() {
                 ReturnCode::EOFF
             } else {
+                self.setup_command.set(false);
                 self.send_command_with_default_parameters(&INVOFF);
                 ReturnCode::SUCCESS
             }
@@ -631,9 +642,16 @@ impl<'a, A: Alarm<'a>> ST7735<'a, A> {
                                     client.screen_is_ready();
                                 });
                             } else {
-                                self.client.map(|client| {
-                                    client.command_complete(ReturnCode::SUCCESS);
-                                });
+                                if self.setup_command.get() {
+                                    self.setup_command.set(false);
+                                    self.setup_client.map(|setup_client| {
+                                        setup_client.command_complete(ReturnCode::SUCCESS);
+                                    });
+                                } else {
+                                    self.client.map(|client| {
+                                        client.command_complete(ReturnCode::SUCCESS);
+                                    });
+                                }
                             }
                         }
                     },
@@ -845,20 +863,39 @@ impl<'a, A: Alarm<'a>> Driver for ST7735<'a, A> {
 }
 
 impl<'a, A: Alarm<'a>> framebuffer::ScreenSetup for ST7735<'a, A> {
-    fn set_resolution(&self, resolution: (usize, usize)) -> ReturnCode {
-        if resolution.0 == self.width.get() && resolution.1 == self.height.get() {
-            ReturnCode::SUCCESS
+    fn set_client(&self, setup_client: Option<&'static dyn ScreenSetupClient>) {
+        if let Some(setup_client) = setup_client {
+            self.setup_client.set(setup_client);
         } else {
-            ReturnCode::ENOSUPPORT
+            self.setup_client.clear();
+        }
+    }
+
+    fn set_resolution(&self, resolution: (usize, usize)) -> ReturnCode {
+        if self.status.get() == Status::Idle {
+            if resolution.0 == self.width.get() && resolution.1 == self.height.get() {
+                self.setup_client
+                    .map(|setup_client| setup_client.command_complete(ReturnCode::SUCCESS));
+                ReturnCode::SUCCESS
+            } else {
+                ReturnCode::ENOSUPPORT
+            }
+        } else {
+            ReturnCode::EBUSY
         }
     }
 
     fn set_pixel_format(&self, depth: ScreenPixelFormat) -> ReturnCode {
-        if depth == ScreenPixelFormat::RGB_565 {
-            // if not outstanding
-            ReturnCode::SUCCESS
+        if self.status.get() == Status::Idle {
+            if depth == ScreenPixelFormat::RGB_565 {
+                self.setup_client
+                    .map(|setup_client| setup_client.command_complete(ReturnCode::SUCCESS));
+                ReturnCode::SUCCESS
+            } else {
+                ReturnCode::EINVAL
+            }
         } else {
-            ReturnCode::EINVAL
+            ReturnCode::EBUSY
         }
     }
 
@@ -902,6 +939,7 @@ impl<'a, A: Alarm<'a>> framebuffer::Screen for ST7735<'a, A> {
 
     fn write(&self, x: usize, y: usize, width: usize, height: usize) -> ReturnCode {
         if self.status.get() == Status::Idle {
+            self.setup_command.set(false);
             let buffer_len = self.buffer.map_or_else(
                 || panic!("st7735: buffer is not available"),
                 |buffer| buffer.len() - 1,
