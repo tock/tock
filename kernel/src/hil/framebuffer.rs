@@ -77,7 +77,7 @@ pub trait ScreenSetup {
     ///
     /// If the screen supports such a feature, the driver should request this information
     /// from the screen upfront.
-    fn get_supported_resolutions(&self) -> usize;
+    fn get_num_supported_resolutions(&self) -> usize;
 
     /// Can be called with an index from 0 .. count-1 and will
     /// a tuple (width, height) with the current resolution (in pixels).
@@ -93,9 +93,9 @@ pub trait ScreenSetup {
     ///
     /// If the screen supports such a feature, the driver should request this information
     /// from the screen upfront.
-    fn get_supported_pixel_formats(&self) -> usize;
+    fn get_num_supported_pixel_formats(&self) -> usize;
 
-    /// Can be called with index 0 .. count-1 and will returns
+    /// Can be called with index 0 .. count-1 and will return
     /// the value of each pixel format mode.
     /// This function is synchronous as the driver should know this value without
     /// requesting it from the screen.

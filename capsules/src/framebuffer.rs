@@ -200,7 +200,7 @@ impl Framebuffer<'a> {
             }
             FramebufferCommand::GetSupportedResolutionModes => {
                 if let Some(screen) = self.screen_setup {
-                    let resolution_modes = screen.get_supported_resolutions();
+                    let resolution_modes = screen.get_num_supported_resolutions();
                     self.run_next_command(usize::from(ReturnCode::SUCCESS), resolution_modes, 0);
                     ReturnCode::SUCCESS
                 } else {
@@ -229,7 +229,7 @@ impl Framebuffer<'a> {
             }
             FramebufferCommand::GetSupportedPixelFormats => {
                 if let Some(screen) = self.screen_setup {
-                    let color_modes = screen.get_supported_pixel_formats();
+                    let color_modes = screen.get_num_supported_pixel_formats();
                     self.run_next_command(usize::from(ReturnCode::SUCCESS), color_modes, 0);
                     ReturnCode::SUCCESS
                 } else {
