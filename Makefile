@@ -26,7 +26,6 @@ usage:
 	@echo " emulation-check: Run the emulation tests for supported boards"
 	@echo " emulation-setup: Setup QEMU for the emulation tests"
 	@echo "          format: Runs the rustfmt tool on all kernel sources"
-	@echo "           lints: Runs check-format and the clippy code linter"
 	@echo "            list: Lists available boards"
 	@echo
 	@echo "$$(tput bold)Happy Hacking!$$(tput sgr0)"
@@ -63,7 +62,8 @@ ci: ci-travis ci-netlify
 
 .PHONY: ci-travis
 ci-travis:\
-	ci-lints\
+	check-format\
+	clippy\
 	ci-tools\
 	ci-libraries\
 	ci-archs\
@@ -94,7 +94,8 @@ ci-cargo-tests:\
 
 .PHONY: ci-format
 ci-format:\
-	ci-lints\
+	check-format\
+	clippy\
 	ci-documentation\
 
 .PHONY: ci-build
@@ -115,7 +116,8 @@ ci-lints:
 	@printf "$$(tput bold)**************************$$(tput sgr0)\n"
 	@printf "$$(tput bold)* CI: Formatting + Lints *$$(tput sgr0)\n"
 	@printf "$$(tput bold)**************************$$(tput sgr0)\n"
-	@$(MAKE) lints
+	@$(MAKE) check-format
+	@$(MAKE) clippy
 
 .PHONY: ci-tools
 ci-tools:
@@ -243,15 +245,9 @@ fmt format:
 check-format:
 	@CI=true ./tools/run_cargo_fmt.sh diff
 
-
 .PHONY: clippy
 clippy:
 	@./tools/run_clippy.sh
-
-.PHONY: lints
-lints:\
-	check-format\
-	clippy
 
 .PHONY: list list-boards list-platforms
 list list-boards list-platforms:
