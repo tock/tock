@@ -212,7 +212,20 @@ invoke `make format`.
 The target `make formatall` in the root will automatically run all style checks
 and make any required changes. PRs must pass the formatting checks before landing.
 
-### Step 8: Landing
+### Step 8: Licensing
+
+Tock is dual-licensed under Apache2/MIT. Files in Tock require a short header
+indicating this. In 99% of cases, the following text should be at the top of every file:
+
+> This file is part of the Tock Project.
+>
+> Dual licensed under the Apache License, Version 2.0 or the MIT License, at your option.
+> See the License for the specific language governing permissions and limitations under the License.
+> This file may not be copied, modified, or distributed except according to those terms.
+
+This header should be automatically enforced by CI tooling.
+
+### Step 9: Landing
 
 In order to land, a Pull Request needs to be reviewed and
 [approved](#getting-approvals-for-your-pull-request) by at least one person with
