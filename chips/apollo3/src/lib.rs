@@ -9,6 +9,7 @@
 // Peripherals
 pub mod chip;
 pub mod nvic;
+pub mod uart;
 
 use cortexm4::{
     generic_isr, hard_fault_handler, scb, svc_handler, systick_handler, unhandled_interrupt,

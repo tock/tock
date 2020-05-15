@@ -5,6 +5,7 @@ use cortexm4;
 use kernel::Chip;
 
 use crate::nvic;
+use crate::uart;
 
 pub struct Apollo3 {
     mpu: cortexm4::mpu::MPU,
@@ -32,6 +33,8 @@ impl Chip for Apollo3 {
             loop {
                 if let Some(interrupt) = cortexm4::nvic::next_pending() {
                     match interrupt {
+                        nvic::UART0 => uart::UART0.handle_interrupt(),
+                        nvic::UART1 => uart::UART1.handle_interrupt(),
                         _ => {
                             panic!("unhandled interrupt {}", interrupt);
                         }
