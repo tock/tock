@@ -1,10 +1,18 @@
-Tock Operating System
-Copyright 2016 The Tock OS Developers
+Short version for non-lawyers:
 
-Licensed under the Apache License, Version 2.0
-<LICENSE-APACHE or
-http://www.apache.org/licenses/LICENSE-2.0> or the MIT
-license <LICENSE-MIT or http://opensource.org/licenses/MIT>,
-at your option. All files in this project may not be copied,
-modified, or distributed except according to those terms.
+The Tock Project is dual-licensed under Apache 2.0 and MIT terms.
+
+
+Longer version:
+
+Copyrights in the Tock project are retained by their contributors. No
+copyright assignment is required to contribute to the Tock project.
+
+Some files include explicit copyright notices and/or license notices.
+For full authorship information, see the version control history.
+
+Except as otherwise noted (below and/or in individual files), Tock is
+licensed under the Apache License, Version 2.0 <LICENSE-APACHE> or
+<http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
+<LICENSE-MIT> or <http://opensource.org/licenses/MIT>, at your option.
 
