@@ -374,10 +374,6 @@ impl<C: hil::flash::Client<Self>> hil::flash::HasClient<'static, C> for Nvmc {
 impl hil::flash::Flash for Nvmc {
     type Page = NrfPage;
 
-    fn configure(&self) {
-        self.configure_writeable(); // Should this go here? Or stay in general nrf52 configuration? - Hudson
-    }
-
     fn read_page(
         &self,
         page_number: usize,

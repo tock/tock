@@ -569,8 +569,6 @@ impl<
 {
     type Page = Mx25r6435fSector;
 
-    fn configure(&self) {}
-
     fn read_page(
         &self,
         page_number: usize,

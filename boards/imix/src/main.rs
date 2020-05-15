@@ -422,8 +422,10 @@ pub unsafe fn reset_handler() {
     let nonvolatile_storage = components::nonvolatile_storage::NonvolatileStorageComponent::new(
         board_kernel,
         &sam4l::flashcalw::FLASH_CONTROLLER,
-        &_sstorage as *const u8 as usize,
-        &_estorage as *const u8 as usize,
+        0x60000,                          // Start address for userspace accessible region
+        0x20000,                          // Length of userspace accessible region
+        &_sstorage as *const u8 as usize, //start address of kernel region
+        &_estorage as *const u8 as usize - &_sstorage as *const u8 as usize, // length of kernel region
     )
     .finalize(components::nv_storage_component_helper!(
         sam4l::flashcalw::FLASHCALW

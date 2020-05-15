@@ -57,8 +57,6 @@
 //! impl hil::flash::Flash for NewChipStruct {
 //!     type Page = NewChipPage;
 //!
-//!     fn configure(&self) {}
-//!
 //!     fn read_page(&self, page_number: usize, buf: &'static mut Self::Page) -> Result<(), (ReturnCode, &'static mut Self::Page)> { Err((ReturnCode::FAIL, buf)) }
 //!     fn write_page(&self, page_number: usize, buf: &'static mut Self::Page) -> Result<(), (ReturnCode, &'static mut Self::Page)> { Err((ReturnCode::FAIL, buf)) }
 //!     fn erase_page(&self, page_number: usize) -> ReturnCode { ReturnCode::FAIL }
@@ -114,10 +112,6 @@ pub trait HasClient<'a, C> {
 pub trait Flash {
     /// Type of a single flash page for the given implementation.
     type Page: AsMut<[u8]> + Default;
-
-    /// Called by nonvolatile storage component. Responsible for chip-specific
-    /// configuration to enable flash.
-    fn configure(&self);
 
     /// Read a page of flash into the buffer.
     fn read_page(

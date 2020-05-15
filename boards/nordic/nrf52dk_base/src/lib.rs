@@ -271,8 +271,10 @@ pub unsafe fn setup_board<I: nrf52::interrupt_service::InterruptService>(
             components::nonvolatile_storage::NonvolatileStorageComponent::new(
                 board_kernel,
                 mx25r6435f,
-                0,
-                0x60000,
+                0x60000, // Start address for userspace accessible region
+                0x20000, // Length of userspace accessible region
+                0,       // Start address of kernel region
+                0x60000, // Length of kernel region
             )
             .finalize(components::nv_storage_component_helper!(
                 capsules::mx25r6435f::MX25R6435F<
@@ -295,8 +297,6 @@ pub unsafe fn setup_board<I: nrf52::interrupt_service::InterruptService>(
     )
     .finalize(components::acomp_component_buf!(nrf52::acomp::Comparator));
 
-    // Start all of the clocks. Low power operation will require a better
-    // approach than this.
     nrf52_components::NrfClockComponent::new().finalize(());
 
     let platform = Platform {

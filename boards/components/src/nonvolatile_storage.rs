@@ -9,6 +9,8 @@
 //! let nonvolatile_storage = components::nonvolatile_storage::NonvolatileStorageComponent::new(
 //!     board_kernel,
 //!     &sam4l::flashcalw::FLASH_CONTROLLER,
+//!     0x60000,
+//!     0x20000,
 //!     &_sstorage as *const u8 as usize,
 //!     &_estorage as *const u8 as usize,
 //! )
@@ -44,8 +46,10 @@ pub struct NonvolatileStorageComponent<
 > {
     board_kernel: &'static kernel::Kernel,
     flash: &'static F,
+    userspace_start: usize,
+    userspace_length: usize,
     kernel_start: usize,
-    kernel_end: usize,
+    kernel_length: usize,
 }
 
 impl<
@@ -57,14 +61,18 @@ impl<
     pub fn new(
         board_kernel: &'static kernel::Kernel,
         flash: &'static F,
+        userspace_start: usize,
+        userspace_length: usize,
         kernel_start: usize,
-        kernel_end: usize,
+        kernel_length: usize,
     ) -> Self {
         Self {
             board_kernel,
             flash,
+            userspace_start,
+            userspace_length,
             kernel_start,
-            kernel_end,
+            kernel_length,
         }
     }
 }
@@ -84,8 +92,6 @@ impl<
     unsafe fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
-        self.flash.configure();
-
         let flash_pagebuffer = static_init_half!(
             static_buffer.0,
             <F as hil::flash::Flash>::Page,
@@ -99,17 +105,15 @@ impl<
         );
         hil::flash::HasClient::set_client(self.flash, nv_to_page);
 
-        let kernel_len = self.kernel_end - self.kernel_start;
-
         let nonvolatile_storage = static_init!(
             NonvolatileStorage<'static>,
             NonvolatileStorage::new(
                 nv_to_page,
                 self.board_kernel.create_grant(&grant_cap),
-                0x60000,           // Start address for userspace accessible region
-                0x20000,           // Length of userspace accessible region
-                self.kernel_start, // Start address of kernel region
-                kernel_len,        // Length of kernel region
+                self.userspace_start, // Start address for userspace accessible region
+                self.userspace_length, // Length of userspace accessible region
+                self.kernel_start,    // Start address of kernel region
+                self.kernel_length,   // Length of kernel region
                 &mut capsules::nonvolatile_storage_driver::BUFFER
             )
         );

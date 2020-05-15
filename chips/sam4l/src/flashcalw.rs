@@ -12,8 +12,7 @@
 //! A clean interface for reading from flash, writing pages and erasing pages is
 //! defined below and should be used to handle the complexity of these tasks.
 //!
-//! The driver should be `configure()`'d before use, and a Client should be set
-//! to enable a callback after a command is completed.
+//! A Client should be set to enable a callback after a command is completed.
 //!
 //! Almost all of the flash controller functionality is implemented (except for
 //! general purpose fuse bits, and more granular control of the cache).
@@ -808,6 +807,36 @@ impl FLASHCALW {
 
 // Implementation of high level calls using the low-lv functions.
 impl FLASHCALW {
+    pub fn configure(&self) {
+        let regs: &FlashcalwRegisters = &*self.registers;
+
+        // Enable all clocks (if they aren't on already...).
+        pm::enable_clock(self.ahb_clock);
+        pm::enable_clock(self.hramc1_clock);
+        pm::enable_clock(self.pb_clock);
+
+        // Configure all other interrupts explicitly. Note the issue_command
+        // function turns this on when need be.
+        regs.fcr.modify(
+            FlashControl::FRDY::CLEAR
+                + FlashControl::LOCKE::CLEAR
+                + FlashControl::PROGE::CLEAR
+                + FlashControl::ECCE::CLEAR,
+        );
+
+        // Enable wait state 1 optimization.
+        self.enable_ws1_read_opt(true);
+        // Change speed mode.
+        self.set_flash_waitstate_and_readmode(48_000_000, 0, false);
+
+        // By default the picocache ( a cache only for the flash) is turned off.
+        // However the bootloader turns it on. I will explicitly turn it on
+        // here. So if the bootloader changes, nothing breaks.
+        self.enable_picocache(true);
+
+        self.current_state.set(FlashState::Ready);
+    }
+
     // Address is some raw address in flash that you want to read.
     fn read_range(
         &self,
@@ -816,7 +845,7 @@ impl FLASHCALW {
         buffer: &'static mut Sam4lPage,
     ) -> Result<(), (ReturnCode, &'static mut Sam4lPage)> {
         if self.current_state.get() == FlashState::Unconfigured {
-            return Err((ReturnCode::FAIL, buffer));
+            self.configure();
         }
 
         // Enable clock in case it's off.
@@ -862,7 +891,7 @@ impl FLASHCALW {
         pm::enable_clock(self.ahb_clock);
 
         match self.current_state.get() {
-            FlashState::Unconfigured => return Err((ReturnCode::FAIL, data)),
+            FlashState::Unconfigured => self.configure(),
             FlashState::Ready => {}
             // If we're not ready don't take the command
             _ => return Err((ReturnCode::EBUSY, data)),
@@ -880,8 +909,12 @@ impl FLASHCALW {
     fn erase_page(&self, page_num: i32) -> ReturnCode {
         // Enable AHB clock (in case it was off).
         pm::enable_clock(self.ahb_clock);
-        if self.current_state.get() != FlashState::Ready {
-            return ReturnCode::EBUSY;
+
+        match self.current_state.get() {
+            FlashState::Unconfigured => self.configure(),
+            FlashState::Ready => {}
+            // If we're not ready don't take the command
+            _ => return ReturnCode::EBUSY,
         }
 
         self.current_state
@@ -899,36 +932,6 @@ impl<C: hil::flash::Client<Self>> hil::flash::HasClient<'static, C> for FLASHCAL
 
 impl hil::flash::Flash for FLASHCALW {
     type Page = Sam4lPage;
-
-    fn configure(&self) {
-        let regs: &FlashcalwRegisters = &*self.registers;
-
-        // Enable all clocks (if they aren't on already...).
-        pm::enable_clock(self.ahb_clock);
-        pm::enable_clock(self.hramc1_clock);
-        pm::enable_clock(self.pb_clock);
-
-        // Configure all other interrupts explicitly. Note the issue_command
-        // function turns this on when need be.
-        regs.fcr.modify(
-            FlashControl::FRDY::CLEAR
-                + FlashControl::LOCKE::CLEAR
-                + FlashControl::PROGE::CLEAR
-                + FlashControl::ECCE::CLEAR,
-        );
-
-        // Enable wait state 1 optimization.
-        self.enable_ws1_read_opt(true);
-        // Change speed mode.
-        self.set_flash_waitstate_and_readmode(48_000_000, 0, false);
-
-        // By default the picocache ( a cache only for the flash) is turned off.
-        // However the bootloader turns it on. I will explicitly turn it on
-        // here. So if the bootloader changes, nothing breaks.
-        self.enable_picocache(true);
-
-        self.current_state.set(FlashState::Ready);
-    }
 
     fn read_page(
         &self,

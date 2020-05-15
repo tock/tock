@@ -20,7 +20,6 @@ use kernel::common::cells::{NumericCellExt, TakeCell};
 use kernel::common::dynamic_deferred_call::DynamicDeferredCall;
 use kernel::debug;
 use kernel::hil::flash;
-use kernel::hil::flash::Flash;
 use kernel::hil::log::{LogRead, LogReadClient, LogWrite, LogWriteClient};
 use kernel::hil::time::{Alarm, AlarmClient, Frequency};
 use kernel::static_init;
