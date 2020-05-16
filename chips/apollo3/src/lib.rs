@@ -11,6 +11,7 @@ pub mod chip;
 pub mod clkgen;
 pub mod gpio;
 pub mod nvic;
+pub mod pwrctrl;
 pub mod uart;
 
 use cortexm4::{
