@@ -29,7 +29,9 @@ jobs:
         with:
           components: rustfmt, clippy
       - name: ci-formatting
-        run: make ci-formatting
+        run:  make check-format
+      - name: clippy
+        run:  make clippy
       - name: ci-documentation
         run: |
           npm install -g markdown-toc
