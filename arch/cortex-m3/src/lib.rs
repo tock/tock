@@ -117,6 +117,12 @@ pub unsafe extern "C" fn generic_isr() {
      *  `*(r3 + r2 * 4) = r0`
      *
      *  */
+    str r0, [r3, r2, lsl #2]
+
+    /* r3 = &NVIC.ISPR */
+    mov r3, #0xe200
+    movt r3, #0xe000
+    /* set pending bit */
     str r0, [r3, r2, lsl #2]"
     : : : : "volatile" );
 }
