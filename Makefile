@@ -62,8 +62,7 @@ ci: ci-travis ci-netlify
 
 .PHONY: ci-travis
 ci-travis:\
-	check-format\
-	clippy\
+	ci-lints\
 	ci-tools\
 	ci-libraries\
 	ci-archs\
