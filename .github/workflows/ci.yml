@@ -28,8 +28,10 @@ jobs:
       - uses: actions/setup-node@v1
         with:
           components: rustfmt, clippy
-      - name: ci-formatting
-        run: make ci-formatting
+      - name: format-check
+        run:  make format-check
+      - name: clippy
+        run:  make clippy
       - name: ci-documentation
         run: |
           npm install -g markdown-toc

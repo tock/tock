@@ -187,7 +187,6 @@ impl<H: digest::Digest<'a, T> + digest::HMACSha256, T: DigestType> digest::Clien
                                 self.hmac.clear_data();
                                 self.appid.clear();
                                 self.check_queue();
-                                return;
                             }
                         }
                     });
