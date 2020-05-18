@@ -15,6 +15,7 @@ use crate::interrupts;
 use crate::plic;
 use crate::timer;
 use crate::uart;
+use crate::usbdev;
 
 pub const CHIP_FREQ: u32 = 50_000_000;
 
@@ -49,6 +50,9 @@ impl Ibex {
                 }
                 interrupts::HMAC_HMAC_DONE..=interrupts::HMAC_HMAC_ERR => {
                     hmac::HMAC.handle_interrupt()
+                }
+                interrupts::USBDEV_PKT_RECEIVED..=interrupts::USBDEV_CONNECTED => {
+                    usbdev::USB.handle_interrupt()
                 }
                 _ => debug!("Pidx {}", interrupt),
             }

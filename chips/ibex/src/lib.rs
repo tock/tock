@@ -14,3 +14,4 @@ pub mod hmac;
 pub mod plic;
 pub mod timer;
 pub mod uart;
+pub mod usbdev;

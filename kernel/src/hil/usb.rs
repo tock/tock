@@ -39,6 +39,7 @@ pub enum TransferType {
     Interrupt,
 }
 
+#[derive(Clone, Copy, Debug)]
 pub enum DeviceSpeed {
     Full,
     Low,
