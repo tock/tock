@@ -28,8 +28,8 @@ jobs:
       - uses: actions/setup-node@v1
         with:
           components: rustfmt, clippy
-      - name: check-format
-        run:  make check-format
+      - name: format-check
+        run:  make format-check
       - name: clippy
         run:  make clippy
       - name: ci-documentation

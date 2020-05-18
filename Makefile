@@ -20,12 +20,12 @@ usage:
 	@echo "          alldoc: Builds Tock documentation for all boards"
 	@echo "           audit: Audit Cargo dependencies for all kernel sources"
 	@echo "              ci: Run all continuous integration tests"
-	@echo "    check-format: Checks if the rustfmt tool would require changes, but doesn't make them"
 	@echo "           clean: Clean all builds"
 	@echo "          clippy: Runs the clippy code linter with Tock's default arguments"
 	@echo " emulation-check: Run the emulation tests for supported boards"
 	@echo " emulation-setup: Setup QEMU for the emulation tests"
 	@echo "          format: Runs the rustfmt tool on all kernel sources"
+	@echo "    format-check: Checks if the rustfmt tool would require changes, but doesn't make them"
 	@echo "            list: Lists available boards"
 	@echo
 	@echo "$$(tput bold)Happy Hacking!$$(tput sgr0)"
@@ -93,7 +93,7 @@ ci-cargo-tests:\
 
 .PHONY: ci-format
 ci-format:\
-	check-format\
+	format-check\
 	clippy\
 	ci-documentation\
 
@@ -115,7 +115,7 @@ ci-lints:
 	@printf "$$(tput bold)**************************$$(tput sgr0)\n"
 	@printf "$$(tput bold)* CI: Formatting + Lints *$$(tput sgr0)\n"
 	@printf "$$(tput bold)**************************$$(tput sgr0)\n"
-	@$(MAKE) check-format
+	@$(MAKE) format-check
 	@$(MAKE) clippy
 
 .PHONY: ci-tools
@@ -240,8 +240,8 @@ clean:
 fmt format:
 	@./tools/run_cargo_fmt.sh
 
-.PHONY: check-format
-check-format:
+.PHONY: format-check
+format-check:
 	@CI=true ./tools/run_cargo_fmt.sh diff
 
 .PHONY: clippy
