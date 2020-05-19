@@ -1,6 +1,7 @@
 //! Tock Cell types.
 
 #![feature(const_fn)]
+#![feature(option_result_contains)]
 #![no_std]
 
 pub mod map_cell;
