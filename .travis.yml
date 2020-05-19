@@ -43,7 +43,7 @@ before_script:
 script:
   - export PATH=$HOME/.cargo/bin:$PATH
   - make emulation-setup
-  - make ci-travis
+  - make ci-travis-with-qemu
 
 after_success:
   - export PATH=$HOME/.local/bin:$PATH

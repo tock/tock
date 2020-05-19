@@ -57,14 +57,14 @@ alldoc:
 
 ## Meta-Targets
 
-.PHONY: ci
-ci: ci-travis ci-netlify
+.PHONY: ci-with-qemu
+ci: ci-travis-with-qemu ci-netlify
 
 .PHONY: ci-no-qemu
 ci-no-qemu: ci-travis-no-qemu ci-netlify
 
-.PHONY: ci-travis
-ci-travis:\
+.PHONY: ci-travis-with-qemu
+ci-travis-with-qemu:\
 	ci-travis-no-qemu \
 	emulation-check
 	@printf "$$(tput bold)********************$$(tput sgr0)\n"
@@ -240,7 +240,7 @@ emulation-setup:
 
 
 .PHONY: emulation-check
-emulation-check:
+emulation-check: emulation-setup
 	@$(MAKE) -C "boards/hifive1"
 	@$(MAKE) -C "boards/opentitan"
 	@cd tools/qemu-runner; PATH="$(shell pwd)/tools/qemu/riscv32-softmmu/:${PATH}" cargo run
