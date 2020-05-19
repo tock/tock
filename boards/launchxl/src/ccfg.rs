@@ -1,5 +1,7 @@
 #![no_std]
-#![no_main]
+// Disable this attribute when documenting, as a workaround for
+// https://github.com/rust-lang/rust/issues/62184.
+#![cfg_attr(not(doc), no_main)]
 //! CCFG - Customer Configuration
 //!
 //! For details see p. 710 in the cc2650 technical reference manual.

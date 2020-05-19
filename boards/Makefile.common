@@ -193,7 +193,7 @@ debug-lst: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/debug/$(PLATFORM).lst
 
 .PHONY: doc
 doc: | target
-	$(Q)RUSTDOCFLAGS='-Z unstable-options --document-hidden-items' $(CARGO) doc $(VERBOSE) --release --package $(PLATFORM)
+	$(Q)RUSTDOCFLAGS='-Z unstable-options --document-hidden-items -D warnings' $(CARGO) doc $(VERBOSE) --release --package $(PLATFORM)
 
 .PHONY: lst
 lst: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).lst

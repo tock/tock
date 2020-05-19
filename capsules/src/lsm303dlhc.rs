@@ -31,6 +31,7 @@
 //!
 //! NideDof Example
 //!
+//! ```rust
 //! let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
 //! let grant_ninedof = board_kernel.create_grant(&grant_cap);
 //!
@@ -49,7 +50,6 @@
 //! );
 //! ninedof.add_secondary_driver(lsm303dlhc_secondary);
 //! hil::sensors::NineDof::set_client(lsm303dlhc, ninedof);
-//!
 //! ```
 //!
 //! Temperature Example
@@ -71,7 +71,6 @@
 //! capsules::temperature::TemperatureSensor<'static>,
 //!     capsules::temperature::TemperatureSensor::new(lsm303dlhc, grant_temperature));
 //! kernel::hil::sensors::TemperatureDriver::set_client(lsm303dlhc, temp);
-//!
 //! ```
 //!
 //! Author: Alexandru Radovici <msg4alex@gmail.com>
