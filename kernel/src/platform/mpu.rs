@@ -112,6 +112,43 @@ pub trait MPU {
         0
     }
 
+    /// Mark a region of memory that the Tock kernel owns
+    ///
+    /// This function will optionally set the MPU to enforce the specified
+    /// constraints for all accessess (even from the kernel).
+    /// This should be used to mark read/write/execute only areas of the Tock
+    /// kernel to have the hardware enforce those permissions.
+    ///
+    /// If using this function, all kernel executable code must be marked as
+    /// executable prior to enabling the MPU (by calling `enable_mpu()).
+    /// Also all kernel read/write regions must be marked. That is any
+    /// unmarked kernel regions will cause a fault if accesses.
+    ///
+    /// Not all architectures support this, so don't assume this will be
+    /// implemented.
+    ///
+    /// # Arguments
+    ///
+    /// - `memory_start`:             start of memory region
+    /// - `memory_size`:              size of unallocated memory
+    /// - `permissions`:              permissions for the region
+    /// - `config`:                   MPU region configuration
+    ///
+    /// # Return Value
+    ///
+    /// Returns the start and size of the requested memory region. If it is
+    /// infeasible to allocate the MPU region, returns None.
+    #[allow(unused_variables)]
+    fn allocate_kernel_region(
+        &self,
+        memory_start: *const u8,
+        memory_size: usize,
+        permissions: Permissions,
+        config: &mut Self::MpuConfig,
+    ) -> Option<Region> {
+        None
+    }
+
     /// Allocates a new MPU region.
     ///
     /// An implementation must allocate an MPU region at least `min_region_size`
