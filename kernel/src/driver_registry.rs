@@ -1,3 +1,10 @@
+//! Driver registry, dynamically mapping syscall driver numbers to
+//! driver instances
+//!
+//! This enables the kernel to expose multiple distinguishable
+//! instances of the same driver to userspace, similar to major and
+//! minor numbers on Linux.
+
 use crate::mem::AppSlice;
 use crate::mem::Shared;
 use crate::AppId;
@@ -8,6 +15,10 @@ use crate::ReturnCode;
 use core::cell::Cell;
 use core::marker::PhantomData;
 
+/// Driver information queriable by apps
+///
+/// Each driver registered must implement this trait. It is used to
+/// find either one instance of a driver type, or a specific instance.
 pub trait DriverInfo<T: Into<usize>>: Driver {
     fn driver(&self) -> &dyn Driver;
     fn driver_type(&self) -> T;
@@ -15,11 +26,24 @@ pub trait DriverInfo<T: Into<usize>>: Driver {
     fn instance_identifier(&'a self) -> &'a str;
 }
 
+/// Per application driver registry state
 #[derive(Default)]
 pub struct App {
+    /// Storing the app's memory region for string comparison of the
+    /// instance_identifier
     identifier_buffer: Option<AppSlice<Shared, u8>>,
 }
 
+/// Implementation of a driver registry, dynamically assigning drivers
+/// syscall driver ids to be used by applications
+///
+/// This implementation tries to be as efficient as possible. The
+/// dynamically assigned driver ids are counted starting from a fixed
+/// offset `syscall_offset + 1` and directly map to the drivers-array
+/// position.
+///
+/// The  driver  registry  being  a driver  itself  is  accessible  at
+/// `syscall_offset`
 pub struct DriverRegistry<'a, T: Into<usize>> {
     drivers: Cell<&'a [&'a dyn DriverInfo<T>]>,
     syscall_offset: usize,
@@ -41,10 +65,8 @@ impl<'a, T: Into<usize>> DriverRegistry<'a, T> {
         }
     }
 
-    pub fn update_drivers(&self, drivers: &'a [&'a dyn DriverInfo<T>]) {
-        self.drivers.set(drivers)
-    }
-
+    /// Find a driver instance based on both a driver type
+    /// (DRIVER_NUM) and an instance identifier
     pub fn find_instance(
         &self,
         driver_type: usize,
@@ -73,6 +95,8 @@ impl<'a, T: Into<usize>> DriverRegistry<'a, T> {
             })
     }
 
+    /// From a dynamical syscall driver id, resolve back to the driver
+    /// instance
     pub fn from_syscall_id(&self, syscall_id: usize) -> Option<&dyn Driver> {
         // The implementation of this must be as efficient as
         // possible, as this will be run for every syscall. The
@@ -90,6 +114,7 @@ impl<'a, T: Into<usize>> DriverRegistry<'a, T> {
     }
 }
 
+/// Allow userspace to interact with the driver registry
 impl<'a, T: Into<usize>> Driver for DriverRegistry<'a, T> {
     fn subscribe(
         &self,
