@@ -222,7 +222,7 @@ emulation-setup:
 		cd tools; git clone https://github.com/alistair23/qemu.git -b riscv-tock.next; \
 		cd qemu; ./configure --target-list=riscv32-softmmu; \
 	fi
-	@$(MAKE) -C "tools/qemu" > /dev/null
+	@$(MAKE) -C "tools/qemu"
 	@printf "Downloading OpenTitan boot rom from: 2aedf641120665b91c3a5d5aa214175d09f71ee6\n"
 	$(eval CURRENT_DIR := $(shell pwd))
 	@pushd `mktemp -d -t`; \
