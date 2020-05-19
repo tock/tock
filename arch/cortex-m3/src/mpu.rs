@@ -4,6 +4,7 @@
 use core::cmp;
 use core::fmt;
 use kernel;
+use kernel::common::cells::OptionalCell;
 use kernel::common::math;
 use kernel::common::registers::{register_bitfields, FieldValue, ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
@@ -131,9 +132,9 @@ impl MPU {
 }
 
 /// Struct storing region configuration for the Cortex-M MPU.
-#[derive(Copy, Clone)]
 pub struct CortexMConfig {
     regions: [CortexMRegion; 8],
+    hardware_is_configured_for: OptionalCell<AppId>,
 }
 
 const APP_MEMORY_REGION_NUM: usize = 0;
@@ -151,6 +152,7 @@ impl Default for CortexMConfig {
                 CortexMRegion::empty(6),
                 CortexMRegion::empty(7),
             ],
+            hardware_is_configured_for: OptionalCell::empty(),
         }
     }
 }
@@ -481,6 +483,7 @@ impl kernel::mpu::MPU for MPU {
         );
 
         config.regions[region_num] = region;
+        config.hardware_is_configured_for.clear();
 
         Some(mpu::Region::new(start as *const u8, size))
     }
@@ -587,6 +590,7 @@ impl kernel::mpu::MPU for MPU {
         );
 
         config.regions[APP_MEMORY_REGION_NUM] = region;
+        config.hardware_is_configured_for.clear();
 
         Some((region_start as *const u8, region_size))
     }
@@ -646,17 +650,21 @@ impl kernel::mpu::MPU for MPU {
         );
 
         config.regions[APP_MEMORY_REGION_NUM] = region;
+        config.hardware_is_configured_for.clear();
 
         Ok(())
     }
 
-    fn configure_mpu(&self, config: &Self::MpuConfig, _app_id: &AppId) {
+    fn configure_mpu(&self, config: &Self::MpuConfig, app_id: &AppId) {
         let regs = &*self.0;
 
-        // Set MPU regions
-        for region in config.regions.iter() {
-            regs.rbar.write(region.base_address());
-            regs.rasr.write(region.attributes());
+        if !config.hardware_is_configured_for.contains(app_id) {
+            // Set MPU regions
+            for region in config.regions.iter() {
+                regs.rbar.write(region.base_address());
+                regs.rasr.write(region.attributes());
+            }
+            config.hardware_is_configured_for.set(*app_id);
         }
     }
 }
