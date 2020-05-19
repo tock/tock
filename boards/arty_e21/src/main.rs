@@ -1,7 +1,9 @@
 //! Board file for the SiFive E21 Bitstream running on the Arty FPGA
 
 #![no_std]
-#![no_main]
+// Disable this attribute when documenting, as a workaround for
+// https://github.com/rust-lang/rust/issues/62184.
+#![cfg_attr(not(doc), no_main)]
 #![feature(const_fn, in_band_lifetimes)]
 
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};

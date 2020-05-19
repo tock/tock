@@ -3,7 +3,9 @@
 //! - <https://opentitan.org/>
 
 #![no_std]
-#![no_main]
+// Disable this attribute when documenting, as a workaround for
+// https://github.com/rust-lang/rust/issues/62184.
+#![cfg_attr(not(doc), no_main)]
 #![feature(asm)]
 
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
