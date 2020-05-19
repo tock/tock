@@ -217,12 +217,13 @@ audit:
 emulation-setup: SHELL:=/usr/bin/env bash
 emulation-setup:
 	@#Use the latest QEMU as it has OpenTitan support
+	@printf "Buildling QEMU, this could take a few minutes\n\n"
 	@if [[ ! -d tools/qemu || ! -f tools/qemu/VERSION ]]; then \
 		rm -rf tools/qemu; \
 		cd tools; git clone https://github.com/alistair23/qemu.git -b riscv-tock.next; \
 		cd qemu; ./configure --target-list=riscv32-softmmu; \
 	fi
-	@$(MAKE) -C "tools/qemu"
+	@$(MAKE) -C "tools/qemu" || (echo "You might need to install some missing packages" || exit 127)
 	@printf "Downloading OpenTitan boot rom from: 2aedf641120665b91c3a5d5aa214175d09f71ee6\n"
 	$(eval CURRENT_DIR := $(shell pwd))
 	@pushd `mktemp -d -t`; \
