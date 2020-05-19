@@ -220,7 +220,7 @@ emulation-setup:
 	@printf "Buildling QEMU, this could take a few minutes\n\n"
 	@if [[ ! -d tools/qemu || ! -f tools/qemu/VERSION ]]; then \
 		rm -rf tools/qemu; \
-		cd tools; git clone https://github.com/alistair23/qemu.git -b riscv-tock.next; \
+		cd tools; git clone https://github.com/alistair23/qemu.git --depth 1 -b riscv-tock.next; \
 		cd qemu; ./configure --target-list=riscv32-softmmu; \
 	fi
 	@$(MAKE) -C "tools/qemu" || (echo "You might need to install some missing packages" || exit 127)
