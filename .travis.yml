@@ -42,6 +42,7 @@ before_script:
 
 script:
   - export PATH=$HOME/.cargo/bin:$PATH
+  - make emulation-setup
   - make ci-travis
 
 after_success:

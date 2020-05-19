@@ -60,18 +60,12 @@ alldoc:
 .PHONY: ci
 ci: ci-travis ci-netlify
 
+.PHONY: ci-no-qemu
+ci-no-qemu: ci-travis-no-qemu ci-netlify
+
 .PHONY: ci-travis
 ci-travis:\
-	ci-lints\
-	ci-tools\
-	ci-libraries\
-	ci-archs\
-	ci-kernel\
-	ci-chips\
-	ci-syntax\
-	ci-compilation\
-	ci-debug-support-targets\
-	ci-documentation \
+	ci-travis-no-qemu \
 	emulation-check
 	@printf "$$(tput bold)********************$$(tput sgr0)\n"
 	@printf "$$(tput bold)* CI-Travis: Done! *$$(tput sgr0)\n"
@@ -83,6 +77,19 @@ ci-netlify:\
 	@printf "$$(tput bold)*********************$$(tput sgr0)\n"
 	@printf "$$(tput bold)* CI-Netlify: Done! *$$(tput sgr0)\n"
 	@printf "$$(tput bold)*********************$$(tput sgr0)\n"
+
+.PHONY: ci-travis-no-qemu
+ci-travis-no-qemu:\
+	ci-lints\
+	ci-tools\
+	ci-libraries\
+	ci-archs\
+	ci-kernel\
+	ci-chips\
+	ci-syntax\
+	ci-compilation\
+	ci-debug-support-targets\
+	ci-documentation \
 
 .PHONY: ci-cargo-tests
 ci-cargo-tests:\
