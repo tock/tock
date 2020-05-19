@@ -25,21 +25,36 @@ use core::cmp::max;
 
 /// Errors that can occur when trying to load and create processes.
 pub enum ProcessLoadError {
-    /// The TBF header for the app could not be successfully parsed.
+    /// The TBF header for the process could not be successfully parsed.
     TbfHeaderParseFailure(tbfheader::TbfParseError),
 
-    /// Not enough flash remaining to parse an app and its header.
+    /// Not enough flash remaining to parse a process and its header.
     NotEnoughFlash,
 
-    /// Not enough memory to meet the amount requested by an app.
-    /// Modify your app to request less memory or flash fewer apps or
-    /// increase the size of the region your board reserves for app memory.
+    /// Not enough memory to meet the amount requested by a process. Modify the
+    /// process to request less memory, flash fewer processes, or increase the
+    /// size of the region your board reserves for process memory.
     NotEnoughMemory,
 
-    /// An app was loaded with a length in flash that the MPU does not support.
-    /// The fix is probably to correct the app size, but this could also be caused
-    /// by a bad MPU implementation.
+    /// A process was loaded with a length in flash that the MPU does not
+    /// support. The fix is probably to correct the process size, but this could
+    /// also be caused by a bad MPU implementation.
     MpuInvalidFlashLength,
+
+    /// A process specified a fixed memory address that it needs its memory
+    /// range to start at, and the kernel did not or could not give the process
+    /// a memory region starting at that address.
+    MemoryAddressMismatch {
+        actual_address: u32,
+        expected_address: u32,
+    },
+
+    /// A process specified that its binary must start at a particular address,
+    /// and that is not the address the binary is actually placed at.
+    IncorrectFlashAddress {
+        actual_address: u32,
+        expected_address: u32,
+    },
 
     /// Process loading error due (likely) to a bug in the kernel. If you get
     /// this error please open a bug report.
@@ -75,6 +90,24 @@ impl fmt::Debug for ProcessLoadError {
             ProcessLoadError::MpuInvalidFlashLength => {
                 write!(f, "App flash length not supported by MPU")
             }
+
+            ProcessLoadError::MemoryAddressMismatch {
+                actual_address,
+                expected_address,
+            } => write!(
+                f,
+                "App memory does not match requested address Actual:{:#x}, Expected:{:#x}",
+                actual_address, expected_address
+            ),
+
+            ProcessLoadError::IncorrectFlashAddress {
+                actual_address,
+                expected_address,
+            } => write!(
+                f,
+                "App flash does not match requested address. Actual:{:#x}, Expected:{:#x}",
+                actual_address, expected_address
+            ),
 
             ProcessLoadError::InternalError => write!(f, "Error in kernel. Likely a bug."),
         }
@@ -1482,6 +1515,22 @@ impl<C: 'static + Chip> Process<'a, C> {
         // header can't parse, we will error right here.
         let tbf_header = tbfheader::parse_tbf_header(header_flash, app_version)?;
 
+        // First thing: check that the process is at the correct location in
+        // flash if the TBF header specified a fixed address. If there is a
+        // mismatch we catch that early.
+        if let Some(fixed_flash_start) = tbf_header.get_fixed_address_flash() {
+            // The flash address in the header is based on the app binary,
+            // so we need to take into account the header length.
+            let actual_address = app_flash.as_ptr() as u32 + tbf_header.get_protected_size();
+            let expected_address = fixed_flash_start;
+            if actual_address != expected_address {
+                return Err(ProcessLoadError::IncorrectFlashAddress {
+                    actual_address,
+                    expected_address,
+                });
+            }
+        }
+
         let process_name = tbf_header.get_package_name();
 
         // If this isn't an app (i.e. it is padding) or it is an app but it
@@ -1601,6 +1650,22 @@ impl<C: 'static + Chip> Process<'a, C> {
 
         // Set up process memory.
         let app_memory = slice::from_raw_parts_mut(memory_start as *mut u8, memory_size);
+
+        // Check if the memory region is valid for the process. If a process
+        // included a fixed address for the start of RAM in its TBF header (this
+        // field is optional, processes that are position independent do not
+        // need a fixed address) then we check that we used the same address
+        // when we allocated it RAM.
+        if let Some(fixed_memory_start) = tbf_header.get_fixed_address_ram() {
+            let actual_address = app_memory.as_ptr() as u32;
+            let expected_address = fixed_memory_start;
+            if actual_address != expected_address {
+                return Err(ProcessLoadError::MemoryAddressMismatch {
+                    actual_address,
+                    expected_address,
+                });
+            }
+        }
 
         // Set the initial process stack and memory to 3072 bytes.
         let initial_stack_pointer = memory_start.add(initial_app_memory_size);

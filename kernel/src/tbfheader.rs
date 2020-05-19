@@ -1,5 +1,8 @@
 //! Tock Binary Format Header definitions and parsing code.
 
+// Parsing the headers does not require any unsafe operations.
+#![forbid(unsafe_code)]
+
 use core::convert::TryInto;
 use core::fmt;
 use core::iter::Iterator;
@@ -93,6 +96,7 @@ crate enum TbfHeaderTypes {
     TbfHeaderMain = 1,
     TbfHeaderWriteableFlashRegions = 2,
     TbfHeaderPackageName = 3,
+    TbfHeaderFixedAddresses = 5,
 
     /// Some field in the header that we do not understand. Since the TLV format
     /// specifies the length of each section, if we get a field we do not
@@ -126,6 +130,30 @@ crate struct TbfHeaderV2Main {
 crate struct TbfHeaderV2WriteableFlashRegion {
     writeable_flash_region_offset: u32,
     writeable_flash_region_size: u32,
+}
+
+/// Optional fixed addresses for flash and RAM for this process.
+///
+/// If a process is compiled for a specific address this header entry lets the
+/// kernel know what those addresses are.
+///
+/// If this header is omitted the kernel will assume that the process is
+/// position-independent and can be loaded at any (reasonably aligned) flash
+/// address and can be given any (reasonable aligned) memory segment.
+///
+/// If this header is included, the kernel will check these values when setting
+/// up the process. If a process wants to set one fixed address but not the other, the unused one
+/// can be set to 0xFFFFFFFF.
+#[derive(Clone, Copy, Debug, Default)]
+crate struct TbfHeaderV2FixedAddresses {
+    /// The absolute address of the start of RAM that the process expects. For
+    /// example, if the process was linked with a RAM region starting at
+    /// address `0x00023000`, then this would be set to `0x00023000`.
+    start_process_ram: u32,
+    /// The absolute address of the start of the process binary. This does _not_
+    /// include the TBF header. This is the address the process used for the
+    /// start of flash with the linker.
+    start_process_flash: u32,
 }
 
 // Conversion functions from slices to the various TBF fields.
@@ -172,6 +200,7 @@ impl core::convert::TryFrom<u16> for TbfHeaderTypes {
             1 => Ok(TbfHeaderTypes::TbfHeaderMain),
             2 => Ok(TbfHeaderTypes::TbfHeaderWriteableFlashRegions),
             3 => Ok(TbfHeaderTypes::TbfHeaderPackageName),
+            5 => Ok(TbfHeaderTypes::TbfHeaderFixedAddresses),
             _ => Ok(TbfHeaderTypes::Unknown),
         }
     }
@@ -240,6 +269,25 @@ impl core::convert::TryFrom<&[u8]> for TbfHeaderV2WriteableFlashRegion {
     }
 }
 
+impl core::convert::TryFrom<&[u8]> for TbfHeaderV2FixedAddresses {
+    type Error = TbfParseError;
+
+    fn try_from(b: &[u8]) -> Result<TbfHeaderV2FixedAddresses, Self::Error> {
+        Ok(TbfHeaderV2FixedAddresses {
+            start_process_ram: u32::from_le_bytes(
+                b.get(0..4)
+                    .ok_or(TbfParseError::InternalError)?
+                    .try_into()?,
+            ),
+            start_process_flash: u32::from_le_bytes(
+                b.get(4..8)
+                    .ok_or(TbfParseError::InternalError)?
+                    .try_into()?,
+            ),
+        })
+    }
+}
+
 /// Single header that can contain all parts of a v2 header.
 ///
 /// Note, this struct limits the number of writeable regions an app can have to
@@ -251,6 +299,7 @@ crate struct TbfHeaderV2 {
     main: Option<TbfHeaderV2Main>,
     package_name: Option<&'static str>,
     writeable_regions: Option<[Option<TbfHeaderV2WriteableFlashRegion>; 4]>,
+    fixed_addresses: Option<TbfHeaderV2FixedAddresses>,
 }
 
 /// Type that represents the fields of the Tock Binary Format header.
@@ -349,6 +398,32 @@ impl TbfHeader {
                 })
             }),
             _ => (0, 0),
+        }
+    }
+
+    /// Get the address in RAM this process was specifically compiled for. If
+    /// the process is position independent, return `None`.
+    crate fn get_fixed_address_ram(&self) -> Option<u32> {
+        let hd = match self {
+            TbfHeader::TbfHeaderV2(hd) => hd,
+            _ => return None,
+        };
+        match hd.fixed_addresses.as_ref()?.start_process_ram {
+            0xFFFFFFFF => None,
+            start => Some(start),
+        }
+    }
+
+    /// Get the address in flash this process was specifically compiled for. If
+    /// the process is position independent, return `None`.
+    crate fn get_fixed_address_flash(&self) -> Option<u32> {
+        let hd = match self {
+            TbfHeader::TbfHeaderV2(hd) => hd,
+            _ => return None,
+        };
+        match hd.fixed_addresses.as_ref()?.start_process_flash {
+            0xFFFFFFFF => None,
+            start => Some(start),
         }
     }
 }
@@ -460,6 +535,7 @@ crate fn parse_tbf_header(header: &'static [u8], version: u16) -> Result<TbfHead
                 let mut wfr_pointer: [Option<TbfHeaderV2WriteableFlashRegion>; 4] =
                     Default::default();
                 let mut app_name_str = "";
+                let mut fixed_address_pointer: Option<TbfHeaderV2FixedAddresses> = None;
 
                 // Iterate the remainder of the header looking for TLV entries.
                 while remaining.len() > 0 {
@@ -531,6 +607,15 @@ crate fn parse_tbf_header(header: &'static [u8], version: u16) -> Result<TbfHead
                                 .or(Err(TbfParseError::BadProcessName))?;
                         }
 
+                        TbfHeaderTypes::TbfHeaderFixedAddresses => {
+                            let entry_len = 8;
+                            if tlv_header.length as usize == entry_len {
+                                fixed_address_pointer = Some(remaining.try_into()?);
+                            } else {
+                                return Err(TbfParseError::BadTlvEntry(tlv_header.tipe as usize));
+                            }
+                        }
+
                         _ => {}
                     }
 
@@ -547,6 +632,7 @@ crate fn parse_tbf_header(header: &'static [u8], version: u16) -> Result<TbfHead
                     main: main_pointer,
                     package_name: Some(app_name_str),
                     writeable_regions: Some(wfr_pointer),
+                    fixed_addresses: fixed_address_pointer,
                 };
 
                 Ok(TbfHeader::TbfHeaderV2(tbf_header))
