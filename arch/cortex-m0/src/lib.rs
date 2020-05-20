@@ -90,6 +90,18 @@ _ggeneric_isr_no_stacking:
 
     /* *r3 = r2 */
     str r2, [r3]
+
+    /* The pending bit in ISPR might be reset by hardware for pulse interrupts
+     * at this point. So set it here again so the interrupt does not get lost
+     * in service_pending_interrupts()
+     *
+     * The NVIC.ISPR base is 0xE000E200, which is 0x20 (aka #32) above the
+     * NVIC.ICER base.  Calculate the ISPR address by offsetting from the ICER
+     * address so as to avoid re-doing the [r0 / 32] index math.
+     */
+    adds r3, #32
+    str r2, [r3]
+
     bx lr /* return here since we have extra words in the assembly */
 
 .align 4
