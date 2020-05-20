@@ -29,7 +29,7 @@ enum_from_primitive! {
         RGB_888 = 3,
         /// Pixels encoded as 8-bit alpha channel, 8-bit red channel, 8-bit green channel, 8-bit blue channel.
         ARGB_8888 = 4,
-        // other pixel formats may be defined
+        // other pixel formats may be defined.
     }
 }
 
@@ -122,25 +122,19 @@ pub trait Screen {
     /// requesting it from the screen.
     fn get_rotation(&self) -> ScreenRotation;
 
-    /// Sends a write command to write data in the selected video memory window.
-    /// The screen will then call ``ScreenClient::fill_next_buffer_for_write`` for
-    /// the actual bytes to write. This function will fill the buffer  and return
-    /// the number of bytes written. If it returns 0, the write stops and the screen
-    /// issues ``ScreenClient::command_complete``.
-    /// This avoids triple buffering (an app buffer, a frame buffer buffer and a screen buffer),
-    /// data is transfered from the app directly from the AppShare.
-    /// This also allows writing a repeated pattern with the app only having to fill a buffer
-    /// with one repeated sample. It also allow the screen to have
-    /// an internal arbitrary size buffer.
-    fn write(&self, x: usize, y: usize, width: usize, height: usize) -> ReturnCode;
+    /// Sets the video memory frame.
+    fn set_write_frame(&self, x: usize, y: usize, width: usize, height: usize) -> ReturnCode;
+
+    /// Sends a write command to write data in the selected video memory frame.
+    fn write(&self, buffer: &'static mut [u8], len: usize) -> ReturnCode;
 
     fn set_client(&self, client: Option<&'static dyn ScreenClient>);
 
-    /// Powers up the display.
-    fn on(&self) -> ReturnCode;
-
-    /// Powers down the display. The screen should be able to accept data even when the display is off.
-    fn off(&self) -> ReturnCode;
+    /// Sets the display brightness and/or powers it off
+    /// Screens must implement this function for at least two brightness values (in percent)
+    ///     0 - power off,
+    ///     otherwise - on, set brightness (if available)
+    fn set_brightness(&self, brightness: usize) -> ReturnCode;
 
     /// Inverts the colors.
     fn invert_on(&self) -> ReturnCode;
@@ -157,19 +151,12 @@ pub trait ScreenSetupClient {
 }
 
 pub trait ScreenClient {
-    /// The screen will then call ``ScreenClient::fill_next_buffer_for_write`` for
-    /// the actual bytes to write. This function will fill the buffer  and return
-    /// the number of bytes written. If it returns 0, the write stops and the screen
-    /// issues ``ScreenClient::command_complete``.
-    /// This avoids triple buffering (an app buffer, a frame buffer buffer and a screen buffer),
-    /// data is transfered from the app directly from the AppShare.
-    /// This also allows writing a repeated pattern with the app only having to fill a buffer
-    /// with one repeated sample. It also allow the screen to have
-    /// an internal arbitrary size buffer.
-    fn fill_next_buffer_for_write(&self, buffer: &'a mut [u8]) -> usize;
-
-    /// The screen will call this function to notify that a command has finished.
+    /// The screen will call this function to notify that a command (except write) has finished.
     fn command_complete(&self, r: ReturnCode);
+
+    /// The screen will call this function to notify that the write command has finished.
+    /// This is different from `command_complete` as it has to pass back the write buffer
+    fn write_complete(&self, buffer: &'static mut [u8], r: ReturnCode);
 
     /// Some screens need some time to start, this function is called when the screen is ready
     fn screen_is_ready(&self);

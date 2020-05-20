@@ -13,7 +13,7 @@
 
 use core::cell::Cell;
 use enum_primitive::cast::FromPrimitive;
-use kernel::common::cells::OptionalCell;
+use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil;
 use kernel::hil::framebuffer::{ScreenPixelFormat, ScreenRotation};
 use kernel::ReturnCode;
@@ -26,8 +26,7 @@ pub const DRIVER_NUM: usize = driver::NUM::Framebuffer as usize;
 #[derive(Clone, Copy, PartialEq)]
 enum FramebufferCommand {
     Nop,
-    On,
-    Off,
+    SetBrightness,
     InvertOn,
     InvertOff,
     GetSupportedResolutionModes,
@@ -40,6 +39,7 @@ enum FramebufferCommand {
     SetResolution,
     GetPixelFormat,
     SetPixelFormat,
+    SetWriteFrame,
     Write,
     Fill,
 }
@@ -94,12 +94,14 @@ pub struct Framebuffer<'a> {
     screen_ready: Cell<bool>,
     current_app: OptionalCell<AppId>,
     pixel_format: Cell<ScreenPixelFormat>,
+    buffer: TakeCell<'static, [u8]>,
 }
 
 impl Framebuffer<'a> {
     pub fn new(
         screen: &'a dyn hil::framebuffer::Screen,
         screen_setup: Option<&'a dyn hil::framebuffer::ScreenSetup>,
+        buffer: &'static mut [u8],
         grant: Grant<App>,
     ) -> Framebuffer<'a> {
         Framebuffer {
@@ -109,6 +111,7 @@ impl Framebuffer<'a> {
             current_app: OptionalCell::empty(),
             screen_ready: Cell::new(false),
             pixel_format: Cell::new(screen.get_pixel_format()),
+            buffer: TakeCell::new(buffer),
         }
     }
 
@@ -127,7 +130,11 @@ impl Framebuffer<'a> {
                 if self.screen_ready.get() && self.current_app.is_none() {
                     self.current_app.set(appid);
                     app.command = command;
-                    self.call_screen(command, data1, data2, appid)
+                    let r = self.call_screen(command, data1, data2, appid);
+                    if r != ReturnCode::SUCCESS {
+                        self.current_app.clear();
+                    }
+                    r
                 } else {
                     if app.pending_command == true {
                         ReturnCode::EBUSY
@@ -152,8 +159,7 @@ impl Framebuffer<'a> {
         appid: AppId,
     ) -> ReturnCode {
         match command {
-            FramebufferCommand::On => self.screen.on(),
-            FramebufferCommand::Off => self.screen.off(),
+            FramebufferCommand::SetBrightness => self.screen.set_brightness(data1),
             FramebufferCommand::InvertOn => self.screen.invert_on(),
             FramebufferCommand::InvertOff => self.screen.invert_off(),
             FramebufferCommand::SetRotation => {
@@ -261,7 +267,16 @@ impl Framebuffer<'a> {
                             app.width * app.height,
                             self.pixel_format.get().get_bits_per_pixel(),
                         );
-                        self.screen.write(app.x, app.y, app.width, app.height)
+                        self.buffer.take().map_or(ReturnCode::FAIL, |buffer| {
+                            let len = self.fill_next_buffer_for_write(buffer);
+                            if len > 0 {
+                                self.screen.write(buffer, len)
+                            } else {
+                                self.buffer.replace(buffer);
+                                self.run_next_command(usize::from(ReturnCode::SUCCESS), 0, 0);
+                                ReturnCode::SUCCESS
+                            }
+                        })
                     } else {
                         ReturnCode::ENOMEM
                     }
@@ -278,10 +293,31 @@ impl Framebuffer<'a> {
                     if len > 0 {
                         app.write_position = 0;
                         app.write_len = len;
-                        self.screen.write(app.x, app.y, app.width, app.height)
+                        self.buffer.take().map_or(ReturnCode::FAIL, |buffer| {
+                            let len = self.fill_next_buffer_for_write(buffer);
+                            if len > 0 {
+                                self.screen.write(buffer, len)
+                            } else {
+                                self.buffer.replace(buffer);
+                                self.run_next_command(usize::from(ReturnCode::SUCCESS), 0, 0);
+                                ReturnCode::SUCCESS
+                            }
+                        })
                     } else {
                         ReturnCode::ENOMEM
                     }
+                })
+                .unwrap_or_else(|err| err.into()),
+            FramebufferCommand::SetWriteFrame => self
+                .apps
+                .enter(appid, |app, _| {
+                    app.write_position = 0;
+                    app.x = (data1 >> 16) & 0xFFFF;
+                    app.y = data1 & 0xFFFF;
+                    app.width = (data2 >> 16) & 0xFFFF;
+                    app.height = data2 & 0xFFFF;
+                    self.screen
+                        .set_write_frame(app.x, app.y, app.width, app.height)
                 })
                 .unwrap_or_else(|err| err.into()),
             _ => ReturnCode::ENOSUPPORT,
@@ -308,8 +344,11 @@ impl Framebuffer<'a> {
                 if app.pending_command {
                     app.pending_command = false;
                     self.current_app.set(app.appid());
-                    self.call_screen(app.command, app.data1, app.data2, app.appid())
-                        == ReturnCode::SUCCESS
+                    let r = self.call_screen(app.command, app.data1, app.data2, app.appid());
+                    if r != ReturnCode::SUCCESS {
+                        self.current_app.clear();
+                    }
+                    r == ReturnCode::SUCCESS
                 } else {
                     false
                 }
@@ -319,9 +358,7 @@ impl Framebuffer<'a> {
             }
         }
     }
-}
 
-impl hil::framebuffer::ScreenClient for Framebuffer<'a> {
     fn fill_next_buffer_for_write(&self, buffer: &'b mut [u8]) -> usize {
         self.current_app.map_or_else(
             || 0,
@@ -402,8 +439,21 @@ impl hil::framebuffer::ScreenClient for Framebuffer<'a> {
             },
         )
     }
+}
+
+impl hil::framebuffer::ScreenClient for Framebuffer<'a> {
     fn command_complete(&self, r: ReturnCode) {
         self.run_next_command(usize::from(r), 0, 0);
+    }
+
+    fn write_complete(&self, buffer: &'static mut [u8], r: ReturnCode) {
+        let len = self.fill_next_buffer_for_write(buffer);
+        if r == ReturnCode::SUCCESS && len > 0 {
+            self.screen.write(buffer, len);
+        } else {
+            self.buffer.replace(buffer);
+            self.run_next_command(usize::from(r), 0, 0);
+        }
     }
 
     fn screen_is_ready(&self) {
@@ -447,10 +497,8 @@ impl Driver for Framebuffer<'a> {
             1 => ReturnCode::SuccessWithValue {
                 value: self.screen_setup.is_some() as usize,
             },
-            // On
-            2 => self.enqueue_command(FramebufferCommand::On, 0, 0, appid),
-            // Off
-            3 => self.enqueue_command(FramebufferCommand::Off, 0, 0, appid),
+            // Set Brightness
+            3 => self.enqueue_command(FramebufferCommand::SetBrightness, data1, 0, appid),
             // Invert On
             4 => self.enqueue_command(FramebufferCommand::InvertOn, 0, 0, appid),
             // Invert Off
@@ -485,18 +533,8 @@ impl Driver for Framebuffer<'a> {
             // Set Color Depth
             26 => self.enqueue_command(FramebufferCommand::SetPixelFormat, data1, 0, appid),
 
-            // Set Write Window
-            100 => self
-                .apps
-                .enter(appid, |app, _| {
-                    app.write_position = 0;
-                    app.x = (data1 >> 16) & 0xFFFF;
-                    app.y = data1 & 0xFFFF;
-                    app.width = (data2 >> 16) & 0xFFFF;
-                    app.height = data2 & 0xFFFF;
-                    ReturnCode::SUCCESS
-                })
-                .unwrap_or_else(|err| err.into()),
+            // Set Write Frame
+            100 => self.enqueue_command(FramebufferCommand::SetWriteFrame, data1, data2, appid),
             // Write
             200 => self.enqueue_command(FramebufferCommand::Write, data1, data2, appid),
             // Fill
