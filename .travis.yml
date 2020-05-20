@@ -26,8 +26,6 @@ branches:
 
 cache:
   cargo: true
-  directories:
-    - tools/qemu
 
 os:
   - linux
