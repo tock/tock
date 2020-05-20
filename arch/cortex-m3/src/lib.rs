@@ -119,10 +119,14 @@ pub unsafe extern "C" fn generic_isr() {
      *  */
     str r0, [r3, r2, lsl #2]
 
+    /* The pending bit in ISPR might be reset by hardware for pulse interrupts
+     * at this point. So set it here again so the interrupt does not get lost
+     * in service_pending_interrupts()
+     * */
     /* r3 = &NVIC.ISPR */
     mov r3, #0xe200
     movt r3, #0xe000
-    /* set pending bit */
+    /* Set pending bit */
     str r0, [r3, r2, lsl #2]"
     : : : : "volatile" );
 }
