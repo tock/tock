@@ -4,8 +4,7 @@ pub use stm32f4xx::{chip, dbg, dma1, exti, gpio, nvic, rcc, spi, syscfg, tim2, u
 
 pub mod stm32f446re_nvic;
 
-use cortexm4::generic_isr;
-use stm32f4xx::unhandled_interrupt;
+use cortexm4::{generic_isr, unhandled_interrupt};
 
 // STM32F446xx has total of 97 interrupts
 // Extracted from `CMSIS/Device/ST/STM32F4xx/Include/stm32f446xx.h`
