@@ -39,12 +39,10 @@ use components::led::LedsComponent;
 use components::nrf51822::Nrf51822Component;
 use components::process_console::ProcessConsoleComponent;
 use components::rng::RngComponent;
-use components::si7021::{HumidityComponent, SI7021Component, TemperatureComponent};
+use components::si7021::{HumidityComponent, SI7021Component};
 use components::spi::{SpiComponent, SpiSyscallComponent};
 use imix_components::adc::AdcComponent;
-use imix_components::analog_comparator::AcComponent;
 use imix_components::fxos8700::NineDofComponent;
-use imix_components::nonvolatile_storage::NonvolatileStorageComponent;
 use imix_components::radio::RadioComponent;
 use imix_components::rf233::RF233Component;
 use imix_components::udp_driver::UDPDriverComponent;
@@ -319,7 +317,8 @@ pub unsafe fn reset_handler() {
         .finalize(components::isl29035_component_helper!(sam4l::ast::Ast));
     let si7021 = SI7021Component::new(mux_i2c, mux_alarm, 0x40)
         .finalize(components::si7021_component_helper!(sam4l::ast::Ast));
-    let temp = TemperatureComponent::new(board_kernel, si7021).finalize(());
+    let temp =
+        components::temperature::TemperatureComponent::new(board_kernel, si7021).finalize(());
     let humidity = HumidityComponent::new(board_kernel, si7021).finalize(());
     let ninedof = NineDofComponent::new(board_kernel, mux_i2c, &sam4l::gpio::PC[13]).finalize(());
 
@@ -379,7 +378,17 @@ pub unsafe fn reset_handler() {
     .finalize(components::button_component_buf!(sam4l::gpio::GPIOPin));
     let crc = CrcComponent::new(board_kernel, &sam4l::crccu::CRCCU)
         .finalize(components::crc_component_helper!(sam4l::crccu::Crccu));
-    let analog_comparator = AcComponent::new().finalize(());
+    let analog_comparator = components::analog_comparator::AcComponent::new(
+        &sam4l::acifc::ACIFC,
+        components::acomp_component_helper!(
+            <sam4l::acifc::Acifc as kernel::hil::analog_comparator::AnalogComparator>::Channel,
+            &sam4l::acifc::CHANNEL_AC0,
+            &sam4l::acifc::CHANNEL_AC1,
+            &sam4l::acifc::CHANNEL_AC2,
+            &sam4l::acifc::CHANNEL_AC3
+        ),
+    )
+    .finalize(components::acomp_component_buf!(sam4l::acifc::Acifc));
     let rng = RngComponent::new(board_kernel, &sam4l::trng::TRNG).finalize(());
 
     // For now, assign the 802.15.4 MAC address on the device as
@@ -403,7 +412,26 @@ pub unsafe fn reset_handler() {
     .finalize(());
 
     let usb_driver = UsbComponent::new(board_kernel).finalize(());
-    let nonvolatile_storage = NonvolatileStorageComponent::new(board_kernel).finalize(());
+
+    // Kernel storage region, allocated with the storage_volume!
+    // macro in common/utils.rs
+    extern "C" {
+        /// Beginning on the ROM region containing app images.
+        static _sstorage: u8;
+        static _estorage: u8;
+    }
+
+    let nonvolatile_storage = components::nonvolatile_storage::NonvolatileStorageComponent::new(
+        board_kernel,
+        &sam4l::flashcalw::FLASH_CONTROLLER,
+        0x60000,                          // Start address for userspace accessible region
+        0x20000,                          // Length of userspace accessible region
+        &_sstorage as *const u8 as usize, //start address of kernel region
+        &_estorage as *const u8 as usize - &_sstorage as *const u8 as usize, // length of kernel region
+    )
+    .finalize(components::nv_storage_component_helper!(
+        sam4l::flashcalw::FLASHCALW
+    ));
 
     let local_ip_ifaces = static_init!(
         [IPAddr; 3],
