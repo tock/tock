@@ -123,6 +123,7 @@ pub trait Screen {
     fn get_rotation(&self) -> ScreenRotation;
 
     /// Sets the video memory frame.
+    /// This function has to be called before the first call to the write function.
     fn set_write_frame(&self, x: usize, y: usize, width: usize, height: usize) -> ReturnCode;
 
     /// Sends a write command to write data in the selected video memory frame.
