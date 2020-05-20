@@ -22,11 +22,11 @@ usage:
 	@echo "              ci: Run all continuous integration tests"
 	@echo "           clean: Clean all builds"
 	@echo "          clippy: Runs the clippy code linter with Tock's default arguments"
-	@echo " emulation-check: Run the emulation tests for supported boards"
-	@echo " emulation-setup: Setup QEMU for the emulation tests"
 	@echo "          format: Runs the rustfmt tool on all kernel sources"
 	@echo "    format-check: Checks if the rustfmt tool would require changes, but doesn't make them"
 	@echo "            list: Lists available boards"
+	@echo "      qemu-check: Run the qemu tests for supported boards"
+	@echo "      qemu-setup: Setup (locally install) QEMU for the qemu tests"
 	@echo
 	@echo "$$(tput bold)Happy Hacking!$$(tput sgr0)"
 
@@ -212,9 +212,9 @@ ci-rustdoc:
 audit:
 	@for f in `./tools/list_lock.sh`; do echo "$$(tput bold)Auditing $$f"; (cd "$$f" && cargo audit || exit 1); done
 
-.PHONY: emulation-setup
-emulation-setup: SHELL:=/usr/bin/env bash
-emulation-setup:
+.PHONY: qemu-setup
+qemu-setup: SHELL:=/usr/bin/env bash
+qemu-setup:
 	@#Use the latest QEMU as it has OpenTitan support
 	@printf "Buildling QEMU, this could take a few minutes\n\n"
 	@if [[ ! -d tools/qemu || ! -f tools/qemu/VERSION ]]; then \
@@ -232,11 +232,39 @@ emulation-setup:
 		mv opentitan-snapshot-20191101-*/sw/device/boot_rom/boot_rom_fpga_nexysvideo.elf $(CURRENT_DIR)/opentitan-boot-rom.elf
 
 
-.PHONY: emulation-check
-emulation-check: emulation-setup
+.PHONY: qemu-check
+qemu-check: qemu-setup
 	@$(MAKE) -C "boards/hifive1"
 	@$(MAKE) -C "boards/opentitan"
 	@cd tools/qemu-runner; PATH="$(shell pwd)/tools/qemu/riscv32-softmmu/:${PATH}" cargo run
+
+
+# Define two sets of rules here, depending whether we are running in a CI
+# environment or not. Also try to do the intelligent thing of not prompting
+# again once already opted-in.
+.PHONY: qemu-possibly-check
+qemu-possibly-check: SHELL:=/usr/bin/env bash
+qemu-possibly-check:
+ifdef CI
+	@$(MAKE) qemu-check
+else
+ifdef TOCK_NO_QEMU
+	@echo "$$(tput bold)Skipping QEMU due to TOCK_NO_QEMU environment variable."
+else
+	@if [ -x tools/qemu/riscv32-softmmu/qemu-system-riscv32 ] ;\
+	  then \
+	    $(MAKE) qemu-check ;\
+	  else \
+	    read -p $$'\n** Tock is experimenting with QEMU testing.\n** This requires installing a QEMU fork to run locally.\n** Would you like Tock to install QEMU for you? [y/N] ' RUNQ \
+	    && if [[ $$RUNQ == 'y' ]]; \
+	      then \
+	        $(MAKE) qemu-check; \
+	      else \
+	        exit 0; \
+            fi; \
+	fi
+endif
+endif
 
 .PHONY: clean
 clean:
