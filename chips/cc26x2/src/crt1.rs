@@ -1,4 +1,6 @@
-use cortexm4::{generic_isr, hard_fault_handler, nvic, svc_handler, systick_handler};
+use cortexm4::{
+    generic_isr, hard_fault_handler, nvic, svc_handler, systick_handler, unhandled_interrupt,
+};
 use tock_rt0;
 
 extern "C" {
@@ -13,10 +15,6 @@ extern "C" {
     // _estack is not really a function, but it makes the types work
     // You should never actually invoke it!!
     fn _estack();
-}
-
-unsafe extern "C" fn unhandled_interrupt() {
-    loop {}
 }
 
 #[cfg_attr(
