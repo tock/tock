@@ -93,20 +93,29 @@ pub trait MPU {
     /// current state to help with debugging.
     type MpuConfig: Default + Display = MpuConfigDefault;
 
-    /// Enables the MPU.
+    /// Clears the MPU.
+    ///
+    /// This function will clear any access control enforced by the
+    /// MPU where possible.
+    /// On some hardware it is impossible to reset the MPU after it has
+    /// been locked, in this case this function wont change those regions.
+    fn clear_mpu(&self) {}
+
+    /// Enables the MPU for userspace apps.
     ///
     /// This function must enable the permission restrictions on the various
     /// regions protected by the MPU.
-    fn enable_mpu(&self) {}
+    fn enable_app_mpu(&self) {}
 
-    /// Disables the MPU.
+    /// Disables the MPU for userspace apps.
     ///
-    /// This function must completely disable any access control enforced by the
-    /// MPU. This will be called before the kernel starts to execute as on some
+    /// This function must disable any access control that was previously setup
+    /// for an app if it will interfere with the kernel.
+    /// This will be called before the kernel starts to execute as on some
     /// platforms the MPU rules apply to privileged code as well, and therefore
-    /// the MPU must be completely disabled for the kernel to effectively manage
-    /// processes.
-    fn disable_mpu(&self) {}
+    /// some of the MPU configuration must be disabled for the kernel to effectively
+    /// manage processes.
+    fn disable_app_mpu(&self) {}
 
     /// Returns the maximum number of regions supported by the MPU.
     fn number_total_regions(&self) -> usize {

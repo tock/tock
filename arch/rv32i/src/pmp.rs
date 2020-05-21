@@ -244,9 +244,7 @@ impl PMPConfig {
 impl kernel::mpu::MPU for PMP {
     type MpuConfig = PMPConfig;
 
-    fn enable_mpu(&self) {}
-
-    fn disable_mpu(&self) {
+    fn clear_mpu(&self) {
         // We want to disable all of the hardware entries, so we use `$x` here,
         // and not `$x / 2`.
         for x in 0..$x {
@@ -299,8 +297,15 @@ impl kernel::mpu::MPU for PMP {
         csr::CSR.pmpcfg[0].modify(csr::pmpconfig::pmpcfg::w0::SET);
         csr::CSR.pmpcfg[0].modify(csr::pmpconfig::pmpcfg::x0::SET);
         csr::CSR.pmpcfg[0].modify(csr::pmpconfig::pmpcfg::a0::TOR);
-        // MPU is not configured for any process now
+        // PMP is not configured for any process now
         self.last_configured_for.take();
+    }
+
+    fn enable_app_mpu(&self) {}
+
+    fn disable_app_mpu(&self) {
+        // PMP is not enabled for machine mode, so we don't have to do
+        // anything
     }
 
     fn number_total_regions(&self) -> usize {

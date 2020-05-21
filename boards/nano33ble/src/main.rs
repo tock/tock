@@ -266,7 +266,7 @@ pub unsafe fn reset_handler() {
     CHIP = Some(chip);
 
     // Need to disable the MPU because the bootloader seems to set it up.
-    chip.mpu().disable_mpu();
+    chip.mpu().clear_mpu();
 
     // Configure the USB stack to enable a serial port over CDC-ACM.
     cdc.enable();
