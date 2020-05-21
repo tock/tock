@@ -113,7 +113,6 @@ impl Component for NrfClockComponent {
 
         nrf52::clock::CLOCK.low_set_source(nrf52::clock::LowClockSource::XTAL);
         nrf52::clock::CLOCK.low_start();
-        nrf52::clock::CLOCK.high_set_source(nrf52::clock::HighClockSource::XTAL);
         nrf52::clock::CLOCK.high_start();
         while !nrf52::clock::CLOCK.low_started() {}
         while !nrf52::clock::CLOCK.high_started() {}
