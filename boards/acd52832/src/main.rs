@@ -446,7 +446,6 @@ pub unsafe fn reset_handler() {
 
     nrf52832::clock::CLOCK.low_set_source(nrf52832::clock::LowClockSource::XTAL);
     nrf52832::clock::CLOCK.low_start();
-    nrf52832::clock::CLOCK.high_set_source(nrf52832::clock::HighClockSource::XTAL);
     nrf52832::clock::CLOCK.high_start();
     while !nrf52832::clock::CLOCK.low_started() {}
     while !nrf52832::clock::CLOCK.high_started() {}
