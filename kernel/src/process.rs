@@ -1660,6 +1660,31 @@ impl<C: 'static + Chip> Process<'a, C> {
             }
         };
 
+        // Allocate MPU region for fixed memory, if any defined.
+        if let Some(fixed_memory) = tbf_header.get_fixed_memory() {
+            if chip
+                .mpu()
+                .allocate_region(
+                    fixed_memory.region_addr as *const u8,
+                    fixed_memory.region_size as usize,
+                    fixed_memory.region_size as usize,
+                    mpu::Permissions::ReadWriteOnly,
+                    &mut mpu_config,
+                )
+                .is_none()
+            {
+                if config::CONFIG.debug_load_processes {
+                    debug!(
+                        "[!] flash=[{:#010X}:{:#010X}] process={:?} - couldn't allocate fixed memory region",
+                        app_flash.as_ptr() as usize,
+                        app_flash.as_ptr() as usize + app_flash.len(),
+                        process_name
+                    );
+                }
+                return Ok((None, 0));
+            }
+        }
+
         // Compute how much padding before start of process memory.
         let memory_padding_size = (memory_start as usize) - (remaining_app_memory as usize);
 

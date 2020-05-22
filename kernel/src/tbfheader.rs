@@ -93,6 +93,7 @@ crate enum TbfHeaderTypes {
     TbfHeaderMain = 1,
     TbfHeaderWriteableFlashRegions = 2,
     TbfHeaderPackageName = 3,
+    TbfHeaderFixedMemory = 4,
 
     /// Some field in the header that we do not understand. Since the TLV format
     /// specifies the length of each section, if we get a field we do not
@@ -116,6 +117,18 @@ crate struct TbfHeaderV2Main {
     init_fn_offset: u32,
     protected_size: u32,
     minimum_ram_size: u32,
+}
+
+/// Memory region defined by addr and size in SRAM that app must be allowed R/W
+/// access to.
+///
+/// Used for the cases when apps are built with static addresses and .bss and
+/// .data have fixed addresses. In this case, this regions should include both
+/// .bss and .data.
+#[derive(Clone, Copy, Debug)]
+crate struct TbfHeaderV2FixedMemory {
+    pub region_addr: u32,
+    pub region_size: u32,
 }
 
 /// Writeable flash regions only need an offset and size.
@@ -172,6 +185,7 @@ impl core::convert::TryFrom<u16> for TbfHeaderTypes {
             1 => Ok(TbfHeaderTypes::TbfHeaderMain),
             2 => Ok(TbfHeaderTypes::TbfHeaderWriteableFlashRegions),
             3 => Ok(TbfHeaderTypes::TbfHeaderPackageName),
+            4 => Ok(TbfHeaderTypes::TbfHeaderFixedMemory),
             _ => Ok(TbfHeaderTypes::Unknown),
         }
     }
@@ -221,6 +235,25 @@ impl core::convert::TryFrom<&[u8]> for TbfHeaderV2Main {
     }
 }
 
+impl core::convert::TryFrom<&[u8]> for TbfHeaderV2FixedMemory {
+    type Error = TbfParseError;
+
+    fn try_from(b: &[u8]) -> Result<TbfHeaderV2FixedMemory, Self::Error> {
+        Ok(TbfHeaderV2FixedMemory {
+            region_addr: u32::from_le_bytes(
+                b.get(0..4)
+                    .ok_or(TbfParseError::InternalError)?
+                    .try_into()?,
+            ),
+            region_size: u32::from_le_bytes(
+                b.get(4..8)
+                    .ok_or(TbfParseError::InternalError)?
+                    .try_into()?,
+            ),
+        })
+    }
+}
+
 impl core::convert::TryFrom<&[u8]> for TbfHeaderV2WriteableFlashRegion {
     type Error = TbfParseError;
 
@@ -251,6 +284,7 @@ crate struct TbfHeaderV2 {
     main: Option<TbfHeaderV2Main>,
     package_name: Option<&'static str>,
     writeable_regions: Option<[Option<TbfHeaderV2WriteableFlashRegion>; 4]>,
+    fixed_memory: Option<TbfHeaderV2FixedMemory>,
 }
 
 /// Type that represents the fields of the Tock Binary Format header.
@@ -349,6 +383,14 @@ impl TbfHeader {
                 })
             }),
             _ => (0, 0),
+        }
+    }
+
+    /// Return whether fixed memory information is defined for this app.
+    crate fn get_fixed_memory(&self) -> Option<TbfHeaderV2FixedMemory> {
+        match *self {
+            TbfHeader::TbfHeaderV2(hd) => hd.fixed_memory,
+            _ => None
         }
     }
 }
@@ -460,6 +502,7 @@ crate fn parse_tbf_header(header: &'static [u8], version: u16) -> Result<TbfHead
                 let mut wfr_pointer: [Option<TbfHeaderV2WriteableFlashRegion>; 4] =
                     Default::default();
                 let mut app_name_str = "";
+                let mut fixed_memory: Option<TbfHeaderV2FixedMemory> = None;
 
                 // Iterate the remainder of the header looking for TLV entries.
                 while remaining.len() > 0 {
@@ -531,6 +574,16 @@ crate fn parse_tbf_header(header: &'static [u8], version: u16) -> Result<TbfHead
                                 .or(Err(TbfParseError::BadProcessName))?;
                         }
 
+                        TbfHeaderTypes::TbfHeaderFixedMemory => {
+                            let entry_len = mem::size_of::<TbfHeaderV2FixedMemory>();
+
+                            if tlv_header.length as usize == entry_len {
+                                fixed_memory = Some(remaining.try_into()?);
+                            } else {
+                                return Err(TbfParseError::BadTlvEntry(tlv_header.tipe as usize));
+                            }
+                        }
+
                         _ => {}
                     }
 
@@ -547,6 +600,7 @@ crate fn parse_tbf_header(header: &'static [u8], version: u16) -> Result<TbfHead
                     main: main_pointer,
                     package_name: Some(app_name_str),
                     writeable_regions: Some(wfr_pointer),
+                    fixed_memory: fixed_memory,
                 };
 
                 Ok(TbfHeader::TbfHeaderV2(tbf_header))
