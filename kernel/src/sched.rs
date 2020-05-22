@@ -527,6 +527,12 @@ impl Kernel {
                                     }
                                     process.set_syscall_return_value(res.into());
                                 }
+                                Syscall::EXIT { mode } => {
+                                    if config::CONFIG.trace_syscalls {
+                                        debug!("[{:?}] exit({:?})", process.appid(), mode);
+                                    }
+                                    process.exit(mode);
+                                }
                             }
                         }
                         Some(ContextSwitchReason::TimesliceExpired) => {
@@ -596,6 +602,10 @@ impl Kernel {
                 process::State::StoppedFaulted => {
                     break;
                     // Do nothing
+                }
+                process::State::Exited => {
+                    break;
+                    // do nothing
                 }
             }
         }

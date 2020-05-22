@@ -1,5 +1,4 @@
-Syscalls
-========
+# Syscalls
 
 This document explains how [system
 calls](https://en.wikipedia.org/wiki/System_call) work in Tock with regards
@@ -28,6 +27,8 @@ tutorial on how to use them in drivers or applications.
   * [4: Memop](#4-memop)
     + [Arguments](#arguments-4)
     + [Return](#return-4)
+  * [5 Exit](#5-exit)
+    + [Arguments](#arguments-5)
 - [The Context Switch](#the-context-switch)
   * [Context Switch Interface](#context-switch-interface)
   * [Cortex-M Architecture Details](#cortex-m-architecture-details)
@@ -68,19 +69,19 @@ version uploaded, all without modifying the kernel running on a platform.
 
 In Tock, a process can be in one of three states:
 
- - **Running**: Normal operation. A Running process is eligible to be scheduled
- for execution, although is subject to being paused by Tock to allow interrupt
- handlers or other processes to run. During normal operation, a process remains
- in the Running state until it explicitly yields. Callbacks from other kernel
- operations are not delivered to Running processes (i.e. callbacks do not
- interrupt processes), rather they are enqueued until the process yields.
- - **Yielded**: Suspended operation. A Yielded process will not be scheduled by
- Tock. Processes often yield while they are waiting for I/O or other operations
- to complete and have no immediately useful work to do. Whenever the kernel issues
- a callback to a Yielded process, the process is transitioned to the Running state.
- - **Fault**: Erroneous operation. A Fault-ed process will not be scheduled by
- Tock. Processes enter the Fault state by performing an illegal operation, such
- as accessing memory outside of their address space.
+- **Running**: Normal operation. A Running process is eligible to be scheduled
+  for execution, although is subject to being paused by Tock to allow interrupt
+  handlers or other processes to run. During normal operation, a process remains
+  in the Running state until it explicitly yields. Callbacks from other kernel
+  operations are not delivered to Running processes (i.e. callbacks do not
+  interrupt processes), rather they are enqueued until the process yields.
+- **Yielded**: Suspended operation. A Yielded process will not be scheduled by
+  Tock. Processes often yield while they are waiting for I/O or other operations
+  to complete and have no immediately useful work to do. Whenever the kernel issues
+  a callback to a Yielded process, the process is transitioned to the Running state.
+- **Fault**: Erroneous operation. A Fault-ed process will not be scheduled by
+  Tock. Processes enter the Fault state by performing an illegal operation, such
+  as accessing memory outside of their address space.
 
 ## Startup
 
@@ -89,10 +90,10 @@ callback queue. The function is determined by the ENTRY point in the process
 TBF header (typically the `_start` symbol) and is passed the following
 arguments in registers `r0` - `r3`:
 
-  * r0: the base address of the process code
-  * r1: the base address of the processes allocated memory region
-  * r2: the total amount of memory in its region
-  * r3: the current process memory break
+- r0: the base address of the process code
+- r1: the base address of the processes allocated memory region
+- r2: the total amount of memory in its region
+- r3: the current process memory break
 
 ## The System Calls
 
@@ -146,14 +147,13 @@ None.
 
 None.
 
-
 ### 1: Subscribe
 
 Subscribe assigns callback functions to be executed in response to various
 events.
 
 A callback function is uniquely identified by the pair (`driver`,
-`subscribe_number`), a.k.a. *callback ID*. When calling `subscribe`, if there
+`subscribe_number`), a.k.a. _callback ID_. When calling `subscribe`, if there
 are any pending callbacks for this callback ID, they are removed from the queue
 before the new callback function is bound to the callback ID.
 
@@ -166,13 +166,13 @@ subscribe(driver: u32, subscribe_number: u32, callback: u32, userdata: u32) -> R
 
 #### Arguments
 
- - `driver`: An integer specifying which driver to call.
- - `subscribe_number`: An integer index for which function is being subscribed.
- - `callback`: A pointer to a callback function to be executed when this event
- occurs. All callbacks conform to the C-style function signature:
- `void callback(int arg1, int arg2, int arg3, void* data)`.
- - `userdata`: A pointer to a value of any type that will be passed back by the
-   kernel as the last argument to `callback`.
+- `driver`: An integer specifying which driver to call.
+- `subscribe_number`: An integer index for which function is being subscribed.
+- `callback`: A pointer to a callback function to be executed when this event
+  occurs. All callbacks conform to the C-style function signature:
+  `void callback(int arg1, int arg2, int arg3, void* data)`.
+- `userdata`: A pointer to a value of any type that will be passed back by the
+  kernel as the last argument to `callback`.
 
 Individual drivers define a mapping for `subscribe_number` to the events that
 may generate that callback as well as the meaning for each of the `callback`
@@ -180,10 +180,9 @@ arguments.
 
 #### Return
 
- - `ENODEVICE` if `driver` does not refer to a valid kernel driver.
- - `ENOSUPPORT` if the driver exists but doesn't support the `subscribe_number`.
- - Other return codes based on the specific driver.
-
+- `ENODEVICE` if `driver` does not refer to a valid kernel driver.
+- `ENOSUPPORT` if the driver exists but doesn't support the `subscribe_number`.
+- Other return codes based on the specific driver.
 
 ### 2: Command
 
@@ -195,10 +194,10 @@ command(driver: u32, command_number: u32, argument1: u32, argument2: u32) -> Ret
 
 #### Arguments
 
- - `driver`: An integer specifying which driver to call.
- - `command_number`: An integer specifying the requested command.
- - `argument1`: A command-specific argument.
- - `argument2`: A command-specific argument.
+- `driver`: An integer specifying which driver to call.
+- `command_number`: An integer specifying the requested command.
+- `argument1`: A command-specific argument.
+- `argument2`: A command-specific argument.
 
 The `command_number` tells the driver which command was called from
 userspace, and the `argument`s are specific to the driver and command number.
@@ -216,10 +215,9 @@ additional meaning such as the number of devices present, as is the case in the
 
 #### Return
 
- - `ENODEVICE` if `driver` does not refer to a valid kernel driver.
- - `ENOSUPPORT` if the driver exists but doesn't support the `command_number`.
- - Other return codes based on the specific driver.
-
+- `ENODEVICE` if `driver` does not refer to a valid kernel driver.
+- `ENOSUPPORT` if the driver exists but doesn't support the `command_number`.
+- Other return codes based on the specific driver.
 
 ### 3: Allow
 
@@ -232,11 +230,11 @@ allow(driver: u32, allow_number: u32, pointer: usize, size: u32) -> ReturnCode a
 
 #### Arguments
 
- - `driver`: An integer specifying which driver should be granted access.
- - `allow_number`: A driver-specific integer specifying the purpose of this
-   buffer.
- - `pointer`: A pointer to the start of the buffer in the process memory space.
- - `size`: An integer number of bytes specifying the length of the buffer.
+- `driver`: An integer specifying which driver should be granted access.
+- `allow_number`: A driver-specific integer specifying the purpose of this
+  buffer.
+- `pointer`: A pointer to the start of the buffer in the process memory space.
+- `size`: An integer number of bytes specifying the length of the buffer.
 
 Many driver commands require that buffers are Allow-ed before they can execute.
 A buffer that has been Allow-ed does not need to be Allow-ed to be used again.
@@ -248,12 +246,11 @@ beginning operations.
 
 #### Return
 
- - `ENODEVICE` if `driver` does not refer to a valid kernel driver.
- - `ENOSUPPORT` if the driver exists but doesn't support the `allow_number`.
- - `EINVAL` the buffer referred to by `pointer` and `size` lies completely or
-partially outside of the processes addressable RAM.
- - Other return codes based on the specific driver.
-
+- `ENODEVICE` if `driver` does not refer to a valid kernel driver.
+- `ENOSUPPORT` if the driver exists but doesn't support the `allow_number`.
+- `EINVAL` the buffer referred to by `pointer` and `size` lies completely or
+  partially outside of the processes addressable RAM.
+- Other return codes based on the specific driver.
 
 ### 4: Memop
 
@@ -268,9 +265,9 @@ memop(op_type: u32, argument: u32) -> [[ VARIES ]] as u32
 
 #### Arguments
 
- - `op_type`: An integer indicating whether this is a `brk` (0), a `sbrk` (1),
-   or another memop call.
- - `argument`: The argument to `brk`, `sbrk`, or other call.
+- `op_type`: An integer indicating whether this is a `brk` (0), a `sbrk` (1),
+  or another memop call.
+- `argument`: The argument to `brk`, `sbrk`, or other call.
 
 Each memop operation is specific and details of each call can be found in
 the [memop syscall documentation](syscalls/memop.md).
@@ -279,6 +276,16 @@ the [memop syscall documentation](syscalls/memop.md).
 
 - Dependent on the particular memop call.
 
+### 5 Exit
+
+Notifies the kernel that the current process wants to exit.
+
+#### Arguments
+
+- `mode': action to perform
+- 0: stop the app
+- 1: restart the app
+- Other values are reserved and their behavior is undefined
 
 ## The Context Switch
 
@@ -427,8 +434,6 @@ in [`sched.rs`](../kernel/src/sched.rs) through a series of steps.
    number 0. Any `command`, `subscribe`, and `allow` sycalls to driver number 0
    will get routed to the console, and all other driver numbers will return
    `ReturnCode::ENODEVICE`.
-
-
 
 ## Allocated Driver Numbers
 

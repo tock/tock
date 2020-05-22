@@ -46,7 +46,28 @@ pub enum Syscall {
     /// Various memory operations.
     ///
     /// SVC_NUM = 4
-    MEMOP { operand: usize, arg0: usize },
+    MEMOP {
+        operand: usize,
+        arg0: usize,
+    },
+    EXIT {
+        mode: ExitMode,
+    },
+}
+
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub enum ExitMode {
+    Exit,
+    Restart,
+}
+
+impl From<usize> for ExitMode {
+    fn from(number: usize) -> Self {
+        match number {
+            0 => ExitMode::Exit,
+            _ => ExitMode::Restart,
+        }
+    }
 }
 
 /// Why the process stopped executing and execution returned to the kernel.
@@ -205,6 +226,7 @@ pub fn arguments_to_syscall(
             operand: r0,
             arg0: r1,
         }),
+        5 => Some(Syscall::EXIT { mode: r0.into() }),
         _ => None,
     }
 }
