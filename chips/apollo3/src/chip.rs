@@ -6,6 +6,7 @@ use kernel::Chip;
 
 use crate::gpio;
 use crate::nvic;
+use crate::stimer;
 use crate::uart;
 
 pub struct Apollo3 {
@@ -34,6 +35,7 @@ impl Chip for Apollo3 {
             loop {
                 if let Some(interrupt) = cortexm4::nvic::next_pending() {
                     match interrupt {
+                        nvic::STIMER..=nvic::STIMER_CMPR7 => stimer::STIMER.handle_interrupt(),
                         nvic::UART0 => uart::UART0.handle_interrupt(),
                         nvic::UART1 => uart::UART1.handle_interrupt(),
                         nvic::GPIO => gpio::PORT.handle_interrupt(),
