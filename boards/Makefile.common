@@ -37,7 +37,7 @@ ifneq ($(findstring riscv32i, $(TARGET)),)
   # NOTE: This flag causes kernel panics on some ARM cores. Since the
   # size benefit is almost exclusively for RISC-V, we only apply it for
   # those targets.
-  RUSTFLAGS_FOR_BOARD += -C force-frame-pointers=no
+  RUSTC_FLAGS += -C force-frame-pointers=no
 endif
 
 # RUSTFLAGS_FOR_CARGO by default extends RUSTFLAGS_FOR_BOARD with options
