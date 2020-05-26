@@ -24,7 +24,7 @@ TARGET_DIRECTORY ?= $(TOCK_ROOT_DIRECTORY)target/
 # lld uses the page size to align program sections. It defaults to 4096 and this
 # puts a gap between before the .relocate section. `zmax-page-size=512` tells
 # lld the actual page size so it doesn't have to be conservative.
-RUSTFLAGS_FOR_BOARD ?= \
+RUSTC_FLAGS ?= \
   -C link-arg=-Tlayout.ld \
   -C linker=rust-lld \
   -C linker-flavor=ld.lld \
