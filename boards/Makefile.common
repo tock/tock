@@ -206,7 +206,7 @@ all: release
 # binary. This makes checking for Rust errors much faster.
 .PHONY: check
 check:
-	$(Q)RUSTFLAGS="$(RUSTFLAGS_FOR_CARGO)" $(CARGO) check $(CARGO_FLAGS) --release
+	$(Q)RUSTFLAGS="$(RUSTC_FLAGS_TOCK)" $(CARGO) check $(CARGO_FLAGS_TOCK) --release
 
 .PHONY: clean
 clean::
