@@ -43,7 +43,6 @@ use components::si7021::{HumidityComponent, SI7021Component};
 use components::spi::{SpiComponent, SpiSyscallComponent};
 use imix_components::adc::AdcComponent;
 use imix_components::fxos8700::NineDofComponent;
-use imix_components::radio::RadioComponent;
 use imix_components::rf233::RF233Component;
 use imix_components::udp_driver::UDPDriverComponent;
 use imix_components::udp_mux::UDPMuxComponent;
@@ -402,14 +401,17 @@ pub unsafe fn reset_handler() {
 
     // Can this initialize be pushed earlier, or into component? -pal
     rf233.initialize(&mut RF233_BUF, &mut RF233_REG_WRITE, &mut RF233_REG_READ);
-    let (radio_driver, mux_mac) = RadioComponent::new(
+    let (radio_driver, mux_mac) = components::ieee802154::Ieee802154Component::new(
         board_kernel,
         rf233,
+        &sam4l::aes::AES,
         PAN_ID,
-        serial_num_bottom_16, //comment out for dual rx test only
-                              //49138, //comment in for dual rx test only
+        serial_num_bottom_16,
     )
-    .finalize(());
+    .finalize(components::ieee802154_component_helper!(
+        capsules::rf233::RF233<'static, VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw>>,
+        sam4l::aes::Aes<'static>
+    ));
 
     let usb_driver = UsbComponent::new(board_kernel).finalize(());
 
