@@ -28,7 +28,8 @@ HIL Support
 | gpio::InterruptPin                      | ✓        | ✓        | ✓      | ✓     | ✓       | ✓        | ✓        | ✓     | ✓         | ✓         |
 | gpio::Output                            | ✓        | ✓        | ✓      | ✓     | ✓       | ✓        | ✓        | ✓     | ✓         | ✓         |
 | gpio::Pin                               | ✓        | ✓        | ✓      | ✓     | ✓       | ✓        | ✓        | ✓     | ✓         | ✓         |
-| i2c::I2CMaster                          |          |          | ✓      |       |         | ✓        | ✓        | ✓     | ✓         |           |
+| digest::Hmac                            |          |          |        |       | ✓       |          |          |       |           |           |
+| i2c::I2CMaster                          |          |          | ✓      |       | ✓       | ✓        | ✓        | ✓     | ✓         |           |
 | i2c::I2CMasterSlave                     |          |          |        |       |         |          |          | ✓     |           |           |
 | i2c::I2CSlave                           |          |          |        |       |         |          |          | ✓     |           |           |
 | mod::Controller                         |          |          |        |       |         | ✓        | ✓        | ✓     |           |           |
@@ -39,10 +40,10 @@ HIL Support
 | sensors::TemperatureDriver              |          |          |        |       |         | ✓        | ✓        |       |           |           |
 | spi::SpiMaster                          |          |          |        |       |         | ✓        | ✓        | ✓     | ✓         | ✓         |
 | spi::SpiSlave                           |          |          |        |       |         |          |          | ✓     |           |           |
-| symmetric_encryption::AES128            |          |          |        |       |         | ✓        | ✓        | ✓     |           |           |
-| symmetric_encryption::AES128CBC         |          |          |        |       |         | ✓        | ✓        | ✓     |           |           |
-| symmetric_encryption::AES128CCM         |          |          |        |       |         | ✓        | ✓        |       |           |           |
-| symmetric_encryption::AES128Ctr         |          |          |        |       |         | ✓        | ✓        | ✓     |           |           |
+| symmetric_encryption::AES128            |          |          |        |       | ✓       | ✓        | ✓        | ✓     |           |           |
+| symmetric_encryption::AES128CBC         |          |          |        |       | ✓       | ✓        | ✓        | ✓     |           |           |
+| symmetric_encryption::AES128CCM         |          |          |        |       | ✓       | ✓        | ✓        |       |           |           |
+| symmetric_encryption::AES128Ctr         |          |          |        |       | ✓       | ✓        | ✓        | ✓     |           |           |
 | time::Alarm                             | ✓        |          | ✓      |       | ✓       | ✓        | ✓        | ✓     | ✓         | ✓         |
 | time::Frequency                         | ✓        |          | ✓      |       | ✓       | ✓        | ✓        |       |           |           |
 | time::Time                              | ✓        |          | ✓      |       | ✓       | ✓        | ✓        | ✓     | ✓         | ✓         |
