@@ -498,10 +498,13 @@ impl kernel::mpu::MPU for PMPConfig {
     }
 
     fn configure_mpu(&self, config: &Self::MpuConfig, app_id: &AppId) {
-        self.last_configured_for.map(|last_app_id| {
-            if last_app_id == app_id && config.is_dirty.get() == false {
-                return;
-            }
+        let last_configured_for_this_app = self
+            .last_configured_for
+            .map_or(false, |last_app_id| last_app_id == app_id);
+
+        // Skip PMP configuration if it is already configured for this app and the MPU
+        // configuration of this app has not changed.
+        if !last_configured_for_this_app || config.is_dirty.get() {
             // tock/tock#1860
             let mut regions_sorted = config.regions.clone();
             regions_sorted.sort_unstable_by(|a, b| {
@@ -646,7 +649,7 @@ impl kernel::mpu::MPU for PMPConfig {
             }
             // Clear the dirty flag
             config.is_dirty.set(false);
-            *last_app_id = *app_id;
-        });
+            self.last_configured_for.put(*app_id);
+        }
     }
 }
