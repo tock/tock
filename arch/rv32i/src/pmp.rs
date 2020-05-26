@@ -178,8 +178,14 @@ impl PMPConfig {
         }
         None
     }
+}
 
-    fn clear_mpu_registers(&self) {
+impl kernel::mpu::MPU for PMPConfig {
+    type MpuConfig = PMPConfig;
+
+    fn enable_mpu(&self) {}
+
+    fn disable_mpu(&self) {
         for x in 0..self.total_regions {
             // If PMP is supported by the core then all 16 register sets must exist
             // They don't all have to do anything, but let's zero them all just in case.
@@ -355,17 +361,9 @@ impl PMPConfig {
         csr::CSR.pmpcfg0.modify(csr::pmpconfig::pmpcfg::w0::SET);
         csr::CSR.pmpcfg0.modify(csr::pmpconfig::pmpcfg::x0::SET);
         csr::CSR.pmpcfg0.modify(csr::pmpconfig::pmpcfg::a0::TOR);
-        // Set the dirty flag
-        self.is_dirty.set(true);
+        // MPU is not configured for any process now
+        self.last_configured_for.take();
     }
-}
-
-impl kernel::mpu::MPU for PMPConfig {
-    type MpuConfig = PMPConfig;
-
-    fn enable_mpu(&self) {}
-
-    fn disable_mpu(&self) {}
 
     fn number_total_regions(&self) -> usize {
         self.total_regions
@@ -505,7 +503,6 @@ impl kernel::mpu::MPU for PMPConfig {
         // Skip PMP configuration if it is already configured for this app and the MPU
         // configuration of this app has not changed.
         if !last_configured_for_this_app || config.is_dirty.get() {
-            // tock/tock#1860
             let mut regions_sorted = config.regions.clone();
             regions_sorted.sort_unstable_by(|a, b| {
                 let (a_start, _a_size) = match a.location() {
@@ -518,9 +515,6 @@ impl kernel::mpu::MPU for PMPConfig {
                 };
                 a_start.cmp(&b_start)
             });
-
-            // tock/tock#1860
-            self.clear_mpu_registers();
 
             for x in 0..self.total_regions {
                 let region = regions_sorted[x];
