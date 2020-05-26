@@ -348,6 +348,7 @@ pub unsafe fn reset_handler() {
     // );
 
     let pin = imxrt1050::gpio::PinId::P1_16.get_pin();
+    
     let ninedof = NineDofComponent::new(board_kernel, mux_i2c, &pin).finalize(());
 
     let imxrt1050 = Imxrt1050EVKB {
