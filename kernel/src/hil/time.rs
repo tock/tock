@@ -44,7 +44,7 @@ impl Frequency for Freq16MHz {
 pub struct Freq375MHz;
 impl Frequency for Freq375MHz {
     fn frequency() -> u32 {
-        21570000
+        24750000
     }
 }
 

@@ -678,7 +678,7 @@ impl hil::uart::Configure for Lpuart<'a> {
 
 impl hil::uart::Receive<'a> for Lpuart<'a> {
     fn set_receive_client(&self, client: &'a dyn hil::uart::ReceiveClient) {
-        hprintln!("E set_receive_client!").unwrap();
+        // hprintln!("E set_receive_client!").unwrap();
         self.rx_client.set(client);
     }
 
@@ -705,12 +705,12 @@ impl hil::uart::Receive<'a> for Lpuart<'a> {
     }
 
     fn receive_word(&self) -> ReturnCode {
-        hprintln!("E receive_word!").unwrap();
+        // hprintln!("E receive_word!").unwrap();
         ReturnCode::FAIL
     }
 
     fn receive_abort(&self) -> ReturnCode {
-        hprintln!("E receive_abort!").unwrap();
+        // hprintln!("E receive_abort!").unwrap();
         if self.rx_status.get() != USARTStateRX::Idle {
             self.rx_status.set(USARTStateRX::AbortRequested);
             ReturnCode::EBUSY

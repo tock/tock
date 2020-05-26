@@ -38,6 +38,8 @@ use core::cmp;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::uart;
 use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
+// use kernel::debug;
+// use cortex_m_semihosting::{hprintln};
 
 /// Syscall driver number.
 use crate::driver;
@@ -117,6 +119,7 @@ impl<'a> Console<'a> {
     /// Cannot fail. If can't send now, it will schedule for sending later.
     fn send(&self, app_id: AppId, app: &mut App, slice: AppSlice<Shared, u8>) {
         if self.tx_in_progress.is_none() {
+            // hp`rintln!("Sunt in send!").unwrap();
             self.tx_in_progress.set(app_id);
             self.tx_buffer.take().map(|buffer| {
                 let mut transaction_len = app.write_remaining;
@@ -150,6 +153,7 @@ impl<'a> Console<'a> {
 
     /// Internal helper function for starting a receive operation
     fn receive_new(&self, app_id: AppId, app: &mut App, len: usize) -> ReturnCode {
+        // hprintln!("Sunt in receive_new!!").unwrap();
         if self.rx_buffer.is_none() {
             // For now, we tolerate only one concurrent receive operation on this console.
             // Competing apps will have to retry until success.
@@ -194,6 +198,7 @@ impl Driver for Console<'_> {
         allow_num: usize,
         slice: Option<AppSlice<Shared, u8>>,
     ) -> ReturnCode {
+        // hprintln!("Sunt in allow: appid: {:?}, allow_num: {:?}", appid, allow_num).unwrap();
         match allow_num {
             1 => self
                 .apps
@@ -224,6 +229,7 @@ impl Driver for Console<'_> {
         callback: Option<Callback>,
         app_id: AppId,
     ) -> ReturnCode {
+        // hprintln!("Sunt in subscribe: appid: {:?}, subscribe_num: {:?}", app_id, subscribe_num).unwrap();
         match subscribe_num {
             1 /* putstr/write_done */ => {
                 self.apps.enter(app_id, |app, _| {
@@ -253,6 +259,7 @@ impl Driver for Console<'_> {
     /// - `3`: Cancel any in progress receives and return (via callback)
     ///        what has been received so far.
     fn command(&self, cmd_num: usize, arg1: usize, _: usize, appid: AppId) -> ReturnCode {
+        // hprintln!("Sunt in command: cmd_num: {:?}, arg1: {:?}, appid: {:?}", cmd_num, arg1, appid).unwrap();
         match cmd_num {
             0 /* check if present */ => ReturnCode::SUCCESS,
             1 /* putstr */ => {
@@ -262,13 +269,14 @@ impl Driver for Console<'_> {
                 }).unwrap_or_else(|err| err.into())
             },
             2 /* getnstr */ => {
-                // debug!("Am intrat in getnstr");
+                // hprintln!("Am intrat in getnstr").unwrap();
                 let len = arg1;
                 self.apps.enter(appid, |app, _| {
                     self.receive_new(appid, app, len)
                 }).unwrap_or_else(|err| err.into())
             },
             3 /* abort rx */ => {
+                // hprintln!("Abort rx!! :(").unwrap();
                 self.uart.receive_abort();
                 ReturnCode::SUCCESS
             }
@@ -350,6 +358,7 @@ impl uart::ReceiveClient for Console<'_> {
         rcode: ReturnCode,
         error: uart::Error,
     ) {
+        // hprintln!("Sunt in received_buffer!!").unwrap();
         self.rx_in_progress
             .take()
             .map(|appid| {
