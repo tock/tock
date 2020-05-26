@@ -40,7 +40,7 @@ ifneq ($(findstring riscv32i, $(TARGET)),)
   RUSTC_FLAGS += -C force-frame-pointers=no
 endif
 
-# RUSTFLAGS_FOR_CARGO by default extends RUSTFLAGS_FOR_BOARD with options
+# RUSTC_FLAGS_TOCK by default extends RUSTC_FLAGS with options
 # depending on parameters defined in boards/Makefile.common to reduce a need
 # for board's makefile to change in case of common changes.
 # We use `remap-path-prefix` to remove user-specific filepath strings for error
