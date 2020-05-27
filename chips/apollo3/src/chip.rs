@@ -5,6 +5,7 @@ use cortexm4;
 use kernel::Chip;
 
 use crate::gpio;
+use crate::iom;
 use crate::nvic;
 use crate::stimer;
 use crate::uart;
@@ -39,6 +40,12 @@ impl Chip for Apollo3 {
                         nvic::UART0 => uart::UART0.handle_interrupt(),
                         nvic::UART1 => uart::UART1.handle_interrupt(),
                         nvic::GPIO => gpio::PORT.handle_interrupt(),
+                        nvic::IOMSTR0 => iom::IOM0.handle_interrupt(),
+                        nvic::IOMSTR1 => iom::IOM1.handle_interrupt(),
+                        nvic::IOMSTR2 => iom::IOM2.handle_interrupt(),
+                        nvic::IOMSTR3 => iom::IOM3.handle_interrupt(),
+                        nvic::IOMSTR4 => iom::IOM4.handle_interrupt(),
+                        nvic::IOMSTR5 => iom::IOM5.handle_interrupt(),
                         _ => {
                             panic!("unhandled interrupt {}", interrupt);
                         }
