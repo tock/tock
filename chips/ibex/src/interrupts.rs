@@ -2,6 +2,8 @@
 
 #![allow(dead_code)]
 
+pub const PWRMGRWAKEUP: u32 = 0x50;
+
 pub const USBDEV_CONNECTED: u32 = 0x4f;
 pub const USBDEV_FRAME: u32 = 0x4e;
 pub const USBDEV_RX_BITSTUFF_ERR: u32 = 0x4d;

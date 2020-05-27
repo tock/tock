@@ -13,6 +13,7 @@ pub mod gpio;
 pub mod hmac;
 pub mod i2c;
 pub mod plic;
+pub mod pwrmgr;
 pub mod timer;
 pub mod uart;
 pub mod usbdev;
