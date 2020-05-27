@@ -11,8 +11,16 @@ pull requests for and makes releases of the main Tock repository.
 
 - [1. Introduction](#1-introduction)
 - [2. Pull Requests](#2-pull-requests)
-- [3. Reviews](#3-reviews)
-- [4. Release Process](#4-release-process)
+- [3. Continuous Integration](#3-continuous-integration)
+  * [CI Organization](#ci-organization)
+    + [The short answer: `make prepush`](#the-short-answer-make-prepush)
+    + [The complete CI setup](#the-complete-ci-setup)
+      - [`ci-job-*`](#ci-job-)
+      - [`ci-setup-*`](#ci-setup-)
+      - [`ci-runner-*[-*]`](#ci-runner--)
+      - [`ci-all`](#ci-all)
+- [4. Reviews](#4-reviews)
+- [5. Release Process](#5-release-process)
 - [Other Tock Repositories](#other-tock-repositories)
   * [Userland Repositories](#userland-repositories)
   * [Tertiary Repositories](#tertiary-repositories)
@@ -77,7 +85,95 @@ possible responses:
 Core team members can change their votes at any time, based on discussion,
 changes, or further thought.
 
-## 3. Reviews
+## 3. Continuous Integration
+
+Tock leans heavily on automated integration testing and as a project is
+generally willing to explore new and novel means of testing for hardware
+reliability.
+
+With exceptions for drafts or works-in-progress, generally it is expected that
+a pull request pass the full continuous integration (CI) suite before core team
+members will perform an in-depth review.
+
+One frequent challenge with CI setups is replicating failures in local
+development environments. Tock goes to great lengths to mitigate this as much
+as possible. Within reason, the inability to replicate a CI test in a local
+development environment shall be considered a bug (however, it is reasonable
+that local CI requires the install of non-trivial tooling, so long as there is
+a well-documented, reliable path to set up the tooling locally).
+
+### CI Organization
+
+All CI is driven by `make` rules.
+
+Generally, there are a series of fine-grained targets that do the actual tests,
+and then a meta layer of rules that are invoked depending on context.
+
+#### The short answer: `make prepush`
+This is a meta-target that runs what Tock considers the "standard developer CI".
+This is the rule that should be run locally before submitting PRs.
+It runs the quicker jobs that catch the majority of small errors.
+Developers are encouraged to consider wiring this to the
+[git pre-push hook](https://git-scm.com/book/en/v2/Customizing-Git-Git-Hooks)
+to run automatically when pushing upstream.
+
+#### The complete CI setup
+
+All CI is required to support the possibility of parallel make invocation (i.e.
+`make -jN`), but is not required to handle multiple independent make processes.
+
+##### `ci-job-*`
+To the extent reasonable, individual tests are broken into small atomic units.
+All actionable `make` recipes that run tests **must** be in `ci-job-*` rules.
+These perform individual, logical actions related only to testing.
+These rules **must not** perform any one-off or setup operations.
+No automated tooling should invoke job rules directly.
+If a CI check fails, developers should be able to run the failed `ci-job-*`
+locally, although in certain cases this may require installing supporting
+tooling.
+
+##### `ci-setup-*`
+These are rules that run any required setup for jobs to succeed.
+They may install arbitrary packages or do any other significant labor.
+Many jobs may rely on the same setup target.
+To the extent possible, setup targets should cache their results to avoid
+re-execution.
+Setup targets **should** handle upgrades automatically; this may include
+automatically clearing caches or other artifacts if needed.
+Setup targets **may** handle downgrades, but developers working on experimental
+branches may be required to handle these cases manually.
+Setup targets are permitted to expect "total ownership" of the directories they
+create and manage.
+
+Setup rules may vary between runner and local environments, as they may perform
+automatic and possibly invasive (e.g. apt install) operations on runners.
+
+When run locally, setup targets **must** prompt users prior to system-wide
+persistent changes.
+These prompts **should** be rare, as example, asking the user to install
+system-wide development packages needed for a build.
+These prompts **must not** generate on every invocation of the setup rule;
+that is, setup rules **must** first check if the install has already been
+completed and not prompt the user in that case.
+If an update or upgrade is required, setup targets **must** prompt before
+installing.
+
+##### `ci-runner-*[-*]`
+These are targets like `ci-runner-netlify` and `ci-runner-github`.
+They represent exactly what is run by various CI runners.
+For platform with multiple CI rules, like GitHub, the `ci-runner-github` is a
+meta target that runs all GitHub checks, while `ci-runner-github-*` are the
+rules that match the individual runners.
+These targets **must** execute correctly on a local development environment.
+Small deviations in behavior between the runner and local execution are
+permitted if needed, but should be kept to a minimum.
+
+##### `ci-all`
+A meta target that runs every piece of CI possible.
+If this passes locally, all upstream CI checks should pass.
+
+
+## 4. Reviews
 
 To be merged, a pull request requires two Accept and no Discuss votes. The
 review period begins when a review is requested from the Github team
@@ -91,7 +187,7 @@ Comment" vote and a "Request Changes" is considered a "Discuss". If, after
 discussion, non-trivial changes are necessary for the pull request, the review
 window is re-started after the changes are made.
 
-## 4. Release Process
+## 5. Release Process
 
 Tock releases are milestone-based, with a rough expectation that a new release
 of Tock would occur every 3-12 months. Before a release, a set of issues are
