@@ -58,3 +58,6 @@ tools/qemu
 
 # Python scripts
 __pycache__
+
+# Used to collect artifacts when running CI
+ci-artifacts/

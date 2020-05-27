@@ -1,6 +1,6 @@
 # ![TockOS](http://www.tockos.org/assets/img/tock.svg "TockOS Logo")
 
-[![Build Status](https://travis-ci.org/tock/tock.svg?branch=master)](https://travis-ci.org/tock/tock)
+[![tock-ci](https://github.com/tock/tock/workflows/tock-ci/badge.svg)][tock-ci]
 [![slack](https://img.shields.io/badge/slack-tockos-informational)][slack]
 
 Tock is an embedded operating system designed for running multiple concurrent, mutually
@@ -15,6 +15,7 @@ scheduler and hardware abstraction layer) from platform specific device drivers
 as well as isolate device drivers from each other. Second, Tock uses memory
 protection units to isolate applications from each other and the kernel.
 
+[tock-ci]: https://github.com/tock/tock/actions?query=branch%3Amaster+workflow%3Atock-ci
 
 Learn More
 ----------

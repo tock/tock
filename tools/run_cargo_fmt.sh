@@ -29,18 +29,20 @@ fi
 # |M  changed file, staged (git add has run)
 # |MM changed file, some staged and some unstaged changes (git add then changes)
 # |?? untracked file
-if git status --porcelain | grep '^.M.*\.rs' -q; then
-	echo "$(tput bold)Warning: Formatting will overwrite files in place.$(tput sgr0)"
-	echo "While this is probably what you want, it's often useful to"
-	echo "stage all of your changes (git add ...) before format runs,"
-	echo "just so you can double-check everything."
-	echo ""
-	echo "$(tput bold)git status:$(tput sgr0)"
-	git status
-	echo ""
-	read -p "Continue formatting with unstaged changes? [y/N] " response
-	if [[ ! ( "$(echo "$response" | tr :upper: :lower:)" == "y" ) ]]; then
-		exit 0
+if [ "$1" != "diff" ]; then
+	if git status --porcelain | grep '^.M.*\.rs' -q; then
+		echo "$(tput bold)Warning: Formatting will overwrite files in place.$(tput sgr0)"
+		echo "While this is probably what you want, it's often useful to"
+		echo "stage all of your changes (git add ...) before format runs,"
+		echo "just so you can double-check everything."
+		echo ""
+		echo "$(tput bold)git status:$(tput sgr0)"
+		git status
+		echo ""
+		read -p "Continue formatting with unstaged changes? [y/N] " response
+		if [[ ! ( "$(echo "$response" | tr :upper: :lower:)" == "y" ) ]]; then
+			exit 0
+		fi
 	fi
 fi
 
@@ -49,15 +51,22 @@ let FAIL=0
 set -e
 
 # Find folders with Cargo.toml files in them and run `cargo fmt`.
-if [ "$1" == "diff" ]; then
-	# Just print out diffs and count errors, used by Travis
-	CARGO_FMT_ARGS="-- --check"
-fi
 for f in $(find . | grep Cargo.toml); do
+	printf "\rFormatting %-$((39))s" $(dirname $f)
 	pushd $(dirname $f) > /dev/null
-	cargo-fmt $CARGO_FMT_ARGS || let FAIL=FAIL+1
+	if [ "$1" == "diff" ]; then
+		# If diff mode, two-pass the check to make pretty-print work
+		if ! cargo-fmt -q -- --check; then
+			printf "<- Contains formatting errors!\n"
+			cargo-fmt -- --check || let FAIL=FAIL+1
+			printf "\n"
+		fi
+	else
+		cargo-fmt
+	fi
 	popd > /dev/null
 done
+printf "\rFormatting complete. %-$((39))s\n" ""
 
 if [[ $FAIL -ne 0 ]]; then
 	echo

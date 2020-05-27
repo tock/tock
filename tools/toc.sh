@@ -32,7 +32,7 @@ for f in $(find * -name "*.md"); do
 done
 
 # Make sure to return with an error if anything changes
-# so that Travis will fail.
+# so that CI will fail.
 if [[ $ERROR == 1 ]]; then
 	exit -1
 fi
