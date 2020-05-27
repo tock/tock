@@ -61,13 +61,13 @@ impl Kernel {
     }
 
     /// Something was scheduled for a process, so there is more work to do.
-    crate fn increment_work(&self) {
+    pub(crate) fn increment_work(&self) {
         self.work.increment();
     }
 
     /// Something finished for a process, so we decrement how much work there is
     /// to do.
-    crate fn decrement_work(&self) {
+    pub(crate) fn decrement_work(&self) {
         self.work.decrement();
     }
 
@@ -87,7 +87,7 @@ impl Kernel {
     /// different index in the processes array. Note that a match _will_ be
     /// found if the process still exists in the correct location in the array
     /// but is in any "stopped" state.
-    crate fn process_map_or<F, R>(&self, default: R, appid: AppId, closure: F) -> R
+    pub(crate) fn process_map_or<F, R>(&self, default: R, appid: AppId, closure: F) -> R
     where
         F: FnOnce(&dyn process::ProcessType) -> R,
     {
@@ -119,7 +119,7 @@ impl Kernel {
 
     /// Run a closure on every valid process. This will iterate the array of
     /// processes and call the closure on every process that exists.
-    crate fn process_each<F>(&self, closure: F)
+    pub(crate) fn process_each<F>(&self, closure: F)
     where
         F: Fn(&dyn process::ProcessType),
     {
@@ -134,7 +134,7 @@ impl Kernel {
     }
 
     /// Returns an iterator over all processes loaded by the kernel
-    crate fn get_process_iter(
+    pub(crate) fn get_process_iter(
         &self,
     ) -> core::iter::FilterMap<
         core::slice::Iter<Option<&dyn process::ProcessType>>,
@@ -175,7 +175,7 @@ impl Kernel {
     /// `FAIL`. That is, if the closure returns any other return code than
     /// `FAIL`, that value will be returned from this function and the iteration
     /// of the array of processes will stop.
-    crate fn process_until<F>(&self, closure: F) -> ReturnCode
+    pub(crate) fn process_until<F>(&self, closure: F) -> ReturnCode
     where
         F: Fn(&dyn process::ProcessType) -> ReturnCode,
     {
@@ -197,7 +197,7 @@ impl Kernel {
     /// useful if an app identifier is passed to the kernel from somewhere (such
     /// as from userspace) and needs to be expanded to a full `AppId` for use
     /// with other APIs.
-    crate fn lookup_app_by_identifier(&self, identifier: usize) -> Option<AppId> {
+    pub(crate) fn lookup_app_by_identifier(&self, identifier: usize) -> Option<AppId> {
         self.processes.iter().find_map(|&p| {
             p.map_or(None, |p2| {
                 if p2.appid().id() == identifier {
@@ -215,7 +215,7 @@ impl Kernel {
     ///
     /// This is needed for `AppId` itself to implement the `.index()` command to
     /// verify that the referenced app is still at the correct index.
-    crate fn appid_is_valid(&self, appid: &AppId) -> bool {
+    pub(crate) fn appid_is_valid(&self, appid: &AppId) -> bool {
         self.processes.get(appid.index).map_or(false, |p| {
             p.map_or(false, |process| process.appid().id() == appid.id())
         })
@@ -253,7 +253,7 @@ impl Kernel {
     ///
     /// In practice, this is called when processes are created, and the process
     /// memory is setup based on the number of current grants.
-    crate fn get_grant_count_and_finalize(&self) -> usize {
+    pub(crate) fn get_grant_count_and_finalize(&self) -> usize {
         self.grants_finalized.set(true);
         self.grant_counter.get()
     }
@@ -262,7 +262,7 @@ impl Kernel {
     ///
     /// Typically we just choose a larger number than we have used for any process
     /// before which ensures that the identifier is unique.
-    crate fn create_process_identifier(&self) -> usize {
+    pub(crate) fn create_process_identifier(&self) -> usize {
         self.process_identifier_max.get_and_increment()
     }
 
