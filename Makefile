@@ -90,10 +90,7 @@ allboards:
 
 .PHONY: allcheck
 allcheck:
-	@for f in $(ALL_BOARDS);\
-		do echo "$$(tput bold)Check $$f";\
-		$(MAKE) -C "boards/$$f" check || exit 1;\
-		done
+	cargo check
 
 .PHONY: alldoc
 alldoc:
