@@ -142,6 +142,15 @@ prepush:\
 	# If one of these error, you can run `make ci-job-NAME` to test locally.
 
 
+## Hidden convenience targets
+##
+## These are aliases often used by the core team, but are not intended to be
+## part of the official build system interface. They are subject to change at
+## any time without notice.
+.PHONY: clippy
+clippy: ci-job-clippy
+
+
 # And print some help
 #
 # https://stackoverflow.com/questions/4219255/how-do-you-get-the-list-of-targets-in-a-makefile
