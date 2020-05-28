@@ -46,7 +46,7 @@ endif
 # We use `remap-path-prefix` to remove user-specific filepath strings for error
 # reporting from appearing in the generated binary.
 RUSTC_FLAGS_TOCK ?= \
-  $(RUSTFLAGS_FOR_BOARD) \
+  $(RUSTC_FLAGS) \
   --remap-path-prefix=$(TOCK_ROOT_DIRECTORY)= \
 
 # Disallow warnings for continuous integration builds. Disallowing them here
