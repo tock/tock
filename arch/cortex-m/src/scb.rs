@@ -293,3 +293,25 @@ pub unsafe fn reset() {
 pub unsafe fn set_vector_table_offset(offset: *const ()) {
     SCB.vtor.set(offset as u32);
 }
+
+/// Disable the FPU
+#[cfg(all(target_arch = "arm", target_os = "none"))]
+pub unsafe fn disable_fpca() {
+    SCB.cpacr
+        .modify(CoprocessorAccessControl::CP10::CLEAR + CoprocessorAccessControl::CP11::CLEAR);
+
+    asm!("dsb");
+    asm!("isb");
+
+    if SCB.cpacr.read(CoprocessorAccessControl::CP10) != 0
+        || SCB.cpacr.read(CoprocessorAccessControl::CP11) != 0
+    {
+        panic!("Unable to disable FPU");
+    }
+}
+
+// Mock implementation for tests on Travis-CI.
+#[cfg(not(any(target_arch = "arm", target_os = "none")))]
+pub unsafe fn disable_fpca() {
+    unimplemented!()
+}
