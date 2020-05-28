@@ -146,7 +146,7 @@ OBJCOPY_FLAGS ?= -S
 # the Cargo build command. For example, in boards/<custom_board>/Makefile:
 # `CARGO_FLAGS += --features=foo` would pass feature `foo` to the top level
 # Cargo.toml.
-CARGO_OPTIONS ?=
+CARGO_FLAGS ?=
 # Add default flags to cargo. Boards can add additional options in CARGO_OPTIONS
 CARGO_FLAGS ?= $(VERBOSE) --target=$(TARGET) --package $(PLATFORM) --target-dir=$(TARGET_DIRECTORY) $(CARGO_OPTIONS)
 # Set the default flags we need for objdump to get a .lst file.
