@@ -42,7 +42,7 @@ endif
 
 # RUSTC_FLAGS_TOCK by default extends RUSTC_FLAGS with options
 # that are global to all Tock boards.
-# for board's makefile to change in case of common changes.
+#
 # We use `remap-path-prefix` to remove user-specific filepath strings for error
 # reporting from appearing in the generated binary.
 RUSTFLAGS_FOR_CARGO ?= \
