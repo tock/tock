@@ -6,6 +6,7 @@ use core::hint::unreachable_unchecked;
 use kernel;
 use kernel::common::registers::FieldValue;
 use kernel::debug;
+use kernel::Chip;
 use rv32i::csr::{mcause, mie::mie, mip::mip, mtvec::mtvec, CSR};
 use rv32i::syscall::SysCall;
 
@@ -58,6 +59,39 @@ impl Ibex {
             }
             plic::complete(interrupt);
         }
+    }
+
+    /// Run a function in an interruptable loop.
+    ///
+    /// The function will run until it returns true, an interrupt occurs or if
+    /// `max_tries` is not `None` and that limit is reached.
+    /// If the function returns true this call will also return true. If an
+    /// interrupt occurs or `max_tries` is reached this call will return false.
+    fn check_until_true_or_interrupt<F>(&self, f: F, max_tries: Option<usize>) -> bool
+    where
+        F: Fn() -> bool,
+    {
+        match max_tries {
+            Some(t) => {
+                for _i in 0..t {
+                    if self.has_pending_interrupts() {
+                        return false;
+                    }
+                    if f() {
+                        return true;
+                    }
+                }
+            }
+            None => {
+                while !self.has_pending_interrupts() {
+                    if f() {
+                        return true;
+                    }
+                }
+            }
+        }
+
+        false
     }
 }
 
