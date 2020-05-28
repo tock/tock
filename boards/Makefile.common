@@ -143,7 +143,7 @@ OBJDUMP   ?= $(TOOLCHAIN)-objdump
 # Set additional flags to produce binary from .elf
 OBJCOPY_FLAGS ?= -S
 # This make variable allows board-specific Makefiles to pass down options to
-# the Cargo build command. For example, in board/<custom_board>/Makefile:
+# the Cargo build command. For example, in boards/<custom_board>/Makefile:
 # `CARGO_OPTIONS += --features=foo` would pass feature `foo` to the top level
 # Cargo.toml.
 CARGO_OPTIONS ?=
