@@ -103,6 +103,7 @@ alldoc:
 # Commands
 .PHONY: fmt format
 fmt format: tools/.format_fresh
+	$(call banner,Formatting complete)
 
 # Get a list of all rust source files (everything fmt operates on)
 $(eval RUST_FILES_IN_TREE := $(shell git ls-files | grep '\.rs$$'))
@@ -133,7 +134,7 @@ ci-all:\
 # This is designed for developers, to be run often and before submitting code upstream.
 .PHONY: prepush
 prepush:\
-	ci-job-format\
+	format\
 	ci-job-syntax\
 	ci-job-clippy
 	$(call banner,Pre-Push checks all passed!)
