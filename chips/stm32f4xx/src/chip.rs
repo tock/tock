@@ -32,6 +32,7 @@ impl Chip for Stm32f4xx {
     type MPU = cortexm4::mpu::MPU;
     type UserspaceKernelBoundary = cortexm4::syscall::SysCall;
     type SysTick = cortexm4::systick::SysTick;
+    type WatchDog = ();
 
     fn service_pending_interrupts(&self) {
         unsafe {
@@ -100,6 +101,10 @@ impl Chip for Stm32f4xx {
 
     fn systick(&self) -> &cortexm4::systick::SysTick {
         &self.systick
+    }
+
+    fn watchdog(&self) -> &Self::WatchDog {
+        &()
     }
 
     fn userspace_kernel_boundary(&self) -> &cortexm4::syscall::SysCall {

@@ -14,6 +14,7 @@ use crate::ipc;
 use crate::memop;
 use crate::platform::mpu::MPU;
 use crate::platform::systick::SysTick;
+use crate::platform::watchdog::WatchDog;
 use crate::platform::{Chip, Platform};
 use crate::process::{self, Task};
 use crate::returncode::ReturnCode;
@@ -292,12 +293,15 @@ impl Kernel {
         ipc: Option<&ipc::IPC>,
         _capability: &dyn capabilities::MainLoopCapability,
     ) {
+        chip.watchdog().setup();
         loop {
+            chip.watchdog().tickle();
             unsafe {
                 chip.service_pending_interrupts();
                 DynamicDeferredCall::call_global_instance_while(|| !chip.has_pending_interrupts());
 
                 for p in self.processes.iter() {
+                    chip.watchdog().tickle();
                     p.map(|process| {
                         self.do_process(platform, chip, process, ipc);
                     });
@@ -313,7 +317,9 @@ impl Kernel {
                         && !DynamicDeferredCall::global_instance_calls_pending().unwrap_or(false)
                         && self.processes_blocked()
                     {
+                        chip.watchdog().suspend();
                         chip.sleep();
+                        chip.watchdog().resume();
                     }
                 });
             };

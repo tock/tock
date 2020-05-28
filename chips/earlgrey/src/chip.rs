@@ -107,12 +107,17 @@ impl kernel::Chip for EarlGrey {
     type MPU = rv32i::pmp::PMPConfig;
     type UserspaceKernelBoundary = SysCall;
     type SysTick = ();
+    type WatchDog = ();
 
     fn mpu(&self) -> &Self::MPU {
         &self.pmp
     }
 
     fn systick(&self) -> &Self::SysTick {
+        &()
+    }
+
+    fn watchdog(&self) -> &Self::WatchDog {
         &()
     }
 

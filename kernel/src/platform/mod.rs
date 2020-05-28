@@ -8,6 +8,7 @@ use core::fmt::Write;
 
 pub mod mpu;
 pub(crate) mod systick;
+pub mod watchdog;
 
 /// Interface for individual boards.
 ///
@@ -82,6 +83,10 @@ pub trait Chip {
     /// to applications.
     type SysTick: systick::SysTick;
 
+    /// The implementation of the WatchDog timer used to monitor the running
+    /// of the kernel.
+    type WatchDog: watchdog::WatchDog;
+
     /// The kernel calls this function to tell the chip to check for all pending
     /// interrupts and to correctly dispatch them to the peripheral drivers for
     /// the chip.
@@ -100,6 +105,9 @@ pub trait Chip {
     /// Returns a reference to the implementation of the systick timer for this
     /// chip.
     fn systick(&self) -> &Self::SysTick;
+
+    /// Returns a reference to the implementation for the WatchDog on this chip.
+    fn watchdog(&self) -> &Self::WatchDog;
 
     /// Returns a reference to the implementation for the interface between
     /// userspace and kernelspace.

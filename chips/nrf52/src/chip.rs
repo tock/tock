@@ -30,6 +30,7 @@ impl<I: InterruptService> kernel::Chip for NRF52<I> {
     type MPU = cortexm4::mpu::MPU;
     type UserspaceKernelBoundary = cortexm4::syscall::SysCall;
     type SysTick = cortexm4::systick::SysTick;
+    type WatchDog = ();
 
     fn mpu(&self) -> &Self::MPU {
         &self.mpu
@@ -37,6 +38,10 @@ impl<I: InterruptService> kernel::Chip for NRF52<I> {
 
     fn systick(&self) -> &Self::SysTick {
         &self.systick
+    }
+
+    fn watchdog(&self) -> &Self::WatchDog {
+        &()
     }
 
     fn userspace_kernel_boundary(&self) -> &Self::UserspaceKernelBoundary {
