@@ -106,7 +106,7 @@ fmt format: tools/.format_fresh
 	$(call banner,Formatting complete)
 
 # Get a list of all rust source files (everything fmt operates on)
-$(eval RUST_FILES_IN_TREE := $(shell git ls-files | grep '\.rs$$'))
+$(eval RUST_FILES_IN_TREE := $(shell (git ls-files | grep '\.rs$$') || find . -type f -name '*.rs'))
 tools/.format_fresh: $(RUST_FILES_IN_TREE)
 	@./tools/run_cargo_fmt.sh $(TOCK_FORMAT_MODE)
 	@touch tools/.format_fresh
