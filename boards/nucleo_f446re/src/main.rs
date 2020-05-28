@@ -6,7 +6,6 @@
 // Disable this attribute when documenting, as a workaround for
 // https://github.com/rust-lang/rust/issues/62184.
 #![cfg_attr(not(doc), no_main)]
-#![feature(asm)]
 #![deny(missing_docs)]
 
 use capsules::virtual_alarm::VirtualMuxAlarm;
