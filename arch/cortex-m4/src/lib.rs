@@ -54,6 +54,9 @@ pub unsafe extern "C" fn systick_handler() {
     // Set thread mode to privileged to switch back to kernel mode.
     mov r0, #0
     msr CONTROL, r0
+    /* CONTROL writes must be followed by ISB */
+    /* http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.dai0321a/BIHFJCAC.html */
+    isb
 
     movw LR, #0xFFF9
     movt LR, #0xFFFF
@@ -88,6 +91,9 @@ pub unsafe extern "C" fn generic_isr() {
     // was executing.
     mov r0, #0
     msr CONTROL, r0
+    /* CONTROL writes must be followed by ISB */
+    /* http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.dai0321a/BIHFJCAC.html */
+    isb
 
     // This is a special address to return Thread mode with Main stack
     movw LR, #0xFFF9
@@ -198,6 +204,9 @@ pub unsafe extern "C" fn svc_handler() {
     // application. Set thread mode to unprivileged to run the application.
     mov r0, #1
     msr CONTROL, r0
+    /* CONTROL writes must be followed by ISB */
+    /* http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.dai0321a/BIHFJCAC.html */
+    isb
 
     // This is a special address to return Thread mode with Process stack
     movw lr, #0xfffd
@@ -217,6 +226,9 @@ pub unsafe extern "C" fn svc_handler() {
     // Set thread mode to privileged as we switch back to the kernel.
     mov r0, #0
     msr CONTROL, r0
+    /* CONTROL writes must be followed by ISB */
+    /* http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.dai0321a/BIHFJCAC.html */
+    isb
 
     // This is a special address to return Thread mode with Main stack
     movw LR, #0xFFF9
@@ -474,6 +486,9 @@ pub unsafe extern "C" fn hard_fault_handler() {
               /* Set thread mode to privileged */
               mov r0, #0
               msr CONTROL, r0
+              /* CONTROL writes must be followed by ISB */
+              /* http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.dai0321a/BIHFJCAC.html */
+              isb
 
               movw LR, #0xFFF9
               movt LR, #0xFFFF"

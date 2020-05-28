@@ -49,6 +49,9 @@ pub unsafe extern "C" fn systick_handler() {
     /* Set thread mode to privileged */
     mov r0, #0
     msr CONTROL, r0
+    /* CONTROL writes must be followed by ISB */
+    /* http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.dai0321a/BIHFJCAC.html */
+    isb
 
     movw LR, #0xFFF9
     movt LR, #0xFFFF"
@@ -81,6 +84,9 @@ pub unsafe extern "C" fn generic_isr() {
     /* Set thread mode to privileged */
     mov r0, #0
     msr CONTROL, r0
+    /* CONTROL writes must be followed by ISB */
+    /* http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.dai0321a/BIHFJCAC.html */
+    isb
 
     movw LR, #0xFFF9
     movt LR, #0xFFFF
@@ -148,6 +154,9 @@ pub unsafe extern "C" fn svc_handler() {
     /* Set thread mode to unprivileged */
     mov r0, #1
     msr CONTROL, r0
+    /* CONTROL writes must be followed by ISB */
+    /* http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.dai0321a/BIHFJCAC.html */
+    isb
 
     movw lr, #0xfffd
     movt lr, #0xffff
@@ -160,6 +169,9 @@ pub unsafe extern "C" fn svc_handler() {
     /* Set thread mode to privileged */
     mov r0, #0
     msr CONTROL, r0
+    /* CONTROL writes must be followed by ISB */
+    /* http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.dai0321a/BIHFJCAC.html */
+    isb
 
     movw LR, #0xFFF9
     movt LR, #0xFFFF
@@ -403,6 +415,9 @@ pub unsafe extern "C" fn hard_fault_handler() {
               /* Set thread mode to privileged */
               mov r0, #0
               msr CONTROL, r0
+              /* CONTROL writes must be followed by ISB */
+              /* http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.dai0321a/BIHFJCAC.html */
+              isb
 
               movw LR, #0xFFF9
               movt LR, #0xFFFF"

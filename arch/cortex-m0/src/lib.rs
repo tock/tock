@@ -334,6 +334,8 @@ _hardfault_exit:
              /* Set thread mode to privileged */
              movs r0, #0
              msr CONTROL, r0
+             /* No ISB required on M0 */
+             /* http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.dai0321a/BIHFJCAC.html */
 
              ldr r0, FEXC_RETURN_MSP
              bx r0
