@@ -105,8 +105,13 @@ alldoc:
 
 # Commands
 .PHONY: fmt format
-fmt format:
-	@./tools/run_cargo_fmt.sh
+fmt format: tools/.format_fresh
+
+# Get a list of all rust source files (everything fmt operates on)
+$(eval RUST_FILES_IN_TREE := $(shell git ls-files | grep '\.rs$$'))
+tools/.format_fresh: $(RUST_FILES_IN_TREE)
+	@./tools/run_cargo_fmt.sh $(TOCK_FORMAT_MODE)
+	@touch tools/.format_fresh
 
 .PHONY: clean
 clean:
@@ -247,7 +252,7 @@ ci-runner-netlify:\
 .PHONY: ci-job-format
 ci-job-format:
 	$(call banner,CI-Job: Format Check)
-	@CI=true ./tools/run_cargo_fmt.sh diff
+	@CI=true TOCK_FORMAT_MODE=diff $(MAKE) format
 
 .PHONY: ci-job-clippy
 ci-job-clippy:

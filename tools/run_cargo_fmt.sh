@@ -50,10 +50,27 @@ set +e
 let FAIL=0
 set -e
 
+# Get the list of files in the workspace to avoid formatting
+# them twice
+csplit Cargo.toml '/exclude = \[/' > /dev/null
+rm xx01
+
 # Find folders with Cargo.toml files in them and run `cargo fmt`.
 for f in $(find . | grep Cargo.toml); do
-	printf "\rFormatting %-$((39))s" $(dirname $f)
-	pushd $(dirname $f) > /dev/null
+	if [ $f == './Cargo.toml' ]; then
+		printf "\rFormatting Workspace"
+		dir='.'
+	else
+		dir=$(dirname $f)
+		dir=${dir:2} # strip leading ./
+		if grep -q '"'$dir'"' xx00; then
+			continue
+		fi
+
+		printf "\rFormatting %-$((39))s" $dir
+	fi
+
+	pushd $dir > /dev/null
 	if [ "$1" == "diff" ]; then
 		# If diff mode, two-pass the check to make pretty-print work
 		if ! cargo-fmt -q -- --check; then
@@ -66,6 +83,7 @@ for f in $(find . | grep Cargo.toml); do
 	fi
 	popd > /dev/null
 done
+rm xx00
 printf "\rFormatting complete. %-$((39))s\n" ""
 
 if [[ $FAIL -ne 0 ]]; then
