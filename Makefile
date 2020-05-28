@@ -41,6 +41,7 @@ usage:
 	@echo "          alldoc: Builds Tock documentation for all boards"
 	@echo "           clean: Clean all builds"
 	@echo "          format: Runs the rustfmt tool on all kernel sources"
+	@echo "            list: Lists available boards"
 	@echo
 	@echo "The make system also drives all continuous integration and testing:"
 	@echo "         $$(tput bold)prepush$$(tput sgr0): Fast checks to run before pushing changes upstream"
@@ -73,7 +74,7 @@ endef
 ## User convenience targets
 ##
 
-# Aggregate targets
+## Aggregate targets
 .PHONY: allaudit
 audit:
 	@for f in `./tools/list_lock.sh`;\
@@ -100,7 +101,17 @@ alldoc:
 		done
 
 
-# Commands
+## Commands
+.PHONY: clean
+clean:
+	@echo "$$(tput bold)Clean top-level Cargo workspace" && cargo clean
+	@for f in `./tools/list_tools.sh`;\
+		do echo "$$(tput bold)Clean tools/$$f";\
+		cargo clean --manifest-path "tools/$$f/Cargo.toml" || exit 1;\
+		done
+	@echo "$$(tput bold)Clean rustdoc" && rm -rf doc/rustdoc
+	@echo "$$(tput bold)Clean ci-artifacts" && rm -rf ./ci-artifacts
+
 .PHONY: fmt format
 fmt format: tools/.format_fresh
 	$(call banner,Formatting complete)
@@ -111,15 +122,15 @@ tools/.format_fresh: $(RUST_FILES_IN_TREE)
 	@./tools/run_cargo_fmt.sh $(TOCK_FORMAT_MODE)
 	@touch tools/.format_fresh
 
-.PHONY: clean
-clean:
-	@echo "$$(tput bold)Clean top-level Cargo workspace" && cargo clean
-	@for f in `./tools/list_tools.sh`;\
-		do echo "$$(tput bold)Clean tools/$$f";\
-		cargo clean --manifest-path "tools/$$f/Cargo.toml" || exit 1;\
-		done
-	@echo "$$(tput bold)Clean rustdoc" && rm -rf doc/rustdoc
-	@echo "$$(tput bold)Clean ci-artifacts" && rm -rf ./ci-artifacts
+.PHONY: list
+list:
+	@echo "Supported Tock Boards:"
+	@for f in $(ALL_BOARDS); do printf " - $$f\n"; done
+	@echo
+	@echo "To build the kernel for a particular board, change to that directory"
+	@echo "and run make:"
+	@echo "    cd boards/hail"
+	@echo "    make"
 
 
 ## Meta-Targets
