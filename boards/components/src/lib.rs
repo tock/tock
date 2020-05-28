@@ -11,6 +11,7 @@ pub mod gpio;
 pub mod hd44780;
 pub mod hmac;
 pub mod i2c;
+pub mod ieee802154;
 pub mod isl29035;
 pub mod l3gd20;
 pub mod led;

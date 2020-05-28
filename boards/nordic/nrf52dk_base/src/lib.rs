@@ -15,7 +15,6 @@ use nrf52::uicr::Regulator0Output;
 
 pub mod nrf52_components;
 use nrf52_components::ble::BLEComponent;
-use nrf52_components::ieee802154::Ieee802154Component;
 
 // Constants related to the configuration of the 15.4 network stack
 const SRC_MAC: u16 = 0xf00f;
@@ -223,13 +222,17 @@ pub unsafe fn setup_board<I: nrf52::interrupt_service::InterruptService>(
         BLEComponent::new(board_kernel, &nrf52::ble_radio::RADIO, mux_alarm).finalize(());
 
     let ieee802154_radio = if ieee802154 {
-        let (radio, _) = Ieee802154Component::new(
+        let (radio, _mux_mac) = components::ieee802154::Ieee802154Component::new(
             board_kernel,
             &nrf52::ieee802154_radio::RADIO,
+            &nrf52::aes::AESECB,
             PAN_ID,
             SRC_MAC,
         )
-        .finalize(());
+        .finalize(components::ieee802154_component_helper!(
+            nrf52::ieee802154_radio::Radio,
+            nrf52::aes::AesECB<'static>
+        ));
         Some(radio)
     } else {
         None

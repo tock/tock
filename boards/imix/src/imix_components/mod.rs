@@ -1,6 +1,5 @@
 pub mod adc;
 pub mod fxos8700;
-pub mod radio;
 pub mod rf233;
 pub mod test;
 pub mod udp_driver;
@@ -9,7 +8,6 @@ pub mod usb;
 
 pub use self::adc::AdcComponent;
 pub use self::fxos8700::NineDofComponent;
-pub use self::radio::RadioComponent;
 pub use self::rf233::RF233Component;
 pub use self::udp_driver::UDPDriverComponent;
 pub use self::udp_mux::UDPMuxComponent;
