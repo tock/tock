@@ -448,6 +448,14 @@ impl<'a> Uarte<'a> {
         self.set_tx_dma_pointer_to_buffer();
 
         let regs = &*self.registers;
+
+        // Make sure we clear the endtx interrupt since that is what we rely on
+        // to know when the DMA TX finishes. Normally, we clear this interrupt
+        // as we handle it, so this is not necessary. However, a bootloader (or
+        // some other startup code) may have setup TX interrupts, and there may
+        // be one pending. We clear it to be safe.
+        regs.event_endtx.write(Event::READY::CLEAR);
+
         regs.txd_maxcnt
             .write(Counter::COUNTER.val(min(tx_len as u32, UARTE_MAX_BUFFER_SIZE)));
         regs.task_starttx.write(Task::ENABLE::SET);
