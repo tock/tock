@@ -952,7 +952,8 @@ impl<'a> Usbc<'a> {
                         };
 
                         match result {
-                            Some(hil::usb::CtrlSetupResult::Ok) => {
+                            Some(hil::usb::CtrlSetupResult::Ok)
+                            | Some(hil::usb::CtrlSetupResult::OkSetAddress) => {
                                 // Unsubscribe from SETUP interrupts
                                 endpoint_disable_interrupts(endpoint, EndpointControl::RXSTPE::SET);
 
