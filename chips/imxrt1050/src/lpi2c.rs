@@ -426,7 +426,7 @@ register_bitfields![u32,
 	]
 ];
 
-const Lpi2c1_BASE: StaticRef<Lpi2cRegisters> =
+const LPI2C1_BASE: StaticRef<Lpi2cRegisters> =
     unsafe { StaticRef::new(0x403F_0000 as *const Lpi2cRegisters) };
 
 pub struct Lpi2c<'a> {
@@ -457,7 +457,7 @@ enum Lpi2cStatus {
 }
 
 pub static mut LPI2C1: Lpi2c = Lpi2c::new(
-    Lpi2c1_BASE,
+    LPI2C1_BASE,
     Lpi2cClock(ccm::PeripheralClock::CCGR2(ccm::HCLK2::LPI2C1)),
 );
 

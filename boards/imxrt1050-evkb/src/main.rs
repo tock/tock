@@ -59,7 +59,7 @@ static APP_HACK: u8 = 0;
 #[link_section = ".stack_buffer"]
 pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 
-const NUM_LEDS: usize = 1;
+// const NUM_LEDS: usize = 1;
 
 /// A structure representing this platform that holds references to all
 /// capsules for this platform.
@@ -126,7 +126,8 @@ impl Platform for Imxrt1050EVKB {
 unsafe fn set_pin_primary_functions() {
     // use kernel::hil::gpio::Configure;
     // use stm32f4xx::exti::{LineId, EXTI};
-    use imxrt1050::gpio::{PinId, PortId, PORT};
+    use imxrt1050::gpio::{PinId, PORT};
+    // use imxrt1050::iomuxc::PortId;
     // use stm32f4xx::syscfg::SYSCFG;
     use imxrt1050::ccm::CCM;
 
@@ -134,10 +135,10 @@ unsafe fn set_pin_primary_functions() {
     CCM.enable_gpio1_clock();
     // SYSCFG.enable_clock();
 
-    PORT[PortId::P1 as usize].enable_clock();
+    PORT[0].enable_clock();
 
     // User_LED is connected to P1_09. Configure P1_09 as `debug_gpio!(0, ...)`
-    PinId::P1_09.get_pin().as_ref().map(|pin| {
+    PinId::AdB0_09.get_pin().as_ref().map(|pin| {
         pin.make_output();
 
         // Configure kernel debug gpios as early as possible
@@ -233,12 +234,34 @@ pub unsafe fn reset_handler() {
     );
     CHIP = Some(chip);
 
-    // LPUART
+    // LPUART1
+    use imxrt1050::iomuxc::PadId;
+    use imxrt1050::iomuxc::MuxMode;
+    use imxrt1050::iomuxc::Sion;
+    use imxrt1050::iomuxc::PullUpDown;
+    use imxrt1050::iomuxc::PullKeepEn;
+    use imxrt1050::iomuxc::OpenDrainEn;
+    use imxrt1050::iomuxc::Speed;
+    use imxrt1050::iomuxc::DriveStrength;
 
     // Enable tx and rx from iomuxc
-    imxrt1050::iomuxc::IOMUXC.enable_lpuart1_tx();
-    imxrt1050::iomuxc::IOMUXC.enable_lpuart1_rx();
-    imxrt1050::iomuxc::IOMUXC.set_pin_config_lpuart1();
+    // TX is on pad GPIO_AD_B0_12
+    // RX is on pad GPIO_AD_B0_13
+    imxrt1050::iomuxc::IOMUXC.enable_sw_mux_ctl_pad_gpio(PadId::AdB0, MuxMode::ALT2, Sion::Disabled, 13);
+    imxrt1050::iomuxc::IOMUXC.enable_sw_mux_ctl_pad_gpio(PadId::AdB0, MuxMode::ALT2, Sion::Disabled, 14);
+
+    imxrt1050::iomuxc::IOMUXC.configure_sw_pad_ctl_pad_gpio(PadId::AdB0, 13, 
+                                PullUpDown::Pus0_100kOhmPullDown,
+                                PullKeepEn::Pke1PullKeeperEnabled, 
+                                OpenDrainEn::Ode0OpenDrainDisabled,
+                                Speed::Medium2, 
+                                DriveStrength::DSE6);
+    imxrt1050::iomuxc::IOMUXC.configure_sw_pad_ctl_pad_gpio(PadId::AdB0, 14, 
+                                PullUpDown::Pus0_100kOhmPullDown,
+                                PullKeepEn::Pke1PullKeeperEnabled, 
+                                OpenDrainEn::Ode0OpenDrainDisabled,
+                                Speed::Medium2, 
+                                DriveStrength::DSE6);
 
     // Enable clock
     imxrt1050::lpuart::LPUART1.enable_clock();
@@ -289,7 +312,7 @@ pub unsafe fn reset_handler() {
     // Clock to Port A is enabled in `set_pin_primary_functions()
     let led = components::led::LedsComponent::new().finalize(components::led_component_helper!(
         (
-            imxrt1050::gpio::PinId::P1_09.get_pin().as_ref().unwrap(),
+            imxrt1050::gpio::PinId::AdB0_09.get_pin().as_ref().unwrap(),
             kernel::hil::gpio::ActivationMode::ActiveLow
         )
     ));
@@ -367,7 +390,7 @@ pub unsafe fn reset_handler() {
     // );
     // sensor_accelerometer_i2c.set_client(lsm303dlhc);
     // sensor_magnetometer_i2c.set_client(lsm303dlhc);
-    let mux_i2c = components::i2c::I2CMuxComponent::new(&imxrt1050::lpi2c::LPI2C1)
+    let _mux_i2c = components::i2c::I2CMuxComponent::new(&imxrt1050::lpi2c::LPI2C1)
         .finalize(components::i2c_mux_component_helper!());
 
     // let lsm303dlhc = components::lsm303dlhc::Lsm303dlhcI2CComponent::new()
@@ -400,7 +423,7 @@ pub unsafe fn reset_handler() {
     // // See comment in `boards/imix/src/main.rs`
     // virtual_uart_rx_test::run_virtual_uart_receive(mux_uart);
 
-    // let pin = imxrt1050::gpio::PinId::P1_09.get_pin().as_ref().unwrap();
+    // let pin = imxrt1050::gpio::PinId::AdB0_09.get_pin().as_ref().unwrap();
     // pin.make_output();
     // pin.clear();
 
