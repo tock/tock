@@ -300,15 +300,7 @@ impl<'a> Uarte<'a> {
             let tx_bytes = regs.txd_amount.get() as usize;
 
             let rem = match self.tx_remaining_bytes.get().checked_sub(tx_bytes) {
-                None => {
-                    debug!(
-                        "Error more bytes transmitted than requested\n \
-                         remaining: {} \t transmitted: {}",
-                        self.tx_remaining_bytes.get(),
-                        tx_bytes
-                    );
-                    return;
-                }
+                None => return,
                 Some(r) => r,
             };
 
