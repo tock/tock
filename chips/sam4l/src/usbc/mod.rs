@@ -1043,11 +1043,15 @@ impl Usbc<'a> {
                                 packet_bytes,
                                 transfer_complete,
                             )) => {
-                                let packet_size = if packet_bytes == 8 && transfer_complete {
+                                // Check if the entire buffer is full, and
+                                // handle that case slightly differently. Note,
+                                // this depends on the length of the buffer
+                                // used. Right now, that is 64 bytes.
+                                let packet_size = if packet_bytes == 64 && transfer_complete {
                                     // Send a complete final packet, and request
                                     // that the controller also send a zero-length
                                     // packet to signal the end of transfer
-                                    PacketSize::BYTE_COUNT.val(8) + PacketSize::AUTO_ZLP::Yes
+                                    PacketSize::BYTE_COUNT.val(64) + PacketSize::AUTO_ZLP::Yes
                                 } else {
                                     // Send either a complete but not-final
                                     // packet, or a short and final packet (which
