@@ -24,11 +24,11 @@ pub mod iomuxc;
 // pub mod syscfg;
 pub mod gpt1;
 pub mod lpuart;
-pub mod usart;
+// pub mod usart;
 pub mod lpi2c;
 
 use cortexm7::{generic_isr, hard_fault_handler, svc_handler, systick_handler};
-use cortexm::scb::{set_vector_table_offset};
+// use cortexm::scb::{set_vector_table_offset};
 
 #[cfg(not(any(target_arch = "arm", target_os = "none")))]
 unsafe extern "C" fn unhandled_interrupt() {

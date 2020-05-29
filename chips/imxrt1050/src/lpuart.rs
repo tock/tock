@@ -5,7 +5,7 @@ use kernel::common::StaticRef;
 use kernel::hil;
 use kernel::ClockInterface;
 use kernel::ReturnCode;
-use cortex_m_semihosting::{hprintln};
+// use cortex_m_semihosting::{hprintln};
 
 use crate::ccm;
 
@@ -479,7 +479,6 @@ impl Lpuart<'a> {
 
         if self.registers.stat.is_set(STAT::RDRF) {
             let byte = self.registers.data.get() as u8;
-            hprintln!("Am primit un byte! {}", byte).unwrap();
 
             self.disable_receive_interrupt();
 
@@ -553,7 +552,7 @@ impl hil::uart::Transmit<'a> for Lpuart<'a> {
 	        tx_data: &'static mut [u8],
 	        tx_len: usize,
 	    ) -> (ReturnCode, Option<&'static mut [u8]>) {
-            hprintln!("E in transmit!").unwrap();
+
 			if self.tx_status.get() == LPUARTStateTX::Idle {
 				if tx_len <= tx_data.len() {
 					self.tx_buffer.put(Some(tx_data));
@@ -687,7 +686,7 @@ impl hil::uart::Receive<'a> for Lpuart<'a> {
         rx_buffer: &'static mut [u8],
         rx_len: usize,
     ) -> (ReturnCode, Option<&'static mut [u8]>) {
-        hprintln!("E in receive buffer!").unwrap();
+
         if self.rx_status.get() == USARTStateRX::Idle {
             if rx_len <= rx_buffer.len() {
                 self.rx_buffer.put(Some(rx_buffer));

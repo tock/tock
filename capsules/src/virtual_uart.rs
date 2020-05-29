@@ -42,7 +42,6 @@
 use core::cell::Cell;
 use core::cmp;
 
-use kernel::debug;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::common::dynamic_deferred_call::{
     DeferredCallHandle, DynamicDeferredCall, DynamicDeferredCallClient,

@@ -1,5 +1,3 @@
-use cortexm7;
-use cortexm7::support::atomic;
 use enum_primitive::cast::FromPrimitive;
 use enum_primitive::enum_from_primitive;
 use kernel::common::cells::OptionalCell;
@@ -7,10 +5,17 @@ use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOn
 use kernel::common::StaticRef;
 use kernel::hil;
 use kernel::ClockInterface;
+use kernel::debug;
 
 // use crate::exti;
 use crate::ccm;
 use crate::iomuxc;
+use crate::iomuxc::PadId;
+use crate::iomuxc::PullUpDown;
+use crate::iomuxc::PullKeepEn;
+use crate::iomuxc::OpenDrainEn;
+use crate::iomuxc::Speed;
+use crate::iomuxc::DriveStrength;
 
 /// General-purpose I/Os
 #[repr(C)]
@@ -422,119 +427,140 @@ const GPIO4_BASE: StaticRef<GpioRegisters> =
 const GPIO5_BASE: StaticRef<GpioRegisters> =
     unsafe { StaticRef::new(0x400C0000 as *const GpioRegisters) };
 
-#[repr(u32)]
-pub enum PortId {
-    P1 = 0b000,
-    P2 = 0b001,
-    P3 = 0b010,
-    P4 = 0b011,
-    P5 = 0b100,
-}
-
-
 // Name of the GPIO pins 
 #[rustfmt::skip]
-#[repr(u8)]
+#[repr(u16)]
 #[derive(Copy, Clone)]
 pub enum PinId {
-    P1_00 = 0b00000000, P1_01 = 0b00000001, P1_02 = 0b00000010, P1_03 = 0b00000011,
-    P1_04 = 0b00000100, P1_05 = 0b00000101, P1_06 = 0b00000110, P1_07 = 0b00000111,
-    P1_08 = 0b00001000, P1_09 = 0b00001001, P1_10 = 0b00001010, P1_11 = 0b00001011,
-    P1_12 = 0b00001100, P1_13 = 0b00001101, P1_14 = 0b00001110, P1_15 = 0b00001111,
-    P1_16 = 0b00010000, P1_17 = 0b00010001, P1_18 = 0b00010010, P1_19 = 0b00010011,
-    P1_20 = 0b00010100, P1_21 = 0b00010101, P1_22 = 0b00010110, P1_23 = 0b00010111,
-    P1_24 = 0b00011000, P1_25 = 0b00011001, P1_26 = 0b00011010, P1_27 = 0b00011011,
-    P1_28 = 0b00011100, P1_29 = 0b00011101, P1_30 = 0b00011110, P1_31 = 0b00011111,
+    Emc00 = 0b000000000, Emc01 = 0b000000001, Emc02 = 0b000000010, Emc03 = 0b0000000011,
+    Emc04 = 0b000000100, Emc05 = 0b000000101, Emc06 = 0b000000110, Emc07 = 0b000000111,
+    Emc08 = 0b000001000, Emc09 = 0b000001001, Emc10 = 0b000001010, Emc11 = 0b000001011,
+    Emc12 = 0b000001100, Emc13 = 0b000001101, Emc14 = 0b000001110, Emc15 = 0b000001111,
+    Emc16 = 0b000010000, Emc17 = 0b000010001, Emc18 = 0b000010010, Emc19 = 0b000010011,
+    Emc20 = 0b000010100, Emc21 = 0b000010101, Emc22 = 0b000010110, Emc23 = 0b000010111,
+    Emc24 = 0b000011000, Emc25 = 0b000011001, Emc26 = 0b000011010, Emc27 = 0b000011011,
+    Emc28 = 0b000011100, Emc29 = 0b000011101, Emc30 = 0b000011110, Emc31 = 0b000011111,
+    Emc32 = 0b000100000, Emc33 = 0b000100001, Emc34 = 0b000100010, Emc35 = 0b000100011,
+    Emc36 = 0b000100100, Emc37 = 0b000100101, Emc38 = 0b000100110, Emc39 = 0b000100111,
+    Emc40 = 0b000101000, Emc41 = 0b000101001, 
 
-    P2_00 = 0b00100000, P2_01 = 0b00100001, P2_02 = 0b00100010, P2_03 = 0b00100011,
-    P2_04 = 0b00100100, P2_05 = 0b00100101, P2_06 = 0b00100110, P2_07 = 0b00100111,
-    P2_08 = 0b00101000, P2_09 = 0b00101001, P2_10 = 0b00101010, P2_11 = 0b00101011,
-    P2_12 = 0b00101100, P2_13 = 0b00101101, P2_14 = 0b00101110, P2_15 = 0b00101111,
-    P2_16 = 0b00110000, P2_17 = 0b00110001, P2_18 = 0b00110010, P2_19 = 0b00110011,
-    P2_20 = 0b00110100, P2_21 = 0b00110101, P2_22 = 0b00110110, P2_23 = 0b00110111,
-    P2_24 = 0b00111000, P2_25 = 0b00111001, P2_26 = 0b00111010, P2_27 = 0b00111011,
-    P2_28 = 0b00111100, P2_29 = 0b00111101, P2_30 = 0b00111110, P2_31 = 0b00111111,
+    AdB0_00 = 0b001000000, AdB0_01 = 0b001000001, AdB0_02 = 0b001000010, AdB0_03 = 0b001000011,
+    AdB0_04 = 0b001000100, AdB0_05 = 0b001000101, AdB0_06 = 0b001000110, AdB0_07 = 0b001000111,
+    AdB0_08 = 0b001001000, AdB0_09 = 0b001001001, AdB0_10 = 0b001001010, AdB0_11 = 0b001001011,
+    AdB0_12 = 0b001001100, AdB0_13 = 0b001001101, AdB0_14 = 0b001001110, AdB0_15 = 0b001001111,
+    
+    AdB1_00 = 0b010000000, AdB1_01 = 0b010000001, AdB1_02 = 0b010000010, AdB1_03 = 0b010000011,
+    AdB1_04 = 0b010000100, AdB1_05 = 0b010000101, AdB1_06 = 0b010000110, AdB1_07 = 0b010000111,
+    AdB1_08 = 0b010001000, AdB1_09 = 0b010001001, AdB1_10 = 0b010001010, AdB1_11 = 0b010001011,
+    AdB1_12 = 0b010001100, AdB1_13 = 0b010001101, AdB1_14 = 0b010001110, AdB1_15 = 0b010001111,
 
-    P3_00 = 0b01000000, P3_01 = 0b01000001, P3_02 = 0b01000010, P3_03 = 0b01000011,
-    P3_04 = 0b01000100, P3_05 = 0b01000101, P3_06 = 0b01000110, P3_07 = 0b01000111,
-    P3_08 = 0b01001000, P3_09 = 0b01001001, P3_10 = 0b01001010, P3_11 = 0b01001011,
-    P3_12 = 0b01001100, P3_13 = 0b01001101, P3_14 = 0b01001110, P3_15 = 0b01001111,
-    P3_16 = 0b01010000, P3_17 = 0b01010001, P3_18 = 0b01010010, P3_19 = 0b01010011,
-    P3_20 = 0b01010100, P3_21 = 0b01010101, P3_22 = 0b01010110, P3_23 = 0b01010111,
-    P3_24 = 0b01011000, P3_25 = 0b01011001, P3_26 = 0b01011010, P3_27 = 0b01011011,
-    P3_28 = 0b01011100, P3_29 = 0b01011101, P3_30 = 0b01011110, P3_31 = 0b01011111,
+    B0_00 = 0b011000000, B0_01 = 0b011000001, B0_02 = 0b011000010, B0_03 = 0b011000011,
+    B0_04 = 0b011000100, B0_05 = 0b011000101, B0_06 = 0b011000110, B0_07 = 0b011000111,
+    B0_08 = 0b011001000, B0_09 = 0b011001001, B0_10 = 0b011001010, B0_11 = 0b011001011,
+    B0_12 = 0b011001100, B0_13 = 0b011001101, B0_14 = 0b011001110, B0_15 = 0b011001111,
 
-    P4_00 = 0b01100000, P4_01 = 0b01100001, P4_02 = 0b01100010, P4_03 = 0b01100011,
-    P4_04 = 0b01100100, P4_05 = 0b01100101, P4_06 = 0b01100110, P4_07 = 0b01100111,
-    P4_08 = 0b01101000, P4_09 = 0b01101001, P4_10 = 0b01101010, P4_11 = 0b01101011,
-    P4_12 = 0b01101100, P4_13 = 0b01101101, P4_14 = 0b01101110, P4_15 = 0b01101111,
-    P4_16 = 0b01110000, P4_17 = 0b01110001, P4_18 = 0b01110010, P4_19 = 0b01110011,
-    P4_20 = 0b01110100, P4_21 = 0b01110101, P4_22 = 0b01110110, P4_23 = 0b01110111,
-    P4_24 = 0b01111000, P4_25 = 0b01111001, P4_26 = 0b01111010, P4_27 = 0b01111011,
-    P4_28 = 0b01111100, P4_29 = 0b01111101, P4_30 = 0b01111110, P4_31 = 0b01111111,
+    B1_00 = 0b100000000, B1_01 = 0b100000001, B1_02 = 0b100000010, B1_03 = 0b100000011,
+    B1_04 = 0b100000100, B1_05 = 0b100000101, B1_06 = 0b100000110, B1_07 = 0b100000111,
+    B1_08 = 0b100001000, B1_09 = 0b100001001, B1_10 = 0b100001010, B1_11 = 0b100001011,
+    B1_12 = 0b100001100, B1_13 = 0b100001101, B1_14 = 0b100001110, B1_15 = 0b100001111,
 
-    P5_00 = 0b10000000, P5_01 = 0b10000001, P5_02 = 0b10000010, P5_03 = 0b10000011,
-    P5_04 = 0b10000100, P5_05 = 0b10000101, P5_06 = 0b10000110, P5_07 = 0b10000111,
-    P5_08 = 0b10001000, P5_09 = 0b10001001, P5_10 = 0b10001010, P5_11 = 0b10001011,
-    P5_12 = 0b10001100, P5_13 = 0b10001101, P5_14 = 0b10001110, P5_15 = 0b10001111,
-    P5_16 = 0b10010000, P5_17 = 0b10010001, P5_18 = 0b10010010, P5_19 = 0b10010011,
-    P5_20 = 0b10010100, P5_21 = 0b10010101, P5_22 = 0b10010110, P5_23 = 0b10010111,
-    P5_24 = 0b10011000, P5_25 = 0b10011001, P5_26 = 0b10011010, P5_27 = 0b10011011,
-    P5_28 = 0b10011100, P5_29 = 0b10011101, P5_30 = 0b10011110, P5_31 = 0b10011111,
+    SdB0_00 = 0b101000000, SdB0_01 = 0b101000001, SdB0_02 = 0b101000010, SdB0_03 = 0b101000011,
+    SdB0_04 = 0b101000100, SdB0_05 = 0b101000101, 
+
+    SdB1_00 = 0b110000000, SdB1_01 = 0b110000001, SdB1_02 = 0b110000010, SdB1_03 = 0b110000011,
+    SdB1_04 = 0b110000100, SdB1_05 = 0b110000101, SdB1_06 = 0b110000110, SdB1_07 = 0b110000111,
+    SdB1_08 = 0b110001000, SdB1_09 = 0b110001001, SdB1_10 = 0b110001010, SdB1_11 = 0b110001011,
+    SdB1_12 = 0b110001100 
+}
+
+enum_from_primitive! {
+    #[repr(u8)]
+    #[derive(PartialEq)]
+    pub enum GpioPort {
+        GPIO1 = 0b000,
+        GPIO2 = 0b001,
+        GPIO3 = 0b010,
+        GPIO4 = 0b011,
+        GPIO5 = 0b100,
+    }
 }
 
 impl PinId {
-    pub fn get_pin(&self) -> &Option<Pin<'static>> {
-        let mut port_num: u8 = *self as u8;
+    pub fn get_port_number(&self) -> GpioPort {
+        let mut port_num: u16 = *self as u16;
+        port_num >>= 6;
+        let mut pin_num: u8 = *self as u8;
+        pin_num &= 0b00111111;
 
+        match port_num {
+            0b000 => {
+                if pin_num < 32 { GpioPort::GPIO4 }
+                else { GpioPort::GPIO3 }
+            },
+            0b001 => GpioPort::GPIO1,
+            0b010 => GpioPort::GPIO1,
+            0b011 => GpioPort::GPIO2,
+            0b100 => GpioPort::GPIO2,
+            0b101 => GpioPort::GPIO3,
+            0b110 => GpioPort::GPIO3,
+            _ => GpioPort::GPIO1,
+        }
+
+    }
+
+    pub fn get_pad_number(&self) -> u16 {
+        let mut pad_num: u16 = *self as u16;
+        pad_num >>= 6;
+        pad_num
+    }
+
+    pub fn get_pin(&self) -> &Option<Pin<'static>> {
+        let mut port_num: u16 = *self as u16;
+        
         // Right shift p by 4 bits, so we can get rid of pin bits
-        port_num >>= 5;
+        port_num >>= 6;
 
         let mut pin_num: u8 = *self as u8;
-        // Mask top 3 bits, so can get only the suffix
-        pin_num &= 0b00011111;
+        // Mask top 2 bits, so can get only the suffix
+        pin_num &= 0b00111111;
 
         unsafe {&PIN[usize::from(port_num)][usize::from(pin_num)] }
     }
 
     pub fn get_pin_mut(&self) -> &mut Option<Pin<'static>> {
-        let mut port_num: u8 = *self as u8;
+        let mut port_num: u16 = *self as u16;
 
         // Right shift p by 4 bits, so we can get rid of pin bits
-        port_num >>= 5;
+        port_num >>= 6;
 
         let mut pin_num: u8 = *self as u8;
         // Mask top 3 bits, so can get only the suffix
-        pin_num &= 0b00011111;
+        pin_num &= 0b00111111;
 
         unsafe { &mut PIN[usize::from(port_num)][usize::from(pin_num)] }
     }
 
     pub fn get_port(&self) -> &Port {
-        let mut port_num: u8 = *self as u8;
+        let port_num: GpioPort = self.get_port_number();
 
-        // Right shift p by 4 bits, so we can get rid of pin bits
-        port_num >>= 5;
-        unsafe { &PORT[usize::from(port_num)] }
+        match port_num {
+            GpioPort::GPIO1 => unsafe { &PORT[0] },
+            GpioPort::GPIO2 => unsafe { &PORT[1] },
+            GpioPort::GPIO3 => unsafe { &PORT[2] },
+            GpioPort::GPIO4 => unsafe { &PORT[3] },
+            GpioPort::GPIO5 => unsafe { &PORT[4] },
+        }
     }
 
-    // extract the last 4 bits. [3:0] is the pin number, [6:4] is the port
+    // extract the last 6 bits. [6:0] is the pin number, [9:7] is the port
     // number
     pub fn get_pin_number(&self) -> u8 {
         let mut pin_num = *self as u8;
 
-        pin_num = pin_num & 0b00011111;
+        pin_num = pin_num & 0b00111111;
         pin_num
     }
 
-    // extract bits [6:4], which is the port number
-    pub fn get_port_number(&self) -> u8 {
-        let mut port_num: u8 = *self as u8;
-
-        // Right shift p by 4 bits, so we can get rid of pin bits
-        port_num >>= 5;
-        port_num
-    }
 }
 
 /// GPIO pin mode [^1]
@@ -555,25 +581,30 @@ pub enum AlternateFunction {
     None = 0
 }
 
-/// GPIO pin internal pull-up and pull-down [^1]
-enum_from_primitive! {
-    #[repr(u32)]
-    enum PullUpPullDown {
-        Pus0_100kOhmPullDown = 0b00,    // 100K Ohm Pull Down
-        Pus1_47kOhmPullUp = 0b01,       // 47K Ohm Pull Up
-        Pus2_100kOhmPullUp = 0b10,      // 100K Ohm Pull Up
-        Pus3_22kOhmPullUp = 0b11,       // 22K Ohm Pull Up
-    }
-}
-
 pub struct Port {
     registers: StaticRef<GpioRegisters>,
     clock: PortClock,
 }
 
-pub static mut PORT: [Port; 1] = [
+pub static mut PORT: [Port; 5] = [
     Port {
         registers: GPIO1_BASE,
+        clock: PortClock(ccm::PeripheralClock::CCGR1(ccm::HCLK1::GPIO1)),
+    },
+    Port {
+        registers: GPIO2_BASE,
+        clock: PortClock(ccm::PeripheralClock::CCGR1(ccm::HCLK1::GPIO1)),
+    },
+    Port {
+        registers: GPIO3_BASE,
+        clock: PortClock(ccm::PeripheralClock::CCGR1(ccm::HCLK1::GPIO1)),
+    },
+    Port {
+        registers: GPIO4_BASE,
+        clock: PortClock(ccm::PeripheralClock::CCGR1(ccm::HCLK1::GPIO1)),
+    },
+    Port {
+        registers: GPIO5_BASE,
         clock: PortClock(ccm::PeripheralClock::CCGR1(ccm::HCLK1::GPIO1)),
     },
 ];
@@ -623,37 +654,141 @@ macro_rules! declare_gpio_pins {
     }
 }
 
-pub static mut PIN: [[Option<Pin<'static>>; 32]; 5] = [
+pub static mut PIN: [[Option<Pin<'static>>; 42]; 7] = [
     declare_gpio_pins! {
-        P1_00 P1_01 P1_02 P1_03 P1_04 P1_05 P1_06 P1_07
-        P1_08 P1_09 P1_10 P1_11 P1_12 P1_13 P1_14 P1_15
-        P1_16 P1_17 P1_18 P1_19 P1_20 P1_21 P1_22 P1_23
-        P1_24 P1_25 P1_26 P1_27 P1_28 P1_29 P1_30 P1_31
+        Emc00 Emc01 Emc02 Emc03 Emc04 Emc05 Emc06 Emc07
+        Emc08 Emc09 Emc10 Emc11 Emc12 Emc13 Emc14 Emc15
+        Emc16 Emc17 Emc18 Emc19 Emc20 Emc21 Emc22 Emc23
+        Emc24 Emc25 Emc26 Emc27 Emc28 Emc29 Emc30 Emc31
+        Emc32 Emc33 Emc34 Emc35 Emc36 Emc37 Emc38 Emc39
+        Emc40 Emc41 
     },
-    declare_gpio_pins! {
-        P2_00 P2_01 P2_02 P2_03 P2_04 P2_05 P2_06 P2_07
-        P2_08 P2_09 P2_10 P2_11 P2_12 P2_13 P2_14 P2_15
-        P2_16 P2_17 P2_18 P2_19 P2_20 P2_21 P2_22 P2_23
-        P2_24 P2_25 P2_26 P2_27 P2_28 P2_29 P2_30 P2_31
-    },    
-    declare_gpio_pins! {
-        P3_00 P3_01 P3_02 P3_03 P3_04 P3_05 P3_06 P3_07
-        P3_08 P3_09 P3_10 P3_11 P3_12 P3_13 P3_14 P3_15
-        P3_16 P3_17 P3_18 P3_19 P3_20 P3_21 P3_22 P3_23
-        P3_24 P3_25 P3_26 P3_27 P3_28 P3_29 P3_30 P3_31
-    },
-    declare_gpio_pins! {
-        P4_00 P4_01 P4_02 P4_03 P4_04 P4_05 P4_06 P4_07
-        P4_08 P4_09 P4_10 P4_11 P4_12 P4_13 P4_14 P4_15
-        P4_16 P4_17 P4_18 P4_19 P4_20 P4_21 P4_22 P4_23
-        P4_24 P4_25 P4_26 P4_27 P4_28 P4_29 P4_30 P4_31
-    },
-    declare_gpio_pins! {
-        P5_00 P5_01 P5_02 P5_03 P5_04 P5_05 P5_06 P5_07
-        P5_08 P5_09 P5_10 P5_11 P5_12 P5_13 P5_14 P5_15
-        P5_16 P5_17 P5_18 P5_19 P5_20 P5_21 P5_22 P5_23
-        P5_24 P5_25 P5_26 P5_27 P5_28 P5_29 P5_30 P5_31
-    },
+
+    [
+        Some(Pin::new(PinId::AdB0_00)),
+        Some(Pin::new(PinId::AdB0_01)),
+        Some(Pin::new(PinId::AdB0_02)),
+        Some(Pin::new(PinId::AdB0_03)),
+        Some(Pin::new(PinId::AdB0_04)),
+        Some(Pin::new(PinId::AdB0_05)),
+        Some(Pin::new(PinId::AdB0_06)),
+        Some(Pin::new(PinId::AdB0_07)),
+        Some(Pin::new(PinId::AdB0_08)),
+        Some(Pin::new(PinId::AdB0_09)),
+        Some(Pin::new(PinId::AdB0_10)),
+        Some(Pin::new(PinId::AdB0_11)),
+        Some(Pin::new(PinId::AdB0_12)),
+        Some(Pin::new(PinId::AdB0_13)),
+        Some(Pin::new(PinId::AdB0_14)),
+        Some(Pin::new(PinId::AdB0_15)),
+        None, None, None, None, None, None, None, None,
+        None, None, None, None, None, None, None, None,
+        None, None, None, None, None, None, None, None,
+        None, None
+    ],
+
+    [        
+        Some(Pin::new(PinId::AdB1_00)),
+        Some(Pin::new(PinId::AdB1_01)),
+        Some(Pin::new(PinId::AdB1_02)),
+        Some(Pin::new(PinId::AdB1_03)),
+        Some(Pin::new(PinId::AdB1_04)),
+        Some(Pin::new(PinId::AdB1_05)),
+        Some(Pin::new(PinId::AdB1_06)),
+        Some(Pin::new(PinId::AdB1_07)),
+        Some(Pin::new(PinId::AdB1_08)),
+        Some(Pin::new(PinId::AdB1_09)),
+        Some(Pin::new(PinId::AdB1_10)),
+        Some(Pin::new(PinId::AdB1_11)),
+        Some(Pin::new(PinId::AdB1_12)),
+        Some(Pin::new(PinId::AdB1_13)),
+        Some(Pin::new(PinId::AdB1_14)),
+        Some(Pin::new(PinId::AdB1_15)),
+        None, None, None, None, None, None, None, None,
+        None, None, None, None, None, None, None, None,
+        None, None, None, None, None, None, None, None,
+        None, None
+    ],
+
+    [
+        Some(Pin::new(PinId::B0_00)),
+        Some(Pin::new(PinId::B0_01)),
+        Some(Pin::new(PinId::B0_02)),
+        Some(Pin::new(PinId::B0_03)),
+        Some(Pin::new(PinId::B0_04)),
+        Some(Pin::new(PinId::B0_05)),
+        Some(Pin::new(PinId::B0_06)),
+        Some(Pin::new(PinId::B0_07)),
+        Some(Pin::new(PinId::B0_08)),
+        Some(Pin::new(PinId::B0_09)),
+        Some(Pin::new(PinId::B0_10)),
+        Some(Pin::new(PinId::B0_11)),
+        Some(Pin::new(PinId::B0_12)),
+        Some(Pin::new(PinId::B0_13)),
+        Some(Pin::new(PinId::B0_14)),
+        Some(Pin::new(PinId::B0_15)),
+        None, None, None, None, None, None, None, None,
+        None, None, None, None, None, None, None, None,
+        None, None, None, None, None, None, None, None,
+        None, None
+    ],
+
+    [    
+        Some(Pin::new(PinId::B1_00)),
+        Some(Pin::new(PinId::B1_01)),
+        Some(Pin::new(PinId::B1_02)),
+        Some(Pin::new(PinId::B1_03)),
+        Some(Pin::new(PinId::B1_04)),
+        Some(Pin::new(PinId::B1_05)),
+        Some(Pin::new(PinId::B1_06)),
+        Some(Pin::new(PinId::B1_07)),
+        Some(Pin::new(PinId::B1_08)),
+        Some(Pin::new(PinId::B1_09)),
+        Some(Pin::new(PinId::B1_10)),
+        Some(Pin::new(PinId::B1_11)),
+        Some(Pin::new(PinId::B1_12)),
+        Some(Pin::new(PinId::B1_13)),
+        Some(Pin::new(PinId::B1_14)),
+        Some(Pin::new(PinId::B1_15)),
+        None, None, None, None, None, None, None, None,
+        None, None, None, None, None, None, None, None,
+        None, None, None, None, None, None, None, None,
+        None, None
+    ],
+
+    [
+        Some(Pin::new(PinId::SdB0_00)),
+        Some(Pin::new(PinId::SdB0_01)),
+        Some(Pin::new(PinId::SdB0_02)),
+        Some(Pin::new(PinId::SdB0_03)),
+        Some(Pin::new(PinId::SdB0_04)),
+        Some(Pin::new(PinId::SdB0_05)),
+        None, None, None, None, None, None, None, None, 
+        None, None, None, None, None, None, None, None, 
+        None, None, None, None, None, None, None, None, 
+        None, None, None, None, None, None, None, None, 
+        None, None, None, None
+    ],
+
+    [
+        Some(Pin::new(PinId::SdB1_00)),
+        Some(Pin::new(PinId::SdB1_01)),
+        Some(Pin::new(PinId::SdB1_02)),
+        Some(Pin::new(PinId::SdB1_03)),
+        Some(Pin::new(PinId::SdB1_04)),
+        Some(Pin::new(PinId::SdB1_05)),
+        Some(Pin::new(PinId::SdB1_06)),
+        Some(Pin::new(PinId::SdB1_07)),
+        Some(Pin::new(PinId::SdB1_08)),
+        Some(Pin::new(PinId::SdB1_09)),
+        Some(Pin::new(PinId::SdB1_10)),
+        Some(Pin::new(PinId::SdB1_11)),
+        Some(Pin::new(PinId::SdB1_12)),
+        None, None, None, None, None, None, None, None, 
+        None, None, None, None, None, None, None, None, 
+        None, None, None, None, None, None, None, None, 
+        None, None, None, None, None
+    ],
 ];
 
 impl Pin<'a> {
@@ -677,32 +812,50 @@ impl Pin<'a> {
         let port = self.pinid.get_port();
 
         let val = match self.pinid.get_pin_number() {
-            0b01001 => port.registers.gdir.read(GDIR::GDIR9),
+            0b001001 => port.registers.gdir.read(GDIR::GDIR9),
             _ => 0,
         };
 
         Mode::from_u32(val).unwrap_or(Mode::Input)
     }
 
-    pub fn set_mode(&self, mode: Mode) {
+    pub fn set_mode(&self, mode: Mode, pus: PullUpDown, 
+            pke: PullKeepEn, ode: OpenDrainEn, speed: Speed, dse: DriveStrength) {
         let port = self.pinid.get_port();
-
+        let pad_num = self.pinid.get_pad_number();
+        
         match self.pinid.get_pin_number() {
-            0b01001 => {
+            0b001001 => {
                 unsafe {
-                    iomuxc::IOMUXC.enable_gpio1_09();
+                    // iomuxc::IOMUXC.enable_gpio1_09();
+                    let iomux_pad: PadId;
+                    match pad_num {
+                        0b000 => {iomux_pad = PadId::EMC},
+                        0b001 => {iomux_pad = PadId::AdB0},
+                        0b010 => {iomux_pad = PadId::AdB1},
+                        0b011 => {iomux_pad = PadId::B0},
+                        0b100 => {iomux_pad = PadId::B1},
+                        0b101 => {iomux_pad = PadId::SdB0},
+                        0b110 => {iomux_pad = PadId::SdB1},
+                        _ => {
+                            debug!("Wrong port in set_mode!"); 
+                            return;
+                        }
+                    }
+                    iomuxc::IOMUXC.configure_sw_pad_ctl_pad_gpio(iomux_pad, self.pinid.get_pin_number() as usize, 
+                        pus, pke, ode, speed, dse)
                 }
                 port.registers.gdir.modify(GDIR::GDIR9.val(mode as u32));
             },
             0b10000 => {
-                unsafe {
-                    iomuxc::IOMUXC.enable_sw_mux_ctl_pad_gpio_ad_b1_00_alt3_mode();
-                    iomuxc::IOMUXC.enable_lpi2c_scl_select_input();
-                    iomuxc::IOMUXC.enable_sw_mux_ctl_pad_gpio_ad_b1_01_alt3_mode();
-                    iomuxc::IOMUXC.enable_lpi2c_sda_select_input();
-                    iomuxc::IOMUXC.enable_lpi2c1_scl_16();
-                    iomuxc::IOMUXC.enable_lpi2c1_sda_17();
-                }
+                // unsafe {
+                    // iomuxc::IOMUXC.enable_sw_mux_ctl_pad_gpio_ad_b1_00_alt3_mode();
+                    // iomuxc::IOMUXC.enable_lpi2c_scl_select_input();
+                    // iomuxc::IOMUXC.enable_sw_mux_ctl_pad_gpio_ad_b1_01_alt3_mode();
+                    // iomuxc::IOMUXC.enable_lpi2c_sda_select_input();
+                    // iomuxc::IOMUXC.enable_lpi2c1_scl_16();
+                    // iomuxc::IOMUXC.enable_lpi2c1_sda_17();
+                // }
             },
             _ => {}
         }
@@ -728,39 +881,39 @@ impl Pin<'a> {
     // }
 
     // none for the momenent
-    fn set_mode_output_pushpull(&self) {
-        let _port = self.pinid.get_port();
+    // fn set_mode_output_pushpull(&self) {
+    //     let _port = self.pinid.get_port();
 
-        match self.pinid.get_pin_number() {
-            // 0b1001 => port.registers.otyper.modify(OTYPER::OT9::CLEAR),
-            _ => {}
-        }
-    }
-
-    // oarecum inutile momentan
-    fn get_pullup_pulldown(&self) -> PullUpPullDown {
-        let _port = self.pinid.get_port();
-
-        let val = match self.pinid.get_pin_number() {
-            // 0b01001 => iomuxc::registers.sw_pad_ctl_pad_gpio_ad_b0_09.read(SW_PAD_CTL_PAD_GPIO_AD_B0_09::PUS),
-            _ => 0,
-        };
-
-        PullUpPullDown::from_u32(val).unwrap_or(PullUpPullDown::Pus0_100kOhmPullDown)
-    }
+    //     match self.pinid.get_pin_number() {
+    //         // 0b1001 => port.registers.otyper.modify(OTYPER::OT9::CLEAR),
+    //         _ => {}
+    //     }
+    // }
 
     // oarecum inutile momentan
-    fn set_pullup_pulldown(&self, _pupd: PullUpPullDown) {
-        let _port = self.pinid.get_port();
+    // fn get_pullup_pulldown(&self) -> PullUpDown {
+    //     let _port = self.pinid.get_port();
 
-        match self.pinid.get_pin_number() {
-            // 0b01001 => { 
-            //     iomuxc::IOMUXC.registers.sw_pad_ctl_pad_gpio_ad_b0_09.modify(SW_PAD_CTL_PAD_GPIO_AD_B0_09::PKE::SET);   
-            //     iomuxc.registers.sw_pad_ctl_pad_gpio_ad_b0_09.modify(SW_PAD_CTL_PAD_GPIO_AD_B0_09::PUS.val(pupd as u32));
-            // },
-            _ => {}
-        }
-    }
+    //     let val = match self.pinid.get_pin_number() {
+    //         // 0b01001 => iomuxc::registers.sw_pad_ctl_pad_gpio_ad_b0_09.read(SW_PAD_CTL_PAD_GPIO_AD_B0_09::PUS),
+    //         _ => 0,
+    //     };
+
+    //     PullUpDown::Pus0_100kOhmPullDown
+    // }
+
+    // oarecum inutile momentan
+    // fn set_pullup_pulldown(&self, _pupd: PullUpDown) {
+    //     let _port = self.pinid.get_port();
+
+    //     match self.pinid.get_pin_number() {
+    //         // 0b01001 => { 
+    //         //     iomuxc::IOMUXC.registers.sw_pad_ctl_pad_gpio_ad_b0_09.modify(SW_PAD_CTL_PAD_GPIO_AD_B0_09::PKE::SET);   
+    //         //     iomuxc.registers.sw_pad_ctl_pad_gpio_ad_b0_09.modify(SW_PAD_CTL_PAD_GPIO_AD_B0_09::PUS.val(pupd as u32));
+    //         // },
+    //         _ => {}
+    //     }
+    // }
 
     fn set_output_high(&self) {
         let port = self.pinid.get_port();
@@ -817,7 +970,12 @@ impl hil::gpio::InterruptPin for Pin<'a> {}
 impl hil::gpio::Configure for Pin<'a> {
     /// Output mode default is push-pull
     fn make_output(&self) -> hil::gpio::Configuration {
-        self.set_mode(Mode::Output);
+        self.set_mode(Mode::Output, 
+                PullUpDown::Pus0_100kOhmPullDown, 
+                PullKeepEn::Pke1PullKeeperEnabled,
+                OpenDrainEn::Ode0OpenDrainDisabled,
+                Speed::Medium2,
+                DriveStrength::DSE6);
         // self.set_mode_output_pushpull();
         hil::gpio::Configuration::Output
     }
@@ -827,7 +985,12 @@ impl hil::gpio::Configure for Pin<'a> {
     /// trigger is automatically activated. Schmitt trigger is deactivated in
     /// AnalogMode.
     fn make_input(&self) -> hil::gpio::Configuration {
-        self.set_mode(Mode::Input);
+        self.set_mode(Mode::Input,
+                PullUpDown::Pus0_100kOhmPullDown, 
+                PullKeepEn::Pke1PullKeeperEnabled,
+                OpenDrainEn::Ode0OpenDrainDisabled,
+                Speed::Medium2,
+                DriveStrength::DSE6);
         hil::gpio::Configuration::Input
     }
 
@@ -848,16 +1011,16 @@ impl hil::gpio::Configure for Pin<'a> {
         hil::gpio::Configuration::LowPower
     }
 
-    fn set_floating_state(&self, mode: hil::gpio::FloatingState) {
-        match mode {
-            hil::gpio::FloatingState::PullUp => self.set_pullup_pulldown(PullUpPullDown::Pus2_100kOhmPullUp),
-            hil::gpio::FloatingState::PullDown => {
-                self.set_pullup_pulldown(PullUpPullDown::Pus2_100kOhmPullUp)
-            }
-            hil::gpio::FloatingState::PullNone => {
-                self.set_pullup_pulldown(PullUpPullDown::Pus0_100kOhmPullDown)
-            }
-        }
+    fn set_floating_state(&self, _mode: hil::gpio::FloatingState) {
+        // match mode {
+        //     hil::gpio::FloatingState::PullUp => self.set_pullup_pulldown(PullUpPullDown::Pus2_100kOhmPullUp),
+        //     hil::gpio::FloatingState::PullDown => {
+        //         self.set_pullup_pulldown(PullUpPullDown::Pus2_100kOhmPullUp)
+        //     }
+        //     hil::gpio::FloatingState::PullNone => {
+        //         self.set_pullup_pulldown(PullUpPullDown::Pus0_100kOhmPullDown)
+        //     }
+        // }
     }
 
     fn floating_state(&self) -> hil::gpio::FloatingState {

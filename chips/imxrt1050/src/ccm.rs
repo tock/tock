@@ -17,7 +17,9 @@ struct CcmRegisters {
     cscdr1: ReadWrite<u32, CSCDR1::Register>,
     _reserved3: [u8; 44],
     clpcr: ReadWrite<u32, CLPCR::Register>,
-    _reserved4: [u8; 20],
+    _reserved4: [u8; 16],
+    // clock gating register 0
+    ccgr0: ReadWrite<u32, CCGR0::Register>,
     // clock gating register 1
     ccgr1: ReadWrite<u32, CCGR1::Register>,
     // clock gating register 2
@@ -81,6 +83,56 @@ register_bitfields![u32,
     CLPCR [
         WHATEVER OFFSET(2) NUMBITS(30) [],
         LPM OFFSET(0) NUMBITS(2) []
+    ],
+
+    CCGR0 [
+        // gpio2_clocks (gpio2_clk_enable)
+        CG15 OFFSET(30) NUMBITS(2) [],
+   
+        // lpuart2 clock (lpuart2_clk_enable)
+        CG14 OFFSET(28) NUMBITS(2) [],
+
+        // gpt2 serial clocks (gpt2_serial_clk_enable)
+        CG13 OFFSET(26) NUMBITS(2) [],
+        
+        // gpt2 bus clocks (gpt2_bus_clk_enable)
+        CG12 OFFSET(24) NUMBITS(2) [],
+
+        // trace clock (trace_clk_enable)
+        CG11 OFFSET(22) NUMBITS(2) [],
+
+        // can2_serial clock (can2_serial_clk_enable)
+        CG10 OFFSET(20) NUMBITS(2) [],
+
+        // can2 clock (can2_clk_enable)
+        CG9 OFFSET(18) NUMBITS(2) [],
+
+        // can1_serial clock (can1_serial_clk_enable)
+        CG8 OFFSET(16) NUMBITS(2) [],
+
+        // can1 clock (can1_clk_enable)
+        CG7 OFFSET(14) NUMBITS(2) [],
+   
+        // lpuart3 clock (lpuart3_clk_enable)
+        CG6 OFFSET(12) NUMBITS(2) [],
+
+        // dcp clock (dcp_clk_enable)
+        CG5 OFFSET(10) NUMBITS(2) [],
+        
+        // sim_m or sim_main register access clock (sim_m_mainclk_r_enable)
+        CG4 OFFSET(8) NUMBITS(2) [],
+
+        // Reserved
+        CG3 OFFSET(6) NUMBITS(2) [],
+
+        // mqs clock ( mqs_hmclk_clock_enable)
+        CG2 OFFSET(4) NUMBITS(2) [],
+
+        // aips_tz2 clocks (aips_tz2_clk_enable)
+        CG1 OFFSET(2) NUMBITS(2) [],
+
+        // aips_tz1 clocks (aips_tz1_clk_enable)
+        CG0 OFFSET(0) NUMBITS(2) []
     ],
 
     CCGR1 [
@@ -383,6 +435,58 @@ impl Ccm {
         self.registers.ccgr1.modify(CCGR1::CG13::CLEAR)
     }
 
+    /// GPIO2 clock 
+    pub fn is_enabled_gpio2_clock(&self) -> bool {
+        self.registers.ccgr0.is_set(CCGR0::CG15)
+    }
+
+    pub fn enable_gpio2_clock(&self) {
+        self.registers.ccgr0.modify(CCGR0::CG15.val(0b11 as u32))
+    }
+
+    pub fn disable_gpio2_clock(&self) {
+        self.registers.ccgr0.modify(CCGR0::CG15::CLEAR)
+    }
+
+    /// GPIO3 clock 
+    pub fn is_enabled_gpio3_clock(&self) -> bool {
+        self.registers.ccgr2.is_set(CCGR2::CG13)
+    }
+
+    pub fn enable_gpio3_clock(&self) {
+        self.registers.ccgr2.modify(CCGR2::CG13.val(0b11 as u32))
+    }
+
+    pub fn disable_gpio3_clock(&self) {
+        self.registers.ccgr2.modify(CCGR2::CG13::CLEAR)
+    }
+
+    /// GPIO4 clock 
+    pub fn is_enabled_gpio4_clock(&self) -> bool {
+        self.registers.ccgr3.is_set(CCGR3::CG6)
+    }
+
+    pub fn enable_gpio4_clock(&self) {
+        self.registers.ccgr3.modify(CCGR3::CG6.val(0b11 as u32))
+    }
+
+    pub fn disable_gpio4_clock(&self) {
+        self.registers.ccgr3.modify(CCGR3::CG6::CLEAR)
+    }
+
+    /// GPIO5 clock 
+    pub fn is_enabled_gpio5_clock(&self) -> bool {
+        self.registers.ccgr1.is_set(CCGR1::CG15)
+    }
+
+    pub fn enable_gpio5_clock(&self) {
+        self.registers.ccgr1.modify(CCGR1::CG15.val(0b11 as u32))
+    }
+
+    pub fn disable_gpio5_clock(&self) {
+        self.registers.ccgr1.modify(CCGR1::CG15::CLEAR)
+    }
+
     // GPT1 clock 
     pub fn is_enabled_gpt1_clock(&self) -> bool {
         self.registers.ccgr1.is_set(CCGR1::CG11)
@@ -460,19 +564,32 @@ pub enum CPUClock {
 }
 
 pub enum PeripheralClock {
+    CCGR0(HCLK0),
     CCGR1(HCLK1),
     CCGR2(HCLK2),
+    CCGR3(HCLK3),
     CCGR4(HCLK4),
     CCGR5(HCLK5),
 }
 
+pub enum HCLK0 {
+    GPIO2,
+}
+
 pub enum HCLK1 {
     GPIO1,
+    GPIO5,
     GPT1
     // and others ...
 }
 pub enum HCLK2 {
     LPI2C1,
+    GPIO3
+    // and others ...
+}
+
+pub enum HCLK3 {
+    GPIO4,
     // and others ...
 }
 
@@ -489,12 +606,20 @@ pub enum HCLK5 {
 impl ClockInterface for PeripheralClock {
     fn is_enabled(&self) -> bool {
         match self {
+            &PeripheralClock::CCGR0(ref v) => match v {
+                HCLK0::GPIO2 => unsafe { CCM.is_enabled_gpio2_clock() },
+            },
             &PeripheralClock::CCGR1(ref v) => match v {
                 HCLK1::GPIO1 => unsafe { CCM.is_enabled_gpio1_clock() },
+                HCLK1::GPIO5 => unsafe { CCM.is_enabled_gpio5_clock() },
                 HCLK1::GPT1 => unsafe { CCM.is_enabled_gpt1_clock() },
             },
             &PeripheralClock::CCGR2(ref v) => match v {
                 HCLK2::LPI2C1 => unsafe { CCM.is_enabled_lpi2c1_clock() },
+                HCLK2::GPIO3 => unsafe { CCM.is_enabled_gpio3_clock() },
+            },
+            &PeripheralClock::CCGR3(ref v) => match v {
+                HCLK3::GPIO4 => unsafe { CCM.is_enabled_gpio4_clock() },
             },
             &PeripheralClock::CCGR4(ref v) => match v {
                 HCLK4::IOMUXC => unsafe { CCM.is_enabled_iomuxc_clock() },
@@ -507,9 +632,17 @@ impl ClockInterface for PeripheralClock {
 
     fn enable(&self) {
         match self {
+            &PeripheralClock::CCGR0(ref v) => match v {
+                HCLK0::GPIO2 => unsafe {
+                    CCM.enable_gpio2_clock();
+                },
+            },
             &PeripheralClock::CCGR1(ref v) => match v {
                 HCLK1::GPIO1 => unsafe {
                     CCM.enable_gpio1_clock();
+                },
+                HCLK1::GPIO5 => unsafe {
+                    CCM.enable_gpio5_clock();
                 },
                 HCLK1::GPT1 => unsafe {
                     CCM.enable_gpt1_clock();
@@ -519,7 +652,15 @@ impl ClockInterface for PeripheralClock {
                 HCLK2::LPI2C1 => unsafe {
                     CCM.enable_lpi2c1_clock();
                 },
+                HCLK2::GPIO3 => unsafe {
+                    CCM.enable_gpio3_clock();
+                },
             },
+            &PeripheralClock::CCGR3(ref v) => match v {
+                HCLK3::GPIO4 => unsafe {
+                    CCM.enable_gpio4_clock();
+                },
+            }
             &PeripheralClock::CCGR4(ref v) => match v {
                 HCLK4::IOMUXC => unsafe {
                     CCM.enable_iomuxc_clock();
@@ -535,9 +676,17 @@ impl ClockInterface for PeripheralClock {
 
     fn disable(&self) {
         match self {
+            &PeripheralClock::CCGR0(ref v) => match v {
+                HCLK0::GPIO2 => unsafe {
+                    CCM.disable_gpio2_clock();
+                },
+            },
             &PeripheralClock::CCGR1(ref v) => match v {
                 HCLK1::GPIO1 => unsafe {
                     CCM.disable_gpio1_clock();
+                },
+                HCLK1::GPIO5 => unsafe {
+                    CCM.disable_gpio5_clock();
                 },
                 HCLK1::GPT1 => unsafe {
                     CCM.disable_gpt1_clock();
@@ -546,6 +695,14 @@ impl ClockInterface for PeripheralClock {
             &PeripheralClock::CCGR2(ref v) => match v {
                 HCLK2::LPI2C1 => unsafe {
                     CCM.disable_lpi2c1_clock();
+                },
+                HCLK2::GPIO3 => unsafe {
+                    CCM.disable_gpio3_clock();
+                },
+            },
+            &PeripheralClock::CCGR3(ref v) => match v {
+                HCLK3::GPIO4 => unsafe {
+                    CCM.disable_gpio4_clock();
                 },
             },
             &PeripheralClock::CCGR4(ref v) => match v {
