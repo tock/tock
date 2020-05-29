@@ -1,7 +1,7 @@
 //! CDC
 
 use super::descriptors::{
-    self, Buffer8, DeviceDescriptor, EndpointAddress, EndpointDescriptor, TransferDirection,
+    self, Buffer8, EndpointAddress, EndpointDescriptor, TransferDirection,
 };
 use super::usbc_client_ctrl::ClientCtrl;
 use core::cell::Cell;
@@ -23,18 +23,26 @@ static STRINGS: &'static [&'static str] = &[
     "aSerial No. 5",   // Serial number
 ];
 
-const N_ENDPOINTS: usize = 2;
+const N_ENDPOINTS: usize = 3;
 
 static ENDPOINTS: &'static [EndpointDescriptor; N_ENDPOINTS] = &[
     EndpointDescriptor {
-        endpoint_address: EndpointAddress::new_const(1, TransferDirection::DeviceToHost),
+        endpoint_address: EndpointAddress::new_const(2, TransferDirection::DeviceToHost),
         transfer_type: TransferType::Bulk,
-        max_packet_size: 8,
+        max_packet_size: 16,
+        // max_packet_size: 8,
         interval: 100,
     },
     EndpointDescriptor {
-        endpoint_address: EndpointAddress::new_const(2, TransferDirection::HostToDevice),
+        endpoint_address: EndpointAddress::new_const(3, TransferDirection::HostToDevice),
         transfer_type: TransferType::Bulk,
+        max_packet_size: 16,
+        // max_packet_size: 8,
+        interval: 100,
+    },
+    EndpointDescriptor {
+        endpoint_address: EndpointAddress::new_const(4, TransferDirection::DeviceToHost),
+        transfer_type: TransferType::Interrupt,
         max_packet_size: 8,
         interval: 100,
     },
@@ -53,21 +61,73 @@ pub struct Client<'a, C: 'a> {
     delayed_out: Cell<bool>,
 }
 
+// device
+// {
+// 0x12,            // Descriptor size in bytes
+// 0x01,            // DEVICE descriptor type
+// 0x0200,          // USB version, BCD (2.0)
+// 0x02             // Class: CDC
+// 0x00,            // Subclass: none
+// 0x00,            // Protocol: none
+// 0x08,            // Max. packet size, Endpoint 0
+// 0x0925,          // USB Vendor ID
+// 0x9060,          // USB Product ID
+// 0x0100,          // Device release, BCD (1.0)
+// 0x00,            // Manufacturer string index
+// 0x00,            // Product string index
+// 0x01,            // Serial number string index
+// 0x01             // Number of configurations
+// };
+
+// // Communication interface descriptor
+
+// 0x09,            // Descriptor size in bytes
+// 0x04,            // INTERFACE descriptor type
+// 0x00,            // Interface number
+// 0x00,            // Alternate setting number
+// 0x01,            // Number of endpoints
+// 0x02,            // Class: CDC communication
+// 0x02,            // Subclass: abstract control model
+// 0x02,            // Protocol: V.25ter (AT commands)
+// 0x00,            // Interface string index
+
+// // Data interface descriptor
+
+// 0x09,            // Descriptor size in bytes
+// 0x04,            // INTERFACE descriptor type
+// 0x01,            // Interface number
+// 0x00,            // Alternate setting number
+// 0x02,            // Number of endpoints
+// 0x0a,            // Class: CDC data
+// 0x00,            // Subclass: none
+// 0x00,            // Protocol: none
+// 0x00,            // Interface string index
+
+
+
 impl<'a, C: hil::usb::UsbController<'a>> Client<'a, C> {
     pub fn new(controller: &'a C) -> Self {
         Client {
             client_ctrl: ClientCtrl::new(
                 controller,
-                DeviceDescriptor {
+                descriptors::DeviceDescriptor {
                     vendor_id: VENDOR_ID,
                     product_id: PRODUCT_ID,
                     manufacturer_string: 1,
                     product_string: 2,
                     serial_number_string: 3,
-                    ..DeviceDescriptor::default()
+                    class: 0x2, // Class: CDC
+                    ..descriptors::DeviceDescriptor::default()
                 },
-                descriptors::ConfigurationDescriptor::default(),
-                descriptors::InterfaceDescriptor::default(),
+                descriptors::ConfigurationDescriptor {
+                    ..descriptors::ConfigurationDescriptor::default()
+                },
+                descriptors::InterfaceDescriptor {
+                    interface_class: 0x02,    // CDC
+                    interface_subclass: 0x02, // abstract control model (ACM)
+                    interface_protocol: 0x02, // V.25ter (AT commands)
+                    ..descriptors::InterfaceDescriptor::default()
+                },
                 ENDPOINTS,
                 None, // No interface class descriptor
                 None, // No report descriptor
