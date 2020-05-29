@@ -383,7 +383,7 @@ impl Default for ConfigurationDescriptor {
     fn default() -> Self {
         ConfigurationDescriptor {
             num_interfaces: 1,
-            configuration_value: 0,
+            configuration_value: 1,
             string_index: 0,
             attributes: ConfigurationAttributes::new(true, false),
             max_power: 0, // in 2mA units
