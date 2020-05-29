@@ -110,7 +110,7 @@ clean:
 		cargo clean --manifest-path "tools/$$f/Cargo.toml" || exit 1;\
 		done
 	@echo "$$(tput bold)Clean rustdoc" && rm -rf doc/rustdoc
-	@echo "$$(tput bold)Clean ci-artifacts" && rm -rf ./ci-artifacts
+	@echo "$$(tput bold)Clean ci-artifacts" && rm -rf tools/ci-artifacts
 
 .PHONY: fmt format
 fmt format: tools/.format_fresh
@@ -324,15 +324,16 @@ ci-job-debug-support-targets:
 
 .PHONY: ci-job-collect-artifacts
 ci-job-collect-artifacts: ci-job-compilation
+	$(call banner, CI-Job: Collect artifacts)
 	# Collect binary images for each board
 	#
 	# This is currently used only for code size detection changes, but in
 	# the future may also be used to support checks for deterministic builds.
-	@mkdir -p ./ci-artifacts
-	@rm -rf "./ci-artifacts/*"
-	@for f in $$(find ./target -iname '*.bin' | grep -E "release/.*\.bin");\
-		do mkdir -p "ci-artifacts/$$(dirname $$f)";\
-		cp "$$f" "ci-artifacts/$$f";\
+	@rm -rf "tools/ci-artifacts"
+	@mkdir tools/ci-artifacts
+	@for f in $$(find target -iname '*.bin' | grep -E "release/.*\.bin");\
+		do mkdir -p "tools/ci-artifacts/$$(dirname $$f)";\
+		cp "$$f" "tools/ci-artifacts/$$f";\
 		done
 
 

@@ -58,7 +58,7 @@ jobs:
         uses: actions/upload-artifact@v2
         with:
           name: build-artifacts
-          path: ci-artifacts
+          path: tools/ci-artifacts
 
   ci-tests:
     strategy:
