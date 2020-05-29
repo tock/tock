@@ -25,7 +25,7 @@ pub struct UsbComponent {
 
 type UsbDevice = capsules::usb::usb_user::UsbSyscallDriver<
     'static,
-    capsules::usb::usbc_client::Client<'static, sam4l::usbc::Usbc<'static>>,
+    capsules::usb::cdc::Client<'static, sam4l::usbc::Usbc<'static>>,
 >;
 
 impl UsbComponent {
@@ -43,21 +43,28 @@ impl Component for UsbComponent {
     unsafe fn finalize(self, _s: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
+        // // Configure the USB controller
+        // let usb_client = static_init!(
+        //     capsules::usb::usbc_client::Client<'static, sam4l::usbc::Usbc<'static>>,
+        //     capsules::usb::usbc_client::Client::new(&sam4l::usbc::USBC)
+        // );
+        // sam4l::usbc::USBC.set_client(usb_client);
+
         // Configure the USB controller
-        let usb_client = static_init!(
-            capsules::usb::usbc_client::Client<'static, sam4l::usbc::Usbc<'static>>,
-            capsules::usb::usbc_client::Client::new(&sam4l::usbc::USBC)
+        let cdc = static_init!(
+            capsules::usb::cdc::Client<'static, sam4l::usbc::Usbc<'static>>,
+            capsules::usb::cdc::Client::new(&sam4l::usbc::USBC)
         );
-        sam4l::usbc::USBC.set_client(usb_client);
+        sam4l::usbc::USBC.set_client(cdc);
 
         // Configure the USB userspace driver
         let usb_driver = static_init!(
             capsules::usb::usb_user::UsbSyscallDriver<
                 'static,
-                capsules::usb::usbc_client::Client<'static, sam4l::usbc::Usbc<'static>>,
+                capsules::usb::cdc::Client<'static, sam4l::usbc::Usbc<'static>>,
             >,
             capsules::usb::usb_user::UsbSyscallDriver::new(
-                usb_client,
+                cdc,
                 self.board_kernel.create_grant(&grant_cap)
             )
         );

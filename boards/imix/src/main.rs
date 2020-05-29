@@ -119,7 +119,7 @@ struct Imix {
     crc: &'static capsules::crc::Crc<'static, sam4l::crccu::Crccu<'static>>,
     usb_driver: &'static capsules::usb::usb_user::UsbSyscallDriver<
         'static,
-        capsules::usb::usbc_client::Client<'static, sam4l::usbc::Usbc<'static>>,
+        capsules::usb::cdc::Client<'static, sam4l::usbc::Usbc<'static>>,
     >,
     nrf51822: &'static capsules::nrf51822_serialization::Nrf51822Serialization<'static>,
     nonvolatile_storage: &'static capsules::nonvolatile_storage_driver::NonvolatileStorage<'static>,
