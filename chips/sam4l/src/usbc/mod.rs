@@ -1440,7 +1440,7 @@ fn endpoint_enable_interrupts(endpoint: usize, mask: FieldValue<u32, EndpointCon
 
 impl hil::usb::UsbController<'a> for Usbc<'a> {
     fn endpoint_set_ctrl_buffer(&self, buf: &'a [VolatileCell<u8>]) {
-        if buf.len() != 8 {
+        if buf.len() < 8 {
             client_err!("Bad endpoint buffer size");
         }
 
@@ -1448,7 +1448,7 @@ impl hil::usb::UsbController<'a> for Usbc<'a> {
     }
 
     fn endpoint_set_in_buffer(&self, endpoint: usize, buf: &'a [VolatileCell<u8>]) {
-        if buf.len() != 8 {
+        if buf.len() < 8 {
             client_err!("Bad endpoint buffer size");
         }
 
@@ -1456,7 +1456,7 @@ impl hil::usb::UsbController<'a> for Usbc<'a> {
     }
 
     fn endpoint_set_out_buffer(&self, endpoint: usize, buf: &'a [VolatileCell<u8>]) {
-        if buf.len() != 8 {
+        if buf.len() < 8 {
             client_err!("Bad endpoint buffer size");
         }
 
