@@ -8,7 +8,6 @@
 
 # First, need to fill out some variables that the Makefile will use
 $(eval ALL_BOARDS := $(shell ./tools/list_boards.sh))
-$(eval PLATFORM := $(shell uname -s))
 
 ##
 ## End: internal support.
@@ -64,6 +63,48 @@ define banner
 	@string="$(1)" && printf "$$(tput bold)* %-$$((76))s *\n" "$$string"
 	@printf "$$(tput bold)********************************************************************************$$(tput sgr0)\n"
 	@printf "\n"
+endef
+
+# Four arguments:
+#  1) Command to check if already installed
+#  2) String that explains what will be executed if install runs
+#  3) Make function that does the work
+#  4) Guard variable that is defined if job is to run
+define ci_setup_helper
+	@# The line continuation adds a leading space, remove
+	$(eval explanation := $(strip $(2)))
+	$(eval build_function := $(strip $(3)))
+	$(eval guard_variable := $(strip $(4)))
+	@# First, if the dependency is installed, we can bail early
+	$(if $(shell bash -c '$(1)'),$(eval $(guard_variable) := true),
+	@# If running in CI context always yes
+	$(if $(CI),$(eval do_install := yes_CI),
+	@# If running nosetup always no
+	$(if $(TOCK_NOSETUP),$(eval do_install := ),
+	@# Otherwise, ask
+	$(info )
+	$(info You have run a (likely CI) rule that requires Tock to run setup commands on your)
+	$(info machine. Tock can do this automatically for you, or you can look at the recipe)
+	$(info for '$(build_function)' and do it yourself.)
+	$(info )
+	$(info Continuing will: $(explanation).)
+	$(info )
+	$(info You can use 'make ci-nosetup' to run all CI with no new setup requirements.)
+	$(info )
+	$(eval do_install := $(shell read -p "Should Tock run setup commands for you? [y/N] " response && if [[ ( "$$(echo "$$response" | tr :upper: :lower:)" == "y" ) ]]; then echo yes; fi))
+	) @# End if TOCK_NOSETUP
+	) @# End if CI
+	$(if $(do_install),
+	$(call $(3))
+	$(eval $(guard_variable) := true)
+	, @# else of do_install
+	$(if $(TOCK_NOSETUP),
+	@# If no setup requested, let this go quietly
+	, @# else of TOCK_NOSETUP
+	$(error Missing required external dependency)
+	) @# End if TOCK_NOSETUP
+	) @# End of if do_install
+	) @# End if already installed
 endef
 
 ##
@@ -141,6 +182,14 @@ ci-all:\
 	ci-runner-github\
 	ci-runner-netlify
 
+# Run all CI that doesn't require installation of extra tools.
+#
+# Note that this will run things that require setup that has already been
+# completed. It simply will not prompt for *new* installs.
+.PHONY: ci-nosetup
+ci-nosetup:
+	@TOCK_NOSETUP=true $(MAKE) ci-all
+
 # Run the fast jobs.
 # This is designed for developers, to be run often and before submitting code upstream.
 .PHONY: prepush
@@ -184,6 +233,7 @@ ci-help:
 	@echo
 	@echo To run all possible CI run $$(tput bold)make ci-all$$(tput sgr0).
 	@echo Note this may ask you to set up additional support on your machine.
+	@echo To run all CI that does not require installation, use $$(tput bold)make ci-nosetup$$(tput sgr0).
 
 # Alias the plain `ci` target to `ci-help` to help guessing users
 .PHONY: ci
@@ -277,25 +327,27 @@ ci-job-clippy:
 	$(call banner,CI-Job: Clippy)
 	@CI=true ./tools/run_clippy.sh
 
+define ci_setup_markdown_toc
+	$(call banner,CI-Setup: Install markdown-toc)
+	npm install -g markdown-toc
+endef
+
 .PHONY: ci-setup-markdown-toc
 ci-setup-markdown-toc:
-ifdef CI
-	npm install -g markdown-toc
-else
-	@command -v markdown-toc > /dev/null || (\
-		printf "\n$$(tput bold)Missing Dependency$$(tput sgr0)";\
-		printf "\n";\
-		printf "Need to install 'markdown-toc' on your system.\n";\
-		printf "\n";\
-		printf "This is easiest installed globally using npm:\n";\
-		printf "  npm install -g markdown-toc\n"\
-		exit 1)
-endif
+	$(call ci_setup_helper,\
+		command -v markdown-toc,\
+		npm install -g markdown-toc,\
+		ci_setup_markdown_toc,\
+		CI_JOB_MARKDOWN)
+
+define ci_job_markdown_toc
+	$(call banner,CI-Job: Markdown Table of Contents Validation)
+	@CI=true tools/toc.sh
+endef
 
 .PHONY: ci-job-markdown-toc
 ci-job-markdown-toc: ci-setup-markdown-toc
-	$(call banner,CI-Job: Markdown Table of Contents Validation)
-	@CI=true tools/toc.sh
+	$(if $(CI_JOB_MARKDOWN),$(call ci_job_markdown_toc))
 
 
 
@@ -373,28 +425,30 @@ ci-job-chips:
 		cd ../..;\
 		done
 
+define ci_setup_tools
+	$(call banner,CI-Setup: Install support for 'tools' checks)
+	@if command -v apt-get > /dev/null; then\
+		echo "Running: sudo apt-get install libusb-1.0.0-dev";\
+		sudo apt-get install libusb-1.0.0-dev;\
+	elif command -v brew > /dev/null; then\
+		echo "Running: brew install libusb-compat pkg-config";\
+		brew install libusb-compat pkg-config;\
+	else\
+		echo "";\
+		echo "ERR: Do not know how to install libusb on this platform.";\
+		exit 1;\
+	fi
+endef
+
 .PHONY: ci-setup-tools
 ci-setup-tools:
-ifdef CI
-ifeq ($(PLATFORM),Linux)
-	sudo apt-get install libusb-1.0.0-dev
-else ifeq ($(PLATFORM),Darwin)
-	brew install libusb-compat pkg-config
-else
-	$(error CI on unsupported platform.)
-endif
-else
-	@pkg-config --cflags --libs libusb > /dev/null || (\
-		printf "\n$$(tput bold)Missing Dependency$$(tput sgr0)";\
-		printf "\n";\
-		printf "Need to install 'libusb' for development on your system.\n";\
-		printf "  - Debian: sudo apt-get install libusb-1.0.0-dev\n";\
-		printf "  - Darwin: brew install libusb-compat pkg-config\n";\
-		exit 1)
-endif
+	$(call ci_setup_helper,\
+		pkg-config --cflags --libs libusb &> /dev/null && echo yes,\
+		Install 'libusb' for development using your package manager,\
+		ci_setup_tools,\
+		CI_JOB_TOOLS)
 
-.PHONY: ci-job-tools
-ci-job-tools: ci-setup-tools
+define ci_job_tools
 	$(call banner,CI-Job: Tools)
 	@for tool in `./tools/list_tools.sh`;\
 		do echo "$$(tput bold)Build & Test $$tool";\
@@ -402,28 +456,32 @@ ci-job-tools: ci-setup-tools
 		CI=true RUSTFLAGS="-D warnings" cargo build --all-targets || exit 1;\
 		cd - > /dev/null;\
 		done
+endef
+
+.PHONY: ci-job-tools
+ci-job-tools: ci-setup-tools
+	$(if $(CI_JOB_TOOLS),$(call ci_job_tools))
 
 
 
 ### ci-runner-github-qemu jobs:
 
-# ci-setup-qemu uses make as intended a bit to get all the needed parts
-.PHONY: ci-setup-qemu
-ci-setup-qemu: tools/qemu/riscv32-softmmu tools/qemu-runner/opentitan-boot-rom.elf
-
-tools/qemu/riscv32-softmmu:
+define ci_setup_qemu_riscv
+	$(call banner,CI-Setup: Install Tock QEMU port)
 	@# Use the latest QEMU as it has OpenTitan support
 	@printf "Building QEMU, this could take a few minutes\n\n"
 	# Download Tock qemu fork if needed
-	@if [[ ! -d tools/qemu || ! -f tools/qemu/VERSION ]]; then \
+	if ! bash -c 'cd tools/qemu && [[ $$(git rev-parse --short HEAD) == "7ff5b84" ]]'; then \
 		rm -rf tools/qemu; \
 		cd tools; git clone https://github.com/alistair23/qemu.git --depth 1 -b riscv-tock.next; \
 		cd qemu; ./configure --target-list=riscv32-softmmu; \
 	fi
 	# Build qemu
 	@$(MAKE) -C "tools/qemu" || (echo "You might need to install some missing packages" || exit 127)
+endef
 
-tools/qemu-runner/opentitan-boot-rom.elf:
+define ci_setup_qemu_opentitan
+	$(call banner,CI-Setup: Get OpenTitan boot ROM image)
 	# Download OpenTitan image
 	@printf "Downloading OpenTitan boot rom from: 2aedf641120665b91c3a5d5aa214175d09f71ee6\n"
 	@pwd=$$(pwd) && \
@@ -433,14 +491,34 @@ tools/qemu-runner/opentitan-boot-rom.elf:
 		unzip opentitan-dist.zip; \
 		tar -xf opentitan-dist/opentitan-snapshot-20191101-*.tar.xz; \
 		mv opentitan-snapshot-20191101-*/sw/device/boot_rom/boot_rom_fpga_nexysvideo.elf $$pwd/tools/qemu-runner/opentitan-boot-rom.elf
+endef
+
+.PHONY: ci-setup-qemu
+ci-setup-qemu:
+	$(call ci_setup_helper,\
+		cd tools/qemu && [[ $$(git rev-parse --short HEAD) == "1ef6d40" ]] && [ -x riscv32-softmmu ] && echo yes,\
+		Clone QEMU fork (with riscv fixes) and run its build scripts,\
+		ci_setup_qemu_riscv,\
+		CI_JOB_QEMU_RISCV)
+	$(call ci_setup_helper,\
+		[[ $$(cksum tools/qemu-runner/opentitan-boot-rom.elf | cut -d" " -f1) == "2835238144" ]] && echo yes,\
+		Download opentitan archive and unpack a ROM image,\
+		ci_setup_qemu_opentitan,\
+		CI_JOB_QEMU_OPENTITAN)
+	$(if $(CI_JOB_QEMU_RISCV),$(if $(CI_JOB_QEMU_OPENTITAN),$(eval CI_JOB_QEMU := true)))
 
 
-.PHONY: ci-job-qemu
-ci-job-qemu: ci-setup-qemu
+
+define ci_job_qemu
 	$(call banner,CI-Job: QEMU)
 	@cd tools/qemu-runner;\
 		PATH="$(shell pwd)/tools/qemu/riscv32-softmmu/:${PATH}"\
 		CI=true cargo run
+endef
+
+.PHONY: ci-job-qemu
+ci-job-qemu: ci-setup-qemu
+	$(if $(CI_JOB_QEMU),$(call ci_job_qemu))
 
 
 
