@@ -197,11 +197,13 @@ impl<'a> MuxUart<'a> {
             let mnode = self.devices.iter().find(|node| node.operation.is_some());
             mnode.map(|node| {
                 node.tx_buffer.take().map(|buf| {
+                    self.inflight.set(node);
                     node.operation.map(move |op| match op {
                         Operation::Transmit { len } => {
                             let (rcode, rbuf) = self.uart.transmit_buffer(buf, *len);
                             if rcode != ReturnCode::SUCCESS {
                                 node.tx_client.map(|client| {
+                                    self.inflight.clear();
                                     node.transmitting.set(false);
                                     client.transmitted_buffer(rbuf.unwrap(), 0, rcode);
                                 });
@@ -211,6 +213,7 @@ impl<'a> MuxUart<'a> {
                             let rcode = self.uart.transmit_word(*word);
                             if rcode != ReturnCode::SUCCESS {
                                 node.tx_client.map(|client| {
+                                    self.inflight.clear();
                                     node.transmitting.set(false);
                                     client.transmitted_word(rcode);
                                 });
@@ -219,7 +222,6 @@ impl<'a> MuxUart<'a> {
                     });
                 });
                 node.operation.clear();
-                self.inflight.set(node);
             });
         }
     }
