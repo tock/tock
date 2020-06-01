@@ -115,18 +115,19 @@ impl<'a, C: hil::usb::UsbController<'a>> Client<'a, C> {
             CsInterfaceDescriptor {
                 subtype: descriptors::CsInterfaceDescriptorSubType::CallManagement,
                 field1: 0x00,
-                field2: 0x03,
+                field2: 0x01,
             },
             CsInterfaceDescriptor {
                 subtype: descriptors::CsInterfaceDescriptorSubType::AbstractControlManagement,
                 field1: 0x06,
                 field2: 0x00,
             },
-            CsInterfaceDescriptor {
-                subtype: descriptors::CsInterfaceDescriptorSubType::Union,
-                field1: 0x02,
-                field2: 0x03,
-            },
+            // make the length work for now......
+            // CsInterfaceDescriptor {
+            //     subtype: descriptors::CsInterfaceDescriptorSubType::Union,
+            //     field1: 0x02,
+            //     field2: 0x03,
+            // },
         ];
 
         let endpoints: &[&[EndpointDescriptor]] = &[
