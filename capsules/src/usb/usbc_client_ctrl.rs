@@ -4,8 +4,8 @@
 
 use super::descriptors::Buffer64;
 use super::descriptors::Descriptor;
-use super::descriptors::DescriptorType;
 use super::descriptors::DescriptorBuffer;
+use super::descriptors::DescriptorType;
 use super::descriptors::DeviceBuffer;
 use super::descriptors::HIDDescriptor;
 use super::descriptors::LanguagesDescriptor;
@@ -17,9 +17,9 @@ use super::descriptors::StringDescriptor;
 use super::descriptors::TransferDirection;
 use core::cell::Cell;
 use core::cmp::min;
+use kernel::debug;
 use kernel::hil;
 use kernel::hil::usb::TransferType;
-use kernel::debug;
 
 const DESCRIPTOR_BUFLEN: usize = 128;
 
@@ -88,7 +88,6 @@ impl<'a, 'b, C: hil::usb::UsbController<'a>> ClientCtrl<'a, 'b, C> {
         language: &'b [u16; 1],
         strings: &'b [&'b str],
     ) -> Self {
-
         ClientCtrl {
             controller: controller,
             state: Default::default(),
@@ -235,7 +234,7 @@ impl<'a, 'b, C: hil::usb::UsbController<'a>> ClientCtrl<'a, 'b, C> {
     }
 
     #[inline]
-    pub fn controller(&'a self) -> &'a C {
+    pub fn controller(&self) -> &'a C {
         self.controller
     }
 
@@ -252,9 +251,6 @@ impl<'a, 'b, C: hil::usb::UsbController<'a>> ClientCtrl<'a, 'b, C> {
             .enable_as_device(hil::usb::DeviceSpeed::Full); // must be Full for Bulk transfers
         self.controller
             .endpoint_out_enable(TransferType::Control, 0);
-
-
-
     }
 
     pub fn attach(&'a self) {
@@ -332,19 +328,17 @@ impl<'a, 'b, C: hil::usb::UsbController<'a>> ClientCtrl<'a, 'b, C> {
                         }
                         _ => hil::usb::CtrlSetupResult::ErrInvalidDeviceIndex,
                     },
-                    DescriptorType::Configuration => {
-                        match descriptor_index {
-                            0 => {
-                                let buf = self.descriptor_buf();
-                                let len = self.other_descriptor_buffer.write_to(buf);
+                    DescriptorType::Configuration => match descriptor_index {
+                        0 => {
+                            let buf = self.descriptor_buf();
+                            let len = self.other_descriptor_buffer.write_to(buf);
 
-                                let end = min(len, requested_length as usize);
-                                self.state[endpoint].set(State::CtrlIn(0, end));
-                                hil::usb::CtrlSetupResult::Ok
-                            }
-                            _ => hil::usb::CtrlSetupResult::ErrInvalidConfigurationIndex,
+                            let end = min(len, requested_length as usize);
+                            self.state[endpoint].set(State::CtrlIn(0, end));
+                            hil::usb::CtrlSetupResult::Ok
                         }
-                    }
+                        _ => hil::usb::CtrlSetupResult::ErrInvalidConfigurationIndex,
+                    },
                     DescriptorType::String => {
                         if let Some(len) = match descriptor_index {
                             0 => {
@@ -438,7 +432,7 @@ impl<'a, 'b, C: hil::usb::UsbController<'a>> ClientCtrl<'a, 'b, C> {
                 }
                 //FIXME might need to include one or more CDC descriptors here
                 _ => {
-debug!("we get here?");
+                    debug!("we get here?");
                     hil::usb::CtrlSetupResult::ErrGeneric
                 }
             },
@@ -452,7 +446,6 @@ debug!("we get here?");
             State::CtrlIn(start, end) => {
                 let len = end.saturating_sub(start);
                 if len > 0 {
-
                     let packet_bytes = min(self.ctrl_buffer.buf.len(), len);
                     let packet = &self.descriptor_storage[start..start + packet_bytes];
                     let buf = &self.ctrl_buffer.buf;
