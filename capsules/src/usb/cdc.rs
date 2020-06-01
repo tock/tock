@@ -1,18 +1,31 @@
 //! CDC
 
-use kernel::common::cells::OptionalCell;
+use core::cmp;
+use core::cell::Cell;
+
 use super::descriptors::{
-    self, Buffer8, EndpointAddress, CsInterfaceDescriptor, EndpointDescriptor, InterfaceDescriptor, TransferDirection,
+    self, Buffer64, EndpointAddress, CsInterfaceDescriptor, EndpointDescriptor, InterfaceDescriptor, TransferDirection,
 };
 use super::usbc_client_ctrl::ClientCtrl;
-use core::cell::Cell;
+
+use kernel::common::cells::OptionalCell;
+use kernel::common::cells::TakeCell;
 use kernel::common::cells::VolatileCell;
 use kernel::debug;
 use kernel::hil;
 use kernel::hil::usb::TransferType;
+use kernel::hil::uart;
+use kernel::ReturnCode;
 
 const VENDOR_ID: u16 = 0x6668;
 const PRODUCT_ID: u16 = 0xabce;
+
+/// Identifying number for the endpoint when transferring data from us to the
+/// host.
+const ENDPOINT_IN_NUM: usize = 2;
+/// Identifying number for the endpoint when transferring data from the host to
+/// us.
+const ENDPOINT_OUT_NUM: usize = 3;
 
 static LANGUAGES: &'static [u16; 1] = &[
     0x0409, // English (United States)
@@ -26,67 +39,32 @@ static STRINGS: &'static [&'static str] = &[
 
 const N_ENDPOINTS: usize = 3;
 
-// // Communication interface descriptor
-
-// 0x09,            // Descriptor size in bytes
-// 0x04,            // INTERFACE descriptor type
-// 0x00,            // Interface number
-// 0x00,            // Alternate setting number
-// 0x01,            // Number of endpoints
-// 0x02,            // Class: CDC communication
-// 0x02,            // Subclass: abstract control model
-// 0x02,            // Protocol: V.25ter (AT commands)
-// 0x00,            // Interface string index
-
-// // Data interface descriptor
-
-// 0x09,            // Descriptor size in bytes
-// 0x04,            // INTERFACE descriptor type
-// 0x01,            // Interface number
-// 0x00,            // Alternate setting number
-// 0x02,            // Number of endpoints
-// 0x0a,            // Class: CDC data
-// 0x00,            // Subclass: none
-// 0x00,            // Protocol: none
-// 0x00,            // Interface string index
 
 
-pub struct Client<'a, C: 'a> {
+
+pub struct Cdc<'a, C: 'a> {
     client_ctrl: ClientCtrl<'a, 'static, C>,
 
     // An eight-byte buffer for each endpoint
-    buffers: [Buffer8; N_ENDPOINTS],
+    buffers: [Buffer64; N_ENDPOINTS],
 
-    // State for a debugging feature: A buffer for echoing bulk data
-    // from an OUT endpoint back to an IN endpoint
-    echo_buf: [Cell<u8>; 8], // Must be no larger than endpoint packet buffer
-    echo_len: Cell<usize>,
-    last_char: OptionalCell<u8>,
+    /// A holder reference for the TX buffer we are transmitting from.
+    tx_buffer: TakeCell<'static, [u8]>,
+    /// The number of bytes the client has asked us to send. We track this so we
+    /// can pass it back to the client when the transmission has finished.
+    tx_len: Cell<usize>,
+    /// How many more bytes we need to transmit. This is used in our TX state
+    /// machine.
+    tx_remaining: Cell<usize>,
+    /// Where in the `tx_buffer` we need to start sending from when we continue.
+    tx_offset: Cell<usize>,
+    /// The TX client to use when transmissions finish.
+    tx_client: OptionalCell<&'a dyn uart::TransmitClient>,
 }
 
-// device
-// {
-// 0x12,            // Descriptor size in bytes
-// 0x01,            // DEVICE descriptor type
-// 0x0200,          // USB version, BCD (2.0)
-// 0x02             // Class: CDC
-// 0x00,            // Subclass: none
-// 0x00,            // Protocol: none
-// 0x08,            // Max. packet size, Endpoint 0
-// 0x0925,          // USB Vendor ID
-// 0x9060,          // USB Product ID
-// 0x0100,          // Device release, BCD (1.0)
-// 0x00,            // Manufacturer string index
-// 0x00,            // Product string index
-// 0x01,            // Serial number string index
-// 0x01             // Number of configurations
-// };
 
 
-
-
-
-impl<'a, C: hil::usb::UsbController<'a>> Client<'a, C> {
+impl<'a, C: hil::usb::UsbController<'a>> Cdc<'a, C> {
     pub fn new(controller: &'a C) -> Self {
 
         let interfaces: &mut [InterfaceDescriptor] = &mut [
@@ -110,8 +88,8 @@ impl<'a, C: hil::usb::UsbController<'a>> Client<'a, C> {
         let cdc_descriptors: &mut [CsInterfaceDescriptor] = &mut [
             CsInterfaceDescriptor {
                 subtype: descriptors::CsInterfaceDescriptorSubType::Header,
-                field1: 0x10,
-                field2: 0x11,
+                field1: 0x10, // CDC
+                field2: 0x11, // CDC
             },
             CsInterfaceDescriptor {
                 subtype: descriptors::CsInterfaceDescriptorSubType::CallManagement,
@@ -121,13 +99,13 @@ impl<'a, C: hil::usb::UsbController<'a>> Client<'a, C> {
             CsInterfaceDescriptor {
                 subtype: descriptors::CsInterfaceDescriptorSubType::AbstractControlManagement,
                 field1: 0x06,
-                field2: 0x00,
+                field2: 0x00, // unused
             },
             // make the length work for now......
             CsInterfaceDescriptor {
                 subtype: descriptors::CsInterfaceDescriptorSubType::Union,
-                field1: 0x00,
-                field2: 0x01,
+                field1: 0x00, // Interface 0
+                field2: 0x01, // Interface 1
             },
         ];
 
@@ -143,15 +121,13 @@ impl<'a, C: hil::usb::UsbController<'a>> Client<'a, C> {
                 EndpointDescriptor {
                     endpoint_address: EndpointAddress::new_const(2, TransferDirection::DeviceToHost),
                     transfer_type: TransferType::Bulk,
-                    // max_packet_size: 16,
-                    max_packet_size: 8,
+                    max_packet_size: 64,
                     interval: 100,
                 },
                 EndpointDescriptor {
                     endpoint_address: EndpointAddress::new_const(3, TransferDirection::HostToDevice),
                     transfer_type: TransferType::Bulk,
-                    // max_packet_size: 16,
-                    max_packet_size: 8,
+                    max_packet_size: 64,
                     interval: 100,
                 },
             ]
@@ -177,7 +153,7 @@ impl<'a, C: hil::usb::UsbController<'a>> Client<'a, C> {
                 Some(cdc_descriptors),
                 );
 
-        Client {
+        Cdc {
             client_ctrl: ClientCtrl::new(
                 controller,
                 device_descriptor_buffer,
@@ -187,25 +163,14 @@ impl<'a, C: hil::usb::UsbController<'a>> Client<'a, C> {
                 LANGUAGES,
                 STRINGS,
             ),
-            buffers: Default::default(),
-            echo_buf: Default::default(),
-            echo_len: Cell::new(0),
-            last_char: OptionalCell::empty(),
+            buffers: [Buffer64::default(); N_ENDPOINTS],
+            tx_buffer: TakeCell::empty(),
+            tx_len: Cell::new(0),
+            tx_remaining: Cell::new(0),
+            tx_offset: Cell::new(0),
+            tx_client: OptionalCell::empty(),
         }
     }
-
-    // fn alert_full(&'a self) {
-    //     // Alert the controller that we now have data to send on the Bulk IN endpoint 1
-    //     self.controller().endpoint_resume_in(2);
-    // }
-
-    // fn alert_empty(&'a self) {
-    //     // In case we reported Delay before, alert the controller
-    //     // that we can now receive data on the Bulk OUT endpoint 2
-    //     if self.delayed_out.take() {
-    //         self.controller().endpoint_resume_out(2);
-    //     }
-    // }
 
     #[inline]
     fn controller(&'a self) -> &'a C {
@@ -213,21 +178,22 @@ impl<'a, C: hil::usb::UsbController<'a>> Client<'a, C> {
     }
 
     #[inline]
-    fn buffer(&'a self, i: usize) -> &'a [VolatileCell<u8>; 8] {
+    fn buffer(&'a self, i: usize) -> &'a [VolatileCell<u8>; 64] {
         &self.buffers[i - 1].buf
     }
 }
 
-impl<'a, C: hil::usb::UsbController<'a>> hil::usb::Client<'a> for Client<'a, C> {
+impl<'a, C: hil::usb::UsbController<'a>> hil::usb::Client<'a> for Cdc<'a, C> {
     fn enable(&'a self) {
         // Set up the default control endpoint
         self.client_ctrl.enable();
 
-        self.controller().endpoint_set_in_buffer(2, self.buffer(2));
-        self.controller().endpoint_in_enable(TransferType::Bulk, 2);
+        // Setup buffers for IN and OUT data transfer.
+        self.controller().endpoint_set_in_buffer(ENDPOINT_IN_NUM, self.buffer(ENDPOINT_IN_NUM));
+        self.controller().endpoint_in_enable(TransferType::Bulk, ENDPOINT_IN_NUM);
 
-        self.controller().endpoint_set_out_buffer(3, self.buffer(3));
-        self.controller().endpoint_out_enable(TransferType::Bulk, 3);
+        self.controller().endpoint_set_out_buffer(ENDPOINT_OUT_NUM, self.buffer(ENDPOINT_OUT_NUM));
+        self.controller().endpoint_out_enable(TransferType::Bulk, ENDPOINT_OUT_NUM);
     }
 
     fn attach(&'a self) {
@@ -239,10 +205,6 @@ impl<'a, C: hil::usb::UsbController<'a>> hil::usb::Client<'a> for Client<'a, C> 
         // For now, the hardware layer does it.
 
         debug!("Bus reset");
-
-        // Reset the state for our pair of debugging endpoints
-        self.echo_len.set(0);
-        self.last_char.clear();
     }
 
     /// Handle a Control Setup transaction
@@ -269,9 +231,15 @@ impl<'a, C: hil::usb::UsbController<'a>> hil::usb::Client<'a> for Client<'a, C> 
         self.client_ctrl.ctrl_status_complete(endpoint)
     }
 
-    /// Handle a Bulk/Interrupt IN transaction
+    /// Handle a Bulk/Interrupt IN transaction.
+    ///
+    /// This is called when we can send data to the host. It should get called
+    /// when we tell the controller we want to resume the IN endpoint (meaning
+    /// we know we have data to send) and afterwards until we return
+    /// `hil::usb::InResult::Delay` from this function. That means we can use
+    /// this as a callback to mean that the transmission finished by waiting
+    /// until this function is called when we don't have anything left to send.
     fn packet_in(&'a self, transfer_type: TransferType, endpoint: usize) -> hil::usb::InResult {
-        debug!("packet in {}", endpoint);
         match transfer_type {
             TransferType::Interrupt => {
                 debug!("interrupt_in({}) not implemented", endpoint);
@@ -279,25 +247,76 @@ impl<'a, C: hil::usb::UsbController<'a>> hil::usb::Client<'a> for Client<'a, C> 
             }
             TransferType::Bulk => {
 
-                if self.last_char.is_some() {
+                self.tx_buffer.take().map_or(hil::usb::InResult::Delay, |tx_buf| {
+
+                    // Check if we have any bytes to send.
+                    let remaining = self.tx_remaining.get();
+                    if remaining > 0 {
+                        // We do, so we go ahead and send those.
+
+                        // Get packet that we have shared with the underlying
+                        // USB stack to copy the tx into.
+                        let packet = self.buffer(endpoint);
+
+                        // Calculate how much more we can send.
+                        let to_send = cmp::min(packet.len(), remaining);
+
+                        // Copy from the TX buffer to the outgoing USB packet.
+                        let offset = self.tx_offset.get();
+                        for i in 0..to_send {
+                            packet[i].set(tx_buf[offset+i]);
+                        }
+
+                        // Update our state on how much more there is to send.
+                        self.tx_remaining.set(remaining - to_send);
+                        self.tx_offset.set(offset + to_send);
+
+                        // Put the TX buffer back so we can keep sending from it.
+                        self.tx_buffer.replace(tx_buf);
+
+                        // Return that we have data to send.
+                        hil::usb::InResult::Packet(to_send)
+
+                    } else {
+                        // We don't have anything to send, so that means we are
+                        // ok to signal the callback.
+
+                        // Signal the callback and pass back the TX buffer.
+                        self.tx_client.map(|tx_client| {
+                            tx_client.transmitted_buffer(
+                                tx_buf,
+                                self.tx_len.get(),
+                                ReturnCode::SUCCESS,
+                            )
+                        });
+
+                        // Return that we have nothing else to do to the USB
+                        // driver.
+                        hil::usb::InResult::Delay
+                    }
+                })
 
 
 
-                    let packet = self.buffer(endpoint);
+                // if self.last_char.is_some() {
 
 
-                    packet[0].set(self.last_char.unwrap_or(66));
 
-                    self.last_char.clear();
-
-                    // self.controller().endpoint_resume_out(3);
-
-                    hil::usb::InResult::Packet(1)
+                //     let packet = self.buffer(endpoint);
 
 
-                } else {
-                    hil::usb::InResult::Delay
-                }
+                //     packet[0].set(self.last_char.unwrap_or(66));
+
+                //     self.last_char.clear();
+
+                //     // self.controller().endpoint_resume_out(3);
+
+                //     hil::usb::InResult::Packet(1)
+
+
+                // } else {
+                //     hil::usb::InResult::Delay
+                // }
 
 
 
@@ -348,14 +367,14 @@ impl<'a, C: hil::usb::UsbController<'a>> hil::usb::Client<'a> for Client<'a, C> 
 
 
 
-                let packet = self.buffer(endpoint);
+                // let packet = self.buffer(endpoint);
 
-                debug!("got {}", packet[0].get());
+                // debug!("got {}", packet[0].get());
 
-                self.last_char.set(packet[0].get());
+                // self.last_char.set(packet[0].get());
 
 
-                self.controller().endpoint_resume_in(2);
+                // self.controller().endpoint_resume_in(2);
 
 
                 // if total_len > self.echo_buf.len() {
@@ -388,5 +407,49 @@ impl<'a, C: hil::usb::UsbController<'a>> hil::usb::Client<'a> for Client<'a, C> 
 
     fn packet_transmitted(&'a self, _endpoint: usize) {
         // Nothing to do.
+    }
+}
+
+impl<'a, C: hil::usb::UsbController<'a>> uart::Transmit<'a> for Cdc<'a, C> {
+    fn set_transmit_client(&self, client: &'a dyn uart::TransmitClient) {
+        self.tx_client.set(client);
+    }
+
+    fn transmit_buffer(
+        &self,
+        tx_buffer: &'static mut [u8],
+        tx_len: usize,
+    ) -> (ReturnCode, Option<&'static mut [u8]>) {
+        if self.tx_buffer.is_some() {
+            // We are already handling a transmission, we cannot queue another
+            // request.
+            (ReturnCode::EBUSY, Some(tx_buffer))
+        } else {
+            if tx_len > tx_buffer.len() {
+                // Can't send more bytes than will fit in the buffer.
+                return (ReturnCode::ESIZE, Some(tx_buffer));
+            }
+
+            // Ok, we can handle this transmission. Initialize all of our state
+            // for our TX state machine.
+            self.tx_remaining.set(tx_len);
+            self.tx_len.set(tx_len);
+            self.tx_offset.set(0);
+            self.tx_buffer.replace(tx_buffer);
+
+            // Then signal to the lower layer that we are ready to do a TX by
+            // putting data in the IN endpoint.
+            self.controller().endpoint_resume_in(ENDPOINT_IN_NUM);
+
+            (ReturnCode::SUCCESS, None)
+        }
+    }
+
+    fn transmit_abort(&self) -> ReturnCode {
+        ReturnCode::FAIL
+    }
+
+    fn transmit_word(&self, _word: u32) -> ReturnCode {
+        ReturnCode::FAIL
     }
 }
