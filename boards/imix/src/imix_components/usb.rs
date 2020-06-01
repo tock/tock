@@ -25,7 +25,7 @@ pub struct UsbComponent {
 
 type UsbDevice = capsules::usb::usb_user::UsbSyscallDriver<
     'static,
-    capsules::usb::cdc::Client<'static, sam4l::usbc::Usbc<'static>>,
+    capsules::usb::cdc::Cdc<'static, sam4l::usbc::Usbc<'static>>,
 >;
 
 impl UsbComponent {
@@ -52,8 +52,8 @@ impl Component for UsbComponent {
 
         // Configure the USB controller
         let cdc = static_init!(
-            capsules::usb::cdc::Client<'static, sam4l::usbc::Usbc<'static>>,
-            capsules::usb::cdc::Client::new(&sam4l::usbc::USBC)
+            capsules::usb::cdc::Cdc<'static, sam4l::usbc::Usbc<'static>>,
+            capsules::usb::cdc::Cdc::new(&sam4l::usbc::USBC)
         );
         sam4l::usbc::USBC.set_client(cdc);
 
@@ -61,7 +61,7 @@ impl Component for UsbComponent {
         let usb_driver = static_init!(
             capsules::usb::usb_user::UsbSyscallDriver<
                 'static,
-                capsules::usb::cdc::Client<'static, sam4l::usbc::Usbc<'static>>,
+                capsules::usb::cdc::Cdc<'static, sam4l::usbc::Usbc<'static>>,
             >,
             capsules::usb::usb_user::UsbSyscallDriver::new(
                 cdc,
