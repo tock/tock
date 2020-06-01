@@ -202,7 +202,6 @@ impl kernel::mpu::MPU for PMPConfig {
                             + csr::pmpconfig::pmpcfg::a0::OFF
                             + csr::pmpconfig::pmpcfg::l0::CLEAR,
                     );
-                    csr::CSR.pmpaddr[0].set(0x0);
                 }
                 1 => {
                     csr::CSR.pmpcfg[0].modify(
@@ -212,7 +211,6 @@ impl kernel::mpu::MPU for PMPConfig {
                             + csr::pmpconfig::pmpcfg::a1::OFF
                             + csr::pmpconfig::pmpcfg::l1::CLEAR,
                     );
-                    csr::CSR.pmpaddr[1].set(0x0);
                 }
                 2 => {
                     csr::CSR.pmpcfg[0].modify(
@@ -222,7 +220,6 @@ impl kernel::mpu::MPU for PMPConfig {
                             + csr::pmpconfig::pmpcfg::a2::OFF
                             + csr::pmpconfig::pmpcfg::l2::CLEAR,
                     );
-                    csr::CSR.pmpaddr[2].set(0x0);
                 }
                 3 => {
                     csr::CSR.pmpcfg[0].modify(
@@ -232,7 +229,6 @@ impl kernel::mpu::MPU for PMPConfig {
                             + csr::pmpconfig::pmpcfg::a3::OFF
                             + csr::pmpconfig::pmpcfg::l3::CLEAR,
                     );
-                    csr::CSR.pmpaddr[3].set(0x0);
                 }
                 4 => {
                     csr::CSR.pmpcfg[1].modify(
@@ -242,7 +238,6 @@ impl kernel::mpu::MPU for PMPConfig {
                             + csr::pmpconfig::pmpcfg::a0::OFF
                             + csr::pmpconfig::pmpcfg::l0::CLEAR,
                     );
-                    csr::CSR.pmpaddr[4].set(0x0);
                 }
                 5 => {
                     csr::CSR.pmpcfg[1].modify(
@@ -252,7 +247,6 @@ impl kernel::mpu::MPU for PMPConfig {
                             + csr::pmpconfig::pmpcfg::a1::OFF
                             + csr::pmpconfig::pmpcfg::l1::CLEAR,
                     );
-                    csr::CSR.pmpaddr[5].set(0x0);
                 }
                 6 => {
                     csr::CSR.pmpcfg[1].modify(
@@ -262,7 +256,6 @@ impl kernel::mpu::MPU for PMPConfig {
                             + csr::pmpconfig::pmpcfg::a2::OFF
                             + csr::pmpconfig::pmpcfg::l2::CLEAR,
                     );
-                    csr::CSR.pmpaddr[6].set(0x0);
                 }
                 7 => {
                     csr::CSR.pmpcfg[1].modify(
@@ -272,7 +265,6 @@ impl kernel::mpu::MPU for PMPConfig {
                             + csr::pmpconfig::pmpcfg::a3::OFF
                             + csr::pmpconfig::pmpcfg::l3::CLEAR,
                     );
-                    csr::CSR.pmpaddr[7].set(0x0);
                 }
                 8 => {
                     csr::CSR.pmpcfg[2].modify(
@@ -282,7 +274,6 @@ impl kernel::mpu::MPU for PMPConfig {
                             + csr::pmpconfig::pmpcfg::a0::OFF
                             + csr::pmpconfig::pmpcfg::l0::CLEAR,
                     );
-                    csr::CSR.pmpaddr[8].set(0x0);
                 }
                 9 => {
                     csr::CSR.pmpcfg[2].modify(
@@ -292,7 +283,6 @@ impl kernel::mpu::MPU for PMPConfig {
                             + csr::pmpconfig::pmpcfg::a1::OFF
                             + csr::pmpconfig::pmpcfg::l1::CLEAR,
                     );
-                    csr::CSR.pmpaddr[9].set(0x0);
                 }
                 10 => {
                     csr::CSR.pmpcfg[2].modify(
@@ -302,7 +292,6 @@ impl kernel::mpu::MPU for PMPConfig {
                             + csr::pmpconfig::pmpcfg::a2::OFF
                             + csr::pmpconfig::pmpcfg::l2::CLEAR,
                     );
-                    csr::CSR.pmpaddr[10].set(0x0);
                 }
                 11 => {
                     csr::CSR.pmpcfg[2].modify(
@@ -312,7 +301,6 @@ impl kernel::mpu::MPU for PMPConfig {
                             + csr::pmpconfig::pmpcfg::a3::OFF
                             + csr::pmpconfig::pmpcfg::l3::CLEAR,
                     );
-                    csr::CSR.pmpaddr[11].set(0x0);
                 }
                 12 => {
                     csr::CSR.pmpcfg[3].modify(
@@ -322,7 +310,6 @@ impl kernel::mpu::MPU for PMPConfig {
                             + csr::pmpconfig::pmpcfg::a0::OFF
                             + csr::pmpconfig::pmpcfg::l0::CLEAR,
                     );
-                    csr::CSR.pmpaddr[12].set(0x0);
                 }
                 13 => {
                     csr::CSR.pmpcfg[3].modify(
@@ -332,7 +319,6 @@ impl kernel::mpu::MPU for PMPConfig {
                             + csr::pmpconfig::pmpcfg::a1::OFF
                             + csr::pmpconfig::pmpcfg::l1::CLEAR,
                     );
-                    csr::CSR.pmpaddr[13].set(0x0);
                 }
                 14 => {
                     csr::CSR.pmpcfg[3].modify(
@@ -342,7 +328,6 @@ impl kernel::mpu::MPU for PMPConfig {
                             + csr::pmpconfig::pmpcfg::a2::OFF
                             + csr::pmpconfig::pmpcfg::l2::CLEAR,
                     );
-                    csr::CSR.pmpaddr[14].set(0x0);
                 }
                 15 => {
                     csr::CSR.pmpcfg[3].modify(
@@ -352,12 +337,13 @@ impl kernel::mpu::MPU for PMPConfig {
                             + csr::pmpconfig::pmpcfg::a3::OFF
                             + csr::pmpconfig::pmpcfg::l3::CLEAR,
                     );
-                    csr::CSR.pmpaddr[15].set(0x0);
                 }
                 // spec 1.10 only goes to 15
                 _ => break,
             }
+            csr::CSR.pmpaddr[x].set(0x0);
         }
+
         //set first PMP to have permissions to entire space
         csr::CSR.pmpaddr[0].set(0xFFFF_FFFF);
         //enable R W X fields
