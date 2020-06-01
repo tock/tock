@@ -401,6 +401,12 @@ impl<'a, C: hil::usb::UsbController<'a>> hil::usb::Client<'a> for Cdc<'a, C> {
     }
 }
 
+impl<'a, C: hil::usb::UsbController<'a>> uart::Configure for Cdc<'a, C> {
+    fn configure(&self, parameters: uart::Parameters) -> ReturnCode {
+        ReturnCode::SUCCESS
+    }
+}
+
 impl<'a, C: hil::usb::UsbController<'a>> uart::Transmit<'a> for Cdc<'a, C> {
     fn set_transmit_client(&self, client: &'a dyn uart::TransmitClient) {
         self.tx_client.set(client);
@@ -444,3 +450,44 @@ impl<'a, C: hil::usb::UsbController<'a>> uart::Transmit<'a> for Cdc<'a, C> {
         ReturnCode::FAIL
     }
 }
+
+impl<'a, C: hil::usb::UsbController<'a>> uart::Receive<'a> for Cdc<'a, C> {
+    fn set_receive_client(&self, client: &'a dyn uart::ReceiveClient) {
+
+    }
+
+    fn receive_buffer(
+        &self,
+        rx_buffer: &'static mut [u8],
+        rx_len: usize,
+    ) -> (ReturnCode, Option<&'static mut [u8]>) {
+        // if rx_len > rx_buffer.len() {
+        //     return (ReturnCode::ESIZE, Some(rx_buffer));
+        // }
+        // let usart = &USARTRegManager::new(&self);
+
+        // // enable RX
+        // self.enable_rx(usart);
+        // self.enable_rx_error_interrupts(usart);
+        // self.usart_rx_state.set(USARTStateRX::DMA_Receiving);
+        // // set up dma transfer and start reception
+        // if let Some(dma) = self.rx_dma.get() {
+        //     dma.enable();
+        //     self.rx_len.set(rx_len);
+        //     dma.do_transfer(self.rx_dma_peripheral, rx_buffer, rx_len);
+            (ReturnCode::SUCCESS, None)
+        // } else {
+        //     (ReturnCode::EOFF, Some(rx_buffer))
+        // }
+    }
+
+    fn receive_abort(&self) -> ReturnCode {
+        ReturnCode::FAIL
+    }
+
+    fn receive_word(&self) -> ReturnCode {
+        ReturnCode::FAIL
+    }
+}
+
+impl<'a, C: hil::usb::UsbController<'a>> uart::Uart<'a> for Cdc<'a, C> {}
