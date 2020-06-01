@@ -3,13 +3,11 @@
 //! It responds to control requests and forwards bulk/interrupt transfers to the above layer.
 
 use super::descriptors::Buffer64;
-use super::descriptors::ConfigurationDescriptor;
 use super::descriptors::Descriptor;
 use super::descriptors::DescriptorType;
-use super::descriptors::DeviceDescriptor;
-use super::descriptors::EndpointDescriptor;
+use super::descriptors::DescriptorBuffer;
+use super::descriptors::DeviceBuffer;
 use super::descriptors::HIDDescriptor;
-use super::descriptors::InterfaceDescriptor;
 use super::descriptors::LanguagesDescriptor;
 use super::descriptors::Recipient;
 use super::descriptors::ReportDescriptor;
@@ -39,28 +37,16 @@ pub struct ClientCtrl<'a, 'b, C: 'a> {
     /// Storage for composing responses to device-descriptor requests
     descriptor_storage: [Cell<u8>; DESCRIPTOR_BUFLEN],
 
-    /// Descriptor to reply to control requests. There is only one per device.
-    device_descriptor: DeviceDescriptor,
+    /// Device descriptor buffer to reply to control requests.
+    device_descriptor_buffer: DeviceBuffer,
 
-    /// Parent descriptor containing a configuration. We only support one
-    /// configuration, as devices tend to only ever need one configuration.
-    configuration_descriptor: ConfigurationDescriptor,
+    /// Other descriptor buffers to reply to control requests.
+    other_descriptor_buffer: DescriptorBuffer,
 
-    /// One or more interface descriptors.
-    interface_descriptor: &'b [InterfaceDescriptor],
-
-    /// A list of endpoint descriptor lists. Each endpoint descriptor list
-    /// corresponds to the matching index in the interface descriptor list. For
-    /// example, if the interface descriptor list contains `[ID1, ID2, ID3]`,
-    /// and the endpoint descriptors list is `[[ED1, ED2], [ED3, ED4, ED5],
-    /// [ED6]]`, then the third interface descriptor (`ID3`) has one
-    /// corresponding endpoint descriptor (`ED6`).
-    endpoint_descriptors: &'b [&'b [EndpointDescriptor]],
-
-    /// A HID descriptor for the configuration, if any
+    /// A HID descriptor for the configuration, if any.
     hid_descriptor: Option<&'b HIDDescriptor<'b>>,
 
-    /// A report descriptor for the configuration, if any
+    /// A report descriptor for the configuration, if any.
     report_descriptor: Option<&'b ReportDescriptor<'b>>,
 
     /// Supported language (only one for now)
@@ -94,45 +80,19 @@ impl Default for State {
 impl<'a, 'b, C: hil::usb::UsbController<'a>> ClientCtrl<'a, 'b, C> {
     pub fn new(
         controller: &'a C,
-        device_descriptor: DeviceDescriptor,
-        mut configuration_descriptor: ConfigurationDescriptor,
-        mut interface_descriptor: &'b mut [InterfaceDescriptor],
-        endpoint_descriptors: &'b [ &'b [EndpointDescriptor]],
+        device_descriptor_buffer: DeviceBuffer,
+        other_descriptor_buffer: DescriptorBuffer,
         hid_descriptor: Option<&'b HIDDescriptor<'b>>,
         report_descriptor: Option<&'b ReportDescriptor<'b>>,
         language: &'b [u16; 1],
         strings: &'b [&'b str],
     ) -> Self {
-        // Setup certain descriptor fields since now we know the tree of
-        // descriptors.
-
-        // Configuration Descriptor. We assume there is only one configuration
-        // descriptor, since this is very common for most USB devices.
-        configuration_descriptor.num_interfaces = interface_descriptor.len() as u8;
-
-        // Calculate the length of all dependent descriptors.
-        configuration_descriptor.related_descriptor_length =
-            interface_descriptor.iter().map(|d| d.size()).sum::<usize>()
-            + endpoint_descriptors.iter().map(|descs| {
-                descs.iter().map(|d| {
-                    d.size()
-                }).sum::<usize>()
-            }).sum::<usize>()
-            + hid_descriptor.map_or(0, |d| d.size());
-
-        // Set the number of endpoints for each interface descriptor.
-        for (i, d) in interface_descriptor.iter().enumerate() {
-            d.num_endpoints = endpoint_descriptors[i].len() as u8;
-        }
-
 
         ClientCtrl {
             controller: controller,
             state: Default::default(),
-            ctrl_buffer: Buffer64::default(),
-            // For the moment, the Default trait is not implemented for arrays
-            // of length > 32, and the Cell type is not Copy, so we have to
-            // initialize each element manually.
+            // For the moment, the Default trait is not implemented for arrays of length > 32, and
+            // the Cell type is not Copy, so we have to initialize each element manually.
             descriptor_storage: [
                 Cell::default(),
                 Cell::default(),
@@ -199,10 +159,9 @@ impl<'a, 'b, C: hil::usb::UsbController<'a>> ClientCtrl<'a, 'b, C> {
                 Cell::default(),
                 Cell::default(),
             ],
-            device_descriptor,
-            configuration_descriptor,
-            interface_descriptor,
-            endpoint_descriptors,
+            ctrl_buffer: Buffer64::default(),
+            device_descriptor_buffer,
+            other_descriptor_buffer,
             hid_descriptor,
             report_descriptor,
             language,
@@ -295,10 +254,8 @@ impl<'a, 'b, C: hil::usb::UsbController<'a>> ClientCtrl<'a, 'b, C> {
                 match descriptor_type {
                     DescriptorType::Device => match descriptor_index {
                         0 => {
-                            let buf = self.descriptor_buf();
-                            let len = self.device_descriptor.write_to(buf);
-
-                            let end = min(len, requested_length as usize);
+                            //FIXME copy self.device_descriptor_buffer.buf into descriptor_storage
+                            let end = min(self.device_descriptor_buffer.len, requested_length as usize);
                             self.state[endpoint].set(State::CtrlIn(0, end));
                             hil::usb::CtrlSetupResult::Ok
                         }
@@ -307,37 +264,8 @@ impl<'a, 'b, C: hil::usb::UsbController<'a>> ClientCtrl<'a, 'b, C> {
                     DescriptorType::Configuration => {
                         match descriptor_index {
                             0 => {
-                                // Place all the descriptors related to this configuration into a
-                                // buffer contiguously.
-
-                                let buf = self.descriptor_buf();
-                                let mut len = 0;
-
-                                // A single configuration, with the following interface.
-                                len += self.configuration_descriptor.write_to(&buf[len..]);
-
-                                // The interface descriptor and its associated endpoints.
-                                for (i, d) in self.interface_descriptor.iter().enumerate() {
-                                    // Add the interface descriptor.
-                                    len += d.write_to(&buf[len..]);
-
-                                    // If there is a HID descriptor, we include
-                                    // it with the first interface descriptor.
-                                    if i == 0 {
-                                        // HID descriptor, if any.
-                                        if let Some(dh) = self.hid_descriptor {
-                                            len += dh.write_to(&buf[len..]);
-                                        }
-                                    }
-
-                                    // Endpoints for each interface.
-                                    for de in self.endpoint_descriptors[i] {
-                                        len += de.write_to(&buf[len..]);
-                                    }
-
-                                }
-
-                                let end = min(len, requested_length as usize);
+                                //FIXME copy self.other_descriptor_buffer.buf into descriptor_storage
+                                let end = min(self.other_descriptor_buffer.len, requested_length as usize);
                                 self.state[endpoint].set(State::CtrlIn(0, end));
                                 hil::usb::CtrlSetupResult::Ok
                             }
@@ -435,6 +363,7 @@ impl<'a, 'b, C: hil::usb::UsbController<'a>> ClientCtrl<'a, 'b, C> {
                         hil::usb::CtrlSetupResult::ErrGeneric
                     }
                 }
+                //FIXME might need to include one or more CDC descriptors here
                 _ => hil::usb::CtrlSetupResult::ErrGeneric,
             },
             _ => hil::usb::CtrlSetupResult::ErrGeneric,

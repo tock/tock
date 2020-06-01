@@ -25,37 +25,7 @@ static STRINGS: &'static [&'static str] = &[
     "Serial No. 5",   // Serial number
 ];
 
-const N_INTERFACES: usize = 1;
 const N_ENDPOINTS: usize = 2;
-
-static INTERFACES: &'static mut [descriptors::InterfaceDescriptor; N_INTERFACES] = &mut [
-    descriptors::InterfaceDescriptor {
-        interface_number: 0,
-            alternate_setting: 0,
-            num_endpoints: 0,      // (excluding default control endpoint)
-            interface_class: 0xff, // vendor_specific
-            interface_subclass: 0xab,
-            interface_protocol: 0,
-            string_index: 0,
-    }
-];
-
-static ENDPOINTS: &'static [&'static [EndpointDescriptor]] = &mut [
-    &[
-    EndpointDescriptor {
-        endpoint_address: EndpointAddress::new_const(1, TransferDirection::DeviceToHost),
-        transfer_type: TransferType::Bulk,
-        max_packet_size: 8,
-        interval: 100,
-    },
-    EndpointDescriptor {
-        endpoint_address: EndpointAddress::new_const(2, TransferDirection::HostToDevice),
-        transfer_type: TransferType::Bulk,
-        max_packet_size: 8,
-        interval: 100,
-    },
-    ]
-];
 
 pub struct Client<'a, C: 'a> {
     client_ctrl: ClientCtrl<'a, 'static, C>,
@@ -72,9 +42,38 @@ pub struct Client<'a, C: 'a> {
 
 impl<'a, C: hil::usb::UsbController<'a>> Client<'a, C> {
     pub fn new(controller: &'a C) -> Self {
-        Client {
-            client_ctrl: ClientCtrl::new(
-                controller,
+
+        let interfaces: &mut [descriptors::InterfaceDescriptor] = &mut [
+            descriptors::InterfaceDescriptor {
+                interface_number: 0,
+                    alternate_setting: 0,
+                    num_endpoints: 0,      // (excluding default control endpoint)
+                    interface_class: 0xff, // vendor_specific
+                    interface_subclass: 0xab,
+                    interface_protocol: 0,
+                    string_index: 0,
+            }
+        ];
+
+        let endpoints: &[&[EndpointDescriptor]] = &mut [
+            &[
+            EndpointDescriptor {
+                endpoint_address: EndpointAddress::new_const(1, TransferDirection::DeviceToHost),
+                transfer_type: TransferType::Bulk,
+                max_packet_size: 8,
+                interval: 100,
+            },
+            EndpointDescriptor {
+                endpoint_address: EndpointAddress::new_const(2, TransferDirection::HostToDevice),
+                transfer_type: TransferType::Bulk,
+                max_packet_size: 8,
+                interval: 100,
+            },
+            ]
+        ];
+
+        let (device_descriptor_buffer, other_descriptor_buffer) =
+            descriptors::create_descriptor_buffers(
                 DeviceDescriptor {
                     vendor_id: VENDOR_ID,
                     product_id: PRODUCT_ID,
@@ -84,9 +83,17 @@ impl<'a, C: hil::usb::UsbController<'a>> Client<'a, C> {
                     ..DeviceDescriptor::default()
                 },
                 descriptors::ConfigurationDescriptor::default(),
-                INTERFACES,
-                ENDPOINTS,
-                None, // No interface class descriptor
+                interfaces,
+                endpoints,
+                None, // No HID descriptor
+                );
+
+        Client {
+            client_ctrl: ClientCtrl::new(
+                controller,
+                device_descriptor_buffer,
+                other_descriptor_buffer,
+                None, // No HID descriptor
                 None, // No report descriptor
                 LANGUAGES,
                 STRINGS,

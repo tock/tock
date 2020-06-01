@@ -1,6 +1,7 @@
 //! Platform-independent USB 2.0 protocol library
 
 use core::cell::Cell;
+use core::cmp::min;
 use core::convert::From;
 use core::fmt;
 use kernel::common::cells::VolatileCell;
@@ -368,6 +369,193 @@ impl Descriptor for DeviceDescriptor {
         buf[17].set(self.num_configurations);
         18
     }
+}
+
+/// Buffer for holding the device descriptor.
+// TODO it's dumb that these are Cells, but doing otherwise would require
+// rewriting the `write_to` functions
+pub struct DeviceBuffer {
+    pub buf: [Cell<u8>; 19],
+    pub len: usize,
+}
+
+/// Buffer for holding the configuration, interface(s), and endpoint(s)
+/// descriptors. Also includes class-specific functional descriptors.
+pub struct DescriptorBuffer {
+    pub buf: [Cell<u8>; 64],
+    pub len: usize,
+}
+
+/// Transform descriptor structs into descriptor buffers that can be
+/// passed into the control endpoint handler. Each endpoint descriptor list
+/// corresponds to the matching index in the interface descriptor list. For
+/// example, if the interface descriptor list contains `[ID1, ID2, ID3]`,
+/// and the endpoint descriptors list is `[[ED1, ED2], [ED3, ED4, ED5],
+/// [ED6]]`, then the third interface descriptor (`ID3`) has one
+/// corresponding endpoint descriptor (`ED6`).
+pub fn create_descriptor_buffers(
+    device_descriptor: DeviceDescriptor,
+    mut configuration_descriptor: ConfigurationDescriptor,
+    interface_descriptor: &mut [InterfaceDescriptor],
+    endpoint_descriptors: &[ &[EndpointDescriptor]],
+    hid_descriptor: Option<&HIDDescriptor>,
+    //cdc_descriptor: Option<&CDCDescriptor>,
+    ) -> (DeviceBuffer, DescriptorBuffer) {
+
+    // Create device descriptor buffer and fill.
+    // Cell doesn't implement Copy, so here we are.
+    let mut dev_buf = DeviceBuffer{
+        buf: [
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+        ],
+        len: 0,
+    };
+    dev_buf.len = device_descriptor.write_to(&dev_buf.buf);
+
+    // Create other descriptors buffer.
+    // For the moment, the Default trait is not implemented for arrays
+    // of length > 32, and the Cell type is not Copy, so we have to
+    // initialize each element manually.
+    let mut other_buf = DescriptorBuffer{
+        buf: [
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            ],
+        len: 0,
+    };
+
+    // Setup certain descriptor fields since now we know the tree of
+    // descriptors.
+
+    // Configuration Descriptor. We assume there is only one configuration
+    // descriptor, since this is very common for most USB devices.
+    configuration_descriptor.num_interfaces = interface_descriptor.len() as u8;
+
+    // Calculate the length of all dependent descriptors.
+    //TODO should we be erroring here if len > 64? Otherwise we'll probably
+    // buffer overrun and panic.
+    configuration_descriptor.related_descriptor_length =
+        interface_descriptor.iter().map(|d| d.size()).sum::<usize>()
+        + endpoint_descriptors.iter().map(|descs| {
+            descs.iter().map(|d| {
+                d.size()
+            }).sum::<usize>()
+        }).sum::<usize>()
+        + hid_descriptor.map_or(0, |d| d.size());
+
+    // Set the number of endpoints for each interface descriptor.
+    for (i, d) in interface_descriptor.iter_mut().enumerate() {
+        d.num_endpoints = endpoint_descriptors[i].len() as u8;
+    }
+
+    // Fill a single configuration into the buffer and track length.
+    let mut len = 0;
+    len += configuration_descriptor.write_to(&other_buf.buf[len..]);
+
+    // Fill in the interface descriptor and its associated endpoints.
+    for (i, d) in interface_descriptor.iter().enumerate() {
+        // Add the interface descriptor.
+        len += d.write_to(&other_buf.buf[len..]);
+
+        // If there is a HID descriptor, we include
+        // it with the first interface descriptor.
+        if i == 0 {
+            // HID descriptor, if any.
+            if let Some(dh) = hid_descriptor {
+                len += dh.write_to(&other_buf.buf[len..]);
+            }
+        }
+
+        // Endpoints for each interface.
+        for de in endpoint_descriptors[i] {
+            len += de.write_to(&other_buf.buf[len..]);
+        }
+
+    }
+    other_buf.len = min(len, 64);
+
+    // return the two buffers
+    (dev_buf, other_buf)
 }
 
 pub struct ConfigurationDescriptor {
