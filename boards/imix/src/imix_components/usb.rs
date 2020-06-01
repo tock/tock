@@ -53,7 +53,7 @@ impl Component for UsbComponent {
         // Configure the USB controller
         let cdc = static_init!(
             capsules::usb::cdc::Cdc<'static, sam4l::usbc::Usbc<'static>>,
-            capsules::usb::cdc::Cdc::new(&sam4l::usbc::USBC)
+            capsules::usb::cdc::Cdc::new(&sam4l::usbc::USBC, capsules::usb::cdc::MAX_CTRL_PACKET_SIZE_SAM4L)
         );
         sam4l::usbc::USBC.set_client(cdc);
 

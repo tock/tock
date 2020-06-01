@@ -283,6 +283,28 @@ pub unsafe fn reset_handler() {
     );
     DynamicDeferredCall::set_global_instance(dynamic_deferred_caller);
 
+    // let usb_driver = UsbComponent::new(board_kernel).finalize(());
+
+    // Configure the USB controller
+    let cdc = static_init!(
+        capsules::usb::cdc::Cdc<'static, sam4l::usbc::Usbc<'static>>,
+        capsules::usb::cdc::Cdc::new(&sam4l::usbc::USBC, capsules::usb::cdc::MAX_CTRL_PACKET_SIZE_SAM4L)
+    );
+    sam4l::usbc::USBC.set_client(cdc);
+
+    // Configure the USB userspace driver
+    let usb_driver = static_init!(
+        capsules::usb::usb_user::UsbSyscallDriver<
+            'static,
+            capsules::usb::cdc::Cdc<'static, sam4l::usbc::Usbc<'static>>,
+        >,
+        capsules::usb::usb_user::UsbSyscallDriver::new(
+            cdc,
+            board_kernel.create_grant(&grant_cap)
+        )
+    );
+
+
     // # CONSOLE
     // Create a shared UART channel for the consoles and for kernel debug.
     sam4l::usart::USART3.set_mode(sam4l::usart::UsartMode::Uart);
@@ -290,7 +312,30 @@ pub unsafe fn reset_handler() {
         UartMuxComponent::new(&sam4l::usart::USART3, 115200, dynamic_deferred_caller).finalize(());
 
     let pconsole = ProcessConsoleComponent::new(board_kernel, uart_mux).finalize(());
-    let console = ConsoleComponent::new(board_kernel, uart_mux).finalize(());
+
+
+
+    // let console = ConsoleComponent::new(board_kernel, uart_mux).finalize(());
+
+
+    let console = static_init!(
+        capsules::console::Console<'static>,
+        capsules::console::Console::new(
+            cdc,
+            &mut capsules::console::WRITE_BUF,
+            &mut capsules::console::READ_BUF,
+            board_kernel.create_grant(&grant_cap)
+        )
+    );
+    kernel::hil::uart::Transmit::set_transmit_client(cdc, console);
+    kernel::hil::uart::Receive::set_receive_client(cdc, console);
+
+
+
+
+
+
+
     DebugWriterComponent::new(uart_mux).finalize(());
 
     // Allow processes to communicate over BLE through the nRF51822
@@ -412,7 +457,7 @@ pub unsafe fn reset_handler() {
         sam4l::aes::Aes<'static>
     ));
 
-    let usb_driver = UsbComponent::new(board_kernel).finalize(());
+    // let usb_driver = UsbComponent::new(board_kernel).finalize(());
 
     // Kernel storage region, allocated with the storage_volume!
     // macro in common/utils.rs
