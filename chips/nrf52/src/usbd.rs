@@ -324,6 +324,10 @@ mod detail {
             self.ptr.set(slice.as_ptr() as *const u8);
             self.maxcnt.write(Count::MAXCNT.val(slice.len() as u32));
         }
+
+        pub fn count(&self) -> u32 {
+            self.maxcnt.get()
+        }
     }
 }
 
@@ -649,6 +653,7 @@ pub enum CtrlState {
     Init,
     ReadIn,
     ReadStatus,
+    WriteOut,
 }
 
 #[derive(Copy, Clone, PartialEq, Debug)]
@@ -1360,6 +1365,10 @@ impl<'a> Usbd<'a> {
                 self.complete_ctrl_status();
             }
 
+            CtrlState::WriteOut => {
+                self.handle_ctrl_write();
+            }
+
             CtrlState::Init => {
                 // We shouldn't be there. Let's STALL the endpoint.
                 debug_tasks!("- task: ep0stall");
@@ -1572,7 +1581,11 @@ impl<'a> Usbd<'a> {
                             } else {
                                 match regs.bmrequesttype.read_as_enum(RequestType::DIRECTION) {
                                     Some(RequestType::DIRECTION::Value::HostToDevice) => {
-                                        unimplemented!("CTRL write transaction");
+                                        // CTRL WRITE transaction
+                                        self.descriptors[endpoint]
+                                            .state
+                                            .set(EndpointState::Ctrl(CtrlState::WriteOut));
+                                        self.transmit_out_ep0();
                                     }
                                     Some(RequestType::DIRECTION::Value::DeviceToHost) => {
                                         self.descriptors[endpoint]
@@ -1594,7 +1607,7 @@ impl<'a> Usbd<'a> {
                 });
             }
 
-            CtrlState::ReadIn | CtrlState::ReadStatus => {
+            CtrlState::ReadIn | CtrlState::ReadStatus | CtrlState::WriteOut => {
                 // Unexpected state to receive a SETUP packet. Let's STALL the endpoint.
                 internal_warn!("handle_ep0setup - unexpected state = {:?}", state);
                 debug_tasks!("- task: ep0stall");
@@ -1615,6 +1628,35 @@ impl<'a> Usbd<'a> {
             self.descriptors[endpoint]
                 .state
                 .set(EndpointState::Ctrl(CtrlState::Init));
+        });
+    }
+
+    /// Called after we receive data from the host on a CTRL WRITE transaction.
+    ///
+    /// TODO: actually fully implement this function
+    fn handle_ctrl_write(&self) {
+        let regs = &*self.registers;
+        let endpoint = 0;
+
+        self.client.map(|client| {
+            match client.ctrl_out(endpoint, regs.epout[endpoint].count()) {
+
+                hil::usb::CtrlOutResult::Ok => {
+                    self.complete_ctrl_status();
+                }
+                hil::usb::CtrlOutResult::Delay => {
+
+                }
+                _ => {
+                    // Respond with STALL to any following transactions
+                    // in this request
+                    debug_tasks!("- task: ctrl write: ep0stall");
+                    regs.task_ep0stall.write(Task::ENABLE::SET);
+                    self.descriptors[endpoint]
+                        .state
+                        .set(EndpointState::Ctrl(CtrlState::Init));
+                }
+            };
         });
     }
 
@@ -1669,6 +1711,16 @@ impl<'a> Usbd<'a> {
                 }
             };
         });
+    }
+
+    /// Setup a reception for a CTRL WRITE transaction.
+    ///
+    /// All we have to do is configure DMA for a receive.
+    fn transmit_out_ep0(&self) {
+        let regs = &*self.registers;
+        let endpoint = 0;
+
+        self.start_dma_out(endpoint);
     }
 
     fn transmit_in(&self, endpoint: usize) {
