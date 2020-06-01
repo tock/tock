@@ -494,3 +494,4 @@ impl<'a, C: hil::usb::UsbController<'a>> uart::Receive<'a> for Cdc<'a, C> {
 }
 
 impl<'a, C: hil::usb::UsbController<'a>> uart::Uart<'a> for Cdc<'a, C> {}
+impl<'a, C: hil::usb::UsbController<'a>> uart::UartData<'a> for Cdc<'a, C> {}
