@@ -25,9 +25,23 @@ static STRINGS: &'static [&'static str] = &[
     "Serial No. 5",   // Serial number
 ];
 
+const N_INTERFACES: usize = 1;
 const N_ENDPOINTS: usize = 2;
 
-static ENDPOINTS: &'static [EndpointDescriptor; N_ENDPOINTS] = &[
+static INTERFACES: &'static mut [descriptors::InterfaceDescriptor; N_INTERFACES] = &mut [
+    descriptors::InterfaceDescriptor {
+        interface_number: 0,
+            alternate_setting: 0,
+            num_endpoints: 0,      // (excluding default control endpoint)
+            interface_class: 0xff, // vendor_specific
+            interface_subclass: 0xab,
+            interface_protocol: 0,
+            string_index: 0,
+    }
+];
+
+static ENDPOINTS: &'static [&'static [EndpointDescriptor]] = &mut [
+    &[
     EndpointDescriptor {
         endpoint_address: EndpointAddress::new_const(1, TransferDirection::DeviceToHost),
         transfer_type: TransferType::Bulk,
@@ -40,6 +54,7 @@ static ENDPOINTS: &'static [EndpointDescriptor; N_ENDPOINTS] = &[
         max_packet_size: 8,
         interval: 100,
     },
+    ]
 ];
 
 pub struct Client<'a, C: 'a> {
@@ -69,7 +84,7 @@ impl<'a, C: hil::usb::UsbController<'a>> Client<'a, C> {
                     ..DeviceDescriptor::default()
                 },
                 descriptors::ConfigurationDescriptor::default(),
-                descriptors::InterfaceDescriptor::default(),
+                INTERFACES,
                 ENDPOINTS,
                 None, // No interface class descriptor
                 None, // No report descriptor

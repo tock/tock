@@ -27,40 +27,46 @@ const DESCRIPTOR_BUFLEN: usize = 64;
 const N_ENDPOINTS: usize = 3;
 
 pub struct ClientCtrl<'a, 'b, C: 'a> {
-    // The hardware controller
+    /// The hardware controller
     controller: &'a C,
 
-    // State for tracking each endpoint
+    /// State for tracking each endpoint
     state: [Cell<State>; N_ENDPOINTS],
 
-    // A 64-byte buffer for the control endpoint
+    /// A 64-byte buffer for the control endpoint
     ctrl_buffer: Buffer64,
 
-    // Storage for composing responses to device-descriptor requests
+    /// Storage for composing responses to device-descriptor requests
     descriptor_storage: [Cell<u8>; DESCRIPTOR_BUFLEN],
 
-    // Descriptors to reply to control requests
+    /// Descriptor to reply to control requests. There is only one per device.
     device_descriptor: DeviceDescriptor,
 
-    // For now we only support one configuration...
+    /// Parent descriptor containing a configuration. We only support one
+    /// configuration, as devices tend to only ever need one configuration.
     configuration_descriptor: ConfigurationDescriptor,
 
-    // ...with only one interface
-    interface_descriptor: InterfaceDescriptor,
+    /// One or more interface descriptors.
+    interface_descriptor: &'b [InterfaceDescriptor],
 
-    // A list of endpoints for the configuration
-    endpoint_descriptors: &'b [EndpointDescriptor],
+    /// A list of endpoint descriptor lists. Each endpoint descriptor list
+    /// corresponds to the matching index in the interface descriptor list. For
+    /// example, if the interface descriptor list contains `[ID1, ID2, ID3]`,
+    /// and the endpoint descriptors list is `[[ED1, ED2], [ED3, ED4, ED5],
+    /// [ED6]]`, then the third interface descriptor (`ID3`) has one
+    /// corresponding endpoint descriptor (`ED6`).
+    endpoint_descriptors: &'b [&'b [EndpointDescriptor]],
 
-    // A HID descriptor for the configuration, if any
+    /// A HID descriptor for the configuration, if any
     hid_descriptor: Option<&'b HIDDescriptor<'b>>,
 
-    // A report descriptor for the configuration, if any
+    /// A report descriptor for the configuration, if any
     report_descriptor: Option<&'b ReportDescriptor<'b>>,
 
-    // Supported language (only one for now)
+    /// Supported language (only one for now)
     language: &'b [u16; 1],
 
-    // Strings
+    /// Strings
     strings: &'b [&'b str],
 }
 
@@ -90,27 +96,43 @@ impl<'a, 'b, C: hil::usb::UsbController<'a>> ClientCtrl<'a, 'b, C> {
         controller: &'a C,
         device_descriptor: DeviceDescriptor,
         mut configuration_descriptor: ConfigurationDescriptor,
-        mut interface_descriptor: InterfaceDescriptor,
-        endpoint_descriptors: &'b [EndpointDescriptor],
+        mut interface_descriptor: &'b mut [InterfaceDescriptor],
+        endpoint_descriptors: &'b [ &'b [EndpointDescriptor]],
         hid_descriptor: Option<&'b HIDDescriptor<'b>>,
         report_descriptor: Option<&'b ReportDescriptor<'b>>,
         language: &'b [u16; 1],
         strings: &'b [&'b str],
     ) -> Self {
-        // Tweak the configuration/interface descriptors for the given endpoints.
-        interface_descriptor.num_endpoints = endpoint_descriptors.len() as u8;
+        // Setup certain descriptor fields since now we know the tree of
+        // descriptors.
 
-        configuration_descriptor.num_interfaces = 1;
-        configuration_descriptor.related_descriptor_length = interface_descriptor.size()
-            + endpoint_descriptors.iter().map(|d| d.size()).sum::<usize>()
+        // Configuration Descriptor. We assume there is only one configuration
+        // descriptor, since this is very common for most USB devices.
+        configuration_descriptor.num_interfaces = interface_descriptor.len() as u8;
+
+        // Calculate the length of all dependent descriptors.
+        configuration_descriptor.related_descriptor_length =
+            interface_descriptor.iter().map(|d| d.size()).sum::<usize>()
+            + endpoint_descriptors.iter().map(|descs| {
+                descs.iter().map(|d| {
+                    d.size()
+                }).sum::<usize>()
+            }).sum::<usize>()
             + hid_descriptor.map_or(0, |d| d.size());
+
+        // Set the number of endpoints for each interface descriptor.
+        for (i, d) in interface_descriptor.iter().enumerate() {
+            d.num_endpoints = endpoint_descriptors[i].len() as u8;
+        }
+
 
         ClientCtrl {
             controller: controller,
             state: Default::default(),
             ctrl_buffer: Buffer64::default(),
-            // For the moment, the Default trait is not implemented for arrays of length > 32, and
-            // the Cell type is not Copy, so we have to initialize each element manually.
+            // For the moment, the Default trait is not implemented for arrays
+            // of length > 32, and the Cell type is not Copy, so we have to
+            // initialize each element manually.
             descriptor_storage: [
                 Cell::default(),
                 Cell::default(),
@@ -294,17 +316,25 @@ impl<'a, 'b, C: hil::usb::UsbController<'a>> ClientCtrl<'a, 'b, C> {
                                 // A single configuration, with the following interface.
                                 len += self.configuration_descriptor.write_to(&buf[len..]);
 
-                                // A single interface, with the following descriptors and endpoints.
-                                len += self.interface_descriptor.write_to(&buf[len..]);
+                                // The interface descriptor and its associated endpoints.
+                                for (i, d) in self.interface_descriptor.iter().enumerate() {
+                                    // Add the interface descriptor.
+                                    len += d.write_to(&buf[len..]);
 
-                                // HID descriptor, if any.
-                                if let Some(dh) = self.hid_descriptor {
-                                    len += dh.write_to(&buf[len..]);
-                                }
+                                    // If there is a HID descriptor, we include
+                                    // it with the first interface descriptor.
+                                    if i == 0 {
+                                        // HID descriptor, if any.
+                                        if let Some(dh) = self.hid_descriptor {
+                                            len += dh.write_to(&buf[len..]);
+                                        }
+                                    }
 
-                                // Endpoints.
-                                for de in self.endpoint_descriptors {
-                                    len += de.write_to(&buf[len..]);
+                                    // Endpoints for each interface.
+                                    for de in self.endpoint_descriptors[i] {
+                                        len += de.write_to(&buf[len..]);
+                                    }
+
                                 }
 
                                 let end = min(len, requested_length as usize);
@@ -314,16 +344,17 @@ impl<'a, 'b, C: hil::usb::UsbController<'a>> ClientCtrl<'a, 'b, C> {
                             _ => hil::usb::CtrlSetupResult::ErrInvalidConfigurationIndex,
                         }
                     }
-                    DescriptorType::Interface => match descriptor_index {
-                        0 => {
+                    DescriptorType::Interface => {
+                        if (descriptor_index as usize) < self.interface_descriptor.len() {
                             let buf = self.descriptor_buf();
-                            let len = self.interface_descriptor.write_to(buf);
+                            let len = self.interface_descriptor[descriptor_index as usize].write_to(buf);
 
                             let end = min(len, requested_length as usize);
                             self.state[endpoint].set(State::CtrlIn(0, end));
                             hil::usb::CtrlSetupResult::Ok
+                        } else {
+                            hil::usb::CtrlSetupResult::ErrInvalidInterfaceIndex
                         }
-                        _ => hil::usb::CtrlSetupResult::ErrInvalidInterfaceIndex,
                     },
                     DescriptorType::String => {
                         if let Some(len) = match descriptor_index {
