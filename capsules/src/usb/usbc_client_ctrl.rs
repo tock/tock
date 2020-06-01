@@ -21,7 +21,7 @@ use kernel::hil;
 use kernel::hil::usb::TransferType;
 use kernel::debug;
 
-const DESCRIPTOR_BUFLEN: usize = 64;
+const DESCRIPTOR_BUFLEN: usize = 128;
 
 const N_ENDPOINTS: usize = 3;
 
@@ -159,6 +159,70 @@ impl<'a, 'b, C: hil::usb::UsbController<'a>> ClientCtrl<'a, 'b, C> {
                 Cell::default(),
                 Cell::default(),
                 Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
+                Cell::default(),
             ],
             ctrl_buffer: Buffer64::default(),
             device_descriptor_buffer,
@@ -196,7 +260,6 @@ impl<'a, 'b, C: hil::usb::UsbController<'a>> ClientCtrl<'a, 'b, C> {
 
     /// Handle a Control Setup transaction
     pub fn ctrl_setup(&'a self, endpoint: usize) -> hil::usb::CtrlSetupResult {
-        debug!("ctrl setup ep: {}", endpoint);
         if endpoint != 0 {
             // For now we only support the default Control endpoint
             return hil::usb::CtrlSetupResult::ErrInvalidDeviceIndex;
@@ -327,7 +390,6 @@ impl<'a, 'b, C: hil::usb::UsbController<'a>> ClientCtrl<'a, 'b, C> {
                 hil::usb::CtrlSetupResult::OkSetAddress
             }
             StandardRequest::SetConfiguration { .. } => {
-                debug!("Set config");
                 // We have been assigned a particular configuration: fine!
                 hil::usb::CtrlSetupResult::Ok
             }
@@ -380,11 +442,11 @@ impl<'a, 'b, C: hil::usb::UsbController<'a>> ClientCtrl<'a, 'b, C> {
 
     /// Handle a Control In transaction
     pub fn ctrl_in(&'a self, endpoint: usize) -> hil::usb::CtrlInResult {
-        debug!("ctrl in ep: {}", endpoint);
         match self.state[endpoint].get() {
             State::CtrlIn(start, end) => {
                 let len = end.saturating_sub(start);
                 if len > 0 {
+
                     let packet_bytes = min(self.ctrl_buffer.buf.len(), len);
                     let packet = &self.descriptor_storage[start..start + packet_bytes];
                     let buf = &self.ctrl_buffer.buf;

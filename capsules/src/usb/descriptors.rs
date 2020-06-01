@@ -393,7 +393,7 @@ impl DeviceBuffer {
 /// Buffer for holding the configuration, interface(s), and endpoint(s)
 /// descriptors. Also includes class-specific functional descriptors.
 pub struct DescriptorBuffer {
-    pub buf: [Cell<u8>; 64],
+    pub buf: [Cell<u8>; 128],
     pub len: usize,
 }
 
@@ -520,6 +520,70 @@ pub fn create_descriptor_buffers(
             Cell::default(),
             Cell::default(),
             Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
             ],
         len: 0,
     };
@@ -572,7 +636,7 @@ pub fn create_descriptor_buffers(
         // If there is a CDC descriptor array, we include
         // it with the first interface descriptor.
         if i == 0 {
-            // HID descriptor, if any.
+            // CDC descriptor, if any.
             if let Some(dcdc) = cdc_descriptor {
                 for dcs in dcdc {
                     len += dcs.write_to(&other_buf.buf[len..]);
@@ -586,7 +650,7 @@ pub fn create_descriptor_buffers(
         }
 
     }
-    other_buf.len = min(len, 64);
+    other_buf.len = min(len, other_buf.buf.len());
 
     // return the two buffers
     (dev_buf, other_buf)

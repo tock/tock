@@ -123,11 +123,11 @@ impl<'a, C: hil::usb::UsbController<'a>> Client<'a, C> {
                 field2: 0x00,
             },
             // make the length work for now......
-            // CsInterfaceDescriptor {
-            //     subtype: descriptors::CsInterfaceDescriptorSubType::Union,
-            //     field1: 0x02,
-            //     field2: 0x03,
-            // },
+            CsInterfaceDescriptor {
+                subtype: descriptors::CsInterfaceDescriptorSubType::Union,
+                field1: 0x00,
+                field2: 0x01,
+            },
         ];
 
         let endpoints: &[&[EndpointDescriptor]] = &[
@@ -272,6 +272,7 @@ impl<'a, C: hil::usb::UsbController<'a>> hil::usb::Client<'a> for Client<'a, C> 
 
     /// Handle a Bulk/Interrupt IN transaction
     fn packet_in(&'a self, transfer_type: TransferType, endpoint: usize) -> hil::usb::InResult {
+        debug!("packet in {}", endpoint);
         match transfer_type {
             TransferType::Interrupt => {
                 debug!("interrupt_in({}) not implemented", endpoint);
@@ -308,6 +309,7 @@ impl<'a, C: hil::usb::UsbController<'a>> hil::usb::Client<'a> for Client<'a, C> 
         endpoint: usize,
         packet_bytes: u32,
     ) -> hil::usb::OutResult {
+        debug!("packet out {}", endpoint);
         match transfer_type {
             TransferType::Interrupt => {
                 debug!("interrupt_out({}) not implemented", endpoint);
