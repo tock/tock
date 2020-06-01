@@ -252,6 +252,9 @@ impl<'a, 'b, C: hil::usb::UsbController<'a>> ClientCtrl<'a, 'b, C> {
             .enable_as_device(hil::usb::DeviceSpeed::Full); // must be Full for Bulk transfers
         self.controller
             .endpoint_out_enable(TransferType::Control, 0);
+
+
+
     }
 
     pub fn attach(&'a self) {
@@ -434,7 +437,10 @@ impl<'a, 'b, C: hil::usb::UsbController<'a>> ClientCtrl<'a, 'b, C> {
                     }
                 }
                 //FIXME might need to include one or more CDC descriptors here
-                _ => hil::usb::CtrlSetupResult::ErrGeneric,
+                _ => {
+debug!("we get here?");
+                    hil::usb::CtrlSetupResult::ErrGeneric
+                }
             },
             _ => hil::usb::CtrlSetupResult::ErrGeneric,
         }

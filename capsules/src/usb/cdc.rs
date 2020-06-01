@@ -1,5 +1,6 @@
 //! CDC
 
+use kernel::common::cells::OptionalCell;
 use super::descriptors::{
     self, Buffer8, EndpointAddress, CsInterfaceDescriptor, EndpointDescriptor, InterfaceDescriptor, TransferDirection,
 };
@@ -60,7 +61,7 @@ pub struct Client<'a, C: 'a> {
     // from an OUT endpoint back to an IN endpoint
     echo_buf: [Cell<u8>; 8], // Must be no larger than endpoint packet buffer
     echo_len: Cell<usize>,
-    delayed_out: Cell<bool>,
+    last_char: OptionalCell<u8>,
 }
 
 // device
@@ -142,15 +143,15 @@ impl<'a, C: hil::usb::UsbController<'a>> Client<'a, C> {
                 EndpointDescriptor {
                     endpoint_address: EndpointAddress::new_const(2, TransferDirection::DeviceToHost),
                     transfer_type: TransferType::Bulk,
-                    max_packet_size: 16,
-                    // max_packet_size: 8,
+                    // max_packet_size: 16,
+                    max_packet_size: 8,
                     interval: 100,
                 },
                 EndpointDescriptor {
                     endpoint_address: EndpointAddress::new_const(3, TransferDirection::HostToDevice),
                     transfer_type: TransferType::Bulk,
-                    max_packet_size: 16,
-                    // max_packet_size: 8,
+                    // max_packet_size: 16,
+                    max_packet_size: 8,
                     interval: 100,
                 },
             ]
@@ -189,22 +190,22 @@ impl<'a, C: hil::usb::UsbController<'a>> Client<'a, C> {
             buffers: Default::default(),
             echo_buf: Default::default(),
             echo_len: Cell::new(0),
-            delayed_out: Cell::new(false),
+            last_char: OptionalCell::empty(),
         }
     }
 
-    fn alert_full(&'a self) {
-        // Alert the controller that we now have data to send on the Bulk IN endpoint 1
-        self.controller().endpoint_resume_in(1);
-    }
+    // fn alert_full(&'a self) {
+    //     // Alert the controller that we now have data to send on the Bulk IN endpoint 1
+    //     self.controller().endpoint_resume_in(2);
+    // }
 
-    fn alert_empty(&'a self) {
-        // In case we reported Delay before, alert the controller
-        // that we can now receive data on the Bulk OUT endpoint 2
-        if self.delayed_out.take() {
-            self.controller().endpoint_resume_out(2);
-        }
-    }
+    // fn alert_empty(&'a self) {
+    //     // In case we reported Delay before, alert the controller
+    //     // that we can now receive data on the Bulk OUT endpoint 2
+    //     if self.delayed_out.take() {
+    //         self.controller().endpoint_resume_out(2);
+    //     }
+    // }
 
     #[inline]
     fn controller(&'a self) -> &'a C {
@@ -222,13 +223,11 @@ impl<'a, C: hil::usb::UsbController<'a>> hil::usb::Client<'a> for Client<'a, C> 
         // Set up the default control endpoint
         self.client_ctrl.enable();
 
-        // Set up a bulk-in endpoint for debugging
-        self.controller().endpoint_set_in_buffer(1, self.buffer(1));
-        self.controller().endpoint_in_enable(TransferType::Bulk, 1);
+        self.controller().endpoint_set_in_buffer(2, self.buffer(2));
+        self.controller().endpoint_in_enable(TransferType::Bulk, 2);
 
-        // Set up a bulk-out endpoint for debugging
-        self.controller().endpoint_set_out_buffer(2, self.buffer(2));
-        self.controller().endpoint_out_enable(TransferType::Bulk, 2);
+        self.controller().endpoint_set_out_buffer(3, self.buffer(3));
+        self.controller().endpoint_out_enable(TransferType::Bulk, 3);
     }
 
     fn attach(&'a self) {
@@ -243,7 +242,7 @@ impl<'a, C: hil::usb::UsbController<'a>> hil::usb::Client<'a> for Client<'a, C> 
 
         // Reset the state for our pair of debugging endpoints
         self.echo_len.set(0);
-        self.delayed_out.set(false);
+        self.last_char.clear();
     }
 
     /// Handle a Control Setup transaction
@@ -279,24 +278,49 @@ impl<'a, C: hil::usb::UsbController<'a>> hil::usb::Client<'a> for Client<'a, C> 
                 hil::usb::InResult::Error
             }
             TransferType::Bulk => {
-                // Write a packet into the endpoint buffer
-                let packet_bytes = self.echo_len.get();
-                if packet_bytes > 0 {
-                    // Copy the entire echo buffer into the packet
+
+                if self.last_char.is_some() {
+
+
+
                     let packet = self.buffer(endpoint);
-                    for i in 0..packet_bytes {
-                        packet[i].set(self.echo_buf[i].get());
-                    }
-                    self.echo_len.set(0);
 
-                    // We can receive more now
-                    self.alert_empty();
 
-                    hil::usb::InResult::Packet(packet_bytes)
+                    packet[0].set(self.last_char.unwrap_or(66));
+
+                    self.last_char.clear();
+
+                    // self.controller().endpoint_resume_out(3);
+
+                    hil::usb::InResult::Packet(1)
+
+
                 } else {
-                    // Nothing to send
                     hil::usb::InResult::Delay
                 }
+
+
+
+
+
+                // // Write a packet into the endpoint buffer
+                // let packet_bytes = self.echo_len.get();
+                // if packet_bytes > 0 {
+                //     // Copy the entire echo buffer into the packet
+                //     let packet = self.buffer(endpoint);
+                //     for i in 0..packet_bytes {
+                //         packet[i].set(self.echo_buf[i].get());
+                //     }
+                //     self.echo_len.set(0);
+
+                //     // We can receive more now
+                //     self.alert_empty();
+
+                //     hil::usb::InResult::Packet(packet_bytes)
+                // } else {
+                //     // Nothing to send
+                //     hil::usb::InResult::Delay
+                // }
             }
             TransferType::Control | TransferType::Isochronous => unreachable!(),
         }
@@ -309,7 +333,7 @@ impl<'a, C: hil::usb::UsbController<'a>> hil::usb::Client<'a> for Client<'a, C> 
         endpoint: usize,
         packet_bytes: u32,
     ) -> hil::usb::OutResult {
-        debug!("packet out {}", endpoint);
+        debug!("packet out {} {}", endpoint, packet_bytes);
         match transfer_type {
             TransferType::Interrupt => {
                 debug!("interrupt_out({}) not implemented", endpoint);
@@ -317,30 +341,46 @@ impl<'a, C: hil::usb::UsbController<'a>> hil::usb::Client<'a> for Client<'a, C> 
             }
             TransferType::Bulk => {
                 // Consume a packet from the endpoint buffer
-                let new_len = packet_bytes as usize;
-                let current_len = self.echo_len.get();
-                let total_len = current_len + new_len as usize;
+                // let new_len = packet_bytes as usize;
+                // let current_len = self.echo_len.get();
+                // let total_len = current_len + new_len as usize;
 
-                if total_len > self.echo_buf.len() {
-                    // The packet won't fit in our little buffer.  We'll have
-                    // to wait until it is drained
-                    self.delayed_out.set(true);
-                    hil::usb::OutResult::Delay
-                } else if new_len > 0 {
-                    // Copy the packet into our echo buffer
-                    let packet = self.buffer(endpoint);
-                    for i in 0..new_len {
-                        self.echo_buf[current_len + i].set(packet[i].get());
-                    }
-                    self.echo_len.set(total_len);
 
-                    // We can start sending again
-                    self.alert_full();
-                    hil::usb::OutResult::Ok
-                } else {
-                    debug!("Ignoring zero-length OUT packet");
-                    hil::usb::OutResult::Ok
-                }
+
+
+                let packet = self.buffer(endpoint);
+
+                debug!("got {}", packet[0].get());
+
+                self.last_char.set(packet[0].get());
+
+
+                self.controller().endpoint_resume_in(2);
+
+
+                // if total_len > self.echo_buf.len() {
+                //     // The packet won't fit in our little buffer.  We'll have
+                //     // to wait until it is drained
+                //     self.delayed_out.set(true);
+                //     hil::usb::OutResult::Delay
+                // } else if new_len > 0 {
+                //     // Copy the packet into our echo buffer
+                //     let packet = self.buffer(endpoint);
+                //     for i in 0..new_len {
+                //         self.echo_buf[current_len + i].set(packet[i].get());
+                //     }
+                //     self.echo_len.set(total_len);
+
+                //     // We can start sending again
+                //     self.alert_full();
+                //     hil::usb::OutResult::Ok
+                // } else {
+                //     debug!("Ignoring zero-length OUT packet");
+                //     hil::usb::OutResult::Ok
+                // }
+
+
+                hil::usb::OutResult::Ok
             }
             TransferType::Control | TransferType::Isochronous => unreachable!(),
         }
