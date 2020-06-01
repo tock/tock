@@ -90,13 +90,15 @@ impl<'a, C: hil::usb::UsbController<'a>> Client<'a, C> {
 
         let interfaces: &mut [InterfaceDescriptor] = &mut [
             InterfaceDescriptor {
+                interface_number: 0,
                 interface_class: 0x02,    // CDC communication
                 interface_subclass: 0x02, // abstract control model (ACM)
-                interface_protocol: 0x02, // V.25ter (AT commands)
+                interface_protocol: 0x01, // V.25ter (AT commands)
                 ..InterfaceDescriptor::default()
             },
 
             InterfaceDescriptor {
+                interface_number: 1,
                 interface_class: 0x0a,    // CDC data
                 interface_subclass: 0x00, // none
                 interface_protocol: 0x00, // none
