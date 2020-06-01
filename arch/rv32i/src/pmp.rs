@@ -105,7 +105,10 @@ impl PMPRegion {
 pub struct PMPConfig {
     regions: [PMPRegion; 8],
     total_regions: usize,
+    /// Indicates if the configuration has changed since the last time it was written to hardware.
     is_dirty: Cell<bool>,
+    /// The application that the MPU was last configured for. Used (along with the `is_dirty` flag)
+    /// to determine if MPU can skip writing the configuration to hardware.
     last_configured_for: MapCell<AppId>,
 }
 
@@ -160,6 +163,7 @@ impl PMPConfig {
             // As we use the PMP TOR setup we only support half the number
             // of regions as hardware supports
             total_regions: pmp_regions / 2,
+
             is_dirty: Cell::new(true),
             last_configured_for: MapCell::empty(),
         }
@@ -496,6 +500,7 @@ impl kernel::mpu::MPU for PMPConfig {
     }
 
     fn configure_mpu(&self, config: &Self::MpuConfig, app_id: &AppId) {
+        // Is the PMP already configured for this app?
         let last_configured_for_this_app = self
             .last_configured_for
             .map_or(false, |last_app_id| last_app_id == app_id);
@@ -503,6 +508,7 @@ impl kernel::mpu::MPU for PMPConfig {
         // Skip PMP configuration if it is already configured for this app and the MPU
         // configuration of this app has not changed.
         if !last_configured_for_this_app || config.is_dirty.get() {
+            // Sort the regions before configuring PMP in TOR mode.
             let mut regions_sorted = config.regions.clone();
             regions_sorted.sort_unstable_by(|a, b| {
                 let (a_start, _a_size) = match a.location() {
@@ -641,7 +647,6 @@ impl kernel::mpu::MPU for PMPConfig {
                     None => {}
                 };
             }
-            // Clear the dirty flag
             config.is_dirty.set(false);
             self.last_configured_for.put(*app_id);
         }
