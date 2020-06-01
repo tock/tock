@@ -379,11 +379,29 @@ pub struct DeviceBuffer {
     pub len: usize,
 }
 
+impl DeviceBuffer {
+    pub fn write_to(&self, buf: &[Cell<u8>]) -> usize {
+        for i in 0..self.len {
+            buf[i].set(self.buf[i].get());
+        }
+        self.len
+    }
+}
+
 /// Buffer for holding the configuration, interface(s), and endpoint(s)
 /// descriptors. Also includes class-specific functional descriptors.
 pub struct DescriptorBuffer {
     pub buf: [Cell<u8>; 64],
     pub len: usize,
+}
+
+impl DescriptorBuffer {
+    pub fn write_to(&self, buf: &[Cell<u8>]) -> usize {
+        for i in 0..self.len {
+            buf[i].set(self.buf[i].get());
+        }
+        self.len
+    }
 }
 
 /// Transform descriptor structs into descriptor buffers that can be

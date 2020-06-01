@@ -19,6 +19,7 @@ use core::cell::Cell;
 use core::cmp::min;
 use kernel::hil;
 use kernel::hil::usb::TransferType;
+use kernel::debug;
 
 const DESCRIPTOR_BUFLEN: usize = 64;
 
@@ -195,6 +196,7 @@ impl<'a, 'b, C: hil::usb::UsbController<'a>> ClientCtrl<'a, 'b, C> {
 
     /// Handle a Control Setup transaction
     pub fn ctrl_setup(&'a self, endpoint: usize) -> hil::usb::CtrlSetupResult {
+        debug!("ctrl setup ep: {}", endpoint);
         if endpoint != 0 {
             // For now we only support the default Control endpoint
             return hil::usb::CtrlSetupResult::ErrInvalidDeviceIndex;
@@ -254,8 +256,11 @@ impl<'a, 'b, C: hil::usb::UsbController<'a>> ClientCtrl<'a, 'b, C> {
                 match descriptor_type {
                     DescriptorType::Device => match descriptor_index {
                         0 => {
-                            //FIXME copy self.device_descriptor_buffer.buf into descriptor_storage
-                            let end = min(self.device_descriptor_buffer.len, requested_length as usize);
+                            let buf = self.descriptor_buf();
+                            let len = self.device_descriptor_buffer.write_to(buf);
+
+                            let end = min(len, requested_length as usize);
+
                             self.state[endpoint].set(State::CtrlIn(0, end));
                             hil::usb::CtrlSetupResult::Ok
                         }
@@ -264,8 +269,10 @@ impl<'a, 'b, C: hil::usb::UsbController<'a>> ClientCtrl<'a, 'b, C> {
                     DescriptorType::Configuration => {
                         match descriptor_index {
                             0 => {
-                                //FIXME copy self.other_descriptor_buffer.buf into descriptor_storage
-                                let end = min(self.other_descriptor_buffer.len, requested_length as usize);
+                                let buf = self.descriptor_buf();
+                                let len = self.other_descriptor_buffer.write_to(buf);
+
+                                let end = min(len, requested_length as usize);
                                 self.state[endpoint].set(State::CtrlIn(0, end));
                                 hil::usb::CtrlSetupResult::Ok
                             }
@@ -320,6 +327,7 @@ impl<'a, 'b, C: hil::usb::UsbController<'a>> ClientCtrl<'a, 'b, C> {
                 hil::usb::CtrlSetupResult::OkSetAddress
             }
             StandardRequest::SetConfiguration { .. } => {
+                debug!("Set config");
                 // We have been assigned a particular configuration: fine!
                 hil::usb::CtrlSetupResult::Ok
             }
@@ -372,6 +380,7 @@ impl<'a, 'b, C: hil::usb::UsbController<'a>> ClientCtrl<'a, 'b, C> {
 
     /// Handle a Control In transaction
     pub fn ctrl_in(&'a self, endpoint: usize) -> hil::usb::CtrlInResult {
+        debug!("ctrl in ep: {}", endpoint);
         match self.state[endpoint].get() {
             State::CtrlIn(start, end) => {
                 let len = end.saturating_sub(start);
