@@ -193,9 +193,9 @@ impl kernel::mpu::MPU for PMPConfig {
         for x in 0..self.total_regions {
             // If PMP is supported by the core then all 16 register sets must exist
             // They don't all have to do anything, but let's zero them all just in case.
-            match x {
+            match x % 4 {
                 0 => {
-                    csr::CSR.pmpcfg[0].modify(
+                    csr::CSR.pmpcfg[x / 4].modify(
                         csr::pmpconfig::pmpcfg::r0::CLEAR
                             + csr::pmpconfig::pmpcfg::w0::CLEAR
                             + csr::pmpconfig::pmpcfg::x0::CLEAR
@@ -204,7 +204,7 @@ impl kernel::mpu::MPU for PMPConfig {
                     );
                 }
                 1 => {
-                    csr::CSR.pmpcfg[0].modify(
+                    csr::CSR.pmpcfg[x / 4].modify(
                         csr::pmpconfig::pmpcfg::r1::CLEAR
                             + csr::pmpconfig::pmpcfg::w1::CLEAR
                             + csr::pmpconfig::pmpcfg::x1::CLEAR
@@ -213,7 +213,7 @@ impl kernel::mpu::MPU for PMPConfig {
                     );
                 }
                 2 => {
-                    csr::CSR.pmpcfg[0].modify(
+                    csr::CSR.pmpcfg[x / 4].modify(
                         csr::pmpconfig::pmpcfg::r2::CLEAR
                             + csr::pmpconfig::pmpcfg::w2::CLEAR
                             + csr::pmpconfig::pmpcfg::x2::CLEAR
@@ -222,7 +222,7 @@ impl kernel::mpu::MPU for PMPConfig {
                     );
                 }
                 3 => {
-                    csr::CSR.pmpcfg[0].modify(
+                    csr::CSR.pmpcfg[x / 4].modify(
                         csr::pmpconfig::pmpcfg::r3::CLEAR
                             + csr::pmpconfig::pmpcfg::w3::CLEAR
                             + csr::pmpconfig::pmpcfg::x3::CLEAR
@@ -230,116 +230,7 @@ impl kernel::mpu::MPU for PMPConfig {
                             + csr::pmpconfig::pmpcfg::l3::CLEAR,
                     );
                 }
-                4 => {
-                    csr::CSR.pmpcfg[1].modify(
-                        csr::pmpconfig::pmpcfg::r0::CLEAR
-                            + csr::pmpconfig::pmpcfg::w0::CLEAR
-                            + csr::pmpconfig::pmpcfg::x0::CLEAR
-                            + csr::pmpconfig::pmpcfg::a0::OFF
-                            + csr::pmpconfig::pmpcfg::l0::CLEAR,
-                    );
-                }
-                5 => {
-                    csr::CSR.pmpcfg[1].modify(
-                        csr::pmpconfig::pmpcfg::r1::CLEAR
-                            + csr::pmpconfig::pmpcfg::w1::CLEAR
-                            + csr::pmpconfig::pmpcfg::x1::CLEAR
-                            + csr::pmpconfig::pmpcfg::a1::OFF
-                            + csr::pmpconfig::pmpcfg::l1::CLEAR,
-                    );
-                }
-                6 => {
-                    csr::CSR.pmpcfg[1].modify(
-                        csr::pmpconfig::pmpcfg::r2::CLEAR
-                            + csr::pmpconfig::pmpcfg::w2::CLEAR
-                            + csr::pmpconfig::pmpcfg::x2::CLEAR
-                            + csr::pmpconfig::pmpcfg::a2::OFF
-                            + csr::pmpconfig::pmpcfg::l2::CLEAR,
-                    );
-                }
-                7 => {
-                    csr::CSR.pmpcfg[1].modify(
-                        csr::pmpconfig::pmpcfg::r3::CLEAR
-                            + csr::pmpconfig::pmpcfg::w3::CLEAR
-                            + csr::pmpconfig::pmpcfg::x3::CLEAR
-                            + csr::pmpconfig::pmpcfg::a3::OFF
-                            + csr::pmpconfig::pmpcfg::l3::CLEAR,
-                    );
-                }
-                8 => {
-                    csr::CSR.pmpcfg[2].modify(
-                        csr::pmpconfig::pmpcfg::r0::CLEAR
-                            + csr::pmpconfig::pmpcfg::w0::CLEAR
-                            + csr::pmpconfig::pmpcfg::x0::CLEAR
-                            + csr::pmpconfig::pmpcfg::a0::OFF
-                            + csr::pmpconfig::pmpcfg::l0::CLEAR,
-                    );
-                }
-                9 => {
-                    csr::CSR.pmpcfg[2].modify(
-                        csr::pmpconfig::pmpcfg::r1::CLEAR
-                            + csr::pmpconfig::pmpcfg::w1::CLEAR
-                            + csr::pmpconfig::pmpcfg::x1::CLEAR
-                            + csr::pmpconfig::pmpcfg::a1::OFF
-                            + csr::pmpconfig::pmpcfg::l1::CLEAR,
-                    );
-                }
-                10 => {
-                    csr::CSR.pmpcfg[2].modify(
-                        csr::pmpconfig::pmpcfg::r2::CLEAR
-                            + csr::pmpconfig::pmpcfg::w2::CLEAR
-                            + csr::pmpconfig::pmpcfg::x2::CLEAR
-                            + csr::pmpconfig::pmpcfg::a2::OFF
-                            + csr::pmpconfig::pmpcfg::l2::CLEAR,
-                    );
-                }
-                11 => {
-                    csr::CSR.pmpcfg[2].modify(
-                        csr::pmpconfig::pmpcfg::r3::CLEAR
-                            + csr::pmpconfig::pmpcfg::w3::CLEAR
-                            + csr::pmpconfig::pmpcfg::x3::CLEAR
-                            + csr::pmpconfig::pmpcfg::a3::OFF
-                            + csr::pmpconfig::pmpcfg::l3::CLEAR,
-                    );
-                }
-                12 => {
-                    csr::CSR.pmpcfg[3].modify(
-                        csr::pmpconfig::pmpcfg::r0::CLEAR
-                            + csr::pmpconfig::pmpcfg::w0::CLEAR
-                            + csr::pmpconfig::pmpcfg::x0::CLEAR
-                            + csr::pmpconfig::pmpcfg::a0::OFF
-                            + csr::pmpconfig::pmpcfg::l0::CLEAR,
-                    );
-                }
-                13 => {
-                    csr::CSR.pmpcfg[3].modify(
-                        csr::pmpconfig::pmpcfg::r1::CLEAR
-                            + csr::pmpconfig::pmpcfg::w1::CLEAR
-                            + csr::pmpconfig::pmpcfg::x1::CLEAR
-                            + csr::pmpconfig::pmpcfg::a1::OFF
-                            + csr::pmpconfig::pmpcfg::l1::CLEAR,
-                    );
-                }
-                14 => {
-                    csr::CSR.pmpcfg[3].modify(
-                        csr::pmpconfig::pmpcfg::r2::CLEAR
-                            + csr::pmpconfig::pmpcfg::w2::CLEAR
-                            + csr::pmpconfig::pmpcfg::x2::CLEAR
-                            + csr::pmpconfig::pmpcfg::a2::OFF
-                            + csr::pmpconfig::pmpcfg::l2::CLEAR,
-                    );
-                }
-                15 => {
-                    csr::CSR.pmpcfg[3].modify(
-                        csr::pmpconfig::pmpcfg::r3::CLEAR
-                            + csr::pmpconfig::pmpcfg::w3::CLEAR
-                            + csr::pmpconfig::pmpcfg::x3::CLEAR
-                            + csr::pmpconfig::pmpcfg::a3::OFF
-                            + csr::pmpconfig::pmpcfg::l3::CLEAR,
-                    );
-                }
-                // spec 1.10 only goes to 15
-                _ => break,
+                _ => unreachable!(),
             }
             csr::CSR.pmpaddr[x].set(0x0);
         }
