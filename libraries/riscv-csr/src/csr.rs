@@ -7,6 +7,7 @@ use tock_registers::registers::{
 };
 
 /// Read/Write registers.
+#[derive(Copy, Clone)]
 pub struct ReadWriteRiscvCsr<T: IntLike, R: RegisterLongName = ()> {
     value: usize,
     associated_register: PhantomData<R>,
