@@ -38,6 +38,9 @@ static STRINGS: &'static [&'static str] = &[
     "aSerial No. 5",   // Serial number
 ];
 
+pub const MAX_CTRL_PACKET_SIZE_SAM4L: u8 = 8;
+pub const MAX_CTRL_PACKET_SIZE_NRF52840: u8 = 64;
+
 const N_ENDPOINTS: usize = 3;
 
 pub struct Cdc<'a, C: 'a> {
@@ -61,7 +64,7 @@ pub struct Cdc<'a, C: 'a> {
 }
 
 impl<'a, C: hil::usb::UsbController<'a>> Cdc<'a, C> {
-    pub fn new(controller: &'a C) -> Self {
+    pub fn new(controller: &'a C, max_ctrl_packet_size: u8) -> Self {
         let interfaces: &mut [InterfaceDescriptor] = &mut [
             InterfaceDescriptor {
                 interface_number: 0,
@@ -141,7 +144,7 @@ impl<'a, C: hil::usb::UsbController<'a>> Cdc<'a, C> {
                     product_string: 2,
                     serial_number_string: 3,
                     class: 0x2, // Class: CDC
-                    max_packet_size_ep0: 64,
+                    max_packet_size_ep0: max_ctrl_packet_size,
                     ..descriptors::DeviceDescriptor::default()
                 },
                 descriptors::ConfigurationDescriptor {
