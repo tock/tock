@@ -344,18 +344,6 @@ impl<'a, 'b, C: hil::usb::UsbController<'a>> ClientCtrl<'a, 'b, C> {
                             _ => hil::usb::CtrlSetupResult::ErrInvalidConfigurationIndex,
                         }
                     }
-                    DescriptorType::Interface => {
-                        if (descriptor_index as usize) < self.interface_descriptor.len() {
-                            let buf = self.descriptor_buf();
-                            let len = self.interface_descriptor[descriptor_index as usize].write_to(buf);
-
-                            let end = min(len, requested_length as usize);
-                            self.state[endpoint].set(State::CtrlIn(0, end));
-                            hil::usb::CtrlSetupResult::Ok
-                        } else {
-                            hil::usb::CtrlSetupResult::ErrInvalidInterfaceIndex
-                        }
-                    },
                     DescriptorType::String => {
                         if let Some(len) = match descriptor_index {
                             0 => {
