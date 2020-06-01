@@ -86,6 +86,7 @@ impl<'a, C: hil::usb::UsbController<'a>> Client<'a, C> {
                 interfaces,
                 endpoints,
                 None, // No HID descriptor
+                None, // No CDC descriptor array
                 );
 
         Client {

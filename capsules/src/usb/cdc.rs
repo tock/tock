@@ -1,7 +1,7 @@
 //! CDC
 
 use super::descriptors::{
-    self, Buffer8, EndpointAddress, EndpointDescriptor, InterfaceDescriptor, TransferDirection,
+    self, Buffer8, EndpointAddress, CsInterfaceDescriptor, EndpointDescriptor, InterfaceDescriptor, TransferDirection,
 };
 use super::usbc_client_ctrl::ClientCtrl;
 use core::cell::Cell;
@@ -106,6 +106,29 @@ impl<'a, C: hil::usb::UsbController<'a>> Client<'a, C> {
             }
         ];
 
+        let cdc_descriptors: &mut [CsInterfaceDescriptor] = &mut [
+            CsInterfaceDescriptor {
+                subtype: descriptors::CsInterfaceDescriptorSubType::Header,
+                field1: 0x10,
+                field2: 0x11,
+            },
+            CsInterfaceDescriptor {
+                subtype: descriptors::CsInterfaceDescriptorSubType::CallManagement,
+                field1: 0x00,
+                field2: 0x03,
+            },
+            CsInterfaceDescriptor {
+                subtype: descriptors::CsInterfaceDescriptorSubType::AbstractControlManagement,
+                field1: 0x06,
+                field2: 0x00,
+            },
+            CsInterfaceDescriptor {
+                subtype: descriptors::CsInterfaceDescriptorSubType::Union,
+                field1: 0x02,
+                field2: 0x03,
+            },
+        ];
+
         let endpoints: &[&[EndpointDescriptor]] = &[
             &[
                 EndpointDescriptor {
@@ -149,6 +172,7 @@ impl<'a, C: hil::usb::UsbController<'a>> Client<'a, C> {
                 interfaces,
                 endpoints,
                 None, // No HID descriptor
+                Some(cdc_descriptors),
                 );
 
         Client {
