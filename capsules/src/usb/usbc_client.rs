@@ -29,6 +29,8 @@ static STRINGS: &'static [&'static str] = &[
 pub const MAX_CTRL_PACKET_SIZE_SAM4L: u8 = 8;
 /// Platform-specific packet length for the `nRF52` USB hardware.
 pub const MAX_CTRL_PACKET_SIZE_NRF52840: u8 = 64;
+/// Platform-specific packet length for the `ibex` USB hardware.
+pub const MAX_CTRL_PACKET_SIZE_IBEX: u8 = 64;
 
 const N_ENDPOINTS: usize = 2;
 
