@@ -282,6 +282,7 @@ impl<T: IntLike, R: RegisterLongName> WriteOnly<T, R> {
     pub fn write(&self, field: FieldValue<T, R>) {
         self.set(field.value);
     }
+
 }
 
 impl<T: IntLike, R: RegisterLongName, W: RegisterLongName> Aliased<T, R, W> {
