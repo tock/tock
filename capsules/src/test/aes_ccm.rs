@@ -24,7 +24,7 @@ pub struct Test<'a, A: AES128CCM<'a>> {
     ); 3],
 }
 
-impl<A: AES128CCM<'a>> Test<'a, A> {
+impl<'a, A: AES128CCM<'a>> Test<'a, A> {
     pub fn new(aes_ccm: &'a A, buf: &'static mut [u8]) -> Test<'a, A> {
         Test {
             aes_ccm: aes_ccm,
@@ -185,7 +185,7 @@ impl<A: AES128CCM<'a>> Test<'a, A> {
     }
 }
 
-impl<A: AES128CCM<'a>> CCMClient for Test<'a, A> {
+impl<'a, A: AES128CCM<'a>> CCMClient for Test<'a, A> {
     fn crypt_done(&self, buf: &'static mut [u8], res: ReturnCode, tag_is_valid: bool) {
         self.buf.replace(buf);
         if res != ReturnCode::SUCCESS {

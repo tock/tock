@@ -5,7 +5,7 @@
 
 use crate::returncode::ReturnCode;
 
-pub trait AnalogComparator {
+pub trait AnalogComparator<'a> {
     /// The chip-dependent type of an analog comparator channel.
     type Channel;
 
@@ -22,6 +22,8 @@ pub trait AnalogComparator {
 
     /// Stop interrupt-based comparison for the chosen channel.
     fn stop_comparing(&self, channel: &Self::Channel) -> ReturnCode;
+
+    fn set_client(&self, client: &'a dyn Client);
 }
 
 pub trait Client {

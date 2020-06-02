@@ -61,7 +61,9 @@
 //! | P0.25 | P24 15 | Button 4 |
 
 #![no_std]
-#![no_main]
+// Disable this attribute when documenting, as a workaround for
+// https://github.com/rust-lang/rust/issues/62184.
+#![cfg_attr(not(doc), no_main)]
 #![deny(missing_docs)]
 
 use kernel::component::Component;
@@ -147,28 +149,35 @@ pub unsafe fn reset_handler() {
     };
 
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
-    let gpio = components::gpio::GpioComponent::new(board_kernel).finalize(
+
+    let gpio = components::gpio::GpioComponent::new(
+        board_kernel,
         components::gpio_component_helper!(
-            &nrf52840::gpio::PORT[Pin::P1_01],
-            &nrf52840::gpio::PORT[Pin::P1_02],
-            &nrf52840::gpio::PORT[Pin::P1_03],
-            &nrf52840::gpio::PORT[Pin::P1_04],
-            &nrf52840::gpio::PORT[Pin::P1_05],
-            &nrf52840::gpio::PORT[Pin::P1_06],
-            &nrf52840::gpio::PORT[Pin::P1_07],
-            &nrf52840::gpio::PORT[Pin::P1_08],
-            &nrf52840::gpio::PORT[Pin::P1_10],
-            &nrf52840::gpio::PORT[Pin::P1_11],
-            &nrf52840::gpio::PORT[Pin::P1_12],
-            &nrf52840::gpio::PORT[Pin::P1_13],
-            &nrf52840::gpio::PORT[Pin::P1_14],
-            &nrf52840::gpio::PORT[Pin::P1_15],
-            &nrf52840::gpio::PORT[Pin::P0_26],
-            &nrf52840::gpio::PORT[Pin::P0_27]
+            nrf52840::gpio::GPIOPin,
+            0 => &nrf52840::gpio::PORT[Pin::P1_01],
+            1 => &nrf52840::gpio::PORT[Pin::P1_02],
+            2 => &nrf52840::gpio::PORT[Pin::P1_03],
+            3 => &nrf52840::gpio::PORT[Pin::P1_04],
+            4 => &nrf52840::gpio::PORT[Pin::P1_05],
+            5 => &nrf52840::gpio::PORT[Pin::P1_06],
+            6 => &nrf52840::gpio::PORT[Pin::P1_07],
+            7 => &nrf52840::gpio::PORT[Pin::P1_08],
+            8 => &nrf52840::gpio::PORT[Pin::P1_10],
+            9 => &nrf52840::gpio::PORT[Pin::P1_11],
+            10 => &nrf52840::gpio::PORT[Pin::P1_12],
+            11 => &nrf52840::gpio::PORT[Pin::P1_13],
+            12 => &nrf52840::gpio::PORT[Pin::P1_14],
+            13 => &nrf52840::gpio::PORT[Pin::P1_15],
+            14 => &nrf52840::gpio::PORT[Pin::P0_26],
+            15 => &nrf52840::gpio::PORT[Pin::P0_27]
         ),
-    );
-    let button = components::button::ButtonComponent::new(board_kernel).finalize(
+    )
+    .finalize(components::gpio_component_buf!(nrf52840::gpio::GPIOPin));
+
+    let button = components::button::ButtonComponent::new(
+        board_kernel,
         components::button_component_helper!(
+            nrf52840::gpio::GPIOPin,
             (
                 &nrf52840::gpio::PORT[BUTTON1_PIN],
                 kernel::hil::gpio::ActivationMode::ActiveLow,
@@ -190,9 +199,11 @@ pub unsafe fn reset_handler() {
                 kernel::hil::gpio::FloatingState::PullUp
             ) //16
         ),
-    );
+    )
+    .finalize(components::button_component_buf!(nrf52840::gpio::GPIOPin));
 
-    let led = components::led::LedsComponent::new().finalize(components::led_component_helper!(
+    let led = components::led::LedsComponent::new(components::led_component_helper!(
+        nrf52840::gpio::GPIOPin,
         (
             &nrf52840::gpio::PORT[LED1_PIN],
             kernel::hil::gpio::ActivationMode::ActiveLow
@@ -209,7 +220,9 @@ pub unsafe fn reset_handler() {
             &nrf52840::gpio::PORT[LED4_PIN],
             kernel::hil::gpio::ActivationMode::ActiveLow
         )
-    ));
+    ))
+    .finalize(components::led_component_buf!(nrf52840::gpio::GPIOPin));
+
     let chip = static_init!(nrf52840::chip::Chip, nrf52840::chip::new());
     CHIP = Some(chip);
 

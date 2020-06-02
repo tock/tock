@@ -12,7 +12,7 @@ pub struct TestAlarm<'a, A: Alarm<'a>> {
     ms: Cell<u32>,
 }
 
-impl<A: Alarm<'a>> TestAlarm<'a, A> {
+impl<'a, A: Alarm<'a>> TestAlarm<'a, A> {
     pub fn new(alarm: &'a A) -> TestAlarm<'a, A> {
         TestAlarm {
             alarm: alarm,
@@ -38,7 +38,7 @@ impl<A: Alarm<'a>> TestAlarm<'a, A> {
     }
 }
 
-impl<A: Alarm<'a>> AlarmClient for TestAlarm<'a, A> {
+impl<'a, A: Alarm<'a>> AlarmClient for TestAlarm<'a, A> {
     fn fired(&self) {
         // Generate a new interval that's irregular
         let new_ms: u32 = 10 + ((self.ms.get() + 137) % 757);

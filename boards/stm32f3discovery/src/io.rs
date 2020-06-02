@@ -7,8 +7,8 @@ use kernel::hil::led;
 use kernel::hil::uart;
 use kernel::hil::uart::Configure;
 
-use stm32f3xx;
-use stm32f3xx::gpio::PinId;
+use stm32f303xc;
+use stm32f303xc::gpio::PinId;
 
 use crate::CHIP;
 use crate::PROCESSES;
@@ -38,7 +38,7 @@ impl Write for Writer {
 
 impl IoWrite for Writer {
     fn write(&mut self, buf: &[u8]) {
-        let uart = unsafe { &mut stm32f3xx::usart::USART1 };
+        let uart = unsafe { &mut stm32f303xc::usart::USART1 };
 
         if !self.initialized {
             self.initialized = true;

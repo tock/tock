@@ -34,7 +34,7 @@ pub struct MuxUdpSender<'a, T: IP6Sender<'a>> {
     ip_sender: &'a dyn IP6Sender<'a>,
 }
 
-impl<T: IP6Sender<'a>> MuxUdpSender<'a, T> {
+impl<'a, T: IP6Sender<'a>> MuxUdpSender<'a, T> {
     pub fn new(ip6_sender: &'a dyn IP6Sender<'a>) -> MuxUdpSender<'a, T> {
         // similar to UdpSendStruct new()
         MuxUdpSender {
@@ -84,7 +84,7 @@ impl<T: IP6Sender<'a>> MuxUdpSender<'a, T> {
 /// This function implements the `IP6SendClient` trait for the `UDPSendStruct`,
 /// and is necessary to receive callbacks from the lower (IP) layer. When
 /// the UDP layer receives this callback, it forwards it to the `UDPSendClient`.
-impl<T: IP6Sender<'a>> IP6SendClient for MuxUdpSender<'a, T> {
+impl<'a, T: IP6Sender<'a>> IP6SendClient for MuxUdpSender<'a, T> {
     fn send_done(&self, result: ReturnCode) {
         let last_sender = self.sender_list.pop_head();
         let next_sender_option = self.sender_list.head(); // must check here, because udp driver
@@ -257,7 +257,7 @@ impl<'a, T: IP6Sender<'a>> ListNode<'a, UDPSendStruct<'a, T>> for UDPSendStruct<
 
 /// Below is the implementation of the `UDPSender` traits for the
 /// `UDPSendStruct`.
-impl<T: IP6Sender<'a>> UDPSender<'a> for UDPSendStruct<'a, T> {
+impl<'a, T: IP6Sender<'a>> UDPSender<'a> for UDPSendStruct<'a, T> {
     fn set_client(&self, client: &'a dyn UDPSendClient) {
         self.client.set(client);
     }
@@ -341,7 +341,7 @@ impl<T: IP6Sender<'a>> UDPSender<'a> for UDPSendStruct<'a, T> {
     }
 }
 
-impl<T: IP6Sender<'a>> UDPSendStruct<'a, T> {
+impl<'a, T: IP6Sender<'a>> UDPSendStruct<'a, T> {
     pub fn new(
         udp_mux_sender: &'a MuxUdpSender<'a, T>, /*binding: UdpPortBindingTx*/
         udp_vis: &'static UdpVisibilityCapability,

@@ -1,5 +1,8 @@
 //! Tock Binary Format Header definitions and parsing code.
 
+// Parsing the headers does not require any unsafe operations.
+#![forbid(unsafe_code)]
+
 use core::convert::TryInto;
 use core::fmt;
 use core::iter::Iterator;
@@ -79,7 +82,7 @@ impl fmt::Debug for TbfParseError {
 
 /// TBF fields that must be present in all v2 headers.
 #[derive(Clone, Copy, Debug)]
-crate struct TbfHeaderV2Base {
+pub(crate) struct TbfHeaderV2Base {
     version: u16,
     header_size: u16,
     total_size: u32,
@@ -89,10 +92,11 @@ crate struct TbfHeaderV2Base {
 
 /// Types in TLV structures for each optional block of the header.
 #[derive(Clone, Copy, Debug)]
-crate enum TbfHeaderTypes {
+pub(crate) enum TbfHeaderTypes {
     TbfHeaderMain = 1,
     TbfHeaderWriteableFlashRegions = 2,
     TbfHeaderPackageName = 3,
+    TbfHeaderFixedAddresses = 5,
 
     /// Some field in the header that we do not understand. Since the TLV format
     /// specifies the length of each section, if we get a field we do not
@@ -102,7 +106,7 @@ crate enum TbfHeaderTypes {
 
 /// The TLV header (T and L).
 #[derive(Clone, Copy, Debug)]
-crate struct TbfHeaderTlv {
+pub(crate) struct TbfHeaderTlv {
     tipe: TbfHeaderTypes,
     length: u16,
 }
@@ -112,7 +116,7 @@ crate struct TbfHeaderTlv {
 /// All apps must have a main section. Without it, the header is considered as
 /// only padding.
 #[derive(Clone, Copy, Debug)]
-crate struct TbfHeaderV2Main {
+pub(crate) struct TbfHeaderV2Main {
     init_fn_offset: u32,
     protected_size: u32,
     minimum_ram_size: u32,
@@ -123,9 +127,33 @@ crate struct TbfHeaderV2Main {
 /// There can be multiple (or zero) flash regions defined, so this is its own
 /// struct.
 #[derive(Clone, Copy, Debug, Default)]
-crate struct TbfHeaderV2WriteableFlashRegion {
+pub(crate) struct TbfHeaderV2WriteableFlashRegion {
     writeable_flash_region_offset: u32,
     writeable_flash_region_size: u32,
+}
+
+/// Optional fixed addresses for flash and RAM for this process.
+///
+/// If a process is compiled for a specific address this header entry lets the
+/// kernel know what those addresses are.
+///
+/// If this header is omitted the kernel will assume that the process is
+/// position-independent and can be loaded at any (reasonably aligned) flash
+/// address and can be given any (reasonable aligned) memory segment.
+///
+/// If this header is included, the kernel will check these values when setting
+/// up the process. If a process wants to set one fixed address but not the other, the unused one
+/// can be set to 0xFFFFFFFF.
+#[derive(Clone, Copy, Debug, Default)]
+pub(crate) struct TbfHeaderV2FixedAddresses {
+    /// The absolute address of the start of RAM that the process expects. For
+    /// example, if the process was linked with a RAM region starting at
+    /// address `0x00023000`, then this would be set to `0x00023000`.
+    start_process_ram: u32,
+    /// The absolute address of the start of the process binary. This does _not_
+    /// include the TBF header. This is the address the process used for the
+    /// start of flash with the linker.
+    start_process_flash: u32,
 }
 
 // Conversion functions from slices to the various TBF fields.
@@ -172,6 +200,7 @@ impl core::convert::TryFrom<u16> for TbfHeaderTypes {
             1 => Ok(TbfHeaderTypes::TbfHeaderMain),
             2 => Ok(TbfHeaderTypes::TbfHeaderWriteableFlashRegions),
             3 => Ok(TbfHeaderTypes::TbfHeaderPackageName),
+            5 => Ok(TbfHeaderTypes::TbfHeaderFixedAddresses),
             _ => Ok(TbfHeaderTypes::Unknown),
         }
     }
@@ -240,17 +269,37 @@ impl core::convert::TryFrom<&[u8]> for TbfHeaderV2WriteableFlashRegion {
     }
 }
 
+impl core::convert::TryFrom<&[u8]> for TbfHeaderV2FixedAddresses {
+    type Error = TbfParseError;
+
+    fn try_from(b: &[u8]) -> Result<TbfHeaderV2FixedAddresses, Self::Error> {
+        Ok(TbfHeaderV2FixedAddresses {
+            start_process_ram: u32::from_le_bytes(
+                b.get(0..4)
+                    .ok_or(TbfParseError::InternalError)?
+                    .try_into()?,
+            ),
+            start_process_flash: u32::from_le_bytes(
+                b.get(4..8)
+                    .ok_or(TbfParseError::InternalError)?
+                    .try_into()?,
+            ),
+        })
+    }
+}
+
 /// Single header that can contain all parts of a v2 header.
 ///
 /// Note, this struct limits the number of writeable regions an app can have to
 /// four since we need to statically know the length of the array to store in
 /// this type.
 #[derive(Clone, Copy, Debug)]
-crate struct TbfHeaderV2 {
+pub(crate) struct TbfHeaderV2 {
     base: TbfHeaderV2Base,
     main: Option<TbfHeaderV2Main>,
     package_name: Option<&'static str>,
     writeable_regions: Option<[Option<TbfHeaderV2WriteableFlashRegion>; 4]>,
+    fixed_addresses: Option<TbfHeaderV2FixedAddresses>,
 }
 
 /// Type that represents the fields of the Tock Binary Format header.
@@ -260,14 +309,14 @@ crate struct TbfHeaderV2 {
 /// The kernel can also use this header to keep persistent state about
 /// the application.
 #[derive(Debug)]
-crate enum TbfHeader {
+pub(crate) enum TbfHeader {
     TbfHeaderV2(TbfHeaderV2),
     Padding(TbfHeaderV2Base),
 }
 
 impl TbfHeader {
     /// Return whether this is an app or just padding between apps.
-    crate fn is_app(&self) -> bool {
+    pub(crate) fn is_app(&self) -> bool {
         match *self {
             TbfHeader::TbfHeaderV2(_) => true,
             TbfHeader::Padding(_) => false,
@@ -276,7 +325,7 @@ impl TbfHeader {
 
     /// Return whether the application is enabled or not.
     /// Disabled applications are not started by the kernel.
-    crate fn enabled(&self) -> bool {
+    pub(crate) fn enabled(&self) -> bool {
         match *self {
             TbfHeader::TbfHeaderV2(hd) => {
                 // Bit 1 of flags is the enable/disable bit.
@@ -289,7 +338,7 @@ impl TbfHeader {
     /// Add up all of the relevant fields in header version 1, or just used the
     /// app provided value in version 2 to get the total amount of RAM that is
     /// needed for this app.
-    crate fn get_minimum_app_ram_size(&self) -> u32 {
+    pub(crate) fn get_minimum_app_ram_size(&self) -> u32 {
         match *self {
             TbfHeader::TbfHeaderV2(hd) => hd.main.map_or(0, |m| m.minimum_ram_size),
             _ => 0,
@@ -298,7 +347,7 @@ impl TbfHeader {
 
     /// Get the number of bytes from the start of the app's region in flash that
     /// is for kernel use only. The app cannot write this region.
-    crate fn get_protected_size(&self) -> u32 {
+    pub(crate) fn get_protected_size(&self) -> u32 {
         match *self {
             TbfHeader::TbfHeaderV2(hd) => {
                 hd.main.map_or(0, |m| m.protected_size) + (hd.base.header_size as u32)
@@ -309,7 +358,7 @@ impl TbfHeader {
 
     /// Get the offset from the beginning of the app's flash region where the
     /// app should start executing.
-    crate fn get_init_function_offset(&self) -> u32 {
+    pub(crate) fn get_init_function_offset(&self) -> u32 {
         match *self {
             TbfHeader::TbfHeaderV2(hd) => {
                 hd.main.map_or(0, |m| m.init_fn_offset) + (hd.base.header_size as u32)
@@ -319,7 +368,7 @@ impl TbfHeader {
     }
 
     /// Get the name of the app.
-    crate fn get_package_name(&self) -> Option<&'static str> {
+    pub(crate) fn get_package_name(&self) -> Option<&'static str> {
         match *self {
             TbfHeader::TbfHeaderV2(hd) => hd.package_name,
             _ => None,
@@ -327,7 +376,7 @@ impl TbfHeader {
     }
 
     /// Get the number of flash regions this app has specified in its header.
-    crate fn number_writeable_flash_regions(&self) -> usize {
+    pub(crate) fn number_writeable_flash_regions(&self) -> usize {
         match *self {
             TbfHeader::TbfHeaderV2(hd) => hd.writeable_regions.map_or(0, |wrs| {
                 wrs.iter()
@@ -338,7 +387,7 @@ impl TbfHeader {
     }
 
     /// Get the offset and size of a given flash region.
-    crate fn get_writeable_flash_region(&self, index: usize) -> (u32, u32) {
+    pub(crate) fn get_writeable_flash_region(&self, index: usize) -> (u32, u32) {
         match *self {
             TbfHeader::TbfHeaderV2(hd) => hd.writeable_regions.map_or((0, 0), |wrs| {
                 wrs.get(index).unwrap_or(&None).map_or((0, 0), |wr| {
@@ -351,6 +400,32 @@ impl TbfHeader {
             _ => (0, 0),
         }
     }
+
+    /// Get the address in RAM this process was specifically compiled for. If
+    /// the process is position independent, return `None`.
+    pub(crate) fn get_fixed_address_ram(&self) -> Option<u32> {
+        let hd = match self {
+            TbfHeader::TbfHeaderV2(hd) => hd,
+            _ => return None,
+        };
+        match hd.fixed_addresses.as_ref()?.start_process_ram {
+            0xFFFFFFFF => None,
+            start => Some(start),
+        }
+    }
+
+    /// Get the address in flash this process was specifically compiled for. If
+    /// the process is position independent, return `None`.
+    pub(crate) fn get_fixed_address_flash(&self) -> Option<u32> {
+        let hd = match self {
+            TbfHeader::TbfHeaderV2(hd) => hd,
+            _ => return None,
+        };
+        match hd.fixed_addresses.as_ref()?.start_process_flash {
+            0xFFFFFFFF => None,
+            start => Some(start),
+        }
+    }
 }
 
 /// Parse the TBF header length and the entire length of the TBF binary.
@@ -358,7 +433,9 @@ impl TbfHeader {
 /// ## Return
 ///
 /// Ok((Version, TBF header length, entire TBF length))
-crate fn parse_tbf_header_lengths(app: &'static [u8; 8]) -> Result<(u16, u16, u32), TbfParseError> {
+pub(crate) fn parse_tbf_header_lengths(
+    app: &'static [u8; 8],
+) -> Result<(u16, u16, u32), TbfParseError> {
     // Version is the first 16 bits of the app TBF contents. We need this to
     // correctly parse the other lengths.
     //
@@ -409,7 +486,10 @@ crate fn parse_tbf_header_lengths(app: &'static [u8; 8]) -> Result<(u16, u16, u3
 /// The `header` must be a slice that only contains the TBF header. The caller
 /// should use the `parse_tbf_header_lengths()` function to determine this
 /// length to create the correct sized slice.
-crate fn parse_tbf_header(header: &'static [u8], version: u16) -> Result<TbfHeader, TbfParseError> {
+pub(crate) fn parse_tbf_header(
+    header: &'static [u8],
+    version: u16,
+) -> Result<TbfHeader, TbfParseError> {
     match version {
         2 => {
             // Get the required base. This will succeed because we parsed the
@@ -460,6 +540,7 @@ crate fn parse_tbf_header(header: &'static [u8], version: u16) -> Result<TbfHead
                 let mut wfr_pointer: [Option<TbfHeaderV2WriteableFlashRegion>; 4] =
                     Default::default();
                 let mut app_name_str = "";
+                let mut fixed_address_pointer: Option<TbfHeaderV2FixedAddresses> = None;
 
                 // Iterate the remainder of the header looking for TLV entries.
                 while remaining.len() > 0 {
@@ -531,6 +612,15 @@ crate fn parse_tbf_header(header: &'static [u8], version: u16) -> Result<TbfHead
                                 .or(Err(TbfParseError::BadProcessName))?;
                         }
 
+                        TbfHeaderTypes::TbfHeaderFixedAddresses => {
+                            let entry_len = 8;
+                            if tlv_header.length as usize == entry_len {
+                                fixed_address_pointer = Some(remaining.try_into()?);
+                            } else {
+                                return Err(TbfParseError::BadTlvEntry(tlv_header.tipe as usize));
+                            }
+                        }
+
                         _ => {}
                     }
 
@@ -547,6 +637,7 @@ crate fn parse_tbf_header(header: &'static [u8], version: u16) -> Result<TbfHead
                     main: main_pointer,
                     package_name: Some(app_name_str),
                     writeable_regions: Some(wfr_pointer),
+                    fixed_addresses: fixed_address_pointer,
                 };
 
                 Ok(TbfHeader::TbfHeaderV2(tbf_header))

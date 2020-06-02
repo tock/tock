@@ -8,7 +8,7 @@ use kernel::syscall::ContextSwitchReason;
 
 /// This holds all of the state that the kernel must keep for the process when
 /// the process is not executing.
-#[derive(Copy, Clone, Default)]
+#[derive(Default)]
 #[repr(C)]
 pub struct RiscvimacStoredState {
     /// Store all of the app registers.
@@ -373,25 +373,25 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
     ) {
         let _ = writer.write_fmt(format_args!(
             "\
-            \r\n R0 : {:#010X}    R16: {:#010X}\
-            \r\n R1 : {:#010X}    R17: {:#010X}\
-            \r\n R2 : {:#010X}    R18: {:#010X}\
-            \r\n R3 : {:#010X}    R19: {:#010X}\
-            \r\n R4 : {:#010X}    R20: {:#010X}\
-            \r\n R5 : {:#010X}    R21: {:#010X}\
-            \r\n R6 : {:#010X}    R22: {:#010X}\
-            \r\n R7 : {:#010X}    R23: {:#010X}\
-            \r\n R8 : {:#010X}    R24: {:#010X}\
-            \r\n R9 : {:#010X}    R25: {:#010X}\
-            \r\n R10: {:#010X}    R26: {:#010X}\
-            \r\n R11: {:#010X}    R27: {:#010X}\
-            \r\n R12: {:#010X}    R28: {:#010X}\
-            \r\n R13: {:#010X}    R29: {:#010X}\
-            \r\n R14: {:#010X}    R30: {:#010X}\
-            \r\n R15: {:#010X}    R31: {:#010X}\
-            \r\n PC : {:#010X}\
-            \r\n SP:  {:#010X}\
-            \r\n",
+             \r\n R0 : {:#010X}    R16: {:#010X}\
+             \r\n R1 : {:#010X}    R17: {:#010X}\
+             \r\n R2 : {:#010X}    R18: {:#010X}\
+             \r\n R3 : {:#010X}    R19: {:#010X}\
+             \r\n R4 : {:#010X}    R20: {:#010X}\
+             \r\n R5 : {:#010X}    R21: {:#010X}\
+             \r\n R6 : {:#010X}    R22: {:#010X}\
+             \r\n R7 : {:#010X}    R23: {:#010X}\
+             \r\n R8 : {:#010X}    R24: {:#010X}\
+             \r\n R9 : {:#010X}    R25: {:#010X}\
+             \r\n R10: {:#010X}    R26: {:#010X}\
+             \r\n R11: {:#010X}    R27: {:#010X}\
+             \r\n R12: {:#010X}    R28: {:#010X}\
+             \r\n R13: {:#010X}    R29: {:#010X}\
+             \r\n R14: {:#010X}    R30: {:#010X}\
+             \r\n R15: {:#010X}    R31: {:#010X}\
+             \r\n PC : {:#010X}\
+             \r\n SP:  {:#010X}\
+             \r\n",
             0,
             state.regs[15],
             state.regs[0],

@@ -53,7 +53,7 @@ pub struct Trng<'a> {
 pub static mut TRNG: Trng<'static> = Trng::new();
 const KEY: u32 = 0x524e47;
 
-impl Trng<'a> {
+impl<'a> Trng<'a> {
     const fn new() -> Trng<'a> {
         Trng {
             regs: BASE_ADDRESS,
@@ -82,7 +82,7 @@ impl Trng<'a> {
 
 struct TrngIter<'a, 'b: 'a>(&'a Trng<'b>);
 
-impl Iterator for TrngIter<'a, 'b> {
+impl Iterator for TrngIter<'_, '_> {
     type Item = u32;
 
     fn next(&mut self) -> Option<u32> {
@@ -95,7 +95,7 @@ impl Iterator for TrngIter<'a, 'b> {
     }
 }
 
-impl entropy::Entropy32<'a> for Trng<'a> {
+impl<'a> entropy::Entropy32<'a> for Trng<'a> {
     fn get(&self) -> ReturnCode {
         let regs = &*self.regs;
         pm::enable_clock(pm::Clock::PBA(pm::PBAClock::TRNG));

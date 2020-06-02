@@ -5,7 +5,6 @@ use core::fmt;
 
 use crate::csr;
 use kernel;
-use kernel::common::math;
 use kernel::common::registers::register_bitfields;
 use kernel::mpu;
 
@@ -179,136 +178,168 @@ impl kernel::mpu::MPU for PMPConfig {
     fn enable_mpu(&self) {}
 
     fn disable_mpu(&self) {
-        for x in 0..16 {
+        for x in 0..self.total_regions {
             // If PMP is supported by the core then all 16 register sets must exist
             // They don't all have to do anything, but let's zero them all just in case.
             match x {
                 0 => {
-                    csr::CSR.pmpcfg0.modify(csr::pmpconfig::pmpcfg::r0::CLEAR);
-                    csr::CSR.pmpcfg0.modify(csr::pmpconfig::pmpcfg::w0::CLEAR);
-                    csr::CSR.pmpcfg0.modify(csr::pmpconfig::pmpcfg::x0::CLEAR);
-                    csr::CSR.pmpcfg0.modify(csr::pmpconfig::pmpcfg::a0::OFF);
-                    csr::CSR.pmpcfg0.modify(csr::pmpconfig::pmpcfg::l0::CLEAR);
+                    csr::CSR.pmpcfg0.modify(
+                        csr::pmpconfig::pmpcfg::r0::CLEAR
+                            + csr::pmpconfig::pmpcfg::w0::CLEAR
+                            + csr::pmpconfig::pmpcfg::x0::CLEAR
+                            + csr::pmpconfig::pmpcfg::a0::OFF
+                            + csr::pmpconfig::pmpcfg::l0::CLEAR,
+                    );
                     csr::CSR.pmpaddr0.set(0x0);
                 }
                 1 => {
-                    csr::CSR.pmpcfg0.modify(csr::pmpconfig::pmpcfg::r1::CLEAR);
-                    csr::CSR.pmpcfg0.modify(csr::pmpconfig::pmpcfg::w1::CLEAR);
-                    csr::CSR.pmpcfg0.modify(csr::pmpconfig::pmpcfg::x1::CLEAR);
-                    csr::CSR.pmpcfg0.modify(csr::pmpconfig::pmpcfg::a1::OFF);
-                    csr::CSR.pmpcfg0.modify(csr::pmpconfig::pmpcfg::l1::CLEAR);
+                    csr::CSR.pmpcfg0.modify(
+                        csr::pmpconfig::pmpcfg::r1::CLEAR
+                            + csr::pmpconfig::pmpcfg::w1::CLEAR
+                            + csr::pmpconfig::pmpcfg::x1::CLEAR
+                            + csr::pmpconfig::pmpcfg::a1::OFF
+                            + csr::pmpconfig::pmpcfg::l1::CLEAR,
+                    );
                     csr::CSR.pmpaddr1.set(0x0);
                 }
                 2 => {
-                    csr::CSR.pmpcfg0.modify(csr::pmpconfig::pmpcfg::r2::CLEAR);
-                    csr::CSR.pmpcfg0.modify(csr::pmpconfig::pmpcfg::w2::CLEAR);
-                    csr::CSR.pmpcfg0.modify(csr::pmpconfig::pmpcfg::x2::CLEAR);
-                    csr::CSR.pmpcfg0.modify(csr::pmpconfig::pmpcfg::a2::OFF);
-                    csr::CSR.pmpcfg0.modify(csr::pmpconfig::pmpcfg::l2::CLEAR);
+                    csr::CSR.pmpcfg0.modify(
+                        csr::pmpconfig::pmpcfg::r2::CLEAR
+                            + csr::pmpconfig::pmpcfg::w2::CLEAR
+                            + csr::pmpconfig::pmpcfg::x2::CLEAR
+                            + csr::pmpconfig::pmpcfg::a2::OFF
+                            + csr::pmpconfig::pmpcfg::l2::CLEAR,
+                    );
                     csr::CSR.pmpaddr2.set(0x0);
                 }
                 3 => {
-                    csr::CSR.pmpcfg0.modify(csr::pmpconfig::pmpcfg::r3::CLEAR);
-                    csr::CSR.pmpcfg0.modify(csr::pmpconfig::pmpcfg::w3::CLEAR);
-                    csr::CSR.pmpcfg0.modify(csr::pmpconfig::pmpcfg::x3::CLEAR);
-                    csr::CSR.pmpcfg0.modify(csr::pmpconfig::pmpcfg::a3::OFF);
-                    csr::CSR.pmpcfg0.modify(csr::pmpconfig::pmpcfg::l3::CLEAR);
+                    csr::CSR.pmpcfg0.modify(
+                        csr::pmpconfig::pmpcfg::r3::CLEAR
+                            + csr::pmpconfig::pmpcfg::w3::CLEAR
+                            + csr::pmpconfig::pmpcfg::x3::CLEAR
+                            + csr::pmpconfig::pmpcfg::a3::OFF
+                            + csr::pmpconfig::pmpcfg::l3::CLEAR,
+                    );
                     csr::CSR.pmpaddr3.set(0x0);
                 }
                 4 => {
-                    csr::CSR.pmpcfg1.modify(csr::pmpconfig::pmpcfg::r0::CLEAR);
-                    csr::CSR.pmpcfg1.modify(csr::pmpconfig::pmpcfg::w0::CLEAR);
-                    csr::CSR.pmpcfg1.modify(csr::pmpconfig::pmpcfg::x0::CLEAR);
-                    csr::CSR.pmpcfg1.modify(csr::pmpconfig::pmpcfg::a0::OFF);
-                    csr::CSR.pmpcfg1.modify(csr::pmpconfig::pmpcfg::l0::CLEAR);
+                    csr::CSR.pmpcfg1.modify(
+                        csr::pmpconfig::pmpcfg::r0::CLEAR
+                            + csr::pmpconfig::pmpcfg::w0::CLEAR
+                            + csr::pmpconfig::pmpcfg::x0::CLEAR
+                            + csr::pmpconfig::pmpcfg::a0::OFF
+                            + csr::pmpconfig::pmpcfg::l0::CLEAR,
+                    );
                     csr::CSR.pmpaddr4.set(0x0);
                 }
                 5 => {
-                    csr::CSR.pmpcfg1.modify(csr::pmpconfig::pmpcfg::r1::CLEAR);
-                    csr::CSR.pmpcfg1.modify(csr::pmpconfig::pmpcfg::w1::CLEAR);
-                    csr::CSR.pmpcfg1.modify(csr::pmpconfig::pmpcfg::x1::CLEAR);
-                    csr::CSR.pmpcfg1.modify(csr::pmpconfig::pmpcfg::a1::OFF);
-                    csr::CSR.pmpcfg1.modify(csr::pmpconfig::pmpcfg::l1::CLEAR);
+                    csr::CSR.pmpcfg1.modify(
+                        csr::pmpconfig::pmpcfg::r1::CLEAR
+                            + csr::pmpconfig::pmpcfg::w1::CLEAR
+                            + csr::pmpconfig::pmpcfg::x1::CLEAR
+                            + csr::pmpconfig::pmpcfg::a1::OFF
+                            + csr::pmpconfig::pmpcfg::l1::CLEAR,
+                    );
                     csr::CSR.pmpaddr5.set(0x0);
                 }
                 6 => {
-                    csr::CSR.pmpcfg1.modify(csr::pmpconfig::pmpcfg::r2::CLEAR);
-                    csr::CSR.pmpcfg1.modify(csr::pmpconfig::pmpcfg::w2::CLEAR);
-                    csr::CSR.pmpcfg1.modify(csr::pmpconfig::pmpcfg::x2::CLEAR);
-                    csr::CSR.pmpcfg1.modify(csr::pmpconfig::pmpcfg::a2::OFF);
-                    csr::CSR.pmpcfg1.modify(csr::pmpconfig::pmpcfg::l2::CLEAR);
+                    csr::CSR.pmpcfg1.modify(
+                        csr::pmpconfig::pmpcfg::r2::CLEAR
+                            + csr::pmpconfig::pmpcfg::w2::CLEAR
+                            + csr::pmpconfig::pmpcfg::x2::CLEAR
+                            + csr::pmpconfig::pmpcfg::a2::OFF
+                            + csr::pmpconfig::pmpcfg::l2::CLEAR,
+                    );
                     csr::CSR.pmpaddr6.set(0x0);
                 }
                 7 => {
-                    csr::CSR.pmpcfg1.modify(csr::pmpconfig::pmpcfg::r3::CLEAR);
-                    csr::CSR.pmpcfg1.modify(csr::pmpconfig::pmpcfg::w3::CLEAR);
-                    csr::CSR.pmpcfg1.modify(csr::pmpconfig::pmpcfg::x3::CLEAR);
-                    csr::CSR.pmpcfg1.modify(csr::pmpconfig::pmpcfg::a3::OFF);
-                    csr::CSR.pmpcfg1.modify(csr::pmpconfig::pmpcfg::l3::CLEAR);
+                    csr::CSR.pmpcfg1.modify(
+                        csr::pmpconfig::pmpcfg::r3::CLEAR
+                            + csr::pmpconfig::pmpcfg::w3::CLEAR
+                            + csr::pmpconfig::pmpcfg::x3::CLEAR
+                            + csr::pmpconfig::pmpcfg::a3::OFF
+                            + csr::pmpconfig::pmpcfg::l3::CLEAR,
+                    );
                     csr::CSR.pmpaddr7.set(0x0);
                 }
                 8 => {
-                    csr::CSR.pmpcfg2.modify(csr::pmpconfig::pmpcfg::r0::CLEAR);
-                    csr::CSR.pmpcfg2.modify(csr::pmpconfig::pmpcfg::w0::CLEAR);
-                    csr::CSR.pmpcfg2.modify(csr::pmpconfig::pmpcfg::x0::CLEAR);
-                    csr::CSR.pmpcfg2.modify(csr::pmpconfig::pmpcfg::a0::OFF);
-                    csr::CSR.pmpcfg2.modify(csr::pmpconfig::pmpcfg::l0::CLEAR);
+                    csr::CSR.pmpcfg2.modify(
+                        csr::pmpconfig::pmpcfg::r0::CLEAR
+                            + csr::pmpconfig::pmpcfg::w0::CLEAR
+                            + csr::pmpconfig::pmpcfg::x0::CLEAR
+                            + csr::pmpconfig::pmpcfg::a0::OFF
+                            + csr::pmpconfig::pmpcfg::l0::CLEAR,
+                    );
                     csr::CSR.pmpaddr8.set(0x0);
                 }
                 9 => {
-                    csr::CSR.pmpcfg2.modify(csr::pmpconfig::pmpcfg::r1::CLEAR);
-                    csr::CSR.pmpcfg2.modify(csr::pmpconfig::pmpcfg::w1::CLEAR);
-                    csr::CSR.pmpcfg2.modify(csr::pmpconfig::pmpcfg::x1::CLEAR);
-                    csr::CSR.pmpcfg2.modify(csr::pmpconfig::pmpcfg::a1::OFF);
-                    csr::CSR.pmpcfg2.modify(csr::pmpconfig::pmpcfg::l1::CLEAR);
+                    csr::CSR.pmpcfg2.modify(
+                        csr::pmpconfig::pmpcfg::r1::CLEAR
+                            + csr::pmpconfig::pmpcfg::w1::CLEAR
+                            + csr::pmpconfig::pmpcfg::x1::CLEAR
+                            + csr::pmpconfig::pmpcfg::a1::OFF
+                            + csr::pmpconfig::pmpcfg::l1::CLEAR,
+                    );
                     csr::CSR.pmpaddr9.set(0x0);
                 }
                 10 => {
-                    csr::CSR.pmpcfg2.modify(csr::pmpconfig::pmpcfg::r2::CLEAR);
-                    csr::CSR.pmpcfg2.modify(csr::pmpconfig::pmpcfg::w2::CLEAR);
-                    csr::CSR.pmpcfg2.modify(csr::pmpconfig::pmpcfg::x2::CLEAR);
-                    csr::CSR.pmpcfg2.modify(csr::pmpconfig::pmpcfg::a2::OFF);
-                    csr::CSR.pmpcfg2.modify(csr::pmpconfig::pmpcfg::l2::CLEAR);
+                    csr::CSR.pmpcfg2.modify(
+                        csr::pmpconfig::pmpcfg::r2::CLEAR
+                            + csr::pmpconfig::pmpcfg::w2::CLEAR
+                            + csr::pmpconfig::pmpcfg::x2::CLEAR
+                            + csr::pmpconfig::pmpcfg::a2::OFF
+                            + csr::pmpconfig::pmpcfg::l2::CLEAR,
+                    );
                     csr::CSR.pmpaddr10.set(0x0);
                 }
                 11 => {
-                    csr::CSR.pmpcfg2.modify(csr::pmpconfig::pmpcfg::r3::CLEAR);
-                    csr::CSR.pmpcfg2.modify(csr::pmpconfig::pmpcfg::w3::CLEAR);
-                    csr::CSR.pmpcfg2.modify(csr::pmpconfig::pmpcfg::x3::CLEAR);
-                    csr::CSR.pmpcfg2.modify(csr::pmpconfig::pmpcfg::a3::OFF);
-                    csr::CSR.pmpcfg2.modify(csr::pmpconfig::pmpcfg::l3::CLEAR);
+                    csr::CSR.pmpcfg2.modify(
+                        csr::pmpconfig::pmpcfg::r3::CLEAR
+                            + csr::pmpconfig::pmpcfg::w3::CLEAR
+                            + csr::pmpconfig::pmpcfg::x3::CLEAR
+                            + csr::pmpconfig::pmpcfg::a3::OFF
+                            + csr::pmpconfig::pmpcfg::l3::CLEAR,
+                    );
                     csr::CSR.pmpaddr11.set(0x0);
                 }
                 12 => {
-                    csr::CSR.pmpcfg3.modify(csr::pmpconfig::pmpcfg::r0::CLEAR);
-                    csr::CSR.pmpcfg3.modify(csr::pmpconfig::pmpcfg::w0::CLEAR);
-                    csr::CSR.pmpcfg3.modify(csr::pmpconfig::pmpcfg::x0::CLEAR);
-                    csr::CSR.pmpcfg3.modify(csr::pmpconfig::pmpcfg::a0::OFF);
-                    csr::CSR.pmpcfg3.modify(csr::pmpconfig::pmpcfg::l0::CLEAR);
+                    csr::CSR.pmpcfg3.modify(
+                        csr::pmpconfig::pmpcfg::r0::CLEAR
+                            + csr::pmpconfig::pmpcfg::w0::CLEAR
+                            + csr::pmpconfig::pmpcfg::x0::CLEAR
+                            + csr::pmpconfig::pmpcfg::a0::OFF
+                            + csr::pmpconfig::pmpcfg::l0::CLEAR,
+                    );
                     csr::CSR.pmpaddr12.set(0x0);
                 }
                 13 => {
-                    csr::CSR.pmpcfg3.modify(csr::pmpconfig::pmpcfg::r1::CLEAR);
-                    csr::CSR.pmpcfg3.modify(csr::pmpconfig::pmpcfg::w1::CLEAR);
-                    csr::CSR.pmpcfg3.modify(csr::pmpconfig::pmpcfg::x1::CLEAR);
-                    csr::CSR.pmpcfg3.modify(csr::pmpconfig::pmpcfg::a1::OFF);
-                    csr::CSR.pmpcfg3.modify(csr::pmpconfig::pmpcfg::l1::CLEAR);
+                    csr::CSR.pmpcfg3.modify(
+                        csr::pmpconfig::pmpcfg::r1::CLEAR
+                            + csr::pmpconfig::pmpcfg::w1::CLEAR
+                            + csr::pmpconfig::pmpcfg::x1::CLEAR
+                            + csr::pmpconfig::pmpcfg::a1::OFF
+                            + csr::pmpconfig::pmpcfg::l1::CLEAR,
+                    );
                     csr::CSR.pmpaddr13.set(0x0);
                 }
                 14 => {
-                    csr::CSR.pmpcfg3.modify(csr::pmpconfig::pmpcfg::r2::CLEAR);
-                    csr::CSR.pmpcfg3.modify(csr::pmpconfig::pmpcfg::w2::CLEAR);
-                    csr::CSR.pmpcfg3.modify(csr::pmpconfig::pmpcfg::x2::CLEAR);
-                    csr::CSR.pmpcfg3.modify(csr::pmpconfig::pmpcfg::a2::OFF);
-                    csr::CSR.pmpcfg3.modify(csr::pmpconfig::pmpcfg::l2::CLEAR);
+                    csr::CSR.pmpcfg3.modify(
+                        csr::pmpconfig::pmpcfg::r2::CLEAR
+                            + csr::pmpconfig::pmpcfg::w2::CLEAR
+                            + csr::pmpconfig::pmpcfg::x2::CLEAR
+                            + csr::pmpconfig::pmpcfg::a2::OFF
+                            + csr::pmpconfig::pmpcfg::l2::CLEAR,
+                    );
                     csr::CSR.pmpaddr14.set(0x0);
                 }
                 15 => {
-                    csr::CSR.pmpcfg3.modify(csr::pmpconfig::pmpcfg::r3::CLEAR);
-                    csr::CSR.pmpcfg3.modify(csr::pmpconfig::pmpcfg::w3::CLEAR);
-                    csr::CSR.pmpcfg3.modify(csr::pmpconfig::pmpcfg::x3::CLEAR);
-                    csr::CSR.pmpcfg3.modify(csr::pmpconfig::pmpcfg::a3::OFF);
-                    csr::CSR.pmpcfg3.modify(csr::pmpconfig::pmpcfg::l3::CLEAR);
+                    csr::CSR.pmpcfg3.modify(
+                        csr::pmpconfig::pmpcfg::r3::CLEAR
+                            + csr::pmpconfig::pmpcfg::w3::CLEAR
+                            + csr::pmpconfig::pmpcfg::x3::CLEAR
+                            + csr::pmpconfig::pmpcfg::a3::OFF
+                            + csr::pmpconfig::pmpcfg::l3::CLEAR,
+                    );
                     csr::CSR.pmpaddr15.set(0x0);
                 }
                 // spec 1.10 only goes to 15
@@ -399,8 +430,6 @@ impl kernel::mpu::MPU for PMPConfig {
         // RISC-V PMP is not inclusive of the final address, while Tock is, increase the memory_size by 1
         let mut region_size = memory_size as usize + 1;
 
-        region_size = math::PowerOfTwo::ceiling(region_size as u32).as_num::<u32>() as usize;
-
         // Region size always has to align to 4 bytes
         if region_size % 4 != 0 {
             region_size += 4 - (region_size % 4);
@@ -476,10 +505,12 @@ impl kernel::mpu::MPU for PMPConfig {
                     match x {
                         0 => {
                             // Disable access up to the start address
-                            csr::CSR.pmpcfg0.modify(csr::pmpconfig::pmpcfg::r0::CLEAR);
-                            csr::CSR.pmpcfg0.modify(csr::pmpconfig::pmpcfg::w0::CLEAR);
-                            csr::CSR.pmpcfg0.modify(csr::pmpconfig::pmpcfg::x0::CLEAR);
-                            csr::CSR.pmpcfg0.modify(csr::pmpconfig::pmpcfg::a0::TOR);
+                            csr::CSR.pmpcfg0.modify(
+                                csr::pmpconfig::pmpcfg::r0::CLEAR
+                                    + csr::pmpconfig::pmpcfg::w0::CLEAR
+                                    + csr::pmpconfig::pmpcfg::x0::CLEAR
+                                    + csr::pmpconfig::pmpcfg::a0::TOR,
+                            );
                             csr::CSR.pmpaddr0.set((start as u32) >> 2);
 
                             // Set access to end address
@@ -488,10 +519,12 @@ impl kernel::mpu::MPU for PMPConfig {
                         }
                         1 => {
                             // Disable access up to the start address
-                            csr::CSR.pmpcfg0.modify(csr::pmpconfig::pmpcfg::r2::CLEAR);
-                            csr::CSR.pmpcfg0.modify(csr::pmpconfig::pmpcfg::w2::CLEAR);
-                            csr::CSR.pmpcfg0.modify(csr::pmpconfig::pmpcfg::x2::CLEAR);
-                            csr::CSR.pmpcfg0.modify(csr::pmpconfig::pmpcfg::a2::TOR);
+                            csr::CSR.pmpcfg0.modify(
+                                csr::pmpconfig::pmpcfg::r2::CLEAR
+                                    + csr::pmpconfig::pmpcfg::w2::CLEAR
+                                    + csr::pmpconfig::pmpcfg::x2::CLEAR
+                                    + csr::pmpconfig::pmpcfg::a2::TOR,
+                            );
                             csr::CSR.pmpaddr2.set((start as u32) >> 2);
 
                             // Set access to end address
@@ -500,10 +533,12 @@ impl kernel::mpu::MPU for PMPConfig {
                         }
                         2 => {
                             // Disable access up to the start address
-                            csr::CSR.pmpcfg1.modify(csr::pmpconfig::pmpcfg::r0::CLEAR);
-                            csr::CSR.pmpcfg1.modify(csr::pmpconfig::pmpcfg::w0::CLEAR);
-                            csr::CSR.pmpcfg1.modify(csr::pmpconfig::pmpcfg::x0::CLEAR);
-                            csr::CSR.pmpcfg1.modify(csr::pmpconfig::pmpcfg::a0::TOR);
+                            csr::CSR.pmpcfg1.modify(
+                                csr::pmpconfig::pmpcfg::r0::CLEAR
+                                    + csr::pmpconfig::pmpcfg::w0::CLEAR
+                                    + csr::pmpconfig::pmpcfg::x0::CLEAR
+                                    + csr::pmpconfig::pmpcfg::a0::TOR,
+                            );
                             csr::CSR.pmpaddr4.set((start as u32) >> 2);
 
                             // Set access to end address
@@ -512,10 +547,12 @@ impl kernel::mpu::MPU for PMPConfig {
                         }
                         3 => {
                             // Disable access up to the start address
-                            csr::CSR.pmpcfg1.modify(csr::pmpconfig::pmpcfg::r3::CLEAR);
-                            csr::CSR.pmpcfg1.modify(csr::pmpconfig::pmpcfg::w3::CLEAR);
-                            csr::CSR.pmpcfg1.modify(csr::pmpconfig::pmpcfg::x3::CLEAR);
-                            csr::CSR.pmpcfg1.modify(csr::pmpconfig::pmpcfg::a3::TOR);
+                            csr::CSR.pmpcfg1.modify(
+                                csr::pmpconfig::pmpcfg::r3::CLEAR
+                                    + csr::pmpconfig::pmpcfg::w3::CLEAR
+                                    + csr::pmpconfig::pmpcfg::x3::CLEAR
+                                    + csr::pmpconfig::pmpcfg::a3::TOR,
+                            );
                             csr::CSR.pmpaddr6.set((start as u32) >> 2);
 
                             // Set access to end address
@@ -524,10 +561,12 @@ impl kernel::mpu::MPU for PMPConfig {
                         }
                         4 => {
                             // Disable access up to the start address
-                            csr::CSR.pmpcfg2.modify(csr::pmpconfig::pmpcfg::r0::CLEAR);
-                            csr::CSR.pmpcfg2.modify(csr::pmpconfig::pmpcfg::w0::CLEAR);
-                            csr::CSR.pmpcfg2.modify(csr::pmpconfig::pmpcfg::x0::CLEAR);
-                            csr::CSR.pmpcfg2.modify(csr::pmpconfig::pmpcfg::a0::TOR);
+                            csr::CSR.pmpcfg2.modify(
+                                csr::pmpconfig::pmpcfg::r0::CLEAR
+                                    + csr::pmpconfig::pmpcfg::w0::CLEAR
+                                    + csr::pmpconfig::pmpcfg::x0::CLEAR
+                                    + csr::pmpconfig::pmpcfg::a0::TOR,
+                            );
                             csr::CSR.pmpaddr8.set((start as u32) >> 2);
 
                             // Set access to end address
@@ -536,10 +575,12 @@ impl kernel::mpu::MPU for PMPConfig {
                         }
                         5 => {
                             // Disable access up to the start address
-                            csr::CSR.pmpcfg2.modify(csr::pmpconfig::pmpcfg::r3::CLEAR);
-                            csr::CSR.pmpcfg2.modify(csr::pmpconfig::pmpcfg::w3::CLEAR);
-                            csr::CSR.pmpcfg2.modify(csr::pmpconfig::pmpcfg::x3::CLEAR);
-                            csr::CSR.pmpcfg2.modify(csr::pmpconfig::pmpcfg::a3::TOR);
+                            csr::CSR.pmpcfg2.modify(
+                                csr::pmpconfig::pmpcfg::r3::CLEAR
+                                    + csr::pmpconfig::pmpcfg::w3::CLEAR
+                                    + csr::pmpconfig::pmpcfg::x3::CLEAR
+                                    + csr::pmpconfig::pmpcfg::a3::TOR,
+                            );
                             csr::CSR.pmpaddr10.set((start as u32) >> 2);
 
                             // Set access to end address
@@ -548,10 +589,12 @@ impl kernel::mpu::MPU for PMPConfig {
                         }
                         6 => {
                             // Disable access up to the start address
-                            csr::CSR.pmpcfg3.modify(csr::pmpconfig::pmpcfg::r0::CLEAR);
-                            csr::CSR.pmpcfg3.modify(csr::pmpconfig::pmpcfg::w0::CLEAR);
-                            csr::CSR.pmpcfg3.modify(csr::pmpconfig::pmpcfg::x0::CLEAR);
-                            csr::CSR.pmpcfg3.modify(csr::pmpconfig::pmpcfg::a0::TOR);
+                            csr::CSR.pmpcfg3.modify(
+                                csr::pmpconfig::pmpcfg::r0::CLEAR
+                                    + csr::pmpconfig::pmpcfg::w0::CLEAR
+                                    + csr::pmpconfig::pmpcfg::x0::CLEAR
+                                    + csr::pmpconfig::pmpcfg::a0::TOR,
+                            );
                             csr::CSR.pmpaddr12.set((start as u32) >> 2);
 
                             // Set access to end address
@@ -560,10 +603,12 @@ impl kernel::mpu::MPU for PMPConfig {
                         }
                         7 => {
                             // Disable access up to the start address
-                            csr::CSR.pmpcfg3.modify(csr::pmpconfig::pmpcfg::r3::CLEAR);
-                            csr::CSR.pmpcfg3.modify(csr::pmpconfig::pmpcfg::w3::CLEAR);
-                            csr::CSR.pmpcfg3.modify(csr::pmpconfig::pmpcfg::x3::CLEAR);
-                            csr::CSR.pmpcfg3.modify(csr::pmpconfig::pmpcfg::a3::TOR);
+                            csr::CSR.pmpcfg3.modify(
+                                csr::pmpconfig::pmpcfg::r3::CLEAR
+                                    + csr::pmpconfig::pmpcfg::w3::CLEAR
+                                    + csr::pmpconfig::pmpcfg::x3::CLEAR
+                                    + csr::pmpconfig::pmpcfg::a3::TOR,
+                            );
                             csr::CSR.pmpaddr14.set((start as u32) >> 2);
 
                             // Set access to end address
