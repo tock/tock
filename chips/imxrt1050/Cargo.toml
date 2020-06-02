@@ -9,7 +9,7 @@ cortexm7 = { path = "../../arch/cortex-m7" }
 cortexm = { path = "../../arch/cortex-m" }
 enum_primitive = { path = "../../libraries/enum_primitive" }
 kernel = { path = "../../kernel" }
-tock_rt0 = { path = "../../libraries/tock-rt0" }
+tock-rt0 = { path = "../../libraries/tock-rt0" }
 cortex-m-semihosting = "0.3.3"
 
 [features]
