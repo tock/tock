@@ -305,13 +305,6 @@ pub unsafe fn setup_board<I: nrf52::interrupt_service::InterruptService>(
     )
     .finalize(components::acomp_component_buf!(nrf52::acomp::Comparator));
 
-
-
-
-
-
-
-
     // Configure the USB controller
     let cdc = static_init!(
         capsules::usb::cdc::Client<'static, nrf52::usbd::Usbd<'static>>,
@@ -331,18 +324,8 @@ pub unsafe fn setup_board<I: nrf52::interrupt_service::InterruptService>(
         )
     );
 
-
     // nrf52::power::POWER.set_usb_client(driver);
     // nrf52::power::POWER.enable_interrupts();
-
-
-
-
-
-
-
-
-
 
     nrf52_components::NrfClockComponent::new().finalize(());
 
