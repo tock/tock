@@ -26,6 +26,7 @@ use kernel::hil::radio::{RadioConfig, RadioData};
 use kernel::hil::Controller;
 #[allow(unused_imports)]
 use kernel::{create_capability, debug, debug_gpio, static_init};
+use kernel::hil::usb::Client;
 
 use components;
 use components::alarm::{AlarmDriverComponent, AlarmMuxComponent};
@@ -117,10 +118,10 @@ struct Imix {
     radio_driver: &'static capsules::ieee802154::RadioDriver<'static>,
     udp_driver: &'static capsules::net::udp::UDPDriver<'static>,
     crc: &'static capsules::crc::Crc<'static, sam4l::crccu::Crccu<'static>>,
-    usb_driver: &'static capsules::usb::usb_user::UsbSyscallDriver<
-        'static,
-        capsules::usb::cdc::Cdc<'static, sam4l::usbc::Usbc<'static>>,
-    >,
+    // usb_driver: &'static capsules::usb::usb_user::UsbSyscallDriver<
+    //     'static,
+    //     capsules::usb::cdc::Cdc<'static, sam4l::usbc::Usbc<'static>>,
+    // >,
     nrf51822: &'static capsules::nrf51822_serialization::Nrf51822Serialization<'static>,
     nonvolatile_storage: &'static capsules::nonvolatile_storage_driver::NonvolatileStorage<'static>,
 }
@@ -157,7 +158,7 @@ impl kernel::Platform for Imix {
             capsules::humidity::DRIVER_NUM => f(Some(self.humidity)),
             capsules::ninedof::DRIVER_NUM => f(Some(self.ninedof)),
             capsules::crc::DRIVER_NUM => f(Some(self.crc)),
-            capsules::usb::usb_user::DRIVER_NUM => f(Some(self.usb_driver)),
+            // capsules::usb::usb_user::DRIVER_NUM => f(Some(self.usb_driver)),
             capsules::ieee802154::DRIVER_NUM => f(Some(self.radio_driver)),
             capsules::net::udp::DRIVER_NUM => f(Some(self.udp_driver)),
             capsules::nrf51822_serialization::DRIVER_NUM => f(Some(self.nrf51822)),
@@ -292,17 +293,17 @@ pub unsafe fn reset_handler() {
     );
     sam4l::usbc::USBC.set_client(cdc);
 
-    // Configure the USB userspace driver
-    let usb_driver = static_init!(
-        capsules::usb::usb_user::UsbSyscallDriver<
-            'static,
-            capsules::usb::cdc::Cdc<'static, sam4l::usbc::Usbc<'static>>,
-        >,
-        capsules::usb::usb_user::UsbSyscallDriver::new(
-            cdc,
-            board_kernel.create_grant(&grant_cap)
-        )
-    );
+    // // Configure the USB userspace driver
+    // let usb_driver = static_init!(
+    //     capsules::usb::usb_user::UsbSyscallDriver<
+    //         'static,
+    //         capsules::usb::cdc::Cdc<'static, sam4l::usbc::Usbc<'static>>,
+    //     >,
+    //     capsules::usb::usb_user::UsbSyscallDriver::new(
+    //         cdc,
+    //         board_kernel.create_grant(&grant_cap)
+    //     )
+    // );
 
 
     // # CONSOLE
@@ -535,7 +536,7 @@ pub unsafe fn reset_handler() {
         ninedof,
         radio_driver,
         udp_driver,
-        usb_driver,
+        // usb_driver,
         nrf51822: nrf_serialization,
         nonvolatile_storage: nonvolatile_storage,
     };
@@ -552,6 +553,9 @@ pub unsafe fn reset_handler() {
     rf233.start();
 
     imix.pconsole.start();
+
+    cdc.enable();
+    cdc.attach();
 
     // Optional kernel tests. Note that these might conflict
     // with normal operation (e.g., steal callbacks from drivers, etc.),
