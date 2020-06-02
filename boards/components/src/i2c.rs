@@ -44,6 +44,7 @@ macro_rules! i2c_component_helper {
 
 pub struct I2CMuxComponent {
     i2c: &'static dyn i2c::I2CMaster,
+    smbus: Option<&'static dyn i2c::SMBusMaster>,
 }
 
 pub struct I2CComponent {
@@ -52,8 +53,11 @@ pub struct I2CComponent {
 }
 
 impl I2CMuxComponent {
-    pub fn new(i2c: &'static dyn i2c::I2CMaster) -> Self {
-        I2CMuxComponent { i2c: i2c }
+    pub fn new(
+        i2c: &'static dyn i2c::I2CMaster,
+        smbus: Option<&'static dyn i2c::SMBusMaster>,
+    ) -> Self {
+        I2CMuxComponent { i2c, smbus }
     }
 }
 
@@ -62,7 +66,11 @@ impl Component for I2CMuxComponent {
     type Output = &'static MuxI2C<'static>;
 
     unsafe fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
-        let mux_i2c = static_init_half!(static_buffer, MuxI2C<'static>, MuxI2C::new(self.i2c));
+        let mux_i2c = static_init_half!(
+            static_buffer,
+            MuxI2C<'static>,
+            MuxI2C::new(self.i2c, self.smbus)
+        );
 
         self.i2c.set_master_client(mux_i2c);
 

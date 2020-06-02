@@ -282,7 +282,7 @@ pub unsafe fn reset_handler() {
     // Create shared mux for the I2C bus
     let i2c_mux = static_init!(
         capsules::virtual_i2c::MuxI2C<'static>,
-        capsules::virtual_i2c::MuxI2C::new(&nrf52832::i2c::TWIM0)
+        capsules::virtual_i2c::MuxI2C::new(&nrf52832::i2c::TWIM0, None)
     );
     nrf52832::i2c::TWIM0.configure(
         nrf52832::pinmux::Pinmux::new(21),

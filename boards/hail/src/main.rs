@@ -252,7 +252,7 @@ pub unsafe fn reset_handler() {
         .finalize(components::alarm_mux_component_helper!(sam4l::ast::Ast));
     ast.configure(mux_alarm);
 
-    let sensors_i2c = static_init!(MuxI2C<'static>, MuxI2C::new(&sam4l::i2c::I2C1));
+    let sensors_i2c = static_init!(MuxI2C<'static>, MuxI2C::new(&sam4l::i2c::I2C1, None));
     sam4l::i2c::I2C1.set_master_client(sensors_i2c);
 
     // SI7021 Temperature / Humidity Sensor, address: 0x40
