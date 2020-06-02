@@ -46,8 +46,7 @@ pub struct Client<'a, C: 'a> {
 }
 
 impl<'a, C: hil::usb::UsbController<'a>> Client<'a, C> {
-    pub fn new(controller: &'a C, max_ctrl_packet_size: u8
-        ) -> Self {
+    pub fn new(controller: &'a C, max_ctrl_packet_size: u8) -> Self {
         let interfaces: &mut [descriptors::InterfaceDescriptor] =
             &mut [descriptors::InterfaceDescriptor {
                 interface_number: 0,
