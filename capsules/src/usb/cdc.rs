@@ -33,20 +33,23 @@ static LANGUAGES: &'static [u16; 1] = &[
 ];
 
 static STRINGS: &'static [&'static str] = &[
-    "aXYZ Corp.",      // Manufacturer
-    "aThe Zorpinator", // Product
-    "aSerial No. 5",   // Serial number
+    "TockOS",         // Manufacturer
+    "The Zorpinator", // Product
+    "123456",         // Serial number
 ];
 
+/// Platform-specific packet length for the `SAM4L` USB hardware.
 pub const MAX_CTRL_PACKET_SIZE_SAM4L: u8 = 8;
+/// Platform-specific packet length for the `nRF52` USB hardware.
 pub const MAX_CTRL_PACKET_SIZE_NRF52840: u8 = 64;
 
 const N_ENDPOINTS: usize = 3;
 
-pub struct Cdc<'a, C: 'a> {
-    client_ctrl: ClientCtrl<'a, 'static, C>,
+pub struct Cdc<'a, U: 'a> {
+    /// Helper USB client library for handling many USB operations.
+    client_ctrl: ClientCtrl<'a, 'static, U>,
 
-    // An eight-byte buffer for each endpoint
+    /// 64 byte buffers for each endpoint.
     buffers: [Buffer64; N_ENDPOINTS],
 
     /// A holder reference for the TX buffer we are transmitting from.
@@ -100,15 +103,14 @@ impl<'a, C: hil::usb::UsbController<'a>> Cdc<'a, C> {
             },
             CsInterfaceDescriptor {
                 subtype: descriptors::CsInterfaceDescriptorSubType::CallManagement,
-                field1: 0x00,
-                field2: 0x01,
+                field1: 0x00, // Capabilities
+                field2: 0x01, // Data interface 1
             },
             CsInterfaceDescriptor {
                 subtype: descriptors::CsInterfaceDescriptorSubType::AbstractControlManagement,
-                field1: 0x06,
+                field1: 0x06, // Capabilities
                 field2: 0x00, // unused
             },
-            // make the length work for now......
             CsInterfaceDescriptor {
                 subtype: descriptors::CsInterfaceDescriptorSubType::Union,
                 field1: 0x00, // Interface 0
@@ -413,7 +415,6 @@ impl<'a, C: hil::usb::UsbController<'a>> uart::Transmit<'a> for Cdc<'a, C> {
             // Can't send more bytes than will fit in the buffer.
             (ReturnCode::ESIZE, Some(tx_buffer))
         } else {
-
             // Ok, we can handle this transmission. Initialize all of our state
             // for our TX state machine.
             self.tx_remaining.set(tx_len);

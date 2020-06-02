@@ -1,4 +1,6 @@
-//! Platform-independent USB 2.0 protocol library
+//! Platform-independent USB 2.0 protocol library.
+//!
+//! Mostly data types for USB descriptors.
 
 use core::cell::Cell;
 use core::cmp::min;
@@ -7,8 +9,8 @@ use core::fmt;
 use kernel::common::cells::VolatileCell;
 use kernel::hil::usb::TransferType;
 
-// On Nordic, USB buffers must be 32-bit aligned, with a power-of-2 size. For now we apply these
-// constraints on all platforms.
+// On Nordic, USB buffers must be 32-bit aligned, with a power-of-2 size. For
+// now we apply these constraints on all platforms.
 #[derive(Default)]
 #[repr(align(4))]
 pub struct Buffer8 {
@@ -28,7 +30,7 @@ impl Default for Buffer64 {
     }
 }
 
-/// The datastructure sent in a SETUP handshake
+/// The data structure sent in a SETUP handshake.
 #[derive(Debug, Copy, Clone)]
 pub struct SetupData {
     pub request_type: DeviceRequestType,
@@ -417,14 +419,13 @@ pub fn create_descriptor_buffers(
     device_descriptor: DeviceDescriptor,
     mut configuration_descriptor: ConfigurationDescriptor,
     interface_descriptor: &mut [InterfaceDescriptor],
-    endpoint_descriptors: &[ &[EndpointDescriptor]],
+    endpoint_descriptors: &[&[EndpointDescriptor]],
     hid_descriptor: Option<&HIDDescriptor>,
     cdc_descriptor: Option<&[CsInterfaceDescriptor]>,
-    ) -> (DeviceBuffer, DescriptorBuffer) {
-
+) -> (DeviceBuffer, DescriptorBuffer) {
     // Create device descriptor buffer and fill.
     // Cell doesn't implement Copy, so here we are.
-    let mut dev_buf = DeviceBuffer{
+    let mut dev_buf = DeviceBuffer {
         buf: [
             Cell::default(),
             Cell::default(),
@@ -454,137 +455,36 @@ pub fn create_descriptor_buffers(
     // For the moment, the Default trait is not implemented for arrays
     // of length > 32, and the Cell type is not Copy, so we have to
     // initialize each element manually.
-    let mut other_buf = DescriptorBuffer{
+    let mut other_buf = DescriptorBuffer {
+        #[rustfmt::skip]
         buf: [
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            Cell::default(),
-            ],
+            Cell::default(), Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+            Cell::default(), Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+            Cell::default(), Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+            Cell::default(), Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+            Cell::default(), Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+            Cell::default(), Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+            Cell::default(), Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+            Cell::default(), Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+            Cell::default(), Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+            Cell::default(), Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+            Cell::default(), Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+            Cell::default(), Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+            Cell::default(), Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+            Cell::default(), Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+            Cell::default(), Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+            Cell::default(), Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+            Cell::default(), Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+            Cell::default(), Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+            Cell::default(), Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+            Cell::default(), Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+            Cell::default(), Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+            Cell::default(), Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+            Cell::default(), Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+            Cell::default(), Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+            Cell::default(), Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+            Cell::default(), Cell::default(), Cell::default(),
+        ],
         len: 0,
     };
 
@@ -596,19 +496,16 @@ pub fn create_descriptor_buffers(
     configuration_descriptor.num_interfaces = interface_descriptor.len() as u8;
 
     // Calculate the length of all dependent descriptors.
-    //TODO should we be erroring here if len > 64? Otherwise we'll probably
+    // TODO should we be erroring here if len > 128? Otherwise we'll probably
     // buffer overrun and panic.
     configuration_descriptor.related_descriptor_length =
         interface_descriptor.iter().map(|d| d.size()).sum::<usize>()
-        + endpoint_descriptors.iter().map(|descs| {
-            descs.iter().map(|d| {
-                d.size()
-            }).sum::<usize>()
-        }).sum::<usize>()
-        + hid_descriptor.map_or(0, |d| d.size())
-        + cdc_descriptor.map_or(0, |ds| {
-            ds.iter().map(|d| d.size()).sum::<usize>()
-        });
+            + endpoint_descriptors
+                .iter()
+                .map(|descs| descs.iter().map(|d| d.size()).sum::<usize>())
+                .sum::<usize>()
+            + hid_descriptor.map_or(0, |d| d.size())
+            + cdc_descriptor.map_or(0, |ds| ds.iter().map(|d| d.size()).sum::<usize>());
 
     // Set the number of endpoints for each interface descriptor.
     for (i, d) in interface_descriptor.iter_mut().enumerate() {
@@ -648,7 +545,6 @@ pub fn create_descriptor_buffers(
         for de in endpoint_descriptors[i] {
             len += de.write_to(&other_buf.buf[len..]);
         }
-
     }
     other_buf.len = min(len, other_buf.buf.len());
 
@@ -893,6 +789,10 @@ impl Descriptor for ReportDescriptor<'_> {
         self.size()
     }
 }
+
+//
+// For CDC
+//
 
 #[derive(Copy, Clone)]
 pub enum CsInterfaceDescriptorSubType {

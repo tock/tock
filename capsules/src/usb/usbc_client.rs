@@ -1,4 +1,4 @@
-//! A bare-bones client of the USB hardware interface
+//! A bare-bones client of the USB hardware interface.
 //!
 //! It responds to standard device requests and can be enumerated.
 
@@ -42,21 +42,18 @@ pub struct Client<'a, C: 'a> {
 
 impl<'a, C: hil::usb::UsbController<'a>> Client<'a, C> {
     pub fn new(controller: &'a C) -> Self {
-
-        let interfaces: &mut [descriptors::InterfaceDescriptor] = &mut [
-            descriptors::InterfaceDescriptor {
+        let interfaces: &mut [descriptors::InterfaceDescriptor] =
+            &mut [descriptors::InterfaceDescriptor {
                 interface_number: 0,
-                    alternate_setting: 0,
-                    num_endpoints: 0,      // (excluding default control endpoint)
-                    interface_class: 0xff, // vendor_specific
-                    interface_subclass: 0xab,
-                    interface_protocol: 0,
-                    string_index: 0,
-            }
-        ];
+                alternate_setting: 0,
+                num_endpoints: 0,      // (excluding default control endpoint)
+                interface_class: 0xff, // vendor_specific
+                interface_subclass: 0xab,
+                interface_protocol: 0,
+                string_index: 0,
+            }];
 
-        let endpoints: &[&[EndpointDescriptor]] = &mut [
-            &[
+        let endpoints: &[&[EndpointDescriptor]] = &mut [&[
             EndpointDescriptor {
                 endpoint_address: EndpointAddress::new_const(1, TransferDirection::DeviceToHost),
                 transfer_type: TransferType::Bulk,
@@ -69,8 +66,7 @@ impl<'a, C: hil::usb::UsbController<'a>> Client<'a, C> {
                 max_packet_size: 8,
                 interval: 100,
             },
-            ]
-        ];
+        ]];
 
         let (device_descriptor_buffer, other_descriptor_buffer) =
             descriptors::create_descriptor_buffers(
@@ -87,7 +83,7 @@ impl<'a, C: hil::usb::UsbController<'a>> Client<'a, C> {
                 endpoints,
                 None, // No HID descriptor
                 None, // No CDC descriptor array
-                );
+            );
 
         Client {
             client_ctrl: ClientCtrl::new(

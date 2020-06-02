@@ -25,48 +25,55 @@ const DESCRIPTOR_BUFLEN: usize = 128;
 
 const N_ENDPOINTS: usize = 3;
 
-pub struct ClientCtrl<'a, 'b, C: 'a> {
-    /// The hardware controller
-    controller: &'a C,
+pub struct ClientCtrl<'a, 'b, U: 'a> {
+    /// The USB hardware controller.
+    controller: &'a U,
 
-    /// State for tracking each endpoint
+    /// State of each endpoint.
     state: [Cell<State>; N_ENDPOINTS],
 
-    /// A 64-byte buffer for the control endpoint
+    /// A 64-byte buffer for the control endpoint to be passed to the USB
+    /// driver.
     ctrl_buffer: Buffer64,
 
-    /// Storage for composing responses to device-descriptor requests
+    /// Storage for composing responses to device-descriptor requests.
     descriptor_storage: [Cell<u8>; DESCRIPTOR_BUFLEN],
 
-    /// Device descriptor buffer to reply to control requests.
+    /// Buffer containing the byte-packed representation of the device
+    /// descriptor. This is expected to be created and passed from the user of
+    /// `ClientCtrl`.
     device_descriptor_buffer: DeviceBuffer,
 
-    /// Other descriptor buffers to reply to control requests.
+    /// Buffer containing the byte-packed representation of the configuration
+    /// descriptor and all other descriptors for this device.
     other_descriptor_buffer: DescriptorBuffer,
 
-    /// A HID descriptor for the configuration, if any.
+    /// An optional HID descriptor for the configuration. This can be requested
+    /// separately. It should also be included in `other_descriptor_buffer`.
     hid_descriptor: Option<&'b HIDDescriptor<'b>>,
 
-    /// A report descriptor for the configuration, if any.
+    /// An optional report descriptor for the configuration. This can be
+    /// requested separately. It should also be included in
+    /// `other_descriptor_buffer`.
     report_descriptor: Option<&'b ReportDescriptor<'b>>,
 
-    /// Supported language (only one for now)
+    /// Supported language (only one for now).
     language: &'b [u16; 1],
 
-    /// Strings
+    /// Other strings.
     strings: &'b [&'b str],
 }
 
+/// States for the individual endpoints.
 #[derive(Copy, Clone)]
 enum State {
     Init,
 
-    /// We are doing a Control In transfer of some data
-    /// in self.descriptor_storage, with the given extent
-    /// remaining to send
+    /// We are doing a Control In transfer of some data in
+    /// self.descriptor_storage, with the given extent remaining to send.
     CtrlIn(usize, usize),
 
-    /// We will accept data from the host
+    /// We will accept data from the host.
     CtrlOut,
 
     SetAddress,
@@ -78,9 +85,9 @@ impl Default for State {
     }
 }
 
-impl<'a, 'b, C: hil::usb::UsbController<'a>> ClientCtrl<'a, 'b, C> {
+impl<'a, 'b, U: hil::usb::UsbController<'a>> ClientCtrl<'a, 'b, U> {
     pub fn new(
-        controller: &'a C,
+        controller: &'a U,
         device_descriptor_buffer: DeviceBuffer,
         other_descriptor_buffer: DescriptorBuffer,
         hid_descriptor: Option<&'b HIDDescriptor<'b>>,
@@ -91,137 +98,43 @@ impl<'a, 'b, C: hil::usb::UsbController<'a>> ClientCtrl<'a, 'b, C> {
         ClientCtrl {
             controller: controller,
             state: Default::default(),
-            // For the moment, the Default trait is not implemented for arrays of length > 32, and
-            // the Cell type is not Copy, so we have to initialize each element manually.
+            // For the moment, the Default trait is not implemented for arrays
+            // of length > 32, and the Cell type is not Copy, so we have to
+            // initialize each element manually.
+            #[rustfmt::skip]
             descriptor_storage: [
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
+                Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+                Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+                Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+                Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+                Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+                Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+                Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+                Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+                Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+                Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+                Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+                Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+                Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+                Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+                Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+                Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+                Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+                Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+                Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+                Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+                Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+                Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+                Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+                Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+                Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+                Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+                Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+                Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+                Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+                Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+                Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+                Cell::default(), Cell::default(), Cell::default(), Cell::default(),
             ],
             ctrl_buffer: Buffer64::default(),
             device_descriptor_buffer,
@@ -234,7 +147,7 @@ impl<'a, 'b, C: hil::usb::UsbController<'a>> ClientCtrl<'a, 'b, C> {
     }
 
     #[inline]
-    pub fn controller(&self) -> &'a C {
+    pub fn controller(&self) -> &'a U {
         self.controller
     }
 
