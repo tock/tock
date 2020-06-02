@@ -1,8 +1,10 @@
 use core::cell::Cell;
 
 use kernel::common::cells::{OptionalCell, TakeCell};
-use kernel::common::registers::{register_bitfields, ReadWrite, ReadOnly};
+use kernel::common::registers::{register_bitfields, ReadWrite, ReadOnly, WriteOnly};
 use kernel::common::StaticRef;
+// use kernel::debug;
+use cortex_m_semihosting::hprintln;
 
 use kernel::hil;
 use kernel::hil::i2c::{self, Error, I2CHwMasterClient, I2CMaster};
@@ -23,7 +25,7 @@ struct Lpi2cRegisters {
 	verid: ReadOnly<u32, VERID::Register>,
 	// Parameter Register
 	param: ReadOnly<u32, PARAM::Register>,
-	_reserved1: [u8; 2],
+	_reserved1: [u8; 8],
 	// Master Control Register
 	mcr: ReadWrite<u32, MCR::Register>,
 	// Master Status Register
@@ -53,9 +55,9 @@ struct Lpi2cRegisters {
 	// Master FIFO Control Register
 	mfcr: ReadWrite<u32, MFCR::Register>,
 	// Master FIFO Status Register
-	mfsr: ReadWrite<u32, MFSR::Register>,
+	mfsr: ReadOnly<u32, MFSR::Register>,
 	// Master Transmit Data Register
-	mtdr: ReadWrite<u32, MTDR::Register>,
+	mtdr: WriteOnly<u32, MTDR::Register>,
 	_reserved6: [u8; 12],
 	// Master Receive Data Register
 	mrdr: ReadOnly<u32, MRDR::Register>,
@@ -81,12 +83,12 @@ struct Lpi2cRegisters {
 	sasr: ReadOnly<u32, SAMR::Register>,
 	// Slave Transmit ACK Register
 	star: ReadWrite<u32, STAR::Register>,
-	_reserved11: [u8; 4],
+	_reserved11: [u8; 8],
 	// Slave Transmit Data Register
-	stdr: ReadWrite<u32, STDR::Register>,
+	stdr: WriteOnly<u32, STDR::Register>,
 	_reserved12: [u8; 12],
 	// Slave Receive Data Register
-	srdr: ReadWrite<u32, SRDR::Register>,
+	srdr: ReadOnly<u32, SRDR::Register>,
 }
 
 register_bitfields![u32,
@@ -454,6 +456,9 @@ enum Lpi2cStatus {
     Writing,
     WritingReading,
     Reading,
+    WritingAddress,
+    WritingReadingAddress,
+    ReadingAddress,
 }
 
 pub static mut LPI2C1: Lpi2c = Lpi2c::new(
@@ -483,7 +488,7 @@ impl Lpi2c<'a> {
     }
 
     pub fn set_speed(&self, speed: Lpi2cSpeed, _system_clock_in_mhz: usize) {
-        // debug!("stm32f3 i2c set_speed");
+        hprintln!("stm32f3 i2c set_speed").unwrap();
         self.disable();
         match speed {
             Lpi2cSpeed::Speed100k => {
@@ -521,92 +526,110 @@ impl Lpi2c<'a> {
         self.clock.disable();
     }
 
+    pub fn send_byte(&self) {
+        if self.buffer.is_some() && self.tx_position.get() < self.tx_len.get() {
+            self.buffer.map(|buf| {
+                let byte = buf[self.tx_position.get() as usize];
+                // hprintln!("sending byte {}", byte).unwrap();
+                self.registers.mtdr.write(MTDR::DATA.val(byte as u32));
+                self.tx_position.set(self.tx_position.get() + 1);
+            });
+        } else {
+            // TODO disable TXIE
+            hprintln!("i2c error, attempting to transmit more bytes than available in the buffer").unwrap();
+        }
+    }
+
+    pub fn read_byte(&self) {
+        let byte = self.registers.mrdr.read(MRDR::DATA) as u8;
+        if self.buffer.is_some() && self.rx_position.get() < self.rx_len.get() {
+            self.buffer.map(|buf| {
+                hprintln!("read byte {}", byte).unwrap();
+                buf[self.rx_position.get() as usize] = byte;
+                self.rx_position.set(self.rx_position.get() + 1);
+            });
+        } else {
+            // TODO disable RXIE
+            hprintln!("i2c drop byte").unwrap();
+        }
+    }
+
     pub fn handle_event(&self) {
-        // debug!("stm32f3 i2c event");
+        hprintln!("stm32f3 i2c event").unwrap();
         if self.registers.msr.is_set(MSR::TDF) {
             // send the next byte
-            if self.buffer.is_some() && self.tx_position.get() < self.tx_len.get() {
-                self.buffer.map(|buf| {
-                    let byte = buf[self.tx_position.get() as usize];
-                    // debug!("sending byte {}", byte);
-                    self.registers.mtdr.write(MTDR::DATA.val(byte as u32));
-                    self.tx_position.set(self.tx_position.get() + 1);
-                });
-            } else {
-                // TODO disable TXIE
-                // debug!("i2c error, attempting to transmit more bytes than available in the buffer");
-            }
+            self.send_byte();
         }
 
         while self.registers.msr.is_set(MSR::RDF) {
-            // send the next byte
-            let byte = self.registers.mrdr.read(MRDR::DATA) as u8;
-            if self.buffer.is_some() && self.rx_position.get() < self.rx_len.get() {
-                self.buffer.map(|buf| {
-                    // debug!("read byte {}", byte);
-                    buf[self.rx_position.get() as usize] = byte;
-                    self.rx_position.set(self.rx_position.get() + 1);
-                });
-            } else {
-                // TODO disable RXIE
-                // debug!("i2c drop byte");
-            }
+            // read the next byte
+            self.read_byte();
         }
 
         if self.registers.msr.is_set(MSR::EPF) {
             match self.status.get() {
+                Lpi2cStatus::WritingReadingAddress => {
+                    self.status.set(Lpi2cStatus::WritingReading);
+                    self.send_byte();
+                }
+                Lpi2cStatus::WritingAddress => {
+                    self.status.set(Lpi2cStatus::Writing);
+                    self.send_byte();
+                }
+                Lpi2cStatus::ReadingAddress => {
+                    self.status.set(Lpi2cStatus::Reading);
+                    self.read_byte();
+                }
                 Lpi2cStatus::Writing | Lpi2cStatus::WritingReading => {
-                    // debug!(
-                    //     "WriteRead transfer partial complete {}, {}",
+                    // hprintln!(
+                    //     "WriteRead transfer partial complete {}, {}, lens: {}, {}",
                     //     self.tx_position.get(),
-                    //     self.rx_position.get()
-                    // );
+                    //     self.rx_position.get(),
+                    //     self.tx_len.get(),
+                    //     self.rx_len.get(),
+                    // ).unwrap();
                     if self.tx_position.get() < self.tx_len.get() {
-                        self.master_client.map(|client| {
-                            self.buffer
-                                .take()
-                                .map(|buf| client.command_complete(buf, Error::DataNak))
-                        });
-                        self.registers.mcfgr1.modify(MCFGR1::AUTOSTOP::SET);
-                        self.stop();
+                        self.send_byte();
                     } else {
-                        // debug!(
+                        // hprintln!(
                         //     "Write transfer complete {}, {}",
                         //     self.tx_position.get(),
                         //     self.rx_position.get()
-                        // );
+                        // ).unwrap();
                         if self.status.get() == Lpi2cStatus::Writing {
+                            // hprintln!("Sunt in self.status.get() == Lpi2cStatus::Writing").unwrap();
+                            self.registers.mcfgr1.modify(MCFGR1::AUTOSTOP::SET);
+                            self.stop();
                             self.master_client.map(|client| {
                                 self.buffer
                                     .take()
                                     .map(|buf| client.command_complete(buf, Error::CommandComplete))
                             });
-                            self.registers.mcfgr1.modify(MCFGR1::AUTOSTOP::SET);
-                            self.stop();
                         } else {
+                            hprintln!("Sunt pe else").unwrap();
                             self.status.set(Lpi2cStatus::Reading);
                             self.start_read();
                         }
                     }
                 }
                 Lpi2cStatus::Reading => {
-                    // debug!(
+                    // hprintln!(
                     //     "Read transfer complete {}, {}",
                     //     self.tx_position.get(),
                     //     self.rx_position.get()
-                    // );
+                    // ).unwrap();
                     let error = if self.rx_position.get() == self.rx_len.get() {
                         Error::CommandComplete
                     } else {
                         Error::DataNak
                     };
+                    self.registers.mcfgr1.modify(MCFGR1::AUTOSTOP::SET);
+                    self.stop();
                     self.master_client.map(|client| {
                         self.buffer
                             .take()
                             .map(|buf| client.command_complete(buf, error))
                     });
-                    self.registers.mcfgr1.modify(MCFGR1::AUTOSTOP::SET);
-                    self.stop();
                 }
                 _ => panic!("i2c should not arrive here"),
             }
@@ -614,20 +637,30 @@ impl Lpi2c<'a> {
 
         if self.registers.msr.is_set(MSR::NDF) {
             // abort transfer due to NACK
-            // debug!("i2c not ack");
+            hprintln!("i2c not ack").unwrap();
             self.registers.msr.modify(MSR::NDF::SET);
+            self.registers.mcfgr1.modify(MCFGR1::AUTOSTOP::SET);
+            self.stop();
+            let err: Error;
+            match self.status.get() {
+                Lpi2cStatus::WritingReadingAddress | Lpi2cStatus::WritingAddress | Lpi2cStatus::ReadingAddress => {
+                    err = Error::AddressNak;
+                }
+                Lpi2cStatus::WritingReading | Lpi2cStatus::Writing | Lpi2cStatus::Reading => {
+                    err = Error::DataNak;
+                }
+                _ => panic!("i2c should not arrive here"),
+            }
             self.master_client.map(|client| {
                 self.buffer
                     .take()
-                    .map(|buf| client.command_complete(buf, Error::AddressNak))
+                    .map(|buf| client.command_complete(buf, err))
             });
-            self.registers.mcfgr1.modify(MCFGR1::AUTOSTOP::SET);
-            self.stop();
         }
     }
 
     pub fn handle_error(&self) {
-        // debug!("stm32f3 i2c error");
+        hprintln!("stm32f3 i2c error").unwrap();
     }
 
     fn reset(&self) {
@@ -636,16 +669,16 @@ impl Lpi2c<'a> {
     }
 
     fn start_write(&self) {
-        // debug!(
-        //     "stm32f3 i2c is idle write addr {} len {}",
-        //     self.slave_address.get(),
-        //     self.tx_len.get()
-        // );
+        hprintln!(
+            "stm32f3 i2c is idle write addr {} len {}",
+            self.slave_address.get(),
+            self.tx_len.get()
+        ).unwrap();
         self.tx_position.set(0);
         // self.registers.param.modify(PARAM::MTXFIFO.val(self.tx_len.get() as u32));
         
         self.registers.mier.modify(MIER::EPIE::CLEAR);
-        self.registers.mtdr.modify(MTDR::CMD.val(100) + MTDR::DATA.val((self.slave_address.get() << 1) as u32));
+        self.registers.mtdr.write(MTDR::CMD.val(0b100) + MTDR::DATA.val((self.slave_address.get() << 1) as u32));
 
         self.registers.mcfgr1.modify(MCFGR1::PINCFG::CLEAR);
 
@@ -656,6 +689,8 @@ impl Lpi2c<'a> {
     }
 
     fn stop(&self) {
+        hprintln!("Sunt in stop!!").unwrap();
+        self.status.set(Lpi2cStatus::Idle);
         self.registers.mier.modify(
             MIER::TDIE::CLEAR
                 + MIER::NDIE::CLEAR
@@ -663,21 +698,20 @@ impl Lpi2c<'a> {
                 + MIER::SDIE::CLEAR
                 + MIER::RDIE::CLEAR,
         );
-        self.status.set(Lpi2cStatus::Idle);
     }
 
     fn start_read(&self) {
-        // debug!(
-        //     "stm32f3 i2c is idle read addr {} len {}",
-        //     self.slave_address.get(),
-        //     self.rx_len.get()
-        // );
+        hprintln!(
+            "stm32f3 i2c is idle read addr {} len {}",
+            self.slave_address.get(),
+            self.rx_len.get()
+        ).unwrap();
         self.rx_position.set(0);
         // self.registers.param.modify(PARAM::MRXFIFO.val(self.rx_len.get() as u32));
 
         // setting slave address
         self.registers.mier.modify(MIER::EPIE::CLEAR);
-        self.registers.mtdr.modify(MTDR::CMD.val(100) + MTDR::DATA.val((self.slave_address.get() << 1 + 1) as u32));
+        self.registers.mtdr.write(MTDR::CMD.val(100) + MTDR::DATA.val((self.slave_address.get() << 1 + 1) as u32));
 
         self.registers.mcfgr1.modify(MCFGR1::PINCFG::CLEAR);
         self.registers.mier.modify(MIER::NDIE::SET + MIER::EPIE::SET + MIER::RDIE::SET);
@@ -692,18 +726,18 @@ impl i2c::I2CMaster for Lpi2c<'a> {
         self.master_client.replace(master_client);
     }
     fn enable(&self) {
-        // debug!("stm32f3 i2c enable");
+        hprintln!("stm32f3 i2c enable").unwrap();
         self.registers.mcr.modify(MCR::MEN::SET);
     }
     fn disable(&self) {
-        // debug!("stm32f3 i2c disable");
+        hprintln!("stm32f3 i2c disable").unwrap();
         self.registers.mcr.modify(MCR::MEN::CLEAR);
     }
     fn write_read(&self, addr: u8, data: &'static mut [u8], write_len: u8, read_len: u8) {
-        // debug!("stm32f3 i2c write_read {}", addr);
+        hprintln!("stm32f3 i2c write_read {}", addr).unwrap();
         if self.status.get() == Lpi2cStatus::Idle {
             self.reset();
-            self.status.set(Lpi2cStatus::WritingReading);
+            self.status.set(Lpi2cStatus::WritingReadingAddress);
             self.slave_address.set(addr);
             self.buffer.replace(data);
             self.tx_len.set(write_len);
@@ -714,10 +748,10 @@ impl i2c::I2CMaster for Lpi2c<'a> {
     }
 
     fn write(&self, addr: u8, data: &'static mut [u8], len: u8) {
-        // debug!("stm32f3 i2c write {}", addr);
+        hprintln!("stm32f3 i2c write {}", addr).unwrap();
         if self.status.get() == Lpi2cStatus::Idle {
             self.reset();
-            self.status.set(Lpi2cStatus::Writing);
+            self.status.set(Lpi2cStatus::WritingAddress);
             self.slave_address.set(addr);
             self.buffer.replace(data);
             self.tx_len.set(len);
@@ -727,10 +761,10 @@ impl i2c::I2CMaster for Lpi2c<'a> {
     }
 
     fn read(&self, addr: u8, buffer: &'static mut [u8], len: u8) {
-        // debug!("stm32f3 i2c read");
+        hprintln!("stm32f3 i2c read").unwrap();
         if self.status.get() == Lpi2cStatus::Idle {
             self.reset();
-            self.status.set(Lpi2cStatus::Reading);
+            self.status.set(Lpi2cStatus::ReadingAddress);
             self.slave_address.set(addr);
             self.buffer.replace(buffer);
             self.rx_len.set(len);

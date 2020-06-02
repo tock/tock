@@ -5,17 +5,9 @@ use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOn
 use kernel::common::StaticRef;
 use kernel::hil;
 use kernel::ClockInterface;
-use kernel::debug;
 
 // use crate::exti;
 use crate::ccm;
-use crate::iomuxc;
-use crate::iomuxc::PadId;
-use crate::iomuxc::PullUpDown;
-use crate::iomuxc::PullKeepEn;
-use crate::iomuxc::OpenDrainEn;
-use crate::iomuxc::Speed;
-use crate::iomuxc::DriveStrength;
 
 /// General-purpose I/Os
 #[repr(C)]
@@ -570,8 +562,8 @@ enum_from_primitive! {
     #[repr(u32)]
     #[derive(PartialEq)]
     pub enum Mode {
-        Input = 0b0,
-        Output = 0b1
+        Input = 0b00,
+        Output = 0b01
     }
 }
 
@@ -819,54 +811,16 @@ impl Pin<'a> {
         Mode::from_u32(val).unwrap_or(Mode::Input)
     }
 
-    pub fn set_mode(&self, mode: Mode, pus: PullUpDown, 
-            pke: PullKeepEn, ode: OpenDrainEn, speed: Speed, dse: DriveStrength) {
+    pub fn set_mode(&self, mode: Mode) {
         let port = self.pinid.get_port();
-        let pad_num = self.pinid.get_pad_number();
         
         match self.pinid.get_pin_number() {
             0b001001 => {
-                unsafe {
-                    // iomuxc::IOMUXC.enable_gpio1_09();
-                    let iomux_pad: PadId;
-                    match pad_num {
-                        0b000 => {iomux_pad = PadId::EMC},
-                        0b001 => {iomux_pad = PadId::AdB0},
-                        0b010 => {iomux_pad = PadId::AdB1},
-                        0b011 => {iomux_pad = PadId::B0},
-                        0b100 => {iomux_pad = PadId::B1},
-                        0b101 => {iomux_pad = PadId::SdB0},
-                        0b110 => {iomux_pad = PadId::SdB1},
-                        _ => {
-                            debug!("Wrong port in set_mode!"); 
-                            return;
-                        }
-                    }
-                    iomuxc::IOMUXC.configure_sw_pad_ctl_pad_gpio(iomux_pad, self.pinid.get_pin_number() as usize, 
-                        pus, pke, ode, speed, dse)
-                }
                 port.registers.gdir.modify(GDIR::GDIR9.val(mode as u32));
             },
             0b10000 => {
-                // unsafe {
-                    // iomuxc::IOMUXC.enable_sw_mux_ctl_pad_gpio_ad_b1_00_alt3_mode();
-                    // iomuxc::IOMUXC.enable_lpi2c_scl_select_input();
-                    // iomuxc::IOMUXC.enable_sw_mux_ctl_pad_gpio_ad_b1_01_alt3_mode();
-                    // iomuxc::IOMUXC.enable_lpi2c_sda_select_input();
-                    // iomuxc::IOMUXC.enable_lpi2c1_scl_16();
-                    // iomuxc::IOMUXC.enable_lpi2c1_sda_17();
-                // }
+
             },
-            _ => {}
-        }
-    }
-
-    // no alternate function for the moment
-    pub fn set_alternate_function(&self, _af: AlternateFunction) {
-        let _port = self.pinid.get_port();
-
-        match self.pinid.get_pin_number() {
-            // 0b1001 => port.registers.afrh.modify(AFRH::AFRH9.val(af as u32)),
             _ => {}
         }
     }
@@ -874,46 +828,6 @@ impl Pin<'a> {
     pub fn get_pinid(&self) -> PinId {
         self.pinid
     }
-
-    // no exti line for tge moment
-    // pub fn set_exti_lineid(&self, lineid: exti::LineId) {
-    //     self.exti_lineid.set(lineid);
-    // }
-
-    // none for the momenent
-    // fn set_mode_output_pushpull(&self) {
-    //     let _port = self.pinid.get_port();
-
-    //     match self.pinid.get_pin_number() {
-    //         // 0b1001 => port.registers.otyper.modify(OTYPER::OT9::CLEAR),
-    //         _ => {}
-    //     }
-    // }
-
-    // oarecum inutile momentan
-    // fn get_pullup_pulldown(&self) -> PullUpDown {
-    //     let _port = self.pinid.get_port();
-
-    //     let val = match self.pinid.get_pin_number() {
-    //         // 0b01001 => iomuxc::registers.sw_pad_ctl_pad_gpio_ad_b0_09.read(SW_PAD_CTL_PAD_GPIO_AD_B0_09::PUS),
-    //         _ => 0,
-    //     };
-
-    //     PullUpDown::Pus0_100kOhmPullDown
-    // }
-
-    // oarecum inutile momentan
-    // fn set_pullup_pulldown(&self, _pupd: PullUpDown) {
-    //     let _port = self.pinid.get_port();
-
-    //     match self.pinid.get_pin_number() {
-    //         // 0b01001 => { 
-    //         //     iomuxc::IOMUXC.registers.sw_pad_ctl_pad_gpio_ad_b0_09.modify(SW_PAD_CTL_PAD_GPIO_AD_B0_09::PKE::SET);   
-    //         //     iomuxc.registers.sw_pad_ctl_pad_gpio_ad_b0_09.modify(SW_PAD_CTL_PAD_GPIO_AD_B0_09::PUS.val(pupd as u32));
-    //         // },
-    //         _ => {}
-    //     }
-    // }
 
     fn set_output_high(&self) {
         let port = self.pinid.get_port();
@@ -970,12 +884,7 @@ impl hil::gpio::InterruptPin for Pin<'a> {}
 impl hil::gpio::Configure for Pin<'a> {
     /// Output mode default is push-pull
     fn make_output(&self) -> hil::gpio::Configuration {
-        self.set_mode(Mode::Output, 
-                PullUpDown::Pus0_100kOhmPullDown, 
-                PullKeepEn::Pke1PullKeeperEnabled,
-                OpenDrainEn::Ode0OpenDrainDisabled,
-                Speed::Medium2,
-                DriveStrength::DSE6);
+        self.set_mode(Mode::Output);
         // self.set_mode_output_pushpull();
         hil::gpio::Configuration::Output
     }
@@ -985,12 +894,7 @@ impl hil::gpio::Configure for Pin<'a> {
     /// trigger is automatically activated. Schmitt trigger is deactivated in
     /// AnalogMode.
     fn make_input(&self) -> hil::gpio::Configuration {
-        self.set_mode(Mode::Input,
-                PullUpDown::Pus0_100kOhmPullDown, 
-                PullKeepEn::Pke1PullKeeperEnabled,
-                OpenDrainEn::Ode0OpenDrainDisabled,
-                Speed::Medium2,
-                DriveStrength::DSE6);
+        self.set_mode(Mode::Input);
         hil::gpio::Configuration::Input
     }
 

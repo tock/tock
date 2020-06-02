@@ -13,7 +13,7 @@ use kernel::hil::time::Alarm;
 // use kernel::hil::gpio::Output;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use kernel::debug;
-// use imxrt1050_components::fxos8700::NineDofComponent;
+use imxrt1050_components::fxos8700::NineDofComponent;
 // use capsules::fxos8700cq;
 // use components::gpio::GpioComponent;
 use kernel::capabilities;
@@ -23,7 +23,15 @@ use kernel::component::Component;
 use kernel::Platform;
 use kernel::{create_capability, static_init};
 use kernel::hil::gpio::Configure;
-// use kernel::hil::gpio::Output;
+
+use imxrt1050::iomuxc::PadId;
+use imxrt1050::iomuxc::MuxMode;
+use imxrt1050::iomuxc::Sion;
+use imxrt1050::iomuxc::PullUpDown;
+use imxrt1050::iomuxc::PullKeepEn;
+use imxrt1050::iomuxc::OpenDrainEn;
+use imxrt1050::iomuxc::Speed;
+use imxrt1050::iomuxc::DriveStrength;
 
 // Unit Tests for drivers.
 // #[allow(dead_code)]
@@ -72,7 +80,7 @@ struct Imxrt1050EVKB {
         'static,
         VirtualMuxAlarm<'static, imxrt1050::gpt1::Gpt1<'static>>,
     >,
-    // ninedof: &'static capsules::ninedof::NineDof<'static>
+    ninedof: &'static capsules::ninedof::NineDof<'static>
     // accel: &'static capsules::fxos8700cq::Fxos8700cq<'static>,
     // gpio: &'static capsules::gpio::GPIO<'static>,
 }
@@ -89,7 +97,7 @@ impl Platform for Imxrt1050EVKB {
             // capsules::button::DRIVER_NUM => f(Some(self.button)),
             capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
-            // capsules::ninedof::DRIVER_NUM => f(Some(self.ninedof)),
+            capsules::ninedof::DRIVER_NUM => f(Some(self.ninedof)),
             // capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
             _ => f(None),
         }
@@ -137,7 +145,15 @@ unsafe fn set_pin_primary_functions() {
 
     PORT[0].enable_clock();
 
-    // User_LED is connected to P1_09. Configure P1_09 as `debug_gpio!(0, ...)`
+    // User_LED is connected to GPIO_AD_B0_09. Configure P1_09 as `debug_gpio!(0, ...)`
+    imxrt1050::iomuxc::IOMUXC.enable_sw_mux_ctl_pad_gpio(PadId::AdB0, MuxMode::ALT5, Sion::Disabled, 9);
+    imxrt1050::iomuxc::IOMUXC.configure_sw_pad_ctl_pad_gpio(PadId::AdB0, 9,
+                                PullUpDown::Pus0_100kOhmPullDown, 
+                                PullKeepEn::Pke1PullKeeperEnabled,
+                                OpenDrainEn::Ode0OpenDrainDisabled,
+                                Speed::Medium2,
+                                DriveStrength::DSE6);
+
     PinId::AdB0_09.get_pin().as_ref().map(|pin| {
         pin.make_output();
 
@@ -181,9 +197,6 @@ unsafe fn set_pin_primary_functions() {
     // PORT[PortId::F as usize].enable_clock();
     // PORT[PortId::G as usize].enable_clock();
     // PORT[PortId::H as usize].enable_clock();
-
-    // imxrt1050::lpi2c::LPI2C1.enable_clock();
-    // imxrt1050::lpi2c::LPI2C1.set_speed(imxrt1050::lpi2c::Lpi2cSpeed::Speed100k, 8);
 }
 
 /// Helper function for miscellaneous peripheral functions
@@ -235,14 +248,6 @@ pub unsafe fn reset_handler() {
     CHIP = Some(chip);
 
     // LPUART1
-    use imxrt1050::iomuxc::PadId;
-    use imxrt1050::iomuxc::MuxMode;
-    use imxrt1050::iomuxc::Sion;
-    use imxrt1050::iomuxc::PullUpDown;
-    use imxrt1050::iomuxc::PullKeepEn;
-    use imxrt1050::iomuxc::OpenDrainEn;
-    use imxrt1050::iomuxc::Speed;
-    use imxrt1050::iomuxc::DriveStrength;
 
     // Enable tx and rx from iomuxc
     // TX is on pad GPIO_AD_B0_12
@@ -328,7 +333,6 @@ pub unsafe fn reset_handler() {
     // );
 
     // ALARM
-
     let mux_alarm = static_init!(
         MuxAlarm<'static, imxrt1050::gpt1::Gpt1>,
         MuxAlarm::new(&imxrt1050::gpt1::GPT1)
@@ -380,6 +384,31 @@ pub unsafe fn reset_handler() {
 
     // static mut BUFFER: [u8; 120] = [0; 120];
 
+    // LPI2C
+    // AD_B1_00 is LPI2C1_SCL
+    // AD_B1_01 is LPI2C1_SDA
+    imxrt1050::iomuxc::IOMUXC.enable_sw_mux_ctl_pad_gpio(PadId::AdB1, MuxMode::ALT3, Sion::Enabled, 0);
+    imxrt1050::iomuxc::IOMUXC.enable_lpi2c_scl_select_input();
+    imxrt1050::iomuxc::IOMUXC.enable_sw_mux_ctl_pad_gpio(PadId::AdB1, MuxMode::ALT3, Sion::Enabled, 1);
+    imxrt1050::iomuxc::IOMUXC.enable_lpi2c_sda_select_input();
+
+    imxrt1050::iomuxc::IOMUXC.configure_sw_pad_ctl_pad_gpio(PadId::AdB1, 0, 
+                                PullUpDown::Pus3_22kOhmPullUp,
+                                PullKeepEn::Pke1PullKeeperEnabled, 
+                                OpenDrainEn::Ode1OpenDrainEnabled,
+                                Speed::Medium2, 
+                                DriveStrength::DSE6);
+
+    imxrt1050::iomuxc::IOMUXC.configure_sw_pad_ctl_pad_gpio(PadId::AdB1, 1, 
+                                PullUpDown::Pus3_22kOhmPullUp,
+                                PullKeepEn::Pke1PullKeeperEnabled, 
+                                OpenDrainEn::Ode1OpenDrainEnabled,
+                                Speed::Medium2, 
+                                DriveStrength::DSE6);
+
+    imxrt1050::lpi2c::LPI2C1.enable_clock();
+    imxrt1050::lpi2c::LPI2C1.set_speed(imxrt1050::lpi2c::Lpi2cSpeed::Speed100k, 8);
+
     // let lsm303dlhc = static_init!(
     //     capsules::lsm303dlhc::Lsm303dlhc,
     //     capsules::lsm303dlhc::Lsm303dlhc::new(
@@ -390,7 +419,7 @@ pub unsafe fn reset_handler() {
     // );
     // sensor_accelerometer_i2c.set_client(lsm303dlhc);
     // sensor_magnetometer_i2c.set_client(lsm303dlhc);
-    let _mux_i2c = components::i2c::I2CMuxComponent::new(&imxrt1050::lpi2c::LPI2C1)
+    let mux_i2c = components::i2c::I2CMuxComponent::new(&imxrt1050::lpi2c::LPI2C1)
         .finalize(components::i2c_mux_component_helper!());
 
     // let lsm303dlhc = components::lsm303dlhc::Lsm303dlhcI2CComponent::new()
@@ -405,14 +434,14 @@ pub unsafe fn reset_handler() {
     //     lsm303dlhc::Lsm303dlhcMagnetoDataRate::DataRate3_0Hz,
     //     lsm303dlhc::Lsm303dlhcRange::Range4_7G,
     // );
-
-    // let ninedof = NineDofComponent::new(board_kernel, mux_i2c, &sam4l::gpio::PC[13]).finalize(());
+    use imxrt1050::gpio::PinId;
+    let ninedof = NineDofComponent::new(board_kernel, mux_i2c, PinId::AdB1_00.get_pin().as_ref().unwrap()).finalize(());
 
     let imxrt1050 = Imxrt1050EVKB {
         console: console,
         ipc: kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability),
         led: led,
-        // ninedof: ninedof,
+        ninedof: ninedof,
         // button: button,
         alarm: alarm,
         // gpio: gpio,
