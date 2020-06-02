@@ -102,10 +102,6 @@ pub struct Platform {
     // The nRF52dk does not have the flash chip on it, so we make this optional.
     nonvolatile_storage:
         Option<&'static capsules::nonvolatile_storage_driver::NonvolatileStorage<'static>>,
-    usb_driver: &'static capsules::usb::usb_user::UsbSyscallDriver<
-        'static,
-        capsules::usb::cdc::Client<'static, nrf52::usbd::Usbd<'static>>,
-    >,
 }
 
 impl kernel::Platform for Platform {
@@ -130,7 +126,6 @@ impl kernel::Platform for Platform {
             capsules::nonvolatile_storage_driver::DRIVER_NUM => {
                 f(self.nonvolatile_storage.map_or(None, |nv| Some(nv)))
             }
-            capsules::usb::usb_user::DRIVER_NUM => f(Some(self.usb_driver)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             _ => f(None),
         }
@@ -305,28 +300,6 @@ pub unsafe fn setup_board<I: nrf52::interrupt_service::InterruptService>(
     )
     .finalize(components::acomp_component_buf!(nrf52::acomp::Comparator));
 
-    // Configure the USB controller
-    let cdc = static_init!(
-        capsules::usb::cdc::Client<'static, nrf52::usbd::Usbd<'static>>,
-        capsules::usb::cdc::Client::new(&nrf52::usbd::USBD)
-    );
-    nrf52::usbd::USBD.set_client(cdc);
-
-    // Configure the USB userspace driver
-    let usb_driver = static_init!(
-        capsules::usb::usb_user::UsbSyscallDriver<
-            'static,
-            capsules::usb::cdc::Client<'static, nrf52::usbd::Usbd<'static>>,
-        >,
-        capsules::usb::usb_user::UsbSyscallDriver::new(
-            cdc,
-            board_kernel.create_grant(&memory_allocation_capability)
-        )
-    );
-
-    // nrf52::power::POWER.set_usb_client(driver);
-    // nrf52::power::POWER.enable_interrupts();
-
     nrf52_components::NrfClockComponent::new().finalize(());
 
     let platform = Platform {
@@ -342,7 +315,6 @@ pub unsafe fn setup_board<I: nrf52::interrupt_service::InterruptService>(
         alarm,
         analog_comparator,
         nonvolatile_storage,
-        usb_driver,
         ipc: kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability),
     };
 
