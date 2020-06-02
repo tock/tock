@@ -25,6 +25,11 @@ static STRINGS: &'static [&'static str] = &[
     "Serial No. 5",   // Serial number
 ];
 
+/// Platform-specific packet length for the `SAM4L` USB hardware.
+pub const MAX_CTRL_PACKET_SIZE_SAM4L: u8 = 8;
+/// Platform-specific packet length for the `nRF52` USB hardware.
+pub const MAX_CTRL_PACKET_SIZE_NRF52840: u8 = 64;
+
 const N_ENDPOINTS: usize = 2;
 
 pub struct Client<'a, C: 'a> {
@@ -41,7 +46,8 @@ pub struct Client<'a, C: 'a> {
 }
 
 impl<'a, C: hil::usb::UsbController<'a>> Client<'a, C> {
-    pub fn new(controller: &'a C) -> Self {
+    pub fn new(controller: &'a C, max_ctrl_packet_size: u8
+        ) -> Self {
         let interfaces: &mut [descriptors::InterfaceDescriptor] =
             &mut [descriptors::InterfaceDescriptor {
                 interface_number: 0,
@@ -76,6 +82,7 @@ impl<'a, C: hil::usb::UsbController<'a>> Client<'a, C> {
                     manufacturer_string: 1,
                     product_string: 2,
                     serial_number_string: 3,
+                    max_packet_size_ep0: max_ctrl_packet_size,
                     ..DeviceDescriptor::default()
                 },
                 descriptors::ConfigurationDescriptor::default(),
