@@ -1640,13 +1640,10 @@ impl<'a> Usbd<'a> {
 
         self.client.map(|client| {
             match client.ctrl_out(endpoint, regs.epout[endpoint].count()) {
-
                 hil::usb::CtrlOutResult::Ok => {
                     self.complete_ctrl_status();
                 }
-                hil::usb::CtrlOutResult::Delay => {
-
-                }
+                hil::usb::CtrlOutResult::Delay => {}
                 _ => {
                     // Respond with STALL to any following transactions
                     // in this request
