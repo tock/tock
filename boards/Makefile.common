@@ -193,7 +193,9 @@ debug-lst: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/debug/$(PLATFORM).lst
 
 .PHONY: doc
 doc: | target
-	$(Q)RUSTDOCFLAGS='-Z unstable-options --document-hidden-items -D warnings' $(CARGO) doc $(VERBOSE) --release --package $(PLATFORM)
+	@# This mess is all to work around rustdoc giving no way to return an
+	@# error if there are warnings. This effectively simulates that.
+	$(Q)RUSTDOCFLAGS='-Z unstable-options --document-hidden-items -D warnings' $(CARGO) --color=always doc $(VERBOSE) --release --package $(PLATFORM) 2>&1 | tee /dev/tty | grep -q warning && (echo "Warnings detected during doc build" && if [[ $$CI == "true" ]]; then echo "Erroring due to CI context" && exit 33; fi) || if [ $$? -eq 33 ]; then exit 1; fi
 
 .PHONY: lst
 lst: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).lst

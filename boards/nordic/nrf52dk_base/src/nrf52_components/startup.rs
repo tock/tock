@@ -1,10 +1,5 @@
 //! Component for starting up nrf52 platforms.
-//!
-//! Usage
-//! -----
-//! ```rust
-//!
-//! ```
+
 use kernel::component::Component;
 use nrf52::gpio::Pin;
 use nrf52::uicr::Regulator0Output;
