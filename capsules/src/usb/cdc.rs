@@ -61,6 +61,16 @@ pub struct Cdc<'a, C: 'a> {
     tx_offset: Cell<usize>,
     /// The TX client to use when transmissions finish.
     tx_client: OptionalCell<&'a dyn uart::TransmitClient>,
+
+    /// A holder for the buffer to receive bytes into. We use this as a flag as
+    /// well, if we have a buffer then we are actively doing a receive.
+    rx_buffer: TakeCell<'static, [u8]>,
+    /// How many bytes the client wants us to receive.
+    rx_len: Cell<usize>,
+    /// How many bytes we have received so far.
+    rx_offset: Cell<usize>,
+    /// The RX client to use when RX data is received.
+    rx_client: OptionalCell<&'a dyn uart::ReceiveClient>,
 }
 
 impl<'a, C: hil::usb::UsbController<'a>> Cdc<'a, C> {
@@ -176,6 +186,10 @@ impl<'a, C: hil::usb::UsbController<'a>> Cdc<'a, C> {
             tx_remaining: Cell::new(0),
             tx_offset: Cell::new(0),
             tx_client: OptionalCell::empty(),
+            rx_buffer: TakeCell::empty(),
+            rx_len: Cell::new(0),
+            rx_offset: Cell::new(0),
+            rx_client: OptionalCell::empty(),
         }
     }
 
@@ -305,41 +319,6 @@ impl<'a, C: hil::usb::UsbController<'a>> hil::usb::Client<'a> for Cdc<'a, C> {
                             hil::usb::InResult::Delay
                         }
                     })
-
-                // if self.last_char.is_some() {
-
-                //     let packet = self.buffer(endpoint);
-
-                //     packet[0].set(self.last_char.unwrap_or(66));
-
-                //     self.last_char.clear();
-
-                //     // self.controller().endpoint_resume_out(3);
-
-                //     hil::usb::InResult::Packet(1)
-
-                // } else {
-                //     hil::usb::InResult::Delay
-                // }
-
-                // // Write a packet into the endpoint buffer
-                // let packet_bytes = self.echo_len.get();
-                // if packet_bytes > 0 {
-                //     // Copy the entire echo buffer into the packet
-                //     let packet = self.buffer(endpoint);
-                //     for i in 0..packet_bytes {
-                //         packet[i].set(self.echo_buf[i].get());
-                //     }
-                //     self.echo_len.set(0);
-
-                //     // We can receive more now
-                //     self.alert_empty();
-
-                //     hil::usb::InResult::Packet(packet_bytes)
-                // } else {
-                //     // Nothing to send
-                //     hil::usb::InResult::Delay
-                // }
             }
             TransferType::Control | TransferType::Isochronous => unreachable!(),
         }
@@ -352,47 +331,51 @@ impl<'a, C: hil::usb::UsbController<'a>> hil::usb::Client<'a> for Cdc<'a, C> {
         endpoint: usize,
         packet_bytes: u32,
     ) -> hil::usb::OutResult {
-        debug!("packet out {} {}", endpoint, packet_bytes);
         match transfer_type {
             TransferType::Interrupt => {
                 debug!("interrupt_out({}) not implemented", endpoint);
                 hil::usb::OutResult::Error
             }
             TransferType::Bulk => {
-                // Consume a packet from the endpoint buffer
-                // let new_len = packet_bytes as usize;
-                // let current_len = self.echo_len.get();
-                // let total_len = current_len + new_len as usize;
+                // Start by checking to see if we even care about this RX or
+                // not.
+                self.rx_buffer.take().map(|rx_buf| {
+                    let rx_offset = self.rx_offset.get();
 
-                // let packet = self.buffer(endpoint);
+                    // How many more bytes can we store in our RX buffer?
+                    let available_bytes = rx_buf.len() - rx_offset;
+                    let copy_length = cmp::min(packet_bytes as usize, available_bytes);
 
-                // debug!("got {}", packet[0].get());
+                    // Do the copy into the RX buffer.
+                    let packet = self.buffer(endpoint);
+                    for i in 0..copy_length {
+                        rx_buf[rx_offset + i] = packet[i].get();
+                    }
 
-                // self.last_char.set(packet[0].get());
+                    // Keep track of how many bytes we have received so far.
+                    let total_received_bytes = rx_offset + copy_length;
 
-                // self.controller().endpoint_resume_in(2);
+                    // Update how many bytes we have gotten.
+                    self.rx_offset.set(total_received_bytes);
 
-                // if total_len > self.echo_buf.len() {
-                //     // The packet won't fit in our little buffer.  We'll have
-                //     // to wait until it is drained
-                //     self.delayed_out.set(true);
-                //     hil::usb::OutResult::Delay
-                // } else if new_len > 0 {
-                //     // Copy the packet into our echo buffer
-                //     let packet = self.buffer(endpoint);
-                //     for i in 0..new_len {
-                //         self.echo_buf[current_len + i].set(packet[i].get());
-                //     }
-                //     self.echo_len.set(total_len);
+                    // Check if we have received at least as many bytes as the
+                    // client asked for.
+                    if total_received_bytes >= self.rx_len.get() {
+                        self.rx_client.map(move |client| {
+                            client.received_buffer(
+                                rx_buf,
+                                total_received_bytes,
+                                ReturnCode::SUCCESS,
+                                uart::Error::None,
+                            );
+                        });
+                    } else {
+                        // Make sure to put the RX buffer back.
+                        self.rx_buffer.replace(rx_buf);
+                    }
+                });
 
-                //     // We can start sending again
-                //     self.alert_full();
-                //     hil::usb::OutResult::Ok
-                // } else {
-                //     debug!("Ignoring zero-length OUT packet");
-                //     hil::usb::OutResult::Ok
-                // }
-
+                // No error cases to report to the USB.
                 hil::usb::OutResult::Ok
             }
             TransferType::Control | TransferType::Isochronous => unreachable!(),
@@ -405,7 +388,9 @@ impl<'a, C: hil::usb::UsbController<'a>> hil::usb::Client<'a> for Cdc<'a, C> {
 }
 
 impl<'a, C: hil::usb::UsbController<'a>> uart::Configure for Cdc<'a, C> {
-    fn configure(&self, parameters: uart::Parameters) -> ReturnCode {
+    fn configure(&self, _parameters: uart::Parameters) -> ReturnCode {
+        // Since this is not a real UART, we don't need to consider these
+        // parameters.
         ReturnCode::SUCCESS
     }
 }
@@ -424,11 +409,10 @@ impl<'a, C: hil::usb::UsbController<'a>> uart::Transmit<'a> for Cdc<'a, C> {
             // We are already handling a transmission, we cannot queue another
             // request.
             (ReturnCode::EBUSY, Some(tx_buffer))
+        } else if tx_len > tx_buffer.len() {
+            // Can't send more bytes than will fit in the buffer.
+            (ReturnCode::ESIZE, Some(tx_buffer))
         } else {
-            if tx_len > tx_buffer.len() {
-                // Can't send more bytes than will fit in the buffer.
-                return (ReturnCode::ESIZE, Some(tx_buffer));
-            }
 
             // Ok, we can handle this transmission. Initialize all of our state
             // for our TX state machine.
@@ -456,7 +440,7 @@ impl<'a, C: hil::usb::UsbController<'a>> uart::Transmit<'a> for Cdc<'a, C> {
 
 impl<'a, C: hil::usb::UsbController<'a>> uart::Receive<'a> for Cdc<'a, C> {
     fn set_receive_client(&self, client: &'a dyn uart::ReceiveClient) {
-
+        self.rx_client.set(client);
     }
 
     fn receive_buffer(
@@ -464,24 +448,17 @@ impl<'a, C: hil::usb::UsbController<'a>> uart::Receive<'a> for Cdc<'a, C> {
         rx_buffer: &'static mut [u8],
         rx_len: usize,
     ) -> (ReturnCode, Option<&'static mut [u8]>) {
-        // if rx_len > rx_buffer.len() {
-        //     return (ReturnCode::ESIZE, Some(rx_buffer));
-        // }
-        // let usart = &USARTRegManager::new(&self);
+        if self.rx_buffer.is_some() {
+            (ReturnCode::EBUSY, Some(rx_buffer))
+        } else if rx_len > rx_buffer.len() {
+            (ReturnCode::ESIZE, Some(rx_buffer))
+        } else {
+            self.rx_buffer.replace(rx_buffer);
+            self.rx_offset.set(0);
+            self.rx_len.set(rx_len);
 
-        // // enable RX
-        // self.enable_rx(usart);
-        // self.enable_rx_error_interrupts(usart);
-        // self.usart_rx_state.set(USARTStateRX::DMA_Receiving);
-        // // set up dma transfer and start reception
-        // if let Some(dma) = self.rx_dma.get() {
-        //     dma.enable();
-        //     self.rx_len.set(rx_len);
-        //     dma.do_transfer(self.rx_dma_peripheral, rx_buffer, rx_len);
             (ReturnCode::SUCCESS, None)
-        // } else {
-        //     (ReturnCode::EOFF, Some(rx_buffer))
-        // }
+        }
     }
 
     fn receive_abort(&self) -> ReturnCode {
