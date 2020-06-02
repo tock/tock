@@ -807,7 +807,7 @@ pub struct Process<'a, C: 'static + Chip> {
     debug: MapCell<ProcessDebug>,
 }
 
-impl<C: Chip> ProcessType for Process<'a, C> {
+impl<C: Chip> ProcessType for Process<'_, C> {
     fn appid(&self) -> AppId {
         self.app_id.get()
     }
@@ -1494,7 +1494,7 @@ fn exceeded_check(size: usize, allocated: usize) -> &'static str {
     }
 }
 
-impl<C: 'static + Chip> Process<'a, C> {
+impl<C: 'static + Chip> Process<'_, C> {
     pub(crate) unsafe fn create(
         kernel: &'static Kernel,
         chip: &'static C,

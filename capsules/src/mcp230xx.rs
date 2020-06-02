@@ -138,7 +138,7 @@ pub struct MCP230xx<'a> {
     client: OptionalCell<&'static dyn gpio_async::Client>,
 }
 
-impl MCP230xx<'a> {
+impl<'a> MCP230xx<'a> {
     pub fn new(
         i2c: &'a dyn hil::i2c::I2CDevice,
         interrupt_pin_a: Option<&'static dyn gpio::InterruptValuePin>,
@@ -375,7 +375,7 @@ impl MCP230xx<'a> {
     }
 }
 
-impl hil::i2c::I2CClient for MCP230xx<'a> {
+impl hil::i2c::I2CClient for MCP230xx<'_> {
     fn command_complete(&self, buffer: &'static mut [u8], _error: hil::i2c::Error) {
         match self.state.get() {
             State::SelectIoDir(pin_number, direction) => {
@@ -524,7 +524,7 @@ impl hil::i2c::I2CClient for MCP230xx<'a> {
     }
 }
 
-impl gpio::ClientWithValue for MCP230xx<'a> {
+impl gpio::ClientWithValue for MCP230xx<'_> {
     fn fired(&self, value: u32) {
         if value < 2 {
             return; // Error, value specifies which pin A=0, B=1
@@ -543,7 +543,7 @@ impl gpio::ClientWithValue for MCP230xx<'a> {
     }
 }
 
-impl gpio_async::Port for MCP230xx<'a> {
+impl gpio_async::Port for MCP230xx<'_> {
     fn disable(&self, pin: usize) -> ReturnCode {
         // Best we can do is make this an input.
         self.set_direction(pin as u8, Direction::Input)

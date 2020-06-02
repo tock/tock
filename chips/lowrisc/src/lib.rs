@@ -1,6 +1,6 @@
 //! Implementations for generic LowRISC peripherals.
 
-#![feature(const_fn, in_band_lifetimes)]
+#![feature(const_fn)]
 #![no_std]
 #![crate_name = "lowrisc"]
 #![crate_type = "rlib"]

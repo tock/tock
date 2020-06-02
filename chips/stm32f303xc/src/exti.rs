@@ -508,7 +508,7 @@ pub struct Exti<'a> {
 
 pub static mut EXTI: Exti<'static> = Exti::new();
 
-impl Exti<'a> {
+impl<'a> Exti<'a> {
     const fn new() -> Exti<'a> {
         Exti {
             registers: EXTI_BASE,

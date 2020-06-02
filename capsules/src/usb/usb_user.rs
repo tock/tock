@@ -43,7 +43,7 @@ pub struct UsbSyscallDriver<'a, C: hil::usb::Client<'a>> {
     serving_app: OptionalCell<AppId>,
 }
 
-impl<C> UsbSyscallDriver<'a, C>
+impl<'a, C> UsbSyscallDriver<'a, C>
 where
     C: hil::usb::Client<'a>,
 {

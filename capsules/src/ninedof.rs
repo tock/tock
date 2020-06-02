@@ -58,7 +58,7 @@ pub struct NineDof<'a> {
     current_app: OptionalCell<AppId>,
 }
 
-impl NineDof<'a> {
+impl<'a> NineDof<'a> {
     pub fn new(drivers: &'a [&'a dyn hil::sensors::NineDof], grant: Grant<App>) -> NineDof<'a> {
         NineDof {
             drivers: drivers,
@@ -131,7 +131,7 @@ impl NineDof<'a> {
     }
 }
 
-impl hil::sensors::NineDofClient for NineDof<'a> {
+impl hil::sensors::NineDofClient for NineDof<'_> {
     fn callback(&self, arg1: usize, arg2: usize, arg3: usize) {
         // Notify the current application that the command finished.
         // Also keep track of what just finished to see if we can re-use
@@ -178,7 +178,7 @@ impl hil::sensors::NineDofClient for NineDof<'a> {
     }
 }
 
-impl Driver for NineDof<'a> {
+impl Driver for NineDof<'_> {
     fn subscribe(
         &self,
         subscribe_num: usize,

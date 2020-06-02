@@ -314,7 +314,7 @@ pub struct Framer<'a, M: Mac, A: AES128CCM<'a>> {
     rx_client: OptionalCell<&'a dyn RxClient>,
 }
 
-impl<M: Mac, A: AES128CCM<'a>> Framer<'a, M, A> {
+impl<'a, M: Mac, A: AES128CCM<'a>> Framer<'a, M, A> {
     pub fn new(mac: &'a M, aes_ccm: &'a A) -> Framer<'a, M, A> {
         Framer {
             mac: mac,
@@ -645,7 +645,7 @@ impl<M: Mac, A: AES128CCM<'a>> Framer<'a, M, A> {
     }
 }
 
-impl<M: Mac, A: AES128CCM<'a>> MacDevice<'a> for Framer<'a, M, A> {
+impl<'a, M: Mac, A: AES128CCM<'a>> MacDevice<'a> for Framer<'a, M, A> {
     fn set_transmit_client(&self, client: &'a dyn TxClient) {
         self.tx_client.set(client);
     }
@@ -785,7 +785,7 @@ impl<M: Mac, A: AES128CCM<'a>> MacDevice<'a> for Framer<'a, M, A> {
     }
 }
 
-impl<M: Mac, A: AES128CCM<'a>> radio::TxClient for Framer<'a, M, A> {
+impl<'a, M: Mac, A: AES128CCM<'a>> radio::TxClient for Framer<'a, M, A> {
     fn send_done(&self, buf: &'static mut [u8], acked: bool, result: ReturnCode) {
         self.data_sequence.set(self.data_sequence.get() + 1);
         self.tx_client.map(move |client| {
@@ -794,7 +794,7 @@ impl<M: Mac, A: AES128CCM<'a>> radio::TxClient for Framer<'a, M, A> {
     }
 }
 
-impl<M: Mac, A: AES128CCM<'a>> radio::RxClient for Framer<'a, M, A> {
+impl<'a, M: Mac, A: AES128CCM<'a>> radio::RxClient for Framer<'a, M, A> {
     fn receive(&self, buf: &'static mut [u8], frame_len: usize, crc_valid: bool, _: ReturnCode) {
         // Drop all frames with invalid CRC
         if !crc_valid {
@@ -824,7 +824,7 @@ impl<M: Mac, A: AES128CCM<'a>> radio::RxClient for Framer<'a, M, A> {
     }
 }
 
-impl<M: Mac, A: AES128CCM<'a>> radio::ConfigClient for Framer<'a, M, A> {
+impl<'a, M: Mac, A: AES128CCM<'a>> radio::ConfigClient for Framer<'a, M, A> {
     fn config_done(&self, _: ReturnCode) {
         // The transmission pipeline is the only state machine that
         // waits for the configuration procedure to complete before
@@ -839,7 +839,7 @@ impl<M: Mac, A: AES128CCM<'a>> radio::ConfigClient for Framer<'a, M, A> {
     }
 }
 
-impl<M: Mac, A: AES128CCM<'a>> CCMClient for Framer<'a, M, A> {
+impl<'a, M: Mac, A: AES128CCM<'a>> CCMClient for Framer<'a, M, A> {
     fn crypt_done(&self, buf: &'static mut [u8], res: ReturnCode, tag_is_valid: bool) {
         let mut tx_waiting = false;
         let mut rx_waiting = false;

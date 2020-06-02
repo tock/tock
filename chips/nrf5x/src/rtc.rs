@@ -92,7 +92,7 @@ pub static mut RTC: Rtc = Rtc {
     callback: OptionalCell::empty(),
 };
 
-impl Controller for Rtc<'a> {
+impl<'a> Controller for Rtc<'a> {
     type Config = &'a dyn time::AlarmClient;
 
     fn configure(&self, client: &'a dyn time::AlarmClient) {
@@ -105,7 +105,7 @@ impl Controller for Rtc<'a> {
     }
 }
 
-impl Rtc<'a> {
+impl<'a> Rtc<'a> {
     pub fn start(&self) {
         // This function takes a nontrivial amount of time
         // So it should only be called during initialization, not each tick
@@ -131,7 +131,7 @@ impl Rtc<'a> {
     }
 }
 
-impl Time for Rtc<'a> {
+impl Time for Rtc<'_> {
     type Frequency = Freq32KHz;
 
     fn now(&self) -> u32 {
@@ -143,7 +143,7 @@ impl Time for Rtc<'a> {
     }
 }
 
-impl Alarm<'a> for Rtc<'a> {
+impl<'a> Alarm<'a> for Rtc<'a> {
     fn set_client(&self, client: &'a dyn time::AlarmClient) {
         self.callback.set(client);
     }

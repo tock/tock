@@ -17,7 +17,7 @@ pub struct VirtualMuxHmac<'a, A: digest::Digest<'a, T>, T: DigestType> {
     id: u32,
 }
 
-impl<A: digest::Digest<'a, T>, T: DigestType> ListNode<'a, VirtualMuxHmac<'a, A, T>>
+impl<'a, A: digest::Digest<'a, T>, T: DigestType> ListNode<'a, VirtualMuxHmac<'a, A, T>>
     for VirtualMuxHmac<'a, A, T>
 {
     fn next(&self) -> &'a ListLink<VirtualMuxHmac<'a, A, T>> {
@@ -25,7 +25,7 @@ impl<A: digest::Digest<'a, T>, T: DigestType> ListNode<'a, VirtualMuxHmac<'a, A,
     }
 }
 
-impl<A: digest::Digest<'a, T>, T: DigestType> VirtualMuxHmac<'a, A, T> {
+impl<'a, A: digest::Digest<'a, T>, T: DigestType> VirtualMuxHmac<'a, A, T> {
     pub fn new(mux_hmac: &'a MuxHmac<'a, A, T>) -> VirtualMuxHmac<'a, A, T> {
         let id = mux_hmac.next_id.get();
         mux_hmac.next_id.set(id + 1);
@@ -39,7 +39,9 @@ impl<A: digest::Digest<'a, T>, T: DigestType> VirtualMuxHmac<'a, A, T> {
     }
 }
 
-impl<A: digest::Digest<'a, T>, T: DigestType> digest::Digest<'a, T> for VirtualMuxHmac<'a, A, T> {
+impl<'a, A: digest::Digest<'a, T>, T: DigestType> digest::Digest<'a, T>
+    for VirtualMuxHmac<'a, A, T>
+{
     /// Set the client instance which will receive `add_data_done()` and
     /// `hash_done()` callbacks
     fn set_client(&'a self, client: &'a dyn digest::Client<'a, T>) {
@@ -91,7 +93,9 @@ impl<A: digest::Digest<'a, T>, T: DigestType> digest::Digest<'a, T> for VirtualM
     }
 }
 
-impl<A: digest::Digest<'a, T>, T: DigestType> digest::Client<'a, T> for VirtualMuxHmac<'a, A, T> {
+impl<'a, A: digest::Digest<'a, T>, T: DigestType> digest::Client<'a, T>
+    for VirtualMuxHmac<'a, A, T>
+{
     fn add_data_done(&'a self, result: Result<(), ReturnCode>, data: &'static mut [u8]) {
         self.client
             .map(move |client| client.add_data_done(result, data));
@@ -103,7 +107,7 @@ impl<A: digest::Digest<'a, T>, T: DigestType> digest::Client<'a, T> for VirtualM
     }
 }
 
-impl<A: digest::Digest<'a, T> + digest::HMACSha256, T: DigestType> digest::HMACSha256
+impl<'a, A: digest::Digest<'a, T> + digest::HMACSha256, T: DigestType> digest::HMACSha256
     for VirtualMuxHmac<'a, A, T>
 {
     fn set_mode_hmacsha256(&self, key: &[u8; 32]) -> Result<(), ReturnCode> {
@@ -128,7 +132,7 @@ pub struct MuxHmac<'a, A: digest::Digest<'a, T>, T: DigestType> {
     phantom: PhantomData<&'a T>,
 }
 
-impl<A: digest::Digest<'a, T>, T: DigestType> MuxHmac<'a, A, T> {
+impl<'a, A: digest::Digest<'a, T>, T: DigestType> MuxHmac<'a, A, T> {
     pub const fn new(hmac: &'a A) -> MuxHmac<'a, A, T> {
         MuxHmac {
             hmac,

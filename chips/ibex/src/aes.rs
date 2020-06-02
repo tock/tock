@@ -79,7 +79,7 @@ pub struct Aes<'a> {
     dest: TakeCell<'a, [u8]>,
 }
 
-impl Aes<'a> {
+impl<'a> Aes<'a> {
     const fn new() -> Aes<'a> {
         Aes {
             registers: AES_BASE,
@@ -275,7 +275,7 @@ impl Aes<'a> {
     }
 }
 
-impl hil::symmetric_encryption::AES128<'a> for Aes<'a> {
+impl<'a> hil::symmetric_encryption::AES128<'a> for Aes<'a> {
     fn enable(&self) {
         self.configure(true);
     }
@@ -343,7 +343,7 @@ impl hil::symmetric_encryption::AES128<'a> for Aes<'a> {
 
 pub static mut AES: Aes<'static> = Aes::new();
 
-impl kernel::hil::symmetric_encryption::AES128ECB for Aes<'a> {
+impl kernel::hil::symmetric_encryption::AES128ECB for Aes<'_> {
     fn set_mode_aes128ecb(&self, encrypting: bool) {
         self.configure(encrypting);
     }

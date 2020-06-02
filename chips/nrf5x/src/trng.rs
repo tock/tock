@@ -113,7 +113,7 @@ pub struct Trng<'a> {
 
 pub static mut TRNG: Trng<'static> = Trng::new();
 
-impl Trng<'a> {
+impl<'a> Trng<'a> {
     const fn new() -> Trng<'a> {
         Trng {
             registers: RNG_BASE,
@@ -191,7 +191,7 @@ impl Trng<'a> {
 
 struct TrngIter<'a, 'b: 'a>(&'a Trng<'b>);
 
-impl Iterator for TrngIter<'a, 'b> {
+impl Iterator for TrngIter<'_, '_> {
     type Item = u32;
 
     fn next(&mut self) -> Option<u32> {

@@ -128,7 +128,7 @@ pub struct SeggerRttBuffer<'a> {
     _lifetime: PhantomData<&'a [u8]>,
 }
 
-impl SeggerRttMemory<'a> {
+impl<'a> SeggerRttMemory<'a> {
     pub fn new_raw(
         up_buffer_name: &'a [u8],
         up_buffer_ptr: *const u8,
@@ -260,7 +260,7 @@ impl<'a, A: hil::time::Alarm<'a>> uart::Transmit<'a> for SeggerRtt<'a, A> {
     }
 }
 
-impl<A: hil::time::Alarm<'a>> hil::time::AlarmClient for SeggerRtt<'a, A> {
+impl<'a, A: hil::time::Alarm<'a>> hil::time::AlarmClient for SeggerRtt<'a, A> {
     fn fired(&self) {
         self.client.map(|client| {
             self.client_buffer.take().map(|buffer| {

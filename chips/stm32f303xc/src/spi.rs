@@ -206,9 +206,9 @@ pub static mut SPI1: Spi = Spi::new(
     SpiClock(rcc::PeripheralClock::APB2(rcc::PCLK2::SPI1)),
 );
 
-impl Spi<'a> {
-    const fn new(base_addr: StaticRef<SpiRegisters>, clock: SpiClock) -> Spi<'a> {
-        Spi {
+impl Spi<'_> {
+    const fn new(base_addr: StaticRef<SpiRegisters>, clock: SpiClock) -> Self {
+        Self {
             registers: base_addr,
             clock,
 
@@ -402,7 +402,7 @@ impl Spi<'a> {
     }
 }
 
-impl spi::SpiMaster for Spi<'a> {
+impl spi::SpiMaster for Spi<'_> {
     type ChipSelect = PinId;
 
     fn set_client(&self, client: &'static dyn SpiMasterClient) {

@@ -4,7 +4,7 @@
 
 #![crate_name = "sam4l"]
 #![crate_type = "rlib"]
-#![feature(const_fn, in_band_lifetimes)]
+#![feature(const_fn)]
 #![no_std]
 
 mod deferred_call_tasks;

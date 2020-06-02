@@ -76,8 +76,8 @@ pub struct Hmac<'a> {
     digest: Cell<Option<&'static mut [u8; 32]>>,
 }
 
-impl Hmac<'a> {
-    pub const fn new(base: StaticRef<HmacRegisters>) -> Hmac<'a> {
+impl Hmac<'_> {
+    pub const fn new(base: StaticRef<HmacRegisters>) -> Self {
         Hmac {
             registers: base,
             client: OptionalCell::empty(),
@@ -187,7 +187,7 @@ impl Hmac<'a> {
     }
 }
 
-impl hil::digest::Digest<'a, [u8; 32]> for Hmac<'a> {
+impl<'a> hil::digest::Digest<'a, [u8; 32]> for Hmac<'a> {
     fn set_client(&'a self, client: &'a dyn digest::Client<'a, [u8; 32]>) {
         self.client.set(client);
     }
@@ -244,7 +244,7 @@ impl hil::digest::Digest<'a, [u8; 32]> for Hmac<'a> {
     }
 }
 
-impl hil::digest::HMACSha256 for Hmac<'a> {
+impl hil::digest::HMACSha256 for Hmac<'_> {
     fn set_mode_hmacsha256(&self, key: &[u8; 32]) -> Result<(), ReturnCode> {
         let regs = self.registers;
 

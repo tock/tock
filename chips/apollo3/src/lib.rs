@@ -2,7 +2,7 @@
 
 #![crate_name = "apollo3"]
 #![crate_type = "rlib"]
-#![feature(asm, const_fn, in_band_lifetimes, naked_functions)]
+#![feature(asm, const_fn, naked_functions)]
 #![no_std]
 #![allow(unused_doc_comments)]
 

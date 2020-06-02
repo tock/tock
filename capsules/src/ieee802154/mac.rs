@@ -74,7 +74,7 @@ pub struct AwakeMac<'a, R: radio::Radio> {
     rx_client: OptionalCell<&'static dyn radio::RxClient>,
 }
 
-impl<R: radio::Radio> AwakeMac<'a, R> {
+impl<'a, R: radio::Radio> AwakeMac<'a, R> {
     pub fn new(radio: &'a R) -> AwakeMac<'a, R> {
         AwakeMac {
             radio: radio,
@@ -84,7 +84,7 @@ impl<R: radio::Radio> AwakeMac<'a, R> {
     }
 }
 
-impl<R: radio::Radio> Mac for AwakeMac<'a, R> {
+impl<R: radio::Radio> Mac for AwakeMac<'_, R> {
     fn initialize(&self, _mac_buf: &'static mut [u8]) -> ReturnCode {
         // do nothing, extra buffer unnecessary
         ReturnCode::SUCCESS
@@ -147,7 +147,7 @@ impl<R: radio::Radio> Mac for AwakeMac<'a, R> {
     }
 }
 
-impl<R: radio::Radio> radio::TxClient for AwakeMac<'a, R> {
+impl<R: radio::Radio> radio::TxClient for AwakeMac<'_, R> {
     fn send_done(&self, buf: &'static mut [u8], acked: bool, result: ReturnCode) {
         self.tx_client.map(move |c| {
             c.send_done(buf, acked, result);
@@ -155,7 +155,7 @@ impl<R: radio::Radio> radio::TxClient for AwakeMac<'a, R> {
     }
 }
 
-impl<R: radio::Radio> radio::RxClient for AwakeMac<'a, R> {
+impl<R: radio::Radio> radio::RxClient for AwakeMac<'_, R> {
     fn receive(
         &self,
         buf: &'static mut [u8],

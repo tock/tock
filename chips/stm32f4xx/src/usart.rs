@@ -201,7 +201,7 @@ pub static mut USART3: Usart = Usart::new(
     Dma1Peripheral::USART3_RX,
 );
 
-impl Usart<'a> {
+impl<'a> Usart<'a> {
     const fn new(
         base_addr: StaticRef<UsartRegisters>,
         clock: UsartClock,
@@ -363,7 +363,7 @@ impl Usart<'a> {
     }
 }
 
-impl hil::uart::Transmit<'a> for Usart<'a> {
+impl<'a> hil::uart::Transmit<'a> for Usart<'a> {
     fn set_transmit_client(&self, client: &'a dyn hil::uart::TransmitClient) {
         self.tx_client.set(client);
     }
@@ -409,7 +409,7 @@ impl hil::uart::Transmit<'a> for Usart<'a> {
     }
 }
 
-impl hil::uart::Configure for Usart<'a> {
+impl<'a> hil::uart::Configure for Usart<'a> {
     fn configure(&self, params: hil::uart::Parameters) -> ReturnCode {
         if params.baud_rate != 115200
             || params.stop_bits != hil::uart::StopBits::One
@@ -452,7 +452,7 @@ impl hil::uart::Configure for Usart<'a> {
     }
 }
 
-impl hil::uart::Receive<'a> for Usart<'a> {
+impl<'a> hil::uart::Receive<'a> for Usart<'a> {
     fn set_receive_client(&self, client: &'a dyn hil::uart::ReceiveClient) {
         self.rx_client.set(client);
     }
@@ -493,10 +493,10 @@ impl hil::uart::Receive<'a> for Usart<'a> {
     }
 }
 
-impl hil::uart::UartData<'a> for Usart<'a> {}
-impl hil::uart::Uart<'a> for Usart<'a> {}
+impl<'a> hil::uart::UartData<'a> for Usart<'a> {}
+impl<'a> hil::uart::Uart<'a> for Usart<'a> {}
 
-impl dma1::StreamClient for Usart<'a> {
+impl dma1::StreamClient for Usart<'_> {
     fn transfer_done(&self, pid: dma1::Dma1Peripheral) {
         if pid == self.tx_dma_pid {
             self.usart_tx_state.set(USARTStateTX::Transfer_Completing);

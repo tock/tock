@@ -20,13 +20,13 @@ pub struct Dac<'a> {
     dac: &'a dyn hil::dac::DacChannel,
 }
 
-impl Dac<'a> {
+impl<'a> Dac<'a> {
     pub fn new(dac: &'a dyn hil::dac::DacChannel) -> Dac<'a> {
         Dac { dac: dac }
     }
 }
 
-impl Driver for Dac<'a> {
+impl Driver for Dac<'_> {
     /// Control the DAC.
     ///
     /// ### `command_num`

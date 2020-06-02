@@ -134,7 +134,7 @@ pub struct AesECB<'a> {
 
 pub static mut AESECB: AesECB = AesECB::new();
 
-impl AesECB<'a> {
+impl<'a> AesECB<'a> {
     const fn new() -> AesECB<'a> {
         AesECB {
             registers: AESECB_BASE,
@@ -252,7 +252,7 @@ impl AesECB<'a> {
     }
 }
 
-impl kernel::hil::symmetric_encryption::AES128<'a> for AesECB<'a> {
+impl<'a> kernel::hil::symmetric_encryption::AES128<'a> for AesECB<'a> {
     fn enable(&self) {
         self.set_dma();
     }
@@ -331,20 +331,20 @@ impl kernel::hil::symmetric_encryption::AES128<'a> for AesECB<'a> {
     }
 }
 
-impl kernel::hil::symmetric_encryption::AES128Ctr for AesECB<'a> {
+impl kernel::hil::symmetric_encryption::AES128Ctr for AesECB<'_> {
     // not needed by NRF5x (the configuration is the same for encryption and decryption)
     fn set_mode_aes128ctr(&self, _encrypting: bool) {
         ()
     }
 }
 
-impl kernel::hil::symmetric_encryption::AES128CBC for AesECB<'a> {
+impl kernel::hil::symmetric_encryption::AES128CBC for AesECB<'_> {
     fn set_mode_aes128cbc(&self, _encrypting: bool) {
         ()
     }
 }
 //TODO: replace this placeholder with a proper implementation of the AES system
-impl kernel::hil::symmetric_encryption::AES128CCM<'a> for AesECB<'a> {
+impl<'a> kernel::hil::symmetric_encryption::AES128CCM<'a> for AesECB<'a> {
     /// Set the client instance which will receive `crypt_done()` callbacks
     fn set_client(&'a self, _client: &'a dyn kernel::hil::symmetric_encryption::CCMClient) {}
 
