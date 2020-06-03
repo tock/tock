@@ -29,7 +29,6 @@ echo Updating Rust to $NIGHTLY
 echo $NIGHTLY > rust-toolchain
 
 # Update all relevant files with the new version string.
-sed -i ''  "s/nightly-[0-9]*-[0-9]*-[0-9]*/${NIGHTLY}/g" .travis.yml
 sed -i ''  "s/nightly-[0-9]*-[0-9]*-[0-9]*/${NIGHTLY}/g" .vscode/settings.json
 sed -i ''  "s/nightly-[0-9]*-[0-9]*-[0-9]*/${NIGHTLY}/g" doc/Getting_Started.md
 sed -i ''  "s/nightly-[0-9]*-[0-9]*-[0-9]*/${NIGHTLY}/g" rust-toolchain
