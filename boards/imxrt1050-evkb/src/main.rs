@@ -7,14 +7,10 @@
 #![feature(asm)]
 #![deny(missing_docs)]
 
-// mod imxrt1050_components;
 
 use kernel::hil::time::Alarm;
-// use kernel::hil::gpio::Output;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use kernel::debug;
-// use capsules::fxos8700cq;
-// use components::gpio::GpioComponent;
 use kernel::capabilities;
 use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::component::Component;
@@ -76,7 +72,6 @@ struct Imxrt1050EVKB {
     console: &'static capsules::console::Console<'static>,
     ipc: kernel::ipc::IPC,
     led: &'static capsules::led::LED<'static, imxrt1050::gpio::Pin<'static>>,
-    // button: &'static capsules::button::Button<'static>,
     alarm: &'static capsules::alarm::AlarmDriver<
         'static,
         VirtualMuxAlarm<'static, imxrt1050::gpt1::Gpt1<'static>>,
@@ -94,7 +89,6 @@ impl Platform for Imxrt1050EVKB {
         match driver_num {
             capsules::console::DRIVER_NUM => f(Some(self.console)),
             capsules::led::DRIVER_NUM => f(Some(self.led)),
-            // capsules::button::DRIVER_NUM => f(Some(self.button)),
             capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             capsules::ninedof::DRIVER_NUM => f(Some(self.ninedof)),
@@ -132,16 +126,12 @@ impl Platform for Imxrt1050EVKB {
 
 /// Helper function called during bring-up that configures multiplexed I/O.
 unsafe fn set_pin_primary_functions() {
-    // use kernel::hil::gpio::Configure;
-    // use stm32f4xx::exti::{LineId, EXTI};
+
     use imxrt1050::gpio::{PinId, PORT};
-    // use imxrt1050::iomuxc::PortId;
-    // use stm32f4xx::syscfg::SYSCFG;
     use imxrt1050::ccm::CCM;
 
     CCM.enable_iomuxc_clock();
     CCM.enable_gpio1_clock();
-    // SYSCFG.enable_clock();
 
     PORT[0].enable_clock();
 
@@ -169,42 +159,6 @@ unsafe fn set_pin_primary_functions() {
         kernel::debug::assign_gpios(Some(pin), None, None);
     });
 
-    // PORT[PortId::D as usize].enable_clock();
-
-    // // pd8 and pd9 (USART3) is connected to ST-LINK virtual COM port
-    // PinId::PD08.get_pin().as_ref().map(|pin| {
-    //     pin.set_mode(Mode::AlternateFunctionMode);
-    //     // AF7 is USART2_TX
-    //     pin.set_alternate_function(AlternateFunction::AF7);
-    // });
-    // PinId::PD09.get_pin().as_ref().map(|pin| {
-    //     pin.set_mode(Mode::AlternateFunctionMode);
-    //     // AF7 is USART2_RX
-    //     pin.set_alternate_function(AlternateFunction::AF7);
-    // });
-
-    // PORT[PortId::C as usize].enable_clock();
-
-    // // button is connected on pc13
-    // PinId::PC13.get_pin().as_ref().map(|pin| {
-    //     // By default, upon reset, the pin is in input mode, with no internal
-    //     // pull-up, no internal pull-down (i.e., floating).
-    //     //
-    //     // Only set the mapping between EXTI line and the Pin and let capsule do
-    //     // the rest.
-    //     EXTI.associate_line_gpiopin(LineId::Exti13, pin);
-    // });
-    // // EXTI13 interrupts is delivered at IRQn 40 (EXTI15_10)
-    // cortexm4::nvic::Nvic::new(stm32f4xx::nvic::EXTI15_10).enable();
-
-    // // Enable clocks for GPIO Ports
-    // // Disable some of them if you don't need some of the GPIOs
-    // PORT[PortId::P1 as usize].enable_clock();
-    // // Ports B, C and D are already enabled
-    // PORT[PortId::E as usize].enable_clock();
-    // PORT[PortId::F as usize].enable_clock();
-    // PORT[PortId::G as usize].enable_clock();
-    // PORT[PortId::H as usize].enable_clock();
 }
 
 /// Helper function for miscellaneous peripheral functions
@@ -230,8 +184,6 @@ unsafe fn setup_peripherals() {
 pub unsafe fn reset_handler() {
     imxrt1050::init();
     imxrt1050::lpuart::LPUART1.set_baud();
-
-    // We use the default HSI 16Mhz clock
 
     set_pin_primary_functions();
 
@@ -348,14 +300,6 @@ pub unsafe fn reset_handler() {
         imxrt1050::gpio::Pin<'static>
     ));
 
-    // BUTTONs
-    // let button = components::button::ButtonComponent::new(board_kernel).finalize(
-    //     components::button_component_helper!((
-    //         stm32f4xx::gpio::PinId::PC13.get_pin().as_ref().unwrap(),
-    //         capsules::button::GpioMode::LowWhenPressed,
-    //         kernel::hil::gpio::FloatingState::PullNone
-    //     )),
-    // );
 
     // ALARM
     let mux_alarm = static_init!(
@@ -376,37 +320,6 @@ pub unsafe fn reset_handler() {
         )
     );
     virtual_alarm.set_client(alarm);
-
-    // GPIO
-    // let gpio = GpioComponent::new(board_kernel).finalize(components::gpio_component_helper!(
-    //     // Arduino like RX/TX
-    // ));
-
-    // stm32f3xx::i2c::I2C1.enable_clock();
-    // stm32f3xx::i2c::I2C1.set_speed(stm32f3xx::i2c::I2CSpeed::Speed400k, 8);
-
-    // let mux_i2c = components::i2c::I2CMuxComponent::new(&stm32f3xx::i2c::I2C1)
-    //     .finalize(components::i2c_mux_component_helper!());
-    // let sensor_accelerometer_i2c = components::i2c::I2CComponent::new(mux_i2c, 0x19)
-    //     .finalize(components::i2c_component_helper!());
-    // let sensor_magnetometer_i2c = components::i2c::I2CComponent::new(mux_i2c, 0x1e)
-    //     .finalize(components::i2c_component_helper!());
-
-    // PinId::PB06.get_pin().as_ref().map(|pin| {
-    //     pin.set_mode(Mode::AlternateFunctionMode);
-    //     pin.set_floating_state(kernel::hil::gpio::FloatingState::PullNone);
-    //     // AF4 is I2C
-    //     pin.set_alternate_function(AlternateFunction::AF4);
-    // });
-    // PinId::PB07.get_pin().as_ref().map(|pin| {
-    //     pin.make_output();
-    //     pin.set_floating_state(kernel::hil::gpio::FloatingState::PullNone);
-    //     pin.set_mode(Mode::AlternateFunctionMode);
-    //     // AF4 is I2C
-    //     pin.set_alternate_function(AlternateFunction::AF4);
-    // });
-
-    // static mut BUFFER: [u8; 120] = [0; 120];
 
     // LPI2C
     // AD_B1_00 is LPI2C1_SCL
@@ -449,16 +362,6 @@ pub unsafe fn reset_handler() {
     imxrt1050::lpi2c::LPI2C1.enable_clock();
     imxrt1050::lpi2c::LPI2C1.set_speed(imxrt1050::lpi2c::Lpi2cSpeed::Speed100k, 8);
 
-    // let lsm303dlhc = static_init!(
-    //     capsules::lsm303dlhc::Lsm303dlhc,
-    //     capsules::lsm303dlhc::Lsm303dlhc::new(
-    //         sensor_accelerometer_i2c,
-    //         sensor_magnetometer_i2c,
-    //         &mut BUFFER
-    //     )
-    // );
-    // sensor_accelerometer_i2c.set_client(lsm303dlhc);
-    // sensor_magnetometer_i2c.set_client(lsm303dlhc);
     use imxrt1050::gpio::PinId;
     let mux_i2c = components::i2c::I2CMuxComponent::new(&imxrt1050::lpi2c::LPI2C1)
         .finalize(components::i2c_mux_component_helper!());
@@ -469,31 +372,19 @@ pub unsafe fn reset_handler() {
     let ninedof = components::ninedof::NineDofComponent::new(board_kernel)
         .finalize(components::ninedof_component_helper!(fxos8700));
 
-    // let ninedof = NineDofComponent::new(
-    //     board_kernel,
-    //     mux_i2c,
-    //     PinId::AdB1_00.get_pin().as_ref().unwrap(),
-    // )
-    // .finalize(());
-
     let imxrt1050 = Imxrt1050EVKB {
         console: console,
         ipc: kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability),
         led: led,
         ninedof: ninedof,
-        // button: button,
         alarm: alarm,
         // gpio: gpio,
     };
 
-    // // Optional kernel tests
-    // //
-    // // See comment in `boards/imix/src/main.rs`
+    // Optional kernel tests
+    //
+    // See comment in `boards/imix/src/main.rs`
     // virtual_uart_rx_test::run_virtual_uart_receive(mux_uart);
-
-    // let pin = imxrt1050::gpio::PinId::AdB0_09.get_pin().as_ref().unwrap();
-    // pin.make_output();
-    // pin.clear();
 
     debug!("Tock OS initialization complete. Entering main loop");
     extern "C" {

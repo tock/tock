@@ -1,23 +1,20 @@
-//! Components for the FXOS8700  on the imxrt1052 board.
+//! Components for the FXOS8700cq
 //!
-//! This provides two Components. Fxos8700Component provides a kernel
-//! implementation of the Fxos8700 over I2C, while NineDofComponent
-//! provides a system call interface to the sensor. Note that only one
-//! of these components should be allocated, as they use the same
-//! static buffer: NineDofComponent instantiations a
-//! Fxos8700Component, so if your code creates both components, then
-//! there will be two Fxos8700Component instances conflicting on the
-//! buffer.
+//! I2C Interface
 //!
 //! Usage
 //! -----
 //! ```rust
-//! let ninedof = NineDofComponent::new(mux_i2c, &sam4l::gpio::PC[13]).finalize(());
-//! let fxos8700 = Fxos8700Component::new(mux_i2c, &sam4l::gpio::PC[13]).finalize(());
+//! let fxos8700 = components::fxos8700::Fxos8700Component::new(mux_i2c, PinId::AdB1_00.get_pin().as_ref().unwrap())
+//!    .finalize(());
+//!
+//! let ninedof = components::ninedof::NineDofComponent::new(board_kernel)
+//!    .finalize(components::ninedof_component_helper!(fxos8700));
 //! ```
 
+// Based on the component written for sam4l by:
 // Author: Philip Levis <pal@cs.stanford.edu>
-// Last modified: 6/20/2018
+// Last modified: 6/03/2020
 
 #![allow(dead_code)] // Components are intended to be conditionally included
 #![allow(unused_imports)] // I2CDevice
