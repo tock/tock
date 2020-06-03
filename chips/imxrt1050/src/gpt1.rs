@@ -314,8 +314,12 @@ impl hil::time::Alarm<'a> for Gpt1<'a> {
     }
 }
 
+/// The frequency is dependent on the ARM_PLL1 frequency.
+/// In our case, we get a 24.75 MHz frequency for the timer.
+/// The frequency will be fixed when the ARM_PLL1 CLK will
+/// be correctly configured.
 impl hil::time::Time for Gpt1<'a> {
-    type Frequency = hil::time::Freq375MHz;
+    type Frequency = hil::time::Freq2475MHz;
 
     fn now(&self) -> u32 {
         self.registers.cnt.get()

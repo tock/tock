@@ -6,7 +6,6 @@ use kernel::common::StaticRef;
 use kernel::hil;
 use kernel::ClockInterface;
 
-// use crate::exti;
 use crate::ccm;
 
 /// General-purpose I/Os
@@ -419,7 +418,14 @@ const GPIO4_BASE: StaticRef<GpioRegisters> =
 const GPIO5_BASE: StaticRef<GpioRegisters> =
     unsafe { StaticRef::new(0x400C0000 as *const GpioRegisters) };
 
-// Name of the GPIO pins 
+// Name of the GPIO pins
+// For imxrt1050, the pins are organised in pads. In order to use the pins
+// efficiently, we use the following codification: 9 bits to identify a pin.
+// - The first 3 bits identify the Pad (Emc, AdB0, AdB1, B0, B1, SdB0, SdB1)
+// - The last 6 bits identifiy the Pin number (1 for Emc01)
+// In order to identify the GPIO port, we make an association between the Pad and
+// Pin number in order to get the port. For example, Emc00-Emc31 belong to GPIO4,
+// while Emc32-Emc41 belong to GPIO3.
 #[rustfmt::skip]
 #[repr(u16)]
 #[derive(Copy, Clone)]
@@ -479,12 +485,12 @@ enum_from_primitive! {
 
 impl PinId {
     pub fn get_port_number(&self) -> GpioPort {
-        let mut port_num: u16 = *self as u16;
-        port_num >>= 6;
+        let mut pad_num: u16 = *self as u16;
+        pad_num >>= 6;
         let mut pin_num: u8 = *self as u8;
         pin_num &= 0b00111111;
 
-        match port_num {
+        match pad_num {
             0b000 => {
                 if pin_num < 32 { GpioPort::GPIO4 }
                 else { GpioPort::GPIO3 }
@@ -507,29 +513,29 @@ impl PinId {
     }
 
     pub fn get_pin(&self) -> &Option<Pin<'static>> {
-        let mut port_num: u16 = *self as u16;
+        let mut pad_num: u16 = *self as u16;
         
-        // Right shift p by 4 bits, so we can get rid of pin bits
-        port_num >>= 6;
+        // Right shift pad_num by 6 bits, so we can get rid of pin bits
+        pad_num >>= 6;
 
         let mut pin_num: u8 = *self as u8;
         // Mask top 2 bits, so can get only the suffix
         pin_num &= 0b00111111;
 
-        unsafe {&PIN[usize::from(port_num)][usize::from(pin_num)] }
+        unsafe {&PIN[usize::from(pad_num)][usize::from(pin_num)] }
     }
 
     pub fn get_pin_mut(&self) -> &mut Option<Pin<'static>> {
-        let mut port_num: u16 = *self as u16;
+        let mut pad_num: u16 = *self as u16;
 
-        // Right shift p by 4 bits, so we can get rid of pin bits
-        port_num >>= 6;
+        // Right shift pad_num by 6 bits, so we can get rid of pin bits
+        pad_num >>= 6;
 
         let mut pin_num: u8 = *self as u8;
-        // Mask top 3 bits, so can get only the suffix
+        // Mask top 2 bits, so can get only the suffix
         pin_num &= 0b00111111;
 
-        unsafe { &mut PIN[usize::from(port_num)][usize::from(pin_num)] }
+        unsafe { &mut PIN[usize::from(pad_num)][usize::from(pin_num)] }
     }
 
     pub fn get_port(&self) -> &Port {
@@ -544,7 +550,7 @@ impl PinId {
         }
     }
 
-    // extract the last 6 bits. [6:0] is the pin number, [9:7] is the port
+    // extract the last 6 bits. [6:0] is the pin number, [9:7] is the pad
     // number
     pub fn get_pin_number(&self) -> u8 {
         let mut pin_num = *self as u8;
@@ -555,9 +561,10 @@ impl PinId {
 
 }
 
-/// GPIO pin mode [^1]
-///
-/// [^1]: Section 7.1.4, page 187 of reference manual
+/// GPIO pin mode
+/// In order to set alternate functions such as LPI2C or LPUART, 
+/// you will need to use iomuxc enable_sw_mux_ctl_pad_gpio with
+/// the specific MUX_MODE according to the reference manual (Chapter 11).
 enum_from_primitive! {
     #[repr(u32)]
     #[derive(PartialEq)]
@@ -565,12 +572,6 @@ enum_from_primitive! {
         Input = 0b00,
         Output = 0b01
     }
-}
-
-/// Aici ar fi venit Alternative Functions...
-#[repr(u32)]
-pub enum AlternateFunction {
-    None = 0
 }
 
 pub struct Port {
@@ -882,25 +883,17 @@ impl hil::gpio::Pin for Pin<'a> {}
 impl hil::gpio::InterruptPin for Pin<'a> {}
 
 impl hil::gpio::Configure for Pin<'a> {
-    /// Output mode default is push-pull
+
     fn make_output(&self) -> hil::gpio::Configuration {
         self.set_mode(Mode::Output);
-        // self.set_mode_output_pushpull();
         hil::gpio::Configuration::Output
     }
 
-    /// Input mode default is no internal pull-up, no pull-down (i.e.,
-    /// floating). Also upon setting the mode as input, the internal schmitt
-    /// trigger is automatically activated. Schmitt trigger is deactivated in
-    /// AnalogMode.
     fn make_input(&self) -> hil::gpio::Configuration {
         self.set_mode(Mode::Input);
         hil::gpio::Configuration::Input
     }
 
-    /// According to AN4899, Section 6.1, setting to AnalogMode, disables
-    /// internal schmitt trigger. We do not disable clock to the GPIO port,
-    /// because there could be other pins active on the port.
     fn deactivate_to_low_power(&self) {
         // self.set_mode(Mode::AnalogMode);
     }
@@ -915,24 +908,11 @@ impl hil::gpio::Configure for Pin<'a> {
         hil::gpio::Configuration::LowPower
     }
 
+    // PullUp or PullDown mode are set through the Iomux module
     fn set_floating_state(&self, _mode: hil::gpio::FloatingState) {
-        // match mode {
-        //     hil::gpio::FloatingState::PullUp => self.set_pullup_pulldown(PullUpPullDown::Pus2_100kOhmPullUp),
-        //     hil::gpio::FloatingState::PullDown => {
-        //         self.set_pullup_pulldown(PullUpPullDown::Pus2_100kOhmPullUp)
-        //     }
-        //     hil::gpio::FloatingState::PullNone => {
-        //         self.set_pullup_pulldown(PullUpPullDown::Pus0_100kOhmPullDown)
-        //     }
-        // }
     }
 
     fn floating_state(&self) -> hil::gpio::FloatingState {
-        // match self.get_pullup_pulldown() {
-        //     PullUpPullDown::PullUp => hil::gpio::FloatingState::PullUp,
-        //     PullUpPullDown::PullDown => hil::gpio::FloatingState::PullDown,
-            // PullUpPullDown::NoPullUpPullDown => hil::gpio::FloatingState::PullNone,
-        // }
         hil::gpio::FloatingState::PullNone
     }
 
@@ -972,48 +952,14 @@ impl hil::gpio::Input for Pin<'a> {
     }
 }
 
+/// Interrupt capabilities are not yet implemented
 impl hil::gpio::Interrupt for Pin<'a> {
     fn enable_interrupts(&self, _mode: hil::gpio::InterruptEdge) {
-        // unsafe {
-        //     atomic(|| {
-        //         self.exti_lineid.map(|lineid| {
-        //             let l = lineid.clone();
-
-        //             // disable the interrupt
-        //             exti::EXTI.mask_interrupt(l);
-        //             exti::EXTI.clear_pending(l);
-
-        //             match mode {
-        //                 hil::gpio::InterruptEdge::EitherEdge => {
-        //                     exti::EXTI.select_rising_trigger(l);
-        //                     exti::EXTI.select_falling_trigger(l);
-        //                 }
-        //                 hil::gpio::InterruptEdge::RisingEdge => {
-        //                     exti::EXTI.select_rising_trigger(l);
-        //                     exti::EXTI.deselect_falling_trigger(l);
-        //                 }
-        //                 hil::gpio::InterruptEdge::FallingEdge => {
-        //                     exti::EXTI.deselect_rising_trigger(l);
-        //                     exti::EXTI.select_falling_trigger(l);
-        //                 }
-        //             }
-
-        //             exti::EXTI.unmask_interrupt(l);
-        //         });
-        //     });
-        // }
+        
     }
 
     fn disable_interrupts(&self) {
-        // unsafe {
-        //     atomic(|| {
-        //         self.exti_lineid.map(|lineid| {
-        //             let l = lineid.clone();
-        //             exti::EXTI.mask_interrupt(l);
-        //             exti::EXTI.clear_pending(l);
-        //         });
-        //     });
-        // }
+        
     }
 
     fn set_client(&self, client: &'static dyn hil::gpio::Client) {
@@ -1021,10 +967,6 @@ impl hil::gpio::Interrupt for Pin<'a> {
     }
 
     fn is_pending(&self) -> bool {
-        // unsafe {
-        //     self.exti_lineid
-        //         .map_or(false, |&mut lineid| exti::EXTI.is_pending(lineid))
-        // }
         false
     }
 }

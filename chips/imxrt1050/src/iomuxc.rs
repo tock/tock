@@ -199,17 +199,17 @@ register_bitfields![u32,
     ],
 
     DAISY_SELECT_INPUT [
-        //Selecting Pads Involved in Daisy Chain.
+        // Selecting Pads Involved in Daisy Chain.
         DAISY OFFSET(0) NUMBITS(1) []
     ],
 
     DAISY_2BIT_SELECT_INPUT [
-        //Selecting Pads Involved in Daisy Chain.
+        // Selecting Pads Involved in Daisy Chain.
         DAISY OFFSET(0) NUMBITS(2) []
     ],
 
     DAISY_3BIT_SELECT_INPUT [
-        //Selecting Pads Involved in Daisy Chain.
+        // Selecting Pads Involved in Daisy Chain.
         DAISY OFFSET(0) NUMBITS(3) []
     ]
 ];
@@ -252,7 +252,7 @@ enum_from_primitive! {
        ALT4 = 0b100, // Tipically used for flexio, qtimer, gpt
        ALT5 = 0b101, // Tipically used for gpio mode
        ALT6 = 0b110, // Rarely used. In EMC_18, used for snvs_hp
-       ALT7 = 0b111, // 
+       ALT7 = 0b111, // Rarely used.
     }
 }
 
@@ -468,38 +468,9 @@ impl Iomuxc {
             }
         }
     }
-    // pub fn enable_lpi2c1_scl_16(&self) {
-    //     self.registers.sw_pad_ctl_pad_gpio_ad_b1_00.modify(SW_PAD_CTL_PAD_GPIO_AD_B1_00::PUS.val(0b11 as u32));
-    //     self.registers.sw_pad_ctl_pad_gpio_ad_b1_00.modify(SW_PAD_CTL_PAD_GPIO_AD_B1_00::PKE::SET);
-    //     self.registers.sw_pad_ctl_pad_gpio_ad_b1_00.modify(SW_PAD_CTL_PAD_GPIO_AD_B1_00::ODE::SET);
-    //     self.registers.sw_pad_ctl_pad_gpio_ad_b1_00.modify(SW_PAD_CTL_PAD_GPIO_AD_B1_00::SPEED.val(0b10 as u32));
-    //     self.registers.sw_pad_ctl_pad_gpio_ad_b1_00.modify(SW_PAD_CTL_PAD_GPIO_AD_B1_00::DSE.val(0b110 as u32));
-    // }
 
-    // pub fn enable_lpi2c1_sda_17(&self) {
-    //     self.registers.sw_pad_ctl_pad_gpio_ad_b1_01.modify(SW_PAD_CTL_PAD_GPIO_AD_B1_01::PUS.val(0b11 as u32));
-    //     self.registers.sw_pad_ctl_pad_gpio_ad_b1_01.modify(SW_PAD_CTL_PAD_GPIO_AD_B1_01::PKE::SET);
-    //     self.registers.sw_pad_ctl_pad_gpio_ad_b1_01.modify(SW_PAD_CTL_PAD_GPIO_AD_B1_01::ODE::SET);
-    //     self.registers.sw_pad_ctl_pad_gpio_ad_b1_01.modify(SW_PAD_CTL_PAD_GPIO_AD_B1_01::SPEED.val(0b10 as u32));
-    //     self.registers.sw_pad_ctl_pad_gpio_ad_b1_01.modify(SW_PAD_CTL_PAD_GPIO_AD_B1_01::DSE.val(0b110 as u32));
-    // }
-
-    // // Enable GPIO1 on pin AD_B0_09
-    // pub fn enable_gpio1_09(&self) {
-    //     self.registers.sw_pad_ctl_pad_gpio_ad_b0_09.modify(SW_PAD_CTL_PAD_GPIO_AD_B0_09::DSE.val(0b110 as u32));
-    //     self.registers.sw_pad_ctl_pad_gpio_ad_b0_09.modify(SW_PAD_CTL_PAD_GPIO_AD_B0_09::SPEED.val(0b10 as u32));
-    //     self.registers.sw_pad_ctl_pad_gpio_ad_b0_09.modify(SW_PAD_CTL_PAD_GPIO_AD_B0_09::PKE::SET);   
-    // }
-
-    // pub fn set_pin_config_lpuart1(&self) {
-    //     self.registers.sw_pad_ctl_pad_gpio_ad_b0_12.modify(SW_PAD_CTL_PAD_GPIO_AD_B0_12::DSE.val(0b110 as u32));
-    //     self.registers.sw_pad_ctl_pad_gpio_ad_b0_12.modify(SW_PAD_CTL_PAD_GPIO_AD_B0_12::SPEED.val(0b10 as u32));
-    //     self.registers.sw_pad_ctl_pad_gpio_ad_b0_12.modify(SW_PAD_CTL_PAD_GPIO_AD_B0_12::PKE::SET); 
-
-    //     self.registers.sw_pad_ctl_pad_gpio_ad_b0_13.modify(SW_PAD_CTL_PAD_GPIO_AD_B0_13::DSE.val(0b110 as u32));
-    //     self.registers.sw_pad_ctl_pad_gpio_ad_b0_13.modify(SW_PAD_CTL_PAD_GPIO_AD_B0_13::SPEED.val(0b10 as u32));
-    //     self.registers.sw_pad_ctl_pad_gpio_ad_b0_13.modify(SW_PAD_CTL_PAD_GPIO_AD_B0_13::PKE::SET); 
-    // }
+    // The following functions are used for altering the Daisy Chain which is used for
+    // multi pads driving same module input pin
 
     // LPI2C1_SCL_SELECT_INPUT 
     pub fn is_enabled_lpi2c_scl_select_input(&self) ->bool{

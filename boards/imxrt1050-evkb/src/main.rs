@@ -7,12 +7,11 @@
 #![feature(asm)]
 #![deny(missing_docs)]
 
-mod imxrt1050_components;
+// mod imxrt1050_components;
 
 use kernel::hil::time::Alarm;
 // use kernel::hil::gpio::Output;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
-use imxrt1050_components::fxos8700::NineDofComponent;
 use kernel::debug;
 // use capsules::fxos8700cq;
 // use components::gpio::GpioComponent;
@@ -23,6 +22,9 @@ use kernel::component::Component;
 use kernel::hil::gpio::Configure;
 use kernel::Platform;
 use kernel::{create_capability, static_init};
+
+// use components::fxos8700::Fxos8700Component;
+// use components::ninedof::NineDofComponent;
 
 use imxrt1050::iomuxc::DriveStrength;
 use imxrt1050::iomuxc::MuxMode;
@@ -79,8 +81,8 @@ struct Imxrt1050EVKB {
         'static,
         VirtualMuxAlarm<'static, imxrt1050::gpt1::Gpt1<'static>>,
     >,
-    ninedof: &'static capsules::ninedof::NineDof<'static>, // accel: &'static capsules::fxos8700cq::Fxos8700cq<'static>,
-                                                           // gpio: &'static capsules::gpio::GPIO<'static>
+    ninedof: &'static capsules::ninedof::NineDof<'static>, 
+    // gpio: &'static capsules::gpio::GPIO<'static>
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
@@ -457,28 +459,22 @@ pub unsafe fn reset_handler() {
     // );
     // sensor_accelerometer_i2c.set_client(lsm303dlhc);
     // sensor_magnetometer_i2c.set_client(lsm303dlhc);
+    use imxrt1050::gpio::PinId;
     let mux_i2c = components::i2c::I2CMuxComponent::new(&imxrt1050::lpi2c::LPI2C1)
         .finalize(components::i2c_mux_component_helper!());
 
-    // let lsm303dlhc = components::lsm303dlhc::Lsm303dlhcI2CComponent::new()
-    //     .finalize(components::lsm303dlhc_i2c_component_helper!(mux_i2c));
+    let fxos8700 = components::fxos8700::Fxos8700Component::new(mux_i2c, PinId::AdB1_00.get_pin().as_ref().unwrap())
+        .finalize(());
 
-    // lsm303dlhc.configure(
-    //     lsm303dlhc::Lsm303dlhcAccelDataRate::DataRate25Hz,
-    //     false,
-    //     lsm303dlhc::Lsm303dlhcScale::Scale2G,
-    //     false,
-    //     true,
-    //     lsm303dlhc::Lsm303dlhcMagnetoDataRate::DataRate3_0Hz,
-    //     lsm303dlhc::Lsm303dlhcRange::Range4_7G,
-    // );
-    use imxrt1050::gpio::PinId;
-    let ninedof = NineDofComponent::new(
-        board_kernel,
-        mux_i2c,
-        PinId::AdB1_00.get_pin().as_ref().unwrap(),
-    )
-    .finalize(());
+    let ninedof = components::ninedof::NineDofComponent::new(board_kernel)
+        .finalize(components::ninedof_component_helper!(fxos8700));
+
+    // let ninedof = NineDofComponent::new(
+    //     board_kernel,
+    //     mux_i2c,
+    //     PinId::AdB1_00.get_pin().as_ref().unwrap(),
+    // )
+    // .finalize(());
 
     let imxrt1050 = Imxrt1050EVKB {
         console: console,

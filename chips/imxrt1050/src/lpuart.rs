@@ -5,7 +5,6 @@ use kernel::common::StaticRef;
 use kernel::hil;
 use kernel::ClockInterface;
 use kernel::ReturnCode;
-// use cortex_m_semihosting::{hprintln};
 
 use crate::ccm;
 
@@ -375,46 +374,17 @@ impl Lpuart<'a> {
 
     pub fn set_baud(&self) {
         // Set the Baud Rate Modulo Divisor
-        // let mut initial = self.registers.baud.read(BAUD::SBR);
         self.registers.baud.modify(BAUD::SBR.val(139 as u32));
-        // initial = self.registers.baud.read(BAUD::SBR);
     }
+
 	// for use by panic in io.rs
 	pub fn send_byte(&self, byte: u8) {
 		// loop till TXE (Transmit data register empty) becomes 1
 		while !self.registers.stat.is_set(STAT::TDRE) {}
-		// self.registers.tdr.set(byte.into());
+
         self.registers.data.set(byte.into());
 
         while !self.registers.stat.is_set(STAT::TC) {}
-        // self.registers.baud.modify(BAUD::LBKDIE::SET);
-        // self.registers.baud.modify(BAUD::RXEDGIE::SET);
-        // self.registers.fifo.modify(FIFO::TXOF::CLEAR);
-        // self.registers.fifo.modify(FIFO::TXOF::CLEAR);
-        // self.registers.fifo.modify(FIFO::TXOFE::SET);
-        // self.registers.fifo.modify(FIFO::RXUFE::SET);
-
-        // Enable CTRL
-        // self.registers.ctrl.modify(CTRL::R8T9::SET);
-        // self.registers.ctrl.modify(CTRL::R9T8::SET);
-        // self.registers.ctrl.modify(CTRL::TXDIR::SET);
-        // self.registers.ctrl.modify(CTRL::TXINV::SET);
-        // self.registers.ctrl.modify(CTRL::ORIE::SET);
-        // self.registers.ctrl.modify(CTRL::NEIE::SET);
-        // self.registers.ctrl.modify(CTRL::FEIE::SET);
-        // self.registers.ctrl.modify(CTRL::PEIE::SET);
-        // self.registers.ctrl.modify(CTRL::TIE::SET);
-        // self.registers.ctrl.modify(CTRL::TCIE::SET);
-        // self.registers.ctrl.modify(CTRL::RIE::SET);
-        // self.registers.ctrl.modify(CTRL::ILIE::SET);
-        // self.registers.ctrl.modify(CTRL::TE::SET);
-        // self.registers.ctrl.modify(CTRL::RE::SET);
-        // self.registers.ctrl.modify(CTRL::RWU::SET);
-        // self.registers.ctrl.modify(CTRL::SBK::SET);
-        // self.registers.ctrl.modify(CTRL::MA1IE::SET);
-        // self.registers.ctrl.modify(CTRL::MA2IE::SET);
-        // self.registers.ctrl.modify(CTRL::M7::SET);
-        // self.registers.ctrl.modify(CTRL::IDLECFG.val(0b111 as u32));
 	}
 
 	fn enable_transmit_complete_interrupt(&self) {
@@ -614,16 +584,7 @@ impl hil::uart::Configure for Lpuart<'a> {
         self.registers.baud.modify(BAUD::OSR.val(0b100 as u32));
 
         // Set the Baud Rate Modulo Divisor
-        // let mut initial = self.registers.baud.read(BAUD::SBR);
         self.registers.baud.modify(BAUD::SBR.val(139 as u32));
-        // initial = self.registers.baud.read(BAUD::SBR);
-
-        // unsafe {
-        //     if ccm::CCM.is_enabled_uart_clock_podf() {
-        //         hprintln!("uart_clock_podf enabled!").unwrap();
-        //     }
-        //     self.enable_clock();
-        // }
 
         // Set bit count and parity mode
         self.registers.baud.modify(BAUD::M10::CLEAR);
@@ -677,7 +638,6 @@ impl hil::uart::Configure for Lpuart<'a> {
 
 impl hil::uart::Receive<'a> for Lpuart<'a> {
     fn set_receive_client(&self, client: &'a dyn hil::uart::ReceiveClient) {
-        // hprintln!("E set_receive_client!").unwrap();
         self.rx_client.set(client);
     }
 
@@ -704,12 +664,10 @@ impl hil::uart::Receive<'a> for Lpuart<'a> {
     }
 
     fn receive_word(&self) -> ReturnCode {
-        // hprintln!("E receive_word!").unwrap();
         ReturnCode::FAIL
     }
 
     fn receive_abort(&self) -> ReturnCode {
-        // hprintln!("E receive_abort!").unwrap();
         if self.rx_status.get() != USARTStateRX::Idle {
             self.rx_status.set(USARTStateRX::AbortRequested);
             ReturnCode::EBUSY

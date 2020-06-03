@@ -554,13 +554,6 @@ impl Ccm {
         self.registers.cscdr1.modify(CSCDR1::UART_CLK_PODF::CLEAR);
     }
 
-    // pub fn just_for_debug(&self) -> bool {
-    //     self.registers.ccsr.is_set(CCSR::PLL3_SW_CLK_SEL)
-    // }
-}
-
-// TBD - chiar nu stiu ce si cum la asta
-pub enum CPUClock {
 }
 
 pub enum PeripheralClock {
