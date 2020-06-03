@@ -1,6 +1,20 @@
 //! A generic USB client layer managing control requests
 //!
-//! It responds to control requests and forwards bulk/interrupt transfers to the above layer.
+//! This layer responds to control requests and handles the state machine for
+//! implementing them.
+//!
+//! Right now, the stack looks like this:
+//!
+//! ```
+//!                  Client
+//!                  |   ^
+//!             |-----   |
+//!             v        |
+//!      ClientCtrl      |
+//!          |           |
+//!          v           |
+//!          UsbController
+//! ```
 
 use super::descriptors::Buffer64;
 use super::descriptors::Descriptor;
@@ -17,7 +31,6 @@ use super::descriptors::StringDescriptor;
 use super::descriptors::TransferDirection;
 use core::cell::Cell;
 use core::cmp::min;
-use kernel::debug;
 use kernel::hil;
 use kernel::hil::usb::TransferType;
 
@@ -25,6 +38,7 @@ const DESCRIPTOR_BUFLEN: usize = 128;
 
 const N_ENDPOINTS: usize = 3;
 
+/// Handler for USB control endpoint requests.
 pub struct ClientCtrl<'a, 'b, U: 'a> {
     /// The USB hardware controller.
     controller: &'a U,
@@ -36,7 +50,7 @@ pub struct ClientCtrl<'a, 'b, U: 'a> {
     /// driver.
     ctrl_buffer: Buffer64,
 
-    /// Storage for composing responses to device-descriptor requests.
+    /// Storage for composing responses to device descriptor requests.
     descriptor_storage: [Cell<u8>; DESCRIPTOR_BUFLEN],
 
     /// Buffer containing the byte-packed representation of the device
@@ -343,11 +357,7 @@ impl<'a, 'b, U: hil::usb::UsbController<'a>> ClientCtrl<'a, 'b, U> {
                         hil::usb::CtrlSetupResult::ErrGeneric
                     }
                 }
-                //FIXME might need to include one or more CDC descriptors here
-                _ => {
-                    debug!("we get here?");
-                    hil::usb::CtrlSetupResult::ErrGeneric
-                }
+                _ => hil::usb::CtrlSetupResult::ErrGeneric,
             },
             _ => hil::usb::CtrlSetupResult::ErrGeneric,
         }

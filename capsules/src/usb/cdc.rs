@@ -1,18 +1,22 @@
-//! CDC
+//! Communications Class Device for USB
+//!
+//! This capsule allows Tock to support a serial port over USB.
 
 use core::cell::Cell;
 use core::cmp;
 
-use super::descriptors::{
-    self, Buffer64, CsInterfaceDescriptor, EndpointAddress, EndpointDescriptor,
-    InterfaceDescriptor, TransferDirection,
-};
+use super::descriptors;
+use super::descriptors::Buffer64;
+use super::descriptors::CdcInterfaceDescriptor;
+use super::descriptors::EndpointAddress;
+use super::descriptors::EndpointDescriptor;
+use super::descriptors::InterfaceDescriptor;
+use super::descriptors::TransferDirection;
 use super::usbc_client_ctrl::ClientCtrl;
 
 use kernel::common::cells::OptionalCell;
 use kernel::common::cells::TakeCell;
 use kernel::common::cells::VolatileCell;
-use kernel::debug;
 use kernel::hil;
 use kernel::hil::uart;
 use kernel::hil::usb::TransferType;
@@ -47,7 +51,9 @@ pub const MAX_CTRL_PACKET_SIZE_IBEX: u8 = 64;
 
 const N_ENDPOINTS: usize = 3;
 
-pub struct Cdc<'a, U: 'a> {
+/// Implementation of the Abstract Control Model (ACM) for the Communications
+/// Class Device (CDC) over USB.
+pub struct CdcAcm<'a, U: 'a> {
     /// Helper USB client library for handling many USB operations.
     client_ctrl: ClientCtrl<'a, 'static, U>,
 
@@ -59,9 +65,6 @@ pub struct Cdc<'a, U: 'a> {
     /// The number of bytes the client has asked us to send. We track this so we
     /// can pass it back to the client when the transmission has finished.
     tx_len: Cell<usize>,
-    /// How many more bytes we need to transmit. This is used in our TX state
-    /// machine.
-    tx_remaining: Cell<usize>,
     /// Where in the `tx_buffer` we need to start sending from when we continue.
     tx_offset: Cell<usize>,
     /// The TX client to use when transmissions finish.
@@ -78,8 +81,8 @@ pub struct Cdc<'a, U: 'a> {
     rx_client: OptionalCell<&'a dyn uart::ReceiveClient>,
 }
 
-impl<'a, C: hil::usb::UsbController<'a>> Cdc<'a, C> {
-    pub fn new(controller: &'a C, max_ctrl_packet_size: u8) -> Self {
+impl<'a, U: hil::usb::UsbController<'a>> CdcAcm<'a, U> {
+    pub fn new(controller: &'a U, max_ctrl_packet_size: u8) -> Self {
         let interfaces: &mut [InterfaceDescriptor] = &mut [
             InterfaceDescriptor {
                 interface_number: 0,
@@ -97,24 +100,24 @@ impl<'a, C: hil::usb::UsbController<'a>> Cdc<'a, C> {
             },
         ];
 
-        let cdc_descriptors: &mut [CsInterfaceDescriptor] = &mut [
-            CsInterfaceDescriptor {
-                subtype: descriptors::CsInterfaceDescriptorSubType::Header,
+        let cdc_descriptors: &mut [CdcInterfaceDescriptor] = &mut [
+            CdcInterfaceDescriptor {
+                subtype: descriptors::CdcInterfaceDescriptorSubType::Header,
                 field1: 0x10, // CDC
                 field2: 0x11, // CDC
             },
-            CsInterfaceDescriptor {
-                subtype: descriptors::CsInterfaceDescriptorSubType::CallManagement,
+            CdcInterfaceDescriptor {
+                subtype: descriptors::CdcInterfaceDescriptorSubType::CallManagement,
                 field1: 0x00, // Capabilities
                 field2: 0x01, // Data interface 1
             },
-            CsInterfaceDescriptor {
-                subtype: descriptors::CsInterfaceDescriptorSubType::AbstractControlManagement,
+            CdcInterfaceDescriptor {
+                subtype: descriptors::CdcInterfaceDescriptorSubType::AbstractControlManagement,
                 field1: 0x06, // Capabilities
                 field2: 0x00, // unused
             },
-            CsInterfaceDescriptor {
-                subtype: descriptors::CsInterfaceDescriptorSubType::Union,
+            CdcInterfaceDescriptor {
+                subtype: descriptors::CdcInterfaceDescriptorSubType::Union,
                 field1: 0x00, // Interface 0
                 field2: 0x01, // Interface 1
             },
@@ -170,7 +173,7 @@ impl<'a, C: hil::usb::UsbController<'a>> Cdc<'a, C> {
                 Some(cdc_descriptors),
             );
 
-        Cdc {
+        CdcAcm {
             client_ctrl: ClientCtrl::new(
                 controller,
                 device_descriptor_buffer,
@@ -187,7 +190,6 @@ impl<'a, C: hil::usb::UsbController<'a>> Cdc<'a, C> {
             ],
             tx_buffer: TakeCell::empty(),
             tx_len: Cell::new(0),
-            tx_remaining: Cell::new(0),
             tx_offset: Cell::new(0),
             tx_client: OptionalCell::empty(),
             rx_buffer: TakeCell::empty(),
@@ -198,7 +200,7 @@ impl<'a, C: hil::usb::UsbController<'a>> Cdc<'a, C> {
     }
 
     #[inline]
-    fn controller(&self) -> &'a C {
+    fn controller(&self) -> &'a U {
         self.client_ctrl.controller()
     }
 
@@ -208,7 +210,7 @@ impl<'a, C: hil::usb::UsbController<'a>> Cdc<'a, C> {
     }
 }
 
-impl<'a, C: hil::usb::UsbController<'a>> hil::usb::Client<'a> for Cdc<'a, C> {
+impl<'a, U: hil::usb::UsbController<'a>> hil::usb::Client<'a> for CdcAcm<'a, U> {
     fn enable(&'a self) {
         // Set up the default control endpoint
         self.client_ctrl.enable();
@@ -230,10 +232,7 @@ impl<'a, C: hil::usb::UsbController<'a>> hil::usb::Client<'a> for Cdc<'a, C> {
     }
 
     fn bus_reset(&'a self) {
-        // Should the client initiate reconfiguration here?
-        // For now, the hardware layer does it.
-
-        debug!("Bus reset");
+        // No need to handle this at this layer.
     }
 
     /// Handle a Control Setup transaction
@@ -248,6 +247,13 @@ impl<'a, C: hil::usb::UsbController<'a>> hil::usb::Client<'a> for Cdc<'a, C> {
 
     /// Handle a Control Out transaction
     fn ctrl_out(&'a self, endpoint: usize, packet_bytes: u32) -> hil::usb::CtrlOutResult {
+        // Hack to make sure we ask to send data if we have a buffer queued. We
+        // expect control out messages when the host actually connects via CDC,
+        // so we use this to generate the data IN request.
+        if self.tx_buffer.is_some() {
+            self.controller().endpoint_resume_in(ENDPOINT_IN_NUM);
+        }
+
         self.client_ctrl.ctrl_out(endpoint, packet_bytes)
     }
 
@@ -270,16 +276,13 @@ impl<'a, C: hil::usb::UsbController<'a>> hil::usb::Client<'a> for Cdc<'a, C> {
     /// until this function is called when we don't have anything left to send.
     fn packet_in(&'a self, transfer_type: TransferType, endpoint: usize) -> hil::usb::InResult {
         match transfer_type {
-            TransferType::Interrupt => {
-                debug!("interrupt_in({}) not implemented", endpoint);
-                hil::usb::InResult::Error
-            }
             TransferType::Bulk => {
                 self.tx_buffer
                     .take()
                     .map_or(hil::usb::InResult::Delay, |tx_buf| {
                         // Check if we have any bytes to send.
-                        let remaining = self.tx_remaining.get();
+                        let offset = self.tx_offset.get();
+                        let remaining = self.tx_len.get() - offset;
                         if remaining > 0 {
                             // We do, so we go ahead and send those.
 
@@ -291,13 +294,11 @@ impl<'a, C: hil::usb::UsbController<'a>> hil::usb::Client<'a> for Cdc<'a, C> {
                             let to_send = cmp::min(packet.len(), remaining);
 
                             // Copy from the TX buffer to the outgoing USB packet.
-                            let offset = self.tx_offset.get();
                             for i in 0..to_send {
                                 packet[i].set(tx_buf[offset + i]);
                             }
 
                             // Update our state on how much more there is to send.
-                            self.tx_remaining.set(remaining - to_send);
                             self.tx_offset.set(offset + to_send);
 
                             // Put the TX buffer back so we can keep sending from it.
@@ -324,7 +325,10 @@ impl<'a, C: hil::usb::UsbController<'a>> hil::usb::Client<'a> for Cdc<'a, C> {
                         }
                     })
             }
-            TransferType::Control | TransferType::Isochronous => unreachable!(),
+            TransferType::Control | TransferType::Isochronous | TransferType::Interrupt => {
+                // Nothing to do for CDC ACM.
+                hil::usb::InResult::Delay
+            }
         }
     }
 
@@ -336,10 +340,6 @@ impl<'a, C: hil::usb::UsbController<'a>> hil::usb::Client<'a> for Cdc<'a, C> {
         packet_bytes: u32,
     ) -> hil::usb::OutResult {
         match transfer_type {
-            TransferType::Interrupt => {
-                debug!("interrupt_out({}) not implemented", endpoint);
-                hil::usb::OutResult::Error
-            }
             TransferType::Bulk => {
                 // Start by checking to see if we even care about this RX or
                 // not.
@@ -382,16 +382,36 @@ impl<'a, C: hil::usb::UsbController<'a>> hil::usb::Client<'a> for Cdc<'a, C> {
                 // No error cases to report to the USB.
                 hil::usb::OutResult::Ok
             }
-            TransferType::Control | TransferType::Isochronous => unreachable!(),
+            TransferType::Control | TransferType::Isochronous | TransferType::Interrupt => {
+                // Nothing to do for CDC ACM.
+                hil::usb::OutResult::Ok
+            }
         }
     }
 
     fn packet_transmitted(&'a self, _endpoint: usize) {
-        // Nothing to do.
+        // Check if more to send.
+        self.tx_buffer.take().map(|tx_buf| {
+            // Check if we have any bytes to send.
+            let remaining = self.tx_len.get() - self.tx_offset.get();
+            if remaining > 0 {
+                // We do, so ask to send again.
+                self.tx_buffer.replace(tx_buf);
+                self.controller().endpoint_resume_in(ENDPOINT_IN_NUM);
+            } else {
+                // We don't have anything to send, so that means we are
+                // ok to signal the callback.
+
+                // Signal the callback and pass back the TX buffer.
+                self.tx_client.map(move |tx_client| {
+                    tx_client.transmitted_buffer(tx_buf, self.tx_len.get(), ReturnCode::SUCCESS)
+                });
+            }
+        });
     }
 }
 
-impl<'a, C: hil::usb::UsbController<'a>> uart::Configure for Cdc<'a, C> {
+impl<'a, U: hil::usb::UsbController<'a>> uart::Configure for CdcAcm<'a, U> {
     fn configure(&self, _parameters: uart::Parameters) -> ReturnCode {
         // Since this is not a real UART, we don't need to consider these
         // parameters.
@@ -399,7 +419,7 @@ impl<'a, C: hil::usb::UsbController<'a>> uart::Configure for Cdc<'a, C> {
     }
 }
 
-impl<'a, C: hil::usb::UsbController<'a>> uart::Transmit<'a> for Cdc<'a, C> {
+impl<'a, U: hil::usb::UsbController<'a>> uart::Transmit<'a> for CdcAcm<'a, U> {
     fn set_transmit_client(&self, client: &'a dyn uart::TransmitClient) {
         self.tx_client.set(client);
     }
@@ -419,7 +439,6 @@ impl<'a, C: hil::usb::UsbController<'a>> uart::Transmit<'a> for Cdc<'a, C> {
         } else {
             // Ok, we can handle this transmission. Initialize all of our state
             // for our TX state machine.
-            self.tx_remaining.set(tx_len);
             self.tx_len.set(tx_len);
             self.tx_offset.set(0);
             self.tx_buffer.replace(tx_buffer);
@@ -441,7 +460,7 @@ impl<'a, C: hil::usb::UsbController<'a>> uart::Transmit<'a> for Cdc<'a, C> {
     }
 }
 
-impl<'a, C: hil::usb::UsbController<'a>> uart::Receive<'a> for Cdc<'a, C> {
+impl<'a, U: hil::usb::UsbController<'a>> uart::Receive<'a> for CdcAcm<'a, U> {
     fn set_receive_client(&self, client: &'a dyn uart::ReceiveClient) {
         self.rx_client.set(client);
     }
@@ -473,5 +492,5 @@ impl<'a, C: hil::usb::UsbController<'a>> uart::Receive<'a> for Cdc<'a, C> {
     }
 }
 
-impl<'a, C: hil::usb::UsbController<'a>> uart::Uart<'a> for Cdc<'a, C> {}
-impl<'a, C: hil::usb::UsbController<'a>> uart::UartData<'a> for Cdc<'a, C> {}
+impl<'a, U: hil::usb::UsbController<'a>> uart::Uart<'a> for CdcAcm<'a, U> {}
+impl<'a, U: hil::usb::UsbController<'a>> uart::UartData<'a> for CdcAcm<'a, U> {}

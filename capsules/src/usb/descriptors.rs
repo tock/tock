@@ -158,7 +158,7 @@ pub enum DescriptorType {
     InterfacePower,
     HID = 0x21,
     Report = 0x22,
-    CsInterface = 0x24,
+    CdcInterface = 0x24,
 }
 
 fn get_descriptor_type(byte: u8) -> Option<DescriptorType> {
@@ -173,7 +173,7 @@ fn get_descriptor_type(byte: u8) -> Option<DescriptorType> {
         8 => Some(DescriptorType::InterfacePower),
         0x21 => Some(DescriptorType::HID),
         0x22 => Some(DescriptorType::Report),
-        0x24 => Some(DescriptorType::CsInterface),
+        0x24 => Some(DescriptorType::CdcInterface),
         _ => None,
     }
 }
@@ -421,7 +421,7 @@ pub fn create_descriptor_buffers(
     interface_descriptor: &mut [InterfaceDescriptor],
     endpoint_descriptors: &[&[EndpointDescriptor]],
     hid_descriptor: Option<&HIDDescriptor>,
-    cdc_descriptor: Option<&[CsInterfaceDescriptor]>,
+    cdc_descriptor: Option<&[CdcInterfaceDescriptor]>,
 ) -> (DeviceBuffer, DescriptorBuffer) {
     // Create device descriptor buffer and fill.
     // Cell doesn't implement Copy, so here we are.
@@ -753,7 +753,7 @@ pub struct HIDSubordinateDescriptor {
     pub len: u16,
 }
 
-impl Descriptor for HIDDescriptor<'_> {
+impl<'a> Descriptor for HIDDescriptor<'a> {
     fn size(&self) -> usize {
         6 + (3 * self.sub_descriptors.len())
     }
@@ -777,7 +777,7 @@ pub struct ReportDescriptor<'a> {
     pub desc: &'a [u8],
 }
 
-impl Descriptor for ReportDescriptor<'_> {
+impl<'a> Descriptor for ReportDescriptor<'a> {
     fn size(&self) -> usize {
         self.desc.len()
     }
@@ -795,7 +795,7 @@ impl Descriptor for ReportDescriptor<'_> {
 //
 
 #[derive(Copy, Clone)]
-pub enum CsInterfaceDescriptorSubType {
+pub enum CdcInterfaceDescriptorSubType {
     Header = 0x00,
     CallManagement = 0x01,
     AbstractControlManagement = 0x02,
@@ -815,39 +815,39 @@ pub enum CsInterfaceDescriptorSubType {
     AtmNetworking = 0x10,
 }
 
-pub struct CsInterfaceDescriptor {
-    pub subtype: CsInterfaceDescriptorSubType,
+pub struct CdcInterfaceDescriptor {
+    pub subtype: CdcInterfaceDescriptorSubType,
     pub field1: u8,
     pub field2: u8,
 }
 
-impl Descriptor for CsInterfaceDescriptor {
+impl Descriptor for CdcInterfaceDescriptor {
     fn size(&self) -> usize {
         3 + match self.subtype {
-            CsInterfaceDescriptorSubType::Header => 2,
-            CsInterfaceDescriptorSubType::CallManagement => 2,
-            CsInterfaceDescriptorSubType::AbstractControlManagement => 1,
-            CsInterfaceDescriptorSubType::DirectLineManagement => 1,
-            CsInterfaceDescriptorSubType::TelephoneRinger => 2,
-            CsInterfaceDescriptorSubType::TelephoneCallLineStateReportingCapbailities => 4,
-            CsInterfaceDescriptorSubType::Union => 2,
-            CsInterfaceDescriptorSubType::CountrySelection => 2,
-            CsInterfaceDescriptorSubType::TelephoneOperationalModes => 1,
-            CsInterfaceDescriptorSubType::UsbTerminal => 1,
-            CsInterfaceDescriptorSubType::NetworkChannelTerminal => 1,
-            CsInterfaceDescriptorSubType::ProtocolUnit => 1,
-            CsInterfaceDescriptorSubType::ExtensionUnity => 1,
-            CsInterfaceDescriptorSubType::MultiChannelManagement => 1,
-            CsInterfaceDescriptorSubType::CapiControlManagement => 1,
-            CsInterfaceDescriptorSubType::EthernetNetworking => 1,
-            CsInterfaceDescriptorSubType::AtmNetworking => 1,
+            CdcInterfaceDescriptorSubType::Header => 2,
+            CdcInterfaceDescriptorSubType::CallManagement => 2,
+            CdcInterfaceDescriptorSubType::AbstractControlManagement => 1,
+            CdcInterfaceDescriptorSubType::DirectLineManagement => 1,
+            CdcInterfaceDescriptorSubType::TelephoneRinger => 2,
+            CdcInterfaceDescriptorSubType::TelephoneCallLineStateReportingCapbailities => 4,
+            CdcInterfaceDescriptorSubType::Union => 2,
+            CdcInterfaceDescriptorSubType::CountrySelection => 2,
+            CdcInterfaceDescriptorSubType::TelephoneOperationalModes => 1,
+            CdcInterfaceDescriptorSubType::UsbTerminal => 1,
+            CdcInterfaceDescriptorSubType::NetworkChannelTerminal => 1,
+            CdcInterfaceDescriptorSubType::ProtocolUnit => 1,
+            CdcInterfaceDescriptorSubType::ExtensionUnity => 1,
+            CdcInterfaceDescriptorSubType::MultiChannelManagement => 1,
+            CdcInterfaceDescriptorSubType::CapiControlManagement => 1,
+            CdcInterfaceDescriptorSubType::EthernetNetworking => 1,
+            CdcInterfaceDescriptorSubType::AtmNetworking => 1,
         }
     }
 
     fn write_to_unchecked(&self, buf: &[Cell<u8>]) -> usize {
         let len = self.size();
         buf[0].set(len as u8);
-        buf[1].set(DescriptorType::CsInterface as u8);
+        buf[1].set(DescriptorType::CdcInterface as u8);
         buf[2].set(self.subtype as u8);
         if len >= 4 {
             buf[3].set(self.field1);
@@ -863,7 +863,7 @@ pub struct LanguagesDescriptor<'a> {
     pub langs: &'a [u16],
 }
 
-impl Descriptor for LanguagesDescriptor<'_> {
+impl<'a> Descriptor for LanguagesDescriptor<'a> {
     fn size(&self) -> usize {
         2 + (2 * self.langs.len())
     }
@@ -883,7 +883,7 @@ pub struct StringDescriptor<'a> {
     pub string: &'a str,
 }
 
-impl Descriptor for StringDescriptor<'_> {
+impl<'a> Descriptor for StringDescriptor<'a> {
     fn size(&self) -> usize {
         let mut len = 2;
         for ch in self.string.chars() {
