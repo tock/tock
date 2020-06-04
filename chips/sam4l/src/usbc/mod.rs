@@ -952,7 +952,8 @@ impl<'a> Usbc<'a> {
                         };
 
                         match result {
-                            Some(hil::usb::CtrlSetupResult::Ok) => {
+                            Some(hil::usb::CtrlSetupResult::Ok)
+                            | Some(hil::usb::CtrlSetupResult::OkSetAddress) => {
                                 // Unsubscribe from SETUP interrupts
                                 endpoint_disable_interrupts(endpoint, EndpointControl::RXSTPE::SET);
 
@@ -1042,11 +1043,15 @@ impl<'a> Usbc<'a> {
                                 packet_bytes,
                                 transfer_complete,
                             )) => {
-                                let packet_size = if packet_bytes == 8 && transfer_complete {
+                                // Check if the entire buffer is full, and
+                                // handle that case slightly differently. Note,
+                                // this depends on the length of the buffer
+                                // used. Right now, that is 64 bytes.
+                                let packet_size = if packet_bytes == 64 && transfer_complete {
                                     // Send a complete final packet, and request
                                     // that the controller also send a zero-length
                                     // packet to signal the end of transfer
-                                    PacketSize::BYTE_COUNT.val(8) + PacketSize::AUTO_ZLP::Yes
+                                    PacketSize::BYTE_COUNT.val(64) + PacketSize::AUTO_ZLP::Yes
                                 } else {
                                     // Send either a complete but not-final
                                     // packet, or a short and final packet (which
@@ -1439,7 +1444,7 @@ fn endpoint_enable_interrupts(endpoint: usize, mask: FieldValue<u32, EndpointCon
 
 impl<'a> hil::usb::UsbController<'a> for Usbc<'a> {
     fn endpoint_set_ctrl_buffer(&self, buf: &'a [VolatileCell<u8>]) {
-        if buf.len() != 8 {
+        if buf.len() < 8 {
             client_err!("Bad endpoint buffer size");
         }
 
@@ -1447,7 +1452,7 @@ impl<'a> hil::usb::UsbController<'a> for Usbc<'a> {
     }
 
     fn endpoint_set_in_buffer(&self, endpoint: usize, buf: &'a [VolatileCell<u8>]) {
-        if buf.len() != 8 {
+        if buf.len() < 8 {
             client_err!("Bad endpoint buffer size");
         }
 
@@ -1455,7 +1460,7 @@ impl<'a> hil::usb::UsbController<'a> for Usbc<'a> {
     }
 
     fn endpoint_set_out_buffer(&self, endpoint: usize, buf: &'a [VolatileCell<u8>]) {
-        if buf.len() != 8 {
+        if buf.len() < 8 {
             client_err!("Bad endpoint buffer size");
         }
 
