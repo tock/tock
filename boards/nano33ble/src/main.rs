@@ -1,6 +1,6 @@
 //! Tock kernel for the Arduino Nano 33 BLE.
 //!
-//! It is based on nRF52840 SoC (Cortex M4 core with a BLE transceiver).
+//! It is based on nRF52840 SoC (Cortex M4 core with a BLE + IEEE 802.15.4 transceiver).
 
 #![no_std]
 #![no_main]
@@ -66,7 +66,7 @@ pub struct Platform {
     //     nrf52::ble_radio::Radio,
     //     VirtualMuxAlarm<'static, Rtc<'static>>,
     // >,
-    // ieee802154_radio: Option<&'static capsules::ieee802154::RadioDriver<'static>>,
+    // ieee802154_radio: &'static capsules::ieee802154::RadioDriver<'static>,
     console: &'static capsules::console::Console<'static>,
     gpio: &'static capsules::gpio::GPIO<'static, nrf52::gpio::GPIOPin>,
     led: &'static capsules::led::LED<'static, nrf52::gpio::GPIOPin>,
@@ -90,10 +90,7 @@ impl kernel::Platform for Platform {
             capsules::led::DRIVER_NUM => f(Some(self.led)),
             capsules::rng::DRIVER_NUM => f(Some(self.rng)),
             // capsules::ble_advertising_driver::DRIVER_NUM => f(Some(self.ble_radio)),
-            // capsules::ieee802154::DRIVER_NUM => match self.ieee802154_radio {
-            //     Some(radio) => f(Some(radio)),
-            //     None => f(None),
-            // },
+            // capsules::ieee802154::DRIVER_NUM => f(Some(radio)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             _ => f(None),
         }
@@ -218,16 +215,20 @@ pub unsafe fn reset_handler() {
 
     let rng = components::rng::RngComponent::new(board_kernel, &nrf52::trng::TRNG).finalize(());
 
+    //--------------------------------------------------------------------------
+    // WIRELESS
+    //--------------------------------------------------------------------------
+
     // let ble_radio =
     //     BLEComponent::new(board_kernel, &nrf52::ble_radio::RADIO, mux_alarm).finalize(());
 
-    //     let (ieee802154_radio, _) = Ieee802154Component::new(
-    //         board_kernel,
-    //         &nrf52::ieee802154_radio::RADIO,
-    //         PAN_ID,
-    //         SRC_MAC,
-    //     )
-    //     .finalize(());
+    // let (ieee802154_radio, _) = Ieee802154Component::new(
+    //     board_kernel,
+    //     &nrf52::ieee802154_radio::RADIO,
+    //     PAN_ID,
+    //     SRC_MAC,
+    // )
+    // .finalize(());
 
     // Start all of the clocks. Low power operation will require a better
     // approach than this.
