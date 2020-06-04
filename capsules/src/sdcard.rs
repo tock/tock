@@ -1444,8 +1444,8 @@ impl<'a, A: hil::time::Alarm<'a>> SDCardClient for SDCardDriver<'a, A> {
     fn read_done(&self, data: &'static mut [u8], len: usize) {
         self.kernel_buf.replace(data);
         self.app.map(|app| {
-            #[allow(unused_mut)]
-            let mut read_len: usize = 0;
+            let mut read_len = 0;
+            let read_len_ref = &mut read_len; // needed to mutate read_len in move closure
             self.kernel_buf.map(|data| {
                 app.read_buffer.as_mut().map(move |read_buffer| {
                     // copy bytes to user buffer
@@ -1455,7 +1455,7 @@ impl<'a, A: hil::time::Alarm<'a>> SDCardClient for SDCardDriver<'a, A> {
                     {
                         *read_byte = data_byte;
                     }
-                    read_len = cmp::min(read_buffer.len(), cmp::min(data.len(), len));
+                    *read_len_ref = cmp::min(read_buffer.len(), cmp::min(data.len(), len));
                 });
             });
 
