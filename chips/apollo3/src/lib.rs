@@ -12,6 +12,7 @@ pub mod chip;
 pub mod clkgen;
 pub mod gpio;
 pub mod iom;
+pub mod mcuctrl;
 pub mod nvic;
 pub mod pwrctrl;
 pub mod stimer;
