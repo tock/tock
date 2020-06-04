@@ -7,6 +7,7 @@
 #![allow(unused_doc_comments)]
 
 // Peripherals
+pub mod ble;
 pub mod chip;
 pub mod clkgen;
 pub mod gpio;
