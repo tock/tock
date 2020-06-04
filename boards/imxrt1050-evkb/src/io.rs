@@ -3,15 +3,15 @@ use core::panic::PanicInfo;
 
 use kernel::debug;
 use kernel::debug::IoWrite;
-// use kernel::hil::led;
+use kernel::hil::led;
 use kernel::hil::uart;
 use kernel::hil::uart::Configure;
 
 use imxrt1050;
-// use stm32f4xx::gpio::PinId;
+use imxrt1050::gpio::PinId;
 
-// use crate::CHIP;
-// use crate::PROCESSES;
+use crate::CHIP;
+use crate::PROCESSES;
 
 /// Writer is used by kernel::debug to panic message to the serial port.
 pub struct Writer {
@@ -22,8 +22,7 @@ pub struct Writer {
 pub static mut WRITER: Writer = Writer { initialized: false };
 
 impl Writer {
-    /// Indicate that USART has already been initialized. Trying to double
-    /// initialize USART2 causes STM32F446RE to go into in in-deterministic state.
+    /// Indicate that LPUART has already been initialized.
     pub fn set_initialized(&mut self) {
         self.initialized = true;
     }
@@ -58,25 +57,21 @@ impl IoWrite for Writer {
     }
 }
 
+
 /// Panic handler.
 #[no_mangle]
 #[panic_handler]
 pub unsafe extern "C" fn panic_fmt(info: &PanicInfo) -> ! {
-    // User LD2 is connected to PB07
-    // // PinId::PB07.get_pin_mut().as_mut().map(|pb7| {
-    //     let led = &mut led::LedHigh::new(pb7);
-    //     let writer = &mut WRITER;
+    // User Led is connected to AdB0_09
+    let led = &mut led::LedLow::new(PinId::AdB0_09.get_pin_mut().as_mut().unwrap());
+    let writer = &mut WRITER;
 
-    // debug::panic(
-    //     &mut [led],
-    //     writer,
-    //     info,
-    //     &cortexm4::support::nop,
-    //     &PROCESSES,
-    //     &CHIP,
-    // )
-    // });
-    debug!("Panic! {:?}", info);
-
-    loop {}
+    debug::panic(
+        &mut [led],
+        writer,
+        info,
+        &cortexm7::support::nop,
+        &PROCESSES,
+        &CHIP,
+    )
 }

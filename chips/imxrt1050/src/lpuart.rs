@@ -377,7 +377,7 @@ impl Lpuart<'a> {
 
     // for use by panic in io.rs
     pub fn send_byte(&self, byte: u8) {
-        // loop till TDRE (Transmit data register empty) becomes 1
+        // loop until TDRE (Transmit data register empty) becomes 1
         while !self.registers.stat.is_set(STAT::TDRE) {}
 
         self.registers.data.set(byte.into());

@@ -290,7 +290,6 @@ impl hil::time::Alarm<'a> for Gpt1<'a> {
         self.registers.ocr1.set(tics);
         self.registers.ir.modify(IR::OF1IE::SET);
         self.registers.cr.modify(CR::EN::SET);
-        // self.registers.cr.modify(CR::OM1::SET);
     }
 
     fn get_alarm(&self) -> u32 {

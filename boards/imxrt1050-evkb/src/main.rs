@@ -1,4 +1,4 @@
-//! Board file for Imxrt-1052 development board
+//! Reference Manual for the Imxrt-1052 development board
 //!
 //! - <https://www.nxp.com/webapp/Download?colCode=IMXRT1050RM>
 
@@ -8,12 +8,12 @@
 #![deny(missing_docs)]
 
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+use components::gpio::GpioComponent;
 use kernel::capabilities;
 use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::component::Component;
 use kernel::debug;
 use kernel::hil::time::Alarm;
-// use kernel::hil::time::Alarm;
 use kernel::hil::gpio::Configure;
 use kernel::Platform;
 use kernel::{create_capability, static_init};
@@ -68,15 +68,15 @@ pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 /// A structure representing this platform that holds references to all
 /// capsules for this platform.
 struct Imxrt1050EVKB {
-    console: &'static capsules::console::Console<'static>,
-    ipc: kernel::ipc::IPC,
-    led: &'static capsules::led::LED<'static, imxrt1050::gpio::Pin<'static>>,
     alarm: &'static capsules::alarm::AlarmDriver<
         'static,
         VirtualMuxAlarm<'static, imxrt1050::gpt1::Gpt1<'static>>,
     >,
+    console: &'static capsules::console::Console<'static>,
+    gpio: &'static capsules::gpio::GPIO<'static, imxrt1050::gpio::Pin<'static>>,
+    ipc: kernel::ipc::IPC,
+    led: &'static capsules::led::LED<'static, imxrt1050::gpio::Pin<'static>>,
     ninedof: &'static capsules::ninedof::NineDof<'static>,
-    // gpio: &'static capsules::gpio::GPIO<'static>
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
@@ -86,41 +86,20 @@ impl Platform for Imxrt1050EVKB {
         F: FnOnce(Option<&dyn kernel::Driver>) -> R,
     {
         match driver_num {
-            capsules::console::DRIVER_NUM => f(Some(self.console)),
-            capsules::led::DRIVER_NUM => f(Some(self.led)),
             capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
+            capsules::console::DRIVER_NUM => f(Some(self.console)),
+            capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
+            capsules::led::DRIVER_NUM => f(Some(self.led)),
             capsules::ninedof::DRIVER_NUM => f(Some(self.ninedof)),
-            // capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
             _ => f(None),
         }
     }
 }
 
 /// Helper function called during bring-up that configures DMA.
+/// DMA for imxrt1050-evkb is not implemented yet.
 // unsafe fn setup_dma() {
-//     use imxr::dma1::{Dma1Peripheral, DMA1};
-//     use stm32f4xx::usart;
-//     use stm32f4xx::usart::USART3;
-
-//     DMA1.enable_clock();
-
-//     let usart3_tx_stream = Dma1Peripheral::USART3_TX.get_stream();
-//     let usart3_rx_stream = Dma1Peripheral::USART3_RX.get_stream();
-
-//     USART3.set_dma(
-//         usart::TxDMA(usart3_tx_stream),
-//         usart::RxDMA(usart3_rx_stream),
-//     );
-
-//     usart3_tx_stream.set_client(&USART3);
-//     usart3_rx_stream.set_client(&USART3);
-
-//     usart3_tx_stream.setup(Dma1Peripheral::USART3_TX);
-//     usart3_rx_stream.setup(Dma1Peripheral::USART3_RX);
-
-//     cortexm4::nvic::Nvic::new(Dma1Peripheral::USART3_TX.get_stream_irqn()).enable();
-//     cortexm4::nvic::Nvic::new(Dma1Peripheral::USART3_RX.get_stream_irqn()).enable();
 // }
 
 /// Helper function called during bring-up that configures multiplexed I/O.
@@ -133,23 +112,31 @@ unsafe fn set_pin_primary_functions() {
 
     PORT[0].enable_clock();
 
-    // User_LED is connected to GPIO_AD_B0_09. Configure P1_09 as `debug_gpio!(0, ...)`
+    // User_LED is connected to GPIO_AD_B0_09.
+    // Values set accordingly to the evkbimxrt1050_iled_blinky SDK example
+
+    // First we configure the pin in GPIO mode and disable the Software Input
+    // on Field, so that the Input Path is determined by functionality.
     imxrt1050::iomuxc::IOMUXC.enable_sw_mux_ctl_pad_gpio(
         PadId::AdB0,
-        MuxMode::ALT5,
+        MuxMode::ALT5,      // ALT5 for AdB0_09: GPIO1_IO09 of instance: gpio1
         Sion::Disabled,
         9,
     );
+
+    // Configure the pin resistance value, pull up or pull down and other
+    // physical aspects.
     imxrt1050::iomuxc::IOMUXC.configure_sw_pad_ctl_pad_gpio(
         PadId::AdB0,
         9,
-        PullUpDown::Pus0_100kOhmPullDown,
-        PullKeepEn::Pke1PullKeeperEnabled,
-        OpenDrainEn::Ode0OpenDrainDisabled,
-        Speed::Medium2,
-        DriveStrength::DSE6,
+        PullUpDown::Pus0_100kOhmPullDown,   // 100K Ohm Pull Down
+        PullKeepEn::Pke1PullKeeperEnabled,  // Pull-down resistor or keep the previous value
+        OpenDrainEn::Ode0OpenDrainDisabled, // Output is CMOS, either 0 logic or 1 logic
+        Speed::Medium2,                     // Operating frequency: 100MHz - 150MHz
+        DriveStrength::DSE6,                // Dual/Single voltage: 43/43 Ohm @ 1.8V, 40/26 Ohm @ 3.3V
     );
 
+    // Configuring the GPIO_AD_B0_09 as output
     PinId::AdB0_09.get_pin().as_ref().map(|pin| {
         pin.make_output();
 
@@ -173,7 +160,7 @@ unsafe fn setup_peripherals() {
 
 /// Reset Handler.
 ///
-/// This symbol is loaded into vector table by the STM32F446RE chip crate.
+/// This symbol is loaded into vector table by the IMXRT1050 chip crate.
 /// When the chip first powers on or later does a hard reset, after the core
 /// initializes all the hardware, the address of this function is loaded and
 /// execution begins here.
@@ -209,36 +196,42 @@ pub unsafe fn reset_handler() {
     // Enable tx and rx from iomuxc
     // TX is on pad GPIO_AD_B0_12
     // RX is on pad GPIO_AD_B0_13
+    // Values set accordingly to the evkbimxrt1050_hello_world SDK example
+
+    // First we configure the pin in LPUART mode and disable the Software Input
+    // on Field, so that the Input Path is determined by functionality.
     imxrt1050::iomuxc::IOMUXC.enable_sw_mux_ctl_pad_gpio(
         PadId::AdB0,
-        MuxMode::ALT2,
+        MuxMode::ALT2,      // ALT2: LPUART1_TXD of instance: lpuart1
         Sion::Disabled,
         13,
     );
     imxrt1050::iomuxc::IOMUXC.enable_sw_mux_ctl_pad_gpio(
         PadId::AdB0,
-        MuxMode::ALT2,
+        MuxMode::ALT2,      // ALT2: LPUART1_RXD of instance: lpuart1
         Sion::Disabled,
         14,
     );
 
+    // Configure the pin resistance value, pull up or pull down and other
+    // physical aspects.
     imxrt1050::iomuxc::IOMUXC.configure_sw_pad_ctl_pad_gpio(
         PadId::AdB0,
         13,
-        PullUpDown::Pus0_100kOhmPullDown,
-        PullKeepEn::Pke1PullKeeperEnabled,
-        OpenDrainEn::Ode0OpenDrainDisabled,
-        Speed::Medium2,
-        DriveStrength::DSE6,
+        PullUpDown::Pus0_100kOhmPullDown,   // 100K Ohm Pull Down
+        PullKeepEn::Pke1PullKeeperEnabled,  // Pull-down resistor or keep the previous value
+        OpenDrainEn::Ode0OpenDrainDisabled, // Output is CMOS, either 0 logic or 1 logic
+        Speed::Medium2,                     // Operating frequency: 100MHz - 150MHz
+        DriveStrength::DSE6,                // Dual/Single voltage: 43/43 Ohm @ 1.8V, 40/26 Ohm @ 3.3V  
     );
     imxrt1050::iomuxc::IOMUXC.configure_sw_pad_ctl_pad_gpio(
         PadId::AdB0,
         14,
-        PullUpDown::Pus0_100kOhmPullDown,
-        PullKeepEn::Pke1PullKeeperEnabled,
-        OpenDrainEn::Ode0OpenDrainDisabled,
-        Speed::Medium2,
-        DriveStrength::DSE6,
+        PullUpDown::Pus0_100kOhmPullDown,   // 100K Ohm Pull Down
+        PullKeepEn::Pke1PullKeeperEnabled,  // Pull-down resistor or keep the previous value
+        OpenDrainEn::Ode0OpenDrainDisabled, // Output is CMOS, either 0 logic or 1 logic
+        Speed::Medium2,                     // Operating frequency: 100MHz - 150MHz
+        DriveStrength::DSE6,                // Dual/Single voltage: 43/43 Ohm @ 1.8V, 40/26 Ohm @ 3.3V
     );
 
     // Enable clock
@@ -263,26 +256,6 @@ pub unsafe fn reset_handler() {
     let console = components::console::ConsoleComponent::new(board_kernel, lpuart_mux).finalize(());
     // Create the debugger object that handles calls to `debug!()`.
     components::debug_writer::DebugWriterComponent::new(lpuart_mux).finalize(());
-
-    // Setup the process inspection console
-    // let process_console_uart = static_init!(UartDevice, UartDevice::new(mux_uart, true));
-    // process_console_uart.setup();
-    // pub struct ProcessConsoleCapability;
-    // unsafe impl capabilities::ProcessManagementCapability for ProcessConsoleCapability {}
-    // let process_console = static_init!(
-    //     capsules::process_console::ProcessConsole<'static, ProcessConsoleCapability>,
-    //     capsules::process_console::ProcessConsole::new(
-    //         process_console_uart,
-    //         &mut capsules::process_console::WRITE_BUF,
-    //         &mut capsules::process_console::READ_BUF,
-    //         &mut capsules::process_console::COMMAND_BUF,
-    //         board_kernel,
-    //         ProcessConsoleCapability,
-    //     )
-    // );
-    // hil::uart::Transmit::set_transmit_client(process_console_uart, process_console);
-    // hil::uart::Receive::set_receive_client(process_console_uart, process_console);
-    // process_console.start();
 
     // LEDs
 
@@ -318,44 +291,68 @@ pub unsafe fn reset_handler() {
     );
     virtual_alarm.set_client(alarm);
 
+    // GPIO
+    // For now we expose only one pin
+    let gpio = GpioComponent::new(
+        board_kernel,
+        components::gpio_component_helper!(
+            imxrt1050::gpio::Pin<'static>,
+            // The User Led
+            0 => imxrt1050::gpio::PinId::AdB0_09.get_pin().as_ref().unwrap()
+        )
+    )
+    .finalize(components::gpio_component_buf!(
+        imxrt1050::gpio::Pin<'static>
+    ));
+
     // LPI2C
     // AD_B1_00 is LPI2C1_SCL
     // AD_B1_01 is LPI2C1_SDA
+    // Values set accordingly to the evkbimxrt1050_bubble_peripheral SDK example
+
+    // First we configure the pin in LPUART mode and enable the Software Input
+    // on Field, so that we force input path of the pad.
     imxrt1050::iomuxc::IOMUXC.enable_sw_mux_ctl_pad_gpio(
         PadId::AdB1,
-        MuxMode::ALT3,
+        MuxMode::ALT3,      // ALT3:  LPI2C1_SCL of instance: lpi2c1
         Sion::Enabled,
         0,
     );
+    // Selecting AD_B1_00 for LPI2C1_SCL in the Daisy Chain.
     imxrt1050::iomuxc::IOMUXC.enable_lpi2c_scl_select_input();
+
     imxrt1050::iomuxc::IOMUXC.enable_sw_mux_ctl_pad_gpio(
         PadId::AdB1,
-        MuxMode::ALT3,
+        MuxMode::ALT3,      // ALT3:  LPI2C1_SDA of instance: lpi2c1
         Sion::Enabled,
         1,
     );
+    // Selecting AD_B1_01 for LPI2C1_SDA in the Daisy Chain.
     imxrt1050::iomuxc::IOMUXC.enable_lpi2c_sda_select_input();
 
+    // Configure the pin resistance value, pull up or pull down and other
+    // physical aspects.
     imxrt1050::iomuxc::IOMUXC.configure_sw_pad_ctl_pad_gpio(
         PadId::AdB1,
         0,
-        PullUpDown::Pus3_22kOhmPullUp,
-        PullKeepEn::Pke1PullKeeperEnabled,
-        OpenDrainEn::Ode1OpenDrainEnabled,
-        Speed::Medium2,
-        DriveStrength::DSE6,
+        PullUpDown::Pus3_22kOhmPullUp,      // 22K Ohm Pull Up
+        PullKeepEn::Pke1PullKeeperEnabled,  // Pull-down resistor or keep the previous value
+        OpenDrainEn::Ode1OpenDrainEnabled,  // Open Drain Enabled (Output is Open Drain)
+        Speed::Medium2,                     // Operating frequency: 100MHz - 150MHz
+        DriveStrength::DSE6,                // Dual/Single voltage: 43/43 Ohm @ 1.8V, 40/26 Ohm @ 3.3V
     );
 
     imxrt1050::iomuxc::IOMUXC.configure_sw_pad_ctl_pad_gpio(
         PadId::AdB1,
         1,
-        PullUpDown::Pus3_22kOhmPullUp,
-        PullKeepEn::Pke1PullKeeperEnabled,
-        OpenDrainEn::Ode1OpenDrainEnabled,
-        Speed::Medium2,
-        DriveStrength::DSE6,
+        PullUpDown::Pus3_22kOhmPullUp,      // 22K Ohm Pull Up
+        PullKeepEn::Pke1PullKeeperEnabled,  // Pull-down resistor or keep the previous value
+        OpenDrainEn::Ode1OpenDrainEnabled,  // Open Drain Enabled (Output is Open Drain)
+        Speed::Medium2,                     // Operating frequency: 100MHz - 150MHz
+        DriveStrength::DSE6,                // Dual/Single voltage: 43/43 Ohm @ 1.8V, 40/26 Ohm @ 3.3V
     );
 
+    // Enabling the lpi2c1 clock and setting the speed. 
     imxrt1050::lpi2c::LPI2C1.enable_clock();
     imxrt1050::lpi2c::LPI2C1.set_speed(imxrt1050::lpi2c::Lpi2cSpeed::Speed100k, 8);
 
@@ -363,12 +360,14 @@ pub unsafe fn reset_handler() {
     let mux_i2c = components::i2c::I2CMuxComponent::new(&imxrt1050::lpi2c::LPI2C1)
         .finalize(components::i2c_mux_component_helper!());
 
+    // Fxos8700 sensor
     let fxos8700 = components::fxos8700::Fxos8700Component::new(
         mux_i2c,
         PinId::AdB1_00.get_pin().as_ref().unwrap(),
     )
     .finalize(());
 
+    // Ninedof
     let ninedof = components::ninedof::NineDofComponent::new(board_kernel)
         .finalize(components::ninedof_component_helper!(fxos8700));
 
@@ -378,7 +377,7 @@ pub unsafe fn reset_handler() {
         led: led,
         ninedof: ninedof,
         alarm: alarm,
-        // gpio: gpio,
+        gpio: gpio,
     };
 
     // Optional kernel tests

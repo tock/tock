@@ -448,6 +448,10 @@ pub struct Lpi2c<'a> {
     // transfers: Cell<u8>
 }
 
+// Since we do not have a register for setting the number of bytes to be sent
+// or a register in which we set slave address. We will need 3 additional states
+// WritingAddress, WritingReadingAddress, ReadingAddress in order to check the
+// status of the i2c transmission.
 #[derive(Copy, Clone, PartialEq)]
 enum Lpi2cStatus {
     Idle,
@@ -486,7 +490,6 @@ impl Lpi2c<'a> {
     }
 
     pub fn set_speed(&self, speed: Lpi2cSpeed, _system_clock_in_mhz: usize) {
-        // debug!("stm32f3 i2c set_speed");
         self.disable();
         match speed {
             Lpi2cSpeed::Speed100k => {
@@ -552,18 +555,23 @@ impl Lpi2c<'a> {
     }
 
     pub fn handle_event(&self) {
+        // Transmit data is requested
         if self.registers.msr.is_set(MSR::TDF) {
             // send the next byte
             self.send_byte();
         }
 
+        // Receive data is ready
         while self.registers.msr.is_set(MSR::RDF) {
             // read the next byte
             self.read_byte();
         }
 
+        // End packet flag set
         if self.registers.msr.is_set(MSR::EPF) {
             match self.status.get() {
+                // if it is in the Address state, we set the status
+                // accordingly and send the next byte
                 Lpi2cStatus::WritingReadingAddress => {
                     self.status.set(Lpi2cStatus::WritingReading);
                     self.send_byte();
@@ -577,6 +585,7 @@ impl Lpi2c<'a> {
                     self.read_byte();
                 }
                 Lpi2cStatus::Writing | Lpi2cStatus::WritingReading => {
+                    // if there are more bytes to be sent, send next byte
                     if self.tx_position.get() < self.tx_len.get() {
                         self.send_byte();
                     } else {
@@ -595,25 +604,25 @@ impl Lpi2c<'a> {
                     }
                 }
                 Lpi2cStatus::Reading => {
-                    let error = if self.rx_position.get() == self.rx_len.get() {
-                        Error::CommandComplete
+                    // if there are more bytes to be read, read next byte
+                    if self.rx_position.get() == self.rx_len.get() {                    
+                        self.registers.mcfgr1.modify(MCFGR1::AUTOSTOP::SET);
+                        self.stop();
+                        self.master_client.map(|client| {
+                            self.buffer
+                                .take()
+                                .map(|buf| client.command_complete(buf, Error::CommandComplete))
+                        });
                     } else {
-                        Error::DataNak
+                        self.read_byte();
                     };
-                    self.registers.mcfgr1.modify(MCFGR1::AUTOSTOP::SET);
-                    self.stop();
-                    self.master_client.map(|client| {
-                        self.buffer
-                            .take()
-                            .map(|buf| client.command_complete(buf, error))
-                    });
                 }
                 _ => panic!("i2c should not arrive here"),
             }
         }
 
+        // abort transfer due to NACK
         if self.registers.msr.is_set(MSR::NDF) {
-            // abort transfer due to NACK
             self.registers.msr.modify(MSR::NDF::SET);
             self.registers.mcfgr1.modify(MCFGR1::AUTOSTOP::SET);
             self.stop();

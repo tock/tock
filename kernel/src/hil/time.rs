@@ -39,7 +39,7 @@ impl Frequency for Freq16MHz {
     }
 }
 
-/// 21,5MHz `Frequency`
+/// 24.75MHz `Frequency`
 #[derive(Debug)]
 pub struct Freq2475MHz;
 impl Frequency for Freq2475MHz {

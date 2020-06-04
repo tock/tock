@@ -82,7 +82,6 @@ impl<'a> uart::ReceiveClient for MuxUart<'a> {
         rcode: ReturnCode,
         error: uart::Error,
     ) {
-        // hprintln!("Sunt in received_buffer!").unwrap();
         // Likely we will issue another receive in response to the previous one
         // finishing. `next_read_len` keeps track of the shortest outstanding
         // receive requested by any client. We start with the longest it can be,
@@ -260,7 +259,6 @@ impl<'a> MuxUart<'a> {
     ///    (return true)
     /// 3. We are idle: start reading (return false)
     fn start_receive(&self, rx_len: usize) -> bool {
-        // hprintln!("Sunt in start_receive in virtual_uart!").unwrap();
         self.buffer.take().map_or_else(
             || {
                 // No rxbuf which means a read is ongoing
@@ -381,7 +379,6 @@ impl<'a> uart::ReceiveClient for UartDevice<'a> {
         rcode: ReturnCode,
         error: uart::Error,
     ) {
-        // hprintln!("Sunt in receive client in virtual_uart!").unwrap();
         self.rx_client.map(move |client| {
             self.state.set(UartDeviceReceiveState::Idle);
             client.received_buffer(rx_buffer, rx_len, rcode, error);
@@ -397,7 +394,6 @@ impl<'a> ListNode<'a, UartDevice<'a>> for UartDevice<'a> {
 
 impl<'a> uart::Transmit<'a> for UartDevice<'a> {
     fn set_transmit_client(&self, client: &'a dyn uart::TransmitClient) {
-        // hprintln!("set_transmit_client!").unwrap();
         self.tx_client.set(client);
     }
 
@@ -436,7 +432,6 @@ impl<'a> uart::Transmit<'a> for UartDevice<'a> {
 
 impl<'a> uart::Receive<'a> for UartDevice<'a> {
     fn set_receive_client(&self, client: &'a dyn uart::ReceiveClient) {
-        // hprintln!("set_receive_client!").unwrap();
         self.rx_client.set(client);
     }
 
@@ -446,7 +441,6 @@ impl<'a> uart::Receive<'a> for UartDevice<'a> {
         rx_buffer: &'static mut [u8],
         rx_len: usize,
     ) -> (ReturnCode, Option<&'static mut [u8]>) {
-        // hprintln!("Sunt in receive buffer in virtual_uart!").unwrap();
         if self.rx_buffer.is_some() {
             (ReturnCode::EBUSY, Some(rx_buffer))
         } else if rx_len > rx_buffer.len() {
@@ -465,14 +459,12 @@ impl<'a> uart::Receive<'a> for UartDevice<'a> {
     // This virtualized device will abort its read: other devices
     // devices will continue with their reads.
     fn receive_abort(&self) -> ReturnCode {
-        // hprintln!("Sunt in receive abort in virtual_uart!").unwrap();
         self.state.set(UartDeviceReceiveState::Aborting);
         self.mux.uart.receive_abort();
         ReturnCode::EBUSY
     }
 
     fn receive_word(&self) -> ReturnCode {
-        // hprintln!("Sunt in receive word in virtual_uart!").unwrap();
         ReturnCode::FAIL
     }
 }

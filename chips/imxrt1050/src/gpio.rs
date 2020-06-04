@@ -418,14 +418,32 @@ const GPIO4_BASE: StaticRef<GpioRegisters> =
 const GPIO5_BASE: StaticRef<GpioRegisters> =
     unsafe { StaticRef::new(0x400C0000 as *const GpioRegisters) };
 
+/// Imxrt1050-evkb has 5 GPIO ports labeled from 1-5 [^1]. This is represented
+/// by three bits.
+///
+/// [^1]: 12.5.1 GPIO memory map, page 1009 of the Reference Manual.
+enum_from_primitive! {
+    #[repr(u8)]
+    #[derive(PartialEq)]
+    pub enum GpioPort {
+        GPIO1 = 0b000,
+        GPIO2 = 0b001,
+        GPIO3 = 0b010,
+        GPIO4 = 0b011,
+        GPIO5 = 0b100,
+    }
+}
+
 // Name of the GPIO pins
 // For imxrt1050, the pins are organised in pads. In order to use the pins
 // efficiently, we use the following codification: 9 bits to identify a pin.
-// - The first 3 bits identify the Pad (Emc, AdB0, AdB1, B0, B1, SdB0, SdB1)
+// - The first 3 bits identify the Pad (Emc, AdB0, AdB1, B0, B1, SdB0, SdB1) [^1]
 // - The last 6 bits identifiy the Pin number (1 for Emc01)
 // In order to identify the GPIO port, we make an association between the Pad and
 // Pin number in order to get the port. For example, Emc00-Emc31 belong to GPIO4,
 // while Emc32-Emc41 belong to GPIO3.
+//
+// [^1]: Naming of the pads: 11.7. IOMUXC memory map, page 380 of the Reference Manual
 #[rustfmt::skip]
 #[repr(u16)]
 #[derive(Copy, Clone)]
@@ -469,18 +487,6 @@ pub enum PinId {
     SdB1_04 = 0b110000100, SdB1_05 = 0b110000101, SdB1_06 = 0b110000110, SdB1_07 = 0b110000111,
     SdB1_08 = 0b110001000, SdB1_09 = 0b110001001, SdB1_10 = 0b110001010, SdB1_11 = 0b110001011,
     SdB1_12 = 0b110001100 
-}
-
-enum_from_primitive! {
-    #[repr(u8)]
-    #[derive(PartialEq)]
-    pub enum GpioPort {
-        GPIO1 = 0b000,
-        GPIO2 = 0b001,
-        GPIO3 = 0b010,
-        GPIO4 = 0b011,
-        GPIO5 = 0b100,
-    }
 }
 
 impl PinId {
@@ -566,6 +572,9 @@ impl PinId {
 /// In order to set alternate functions such as LPI2C or LPUART,
 /// you will need to use iomuxc enable_sw_mux_ctl_pad_gpio with
 /// the specific MUX_MODE according to the reference manual (Chapter 11).
+/// For the gpio mode, input or output we set the GDIR pin accordingly [^1]
+///
+/// [^1]: 12.4.3. GPIO Programming, page 1008 of the Reference Manual
 enum_from_primitive! {
     #[repr(u32)]
     #[derive(PartialEq)]
@@ -648,6 +657,9 @@ macro_rules! declare_gpio_pins {
     }
 }
 
+// We need to use `Option<Pin>`, instead of just `Pin` because AdB0 for
+// example has only sixteen pins - from AdB0_00 to AdB0_15, rather than 
+// the 42 pins needed for Emc.
 pub static mut PIN: [[Option<Pin<'static>>; 42]; 7] = [
     declare_gpio_pins! {
         Emc00 Emc01 Emc02 Emc03 Emc04 Emc05 Emc06 Emc07
@@ -1031,16 +1043,16 @@ impl hil::gpio::Configure for Pin<'a> {
     }
 
     fn deactivate_to_low_power(&self) {
-        // self.set_mode(Mode::AnalogMode);
+        // Not implemented yet
     }
 
     fn disable_output(&self) -> hil::gpio::Configuration {
-        // self.set_mode(Mode::AnalogMode);
+        // Not implemented yet
         hil::gpio::Configuration::LowPower
     }
 
     fn disable_input(&self) -> hil::gpio::Configuration {
-        // self.set_mode(Mode::AnalogMode);
+        // Not implemented yet
         hil::gpio::Configuration::LowPower
     }
 

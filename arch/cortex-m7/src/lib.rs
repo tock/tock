@@ -1,4 +1,4 @@
-//! Shared implementations for ARM Cortex-M4 MCUs.
+//! Shared implementations for ARM Cortex-M7 MCUs.
 
 #![crate_name = "cortexm7"]
 #![crate_type = "rlib"]
@@ -8,7 +8,7 @@
 pub mod mpu;
 
 // Re-export the base generic cortex-m functions here as they are
-// valid on cortex-m4.
+// valid on cortex-m7.
 pub use cortexm::support;
 
 pub use cortexm::nvic;

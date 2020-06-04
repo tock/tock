@@ -223,6 +223,7 @@ pub struct Iomuxc {
 
 pub static mut IOMUXC: Iomuxc = Iomuxc::new();
 
+// Most of the gpio pins are grouped in the following 7 pads:
 #[repr(u32)]
 pub enum PadId {
     EMC = 0b000,
@@ -234,14 +235,22 @@ pub enum PadId {
     SdB1 = 0b110,
 }
 
+// Sion - Software Input On Field [^1], forces input path of pad, or lets
+// the functionality be determined by the MuxMode [^2]
+//
+// [^1]: Sion functioning: 11.3.2 SW Loopback through SION bit, page 307 of the Reference Manual
+// [^2]: Register values explanation: 11.7.1 SW_MUX_CTL_PAD_GPIO_EMC_00, page 401 of the RM
 #[repr(u32)]
 pub enum Sion {
     Enabled = 1,
     Disabled = 0,
 }
 
-// Alternative Modes for Mux Mode Select Field
-// Each mode is specific for the iomux pad.
+// Alternative Modes for Mux Mode Select Field [^1]
+// Each mode is specific for the iomux pad [^2]
+// 
+// [^1]: Mux Modes explained: 11.3 Functional description, page 306 of the RM 
+// [^2]: Register values explanation: 11.7.1 SW_MUX_CTL_PAD_GPIO_EMC_00, page 401 of the RM
 enum_from_primitive! {
     #[repr(u32)]
     pub enum MuxMode {
@@ -256,39 +265,57 @@ enum_from_primitive! {
     }
 }
 
+// Hysteresis toggle [^1]
+//
+// [^1]: 12.4.2.1.1 Schmitt trigger, page 1002 of the RM
 #[repr(u32)]
 pub enum HystEn {
-    Hys0HysteresisDisabled = 0b0,
-    Hys1HysteresisEnabled = 0b1,
+    Hys0HysteresisDisabled = 0b0,   //  Hysteresis Disabled (CMOS input)
+    Hys1HysteresisEnabled = 0b1,    //  Hysteresis Enabled (Schmitt Trigger input)
 }
 
-/// GPIO pin internal pull-up and pull-down
+// GPIO pin internal pull-up and pull-down [^1]
+//
+// [^1]: 12.4.2.2 Output Driver, page 1004 of the RM
 #[repr(u32)]
 pub enum PullUpDown {
-    Pus0_100kOhmPullDown = 0b00,
-    Pus1_47kOhmPullUp = 0b01,
-    Pus2_100kOhmPullUp = 0b10,
-    Pus3_22kOhmPullUp = 0b11,
+    Pus0_100kOhmPullDown = 0b00,    //  100K Ohm Pull Down
+    Pus1_47kOhmPullUp = 0b01,       //  47K Ohm Pull Up
+    Pus2_100kOhmPullUp = 0b10,      //  100K Ohm Pull Up
+    Pus3_22kOhmPullUp = 0b11,       //  22K Ohm Pull Up
 }
 
+// Enable or disable latch to hold the value
+//
+// [^1]: Figure 12-7. Keeper functional diagram, page 1005 of the RM
 #[repr(u32)]
 pub enum PullKeepSel {
-    Pue0Keeper = 0b0,
-    Pue1Pull = 0b1,
+    Pue0Keeper = 0b0,   // Keep the previous output value when the output driver is disabled
+    Pue1Pull = 0b1,     // Pull-up or pull-down (determined by PUS field).
 }
 
+// Enable dependency of the output on the Keeper. [^1]
+//
+// [^1]: 12.4.2.2.3 PU / PD / Keeper Logic, page 1005 of the RM
 #[repr(u32)]
 pub enum PullKeepEn {
-    Pke0PullKeeperDisabled = 0b0,
-    Pke1PullKeeperEnabled = 0b1,
+    Pke0PullKeeperDisabled = 0b0,   // Pull/Keeper Disabled
+    Pke1PullKeeperEnabled = 0b1,    // Pull/Keeper Enabled
 }
 
+// Enable bidirectional communication over the same wire [^1]
+//
+// [^1]: 12.4.2.2.4 Open drain, page 1005 of the RM
 #[repr(u32)]
 pub enum OpenDrainEn {
-    Ode0OpenDrainDisabled = 0b0,
-    Ode1OpenDrainEnabled = 0b1,
+    Ode0OpenDrainDisabled = 0b0,    // Open Drain Disabled (Output is CMOS)
+    Ode1OpenDrainEnabled = 0b1,     // Open Drain Enabled (Output is Open Drain)
 }
 
+// Setting the electrical characteristics of a pin a specific
+// frequency range. [^1]
+//
+// [^1]: Field description: 11.7.125 IOMUXC_SW_PAD_CTL_PAD_GPIO_EMC_00, page 588 of the RM
 #[repr(u32)]
 pub enum Speed {
     Low = 0b00,     // 50MHz
@@ -297,6 +324,10 @@ pub enum Speed {
     Maximum = 0b11, // 150MHz - 200MHz
 }
 
+// Select Drive strength in order to make the impedance matched
+// and get better signal integrity. [^1]
+//
+// [^1]: 12.4.2.2.1 Drive strength, page 1004 of the RM
 #[repr(u32)]
 pub enum DriveStrength {
     DSE0 = 0b000, // HI-Z
@@ -309,10 +340,13 @@ pub enum DriveStrength {
     DSE7 = 0b111, // Dual/Single voltage: 37/37 Ohm @ 1.8V, 34/23 Ohm @ 3.3V
 }
 
+// How fast a pin toggles between two logic states [^1]
+//
+// [^1]: Field description: 11.7.125 IOMUXC_SW_PAD_CTL_PAD_GPIO_EMC_00, page 589 of the RM
 #[repr(u32)]
 pub enum SlewRate {
-    Sre0SlowSlewRate = 0b0,
-    Sre1FastSlewRate = 0b1,
+    Sre0SlowSlewRate = 0b0,     // Slow Slew Rate
+    Sre1FastSlewRate = 0b1,     // Fast Slew Rate
 }
 
 impl Iomuxc {
@@ -348,6 +382,7 @@ impl Iomuxc {
         }
     }
 
+    // Set the functionality mode for a specific pad
     pub fn enable_sw_mux_ctl_pad_gpio(&self, pad: PadId, mode: MuxMode, sion: Sion, pin: usize) {
         match pad {
             PadId::EMC => {
@@ -395,6 +430,7 @@ impl Iomuxc {
         }
     }
 
+    // Clear the functionality mode for a specific pad
     pub fn disable_sw_mux_ctl_pad_gpio(&self, pad: PadId, pin: usize) {
         match pad {
             PadId::EMC => {
@@ -435,6 +471,8 @@ impl Iomuxc {
         }
     }
 
+    // Configure electrical functionalities for a pad, such as pull up or pull down resistance, 
+    // speed frequency, open drain, as explained above.
     pub fn configure_sw_pad_ctl_pad_gpio(
         &self,
         pad: PadId,
