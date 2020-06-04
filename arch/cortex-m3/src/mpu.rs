@@ -1,13 +1,16 @@
 //! Implementation of the memory protection unit for the Cortex-M3 and
 //! Cortex-M4.
 
+use core::cell::Cell;
 use core::cmp;
 use core::fmt;
 use kernel;
+use kernel::common::cells::OptionalCell;
 use kernel::common::math;
 use kernel::common::registers::{register_bitfields, FieldValue, ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
 use kernel::mpu;
+use kernel::AppId;
 
 /// MPU Registers for the Cortex-M3 and Cortex-M4 families
 /// Described in section 4.5 of
@@ -120,19 +123,39 @@ register_bitfields![u32,
 const MPU_BASE_ADDRESS: StaticRef<MpuRegisters> =
     unsafe { StaticRef::new(0xE000ED90 as *const MpuRegisters) };
 
-/// Constructor field is private to limit who can create a new MPU
-pub struct MPU(StaticRef<MpuRegisters>);
+/// State related to the real physical MPU.
+///
+/// There should only be one instantiation of this object as it represents
+/// real hardware.
+pub struct MPU {
+    /// MMIO reference to MPU registers.
+    registers: StaticRef<MpuRegisters>,
+    /// Optimization logic. This is used to indicate which application the MPU
+    /// is currently configured for so that the MPU can skip updating when the
+    /// kernel returns to the same app.
+    hardware_is_configured_for: OptionalCell<AppId>,
+}
 
 impl MPU {
     pub const unsafe fn new() -> MPU {
-        MPU(MPU_BASE_ADDRESS)
+        MPU {
+            registers: MPU_BASE_ADDRESS,
+            hardware_is_configured_for: OptionalCell::empty(),
+        }
     }
 }
 
-/// Struct storing region configuration for the Cortex-M MPU.
-#[derive(Copy, Clone)]
+/// Per-process struct storing MPU configuration for cortex-m MPUs.
+///
+/// The cortex-m MPU has eight regions, all of which must be configured (though
+/// unused regions may be configured as disabled). This struct caches the result
+/// of region configuration calculation
 pub struct CortexMConfig {
+    /// The computed region configuration for this process.
     regions: [CortexMRegion; 8],
+    /// Has the configuration changed since the last time the this process
+    /// configuration was written to hardware?
+    is_dirty: Cell<bool>,
 }
 
 const APP_MEMORY_REGION_NUM: usize = 0;
@@ -150,6 +173,7 @@ impl Default for CortexMConfig {
                 CortexMRegion::empty(6),
                 CortexMRegion::empty(7),
             ],
+            is_dirty: Cell::new(true),
         }
     }
 }
@@ -340,7 +364,7 @@ impl kernel::mpu::MPU for MPU {
     type MpuConfig = CortexMConfig;
 
     fn enable_mpu(&self) {
-        let regs = &*self.0;
+        let regs = &*self.registers;
 
         // Enable the MPU, disable it during HardFault/NMI handlers, and allow
         // privileged code access to all unprotected memory.
@@ -349,12 +373,12 @@ impl kernel::mpu::MPU for MPU {
     }
 
     fn disable_mpu(&self) {
-        let regs = &*self.0;
+        let regs = &*self.registers;
         regs.ctrl.write(Control::ENABLE::CLEAR);
     }
 
     fn number_total_regions(&self) -> usize {
-        let regs = &*self.0;
+        let regs = &*self.registers;
         regs.mpu_type.read(Type::DREGION) as usize
     }
 
@@ -480,6 +504,7 @@ impl kernel::mpu::MPU for MPU {
         );
 
         config.regions[region_num] = region;
+        config.is_dirty.set(true);
 
         Some(mpu::Region::new(start as *const u8, size))
     }
@@ -586,6 +611,7 @@ impl kernel::mpu::MPU for MPU {
         );
 
         config.regions[APP_MEMORY_REGION_NUM] = region;
+        config.is_dirty.set(true);
 
         Some((region_start as *const u8, region_size))
     }
@@ -645,17 +671,24 @@ impl kernel::mpu::MPU for MPU {
         );
 
         config.regions[APP_MEMORY_REGION_NUM] = region;
+        config.is_dirty.set(true);
 
         Ok(())
     }
 
-    fn configure_mpu(&self, config: &Self::MpuConfig) {
-        let regs = &*self.0;
+    fn configure_mpu(&self, config: &Self::MpuConfig, app_id: &AppId) {
+        // If the hardware is already configured for this app and the app's MPU
+        // configuration has not changed, then skip the hardware update.
+        if !self.hardware_is_configured_for.contains(app_id) || config.is_dirty.get() {
+            let regs = &*self.registers;
 
-        // Set MPU regions
-        for region in config.regions.iter() {
-            regs.rbar.write(region.base_address());
-            regs.rasr.write(region.attributes());
+            // Set MPU regions
+            for region in config.regions.iter() {
+                regs.rbar.write(region.base_address());
+                regs.rasr.write(region.attributes());
+            }
+            self.hardware_is_configured_for.set(*app_id);
+            config.is_dirty.set(false);
         }
     }
 }
