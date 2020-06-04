@@ -1558,8 +1558,7 @@ impl<'a> hil::usb::UsbController<'a> for Usbc<'a> {
         requests.resume_in = true;
         self.requests[endpoint].set(requests);
 
-        // TODO: Not sure why this needs to be manually called. Not sure why
-        // it wasn't before.
+        // Immediately handle the request to resume the endpoint.
         self.handle_requests();
     }
 
@@ -1568,8 +1567,7 @@ impl<'a> hil::usb::UsbController<'a> for Usbc<'a> {
         requests.resume_out = true;
         self.requests[endpoint].set(requests);
 
-        // TODO: Not sure why this needs to be manually called. Not sure why
-        // it wasn't before.
+        // Immediately handle the request to resume the endpoint.
         self.handle_requests();
     }
 }
