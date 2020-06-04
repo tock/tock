@@ -44,7 +44,7 @@ Prerequirements: You will need to have the MCU Expresso and the SDK for the IMXR
 
 First step: Import a Hello World example project from the SDK and build the project. This way you will have the following file hierarchy in the Project Explorer Tab:
 
-![image info](./pictures/poject-explorer.png)
+![image info](./pictures/project-explorer.png)
 
 Second step: Copy the app image from target/thumbv7em-none-eabi/debug/imxrt1050-evkb-app.axf to the Debug folder in MCU Expresso (via drag and drop):
 
