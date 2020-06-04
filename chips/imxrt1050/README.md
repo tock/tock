@@ -1,15 +1,9 @@
-For STM32F4 series micro controllers
+For Imxrt1050 series 
 
 
 ## Links
-### ST STM32F446RE
+### IMXRT 1050 EVKB
 
-* [General information](https://www.st.com/en/microcontrollers/stm32f446re.html)
-* [Datasheet](https://www.st.com/resource/en/datasheet/stm32f446re.pdf)
-* [Reference Manual](https://www.st.com/resource/en/reference_manual/dm00135183.pdf)
-
-### ST STM32F429ZI
-
-* [General information](https://www.st.com/en/microcontrollers/stm32f429zi.html)
-* [Datasheet](https://www.st.com/resource/en/datasheet/stm32f429zi.pdf)
-* [Reference Manual](https://www.st.com/resource/en/reference_manual/dm00031020.pdf)
+* [General information](https://www.nxp.com/products/processors-and-microcontrollers/arm-microcontrollers/i-mx-rt-crossover-mcus/i-mx-rt1050-crossover-mcu-with-arm-cortex-m7-core:i.MX-RT1050)
+* [Datasheet](https://www.nxp.com/docs/en/data-sheet/IMXRT1050CEC.pdf)
+* [Reference Manual](https://www.nxp.com/webapp/Download?colCode=IMXRT1050RM)
