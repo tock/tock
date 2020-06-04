@@ -4,6 +4,7 @@ use core::fmt::Write;
 use cortexm4;
 use kernel::Chip;
 
+use crate::ble;
 use crate::gpio;
 use crate::iom;
 use crate::nvic;
@@ -46,6 +47,7 @@ impl Chip for Apollo3 {
                         nvic::IOMSTR3 => iom::IOM3.handle_interrupt(),
                         nvic::IOMSTR4 => iom::IOM4.handle_interrupt(),
                         nvic::IOMSTR5 => iom::IOM5.handle_interrupt(),
+                        nvic::BLE => ble::BLE.handle_interrupt(),
                         _ => {
                             panic!("unhandled interrupt {}", interrupt);
                         }
