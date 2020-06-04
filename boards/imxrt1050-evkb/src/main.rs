@@ -13,8 +13,8 @@ use kernel::capabilities;
 use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::component::Component;
 use kernel::debug;
-use kernel::hil::time::Alarm;
 use kernel::hil::gpio::Configure;
+use kernel::hil::time::Alarm;
 use kernel::Platform;
 use kernel::{create_capability, static_init};
 
@@ -119,7 +119,7 @@ unsafe fn set_pin_primary_functions() {
     // on Field, so that the Input Path is determined by functionality.
     imxrt1050::iomuxc::IOMUXC.enable_sw_mux_ctl_pad_gpio(
         PadId::AdB0,
-        MuxMode::ALT5,      // ALT5 for AdB0_09: GPIO1_IO09 of instance: gpio1
+        MuxMode::ALT5, // ALT5 for AdB0_09: GPIO1_IO09 of instance: gpio1
         Sion::Disabled,
         9,
     );
@@ -133,7 +133,7 @@ unsafe fn set_pin_primary_functions() {
         PullKeepEn::Pke1PullKeeperEnabled,  // Pull-down resistor or keep the previous value
         OpenDrainEn::Ode0OpenDrainDisabled, // Output is CMOS, either 0 logic or 1 logic
         Speed::Medium2,                     // Operating frequency: 100MHz - 150MHz
-        DriveStrength::DSE6,                // Dual/Single voltage: 43/43 Ohm @ 1.8V, 40/26 Ohm @ 3.3V
+        DriveStrength::DSE6, // Dual/Single voltage: 43/43 Ohm @ 1.8V, 40/26 Ohm @ 3.3V
     );
 
     // Configuring the GPIO_AD_B0_09 as output
@@ -202,13 +202,13 @@ pub unsafe fn reset_handler() {
     // on Field, so that the Input Path is determined by functionality.
     imxrt1050::iomuxc::IOMUXC.enable_sw_mux_ctl_pad_gpio(
         PadId::AdB0,
-        MuxMode::ALT2,      // ALT2: LPUART1_TXD of instance: lpuart1
+        MuxMode::ALT2, // ALT2: LPUART1_TXD of instance: lpuart1
         Sion::Disabled,
         13,
     );
     imxrt1050::iomuxc::IOMUXC.enable_sw_mux_ctl_pad_gpio(
         PadId::AdB0,
-        MuxMode::ALT2,      // ALT2: LPUART1_RXD of instance: lpuart1
+        MuxMode::ALT2, // ALT2: LPUART1_RXD of instance: lpuart1
         Sion::Disabled,
         14,
     );
@@ -222,7 +222,7 @@ pub unsafe fn reset_handler() {
         PullKeepEn::Pke1PullKeeperEnabled,  // Pull-down resistor or keep the previous value
         OpenDrainEn::Ode0OpenDrainDisabled, // Output is CMOS, either 0 logic or 1 logic
         Speed::Medium2,                     // Operating frequency: 100MHz - 150MHz
-        DriveStrength::DSE6,                // Dual/Single voltage: 43/43 Ohm @ 1.8V, 40/26 Ohm @ 3.3V  
+        DriveStrength::DSE6, // Dual/Single voltage: 43/43 Ohm @ 1.8V, 40/26 Ohm @ 3.3V
     );
     imxrt1050::iomuxc::IOMUXC.configure_sw_pad_ctl_pad_gpio(
         PadId::AdB0,
@@ -231,7 +231,7 @@ pub unsafe fn reset_handler() {
         PullKeepEn::Pke1PullKeeperEnabled,  // Pull-down resistor or keep the previous value
         OpenDrainEn::Ode0OpenDrainDisabled, // Output is CMOS, either 0 logic or 1 logic
         Speed::Medium2,                     // Operating frequency: 100MHz - 150MHz
-        DriveStrength::DSE6,                // Dual/Single voltage: 43/43 Ohm @ 1.8V, 40/26 Ohm @ 3.3V
+        DriveStrength::DSE6, // Dual/Single voltage: 43/43 Ohm @ 1.8V, 40/26 Ohm @ 3.3V
     );
 
     // Enable clock
@@ -299,7 +299,7 @@ pub unsafe fn reset_handler() {
             imxrt1050::gpio::Pin<'static>,
             // The User Led
             0 => imxrt1050::gpio::PinId::AdB0_09.get_pin().as_ref().unwrap()
-        )
+        ),
     )
     .finalize(components::gpio_component_buf!(
         imxrt1050::gpio::Pin<'static>
@@ -314,7 +314,7 @@ pub unsafe fn reset_handler() {
     // on Field, so that we force input path of the pad.
     imxrt1050::iomuxc::IOMUXC.enable_sw_mux_ctl_pad_gpio(
         PadId::AdB1,
-        MuxMode::ALT3,      // ALT3:  LPI2C1_SCL of instance: lpi2c1
+        MuxMode::ALT3, // ALT3:  LPI2C1_SCL of instance: lpi2c1
         Sion::Enabled,
         0,
     );
@@ -323,7 +323,7 @@ pub unsafe fn reset_handler() {
 
     imxrt1050::iomuxc::IOMUXC.enable_sw_mux_ctl_pad_gpio(
         PadId::AdB1,
-        MuxMode::ALT3,      // ALT3:  LPI2C1_SDA of instance: lpi2c1
+        MuxMode::ALT3, // ALT3:  LPI2C1_SDA of instance: lpi2c1
         Sion::Enabled,
         1,
     );
@@ -335,24 +335,24 @@ pub unsafe fn reset_handler() {
     imxrt1050::iomuxc::IOMUXC.configure_sw_pad_ctl_pad_gpio(
         PadId::AdB1,
         0,
-        PullUpDown::Pus3_22kOhmPullUp,      // 22K Ohm Pull Up
-        PullKeepEn::Pke1PullKeeperEnabled,  // Pull-down resistor or keep the previous value
-        OpenDrainEn::Ode1OpenDrainEnabled,  // Open Drain Enabled (Output is Open Drain)
-        Speed::Medium2,                     // Operating frequency: 100MHz - 150MHz
-        DriveStrength::DSE6,                // Dual/Single voltage: 43/43 Ohm @ 1.8V, 40/26 Ohm @ 3.3V
+        PullUpDown::Pus3_22kOhmPullUp,     // 22K Ohm Pull Up
+        PullKeepEn::Pke1PullKeeperEnabled, // Pull-down resistor or keep the previous value
+        OpenDrainEn::Ode1OpenDrainEnabled, // Open Drain Enabled (Output is Open Drain)
+        Speed::Medium2,                    // Operating frequency: 100MHz - 150MHz
+        DriveStrength::DSE6, // Dual/Single voltage: 43/43 Ohm @ 1.8V, 40/26 Ohm @ 3.3V
     );
 
     imxrt1050::iomuxc::IOMUXC.configure_sw_pad_ctl_pad_gpio(
         PadId::AdB1,
         1,
-        PullUpDown::Pus3_22kOhmPullUp,      // 22K Ohm Pull Up
-        PullKeepEn::Pke1PullKeeperEnabled,  // Pull-down resistor or keep the previous value
-        OpenDrainEn::Ode1OpenDrainEnabled,  // Open Drain Enabled (Output is Open Drain)
-        Speed::Medium2,                     // Operating frequency: 100MHz - 150MHz
-        DriveStrength::DSE6,                // Dual/Single voltage: 43/43 Ohm @ 1.8V, 40/26 Ohm @ 3.3V
+        PullUpDown::Pus3_22kOhmPullUp,     // 22K Ohm Pull Up
+        PullKeepEn::Pke1PullKeeperEnabled, // Pull-down resistor or keep the previous value
+        OpenDrainEn::Ode1OpenDrainEnabled, // Open Drain Enabled (Output is Open Drain)
+        Speed::Medium2,                    // Operating frequency: 100MHz - 150MHz
+        DriveStrength::DSE6, // Dual/Single voltage: 43/43 Ohm @ 1.8V, 40/26 Ohm @ 3.3V
     );
 
-    // Enabling the lpi2c1 clock and setting the speed. 
+    // Enabling the lpi2c1 clock and setting the speed.
     imxrt1050::lpi2c::LPI2C1.enable_clock();
     imxrt1050::lpi2c::LPI2C1.set_speed(imxrt1050::lpi2c::Lpi2cSpeed::Speed100k, 8);
 

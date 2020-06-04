@@ -658,7 +658,7 @@ macro_rules! declare_gpio_pins {
 }
 
 // We need to use `Option<Pin>`, instead of just `Pin` because AdB0 for
-// example has only sixteen pins - from AdB0_00 to AdB0_15, rather than 
+// example has only sixteen pins - from AdB0_00 to AdB0_15, rather than
 // the 42 pins needed for Emc.
 pub static mut PIN: [[Option<Pin<'static>>; 42]; 7] = [
     declare_gpio_pins! {

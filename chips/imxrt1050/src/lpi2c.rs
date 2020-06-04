@@ -605,7 +605,7 @@ impl Lpi2c<'a> {
                 }
                 Lpi2cStatus::Reading => {
                     // if there are more bytes to be read, read next byte
-                    if self.rx_position.get() == self.rx_len.get() {                    
+                    if self.rx_position.get() == self.rx_len.get() {
                         self.registers.mcfgr1.modify(MCFGR1::AUTOSTOP::SET);
                         self.stop();
                         self.master_client.map(|client| {

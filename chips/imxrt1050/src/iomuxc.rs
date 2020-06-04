@@ -248,8 +248,8 @@ pub enum Sion {
 
 // Alternative Modes for Mux Mode Select Field [^1]
 // Each mode is specific for the iomux pad [^2]
-// 
-// [^1]: Mux Modes explained: 11.3 Functional description, page 306 of the RM 
+//
+// [^1]: Mux Modes explained: 11.3 Functional description, page 306 of the RM
 // [^2]: Register values explanation: 11.7.1 SW_MUX_CTL_PAD_GPIO_EMC_00, page 401 of the RM
 enum_from_primitive! {
     #[repr(u32)]
@@ -270,8 +270,8 @@ enum_from_primitive! {
 // [^1]: 12.4.2.1.1 Schmitt trigger, page 1002 of the RM
 #[repr(u32)]
 pub enum HystEn {
-    Hys0HysteresisDisabled = 0b0,   //  Hysteresis Disabled (CMOS input)
-    Hys1HysteresisEnabled = 0b1,    //  Hysteresis Enabled (Schmitt Trigger input)
+    Hys0HysteresisDisabled = 0b0, //  Hysteresis Disabled (CMOS input)
+    Hys1HysteresisEnabled = 0b1,  //  Hysteresis Enabled (Schmitt Trigger input)
 }
 
 // GPIO pin internal pull-up and pull-down [^1]
@@ -279,10 +279,10 @@ pub enum HystEn {
 // [^1]: 12.4.2.2 Output Driver, page 1004 of the RM
 #[repr(u32)]
 pub enum PullUpDown {
-    Pus0_100kOhmPullDown = 0b00,    //  100K Ohm Pull Down
-    Pus1_47kOhmPullUp = 0b01,       //  47K Ohm Pull Up
-    Pus2_100kOhmPullUp = 0b10,      //  100K Ohm Pull Up
-    Pus3_22kOhmPullUp = 0b11,       //  22K Ohm Pull Up
+    Pus0_100kOhmPullDown = 0b00, //  100K Ohm Pull Down
+    Pus1_47kOhmPullUp = 0b01,    //  47K Ohm Pull Up
+    Pus2_100kOhmPullUp = 0b10,   //  100K Ohm Pull Up
+    Pus3_22kOhmPullUp = 0b11,    //  22K Ohm Pull Up
 }
 
 // Enable or disable latch to hold the value
@@ -290,8 +290,8 @@ pub enum PullUpDown {
 // [^1]: Figure 12-7. Keeper functional diagram, page 1005 of the RM
 #[repr(u32)]
 pub enum PullKeepSel {
-    Pue0Keeper = 0b0,   // Keep the previous output value when the output driver is disabled
-    Pue1Pull = 0b1,     // Pull-up or pull-down (determined by PUS field).
+    Pue0Keeper = 0b0, // Keep the previous output value when the output driver is disabled
+    Pue1Pull = 0b1,   // Pull-up or pull-down (determined by PUS field).
 }
 
 // Enable dependency of the output on the Keeper. [^1]
@@ -299,8 +299,8 @@ pub enum PullKeepSel {
 // [^1]: 12.4.2.2.3 PU / PD / Keeper Logic, page 1005 of the RM
 #[repr(u32)]
 pub enum PullKeepEn {
-    Pke0PullKeeperDisabled = 0b0,   // Pull/Keeper Disabled
-    Pke1PullKeeperEnabled = 0b1,    // Pull/Keeper Enabled
+    Pke0PullKeeperDisabled = 0b0, // Pull/Keeper Disabled
+    Pke1PullKeeperEnabled = 0b1,  // Pull/Keeper Enabled
 }
 
 // Enable bidirectional communication over the same wire [^1]
@@ -308,8 +308,8 @@ pub enum PullKeepEn {
 // [^1]: 12.4.2.2.4 Open drain, page 1005 of the RM
 #[repr(u32)]
 pub enum OpenDrainEn {
-    Ode0OpenDrainDisabled = 0b0,    // Open Drain Disabled (Output is CMOS)
-    Ode1OpenDrainEnabled = 0b1,     // Open Drain Enabled (Output is Open Drain)
+    Ode0OpenDrainDisabled = 0b0, // Open Drain Disabled (Output is CMOS)
+    Ode1OpenDrainEnabled = 0b1,  // Open Drain Enabled (Output is Open Drain)
 }
 
 // Setting the electrical characteristics of a pin a specific
@@ -345,8 +345,8 @@ pub enum DriveStrength {
 // [^1]: Field description: 11.7.125 IOMUXC_SW_PAD_CTL_PAD_GPIO_EMC_00, page 589 of the RM
 #[repr(u32)]
 pub enum SlewRate {
-    Sre0SlowSlewRate = 0b0,     // Slow Slew Rate
-    Sre1FastSlewRate = 0b1,     // Fast Slew Rate
+    Sre0SlowSlewRate = 0b0, // Slow Slew Rate
+    Sre1FastSlewRate = 0b1, // Fast Slew Rate
 }
 
 impl Iomuxc {
@@ -471,7 +471,7 @@ impl Iomuxc {
         }
     }
 
-    // Configure electrical functionalities for a pad, such as pull up or pull down resistance, 
+    // Configure electrical functionalities for a pad, such as pull up or pull down resistance,
     // speed frequency, open drain, as explained above.
     pub fn configure_sw_pad_ctl_pad_gpio(
         &self,

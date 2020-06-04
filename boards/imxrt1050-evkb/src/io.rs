@@ -57,7 +57,6 @@ impl IoWrite for Writer {
     }
 }
 
-
 /// Panic handler.
 #[no_mangle]
 #[panic_handler]
