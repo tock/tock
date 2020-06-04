@@ -6,10 +6,10 @@ use kernel::common::deferred_call;
 use kernel::Chip;
 
 use crate::deferred_call_tasks::Task;
-use crate::nvic;
 use crate::gpt1;
-use crate::lpuart;
 use crate::lpi2c;
+use crate::lpuart;
+use crate::nvic;
 
 pub struct Imxrt1050 {
     mpu: cortexm7::mpu::MPU,

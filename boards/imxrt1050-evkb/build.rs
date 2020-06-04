@@ -9,7 +9,7 @@ fn main() {
     // println!("AIIIIIICICICIICICIICCIICIICICIICICICICIICICIIICICI");
     // println!("AIIIIIICICICIICICIICCIICIICICIICICICICIICICIIICICI");
     // println!("AIIIIIICICICIICICIICCIICIICICIICICICICIICICIIICICI");
-    
+
     // assemble the `asm.s` file
     Build::new().file("hdr.s").compile("asm"); // <- NEW!
 

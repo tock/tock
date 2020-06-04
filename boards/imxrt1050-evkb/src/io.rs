@@ -1,7 +1,6 @@
 use core::fmt::Write;
 use core::panic::PanicInfo;
 
-
 use kernel::debug;
 use kernel::debug::IoWrite;
 // use kernel::hil::led;
@@ -68,14 +67,14 @@ pub unsafe extern "C" fn panic_fmt(info: &PanicInfo) -> ! {
     //     let led = &mut led::LedHigh::new(pb7);
     //     let writer = &mut WRITER;
 
-        // debug::panic(
-        //     &mut [led],
-        //     writer,
-        //     info,
-        //     &cortexm4::support::nop,
-        //     &PROCESSES,
-        //     &CHIP,
-        // )
+    // debug::panic(
+    //     &mut [led],
+    //     writer,
+    //     info,
+    //     &cortexm4::support::nop,
+    //     &PROCESSES,
+    //     &CHIP,
+    // )
     // });
     debug!("Panic! {:?}", info);
 

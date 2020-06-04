@@ -1,9 +1,8 @@
 use core::cell::Cell;
 
 use kernel::common::cells::{OptionalCell, TakeCell};
-use kernel::common::registers::{register_bitfields, ReadWrite, ReadOnly, WriteOnly};
+use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
-use kernel::debug;
 
 use kernel::hil;
 use kernel::hil::i2c::{self, Error, I2CHwMasterClient, I2CMaster};
@@ -20,74 +19,74 @@ pub enum Lpi2cSpeed {
 /// Inter-integrated Circuit
 #[repr(C)]
 struct Lpi2cRegisters {
-	// Version ID Register
-	verid: ReadOnly<u32, VERID::Register>,
-	// Parameter Register
-	param: ReadOnly<u32, PARAM::Register>,
-	_reserved1: [u8; 8],
-	// Master Control Register
-	mcr: ReadWrite<u32, MCR::Register>,
-	// Master Status Register
-	msr: ReadWrite<u32, MSR::Register>,
-	// Master Interrupt Enable Register
-	mier: ReadWrite<u32, MIER::Register>,
-	// Master DMA Enable Register
-	mder: ReadWrite<u32, MDER::Register>,
-	// Master Configuration Register 0
-	mcfgr0: ReadWrite<u32, MCFGR0::Register>,
-	// Master Configuration Register 1
-	mcfgr1: ReadWrite<u32, MCFGR1::Register>,
-	// Master Configuration Register 2
-	mcfgr2: ReadWrite<u32, MCFGR2::Register>,
-	// Master Configuration Register 3
-	mcfgr3: ReadWrite<u32, MCFGR3::Register>,
-	_reserved2: [u8; 16],
-	// Master Data Match Register
-	mdmr: ReadWrite<u32, MDMR::Register>,
-	_reserved3: [u8; 4],
-	// Master Configuration Register 0
-	mccr0: ReadWrite<u32, MCCR0::Register>,
-	_reserved4: [u8; 4],
-	// Master Configuration Register 1
-	mccr1: ReadWrite<u32, MCCR1::Register>,
-	_reserved5: [u8; 4],
-	// Master FIFO Control Register
-	mfcr: ReadWrite<u32, MFCR::Register>,
-	// Master FIFO Status Register
-	mfsr: ReadOnly<u32, MFSR::Register>,
-	// Master Transmit Data Register
-	mtdr: WriteOnly<u32, MTDR::Register>,
-	_reserved6: [u8; 12],
-	// Master Receive Data Register
-	mrdr: ReadOnly<u32, MRDR::Register>,
-	_reserved7: [u8; 156],
-	// Slave Control Register
-	scr: ReadWrite<u32, SCR::Register>,
-	// Slave Status Register
-	ssr: ReadWrite<u32, SSR::Register>,
-	// Slave Interrupt Enable Register
-	sier: ReadWrite<u32, SIER::Register>,
-	// Slave DMA Enable Register
-	sder: ReadWrite<u32, SDER::Register>,
-	_reserved8: [u8; 4],
-	// Slave Configuration Register 1
-	scfgr1: ReadWrite<u32, SCFGR1::Register>,
-	// Slave Configuration Register 2
-	scfgr2: ReadWrite<u32, SCFGR2::Register>,
-	_reserved9: [u8; 20],
-	// Slave Address Match Register
-	samr: ReadWrite<u32, SAMR::Register>,
-	_reserved10: [u8; 12],
-	// Slave Status Match Register
-	sasr: ReadOnly<u32, SAMR::Register>,
-	// Slave Transmit ACK Register
-	star: ReadWrite<u32, STAR::Register>,
-	_reserved11: [u8; 8],
-	// Slave Transmit Data Register
-	stdr: WriteOnly<u32, STDR::Register>,
-	_reserved12: [u8; 12],
-	// Slave Receive Data Register
-	srdr: ReadOnly<u32, SRDR::Register>,
+    // Version ID Register
+    verid: ReadOnly<u32, VERID::Register>,
+    // Parameter Register
+    param: ReadOnly<u32, PARAM::Register>,
+    _reserved1: [u8; 8],
+    // Master Control Register
+    mcr: ReadWrite<u32, MCR::Register>,
+    // Master Status Register
+    msr: ReadWrite<u32, MSR::Register>,
+    // Master Interrupt Enable Register
+    mier: ReadWrite<u32, MIER::Register>,
+    // Master DMA Enable Register
+    mder: ReadWrite<u32, MDER::Register>,
+    // Master Configuration Register 0
+    mcfgr0: ReadWrite<u32, MCFGR0::Register>,
+    // Master Configuration Register 1
+    mcfgr1: ReadWrite<u32, MCFGR1::Register>,
+    // Master Configuration Register 2
+    mcfgr2: ReadWrite<u32, MCFGR2::Register>,
+    // Master Configuration Register 3
+    mcfgr3: ReadWrite<u32, MCFGR3::Register>,
+    _reserved2: [u8; 16],
+    // Master Data Match Register
+    mdmr: ReadWrite<u32, MDMR::Register>,
+    _reserved3: [u8; 4],
+    // Master Configuration Register 0
+    mccr0: ReadWrite<u32, MCCR0::Register>,
+    _reserved4: [u8; 4],
+    // Master Configuration Register 1
+    mccr1: ReadWrite<u32, MCCR1::Register>,
+    _reserved5: [u8; 4],
+    // Master FIFO Control Register
+    mfcr: ReadWrite<u32, MFCR::Register>,
+    // Master FIFO Status Register
+    mfsr: ReadOnly<u32, MFSR::Register>,
+    // Master Transmit Data Register
+    mtdr: WriteOnly<u32, MTDR::Register>,
+    _reserved6: [u8; 12],
+    // Master Receive Data Register
+    mrdr: ReadOnly<u32, MRDR::Register>,
+    _reserved7: [u8; 156],
+    // Slave Control Register
+    scr: ReadWrite<u32, SCR::Register>,
+    // Slave Status Register
+    ssr: ReadWrite<u32, SSR::Register>,
+    // Slave Interrupt Enable Register
+    sier: ReadWrite<u32, SIER::Register>,
+    // Slave DMA Enable Register
+    sder: ReadWrite<u32, SDER::Register>,
+    _reserved8: [u8; 4],
+    // Slave Configuration Register 1
+    scfgr1: ReadWrite<u32, SCFGR1::Register>,
+    // Slave Configuration Register 2
+    scfgr2: ReadWrite<u32, SCFGR2::Register>,
+    _reserved9: [u8; 20],
+    // Slave Address Match Register
+    samr: ReadWrite<u32, SAMR::Register>,
+    _reserved10: [u8; 12],
+    // Slave Status Match Register
+    sasr: ReadOnly<u32, SAMR::Register>,
+    // Slave Transmit ACK Register
+    star: ReadWrite<u32, STAR::Register>,
+    _reserved11: [u8; 8],
+    // Slave Transmit Data Register
+    stdr: WriteOnly<u32, STDR::Register>,
+    _reserved12: [u8; 12],
+    // Slave Receive Data Register
+    srdr: ReadOnly<u32, SRDR::Register>,
 }
 
 register_bitfields![u32,
@@ -100,7 +99,7 @@ register_bitfields![u32,
         FEATURE OFFSET(0) NUMBITS(16) []
     ],
 
-	PARAM [
+    PARAM [
         /// Receive FIFO Size
         MRXFIFO OFFSET(8) NUMBITS(4) [],
         /// Transmit FIFO Size
@@ -123,7 +122,7 @@ register_bitfields![u32,
     ],
 
     MSR [
-    	/// Bus Busy Flag
+        /// Bus Busy Flag
         BBF OFFSET(25) NUMBITS(1) [],
         /// Master Busy Flag
         MBF OFFSET(24) NUMBITS(1) [],
@@ -148,9 +147,9 @@ register_bitfields![u32,
     ],
 
     MIER [
-    	/// Data Match Interrupt Enable
+        /// Data Match Interrupt Enable
         DMIE OFFSET(14) NUMBITS(1) [],
-		/// Pin Low Timeout Interrupt Enable
+        /// Pin Low Timeout Interrupt Enable
         PLTIE OFFSET(13) NUMBITS(1) [],
         /// FIFO Error Interrupt Enable
         FEIE OFFSET(12) NUMBITS(1) [],
@@ -166,116 +165,116 @@ register_bitfields![u32,
         RDIE OFFSET(1) NUMBITS(1) [],
         /// Transmit Data Interrupt Enable
         TDIE OFFSET(0) NUMBITS(1) []
-	],
+    ],
 
-	MDER [
-		/// Receive Data DMA Enable
+    MDER [
+        /// Receive Data DMA Enable
         RDDE OFFSET(1) NUMBITS(1) [],
         /// Transmit Data DMA Enable
         TDDE OFFSET(0) NUMBITS(1) []
-	],
+    ],
 
-	MCFGR0 [
-		/// Receive Data Match Only
-		RDMO OFFSET(9) NUMBITS(1) [],
-		/// Circular FIFO Enable
-		CIRFIFO OFFSET(8) NUMBITS(1) [],
-		/// Host Request Select
-		HRSEL OFFSET(2) NUMBITS(1) [],
-		/// Host Request Polarity
-		HRPOL OFFSET(1) NUMBITS(1) [],
-		/// Host Request Enable
-		HREN OFFSET(0) NUMBITS(1) []
-	],
+    MCFGR0 [
+        /// Receive Data Match Only
+        RDMO OFFSET(9) NUMBITS(1) [],
+        /// Circular FIFO Enable
+        CIRFIFO OFFSET(8) NUMBITS(1) [],
+        /// Host Request Select
+        HRSEL OFFSET(2) NUMBITS(1) [],
+        /// Host Request Polarity
+        HRPOL OFFSET(1) NUMBITS(1) [],
+        /// Host Request Enable
+        HREN OFFSET(0) NUMBITS(1) []
+    ],
 
-	MCFGR1 [
-		/// Pin Configuration
-		PINCFG OFFSET(24) NUMBITS(3) [],
-		/// Match Configuration
-		MATCFG OFFSET(16) NUMBITS(3) [],
-		/// Timeout Configuration
-		TIMECFG OFFSET(10) NUMBITS(1) [],
-		/// IGNACK
-		IGNACK OFFSET(9) NUMBITS(1) [],
-		/// Automatic STOP Generation
-		AUTOSTOP OFFSET(8) NUMBITS(1) [],
-		/// Prescaler
-		PRESCALE OFFSET(0) NUMBITS(3) []
-	],
+    MCFGR1 [
+        /// Pin Configuration
+        PINCFG OFFSET(24) NUMBITS(3) [],
+        /// Match Configuration
+        MATCFG OFFSET(16) NUMBITS(3) [],
+        /// Timeout Configuration
+        TIMECFG OFFSET(10) NUMBITS(1) [],
+        /// IGNACK
+        IGNACK OFFSET(9) NUMBITS(1) [],
+        /// Automatic STOP Generation
+        AUTOSTOP OFFSET(8) NUMBITS(1) [],
+        /// Prescaler
+        PRESCALE OFFSET(0) NUMBITS(3) []
+    ],
 
-	MCFGR2 [
-		/// Glitch Filter SDA
-		FILTSDA OFFSET(24) NUMBITS(4) [],
-		/// Glitch Filter SCL
-		FILTSCL OFFSET(16) NUMBITS(4) [],
-		/// Bus Idle Timeout
-		BUSIDLE OFFSET(0) NUMBITS(12) []
-	],
+    MCFGR2 [
+        /// Glitch Filter SDA
+        FILTSDA OFFSET(24) NUMBITS(4) [],
+        /// Glitch Filter SCL
+        FILTSCL OFFSET(16) NUMBITS(4) [],
+        /// Bus Idle Timeout
+        BUSIDLE OFFSET(0) NUMBITS(12) []
+    ],
 
-	MCFGR3 [
-		/// Pin Low Timeout
-		PINLOW OFFSET(8) NUMBITS(12) []
-	],
+    MCFGR3 [
+        /// Pin Low Timeout
+        PINLOW OFFSET(8) NUMBITS(12) []
+    ],
 
-	MDMR [
-		/// Match 1 Value
-		MATCH1 OFFSET(16) NUMBITS(8) [],
+    MDMR [
+        /// Match 1 Value
+        MATCH1 OFFSET(16) NUMBITS(8) [],
 
-		/// Match 0 Value
-		MATCH0 OFFSET(0) NUMBITS(8) []
-	],
+        /// Match 0 Value
+        MATCH0 OFFSET(0) NUMBITS(8) []
+    ],
 
-	MCCR0 [
-		/// Data Valid Delay
-		DATAVD OFFSET(24) NUMBITS(6) [],
-		/// Setup Hold Delay
-		SETHOLD OFFSET(16) NUMBITS(6) [],
-		/// Clock High Period
-		CLKHI OFFSET(8) NUMBITS(6) [],
-		/// Clock Low Period
-		CLKLO OFFSET(0) NUMBITS(6) []
-	],
+    MCCR0 [
+        /// Data Valid Delay
+        DATAVD OFFSET(24) NUMBITS(6) [],
+        /// Setup Hold Delay
+        SETHOLD OFFSET(16) NUMBITS(6) [],
+        /// Clock High Period
+        CLKHI OFFSET(8) NUMBITS(6) [],
+        /// Clock Low Period
+        CLKLO OFFSET(0) NUMBITS(6) []
+    ],
 
-	MCCR1 [
-		/// Data Valid Delay
-		DATAVD OFFSET(24) NUMBITS(6) [],
-		/// Setup Hold Delay
-		SETHOLD OFFSET(16) NUMBITS(6) [],
-		/// Clock High Period
-		CLKHI OFFSET(8) NUMBITS(6) [],
-		/// Clock Low Period
-		CLKLO OFFSET(0) NUMBITS(6) []
-	],
+    MCCR1 [
+        /// Data Valid Delay
+        DATAVD OFFSET(24) NUMBITS(6) [],
+        /// Setup Hold Delay
+        SETHOLD OFFSET(16) NUMBITS(6) [],
+        /// Clock High Period
+        CLKHI OFFSET(8) NUMBITS(6) [],
+        /// Clock Low Period
+        CLKLO OFFSET(0) NUMBITS(6) []
+    ],
 
-	MFCR [
-		/// Receive FIFO Watermark
-		RXWATER OFFSET(16) NUMBITS(2) [],
-		/// Transmit FIFO Watermark
-		TXWATER OFFSET(0) NUMBITS(2) []
-	],
+    MFCR [
+        /// Receive FIFO Watermark
+        RXWATER OFFSET(16) NUMBITS(2) [],
+        /// Transmit FIFO Watermark
+        TXWATER OFFSET(0) NUMBITS(2) []
+    ],
 
-	MFSR [
-		/// Receive FIFO Count
-		RXCOUNT OFFSET(16) NUMBITS(3) [],
-		/// Transmit FIFO Count
-		TXCOUNT OFFSET(0) NUMBITS(3) []
-	],
+    MFSR [
+        /// Receive FIFO Count
+        RXCOUNT OFFSET(16) NUMBITS(3) [],
+        /// Transmit FIFO Count
+        TXCOUNT OFFSET(0) NUMBITS(3) []
+    ],
 
-	MTDR [
-		/// Command Data
-		CMD OFFSET(8) NUMBITS(3) [],
-		/// Transmit Data
-		DATA OFFSET(0) NUMBITS(8) []
-	],
+    MTDR [
+        /// Command Data
+        CMD OFFSET(8) NUMBITS(3) [],
+        /// Transmit Data
+        DATA OFFSET(0) NUMBITS(8) []
+    ],
 
-	MRDR [
-		/// RX Empty
-		RXEMPTY OFFSET(14) NUMBITS(1) [],
-		/// Receive Data
-		DATA OFFSET(0) NUMBITS(8) []
-	],
+    MRDR [
+        /// RX Empty
+        RXEMPTY OFFSET(14) NUMBITS(1) [],
+        /// Receive Data
+        DATA OFFSET(0) NUMBITS(8) []
+    ],
 
-	SCR [
+    SCR [
         /// Reset Receive FIFO
         RRF OFFSET(9) NUMBITS(1) [],
         /// Reset Transmit FIFO
@@ -291,7 +290,7 @@ register_bitfields![u32,
     ],
 
     SSR [
-    	/// Bus Busy Flag
+        /// Bus Busy Flag
         BBF OFFSET(25) NUMBITS(1) [],
         /// Slave Busy Flag
         SBF OFFSET(24) NUMBITS(1) [],
@@ -322,21 +321,21 @@ register_bitfields![u32,
     ],
 
     SIER [
-    	/// SMBus Alert Response Interrupt Enable
+        /// SMBus Alert Response Interrupt Enable
         SARIE OFFSET(15) NUMBITS(1) [],
         /// General Call Interrupt Enable
         GCIE OFFSET(14) NUMBITS(1) [],
         /// Address Match 1 Interrupt Enable
         AM1F OFFSET(13) NUMBITS(1) [],
-    	/// Address Match 0 Interrupt Enable
+        /// Address Match 0 Interrupt Enable
         AM0IE OFFSET(12) NUMBITS(1) [],
         /// FIFO Error Interrupt Enable
         FEIE OFFSET(11) NUMBITS(1) [],
-    	/// Bit Error Interrupt Enable
+        /// Bit Error Interrupt Enable
         BEIE OFFSET(10) NUMBITS(1) [],
         /// STOP Detect Interrupt Enable
         SDIE OFFSET(9) NUMBITS(1) [],
-		/// Repeated Start Interrupt Enable
+        /// Repeated Start Interrupt Enable
         RSIE OFFSET(8) NUMBITS(1) [],
         /// Transmit ACK Interrupt Enable
         TAIE OFFSET(3) NUMBITS(1) [],
@@ -346,25 +345,25 @@ register_bitfields![u32,
         RDIE OFFSET(1) NUMBITS(1) [],
         /// Transmit Data Interrupt Enable
         TDIE OFFSET(0) NUMBITS(1) []
-	],
+    ],
 
-	SDER [
-		/// Address Valid DMA Enable
-		AVDE OFFSET(2) NUMBITS(1) [],
-		/// Receive Data DMA Enable
+    SDER [
+        /// Address Valid DMA Enable
+        AVDE OFFSET(2) NUMBITS(1) [],
+        /// Receive Data DMA Enable
         RDDE OFFSET(1) NUMBITS(1) [],
         /// Transmit Data DMA Enable
         TDDE OFFSET(0) NUMBITS(1) []
-	],
+    ],
 
-	SCFGR1 [
-		/// Address Configuration
+    SCFGR1 [
+        /// Address Configuration
         ADDRCFG OFFSET(16) NUMBITS(3) [],
-    	/// High Speed Mode Enable
+        /// High Speed Mode Enable
         HSMEN OFFSET(13) NUMBITS(1) [],
         /// Ignore NACK
         IGNACK OFFSET(12) NUMBITS(1) [],
-		/// Receive Data Configuration
+        /// Receive Data Configuration
         RXCFG OFFSET(11) NUMBITS(1) [],
         /// Transmit Flag Configuration
         TXCFG OFFSET(10) NUMBITS(1) [],
@@ -380,51 +379,51 @@ register_bitfields![u32,
         RXSTALL OFFSET(1) NUMBITS(1) [],
         /// Address SCL Stall
         ADRSTALL OFFSET(0) NUMBITS(1) []
-	],
+    ],
 
-	SCFGR2 [
-		/// Glitch Filter SDA
+    SCFGR2 [
+        /// Glitch Filter SDA
         FILTSDA OFFSET(24) NUMBITS(4) [],
-    	/// Glitch Filter SCL
+        /// Glitch Filter SCL
         FILTSCL OFFSET(16) NUMBITS(4) [],
         /// Data Valid Delay
         DATAVD OFFSET(8) NUMBITS(6) [],
-		/// Clock Hold Time
+        /// Clock Hold Time
         CLKHOLD OFFSET(0) NUMBITS(4) []
-	],
+    ],
 
-	SAMR [
-		/// Address 1 Value
+    SAMR [
+        /// Address 1 Value
         ADDR1 OFFSET(17) NUMBITS(10) [],
-    	/// Address 0 Value
+        /// Address 0 Value
         ADDR0 OFFSET(1) NUMBITS(10) []
-	],
+    ],
 
-	SASR [
-		/// Address Not Valid
+    SASR [
+        /// Address Not Valid
         ANV OFFSET(14) NUMBITS(1) [],
-    	/// Received Address
+        /// Received Address
         RADDR OFFSET(0) NUMBITS(11) []
-	],
+    ],
 
-	STAR [
-		/// Transmit NACK
+    STAR [
+        /// Transmit NACK
         TXNACK OFFSET(0) NUMBITS(1) []
-	],
+    ],
 
-	STDR [
-		/// Transmit Data
+    STDR [
+        /// Transmit Data
         TXNACK OFFSET(0) NUMBITS(8) []
-	],
+    ],
 
-	SRDR [
-		/// Start Of Frame
+    SRDR [
+        /// Start Of Frame
         SOF OFFSET(15) NUMBITS(1) [],
-    	/// RX Empty
+        /// RX Empty
         RXEMPTY OFFSET(14) NUMBITS(1) [],
         /// Receive Data
         DATA OFFSET(0) NUMBITS(8) []
-	]
+    ]
 ];
 
 const LPI2C1_BASE: StaticRef<Lpi2cRegisters> =
@@ -496,7 +495,9 @@ impl Lpi2c<'a> {
                 self.registers.mccr0.modify(MCCR0::CLKLO.val(24));
                 self.registers.mccr0.modify(MCCR0::SETHOLD.val(12));
                 self.registers.mccr0.modify(MCCR0::DATAVD.val(6));
-                self.registers.mcfgr1.modify(MCFGR1::PRESCALE.val(prescaler as u32));
+                self.registers
+                    .mcfgr1
+                    .modify(MCFGR1::PRESCALE.val(prescaler as u32));
             }
             Lpi2cSpeed::Speed400k => {
                 let prescaler = 1;
@@ -504,7 +505,9 @@ impl Lpi2c<'a> {
                 self.registers.mccr0.modify(MCCR0::CLKLO.val(24));
                 self.registers.mccr0.modify(MCCR0::SETHOLD.val(12));
                 self.registers.mccr0.modify(MCCR0::DATAVD.val(6));
-                self.registers.mcfgr1.modify(MCFGR1::PRESCALE.val(prescaler as u32));
+                self.registers
+                    .mcfgr1
+                    .modify(MCFGR1::PRESCALE.val(prescaler as u32));
             }
             Lpi2cSpeed::Speed1M => {
                 panic!("i2c speed 1MHz not implemented");
@@ -529,13 +532,11 @@ impl Lpi2c<'a> {
         if self.buffer.is_some() && self.tx_position.get() < self.tx_len.get() {
             self.buffer.map(|buf| {
                 let byte = buf[self.tx_position.get() as usize];
-                // debug!("sending byte {}", byte);
                 self.registers.mtdr.write(MTDR::DATA.val(byte as u32));
                 self.tx_position.set(self.tx_position.get() + 1);
             });
         } else {
-            // TODO disable TXIE
-            debug!("i2c error, attempting to transmit more bytes than available in the buffer");
+            panic!("i2c error, attempting to transmit more bytes than available in the buffer");
         }
     }
 
@@ -543,18 +544,14 @@ impl Lpi2c<'a> {
         let byte = self.registers.mrdr.read(MRDR::DATA) as u8;
         if self.buffer.is_some() && self.rx_position.get() < self.rx_len.get() {
             self.buffer.map(|buf| {
-                // debug!("read byte {}", byte);
                 buf[self.rx_position.get() as usize] = byte;
                 self.rx_position.set(self.rx_position.get() + 1);
             });
         } else {
-            // TODO disable RXIE
-            debug!("i2c drop byte");
         }
     }
 
     pub fn handle_event(&self) {
-        debug!("stm32f3 i2c event");
         if self.registers.msr.is_set(MSR::TDF) {
             // send the next byte
             self.send_byte();
@@ -580,21 +577,9 @@ impl Lpi2c<'a> {
                     self.read_byte();
                 }
                 Lpi2cStatus::Writing | Lpi2cStatus::WritingReading => {
-                    // debug!(
-                    //     "WriteRead transfer partial complete {}, {}, lens: {}, {}",
-                    //     self.tx_position.get(),
-                    //     self.rx_position.get(),
-                    //     self.tx_len.get(),
-                    //     self.rx_len.get(),
-                    // );
                     if self.tx_position.get() < self.tx_len.get() {
                         self.send_byte();
                     } else {
-                        // debug!(
-                        //     "Write transfer complete {}, {}",
-                        //     self.tx_position.get(),
-                        //     self.rx_position.get()
-                        // );
                         if self.status.get() == Lpi2cStatus::Writing {
                             self.registers.mcfgr1.modify(MCFGR1::AUTOSTOP::SET);
                             self.stop();
@@ -610,11 +595,6 @@ impl Lpi2c<'a> {
                     }
                 }
                 Lpi2cStatus::Reading => {
-                    // debug!(
-                    //     "Read transfer complete {}, {}",
-                    //     self.tx_position.get(),
-                    //     self.rx_position.get()
-                    // );
                     let error = if self.rx_position.get() == self.rx_len.get() {
                         Error::CommandComplete
                     } else {
@@ -634,13 +614,14 @@ impl Lpi2c<'a> {
 
         if self.registers.msr.is_set(MSR::NDF) {
             // abort transfer due to NACK
-            debug!("i2c not ack");
             self.registers.msr.modify(MSR::NDF::SET);
             self.registers.mcfgr1.modify(MCFGR1::AUTOSTOP::SET);
             self.stop();
             let err: Error;
             match self.status.get() {
-                Lpi2cStatus::WritingReadingAddress | Lpi2cStatus::WritingAddress | Lpi2cStatus::ReadingAddress => {
+                Lpi2cStatus::WritingReadingAddress
+                | Lpi2cStatus::WritingAddress
+                | Lpi2cStatus::ReadingAddress => {
                     err = Error::AddressNak;
                 }
                 Lpi2cStatus::WritingReading | Lpi2cStatus::Writing | Lpi2cStatus::Reading => {
@@ -656,9 +637,7 @@ impl Lpi2c<'a> {
         }
     }
 
-    pub fn handle_error(&self) {
-        debug!("stm32f3 i2c error");
-    }
+    pub fn handle_error(&self) {}
 
     fn reset(&self) {
         self.disable();
@@ -666,19 +645,17 @@ impl Lpi2c<'a> {
     }
 
     fn start_write(&self) {
-        // debug!(
-        //     "stm32f3 i2c is idle write addr {} len {}",
-        //     self.slave_address.get(),
-        //     self.tx_len.get()
-        // );
         self.tx_position.set(0);
-        
         self.registers.mier.modify(MIER::EPIE::CLEAR);
-        self.registers.mtdr.write(MTDR::CMD.val(0b100) + MTDR::DATA.val((self.slave_address.get() << 1) as u32));
+        self.registers
+            .mtdr
+            .write(MTDR::CMD.val(0b100) + MTDR::DATA.val((self.slave_address.get() << 1) as u32));
 
         self.registers.mcfgr1.modify(MCFGR1::PINCFG::CLEAR);
 
-        self.registers.mier.modify(MIER::TDIE::SET + MIER::NDIE::SET + MIER::EPIE::SET);
+        self.registers
+            .mier
+            .modify(MIER::TDIE::SET + MIER::NDIE::SET + MIER::EPIE::SET);
     }
 
     fn stop(&self) {
@@ -693,36 +670,32 @@ impl Lpi2c<'a> {
     }
 
     fn start_read(&self) {
-        // debug!(
-        //     "stm32f3 i2c is idle read addr {} len {}",
-        //     self.slave_address.get(),
-        //     self.rx_len.get()
-        // );
         self.rx_position.set(0);
 
         // setting slave address
         self.registers.mier.modify(MIER::EPIE::CLEAR);
-        self.registers.mtdr.write(MTDR::CMD.val(100) + MTDR::DATA.val((self.slave_address.get() << 1 + 1) as u32));
+        self.registers
+            .mtdr
+            .write(MTDR::CMD.val(100) + MTDR::DATA.val((self.slave_address.get() << 1 + 1) as u32));
 
         self.registers.mcfgr1.modify(MCFGR1::PINCFG::CLEAR);
-        self.registers.mier.modify(MIER::NDIE::SET + MIER::EPIE::SET + MIER::RDIE::SET);
+        self.registers
+            .mier
+            .modify(MIER::NDIE::SET + MIER::EPIE::SET + MIER::RDIE::SET);
     }
 }
-// impl i2c::I2CMaster for I2C<'a> {
+
 impl i2c::I2CMaster for Lpi2c<'a> {
     fn set_master_client(&self, master_client: &'static dyn I2CHwMasterClient) {
         self.master_client.replace(master_client);
     }
     fn enable(&self) {
-        // debug!("stm32f3 i2c enable");
         self.registers.mcr.modify(MCR::MEN::SET);
     }
     fn disable(&self) {
-        // debug!("stm32f3 i2c disable");
         self.registers.mcr.modify(MCR::MEN::CLEAR);
     }
     fn write_read(&self, addr: u8, data: &'static mut [u8], write_len: u8, read_len: u8) {
-        // debug!("stm32f3 i2c write_read {}", addr);
         if self.status.get() == Lpi2cStatus::Idle {
             self.reset();
             self.status.set(Lpi2cStatus::WritingReadingAddress);
@@ -736,7 +709,6 @@ impl i2c::I2CMaster for Lpi2c<'a> {
     }
 
     fn write(&self, addr: u8, data: &'static mut [u8], len: u8) {
-        // debug!("stm32f3 i2c write {}", addr);
         if self.status.get() == Lpi2cStatus::Idle {
             self.reset();
             self.status.set(Lpi2cStatus::WritingAddress);
@@ -749,7 +721,6 @@ impl i2c::I2CMaster for Lpi2c<'a> {
     }
 
     fn read(&self, addr: u8, buffer: &'static mut [u8], len: u8) {
-        // debug!("stm32f3 i2c read");
         if self.status.get() == Lpi2cStatus::Idle {
             self.reset();
             self.status.set(Lpi2cStatus::ReadingAddress);

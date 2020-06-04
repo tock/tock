@@ -1,13 +1,13 @@
 use cortexm7;
 use cortexm7::support::atomic;
 use kernel::common::cells::OptionalCell;
-use kernel::common::registers::{register_bitfields, ReadWrite, ReadOnly};
+use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
 use kernel::hil;
 use kernel::ClockInterface;
 
-use crate::nvic;
 use crate::ccm;
+use crate::nvic;
 
 /// General purpose timers
 #[repr(C)]
@@ -60,7 +60,7 @@ register_bitfields![u32,
         /// Input Capture Channel 1 operating mode
         IM1 OFFSET(16) NUMBITS(2) [],
 
-        /// Software reset 
+        /// Software reset
         SWR OFFSET(15) NUMBITS(1) [],
 
         /// Enable 24 MHz clock input from crystal
@@ -209,7 +209,7 @@ impl Gpt1<'a> {
     pub fn start(&self) {
         // Disable GPT and the GPT interrupt register first
         self.registers.cr.modify(CR::EN::CLEAR);
-        
+
         self.registers.ir.modify(IR::ROVIE::CLEAR);
         self.registers.ir.modify(IR::IF1IE::CLEAR);
         self.registers.ir.modify(IR::IF2IE::CLEAR);
@@ -225,7 +225,6 @@ impl Gpt1<'a> {
         // Disable Input Capture Mode
         self.registers.cr.modify(CR::IM1::CLEAR);
         self.registers.cr.modify(CR::IM2::CLEAR);
-
 
         // Reset all the registers to the their default values, except EN,
         // ENMOD, STOPEN, DOZEEN, WAITEN, and DBGEN bits in the CR
@@ -256,15 +255,15 @@ impl Gpt1<'a> {
         self.registers.cr.modify(CR::EN_24M::CLEAR);
 
         // We will use the ipg_clk_highfreq provided by perclk_clk_root,
-        // which runs at 6 MHz. Before calling set_alarm, we assume clock 
-        // to GPT1 has been enabled. 
+        // which runs at 6 MHz. Before calling set_alarm, we assume clock
+        // to GPT1 has been enabled.
         self.registers.cr.modify(CR::CLKSRC.val(0x2 as u32));
 
         // Prescale 6Mhz to 16Khz, by dividing it by 375. The change in the
         // prescaler value immediately affects the output clock frequency
         self.registers.pr.modify(PR::PRESCALER.val(0 as u32));
 
-        // Enable the GPT 
+        // Enable the GPT
         self.registers.cr.modify(CR::EN::SET);
 
         // Enable the Output Compare 1 Interrupt Enable
@@ -331,7 +330,6 @@ impl hil::time::Time for Gpt1<'a> {
 }
 
 struct Gpt1Clock(ccm::PeripheralClock);
-
 
 impl ClockInterface for Gpt1Clock {
     fn is_enabled(&self) -> bool {

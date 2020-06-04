@@ -1,4 +1,4 @@
-use kernel::common::registers::{register_bitfields, ReadWrite, ReadOnly};
+use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
 use kernel::ClockInterface;
 
@@ -35,28 +35,28 @@ struct CcmRegisters {
 
 register_bitfields![u32,
     CCR [
-    	/// Enable for REG_BYPASS_COUNTER
-    	RBC_EN OFFSET(27) NUMBITS(1) [],
+        /// Enable for REG_BYPASS_COUNTER
+        RBC_EN OFFSET(27) NUMBITS(1) [],
 
-    	/// Counter for analog_reg_bypass
-    	REG_BYPASS_COUNT OFFSET(21) NUMBITS(6) [],
+        /// Counter for analog_reg_bypass
+        REG_BYPASS_COUNT OFFSET(21) NUMBITS(6) [],
 
-    	/// On chip oscilator enable bit
-    	COSC_EN OFFSET(12) NUMBITS(1) [],
+        /// On chip oscilator enable bit
+        COSC_EN OFFSET(12) NUMBITS(1) [],
 
         /// Oscilator ready counter value
         OSCNT OFFSET(0) NUMBITS(8) []
     ],
 
     CSR [
-    	// Status indication of on board oscillator
-    	COSC_READY OFFSET(5) NUMBITS(1) [],
+        // Status indication of on board oscillator
+        COSC_READY OFFSET(5) NUMBITS(1) [],
 
-    	// Status indication of CAMP2
-    	CAMP2_READY OFFSET(3) NUMBITS(1) [],
+        // Status indication of CAMP2
+        CAMP2_READY OFFSET(3) NUMBITS(1) [],
 
-    	// Status of the value of CCM_REF_EN_B output of ccm
-    	REF_EN_B OFFSET(0) NUMBITS(1) []
+        // Status of the value of CCM_REF_EN_B output of ccm
+        REF_EN_B OFFSET(0) NUMBITS(1) []
     ],
 
     CCSR [
@@ -88,13 +88,13 @@ register_bitfields![u32,
     CCGR0 [
         // gpio2_clocks (gpio2_clk_enable)
         CG15 OFFSET(30) NUMBITS(2) [],
-   
+
         // lpuart2 clock (lpuart2_clk_enable)
         CG14 OFFSET(28) NUMBITS(2) [],
 
         // gpt2 serial clocks (gpt2_serial_clk_enable)
         CG13 OFFSET(26) NUMBITS(2) [],
-        
+
         // gpt2 bus clocks (gpt2_bus_clk_enable)
         CG12 OFFSET(24) NUMBITS(2) [],
 
@@ -112,13 +112,13 @@ register_bitfields![u32,
 
         // can1 clock (can1_clk_enable)
         CG7 OFFSET(14) NUMBITS(2) [],
-   
+
         // lpuart3 clock (lpuart3_clk_enable)
         CG6 OFFSET(12) NUMBITS(2) [],
 
         // dcp clock (dcp_clk_enable)
         CG5 OFFSET(10) NUMBITS(2) [],
-        
+
         // sim_m or sim_main register access clock (sim_m_mainclk_r_enable)
         CG4 OFFSET(8) NUMBITS(2) [],
 
@@ -136,65 +136,65 @@ register_bitfields![u32,
     ],
 
     CCGR1 [
-    	// gpio5 clock (gpio5_clk_enable)
-    	CG15 OFFSET(30) NUMBITS(2) [],
-   
-   		// csu clock (csu_clk_enable)
-    	CG14 OFFSET(28) NUMBITS(2) [],
+        // gpio5 clock (gpio5_clk_enable)
+        CG15 OFFSET(30) NUMBITS(2) [],
 
-		// gpio1 clock (gpio1_clk_enable)
-    	CG13 OFFSET(26) NUMBITS(2) [],
-		
-		// lpuart4 clock (lpuart4_clk_enable)
-    	CG12 OFFSET(24) NUMBITS(2) [],
+           // csu clock (csu_clk_enable)
+        CG14 OFFSET(28) NUMBITS(2) [],
 
-    	// gpt1 serial clock (gpt_serial_clk_enable)
-    	CG11 OFFSET(22) NUMBITS(2) [],
+        // gpio1 clock (gpio1_clk_enable)
+        CG13 OFFSET(26) NUMBITS(2) [],
 
-    	// gpt1 bus clock (gpt_clk_enable)
-    	CG10 OFFSET(20) NUMBITS(2) [],
+        // lpuart4 clock (lpuart4_clk_enable)
+        CG12 OFFSET(24) NUMBITS(2) [],
 
-    	// semc_exsc clock (semc_exsc_clk_enable)
-    	CG9 OFFSET(18) NUMBITS(2) [],
+        // gpt1 serial clock (gpt_serial_clk_enable)
+        CG11 OFFSET(22) NUMBITS(2) [],
 
-    	// adc1 clock (adc1_clk_enable)
-    	CG8 OFFSET(16) NUMBITS(2) [],
+        // gpt1 bus clock (gpt_clk_enable)
+        CG10 OFFSET(20) NUMBITS(2) [],
 
-    	// aoi2 clocks (aoi2_clk_enable)
-    	CG7 OFFSET(14) NUMBITS(2) [],
-   
-   		// pit clocks (pit_clk_enable)
-    	CG6 OFFSET(12) NUMBITS(2) [],
+        // semc_exsc clock (semc_exsc_clk_enable)
+        CG9 OFFSET(18) NUMBITS(2) [],
 
-		// enet clock (enet_clk_enable)
-    	CG5 OFFSET(10) NUMBITS(2) [],
-		
-		// adc2 clock (adc2_clk_enable)
-    	CG4 OFFSET(8) NUMBITS(2) [],
+        // adc1 clock (adc1_clk_enable)
+        CG8 OFFSET(16) NUMBITS(2) [],
 
-    	// lpspi4 clocks (lpspi4_clk_enable)
-    	CG3 OFFSET(6) NUMBITS(2) [],
+        // aoi2 clocks (aoi2_clk_enable)
+        CG7 OFFSET(14) NUMBITS(2) [],
 
-    	// lpspi3 clocks (lpspi3_clk_enable)
-    	CG2 OFFSET(4) NUMBITS(2) [],
+           // pit clocks (pit_clk_enable)
+        CG6 OFFSET(12) NUMBITS(2) [],
 
-    	// lpspi2 clocks (lpspi2_clk_enable)
-    	CG1 OFFSET(2) NUMBITS(2) [],
+        // enet clock (enet_clk_enable)
+        CG5 OFFSET(10) NUMBITS(2) [],
 
-    	// lpspi1 clocks (lpspi1_clk_enable)
-    	CG0 OFFSET(0) NUMBITS(2) []
+        // adc2 clock (adc2_clk_enable)
+        CG4 OFFSET(8) NUMBITS(2) [],
+
+        // lpspi4 clocks (lpspi4_clk_enable)
+        CG3 OFFSET(6) NUMBITS(2) [],
+
+        // lpspi3 clocks (lpspi3_clk_enable)
+        CG2 OFFSET(4) NUMBITS(2) [],
+
+        // lpspi2 clocks (lpspi2_clk_enable)
+        CG1 OFFSET(2) NUMBITS(2) [],
+
+        // lpspi1 clocks (lpspi1_clk_enable)
+        CG0 OFFSET(0) NUMBITS(2) []
     ],
 
     CCGR2 [
         // pxp clocks (pxp_clk_enable)
         CG15 OFFSET(30) NUMBITS(2) [],
-   
+
         // lcd clocks (lcd_clk_enable)
         CG14 OFFSET(28) NUMBITS(2) [],
 
         // gpio3 clock (gpio3_clk_enable)
         CG13 OFFSET(26) NUMBITS(2) [],
-        
+
         // xbar2 clock (xbar2_clk_enable)
         CG12 OFFSET(24) NUMBITS(2) [],
 
@@ -212,13 +212,13 @@ register_bitfields![u32,
 
         // xbar3 clock (xbar3_clk_enable)
         CG7 OFFSET(14) NUMBITS(2) [],
-   
+
         // OCOTP_CTRL clock (iim_clk_enable)
         CG6 OFFSET(12) NUMBITS(2) [],
 
         // lpi2c3 clock (lpi2c3_clk_enable)
         CG5 OFFSET(10) NUMBITS(2) [],
-        
+
         // lpi2c2 clock (lpi2c2_clk_enable)
         CG4 OFFSET(8) NUMBITS(2) [],
 
@@ -238,13 +238,13 @@ register_bitfields![u32,
     CCGR3 [
         // iomuxc_snvs_gpr clock (iomuxc_snvs_gpr_clk_enable)
         CG15 OFFSET(30) NUMBITS(2) [],
-   
+
         // ocram clock(ocram_clk_enable)
         CG14 OFFSET(28) NUMBITS(2) [],
 
         // acmp4 clocks (acmp4_clk_enable)
         CG13 OFFSET(26) NUMBITS(2) [],
-        
+
         // acmp3 clocks (acmp3_clk_enable)
         CG12 OFFSET(24) NUMBITS(2) [],
 
@@ -262,13 +262,13 @@ register_bitfields![u32,
 
         // ewm clocks (ewm_clk_enable)
         CG7 OFFSET(14) NUMBITS(2) [],
-   
+
         // gpio4 clock (gpio4_clk_enable)
         CG6 OFFSET(12) NUMBITS(2) [],
 
         // lcdif pix clock (lcdif_pix_clk_enable)
         CG5 OFFSET(10) NUMBITS(2) [],
-        
+
         // aoi1 clock (aoi1_clk_enable)
         CG4 OFFSET(8) NUMBITS(2) [],
 
@@ -288,13 +288,13 @@ register_bitfields![u32,
     CCGR4 [
         // enc4 clocks (enc4_clk_enable)
         CG15 OFFSET(30) NUMBITS(2) [],
-   
+
         // enc2 clocks (enc2_clk_enable)
         CG14 OFFSET(28) NUMBITS(2) [],
 
         // enc2 clocks (enc2_clk_enable)
         CG13 OFFSET(26) NUMBITS(2) [],
-        
+
         // enc1 clocks (enc1_clk_enable)
         CG12 OFFSET(24) NUMBITS(2) [],
 
@@ -312,13 +312,13 @@ register_bitfields![u32,
 
         // sim_ems clocks (sim_ems_clk_enable)
         CG7 OFFSET(14) NUMBITS(2) [],
-   
+
         // sim_m clocks (sim_m_clk_enable)
         CG6 OFFSET(12) NUMBITS(2) [],
 
         // tsc_dig clock (tsc_clk_enable)
         CG5 OFFSET(10) NUMBITS(2) [],
-        
+
         // sim_m7 clock (sim_m7_clk_enable)
         CG4 OFFSET(8) NUMBITS(2) [],
 
@@ -338,13 +338,13 @@ register_bitfields![u32,
     CCGR5 [
          // snvs_lp clock (snvs_lp_clk_enable)
         CG15 OFFSET(30) NUMBITS(2) [],
-   
+
         // snvs_hp clock (snvs_hp_clk_enable)
         CG14 OFFSET(28) NUMBITS(2) [],
 
         // lpuart7 clock (lpuart7_clk_enable)
         CG13 OFFSET(26) NUMBITS(2) [],
-        
+
         // lpuart1 clock (lpuart1_clk_enable)
         CG12 OFFSET(24) NUMBITS(2) [],
 
@@ -362,13 +362,13 @@ register_bitfields![u32,
 
         // spdif clock (spdif_clk_enable)
         CG7 OFFSET(14) NUMBITS(2) [],
-   
+
         // aipstz4 clocks (aips_tz4_clk_enable)
         CG6 OFFSET(12) NUMBITS(2) [],
 
         // wdog2 clock (wdog2_clk_enable)
         CG5 OFFSET(10) NUMBITS(2) [],
-        
+
         // kpp clock (kpp_clk_enable)
         CG4 OFFSET(8) NUMBITS(2) [],
 
@@ -408,8 +408,7 @@ impl Ccm {
 
     /// Iomuxc clock
     pub fn is_enabled_iomuxc_clock(&self) -> bool {
-        self.registers.ccgr4.is_set(CCGR4::CG0) &&
-        self.registers.ccgr4.is_set(CCGR4::CG1)
+        self.registers.ccgr4.is_set(CCGR4::CG0) && self.registers.ccgr4.is_set(CCGR4::CG1)
     }
 
     pub fn enable_iomuxc_clock(&self) {
@@ -422,7 +421,7 @@ impl Ccm {
         self.registers.ccgr4.modify(CCGR4::CG1::CLEAR)
     }
 
-    /// GPIO1 clock 
+    /// GPIO1 clock
     pub fn is_enabled_gpio1_clock(&self) -> bool {
         self.registers.ccgr1.is_set(CCGR1::CG13)
     }
@@ -435,7 +434,7 @@ impl Ccm {
         self.registers.ccgr1.modify(CCGR1::CG13::CLEAR)
     }
 
-    /// GPIO2 clock 
+    /// GPIO2 clock
     pub fn is_enabled_gpio2_clock(&self) -> bool {
         self.registers.ccgr0.is_set(CCGR0::CG15)
     }
@@ -448,7 +447,7 @@ impl Ccm {
         self.registers.ccgr0.modify(CCGR0::CG15::CLEAR)
     }
 
-    /// GPIO3 clock 
+    /// GPIO3 clock
     pub fn is_enabled_gpio3_clock(&self) -> bool {
         self.registers.ccgr2.is_set(CCGR2::CG13)
     }
@@ -461,7 +460,7 @@ impl Ccm {
         self.registers.ccgr2.modify(CCGR2::CG13::CLEAR)
     }
 
-    /// GPIO4 clock 
+    /// GPIO4 clock
     pub fn is_enabled_gpio4_clock(&self) -> bool {
         self.registers.ccgr3.is_set(CCGR3::CG6)
     }
@@ -474,7 +473,7 @@ impl Ccm {
         self.registers.ccgr3.modify(CCGR3::CG6::CLEAR)
     }
 
-    /// GPIO5 clock 
+    /// GPIO5 clock
     pub fn is_enabled_gpio5_clock(&self) -> bool {
         self.registers.ccgr1.is_set(CCGR1::CG15)
     }
@@ -487,7 +486,7 @@ impl Ccm {
         self.registers.ccgr1.modify(CCGR1::CG15::CLEAR)
     }
 
-    // GPT1 clock 
+    // GPT1 clock
     pub fn is_enabled_gpt1_clock(&self) -> bool {
         self.registers.ccgr1.is_set(CCGR1::CG11)
     }
@@ -547,13 +546,14 @@ impl Ccm {
     }
 
     pub fn enable_uart_clock_podf(&self) {
-        self.registers.cscdr1.modify(CSCDR1::UART_CLK_PODF.val(0b111111 as u32));
+        self.registers
+            .cscdr1
+            .modify(CSCDR1::UART_CLK_PODF.val(0b111111 as u32));
     }
 
     pub fn disable_uart_clock_podf(&self) {
         self.registers.cscdr1.modify(CSCDR1::UART_CLK_PODF::CLEAR);
     }
-
 }
 
 pub enum PeripheralClock {
@@ -572,13 +572,11 @@ pub enum HCLK0 {
 pub enum HCLK1 {
     GPIO1,
     GPIO5,
-    GPT1
-    // and others ...
+    GPT1, // and others ...
 }
 pub enum HCLK2 {
     LPI2C1,
-    GPIO3
-    // and others ...
+    GPIO3, // and others ...
 }
 
 pub enum HCLK3 {
@@ -653,7 +651,7 @@ impl ClockInterface for PeripheralClock {
                 HCLK3::GPIO4 => unsafe {
                     CCM.enable_gpio4_clock();
                 },
-            }
+            },
             &PeripheralClock::CCGR4(ref v) => match v {
                 HCLK4::IOMUXC => unsafe {
                     CCM.enable_iomuxc_clock();

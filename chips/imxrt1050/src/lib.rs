@@ -14,12 +14,12 @@ pub mod chip;
 pub mod nvic;
 
 // Peripherals
-pub mod gpio;
 pub mod ccm;
-pub mod iomuxc;
+pub mod gpio;
 pub mod gpt1;
-pub mod lpuart;
+pub mod iomuxc;
 pub mod lpi2c;
+pub mod lpuart;
 
 use cortexm7::{generic_isr, hard_fault_handler, svc_handler, systick_handler};
 // use cortexm::scb::{set_vector_table_offset};
@@ -84,7 +84,6 @@ pub static BASE_VECTORS: [unsafe extern "C" fn(); 16] = [
 // STM32F42xxx and STM32F43xxx has total of 91 interrupts
 #[cfg_attr(all(target_arch = "arm", target_os = "none"), link_section = ".irqs")]
 // used Ensures that the symbol is kept until the final binary
-
 #[cfg_attr(all(target_arch = "arm", target_os = "none"), used)]
 pub static IRQS: [unsafe extern "C" fn(); 160] = [
     generic_isr, // eDMA (0)
@@ -264,7 +263,9 @@ pub unsafe fn init() {
     tock_rt0::init_data(&mut _etext, &mut _srelocate, &mut _erelocate);
     tock_rt0::zero_bss(&mut _szero, &mut _ezero);
 
-    cortexm::scb::set_vector_table_offset(&BASE_VECTORS as *const [unsafe extern "C" fn(); 16] as *const());
+    cortexm::scb::set_vector_table_offset(
+        &BASE_VECTORS as *const [unsafe extern "C" fn(); 16] as *const (),
+    );
 
     ccm::CCM.set_low_power_mode();
 }

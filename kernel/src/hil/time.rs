@@ -48,7 +48,6 @@ impl Frequency for Freq2475MHz {
     }
 }
 
-
 /// 32KHz `Frequency`
 #[derive(Debug)]
 pub struct Freq32KHz;

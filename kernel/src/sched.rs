@@ -293,7 +293,6 @@ impl Kernel {
                 DynamicDeferredCall::call_global_instance_while(|| !chip.has_pending_interrupts());
 
                 for p in self.processes.iter() {
-
                     p.map(|process| {
                         self.do_process(platform, chip, process, ipc);
                     });
@@ -335,7 +334,8 @@ impl Kernel {
                 break;
             }
 
-            if systick.overflowed() || !systick.greater_than(config::CONFIG.min_quanta_threshold_us) {
+            if systick.overflowed() || !systick.greater_than(config::CONFIG.min_quanta_threshold_us)
+            {
                 process.debug_timeslice_expired();
                 break;
             }

@@ -1,7 +1,7 @@
-use kernel::common::registers::{register_bitfields, ReadWrite};
-use kernel::common::StaticRef;
 use enum_primitive::cast::FromPrimitive;
 use enum_primitive::enum_from_primitive;
+use kernel::common::registers::{register_bitfields, ReadWrite};
+use kernel::common::StaticRef;
 
 /// IOMUX Controller Module
 #[repr(C)]
@@ -24,7 +24,7 @@ struct IomuxcRegisters {
 
     anatop_usb_otg1_id_select_input: ReadWrite<u32, DAISY_SELECT_INPUT::Register>,
     anatop_usb_otg2_id_select_input: ReadWrite<u32, DAISY_SELECT_INPUT::Register>,
-    
+
     ccm_pmic_ready_select_input: ReadWrite<u32, DAISY_SELECT_INPUT::Register>,
 
     csi_data0_x_select_input: [ReadWrite<u32, DAISY_SELECT_INPUT::Register>; 8],
@@ -160,7 +160,7 @@ struct IomuxcRegisters {
     xbar_inout16_select_input: ReadWrite<u32, DAISY_SELECT_INPUT::Register>,
     xbar_inout25_select_input: ReadWrite<u32, DAISY_SELECT_INPUT::Register>,
     xbar_inout19_select_input: ReadWrite<u32, DAISY_SELECT_INPUT::Register>,
-    xbar_inout21_select_input: ReadWrite<u32, DAISY_SELECT_INPUT::Register>
+    xbar_inout21_select_input: ReadWrite<u32, DAISY_SELECT_INPUT::Register>,
 }
 
 register_bitfields![u32,
@@ -188,14 +188,14 @@ register_bitfields![u32,
         // Open drain enable field
         ODE OFFSET(11) NUMBITS(1) [],
 
-    	// Speed
-    	SPEED OFFSET(6) NUMBITS(2) [],
+        // Speed
+        SPEED OFFSET(6) NUMBITS(2) [],
 
-    	// Drive Strength Field
-    	DSE OFFSET(3) NUMBITS(3) [],
+        // Drive Strength Field
+        DSE OFFSET(3) NUMBITS(3) [],
 
-    	// Slew Rate Field
-    	SRE OFFSET(0) NUMBITS(1) []
+        // Slew Rate Field
+        SRE OFFSET(0) NUMBITS(1) []
     ],
 
     DAISY_SELECT_INPUT [
@@ -231,13 +231,13 @@ pub enum PadId {
     B0 = 0b011,
     B1 = 0b100,
     SdB0 = 0b101,
-    SdB1 = 0b110
+    SdB1 = 0b110,
 }
 
 #[repr(u32)]
 pub enum Sion {
     Enabled = 1,
-    Disabled = 0
+    Disabled = 0,
 }
 
 // Alternative Modes for Mux Mode Select Field
@@ -259,34 +259,34 @@ enum_from_primitive! {
 #[repr(u32)]
 pub enum HystEn {
     Hys0HysteresisDisabled = 0b0,
-    Hys1HysteresisEnabled = 0b1
+    Hys1HysteresisEnabled = 0b1,
 }
 
 /// GPIO pin internal pull-up and pull-down
 #[repr(u32)]
 pub enum PullUpDown {
     Pus0_100kOhmPullDown = 0b00,
-    Pus1_47kOhmPullUp    = 0b01,
-    Pus2_100kOhmPullUp   = 0b10,
-    Pus3_22kOhmPullUp    = 0b11
+    Pus1_47kOhmPullUp = 0b01,
+    Pus2_100kOhmPullUp = 0b10,
+    Pus3_22kOhmPullUp = 0b11,
 }
 
 #[repr(u32)]
 pub enum PullKeepSel {
     Pue0Keeper = 0b0,
-    Pue1Pull   = 0b1
+    Pue1Pull = 0b1,
 }
 
 #[repr(u32)]
 pub enum PullKeepEn {
     Pke0PullKeeperDisabled = 0b0,
-    Pke1PullKeeperEnabled  = 0b1
+    Pke1PullKeeperEnabled = 0b1,
 }
 
 #[repr(u32)]
 pub enum OpenDrainEn {
     Ode0OpenDrainDisabled = 0b0,
-    Ode1OpenDrainEnabled = 0b1
+    Ode1OpenDrainEnabled = 0b1,
 }
 
 #[repr(u32)]
@@ -294,25 +294,25 @@ pub enum Speed {
     Low = 0b00,     // 50MHz
     Medium1 = 0b01, // 100MHz - 150MHz
     Medium2 = 0b10, // 100MHz - 150MHz
-    Maximum = 0b11  // 150MHz - 200MHz
+    Maximum = 0b11, // 150MHz - 200MHz
 }
 
 #[repr(u32)]
 pub enum DriveStrength {
-    DSE0 = 0b000,   // HI-Z
-    DSE1 = 0b001,   // Dual/Single voltage: 262/260 Ohm @ 1.8V, 247/157 Ohm @ 3.3V
-    DSE2 = 0b010,   // Dual/Single voltage: 134/130 Ohm @ 1.8V, 126/78 Ohm @ 3.3V
-    DSE3 = 0b011,   // Dual/Single voltage: 88/88 Ohm @ 1.8V, 84/53 Ohm @ 3.3V
-    DSE4 = 0b100,   // Dual/Single voltage: 62/65 Ohm @ 1.8V, 57/39 Ohm @ 3.3V
-    DSE5 = 0b101,   // Dual/Single voltage: 51/52 Ohm @ 1.8V, 47/32 Ohm @ 3.3V
-    DSE6 = 0b110,   // Dual/Single voltage: 43/43 Ohm @ 1.8V, 40/26 Ohm @ 3.3V
-    DSE7 = 0b111,   // Dual/Single voltage: 37/37 Ohm @ 1.8V, 34/23 Ohm @ 3.3V
+    DSE0 = 0b000, // HI-Z
+    DSE1 = 0b001, // Dual/Single voltage: 262/260 Ohm @ 1.8V, 247/157 Ohm @ 3.3V
+    DSE2 = 0b010, // Dual/Single voltage: 134/130 Ohm @ 1.8V, 126/78 Ohm @ 3.3V
+    DSE3 = 0b011, // Dual/Single voltage: 88/88 Ohm @ 1.8V, 84/53 Ohm @ 3.3V
+    DSE4 = 0b100, // Dual/Single voltage: 62/65 Ohm @ 1.8V, 57/39 Ohm @ 3.3V
+    DSE5 = 0b101, // Dual/Single voltage: 51/52 Ohm @ 1.8V, 47/32 Ohm @ 3.3V
+    DSE6 = 0b110, // Dual/Single voltage: 43/43 Ohm @ 1.8V, 40/26 Ohm @ 3.3V
+    DSE7 = 0b111, // Dual/Single voltage: 37/37 Ohm @ 1.8V, 34/23 Ohm @ 3.3V
 }
 
 #[repr(u32)]
 pub enum SlewRate {
     Sre0SlowSlewRate = 0b0,
-    Sre1FastSlewRate = 0b1
+    Sre1FastSlewRate = 0b1,
 }
 
 impl Iomuxc {
@@ -326,22 +326,22 @@ impl Iomuxc {
         match pad {
             PadId::EMC => {
                 self.registers.sw_mux_ctl_pad_gpio_emc[pin].is_set(SW_MUX_CTL_PAD_GPIO::MUX_MODE)
-            },
+            }
             PadId::AdB0 => {
                 self.registers.sw_mux_ctl_pad_gpio_ad_b0[pin].is_set(SW_MUX_CTL_PAD_GPIO::MUX_MODE)
-            },
+            }
             PadId::AdB1 => {
                 self.registers.sw_mux_ctl_pad_gpio_ad_b1[pin].is_set(SW_MUX_CTL_PAD_GPIO::MUX_MODE)
-            },
+            }
             PadId::B0 => {
                 self.registers.sw_mux_ctl_pad_gpio_b0[pin].is_set(SW_MUX_CTL_PAD_GPIO::MUX_MODE)
-            },
+            }
             PadId::B1 => {
                 self.registers.sw_mux_ctl_pad_gpio_b1[pin].is_set(SW_MUX_CTL_PAD_GPIO::MUX_MODE)
-            },
+            }
             PadId::SdB0 => {
                 self.registers.sw_mux_ctl_pad_gpio_sd_b0[pin].is_set(SW_MUX_CTL_PAD_GPIO::MUX_MODE)
-            },
+            }
             PadId::SdB1 => {
                 self.registers.sw_mux_ctl_pad_gpio_sd_b1[pin].is_set(SW_MUX_CTL_PAD_GPIO::MUX_MODE)
             }
@@ -351,32 +351,46 @@ impl Iomuxc {
     pub fn enable_sw_mux_ctl_pad_gpio(&self, pad: PadId, mode: MuxMode, sion: Sion, pin: usize) {
         match pad {
             PadId::EMC => {
-                self.registers.sw_mux_ctl_pad_gpio_emc[pin].modify(SW_MUX_CTL_PAD_GPIO::MUX_MODE.val(mode as u32)
-                                                                + SW_MUX_CTL_PAD_GPIO::SION.val(sion as u32));
-            },
+                self.registers.sw_mux_ctl_pad_gpio_emc[pin].modify(
+                    SW_MUX_CTL_PAD_GPIO::MUX_MODE.val(mode as u32)
+                        + SW_MUX_CTL_PAD_GPIO::SION.val(sion as u32),
+                );
+            }
             PadId::AdB0 => {
-                self.registers.sw_mux_ctl_pad_gpio_ad_b0[pin].modify(SW_MUX_CTL_PAD_GPIO::MUX_MODE.val(mode as u32)
-                                                                + SW_MUX_CTL_PAD_GPIO::SION.val(sion as u32));
-            },
+                self.registers.sw_mux_ctl_pad_gpio_ad_b0[pin].modify(
+                    SW_MUX_CTL_PAD_GPIO::MUX_MODE.val(mode as u32)
+                        + SW_MUX_CTL_PAD_GPIO::SION.val(sion as u32),
+                );
+            }
             PadId::AdB1 => {
-                self.registers.sw_mux_ctl_pad_gpio_ad_b1[pin].modify(SW_MUX_CTL_PAD_GPIO::MUX_MODE.val(mode as u32)
-                                                                + SW_MUX_CTL_PAD_GPIO::SION.val(sion as u32));
-            },
+                self.registers.sw_mux_ctl_pad_gpio_ad_b1[pin].modify(
+                    SW_MUX_CTL_PAD_GPIO::MUX_MODE.val(mode as u32)
+                        + SW_MUX_CTL_PAD_GPIO::SION.val(sion as u32),
+                );
+            }
             PadId::B0 => {
-                self.registers.sw_mux_ctl_pad_gpio_b0[pin].modify(SW_MUX_CTL_PAD_GPIO::MUX_MODE.val(mode as u32)
-                                                                + SW_MUX_CTL_PAD_GPIO::SION.val(sion as u32));
-            },
+                self.registers.sw_mux_ctl_pad_gpio_b0[pin].modify(
+                    SW_MUX_CTL_PAD_GPIO::MUX_MODE.val(mode as u32)
+                        + SW_MUX_CTL_PAD_GPIO::SION.val(sion as u32),
+                );
+            }
             PadId::B1 => {
-                self.registers.sw_mux_ctl_pad_gpio_b1[pin].modify(SW_MUX_CTL_PAD_GPIO::MUX_MODE.val(mode as u32)
-                                                                + SW_MUX_CTL_PAD_GPIO::SION.val(sion as u32));
-            },
+                self.registers.sw_mux_ctl_pad_gpio_b1[pin].modify(
+                    SW_MUX_CTL_PAD_GPIO::MUX_MODE.val(mode as u32)
+                        + SW_MUX_CTL_PAD_GPIO::SION.val(sion as u32),
+                );
+            }
             PadId::SdB0 => {
-                self.registers.sw_mux_ctl_pad_gpio_sd_b0[pin].modify(SW_MUX_CTL_PAD_GPIO::MUX_MODE.val(mode as u32)
-                                                                + SW_MUX_CTL_PAD_GPIO::SION.val(sion as u32));
-            },
+                self.registers.sw_mux_ctl_pad_gpio_sd_b0[pin].modify(
+                    SW_MUX_CTL_PAD_GPIO::MUX_MODE.val(mode as u32)
+                        + SW_MUX_CTL_PAD_GPIO::SION.val(sion as u32),
+                );
+            }
             PadId::SdB1 => {
-                self.registers.sw_mux_ctl_pad_gpio_sd_b1[pin].modify(SW_MUX_CTL_PAD_GPIO::MUX_MODE.val(mode as u32)
-                                                                + SW_MUX_CTL_PAD_GPIO::SION.val(sion as u32));
+                self.registers.sw_mux_ctl_pad_gpio_sd_b1[pin].modify(
+                    SW_MUX_CTL_PAD_GPIO::MUX_MODE.val(mode as u32)
+                        + SW_MUX_CTL_PAD_GPIO::SION.val(sion as u32),
+                );
             }
         }
     }
@@ -384,87 +398,116 @@ impl Iomuxc {
     pub fn disable_sw_mux_ctl_pad_gpio(&self, pad: PadId, pin: usize) {
         match pad {
             PadId::EMC => {
-                self.registers.sw_mux_ctl_pad_gpio_emc[pin].modify(SW_MUX_CTL_PAD_GPIO::MUX_MODE::CLEAR
-                                                                + SW_MUX_CTL_PAD_GPIO::SION::CLEAR);
-            },
+                self.registers.sw_mux_ctl_pad_gpio_emc[pin].modify(
+                    SW_MUX_CTL_PAD_GPIO::MUX_MODE::CLEAR + SW_MUX_CTL_PAD_GPIO::SION::CLEAR,
+                );
+            }
             PadId::AdB0 => {
-                self.registers.sw_mux_ctl_pad_gpio_ad_b0[pin].modify(SW_MUX_CTL_PAD_GPIO::MUX_MODE::CLEAR
-                                                                + SW_MUX_CTL_PAD_GPIO::SION::CLEAR);
-            },
+                self.registers.sw_mux_ctl_pad_gpio_ad_b0[pin].modify(
+                    SW_MUX_CTL_PAD_GPIO::MUX_MODE::CLEAR + SW_MUX_CTL_PAD_GPIO::SION::CLEAR,
+                );
+            }
             PadId::AdB1 => {
-                self.registers.sw_mux_ctl_pad_gpio_ad_b1[pin].modify(SW_MUX_CTL_PAD_GPIO::MUX_MODE::CLEAR
-                                                                + SW_MUX_CTL_PAD_GPIO::SION::CLEAR);
-            },
+                self.registers.sw_mux_ctl_pad_gpio_ad_b1[pin].modify(
+                    SW_MUX_CTL_PAD_GPIO::MUX_MODE::CLEAR + SW_MUX_CTL_PAD_GPIO::SION::CLEAR,
+                );
+            }
             PadId::B0 => {
-                self.registers.sw_mux_ctl_pad_gpio_b0[pin].modify(SW_MUX_CTL_PAD_GPIO::MUX_MODE::CLEAR
-                                                                + SW_MUX_CTL_PAD_GPIO::SION::CLEAR);
-            },
+                self.registers.sw_mux_ctl_pad_gpio_b0[pin].modify(
+                    SW_MUX_CTL_PAD_GPIO::MUX_MODE::CLEAR + SW_MUX_CTL_PAD_GPIO::SION::CLEAR,
+                );
+            }
             PadId::B1 => {
-                self.registers.sw_mux_ctl_pad_gpio_b1[pin].modify(SW_MUX_CTL_PAD_GPIO::MUX_MODE::CLEAR
-                                                                + SW_MUX_CTL_PAD_GPIO::SION::CLEAR);
-            },
+                self.registers.sw_mux_ctl_pad_gpio_b1[pin].modify(
+                    SW_MUX_CTL_PAD_GPIO::MUX_MODE::CLEAR + SW_MUX_CTL_PAD_GPIO::SION::CLEAR,
+                );
+            }
             PadId::SdB0 => {
-                self.registers.sw_mux_ctl_pad_gpio_sd_b0[pin].modify(SW_MUX_CTL_PAD_GPIO::MUX_MODE::CLEAR
-                                                                + SW_MUX_CTL_PAD_GPIO::SION::CLEAR);
-            },
+                self.registers.sw_mux_ctl_pad_gpio_sd_b0[pin].modify(
+                    SW_MUX_CTL_PAD_GPIO::MUX_MODE::CLEAR + SW_MUX_CTL_PAD_GPIO::SION::CLEAR,
+                );
+            }
             PadId::SdB1 => {
-                self.registers.sw_mux_ctl_pad_gpio_sd_b1[pin].modify(SW_MUX_CTL_PAD_GPIO::MUX_MODE::CLEAR
-                                                                + SW_MUX_CTL_PAD_GPIO::SION::CLEAR);
+                self.registers.sw_mux_ctl_pad_gpio_sd_b1[pin].modify(
+                    SW_MUX_CTL_PAD_GPIO::MUX_MODE::CLEAR + SW_MUX_CTL_PAD_GPIO::SION::CLEAR,
+                );
             }
         }
     }
 
-    pub fn configure_sw_pad_ctl_pad_gpio(&self, pad: PadId, pin: usize, pus: PullUpDown, 
-            pke: PullKeepEn, ode: OpenDrainEn, speed: Speed, dse: DriveStrength) {
+    pub fn configure_sw_pad_ctl_pad_gpio(
+        &self,
+        pad: PadId,
+        pin: usize,
+        pus: PullUpDown,
+        pke: PullKeepEn,
+        ode: OpenDrainEn,
+        speed: Speed,
+        dse: DriveStrength,
+    ) {
         match pad {
             PadId::EMC => {
-                self.registers.sw_pad_ctl_pad_gpio_emc[pin].modify(SW_PAD_CTL_PAD_GPIO::PUS.val(pus as u32)
-                                                                + SW_PAD_CTL_PAD_GPIO::PKE.val(pke as u32)
-                                                                + SW_PAD_CTL_PAD_GPIO::ODE.val(ode as u32)
-                                                                + SW_PAD_CTL_PAD_GPIO::SPEED.val(speed as u32)
-                                                                + SW_PAD_CTL_PAD_GPIO::DSE.val(dse as u32));
-            },
+                self.registers.sw_pad_ctl_pad_gpio_emc[pin].modify(
+                    SW_PAD_CTL_PAD_GPIO::PUS.val(pus as u32)
+                        + SW_PAD_CTL_PAD_GPIO::PKE.val(pke as u32)
+                        + SW_PAD_CTL_PAD_GPIO::ODE.val(ode as u32)
+                        + SW_PAD_CTL_PAD_GPIO::SPEED.val(speed as u32)
+                        + SW_PAD_CTL_PAD_GPIO::DSE.val(dse as u32),
+                );
+            }
             PadId::AdB0 => {
-                self.registers.sw_pad_ctl_pad_gpio_ad_b0[pin].modify(SW_PAD_CTL_PAD_GPIO::PUS.val(pus as u32)
-                                                                + SW_PAD_CTL_PAD_GPIO::PKE.val(pke as u32)
-                                                                + SW_PAD_CTL_PAD_GPIO::ODE.val(ode as u32)
-                                                                + SW_PAD_CTL_PAD_GPIO::SPEED.val(speed as u32)
-                                                                + SW_PAD_CTL_PAD_GPIO::DSE.val(dse as u32));
-            },
+                self.registers.sw_pad_ctl_pad_gpio_ad_b0[pin].modify(
+                    SW_PAD_CTL_PAD_GPIO::PUS.val(pus as u32)
+                        + SW_PAD_CTL_PAD_GPIO::PKE.val(pke as u32)
+                        + SW_PAD_CTL_PAD_GPIO::ODE.val(ode as u32)
+                        + SW_PAD_CTL_PAD_GPIO::SPEED.val(speed as u32)
+                        + SW_PAD_CTL_PAD_GPIO::DSE.val(dse as u32),
+                );
+            }
             PadId::AdB1 => {
-                self.registers.sw_pad_ctl_pad_gpio_ad_b1[pin].modify(SW_PAD_CTL_PAD_GPIO::PUS.val(pus as u32)
-                                                                + SW_PAD_CTL_PAD_GPIO::PKE.val(pke as u32)
-                                                                + SW_PAD_CTL_PAD_GPIO::ODE.val(ode as u32)
-                                                                + SW_PAD_CTL_PAD_GPIO::SPEED.val(speed as u32)
-                                                                + SW_PAD_CTL_PAD_GPIO::DSE.val(dse as u32));
-            },
+                self.registers.sw_pad_ctl_pad_gpio_ad_b1[pin].modify(
+                    SW_PAD_CTL_PAD_GPIO::PUS.val(pus as u32)
+                        + SW_PAD_CTL_PAD_GPIO::PKE.val(pke as u32)
+                        + SW_PAD_CTL_PAD_GPIO::ODE.val(ode as u32)
+                        + SW_PAD_CTL_PAD_GPIO::SPEED.val(speed as u32)
+                        + SW_PAD_CTL_PAD_GPIO::DSE.val(dse as u32),
+                );
+            }
             PadId::B0 => {
-                self.registers.sw_pad_ctl_pad_gpio_b0[pin].modify(SW_PAD_CTL_PAD_GPIO::PUS.val(pus as u32)
-                                                                + SW_PAD_CTL_PAD_GPIO::PKE.val(pke as u32)
-                                                                + SW_PAD_CTL_PAD_GPIO::ODE.val(ode as u32)
-                                                                + SW_PAD_CTL_PAD_GPIO::SPEED.val(speed as u32)
-                                                                + SW_PAD_CTL_PAD_GPIO::DSE.val(dse as u32));
-            },
+                self.registers.sw_pad_ctl_pad_gpio_b0[pin].modify(
+                    SW_PAD_CTL_PAD_GPIO::PUS.val(pus as u32)
+                        + SW_PAD_CTL_PAD_GPIO::PKE.val(pke as u32)
+                        + SW_PAD_CTL_PAD_GPIO::ODE.val(ode as u32)
+                        + SW_PAD_CTL_PAD_GPIO::SPEED.val(speed as u32)
+                        + SW_PAD_CTL_PAD_GPIO::DSE.val(dse as u32),
+                );
+            }
             PadId::B1 => {
-                self.registers.sw_pad_ctl_pad_gpio_b1[pin].modify(SW_PAD_CTL_PAD_GPIO::PUS.val(pus as u32)
-                                                                + SW_PAD_CTL_PAD_GPIO::PKE.val(pke as u32)
-                                                                + SW_PAD_CTL_PAD_GPIO::ODE.val(ode as u32)
-                                                                + SW_PAD_CTL_PAD_GPIO::SPEED.val(speed as u32)
-                                                                + SW_PAD_CTL_PAD_GPIO::DSE.val(dse as u32));
-            },
+                self.registers.sw_pad_ctl_pad_gpio_b1[pin].modify(
+                    SW_PAD_CTL_PAD_GPIO::PUS.val(pus as u32)
+                        + SW_PAD_CTL_PAD_GPIO::PKE.val(pke as u32)
+                        + SW_PAD_CTL_PAD_GPIO::ODE.val(ode as u32)
+                        + SW_PAD_CTL_PAD_GPIO::SPEED.val(speed as u32)
+                        + SW_PAD_CTL_PAD_GPIO::DSE.val(dse as u32),
+                );
+            }
             PadId::SdB0 => {
-                self.registers.sw_pad_ctl_pad_gpio_sd_b0[pin].modify(SW_PAD_CTL_PAD_GPIO::PUS.val(pus as u32)
-                                                                + SW_PAD_CTL_PAD_GPIO::PKE.val(pke as u32)
-                                                                + SW_PAD_CTL_PAD_GPIO::ODE.val(ode as u32)
-                                                                + SW_PAD_CTL_PAD_GPIO::SPEED.val(speed as u32)
-                                                                + SW_PAD_CTL_PAD_GPIO::DSE.val(dse as u32));
-            },
+                self.registers.sw_pad_ctl_pad_gpio_sd_b0[pin].modify(
+                    SW_PAD_CTL_PAD_GPIO::PUS.val(pus as u32)
+                        + SW_PAD_CTL_PAD_GPIO::PKE.val(pke as u32)
+                        + SW_PAD_CTL_PAD_GPIO::ODE.val(ode as u32)
+                        + SW_PAD_CTL_PAD_GPIO::SPEED.val(speed as u32)
+                        + SW_PAD_CTL_PAD_GPIO::DSE.val(dse as u32),
+                );
+            }
             PadId::SdB1 => {
-                self.registers.sw_pad_ctl_pad_gpio_sd_b1[pin].modify(SW_PAD_CTL_PAD_GPIO::PUS.val(pus as u32)
-                                                                + SW_PAD_CTL_PAD_GPIO::PKE.val(pke as u32)
-                                                                + SW_PAD_CTL_PAD_GPIO::ODE.val(ode as u32)
-                                                                + SW_PAD_CTL_PAD_GPIO::SPEED.val(speed as u32)
-                                                                + SW_PAD_CTL_PAD_GPIO::DSE.val(dse as u32));
+                self.registers.sw_pad_ctl_pad_gpio_sd_b1[pin].modify(
+                    SW_PAD_CTL_PAD_GPIO::PUS.val(pus as u32)
+                        + SW_PAD_CTL_PAD_GPIO::PKE.val(pke as u32)
+                        + SW_PAD_CTL_PAD_GPIO::ODE.val(ode as u32)
+                        + SW_PAD_CTL_PAD_GPIO::SPEED.val(speed as u32)
+                        + SW_PAD_CTL_PAD_GPIO::DSE.val(dse as u32),
+                );
             }
         }
     }
@@ -472,29 +515,41 @@ impl Iomuxc {
     // The following functions are used for altering the Daisy Chain which is used for
     // multi pads driving same module input pin
 
-    // LPI2C1_SCL_SELECT_INPUT 
-    pub fn is_enabled_lpi2c_scl_select_input(&self) ->bool{
-        self.registers.lpi2c1_scl_select_input.is_set(DAISY_SELECT_INPUT::DAISY) 
+    // LPI2C1_SCL_SELECT_INPUT
+    pub fn is_enabled_lpi2c_scl_select_input(&self) -> bool {
+        self.registers
+            .lpi2c1_scl_select_input
+            .is_set(DAISY_SELECT_INPUT::DAISY)
     }
 
     pub fn enable_lpi2c_scl_select_input(&self) {
-        self.registers.lpi2c1_scl_select_input.modify(DAISY_SELECT_INPUT::DAISY::SET) 
+        self.registers
+            .lpi2c1_scl_select_input
+            .modify(DAISY_SELECT_INPUT::DAISY::SET)
     }
 
     pub fn disable_lpi2c_scl_select_input(&self) {
-        self.registers.lpi2c1_scl_select_input.modify(DAISY_SELECT_INPUT::DAISY::CLEAR);
+        self.registers
+            .lpi2c1_scl_select_input
+            .modify(DAISY_SELECT_INPUT::DAISY::CLEAR);
     }
 
-    // LPI2C1_SDA_SELECT_INPUT 
+    // LPI2C1_SDA_SELECT_INPUT
     pub fn is_enabled_lpi2c_sda_select_input(&self) -> bool {
-        self.registers.lpi2c1_sda_select_input.is_set(DAISY_SELECT_INPUT::DAISY) 
+        self.registers
+            .lpi2c1_sda_select_input
+            .is_set(DAISY_SELECT_INPUT::DAISY)
     }
 
     pub fn enable_lpi2c_sda_select_input(&self) {
-        self.registers.lpi2c1_sda_select_input.modify(DAISY_SELECT_INPUT::DAISY::SET) 
+        self.registers
+            .lpi2c1_sda_select_input
+            .modify(DAISY_SELECT_INPUT::DAISY::SET)
     }
 
     pub fn disable_lpi2c_sda_select_input(&self) {
-        self.registers.lpi2c1_sda_select_input.modify(DAISY_SELECT_INPUT::DAISY::CLEAR);
+        self.registers
+            .lpi2c1_sda_select_input
+            .modify(DAISY_SELECT_INPUT::DAISY::CLEAR);
     }
 }

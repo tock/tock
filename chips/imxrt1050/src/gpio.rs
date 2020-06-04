@@ -11,8 +11,8 @@ use crate::ccm;
 /// General-purpose I/Os
 #[repr(C)]
 struct GpioRegisters {
-	// GPIO data register
-	dr: ReadWrite<u32, DR::Register>,
+    // GPIO data register
+    dr: ReadWrite<u32, DR::Register>,
     // GPIO direction register
     gdir: ReadWrite<u32, GDIR::Register>,
     // GPIO pad status register
@@ -21,24 +21,24 @@ struct GpioRegisters {
     icr1: ReadWrite<u32, ICR1::Register>,
     // GPIO Interrupt configuration register 2
     icr2: ReadWrite<u32, ICR2::Register>,
-	// GPIO interrupt mask register
-	imr: ReadWrite<u32, IMR::Register>,
+    // GPIO interrupt mask register
+    imr: ReadWrite<u32, IMR::Register>,
     // GPIO interrupt status register -- W1C - Write 1 to clear
     isr: ReadWrite<u32, ISR::Register>,
     // GPIO edge select register
     edge_sel: ReadWrite<u32, EDGE_SEL::Register>,
-	_reserved1: [u8; 100],
+    _reserved1: [u8; 100],
     // GPIO data register set
     dr_set: WriteOnly<u32, DR_SET::Register>,
     // GPIO data register clear
     dr_clear: WriteOnly<u32, DR_CLEAR::Register>,
     // GPIO data register toggle
-    dr_toggle: WriteOnly<u32, DR_TOGGLE::Register>
+    dr_toggle: WriteOnly<u32, DR_TOGGLE::Register>,
 }
 
 register_bitfields![u32,
     DR [
-        // the value of the GPIO output when the signal is configured as an output 
+        // the value of the GPIO output when the signal is configured as an output
         DR31 OFFSET(31) NUMBITS(1) [],
         DR30 OFFSET(30) NUMBITS(1) [],
         DR29 OFFSET(29) NUMBITS(1) [],
@@ -74,8 +74,8 @@ register_bitfields![u32,
     ],
 
     GDIR [
-    	// bit n of this register defines the direction of the GPIO[n] signal
-    	GDIR31 OFFSET(31) NUMBITS(1) [],
+        // bit n of this register defines the direction of the GPIO[n] signal
+        GDIR31 OFFSET(31) NUMBITS(1) [],
         GDIR30 OFFSET(30) NUMBITS(1) [],
         GDIR29 OFFSET(29) NUMBITS(1) [],
         GDIR28 OFFSET(28) NUMBITS(1) [],
@@ -186,8 +186,8 @@ register_bitfields![u32,
     ],
 
     IMR [
-    	// enable or disable the interrupt function on each of the 32 GPIO signals
-    	IMR31 OFFSET(31) NUMBITS(1) [],
+        // enable or disable the interrupt function on each of the 32 GPIO signals
+        IMR31 OFFSET(31) NUMBITS(1) [],
         IMR30 OFFSET(30) NUMBITS(1) [],
         IMR29 OFFSET(29) NUMBITS(1) [],
         IMR28 OFFSET(28) NUMBITS(1) [],
@@ -492,9 +492,12 @@ impl PinId {
 
         match pad_num {
             0b000 => {
-                if pin_num < 32 { GpioPort::GPIO4 }
-                else { GpioPort::GPIO3 }
-            },
+                if pin_num < 32 {
+                    GpioPort::GPIO4
+                } else {
+                    GpioPort::GPIO3
+                }
+            }
             0b001 => GpioPort::GPIO1,
             0b010 => GpioPort::GPIO1,
             0b011 => GpioPort::GPIO2,
@@ -503,7 +506,6 @@ impl PinId {
             0b110 => GpioPort::GPIO3,
             _ => GpioPort::GPIO1,
         }
-
     }
 
     pub fn get_pad_number(&self) -> u16 {
@@ -514,7 +516,7 @@ impl PinId {
 
     pub fn get_pin(&self) -> &Option<Pin<'static>> {
         let mut pad_num: u16 = *self as u16;
-        
+
         // Right shift pad_num by 6 bits, so we can get rid of pin bits
         pad_num >>= 6;
 
@@ -522,7 +524,7 @@ impl PinId {
         // Mask top 2 bits, so can get only the suffix
         pin_num &= 0b00111111;
 
-        unsafe {&PIN[usize::from(pad_num)][usize::from(pin_num)] }
+        unsafe { &PIN[usize::from(pad_num)][usize::from(pin_num)] }
     }
 
     pub fn get_pin_mut(&self) -> &mut Option<Pin<'static>> {
@@ -558,11 +560,10 @@ impl PinId {
         pin_num = pin_num & 0b00111111;
         pin_num
     }
-
 }
 
 /// GPIO pin mode
-/// In order to set alternate functions such as LPI2C or LPUART, 
+/// In order to set alternate functions such as LPI2C or LPUART,
 /// you will need to use iomuxc enable_sw_mux_ctl_pad_gpio with
 /// the specific MUX_MODE according to the reference manual (Chapter 11).
 enum_from_primitive! {
@@ -654,9 +655,8 @@ pub static mut PIN: [[Option<Pin<'static>>; 42]; 7] = [
         Emc16 Emc17 Emc18 Emc19 Emc20 Emc21 Emc22 Emc23
         Emc24 Emc25 Emc26 Emc27 Emc28 Emc29 Emc30 Emc31
         Emc32 Emc33 Emc34 Emc35 Emc36 Emc37 Emc38 Emc39
-        Emc40 Emc41 
+        Emc40 Emc41
     },
-
     [
         Some(Pin::new(PinId::AdB0_00)),
         Some(Pin::new(PinId::AdB0_01)),
@@ -674,13 +674,34 @@ pub static mut PIN: [[Option<Pin<'static>>; 42]; 7] = [
         Some(Pin::new(PinId::AdB0_13)),
         Some(Pin::new(PinId::AdB0_14)),
         Some(Pin::new(PinId::AdB0_15)),
-        None, None, None, None, None, None, None, None,
-        None, None, None, None, None, None, None, None,
-        None, None, None, None, None, None, None, None,
-        None, None
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
     ],
-
-    [        
+    [
         Some(Pin::new(PinId::AdB1_00)),
         Some(Pin::new(PinId::AdB1_01)),
         Some(Pin::new(PinId::AdB1_02)),
@@ -697,12 +718,33 @@ pub static mut PIN: [[Option<Pin<'static>>; 42]; 7] = [
         Some(Pin::new(PinId::AdB1_13)),
         Some(Pin::new(PinId::AdB1_14)),
         Some(Pin::new(PinId::AdB1_15)),
-        None, None, None, None, None, None, None, None,
-        None, None, None, None, None, None, None, None,
-        None, None, None, None, None, None, None, None,
-        None, None
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
     ],
-
     [
         Some(Pin::new(PinId::B0_00)),
         Some(Pin::new(PinId::B0_01)),
@@ -720,13 +762,34 @@ pub static mut PIN: [[Option<Pin<'static>>; 42]; 7] = [
         Some(Pin::new(PinId::B0_13)),
         Some(Pin::new(PinId::B0_14)),
         Some(Pin::new(PinId::B0_15)),
-        None, None, None, None, None, None, None, None,
-        None, None, None, None, None, None, None, None,
-        None, None, None, None, None, None, None, None,
-        None, None
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
     ],
-
-    [    
+    [
         Some(Pin::new(PinId::B1_00)),
         Some(Pin::new(PinId::B1_01)),
         Some(Pin::new(PinId::B1_02)),
@@ -743,12 +806,33 @@ pub static mut PIN: [[Option<Pin<'static>>; 42]; 7] = [
         Some(Pin::new(PinId::B1_13)),
         Some(Pin::new(PinId::B1_14)),
         Some(Pin::new(PinId::B1_15)),
-        None, None, None, None, None, None, None, None,
-        None, None, None, None, None, None, None, None,
-        None, None, None, None, None, None, None, None,
-        None, None
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
     ],
-
     [
         Some(Pin::new(PinId::SdB0_00)),
         Some(Pin::new(PinId::SdB0_01)),
@@ -756,13 +840,43 @@ pub static mut PIN: [[Option<Pin<'static>>; 42]; 7] = [
         Some(Pin::new(PinId::SdB0_03)),
         Some(Pin::new(PinId::SdB0_04)),
         Some(Pin::new(PinId::SdB0_05)),
-        None, None, None, None, None, None, None, None, 
-        None, None, None, None, None, None, None, None, 
-        None, None, None, None, None, None, None, None, 
-        None, None, None, None, None, None, None, None, 
-        None, None, None, None
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
     ],
-
     [
         Some(Pin::new(PinId::SdB1_00)),
         Some(Pin::new(PinId::SdB1_01)),
@@ -777,10 +891,35 @@ pub static mut PIN: [[Option<Pin<'static>>; 42]; 7] = [
         Some(Pin::new(PinId::SdB1_10)),
         Some(Pin::new(PinId::SdB1_11)),
         Some(Pin::new(PinId::SdB1_12)),
-        None, None, None, None, None, None, None, None, 
-        None, None, None, None, None, None, None, None, 
-        None, None, None, None, None, None, None, None, 
-        None, None, None, None, None
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
     ],
 ];
 
@@ -814,14 +953,12 @@ impl Pin<'a> {
 
     pub fn set_mode(&self, mode: Mode) {
         let port = self.pinid.get_port();
-        
+
         match self.pinid.get_pin_number() {
             0b001001 => {
                 port.registers.gdir.modify(GDIR::GDIR9.val(mode as u32));
-            },
-            0b10000 => {
-
-            },
+            }
+            0b10000 => {}
             _ => {}
         }
     }
@@ -836,7 +973,7 @@ impl Pin<'a> {
         match self.pinid.get_pin_number() {
             0b01001 => {
                 port.registers.dr.write(DR::DR9::SET);
-            },
+            }
             _ => {}
         }
     }
@@ -854,7 +991,7 @@ impl Pin<'a> {
         let port = self.pinid.get_port();
 
         match self.pinid.get_pin_number() {
-            0b01001 => port.registers.dr.is_set(DR::DR9) , 
+            0b01001 => port.registers.dr.is_set(DR::DR9),
             _ => false,
         }
     }
@@ -883,7 +1020,6 @@ impl hil::gpio::Pin for Pin<'a> {}
 impl hil::gpio::InterruptPin for Pin<'a> {}
 
 impl hil::gpio::Configure for Pin<'a> {
-
     fn make_output(&self) -> hil::gpio::Configuration {
         self.set_mode(Mode::Output);
         hil::gpio::Configuration::Output
@@ -909,8 +1045,7 @@ impl hil::gpio::Configure for Pin<'a> {
     }
 
     // PullUp or PullDown mode are set through the Iomux module
-    fn set_floating_state(&self, _mode: hil::gpio::FloatingState) {
-    }
+    fn set_floating_state(&self, _mode: hil::gpio::FloatingState) {}
 
     fn floating_state(&self) -> hil::gpio::FloatingState {
         hil::gpio::FloatingState::PullNone
@@ -954,13 +1089,9 @@ impl hil::gpio::Input for Pin<'a> {
 
 /// Interrupt capabilities are not yet implemented
 impl hil::gpio::Interrupt for Pin<'a> {
-    fn enable_interrupts(&self, _mode: hil::gpio::InterruptEdge) {
-        
-    }
+    fn enable_interrupts(&self, _mode: hil::gpio::InterruptEdge) {}
 
-    fn disable_interrupts(&self) {
-        
-    }
+    fn disable_interrupts(&self) {}
 
     fn set_client(&self, client: &'static dyn hil::gpio::Client) {
         self.client.set(client);

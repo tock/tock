@@ -1,4 +1,4 @@
-//! Implementation of the memory protection unit for the 
+//! Implementation of the memory protection unit for the
 //! Cortex-M7.
 
 use core::cmp;

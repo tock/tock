@@ -8,33 +8,33 @@ use kernel::ReturnCode;
 
 use crate::ccm;
 
-/// Universal synchronous asynchronous receiver transmitter
+/// LP Universal asynchronous receiver transmitter
 #[repr(C)]
 struct LpuartRegisters {
-	///  Version ID Register 
-	verid: ReadOnly<u32, VERID::Register>,
-	/// Parameter Register
-	param: ReadOnly<u32, PARAM::Register>,
-	/// LPUART Global Register
-	global: ReadWrite<u32, GLOBAL::Register>,
-	/// LPUART Pin Configuration Register
-	pincfg: ReadWrite<u32, PINCFG::Register>,
-	/// LPUART Baud Rate Register
-	baud: ReadWrite<u32, BAUD::Register>,
-	/// LPUART Status Register
-	stat: ReadWrite<u32, STAT::Register>,
-	/// LPUART Control Register
-	ctrl: ReadWrite<u32, CTRL::Register>,
-	/// LPUART Data Register
-	data: ReadWrite<u32, DATA::Register>,
-	/// LPUART Match Address Register
-	r#match: ReadWrite<u32, MATCH::Register>,
-	/// LPUART Modem IrDA Register
-	modir: ReadWrite<u32, MODIR::Register>,
-	/// LPUART FIFO Register
-	fifo: ReadWrite<u32, FIFO::Register>,
-	/// LPUART Watemark Register
-	water: ReadWrite<u32, WATER::Register>,
+    ///  Version ID Register
+    verid: ReadOnly<u32, VERID::Register>,
+    /// Parameter Register
+    param: ReadOnly<u32, PARAM::Register>,
+    /// LPUART Global Register
+    global: ReadWrite<u32, GLOBAL::Register>,
+    /// LPUART Pin Configuration Register
+    pincfg: ReadWrite<u32, PINCFG::Register>,
+    /// LPUART Baud Rate Register
+    baud: ReadWrite<u32, BAUD::Register>,
+    /// LPUART Status Register
+    stat: ReadWrite<u32, STAT::Register>,
+    /// LPUART Control Register
+    ctrl: ReadWrite<u32, CTRL::Register>,
+    /// LPUART Data Register
+    data: ReadWrite<u32, DATA::Register>,
+    /// LPUART Match Address Register
+    r#match: ReadWrite<u32, MATCH::Register>,
+    /// LPUART Modem IrDA Register
+    modir: ReadWrite<u32, MODIR::Register>,
+    /// LPUART FIFO Register
+    fifo: ReadWrite<u32, FIFO::Register>,
+    /// LPUART Watemark Register
+    water: ReadWrite<u32, WATER::Register>,
 }
 
 register_bitfields![u32,
@@ -46,8 +46,8 @@ register_bitfields![u32,
         /// Feature Identification Number
         FEATURE OFFSET(0) NUMBITS(16) []
     ],
-	
-	PARAM [
+
+    PARAM [
         /// Receive FIFO Size
         RXFIFO OFFSET(8) NUMBITS(8) [],
         /// Transmit FIFO Size
@@ -79,7 +79,7 @@ register_bitfields![u32,
         RDMAE OFFSET(21) NUMBITS(1) [],
         /// Receiver Idle DMA Enable
         RIDMAE OFFSET(20) NUMBITS(1) [],
-        /// Match Configuration 
+        /// Match Configuration
         MATCFG OFFSET(18) NUMBITS(2) [],
         /// Both Edge Sampling
         BOTHEDGE OFFSET(17) NUMBITS(1) [],
@@ -135,7 +135,7 @@ register_bitfields![u32,
     ],
 
     CTRL [
-    	/// Receive Bit 8 / Transmit Bit 9
+        /// Receive Bit 8 / Transmit Bit 9
         R8T9 OFFSET(31) NUMBITS(1) [],
         /// Receive Bit 9 / Transmit Bit 8
         R9T8 OFFSET(30) NUMBITS(1) [],
@@ -145,7 +145,7 @@ register_bitfields![u32,
         TXINV OFFSET(28) NUMBITS(1) [],
         /// Overrun Interrupt Enable
         ORIE OFFSET(27) NUMBITS(1) [],
-		/// Noise Error Interrupt Enable
+        /// Noise Error Interrupt Enable
         NEIE OFFSET(26) NUMBITS(1) [],
         /// Framing Error Interrupt Enable
         FEIE OFFSET(25) NUMBITS(1) [],
@@ -155,7 +155,7 @@ register_bitfields![u32,
         TIE OFFSET(23) NUMBITS(1) [],
         /// Transmission Complete Interrupt Enable for
         TCIE OFFSET(22) NUMBITS(1) [],
-		/// Receiver Interrupt Enable
+        /// Receiver Interrupt Enable
         RIE OFFSET(21) NUMBITS(1) [],
         /// Idle Line Interrupt Enable
         ILIE OFFSET(20) NUMBITS(1) [],
@@ -175,7 +175,7 @@ register_bitfields![u32,
         M7 OFFSET(11) NUMBITS(1) [],
         /// Idle Configuration
         IDLECFG OFFSET(8) NUMBITS(3) [],
-		/// Loop Mode Select
+        /// Loop Mode Select
         LOOPS OFFSET(7) NUMBITS(1) [],
         /// Doze Enable
         DOZEEN OFFSET(6) NUMBITS(1) [],
@@ -185,7 +185,7 @@ register_bitfields![u32,
         M OFFSET(4) NUMBITS(1) [],
         /// Receiver Wakeup Method Select
         WAKE OFFSET(3) NUMBITS(1) [],
-		/// Idle Line Type Select
+        /// Idle Line Type Select
         ILT OFFSET(2) NUMBITS(1) [],
         /// Parity Enable
         PE OFFSET(1) NUMBITS(1) [],
@@ -314,7 +314,6 @@ enum USARTStateRX {
     AbortRequested,
 }
 
-
 pub struct Lpuart<'a> {
     registers: StaticRef<LpuartRegisters>,
     clock: LpuartClock,
@@ -335,12 +334,11 @@ pub struct Lpuart<'a> {
 
 pub static mut LPUART1: Lpuart = Lpuart::new(
     LPUART1_BASE,
-	LpuartClock(ccm::PeripheralClock::CCGR5(ccm::HCLK5::LPUART1)),
+    LpuartClock(ccm::PeripheralClock::CCGR5(ccm::HCLK5::LPUART1)),
 );
 
 impl Lpuart<'a> {
-
-	const fn new(base_addr: StaticRef<LpuartRegisters>, clock: LpuartClock) -> Lpuart<'a> {
+    const fn new(base_addr: StaticRef<LpuartRegisters>, clock: LpuartClock) -> Lpuart<'a> {
         Lpuart {
             registers: base_addr,
             clock: clock,
@@ -351,7 +349,7 @@ impl Lpuart<'a> {
             tx_buffer: TakeCell::empty(),
             tx_position: Cell::new(0),
             tx_len: Cell::new(0),
-            tx_status: Cell::new(LPUARTStateTX::Idle), 
+            tx_status: Cell::new(LPUARTStateTX::Idle),
 
             rx_buffer: TakeCell::empty(),
             rx_position: Cell::new(0),
@@ -361,42 +359,42 @@ impl Lpuart<'a> {
     }
 
     pub fn is_enabled_clock(&self) -> bool {
-		self.clock.is_enabled()
-	}
+        self.clock.is_enabled()
+    }
 
-	pub fn enable_clock(&self) {
-		self.clock.enable();
-	}
+    pub fn enable_clock(&self) {
+        self.clock.enable();
+    }
 
-	pub fn disable_clock(&self) {
-		self.clock.disable();
-	}
+    pub fn disable_clock(&self) {
+        self.clock.disable();
+    }
 
     pub fn set_baud(&self) {
         // Set the Baud Rate Modulo Divisor
         self.registers.baud.modify(BAUD::SBR.val(139 as u32));
     }
 
-	// for use by panic in io.rs
-	pub fn send_byte(&self, byte: u8) {
-		// loop till TXE (Transmit data register empty) becomes 1
-		while !self.registers.stat.is_set(STAT::TDRE) {}
+    // for use by panic in io.rs
+    pub fn send_byte(&self, byte: u8) {
+        // loop till TDRE (Transmit data register empty) becomes 1
+        while !self.registers.stat.is_set(STAT::TDRE) {}
 
         self.registers.data.set(byte.into());
 
         while !self.registers.stat.is_set(STAT::TC) {}
-	}
-
-	fn enable_transmit_complete_interrupt(&self) {
-		self.registers.ctrl.modify(CTRL::TIE::SET);
     }
 
-	fn disable_transmit_complete_interrupt(&self) {
-		self.registers.ctrl.modify(CTRL::TIE::CLEAR);
+    fn enable_transmit_complete_interrupt(&self) {
+        self.registers.ctrl.modify(CTRL::TIE::SET);
     }
-	
-	fn clear_transmit_complete(&self) {
-		self.registers.stat.modify(STAT::TDRE::CLEAR);
+
+    fn disable_transmit_complete_interrupt(&self) {
+        self.registers.ctrl.modify(CTRL::TIE::CLEAR);
+    }
+
+    fn clear_transmit_complete(&self) {
+        self.registers.stat.modify(STAT::TDRE::CLEAR);
     }
 
     fn enable_receive_interrupt(&self) {
@@ -411,38 +409,38 @@ impl Lpuart<'a> {
         self.registers.ctrl.modify(CTRL::ORIE::CLEAR);
     }
 
-	pub fn handle_interrupt(&self) {
+    pub fn handle_interrupt(&self) {
         if self.registers.stat.is_set(STAT::TDRE) {
-    		self.clear_transmit_complete();
-    		self.disable_transmit_complete_interrupt();
+            self.clear_transmit_complete();
+            self.disable_transmit_complete_interrupt();
 
-    		// ignore IRQ if not transmitting
-    		if self.tx_status.get() == LPUARTStateTX::Transmitting {
-    			let position = self.tx_position.get();
-    			if position < self.tx_len.get() {
-    				self.tx_buffer.map(|buf| {
+            // ignore IRQ if not transmitting
+            if self.tx_status.get() == LPUARTStateTX::Transmitting {
+                let position = self.tx_position.get();
+                if position < self.tx_len.get() {
+                    self.tx_buffer.map(|buf| {
                         self.registers.data.set(buf[position].into());
-    					self.tx_position.replace(self.tx_position.get() + 1);
-    					self.enable_transmit_complete_interrupt();
-    				});
-    			} else {
-    				// transmission done
-    				self.tx_status.replace(LPUARTStateTX::Idle);
-    			}
-    			// notify client if transfer is done
-    			if self.tx_status.get() == LPUARTStateTX::Idle {
-    				self.tx_client.map(|client| {
-    					if let Some(buf) = self.tx_buffer.take() {
-    		                client.transmitted_buffer(buf, self.tx_len.get(), ReturnCode::SUCCESS);
-    		            }
-    		        });
-    			}
+                        self.tx_position.replace(self.tx_position.get() + 1);
+                        self.enable_transmit_complete_interrupt();
+                    });
+                } else {
+                    // transmission done
+                    self.tx_status.replace(LPUARTStateTX::Idle);
+                }
+                // notify client if transfer is done
+                if self.tx_status.get() == LPUARTStateTX::Idle {
+                    self.tx_client.map(|client| {
+                        if let Some(buf) = self.tx_buffer.take() {
+                            client.transmitted_buffer(buf, self.tx_len.get(), ReturnCode::SUCCESS);
+                        }
+                    });
+                }
             } else if self.tx_status.get() == LPUARTStateTX::AbortRequested {
-    			self.tx_status.replace(LPUARTStateTX::Idle);
-    			self.tx_client.map(|client| {
-    				if let Some(buf) = self.tx_buffer.take() {
-    	                client.transmitted_buffer(buf, self.tx_position.get(), ReturnCode::ECANCEL);
-    	            }
+                self.tx_status.replace(LPUARTStateTX::Idle);
+                self.tx_client.map(|client| {
+                    if let Some(buf) = self.tx_buffer.take() {
+                        client.transmitted_buffer(buf, self.tx_position.get(), ReturnCode::ECANCEL);
+                    }
                 });
             }
         }
@@ -508,63 +506,60 @@ impl Lpuart<'a> {
                 }
             });
         }
-
     }
-
 }
 
 impl hil::uart::Transmit<'a> for Lpuart<'a> {
-	fn set_transmit_client(&self, client: &'a dyn hil::uart::TransmitClient) {
-		self.tx_client.set(client);
+    fn set_transmit_client(&self, client: &'a dyn hil::uart::TransmitClient) {
+        self.tx_client.set(client);
     }
 
-	fn transmit_buffer(&self,
-	        tx_data: &'static mut [u8],
-	        tx_len: usize,
-	    ) -> (ReturnCode, Option<&'static mut [u8]>) {
-
-			if self.tx_status.get() == LPUARTStateTX::Idle {
-				if tx_len <= tx_data.len() {
-					self.tx_buffer.put(Some(tx_data));
-					self.tx_position.set(0);
-					self.tx_len.set(tx_len);
-					self.tx_status.set(LPUARTStateTX::Transmitting);
-					self.enable_transmit_complete_interrupt();
-                    (ReturnCode::SUCCESS, None)
-                } else {
-                    (ReturnCode::ESIZE, Some(tx_data))
-                }
-	        } else {
-	            (ReturnCode::EBUSY, Some(tx_data))
-	        }
+    fn transmit_buffer(
+        &self,
+        tx_data: &'static mut [u8],
+        tx_len: usize,
+    ) -> (ReturnCode, Option<&'static mut [u8]>) {
+        if self.tx_status.get() == LPUARTStateTX::Idle {
+            if tx_len <= tx_data.len() {
+                self.tx_buffer.put(Some(tx_data));
+                self.tx_position.set(0);
+                self.tx_len.set(tx_len);
+                self.tx_status.set(LPUARTStateTX::Transmitting);
+                self.enable_transmit_complete_interrupt();
+                (ReturnCode::SUCCESS, None)
+            } else {
+                (ReturnCode::ESIZE, Some(tx_data))
+            }
+        } else {
+            (ReturnCode::EBUSY, Some(tx_data))
+        }
     }
 
-	fn transmit_word(&self, _word: u32) -> ReturnCode {
+    fn transmit_word(&self, _word: u32) -> ReturnCode {
         ReturnCode::FAIL
     }
 
-	fn transmit_abort(&self) -> ReturnCode {
-		if self.tx_status.get() != LPUARTStateTX::Idle {
-			self.tx_status.set(LPUARTStateTX::AbortRequested);
-	        ReturnCode::EBUSY
-		} else {
-	        ReturnCode::SUCCESS
-	    }
-	}
+    fn transmit_abort(&self) -> ReturnCode {
+        if self.tx_status.get() != LPUARTStateTX::Idle {
+            self.tx_status.set(LPUARTStateTX::AbortRequested);
+            ReturnCode::EBUSY
+        } else {
+            ReturnCode::SUCCESS
+        }
+    }
 }
 
 impl hil::uart::Configure for Lpuart<'a> {
-	
-	fn configure(&self, params: hil::uart::Parameters) -> ReturnCode {
-		if params.baud_rate != 115200
-			|| params.stop_bits != hil::uart::StopBits::One
-			|| params.parity != hil::uart::Parity::None
-			|| params.hw_flow_control != false
-			|| params.width != hil::uart::Width::Eight
+    fn configure(&self, params: hil::uart::Parameters) -> ReturnCode {
+        if params.baud_rate != 115200
+            || params.stop_bits != hil::uart::StopBits::One
+            || params.parity != hil::uart::Parity::None
+            || params.hw_flow_control != false
+            || params.width != hil::uart::Width::Eight
         {
-			panic!(
-				"Currently we only support uart setting of 115200bps 8N1, no hardware flow control"
-			);
+            panic!(
+                "Currently we only support uart setting of 115200bps 8N1, no hardware flow control"
+            );
         }
 
         unsafe {
@@ -602,39 +597,38 @@ impl hil::uart::Configure for Lpuart<'a> {
         self.registers.water.modify(WATER::RXWATER::CLEAR);
         self.registers.water.modify(WATER::TXWATER::CLEAR);
 
-       	// Enable TX and RX FIFO
-       	self.registers.fifo.modify(FIFO::TXFE::CLEAR);
-       	self.registers.fifo.modify(FIFO::RXFE::CLEAR);
+        // Enable TX and RX FIFO
+        self.registers.fifo.modify(FIFO::TXFE::CLEAR);
+        self.registers.fifo.modify(FIFO::RXFE::CLEAR);
 
-       	// Flush RX FIFO and TX FIFO
-       	self.registers.fifo.modify(FIFO::TXFLUSH::CLEAR);
-       	self.registers.fifo.modify(FIFO::RXFLUSH::CLEAR);
+        // Flush RX FIFO and TX FIFO
+        self.registers.fifo.modify(FIFO::TXFLUSH::CLEAR);
+        self.registers.fifo.modify(FIFO::RXFLUSH::CLEAR);
 
-       	// Clear all status registers
-       	self.registers.stat.modify(STAT::RXEDGIF::SET);
-       	self.registers.stat.modify(STAT::IDLE::SET);
-       	self.registers.stat.modify(STAT::OR::SET);
-       	self.registers.stat.modify(STAT::NF::SET);
-       	self.registers.stat.modify(STAT::FE::SET);
-       	self.registers.stat.modify(STAT::PF::SET);
-       	self.registers.stat.modify(STAT::MA1F::SET);
-       	self.registers.stat.modify(STAT::MA2F::SET);
+        // Clear all status registers
+        self.registers.stat.modify(STAT::RXEDGIF::SET);
+        self.registers.stat.modify(STAT::IDLE::SET);
+        self.registers.stat.modify(STAT::OR::SET);
+        self.registers.stat.modify(STAT::NF::SET);
+        self.registers.stat.modify(STAT::FE::SET);
+        self.registers.stat.modify(STAT::PF::SET);
+        self.registers.stat.modify(STAT::MA1F::SET);
+        self.registers.stat.modify(STAT::MA2F::SET);
 
-       	// Set the CTS configuration/TX CTS source.
-       	self.registers.modir.modify(MODIR::TXCTSC::CLEAR);
-       	self.registers.modir.modify(MODIR::TXCTSSRC::CLEAR);
+        // Set the CTS configuration/TX CTS source.
+        self.registers.modir.modify(MODIR::TXCTSC::CLEAR);
+        self.registers.modir.modify(MODIR::TXCTSSRC::CLEAR);
 
-       	// Set as LSB
-       	self.registers.stat.modify(STAT::MSBF::CLEAR);
+        // Set as LSB
+        self.registers.stat.modify(STAT::MSBF::CLEAR);
 
-       	// Enable TX and RX over LPUART
-       	self.registers.ctrl.modify(CTRL::TE::SET);
-       	self.registers.ctrl.modify(CTRL::RE::SET);
-		
-		ReturnCode::SUCCESS
+        // Enable TX and RX over LPUART
+        self.registers.ctrl.modify(CTRL::TE::SET);
+        self.registers.ctrl.modify(CTRL::RE::SET);
+
+        ReturnCode::SUCCESS
     }
 }
-
 
 impl hil::uart::Receive<'a> for Lpuart<'a> {
     fn set_receive_client(&self, client: &'a dyn hil::uart::ReceiveClient) {
@@ -646,7 +640,6 @@ impl hil::uart::Receive<'a> for Lpuart<'a> {
         rx_buffer: &'static mut [u8],
         rx_len: usize,
     ) -> (ReturnCode, Option<&'static mut [u8]>) {
-
         if self.rx_status.get() == USARTStateRX::Idle {
             if rx_len <= rx_buffer.len() {
                 self.rx_buffer.put(Some(rx_buffer));
@@ -682,15 +675,15 @@ impl hil::uart::Uart<'a> for Lpuart<'a> {}
 struct LpuartClock(ccm::PeripheralClock);
 
 impl ClockInterface for LpuartClock {
-	fn is_enabled(&self) -> bool {
-		self.0.is_enabled()
-	}
-
-	fn enable(&self) {
-		self.0.enable();
+    fn is_enabled(&self) -> bool {
+        self.0.is_enabled()
     }
 
-	fn disable(&self) {
-		self.0.disable();
+    fn enable(&self) {
+        self.0.enable();
+    }
+
+    fn disable(&self) {
+        self.0.disable();
     }
 }

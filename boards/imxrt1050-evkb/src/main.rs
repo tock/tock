@@ -7,13 +7,12 @@
 #![feature(asm)]
 #![deny(missing_docs)]
 
-
-use kernel::hil::time::Alarm;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
-use kernel::debug;
 use kernel::capabilities;
 use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::component::Component;
+use kernel::debug;
+use kernel::hil::time::Alarm;
 // use kernel::hil::time::Alarm;
 use kernel::hil::gpio::Configure;
 use kernel::Platform;
@@ -76,7 +75,7 @@ struct Imxrt1050EVKB {
         'static,
         VirtualMuxAlarm<'static, imxrt1050::gpt1::Gpt1<'static>>,
     >,
-    ninedof: &'static capsules::ninedof::NineDof<'static>, 
+    ninedof: &'static capsules::ninedof::NineDof<'static>,
     // gpio: &'static capsules::gpio::GPIO<'static>
 }
 
@@ -126,9 +125,8 @@ impl Platform for Imxrt1050EVKB {
 
 /// Helper function called during bring-up that configures multiplexed I/O.
 unsafe fn set_pin_primary_functions() {
-
-    use imxrt1050::gpio::{PinId, PORT};
     use imxrt1050::ccm::CCM;
+    use imxrt1050::gpio::{PinId, PORT};
 
     CCM.enable_iomuxc_clock();
     CCM.enable_gpio1_clock();
@@ -158,7 +156,6 @@ unsafe fn set_pin_primary_functions() {
         // Configure kernel debug gpios as early as possible
         kernel::debug::assign_gpios(Some(pin), None, None);
     });
-
 }
 
 /// Helper function for miscellaneous peripheral functions
@@ -296,10 +293,10 @@ pub unsafe fn reset_handler() {
             imxrt1050::gpio::PinId::AdB0_09.get_pin().as_ref().unwrap(),
             kernel::hil::gpio::ActivationMode::ActiveLow
         )
-    )).finalize(components::led_component_buf!(
+    ))
+    .finalize(components::led_component_buf!(
         imxrt1050::gpio::Pin<'static>
     ));
-
 
     // ALARM
     let mux_alarm = static_init!(
@@ -366,8 +363,11 @@ pub unsafe fn reset_handler() {
     let mux_i2c = components::i2c::I2CMuxComponent::new(&imxrt1050::lpi2c::LPI2C1)
         .finalize(components::i2c_mux_component_helper!());
 
-    let fxos8700 = components::fxos8700::Fxos8700Component::new(mux_i2c, PinId::AdB1_00.get_pin().as_ref().unwrap())
-        .finalize(());
+    let fxos8700 = components::fxos8700::Fxos8700Component::new(
+        mux_i2c,
+        PinId::AdB1_00.get_pin().as_ref().unwrap(),
+    )
+    .finalize(());
 
     let ninedof = components::ninedof::NineDofComponent::new(board_kernel)
         .finalize(components::ninedof_component_helper!(fxos8700));
