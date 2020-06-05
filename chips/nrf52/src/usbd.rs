@@ -1409,6 +1409,9 @@ impl<'a> Usbd<'a> {
                 self.client.map(|client| {
                     match client.ctrl_out(endpoint, regs.epout[endpoint].amount()) {
                         hil::usb::CtrlOutResult::Ok => {
+                            // TODO: Check if the CTRL WRITE is longer
+                            // than the amount of data we have received,
+                            // and receive more data before completing.
                             self.complete_ctrl_status();
                         }
                         hil::usb::CtrlOutResult::Delay => {}
