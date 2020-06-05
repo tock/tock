@@ -13,7 +13,7 @@ impl Msp432 {
         Msp432 {
             mpu: cortexm4::mpu::MPU::new(),
             userspace_kernel_boundary: cortexm4::syscall::SysCall::new(),
-            systick: cortexm4::systick::SysTick::new(),
+            systick: cortexm4::systick::SysTick::new_with_calibration(48_000_000),
         }
     }
 }

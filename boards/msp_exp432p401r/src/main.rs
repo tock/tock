@@ -12,11 +12,11 @@ use kernel::{create_capability, static_init};
 pub mod io;
 
 // Number of concurrent processes this platform supports.
-const NUM_PROCS: usize = 4;
+const NUM_PROCS: usize = 1;
 
 // Actual memory for holding the active process structures.
 static mut PROCESSES: [Option<&'static dyn kernel::procs::ProcessType>; NUM_PROCS] =
-    [None, None, None, None];
+    [None; NUM_PROCS];
 
 // Static reference to chip for panic dumps.
 static mut CHIP: Option<&'static msp432::chip::Msp432> = None;
@@ -30,9 +30,9 @@ static mut APP_MEMORY: [u8; 32768] = [0; 32768];
 
 // Force the emission of the `.apps` segment in the kernel elf image
 // NOTE: This will cause the kernel to overwrite any existing apps when flashed!
-// #[used]
-// #[link_section = ".app.hack"]
-// static APP_HACK: u8 = 0;
+#[used]
+#[link_section = ".app.hack"]
+static APP_HACK: u8 = 0;
 
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
@@ -120,5 +120,4 @@ pub unsafe fn reset_handler() {
     .unwrap();
 
     board_kernel.kernel_loop(&msp_exp432p4014, chip, None, &main_loop_capability);
-    panic!();
 }

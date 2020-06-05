@@ -1,8 +1,8 @@
-/* Memory Space Definitions, 360K flash, 80K ram */
+/* Memory Space Definitions, 256K flash, 64K ram */
 MEMORY
 {
-  rom (rx)  : ORIGIN = 0x00000000, LENGTH = 64K
-  prog (rx) : ORIGIN = 0x00010000, LENGTH = 192K
+  rom (rx)  : ORIGIN = 0x00000000, LENGTH = 128K
+  prog (rx) : ORIGIN = 0x00020000, LENGTH = 128K
   ram (rwx) : ORIGIN = 0x20000000, LENGTH = 64K
 }
 

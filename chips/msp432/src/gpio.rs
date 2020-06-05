@@ -277,10 +277,10 @@ pub struct Pin {
 
 impl Pin {
     pub const fn new(pin: PinNr) -> Pin {
-        let pin = (pin as u8) % PINS_PER_PORT;
-        let port = pin / PINS_PER_PORT;
+        let pin_nr = (pin as u8) % PINS_PER_PORT;
+        let port = (pin as u8) / PINS_PER_PORT;
         Pin {
-            pin: pin,
+            pin: pin_nr,
             port: port,
             reg_idx: (port % 2) as usize,
             registers: GPIO_BASES[(port / 2) as usize],
