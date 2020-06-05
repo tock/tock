@@ -67,8 +67,8 @@ pub struct ClientCtrl<'a, 'b, U: 'a> {
     hid_descriptor: Option<&'b HIDDescriptor<'b>>,
 
     /// An optional report descriptor for the configuration. This can be
-    /// requested separately. It should also be included in
-    /// `other_descriptor_buffer`.
+    /// requested separately. It must also be included in
+    /// `other_descriptor_buffer` if it exists.
     report_descriptor: Option<&'b ReportDescriptor<'b>>,
 
     /// Supported language (only one for now).
