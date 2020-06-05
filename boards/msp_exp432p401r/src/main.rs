@@ -42,7 +42,7 @@ pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 /// A structure representing this platform that holds references to all
 /// capsules for this platform.
 struct MspExp432P401R {
-    led: &'static capsules::led::LED<'static>,
+    led: &'static capsules::led::LED<'static, msp432::gpio::Pin>,
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
@@ -72,7 +72,8 @@ pub unsafe fn reset_handler() {
     let chip = static_init!(msp432::chip::Msp432, msp432::chip::Msp432::new());
     CHIP = Some(chip);
 
-    let leds = components::led::LedsComponent::new().finalize(components::led_component_helper!(
+    let leds = components::led::LedsComponent::new(components::led_component_helper!(
+        msp432::gpio::Pin,
         (
             &msp432::gpio::PINS[msp432::gpio::PinNr::P02_0 as usize],
             kernel::hil::gpio::ActivationMode::ActiveHigh
@@ -85,7 +86,8 @@ pub unsafe fn reset_handler() {
             &msp432::gpio::PINS[msp432::gpio::PinNr::P02_2 as usize],
             kernel::hil::gpio::ActivationMode::ActiveHigh
         )
-    ));
+    ))
+    .finalize(components::led_component_buf!(msp432::gpio::Pin));
 
     let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
     let process_management_capability =
