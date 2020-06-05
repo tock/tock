@@ -843,7 +843,6 @@ impl<'a, M: Mac, A: AES128CCM<'a>> CCMClient for Framer<'a, M, A> {
     fn crypt_done(&self, buf: &'static mut [u8], res: ReturnCode, tag_is_valid: bool) {
         let mut tx_waiting = false;
         let mut rx_waiting = false;
-        let rx_waiting_ref = &mut rx_waiting; //needed to mutate rx_waiting in move closure
 
         // The crypto operation was from the transmission pipeline.
         let opt_buf = if let Some(state) = self.tx_state.take() {
@@ -880,7 +879,8 @@ impl<'a, M: Mac, A: AES128CCM<'a>> CCMClient for Framer<'a, M, A> {
 
         // The crypto operation was from the reception pipeline.
         if let Some(buf) = opt_buf {
-            self.rx_state.take().map(move |state| {
+            self.rx_state.take().map(|state| {
+                let buf = buf;
                 match state {
                     RxState::Decrypting(info) => {
                         let next_state = if tag_is_valid {
@@ -892,7 +892,7 @@ impl<'a, M: Mac, A: AES128CCM<'a>> CCMClient for Framer<'a, M, A> {
                         self.step_receive_state();
                     }
                     other_state => {
-                        *rx_waiting_ref = match other_state {
+                        rx_waiting = match other_state {
                             RxState::ReadyToDecrypt(_, _) => true,
                             _ => false,
                         };

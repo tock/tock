@@ -1445,9 +1445,9 @@ impl<'a, A: hil::time::Alarm<'a>> SDCardClient for SDCardDriver<'a, A> {
         self.kernel_buf.replace(data);
         self.app.map(|app| {
             let mut read_len = 0;
-            let read_len_ref = &mut read_len; // needed to mutate read_len in move closure
             self.kernel_buf.map(|data| {
-                app.read_buffer.as_mut().map(move |read_buffer| {
+                app.read_buffer.as_mut().map(|read_buffer| {
+                    let read_buffer = read_buffer;
                     // copy bytes to user buffer
                     // Limit to minimum length between read_buffer, data, and
                     // len field
@@ -1455,7 +1455,7 @@ impl<'a, A: hil::time::Alarm<'a>> SDCardClient for SDCardDriver<'a, A> {
                     {
                         *read_byte = data_byte;
                     }
-                    *read_len_ref = cmp::min(read_buffer.len(), cmp::min(data.len(), len));
+                    read_len = cmp::min(read_buffer.len(), cmp::min(data.len(), len));
                 });
             });
 
