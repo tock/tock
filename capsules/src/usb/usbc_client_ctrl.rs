@@ -58,7 +58,7 @@ pub struct ClientCtrl<'a, 'b, U: 'a> {
     /// `ClientCtrl`.
     device_descriptor_buffer: DeviceBuffer,
 
-    /// Buffer containing the byte-packed representation of the configuration
+    /// Buffer containing the byte-serialized representation of the configuration
     /// descriptor and all other descriptors for this device.
     other_descriptor_buffer: DescriptorBuffer,
 
