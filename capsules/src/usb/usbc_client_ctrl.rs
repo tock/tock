@@ -74,7 +74,7 @@ pub struct ClientCtrl<'a, 'b, U: 'a> {
     /// Supported language (only one for now).
     language: &'b [u16; 1],
 
-    /// Other strings.
+    /// USB strings to provide human readable descriptions of certain descriptor attributes.
     strings: &'b [&'b str],
 }
 
