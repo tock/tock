@@ -178,6 +178,14 @@ pub unsafe fn reset_handler() {
     apollo3::iom::IOM2.set_master_client(i2c_master);
     apollo3::iom::IOM2.enable();
 
+    // Setup BLE
+    apollo3::mcuctrl::MCUCTRL.enable_ble();
+    apollo3::clkgen::CLKGEN.enable_ble();
+    apollo3::pwrctrl::PWRCTRL.enable_ble();
+    apollo3::ble::BLE.setup_clocks();
+    apollo3::mcuctrl::MCUCTRL.reset_ble();
+    apollo3::ble::BLE.power_up();
+
     debug!("Initialization complete. Entering main loop");
 
     extern "C" {
