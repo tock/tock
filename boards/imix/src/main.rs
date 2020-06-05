@@ -308,7 +308,10 @@ pub unsafe fn reset_handler() {
         .finalize(components::alarm_component_helper!(sam4l::ast::Ast));
 
     // # I2C and I2C Sensors
-    let mux_i2c = static_init!(MuxI2C<'static>, MuxI2C::new(&sam4l::i2c::I2C2, None));
+    let mux_i2c = static_init!(
+        MuxI2C<'static>,
+        MuxI2C::new(&sam4l::i2c::I2C2, None, dynamic_deferred_caller)
+    );
     sam4l::i2c::I2C2.set_master_client(mux_i2c);
 
     let ambient_light = AmbientLightComponent::new(board_kernel, mux_i2c, mux_alarm)

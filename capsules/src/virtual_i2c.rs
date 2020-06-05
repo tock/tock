@@ -5,6 +5,9 @@
 
 use core::cell::Cell;
 use kernel::common::cells::{OptionalCell, TakeCell};
+use kernel::common::dynamic_deferred_call::{
+    DeferredCallHandle, DynamicDeferredCall, DynamicDeferredCallClient,
+};
 use kernel::common::{List, ListLink, ListNode};
 use kernel::hil::i2c::{self, Error, I2CClient, I2CHwMasterClient};
 
@@ -16,6 +19,8 @@ pub struct MuxI2C<'a> {
     enabled: Cell<usize>,
     i2c_inflight: OptionalCell<&'a I2CDevice<'a>>,
     smbus_inflight: OptionalCell<&'a SMBusDevice<'a>>,
+    deferred_caller: &'a DynamicDeferredCall,
+    handle: OptionalCell<DeferredCallHandle>,
 }
 
 impl I2CHwMasterClient for MuxI2C<'_> {
@@ -37,6 +42,7 @@ impl<'a> MuxI2C<'a> {
     pub const fn new(
         i2c: &'a dyn i2c::I2CMaster,
         smbus: Option<&'a dyn i2c::SMBusMaster>,
+        deferred_caller: &'a DynamicDeferredCall,
     ) -> MuxI2C<'a> {
         MuxI2C {
             i2c: i2c,
@@ -46,7 +52,13 @@ impl<'a> MuxI2C<'a> {
             enabled: Cell::new(0),
             i2c_inflight: OptionalCell::empty(),
             smbus_inflight: OptionalCell::empty(),
+            deferred_caller: deferred_caller,
+            handle: OptionalCell::empty(),
         }
+    }
+
+    pub fn initialize_callback_handle(&self, handle: DeferredCallHandle) {
+        self.handle.replace(handle);
     }
 
     fn enable(&self) {
@@ -82,6 +94,9 @@ impl<'a> MuxI2C<'a> {
                         Op::WriteRead(wlen, rlen) => {
                             self.i2c.write_read(node.addr, buf, wlen, rlen)
                         }
+                        Op::CommandComplete(err) => {
+                            self.command_complete(buf, err);
+                        }
                         Op::Idle => {} // Can't get here...
                     }
                 });
@@ -100,13 +115,21 @@ impl<'a> MuxI2C<'a> {
                         Op::Write(len) => {
                             match self.smbus.unwrap().smbus_write(node.addr, buf, len) {
                                 Ok(_) => {}
-                                Err(e) => self.command_complete(e.1, e.0),
+                                Err(e) => {
+                                    node.buffer.replace(e.1);
+                                    node.operation.set(Op::CommandComplete(e.0));
+                                    node.mux.do_next_op_async();
+                                }
                             };
                         }
                         Op::Read(len) => {
                             match self.smbus.unwrap().smbus_read(node.addr, buf, len) {
                                 Ok(_) => {}
-                                Err(e) => self.command_complete(e.1, e.0),
+                                Err(e) => {
+                                    node.buffer.replace(e.1);
+                                    node.operation.set(Op::CommandComplete(e.0));
+                                    node.mux.do_next_op_async();
+                                }
                             };
                         }
                         Op::WriteRead(wlen, rlen) => {
@@ -116,8 +139,15 @@ impl<'a> MuxI2C<'a> {
                                 .smbus_write_read(node.addr, buf, wlen, rlen)
                             {
                                 Ok(_) => {}
-                                Err(e) => self.command_complete(e.1, e.0),
+                                Err(e) => {
+                                    node.buffer.replace(e.1);
+                                    node.operation.set(Op::CommandComplete(e.0));
+                                    node.mux.do_next_op_async();
+                                }
                             };
+                        }
+                        Op::CommandComplete(err) => {
+                            self.command_complete(buf, err);
                         }
                         Op::Idle => unreachable!(),
                     });
@@ -127,6 +157,24 @@ impl<'a> MuxI2C<'a> {
             }
         }
     }
+
+    /// Asynchronously executes the next operation, if any. Used by calls
+    /// to trigger do_next_op such that it will execute after the call
+    /// returns. This is important in case the operation triggers an error,
+    /// requiring a callback with an error condition; if the operation
+    /// is executed synchronously, the callback may be reentrant (executed
+    /// during the downcall). Please see
+    ///
+    /// https://github.com/tock/tock/issues/1496
+    fn do_next_op_async(&self) {
+        self.handle.map(|handle| self.deferred_caller.set(*handle));
+    }
+}
+
+impl<'a> DynamicDeferredCallClient for MuxI2C<'a> {
+    fn call(&self, _handle: DeferredCallHandle) {
+        self.do_next_op();
+    }
 }
 
 #[derive(Copy, Clone, PartialEq)]
@@ -135,6 +183,7 @@ enum Op {
     Write(u8),
     Read(u8),
     WriteRead(u8, u8),
+    CommandComplete(i2c::Error),
 }
 
 pub struct I2CDevice<'a> {

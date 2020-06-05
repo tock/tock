@@ -17,6 +17,7 @@
 
 use capsules::virtual_i2c::{I2CDevice, MuxI2C};
 use core::mem::MaybeUninit;
+use kernel::common::dynamic_deferred_call::DynamicDeferredCall;
 use kernel::component::Component;
 use kernel::hil::i2c;
 use kernel::static_init_half;
@@ -45,6 +46,7 @@ macro_rules! i2c_component_helper {
 pub struct I2CMuxComponent {
     i2c: &'static dyn i2c::I2CMaster,
     smbus: Option<&'static dyn i2c::SMBusMaster>,
+    deferred_caller: &'static DynamicDeferredCall,
 }
 
 pub struct I2CComponent {
@@ -56,8 +58,13 @@ impl I2CMuxComponent {
     pub fn new(
         i2c: &'static dyn i2c::I2CMaster,
         smbus: Option<&'static dyn i2c::SMBusMaster>,
+        deferred_caller: &'static DynamicDeferredCall,
     ) -> Self {
-        I2CMuxComponent { i2c, smbus }
+        I2CMuxComponent {
+            i2c,
+            smbus,
+            deferred_caller,
+        }
     }
 }
 
@@ -69,7 +76,13 @@ impl Component for I2CMuxComponent {
         let mux_i2c = static_init_half!(
             static_buffer,
             MuxI2C<'static>,
-            MuxI2C::new(self.i2c, self.smbus)
+            MuxI2C::new(self.i2c, self.smbus, self.deferred_caller)
+        );
+
+        mux_i2c.initialize_callback_handle(
+            self.deferred_caller
+                .register(mux_i2c)
+                .expect("no deferred call slot available for I2C mux"),
         );
 
         self.i2c.set_master_client(mux_i2c);
