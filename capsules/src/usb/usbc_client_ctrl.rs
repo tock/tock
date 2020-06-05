@@ -63,7 +63,7 @@ pub struct ClientCtrl<'a, 'b, U: 'a> {
     other_descriptor_buffer: DescriptorBuffer,
 
     /// An optional HID descriptor for the configuration. This can be requested
-    /// separately. It should also be included in `other_descriptor_buffer`.
+    /// separately. It must also be included in `other_descriptor_buffer` if it exists.
     hid_descriptor: Option<&'b HIDDescriptor<'b>>,
 
     /// An optional report descriptor for the configuration. This can be
