@@ -128,7 +128,7 @@ impl<'a, U: hil::usb::UsbController<'a>> CdcAcm<'a, U> {
                 endpoint_address: EndpointAddress::new_const(4, TransferDirection::DeviceToHost),
                 transfer_type: TransferType::Interrupt,
                 max_packet_size: 8,
-                interval: 100,
+                interval: 16,
             }],
             &[
                 EndpointDescriptor {
@@ -138,7 +138,7 @@ impl<'a, U: hil::usb::UsbController<'a>> CdcAcm<'a, U> {
                     ),
                     transfer_type: TransferType::Bulk,
                     max_packet_size: 64,
-                    interval: 100,
+                    interval: 0,
                 },
                 EndpointDescriptor {
                     endpoint_address: EndpointAddress::new_const(
@@ -147,7 +147,7 @@ impl<'a, U: hil::usb::UsbController<'a>> CdcAcm<'a, U> {
                     ),
                     transfer_type: TransferType::Bulk,
                     max_packet_size: 64,
-                    interval: 100,
+                    interval: 0,
                 },
             ],
         ];
