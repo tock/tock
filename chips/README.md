@@ -43,9 +43,9 @@ HIL Support
 | symmetric_encryption::AES128CBC         |          |          |        |       |         | ✓        | ✓        | ✓     |           |           |
 | symmetric_encryption::AES128CCM         |          |          |        |       |         | ✓        | ✓        |       |           |           |
 | symmetric_encryption::AES128Ctr         |          |          |        |       |         | ✓        | ✓        | ✓     |           |           |
-| time::Alarm                             |          |          | ✓      |       | ✓       | ✓        | ✓        | ✓     | ✓         | ✓         |
-| time::Frequency                         |          |          | ✓      |       | ✓       | ✓        | ✓        |       |           |           |
-| time::Time                              |          |          | ✓      |       | ✓       | ✓        | ✓        | ✓     | ✓         | ✓         |
+| time::Alarm                             | ✓        |          | ✓      |       | ✓       | ✓        | ✓        | ✓     | ✓         | ✓         |
+| time::Frequency                         | ✓        |          | ✓      |       | ✓       | ✓        | ✓        |       |           |           |
+| time::Time                              | ✓        |          | ✓      |       | ✓       | ✓        | ✓        | ✓     | ✓         | ✓         |
 | uart::Configure                         | ✓        | ✓        | ✓      | ✓     | ✓       | ✓        | ✓        | ✓     | ✓         | ✓         |
 | uart::Receive                           |          | ✓        | ✓      | ✓     | ✓       | ✓        | ✓        | ✓     | ✓         | ✓         |
 | uart::ReceiveAdvanced                   |          |          |        |       |         |          |          | ✓     |           |           |

@@ -8,6 +8,7 @@
 #![cfg_attr(not(doc), no_main)]
 #![deny(missing_docs)]
 
+use capsules::virtual_alarm::VirtualMuxAlarm;
 use kernel::capabilities;
 use kernel::common::dynamic_deferred_call::DynamicDeferredCall;
 use kernel::common::dynamic_deferred_call::DynamicDeferredCallClientState;
@@ -43,6 +44,10 @@ pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 /// A structure representing this platform that holds references to all
 /// capsules for this platform.
 struct RedboardArtemisNano {
+    alarm: &'static capsules::alarm::AlarmDriver<
+        'static,
+        VirtualMuxAlarm<'static, apollo3::stimer::STimer<'static>>,
+    >,
     led: &'static capsules::led::LED<'static, apollo3::gpio::GpioPin>,
     gpio: &'static capsules::gpio::GPIO<'static, apollo3::gpio::GpioPin>,
     console: &'static capsules::console::Console<'static>,
@@ -55,6 +60,7 @@ impl Platform for RedboardArtemisNano {
         F: FnOnce(Option<&dyn kernel::Driver>) -> R,
     {
         match driver_num {
+            capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
             capsules::led::DRIVER_NUM => f(Some(self.led)),
             capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
             capsules::console::DRIVER_NUM => f(Some(self.console)),
@@ -143,6 +149,15 @@ pub unsafe fn reset_handler() {
     )
     .finalize(components::gpio_component_buf!(apollo3::gpio::GpioPin));
 
+    // Create a shared virtualisation mux layer on top of a single hardware
+    // alarm.
+    let alarm = &apollo3::stimer::STIMER;
+    let mux_alarm = components::alarm::AlarmMuxComponent::new(alarm).finalize(
+        components::alarm_mux_component_helper!(apollo3::stimer::STimer),
+    );
+    let alarm = components::alarm::AlarmDriverComponent::new(board_kernel, mux_alarm)
+        .finalize(components::alarm_component_helper!(apollo3::stimer::STimer));
+
     debug!("Initialization complete. Entering main loop");
 
     extern "C" {
@@ -157,7 +172,12 @@ pub unsafe fn reset_handler() {
         static _eapps: u8;
     }
 
-    let artemis_nano = RedboardArtemisNano { console, gpio, led };
+    let artemis_nano = RedboardArtemisNano {
+        alarm,
+        console,
+        gpio,
+        led,
+    };
 
     kernel::procs::load_processes(
         board_kernel,
