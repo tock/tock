@@ -109,7 +109,7 @@ pub enum AddressMode {
     Long = 0b11,
 }
 
-impl From<&'a Option<MacAddress>> for AddressMode {
+impl<'a> From<&'a Option<MacAddress>> for AddressMode {
     fn from(opt_addr: &'a Option<MacAddress>) -> Self {
         match *opt_addr {
             None => AddressMode::NotPresent,
@@ -252,7 +252,7 @@ impl KeyId {
     }
 }
 
-impl From<&'a KeyId> for KeyIdMode {
+impl<'a> From<&'a KeyId> for KeyIdMode {
     fn from(key_id: &'a KeyId) -> Self {
         match *key_id {
             KeyId::Implicit => KeyIdMode::Implicit,
@@ -353,13 +353,13 @@ pub enum HeaderIE<'a> {
     Termination2,
 }
 
-impl Default for HeaderIE<'a> {
+impl Default for HeaderIE<'_> {
     fn default() -> Self {
         HeaderIE::Termination1
     }
 }
 
-impl HeaderIE<'a> {
+impl HeaderIE<'_> {
     pub fn is_termination(&self) -> bool {
         match *self {
             HeaderIE::Termination1 | HeaderIE::Termination2 => true,
@@ -423,13 +423,13 @@ pub enum PayloadIE<'a> {
     Termination,
 }
 
-impl Default for PayloadIE<'a> {
+impl Default for PayloadIE<'_> {
     fn default() -> Self {
         PayloadIE::Termination
     }
 }
 
-impl PayloadIE<'a> {
+impl PayloadIE<'_> {
     pub fn is_termination(&self) -> bool {
         match *self {
             PayloadIE::Termination => true,
@@ -504,7 +504,7 @@ pub struct Header<'a> {
     pub payload_ies_len: usize,
 }
 
-impl Header<'a> {
+impl Header<'_> {
     pub fn encode(&self, buf: &mut [u8], has_payload: bool) -> SResult<usize> {
         // The frame control field is collected in the course of encoding the
         // various other fields of the header and then written only at the end

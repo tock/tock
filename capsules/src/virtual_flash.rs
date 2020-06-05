@@ -39,7 +39,7 @@ pub struct MuxFlash<'a, F: hil::flash::Flash + 'static> {
     inflight: OptionalCell<&'a FlashUser<'a, F>>,
 }
 
-impl<F: hil::flash::Flash> hil::flash::Client<F> for MuxFlash<'a, F> {
+impl<F: hil::flash::Flash> hil::flash::Client<F> for MuxFlash<'_, F> {
     fn read_complete(&self, pagebuffer: &'static mut F::Page, error: hil::flash::Error) {
         self.inflight.take().map(move |user| {
             user.read_complete(pagebuffer, error);
@@ -62,7 +62,7 @@ impl<F: hil::flash::Flash> hil::flash::Client<F> for MuxFlash<'a, F> {
     }
 }
 
-impl<F: hil::flash::Flash> MuxFlash<'a, F> {
+impl<'a, F: hil::flash::Flash> MuxFlash<'a, F> {
     pub const fn new(flash: &'a F) -> MuxFlash<'a, F> {
         MuxFlash {
             flash: flash,
@@ -136,7 +136,7 @@ pub struct FlashUser<'a, F: hil::flash::Flash + 'static> {
     client: OptionalCell<&'a dyn hil::flash::Client<FlashUser<'a, F>>>,
 }
 
-impl<F: hil::flash::Flash> FlashUser<'a, F> {
+impl<'a, F: hil::flash::Flash> FlashUser<'a, F> {
     pub const fn new(mux: &'a MuxFlash<'a, F>) -> FlashUser<'a, F> {
         FlashUser {
             mux: mux,
@@ -148,7 +148,7 @@ impl<F: hil::flash::Flash> FlashUser<'a, F> {
     }
 }
 
-impl<F: hil::flash::Flash, C: hil::flash::Client<Self>> hil::flash::HasClient<'a, C>
+impl<'a, F: hil::flash::Flash, C: hil::flash::Client<Self>> hil::flash::HasClient<'a, C>
     for FlashUser<'a, F>
 {
     fn set_client(&'a self, client: &'a C) {
@@ -157,7 +157,7 @@ impl<F: hil::flash::Flash, C: hil::flash::Client<Self>> hil::flash::HasClient<'a
     }
 }
 
-impl<F: hil::flash::Flash> hil::flash::Client<F> for FlashUser<'a, F> {
+impl<'a, F: hil::flash::Flash> hil::flash::Client<F> for FlashUser<'a, F> {
     fn read_complete(&self, pagebuffer: &'static mut F::Page, error: hil::flash::Error) {
         self.client.map(move |client| {
             client.read_complete(pagebuffer, error);
@@ -177,13 +177,13 @@ impl<F: hil::flash::Flash> hil::flash::Client<F> for FlashUser<'a, F> {
     }
 }
 
-impl<F: hil::flash::Flash> ListNode<'a, FlashUser<'a, F>> for FlashUser<'a, F> {
+impl<'a, F: hil::flash::Flash> ListNode<'a, FlashUser<'a, F>> for FlashUser<'a, F> {
     fn next(&'a self) -> &'a ListLink<'a, FlashUser<'a, F>> {
         &self.next
     }
 }
 
-impl<F: hil::flash::Flash> hil::flash::Flash for FlashUser<'a, F> {
+impl<F: hil::flash::Flash> hil::flash::Flash for FlashUser<'_, F> {
     type Page = F::Page;
 
     fn read_page(

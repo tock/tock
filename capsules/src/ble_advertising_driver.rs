@@ -307,7 +307,7 @@ where
     receiving_app: OptionalCell<kernel::AppId>,
 }
 
-impl<B, A> BLE<'a, B, A>
+impl<'a, B, A> BLE<'a, B, A>
 where
     B: ble_advertising::BleAdvertisementDriver + ble_advertising::BleConfig,
     A: kernel::hil::time::Alarm<'a>,
@@ -359,7 +359,7 @@ where
 }
 
 // Timer alarm
-impl<B, A> kernel::hil::time::AlarmClient for BLE<'a, B, A>
+impl<'a, B, A> kernel::hil::time::AlarmClient for BLE<'a, B, A>
 where
     B: ble_advertising::BleAdvertisementDriver + ble_advertising::BleConfig,
     A: kernel::hil::time::Alarm<'a>,
@@ -428,7 +428,7 @@ where
 }
 
 // Callback from the radio once a RX event occur
-impl<B, A> ble_advertising::RxClient for BLE<'a, B, A>
+impl<'a, B, A> ble_advertising::RxClient for BLE<'a, B, A>
 where
     B: ble_advertising::BleAdvertisementDriver + ble_advertising::BleConfig,
     A: kernel::hil::time::Alarm<'a>,
@@ -495,7 +495,7 @@ where
 }
 
 // Callback from the radio once a TX event occur
-impl<B, A> ble_advertising::TxClient for BLE<'a, B, A>
+impl<'a, B, A> ble_advertising::TxClient for BLE<'a, B, A>
 where
     B: ble_advertising::BleAdvertisementDriver + ble_advertising::BleConfig,
     A: kernel::hil::time::Alarm<'a>,
@@ -536,7 +536,7 @@ where
 }
 
 // System Call implementation
-impl<B, A> kernel::Driver for BLE<'a, B, A>
+impl<'a, B, A> kernel::Driver for BLE<'a, B, A>
 where
     B: ble_advertising::BleAdvertisementDriver + ble_advertising::BleConfig,
     A: kernel::hil::time::Alarm<'a>,

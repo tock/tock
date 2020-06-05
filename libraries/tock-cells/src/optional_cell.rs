@@ -63,6 +63,14 @@ impl<T: Copy> OptionalCell<T> {
         self.value.get().is_none()
     }
 
+    /// Returns true if the option is a Some value containing the given value.
+    pub fn contains(&self, x: &T) -> bool
+    where
+        T: PartialEq,
+    {
+        self.value.get().contains(x)
+    }
+
     /// Returns the contained value or panics if contents is `None`.
     pub fn expect(&self, msg: &str) -> T {
         self.value.get().expect(msg)

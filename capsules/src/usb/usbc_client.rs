@@ -2,11 +2,9 @@
 //!
 //! It responds to standard device requests and can be enumerated.
 
-use super::descriptors::Buffer8;
-use super::descriptors::DeviceDescriptor;
-use super::descriptors::EndpointAddress;
-use super::descriptors::EndpointDescriptor;
-use super::descriptors::TransferDirection;
+use super::descriptors::{
+    self, Buffer8, DeviceDescriptor, EndpointAddress, EndpointDescriptor, TransferDirection,
+};
 use super::usbc_client_ctrl::ClientCtrl;
 use core::cell::Cell;
 use kernel::common::cells::VolatileCell;
@@ -68,10 +66,10 @@ impl<'a, C: hil::usb::UsbController<'a>> Client<'a, C> {
                     manufacturer_string: 1,
                     product_string: 2,
                     serial_number_string: 3,
-                    ..Default::default()
+                    ..DeviceDescriptor::default()
                 },
-                Default::default(),
-                Default::default(),
+                descriptors::ConfigurationDescriptor::default(),
+                descriptors::InterfaceDescriptor::default(),
                 ENDPOINTS,
                 None, // No interface class descriptor
                 None, // No report descriptor

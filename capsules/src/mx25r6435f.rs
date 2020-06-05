@@ -72,9 +72,11 @@ const PAGE_SIZE: u32 = 256;
 /// ```
 pub struct Mx25r6435fSector(pub [u8; SECTOR_SIZE as usize]);
 
-impl Mx25r6435fSector {
-    pub const fn new() -> Mx25r6435fSector {
-        Mx25r6435fSector([0; SECTOR_SIZE as usize])
+impl Default for Mx25r6435fSector {
+    fn default() -> Self {
+        Self {
+            0: [0; SECTOR_SIZE as usize],
+        }
     }
 }
 

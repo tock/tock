@@ -15,7 +15,7 @@ pub struct MuxI2C<'a> {
     inflight: OptionalCell<&'a I2CDevice<'a>>,
 }
 
-impl I2CHwMasterClient for MuxI2C<'a> {
+impl I2CHwMasterClient for MuxI2C<'_> {
     fn command_complete(&self, buffer: &'static mut [u8], error: Error) {
         self.inflight.take().map(move |device| {
             device.command_complete(buffer, error);
@@ -24,7 +24,7 @@ impl I2CHwMasterClient for MuxI2C<'a> {
     }
 }
 
-impl MuxI2C<'a> {
+impl<'a> MuxI2C<'a> {
     pub const fn new(i2c: &'a dyn i2c::I2CMaster) -> MuxI2C<'a> {
         MuxI2C {
             i2c: i2c,
@@ -92,7 +92,7 @@ pub struct I2CDevice<'a> {
     client: OptionalCell<&'a dyn I2CClient>,
 }
 
-impl I2CDevice<'a> {
+impl<'a> I2CDevice<'a> {
     pub const fn new(mux: &'a MuxI2C<'a>, addr: u8) -> I2CDevice<'a> {
         I2CDevice {
             mux: mux,
@@ -111,7 +111,7 @@ impl I2CDevice<'a> {
     }
 }
 
-impl I2CClient for I2CDevice<'a> {
+impl I2CClient for I2CDevice<'_> {
     fn command_complete(&self, buffer: &'static mut [u8], error: Error) {
         self.client.map(move |client| {
             client.command_complete(buffer, error);
@@ -119,13 +119,13 @@ impl I2CClient for I2CDevice<'a> {
     }
 }
 
-impl ListNode<'a, I2CDevice<'a>> for I2CDevice<'a> {
+impl<'a> ListNode<'a, I2CDevice<'a>> for I2CDevice<'a> {
     fn next(&'a self) -> &'a ListLink<'a, I2CDevice<'a>> {
         &self.next
     }
 }
 
-impl i2c::I2CDevice for I2CDevice<'a> {
+impl i2c::I2CDevice for I2CDevice<'_> {
     fn enable(&self) {
         if !self.enabled.get() {
             self.enabled.set(true);

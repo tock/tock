@@ -51,5 +51,8 @@ impl Rtc {
 
         // Turn the interrupt compare off so we don't get any RTC interrupts.
         regs.rtccfg.write(rtccfg::enalways::CLEAR);
+
+        // Set the compare time to as large as possible
+        regs.rtccmp.set(0xFFFF_FFFF);
     }
 }

@@ -135,7 +135,14 @@ pub struct ProcessConsole<'a, C: ProcessManagementCapability> {
     rx_buffer: TakeCell<'static, [u8]>,
     command_buffer: TakeCell<'static, [u8]>,
     command_index: Cell<usize>,
+
+    /// Flag to mark that the process console is active and has called receive
+    /// from the underlying UART.
     running: Cell<bool>,
+
+    /// Internal flag that the process console should parse the command it just
+    /// received after finishing echoing the last newline character.
+    execute: Cell<bool>,
     kernel: &'static Kernel,
     capability: C,
 }
@@ -158,6 +165,7 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
             command_buffer: TakeCell::new(cmd_buffer),
             command_index: Cell::new(0),
             running: Cell::new(false),
+            execute: Cell::new(false),
             kernel: kernel,
             capability: capability,
         }
@@ -197,7 +205,7 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                         let clean_str = s.trim();
                         if clean_str.starts_with("help") {
                             debug!("Welcome to the process console.");
-                            debug!("Valid commands are: help status list stop start");
+                            debug!("Valid commands are: help status list stop start fault");
                         } else if clean_str.starts_with("start") {
                             let argument = clean_str.split_whitespace().nth(1);
                             argument.map(|name| {
@@ -311,9 +319,8 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
             self.tx_in_progress.set(true);
             self.tx_buffer.take().map(|buffer| {
                 let len = cmp::min(bytes.len(), buffer.len());
-                for i in 0..len {
-                    buffer[i] = bytes[i];
-                }
+                // Copy elements of `bytes` into `buffer`
+                (&mut buffer[..len]).copy_from_slice(&bytes[..len]);
                 self.uart.transmit_buffer(buffer, len);
             });
             ReturnCode::SUCCESS
@@ -323,10 +330,15 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
 
 impl<'a, C: ProcessManagementCapability> uart::TransmitClient for ProcessConsole<'a, C> {
     fn transmitted_buffer(&self, buffer: &'static mut [u8], _tx_len: usize, _rcode: ReturnCode) {
-        // Either print more from the AppSlice or send a callback to the
-        // application.
         self.tx_buffer.replace(buffer);
         self.tx_in_progress.set(false);
+
+        // Check if we just received and echoed a newline character, and
+        // therefore need to process the received message.
+        if self.execute.get() {
+            self.execute.set(false);
+            self.read_command();
+        }
     }
 }
 impl<'a, C: ProcessManagementCapability> uart::ReceiveClient for ProcessConsole<'a, C> {
@@ -337,7 +349,6 @@ impl<'a, C: ProcessManagementCapability> uart::ReceiveClient for ProcessConsole<
         _rcode: ReturnCode,
         error: uart::Error,
     ) {
-        let mut execute = false;
         if error == uart::Error::None {
             match rx_len {
                 0 => debug!("ProcessConsole had read of 0 bytes"),
@@ -345,7 +356,7 @@ impl<'a, C: ProcessManagementCapability> uart::ReceiveClient for ProcessConsole<
                     self.command_buffer.map(|command| {
                         let index = self.command_index.get() as usize;
                         if read_buf[0] == ('\n' as u8) || read_buf[0] == ('\r' as u8) {
-                            execute = true;
+                            self.execute.set(true);
                             self.write_bytes(&['\r' as u8, '\n' as u8]);
                         } else if read_buf[0] == ('\x08' as u8) && index > 0 {
                             // Backspace, echo and remove last byte
@@ -373,8 +384,5 @@ impl<'a, C: ProcessManagementCapability> uart::ReceiveClient for ProcessConsole<
         }
         self.rx_in_progress.set(true);
         self.uart.receive_buffer(read_buf, 1);
-        if execute {
-            self.read_command();
-        }
     }
 }

@@ -57,7 +57,7 @@ pub struct RvTimer<'a> {
     client: OptionalCell<&'a dyn time::AlarmClient>,
 }
 
-impl RvTimer<'a> {
+impl<'a> RvTimer<'a> {
     const fn new(base: StaticRef<TimerRegisters>) -> RvTimer<'a> {
         RvTimer {
             registers: base,
@@ -86,7 +86,7 @@ impl RvTimer<'a> {
     }
 }
 
-impl time::Time for RvTimer<'a> {
+impl time::Time for RvTimer<'_> {
     type Frequency = Freq10KHz;
 
     fn now(&self) -> u32 {
@@ -97,7 +97,7 @@ impl time::Time for RvTimer<'a> {
     }
 }
 
-impl time::Alarm<'a> for RvTimer<'a> {
+impl<'a> time::Alarm<'a> for RvTimer<'a> {
     fn set_client(&self, client: &'a dyn time::AlarmClient) {
         self.client.set(client);
     }

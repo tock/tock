@@ -1,4 +1,4 @@
-#![feature(const_fn, in_band_lifetimes)]
+#![feature(const_fn)]
 #![forbid(unsafe_code)]
 #![no_std]
 
@@ -27,6 +27,7 @@ pub mod fxos8700cq;
 pub mod gpio;
 pub mod gpio_async;
 pub mod hd44780;
+pub mod hmac;
 pub mod humidity;
 pub mod i2c_master;
 pub mod i2c_master_slave_driver;
@@ -37,6 +38,7 @@ pub mod led;
 pub mod log;
 pub mod low_level_debug;
 pub mod lps25hb;
+pub mod lsm303dlhc;
 pub mod ltc294x;
 pub mod max17205;
 pub mod mcp230xx;
@@ -60,7 +62,9 @@ pub mod tmp006;
 pub mod tsl2561;
 pub mod usb;
 pub mod virtual_alarm;
+pub mod virtual_digest;
 pub mod virtual_flash;
+pub mod virtual_hmac;
 pub mod virtual_i2c;
 pub mod virtual_pwm;
 pub mod virtual_spi;

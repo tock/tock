@@ -107,7 +107,7 @@ pub struct IP6SendStruct<'a, A: time::Alarm<'a>> {
     ip_vis: &'static IpVisibilityCapability,
 }
 
-impl<A: time::Alarm<'a>> IP6Sender<'a> for IP6SendStruct<'a, A> {
+impl<'a, A: time::Alarm<'a>> IP6Sender<'a> for IP6SendStruct<'a, A> {
     fn set_client(&self, client: &'a dyn IP6SendClient) {
         self.client.set(client);
     }
@@ -147,7 +147,7 @@ impl<A: time::Alarm<'a>> IP6Sender<'a> for IP6SendStruct<'a, A> {
     }
 }
 
-impl<A: time::Alarm<'a>> IP6SendStruct<'a, A> {
+impl<'a, A: time::Alarm<'a>> IP6SendStruct<'a, A> {
     pub fn new(
         ip6_packet: &'static mut IP6Packet<'static>,
         alarm: &'a A,
@@ -212,16 +212,16 @@ impl<A: time::Alarm<'a>> IP6SendStruct<'a, A> {
                             if is_done {
                                 self.tx_buf.replace(frame.into_buf());
                                 //self.send_completed(ReturnCode::SUCCESS);
-                                return (ReturnCode::SUCCESS, true);
+                                (ReturnCode::SUCCESS, true)
                             } else {
                                 let (err, _frame_option) = self.radio.transmit(frame);
-                                return (err, false);
+                                (err, false)
                             }
                         }
                         Err((retcode, buf)) => {
                             self.tx_buf.replace(buf);
                             //self.send_completed(retcode);
-                            return (retcode, true);
+                            (retcode, true)
                         }
                     }
                 }
@@ -245,7 +245,7 @@ impl<A: time::Alarm<'a>> IP6SendStruct<'a, A> {
     }
 }
 
-impl<A: time::Alarm<'a>> time::AlarmClient for IP6SendStruct<'a, A> {
+impl<'a, A: time::Alarm<'a>> time::AlarmClient for IP6SendStruct<'a, A> {
     fn fired(&self) {
         let result = self.send_next_fragment();
         if result != ReturnCode::SUCCESS {
@@ -254,7 +254,7 @@ impl<A: time::Alarm<'a>> time::AlarmClient for IP6SendStruct<'a, A> {
     }
 }
 
-impl<A: time::Alarm<'a>> TxClient for IP6SendStruct<'a, A> {
+impl<'a, A: time::Alarm<'a>> TxClient for IP6SendStruct<'a, A> {
     fn send_done(&self, tx_buf: &'static mut [u8], acked: bool, result: ReturnCode) {
         self.tx_buf.replace(tx_buf);
         if result != ReturnCode::SUCCESS {

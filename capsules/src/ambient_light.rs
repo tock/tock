@@ -31,7 +31,7 @@ pub struct AmbientLight<'a> {
     apps: Grant<App>,
 }
 
-impl AmbientLight<'a> {
+impl<'a> AmbientLight<'a> {
     pub fn new(sensor: &'a dyn hil::sensors::AmbientLight, grant: Grant<App>) -> AmbientLight {
         AmbientLight {
             sensor: sensor,
@@ -58,7 +58,7 @@ impl AmbientLight<'a> {
     }
 }
 
-impl Driver for AmbientLight<'a> {
+impl Driver for AmbientLight<'_> {
     /// Subscribe to light intensity readings
     ///
     /// ### `subscribe`
@@ -94,7 +94,7 @@ impl Driver for AmbientLight<'a> {
     ///
     /// - `0`: Check driver presence
     /// - `1`: Start a light sensor reading
-    fn command(&self, command_num: usize, _arg1: usize, _: usize, appid: AppId) -> ReturnCode {
+    fn command(&self, command_num: usize, _: usize, _: usize, appid: AppId) -> ReturnCode {
         match command_num {
             0 /* check if present */ => ReturnCode::SUCCESS,
             1 => {
@@ -106,7 +106,7 @@ impl Driver for AmbientLight<'a> {
     }
 }
 
-impl hil::sensors::AmbientLightClient for AmbientLight<'a> {
+impl hil::sensors::AmbientLightClient for AmbientLight<'_> {
     fn callback(&self, lux: usize) {
         self.command_pending.set(false);
         self.apps.each(|app| {

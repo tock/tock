@@ -1,7 +1,9 @@
 //! Tock kernel for the Aconno ACD52832 board based on the Nordic nRF52832 MCU.
 
 #![no_std]
-#![no_main]
+// Disable this attribute when documenting, as a workaround for
+// https://github.com/rust-lang/rust/issues/62184.
+#![cfg_attr(not(doc), no_main)]
 #![deny(missing_docs)]
 
 use capsules::virtual_alarm::VirtualMuxAlarm;
@@ -58,10 +60,10 @@ pub struct Platform {
         nrf52832::ble_radio::Radio,
         VirtualMuxAlarm<'static, Rtc<'static>>,
     >,
-    button: &'static capsules::button::Button<'static>,
+    button: &'static capsules::button::Button<'static, nrf52832::gpio::GPIOPin>,
     console: &'static capsules::console::Console<'static>,
-    gpio: &'static capsules::gpio::GPIO<'static>,
-    led: &'static capsules::led::LED<'static>,
+    gpio: &'static capsules::gpio::GPIO<'static, nrf52832::gpio::GPIOPin>,
+    led: &'static capsules::led::LED<'static, nrf52832::gpio::GPIOPin>,
     rng: &'static capsules::rng::RngDriver<'static>,
     temp: &'static capsules::temperature::TemperatureSensor<'static>,
     ipc: kernel::ipc::IPC,
@@ -124,74 +126,6 @@ pub unsafe fn reset_handler() {
     );
     DynamicDeferredCall::set_global_instance(dynamic_deferred_caller);
 
-    // GPIOs
-    let gpio_pins = static_init!(
-        [&'static dyn kernel::hil::gpio::InterruptValuePin; 7],
-        [
-            static_init!(
-                kernel::hil::gpio::InterruptValueWrapper,
-                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52832::gpio::PORT[Pin::P0_25])
-            )
-            .finalize(),
-            static_init!(
-                kernel::hil::gpio::InterruptValueWrapper,
-                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52832::gpio::PORT[Pin::P0_26])
-            )
-            .finalize(),
-            static_init!(
-                kernel::hil::gpio::InterruptValueWrapper,
-                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52832::gpio::PORT[Pin::P0_27])
-            )
-            .finalize(),
-            static_init!(
-                kernel::hil::gpio::InterruptValueWrapper,
-                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52832::gpio::PORT[Pin::P0_28])
-            )
-            .finalize(),
-            static_init!(
-                kernel::hil::gpio::InterruptValueWrapper,
-                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52832::gpio::PORT[Pin::P0_29])
-            )
-            .finalize(),
-            static_init!(
-                kernel::hil::gpio::InterruptValueWrapper,
-                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52832::gpio::PORT[Pin::P0_30])
-            )
-            .finalize(),
-            static_init!(
-                kernel::hil::gpio::InterruptValueWrapper,
-                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52832::gpio::PORT[Pin::P0_31])
-            )
-            .finalize(),
-        ]
-    );
-
-    // LEDs
-    let led_pins = static_init!(
-        [(
-            &'static dyn hil::gpio::Pin,
-            kernel::hil::gpio::ActivationMode
-        ); 4],
-        [
-            (
-                &nrf52832::gpio::PORT[LED1_PIN],
-                kernel::hil::gpio::ActivationMode::ActiveLow
-            ),
-            (
-                &nrf52832::gpio::PORT[LED2_PIN],
-                kernel::hil::gpio::ActivationMode::ActiveLow
-            ),
-            (
-                &nrf52832::gpio::PORT[LED3_PIN],
-                kernel::hil::gpio::ActivationMode::ActiveLow
-            ),
-            (
-                &nrf52832::gpio::PORT[LED4_PIN],
-                kernel::hil::gpio::ActivationMode::ActiveLow
-            ),
-        ]
-    );
-
     // Make non-volatile memory writable and activate the reset button
     let uicr = nrf52832::uicr::Uicr::new();
     nrf52832::nvmc::NVMC.erase_uicr();
@@ -211,30 +145,52 @@ pub unsafe fn reset_handler() {
     //
     // GPIO Pins
     //
-    let gpio = static_init!(
-        capsules::gpio::GPIO<'static>,
-        capsules::gpio::GPIO::new(
-            gpio_pins,
-            board_kernel.create_grant(&memory_allocation_capability)
-        )
-    );
-    for pin in gpio_pins.iter() {
-        pin.set_client(gpio);
-    }
+    let gpio = components::gpio::GpioComponent::new(
+        board_kernel,
+        components::gpio_component_helper!(
+            nrf52832::gpio::GPIOPin,
+            0 => &nrf52832::gpio::PORT[Pin::P0_25],
+            1 => &nrf52832::gpio::PORT[Pin::P0_26],
+            2 => &nrf52832::gpio::PORT[Pin::P0_27],
+            3 => &nrf52832::gpio::PORT[Pin::P0_28],
+            4 => &nrf52832::gpio::PORT[Pin::P0_29],
+            5 => &nrf52832::gpio::PORT[Pin::P0_30],
+            6 => &nrf52832::gpio::PORT[Pin::P0_31]
+        ),
+    )
+    .finalize(components::gpio_component_buf!(nrf52832::gpio::GPIOPin));
 
     //
     // LEDs
     //
-    let led = static_init!(
-        capsules::led::LED<'static>,
-        capsules::led::LED::new(led_pins)
-    );
+    let led = components::led::LedsComponent::new(components::led_component_helper!(
+        nrf52832::gpio::GPIOPin,
+        (
+            &nrf52832::gpio::PORT[LED1_PIN],
+            kernel::hil::gpio::ActivationMode::ActiveLow
+        ),
+        (
+            &nrf52832::gpio::PORT[LED2_PIN],
+            kernel::hil::gpio::ActivationMode::ActiveLow
+        ),
+        (
+            &nrf52832::gpio::PORT[LED3_PIN],
+            kernel::hil::gpio::ActivationMode::ActiveLow
+        ),
+        (
+            &nrf52832::gpio::PORT[LED4_PIN],
+            kernel::hil::gpio::ActivationMode::ActiveLow
+        )
+    ))
+    .finalize(components::led_component_buf!(nrf52832::gpio::GPIOPin));
 
     //
     // Buttons
     //
-    let button = components::button::ButtonComponent::new(board_kernel).finalize(
+    let button = components::button::ButtonComponent::new(
+        board_kernel,
         components::button_component_helper!(
+            nrf52832::gpio::GPIOPin,
             // 13
             (
                 &nrf52832::gpio::PORT[BUTTON1_PIN],
@@ -260,7 +216,8 @@ pub unsafe fn reset_handler() {
                 hil::gpio::FloatingState::PullUp
             )
         ),
-    );
+    )
+    .finalize(components::button_component_buf!(nrf52832::gpio::GPIOPin));
 
     //
     // RTC for Timers
@@ -335,12 +292,12 @@ pub unsafe fn reset_handler() {
 
     // Configure the MCP23017. Device address 0x20.
     let mcp_pin0 = static_init!(
-        hil::gpio::InterruptValueWrapper,
+        hil::gpio::InterruptValueWrapper<'static, nrf52832::gpio::GPIOPin>,
         hil::gpio::InterruptValueWrapper::new(&nrf52832::gpio::PORT[Pin::P0_11])
     )
     .finalize();
     let mcp_pin1 = static_init!(
-        hil::gpio::InterruptValueWrapper,
+        hil::gpio::InterruptValueWrapper<'static, nrf52832::gpio::GPIOPin>,
         hil::gpio::InterruptValueWrapper::new(&nrf52832::gpio::PORT[Pin::P0_12])
     )
     .finalize();
@@ -396,7 +353,7 @@ pub unsafe fn reset_handler() {
     let temp = static_init!(
         capsules::temperature::TemperatureSensor<'static>,
         capsules::temperature::TemperatureSensor::new(
-            &mut nrf52832::temperature::TEMP,
+            &nrf52832::temperature::TEMP,
             board_kernel.create_grant(&memory_allocation_capability)
         )
     );
@@ -489,7 +446,6 @@ pub unsafe fn reset_handler() {
 
     nrf52832::clock::CLOCK.low_set_source(nrf52832::clock::LowClockSource::XTAL);
     nrf52832::clock::CLOCK.low_start();
-    nrf52832::clock::CLOCK.high_set_source(nrf52832::clock::HighClockSource::XTAL);
     nrf52832::clock::CLOCK.high_start();
     while !nrf52832::clock::CLOCK.low_started() {}
     while !nrf52832::clock::CLOCK.high_started() {}

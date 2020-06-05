@@ -119,7 +119,7 @@ pub enum Tlv<'a> {
     PendingOperationalDataset(&'a [u8]),
 }
 
-impl Tlv<'a> {
+impl Tlv<'_> {
     /// Serializes TLV data in `buf` into the format specific to the TLV
     /// type.
     pub fn encode(&self, buf: &mut [u8]) -> SResult {
@@ -495,8 +495,8 @@ impl From<u8> for TlvType {
     }
 }
 
-impl<'a, 'b> From<&'a Tlv<'b>> for TlvType {
-    fn from(tlv: &'a Tlv<'b>) -> Self {
+impl From<&Tlv<'_>> for TlvType {
+    fn from(tlv: &Tlv<'_>) -> Self {
         match *tlv {
             Tlv::SourceAddress(_) => TlvType::SourceAddress,
             Tlv::Mode(_) => TlvType::Mode,
@@ -568,7 +568,7 @@ pub enum NetworkDataTlv<'a> {
     },
 }
 
-impl NetworkDataTlv<'a> {
+impl NetworkDataTlv<'_> {
     /// Serializes TLV data in `buf` into the format specific to the
     /// Network Data TLV type.
     pub fn encode(&self, buf: &mut [u8], stable: bool) -> SResult {
@@ -730,8 +730,8 @@ impl From<u8> for NetworkDataTlvType {
     }
 }
 
-impl<'a, 'b> From<&'a NetworkDataTlv<'b>> for NetworkDataTlvType {
-    fn from(network_data_tlv: &'a NetworkDataTlv<'b>) -> Self {
+impl From<&NetworkDataTlv<'_>> for NetworkDataTlvType {
+    fn from(network_data_tlv: &NetworkDataTlv<'_>) -> Self {
         match *network_data_tlv {
             NetworkDataTlv::Prefix { .. } => NetworkDataTlvType::Prefix,
             NetworkDataTlv::CommissioningData { .. } => NetworkDataTlvType::CommissioningData,
@@ -751,7 +751,7 @@ pub enum PrefixSubTlv<'a> {
     },
 }
 
-impl PrefixSubTlv<'a> {
+impl PrefixSubTlv<'_> {
     /// Serializes TLV data in `buf` into the format specific to the
     /// Prefix sub-TLV type.
     pub fn encode(&self, buf: &mut [u8], stable: bool) -> SResult {
@@ -862,8 +862,8 @@ impl From<u8> for PrefixSubTlvType {
     }
 }
 
-impl<'a, 'b> From<&'a PrefixSubTlv<'b>> for PrefixSubTlvType {
-    fn from(prefix_sub_tlv: &'a PrefixSubTlv<'b>) -> Self {
+impl From<&PrefixSubTlv<'_>> for PrefixSubTlvType {
+    fn from(prefix_sub_tlv: &PrefixSubTlv<'_>) -> Self {
         match *prefix_sub_tlv {
             PrefixSubTlv::HasRoute(_) => PrefixSubTlvType::HasRoute,
             PrefixSubTlv::BorderRouter(_) => PrefixSubTlvType::BorderRouter,
@@ -1034,8 +1034,8 @@ impl From<u8> for ServiceSubTlvType {
     }
 }
 
-impl From<&'a ServiceSubTlv> for ServiceSubTlvType {
-    fn from(service_sub_tlv: &'a ServiceSubTlv) -> Self {
+impl From<&ServiceSubTlv> for ServiceSubTlvType {
+    fn from(service_sub_tlv: &ServiceSubTlv) -> Self {
         match *service_sub_tlv {
             ServiceSubTlv::Server { .. } => ServiceSubTlvType::Server,
         }
@@ -1080,7 +1080,7 @@ pub enum NetworkManagementTlv<'a> {
     ChannelMask(&'a [u8]),
 }
 
-impl NetworkManagementTlv<'a> {
+impl NetworkManagementTlv<'_> {
     /// Serializes TLV data in `buf` into the format specific to the
     /// Network Management TLV type.
     pub fn encode(&self, buf: &mut [u8]) -> SResult {
@@ -1418,8 +1418,8 @@ impl From<u8> for NetworkManagementTlvType {
     }
 }
 
-impl<'a, 'b> From<&'a NetworkManagementTlv<'b>> for NetworkManagementTlvType {
-    fn from(network_mgmt_tlv: &'a NetworkManagementTlv<'b>) -> Self {
+impl From<&NetworkManagementTlv<'_>> for NetworkManagementTlvType {
+    fn from(network_mgmt_tlv: &NetworkManagementTlv<'_>) -> Self {
         match *network_mgmt_tlv {
             NetworkManagementTlv::Channel { .. } => NetworkManagementTlvType::Channel,
             NetworkManagementTlv::PanId(_) => NetworkManagementTlvType::PanId,

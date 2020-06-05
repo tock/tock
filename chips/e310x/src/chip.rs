@@ -2,9 +2,10 @@
 
 use core::fmt::Write;
 use kernel;
+use kernel::common::registers::FieldValue;
 use kernel::debug;
 use rv32i;
-use rv32i::csr;
+use rv32i::csr::{mcause, mie::mie, mip::mip, CSR};
 
 use crate::gpio;
 use crate::interrupts;
@@ -14,12 +15,14 @@ use crate::uart;
 
 pub struct E310x {
     userspace_kernel_boundary: rv32i::syscall::SysCall,
+    pmp: rv32i::pmp::PMPConfig,
 }
 
 impl E310x {
     pub unsafe fn new() -> E310x {
         E310x {
             userspace_kernel_boundary: rv32i::syscall::SysCall::new(),
+            pmp: rv32i::pmp::PMPConfig::new(8),
         }
     }
 
@@ -28,15 +31,29 @@ impl E310x {
         plic::clear_all_pending();
         plic::enable_all();
     }
+
+    unsafe fn handle_plic_interrupts() {
+        while let Some(interrupt) = plic::next_pending() {
+            match interrupt {
+                interrupts::UART0 => uart::UART0.handle_interrupt(),
+                int_pin @ interrupts::GPIO0..=interrupts::GPIO31 => {
+                    let pin = &gpio::PORT[(int_pin - interrupts::GPIO0) as usize];
+                    pin.handle_interrupt();
+                }
+                _ => debug!("Pidx {}", interrupt),
+            }
+            plic::complete(interrupt);
+        }
+    }
 }
 
 impl kernel::Chip for E310x {
-    type MPU = ();
+    type MPU = rv32i::pmp::PMPConfig;
     type UserspaceKernelBoundary = rv32i::syscall::SysCall;
     type SysTick = ();
 
     fn mpu(&self) -> &Self::MPU {
-        &()
+        &self.pmp
     }
 
     fn systick(&self) -> &Self::SysTick {
@@ -48,22 +65,31 @@ impl kernel::Chip for E310x {
     }
 
     fn service_pending_interrupts(&self) {
-        unsafe {
-            while let Some(interrupt) = plic::next_pending() {
-                match interrupt {
-                    interrupts::UART0 => uart::UART0.handle_interrupt(),
-                    int_pin @ interrupts::GPIO0..=interrupts::GPIO31 => {
-                        let pin = &gpio::PORT[(int_pin - interrupts::GPIO0) as usize];
-                        pin.handle_interrupt();
-                    }
-                    _ => debug!("Pidx {}", interrupt),
-                }
+        let mut reenable_intr = FieldValue::<u32, mie::Register>::new(0, 0, 0);
 
-                // Mark that we are done with this interrupt and the hardware
-                // can clear it.
-                plic::complete(interrupt);
+        loop {
+            let mip = CSR.mip.extract();
+
+            if mip.is_set(mip::mtimer) {
+                unsafe {
+                    timer::MACHINETIMER.handle_interrupt();
+                }
+                reenable_intr += mie::mtimer::SET;
+            }
+            if mip.is_set(mip::mext) {
+                unsafe {
+                    Self::handle_plic_interrupts();
+                }
+                reenable_intr += mie::mext::SET;
+            }
+
+            if !mip.matches_any(mip::mext::SET + mip::mtimer::SET) {
+                break;
             }
         }
+
+        // re-enable any interrupt classes which we handled
+        CSR.mie.modify(reenable_intr);
     }
 
     fn has_pending_interrupts(&self) -> bool {
@@ -88,139 +114,54 @@ impl kernel::Chip for E310x {
     }
 }
 
-pub unsafe fn handle_trap() {
-    let cause = rv32i::csr::CSR.mcause.extract();
-    // if most sig bit is set, is interrupt
-    // strip off the msb
-    match rv32i::csr::mcause::Trap::from(cause) {
-        rv32i::csr::mcause::Trap::Interrupt(interrupt) => {
-            match interrupt {
-                rv32i::csr::mcause::Interrupt::MachineSoft => {
-                    debug!("encountered machine mode software interrupt");
-                }
-                rv32i::csr::mcause::Interrupt::UserSoft => (),
-                rv32i::csr::mcause::Interrupt::SupervisorSoft => (),
+fn handle_exception(exception: mcause::Exception) {
+    match exception {
+        mcause::Exception::UserEnvCall | mcause::Exception::SupervisorEnvCall => (),
 
-                rv32i::csr::mcause::Interrupt::MachineTimer => {
-                    timer::MACHINETIMER.handle_interrupt();
-                }
-
-                // should never occur
-                rv32i::csr::mcause::Interrupt::UserTimer => (),
-                rv32i::csr::mcause::Interrupt::SupervisorTimer => (),
-
-                // this includes UART, GPIO pins, etc
-                rv32i::csr::mcause::Interrupt::MachineExternal => {
-                    // just send out a message that the interrupt occurred and complete it
-                    let ext_interrupt_wrapper = plic::next_pending();
-                    match ext_interrupt_wrapper {
-                        None => (),
-                        Some(ext_interrupt_id) => {
-                            debug!("interrupt triggered {}\n", ext_interrupt_id);
-                            plic::complete(ext_interrupt_id);
-                            plic::suppress_all();
-                        }
-                    }
-                }
-                // should never occur
-                rv32i::csr::mcause::Interrupt::UserExternal => (),
-                rv32i::csr::mcause::Interrupt::SupervisorExternal => (),
-
-                rv32i::csr::mcause::Interrupt::Unknown => {
-                    debug!("interrupt of unknown cause");
-                }
-            }
-        }
-        rv32i::csr::mcause::Trap::Exception(exception) => {
-            match exception {
-                // strip off the msb, pattern match
-                rv32i::csr::mcause::Exception::InstructionMisaligned => {
-                    panic!("misaligned instruction {:x}\n", rv32i::csr::CSR.mtval.get());
-                }
-                rv32i::csr::mcause::Exception::InstructionFault => {
-                    panic!("instruction fault {:x}\n", rv32i::csr::CSR.mtval.get());
-                }
-                rv32i::csr::mcause::Exception::IllegalInstruction => {
-                    panic!("illegal instruction {:x}\n", rv32i::csr::CSR.mtval.get());
-                }
-                rv32i::csr::mcause::Exception::Breakpoint => {
-                    debug!("breakpoint\n");
-                }
-                rv32i::csr::mcause::Exception::LoadMisaligned => {
-                    panic!("misaligned load {:x}\n", rv32i::csr::CSR.mtval.get());
-                }
-                rv32i::csr::mcause::Exception::LoadFault => {
-                    panic!("load fault {:x}\n", rv32i::csr::CSR.mtval.get());
-                }
-                rv32i::csr::mcause::Exception::StoreMisaligned => {
-                    panic!("misaligned store {:x}\n", rv32i::csr::CSR.mtval.get());
-                }
-                rv32i::csr::mcause::Exception::StoreFault => {
-                    panic!("store fault {:x}\n", rv32i::csr::CSR.mtval.get());
-                }
-                rv32i::csr::mcause::Exception::UserEnvCall => (),
-                rv32i::csr::mcause::Exception::SupervisorEnvCall => (),
-                rv32i::csr::mcause::Exception::MachineEnvCall => {
-                    // GENERATED BY ECALL; should never happen....
-                    panic!("machine mode environment call\n");
-                }
-                rv32i::csr::mcause::Exception::InstructionPageFault => {
-                    panic!("instruction page fault {:x}\n", rv32i::csr::CSR.mtval.get());
-                }
-                rv32i::csr::mcause::Exception::LoadPageFault => {
-                    panic!("load page fault {:x}\n", rv32i::csr::CSR.mtval.get());
-                }
-                rv32i::csr::mcause::Exception::StorePageFault => {
-                    panic!("store page fault {:x}\n", rv32i::csr::CSR.mtval.get());
-                }
-                rv32i::csr::mcause::Exception::Unknown => {
-                    panic!("exception type unknown");
-                }
-            }
+        mcause::Exception::InstructionMisaligned
+        | mcause::Exception::InstructionFault
+        | mcause::Exception::IllegalInstruction
+        | mcause::Exception::Breakpoint
+        | mcause::Exception::LoadMisaligned
+        | mcause::Exception::LoadFault
+        | mcause::Exception::StoreMisaligned
+        | mcause::Exception::StoreFault
+        | mcause::Exception::MachineEnvCall
+        | mcause::Exception::InstructionPageFault
+        | mcause::Exception::LoadPageFault
+        | mcause::Exception::StorePageFault
+        | mcause::Exception::Unknown => {
+            panic!("fatal exception");
         }
     }
 }
 
-pub fn disable_interrupt_cause() {
-    let cause = rv32i::csr::CSR.mcause.extract();
+unsafe fn handle_interrupt(intr: mcause::Interrupt) {
+    match intr {
+        mcause::Interrupt::UserSoft
+        | mcause::Interrupt::UserTimer
+        | mcause::Interrupt::UserExternal => {
+            debug!("unexpected user-mode interrupt");
+        }
+        mcause::Interrupt::SupervisorExternal
+        | mcause::Interrupt::SupervisorTimer
+        | mcause::Interrupt::SupervisorSoft => {
+            debug!("unexpected supervisor-mode interrupt");
+        }
 
-    match rv32i::csr::mcause::Trap::from(cause) {
-        rv32i::csr::mcause::Trap::Interrupt(interrupt) => match interrupt {
-            rv32i::csr::mcause::Interrupt::UserSoft => {
-                csr::CSR.mie.modify(csr::mie::mie::usoft::CLEAR);
-            }
-            rv32i::csr::mcause::Interrupt::SupervisorSoft => {
-                csr::CSR.mie.modify(csr::mie::mie::ssoft::CLEAR);
-            }
-            rv32i::csr::mcause::Interrupt::MachineSoft => {
-                csr::CSR.mie.modify(csr::mie::mie::msoft::CLEAR);
-            }
+        mcause::Interrupt::MachineSoft => {
+            CSR.mie.modify(mie::msoft::CLEAR);
+        }
+        mcause::Interrupt::MachineTimer => {
+            CSR.mie.modify(mie::mtimer::CLEAR);
+        }
+        mcause::Interrupt::MachineExternal => {
+            CSR.mie.modify(mie::mext::CLEAR);
+        }
 
-            rv32i::csr::mcause::Interrupt::UserTimer => {
-                csr::CSR.mie.modify(csr::mie::mie::utimer::CLEAR);
-            }
-            rv32i::csr::mcause::Interrupt::SupervisorTimer => {
-                csr::CSR.mie.modify(csr::mie::mie::stimer::CLEAR);
-            }
-            rv32i::csr::mcause::Interrupt::MachineTimer => {
-                csr::CSR.mie.modify(csr::mie::mie::mtimer::CLEAR);
-            }
-
-            rv32i::csr::mcause::Interrupt::UserExternal => {
-                csr::CSR.mie.modify(csr::mie::mie::uext::CLEAR);
-            }
-            rv32i::csr::mcause::Interrupt::SupervisorExternal => {
-                csr::CSR.mie.modify(csr::mie::mie::sext::CLEAR);
-            }
-            rv32i::csr::mcause::Interrupt::MachineExternal => {
-                csr::CSR.mie.modify(csr::mie::mie::mext::CLEAR);
-            }
-
-            rv32i::csr::mcause::Interrupt::Unknown => {
-                debug!("interrupt of unknown cause");
-            }
-        },
-        rv32i::csr::mcause::Trap::Exception(_exception) => (),
+        mcause::Interrupt::Unknown => {
+            debug!("interrupt of unknown cause");
+        }
     }
 }
 
@@ -231,14 +172,27 @@ pub fn disable_interrupt_cause() {
 /// disable it.
 #[export_name = "_start_trap_rust"]
 pub unsafe extern "C" fn start_trap_rust() {
-    disable_interrupt_cause();
-    handle_trap();
+    match mcause::Trap::from(CSR.mcause.extract()) {
+        mcause::Trap::Interrupt(interrupt) => {
+            handle_interrupt(interrupt);
+        }
+        mcause::Trap::Exception(exception) => {
+            handle_exception(exception);
+        }
+    }
 }
 
 /// Function that gets called if an interrupt occurs while an app was running.
 /// mcause is passed in, and this function should correctly handle disabling the
 /// interrupt that fired so that it does not trigger again.
 #[export_name = "_disable_interrupt_trap_handler"]
-pub extern "C" fn disable_interrupt_trap_handler(_mcause: u32) {
-    disable_interrupt_cause();
+pub unsafe extern "C" fn disable_interrupt_trap_handler(mcause_val: u32) {
+    match mcause::Trap::from(mcause_val) {
+        mcause::Trap::Interrupt(interrupt) => {
+            handle_interrupt(interrupt);
+        }
+        _ => {
+            panic!("unexpected non-interrupt\n");
+        }
+    }
 }

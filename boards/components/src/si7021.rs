@@ -1,17 +1,15 @@
 //! Components for the SI7021 Temperature/Humidity Sensor.
 //!
-//! This provides three Components, SI7021Component, which provides
-//! access to the SI7021 over I2C, TemperatureComponent, which
-//! provides a temperature system call driver, and HumidityComponent,
+//! This provides two Components, SI7021Component, which provides
+//! access to the SI7021 over I2C, and HumidityComponent,
 //! which provides a humidity system call driver. SI7021Component is
-//! a parameter to both TemperatureComponent and HumidityComponent.
+//! a parameter to HumidityComponent.
 //!
 //! Usage
 //! -----
 //! ```rust
 //! let si7021 = SI7021Component::new(mux_i2c, mux_alarm, 0x40).finalize(
 //!     components::si7021_component_helper!(sam4l::ast::Ast));
-//! let temp = TemperatureComponent::new(board_kernel, si7021).finalize(());
 //! let humidity = HumidityComponent::new(board_kernel, si7021).finalize(());
 //! ```
 
@@ -22,7 +20,6 @@ use core::mem::MaybeUninit;
 
 use capsules::humidity::HumiditySensor;
 use capsules::si7021::SI7021;
-use capsules::temperature::TemperatureSensor;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules::virtual_i2c::{I2CDevice, MuxI2C};
 use kernel::capabilities;
@@ -93,40 +90,6 @@ impl<A: 'static + time::Alarm<'static>> Component for SI7021Component<A> {
     }
 }
 
-pub struct TemperatureComponent<A: 'static + time::Alarm<'static>> {
-    board_kernel: &'static kernel::Kernel,
-    si7021: &'static SI7021<'static, VirtualMuxAlarm<'static, A>>,
-}
-
-impl<A: 'static + time::Alarm<'static>> TemperatureComponent<A> {
-    pub fn new(
-        board_kernel: &'static kernel::Kernel,
-        si: &'static SI7021<'static, VirtualMuxAlarm<'static, A>>,
-    ) -> TemperatureComponent<A> {
-        TemperatureComponent {
-            board_kernel: board_kernel,
-            si7021: si,
-        }
-    }
-}
-
-impl<A: 'static + time::Alarm<'static>> Component for TemperatureComponent<A> {
-    type StaticInput = ();
-    type Output = &'static TemperatureSensor<'static>;
-
-    unsafe fn finalize(self, _s: Self::StaticInput) -> Self::Output {
-        let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
-
-        let temp = static_init!(
-            TemperatureSensor<'static>,
-            TemperatureSensor::new(self.si7021, self.board_kernel.create_grant(&grant_cap))
-        );
-
-        hil::sensors::TemperatureDriver::set_client(self.si7021, temp);
-        temp
-    }
-}
-
 pub struct HumidityComponent<A: 'static + time::Alarm<'static>> {
     board_kernel: &'static kernel::Kernel,
     si7021: &'static SI7021<'static, VirtualMuxAlarm<'static, A>>,
@@ -138,7 +101,7 @@ impl<A: 'static + time::Alarm<'static>> HumidityComponent<A> {
         si: &'static SI7021<'static, VirtualMuxAlarm<'static, A>>,
     ) -> HumidityComponent<A> {
         HumidityComponent {
-            board_kernel: board_kernel,
+            board_kernel,
             si7021: si,
         }
     }

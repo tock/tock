@@ -3,10 +3,12 @@
 //! - <https://opentitan.org/>
 
 #![no_std]
-#![no_main]
-#![feature(asm)]
+// Disable this attribute when documenting, as a workaround for
+// https://github.com/rust-lang/rust/issues/62184.
+#![cfg_attr(not(doc), no_main)]
 
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+use capsules::virtual_hmac::VirtualMuxHmac;
 use kernel::capabilities;
 use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::component::Component;
@@ -19,6 +21,7 @@ use rv32i::csr;
 mod aes_test;
 
 pub mod io;
+pub mod usb;
 //
 // Actual memory for holding the active process structures. Need an empty list
 // at least.
@@ -48,16 +51,25 @@ pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 /// A structure representing this platform that holds references to all
 /// capsules for this platform. We've included an alarm and console.
 struct OpenTitan {
-    led: &'static capsules::led::LED<'static>,
-    gpio: &'static capsules::gpio::GPIO<'static>,
+    led: &'static capsules::led::LED<'static, ibex::gpio::GpioPin>,
+    gpio: &'static capsules::gpio::GPIO<'static, ibex::gpio::GpioPin>,
     console: &'static capsules::console::Console<'static>,
     alarm: &'static capsules::alarm::AlarmDriver<
         'static,
         VirtualMuxAlarm<'static, ibex::timer::RvTimer<'static>>,
     >,
+    hmac: &'static capsules::hmac::HmacDriver<
+        'static,
+        VirtualMuxHmac<'static, lowrisc::hmac::Hmac<'static>, [u8; 32]>,
+        [u8; 32],
+    >,
     lldb: &'static capsules::low_level_debug::LowLevelDebug<
         'static,
         capsules::virtual_uart::UartDevice<'static>,
+    >,
+    usb: &'static capsules::usb::usb_user::UsbSyscallDriver<
+        'static,
+        capsules::usb::usbc_client::Client<'static, lowrisc::usbdev::Usb<'static>>,
     >,
 }
 
@@ -69,10 +81,12 @@ impl Platform for OpenTitan {
     {
         match driver_num {
             capsules::led::DRIVER_NUM => f(Some(self.led)),
+            capsules::hmac::DRIVER_NUM => f(Some(self.hmac)),
             capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
             capsules::console::DRIVER_NUM => f(Some(self.console)),
             capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
             capsules::low_level_debug::DRIVER_NUM => f(Some(self.lldb)),
+            capsules::usb::usb_user::DRIVER_NUM => f(Some(self.usb)),
             _ => f(None),
         }
     }
@@ -133,22 +147,19 @@ pub unsafe fn reset_handler() {
 
     // LEDs
     // Start with half on and half off
-    let led = components::led::LedsComponent::new().finalize(components::led_component_helper!(
-        (
-            &ibex::gpio::PORT[7],
-            kernel::hil::gpio::ActivationMode::ActiveLow
-        ),
+    let led = components::led::LedsComponent::new(components::led_component_helper!(
+        ibex::gpio::GpioPin,
         (
             &ibex::gpio::PORT[8],
-            kernel::hil::gpio::ActivationMode::ActiveLow
+            kernel::hil::gpio::ActivationMode::ActiveHigh
         ),
         (
             &ibex::gpio::PORT[9],
-            kernel::hil::gpio::ActivationMode::ActiveLow
+            kernel::hil::gpio::ActivationMode::ActiveHigh
         ),
         (
             &ibex::gpio::PORT[10],
-            kernel::hil::gpio::ActivationMode::ActiveLow
+            kernel::hil::gpio::ActivationMode::ActiveHigh
         ),
         (
             &ibex::gpio::PORT[11],
@@ -165,21 +176,29 @@ pub unsafe fn reset_handler() {
         (
             &ibex::gpio::PORT[14],
             kernel::hil::gpio::ActivationMode::ActiveHigh
-        )
-    ));
-
-    let gpio = components::gpio::GpioComponent::new(board_kernel).finalize(
-        components::gpio_component_helper!(
-            &ibex::gpio::PORT[0],
-            &ibex::gpio::PORT[1],
-            &ibex::gpio::PORT[2],
-            &ibex::gpio::PORT[3],
-            &ibex::gpio::PORT[4],
-            &ibex::gpio::PORT[5],
-            &ibex::gpio::PORT[6],
-            &ibex::gpio::PORT[15]
         ),
-    );
+        (
+            &ibex::gpio::PORT[15],
+            kernel::hil::gpio::ActivationMode::ActiveHigh
+        )
+    ))
+    .finalize(components::led_component_buf!(ibex::gpio::GpioPin));
+
+    let gpio = components::gpio::GpioComponent::new(
+        board_kernel,
+        components::gpio_component_helper!(
+            ibex::gpio::GpioPin,
+            0 => &ibex::gpio::PORT[0],
+            1 => &ibex::gpio::PORT[1],
+            2 => &ibex::gpio::PORT[2],
+            3 => &ibex::gpio::PORT[3],
+            4 => &ibex::gpio::PORT[4],
+            5 => &ibex::gpio::PORT[5],
+            6 => &ibex::gpio::PORT[6],
+            7 => &ibex::gpio::PORT[15]
+        ),
+    )
+    .finalize(components::gpio_component_buf!(ibex::gpio::GpioPin));
 
     let alarm = &ibex::timer::TIMER;
     alarm.setup();
@@ -213,6 +232,26 @@ pub unsafe fn reset_handler() {
 
     let lldb = components::lldb::LowLevelDebugComponent::new(board_kernel, uart_mux).finalize(());
 
+    let hmac_data_buffer = static_init!([u8; 64], [0; 64]);
+    let hmac_dest_buffer = static_init!([u8; 32], [0; 32]);
+
+    let mux_hmac = components::hmac::HmacMuxComponent::new(&ibex::hmac::HMAC).finalize(
+        components::hmac_mux_component_helper!(lowrisc::hmac::Hmac, [u8; 32]),
+    );
+
+    let hmac = components::hmac::HmacComponent::new(
+        board_kernel,
+        &mux_hmac,
+        hmac_data_buffer,
+        hmac_dest_buffer,
+    )
+    .finalize(components::hmac_component_helper!(
+        lowrisc::hmac::Hmac,
+        [u8; 32]
+    ));
+
+    let usb = usb::UsbComponent::new(board_kernel).finalize(());
+
     debug!("OpenTitan initialisation complete. Entering main loop");
 
     extern "C" {
@@ -232,7 +271,9 @@ pub unsafe fn reset_handler() {
         led: led,
         console: console,
         alarm: alarm,
+        hmac,
         lldb: lldb,
+        usb,
     };
 
     kernel::procs::load_processes(
