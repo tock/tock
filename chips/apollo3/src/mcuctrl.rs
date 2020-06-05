@@ -104,4 +104,24 @@ impl McuCtrl {
     pub const fn new(base: StaticRef<McuCtrlRegisters>) -> McuCtrl {
         McuCtrl { registers: base }
     }
+
+    pub fn enable_ble(&self) {
+        let regs = self.registers;
+
+        regs.blebuck2
+            .modify(BLEBUCK2::BLEBUCKTONHITRIM.val(0x19) + BLEBUCK2::BLEBUCKTONLOWTRIM.val(0xC));
+
+        regs.featureenable.modify(FEATUREENABLE::BLEREQ::SET);
+
+        while !regs.featureenable.is_set(FEATUREENABLE::BLEREQ)
+            && regs.featureenable.is_set(FEATUREENABLE::BLEACK)
+            && regs.featureenable.is_set(FEATUREENABLE::BLEAVAIL)
+        {}
+    }
+
+    pub fn reset_ble(&self) {
+        let regs = self.registers;
+
+        regs.miscctrl.modify(MISCCTRL::BLE_RESETN::SET);
+    }
 }
