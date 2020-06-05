@@ -71,7 +71,6 @@ pub static BASE_VECTORS: [unsafe extern "C" fn(); 16] = [
     systick_handler,     // SysTick
 ];
 
-#[cfg(feature = "msp432p401r")]
 #[cfg_attr(all(target_arch = "arm", target_os = "none"), link_section = ".irqs")]
 // used Ensures that the symbol is kept until the final binary
 #[cfg_attr(all(target_arch = "arm", target_os = "none"), used)]

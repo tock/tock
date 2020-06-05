@@ -1,11 +1,11 @@
 #![no_std]
-#![no_main]
+#![cfg_attr(not(doc), no_main)]
 #![feature(asm, core_intrinsics)]
 // #![deny(missing_docs)]
 
 use kernel::capabilities;
 use kernel::component::Component;
-use kernel::hil::watchdog::*;
+use kernel::hil::watchdog::Watchdog;
 use kernel::Platform;
 use kernel::{create_capability, static_init};
 

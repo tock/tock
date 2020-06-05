@@ -48,7 +48,7 @@ impl Watchdog {
 }
 
 impl watchdog::Watchdog for Watchdog {
-    fn start(&self, period: usize) {
+    fn start(&self, _period: usize) {
         // TODO: implement the period for the watchdog
         self.registers
             .ctl

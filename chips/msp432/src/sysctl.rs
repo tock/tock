@@ -8,8 +8,11 @@ pub static mut SYSCTL: SysCtl = SysCtl::new();
 const SYSCTL_BASE: StaticRef<SysCtlRegisters> =
     unsafe { StaticRef::new(0xE004_3000 as *const SysCtlRegisters) };
 
+#[allow(dead_code)]
 const WKEY: u8 = 0x69; // for writing to REBOOT_CTL register
+#[allow(dead_code)]
 const UNLKEY: u16 = 0x695A; // for unlocking IP protected secure zone
+#[allow(dead_code)]
 const UNLOCKED: u16 = 0xA596; // value if zone is unlocked
 
 #[repr(C)]

@@ -1,6 +1,5 @@
 // General Purpose Input/Output (GPIO)
 
-use kernel::common::cells::OptionalCell;
 use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
 use kernel::hil;
@@ -251,6 +250,7 @@ register_bitfields! [u16,
 ];
 
 #[rustfmt::skip]
+#[allow(non_camel_case_types)]
 #[repr(u8)]
 #[derive(Copy, Clone)]
 pub enum PinNr {
@@ -269,10 +269,8 @@ pub enum PinNr {
 
 pub struct Pin {
     pin: u8,
-    port: u8,
-    reg_idx: usize,
     registers: StaticRef<GpioRegisters>,
-    client: OptionalCell<&'static dyn hil::gpio::Client>,
+    reg_idx: usize,
 }
 
 impl Pin {
@@ -281,10 +279,8 @@ impl Pin {
         let port = (pin as u8) / PINS_PER_PORT;
         Pin {
             pin: pin_nr,
-            port: port,
-            reg_idx: (port % 2) as usize,
             registers: GPIO_BASES[(port / 2) as usize],
-            client: OptionalCell::empty(),
+            reg_idx: (port % 2) as usize,
         }
     }
 }

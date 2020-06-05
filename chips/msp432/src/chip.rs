@@ -27,12 +27,14 @@ impl Chip for Msp432 {
         unsafe {
             loop {
                 if let Some(interrupt) = cortexm4::nvic::next_pending() {
+                    /*
                     match interrupt {
                         // currently no interrupts supported!
                         _ => {
                             panic!("unhandled interrupt {}", interrupt);
                         }
                     }
+                    */
 
                     let n = cortexm4::nvic::Nvic::new(interrupt);
                     n.clear_pending();
