@@ -152,13 +152,13 @@ register_bitfields![u32,
         CTSMMIC OFFSET(1) NUMBITS(1) [],
         DCDMMIC OFFSET(2) NUMBITS(1) [],
         DSRMMIC OFFSET(3) NUMBITS(1) [],
-        RXMIC OFFSET(4) NUMBITS(1) [],
-        TXMIC OFFSET(5) NUMBITS(1) [],
-        RTMIC OFFSET(6) NUMBITS(1) [],
-        FEMIC OFFSET(7) NUMBITS(1) [],
-        PEMIC OFFSET(8) NUMBITS(1) [],
-        BEMIC OFFSET(9) NUMBITS(1) [],
-        OEMIC OFFSET(10) NUMBITS(1) []
+        RXIC OFFSET(4) NUMBITS(1) [],
+        TXIC OFFSET(5) NUMBITS(1) [],
+        RTIC OFFSET(6) NUMBITS(1) [],
+        FEIC OFFSET(7) NUMBITS(1) [],
+        PEIC OFFSET(8) NUMBITS(1) [],
+        BEIC OFFSET(9) NUMBITS(1) [],
+        OEMC OFFSET(10) NUMBITS(1) []
     ]
 ];
 
@@ -209,13 +209,14 @@ impl Uart<'_> {
         // Set TX FIFO to fire at 0
         regs.ifls.modify(IFLS::TXIFLSEL.val(0));
 
-        regs.ier.modify(IER::TXIM::SET);
+        regs.ier.modify(IER::TXIM::SET + IER::TXCMPMIM::SET);
     }
 
     fn disable_tx_interrupt(&self) {
         let regs = self.registers;
 
-        regs.ier.modify(IER::TXIM::CLEAR);
+        regs.ier.modify(IER::TXIM::CLEAR + IER::TXCMPMIM::CLEAR);
+        regs.iec.modify(IEC::TXIC::SET);
     }
 
     fn tx_progress(&self) {
@@ -249,15 +250,13 @@ impl Uart<'_> {
 
     pub fn handle_interrupt(&self) {
         let regs = self.registers;
-        let irq = regs.ies.get();
+        let irq = regs.ies.extract();
 
-        self.disable_tx_interrupt();
-
-        if irq & 0x20 != 0 {
+        if irq.is_set(IES::TXIS) || irq.is_set(IES::TXCMPMIS) {
             // TXRIS Interrupt
             self.disable_tx_interrupt();
 
-            if self.tx_index.get() == self.tx_len.get() {
+            if self.tx_index.get() >= self.tx_len.get() {
                 // We sent everything to the UART hardware, now from an
                 // interrupt callback we can issue the callback.
                 self.tx_client.map(|client| {
