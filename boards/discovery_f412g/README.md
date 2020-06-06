@@ -1,12 +1,12 @@
-STM32 Nucleo-64 development board with STM32F429ZI MCU
+STM32F4 Discovery Kit with STM32F412G MCU
 ======================================================
 
-For more details [visit NUCLEO-F429ZI
-website](https://www.st.com/en/evaluation-tools/nucleo-f429zi.html).
+For more details [visit STM32F412G Discovery Kit
+website](https://www.st.com/en/evaluation-tools/32f412gdiscovery.html).
 
 ## Flashing the kernel
 
-The kernel can be programmed using OpenOCD. `cd` into `boards/nucleo_f429zi`
+The kernel can be programmed using OpenOCD. `cd` into `boards/discovery_f412g`
 directory and run:
 
 ```bash
@@ -31,8 +31,8 @@ apps included.
 ```bash
 $ arm-none-eabi-objcopy  \
     --update-section .apps=../../../libtock-c/examples/c_hello/build/cortex-m4/cortex-m4.tbf \
-    target/thumbv7em-none-eabi/debug/nucleo_f429zi.elf \
-    target/thumbv7em-none-eabi/debug/nucleo_f429zi-app.elf
+    target/thumbv7em-none-eabi/debug/discovery_f412g.elf \
+    target/thumbv7em-none-eabi/debug/discovery_f412g-app.elf
 ```
 
 For example, you can update `Makefile` as follows.
