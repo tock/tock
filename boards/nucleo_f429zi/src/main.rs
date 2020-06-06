@@ -57,7 +57,7 @@ struct NucleoF429ZI {
         'static,
         VirtualMuxAlarm<'static, stm32f429zi::tim2::Tim2<'static>>,
     >,
-    framebuffer: &'static capsules::framebuffer::Framebuffer<'static>,
+    screen: &'static capsules::screen::Screen<'static>,
     alarm: &'static capsules::alarm::AlarmDriver<
         'static,
         VirtualMuxAlarm<'static, stm32f429zi::tim2::Tim2<'static>>,
@@ -75,7 +75,7 @@ impl Platform for NucleoF429ZI {
             capsules::console::DRIVER_NUM => f(Some(self.console)),
             capsules::led::DRIVER_NUM => f(Some(self.led)),
             capsules::st7735::DRIVER_NUM => f(Some(self.st7735)),
-            capsules::framebuffer::DRIVER_NUM => f(Some(self.framebuffer)),
+            capsules::screen::DRIVER_NUM => f(Some(self.screen)),
             capsules::button::DRIVER_NUM => f(Some(self.button)),
             capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
@@ -480,16 +480,15 @@ pub unsafe fn reset_handler() {
 
     tft.init();
 
-    let framebuffer =
-        components::framebuffer::FramebufferComponent::new(board_kernel, tft, Some(tft))
-            .finalize(components::framebuffer_buffer_size!(40960));
+    let screen = components::screen::ScreenComponent::new(board_kernel, tft, Some(tft))
+        .finalize(components::screen_buffer_size!(40960));
 
     let nucleo_f429zi = NucleoF429ZI {
         console: console,
         ipc: kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability),
         led: led,
         st7735: tft,
-        framebuffer: framebuffer,
+        screen: screen,
         button: button,
         alarm: alarm,
         gpio: gpio,

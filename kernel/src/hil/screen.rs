@@ -1,36 +1,28 @@
 //! Interface for FrameBuffer
 use crate::returncode::ReturnCode;
-use enum_primitive::cast::FromPrimitive;
-use enum_primitive::enum_from_primitive;
 
-enum_from_primitive! {
-    #[repr(usize)]
-    #[derive(Copy, Clone, PartialEq)]
-    pub enum ScreenRotation {
-        Normal = 0,
-        Rotated90 = 1,
-        Rotated180 = 2,
-        Rotated270 = 3,
-    }
+pub enum ScreenRotation {
+    Normal,
+    Rotated90,
+    Rotated180,
+    Rotated270,
 }
 
-enum_from_primitive! {
-    #[derive(Copy, Clone, PartialEq)]
-    #[repr(usize)]
-    #[allow(non_camel_case_types)]
-    pub enum ScreenPixelFormat {
-        /// Pixels encoded as 1-bit, used for monochromatic displays
-        Mono = 0,
-        /// Pixels encoded as 2-bit red channel, 3-bit green channel, 3-bit blue channel.
-        RGB_233 = 1,
-        /// Pixels encoded as 5-bit red channel, 6-bit green channel, 5-bit blue channel.
-        RGB_565 = 2,
-        /// Pixels encoded as 8-bit red channel, 8-bit green channel, 8-bit blue channel.
-        RGB_888 = 3,
-        /// Pixels encoded as 8-bit alpha channel, 8-bit red channel, 8-bit green channel, 8-bit blue channel.
-        ARGB_8888 = 4,
-        // other pixel formats may be defined.
-    }
+#[derive(Copy, Clone, PartialEq)]
+#[repr(usize)]
+#[allow(non_camel_case_types)]
+pub enum ScreenPixelFormat {
+    /// Pixels encoded as 1-bit, used for monochromatic displays
+    Mono,
+    /// Pixels encoded as 2-bit red channel, 3-bit green channel, 3-bit blue channel.
+    RGB_233,
+    /// Pixels encoded as 5-bit red channel, 6-bit green channel, 5-bit blue channel.
+    RGB_565,
+    /// Pixels encoded as 8-bit red channel, 8-bit green channel, 8-bit blue channel.
+    RGB_888,
+    /// Pixels encoded as 8-bit alpha channel, 8-bit red channel, 8-bit green channel, 8-bit blue channel.
+    ARGB_8888,
+    // other pixel formats may be defined.
 }
 
 impl ScreenPixelFormat {

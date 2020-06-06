@@ -26,10 +26,10 @@
 use crate::driver;
 use core::cell::Cell;
 use kernel::common::cells::{OptionalCell, TakeCell};
-use kernel::hil::framebuffer::{
+use kernel::hil::gpio;
+use kernel::hil::screen::{
     self, ScreenClient, ScreenPixelFormat, ScreenRotation, ScreenSetupClient,
 };
-use kernel::hil::gpio;
 use kernel::hil::spi;
 use kernel::hil::time::{self, Alarm, Frequency};
 use kernel::ReturnCode;
@@ -305,8 +305,8 @@ pub struct ST7735<'a, A: Alarm<'a>> {
     width: Cell<usize>,
     height: Cell<usize>,
 
-    client: OptionalCell<&'static dyn framebuffer::ScreenClient>,
-    setup_client: OptionalCell<&'static dyn framebuffer::ScreenSetupClient>,
+    client: OptionalCell<&'static dyn screen::ScreenClient>,
+    setup_client: OptionalCell<&'static dyn screen::ScreenSetupClient>,
     setup_command: Cell<bool>,
 
     sequence_buffer: TakeCell<'static, [SendCommand]>,
@@ -860,7 +860,7 @@ impl<'a, A: Alarm<'a>> Driver for ST7735<'a, A> {
     }
 }
 
-impl<'a, A: Alarm<'a>> framebuffer::ScreenSetup for ST7735<'a, A> {
+impl<'a, A: Alarm<'a>> screen::ScreenSetup for ST7735<'a, A> {
     fn set_client(&self, setup_client: Option<&'static dyn ScreenSetupClient>) {
         if let Some(setup_client) = setup_client {
             self.setup_client.set(setup_client);
@@ -922,7 +922,7 @@ impl<'a, A: Alarm<'a>> framebuffer::ScreenSetup for ST7735<'a, A> {
     }
 }
 
-impl<'a, A: Alarm<'a>> framebuffer::Screen for ST7735<'a, A> {
+impl<'a, A: Alarm<'a>> screen::Screen for ST7735<'a, A> {
     fn get_resolution(&self) -> (usize, usize) {
         (self.width.get(), self.height.get())
     }

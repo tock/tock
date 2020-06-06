@@ -1,30 +1,51 @@
-//! Provides userspace with access to the frame buffer.
+//! Provides userspace with access to the screen.
 //!
 //! Usage
 //! -----
 //!
-//! You need a screen that provides the `hil::framebuffer::Screen` trait.
+//! You need a screen that provides the `hil::screen::Screen` trait.
 //!
 //! ```rust
 //!
-//! let framebuffer =
-//!     components::framebuffer::FramebufferComponent::new(board_kernel, tft).finalize();
+//! let screen =
+//!     components::screen::ScreenComponent::new(board_kernel, tft).finalize();
 //! ```
 
 use core::cell::Cell;
-use enum_primitive::cast::FromPrimitive;
+use core::convert::From;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil;
-use kernel::hil::framebuffer::{ScreenPixelFormat, ScreenRotation};
+use kernel::hil::screen::{ScreenPixelFormat, ScreenRotation};
 use kernel::ReturnCode;
 use kernel::{AppId, AppSlice, Callback, Driver, Grant, Shared};
 
 /// Syscall driver number.
 use crate::driver;
-pub const DRIVER_NUM: usize = driver::NUM::Framebuffer as usize;
+pub const DRIVER_NUM: usize = driver::NUM::Screen as usize;
+
+fn screen_rotation_from(screen_rotation: usize) -> Option<ScreenRotation> {
+    match screen_rotation {
+        0 => Some(ScreenRotation::Normal),
+        1 => Some(ScreenRotation::Rotated90),
+        2 => Some(ScreenRotation::Rotated180),
+        3 => Some(ScreenRotation::Rotated270),
+        _ => None,
+    }
+}
+
+fn screen_pixel_format_from(screen_pixel_format: usize) -> Option<ScreenPixelFormat> {
+    match screen_pixel_format {
+        0 => Some(ScreenPixelFormat::Mono),
+        1 => Some(ScreenPixelFormat::RGB_233),
+        2 => Some(ScreenPixelFormat::RGB_565),
+        3 => Some(ScreenPixelFormat::RGB_888),
+        4 => Some(ScreenPixelFormat::ARGB_8888),
+        _ => None,
+    }
+}
 
 #[derive(Clone, Copy, PartialEq)]
-enum FramebufferCommand {
+enum ScreenCommand {
     Nop,
     SetBrightness,
     InvertOn,
@@ -59,7 +80,7 @@ pub struct App {
     shared: Option<AppSlice<Shared, u8>>,
     write_position: usize,
     write_len: usize,
-    command: FramebufferCommand,
+    command: ScreenCommand,
     x: usize,
     y: usize,
     width: usize,
@@ -74,7 +95,7 @@ impl Default for App {
             callback: None,
             pending_command: false,
             shared: None,
-            command: FramebufferCommand::Nop,
+            command: ScreenCommand::Nop,
             data1: 0,
             data2: 0,
             x: 0,
@@ -87,9 +108,9 @@ impl Default for App {
     }
 }
 
-pub struct Framebuffer<'a> {
-    screen: &'a dyn hil::framebuffer::Screen,
-    screen_setup: Option<&'a dyn hil::framebuffer::ScreenSetup>,
+pub struct Screen<'a> {
+    screen: &'a dyn hil::screen::Screen,
+    screen_setup: Option<&'a dyn hil::screen::ScreenSetup>,
     apps: Grant<App>,
     screen_ready: Cell<bool>,
     current_app: OptionalCell<AppId>,
@@ -97,14 +118,14 @@ pub struct Framebuffer<'a> {
     buffer: TakeCell<'static, [u8]>,
 }
 
-impl Framebuffer<'a> {
+impl<'a> Screen<'a> {
     pub fn new(
-        screen: &'a dyn hil::framebuffer::Screen,
-        screen_setup: Option<&'a dyn hil::framebuffer::ScreenSetup>,
+        screen: &'a dyn hil::screen::Screen,
+        screen_setup: Option<&'a dyn hil::screen::ScreenSetup>,
         buffer: &'static mut [u8],
         grant: Grant<App>,
-    ) -> Framebuffer<'a> {
-        Framebuffer {
+    ) -> Screen<'a> {
+        Screen {
             screen: screen,
             screen_setup: screen_setup,
             apps: grant,
@@ -120,7 +141,7 @@ impl Framebuffer<'a> {
     // and will be run when the pending command completes.
     fn enqueue_command(
         &self,
-        command: FramebufferCommand,
+        command: ScreenCommand,
         data1: usize,
         data2: usize,
         appid: AppId,
@@ -153,43 +174,42 @@ impl Framebuffer<'a> {
 
     fn call_screen(
         &self,
-        command: FramebufferCommand,
+        command: ScreenCommand,
         data1: usize,
         data2: usize,
         appid: AppId,
     ) -> ReturnCode {
         match command {
-            FramebufferCommand::SetBrightness => self.screen.set_brightness(data1),
-            FramebufferCommand::InvertOn => self.screen.invert_on(),
-            FramebufferCommand::InvertOff => self.screen.invert_off(),
-            FramebufferCommand::SetRotation => {
+            ScreenCommand::SetBrightness => self.screen.set_brightness(data1),
+            ScreenCommand::InvertOn => self.screen.invert_on(),
+            ScreenCommand::InvertOff => self.screen.invert_off(),
+            ScreenCommand::SetRotation => {
                 if let Some(screen) = self.screen_setup {
-                    screen.set_rotation(
-                        ScreenRotation::from_usize(data1).unwrap_or(ScreenRotation::Normal),
-                    )
+                    screen
+                        .set_rotation(screen_rotation_from(data1).unwrap_or(ScreenRotation::Normal))
                 } else {
                     ReturnCode::ENOSUPPORT
                 }
             }
-            FramebufferCommand::GetRotation => {
+            ScreenCommand::GetRotation => {
                 let rotation = self.screen.get_rotation();
                 self.run_next_command(usize::from(ReturnCode::SUCCESS), rotation as usize, 0);
                 ReturnCode::SUCCESS
             }
-            FramebufferCommand::SetResolution => {
+            ScreenCommand::SetResolution => {
                 if let Some(screen) = self.screen_setup {
                     screen.set_resolution((data1, data2))
                 } else {
                     ReturnCode::ENOSUPPORT
                 }
             }
-            FramebufferCommand::GetResolution => {
+            ScreenCommand::GetResolution => {
                 let (width, height) = self.screen.get_resolution();
                 self.run_next_command(usize::from(ReturnCode::SUCCESS), width, height);
                 ReturnCode::SUCCESS
             }
-            FramebufferCommand::SetPixelFormat => {
-                if let Some(pixel_format) = ScreenPixelFormat::from_usize(data1) {
+            ScreenCommand::SetPixelFormat => {
+                if let Some(pixel_format) = screen_pixel_format_from(data1) {
                     if let Some(screen) = self.screen_setup {
                         screen.set_pixel_format(pixel_format)
                     } else {
@@ -199,12 +219,12 @@ impl Framebuffer<'a> {
                     ReturnCode::EINVAL
                 }
             }
-            FramebufferCommand::GetPixelFormat => {
+            ScreenCommand::GetPixelFormat => {
                 let pixel_format = self.screen.get_pixel_format();
                 self.run_next_command(usize::from(ReturnCode::SUCCESS), pixel_format as usize, 0);
                 ReturnCode::SUCCESS
             }
-            FramebufferCommand::GetSupportedResolutionModes => {
+            ScreenCommand::GetSupportedResolutionModes => {
                 if let Some(screen) = self.screen_setup {
                     let resolution_modes = screen.get_num_supported_resolutions();
                     self.run_next_command(usize::from(ReturnCode::SUCCESS), resolution_modes, 0);
@@ -213,7 +233,7 @@ impl Framebuffer<'a> {
                     ReturnCode::ENOSUPPORT
                 }
             }
-            FramebufferCommand::GetSupportedResolution => {
+            ScreenCommand::GetSupportedResolution => {
                 if let Some(screen) = self.screen_setup {
                     if let Some((width, height)) = screen.get_supported_resolution(data1) {
                         self.run_next_command(
@@ -233,7 +253,7 @@ impl Framebuffer<'a> {
                     ReturnCode::ENOSUPPORT
                 }
             }
-            FramebufferCommand::GetSupportedPixelFormats => {
+            ScreenCommand::GetSupportedPixelFormats => {
                 if let Some(screen) = self.screen_setup {
                     let color_modes = screen.get_num_supported_pixel_formats();
                     self.run_next_command(usize::from(ReturnCode::SUCCESS), color_modes, 0);
@@ -242,7 +262,7 @@ impl Framebuffer<'a> {
                     ReturnCode::ENOSUPPORT
                 }
             }
-            FramebufferCommand::GetSupportedPixelFormat => {
+            ScreenCommand::GetSupportedPixelFormat => {
                 if let Some(screen) = self.screen_setup {
                     if let Some(pixel_format) = screen.get_supported_pixel_format(data1) {
                         self.run_next_command(
@@ -258,7 +278,7 @@ impl Framebuffer<'a> {
                     ReturnCode::ENOSUPPORT
                 }
             }
-            FramebufferCommand::Fill => self
+            ScreenCommand::Fill => self
                 .apps
                 .enter(appid, |app, _| {
                     if app.shared.is_some() {
@@ -282,7 +302,7 @@ impl Framebuffer<'a> {
                     }
                 })
                 .unwrap_or_else(|err| err.into()),
-            FramebufferCommand::Write => self
+            ScreenCommand::Write => self
                 .apps
                 .enter(appid, |app, _| {
                     let len = if let Some(ref shared) = app.shared {
@@ -308,7 +328,7 @@ impl Framebuffer<'a> {
                     }
                 })
                 .unwrap_or_else(|err| err.into()),
-            FramebufferCommand::SetWriteFrame => self
+            ScreenCommand::SetWriteFrame => self
                 .apps
                 .enter(appid, |app, _| {
                     app.write_position = 0;
@@ -359,7 +379,7 @@ impl Framebuffer<'a> {
         }
     }
 
-    fn fill_next_buffer_for_write(&self, buffer: &'b mut [u8]) -> usize {
+    fn fill_next_buffer_for_write<'b>(&self, buffer: &'b mut [u8]) -> usize {
         self.current_app.map_or_else(
             || 0,
             |appid| {
@@ -369,7 +389,7 @@ impl Framebuffer<'a> {
                         let mut len = app.write_len;
                         if position < len {
                             let buffer_size = buffer.len();
-                            if app.command == FramebufferCommand::Write {
+                            if app.command == ScreenCommand::Write {
                                 if let Some(ref mut s) = app.shared {
                                     let mut chunks = s.chunks(buffer_size);
                                     let chunk_number = position / buffer_size;
@@ -393,9 +413,9 @@ impl Framebuffer<'a> {
                                     }
                                 } else {
                                     // TODO should panic or report an error?
-                                    panic!("framebuffer has no slice to send");
+                                    panic!("screen has no slice to send");
                                 }
-                            } else if app.command == FramebufferCommand::Fill {
+                            } else if app.command == ScreenCommand::Fill {
                                 // TODO bytes per pixel
                                 len = len - position;
                                 let bytes_per_pixel = pixels_in_bytes(
@@ -422,7 +442,7 @@ impl Framebuffer<'a> {
                                     }
                                 } else {
                                     // TODO should panic or report an error?
-                                    panic!("framebuffer has no slice to send");
+                                    panic!("screen has no slice to send");
                                 }
                                 app.write_position = app.write_position + write_len * 2;
                                 write_len * 2
@@ -441,7 +461,7 @@ impl Framebuffer<'a> {
     }
 }
 
-impl hil::framebuffer::ScreenClient for Framebuffer<'a> {
+impl<'a> hil::screen::ScreenClient for Screen<'a> {
     fn command_complete(&self, r: ReturnCode) {
         self.run_next_command(usize::from(r), 0, 0);
     }
@@ -461,13 +481,13 @@ impl hil::framebuffer::ScreenClient for Framebuffer<'a> {
     }
 }
 
-impl hil::framebuffer::ScreenSetupClient for Framebuffer<'a> {
+impl<'a> hil::screen::ScreenSetupClient for Screen<'a> {
     fn command_complete(&self, r: ReturnCode) {
         self.run_next_command(usize::from(r), 0, 0);
     }
 }
 
-impl Driver for Framebuffer<'a> {
+impl<'a> Driver for Screen<'a> {
     fn subscribe(
         &self,
         subscribe_num: usize,
@@ -498,47 +518,43 @@ impl Driver for Framebuffer<'a> {
                 value: self.screen_setup.is_some() as usize,
             },
             // Set Brightness
-            3 => self.enqueue_command(FramebufferCommand::SetBrightness, data1, 0, appid),
+            3 => self.enqueue_command(ScreenCommand::SetBrightness, data1, 0, appid),
             // Invert On
-            4 => self.enqueue_command(FramebufferCommand::InvertOn, 0, 0, appid),
+            4 => self.enqueue_command(ScreenCommand::InvertOn, 0, 0, appid),
             // Invert Off
-            5 => self.enqueue_command(FramebufferCommand::InvertOff, 0, 0, appid),
+            5 => self.enqueue_command(ScreenCommand::InvertOff, 0, 0, appid),
 
             // Get Resolution Modes Number
-            11 => {
-                self.enqueue_command(FramebufferCommand::GetSupportedResolutionModes, 0, 0, appid)
-            }
+            11 => self.enqueue_command(ScreenCommand::GetSupportedResolutionModes, 0, 0, appid),
             // Get Resolution Mode Width and Height
-            12 => self.enqueue_command(FramebufferCommand::GetSupportedResolution, data1, 0, appid),
+            12 => self.enqueue_command(ScreenCommand::GetSupportedResolution, data1, 0, appid),
 
             // Get Color Depth Modes Number
-            13 => self.enqueue_command(FramebufferCommand::GetSupportedPixelFormats, 0, 0, appid),
+            13 => self.enqueue_command(ScreenCommand::GetSupportedPixelFormats, 0, 0, appid),
             // Get Color Depth Mode Bits per Pixel
-            14 => {
-                self.enqueue_command(FramebufferCommand::GetSupportedPixelFormat, data1, 0, appid)
-            }
+            14 => self.enqueue_command(ScreenCommand::GetSupportedPixelFormat, data1, 0, appid),
 
             // Get Rotation
-            21 => self.enqueue_command(FramebufferCommand::GetRotation, 0, 0, appid),
+            21 => self.enqueue_command(ScreenCommand::GetRotation, 0, 0, appid),
             // Set Rotation
-            22 => self.enqueue_command(FramebufferCommand::SetRotation, data1, 0, appid),
+            22 => self.enqueue_command(ScreenCommand::SetRotation, data1, 0, appid),
 
             // Get Resolution
-            23 => self.enqueue_command(FramebufferCommand::GetResolution, 0, 0, appid),
+            23 => self.enqueue_command(ScreenCommand::GetResolution, 0, 0, appid),
             // Set Resolution
-            24 => self.enqueue_command(FramebufferCommand::SetResolution, data1, data2, appid),
+            24 => self.enqueue_command(ScreenCommand::SetResolution, data1, data2, appid),
 
             // Get Color Depth
-            25 => self.enqueue_command(FramebufferCommand::GetPixelFormat, 0, 0, appid),
+            25 => self.enqueue_command(ScreenCommand::GetPixelFormat, 0, 0, appid),
             // Set Color Depth
-            26 => self.enqueue_command(FramebufferCommand::SetPixelFormat, data1, 0, appid),
+            26 => self.enqueue_command(ScreenCommand::SetPixelFormat, data1, 0, appid),
 
             // Set Write Frame
-            100 => self.enqueue_command(FramebufferCommand::SetWriteFrame, data1, data2, appid),
+            100 => self.enqueue_command(ScreenCommand::SetWriteFrame, data1, data2, appid),
             // Write
-            200 => self.enqueue_command(FramebufferCommand::Write, data1, data2, appid),
+            200 => self.enqueue_command(ScreenCommand::Write, data1, data2, appid),
             // Fill
-            300 => self.enqueue_command(FramebufferCommand::Fill, data1, data2, appid),
+            300 => self.enqueue_command(ScreenCommand::Fill, data1, data2, appid),
 
             _ => ReturnCode::ENOSUPPORT,
         }
