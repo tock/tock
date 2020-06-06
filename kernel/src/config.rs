@@ -40,6 +40,11 @@ pub(crate) struct Config {
     /// into which SRAM addresses. This can be useful to debug whether the kernel could
     /// successfully load processes, and whether the allocated SRAM is as expected.
     pub(crate) debug_load_processes: bool,
+
+    /// The time a process is permitted to run before being pre-empted
+    pub(crate) kernel_tick_duration_us: u32,
+    /// Skip re-scheduling a process if its quanta is nearly exhausted
+    pub(crate) min_quanta_threshold_us: u32,
 }
 
 /// A unique instance of `Config` where compile-time configuration options are defined. These
@@ -47,4 +52,6 @@ pub(crate) struct Config {
 pub(crate) const CONFIG: Config = Config {
     trace_syscalls: false,
     debug_load_processes: false,
+    kernel_tick_duration_us: 1000000,
+    min_quanta_threshold_us: 50000,
 };
