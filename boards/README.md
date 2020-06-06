@@ -19,6 +19,7 @@ that Tock supports.
 | [STM32F3Discovery kit](stm32f3discovery/README.md)                   | ARM Cortex-M4   | STM32F303VCT6  | openocd    | custom         |
 | [STM32F412G Discovery kit](stm32f412gdiscovery/README.md)            | ARM Cortex-M4   | STM32F412G     | openocd    | custom         |
 | [SparkFun RedBoard Artemis Nano](redboard_artemis_nano/README.md)    | ARM Cortex-M4   | Apollo3        | custom     | custom         |
+| [i.MX RT 1052 Evaluation Kit](imxrt1050-evkb/README.md)              | ARM Cortex-M7   | i.MX RT 1052   | custom     | custom         |
 | [SiFive HiFive1](hifive1/README.md)                                  | RISC-V          | FE310-G000     | openocd    | tockloader     |
-| [Digilent Arty A-7 100T](arty_e21/README.md)                         | RISC-V RV32IMAC | SiFive E21     | openocd    | tockloader     |
+| [Digilent Arty A-7 100T](arty-e21/README.md)                         | RISC-V RV32IMAC | SiFive E21     | openocd    | tockloader     |
 | [Nexys Video OpenTitan](opentitan/README.md)                         | RISC-V RV32IMC  | Ibex           | custom     | custom         |
