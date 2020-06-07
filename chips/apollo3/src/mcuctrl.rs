@@ -2,6 +2,7 @@
 
 use kernel::common::registers::{register_bitfields, register_structs, ReadWrite};
 use kernel::common::StaticRef;
+use kernel::debug;
 
 pub static mut MCUCTRL: McuCtrl = McuCtrl::new(MCUCTRL_BASE);
 
@@ -13,7 +14,7 @@ register_structs! {
         (0x000 => chippn: ReadWrite<u32>),
         (0x004 => chipid0: ReadWrite<u32>),
         (0x008 => chipid1: ReadWrite<u32>),
-        (0x00c => chiprev: ReadWrite<u32>),
+        (0x00c => chiprev: ReadWrite<u32, CHIPREV::Register>),
         (0x010 => vendorid: ReadWrite<u32>),
         (0x014 => sku: ReadWrite<u32>),
         (0x018 => featureenable: ReadWrite<u32, FEATUREENABLE::Register>),
@@ -78,6 +79,11 @@ register_structs! {
 }
 
 register_bitfields![u32,
+    CHIPREV [
+        REVMIN OFFSET(0) NUMBITS(3) [],
+        REVMAJ OFFSET(4) NUMBITS(3) [],
+        SIPART OFFSET(8) NUMBITS(12) []
+    ],
     FEATUREENABLE [
         BLEREQ OFFSET(0) NUMBITS(1) [],
         BLEACK OFFSET(1) NUMBITS(1) [],
@@ -103,6 +109,23 @@ pub struct McuCtrl {
 impl McuCtrl {
     pub const fn new(base: StaticRef<McuCtrlRegisters>) -> McuCtrl {
         McuCtrl { registers: base }
+    }
+
+    pub fn print_chip_revision(&self) {
+        let regs = self.registers;
+
+        let chiprev = regs.chiprev.extract();
+
+        // We currenlty don't act on this (we probably should)
+        if chiprev.read(CHIPREV::REVMAJ) == 0x2 {
+            debug!("Apollo3 chip revision: B");
+        } else if chiprev.read(CHIPREV::REVMAJ) == 0x1 {
+            if chiprev.read(CHIPREV::REVMIN) == 0x2 {
+                debug!("Apollo3 chip revision: A rev1");
+            } else if chiprev.read(CHIPREV::REVMIN) == 0x1 {
+                debug!("Apollo3 chip revision: A rev0");
+            }
+        }
     }
 
     pub fn enable_ble(&self) {
