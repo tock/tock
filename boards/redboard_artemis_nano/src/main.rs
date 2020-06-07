@@ -197,6 +197,8 @@ pub unsafe fn reset_handler() {
     let ble_radio =
         ble::BLEComponent::new(board_kernel, &apollo3::ble::BLE, mux_alarm).finalize(());
 
+    apollo3::mcuctrl::MCUCTRL.print_chip_revision();
+
     debug!("Initialization complete. Entering main loop");
 
     extern "C" {
