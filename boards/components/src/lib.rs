@@ -10,6 +10,7 @@ pub mod crc;
 pub mod debug_queue;
 pub mod debug_writer;
 pub mod ft6x06;
+pub mod fxos8700;
 pub mod gpio;
 pub mod hd44780;
 pub mod hmac;
