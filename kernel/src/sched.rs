@@ -334,7 +334,8 @@ impl Kernel {
                 break;
             }
 
-            if systick.overflowed() || !systick.greater_than(config::CONFIG.min_quanta_threshold_us) {
+            if systick.overflowed() || !systick.greater_than(config::CONFIG.min_quanta_threshold_us)
+            {
                 process.debug_timeslice_expired();
                 break;
             }
