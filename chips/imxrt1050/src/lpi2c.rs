@@ -219,7 +219,6 @@ register_bitfields![u32,
     MDMR [
         /// Match 1 Value
         MATCH1 OFFSET(16) NUMBITS(8) [],
-
         /// Match 0 Value
         MATCH0 OFFSET(0) NUMBITS(8) []
     ],

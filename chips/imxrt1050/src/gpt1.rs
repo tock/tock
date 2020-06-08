@@ -38,55 +38,38 @@ register_bitfields![u32,
     CR [
         /// Force Output Compare Channel 3
         FO3 OFFSET(31) NUMBITS(1) [],
-
         /// Force Output Compare Channel 2
         FO2 OFFSET(30) NUMBITS(1) [],
-
         /// Force Output Compare Channel 1
         FO1 OFFSET(29) NUMBITS(1) [],
-
         /// Controls the Output Compare Channel 3 operating mode
         OM3 OFFSET(26) NUMBITS(3) [],
-
         /// Controls the Output Compare Channel 2 operating mode
         OM2 OFFSET(23) NUMBITS(3) [],
-
         /// Controls the Output Compare Channel 2 operating mode
         OM1 OFFSET(20) NUMBITS(3) [],
-
         /// Input Capture Channel 2 operating mode
         IM2 OFFSET(18) NUMBITS(2) [],
-
         /// Input Capture Channel 1 operating mode
         IM1 OFFSET(16) NUMBITS(2) [],
-
         /// Software reset
         SWR OFFSET(15) NUMBITS(1) [],
-
         /// Enable 24 MHz clock input from crystal
         EN_24M OFFSET(10) NUMBITS(1) [],
-
         /// Free run or Restart mode
         FRR OFFSET(9) NUMBITS(1) [],
-
         /// Clock source select
         CLKSRC OFFSET(6) NUMBITS(3) [],
-
         /// GPT Stop Mode enable
         STOPEN OFFSET(5) NUMBITS(1) [],
-
         /// GPT Doze Mode Enable
         DOZEEN OFFSET(4) NUMBITS(1) [],
-
         /// GPT Wait Mode enable
         WAITEN OFFSET(3) NUMBITS(1) [],
-
         /// GPT debug mode enable
         DBGEN OFFSET(2) NUMBITS(1) [],
-
         /// GPT Enable mode
         ENMOD OFFSET(1) NUMBITS(1) [],
-
         /// GPT Enable
         EN OFFSET(0) NUMBITS(1) []
     ],
@@ -94,7 +77,6 @@ register_bitfields![u32,
     PR [
         /// Prescaler bits for 24M crystal clock
         PRESCALER24M OFFSET(12) NUMBITS(4),
-
         /// Prescaler bits
         PRESCALER OFFSET(0) NUMBITS(12)
     ],
@@ -102,19 +84,14 @@ register_bitfields![u32,
     SR [
         /// Rollover Flag
         ROV OFFSET(5) NUMBITS(1),
-
         /// Input capture 2 Flag
         IF2 OFFSET(4) NUMBITS(1),
-
         /// Input capture 1 Flag
         IF1 OFFSET(3) NUMBITS(1),
-
         /// Output Compare 3 Flag
         OF3 OFFSET(2) NUMBITS(1),
-
         /// Output Compare 2 Flag
         OF2 OFFSET(1) NUMBITS(1),
-
         /// Output Compare 1 Flag
         OF1 OFFSET(0) NUMBITS(1)
     ],
@@ -122,19 +99,14 @@ register_bitfields![u32,
     IR [
         /// Rollover Interrupt Enable
         ROVIE OFFSET(5) NUMBITS(1),
-
         /// Input capture 2 Interrupt Enable
         IF2IE OFFSET(4) NUMBITS(1),
-
         /// Input capture 1 Interrupt Enable
         IF1IE OFFSET(3) NUMBITS(1),
-
         /// Output Compare 3 Interrupt Enable
         OF3IE OFFSET(2) NUMBITS(1),
-
         /// Output Compare 2 Interrupt Enable
         OF2IE OFFSET(1) NUMBITS(1),
-
         /// Output Compare 1 Interrupt Enable
         OF1IE OFFSET(0) NUMBITS(1)
     ],
