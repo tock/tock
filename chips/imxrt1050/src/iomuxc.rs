@@ -167,7 +167,6 @@ register_bitfields![u32,
     SW_MUX_CTL_PAD_GPIO [
         // Software Input On Field
         SION OFFSET(4) NUMBITS(1) [],
-
         // MUX Mode Select Field
         MUX_MODE OFFSET(0) NUMBITS(3) []
     ],
@@ -175,25 +174,18 @@ register_bitfields![u32,
     SW_PAD_CTL_PAD_GPIO [
         // Hyst. Enable Field
         HYS OFFSET(16) NUMBITS(1) [],
-
         // Pull Up / Down Config Field
         PUS OFFSET(14) NUMBITS(2) [],
-
         // Pull / Keep Select Field
         PUE OFFSET(13) NUMBITS(1) [],
-
         // Pull / Keep enable field
         PKE OFFSET(12) NUMBITS(1) [],
-
         // Open drain enable field
         ODE OFFSET(11) NUMBITS(1) [],
-
         // Speed
         SPEED OFFSET(6) NUMBITS(2) [],
-
         // Drive Strength Field
         DSE OFFSET(3) NUMBITS(3) [],
-
         // Slew Rate Field
         SRE OFFSET(0) NUMBITS(1) []
     ],
