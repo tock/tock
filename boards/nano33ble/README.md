@@ -73,6 +73,26 @@ That tells the BOSSA tool to flash the application in the Tock Binary Format to
 the correct offset (the app will end up at address 0x30000). You may also need
 to pass the `--port` flag.
 
+### Userspace Resource Mapping
+
+This table shows the mappings between resources available in userspace
+and the physical elements on the Nano 33 BLE board.
+
+| Software Resource | Physical Element    |
+|-------------------|---------------------|
+| GPIO[2]           | Pin D2              |
+| GPIO[3]           | Pin D3              |
+| GPIO[4]           | Pin D4              |
+| GPIO[5]           | Pin D5              |
+| GPIO[6]           | Pin D6              |
+| GPIO[7]           | Pin D7              |
+| GPIO[8]           | Pin D8              |
+| GPIO[9]           | Pin D9              |
+| GPIO[10]          | Pin D10             |
+| LED[0]            | Tri-color LED Red   |
+| LED[1]            | Tri-color LED Green |
+| LED[2]            | Tri-color LED Blue  |
+
 ## UART Debugging
 
 Currently the Nano 33 board file uses the UART peripheral for all UART
