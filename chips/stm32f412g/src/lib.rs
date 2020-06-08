@@ -6,7 +6,7 @@ pub use stm32f4xx::{chip, dbg, dma1, exti, gpio, nvic, rcc, spi, syscfg, tim2, u
 
 pub mod stm32f412g_nvic;
 
-// STM32F42xxx and STM32F43xxx has total of 91 interrupts
+// STM32F412g has total of 97 interrupts
 #[cfg_attr(all(target_arch = "arm", target_os = "none"), link_section = ".irqs")]
 // `used` ensures that the symbol is kept until the final binary. However, as of
 // May 2020, due to the compilation process, there must be some other compiled
@@ -15,7 +15,7 @@ pub mod stm32f412g_nvic;
 // the `IRQS` object. See https://github.com/rust-lang/rust/issues/56639 for a
 // related discussion.
 #[cfg_attr(all(target_arch = "arm", target_os = "none"), used)]
-pub static IRQS: [unsafe extern "C" fn(); 91] = [
+pub static IRQS: [unsafe extern "C" fn(); 97] = [
     generic_isr, // WWDG (0)
     generic_isr, // PVD (1)
     generic_isr, // TAMP_STAMP (2)
@@ -98,15 +98,21 @@ pub static IRQS: [unsafe extern "C" fn(); 91] = [
     generic_isr, // CRYP (79)
     generic_isr, // HASH_RNG (80)
     generic_isr, // FPU (81)
-    generic_isr, // USART7 (82)
-    generic_isr, // USART8 (83)
+    generic_isr, // unused
+    generic_isr, // unused
     generic_isr, // SPI4 (84)
     generic_isr, // SPI5 (85)
-    generic_isr, // SPI6 (86)
+    generic_isr, // unused
     generic_isr, // SAI1 (87)
-    generic_isr, // LCD-TFT (88)
-    generic_isr, // LCD-TFT (89)
-    generic_isr, // DMA2D(90)
+    generic_isr, // unused
+    generic_isr, // unused
+    generic_isr, // unused
+    generic_isr, // unused
+    generic_isr, // Quad-SPI (92)
+    generic_isr, // unused
+    generic_isr, // unused
+    generic_isr, // I2CFMP1 event (95)
+    generic_isr, // I2CFMP1 error (96)
 ];
 
 pub unsafe fn init() {
