@@ -133,15 +133,15 @@ pub unsafe fn reset_handler() {
         board_kernel,
         components::gpio_component_helper!(
             nrf52840::gpio::GPIOPin,
-            0 => &nrf52840::gpio::PORT[GPIO_D2],
-            1 => &nrf52840::gpio::PORT[GPIO_D3],
-            2 => &nrf52840::gpio::PORT[GPIO_D4],
-            3 => &nrf52840::gpio::PORT[GPIO_D5],
-            4 => &nrf52840::gpio::PORT[GPIO_D6],
-            5 => &nrf52840::gpio::PORT[GPIO_D7],
-            6 => &nrf52840::gpio::PORT[GPIO_D8],
-            7 => &nrf52840::gpio::PORT[GPIO_D9],
-            8 => &nrf52840::gpio::PORT[GPIO_D10]
+            2 => &nrf52840::gpio::PORT[GPIO_D2],
+            3 => &nrf52840::gpio::PORT[GPIO_D3],
+            4 => &nrf52840::gpio::PORT[GPIO_D4],
+            5 => &nrf52840::gpio::PORT[GPIO_D5],
+            6 => &nrf52840::gpio::PORT[GPIO_D6],
+            7 => &nrf52840::gpio::PORT[GPIO_D7],
+            8 => &nrf52840::gpio::PORT[GPIO_D8],
+            9 => &nrf52840::gpio::PORT[GPIO_D9],
+            10 => &nrf52840::gpio::PORT[GPIO_D10]
         ),
     )
     .finalize(components::gpio_component_buf!(nrf52840::gpio::GPIOPin));
