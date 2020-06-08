@@ -7,5 +7,6 @@
 
 pub mod gpio;
 pub mod hmac;
+pub mod i2c;
 pub mod uart;
 pub mod usbdev;

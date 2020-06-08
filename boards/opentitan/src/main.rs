@@ -13,6 +13,7 @@ use kernel::capabilities;
 use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::component::Component;
 use kernel::hil;
+use kernel::hil::i2c::I2CMaster;
 use kernel::Platform;
 use kernel::{create_capability, debug, static_init};
 use rv32i::csr;
@@ -71,6 +72,7 @@ struct OpenTitan {
         'static,
         capsules::usb::usbc_client::Client<'static, lowrisc::usbdev::Usb<'static>>,
     >,
+    i2c_master: &'static capsules::i2c_master::I2CMasterDriver<lowrisc::i2c::I2c<'static>>,
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
@@ -87,6 +89,7 @@ impl Platform for OpenTitan {
             capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
             capsules::low_level_debug::DRIVER_NUM => f(Some(self.lldb)),
             capsules::usb::usb_user::DRIVER_NUM => f(Some(self.usb)),
+            capsules::i2c_master::DRIVER_NUM => f(Some(self.i2c_master)),
             _ => f(None),
         }
     }
@@ -252,6 +255,17 @@ pub unsafe fn reset_handler() {
 
     let usb = usb::UsbComponent::new(board_kernel).finalize(());
 
+    let i2c_master = static_init!(
+        capsules::i2c_master::I2CMasterDriver<lowrisc::i2c::I2c<'static>>,
+        capsules::i2c_master::I2CMasterDriver::new(
+            &ibex::i2c::I2C,
+            &mut capsules::i2c_master::BUF,
+            board_kernel.create_grant(&memory_allocation_cap)
+        )
+    );
+
+    ibex::i2c::I2C.set_master_client(i2c_master);
+
     debug!("OpenTitan initialisation complete. Entering main loop");
 
     extern "C" {
@@ -274,6 +288,7 @@ pub unsafe fn reset_handler() {
         hmac,
         lldb: lldb,
         usb,
+        i2c_master,
     };
 
     kernel::procs::load_processes(
