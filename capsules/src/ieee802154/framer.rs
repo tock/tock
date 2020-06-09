@@ -879,7 +879,8 @@ impl<'a, M: Mac, A: AES128CCM<'a>> CCMClient for Framer<'a, M, A> {
 
         // The crypto operation was from the reception pipeline.
         if let Some(buf) = opt_buf {
-            self.rx_state.take().map(move |state| {
+            self.rx_state.take().map(|state| {
+                let buf = buf;
                 match state {
                     RxState::Decrypting(info) => {
                         let next_state = if tag_is_valid {

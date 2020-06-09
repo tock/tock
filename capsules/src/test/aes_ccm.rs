@@ -34,7 +34,7 @@ impl<'a, A: AES128CCM<'a>> Test<'a, A> {
             tests: [
                 (
                     &BEACON_UNSECURED[0..26],
-                    &BEACON_UNSECURED[26..26],
+                    &[],
                     &BEACON_SECURED[26..34],
                     &BEACON_NONCE,
                     false,
