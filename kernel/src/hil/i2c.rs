@@ -1,6 +1,7 @@
 //! Interface for I2C master and slave peripherals.
 
-use core::fmt::{Display, Formatter, Result};
+use core::fmt;
+use core::fmt::{Display, Formatter};
 
 /// The type of error encoutered during I2C communication.
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -21,17 +22,21 @@ pub enum Error {
     /// from the receive register.
     Overrun,
 
+    /// The requested operation wasn't supported.
+    NotSupported,
+
     /// No error occured and the command completed successfully.
     CommandComplete,
 }
 
 impl Display for Error {
-    fn fmt(&self, fmt: &mut Formatter) -> Result {
+    fn fmt(&self, fmt: &mut Formatter) -> fmt::Result {
         let display_str = match *self {
             Error::AddressNak => "I2C Address Not Acknowledged",
             Error::DataNak => "I2C Data Not Acknowledged",
             Error::ArbitrationLost => "I2C Bus Arbitration Lost",
             Error::Overrun => "I2C receive overrun",
+            Error::NotSupported => "I2C/SMBus command not supported",
             Error::CommandComplete => "I2C Command Completed",
         };
         write!(fmt, "{}", display_str)
@@ -53,6 +58,69 @@ pub trait I2CMaster {
     fn write_read(&self, addr: u8, data: &'static mut [u8], write_len: u8, read_len: u8);
     fn write(&self, addr: u8, data: &'static mut [u8], len: u8);
     fn read(&self, addr: u8, buffer: &'static mut [u8], len: u8);
+}
+
+/// Interface for an SMBus Master hardware driver.
+/// The device implementing this will also seperately implement
+/// I2CMaster.
+pub trait SMBusMaster: I2CMaster {
+    /// Write data then read data via the I2C Master device in an SMBus
+    /// compatible way.
+    ///
+    /// This function will use the I2C master to write data to a device and
+    /// then read data from the device in a SMBus compatible way. This will be
+    /// a best effort attempt to match the SMBus specification based on what
+    /// the hardware can support.
+    /// This function is expected to make any hardware changes required to
+    /// support SMBus and then revert those changes to support future I2C.
+    ///
+    /// addr: The address of the device to write to
+    /// data: The buffer to write the data from and read back to
+    /// write_len: The length of the write operation
+    /// read_len: The length of the read operation
+    fn smbus_write_read(
+        &self,
+        addr: u8,
+        data: &'static mut [u8],
+        write_len: u8,
+        read_len: u8,
+    ) -> Result<(), (Error, &'static mut [u8])>;
+
+    /// Write data via the I2C Master device in an SMBus compatible way.
+    ///
+    /// This function will use the I2C master to write data to a device in a
+    /// SMBus compatible way. This will be a best effort attempt to match the
+    /// SMBus specification based on what the hardware can support.
+    /// This function is expected to make any hardware changes required to
+    /// support SMBus and then revert those changes to support future I2C.
+    ///
+    /// addr: The address of the device to write to
+    /// data: The buffer to write the data from
+    /// len: The length of the operation
+    fn smbus_write(
+        &self,
+        addr: u8,
+        data: &'static mut [u8],
+        len: u8,
+    ) -> Result<(), (Error, &'static mut [u8])>;
+
+    /// Read data via the I2C Master device in an SMBus compatible way.
+    ///
+    /// This function will use the I2C master to read data from a device in a
+    /// SMBus compatible way. This will be a best effort attempt to match the
+    /// SMBus specification based on what the hardware can support.
+    /// This function is expected to make any hardware changes required to
+    /// support SMBus and then revert those changes to support future I2C.
+    ///
+    /// addr: The address of the device to read from
+    /// buffer: The buffer to store the data to
+    /// len: The length of the operation
+    fn smbus_read(
+        &self,
+        addr: u8,
+        buffer: &'static mut [u8],
+        len: u8,
+    ) -> Result<(), (Error, &'static mut [u8])>;
 }
 
 /// Interface for an I2C Slave hardware driver.
@@ -111,6 +179,60 @@ pub trait I2CDevice {
     fn write_read(&self, data: &'static mut [u8], write_len: u8, read_len: u8);
     fn write(&self, data: &'static mut [u8], len: u8);
     fn read(&self, buffer: &'static mut [u8], len: u8);
+}
+
+pub trait SMBusDevice: I2CDevice {
+    /// Write data then read data to a slave device in an SMBus
+    /// compatible way.
+    ///
+    /// This function will use the I2C master to write data to a device and
+    /// then read data from the device in a SMBus compatible way. This will be
+    /// a best effort attempt to match the SMBus specification based on what
+    /// the hardware can support.
+    /// This function is expected to make any hardware changes required to
+    /// support SMBus and then revert those changes to support future I2C.
+    ///
+    /// data: The buffer to write the data from and read back to
+    /// write_len: The length of the write operation
+    /// read_len: The length of the read operation
+    fn smbus_write_read(
+        &self,
+        data: &'static mut [u8],
+        write_len: u8,
+        read_len: u8,
+    ) -> Result<(), (Error, &'static mut [u8])>;
+
+    /// Write data to a slave device in an SMBus compatible way.
+    ///
+    /// This function will use the I2C master to write data to a device in a
+    /// SMBus compatible way. This will be a best effort attempt to match the
+    /// SMBus specification based on what the hardware can support.
+    /// This function is expected to make any hardware changes required to
+    /// support SMBus and then revert those changes to support future I2C.
+    ///
+    /// data: The buffer to write the data from
+    /// len: The length of the operation
+    fn smbus_write(
+        &self,
+        data: &'static mut [u8],
+        len: u8,
+    ) -> Result<(), (Error, &'static mut [u8])>;
+
+    /// Read data from a slave device in an SMBus compatible way.
+    ///
+    /// This function will use the I2C master to read data from a device in a
+    /// SMBus compatible way. This will be a best effort attempt to match the
+    /// SMBus specification based on what the hardware can support.
+    /// This function is expected to make any hardware changes required to
+    /// support SMBus and then revert those changes to support future I2C.
+    ///
+    /// buffer: The buffer to store the data to
+    /// len: The length of the operation
+    fn smbus_read(
+        &self,
+        buffer: &'static mut [u8],
+        len: u8,
+    ) -> Result<(), (Error, &'static mut [u8])>;
 }
 
 /// Client interface for I2CDevice implementations.

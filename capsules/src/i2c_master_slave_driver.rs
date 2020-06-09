@@ -79,6 +79,7 @@ impl hil::i2c::I2CHwMasterClient for I2CMasterSlaveDriver<'_> {
             hil::i2c::Error::DataNak => -2,
             hil::i2c::Error::ArbitrationLost => -3,
             hil::i2c::Error::Overrun => -4,
+            hil::i2c::Error::NotSupported => -5,
             hil::i2c::Error::CommandComplete => 0,
         };
 

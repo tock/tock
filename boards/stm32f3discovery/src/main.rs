@@ -479,8 +479,12 @@ pub unsafe fn reset_handler() {
 
     // LSM303DLHC
 
-    let mux_i2c = components::i2c::I2CMuxComponent::new(&stm32f303xc::i2c::I2C1)
-        .finalize(components::i2c_mux_component_helper!());
+    let mux_i2c = components::i2c::I2CMuxComponent::new(
+        &stm32f303xc::i2c::I2C1,
+        None,
+        dynamic_deferred_caller,
+    )
+    .finalize(components::i2c_mux_component_helper!());
 
     let lsm303dlhc = components::lsm303dlhc::Lsm303dlhcI2CComponent::new()
         .finalize(components::lsm303dlhc_i2c_component_helper!(mux_i2c));
