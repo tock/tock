@@ -274,7 +274,11 @@ pub struct SMBusDevice<'a> {
 }
 
 impl<'a> SMBusDevice<'a> {
-    pub const fn new(mux: &'a MuxI2C<'a>, addr: u8) -> SMBusDevice<'a> {
+    pub fn new(mux: &'a MuxI2C<'a>, addr: u8) -> SMBusDevice<'a> {
+        if mux.smbus.is_none() {
+            panic!("There is no SMBus to attach to");
+        }
+
         SMBusDevice {
             mux: mux,
             addr: addr,
