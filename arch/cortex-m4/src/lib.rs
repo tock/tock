@@ -2,7 +2,7 @@
 
 #![crate_name = "cortexm4"]
 #![crate_type = "rlib"]
-#![feature(asm, core_intrinsics, naked_functions)]
+#![feature(llvm_asm, core_intrinsics, naked_functions)]
 #![no_std]
 
 pub mod mpu;
@@ -41,7 +41,7 @@ pub unsafe extern "C" fn systick_handler() {
 #[cfg(all(target_arch = "arm", target_os = "none"))]
 #[naked]
 pub unsafe extern "C" fn systick_handler() {
-    asm!(
+    llvm_asm!(
         "
     // Mark that the systick handler was called meaning that the process stopped
     // executing because it has exceeded its timeslice. This is a global
@@ -54,6 +54,9 @@ pub unsafe extern "C" fn systick_handler() {
     // Set thread mode to privileged to switch back to kernel mode.
     mov r0, #0
     msr CONTROL, r0
+    /* CONTROL writes must be followed by ISB */
+    /* http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.dai0321a/BIHFJCAC.html */
+    isb
 
     movw LR, #0xFFF9
     movt LR, #0xFFFF
@@ -81,13 +84,16 @@ pub unsafe extern "C" fn generic_isr() {
 #[cfg(all(target_arch = "arm", target_os = "none"))]
 #[naked]
 pub unsafe extern "C" fn generic_isr() {
-    asm!(
+    llvm_asm!(
         "
     // Set thread mode to privileged to ensure we are executing as the kernel.
     // This may be redundant if the interrupt happened while the kernel code
     // was executing.
     mov r0, #0
     msr CONTROL, r0
+    /* CONTROL writes must be followed by ISB */
+    /* http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.dai0321a/BIHFJCAC.html */
+    isb
 
     // This is a special address to return Thread mode with Main stack
     movw LR, #0xFFF9
@@ -134,11 +140,45 @@ pub unsafe extern "C" fn generic_isr() {
     //
     str r0, [r3, r2, lsl #2]
 
+    /* The pending bit in ISPR might be reset by hardware for pulse interrupts
+     * at this point. So set it here again so the interrupt does not get lost
+     * in service_pending_interrupts()
+     * */
+    /* r3 = &NVIC.ISPR */
+    mov r3, #0xe200
+    movt r3, #0xe000
+    /* Set pending bit */
+    str r0, [r3, r2, lsl #2]
+
     // Now we can return from the interrupt context and resume what we were
     // doing. If an app was executing we will switch to the kernel so it can
     // choose whether to service the interrupt.
     "
     : : : : "volatile" );
+}
+
+// Mock implementation for tests on Travis-CI.
+#[cfg(not(any(target_arch = "arm", target_os = "none")))]
+pub unsafe extern "C" fn unhandled_interrupt() {
+    unimplemented!()
+}
+
+#[cfg(all(target_arch = "arm", target_os = "none"))]
+pub unsafe extern "C" fn unhandled_interrupt() {
+    let mut interrupt_number: u32;
+
+    // IPSR[8:0] holds the currently active interrupt
+    llvm_asm!(
+    "mrs    r0, ipsr                    "
+    : "={r0}"(interrupt_number)
+    :
+    : "r0"
+    :
+    );
+
+    interrupt_number = interrupt_number & 0x1ff;
+
+    panic!("Unhandled Interrupt. ISR {} is active.", interrupt_number);
 }
 
 // Mock implementation for tests on Travis-CI.
@@ -152,7 +192,7 @@ pub unsafe extern "C" fn svc_handler() {
 #[cfg(all(target_arch = "arm", target_os = "none"))]
 #[naked]
 pub unsafe extern "C" fn svc_handler() {
-    asm!(
+    llvm_asm!(
         "
     // First check to see which direction we are going in. If the link register
     // is something other than 0xfffffff9, then we are coming from an app which
@@ -164,6 +204,9 @@ pub unsafe extern "C" fn svc_handler() {
     // application. Set thread mode to unprivileged to run the application.
     mov r0, #1
     msr CONTROL, r0
+    /* CONTROL writes must be followed by ISB */
+    /* http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.dai0321a/BIHFJCAC.html */
+    isb
 
     // This is a special address to return Thread mode with Process stack
     movw lr, #0xfffd
@@ -183,6 +226,9 @@ pub unsafe extern "C" fn svc_handler() {
     // Set thread mode to privileged as we switch back to the kernel.
     mov r0, #0
     msr CONTROL, r0
+    /* CONTROL writes must be followed by ISB */
+    /* http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.dai0321a/BIHFJCAC.html */
+    isb
 
     // This is a special address to return Thread mode with Main stack
     movw LR, #0xFFF9
@@ -209,7 +255,7 @@ pub unsafe extern "C" fn switch_to_user(
     mut user_stack: *const usize,
     process_regs: &mut [usize; 8],
 ) -> *const usize {
-    asm!(
+    llvm_asm!(
         "
     // The arguments passed in are:
     // - `r0` is the top of the user stack
@@ -400,7 +446,7 @@ pub unsafe extern "C" fn hard_fault_handler() {
     let faulting_stack: *mut u32;
     let kernel_stack: bool;
 
-    asm!(
+    llvm_asm!(
      "/* Read the SCB registers. */
      ldr r0, =SCB_REGISTERS
      ldr r1, =0xE000ED14
@@ -432,7 +478,7 @@ pub unsafe extern "C" fn hard_fault_handler() {
     } else {
         // hard fault occurred in an app, not the kernel. The app should be
         //  marked as in an error state and handled by the kernel
-        asm!(
+        llvm_asm!(
             "ldr r0, =APP_HARD_FAULT
               mov r1, #1 /* Fault */
               str r1, [r0, #0]
@@ -440,6 +486,9 @@ pub unsafe extern "C" fn hard_fault_handler() {
               /* Set thread mode to privileged */
               mov r0, #0
               msr CONTROL, r0
+              /* CONTROL writes must be followed by ISB */
+              /* http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.dai0321a/BIHFJCAC.html */
+              isb
 
               movw LR, #0xFFF9
               movt LR, #0xFFFF"

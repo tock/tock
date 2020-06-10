@@ -12,7 +12,7 @@ You can get started with OpenTitan using either the Nexys Video FPGA board or si
 Programming
 -----------
 
-Tock on OpenTitan requires lowRISC/opentitan@f743b4450a057a352540cf3b154ec47b43e14c17 or newer.
+Tock on OpenTitan requires lowRISC/opentitan@0e5d819d61b5bf56f8453ad877eb10e3c52fc542 or newer.
 
 For more information you can follow the [OpenTitan development flow](https://docs.opentitan.org/doc/ug/getting_started_fpga/index.html#testing-the-demo-design) to flash the image.
 
@@ -50,4 +50,69 @@ You can also just use the `spiflash` program manually to download the image to t
 
 NOTE: You will need to download the Tock binary after every power cycle.
 
-Tock applications currenlty don't work on OpenTitan.
+Programming Apps
+----------------
+
+Tock apps for OpenTitan must be included in the Tock binary file flashed with the steps mentioned above.
+
+Apps are built out of tree. Currently [libtock-rs](https://github.com/tock/libtock-rs) apps work well while [libtock-c](https://github.com/tock/libtock-c) apps require a special branch and complex work arounds. It is recomended that libtock-rs apps are used.
+
+Once an app is built and a tbf file is generated, you can use `riscv32-none-elf-objcopy` with `--update-section` to create an ELF image with the
+apps included.
+
+```shell
+$ riscv32-oe-elf-objcopy \
+    --update-section .apps=<...>/libtock-rs/target/riscv32imc-unknown-none-elf/tab/opentitan/hello_world/rv32imc.tbf \
+    <...>/tock/target/riscv32imc-unknown-none-elf/release/opentitan.elf\
+    <...>/tock/target/riscv32imc-unknown-none-elf/release/opentitan-app.elf
+```
+
+You will then need to convert this new elf to a binary file.
+
+```shell
+$ riscv32-oe-elf-objcopy \
+    --output-target=binary \
+    <...>/tock/target/riscv32imc-unknown-none-elf/release/opentitan-app.elf \
+    <...>/tock/target/riscv32imc-unknown-none-elf/release/opentitan-app.bin
+
+```
+
+The OpenTitan Makefile can also handle this process automatically. Follow the steps above but instead run the `flash-app` make target.
+
+```shell
+$ make flash-app APP=<...> OPENTITAN_TREE=/home/opentitan/
+```
+
+You will need to have the GCC version of RISC-V 32-bit objcopy installed as the LLVM one doesn't support updating sections.
+
+
+Running in QEMU
+---------------
+
+The OpenTitan application can be run in the QEMU emulation platform, allowing quick and easy testing.
+
+QEMU can be started with Tock using the `qemu` make target:
+
+```shell
+$ make OPENTITAN_BOOT_ROM=<path_to_opentitan>/sw/device/boot_rom/boot_rom_fpga_nexysvideo.elf qemu
+```
+
+Where OPENTITAN_BOOT_ROM is set to point to the OpenTitan ELF file. This is usually located at `sw/device/boot_rom/boot_rom_fpga_nexysvideo.elf` in the OpenTitan build output.
+
+QEMU can be started with Tock and a userspace app with the `qemu-app` make target:
+
+```shell
+$ make OPENTITAN_BOOT_ROM=<path_to_opentitan/sw/device/boot_rom/boot_rom_fpga_nexysvideo.elf> APP=/path/to/app.tbf qemu-app
+```
+
+The TBF must be compiled for the OpenTitan board which is, at the time of writing,
+supported for Rust userland apps using libtock-rs. For example, you can build
+the Hello World exmple app from the libtock-rs repository by running:
+
+```
+$ cd [LIBTOCK-RS-DIR]
+$ make flash-opentitan
+$ tar xf target/riscv32imac-unknown-none-elf/tab/opentitan/hello_world.tab
+$ cd [TOCK_ROOT]/boards/opentitan
+$ make APP=[LIBTOCK-RS-DIR]/rv32imac.tbf qemu-app
+```

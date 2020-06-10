@@ -107,12 +107,13 @@ _Note:_ GPIO is slated for re-numbering in Tock 2.0.
 
 ### Sensor ICs
 
-|1.0| Driver Number | Driver                    | Description                                |
-|---|---------------|---------------------------|--------------------------------------------|
-|   | 0x70000       | TSL2561                   | Light sensor                               |
-|   | 0x70001       | TMP006                    | Temperature sensor                         |
-|   | 0x70004       | LPS25HB                   | Pressure sensor                            |
-|   | 0x70005       | [L3GD20](70005_l3gd20.md) | 3 axis gyroscope and temperature sensor    |
+|1.0| Driver Number | Driver                            | Description                                               |
+|---|---------------|-----------------------------------|-----------------------------------------------------------|
+|   | 0x70000       | TSL2561                           | Light sensor                                              |
+|   | 0x70001       | TMP006                            | Temperature sensor                                        |
+|   | 0x70004       | LPS25HB                           | Pressure sensor                                           |
+|   | 0x70005       | [L3GD20](70005_l3gd20.md)         | 3 axis gyroscope and temperature sensor                   |
+|   | 0x70006       | [LSM303DLHC](70006_lsm303dlhc.md) | 3 axis accelerometer, magnetometer and temperature sensor |
 
 ### Other ICs
 

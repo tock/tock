@@ -5,7 +5,7 @@ use core::ops::FnOnce;
 /// NOP instruction
 pub fn nop() {
     unsafe {
-        asm!("nop" :::: "volatile");
+        llvm_asm!("nop" :::: "volatile");
     }
 }
 
@@ -13,7 +13,7 @@ pub fn nop() {
 #[inline(always)]
 /// WFI instruction
 pub unsafe fn wfi() {
-    asm!("wfi" :::: "volatile");
+    llvm_asm!("wfi" :::: "volatile");
 }
 
 #[cfg(all(target_arch = "arm", target_os = "none"))]
@@ -22,12 +22,12 @@ where
     F: FnOnce() -> R,
 {
     // Set PRIMASK
-    asm!("cpsid i" :::: "volatile");
+    llvm_asm!("cpsid i" :::: "volatile");
 
     let res = f();
 
     // Unset PRIMASK
-    asm!("cpsie i" :::: "volatile");
+    llvm_asm!("cpsie i" :::: "volatile");
     return res;
 }
 

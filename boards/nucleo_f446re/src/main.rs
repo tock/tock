@@ -3,8 +3,9 @@
 //! - <https://www.st.com/en/evaluation-tools/nucleo-f446re.html>
 
 #![no_std]
-#![no_main]
-#![feature(asm)]
+// Disable this attribute when documenting, as a workaround for
+// https://github.com/rust-lang/rust/issues/62184.
+#![cfg_attr(not(doc), no_main)]
 #![deny(missing_docs)]
 
 use capsules::virtual_alarm::VirtualMuxAlarm;
@@ -172,7 +173,7 @@ unsafe fn setup_peripherals() {
 /// execution begins here.
 #[no_mangle]
 pub unsafe fn reset_handler() {
-    stm32f446re::stm32f4xx::init();
+    stm32f446re::init();
 
     // We use the default HSI 16Mhz clock
 

@@ -1,4 +1,4 @@
-#![feature(const_fn, in_band_lifetimes)]
+#![feature(const_fn)]
 #![forbid(unsafe_code)]
 #![no_std]
 
@@ -39,6 +39,7 @@ pub mod log;
 pub mod lora;
 pub mod low_level_debug;
 pub mod lps25hb;
+pub mod lsm303dlhc;
 pub mod ltc294x;
 pub mod max17205;
 pub mod mcp230xx;

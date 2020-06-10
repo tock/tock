@@ -4,12 +4,14 @@
 //! - <https://github.com/lab11/hail>
 
 #![no_std]
-#![no_main]
+// Disable this attribute when documenting, as a workaround for
+// https://github.com/rust-lang/rust/issues/62184.
+#![cfg_attr(not(doc), no_main)]
 #![deny(missing_docs)]
 
 use capsules::virtual_alarm::VirtualMuxAlarm;
 use capsules::virtual_i2c::{I2CDevice, MuxI2C};
-use capsules::virtual_spi::{MuxSpiMaster, VirtualSpiMasterDevice};
+use capsules::virtual_spi::VirtualSpiMasterDevice;
 use kernel::capabilities;
 use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::component::Component;
@@ -250,13 +252,17 @@ pub unsafe fn reset_handler() {
         .finalize(components::alarm_mux_component_helper!(sam4l::ast::Ast));
     ast.configure(mux_alarm);
 
-    let sensors_i2c = static_init!(MuxI2C<'static>, MuxI2C::new(&sam4l::i2c::I2C1));
+    let sensors_i2c = static_init!(
+        MuxI2C<'static>,
+        MuxI2C::new(&sam4l::i2c::I2C1, None, dynamic_deferred_caller)
+    );
     sam4l::i2c::I2C1.set_master_client(sensors_i2c);
 
     // SI7021 Temperature / Humidity Sensor, address: 0x40
     let si7021 = components::si7021::SI7021Component::new(sensors_i2c, mux_alarm, 0x40)
         .finalize(components::si7021_component_helper!(sam4l::ast::Ast));
-    let temp = components::si7021::TemperatureComponent::new(board_kernel, si7021).finalize(());
+    let temp =
+        components::temperature::TemperatureComponent::new(board_kernel, si7021).finalize(());
     let humidity = components::si7021::HumidityComponent::new(board_kernel, si7021).finalize(());
 
     // Configure the ISL29035, device address 0x44
@@ -281,14 +287,8 @@ pub unsafe fn reset_handler() {
     fxos8700_i2c.set_client(fxos8700);
     sam4l::gpio::PA[9].set_client(fxos8700);
 
-    let ninedof = static_init!(
-        capsules::ninedof::NineDof<'static>,
-        capsules::ninedof::NineDof::new(
-            fxos8700,
-            board_kernel.create_grant(&memory_allocation_capability)
-        )
-    );
-    hil::sensors::NineDof::set_client(fxos8700, ninedof);
+    let ninedof = components::ninedof::NineDofComponent::new(board_kernel)
+        .finalize(components::ninedof_component_helper!(fxos8700));
 
     // SPI
     // Set up a SPI MUX, so there can be multiple clients.
@@ -363,10 +363,10 @@ pub unsafe fn reset_handler() {
         board_kernel,
         components::gpio_component_helper!(
             sam4l::gpio::GPIOPin,
-            &sam4l::gpio::PC[14], // D0
-            &sam4l::gpio::PC[15], // D1
-            &sam4l::gpio::PC[11], // D6
-            &sam4l::gpio::PC[12]  // D7
+            0 => &sam4l::gpio::PC[14], // D0
+            1 => &sam4l::gpio::PC[15], // D1
+            2 => &sam4l::gpio::PC[11], // D6
+            3 => &sam4l::gpio::PC[12]  // D7
         ),
     )
     .finalize(components::gpio_component_buf!(sam4l::gpio::GPIOPin));

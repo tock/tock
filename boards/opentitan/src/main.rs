@@ -3,8 +3,9 @@
 //! - <https://opentitan.org/>
 
 #![no_std]
-#![no_main]
-#![feature(asm)]
+// Disable this attribute when documenting, as a workaround for
+// https://github.com/rust-lang/rust/issues/62184.
+#![cfg_attr(not(doc), no_main)]
 
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules::virtual_hmac::VirtualMuxHmac;
@@ -12,6 +13,7 @@ use kernel::capabilities;
 use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::component::Component;
 use kernel::hil;
+use kernel::hil::i2c::I2CMaster;
 use kernel::Platform;
 use kernel::{create_capability, debug, static_init};
 use rv32i::csr;
@@ -20,6 +22,7 @@ use rv32i::csr;
 mod aes_test;
 
 pub mod io;
+pub mod usb;
 //
 // Actual memory for holding the active process structures. Need an empty list
 // at least.
@@ -65,6 +68,11 @@ struct OpenTitan {
         'static,
         capsules::virtual_uart::UartDevice<'static>,
     >,
+    usb: &'static capsules::usb::usb_user::UsbSyscallDriver<
+        'static,
+        capsules::usb::usbc_client::Client<'static, lowrisc::usbdev::Usb<'static>>,
+    >,
+    i2c_master: &'static capsules::i2c_master::I2CMasterDriver<lowrisc::i2c::I2c<'static>>,
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
@@ -80,6 +88,8 @@ impl Platform for OpenTitan {
             capsules::console::DRIVER_NUM => f(Some(self.console)),
             capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
             capsules::low_level_debug::DRIVER_NUM => f(Some(self.lldb)),
+            capsules::usb::usb_user::DRIVER_NUM => f(Some(self.usb)),
+            capsules::i2c_master::DRIVER_NUM => f(Some(self.i2c_master)),
             _ => f(None),
         }
     }
@@ -181,14 +191,14 @@ pub unsafe fn reset_handler() {
         board_kernel,
         components::gpio_component_helper!(
             ibex::gpio::GpioPin,
-            &ibex::gpio::PORT[0],
-            &ibex::gpio::PORT[1],
-            &ibex::gpio::PORT[2],
-            &ibex::gpio::PORT[3],
-            &ibex::gpio::PORT[4],
-            &ibex::gpio::PORT[5],
-            &ibex::gpio::PORT[6],
-            &ibex::gpio::PORT[15]
+            0 => &ibex::gpio::PORT[0],
+            1 => &ibex::gpio::PORT[1],
+            2 => &ibex::gpio::PORT[2],
+            3 => &ibex::gpio::PORT[3],
+            4 => &ibex::gpio::PORT[4],
+            5 => &ibex::gpio::PORT[5],
+            6 => &ibex::gpio::PORT[6],
+            7 => &ibex::gpio::PORT[15]
         ),
     )
     .finalize(components::gpio_component_buf!(ibex::gpio::GpioPin));
@@ -243,6 +253,19 @@ pub unsafe fn reset_handler() {
         [u8; 32]
     ));
 
+    let usb = usb::UsbComponent::new(board_kernel).finalize(());
+
+    let i2c_master = static_init!(
+        capsules::i2c_master::I2CMasterDriver<lowrisc::i2c::I2c<'static>>,
+        capsules::i2c_master::I2CMasterDriver::new(
+            &ibex::i2c::I2C,
+            &mut capsules::i2c_master::BUF,
+            board_kernel.create_grant(&memory_allocation_cap)
+        )
+    );
+
+    ibex::i2c::I2C.set_master_client(i2c_master);
+
     debug!("OpenTitan initialisation complete. Entering main loop");
 
     extern "C" {
@@ -264,6 +287,8 @@ pub unsafe fn reset_handler() {
         alarm: alarm,
         hmac,
         lldb: lldb,
+        usb,
+        i2c_master,
     };
 
     kernel::procs::load_processes(

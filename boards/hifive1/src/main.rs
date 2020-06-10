@@ -1,16 +1,13 @@
-//! Board file for SiFive HiFive1 RISC-V development platform.
+//! Board file for SiFive HiFive1b RISC-V development platform.
 //!
-//! - <https://www.sifive.com/products/hifive1/>
+//! - <https://www.sifive.com/boards/hifive1-rev-b>
 //!
-//! This board is no longer being produced. However, many were made so it may
-//! be useful for testing Tock with.
-//!
-//! The primary drawback is the original HiFive1 board did not support User
-//! mode, so this board cannot run Tock applications.
+//! This board file is only compatible with revision B of the HiFive1.
 
 #![no_std]
-#![no_main]
-#![feature(asm)]
+// Disable this attribute when documenting, as a workaround for
+// https://github.com/rust-lang/rust/issues/62184.
+#![cfg_attr(not(doc), no_main)]
 
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use kernel::capabilities;
@@ -36,7 +33,7 @@ const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultRespons
 
 // RAM to be shared by all application processes.
 #[link_section = ".app_memory"]
-static mut APP_MEMORY: [u8; 5 * 1024] = [0; 5 * 1024];
+static mut APP_MEMORY: [u8; 6 * 1024] = [0; 6 * 1024];
 
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
@@ -46,6 +43,7 @@ pub static mut STACK_MEMORY: [u8; 0x800] = [0; 0x800];
 /// A structure representing this platform that holds references to all
 /// capsules for this platform. We've included an alarm and console.
 struct HiFive1 {
+    led: &'static capsules::led::LED<'static, sifive::gpio::GpioPin>,
     console: &'static capsules::console::Console<'static>,
     lldb: &'static capsules::low_level_debug::LowLevelDebug<
         'static,
@@ -64,6 +62,7 @@ impl Platform for HiFive1 {
         F: FnOnce(Option<&dyn kernel::Driver>) -> R,
     {
         match driver_num {
+            capsules::led::DRIVER_NUM => f(Some(self.led)),
             capsules::console::DRIVER_NUM => f(Some(self.console)),
             capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
             capsules::low_level_debug::DRIVER_NUM => f(Some(self.lldb)),
@@ -93,7 +92,7 @@ pub unsafe fn reset_handler() {
     e310x::pwm::PWM1.disable();
     e310x::pwm::PWM2.disable();
 
-    e310x::prci::PRCI.set_clock_frequency(sifive::prci::ClockFrequency::Freq18Mhz);
+    e310x::prci::PRCI.set_clock_frequency(sifive::prci::ClockFrequency::Freq16Mhz);
 
     let main_loop_cap = create_capability!(capabilities::MainLoopCapability);
 
@@ -134,18 +133,23 @@ pub unsafe fn reset_handler() {
     )
     .finalize(());
 
-    // Initialize some GPIOs which are useful for debugging.
-    // Red LED
-    hil::gpio::Pin::make_output(&e310x::gpio::PORT[22]);
-    hil::gpio::Pin::set(&e310x::gpio::PORT[22]);
-
-    // Green LED
-    hil::gpio::Pin::make_output(&e310x::gpio::PORT[19]);
-    hil::gpio::Pin::set(&e310x::gpio::PORT[19]);
-
-    // Blue LED
-    hil::gpio::Pin::make_output(&e310x::gpio::PORT[21]);
-    hil::gpio::Pin::clear(&e310x::gpio::PORT[21]);
+    // LEDs
+    let led = components::led::LedsComponent::new(components::led_component_helper!(
+        sifive::gpio::GpioPin,
+        (
+            &e310x::gpio::PORT[22], // Red
+            kernel::hil::gpio::ActivationMode::ActiveLow
+        ),
+        (
+            &e310x::gpio::PORT[19], // Green
+            kernel::hil::gpio::ActivationMode::ActiveLow
+        ),
+        (
+            &e310x::gpio::PORT[21], // Blue
+            kernel::hil::gpio::ActivationMode::ActiveLow
+        )
+    ))
+    .finalize(components::led_component_buf!(sifive::gpio::GpioPin));
 
     e310x::uart::UART0.initialize_gpio_pins(&e310x::gpio::PORT[17], &e310x::gpio::PORT[16]);
 
@@ -202,6 +206,7 @@ pub unsafe fn reset_handler() {
         console: console,
         alarm: alarm,
         lldb: lldb,
+        led,
     };
 
     kernel::procs::load_processes(

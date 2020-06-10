@@ -1,7 +1,9 @@
 //! Tock kernel for the Aconno ACD52832 board based on the Nordic nRF52832 MCU.
 
 #![no_std]
-#![no_main]
+// Disable this attribute when documenting, as a workaround for
+// https://github.com/rust-lang/rust/issues/62184.
+#![cfg_attr(not(doc), no_main)]
 #![deny(missing_docs)]
 
 use capsules::virtual_alarm::VirtualMuxAlarm;
@@ -147,13 +149,13 @@ pub unsafe fn reset_handler() {
         board_kernel,
         components::gpio_component_helper!(
             nrf52832::gpio::GPIOPin,
-            &nrf52832::gpio::PORT[Pin::P0_25],
-            &nrf52832::gpio::PORT[Pin::P0_26],
-            &nrf52832::gpio::PORT[Pin::P0_27],
-            &nrf52832::gpio::PORT[Pin::P0_28],
-            &nrf52832::gpio::PORT[Pin::P0_29],
-            &nrf52832::gpio::PORT[Pin::P0_30],
-            &nrf52832::gpio::PORT[Pin::P0_31]
+            0 => &nrf52832::gpio::PORT[Pin::P0_25],
+            1 => &nrf52832::gpio::PORT[Pin::P0_26],
+            2 => &nrf52832::gpio::PORT[Pin::P0_27],
+            3 => &nrf52832::gpio::PORT[Pin::P0_28],
+            4 => &nrf52832::gpio::PORT[Pin::P0_29],
+            5 => &nrf52832::gpio::PORT[Pin::P0_30],
+            6 => &nrf52832::gpio::PORT[Pin::P0_31]
         ),
     )
     .finalize(components::gpio_component_buf!(nrf52832::gpio::GPIOPin));
@@ -280,7 +282,7 @@ pub unsafe fn reset_handler() {
     // Create shared mux for the I2C bus
     let i2c_mux = static_init!(
         capsules::virtual_i2c::MuxI2C<'static>,
-        capsules::virtual_i2c::MuxI2C::new(&nrf52832::i2c::TWIM0)
+        capsules::virtual_i2c::MuxI2C::new(&nrf52832::i2c::TWIM0, None, dynamic_deferred_caller)
     );
     nrf52832::i2c::TWIM0.configure(
         nrf52832::pinmux::Pinmux::new(21),
@@ -444,7 +446,6 @@ pub unsafe fn reset_handler() {
 
     nrf52832::clock::CLOCK.low_set_source(nrf52832::clock::LowClockSource::XTAL);
     nrf52832::clock::CLOCK.low_start();
-    nrf52832::clock::CLOCK.high_set_source(nrf52832::clock::HighClockSource::XTAL);
     nrf52832::clock::CLOCK.high_start();
     while !nrf52832::clock::CLOCK.low_started() {}
     while !nrf52832::clock::CLOCK.high_started() {}

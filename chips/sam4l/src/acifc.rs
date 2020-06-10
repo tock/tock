@@ -24,7 +24,6 @@
 //! are initialized for a possible future scenario.
 
 // Author: Danilo Verhaert <verhaert@cs.stanford.edu>
-// Last modified August 8th, 2018
 
 use crate::pm;
 use core::cell::Cell;
@@ -294,10 +293,6 @@ impl<'a> Acifc<'a> {
         pm::disable_clock(pm::Clock::PBA(pm::PBAClock::ACIFC));
     }
 
-    pub fn set_client(&self, client: &'a dyn analog_comparator::Client) {
-        self.client.set(Some(client));
-    }
-
     /// Enabling the ACIFC by activating the clock and the ACs (Analog
     /// Comparators). Currently always-on mode is enabled, allowing a
     /// measurement on an AC to be made quickly after a measurement is
@@ -457,7 +452,7 @@ impl<'a> Acifc<'a> {
     }
 }
 
-impl<'a> analog_comparator::AnalogComparator for Acifc<'a> {
+impl<'a> analog_comparator::AnalogComparator<'a> for Acifc<'a> {
     type Channel = AcChannel;
 
     /// Do a single comparison
@@ -536,6 +531,10 @@ impl<'a> analog_comparator::AnalogComparator for Acifc<'a> {
             debug!("Please choose a comparator (value of ac) that this chip supports");
             ReturnCode::EINVAL
         }
+    }
+
+    fn set_client(&self, client: &'a dyn analog_comparator::Client) {
+        self.client.set(Some(client));
     }
 }
 

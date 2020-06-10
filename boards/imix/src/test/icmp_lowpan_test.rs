@@ -170,7 +170,7 @@ impl<'a, A: time::Alarm<'a>> capsules::net::icmpv6::icmpv6_send::ICMP6SendClient
     }
 }
 
-impl<A: time::Alarm<'a>> LowpanICMPTest<'a, A> {
+impl<'a, A: time::Alarm<'a>> LowpanICMPTest<'a, A> {
     pub fn new(
         alarm: A,
         icmp_sender: &'a dyn ICMP6Sender<'a>,

@@ -1,8 +1,10 @@
 //! Board file for the SiFive E21 Bitstream running on the Arty FPGA
 
 #![no_std]
-#![no_main]
-#![feature(const_fn, in_band_lifetimes)]
+// Disable this attribute when documenting, as a workaround for
+// https://github.com/rust-lang/rust/issues/62184.
+#![cfg_attr(not(doc), no_main)]
+#![feature(const_fn)]
 
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use kernel::capabilities;
@@ -187,9 +189,9 @@ pub unsafe fn reset_handler() {
         board_kernel,
         components::gpio_component_helper!(
             arty_e21_chip::gpio::GpioPin,
-            &arty_e21_chip::gpio::PORT[7],
-            &arty_e21_chip::gpio::PORT[5],
-            &arty_e21_chip::gpio::PORT[6]
+            0 => &arty_e21_chip::gpio::PORT[7],
+            1 => &arty_e21_chip::gpio::PORT[5],
+            2 => &arty_e21_chip::gpio::PORT[6]
         ),
     )
     .finalize(components::gpio_component_buf!(

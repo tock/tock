@@ -73,7 +73,7 @@ pub trait UserspaceKernelBoundary {
     /// Implementations should **not** rely on the `Default` constructor (custom
     /// or derived) for any initialization of a process's stored state. The
     /// initialization must happen in the `initialize_process()` function.
-    type StoredState: Default + Copy;
+    type StoredState: Default;
 
     /// Called by the kernel after it has memory allocated to it but before it
     /// is allowed to begin executing. Allows for architecture-specific process

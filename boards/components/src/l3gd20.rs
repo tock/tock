@@ -5,7 +5,7 @@
 //! Usage
 //! -----
 //! ```rust
-//! let lcd = components::l3gd20::L3gd20SpiComponent::new(board_kernel).finalize(
+//! let l3gd20 = components::l3gd20::L3gd20SpiComponent::new().finalize(
 //!     components::l3gd20_spi_component_helper!(
 //!         // spi type
 //!         stm32f429zi::spi::Spi,
@@ -29,6 +29,7 @@ use kernel::static_init_half;
 macro_rules! l3gd20_spi_component_helper {
     ($A:ty, $select: expr, $spi_mux: expr) => {{
         use capsules::l3gd20::L3gd20Spi;
+        use capsules::virtual_spi::VirtualSpiMasterDevice;
         use core::mem::MaybeUninit;
         let mut l3gd20_spi: &'static capsules::virtual_spi::VirtualSpiMasterDevice<'static, $A> =
             components::spi::SpiComponent::new($spi_mux, $select)

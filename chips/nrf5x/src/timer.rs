@@ -270,7 +270,7 @@ const ALARM_COMPARE: usize = 1;
 const ALARM_INTERRUPT_BIT: registers::Field<u32, Inte::Register> = Inte::COMPARE1;
 const ALARM_INTERRUPT_BIT_SET: registers::FieldValue<u32, Inte::Register> = Inte::COMPARE1::SET;
 
-impl TimerAlarm<'a> {
+impl<'a> TimerAlarm<'a> {
     const fn new(instance: usize) -> TimerAlarm<'a> {
         TimerAlarm {
             registers: INSTANCES[instance],
@@ -313,7 +313,7 @@ impl TimerAlarm<'a> {
     }
 }
 
-impl hil::time::Time for TimerAlarm<'a> {
+impl hil::time::Time for TimerAlarm<'_> {
     type Frequency = hil::time::Freq16KHz;
 
     fn now(&self) -> u32 {
@@ -325,7 +325,7 @@ impl hil::time::Time for TimerAlarm<'a> {
     }
 }
 
-impl hil::time::Alarm<'a> for TimerAlarm<'a> {
+impl<'a> hil::time::Alarm<'a> for TimerAlarm<'a> {
     fn set_client(&self, client: &'a dyn hil::time::AlarmClient) {
         self.client.set(client);
     }

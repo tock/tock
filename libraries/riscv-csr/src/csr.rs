@@ -35,14 +35,14 @@ impl<T: IntLike, R: RegisterLongName> ReadWriteRiscvCsr<T, R> {
     #[inline]
     pub fn get(&self) -> T {
         let r: T;
-        unsafe { asm!("csrr $0, $1" : "=r"(r) : "i"(self.value) :: "volatile") }
+        unsafe { llvm_asm!("csrr $0, $1" : "=r"(r) : "i"(self.value) :: "volatile") }
         r
     }
 
     #[cfg(all(target_arch = "riscv32", target_os = "none"))]
     #[inline]
     pub fn set(&self, val_to_set: T) {
-        unsafe { asm!("csrw $0, $1" :: "i"(self.value), "r"(val_to_set) :: "volatile") }
+        unsafe { llvm_asm!("csrw $0, $1" :: "i"(self.value), "r"(val_to_set) :: "volatile") }
     }
 
     // Mock implementations for tests on Travis-CI.

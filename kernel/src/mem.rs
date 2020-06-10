@@ -69,7 +69,7 @@ pub struct AppSlice<L, T> {
 impl<L, T> AppSlice<L, T> {
     /// Safety: Trusts that `ptr` + `len` is a buffer in `appid` and that no
     /// other references to that memory range exist.
-    crate unsafe fn new(ptr: NonNull<T>, len: usize, appid: AppId) -> AppSlice<L, T> {
+    pub(crate) unsafe fn new(ptr: NonNull<T>, len: usize, appid: AppId) -> AppSlice<L, T> {
         AppSlice {
             ptr: AppPtr::new(ptr, appid),
             len: len,
@@ -89,7 +89,7 @@ impl<L, T> AppSlice<L, T> {
 
     /// Provide access to one app's AppSlice to another app. This is used for
     /// IPC.
-    crate unsafe fn expose_to(&self, appid: AppId) -> bool {
+    pub(crate) unsafe fn expose_to(&self, appid: AppId) -> bool {
         if appid != self.ptr.process {
             self.ptr
                 .process

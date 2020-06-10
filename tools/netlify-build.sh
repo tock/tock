@@ -11,8 +11,8 @@ set -e
 set -u
 set -x
 
-curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain nightly-2020-03-06
+curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain nightly-2020-06-03
 
 export PATH="$PATH:$HOME/.cargo/bin"
 
-tools/build-all-docs.sh
+make ci-runner-netlify

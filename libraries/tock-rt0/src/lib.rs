@@ -25,10 +25,10 @@ pub unsafe fn init_data(
 
 /// Sets non-initialized data in RAM to 0.
 /// This is used to clear the BSS section on initial bootup.
-pub unsafe fn zero_bss(mut bss: *mut u32, bss_end: *mut u32) {
-    while bss < bss_end {
+pub unsafe fn zero_bss(mut start_bss: *mut u32, end_bss: *mut u32) {
+    while start_bss < end_bss {
         // `volatile` to make sure it doesn't get optimized out
-        bss.write_volatile(0);
-        bss = bss.offset(1);
+        start_bss.write_volatile(0);
+        start_bss = start_bss.offset(1);
     }
 }

@@ -9,6 +9,7 @@ use kernel::common::registers::{
 };
 use kernel::common::StaticRef;
 use kernel::hil;
+use kernel::hil::uart;
 use kernel::ReturnCode;
 
 register_structs! {
@@ -102,9 +103,13 @@ pub struct Uart<'a> {
     clock_frequency: u32,
     tx_client: OptionalCell<&'a dyn hil::uart::TransmitClient>,
     rx_client: OptionalCell<&'a dyn hil::uart::ReceiveClient>,
+
     tx_buffer: TakeCell<'static, [u8]>,
     tx_len: Cell<usize>,
     tx_index: Cell<usize>,
+
+    rx_buffer: TakeCell<'static, [u8]>,
+    rx_len: Cell<usize>,
 }
 
 #[derive(Copy, Clone)]
@@ -112,7 +117,7 @@ pub struct UartParams {
     pub baud_rate: u32,
 }
 
-impl Uart<'a> {
+impl<'a> Uart<'a> {
     pub const fn new(base: StaticRef<UartRegisters>, clock_frequency: u32) -> Uart<'a> {
         Uart {
             registers: base,
@@ -122,6 +127,8 @@ impl Uart<'a> {
             tx_buffer: TakeCell::empty(),
             tx_len: Cell::new(0),
             tx_index: Cell::new(0),
+            rx_buffer: TakeCell::empty(),
+            rx_len: Cell::new(0),
         }
     }
 
@@ -175,6 +182,14 @@ impl Uart<'a> {
         let len = self.tx_len.get();
 
         if idx < len {
+            // If we are going to transmit anything, we first need to enable the
+            // TX interrupt. This ensures that we will get an interrupt, where
+            // we can either call the callback from, or continue transmitting
+            // bytes.
+            self.enable_tx_interrupt();
+
+            // Read from the transmit buffer and send bytes to the UART hardware
+            // until either the buffer is empty or the UART hardware is full.
             self.tx_buffer.map(|tx_buf| {
                 let tx_len = len - idx;
 
@@ -187,33 +202,6 @@ impl Uart<'a> {
                     self.tx_index.set(tx_idx + 1)
                 }
             });
-
-            // If the FIFO started empty above, when the first character was written, it would have
-            // been immediately dispatched to the shift register, latching the TX_EMPTY state.
-            // That should be cleared before enabling the interrupt, so a subsequent empty state
-            // will latch the state transition again.
-            regs.intr_state.write(intr::tx_empty::SET);
-
-            // With data queued, (re)enable the TX interrupt if the FIFO is not empty
-            if !regs.status.is_set(status::txempty) {
-                self.enable_tx_interrupt();
-                if !regs.status.is_set(status::txempty) {
-                    // Assuming the FIFO stayed non-empty while the interrupt was being enabled,
-                    // our work here is done
-                    return;
-                } else {
-                    // Otherwise, turn off the interrupt and handle below
-                    self.disable_tx_interrupt();
-                }
-            }
-        }
-
-        if self.tx_index.get() == self.tx_len.get() {
-            self.tx_client.map(|client| {
-                self.tx_buffer.take().map(|tx_buf| {
-                    client.transmitted_buffer(tx_buf, self.tx_len.get(), ReturnCode::SUCCESS);
-                });
-            });
         }
     }
 
@@ -223,10 +211,41 @@ impl Uart<'a> {
 
         if intrs.is_set(intr::tx_empty) {
             self.disable_tx_interrupt();
-            self.tx_progress();
+
+            if self.tx_index.get() == self.tx_len.get() {
+                // We sent everything to the UART hardware, now from an
+                // interrupt callback we can issue the callback.
+                self.tx_client.map(|client| {
+                    self.tx_buffer.take().map(|tx_buf| {
+                        client.transmitted_buffer(tx_buf, self.tx_len.get(), ReturnCode::SUCCESS);
+                    });
+                });
+            } else {
+                // We have more to transmit, so continue in tx_progress().
+                self.tx_progress();
+            }
         } else if intrs.is_set(intr::rx_watermark) {
             self.disable_rx_interrupt();
-            // TODO: real RX processing
+
+            self.rx_client.map(|client| {
+                self.rx_buffer.take().map(|rx_buf| {
+                    let mut len = 0;
+                    let mut return_code = ReturnCode::SUCCESS;
+
+                    for i in 0..self.rx_len.get() {
+                        rx_buf[i] = regs.rdata.get() as u8;
+                        len = i + 1;
+
+                        if regs.status.is_set(status::rxempty) {
+                            /* RX is empty */
+                            return_code = ReturnCode::ESIZE;
+                            break;
+                        }
+                    }
+
+                    client.received_buffer(rx_buf, len, return_code, uart::Error::None);
+                });
+            });
         }
     }
 
@@ -239,10 +258,10 @@ impl Uart<'a> {
     }
 }
 
-impl hil::uart::UartData<'a> for Uart<'a> {}
-impl hil::uart::Uart<'a> for Uart<'a> {}
+impl<'a> hil::uart::UartData<'a> for Uart<'a> {}
+impl<'a> hil::uart::Uart<'a> for Uart<'a> {}
 
-impl hil::uart::Configure for Uart<'a> {
+impl hil::uart::Configure for Uart<'_> {
     fn configure(&self, params: hil::uart::Parameters) -> ReturnCode {
         let regs = self.registers;
         // We can set the baud rate.
@@ -258,7 +277,7 @@ impl hil::uart::Configure for Uart<'a> {
     }
 }
 
-impl hil::uart::Transmit<'a> for Uart<'a> {
+impl<'a> hil::uart::Transmit<'a> for Uart<'a> {
     fn set_transmit_client(&self, client: &'a dyn hil::uart::TransmitClient) {
         self.tx_client.set(client);
     }
@@ -268,7 +287,7 @@ impl hil::uart::Transmit<'a> for Uart<'a> {
         tx_data: &'static mut [u8],
         tx_len: usize,
     ) -> (ReturnCode, Option<&'static mut [u8]>) {
-        if tx_len == 0 {
+        if tx_len == 0 || tx_len > tx_data.len() {
             (ReturnCode::ESIZE, Some(tx_data))
         } else if self.tx_buffer.is_some() {
             (ReturnCode::EBUSY, Some(tx_data))
@@ -293,19 +312,26 @@ impl hil::uart::Transmit<'a> for Uart<'a> {
 }
 
 /* UART receive is not implemented yet, mostly due to a lack of tests avaliable */
-impl hil::uart::Receive<'a> for Uart<'a> {
+impl<'a> hil::uart::Receive<'a> for Uart<'a> {
     fn set_receive_client(&self, client: &'a dyn hil::uart::ReceiveClient) {
         self.rx_client.set(client);
     }
 
     fn receive_buffer(
         &self,
-        _rx_buffer: &'static mut [u8],
-        _rx_len: usize,
+        rx_buffer: &'static mut [u8],
+        rx_len: usize,
     ) -> (ReturnCode, Option<&'static mut [u8]>) {
+        if rx_len == 0 || rx_len > rx_buffer.len() {
+            return (ReturnCode::ESIZE, Some(rx_buffer));
+        }
+
         self.enable_rx_interrupt();
 
-        (ReturnCode::FAIL, None)
+        self.rx_buffer.replace(rx_buffer);
+        self.rx_len.set(rx_len);
+
+        (ReturnCode::SUCCESS, None)
     }
 
     fn receive_abort(&self) -> ReturnCode {

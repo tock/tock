@@ -7,7 +7,7 @@ pub struct TimerTest<'a, A: Alarm<'a>> {
     alarm: &'a A,
 }
 
-impl<A: Alarm<'a>> TimerTest<'a, A> {
+impl<'a, A: Alarm<'a>> TimerTest<'a, A> {
     pub const fn new(alarm: &'a A) -> TimerTest<'a, A> {
         TimerTest { alarm: alarm }
     }
@@ -20,7 +20,7 @@ impl<A: Alarm<'a>> TimerTest<'a, A> {
     }
 }
 
-impl<A: Alarm<'a>> time::AlarmClient for TimerTest<'a, A> {
+impl<'a, A: Alarm<'a>> time::AlarmClient for TimerTest<'a, A> {
     fn fired(&self) {
         debug!("timer!!");
     }

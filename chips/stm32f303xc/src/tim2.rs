@@ -315,9 +315,9 @@ pub struct Tim2<'a> {
 
 pub static mut TIM2: Tim2<'static> = Tim2::new();
 
-impl Tim2<'a> {
-    const fn new() -> Tim2<'a> {
-        Tim2 {
+impl Tim2<'_> {
+    const fn new() -> Self {
+        Self {
             registers: TIM2_BASE,
             clock: Tim2Clock(rcc::PeripheralClock::APB1(rcc::PCLK1::TIM2)),
             client: OptionalCell::empty(),
@@ -358,7 +358,7 @@ impl Tim2<'a> {
     }
 }
 
-impl hil::time::Alarm<'a> for Tim2<'a> {
+impl<'a> hil::time::Alarm<'a> for Tim2<'a> {
     fn set_client(&self, client: &'a dyn hil::time::AlarmClient) {
         self.client.set(client);
     }
@@ -388,7 +388,7 @@ impl hil::time::Alarm<'a> for Tim2<'a> {
     }
 }
 
-impl hil::time::Time for Tim2<'a> {
+impl hil::time::Time for Tim2<'_> {
     type Frequency = hil::time::Freq16KHz;
 
     fn now(&self) -> u32 {

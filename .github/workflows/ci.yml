@@ -15,8 +15,11 @@ on:
 # If you add additional jobs, remember to add them to bors.toml
 jobs:
   ci-format:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
     # The type of runner that the job will run on
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
 
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
@@ -25,53 +28,63 @@ jobs:
       - uses: actions/setup-node@v1
         with:
           components: rustfmt, clippy
-      - name: ci-formatting
-        run: make ci-formatting
-      - name: ci-documentation
-        run: |
-          npm install -g markdown-toc
-          make ci-documentation
+      - name: ci-job-format
+        run:  make ci-job-format
+      - name: ci-job-clippy
+        run:  make ci-job-clippy
+      - name: ci-markdown-toc
+        run: make ci-job-markdown-toc
 
   ci-build:
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
 
     steps:
       - uses: actions/checkout@v2
       - uses: actions-rs/toolchain@v1
 
-      - name: ci-syntax
-        run: make ci-syntax
-      - name: ci-compilation
-        run: make ci-compilation
-      - name: ci-debug-support-targets
-        run: make ci-debug-support-targets
+      - name: ci-job-syntax
+        run: make ci-job-syntax
+      - name: ci-job-compilation
+        run: make ci-job-compilation
+      - name: ci-job-debug-support-targets
+        run: make ci-job-debug-support-targets
 
-      - name: collect-build-artifacts
-        run: make ci-collect-artifacts
+      - name: ci-job-collect-artifacts
+        run: make ci-job-collect-artifacts
       - name: upload-build-artifacts
         uses: actions/upload-artifact@v2
         with:
           name: build-artifacts
-          path: ci-artifacts
+          path: tools/ci-artifacts
 
   ci-tests:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+      - name: ci-job-libraries
+        run: make ci-job-libraries
+      - name: ci-job-archs
+        run: make ci-job-archs
+      - name: ci-job-kernel
+        run: make ci-job-kernel
+      - name: ci-job-chips
+        run: make ci-job-chips
+      - name: ci-job-tools
+        run: make ci-job-tools
+
+  ci-qemu:
     runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v2
       - uses: actions-rs/toolchain@v1
-      - name: ci-cargo-tests
-        run: make ci-cargo-tests
-      - name: ci-tools
-        run: |
-          sudo apt install libusb-1.0-0-dev
-          make ci-tools
-
-  emulation-check:
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
-      - name: qemu tests
-        run: make emulation-check
+      - name: ci-job-qemu
+        run: make ci-job-qemu

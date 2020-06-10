@@ -74,7 +74,7 @@ pub struct UartParams {
     pub baud_rate: u32,
 }
 
-impl Uart<'a> {
+impl<'a> Uart<'a> {
     pub const fn new(base: StaticRef<UartRegisters>, clock_frequency: u32) -> Uart<'a> {
         Uart {
             registers: base,
@@ -164,10 +164,10 @@ impl Uart<'a> {
     }
 }
 
-impl hil::uart::UartData<'a> for Uart<'a> {}
-impl hil::uart::Uart<'a> for Uart<'a> {}
+impl<'a> hil::uart::UartData<'a> for Uart<'a> {}
+impl<'a> hil::uart::Uart<'a> for Uart<'a> {}
 
-impl hil::uart::Configure for Uart<'a> {
+impl hil::uart::Configure for Uart<'_> {
     fn configure(&self, params: hil::uart::Parameters) -> ReturnCode {
         // This chip does not support these features.
         if params.parity != hil::uart::Parity::None {
@@ -187,7 +187,7 @@ impl hil::uart::Configure for Uart<'a> {
     }
 }
 
-impl hil::uart::Transmit<'a> for Uart<'a> {
+impl<'a> hil::uart::Transmit<'a> for Uart<'a> {
     fn set_transmit_client(&self, client: &'a dyn hil::uart::TransmitClient) {
         self.tx_client.set(client);
     }
@@ -243,7 +243,7 @@ impl hil::uart::Transmit<'a> for Uart<'a> {
     }
 }
 
-impl hil::uart::Receive<'a> for Uart<'a> {
+impl<'a> hil::uart::Receive<'a> for Uart<'a> {
     fn set_receive_client(&self, client: &'a dyn hil::uart::ReceiveClient) {
         self.rx_client.set(client);
     }

@@ -15,6 +15,7 @@ use crate::interrupts;
 use crate::plic;
 use crate::timer;
 use crate::uart;
+use crate::usbdev;
 
 pub const CHIP_FREQ: u32 = 50_000_000;
 
@@ -49,6 +50,9 @@ impl Ibex {
                 }
                 interrupts::HMAC_HMAC_DONE..=interrupts::HMAC_HMAC_ERR => {
                     hmac::HMAC.handle_interrupt()
+                }
+                interrupts::USBDEV_PKT_RECEIVED..=interrupts::USBDEV_CONNECTED => {
+                    usbdev::USB.handle_interrupt()
                 }
                 _ => debug!("Pidx {}", interrupt),
             }
@@ -238,7 +242,7 @@ pub extern "C" fn _start_trap_vectored() -> ! {
         // Below are 32 (non-compressed) jumps to cover the entire possible
         // range of vectored traps.
         #[cfg(all(target_arch = "riscv32", target_os = "none"))]
-        asm!("
+        llvm_asm!("
             j _start_trap
             j _start_trap
             j _start_trap

@@ -2,7 +2,7 @@
 
 #![crate_name = "cortexm0"]
 #![crate_type = "rlib"]
-#![feature(asm, core_intrinsics, naked_functions)]
+#![feature(llvm_asm, core_intrinsics, naked_functions)]
 #![no_std]
 
 // Re-export the base generic cortex-m functions here as they are
@@ -35,7 +35,7 @@ pub unsafe extern "C" fn generic_isr() {
 #[naked]
 /// All ISRs are caught by this handler which disables the NVIC and switches to the kernel.
 pub unsafe extern "C" fn generic_isr() {
-    asm!(
+    llvm_asm!(
         "
     /* Skip saving process state if not coming from user-space */
     ldr r0, MEXC_RETURN_PSP
@@ -90,6 +90,18 @@ _ggeneric_isr_no_stacking:
 
     /* *r3 = r2 */
     str r2, [r3]
+
+    /* The pending bit in ISPR might be reset by hardware for pulse interrupts
+     * at this point. So set it here again so the interrupt does not get lost
+     * in service_pending_interrupts()
+     *
+     * The NVIC.ISPR base is 0xE000E200, which is 0x20 (aka #32) above the
+     * NVIC.ICER base.  Calculate the ISPR address by offsetting from the ICER
+     * address so as to avoid re-doing the [r0 / 32] index math.
+     */
+    adds r3, #32
+    str r2, [r3]
+
     bx lr /* return here since we have extra words in the assembly */
 
 .align 4
@@ -111,7 +123,7 @@ pub unsafe extern "C" fn svc_handler() {
 #[cfg(all(target_arch = "arm", target_os = "none"))]
 #[naked]
 pub unsafe extern "C" fn svc_handler() {
-    asm!(
+    llvm_asm!(
         "
   ldr r0, EXC_RETURN_MSP
   cmp lr, r0
@@ -150,7 +162,7 @@ pub unsafe extern "C" fn switch_to_user(
     mut user_stack: *const u8,
     process_regs: &mut [usize; 8],
 ) -> *mut u8 {
-    asm!("
+    llvm_asm!("
     /* Load non-hardware-stacked registers from Process stack */
     ldmia $2!, {r4-r7}
     mov r11, r7
@@ -227,7 +239,7 @@ unsafe fn kernel_hardfault(faulting_stack: *mut u32) {
     //       value. Therefore as a workaround, capture the stacked
     //       registers and invoke a breakpoint.
     //
-    asm!("
+    llvm_asm!("
          bkpt
 1:
          b 1b
@@ -252,7 +264,7 @@ pub unsafe extern "C" fn hard_fault_handler() {
 
     // If `kernel_stack` is non-zero, then hard-fault occurred in
     // kernel, otherwise the hard-fault occurrend in user.
-    asm!("
+    llvm_asm!("
     /*
      * Will be incremented to 1 when we determine that it was a fault
      * in the kernel
@@ -288,7 +300,7 @@ _hardfault_exit:
     } else {
         // hard fault occurred in an app, not the kernel. The app should be
         // marked as in an error state and handled by the kernel
-        asm!("
+        llvm_asm!("
              ldr r0, =APP_HARD_FAULT
              movs r1, #1 /* Fault */
              str r1, [r0, #0]
@@ -322,6 +334,8 @@ _hardfault_exit:
              /* Set thread mode to privileged */
              movs r0, #0
              msr CONTROL, r0
+             /* No ISB required on M0 */
+             /* http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.dai0321a/BIHFJCAC.html */
 
              ldr r0, FEXC_RETURN_MSP
              bx r0
