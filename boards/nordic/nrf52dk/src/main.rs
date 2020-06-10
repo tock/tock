@@ -221,6 +221,7 @@ pub unsafe fn reset_handler() {
         &None,
         button,
         false,
+        &None,
         &mut APP_MEMORY,
         &mut PROCESSES,
         FAULT_RESPONSE,

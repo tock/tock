@@ -102,7 +102,7 @@ const SPI_MX25R6435F_HOLD_PIN: Pin = Pin::P0_23;
 // FIX: better assignments
 const LORA_CHIP_SELECT: Pin = Pin::P1_01;
 const LORA_RESET: Pin = Pin::P1_02;
-const LORA_INT: Pin = Pin::P1_03;
+// const LORA_INT: Pin = Pin::P1_03;
 
 /// Debug Writer
 pub mod io;
@@ -249,7 +249,7 @@ pub unsafe fn reset_handler() {
         )),
         button,
         true,
-        &Some(LoraPins::new(LORA_CHIP_SELECT, LORA_RESET, LORA_INT)),
+        &Some(LoraPins::new(LORA_CHIP_SELECT, LORA_RESET, /* LORA_INT */)),
         &mut APP_MEMORY,
         &mut PROCESSES,
         FAULT_RESPONSE,

@@ -9,11 +9,13 @@ use capsules::virtual_alarm::VirtualMuxAlarm;
 use kernel::capabilities;
 use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::component::Component;
+use kernel::hil;
+use kernel::hil::radio;
 use nrf52::gpio::Pin;
 use nrf52::rtc::Rtc;
 use nrf52::uicr::Regulator0Output;
 
-use components::spi::{SpiComponent, SpiMuxComponent, SpiSyscallComponent};
+use components::spi::{SpiComponent, SpiMuxComponent};
 pub mod nrf52_components;
 use nrf52_components::ble::BLEComponent;
 // Constants related to the configuration of the 15.4 network stack
@@ -81,14 +83,14 @@ pub enum UartChannel<'a> {
 pub struct LoraPins {
     chip_select: Pin,
     reset: Pin,
-    interrupt: Pin,
+    //interrupt: Pin,
 }
 impl LoraPins {
-    pub fn new(chip_select: Pin, reset: Pin, interrupt: Pin) -> Self {
+    pub fn new(chip_select: Pin, reset: Pin /*interrupt: Pin*/) -> Self {
         Self {
             chip_select,
             reset,
-            interrupt,
+            //interrupt,
         }
     }
 }
@@ -297,7 +299,7 @@ pub unsafe fn setup_board<I: nrf52::interrupt_service::InterruptService>(
         let lora_spi = SpiComponent::new(mux_spi, &gpio_port[pins.chip_select])
             .finalize(components::spi_component_helper!(nrf52::spi::SPIM)); //virtual
 
-        let RADIO = static_init!(
+        let static_radio = static_init!(
             capsules::lora::radio::Radio<
                 'static,
                 VirtualSpiMasterDevice<'static, nrf52::spi::SPIM>,
@@ -305,11 +307,11 @@ pub unsafe fn setup_board<I: nrf52::interrupt_service::InterruptService>(
             capsules::lora::radio::Radio::new(
                 lora_spi,
                 &gpio_port[pins.reset],
-                &gpio_port[pins.interrupt],
+                //&gpio_port[pins.interrupt],
             )
         );
 
-        let (radio,) = LoraComponent::new(board_kernel, RADIO).finalize(());
+        let (radio,) = LoraComponent::new(static_radio).finalize(());
         //lora_spi.set_client(radio);
         Some(radio)
     } else {
