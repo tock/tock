@@ -39,22 +39,22 @@ pub struct CSR {
 
 // Define the "addresses" of each CSR register.
 pub const CSR: &CSR = &CSR {
-    minstreth: ReadWriteRiscvCsr::new(0xB82),
-    minstret: ReadWriteRiscvCsr::new(0xB02),
-    mcycleh: ReadWriteRiscvCsr::new(0xB80),
-    mcycle: ReadWriteRiscvCsr::new(0xB00),
-    mie: ReadWriteRiscvCsr::new(0x304),
-    mtvec: ReadWriteRiscvCsr::new(0x305),
-    mstatus: ReadWriteRiscvCsr::new(0x300),
-    utvec: ReadWriteRiscvCsr::new(0x005),
-    stvec: ReadWriteRiscvCsr::new(0x105),
-    mscratch: ReadWriteRiscvCsr::new(0x340),
-    mepc: ReadWriteRiscvCsr::new(0x341),
-    mcause: ReadWriteRiscvCsr::new(0x342),
-    mtval: ReadWriteRiscvCsr::new(0x343),
-    mip: ReadWriteRiscvCsr::new(0x344),
-    pmpcfg: [ReadWriteRiscvCsr::new(0x3A0); 4],
-    pmpaddr: [ReadWriteRiscvCsr::new(0x3B0); 16],
+    minstreth: ReadWriteRiscvCsr::new(riscv_csr::csr::MINSTRETH),
+    minstret: ReadWriteRiscvCsr::new(riscv_csr::csr::MINSTRET),
+    mcycleh: ReadWriteRiscvCsr::new(riscv_csr::csr::MCYCLEH),
+    mcycle: ReadWriteRiscvCsr::new(riscv_csr::csr::MCYCLE),
+    mie: ReadWriteRiscvCsr::new(riscv_csr::csr::MIE),
+    mtvec: ReadWriteRiscvCsr::new(riscv_csr::csr::MTVEC),
+    mstatus: ReadWriteRiscvCsr::new(riscv_csr::csr::MSTATUS),
+    utvec: ReadWriteRiscvCsr::new(riscv_csr::csr::UTVEC),
+    stvec: ReadWriteRiscvCsr::new(riscv_csr::csr::STVEC),
+    mscratch: ReadWriteRiscvCsr::new(riscv_csr::csr::MSCRATCH),
+    mepc: ReadWriteRiscvCsr::new(riscv_csr::csr::MEPC),
+    mcause: ReadWriteRiscvCsr::new(riscv_csr::csr::MCAUSE),
+    mtval: ReadWriteRiscvCsr::new(riscv_csr::csr::MTVAL),
+    mip: ReadWriteRiscvCsr::new(riscv_csr::csr::MIP),
+    pmpcfg: [ReadWriteRiscvCsr::new(riscv_csr::csr::PMPCFG0); 4],
+    pmpaddr: [ReadWriteRiscvCsr::new(riscv_csr::csr::PMPADDR0); 16],
 };
 
 impl CSR {
