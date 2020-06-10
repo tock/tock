@@ -58,7 +58,7 @@ pub struct ReadWriteRiscvCsr<T: IntLike, R: RegisterLongName = ()> {
 //value: T,
 //associated_register: PhantomData<R>}
 
-impl<T: IntLike, R: RegisterLongName> ReadWriteRiscvCsr<T, R> {
+impl<R: RegisterLongName> ReadWriteRiscvCsr<u32, R> {
     pub const fn new(value: usize) -> Self {
         ReadWriteRiscvCsr {
             value: value,
@@ -69,8 +69,8 @@ impl<T: IntLike, R: RegisterLongName> ReadWriteRiscvCsr<T, R> {
 
     #[cfg(all(target_arch = "riscv32", target_os = "none"))]
     #[inline]
-    pub fn get(&self) -> T {
-        let r: T;
+    pub fn get(&self) -> u32 {
+        let r: u32;
         if self.value == MINSTRETH {
             unsafe {
                 asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const MINSTRETH);
@@ -175,7 +175,7 @@ impl<T: IntLike, R: RegisterLongName> ReadWriteRiscvCsr<T, R> {
 
     #[cfg(all(target_arch = "riscv32", target_os = "none"))]
     #[inline]
-    pub fn set(&self, val_to_set: T) {
+    pub fn set(&self, val_to_set: u32) {
         if self.value == MINSTRETH {
             unsafe {
                 asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const MINSTRETH);
@@ -279,56 +279,59 @@ impl<T: IntLike, R: RegisterLongName> ReadWriteRiscvCsr<T, R> {
 
     // Mock implementations for tests on Travis-CI.
     #[cfg(not(any(target_arch = "riscv32", target_os = "none")))]
-    pub fn get(&self) -> T {
+    pub fn get(&self) -> u32 {
         unimplemented!("reading RISC-V CSR {}", self.value)
     }
 
     #[cfg(not(any(target_arch = "riscv32", target_os = "none")))]
-    pub fn set(&self, _val_to_set: T) {
+    pub fn set(&self, _val_to_set: u32) {
         unimplemented!("writing RISC-V CSR {}", self.value)
     }
 
     #[inline]
-    pub fn read(&self, field: Field<T, R>) -> T {
+    pub fn read(&self, field: Field<u32, R>) -> u32 {
         field.read(self.get())
     }
 
     #[inline]
-    pub fn read_as_enum<E: TryFromValue<T, EnumType = E>>(&self, field: Field<T, R>) -> Option<E> {
+    pub fn read_as_enum<E: TryFromValue<u32, EnumType = E>>(
+        &self,
+        field: Field<u32, R>,
+    ) -> Option<E> {
         field.read_as_enum(self.get())
     }
 
     #[inline]
-    pub fn extract(&self) -> LocalRegisterCopy<T, R> {
+    pub fn extract(&self) -> LocalRegisterCopy<u32, R> {
         LocalRegisterCopy::new(self.get())
     }
 
     #[inline]
-    pub fn write(&self, field: FieldValue<T, R>) {
+    pub fn write(&self, field: FieldValue<u32, R>) {
         self.set(field.value);
     }
 
     #[inline]
-    pub fn modify(&self, field: FieldValue<T, R>) {
+    pub fn modify(&self, field: FieldValue<u32, R>) {
         self.set(field.modify(self.get()));
     }
 
     #[inline]
-    pub fn modify_no_read(&self, original: LocalRegisterCopy<T, R>, field: FieldValue<T, R>) {
+    pub fn modify_no_read(&self, original: LocalRegisterCopy<u32, R>, field: FieldValue<u32, R>) {
         self.set(field.modify(original.get()));
     }
     #[inline]
-    pub fn is_set(&self, field: Field<T, R>) -> bool {
+    pub fn is_set(&self, field: Field<u32, R>) -> bool {
         field.is_set(self.get())
     }
 
     #[inline]
-    pub fn matches_any(&self, field: FieldValue<T, R>) -> bool {
+    pub fn matches_any(&self, field: FieldValue<u32, R>) -> bool {
         field.matches_any(self.get())
     }
 
     #[inline]
-    pub fn matches_all(&self, field: FieldValue<T, R>) -> bool {
+    pub fn matches_all(&self, field: FieldValue<u32, R>) -> bool {
         field.matches_all(self.get())
     }
 }
