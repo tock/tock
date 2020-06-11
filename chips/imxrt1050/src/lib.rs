@@ -1,6 +1,6 @@
 //! Peripheral implementations for the IMXRT1050 MCU.
 //!
-//! STM32F446RE: <https://www.st.com/en/microcontrollers/stm32f4.html>
+//! imxrt1050 chip: <https://www.nxp.com/design/development-boards/i-mx-evaluation-and-development-boards/i-mx-rt1050-evaluation-kit:MIMXRT1050-EVK>
 
 #![crate_name = "imxrt1050"]
 #![crate_type = "rlib"]
@@ -81,7 +81,7 @@ pub static BASE_VECTORS: [unsafe extern "C" fn(); 16] = [
     systick_handler,     // SysTick
 ];
 
-// STM32F42xxx and STM32F43xxx has total of 91 interrupts
+// imxrt 1050 has total of 160 interrupts
 #[cfg_attr(all(target_arch = "arm", target_os = "none"), link_section = ".irqs")]
 // used Ensures that the symbol is kept until the final binary
 #[cfg_attr(all(target_arch = "arm", target_os = "none"), used)]

@@ -1,6 +1,7 @@
 # Makefile for building the tock kernel for the i.MX RT1052 platform
 #
-APP=../../../libtock-c/examples/c_hello/build/cortex-m7/cortex-m7.tbf
+# APP=../../../libtock-c/examples/c_hello/build/cortex-m7/cortex-m7.tbf
+APP=../../../libtock-rs/target/thumbv7em-none-eabi/tab/imxrt1050/hello_world/cortex-m7.tbf 
 TARGET=thumbv7em-none-eabi
 PLATFORM=imxrt1050-evkb
 
