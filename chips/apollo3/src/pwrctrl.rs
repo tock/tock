@@ -66,4 +66,10 @@ impl PwrCtrl {
 
         regs.devpwren.modify(DEVPWREN::PWRUART0::SET);
     }
+
+    pub fn enable_iom2(&self) {
+        let regs = self.registers;
+
+        regs.devpwren.modify(DEVPWREN::PWRIOM2::SET);
+    }
 }
