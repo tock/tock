@@ -53,11 +53,6 @@ struct NucleoF429ZI {
     ipc: kernel::ipc::IPC,
     led: &'static capsules::led::LED<'static, stm32f429zi::gpio::Pin<'static>>,
     button: &'static capsules::button::Button<'static, stm32f429zi::gpio::Pin<'static>>,
-    st7735: &'static capsules::st7735::ST7735<
-        'static,
-        VirtualMuxAlarm<'static, stm32f429zi::tim2::Tim2<'static>>,
-    >,
-    screen: &'static capsules::screen::Screen<'static>,
     alarm: &'static capsules::alarm::AlarmDriver<
         'static,
         VirtualMuxAlarm<'static, stm32f429zi::tim2::Tim2<'static>>,
@@ -74,8 +69,6 @@ impl Platform for NucleoF429ZI {
         match driver_num {
             capsules::console::DRIVER_NUM => f(Some(self.console)),
             capsules::led::DRIVER_NUM => f(Some(self.led)),
-            capsules::st7735::DRIVER_NUM => f(Some(self.st7735)),
-            capsules::screen::DRIVER_NUM => f(Some(self.screen)),
             capsules::button::DRIVER_NUM => f(Some(self.button)),
             capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
@@ -88,8 +81,6 @@ impl Platform for NucleoF429ZI {
 /// Helper function called during bring-up that configures DMA.
 unsafe fn setup_dma() {
     use stm32f429zi::dma1::{Dma1Peripheral, DMA1};
-    use stm32f429zi::spi;
-    use stm32f429zi::spi::SPI3;
     use stm32f429zi::usart;
     use stm32f429zi::usart::USART3;
 
@@ -111,20 +102,6 @@ unsafe fn setup_dma() {
 
     cortexm4::nvic::Nvic::new(Dma1Peripheral::USART3_TX.get_stream_irqn()).enable();
     cortexm4::nvic::Nvic::new(Dma1Peripheral::USART3_RX.get_stream_irqn()).enable();
-
-    let spi3_tx_stream = Dma1Peripheral::SPI3_TX.get_stream();
-    let spi3_rx_stream = Dma1Peripheral::SPI3_RX.get_stream();
-
-    SPI3.set_dma(spi::TxDMA(spi3_tx_stream), spi::RxDMA(spi3_rx_stream));
-
-    spi3_tx_stream.set_client(&SPI3);
-    spi3_rx_stream.set_client(&SPI3);
-
-    spi3_tx_stream.setup(Dma1Peripheral::SPI3_TX);
-    spi3_rx_stream.setup(Dma1Peripheral::SPI3_RX);
-
-    cortexm4::nvic::Nvic::new(Dma1Peripheral::SPI3_TX.get_stream_irqn()).enable();
-    cortexm4::nvic::Nvic::new(Dma1Peripheral::SPI3_RX.get_stream_irqn()).enable();
 }
 
 /// Helper function called during bring-up that configures multiplexed I/O.
@@ -182,41 +159,10 @@ unsafe fn set_pin_primary_functions() {
     PORT[PortId::F as usize].enable_clock();
     PORT[PortId::G as usize].enable_clock();
     PORT[PortId::H as usize].enable_clock();
-
-    // SPI3 CS
-    PinId::PD14.get_pin().as_ref().map(|pin| {
-        pin.make_output();
-    });
-    PinId::PB03.get_pin().as_ref().map(|pin| {
-        pin.set_mode(Mode::AlternateFunctionMode);
-        // AF6 is SPI3 SCL
-        pin.set_alternate_function(AlternateFunction::AF6);
-    });
-    PinId::PB04.get_pin().as_ref().map(|pin| {
-        pin.set_mode(Mode::AlternateFunctionMode);
-        // AF6 is SPI3 MISO
-        pin.set_alternate_function(AlternateFunction::AF6);
-    });
-    PinId::PB05.get_pin().as_ref().map(|pin| {
-        pin.set_mode(Mode::AlternateFunctionMode);
-        // AF6 is SPI3 MOSI
-        pin.set_alternate_function(AlternateFunction::AF6);
-    });
-
-    // tft dc
-    PinId::PD15.get_pin().as_ref().map(|pin| {
-        pin.make_output();
-    });
-    // tft reset
-    PinId::PF12.get_pin().as_ref().map(|pin| {
-        pin.make_output();
-        pin.set_floating_state(kernel::hil::gpio::FloatingState::PullNone);
-    });
 }
 
 /// Helper function for miscellaneous peripheral functions
 unsafe fn setup_peripherals() {
-    use stm32f429zi::spi::SPI3;
     use stm32f429zi::tim2::TIM2;
 
     // USART3 IRQn is 39
@@ -226,10 +172,6 @@ unsafe fn setup_peripherals() {
     TIM2.enable_clock();
     TIM2.start();
     cortexm4::nvic::Nvic::new(stm32f429zi::nvic::TIM2).enable();
-
-    // SPI
-    SPI3.enable_clock();
-    cortexm4::nvic::Nvic::new(stm32f429zi::nvic::SPI3).enable();
 }
 
 /// Reset Handler.
@@ -313,6 +255,8 @@ pub unsafe fn reset_handler() {
 
     // LEDs
 
+    // Clock to Port A is enabled in `set_pin_primary_functions()`
+
     let led = components::led::LedsComponent::new(components::led_component_helper!(
         stm32f429zi::gpio::Pin,
         (
@@ -367,12 +311,11 @@ pub unsafe fn reset_handler() {
             4 => stm32f429zi::gpio::PIN[5][14].as_ref().unwrap(), //D4
             5 => stm32f429zi::gpio::PIN[4][11].as_ref().unwrap(), //D5
             6 => stm32f429zi::gpio::PIN[4][9].as_ref().unwrap(), //D6
-            // temporary disabled for use with st7735
-            // 7 => stm32f429zi::gpio::PIN[5][13].as_ref().unwrap(), //D7
-            // 8 => stm32f429zi::gpio::PIN[5][12].as_ref().unwrap(), //D8
-            // 9 => stm32f429zi::gpio::PIN[3][15].as_ref().unwrap(), //D9
+            7 => stm32f429zi::gpio::PIN[5][13].as_ref().unwrap(), //D7
+            8 => stm32f429zi::gpio::PIN[5][12].as_ref().unwrap(), //D8
+            9 => stm32f429zi::gpio::PIN[3][15].as_ref().unwrap(), //D9
             // SPI Pins
-            // 10 => stm32f429zi::gpio::PIN[3][14].as_ref().unwrap(), //D10
+            10 => stm32f429zi::gpio::PIN[3][14].as_ref().unwrap(), //D10
             11 => stm32f429zi::gpio::PIN[0][7].as_ref().unwrap(),  //D11
             12 => stm32f429zi::gpio::PIN[0][6].as_ref().unwrap(),  //D12
             13 => stm32f429zi::gpio::PIN[0][5].as_ref().unwrap(),  //D13
@@ -454,41 +397,12 @@ pub unsafe fn reset_handler() {
             // 80 => stm32f429zi::gpio::PIN[5][4].as_ref().unwrap()  //A8
         ),
     )
-    .finalize(components::gpio_component_buf!(
-        stm32f429zi::gpio::Pin<'static>
-    ));
-
-    let spi_mux = components::spi::SpiMuxComponent::new(&stm32f429zi::spi::SPI3)
-        .finalize(components::spi_mux_component_helper!(stm32f429zi::spi::Spi));
-
-    let tft = components::st7735::ST7735Component::new(mux_alarm).finalize(
-        components::st7735_component_helper!(
-            // spi type
-            stm32f429zi::spi::Spi,
-            // chip select
-            stm32f429zi::gpio::PinId::PD14,
-            // spi mux
-            spi_mux,
-            // timer type
-            stm32f429zi::tim2::Tim2,
-            // dc
-            stm32f429zi::gpio::PinId::PD15.get_pin().as_ref().unwrap(),
-            // reset
-            stm32f429zi::gpio::PinId::PF12.get_pin().as_ref().unwrap()
-        ),
-    );
-
-    tft.init();
-
-    let screen = components::screen::ScreenComponent::new(board_kernel, tft, Some(tft))
-        .finalize(components::screen_buffer_size!(40960));
+    .finalize(components::gpio_component_buf!(stm32f429zi::gpio::Pin));
 
     let nucleo_f429zi = NucleoF429ZI {
         console: console,
         ipc: kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability),
         led: led,
-        st7735: tft,
-        screen: screen,
         button: button,
         alarm: alarm,
         gpio: gpio,
