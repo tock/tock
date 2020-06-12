@@ -19,7 +19,7 @@ use kernel::{create_capability, debug, debug_gpio, static_init};
 use nrf52832::gpio::Pin;
 use nrf52832::rtc::Rtc;
 
-use nrf52dk_base::nrf52_components::ble::BLEComponent;
+use nrf52_components::ble::BLEComponent;
 
 const LED1_PIN: Pin = Pin::P0_26;
 const LED2_PIN: Pin = Pin::P0_22;
