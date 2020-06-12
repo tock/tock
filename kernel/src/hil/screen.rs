@@ -116,6 +116,12 @@ pub trait Screen {
 
     /// Sets the video memory frame.
     /// This function has to be called before the first call to the write function.
+    /// This will generate a `command_complete()` callback when finished.
+    ///
+    /// Return values:
+    /// - `SUCCESS`: The write frame is valid.
+    /// - `EINVAL`: The parameters of the write frame are not valid.
+    /// - `EBUSY`: Unable to set the write frame on the device.
     fn set_write_frame(&self, x: usize, y: usize, width: usize, height: usize) -> ReturnCode;
 
     /// Sends a write command to write data in the selected video memory frame.
