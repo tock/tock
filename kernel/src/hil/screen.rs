@@ -1,4 +1,4 @@
-//! Interface for FrameBuffer
+//! Interface for screens and displays.
 use crate::returncode::ReturnCode;
 
 pub enum ScreenRotation {
