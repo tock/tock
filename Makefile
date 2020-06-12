@@ -414,6 +414,8 @@ ci-job-archs:
 ci-job-kernel:
 	$(call banner,CI-Job: Kernel)
 	@cd kernel && CI=true RUSTFLAGS="-D warnings" TOCK_KERNEL_VERSION=ci_test cargo test
+	# Capsule initialization depends on board/chip specific imports, so ignore doc tests
+	@cd capsules && CI=true RUSTFLAGS="-D warnings" TOCK_KERNEL_VERSION=ci_test cargo test --lib
 
 .PHONY: ci-job-chips
 ci-job-chips:
