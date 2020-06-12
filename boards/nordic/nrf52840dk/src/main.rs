@@ -249,7 +249,10 @@ pub unsafe fn reset_handler() {
         )),
         button,
         true,
-        &Some(LoraPins::new(LORA_CHIP_SELECT, LORA_RESET, /* LORA_INT */)),
+        &Some(LoraPins::new(
+            LORA_CHIP_SELECT,
+            LORA_RESET, /* LORA_INT */
+        )),
         &mut APP_MEMORY,
         &mut PROCESSES,
         FAULT_RESPONSE,

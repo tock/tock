@@ -5,8 +5,7 @@ use kernel::{AppId, Driver, ReturnCode};
 
 pub const DRIVER_NUM: usize = driver::NUM::Lora as usize;
 
-pub struct App {
-}
+pub struct App {}
 
 pub struct RadioDriver<'a, S: SpiMasterDevice> {
     /// Underlying physical device; FIX make private
@@ -15,19 +14,17 @@ pub struct RadioDriver<'a, S: SpiMasterDevice> {
 
 impl Default for App {
     fn default() -> Self {
-        App {  }
+        App {}
     }
 }
 
-impl<S: SpiMasterDevice> RadioDriver<'a, S> {
+impl<'a, S: SpiMasterDevice> RadioDriver<'a, S> {
     pub fn new(device: &'a Radio<'a, S>) -> RadioDriver<'a, S> {
-        RadioDriver {
-            device: device,
-        }
+        RadioDriver { device: device }
     }
 }
 
-impl<S: SpiMasterDevice> Driver for RadioDriver<'a, S> {
+impl<S: SpiMasterDevice> Driver for RadioDriver<'_, S> {
     /// Command interface.
     ///
     /// ### `command_num`
@@ -41,7 +38,7 @@ impl<S: SpiMasterDevice> Driver for RadioDriver<'a, S> {
             1 => self.device.begin(865000000),
 
             2 => self.device.end(),
-            
+
             3 => self.device.begin_packet(arg1 != 0),
 
             4 => self.device.end_packet(arg1 != 0),

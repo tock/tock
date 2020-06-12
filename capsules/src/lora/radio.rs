@@ -104,7 +104,7 @@ pub trait RadioConfig {
     fn stop(&self) -> ReturnCode;
 }
 
-impl<S: spi::SpiMasterDevice> RadioConfig for Radio<'a, S> {
+impl<S: spi::SpiMasterDevice> RadioConfig for Radio<'_, S> {
     fn initialize(
         &self,
         buf: &'static mut [u8],
@@ -194,7 +194,7 @@ pub struct Radio<'a, S: SpiMasterDevice> {
     rx_done: bool,
 }
 
-impl<S: SpiMasterDevice> Radio<'a, S> {
+impl<'a, S: SpiMasterDevice> Radio<'a, S> {
     pub fn new(
         spi: &'a S,
         //cs: &'a dyn gpio::Pin,
@@ -810,7 +810,7 @@ impl<S: SpiMasterDevice> Radio<'a, S> {
                 }
             }
         }
-        
+
         ReturnCode::SUCCESS
     }
 }

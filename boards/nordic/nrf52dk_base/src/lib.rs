@@ -5,7 +5,9 @@
 #[allow(unused_imports)]
 use kernel::{create_capability, debug, debug_gpio, debug_verbose, static_init};
 
+use capsules::lora::radio::RadioConfig;
 use capsules::virtual_alarm::VirtualMuxAlarm;
+use capsules::virtual_spi::VirtualSpiMasterDevice;
 use kernel::capabilities;
 use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::component::Component;
@@ -18,6 +20,7 @@ use nrf52::uicr::Regulator0Output;
 use components::spi::{SpiComponent, SpiMuxComponent};
 pub mod nrf52_components;
 use nrf52_components::ble::BLEComponent;
+use nrf52_components::lora::LoraComponent;
 // Constants related to the configuration of the 15.4 network stack
 const SRC_MAC: u16 = 0xf00f;
 const PAN_ID: u16 = 0xABCD;
@@ -378,6 +381,7 @@ pub unsafe fn setup_board<I: nrf52::interrupt_service::InterruptService>(
         button,
         ble_radio,
         ieee802154_radio,
+        lora_radio,
         pconsole,
         console,
         led,
