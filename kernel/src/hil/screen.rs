@@ -125,6 +125,12 @@ pub trait Screen {
     fn set_write_frame(&self, x: usize, y: usize, width: usize, height: usize) -> ReturnCode;
 
     /// Sends a write command to write data in the selected video memory frame.
+    /// When finished, the driver will call the `write_complete()` callback.
+    ///
+    /// Return values:
+    /// - `SUCCESS`: Write is valid and will be sent to the screen.
+    /// - `EINVAL`: Write is invalid or length is wrong.
+    /// - `EBUSY`: Another write is in progress.
     fn write(&self, buffer: &'static mut [u8], len: usize) -> ReturnCode;
 
     fn set_client(&self, client: Option<&'static dyn ScreenClient>);
