@@ -12,4 +12,4 @@ kernel = { path = "../../kernel" }
 nrf52 = { path = "../../chips/nrf52" }
 nrf52840 = { path = "../../chips/nrf52840" }
 components = { path = "../components" }
-nrf52dk_base = { path = "../nordic/nrf52dk_base" }
+nrf52_components = { path = "../nordic/nrf52_components" }
