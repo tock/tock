@@ -1,7 +1,6 @@
 //! Data structure for passing application memory to the kernel.
 
 use core::marker::PhantomData;
-use core::ops::{Deref, DerefMut};
 use core::ptr::NonNull;
 use core::slice;
 
@@ -31,20 +30,6 @@ impl<L, T> AppPtr<L, T> {
             process: appid,
             _phantom: PhantomData,
         }
-    }
-}
-
-impl<L, T> Deref for AppPtr<L, T> {
-    type Target = T;
-
-    fn deref(&self) -> &T {
-        unsafe { self.ptr.as_ref() }
-    }
-}
-
-impl<L, T> DerefMut for AppPtr<L, T> {
-    fn deref_mut(&mut self) -> &mut T {
-        unsafe { self.ptr.as_mut() }
     }
 }
 
@@ -123,12 +108,16 @@ impl<L, T> AppSlice<L, T> {
 
 impl<L, T> AsRef<[T]> for AppSlice<L, T> {
     fn as_ref(&self) -> &[T] {
-        unsafe { slice::from_raw_parts(self.ptr.ptr.as_ref(), self.len) }
+        self.ptr.process.kernel.process_map_or(&[], self.ptr.process, |_| {
+            unsafe { slice::from_raw_parts(self.ptr.ptr.as_ref(), self.len) }
+        })
     }
 }
 
 impl<L, T> AsMut<[T]> for AppSlice<L, T> {
     fn as_mut(&mut self) -> &mut [T] {
-        unsafe { slice::from_raw_parts_mut(self.ptr.ptr.as_mut(), self.len) }
+        self.ptr.process.kernel.process_map_or(&mut [], self.ptr.process, |_| {
+            unsafe { slice::from_raw_parts_mut(self.ptr.ptr.as_mut(), self.len) }
+        })
     }
 }
