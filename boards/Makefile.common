@@ -52,7 +52,7 @@ RUSTC_FLAGS_TOCK ?= \
 # Disallow warnings for continuous integration builds. Disallowing them here
 # ensures that warnings during testing won't prevent compilation from succeeding.
 ifeq ($(CI),true)
-  RUSTFLAGS_FOR_CARGO += -D warnings
+  RUSTC_FLAGS_TOCK += -D warnings
 endif
 
 # The following flags should only be passed to the board's binary crate, but
@@ -69,11 +69,11 @@ endif
 # Ultimately, this should move to the Cargo.toml, for example when
 # https://github.com/rust-lang/cargo/pull/7811 is merged into Cargo.
 #
-# The difference between `RUSTFLAGS_FOR_CARGO` and `RUSTFLAGS_FOR_BIN` is that
+# The difference between `RUSTC_FLAGS_TOCK` and `RUSTC_FLAGS_FOR_BIN` is that
 # the former is forwarded to all the dependencies (being passed to cargo via
 # the `RUSTFLAGS` environment variable), whereas the latter is only applied to
 # the final binary crate (being passed as parameter to `cargo rustc`).
-RUSTFLAGS_FOR_BIN ?= \
+RUSTC_FLAGS_FOR_BIN ?= \
   -C link-arg=-L$(abspath .) \
 
 # http://stackoverflow.com/questions/10858261/abort-makefile-if-variable-not-set
@@ -172,13 +172,13 @@ ifneq ($(V),)
   $(info PLATFORM             = $(PLATFORM))
   $(info TARGET               = $(TARGET))
   $(info TOCK_KERNEL_VERSION  = $(TOCK_KERNEL_VERSION))
-  $(info RUSTC_FLAGS  = $(RUSTC_FLAGS))
-  $(info RUSTC_FLAGS_TOCK  = $(RUSTC_FLAGS_TOCK))
+  $(info RUSTC_FLAGS          = $(RUSTC_FLAGS))
+  $(info RUSTC_FLAGS_TOCK     = $(RUSTC_FLAGS_TOCK))
   $(info MAKEFLAGS            = $(MAKEFLAGS))
   $(info OBJDUMP_FLAGS        = $(OBJDUMP_FLAGS))
   $(info OBJCOPY_FLAGS        = $(OBJCOPY_FLAGS))
   $(info CARGO_FLAGS          = $(CARGO_FLAGS))
-  $(info CARGO_FLAGS_TOCK = $(CARGO_FLAGS_TOCK))
+  $(info CARGO_FLAGS_TOCK     = $(CARGO_FLAGS_TOCK))
   $(info SIZE_FLAGS           = $(SIZE_FLAGS))
   $(info )
   $(info TOOLCHAIN            = $(TOOLCHAIN))
