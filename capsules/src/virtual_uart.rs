@@ -70,7 +70,7 @@ impl<'a> uart::TransmitClient for MuxUart<'a> {
             self.inflight.clear();
             device.transmitted_buffer(tx_buffer, tx_len, rcode);
         });
-        self.do_next_op();
+        self.do_next_op_async();
     }
 }
 
@@ -220,20 +220,23 @@ impl<'a> MuxUart<'a> {
             let mnode = self.devices.iter().find(|node| node.operation.is_some());
             mnode.map(|node| {
                 node.tx_buffer.take().map(|buf| {
-                    node.operation.map(move |op| match op {
+                    self.inflight.set(node);
+                    node.operation.take().map(move |op| match op {
                         Operation::Transmit { len } => {
-                            let (rcode, rbuf) = self.uart.transmit_buffer(buf, *len);
+                            let (rcode, rbuf) = self.uart.transmit_buffer(buf, len);
                             if rcode != ReturnCode::SUCCESS {
                                 node.tx_client.map(|client| {
+                                    self.inflight.clear();
                                     node.transmitting.set(false);
                                     client.transmitted_buffer(rbuf.unwrap(), 0, rcode);
                                 });
                             }
                         }
                         Operation::TransmitWord { word } => {
-                            let rcode = self.uart.transmit_word(*word);
+                            let rcode = self.uart.transmit_word(word);
                             if rcode != ReturnCode::SUCCESS {
                                 node.tx_client.map(|client| {
+                                    self.inflight.clear();
                                     node.transmitting.set(false);
                                     client.transmitted_word(rcode);
                                 });
@@ -241,8 +244,6 @@ impl<'a> MuxUart<'a> {
                         }
                     });
                 });
-                node.operation.clear();
-                self.inflight.set(node);
             });
         }
     }
