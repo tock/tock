@@ -16,7 +16,7 @@ pub struct Shared;
 
 /// Base type for an AppSlice that holds the raw pointer to the memory region
 /// the app shared with the kernel.
-pub struct AppPtr<L, T> {
+pub(crate) struct AppPtr<L, T> {
     ptr: NonNull<T>,
     process: AppId,
     _phantom: PhantomData<L>,
