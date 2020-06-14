@@ -62,8 +62,16 @@ impl<L, T> AppSlice<L, T> {
     }
 
     /// Number of bytes in the `AppSlice`.
+    ///
+    /// If the app died, has restarted, or its AppId identifier
+    /// changed for any other reason, return an accessible length of
+    /// zero, consistent with the [`AsRef`](struct.AppSlice.html#impl-AsRef<[T]>)
+    /// and [`AsMut`](struct.AppSlice.html#impl-AsMut<[T]>) implementations.
     pub fn len(&self) -> usize {
-        self.len
+        self.ptr
+            .process
+            .kernel
+            .process_map_or(0, self.ptr.process, |_| self.len)
     }
 
     /// Get the raw pointer to the buffer. This will be a pointer inside of the
