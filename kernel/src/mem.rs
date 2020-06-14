@@ -97,24 +97,77 @@ impl<L, T> AppSlice<L, T> {
         }
     }
 
+    /// Returns an iterator over the slice
+    ///
+    /// See
+    /// [`std::slice::iter()`](https://doc.rust-lang.org/std/primitive.slice.html#method.iter).
+    ///
+    /// Internally this uses
+    /// [`AsRef`](struct.AppSlice.html#impl-AsRef<[T]>), hence when
+    /// the app dies, restarts or the
+    /// [`AppId`](crate::callback::AppId) changes for any other
+    /// reason, the iterator will be of zero length.
     pub fn iter(&self) -> slice::Iter<T> {
         self.as_ref().iter()
     }
 
+    /// Returns an iterator that allows modifying each value
+    ///
+    /// See
+    /// [`std::slice::iter_mut()`](https://doc.rust-lang.org/std/primitive.slice.html#method.iter_mut).
+    ///
+    /// Internally this uses
+    /// [`AsMut`](struct.AppSlice.html#impl-AsMut<[T]>), hence when
+    /// the app dies, restarts or the
+    /// [`AppId`](crate::callback::AppId) changes for any other
+    /// reason, the iterator will be of zero length.
     pub fn iter_mut(&mut self) -> slice::IterMut<T> {
         self.as_mut().iter_mut()
     }
 
+    /// Iterate over `chunk_size` elements at a time, starting at the
+    /// beginning of the AppSlice.
+    ///
+    /// See
+    /// [`std::slice::chunks()`](https://doc.rust-lang.org/std/primitive.slice.html#method.chunks).
+    ///
+    /// Internally this uses
+    /// [`AsRef`](struct.AppSlice.html#impl-AsRef<[T]>), hence when
+    /// the app dies, restarts or the
+    /// [`AppId`](crate::callback::AppId) changes for any other
+    /// reason, a [`Chunks`](core::slice::Chunks) iterator of zero length will
+    /// be returned.
     pub fn chunks(&self, size: usize) -> slice::Chunks<T> {
         self.as_ref().chunks(size)
     }
 
+    /// Mutably iterate over `chunk_size` elements at a time, starting at the
+    /// beginning of the AppSlice.
+    ///
+    /// See
+    /// [`std::slice::chunks_mut()`](https://doc.rust-lang.org/std/primitive.slice.html#method.chunks_mut).
+    ///
+    /// Internally this uses
+    /// [`AsMut`](struct.AppSlice.html#impl-AsMut<[T]>), hence when
+    /// the app dies, restarts or the
+    /// [`AppId`](crate::callback::AppId) changes for any other
+    /// reason, a [`ChunksMut`](core::slice::ChunksMut) iterator of zero length will
+    /// be returned.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `chunk_size` is 0.
     pub fn chunks_mut(&mut self, size: usize) -> slice::ChunksMut<T> {
         self.as_mut().chunks_mut(size)
     }
 }
 
 impl<L, T> AsRef<[T]> for AppSlice<L, T> {
+    /// Get a slice reference over the userspace buffer
+    ///
+    /// This first checks whether the app died, restarted, or its
+    /// AppId identifier changed for any other reason. In this case, a
+    /// slice of length zero is returned.
     fn as_ref(&self) -> &[T] {
         self.ptr
             .process
@@ -126,6 +179,11 @@ impl<L, T> AsRef<[T]> for AppSlice<L, T> {
 }
 
 impl<L, T> AsMut<[T]> for AppSlice<L, T> {
+    /// Get a mutable slice reference over the userspace buffer
+    ///
+    /// This first checks whether the app died, restarted, or its
+    /// AppId identifier changed for any other reason. In this case, a
+    /// slice of length zero is returned.
     fn as_mut(&mut self) -> &mut [T] {
         self.ptr
             .process
