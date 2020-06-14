@@ -108,16 +108,22 @@ impl<L, T> AppSlice<L, T> {
 
 impl<L, T> AsRef<[T]> for AppSlice<L, T> {
     fn as_ref(&self) -> &[T] {
-        self.ptr.process.kernel.process_map_or(&[], self.ptr.process, |_| {
-            unsafe { slice::from_raw_parts(self.ptr.ptr.as_ref(), self.len) }
-        })
+        self.ptr
+            .process
+            .kernel
+            .process_map_or(&[], self.ptr.process, |_| unsafe {
+                slice::from_raw_parts(self.ptr.ptr.as_ref(), self.len)
+            })
     }
 }
 
 impl<L, T> AsMut<[T]> for AppSlice<L, T> {
     fn as_mut(&mut self) -> &mut [T] {
-        self.ptr.process.kernel.process_map_or(&mut [], self.ptr.process, |_| {
-            unsafe { slice::from_raw_parts_mut(self.ptr.ptr.as_mut(), self.len) }
-        })
+        self.ptr
+            .process
+            .kernel
+            .process_map_or(&mut [], self.ptr.process, |_| unsafe {
+                slice::from_raw_parts_mut(self.ptr.ptr.as_mut(), self.len)
+            })
     }
 }
