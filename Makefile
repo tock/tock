@@ -132,7 +132,7 @@ allboards:
 
 .PHONY: allcheck
 allcheck:
-	cargo check
+	@cargo check
 
 .PHONY: alldoc
 alldoc:
