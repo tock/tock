@@ -292,6 +292,10 @@ impl Kernel {
         ipc: Option<&ipc::IPC>,
         _capability: &dyn capabilities::MainLoopCapability,
     ) {
+        unsafe {
+            debug::DEBUG_KERNEL_LOOP_STARTED = true;
+        }
+
         loop {
             unsafe {
                 chip.service_pending_interrupts();

@@ -355,7 +355,15 @@ pub struct DebugWriter {
 /// needed so the debug!() macros have a reference to the object to use.
 static mut DEBUG_WRITER: Option<&'static mut DebugWriterWrapper> = None;
 
+/// The `debug!` macro only works correctly once the kernel loop is running.
+/// This is a guard to help prevent folks working on board bringup from
+/// accidentally trying to use `debug!` too early in boot.
+pub(crate) static mut DEBUG_KERNEL_LOOP_STARTED: bool = false;
+
 pub unsafe fn get_debug_writer() -> &'static mut DebugWriterWrapper {
+    if !DEBUG_KERNEL_LOOP_STARTED {
+        panic!("Cannot use `debug!` before kernel_loop");
+    }
     DEBUG_WRITER
         .as_deref_mut()
         .expect("Must call `set_debug_writer_wrapper` in board initialization.")
