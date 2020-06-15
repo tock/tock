@@ -39,7 +39,10 @@ impl Component for UsbComponent {
         // Configure the USB controller
         let usb_client = static_init!(
             capsules::usb::usbc_client::Client<'static, lowrisc::usbdev::Usb<'static>>,
-            capsules::usb::usbc_client::Client::new(&ibex::usbdev::USB)
+            capsules::usb::usbc_client::Client::new(
+                &ibex::usbdev::USB,
+                capsules::usb::usbc_client::MAX_CTRL_PACKET_SIZE_IBEX
+            )
         );
 
         // Configure the USB userspace driver
