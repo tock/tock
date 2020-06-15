@@ -8,13 +8,15 @@
 //! -----
 //!
 //! ```rust
-//! Generate a list of ports to group into one userspace driver.
+//! # use kernel::static_init;
+//!
+//! // Generate a list of ports to group into one userspace driver.
 //! let async_gpio_ports = static_init!(
-//!     [&'static capsules::mcp23008::MCP23008; 1],
+//!     [&'static capsules::mcp230xx::MCP230xx; 1],
 //!     [mcp23008]);
 //!
 //! let gpio_async = static_init!(
-//!     capsules::gpio_async::GPIOAsync<'static, capsules::mcp23008::MCP23008<'static>>,
+//!     capsules::gpio_async::GPIOAsync<'static, capsules::mcp230xx::MCP230xx<'static>>,
 //!     capsules::gpio_async::GPIOAsync::new(async_gpio_ports));
 //!
 //! // Setup the clients correctly.

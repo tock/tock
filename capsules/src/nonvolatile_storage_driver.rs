@@ -37,11 +37,13 @@
 //! Example instantiation:
 //!
 //! ```rust
+//! # use kernel::static_init;
+//!
 //! let nonvolatile_storage = static_init!(
 //!     capsules::nonvolatile_storage_driver::NonvolatileStorage<'static>,
 //!     capsules::nonvolatile_storage_driver::NonvolatileStorage::new(
 //!         fm25cl,                      // The underlying storage driver.
-//!         kernel::Grant::create(),     // Storage for app-specific state.
+//!         board_kernel.create_grant(&grant_cap),     // Storage for app-specific state.
 //!         3000,                        // The byte start address for the userspace
 //!                                      // accessible memory region.
 //!         2000,                        // The length of the userspace region.

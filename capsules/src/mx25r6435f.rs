@@ -16,6 +16,9 @@
 //! -----
 //!
 //! ```rust
+//! # use kernel::static_init;
+//! # use capsules::virtual_alarm::VirtualMuxAlarm;
+//!
 //! // Create a SPI device for this chip.
 //! let mx25r6435f_spi = static_init!(
 //!     capsules::virtual_spi::VirtualSpiMasterDevice<'static, nrf52::spi::SPIM>,
@@ -68,6 +71,8 @@ const PAGE_SIZE: u32 = 256;
 /// An example looks like:
 ///
 /// ```
+/// # use capsules::mx25r6435f::Mx25r6435fSector;
+///
 /// static mut PAGEBUFFER: Mx25r6435fSector = Mx25r6435fSector::new();
 /// ```
 pub struct Mx25r6435fSector(pub [u8; SECTOR_SIZE as usize]);

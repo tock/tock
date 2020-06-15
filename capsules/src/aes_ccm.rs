@@ -39,7 +39,10 @@
 //! Usage
 //! -----
 //!
-//! ```
+//! ```rust
+//! # use kernel::static_init;
+//! # use kernel::hil::symmetric_encryption;
+//!
 //! const CRYPT_SIZE: usize = 3 * symmetric_encryption::AES128_BLOCK_SIZE + radio::MAX_BUF_SIZE;
 //! static mut CRYPT_BUF: [u8; CRYPT_SIZE] = [0x00; CRYPT_SIZE];
 //!

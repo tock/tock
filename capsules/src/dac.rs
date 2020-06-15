@@ -4,6 +4,8 @@
 //! -----
 //!
 //! ```rust
+//! # use kernel::static_init;
+//!
 //! let dac = static_init!(
 //!     capsules::dac::Dac<'static>,
 //!     capsules::dac::Dac::new(&mut sam4l::dac::DAC));

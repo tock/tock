@@ -8,9 +8,11 @@
 //! driver:
 //!
 //! ```rust
+//! # use kernel::static_init;
+//!
 //! let crc = static_init!(
 //!     capsules::crc::Crc<'static, sam4l::crccu::Crccu<'static>>,
-//!     capsules::crc::Crc::new(&mut sam4l::crccu::CRCCU, kernel::Grant::create()));
+//!     capsules::crc::Crc::new(&mut sam4l::crccu::CRCCU, board_kernel.create_grant(&grant_cap)));
 //! sam4l::crccu::CRCCU.set_client(crc);
 //!
 //! ```
@@ -103,9 +105,8 @@ impl<'a, C: hil::crc::CRC> Crc<'a, C> {
     ///
     /// ## Example
     ///
-    /// ```
-    /// capsules::crc::Crc::new(&sam4l::crccu::CRCCU, kernel::Grant::create()),
-    ///
+    /// ```rust
+    /// capsules::crc::Crc::new(&sam4l::crccu::CRCCU, board_kernel.create_grant(&grant_cap));
     /// ```
     ///
     pub fn new(crc_unit: &'a C, apps: Grant<App>) -> Crc<'a, C> {
@@ -194,7 +195,9 @@ impl<C: hil::crc::CRC> Driver for Crc<'_, C> {
     /// result of a CRC computation.  The signature of the callback is
     ///
     /// ```
-    /// fn callback(status, result);
+    /// # use kernel::ReturnCode;
+    ///
+    /// fn callback(status: ReturnCode, result: usize) {}
     /// ```
     ///
     /// where

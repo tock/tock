@@ -10,18 +10,20 @@
 //! example:
 //!
 //! ```rust
+//! # use kernel::static_init;
+//!
 //! // Configure the USB controller
 //! let usb_client = static_init!(
-//!     capsules::usbc_client::Client<'static, sam4l::usbc::Usbc<'static>>,
-//!     capsules::usbc_client::Client::new(&sam4l::usbc::USBC));
+//!     capsules::usb::usbc_client::Client<'static, sam4l::usbc::Usbc<'static>>,
+//!     capsules::usb::usbc_client::Client::new(&sam4l::usbc::USBC));
 //! sam4l::usbc::USBC.set_client(usb_client);
 //!
 //! // Configure the USB userspace driver
 //! let usb_driver = static_init!(
-//!     capsules::usb_user::UsbSyscallDriver<'static,
-//!         capsules::usbc_client::Client<'static, sam4l::usbc::Usbc<'static>>>,
-//!     capsules::usb_user::UsbSyscallDriver::new(
-//!         usb_client, kernel::Grant::create()));
+//!     capsules::usb::usb_user::UsbSyscallDriver<'static,
+//!         capsules::usb::usbc_client::Client<'static, sam4l::usbc::Usbc<'static>>>,
+//!     capsules::usb::usb_user::UsbSyscallDriver::new(
+//!         usb_client, board_kernel.create_grant(&grant_cap)));
 //! ```
 
 use kernel::common::cells::OptionalCell;

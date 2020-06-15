@@ -283,6 +283,7 @@ ci-runner-github-tests:\
 	ci-job-libraries\
 	ci-job-archs\
 	ci-job-kernel\
+	ci-job-capsules\
 	ci-job-chips\
 	ci-job-tools
 	$(call banner,CI-Runner: GitHub tests runner DONE)
@@ -414,6 +415,12 @@ ci-job-archs:
 ci-job-kernel:
 	$(call banner,CI-Job: Kernel)
 	@cd kernel && CI=true RUSTFLAGS="-D warnings" TOCK_KERNEL_VERSION=ci_test cargo test
+
+.PHONY: ci-job-capsules
+ci-job-capsules:
+	$(call banner,CI-Job: Capsules)
+	@# Capsule initialization depends on board/chip specific imports, so ignore doc tests
+	@cd capsules && CI=true RUSTFLAGS="-D warnings" TOCK_KERNEL_VERSION=ci_test cargo test --lib
 
 .PHONY: ci-job-chips
 ci-job-chips:

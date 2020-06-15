@@ -4,7 +4,9 @@
 //! Usage
 //! -----
 //!
-//! ```
+//! ```rust
+//! # use kernel::static_init;
+//!
 //! let adc_channels = static_init!(
 //!     [&'static sam4l::adc::AdcChannel; 6],
 //!     [
