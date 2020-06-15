@@ -19,6 +19,7 @@ in the Tock operating system kernel. It describes the Rust traits and other
 definitions for this service as well as the reasoning behind them. This
 document is in full compliance with [TRD1].
 
+
 1 Introduction
 ===============================
 
@@ -34,7 +35,7 @@ main traits:
 
   * `kernel::hil::time::Time`: provides an abstraction of a moment in time. It has two associated types. One describes the width and maximum value of a time value. The other specifies the frequency of the ticks of the time value.
   * `kernel::hil::time::Counter`: derives from `Time` and provides an abstraction of a free-running counter that can be started or stopped. A `Counter`'s moment in time is the current value of the counter.
-  * `kernel::hil::time::Alarm`: derives from `Time`, and provides an abstraction of being able to receive a callback at a future moment in time. 
+  * `kernel::hil::time::Alarm`: derives from `Time`, and provides an abstraction of being able to receive a callback at a future moment in time.
   * `kernel::hil::time::Timer`: derives from `Time`, and provides an abstraction of being able to receive a callback at some amount of time in the future, or a series of callbacks at a given period.
   * `kernel::hil::time::OverflowClient`: handles an overflow callback from a `Counter`.
   * `kernel::hil::time::AlarmClient`: handles the callback from an `Alarm`.
@@ -47,6 +48,7 @@ call capsules for alarm callbacks to work across boards and chips.
 
 This document describes these traits, their semantics, and the
 instances that a Tock chip is expected to implement.
+
 
 2 `Time`, `Frequency`, and `Ticks` traits
 ===============================
@@ -76,12 +78,15 @@ pub trait Ticks: Clone + Copy + From<u32> {
     fn wrapping_add(self, other: Self) -> Self;
     fn wrapping_sub(self, other: Self) -> Self;
 
-    // Returns whether `when` is in the range of [`start`, `end`), using
+    // Returns whether `self` is in the range of [`start`, `end`), using
     // unsigned arithmetic and considering wraparound. It returns true
-    // if, incrementing from start, when will be reached before end.
-    // Put another way, it returns (when - start) < (end - start) in
+    // if, incrementing from `start`, `self` will be reached before `end`.
+    // Put another way, it returns `self - start < end - start` in
     // unsigned arithmetic.
-    fn within_range(start: Self, when: Self, end: Self) -> bool;
+    fn within_range(self, start: Self, end: Self) -> bool {
+        self.wrapping_sub(start) < end.wrapping_sub(start)
+    }
+
     fn max_value() -> Self;
 }
 
@@ -98,7 +103,7 @@ pub trait Time {
     // Returns the number of ticks in the provided number of seconds,
     // rounding down any fractions.
     fn ticks_from_seconds(s: u32) -> Self::Ticks;
-    
+
     // Returns the number of ticks in the provided number of milliseconds,
     // rounding down any fractions.
     fn ticks_from_ms(ms: u32) -> Self::Ticks;
@@ -174,7 +179,6 @@ counter by 32. A `Counter` implementation MAY provide a `Frequency` of
 a lower resolution (e.g., by stripping bits).
 
 
-
 4 `Alarm` and `AlarmClient` traits
 ===============================
 
@@ -204,7 +208,7 @@ pub trait Alarm: Time {
   fn set_alarm(&self, now: Self::Ticks, dt: Self::Ticks);
   fn get_alarm(&self) -> Self::Ticks;
   fn disable(&self) -> ReturnCode;
-  fn set_client(&'a self, client: &'a dyn AlarmClient);    
+  fn set_client(&'a self, client: &'a dyn AlarmClient);
 }
 ```
 
@@ -226,6 +230,7 @@ Having a `now` and `dt` parameters disambiguates these two
 cases. Suppose the current counter value is `current`. If, using
 unsigned arithmetic, `(current - now) >= dt` then the callback should
 be issued immediately (e.g., with a deferred procedure call).
+
 
 5 `Timer` and `TimerClient` traits
 ===============================
@@ -321,7 +326,7 @@ The Tock kernel provides four standard capsules:
 8 Required Modules
 ===============================
 
-A chip MUST provide an instance of `Alarm` with a `Frequency` of `Freq32KHz` 
+A chip MUST provide an instance of `Alarm` with a `Frequency` of `Freq32KHz`
 and a `Ticks` of `Ticks32Bits`.
 
 A chip MUST provide an instance of `Time` with a `Frequency` of `Freq32KHz` and
@@ -353,3 +358,4 @@ USA
 pal@cs.stanford.edu
 
 Guillaume Endignoux
+guillaumee@google.com
