@@ -265,10 +265,8 @@ impl App {
                     data[..adv_data_len].copy_from_slice(adv_data_corrected);
                 }
                 let total_len = cmp::min(PACKET_LENGTH, payload_len + 2);
-                let result = ble
-                    .radio
+                ble.radio
                     .transmit_advertisement(kernel_tx, total_len, channel);
-                ble.kernel_tx.replace(result);
                 ReturnCode::SUCCESS
             })
         })
@@ -507,7 +505,8 @@ where
 {
     // The ReturnCode indicates valid CRC or not, not used yet but could be used for
     // re-transmissions for invalid CRCs
-    fn transmit_event(&self, _crc_ok: ReturnCode) {
+    fn transmit_event(&self, buf: &'static mut [u8], _crc_ok: ReturnCode) {
+        self.kernel_tx.replace(buf);
         self.sending_app.map(|appid| {
             let _ = self.app.enter(*appid, |app, _| {
                 match app.process_status {
