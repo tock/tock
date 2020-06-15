@@ -92,15 +92,6 @@ impl Uart<'a> {
         self.registers.ie.modify(usci::UCAxIE::UCTXIE::CLEAR);
     }
 
-    fn enable_rx_interrupt(&self) {
-        self.registers.ie.modify(usci::UCAxIE::UCRXIE::SET);
-    }
-
-    fn disable_rx_interrupt(&self) {
-        self.registers.ifg.modify(usci::UCAxIFG::UCRXIFG::CLEAR);
-        self.registers.ie.modify(usci::UCAxIE::UCRXIE::CLEAR);
-    }
-
     fn write_byte(&self, data: u8) {
         self.registers.txbuf.set(data as u16);
     }
@@ -255,7 +246,7 @@ impl<'a> hil::uart::Transmit<'a> for Uart<'a> {
         }
     }
 
-    fn transmit_word(&self, word: u32) -> ReturnCode {
+    fn transmit_word(&self, _word: u32) -> ReturnCode {
         ReturnCode::FAIL
     }
 
@@ -272,7 +263,7 @@ impl<'a> hil::uart::Receive<'a> for Uart<'a> {
     fn receive_buffer(
         &self,
         rx_buffer: &'static mut [u8],
-        rx_len: usize,
+        _rx_len: usize,
     ) -> (ReturnCode, Option<&'static mut [u8]>) {
         (ReturnCode::FAIL, Some(rx_buffer))
     }

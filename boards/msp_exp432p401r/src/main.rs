@@ -7,11 +7,9 @@ use kernel::capabilities;
 use kernel::common::dynamic_deferred_call::DynamicDeferredCall;
 use kernel::common::dynamic_deferred_call::DynamicDeferredCallClientState;
 use kernel::component::Component;
-use kernel::hil::gpio::Configure;
-// use kernel::hil::uart::{Configure, Parameters};
 use kernel::hil::watchdog::Watchdog;
 use kernel::Platform;
-use kernel::{create_capability, static_init};
+use kernel::{create_capability, debug, static_init};
 
 pub mod io;
 
@@ -58,6 +56,7 @@ impl Platform for MspExp432P401R {
     {
         match driver_num {
             capsules::led::DRIVER_NUM => f(Some(self.led)),
+            capsules::console::DRIVER_NUM => f(Some(self.console)),
             _ => f(None),
         }
     }
@@ -132,7 +131,7 @@ pub unsafe fn reset_handler() {
         console: console,
     };
 
-    panic!("hallo erstmal");
+    debug!("Initialization complete. Entering main loop");
 
     extern "C" {
         /// Beginning of the ROM region containing app images.

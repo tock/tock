@@ -5,19 +5,25 @@ use kernel::common::StaticRef;
 
 pub(crate) const USCI_A0_BASE: StaticRef<UsciARegisters> =
     unsafe { StaticRef::new(0x4000_1000 as *const UsciARegisters) };
+#[allow(dead_code)]
 pub(crate) const USCI_A1_BASE: StaticRef<UsciARegisters> =
     unsafe { StaticRef::new(0x4000_1400 as *const UsciARegisters) };
+#[allow(dead_code)]
 pub(crate) const USCI_A2_BASE: StaticRef<UsciARegisters> =
     unsafe { StaticRef::new(0x4000_1800 as *const UsciARegisters) };
+#[allow(dead_code)]
 pub(crate) const USCI_A3_BASE: StaticRef<UsciARegisters> =
     unsafe { StaticRef::new(0x4000_1C00 as *const UsciARegisters) };
-
+#[allow(dead_code)]
 pub(crate) const USCI_B0_BASE: StaticRef<UsciBRegisters> =
     unsafe { StaticRef::new(0x4000_2000 as *const UsciBRegisters) };
+#[allow(dead_code)]
 pub(crate) const USCI_B1_BASE: StaticRef<UsciBRegisters> =
     unsafe { StaticRef::new(0x4000_2400 as *const UsciBRegisters) };
+#[allow(dead_code)]
 pub(crate) const USCI_B2_BASE: StaticRef<UsciBRegisters> =
     unsafe { StaticRef::new(0x4000_2800 as *const UsciBRegisters) };
+#[allow(dead_code)]
 pub(crate) const USCI_B3_BASE: StaticRef<UsciBRegisters> =
     unsafe { StaticRef::new(0x4000_2C00 as *const UsciBRegisters) };
 
