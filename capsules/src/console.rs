@@ -6,13 +6,16 @@
 //! You need a device that provides the `hil::uart::UART` trait.
 //!
 //! ```rust
+//! # use kernel::static_init;
+//! # use capsules::console::Console;
+//!
 //! let console = static_init!(
 //!     Console<usart::USART>,
 //!     Console::new(&usart::USART0,
 //!                  115200,
 //!                  &mut console::WRITE_BUF,
 //!                  &mut console::READ_BUF,
-//!                  kernel::Grant::create()));
+//!                  board_kernel.create_grant(&grant_cap)));
 //! hil::uart::UART::set_client(&usart::USART0, console);
 //! ```
 //!
@@ -68,7 +71,7 @@ pub struct Console<'a> {
     rx_buffer: TakeCell<'static, [u8]>,
 }
 
-impl Console<'a> {
+impl<'a> Console<'a> {
     pub fn new(
         uart: &'a dyn uart::UartData<'a>,
         tx_buffer: &'static mut [u8],
@@ -181,7 +184,7 @@ impl Console<'a> {
     }
 }
 
-impl Driver for Console<'a> {
+impl Driver for Console<'_> {
     /// Setup shared buffers.
     ///
     /// ### `allow_num`
@@ -276,7 +279,7 @@ impl Driver for Console<'a> {
     }
 }
 
-impl uart::TransmitClient for Console<'a> {
+impl uart::TransmitClient for Console<'_> {
     fn transmitted_buffer(&self, buffer: &'static mut [u8], _tx_len: usize, _rcode: ReturnCode) {
         // Either print more from the AppSlice or send a callback to the
         // application.
@@ -341,7 +344,7 @@ impl uart::TransmitClient for Console<'a> {
     }
 }
 
-impl uart::ReceiveClient for Console<'a> {
+impl uart::ReceiveClient for Console<'_> {
     fn received_buffer(
         &self,
         buffer: &'static mut [u8],

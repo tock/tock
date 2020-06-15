@@ -100,7 +100,7 @@ impl<'a> I2CMaster<'a> {
         }
     }
 
-    pub fn set_client(&'a self, client: &'a dyn i2c::I2CHwMasterClient) {
+    pub fn set_client(&self, client: &'a dyn i2c::I2CHwMasterClient) {
         self.client.set(client)
     }
 
@@ -237,6 +237,9 @@ impl<'a> I2CMaster<'a> {
 }
 
 impl<'a> i2c::I2CMaster for I2CMaster<'a> {
+    fn set_master_client(&self, master_client: &'static dyn i2c::I2CHwMasterClient) {
+        self.set_client(master_client);
+    }
     fn enable(&self) {
         self.registers.mcr.write(Configuration::MFE::SET);
         self.registers.mimr.write(Interrupt::IM::SET);

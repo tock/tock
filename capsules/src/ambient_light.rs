@@ -3,10 +3,12 @@
 //! You need a device that provides the `hil::sensors::AmbientLight` trait.
 //!
 //! ```rust
+//! # use kernel::{hil, static_init};
+//!
 //! let light = static_init!(
-//!     capsules::sensors::AmbientLight<'static>,
-//!     capsules::sensors::AmbientLight::new(isl29035,
-//!         kernel::Grant::create()));
+//!     capsules::ambient_light::AmbientLight<'static>,
+//!     capsules::ambient_light::AmbientLight::new(isl29035,
+//!         board_kernel.create_grant(&grant_cap)));
 //! hil::sensors::AmbientLight::set_client(isl29035, ambient_light);
 //! ```
 
@@ -31,7 +33,7 @@ pub struct AmbientLight<'a> {
     apps: Grant<App>,
 }
 
-impl AmbientLight<'a> {
+impl<'a> AmbientLight<'a> {
     pub fn new(sensor: &'a dyn hil::sensors::AmbientLight, grant: Grant<App>) -> AmbientLight {
         AmbientLight {
             sensor: sensor,
@@ -58,7 +60,7 @@ impl AmbientLight<'a> {
     }
 }
 
-impl Driver for AmbientLight<'a> {
+impl Driver for AmbientLight<'_> {
     /// Subscribe to light intensity readings
     ///
     /// ### `subscribe`
@@ -94,7 +96,7 @@ impl Driver for AmbientLight<'a> {
     ///
     /// - `0`: Check driver presence
     /// - `1`: Start a light sensor reading
-    fn command(&self, command_num: usize, _arg1: usize, _: usize, appid: AppId) -> ReturnCode {
+    fn command(&self, command_num: usize, _: usize, _: usize, appid: AppId) -> ReturnCode {
         match command_num {
             0 /* check if present */ => ReturnCode::SUCCESS,
             1 => {
@@ -106,7 +108,7 @@ impl Driver for AmbientLight<'a> {
     }
 }
 
-impl hil::sensors::AmbientLightClient for AmbientLight<'a> {
+impl hil::sensors::AmbientLightClient for AmbientLight<'_> {
     fn callback(&self, lux: usize) {
         self.command_pending.set(false);
         self.apps.each(|app| {

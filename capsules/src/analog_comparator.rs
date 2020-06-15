@@ -3,7 +3,9 @@
 //! Usage
 //! -----
 //!
-//! ```
+//! ```rust
+//! # use kernel::static_init;
+//!
 //! let ac_channels = static_init!(
 //!     [&'static sam4l::acifc::AcChannel; 2],
 //!     [
@@ -39,24 +41,24 @@ use core::cell::Cell;
 use kernel::hil;
 use kernel::{AppId, Callback, Driver, ReturnCode};
 
-pub struct AnalogComparator<'a, A: hil::analog_comparator::AnalogComparator + 'a> {
+pub struct AnalogComparator<'a, A: hil::analog_comparator::AnalogComparator<'a> + 'a> {
     // Analog Comparator driver
     analog_comparator: &'a A,
-    channels: &'a [&'a <A as hil::analog_comparator::AnalogComparator>::Channel],
+    channels: &'a [&'a <A as hil::analog_comparator::AnalogComparator<'a>>::Channel],
 
     // App state
     callback: Cell<Option<Callback>>,
 }
 
-impl<'a, A: hil::analog_comparator::AnalogComparator> AnalogComparator<'a, A> {
+impl<'a, A: hil::analog_comparator::AnalogComparator<'a>> AnalogComparator<'a, A> {
     pub fn new(
         analog_comparator: &'a A,
-        channels: &'a [&'a <A as hil::analog_comparator::AnalogComparator>::Channel],
+        channels: &'a [&'a <A as hil::analog_comparator::AnalogComparator<'a>>::Channel],
     ) -> AnalogComparator<'a, A> {
         AnalogComparator {
             // Analog Comparator driver
-            analog_comparator: analog_comparator,
-            channels: channels,
+            analog_comparator,
+            channels,
 
             // App state
             callback: Cell::new(None),
@@ -102,7 +104,7 @@ impl<'a, A: hil::analog_comparator::AnalogComparator> AnalogComparator<'a, A> {
     }
 }
 
-impl<'a, A: hil::analog_comparator::AnalogComparator> Driver for AnalogComparator<'a, A> {
+impl<'a, A: hil::analog_comparator::AnalogComparator<'a>> Driver for AnalogComparator<'a, A> {
     /// Control the analog comparator.
     ///
     /// ### `command_num`
@@ -152,7 +154,7 @@ impl<'a, A: hil::analog_comparator::AnalogComparator> Driver for AnalogComparato
     }
 }
 
-impl<'a, A: hil::analog_comparator::AnalogComparator> hil::analog_comparator::Client
+impl<'a, A: hil::analog_comparator::AnalogComparator<'a>> hil::analog_comparator::Client
     for AnalogComparator<'a, A>
 {
     /// Callback to userland, signaling the application

@@ -8,6 +8,11 @@ use kernel::{AppId, Callback, Driver, Grant, ReturnCode};
 use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::Alarm as usize;
 
+/// This is based on an exprimental observation (using 16KHz timers) to make sure
+/// that the new tics value is not below the current counter
+/// so the alarm gets fired
+const MIN_TICS_AT_16KHZ: usize = 5;
+
 #[derive(Copy, Clone, Debug)]
 enum Expiration {
     Disabled,
@@ -36,7 +41,7 @@ pub struct AlarmDriver<'a, A: Alarm<'a>> {
     prev: Cell<u32>,
 }
 
-impl<A: Alarm<'a>> AlarmDriver<'a, A> {
+impl<'a, A: Alarm<'a>> AlarmDriver<'a, A> {
     pub const fn new(alarm: &'a A, grant: Grant<AlarmData>) -> AlarmDriver<'a, A> {
         AlarmDriver {
             alarm: alarm,
@@ -71,7 +76,7 @@ impl<A: Alarm<'a>> AlarmDriver<'a, A> {
     }
 }
 
-impl<A: Alarm<'a>> Driver for AlarmDriver<'a, A> {
+impl<'a, A: Alarm<'a>> Driver for AlarmDriver<'a, A> {
     /// Subscribe to alarm expiration
     ///
     /// ### `_subscribe_num`
@@ -100,6 +105,7 @@ impl<A: Alarm<'a>> Driver for AlarmDriver<'a, A> {
     /// - `2`: Read the the current clock value
     /// - `3`: Stop the alarm if it is outstanding
     /// - `4`: Set an alarm to fire at a given clock value `time`.
+    /// - `5`: Set an alarm to fire at a given clock value `time` relative to `now` (EXPERIMENTAL).
     fn command(&self, cmd_type: usize, data: usize, _: usize, caller_id: AppId) -> ReturnCode {
         // Returns the error code to return to the user and whether we need to
         // reset which is the next active alarm. We only _don't_ reset if we're
@@ -108,6 +114,14 @@ impl<A: Alarm<'a>> Driver for AlarmDriver<'a, A> {
         // (i.e. no change to the alarms).
         self.app_alarm
             .enter(caller_id, |td, _alloc| {
+                // helper function to rearm alarm
+                let mut rearm = |time: usize| {
+                    if let Expiration::Disabled = td.expiration {
+                        self.num_armed.set(self.num_armed.get() + 1);
+                    }
+                    td.expiration = Expiration::Abs(time as u32);
+                    (ReturnCode::SuccessWithValue { value: time }, true)
+                };
                 let now = self.alarm.now();
                 let (return_code, reset) = match cmd_type {
                     0 /* check if present */ => (ReturnCode::SuccessWithValue { value: 1 }, false),
@@ -139,13 +153,17 @@ impl<A: Alarm<'a>> Driver for AlarmDriver<'a, A> {
                         }
                     },
                     4 /* Set absolute expiration */ => {
-                        let time = data;
                         // if previously unarmed, but now will become armed
-                        if let Expiration::Disabled = td.expiration {
-                            self.num_armed.set(self.num_armed.get() + 1);
+                        rearm(data)
+                    },
+                    5 /* Set relative expiration */ => {
+                        let mut time = now.wrapping_add (data as u32) as usize;
+                        let min_tics = (MIN_TICS_AT_16KHZ * (<A::Frequency>::frequency() as usize)) / 16000;
+                        if time.wrapping_sub (now as usize) <= min_tics {
+                            time = time.wrapping_add (min_tics);
                         }
-                        td.expiration = Expiration::Abs(time as u32);
-                        (ReturnCode::SuccessWithValue { value: time }, true)
+                        // if previously unarmed, but now will become armed
+                        rearm(time)
                     },
                     _ => (ReturnCode::ENOSUPPORT, false)
                 };
@@ -162,7 +180,7 @@ fn has_expired(alarm: u32, now: u32, prev: u32) -> bool {
     now.wrapping_sub(prev) >= alarm.wrapping_sub(prev)
 }
 
-impl<A: Alarm<'a>> time::AlarmClient for AlarmDriver<'a, A> {
+impl<'a, A: Alarm<'a>> time::AlarmClient for AlarmDriver<'a, A> {
     fn fired(&self) {
         let now = self.alarm.now();
         self.app_alarm.each(|alarm| {

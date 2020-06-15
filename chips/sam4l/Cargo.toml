@@ -6,5 +6,5 @@ edition = "2018"
 
 [dependencies]
 cortexm4 = { path = "../../arch/cortex-m4" }
-tock_rt0 = { path = "../../libraries/tock-rt0" }
+tock-rt0 = { path = "../../libraries/tock-rt0" }
 kernel = { path = "../../kernel" }

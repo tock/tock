@@ -19,4 +19,4 @@ This pull request still needs...
 
 ### Formatting
 
-- [ ] Ran `make formatall`.
+- [ ] Ran `make prepush`.

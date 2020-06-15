@@ -1,3 +1,4 @@
 local_cargo/
 *.svd
-
+.format_fresh
+ci-artifacts

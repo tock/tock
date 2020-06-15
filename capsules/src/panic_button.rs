@@ -24,14 +24,14 @@
 
 use kernel::hil::gpio;
 
-pub struct PanicButton<'a> {
-    pin: &'a dyn gpio::InterruptPin,
+pub struct PanicButton<'a, IP: gpio::InterruptPin> {
+    pin: &'a IP,
     mode: gpio::ActivationMode,
 }
 
-impl<'a> PanicButton<'a> {
+impl<'a, IP: gpio::InterruptPin> PanicButton<'a, IP> {
     pub fn new(
-        pin: &'a dyn gpio::InterruptPin,
+        pin: &'a IP,
         mode: gpio::ActivationMode,
         floating_state: gpio::FloatingState,
     ) -> Self {
@@ -39,11 +39,11 @@ impl<'a> PanicButton<'a> {
         pin.set_floating_state(floating_state);
         pin.enable_interrupts(gpio::InterruptEdge::EitherEdge);
 
-        PanicButton { pin, mode }
+        Self { pin, mode }
     }
 }
 
-impl gpio::Client for PanicButton<'_> {
+impl<IP: gpio::InterruptPin> gpio::Client for PanicButton<'_, IP> {
     fn fired(&self) {
         if self.pin.read_activation(self.mode) == gpio::ActivationState::Active {
             panic!("Panic button pressed");

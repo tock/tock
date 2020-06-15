@@ -4,6 +4,8 @@
 //! -----
 //!
 //! ```rust
+//! # use kernel::static_init;
+//!
 //! let dac = static_init!(
 //!     capsules::dac::Dac<'static>,
 //!     capsules::dac::Dac::new(&mut sam4l::dac::DAC));
@@ -20,13 +22,13 @@ pub struct Dac<'a> {
     dac: &'a dyn hil::dac::DacChannel,
 }
 
-impl Dac<'a> {
+impl<'a> Dac<'a> {
     pub fn new(dac: &'a dyn hil::dac::DacChannel) -> Dac<'a> {
         Dac { dac: dac }
     }
 }
 
-impl Driver for Dac<'a> {
+impl Driver for Dac<'_> {
     /// Control the DAC.
     ///
     /// ### `command_num`

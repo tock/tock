@@ -1,6 +1,6 @@
 # ![TockOS](http://www.tockos.org/assets/img/tock.svg "TockOS Logo")
 
-[![Build Status](https://travis-ci.org/tock/tock.svg?branch=master)](https://travis-ci.org/tock/tock)
+[![tock-ci](https://github.com/tock/tock/workflows/tock-ci/badge.svg)][tock-ci]
 [![slack](https://img.shields.io/badge/slack-tockos-informational)][slack]
 
 Tock is an embedded operating system designed for running multiple concurrent, mutually
@@ -15,6 +15,7 @@ scheduler and hardware abstraction layer) from platform specific device drivers
 as well as isolate device drivers from each other. Second, Tock uses memory
 protection units to isolate applications from each other and the kernel.
 
+[tock-ci]: https://github.com/tock/tock/actions?query=branch%3Amaster+workflow%3Atock-ci
 
 Learn More
 ----------
@@ -99,26 +100,3 @@ at your option.
 Unless you explicitly state otherwise, any contribution intentionally submitted
 for inclusion in the work by you, as defined in the Apache-2.0 license, shall
 be dual licensed as above, without any additional terms or conditions.
-
-## Contributors
-
-The Tock Project Developers include dozens of contributors, some on behalf of
-their university, company, or organization. The most up to date list of contributors is available in the git
-history: `git shortlog -s -n`.
-
-Organizations that have contributed code to Tock include:
-
-  * Stanford University
-  * Princeton University
-  * University of California, Berkeley
-  * University of Virginia
-  * University of Michigan
-  * Chalmers University
-  * Google
-  * Helium
-  * Atihita
-  * MIT
-  * MIT Lincoln Laboratory
-
-_Note: the above list may be incomplete. If your organization has supported you in
-contributing to Tock, and wish to be acknowledged, please update this list accordingly._

@@ -190,9 +190,22 @@ pub enum Frequency {
     M8 = 0x80000000,
 }
 
-impl From<Frequency> for u32 {
-    fn from(freq: Frequency) -> u32 {
-        match freq {
+impl Frequency {
+    pub fn from_register(reg: u32) -> Option<Frequency> {
+        match reg {
+            0x02000000 => Some(Frequency::K125),
+            0x04000000 => Some(Frequency::K250),
+            0x08000000 => Some(Frequency::K500),
+            0x10000000 => Some(Frequency::M1),
+            0x20000000 => Some(Frequency::M2),
+            0x40000000 => Some(Frequency::M4),
+            0x80000000 => Some(Frequency::M8),
+            _ => None,
+        }
+    }
+
+    pub fn into_spi_rate(&self) -> u32 {
+        match *self {
             Frequency::K125 => 125_000,
             Frequency::K250 => 250_000,
             Frequency::K500 => 500_000,
@@ -202,10 +215,8 @@ impl From<Frequency> for u32 {
             Frequency::M8 => 8_000_000,
         }
     }
-}
 
-impl From<u32> for Frequency {
-    fn from(freq: u32) -> Frequency {
+    pub fn from_spi_rate(freq: u32) -> Frequency {
         if freq < 250_000 {
             Frequency::K125
         } else if freq < 500_000 {
@@ -413,14 +424,19 @@ impl hil::spi::SpiMaster for SPIM {
     // Returns the actual rate set
     fn set_rate(&self, rate: u32) -> u32 {
         debug_assert!(self.initialized.get());
-        let f = Frequency::from(rate);
+        let f = Frequency::from_spi_rate(rate);
         self.registers.frequency.set(f as u32);
-        f.into()
+        f.into_spi_rate()
     }
 
     fn get_rate(&self) -> u32 {
         debug_assert!(self.initialized.get());
-        self.registers.frequency.get().into()
+
+        // Reset value is a valid frequency (250kbps), so .expect
+        // should be safe here
+        let f = Frequency::from_register(self.registers.frequency.get())
+            .expect("nrf52 unknown spi rate");
+        f.into_spi_rate()
     }
 
     fn set_clock(&self, polarity: hil::spi::ClockPolarity) {

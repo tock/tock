@@ -12,7 +12,6 @@ use core::cmp::min;
 use kernel::common::cells::OptionalCell;
 use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
-use kernel::debug;
 use kernel::hil::uart;
 use kernel::ReturnCode;
 use nrf5x::pinmux;
@@ -230,6 +229,13 @@ impl<'a> Uarte<'a> {
             },
         );
 
+        // Make sure we clear the endtx interrupt since that is what we rely on
+        // to know when the DMA TX finishes. Normally, we clear this interrupt
+        // as we handle it, so this is not necessary. However, a bootloader (or
+        // some other startup code) may have setup TX interrupts, and there may
+        // be one pending. We clear it to be safe.
+        regs.event_endtx.write(Event::READY::CLEAR);
+
         self.enable_uart();
     }
 
@@ -300,15 +306,7 @@ impl<'a> Uarte<'a> {
             let tx_bytes = regs.txd_amount.get() as usize;
 
             let rem = match self.tx_remaining_bytes.get().checked_sub(tx_bytes) {
-                None => {
-                    debug!(
-                        "Error more bytes transmitted than requested\n \
-                         remaining: {} \t transmitted: {}",
-                        self.tx_remaining_bytes.get(),
-                        tx_bytes
-                    );
-                    return;
-                }
+                None => return,
                 Some(r) => r,
             };
 

@@ -1,12 +1,20 @@
 //! Macros for cleanly defining peripheral registers.
 
+/// Helper macro for computing bitmask of variable number of bits
+#[macro_export]
+macro_rules! bitmask {
+    ($numbits:expr) => {
+        (1 << ($numbits - 1)) + ((1 << ($numbits - 1)) - 1)
+    };
+}
+
 /// Helper macro for defining register fields.
 #[macro_export]
 macro_rules! register_bitmasks {
     {
         // BITFIELD_NAME OFFSET(x)
         $(#[$outer:meta])*
-        $valtype:ty, $reg_desc:ident, [
+        $valtype:ident, $reg_desc:ident, [
             $( $(#[$inner:meta])* $field:ident OFFSET($offset:expr)),+
         ]
     } => {
@@ -17,7 +25,7 @@ macro_rules! register_bitmasks {
         // BITFIELD_NAME OFFSET
         // All fields are 1 bit
         $(#[$outer:meta])*
-        $valtype:ty, $reg_desc:ident, [
+        $valtype:ident, $reg_desc:ident, [
             $( $(#[$inner:meta])* $field:ident $offset:expr ),+
         ]
     } => {
@@ -28,7 +36,7 @@ macro_rules! register_bitmasks {
     {
         // BITFIELD_NAME OFFSET(x) NUMBITS(y)
         $(#[$outer:meta])*
-        $valtype:ty, $reg_desc:ident, [
+        $valtype:ident, $reg_desc:ident, [
             $( $(#[$inner:meta])* $field:ident OFFSET($offset:expr) NUMBITS($numbits:expr) ),+
         ]
     } => {
@@ -39,7 +47,7 @@ macro_rules! register_bitmasks {
     {
         // BITFIELD_NAME OFFSET(x) NUMBITS(y) []
         $(#[$outer:meta])*
-        $valtype:ty, $reg_desc:ident, [
+        $valtype:ident, $reg_desc:ident, [
             $( $(#[$inner:meta])* $field:ident OFFSET($offset:expr) NUMBITS($numbits:expr)
                $values:tt ),+
         ]
@@ -49,14 +57,16 @@ macro_rules! register_bitmasks {
                               $values); )*
     };
     {
-        $valtype:ty, $reg_desc:ident, $(#[$outer:meta])* $field:ident,
+        $valtype:ident, $reg_desc:ident, $(#[$outer:meta])* $field:ident,
                     $offset:expr, $numbits:expr,
-                    [$( $(#[$inner:meta])* $valname:ident = $value:expr ),*]
-    } => {
+                    [$( $(#[$inner:meta])* $valname:ident = $value:expr ),+]
+    } => { // this match arm is duplicated below with an allowance for 0 elements in the valname -> value array,
+        // to seperately support the case of zero-variant enums not supporting non-default
+        // representations.
         #[allow(non_upper_case_globals)]
         #[allow(unused)]
         pub const $field: Field<$valtype, $reg_desc> =
-            Field::<$valtype, $reg_desc>::new((1<<($numbits-1))+((1<<($numbits-1))-1), $offset);
+            Field::<$valtype, $reg_desc>::new($crate::bitmask!($numbits), $offset);
 
         #[allow(non_snake_case)]
         #[allow(unused)]
@@ -71,24 +81,25 @@ macro_rules! register_bitmasks {
             #[allow(unused)]
             $(#[$inner])*
             pub const $valname: FieldValue<$valtype, $reg_desc> =
-                FieldValue::<$valtype, $reg_desc>::new((1<<($numbits-1))+((1<<($numbits-1))-1),
+                FieldValue::<$valtype, $reg_desc>::new($crate::bitmask!($numbits),
                     $offset, $value);
             )*
 
             #[allow(non_upper_case_globals)]
             #[allow(unused)]
             pub const SET: FieldValue<$valtype, $reg_desc> =
-                FieldValue::<$valtype, $reg_desc>::new((1<<($numbits-1))+((1<<($numbits-1))-1),
-                    $offset, (1<<($numbits-1))+((1<<($numbits-1))-1));
+                FieldValue::<$valtype, $reg_desc>::new($crate::bitmask!($numbits),
+                    $offset, $crate::bitmask!($numbits));
 
             #[allow(non_upper_case_globals)]
             #[allow(unused)]
             pub const CLEAR: FieldValue<$valtype, $reg_desc> =
-                FieldValue::<$valtype, $reg_desc>::new((1<<($numbits-1))+((1<<($numbits-1))-1),
+                FieldValue::<$valtype, $reg_desc>::new($crate::bitmask!($numbits),
                     $offset, 0);
 
             #[allow(dead_code)]
             #[allow(non_camel_case_types)]
+            #[repr($valtype)] // so that values larger than isize::MAX can be stored
             $(#[$outer])*
             pub enum Value {
                 $(
@@ -113,13 +124,57 @@ macro_rules! register_bitmasks {
             }
         }
     };
+    {
+        $valtype:ident, $reg_desc:ident, $(#[$outer:meta])* $field:ident,
+                    $offset:expr, $numbits:expr,
+                    []
+    } => { //same pattern as previous match arm, for 0 elements in array. Removes code associated with array.
+        #[allow(non_upper_case_globals)]
+        #[allow(unused)]
+        pub const $field: Field<$valtype, $reg_desc> =
+            Field::<$valtype, $reg_desc>::new($crate::bitmask!($numbits), $offset);
+
+        #[allow(non_snake_case)]
+        #[allow(unused)]
+        $(#[$outer])*
+        pub mod $field {
+            #[allow(unused_imports)]
+            use $crate::registers::{FieldValue, TryFromValue};
+            use super::$reg_desc;
+
+            #[allow(non_upper_case_globals)]
+            #[allow(unused)]
+            pub const SET: FieldValue<$valtype, $reg_desc> =
+                FieldValue::<$valtype, $reg_desc>::new($crate::bitmask!($numbits),
+                    $offset, $crate::bitmask!($numbits));
+
+            #[allow(non_upper_case_globals)]
+            #[allow(unused)]
+            pub const CLEAR: FieldValue<$valtype, $reg_desc> =
+                FieldValue::<$valtype, $reg_desc>::new($crate::bitmask!($numbits),
+                    $offset, 0);
+
+            #[allow(dead_code)]
+            #[allow(non_camel_case_types)]
+            $(#[$outer])*
+            pub enum Value {}
+
+            impl TryFromValue<$valtype> for Value {
+                type EnumType = Value;
+
+                fn try_from(_v: $valtype) -> Option<Self::EnumType> {
+                    Option::None
+                }
+            }
+        }
+    };
 }
 
 /// Define register types and fields.
 #[macro_export]
 macro_rules! register_bitfields {
     {
-        $valtype:ty, $( $(#[$inner:meta])* $vis:vis $reg:ident $fields:tt ),*
+        $valtype:ident, $( $(#[$inner:meta])* $vis:vis $reg:ident $fields:tt ),*
     } => {
         $(
             #[allow(non_snake_case)]
