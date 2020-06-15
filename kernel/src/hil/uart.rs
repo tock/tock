@@ -263,7 +263,7 @@ pub trait ReceiveClient {
     /// SHOULD NOT return EBUSY: when this callback is made the UART should
     /// be ready to receive another call.
     ///
-    /// The `rx_len` argument specifies how many words were transmitted.
+    /// The `rx_len` argument specifies how many words were received.
     /// An `rval` of SUCCESS indicates that every requested word was
     /// received: `rx_len` in the callback should be the same as
     /// `rx_len` in the initiating call.
@@ -273,7 +273,7 @@ pub trait ReceiveClient {
     ///     the buffer was not fully received. `rx_len` contains
     ///     how many words were received.
     ///   - ESIZE if the buffer could only be partially received. `rx_len`
-    ///     contains how many words were transmitted.
+    ///     contains how many words were received.
     ///   - FAIL if reception failed in some way: `error` may contain further
     ///     information.
     fn received_buffer(
