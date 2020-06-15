@@ -10,6 +10,7 @@ pub mod chip;
 pub mod cs;
 pub mod flctl;
 pub mod gpio;
+pub mod nvic;
 pub mod pcm;
 pub mod sysctl;
 pub mod uart;

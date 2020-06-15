@@ -2,6 +2,9 @@ use core::fmt::Write;
 use cortexm4;
 use kernel::Chip;
 
+use crate::nvic;
+use crate::uart;
+
 pub struct Msp432 {
     mpu: cortexm4::mpu::MPU,
     userspace_kernel_boundary: cortexm4::syscall::SysCall,
@@ -27,14 +30,12 @@ impl Chip for Msp432 {
         unsafe {
             loop {
                 if let Some(interrupt) = cortexm4::nvic::next_pending() {
-                    /*
                     match interrupt {
-                        // currently no interrupts supported!
+                        nvic::USCI_A0 => uart::UART0.handle_interrupt(),
                         _ => {
                             panic!("unhandled interrupt {}", interrupt);
                         }
                     }
-                    */
 
                     let n = cortexm4::nvic::Nvic::new(interrupt);
                     n.clear_pending();

@@ -81,6 +81,67 @@ impl Uart<'a> {
         }
     }
 
+    fn enable_tx_interrupt(&self) {
+        self.registers.ie.modify(usci::UCAxIE::UCTXIE::SET);
+    }
+
+    fn disable_tx_interrupt(&self) {
+        self.registers
+            .ifg
+            .modify(usci::UCAxIFG::UCTXIFG::CLEAR + usci::UCAxIFG::UCTXCPTIFG::CLEAR);
+        self.registers.ie.modify(usci::UCAxIE::UCTXIE::CLEAR);
+    }
+
+    fn enable_rx_interrupt(&self) {
+        self.registers.ie.modify(usci::UCAxIE::UCRXIE::SET);
+    }
+
+    fn disable_rx_interrupt(&self) {
+        self.registers.ifg.modify(usci::UCAxIFG::UCRXIFG::CLEAR);
+        self.registers.ie.modify(usci::UCAxIE::UCRXIE::CLEAR);
+    }
+
+    fn write_byte(&self, data: u8) {
+        self.registers.txbuf.set(data as u16);
+    }
+
+    fn start_transmit(&self) {
+        if self.tx_index.get() >= self.tx_len.get() {
+            // nothing to transmit
+            return;
+        }
+        self.enable_tx_interrupt();
+        self.transmit();
+    }
+
+    fn transmit(&self) {
+        let idx = self.tx_index.get();
+
+        self.tx_buffer.map(|tx_buf| self.write_byte(tx_buf[idx]));
+        self.tx_index.set(idx + 1);
+    }
+
+    pub fn handle_interrupt(&self) {
+        let regs = self.registers;
+
+        if regs.ifg.is_set(usci::UCAxIFG::UCTXIFG) {
+            let idx = self.tx_index.get();
+            let len = self.tx_len.get();
+
+            if idx >= len {
+                // transmission of buffer finished
+                self.disable_tx_interrupt();
+                self.tx_client.map(|client| {
+                    self.tx_buffer.take().map(|buf| {
+                        client.transmitted_buffer(buf, len, ReturnCode::SUCCESS);
+                    });
+                });
+            } else {
+                self.transmit();
+            }
+        }
+    }
+
     pub fn transmit_sync(&self, data: &[u8]) {
         for b in data.iter() {
             while self.registers.statw.is_set(usci::UCAxSTATW::UCBUSY) {}
@@ -179,7 +240,19 @@ impl<'a> hil::uart::Transmit<'a> for Uart<'a> {
         tx_buffer: &'static mut [u8],
         tx_len: usize,
     ) -> (ReturnCode, Option<&'static mut [u8]>) {
-        (ReturnCode::FAIL, Some(tx_buffer))
+        if tx_len == 0 || tx_len > tx_buffer.len() {
+            (ReturnCode::ESIZE, Some(tx_buffer))
+        } else if self.tx_buffer.is_some() {
+            (ReturnCode::EBUSY, Some(tx_buffer))
+        } else {
+            // Save the buffer so we can keep sending it.
+            self.tx_buffer.replace(tx_buffer);
+            self.tx_len.set(tx_len);
+            self.tx_index.set(0);
+
+            self.start_transmit();
+            (ReturnCode::SUCCESS, None)
+        }
     }
 
     fn transmit_word(&self, word: u32) -> ReturnCode {
