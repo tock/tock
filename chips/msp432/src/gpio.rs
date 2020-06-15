@@ -4,7 +4,7 @@ use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
 use kernel::hil;
 
-pub static mut PINS: [Pin; 80] = [
+pub static mut PINS: [Pin; 88] = [
     Pin::new(PinNr::P01_0),
     Pin::new(PinNr::P01_1),
     Pin::new(PinNr::P01_2),
@@ -85,6 +85,14 @@ pub static mut PINS: [Pin; 80] = [
     Pin::new(PinNr::P10_5),
     Pin::new(PinNr::P10_6),
     Pin::new(PinNr::P10_7),
+    Pin::new(PinNr::PJ_0),
+    Pin::new(PinNr::PJ_1),
+    Pin::new(PinNr::PJ_2),
+    Pin::new(PinNr::PJ_3),
+    Pin::new(PinNr::PJ_4),
+    Pin::new(PinNr::PJ_5),
+    Pin::new(PinNr::PJ_6),
+    Pin::new(PinNr::PJ_7),
 ];
 
 const GPIO_BASES: [StaticRef<GpioRegisters>; 6] = [
@@ -267,6 +275,14 @@ pub enum PinNr {
     PJ_0,  PJ_1,  PJ_2,  PJ_3,  PJ_4,  PJ_5,  PJ_6,  PJ_7,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum ModuleFunction {
+    Gpio,
+    Primary,
+    Secondary,
+    Tertiary,
+}
+
 pub struct Pin {
     pin: u8,
     registers: StaticRef<GpioRegisters>,
@@ -282,6 +298,45 @@ impl Pin {
             registers: GPIO_BASES[(port / 2) as usize],
             reg_idx: (port % 2) as usize,
         }
+    }
+
+    fn enable_module_function(&self, mode: ModuleFunction) {
+        let mut sel0 = self.registers.sel0[self.reg_idx].get();
+        let mut sel1 = self.registers.sel1[self.reg_idx].get();
+
+        match mode {
+            ModuleFunction::Gpio => {
+                sel0 &= !(1 << self.pin);
+                sel1 &= !(1 << self.pin);
+            }
+            ModuleFunction::Primary => {
+                sel0 |= 1 << self.pin;
+                sel1 &= !(1 << self.pin);
+            }
+            ModuleFunction::Secondary => {
+                sel0 &= !(1 << self.pin);
+                sel1 |= 1 << self.pin;
+            }
+            ModuleFunction::Tertiary => {
+                sel0 |= 1 << self.pin;
+                sel1 |= 1 << self.pin;
+            }
+        }
+
+        self.registers.sel0[self.reg_idx].set(sel0);
+        self.registers.sel1[self.reg_idx].set(sel1);
+    }
+
+    pub fn enable_primary_function(&self) {
+        self.enable_module_function(ModuleFunction::Primary);
+    }
+
+    pub fn enable_secondary_function(&self) {
+        self.enable_module_function(ModuleFunction::Secondary);
+    }
+
+    pub fn enable_tertiary_function(&self) {
+        self.enable_module_function(ModuleFunction::Tertiary);
     }
 }
 
@@ -333,6 +388,8 @@ impl hil::gpio::Configure for Pin {
     }
 
     fn make_output(&self) -> hil::gpio::Configuration {
+        self.enable_module_function(ModuleFunction::Gpio);
+
         let mut val = self.registers.dir[self.reg_idx].get();
         val |= 1 << self.pin;
         self.registers.dir[self.reg_idx].set(val);
@@ -344,6 +401,8 @@ impl hil::gpio::Configure for Pin {
     }
 
     fn make_input(&self) -> hil::gpio::Configuration {
+        self.enable_module_function(ModuleFunction::Gpio);
+
         let mut val = self.registers.dir[self.reg_idx].get();
         val &= !(1 << self.pin);
         self.registers.dir[self.reg_idx].set(val);

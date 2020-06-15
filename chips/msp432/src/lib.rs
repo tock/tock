@@ -12,6 +12,8 @@ pub mod flctl;
 pub mod gpio;
 pub mod pcm;
 pub mod sysctl;
+pub mod uart;
+pub(crate) mod usci;
 pub mod wdt;
 
 #[cfg(not(any(target_arch = "arm", target_os = "none")))]

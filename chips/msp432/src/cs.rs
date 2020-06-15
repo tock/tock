@@ -238,13 +238,32 @@ impl ClockSystem {
     // the clock to 48Mhz
     pub fn set_clk_48mhz(&self) {
         self.unlock_registers();
-        // set DCO to 48MHz
-        self.registers
-            .ctl0
-            .modify(CSCTL0::DCORSEL.val(DcoFrequency::_48Mhz as u32));
 
-        // set DCO as MCLK source
-        self.registers.ctl1.modify(CSCTL1::SELM.val(3));
+        // set HFXT to 40-48MHz range
+        self.registers.ctl2.modify(CSCTL2::HFXTFREQ.val(6));
+
+        // set HFXT as MCLK source
+        self.registers
+            .ctl1
+            .modify(CSCTL1::SELM.val(5) + CSCTL1::DIVM.val(0));
+
+        while self.registers.ifg.is_set(CSIFG::HFXTIFG) {
+            self.registers
+                .clr_ifg
+                .write(CSCLRIFG::HFXTIFG::SET + CSCLRIFG::FCNTHFIFG::SET);
+        }
+        self.lock_registers();
+    }
+
+    pub fn set_smclk_12mhz(&self) {
+        self.unlock_registers();
+
+        // set HFXT as clock-source for SMCLK
+        self.registers.ctl1.modify(CSCTL1::SELS.val(5));
+
+        // set SMCLK divider to 4 -> 48MHz / 4 = 12MHz
+        self.registers.ctl1.modify(CSCTL1::DIVS.val(2));
+
         self.lock_registers();
     }
 }
