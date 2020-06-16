@@ -10,6 +10,9 @@ use kernel::capabilities;
 use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::component::Component;
 use kernel::hil::gpio::ActivationMode::ActiveLow;
+use kernel::hil::usb::Client;
+use kernel::mpu::MPU;
+use kernel::Chip;
 #[allow(unused_imports)]
 use kernel::{create_capability, debug, debug_gpio, debug_verbose, static_init};
 
@@ -22,7 +25,7 @@ const LED_BLUE_PIN: Pin = Pin::P0_06;
 
 const LED_KERNEL_PIN: Pin = Pin::P0_13;
 
-// const BUTTON_RST_PIN: Pin = Pin::P0_18;
+const _BUTTON_RST_PIN: Pin = Pin::P0_18;
 
 const GPIO_D2: Pin = Pin::P1_11;
 const GPIO_D3: Pin = Pin::P1_12;
@@ -34,8 +37,8 @@ const GPIO_D8: Pin = Pin::P0_21;
 const GPIO_D9: Pin = Pin::P0_27;
 const GPIO_D10: Pin = Pin::P1_02;
 
-const UART_TX_PIN: Pin = Pin::P1_03;
-const UART_RX_PIN: Pin = Pin::P1_10;
+const _UART_TX_PIN: Pin = Pin::P1_03;
+const _UART_RX_PIN: Pin = Pin::P1_10;
 
 /// UART Writer for panic!()s.
 pub mod io;
@@ -186,23 +189,13 @@ pub unsafe fn reset_handler() {
     // UART & CONSOLE & DEBUG
     //--------------------------------------------------------------------------
 
-    // Create a shared UART channel for the console and for kernel debug.
-    // `nrf52::uart::UARTE0` uses the UART pinned out on the castellated header,
-    // _not_ the micro USB.
-    let uart_mux = components::console::UartMuxComponent::new(
-        &nrf52::uart::UARTE0,
-        115200,
-        dynamic_deferred_caller,
-    )
-    .finalize(());
+    // Setup the CDC-ACM over USB driver that we will use for UART.
+    let cdc = components::cdc::CdcAcmComponent::new(&nrf52::usbd::USBD)
+        .finalize(components::usb_cdc_acm_component_helper!(nrf52::usbd::Usbd));
 
-    // Configure the UART pins on this specific board.
-    nrf52::uart::UARTE0.initialize(
-        nrf52::pinmux::Pinmux::new(UART_TX_PIN as u32),
-        nrf52::pinmux::Pinmux::new(UART_RX_PIN as u32),
-        None,
-        None,
-    );
+    // Create a shared UART channel for the console and for kernel debug.
+    let uart_mux = components::console::UartMuxComponent::new(cdc, 115200, dynamic_deferred_caller)
+        .finalize(());
 
     // Setup the console.
     let console = components::console::ConsoleComponent::new(board_kernel, uart_mux).finalize(());
@@ -230,6 +223,10 @@ pub unsafe fn reset_handler() {
     // )
     // .finalize(());
 
+    //--------------------------------------------------------------------------
+    // FINAL SETUP AND BOARD BOOT
+    //--------------------------------------------------------------------------
+
     // Start all of the clocks. Low power operation will require a better
     // approach than this.
     nrf52_components::NrfClockComponent::new().finalize(());
@@ -247,6 +244,13 @@ pub unsafe fn reset_handler() {
 
     let chip = static_init!(nrf52840::chip::Chip, nrf52840::chip::new());
     CHIP = Some(chip);
+
+    // Need to disable the MPU because the bootloader seems to set it up.
+    chip.mpu().disable_mpu();
+
+    // Configure the USB stack to enable a serial port over CDC-ACM.
+    cdc.enable();
+    cdc.attach();
 
     debug!("Initialization complete. Entering main loop.");
 
