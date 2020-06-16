@@ -473,30 +473,18 @@ pub(crate) fn parse_tbf_header_lengths(
     // We trust that the version number has been checked prior to running this
     // parsing code. That is, whatever loaded this application has verified that
     // the version is valid and therefore we can trust it.
-    let version = u16::from_le_bytes(
-        app.get(0..2)
-            .ok_or(InitialTbfParseError::UnableToParse)?
-            .try_into()?,
-    );
+    let version = u16::from_le_bytes([app[0], app[1]]);
 
     match version {
         2 => {
             // In version 2, the next 16 bits after the version represent
             // the size of the TBF header in bytes.
-            let tbf_header_size = u16::from_le_bytes(
-                app.get(2..4)
-                    .ok_or(InitialTbfParseError::UnableToParse)?
-                    .try_into()?,
-            );
+            let tbf_header_size = u16::from_le_bytes([app[2], app[3]]);
 
             // The next 4 bytes are the size of the entire app's TBF space
             // including the header. This also must be checked before parsing
             // this header and we trust the value in flash.
-            let tbf_size = u32::from_le_bytes(
-                app.get(4..8)
-                    .ok_or(InitialTbfParseError::UnableToParse)?
-                    .try_into()?,
-            );
+            let tbf_size = u32::from_le_bytes([app[4], app[5], app[6], app[7]]);
 
             // Check that the header length isn't greater than the entire app,
             // and is at least as large as the v2 required header (which is 16
