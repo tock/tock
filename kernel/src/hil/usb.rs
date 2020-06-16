@@ -4,6 +4,8 @@ use crate::common::cells::VolatileCell;
 
 /// USB controller interface
 pub trait UsbController<'a> {
+    fn set_client(&self, client: &'a dyn Client<'a>);
+
     // Should be called before `enable_as_device()`
     fn endpoint_set_ctrl_buffer(&self, buf: &'a [VolatileCell<u8>]);
     fn endpoint_set_in_buffer(&self, endpoint: usize, buf: &'a [VolatileCell<u8>]);
