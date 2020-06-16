@@ -169,7 +169,12 @@ pub fn load_processes<C: Chip>(
                     .or(Err(ProcessLoadError::InternalError))?,
             ) {
                 Ok((v, hl, al)) => (v, hl, al),
-                Err(_tbferr) => {
+                Err(tbfheader::InitialTbfParseError::InvalidHeader(app_length)) => {
+                    // If we could not parse the header, then we want to skip
+                    // over this app and look for the next one.
+                    (0, 0, app_length)
+                }
+                Err(tbfheader::InitialTbfParseError::UnableToParse) => {
                     // Since Tock apps use a linked list, it is very possible
                     // the header we started to parse is intentionally invalid
                     // to signal the end of apps. This is ok and just means we
@@ -178,44 +183,51 @@ pub fn load_processes<C: Chip>(
                 }
             };
 
-            // Now we can get a slice which only encompasses the app. At this
-            // point, since the version number in the beginning of the header is
-            // valid, we consider further parsing errors to be actual errors and
-            // report them to the caller.
+            // Now we can get a slice which only encompasses the app. We will
+            // either parse this as an actual app, or skip over this region.
             let app_flash = remaining_flash
                 .get(0..app_length as usize)
                 .ok_or(ProcessLoadError::NotEnoughFlash)?;
 
-            // Try to create a process object from that app slice.
-            let (process, memory_offset) = Process::create(
-                kernel,
-                chip,
-                app_flash,
-                header_length as usize,
-                version,
-                app_memory_ptr,
-                app_memory_size,
-                fault_response,
-                i,
-            )?;
+            // Check if we should continue parsing this app. If the initial
+            // header parsing failed (i.e. the header_length is 0), we don't
+            // bother.
+            let memory_offset = if header_length > 0 {
+                // Try to create a process object from that app slice.
+                let (process, memory_offset) = Process::create(
+                    kernel,
+                    chip,
+                    app_flash,
+                    header_length as usize,
+                    version,
+                    app_memory_ptr,
+                    app_memory_size,
+                    fault_response,
+                    i,
+                )?;
 
-            // Check to see if actually got a valid process to execute. If we
-            // didn't and we didn't get a loading error (aka we got to this
-            // point), then the app is a disabled process or just padding.
-            if process.is_some() {
-                if config::CONFIG.debug_load_processes {
-                    debug!(
-                        "Loaded process[{}] from flash=[{:#010X}:{:#010X}] into sram=[{:#010X}:{:#010X}] = {:?}",
-                        i,
-                        app_flash.as_ptr() as usize,
-                        app_flash.as_ptr() as usize + app_flash.len(),
-                        app_memory_ptr as usize,
-                        app_memory_ptr as usize + memory_offset,
-                        process.map(|p| p.get_process_name())
-                    );
+                // Check to see if actually got a valid process to execute. If we
+                // didn't and we didn't get a loading error (aka we got to this
+                // point), then the app is a disabled process or just padding.
+                if process.is_some() {
+                    if config::CONFIG.debug_load_processes {
+                        debug!(
+                            "Loaded process[{}] from flash=[{:#010X}:{:#010X}] into sram=[{:#010X}:{:#010X}] = {:?}",
+                            i,
+                            app_flash.as_ptr() as usize,
+                            app_flash.as_ptr() as usize + app_flash.len(),
+                            app_memory_ptr as usize,
+                            app_memory_ptr as usize + memory_offset,
+                            process.map(|p| p.get_process_name())
+                        );
+                    }
+                    procs[i] = process;
                 }
-                procs[i] = process;
-            }
+                memory_offset
+            } else {
+                // We are just skipping over this region in flash.
+                0
+            };
 
             // Advance in our buffers before seeing if there is an additional
             // process to load.
