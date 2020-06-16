@@ -27,6 +27,9 @@ $ cd BOSSA
 $ make bossac
 ```
 
+Then you will need to add `BOSSA/bin` to your `$PATH` variable so that your
+system can find the `bossac` program.
+
 ## Programming the Kernel
 
 To program the kernel we use the BOSSA tool to communicate with the bootloader
