@@ -211,21 +211,17 @@ register_bitfields! [
     ]
 ];
 
-pub struct Comparator {
+pub struct Comparator<'a> {
     registers: StaticRef<CompRegisters>,
-    client: OptionalCell<&'static dyn analog_comparator::Client>,
+    client: OptionalCell<&'a dyn analog_comparator::Client>,
 }
 
-impl Comparator {
-    const fn new(registers: StaticRef<CompRegisters>) -> Comparator {
+impl<'a> Comparator<'a> {
+    const fn new(registers: StaticRef<CompRegisters>) -> Self {
         Comparator {
             registers: registers,
             client: OptionalCell::empty(),
         }
-    }
-
-    pub fn set_client(&self, client: &'static dyn analog_comparator::Client) {
-        self.client.set(client);
     }
 
     /// Enables comparator
@@ -286,7 +282,7 @@ impl Comparator {
     }
 }
 
-impl analog_comparator::AnalogComparator for Comparator {
+impl<'a> analog_comparator::AnalogComparator<'a> for Comparator<'a> {
     type Channel = Channel;
 
     /// Starts comparison on only channel
@@ -325,6 +321,10 @@ impl analog_comparator::AnalogComparator for Comparator {
 
         // Returns 1 (true) if vin+ > vin-
         regs.result.get() == 1
+    }
+
+    fn set_client(&self, client: &'a dyn analog_comparator::Client) {
+        self.client.set(client);
     }
 }
 

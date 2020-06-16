@@ -15,6 +15,8 @@
 //! -----
 //!
 //! ```rust
+//! # use kernel::static_init;
+//!
 //! // Create a SPI device for this chip.
 //! let fm25cl_spi = static_init!(
 //!     capsules::virtual_spi::VirtualSpiMasterDevice<'static, usart::USART>,
@@ -99,7 +101,7 @@ pub struct FM25CL<'a, S: hil::spi::SpiMasterDevice> {
     client_write_len: Cell<u16>,
 }
 
-impl<S: hil::spi::SpiMasterDevice> FM25CL<'a, S> {
+impl<'a, S: hil::spi::SpiMasterDevice> FM25CL<'a, S> {
     pub fn new(
         spi: &'a S,
         txbuffer: &'static mut [u8],
@@ -179,7 +181,7 @@ impl<S: hil::spi::SpiMasterDevice> FM25CL<'a, S> {
     }
 }
 
-impl<S: hil::spi::SpiMasterDevice> hil::spi::SpiMasterClient for FM25CL<'a, S> {
+impl<S: hil::spi::SpiMasterDevice> hil::spi::SpiMasterClient for FM25CL<'_, S> {
     fn read_write_done(
         &self,
         write_buffer: &'static mut [u8],
@@ -265,7 +267,7 @@ impl<S: hil::spi::SpiMasterDevice> hil::spi::SpiMasterClient for FM25CL<'a, S> {
 }
 
 // Implement the custom interface that exposes chip-specific commands.
-impl<S: hil::spi::SpiMasterDevice> FM25CLCustom for FM25CL<'a, S> {
+impl<S: hil::spi::SpiMasterDevice> FM25CLCustom for FM25CL<'_, S> {
     fn read_status(&self) -> ReturnCode {
         self.configure_spi();
 
@@ -290,7 +292,7 @@ impl<S: hil::spi::SpiMasterDevice> FM25CLCustom for FM25CL<'a, S> {
 /// Implement the generic `NonvolatileStorage` interface common to chips that
 /// provide nonvolatile memory.
 impl<S: hil::spi::SpiMasterDevice> hil::nonvolatile_storage::NonvolatileStorage<'static>
-    for FM25CL<'a, S>
+    for FM25CL<'_, S>
 {
     fn set_client(&self, client: &'static dyn hil::nonvolatile_storage::NonvolatileStorageClient) {
         self.client.set(client);

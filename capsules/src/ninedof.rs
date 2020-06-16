@@ -6,13 +6,15 @@
 //! You need a device that provides the `hil::sensors::NineDof` trait.
 //!
 //! ```rust
+//! # use kernel::{hil, static_init};
 //!
 //! let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
 //! let grant_ninedof = board_kernel.create_grant(&grant_cap);
 //!
 //! let ninedof = static_init!(
 //!     capsules::ninedof::NineDof<'static>,
-//!     capsules::ninedof::NineDof::new(fxos8700, grant_ninedof));
+//!     capsules::ninedof::NineDof::new(grant_ninedof));
+//! ninedof.add_driver(fxos8700);
 //! hil::sensors::NineDof::set_client(fxos8700, ninedof);
 //! ```
 
@@ -52,15 +54,15 @@ impl Default for App {
 }
 
 pub struct NineDof<'a> {
-    driver: &'a dyn hil::sensors::NineDof,
+    drivers: &'a [&'a dyn hil::sensors::NineDof],
     apps: Grant<App>,
     current_app: OptionalCell<AppId>,
 }
 
-impl NineDof<'a> {
-    pub fn new(driver: &'a dyn hil::sensors::NineDof, grant: Grant<App>) -> NineDof<'a> {
+impl<'a> NineDof<'a> {
+    pub fn new(drivers: &'a [&'a dyn hil::sensors::NineDof], grant: Grant<App>) -> NineDof<'a> {
         NineDof {
-            driver: driver,
+            drivers: drivers,
             apps: grant,
             current_app: OptionalCell::empty(),
         }
@@ -74,7 +76,11 @@ impl NineDof<'a> {
             .enter(appid, |app, _| {
                 if self.current_app.is_none() {
                     self.current_app.set(appid);
-                    self.call_driver(command, arg1)
+                    let value = self.call_driver(command, arg1);
+                    if value != ReturnCode::SUCCESS {
+                        self.current_app.clear();
+                    }
+                    value
                 } else {
                     if app.pending_command == true {
                         ReturnCode::ENOMEM
@@ -91,15 +97,42 @@ impl NineDof<'a> {
 
     fn call_driver(&self, command: NineDofCommand, _: usize) -> ReturnCode {
         match command {
-            NineDofCommand::ReadAccelerometer => self.driver.read_accelerometer(),
-            NineDofCommand::ReadMagnetometer => self.driver.read_magnetometer(),
-            NineDofCommand::ReadGyroscope => self.driver.read_gyroscope(),
+            NineDofCommand::ReadAccelerometer => {
+                let mut data = ReturnCode::ENODEVICE;
+                for driver in self.drivers.iter() {
+                    data = driver.read_accelerometer();
+                    if data == ReturnCode::SUCCESS {
+                        break;
+                    }
+                }
+                data
+            }
+            NineDofCommand::ReadMagnetometer => {
+                let mut data = ReturnCode::ENODEVICE;
+                for driver in self.drivers.iter() {
+                    data = driver.read_magnetometer();
+                    if data == ReturnCode::SUCCESS {
+                        break;
+                    }
+                }
+                data
+            }
+            NineDofCommand::ReadGyroscope => {
+                let mut data = ReturnCode::ENODEVICE;
+                for driver in self.drivers.iter() {
+                    data = driver.read_gyroscope();
+                    if data == ReturnCode::SUCCESS {
+                        break;
+                    }
+                }
+                data
+            }
             _ => ReturnCode::ENOSUPPORT,
         }
     }
 }
 
-impl hil::sensors::NineDofClient for NineDof<'a> {
+impl hil::sensors::NineDofClient for NineDof<'_> {
     fn callback(&self, arg1: usize, arg2: usize, arg3: usize) {
         // Notify the current application that the command finished.
         // Also keep track of what just finished to see if we can re-use
@@ -146,7 +179,7 @@ impl hil::sensors::NineDofClient for NineDof<'a> {
     }
 }
 
-impl Driver for NineDof<'a> {
+impl Driver for NineDof<'_> {
     fn subscribe(
         &self,
         subscribe_num: usize,

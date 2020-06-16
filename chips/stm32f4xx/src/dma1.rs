@@ -841,7 +841,7 @@ pub trait StreamClient {
     fn transfer_done(&self, pid: Dma1Peripheral);
 }
 
-impl Stream<'a> {
+impl<'a> Stream<'a> {
     const fn new(streamid: StreamId) -> Stream<'a> {
         Stream {
             streamid: streamid,

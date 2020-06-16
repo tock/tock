@@ -36,6 +36,7 @@
 use core::cell::Cell;
 use core::convert::TryFrom;
 use kernel::common::cells::OptionalCell;
+use kernel::common::cells::TakeCell;
 use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil::ble_advertising;
@@ -533,6 +534,7 @@ pub struct Radio {
     tx_power: Cell<TxPower>,
     rx_client: OptionalCell<&'static dyn ble_advertising::RxClient>,
     tx_client: OptionalCell<&'static dyn ble_advertising::TxClient>,
+    buffer: TakeCell<'static, [u8]>,
 }
 
 pub static mut RADIO: Radio = Radio::new();
@@ -544,6 +546,7 @@ impl Radio {
             tx_power: Cell::new(TxPower::ZerodBm),
             rx_client: OptionalCell::empty(),
             tx_client: OptionalCell::empty(),
+            buffer: TakeCell::empty(),
         }
     }
 
@@ -631,7 +634,8 @@ impl Radio {
                 | nrf5x::constants::RADIO_STATE_TXDISABLE
                 | nrf5x::constants::RADIO_STATE_TX => {
                     self.radio_off();
-                    self.tx_client.map(|client| client.transmit_event(result));
+                    self.tx_client
+                        .map(|client| client.transmit_event(self.buffer.take().unwrap(), result));
                 }
                 nrf5x::constants::RADIO_STATE_RXRU
                 | nrf5x::constants::RADIO_STATE_RXIDLE
@@ -795,17 +799,12 @@ impl Radio {
 }
 
 impl ble_advertising::BleAdvertisementDriver for Radio {
-    fn transmit_advertisement(
-        &self,
-        buf: &'static mut [u8],
-        _len: usize,
-        channel: RadioChannel,
-    ) -> &'static mut [u8] {
+    fn transmit_advertisement(&self, buf: &'static mut [u8], _len: usize, channel: RadioChannel) {
         let res = self.replace_radio_buffer(buf);
+        self.buffer.replace(res);
         self.ble_initialize(channel);
         self.tx();
         self.enable_interrupts();
-        res
     }
 
     fn receive_advertisement(&self, channel: RadioChannel) {

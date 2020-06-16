@@ -157,8 +157,9 @@ A callback function is uniquely identified by the pair (`driver`,
 are any pending callbacks for this callback ID, they are removed from the queue
 before the new callback function is bound to the callback ID.
 
-Passing a null pointer callback function disables a previously set callback
-(besides flushing pending callbacks for this callback ID).
+A process can pass a null pointer as the callback argument to request the driver
+disable a previously set callback (besides flushing pending callbacks for this
+callback ID).
 
 ```rust
 subscribe(driver: u32, subscribe_number: u32, callback: u32, userdata: u32) -> ReturnCode as u32
@@ -224,7 +225,8 @@ additional meaning such as the number of devices present, as is the case in the
 ### 3: Allow
 
 Allow marks a region of memory as shared between the kernel and application.
-A null pointer revokes sharing a region.
+Passing a null pointer requests the corresponding driver to stop accessing the
+shared memory region.
 
 ```rust
 allow(driver: u32, allow_number: u32, pointer: usize, size: u32) -> ReturnCode as u32
@@ -376,44 +378,57 @@ well as the return address (`ra`) register.
 
 ## How System Calls Connect to Drivers
 
-After a system call is made, Tock routes the call to the appropriate driver.
+After a system call is made, the call is handled and routed by the Tock kernel
+in [`sched.rs`](../kernel/src/sched.rs) through a series of steps.
 
-First, in [`sched.rs`](../kernel/src/sched.rs) the number of the `svc` is
-matched against the valid syscall types. `yield` and `memop` have special
-functionality that is handled by the kernel. `command`, `subscribe`, and
-`allow` are routed to drivers for handling.
+1. The kernel calls a platform-provided syscall filter function to determine if
+   it should process the syscall or not. This does not apply to `yield`. The
+   filter function takes the syscall and which process issued the syscall to
+   return a `Result((), ReturnCode)` to signal if the syscall should be handled
+   or if an error should be returned to the process.
 
-To route the `command`, `subscribe`, and `allow` syscalls, each board creates a
-struct that implements the `Platform` trait. Implementing that trait only
-requires implementing a `with_driver()` function that takes one argument, the
-driver number, and returns a reference to the correct driver if it is supported
-or `None` otherwise. The kernel then calls the appropriate syscall function on
-that driver with the remaining syscall arguments.
+   If the filter function disallows the syscall it returns `Err(ReturnCode)` and
+   the `ReturnCode` is provided to the app as the return code for the syscall.
+   Otherwise, the syscall proceeds.
 
-An example board that implements the `Platform` trait looks something like this:
+   _The filter interface is currently considered unstable and subject to change._
 
-```rust
-struct TestBoard {
-    console: &'static Console<'static, usart::USART>,
-}
+2. The number of the syscall is matched against the valid syscall types. `yield`
+   and `memop` have special functionality that is handled by the kernel.
+   `command`, `subscribe`, and `allow` are routed to drivers for handling.
 
-impl Platform for TestBoard {
-    fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
-        where F: FnOnce(Option<&kernel::Driver>) -> R
-    {
+3. To route the `command`, `subscribe`, and `allow` syscalls, each board creates
+   a struct that implements the `Platform` trait. Implementing that trait only
+   requires implementing a `with_driver()` function that takes one argument, the
+   driver number, and returns a reference to the correct driver if it is
+   supported or `None` otherwise. The kernel then calls the appropriate syscall
+   function on that driver with the remaining syscall arguments.
 
-        match driver_num {
-            0 => f(Some(self.console)),
-            _ => f(None),
-        }
-    }
-}
-```
+   An example board that implements the `Platform` trait looks something like
+   this:
 
-`TestBoard` then supports one driver, the UART console, and maps it to driver
-number 0. Any `command`, `subscribe`, and `allow` sycalls to driver number 0
-will get routed to the console, and all other driver numbers will return
-`ReturnCode::ENODEVICE`.
+   ```rust
+   struct TestBoard {
+       console: &'static Console<'static, usart::USART>,
+   }
+
+   impl Platform for TestBoard {
+       fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
+           where F: FnOnce(Option<&kernel::Driver>) -> R
+       {
+
+           match driver_num {
+               0 => f(Some(self.console)), // use capsules::console::DRIVER_NUM rather than 0 in real code
+               _ => f(None),
+           }
+       }
+   }
+   ```
+
+   `TestBoard` then supports one driver, the UART console, and maps it to driver
+   number 0. Any `command`, `subscribe`, and `allow` sycalls to driver number 0
+   will get routed to the console, and all other driver numbers will return
+   `ReturnCode::ENODEVICE`.
 
 
 

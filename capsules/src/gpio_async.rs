@@ -8,13 +8,15 @@
 //! -----
 //!
 //! ```rust
-//! Generate a list of ports to group into one userspace driver.
+//! # use kernel::static_init;
+//!
+//! // Generate a list of ports to group into one userspace driver.
 //! let async_gpio_ports = static_init!(
-//!     [&'static capsules::mcp23008::MCP23008; 1],
+//!     [&'static capsules::mcp230xx::MCP230xx; 1],
 //!     [mcp23008]);
 //!
 //! let gpio_async = static_init!(
-//!     capsules::gpio_async::GPIOAsync<'static, capsules::mcp23008::MCP23008<'static>>,
+//!     capsules::gpio_async::GPIOAsync<'static, capsules::mcp230xx::MCP230xx<'static>>,
 //!     capsules::gpio_async::GPIOAsync::new(async_gpio_ports));
 //!
 //! // Setup the clients correctly.
@@ -38,7 +40,7 @@ pub struct GPIOAsync<'a, Port: hil::gpio_async::Port> {
     interrupt_callback: OptionalCell<Callback>,
 }
 
-impl<Port: hil::gpio_async::Port> GPIOAsync<'a, Port> {
+impl<'a, Port: hil::gpio_async::Port> GPIOAsync<'a, Port> {
     pub fn new(ports: &'a [&'a Port]) -> GPIOAsync<'a, Port> {
         GPIOAsync {
             ports: ports,
@@ -70,7 +72,7 @@ impl<Port: hil::gpio_async::Port> GPIOAsync<'a, Port> {
     }
 }
 
-impl<Port: hil::gpio_async::Port> hil::gpio_async::Client for GPIOAsync<'a, Port> {
+impl<Port: hil::gpio_async::Port> hil::gpio_async::Client for GPIOAsync<'_, Port> {
     fn fired(&self, pin: usize, identifier: usize) {
         self.interrupt_callback
             .map(|cb| cb.schedule(identifier, pin, 0));
@@ -81,7 +83,7 @@ impl<Port: hil::gpio_async::Port> hil::gpio_async::Client for GPIOAsync<'a, Port
     }
 }
 
-impl<Port: hil::gpio_async::Port> Driver for GPIOAsync<'a, Port> {
+impl<Port: hil::gpio_async::Port> Driver for GPIOAsync<'_, Port> {
     /// Setup callbacks for gpio_async events.
     ///
     /// ### `subscribe_num`

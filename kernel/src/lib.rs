@@ -10,8 +10,6 @@
     core_intrinsics,
     const_fn,
     panic_info_message,
-    in_band_lifetimes,
-    crate_visibility_modifier,
     associated_type_defaults,
     try_trait
 )]

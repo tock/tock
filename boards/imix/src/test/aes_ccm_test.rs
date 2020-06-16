@@ -39,6 +39,8 @@ unsafe fn static_init_ccm() -> &'static mut aes_ccm::AES128CCM<'static, Aes<'sta
 
 type AESCCM = aes_ccm::AES128CCM<'static, Aes<'static>>;
 
+#[allow(clippy::mut_from_ref)]
+// Static init returns a singly owned mutable reference
 unsafe fn static_init_test(aes_ccm: &'static AESCCM) -> &'static mut Test<'static, AESCCM> {
     let data = static_init!([u8; 4 * AES128_BLOCK_SIZE], [0x00; 4 * AES128_BLOCK_SIZE]);
     static_init!(Test<'static, AESCCM>, Test::new(aes_ccm, data))

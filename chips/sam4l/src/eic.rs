@@ -129,7 +129,7 @@ register_bitfields![
 const EIC_BASE: StaticRef<EicRegisters> =
     unsafe { StaticRef::new(0x400F1000 as *const EicRegisters) };
 
-impl PeripheralManagement<pm::Clock> for Eic<'a> {
+impl PeripheralManagement<pm::Clock> for Eic<'_> {
     type RegisterType = EicRegisters;
 
     fn get_registers(&self) -> &EicRegisters {
@@ -155,7 +155,7 @@ pub struct Eic<'a> {
     callbacks: [OptionalCell<&'a dyn hil::eic::Client>; 9],
 }
 
-impl<'a> hil::eic::ExternalInterruptController for Eic<'a> {
+impl hil::eic::ExternalInterruptController for Eic<'_> {
     type Line = Line;
 
     fn line_enable(&self, line: &Self::Line, interrupt_mode: hil::eic::InterruptMode) {

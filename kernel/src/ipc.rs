@@ -54,7 +54,7 @@ impl IPC {
 
     /// Schedule an IPC callback for a process. This is called by the main
     /// scheduler loop if an IPC task was queued for the process.
-    crate unsafe fn schedule_callback(
+    pub(crate) unsafe fn schedule_callback(
         &self,
         appid: AppId,
         otherapp: AppId,

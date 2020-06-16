@@ -13,6 +13,8 @@
 //! -----
 //!
 //! ```rust
+//! # use kernel::static_init;
+//!
 //! let led_pins = static_init!(
 //!     [(&'static sam4l::gpio::GPIOPin, kernel::hil::gpio::ActivationMode); 3],
 //!     [(&sam4l::gpio::PA[13], kernel::hil::gpio::ActivationMode::ActiveLow),   // Red
@@ -57,25 +59,25 @@ pub const DRIVER_NUM: usize = driver::NUM::Led as usize;
 
 /// Holds the array of GPIO pins attached to the LEDs and implements a `Driver`
 /// interface to control them.
-pub struct LED<'a> {
-    pins_init: &'a [(&'a dyn gpio::Pin, gpio::ActivationMode)],
+pub struct LED<'a, P: gpio::Pin> {
+    pins_init: &'a [(&'a P, gpio::ActivationMode)],
 }
 
-impl<'a> LED<'a> {
-    pub fn new(pins_init: &'a [(&'a dyn gpio::Pin, gpio::ActivationMode)]) -> LED<'a> {
+impl<'a, P: gpio::Pin> LED<'a, P> {
+    pub fn new(pins_init: &'a [(&'a P, gpio::ActivationMode)]) -> Self {
         // Make all pins output and off
         for &(pin, mode) in pins_init.as_ref().iter() {
             pin.make_output();
             pin.write_activation(gpio::ActivationState::Inactive, mode);
         }
 
-        LED {
+        Self {
             pins_init: pins_init,
         }
     }
 }
 
-impl<'a> Driver for LED<'a> {
+impl<P: gpio::Pin> Driver for LED<'_, P> {
     /// Control the LEDs.
     ///
     /// ### `command_num`

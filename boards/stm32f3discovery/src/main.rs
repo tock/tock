@@ -3,10 +3,13 @@
 //! - <https://www.st.com/en/evaluation-tools/stm32f3discovery.html>
 
 #![no_std]
-#![no_main]
-#![feature(asm, core_intrinsics)]
+// Disable this attribute when documenting, as a workaround for
+// https://github.com/rust-lang/rust/issues/62184.
+#![cfg_attr(not(doc), no_main)]
+#![feature(core_intrinsics)]
 #![deny(missing_docs)]
 
+use capsules::lsm303dlhc;
 use capsules::virtual_alarm::VirtualMuxAlarm;
 use components::gpio::GpioComponent;
 use kernel::capabilities;
@@ -32,7 +35,7 @@ static mut PROCESSES: [Option<&'static dyn kernel::procs::ProcessType>; NUM_PROC
     [None, None, None, None];
 
 // Static reference to chip for panic dumps.
-static mut CHIP: Option<&'static stm32f3xx::chip::Stm32f3xx> = None;
+static mut CHIP: Option<&'static stm32f303xc::chip::Stm32f3xx> = None;
 
 // How should the kernel respond when a process faults.
 const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultResponse::Panic;
@@ -57,12 +60,16 @@ pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 struct STM32F3Discovery {
     console: &'static capsules::console::Console<'static>,
     ipc: kernel::ipc::IPC,
-    gpio: &'static capsules::gpio::GPIO<'static>,
-    led: &'static capsules::led::LED<'static>,
-    button: &'static capsules::button::Button<'static>,
+    gpio: &'static capsules::gpio::GPIO<'static, stm32f303xc::gpio::Pin<'static>>,
+    led: &'static capsules::led::LED<'static, stm32f303xc::gpio::Pin<'static>>,
+    button: &'static capsules::button::Button<'static, stm32f303xc::gpio::Pin<'static>>,
+    ninedof: &'static capsules::ninedof::NineDof<'static>,
+    l3gd20: &'static capsules::l3gd20::L3gd20Spi<'static>,
+    lsm303dlhc: &'static capsules::lsm303dlhc::Lsm303dlhcI2C<'static>,
+    temp: &'static capsules::temperature::TemperatureSensor<'static>,
     alarm: &'static capsules::alarm::AlarmDriver<
         'static,
-        VirtualMuxAlarm<'static, stm32f3xx::tim2::Tim2<'static>>,
+        VirtualMuxAlarm<'static, stm32f303xc::tim2::Tim2<'static>>,
     >,
 }
 
@@ -78,6 +85,10 @@ impl Platform for STM32F3Discovery {
             capsules::button::DRIVER_NUM => f(Some(self.button)),
             capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
             capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
+            capsules::l3gd20::DRIVER_NUM => f(Some(self.l3gd20)),
+            capsules::lsm303dlhc::DRIVER_NUM => f(Some(self.lsm303dlhc)),
+            capsules::ninedof::DRIVER_NUM => f(Some(self.ninedof)),
+            capsules::temperature::DRIVER_NUM => f(Some(self.temp)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             _ => f(None),
         }
@@ -86,9 +97,9 @@ impl Platform for STM32F3Discovery {
 
 /// Helper function called during bring-up that configures multiplexed I/O.
 unsafe fn set_pin_primary_functions() {
-    use stm32f3xx::exti::{LineId, EXTI};
-    use stm32f3xx::gpio::{AlternateFunction, Mode, PinId, PortId, PORT};
-    use stm32f3xx::syscfg::SYSCFG;
+    use stm32f303xc::exti::{LineId, EXTI};
+    use stm32f303xc::gpio::{AlternateFunction, Mode, PinId, PortId, PORT};
+    use stm32f303xc::syscfg::SYSCFG;
 
     SYSCFG.enable_clock();
 
@@ -112,7 +123,7 @@ unsafe fn set_pin_primary_functions() {
         kernel::debug::assign_gpios(Some(pin), None, None);
     });
 
-    // // pc4 and pc5 (USART1) is connected to ST-LINK virtual COM port
+    // pc4 and pc5 (USART1) is connected to ST-LINK virtual COM port
     PinId::PC04.get_pin().as_ref().map(|pin| {
         pin.set_mode(Mode::AlternateFunctionMode);
         // AF7 is USART1_TX
@@ -133,20 +144,68 @@ unsafe fn set_pin_primary_functions() {
         // the rest.
         EXTI.associate_line_gpiopin(LineId::Exti0, pin);
     });
-    cortexm4::nvic::Nvic::new(stm32f3xx::nvic::EXTI0).enable();
+    cortexm4::nvic::Nvic::new(stm32f303xc::nvic::EXTI0).enable();
+
+    // SPI1 has the l3gd20 sensor connected
+    PinId::PA06.get_pin().as_ref().map(|pin| {
+        pin.set_mode(Mode::AlternateFunctionMode);
+        pin.set_floating_state(kernel::hil::gpio::FloatingState::PullNone);
+        // AF5 is SPI1/SPI2
+        pin.set_alternate_function(AlternateFunction::AF5);
+    });
+    PinId::PA07.get_pin().as_ref().map(|pin| {
+        pin.make_output();
+        pin.set_floating_state(kernel::hil::gpio::FloatingState::PullNone);
+        pin.set_mode(Mode::AlternateFunctionMode);
+        // AF5 is SPI1/SPI2
+        pin.set_alternate_function(AlternateFunction::AF5);
+    });
+    PinId::PA05.get_pin().as_ref().map(|pin| {
+        pin.make_output();
+        pin.set_floating_state(kernel::hil::gpio::FloatingState::PullNone);
+        pin.set_mode(Mode::AlternateFunctionMode);
+        // AF5 is SPI1/SPI2
+        pin.set_alternate_function(AlternateFunction::AF5);
+    });
+    // PE03 is the chip select pin from the l3gd20 sensor
+    PinId::PE03.get_pin().as_ref().map(|pin| {
+        pin.make_output();
+        pin.set_floating_state(kernel::hil::gpio::FloatingState::PullNone);
+        pin.set();
+    });
+
+    stm32f303xc::spi::SPI1.enable_clock();
+
+    // I2C1 has the LSM303DLHC sensor connected
+    PinId::PB06.get_pin().as_ref().map(|pin| {
+        pin.set_mode(Mode::AlternateFunctionMode);
+        pin.set_floating_state(kernel::hil::gpio::FloatingState::PullNone);
+        // AF4 is I2C
+        pin.set_alternate_function(AlternateFunction::AF4);
+    });
+    PinId::PB07.get_pin().as_ref().map(|pin| {
+        pin.make_output();
+        pin.set_floating_state(kernel::hil::gpio::FloatingState::PullNone);
+        pin.set_mode(Mode::AlternateFunctionMode);
+        // AF4 is I2C
+        pin.set_alternate_function(AlternateFunction::AF4);
+    });
+
+    stm32f303xc::i2c::I2C1.enable_clock();
+    stm32f303xc::i2c::I2C1.set_speed(stm32f303xc::i2c::I2CSpeed::Speed400k, 8);
 }
 
 /// Helper function for miscellaneous peripheral functions
 unsafe fn setup_peripherals() {
-    use stm32f3xx::tim2::TIM2;
+    use stm32f303xc::tim2::TIM2;
 
     // USART1 IRQn is 37
-    cortexm4::nvic::Nvic::new(stm32f3xx::nvic::USART1).enable();
+    cortexm4::nvic::Nvic::new(stm32f303xc::nvic::USART1).enable();
 
     // TIM2 IRQn is 28
     TIM2.enable_clock();
     TIM2.start();
-    cortexm4::nvic::Nvic::new(stm32f3xx::nvic::TIM2).enable();
+    cortexm4::nvic::Nvic::new(stm32f303xc::nvic::TIM2).enable();
 }
 
 /// Reset Handler.
@@ -157,7 +216,7 @@ unsafe fn setup_peripherals() {
 /// execution begins here.
 #[no_mangle]
 pub unsafe fn reset_handler() {
-    stm32f3xx::init();
+    stm32f303xc::init();
 
     // We use the default HSI 8Mhz clock
 
@@ -175,17 +234,17 @@ pub unsafe fn reset_handler() {
     DynamicDeferredCall::set_global_instance(dynamic_deferred_caller);
 
     let chip = static_init!(
-        stm32f3xx::chip::Stm32f3xx,
-        stm32f3xx::chip::Stm32f3xx::new()
+        stm32f303xc::chip::Stm32f3xx,
+        stm32f303xc::chip::Stm32f3xx::new()
     );
     CHIP = Some(chip);
 
     // UART
 
     // Create a shared UART channel for kernel debug.
-    stm32f3xx::usart::USART1.enable_clock();
+    stm32f303xc::usart::USART1.enable_clock();
     let uart_mux = components::console::UartMuxComponent::new(
-        &stm32f3xx::usart::USART1,
+        &stm32f303xc::usart::USART1,
         115200,
         dynamic_deferred_caller,
     )
@@ -231,148 +290,217 @@ pub unsafe fn reset_handler() {
 
     // Clock to Port E is enabled in `set_pin_primary_functions()`
 
-    let led = components::led::LedsComponent::new().finalize(components::led_component_helper!(
+    let led = components::led::LedsComponent::new(components::led_component_helper!(
+        stm32f303xc::gpio::Pin<'static>,
         (
-            stm32f3xx::gpio::PinId::PE09.get_pin().as_ref().unwrap(),
+            stm32f303xc::gpio::PinId::PE09.get_pin().as_ref().unwrap(),
             kernel::hil::gpio::ActivationMode::ActiveHigh
         ),
         (
-            stm32f3xx::gpio::PinId::PE08.get_pin().as_ref().unwrap(),
+            stm32f303xc::gpio::PinId::PE08.get_pin().as_ref().unwrap(),
             kernel::hil::gpio::ActivationMode::ActiveHigh
         ),
         (
-            stm32f3xx::gpio::PinId::PE10.get_pin().as_ref().unwrap(),
+            stm32f303xc::gpio::PinId::PE10.get_pin().as_ref().unwrap(),
             kernel::hil::gpio::ActivationMode::ActiveHigh
         ),
         (
-            stm32f3xx::gpio::PinId::PE15.get_pin().as_ref().unwrap(),
+            stm32f303xc::gpio::PinId::PE15.get_pin().as_ref().unwrap(),
             kernel::hil::gpio::ActivationMode::ActiveHigh
         ),
         (
-            stm32f3xx::gpio::PinId::PE11.get_pin().as_ref().unwrap(),
+            stm32f303xc::gpio::PinId::PE11.get_pin().as_ref().unwrap(),
             kernel::hil::gpio::ActivationMode::ActiveHigh
         ),
         (
-            stm32f3xx::gpio::PinId::PE14.get_pin().as_ref().unwrap(),
+            stm32f303xc::gpio::PinId::PE14.get_pin().as_ref().unwrap(),
             kernel::hil::gpio::ActivationMode::ActiveHigh
         ),
         (
-            stm32f3xx::gpio::PinId::PE12.get_pin().as_ref().unwrap(),
+            stm32f303xc::gpio::PinId::PE12.get_pin().as_ref().unwrap(),
             kernel::hil::gpio::ActivationMode::ActiveHigh
         ),
         (
-            stm32f3xx::gpio::PinId::PE13.get_pin().as_ref().unwrap(),
+            stm32f303xc::gpio::PinId::PE13.get_pin().as_ref().unwrap(),
             kernel::hil::gpio::ActivationMode::ActiveHigh
         )
+    ))
+    .finalize(components::led_component_buf!(
+        stm32f303xc::gpio::Pin<'static>
     ));
 
     // BUTTONs
-    let button = components::button::ButtonComponent::new(board_kernel).finalize(
-        components::button_component_helper!((
-            stm32f3xx::gpio::PinId::PA00.get_pin().as_ref().unwrap(),
-            kernel::hil::gpio::ActivationMode::ActiveLow,
-            kernel::hil::gpio::FloatingState::PullNone
-        )),
-    );
+    let button = components::button::ButtonComponent::new(
+        board_kernel,
+        components::button_component_helper!(
+            stm32f303xc::gpio::Pin<'static>,
+            (
+                stm32f303xc::gpio::PinId::PA00.get_pin().as_ref().unwrap(),
+                kernel::hil::gpio::ActivationMode::ActiveLow,
+                kernel::hil::gpio::FloatingState::PullNone
+            )
+        ),
+    )
+    .finalize(components::button_component_buf!(
+        stm32f303xc::gpio::Pin<'static>
+    ));
 
     // ALARM
 
-    let tim2 = &stm32f3xx::tim2::TIM2;
+    let tim2 = &stm32f303xc::tim2::TIM2;
     let mux_alarm = components::alarm::AlarmMuxComponent::new(tim2).finalize(
-        components::alarm_mux_component_helper!(stm32f3xx::tim2::Tim2),
+        components::alarm_mux_component_helper!(stm32f303xc::tim2::Tim2),
     );
 
     let alarm = components::alarm::AlarmDriverComponent::new(board_kernel, mux_alarm)
-        .finalize(components::alarm_component_helper!(stm32f3xx::tim2::Tim2));
+        .finalize(components::alarm_component_helper!(stm32f303xc::tim2::Tim2));
 
     // GPIO
-    let gpio = GpioComponent::new(board_kernel).finalize(components::gpio_component_helper!(
-        // Left outer connector
-        stm32f3xx::gpio::PinId::PC01.get_pin().as_ref().unwrap(),
-        stm32f3xx::gpio::PinId::PC03.get_pin().as_ref().unwrap(),
-        stm32f3xx::gpio::PinId::PA01.get_pin().as_ref().unwrap(),
-        stm32f3xx::gpio::PinId::PA03.get_pin().as_ref().unwrap(),
-        stm32f3xx::gpio::PinId::PF04.get_pin().as_ref().unwrap(),
-        stm32f3xx::gpio::PinId::PA05.get_pin().as_ref().unwrap(),
-        stm32f3xx::gpio::PinId::PA07.get_pin().as_ref().unwrap(),
-        stm32f3xx::gpio::PinId::PC05.get_pin().as_ref().unwrap(),
-        stm32f3xx::gpio::PinId::PB01.get_pin().as_ref().unwrap(),
-        stm32f3xx::gpio::PinId::PE07.get_pin().as_ref().unwrap(),
-        stm32f3xx::gpio::PinId::PE09.get_pin().as_ref().unwrap(),
-        stm32f3xx::gpio::PinId::PE11.get_pin().as_ref().unwrap(),
-        stm32f3xx::gpio::PinId::PE13.get_pin().as_ref().unwrap(),
-        stm32f3xx::gpio::PinId::PB11.get_pin().as_ref().unwrap(),
-        stm32f3xx::gpio::PinId::PB13.get_pin().as_ref().unwrap(),
-        stm32f3xx::gpio::PinId::PB15.get_pin().as_ref().unwrap(),
-        stm32f3xx::gpio::PinId::PD09.get_pin().as_ref().unwrap(),
-        stm32f3xx::gpio::PinId::PD11.get_pin().as_ref().unwrap(),
-        stm32f3xx::gpio::PinId::PD13.get_pin().as_ref().unwrap(),
-        stm32f3xx::gpio::PinId::PD15.get_pin().as_ref().unwrap(),
-        stm32f3xx::gpio::PinId::PC06.get_pin().as_ref().unwrap(),
-        // Left inner connector
-        stm32f3xx::gpio::PinId::PC00.get_pin().as_ref().unwrap(),
-        stm32f3xx::gpio::PinId::PC02.get_pin().as_ref().unwrap(),
-        stm32f3xx::gpio::PinId::PF02.get_pin().as_ref().unwrap(),
-        // stm32f3xx::gpio::PinId::PA00.get_pin().as_ref().unwrap(),
-        stm32f3xx::gpio::PinId::PA02.get_pin().as_ref().unwrap(),
-        stm32f3xx::gpio::PinId::PA04.get_pin().as_ref().unwrap(),
-        stm32f3xx::gpio::PinId::PA06.get_pin().as_ref().unwrap(),
-        stm32f3xx::gpio::PinId::PC04.get_pin().as_ref().unwrap(),
-        stm32f3xx::gpio::PinId::PB00.get_pin().as_ref().unwrap(),
-        stm32f3xx::gpio::PinId::PB02.get_pin().as_ref().unwrap(),
-        stm32f3xx::gpio::PinId::PE08.get_pin().as_ref().unwrap(),
-        stm32f3xx::gpio::PinId::PE10.get_pin().as_ref().unwrap(),
-        stm32f3xx::gpio::PinId::PE12.get_pin().as_ref().unwrap(),
-        stm32f3xx::gpio::PinId::PE14.get_pin().as_ref().unwrap(),
-        stm32f3xx::gpio::PinId::PB10.get_pin().as_ref().unwrap(),
-        stm32f3xx::gpio::PinId::PB12.get_pin().as_ref().unwrap(),
-        stm32f3xx::gpio::PinId::PB14.get_pin().as_ref().unwrap(),
-        stm32f3xx::gpio::PinId::PD08.get_pin().as_ref().unwrap(),
-        stm32f3xx::gpio::PinId::PD10.get_pin().as_ref().unwrap(),
-        stm32f3xx::gpio::PinId::PD14.get_pin().as_ref().unwrap(),
-        stm32f3xx::gpio::PinId::PC07.get_pin().as_ref().unwrap(),
-        // Right inner connector
-        stm32f3xx::gpio::PinId::PF09.get_pin().as_ref().unwrap(),
-        stm32f3xx::gpio::PinId::PF00.get_pin().as_ref().unwrap(),
-        stm32f3xx::gpio::PinId::PC14.get_pin().as_ref().unwrap(),
-        stm32f3xx::gpio::PinId::PE06.get_pin().as_ref().unwrap(),
-        stm32f3xx::gpio::PinId::PE04.get_pin().as_ref().unwrap(),
-        stm32f3xx::gpio::PinId::PE02.get_pin().as_ref().unwrap(),
-        stm32f3xx::gpio::PinId::PB08.get_pin().as_ref().unwrap(),
-        stm32f3xx::gpio::PinId::PB06.get_pin().as_ref().unwrap(),
-        stm32f3xx::gpio::PinId::PB04.get_pin().as_ref().unwrap(),
-        stm32f3xx::gpio::PinId::PD07.get_pin().as_ref().unwrap(),
-        stm32f3xx::gpio::PinId::PD05.get_pin().as_ref().unwrap(),
-        stm32f3xx::gpio::PinId::PD03.get_pin().as_ref().unwrap(),
-        stm32f3xx::gpio::PinId::PC12.get_pin().as_ref().unwrap(),
-        stm32f3xx::gpio::PinId::PC10.get_pin().as_ref().unwrap(),
-        stm32f3xx::gpio::PinId::PA14.get_pin().as_ref().unwrap(),
-        stm32f3xx::gpio::PinId::PF06.get_pin().as_ref().unwrap(),
-        stm32f3xx::gpio::PinId::PA12.get_pin().as_ref().unwrap(),
-        stm32f3xx::gpio::PinId::PA10.get_pin().as_ref().unwrap(),
-        stm32f3xx::gpio::PinId::PA08.get_pin().as_ref().unwrap(),
-        stm32f3xx::gpio::PinId::PC08.get_pin().as_ref().unwrap(),
-        // Right outer connector
-        stm32f3xx::gpio::PinId::PF10.get_pin().as_ref().unwrap(),
-        stm32f3xx::gpio::PinId::PF01.get_pin().as_ref().unwrap(),
-        stm32f3xx::gpio::PinId::PC15.get_pin().as_ref().unwrap(),
-        stm32f3xx::gpio::PinId::PC13.get_pin().as_ref().unwrap(),
-        stm32f3xx::gpio::PinId::PE05.get_pin().as_ref().unwrap(),
-        stm32f3xx::gpio::PinId::PE03.get_pin().as_ref().unwrap(),
-        stm32f3xx::gpio::PinId::PB09.get_pin().as_ref().unwrap(),
-        stm32f3xx::gpio::PinId::PB07.get_pin().as_ref().unwrap(),
-        stm32f3xx::gpio::PinId::PB05.get_pin().as_ref().unwrap(),
-        stm32f3xx::gpio::PinId::PB03.get_pin().as_ref().unwrap(),
-        stm32f3xx::gpio::PinId::PD06.get_pin().as_ref().unwrap(),
-        stm32f3xx::gpio::PinId::PD04.get_pin().as_ref().unwrap(),
-        stm32f3xx::gpio::PinId::PD02.get_pin().as_ref().unwrap(),
-        stm32f3xx::gpio::PinId::PC11.get_pin().as_ref().unwrap(),
-        stm32f3xx::gpio::PinId::PA15.get_pin().as_ref().unwrap(),
-        stm32f3xx::gpio::PinId::PA13.get_pin().as_ref().unwrap(),
-        stm32f3xx::gpio::PinId::PA11.get_pin().as_ref().unwrap(),
-        stm32f3xx::gpio::PinId::PA09.get_pin().as_ref().unwrap(),
-        stm32f3xx::gpio::PinId::PC09.get_pin().as_ref().unwrap()
+    let gpio = GpioComponent::new(
+        board_kernel,
+        components::gpio_component_helper!(
+            stm32f303xc::gpio::Pin<'static>,
+            // Left outer connector
+            0 => stm32f303xc::gpio::PinId::PC01.get_pin().as_ref().unwrap(),
+            1 => stm32f303xc::gpio::PinId::PC03.get_pin().as_ref().unwrap(),
+            2 => stm32f303xc::gpio::PinId::PA01.get_pin().as_ref().unwrap(),
+            3 => stm32f303xc::gpio::PinId::PA03.get_pin().as_ref().unwrap(),
+            4 => stm32f303xc::gpio::PinId::PF04.get_pin().as_ref().unwrap(),
+            // 5 => stm32f303xc::gpio::PinId::PA05.get_pin().as_ref().unwrap(),
+            // 6 => stm32f303xc::gpio::PinId::PA07.get_pin().as_ref().unwrap(),
+            7 => stm32f303xc::gpio::PinId::PC05.get_pin().as_ref().unwrap(),
+            8 => stm32f303xc::gpio::PinId::PB01.get_pin().as_ref().unwrap(),
+            9 => stm32f303xc::gpio::PinId::PE07.get_pin().as_ref().unwrap(),
+            10 => stm32f303xc::gpio::PinId::PE09.get_pin().as_ref().unwrap(),
+            11 => stm32f303xc::gpio::PinId::PE11.get_pin().as_ref().unwrap(),
+            12 => stm32f303xc::gpio::PinId::PE13.get_pin().as_ref().unwrap(),
+            13 => stm32f303xc::gpio::PinId::PB11.get_pin().as_ref().unwrap(),
+            14 => stm32f303xc::gpio::PinId::PB13.get_pin().as_ref().unwrap(),
+            15 => stm32f303xc::gpio::PinId::PB15.get_pin().as_ref().unwrap(),
+            16 => stm32f303xc::gpio::PinId::PD09.get_pin().as_ref().unwrap(),
+            17 => stm32f303xc::gpio::PinId::PD11.get_pin().as_ref().unwrap(),
+            18 => stm32f303xc::gpio::PinId::PD13.get_pin().as_ref().unwrap(),
+            19 => stm32f303xc::gpio::PinId::PD15.get_pin().as_ref().unwrap(),
+            20 => stm32f303xc::gpio::PinId::PC06.get_pin().as_ref().unwrap(),
+            // Left inner connector
+            21 => stm32f303xc::gpio::PinId::PC00.get_pin().as_ref().unwrap(),
+            22 => stm32f303xc::gpio::PinId::PC02.get_pin().as_ref().unwrap(),
+            23 => stm32f303xc::gpio::PinId::PF02.get_pin().as_ref().unwrap(),
+            // 24 => stm32f303xc::gpio::PinId::PA00.get_pin().as_ref().unwrap(),
+            25 => stm32f303xc::gpio::PinId::PA02.get_pin().as_ref().unwrap(),
+            26 => stm32f303xc::gpio::PinId::PA04.get_pin().as_ref().unwrap(),
+            // 27 => stm32f303xc::gpio::PinId::PA06.get_pin().as_ref().unwrap(),
+            28 => stm32f303xc::gpio::PinId::PC04.get_pin().as_ref().unwrap(),
+            29 => stm32f303xc::gpio::PinId::PB00.get_pin().as_ref().unwrap(),
+            30 => stm32f303xc::gpio::PinId::PB02.get_pin().as_ref().unwrap(),
+            31 => stm32f303xc::gpio::PinId::PE08.get_pin().as_ref().unwrap(),
+            32 => stm32f303xc::gpio::PinId::PE10.get_pin().as_ref().unwrap(),
+            33 => stm32f303xc::gpio::PinId::PE12.get_pin().as_ref().unwrap(),
+            34 => stm32f303xc::gpio::PinId::PE14.get_pin().as_ref().unwrap(),
+            35 => stm32f303xc::gpio::PinId::PB10.get_pin().as_ref().unwrap(),
+            36 => stm32f303xc::gpio::PinId::PB12.get_pin().as_ref().unwrap(),
+            37 => stm32f303xc::gpio::PinId::PB14.get_pin().as_ref().unwrap(),
+            38 => stm32f303xc::gpio::PinId::PD08.get_pin().as_ref().unwrap(),
+            39 => stm32f303xc::gpio::PinId::PD10.get_pin().as_ref().unwrap(),
+            40 => stm32f303xc::gpio::PinId::PD14.get_pin().as_ref().unwrap(),
+            41 => stm32f303xc::gpio::PinId::PC07.get_pin().as_ref().unwrap(),
+            // Right inner connector
+            42 => stm32f303xc::gpio::PinId::PF09.get_pin().as_ref().unwrap(),
+            43 => stm32f303xc::gpio::PinId::PF00.get_pin().as_ref().unwrap(),
+            44 => stm32f303xc::gpio::PinId::PC14.get_pin().as_ref().unwrap(),
+            45 => stm32f303xc::gpio::PinId::PE06.get_pin().as_ref().unwrap(),
+            46 => stm32f303xc::gpio::PinId::PE04.get_pin().as_ref().unwrap(),
+            47 => stm32f303xc::gpio::PinId::PE02.get_pin().as_ref().unwrap(),
+            48 => stm32f303xc::gpio::PinId::PB08.get_pin().as_ref().unwrap(),
+            // 49 => stm32f303xc::gpio::PinId::PB06.get_pin().as_ref().unwrap(),
+            50 => stm32f303xc::gpio::PinId::PB04.get_pin().as_ref().unwrap(),
+            51 => stm32f303xc::gpio::PinId::PD07.get_pin().as_ref().unwrap(),
+            52 => stm32f303xc::gpio::PinId::PD05.get_pin().as_ref().unwrap(),
+            53 => stm32f303xc::gpio::PinId::PD03.get_pin().as_ref().unwrap(),
+            54 => stm32f303xc::gpio::PinId::PC12.get_pin().as_ref().unwrap(),
+            55 => stm32f303xc::gpio::PinId::PC10.get_pin().as_ref().unwrap(),
+            56 => stm32f303xc::gpio::PinId::PA14.get_pin().as_ref().unwrap(),
+            57 => stm32f303xc::gpio::PinId::PF06.get_pin().as_ref().unwrap(),
+            58 => stm32f303xc::gpio::PinId::PA12.get_pin().as_ref().unwrap(),
+            59 => stm32f303xc::gpio::PinId::PA10.get_pin().as_ref().unwrap(),
+            60 => stm32f303xc::gpio::PinId::PA08.get_pin().as_ref().unwrap(),
+            61 => stm32f303xc::gpio::PinId::PC08.get_pin().as_ref().unwrap(),
+            // Right outer connector
+            62 => stm32f303xc::gpio::PinId::PF10.get_pin().as_ref().unwrap(),
+            63 => stm32f303xc::gpio::PinId::PF01.get_pin().as_ref().unwrap(),
+            64 => stm32f303xc::gpio::PinId::PC15.get_pin().as_ref().unwrap(),
+            65 => stm32f303xc::gpio::PinId::PC13.get_pin().as_ref().unwrap(),
+            66 => stm32f303xc::gpio::PinId::PE05.get_pin().as_ref().unwrap(),
+            67 => stm32f303xc::gpio::PinId::PE03.get_pin().as_ref().unwrap(),
+            68 => stm32f303xc::gpio::PinId::PB09.get_pin().as_ref().unwrap(),
+            // 69 => stm32f303xc::gpio::PinId::PB07.get_pin().as_ref().unwrap(),
+            70 => stm32f303xc::gpio::PinId::PB05.get_pin().as_ref().unwrap(),
+            71 => stm32f303xc::gpio::PinId::PB03.get_pin().as_ref().unwrap(),
+            72 => stm32f303xc::gpio::PinId::PD06.get_pin().as_ref().unwrap(),
+            73 => stm32f303xc::gpio::PinId::PD04.get_pin().as_ref().unwrap(),
+            74 => stm32f303xc::gpio::PinId::PD02.get_pin().as_ref().unwrap(),
+            75 => stm32f303xc::gpio::PinId::PC11.get_pin().as_ref().unwrap(),
+            76 => stm32f303xc::gpio::PinId::PA15.get_pin().as_ref().unwrap(),
+            77 => stm32f303xc::gpio::PinId::PA13.get_pin().as_ref().unwrap(),
+            78 => stm32f303xc::gpio::PinId::PA11.get_pin().as_ref().unwrap(),
+            79 => stm32f303xc::gpio::PinId::PA09.get_pin().as_ref().unwrap(),
+            80 => stm32f303xc::gpio::PinId::PC09.get_pin().as_ref().unwrap()
+        ),
+    )
+    .finalize(components::gpio_component_buf!(
+        stm32f303xc::gpio::Pin<'static>
     ));
+
+    // L3GD20 sensor
+    let spi_mux = components::spi::SpiMuxComponent::new(&stm32f303xc::spi::SPI1)
+        .finalize(components::spi_mux_component_helper!(stm32f303xc::spi::Spi));
+
+    let l3gd20 = components::l3gd20::L3gd20SpiComponent::new().finalize(
+        components::l3gd20_spi_component_helper!(
+            // spi type
+            stm32f303xc::spi::Spi,
+            // chip select
+            stm32f303xc::gpio::PinId::PE03,
+            // spi mux
+            spi_mux
+        ),
+    );
+
+    l3gd20.power_on();
+
+    let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
+    let grant_temperature = board_kernel.create_grant(&grant_cap);
+
+    let temp = static_init!(
+        capsules::temperature::TemperatureSensor<'static>,
+        capsules::temperature::TemperatureSensor::new(l3gd20, grant_temperature)
+    );
+    kernel::hil::sensors::TemperatureDriver::set_client(l3gd20, temp);
+
+    // LSM303DLHC
+
+    let mux_i2c = components::i2c::I2CMuxComponent::new(
+        &stm32f303xc::i2c::I2C1,
+        None,
+        dynamic_deferred_caller,
+    )
+    .finalize(components::i2c_mux_component_helper!());
+
+    let lsm303dlhc = components::lsm303dlhc::Lsm303dlhcI2CComponent::new()
+        .finalize(components::lsm303dlhc_i2c_component_helper!(mux_i2c));
+
+    lsm303dlhc.configure(
+        lsm303dlhc::Lsm303dlhcAccelDataRate::DataRate25Hz,
+        false,
+        lsm303dlhc::Lsm303dlhcScale::Scale2G,
+        false,
+        true,
+        lsm303dlhc::Lsm303dlhcMagnetoDataRate::DataRate3_0Hz,
+        lsm303dlhc::Lsm303dlhcRange::Range1_9G,
+    );
+
+    let ninedof = components::ninedof::NineDofComponent::new(board_kernel)
+        .finalize(components::ninedof_component_helper!(l3gd20, lsm303dlhc));
 
     let stm32f3discovery = STM32F3Discovery {
         console: console,
@@ -381,6 +509,10 @@ pub unsafe fn reset_handler() {
         led: led,
         button: button,
         alarm: alarm,
+        l3gd20: l3gd20,
+        lsm303dlhc: lsm303dlhc,
+        ninedof: ninedof,
+        temp: temp,
     };
 
     // // Optional kernel tests
@@ -388,7 +520,6 @@ pub unsafe fn reset_handler() {
     // // See comment in `boards/imix/src/main.rs`
     // virtual_uart_rx_test::run_virtual_uart_receive(mux_uart);
 
-    // hprintln!("Initialization complete. Entering main loop").unwrap ();
     debug!("Initialization complete. Entering main loop");
 
     extern "C" {

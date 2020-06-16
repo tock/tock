@@ -13,6 +13,8 @@
 //! -----
 //!
 //! ```rust
+//! # use kernel::static_init;
+//!
 //! // Two i2c addresses are necessary.
 //! // Registers 0x000-0x0FF are accessed by address 0x36.
 //! // Registers 0x100-0x1FF are accessed by address 0x0B.
@@ -104,7 +106,7 @@ pub struct MAX17205<'a> {
     client: OptionalCell<&'static dyn MAX17205Client>,
 }
 
-impl MAX17205<'a> {
+impl<'a> MAX17205<'a> {
     pub fn new(
         i2c_lower: &'a dyn i2c::I2CDevice,
         i2c_upper: &'a dyn i2c::I2CDevice,
@@ -194,7 +196,7 @@ impl MAX17205<'a> {
     }
 }
 
-impl i2c::I2CClient for MAX17205<'a> {
+impl i2c::I2CClient for MAX17205<'_> {
     fn command_complete(&self, buffer: &'static mut [u8], _error: i2c::Error) {
         match self.state.get() {
             State::SetupReadStatus => {
@@ -362,7 +364,7 @@ pub struct MAX17205Driver<'a> {
     callback: OptionalCell<Callback>,
 }
 
-impl MAX17205Driver<'a> {
+impl<'a> MAX17205Driver<'a> {
     pub fn new(max: &'a MAX17205) -> MAX17205Driver<'a> {
         MAX17205Driver {
             max17205: max,
@@ -371,7 +373,7 @@ impl MAX17205Driver<'a> {
     }
 }
 
-impl MAX17205Client for MAX17205Driver<'a> {
+impl MAX17205Client for MAX17205Driver<'_> {
     fn status(&self, status: u16, error: ReturnCode) {
         self.callback
             .map(|cb| cb.schedule(From::from(error), status as usize, 0));
@@ -408,7 +410,7 @@ impl MAX17205Client for MAX17205Driver<'a> {
     }
 }
 
-impl Driver for MAX17205Driver<'a> {
+impl Driver for MAX17205Driver<'_> {
     /// Setup callback.
     ///
     /// ### `subscribe_num`

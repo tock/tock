@@ -32,7 +32,9 @@ These implement a driver to setup and read various physical sensors.
 - **[FXOS8700CQ](src/fxos8700cq.rs)**: Accelerometer and magnetometer.
 - **[ISL29035](src/isl29035.rs)**: Light sensor.
 - **[L3GD20](src/l3gd20.rs)**: MEMS 3 axys digital gyroscope and temperature sensor.
+- **[LSM303DLHC](src/lsm303dlhc.rs)**: MEMS 3 axys digital accelerometer, magnetometer and temperature sensor.
 - **[LPS25HB](src/lps25hb.rs)**: Pressure sensor.
+- **[MLX90614](src/mlx90614.rs)**: Infrared temperature sensor.
 - **[SI7021](src/si7021.rs)**: Temperature and humidity sensor.
 - **[TMP006](src/tmp006.rs)**: Infrared temperature sensor.
 - **[TSL2561](src/tsl2561.rs)**: Light sensor.
@@ -117,7 +119,9 @@ simultaneously) support for generic sensor interfaces.
 These allow for multiple users of shared hardware resources in the kernel.
 
 - **[Virtual Alarm](src/virtual_alarm.rs)**: Shared alarm resource.
+- **[Virtual Digest](src/virtual_digest.rs)**: Shared digest resource.
 - **[Virtual Flash](src/virtual_flash.rs)**: Shared flash resource.
+- **[Virtual HMAC](src/virtual_hmac.rs)**: Shared HMAC resource.
 - **[Virtual I2C](src/virtual_i2c.rs)**: Shared I2C and fixed addresses.
 - **[Virtual PWM](src/virtual_pwm.rs)**: Shared PWM hardware.
 - **[Virtual SPI](src/virtual_spi.rs)**: Shared SPI and fixed chip select pins.
@@ -131,6 +135,7 @@ Other capsules that implement reusable logic.
 - **[Nonvolatile to Pages](src/nonvolatile_to_pages.rs)**: Map arbitrary reads
   and writes to flash pages.
 - **[AES Encryption](src/aes_ccm.rs)**: AES-CCM encryption.
+- **[HMAC](src/hmac.rs)**: Hash-based Message Authentication Code (HMAC) digest engine.
 - **[Log Storage](src/log_storage.rs)**: Log storage abstraction on top of flash devices.
 
 

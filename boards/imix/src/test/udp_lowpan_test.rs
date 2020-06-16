@@ -7,17 +7,13 @@
 //!
 //! To use this test suite, insert the below code into `boards/imix/src/main.rs` as follows:
 //!
-//!```
-//! ...
-//! // Radio initialization code
-//! ...
-//!    let udp_lowpan_test = test::udp_lowpan_test::initialize_all(
-//!        udp_mux,
-//!        mux_alarm as &'static MuxAlarm<'static, sam4l::ast::Ast>,
-//!    );
-//! ...
-//! // Imix initialization
-//! ...
+//!```rust
+//! let udp_lowpan_test = test::udp_lowpan_test::initialize_all(
+//!    udp_send_mux,
+//!     udp_recv_mux,
+//!     udp_port_table,
+//!     mux_alarm,
+//! );
 //! udp_lowpan_test.start();
 //!```
 //!

@@ -1,8 +1,10 @@
 //! Board file for the SiFive E21 Bitstream running on the Arty FPGA
 
 #![no_std]
-#![no_main]
-#![feature(const_fn, in_band_lifetimes)]
+// Disable this attribute when documenting, as a workaround for
+// https://github.com/rust-lang/rust/issues/62184.
+#![cfg_attr(not(doc), no_main)]
+#![feature(const_fn)]
 
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use kernel::capabilities;
@@ -44,13 +46,13 @@ pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 /// capsules for this platform.
 struct ArtyE21 {
     console: &'static capsules::console::Console<'static>,
-    gpio: &'static capsules::gpio::GPIO<'static>,
+    gpio: &'static capsules::gpio::GPIO<'static, arty_e21_chip::gpio::GpioPin>,
     alarm: &'static capsules::alarm::AlarmDriver<
         'static,
         VirtualMuxAlarm<'static, rv32i::machine_timer::MachineTimer<'static>>,
     >,
-    led: &'static capsules::led::LED<'static>,
-    button: &'static capsules::button::Button<'static>,
+    led: &'static capsules::led::LED<'static, arty_e21_chip::gpio::GpioPin>,
+    button: &'static capsules::button::Button<'static, arty_e21_chip::gpio::GpioPin>,
     // ipc: kernel::ipc::IPC,
 }
 
@@ -92,7 +94,6 @@ pub unsafe fn reset_handler() {
 
     let process_mgmt_cap = create_capability!(capabilities::ProcessManagementCapability);
     let main_loop_cap = create_capability!(capabilities::MainLoopCapability);
-    let memory_allocation_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
 
@@ -106,8 +107,8 @@ pub unsafe fn reset_handler() {
 
     // Configure kernel debug gpios as early as possible
     kernel::debug::assign_gpios(
-        Some(&arty_e21_chip::gpio::PORT[0]), // Red
-        Some(&arty_e21_chip::gpio::PORT[1]),
+        Some(&arty_e21_chip::gpio::PORT[0]), // Blue
+        Some(&arty_e21_chip::gpio::PORT[1]), // Green
         Some(&arty_e21_chip::gpio::PORT[8]),
     );
 
@@ -147,71 +148,55 @@ pub unsafe fn reset_handler() {
     // virtual_alarm_test.set_client(timertest);
 
     // LEDs
-    let led_pins = static_init!(
-        [(
-            &'static dyn kernel::hil::gpio::Pin,
-            kernel::hil::gpio::ActivationMode
-        ); 3],
-        [
-            (
-                // Red
-                &arty_e21_chip::gpio::PORT[0],
-                kernel::hil::gpio::ActivationMode::ActiveHigh
-            ),
-            (
-                // Green
-                &arty_e21_chip::gpio::PORT[1],
-                kernel::hil::gpio::ActivationMode::ActiveHigh
-            ),
-            (
-                // Blue
-                &arty_e21_chip::gpio::PORT[2],
-                kernel::hil::gpio::ActivationMode::ActiveHigh
-            ),
-        ]
-    );
-    let led = static_init!(
-        capsules::led::LED<'static>,
-        capsules::led::LED::new(led_pins)
-    );
+    let led = components::led::LedsComponent::new(components::led_component_helper!(
+        arty_e21_chip::gpio::GpioPin,
+        (
+            // Red
+            &arty_e21_chip::gpio::PORT[2],
+            kernel::hil::gpio::ActivationMode::ActiveHigh
+        ),
+        (
+            // Green
+            &arty_e21_chip::gpio::PORT[1],
+            kernel::hil::gpio::ActivationMode::ActiveHigh
+        ),
+        (
+            // Blue
+            &arty_e21_chip::gpio::PORT[0],
+            kernel::hil::gpio::ActivationMode::ActiveHigh
+        )
+    ))
+    .finalize(components::led_component_buf!(arty_e21_chip::gpio::GpioPin));
 
     // BUTTONs
-    let button = components::button::ButtonComponent::new(board_kernel).finalize(
-        components::button_component_helper!((
-            &arty_e21_chip::gpio::PORT[4],
-            kernel::hil::gpio::ActivationMode::ActiveHigh,
-            kernel::hil::gpio::FloatingState::PullNone
-        )),
-    );
+    let button = components::button::ButtonComponent::new(
+        board_kernel,
+        components::button_component_helper!(
+            arty_e21_chip::gpio::GpioPin,
+            (
+                &arty_e21_chip::gpio::PORT[4],
+                kernel::hil::gpio::ActivationMode::ActiveHigh,
+                kernel::hil::gpio::FloatingState::PullNone
+            )
+        ),
+    )
+    .finalize(components::button_component_buf!(
+        arty_e21_chip::gpio::GpioPin
+    ));
 
     // set GPIO driver controlling remaining GPIO pins
-    let gpio_pins = static_init!(
-        [&'static dyn kernel::hil::gpio::InterruptValuePin; 3],
-        [
-            static_init!(
-                kernel::hil::gpio::InterruptValueWrapper,
-                kernel::hil::gpio::InterruptValueWrapper::new(&arty_e21_chip::gpio::PORT[7])
-            )
-            .finalize(),
-            static_init!(
-                kernel::hil::gpio::InterruptValueWrapper,
-                kernel::hil::gpio::InterruptValueWrapper::new(&arty_e21_chip::gpio::PORT[5])
-            )
-            .finalize(),
-            static_init!(
-                kernel::hil::gpio::InterruptValueWrapper,
-                kernel::hil::gpio::InterruptValueWrapper::new(&arty_e21_chip::gpio::PORT[6])
-            )
-            .finalize(),
-        ]
-    );
-    let gpio = static_init!(
-        capsules::gpio::GPIO<'static>,
-        capsules::gpio::GPIO::new(gpio_pins, board_kernel.create_grant(&memory_allocation_cap))
-    );
-    for pin in gpio_pins.iter() {
-        pin.set_client(gpio);
-    }
+    let gpio = components::gpio::GpioComponent::new(
+        board_kernel,
+        components::gpio_component_helper!(
+            arty_e21_chip::gpio::GpioPin,
+            0 => &arty_e21_chip::gpio::PORT[7],
+            1 => &arty_e21_chip::gpio::PORT[5],
+            2 => &arty_e21_chip::gpio::PORT[6]
+        ),
+    )
+    .finalize(components::gpio_component_buf!(
+        arty_e21_chip::gpio::GpioPin
+    ));
 
     chip.enable_all_interrupts();
 

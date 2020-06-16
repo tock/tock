@@ -4,7 +4,7 @@ use core::cell::Cell;
 
 pub struct ListLink<'a, T: 'a + ?Sized>(Cell<Option<&'a T>>);
 
-impl<T: ?Sized> ListLink<'a, T> {
+impl<'a, T: ?Sized> ListLink<'a, T> {
     pub const fn empty() -> ListLink<'a, T> {
         ListLink(Cell::new(None))
     }
@@ -22,7 +22,7 @@ pub struct ListIterator<'a, T: 'a + ?Sized + ListNode<'a, T>> {
     cur: Option<&'a T>,
 }
 
-impl<T: ?Sized + ListNode<'a, T>> Iterator for ListIterator<'a, T> {
+impl<'a, T: ?Sized + ListNode<'a, T>> Iterator for ListIterator<'a, T> {
     type Item = &'a T;
 
     fn next(&mut self) -> Option<&'a T> {
@@ -36,7 +36,7 @@ impl<T: ?Sized + ListNode<'a, T>> Iterator for ListIterator<'a, T> {
     }
 }
 
-impl<T: ?Sized + ListNode<'a, T>> List<'a, T> {
+impl<'a, T: ?Sized + ListNode<'a, T>> List<'a, T> {
     pub const fn new() -> List<'a, T> {
         List {
             head: ListLink(Cell::new(None)),

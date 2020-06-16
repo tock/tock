@@ -487,7 +487,11 @@ impl PinId {
         unsafe { &PIN[usize::from(port_num)][usize::from(pin_num)] }
     }
 
-    pub fn get_pin_mut(&self) -> &mut Option<Pin<'static>> {
+    #[allow(clippy::mut_from_ref)]
+    // This function is inherently unsafe, but no more unsafe than multiple accesses
+    // to `pub static mut PIN` made directly, so okay to ignore this clippy lint
+    // so long as the function is marked unsafe.
+    pub unsafe fn get_pin_mut(&self) -> &mut Option<Pin<'static>> {
         let mut port_num: u8 = *self as u8;
 
         // Right shift p by 4 bits, so we can get rid of pin bits
@@ -497,7 +501,7 @@ impl PinId {
         // Mask top 3 bits, so can get only the suffix
         pin_num &= 0b0001111;
 
-        unsafe { &mut PIN[usize::from(port_num)][usize::from(pin_num)] }
+        &mut PIN[usize::from(port_num)][usize::from(pin_num)]
     }
 
     pub fn get_port(&self) -> &Port {
@@ -722,7 +726,7 @@ pub static mut PIN: [[Option<Pin<'static>>; 16]; 8] = [
     ],
 ];
 
-impl Pin<'a> {
+impl<'a> Pin<'a> {
     const fn new(pinid: PinId) -> Pin<'a> {
         Pin {
             pinid: pinid,
@@ -1002,10 +1006,10 @@ impl Pin<'a> {
     }
 }
 
-impl hil::gpio::Pin for Pin<'a> {}
-impl hil::gpio::InterruptPin for Pin<'a> {}
+impl hil::gpio::Pin for Pin<'_> {}
+impl hil::gpio::InterruptPin for Pin<'_> {}
 
-impl hil::gpio::Configure for Pin<'a> {
+impl hil::gpio::Configure for Pin<'_> {
     /// Output mode default is push-pull
     fn make_output(&self) -> hil::gpio::Configuration {
         self.set_mode(Mode::GeneralPurposeOutputMode);
@@ -1077,7 +1081,7 @@ impl hil::gpio::Configure for Pin<'a> {
     }
 }
 
-impl hil::gpio::Output for Pin<'a> {
+impl hil::gpio::Output for Pin<'_> {
     fn set(&self) {
         self.set_output_high();
     }
@@ -1091,13 +1095,13 @@ impl hil::gpio::Output for Pin<'a> {
     }
 }
 
-impl hil::gpio::Input for Pin<'a> {
+impl hil::gpio::Input for Pin<'_> {
     fn read(&self) -> bool {
         self.read_input()
     }
 }
 
-impl hil::gpio::Interrupt for Pin<'a> {
+impl hil::gpio::Interrupt for Pin<'_> {
     fn enable_interrupts(&self, mode: hil::gpio::InterruptEdge) {
         unsafe {
             atomic(|| {

@@ -16,27 +16,17 @@
 //! to remain in sync, they must both be started at the same time. Any dropped
 //! frames will prevent the test from completing successfully.
 //!
-//! To use this test suite, allocate space for a new LowpanTest structure, and
-//! set it as the client for the Sixlowpan struct and for the respective TxState
-//! struct. For the transmit side, call the LowpanTest::start method. The
-//! `initialize_all` function performs this initialization; simply call this
-//! function in `boards/imix/src/main.rs` as follows:
+//! To use this test, the `initialize_all` is called on both boards; and `start()`
+//! is called on the transmitting board. Simply call these
+//! functions in `boards/imix/src/main.rs` as follows:
 //!
-//! Alternatively, you can call the `initialize_all` function, which performs
-//! the initialization routines for the 6LoWPAN, TxState, RxState, and Sixlowpan
-//! structs. Insert the code into `boards/imix/src/main.rs` as follows:
-//!
-//! ...
-//! // Radio initialization code
-//! ...
+//! ```rust
 //! let lowpan_frag_test = test::ipv6_lowpan_test::initialize_all(
 //!    mux_mac,
-//!    mux_alarm as &'static MuxAlarm<'static, sam4l::ast::Ast>,
+//!    mux_alarm,
 //! );
-//! ...
-//! // Imix initialization
-//! ...
 //! lowpan_frag_test.start(); // If flashing the transmitting Imix
+//! ```
 
 use capsules::ieee802154::device::{MacDevice, TxClient};
 use capsules::net::ieee802154::MacAddress;
@@ -49,7 +39,6 @@ use capsules::net::sixlowpan::sixlowpan_state::{
 use capsules::net::udp::udp::UDPHeader;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use core::cell::Cell;
-use core::ptr;
 use kernel::debug;
 use kernel::hil::radio;
 use kernel::hil::time::Frequency;
@@ -59,12 +48,6 @@ use kernel::ReturnCode;
 
 pub const MLP: [u8; 8] = [0xc0, 0xc1, 0xc2, 0xc3, 0xc4, 0xc5, 0xc6, 0xc7];
 
-/* pub const SRC_ADDR: IPAddr = IPAddr([0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-                                     0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);
-
-pub const DST_ADDR: IPAddr = IPAddr([0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-                                     0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);*/
-
 pub const SRC_ADDR: IPAddr = IPAddr([
     0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f,
 ]);
@@ -73,8 +56,6 @@ pub const DST_ADDR: IPAddr = IPAddr([
 ]);
 pub const SRC_MAC_ADDR: MacAddress =
     MacAddress::Long([0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17]);
-//pub const DST_MAC_ADDR: MacAddress =
-//    MacAddress::Long([0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f]);
 pub const DST_MAC_ADDR: MacAddress = MacAddress::Short(57326);
 //TODO: No longer pass MAC addresses to 6lowpan code, so these values arent used rn
 pub const IP6_HDR_SIZE: usize = 40;
@@ -500,118 +481,140 @@ fn ipv6_check_receive_packet(
     unsafe {
         // First, need to check header fields match:
         // Do this by casting first 48 bytes of rcvd packet as IP/UDP headers
-        let rcvip6hdr: IP6Header = ptr::read(recv_packet.as_ptr() as *const _);
+        /*let rcvip6hdr: IP6Header = ptr::read(recv_packet.as_ptr() as *const _);
         let rcvudphdr: UDPHeader =
-            ptr::read((recv_packet.as_ptr().offset(IP6_HDR_SIZE as isize)) as *const _);
+            ptr::read((recv_packet.as_ptr().offset(IP6_HDR_SIZE as isize)) as *const _); */
+        match IP6Header::decode(recv_packet).done() {
+            Some((offset, rcvip6hdr)) => {
+                match UDPHeader::decode(&recv_packet[offset..len]).done() {
+                    Some((_offset, rcvudphdr)) => {
+                        // Now compare to the headers that would be being sent by prepare packet
+                        // (as we know prepare packet is running in parallel on sender to generate tx packets)
+                        match IP6_DG_OPT {
+                            Some(ref ip6_packet) => {
+                                //First check IP headers
+                                if rcvip6hdr.get_version() != ip6_packet.header.get_version() {
+                                    test_success = false;
+                                    debug!("Mismatched IP ver");
+                                }
 
-        // Now compare to the headers that would be being sent by prepare packet
-        // (as we know prepare packet is running in parallel on sender to generate tx packets)
-        match IP6_DG_OPT {
-            Some(ref ip6_packet) => {
-                //First check IP headers
-                if rcvip6hdr.get_version() != ip6_packet.header.get_version() {
-                    test_success = false;
-                    debug!("Mismatched IP ver");
-                }
+                                if rcvip6hdr.get_traffic_class()
+                                    != ip6_packet.header.get_traffic_class()
+                                {
+                                    debug!("Mismatched tc");
+                                    test_success = false;
+                                }
+                                if rcvip6hdr.get_dscp() != ip6_packet.header.get_dscp() {
+                                    debug!("Mismatched dcsp");
+                                    test_success = false;
+                                }
+                                if rcvip6hdr.get_ecn() != ip6_packet.header.get_ecn() {
+                                    debug!("Mismatched ecn");
+                                    test_success = false;
+                                }
+                                if rcvip6hdr.get_payload_len()
+                                    != ip6_packet.header.get_payload_len()
+                                {
+                                    debug!("Mismatched IP len");
+                                    test_success = false;
+                                }
+                                if rcvip6hdr.get_next_header()
+                                    != ip6_packet.header.get_next_header()
+                                {
+                                    debug!(
+                                        "Mismatched next hdr. Rcvd is: {:?}, expctd is: {:?}",
+                                        rcvip6hdr.get_next_header(),
+                                        ip6_packet.header.get_next_header()
+                                    );
+                                    test_success = false;
+                                }
+                                if rcvip6hdr.get_hop_limit() != ip6_packet.header.get_hop_limit() {
+                                    debug!("Mismatched hop limit");
+                                    test_success = false;
+                                }
 
-                if rcvip6hdr.get_traffic_class() != ip6_packet.header.get_traffic_class() {
-                    debug!("Mismatched tc");
-                    test_success = false;
-                }
-                if rcvip6hdr.get_dscp() != ip6_packet.header.get_dscp() {
-                    debug!("Mismatched dcsp");
-                    test_success = false;
-                }
-                if rcvip6hdr.get_ecn() != ip6_packet.header.get_ecn() {
-                    debug!("Mismatched ecn");
-                    test_success = false;
-                }
-                if rcvip6hdr.get_payload_len() != ip6_packet.header.get_payload_len() {
-                    debug!("Mismatched IP len");
-                    test_success = false;
-                }
-                if rcvip6hdr.get_next_header() != ip6_packet.header.get_next_header() {
-                    debug!(
-                        "Mismatched next hdr. Rcvd is: {:?}, expctd is: {:?}",
-                        rcvip6hdr.get_next_header(),
-                        ip6_packet.header.get_next_header()
-                    );
-                    test_success = false;
-                }
-                if rcvip6hdr.get_hop_limit() != ip6_packet.header.get_hop_limit() {
-                    debug!("Mismatched hop limit");
-                    test_success = false;
-                }
+                                //Now check UDP headers
 
-                //Now check UDP headers
-
-                match ip6_packet.payload.header {
-                    TransportHeader::UDP(ref sent_udp_pkt) => {
-                        if rcvudphdr.get_src_port() != sent_udp_pkt.get_src_port() {
-                            debug!(
+                                match ip6_packet.payload.header {
+                                    TransportHeader::UDP(ref sent_udp_pkt) => {
+                                        if rcvudphdr.get_src_port() != sent_udp_pkt.get_src_port() {
+                                            debug!(
                                 "Mismatched src_port. Rcvd is: {:?}, expctd is: {:?}",
                                 rcvudphdr.get_src_port(),
                                 sent_udp_pkt.get_src_port()
                             );
-                            test_success = false;
-                        }
+                                            test_success = false;
+                                        }
 
-                        if rcvudphdr.get_dst_port() != sent_udp_pkt.get_dst_port() {
-                            debug!(
+                                        if rcvudphdr.get_dst_port() != sent_udp_pkt.get_dst_port() {
+                                            debug!(
                                 "Mismatched dst_port. Rcvd is: {:?}, expctd is: {:?}",
                                 rcvudphdr.get_dst_port(),
                                 sent_udp_pkt.get_dst_port()
                             );
-                            test_success = false;
-                        }
+                                            test_success = false;
+                                        }
 
-                        if rcvudphdr.get_len() != sent_udp_pkt.get_len() {
-                            debug!(
+                                        if rcvudphdr.get_len() != sent_udp_pkt.get_len() {
+                                            debug!(
                                 "Mismatched udp_len. Rcvd is: {:?}, expctd is: {:?}",
                                 rcvudphdr.get_len(),
                                 sent_udp_pkt.get_len()
                             );
-                            test_success = false;
+                                            test_success = false;
+                                        }
+
+                                        if rcvudphdr.get_cksum() != sent_udp_pkt.get_cksum() {
+                                            debug!(
+                                                "Mismatched cksum. Rcvd is: {:?}, expctd is: {:?}",
+                                                rcvudphdr.get_cksum(),
+                                                sent_udp_pkt.get_cksum()
+                                            );
+                                            test_success = false;
+                                        }
+                                    }
+                                    _ => {
+                                        debug!(
+                                            "Error: For some reason prepare packet is not
+                                    preparing a UDP payload"
+                                        );
+                                    }
+                                }
+                            }
+                            None => debug!("Error! tried to read uninitialized IP6Packet"),
                         }
 
-                        if rcvudphdr.get_cksum() != sent_udp_pkt.get_cksum() {
-                            debug!(
-                                "Mismatched cksum. Rcvd is: {:?}, expctd is: {:?}",
-                                rcvudphdr.get_cksum(),
-                                sent_udp_pkt.get_cksum()
-                            );
-                            test_success = false;
+                        // Finally, check bytes of UDP Payload
+                        let mut payload_success = true;
+                        for i in (IP6_HDR_SIZE + UDP_HDR_SIZE)..len {
+                            if recv_packet[i] != UDP_DGRAM[i - (IP6_HDR_SIZE + UDP_HDR_SIZE)] {
+                                test_success = false;
+                                payload_success = false;
+                                debug!(
+                                    "Packets differ at idx: {} where recv = {}, ref = {}",
+                                    i - (IP6_HDR_SIZE + UDP_HDR_SIZE),
+                                    recv_packet[i],
+                                    UDP_DGRAM[i - (IP6_HDR_SIZE + UDP_HDR_SIZE)]
+                                );
+                                //break; //Comment this in to help prevent debug buffer overflows
+                            }
+                        }
+                        if !payload_success {
+                            debug!("Packet payload did not match.");
                         }
                     }
-                    _ => {
-                        debug!(
-                            "Error: For some reason prepare packet is not
-                                    preparing a UDP payload"
-                        );
+                    None => {
+                        debug!("Failed to decode UDP Header");
+                        test_success = false;
                     }
                 }
             }
-            None => debug!("Error! tried to read uninitialized IP6Packet"),
-        }
-
-        // Finally, check bytes of UDP Payload
-        let mut payload_success = true;
-        for i in (IP6_HDR_SIZE + UDP_HDR_SIZE)..len {
-            if recv_packet[i] != UDP_DGRAM[i - (IP6_HDR_SIZE + UDP_HDR_SIZE)] {
+            None => {
+                debug!("Failed to decode IPv6 Header");
                 test_success = false;
-                payload_success = false;
-                debug!(
-                    "Packets differ at idx: {} where recv = {}, ref = {}",
-                    i - (IP6_HDR_SIZE + UDP_HDR_SIZE),
-                    recv_packet[i],
-                    UDP_DGRAM[i - (IP6_HDR_SIZE + UDP_HDR_SIZE)]
-                );
-                //break; //Comment this in to help prevent debug buffer overflows
             }
         }
-        if !payload_success {
-            debug!("Packet payload did not match.");
-        }
+
         debug!("Individual Test success is: {}", test_success);
         test_success
     }
@@ -780,7 +783,7 @@ fn ipv6_prepare_packet(tf: TF, hop_limit: u8, sac: SAC, dac: DAC) {
                 } //This bracket ends mutable borrow of ip6_packet for header
                   //Now that packet is fully prepared, set checksum
                 ip6_packet.set_transport_checksum(); //calculates and sets UDP cksum
-            } //End of Some{}
+            }
             None => debug!("Error! tried to prepare uninitialized IP6Packet"),
         }
     }

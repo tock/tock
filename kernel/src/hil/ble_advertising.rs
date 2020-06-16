@@ -50,12 +50,7 @@
 use crate::returncode::ReturnCode;
 
 pub trait BleAdvertisementDriver {
-    fn transmit_advertisement(
-        &self,
-        buf: &'static mut [u8],
-        len: usize,
-        channel: RadioChannel,
-    ) -> &'static mut [u8];
+    fn transmit_advertisement(&self, buf: &'static mut [u8], len: usize, channel: RadioChannel);
     fn receive_advertisement(&self, channel: RadioChannel);
     fn set_receive_client(&self, client: &'static dyn RxClient);
     fn set_transmit_client(&self, client: &'static dyn TxClient);
@@ -70,7 +65,7 @@ pub trait RxClient {
 }
 
 pub trait TxClient {
-    fn transmit_event(&self, result: ReturnCode);
+    fn transmit_event(&self, buf: &'static mut [u8], result: ReturnCode);
 }
 
 // Bluetooth Core Specification:Vol. 6. Part B, section 1.4.1 Advertising and Data Channel Indices

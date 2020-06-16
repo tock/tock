@@ -13,11 +13,13 @@
 //! -----
 //!
 //! ```
+//! # use kernel::static_init;
+//!
 //! pub static mut APP_FLASH_BUFFER: [u8; 512] = [0; 512];
 //! let app_flash = static_init!(
 //!     capsules::app_flash_driver::AppFlash<'static>,
 //!     capsules::app_flash_driver::AppFlash::new(nv_to_page,
-//!         kernel::Grant::create(), &mut APP_FLASH_BUFFER));
+//!         board_kernel.create_grant(&grant_cap), &mut APP_FLASH_BUFFER));
 //! ```
 
 use core::cmp;
@@ -44,7 +46,7 @@ pub struct AppFlash<'a> {
     buffer: TakeCell<'static, [u8]>,
 }
 
-impl AppFlash<'a> {
+impl<'a> AppFlash<'a> {
     pub fn new(
         driver: &'a dyn hil::nonvolatile_storage::NonvolatileStorage<'static>,
         grant: Grant<App>,
@@ -106,7 +108,7 @@ impl AppFlash<'a> {
     }
 }
 
-impl hil::nonvolatile_storage::NonvolatileStorageClient<'static> for AppFlash<'a> {
+impl hil::nonvolatile_storage::NonvolatileStorageClient<'static> for AppFlash<'_> {
     fn read_done(&self, _buffer: &'static mut [u8], _length: usize) {}
 
     fn write_done(&self, buffer: &'static mut [u8], _length: usize) {
@@ -158,7 +160,7 @@ impl hil::nonvolatile_storage::NonvolatileStorageClient<'static> for AppFlash<'a
     }
 }
 
-impl Driver for AppFlash<'a> {
+impl Driver for AppFlash<'_> {
     /// Setup buffer to write from.
     ///
     /// ### `allow_num`

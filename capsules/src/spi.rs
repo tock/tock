@@ -13,6 +13,10 @@ use kernel::{AppId, AppSlice, Callback, Driver, ReturnCode, Shared};
 use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::Spi as usize;
 
+/// Suggested length for the Spi read and write buffer
+pub const DEFAULT_READ_BUF_LENGTH: usize = 1024;
+pub const DEFAULT_WRITE_BUF_LENGTH: usize = 1024;
+
 // SPI operations are handled by coping into a kernel buffer for
 // writes and copying out of a kernel buffer for reads.
 //
@@ -62,7 +66,7 @@ pub struct SpiSlave<'a, S: SpiSlaveDevice> {
     kernel_len: Cell<usize>,
 }
 
-impl<S: SpiMasterDevice> Spi<'a, S> {
+impl<'a, S: SpiMasterDevice> Spi<'a, S> {
     pub fn new(spi_master: &'a S) -> Spi<'a, S> {
         Spi {
             spi_master: spi_master,
@@ -104,7 +108,7 @@ impl<S: SpiMasterDevice> Spi<'a, S> {
     }
 }
 
-impl<S: SpiMasterDevice> Driver for Spi<'a, S> {
+impl<'a, S: SpiMasterDevice> Driver for Spi<'a, S> {
     fn allow(
         &self,
         _appid: AppId,
@@ -254,7 +258,7 @@ impl<S: SpiMasterDevice> Driver for Spi<'a, S> {
     }
 }
 
-impl<S: SpiMasterDevice> SpiMasterClient for Spi<'a, S> {
+impl<S: SpiMasterDevice> SpiMasterClient for Spi<'_, S> {
     fn read_write_done(
         &self,
         writebuf: &'static mut [u8],
@@ -291,7 +295,7 @@ impl<S: SpiMasterDevice> SpiMasterClient for Spi<'a, S> {
     }
 }
 
-impl<S: SpiSlaveDevice> SpiSlave<'a, S> {
+impl<'a, S: SpiSlaveDevice> SpiSlave<'a, S> {
     pub fn new(spi_slave: &'a S) -> SpiSlave<'a, S> {
         SpiSlave {
             spi_slave: spi_slave,
@@ -330,7 +334,7 @@ impl<S: SpiSlaveDevice> SpiSlave<'a, S> {
     }
 }
 
-impl<S: SpiSlaveDevice> Driver for SpiSlave<'a, S> {
+impl<S: SpiSlaveDevice> Driver for SpiSlave<'_, S> {
     /// Provide read/write buffers to SpiSlave
     ///
     /// - allow_num 0: Provides an app_read buffer to receive transfers into.
@@ -471,7 +475,7 @@ impl<S: SpiSlaveDevice> Driver for SpiSlave<'a, S> {
     }
 }
 
-impl<S: SpiSlaveDevice> SpiSlaveClient for SpiSlave<'a, S> {
+impl<S: SpiSlaveDevice> SpiSlaveClient for SpiSlave<'_, S> {
     fn read_write_done(
         &self,
         writebuf: Option<&'static mut [u8]>,

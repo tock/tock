@@ -27,19 +27,19 @@
 //! ```rust
 //! let lcd = components::hd44780::HD44780Component::new(board_kernel, mux_alarm).finalize(
 //!     components::hd44780_component_helper!(
-//!         stm32f4xx::tim2::Tim2,
+//!         stm32f429zi::tim2::Tim2,
 //!         // rs pin
-//!         stm32f4xx::gpio::PinId::PF13.get_pin().as_ref().unwrap(),
+//!         stm32f429zi::gpio::PinId::PF13.get_pin().as_ref().unwrap(),
 //!         // en pin
-//!         stm32f4xx::gpio::PinId::PE11.get_pin().as_ref().unwrap(),
+//!         stm32f429zi::gpio::PinId::PE11.get_pin().as_ref().unwrap(),
 //!         // data 4 pin
-//!         stm32f4xx::gpio::PinId::PF14.get_pin().as_ref().unwrap(),
+//!         stm32f429zi::gpio::PinId::PF14.get_pin().as_ref().unwrap(),
 //!         // data 5 pin
-//!         stm32f4xx::gpio::PinId::PE13.get_pin().as_ref().unwrap(),
+//!         stm32f429zi::gpio::PinId::PE13.get_pin().as_ref().unwrap(),
 //!         // data 6 pin
-//!         stm32f4xx::gpio::PinId::PF15.get_pin().as_ref().unwrap(),
+//!         stm32f429zi::gpio::PinId::PF15.get_pin().as_ref().unwrap(),
 //!         // data 7 pin
-//!         stm32f4xx::gpio::PinId::PG14.get_pin().as_ref().unwrap()
+//!         stm32f429zi::gpio::PinId::PG14.get_pin().as_ref().unwrap()
 //!     )
 //! );
 //! ```
@@ -670,12 +670,11 @@ impl<'a, A: Alarm<'a>> HD44780<'a, A> {
             // debug!("current_len from check_buffer {}", current_len);
         }
         if current_len >= BUFSIZE {
-            return BUFFER_FULL;
-        }
-        if current_len + to_check > BUFSIZE {
-            return (BUFSIZE - current_len) as i16;
+            BUFFER_FULL
+        } else if current_len + to_check > BUFSIZE {
+            (BUFSIZE - current_len) as i16
         } else {
-            return to_check as i16;
+            to_check as i16
         }
     }
 }
@@ -1025,7 +1024,7 @@ impl<'a, A: Alarm<'a>> Driver for HD44780<'a, A> {
         _callback: Option<Callback>,
         _app_id: AppId,
     ) -> ReturnCode {
-        return ReturnCode::ENOSUPPORT;
+        ReturnCode::ENOSUPPORT
     }
 }
 

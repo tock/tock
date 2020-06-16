@@ -3,22 +3,12 @@
 //!
 //! Currently this file only tests sending messages.
 //!
-//! To use this test suite, allocate space for a new LowpanICMPTest structure, and
-//! call the `initialize_all` function, which performs
-//! the initialization routines for the 6LoWPAN, TxState, RxState, and Sixlowpan
-//! structs. Insert the code into `boards/imix/src/main.rs` as follows:
+//! To use this test suite, simply call the `run` function.
+//! Insert the code into `boards/imix/src/main.rs` as follows:
 //!
-//! ...
-//! // Radio initialization code
-//! ...
-//!    let icmp_lowpan_test = test::icmp_lowpan_test::initialize_all(
-//!        mux_mac,
-//!        mux_alarm as &'static MuxAlarm<'static, sam4l::ast::Ast>,
-//!    );
-//! ...
-//! // Imix initialization
-//! ...
-//! icmp_lowpan_test.start();
+//!```rust
+//! test::icmp_lowpan_test::run(mux_mac, mux_alarm);
+//! ```
 
 use capsules::ieee802154::device::MacDevice;
 use capsules::net::icmpv6::icmpv6::{ICMP6Header, ICMP6Type};
@@ -27,12 +17,16 @@ use capsules::net::ieee802154::MacAddress;
 use capsules::net::ipv6::ip_utils::IPAddr;
 use capsules::net::ipv6::ipv6::{IP6Packet, IPPayload, TransportHeader};
 use capsules::net::ipv6::ipv6_send::{IP6SendStruct, IP6Sender};
-use capsules::net::network_capabilities::{IpVisibilityCapability, NetworkCapability};
+use capsules::net::network_capabilities::{
+    AddrRange, IpVisibilityCapability, NetworkCapability, PortRange,
+};
 use capsules::net::sixlowpan::sixlowpan_compression;
 use capsules::net::sixlowpan::sixlowpan_state::{Sixlowpan, SixlowpanState, TxState};
 
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use core::cell::Cell;
+use kernel::capabilities::NetworkCapabilityCreationCapability;
+use kernel::create_capability;
 use kernel::debug;
 use kernel::hil::radio;
 use kernel::hil::time::Frequency;
@@ -70,15 +64,19 @@ pub struct LowpanICMPTest<'a, A: time::Alarm<'a>> {
     net_cap: &'static NetworkCapability,
 }
 
-pub unsafe fn initialize_all(
+pub unsafe fn run(
     mux_mac: &'static capsules::ieee802154::virtual_mac::MuxMac<'static>,
     mux_alarm: &'static MuxAlarm<'static, sam4l::ast::Ast>,
-    net_cap: &'static NetworkCapability,
-    ip_vis: &'static IpVisibilityCapability,
-) -> &'static LowpanICMPTest<
-    'static,
-    capsules::virtual_alarm::VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>,
-> {
+) {
+    let create_cap = create_capability!(NetworkCapabilityCreationCapability);
+    let net_cap = static_init!(
+        NetworkCapability,
+        NetworkCapability::new(AddrRange::Any, PortRange::Any, PortRange::Any, &create_cap)
+    );
+    let ip_vis = static_init!(
+        IpVisibilityCapability,
+        IpVisibilityCapability::new(&create_cap)
+    );
     let radio_mac = static_init!(
         capsules::ieee802154::virtual_mac::MacUser<'static>,
         capsules::ieee802154::virtual_mac::MacUser::new(mux_mac)
@@ -152,8 +150,7 @@ pub unsafe fn initialize_all(
     icmp_send_struct.set_client(icmp_lowpan_test);
     icmp_lowpan_test.alarm.set_client(icmp_lowpan_test);
     ipsender_virtual_alarm.set_client(ip6_sender);
-
-    icmp_lowpan_test
+    icmp_lowpan_test.start();
 }
 
 impl<'a, A: time::Alarm<'a>> capsules::net::icmpv6::icmpv6_send::ICMP6SendClient
@@ -173,7 +170,7 @@ impl<'a, A: time::Alarm<'a>> capsules::net::icmpv6::icmpv6_send::ICMP6SendClient
     }
 }
 
-impl<A: time::Alarm<'a>> LowpanICMPTest<'a, A> {
+impl<'a, A: time::Alarm<'a>> LowpanICMPTest<'a, A> {
     pub fn new(
         alarm: A,
         icmp_sender: &'a dyn ICMP6Sender<'a>,

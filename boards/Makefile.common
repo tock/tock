@@ -19,12 +19,12 @@ RUSTUP    ?= rustup
 # passed to cargo --target_dir
 TARGET_DIRECTORY ?= $(TOCK_ROOT_DIRECTORY)target/
 
-# RUSTFLAGS_FOR_BOARD allows boards to define board-specific options.
+# RUSTC_FLAGS allows boards to define board-specific options.
 # This will hopefully move into Cargo.toml (or Cargo.toml.local) eventually.
 # lld uses the page size to align program sections. It defaults to 4096 and this
 # puts a gap between before the .relocate section. `zmax-page-size=512` tells
 # lld the actual page size so it doesn't have to be conservative.
-RUSTFLAGS_FOR_BOARD ?= \
+RUSTC_FLAGS ?= \
   -C link-arg=-Tlayout.ld \
   -C linker=rust-lld \
   -C linker-flavor=ld.lld \
@@ -37,22 +37,22 @@ ifneq ($(findstring riscv32i, $(TARGET)),)
   # NOTE: This flag causes kernel panics on some ARM cores. Since the
   # size benefit is almost exclusively for RISC-V, we only apply it for
   # those targets.
-  RUSTFLAGS_FOR_BOARD += -C force-frame-pointers=no
+  RUSTC_FLAGS += -C force-frame-pointers=no
 endif
 
-# RUSTFLAGS_FOR_CARGO by default extends RUSTFLAGS_FOR_BOARD with options
-# depending on parameters defined in boards/Makefile.common to reduce a need
-# for board's makefile to change in case of common changes.
+# RUSTC_FLAGS_TOCK by default extends RUSTC_FLAGS with options
+# that are global to all Tock boards.
+#
 # We use `remap-path-prefix` to remove user-specific filepath strings for error
 # reporting from appearing in the generated binary.
-RUSTFLAGS_FOR_CARGO ?= \
-  $(RUSTFLAGS_FOR_BOARD) \
+RUSTC_FLAGS_TOCK ?= \
+  $(RUSTC_FLAGS) \
   --remap-path-prefix=$(TOCK_ROOT_DIRECTORY)= \
 
 # Disallow warnings for continuous integration builds. Disallowing them here
 # ensures that warnings during testing won't prevent compilation from succeeding.
 ifeq ($(CI),true)
-  RUSTFLAGS_FOR_CARGO += -D warnings
+  RUSTC_FLAGS_TOCK += -D warnings
 endif
 
 # The following flags should only be passed to the board's binary crate, but
@@ -69,11 +69,11 @@ endif
 # Ultimately, this should move to the Cargo.toml, for example when
 # https://github.com/rust-lang/cargo/pull/7811 is merged into Cargo.
 #
-# The difference between `RUSTFLAGS_FOR_CARGO` and `RUSTFLAGS_FOR_BIN` is that
+# The difference between `RUSTC_FLAGS_TOCK` and `RUSTC_FLAGS_FOR_BIN` is that
 # the former is forwarded to all the dependencies (being passed to cargo via
 # the `RUSTFLAGS` environment variable), whereas the latter is only applied to
 # the final binary crate (being passed as parameter to `cargo rustc`).
-RUSTFLAGS_FOR_BIN ?= \
+RUSTC_FLAGS_FOR_BIN ?= \
   -C link-arg=-L$(abspath .) \
 
 # http://stackoverflow.com/questions/10858261/abort-makefile-if-variable-not-set
@@ -143,12 +143,12 @@ OBJDUMP   ?= $(TOOLCHAIN)-objdump
 # Set additional flags to produce binary from .elf
 OBJCOPY_FLAGS ?= -S
 # This make variable allows board-specific Makefiles to pass down options to
-# the Cargo build command. For example, in board/<custom_board>/Makefile:
-# `CARGO_OPTIONS += --features=foo` would pass feature `foo` to the top level
+# the Cargo build command. For example, in boards/<custom_board>/Makefile:
+# `CARGO_FLAGS += --features=foo` would pass feature `foo` to the top level
 # Cargo.toml.
-CARGO_OPTIONS ?=
-# Add default flags to cargo. Boards can add additional options in CARGO_OPTIONS
-CARGO_FLAGS ?= $(VERBOSE) --target=$(TARGET) --package $(PLATFORM) --target-dir=$(TARGET_DIRECTORY) $(CARGO_OPTIONS)
+CARGO_FLAGS ?=
+# Add default flags to cargo. Boards can add additional options in CARGO_FLAGS
+CARGO_FLAGS_TOCK ?= $(VERBOSE) --target=$(TARGET) --package $(PLATFORM) --target-dir=$(TARGET_DIRECTORY) $(CARGO_FLAGS)
 # Set the default flags we need for objdump to get a .lst file.
 OBJDUMP_FLAGS ?= --disassemble-all --source --section-headers --demangle
 # Set default flags for size
@@ -172,11 +172,13 @@ ifneq ($(V),)
   $(info PLATFORM             = $(PLATFORM))
   $(info TARGET               = $(TARGET))
   $(info TOCK_KERNEL_VERSION  = $(TOCK_KERNEL_VERSION))
-  $(info RUSTFLAGS_FOR_CARGO  = $(RUSTFLAGS_FOR_CARGO))
+  $(info RUSTC_FLAGS          = $(RUSTC_FLAGS))
+  $(info RUSTC_FLAGS_TOCK     = $(RUSTC_FLAGS_TOCK))
   $(info MAKEFLAGS            = $(MAKEFLAGS))
   $(info OBJDUMP_FLAGS        = $(OBJDUMP_FLAGS))
   $(info OBJCOPY_FLAGS        = $(OBJCOPY_FLAGS))
   $(info CARGO_FLAGS          = $(CARGO_FLAGS))
+  $(info CARGO_FLAGS_TOCK     = $(CARGO_FLAGS_TOCK))
   $(info SIZE_FLAGS           = $(SIZE_FLAGS))
   $(info )
   $(info TOOLCHAIN            = $(TOOLCHAIN))
@@ -204,7 +206,8 @@ all: release
 # binary. This makes checking for Rust errors much faster.
 .PHONY: check
 check:
-	$(Q)RUSTFLAGS="$(RUSTFLAGS_FOR_CARGO)" $(CARGO) check $(CARGO_FLAGS) --release
+	$(Q)$(CARGO) check $(VERBOSE) $(CARGO_FLAGS_TOCK)
+
 
 .PHONY: clean
 clean::
@@ -221,7 +224,10 @@ debug-lst:  $(TARGET_PATH)/debug/$(PLATFORM).lst
 
 .PHONY: doc
 doc: | target
-	$(Q)RUSTDOCFLAGS='-Z unstable-options --document-hidden-items' $(CARGO) doc $(VERBOSE) --release --package $(PLATFORM) --target-dir=$(TARGET_DIRECTORY)
+	@# This mess is all to work around rustdoc giving no way to return an
+	@# error if there are warnings. This effectively simulates that.
+	$(Q)RUSTDOCFLAGS='-Z unstable-options --document-hidden-items -D warnings' $(CARGO) --color=always doc $(VERBOSE) --release --package $(PLATFORM) --target-dir=$(TARGET_DIRECTORY) 2>&1 | tee /dev/tty | grep -q warning && (echo "Warnings detected during doc build" && if [[ $$CI == "true" ]]; then echo "Erroring due to CI context" && exit 33; fi) || if [ $$? -eq 33 ]; then exit 1; fi
+
 
 .PHONY: lst
 lst: $(TARGET_PATH)/release/$(PLATFORM).lst
@@ -259,10 +265,10 @@ $(TOCK_ROOT_DIRECTORY)tools/sha256sum/target/debug/sha256sum:
 
 .PHONY: $(TARGET_PATH)/release/$(PLATFORM)
 $(TARGET_PATH)/release/$(PLATFORM):
-	$(Q)RUSTFLAGS="$(RUSTFLAGS_FOR_CARGO)" $(CARGO) rustc  $(CARGO_FLAGS) --bin $(PLATFORM) --release -- $(RUSTFLAGS_FOR_BIN)
+	$(Q)RUSTFLAGS="$(RUSTC_FLAGS_TOCK)" $(CARGO) rustc  $(CARGO_FLAGS_TOCK) --bin $(PLATFORM) --release -- $(RUSTC_FLAGS_FOR_BIN)
 	$(Q)$(SIZE) $(SIZE_FLAGS) $@
 
 .PHONY: $(TARGET_PATH)/debug/$(PLATFORM)
 $(TARGET_PATH)/debug/$(PLATFORM):
-	$(Q)RUSTFLAGS="$(RUSTFLAGS_FOR_CARGO)" $(CARGO) rustc  $(CARGO_FLAGS) --bin $(PLATFORM) -- $(RUSTFLAGS_FOR_BIN)
+	$(Q)RUSTFLAGS="$(RUSTC_FLAGS_TOCK)" $(CARGO) rustc  $(CARGO_FLAGS_TOCK) --bin $(PLATFORM) -- $(RUSTC_FLAGS_FOR_BIN)
 	$(Q)$(SIZE) $(SIZE_FLAGS) $@

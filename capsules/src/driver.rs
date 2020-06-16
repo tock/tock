@@ -34,6 +34,7 @@ pub enum NUM {
     // Cryptography
     Rng                   = 0x40001,
     Crc                   = 0x40002,
+    Hmac                  = 0x40003,
 
     // Storage
     AppFlash              = 0x50000,
@@ -51,6 +52,8 @@ pub enum NUM {
     Tmp006                = 0x70001,
     Lps25hb               = 0x70004,
     L3gd20                = 0x70005,
+    Lsm303dlch            = 0x70006,
+    Mlx90614              = 0x70007,
 
     // Other ICs
     Ltc294x               = 0x80000,

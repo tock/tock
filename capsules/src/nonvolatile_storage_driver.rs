@@ -37,11 +37,13 @@
 //! Example instantiation:
 //!
 //! ```rust
+//! # use kernel::static_init;
+//!
 //! let nonvolatile_storage = static_init!(
 //!     capsules::nonvolatile_storage_driver::NonvolatileStorage<'static>,
 //!     capsules::nonvolatile_storage_driver::NonvolatileStorage::new(
 //!         fm25cl,                      // The underlying storage driver.
-//!         kernel::Grant::create(),     // Storage for app-specific state.
+//!         board_kernel.create_grant(&grant_cap),     // Storage for app-specific state.
 //!         3000,                        // The byte start address for the userspace
 //!                                      // accessible memory region.
 //!         2000,                        // The length of the userspace region.
@@ -140,7 +142,7 @@ pub struct NonvolatileStorage<'a> {
     kernel_readwrite_address: Cell<usize>,
 }
 
-impl NonvolatileStorage<'a> {
+impl<'a> NonvolatileStorage<'a> {
     pub fn new(
         driver: &'a dyn hil::nonvolatile_storage::NonvolatileStorage<'static>,
         grant: Grant<App>,
@@ -387,7 +389,7 @@ impl NonvolatileStorage<'a> {
 }
 
 /// This is the callback client for the underlying physical storage driver.
-impl hil::nonvolatile_storage::NonvolatileStorageClient<'static> for NonvolatileStorage<'a> {
+impl hil::nonvolatile_storage::NonvolatileStorageClient<'static> for NonvolatileStorage<'_> {
     fn read_done(&self, buffer: &'static mut [u8], length: usize) {
         // Switch on which user of this capsule generated this callback.
         self.current_user.take().map(|user| {
@@ -448,7 +450,7 @@ impl hil::nonvolatile_storage::NonvolatileStorageClient<'static> for Nonvolatile
 }
 
 /// Provide an interface for the kernel.
-impl hil::nonvolatile_storage::NonvolatileStorage<'static> for NonvolatileStorage<'a> {
+impl hil::nonvolatile_storage::NonvolatileStorage<'static> for NonvolatileStorage<'_> {
     fn set_client(&self, client: &'static dyn hil::nonvolatile_storage::NonvolatileStorageClient) {
         self.kernel_client.set(client);
     }
@@ -465,7 +467,7 @@ impl hil::nonvolatile_storage::NonvolatileStorage<'static> for NonvolatileStorag
 }
 
 /// Provide an interface for userland.
-impl Driver for NonvolatileStorage<'a> {
+impl Driver for NonvolatileStorage<'_> {
     /// Setup shared buffers.
     ///
     /// ### `allow_num`

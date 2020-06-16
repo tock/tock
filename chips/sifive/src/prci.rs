@@ -46,8 +46,7 @@ register_bitfields![u32,
 ];
 
 pub enum ClockFrequency {
-    Freq18Mhz,
-    Freq384Mhz,
+    Freq16Mhz,
 }
 
 pub struct Prci {
@@ -60,17 +59,10 @@ impl Prci {
     }
 
     pub fn set_clock_frequency(&self, frequency: ClockFrequency) {
-        let regs = self.registers;
+        let _regs = self.registers;
 
-        // debug!("reg {:#x}", regs.hfrosccfg.get());
-
-        // Assume a 72 MHz clock, then `div` is (72/frequency) - 1.
         match frequency {
-            ClockFrequency::Freq18Mhz => {
-                // 4, // this seems wrong, but it works??
-                regs.hfrosccfg.modify(hfrosccfg::div.val(4));
-            }
-            ClockFrequency::Freq384Mhz => {}
+            ClockFrequency::Freq16Mhz => {}
         };
     }
 }
