@@ -1114,10 +1114,6 @@ impl<'a> Usbd<'a> {
         internal_warn!("disable_lowpower() not implemented");
     }
 
-    pub fn set_client(&self, client: &'a dyn hil::usb::Client<'a>) {
-        self.client.set(client);
-    }
-
     pub fn handle_interrupt(&self) {
         let regs = &*self.registers;
 
@@ -1802,6 +1798,10 @@ impl<'a> power::PowerClient for Usbd<'a> {
 }
 
 impl<'a> hil::usb::UsbController<'a> for Usbd<'a> {
+    fn set_client(&self, client: &'a dyn hil::usb::Client<'a>) {
+        self.client.set(client);
+    }
+
     fn endpoint_set_ctrl_buffer(&self, buf: &'a [VolatileCell<u8>]) {
         if buf.len() < 8 {
             panic!("Endpoint buffer must be at least 8 bytes");
