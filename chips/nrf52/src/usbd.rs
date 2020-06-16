@@ -8,7 +8,6 @@ use kernel::common::registers::{
     ReadWrite, WriteOnly,
 };
 use kernel::common::StaticRef;
-use kernel::debug;
 use kernel::hil;
 use kernel::hil::usb::TransferType;
 
@@ -37,13 +36,13 @@ macro_rules! debug_packets {
 
 macro_rules! debug_info {
     [ $( $arg:expr ),+ ] => {
-        debug!($( $arg ),+);
+        {} // debug!($( $arg ),+);
     };
 }
 
 macro_rules! internal_warn {
     [ $( $arg:expr ),+ ] => {
-        debug!($( $arg ),+);
+        {} // debug!($( $arg ),+);
     };
 }
 
