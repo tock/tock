@@ -6,8 +6,10 @@
 //! Usage
 //! -----
 //! ```rust
-//! let cdc_acm = components::cdc::CdcAcmComponent::new(&nrf52::usbd::USBD)
-//!     .finalize(components::usb_cdc_acm_component_helper!(nrf52::usbd::Usbd));
+//! let cdc_acm = components::cdc::CdcAcmComponent::new(
+//!     &nrf52::usbd::USBD,
+//!     capsules::usb::usbc_client::MAX_CTRL_PACKET_SIZE_NRF52840)
+//! .finalize(components::usb_cdc_acm_component_helper!(nrf52::usbd::Usbd));
 //! ```
 
 use core::mem::MaybeUninit;
@@ -29,11 +31,15 @@ macro_rules! usb_cdc_acm_component_helper {
 
 pub struct CdcAcmComponent<U: 'static + hil::usb::UsbController<'static>> {
     usb: &'static U,
+    max_ctrl_packet_size: u8,
 }
 
 impl<U: 'static + hil::usb::UsbController<'static>> CdcAcmComponent<U> {
-    pub fn new(usb: &'static U) -> CdcAcmComponent<U> {
-        CdcAcmComponent { usb }
+    pub fn new(usb: &'static U, max_ctrl_packet_size: u8) -> CdcAcmComponent<U> {
+        CdcAcmComponent {
+            usb,
+            max_ctrl_packet_size,
+        }
     }
 }
 
@@ -45,10 +51,7 @@ impl<U: 'static + hil::usb::UsbController<'static>> Component for CdcAcmComponen
         let cdc = static_init_half!(
             s,
             capsules::usb::cdc::CdcAcm<'static, U>,
-            capsules::usb::cdc::CdcAcm::new(
-                self.usb,
-                capsules::usb::usbc_client::MAX_CTRL_PACKET_SIZE_NRF52840
-            )
+            capsules::usb::cdc::CdcAcm::new(self.usb, self.max_ctrl_packet_size)
         );
         self.usb.set_client(cdc);
 
