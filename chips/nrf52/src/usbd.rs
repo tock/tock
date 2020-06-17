@@ -1375,10 +1375,32 @@ impl<'a> Usbd<'a> {
 
         match endpoint {
             0 => {
-                // TODO: the ENDEPOUT0_EP0RCVOUT shortcut could be established instead of manually
-                // triggering the task here.
-                debug_tasks!("- task: ep0rcvout");
-                regs.task_ep0rcvout.write(Task::ENABLE::SET);
+                // We got data on the control endpoint during a CTRL WRITE
+                // transfer. Let the client handle the data, and then finish up
+                // the control write by moving to the status stage.
+
+                // Now we can handle it and pass it to the client to see
+                // what the client returns.
+                self.client.map(|client| {
+                    match client.ctrl_out(endpoint, regs.size_epout[endpoint].get()) {
+                        hil::usb::CtrlOutResult::Ok => {
+                            // TODO: Check if the CTRL WRITE is longer
+                            // than the amount of data we have received,
+                            // and receive more data before completing.
+                            self.complete_ctrl_status();
+                        }
+                        hil::usb::CtrlOutResult::Delay => {}
+                        _ => {
+                            // Respond with STALL to any following transactions
+                            // in this request
+                            debug_tasks!("- task: ep0stall");
+                            regs.task_ep0stall.write(Task::ENABLE::SET);
+                            self.descriptors[endpoint]
+                                .state
+                                .set(EndpointState::Ctrl(CtrlState::Init));
+                        }
+                    };
+                });
             }
             1..=7 => {
                 // Notify the client about the new packet.
