@@ -60,7 +60,7 @@ pub trait ScreenSetup {
     /// Upon SUCCESS, the caller has to wait for the `command_complete` callback function
     /// that will return the actual ReturnCode after setting the rotation.
     ///
-    /// note this can swap the width with height.
+    /// Note that in the case of `Rotated90` or `Rotated270`, this will swap the width and height.
     fn set_rotation(&self, rotation: ScreenRotation) -> ReturnCode;
 
     /// Returns the number of the resolutions supported.
