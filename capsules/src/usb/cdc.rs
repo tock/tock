@@ -51,6 +51,28 @@ pub const MAX_CTRL_PACKET_SIZE_IBEX: u8 = 64;
 
 const N_ENDPOINTS: usize = 3;
 
+/// States of the CDC driver.
+#[derive(Debug, Copy, Clone, PartialEq)]
+enum State {
+    /// Default state. User must call `enable()`.
+    Disabled,
+    /// `enable()` has been called. The descriptor format has been passed to the
+    /// hardware.
+    Enabled,
+    /// `attach()` has been called. The hardware should be ready for a host to
+    /// connect.
+    Attached,
+    /// The host has enumerated this USB device. Things should be functional at
+    /// this point.
+    Enumerated,
+    /// We have seen the CDC messages that we expect to signal that a CDC client
+    /// has connected. We stay in the "connecting" state until the USB transfer
+    /// has completed.
+    Connecting,
+    /// A CDC client is connected. We can safely send data.
+    Connected,
+}
+
 /// Implementation of the Abstract Control Model (ACM) for the Communications
 /// Class Device (CDC) over USB.
 pub struct CdcAcm<'a, U: 'a> {
@@ -60,8 +82,9 @@ pub struct CdcAcm<'a, U: 'a> {
     /// 64 byte buffers for each endpoint.
     buffers: [Buffer64; N_ENDPOINTS],
 
-    /// Flag to track if the underlying USB stack is initialized and ready.
-    initialized: Cell<bool>,
+    /// Current state of the CDC driver. This helps us track if a CDC client is
+    /// connected and listening or not.
+    state: Cell<State>,
 
     /// A holder reference for the TX buffer we are transmitting from.
     tx_buffer: TakeCell<'static, [u8]>,
@@ -191,7 +214,7 @@ impl<'a, U: hil::usb::UsbController<'a>> CdcAcm<'a, U> {
                 Buffer64::default(),
                 Buffer64::default(),
             ],
-            initialized: Cell::new(false),
+            state: Cell::new(State::Disabled),
             tx_buffer: TakeCell::empty(),
             tx_len: Cell::new(0),
             tx_offset: Cell::new(0),
@@ -229,24 +252,61 @@ impl<'a, U: hil::usb::UsbController<'a>> hil::usb::Client<'a> for CdcAcm<'a, U> 
             .endpoint_set_out_buffer(ENDPOINT_OUT_NUM, self.buffer(ENDPOINT_OUT_NUM));
         self.controller()
             .endpoint_out_enable(TransferType::Bulk, ENDPOINT_OUT_NUM);
+
+        self.state.set(State::Enabled);
     }
 
     fn attach(&'a self) {
         self.client_ctrl.attach();
+        self.state.set(State::Attached);
     }
 
     fn bus_reset(&'a self) {
-        // This signals enumeration has finished, and at this point we can ask
-        // for IN transfers if needed.
-        self.initialized.set(true);
-
-        if self.tx_buffer.is_some() {
-            self.controller().endpoint_resume_in(ENDPOINT_IN_NUM);
-        }
+        // We take a bus reset to mean the enumeration has finished.
+        self.state.set(State::Enumerated);
     }
 
-    /// Handle a Control Setup transaction
+    /// Handle a Control Setup transaction.
+    ///
+    /// CDC uses special values here, and we can use these to know when a CDC
+    /// client is connected or not.
     fn ctrl_setup(&'a self, endpoint: usize) -> hil::usb::CtrlSetupResult {
+        descriptors::SetupData::get(&self.client_ctrl.ctrl_buffer.buf).map(|setup_data| {
+            let b_request = setup_data.request_code;
+            let value = setup_data.value;
+
+            // Match on the two CDC control messages we care about:
+            // - `0x22`: SET_LINE_CONTROL_STATE
+            // - `0x23`: SEND_BREAK
+            match b_request {
+                0x22 => {
+                    // This message seems to come with different values. We
+                    // don't care about the actual value's meaning, except for
+                    // value=0 which seems to bookend when the CDC client is
+                    // actually attached.
+                    if value == 0 {
+                        // On Linux, this seems to be a good signal of both when
+                        // a client connects and disconnects. So, based on our
+                        // current state, we can update our state.
+                        if self.state.get() != State::Connected {
+                            // We weren't previously connected so this must mean
+                            // a client connected.
+                            self.state.set(State::Connecting);
+                        } else {
+                            // We were connected, so disconnect.
+                            self.state.set(State::Enumerated)
+                        }
+                    }
+                }
+                0x23 => {
+                    // On Mac, we seem to get the SEND_BREAK to signal that a
+                    // client disconnects.
+                    self.state.set(State::Enumerated)
+                }
+                _ => {}
+            }
+        });
+
         self.client_ctrl.ctrl_setup(endpoint)
     }
 
@@ -266,6 +326,15 @@ impl<'a, U: hil::usb::UsbController<'a>> hil::usb::Client<'a> for CdcAcm<'a, U> 
 
     /// Handle the completion of a Control transfer
     fn ctrl_status_complete(&'a self, endpoint: usize) {
+        // Here we check to see if we just got connected to a CDC client. If so,
+        // we can begin transmitting if needed.
+        if self.state.get() == State::Connecting {
+            self.state.set(State::Connected);
+            if self.tx_buffer.is_some() {
+                self.controller().endpoint_resume_in(ENDPOINT_IN_NUM);
+            }
+        }
+
         self.client_ctrl.ctrl_status_complete(endpoint)
     }
 
@@ -446,10 +515,10 @@ impl<'a, U: hil::usb::UsbController<'a>> uart::Transmit<'a> for CdcAcm<'a, U> {
             self.tx_offset.set(0);
             self.tx_buffer.replace(tx_buffer);
 
-            // Don't try to send if the USB stack isn't initialized yet.
-            if self.initialized.get() {
-                // Then signal to the lower layer that we are ready to do a TX by
-                // putting data in the IN endpoint.
+            // Don't try to send if there is no CDC client connected.
+            if self.state.get() == State::Connected {
+                // Then signal to the lower layer that we are ready to do a TX
+                // by putting data in the IN endpoint.
                 self.controller().endpoint_resume_in(ENDPOINT_IN_NUM);
             }
             (ReturnCode::SUCCESS, None)
