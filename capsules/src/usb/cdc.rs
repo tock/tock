@@ -82,8 +82,9 @@ pub struct CdcAcm<'a, U: 'a> {
     /// 64 byte buffers for each endpoint.
     buffers: [Buffer64; N_ENDPOINTS],
 
-    /// Flag to track if the underlying USB stack is initialized and ready.
-    initialized: Cell<bool>,
+    /// Current state of the CDC driver. This helps us track if a CDC client is
+    /// connected and listening or not.
+    state: Cell<State>,
 
     /// A holder reference for the TX buffer we are transmitting from.
     tx_buffer: TakeCell<'static, [u8]>,
@@ -213,7 +214,7 @@ impl<'a, U: hil::usb::UsbController<'a>> CdcAcm<'a, U> {
                 Buffer64::default(),
                 Buffer64::default(),
             ],
-            initialized: Cell::new(false),
+            state: Cell::new(State::Disabled),
             tx_buffer: TakeCell::empty(),
             tx_len: Cell::new(0),
             tx_offset: Cell::new(0),
@@ -261,13 +262,8 @@ impl<'a, U: hil::usb::UsbController<'a>> hil::usb::Client<'a> for CdcAcm<'a, U> 
     }
 
     fn bus_reset(&'a self) {
-        // This signals enumeration has finished, and at this point we can ask
-        // for IN transfers if needed.
-        self.initialized.set(true);
-
-        if self.tx_buffer.is_some() {
-            self.controller().endpoint_resume_in(ENDPOINT_IN_NUM);
-        }
+        // We take a bus reset to mean the enumeration has finished.
+        self.state.set(State::Enumerated);
     }
 
     /// Handle a Control Setup transaction.
@@ -519,10 +515,10 @@ impl<'a, U: hil::usb::UsbController<'a>> uart::Transmit<'a> for CdcAcm<'a, U> {
             self.tx_offset.set(0);
             self.tx_buffer.replace(tx_buffer);
 
-            // Don't try to send if the USB stack isn't initialized yet.
-            if self.initialized.get() {
-                // Then signal to the lower layer that we are ready to do a TX by
-                // putting data in the IN endpoint.
+            // Don't try to send if there is no CDC client connected.
+            if self.state.get() == State::Connected {
+                // Then signal to the lower layer that we are ready to do a TX
+                // by putting data in the IN endpoint.
                 self.controller().endpoint_resume_in(ENDPOINT_IN_NUM);
             }
             (ReturnCode::SUCCESS, None)
