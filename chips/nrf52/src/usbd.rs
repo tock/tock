@@ -1370,10 +1370,9 @@ impl<'a> Usbd<'a> {
 
             CtrlState::WriteOut => {
                 // We just completed the Setup stage for a CTRL WRITE transfer,
-                // and the DMA has received data. Next step is to signal
-                // `startepout[0]` to let the hardware move the data to RAM.
-                debug_tasks!("- task: startepout[{}]", endpoint);
-                regs.task_startepout[endpoint].write(Task::ENABLE::SET);
+                // and now we need to enable DMA so the USBD peripheral can copy
+                // the received data.
+                self.transmit_out_ep0();
             }
 
             CtrlState::Init => {
@@ -1405,6 +1404,9 @@ impl<'a> Usbd<'a> {
                 self.client.map(|client| {
                     match client.ctrl_out(endpoint, regs.size_epout[endpoint].get()) {
                         hil::usb::CtrlOutResult::Ok => {
+                            // We only handle the simple case where we have
+                            // received all of the data we need to.
+                            //
                             // TODO: Check if the CTRL WRITE is longer
                             // than the amount of data we have received,
                             // and receive more data before completing.
@@ -1617,13 +1619,33 @@ impl<'a> Usbd<'a> {
                                 match regs.bmrequesttype.read_as_enum(RequestType::DIRECTION) {
                                     Some(RequestType::DIRECTION::Value::HostToDevice) => {
                                         // CTRL WRITE transfer with data to
-                                        // receive. We first need to setup DMA
-                                        // so that the hardware can write the
-                                        // data to us.
+                                        // receive.
                                         self.descriptors[endpoint]
                                             .state
                                             .set(EndpointState::Ctrl(CtrlState::WriteOut));
-                                        self.transmit_out_ep0();
+
+                                        // Signal the ep0rcvout task to signal
+                                        // instruct the hardware to ACK the
+                                        // incoming CTRL WRITE. Note, this
+                                        // doesn't match the datasheet where it
+                                        // says (§6.35.9.2):
+                                        //
+                                        // > The software has to prepare EasyDMA
+                                        // > by pointing to the buffer in Data
+                                        // > RAM that shall contain the incoming
+                                        // > data. If no other EasyDMA transfers
+                                        // > are on-going with USBD, the
+                                        // > software can then send the
+                                        // > EP0RCVOUT task.
+                                        //
+                                        // But, since we are not using the
+                                        // EP0DATADONE->STARTEPOUT[0] shortcut,
+                                        // and DMA only needs to be setup to
+                                        // copy the bytes from the USBD
+                                        // peripheral, we can wait until we get
+                                        // the EP0DATADONE event to enable DMA.
+                                        debug_tasks!("- task: ep0rcvout");
+                                        regs.task_ep0rcvout.write(Task::ENABLE::SET);
                                     }
                                     Some(RequestType::DIRECTION::Value::DeviceToHost) => {
                                         self.descriptors[endpoint]
@@ -1724,23 +1746,12 @@ impl<'a> Usbd<'a> {
 
     /// Setup a reception for a CTRL WRITE transaction.
     ///
-    /// All we have to do is configure DMA for a receive.
+    /// We have received the EP0DATADONE event signaling that the host has sent
+    /// us data. We now need to configure DMA so that the peripheral can copy us
+    /// the data.
     fn transmit_out_ep0(&self) {
-        let regs = &*self.registers;
         let endpoint = 0;
-
-        let slice = self.descriptors[endpoint]
-            .slice_out
-            .expect("No OUT slice set for this descriptor");
-
-        // Start DMA transfer
-        self.set_pending_dma();
-        regs.epout[endpoint].set_buffer(slice);
-
-        // Run the ep0rcvout to signal to the hardware that the DMA is setup
-        // and a buffer is ready.
-        debug_tasks!("- task: ep0rcvout");
-        regs.task_ep0rcvout.write(Task::ENABLE::SET);
+        self.start_dma_out(endpoint);
     }
 
     fn transmit_in(&self, endpoint: usize) {
