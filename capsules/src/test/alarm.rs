@@ -37,7 +37,7 @@ impl<A: Alarm<'a>> TestAlarm<'a, A> {
     }
 }
 
-impl<A: Alarm<'a>> AlarmClient for TestAlarm<'a, A> {
+impl<'a, A: Alarm<'a>> AlarmClient for TestAlarm<'a, A> {
     fn alarm(&self) {
         // Generate a new interval that's irregular
         let now: A::Ticks  = self.alarm.now();

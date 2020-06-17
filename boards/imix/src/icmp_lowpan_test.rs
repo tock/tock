@@ -35,7 +35,6 @@ use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use core::cell::Cell;
 use kernel::debug;
 use kernel::hil::radio;
-use kernel::hil::time::Frequency;
 use kernel::hil::time::{self, Alarm};
 use kernel::static_init;
 use kernel::ReturnCode;
@@ -150,8 +149,8 @@ pub unsafe fn initialize_all(
 
     ip6_sender.set_client(icmp_send_struct);
     icmp_send_struct.set_client(icmp_lowpan_test);
-    icmp_lowpan_test.alarm.set_client(icmp_lowpan_test);
-    ipsender_virtual_alarm.set_client(ip6_sender);
+    icmp_lowpan_test.alarm.set_alarm_client(icmp_lowpan_test);
+    ipsender_virtual_alarm.set_alarm_client(ip6_sender);
 
     icmp_lowpan_test
 }
@@ -192,9 +191,9 @@ impl<A: time::Alarm<'a>> LowpanICMPTest<'a, A> {
     }
 
     fn schedule_next(&self) {
-        let delta = (A::Frequency::frequency() * TEST_DELAY_MS) / 1000;
-        let next = self.alarm.now().wrapping_add(delta);
-        self.alarm.set_alarm(next);
+        let delta = A::ticks_from_ms(TEST_DELAY_MS);
+        let now = self.alarm.now();
+        self.alarm.set_alarm(now, delta);
     }
 
     fn run_test_and_increment(&self) {
@@ -239,7 +238,7 @@ impl<A: time::Alarm<'a>> LowpanICMPTest<'a, A> {
 }
 
 impl<'a, A: time::Alarm<'a>> time::AlarmClient for LowpanICMPTest<'a, A> {
-    fn fired(&self) {
+    fn alarm(&self) {
         self.run_test_and_increment();
     }
 }

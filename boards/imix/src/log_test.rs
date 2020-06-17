@@ -34,7 +34,7 @@ use kernel::debug;
 use kernel::hil::flash;
 use kernel::hil::gpio::{self, Interrupt};
 use kernel::hil::log::{LogRead, LogReadClient, LogWrite, LogWriteClient};
-use kernel::hil::time::{Alarm, AlarmClient, Frequency};
+use kernel::hil::time::{Alarm, AlarmClient};
 use kernel::static_init;
 use kernel::storage_volume;
 use kernel::ReturnCode;
@@ -77,7 +77,7 @@ pub unsafe fn run(
     );
     log.set_read_client(test);
     log.set_append_client(test);
-    test.alarm.set_client(test);
+    test.alarm.set_alarm_client(test);
 
     // Create user button.
     let button_pin = &sam4l::gpio::PC[24];
@@ -435,9 +435,9 @@ impl<A: Alarm<'static>> LogTest<A> {
     }
 
     fn wait(&self) {
-        let interval = WAIT_MS * <A::Frequency>::frequency() / 1000;
-        let tics = self.alarm.now().wrapping_add(interval);
-        self.alarm.set_alarm(tics);
+        let delay = A::ticks_from_ms(WAIT_MS);
+        let now = self.alarm.now();
+        self.alarm.set_alarm(now, delay);
     }
 }
 
@@ -625,7 +625,7 @@ impl<A: Alarm<'static>> LogWriteClient for LogTest<A> {
 }
 
 impl<A: Alarm<'static>> AlarmClient for LogTest<A> {
-    fn fired(&self) {
+    fn alarm(&self) {
         self.run();
     }
 }

@@ -11,7 +11,7 @@ use kernel::common::StaticRef;
 use kernel::hil::time::{self, Frequency, Ticks};
 use kernel::hil::Controller;
 use kernel::ReturnCode;
-
+use kernel::debug;
 /// Minimum number of clock tics to make sure ALARM0 register is synchronized
 ///
 /// The datasheet has the following ominous language (Section 19.5.3.2):
@@ -26,7 +26,7 @@ use kernel::ReturnCode;
 /// less than or equal to four tics ahead of the current counter value, the
 /// alarm interrupt doesn't fire. Thus, we simply round up to at least eight
 /// tics. Seems safe enough and in practice has seemed to work.
-const ALARM0_SYNC_TICS: u32 = 8;
+const ALARM0_SYNC_TICS: u32 = 10;
 
 #[repr(C)]
 struct AstRegisters {
@@ -351,7 +351,7 @@ impl time::Time for Ast<'a> {
 
 impl time::Counter<'a> for Ast<'a> {
     
-    fn set_overflow_client(&'a self, client: &'a dyn time::OverflowClient) {
+    fn set_overflow_client(&'a self, _client: &'a dyn time::OverflowClient) {
         
     }
     
@@ -383,9 +383,11 @@ impl time::Alarm<'a> for Ast<'a> {
         let regs: &AstRegisters = &*self.registers;
         let now = Self::Ticks::from(self.get_counter());
         let mut expire = reference.wrapping_add(dt);
+        //debug!("ast: now: {}, reference: {}, dt: {}, expire: {}", now.into_u32(), reference.into_u32(), dt.into_u32(), expire.into_u32());
         if !now.within_range(reference, expire) {
             // We have already passed when: just fire ASAP
             // Note this will also trigger the increment below
+            //debug!("  - EDGE CASE: now is not within (reference, expire): set it to fire ASAP");
             expire = Self::Ticks::from(now);
         }
 
@@ -393,6 +395,7 @@ impl time::Alarm<'a> for Ast<'a> {
         // to make sure we don't miss the tick
         if expire.wrapping_sub(now).into_u32() <= ALARM0_SYNC_TICS {
             expire = now.wrapping_add(Self::Ticks::from(ALARM0_SYNC_TICS));
+            //debug!("  - EDGE CASE: expiration too close, bump it to {}", expire.into_u32());
         }
 
         // Clear any alarm event that may be pending before setting the new alarm.

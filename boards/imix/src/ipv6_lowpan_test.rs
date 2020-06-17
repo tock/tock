@@ -52,7 +52,6 @@ use core::cell::Cell;
 use core::ptr;
 use kernel::debug;
 use kernel::hil::radio;
-use kernel::hil::time::Frequency;
 use kernel::hil::time::{self, Alarm};
 use kernel::static_init;
 use kernel::ReturnCode;
@@ -181,7 +180,7 @@ pub unsafe fn initialize_all(
 
     sixlowpan_state.add_rx_state(default_rx_state);
     sixlowpan_state.set_rx_client(lowpan_frag_test);
-    lowpan_frag_test.alarm.set_client(lowpan_frag_test);
+    lowpan_frag_test.alarm.set_alarm_client(lowpan_frag_test);
 
     radio_mac.set_receive_client(sixlowpan);
 
@@ -245,9 +244,9 @@ impl<'a, A: time::Alarm<'a>> LowpanTest<'a, A> {
     }
 
     fn schedule_next(&self) {
-        let delta = (A::Frequency::frequency() * TEST_DELAY_MS) / 5000;
-        let next = self.alarm.now().wrapping_add(delta);
-        self.alarm.set_alarm(next);
+        let delay = A::ticks_from_ms(TEST_DELAY_MS);
+        let now = self.alarm.now();
+        self.alarm.set_alarm(now, delay);
     }
 
     fn run_test_and_increment(&self) {
@@ -449,7 +448,7 @@ impl<'a, A: time::Alarm<'a>> LowpanTest<'a, A> {
 }
 
 impl<'a, A: time::Alarm<'a>> time::AlarmClient for LowpanTest<'a, A> {
-    fn fired(&self) {
+    fn alarm(&self) {
         self.run_test_and_increment();
     }
 }
