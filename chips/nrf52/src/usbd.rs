@@ -1361,7 +1361,11 @@ impl<'a> Usbd<'a> {
         let state = self.descriptors[endpoint].state.get().ctrl_state();
         match state {
             CtrlState::ReadIn => {
-                self.transmit_in_ep0();
+                if self.dma_pending.get() {
+                    self.descriptors[endpoint].request_transmit_in.set(true);
+                } else {
+                    self.transmit_in_ep0();
+                }
             }
 
             CtrlState::ReadStatus => {
@@ -1371,8 +1375,12 @@ impl<'a> Usbd<'a> {
             CtrlState::WriteOut => {
                 // We just completed the Setup stage for a CTRL WRITE transfer,
                 // and now we need to enable DMA so the USBD peripheral can copy
-                // the received data.
-                self.transmit_out_ep0();
+                // the received data. If the DMA is in use, queue our request.
+                if self.dma_pending.get() {
+                    self.descriptors[endpoint].request_transmit_out.set(true);
+                } else {
+                    self.transmit_out_ep0();
+                }
             }
 
             CtrlState::Init => {
@@ -1651,8 +1659,15 @@ impl<'a> Usbd<'a> {
                                         self.descriptors[endpoint]
                                             .state
                                             .set(EndpointState::Ctrl(CtrlState::ReadIn));
-                                        // Transmit first packet
-                                        self.transmit_in_ep0();
+                                        // Transmit first packet if DMA is
+                                        // available.
+                                        if self.dma_pending.get() {
+                                            self.descriptors[endpoint]
+                                                .request_transmit_in
+                                                .set(true);
+                                        } else {
+                                            self.transmit_in_ep0();
+                                        }
                                     }
                                     None => unreachable!(),
                                 }
@@ -1698,13 +1713,21 @@ impl<'a> Usbd<'a> {
 
         for (endpoint, desc) in self.descriptors.iter().enumerate() {
             if desc.request_transmit_in.take() {
-                self.transmit_in(endpoint);
+                if endpoint == 0 {
+                    self.transmit_in_ep0();
+                } else {
+                    self.transmit_in(endpoint);
+                }
                 if self.dma_pending.get() {
                     break;
                 }
             }
             if desc.request_transmit_out.take() {
-                self.transmit_out(endpoint);
+                if endpoint == 0 {
+                    self.transmit_out_ep0();
+                } else {
+                    self.transmit_out(endpoint);
+                }
                 if self.dma_pending.get() {
                     break;
                 }
