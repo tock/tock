@@ -31,10 +31,6 @@ where
     return res;
 }
 
-#[cfg(all(target_arch = "arm", target_os = "none"))]
-#[lang = "eh_personality"]
-pub extern "C" fn eh_personality() {}
-
 // Mock implementations for tests on Travis-CI.
 #[cfg(not(any(target_arch = "arm", target_os = "none")))]
 /// NOP instruction (mock)
