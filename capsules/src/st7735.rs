@@ -4,7 +4,6 @@
 //! -----
 //!
 //! ```rust
-//!
 //! let tft = components::st7735::ST7735Component::new(alarm_mux).finalize(
 //!     components::st7735_component_helper!(
 //!         // spi type
