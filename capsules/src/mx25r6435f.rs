@@ -51,7 +51,6 @@ use kernel::common::cells::OptionalCell;
 use kernel::common::cells::TakeCell;
 use kernel::debug;
 use kernel::hil;
-use kernel::hil::time::Frequency;
 use kernel::ReturnCode;
 
 pub static mut TXBUFFER: [u8; PAGE_SIZE as usize + 4] = [0; PAGE_SIZE as usize + 4];
@@ -397,9 +396,8 @@ impl<
                 self.txbuffer.replace(write_buffer);
                 // Datasheet says erase takes 58 ms on average. So we wait that
                 // long.
-                let interval = (58 as u32) * <A::Frequency>::frequency() / 1000;
-                let tics = self.alarm.now().wrapping_add(interval);
-                self.alarm.set_alarm(tics);
+                let delay = A::ticks_from_ms(58);
+                self.alarm.set_alarm(self.alarm.now(), delay);
             }
             State::EraseSectorCheckDone { operation } => {
                 read_buffer.map(move |read_buffer| {
@@ -493,9 +491,8 @@ impl<
                 self.txbuffer.replace(write_buffer);
                 // Datasheet says write page takes 3.2 ms on average. So we wait
                 // that long.
-                let interval = (3200 as u32) * <A::Frequency>::frequency() / 1000000;
-                let tics = self.alarm.now().wrapping_add(interval);
-                self.alarm.set_alarm(tics);
+                let delay = A::ticks_from_us(3200);
+                self.alarm.set_alarm(self.alarm.now(), delay);
             }
             State::WriteSectorWaitDone {
                 sector_index,
@@ -532,7 +529,7 @@ impl<
         A: hil::time::Alarm<'a> + 'a,
     > hil::time::AlarmClient for MX25R6435F<'a, S, P, A>
 {
-    fn fired(&self) {
+    fn alarm(&self) {
         // After the timer expires we still have to check that the erase/write
         // operation has finished.
         self.txbuffer.take().map(|write_buffer| {

@@ -40,7 +40,7 @@ use core::cmp;
 
 use kernel::common::cells::OptionalCell;
 use kernel::hil;
-use kernel::hil::time::Frequency;
+use kernel::hil::time::{Frequency};
 use kernel::{AppId, Callback, Driver, Grant, ReturnCode};
 
 /// Syscall driver number.
@@ -137,8 +137,7 @@ impl<A: hil::time::Alarm<'a>> Buzzer<'a, A> {
 
                 // Now start a timer so we know when to stop the PWM.
                 let interval = (duration_ms as u32) * <A::Frequency>::frequency() / 1000;
-                let tics = self.alarm.now().wrapping_add(interval);
-                self.alarm.set_alarm(tics);
+                self.alarm.set_alarm(self.alarm.now(), A::Ticks::from(interval));
                 ReturnCode::SUCCESS
             }
         }
@@ -163,7 +162,7 @@ impl<A: hil::time::Alarm<'a>> Buzzer<'a, A> {
 }
 
 impl<A: hil::time::Alarm<'a>> hil::time::AlarmClient for Buzzer<'a, A> {
-    fn fired(&self) {
+    fn alarm(&self) {
         // All we have to do is stop the PWM and check if there are any pending
         // uses of the buzzer.
         self.pwm_pin.stop();

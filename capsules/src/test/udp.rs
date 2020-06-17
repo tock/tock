@@ -67,11 +67,8 @@ impl<'a, A: Alarm<'a>> MockUdp<'a, A> {
     pub fn start_sending(&self) {
         // Set alarm bc if you try to send immediately there are initialization issues
         self.send_loop.set(true);
-        self.alarm.set_alarm(
-            self.alarm
-                .now()
-                .wrapping_add(<A::Frequency>::frequency() * SEND_INTERVAL_SECONDS),
-        );
+        let delay = <A::Frequency>::frequency() * SEND_INTERVAL_SECONDS;
+        self.alarm.set_alarm(self.alarm.now(), A::Ticks::from(delay));
     }
 
     pub fn update_capability(&self, new_cap: &'static NetworkCapability) {
@@ -79,7 +76,7 @@ impl<'a, A: Alarm<'a>> MockUdp<'a, A> {
     }
 
     pub fn stop_sending(&self) {
-        self.alarm.disable();
+        self.alarm.disarm();
     }
 
     // Binds to passed port. If already bound to a port,
@@ -182,7 +179,7 @@ impl<'a, A: Alarm<'a>> MockUdp<'a, A> {
 }
 
 impl<'a, A: Alarm<'a>> time::AlarmClient for MockUdp<'a, A> {
-    fn fired(&self) {
+    fn alarm(&self) {
         if self.send_loop.get() {
             self.send(self.id);
         }
@@ -195,11 +192,8 @@ impl<'a, A: Alarm<'a>> UDPSendClient for MockUdp<'a, A> {
         dgram.reset();
         self.udp_dgram.replace(dgram);
         debug!("");
-        self.alarm.set_alarm(
-            self.alarm
-                .now()
-                .wrapping_add(<A::Frequency>::frequency() * SEND_INTERVAL_SECONDS),
-        );
+        let delay = <A::Frequency>::frequency() * SEND_INTERVAL_SECONDS;
+        self.alarm.set_alarm(self.alarm.now(), A::Ticks::from(delay));
     }
 }
 

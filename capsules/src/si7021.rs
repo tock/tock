@@ -37,7 +37,6 @@ use core::cell::Cell;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::i2c;
 use kernel::hil::time;
-use kernel::hil::time::Frequency;
 use kernel::ReturnCode;
 
 // Buffer to use for I2C messages
@@ -133,10 +132,8 @@ impl<A: time::Alarm<'a>> SI7021<'a, A> {
     }
 
     fn init_measurement(&self, buffer: &'static mut [u8]) {
-        let interval = (20 as u32) * <A::Frequency>::frequency() / 1000;
-
-        let tics = self.alarm.now().wrapping_add(interval);
-        self.alarm.set_alarm(tics);
+        let delay = A::ticks_from_ms(20);
+        self.alarm.set_alarm(self.alarm.now(), delay);
 
         // Now wait for timer to expire
         self.buffer.replace(buffer);
@@ -294,7 +291,7 @@ impl<A: time::Alarm<'a>> kernel::hil::sensors::HumidityDriver for SI7021<'a, A> 
 }
 
 impl<A: time::Alarm<'a>> time::AlarmClient for SI7021<'a, A> {
-    fn fired(&self) {
+    fn alarm(&self) {
         self.buffer.take().map(|buffer| {
             // turn on i2c to send commands
             self.i2c.enable();

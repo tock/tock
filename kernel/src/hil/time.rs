@@ -34,13 +34,13 @@ pub trait Ticks: Clone + Copy + From<u32> {
     /// unsigned arithmetic. 
     fn wrapping_sub(self, other: Self) -> Self;
 
-    /// Returns whether `when` is in the range of [`start`, `end`), using
+    /// Returns whether the value is in the range of [`start, `end`) using
     /// unsigned arithmetic and considering wraparound. It returns `true`
-    /// if, incrementing from `start`, `when` will be reached before `end`.
-    /// Put another way, it returns `(when - start) < (end - start)` in
+    /// if, incrementing from `start`, the value will be reached before `end`.
+    /// Put another way, it returns `(self - start) < (end - start)` in
     /// unsigned arithmetic.
-    fn within_range(start: Self, when: Self, end: Self) -> bool;
-
+    fn within_range(self, start: Self, end: Self) -> bool;
+    
     /// Returns the maximum value of this type, which should be (2^width)-1.
     fn max_value() -> Self;
 }
@@ -69,15 +69,18 @@ pub trait Time {
     fn now(&self) -> Self::Ticks;
     
     /// Returns the number of ticks in the provided number of seconds,
-    /// rounding down any fractions.
+    /// rounding down any fractions. If the value overflows Ticks it
+    /// returns `Ticks::max_value()`.
     fn ticks_from_seconds(s: u32) -> Self::Ticks;
     
     /// Returns the number of ticks in the provided number of milliseconds,
-    /// rounding down any fractions.
+    /// rounding down any fractions. If the value overflows Ticks it
+    /// returns `Ticks::max_value()`.
     fn ticks_from_ms(ms: u32) -> Self::Ticks;
 
     /// Returns the number of ticks in the provided number of microseconds,
-    /// rounding down any fractions.
+    /// rounding down any fractions. If the value overflows Ticks it
+    /// returns `Ticks::max_value()`.
     fn ticks_from_us(us: u32) -> Self::Ticks;
 }
 
@@ -98,7 +101,7 @@ pub trait Counter<'a>: Time {
   /// Specify the callback for when the counter overflows its maximum
   /// value (defined by `Ticks`). If there was a previously registered
   /// callback this call replaces it.
-  fn set_client(&'a self, &'a dyn OverflowClient);
+  fn set_overflow_client(&'a self, client: &'a dyn OverflowClient);
     
   /// Starts the free-running hardware counter. Valid `ReturnCode` values are:
   ///   - `ReturnCode::SUCCESS`: the counter is now running
@@ -129,7 +132,7 @@ pub trait Counter<'a>: Time {
 
 /// Callback handler for when an Alarm fires (a `Counter` reaches a specific
 /// value).
-pub trait AlarmClient: OverflowClient {
+pub trait AlarmClient {
   /// Callback indicating the alarm time has been reached. The alarm
   /// MUST be disabled when this is called. If a new alarm is needed,
   /// the client can call `Alarm::set_alarm`.
@@ -151,7 +154,7 @@ pub trait Alarm<'a>: Time {
   /// Specify the callback for when the counter reaches the alarm
   /// value. If there was a previously installed callback this call
   /// replaces it.
-  fn set_client(&'a self, client: &'a dyn AlarmClient);    
+  fn set_alarm_client(&'a self, client: &'a dyn AlarmClient);    
 
     
   /// Specify when the callback should be called and enable it. Tthe
@@ -168,7 +171,12 @@ pub trait Alarm<'a>: Time {
   /// otherwise returns `now + dt` from the last call to `set_alarm`.
   fn get_alarm(&self) -> Self::Ticks;
 
-  /// Disable the alarm and stop it from firing in the future.    
+  /// Disable the alarm and stop it from firing in the future.
+  /// Valid `ReturnCode` codes are:
+  ///   - `ReturnCode::SUCCESS` the alarm has been disarmed and will not invoke
+  ///   the callback in the future    
+  ///   - `ReturnCode::FAIL` the alarm could not be disarmed and will invoke
+  ///   the callback in the future    
   fn disarm(&self) -> ReturnCode;
 
   /// Returns whether the alarm is currently armed. Note that this
@@ -181,54 +189,9 @@ pub trait Alarm<'a>: Time {
 
 }
 
-/// 16MHz `Frequency`
-#[derive(Debug)]
-pub struct Freq16MHz;
-impl Frequency for Freq16MHz {
-    fn frequency() -> u32 {
-        16000000
-    }
-}
-
-/// 1MHz `Frequency`
-#[derive(Debug)]
-pub struct Freq1MHz;
-impl Frequency for Freq1MHz {
-    fn frequency() -> u32 {
-        1000000
-    }
-}
-
-/// 32KHz `Frequency`
-#[derive(Debug)]
-pub struct Freq32KHz;
-impl Frequency for Freq32KHz {
-    fn frequency() -> u32 {
-        32768
-    }
-}
-
-/// 16KHz `Frequency`
-#[derive(Debug)]
-pub struct Freq16KHz;
-impl Frequency for Freq16KHz {
-    fn frequency() -> u32 {
-        16000
-    }
-}
-
-/// 1KHz `Frequency`
-#[derive(Debug)]
-pub struct Freq1KHz;
-impl Frequency for Freq1KHz {
-    fn frequency() -> u32 {
-        1000
-    }
-}
-
 /// Callback handler for when a timer fires.
 pub trait TimerClient {
-  fn fired(&self);
+  fn timer(&self);
 }
 
 /// Interface for controlling callbacks when an interval has passed.
@@ -240,7 +203,7 @@ pub trait TimerClient {
 pub trait Timer<'a>: Time {
   /// Specify the callback to invoke when the timer interval expires.
   /// If there was a previously installed callback this call replaces it.    
-  fn set_client(&'a self, &'a dyn TimerClient);
+  fn set_client(&'a self, client: &'a dyn TimerClient);
 
   /// Start a one-shot timer that will invoke the callback at least
   /// `interval` ticks in the future. If there is a timer currently pending,
@@ -287,3 +250,87 @@ pub trait Timer<'a>: Time {
   ///  will be invoked in the future.
   fn cancel(&self) -> ReturnCode;
 }
+
+
+/// 16MHz `Frequency`
+#[derive(Debug)]
+pub struct Freq16MHz;
+impl Frequency for Freq16MHz {
+    fn frequency() -> u32 {
+        16000000
+    }
+}
+
+/// 1MHz `Frequency`
+#[derive(Debug)]
+pub struct Freq1MHz;
+impl Frequency for Freq1MHz {
+     fn frequency() -> u32 {
+        1000000
+    }
+}
+
+/// 32KHz `Frequency`
+#[derive(Debug)]
+pub struct Freq32KHz;
+impl Frequency for Freq32KHz {
+    fn frequency() -> u32 {
+        32768
+    }
+}
+
+/// 16KHz `Frequency`
+#[derive(Debug)]
+pub struct Freq16KHz;
+impl Frequency for Freq16KHz {
+    fn frequency() -> u32 {
+        16000
+    }
+}
+
+/// 1KHz `Frequency`
+#[derive(Debug)]
+pub struct Freq1KHz;
+impl Frequency for Freq1KHz {
+    fn frequency() -> u32 {
+        1000
+    }
+}
+
+/// u32 `Ticks`
+#[derive(Clone, Copy)]
+pub struct Ticks32(u32);
+
+impl From<u32> for Ticks32 {
+    fn from(val: u32) -> Self {
+        Ticks32(val)
+    }
+}
+
+impl Ticks for Ticks32 {
+    fn into_usize(self) -> usize {
+        self.0 as usize
+    }
+    
+    fn into_u32(self) -> u32 {
+        self.0
+    }
+
+    fn wrapping_add(self, other: Self) -> Self {
+        Ticks32(self.0.wrapping_add(other.0))
+    }
+
+    fn wrapping_sub(self, other: Self) -> Self {
+        Ticks32(self.0.wrapping_sub(other.0))
+    }
+
+    fn within_range(self, start: Self, end: Self) -> bool {
+        self.wrapping_sub(start).0 < end.wrapping_sub(start).0
+    }
+
+    /// Returns the maximum value of this type, which should be (2^width)-1.
+    fn max_value() -> Self {
+        Ticks32(0xFFFFFFFF)
+    }
+}
+

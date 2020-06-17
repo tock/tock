@@ -2,13 +2,15 @@
 //! alarm hardware peripheral.
 
 use core::cell::Cell;
+use kernel::ReturnCode;
 use kernel::common::cells::OptionalCell;
 use kernel::common::{List, ListLink, ListNode};
-use kernel::hil::time::{self, Alarm, Time};
+use kernel::hil::time::{self, Alarm, Ticks, Time};
 
 pub struct VirtualMuxAlarm<'a, A: Alarm<'a>> {
     mux: &'a MuxAlarm<'a, A>,
-    when: Cell<u32>,
+    reference: Cell<A::Ticks>,
+    dt: Cell<A::Ticks>,
     armed: Cell<bool>,
     next: ListLink<'a, VirtualMuxAlarm<'a, A>>,
     client: OptionalCell<&'a dyn time::AlarmClient>,
@@ -22,9 +24,11 @@ impl<A: Alarm<'a>> ListNode<'a, VirtualMuxAlarm<'a, A>> for VirtualMuxAlarm<'a, 
 
 impl<A: Alarm<'a>> VirtualMuxAlarm<'a, A> {
     pub fn new(mux_alarm: &'a MuxAlarm<'a, A>) -> VirtualMuxAlarm<'a, A> {
+        let zero = A::ticks_from_seconds(0);
         VirtualMuxAlarm {
             mux: mux_alarm,
-            when: Cell::new(0),
+            reference: Cell::new(zero),
+            dt: Cell::new(zero),
             armed: Cell::new(false),
             next: ListLink::empty(),
             client: OptionalCell::empty(),
@@ -34,29 +38,42 @@ impl<A: Alarm<'a>> VirtualMuxAlarm<'a, A> {
 
 impl<A: Alarm<'a>> Time for VirtualMuxAlarm<'a, A> {
     type Frequency = A::Frequency;
-
-    fn max_tics(&self) -> u32 {
-        self.mux.alarm.max_tics()
+    type Ticks = A::Ticks;
+    
+    fn now(&self) -> Self::Ticks {
+        self.mux.alarm.now()
     }
 
-    fn now(&self) -> u32 {
-        self.mux.alarm.now()
+    fn ticks_from_seconds(s: u32) -> Self::Ticks {
+        A::ticks_from_seconds(s)
+    }
+    
+    fn ticks_from_ms(ms: u32) -> Self::Ticks {
+        A::ticks_from_ms(ms)
+    }    
+
+    fn ticks_from_us(us: u32) -> Self::Ticks {
+        A::ticks_from_us(us)
     }
 }
 
 impl<A: Alarm<'a>> Alarm<'a> for VirtualMuxAlarm<'a, A> {
-    fn set_client(&'a self, client: &'a dyn time::AlarmClient) {
+    fn set_alarm_client(&'a self, client: &'a dyn time::AlarmClient) {
         self.mux.virtual_alarms.push_head(self);
-        self.when.set(0);
+        // Reset the alarm state: should it do this? Does not seem
+        // to be semantically correct. What if you just wanted to
+        // change the callback. Keeping it but skeptical. -pal
+        self.reference.set(A::Ticks::from(0 as u32));
+        self.dt.set(A::Ticks::from(0 as u32));
         self.armed.set(false);
         self.client.set(client);
     }
 
-    fn disable(&self) {
+    fn disarm(&self) -> ReturnCode {
         if !self.armed.get() {
-            return;
+            return ReturnCode::SUCCESS;
         }
-
+        
         self.armed.set(false);
 
         let enabled = self.mux.enabled.get() - 1;
@@ -65,46 +82,50 @@ impl<A: Alarm<'a>> Alarm<'a> for VirtualMuxAlarm<'a, A> {
         // If there are not more enabled alarms, disable the underlying alarm
         // completely.
         if enabled == 0 {
-            self.mux.alarm.disable();
+            self.mux.alarm.disarm();
         }
+        ReturnCode::SUCCESS
     }
 
-    fn is_enabled(&self) -> bool {
+    fn is_armed(&self) -> bool {
         self.armed.get()
     }
 
-    fn set_alarm(&self, when: u32) {
+    fn set_alarm(&self, reference: Self::Ticks, dt: Self::Ticks) {
         let enabled = self.mux.enabled.get();
-
+        
         if !self.armed.get() {
             self.mux.enabled.set(enabled + 1);
             self.armed.set(true);
         }
 
-        if enabled > 0 {
-            let cur_alarm = self.mux.alarm.get_alarm();
-            let now = self.now();
-
-            if cur_alarm.wrapping_sub(now) > when.wrapping_sub(now) {
-                self.mux.prev.set(self.mux.alarm.now());
-                self.mux.alarm.set_alarm(when);
-            }
+        // First alarm, so set it
+        if enabled == 0 {
+            self.mux.alarm.set_alarm(reference, dt);
         } else {
-            self.mux.prev.set(self.mux.alarm.now());
-            self.mux.alarm.set_alarm(when);
+            // If the current alarm doesn't fall within the range of
+            // [reference, reference + dt), this means this new alarm
+            // will fire sooner. This covers the case even when the new
+            // alarm has already expired. -pal
+            let cur_alarm = self.mux.alarm.get_alarm();
+            if !cur_alarm.within_range(reference, dt) {
+                self.mux.alarm.set_alarm(reference, dt);
+            } else {
+                // current alarm will fire earlier, keep it
+            }
         }
-
-        self.when.set(when);
+        self.reference.set(reference);
+        self.dt.set(dt);
     }
 
-    fn get_alarm(&self) -> u32 {
-        self.when.get()
+    fn get_alarm(&self) -> Self::Ticks {
+        self.reference.get().wrapping_add(self.dt.get())
     }
 }
 
 impl<A: Alarm<'a>> time::AlarmClient for VirtualMuxAlarm<'a, A> {
-    fn fired(&self) {
-        self.client.map(|client| client.fired());
+    fn alarm(&self) {
+        self.client.map(|client| client.alarm());
     }
 }
 
@@ -113,7 +134,6 @@ impl<A: Alarm<'a>> time::AlarmClient for VirtualMuxAlarm<'a, A> {
 pub struct MuxAlarm<'a, A: Alarm<'a>> {
     virtual_alarms: List<'a, VirtualMuxAlarm<'a, A>>,
     enabled: Cell<usize>,
-    prev: Cell<u32>,
     alarm: &'a A,
 }
 
@@ -122,35 +142,27 @@ impl<A: Alarm<'a>> MuxAlarm<'a, A> {
         MuxAlarm {
             virtual_alarms: List::new(),
             enabled: Cell::new(0),
-            prev: Cell::new(0),
             alarm: alarm,
         }
     }
 }
 
-fn has_expired(alarm: u32, now: u32, prev: u32) -> bool {
-    now.wrapping_sub(prev) >= alarm.wrapping_sub(prev)
-}
-
 impl<A: Alarm<'a>> time::AlarmClient for MuxAlarm<'a, A> {
-    fn fired(&self) {
-        let now = self.alarm.now();
-
-        // Capture this before the loop because it can change while checking
-        // each alarm. If a timer fires, it can immediately set a new timer
-        // by calling `VirtualMuxAlarm.set_alarm()` which can change `self.prev`
-        // to the current timer time.
-        let prev = self.prev.get();
+    fn alarm(&self) {
+        // The "now" is when the alarm fired, not the current
+        // time; this is case there was some delay. This also
+        // ensures that all other timers are >= now.
+        let now = self.alarm.get_alarm();
 
         // Check whether to fire each alarm. At this level, alarms are one-shot,
-        // so a repeating client will set it again in the fired() callback.
+        // so a repeating client will set it again in the alarm() callback.
         self.virtual_alarms
             .iter()
-            .filter(|cur| cur.armed.get() && has_expired(cur.when.get(), now, prev))
+            .filter(|cur| cur.armed.get() && !now.within_range(cur.reference.get(), cur.dt.get()))
             .for_each(|cur| {
                 cur.armed.set(false);
                 self.enabled.set(self.enabled.get() - 1);
-                cur.fired();
+                cur.alarm();
             });
 
         // Find the soonest alarm client (if any) and set the "next" underlying
@@ -160,17 +172,15 @@ impl<A: Alarm<'a>> time::AlarmClient for MuxAlarm<'a, A> {
             .virtual_alarms
             .iter()
             .filter(|cur| cur.armed.get())
-            .min_by_key(|cur| cur.when.get().wrapping_sub(now));
+            .min_by_key(|cur| cur.reference.get()
+                        .wrapping_add(cur.dt.get())
+                        .wrapping_sub(now).into_u32());
 
-        self.prev.set(now);
-        // If there is an alarm to fire, set the underlying alarm to it
+        // Set the alarm.
         if let Some(valrm) = next {
-            self.alarm.set_alarm(valrm.when.get());
-            if has_expired(valrm.when.get(), self.alarm.now(), prev) {
-                self.fired();
-            }
+            self.alarm.set_alarm(valrm.reference.get(), valrm.dt.get());
         } else {
-            self.alarm.disable();
+            self.alarm.disarm();
         }
     }
 }

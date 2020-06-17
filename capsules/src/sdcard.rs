@@ -41,7 +41,6 @@ use core::cell::Cell;
 use core::cmp;
 use kernel::common::cells::{MapCell, OptionalCell, TakeCell};
 use kernel::hil;
-use kernel::hil::time::Frequency;
 use kernel::{AppId, AppSlice, Callback, Driver, ReturnCode, Shared};
 
 /// Syscall driver number.
@@ -53,7 +52,7 @@ pub const DRIVER_NUM: usize = driver::NUM::SdCard as usize;
 ///
 ///  * RXBUFFER must be greater than or equal to TXBUFFER in length
 ///  * Both RXBUFFER and TXBUFFER must be longer  than the SD card's block size
-pub static mut TXBUFFER: [u8; 515] = [0; 515];
+ pub static mut TXBUFFER: [u8; 515] = [0; 515];
 pub static mut RXBUFFER: [u8; 515] = [0; 515];
 
 /// SD Card capsule, capable of being built on top of by other kernel capsules
@@ -506,9 +505,8 @@ impl<A: hil::time::Alarm<'a>> SDCard<'a, A> {
 
                     // try again after 10 ms
                     self.alarm_state.set(AlarmState::RepeatHCSInit);
-                    let interval = (10 as u32) * <A::Frequency>::frequency() / 1000;
-                    let tics = self.alarm.now().wrapping_add(interval);
-                    self.alarm.set_alarm(tics);
+                    let delay = A::ticks_from_ms(10);
+                    self.alarm.set_alarm(self.alarm.now(), delay);
                 } else {
                     // error, send callback and quit
                     self.txbuffer.replace(write_buffer);
@@ -603,9 +601,8 @@ impl<A: hil::time::Alarm<'a>> SDCard<'a, A> {
 
                     // try again after 10 ms
                     self.alarm_state.set(AlarmState::RepeatAppSpecificInit);
-                    let interval = (10 as u32) * <A::Frequency>::frequency() / 1000;
-                    let tics = self.alarm.now().wrapping_add(interval);
-                    self.alarm.set_alarm(tics);
+                    let delay = A::ticks_from_ms(10);
+                    self.alarm.set_alarm(self.alarm.now(), delay);
                 } else {
                     // error, send callback and quit
                     self.txbuffer.replace(write_buffer);
@@ -642,9 +639,8 @@ impl<A: hil::time::Alarm<'a>> SDCard<'a, A> {
 
                     // try again after 10 ms
                     self.alarm_state.set(AlarmState::RepeatGenericInit);
-                    let interval = (10 as u32) * <A::Frequency>::frequency() / 1000;
-                    let tics = self.alarm.now().wrapping_add(interval);
-                    self.alarm.set_alarm(tics);
+                    let delay = A::ticks_from_ms(10);
+                    self.alarm.set_alarm(self.alarm.now(), delay);
                 } else {
                     // error, send callback and quit
                     self.txbuffer.replace(write_buffer);
@@ -785,9 +781,8 @@ impl<A: hil::time::Alarm<'a>> SDCard<'a, A> {
 
                     // try again after 1 ms
                     self.alarm_state.set(AlarmState::WaitForDataBlock);
-                    let interval = (1 as u32) * <A::Frequency>::frequency() / 1000;
-                    let tics = self.alarm.now().wrapping_add(interval);
-                    self.alarm.set_alarm(tics);
+                    let delay = A::ticks_from_ms(1);
+                    self.alarm.set_alarm(self.alarm.now(), delay);
                 } else {
                     // error, send callback and quit
                     self.txbuffer.replace(write_buffer);
@@ -844,9 +839,8 @@ impl<A: hil::time::Alarm<'a>> SDCard<'a, A> {
                     // try again after 1 ms
                     self.alarm_state
                         .set(AlarmState::WaitForDataBlocks { count: count });
-                    let interval = (1 as u32) * <A::Frequency>::frequency() / 1000;
-                    let tics = self.alarm.now().wrapping_add(interval);
-                    self.alarm.set_alarm(tics);
+                    let delay = A::ticks_from_ms(1);
+                    self.alarm.set_alarm(self.alarm.now(), delay);
                 } else {
                     // error, send callback and quit
                     self.txbuffer.replace(write_buffer);
@@ -1032,9 +1026,8 @@ impl<A: hil::time::Alarm<'a>> SDCard<'a, A> {
 
                     // try again after 1 ms
                     self.alarm_state.set(AlarmState::WaitForWriteBusy);
-                    let interval = (1 as u32) * <A::Frequency>::frequency() / 1000;
-                    let tics = self.alarm.now().wrapping_add(interval);
-                    self.alarm.set_alarm(tics);
+                    let delay = A::ticks_from_ms(1);
+                    self.alarm.set_alarm(self.alarm.now(), delay);
                 }
             }
 
@@ -1346,7 +1339,7 @@ impl<A: hil::time::Alarm<'a>> hil::spi::SpiMasterClient for SDCard<'a, A> {
 
 /// Handle callbacks from the timer
 impl<A: hil::time::Alarm<'a>> hil::time::AlarmClient for SDCard<'a, A> {
-    fn fired(&self) {
+    fn alarm(&self) {
         self.process_alarm_states();
     }
 }
@@ -1375,9 +1368,8 @@ impl<A: hil::time::Alarm<'a>> hil::gpio::Client for SDCard<'a, A> {
 
         // run a timer for 500 ms in order to let the sd card settle
         self.alarm_state.set(AlarmState::DetectionChange);
-        let interval = (500 as u32) * <A::Frequency>::frequency() / 1000;
-        let tics = self.alarm.now().wrapping_add(interval);
-        self.alarm.set_alarm(tics);
+        let delay = A::ticks_from_ms(500);
+        self.alarm.set_alarm(self.alarm.now(), delay);
     }
 }
 

@@ -8,8 +8,9 @@ use crate::pm::{self, PBDClock};
 use kernel::common::cells::OptionalCell;
 use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
-use kernel::hil::time::{self, Alarm, Freq16KHz, Time};
+use kernel::hil::time::{self, Frequency, Ticks};
 use kernel::hil::Controller;
+use kernel::ReturnCode;
 
 /// Minimum number of clock tics to make sure ALARM0 register is synchronized
 ///
@@ -253,8 +254,14 @@ impl Ast<'a> {
         while self.busy() {}
     }
 
+    fn is_enabled(&self) -> bool {
+        let regs: &AstRegisters = &*self.registers;
+        while self.busy() {}
+        regs.cr.is_set(Control::EN) 
+    }
+
     /// Returns if an alarm is currently set
-    fn is_alarm_enabled(&self) -> bool {
+    fn is_alarm_active(&self) -> bool {
         let regs: &AstRegisters = &*self.registers;
         while self.busy() {}
         regs.sr.is_set(Status::ALARM0)
@@ -290,62 +297,129 @@ impl Ast<'a> {
         regs.cv.read(Value::VALUE)
     }
 
+    fn set_counter(&self, val: u32) {
+        let regs: &AstRegisters = &*self.registers;
+        while self.busy() {}
+        regs.cv.set(val);
+    }
+
     pub fn handle_interrupt(&mut self) {
         self.clear_alarm();
         self.callback.map(|cb| {
-            cb.fired();
+            cb.alarm();
         });
     }
 }
 
-impl Time for Ast<'a> {
-    type Frequency = Freq16KHz;
-
-    fn now(&self) -> u32 {
-        self.get_counter()
+impl time::Time for Ast<'a> {
+    type Frequency = time::Freq16KHz;
+    type Ticks = time::Ticks32;
+    
+    fn now(&self) -> Self::Ticks {
+        Self::Ticks::from(self.get_counter())
     }
 
-    fn max_tics(&self) -> u32 {
-        core::u32::MAX
+    fn ticks_from_seconds(s: u32) -> Self::Ticks {
+        let val: u64 = Self::Frequency::frequency() as u64 * s as u64;
+        if val <= Self::Ticks::max_value().into_u32() as u64 {
+            Self::Ticks::from(val as u32)
+        } else {
+            Self::Ticks::from(Self::Ticks::max_value())
+        }
+    }
+
+    fn ticks_from_ms(ms: u32) -> Self::Ticks {
+        let mut val: u64 = Self::Frequency::frequency() as u64 * ms as u64;
+        val = val / 1000;
+        if val <= Self::Ticks::max_value().into_u32() as u64 {
+            Self::Ticks::from(val as u32)
+        } else {
+            Self::Ticks::max_value()
+        }
+    }
+
+    fn ticks_from_us(us: u32) -> Self::Ticks {
+        let mut val: u64 = Self::Frequency::frequency() as u64 * us as u64;
+        val = val / 1_000_000;
+        if val <= Self::Ticks::max_value().into_u32() as u64 {
+            Self::Ticks::from(val as u32)
+        } else {
+            Self::Ticks::max_value()
+        }
     }
 }
 
-impl Alarm<'a> for Ast<'a> {
-    fn set_client(&self, client: &'a dyn time::AlarmClient) {
+impl time::Counter<'a> for Ast<'a> {
+    
+    fn set_overflow_client(&'a self, client: &'a dyn time::OverflowClient) {
+        
+    }
+    
+    fn start(&self) -> ReturnCode {
+        self.enable();
+        ReturnCode::SUCCESS      
+    }
+    
+    fn stop(&self) -> ReturnCode {
+        self.disable();
+        ReturnCode::SUCCESS      
+    }
+    
+    fn reset(&self) {
+        self.set_counter(0);
+    }
+    
+    fn is_running(&self) -> bool {
+        self.is_enabled()   
+    }
+}
+
+impl time::Alarm<'a> for Ast<'a> {
+    fn set_alarm_client(&self, client: &'a dyn time::AlarmClient) {
         self.callback.set(client);
     }
 
-    fn set_alarm(&self, mut tics: u32) {
+    fn set_alarm(&self, reference: Self::Ticks, dt: Self::Ticks) {
         let regs: &AstRegisters = &*self.registers;
-        let now = self.get_counter();
-        if tics.wrapping_sub(now) <= ALARM0_SYNC_TICS {
-            tics = now.wrapping_add(ALARM0_SYNC_TICS);
+        let now = Self::Ticks::from(self.get_counter());
+        let mut expire = reference.wrapping_add(dt);
+        if !now.within_range(reference, expire) {
+            // We have already passed when: just fire ASAP
+            // Note this will also trigger the increment below
+            expire = Self::Ticks::from(now);
+        }
+
+        // Firing is too close in the future, delay it a bit
+        // to make sure we don't miss the tick
+        if expire.wrapping_sub(now).into_u32() <= ALARM0_SYNC_TICS {
+            expire = now.wrapping_add(Self::Ticks::from(ALARM0_SYNC_TICS));
         }
 
         // Clear any alarm event that may be pending before setting the new alarm.
         self.clear_alarm();
 
         while self.busy() {}
-        regs.ar0.write(Value::VALUE.val(tics));
+        regs.ar0.write(Value::VALUE.val(expire.into_u32()));
         while self.busy() {}
         self.enable_alarm_irq();
         self.enable();
     }
 
-    fn get_alarm(&self) -> u32 {
+    fn get_alarm(&self) -> Self::Ticks {
         let regs: &AstRegisters = &*self.registers;
         while self.busy() {}
-        regs.ar0.read(Value::VALUE)
+        Self::Ticks::from(regs.ar0.read(Value::VALUE))
     }
 
-    fn disable(&self) {
+    fn disarm(&self) -> ReturnCode {
         // After disable the IRQ and clearing the alarmn bit in the status register, the NVIC bit
         // is also guaranteed to be clear.
         self.disable_alarm_irq();
         self.clear_alarm();
+        ReturnCode::SUCCESS
     }
 
-    fn is_enabled(&self) -> bool {
-        self.is_alarm_enabled()
+    fn is_armed(&self) -> bool {
+        self.is_alarm_active()
     }
 }

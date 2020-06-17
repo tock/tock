@@ -88,7 +88,7 @@ impl<A: 'static + time::Alarm<'static>> Component for SI7021Component<A> {
         );
 
         si7021_i2c.set_client(si7021);
-        si7021_alarm.set_client(si7021);
+        si7021_alarm.set_alarm_client(si7021);
         si7021
     }
 }
