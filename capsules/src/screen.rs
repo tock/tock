@@ -135,7 +135,7 @@ impl<'a> Screen<'a> {
         }
     }
 
-    // Check so see if we are doing something. If not,
+    // Check to see if we are doing something. If not,
     // go ahead and do this command. If so, this is queued
     // and will be run when the pending command completes.
     fn enqueue_command(
