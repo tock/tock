@@ -60,6 +60,9 @@ pub struct CdcAcm<'a, U: 'a> {
     /// 64 byte buffers for each endpoint.
     buffers: [Buffer64; N_ENDPOINTS],
 
+    /// Flag to track if the underlying USB stack is initialized and ready.
+    initialized: Cell<bool>,
+
     /// A holder reference for the TX buffer we are transmitting from.
     tx_buffer: TakeCell<'static, [u8]>,
     /// The number of bytes the client has asked us to send. We track this so we
@@ -188,6 +191,7 @@ impl<'a, U: hil::usb::UsbController<'a>> CdcAcm<'a, U> {
                 Buffer64::default(),
                 Buffer64::default(),
             ],
+            initialized: Cell::new(false),
             tx_buffer: TakeCell::empty(),
             tx_len: Cell::new(0),
             tx_offset: Cell::new(0),
@@ -232,7 +236,13 @@ impl<'a, U: hil::usb::UsbController<'a>> hil::usb::Client<'a> for CdcAcm<'a, U> 
     }
 
     fn bus_reset(&'a self) {
-        // No need to handle this at this layer.
+        // This signals enumeration has finished, and at this point we can ask
+        // for IN transfers if needed.
+        self.initialized.set(true);
+
+        if self.tx_buffer.is_some() {
+            self.controller().endpoint_resume_in(ENDPOINT_IN_NUM);
+        }
     }
 
     /// Handle a Control Setup transaction
@@ -247,13 +257,6 @@ impl<'a, U: hil::usb::UsbController<'a>> hil::usb::Client<'a> for CdcAcm<'a, U> 
 
     /// Handle a Control Out transaction
     fn ctrl_out(&'a self, endpoint: usize, packet_bytes: u32) -> hil::usb::CtrlOutResult {
-        // Hack to make sure we ask to send data if we have a buffer queued. We
-        // expect control out messages when the host actually connects via CDC,
-        // so we use this to generate the data IN request.
-        if self.tx_buffer.is_some() {
-            self.controller().endpoint_resume_in(ENDPOINT_IN_NUM);
-        }
-
         self.client_ctrl.ctrl_out(endpoint, packet_bytes)
     }
 
@@ -443,10 +446,12 @@ impl<'a, U: hil::usb::UsbController<'a>> uart::Transmit<'a> for CdcAcm<'a, U> {
             self.tx_offset.set(0);
             self.tx_buffer.replace(tx_buffer);
 
-            // Then signal to the lower layer that we are ready to do a TX by
-            // putting data in the IN endpoint.
-            self.controller().endpoint_resume_in(ENDPOINT_IN_NUM);
-
+            // Don't try to send if the USB stack isn't initialized yet.
+            if self.initialized.get() {
+                // Then signal to the lower layer that we are ready to do a TX by
+                // putting data in the IN endpoint.
+                self.controller().endpoint_resume_in(ENDPOINT_IN_NUM);
+            }
             (ReturnCode::SUCCESS, None)
         }
     }
