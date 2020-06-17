@@ -91,6 +91,7 @@ pub trait ScreenSetup {
 
     /// Can be called with index 0 .. count-1 and will return
     /// the value of each pixel format mode.
+    ///
     /// This function is synchronous as the driver should know this value without
     /// requesting it from the screen.
     fn get_supported_pixel_format(&self, index: usize) -> Option<ScreenPixelFormat>;
