@@ -324,10 +324,6 @@ mod detail {
             self.ptr.set(slice.as_ptr() as *const u8);
             self.maxcnt.write(Count::MAXCNT.val(slice.len() as u32));
         }
-
-        pub fn amount(&self) -> u32 {
-            self.amount.get()
-        }
     }
 }
 
@@ -1407,7 +1403,7 @@ impl<'a> Usbd<'a> {
                 // Now we can handle it and pass it to the client to see
                 // what the client returns.
                 self.client.map(|client| {
-                    match client.ctrl_out(endpoint, regs.epout[endpoint].amount()) {
+                    match client.ctrl_out(endpoint, regs.size_epout[endpoint].get()) {
                         hil::usb::CtrlOutResult::Ok => {
                             // TODO: Check if the CTRL WRITE is longer
                             // than the amount of data we have received,
