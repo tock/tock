@@ -135,6 +135,7 @@ pub trait Screen {
     /// - `EBUSY`: Another write is in progress.
     fn write(&self, buffer: &'static mut [u8], len: usize) -> ReturnCode;
 
+    /// Set the object to receive the asynchronous command callbacks.
     fn set_client(&self, client: Option<&'static dyn ScreenClient>);
 
     /// Sets the display brightness and/or powers it off
