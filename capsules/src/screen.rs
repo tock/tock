@@ -508,7 +508,7 @@ impl<'a> Driver for Screen<'a> {
     fn command(&self, command_num: usize, data1: usize, data2: usize, appid: AppId) -> ReturnCode {
         match command_num {
             0 =>
-            /* This driver exists. */
+            // This driver exists.
             {
                 ReturnCode::SUCCESS
             }
