@@ -76,6 +76,7 @@ pub trait ScreenSetup {
     /// Can be called with an index from 0 .. count-1 and will
     /// a tuple (width, height) with the current resolution (in pixels).
     /// note that width and height may change due to rotation
+    ///
     /// This function is synchronous as the driver should know this value without
     /// requesting it from the screen.
     fn get_supported_resolution(&self, index: usize) -> Option<(usize, usize)>;
