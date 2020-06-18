@@ -15,4 +15,5 @@ edition = "2018"
 travis-ci = { repository = "tock/tock", branch = "master" }
 
 [features]
+mmio_emu = []
 no_std_unit_tests = []

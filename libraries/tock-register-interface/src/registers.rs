@@ -63,6 +63,8 @@ use core::fmt;
 use core::marker::PhantomData;
 use core::ops::{Add, AddAssign, BitAnd, BitOr, BitOrAssign, Not, Shl, Shr};
 
+use crate::mmio;
+
 /// IntLike properties needed to read/write/modify a register.
 pub trait IntLike:
     BitAnd<Output = Self>
@@ -156,13 +158,13 @@ impl<T: IntLike, R: RegisterLongName> ReadWrite<T, R> {
     #[inline]
     /// Get the raw register value
     pub fn get(&self) -> T {
-        unsafe { ::core::ptr::read_volatile(&self.value) }
+        unsafe { mmio::read_volatile(&self.value) }
     }
 
     #[inline]
     /// Set the raw register value
     pub fn set(&self, value: T) {
-        unsafe { ::core::ptr::write_volatile(&self.value as *const T as *mut T, value) }
+        unsafe { mmio::write_volatile(&self.value as *const T as *mut T, value) }
     }
 
     #[inline]
@@ -225,7 +227,7 @@ impl<T: IntLike, R: RegisterLongName> ReadOnly<T, R> {
     #[inline]
     /// Get the raw register value
     pub fn get(&self) -> T {
-        unsafe { ::core::ptr::read_volatile(&self.value) }
+        unsafe { mmio::read_volatile(&self.value) }
     }
 
     #[inline]
@@ -269,7 +271,7 @@ impl<T: IntLike, R: RegisterLongName> WriteOnly<T, R> {
     #[inline]
     /// Set the raw register value
     pub fn set(&self, value: T) {
-        unsafe { ::core::ptr::write_volatile(&self.value as *const T as *mut T, value) }
+        unsafe { mmio::write_volatile(&self.value as *const T as *mut T, value) }
     }
 
     #[inline]
@@ -283,13 +285,13 @@ impl<T: IntLike, R: RegisterLongName, W: RegisterLongName> Aliased<T, R, W> {
     #[inline]
     /// Get the raw register value
     pub fn get(&self) -> T {
-        unsafe { ::core::ptr::read_volatile(&self.value) }
+        unsafe { mmio::read_volatile(&self.value) }
     }
 
     #[inline]
     /// Set the raw register value
     pub fn set(&self, value: T) {
-        unsafe { ::core::ptr::write_volatile(&self.value as *const T as *mut T, value) }
+        unsafe { mmio::write_volatile(&self.value as *const T as *mut T, value) }
     }
 
     #[inline]
@@ -446,12 +448,12 @@ impl<T: IntLike, R: RegisterLongName> InMemoryRegister<T, R> {
 
     #[inline]
     pub fn get(&self) -> T {
-        unsafe { ::core::ptr::read_volatile(&self.value) }
+        unsafe { mmio::read_volatile(&self.value) }
     }
 
     #[inline]
     pub fn set(&self, value: T) {
-        unsafe { ::core::ptr::write_volatile(&self.value as *const T as *mut T, value) }
+        unsafe { mmio::write_volatile(&self.value as *const T as *mut T, value) }
     }
 
     #[inline]
