@@ -416,19 +416,19 @@ pub unsafe fn reset_handler() {
     nrf52_components::NrfClockComponent::new().finalize(());
 
     let platform = Platform {
-        button,
         ble_radio,
         ieee802154_radio,
+        button,
         pconsole,
         console,
-        led,
         gpio,
+        led,
         rng,
         temp,
-        alarm,
-        analog_comparator,
-        nonvolatile_storage,
         ipc: kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability),
+        analog_comparator,
+        alarm,
+        nonvolatile_storage,
     };
 
     platform.pconsole.start();
