@@ -1,7 +1,7 @@
 # Makefile for building the tock kernel for the NUCLEO-429ZI platform
 #
 TARGET=thumbv7em-none-eabi
-PLATFORM=discovery_f412g
+PLATFORM=stm32f412gdiscovery
 
 include ../Makefile.common
 
