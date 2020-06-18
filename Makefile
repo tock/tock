@@ -132,7 +132,7 @@ allboards:
 
 .PHONY: allcheck
 allcheck:
-	cargo check
+	@cargo check
 
 .PHONY: alldoc
 alldoc:
@@ -283,6 +283,7 @@ ci-runner-github-tests:\
 	ci-job-libraries\
 	ci-job-archs\
 	ci-job-kernel\
+	ci-job-capsules\
 	ci-job-chips\
 	ci-job-tools
 	$(call banner,CI-Runner: GitHub tests runner DONE)
@@ -415,6 +416,12 @@ ci-job-kernel:
 	$(call banner,CI-Job: Kernel)
 	@cd kernel && CI=true RUSTFLAGS="-D warnings" TOCK_KERNEL_VERSION=ci_test cargo test
 
+.PHONY: ci-job-capsules
+ci-job-capsules:
+	$(call banner,CI-Job: Capsules)
+	@# Capsule initialization depends on board/chip specific imports, so ignore doc tests
+	@cd capsules && CI=true RUSTFLAGS="-D warnings" TOCK_KERNEL_VERSION=ci_test cargo test --lib
+
 .PHONY: ci-job-chips
 ci-job-chips:
 	$(call banner,CI-Job: Chips)
@@ -483,11 +490,11 @@ endef
 define ci_setup_qemu_opentitan
 	$(call banner,CI-Setup: Get OpenTitan boot ROM image)
 	# Download OpenTitan image
-	@printf "Downloading OpenTitan boot rom from: 2aedf641120665b91c3a5d5aa214175d09f71ee6\n"
+	@printf "Downloading OpenTitan boot rom from: 1beb08b474790d4b6c67ae5b3423e2e8dfc9e368\n"
 	@pwd=$$(pwd) && \
 		temp=$$(mktemp -d)\
 		cd $$temp && \
-		curl $$(curl "https://dev.azure.com/lowrisc/opentitan/_apis/build/builds/13066/artifacts?artifactName=opentitan-dist&api-version=5.1" | cut -d \" -f 38) --output opentitan-dist.zip; \
+		curl $$(curl "https://dev.azure.com/lowrisc/opentitan/_apis/build/builds/14991/artifacts?artifactName=opentitan-dist&api-version=5.1" | cut -d \" -f 38) --output opentitan-dist.zip; \
 		unzip opentitan-dist.zip; \
 		tar -xf opentitan-dist/opentitan-snapshot-20191101-*.tar.xz; \
 		mv opentitan-snapshot-20191101-*/sw/device/boot_rom/boot_rom_fpga_nexysvideo.elf $$pwd/tools/qemu-runner/opentitan-boot-rom.elf

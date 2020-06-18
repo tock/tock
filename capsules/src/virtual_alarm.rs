@@ -174,3 +174,15 @@ impl<'a, A: Alarm<'a>> time::AlarmClient for MuxAlarm<'a, A> {
         }
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::has_expired;
+
+    #[test]
+    fn has_expired_with_zero_reference() {
+        assert_eq!(has_expired(1, 1, 0), true);
+        assert_eq!(has_expired(1, 0, 0), false);
+        assert_eq!(has_expired(0, 1, 0), true);
+    }
+}

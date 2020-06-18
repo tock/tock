@@ -13,6 +13,9 @@
 //! -----
 //!
 //! ```rust
+//! # use kernel::static_init;
+//! # use capsules::virtual_alarm::VirtualMuxAlarm;
+//!
 //! let isl29035_i2c = static_init!(I2CDevice, I2CDevice::new(i2c_bus, 0x44));
 //! let isl29035_virtual_alarm = static_init!(
 //!     VirtualMuxAlarm<'static, sam4l::ast::Ast>,

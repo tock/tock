@@ -6,6 +6,9 @@
 //! -----
 //!
 //! ```rust
+//! # use kernel::static_init;
+//! # use capsules::virtual_alarm::VirtualMuxAlarm;
+//!
 //! let sdcard_spi = static_init!(
 //!     capsules::virtual_spi::VirtualSpiMasterDevice<'static, usart::USART>,
 //!     capsules::virtual_spi::VirtualSpiMasterDevice::new(mux_spi,

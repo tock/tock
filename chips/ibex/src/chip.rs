@@ -6,6 +6,7 @@ use core::hint::unreachable_unchecked;
 use kernel;
 use kernel::common::registers::FieldValue;
 use kernel::debug;
+use kernel::Chip;
 use rv32i::csr::{mcause, mie::mie, mip::mip, mtvec::mtvec, CSR};
 use rv32i::syscall::SysCall;
 
@@ -13,6 +14,7 @@ use crate::gpio;
 use crate::hmac;
 use crate::interrupts;
 use crate::plic;
+use crate::pwrmgr;
 use crate::timer;
 use crate::uart;
 use crate::usbdev;
@@ -38,7 +40,7 @@ impl Ibex {
         plic::enable_all();
     }
 
-    unsafe fn handle_plic_interrupts() {
+    unsafe fn handle_plic_interrupts(&self) {
         while let Some(interrupt) = plic::next_pending() {
             match interrupt {
                 interrupts::UART_TX_WATERMARK..=interrupts::UART_RX_PARITY_ERR => {
@@ -54,10 +56,50 @@ impl Ibex {
                 interrupts::USBDEV_PKT_RECEIVED..=interrupts::USBDEV_CONNECTED => {
                     usbdev::USB.handle_interrupt()
                 }
+                interrupts::PWRMGRWAKEUP => {
+                    pwrmgr::PWRMGR.handle_interrupt();
+                    self.check_until_true_or_interrupt(
+                        || pwrmgr::PWRMGR.check_clock_propagation(),
+                        None,
+                    );
+                }
                 _ => debug!("Pidx {}", interrupt),
             }
             plic::complete(interrupt);
         }
+    }
+
+    /// Run a function in an interruptable loop.
+    ///
+    /// The function will run until it returns true, an interrupt occurs or if
+    /// `max_tries` is not `None` and that limit is reached.
+    /// If the function returns true this call will also return true. If an
+    /// interrupt occurs or `max_tries` is reached this call will return false.
+    fn check_until_true_or_interrupt<F>(&self, f: F, max_tries: Option<usize>) -> bool
+    where
+        F: Fn() -> bool,
+    {
+        match max_tries {
+            Some(t) => {
+                for _i in 0..t {
+                    if self.has_pending_interrupts() {
+                        return false;
+                    }
+                    if f() {
+                        return true;
+                    }
+                }
+            }
+            None => {
+                while !self.has_pending_interrupts() {
+                    if f() {
+                        return true;
+                    }
+                }
+            }
+        }
+
+        false
     }
 }
 
@@ -92,7 +134,7 @@ impl kernel::Chip for Ibex {
             }
             if mip.is_set(mip::mext) {
                 unsafe {
-                    Self::handle_plic_interrupts();
+                    self.handle_plic_interrupts();
                 }
                 reenable_intr += mie::mext::SET;
             }
@@ -113,6 +155,8 @@ impl kernel::Chip for Ibex {
 
     fn sleep(&self) {
         unsafe {
+            pwrmgr::PWRMGR.enable_low_power();
+            self.check_until_true_or_interrupt(|| pwrmgr::PWRMGR.check_clock_propagation(), None);
             rv32i::support::wfi();
         }
     }

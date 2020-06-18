@@ -13,6 +13,7 @@ use kernel::capabilities;
 use kernel::common::dynamic_deferred_call::DynamicDeferredCall;
 use kernel::common::dynamic_deferred_call::DynamicDeferredCallClientState;
 use kernel::component::Component;
+use kernel::hil::i2c::I2CMaster;
 use kernel::Platform;
 use kernel::{create_capability, debug, static_init};
 
@@ -51,6 +52,7 @@ struct RedboardArtemisNano {
     led: &'static capsules::led::LED<'static, apollo3::gpio::GpioPin>,
     gpio: &'static capsules::gpio::GPIO<'static, apollo3::gpio::GpioPin>,
     console: &'static capsules::console::Console<'static>,
+    i2c_master: &'static capsules::i2c_master::I2CMasterDriver<apollo3::iom::Iom<'static>>,
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
@@ -64,6 +66,7 @@ impl Platform for RedboardArtemisNano {
             capsules::led::DRIVER_NUM => f(Some(self.led)),
             capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
             capsules::console::DRIVER_NUM => f(Some(self.console)),
+            capsules::i2c_master::DRIVER_NUM => f(Some(self.i2c_master)),
             _ => f(None),
         }
     }
@@ -84,6 +87,7 @@ pub unsafe fn reset_handler() {
     // initialize capabilities
     let process_mgmt_cap = create_capability!(capabilities::ProcessManagementCapability);
     let main_loop_cap = create_capability!(capabilities::MainLoopCapability);
+    let memory_allocation_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
     let dynamic_deferred_call_clients =
         static_init!([DynamicDeferredCallClientState; 1], Default::default());
@@ -97,9 +101,12 @@ pub unsafe fn reset_handler() {
 
     // Power up components
     apollo3::pwrctrl::PWRCTRL.enable_uart0();
+    apollo3::pwrctrl::PWRCTRL.enable_iom2();
 
     // Enable PinCfg
     apollo3::gpio::PORT.enable_uart(&apollo3::gpio::PORT[48], &apollo3::gpio::PORT[49]);
+    // Enable SDA and SCL for I2C2 (exposed via Qwiic)
+    apollo3::gpio::PORT.enable_i2c(&apollo3::gpio::PORT[25], &apollo3::gpio::PORT[27]);
 
     // Configure kernel debug gpios as early as possible
     kernel::debug::assign_gpios(
@@ -158,6 +165,19 @@ pub unsafe fn reset_handler() {
     let alarm = components::alarm::AlarmDriverComponent::new(board_kernel, mux_alarm)
         .finalize(components::alarm_component_helper!(apollo3::stimer::STimer));
 
+    // Init the I2C device attached via Qwiic
+    let i2c_master = static_init!(
+        capsules::i2c_master::I2CMasterDriver<apollo3::iom::Iom<'static>>,
+        capsules::i2c_master::I2CMasterDriver::new(
+            &apollo3::iom::IOM2,
+            &mut capsules::i2c_master::BUF,
+            board_kernel.create_grant(&memory_allocation_cap)
+        )
+    );
+
+    apollo3::iom::IOM2.set_master_client(i2c_master);
+    apollo3::iom::IOM2.enable();
+
     debug!("Initialization complete. Entering main loop");
 
     extern "C" {
@@ -177,6 +197,7 @@ pub unsafe fn reset_handler() {
         console,
         gpio,
         led,
+        i2c_master,
     };
 
     kernel::procs::load_processes(

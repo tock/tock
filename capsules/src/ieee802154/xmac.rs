@@ -33,6 +33,8 @@
 //! necessary modifications to the board configuration are shown below for `imix`s:
 //!
 //! ```rust
+//! # use kernel::static_init;
+//!
 //! // main.rs
 //!
 //! use capsules::ieee802154::mac::Mac;

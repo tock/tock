@@ -88,6 +88,48 @@ impl Port {
             }
         }
     }
+
+    pub fn enable_i2c(&self, sda: &GpioPin, scl: &GpioPin) {
+        let regs = GPIO_BASE;
+
+        match sda.pin as usize {
+            25 => {
+                regs.padkey.set(115);
+                regs.padreg[6].modify(
+                    PADREG::PAD1PULL::SET
+                        + PADREG::PAD1INPEN::SET
+                        + PADREG::PAD1STRNG::SET
+                        + PADREG::PAD1FNCSEL.val(0x4),
+                );
+                regs.cfg[3].modify(CFG::GPIO1INTD.val(0x00) + CFG::GPIO1OUTCFG.val(0x02));
+                regs.altpadcfgg
+                    .modify(ALTPADCFG::PAD1_DS1::CLEAR + ALTPADCFG::PAD1_SR::CLEAR);
+                regs.padkey.set(0x00);
+            }
+            _ => {
+                panic!("sda not supported");
+            }
+        }
+
+        match scl.pin as usize {
+            27 => {
+                regs.padkey.set(115);
+                regs.padreg[6].modify(
+                    PADREG::PAD3PULL::SET
+                        + PADREG::PAD3INPEN::SET
+                        + PADREG::PAD3STRNG::SET
+                        + PADREG::PAD3FNCSEL.val(0x4),
+                );
+                regs.cfg[3].modify(CFG::GPIO3INTD.val(0x00) + CFG::GPIO3OUTCFG.val(0x02));
+                regs.altpadcfgg
+                    .modify(ALTPADCFG::PAD3_DS1::CLEAR + ALTPADCFG::PAD3_SR::CLEAR);
+                regs.padkey.set(0x00);
+            }
+            _ => {
+                panic!("scl not supported");
+            }
+        }
+    }
 }
 
 enum_from_primitive! {
@@ -232,12 +274,13 @@ register_bitfields![u32,
         PAD1RSEL OFFSET(14) NUMBITS(2) [],
         PAD2PULL OFFSET(16) NUMBITS(1) [],
         PAD2INPEN OFFSET(17) NUMBITS(1) [],
-        PAD2STRING OFFSET(18) NUMBITS(1) [],
+        PAD2STRNG OFFSET(18) NUMBITS(1) [],
         PAD2FNCSEL OFFSET(19) NUMBITS(3) [],
         PAD3PULL OFFSET(24) NUMBITS(1) [],
         PAD3INPEN OFFSET(25) NUMBITS(1) [],
-        PAD3STRING OFFSET(26) NUMBITS(1) [],
-        PAD3FNCSEL OFFSET(27) NUMBITS(3) []
+        PAD3STRNG OFFSET(26) NUMBITS(1) [],
+        PAD3FNCSEL OFFSET(27) NUMBITS(3) [],
+        PAD3RSEL OFFSET(30) NUMBITS(2) []
     ],
     CFG [
         GPIO0INCFG OFFSET(0) NUMBITS(1) [],

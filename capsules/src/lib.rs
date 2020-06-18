@@ -43,6 +43,7 @@ pub mod lsm303dlhc;
 pub mod ltc294x;
 pub mod max17205;
 pub mod mcp230xx;
+pub mod mlx90614;
 pub mod mx25r6435f;
 pub mod ninedof;
 pub mod nonvolatile_storage_driver;

@@ -11,7 +11,9 @@
 //! Usage
 //! -----
 //!
-//! ```
+//! ```rust
+//! # use kernel::static_init;
+//!
 //! let virtual_pwm_buzzer = static_init!(
 //!     capsules::virtual_pwm::PwmPinUser<'static, nrf52::pwm::Pwm>,
 //!     capsules::virtual_pwm::PwmPinUser::new(mux_pwm, nrf5x::pinmux::Pinmux::new(31))
@@ -31,7 +33,7 @@
 //!         virtual_pwm_buzzer,
 //!         virtual_alarm_buzzer,
 //!         capsules::buzzer_driver::DEFAULT_MAX_BUZZ_TIME_MS,
-//!         kernel::Grant::create())
+//!         board_kernel.create_grant(&grant_cap))
 //! );
 //! virtual_alarm_buzzer.set_client(buzzer);
 //! ```

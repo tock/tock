@@ -13,9 +13,7 @@ impl LoraComponent {
     pub fn new(
         radio: &'static Radio<'static, VirtualSpiMasterDevice<'static, nrf52::spi::SPIM>>,
     ) -> LoraComponent {
-        LoraComponent {
-            radio: radio,
-        }
+        LoraComponent { radio: radio }
     }
 }
 

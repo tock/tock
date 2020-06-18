@@ -40,7 +40,7 @@
 //! At a high level, clients interact with this module as shown in the diagrams
 //! below:
 //!
-//! ```
+//! ```txt
 //! Transmit:
 //!
 //!           +-----------+
@@ -67,7 +67,7 @@
 //!            +---------+
 //! ```
 //!
-//! ```
+//! ```txt
 //! Receive:
 //!
 //!         +---------------+
@@ -82,7 +82,7 @@
 //!           +---------+
 //! ```
 //!
-//! ```
+//! ```txt
 //! Initialization:
 //!
 //!           +-----------+

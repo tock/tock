@@ -54,6 +54,7 @@ pub enum NUM {
     Lps25hb               = 0x70004,
     L3gd20                = 0x70005,
     Lsm303dlch            = 0x70006,
+    Mlx90614              = 0x70007,
 
     // Other ICs
     Ltc294x               = 0x80000,

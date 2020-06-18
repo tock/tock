@@ -456,7 +456,6 @@ impl<'a> Driver for UDPDriver<'a> {
     ///        Currently, only will transmit if the app has bound to the port passed in the tx_cfg
     ///        buf as the source address. If no port is bound, returns ERESERVE, if it tries to
     ///        send on a port other than the port which is bound, returns EINVALID.
-    ///
     ///        Notably, the currently transmit implementation allows for starvation - an
     ///        an app with a lower app id can send constantly and starve an app with a
     ///        later ID.

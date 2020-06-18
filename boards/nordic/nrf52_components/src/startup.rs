@@ -1,5 +1,10 @@
 //! Component for starting up nrf52 platforms.
+//! Contains 3 components, NrfStartupComponent, NrfClockComponent,
+//! and UartChannelComponent, as well as two helper structs for
+//! intializing Uart on Nordic boards.
 
+use capsules::virtual_alarm::MuxAlarm;
+use components;
 use kernel::component::Component;
 use nrf52::gpio::Pin;
 use nrf52::uicr::Regulator0Output;
@@ -111,5 +116,69 @@ impl Component for NrfClockComponent {
         nrf52::clock::CLOCK.high_start();
         while !nrf52::clock::CLOCK.low_started() {}
         while !nrf52::clock::CLOCK.high_started() {}
+    }
+}
+
+/// Pins for the UART
+#[derive(Debug)]
+pub struct UartPins {
+    rts: Option<Pin>,
+    txd: Pin,
+    cts: Option<Pin>,
+    rxd: Pin,
+}
+
+impl UartPins {
+    pub fn new(rts: Option<Pin>, txd: Pin, cts: Option<Pin>, rxd: Pin) -> Self {
+        Self { rts, txd, cts, rxd }
+    }
+}
+
+/// Uart chanel representation depends on whether USB debugging is
+/// enabled.
+pub enum UartChannel<'a> {
+    Pins(UartPins),
+    Rtt(components::segger_rtt::SeggerRttMemoryRefs<'a>),
+}
+
+pub struct UartChannelComponent {
+    uart_channel: UartChannel<'static>,
+    mux_alarm: &'static MuxAlarm<'static, nrf52::rtc::Rtc<'static>>,
+}
+
+impl UartChannelComponent {
+    pub fn new(
+        uart_channel: UartChannel<'static>,
+        mux_alarm: &'static MuxAlarm<'static, nrf52::rtc::Rtc<'static>>,
+    ) -> Self {
+        Self {
+            uart_channel,
+            mux_alarm,
+        }
+    }
+}
+
+impl Component for UartChannelComponent {
+    type StaticInput = ();
+    type Output = &'static dyn kernel::hil::uart::Uart<'static>;
+
+    unsafe fn finalize(self, _s: Self::StaticInput) -> Self::Output {
+        match self.uart_channel {
+            UartChannel::Pins(uart_pins) => {
+                nrf52::uart::UARTE0.initialize(
+                    nrf52::pinmux::Pinmux::new(uart_pins.txd as u32),
+                    nrf52::pinmux::Pinmux::new(uart_pins.rxd as u32),
+                    uart_pins.cts.map(|x| nrf52::pinmux::Pinmux::new(x as u32)),
+                    uart_pins.rts.map(|x| nrf52::pinmux::Pinmux::new(x as u32)),
+                );
+                &nrf52::uart::UARTE0
+            }
+            UartChannel::Rtt(rtt_memory) => {
+                let rtt =
+                    components::segger_rtt::SeggerRttComponent::new(self.mux_alarm, rtt_memory)
+                        .finalize(components::segger_rtt_component_helper!(nrf52::rtc::Rtc));
+                rtt
+            }
+        }
     }
 }

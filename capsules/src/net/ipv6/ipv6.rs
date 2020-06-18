@@ -8,6 +8,7 @@
 //! An implementation for the structure of an IPv6 packet is provided by this
 //! file, and a rough outline is given below:
 //!
+//! ```txt
 //!            ----------------------------------------------
 //!            |                 IP6Packet                  |
 //!            |--------------------------------------------|
@@ -15,6 +16,7 @@
 //!            |    IP6Header    |--------------------------|
 //!            |                 |TransportHeader | Payload |
 //!            ----------------------------------------------
+//! ```
 //!
 //! The [IP6Packet](struct.IP6Packet.html) struct contains an
 //! [IP6Header](struct.IP6Header.html) struct and an
