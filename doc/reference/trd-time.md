@@ -83,9 +83,7 @@ pub trait Ticks: Clone + Copy + From<u32> {
     // if, incrementing from `start`, `self` will be reached before `end`.
     // Put another way, it returns `self - start < end - start` in
     // unsigned arithmetic.
-    fn within_range(self, start: Self, end: Self) -> bool {
-        self.wrapping_sub(start) < end.wrapping_sub(start)
-    }
+    fn within_range(self, start: Self, end: Self);
 
     fn max_value() -> Self;
 }
@@ -160,7 +158,7 @@ pub trait Counter<'a>: Time {
   fn start(&self) -> ReturnCode;
   fn stop(&self) -> ReturnCode;
   fn is_running(&self) -> bool;
-  fn set_client(&'a self, &'a dyn OverflowClient);
+  fn set_overflow_client(&'a self, &'a dyn OverflowClient);
 }
 ```
 
@@ -205,31 +203,38 @@ pub trait AlarmClient: OverflowClient {
 }
 
 pub trait Alarm: Time {
-  fn set_alarm(&self, now: Self::Ticks, dt: Self::Ticks);
+  fn set_alarm(&self, reference: Self::Ticks, dt: Self::Ticks);
   fn get_alarm(&self) -> Self::Ticks;
-  fn disable(&self) -> ReturnCode;
-  fn set_client(&'a self, client: &'a dyn AlarmClient);
+  fn disarm(&self) -> ReturnCode;
+  fn set_alarm_client(&'a self, client: &'a dyn AlarmClient);
 }
 ```
 
 `Alarm` has a `disable` in order to cancel an existing alarm. Calling
-`set_alarm` enables an alarm.
+`set_alarm` enables an alarm. The `reference` parameter is typically a
+sample of `Time::now` just before `set_alarm` is called, but it can
+also be a stored value from a previous call. The `reference` parameter
+follows the invariant that it is in the past: its value is by
+definition equal to or less than a call to `Time::now`.
 
-The `set_alarm` method takes a `now` and a `dt` parameter to handle
-edge cases in which it can be impossible distinguish between alarms
-for the very near future and alarms for the very far future. The edge
-case occurs when the underlying counter increments past the compare
-value between when the call was made and the compare register is
-actually set. Because the counter has moved past the intended compare
-value, it will have to wrap around before the alarm will
+The `set_alarm` method takes a `reference` and a `dt` parameter to
+handle edge cases in which it can be impossible distinguish between
+alarms for the very near past and alarms for the very far future. The
+edge case occurs when the underlying counter increments past the
+compare value between when the call was made and the compare register
+is actually set. Because the counter has moved past the intended
+compare value, it will have to wrap around before the alarm will
 fire. However, one cannot assume that the counter has moved past the
 intended compare and issue a callback: the software may have requested
 an alarm very far in the future, close to the width of the counter.
 
-Having a `now` and `dt` parameters disambiguates these two
-cases. Suppose the current counter value is `current`. If, using
-unsigned arithmetic, `(current - now) >= dt` then the callback should
-be issued immediately (e.g., with a deferred procedure call).
+Having a `reference` and `dt` parameters disambiguates these two
+cases. Suppose the current counter value is `current`.  If `current`
+is not within the range [`reference`, `reference + dt`) (considering
+unsigned wraparound), then this means the requested firing time has
+passed and the callback should be issued immediately (e.g., with a
+deferred procedure call, or setting the alarm very short in the
+future).
 
 
 5 `Timer` and `TimerClient` traits
@@ -245,11 +250,11 @@ The trait has a single callback, denoting that the timer has fired.
 
 ```rust
 pub trait TimerClient {
-  fn fired(&self);
+  fn timer(&self);
 }
 
 pub trait Timer<'a>: Time {
-  fn set_client(&'a self, &'a dyn TimerClient);
+  fn set_timer_client(&'a self, &'a dyn TimerClient);
   fn oneshot(&self, interval: Self::Ticks) -> Self::Ticks;
   fn repeating(&self, interval: Self::Ticks) -> Self::Ticks;
 
