@@ -8,7 +8,6 @@ use kernel::common::registers::{
     ReadWrite, WriteOnly,
 };
 use kernel::common::StaticRef;
-use kernel::debug;
 use kernel::hil;
 use kernel::hil::usb::TransferType;
 
@@ -37,13 +36,13 @@ macro_rules! debug_packets {
 
 macro_rules! debug_info {
     [ $( $arg:expr ),+ ] => {
-        debug!($( $arg ),+);
+        {} // debug!($( $arg ),+);
     };
 }
 
 macro_rules! internal_warn {
     [ $( $arg:expr ),+ ] => {
-        debug!($( $arg ),+);
+        {} // debug!($( $arg ),+);
     };
 }
 
@@ -1920,15 +1919,29 @@ impl<'a> hil::usb::UsbController<'a> for Usbd<'a> {
     fn endpoint_resume_in(&self, endpoint: usize) {
         debug_events!("endpoint_resume_in({})", endpoint);
 
+        // Get the state of the endpoint that the upper layer requested to start
+        // an IN transfer with for our state machine.
         let (_, in_state, _) = self.descriptors[endpoint].state.get().bulk_state();
+        // If the state is `None`, this endpoint is not configured and should
+        // not have been used to call `endpoint_resume_in()`.
         assert!(in_state.is_some());
 
-        if self.dma_pending.get() {
+        // If there is an active DMA request, or we are waiting on finishing up
+        // a previous IN transfer, we queue this request and it will be serviced
+        // after those complete.
+        if self.dma_pending.get() || in_state != Some(BulkInState::Init) {
             debug_events!("requesting resume_in[{}]", endpoint);
             // A DMA is already pending. Schedule the resume for later.
             self.descriptors[endpoint].request_transmit_in.set(true);
         } else {
-            // Trigger the transaction now.
+            // If we aren't waiting on anything, trigger the transaction now.
+            //
+            // NOTE! TODO! We can't actually do this. This leads to an upcall
+            // (`client.packet_in()`) happening as a direct result of a downcall
+            // (this `endpoint_resume_in()` call). Unfortunately, the nRF52
+            // doesn't give us a great interrupt to use to check the
+            // `request_transmit_in` flag if we were to queue unconditionally in
+            // `endpoint_resume_in()`.
             self.transmit_in(endpoint);
         }
     }
