@@ -11,7 +11,6 @@
 //!
 //! components::debug_writer::DebugWriterNoMuxComponent::new(
 //!     &nrf52::uart::UARTE0,
-//!     &nrf52::uart::UARTE0,
 //! )
 //! .finalize(());
 //! ```
@@ -71,21 +70,19 @@ impl Component for DebugWriterComponent {
     }
 }
 
-pub struct DebugWriterNoMuxComponent {
-    uart: &'static dyn uart::Uart<'static>,
-    uart_tx: &'static dyn uart::Transmit<'static>,
+pub struct DebugWriterNoMuxComponent<U: uart::Uart<'static> + uart::Transmit<'static> + 'static> {
+    uart: &'static U,
 }
 
-impl DebugWriterNoMuxComponent {
-    pub fn new(
-        uart: &'static dyn uart::Uart<'static>,
-        uart_tx: &'static dyn uart::Transmit<'static>,
-    ) -> DebugWriterNoMuxComponent {
-        DebugWriterNoMuxComponent { uart, uart_tx }
+impl<U: uart::Uart<'static> + uart::Transmit<'static> + 'static> DebugWriterNoMuxComponent<U> {
+    pub fn new(uart: &'static U) -> Self {
+        Self { uart }
     }
 }
 
-impl Component for DebugWriterNoMuxComponent {
+impl<U: uart::Uart<'static> + uart::Transmit<'static> + 'static> Component
+    for DebugWriterNoMuxComponent<U>
+{
     type StaticInput = ();
     type Output = ();
 
@@ -102,9 +99,9 @@ impl Component for DebugWriterNoMuxComponent {
         let ring_buffer = static_init!(RingBuffer<'static, u8>, RingBuffer::new(internal_buf));
         let debugger = static_init!(
             kernel::debug::DebugWriter,
-            kernel::debug::DebugWriter::new(self.uart_tx, output_buf, ring_buffer)
+            kernel::debug::DebugWriter::new(self.uart, output_buf, ring_buffer)
         );
-        hil::uart::Transmit::set_transmit_client(self.uart_tx, debugger);
+        hil::uart::Transmit::set_transmit_client(self.uart, debugger);
 
         let debug_wrapper = static_init!(
             kernel::debug::DebugWriterWrapper,
