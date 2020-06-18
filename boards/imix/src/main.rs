@@ -86,6 +86,12 @@ mod log_test;
 #[allow(dead_code)]
 mod linear_log_test;
 
+#[allow(dead_code)]
+mod alarm_test;
+
+#[allow(dead_code)]
+mod multi_alarm_test;
+
 // State for loading apps.
 
 const NUM_PROCS: usize = 4;
@@ -501,7 +507,8 @@ pub unsafe fn reset_handler() {
     // aes_test::run_aes128_cbc();
     // log_test::run(mux_alarm, dynamic_deferred_caller);
     // linear_log_test::run(mux_alarm, dynamic_deferred_caller);
-
+    // alarm_test::run_alarm();
+    multi_alarm_test::run_multi_alarm(mux_alarm);
     debug!("Initialization complete. Entering main loop");
 
     // Only include to run kernel tests, do not include during normal operation

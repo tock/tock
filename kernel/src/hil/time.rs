@@ -158,14 +158,14 @@ pub trait Alarm<'a>: Time {
 
     
   /// Specify when the callback should be called and enable it. Tthe
-  /// will be triggered when `Time::now() == now + dt`. The callback
+  /// will be triggered when `Time::now() == reference + dt`. The callback
   /// itself may not run exactly at this time, due to delays. However,
-  /// it it assured to execute *after* `now + dt`: it can be delayed
-  /// but will never fire early. The method takes `now` and `dt`
+  /// it it assured to execute *after* `reference + dt`: it can be delayed
+  /// but will never fire early. The method takes `reference` and `dt`
   /// rather than a single value denoting the counter value so it can
   /// distinguish between alarms which have very recently already
   /// passed and those in the far far future (see #1651).
-  fn set_alarm(&self, now: Self::Ticks, dt: Self::Ticks);
+  fn set_alarm(&self, reference: Self::Ticks, dt: Self::Ticks);
 
   /// Return the current alarm value. This is undefined at boot and
   /// otherwise returns `now + dt` from the last call to `set_alarm`.
