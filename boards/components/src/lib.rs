@@ -3,6 +3,7 @@
 pub mod alarm;
 pub mod analog_comparator;
 pub mod button;
+pub mod cdc;
 pub mod console;
 pub mod crc;
 pub mod debug_queue;
