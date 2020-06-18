@@ -18,6 +18,7 @@ pub mod nonvolatile_storage;
 pub mod pwm;
 pub mod radio;
 pub mod rng;
+pub mod screen;
 pub mod sensors;
 pub mod spi;
 pub mod symmetric_encryption;
