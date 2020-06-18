@@ -33,12 +33,12 @@ macro_rules! crc_component_helper {
     };};
 }
 
-pub struct CrcComponent<C: 'static + hil::crc::CRC> {
+pub struct CrcComponent<C: 'static + hil::crc::CRC<'static>> {
     board_kernel: &'static kernel::Kernel,
     crc: &'static C,
 }
 
-impl<C: 'static + hil::crc::CRC> CrcComponent<C> {
+impl<C: 'static + hil::crc::CRC<'static>> CrcComponent<C> {
     pub fn new(board_kernel: &'static kernel::Kernel, crc: &'static C) -> CrcComponent<C> {
         CrcComponent {
             board_kernel: board_kernel,
@@ -47,7 +47,7 @@ impl<C: 'static + hil::crc::CRC> CrcComponent<C> {
     }
 }
 
-impl<C: 'static + hil::crc::CRC> Component for CrcComponent<C> {
+impl<C: 'static + hil::crc::CRC<'static>> Component for CrcComponent<C> {
     type StaticInput = &'static mut MaybeUninit<crc::Crc<'static, C>>;
     type Output = &'static crc::Crc<'static, C>;
 
