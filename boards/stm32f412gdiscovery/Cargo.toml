@@ -1,5 +1,5 @@
 [package]
-name = "discovery_f412g"
+name = "stm32f412gdiscovery"
 version = "0.1.0"
 authors = ["Tock Project Developers <tock-dev@googlegroups.com>"]
 build = "build.rs"

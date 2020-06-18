@@ -1,6 +1,6 @@
-//! Board file for Nucleo-F429ZI development board
+//! Board file for STM32F412GDiscovery Discovery kit development board
 //!
-//! - <https://www.st.com/en/evaluation-tools/nucleo-f429zi.html>
+//! - <https://www.st.com/en/evaluation-tools/32f412gdiscovery.html>
 
 #![no_std]
 // Disable this attribute when documenting, as a workaround for
@@ -48,7 +48,7 @@ pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 
 /// A structure representing this platform that holds references to all
 /// capsules for this platform.
-struct NucleoF412G {
+struct STM32F412GDiscovery {
     console: &'static capsules::console::Console<'static>,
     ipc: kernel::ipc::IPC,
     led: &'static capsules::led::LED<'static, stm32f412g::gpio::Pin<'static>>,
@@ -61,7 +61,7 @@ struct NucleoF412G {
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
-impl Platform for NucleoF412G {
+impl Platform for STM32F412GDiscovery {
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
     where
         F: FnOnce(Option<&dyn kernel::Driver>) -> R,
@@ -409,7 +409,7 @@ pub unsafe fn reset_handler() {
     )
     .finalize(components::gpio_component_buf!(stm32f412g::gpio::Pin));
 
-    let nucleo_f412g = NucleoF412G {
+    let nucleo_f412g = STM32F412GDiscovery {
         console: console,
         ipc: kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability),
         led: led,
