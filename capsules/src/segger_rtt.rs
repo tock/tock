@@ -238,7 +238,7 @@ impl<'a, A: hil::time::Alarm<'a>> uart::Transmit<'a> for SeggerRtt<'a, A> {
                     //
                     // This heuristic interval was tested with the console capsule on a nRF52840-DK
                     // board, passing buffers up to 1500 bytes from userspace. 100 micro-seconds
-                    // was to short, even for buffers as small as 128 bytes. 1 milli-second seems to
+                    // was too short, even for buffers as small as 128 bytes. 1 milli-second seems to
                     // be reliable.
                     let interval = (1000 as u32) * <A::Frequency>::frequency() / 1000000;
                     let tics = self.alarm.now().wrapping_add(interval);
