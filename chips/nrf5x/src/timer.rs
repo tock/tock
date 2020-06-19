@@ -23,9 +23,11 @@
 //! * Date: August 18, 2016
 
 use kernel::common::cells::OptionalCell;
-use kernel::common::registers::{self, register_bitfields, ReadWrite, WriteOnly};
+use kernel::common::registers::{register_bitfields, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil;
+use kernel::hil::time::{Alarm, Ticks, Time};
+use kernel::ReturnCode;
 
 const INSTANCES: [StaticRef<TimerRegisters>; 3] = unsafe {
     [
@@ -265,10 +267,8 @@ pub struct TimerAlarm<'a> {
 
 // CC0 is used for capture
 // CC1 is used for compare/interrupts
-const ALARM_CAPTURE: usize = 0;
-const ALARM_COMPARE: usize = 1;
-const ALARM_INTERRUPT_BIT: registers::Field<u32, Inte::Register> = Inte::COMPARE1;
-const ALARM_INTERRUPT_BIT_SET: registers::FieldValue<u32, Inte::Register> = Inte::COMPARE1::SET;
+const CC_CAPTURE: usize = 0;
+const CC_COMPARE: usize = 1;
 
 impl<'a> TimerAlarm<'a> {
     const fn new(instance: usize) -> TimerAlarm<'a> {
@@ -279,7 +279,7 @@ impl<'a> TimerAlarm<'a> {
     }
 
     fn clear_alarm(&self) {
-        self.registers.events_compare[ALARM_COMPARE].write(Event::READY::CLEAR);
+        self.registers.events_compare[CC_COMPARE].write(Event::READY::CLEAR);
         self.registers.tasks_stop.write(Task::ENABLE::SET);
         self.registers.tasks_clear.write(Task::ENABLE::SET);
         self.disable_interrupts();
@@ -288,65 +288,75 @@ impl<'a> TimerAlarm<'a> {
     pub fn handle_interrupt(&self) {
         self.clear_alarm();
         self.client.map(|client| {
-            client.fired();
+            client.alarm();
         });
     }
 
-    // Enable and disable interrupts use the bottom 4 bits
-    // for the 4 compare interrupts. These functions shift
-    // those bits to the correct place in the register.
     fn enable_interrupts(&self) {
-        self.registers.intenset.write(ALARM_INTERRUPT_BIT_SET);
+        self.registers.intenset.write(Inte::COMPARE1::SET);
     }
 
     fn disable_interrupts(&self) {
-        self.registers.intenclr.write(ALARM_INTERRUPT_BIT_SET);
+        self.registers.intenclr.write(Inte::COMPARE1::SET);
     }
 
     fn interrupts_enabled(&self) -> bool {
-        self.registers.intenset.is_set(ALARM_INTERRUPT_BIT)
+        self.registers.intenset.is_set(Inte::COMPARE1)
     }
 
     fn value(&self) -> u32 {
-        self.registers.tasks_capture[ALARM_CAPTURE].write(Task::ENABLE::SET);
-        self.registers.cc[ALARM_CAPTURE].get()
+        self.registers.tasks_capture[CC_CAPTURE].write(Task::ENABLE::SET);
+        self.registers.cc[CC_CAPTURE].get()
     }
 }
 
-impl hil::time::Time for TimerAlarm<'_> {
+impl Time for TimerAlarm<'_> {
     type Frequency = hil::time::Freq16KHz;
+    // Note: we always use BITMODE::32.
+    type Ticks = hil::time::Ticks32;
 
-    fn now(&self) -> u32 {
-        self.value()
-    }
-
-    fn max_tics(&self) -> u32 {
-        core::u32::MAX
+    fn now(&self) -> Self::Ticks {
+        Self::Ticks::from(self.value())
     }
 }
 
-impl<'a> hil::time::Alarm<'a> for TimerAlarm<'a> {
-    fn set_client(&self, client: &'a dyn hil::time::AlarmClient) {
+impl<'a> Alarm<'a> for TimerAlarm<'a> {
+    fn set_alarm_client(&self, client: &'a dyn hil::time::AlarmClient) {
         self.client.set(client);
     }
 
-    fn disable(&self) {
+    fn set_alarm(&self, reference: Self::Ticks, dt: Self::Ticks) {
         self.disable_interrupts();
-    }
 
-    fn is_enabled(&self) -> bool {
-        self.interrupts_enabled()
-    }
+        const SYNC_TICS: u32 = 2;
+        let regs = &*self.registers;
 
-    fn set_alarm(&self, tics: u32) {
-        self.disable_interrupts();
-        self.registers.bitmode.write(Bitmode::BITMODE::Bit32);
-        self.registers.cc[ALARM_COMPARE].write(CC::CC.val(tics));
-        self.registers.tasks_start.write(Task::ENABLE::SET);
+        let mut expire = reference.wrapping_add(dt);
+
+        let now = self.now();
+        let earliest_possible = now.wrapping_add(Self::Ticks::from(SYNC_TICS));
+
+        if !now.within_range(reference, expire) || expire.wrapping_sub(now).into_u32() <= SYNC_TICS
+        {
+            expire = earliest_possible;
+        }
+
+        regs.bitmode.write(Bitmode::BITMODE::Bit32);
+        regs.cc[CC_COMPARE].write(CC::CC.val(expire.into_u32()));
+        regs.tasks_start.write(Task::ENABLE::SET);
         self.enable_interrupts();
     }
 
-    fn get_alarm(&self) -> u32 {
-        self.registers.cc[ALARM_COMPARE].read(CC::CC)
+    fn get_alarm(&self) -> Self::Ticks {
+        Self::Ticks::from(self.registers.cc[CC_COMPARE].read(CC::CC))
+    }
+
+    fn disarm(&self) -> ReturnCode {
+        self.disable_interrupts();
+        ReturnCode::SUCCESS
+    }
+
+    fn is_armed(&self) -> bool {
+        self.interrupts_enabled()
     }
 }
