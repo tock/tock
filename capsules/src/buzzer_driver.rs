@@ -11,7 +11,9 @@
 //! Usage
 //! -----
 //!
-//! ```
+//! ```rust
+//! # use kernel::static_init;
+//!
 //! let virtual_pwm_buzzer = static_init!(
 //!     capsules::virtual_pwm::PwmPinUser<'static, nrf52::pwm::Pwm>,
 //!     capsules::virtual_pwm::PwmPinUser::new(mux_pwm, nrf5x::pinmux::Pinmux::new(31))
@@ -31,7 +33,7 @@
 //!         virtual_pwm_buzzer,
 //!         virtual_alarm_buzzer,
 //!         capsules::buzzer_driver::DEFAULT_MAX_BUZZ_TIME_MS,
-//!         kernel::Grant::create())
+//!         board_kernel.create_grant(&grant_cap))
 //! );
 //! virtual_alarm_buzzer.set_client(buzzer);
 //! ```
@@ -77,7 +79,7 @@ pub struct Buzzer<'a, A: hil::time::Alarm<'a>> {
     max_duration_ms: usize,
 }
 
-impl<A: hil::time::Alarm<'a>> Buzzer<'a, A> {
+impl<'a, A: hil::time::Alarm<'a>> Buzzer<'a, A> {
     pub fn new(
         pwm_pin: &'a dyn hil::pwm::PwmPin,
         alarm: &'a A,
@@ -161,7 +163,7 @@ impl<A: hil::time::Alarm<'a>> Buzzer<'a, A> {
     }
 }
 
-impl<A: hil::time::Alarm<'a>> hil::time::AlarmClient for Buzzer<'a, A> {
+impl<'a, A: hil::time::Alarm<'a>> hil::time::AlarmClient for Buzzer<'a, A> {
     fn alarm(&self) {
         // All we have to do is stop the PWM and check if there are any pending
         // uses of the buzzer.
@@ -179,7 +181,7 @@ impl<A: hil::time::Alarm<'a>> hil::time::AlarmClient for Buzzer<'a, A> {
 }
 
 /// Provide an interface for userland.
-impl<A: hil::time::Alarm<'a>> Driver for Buzzer<'a, A> {
+impl<'a, A: hil::time::Alarm<'a>> Driver for Buzzer<'a, A> {
     /// Setup callbacks.
     ///
     /// ### `subscribe_num`

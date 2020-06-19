@@ -37,7 +37,7 @@ pub struct AlarmDriver<'a, A: Alarm<'a>> {
     next_alarm: Cell<Expiration>
 }
 
-impl<A: Alarm<'a>> AlarmDriver<'a, A> {
+impl<'a, A: Alarm<'a>> AlarmDriver<'a, A> {
     pub const fn new(alarm: &'a A, grant: Grant<AlarmData>) -> AlarmDriver<'a, A> {
         AlarmDriver {
             alarm: alarm,
@@ -101,7 +101,7 @@ impl<A: Alarm<'a>> AlarmDriver<'a, A> {
     }
 }
 
-impl<A: Alarm<'a>> Driver for AlarmDriver<'a, A> {
+impl<'a, A: Alarm<'a>> Driver for AlarmDriver<'a, A> {
     /// Subscribe to alarm expiration
     ///
     /// ### `_subscribe_num`
@@ -130,6 +130,7 @@ impl<A: Alarm<'a>> Driver for AlarmDriver<'a, A> {
     /// - `2`: Read the the current clock value
     /// - `3`: Stop the alarm if it is outstanding
     /// - `4`: Set an alarm to fire at a given clock value `time`.
+    /// - `5`: Set an alarm to fire at a given clock value `time` relative to `now` (EXPERIMENTAL).
     fn command(&self, cmd_type: usize, data: usize, data2: usize, caller_id: AppId) -> ReturnCode {
         // Returns the error code to return to the user and whether we need to
         // reset which is the next active alarm. We only _don't_ reset if we're
@@ -138,6 +139,14 @@ impl<A: Alarm<'a>> Driver for AlarmDriver<'a, A> {
         // (i.e. no change to the alarms).
         self.app_alarms
             .enter(caller_id, |td, _alloc| {
+                // helper function to rearm alarm
+                let mut rearm = |reference: usize, dt: usize| {
+                    if let Expiration::Disabled = td.expiration {
+                        self.num_armed.set(self.num_armed.get() + 1);
+                    }
+                    td.expiration = Expiration::Enabled(reference as u32, dt as u32);
+                    (ReturnCode::SuccessWithValue { value: reference.wrapping_add(dt) }, true)
+                };
                 let now = self.alarm.now();
                 let (return_code, reset) = match cmd_type {
                     0 /* check if present */ => (ReturnCode::SuccessWithValue { value: 1 }, false),
@@ -167,11 +176,13 @@ impl<A: Alarm<'a>> Driver for AlarmDriver<'a, A> {
                         let reference = data;
                         let dt = data2;
                         // if previously unarmed, but now will become armed
-                        if let Expiration::Disabled = td.expiration {
-                            self.num_armed.set(self.num_armed.get() + 1);
-                        }
-                        td.expiration = Expiration::Enabled(reference as u32, dt as u32);
-                        (ReturnCode::SuccessWithValue { value: reference.wrapping_add(dt) }, true)
+                        rearm(reference, dt)
+                    },
+                    5 /* Set relative expiration */ => {
+                        let reference = now;
+                        let dt = data;
+                        // if previously unarmed, but now will become armed
+                        rearm(reference, dt)
                     },
                     _ => (ReturnCode::ENOSUPPORT, false)
                 };

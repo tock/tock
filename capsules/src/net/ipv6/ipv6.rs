@@ -8,6 +8,7 @@
 //! An implementation for the structure of an IPv6 packet is provided by this
 //! file, and a rough outline is given below:
 //!
+//! ```txt
 //!            ----------------------------------------------
 //!            |                 IP6Packet                  |
 //!            |--------------------------------------------|
@@ -15,6 +16,7 @@
 //!            |    IP6Header    |--------------------------|
 //!            |                 |TransportHeader | Payload |
 //!            ----------------------------------------------
+//! ```
 //!
 //! The [IP6Packet](struct.IP6Packet.html) struct contains an
 //! [IP6Header](struct.IP6Header.html) struct and an
@@ -319,7 +321,7 @@ pub struct IPPayload<'a> {
     pub payload: &'a mut [u8],
 }
 
-impl IPPayload<'a> {
+impl<'a> IPPayload<'a> {
     /// This function constructs a new `IPPayload` struct
     ///
     /// # Arguments
@@ -420,7 +422,7 @@ pub struct IP6Packet<'a> {
 // Note: We want to have the IP6Header struct implement these methods,
 // as there are cases where we want to allocate/modify the IP6Header without
 // allocating/modifying the entire IP6Packet
-impl IP6Packet<'a> {
+impl<'a> IP6Packet<'a> {
     // Sets fields to appropriate defaults
 
     /// This function returns a new `IP6Packet` struct. Note that the

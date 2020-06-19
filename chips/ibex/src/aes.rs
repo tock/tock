@@ -79,7 +79,7 @@ pub struct Aes<'a> {
     dest: TakeCell<'a, [u8]>,
 }
 
-impl Aes<'a> {
+impl<'a> Aes<'a> {
     const fn new() -> Aes<'a> {
         Aes {
             registers: AES_BASE,
@@ -112,17 +112,17 @@ impl Aes<'a> {
 
     fn idle(&self) -> bool {
         let regs = self.registers;
-        return regs.status.is_set(STATUS::IDLE);
+        regs.status.is_set(STATUS::IDLE)
     }
 
     fn input_ready(&self) -> bool {
         let regs = self.registers;
-        return regs.status.is_set(STATUS::INPUT_READY);
+        regs.status.is_set(STATUS::INPUT_READY)
     }
 
     fn output_valid(&self) -> bool {
         let regs = self.registers;
-        return regs.status.is_set(STATUS::OUTPUT_VALID);
+        regs.status.is_set(STATUS::OUTPUT_VALID)
     }
 
     fn trigger(&self) {
@@ -275,7 +275,7 @@ impl Aes<'a> {
     }
 }
 
-impl hil::symmetric_encryption::AES128<'a> for Aes<'a> {
+impl<'a> hil::symmetric_encryption::AES128<'a> for Aes<'a> {
     fn enable(&self) {
         self.configure(true);
     }
@@ -293,12 +293,10 @@ impl hil::symmetric_encryption::AES128<'a> for Aes<'a> {
         ReturnCode::SUCCESS
     }
 
-    fn start_message(&self) {
-        return;
-    }
+    fn start_message(&self) {}
 
     fn set_key(&self, key: &[u8]) -> ReturnCode {
-        return self.set_key(key);
+        self.set_key(key)
     }
 
     fn crypt(
@@ -345,7 +343,7 @@ impl hil::symmetric_encryption::AES128<'a> for Aes<'a> {
 
 pub static mut AES: Aes<'static> = Aes::new();
 
-impl kernel::hil::symmetric_encryption::AES128ECB for Aes<'a> {
+impl kernel::hil::symmetric_encryption::AES128ECB for Aes<'_> {
     fn set_mode_aes128ecb(&self, encrypting: bool) {
         self.configure(encrypting);
     }

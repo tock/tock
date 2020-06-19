@@ -4,8 +4,8 @@ init;
 halt;
 
 flash protect 0 0 last off;
-flash write_image erase target/thumbv7em-none-eabi/release/launchxlccfg.bin 0x57FA8 bin;
-verify_image_checksum target/thumbv7em-none-eabi/release/launchxlccfg.bin 0x57FA8 bin;
+flash write_image erase ../../target/thumbv7em-none-eabi/release/launchxlccfg.bin 0x57FA8 bin;
+verify_image_checksum ../../target/thumbv7em-none-eabi/release/launchxlccfg.bin 0x57FA8 bin;
 soft_reset_halt
 resume;
 exit;

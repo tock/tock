@@ -27,6 +27,8 @@
 //! Here is a sample usage of this capsule in a board's main.rs file:
 //!
 //! ```rust
+//! # use kernel::static_init;
+//!
 //! let ltc294x_i2c = static_init!(
 //!     capsules::virtual_i2c::I2CDevice,
 //!     capsules::virtual_i2c::I2CDevice::new(i2c_mux, 0x64));
@@ -136,7 +138,7 @@ pub struct LTC294X<'a> {
     client: OptionalCell<&'static dyn LTC294XClient>,
 }
 
-impl LTC294X<'a> {
+impl<'a> LTC294X<'a> {
     pub fn new(
         i2c: &'a dyn i2c::I2CDevice,
         interrupt_pin: Option<&'a dyn gpio::InterruptPin>,
@@ -320,7 +322,7 @@ impl LTC294X<'a> {
     }
 }
 
-impl i2c::I2CClient for LTC294X<'a> {
+impl i2c::I2CClient for LTC294X<'_> {
     fn command_complete(&self, buffer: &'static mut [u8], _error: i2c::Error) {
         match self.state.get() {
             State::ReadStatus => {
@@ -393,7 +395,7 @@ impl i2c::I2CClient for LTC294X<'a> {
     }
 }
 
-impl gpio::Client for LTC294X<'a> {
+impl gpio::Client for LTC294X<'_> {
     fn fired(&self) {
         self.client.map(|client| {
             client.interrupt();
@@ -408,7 +410,7 @@ pub struct LTC294XDriver<'a> {
     callback: OptionalCell<Callback>,
 }
 
-impl LTC294XDriver<'a> {
+impl<'a> LTC294XDriver<'a> {
     pub fn new(ltc: &'a LTC294X) -> LTC294XDriver<'a> {
         LTC294XDriver {
             ltc294x: ltc,
@@ -417,7 +419,7 @@ impl LTC294XDriver<'a> {
     }
 }
 
-impl LTC294XClient for LTC294XDriver<'a> {
+impl LTC294XClient for LTC294XDriver<'_> {
     fn interrupt(&self) {
         self.callback.map(|cb| {
             cb.schedule(0, 0, 0);
@@ -467,7 +469,7 @@ impl LTC294XClient for LTC294XDriver<'a> {
     }
 }
 
-impl Driver for LTC294XDriver<'a> {
+impl Driver for LTC294XDriver<'_> {
     /// Setup callbacks.
     ///
     /// ### `subscribe_num`

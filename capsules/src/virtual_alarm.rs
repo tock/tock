@@ -17,13 +17,13 @@ pub struct VirtualMuxAlarm<'a, A: Alarm<'a>> {
     client: OptionalCell<&'a dyn time::AlarmClient>,
 }
 
-impl<A: Alarm<'a>> ListNode<'a, VirtualMuxAlarm<'a, A>> for VirtualMuxAlarm<'a, A> {
+impl<'a, A: Alarm<'a>> ListNode<'a, VirtualMuxAlarm<'a, A>> for VirtualMuxAlarm<'a, A> {
     fn next(&self) -> &'a ListLink<VirtualMuxAlarm<'a, A>> {
         &self.next
     }
 }
 
-impl<A: Alarm<'a>> VirtualMuxAlarm<'a, A> {
+impl<'a, A: Alarm<'a>> VirtualMuxAlarm<'a, A> {
     pub fn new(mux_alarm: &'a MuxAlarm<'a, A>) -> VirtualMuxAlarm<'a, A> {
         let zero = A::ticks_from_seconds(0);
         VirtualMuxAlarm {
@@ -37,7 +37,7 @@ impl<A: Alarm<'a>> VirtualMuxAlarm<'a, A> {
     }
 }
 
-impl<A: Alarm<'a>> Time for VirtualMuxAlarm<'a, A> {
+impl<'a, A: Alarm<'a>> Time for VirtualMuxAlarm<'a, A> {
     type Frequency = A::Frequency;
     type Ticks = A::Ticks;
     
@@ -58,7 +58,7 @@ impl<A: Alarm<'a>> Time for VirtualMuxAlarm<'a, A> {
     }
 }
 
-impl<A: Alarm<'a>> Alarm<'a> for VirtualMuxAlarm<'a, A> {
+impl<'a, A: Alarm<'a>> Alarm<'a> for VirtualMuxAlarm<'a, A> {
     fn set_alarm_client(&'a self, client: &'a dyn time::AlarmClient) {
         self.mux.virtual_alarms.push_head(self);
         // Reset the alarm state: should it do this? Does not seem
@@ -124,7 +124,7 @@ impl<A: Alarm<'a>> Alarm<'a> for VirtualMuxAlarm<'a, A> {
     }
 }
 
-impl<A: Alarm<'a>> time::AlarmClient for VirtualMuxAlarm<'a, A> {
+impl<'a, A: Alarm<'a>> time::AlarmClient for VirtualMuxAlarm<'a, A> {
     fn alarm(&self) {
         self.client.map(|client| client.alarm());
     }
@@ -138,7 +138,7 @@ pub struct MuxAlarm<'a, A: Alarm<'a>> {
     alarm: &'a A,
 }
 
-impl<A: Alarm<'a>> MuxAlarm<'a, A> {
+impl<'a, A: Alarm<'a>> MuxAlarm<'a, A> {
     pub const fn new(alarm: &'a A) -> MuxAlarm<'a, A> {
         MuxAlarm {
             virtual_alarms: List::new(),
@@ -148,7 +148,7 @@ impl<A: Alarm<'a>> MuxAlarm<'a, A> {
     }
 }
 
-impl<A: Alarm<'a>> time::AlarmClient for MuxAlarm<'a, A> {
+impl<'a, A: Alarm<'a>> time::AlarmClient for MuxAlarm<'a, A> {
     fn alarm(&self) {
         // The "now" is when the alarm fired, not the current
         // time; this is case there was some delay. This also
@@ -184,5 +184,17 @@ impl<A: Alarm<'a>> time::AlarmClient for MuxAlarm<'a, A> {
         } else {
             self.alarm.disarm();
         }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::has_expired;
+
+    #[test]
+    fn has_expired_with_zero_reference() {
+        assert_eq!(has_expired(1, 1, 0), true);
+        assert_eq!(has_expired(1, 0, 0), false);
+        assert_eq!(has_expired(0, 1, 0), true);
     }
 }

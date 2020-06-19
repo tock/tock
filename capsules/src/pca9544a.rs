@@ -17,6 +17,8 @@
 //! -----
 //!
 //! ```rust
+//! # use kernel::static_init;
+//!
 //! let pca9544a_i2c = static_init!(
 //!     capsules::virtual_i2c::I2CDevice,
 //!     capsules::virtual_i2c::I2CDevice::new(i2c_bus, 0x70));
@@ -60,7 +62,7 @@ pub struct PCA9544A<'a> {
     callback: OptionalCell<Callback>,
 }
 
-impl PCA9544A<'a> {
+impl<'a> PCA9544A<'a> {
     pub fn new(i2c: &'a dyn i2c::I2CDevice, buffer: &'static mut [u8]) -> PCA9544A<'a> {
         PCA9544A {
             i2c: i2c,
@@ -118,7 +120,7 @@ impl PCA9544A<'a> {
     }
 }
 
-impl i2c::I2CClient for PCA9544A<'a> {
+impl i2c::I2CClient for PCA9544A<'_> {
     fn command_complete(&self, buffer: &'static mut [u8], _error: i2c::Error) {
         match self.state.get() {
             State::ReadControl(field) => {
@@ -146,7 +148,7 @@ impl i2c::I2CClient for PCA9544A<'a> {
     }
 }
 
-impl Driver for PCA9544A<'a> {
+impl Driver for PCA9544A<'_> {
     /// Setup callback for event done.
     ///
     /// ### `subscribe_num`

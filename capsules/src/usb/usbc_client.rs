@@ -1,12 +1,10 @@
-//! A bare-bones client of the USB hardware interface
+//! A bare-bones client of the USB hardware interface.
 //!
 //! It responds to standard device requests and can be enumerated.
 
-use super::descriptors::Buffer8;
-use super::descriptors::DeviceDescriptor;
-use super::descriptors::EndpointAddress;
-use super::descriptors::EndpointDescriptor;
-use super::descriptors::TransferDirection;
+use super::descriptors::{
+    self, Buffer8, DeviceDescriptor, EndpointAddress, EndpointDescriptor, TransferDirection,
+};
 use super::usbc_client_ctrl::ClientCtrl;
 use core::cell::Cell;
 use kernel::common::cells::VolatileCell;
@@ -27,22 +25,14 @@ static STRINGS: &'static [&'static str] = &[
     "Serial No. 5",   // Serial number
 ];
 
-const N_ENDPOINTS: usize = 2;
+/// Platform-specific packet length for the `SAM4L` USB hardware.
+pub const MAX_CTRL_PACKET_SIZE_SAM4L: u8 = 8;
+/// Platform-specific packet length for the `nRF52` USB hardware.
+pub const MAX_CTRL_PACKET_SIZE_NRF52840: u8 = 64;
+/// Platform-specific packet length for the `ibex` USB hardware.
+pub const MAX_CTRL_PACKET_SIZE_IBEX: u8 = 64;
 
-static ENDPOINTS: &'static [EndpointDescriptor; N_ENDPOINTS] = &[
-    EndpointDescriptor {
-        endpoint_address: EndpointAddress::new_const(1, TransferDirection::DeviceToHost),
-        transfer_type: TransferType::Bulk,
-        max_packet_size: 8,
-        interval: 100,
-    },
-    EndpointDescriptor {
-        endpoint_address: EndpointAddress::new_const(2, TransferDirection::HostToDevice),
-        transfer_type: TransferType::Bulk,
-        max_packet_size: 8,
-        interval: 100,
-    },
-];
+const N_ENDPOINTS: usize = 2;
 
 pub struct Client<'a, C: 'a> {
     client_ctrl: ClientCtrl<'a, 'static, C>,
@@ -58,22 +48,57 @@ pub struct Client<'a, C: 'a> {
 }
 
 impl<'a, C: hil::usb::UsbController<'a>> Client<'a, C> {
-    pub fn new(controller: &'a C) -> Self {
-        Client {
-            client_ctrl: ClientCtrl::new(
-                controller,
+    pub fn new(controller: &'a C, max_ctrl_packet_size: u8) -> Self {
+        let interfaces: &mut [descriptors::InterfaceDescriptor] =
+            &mut [descriptors::InterfaceDescriptor {
+                interface_number: 0,
+                alternate_setting: 0,
+                num_endpoints: 0,      // (excluding default control endpoint)
+                interface_class: 0xff, // vendor_specific
+                interface_subclass: 0xab,
+                interface_protocol: 0,
+                string_index: 0,
+            }];
+
+        let endpoints: &[&[EndpointDescriptor]] = &mut [&[
+            EndpointDescriptor {
+                endpoint_address: EndpointAddress::new_const(1, TransferDirection::DeviceToHost),
+                transfer_type: TransferType::Bulk,
+                max_packet_size: 8,
+                interval: 0,
+            },
+            EndpointDescriptor {
+                endpoint_address: EndpointAddress::new_const(2, TransferDirection::HostToDevice),
+                transfer_type: TransferType::Bulk,
+                max_packet_size: 8,
+                interval: 0,
+            },
+        ]];
+
+        let (device_descriptor_buffer, other_descriptor_buffer) =
+            descriptors::create_descriptor_buffers(
                 DeviceDescriptor {
                     vendor_id: VENDOR_ID,
                     product_id: PRODUCT_ID,
                     manufacturer_string: 1,
                     product_string: 2,
                     serial_number_string: 3,
-                    ..Default::default()
+                    max_packet_size_ep0: max_ctrl_packet_size,
+                    ..DeviceDescriptor::default()
                 },
-                Default::default(),
-                Default::default(),
-                ENDPOINTS,
-                None, // No interface class descriptor
+                descriptors::ConfigurationDescriptor::default(),
+                interfaces,
+                endpoints,
+                None, // No HID descriptor
+                None, // No CDC descriptor array
+            );
+
+        Client {
+            client_ctrl: ClientCtrl::new(
+                controller,
+                device_descriptor_buffer,
+                other_descriptor_buffer,
+                None, // No HID descriptor
                 None, // No report descriptor
                 LANGUAGES,
                 STRINGS,

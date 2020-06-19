@@ -1,4 +1,6 @@
-use cortexm4::{generic_isr, hard_fault_handler, nvic, svc_handler, systick_handler};
+use cortexm4::{
+    generic_isr, hard_fault_handler, nvic, scb, svc_handler, systick_handler, unhandled_interrupt,
+};
 use tock_rt0;
 
 /*
@@ -22,28 +24,6 @@ extern "C" {
     // _estack is not really a function, but it makes the types work
     // You should never actually invoke it!!
     fn _estack();
-}
-
-#[cfg(not(any(target_arch = "arm", target_os = "none")))]
-unsafe extern "C" fn unhandled_interrupt() {
-    unimplemented!()
-}
-
-#[cfg(all(target_arch = "arm", target_os = "none"))]
-unsafe extern "C" fn unhandled_interrupt() {
-    let mut interrupt_number: u32;
-
-    // IPSR[8:0] holds the currently active interrupt
-    asm!(
-    "mrs    r0, ipsr                    "
-    : "={r0}"(interrupt_number)
-    :
-    : "r0"
-    :
-    );
-
-    interrupt_number = interrupt_number & 0x1ff;
-    panic!("Unhandled Interrupt. ISR {} is active.", interrupt_number);
 }
 
 #[cfg_attr(
@@ -167,6 +147,14 @@ pub unsafe extern "C" fn init() {
 
     tock_rt0::init_data(&mut _etext, &mut _srelocate, &mut _erelocate);
     tock_rt0::zero_bss(&mut _szero, &mut _ezero);
+
+    // Explicitly tell the core where Tock's vector table is located. If Tock is the
+    // only thing on the chip then this is effectively a no-op. If, however, there is
+    // a bootloader present then we want to ensure that the vector table is set
+    // correctly for Tock. The bootloader _may_ set this for us, but it may not
+    // so that any errors early in the Tock boot process trap back to the bootloader.
+    // To be safe we unconditionally set the vector table.
+    scb::set_vector_table_offset(BASE_VECTORS.as_ptr() as *const ());
 
     nvic::enable_all();
 }

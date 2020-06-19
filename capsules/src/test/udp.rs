@@ -138,7 +138,6 @@ impl<'a, A: Alarm<'a>> MockUdp<'a, A> {
                     }
                     Err(_return_code) => {
                         debug!("Socket error in mock_udp");
-                        return;
                     }
                 }
             }

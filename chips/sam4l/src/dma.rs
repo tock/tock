@@ -2,7 +2,8 @@
 
 use crate::pm;
 use core::cell::Cell;
-use core::{cmp, intrinsics};
+use core::cmp;
+use core::sync::atomic;
 use kernel::common::cells::VolatileCell;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
@@ -92,7 +93,7 @@ const DMA_CHANNEL_SIZE: usize = 0x40;
 
 /// Shared counter that Keeps track of how many DMA channels are currently
 /// active.
-static mut NUM_ENABLED: usize = 0;
+static mut NUM_ENABLED: atomic::AtomicUsize = atomic::AtomicUsize::new(0);
 
 /// The DMA channel number. Each channel transfers data between memory and a
 /// particular peripheral function (e.g., SPI read or SPI write, but not both
@@ -230,12 +231,9 @@ impl DMAChannel {
 
         if !self.enabled.get() {
             unsafe {
-                let num_enabled = intrinsics::atomic_xadd(&mut NUM_ENABLED, 1);
-                if num_enabled == 1 {
-                    pm::enable_clock(pm::Clock::HSB(pm::HSBClock::PDCA));
-                    pm::enable_clock(pm::Clock::PBB(pm::PBBClock::PDCA));
-                }
+                NUM_ENABLED.fetch_add(1, atomic::Ordering::Relaxed);
             }
+
             let registers: &DMARegisters = &*self.registers;
             // Disable all interrupts
             registers
@@ -249,7 +247,7 @@ impl DMAChannel {
     pub fn disable(&self) {
         if self.enabled.get() {
             unsafe {
-                let num_enabled = intrinsics::atomic_xsub(&mut NUM_ENABLED, 1);
+                let num_enabled = NUM_ENABLED.fetch_sub(1, atomic::Ordering::Relaxed);
                 if num_enabled == 1 {
                     pm::disable_clock(pm::Clock::HSB(pm::HSBClock::PDCA));
                     pm::disable_clock(pm::Clock::PBB(pm::PBBClock::PDCA));

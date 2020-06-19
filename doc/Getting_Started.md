@@ -70,7 +70,7 @@ of installing some of these tools, but you can also install them yourself.
 
 #### Rust (nightly)
 
-We are using `nightly-2020-03-06`. We require
+We are using `nightly-2020-06-03`. We require
 installing it with [rustup](http://www.rustup.rs) so you can manage multiple
 versions of Rust and continue using stable versions for other Rust code:
 
@@ -85,7 +85,7 @@ to your `$PATH`.
 Then install the correct nightly version of Rust:
 
 ```bash
-$ rustup install nightly-2020-03-06
+$ rustup install nightly-2020-06-03
 ```
 
 #### Tockloader
@@ -144,7 +144,7 @@ and can then install the kernel by running
 
     $ make flash
 
-Depending on the apapter, you will need either the free `openocd` or
+Depending on the adapter, you will need either the free `openocd` or
 Segger's proprietary `JLinkExe`. Programming adapters are available as
 standalone devices (for example the [JLink EDU JTAG
 debugger](https://www.segger.com/j-link-edu.html) available on

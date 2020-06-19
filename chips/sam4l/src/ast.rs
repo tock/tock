@@ -175,10 +175,10 @@ pub static mut AST: Ast<'static> = Ast {
     callback: OptionalCell::empty(),
 };
 
-impl Controller for Ast<'a> {
+impl Controller for Ast<'_> {
     type Config = &'static dyn time::AlarmClient;
 
-    fn configure(&self, client: &'a dyn time::AlarmClient) {
+    fn configure(&self, client: Self::Config) {
         self.callback.set(client);
 
         pm::enable_clock(pm::Clock::PBD(PBDClock::AST));
@@ -201,7 +201,7 @@ enum Clock {
     Clock1K = 4,
 }
 
-impl Ast<'a> {
+impl<'a> Ast<'a> {
     fn clock_busy(&self) -> bool {
         let regs: &AstRegisters = &*self.registers;
         regs.sr.is_set(Status::CLKBUSY)
@@ -311,7 +311,7 @@ impl Ast<'a> {
     }
 }
 
-impl time::Time for Ast<'a> {
+impl time::Time for Ast<'_> {
     type Frequency = time::Freq16KHz;
     type Ticks = time::Ticks32;
     
@@ -374,7 +374,7 @@ impl time::Counter<'a> for Ast<'a> {
     }
 }
 
-impl time::Alarm<'a> for Ast<'a> {
+impl<'a> time::Alarm<'a> for Ast<'a> {
     fn set_alarm_client(&self, client: &'a dyn time::AlarmClient) {
         self.callback.set(client);
     }

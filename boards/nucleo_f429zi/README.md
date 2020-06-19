@@ -39,13 +39,13 @@ For example, you can update `Makefile` as follows.
 
 ```
 APP=../../../libtock-c/examples/c_hello/build/cortex-m4/cortex-m4.tbf
-KERNEL=$(CWD)/target/$(TARGET)/debug/$(PLATFORM).elf
-KERNEL_WITH_APP=$(CWD)/target/$(TARGET)/debug/$(PLATFORM)-app.elf
+KERNEL=$(TOCK_ROOT_DIRECTORY)/target/$(TARGET)/debug/$(PLATFORM).elf
+KERNEL_WITH_APP=$(TOCK_ROOT_DIRECTORY)/target/$(TARGET)/debug/$(PLATFORM)-app.elf
 
 .PHONY: program
 program: target/$(TARGET)/debug/$(PLATFORM).elf
         arm-none-eabi-objcopy --update-section .apps=$(APP) $(KERNEL) $(KERNEL_WITH_APP)
-        sudo $(OPENOCD) $(OPENOCD_OPTIONS) -c "init; reset halt; flash write_image erase $(KERNEL_WITH_APP); verify_image $(KERNEL_WITH_APP); reset; shutdown"
+        $(OPENOCD) $(OPENOCD_OPTIONS) -c "init; reset halt; flash write_image erase $(KERNEL_WITH_APP); verify_image $(KERNEL_WITH_APP); reset; shutdown"
 ```
 
 After setting `APP`, `KERNEL`, `KERNEL_WITH_APP`, and `program` target

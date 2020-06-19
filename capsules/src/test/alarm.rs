@@ -12,7 +12,7 @@ pub struct TestAlarm<'a, A: Alarm<'a>> {
     ms: Cell<u32>,
 }
 
-impl<A: Alarm<'a>> TestAlarm<'a, A> {
+impl<'a, A: Alarm<'a>> TestAlarm<'a, A> {
     pub fn new(alarm: &'a A) -> TestAlarm<'a, A> {
         TestAlarm {
             alarm: alarm,

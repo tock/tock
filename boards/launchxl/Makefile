@@ -1,6 +1,5 @@
 # Makefile for building the tock kernel for the launchxl development kit
 
-TOCK_ARCH=cortex-m4
 TOCK_BOARD=launchxl
 TARGET=thumbv7em-none-eabi
 PLATFORM=launchxl
@@ -11,14 +10,14 @@ JLINK_ARGUMENTS ?= -device $(JLINK_DEVICE) -if jtag -speed 4000 -AutoConnect 1 -
 
 include ../Makefile.common
 
-flash: target/$(TARGET)/release/launchxl.bin
+flash: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/launchxl.bin
 	$(OPENOCD) -f flash-kernel.openocd
 
-flash-ccfg: target/$(TARGET)/release/launchxlccfg.bin
+flash-ccfg: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/launchxlccfg.bin
 	$(OPENOCD) -f flash-ccfg.openocd
 
-flash-jlink: target/$(TARGET)/release/launchxl.bin
+flash-jlink: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/launchxl.bin
 	$(JLINK_EXE) $(JLINK_ARGUMENTS) -CommanderScript flash-kernel.jlink
 
-flash-ccfg-jlink: target/$(TARGET)/release/launchxlccfg.bin
+flash-ccfg-jlink: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/launchxlccfg.bin
 	$(JLINK_EXE) $(JLINK_ARGUMENTS) -CommanderScript flash-ccfg.jlink

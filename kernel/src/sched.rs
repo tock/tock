@@ -61,13 +61,13 @@ impl Kernel {
     }
 
     /// Something was scheduled for a process, so there is more work to do.
-    crate fn increment_work(&self) {
+    pub(crate) fn increment_work(&self) {
         self.work.increment();
     }
 
     /// Something finished for a process, so we decrement how much work there is
     /// to do.
-    crate fn decrement_work(&self) {
+    pub(crate) fn decrement_work(&self) {
         self.work.decrement();
     }
 
@@ -87,7 +87,7 @@ impl Kernel {
     /// different index in the processes array. Note that a match _will_ be
     /// found if the process still exists in the correct location in the array
     /// but is in any "stopped" state.
-    crate fn process_map_or<F, R>(&self, default: R, appid: AppId, closure: F) -> R
+    pub(crate) fn process_map_or<F, R>(&self, default: R, appid: AppId, closure: F) -> R
     where
         F: FnOnce(&dyn process::ProcessType) -> R,
     {
@@ -119,7 +119,7 @@ impl Kernel {
 
     /// Run a closure on every valid process. This will iterate the array of
     /// processes and call the closure on every process that exists.
-    crate fn process_each<F>(&self, closure: F)
+    pub(crate) fn process_each<F>(&self, closure: F)
     where
         F: Fn(&dyn process::ProcessType),
     {
@@ -133,18 +133,19 @@ impl Kernel {
         }
     }
 
-    /// Return an iterator for all of the items in the processes array on this
-    /// board.
-    ///
-    /// NOTE: This would be better if it returned an iterator to only processes.
-    /// While with `filter_map()` it is straightforward to create an object that
-    /// implements `Iterator` and only iterates over `Some(process)` items in
-    /// the processes array, Rust doesn't seem to support the types necessary to
-    /// actually make that work and be usable. Perhaps as
-    /// https://github.com/rust-lang/rust/issues/63066 progresses this will be
-    /// possible in the future.
-    crate fn get_process_iter(&self) -> core::slice::Iter<Option<&dyn process::ProcessType>> {
-        self.processes.iter()
+    /// Returns an iterator over all processes loaded by the kernel
+    pub(crate) fn get_process_iter(
+        &self,
+    ) -> core::iter::FilterMap<
+        core::slice::Iter<Option<&dyn process::ProcessType>>,
+        fn(&Option<&'static dyn process::ProcessType>) -> Option<&'static dyn process::ProcessType>,
+    > {
+        fn keep_some(
+            &x: &Option<&'static dyn process::ProcessType>,
+        ) -> Option<&'static dyn process::ProcessType> {
+            x
+        }
+        self.processes.iter().filter_map(keep_some)
     }
 
     /// Run a closure on every valid process. This will iterate the array of
@@ -174,7 +175,7 @@ impl Kernel {
     /// `FAIL`. That is, if the closure returns any other return code than
     /// `FAIL`, that value will be returned from this function and the iteration
     /// of the array of processes will stop.
-    crate fn process_until<F>(&self, closure: F) -> ReturnCode
+    pub(crate) fn process_until<F>(&self, closure: F) -> ReturnCode
     where
         F: Fn(&dyn process::ProcessType) -> ReturnCode,
     {
@@ -196,7 +197,7 @@ impl Kernel {
     /// useful if an app identifier is passed to the kernel from somewhere (such
     /// as from userspace) and needs to be expanded to a full `AppId` for use
     /// with other APIs.
-    crate fn lookup_app_by_identifier(&self, identifier: usize) -> Option<AppId> {
+    pub(crate) fn lookup_app_by_identifier(&self, identifier: usize) -> Option<AppId> {
         self.processes.iter().find_map(|&p| {
             p.map_or(None, |p2| {
                 if p2.appid().id() == identifier {
@@ -214,7 +215,7 @@ impl Kernel {
     ///
     /// This is needed for `AppId` itself to implement the `.index()` command to
     /// verify that the referenced app is still at the correct index.
-    crate fn appid_is_valid(&self, appid: &AppId) -> bool {
+    pub(crate) fn appid_is_valid(&self, appid: &AppId) -> bool {
         self.processes.get(appid.index).map_or(false, |p| {
             p.map_or(false, |process| process.appid().id() == appid.id())
         })
@@ -252,7 +253,7 @@ impl Kernel {
     ///
     /// In practice, this is called when processes are created, and the process
     /// memory is setup based on the number of current grants.
-    crate fn get_grant_count_and_finalize(&self) -> usize {
+    pub(crate) fn get_grant_count_and_finalize(&self) -> usize {
         self.grants_finalized.set(true);
         self.grant_counter.get()
     }
@@ -261,7 +262,7 @@ impl Kernel {
     ///
     /// Typically we just choose a larger number than we have used for any process
     /// before which ensures that the identifier is unique.
-    crate fn create_process_identifier(&self) -> usize {
+    pub(crate) fn create_process_identifier(&self) -> usize {
         self.process_identifier_max.get_and_increment()
     }
 
@@ -332,7 +333,9 @@ impl Kernel {
         systick.enable(false);
 
         loop {
-            if chip.has_pending_interrupts() {
+            if chip.has_pending_interrupts()
+                || DynamicDeferredCall::global_instance_calls_pending().unwrap_or(false)
+            {
                 break;
             }
 
@@ -362,6 +365,27 @@ impl Kernel {
                         }
                         Some(ContextSwitchReason::SyscallFired { syscall }) => {
                             process.debug_syscall_called(syscall);
+
+                            // Enforce platform-specific syscall filtering here.
+                            //
+                            // Before continuing to handle non-yield syscalls
+                            // the kernel first checks if the platform wants to
+                            // block that syscall for the process, and if it
+                            // does, sets a return value which is returned to
+                            // the calling process.
+                            //
+                            // Filtering a syscall (i.e. blocking the syscall
+                            // from running) does not cause the process to loose
+                            // its timeslice. The error will be returned
+                            // immediately (assuming the process has not already
+                            // exhausted its timeslice) allowing the process to
+                            // decide how to handle the error.
+                            if syscall != Syscall::YIELD {
+                                if let Err(response) = platform.filter_syscall(process, &syscall) {
+                                    process.set_syscall_return_value(response.into());
+                                    continue;
+                                }
+                            }
 
                             // Handle each of the syscalls.
                             match syscall {

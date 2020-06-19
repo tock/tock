@@ -28,8 +28,8 @@ pub struct MachineTimer<'a> {
     client: OptionalCell<&'a dyn hil::time::AlarmClient>,
 }
 
-impl MachineTimer<'a> {
-    pub const fn new(base: StaticRef<MachineTimerRegisters>) -> MachineTimer<'a> {
+impl MachineTimer<'_> {
+    pub const fn new(base: StaticRef<MachineTimerRegisters>) -> Self {
         MachineTimer {
             registers: base,
             client: OptionalCell::empty(),
@@ -53,7 +53,7 @@ impl MachineTimer<'a> {
     }
 }
 
-impl hil::time::Time for MachineTimer<'a> {
+impl hil::time::Time for MachineTimer<'_> {
     type Frequency = hil::time::Freq32KHz;
 
     fn now(&self) -> u32 {
@@ -65,7 +65,7 @@ impl hil::time::Time for MachineTimer<'a> {
     }
 }
 
-impl hil::time::Alarm<'a> for MachineTimer<'a> {
+impl<'a> hil::time::Alarm<'a> for MachineTimer<'a> {
     fn set_client(&self, client: &'a dyn hil::time::AlarmClient) {
         self.client.set(client);
     }
