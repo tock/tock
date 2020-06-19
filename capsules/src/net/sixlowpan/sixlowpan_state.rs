@@ -976,10 +976,9 @@ impl<'a, A: time::Alarm<'a>, C: ContextStore> Sixlowpan<'a, A, C> {
 
         // Else find a free state
         if rx_state.is_none() {
-            rx_state = self
-                .rx_states
-                .iter()
-                .find(|state| !state.is_busy(self.clock.now().into_u32(), A::Frequency::frequency()));
+            rx_state = self.rx_states.iter().find(|state| {
+                !state.is_busy(self.clock.now().into_u32(), A::Frequency::frequency())
+            });
             // Initialize new state
             rx_state.map(|state| {
                 state.start_receive(

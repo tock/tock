@@ -257,7 +257,7 @@ impl<'a> Ast<'a> {
     fn is_enabled(&self) -> bool {
         let regs: &AstRegisters = &*self.registers;
         while self.busy() {}
-        regs.cr.is_set(Control::EN) 
+        regs.cr.is_set(Control::EN)
     }
 
     /// Returns if an alarm is currently set
@@ -314,7 +314,7 @@ impl<'a> Ast<'a> {
 impl time::Time for Ast<'_> {
     type Frequency = time::Freq16KHz;
     type Ticks = time::Ticks32;
-    
+
     fn now(&self) -> Self::Ticks {
         Self::Ticks::from(self.get_counter())
     }
@@ -350,27 +350,24 @@ impl time::Time for Ast<'_> {
 }
 
 impl time::Counter<'a> for Ast<'a> {
-    
-    fn set_overflow_client(&'a self, _client: &'a dyn time::OverflowClient) {
-        
-    }
-    
+    fn set_overflow_client(&'a self, _client: &'a dyn time::OverflowClient) {}
+
     fn start(&self) -> ReturnCode {
         self.enable();
-        ReturnCode::SUCCESS      
+        ReturnCode::SUCCESS
     }
-    
+
     fn stop(&self) -> ReturnCode {
         self.disable();
-        ReturnCode::SUCCESS      
+        ReturnCode::SUCCESS
     }
-    
+
     fn reset(&self) {
         self.set_counter(0);
     }
-    
+
     fn is_running(&self) -> bool {
-        self.is_enabled()   
+        self.is_enabled()
     }
 }
 
@@ -383,14 +380,14 @@ impl<'a> time::Alarm<'a> for Ast<'a> {
         let regs: &AstRegisters = &*self.registers;
         let now = Self::Ticks::from(self.get_counter());
         let mut expire = reference.wrapping_add(dt);
-       // debug!("ast: now: {}, reference: {}, dt: {}, expire: {}", now.into_u32(), reference.into_u32(), dt.into_u32(), expire.into_u32());
+        // debug!("ast: now: {}, reference: {}, dt: {}, expire: {}", now.into_u32(), reference.into_u32(), dt.into_u32(), expire.into_u32());
         if !now.within_range(reference, expire) {
             // We have already passed when: just fire ASAP
             // Note this will also trigger the increment below
             //debug!("  - set to fire ASAP");
             expire = Self::Ticks::from(now);
         }
-        
+
         // Firing is too close in the future, delay it a bit
         // to make sure we don't miss the tick
         if expire.wrapping_sub(now).into_u32() <= ALARM0_SYNC_TICS {

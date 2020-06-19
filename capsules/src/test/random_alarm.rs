@@ -19,7 +19,7 @@ impl<'a, A: Alarm<'a>> TestRandomAlarm<'a, A> {
         TestRandomAlarm {
             alarm: alarm,
             counter: Cell::new(value),
-            id: ch
+            id: ch,
         }
     }
 
@@ -30,8 +30,9 @@ impl<'a, A: Alarm<'a>> TestRandomAlarm<'a, A> {
 
     fn set_next_alarm(&self) {
         let counter = self.counter.get();
-        let mut us: u32 =  3 * ((counter * 66841 ) % 51257) as u32;
-        if us % 11 == 0 { // Try delays of zero in 1 of 11 cases
+        let mut us: u32 = 3 * ((counter * 66841) % 51257) as u32;
+        if us % 11 == 0 {
+            // Try delays of zero in 1 of 11 cases
             us = 0;
         }
         let delay = A::ticks_from_us(us);
@@ -48,5 +49,4 @@ impl<'a, A: Alarm<'a>> AlarmClient for TestRandomAlarm<'a, A> {
     fn alarm(&self) {
         self.set_next_alarm();
     }
-
 }

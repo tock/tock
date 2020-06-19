@@ -14,7 +14,6 @@ use crate::ReturnCode;
 /// An integer type defining the width of a time value, which allows
 /// clients to know when wraparound will occur.
 pub trait Ticks: Clone + Copy + From<u32> {
-
     /// Converts the type into a `usize`, stripping the higher bits
     /// it if it is larger than `usize` and filling the higher bits
     /// with 0 if it is smaller than `usize`.
@@ -31,7 +30,7 @@ pub trait Ticks: Clone + Copy + From<u32> {
     /// unsigned arithmetic.
     fn wrapping_add(self, other: Self) -> Self;
     /// Subtract two values, wrapping around on underflow using standard
-    /// unsigned arithmetic. 
+    /// unsigned arithmetic.
     fn wrapping_sub(self, other: Self) -> Self;
 
     /// Returns whether the value is in the range of [`start, `end`) using
@@ -40,11 +39,10 @@ pub trait Ticks: Clone + Copy + From<u32> {
     /// Put another way, it returns `(self - start) < (end - start)` in
     /// unsigned arithmetic.
     fn within_range(self, start: Self, end: Self) -> bool;
-    
+
     /// Returns the maximum value of this type, which should be (2^width)-1.
     fn max_value() -> Self;
 }
-
 
 /// Represents a clock's frequency in Hz, allowing code to transform
 /// between computer time units and wall clock time. It is typically
@@ -67,12 +65,12 @@ pub trait Time {
     /// it being constant or changing it should use `Timestamp`
     /// or `Counter`.
     fn now(&self) -> Self::Ticks;
-    
+
     /// Returns the number of ticks in the provided number of seconds,
     /// rounding down any fractions. If the value overflows Ticks it
     /// returns `Ticks::max_value()`.
     fn ticks_from_seconds(s: u32) -> Self::Ticks;
-    
+
     /// Returns the number of ticks in the provided number of milliseconds,
     /// rounding down any fractions. If the value overflows Ticks it
     /// returns `Ticks::max_value()`.
@@ -88,55 +86,52 @@ pub trait Time {
 /// repeated calls to `Time::now`.
 pub trait Timestamp: Time {}
 
-
 /// Callback handler for when a counter has overflowed past its maximum
 /// value and returned to 0.
 pub trait OverflowClient {
-  fn overflow(&self);
+    fn overflow(&self);
 }
-
 
 /// Represents a free-running hardware counter that can be started and stopped.
 pub trait Counter<'a>: Time {
-  /// Specify the callback for when the counter overflows its maximum
-  /// value (defined by `Ticks`). If there was a previously registered
-  /// callback this call replaces it.
-  fn set_overflow_client(&'a self, client: &'a dyn OverflowClient);
-    
-  /// Starts the free-running hardware counter. Valid `ReturnCode` values are:
-  ///   - `ReturnCode::SUCCESS`: the counter is now running
-  ///   - `ReturnCode::EOFF`: underlying clocks or other hardware resources
-  ///   are not on, such that the counter cannot start.
-  ///   - `ReturnCode::FAIL`: unidentified failure, counter is not running.
-  /// After a successful call to `start`, `is_running` MUST return true.    
-  fn start(&self) -> ReturnCode;
+    /// Specify the callback for when the counter overflows its maximum
+    /// value (defined by `Ticks`). If there was a previously registered
+    /// callback this call replaces it.
+    fn set_overflow_client(&'a self, client: &'a dyn OverflowClient);
 
-  /// Stops the free-running hardware counter. Valid `ReturnCode` values are:
-  ///   - `ReturnCode::SUCCESS`: the counter is now stopped.
-  ///   - `ReturnCode::EBUSY`: the counter is in use in a way that means it
-  ///   cannot be stopped and is busy.
-  ///   - `ReturnCode::FAIL`: unidentified failure, counter is running.
-  /// After a successful call to `stop`, `is_running` MUST return false.        
-  fn stop(&self) -> ReturnCode;
+    /// Starts the free-running hardware counter. Valid `ReturnCode` values are:
+    ///   - `ReturnCode::SUCCESS`: the counter is now running
+    ///   - `ReturnCode::EOFF`: underlying clocks or other hardware resources
+    ///   are not on, such that the counter cannot start.
+    ///   - `ReturnCode::FAIL`: unidentified failure, counter is not running.
+    /// After a successful call to `start`, `is_running` MUST return true.    
+    fn start(&self) -> ReturnCode;
 
-  /// Resets the counter to 0. If the counter is currently running, this
-  /// may require stopping and restarting it. Valid `ReturnCode` values are:
-  ///    - `ReturnCode::SUCCESS`: the counter was reset to 0.
-  ///    - `ReturnCode::FAIL`: the counter was not reset to 0.    
-  fn reset(&self);
+    /// Stops the free-running hardware counter. Valid `ReturnCode` values are:
+    ///   - `ReturnCode::SUCCESS`: the counter is now stopped.
+    ///   - `ReturnCode::EBUSY`: the counter is in use in a way that means it
+    ///   cannot be stopped and is busy.
+    ///   - `ReturnCode::FAIL`: unidentified failure, counter is running.
+    /// After a successful call to `stop`, `is_running` MUST return false.        
+    fn stop(&self) -> ReturnCode;
 
-  /// Returns whether the counter is currently running.
-  fn is_running(&self) -> bool;
+    /// Resets the counter to 0. If the counter is currently running, this
+    /// may require stopping and restarting it. Valid `ReturnCode` values are:
+    ///    - `ReturnCode::SUCCESS`: the counter was reset to 0.
+    ///    - `ReturnCode::FAIL`: the counter was not reset to 0.    
+    fn reset(&self);
 
+    /// Returns whether the counter is currently running.
+    fn is_running(&self) -> bool;
 }
 
 /// Callback handler for when an Alarm fires (a `Counter` reaches a specific
 /// value).
 pub trait AlarmClient {
-  /// Callback indicating the alarm time has been reached. The alarm
-  /// MUST be disabled when this is called. If a new alarm is needed,
-  /// the client can call `Alarm::set_alarm`.
-  fn alarm(&self);
+    /// Callback indicating the alarm time has been reached. The alarm
+    /// MUST be disabled when this is called. If a new alarm is needed,
+    /// the client can call `Alarm::set_alarm`.
+    fn alarm(&self);
 }
 
 /// Interface for receiving notification when a particular time
@@ -150,48 +145,45 @@ pub trait AlarmClient {
 /// instead.
 
 pub trait Alarm<'a>: Time {
+    /// Specify the callback for when the counter reaches the alarm
+    /// value. If there was a previously installed callback this call
+    /// replaces it.
+    fn set_alarm_client(&'a self, client: &'a dyn AlarmClient);
 
-  /// Specify the callback for when the counter reaches the alarm
-  /// value. If there was a previously installed callback this call
-  /// replaces it.
-  fn set_alarm_client(&'a self, client: &'a dyn AlarmClient);    
+    /// Specify when the callback should be called and enable it. Tthe
+    /// will be triggered when `Time::now() == reference + dt`. The callback
+    /// itself may not run exactly at this time, due to delays. However,
+    /// it it assured to execute *after* `reference + dt`: it can be delayed
+    /// but will never fire early. The method takes `reference` and `dt`
+    /// rather than a single value denoting the counter value so it can
+    /// distinguish between alarms which have very recently already
+    /// passed and those in the far far future (see #1651).
+    fn set_alarm(&self, reference: Self::Ticks, dt: Self::Ticks);
 
-    
-  /// Specify when the callback should be called and enable it. Tthe
-  /// will be triggered when `Time::now() == reference + dt`. The callback
-  /// itself may not run exactly at this time, due to delays. However,
-  /// it it assured to execute *after* `reference + dt`: it can be delayed
-  /// but will never fire early. The method takes `reference` and `dt`
-  /// rather than a single value denoting the counter value so it can
-  /// distinguish between alarms which have very recently already
-  /// passed and those in the far far future (see #1651).
-  fn set_alarm(&self, reference: Self::Ticks, dt: Self::Ticks);
+    /// Return the current alarm value. This is undefined at boot and
+    /// otherwise returns `now + dt` from the last call to `set_alarm`.
+    fn get_alarm(&self) -> Self::Ticks;
 
-  /// Return the current alarm value. This is undefined at boot and
-  /// otherwise returns `now + dt` from the last call to `set_alarm`.
-  fn get_alarm(&self) -> Self::Ticks;
+    /// Disable the alarm and stop it from firing in the future.
+    /// Valid `ReturnCode` codes are:
+    ///   - `ReturnCode::SUCCESS` the alarm has been disarmed and will not invoke
+    ///   the callback in the future    
+    ///   - `ReturnCode::FAIL` the alarm could not be disarmed and will invoke
+    ///   the callback in the future    
+    fn disarm(&self) -> ReturnCode;
 
-  /// Disable the alarm and stop it from firing in the future.
-  /// Valid `ReturnCode` codes are:
-  ///   - `ReturnCode::SUCCESS` the alarm has been disarmed and will not invoke
-  ///   the callback in the future    
-  ///   - `ReturnCode::FAIL` the alarm could not be disarmed and will invoke
-  ///   the callback in the future    
-  fn disarm(&self) -> ReturnCode;
-
-  /// Returns whether the alarm is currently armed. Note that this
-  /// does not reliably indicate whether there will be a future
-  /// callback: it is possible that the alarm has triggered (and
-  /// disarmed) and a callback is pending and has not been called yet.
-  /// In this case it possible for `is_armed` to return false yet to
-  /// receive a callback.
-  fn is_armed(&self) -> bool;
-
+    /// Returns whether the alarm is currently armed. Note that this
+    /// does not reliably indicate whether there will be a future
+    /// callback: it is possible that the alarm has triggered (and
+    /// disarmed) and a callback is pending and has not been called yet.
+    /// In this case it possible for `is_armed` to return false yet to
+    /// receive a callback.
+    fn is_armed(&self) -> bool;
 }
 
 /// Callback handler for when a timer fires.
 pub trait TimerClient {
-  fn timer(&self);
+    fn timer(&self);
 }
 
 /// Interface for controlling callbacks when an interval has passed.
@@ -201,56 +193,55 @@ pub trait TimerClient {
 /// actual calculation of counter values. Software that requires more
 /// precisely timed callbacks should use the `Alarm` trait instead.
 pub trait Timer<'a>: Time {
-  /// Specify the callback to invoke when the timer interval expires.
-  /// If there was a previously installed callback this call replaces it.    
-  fn set_client(&'a self, client: &'a dyn TimerClient);
+    /// Specify the callback to invoke when the timer interval expires.
+    /// If there was a previously installed callback this call replaces it.    
+    fn set_client(&'a self, client: &'a dyn TimerClient);
 
-  /// Start a one-shot timer that will invoke the callback at least
-  /// `interval` ticks in the future. If there is a timer currently pending,
-  /// calling this cancels that previous timer. After a callback is invoked
-  /// for a one shot timer, the timer MUST NOT invoke the callback again
-  /// unless a new timer is started (either with repeating or one shot).
-  /// Returns the actual interval for the timer that was registered.
-  /// This MUST NOT be smaller than `interval` but MAY be larger.
-  fn oneshot(&self, interval: Self::Ticks) -> Self::Ticks;
+    /// Start a one-shot timer that will invoke the callback at least
+    /// `interval` ticks in the future. If there is a timer currently pending,
+    /// calling this cancels that previous timer. After a callback is invoked
+    /// for a one shot timer, the timer MUST NOT invoke the callback again
+    /// unless a new timer is started (either with repeating or one shot).
+    /// Returns the actual interval for the timer that was registered.
+    /// This MUST NOT be smaller than `interval` but MAY be larger.
+    fn oneshot(&self, interval: Self::Ticks) -> Self::Ticks;
 
-  /// Start a repeating timer that will invoke the callback every
-  /// `interval` ticks in the future. If there is a timer currently
-  /// pending, calling this cancels that previous timer.
-  /// Returns the actual interval for the timer that was registered.
-  /// This MUST NOT be smaller than `interval` but MAY be larger.
-  fn repeating(&self, interval: Self::Ticks) -> Self::Ticks;
+    /// Start a repeating timer that will invoke the callback every
+    /// `interval` ticks in the future. If there is a timer currently
+    /// pending, calling this cancels that previous timer.
+    /// Returns the actual interval for the timer that was registered.
+    /// This MUST NOT be smaller than `interval` but MAY be larger.
+    fn repeating(&self, interval: Self::Ticks) -> Self::Ticks;
 
-  /// Return the interval of the last requested timer.
-  fn interval(&self) -> Option<Self::Ticks>;
+    /// Return the interval of the last requested timer.
+    fn interval(&self) -> Option<Self::Ticks>;
 
-  /// Return if the last requested timer is a one-shot timer.
-  fn is_oneshot(&self) -> bool;
-    
-  /// Return if the last requested timer is a repeating timer.
-  fn is_repeating(&self) -> bool;
+    /// Return if the last requested timer is a one-shot timer.
+    fn is_oneshot(&self) -> bool;
 
-  /// Return how many ticks are remaining until the next callback.
-  /// This call is useful because there may be non-neglible delays between
-  /// when a timer was requested and it was actually scheduled. Therefore,
-  /// since a timer's start might be delayed slightly, the time remaining
-  /// might be slightly higher than one would expect if one calculated it
-  /// right before the call to start the timer.
-  fn time_remaining(&self) -> Option<Self::Ticks>;
+    /// Return if the last requested timer is a repeating timer.
+    fn is_repeating(&self) -> bool;
 
-  /// Returns whether there is currently a timer enabled and so a callback
-  /// will be expected in the future. If `is_enabled` returns false then
-  /// the implementation MUST NOT invoke a callback until a call to `oneshot`
-  /// or `repeating` restarts the timer.
-  fn is_enabled(&self) -> bool;
+    /// Return how many ticks are remaining until the next callback.
+    /// This call is useful because there may be non-neglible delays between
+    /// when a timer was requested and it was actually scheduled. Therefore,
+    /// since a timer's start might be delayed slightly, the time remaining
+    /// might be slightly higher than one would expect if one calculated it
+    /// right before the call to start the timer.
+    fn time_remaining(&self) -> Option<Self::Ticks>;
 
-  /// Cancel the current timer, if any. Value `ReturnCode` values are:
-  ///  - `ReturnCode::SUCCESS`: no callback will be invoked in the future.
-  ///  - `ReturnCode::FAIL`: the timer could not be cancelled and a callback
-  ///  will be invoked in the future.
-  fn cancel(&self) -> ReturnCode;
+    /// Returns whether there is currently a timer enabled and so a callback
+    /// will be expected in the future. If `is_enabled` returns false then
+    /// the implementation MUST NOT invoke a callback until a call to `oneshot`
+    /// or `repeating` restarts the timer.
+    fn is_enabled(&self) -> bool;
+
+    /// Cancel the current timer, if any. Value `ReturnCode` values are:
+    ///  - `ReturnCode::SUCCESS`: no callback will be invoked in the future.
+    ///  - `ReturnCode::FAIL`: the timer could not be cancelled and a callback
+    ///  will be invoked in the future.
+    fn cancel(&self) -> ReturnCode;
 }
-
 
 /// 16MHz `Frequency`
 #[derive(Debug)]
@@ -265,7 +256,7 @@ impl Frequency for Freq16MHz {
 #[derive(Debug)]
 pub struct Freq1MHz;
 impl Frequency for Freq1MHz {
-     fn frequency() -> u32 {
+    fn frequency() -> u32 {
         1000000
     }
 }
@@ -311,7 +302,7 @@ impl Ticks for Ticks32 {
     fn into_usize(self) -> usize {
         self.0 as usize
     }
-    
+
     fn into_u32(self) -> u32 {
         self.0
     }
@@ -333,4 +324,3 @@ impl Ticks for Ticks32 {
         Ticks32(0xFFFFFFFF)
     }
 }
-

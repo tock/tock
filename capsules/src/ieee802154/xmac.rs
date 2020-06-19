@@ -212,7 +212,6 @@ impl<'a, R: radio::Radio, A: Alarm<'a>> XMac<'a, R, A> {
     fn set_timer_ms(&self, ms: u32) {
         let interval = A::ticks_from_ms(ms);
         self.set_timer(interval);
-
     }
 
     fn set_timer(&self, ticks: A::Ticks) {

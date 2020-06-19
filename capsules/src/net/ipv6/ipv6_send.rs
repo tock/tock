@@ -271,7 +271,8 @@ impl<'a, A: time::Alarm<'a>> TxClient for IP6SendStruct<'a, A> {
             // One flaw with this is that we also introduce a delay after sending the last
             // fragment, before passing the send_done callback back to the client. This
             // could be optimized by checking if it is the last fragment before setting the timer.
-            self.alarm.set_alarm(self.alarm.now(), A::ticks_from_ms(100));
+            self.alarm
+                .set_alarm(self.alarm.now(), A::ticks_from_ms(100));
         }
     }
 }

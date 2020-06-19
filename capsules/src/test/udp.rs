@@ -68,7 +68,8 @@ impl<'a, A: Alarm<'a>> MockUdp<'a, A> {
         // Set alarm bc if you try to send immediately there are initialization issues
         self.send_loop.set(true);
         let delay = <A::Frequency>::frequency() * SEND_INTERVAL_SECONDS;
-        self.alarm.set_alarm(self.alarm.now(), A::Ticks::from(delay));
+        self.alarm
+            .set_alarm(self.alarm.now(), A::Ticks::from(delay));
     }
 
     pub fn update_capability(&self, new_cap: &'static NetworkCapability) {
@@ -192,7 +193,8 @@ impl<'a, A: Alarm<'a>> UDPSendClient for MockUdp<'a, A> {
         self.udp_dgram.replace(dgram);
         debug!("");
         let delay = <A::Frequency>::frequency() * SEND_INTERVAL_SECONDS;
-        self.alarm.set_alarm(self.alarm.now(), A::Ticks::from(delay));
+        self.alarm
+            .set_alarm(self.alarm.now(), A::Ticks::from(delay));
     }
 }
 

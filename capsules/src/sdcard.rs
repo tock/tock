@@ -55,7 +55,7 @@ pub const DRIVER_NUM: usize = driver::NUM::SdCard as usize;
 ///
 ///  * RXBUFFER must be greater than or equal to TXBUFFER in length
 ///  * Both RXBUFFER and TXBUFFER must be longer  than the SD card's block size
- pub static mut TXBUFFER: [u8; 515] = [0; 515];
+pub static mut TXBUFFER: [u8; 515] = [0; 515];
 pub static mut RXBUFFER: [u8; 515] = [0; 515];
 
 /// SD Card capsule, capable of being built on top of by other kernel capsules

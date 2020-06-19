@@ -359,7 +359,8 @@ where
             });
         }
         if next_ref != u32::max_value() {
-            self.alarm.set_alarm(A::Ticks::from(next_ref), A::Ticks::from(next_dt));
+            self.alarm
+                .set_alarm(A::Ticks::from(next_ref), A::Ticks::from(next_dt));
         }
     }
 }

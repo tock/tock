@@ -60,9 +60,6 @@ mod test;
 mod power;
 
 #[allow(dead_code)]
-mod virtual_uart_rx_test;
-
-#[allow(dead_code)]
 mod log_test;
 
 #[allow(dead_code)]

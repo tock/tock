@@ -2,10 +2,10 @@
 //! alarm hardware peripheral.
 
 use core::cell::Cell;
-use kernel::ReturnCode;
 use kernel::common::cells::OptionalCell;
 use kernel::common::{List, ListLink, ListNode};
 use kernel::hil::time::{self, Alarm, Ticks, Time};
+use kernel::ReturnCode;
 //use kernel::debug;
 
 pub struct VirtualMuxAlarm<'a, A: Alarm<'a>> {
@@ -40,7 +40,7 @@ impl<'a, A: Alarm<'a>> VirtualMuxAlarm<'a, A> {
 impl<'a, A: Alarm<'a>> Time for VirtualMuxAlarm<'a, A> {
     type Frequency = A::Frequency;
     type Ticks = A::Ticks;
-    
+
     fn now(&self) -> Self::Ticks {
         self.mux.alarm.now()
     }
@@ -48,10 +48,10 @@ impl<'a, A: Alarm<'a>> Time for VirtualMuxAlarm<'a, A> {
     fn ticks_from_seconds(s: u32) -> Self::Ticks {
         A::ticks_from_seconds(s)
     }
-    
+
     fn ticks_from_ms(ms: u32) -> Self::Ticks {
         A::ticks_from_ms(ms)
-    }    
+    }
 
     fn ticks_from_us(us: u32) -> Self::Ticks {
         A::ticks_from_us(us)
@@ -74,7 +74,7 @@ impl<'a, A: Alarm<'a>> Alarm<'a> for VirtualMuxAlarm<'a, A> {
         if !self.armed.get() {
             return ReturnCode::SUCCESS;
         }
-        
+
         self.armed.set(false);
 
         let enabled = self.mux.enabled.get() - 1;
@@ -94,7 +94,7 @@ impl<'a, A: Alarm<'a>> Alarm<'a> for VirtualMuxAlarm<'a, A> {
 
     fn set_alarm(&self, reference: Self::Ticks, dt: Self::Ticks) {
         let enabled = self.mux.enabled.get();
-        
+
         if !self.armed.get() {
             self.mux.enabled.set(enabled + 1);
             self.armed.set(true);
@@ -159,7 +159,13 @@ impl<'a, A: Alarm<'a>> time::AlarmClient for MuxAlarm<'a, A> {
         // so a repeating client will set it again in the alarm() callback.
         self.virtual_alarms
             .iter()
-            .filter(|cur| cur.armed.get() && !now.within_range(cur.reference.get(), cur.reference.get().wrapping_add(cur.dt.get())))
+            .filter(|cur| {
+                cur.armed.get()
+                    && !now.within_range(
+                        cur.reference.get(),
+                        cur.reference.get().wrapping_add(cur.dt.get()),
+                    )
+            })
             .for_each(|cur| {
                 cur.armed.set(false);
                 self.enabled.set(self.enabled.get() - 1);
@@ -174,9 +180,13 @@ impl<'a, A: Alarm<'a>> time::AlarmClient for MuxAlarm<'a, A> {
             .virtual_alarms
             .iter()
             .filter(|cur| cur.armed.get())
-            .min_by_key(|cur| cur.reference.get()
-                        .wrapping_add(cur.dt.get())
-                        .wrapping_sub(now).into_u32());
+            .min_by_key(|cur| {
+                cur.reference
+                    .get()
+                    .wrapping_add(cur.dt.get())
+                    .wrapping_sub(now)
+                    .into_u32()
+            });
 
         // Set the alarm.
         if let Some(valrm) = next {
