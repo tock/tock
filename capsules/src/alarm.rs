@@ -188,7 +188,7 @@ impl<'a, A: Alarm<'a>> Driver for AlarmDriver<'a, A> {
                         rearm(reference, dt)
                     },
                     5 /* Set relative expiration */ => {
-                        let reference = now;
+                        let reference = now.into_u32() as usize;
                         let dt = data;
                         // if previously unarmed, but now will become armed
                         rearm(reference, dt)
@@ -204,7 +204,7 @@ impl<'a, A: Alarm<'a>> Driver for AlarmDriver<'a, A> {
     }
 }
 
-impl<A: Alarm<'a>> time::AlarmClient for AlarmDriver<'a, A> {
+impl<'a, A: Alarm<'a>> time::AlarmClient for AlarmDriver<'a, A> {
     fn alarm(&self) {
         let now: A::Ticks = self.alarm.now();
         self.app_alarms.each(|alarm| {

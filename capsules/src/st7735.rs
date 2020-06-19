@@ -30,7 +30,7 @@ use kernel::hil::screen::{
     self, ScreenClient, ScreenPixelFormat, ScreenRotation, ScreenSetupClient,
 };
 use kernel::hil::spi;
-use kernel::hil::time::{self, Alarm, Frequency};
+use kernel::hil::time::{self, Alarm};
 use kernel::ReturnCode;
 use kernel::{AppId, Callback, Driver};
 
@@ -819,11 +819,8 @@ impl<'a, A: Alarm<'a>> ST7735<'a, A> {
     ///  self.set_delay(10, Status::Idle);
     fn set_delay(&self, timer: u32, next_status: Status) {
         self.status.set(next_status);
-        self.alarm.set_alarm(
-            self.alarm
-                .now()
-                .wrapping_add(<A::Frequency>::frequency() / 1000 * timer),
-        )
+        let interval = A::ticks_from_ms(timer);
+        self.alarm.set_alarm(self.alarm.now(), interval);
     }
 }
 
@@ -1017,7 +1014,7 @@ impl<'a, A: Alarm<'a>> screen::Screen for ST7735<'a, A> {
 }
 
 impl<'a, A: Alarm<'a>> time::AlarmClient for ST7735<'a, A> {
-    fn fired(&self) {
+    fn alarm(&self) {
         self.do_next_op();
     }
 }

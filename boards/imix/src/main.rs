@@ -60,12 +60,6 @@ mod test;
 mod power;
 
 #[allow(dead_code)]
-mod log_test;
-
-#[allow(dead_code)]
-mod linear_log_test;
-
-#[allow(dead_code)]
 mod alarm_test;
 
 #[allow(dead_code)]

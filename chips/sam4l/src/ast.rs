@@ -349,7 +349,7 @@ impl time::Time for Ast<'_> {
     }
 }
 
-impl time::Counter<'a> for Ast<'a> {
+impl<'a> time::Counter<'a> for Ast<'a> {
     fn set_overflow_client(&'a self, _client: &'a dyn time::OverflowClient) {}
 
     fn start(&self) -> ReturnCode {

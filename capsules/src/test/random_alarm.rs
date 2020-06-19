@@ -11,7 +11,7 @@ use kernel::hil::time::{Alarm, AlarmClient, Ticks};
 pub struct TestRandomAlarm<'a, A: 'a> {
     alarm: &'a A,
     counter: Cell<usize>,
-    id: char,
+    _id: char,
 }
 
 impl<'a, A: Alarm<'a>> TestRandomAlarm<'a, A> {
@@ -19,7 +19,7 @@ impl<'a, A: Alarm<'a>> TestRandomAlarm<'a, A> {
         TestRandomAlarm {
             alarm: alarm,
             counter: Cell::new(value),
-            id: ch,
+            _id: ch,
         }
     }
 
@@ -40,7 +40,7 @@ impl<'a, A: Alarm<'a>> TestRandomAlarm<'a, A> {
         // Subtract 0-9 so we are always asking from the past
         let start = now.wrapping_sub(A::Ticks::from(us % 10));
         self.alarm.set_alarm(start, delay);
-        //debug!("Test{}@{}: Setting alarm to {}", self.id, now.into_u32(), start.wrapping_add(delay).into_u32());
+        //debug!("Test{}@{}: Setting alarm to {}", self._id, now.into_u32(), start.wrapping_add(delay).into_u32());
         self.counter.set(counter + 1);
     }
 }
