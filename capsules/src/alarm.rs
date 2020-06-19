@@ -67,19 +67,20 @@ impl<A: Alarm<'a>> AlarmDriver<'a, A> {
                             // an earlier alarm.  The first is if it
                             // fires inside the interval (reference,
                             // reference+dt) of the existing earliest.
-                            // The second is if now is not within its
+                            // The second is if now is not within the
                             // interval: this means that it has
-                            // passed. If its end point is further
-                            // from now that the earliest alarm so
-                            // far, this means it expired first and so
-                            // is earlier.
+                            // passed. It could be the earliest has passed
+                            // too, but at this point we don't need to track
+                            // which is earlier: the key point is that
+                            // the alarm must fire immediately, and then when
+                            // we handle the alarm callback we will handle the
+                            // two in the correct order.
                             if end.within_range(A::Ticks::from(earliest_reference), earliest_end) {
                                 earliest_end = end;
                                 alarm.expiration
-                            } else if !now.within_range(A::Ticks::from(reference), A::Ticks::from(dt)) &&
-                                (now.wrapping_sub(earliest_end).into_u32() < now.wrapping_sub(end).into_u32()) {
-                                    earliest_end = end;
-                                    alarm.expiration
+                            } else if !now.within_range(A::Ticks::from(reference), A::Ticks::from(dt)) {
+                                earliest_end = end;
+                                alarm.expiration
                             } else {
                                 earliest_alarm
                             }
