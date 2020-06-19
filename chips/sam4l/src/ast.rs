@@ -8,7 +8,7 @@ use crate::pm::{self, PBDClock};
 use kernel::common::cells::OptionalCell;
 use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
-use kernel::hil::time::{self, Frequency, Ticks};
+use kernel::hil::time::{self, Ticks};
 use kernel::hil::Controller;
 use kernel::ReturnCode;
 //use kernel::debug;
@@ -317,35 +317,6 @@ impl time::Time for Ast<'_> {
 
     fn now(&self) -> Self::Ticks {
         Self::Ticks::from(self.get_counter())
-    }
-
-    fn ticks_from_seconds(s: u32) -> Self::Ticks {
-        let val: u64 = Self::Frequency::frequency() as u64 * s as u64;
-        if val <= Self::Ticks::max_value().into_u32() as u64 {
-            Self::Ticks::from(val as u32)
-        } else {
-            Self::Ticks::from(Self::Ticks::max_value())
-        }
-    }
-
-    fn ticks_from_ms(ms: u32) -> Self::Ticks {
-        let mut val: u64 = Self::Frequency::frequency() as u64 * ms as u64;
-        val = val / 1000;
-        if val <= Self::Ticks::max_value().into_u32() as u64 {
-            Self::Ticks::from(val as u32)
-        } else {
-            Self::Ticks::max_value()
-        }
-    }
-
-    fn ticks_from_us(us: u32) -> Self::Ticks {
-        let mut val: u64 = Self::Frequency::frequency() as u64 * us as u64;
-        val = val / 1_000_000;
-        if val <= Self::Ticks::max_value().into_u32() as u64 {
-            Self::Ticks::from(val as u32)
-        } else {
-            Self::Ticks::max_value()
-        }
     }
 }
 

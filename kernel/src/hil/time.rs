@@ -69,17 +69,34 @@ pub trait Time {
     /// Returns the number of ticks in the provided number of seconds,
     /// rounding down any fractions. If the value overflows Ticks it
     /// returns `Ticks::max_value()`.
-    fn ticks_from_seconds(s: u32) -> Self::Ticks;
+    fn ticks_from_seconds(s: u32) -> Self::Ticks {
+        let val: u64 = Self::Frequency::frequency() as u64 * s as u64;
+        ticks_from_val(val)
+    }
 
     /// Returns the number of ticks in the provided number of milliseconds,
     /// rounding down any fractions. If the value overflows Ticks it
     /// returns `Ticks::max_value()`.
-    fn ticks_from_ms(ms: u32) -> Self::Ticks;
+    fn ticks_from_ms(ms: u32) -> Self::Ticks {
+        let val: u64 = Self::Frequency::frequency() as u64 * ms as u64;
+        ticks_from_val(val / 1000)
+    }
 
     /// Returns the number of ticks in the provided number of microseconds,
     /// rounding down any fractions. If the value overflows Ticks it
     /// returns `Ticks::max_value()`.
-    fn ticks_from_us(us: u32) -> Self::Ticks;
+    fn ticks_from_us(us: u32) -> Self::Ticks {
+        let val: u64 = Self::Frequency::frequency() as u64 * us as u64;
+        ticks_from_val(val / 1_000_000)
+    }
+}
+
+fn ticks_from_val<T: Ticks>(val: u64) -> T {
+    if val <= T::max_value().into_u32() as u64 {
+        T::from(val as u32)
+    } else {
+        T::max_value()
+    }
 }
 
 /// Represents a static moment in time, that does not change over
