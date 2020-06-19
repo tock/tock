@@ -40,7 +40,12 @@ impl<'a, A: Alarm<'a>> TestRandomAlarm<'a, A> {
         // Subtract 0-9 so we are always asking from the past
         let start = now.wrapping_sub(A::Ticks::from(us % 10));
         self.alarm.set_alarm(start, delay);
-        debug!("Test{}@{}: Setting alarm to {}", self._id, now.into_u32(), start.wrapping_add(delay).into_u32());
+        debug!(
+            "Test{}@{}: Setting alarm to {}",
+            self._id,
+            now.into_u32(),
+            start.wrapping_add(delay).into_u32()
+        );
         self.counter.set(counter + 1);
     }
 }

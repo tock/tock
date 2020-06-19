@@ -77,7 +77,7 @@ impl<'a, A: Alarm<'a>> AlarmDriver<'a, A> {
                             // two in the correct order.
                             let ref_ticks = A::Ticks::from(reference);
                             let end_ticks = ref_ticks.wrapping_add(A::Ticks::from(dt));
-                            
+
                             if end.within_range(A::Ticks::from(earliest_reference), earliest_end) {
                                 earliest_end = end;
                                 alarm.expiration
