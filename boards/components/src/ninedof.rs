@@ -53,7 +53,7 @@ impl NineDofComponent {
 impl Component for NineDofComponent {
     type StaticInput = (
         &'static mut MaybeUninit<NineDof<'static>>,
-        &'static [&'static dyn kernel::hil::sensors::NineDof],
+        &'static [&'static dyn kernel::hil::sensors::NineDof<'static>],
     );
     type Output = &'static capsules::ninedof::NineDof<'static>;
 

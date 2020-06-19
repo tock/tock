@@ -181,7 +181,7 @@ pub struct Fxos8700cq<'a> {
     interrupt_pin1: &'a dyn gpio::InterruptPin,
     state: Cell<State>,
     buffer: TakeCell<'static, [u8]>,
-    callback: OptionalCell<&'static dyn hil::sensors::NineDofClient>,
+    callback: OptionalCell<&'a dyn hil::sensors::NineDofClient>,
 }
 
 impl<'a> Fxos8700cq<'a> {
@@ -317,8 +317,8 @@ impl I2CClient for Fxos8700cq<'_> {
     }
 }
 
-impl hil::sensors::NineDof for Fxos8700cq<'_> {
-    fn set_client(&self, client: &'static dyn hil::sensors::NineDofClient) {
+impl<'a> hil::sensors::NineDof<'a> for Fxos8700cq<'a> {
+    fn set_client(&self, client: &'a dyn hil::sensors::NineDofClient) {
         self.callback.set(client);
     }
 

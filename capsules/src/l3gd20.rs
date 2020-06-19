@@ -505,7 +505,7 @@ impl spi::SpiMasterClient for L3gd20Spi<'_> {
     }
 }
 
-impl<'a> sensors::NineDof for L3gd20Spi<'a> {
+impl<'a> sensors::NineDof<'a> for L3gd20Spi<'a> {
     fn set_client(&self, nine_dof_client: &'a dyn sensors::NineDofClient) {
         self.nine_dof_client.replace(nine_dof_client);
     }
@@ -520,7 +520,7 @@ impl<'a> sensors::NineDof for L3gd20Spi<'a> {
     }
 }
 
-impl<'a> sensors::TemperatureDriver for L3gd20Spi<'a> {
+impl<'a> sensors::TemperatureDriver<'a> for L3gd20Spi<'a> {
     fn set_client(&self, temperature_client: &'a dyn sensors::TemperatureClient) {
         self.temperature_client.replace(temperature_client);
     }

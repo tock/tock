@@ -70,14 +70,14 @@ pub struct App {
 }
 
 pub struct HumiditySensor<'a> {
-    driver: &'a dyn hil::sensors::HumidityDriver,
+    driver: &'a dyn hil::sensors::HumidityDriver<'a>,
     apps: Grant<App>,
     busy: Cell<bool>,
 }
 
 impl<'a> HumiditySensor<'a> {
     pub fn new(
-        driver: &'a dyn hil::sensors::HumidityDriver,
+        driver: &'a dyn hil::sensors::HumidityDriver<'a>,
         grant: Grant<App>,
     ) -> HumiditySensor<'a> {
         HumiditySensor {

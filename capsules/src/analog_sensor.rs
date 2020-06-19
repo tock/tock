@@ -51,8 +51,8 @@ impl<A: hil::adc::Adc> hil::adc::Client for AnalogLightSensor<'_, A> {
     }
 }
 
-impl<A: hil::adc::Adc> hil::sensors::AmbientLight for AnalogLightSensor<'_, A> {
-    fn set_client(&self, client: &'static dyn hil::sensors::AmbientLightClient) {
+impl<'a, A: hil::adc::Adc> hil::sensors::AmbientLight<'a> for AnalogLightSensor<'a, A> {
+    fn set_client(&self, client: &'a dyn hil::sensors::AmbientLightClient) {
         self.client.set(client);
     }
 
@@ -107,8 +107,8 @@ impl<A: hil::adc::Adc> hil::adc::Client for AnalogTemperatureSensor<'_, A> {
     }
 }
 
-impl<A: hil::adc::Adc> hil::sensors::TemperatureDriver for AnalogTemperatureSensor<'_, A> {
-    fn set_client(&self, client: &'static dyn hil::sensors::TemperatureClient) {
+impl<'a, A: hil::adc::Adc> hil::sensors::TemperatureDriver<'a> for AnalogTemperatureSensor<'a, A> {
+    fn set_client(&self, client: &'a dyn hil::sensors::TemperatureClient) {
         self.client.set(client);
     }
 

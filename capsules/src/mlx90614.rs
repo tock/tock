@@ -208,7 +208,7 @@ impl<'a> Driver for Mlx90614SMBus<'a> {
     }
 }
 
-impl<'a> sensors::TemperatureDriver for Mlx90614SMBus<'a> {
+impl<'a> sensors::TemperatureDriver<'a> for Mlx90614SMBus<'a> {
     fn set_client(&self, temperature_client: &'a dyn sensors::TemperatureClient) {
         self.temperature_client.replace(temperature_client);
     }

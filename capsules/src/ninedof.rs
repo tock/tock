@@ -54,13 +54,13 @@ impl Default for App {
 }
 
 pub struct NineDof<'a> {
-    drivers: &'a [&'a dyn hil::sensors::NineDof],
+    drivers: &'a [&'a dyn hil::sensors::NineDof<'a>],
     apps: Grant<App>,
     current_app: OptionalCell<AppId>,
 }
 
 impl<'a> NineDof<'a> {
-    pub fn new(drivers: &'a [&'a dyn hil::sensors::NineDof], grant: Grant<App>) -> NineDof<'a> {
+    pub fn new(drivers: &'a [&'a dyn hil::sensors::NineDof<'a>], grant: Grant<App>) -> NineDof<'a> {
         NineDof {
             drivers: drivers,
             apps: grant,

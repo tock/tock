@@ -103,15 +103,15 @@ register_bitfields! [u32,
     ]
 ];
 
-pub struct Temp {
+pub struct Temp<'a> {
     registers: StaticRef<TempRegisters>,
-    client: OptionalCell<&'static dyn kernel::hil::sensors::TemperatureClient>,
+    client: OptionalCell<&'a dyn kernel::hil::sensors::TemperatureClient>,
 }
 
 pub static mut TEMP: Temp = Temp::new();
 
-impl Temp {
-    const fn new() -> Temp {
+impl<'a> Temp<'a> {
+    const fn new() -> Temp<'a> {
         Temp {
             registers: TEMP_BASE,
             client: OptionalCell::empty(),
@@ -149,7 +149,7 @@ impl Temp {
     }
 }
 
-impl kernel::hil::sensors::TemperatureDriver for Temp {
+impl<'a> kernel::hil::sensors::TemperatureDriver<'a> for Temp<'a> {
     fn read_temperature(&self) -> kernel::ReturnCode {
         let regs = &*self.registers;
         self.enable_interrupts();
@@ -158,7 +158,7 @@ impl kernel::hil::sensors::TemperatureDriver for Temp {
         kernel::ReturnCode::SUCCESS
     }
 
-    fn set_client(&self, client: &'static dyn kernel::hil::sensors::TemperatureClient) {
+    fn set_client(&self, client: &'a dyn kernel::hil::sensors::TemperatureClient) {
         self.client.set(client);
     }
 }
