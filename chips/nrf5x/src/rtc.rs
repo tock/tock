@@ -158,8 +158,8 @@ impl<'a> Alarm<'a> for Rtc<'a> {
     }
 
     fn set_alarm(&self, reference: Self::Ticks, dt: Self::Ticks) {
-        let regs = &*self.registers;
         const SYNC_TICS: u32 = 2;
+        let regs = &*self.registers;
 
         let mut expire = reference.wrapping_add(dt);
 
@@ -172,8 +172,8 @@ impl<'a> Alarm<'a> for Rtc<'a> {
         }
 
         regs.cc[0].write(Counter::VALUE.val(expire.into_u32()));
-        regs.intenset.write(Inte::COMPARE0::SET);
         regs.events_compare[0].write(Event::READY::CLEAR);
+        regs.intenset.write(Inte::COMPARE0::SET);
     }
 
     fn get_alarm(&self) -> Self::Ticks {
