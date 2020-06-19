@@ -1,7 +1,0 @@
-h
-r
-loadbin ../../target/thumbv7em-none-eabi/release/launchxlccfg.bin, 0x57FA8
-r
-h
-g
-q
