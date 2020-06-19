@@ -39,7 +39,7 @@ pub static mut STACK_MEMORY: [u8; 0x800] = [0; 0x800];
 /// A structure representing this platform that holds references to all
 /// capsules for this platform. We've included an alarm and console.
 struct HiFive1 {
-    led: &'static capsules::led::LED<'static, sifive::gpio::GpioPin>,
+    led: &'static capsules::led::LED<'static, sifive::gpio::GpioPin<'static>>,
     console: &'static capsules::console::Console<'static>,
     lldb: &'static capsules::low_level_debug::LowLevelDebug<
         'static,

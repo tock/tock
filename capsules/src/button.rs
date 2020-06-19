@@ -67,7 +67,7 @@ pub type SubscribeMap = u32;
 
 /// Manages the list of GPIO pins that are connected to buttons and which apps
 /// are listening for interrupts from which buttons.
-pub struct Button<'a, P: gpio::InterruptPin> {
+pub struct Button<'a, P: gpio::InterruptPin<'a>> {
     pins: &'a [(
         &'a gpio::InterruptValueWrapper<'a, P>,
         gpio::ActivationMode,
@@ -76,7 +76,7 @@ pub struct Button<'a, P: gpio::InterruptPin> {
     apps: Grant<(Option<Callback>, SubscribeMap)>,
 }
 
-impl<'a, P: gpio::InterruptPin> Button<'a, P> {
+impl<'a, P: gpio::InterruptPin<'a>> Button<'a, P> {
     pub fn new(
         pins: &'a [(
             &'a gpio::InterruptValueWrapper<'a, P>,
@@ -103,7 +103,7 @@ impl<'a, P: gpio::InterruptPin> Button<'a, P> {
     }
 }
 
-impl<P: gpio::InterruptPin> Driver for Button<'_, P> {
+impl<'a, P: gpio::InterruptPin<'a>> Driver for Button<'a, P> {
     /// Set callbacks.
     ///
     /// ### `subscribe_num`
@@ -224,7 +224,7 @@ impl<P: gpio::InterruptPin> Driver for Button<'_, P> {
     }
 }
 
-impl<P: gpio::InterruptPin> gpio::ClientWithValue for Button<'_, P> {
+impl<'a, P: gpio::InterruptPin<'a>> gpio::ClientWithValue for Button<'a, P> {
     fn fired(&self, pin_num: u32) {
         // Read the value of the pin and get the button state.
         let button_state = self.get_button_state(pin_num);

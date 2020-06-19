@@ -31,13 +31,13 @@ macro_rules! panic_button_component_buf {
     };};
 }
 
-pub struct PanicButtonComponent<'a, IP: gpio::InterruptPin> {
+pub struct PanicButtonComponent<'a, IP: gpio::InterruptPin<'a>> {
     pin: &'a IP,
     mode: gpio::ActivationMode,
     floating_state: gpio::FloatingState,
 }
 
-impl<'a, IP: gpio::InterruptPin> PanicButtonComponent<'a, IP> {
+impl<'a, IP: gpio::InterruptPin<'a>> PanicButtonComponent<'a, IP> {
     pub fn new(
         pin: &'a IP,
         mode: gpio::ActivationMode,
@@ -51,7 +51,7 @@ impl<'a, IP: gpio::InterruptPin> PanicButtonComponent<'a, IP> {
     }
 }
 
-impl<IP: 'static + gpio::InterruptPin> Component for PanicButtonComponent<'static, IP> {
+impl<IP: 'static + gpio::InterruptPin<'static>> Component for PanicButtonComponent<'static, IP> {
     type StaticInput = &'static mut MaybeUninit<PanicButton<'static, IP>>;
     type Output = ();
 

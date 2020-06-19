@@ -52,7 +52,7 @@ enum_from_primitive! {
 
 pub struct Ft6206<'a> {
     i2c: &'a dyn i2c::I2CDevice,
-    interrupt_pin: &'a dyn gpio::InterruptPin,
+    interrupt_pin: &'a dyn gpio::InterruptPin<'a>,
     // callback: OptionalCell<Callback>,
     state: Cell<State>,
     buffer: TakeCell<'static, [u8]>,
@@ -61,7 +61,7 @@ pub struct Ft6206<'a> {
 impl<'a> Ft6206<'a> {
     pub fn new(
         i2c: &'a dyn i2c::I2CDevice,
-        interrupt_pin: &'a dyn gpio::InterruptPin,
+        interrupt_pin: &'a dyn gpio::InterruptPin<'a>,
         buffer: &'static mut [u8],
     ) -> Ft6206<'a> {
         // setup and return struct
