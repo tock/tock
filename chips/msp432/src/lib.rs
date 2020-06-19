@@ -4,7 +4,9 @@
 #![no_std]
 #![allow(unused_doc_comments)]
 
-use cortexm4::{generic_isr, hard_fault_handler, svc_handler, systick_handler};
+use cortexm4::{
+    generic_isr, hard_fault_handler, svc_handler, systick_handler, unhandled_interrupt,
+};
 
 pub mod chip;
 pub mod cs;
@@ -16,29 +18,6 @@ pub mod sysctl;
 pub mod uart;
 pub(crate) mod usci;
 pub mod wdt;
-
-#[cfg(not(any(target_arch = "arm", target_os = "none")))]
-unsafe extern "C" fn unhandled_interrupt() {
-    unimplemented!()
-}
-
-#[cfg(all(target_arch = "arm", target_os = "none"))]
-unsafe extern "C" fn unhandled_interrupt() {
-    let mut interrupt_number: u32;
-
-    // IPSR[8:0] holds the currently active interrupt
-    asm!(
-    "mrs    r0, ipsr                    "
-    : "={r0}"(interrupt_number)
-    :
-    : "r0"
-    :
-    );
-
-    interrupt_number = interrupt_number & 0x1ff;
-
-    panic!("Unhandled Interrupt. ISR {} is active.", interrupt_number);
-}
 
 extern "C" {
     // _estack is not really a function, but it makes the types work
