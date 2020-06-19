@@ -8,7 +8,7 @@ use crate::pm::{self, PBDClock};
 use kernel::common::cells::OptionalCell;
 use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
-use kernel::hil::time::{self, Frequency, Ticks};
+use kernel::hil::time::{self, Ticks};
 use kernel::hil::Controller;
 use kernel::ReturnCode;
 //use kernel::debug;
@@ -175,10 +175,10 @@ pub static mut AST: Ast<'static> = Ast {
     callback: OptionalCell::empty(),
 };
 
-impl Controller for Ast<'a> {
+impl Controller for Ast<'_> {
     type Config = &'static dyn time::AlarmClient;
 
-    fn configure(&self, client: &'a dyn time::AlarmClient) {
+    fn configure(&self, client: Self::Config) {
         self.callback.set(client);
 
         pm::enable_clock(pm::Clock::PBD(PBDClock::AST));
@@ -201,7 +201,7 @@ enum Clock {
     Clock1K = 4,
 }
 
-impl Ast<'a> {
+impl<'a> Ast<'a> {
     fn clock_busy(&self) -> bool {
         let regs: &AstRegisters = &*self.registers;
         regs.sr.is_set(Status::CLKBUSY)
@@ -257,7 +257,7 @@ impl Ast<'a> {
     fn is_enabled(&self) -> bool {
         let regs: &AstRegisters = &*self.registers;
         while self.busy() {}
-        regs.cr.is_set(Control::EN) 
+        regs.cr.is_set(Control::EN)
     }
 
     /// Returns if an alarm is currently set
@@ -311,70 +311,38 @@ impl Ast<'a> {
     }
 }
 
-impl time::Time for Ast<'a> {
+impl time::Time for Ast<'_> {
     type Frequency = time::Freq16KHz;
     type Ticks = time::Ticks32;
-    
+
     fn now(&self) -> Self::Ticks {
         Self::Ticks::from(self.get_counter())
     }
-
-    fn ticks_from_seconds(s: u32) -> Self::Ticks {
-        let val: u64 = Self::Frequency::frequency() as u64 * s as u64;
-        if val <= Self::Ticks::max_value().into_u32() as u64 {
-            Self::Ticks::from(val as u32)
-        } else {
-            Self::Ticks::from(Self::Ticks::max_value())
-        }
-    }
-
-    fn ticks_from_ms(ms: u32) -> Self::Ticks {
-        let mut val: u64 = Self::Frequency::frequency() as u64 * ms as u64;
-        val = val / 1000;
-        if val <= Self::Ticks::max_value().into_u32() as u64 {
-            Self::Ticks::from(val as u32)
-        } else {
-            Self::Ticks::max_value()
-        }
-    }
-
-    fn ticks_from_us(us: u32) -> Self::Ticks {
-        let mut val: u64 = Self::Frequency::frequency() as u64 * us as u64;
-        val = val / 1_000_000;
-        if val <= Self::Ticks::max_value().into_u32() as u64 {
-            Self::Ticks::from(val as u32)
-        } else {
-            Self::Ticks::max_value()
-        }
-    }
 }
 
-impl time::Counter<'a> for Ast<'a> {
-    
-    fn set_overflow_client(&'a self, _client: &'a dyn time::OverflowClient) {
-        
-    }
-    
+impl<'a> time::Counter<'a> for Ast<'a> {
+    fn set_overflow_client(&'a self, _client: &'a dyn time::OverflowClient) {}
+
     fn start(&self) -> ReturnCode {
         self.enable();
-        ReturnCode::SUCCESS      
+        ReturnCode::SUCCESS
     }
-    
+
     fn stop(&self) -> ReturnCode {
         self.disable();
-        ReturnCode::SUCCESS      
+        ReturnCode::SUCCESS
     }
-    
+
     fn reset(&self) {
         self.set_counter(0);
     }
-    
+
     fn is_running(&self) -> bool {
-        self.is_enabled()   
+        self.is_enabled()
     }
 }
 
-impl time::Alarm<'a> for Ast<'a> {
+impl<'a> time::Alarm<'a> for Ast<'a> {
     fn set_alarm_client(&self, client: &'a dyn time::AlarmClient) {
         self.callback.set(client);
     }
@@ -383,14 +351,14 @@ impl time::Alarm<'a> for Ast<'a> {
         let regs: &AstRegisters = &*self.registers;
         let now = Self::Ticks::from(self.get_counter());
         let mut expire = reference.wrapping_add(dt);
-       // debug!("ast: now: {}, reference: {}, dt: {}, expire: {}", now.into_u32(), reference.into_u32(), dt.into_u32(), expire.into_u32());
+        // debug!("ast: now: {}, reference: {}, dt: {}, expire: {}", now.into_u32(), reference.into_u32(), dt.into_u32(), expire.into_u32());
         if !now.within_range(reference, expire) {
             // We have already passed when: just fire ASAP
             // Note this will also trigger the increment below
             //debug!("  - set to fire ASAP");
             expire = Self::Ticks::from(now);
         }
-        
+
         // Firing is too close in the future, delay it a bit
         // to make sure we don't miss the tick
         if expire.wrapping_sub(now).into_u32() <= ALARM0_SYNC_TICS {

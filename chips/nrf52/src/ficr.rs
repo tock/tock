@@ -135,7 +135,6 @@ register_bitfields! [u32,
             /// nRF52840
             N52840 = 0x52840,
             /// Unspecified
-            #[allow(overflowing_literals)]
             Unspecified = 0xffffffff
         ]
     ],
@@ -174,7 +173,6 @@ register_bitfields! [u32,
             /// CAAA
             CAAA = 0x43414141,
             /// Unspecified
-            #[allow(overflowing_literals)]
             Unspecified = 0xffffffff
         ]
     ],
@@ -193,7 +191,6 @@ register_bitfields! [u32,
             /// CKxx - 7x8 WLCSP 56 balls with backside coating for light protection
             CK = 0x2005,
             /// Unspecified
-            #[allow(overflowing_literals)]
             Unspecified = 0xffffffff
         ]
     ],
@@ -210,7 +207,6 @@ register_bitfields! [u32,
             K128 = 0x80,
             /// 256 kByte RAM
             K256 = 0x100,
-            #[allow(overflowing_literals)]
             Unspecified = 0xffffffff
 
         ]
@@ -229,7 +225,6 @@ register_bitfields! [u32,
             /// 2048 kByte FLASH
             K2048 = 0x800,
             /// Unspecified
-            #[allow(overflowing_literals)]
             Unspecified = 0xffffffff
         ]
     ]

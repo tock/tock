@@ -11,6 +11,7 @@ Tock Guides
 ### Overview and Design of Tock
 - **[Overview](Overview.md)** - Overview of the OS and this repository.
 - **[Design](Design.md)** - Design of the Tock primitives that make safety and security possible.
+- **[Threat Model](threat_model/README.md)** - Detailed description of Tock's security properties.
 
 ### Tock Implementation
 - **[Lifetimes](Lifetimes.md)** - How Rust lifetimes are used in Tock.
@@ -39,7 +40,6 @@ Tock Guides
 - **[Style](Style.md)** - Stylistic aspects of Tock code.
 
 ### Management of Tock
-- **[Core Team](CoreTeam.md)** - Tock core team members and information.
 - **[Working Groups](wg)** - Development groups for specific aspects of Tock.
 - **[Code Review Process](CodeReview.md)** - Process for pull request reviews and Tock releases.
 

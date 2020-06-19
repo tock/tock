@@ -62,7 +62,7 @@ pub struct ICMP6SendStruct<'a, T: IP6Sender<'a>> {
     client: OptionalCell<&'a dyn ICMP6SendClient>,
 }
 
-impl<T: IP6Sender<'a>> ICMP6SendStruct<'a, T> {
+impl<'a, T: IP6Sender<'a>> ICMP6SendStruct<'a, T> {
     pub fn new(ip_send_struct: &'a T) -> ICMP6SendStruct<'a, T> {
         ICMP6SendStruct {
             ip_send_struct: ip_send_struct,
@@ -71,7 +71,7 @@ impl<T: IP6Sender<'a>> ICMP6SendStruct<'a, T> {
     }
 }
 
-impl<T: IP6Sender<'a>> ICMP6Sender<'a> for ICMP6SendStruct<'a, T> {
+impl<'a, T: IP6Sender<'a>> ICMP6Sender<'a> for ICMP6SendStruct<'a, T> {
     fn set_client(&self, client: &'a dyn ICMP6SendClient) {
         self.client.set(client);
     }
@@ -91,7 +91,7 @@ impl<T: IP6Sender<'a>> ICMP6Sender<'a> for ICMP6SendStruct<'a, T> {
     }
 }
 
-impl<T: IP6Sender<'a>> IP6SendClient for ICMP6SendStruct<'a, T> {
+impl<'a, T: IP6Sender<'a>> IP6SendClient for ICMP6SendStruct<'a, T> {
     /// Forwards callback received from the `IP6Sender` to the
     /// `ICMP6SendClient`.
     fn send_done(&self, result: ReturnCode) {

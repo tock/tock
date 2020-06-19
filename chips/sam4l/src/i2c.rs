@@ -728,14 +728,6 @@ impl I2CHw {
         self.dma.set(dma);
     }
 
-    pub fn set_master_client(&self, client: &'static dyn hil::i2c::I2CHwMasterClient) {
-        self.master_client.set(Some(client));
-    }
-
-    pub fn set_slave_client(&self, client: &'static dyn hil::i2c::I2CHwSlaveClient) {
-        self.slave_client.set(Some(client));
-    }
-
     pub fn handle_interrupt(&self) {
         use kernel::hil::i2c::Error;
 
@@ -1302,6 +1294,9 @@ impl DMAClient for I2CHw {
 }
 
 impl hil::i2c::I2CMaster for I2CHw {
+    fn set_master_client(&self, client: &'static dyn hil::i2c::I2CHwMasterClient) {
+        self.master_client.set(Some(client));
+    }
     /// This enables the entire I2C peripheral
     fn enable(&self) {
         //disable the i2c slave peripheral
@@ -1361,6 +1356,9 @@ impl hil::i2c::I2CMaster for I2CHw {
 }
 
 impl hil::i2c::I2CSlave for I2CHw {
+    fn set_slave_client(&self, client: &'static dyn hil::i2c::I2CHwSlaveClient) {
+        self.slave_client.set(Some(client));
+    }
     fn enable(&self) {
         if self.slave_mmio_address.is_some() {
             let twis = &TWISRegisterManager::new(&self);

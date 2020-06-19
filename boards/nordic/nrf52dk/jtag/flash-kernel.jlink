@@ -1,6 +1,6 @@
 eoe 1
 r
-loadfile target/thumbv7em-none-eabi/release/nrf52dk.hex
+loadfile ../../../target/thumbv7em-none-eabi/release/nrf52dk.hex
 r
 g
 q

@@ -33,6 +33,8 @@
 //! necessary modifications to the board configuration are shown below for `imix`s:
 //!
 //! ```rust
+//! # use kernel::static_init;
+//!
 //! // main.rs
 //!
 //! use capsules::ieee802154::mac::Mac;
@@ -162,7 +164,7 @@ pub struct XMac<'a, R: radio::Radio, A: Alarm<'a>> {
     rx_pending: Cell<bool>,
 }
 
-impl<R: radio::Radio, A: Alarm<'a>> XMac<'a, R, A> {
+impl<'a, R: radio::Radio, A: Alarm<'a>> XMac<'a, R, A> {
     pub fn new(radio: &'a R, alarm: &'a A, rng: &'a dyn Rng<'a>) -> XMac<'a, R, A> {
         XMac {
             radio: radio,
@@ -210,7 +212,6 @@ impl<R: radio::Radio, A: Alarm<'a>> XMac<'a, R, A> {
     fn set_timer_ms(&self, ms: u32) {
         let interval = A::ticks_from_ms(ms);
         self.set_timer(interval);
-
     }
 
     fn set_timer(&self, ticks: A::Ticks) {
@@ -310,7 +311,7 @@ impl<R: radio::Radio, A: Alarm<'a>> XMac<'a, R, A> {
     }
 }
 
-impl<R: radio::Radio, A: Alarm<'a>> rng::Client for XMac<'a, R, A> {
+impl<'a, R: radio::Radio, A: Alarm<'a>> rng::Client for XMac<'a, R, A> {
     fn randomness_available(
         &self,
         randomness: &mut dyn Iterator<Item = u32>,
@@ -339,7 +340,7 @@ impl<R: radio::Radio, A: Alarm<'a>> rng::Client for XMac<'a, R, A> {
 }
 
 // The vast majority of these calls pass through to the underlying radio driver.
-impl<R: radio::Radio, A: Alarm<'a>> Mac for XMac<'a, R, A> {
+impl<'a, R: radio::Radio, A: Alarm<'a>> Mac for XMac<'a, R, A> {
     fn initialize(&self, mac_buf: &'static mut [u8]) -> ReturnCode {
         self.tx_preamble_buf.replace(mac_buf);
         self.state.set(XMacState::STARTUP);
@@ -460,7 +461,7 @@ impl<R: radio::Radio, A: Alarm<'a>> Mac for XMac<'a, R, A> {
 
 // Core of the XMAC protocol - when the timer fires, the protocol state
 // indicates the next state/action to take.
-impl<R: radio::Radio, A: Alarm<'a>> time::AlarmClient for XMac<'a, R, A> {
+impl<'a, R: radio::Radio, A: Alarm<'a>> time::AlarmClient for XMac<'a, R, A> {
     fn alarm(&self) {
         match self.state.get() {
             XMacState::SLEEP => {
@@ -500,7 +501,7 @@ impl<R: radio::Radio, A: Alarm<'a>> time::AlarmClient for XMac<'a, R, A> {
     }
 }
 
-impl<R: radio::Radio, A: Alarm<'a>> radio::PowerClient for XMac<'a, R, A> {
+impl<'a, R: radio::Radio, A: Alarm<'a>> radio::PowerClient for XMac<'a, R, A> {
     fn changed(&self, on: bool) {
         // If the radio turns on and we're in STARTUP, then either transition to
         // listening for incoming preambles or start transmitting preambles if
@@ -521,7 +522,7 @@ impl<R: radio::Radio, A: Alarm<'a>> radio::PowerClient for XMac<'a, R, A> {
     }
 }
 
-impl<R: radio::Radio, A: Alarm<'a>> radio::TxClient for XMac<'a, R, A> {
+impl<'a, R: radio::Radio, A: Alarm<'a>> radio::TxClient for XMac<'a, R, A> {
     fn send_done(&self, buf: &'static mut [u8], acked: bool, result: ReturnCode) {
         match self.state.get() {
             // Completed a data transmission to the destination node
@@ -555,7 +556,7 @@ impl<R: radio::Radio, A: Alarm<'a>> radio::TxClient for XMac<'a, R, A> {
 // destination node is receiving packets/awake while we are attempting a
 // transmission, we put the radio in promiscuous mode. Not a huge issue, but
 // we need to be wary of incoming packets not actually addressed to our node.
-impl<R: radio::Radio, A: Alarm<'a>> radio::RxClient for XMac<'a, R, A> {
+impl<'a, R: radio::Radio, A: Alarm<'a>> radio::RxClient for XMac<'a, R, A> {
     fn receive(
         &self,
         buf: &'static mut [u8],

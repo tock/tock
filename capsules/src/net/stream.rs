@@ -130,7 +130,10 @@ macro_rules! stream_from_option {
 /// would result in it defaulting to 0. Idiomatically, the way to combine
 /// encoders is to define another encoder as follows:
 ///
-/// ```
+/// ```rust
+/// # use capsules::{enc_try, stream_done};
+/// # use capsules::net::stream::SResult;
+///
 /// // call a simple encoder
 /// let (bytes, out1) = enc_try!(buf; encoder1);
 /// /* Do something with out1 */
@@ -150,6 +153,8 @@ macro_rules! stream_from_option {
 /// Then, using an encoder can be done simply by:
 ///
 /// ```
+/// # use capsules::net::stream::SResult;
+///
 /// match encoder(&mut buf) {
 ///     SResult::Done(off, out) => { /* celebrate */ }
 ///     SResult::Needed(off) => { /* get more memory? */ }

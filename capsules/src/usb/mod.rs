@@ -1,3 +1,4 @@
+pub mod cdc;
 pub mod descriptors;
 pub mod usb_user;
 pub mod usbc_client;

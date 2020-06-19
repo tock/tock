@@ -1,6 +1,5 @@
 # Makefile for building the tock kernel for the nRF development kit
 
-TOCK_ARCH=cortex-m4
 TARGET=thumbv7em-none-eabi
 PLATFORM=acd52832
 
@@ -20,5 +19,5 @@ TOCKLOADER_JTAG_FLAGS = --jlink --board nrf52dk
 
 # Upload the kernel over JTAG
 .PHONY: flash
-flash: target/$(TARGET)/release/$(PLATFORM).bin
+flash: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).bin
 	$(TOCKLOADER) $(TOCKLOADER_GENERAL_FLAGS) flash --address $(KERNEL_ADDRESS) $(TOCKLOADER_JTAG_FLAGS) $<

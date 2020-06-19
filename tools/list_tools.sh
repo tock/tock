@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # Find tools built in rust based on folders with Cargo.toml
 for b in $(find tools -maxdepth 4 -name 'Cargo.toml'); do

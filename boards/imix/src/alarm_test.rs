@@ -12,11 +12,10 @@
 //! debug_gpio on pin XX so you can more precisely check
 //! the timings with a logic analyzer.
 
-
-use kernel::debug;
-use kernel::hil::time::{Alarm};
-use kernel::static_init;
 use capsules::test::alarm_edge_cases::TestAlarmEdgeCases;
+use kernel::debug;
+use kernel::hil::time::Alarm;
+use kernel::static_init;
 use sam4l::ast::{Ast, AST};
 
 pub unsafe fn run_alarm() {

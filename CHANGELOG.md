@@ -1,5 +1,25 @@
-Since 1.3
-=========
+New in 1.5
+==========
+
+* Major HIL Changes
+
+  None
+
+* Loading and Restarting Processes Improvements
+
+  Processes can now fault and be restarted by the kernel, and
+  [#1565](https://github.com/tock/tock/pull/1565) allows a board configuration
+  file to specify the restart policy that the kernel should use.
+
+  Process discovery, parsing, and creation was also overhauled in
+  [#1480](https://github.com/tock/tock/pull/1480) to remove `unsafe` from the
+  TBF header parsing code. This allows `process::load_processes()` to return
+  errors if process loading fails. Boards now need to handle the `Result` return
+  type.
+
+
+New in 1.4
+==========
 
 * Major HIL Changes
 
@@ -30,8 +50,8 @@ Since 1.3
   functions are more general and do not assume values are passed on the stack.
 
 
-Since 1.2
-=========
+New in 1.2
+==========
 
 * Kernel debug module
 

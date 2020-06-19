@@ -8,8 +8,4 @@ edition = "2018"
 cortexm4 = { path = "../../arch/cortex-m4" }
 enum_primitive = { path = "../../libraries/enum_primitive" }
 kernel = { path = "../../kernel" }
-tock_rt0 = { path = "../../libraries/tock-rt0" }
-
-[features]
-stm32f446re = []
-stm32f429zi = []
+tock-rt0 = { path = "../../libraries/tock-rt0" }

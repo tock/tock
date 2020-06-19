@@ -8,7 +8,7 @@ use core::ops::FnOnce;
 /// NOP instruction
 pub fn nop() {
     unsafe {
-        asm!("nop" :::: "volatile");
+        llvm_asm!("nop" :::: "volatile");
     }
 }
 
@@ -16,7 +16,7 @@ pub fn nop() {
 #[inline(always)]
 /// WFI instruction
 pub unsafe fn wfi() {
-    asm!("wfi" :::: "volatile");
+    llvm_asm!("wfi" :::: "volatile");
 }
 
 pub unsafe fn atomic<F, R>(f: F) -> R
@@ -35,10 +35,6 @@ where
     }
     res
 }
-
-#[cfg(all(target_arch = "riscv32", target_os = "none"))]
-#[lang = "eh_personality"]
-pub extern "C" fn eh_personality() {}
 
 // Mock implementations for tests on Travis-CI.
 #[cfg(not(any(target_arch = "riscv32", target_os = "none")))]

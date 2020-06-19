@@ -14,12 +14,11 @@ use crate::ppi;
 use nrf5x;
 use nrf5x::constants::TxPower;
 
-//extern crate::net;
-//use capsules;
-//use capsules::net::ieee802154::{
-//    FrameType, FrameVersion, Header, KeyId, MacAddress, PanID, Security, SecurityLevel,
-//};
-//use capsules::net::ieee802154::Header;
+// This driver has some significant flaws -- no ACK support, power cycles
+// the radio after every transmission or reception,
+// doesn't always check hardware for errors and instead defaults to
+// returning SUCCESS. However as of 05/26/20 it does interoperate
+// with other 15.4 implementations for Tock's basic 15.4 apps.
 
 const RADIO_BASE: StaticRef<RadioRegisters> =
     unsafe { StaticRef::new(0x40001000 as *const RadioRegisters) };
@@ -30,10 +29,19 @@ pub const IEEE802154_ACK_TIME: usize = 512; //microseconds = 32 symbols
 pub const IEEE802154_MAX_POLLING_ATTEMPTS: u8 = 4;
 pub const IEEE802154_MIN_BE: u8 = 3;
 pub const IEEE802154_MAX_BE: u8 = 5;
-pub const RAM_S0_BYTES: usize = 1;
 pub const RAM_LEN_BITS: usize = 8;
 pub const RAM_S1_BITS: usize = 0;
 pub const PREBUF_LEN_BYTES: usize = 2;
+
+// artifact of entanglement with rf233 implementation, mac layer
+// places packet data starting PSDU_OFFSET=2 bytes after start of
+// buffer to make room for 1 byte spi header required when communicating
+// with rf233 over SPI. nrf radio does not need this header, so we
+// have to pretend the frame buffer starts 1 byte later than the
+// frame passed by the mac layer. We can't just drop the byte from
+// the buffer because then it would be lost forever when we tried
+// to return the frame buffer.
+const MIMIC_PSDU_OFFSET: u32 = 1;
 
 // IEEEStd 802.15.4-2011 Section 8.1.2.2
 // Frequency is 2405 + 5 * (k - 11) MHz, where k = 11, 12, ... , 26.
@@ -684,7 +692,7 @@ impl Radio {
             cca_count: Cell::new(0),
             cca_be: Cell::new(0),
             random_nonce: Cell::new(0xDEADBEEF),
-            channel: Cell::new(RadioChannel::DataChannel11),
+            channel: Cell::new(RadioChannel::DataChannel26),
             transmitting: Cell::new(false),
         }
     }
@@ -748,7 +756,8 @@ impl Radio {
 
     fn set_dma_ptr(&self, buffer: &'static mut [u8]) -> &'static mut [u8] {
         let regs = &*self.registers;
-        regs.packetptr.set(buffer.as_ptr() as u32);
+        regs.packetptr
+            .set(buffer.as_ptr() as u32 + MIMIC_PSDU_OFFSET);
         buffer
     }
 
@@ -796,8 +805,12 @@ impl Radio {
                 let backoff_periods = self.random_nonce() & ((1 << self.cca_be.get()) - 1);
                 unsafe {
                     ppi::PPI.enable(ppi::Channel::CH21::SET);
-                    nrf5x::timer::TIMER0
-                        .set_alarm(backoff_periods * (IEEE802154_BACKOFF_PERIOD as u32));
+                    nrf5x::timer::TIMER0.set_alarm(
+                        kernel::hil::time::Ticks32::from(0),
+                        kernel::hil::time::Ticks32::from(
+                            backoff_periods * (IEEE802154_BACKOFF_PERIOD as u32),
+                        ),
+                    );
                 }
             } else {
                 self.transmitting.set(false);
@@ -851,8 +864,8 @@ impl Radio {
                             "RX Buffer produced error when sending received packet to requestor",
                         );
 
-                        let frame_len = rbuf[1] as usize - radio::MFR_SIZE;
-                        // Length is: S0 (1 Byte) + Length (1 Byte) + S1 (0 Bytes) + Payload
+                        let frame_len = rbuf[MIMIC_PSDU_OFFSET as usize] as usize - radio::MFR_SIZE;
+                        // Length is: S0 (0 Byte) + Length (1 Byte) + S1 (0 Bytes) + Payload
                         // And because the length field is directly read from the packet
                         // We need to add 2 to length to get the total length
 
@@ -863,7 +876,7 @@ impl Radio {
                 _ => (),
             }
             self.radio_off();
-            self.radio_initialize(self.channel.get());
+            self.radio_initialize();
             self.rx();
         }
         self.enable_interrupts();
@@ -896,16 +909,24 @@ impl Radio {
         regs.intenclr.set(0xffffffff);
     }
 
-    fn radio_initialize(&self, _channel: RadioChannel) {
+    fn radio_initialize(&self) {
+        let regs = &*self.registers;
         self.radio_on();
+
+        // Radio disable
+        regs.event_disabled.set(0);
+        regs.task_disable.write(Task::ENABLE::SET);
+        while regs.event_disabled.get() == 0 {}
+        // end radio disable
 
         self.ieee802154_set_channel_rate();
 
         self.ieee802154_set_packet_config();
 
+        self.ieee802154_set_crc_config();
+
         self.ieee802154_set_rampup_mode();
 
-        self.ieee802154_set_crc_config();
         self.ieee802154_set_cca_config();
 
         self.ieee802154_set_tx_power();
@@ -915,6 +936,7 @@ impl Radio {
         self.set_tx_address();
         self.set_rx_address();
 
+        // First step in transmitting or receiving is entering rx mode
         self.rx();
     }
 
@@ -944,30 +966,18 @@ impl Radio {
     }
 
     // Packet configuration
-    // Settings taken from OpenThread nrf_radio_init() in
-    // openthread/third_party/NordicSemiconductor/drivers/radio/nrf_802154_core.c
-    //
+    // Settings taken from RiotOS nrf52840 15.4 driver
     fn ieee802154_set_packet_config(&self) {
         let regs = &*self.registers;
 
-        // sets the header of PDU TYPE to 1 byte
-        // sets the header length to 1 byte
         regs.pcnf0.write(
             PacketConfiguration0::LFLEN.val(8)
-                + PacketConfiguration0::S0LEN.val(1)
-                + PacketConfiguration0::S1LEN::CLEAR
-                + PacketConfiguration0::S1INCL::CLEAR
                 + PacketConfiguration0::PLEN::THIRTYTWOZEROS
                 + PacketConfiguration0::CRCINC::INCLUDE,
         );
 
-        regs.pcnf1.write(
-            //PacketConfiguration1::WHITEEN::ENABLED
-            PacketConfiguration1::ENDIAN::LITTLE
-                //+ PacketConfiguration1::BALEN.val(3)
-                + PacketConfiguration1::STATLEN::CLEAR
-                + PacketConfiguration1::MAXLEN.val(nrf5x::constants::RADIO_PAYLOAD_LENGTH as u32),
-        );
+        regs.pcnf1
+            .write(PacketConfiguration1::MAXLEN.val(nrf5x::constants::RADIO_PAYLOAD_LENGTH as u32));
     }
 
     fn ieee802154_set_channel_rate(&self) {
@@ -986,7 +996,7 @@ impl Radio {
     }
 
     pub fn startup(&self) -> ReturnCode {
-        self.radio_initialize(self.channel.get());
+        self.radio_initialize();
         ReturnCode::SUCCESS
     }
 
@@ -1014,7 +1024,7 @@ impl kernel::hil::radio::RadioConfig for Radio {
         _reg_write: &'static mut [u8],
         _reg_read: &'static mut [u8],
     ) -> ReturnCode {
-        self.radio_initialize(self.channel.get());
+        self.radio_initialize();
         ReturnCode::SUCCESS
     }
 
@@ -1054,7 +1064,7 @@ impl kernel::hil::radio::RadioConfig for Radio {
     /// a callback to the config client when done.
     fn config_commit(&self) {
         self.radio_off();
-        self.radio_initialize(self.channel.get());
+        self.radio_initialize();
     }
 
     fn set_config_client(&self, _client: &'static dyn radio::ConfigClient) {}
@@ -1150,8 +1160,7 @@ impl kernel::hil::radio::RadioData for Radio {
             return (ReturnCode::ESIZE, Some(buf));
         }
 
-        buf[RAM_S0_BYTES] = frame_len as u8;
-
+        buf[MIMIC_PSDU_OFFSET as usize] = (frame_len + radio::MFR_SIZE) as u8;
         self.tx_buf.replace(buf);
 
         self.transmitting.set(true);
@@ -1160,9 +1169,7 @@ impl kernel::hil::radio::RadioData for Radio {
         self.cca_be.set(IEEE802154_MIN_BE);
 
         self.radio_off();
-        self.radio_initialize(self.channel.get());
-
-        //self.enable_interrupts();
+        self.radio_initialize();
         (ReturnCode::SUCCESS, None)
     }
 }

@@ -2,7 +2,7 @@
 
 #![crate_name = "cortexm3"]
 #![crate_type = "rlib"]
-#![feature(asm, core_intrinsics, naked_functions)]
+#![feature(llvm_asm, core_intrinsics, naked_functions)]
 #![no_std]
 
 pub mod mpu;
@@ -38,7 +38,7 @@ pub unsafe extern "C" fn systick_handler() {
 #[cfg(all(target_arch = "arm", target_os = "none"))]
 #[naked]
 pub unsafe extern "C" fn systick_handler() {
-    asm!(
+    llvm_asm!(
         "
     /* Mark that the systick handler was called meaning that the process */
     /* stopped executing because it has exceeded its timeslice. */
@@ -49,6 +49,9 @@ pub unsafe extern "C" fn systick_handler() {
     /* Set thread mode to privileged */
     mov r0, #0
     msr CONTROL, r0
+    /* CONTROL writes must be followed by ISB */
+    /* http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.dai0321a/BIHFJCAC.html */
+    isb
 
     movw LR, #0xFFF9
     movt LR, #0xFFFF"
@@ -65,7 +68,7 @@ pub unsafe extern "C" fn generic_isr() {
 #[naked]
 /// All ISRs are caught by this handler which disables the NVIC and switches to the kernel.
 pub unsafe extern "C" fn generic_isr() {
-    asm!(
+    llvm_asm!(
         "
     /* Skip saving process state if not coming from user-space */
     cmp lr, #0xfffffffd
@@ -81,6 +84,9 @@ pub unsafe extern "C" fn generic_isr() {
     /* Set thread mode to privileged */
     mov r0, #0
     msr CONTROL, r0
+    /* CONTROL writes must be followed by ISB */
+    /* http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.dai0321a/BIHFJCAC.html */
+    isb
 
     movw LR, #0xFFF9
     movt LR, #0xFFFF
@@ -117,6 +123,16 @@ pub unsafe extern "C" fn generic_isr() {
      *  `*(r3 + r2 * 4) = r0`
      *
      *  */
+    str r0, [r3, r2, lsl #2]
+
+    /* The pending bit in ISPR might be reset by hardware for pulse interrupts
+     * at this point. So set it here again so the interrupt does not get lost
+     * in service_pending_interrupts()
+     * */
+    /* r3 = &NVIC.ISPR */
+    mov r3, #0xe200
+    movt r3, #0xe000
+    /* Set pending bit */
     str r0, [r3, r2, lsl #2]"
     : : : : "volatile" );
 }
@@ -130,7 +146,7 @@ pub unsafe extern "C" fn svc_handler() {
 #[cfg(all(target_arch = "arm", target_os = "none"))]
 #[naked]
 pub unsafe extern "C" fn svc_handler() {
-    asm!(
+    llvm_asm!(
         "
     cmp lr, #0xfffffff9
     bne to_kernel
@@ -138,6 +154,9 @@ pub unsafe extern "C" fn svc_handler() {
     /* Set thread mode to unprivileged */
     mov r0, #1
     msr CONTROL, r0
+    /* CONTROL writes must be followed by ISB */
+    /* http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.dai0321a/BIHFJCAC.html */
+    isb
 
     movw lr, #0xfffd
     movt lr, #0xffff
@@ -150,6 +169,9 @@ pub unsafe extern "C" fn svc_handler() {
     /* Set thread mode to privileged */
     mov r0, #0
     msr CONTROL, r0
+    /* CONTROL writes must be followed by ISB */
+    /* http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.dai0321a/BIHFJCAC.html */
+    isb
 
     movw LR, #0xFFF9
     movt LR, #0xFFFF
@@ -173,7 +195,7 @@ pub unsafe extern "C" fn switch_to_user(
     mut user_stack: *const usize,
     process_regs: &mut [usize; 8],
 ) -> *const usize {
-    asm!("
+    llvm_asm!("
     /* Load bottom of stack into Process Stack Pointer */
     msr psp, $0
 
@@ -353,7 +375,7 @@ pub unsafe extern "C" fn hard_fault_handler() {
     let faulting_stack: *mut u32;
     let kernel_stack: bool;
 
-    asm!(
+    llvm_asm!(
     "mov    r1, 0                       \n\
      tst    lr, #4                      \n\
      itte   eq                          \n\
@@ -371,7 +393,7 @@ pub unsafe extern "C" fn hard_fault_handler() {
     } else {
         // hard fault occurred in an app, not the kernel. The app should be
         //  marked as in an error state and handled by the kernel
-        asm!(
+        llvm_asm!(
             "ldr r0, =APP_HARD_FAULT
               mov r1, #1 /* Fault */
               str r1, [r0, #0]
@@ -393,6 +415,9 @@ pub unsafe extern "C" fn hard_fault_handler() {
               /* Set thread mode to privileged */
               mov r0, #0
               msr CONTROL, r0
+              /* CONTROL writes must be followed by ISB */
+              /* http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.dai0321a/BIHFJCAC.html */
+              isb
 
               movw LR, #0xFFF9
               movt LR, #0xFFFF"

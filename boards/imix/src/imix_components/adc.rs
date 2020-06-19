@@ -53,7 +53,7 @@ impl Component for AdcComponent {
         let adc = static_init!(
             adc::Adc<'static, sam4l::adc::Adc>,
             adc::Adc::new(
-                &mut sam4l::adc::ADC0,
+                &sam4l::adc::ADC0,
                 self.board_kernel.create_grant(&grant_cap),
                 adc_channels,
                 &mut adc::ADC_BUFFER1,

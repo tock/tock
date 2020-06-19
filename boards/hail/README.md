@@ -190,7 +190,8 @@ designed to work with the [J-Link Debugger](https://www.segger.com/products/debu
 In one terminal run `jlink_gdbserver.sh`, and in another terminal `./gdb_session.sh`.
 
 You may also find the `make lst` target helpful. It will generate a listings file
-with disassembly of the kernel image at `target/thumbv7em-none-eabi/release/hail.lst`.
+with disassembly of the kernel image at `target/thumbv7em-none-eabi/release/hail.lst`
+(in Tock's top-level directory).
 
 
 [tockloader]: https://github.com/tock/tockloader

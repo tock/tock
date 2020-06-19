@@ -1,0 +1,10 @@
+MEMORY
+{
+  rom (rx)  : ORIGIN = 0x0000C000, LENGTH = 0x00030000
+  prog (rx) : ORIGIN = 0x00040000, LENGTH = 0x08000000 - 0x00030000
+  ram (rwx) : ORIGIN = 0x10000000, LENGTH = 0x60000
+}
+
+MPU_MIN_ALIGN = 8K;
+
+INCLUDE ../kernel_layout.ld

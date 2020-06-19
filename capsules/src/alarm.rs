@@ -34,10 +34,10 @@ pub struct AlarmDriver<'a, A: Alarm<'a>> {
     alarm: &'a A,
     num_armed: Cell<usize>,
     app_alarms: Grant<AlarmData>,
-    next_alarm: Cell<Expiration>
+    next_alarm: Cell<Expiration>,
 }
 
-impl<A: Alarm<'a>> AlarmDriver<'a, A> {
+impl<'a, A: Alarm<'a>> AlarmDriver<'a, A> {
     pub const fn new(alarm: &'a A, grant: Grant<AlarmData>) -> AlarmDriver<'a, A> {
         AlarmDriver {
             alarm: alarm,
@@ -61,7 +61,7 @@ impl<A: Alarm<'a>> AlarmDriver<'a, A> {
                         Expiration::Disabled => {
                             earliest_end = end;
                             alarm.expiration
-                        },
+                        }
                         Expiration::Enabled(earliest_reference, _) => {
                             // There are two cases when this might be
                             // an earlier alarm.  The first is if it
@@ -75,10 +75,13 @@ impl<A: Alarm<'a>> AlarmDriver<'a, A> {
                             // the alarm must fire immediately, and then when
                             // we handle the alarm callback we will handle the
                             // two in the correct order.
+                            let ref_ticks = A::Ticks::from(reference);
+                            let end_ticks = ref_ticks.wrapping_add(A::Ticks::from(dt));
+                            
                             if end.within_range(A::Ticks::from(earliest_reference), earliest_end) {
                                 earliest_end = end;
                                 alarm.expiration
-                            } else if !now.within_range(A::Ticks::from(reference), A::Ticks::from(dt)) {
+                            } else if !now.within_range(ref_ticks, end_ticks) {
                                 earliest_end = end;
                                 alarm.expiration
                             } else {
@@ -86,7 +89,7 @@ impl<A: Alarm<'a>> AlarmDriver<'a, A> {
                             }
                         }
                     }
-                }, 
+                }
                 Expiration::Disabled => {}
             });
         }
@@ -94,15 +97,16 @@ impl<A: Alarm<'a>> AlarmDriver<'a, A> {
         match earliest_alarm {
             Expiration::Disabled => {
                 self.alarm.disarm();
-            },
+            }
             Expiration::Enabled(reference, dt) => {
-                self.alarm.set_alarm(A::Ticks::from(reference), A::Ticks::from(dt));
+                self.alarm
+                    .set_alarm(A::Ticks::from(reference), A::Ticks::from(dt));
             }
         }
     }
 }
 
-impl<A: Alarm<'a>> Driver for AlarmDriver<'a, A> {
+impl<'a, A: Alarm<'a>> Driver for AlarmDriver<'a, A> {
     /// Subscribe to alarm expiration
     ///
     /// ### `_subscribe_num`
@@ -131,6 +135,7 @@ impl<A: Alarm<'a>> Driver for AlarmDriver<'a, A> {
     /// - `2`: Read the the current clock value
     /// - `3`: Stop the alarm if it is outstanding
     /// - `4`: Set an alarm to fire at a given clock value `time`.
+    /// - `5`: Set an alarm to fire at a given clock value `time` relative to `now` (EXPERIMENTAL).
     fn command(&self, cmd_type: usize, data: usize, data2: usize, caller_id: AppId) -> ReturnCode {
         // Returns the error code to return to the user and whether we need to
         // reset which is the next active alarm. We only _don't_ reset if we're
@@ -139,6 +144,19 @@ impl<A: Alarm<'a>> Driver for AlarmDriver<'a, A> {
         // (i.e. no change to the alarms).
         self.app_alarms
             .enter(caller_id, |td, _alloc| {
+                // helper function to rearm alarm
+                let mut rearm = |reference: usize, dt: usize| {
+                    if let Expiration::Disabled = td.expiration {
+                        self.num_armed.set(self.num_armed.get() + 1);
+                    }
+                    td.expiration = Expiration::Enabled(reference as u32, dt as u32);
+                    (
+                        ReturnCode::SuccessWithValue {
+                            value: reference.wrapping_add(dt),
+                        },
+                        true,
+                    )
+                };
                 let now = self.alarm.now();
                 let (return_code, reset) = match cmd_type {
                     0 /* check if present */ => (ReturnCode::SuccessWithValue { value: 1 }, false),
@@ -168,11 +186,13 @@ impl<A: Alarm<'a>> Driver for AlarmDriver<'a, A> {
                         let reference = data;
                         let dt = data2;
                         // if previously unarmed, but now will become armed
-                        if let Expiration::Disabled = td.expiration {
-                            self.num_armed.set(self.num_armed.get() + 1);
-                        }
-                        td.expiration = Expiration::Enabled(reference as u32, dt as u32);
-                        (ReturnCode::SuccessWithValue { value: reference.wrapping_add(dt) }, true)
+                        rearm(reference, dt)
+                    },
+                    5 /* Set relative expiration */ => {
+                        let reference = now.into_u32() as usize;
+                        let dt = data;
+                        // if previously unarmed, but now will become armed
+                        rearm(reference, dt)
                     },
                     _ => (ReturnCode::ENOSUPPORT, false)
                 };
@@ -185,19 +205,22 @@ impl<A: Alarm<'a>> Driver for AlarmDriver<'a, A> {
     }
 }
 
-impl<A: Alarm<'a>> time::AlarmClient for AlarmDriver<'a, A> {
+impl<'a, A: Alarm<'a>> time::AlarmClient for AlarmDriver<'a, A> {
     fn alarm(&self) {
-        let now: A::Ticks  = self.alarm.now();
+        let now: A::Ticks = self.alarm.now();
         self.app_alarms.each(|alarm| {
             if let Expiration::Enabled(reference, ticks) = alarm.expiration {
                 // Now is not within reference, reference + ticks; this timer
                 // as passed (since reference must be in the past)
-                if !now.within_range(A::Ticks::from(reference), A::Ticks::from(reference.wrapping_add(ticks))) {
+                if !now.within_range(
+                    A::Ticks::from(reference),
+                    A::Ticks::from(reference.wrapping_add(ticks)),
+                ) {
                     alarm.expiration = Expiration::Disabled;
                     self.num_armed.set(self.num_armed.get() - 1);
-                    alarm
-                        .callback
-                        .map(|mut cb| cb.schedule(now.into_u32() as usize, now.into_u32() as usize, 0));
+                    alarm.callback.map(|mut cb| {
+                        cb.schedule(now.into_u32() as usize, now.into_u32() as usize, 0)
+                    });
                 }
             }
         });
@@ -216,7 +239,7 @@ impl<A: Alarm<'a>> time::AlarmClient for AlarmDriver<'a, A> {
                     if new_now.within_range(ref_ticks, end_ticks) {
                         self.alarm();
                     }
-                },
+                }
                 Expiration::Disabled => {
                     self.alarm.disarm();
                 }

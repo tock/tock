@@ -49,7 +49,7 @@ struct Foo<'a> {
 ```
 
 defines a data structure `Foo` that contains a reference to another type,
-`Bar`. The reference has a lifetime `'a'`, which is a type parameter of `Foo`.
+`Bar`. The reference has a lifetime `'a`, which is a type parameter of `Foo`.
 Note that `'a` is an arbitrary choice of name for the lifetime, such as `E` in
 a generic `List<E>`.  It is also possible to use the explicit lifetime
 `'static` rather than a type parameter when the reference should always live

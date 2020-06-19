@@ -1,0 +1,66 @@
+[workspace]
+members = [
+    "arch/cortex-m",
+    "arch/cortex-m0",
+    "arch/cortex-m3",
+    "arch/cortex-m4",
+    "arch/rv32i",
+    "boards/acd52832",
+    "boards/arty_e21",
+    "boards/hail",
+    "boards/hifive1",
+    "boards/imix",
+    "boards/launchxl",
+    "boards/nordic/nrf52840dk",
+    "boards/nordic/nrf52840_dongle",
+    "boards/nordic/nrf52dk",
+    "boards/nucleo_f429zi",
+    "boards/nucleo_f446re",
+    "boards/opentitan",
+    "boards/redboard_artemis_nano",
+    "boards/stm32f3discovery",
+    "capsules",
+    "chips/apollo3",
+    "chips/arty_e21_chip",
+    "chips/cc26x2",
+    "chips/e310x",
+    "chips/ibex",
+    "chips/lowrisc",
+    "chips/nrf52",
+    "chips/nrf52832",
+    "chips/nrf52840",
+    "chips/nrf5x",
+    "chips/sam4l",
+    "chips/sifive",
+    "chips/stm32f303xc",
+    "chips/stm32f429zi",
+    "chips/stm32f446re",
+    "chips/stm32f4xx",
+    "kernel",
+    "libraries/enum_primitive",
+    "libraries/riscv-csr",
+    "libraries/tock-cells",
+    "libraries/tock-register-interface",
+    "libraries/tock-rt0",
+]
+exclude = [
+    "tools/alert_codes",
+    "tools/qemu-runner",
+    "tools/sha256sum",
+    "tools/usb/bulk-echo",
+    "tools/usb/bulk-echo-fast",
+    "tools/usb/bulk-test",
+    "tools/usb/control-test",
+]
+
+[profile.dev]
+panic = "abort"
+lto = false
+opt-level = "z"
+debug = true
+
+[profile.release]
+panic = "abort"
+lto = true
+opt-level = "z"
+debug = true

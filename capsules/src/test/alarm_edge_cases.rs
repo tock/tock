@@ -19,20 +19,9 @@ impl<'a, A: Alarm<'a>> TestAlarmEdgeCases<'a, A> {
         TestAlarmEdgeCases {
             alarm: alarm,
             counter: Cell::new(0),
-            alarms:  [100,
-                      200,
-                      25, 25, 25, 25,
-                      500,
-                      0,
-                      448,
-                      15,
-                      19,
-                      1, 0, 33, 5,
-                      1000,
-                      27,
-                      1,
-                      0,
-                      1],
+            alarms: [
+                100, 200, 25, 25, 25, 25, 500, 0, 448, 15, 19, 1, 0, 33, 5, 1000, 27, 1, 0, 1,
+            ],
         }
     }
 
@@ -46,8 +35,14 @@ impl<'a, A: Alarm<'a>> TestAlarmEdgeCases<'a, A> {
         let delay = A::ticks_from_ms(self.alarms[counter % 20]);
         let now = self.alarm.now();
         let start = now.wrapping_sub(A::Ticks::from(10));
-        
-        debug!("{}: Setting alarm to {} + {} = {}", now.into_u32(), start.into_u32(), delay.into_u32(), start.wrapping_add(delay).into_u32());
+
+        debug!(
+            "{}: Setting alarm to {} + {} = {}",
+            now.into_u32(),
+            start.into_u32(),
+            delay.into_u32(),
+            start.wrapping_add(delay).into_u32()
+        );
         self.alarm.set_alarm(start, delay);
         self.counter.set(counter + 1);
     }
@@ -55,9 +50,8 @@ impl<'a, A: Alarm<'a>> TestAlarmEdgeCases<'a, A> {
 
 impl<'a, A: Alarm<'a>> AlarmClient for TestAlarmEdgeCases<'a, A> {
     fn alarm(&self) {
-        let now  = self.alarm.now();
+        let now = self.alarm.now();
         debug!("Alarm fired at {}.", now.into_u32());
         self.set_next_alarm();
     }
-
 }

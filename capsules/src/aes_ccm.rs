@@ -39,7 +39,10 @@
 //! Usage
 //! -----
 //!
-//! ```
+//! ```rust
+//! # use kernel::static_init;
+//! # use kernel::hil::symmetric_encryption;
+//!
 //! const CRYPT_SIZE: usize = 3 * symmetric_encryption::AES128_BLOCK_SIZE + radio::MAX_BUF_SIZE;
 //! static mut CRYPT_BUF: [u8; CRYPT_SIZE] = [0x00; CRYPT_SIZE];
 //!
@@ -86,7 +89,7 @@ pub struct AES128CCM<'a, A: AES128<'a> + AES128Ctr + AES128CBC> {
     saved_tag: Cell<[u8; AES128_BLOCK_SIZE]>,
 }
 
-impl<A: AES128<'a> + AES128Ctr + AES128CBC> AES128CCM<'a, A> {
+impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> AES128CCM<'a, A> {
     pub fn new(aes: &'a A, crypt_buf: &'static mut [u8]) -> AES128CCM<'a, A> {
         AES128CCM {
             aes: aes,
@@ -414,7 +417,7 @@ impl<A: AES128<'a> + AES128Ctr + AES128CBC> AES128CCM<'a, A> {
     }
 }
 
-impl<A: AES128<'a> + AES128Ctr + AES128CBC> symmetric_encryption::AES128CCM<'a>
+impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> symmetric_encryption::AES128CCM<'a>
     for AES128CCM<'a, A>
 {
     fn set_client(&self, client: &'a dyn symmetric_encryption::CCMClient) {
@@ -492,7 +495,9 @@ impl<A: AES128<'a> + AES128Ctr + AES128CBC> symmetric_encryption::AES128CCM<'a>
     }
 }
 
-impl<A: AES128<'a> + AES128Ctr + AES128CBC> symmetric_encryption::Client<'a> for AES128CCM<'a, A> {
+impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> symmetric_encryption::Client<'a>
+    for AES128CCM<'a, A>
+{
     fn crypt_done(&self, _: Option<&'a mut [u8]>, crypt_buf: &'a mut [u8]) {
         self.crypt_buf.replace(crypt_buf);
         match self.state.get() {

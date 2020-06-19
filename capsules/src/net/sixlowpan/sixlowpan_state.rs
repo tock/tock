@@ -40,7 +40,7 @@
 //! At a high level, clients interact with this module as shown in the diagrams
 //! below:
 //!
-//! ```
+//! ```txt
 //! Transmit:
 //!
 //!           +-----------+
@@ -67,7 +67,7 @@
 //!            +---------+
 //! ```
 //!
-//! ```
+//! ```txt
 //! Receive:
 //!
 //!         +---------------+
@@ -82,7 +82,7 @@
 //!           +---------+
 //! ```
 //!
-//! ```
+//! ```txt
 //! Initialization:
 //!
 //!           +-----------+
@@ -327,7 +327,7 @@ pub struct TxState<'a> {
     sixlowpan: &'a dyn SixlowpanState<'a>,
 }
 
-impl TxState<'a> {
+impl<'a> TxState<'a> {
     /// Creates a new `TxState`
     ///
     /// # Arguments
@@ -639,13 +639,13 @@ pub struct RxState<'a> {
     next: ListLink<'a, RxState<'a>>,
 }
 
-impl ListNode<'a, RxState<'a>> for RxState<'a> {
+impl<'a> ListNode<'a, RxState<'a>> for RxState<'a> {
     fn next(&'a self) -> &'a ListLink<RxState<'a>> {
         &self.next
     }
 }
 
-impl RxState<'a> {
+impl<'a> RxState<'a> {
     /// Creates a new `RxState`
     ///
     /// # Arguments
@@ -794,7 +794,7 @@ pub struct Sixlowpan<'a, A: time::Alarm<'a>, C: ContextStore> {
 }
 
 // This function is called after receiving a frame
-impl<A: time::Alarm<'a>, C: ContextStore> RxClient for Sixlowpan<'a, A, C> {
+impl<'a, A: time::Alarm<'a>, C: ContextStore> RxClient for Sixlowpan<'a, A, C> {
     fn receive<'b>(&self, buf: &'b [u8], header: Header<'b>, data_offset: usize, data_len: usize) {
         // We return if retcode is not valid, as it does not make sense to issue
         // a callback for an invalid frame reception
@@ -815,7 +815,7 @@ impl<A: time::Alarm<'a>, C: ContextStore> RxClient for Sixlowpan<'a, A, C> {
     }
 }
 
-impl<A: time::Alarm<'a>, C: ContextStore> SixlowpanState<'a> for Sixlowpan<'a, A, C> {
+impl<'a, A: time::Alarm<'a>, C: ContextStore> SixlowpanState<'a> for Sixlowpan<'a, A, C> {
     fn next_dgram_tag(&self) -> u16 {
         // Increment dgram_tag
         let dgram_tag = if (self.tx_dgram_tag.get() + 1) == 0 {
@@ -846,7 +846,7 @@ impl<A: time::Alarm<'a>, C: ContextStore> SixlowpanState<'a> for Sixlowpan<'a, A
     }
 }
 
-impl<A: time::Alarm<'a>, C: ContextStore> Sixlowpan<'a, A, C> {
+impl<'a, A: time::Alarm<'a>, C: ContextStore> Sixlowpan<'a, A, C> {
     /// Creates a new `Sixlowpan`
     ///
     /// # Arguments
@@ -976,10 +976,9 @@ impl<A: time::Alarm<'a>, C: ContextStore> Sixlowpan<'a, A, C> {
 
         // Else find a free state
         if rx_state.is_none() {
-            rx_state = self
-                .rx_states
-                .iter()
-                .find(|state| !state.is_busy(self.clock.now().into_u32(), A::Frequency::frequency()));
+            rx_state = self.rx_states.iter().find(|state| {
+                !state.is_busy(self.clock.now().into_u32(), A::Frequency::frequency())
+            });
             // Initialize new state
             rx_state.map(|state| {
                 state.start_receive(

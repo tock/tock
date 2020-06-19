@@ -7,7 +7,7 @@
 # for commands on localhost at tcp port 2331
 target remote localhost:2331
 monitor speed 30
-file ../target/thumbv7em-none-eabi/release/nrf52dk
+file ../../../../target/thumbv7em-none-eabi/release/nrf52dk
 monitor reset
 #
 # CPU core initialization (to be done by user)

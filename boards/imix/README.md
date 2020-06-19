@@ -91,10 +91,9 @@ $ openocd -f connect.cfg
 ```
 
 Then, in another terminal (assuming you have loaded a kernel image built using
-the `release` profile):
+the `release` profile), from Tock's top-level directory:
 
 ```bash
-$ cd boards/imix/
 $ arm-none-eabi-gdb target/thumbv7em-none-eabi/release/imix
 (gdb) target remote localhost:3333
 (gdb) monitor reset halt

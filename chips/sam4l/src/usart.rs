@@ -291,7 +291,7 @@ pub struct USARTRegManager<'a> {
 
 static IS_PANICING: AtomicBool = AtomicBool::new(false);
 
-impl USARTRegManager<'a> {
+impl<'a> USARTRegManager<'a> {
     fn real_new(usart: &'a USART) -> USARTRegManager<'a> {
         if pm::is_clock_enabled(usart.clock) == false {
             pm::enable_clock(usart.clock);
@@ -315,7 +315,7 @@ impl USARTRegManager<'a> {
     }
 }
 
-impl Drop for USARTRegManager<'a> {
+impl Drop for USARTRegManager<'_> {
     fn drop(&mut self) {
         // Anything listening for RX or TX interrupts?
         let ints_active = self.registers.imr.matches_any(
@@ -421,7 +421,7 @@ pub static mut USART3: USART = USART::new(
     dma::DMAPeripheral::USART3_TX,
 );
 
-impl USART<'a> {
+impl<'a> USART<'a> {
     const fn new(
         base_addr: StaticRef<UsartRegisters>,
         clock: pm::PBAClock,
@@ -755,7 +755,7 @@ impl USART<'a> {
     }
 }
 
-impl dma::DMAClient for USART<'a> {
+impl dma::DMAClient for USART<'_> {
     fn transfer_done(&self, pid: dma::DMAPeripheral) {
         let usart = &USARTRegManager::new(&self);
         match self.usart_mode.get() {
@@ -829,7 +829,7 @@ impl dma::DMAClient for USART<'a> {
 }
 
 /// Implementation of kernel::uart
-impl uart::Receive<'a> for USART<'a> {
+impl<'a> uart::Receive<'a> for USART<'a> {
     fn set_receive_client(&self, client: &'a dyn uart::ReceiveClient) {
         if let Some(UsartClient::Uart(_rx, Some(tx))) = self.client.take() {
             self.client.set(UsartClient::Uart(Some(client), Some(tx)));
@@ -875,7 +875,7 @@ impl uart::Receive<'a> for USART<'a> {
     }
 }
 
-impl uart::Transmit<'a> for USART<'a> {
+impl<'a> uart::Transmit<'a> for USART<'a> {
     fn transmit_buffer(
         &self,
         tx_buffer: &'static mut [u8],
@@ -928,10 +928,11 @@ impl uart::Transmit<'a> for USART<'a> {
         ReturnCode::FAIL
     }
 }
-impl uart::UartAdvanced<'a> for USART<'a> {}
-impl uart::Uart<'a> for USART<'a> {}
 
-impl uart::Configure for USART<'a> {
+impl<'a> uart::UartAdvanced<'a> for USART<'a> {}
+impl<'a> uart::Uart<'a> for USART<'a> {}
+
+impl uart::Configure for USART<'_> {
     fn configure(&self, parameters: uart::Parameters) -> ReturnCode {
         if self.usart_mode.get() != UsartMode::Uart {
             return ReturnCode::EOFF;
@@ -968,7 +969,7 @@ impl uart::Configure for USART<'a> {
     }
 }
 
-impl uart::ReceiveAdvanced<'a> for USART<'a> {
+impl<'a> uart::ReceiveAdvanced<'a> for USART<'a> {
     fn receive_automatic(
         &self,
         rx_buffer: &'static mut [u8],
@@ -1001,7 +1002,7 @@ impl uart::ReceiveAdvanced<'a> for USART<'a> {
 }
 
 /// SPI
-impl spi::SpiMaster for USART<'a> {
+impl spi::SpiMaster for USART<'_> {
     type ChipSelect = Option<&'static dyn hil::gpio::Pin>;
 
     fn init(&self) {

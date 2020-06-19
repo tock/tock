@@ -12,7 +12,7 @@ pub struct TestAlarm<'a, A: Alarm<'a>> {
     ms: Cell<u32>,
 }
 
-impl<A: Alarm<'a>> TestAlarm<'a, A> {
+impl<'a, A: Alarm<'a>> TestAlarm<'a, A> {
     pub fn new(alarm: &'a A) -> TestAlarm<'a, A> {
         TestAlarm {
             alarm: alarm,
@@ -28,7 +28,7 @@ impl<A: Alarm<'a>> TestAlarm<'a, A> {
 
     fn set_next_alarm(&self, ms: u32) {
         self.ms.set(ms);
-        let now: A::Ticks  = self.alarm.now();
+        let now: A::Ticks = self.alarm.now();
         let freq: u64 = <A::Frequency>::frequency() as u64;
         let lticks: u64 = ms as u64 * freq;
         let ticks: u32 = (lticks / 1000) as u32;
@@ -40,9 +40,8 @@ impl<A: Alarm<'a>> TestAlarm<'a, A> {
 impl<'a, A: Alarm<'a>> AlarmClient for TestAlarm<'a, A> {
     fn alarm(&self) {
         // Generate a new interval that's irregular
-        let now: A::Ticks  = self.alarm.now();
+        let now: A::Ticks = self.alarm.now();
         let ticks: u32 = 10 + ((now.into_u32() + 137) % 757);
         self.set_next_alarm(ticks);
     }
-
 }

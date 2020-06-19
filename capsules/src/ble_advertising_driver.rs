@@ -63,19 +63,24 @@
 //! timer to perform events and not block the entire kernel
 //!
 //! ```rust
-//!     let ble_radio = static_init!(
-//!     nrf5x::ble_advertising_driver::BLE
-//!     <'static, nrf52::radio::Radio, VirtualMuxAlarm<'static, Rtc>>,
-//!     nrf5x::ble_advertising_driver::BLE::new(
-//!         &mut nrf52::radio::RADIO,
-//!     kernel::Grant::create(),
-//!         &mut nrf5x::ble_advertising_driver::BUF,
-//!         ble_radio_virtual_alarm));
-//!    nrf5x::ble_advertising_hil::BleAdvertisementDriver::set_rx_client(&nrf52::radio::RADIO,
-//!                                                                      ble_radio);
-//!    nrf5x::ble_advertising_hil::BleAdvertisementDriver::set_tx_client(&nrf52::radio::RADIO,
-//!                                                                      ble_radio);
-//!    ble_radio_virtual_alarm.set_client(ble_radio);
+//! # use kernel::static_init;
+//! # use capsules::virtual_alarm::VirtualMuxAlarm;
+//!
+//! let ble_radio = static_init!(
+//! nrf5x::ble_advertising_driver::BLE<
+//!     'static,
+//!     nrf52::radio::Radio, VirtualMuxAlarm<'static, Rtc>
+//! >,
+//! nrf5x::ble_advertising_driver::BLE::new(
+//!     &mut nrf52::radio::RADIO,
+//!     board_kernel.create_grant(&grant_cap),
+//!     &mut nrf5x::ble_advertising_driver::BUF,
+//!     ble_radio_virtual_alarm));
+//! nrf5x::ble_advertising_hil::BleAdvertisementDriver::set_rx_client(&nrf52::radio::RADIO,
+//!                                                                   ble_radio);
+//! nrf5x::ble_advertising_hil::BleAdvertisementDriver::set_tx_client(&nrf52::radio::RADIO,
+//!                                                                   ble_radio);
+//! ble_radio_virtual_alarm.set_client(ble_radio);
 //! ```
 //!
 //! ### Authors
@@ -260,10 +265,8 @@ impl App {
                     data[..adv_data_len].copy_from_slice(adv_data_corrected);
                 }
                 let total_len = cmp::min(PACKET_LENGTH, payload_len + 2);
-                let result = ble
-                    .radio
+                ble.radio
                     .transmit_advertisement(kernel_tx, total_len, channel);
-                ble.kernel_tx.replace(result);
                 ReturnCode::SUCCESS
             })
         })
@@ -307,7 +310,7 @@ where
     receiving_app: OptionalCell<kernel::AppId>,
 }
 
-impl<B, A> BLE<'a, B, A>
+impl<'a, B, A> BLE<'a, B, A>
 where
     B: ble_advertising::BleAdvertisementDriver + ble_advertising::BleConfig,
     A: kernel::hil::time::Alarm<'a>,
@@ -356,13 +359,14 @@ where
             });
         }
         if next_ref != u32::max_value() {
-            self.alarm.set_alarm(A::Ticks::from(next_ref), A::Ticks::from(next_dt));
+            self.alarm
+                .set_alarm(A::Ticks::from(next_ref), A::Ticks::from(next_dt));
         }
     }
 }
 
 // Timer alarm
-impl<B, A> kernel::hil::time::AlarmClient for BLE<'a, B, A>
+impl<'a, B, A> kernel::hil::time::AlarmClient for BLE<'a, B, A>
 where
     B: ble_advertising::BleAdvertisementDriver + ble_advertising::BleConfig,
     A: kernel::hil::time::Alarm<'a>,
@@ -432,7 +436,7 @@ where
 }
 
 // Callback from the radio once a RX event occur
-impl<B, A> ble_advertising::RxClient for BLE<'a, B, A>
+impl<'a, B, A> ble_advertising::RxClient for BLE<'a, B, A>
 where
     B: ble_advertising::BleAdvertisementDriver + ble_advertising::BleConfig,
     A: kernel::hil::time::Alarm<'a>,
@@ -499,14 +503,15 @@ where
 }
 
 // Callback from the radio once a TX event occur
-impl<B, A> ble_advertising::TxClient for BLE<'a, B, A>
+impl<'a, B, A> ble_advertising::TxClient for BLE<'a, B, A>
 where
     B: ble_advertising::BleAdvertisementDriver + ble_advertising::BleConfig,
     A: kernel::hil::time::Alarm<'a>,
 {
     // The ReturnCode indicates valid CRC or not, not used yet but could be used for
     // re-transmissions for invalid CRCs
-    fn transmit_event(&self, _crc_ok: ReturnCode) {
+    fn transmit_event(&self, buf: &'static mut [u8], _crc_ok: ReturnCode) {
+        self.kernel_tx.replace(buf);
         self.sending_app.map(|appid| {
             let _ = self.app.enter(*appid, |app, _| {
                 match app.process_status {
@@ -540,7 +545,7 @@ where
 }
 
 // System Call implementation
-impl<B, A> kernel::Driver for BLE<'a, B, A>
+impl<'a, B, A> kernel::Driver for BLE<'a, B, A>
 where
     B: ble_advertising::BleAdvertisementDriver + ble_advertising::BleConfig,
     A: kernel::hil::time::Alarm<'a>,

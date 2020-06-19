@@ -5,22 +5,10 @@ authors = ["Tock Project Developers <tock-dev@googlegroups.com>"]
 build = "build.rs"
 edition = "2018"
 
-[profile.dev]
-panic = "abort"
-lto = false
-opt-level = "z"
-debug = true
-
-[profile.release]
-panic = "abort"
-lto = true
-opt-level = "z"
-debug = true
-
 [dependencies]
 components = { path = "../../components" }
 cortexm4 = { path = "../../../arch/cortex-m4" }
 capsules = { path = "../../../capsules" }
 kernel = { path = "../../../kernel" }
 nrf52832 = { path = "../../../chips/nrf52832" }
-nrf52dk_base = { path = "../nrf52dk_base" }
+nrf52_components = { path = "../nrf52_components" }

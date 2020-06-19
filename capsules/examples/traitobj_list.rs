@@ -16,22 +16,26 @@
 //! manager.report();
 //! ```
 
-use kernel::common::list::{List, ListLink, ListNode};
+// Dummy main function for this example to compile with `cargo test`.
+fn main() {}
 
-pub trait Funky<'a> {
+use kernel::common::list::{List, ListLink, ListNode};
+use kernel::debug;
+
+pub trait Funky<'a>: 'a {
     fn name(&self) -> &'static str;
-    fn next_funky_thing(&'a self) -> &'a ListLink<'a, Funky<'a>>;
+    fn next_funky_thing(&'a self) -> &'a ListLink<'a, dyn Funky<'a>>;
 }
 
-impl<'a> ListNode<'a, Funky<'a>> for Funky<'a> {
-    fn next(&'a self) -> &'a ListLink<'a, Funky<'a>> {
+impl<'a> ListNode<'a, dyn Funky<'a>> for dyn Funky<'a> {
+    fn next(&'a self) -> &'a ListLink<'a, dyn Funky<'a>> {
         &self.next_funky_thing()
     }
 }
 
 // A manager holds a list of funky things
 pub struct Manager<'a> {
-    funky_things: List<'a, Funky<'a>>,
+    funky_things: List<'a, dyn Funky<'a>>,
 }
 
 impl<'a> Manager<'a> {
@@ -41,7 +45,7 @@ impl<'a> Manager<'a> {
         }
     }
 
-    pub fn manage(&mut self, thing: &'a (Funky<'a>)) {
+    pub fn manage(&mut self, thing: &'a (dyn Funky<'a>)) {
         self.funky_things.push_head(thing);
     }
 
@@ -54,7 +58,7 @@ impl<'a> Manager<'a> {
 
 // Jazz is a funky thing
 pub struct Jazz<'a> {
-    next: ListLink<'a, Funky<'a>>,
+    next: ListLink<'a, dyn Funky<'a>>,
 }
 
 impl<'a> Jazz<'a> {
@@ -70,14 +74,14 @@ impl<'a> Funky<'a> for Jazz<'a> {
         "Jazz"
     }
 
-    fn next_funky_thing(&'a self) -> &'a ListLink<'a, Funky<'a>> {
+    fn next_funky_thing(&'a self) -> &'a ListLink<'a, dyn Funky<'a>> {
         &self.next
     }
 }
 
 // Cheese is a funky thing
 pub struct Cheese<'a> {
-    next: ListLink<'a, Funky<'a>>,
+    next: ListLink<'a, dyn Funky<'a>>,
 }
 
 impl<'a> Cheese<'a> {
@@ -92,7 +96,7 @@ impl<'a> Funky<'a> for Cheese<'a> {
     fn name(&self) -> &'static str {
         "Cheese"
     }
-    fn next_funky_thing(&'a self) -> &'a ListLink<'a, Funky<'a>> {
+    fn next_funky_thing(&'a self) -> &'a ListLink<'a, dyn Funky<'a>> {
         &self.next
     }
 }

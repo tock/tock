@@ -152,12 +152,12 @@ impl hil::gpio::Configure for GpioPin {
         let output = regs.output_en.is_set(self.pin);
         let input = regs.output_en.is_set(self.pin);
 
-        return match (input, output) {
+        match (input, output) {
             (true, true) => hil::gpio::Configuration::InputOutput,
             (true, false) => hil::gpio::Configuration::Input,
             (false, true) => hil::gpio::Configuration::Output,
             (false, false) => hil::gpio::Configuration::LowPower,
-        };
+        }
     }
 
     fn set_floating_state(&self, mode: hil::gpio::FloatingState) {

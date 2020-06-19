@@ -1,10 +1,11 @@
 //! RTC driver, nRF5X-family
 
+use core::cell::Cell;
 use kernel::common::cells::OptionalCell;
 use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
-use kernel::hil::time::{self, Alarm, Freq32KHz, Time};
-use kernel::hil::Controller;
+use kernel::hil::time::{self, Alarm, Ticks, Time};
+use kernel::ReturnCode;
 
 const RTC1_BASE: StaticRef<RtcRegisters> =
     unsafe { StaticRef::new(0x40011000 as *const RtcRegisters) };
@@ -84,88 +85,109 @@ register_bitfields![u32,
 
 pub struct Rtc<'a> {
     registers: StaticRef<RtcRegisters>,
-    callback: OptionalCell<&'a dyn time::AlarmClient>,
+    overflow_client: OptionalCell<&'a dyn time::OverflowClient>,
+    alarm_client: OptionalCell<&'a dyn time::AlarmClient>,
+    enabled: Cell<bool>,
 }
 
 pub static mut RTC: Rtc = Rtc {
     registers: RTC1_BASE,
-    callback: OptionalCell::empty(),
+    overflow_client: OptionalCell::empty(),
+    alarm_client: OptionalCell::empty(),
+    enabled: Cell::new(false),
 };
 
-impl Controller for Rtc<'a> {
-    type Config = &'a dyn time::AlarmClient;
-
-    fn configure(&self, client: &'a dyn time::AlarmClient) {
-        self.callback.set(client);
-
-        // FIXME: what to do here?
-        // self.start();
-        // Set counter incrementing frequency to 16KHz
-        // rtc1().prescaler.set(1);
+impl<'a> Rtc<'a> {
+    pub fn handle_interrupt(&self) {
+        let regs = &*self.registers;
+        if regs.events_ovrflw.is_set(Event::READY) {
+            regs.events_ovrflw.write(Event::READY::CLEAR);
+            self.overflow_client.map(|client| client.overflow());
+        }
+        if regs.events_compare[0].is_set(Event::READY) {
+            regs.intenclr.write(Inte::COMPARE0::SET);
+            regs.events_compare[0].write(Event::READY::CLEAR);
+            self.alarm_client.map(|client| {
+                client.alarm();
+            });
+        }
     }
 }
 
-impl Rtc<'a> {
-    pub fn start(&self) {
-        // This function takes a nontrivial amount of time
-        // So it should only be called during initialization, not each tick
-        self.registers.prescaler.write(Prescaler::PRESCALER.val(0));
-        self.registers.tasks_start.write(Task::ENABLE::SET);
+impl Time for Rtc<'_> {
+    type Frequency = time::Freq32KHz;
+    type Ticks = time::Ticks24;
+
+    fn now(&self) -> Self::Ticks {
+        Self::Ticks::from(self.registers.counter.read(Counter::VALUE))
+    }
+}
+
+impl<'a> time::Counter<'a> for Rtc<'a> {
+    fn set_overflow_client(&'a self, client: &'a dyn time::OverflowClient) {
+        self.overflow_client.set(client);
+        self.registers.intenset.write(Inte::OVRFLW::SET);
     }
 
-    pub fn stop(&self) {
-        self.registers.cc[0].write(Counter::VALUE.val(0));
+    fn start(&self) -> ReturnCode {
+        self.registers.prescaler.write(Prescaler::PRESCALER.val(0));
+        self.registers.tasks_start.write(Task::ENABLE::SET);
+        self.enabled.set(true);
+        ReturnCode::SUCCESS
+    }
+
+    fn stop(&self) -> ReturnCode {
+        //self.registers.cc[0].write(Counter::VALUE.val(0));
         self.registers.tasks_stop.write(Task::ENABLE::SET);
+        self.enabled.set(false);
+        ReturnCode::SUCCESS
+    }
+
+    fn reset(&self) {
+        self.registers.tasks_clear.write(Task::ENABLE::SET);
     }
 
     fn is_running(&self) -> bool {
+        self.enabled.get()
+    }
+}
+
+impl<'a> Alarm<'a> for Rtc<'a> {
+    fn set_alarm_client(&self, client: &'a dyn time::AlarmClient) {
+        self.alarm_client.set(client);
+    }
+
+    fn set_alarm(&self, reference: Self::Ticks, dt: Self::Ticks) {
+        const SYNC_TICS: u32 = 2;
+        let regs = &*self.registers;
+
+        let mut expire = reference.wrapping_add(dt);
+
+        let now = self.now();
+        let earliest_possible = now.wrapping_add(Self::Ticks::from(SYNC_TICS));
+
+        if !now.within_range(reference, expire) || expire.wrapping_sub(now).into_u32() <= SYNC_TICS
+        {
+            expire = earliest_possible;
+        }
+
+        regs.cc[0].write(Counter::VALUE.val(expire.into_u32()));
+        regs.events_compare[0].write(Event::READY::CLEAR);
+        regs.intenset.write(Inte::COMPARE0::SET);
+    }
+
+    fn get_alarm(&self) -> Self::Ticks {
+        Self::Ticks::from(self.registers.cc[0].read(Counter::VALUE))
+    }
+
+    fn disarm(&self) -> ReturnCode {
+        let regs = &*self.registers;
+        regs.intenclr.write(Inte::COMPARE0::SET);
+        regs.events_compare[0].write(Event::READY::CLEAR);
+        ReturnCode::SUCCESS
+    }
+
+    fn is_armed(&self) -> bool {
         self.registers.evten.is_set(Inte::COMPARE0)
-    }
-
-    pub fn handle_interrupt(&self) {
-        self.registers.events_compare[0].write(Event::READY::CLEAR);
-        self.registers.intenclr.write(Inte::COMPARE0::SET);
-        self.callback.map(|cb| {
-            cb.fired();
-        });
-    }
-}
-
-impl Time for Rtc<'a> {
-    type Frequency = Freq32KHz;
-
-    fn now(&self) -> u32 {
-        self.registers.counter.read(Counter::VALUE)
-    }
-
-    fn max_tics(&self) -> u32 {
-        (1 << 24) - 1
-    }
-}
-
-impl Alarm<'a> for Rtc<'a> {
-    fn set_client(&self, client: &'a dyn time::AlarmClient) {
-        self.callback.set(client);
-    }
-
-    fn set_alarm(&self, tics: u32) {
-        // Similarly to the disable function, here we don't restart the timer
-        // Instead, we just listen for it again
-        self.registers.intenset.write(Inte::COMPARE0::SET);
-        self.registers.cc[0].write(Counter::VALUE.val(tics));
-        self.registers.events_compare[0].write(Event::READY::CLEAR);
-    }
-
-    fn get_alarm(&self) -> u32 {
-        self.registers.cc[0].read(Counter::VALUE)
-    }
-
-    fn disable(&self) {
-        self.registers.intenclr.write(Inte::COMPARE0::SET);
-        self.registers.events_compare[0].write(Event::READY::CLEAR);
-    }
-
-    fn is_enabled(&self) -> bool {
-        self.is_running()
     }
 }

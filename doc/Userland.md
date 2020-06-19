@@ -154,7 +154,7 @@ with their runtime.
 
 ## Stack and Heap
 
-Applications can memory requirements by setting the `minimum_ram_size` variable
+Applications can specify memory requirements by setting the `minimum_ram_size` variable
 in their TBF headers. Note that the Tock kernel treats this as a minimum,
 depending on the underlying platform, the amount of memory may be larger than
 requested, but will never be smaller.

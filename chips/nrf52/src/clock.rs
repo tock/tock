@@ -42,7 +42,7 @@ register_structs! {
         (0x308 => intenclr: ReadWrite<u32, Interrupt::Register>),
         (0x30C => _reserved4),
         (0x408 => hfclkrun: ReadOnly<u32, Status::Register>),
-        (0x40C => hfclkstat: ReadWrite<u32, HfClkStat::Register>),
+        (0x40C => hfclkstat: ReadOnly<u32, HfClkStat::Register>),
         (0x410 => _reserved5),
         (0x414 => lfclkrun: ReadOnly<u32, Control::Register>),
         (0x418 => lfclkstat: ReadWrite<u32, LfClkStat::Register>),
@@ -126,10 +126,10 @@ const CLOCK_BASE: StaticRef<ClockRegisters> =
 
 /// Interrupt sources
 pub enum InterruptField {
-    HFCLKSTARTED = (1 << 0),
-    LFCLKSTARTED = (1 << 1),
-    DONE = (1 << 3),
-    CTTO = (1 << 4),
+    HFCLKSTARTED = 1 << 0,
+    LFCLKSTARTED = 1 << 1,
+    DONE = 1 << 3,
+    CTTO = 1 << 4,
 }
 
 /// Low frequency clock source
@@ -200,7 +200,8 @@ impl Clock {
         }
     }
 
-    /// Start the high frequency clock
+    /// Start the high frequency clock - specifically HFXO, and sets the high frequency
+    /// clock source to HFXO
     pub fn high_start(&self) {
         let regs = &*self.registers;
         regs.tasks_hfclkstart.write(Control::ENABLE::SET);
@@ -271,12 +272,5 @@ impl Clock {
     pub fn low_set_source(&self, clock_source: LowClockSource) {
         let regs = &*self.registers;
         regs.lfclksrc.write(LfClkSrc::SRC.val(clock_source as u32));
-    }
-
-    /// Set high frequency clock source
-    pub fn high_set_source(&self, clock_source: HighClockSource) {
-        let regs = &*self.registers;
-        regs.hfclkstat
-            .write(HfClkStat::SRC.val(clock_source as u32));
     }
 }

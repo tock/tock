@@ -33,18 +33,32 @@ let
   });
   moz_overlay = import (builtins.fetchTarball https://github.com/mozilla/nixpkgs-mozilla/archive/master.tar.gz);
   nixpkgs = import <nixpkgs> { overlays = [ moz_overlay ]; };
-  rust_date = "2020-03-06";
+  rust_date = "2020-06-03";
   rust_channel = "nightly";
-  rust_targets = [ "thumbv7em-none-eabi" "thumbv7em-none-eabihf" "thumbv6m-none-eabi" ];
+  rust_targets = [
+    "thumbv7em-none-eabi" "thumbv7em-none-eabihf" "thumbv6m-none-eabi"
+    "riscv32imac-unknown-none-elf" "riscv32imc-unknown-none-elf"
+  ];
   rust_build = nixpkgs.rustChannelOfTargets rust_channel rust_date rust_targets;
 in
   with pkgs;
   stdenv.mkDerivation {
     name = "tock-dev";
+
     buildInputs = [
       python3Full
       pythonPackages.tockloader
       rust_build
-      ];
-     LD_LIBRARY_PATH="${stdenv.cc.cc.lib}/lib64:$LD_LIBRARY_PATH";
+      llvm
+      qemu
+    ];
+
+    LD_LIBRARY_PATH="${stdenv.cc.cc.lib}/lib64:$LD_LIBRARY_PATH";
+
+    # The defaults "objcopy" and "objdump" are wrong (for x86), use
+    # "llvm-obj{copy,dump}" as defined in the makefile
+    shellHook = ''
+      unset OBJCOPY
+      unset OBJDUMP
+    '';
   }
