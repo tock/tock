@@ -191,7 +191,7 @@ impl hil::uart::Configure for Uart<'a> {
         if n > 16 {
             // Oversampling is enabled
             regs.brw.set(n >> 4); // equals n / 16
-            let ucbrf = (n_float / 16.0f32 - ((n >> 4) as f32) * 16.0f32) as u16;
+            let ucbrf = (((n_float / 16.0f32) - ((n >> 4) as f32)) * 16.0f32) as u16;
             regs.mctlw
                 .modify(usci::UCAxMCTLW::UCBRF.val(ucbrf) + usci::UCAxMCTLW::UCOS16::SET);
         } else {
