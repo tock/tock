@@ -2,7 +2,7 @@
 
 #![crate_name = "cortexm0"]
 #![crate_type = "rlib"]
-#![feature(llvm_asm, core_intrinsics, naked_functions)]
+#![feature(llvm_asm, naked_functions)]
 #![no_std]
 
 // Re-export the base generic cortex-m functions here as they are
@@ -221,17 +221,15 @@ struct HardFaultStackedRegisters {
 #[cfg(all(target_arch = "arm", target_os = "none"))]
 #[inline(never)]
 unsafe fn kernel_hardfault(faulting_stack: *mut u32) {
-    use core::intrinsics::offset;
-
     let hardfault_stacked_registers = HardFaultStackedRegisters {
-        r0: *offset(faulting_stack, 0),
-        r1: *offset(faulting_stack, 1),
-        r2: *offset(faulting_stack, 2),
-        r3: *offset(faulting_stack, 3),
-        r12: *offset(faulting_stack, 4),
-        lr: *offset(faulting_stack, 5),
-        pc: *offset(faulting_stack, 6),
-        xpsr: *offset(faulting_stack, 7),
+        r0: faulting_stack.offset(0),
+        r1: *faulting_stack.offset(1),
+        r2: *faulting_stack.offset(2),
+        r3: *faulting_stack.offset(3),
+        r12: *faulting_stack.offset(4),
+        lr: *faulting_stack.offset(5),
+        pc: *faulting_stack.offset(6),
+        xpsr: *faulting_stack.offset(7),
     };
 
     // NOTE: Unlike Cortex-M3, `panic!` does not seem to work
