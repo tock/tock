@@ -10,7 +10,7 @@ use kernel::common::cells::TakeCell;
 use kernel::hil::gpio;
 use kernel::hil::radio;
 use kernel::hil::spi;
-use kernel::hil::spi::SpiMasterDevice;
+use kernel::hil::spi::{SpiMasterClient, SpiMasterDevice};
 use kernel::ReturnCode;
 
 // not written to registers unlike Modes
@@ -104,7 +104,7 @@ pub trait RadioConfig {
     fn stop(&self) -> ReturnCode;
 }
 
-impl<S: spi::SpiMasterDevice> RadioConfig for Radio<'_, S> {
+impl RadioConfig for Radio<'_> {
     fn initialize(
         &self,
         buf: &'static mut [u8],
@@ -170,8 +170,8 @@ impl<S: spi::SpiMasterDevice> RadioConfig for Radio<'_, S> {
 }
 
 // The modem
-pub struct Radio<'a, S: SpiMasterDevice> {
-    spi: &'a S,
+pub struct Radio<'a> {
+    spi: &'a dyn SpiMasterDevice,
     spi_buf: TakeCell<'static, [u8]>,
     spi_rx: TakeCell<'static, [u8]>,
     spi_tx: TakeCell<'static, [u8]>,
@@ -194,13 +194,13 @@ pub struct Radio<'a, S: SpiMasterDevice> {
     rx_done: bool,
 }
 
-impl<'a, S: SpiMasterDevice> Radio<'a, S> {
+impl<'a> Radio<'a> {
     pub fn new(
-        spi: &'a S,
+        spi: &'a dyn SpiMasterDevice,
         //cs: &'a dyn gpio::Pin,
         reset: &'a dyn gpio::Pin,
         //irq: &'a dyn gpio::InterruptPin,
-    ) -> Radio<'a, S> {
+    ) -> Radio<'a> {
         Radio {
             spi: spi,
             spi_buf: TakeCell::empty(),
@@ -812,5 +812,16 @@ impl<'a, S: SpiMasterDevice> Radio<'a, S> {
         }
 
         ReturnCode::SUCCESS
+    }
+}
+
+impl SpiMasterClient for Radio<'_> {
+    fn read_write_done(
+        &self,
+        _write_buffer: &'static mut [u8],
+        _read_buffer: Option<&'static mut [u8]>,
+        _len: usize,
+    ) {
+        unimplemented!("Need to hook this up to the state machine in rest of `Radio`")
     }
 }

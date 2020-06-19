@@ -1,15 +1,14 @@
 use super::radio::Radio;
 use crate::driver;
-use kernel::hil::spi::SpiMasterDevice;
 use kernel::{AppId, Driver, ReturnCode};
 
 pub const DRIVER_NUM: usize = driver::NUM::Lora as usize;
 
 pub struct App {}
 
-pub struct RadioDriver<'a, S: SpiMasterDevice> {
+pub struct RadioDriver<'a> {
     /// Underlying physical device; FIX make private
-    pub device: &'a Radio<'a, S>,
+    pub device: &'a Radio<'a>,
 }
 
 impl Default for App {
@@ -18,13 +17,13 @@ impl Default for App {
     }
 }
 
-impl<'a, S: SpiMasterDevice> RadioDriver<'a, S> {
-    pub fn new(device: &'a Radio<'a, S>) -> RadioDriver<'a, S> {
+impl<'a> RadioDriver<'a> {
+    pub fn new(device: &'a Radio<'a>) -> RadioDriver<'a> {
         RadioDriver { device: device }
     }
 }
 
-impl<S: SpiMasterDevice> Driver for RadioDriver<'_, S> {
+impl Driver for RadioDriver<'_> {
     /// Command interface.
     ///
     /// ### `command_num`

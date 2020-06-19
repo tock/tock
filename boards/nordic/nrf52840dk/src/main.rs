@@ -66,16 +66,13 @@
 #![cfg_attr(not(doc), no_main)]
 #![deny(missing_docs)]
 
-use capsules::lora::radio::RadioConfig;
 use capsules::virtual_alarm::VirtualMuxAlarm;
-use capsules::virtual_spi::VirtualSpiMasterDevice;
-use components::spi::SpiComponent;
 use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::component::Component;
 #[allow(unused_imports)]
 use kernel::{capabilities, create_capability, debug, debug_gpio, debug_verbose, static_init};
 use nrf52840::gpio::Pin;
-use nrf52_components::{self, LoraComponent, UartChannel, UartPins};
+use nrf52_components::{self, UartChannel, UartPins};
 
 // The nRF52840DK LEDs (see back of board)
 const LED1_PIN: Pin = Pin::P0_13;
@@ -108,12 +105,6 @@ const SPI_MX25R6435F_HOLD_PIN: Pin = Pin::P0_23;
 const LORA_CHIP_SELECT: Pin = Pin::P1_01;
 const LORA_RESET: Pin = Pin::P1_02;
 // const LORA_INT: Pin = Pin::P1_03;
-
-// The LoRa radio requires buffers for its SPI operations:
-static mut LORA_BUF: [u8; kernel::hil::radio::MAX_BUF_SIZE] =
-    [0x00; kernel::hil::radio::MAX_BUF_SIZE];
-static mut LORA_REG_WRITE: [u8; 2] = [0x00; 2];
-static mut LORA_REG_READ: [u8; 2] = [0x00; 2];
 
 // Constants related to the configuration of the 15.4 network stack
 const SRC_MAC: u16 = 0xf00f;
@@ -154,10 +145,7 @@ pub struct Platform {
         VirtualMuxAlarm<'static, nrf52840::rtc::Rtc<'static>>,
     >,
     ieee802154_radio: &'static capsules::ieee802154::RadioDriver<'static>,
-    lora_radio: &'static capsules::lora::driver::RadioDriver<
-        'static,
-        VirtualSpiMasterDevice<'static, nrf52840::spi::SPIM>,
-    >,
+    lora_radio: &'static capsules::lora::driver::RadioDriver<'static>,
     button: &'static capsules::button::Button<'static, nrf52840::gpio::GPIOPin>,
     pconsole: &'static capsules::process_console::ProcessConsole<
         'static,
@@ -418,21 +406,12 @@ pub unsafe fn reset_handler() {
     ));
 
     // External LoRa radio
-    let lora_spi = SpiComponent::new(mux_spi, &gpio_port[LORA_CHIP_SELECT])
-        .finalize(components::spi_component_helper!(nrf52840::spi::SPIM));
-    let lora_static_radio = static_init!(
-        capsules::lora::radio::Radio<'static, VirtualSpiMasterDevice<'static, nrf52840::spi::SPIM>>,
-        capsules::lora::radio::Radio::new(
-            lora_spi,
-            &gpio_port[LORA_RESET],
-            // &gpio_port[LORA_INT],
-        )
-    );
-    //lora_spi.set_client(radio); ?
-    let (lora_radio,) = LoraComponent::new(lora_static_radio).finalize(());
-    lora_radio
-        .device
-        .initialize(&mut LORA_BUF, &mut LORA_REG_WRITE, &mut LORA_REG_READ);
+    let lora_radio = components::lora::LoraComponent::new(
+        mux_spi,
+        &gpio_port[LORA_CHIP_SELECT] as &dyn kernel::hil::gpio::Pin,
+        &gpio_port[LORA_RESET],
+    )
+    .finalize(components::lora_component_helper!(nrf52840::spi::SPIM));
 
     let rng = components::rng::RngComponent::new(board_kernel, &nrf52840::trng::TRNG).finalize(());
 
