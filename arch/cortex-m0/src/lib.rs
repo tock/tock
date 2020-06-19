@@ -222,7 +222,7 @@ struct HardFaultStackedRegisters {
 #[inline(never)]
 unsafe fn kernel_hardfault(faulting_stack: *mut u32) {
     let hardfault_stacked_registers = HardFaultStackedRegisters {
-        r0: faulting_stack.offset(0),
+        r0: *faulting_stack.offset(0),
         r1: *faulting_stack.offset(1),
         r2: *faulting_stack.offset(2),
         r3: *faulting_stack.offset(3),
