@@ -247,9 +247,17 @@ target:
 %.elf: %
 	$(Q)cp $< $@
 
-%.bin: %.elf $(TOCK_ROOT_DIRECTORY)tools/sha256sum/target/debug/sha256sum
+# Check whether the system already has a sha256sum application
+# present, if not use the custom shipped one
+ifeq (, $(shell which sha256sum))
+  %.bin: %.elf $(TOCK_ROOT_DIRECTORY)tools/sha256sum/target/debug/sha256sum
 	$(Q)$(OBJCOPY) --output-target=binary $(OBJCOPY_FLAGS) $< $@
 	$(Q)$(TOCK_ROOT_DIRECTORY)tools/sha256sum/target/debug/sha256sum $@
+else
+  %.bin: %.elf
+	$(Q)$(OBJCOPY) --output-target=binary $(OBJCOPY_FLAGS) $< $@
+	$(Q)sha256sum $@
+endif
 
 %.lst: %.elf
 	$(Q)$(OBJDUMP) $(OBJDUMP_FLAGS) $< > $@
