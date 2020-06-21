@@ -1307,6 +1307,16 @@ impl<'a> Usbd<'a> {
 
         self.dma_pending.set(false);
 
+        // Wait for at least T_RSTRCY for the hardware to be ready after the USB
+        // RESET (§6.35.6). I measured the loop using GPIO pins from `0..800000`
+        // as a 62.5 ms delay, and that was enough to allow the CDC layer to
+        // work. I tried shorter time than that (`0..700000`, measured at 54.7
+        // ms), but then the EPDATA event on the very first IN transfer
+        // immediately after the `client.bus_reset()` call below never occurs.
+        for _ in 0..800000 {
+            cortexm4::support::nop();
+        }
+
         // TODO: reset controller stack
         self.client.map(|client| {
             client.bus_reset();

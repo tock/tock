@@ -48,7 +48,7 @@ pub struct ClientCtrl<'a, 'b, U: 'a> {
 
     /// A 64-byte buffer for the control endpoint to be passed to the USB
     /// driver.
-    ctrl_buffer: Buffer64,
+    pub ctrl_buffer: Buffer64,
 
     /// Storage for composing responses to device descriptor requests.
     descriptor_storage: [Cell<u8>; DESCRIPTOR_BUFLEN],
