@@ -1,6 +1,6 @@
-// General Purpose Input/Output (GPIO)
+//! General Purpose Input/Output (GPIO)
 
-use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite};
+use kernel::common::registers::{register_bitfields, register_structs, ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
 use kernel::hil;
 
@@ -106,26 +106,28 @@ const GPIO_BASES: [StaticRef<GpioRegisters>; 6] = [
 
 const PINS_PER_PORT: u8 = 8;
 
-#[repr(C)]
-struct GpioRegisters {
-    input: [ReadOnly<u8, PxIN::Register>; 2],
-    out: [ReadWrite<u8, PxOUT::Register>; 2],
-    dir: [ReadWrite<u8, PxDIR::Register>; 2],
-    ren: [ReadWrite<u8, PxREN::Register>; 2],
-    ds: [ReadWrite<u8, PxDS::Register>; 2],
-    sel0: [ReadWrite<u8, PxSEL0::Register>; 2],
-    sel1: [ReadWrite<u8, PxSEL1::Register>; 2],
-    iv1: ReadWrite<u16, PxIV::Register>,
-    _reserved: [u8; 6],
-    selc: [ReadWrite<u8, PxSELC::Register>; 2],
-    ies: [ReadWrite<u8, PxIES::Register>; 2],
-    ie: [ReadWrite<u8, PxIE::Register>; 2],
-    ifg: [ReadWrite<u8, PxIFG::Register>; 2],
-    iv2: ReadWrite<u16, PxIV::Register>,
+register_structs! {
+    GpioRegisters {
+        (0x00 => input: [ReadOnly<u8, PxIN::Register>; 2]),
+        (0x02 => out: [ReadWrite<u8, PxOUT::Register>; 2]),
+        (0x04 => dir: [ReadWrite<u8, PxDIR::Register>; 2]),
+        (0x06 => ren: [ReadWrite<u8, PxREN::Register>; 2]),
+        (0x08 => ds: [ReadWrite<u8, PxDS::Register>; 2]),
+        (0x0A => sel0: [ReadWrite<u8, PxSEL0::Register>; 2]),
+        (0x0C => sel1: [ReadWrite<u8, PxSEL1::Register>; 2]),
+        (0x0E => iv1: ReadWrite<u16, PxIV::Register>),
+        (0x10 => _reserved),
+        (0x16 => selc: [ReadWrite<u8, PxSELC::Register>; 2]),
+        (0x18 => ies: [ReadWrite<u8, PxIES::Register>; 2]),
+        (0x1A => ie: [ReadWrite<u8, PxIE::Register>; 2]),
+        (0x1C => ifg: [ReadWrite<u8, PxIFG::Register>; 2]),
+        (0x1E => iv2: ReadWrite<u16, PxIV::Register>),
+        (0x20 => @END),
+    }
 }
 
 register_bitfields! [u8,
-    // input-register, get input-status of pins
+    /// Input-register, get input-status of pins
     PxIN [
         PIN0 OFFSET(0) NUMBITS(1),
         PIN1 OFFSET(1) NUMBITS(1),
@@ -136,7 +138,7 @@ register_bitfields! [u8,
         PIN6 OFFSET(6) NUMBITS(1),
         PIN7 OFFSET(7) NUMBITS(1)
     ],
-    // output-register, set output status of pins
+    /// Output-register, set output status of pins
     PxOUT [
         PIN0 OFFSET(0) NUMBITS(1),
         PIN1 OFFSET(1) NUMBITS(1),
@@ -147,7 +149,7 @@ register_bitfields! [u8,
         PIN6 OFFSET(6) NUMBITS(1),
         PIN7 OFFSET(7) NUMBITS(1)
     ],
-    // direction-register, set direction of pins
+    /// Direction-register, set direction of pins
     PxDIR [
         PIN0 OFFSET(0) NUMBITS(1),
         PIN1 OFFSET(1) NUMBITS(1),
@@ -158,7 +160,7 @@ register_bitfields! [u8,
         PIN6 OFFSET(6) NUMBITS(1),
         PIN7 OFFSET(7) NUMBITS(1)
     ],
-    // pull-register, enable/disable pullup- or -down resistor
+    /// Pull-register, enable/disable pullup- or -down resistor
     PxREN [
         PIN0 OFFSET(0) NUMBITS(1),
         PIN1 OFFSET(1) NUMBITS(1),
@@ -169,7 +171,7 @@ register_bitfields! [u8,
         PIN6 OFFSET(6) NUMBITS(1),
         PIN7 OFFSET(7) NUMBITS(1)
     ],
-    // drive-strength register, select high(1) or low(0) drive-strength
+    /// Drive-strength register, select high(1) or low(0) drive-strength
     PxDS [
         PIN0 OFFSET(0) NUMBITS(1),
         PIN1 OFFSET(1) NUMBITS(1),
@@ -180,8 +182,8 @@ register_bitfields! [u8,
         PIN6 OFFSET(6) NUMBITS(1),
         PIN7 OFFSET(7) NUMBITS(1)
     ],
-    // function-selection register 0, combined with function-selection 1 the
-    // module function is selected (GPIO, primary, secondary or tertiary)
+    /// Function-selection register 0, combined with function-selection 1 the
+    /// module function is selected (GPIO, primary, secondary or tertiary)
     PxSEL0 [
         PIN0 OFFSET(0) NUMBITS(1),
         PIN1 OFFSET(1) NUMBITS(1),
@@ -192,8 +194,8 @@ register_bitfields! [u8,
         PIN6 OFFSET(6) NUMBITS(1),
         PIN7 OFFSET(7) NUMBITS(1)
     ],
-    // function-selection register 1, combined with function-selection 0 the
-    // module function is selected (GPIO, primary, secondary or tertiary)
+    /// Function-selection register 1, combined with function-selection 0 the
+    /// module function is selected (GPIO, primary, secondary or tertiary)
     PxSEL1 [
         PIN0 OFFSET(0) NUMBITS(1),
         PIN1 OFFSET(1) NUMBITS(1),
@@ -204,7 +206,7 @@ register_bitfields! [u8,
         PIN6 OFFSET(6) NUMBITS(1),
         PIN7 OFFSET(7) NUMBITS(1)
     ],
-    // complement selection, set a bit in PxSEL0 and PxSEL1 concurrently
+    /// Complement selection, set a bit in PxSEL0 and PxSEL1 concurrently
     PxSELC [
         PIN0 OFFSET(0) NUMBITS(1),
         PIN1 OFFSET(1) NUMBITS(1),
@@ -215,7 +217,7 @@ register_bitfields! [u8,
         PIN6 OFFSET(6) NUMBITS(1),
         PIN7 OFFSET(7) NUMBITS(1)
     ],
-    // interrupt-edge selction, 0=rising-edge, 1=falling-edge
+    /// Interrupt-edge selction, 0=rising-edge, 1=falling-edge
     PxIES [
         PIN0 OFFSET(0) NUMBITS(1),
         PIN1 OFFSET(1) NUMBITS(1),
@@ -226,7 +228,7 @@ register_bitfields! [u8,
         PIN6 OFFSET(6) NUMBITS(1),
         PIN7 OFFSET(7) NUMBITS(1)
     ],
-    // interrupt enable register
+    /// Interrupt enable register
     PxIE [
         PIN0 OFFSET(0) NUMBITS(1),
         PIN1 OFFSET(1) NUMBITS(1),
@@ -237,7 +239,7 @@ register_bitfields! [u8,
         PIN6 OFFSET(6) NUMBITS(1),
         PIN7 OFFSET(7) NUMBITS(1)
     ],
-    // interrupt flag register
+    /// Interrupt flag register
     PxIFG [
         PIN0 OFFSET(0) NUMBITS(1),
         PIN1 OFFSET(1) NUMBITS(1),
@@ -290,7 +292,7 @@ pub struct Pin {
 }
 
 impl Pin {
-    pub const fn new(pin: PinNr) -> Pin {
+    const fn new(pin: PinNr) -> Pin {
         let pin_nr = (pin as u8) % PINS_PER_PORT;
         let port = (pin as u8) / PINS_PER_PORT;
         Pin {
@@ -371,7 +373,7 @@ impl hil::gpio::Output for Pin {
 
 impl hil::gpio::Configure for Pin {
     fn configuration(&self) -> hil::gpio::Configuration {
-        let regs = &*self.registers;
+        let regs = self.registers;
         let dir = regs.dir[self.reg_idx].get();
         let mut sel = ((regs.sel0[self.reg_idx].get() & (1 << self.pin)) > 0) as u8;
         sel |= (((regs.sel1[self.reg_idx].get() & (1 << self.pin)) > 0) as u8) << 1;
@@ -423,7 +425,7 @@ impl hil::gpio::Configure for Pin {
     }
 
     fn set_floating_state(&self, state: hil::gpio::FloatingState) {
-        let regs = &*self.registers;
+        let regs = self.registers;
         let mut ren = regs.ren[self.reg_idx].get();
         let mut out = regs.out[self.reg_idx].get();
         match state {

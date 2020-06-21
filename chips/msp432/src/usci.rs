@@ -1,6 +1,6 @@
-//! USCI
+//! (enhanced) Universal Serial Communication Interface (USCI)
 
-use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite};
+use kernel::common::registers::{register_bitfields, register_structs, ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
 
 pub(crate) const USCI_A0_BASE: StaticRef<UsciARegisters> =
@@ -27,45 +27,78 @@ pub(crate) const USCI_B2_BASE: StaticRef<UsciBRegisters> =
 pub(crate) const USCI_B3_BASE: StaticRef<UsciBRegisters> =
     unsafe { StaticRef::new(0x4000_2C00 as *const UsciBRegisters) };
 
-#[repr(C)]
-pub(crate) struct UsciARegisters {
-    pub(crate) ctlw0: ReadWrite<u16, UCAxCTLW0::Register>,
-    pub(crate) ctlw1: ReadWrite<u16, UCAxCTLW1::Register>,
-    _reserved0: [u16; 1],
-    pub(crate) brw: ReadWrite<u16, UCAxBRW::Register>,
-    pub(crate) mctlw: ReadWrite<u16, UCAxMCTLW::Register>,
-    pub(crate) statw: ReadWrite<u16, UCAxSTATW::Register>,
-    pub(crate) rxbuf: ReadOnly<u16, UCAxRXBUF::Register>,
-    pub(crate) txbuf: ReadWrite<u16, UCAxTXBUF::Register>,
-    pub(crate) abctl: ReadWrite<u16, UCAxABCTL::Register>,
-    pub(crate) irctl: ReadWrite<u16, UCAxIRCTL::Register>,
-    _reserved1: [u16; 3],
-    pub(crate) ie: ReadWrite<u16, UCAxIE::Register>,
-    pub(crate) ifg: ReadWrite<u16, UCAxIFG::Register>,
-    pub(crate) iv: ReadOnly<u16, UCAxIV::Register>,
-}
-
-#[repr(C)]
-pub(crate) struct UsciBRegisters {
-    pub(crate) ctlw0: ReadWrite<u16, UCBxCTLW0::Register>,
-    pub(crate) ctlw1: ReadWrite<u16, UCBxCTLW1::Register>,
-    _reserved0: [u16; 1],
-    pub(crate) brw: ReadWrite<u16, UCBxBRW::Register>,
-    pub(crate) statw: ReadOnly<u16, UCBxSTATW::Register>,
-    pub(crate) tbcnt: ReadWrite<u16, UCBxTBCNT::Register>,
-    pub(crate) rxbuf: ReadOnly<u16, UCBxRXBUF::Register>,
-    pub(crate) txbuf: ReadWrite<u16, UCBxTXBUF::Register>,
-    _reserved1: [u16; 2],
-    pub(crate) i2coa0: ReadWrite<u16, UCBxI2COA0::Register>,
-    pub(crate) i2coa1: ReadWrite<u16, UCBxI2COA1::Register>,
-    pub(crate) i2coa2: ReadWrite<u16, UCBxI2COA2::Register>,
-    pub(crate) i2coa3: ReadWrite<u16, UCBxI2COA3::Register>,
-    pub(crate) addrx: ReadOnly<u16, UCBxADDRX::Register>,
-    pub(crate) addmask: ReadWrite<u16, UCBxADDMASK::Register>,
-    pub(crate) i2csa: ReadWrite<u16, UCBxI2CSA::Register>,
-    pub(crate) ie: ReadWrite<u16, UCAxIE::Register>,
-    pub(crate) ifg: ReadWrite<u16, UCAxIFG::Register>,
-    pub(crate) iv: ReadOnly<u16, UCAxIV::Register>,
+register_structs! {
+    /// EUSCI_Ax
+    pub(crate) UsciARegisters {
+        /// eUSCI_Ax Control Word Register 0
+        (0x00 => pub(crate) ctlw0: ReadWrite<u16, UCAxCTLW0::Register>),
+        /// eUSCI_Ax Control Word Register 1
+        (0x02 => pub(crate) ctlw1: ReadWrite<u16>),
+        (0x04 => _reserved0),
+        /// eUSCI_Ax Baud Rate Control Word Register
+        (0x06 => pub(crate) brw: ReadWrite<u16>),
+        /// eUSCI_Ax Modulation Control Word Register
+        (0x08 => pub(crate) mctlw: ReadWrite<u16, UCAxMCTLW::Register>),
+        /// eUSCI_Ax Status Register
+        (0x0A => pub(crate) statw: ReadWrite<u16, UCAxSTATW::Register>),
+        /// eUSCI_Ax Receive Buffer Register
+        (0x0C => pub(crate) rxbuf: ReadOnly<u16>),
+        /// eUSCI_Ax Transmit Buffer Register
+        (0x0E => pub(crate) txbuf: ReadWrite<u16>),
+        /// eUSCI_Ax Auto Baud Rate Control Register
+        (0x10 => pub(crate) abctl: ReadWrite<u16, UCAxABCTL::Register>),
+        /// eUSCI_Ax IrDA Control Word Register
+        (0x12 => pub(crate) irctl: ReadWrite<u16, UCAxIRCTL::Register>),
+        (0x14 => _reserved1),
+        /// eUSCI_Ax Interrupt Enable Register
+        (0x1A => pub(crate) ie: ReadWrite<u16, UCAxIE::Register>),
+        /// eUSCI_Ax Interrupt Flag Register
+        (0x1C => pub(crate) ifg: ReadWrite<u16, UCAxIFG::Register>),
+        /// eUSCI_Ax Interrupt Vector Register
+        (0x1E => pub(crate) iv: ReadOnly<u16>),
+        (0x20 => @END),
+    },
+    /// EUSCI_Bx
+    pub(crate) UsciBRegisters {
+        /// eUSCI_Bx Control Word Register 0
+        (0x00 => pub(crate) ctlw0: ReadWrite<u16, UCBxCTLW0::Register>),
+        /// eUSCI_Bx Control Word Register 1
+        (0x02 => pub(crate) ctlw1: ReadWrite<u16, UCBxCTLW1::Register>),
+        (0x04 => _reserved0),
+        /// eUSCI_Bx Baud Rate Control Word Register
+        (0x06 => pub(crate) brw: ReadWrite<u16>),
+        /// eUSCI_Bx Status Register
+        (0x08 => pub(crate) statw: ReadWrite<u16, UCBxSTATW::Register>),
+        /// eUSCI_Bx Byte Counter Threshold Register
+        (0x0A => pub(crate) tbcnt: ReadWrite<u16>),
+        /// eUSCI_Bx Receive Buffer Register
+        (0x0C => pub(crate) rxbuf: ReadOnly<u16>),
+        /// eUSCI_Bx Transmit Buffer Register
+        (0x0E => pub(crate) txbuf: ReadWrite<u16>),
+        (0x10 => _reserved1),
+        /// eUSCI_Bx I2C Own Address 0 Register
+        (0x14 => pub(crate) i2coa0: ReadWrite<u16, UCBxI2COA0::Register>),
+        /// eUSCI_Bx I2C Own Address 1 Register
+        (0x16 => pub(crate) i2coa1: ReadWrite<u16, UCBxI2COA1::Register>),
+        /// eUSCI_Bx I2C Own Address 2 Register
+        (0x18 => pub(crate) i2coa2: ReadWrite<u16, UCBxI2COA2::Register>),
+        /// eUSCI_Bx I2C Own Address 3 Register
+        (0x1A => pub(crate) i2coa3: ReadWrite<u16, UCBxI2COA3::Register>),
+        /// eUSCI_Bx I2C Received Address Register
+        (0x1C => pub(crate) addrx: ReadOnly<u16>),
+        /// eUSCI_Bx I2C Address Mask Register
+        (0x1E => pub(crate) addmask: ReadWrite<u16>),
+        /// eUSCI_Bx I2C Slave Address Register
+        (0x20 => pub(crate) i2csa: ReadWrite<u16>),
+        (0x22 => _reserved2),
+        /// eUSCI_Bx Interrupt Enable Register
+        (0x2A => pub(crate) ie: ReadWrite<u16, UCBxIE::Register>),
+        /// eUSCI_Bx Interrupt Flag Register
+        (0x2C => pub(crate) ifg: ReadWrite<u16, UCBxIFG::Register>),
+        /// eUSCI_Bx Interrupt Vector Register
+        (0x2E => pub(crate) iv: ReadOnly<u16>),
+        (0x30 => @END),
+    }
 }
 
 register_bitfields![u16,
@@ -189,12 +222,6 @@ register_bitfields![u16,
             _50ns = 3
         ]
     ],
-
-    pub(crate) UCAxBRW [
-        /// Clock prescaler setting of the baud-rate generator
-        UCBR OFFSET(0) NUMBITS(16)
-    ],
-
     pub(crate) UCAxMCTLW [
         /// Oversampling mode enabled
         UCOS16 OFFSET(0) NUMBITS(1) [
@@ -261,17 +288,6 @@ register_bitfields![u16,
             EnabledUCAxTXDIsInternallyFedBackToTheReceiver = 1
         ]
     ],
-
-    pub(crate) UCAxRXBUF [
-        /// Receive-data buffer
-        UCRXBUF OFFSET(0) NUMBITS(8)
-    ],
-
-    pub(crate) UCAxTXBUF [
-        /// Transmit-data buffer
-        UCTXBUF OFFSET(0) NUMBITS(8)
-    ],
-
     pub(crate) UCAxABCTL [
         /// Automatic baud-rate detect enable
         UCABDEN OFFSET(0) NUMBITS(1) [
@@ -565,10 +581,6 @@ register_bitfields![u16,
             UCTXIFG0IsSetForEachSTARTCondition = 1
         ]
     ],
-    pub(crate) UCBxBRW [
-        /// Bit block prescaler
-        UCBR OFFSET(0) NUMBITS(16)
-    ],
     pub(crate) UCBxSTATW [
         /// Bus busy
         UCBBUSY OFFSET(4) NUMBITS(1) [
@@ -593,18 +605,6 @@ register_bitfields![u16,
         ],
         /// Hardware byte counter value
         UCBCNT OFFSET(8) NUMBITS(8) []
-    ],
-    pub(crate) UCBxTBCNT [
-        /// Hardware byte counter value for data bytes
-        UCTBCNT OFFSET(0) NUMBITS(8)
-    ],
-    pub(crate) UCBxRXBUF [
-        /// Receive-data buffer
-        UCRXBUF OFFSET(0) NUMBITS(8)
-    ],
-    pub(crate) UCBxTXBUF [
-        /// Transmit-data buffer
-        UCTXBUF OFFSET(0) NUMBITS(8)
     ],
     pub(crate) UCBxI2COA0 [
         /// I2C own address
@@ -656,18 +656,6 @@ register_bitfields![u16,
             /// The slave address defined in I2COA3 is enabled
             TheSlaveAddressDefinedInI2COA3IsEnabled = 1
         ]
-    ],
-    pub(crate) UCBxADDRX [
-        /// Received Address Register
-        ADDRX OFFSET(0) NUMBITS(10)
-    ],
-    pub(crate) UCBxADDMASK [
-        /// Address Mask Register
-        ADDMASK OFFSET(0) NUMBITS(10)
-    ],
-    pub(crate) UCBxI2CSA [
-        /// I2C slave address
-        I2CSA OFFSET(0) NUMBITS(10)
     ],
     pub(crate) UCBxIE [
         /// Receive interrupt enable 0

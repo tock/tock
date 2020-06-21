@@ -1,6 +1,8 @@
-// Clock System (CS)
+//! Clock System (CS)
 
-use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
+use kernel::common::registers::{
+    register_bitfields, register_structs, ReadOnly, ReadWrite, WriteOnly,
+};
 use kernel::common::StaticRef;
 
 pub static mut CS: ClockSystem = ClockSystem::new();
@@ -10,27 +12,43 @@ const CS_BASE: StaticRef<CsRegisters> =
 
 const KEY: u32 = 0x695A;
 
-#[repr(C)]
-struct CsRegisters {
-    key: ReadWrite<u32, CSKEY::Register>,
-    ctl0: ReadWrite<u32, CSCTL0::Register>,
-    ctl1: ReadWrite<u32, CSCTL1::Register>,
-    ctl2: ReadWrite<u32, CSCTL2::Register>,
-    ctl3: ReadWrite<u32, CSCTL3::Register>,
-    _reserved0: [u32; 7],
-    clk_en: ReadWrite<u32, CSCLKEN::Register>,
-    stat: ReadOnly<u32, CSSTAT::Register>,
-    _reserved1: [u32; 2],
-    ie: ReadWrite<u32, CSIE::Register>,
-    _reserved2: [u32; 1],
-    ifg: ReadOnly<u32, CSIFG::Register>,
-    _reserved3: [u32; 1],
-    clr_ifg: WriteOnly<u32, CSCLRIFG::Register>,
-    _reserved4: [u32; 1],
-    set_ifg: WriteOnly<u32, CSSETIFG::Register>,
-    _reserved5: [u32; 1],
-    doer_cal0: ReadWrite<u32, CSDCOERCAL0::Register>,
-    doer_cal1: ReadWrite<u32, CSDCOERCAL1::Register>,
+register_structs! {
+    /// CS
+    CsRegisters {
+        /// Key Register
+        (0x00 => key: ReadWrite<u32, CSKEY::Register>),
+        /// Control 0 Register
+        (0x04 => ctl0: ReadWrite<u32, CSCTL0::Register>),
+        /// Control 1 Register
+        (0x08 => ctl1: ReadWrite<u32, CSCTL1::Register>),
+        /// Control 2 Register
+        (0x0C => ctl2: ReadWrite<u32, CSCTL2::Register>),
+        /// Control 3 Register
+        (0x10 => ctl3: ReadWrite<u32, CSCTL3::Register>),
+        (0x14 => _reserved0),
+        /// Clock Enable Register
+        (0x30 => clken: ReadWrite<u32, CSCLKEN::Register>),
+        /// Status Register
+        (0x34 => stat: ReadOnly<u32, CSSTAT::Register>),
+        (0x38 => _reserved1),
+        /// Interrupt Enable Register
+        (0x40 => ie: ReadWrite<u32, CSIE::Register>),
+        (0x44 => _reserved2),
+        /// Interrupt Flag Register
+        (0x48 => ifg: ReadOnly<u32, CSIFG::Register>),
+        (0x4C => _reserved3),
+        /// Clear Interrupt Flag Register
+        (0x50 => clrifg: WriteOnly<u32, CSCLRIFG::Register>),
+        (0x54 => _reserved4),
+        /// Set Interrupt Flag Register
+        (0x58 => setifg: WriteOnly<u32, CSSETIFG::Register>),
+        (0x5C => _reserved5),
+        /// DCO External Resistor Calibration 0 Register
+        (0x60 => dcoercal0: ReadWrite<u32, CSDCOERCAL0::Register>),
+        /// DCO External Resistor Calibration 1 Register
+        (0x64 => dcoercal1: ReadWrite<u32, CSDCOERCAL1::Register>),
+        (0x68 => @END),
+    }
 }
 
 register_bitfields! [u32,
@@ -203,32 +221,19 @@ register_bitfields! [u32,
     ]
 ];
 
-#[allow(dead_code)]
-#[repr(u32)]
-enum DcoFrequency {
-    _1_5Mhz = 0,
-    _3Mhz = 1,
-    _6Mhz = 2,
-    _12Mhz = 3,
-    _24Mhz = 4,
-    _48Mhz = 5,
-}
-
 pub struct ClockSystem {
     registers: StaticRef<CsRegisters>,
 }
 
 impl ClockSystem {
-    pub const fn new() -> ClockSystem {
+    const fn new() -> ClockSystem {
         ClockSystem { registers: CS_BASE }
     }
 
-    #[inline]
     fn unlock_registers(&self) {
         self.registers.key.modify(CSKEY::KEY.val(KEY));
     }
 
-    #[inline]
     fn lock_registers(&self) {
         // every value except KEY written to the key register will perform the lock
         self.registers.key.modify(CSKEY::KEY.val(0));
@@ -249,7 +254,7 @@ impl ClockSystem {
 
         while self.registers.ifg.is_set(CSIFG::HFXTIFG) {
             self.registers
-                .clr_ifg
+                .clrifg
                 .write(CSCLRIFG::HFXTIFG::SET + CSCLRIFG::FCNTHFIFG::SET);
         }
         self.lock_registers();
