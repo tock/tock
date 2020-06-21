@@ -3,9 +3,9 @@ use core::cell::Cell;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::common::registers::{register_bitfields, ReadWrite};
 use kernel::common::StaticRef;
+use kernel::hil;
 use kernel::hil::i2c::{self, Error, I2CHwMasterClient, I2CMaster};
 use kernel::ClockInterface;
-use kernel::{debug, hil};
 
 use crate::rcc;
 
@@ -173,10 +173,10 @@ register_bitfields![u32,
 
 const I2C1_BASE: StaticRef<I2CRegisters> =
     unsafe { StaticRef::new(0x4000_5400 as *const I2CRegisters) };
-const I2C2_BASE: StaticRef<I2CRegisters> =
-    unsafe { StaticRef::new(0x4000_5800 as *const I2CRegisters) };
-const I2C3_BASE: StaticRef<I2CRegisters> =
-    unsafe { StaticRef::new(0x4000_5C00 as *const I2CRegisters) };
+// const I2C2_BASE: StaticRef<I2CRegisters> =
+//     unsafe { StaticRef::new(0x4000_5800 as *const I2CRegisters) };
+// const I2C3_BASE: StaticRef<I2CRegisters> =
+//     unsafe { StaticRef::new(0x4000_5C00 as *const I2CRegisters) };
 
 pub struct I2C<'a> {
     registers: StaticRef<I2CRegisters>,
@@ -276,7 +276,6 @@ impl I2C<'_> {
                 I2CStatus::Reading => 1,
                 _ => panic!("invalid i2c state when setting address"),
             };
-            debug!("i2c write address {}", self.slave_address.get());
             self.registers
                 .dr
                 .write(DR::DR.val(((self.slave_address.get() << 1) as u32) | dir));
@@ -290,7 +289,6 @@ impl I2C<'_> {
             if self.buffer.is_some() && self.tx_position.get() < self.tx_len.get() {
                 self.buffer.map(|buf| {
                     let byte = buf[self.tx_position.get() as usize];
-                    debug!("write byte {}", byte);
                     self.registers.dr.write(DR::DR.val(byte as u32));
                     self.tx_position.set(self.tx_position.get() + 1);
                 });
@@ -300,7 +298,6 @@ impl I2C<'_> {
         while self.registers.sr1.is_set(SR1::RXNE) {
             // send the next byte
             let byte = self.registers.dr.read(DR::DR);
-            // debug!("read byte {}", byte);
             if self.buffer.is_some() && self.rx_position.get() < self.rx_len.get() {
                 self.buffer.map(|buf| {
                     buf[self.rx_position.get() as usize] = byte as u8;
@@ -365,19 +362,6 @@ impl I2C<'_> {
     }
 
     pub fn handle_error(&self) {
-        panic!("i2c error");
-        // not sure that this is the best error to send
-        // if self.registers.sr1.is_set(ISR::NACKF) {
-        //     // abort transfer due to NACK
-        //     self.registers.cr2.modify(CR2::STOP::SET);
-        //     self.stop();
-        //     self.registers.icr.modify(ICR::NACKCF::SET);
-        //     self.master_client.map(|client| {
-        //         self.buffer
-        //             .take()
-        //             .map(|buf| client.command_complete(buf, Error::AddressNak))
-        //     });
-        // }
         self.master_client.map(|client| {
             self.buffer
                 .take()
@@ -396,7 +380,6 @@ impl I2C<'_> {
         self.registers
             .cr2
             .modify(CR2::ITEVTEN::SET + CR2::ITERREN::SET + CR2::ITBUFEN::SET);
-        self.registers.cr1.modify(CR1::POS::CLEAR);
         self.registers.cr1.modify(CR1::ACK::SET);
         self.registers.cr1.modify(CR1::START::SET);
     }
@@ -405,7 +388,6 @@ impl I2C<'_> {
         self.registers
             .cr2
             .modify(CR2::ITEVTEN::CLEAR + CR2::ITERREN::CLEAR + CR2::ITBUFEN::CLEAR);
-        self.registers.cr1.modify(CR1::POS::CLEAR);
         self.registers.cr1.modify(CR1::ACK::CLEAR);
         self.status.set(I2CStatus::Idle);
     }
@@ -415,7 +397,6 @@ impl I2C<'_> {
         self.registers
             .cr2
             .modify(CR2::ITEVTEN::SET + CR2::ITERREN::SET + CR2::ITBUFEN::SET);
-        self.registers.cr1.modify(CR1::POS::CLEAR);
         self.registers.cr1.modify(CR1::ACK::SET);
         self.registers.cr1.modify(CR1::START::SET);
     }
@@ -432,7 +413,6 @@ impl i2c::I2CMaster for I2C<'_> {
         self.registers.cr1.modify(CR1::PE::CLEAR);
     }
     fn write_read(&self, addr: u8, data: &'static mut [u8], write_len: u8, read_len: u8) {
-        debug!("sr1 {:b}", self.registers.sr1.get(),);
         if self.status.get() == I2CStatus::Idle {
             self.reset();
             self.status.set(I2CStatus::WritingReading);
