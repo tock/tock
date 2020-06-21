@@ -849,6 +849,30 @@ impl<'a> Pin<'a> {
         }
     }
 
+    pub fn set_mode_output_opendrain(&self) {
+        let port = self.pinid.get_port();
+
+        match self.pinid.get_pin_number() {
+            0b0000 => port.registers.otyper.modify(OTYPER::OT0::SET),
+            0b0001 => port.registers.otyper.modify(OTYPER::OT1::SET),
+            0b0010 => port.registers.otyper.modify(OTYPER::OT2::SET),
+            0b0011 => port.registers.otyper.modify(OTYPER::OT3::SET),
+            0b0100 => port.registers.otyper.modify(OTYPER::OT4::SET),
+            0b0101 => port.registers.otyper.modify(OTYPER::OT5::SET),
+            0b0110 => port.registers.otyper.modify(OTYPER::OT6::SET),
+            0b0111 => port.registers.otyper.modify(OTYPER::OT7::SET),
+            0b1000 => port.registers.otyper.modify(OTYPER::OT8::SET),
+            0b1001 => port.registers.otyper.modify(OTYPER::OT9::SET),
+            0b1010 => port.registers.otyper.modify(OTYPER::OT10::SET),
+            0b1011 => port.registers.otyper.modify(OTYPER::OT11::SET),
+            0b1100 => port.registers.otyper.modify(OTYPER::OT12::SET),
+            0b1101 => port.registers.otyper.modify(OTYPER::OT13::SET),
+            0b1110 => port.registers.otyper.modify(OTYPER::OT14::SET),
+            0b1111 => port.registers.otyper.modify(OTYPER::OT15::SET),
+            _ => {}
+        }
+    }
+
     fn get_pullup_pulldown(&self) -> PullUpPullDown {
         let port = self.pinid.get_port();
 
