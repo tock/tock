@@ -13,6 +13,7 @@ use components::gpio::GpioComponent;
 use kernel::capabilities;
 use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::component::Component;
+use kernel::hil::gpio::Output;
 use kernel::Platform;
 use kernel::{create_capability, debug, static_init};
 
@@ -58,6 +59,7 @@ struct STM32F412GDiscovery {
         VirtualMuxAlarm<'static, stm32f412g::tim2::Tim2<'static>>,
     >,
     gpio: &'static capsules::gpio::GPIO<'static, stm32f412g::gpio::Pin<'static>>,
+    ft6206: &'static capsules::ft6206::Ft6206<'static>,
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
@@ -73,6 +75,7 @@ impl Platform for STM32F412GDiscovery {
             capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
+            capsules::ft6206::DRIVER_NUM => f(Some(self.ft6206)),
             _ => f(None),
         }
     }
@@ -207,6 +210,44 @@ unsafe fn set_pin_primary_functions() {
     PORT[PortId::F as usize].enable_clock();
     PORT[PortId::G as usize].enable_clock();
     PORT[PortId::H as usize].enable_clock();
+
+    // I2C1 has the TouchPanel connected
+    PinId::PB06.get_pin().as_ref().map(|pin| {
+        // pin.make_output();
+        pin.set_mode_output_opendrain();
+        pin.set_mode(Mode::AlternateFunctionMode);
+        pin.set_floating_state(kernel::hil::gpio::FloatingState::PullNone);
+        // AF4 is I2C
+        pin.set_alternate_function(AlternateFunction::AF4);
+    });
+    PinId::PB07.get_pin().as_ref().map(|pin| {
+        // pin.make_output();
+        pin.set_mode_output_opendrain();
+        pin.set_floating_state(kernel::hil::gpio::FloatingState::PullNone);
+        pin.set_mode(Mode::AlternateFunctionMode);
+        // AF4 is I2C
+        pin.set_alternate_function(AlternateFunction::AF4);
+    });
+
+    // PinId::PF12.get_pin().as_ref().map(|pin| {
+    //     pin.make_output();
+    //     pin.set();
+    // });
+
+    stm32f412g::i2c::I2C1.enable_clock();
+    stm32f412g::i2c::I2C1.set_speed(stm32f412g::i2c::I2CSpeed::Speed100k, 16);
+
+    // FT6206 interrupt
+    PinId::PG05.get_pin().as_ref().map(|pin| {
+        // By default, upon reset, the pin is in input mode, with no internal
+        // pull-up, no internal pull-down (i.e., floating).
+        //
+        // Only set the mapping between EXTI line and the Pin and let capsule do
+        // the rest.
+        EXTI.associate_line_gpiopin(LineId::Exti5, pin);
+    });
+    // EXTI9_5 interrupts is delivered at IRQn 23 (EXTI9_5)
+    cortexm4::nvic::Nvic::new(stm32f412g::nvic::EXTI9_5).enable();
 }
 
 /// Helper function for miscellaneous peripheral functions
@@ -409,6 +450,22 @@ pub unsafe fn reset_handler() {
     )
     .finalize(components::gpio_component_buf!(stm32f412g::gpio::Pin));
 
+    // FT6206
+
+    let mux_i2c = components::i2c::I2CMuxComponent::new(
+        &stm32f412g::i2c::I2C1,
+        None,
+        dynamic_deferred_caller,
+    )
+    .finalize(components::i2c_mux_component_helper!());
+
+    let ft6206 = components::ft6206::Ft6206Component::new(
+        stm32f412g::gpio::PinId::PG05.get_pin().as_ref().unwrap(),
+    )
+    .finalize(components::ft6206_i2c_component_helper!(mux_i2c));
+
+    ft6206.is_present();
+
     let nucleo_f412g = STM32F412GDiscovery {
         console: console,
         ipc: kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability),
@@ -416,6 +473,7 @@ pub unsafe fn reset_handler() {
         button: button,
         alarm: alarm,
         gpio: gpio,
+        ft6206: ft6206,
     };
 
     // // Optional kernel tests

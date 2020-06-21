@@ -15,7 +15,7 @@ pub enum I2CSpeed {
     Speed1M,
 }
 
-/// Serial peripheral interface
+/// Inter-Integrated Circuit
 #[repr(C)]
 struct I2CRegisters {
     /// control register 1
