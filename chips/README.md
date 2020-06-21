@@ -29,7 +29,7 @@ HIL Support
 | gpio::Output                            | ✓        | ✓        | ✓      | ✓     | ✓       | ✓        | ✓        | ✓     | ✓         | ✓         |
 | gpio::Pin                               | ✓        | ✓        | ✓      | ✓     | ✓       | ✓        | ✓        | ✓     | ✓         | ✓         |
 | digest::Hmac                            |          |          |        |       | ✓       |          |          |       |           |           |
-| i2c::I2CMaster                          |          |          | ✓      |       | ✓       | ✓        | ✓        | ✓     | ✓         |           |
+| i2c::I2CMaster                          |          |          | ✓      |       | ✓       | ✓        | ✓        | ✓     | ✓         | ✓         |
 | i2c::I2CMasterSlave                     |          |          |        |       |         |          |          | ✓     |           |           |
 | i2c::I2CSlave                           |          |          |        |       |         |          |          | ✓     |           |           |
 | mod::Controller                         |          |          |        |       |         | ✓        | ✓        | ✓     |           |           |
