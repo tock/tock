@@ -21,25 +21,25 @@ pub const MCAUSE: usize = 0x342;
 pub const MTVAL: usize = 0x343;
 pub const MIP: usize = 0x344;
 pub const PMPCFG0: usize = 0x3A0;
-pub const PMPCFG1: usize = 0x3A4;
-pub const PMPCFG2: usize = 0x3A8;
-pub const PMPCFG3: usize = 0x3AC;
+pub const PMPCFG1: usize = 0x3A1;
+pub const PMPCFG2: usize = 0x3A2;
+pub const PMPCFG3: usize = 0x3A3;
 pub const PMPADDR0: usize = 0x3B0;
-pub const PMPADDR1: usize = 0x3B4;
-pub const PMPADDR2: usize = 0x3B8;
-pub const PMPADDR3: usize = 0x3BC;
-pub const PMPADDR4: usize = 0x3C0;
-pub const PMPADDR5: usize = 0x3C4;
-pub const PMPADDR6: usize = 0x3C8;
-pub const PMPADDR7: usize = 0x3CC;
-pub const PMPADDR8: usize = 0x3D0;
-pub const PMPADDR9: usize = 0x3D4;
-pub const PMPADDR10: usize = 0x3D8;
-pub const PMPADDR11: usize = 0x3DC;
-pub const PMPADDR12: usize = 0x3E0;
-pub const PMPADDR13: usize = 0x3E4;
-pub const PMPADDR14: usize = 0x3E8;
-pub const PMPADDR15: usize = 0x3EC;
+pub const PMPADDR1: usize = 0x3B1;
+pub const PMPADDR2: usize = 0x3B2;
+pub const PMPADDR3: usize = 0x3B3;
+pub const PMPADDR4: usize = 0x3B4;
+pub const PMPADDR5: usize = 0x3B5;
+pub const PMPADDR6: usize = 0x3B6;
+pub const PMPADDR7: usize = 0x3B7;
+pub const PMPADDR8: usize = 0x3B8;
+pub const PMPADDR9: usize = 0x3B9;
+pub const PMPADDR10: usize = 0x3BA;
+pub const PMPADDR11: usize = 0x3BB;
+pub const PMPADDR12: usize = 0x3BC;
+pub const PMPADDR13: usize = 0x3BD;
+pub const PMPADDR14: usize = 0x3BE;
+pub const PMPADDR15: usize = 0x3BF;
 
 /// Read/Write registers.
 #[derive(Copy, Clone)]
@@ -167,6 +167,46 @@ impl<R: RegisterLongName> ReadWriteRiscvCsr<u32, R> {
             unsafe {
                 asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR5);
             }
+        } else if self.value == PMPADDR6 {
+            unsafe {
+                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR6);
+            }
+        } else if self.value == PMPADDR7 {
+            unsafe {
+                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR7);
+            }
+        } else if self.value == PMPADDR8 {
+            unsafe {
+                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR8);
+            }
+        } else if self.value == PMPADDR9 {
+            unsafe {
+                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR9);
+            }
+        } else if self.value == PMPADDR10 {
+            unsafe {
+                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR10);
+            }
+        } else if self.value == PMPADDR11 {
+            unsafe {
+                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR11);
+            }
+        } else if self.value == PMPADDR12 {
+            unsafe {
+                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR12);
+            }
+        } else if self.value == PMPADDR13 {
+            unsafe {
+                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR13);
+            }
+        } else if self.value == PMPADDR14 {
+            unsafe {
+                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR14);
+            }
+        } else if self.value == PMPADDR15 {
+            unsafe {
+                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR15);
+            }
         } else {
             panic!("Unsupported CSR read");
         }
@@ -271,6 +311,46 @@ impl<R: RegisterLongName> ReadWriteRiscvCsr<u32, R> {
         } else if self.value == PMPADDR5 {
             unsafe {
                 asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR5);
+            }
+        } else if self.value == PMPADDR6 {
+            unsafe {
+                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR6);
+            }
+        } else if self.value == PMPADDR7 {
+            unsafe {
+                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR7);
+            }
+        } else if self.value == PMPADDR8 {
+            unsafe {
+                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR8);
+            }
+        } else if self.value == PMPADDR9 {
+            unsafe {
+                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR9);
+            }
+        } else if self.value == PMPADDR10 {
+            unsafe {
+                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR10);
+            }
+        } else if self.value == PMPADDR11 {
+            unsafe {
+                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR11);
+            }
+        } else if self.value == PMPADDR12 {
+            unsafe {
+                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR12);
+            }
+        } else if self.value == PMPADDR13 {
+            unsafe {
+                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR13);
+            }
+        } else if self.value == PMPADDR14 {
+            unsafe {
+                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR14);
+            }
+        } else if self.value == PMPADDR15 {
+            unsafe {
+                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR15);
             }
         } else {
             panic!("Unsupported CSR write");
