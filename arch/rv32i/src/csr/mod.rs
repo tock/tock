@@ -53,8 +53,30 @@ pub const CSR: &CSR = &CSR {
     mcause: ReadWriteRiscvCsr::new(riscv_csr::csr::MCAUSE),
     mtval: ReadWriteRiscvCsr::new(riscv_csr::csr::MTVAL),
     mip: ReadWriteRiscvCsr::new(riscv_csr::csr::MIP),
-    pmpcfg: [ReadWriteRiscvCsr::new(riscv_csr::csr::PMPCFG0); 4],
-    pmpaddr: [ReadWriteRiscvCsr::new(riscv_csr::csr::PMPADDR0); 16],
+    pmpcfg: [
+        ReadWriteRiscvCsr::new(riscv_csr::csr::PMPCFG0),
+        ReadWriteRiscvCsr::new(riscv_csr::csr::PMPCFG1),
+        ReadWriteRiscvCsr::new(riscv_csr::csr::PMPCFG2),
+        ReadWriteRiscvCsr::new(riscv_csr::csr::PMPCFG3)
+    ],
+    pmpaddr: [
+        ReadWriteRiscvCsr::new(riscv_csr::csr::PMPADDR0),
+        ReadWriteRiscvCsr::new(riscv_csr::csr::PMPADDR1),
+        ReadWriteRiscvCsr::new(riscv_csr::csr::PMPADDR2),
+        ReadWriteRiscvCsr::new(riscv_csr::csr::PMPADDR3),
+        ReadWriteRiscvCsr::new(riscv_csr::csr::PMPADDR4),
+        ReadWriteRiscvCsr::new(riscv_csr::csr::PMPADDR5),
+        ReadWriteRiscvCsr::new(riscv_csr::csr::PMPADDR6),
+        ReadWriteRiscvCsr::new(riscv_csr::csr::PMPADDR7),
+        ReadWriteRiscvCsr::new(riscv_csr::csr::PMPADDR8),
+        ReadWriteRiscvCsr::new(riscv_csr::csr::PMPADDR9),
+        ReadWriteRiscvCsr::new(riscv_csr::csr::PMPADDR10),
+        ReadWriteRiscvCsr::new(riscv_csr::csr::PMPADDR11),
+        ReadWriteRiscvCsr::new(riscv_csr::csr::PMPADDR12),
+        ReadWriteRiscvCsr::new(riscv_csr::csr::PMPADDR13),
+        ReadWriteRiscvCsr::new(riscv_csr::csr::PMPADDR14),
+        ReadWriteRiscvCsr::new(riscv_csr::csr::PMPADDR15),
+    ],
 };
 
 impl CSR {
