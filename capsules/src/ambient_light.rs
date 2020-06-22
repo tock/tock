@@ -3,10 +3,12 @@
 //! You need a device that provides the `hil::sensors::AmbientLight` trait.
 //!
 //! ```rust
+//! # use kernel::{hil, static_init};
+//!
 //! let light = static_init!(
-//!     capsules::sensors::AmbientLight<'static>,
-//!     capsules::sensors::AmbientLight::new(isl29035,
-//!         kernel::Grant::create()));
+//!     capsules::ambient_light::AmbientLight<'static>,
+//!     capsules::ambient_light::AmbientLight::new(isl29035,
+//!         board_kernel.create_grant(&grant_cap)));
 //! hil::sensors::AmbientLight::set_client(isl29035, ambient_light);
 //! ```
 
@@ -26,13 +28,13 @@ pub struct App {
 }
 
 pub struct AmbientLight<'a> {
-    sensor: &'a dyn hil::sensors::AmbientLight,
+    sensor: &'a dyn hil::sensors::AmbientLight<'a>,
     command_pending: Cell<bool>,
     apps: Grant<App>,
 }
 
 impl<'a> AmbientLight<'a> {
-    pub fn new(sensor: &'a dyn hil::sensors::AmbientLight, grant: Grant<App>) -> AmbientLight {
+    pub fn new(sensor: &'a dyn hil::sensors::AmbientLight<'a>, grant: Grant<App>) -> AmbientLight {
         AmbientLight {
             sensor: sensor,
             command_pending: Cell::new(false),

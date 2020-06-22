@@ -17,6 +17,7 @@
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
+use kernel::hil::usb::UsbController;
 use kernel::static_init;
 
 pub struct UsbComponent {
@@ -46,7 +47,10 @@ impl Component for UsbComponent {
         // Configure the USB controller
         let usb_client = static_init!(
             capsules::usb::usbc_client::Client<'static, sam4l::usbc::Usbc<'static>>,
-            capsules::usb::usbc_client::Client::new(&sam4l::usbc::USBC)
+            capsules::usb::usbc_client::Client::new(
+                &sam4l::usbc::USBC,
+                capsules::usb::usbc_client::MAX_CTRL_PACKET_SIZE_SAM4L
+            )
         );
         sam4l::usbc::USBC.set_client(usb_client);
 

@@ -12,20 +12,20 @@
 //! MLE for network attaching comprises a four-step handshake that works
 //! as follows:
 //!
-//!     1. A child device multicasts a Parent Request MLE command.
-//!     2. Each potential parent device on the network unicasts a Parent
-//!        Response MLE command.
-//!     3. The child device selects a parent based on a hierarchy of
-//!        connectivity metrics and unicasts a Child ID Request MLE
-//!        command.
-//!     4. The selected parent unicasts a Child ID Response MLE command.
+//! 1. A child device multicasts a Parent Request MLE command.
+//! 2. Each potential parent device on the network unicasts a Parent
+//!    Response MLE command.
+//! 3. The child device selects a parent based on a hierarchy of
+//!    connectivity metrics and unicasts a Child ID Request MLE
+//!    command.
+//! 4. The selected parent unicasts a Child ID Response MLE command.
 //!
 //! A TLV is comprised of three parts:
 //!
-//!     1. Type   - A one-byte TLV type number.
-//!     2. Length - A one-byte number representing the length of the TLV
-//!                 value in bytes.
-//!     3. Value  - The TLV value.
+//! 1. Type   - A one-byte TLV type number.
+//! 2. Length - A one-byte number representing the length of the TLV
+//!             value in bytes.
+//! 3. Value  - The TLV value.
 //!
 //! For some TLVs, the TLV type number is shifted left by one to leave the
 //! least significant bit to denote whether information in the TLV value

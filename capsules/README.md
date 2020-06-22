@@ -36,7 +36,6 @@ These implement a driver to setup and read various physical sensors.
 - **[LPS25HB](src/lps25hb.rs)**: Pressure sensor.
 - **[MLX90614](src/mlx90614.rs)**: Infrared temperature sensor.
 - **[SI7021](src/si7021.rs)**: Temperature and humidity sensor.
-- **[TMP006](src/tmp006.rs)**: Infrared temperature sensor.
 - **[TSL2561](src/tsl2561.rs)**: Light sensor.
 
 These drivers provide support for various ICs.

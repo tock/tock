@@ -1,33 +1,6 @@
 //! Helper functions for common mathematical operations.
 
 use core::convert::{From, Into};
-use core::intrinsics as int;
-
-// wrappers for unsafe core::intrinsics math functions
-//  core::intrinsics functions can be found at
-//      https://doc.rust-lang.org/core/intrinsics/
-//  add additional wrappers as needed
-
-/// Provide `sqrtf32` with the unsafe hidden.
-pub fn sqrtf32(num: f32) -> f32 {
-    unsafe { int::sqrtf32(num) }
-}
-
-// errno from stdlib for use in Rust
-
-extern "C" {
-    fn __errno() -> &'static mut i32;
-}
-
-/// Return errno value and zero it out.
-pub fn get_errno() -> i32 {
-    unsafe {
-        let errnoaddr = __errno();
-        let ret = *errnoaddr;
-        *errnoaddr = 0;
-        ret
-    }
-}
 
 /// Get closest power of two greater than the given number.
 pub fn closest_power_of_two(mut num: u32) -> u32 {

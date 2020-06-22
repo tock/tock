@@ -293,7 +293,7 @@ impl Endpoint {
 pub struct Usb<'a> {
     registers: StaticRef<UsbRegisters>,
     descriptors: [Endpoint; N_ENDPOINTS],
-    client: Option<&'a dyn hil::usb::Client<'a>>,
+    client: OptionalCell<&'a dyn hil::usb::Client<'a>>,
     state: OptionalCell<State>,
 }
 
@@ -315,14 +315,9 @@ impl<'a> Usb<'a> {
                 Endpoint::new(),
                 Endpoint::new(),
             ],
-            client: None,
+            client: OptionalCell::empty(),
             state: OptionalCell::new(State::Reset),
         }
-    }
-
-    /// Set a client to receive data from the USBC
-    pub fn set_client(&mut self, client: &'a dyn hil::usb::Client<'a>) {
-        self.client = Some(client);
     }
 
     fn get_state(&self) -> State {
@@ -365,6 +360,10 @@ impl<'a> Usb<'a> {
 }
 
 impl<'a> hil::usb::UsbController<'a> for Usb<'a> {
+    fn set_client(&self, client: &'a dyn hil::usb::Client<'a>) {
+        self.client.set(client);
+    }
+
     fn endpoint_set_ctrl_buffer(&self, buf: &'a [VolatileCell<u8>]) {
         self._endpoint_bank_set_buffer(0, buf);
     }

@@ -8,9 +8,11 @@
 //! driver:
 //!
 //! ```rust
+//! # use kernel::static_init;
+//!
 //! let crc = static_init!(
 //!     capsules::crc::Crc<'static, sam4l::crccu::Crccu<'static>>,
-//!     capsules::crc::Crc::new(&mut sam4l::crccu::CRCCU, kernel::Grant::create()));
+//!     capsules::crc::Crc::new(&mut sam4l::crccu::CRCCU, board_kernel.create_grant(&grant_cap)));
 //! sam4l::crccu::CRCCU.set_client(crc);
 //!
 //! ```
@@ -87,13 +89,13 @@ pub struct App {
 
 /// Struct that holds the state of the CRC driver and implements the `Driver` trait for use by
 /// processes through the system call interface.
-pub struct Crc<'a, C: hil::crc::CRC> {
+pub struct Crc<'a, C: hil::crc::CRC<'a>> {
     crc_unit: &'a C,
     apps: Grant<App>,
     serving_app: OptionalCell<AppId>,
 }
 
-impl<'a, C: hil::crc::CRC> Crc<'a, C> {
+impl<'a, C: hil::crc::CRC<'a>> Crc<'a, C> {
     /// Create a `Crc` driver
     ///
     /// The argument `crc_unit` must implement the abstract `CRC`
@@ -103,9 +105,8 @@ impl<'a, C: hil::crc::CRC> Crc<'a, C> {
     ///
     /// ## Example
     ///
-    /// ```
-    /// capsules::crc::Crc::new(&sam4l::crccu::CRCCU, kernel::Grant::create()),
-    ///
+    /// ```rust
+    /// capsules::crc::Crc::new(&sam4l::crccu::CRCCU, board_kernel.create_grant(&grant_cap));
     /// ```
     ///
     pub fn new(crc_unit: &'a C, apps: Grant<App>) -> Crc<'a, C> {
@@ -165,7 +166,7 @@ impl<'a, C: hil::crc::CRC> Crc<'a, C> {
 /// the `subscribe` system call and `allow`s the driver access to the buffer over-which to compute.
 /// Then, it initiates a CRC computation using the `command` system call. See function-specific
 /// comments for details.
-impl<C: hil::crc::CRC> Driver for Crc<'_, C> {
+impl<'a, C: hil::crc::CRC<'a>> Driver for Crc<'a, C> {
     /// The `allow` syscall for this driver supports the single
     /// `allow_num` zero, which is used to provide a buffer over which
     /// to compute a CRC computation.
@@ -194,7 +195,9 @@ impl<C: hil::crc::CRC> Driver for Crc<'_, C> {
     /// result of a CRC computation.  The signature of the callback is
     ///
     /// ```
-    /// fn callback(status, result);
+    /// # use kernel::ReturnCode;
+    ///
+    /// fn callback(status: ReturnCode, result: usize) {}
     /// ```
     ///
     /// where
@@ -322,7 +325,7 @@ impl<C: hil::crc::CRC> Driver for Crc<'_, C> {
     }
 }
 
-impl<C: hil::crc::CRC> hil::crc::Client for Crc<'_, C> {
+impl<'a, C: hil::crc::CRC<'a>> hil::crc::Client for Crc<'a, C> {
     fn receive_result(&self, result: u32) {
         self.serving_app.take().map(|appid| {
             self.apps

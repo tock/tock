@@ -54,9 +54,11 @@
 //! 802.15.4 frames:
 //!
 //! ```rust
+//! # use kernel::static_init;
+//!
 //! let radio_capsule = static_init!(
 //!     capsules::ieee802154::RadioDriver<'static>,
-//!     capsules::ieee802154::RadioDriver::new(mac_device, kernel::Grant::create(), &mut RADIO_BUF));
+//!     capsules::ieee802154::RadioDriver::new(mac_device, board_kernel.create_grant(&grant_cap), &mut RADIO_BUF));
 //! mac_device.set_key_procedure(radio_capsule);
 //! mac_device.set_device_procedure(radio_capsule);
 //! mac_device.set_transmit_client(radio_capsule);

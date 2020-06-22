@@ -62,8 +62,10 @@ pub enum NUM {
     GpioAsync             = 0x80003,
     Nrf51822Serialization = 0x80004,
     Hd44780               = 0x80005,
+    St7735                = 0x80006,
 
     // Misc
     Buzzer                = 0x90000,
+    Screen                = 0x90001
 }
 }

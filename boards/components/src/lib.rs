@@ -3,6 +3,7 @@
 pub mod alarm;
 pub mod analog_comparator;
 pub mod button;
+pub mod cdc;
 pub mod console;
 pub mod crc;
 pub mod debug_queue;
@@ -25,7 +26,9 @@ pub mod nrf51822;
 pub mod panic_button;
 pub mod process_console;
 pub mod rng;
+pub mod screen;
 pub mod segger_rtt;
 pub mod si7021;
 pub mod spi;
+pub mod st7735;
 pub mod temperature;
