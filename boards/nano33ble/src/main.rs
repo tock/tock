@@ -190,8 +190,11 @@ pub unsafe fn reset_handler() {
     //--------------------------------------------------------------------------
 
     // Setup the CDC-ACM over USB driver that we will use for UART.
-    let cdc = components::cdc::CdcAcmComponent::new(&nrf52::usbd::USBD)
-        .finalize(components::usb_cdc_acm_component_helper!(nrf52::usbd::Usbd));
+    let cdc = components::cdc::CdcAcmComponent::new(
+        &nrf52::usbd::USBD,
+        capsules::usb::cdc::MAX_CTRL_PACKET_SIZE_NRF52840,
+    )
+    .finalize(components::usb_cdc_acm_component_helper!(nrf52::usbd::Usbd));
 
     // Create a shared UART channel for the console and for kernel debug.
     let uart_mux = components::console::UartMuxComponent::new(cdc, 115200, dynamic_deferred_caller)
