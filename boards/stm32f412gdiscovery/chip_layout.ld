@@ -1,4 +1,4 @@
-/* Memory layout for the STM32F446RE
+/* Memory layout for the STM32F412G
  * rom = 1MB (LENGTH = 0x01000000)
  * kernel = 256KB
  * user = 256KB
