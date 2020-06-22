@@ -1,4 +1,4 @@
-# Makefile for building the tock kernel for the NUCLEO-429ZI platform
+# Makefile for building the tock kernel for the stm32412gdiscovery platform
 #
 TARGET=thumbv7em-none-eabi
 PLATFORM=stm32f412gdiscovery
