@@ -47,21 +47,22 @@ impl fmt::Display for PMPRegion {
         fn bit_str<'a>(reg: &PMPRegion, bit: u32, on_str: &'a str, off_str: &'a str) -> &'a str {
             match reg.cfg.value & bit {
                 0 => off_str,
-                _ => on_str
+                _ => on_str,
             }
         }
 
         match self.location {
             None => write!(f, "<unset>"),
-            Some((addr, size)) => {
-                write!(f,
-                    "addr={:p}, size={:#X}, cfg={:#X} ({}{}{})",
-                    addr, size, u32::from(self.cfg),
-                    bit_str(self, pmpcfg::r::SET.value, "r", "-"),
-                    bit_str(self, pmpcfg::w::SET.value, "w", "-"),
-                    bit_str(self, pmpcfg::x::SET.value, "x", "-"),
-                )
-            }
+            Some((addr, size)) => write!(
+                f,
+                "addr={:p}, size={:#X}, cfg={:#X} ({}{}{})",
+                addr,
+                size,
+                u32::from(self.cfg),
+                bit_str(self, pmpcfg::r::SET.value, "r", "-"),
+                bit_str(self, pmpcfg::w::SET.value, "w", "-"),
+                bit_str(self, pmpcfg::x::SET.value, "x", "-"),
+            ),
         }
     }
 }
@@ -161,9 +162,9 @@ impl Default for PMPConfig {
 
 impl fmt::Display for PMPConfig {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "PMP regions:");
+        writeln!(f, "PMP regions:")?;
         for n in 0..self.total_regions {
-            writeln!(f, " [{}]: {}", n, self.regions[n]);
+            writeln!(f, " [{}]: {}", n, self.regions[n])?;
         }
         Ok(())
     }
