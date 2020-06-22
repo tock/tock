@@ -102,3 +102,13 @@ The Nano 33 board uses a virtual serial console over USB to send debugging info
 from the kernel and print messages from applications. You can use whatever your
 favorite serial terminal program is to view the output. Tockloader also
 supports reading and writing to a serial console with `tockloader listen`.
+
+### Kernel Panics
+
+If the kernel or an app encounter a `panic!()`, the panic handler specified in
+`io.rs` is called. This causes the kernel to stop. You will notice the yellow
+LED starts blinking in a repeating but slightly irregular pattern. There is also
+a panic print out that provides a fair bit of debugging information. However,
+currently that panic print info is transmitted over `UARTE0`, not the USB port.
+So, to view the panic info, you will need to connect to the two pins on the
+board labeled `TX1` and `RX0` and view the UART information there.
