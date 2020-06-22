@@ -194,7 +194,6 @@ pub struct I2C<'a> {
     slave_address: Cell<u8>,
 
     status: Cell<I2CStatus>,
-    // transfers: Cell<u8>
 }
 
 #[derive(Copy, Clone, PartialEq)]
