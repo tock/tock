@@ -96,11 +96,9 @@ and the physical elements on the Nano 33 BLE board.
 | LED[1]            | Tri-color LED Green |
 | LED[2]            | Tri-color LED Blue  |
 
-## UART Debugging
+## Debugging
 
-Currently the Nano 33 board file uses the UART peripheral for all UART
-debugging. However, that UART is not connected to the USB header on the board.
-So, all `debug!()` messages or application `printf()` calls will not be
-displayed. If you want to see the debug output, you need to connect to the two
-UART pins on the Nano 33 headers. You should be able to connect a serial <-> USB
-converter, like an FTDI board, to retrieve the UART output.
+The Nano 33 board uses a virtual serial console over USB to send debugging info
+from the kernel and print messages from applications. You can use whatever your
+favorite serial terminal program is to view the output. Tockloader also
+supports reading and writing to a serial console with `tockloader listen`.
