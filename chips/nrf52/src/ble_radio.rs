@@ -555,80 +555,75 @@ impl<'a> Radio<'a> {
     }
 
     fn tx(&self) {
-        let regs = &*self.registers;
-        regs.event_ready.write(Event::READY::CLEAR);
-        regs.task_txen.write(Task::ENABLE::SET);
+        self.registers.event_ready.write(Event::READY::CLEAR);
+        self.registers.task_txen.write(Task::ENABLE::SET);
     }
 
     fn rx(&self) {
-        let regs = &*self.registers;
-        regs.event_ready.write(Event::READY::CLEAR);
-        regs.task_rxen.write(Task::ENABLE::SET);
+        self.registers.event_ready.write(Event::READY::CLEAR);
+        self.registers.task_rxen.write(Task::ENABLE::SET);
     }
 
     fn set_rx_address(&self) {
-        let regs = &*self.registers;
-        regs.rxaddresses.write(ReceiveAddresses::ADDRESS.val(1));
+        self.registers
+            .rxaddresses
+            .write(ReceiveAddresses::ADDRESS.val(1));
     }
 
     fn set_tx_address(&self) {
-        let regs = &*self.registers;
-        regs.txaddress.write(TransmitAddress::ADDRESS.val(0));
+        self.registers
+            .txaddress
+            .write(TransmitAddress::ADDRESS.val(0));
     }
 
     fn radio_on(&self) {
-        let regs = &*self.registers;
         // reset and enable power
-        regs.power.write(Task::ENABLE::CLEAR);
-        regs.power.write(Task::ENABLE::SET);
+        self.registers.power.write(Task::ENABLE::CLEAR);
+        self.registers.power.write(Task::ENABLE::SET);
     }
 
     fn radio_off(&self) {
-        let regs = &*self.registers;
-        regs.power.write(Task::ENABLE::CLEAR);
+        self.registers.power.write(Task::ENABLE::CLEAR);
     }
 
     fn set_tx_power(&self) {
-        let regs = &*self.registers;
-        regs.txpower.set(self.tx_power.get() as u32);
+        self.registers.txpower.set(self.tx_power.get() as u32);
     }
 
     fn set_dma_ptr(&self) {
-        let regs = &*self.registers;
         unsafe {
-            regs.packetptr.set(PAYLOAD.as_ptr() as u32);
+            self.registers.packetptr.set(PAYLOAD.as_ptr() as u32);
         }
     }
 
     #[inline(never)]
     pub fn handle_interrupt(&self) {
-        let regs = &*self.registers;
         self.disable_all_interrupts();
 
-        if regs.event_ready.is_set(Event::READY) {
-            regs.event_ready.write(Event::READY::CLEAR);
-            regs.event_end.write(Event::READY::CLEAR);
-            regs.task_start.write(Task::ENABLE::SET);
+        if self.registers.event_ready.is_set(Event::READY) {
+            self.registers.event_ready.write(Event::READY::CLEAR);
+            self.registers.event_end.write(Event::READY::CLEAR);
+            self.registers.task_start.write(Task::ENABLE::SET);
         }
 
-        if regs.event_address.is_set(Event::READY) {
-            regs.event_address.write(Event::READY::CLEAR);
+        if self.registers.event_address.is_set(Event::READY) {
+            self.registers.event_address.write(Event::READY::CLEAR);
         }
-        if regs.event_payload.is_set(Event::READY) {
-            regs.event_payload.write(Event::READY::CLEAR);
+        if self.registers.event_payload.is_set(Event::READY) {
+            self.registers.event_payload.write(Event::READY::CLEAR);
         }
 
         // tx or rx finished!
-        if regs.event_end.is_set(Event::READY) {
-            regs.event_end.write(Event::READY::CLEAR);
+        if self.registers.event_end.is_set(Event::READY) {
+            self.registers.event_end.write(Event::READY::CLEAR);
 
-            let result = if regs.crcstatus.is_set(Event::READY) {
+            let result = if self.registers.crcstatus.is_set(Event::READY) {
                 ReturnCode::SUCCESS
             } else {
                 ReturnCode::FAIL
             };
 
-            match regs.state.get() {
+            match self.registers.state.get() {
                 nrf5x::constants::RADIO_STATE_TXRU
                 | nrf5x::constants::RADIO_STATE_TXIDLE
                 | nrf5x::constants::RADIO_STATE_TXDISABLE
@@ -659,8 +654,7 @@ impl<'a> Radio<'a> {
     }
 
     pub fn enable_interrupts(&self) {
-        let regs = &*self.registers;
-        regs.intenset.write(
+        self.registers.intenset.write(
             Interrupt::READY::SET
                 + Interrupt::ADDRESS::SET
                 + Interrupt::PAYLOAD::SET
@@ -669,19 +663,16 @@ impl<'a> Radio<'a> {
     }
 
     pub fn enable_interrupt(&self, intr: u32) {
-        let regs = &*self.registers;
-        regs.intenset.set(intr);
+        self.registers.intenset.set(intr);
     }
 
     pub fn clear_interrupt(&self, intr: u32) {
-        let regs = &*self.registers;
-        regs.intenclr.set(intr);
+        self.registers.intenclr.set(intr);
     }
 
     pub fn disable_all_interrupts(&self) {
-        let regs = &*self.registers;
         // disable all possible interrupts
-        regs.intenclr.set(0xffffffff);
+        self.registers.intenclr.set(0xffffffff);
     }
 
     fn replace_radio_buffer(&self, buf: &'static mut [u8]) -> &'static mut [u8] {
@@ -717,19 +708,22 @@ impl<'a> Radio<'a> {
 
     // BLUETOOTH SPECIFICATION Version 4.2 [Vol 6, Part B], section 3.1.1 CRC Generation
     fn ble_set_crc_config(&self) {
-        let regs = &*self.registers;
-        regs.crccnf
+        self.registers
+            .crccnf
             .write(CrcConfiguration::LEN::THREE + CrcConfiguration::SKIPADDR::EXCLUDE);
-        regs.crcinit.set(nrf5x::constants::RADIO_CRCINIT_BLE);
-        regs.crcpoly.set(nrf5x::constants::RADIO_CRCPOLY_BLE);
+        self.registers
+            .crcinit
+            .set(nrf5x::constants::RADIO_CRCINIT_BLE);
+        self.registers
+            .crcpoly
+            .set(nrf5x::constants::RADIO_CRCPOLY_BLE);
     }
 
     // BLUETOOTH SPECIFICATION Version 4.2 [Vol 6, Part B], section 2.1.2 Access Address
     // Set access address to 0x8E89BED6
     fn ble_set_advertising_access_address(&self) {
-        let regs = &*self.registers;
-        regs.prefix0.set(0x0000008e);
-        regs.base0.set(0x89bed600);
+        self.registers.prefix0.set(0x0000008e);
+        self.registers.base0.set(0x89bed600);
     }
 
     // Packet configuration
@@ -742,11 +736,9 @@ impl<'a> Radio<'a> {
     // +----------+   +----------------+   +---------------+   +------------+
     //
     fn ble_set_packet_config(&self) {
-        let regs = &*self.registers;
-
         // sets the header of PDU TYPE to 1 byte
         // sets the header length to 1 byte
-        regs.pcnf0.write(
+        self.registers.pcnf0.write(
             PacketConfiguration0::LFLEN.val(8)
                 + PacketConfiguration0::S0LEN.val(1)
                 + PacketConfiguration0::S1LEN::CLEAR
@@ -754,7 +746,7 @@ impl<'a> Radio<'a> {
                 + PacketConfiguration0::PLEN::EIGHT,
         );
 
-        regs.pcnf1.write(
+        self.registers.pcnf1.write(
             PacketConfiguration1::WHITEEN::ENABLED
                 + PacketConfiguration1::ENDIAN::LITTLE
                 + PacketConfiguration1::BALEN.val(3)
@@ -766,15 +758,13 @@ impl<'a> Radio<'a> {
     // BLUETOOTH SPECIFICATION Version 4.2 [Vol 6, Part A], 4.6 REFERENCE SIGNAL DEFINITION
     // Bit Rate = 1 Mb/s ±1 ppm
     fn ble_set_channel_rate(&self) {
-        let regs = &*self.registers;
-        regs.mode.write(Mode::MODE::BLE_1MBIT);
+        self.registers.mode.write(Mode::MODE::BLE_1MBIT);
     }
 
     // BLUETOOTH SPECIFICATION Version 4.2 [Vol 6, Part B], section 3.2 Data Whitening
     // Configure channel index to the LFSR and the hardware solves the rest
     fn ble_set_data_whitening(&self, channel: RadioChannel) {
-        let regs = &*self.registers;
-        regs.datawhiteiv.set(channel.get_channel_index());
+        self.registers.datawhiteiv.set(channel.get_channel_index());
     }
 
     // BLUETOOTH SPECIFICATION Version 4.2 [Vol 6, Part B], section 1.4.1
@@ -782,8 +772,8 @@ impl<'a> Radio<'a> {
     // Data:            0 - 36
     // Advertising:     37, 38, 39
     fn ble_set_channel_freq(&self, channel: RadioChannel) {
-        let regs = &*self.registers;
-        regs.frequency
+        self.registers
+            .frequency
             .write(Frequency::FREQUENCY.val(channel as u32));
     }
 

@@ -234,9 +234,8 @@ impl DMAChannel {
                 NUM_ENABLED.fetch_add(1, atomic::Ordering::Relaxed);
             }
 
-            let registers: &DMARegisters = &*self.registers;
             // Disable all interrupts
-            registers
+            self.registers
                 .idr
                 .write(Interrupt::TERR::SET + Interrupt::TRC::SET + Interrupt::RCZ::SET);
 
@@ -253,8 +252,7 @@ impl DMAChannel {
                     pm::disable_clock(pm::Clock::PBB(pm::PBBClock::PDCA));
                 }
             }
-            let registers: &DMARegisters = &*self.registers;
-            registers.cr.write(Control::TDIS::SET);
+            self.registers.cr.write(Control::TDIS::SET);
             self.enabled.set(false);
         }
     }
@@ -264,11 +262,10 @@ impl DMAChannel {
     }
 
     pub fn handle_interrupt(&mut self) {
-        let registers: &DMARegisters = &*self.registers;
-        registers
+        self.registers
             .idr
             .write(Interrupt::TERR::SET + Interrupt::TRC::SET + Interrupt::RCZ::SET);
-        let channel = registers.psr.get();
+        let channel = self.registers.psr.get();
 
         self.client.map(|client| {
             client.transfer_done(channel);
@@ -276,14 +273,11 @@ impl DMAChannel {
     }
 
     pub fn start_transfer(&self) {
-        let registers: &DMARegisters = &*self.registers;
-        registers.cr.write(Control::TEN::SET);
+        self.registers.cr.write(Control::TEN::SET);
     }
 
     pub fn prepare_transfer(&self, pid: DMAPeripheral, buf: &'static mut [u8], mut len: usize) {
         // TODO(alevy): take care of zero length case
-
-        let registers: &DMARegisters = &*self.registers;
 
         let maxlen = buf.len()
             / match self.width.get() {
@@ -292,15 +286,19 @@ impl DMAChannel {
                 DMAWidth::Width32Bit /* DMA is acting on words     */ => 4,
             };
         len = cmp::min(len, maxlen);
-        registers.mr.write(Mode::SIZE.val(self.width.get() as u32));
+        self.registers
+            .mr
+            .write(Mode::SIZE.val(self.width.get() as u32));
 
-        registers.psr.set(pid);
-        registers
+        self.registers.psr.set(pid);
+        self.registers
             .marr
             .write(MemoryAddressReload::MARV.val(&buf[0] as *const u8 as u32));
-        registers.tcrr.write(TransferCounter::TCV.val(len as u32));
+        self.registers
+            .tcrr
+            .write(TransferCounter::TCV.val(len as u32));
 
-        registers.ier.write(Interrupt::TRC::SET);
+        self.registers.ier.write(Interrupt::TRC::SET);
 
         // Store the buffer reference in the TakeCell so it can be returned to
         // the caller in `handle_interrupt`
@@ -315,19 +313,17 @@ impl DMAChannel {
     /// Aborts any current transactions and returns the buffer used in the
     /// transaction.
     pub fn abort_transfer(&self) -> Option<&'static mut [u8]> {
-        let registers: &DMARegisters = &*self.registers;
-        registers
+        self.registers
             .idr
             .write(Interrupt::TERR::SET + Interrupt::TRC::SET + Interrupt::RCZ::SET);
 
         // Reset counter
-        registers.tcr.write(TransferCounter::TCV.val(0));
+        self.registers.tcr.write(TransferCounter::TCV.val(0));
 
         self.buffer.take()
     }
 
     pub fn transfer_counter(&self) -> usize {
-        let registers: &DMARegisters = &*self.registers;
-        registers.tcr.read(TransferCounter::TCV) as usize
+        self.registers.tcr.read(TransferCounter::TCV) as usize
     }
 }

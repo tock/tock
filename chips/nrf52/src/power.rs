@@ -275,56 +275,51 @@ impl<'a> Power<'a> {
     }
 
     pub fn handle_interrupt(&self) {
-        let regs = &*self.registers;
         self.disable_all_interrupts();
 
-        if regs.event_usbdetected.is_set(Event::READY) {
-            regs.event_usbdetected.write(Event::READY::CLEAR);
+        if self.registers.event_usbdetected.is_set(Event::READY) {
+            self.registers.event_usbdetected.write(Event::READY::CLEAR);
             self.usb_client
                 .map(|client| client.handle_power_event(PowerEvent::UsbPluggedIn));
         }
 
-        if regs.event_usbremoved.is_set(Event::READY) {
-            regs.event_usbremoved.write(Event::READY::CLEAR);
+        if self.registers.event_usbremoved.is_set(Event::READY) {
+            self.registers.event_usbremoved.write(Event::READY::CLEAR);
             self.usb_client
                 .map(|client| client.handle_power_event(PowerEvent::UsbPluggedOut));
         }
 
-        if regs.event_usbpwrrdy.is_set(Event::READY) {
-            regs.event_usbpwrrdy.write(Event::READY::CLEAR);
+        if self.registers.event_usbpwrrdy.is_set(Event::READY) {
+            self.registers.event_usbpwrrdy.write(Event::READY::CLEAR);
             self.usb_client
                 .map(|client| client.handle_power_event(PowerEvent::UsbPowerReady));
         }
 
         // Clearing unused events
-        regs.event_pofwarn.write(Event::READY::CLEAR);
-        regs.event_sleepenter.write(Event::READY::CLEAR);
-        regs.event_sleepexit.write(Event::READY::CLEAR);
+        self.registers.event_pofwarn.write(Event::READY::CLEAR);
+        self.registers.event_sleepenter.write(Event::READY::CLEAR);
+        self.registers.event_sleepexit.write(Event::READY::CLEAR);
 
         self.enable_interrupts();
     }
 
     pub fn enable_interrupts(&self) {
-        let regs = &*self.registers;
-        regs.intenset.write(
+        self.registers.intenset.write(
             Interrupt::USBDETECTED::SET + Interrupt::USBREMOVED::SET + Interrupt::USBPWRRDY::SET,
         );
     }
 
     pub fn enable_interrupt(&self, intr: u32) {
-        let regs = &*self.registers;
-        regs.intenset.set(intr);
+        self.registers.intenset.set(intr);
     }
 
     pub fn clear_interrupt(&self, intr: u32) {
-        let regs = &*self.registers;
-        regs.intenclr.set(intr);
+        self.registers.intenclr.set(intr);
     }
 
     pub fn disable_all_interrupts(&self) {
-        let regs = &*self.registers;
         // disable all possible interrupts
-        regs.intenclr.set(0xffffffff);
+        self.registers.intenclr.set(0xffffffff);
     }
 
     pub fn get_main_supply_status(&self) -> MainVoltage {

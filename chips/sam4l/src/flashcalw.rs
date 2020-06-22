@@ -463,16 +463,16 @@ impl FLASHCALW {
 
     //  Flush the cache. Should be called after every write!
     fn invalidate_cache(&self) {
-        let regs: &FlashcalwRegisters = &*self.registers;
-        regs.maint0.write(PicoCacheMaintenance0::INVALL::SET);
+        self.registers
+            .maint0
+            .write(PicoCacheMaintenance0::INVALL::SET);
     }
 
     fn enable_picocache(&self, enable: bool) {
-        let regs: &FlashcalwRegisters = &*self.registers;
         if enable {
-            regs.ctrl.write(PicoCacheControl::CEN::Enable);
+            self.registers.ctrl.write(PicoCacheControl::CEN::Enable);
         } else {
-            regs.ctrl.write(PicoCacheControl::CEN::Disable);
+            self.registers.ctrl.write(PicoCacheControl::CEN::Disable);
         }
     }
 
@@ -488,15 +488,12 @@ impl FLASHCALW {
     }
 
     fn pico_enabled(&self) -> bool {
-        let regs: &FlashcalwRegisters = &*self.registers;
-        regs.sr.is_set(PicoCacheStatus::CSTS)
+        self.registers.sr.is_set(PicoCacheStatus::CSTS)
     }
 
     pub fn handle_interrupt(&self) {
-        let regs: &FlashcalwRegisters = &*self.registers;
-
         // Disable the interrupt line for flash
-        regs.fcr.modify(FlashControl::FRDY::CLEAR);
+        self.registers.fcr.modify(FlashControl::FRDY::CLEAR);
 
         // Since the only interrupt on is FRDY, a command should have
         // either completed or failed at this point.
@@ -589,26 +586,23 @@ impl FLASHCALW {
 
     /// FLASH properties.
     fn get_flash_size(&self) -> u32 {
-        let regs: &FlashcalwRegisters = &*self.registers;
         let flash_sizes = [
             4, 8, 16, 32, 48, 64, 96, 128, 192, 256, 384, 512, 768, 1024, 2048,
         ];
         // get the FSZ number and lookup in the table for the size.
-        flash_sizes[regs.fpr.read(FlashParameter::FSZ) as usize] << 10
+        flash_sizes[self.registers.fpr.read(FlashParameter::FSZ) as usize] << 10
     }
 
     /// FLASHC Control
     pub fn set_wait_state(&self, wait_state: u32) {
-        let regs: &FlashcalwRegisters = &*self.registers;
-        regs.fcr.modify(FlashControl::FWS.val(wait_state));
+        self.registers.fcr.modify(FlashControl::FWS.val(wait_state));
     }
 
     fn enable_ws1_read_opt(&self, enable: bool) {
-        let regs: &FlashcalwRegisters = &*self.registers;
         if enable {
-            regs.fcr.modify(FlashControl::WS1OPT::Optimize);
+            self.registers.fcr.modify(FlashControl::WS1OPT::Optimize);
         } else {
-            regs.fcr.modify(FlashControl::WS1OPT::NoOptimize);
+            self.registers.fcr.modify(FlashControl::WS1OPT::NoOptimize);
         }
     }
 
@@ -663,30 +657,28 @@ impl FLASHCALW {
 
     /// Configure high-speed flash mode. This is taken from the ASF code
     pub fn enable_high_speed_flash(&self) {
-        let regs: &FlashcalwRegisters = &*self.registers;
-
         // Since we are running at a fast speed we have to set a clock delay
         // for flash, as well as enable fast flash mode.
-        regs.fcr.modify(FlashControl::FWS::OneWaitState);
+        self.registers.fcr.modify(FlashControl::FWS::OneWaitState);
 
         // Enable high speed mode for flash
-        regs.fcmd
+        self.registers
+            .fcmd
             .modify(FlashCommand::KEY.val(0xA5) + FlashCommand::CMD::HSEN);
 
         // And wait for the flash to be ready
-        while !regs.fsr.is_set(FlashStatus::FRDY) {}
+        while !self.registers.fsr.is_set(FlashStatus::FRDY) {}
     }
 
     /// Flashcalw status
     fn is_error(&self) -> bool {
-        let regs: &FlashcalwRegisters = &*self.registers;
         pm::enable_clock(self.pb_clock);
-        regs.fsr.is_set(FlashStatus::LOCKE) | regs.fsr.is_set(FlashStatus::PROGE)
+        self.registers.fsr.is_set(FlashStatus::LOCKE)
+            | self.registers.fsr.is_set(FlashStatus::PROGE)
     }
 
     /// Flashcalw command control
     fn issue_command(&self, command: FlashCMD, page_number: i32) {
-        let regs: &FlashcalwRegisters = &*self.registers;
         pm::enable_clock(self.pb_clock);
         // For most commands we wait for the interrupt, for some certain
         // fast/rarely used commands or commands that don't generate interrupts
@@ -698,7 +690,7 @@ impl FLASHCALW {
             && command != FlashCMD::HSEN
         {
             // Enable ready interrupt.
-            regs.fcr.modify(FlashControl::FRDY::SET);
+            self.registers.fcr.modify(FlashControl::FRDY::SET);
         }
 
         // Setup the command register to run this command.
@@ -710,7 +702,7 @@ impl FLASHCALW {
             cmd += FlashCommand::PAGEN.val(page_number as u32);
         }
 
-        regs.fcmd.write(cmd);
+        self.registers.fcmd.write(cmd);
 
         // Since we don't enable interrupts for these commands, spin wait
         // until they are finished. In particular, QPR and QPRUP will not issue
@@ -720,7 +712,7 @@ impl FLASHCALW {
             || command == FlashCMD::CPB
             || command == FlashCMD::HSEN
         {
-            while !regs.fsr.is_set(FlashStatus::FRDY) {}
+            while !self.registers.fsr.is_set(FlashStatus::FRDY) {}
         }
     }
 
@@ -739,8 +731,7 @@ impl FLASHCALW {
     }
 
     fn is_page_erased(&self) -> bool {
-        let regs: &FlashcalwRegisters = &*self.registers;
-        regs.fsr.is_set(FlashStatus::QPRR)
+        self.registers.fsr.is_set(FlashStatus::QPRR)
     }
 
     fn flashcalw_erase_page(&self, page_number: i32) {
@@ -808,8 +799,6 @@ impl FLASHCALW {
 // Implementation of high level calls using the low-lv functions.
 impl FLASHCALW {
     pub fn configure(&self) {
-        let regs: &FlashcalwRegisters = &*self.registers;
-
         // Enable all clocks (if they aren't on already...).
         pm::enable_clock(self.ahb_clock);
         pm::enable_clock(self.hramc1_clock);
@@ -817,7 +806,7 @@ impl FLASHCALW {
 
         // Configure all other interrupts explicitly. Note the issue_command
         // function turns this on when need be.
-        regs.fcr.modify(
+        self.registers.fcr.modify(
             FlashControl::FRDY::CLEAR
                 + FlashControl::LOCKE::CLEAR
                 + FlashControl::PROGE::CLEAR

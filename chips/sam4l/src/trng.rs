@@ -62,19 +62,18 @@ impl<'a> Trng<'a> {
     }
 
     pub fn handle_interrupt(&self) {
-        let regs = &*self.regs;
-
-        regs.idr.write(Interrupt::DATRDY::SET);
+        self.regs.idr.write(Interrupt::DATRDY::SET);
 
         self.client.map(|client| {
             let result = client.entropy_available(&mut TrngIter(self), ReturnCode::SUCCESS);
             if let Continue::Done = result {
                 // disable controller
-                regs.cr
+                self.regs
+                    .cr
                     .write(Control::KEY.val(KEY) + Control::ENABLE::Disable);
                 pm::disable_clock(pm::Clock::PBA(pm::PBAClock::TRNG));
             } else {
-                regs.ier.write(Interrupt::DATRDY::SET);
+                self.regs.ier.write(Interrupt::DATRDY::SET);
             }
         });
     }
@@ -86,9 +85,8 @@ impl Iterator for TrngIter<'_, '_> {
     type Item = u32;
 
     fn next(&mut self) -> Option<u32> {
-        let regs = &*self.0.regs;
-        if regs.isr.is_set(Interrupt::DATRDY) {
-            Some(regs.odata.read(OutputData::ODATA))
+        if self.0.regs.isr.is_set(Interrupt::DATRDY) {
+            Some(self.0.regs.odata.read(OutputData::ODATA))
         } else {
             None
         }
@@ -97,12 +95,12 @@ impl Iterator for TrngIter<'_, '_> {
 
 impl<'a> entropy::Entropy32<'a> for Trng<'a> {
     fn get(&self) -> ReturnCode {
-        let regs = &*self.regs;
         pm::enable_clock(pm::Clock::PBA(pm::PBAClock::TRNG));
 
-        regs.cr
+        self.regs
+            .cr
             .write(Control::KEY.val(KEY) + Control::ENABLE::Enable);
-        regs.ier.write(Interrupt::DATRDY::SET);
+        self.regs.ier.write(Interrupt::DATRDY::SET);
         ReturnCode::SUCCESS
     }
 

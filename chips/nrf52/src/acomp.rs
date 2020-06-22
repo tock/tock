@@ -228,10 +228,9 @@ impl<'a> Comparator<'a> {
     /// Uses differential mode, with no hysteresis, and normal speed and power
     /// VIN+ = AIN5 and VIN- = AIN0
     fn enable(&self) {
-        let regs = &*self.registers;
         // Checks if it's already enabled
-        // Assumes no one else is writing to comp regs directly
-        if regs.enable.matches_any(Enable::ENABLE::Enabled) {
+        // Assumes no one else is writing to comp registers directly
+        if self.registers.enable.matches_any(Enable::ENABLE::Enabled) {
             return;
         }
 
@@ -239,41 +238,43 @@ impl<'a> Comparator<'a> {
         // Differential and single ended are pretty much the same,
         // except single-ended gives more options for input and
         // uses a ref ladder for hysteresis instead of a set voltage
-        regs.mode
+        self.registers
+            .mode
             .write(Mode::OperatingMode::Differential + Mode::SpeedAndPower::Normal);
         // VIN+ = Pin 0
-        regs.psel.write(PinSelect::PinSelect::AnalogInput5);
+        self.registers
+            .psel
+            .write(PinSelect::PinSelect::AnalogInput5);
         // VIN- = Pin 1
-        regs.extrefsel
+        self.registers
+            .extrefsel
             .write(ExternalRefSelect::ExternalRefSelect::AnalogRef0);
         // Disable hysteresis
-        regs.hyst.write(Hysteresis::Hysteresis::CLEAR);
+        self.registers.hyst.write(Hysteresis::Hysteresis::CLEAR);
 
-        regs.enable.write(Enable::ENABLE::Enabled);
+        self.registers.enable.write(Enable::ENABLE::Enabled);
         // start comparator
-        regs.events_ready.set(0);
-        regs.tasks_start.set(1);
+        self.registers.events_ready.set(0);
+        self.registers.tasks_start.set(1);
         // wait for comparator to be ready
         // delay is on order of 3 microseconds so spin wait is OK
-        while regs.events_ready.get() == 0 {}
+        while self.registers.events_ready.get() == 0 {}
     }
 
     fn disable(&self) {
-        let regs = &*self.registers;
         // stop comparator
-        regs.tasks_stop.set(1);
+        self.registers.tasks_stop.set(1);
         // completely turn comparator off
-        regs.enable.write(Enable::ENABLE::Disabled);
+        self.registers.enable.write(Enable::ENABLE::Disabled);
     }
 
     /// Handles upward crossing events (when VIN+ becomes greater than VIN-)
     pub fn handle_interrupt(&self) {
         // HIL only cares about upward crossing interrupts
-        let regs = &*self.registers;
         // VIN+ crossed VIN-
-        if regs.events_up.get() == 1 {
+        if self.registers.events_up.get() == 1 {
             // Clear event
-            regs.events_up.set(0);
+            self.registers.events_up.set(0);
             self.client.map(|client| {
                 // Only one channel (0)
                 client.fired(0);
@@ -288,22 +289,20 @@ impl<'a> analog_comparator::AnalogComparator<'a> for Comparator<'a> {
     /// Starts comparison on only channel
     /// This enables comparator and interrupts
     fn start_comparing(&self, _: &Self::Channel) -> ReturnCode {
-        let regs = &*self.registers;
         self.enable();
 
         // Enable only up interrupt (If VIN+ crosses VIN-)
-        regs.inten.write(InterruptEnable::UP::SET);
+        self.registers.inten.write(InterruptEnable::UP::SET);
 
         ReturnCode::SUCCESS
     }
 
     /// Stops comparing and disables comparator
     fn stop_comparing(&self, _: &Self::Channel) -> ReturnCode {
-        let regs = &*self.registers;
         // Disables interrupts
-        regs.inten.set(0);
+        self.registers.inten.set(0);
         // Stops comparison
-        regs.tasks_stop.set(1);
+        self.registers.tasks_stop.set(1);
 
         self.disable();
         ReturnCode::SUCCESS
@@ -313,14 +312,13 @@ impl<'a> analog_comparator::AnalogComparator<'a> for Comparator<'a> {
     /// Returns true if vin+ > vin-
     /// Enables comparator if not enabled, to disable call stop comparing
     fn comparison(&self, _: &Self::Channel) -> bool {
-        let regs = &*self.registers;
         self.enable();
 
         // Signals to update Result register
-        regs.tasks_sample.set(1);
+        self.registers.tasks_sample.set(1);
 
         // Returns 1 (true) if vin+ > vin-
-        regs.result.get() == 1
+        self.registers.result.get() == 1
     }
 
     fn set_client(&self, client: &'a dyn analog_comparator::Client) {

@@ -49,22 +49,17 @@ impl Watchdog {
     }
 
     fn unlock(&self) {
-        let regs = &*self.registers;
-        regs.wdogkey.write(key::key.val(0x51F15E));
+        self.registers.wdogkey.write(key::key.val(0x51F15E));
     }
 
     fn feed(&self) {
-        let regs = &*self.registers;
-
         self.unlock();
-        regs.wdogfeed.write(feed::feed.val(0xD09F00D));
+        self.registers.wdogfeed.write(feed::feed.val(0xD09F00D));
     }
 
     pub fn disable(&self) {
-        let regs = &*self.registers;
-
         self.unlock();
-        regs.wdogcfg.write(
+        self.registers.wdogcfg.write(
             cfg::scale.val(0)
                 + cfg::rsten::CLEAR
                 + cfg::zerocmp::CLEAR
