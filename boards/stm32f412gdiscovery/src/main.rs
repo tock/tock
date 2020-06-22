@@ -13,7 +13,6 @@ use components::gpio::GpioComponent;
 use kernel::capabilities;
 use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::component::Component;
-use kernel::hil::gpio::Output;
 use kernel::Platform;
 use kernel::{create_capability, debug, static_init};
 
@@ -228,11 +227,6 @@ unsafe fn set_pin_primary_functions() {
         // AF4 is I2C
         pin.set_alternate_function(AlternateFunction::AF4);
     });
-
-    // PinId::PF12.get_pin().as_ref().map(|pin| {
-    //     pin.make_output();
-    //     pin.set();
-    // });
 
     stm32f412g::i2c::I2C1.enable_clock();
     stm32f412g::i2c::I2C1.set_speed(stm32f412g::i2c::I2CSpeed::Speed100k, 16);
