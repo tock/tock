@@ -25,7 +25,7 @@ pub static mut WRITER: Writer = Writer { initialized: false };
 
 impl Writer {
     /// Indicate that USART has already been initialized. Trying to double
-    /// initialize USART2 causes STM32F446RE to go into in in-deterministic state.
+    /// initialize USART2 causes STM32F412G to go into in in-deterministic state.
     pub fn set_initialized(&mut self) {
         self.initialized = true;
     }
