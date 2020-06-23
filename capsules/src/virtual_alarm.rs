@@ -122,6 +122,10 @@ impl<'a, A: Alarm<'a>> Alarm<'a> for VirtualMuxAlarm<'a, A> {
     fn get_alarm(&self) -> Self::Ticks {
         self.reference.get().wrapping_add(self.dt.get())
     }
+
+    fn minimum_dt(&self) -> Self::Ticks {
+        self.mux.alarm.minimum_dt()
+    }
 }
 
 impl<'a, A: Alarm<'a>> time::AlarmClient for VirtualMuxAlarm<'a, A> {

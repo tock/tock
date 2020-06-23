@@ -5,9 +5,11 @@ use core::cmp;
 use kernel::common::cells::{OptionalCell, NumericCellExt};
 use kernel::common::{List, ListLink, ListNode};
 use kernel::hil::time::{self, Alarm, Ticks, Time, Timer};
+use crate::virtual_alarm::VirtualMuxAlarm;
 use kernel::ReturnCode;
+use kernel::debug;
 
-#[derive(Copy, Clone, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 enum Mode {
     Uninserted = 0,
     Disabled = 1,
@@ -37,7 +39,7 @@ impl<'a, A: Alarm<'a>> VirtualTimer<'a, A> {
             mux: mux_timer,
             when: Cell::new(zero),
             interval: Cell::new(zero),
-            mode: Cell::new(Mode::Disabled),
+            mode: Cell::new(Mode::Uninserted),
             next: ListLink::empty(),
             client: OptionalCell::empty(),
         };
@@ -47,12 +49,16 @@ impl<'a, A: Alarm<'a>> VirtualTimer<'a, A> {
     // Start a new timer, configuring its mode and adjusting the
     // underlying alarm if needed.
     fn insert_timer(&'a self, interval: A::Ticks, mode: Mode) -> A::Ticks {
+//        debug!("Inserting timer (mode: {:?}), interval: {}", mode, interval.into_u32());
+
         if self.mode.get() == Mode::Uninserted {
+            //debug!("  - First time, insert.");
             self.mux.timers.push_head(&self);
             self.mode.set(Mode::Disabled);
         }
         
         if self.mode.get() == Mode::Disabled {
+//            debug!("  - Disabled, increment count on mux.");
             self.mux.enabled.increment();
         }
         self.mode.set(mode);
@@ -183,11 +189,11 @@ impl<'a, A: Alarm<'a>> time::AlarmClient for VirtualTimer<'a, A> {
 pub struct MuxTimer<'a, A: Alarm<'a>> {
     timers: List<'a, VirtualTimer<'a, A>>,
     enabled: Cell<usize>,
-    alarm: &'a A,
+    alarm: &'a VirtualMuxAlarm<'a, A>,
 }
 
 impl<'a, A: Alarm<'a>> MuxTimer<'a, A> {
-    pub const fn new(alarm: &'a A) -> MuxTimer<'a, A> {
+    pub const fn new(alarm: &'a VirtualMuxAlarm<'a, A>) -> MuxTimer<'a, A> {
         MuxTimer{
             timers: List::new(),
             enabled: Cell::new(0),
@@ -195,8 +201,9 @@ impl<'a, A: Alarm<'a>> MuxTimer<'a, A> {
         }
     }
 
-    fn calculate_alarm(&'a self, now: A::Ticks, interval: A::Ticks) {
+    fn calculate_alarm(&'a self, now: A::Ticks, interval: A::Ticks){
         if self.enabled.get() == 1 {
+            //debug!("Calculating alarm: first, so set it.");
             self.alarm.set_alarm(now, interval);
         } else {
             // If the current alarm doesn't fall within the range of
@@ -207,8 +214,10 @@ impl<'a, A: Alarm<'a>> MuxTimer<'a, A> {
             let cur_alarm = self.alarm.get_alarm();
             let when = now.wrapping_add(interval);
             if !cur_alarm.within_range(now, when) {
+                //debug!("Calculating alarm: earlier, so set it.");
                 self.alarm.set_alarm(now, interval);
             } else {
+                //debug!("Calculating alarm: later, do nothing.");
                 // current alarm will fire earlier, keep it
             }
         }
