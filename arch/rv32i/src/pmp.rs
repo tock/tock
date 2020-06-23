@@ -117,7 +117,7 @@ impl PMPRegion {
 
 /// Struct storing region configuration for RISCV PMP.
 pub struct PMPConfig {
-    regions: [Option<PMPRegion>; 8],
+    regions: [Option<PMPRegion>; 32],
     total_regions: usize,
     /// Indicates if the configuration has changed since the last time it was written to hardware.
     is_dirty: Cell<bool>,
@@ -132,7 +132,7 @@ impl Default for PMPConfig {
     /// number of regions on the arty chip
     fn default() -> PMPConfig {
         PMPConfig {
-            regions: [None; 8],
+            regions: [None; 32],
             total_regions: 8,
             is_dirty: Cell::new(true),
             last_configured_for: MapCell::empty(),
@@ -162,7 +162,7 @@ impl PMPConfig {
             panic!("Tock requires at least 4 PMP regions");
         }
         PMPConfig {
-            regions: [None; 8],
+            regions: [None; 32],
             // As we use the PMP TOR setup we only support half the number
             // of regions as hardware supports
             total_regions: pmp_regions / 2,
@@ -194,7 +194,7 @@ impl kernel::mpu::MPU for PMPConfig {
 
     fn disable_mpu(&self) {
         for x in 0..self.total_regions {
-            // If PMP is supported by the core then all 16 register sets must exist
+            // If PMP is supported by the core then all 64 register sets must exist
             // They don't all have to do anything, but let's zero them all just in case.
             match x % 4 {
                 0 => {
