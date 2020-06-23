@@ -38,7 +38,7 @@ register_bitfields![u32,
 /// Struct storing configuration for a RISC-V PMP region.
 #[derive(Copy, Clone)]
 pub struct PMPRegion {
-    location: Option<(*const u8, usize)>,
+    location: (*const u8, usize),
     cfg: tock_registers::registers::FieldValue<u32, pmpcfg::Register>,
 }
 
@@ -51,19 +51,16 @@ impl fmt::Display for PMPRegion {
             }
         }
 
-        match self.location {
-            None => write!(f, "<unset>"),
-            Some((addr, size)) => write!(
-                f,
-                "addr={:p}, size={:#X}, cfg={:#X} ({}{}{})",
-                addr,
-                size,
-                u32::from(self.cfg),
-                bit_str(self, pmpcfg::r::SET.value, "r", "-"),
-                bit_str(self, pmpcfg::w::SET.value, "w", "-"),
-                bit_str(self, pmpcfg::x::SET.value, "x", "-"),
-            ),
-        }
+        write!(
+            f,
+            "addr={:p}, size={:#X}, cfg={:#X} ({}{}{})",
+            self.location.0,
+            self.location.1,
+            u32::from(self.cfg),
+            bit_str(self, pmpcfg::r::SET.value, "r", "-"),
+            bit_str(self, pmpcfg::w::SET.value, "w", "-"),
+            bit_str(self, pmpcfg::x::SET.value, "x", "-"),
+        )
     }
 }
 
@@ -89,19 +86,12 @@ impl PMPRegion {
         };
 
         PMPRegion {
-            location: Some((start, size)),
+            location: (start, size),
             cfg: pmpcfg,
         }
     }
 
-    fn empty(_region_num: usize) -> PMPRegion {
-        PMPRegion {
-            location: None,
-            cfg: pmpcfg::r::CLEAR + pmpcfg::w::CLEAR + pmpcfg::x::CLEAR + pmpcfg::a::OFF,
-        }
-    }
-
-    fn location(&self) -> Option<(*const u8, usize)> {
+    fn location(&self) -> (*const u8, usize) {
         self.location
     }
 
@@ -109,13 +99,12 @@ impl PMPRegion {
         let other_start = other_start as usize;
         let other_end = other_start + other_size;
 
-        let (region_start, region_end) = match self.location {
-            Some((region_start, region_size)) => {
-                let region_start = region_start as usize;
-                let region_end = region_start + region_size;
-                (region_start, region_end)
-            }
-            None => return false,
+        let (region_start, region_size) = self.location;
+
+        let (region_start, region_end) = {
+            let region_start = region_start as usize;
+            let region_end = region_start + region_size;
+            (region_start, region_end)
         };
 
         if region_start < other_end && other_start < region_end {
@@ -128,7 +117,7 @@ impl PMPRegion {
 
 /// Struct storing region configuration for RISCV PMP.
 pub struct PMPConfig {
-    regions: [PMPRegion; 8],
+    regions: [Option<PMPRegion>; 8],
     total_regions: usize,
     /// Indicates if the configuration has changed since the last time it was written to hardware.
     is_dirty: Cell<bool>,
@@ -143,16 +132,7 @@ impl Default for PMPConfig {
     /// number of regions on the arty chip
     fn default() -> PMPConfig {
         PMPConfig {
-            regions: [
-                PMPRegion::empty(0),
-                PMPRegion::empty(1),
-                PMPRegion::empty(2),
-                PMPRegion::empty(3),
-                PMPRegion::empty(4),
-                PMPRegion::empty(5),
-                PMPRegion::empty(6),
-                PMPRegion::empty(7),
-            ],
+            regions: [None; 8],
             total_regions: 8,
             is_dirty: Cell::new(true),
             last_configured_for: MapCell::empty(),
@@ -164,7 +144,10 @@ impl fmt::Display for PMPConfig {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "PMP regions:")?;
         for n in 0..self.total_regions {
-            writeln!(f, " [{}]: {}", n, self.regions[n])?;
+            match self.regions[n] {
+                None => writeln!(f, "<unset>")?,
+                Some(region) => writeln!(f, " [{}]: {}", n, region)?,
+            }
         }
         Ok(())
     }
@@ -172,23 +155,14 @@ impl fmt::Display for PMPConfig {
 
 impl PMPConfig {
     pub fn new(pmp_regions: usize) -> PMPConfig {
-        if pmp_regions > 16 {
-            panic!("There is an ISA maximum of 16 PMP regions");
+        if pmp_regions > 64 {
+            panic!("There is an ISA maximum of 64 PMP regions");
         }
         if pmp_regions < 4 {
             panic!("Tock requires at least 4 PMP regions");
         }
         PMPConfig {
-            regions: [
-                PMPRegion::empty(0),
-                PMPRegion::empty(1),
-                PMPRegion::empty(2),
-                PMPRegion::empty(3),
-                PMPRegion::empty(4),
-                PMPRegion::empty(5),
-                PMPRegion::empty(6),
-                PMPRegion::empty(7),
-            ],
+            regions: [None; 8],
             // As we use the PMP TOR setup we only support half the number
             // of regions as hardware supports
             total_regions: pmp_regions / 2,
@@ -203,7 +177,7 @@ impl PMPConfig {
             if number == APP_MEMORY_REGION_NUM {
                 continue;
             }
-            if let None = region.location() {
+            if region.is_none() {
                 if number < self.total_regions {
                     return Some(number);
                 }
@@ -288,8 +262,13 @@ impl kernel::mpu::MPU for PMPConfig {
         config: &mut Self::MpuConfig,
     ) -> Option<mpu::Region> {
         for region in config.regions.iter() {
-            if region.overlaps(unallocated_memory_start, unallocated_memory_size) {
-                return None;
+            if region.is_some() {
+                if region
+                    .unwrap()
+                    .overlaps(unallocated_memory_start, unallocated_memory_size)
+                {
+                    return None;
+                }
             }
         }
 
@@ -319,7 +298,7 @@ impl kernel::mpu::MPU for PMPConfig {
 
         let region = PMPRegion::new(start as *const u8, size, permissions);
 
-        config.regions[region_num] = region;
+        config.regions[region_num] = Some(region);
         config.is_dirty.set(true);
 
         Some(mpu::Region::new(start as *const u8, size))
@@ -337,8 +316,13 @@ impl kernel::mpu::MPU for PMPConfig {
     ) -> Option<(*const u8, usize)> {
         // Check that no previously allocated regions overlap the unallocated memory.
         for region in config.regions.iter() {
-            if region.overlaps(unallocated_memory_start, unallocated_memory_size) {
-                return None;
+            if region.is_some() {
+                if region
+                    .unwrap()
+                    .overlaps(unallocated_memory_start, unallocated_memory_size)
+                {
+                    return None;
+                }
             }
         }
 
@@ -368,7 +352,7 @@ impl kernel::mpu::MPU for PMPConfig {
 
         let region = PMPRegion::new(region_start as *const u8, region_size, permissions);
 
-        config.regions[APP_MEMORY_REGION_NUM] = region;
+        config.regions[APP_MEMORY_REGION_NUM] = Some(region);
         config.is_dirty.set(true);
 
         Some((region_start as *const u8, region_size))
@@ -381,8 +365,8 @@ impl kernel::mpu::MPU for PMPConfig {
         permissions: mpu::Permissions,
         config: &mut Self::MpuConfig,
     ) -> Result<(), ()> {
-        let (region_start, region_size) = match config.regions[APP_MEMORY_REGION_NUM].location() {
-            Some((start, size)) => (start as usize, size),
+        let (region_start, region_size) = match config.regions[APP_MEMORY_REGION_NUM] {
+            Some(region) => region.location(),
             None => {
                 // Error: Process tried to update app memory MPU region before it was created.
                 return Err(());
@@ -399,7 +383,7 @@ impl kernel::mpu::MPU for PMPConfig {
 
         let region = PMPRegion::new(region_start as *const u8, region_size, permissions);
 
-        config.regions[APP_MEMORY_REGION_NUM] = region;
+        config.regions[APP_MEMORY_REGION_NUM] = Some(region);
         config.is_dirty.set(true);
 
         Ok(())
@@ -417,12 +401,12 @@ impl kernel::mpu::MPU for PMPConfig {
             // Sort the regions before configuring PMP in TOR mode.
             let mut regions_sorted = config.regions.clone();
             regions_sorted.sort_unstable_by(|a, b| {
-                let (a_start, _a_size) = match a.location() {
-                    Some((start, size)) => (start as usize, size),
+                let (a_start, _a_size) = match a {
+                    Some(region) => (region.location().0 as usize, region.location().1),
                     None => (0xFFFF_FFFF, 0xFFFF_FFFF),
                 };
-                let (b_start, _b_size) = match b.location() {
-                    Some((start, size)) => (start as usize, size),
+                let (b_start, _b_size) = match b {
+                    Some(region) => (region.location().0 as usize, region.location().1),
                     None => (0xFFFF_FFFF, 0xFFFF_FFFF),
                 };
                 a_start.cmp(&b_start)
@@ -430,9 +414,11 @@ impl kernel::mpu::MPU for PMPConfig {
 
             for x in 0..self.total_regions {
                 let region = regions_sorted[x];
-                match region.location() {
-                    Some((start, size)) => {
-                        let cfg_val = region.cfg.value;
+                match region {
+                    Some(r) => {
+                        let cfg_val = r.cfg.value;
+                        let start = r.location.0 as usize;
+                        let size = r.location.1;
 
                         match x % 2 {
                             0 => {
