@@ -1,6 +1,6 @@
 #![crate_name = "msp432"]
 #![crate_type = "rlib"]
-#![feature(asm, const_fn, in_band_lifetimes)]
+#![feature(asm, const_fn)]
 #![no_std]
 #![allow(unused_doc_comments)]
 

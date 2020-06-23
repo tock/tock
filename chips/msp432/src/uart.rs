@@ -1,4 +1,4 @@
-//! UART
+//! Universal Asynchronous Receiver/Transmitter (UART)
 
 use crate::usci::{self, UsciARegisters};
 use core::cell::Cell;
@@ -17,7 +17,7 @@ struct BaudFraction {
 }
 
 #[rustfmt::skip]
-// Table out of the datahseet correct the baudrate
+// Table out of the datahseet to correct the baudrate
 const BAUD_FRACTIONS: &'static [BaudFraction; 36] = &[
     BaudFraction { frac: 0.0000, reg_val: 0x00 },
     BaudFraction { frac: 0.0529, reg_val: 0x01 },
@@ -68,7 +68,7 @@ pub struct Uart<'a> {
     tx_index: Cell<usize>,
 }
 
-impl Uart<'a> {
+impl<'a> Uart<'a> {
     pub(crate) const fn new(regs: StaticRef<UsciARegisters>) -> Uart<'a> {
         Uart {
             registers: regs,
@@ -144,7 +144,7 @@ impl Uart<'a> {
 impl<'a> hil::uart::UartData<'a> for Uart<'a> {}
 impl<'a> hil::uart::Uart<'a> for Uart<'a> {}
 
-impl hil::uart::Configure for Uart<'a> {
+impl<'a> hil::uart::Configure for Uart<'a> {
     fn configure(&self, params: hil::uart::Parameters) -> ReturnCode {
         // Disable module
         let regs = self.registers;
