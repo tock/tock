@@ -65,7 +65,6 @@ impl Chip for Msp432 {
 
     fn sleep(&self) {
         unsafe {
-            cortexm4::scb::unset_sleepdeep();
             cortexm4::support::wfi();
         }
     }

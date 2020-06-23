@@ -1,3 +1,5 @@
+//! Nested Vector Interrupt Controller (NVIC)
+
 pub const PSS: u32 = 0;
 pub const CS: u32 = 1;
 pub const PCM: u32 = 2;

@@ -1,4 +1,4 @@
-// Flash Controller (FLCTL)
+//! Flash Controller (FLCTL)
 
 use kernel::common::registers::{register_bitfields, register_structs, ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
@@ -823,7 +823,7 @@ pub struct FlCtl {
 }
 
 impl FlCtl {
-    pub const fn new() -> FlCtl {
+    const fn new() -> FlCtl {
         FlCtl {
             registers: FLCTL_BASE,
         }

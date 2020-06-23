@@ -235,19 +235,19 @@ impl ClockSystem {
     }
 
     fn lock_registers(&self) {
-        // every value except KEY written to the key register will perform the lock
+        // Every value except KEY written to the key register will perform the lock
         self.registers.key.modify(CSKEY::KEY.val(0));
     }
 
-    // not sure about the interface, so for testing provide a function to set
-    // the clock to 48Mhz
-    pub fn set_clk_48mhz(&self) {
+    // Not sure about the interface, so for testing provide a function to set
+    // the master-clock to 48Mhz
+    pub fn set_mclk_48mhz(&self) {
         self.unlock_registers();
 
-        // set HFXT to 40-48MHz range
+        // Set HFXT to 40-48MHz range
         self.registers.ctl2.modify(CSCTL2::HFXTFREQ.val(6));
 
-        // set HFXT as MCLK source
+        // Set HFXT as MCLK source
         self.registers
             .ctl1
             .modify(CSCTL1::SELM.val(5) + CSCTL1::DIVM.val(0));
@@ -260,13 +260,14 @@ impl ClockSystem {
         self.lock_registers();
     }
 
+    // Setup the low-speed subsystem master clock (SMCLK) to 1/4 of the master-clock -> 12MHz
     pub fn set_smclk_12mhz(&self) {
         self.unlock_registers();
 
-        // set HFXT as clock-source for SMCLK
+        // Set HFXT as clock-source for SMCLK
         self.registers.ctl1.modify(CSCTL1::SELS.val(5));
 
-        // set SMCLK divider to 4 -> 48MHz / 4 = 12MHz
+        // Set SMCLK divider to 4 -> 48MHz / 4 = 12MHz
         self.registers.ctl1.modify(CSCTL1::DIVS.val(2));
 
         self.lock_registers();
