@@ -17,18 +17,16 @@
             ]
         },
         {
-            "name": "MSP-EXP432P401R",
-            "type": "gdb",
-            "request": "attach",
-            "executable": "${workspaceRoot}/target/thumbv7em-none-eabi/debug/msp-exp432p401r",
-            "target": "localhost:3333",
-            "remote": true,
+            "name": "MSP432 Cortex Debug",
+            "type": "cortex-debug",
+            "servertype": "openocd",
+            "request": "launch",
+            "executable": "${workspaceRoot}/target/thumbv7em-none-eabi/debug/msp-exp432p401r.elf",
             "cwd": "${workspaceRoot}",
-            "gdbpath": "arm-none-eabi-gdb",
-            "autorun": [
-                "monitor reset",
-                "monitor speed auto",
-                "b reset_handler"
+            "svdFile": "${workspaceRoot}/boards/msp_exp432p401r/msp432.svd",
+            "runToMain": true,
+            "configFiles": [
+                "${workspaceRoot}/boards/msp_exp432p401r/openocd.cfg",
             ]
         }
     ]
