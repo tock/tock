@@ -1,6 +1,7 @@
 #![no_std]
+// Disable this attribute when documenting, as a workaround for
+// https://github.com/rust-lang/rust/issues/62184.
 #![cfg_attr(not(doc), no_main)]
-#![feature(asm, core_intrinsics)]
 // #![deny(missing_docs)]
 
 use kernel::capabilities;
@@ -13,28 +14,22 @@ use kernel::{create_capability, debug, static_init};
 
 pub mod io;
 
-// Number of concurrent processes this platform supports.
+/// Number of concurrent processes this platform supports.
 const NUM_PROCS: usize = 4;
 
-// Actual memory for holding the active process structures.
+/// Actual memory for holding the active process structures.
 static mut PROCESSES: [Option<&'static dyn kernel::procs::ProcessType>; NUM_PROCS] =
     [None; NUM_PROCS];
 
-// Static reference to chip for panic dumps.
+/// Static reference to chip for panic dumps.
 static mut CHIP: Option<&'static msp432::chip::Msp432> = None;
 
-// How should the kernel respond when a process faults.
+/// How should the kernel respond when a process faults.
 const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultResponse::Panic;
 
-// RAM to be shared by all application processes.
+/// RAM to be shared by all application processes.
 #[link_section = ".app_memory"]
 static mut APP_MEMORY: [u8; 32768] = [0; 32768];
-
-// Force the emission of the `.apps` segment in the kernel elf image
-// NOTE: This will cause the kernel to overwrite any existing apps when flashed!
-#[used]
-#[link_section = ".app.hack"]
-static APP_HACK: u8 = 0;
 
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
@@ -71,11 +66,18 @@ pub unsafe fn reset_handler() {
     msp432::flctl::FLCTL.set_waitstates(msp432::flctl::WaitStates::_1);
     msp432::flctl::FLCTL.set_buffering(true);
 
-    // Setup 48MHz from external oscillator
+    // Setup the master-clock (MCLK) to 48MHz from external oscillator
     msp432::gpio::PINS[msp432::gpio::PinNr::PJ_2 as usize].enable_primary_function();
     msp432::gpio::PINS[msp432::gpio::PinNr::PJ_3 as usize].enable_primary_function();
-    msp432::cs::CS.set_clk_48mhz();
+    msp432::cs::CS.set_mclk_48mhz();
+    // Setup the Low-speed subsystem master clock (SMCLK) to 12MHz
     msp432::cs::CS.set_smclk_12mhz();
+
+    debug::assign_gpios(
+        Some(&msp432::gpio::PINS[msp432::gpio::PinNr::P01_0 as usize]), // Red LED
+        Some(&msp432::gpio::PINS[msp432::gpio::PinNr::P03_5 as usize]),
+        Some(&msp432::gpio::PINS[msp432::gpio::PinNr::P03_7 as usize]),
+    );
 
     // Setup pins for UART0
     msp432::gpio::PINS[msp432::gpio::PinNr::P01_2 as usize].enable_primary_function();

@@ -5,12 +5,10 @@ PLATFORM=msp-exp432p401r
 
 include ../Makefile.common
 
-# APP=../../../libtock-rs/target/thumbv7em-none-eabi/tab/msp432/blink/cortex-m4.tbf
-# KERNEL=$(TOCK_ROOT_DIRECTORY)/target/$(TARGET)/debug/$(PLATFORM).elf
-# KERNEL_WITH_APP=$(TOCK_ROOT_DIRECTORY)/target/$(TARGET)/debug/$(PLATFORM)-app.elf
-
 OPENOCD=openocd
 OPENOCD_OPTIONS=-f openocd.cfg
+APP_START_ADDR=0x20000
+APP?=
 
 .PHONY: flash-debug
 flash-debug: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/debug/$(PLATFORM).elf
@@ -20,8 +18,6 @@ flash-debug: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/debug/$(PLATFORM).elf
 flash: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf
 	$(OPENOCD) $(OPENOCD_OPTIONS) -c "init; reset halt; flash write_image erase $<; verify_image $<; reset; shutdown"
 
-.PHONY: program
-program: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/debug/$(PLATFORM).elf
-	$(error See README.md and update this section accordingly)
-	# arm-none-eabi-objcopy --update-section .apps=$(APP) $(KERNEL) $(KERNEL_WITH_APP)
-	# $(OPENOCD) $(OPENOCD_OPTIONS) -c "init; reset halt; flash write_image erase $(KERNEL_WITH_APP); verify_image $(KERNEL_WITH_APP); reset; shutdown"
+.PHONY: flash-app
+flash-app:
+	$(OPENOCD) $(OPENOCD_OPTIONS) -c "init; reset halt; flash write_image erase $(APP) $(APP_START_ADDR) bin; verify_image_checksum $(APP) $(APP_START_ADDR) bin; reset; shutdown"
