@@ -434,7 +434,7 @@ impl kernel::mpu::MPU for PMPConfig {
                     Some((start, size)) => {
                         let cfg_val = region.cfg.value;
 
-                        match x {
+                        match x % 2 {
                             0 => {
                                 // Disable access up to the start address
                                 csr::CSR.pmpcfg[x / 2].modify(
@@ -446,8 +446,10 @@ impl kernel::mpu::MPU for PMPConfig {
                                 csr::CSR.pmpaddr[x * 2].set((start as u32) >> 2);
 
                                 // Set access to end address
-                                csr::CSR.pmpcfg[x / 2].set(cfg_val << 8 | csr::CSR.pmpcfg[x / 2].get());
-                                csr::CSR.pmpaddr[(x * 2) + 1].set((start as u32 + size as u32) >> 2);
+                                csr::CSR.pmpcfg[x / 2]
+                                    .set(cfg_val << 8 | csr::CSR.pmpcfg[x / 2].get());
+                                csr::CSR.pmpaddr[(x * 2) + 1]
+                                    .set((start as u32 + size as u32) >> 2);
                             }
                             1 => {
                                 // Disable access up to the start address
@@ -460,92 +462,10 @@ impl kernel::mpu::MPU for PMPConfig {
                                 csr::CSR.pmpaddr[x * 2].set((start as u32) >> 2);
 
                                 // Set access to end address
-                                csr::CSR.pmpcfg[x / 2].set(cfg_val << 24 | csr::CSR.pmpcfg[x / 2].get());
-                                csr::CSR.pmpaddr[(x * 2) + 1].set((start as u32 + size as u32) >> 2);
-                            }
-                            2 => {
-                                // Disable access up to the start address
-                                csr::CSR.pmpcfg[x / 2].modify(
-                                    csr::pmpconfig::pmpcfg::r0::CLEAR
-                                        + csr::pmpconfig::pmpcfg::w0::CLEAR
-                                        + csr::pmpconfig::pmpcfg::x0::CLEAR
-                                        + csr::pmpconfig::pmpcfg::a0::TOR,
-                                );
-                                csr::CSR.pmpaddr[x * 2].set((start as u32) >> 2);
-
-                                // Set access to end address
-                                csr::CSR.pmpcfg[x / 2].set(cfg_val << 8 | csr::CSR.pmpcfg[x / 2].get());
-                                csr::CSR.pmpaddr[(x * 2) + 1].set((start as u32 + size as u32) >> 2);
-                            }
-                            3 => {
-                                // Disable access up to the start address
-                                csr::CSR.pmpcfg[x / 2].modify(
-                                    csr::pmpconfig::pmpcfg::r2::CLEAR
-                                        + csr::pmpconfig::pmpcfg::w2::CLEAR
-                                        + csr::pmpconfig::pmpcfg::x2::CLEAR
-                                        + csr::pmpconfig::pmpcfg::a2::TOR,
-                                );
-                                csr::CSR.pmpaddr[x * 2].set((start as u32) >> 2);
-
-                                // Set access to end address
-                                csr::CSR.pmpcfg[x / 2].set(cfg_val << 24 | csr::CSR.pmpcfg[x / 2].get());
-                                csr::CSR.pmpaddr[(x * 2) + 1].set((start as u32 + size as u32) >> 2);
-                            }
-                            4 => {
-                                // Disable access up to the start address
-                                csr::CSR.pmpcfg[x / 2].modify(
-                                    csr::pmpconfig::pmpcfg::r0::CLEAR
-                                        + csr::pmpconfig::pmpcfg::w0::CLEAR
-                                        + csr::pmpconfig::pmpcfg::x0::CLEAR
-                                        + csr::pmpconfig::pmpcfg::a0::TOR,
-                                );
-                                csr::CSR.pmpaddr[x * 2].set((start as u32) >> 2);
-
-                                // Set access to end address
-                                csr::CSR.pmpcfg[x / 2].set(cfg_val << 8 | csr::CSR.pmpcfg[x / 2].get());
-                                csr::CSR.pmpaddr[(x * 2) + 1].set((start as u32 + size as u32) >> 2);
-                            }
-                            5 => {
-                                // Disable access up to the start address
-                                csr::CSR.pmpcfg[x / 2].modify(
-                                    csr::pmpconfig::pmpcfg::r2::CLEAR
-                                        + csr::pmpconfig::pmpcfg::w2::CLEAR
-                                        + csr::pmpconfig::pmpcfg::x2::CLEAR
-                                        + csr::pmpconfig::pmpcfg::a2::TOR,
-                                );
-                                csr::CSR.pmpaddr[x * 2].set((start as u32) >> 2);
-
-                                // Set access to end address
-                                csr::CSR.pmpcfg[x / 2].set(cfg_val << 24 | csr::CSR.pmpcfg[x / 2].get());
-                                csr::CSR.pmpaddr[(x * 2) + 1].set((start as u32 + size as u32) >> 2);
-                            }
-                            6 => {
-                                // Disable access up to the start address
-                                csr::CSR.pmpcfg[x / 2].modify(
-                                    csr::pmpconfig::pmpcfg::r0::CLEAR
-                                        + csr::pmpconfig::pmpcfg::w0::CLEAR
-                                        + csr::pmpconfig::pmpcfg::x0::CLEAR
-                                        + csr::pmpconfig::pmpcfg::a0::TOR,
-                                );
-                                csr::CSR.pmpaddr[x * 2].set((start as u32) >> 2);
-
-                                // Set access to end address
-                                csr::CSR.pmpcfg[x / 2].set(cfg_val << 8 | csr::CSR.pmpcfg[x / 2].get());
-                                csr::CSR.pmpaddr[(x * 2) + 1].set((start as u32 + size as u32) >> 2);
-                            }
-                            7 => {
-                                // Disable access up to the start address
-                                csr::CSR.pmpcfg[x / 2].modify(
-                                    csr::pmpconfig::pmpcfg::r2::CLEAR
-                                        + csr::pmpconfig::pmpcfg::w2::CLEAR
-                                        + csr::pmpconfig::pmpcfg::x2::CLEAR
-                                        + csr::pmpconfig::pmpcfg::a2::TOR,
-                                );
-                                csr::CSR.pmpaddr[x * 2].set((start as u32) >> 2);
-
-                                // Set access to end address
-                                csr::CSR.pmpcfg[x / 2].set(cfg_val << 24 | csr::CSR.pmpcfg[x / 2].get());
-                                csr::CSR.pmpaddr[(x * 2) + 1].set((start as u32 + size as u32) >> 2);
+                                csr::CSR.pmpcfg[x / 2]
+                                    .set(cfg_val << 24 | csr::CSR.pmpcfg[x / 2].get());
+                                csr::CSR.pmpaddr[(x * 2) + 1]
+                                    .set((start as u32 + size as u32) >> 2);
                             }
                             _ => break,
                         }
