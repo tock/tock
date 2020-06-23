@@ -16,7 +16,8 @@ pub enum NUM {
     Adc                   = 0x00005,
     Dac                   = 0x00006,
     AnalogComparator      = 0x00007,
-
+    AlarmDt               = 0x00008, // Now+dt
+    
     // Kernel
     Ipc                   = 0x10000,
 

@@ -393,4 +393,8 @@ impl<'a> time::Alarm<'a> for Ast<'a> {
     fn is_armed(&self) -> bool {
         self.is_alarm_active()
     }
+
+    fn minimum_dt(&self) -> Self::Ticks {
+        Self::Ticks::from(ALARM0_SYNC_TICS)
+    }
 }

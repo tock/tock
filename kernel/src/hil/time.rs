@@ -196,6 +196,11 @@ pub trait Alarm<'a>: Time {
     /// In this case it possible for `is_armed` to return false yet to
     /// receive a callback.
     fn is_armed(&self) -> bool;
+
+    /// Return the minimum dt value that is supported. Any dt smaller than
+    /// this will automatically be increased to this minimum value.
+    fn minimum_dt(&self) -> Self::Ticks;
+       
 }
 
 /// Callback handler for when a timer fires.
@@ -212,7 +217,7 @@ pub trait TimerClient {
 pub trait Timer<'a>: Time {
     /// Specify the callback to invoke when the timer interval expires.
     /// If there was a previously installed callback this call replaces it.    
-    fn set_client(&'a self, client: &'a dyn TimerClient);
+    fn set_timer_client(&'a self, client: &'a dyn TimerClient);
 
     /// Start a one-shot timer that will invoke the callback at least
     /// `interval` ticks in the future. If there is a timer currently pending,
@@ -221,14 +226,14 @@ pub trait Timer<'a>: Time {
     /// unless a new timer is started (either with repeating or one shot).
     /// Returns the actual interval for the timer that was registered.
     /// This MUST NOT be smaller than `interval` but MAY be larger.
-    fn oneshot(&self, interval: Self::Ticks) -> Self::Ticks;
+    fn oneshot(&'a self, interval: Self::Ticks) -> Self::Ticks;
 
     /// Start a repeating timer that will invoke the callback every
     /// `interval` ticks in the future. If there is a timer currently
     /// pending, calling this cancels that previous timer.
     /// Returns the actual interval for the timer that was registered.
     /// This MUST NOT be smaller than `interval` but MAY be larger.
-    fn repeating(&self, interval: Self::Ticks) -> Self::Ticks;
+    fn repeating(&'a self, interval: Self::Ticks) -> Self::Ticks;
 
     /// Return the interval of the last requested timer.
     fn interval(&self) -> Option<Self::Ticks>;
@@ -239,12 +244,13 @@ pub trait Timer<'a>: Time {
     /// Return if the last requested timer is a repeating timer.
     fn is_repeating(&self) -> bool;
 
-    /// Return how many ticks are remaining until the next callback.
-    /// This call is useful because there may be non-neglible delays between
-    /// when a timer was requested and it was actually scheduled. Therefore,
-    /// since a timer's start might be delayed slightly, the time remaining
-    /// might be slightly higher than one would expect if one calculated it
-    /// right before the call to start the timer.
+    /// Return how many ticks are remaining until the next callback,
+    /// or None if the timer is disabled.  This call is useful because
+    /// there may be non-neglible delays between when a timer was
+    /// requested and it was actually scheduled. Therefore, since a
+    /// timer's start might be delayed slightly, the time remaining
+    /// might be slightly higher than one would expect if one
+    /// calculated it right before the call to start the timer.
     fn time_remaining(&self) -> Option<Self::Ticks>;
 
     /// Returns whether there is currently a timer enabled and so a callback
