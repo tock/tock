@@ -31,10 +31,10 @@ pub enum IPCCallbackType {
 struct IPCData {
     /// An array of app slices that this application has shared with other
     /// applications.
-    shared_memory: [Option<AppSlice<Shared, u8>>; 8],
+    shared_memory: [Option<AppSlice<Shared, u8>>; 6],
     /// An array of callbacks this process has registered to receive callbacks
     /// from other services.
-    client_callbacks: [Option<Callback>; 8],
+    client_callbacks: [Option<Callback>; 6],
     /// The callback setup by a service. Each process can only be one service.
     callback: Option<Callback>,
 }
