@@ -1,0 +1,15 @@
+[package]
+name = "nano33ble"
+version = "0.1.0"
+authors = ["Tock Project Developers <tock-dev@googlegroups.com>"]
+build = "build.rs"
+edition = "2018"
+
+[dependencies]
+cortexm4 = { path = "../../arch/cortex-m4" }
+capsules = { path = "../../capsules" }
+kernel = { path = "../../kernel" }
+nrf52 = { path = "../../chips/nrf52" }
+nrf52840 = { path = "../../chips/nrf52840" }
+components = { path = "../components" }
+nrf52_components = { path = "../nordic/nrf52_components" }
