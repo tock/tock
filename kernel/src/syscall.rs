@@ -56,8 +56,6 @@ pub enum ContextSwitchReason {
     SyscallFired { syscall: Syscall },
     /// Process triggered the hardfault handler.
     Fault,
-    /// Process exceeded its timeslice.
-    TimesliceExpired,
     /// Process interrupted (e.g. by a hardware event)
     Interrupted,
 }

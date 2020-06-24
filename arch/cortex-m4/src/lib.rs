@@ -36,21 +36,15 @@ pub unsafe extern "C" fn systick_handler() {
 }
 
 /// The `systick_handler` is called when the systick interrupt occurs, signaling
-/// that an application executed for longer than its timeslice. If this is
-/// called we want to return to the scheduler.
+/// that an application executed for longer than its timeslice. This interrupt
+/// handler is no longer responsible for signaling to the kernel thread that
+/// an interrupt has occurred, but is slightly more efficient than the generic_isr
+/// handler on account of not needing to mark the interrupt as pending.
 #[cfg(all(target_arch = "arm", target_os = "none"))]
 #[naked]
 pub unsafe extern "C" fn systick_handler() {
     llvm_asm!(
         "
-    // Mark that the systick handler was called meaning that the process stopped
-    // executing because it has exceeded its timeslice. This is a global
-    // variable that the `UserspaceKernelBoundary` code uses to determine why
-    // the application stopped executing.
-    ldr r0, =SYSTICK_EXPIRED
-    mov r1, #1
-    str r1, [r0, #0]
-
     // Set thread mode to privileged to switch back to kernel mode.
     mov r0, #0
     msr CONTROL, r0

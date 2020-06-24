@@ -116,8 +116,8 @@ impl SysTick {
     }
 }
 
-impl kernel::SysTick for SysTick {
-    fn set_timer(&self, us: u32) {
+impl kernel::SchedulerTimer for SysTick {
+    fn start_timer(&self, us: u32) {
         let reload = {
             // We need to convert from microseconds to native tics, which could overflow in 32-bit
             // arithmetic. So we convert to 64-bit. 64-bit division is an expensive subroutine, but
@@ -128,15 +128,26 @@ impl kernel::SysTick for SysTick {
 
             hertz * us / 1_000_000
         };
+        let clock_source: FieldValue<u32, self::ControlAndStatus::Register> = if self.external_clock
+        {
+            // CLKSOURCE 0 --> external clock
+            ControlAndStatus::CLKSOURCE::CLEAR
+        } else {
+            // CLKSOURCE 1 --> internal clock
+            ControlAndStatus::CLKSOURCE::SET
+        };
 
         // n.b.: 4.4.5 'hints and tips' suggests setting reload before value
         SYSTICK_BASE
             .syst_rvr
             .write(ReloadValue::RELOAD.val(reload as u32));
         SYSTICK_BASE.syst_cvr.set(0);
+        SYSTICK_BASE
+            .syst_csr
+            .write(ControlAndStatus::ENABLE::SET + clock_source);
     }
 
-    fn greater_than(&self, us: u32) -> bool {
+    fn at_least_us_remaining(&self, us: u32) -> bool {
         let tics = {
             // We need to convert from microseconds to native tics, which could overflow in 32-bit
             // arithmetic. So we convert to 64-bit. 64-bit division is an expensive subroutine, but
@@ -152,7 +163,7 @@ impl kernel::SysTick for SysTick {
         value > tics
     }
 
-    fn overflowed(&self) -> bool {
+    fn expired(&self) -> bool {
         SYSTICK_BASE.syst_csr.is_set(ControlAndStatus::COUNTFLAG)
     }
 
@@ -162,24 +173,19 @@ impl kernel::SysTick for SysTick {
         SYSTICK_BASE.syst_cvr.set(0);
     }
 
-    fn enable(&self, with_interrupt: bool) {
-        let clock_source: FieldValue<u32, self::ControlAndStatus::Register> = if self.external_clock
-        {
-            // CLKSOURCE 0 --> external clock
-            ControlAndStatus::CLKSOURCE::CLEAR
-        } else {
-            // CLKSOURCE 1 --> internal clock
-            ControlAndStatus::CLKSOURCE::SET
-        };
+    fn arm(&self) {
+        SYSTICK_BASE.syst_csr.modify(ControlAndStatus::TICKINT::SET);
+    }
 
-        if with_interrupt {
-            SYSTICK_BASE.syst_csr.write(
-                ControlAndStatus::ENABLE::SET + ControlAndStatus::TICKINT::SET + clock_source,
-            );
-        } else {
-            SYSTICK_BASE
-                .syst_csr
-                .write(ControlAndStatus::ENABLE::SET + clock_source);
-        }
+    fn disarm(&self) {
+        SYSTICK_BASE
+            .syst_csr
+            .modify(ControlAndStatus::TICKINT::CLEAR);
+    }
+
+    fn get_remaining_us(&self) -> u32 {
+        let tics = SYSTICK_BASE.syst_cvr.read(CurrentValue::CURRENT);
+        let hertz = self.hertz();
+        tics * 1_000_000 / hertz
     }
 }

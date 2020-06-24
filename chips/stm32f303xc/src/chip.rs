@@ -15,7 +15,7 @@ use crate::usart;
 pub struct Stm32f3xx {
     mpu: cortexm4::mpu::MPU,
     userspace_kernel_boundary: cortexm4::syscall::SysCall,
-    systick: cortexm4::systick::SysTick,
+    scheduler_timer: cortexm4::systick::SysTick,
 }
 
 impl Stm32f3xx {
@@ -23,7 +23,7 @@ impl Stm32f3xx {
         Stm32f3xx {
             mpu: cortexm4::mpu::MPU::new(),
             userspace_kernel_boundary: cortexm4::syscall::SysCall::new(),
-            systick: cortexm4::systick::SysTick::new(),
+            scheduler_timer: cortexm4::systick::SysTick::new(),
         }
     }
 }
@@ -31,7 +31,7 @@ impl Stm32f3xx {
 impl Chip for Stm32f3xx {
     type MPU = cortexm4::mpu::MPU;
     type UserspaceKernelBoundary = cortexm4::syscall::SysCall;
-    type SysTick = cortexm4::systick::SysTick;
+    type SchedulerTimer = cortexm4::systick::SysTick;
 
     fn service_pending_interrupts(&self) {
         unsafe {
@@ -78,8 +78,8 @@ impl Chip for Stm32f3xx {
         &self.mpu
     }
 
-    fn systick(&self) -> &cortexm4::systick::SysTick {
-        &self.systick
+    fn scheduler_timer(&self) -> &cortexm4::systick::SysTick {
+        &self.scheduler_timer
     }
 
     fn userspace_kernel_boundary(&self) -> &cortexm4::syscall::SysCall {
