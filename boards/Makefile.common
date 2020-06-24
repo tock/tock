@@ -141,7 +141,8 @@ OBJCOPY   ?= $(TOOLCHAIN)-objcopy
 OBJDUMP   ?= $(TOOLCHAIN)-objdump
 
 # Set additional flags to produce binary from .elf
-OBJCOPY_FLAGS ?= -S
+# --strip-sections prevents enormous binaries when SRAM is below flash
+OBJCOPY_FLAGS ?= --strip-sections -S
 # This make variable allows board-specific Makefiles to pass down options to
 # the Cargo build command. For example, in boards/<custom_board>/Makefile:
 # `CARGO_FLAGS += --features=foo` would pass feature `foo` to the top level
