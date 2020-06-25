@@ -15,14 +15,35 @@ macro_rules! align4 {
     };
 }
 
+/// Error when parsing just the beginning of the TBF header. This is only used
+/// when establishing the linked list structure of apps installed in flash.
+pub(crate) enum InitialTbfParseError {
+    /// We were unable to parse the beginning of the header. This either means
+    /// we ran out of flash, or the trusted values are invalid meaning this is
+    /// just empty flash after the end of the last app. This error is fine, as
+    /// it just means we must have hit the end of the linked list of apps.
+    UnableToParse,
+
+    /// Some length or value in the header is invalid. The header parsing has
+    /// failed at this point. However, the total app length value is a trusted
+    /// field, so we return that value with this error so that we can skip over
+    /// this invalid app and continue to check for additional apps.
+    InvalidHeader(u32),
+}
+
+impl From<core::array::TryFromSliceError> for InitialTbfParseError {
+    // Convert a slice to a parsed type. Since we control how long we make our
+    // slices, this conversion should never fail. If it does, then this is a bug
+    // in this library that must be fixed.
+    fn from(_error: core::array::TryFromSliceError) -> Self {
+        InitialTbfParseError::UnableToParse
+    }
+}
+
 /// Error when parsing an app's TBF header.
 pub enum TbfParseError {
     /// Not enough bytes in the buffer to parse the expected field.
     NotEnoughFlash,
-
-    /// The length fields of the header and app do not make sense. Likely the
-    /// TBF header length is set to be longer than the entire app.
-    BadSize,
 
     /// Unknown version of the TBF header.
     UnsupportedVersion(u16),
@@ -62,7 +83,6 @@ impl fmt::Debug for TbfParseError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             TbfParseError::NotEnoughFlash => write!(f, "Buffer too short to parse TBF header"),
-            TbfParseError::BadSize => write!(f, "Invalid TBF header and app lengths"),
             TbfParseError::UnsupportedVersion(version) => {
                 write!(f, "TBF version {} unsupported", version)
             }
@@ -432,10 +452,20 @@ impl TbfHeader {
 ///
 /// ## Return
 ///
-/// Ok((Version, TBF header length, entire TBF length))
+/// If all parsing is successful:
+/// - Ok((Version, TBF header length, entire TBF length))
+///
+/// If we cannot parse the header because we have run out of flash, or the
+/// values are entirely wrong we return `UnableToParse`. This means we have hit
+/// the end of apps in flash.
+/// - Err(InitialTbfParseError::UnableToParse)
+///
+/// Any other error we return an error and the length of the entire app so that
+/// we can skip over it and check for the next app.
+/// - Err(InitialTbfParseError::InvalidHeader(app_length))
 pub(crate) fn parse_tbf_header_lengths(
     app: &'static [u8; 8],
-) -> Result<(u16, u16, u32), TbfParseError> {
+) -> Result<(u16, u16, u32), InitialTbfParseError> {
     // Version is the first 16 bits of the app TBF contents. We need this to
     // correctly parse the other lengths.
     //
@@ -443,41 +473,33 @@ pub(crate) fn parse_tbf_header_lengths(
     // We trust that the version number has been checked prior to running this
     // parsing code. That is, whatever loaded this application has verified that
     // the version is valid and therefore we can trust it.
-    let version = u16::from_le_bytes(
-        app.get(0..2)
-            .ok_or(TbfParseError::NotEnoughFlash)?
-            .try_into()?,
-    );
+    let version = u16::from_le_bytes([app[0], app[1]]);
 
     match version {
         2 => {
             // In version 2, the next 16 bits after the version represent
             // the size of the TBF header in bytes.
-            let tbf_header_size = u16::from_le_bytes(
-                app.get(2..4)
-                    .ok_or(TbfParseError::NotEnoughFlash)?
-                    .try_into()?,
-            );
+            let tbf_header_size = u16::from_le_bytes([app[2], app[3]]);
 
             // The next 4 bytes are the size of the entire app's TBF space
             // including the header. This also must be checked before parsing
             // this header and we trust the value in flash.
-            let tbf_size = u32::from_le_bytes(
-                app.get(4..8)
-                    .ok_or(TbfParseError::NotEnoughFlash)?
-                    .try_into()?,
-            );
+            let tbf_size = u32::from_le_bytes([app[4], app[5], app[6], app[7]]);
 
-            // Check that the header length isn't greater than the entire
-            // app. If that at least looks good then return the sizes.
-            if u32::from(tbf_header_size) > tbf_size {
-                Err(TbfParseError::BadSize)
+            // Check that the header length isn't greater than the entire app,
+            // and is at least as large as the v2 required header (which is 16
+            // bytes). If that at least looks good then return the sizes.
+            if u32::from(tbf_header_size) > tbf_size || tbf_header_size < 16 {
+                Err(InitialTbfParseError::InvalidHeader(tbf_size))
             } else {
                 Ok((version, tbf_header_size, tbf_size))
             }
         }
 
-        _ => Err(TbfParseError::UnsupportedVersion(version)),
+        // Since we have to trust the total size, and by extension the version
+        // number, if we don't know how to handle the version this must not be
+        // an actual app. Likely this is just the end of the app linked list.
+        _ => Err(InitialTbfParseError::UnableToParse),
     }
 }
 
