@@ -255,10 +255,10 @@ register_bitfields![u32,
 
 static mut PAYLOAD: [u8; 40] = [0x00; 40];
 
-pub struct Ble {
+pub struct Ble<'a> {
     registers: StaticRef<BleRegisters>,
-    rx_client: OptionalCell<&'static dyn ble_advertising::RxClient>,
-    tx_client: OptionalCell<&'static dyn ble_advertising::TxClient>,
+    rx_client: OptionalCell<&'a dyn ble_advertising::RxClient>,
+    tx_client: OptionalCell<&'a dyn ble_advertising::TxClient>,
 
     buffer: TakeCell<'static, [u8]>,
     write_len: Cell<usize>,
@@ -267,7 +267,7 @@ pub struct Ble {
     read_index: Cell<usize>,
 }
 
-impl Ble {
+impl<'a> Ble<'a> {
     pub const fn new(base: StaticRef<BleRegisters>) -> Self {
         Self {
             registers: base,
@@ -450,7 +450,7 @@ impl Ble {
     }
 }
 
-impl ble_advertising::BleAdvertisementDriver for Ble {
+impl<'a> ble_advertising::BleAdvertisementDriver<'a> for Ble<'a> {
     fn transmit_advertisement(&self, buf: &'static mut [u8], len: usize, _channel: RadioChannel) {
         let regs = &*self.registers;
 
@@ -478,16 +478,16 @@ impl ble_advertising::BleAdvertisementDriver for Ble {
         unimplemented!();
     }
 
-    fn set_receive_client(&self, client: &'static dyn ble_advertising::RxClient) {
+    fn set_receive_client(&self, client: &'a dyn ble_advertising::RxClient) {
         self.rx_client.set(client);
     }
 
-    fn set_transmit_client(&self, client: &'static dyn ble_advertising::TxClient) {
+    fn set_transmit_client(&self, client: &'a dyn ble_advertising::TxClient) {
         self.tx_client.set(client);
     }
 }
 
-impl ble_advertising::BleConfig for Ble {
+impl ble_advertising::BleConfig for Ble<'_> {
     fn set_tx_power(&self, _tx_power: u8) -> kernel::ReturnCode {
         kernel::ReturnCode::SUCCESS
     }

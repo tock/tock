@@ -56,7 +56,7 @@ struct RedboardArtemisNano {
     i2c_master: &'static capsules::i2c_master::I2CMasterDriver<apollo3::iom::Iom<'static>>,
     ble_radio: &'static capsules::ble_advertising_driver::BLE<
         'static,
-        apollo3::ble::Ble,
+        apollo3::ble::Ble<'static>,
         VirtualMuxAlarm<'static, apollo3::stimer::STimer<'static>>,
     >,
 }

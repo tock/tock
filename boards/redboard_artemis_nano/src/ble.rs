@@ -18,7 +18,7 @@ use kernel::{create_capability, static_init};
 /// BLE component for Apollo3 BLE
 pub struct BLEComponent {
     board_kernel: &'static kernel::Kernel,
-    radio: &'static apollo3::ble::Ble,
+    radio: &'static apollo3::ble::Ble<'static>,
     mux_alarm:
         &'static capsules::virtual_alarm::MuxAlarm<'static, apollo3::stimer::STimer<'static>>,
 }
@@ -43,7 +43,7 @@ impl Component for BLEComponent {
     type StaticInput = ();
     type Output = &'static capsules::ble_advertising_driver::BLE<
         'static,
-        apollo3::ble::Ble,
+        apollo3::ble::Ble<'static>,
         VirtualMuxAlarm<'static, apollo3::stimer::STimer<'static>>,
     >;
 
