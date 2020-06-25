@@ -13,12 +13,12 @@ use kernel::create_capability;
 use kernel::hil;
 use kernel::static_init;
 
-pub struct TemperatureComponent<T: 'static + hil::sensors::TemperatureDriver> {
+pub struct TemperatureComponent<T: 'static + hil::sensors::TemperatureDriver<'static>> {
     board_kernel: &'static kernel::Kernel,
     temp_sensor: &'static T,
 }
 
-impl<T: 'static + hil::sensors::TemperatureDriver> TemperatureComponent<T> {
+impl<T: 'static + hil::sensors::TemperatureDriver<'static>> TemperatureComponent<T> {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
         temp_sensor: &'static T,
@@ -30,7 +30,7 @@ impl<T: 'static + hil::sensors::TemperatureDriver> TemperatureComponent<T> {
     }
 }
 
-impl<T: 'static + hil::sensors::TemperatureDriver> Component for TemperatureComponent<T> {
+impl<T: 'static + hil::sensors::TemperatureDriver<'static>> Component for TemperatureComponent<T> {
     type StaticInput = ();
     type Output = &'static TemperatureSensor<'static>;
 

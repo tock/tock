@@ -124,19 +124,7 @@ pub unsafe fn panic_begin(nop: &dyn Fn()) {
 ///
 /// **NOTE:** The supplied `writer` must be synchronous.
 pub unsafe fn panic_banner<W: Write>(writer: &mut W, panic_info: &PanicInfo) {
-    if let Some(location) = panic_info.location() {
-        let _ = writer.write_fmt(format_args!(
-            "\r\n\nKernel panic at {}:{}:\r\n\t\"",
-            location.file(),
-            location.line()
-        ));
-    } else {
-        let _ = writer.write_fmt(format_args!("\r\n\nKernel panic:\r\n\t\""));
-    }
-    if let Some(args) = panic_info.message() {
-        let _ = write(writer, *args);
-    }
-    let _ = writer.write_str("\"\r\n");
+    let _ = writer.write_fmt(format_args!("\r\n{}\r\n", panic_info));
 
     // Print version of the kernel
     let _ = writer.write_fmt(format_args!(
