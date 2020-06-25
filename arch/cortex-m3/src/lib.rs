@@ -2,7 +2,7 @@
 
 #![crate_name = "cortexm3"]
 #![crate_type = "rlib"]
-#![feature(llvm_asm, core_intrinsics, naked_functions)]
+#![feature(llvm_asm, naked_functions)]
 #![no_std]
 
 pub mod mpu;
@@ -221,16 +221,14 @@ pub unsafe extern "C" fn switch_to_user(
 #[cfg(all(target_arch = "arm", target_os = "none"))]
 #[inline(never)]
 unsafe fn kernel_hardfault(faulting_stack: *mut u32) {
-    use core::intrinsics::offset;
-
-    let stacked_r0: u32 = *offset(faulting_stack, 0);
-    let stacked_r1: u32 = *offset(faulting_stack, 1);
-    let stacked_r2: u32 = *offset(faulting_stack, 2);
-    let stacked_r3: u32 = *offset(faulting_stack, 3);
-    let stacked_r12: u32 = *offset(faulting_stack, 4);
-    let stacked_lr: u32 = *offset(faulting_stack, 5);
-    let stacked_pc: u32 = *offset(faulting_stack, 6);
-    let stacked_xpsr: u32 = *offset(faulting_stack, 7);
+    let stacked_r0: u32 = *faulting_stack.offset(0);
+    let stacked_r1: u32 = *faulting_stack.offset(1);
+    let stacked_r2: u32 = *faulting_stack.offset(2);
+    let stacked_r3: u32 = *faulting_stack.offset(3);
+    let stacked_r12: u32 = *faulting_stack.offset(4);
+    let stacked_lr: u32 = *faulting_stack.offset(5);
+    let stacked_pc: u32 = *faulting_stack.offset(6);
+    let stacked_xpsr: u32 = *faulting_stack.offset(7);
 
     let mode_str = "Kernel";
 

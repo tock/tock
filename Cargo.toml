@@ -18,6 +18,7 @@ members = [
     "boards/opentitan",
     "boards/redboard_artemis_nano",
     "boards/stm32f3discovery",
+    "boards/nano33ble",
     "capsules",
     "chips/apollo3",
     "chips/arty_e21_chip",

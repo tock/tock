@@ -6,13 +6,7 @@
 //!
 //! Most `unsafe` code is in this kernel crate.
 
-#![feature(
-    core_intrinsics,
-    const_fn,
-    panic_info_message,
-    associated_type_defaults,
-    try_trait
-)]
+#![feature(core_intrinsics, const_fn, associated_type_defaults, try_trait)]
 #![warn(unreachable_pub)]
 #![no_std]
 
