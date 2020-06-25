@@ -131,13 +131,53 @@ impl gpio::Configure for GpioPin {
         }
     }
 
-    fn set_floating_state(&self, _mode: gpio::FloatingState) {
-        panic!("OpenTitan does not allow configuration of floating state");
+    fn set_floating_state(&self, mode: gpio::FloatingState) {
+        // There is unfortunately no documentation about how these
+        // registers map to the actual GPIOs, so just write all of them.
+        match mode {
+            gpio::FloatingState::PullUp => {
+                self.padctrl_registers.dio_pads.write(
+                    padctrl::DIO_PADS::ATTR0_PULL_UP::SET
+                        + padctrl::DIO_PADS::ATTR1_PULL_UP::SET
+                        + padctrl::DIO_PADS::ATTR2_PULL_UP::SET
+                        + padctrl::DIO_PADS::ATTR3_PULL_UP::SET,
+                );
+            }
+            gpio::FloatingState::PullDown => {
+                self.padctrl_registers.dio_pads.write(
+                    padctrl::DIO_PADS::ATTR0_PULL_DOWN::SET
+                        + padctrl::DIO_PADS::ATTR1_PULL_DOWN::SET
+                        + padctrl::DIO_PADS::ATTR2_PULL_DOWN::SET
+                        + padctrl::DIO_PADS::ATTR3_PULL_DOWN::SET,
+                );
+            }
+            gpio::FloatingState::PullNone => {
+                self.padctrl_registers.dio_pads.write(
+                    padctrl::DIO_PADS::ATTR0_OPEN_DRAIN::SET
+                        + padctrl::DIO_PADS::ATTR1_OPEN_DRAIN::SET
+                        + padctrl::DIO_PADS::ATTR2_OPEN_DRAIN::SET
+                        + padctrl::DIO_PADS::ATTR3_OPEN_DRAIN::SET,
+                );
+            }
+        }
     }
 
     fn floating_state(&self) -> gpio::FloatingState {
-        // TODO: check this against the design
-        gpio::FloatingState::PullNone
+        if self
+            .padctrl_registers
+            .dio_pads
+            .is_set(padctrl::DIO_PADS::ATTR0_PULL_UP)
+        {
+            gpio::FloatingState::PullUp
+        } else if self
+            .padctrl_registers
+            .dio_pads
+            .is_set(padctrl::DIO_PADS::ATTR0_PULL_DOWN)
+        {
+            gpio::FloatingState::PullDown
+        } else {
+            gpio::FloatingState::PullNone
+        }
     }
 
     fn deactivate_to_low_power(&self) {
