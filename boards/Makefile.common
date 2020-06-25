@@ -161,7 +161,7 @@ endif
 
 # Check whether the system already has a sha256sum application
 # present, if not use the custom shipped one
-ifeq (, $(shell which sha256sum))
+ifeq (, $(shell sha256sum --version 2>/dev/null))
   # No system sha256sum available
   SHA256SUM := $(TOCK_ROOT_DIRECTORY)tools/sha256sum/target/debug/sha256sum
 else
