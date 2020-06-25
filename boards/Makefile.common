@@ -163,7 +163,7 @@ endif
 # present, if not use the custom shipped one
 ifeq (, $(shell sha256sum --version 2>/dev/null))
   # No system sha256sum available
-  SHA256SUM := $(TOCK_ROOT_DIRECTORY)tools/sha256sum/target/debug/sha256sum
+  SHA256SUM := $(CARGO) run --manifest-path $(TOCK_ROOT_DIRECTORY)tools/sha256sum/Cargo.toml --
 else
   # Use system sha256sum
   SHA256SUM := sha256sum
@@ -258,7 +258,7 @@ target:
 	$(Q)cp $< $@
 
 
-%.bin: %.elf $(TOCK_ROOT_DIRECTORY)tools/sha256sum/target/debug/sha256sum
+%.bin: %.elf
 	$(Q)$(OBJCOPY) --output-target=binary $(OBJCOPY_FLAGS) $< $@
 	$(Q)$(SHA256SUM) $@
 
