@@ -133,8 +133,15 @@ impl<'a> hil::time::Alarm<'a> for STimer<'a> {
         // Enable interrupts
         regs.stminten.modify(STMINT::COMPAREA::SET);
 
-        // Set the delta
-        regs.scmpr[0].set(tics - regs.sttmr.get());
+        // Set the delta, this can take a few goes
+        // See Errata 4.14 at at https://ambiqmicro.com/static/mcu/files/Apollo3_Blue_MCU_Errata_List_v2_0.pdf
+        let timer_delta = tics - regs.sttmr.get();
+        let mut tries = 0;
+
+        while regs.scmpr[0].get() != tics && tries < 5 {
+            regs.scmpr[0].set(timer_delta);
+            tries = tries + 1;
+        }
 
         // Enable the compare
         regs.stcfg.modify(STCFG::COMPARE_A_EN::SET);
