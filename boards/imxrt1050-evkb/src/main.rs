@@ -37,6 +37,9 @@ use imxrt1050::iomuxc::Speed;
 /// Support routines for debugging I/O.
 pub mod io;
 
+/// Defines a vector which contains the boot section 
+pub mod boot_header;
+
 // Number of concurrent processes this platform supports.
 const NUM_PROCS: usize = 1;
 
@@ -47,6 +50,11 @@ static mut CHIP: Option<&'static imxrt1050::chip::Imxrt1050> = None;
 
 // How should the kernel respond when a process faults.
 const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultResponse::Panic;
+
+// Manually setting the boot header section that contains the FCB header
+#[used]
+#[link_section = ".boot_hdr"]
+static BOOT_HDR: [u8; 8192] = boot_header::BOOT_HDR;
 
 // RAM to be shared by all application processes.
 #[link_section = ".app_memory"]
@@ -108,7 +116,6 @@ unsafe fn set_pin_primary_functions() {
     use imxrt1050::gpio::{PinId, PORT};
 
     CCM.enable_iomuxc_clock();
-    CCM.enable_gpio1_clock();
 
     PORT[0].enable_clock();
 
