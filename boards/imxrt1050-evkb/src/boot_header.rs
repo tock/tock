@@ -1,4 +1,4 @@
-/// Vector which contains the boot section
+/// Vector which contains the FCB header
 pub const BOOT_HDR: [u8; 8192] = [
     70, 67, 70, 66, 0, 4, 1, 86, 0, 0, 0, 0, 3, 3, 3, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
