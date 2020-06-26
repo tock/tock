@@ -533,7 +533,11 @@ impl PinId {
         unsafe { &PIN[usize::from(pad_num)][usize::from(pin_num)] }
     }
 
-    pub fn get_pin_mut(&self) -> &mut Option<Pin<'static>> {
+    #[allow(clippy::mut_from_ref)]
+    // This function is inherently unsafe, but no more unsafe than multiple accesses
+    // to `pub static mut PIN` made directly, so okay to ignore this clippy lint
+    // so long as the function is marked unsafe.
+    pub unsafe fn get_pin_mut(&self) -> &mut Option<Pin<'static>> {
         let mut pad_num: u16 = *self as u16;
 
         // Right shift pad_num by 6 bits, so we can get rid of pin bits
@@ -543,7 +547,7 @@ impl PinId {
         // Mask top 2 bits, so can get only the suffix
         pin_num &= 0b00111111;
 
-        unsafe { &mut PIN[usize::from(pad_num)][usize::from(pin_num)] }
+        &mut PIN[usize::from(pad_num)][usize::from(pin_num)]
     }
 
     pub fn get_port(&self) -> &Port {
