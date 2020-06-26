@@ -190,9 +190,28 @@ pub unsafe fn reset_handler() {
     //--------------------------------------------------------------------------
 
     // Setup the CDC-ACM over USB driver that we will use for UART.
+    // We use the Arduino Vendor ID and Product ID since the device is the same.
+
+    // Create the strings we include in the USB descriptor. We use the hardcoded
+    // DEVICEADDR register on the nRF52 to set the serial number.
+    let serial_number_buf = static_init!([u8; 17], [0; 17]);
+    let serial_number_string: &'static str =
+        nrf52::ficr::FICR_INSTANCE.address_str(serial_number_buf);
+    let strings = static_init!(
+        [&str; 3],
+        [
+            "Arduino",              // Manufacturer
+            "Nano 33 BLE - TockOS", // Product
+            serial_number_string,   // Serial number
+        ]
+    );
+
     let cdc = components::cdc::CdcAcmComponent::new(
         &nrf52::usbd::USBD,
         capsules::usb::cdc::MAX_CTRL_PACKET_SIZE_NRF52840,
+        0x2341,
+        0x005a,
+        strings,
     )
     .finalize(components::usb_cdc_acm_component_helper!(nrf52::usbd::Usbd));
 
