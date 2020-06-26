@@ -5,6 +5,7 @@ authors = ["Tock Project Developers <tock-dev@googlegroups.com>"]
 edition = "2018"
 
 [dependencies]
+cortex-m-semihosting = "0.3.3"
 cortexm7 = { path = "../../arch/cortex-m7" }
 cortexm = { path = "../../arch/cortex-m" }
 enum_primitive = { path = "../../libraries/enum_primitive" }
