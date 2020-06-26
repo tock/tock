@@ -22,9 +22,6 @@ use kernel::hil::uart;
 use kernel::hil::usb::TransferType;
 use kernel::ReturnCode;
 
-const VENDOR_ID: u16 = 0x6668;
-const PRODUCT_ID: u16 = 0xabce;
-
 /// Identifying number for the endpoint when transferring data from us to the
 /// host.
 const ENDPOINT_IN_NUM: usize = 2;
@@ -35,13 +32,6 @@ const ENDPOINT_OUT_NUM: usize = 3;
 static LANGUAGES: &'static [u16; 1] = &[
     0x0409, // English (United States)
 ];
-
-static STRINGS: &'static [&'static str] = &[
-    "TockOS",         // Manufacturer
-    "The Zorpinator", // Product
-    "123456",         // Serial number
-];
-
 /// Platform-specific packet length for the `SAM4L` USB hardware.
 pub const MAX_CTRL_PACKET_SIZE_SAM4L: u8 = 8;
 /// Platform-specific packet length for the `nRF52` USB hardware.
@@ -108,7 +98,13 @@ pub struct CdcAcm<'a, U: 'a> {
 }
 
 impl<'a, U: hil::usb::UsbController<'a>> CdcAcm<'a, U> {
-    pub fn new(controller: &'a U, max_ctrl_packet_size: u8) -> Self {
+    pub fn new(
+        controller: &'a U,
+        max_ctrl_packet_size: u8,
+        vendor_id: u16,
+        product_id: u16,
+        strings: &'static [&'static str; 3],
+    ) -> Self {
         let interfaces: &mut [InterfaceDescriptor] = &mut [
             InterfaceDescriptor {
                 interface_number: 0,
@@ -181,8 +177,8 @@ impl<'a, U: hil::usb::UsbController<'a>> CdcAcm<'a, U> {
         let (device_descriptor_buffer, other_descriptor_buffer) =
             descriptors::create_descriptor_buffers(
                 descriptors::DeviceDescriptor {
-                    vendor_id: VENDOR_ID,
-                    product_id: PRODUCT_ID,
+                    vendor_id: vendor_id,
+                    product_id: product_id,
                     manufacturer_string: 1,
                     product_string: 2,
                     serial_number_string: 3,
@@ -207,7 +203,7 @@ impl<'a, U: hil::usb::UsbController<'a>> CdcAcm<'a, U> {
                 None, // No HID descriptor
                 None, // No report descriptor
                 LANGUAGES,
-                STRINGS,
+                strings,
             ),
             buffers: [
                 Buffer64::default(),
