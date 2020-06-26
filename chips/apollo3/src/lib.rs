@@ -7,6 +7,7 @@
 
 // Peripherals
 pub mod ble;
+pub mod cachectrl;
 pub mod chip;
 pub mod clkgen;
 pub mod gpio;
@@ -88,8 +89,7 @@ pub unsafe fn init() {
     tock_rt0::init_data(&mut _etext, &mut _srelocate, &mut _erelocate);
     tock_rt0::zero_bss(&mut _szero, &mut _ezero);
 
-    // Enable the cache controller
-    *(0x40018000i32 as *mut u32) = 1 | (1 << 10) | (1 << 20);
+    cachectrl::CACHECTRL.enable_cache();
 
     // Explicitly tell the core where Tock's vector table is located. If Tock is the
     // only thing on the chip then this is effectively a no-op. If, however, there is
