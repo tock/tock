@@ -152,7 +152,7 @@ impl MPU {
 /// of region configuration calculation
 pub struct CortexMConfig {
     /// The computed region configuration for this process.
-    regions: [CortexMRegion; 8],
+    regions: [CortexMRegion; 16],
     /// Has the configuration changed since the last time the this process
     /// configuration was written to hardware?
     is_dirty: Cell<bool>,
@@ -172,6 +172,14 @@ impl Default for CortexMConfig {
                 CortexMRegion::empty(5),
                 CortexMRegion::empty(6),
                 CortexMRegion::empty(7),
+                CortexMRegion::empty(8),
+                CortexMRegion::empty(9),
+                CortexMRegion::empty(10),
+                CortexMRegion::empty(11),
+                CortexMRegion::empty(12),
+                CortexMRegion::empty(13),
+                CortexMRegion::empty(14),
+                CortexMRegion::empty(15),
             ],
             is_dirty: Cell::new(true),
         }

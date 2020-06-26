@@ -5,6 +5,7 @@ use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
 use kernel::hil;
 use kernel::ClockInterface;
+use cortex_m_semihosting::{hprintln};
 
 use crate::ccm;
 use crate::nvic;
@@ -171,11 +172,13 @@ impl Gpt1<'a> {
     }
 
     pub fn handle_interrupt(&self) {
+        hprintln!("{:?}",tics).unwrap();
         self.registers.sr.modify(SR::OF1::SET);
         self.registers.ir.modify(IR::OF1IE::CLEAR);
         self.registers.cr.modify(CR::EN::CLEAR);
 
         self.client.map(|client| client.fired());
+        hprintln!("{:?}",tics).unwrap();
     }
 
     pub fn start(&self) {
@@ -259,6 +262,7 @@ impl hil::time::Alarm<'a> for Gpt1<'a> {
         self.registers.cr.modify(CR::CLKSRC.val(0x2 as u32));
         self.registers.pr.modify(PR::PRESCALER.val(0 as u32));
 
+        hprintln!("{:?}",tics).unwrap();
         self.registers.ocr1.set(tics);
         self.registers.ir.modify(IR::OF1IE::SET);
         self.registers.cr.modify(CR::EN::SET);
