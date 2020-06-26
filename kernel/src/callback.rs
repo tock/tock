@@ -79,7 +79,7 @@ impl fmt::Debug for AppId {
 }
 
 impl AppId {
-    crate fn new(kernel: &'static Kernel, identifier: usize, index: usize) -> AppId {
+    pub fn new(kernel: &'static Kernel, identifier: usize, index: usize) -> AppId {
         AppId {
             kernel: kernel,
             identifier: identifier,

@@ -39,7 +39,7 @@ mod returncode;
 mod sched;
 mod tbfheader;
 
-pub use crate::callback::{AppId, Callback};
+pub use crate::callback::{AppId, Callback, CallbackId};
 pub use crate::driver::Driver;
 pub use crate::grant::Grant;
 pub use crate::mem::{AppPtr, AppSlice, Private, Shared};
@@ -56,8 +56,8 @@ pub use crate::sched::Kernel;
 /// Publicly available process-related objects.
 pub mod procs {
     pub use crate::process::{
-        load_processes, AlwaysRestart, Error, FaultResponse, FunctionCall, Process,
-        ProcessLoadError, ProcessRestartPolicy, ProcessType, ThresholdRestart,
-        ThresholdRestartThenPanic,
+        load_processes, AlwaysRestart, Error, FaultResponse, FunctionCall,
+        FunctionCallSource, Process, ProcessLoadError, ProcessRestartPolicy,
+        ProcessType, State, Task, ThresholdRestart, ThresholdRestartThenPanic,
     };
 }

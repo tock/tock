@@ -61,13 +61,13 @@ impl Kernel {
     }
 
     /// Something was scheduled for a process, so there is more work to do.
-    crate fn increment_work(&self) {
+    pub fn increment_work(&self) {
         self.work.increment();
     }
 
     /// Something finished for a process, so we decrement how much work there is
     /// to do.
-    crate fn decrement_work(&self) {
+    pub fn decrement_work(&self) {
         self.work.decrement();
     }
 
@@ -253,7 +253,7 @@ impl Kernel {
     ///
     /// In practice, this is called when processes are created, and the process
     /// memory is setup based on the number of current grants.
-    crate fn get_grant_count_and_finalize(&self) -> usize {
+    pub fn get_grant_count_and_finalize(&self) -> usize {
         self.grants_finalized.set(true);
         self.grant_counter.get()
     }
