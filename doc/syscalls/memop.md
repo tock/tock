@@ -34,7 +34,7 @@ memop(op_type: u32, argument: u32) -> [[ VARIES ]] as u32
 
     **Argument 1** `as i32`: Number of bytes to move the program break.
 
-    **Returns** `as *u8`: The new program break or `ENOMEM`.
+    **Returns** `as *u8`: The previous program break (the start of the newly allocated memory) or `ENOMEM`.
 
   * ### Operation type `2`: Memory start
 
