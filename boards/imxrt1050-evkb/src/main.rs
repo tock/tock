@@ -37,7 +37,7 @@ use imxrt1050::iomuxc::Speed;
 /// Support routines for debugging I/O.
 pub mod io;
 
-/// Defines a vector which contains the boot section 
+/// Defines a vector which contains the boot section
 pub mod boot_header;
 
 // Number of concurrent processes this platform supports.
