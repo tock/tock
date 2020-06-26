@@ -304,7 +304,7 @@ pub enum OpenDrainEn {
     Ode1OpenDrainEnabled = 0b1,  // Open Drain Enabled (Output is Open Drain)
 }
 
-// Setting the electrical characteristics of a pin a specific
+// Setting the electrical characteristics of a pin to a specific
 // frequency range. [^1]
 //
 // [^1]: Field description: 11.7.125 IOMUXC_SW_PAD_CTL_PAD_GPIO_EMC_00, page 588 of the RM
