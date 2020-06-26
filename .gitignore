@@ -53,5 +53,10 @@ doc/rustdoc
 # are manually included for releases.
 Cargo.lock
 
+# Copied binaries from libtock-rs
+tools/qemu-runner/riscv32imac-unknown-none-elf
+tools/qemu-runner/riscv32imc-unknown-none-elf
+tools/qemu-runner/thumbv7em-none-eabi
+
 # Python scripts
 __pycache__

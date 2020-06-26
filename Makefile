@@ -501,7 +501,7 @@ define ci_setup_qemu_riscv
 	@$(MAKE) -C "tools/qemu" || (echo "You might need to install some missing packages" || exit 127)
 endef
 
-define ci_setup_qemu_opentitan
+define ci_setup_qemu_opentitan_rom
 	$(call banner,CI-Setup: Get OpenTitan boot ROM image)
 	# Download OpenTitan image
 	@printf "Downloading OpenTitan boot rom from: 1beb08b474790d4b6c67ae5b3423e2e8dfc9e368\n"
@@ -512,6 +512,17 @@ define ci_setup_qemu_opentitan
 		unzip opentitan-dist.zip; \
 		tar -xf opentitan-dist/opentitan-snapshot-20191101-*.tar.xz; \
 		mv opentitan-snapshot-20191101-*/sw/device/boot_rom/boot_rom_fpga_nexysvideo.elf $$pwd/tools/qemu-runner/opentitan-boot-rom.elf
+endef
+
+define ci_setup_qemu_libtock_rs_apps
+	$(call banner,CI-Setup: Get libtock-rs apps)
+   @pwd=$$(pwd) && \
+        temp=$$(mktemp -d) && \
+        cd $${temp} && \
+        curl -v -L -u ${USER_PAT} -o libtockrs-examples.zip https://api.github.com/repos/alistair23/libtock-rs/actions/artifacts/10818103/zip && \
+        unzip libtockrs-examples.zip && \
+        cp -r ./riscv32* $${pwd}/tools/qemu-runner/ && \
+        cp -r ./thumb* $${pwd}/tools/qemu-runner/
 endef
 
 .PHONY: ci-setup-qemu
@@ -526,11 +537,14 @@ ci-setup-qemu:
 	$(call ci_setup_helper,\
 		[[ $$(cksum tools/qemu-runner/opentitan-boot-rom.elf | cut -d" " -f1) == "2835238144" ]] && echo yes,\
 		Download opentitan archive and unpack a ROM image,\
-		ci_setup_qemu_opentitan,\
+		ci_setup_qemu_opentitan_rom,\
+		CI_JOB_QEMU_OPENTITAN)
+	$(call ci_setup_helper,\
+		[[ $$(cksum tools/qemu-runner/riscv32imc-unknown-none-elf/tab/opentitan/libtock_test/rv32imc.tbf | cut -d" " -f1) == "2495459763" ]] && echo yes,\
+		Download libtock-rs archive and unpack a examples,\
+		ci_setup_qemu_libtock_rs_apps,\
 		CI_JOB_QEMU_OPENTITAN)
 	$(if $(CI_JOB_QEMU_RISCV),$(if $(CI_JOB_QEMU_OPENTITAN),$(eval CI_JOB_QEMU := true)))
-
-
 
 define ci_job_qemu
 	$(call banner,CI-Job: QEMU)
