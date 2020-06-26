@@ -111,11 +111,10 @@ impl GpioPin {
     }
 
     pub fn handle_interrupt(&self) {
-        let regs = self.gpio_registers;
         let pin = self.pin;
 
-        if regs.intr_state.is_set(pin) {
-            regs.intr_state.modify(pin.val(1));
+        if self.gpio_registers.intr_state.is_set(pin) {
+            self.gpio_registers.intr_state.modify(pin.val(1));
             self.client.map(|client| {
                 client.fired();
             });
@@ -186,18 +185,21 @@ impl gpio::Configure for GpioPin {
     }
 
     fn make_output(&self) -> gpio::Configuration {
-        let regs = self.gpio_registers;
-        GpioPin::half_set(true, self.pin, &regs.masked_oe_lower, &regs.masked_oe_upper);
+        GpioPin::half_set(
+            true,
+            self.pin,
+            &self.gpio_registers.masked_oe_lower,
+            &self.gpio_registers.masked_oe_upper,
+        );
         gpio::Configuration::InputOutput
     }
 
     fn disable_output(&self) -> gpio::Configuration {
-        let regs = self.gpio_registers;
         GpioPin::half_set(
             false,
             self.pin,
-            &regs.masked_oe_lower,
-            &regs.masked_oe_upper,
+            &self.gpio_registers.masked_oe_lower,
+            &self.gpio_registers.masked_oe_upper,
         );
         gpio::Configuration::Input
     }
@@ -219,36 +221,33 @@ impl gpio::Input for GpioPin {
 
 impl gpio::Output for GpioPin {
     fn toggle(&self) -> bool {
-        let regs = self.gpio_registers;
         let pin = self.pin;
-        let new_state = !regs.direct_out.is_set(pin);
+        let new_state = !self.gpio_registers.direct_out.is_set(pin);
 
         GpioPin::half_set(
             new_state,
             self.pin,
-            &regs.masked_out_lower,
-            &regs.masked_out_upper,
+            &self.gpio_registers.masked_out_lower,
+            &self.gpio_registers.masked_out_upper,
         );
         new_state
     }
 
     fn set(&self) {
-        let regs = self.gpio_registers;
         GpioPin::half_set(
             true,
             self.pin,
-            &regs.masked_out_lower,
-            &regs.masked_out_upper,
+            &self.gpio_registers.masked_out_lower,
+            &self.gpio_registers.masked_out_upper,
         );
     }
 
     fn clear(&self) {
-        let regs = self.gpio_registers;
         GpioPin::half_set(
             false,
             self.pin,
-            &regs.masked_out_lower,
-            &regs.masked_out_upper,
+            &self.gpio_registers.masked_out_lower,
+            &self.gpio_registers.masked_out_upper,
         );
     }
 }
@@ -259,34 +258,32 @@ impl gpio::Interrupt for GpioPin {
     }
 
     fn enable_interrupts(&self, mode: gpio::InterruptEdge) {
-        let regs = self.gpio_registers;
         let pin = self.pin;
 
         match mode {
             gpio::InterruptEdge::RisingEdge => {
-                regs.intr_ctrl_en_rising.modify(pin.val(1));
-                regs.intr_ctrl_en_falling.modify(pin.val(0));
+                self.gpio_registers.intr_ctrl_en_rising.modify(pin.val(1));
+                self.gpio_registers.intr_ctrl_en_falling.modify(pin.val(0));
             }
             gpio::InterruptEdge::FallingEdge => {
-                regs.intr_ctrl_en_rising.modify(pin.val(0));
-                regs.intr_ctrl_en_falling.modify(pin.val(1));
+                self.gpio_registers.intr_ctrl_en_rising.modify(pin.val(0));
+                self.gpio_registers.intr_ctrl_en_falling.modify(pin.val(1));
             }
             gpio::InterruptEdge::EitherEdge => {
-                regs.intr_ctrl_en_rising.modify(pin.val(1));
-                regs.intr_ctrl_en_falling.modify(pin.val(1));
+                self.gpio_registers.intr_ctrl_en_rising.modify(pin.val(1));
+                self.gpio_registers.intr_ctrl_en_falling.modify(pin.val(1));
             }
         }
-        regs.intr_state.modify(pin.val(1));
-        regs.intr_enable.modify(pin.val(1));
+        self.gpio_registers.intr_state.modify(pin.val(1));
+        self.gpio_registers.intr_enable.modify(pin.val(1));
     }
 
     fn disable_interrupts(&self) {
-        let regs = self.gpio_registers;
         let pin = self.pin;
 
-        regs.intr_enable.modify(pin.val(0));
+        self.gpio_registers.intr_enable.modify(pin.val(0));
         // Clear any pending interrupt
-        regs.intr_state.modify(pin.val(1));
+        self.gpio_registers.intr_state.modify(pin.val(1));
     }
 
     fn is_pending(&self) -> bool {
