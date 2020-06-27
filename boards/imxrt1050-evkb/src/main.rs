@@ -177,7 +177,6 @@ pub unsafe fn reset_handler() {
     imxrt1050::lpuart::LPUART1.set_baud();
 
     set_pin_primary_functions();
-
     // setup_dma();
 
     setup_peripherals();
