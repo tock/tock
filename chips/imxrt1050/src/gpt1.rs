@@ -5,7 +5,6 @@ use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
 use kernel::hil;
 use kernel::ClockInterface;
-use cortex_m_semihosting::{hprintln};
 
 use crate::ccm;
 use crate::nvic;
@@ -172,13 +171,10 @@ impl Gpt1<'a> {
     }
 
     pub fn handle_interrupt(&self) {
-        hprintln!("{:?}",tics).unwrap();
         self.registers.sr.modify(SR::OF1::SET);
         self.registers.ir.modify(IR::OF1IE::CLEAR);
-        self.registers.cr.modify(CR::EN::CLEAR);
 
         self.client.map(|client| client.fired());
-        hprintln!("{:?}",tics).unwrap();
     }
 
     pub fn start(&self) {
@@ -212,7 +208,7 @@ impl Gpt1<'a> {
         self.registers.sr.set(31 as u32);
 
         // Enable free run mode
-        self.registers.cr.modify(CR::FRR::CLEAR);
+        self.registers.cr.modify(CR::FRR::SET);
 
         // Enable run in wait mode
         self.registers.cr.modify(CR::WAITEN::SET);
@@ -230,12 +226,12 @@ impl Gpt1<'a> {
         self.registers.cr.modify(CR::EN_24M::CLEAR);
 
         // We will use the ipg_clk_highfreq provided by perclk_clk_root,
-        // which runs at 6 MHz. Before calling set_alarm, we assume clock
+        // which runs at 24.75 MHz. Before calling set_alarm, we assume clock
         // to GPT1 has been enabled.
         self.registers.cr.modify(CR::CLKSRC.val(0x2 as u32));
 
-        // Prescale 6Mhz to 16Khz, by dividing it by 375. The change in the
-        // prescaler value immediately affects the output clock frequency
+        // We do not prescale the value for the moment. We will do so
+        // after we will set the ARM_PLL1 CLK accordingly.
         self.registers.pr.modify(PR::PRESCALER.val(0 as u32));
 
         // Enable the GPT
@@ -252,20 +248,8 @@ impl hil::time::Alarm<'a> for Gpt1<'a> {
     }
 
     fn set_alarm(&self, tics: u32) {
-        self.registers.cr.modify(CR::EN::CLEAR);
-        self.registers.cr.modify(CR::SWR::SET);
-
-        // wait until registers are cleared
-        while self.registers.cr.is_set(CR::SWR) {}
-
-        self.registers.cr.modify(CR::FRR::CLEAR);
-        self.registers.cr.modify(CR::CLKSRC.val(0x2 as u32));
-        self.registers.pr.modify(PR::PRESCALER.val(0 as u32));
-
-        hprintln!("{:?}",tics).unwrap();
         self.registers.ocr1.set(tics);
         self.registers.ir.modify(IR::OF1IE::SET);
-        self.registers.cr.modify(CR::EN::SET);
     }
 
     fn get_alarm(&self) -> u32 {
