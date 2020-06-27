@@ -2,7 +2,6 @@
 
 use kernel::common::registers::{register_bitfields, FieldValue, ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
-// use kernel::debug;
 
 #[repr(C)]
 struct SystickRegisters {
@@ -126,7 +125,6 @@ impl kernel::SchedulerTimer for SysTick {
             // instead.
             let us = us as u64;
             let hertz = self.hertz() as u64;
-            // debug!("{:?}", hertz);
 
             hertz * us / 1_000_000
         };
