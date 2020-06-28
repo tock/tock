@@ -85,6 +85,14 @@ impl SysTick {
         res
     }
 
+    /// Initialize the `SysTick` with an explicit clock speed and external source
+    ///
+    /// Use this constructor if the core implementation does not have a
+    /// pre-calibration value and you need an external clock source for  
+    /// the Systick.
+    ///
+    ///   * `clock_speed` - the frequency of SysTick tics in Hertz. For example,
+    ///   if the SysTick is driven by the CPU clock, it is simply the CPU speed.
     pub unsafe fn new_with_calibration_and_external_clock(clock_speed: u32) -> SysTick {
         let mut res = SysTick::new();
         res.hertz = clock_speed;
