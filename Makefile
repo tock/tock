@@ -285,7 +285,8 @@ ci-runner-github-tests:\
 	ci-job-kernel\
 	ci-job-capsules\
 	ci-job-chips\
-	ci-job-tools
+	ci-job-tools\
+	ci-job-miri
 	$(call banner,CI-Runner: GitHub tests runner DONE)
 
 .PHONY: ci-runner-github-qemu
@@ -469,6 +470,23 @@ endef
 ci-job-tools: ci-setup-tools
 	$(if $(CI_JOB_TOOLS),$(call ci_job_tools))
 
+
+.PHONY: ci-setup-miri
+ci-setup-miri:
+	@rustup component list | grep miri | grep -q installed || rustup component add miri
+
+.PHONY: ci-job-miri
+ci-job-miri: ci-setup-miri
+	$(call banner,CI-Job: Miri)
+	#
+	# Note: This is highly experimental and limited at the moment.
+	#
+	@# Hangs forever during `Building` for this one :shrug:
+	@#cd libraries/tock-register-interface && CI=true cargo miri test
+	@cd kernel && CI=true cargo miri test
+	@for a in $$(tools/list_archs.sh); do cd arch/$$a && CI=true cargo miri test && cd ../..; done
+	@cd capsules && CI=true cargo miri test
+	@for c in $$(tools/list_chips.sh); do cd chips/$$c && CI=true cargo miri test && cd ../..; done
 
 
 ### ci-runner-github-qemu jobs:

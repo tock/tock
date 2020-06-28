@@ -17,6 +17,7 @@ use kernel::hil::i2c::I2CMaster;
 use kernel::Platform;
 use kernel::{create_capability, debug, static_init};
 
+pub mod ble;
 /// Support routines for debugging I/O.
 pub mod io;
 
@@ -53,6 +54,11 @@ struct RedboardArtemisNano {
     gpio: &'static capsules::gpio::GPIO<'static, apollo3::gpio::GpioPin>,
     console: &'static capsules::console::Console<'static>,
     i2c_master: &'static capsules::i2c_master::I2CMasterDriver<apollo3::iom::Iom<'static>>,
+    ble_radio: &'static capsules::ble_advertising_driver::BLE<
+        'static,
+        apollo3::ble::Ble<'static>,
+        VirtualMuxAlarm<'static, apollo3::stimer::STimer<'static>>,
+    >,
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
@@ -67,6 +73,7 @@ impl Platform for RedboardArtemisNano {
             capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
             capsules::console::DRIVER_NUM => f(Some(self.console)),
             capsules::i2c_master::DRIVER_NUM => f(Some(self.i2c_master)),
+            capsules::ble_advertising_driver::DRIVER_NUM => f(Some(self.ble_radio)),
             _ => f(None),
         }
     }
@@ -178,6 +185,20 @@ pub unsafe fn reset_handler() {
     apollo3::iom::IOM2.set_master_client(i2c_master);
     apollo3::iom::IOM2.enable();
 
+    // Setup BLE
+    apollo3::mcuctrl::MCUCTRL.enable_ble();
+    apollo3::clkgen::CLKGEN.enable_ble();
+    apollo3::pwrctrl::PWRCTRL.enable_ble();
+    apollo3::ble::BLE.setup_clocks();
+    apollo3::mcuctrl::MCUCTRL.reset_ble();
+    apollo3::ble::BLE.power_up();
+    apollo3::ble::BLE.ble_initialise();
+
+    let ble_radio =
+        ble::BLEComponent::new(board_kernel, &apollo3::ble::BLE, mux_alarm).finalize(());
+
+    apollo3::mcuctrl::MCUCTRL.print_chip_revision();
+
     debug!("Initialization complete. Entering main loop");
 
     extern "C" {
@@ -198,6 +219,7 @@ pub unsafe fn reset_handler() {
         gpio,
         led,
         i2c_master,
+        ble_radio,
     };
 
     kernel::procs::load_processes(

@@ -141,7 +141,8 @@ OBJCOPY   ?= $(TOOLCHAIN)-objcopy
 OBJDUMP   ?= $(TOOLCHAIN)-objdump
 
 # Set additional flags to produce binary from .elf
-OBJCOPY_FLAGS ?= -S
+# --strip-sections prevents enormous binaries when SRAM is below flash
+OBJCOPY_FLAGS ?= --strip-sections -S
 # This make variable allows board-specific Makefiles to pass down options to
 # the Cargo build command. For example, in boards/<custom_board>/Makefile:
 # `CARGO_FLAGS += --features=foo` would pass feature `foo` to the top level
@@ -157,6 +158,16 @@ SIZE_FLAGS ?=
 # Need an extra flag for OBJDUMP if we are on a thumb platform.
 ifneq (,$(findstring thumb,$(TARGET)))
   OBJDUMP_FLAGS += --arch-name=thumb
+endif
+
+# Check whether the system already has a sha256sum application
+# present, if not use the custom shipped one
+ifeq (, $(shell sha256sum --version 2>/dev/null))
+  # No system sha256sum available
+  SHA256SUM := $(CARGO) run --manifest-path $(TOCK_ROOT_DIRECTORY)tools/sha256sum/Cargo.toml --
+else
+  # Use system sha256sum
+  SHA256SUM := sha256sum
 endif
 
 # Dump configuration for verbose builds
@@ -247,9 +258,10 @@ target:
 %.elf: %
 	$(Q)cp $< $@
 
-%.bin: %.elf $(TOCK_ROOT_DIRECTORY)tools/sha256sum/target/debug/sha256sum
+
+%.bin: %.elf
 	$(Q)$(OBJCOPY) --output-target=binary $(OBJCOPY_FLAGS) $< $@
-	$(Q)$(TOCK_ROOT_DIRECTORY)tools/sha256sum/target/debug/sha256sum $@
+	$(Q)$(SHA256SUM) $@
 
 %.lst: %.elf
 	$(Q)$(OBJDUMP) $(OBJDUMP_FLAGS) $< > $@

@@ -1,6 +1,6 @@
 //! Power Control driver.
 
-use kernel::common::registers::{register_bitfields, register_structs, ReadWrite};
+use kernel::common::registers::{register_bitfields, register_structs, ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
 
 pub static mut PWRCTRL: PwrCtrl = PwrCtrl::new(PWRCTRL_BASE);
@@ -16,7 +16,7 @@ register_structs! {
         (0x00c => mempwdinsleep: ReadWrite<u32>),
         (0x010 => mempwren: ReadWrite<u32>),
         (0x014 => mempwrstatus: ReadWrite<u32>),
-        (0x018 => devpwrstatus: ReadWrite<u32>),
+        (0x018 => devpwrstatus: ReadOnly<u32, DEVPWRSTATUS::Register>),
         (0x01c => sramctrl: ReadWrite<u32>),
         (0x020 => adcstatus: ReadWrite<u32>),
         (0x024 => misc: ReadWrite<u32>),
@@ -49,6 +49,21 @@ register_bitfields![u32,
         PWRMSPI OFFSET(11) NUMBITS(1) [],
         PWRPDM OFFSET(12) NUMBITS(1) [],
         PWRBLEL OFFSET(13) NUMBITS(1) []
+    ],
+    DEVPWRSTATUS [
+        MCUL OFFSET(0) NUMBITS(1) [],
+        MCUH OFFSET(1) NUMBITS(1) [],
+        HCPA OFFSET(2) NUMBITS(1) [],
+        HCPB OFFSET(3) NUMBITS(1) [],
+        HCPC OFFSET(4) NUMBITS(1) [],
+        PWRADC OFFSET(5) NUMBITS(1) [],
+        PWRMSPI OFFSET(6) NUMBITS(1) [],
+        PWRPDM OFFSET(7) NUMBITS(1) [],
+        BLEL OFFSET(8) NUMBITS(1) [],
+        BLEH OFFSET(9) NUMBITS(1) [],
+        CORESLEEP OFFSET(29) NUMBITS(1) [],
+        COREDEEPSLEEP OFFSET(30) NUMBITS(1) [],
+        SYSDEEPSLEEP OFFSET(31) NUMBITS(1) []
     ]
 ];
 
@@ -71,5 +86,13 @@ impl PwrCtrl {
         let regs = self.registers;
 
         regs.devpwren.modify(DEVPWREN::PWRIOM2::SET);
+    }
+
+    pub fn enable_ble(&self) {
+        let regs = self.registers;
+
+        regs.devpwren.modify(DEVPWREN::PWRBLEL::SET);
+
+        while !regs.devpwrstatus.is_set(DEVPWRSTATUS::BLEL) {}
     }
 }
