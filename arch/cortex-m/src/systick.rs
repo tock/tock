@@ -165,8 +165,10 @@ impl kernel::SysTick for SysTick {
     fn enable(&self, with_interrupt: bool) {
         let clock_source: FieldValue<u32, self::ControlAndStatus::Register> = if self.external_clock
         {
+            // CLKSOURCE 0 --> external clock
             ControlAndStatus::CLKSOURCE::CLEAR
         } else {
+            // CLKSOURCE 1 --> internal clock
             ControlAndStatus::CLKSOURCE::SET
         };
 
