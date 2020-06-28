@@ -363,8 +363,12 @@ pub unsafe fn reset_handler() {
     imxrt1050::lpi2c::LPI2C1.set_speed(imxrt1050::lpi2c::Lpi2cSpeed::Speed100k, 8);
 
     use imxrt1050::gpio::PinId;
-    let mux_i2c = components::i2c::I2CMuxComponent::new(&imxrt1050::lpi2c::LPI2C1)
-        .finalize(components::i2c_mux_component_helper!());
+    let mux_i2c = components::i2c::I2CMuxComponent::new(
+        &imxrt1050::lpi2c::LPI2C1,
+        None,
+        dynamic_deferred_caller,
+    )
+    .finalize(components::i2c_mux_component_helper!());
 
     // Fxos8700 sensor
     let fxos8700 = components::fxos8700::Fxos8700Component::new(
