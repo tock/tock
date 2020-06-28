@@ -113,12 +113,6 @@ impl Driver for Ft6206<'_> {
             // is driver present
             0 => ReturnCode::SUCCESS,
 
-            // on
-            1 => {
-                self.is_present();
-                ReturnCode::SUCCESS
-            }
-
             // default
             _ => ReturnCode::ENOSUPPORT,
         }
