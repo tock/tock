@@ -133,379 +133,379 @@ impl<R: RegisterLongName> ReadWriteRiscvCsr<u32, R> {
         let r: u32;
         if self.value == MINSTRETH {
             unsafe {
-                llvm_asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const MINSTRETH);
+                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const MINSTRETH);
             }
         } else if self.value == MINSTRET {
             unsafe {
-                llvm_asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const MINSTRET);
+                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const MINSTRET);
             }
         } else if self.value == MCYCLEH {
             unsafe {
-                llvm_asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const MCYCLEH);
+                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const MCYCLEH);
             }
         } else if self.value == MCYCLE {
             unsafe {
-                llvm_asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const MCYCLE);
+                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const MCYCLE);
             }
         } else if self.value == MIE {
             unsafe {
-                llvm_asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const MIE);
+                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const MIE);
             }
         } else if self.value == MTVEC {
             unsafe {
-                llvm_asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const MTVEC);
+                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const MTVEC);
             }
         } else if self.value == MSTATUS {
             unsafe {
-                llvm_asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const MSTATUS);
+                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const MSTATUS);
             }
         } else if self.value == UTVEC {
             unsafe {
-                llvm_asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const UTVEC);
+                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const UTVEC);
             }
         } else if self.value == STVEC {
             unsafe {
-                llvm_asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const STVEC);
+                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const STVEC);
             }
         } else if self.value == MSCRATCH {
             unsafe {
-                llvm_asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const MSCRATCH);
+                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const MSCRATCH);
             }
         } else if self.value == MEPC {
             unsafe {
-                llvm_asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const MEPC);
+                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const MEPC);
             }
         } else if self.value == MCAUSE {
             unsafe {
-                llvm_asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const MCAUSE);
+                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const MCAUSE);
             }
         } else if self.value == MTVAL {
             unsafe {
-                llvm_asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const MTVAL);
+                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const MTVAL);
             }
         } else if self.value == MIP {
             unsafe {
-                llvm_asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const MIP);
+                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const MIP);
             }
         } else if self.value == PMPCFG0 {
             unsafe {
-                llvm_asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPCFG0);
+                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPCFG0);
             }
         } else if self.value == PMPCFG1 {
             unsafe {
-                llvm_asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPCFG1);
+                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPCFG1);
             }
         } else if self.value == PMPCFG2 {
             unsafe {
-                llvm_asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPCFG2);
+                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPCFG2);
             }
         } else if self.value == PMPCFG3 {
             unsafe {
-                llvm_asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPCFG3);
+                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPCFG3);
             }
         } else if self.value == PMPCFG4 {
             unsafe {
-                llvm_asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPCFG4);
+                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPCFG4);
             }
         } else if self.value == PMPCFG5 {
             unsafe {
-                llvm_asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPCFG5);
+                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPCFG5);
             }
         } else if self.value == PMPCFG6 {
             unsafe {
-                llvm_asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPCFG6);
+                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPCFG6);
             }
         } else if self.value == PMPCFG7 {
             unsafe {
-                llvm_asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPCFG7);
+                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPCFG7);
             }
         } else if self.value == PMPCFG8 {
             unsafe {
-                llvm_asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPCFG8);
+                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPCFG8);
             }
         } else if self.value == PMPCFG9 {
             unsafe {
-                llvm_asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPCFG9);
+                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPCFG9);
             }
         } else if self.value == PMPCFG10 {
             unsafe {
-                llvm_asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPCFG10);
+                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPCFG10);
             }
         } else if self.value == PMPCFG11 {
             unsafe {
-                llvm_asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPCFG11);
+                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPCFG11);
             }
         } else if self.value == PMPCFG12 {
             unsafe {
-                llvm_asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPCFG12);
+                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPCFG12);
             }
         } else if self.value == PMPCFG13 {
             unsafe {
-                llvm_asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPCFG13);
+                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPCFG13);
             }
         } else if self.value == PMPCFG14 {
             unsafe {
-                llvm_asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPCFG14);
+                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPCFG14);
             }
         } else if self.value == PMPCFG15 {
             unsafe {
-                llvm_asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPCFG15);
+                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPCFG15);
             }
         } else if self.value == PMPADDR0 {
             unsafe {
-                llvm_asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR0);
+                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR0);
             }
         } else if self.value == PMPADDR1 {
             unsafe {
-                llvm_asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR1);
+                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR1);
             }
         } else if self.value == PMPADDR2 {
             unsafe {
-                llvm_asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR2);
+                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR2);
             }
         } else if self.value == PMPADDR3 {
             unsafe {
-                llvm_asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR3);
+                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR3);
             }
         } else if self.value == PMPADDR4 {
             unsafe {
-                llvm_asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR4);
+                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR4);
             }
         } else if self.value == PMPADDR5 {
             unsafe {
-                llvm_asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR5);
+                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR5);
             }
         } else if self.value == PMPADDR6 {
             unsafe {
-                llvm_asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR6);
+                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR6);
             }
         } else if self.value == PMPADDR7 {
             unsafe {
-                llvm_asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR7);
+                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR7);
             }
         } else if self.value == PMPADDR8 {
             unsafe {
-                llvm_asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR8);
+                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR8);
             }
         } else if self.value == PMPADDR9 {
             unsafe {
-                llvm_asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR9);
+                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR9);
             }
         } else if self.value == PMPADDR10 {
             unsafe {
-                llvm_asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR10);
+                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR10);
             }
         } else if self.value == PMPADDR11 {
             unsafe {
-                llvm_asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR11);
+                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR11);
             }
         } else if self.value == PMPADDR12 {
             unsafe {
-                llvm_asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR12);
+                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR12);
             }
         } else if self.value == PMPADDR13 {
             unsafe {
-                llvm_asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR13);
+                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR13);
             }
         } else if self.value == PMPADDR14 {
             unsafe {
-                llvm_asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR14);
+                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR14);
             }
         } else if self.value == PMPADDR15 {
             unsafe {
-                llvm_asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR15);
+                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR15);
             }
         } else if self.value == PMPADDR16 {
             unsafe {
-                llvm_asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR16);
+                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR16);
             }
         } else if self.value == PMPADDR17 {
             unsafe {
-                llvm_asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR17);
+                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR17);
             }
         } else if self.value == PMPADDR18 {
             unsafe {
-                llvm_asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR18);
+                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR18);
             }
         } else if self.value == PMPADDR19 {
             unsafe {
-                llvm_asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR19);
+                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR19);
             }
         } else if self.value == PMPADDR20 {
             unsafe {
-                llvm_asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR20);
+                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR20);
             }
         } else if self.value == PMPADDR21 {
             unsafe {
-                llvm_asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR21);
+                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR21);
             }
         } else if self.value == PMPADDR22 {
             unsafe {
-                llvm_asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR22);
+                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR22);
             }
         } else if self.value == PMPADDR23 {
             unsafe {
-                llvm_asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR23);
+                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR23);
             }
         } else if self.value == PMPADDR24 {
             unsafe {
-                llvm_asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR24);
+                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR24);
             }
         } else if self.value == PMPADDR25 {
             unsafe {
-                llvm_asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR25);
+                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR25);
             }
         } else if self.value == PMPADDR26 {
             unsafe {
-                llvm_asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR26);
+                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR26);
             }
         } else if self.value == PMPADDR27 {
             unsafe {
-                llvm_asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR27);
+                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR27);
             }
         } else if self.value == PMPADDR28 {
             unsafe {
-                llvm_asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR28);
+                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR28);
             }
         } else if self.value == PMPADDR29 {
             unsafe {
-                llvm_asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR29);
+                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR29);
             }
         } else if self.value == PMPADDR30 {
             unsafe {
-                llvm_asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR30);
+                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR30);
             }
         } else if self.value == PMPADDR31 {
             unsafe {
-                llvm_asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR31);
+                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR31);
             }
         } else if self.value == PMPADDR32 {
             unsafe {
-                llvm_asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR32);
+                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR32);
             }
         } else if self.value == PMPADDR33 {
             unsafe {
-                llvm_asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR33);
+                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR33);
             }
         } else if self.value == PMPADDR34 {
             unsafe {
-                llvm_asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR34);
+                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR34);
             }
         } else if self.value == PMPADDR35 {
             unsafe {
-                llvm_asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR35);
+                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR35);
             }
         } else if self.value == PMPADDR36 {
             unsafe {
-                llvm_asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR36);
+                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR36);
             }
         } else if self.value == PMPADDR37 {
             unsafe {
-                llvm_asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR37);
+                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR37);
             }
         } else if self.value == PMPADDR38 {
             unsafe {
-                llvm_asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR38);
+                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR38);
             }
         } else if self.value == PMPADDR39 {
             unsafe {
-                llvm_asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR39);
+                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR39);
             }
         } else if self.value == PMPADDR40 {
             unsafe {
-                llvm_asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR40);
+                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR40);
             }
         } else if self.value == PMPADDR41 {
             unsafe {
-                llvm_asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR41);
+                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR41);
             }
         } else if self.value == PMPADDR42 {
             unsafe {
-                llvm_asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR42);
+                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR42);
             }
         } else if self.value == PMPADDR43 {
             unsafe {
-                llvm_asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR43);
+                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR43);
             }
         } else if self.value == PMPADDR44 {
             unsafe {
-                llvm_asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR44);
+                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR44);
             }
         } else if self.value == PMPADDR45 {
             unsafe {
-                llvm_asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR45);
+                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR45);
             }
         } else if self.value == PMPADDR46 {
             unsafe {
-                llvm_asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR46);
+                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR46);
             }
         } else if self.value == PMPADDR47 {
             unsafe {
-                llvm_asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR47);
+                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR47);
             }
         } else if self.value == PMPADDR48 {
             unsafe {
-                llvm_asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR48);
+                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR48);
             }
         } else if self.value == PMPADDR49 {
             unsafe {
-                llvm_asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR49);
+                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR49);
             }
         } else if self.value == PMPADDR50 {
             unsafe {
-                llvm_asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR50);
+                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR50);
             }
         } else if self.value == PMPADDR51 {
             unsafe {
-                llvm_asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR51);
+                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR51);
             }
         } else if self.value == PMPADDR52 {
             unsafe {
-                llvm_asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR52);
+                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR52);
             }
         } else if self.value == PMPADDR53 {
             unsafe {
-                llvm_asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR53);
+                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR53);
             }
         } else if self.value == PMPADDR54 {
             unsafe {
-                llvm_asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR54);
+                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR54);
             }
         } else if self.value == PMPADDR55 {
             unsafe {
-                llvm_asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR55);
+                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR55);
             }
         } else if self.value == PMPADDR56 {
             unsafe {
-                llvm_asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR56);
+                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR56);
             }
         } else if self.value == PMPADDR57 {
             unsafe {
-                llvm_asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR57);
+                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR57);
             }
         } else if self.value == PMPADDR58 {
             unsafe {
-                llvm_asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR58);
+                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR58);
             }
         } else if self.value == PMPADDR59 {
             unsafe {
-                llvm_asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR59);
+                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR59);
             }
         } else if self.value == PMPADDR60 {
             unsafe {
-                llvm_asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR60);
+                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR60);
             }
         } else if self.value == PMPADDR61 {
             unsafe {
-                llvm_asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR61);
+                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR61);
             }
         } else if self.value == PMPADDR62 {
             unsafe {
-                llvm_asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR62);
+                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR62);
             }
         } else if self.value == PMPADDR63 {
             unsafe {
-                llvm_asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR63);
+                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR63);
             }
         } else {
             panic!("Unsupported CSR read");
@@ -518,379 +518,379 @@ impl<R: RegisterLongName> ReadWriteRiscvCsr<u32, R> {
     pub fn set(&self, val_to_set: u32) {
         if self.value == MINSTRETH {
             unsafe {
-                llvm_asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const MINSTRETH);
+                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const MINSTRETH);
             }
         } else if self.value == MINSTRET {
             unsafe {
-                llvm_asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const MINSTRET);
+                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const MINSTRET);
             }
         } else if self.value == MCYCLEH {
             unsafe {
-                llvm_asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const MCYCLEH);
+                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const MCYCLEH);
             }
         } else if self.value == MCYCLE {
             unsafe {
-                llvm_asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const MCYCLE);
+                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const MCYCLE);
             }
         } else if self.value == MIE {
             unsafe {
-                llvm_asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const MIE);
+                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const MIE);
             }
         } else if self.value == MTVEC {
             unsafe {
-                llvm_asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const MTVEC);
+                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const MTVEC);
             }
         } else if self.value == MSTATUS {
             unsafe {
-                llvm_asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const MSTATUS);
+                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const MSTATUS);
             }
         } else if self.value == UTVEC {
             unsafe {
-                llvm_asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const UTVEC);
+                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const UTVEC);
             }
         } else if self.value == STVEC {
             unsafe {
-                llvm_asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const STVEC);
+                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const STVEC);
             }
         } else if self.value == MSCRATCH {
             unsafe {
-                llvm_asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const MSCRATCH);
+                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const MSCRATCH);
             }
         } else if self.value == MEPC {
             unsafe {
-                llvm_asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const MEPC);
+                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const MEPC);
             }
         } else if self.value == MCAUSE {
             unsafe {
-                llvm_asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const MCAUSE);
+                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const MCAUSE);
             }
         } else if self.value == MTVAL {
             unsafe {
-                llvm_asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const MTVAL);
+                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const MTVAL);
             }
         } else if self.value == MIP {
             unsafe {
-                llvm_asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const MIP);
+                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const MIP);
             }
         } else if self.value == PMPCFG0 {
             unsafe {
-                llvm_asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPCFG0);
+                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPCFG0);
             }
         } else if self.value == PMPCFG1 {
             unsafe {
-                llvm_asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPCFG1);
+                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPCFG1);
             }
         } else if self.value == PMPCFG2 {
             unsafe {
-                llvm_asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPCFG2);
+                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPCFG2);
             }
         } else if self.value == PMPCFG3 {
             unsafe {
-                llvm_asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPCFG3);
+                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPCFG3);
             }
         } else if self.value == PMPCFG4 {
             unsafe {
-                llvm_asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPCFG4);
+                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPCFG4);
             }
         } else if self.value == PMPCFG5 {
             unsafe {
-                llvm_asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPCFG5);
+                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPCFG5);
             }
         } else if self.value == PMPCFG6 {
             unsafe {
-                llvm_asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPCFG6);
+                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPCFG6);
             }
         } else if self.value == PMPCFG7 {
             unsafe {
-                llvm_asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPCFG7);
+                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPCFG7);
             }
         } else if self.value == PMPCFG8 {
             unsafe {
-                llvm_asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPCFG8);
+                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPCFG8);
             }
         } else if self.value == PMPCFG9 {
             unsafe {
-                llvm_asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPCFG9);
+                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPCFG9);
             }
         } else if self.value == PMPCFG10 {
             unsafe {
-                llvm_asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPCFG10);
+                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPCFG10);
             }
         } else if self.value == PMPCFG11 {
             unsafe {
-                llvm_asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPCFG11);
+                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPCFG11);
             }
         } else if self.value == PMPCFG12 {
             unsafe {
-                llvm_asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPCFG12);
+                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPCFG12);
             }
         } else if self.value == PMPCFG13 {
             unsafe {
-                llvm_asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPCFG13);
+                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPCFG13);
             }
         } else if self.value == PMPCFG14 {
             unsafe {
-                llvm_asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPCFG14);
+                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPCFG14);
             }
         } else if self.value == PMPCFG15 {
             unsafe {
-                llvm_asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPCFG15);
+                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPCFG15);
             }
         } else if self.value == PMPADDR0 {
             unsafe {
-                llvm_asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR0);
+                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR0);
             }
         } else if self.value == PMPADDR1 {
             unsafe {
-                llvm_asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR1);
+                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR1);
             }
         } else if self.value == PMPADDR2 {
             unsafe {
-                llvm_asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR2);
+                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR2);
             }
         } else if self.value == PMPADDR3 {
             unsafe {
-                llvm_asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR3);
+                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR3);
             }
         } else if self.value == PMPADDR4 {
             unsafe {
-                llvm_asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR4);
+                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR4);
             }
         } else if self.value == PMPADDR5 {
             unsafe {
-                llvm_asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR5);
+                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR5);
             }
         } else if self.value == PMPADDR6 {
             unsafe {
-                llvm_asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR6);
+                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR6);
             }
         } else if self.value == PMPADDR7 {
             unsafe {
-                llvm_asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR7);
+                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR7);
             }
         } else if self.value == PMPADDR8 {
             unsafe {
-                llvm_asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR8);
+                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR8);
             }
         } else if self.value == PMPADDR9 {
             unsafe {
-                llvm_asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR9);
+                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR9);
             }
         } else if self.value == PMPADDR10 {
             unsafe {
-                llvm_asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR10);
+                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR10);
             }
         } else if self.value == PMPADDR11 {
             unsafe {
-                llvm_asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR11);
+                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR11);
             }
         } else if self.value == PMPADDR12 {
             unsafe {
-                llvm_asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR12);
+                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR12);
             }
         } else if self.value == PMPADDR13 {
             unsafe {
-                llvm_asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR13);
+                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR13);
             }
         } else if self.value == PMPADDR14 {
             unsafe {
-                llvm_asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR14);
+                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR14);
             }
         } else if self.value == PMPADDR15 {
             unsafe {
-                llvm_asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR15);
+                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR15);
             }
         } else if self.value == PMPADDR16 {
             unsafe {
-                llvm_asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR16);
+                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR16);
             }
         } else if self.value == PMPADDR17 {
             unsafe {
-                llvm_asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR17);
+                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR17);
             }
         } else if self.value == PMPADDR18 {
             unsafe {
-                llvm_asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR18);
+                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR18);
             }
         } else if self.value == PMPADDR19 {
             unsafe {
-                llvm_asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR19);
+                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR19);
             }
         } else if self.value == PMPADDR20 {
             unsafe {
-                llvm_asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR20);
+                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR20);
             }
         } else if self.value == PMPADDR21 {
             unsafe {
-                llvm_asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR21);
+                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR21);
             }
         } else if self.value == PMPADDR22 {
             unsafe {
-                llvm_asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR22);
+                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR22);
             }
         } else if self.value == PMPADDR23 {
             unsafe {
-                llvm_asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR23);
+                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR23);
             }
         } else if self.value == PMPADDR24 {
             unsafe {
-                llvm_asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR24);
+                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR24);
             }
         } else if self.value == PMPADDR25 {
             unsafe {
-                llvm_asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR25);
+                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR25);
             }
         } else if self.value == PMPADDR26 {
             unsafe {
-                llvm_asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR26);
+                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR26);
             }
         } else if self.value == PMPADDR27 {
             unsafe {
-                llvm_asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR27);
+                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR27);
             }
         } else if self.value == PMPADDR28 {
             unsafe {
-                llvm_asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR28);
+                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR28);
             }
         } else if self.value == PMPADDR29 {
             unsafe {
-                llvm_asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR29);
+                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR29);
             }
         } else if self.value == PMPADDR30 {
             unsafe {
-                llvm_asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR30);
+                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR30);
             }
         } else if self.value == PMPADDR31 {
             unsafe {
-                llvm_asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR31);
+                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR31);
             }
         } else if self.value == PMPADDR32 {
             unsafe {
-                llvm_asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR32);
+                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR32);
             }
         } else if self.value == PMPADDR33 {
             unsafe {
-                llvm_asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR33);
+                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR33);
             }
         } else if self.value == PMPADDR34 {
             unsafe {
-                llvm_asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR34);
+                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR34);
             }
         } else if self.value == PMPADDR35 {
             unsafe {
-                llvm_asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR35);
+                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR35);
             }
         } else if self.value == PMPADDR36 {
             unsafe {
-                llvm_asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR36);
+                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR36);
             }
         } else if self.value == PMPADDR37 {
             unsafe {
-                llvm_asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR37);
+                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR37);
             }
         } else if self.value == PMPADDR38 {
             unsafe {
-                llvm_asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR38);
+                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR38);
             }
         } else if self.value == PMPADDR39 {
             unsafe {
-                llvm_asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR39);
+                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR39);
             }
         } else if self.value == PMPADDR40 {
             unsafe {
-                llvm_asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR40);
+                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR40);
             }
         } else if self.value == PMPADDR41 {
             unsafe {
-                llvm_asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR41);
+                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR41);
             }
         } else if self.value == PMPADDR42 {
             unsafe {
-                llvm_asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR42);
+                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR42);
             }
         } else if self.value == PMPADDR43 {
             unsafe {
-                llvm_asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR43);
+                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR43);
             }
         } else if self.value == PMPADDR44 {
             unsafe {
-                llvm_asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR44);
+                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR44);
             }
         } else if self.value == PMPADDR45 {
             unsafe {
-                llvm_asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR45);
+                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR45);
             }
         } else if self.value == PMPADDR46 {
             unsafe {
-                llvm_asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR46);
+                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR46);
             }
         } else if self.value == PMPADDR47 {
             unsafe {
-                llvm_asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR47);
+                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR47);
             }
         } else if self.value == PMPADDR48 {
             unsafe {
-                llvm_asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR48);
+                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR48);
             }
         } else if self.value == PMPADDR49 {
             unsafe {
-                llvm_asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR49);
+                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR49);
             }
         } else if self.value == PMPADDR50 {
             unsafe {
-                llvm_asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR50);
+                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR50);
             }
         } else if self.value == PMPADDR51 {
             unsafe {
-                llvm_asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR51);
+                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR51);
             }
         } else if self.value == PMPADDR52 {
             unsafe {
-                llvm_asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR52);
+                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR52);
             }
         } else if self.value == PMPADDR53 {
             unsafe {
-                llvm_asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR53);
+                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR53);
             }
         } else if self.value == PMPADDR54 {
             unsafe {
-                llvm_asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR54);
+                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR54);
             }
         } else if self.value == PMPADDR55 {
             unsafe {
-                llvm_asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR55);
+                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR55);
             }
         } else if self.value == PMPADDR56 {
             unsafe {
-                llvm_asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR56);
+                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR56);
             }
         } else if self.value == PMPADDR57 {
             unsafe {
-                llvm_asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR57);
+                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR57);
             }
         } else if self.value == PMPADDR58 {
             unsafe {
-                llvm_asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR58);
+                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR58);
             }
         } else if self.value == PMPADDR59 {
             unsafe {
-                llvm_asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR59);
+                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR59);
             }
         } else if self.value == PMPADDR60 {
             unsafe {
-                llvm_asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR60);
+                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR60);
             }
         } else if self.value == PMPADDR61 {
             unsafe {
-                llvm_asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR61);
+                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR61);
             }
         } else if self.value == PMPADDR62 {
             unsafe {
-                llvm_asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR62);
+                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR62);
             }
         } else if self.value == PMPADDR63 {
             unsafe {
-                llvm_asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR63);
+                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR63);
             }
         } else {
             panic!("Unsupported CSR write");
