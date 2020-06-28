@@ -1,6 +1,6 @@
 //! ARM Cortex-M SysTick peripheral.
 
-use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite, FieldValue};
+use kernel::common::registers::{register_bitfields, FieldValue, ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
 
 #[repr(C)]
@@ -53,7 +53,7 @@ register_bitfields![u32,
 /// Documented in the Cortex-MX Devices Generic User Guide, Chapter 4.4
 pub struct SysTick {
     hertz: u32,
-    external_clock: bool
+    external_clock: bool,
 }
 
 const BASE_ADDR: *const SystickRegisters = 0xE000E010 as *const SystickRegisters;
@@ -66,7 +66,10 @@ impl SysTick {
     /// Use this constructor if the core implementation has a pre-calibration
     /// value in hardware.
     pub unsafe fn new() -> SysTick {
-        SysTick { hertz: 0, external_clock: false }
+        SysTick {
+            hertz: 0,
+            external_clock: false,
+        }
     }
 
     /// Initialize the `SysTick` with an explicit clock speed
@@ -82,6 +85,14 @@ impl SysTick {
         res
     }
 
+    /// Initialize the `SysTick` with an explicit clock speed and external source
+    ///
+    /// Use this constructor if the core implementation does not have a
+    /// pre-calibration value and you need an external clock source for  
+    /// the Systick.
+    ///
+    ///   * `clock_speed` - the frequency of SysTick tics in Hertz. For example,
+    ///   if the SysTick is driven by the CPU clock, it is simply the CPU speed.
     pub unsafe fn new_with_calibration_and_external_clock(clock_speed: u32) -> SysTick {
         let mut res = SysTick::new();
         res.hertz = clock_speed;
@@ -152,17 +163,16 @@ impl kernel::SysTick for SysTick {
     }
 
     fn enable(&self, with_interrupt: bool) {
-        let clock_source: FieldValue<u32, self::ControlAndStatus::Register> =  if self.external_clock {
+        let clock_source: FieldValue<u32, self::ControlAndStatus::Register> = if self.external_clock
+        {
             ControlAndStatus::CLKSOURCE::CLEAR
         } else {
             ControlAndStatus::CLKSOURCE::SET
         };
-        
+
         if with_interrupt {
             SYSTICK_BASE.syst_csr.write(
-                ControlAndStatus::ENABLE::SET
-                    + ControlAndStatus::TICKINT::SET
-                    + clock_source,
+                ControlAndStatus::ENABLE::SET + ControlAndStatus::TICKINT::SET + clock_source,
             );
         } else {
             SYSTICK_BASE
