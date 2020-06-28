@@ -100,17 +100,17 @@ impl SysTick {
         res
     }
 
-    // Return the tic frequency in hertz. If the calibration value is set in
-    // hardware, use `self.hertz`, which is set in the `new_with_calibration`
-    // constructor. However, if there is value configured by the user, choose
-    //`self.hertz` instead.
+    // Return the tic frequency in hertz. If the value is configured by the
+    // user using the `new_with_calibration` constructor return `self.hertz`. 
+    // Otherwise, compute the frequncy using the calibration value that is set
+    // in hardware. 
     fn hertz(&self) -> u32 {
-        let tenms = SYSTICK_BASE.syst_calib.read(CalibrationValue::TENMS);
-        if tenms == 0 || self.hertz != 0 {
-            self.hertz
+        if self.hertz != 0 {
+             self.hertz
         } else {
             // The `tenms` register is the reload value for 10ms, so
             // Hertz = number of tics in 1 second = tenms * 100
+            let tenms = SYSTICK_BASE.syst_calib.read(CalibrationValue::TENMS);
             tenms * 100
         }
     }
