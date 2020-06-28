@@ -1,10 +1,8 @@
-//! Driver for the FT6202 Touch Panel.
+//! Driver for the FT6x06 Touch Panel.
 //!
 //! I2C Interface
 //!
 //! <http://www.tvielectronics.com/ocart/download/controller/FT6206.pdf>
-//!
-//! The syscall interface is described in [lsm303dlhc.md](https://github.com/tock/tock/tree/master/doc/syscalls/70006_lsm303dlhc.md)
 //!
 //! Usage
 //! -----
@@ -13,10 +11,10 @@
 //! let mux_i2c = components::i2c::I2CMuxComponent::new(&stm32f4xx::i2c::I2C1)
 //!     .finalize(components::i2c_mux_component_helper!());
 //!
-//! let ft6206 = components::ft6206::Ft6206Component::new(
+//! let ft6x06 = components::ft6x06::Ft6x06Component::new(
 //!     stm32f412g::gpio::PinId::PG05.get_pin().as_ref().unwrap(),
 //! )
-//! .finalize(components::ft6206_i2c_component_helper!(mux_i2c));
+//! .finalize(components::ft6x06_i2c_component_helper!(mux_i2c));
 //!
 //! Author: Alexandru Radovici <msg4alex@gmail.com>
 
@@ -33,7 +31,7 @@ use kernel::{AppId, Driver, ReturnCode};
 use crate::driver;
 
 /// Syscall driver number.
-pub const DRIVER_NUM: usize = driver::NUM::Ft6206 as usize;
+pub const DRIVER_NUM: usize = driver::NUM::Ft6x06 as usize;
 
 // Buffer to use for I2C messages
 pub static mut BUFFER: [u8; 17] = [0; 17];
@@ -50,7 +48,7 @@ enum_from_primitive! {
     }
 }
 
-pub struct Ft6206<'a> {
+pub struct Ft6x06<'a> {
     i2c: &'a dyn i2c::I2CDevice,
     interrupt_pin: &'a dyn gpio::InterruptPin<'a>,
     // callback: OptionalCell<Callback>,
@@ -58,15 +56,15 @@ pub struct Ft6206<'a> {
     buffer: TakeCell<'static, [u8]>,
 }
 
-impl<'a> Ft6206<'a> {
+impl<'a> Ft6x06<'a> {
     pub fn new(
         i2c: &'a dyn i2c::I2CDevice,
         interrupt_pin: &'a dyn gpio::InterruptPin<'a>,
         buffer: &'static mut [u8],
-    ) -> Ft6206<'a> {
+    ) -> Ft6x06<'a> {
         // setup and return struct
         interrupt_pin.enable_interrupts(gpio::InterruptEdge::FallingEdge);
-        Ft6206 {
+        Ft6x06 {
             i2c: i2c,
             interrupt_pin: interrupt_pin,
             // callback: OptionalCell::empty(),
@@ -85,7 +83,7 @@ impl<'a> Ft6206<'a> {
     }
 }
 
-impl i2c::I2CClient for Ft6206<'_> {
+impl i2c::I2CClient for Ft6x06<'_> {
     fn command_complete(&self, buffer: &'static mut [u8], _error: Error) {
         self.state.set(State::Idle);
         self.buffer.replace(buffer);
@@ -94,7 +92,7 @@ impl i2c::I2CClient for Ft6206<'_> {
     }
 }
 
-impl gpio::Client for Ft6206<'_> {
+impl gpio::Client for Ft6x06<'_> {
     fn fired(&self) {
         self.buffer.take().map(|buffer| {
             self.interrupt_pin.disable_interrupts();
@@ -107,7 +105,75 @@ impl gpio::Client for Ft6206<'_> {
     }
 }
 
-impl Driver for Ft6206<'_> {
+impl touch::Touch for Ft6x06<'_> {
+    fn enable(&self) -> ReturnCode {
+        ReturnCode::SUCCESS
+    }
+
+    fn disable(&self) -> ReturnCode {
+        ReturnCode::SUCCESS
+    }
+
+    fn set_client(&self, client: &'static dyn touch::TouchClient) {
+        self.touch_client.replace(client);
+    }
+}
+
+impl touch::Gesture for Ft6x06<'_> {
+    fn set_client(&self, client: &'static dyn touch::GestureClient) {
+        self.gesture_client.replace(client);
+    }
+}
+
+impl touch::MultiTouch for Ft6x06<'_> {
+    fn enable(&self) -> ReturnCode {
+        ReturnCode::SUCCESS
+    }
+
+    fn disable(&self) -> ReturnCode {
+        ReturnCode::SUCCESS
+    }
+
+    fn get_num_touches(&self) -> usize {
+        2
+    }
+
+    fn get_touch(&self, index: usize) -> Option<TouchEvent> {
+        self.buffer.map_or(None, |buffer| {
+            if index <= self.num_touches.get() {
+                // a touch has 7 bytes
+                let offset = index * 7;
+                let status = match buffer[offset + 1] >> 6 {
+                    0x00 => TouchStatus::Pressed,
+                    0x01 => TouchStatus::Released,
+                    _ => TouchStatus::Released,
+                };
+                let x =
+                    (((buffer[offset + 2] & 0x0F) as usize) << 8) + (buffer[offset + 3] as usize);
+                let y =
+                    (((buffer[offset + 4] & 0x0F) as usize) << 8) + (buffer[offset + 5] as usize);
+                let weight = Some(buffer[offset + 6] as usize);
+                let area = Some(buffer[offset + 7] as usize);
+                Some(TouchEvent {
+                    status,
+                    x,
+                    y,
+                    id: 0,
+                    weight,
+                    area,
+                })
+            } else {
+                None
+            }
+        })
+    }
+
+    fn set_client(&self, client: &'static dyn touch::MultiTouchClient) {
+        self.multi_touch_client.replace(client);
+    }
+}
+
+impl Driver for Ft6x06<'_> {
     fn command(&self, command_num: usize, _: usize, _: usize, _: AppId) -> ReturnCode {
         match command_num {
             // is driver present
