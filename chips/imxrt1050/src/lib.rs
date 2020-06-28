@@ -4,7 +4,7 @@
 
 #![crate_name = "imxrt1050"]
 #![crate_type = "rlib"]
-#![feature(asm, const_fn, in_band_lifetimes)]
+#![feature(llvm_asm, const_fn, in_band_lifetimes)]
 #![no_std]
 #![allow(unused_doc_comments)]
 
@@ -34,7 +34,7 @@ unsafe extern "C" fn unhandled_interrupt() {
     let mut interrupt_number: u32;
 
     // IPSR[8:0] holds the currently active interrupt
-    asm!(
+    llvm_asm!(
     "mrs    r0, ipsr                    "
     : "={r0}"(interrupt_number)
     :

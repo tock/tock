@@ -19,6 +19,11 @@ use crate::process::{self, Task};
 use crate::returncode::ReturnCode;
 use crate::syscall::{ContextSwitchReason, Syscall};
 
+/// The time a process is permitted to run before being pre-empted
+const KERNEL_TICK_DURATION_US: u32 = 10000;
+/// Skip re-scheduling a process if its quanta is nearly exhausted
+const MIN_QUANTA_THRESHOLD_US: u32 = 500;
+
 /// Main object for the kernel. Each board will need to create one.
 pub struct Kernel {
     /// How many "to-do" items exist at any given time. These include
@@ -324,7 +329,7 @@ impl Kernel {
     ) {
         let systick = chip.systick();
         systick.reset();
-        systick.set_timer(config::CONFIG.kernel_tick_duration_us);
+        systick.set_timer(KERNEL_TICK_DURATION_US);
         systick.enable(false);
 
         loop {
@@ -334,8 +339,7 @@ impl Kernel {
                 break;
             }
 
-            if systick.overflowed() || !systick.greater_than(config::CONFIG.min_quanta_threshold_us)
-            {
+            if systick.overflowed() || !systick.greater_than(MIN_QUANTA_THRESHOLD_US) {
                 process.debug_timeslice_expired();
                 break;
             }
