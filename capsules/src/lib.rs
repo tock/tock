@@ -62,6 +62,7 @@ pub mod si7021;
 pub mod spi;
 pub mod st7735;
 pub mod temperature;
+pub mod touch;
 pub mod tsl2561;
 pub mod usb;
 pub mod virtual_alarm;
