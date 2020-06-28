@@ -101,12 +101,12 @@ impl SysTick {
     }
 
     // Return the tic frequency in hertz. If the value is configured by the
-    // user using the `new_with_calibration` constructor return `self.hertz`. 
+    // user using the `new_with_calibration` constructor return `self.hertz`.
     // Otherwise, compute the frequncy using the calibration value that is set
-    // in hardware. 
+    // in hardware.
     fn hertz(&self) -> u32 {
         if self.hertz != 0 {
-             self.hertz
+            self.hertz
         } else {
             // The `tenms` register is the reload value for 10ms, so
             // Hertz = number of tics in 1 second = tenms * 100
