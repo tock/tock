@@ -11,6 +11,7 @@ members = [
     "boards/hail",
     "boards/hifive1",
     "boards/imix",
+    "boards/imxrt1050-evkb",
     "boards/nordic/nrf52840dk",
     "boards/nordic/nrf52840_dongle",
     "boards/nordic/nrf52dk",
