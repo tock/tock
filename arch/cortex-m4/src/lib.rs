@@ -43,6 +43,14 @@ pub unsafe extern "C" fn systick_handler() {
 pub unsafe extern "C" fn systick_handler() {
     llvm_asm!(
         "
+    // Clear SYSTICK_CTRL.ENABLE[0]. This will stop the SysTick
+    // counter, so we can accurately know how much time was used by the
+    // user process.
+    ldr r0, =0xE000E010
+    ldr r1, [r0]
+    bic r1, #1
+    str r1, [r0]
+
     // Mark that the systick handler was called meaning that the process stopped
     // executing because it has exceeded its timeslice. This is a global
     // variable that the `UserspaceKernelBoundary` code uses to determine why
@@ -86,6 +94,14 @@ pub unsafe extern "C" fn generic_isr() {
 pub unsafe extern "C" fn generic_isr() {
     llvm_asm!(
         "
+    // Clear SYSTICK_CTRL.ENABLE[0]. This will stop the SysTick
+    // counter, so we can accurately know how much time was used by the
+    // user process.
+    ldr r0, =0xE000E010
+    ldr r1, [r0]
+    bic r1, #1
+    str r1, [r0]
+
     // Set thread mode to privileged to ensure we are executing as the kernel.
     // This may be redundant if the interrupt happened while the kernel code
     // was executing.
@@ -215,6 +231,14 @@ pub unsafe extern "C" fn svc_handler() {
     bx lr
 
   to_kernel:
+    // Clear SYSTICK_CTRL.ENABLE[0]. This will stop the SysTick
+    // counter, so we can accurately know how much time was used by the
+    // user process.
+    ldr r0, =0xE000E010
+    ldr r1, [r0]
+    bic r1, #1
+    str r1, [r0]
+
     // An application called a syscall. We mark this in the global variable
     // `SYSCALL_FIRED` which is stored in the syscall file.
     // `UserspaceKernelBoundary` will use this variable to decide why the app

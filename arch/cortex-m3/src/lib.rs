@@ -40,6 +40,14 @@ pub unsafe extern "C" fn systick_handler() {
 pub unsafe extern "C" fn systick_handler() {
     llvm_asm!(
         "
+    // Clear SYSTICK_CTRL.ENABLE[0]. This will stop the SysTick
+    // counter, so we can accurately know how much time was used by the
+    // user process.
+    ldr r0, =0xE000E010
+    ldr r1, [r0]
+    bic r1, #1
+    str r1, [r0]
+
     /* Mark that the systick handler was called meaning that the process */
     /* stopped executing because it has exceeded its timeslice. */
     ldr r0, =SYSTICK_EXPIRED
@@ -70,6 +78,14 @@ pub unsafe extern "C" fn generic_isr() {
 pub unsafe extern "C" fn generic_isr() {
     llvm_asm!(
         "
+    // Clear SYSTICK_CTRL.ENABLE[0]. This will stop the SysTick
+    // counter, so we can accurately know how much time was used by the
+    // user process.
+    ldr r0, =0xE000E010
+    ldr r1, [r0]
+    bic r1, #1
+    str r1, [r0]
+
     /* Skip saving process state if not coming from user-space */
     cmp lr, #0xfffffffd
     bne _ggeneric_isr_no_stacking
@@ -162,6 +178,14 @@ pub unsafe extern "C" fn svc_handler() {
     movt lr, #0xffff
     bx lr
   to_kernel:
+    // Clear SYSTICK_CTRL.ENABLE[0]. This will stop the SysTick
+    // counter, so we can accurately know how much time was used by the
+    // user process.
+    ldr r0, =0xE000E010
+    ldr r1, [r0]
+    bic r1, #1
+    str r1, [r0]
+
     ldr r0, =SYSCALL_FIRED
     mov r1, #1
     str r1, [r0, #0]
