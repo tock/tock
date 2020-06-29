@@ -148,7 +148,7 @@ pub struct Gpt1<'a> {
 
 pub static mut GPT1: Gpt1<'static> = Gpt1::new();
 
-impl Gpt1<'a> {
+impl<'a> Gpt1<'a> {
     const fn new() -> Gpt1<'a> {
         Gpt1 {
             registers: GPT1_BASE,
@@ -242,7 +242,7 @@ impl Gpt1<'a> {
     }
 }
 
-impl hil::time::Alarm<'a> for Gpt1<'a> {
+impl<'a> hil::time::Alarm<'a> for Gpt1<'a> {
     fn set_client(&self, client: &'a dyn hil::time::AlarmClient) {
         self.client.set(client);
     }
@@ -276,7 +276,7 @@ impl hil::time::Alarm<'a> for Gpt1<'a> {
 /// In our case, we get a 24.75 MHz frequency for the timer.
 /// The frequency will be fixed when the ARM_PLL1 CLK will
 /// be correctly configured.
-impl hil::time::Time for Gpt1<'a> {
+impl hil::time::Time for Gpt1<'_> {
     type Frequency = hil::time::Freq2475MHz;
 
     fn now(&self) -> u32 {
