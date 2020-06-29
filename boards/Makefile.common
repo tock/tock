@@ -164,7 +164,7 @@ endif
 # present, if not use the custom shipped one
 ifeq (, $(shell sha256sum --version 2>/dev/null))
   # No system sha256sum available
-  SHA256SUM := $(CARGO) run --manifest-path $(TOCK_ROOT_DIRECTORY)tools/sha256sum/Cargo.toml --
+  SHA256SUM := $(CARGO) run --manifest-path $(TOCK_ROOT_DIRECTORY)tools/sha256sum/Cargo.toml -- 2>/dev/null
 else
   # Use system sha256sum
   SHA256SUM := sha256sum
@@ -198,6 +198,7 @@ ifneq ($(V),)
   $(info OBJDUMP              = $(OBJDUMP))
   $(info CARGO                = $(CARGO))
   $(info RUSTUP               = $(RUSTUP))
+  $(info SHA256SUM            = $(SHA256SUM))
   $(info )
   $(info cargo --version      = $(shell $(CARGO) --version))
   $(info rustc --version      = $(shell rustc --version))
