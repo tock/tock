@@ -16,8 +16,6 @@
 // Author: Philip Levis <pal@cs.stanford.edu>
 // Last modified: 6/03/2020
 
-#![allow(dead_code)] // Components are intended to be conditionally included
-
 use capsules::fxos8700cq;
 use capsules::virtual_i2c::{I2CDevice, MuxI2C};
 
