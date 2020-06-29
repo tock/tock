@@ -4,7 +4,7 @@
 
 #![crate_name = "imxrt1050"]
 #![crate_type = "rlib"]
-#![feature(llvm_asm, const_fn, in_band_lifetimes)]
+#![feature(llvm_asm, const_fn)]
 #![no_std]
 #![allow(unused_doc_comments)]
 

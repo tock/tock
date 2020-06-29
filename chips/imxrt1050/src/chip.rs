@@ -22,7 +22,9 @@ impl Imxrt1050 {
         Imxrt1050 {
             mpu: cortexm7::mpu::MPU::new(),
             userspace_kernel_boundary: cortexm7::syscall::SysCall::new(),
-            systick: cortexm7::systick::SysTick::new(),
+            systick: cortexm7::systick::SysTick::new_with_calibration_and_external_clock(
+                792_000_000,
+            ),
         }
     }
 }

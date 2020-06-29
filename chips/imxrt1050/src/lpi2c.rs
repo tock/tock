@@ -467,9 +467,9 @@ pub static mut LPI2C1: Lpi2c = Lpi2c::new(
     Lpi2cClock(ccm::PeripheralClock::CCGR2(ccm::HCLK2::LPI2C1)),
 );
 
-impl Lpi2c<'a> {
-    const fn new(base_addr: StaticRef<Lpi2cRegisters>, clock: Lpi2cClock) -> Lpi2c<'a> {
-        Lpi2c {
+impl Lpi2c<'_> {
+    const fn new(base_addr: StaticRef<Lpi2cRegisters>, clock: Lpi2cClock) -> Self {
+        Self {
             registers: base_addr,
             clock,
 
@@ -693,7 +693,7 @@ impl Lpi2c<'a> {
     }
 }
 
-impl i2c::I2CMaster for Lpi2c<'a> {
+impl i2c::I2CMaster for Lpi2c<'_> {
     fn set_master_client(&self, master_client: &'static dyn I2CHwMasterClient) {
         self.master_client.replace(master_client);
     }
