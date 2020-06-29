@@ -23,9 +23,11 @@
 use core::cell::Cell;
 use enum_primitive::cast::FromPrimitive;
 use enum_primitive::enum_from_primitive;
-use kernel::common::cells::TakeCell;
+use kernel::common::cells::{OptionalCell, TakeCell};
+use kernel::debug;
 use kernel::hil::gpio;
 use kernel::hil::i2c::{self, Error};
+use kernel::hil::touch::{self, GestureEvent, TouchEvent, TouchStatus};
 use kernel::{AppId, Driver, ReturnCode};
 
 use crate::driver;
@@ -43,16 +45,20 @@ enum State {
 
 enum_from_primitive! {
     enum Registers {
-        REG_NUMTOUCHES = 0x2,
+        REG_GEST_ID = 0x01,
+        REG_TD_STATUS = 0x02,
         REG_CHIPID = 0xA3,
     }
 }
 
 pub struct Ft6x06<'a> {
     i2c: &'a dyn i2c::I2CDevice,
-    interrupt_pin: &'a dyn gpio::InterruptPin<'a>,
-    // callback: OptionalCell<Callback>,
+    interrupt_pin: &'a dyn gpio::InterruptPin,
+    touch_client: OptionalCell<&'static dyn touch::TouchClient>,
+    gesture_client: OptionalCell<&'static dyn touch::GestureClient>,
+    multi_touch_client: OptionalCell<&'static dyn touch::MultiTouchClient>,
     state: Cell<State>,
+    num_touches: Cell<usize>,
     buffer: TakeCell<'static, [u8]>,
 }
 
@@ -67,26 +73,65 @@ impl<'a> Ft6x06<'a> {
         Ft6x06 {
             i2c: i2c,
             interrupt_pin: interrupt_pin,
-            // callback: OptionalCell::empty(),
+            touch_client: OptionalCell::empty(),
+            gesture_client: OptionalCell::empty(),
+            multi_touch_client: OptionalCell::empty(),
             state: Cell::new(State::Idle),
+            num_touches: Cell::new(0),
             buffer: TakeCell::new(buffer),
         }
-    }
-
-    pub fn is_present(&self) {
-        self.state.set(State::Idle);
-        self.buffer.take().map(|buf| {
-            // turn on i2c to send commands
-            buf[0] = Registers::REG_CHIPID as u8;
-            self.i2c.write_read(buf, 1, 1);
-        });
     }
 }
 
 impl i2c::I2CClient for Ft6x06<'_> {
     fn command_complete(&self, buffer: &'static mut [u8], _error: Error) {
         self.state.set(State::Idle);
+        self.num_touches.set((buffer[1] & 0x0F) as usize);
+        self.touch_client.map(|client| {
+            if self.num_touches.get() <= 2 {
+                let status = match buffer[1] >> 6 {
+                    0x00 => TouchStatus::Pressed,
+                    0x01 => TouchStatus::Released,
+                    _ => TouchStatus::Released,
+                };
+                let x = (((buffer[2] & 0x0F) as usize) << 8) + (buffer[3] as usize);
+                let y = (((buffer[4] & 0x0F) as usize) << 8) + (buffer[5] as usize);
+                let weight = Some(buffer[6] as usize);
+                let area = Some(buffer[7] as usize);
+                client.touch_event(TouchEvent {
+                    status,
+                    x,
+                    y,
+                    id: 0,
+                    weight,
+                    area,
+                });
+            }
+        });
+        self.gesture_client.map(|client| {
+            if self.num_touches.get() <= 2 {
+                let gesture_event = match buffer[0] {
+                    0x10 => Some(GestureEvent::SwipeUp),
+                    0x14 => Some(GestureEvent::SwipeRight),
+                    0x18 => Some(GestureEvent::SwipeDown),
+                    0x1C => Some(GestureEvent::SwipeLeft),
+                    0x48 => Some(GestureEvent::ZoomIn),
+                    0x49 => Some(GestureEvent::ZoomOut),
+                    _ => None,
+                };
+                debug!("{}", buffer[0]);
+                if let Some(gesture) = gesture_event {
+                    client.gesture_event(gesture);
+                }
+            }
+        });
+        // put tyhe buffer back before the multi touch client might ask for events
         self.buffer.replace(buffer);
+        self.multi_touch_client.map(|client| {
+            if self.num_touches.get() <= 2 {
+                client.touch_event(self.num_touches.get());
+            }
+        });
         self.interrupt_pin
             .enable_interrupts(gpio::InterruptEdge::FallingEdge);
     }
@@ -99,8 +144,8 @@ impl gpio::Client for Ft6x06<'_> {
 
             self.state.set(State::ReadingTouches);
 
-            buffer[0] = 0;
-            self.i2c.write_read(buffer, 1, 16);
+            buffer[0] = Registers::REG_GEST_ID as u8;
+            self.i2c.write_read(buffer, 1, 15);
         });
     }
 }

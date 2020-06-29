@@ -54,8 +54,8 @@ struct STM32F412GDiscovery {
         VirtualMuxAlarm<'static, stm32f412g::tim2::Tim2<'static>>,
     >,
     gpio: &'static capsules::gpio::GPIO<'static, stm32f412g::gpio::Pin<'static>>,
-    ft6206: &'static capsules::ft6206::Ft6206<'static>,
     adc: &'static capsules::adc::Adc<'static, stm32f412g::adc::Adc>,
+    ft6x06: &'static capsules::ft6x06::Ft6x06<'static>,
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
@@ -71,8 +71,8 @@ impl Platform for STM32F412GDiscovery {
             capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
-            capsules::ft6206::DRIVER_NUM => f(Some(self.ft6206)),
             capsules::adc::DRIVER_NUM => f(Some(self.adc)),
+            capsules::ft6x06::DRIVER_NUM => f(Some(self.ft6x06)),
             _ => f(None),
         }
     }
@@ -484,12 +484,12 @@ pub unsafe fn reset_handler() {
     )
     .finalize(components::i2c_mux_component_helper!());
 
-    let ft6206 = components::ft6206::Ft6206Component::new(
+    let ft6x06 = components::ft6x06::Ft6x06Component::new(
         stm32f412g::gpio::PinId::PG05.get_pin().as_ref().unwrap(),
     )
-    .finalize(components::ft6206_i2c_component_helper!(mux_i2c));
+    .finalize(components::ft6x06_i2c_component_helper!(mux_i2c));
 
-    ft6206.is_present();
+    // ADC
 
     let adc_channels = static_init!(
         [&'static stm32f412g::adc::Channel; 6],
@@ -517,15 +517,15 @@ pub unsafe fn reset_handler() {
     );
     stm32f412g::adc::ADC1.set_client(adc);
 
-    let nucleo_f412g = STM32F412GDiscovery {
+    let stm32f412g = STM32F412GDiscovery {
         console: console,
         ipc: kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability),
         led: led,
         button: button,
         alarm: alarm,
         gpio: gpio,
-        ft6206: ft6206,
         adc: adc,
+        ft6x06: ft6x06,
     };
 
     // // Optional kernel tests
@@ -578,9 +578,9 @@ pub unsafe fn reset_handler() {
     });
 
     board_kernel.kernel_loop(
-        &nucleo_f412g,
+        &stm32f412g,
         chip,
-        Some(&nucleo_f412g.ipc),
+        Some(&stm32f412g.ipc),
         &main_loop_capability,
     );
 }

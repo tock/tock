@@ -41,7 +41,8 @@ impl Default for App {
 }
 
 pub struct Touch<'a> {
-    touch: &'a dyn hil::touch::Touch,
+    touch: Option<&'a dyn hil::touch::Touch>,
+    multi_touch: Option<&'a dyn hil::touch::MultiTouch>,
     /// Screen under the touch panel
     /// Most of the touch panels have a screen that can be rotated
     /// 90 deg (clockwise), 180 deg (upside-down), 270 deg(clockwise).
@@ -53,12 +54,14 @@ pub struct Touch<'a> {
 
 impl<'a> Touch<'a> {
     pub fn new(
-        touch: &'a dyn hil::touch::Touch,
-        grant: Grant<App>,
+        touch: Option<&'a dyn hil::touch::Touch>,
+        multi_touch: Option<&'a dyn hil::touch::MultiTouch>,
         screen: Option<&'a dyn hil::screen::Screen>,
+        grant: Grant<App>,
     ) -> Touch<'a> {
         Touch {
             touch: touch,
+            multi_touch: multi_touch,
             screen: screen,
             apps: grant,
         }
@@ -112,6 +115,28 @@ impl<'a> hil::touch::TouchClient for Touch<'a> {
     }
 }
 
+impl<'a> hil::touch::MultiTouchClient for Touch<'a> {
+    fn touch_event(&self, _num_events: usize) {
+        // update rotation if there is a screen attached
+        // self.update_rotation(&mut event);
+        // debug!(
+        //     "touch {:?} x {} y {} area {:?} weight {:?}",
+        //     event.status, event.x, event.y, event.area, event.weight
+        // );
+        // for app in self.apps.iter() {
+        //     app.enter(|app, _| {
+        //         app.touch_callback.map(|mut callback| {
+        //             let event_id = match event.status {
+        //                 TouchStatus::Released => 0,
+        //                 TouchStatus::Pressed => 1,
+        //             };
+        //             callback.schedule(event.x, event.y, event_id);
+        //         })
+        //     });
+        // }
+    }
+}
+
 impl<'a> hil::touch::GestureClient for Touch<'a> {
     fn gesture_event(&self, event: GestureEvent) {
         debug!("gesture {:?}", event);
@@ -119,10 +144,10 @@ impl<'a> hil::touch::GestureClient for Touch<'a> {
             app.enter(|app, _| {
                 app.gesture_callback.map(|mut callback| {
                     let gesture_id = match event {
-                        GestureEvent::MoveUp => 1,
-                        GestureEvent::MoveDown => 2,
-                        GestureEvent::MoveLeft => 3,
-                        GestureEvent::MoveRight => 4,
+                        GestureEvent::SwipeUp => 1,
+                        GestureEvent::SwipeDown => 2,
+                        GestureEvent::SwipeLeft => 3,
+                        GestureEvent::SwipeRight => 4,
                         GestureEvent::ZoomIn => 5,
                         GestureEvent::ZoomOut => 6,
                     };
@@ -191,9 +216,25 @@ impl<'a> Driver for Touch<'a> {
             }
 
             // Touch Enable
-            1 => self.touch.enable(),
+            1 => {
+                if let Some(touch) = self.touch {
+                    touch.enable()
+                } else if let Some(multi_touch) = self.multi_touch {
+                    multi_touch.enable()
+                } else {
+                    ReturnCode::ENODEVICE
+                }
+            }
             // Touch Disable
-            2 => self.touch.disable(),
+            2 => {
+                if let Some(touch) = self.touch {
+                    touch.disable()
+                } else if let Some(multi_touch) = self.multi_touch {
+                    multi_touch.disable()
+                } else {
+                    ReturnCode::ENODEVICE
+                }
+            }
 
             _ => ReturnCode::ENOSUPPORT,
         }
