@@ -17,17 +17,16 @@
 // Last modified: 6/03/2020
 
 #![allow(dead_code)] // Components are intended to be conditionally included
-#![allow(unused_imports)] // I2CDevice
 
 use capsules::fxos8700cq;
 use capsules::virtual_i2c::{I2CDevice, MuxI2C};
-use kernel::capabilities;
+
 use kernel::component::Component;
-use kernel::create_capability;
+
 use kernel::hil;
 use kernel::hil::gpio;
 use kernel::static_init;
-use kernel::Grant;
+
 
 pub struct Fxos8700Component {
     i2c_mux: &'static MuxI2C<'static>,
