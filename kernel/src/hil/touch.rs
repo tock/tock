@@ -24,17 +24,17 @@ pub enum GestureEvent {
 #[derive(Copy, Clone)]
 pub struct TouchEvent {
     pub status: TouchStatus,
-    // touch (x, y) position
+    /// touch (x, y) position
     pub x: usize,
     pub y: usize,
 
-    // touch id, value defined by the driver
+    /// touch id, value defined by the driver
     pub id: usize,
 
-    // touch area
+    /// touch area
     pub area: Option<usize>,
 
-    // touch weight
+    /// touch weight
     pub weight: Option<usize>,
 }
 
