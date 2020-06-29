@@ -939,7 +939,7 @@ pub static mut PIN: [[Option<Pin<'static>>; 42]; 7] = [
     ],
 ];
 
-impl Pin<'a> {
+impl<'a> Pin<'a> {
     const fn new(pinid: PinId) -> Pin<'a> {
         Pin {
             pinid: pinid,
@@ -1032,10 +1032,10 @@ impl Pin<'a> {
     }
 }
 
-impl hil::gpio::Pin for Pin<'a> {}
-impl hil::gpio::InterruptPin for Pin<'a> {}
+impl hil::gpio::Pin for Pin<'_> {}
+impl hil::gpio::InterruptPin for Pin<'_> {}
 
-impl hil::gpio::Configure for Pin<'a> {
+impl hil::gpio::Configure for Pin<'_> {
     fn make_output(&self) -> hil::gpio::Configuration {
         self.set_mode(Mode::Output);
         hil::gpio::Configuration::Output
@@ -1083,7 +1083,7 @@ impl hil::gpio::Configure for Pin<'a> {
     }
 }
 
-impl hil::gpio::Output for Pin<'a> {
+impl hil::gpio::Output for Pin<'_> {
     fn set(&self) {
         self.set_output_high();
     }
@@ -1097,14 +1097,14 @@ impl hil::gpio::Output for Pin<'a> {
     }
 }
 
-impl hil::gpio::Input for Pin<'a> {
+impl hil::gpio::Input for Pin<'_> {
     fn read(&self) -> bool {
         self.read_input()
     }
 }
 
 /// Interrupt capabilities are not yet implemented
-impl hil::gpio::Interrupt for Pin<'a> {
+impl hil::gpio::Interrupt for Pin<'_> {
     fn enable_interrupts(&self, _mode: hil::gpio::InterruptEdge) {}
 
     fn disable_interrupts(&self) {}

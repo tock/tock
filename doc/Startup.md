@@ -98,7 +98,7 @@ inline assembly as of this writing:
 #[naked]
 pub extern "C" fn _start() {
     unsafe {
-        llvm_asm! ("
+        asm! ("
 
 ```
 

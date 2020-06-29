@@ -337,7 +337,7 @@ pub static mut LPUART1: Lpuart = Lpuart::new(
     LpuartClock(ccm::PeripheralClock::CCGR5(ccm::HCLK5::LPUART1)),
 );
 
-impl Lpuart<'a> {
+impl<'a> Lpuart<'a> {
     const fn new(base_addr: StaticRef<LpuartRegisters>, clock: LpuartClock) -> Lpuart<'a> {
         Lpuart {
             registers: base_addr,
@@ -509,7 +509,7 @@ impl Lpuart<'a> {
     }
 }
 
-impl hil::uart::Transmit<'a> for Lpuart<'a> {
+impl<'a> hil::uart::Transmit<'a> for Lpuart<'a> {
     fn set_transmit_client(&self, client: &'a dyn hil::uart::TransmitClient) {
         self.tx_client.set(client);
     }
@@ -549,7 +549,7 @@ impl hil::uart::Transmit<'a> for Lpuart<'a> {
     }
 }
 
-impl hil::uart::Configure for Lpuart<'a> {
+impl<'a> hil::uart::Configure for Lpuart<'a> {
     fn configure(&self, params: hil::uart::Parameters) -> ReturnCode {
         if params.baud_rate != 115200
             || params.stop_bits != hil::uart::StopBits::One
@@ -630,7 +630,7 @@ impl hil::uart::Configure for Lpuart<'a> {
     }
 }
 
-impl hil::uart::Receive<'a> for Lpuart<'a> {
+impl<'a> hil::uart::Receive<'a> for Lpuart<'a> {
     fn set_receive_client(&self, client: &'a dyn hil::uart::ReceiveClient) {
         self.rx_client.set(client);
     }
@@ -670,8 +670,8 @@ impl hil::uart::Receive<'a> for Lpuart<'a> {
     }
 }
 
-impl hil::uart::UartData<'a> for Lpuart<'a> {}
-impl hil::uart::Uart<'a> for Lpuart<'a> {}
+impl<'a> hil::uart::UartData<'a> for Lpuart<'a> {}
+impl<'a> hil::uart::Uart<'a> for Lpuart<'a> {}
 struct LpuartClock(ccm::PeripheralClock);
 
 impl ClockInterface for LpuartClock {
