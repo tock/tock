@@ -25,7 +25,6 @@ use kernel::hil;
 use kernel::hil::gpio;
 use kernel::static_init;
 
-
 pub struct Fxos8700Component {
     i2c_mux: &'static MuxI2C<'static>,
     gpio: &'static dyn gpio::InterruptPin,
