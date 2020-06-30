@@ -116,7 +116,7 @@ impl<'a> hil::touch::TouchClient for Touch<'a> {
 }
 
 impl<'a> hil::touch::MultiTouchClient for Touch<'a> {
-    fn touch_event(&self, _num_events: usize) {
+    fn touch_events(&self, touch_events: &[TouchEvent], _num_events: usize) {
         // update rotation if there is a screen attached
         // self.update_rotation(&mut event);
         // debug!(

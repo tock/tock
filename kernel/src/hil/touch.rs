@@ -82,7 +82,7 @@ pub trait TouchClient {
 pub trait MultiTouchClient {
     /// Report a multi touch event
     /// num touches represents the number of touches detected
-    fn touch_event(&self, num_touches: usize);
+    fn touch_events(&self, touch_events: &[TouchEvent], len: usize);
 }
 
 /// Touch panels that support gestures
