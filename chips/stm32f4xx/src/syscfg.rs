@@ -97,11 +97,11 @@ register_bitfields![u32,
 const SYSCFG_BASE: StaticRef<SyscfgRegisters> =
     unsafe { StaticRef::new(0x40013800 as *const SyscfgRegisters) };
 
-/// SYSCFG EXTI configuration [^1]
-///
-/// [^1]: Section 8.2.2, page 197 of reference manual
 enum_from_primitive! {
     #[repr(u32)]
+    /// SYSCFG EXTI configuration [^1]
+    ///
+    /// [^1]: Section 8.2.2, page 197 of reference manual
     enum ExtiCrId {
         PA = 0b0000,
         PB = 0b0001,

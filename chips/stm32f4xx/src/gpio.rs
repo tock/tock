@@ -531,12 +531,12 @@ impl PinId {
     }
 }
 
-/// GPIO pin mode [^1]
-///
-/// [^1]: Section 7.1.4, page 187 of reference manual
 enum_from_primitive! {
     #[repr(u32)]
     #[derive(PartialEq)]
+    /// GPIO pin mode [^1]
+    ///
+    /// [^1]: Section 7.1.4, page 187 of reference manual
     pub enum Mode {
         Input = 0b00,
         GeneralPurposeOutputMode = 0b01,
@@ -578,11 +578,11 @@ pub enum AlternateFunction {
     AF15 = 0b1111,
 }
 
-/// GPIO pin internal pull-up and pull-down [^1]
-///
-/// [^1]: Section 7.4.4, page 189 of reference manual
 enum_from_primitive! {
     #[repr(u32)]
+    /// GPIO pin internal pull-up and pull-down [^1]
+    ///
+    /// [^1]: Section 7.4.4, page 189 of reference manual
     enum PullUpPullDown {
         NoPullUpPullDown = 0b00,
         PullUp = 0b01,

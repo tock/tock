@@ -4,7 +4,6 @@
 #![crate_type = "rlib"]
 #![feature(llvm_asm, const_fn, naked_functions)]
 #![no_std]
-#![allow(unused_doc_comments)]
 
 // Peripherals
 pub mod ble;
