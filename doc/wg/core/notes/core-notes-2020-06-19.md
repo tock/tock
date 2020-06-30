@@ -53,6 +53,7 @@ Attending
  * Amit: And this will necessarily be iterative; e.g. unallow/unsubscribe is subtle enough that questions will come up while implementing
 
 ## Host-side testing (Jon Flatley)
+ * https://docs.google.com/presentation/d/1zEamuINkO_FRBRUTEErGYdXX8s-0_JxoetnDOZova3g
  * Jon: Intro: Work on OT at Google, working on host-side testing framework
  * <screen share of slides .. to be posted> [TODO replace with link]
  * Brad: This is generally very exciting; first fresh implementation of the Process type. Definitely questions on how Process has been done before, so this is some nice validation
