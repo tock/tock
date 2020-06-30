@@ -122,7 +122,7 @@ struct GpioRegisters {
     pin_cnf: [ReadWrite<u32, PinConfig::Register>; 32],
 }
 
-/// Gpio
+// Gpio
 register_bitfields! [u32,
     /// Write GPIO port
     Out [
@@ -247,7 +247,7 @@ register_bitfields! [u32,
     ]
 ];
 
-/// GpioTe
+// GpioTe
 register_bitfields! [u32,
     /// Task for writing to pin specified in CONFIG\[n\].PSEL.
     /// Action on pin is configured in CONFIG\[n\].POLARITY
