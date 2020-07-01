@@ -73,11 +73,13 @@ impl Kernel {
     /// is that external implementations of `ProcessType` need to be able to
     /// indicate there is more process work to do.
     pub fn increment_work_public(&self, _capability: &dyn capabilities::MainLoopCapability) {
-        self.work.increment();
+        self.increment_work();
     }
 
     /// Something finished for a process, so we decrement how much work there is
     /// to do.
+    ///
+    /// This is only exposed in the core kernel crate.
     pub(crate) fn decrement_work(&self) {
         self.work.decrement();
     }
@@ -89,7 +91,7 @@ impl Kernel {
     /// is that external implementations of `ProcessType` need to be able to
     /// indicate that some process work has finished.
     pub fn decrement_work_public(&self, _capability: &dyn capabilities::MainLoopCapability) {
-        self.work.decrement();
+        self.decrement_work();
     }
 
     /// Helper function for determining if we should service processes or go to
@@ -294,8 +296,7 @@ impl Kernel {
         &self,
         _capability: &dyn capabilities::ExternalProcessCapability,
     ) -> usize {
-        self.grants_finalized.set(true);
-        self.grant_counter.get()
+        self.get_grant_count_and_finalize()
     }
 
     /// Create a new unique identifier for a process and return the identifier.
