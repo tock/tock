@@ -510,7 +510,7 @@ define ci_setup_qemu_opentitan
 	# Download OpenTitan image
 	@printf "Downloading OpenTitan boot rom from: 1beb08b474790d4b6c67ae5b3423e2e8dfc9e368\n"
 	@pwd=$$(pwd) && \
-		temp=$$(mktemp -d)\
+		temp=$$(mktemp -d) && \
 		cd $$temp && \
 		curl $$(curl "https://dev.azure.com/lowrisc/opentitan/_apis/build/builds/14991/artifacts?artifactName=opentitan-dist&api-version=5.1" | cut -d \" -f 38) --output opentitan-dist.zip; \
 		unzip opentitan-dist.zip; \
