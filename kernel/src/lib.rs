@@ -48,8 +48,8 @@ pub use crate::sched::Kernel;
 /// Publicly available process-related objects.
 pub mod procs {
     pub use crate::process::{
-        load_processes, AlwaysRestart, Error, FaultResponse, FunctionCall, Process,
-        ProcessLoadError, ProcessRestartPolicy, ProcessType, ThresholdRestart,
-        ThresholdRestartThenPanic,
+        load_processes, AlwaysRestart, Error, FaultResponse, FunctionCall, FunctionCallSource,
+        Process, ProcessLoadError, ProcessRestartPolicy, ProcessType, State, Task,
+        ThresholdRestart, ThresholdRestartThenPanic,
     };
 }

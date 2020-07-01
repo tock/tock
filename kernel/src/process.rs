@@ -576,6 +576,9 @@ impl From<Error> for ReturnCode {
 }
 
 /// Various states a process can be in.
+///
+/// This is made public in case external implementations of `ProcessType` want
+/// to re-use these process states in the external implementation.
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum State {
     /// Process expects to be running code. The process may not be currently
@@ -641,19 +644,28 @@ pub enum FaultResponse {
     Stop,
 }
 
+/// Tasks that can be enqueued for a process.
+///
+/// This is public for external implementations of `ProcessType`.
 #[derive(Copy, Clone)]
 pub enum Task {
+    /// Function pointer in the process to execute. Generally this is a callback
+    /// from a capsule.
     FunctionCall(FunctionCall),
+    /// An IPC operation that needs additional setup to configure memory access.
     IPC((AppId, ipc::IPCCallbackType)),
 }
 
-/// Enumeration to identify whether a function call comes directly from the
-/// kernel or from a callback subscribed through a driver.
+/// Enumeration to identify whether a function call for a process comes directly
+/// from the kernel or from a callback subscribed through a `Driver`
+/// implementation.
 ///
-/// An example of kernel function is the application entry point.
+/// An example of a kernel function is the application entry point.
 #[derive(Copy, Clone, Debug)]
 pub enum FunctionCallSource {
-    Kernel, // For functions coming directly from the kernel, such as `init_fn`.
+    /// For functions coming directly from the kernel, such as `init_fn`.
+    Kernel,
+    /// For functions coming from capsules or any implementation of `Driver`.
     Driver(CallbackId),
 }
 

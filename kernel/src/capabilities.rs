@@ -45,32 +45,44 @@
 //! Anything that calls `manage_process` must have a reference to some object
 //! that provides the `ProcessManagementCapability` trait, which proves that it
 //! has the correct capability.
+
 /// The `ProcessManagementCapability` allows the holder to control
 /// process execution, such as related to creating, restarting, and
 /// otherwise managing processes.
 pub unsafe trait ProcessManagementCapability {}
 
-/// The `MainLoopCapability` capability allows the holder to start executing
-/// the main scheduler loop in Tock.
+/// The `MainLoopCapability` capability allows the holder to start executing as
+/// well as manage the main scheduler loop in Tock. This is needed in a board's
+/// main.rs file to start the kernel. It also allows an external implementation
+/// of `ProcessType` to update state in the kernel struct used by the main loop.
 pub unsafe trait MainLoopCapability {}
 
 /// The `MemoryAllocationCapability` capability allows the holder to allocate
 /// memory, for example by creating grants.
 pub unsafe trait MemoryAllocationCapability {}
 
-/// The `UdpDriverCapability` capability allows the holder to use
-/// two functions only allowed by the UDP driver.
-/// The first `driver_send_to()` function in udp_send.rs, which does
-/// not require being bound to a single port, since the driver manages port
-/// bindings for apps on its own. The second is the `set_user_ports()` function
-/// in `udp_port_table.rs`, which gives the UDP port table a reference to
-/// the UDP driver so that it can check which ports have been bound by apps.
+/// The `ExternalProcessCapability` capability allows the holder to use the core
+/// kernel resources needed to successfully implement the `ProcessType` trait
+/// from outside of the core kernel crate. Many of these operations are very
+/// sensitive, that is they cannot just be made public. In particular, certain
+/// objects can be used outside of the core kernel, but the constructors must be
+/// restricted.
+pub unsafe trait ExternalProcessCapability {}
+
+/// The `UdpDriverCapability` capability allows the holder to use two functions
+/// only allowed by the UDP driver. The first is the `driver_send_to()` function
+/// in udp_send.rs, which does not require being bound to a single port, since
+/// the driver manages port bindings for apps on its own. The second is the
+/// `set_user_ports()` function in `udp_port_table.rs`, which gives the UDP port
+/// table a reference to the UDP driver so that it can check which ports have
+/// been bound by apps.
 pub unsafe trait UdpDriverCapability {}
 
-/// The `CreatePortTableCapability` capability allows the holder to instantiate a new
-/// copy of the UdpPortTable struct. There should only ever be one instance of this struct,
-/// so this capability should not be distributed to capsules at all, as the port table should only be
-/// instantiated once by the kernel
+/// The `CreatePortTableCapability` capability allows the holder to instantiate
+/// a new copy of the UdpPortTable struct. There should only ever be one
+/// instance of this struct, so this capability should not be distributed to
+/// capsules at all, as the port table should only be instantiated once by the
+/// kernel
 pub unsafe trait CreatePortTableCapability {}
 
 /// The `NetworkCapabilityCreationCapability` allows the holder to instantiate
