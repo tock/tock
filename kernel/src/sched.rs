@@ -61,13 +61,34 @@ impl Kernel {
     }
 
     /// Something was scheduled for a process, so there is more work to do.
+    ///
+    /// This is only exposed in the core kernel crate.
     pub(crate) fn increment_work(&self) {
+        self.work.increment();
+    }
+
+    /// Something was scheduled for a process, so there is more work to do.
+    ///
+    /// This is exposed publicly, but restricted with a capability. The intent
+    /// is that external implementations of `ProcessType` need to be able to
+    /// indicate there is more process work to do.
+    pub fn increment_work_public(&self, _capability: &dyn capabilities::MainLoopCapability) {
         self.work.increment();
     }
 
     /// Something finished for a process, so we decrement how much work there is
     /// to do.
     pub(crate) fn decrement_work(&self) {
+        self.work.decrement();
+    }
+
+    /// Something finished for a process, so we decrement how much work there is
+    /// to do.
+    ///
+    /// This is exposed publicly, but restricted with a capability. The intent
+    /// is that external implementations of `ProcessType` need to be able to
+    /// indicate that some process work has finished.
+    pub fn decrement_work_public(&self, _capability: &dyn capabilities::MainLoopCapability) {
         self.work.decrement();
     }
 
@@ -254,6 +275,25 @@ impl Kernel {
     /// In practice, this is called when processes are created, and the process
     /// memory is setup based on the number of current grants.
     pub(crate) fn get_grant_count_and_finalize(&self) -> usize {
+        self.grants_finalized.set(true);
+        self.grant_counter.get()
+    }
+
+    /// Returns the number of grants that have been setup in the system and
+    /// marks the grants as "finalized". This means that no more grants can
+    /// be created because data structures have been setup based on the number
+    /// of grants when this function is called.
+    ///
+    /// In practice, this is called when processes are created, and the process
+    /// memory is setup based on the number of current grants.
+    ///
+    /// This is exposed publicly, but restricted with a capability. The intent
+    /// is that external implementations of `ProcessType` need to be able to
+    /// retrieve the final number of grants.
+    pub fn get_grant_count_and_finalize_public(
+        &self,
+        _capability: &dyn capabilities::ExternalProcessCapability,
+    ) -> usize {
         self.grants_finalized.set(true);
         self.grant_counter.get()
     }
