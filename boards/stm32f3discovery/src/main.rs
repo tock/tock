@@ -186,6 +186,13 @@ unsafe fn set_pin_primary_functions() {
         pin.set_alternate_function(AlternateFunction::AF4);
     });
 
+    // test
+    PinId::PA01.get_pin().as_ref().map(|pin| {
+        pin.make_input();
+        pin.deactivate_to_low_power();
+        // debug!("PA01 analog");
+    });
+
     stm32f303xc::i2c::I2C1.enable_clock();
     stm32f303xc::i2c::I2C1.set_speed(stm32f303xc::i2c::I2CSpeed::Speed400k, 8);
 }
@@ -445,6 +452,9 @@ pub unsafe fn reset_handler() {
     .finalize(components::gpio_component_buf!(
         stm32f303xc::gpio::Pin<'static>
     ));
+
+    //start adc12
+    stm32f303xc::adc::ADC1.enable();
 
     // L3GD20 sensor
     let spi_mux = components::spi::SpiMuxComponent::new(&stm32f303xc::spi::SPI1)
