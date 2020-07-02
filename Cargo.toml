@@ -24,7 +24,7 @@ members = [
     "chips/apollo3",
     "chips/arty_e21_chip",
     "chips/e310x",
-    "chips/ibex",
+    "chips/earlgrey",
     "chips/lowrisc",
     "chips/nrf52",
     "chips/nrf52832",

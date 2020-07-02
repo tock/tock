@@ -1,5 +1,5 @@
 [package]
-name = "ibex"
+name = "earlgrey"
 version = "0.1.0"
 authors = ["Tock Project Developers <tock-dev@googlegroups.com>"]
 edition = "2018"
