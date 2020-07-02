@@ -10,5 +10,5 @@ components = { path = "../components" }
 rv32i = { path = "../../arch/rv32i" }
 capsules = { path = "../../capsules" }
 kernel = { path = "../../kernel" }
-ibex = { path = "../../chips/ibex" }
+earlgrey = { path = "../../chips/earlgrey" }
 lowrisc = { path = "../../chips/lowrisc" }

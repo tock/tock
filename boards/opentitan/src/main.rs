@@ -29,7 +29,7 @@ pub mod usb;
 static mut PROCESSES: [Option<&'static dyn kernel::procs::ProcessType>; 4] =
     [None, None, None, None];
 
-static mut CHIP: Option<&'static ibex::chip::Ibex> = None;
+static mut CHIP: Option<&'static earlgrey::chip::EarlGrey> = None;
 
 // How should the kernel respond when a process faults.
 const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultResponse::Panic;
@@ -48,12 +48,12 @@ pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 /// A structure representing this platform that holds references to all
 /// capsules for this platform. We've included an alarm and console.
 struct OpenTitan {
-    led: &'static capsules::led::LED<'static, ibex::gpio::GpioPin>,
-    gpio: &'static capsules::gpio::GPIO<'static, ibex::gpio::GpioPin>,
+    led: &'static capsules::led::LED<'static, earlgrey::gpio::GpioPin>,
+    gpio: &'static capsules::gpio::GPIO<'static, earlgrey::gpio::GpioPin>,
     console: &'static capsules::console::Console<'static>,
     alarm: &'static capsules::alarm::AlarmDriver<
         'static,
-        VirtualMuxAlarm<'static, ibex::timer::RvTimer<'static>>,
+        VirtualMuxAlarm<'static, earlgrey::timer::RvTimer<'static>>,
     >,
     hmac: &'static capsules::hmac::HmacDriver<
         'static,
@@ -100,7 +100,7 @@ pub unsafe fn reset_handler() {
     // Basic setup of the platform.
     rv32i::init_memory();
     // Ibex-specific handler
-    ibex::chip::configure_trap_handler();
+    earlgrey::chip::configure_trap_handler();
 
     // initialize capabilities
     let process_mgmt_cap = create_capability!(capabilities::ProcessManagementCapability);
@@ -120,12 +120,12 @@ pub unsafe fn reset_handler() {
 
     // Configure kernel debug gpios as early as possible
     kernel::debug::assign_gpios(
-        Some(&ibex::gpio::PORT[7]), // First LED
+        Some(&earlgrey::gpio::PORT[7]), // First LED
         None,
         None,
     );
 
-    let chip = static_init!(ibex::chip::Ibex, ibex::chip::Ibex::new());
+    let chip = static_init!(earlgrey::chip::EarlGrey, earlgrey::chip::EarlGrey::new());
     CHIP = Some(chip);
 
     // Need to enable all interrupts for Tock Kernel
@@ -138,7 +138,7 @@ pub unsafe fn reset_handler() {
 
     // Create a shared UART channel for the console and for kernel debug.
     let uart_mux = components::console::UartMuxComponent::new(
-        &ibex::uart::UART0,
+        &earlgrey::uart::UART0,
         230400,
         dynamic_deferred_caller,
     )
@@ -147,76 +147,76 @@ pub unsafe fn reset_handler() {
     // LEDs
     // Start with half on and half off
     let led = components::led::LedsComponent::new(components::led_component_helper!(
-        ibex::gpio::GpioPin,
+        earlgrey::gpio::GpioPin,
         (
-            &ibex::gpio::PORT[8],
+            &earlgrey::gpio::PORT[8],
             kernel::hil::gpio::ActivationMode::ActiveHigh
         ),
         (
-            &ibex::gpio::PORT[9],
+            &earlgrey::gpio::PORT[9],
             kernel::hil::gpio::ActivationMode::ActiveHigh
         ),
         (
-            &ibex::gpio::PORT[10],
+            &earlgrey::gpio::PORT[10],
             kernel::hil::gpio::ActivationMode::ActiveHigh
         ),
         (
-            &ibex::gpio::PORT[11],
+            &earlgrey::gpio::PORT[11],
             kernel::hil::gpio::ActivationMode::ActiveHigh
         ),
         (
-            &ibex::gpio::PORT[12],
+            &earlgrey::gpio::PORT[12],
             kernel::hil::gpio::ActivationMode::ActiveHigh
         ),
         (
-            &ibex::gpio::PORT[13],
+            &earlgrey::gpio::PORT[13],
             kernel::hil::gpio::ActivationMode::ActiveHigh
         ),
         (
-            &ibex::gpio::PORT[14],
+            &earlgrey::gpio::PORT[14],
             kernel::hil::gpio::ActivationMode::ActiveHigh
         ),
         (
-            &ibex::gpio::PORT[15],
+            &earlgrey::gpio::PORT[15],
             kernel::hil::gpio::ActivationMode::ActiveHigh
         )
     ))
-    .finalize(components::led_component_buf!(ibex::gpio::GpioPin));
+    .finalize(components::led_component_buf!(earlgrey::gpio::GpioPin));
 
     let gpio = components::gpio::GpioComponent::new(
         board_kernel,
         components::gpio_component_helper!(
-            ibex::gpio::GpioPin,
-            0 => &ibex::gpio::PORT[0],
-            1 => &ibex::gpio::PORT[1],
-            2 => &ibex::gpio::PORT[2],
-            3 => &ibex::gpio::PORT[3],
-            4 => &ibex::gpio::PORT[4],
-            5 => &ibex::gpio::PORT[5],
-            6 => &ibex::gpio::PORT[6],
-            7 => &ibex::gpio::PORT[15]
+            earlgrey::gpio::GpioPin,
+            0 => &earlgrey::gpio::PORT[0],
+            1 => &earlgrey::gpio::PORT[1],
+            2 => &earlgrey::gpio::PORT[2],
+            3 => &earlgrey::gpio::PORT[3],
+            4 => &earlgrey::gpio::PORT[4],
+            5 => &earlgrey::gpio::PORT[5],
+            6 => &earlgrey::gpio::PORT[6],
+            7 => &earlgrey::gpio::PORT[15]
         ),
     )
-    .finalize(components::gpio_component_buf!(ibex::gpio::GpioPin));
+    .finalize(components::gpio_component_buf!(earlgrey::gpio::GpioPin));
 
-    let alarm = &ibex::timer::TIMER;
+    let alarm = &earlgrey::timer::TIMER;
     alarm.setup();
 
     // Create a shared virtualization mux layer on top of a single hardware
     // alarm.
     let mux_alarm = static_init!(
-        MuxAlarm<'static, ibex::timer::RvTimer>,
+        MuxAlarm<'static, earlgrey::timer::RvTimer>,
         MuxAlarm::new(alarm)
     );
-    hil::time::Alarm::set_client(&ibex::timer::TIMER, mux_alarm);
+    hil::time::Alarm::set_client(&earlgrey::timer::TIMER, mux_alarm);
 
     // Alarm
     let virtual_alarm_user = static_init!(
-        VirtualMuxAlarm<'static, ibex::timer::RvTimer>,
+        VirtualMuxAlarm<'static, earlgrey::timer::RvTimer>,
         VirtualMuxAlarm::new(mux_alarm)
     );
     let alarm = static_init!(
-        capsules::alarm::AlarmDriver<'static, VirtualMuxAlarm<'static, ibex::timer::RvTimer>>,
+        capsules::alarm::AlarmDriver<'static, VirtualMuxAlarm<'static, earlgrey::timer::RvTimer>>,
         capsules::alarm::AlarmDriver::new(
             virtual_alarm_user,
             board_kernel.create_grant(&memory_allocation_cap)
@@ -234,7 +234,7 @@ pub unsafe fn reset_handler() {
     let hmac_data_buffer = static_init!([u8; 64], [0; 64]);
     let hmac_dest_buffer = static_init!([u8; 32], [0; 32]);
 
-    let mux_hmac = components::hmac::HmacMuxComponent::new(&ibex::hmac::HMAC).finalize(
+    let mux_hmac = components::hmac::HmacMuxComponent::new(&earlgrey::hmac::HMAC).finalize(
         components::hmac_mux_component_helper!(lowrisc::hmac::Hmac, [u8; 32]),
     );
 
@@ -254,13 +254,13 @@ pub unsafe fn reset_handler() {
     let i2c_master = static_init!(
         capsules::i2c_master::I2CMasterDriver<lowrisc::i2c::I2c<'static>>,
         capsules::i2c_master::I2CMasterDriver::new(
-            &ibex::i2c::I2C,
+            &earlgrey::i2c::I2C,
             &mut capsules::i2c_master::BUF,
             board_kernel.create_grant(&memory_allocation_cap)
         )
     );
 
-    ibex::i2c::I2C.set_master_client(i2c_master);
+    earlgrey::i2c::I2C.set_master_client(i2c_master);
 
     debug!("OpenTitan initialisation complete. Entering main loop");
 

@@ -4,10 +4,10 @@
 //! -----
 //!
 //! ```rust
-//! let hmac = &ibex::hmac::HMAC;
+//! let hmac = &earlgrey::hmac::HMAC;
 //!
 //! let mux_hmac = static_init!(MuxHmac<'static, lowrisc::hmac::Hmac>, MuxHmac::new(hmac));
-//! digest::Digest::set_client(&ibex::hmac::HMAC, mux_hmac);
+//! digest::Digest::set_client(&earlgrey::hmac::HMAC, mux_hmac);
 //!
 //! let virtual_hmac_user = static_init!(
 //!     VirtualMuxHmac<'static, lowrisc::hmac::Hmac>,
