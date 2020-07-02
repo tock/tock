@@ -1,5 +1,6 @@
 use kernel::common::registers::{register_bitfields, ReadWrite};
 use kernel::common::StaticRef;
+use kernel::debug;
 use kernel::ClockInterface;
 
 /// Reset and clock control
@@ -594,6 +595,36 @@ impl Rcc {
         self.registers.apb1rstr.modify(APB1RSTR::I2C1RST::SET);
         self.registers.apb1rstr.modify(APB1RSTR::I2C1RST::CLEAR);
     }
+
+    // ADC12 clock
+
+    fn is_enabled_adc12_clock(&self) -> bool {
+        self.registers.ahbenr.is_set(AHBENR::ADC12EN)
+    }
+
+    fn enable_adc12_clock(&self) {
+        debug!("enable adc12 clock");
+        self.registers.cfgr.modify(CFGR::HPRE.val(0b0000));
+        self.registers.cfgr2.modify(CFGR2::ADC12PRES.val(0b10111));
+        self.registers.ahbenr.modify(AHBENR::ADC12EN::SET);
+    }
+
+    fn disable_adc12_clock(&self) {
+        self.registers.ahbenr.modify(AHBENR::ADC12EN::CLEAR);
+    }
+
+    // ADC34 clock
+    fn is_enabled_adc34_clock(&self) -> bool {
+        self.registers.ahbenr.is_set(AHBENR::ADC34EN)
+    }
+
+    fn enable_adc34_clock(&self) {
+        self.registers.ahbenr.modify(AHBENR::ADC34EN::SET);
+    }
+
+    fn disable_adc34_clock(&self) {
+        self.registers.ahbenr.modify(AHBENR::ADC34EN::CLEAR);
+    }
 }
 
 /// Clock sources for CPU
@@ -619,6 +650,10 @@ pub enum PeripheralClock {
 
 /// Peripherals clocked by HCLK1
 pub enum HCLK {
+    ADC1,
+    ADC2,
+    ADC3,
+    ADC4,
     DMA1,
     GPIOF,
     GPIOE,
@@ -649,6 +684,8 @@ impl ClockInterface for PeripheralClock {
     fn is_enabled(&self) -> bool {
         match self {
             &PeripheralClock::AHB(ref v) => match v {
+                HCLK::ADC1 | HCLK::ADC2 => unsafe { RCC.is_enabled_adc12_clock() },
+                HCLK::ADC3 | HCLK::ADC4 => unsafe { RCC.is_enabled_adc34_clock() },
                 HCLK::DMA1 => unsafe { RCC.is_enabled_dma1_clock() },
                 HCLK::GPIOF => unsafe { RCC.is_enabled_gpiof_clock() },
                 HCLK::GPIOE => unsafe { RCC.is_enabled_gpioe_clock() },
@@ -674,6 +711,12 @@ impl ClockInterface for PeripheralClock {
     fn enable(&self) {
         match self {
             &PeripheralClock::AHB(ref v) => match v {
+                HCLK::ADC1 | HCLK::ADC2 => unsafe {
+                    RCC.enable_adc12_clock();
+                },
+                HCLK::ADC3 | HCLK::ADC4 => unsafe {
+                    RCC.enable_adc34_clock();
+                },
                 HCLK::DMA1 => unsafe {
                     RCC.enable_dma1_clock();
                 },
@@ -728,6 +771,12 @@ impl ClockInterface for PeripheralClock {
     fn disable(&self) {
         match self {
             &PeripheralClock::AHB(ref v) => match v {
+                HCLK::ADC1 | HCLK::ADC2 => unsafe {
+                    RCC.disable_adc12_clock();
+                },
+                HCLK::ADC3 | HCLK::ADC4 => unsafe {
+                    RCC.disable_adc34_clock();
+                },
                 HCLK::DMA1 => unsafe {
                     RCC.disable_dma1_clock();
                 },

@@ -5,6 +5,7 @@ use cortexm4;
 use kernel::common::deferred_call;
 use kernel::Chip;
 
+use crate::adc;
 use crate::exti;
 use crate::i2c;
 use crate::nvic;
@@ -46,6 +47,7 @@ impl Chip for Stm32f3xx {
 
                         nvic::I2C1_EV => i2c::I2C1.handle_event(),
                         nvic::I2C1_ER => i2c::I2C1.handle_error(),
+                        nvic::ADC1_2 => adc::ADC1.handle_interrupt(),
 
                         nvic::EXTI0 => exti::EXTI.handle_interrupt(),
                         nvic::EXTI1 => exti::EXTI.handle_interrupt(),
