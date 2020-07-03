@@ -797,6 +797,9 @@ register_bitfields![u32,
     ]
 ];
 
+/// If the clock runs with a higher frequency than the flash is able to operate, it's possible to
+/// configure a certain amount of wait-states which stall the CPU in order to access the data within
+/// the flash reliable. For a detailed description see datasheet page 458 section 9.2.2.1.
 #[repr(u32)]
 #[derive(Copy, Clone)]
 pub enum WaitStates {

@@ -1,8 +1,12 @@
+//! Board file for the MSP-EXP432P401R evaluation board from TI.
+//!
+//! - <https://www.ti.com/tool/MSP-EXP432P401R>
+
 #![no_std]
 // Disable this attribute when documenting, as a workaround for
 // https://github.com/rust-lang/rust/issues/62184.
 #![cfg_attr(not(doc), no_main)]
-// #![deny(missing_docs)]
+#![deny(missing_docs)]
 
 use kernel::capabilities;
 use kernel::common::dynamic_deferred_call::DynamicDeferredCall;
@@ -12,6 +16,7 @@ use kernel::hil::watchdog::Watchdog;
 use kernel::Platform;
 use kernel::{create_capability, debug, static_init};
 
+/// Support routines for debugging I/O.
 pub mod io;
 
 /// Number of concurrent processes this platform supports.
@@ -57,6 +62,12 @@ impl Platform for MspExp432P401R {
     }
 }
 
+/// Reset Handler.
+///
+/// This symbol is loaded into vector table by the MSP432 chip crate.
+/// When the chip first powers on or later does a hard reset, after the core
+/// initializes all the hardware, the address of this function is loaded and
+/// execution begins here.
 #[no_mangle]
 pub unsafe fn reset_handler() {
     msp432::init();

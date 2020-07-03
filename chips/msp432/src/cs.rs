@@ -53,86 +53,86 @@ register_structs! {
 
 register_bitfields! [u32,
     CSKEY [
-        // for accessing any other register, it must be unlocked using this key-register
+        /// For accessing any other register, it must be unlocked using this key-register
         KEY OFFSET(0) NUMBITS(16)
     ],
     CSCTL0 [
-        // for calibrating the DCO frequency
+        /// For calibrating the DCO frequency
         DCOTUNE OFFSET(0) NUMBITS(10),
-        // DCO frequency range select
+        /// DCO frequency range select
         DCORSEL OFFSET(16) NUMBITS(3),
-        // enable/disable DCO external resistor mode
+        /// Enable/disable DCO external resistor mode
         DCORES OFFSET(22) NUMBITS(1),
-        // enable DCO
+        /// Enable DCO
         DCOEN OFFSET(23) NUMBITS(23)
     ],
     CSCTL1 [
-        // select MCLK source
+        /// Select MCLK source
         SELM OFFSET(0) NUMBITS(3),
-        // select SMCLK and HSMCLK source
+        /// Select SMCLK and HSMCLK source
         SELS OFFSET(4) NUMBITS(3),
-        // selects ACLK source
+        /// Select ACLK source
         SELA OFFSET(8) NUMBITS(3),
-        // selects BLCK source
+        /// Select BLCK source
         SELB OFFSET(12) NUMBITS(1),
-        // MCLK source divider
+        /// MCLK source divider
         DIVM OFFSET(16) NUMBITS(3),
-        // HSMCLK source divider
+        /// HSMCLK source divider
         DIVHS OFFSET(20) NUMBITS(3),
-        // ACLK source divider
+        /// ACLK source divider
         DIVA OFFSET(24) NUMBITS(3),
-        // SMCLK divider
+        /// SMCLK divider
         DIVS OFFSET(28) NUMBITS(3)
     ],
     CSCTL2 [
-        // set drive-strength for LXFT oscillator
+        /// sSt drive-strength for LXFT oscillator
         LFXTDRIVE OFFSET(0) NUMBITS(2),
-        // turn on LFXT oscillator
+        /// Turn on LFXT oscillator
         LFXT_EN OFFSET(8) NUMBITS(1),
-        // LFXT bypass select
+        /// LFXT bypass select
         LFXTBYPASS OFFSET(9) NUMBITS(1),
-        // HFXT oscillator drive selection
+        /// HFXT oscillator drive selection
         HFXTDRIVE OFFSET(16) NUMBITS(1),
-        // HFXT frequency selection
+        /// HFXT frequency selection
         HFXTFREQ OFFSET(20) NUMBITS(3),
-        // turn on HFXT oscillator
+        /// Turn on HFXT oscillator
         HFXT_EN OFFSET(24) NUMBITS(1),
-        // HFXT bypass select
+        /// HFXT bypass select
         HFXTBYPASS OFFSET(25) NUMBITS(1)
     ],
     CSCTL3 [
-        // start flag counter for LFXT
+        /// Start flag counter for LFXT
         FCNTLF OFFSET(0) NUMBITS(2),
-        // reset start fault counter for LFXT
+        /// Reset start fault counter for LFXT
         RFCNTLF OFFSET(2) NUMBITS(1),
-        // enable start fault counter for LFXT
+        /// Enable start fault counter for LFXT
         FCNTLF_EN OFFSET(0) NUMBITS(1),
-        // start flag counter for HFXT
+        /// Start flag counter for HFXT
         FCNTHF OFFSET(4) NUMBITS(2),
-        // reset start fault counter for HFXT
+        /// Reset start fault counter for HFXT
         RFCNTHF OFFSET(6) NUMBITS(1),
-        // enable start fault counter for HFXT
+        /// Enable start fault counter for HFXT
         FCNTHF_EN OFFSET(7) NUMBITS(1)
     ],
     CSCLKEN [
-        // ACLK system clock conditional request enable
+        /// ACLK system clock conditional request enable
         ACLK_EN OFFSET(0) NUMBITS(1),
-        // MCLK system clock conditional request enable
+        /// MCLK system clock conditional request enable
         MCLK_EN OFFSET(1) NUMBITS(1),
-        // HSMCLK system clock conditional request enable
+        /// HSMCLK system clock conditional request enable
         HSMCLK_EN OFFSET(2) NUMBITS(1),
-        // SMCLK system clock conditional request enable
+        /// SMCLK system clock conditional request enable
         SMCLK_EN OFFSET(3) NUMBITS(1),
-        // turn on the VLO oscillator
+        /// Turn on the VLO oscillator
         VLO_EN OFFSET(8) NUMBITS(1),
-        // turn on the REFO oscillator
+        /// Turn on the REFO oscillator
         REFO_EN OFFSET(9) NUMBITS(1),
-        // turn on the MODOSC oscillator
+        /// Turn on the MODOSC oscillator
         MODOSC_EN OFFSET(10) NUMBITS(1),
-        // select REFO nominal frequency: 0 = 32.768kHz, 1=128kHz
+        /// Select REFO nominal frequency: 0 = 32.768kHz, 1=128kHz
         REFOFSEL OFFSET(15) NUMBITS(1)
     ],
-    // status of the different clock-sources, if they are active or not
+    /// Status of the different clock-sources, if they are active or not
     CSSTAT [
         DCO_ON OFFSET(0) NUMBITS(1),
         DCOBIAS_ON OFFSET(1) NUMBITS(1),
@@ -155,68 +155,68 @@ register_bitfields! [u32,
         SMCLK_READY OFFSET(27) NUMBITS(1),
         BCLK_READY OFFSET(28) NUMBITS(1)
     ],
-    // interrupt enable register
+    /// Interrupt enable register
     CSIE [
-        // LFXT oscillator fault flag
+        /// LFXT oscillator fault flag
         LFXTIE OFFSET(0) NUMBITS(1),
-        // HFXT oscillator fault flag
+        /// HFXT oscillator fault flag
         HFXTIE OFFSET(1) NUMBITS(1),
-        // DCO external resistor open circuit fault flag
+        /// DCO external resistor open circuit fault flag
         DCOR_OPNIE OFFSET(6) NUMBITS(1),
-        // LFXT start fault counter
+        /// LFXT start fault counter
         FCNTLFIE OFFSET(8) NUMBITS(1),
-        // HFXT start fault counter
+        /// HFXT start fault counter
         FCNTHFIE OFFSET(9) NUMBITS(1)
     ],
-    // interrupt flag register
+    /// Interrupt flag register
     CSIFG [
-        // LFXT oscillator fault flag
+        /// LFXT oscillator fault flag
         LFXTIFG OFFSET(0) NUMBITS(1),
-        // HFXT oscillator fault flag
+        /// HFXT oscillator fault flag
         HFXTIFG OFFSET(1) NUMBITS(1),
-        // DCO external resistor open circuit fault flag
+        /// DCO external resistor open circuit fault flag
         DCOR_OPNIFG OFFSET(6) NUMBITS(1),
-        // LFXT start fault counter
+        /// LFXT start fault counter
         FCNTLFIFG OFFSET(8) NUMBITS(1),
-        // HFXT start fault counter
+        /// HFXT start fault counter
         FCNTHFIFG OFFSET(9) NUMBITS(1)
     ],
-    // interrupt clear register
+    /// iIterrupt clear register
     CSCLRIFG [
-        // LFXT oscillator fault flag
+        /// LFXT oscillator fault flag
         LFXTIFG OFFSET(0) NUMBITS(1),
-        // HFXT oscillator fault flag
+        /// HFXT oscillator fault flag
         HFXTIFG OFFSET(1) NUMBITS(1),
-        // DCO external resistor open circuit fault flag
+        /// DCO external resistor open circuit fault flag
         DCOR_OPNIFG OFFSET(6) NUMBITS(1),
-        // LFXT start fault counter
+        /// LFXT start fault counter
         FCNTLFIFG OFFSET(8) NUMBITS(1),
-        // HFXT start fault counter
+        /// HFXT start fault counter
         FCNTHFIFG OFFSET(9) NUMBITS(1)
     ],
-    // interrupt set/assert register
+    /// Interrupt set/assert register
     CSSETIFG [
-        // LFXT oscillator fault flag
+        /// LFXT oscillator fault flag
         SET_LFXTIFG OFFSET(0) NUMBITS(1),
-        // HFXT oscillator fault flag
+        /// HFXT oscillator fault flag
         SET_HFXTIFG OFFSET(1) NUMBITS(1),
-        // DCO external resistor open circuit fault flag
+        /// DCO external resistor open circuit fault flag
         SET_DCOR_OPNIFG OFFSET(6) NUMBITS(1),
-        // LFXT start fault counter
+        /// LFXT start fault counter
         SET_FCNTLFIFG OFFSET(8) NUMBITS(1),
-        // HFXT start fault counter
+        /// HFXT start fault counter
         SET_FCNTHFIFG OFFSET(9) NUMBITS(1)
     ],
-    // DCO external resistor calibration 0 register
+    /// DCO external resistor calibration 0 register
     CSDCOERCAL0 [
-        // DCO temperature compensation calibration
+        /// DCO temperature compensation calibration
         DCO_TCCAL OFFSET(0) NUMBITS(1),
-        // DCO frequency calibration for DCO frequency range (DCORSEL) 0 to 4
+        /// DCO frequency calibration for DCO frequency range (DCORSEL) 0 to 4
         DCO_FCAL_RSEL04 OFFSET(16) NUMBITS(10)
     ],
-     // DCO external resistor calibration 1 register
+    /// DCO external resistor calibration 1 register
     CSDCOERCAL1 [
-        // DCO frequency calibration for DCO frequency range (DCORSEL) 5
+        /// DCO frequency calibration for DCO frequency range (DCORSEL) 5
         DCO_FCAL_RSEL5 OFFSET(0) NUMBITS(10)
     ]
 ];

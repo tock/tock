@@ -38,6 +38,7 @@ impl IoWrite for Uart {
     }
 }
 
+/// Panic handler
 #[no_mangle]
 #[panic_handler]
 pub unsafe extern "C" fn panic_fmt(info: &PanicInfo) -> ! {

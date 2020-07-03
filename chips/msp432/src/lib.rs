@@ -2,7 +2,6 @@
 #![crate_type = "rlib"]
 #![feature(asm, const_fn)]
 #![no_std]
-#![allow(unused_doc_comments)]
 
 use cortexm4::{
     generic_isr, hard_fault_handler, svc_handler, systick_handler, unhandled_interrupt,
