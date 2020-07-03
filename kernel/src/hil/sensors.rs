@@ -31,6 +31,19 @@ pub trait HumidityClient {
     fn callback(&self, value: usize);
 }
 
+/// A basic interface for a proximity sensor
+pub trait ProximityDriver<'a> {
+
+    fn set_client(&self , client: &'a dyn ProximityClient);
+    fn read_proximity(&self) -> ReturnCode;
+
+}
+
+pub trait ProximityClient {
+    /// Called when proximity reading has completed
+    fn callback(&self , value: usize);
+}
+
 /// A basic interface for an ambient light sensor.
 pub trait AmbientLight<'a> {
     /// Set the client to be notified when the capsule has data ready or has

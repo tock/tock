@@ -13,6 +13,7 @@ pub mod alarm;
 pub mod ambient_light;
 pub mod analog_comparator;
 pub mod analog_sensor;
+pub mod apds9960;
 pub mod app_flash_driver;
 pub mod ble_advertising_driver;
 pub mod button;
