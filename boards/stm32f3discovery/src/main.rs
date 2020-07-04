@@ -66,6 +66,7 @@ struct STM32F3Discovery {
         'static,
         VirtualMuxAlarm<'static, stm32f303xc::tim2::Tim2<'static>>,
     >,
+    adc: &'static capsules::adc::Adc<'static, stm32f303xc::adc::Adc>,
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
@@ -85,6 +86,7 @@ impl Platform for STM32F3Discovery {
             capsules::ninedof::DRIVER_NUM => f(Some(self.ninedof)),
             capsules::temperature::DRIVER_NUM => f(Some(self.temp)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
+            capsules::adc::DRIVER_NUM => f(Some(self.adc)),
             _ => f(None),
         }
     }
@@ -507,6 +509,63 @@ pub unsafe fn reset_handler() {
     let ninedof = components::ninedof::NineDofComponent::new(board_kernel)
         .finalize(components::ninedof_component_helper!(l3gd20, lsm303dlhc));
 
+    let adc_channels = static_init!(
+        [&'static stm32f303xc::adc::Channel; 19],
+        [
+            // Reserved
+            &stm32f303xc::adc::Channel::Channel0,
+            // PA0 ADC1, PA4 ADC2, PB1 ADC3, PE14 ADC4
+            &stm32f303xc::adc::Channel::Channel1,
+            // PA1 ADC1, PA5 ADC2, PE9 ADC3, PE15 ADC4
+            &stm32f303xc::adc::Channel::Channel2
+            // PA2 ADC1, PA6 ADC2, PE13 ADC3, PB12 ADC4
+            &stm32f303xc::adc::Channel::Channel3,
+            // PA3 ADC1, PA7 ADC2, PB14 ADC4
+            &stm32f303xc::adc::Channel::Channel4,
+            // PF3 ADC1, PC4 ADC2, PB13 ADC3, PB15 ADC4
+            &stm32f303xc::adc::Channel::Channel5,
+            // PC0 ADC12, PE8 ADC34
+            &stm32f303xc::adc::Channel::Channel6,
+            // PC1 ADC12, PD10 ADC34
+            &stm32f303xc::adc::Channel::Channel7,
+            // PC2 ADC12, PD11 ADC34
+            &stm32f303xc::adc::Channel::Channel8,
+            // PC3 ADC12, PD12 ADC34
+            &stm32f303xc::adc::Channel::Channel9,
+            // PF2 ADC12, PD13 ADC34
+            &stm32f303xc::adc::Channel::Channel10,
+            // PC5 ADC2, PD14 ADC34
+            &stm32f303xc::adc::Channel::Channel11,
+            // PB2 ADC2, PB0 ADC3, PD8 ADC4
+            &stm32f303xc::adc::Channel::Channel12,
+            // PE7 ADC3, PD9 ADC4
+            &stm32f303xc::adc::Channel::Channel13,
+            // PE10 ADC3
+            &stm32f303xc::adc::Channel::Channel14,
+            // OA1 ADC1 (INTERNAL), PE11 ADC3
+            &stm32f303xc::adc::Channel::Channel15,
+            // TS ADC1 (INTERNAL), PE12 ADC3
+            &stm32f303xc::adc::Channel::Channel16,
+            // BT/2 ADC1 (INTERNAL), OA2 ADC2 (INTERNAL), OA3 ADC3 (INTERNAL), OA4 ADC4 (INTERNAL)
+            &stm32f303xc::adc::Channel::Channel17,
+            // VRI on ADC1, ADC2, ADC3 and ADC4 (INTERNALS)
+            &stm32f303xc::adc::Channel::Channel18,
+        ]
+    );
+    let grant_adc = board_kernel.create_grant(&grant_cap);
+    let adc = static_init!(
+        capsules::adc::Adc<'static, stm32f303xc::adc::Adc>,
+        capsules::adc::Adc::new(
+            &mut stm32f303xc::adc::ADC1,
+            grant_adc,
+            adc_channels,
+            &mut capsules::adc::ADC_BUFFER1,
+            &mut capsules::adc::ADC_BUFFER2,
+            &mut capsules::adc::ADC_BUFFER3
+        )
+    );
+    stm32f303xc::adc::ADC1.set_client(adc);
+
     let stm32f3discovery = STM32F3Discovery {
         console: console,
         ipc: kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability),
@@ -518,6 +577,7 @@ pub unsafe fn reset_handler() {
         lsm303dlhc: lsm303dlhc,
         ninedof: ninedof,
         temp: temp,
+        adc: adc,
     };
 
     // // Optional kernel tests
