@@ -188,11 +188,9 @@ unsafe fn set_pin_primary_functions() {
         pin.set_alternate_function(AlternateFunction::AF4);
     });
 
-    // test
+    // ADC
     PinId::PA01.get_pin().as_ref().map(|pin| {
-        pin.make_input();
-        pin.deactivate_to_low_power();
-        // debug!("PA01 analog");
+        pin.set_mode(stm32f303xc::gpio::Mode::AnalogMode);
     });
 
     stm32f303xc::i2c::I2C1.enable_clock();
@@ -367,8 +365,8 @@ pub unsafe fn reset_handler() {
             // Left outer connector
             0 => stm32f303xc::gpio::PinId::PC01.get_pin().as_ref().unwrap(),
             1 => stm32f303xc::gpio::PinId::PC03.get_pin().as_ref().unwrap(),
-            2 => stm32f303xc::gpio::PinId::PA01.get_pin().as_ref().unwrap(),
-            3 => stm32f303xc::gpio::PinId::PA03.get_pin().as_ref().unwrap(),
+            // 2 => stm32f303xc::gpio::PinId::PA01.get_pin().as_ref().unwrap(),
+            // 3 => stm32f303xc::gpio::PinId::PA03.get_pin().as_ref().unwrap(),
             4 => stm32f303xc::gpio::PinId::PF04.get_pin().as_ref().unwrap(),
             // 5 => stm32f303xc::gpio::PinId::PA05.get_pin().as_ref().unwrap(),
             // 6 => stm32f303xc::gpio::PinId::PA07.get_pin().as_ref().unwrap(),
