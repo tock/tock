@@ -1,12 +1,9 @@
 use crate::rcc;
 use core::cell::Cell;
-use kernel::common::cells::{OptionalCell, TakeCell};
+use kernel::common::cells::OptionalCell;
 use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
-use kernel::debug;
 use kernel::hil;
-use kernel::hil::gpio::Configure;
-use kernel::hil::gpio::Output;
 use kernel::ClockInterface;
 use kernel::ReturnCode;
 
@@ -504,14 +501,14 @@ enum DataResolution {
 #[derive(Copy, Clone, PartialEq)]
 enum ADCStatus {
     Idle,
-    On,
     Off,
     PoweringOn,
+    OneSample,
 }
 
 pub struct Adc {
     registers: StaticRef<AdcRegisters>,
-    commonRegisters: StaticRef<AdcCommonRegisters>,
+    common_registers: StaticRef<AdcCommonRegisters>,
     clock: AdcClock,
     status: Cell<ADCStatus>,
     client: OptionalCell<&'static dyn EverythingClient>,
@@ -525,7 +522,7 @@ impl Adc {
         Adc {
             registers: ADC1_BASE,
             //rcc copy
-            commonRegisters: ADC12_COMMON_BASE,
+            common_registers: ADC12_COMMON_BASE,
             clock: AdcClock(rcc::PeripheralClock::AHB(rcc::HCLK::ADC1)),
             // clock34: AdcClock(rcc::PeripheralClock::AHB(rcc::HCLK::ADC34)),
             status: Cell::new(ADCStatus::Off),
@@ -533,20 +530,22 @@ impl Adc {
         }
     }
 
-    // fn adc_set_clk_prescale
-
     pub fn enable(&self) {
+        self.status.set(ADCStatus::PoweringOn);
+
         // Enable adc clock
         self.enable_clock();
 
         //Set Synchronous clock mode
-        self.commonRegisters.ccr.modify(CCR::CKMODE.val(0b01));
+        self.common_registers.ccr.modify(CCR::CKMODE.val(0b01));
 
         self.registers.cr.modify(CR::ADVREGEN.val(0b00));
         self.registers.cr.modify(CR::ADVREGEN.val(0b01));
 
         // Wait for ADVRGEN to enable
-        for i in 0..1000000 {
+        // This needs to be synchronous because there is no interrupt signaling
+        // when ADVRGEN becomes enabled
+        for _i in 0..1000000 {
             unsafe {
                 llvm_asm!(
                 "nop"
@@ -555,7 +554,7 @@ impl Adc {
         }
 
         // Enable the temperature sensor
-        self.commonRegisters.ccr.modify(CCR::TSEN::SET);
+        self.common_registers.ccr.modify(CCR::TSEN::SET);
 
         // Enable ADC Ready interrupt
         self.registers.ier.modify(IER::ADRDYIE::SET);
@@ -581,37 +580,38 @@ impl Adc {
             // Clear interrupt
             self.registers.ier.modify(IER::ADRDYIE::CLEAR);
             // Set Status
-            self.status.set(ADCStatus::On);
-            debug!("adc started");
+            self.status.set(ADCStatus::Idle);
         }
         // Check if regular group conversion ended
         if self.registers.isr.is_set(ISR::EOC) {
             // Clear interrupt
             self.registers.ier.modify(IER::EOCIE::CLEAR);
-            debug!("EOC")
         }
         // Check if sequence of regular group conversion ended
         if self.registers.isr.is_set(ISR::EOS) {
             // Clear interrupt
             self.registers.ier.modify(IER::EOSIE::CLEAR);
             self.registers.isr.modify(ISR::EOS::SET);
+            if self.status.get() == ADCStatus::OneSample {
+                // stop adc
+                self.registers.cr.modify(CR::ADSTP::SET);
+                // set state
+                self.status.set(ADCStatus::Idle);
+            }
             self.client
-            .map(|client| client.sample_ready(self.registers.dr.read(DR::RDATA) as u16));
-            debug!("EOS");
+                .map(|client| client.sample_ready(self.registers.dr.read(DR::RDATA) as u16));
         }
         // Check if sampling ended
         if self.registers.isr.is_set(ISR::EOSMP) {
             // Clear interrupt
             self.registers.ier.modify(IER::EOSMPIE::CLEAR);
             self.registers.isr.modify(ISR::EOSMP::SET);
-            debug!("EOSMP");
         }
         // Check if overrun occured
         if self.registers.isr.is_set(ISR::OVR) {
             // Clear interrupt
             self.registers.ier.modify(IER::OVRIE::CLEAR);
             self.registers.isr.modify(ISR::OVR::SET);
-            debug!("Overrun");
         }
     }
 
@@ -652,24 +652,25 @@ impl hil::adc::Adc for Adc {
     type Channel = Channel;
 
     fn sample(&self, channel: &Self::Channel) -> ReturnCode {
-        debug!("sampling");
-        unsafe {
-            debug!("{}", (*(0x1FFFF7C2 as *const u16)));
+        if self.status.get() == ADCStatus::Idle {
+            self.status.set(ADCStatus::OneSample);
+            self.registers.smpr2.modify(SMPR2::SMP16.val(0b100));
+            self.registers.sqr1.modify(SQR1::L.val(0b0000));
+            self.registers.sqr1.modify(SQR1::SQ1.val(*channel as u32));
+            self.registers.ier.modify(IER::EOSMPIE::SET);
+            self.registers.cr.modify(CR::ADSTART::SET);
+            ReturnCode::SUCCESS
+        } else {
+            ReturnCode::EBUSY
         }
-        self.registers.smpr2.modify(SMPR2::SMP16.val(0b100));
-        self.registers.sqr1.modify(SQR1::L.val(0b0000));
-        self.registers.sqr1.modify(SQR1::SQ1.val(*channel as u32));
-        self.registers.ier.modify(IER::EOSMPIE::SET);
-        self.registers.cr.modify(CR::ADSTART::SET);
-        ReturnCode::SUCCESS
     }
 
     fn sample_continuous(&self, _channel: &Self::Channel, _frequency: u32) -> ReturnCode {
-        ReturnCode::FAIL
+        ReturnCode::ENOSUPPORT
     }
 
     fn stop_sampling(&self) -> ReturnCode {
-        ReturnCode::FAIL
+        ReturnCode::ENOSUPPORT
     }
 
     fn get_resolution_bits(&self) -> usize {
@@ -681,7 +682,7 @@ impl hil::adc::Adc for Adc {
     }
 }
 
-/// Implements an ADC capable of continuous sampling
+/// Not yet supported
 impl hil::adc::AdcHighSpeed for Adc {
     /// Capture buffered samples from the ADC continuously at a given
     /// frequency, calling the client whenever a buffer fills up. The client is
