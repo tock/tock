@@ -512,12 +512,12 @@ pub unsafe fn reset_handler() {
     let adc_channels = static_init!(
         [&'static stm32f303xc::adc::Channel; 19],
         [
-            // Reserved
+            // Reserved and not used
             &stm32f303xc::adc::Channel::Channel0,
             // PA0 ADC1, PA4 ADC2, PB1 ADC3, PE14 ADC4
             &stm32f303xc::adc::Channel::Channel1,
             // PA1 ADC1, PA5 ADC2, PE9 ADC3, PE15 ADC4
-            &stm32f303xc::adc::Channel::Channel2
+            &stm32f303xc::adc::Channel::Channel2,
             // PA2 ADC1, PA6 ADC2, PE13 ADC3, PB12 ADC4
             &stm32f303xc::adc::Channel::Channel3,
             // PA3 ADC1, PA7 ADC2, PB14 ADC4
