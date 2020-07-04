@@ -554,7 +554,7 @@ pub unsafe fn reset_handler() {
     let adc = static_init!(
         capsules::adc::Adc<'static, stm32f303xc::adc::Adc>,
         capsules::adc::Adc::new(
-            &mut stm32f303xc::adc::ADC1,
+            &stm32f303xc::adc::ADC1,
             grant_adc,
             adc_channels,
             &mut capsules::adc::ADC_BUFFER1,
