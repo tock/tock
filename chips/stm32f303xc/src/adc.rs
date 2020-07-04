@@ -1,5 +1,6 @@
 use crate::rcc;
 use core::cell::Cell;
+use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
 use kernel::debug;
@@ -425,6 +426,7 @@ const ADC12_COMMON_BASE: StaticRef<AdcCommonRegisters> =
 
 #[allow(dead_code)]
 #[repr(u32)]
+#[derive(Copy, Clone)]
 pub enum Channel {
     Channel0 = 0b00000,
     Channel1 = 0b00001,
@@ -512,6 +514,7 @@ pub struct Adc {
     commonRegisters: StaticRef<AdcCommonRegisters>,
     clock: AdcClock,
     status: Cell<ADCStatus>,
+    client: OptionalCell<&'static dyn EverythingClient>,
     // clock34: AdcClock,
 }
 
@@ -526,6 +529,7 @@ impl Adc {
             clock: AdcClock(rcc::PeripheralClock::AHB(rcc::HCLK::ADC1)),
             // clock34: AdcClock(rcc::PeripheralClock::AHB(rcc::HCLK::ADC34)),
             status: Cell::new(ADCStatus::Off),
+            client: OptionalCell::empty(),
         }
     }
 
@@ -550,6 +554,9 @@ impl Adc {
             }
         }
 
+        // Enable the temperature sensor
+        self.commonRegisters.ccr.modify(CCR::TSEN::SET);
+
         // Enable ADC Ready interrupt
         self.registers.ier.modify(IER::ADRDYIE::SET);
 
@@ -566,8 +573,6 @@ impl Adc {
         self.registers.cr.modify(CR::ADEN::SET);
         // Enable overrun to overwrite old datas
         self.registers.cfgr.modify(CFGR::OVRMOD::SET);
-        // Enable the temperature sensor
-        self.commonRegisters.ccr.modify(CCR::TSEN::SET);
     }
 
     pub fn handle_interrupt(&self) {
@@ -577,26 +582,29 @@ impl Adc {
             self.registers.ier.modify(IER::ADRDYIE::CLEAR);
             // Set Status
             self.status.set(ADCStatus::On);
+            debug!("adc started");
         }
         // Check if regular group conversion ended
         if self.registers.isr.is_set(ISR::EOC) {
             // Clear interrupt
             self.registers.ier.modify(IER::EOCIE::CLEAR);
-            debug!("Data is {}", self.registers.dr.read(DR::RDATA));
+            debug!("EOC")
         }
         // Check if sequence of regular group conversion ended
         if self.registers.isr.is_set(ISR::EOS) {
             // Clear interrupt
             self.registers.ier.modify(IER::EOSIE::CLEAR);
             self.registers.isr.modify(ISR::EOS::SET);
-            debug!("Data is {}", self.registers.dr.read(DR::RDATA));
+            self.client
+            .map(|client| client.sample_ready(self.registers.dr.read(DR::RDATA) as u16));
+            debug!("EOS");
         }
         // Check if sampling ended
         if self.registers.isr.is_set(ISR::EOSMP) {
             // Clear interrupt
             self.registers.ier.modify(IER::EOSMPIE::CLEAR);
             self.registers.isr.modify(ISR::EOSMP::SET);
-            debug!("End of sampling");
+            debug!("EOSMP");
         }
         // Check if overrun occured
         if self.registers.isr.is_set(ISR::OVR) {
@@ -607,9 +615,9 @@ impl Adc {
         }
     }
 
-    // pub fn set_client<C: EverythingClient>(&self, client: &'static C) {
-    //     self.client.set(client);
-    // }
+    pub fn set_client<C: EverythingClient>(&self, client: &'static C) {
+        self.client.set(client);
+    }
     // 12
     pub fn is_enabled_clock(&self) -> bool {
         self.clock.is_enabled()
@@ -644,8 +652,15 @@ impl hil::adc::Adc for Adc {
     type Channel = Channel;
 
     fn sample(&self, channel: &Self::Channel) -> ReturnCode {
-        let regs: &AdcRegisters = &*self.registers;
-
+        debug!("sampling");
+        unsafe {
+            debug!("{}", (*(0x1FFFF7C2 as *const u16)));
+        }
+        self.registers.smpr2.modify(SMPR2::SMP16.val(0b100));
+        self.registers.sqr1.modify(SQR1::L.val(0b0000));
+        self.registers.sqr1.modify(SQR1::SQ1.val(*channel as u32));
+        self.registers.ier.modify(IER::EOSMPIE::SET);
+        self.registers.cr.modify(CR::ADSTART::SET);
         ReturnCode::SUCCESS
     }
 
@@ -663,5 +678,62 @@ impl hil::adc::Adc for Adc {
 
     fn get_voltage_reference_mv(&self) -> Option<usize> {
         Some(3300)
+    }
+}
+
+/// Implements an ADC capable of continuous sampling
+impl hil::adc::AdcHighSpeed for Adc {
+    /// Capture buffered samples from the ADC continuously at a given
+    /// frequency, calling the client whenever a buffer fills up. The client is
+    /// then expected to either stop sampling or provide an additional buffer
+    /// to sample into. Note that due to hardware constraints the maximum
+    /// frequency range of the ADC is from 187 kHz to 23 Hz (although its
+    /// precision is limited at higher frequencies due to aliasing).
+    ///
+    /// - `channel`: the ADC channel to sample
+    /// - `frequency`: frequency to sample at
+    /// - `buffer1`: first buffer to fill with samples
+    /// - `length1`: number of samples to collect (up to buffer length)
+    /// - `buffer2`: second buffer to fill once the first is full
+    /// - `length2`: number of samples to collect (up to buffer length)
+    fn sample_highspeed(
+        &self,
+        _channel: &Self::Channel,
+        _frequency: u32,
+        _buffer1: &'static mut [u16],
+        _length1: usize,
+        _buffer2: &'static mut [u16],
+        _length2: usize,
+    ) -> (
+        ReturnCode,
+        Option<&'static mut [u16]>,
+        Option<&'static mut [u16]>,
+    ) {
+        (ReturnCode::ENOSUPPORT, None, None)
+    }
+
+    /// Provide a new buffer to send on-going buffered continuous samples to.
+    /// This is expected to be called after the `samples_ready` callback.
+    ///
+    /// - `buf`: buffer to fill with samples
+    /// - `length`: number of samples to collect (up to buffer length)
+    fn provide_buffer(
+        &self,
+        _buf: &'static mut [u16],
+        _length: usize,
+    ) -> (ReturnCode, Option<&'static mut [u16]>) {
+        (ReturnCode::ENOSUPPORT, None)
+    }
+
+    /// Reclaim buffers after the ADC is stopped.
+    /// This is expected to be called after `stop_sampling`.
+    fn retrieve_buffers(
+        &self,
+    ) -> (
+        ReturnCode,
+        Option<&'static mut [u16]>,
+        Option<&'static mut [u16]>,
+    ) {
+        (ReturnCode::ENOSUPPORT, None, None)
     }
 }
