@@ -10,6 +10,10 @@ use kernel::capabilities;
 use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::component::Component;
 use kernel::hil::gpio::ActivationMode::ActiveLow;
+use kernel::hil::gpio::Configure;
+use kernel::hil::gpio::Interrupt;
+use kernel::hil::gpio::Output;
+use kernel::hil::i2c::I2CMaster;
 use kernel::hil::usb::Client;
 use kernel::mpu::MPU;
 use kernel::Chip;
@@ -39,6 +43,16 @@ const GPIO_D10: Pin = Pin::P1_02;
 
 const _UART_TX_PIN: Pin = Pin::P1_03;
 const _UART_RX_PIN: Pin = Pin::P1_10;
+
+/// I2C pins for all of the sensors.
+const I2C_SDA_PIN: Pin = Pin::P0_14;
+const I2C_SCL_PIN: Pin = Pin::P0_15;
+
+/// GPIO tied to the VCC of the I2C pullup resistors.
+const I2C_PULLUP_PIN: Pin = Pin::P1_00;
+
+/// Interrupt pin for the APDS9960 sensor.
+const APDS9960_PIN: Pin = Pin::P0_19;
 
 /// UART Writer for panic!()s.
 pub mod io;
@@ -228,6 +242,39 @@ pub unsafe fn reset_handler() {
     let rng = components::rng::RngComponent::new(board_kernel, &nrf52::trng::TRNG).finalize(());
 
     //--------------------------------------------------------------------------
+    // SENSORS
+    //--------------------------------------------------------------------------
+
+    let sensors_i2c_bus = static_init!(
+        capsules::virtual_i2c::MuxI2C<'static>,
+        capsules::virtual_i2c::MuxI2C::new(&nrf52840::i2c::TWIM0, None, dynamic_deferred_caller)
+    );
+    nrf52840::i2c::TWIM0.configure(
+        nrf52840::pinmux::Pinmux::new(I2C_SCL_PIN as u32),
+        nrf52840::pinmux::Pinmux::new(I2C_SDA_PIN as u32),
+    );
+    nrf52840::i2c::TWIM0.set_master_client(sensors_i2c_bus);
+
+    &nrf52840::gpio::PORT[I2C_PULLUP_PIN].make_output();
+    &nrf52840::gpio::PORT[I2C_PULLUP_PIN].set();
+
+    let apds9960_i2c = static_init!(
+        capsules::virtual_i2c::I2CDevice,
+        capsules::virtual_i2c::I2CDevice::new(sensors_i2c_bus, 0x39 << 1)
+    );
+
+    let apds9960 = static_init!(
+        capsules::apds9960::APDS9960<'static>,
+        capsules::apds9960::APDS9960::new(
+            apds9960_i2c,
+            &nrf52840::gpio::PORT[APDS9960_PIN],
+            &mut capsules::apds9960::BUFFER
+        )
+    );
+    apds9960_i2c.set_client(apds9960);
+    nrf52840::gpio::PORT[APDS9960_PIN].set_client(apds9960);
+
+    //--------------------------------------------------------------------------
     // WIRELESS
     //--------------------------------------------------------------------------
 
@@ -272,6 +319,8 @@ pub unsafe fn reset_handler() {
     cdc.attach();
 
     debug!("Initialization complete. Entering main loop.");
+
+    apds9960.take_measurement();
 
     //--------------------------------------------------------------------------
     // PROCESSES AND MAIN LOOP
