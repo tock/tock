@@ -604,7 +604,7 @@ impl Adc {
     pub fn set_client<C: EverythingClient>(&self, client: &'static C) {
         self.client.set(client);
     }
-    
+
     pub fn is_enabled_clock(&self) -> bool {
         self.clock.is_enabled()
     }
