@@ -1,9 +1,11 @@
 //! Clock System (CS)
 
+use kernel::common::peripherals::PeripheralManagement;
 use kernel::common::registers::{
     register_bitfields, register_structs, ReadOnly, ReadWrite, WriteOnly,
 };
 use kernel::common::StaticRef;
+use kernel::NoClockControl;
 
 pub static mut CS: ClockSystem = ClockSystem::new();
 
@@ -14,7 +16,7 @@ const KEY: u32 = 0x695A;
 
 register_structs! {
     /// CS
-    CsRegisters {
+    pub CsRegisters {
         /// Key Register
         (0x00 => key: ReadWrite<u32, CSKEY::Register>),
         /// Control 0 Register
@@ -85,7 +87,7 @@ register_bitfields! [u32,
         DIVS OFFSET(28) NUMBITS(3)
     ],
     CSCTL2 [
-        /// sSt drive-strength for LXFT oscillator
+        /// Set drive-strength for LXFT oscillator
         LFXTDRIVE OFFSET(0) NUMBITS(2),
         /// Turn on LFXT oscillator
         LFXT_EN OFFSET(8) NUMBITS(1),
@@ -132,27 +134,47 @@ register_bitfields! [u32,
         /// Select REFO nominal frequency: 0 = 32.768kHz, 1=128kHz
         REFOFSEL OFFSET(15) NUMBITS(1)
     ],
-    /// Status of the different clock-sources, if they are active or not
+    /// Status of the different clock-sources
     CSSTAT [
+        /// DCO status, 1=active, 0=inactive
         DCO_ON OFFSET(0) NUMBITS(1),
+        /// DCO bias status, 1=active, 0=inactive
         DCOBIAS_ON OFFSET(1) NUMBITS(1),
+        /// HFXT status, 1=active, 0=inactive
         HFXT_ON OFFSET(2) NUMBITS(1),
+        /// MODOSC status, 1=active, 0=inactive
         MODOSC_ON OFFSET(4) NUMBITS(1),
+        /// VLO status, 1=active, 0=inactive
         VLO_ON OFFSET(5) NUMBITS(1),
+        /// LFXT status, 1=active, 0=inactive
         LFXT_ON OFFSET(6) NUMBITS(1),
+        /// REFO status, 1=active, 0=inactive
         REFO_ON OFFSET(7) NUMBITS(1),
+        /// ACLK system clock status, 1=active, 0=inactive
         ACLK_ON OFFSET(16) NUMBITS(1),
+        /// MCLK system clock status, 1=active, 0=inactive
         MCLK_ON OFFSET(17) NUMBITS(1),
+        /// HSMCLK system clock status, 1=active, 0=inactive
         HSMCLK_ON OFFSET(18) NUMBITS(1),
+        /// SMCLK system clock status, 1=active, 0=inactive
         SMCLK_ON OFFSET(19) NUMBITS(1),
+        /// MODCLK system clock status, 1=active, 0=inactive
         MODCLK_ON OFFSET(20) NUMBITS(1),
+        /// VLOCLK system clock status, 1=active, 0=inactive
         VLOCLK_ON OFFSET(21) NUMBITS(1),
+        /// LFXTCLK system clock status, 1=active, 0=inactive
         LFXTCLK_ON OFFSET(22) NUMBITS(1),
+        /// REFOCLK system clock status, 1=active, 0=inactive
         REFOCLK_ON OFFSET(23) NUMBITS(1),
+        /// ACLK ready status, indicates if the clock is stable after a change in the frequency/divider settings
         ACLK_READY OFFSET(24) NUMBITS(1),
+        /// MCLK ready status, indicates if the clock is stable after a change in the frequency/divider settings
         MCLK_READY OFFSET(25) NUMBITS(1),
+        /// HSMCLK ready status, indicates if the clock is stable after a change in the frequency/divider settings
         HSMCLK_READY OFFSET(26) NUMBITS(1),
+        /// SMCLK ready status, indicates if the clock is stable after a change in the frequency/divider settings
         SMCLK_READY OFFSET(27) NUMBITS(1),
+        /// BCLK ready status, indicates if the clock is stable after a change in the frequency/divider settings
         BCLK_READY OFFSET(28) NUMBITS(1)
     ],
     /// Interrupt enable register
@@ -230,19 +252,10 @@ impl ClockSystem {
         ClockSystem { registers: CS_BASE }
     }
 
-    fn unlock_registers(&self) {
-        self.registers.key.modify(CSKEY::KEY.val(KEY));
-    }
-
-    fn lock_registers(&self) {
-        // Every value except KEY written to the key register will perform the lock
-        self.registers.key.modify(CSKEY::KEY.val(0));
-    }
-
     // Not sure about the interface, so for testing provide a function to set
     // the master-clock to 48Mhz
     pub fn set_mclk_48mhz(&self) {
-        self.unlock_registers();
+        self.before_peripheral_access(self.get_clock(), self.get_registers());
 
         // Set HFXT to 40-48MHz range
         self.registers.ctl2.modify(CSCTL2::HFXTFREQ.val(6));
@@ -257,12 +270,12 @@ impl ClockSystem {
                 .clrifg
                 .write(CSCLRIFG::HFXTIFG::SET + CSCLRIFG::FCNTHFIFG::SET);
         }
-        self.lock_registers();
+        self.after_peripheral_access(self.get_clock(), self.get_registers());
     }
 
     // Setup the low-speed subsystem master clock (SMCLK) to 1/4 of the master-clock -> 12MHz
     pub fn set_smclk_12mhz(&self) {
-        self.unlock_registers();
+        self.before_peripheral_access(self.get_clock(), self.get_registers());
 
         // Set HFXT as clock-source for SMCLK
         self.registers.ctl1.modify(CSCTL1::SELS.val(5));
@@ -270,6 +283,26 @@ impl ClockSystem {
         // Set SMCLK divider to 4 -> 48MHz / 4 = 12MHz
         self.registers.ctl1.modify(CSCTL1::DIVS.val(2));
 
-        self.lock_registers();
+        self.after_peripheral_access(self.get_clock(), self.get_registers());
+    }
+}
+
+impl<'a> PeripheralManagement<NoClockControl> for ClockSystem {
+    type RegisterType = CsRegisters;
+
+    fn get_registers(&self) -> &CsRegisters {
+        &*self.registers
+    }
+    fn get_clock(&self) -> &NoClockControl {
+        unsafe { &kernel::NO_CLOCK_CONTROL }
+    }
+    fn before_peripheral_access(&self, _c: &NoClockControl, r: &Self::RegisterType) {
+        // Unlocks the registers in order to allow write accesses
+        r.key.modify(CSKEY::KEY.val(KEY));
+    }
+    fn after_peripheral_access(&self, _c: &NoClockControl, r: &Self::RegisterType) {
+        // Locks the registers
+        // Every value except KEY written to the key register will perform the lock
+        r.key.modify(CSKEY::KEY.val(0));
     }
 }
