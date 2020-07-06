@@ -185,9 +185,10 @@ SECTIONS
     PROVIDE_HIDDEN (__exidx_end = .);
 
     /* Region for on-chip kernel non-volatile storage.
-     * Align on 512 bytes since that is the page size.
-     * Volumes within this region are allocated with the
-     * storage_volume! macro in utils.rs. */
+     *
+     * Align on 512 bytes since that is the page size. Volumes within this
+     * region are allocated with the storage_volume! macro in utils.rs.
+     */
     .storage :
     {
       . = ALIGN(512);
@@ -204,25 +205,33 @@ SECTIONS
     _textend = .;   /* alias for _etext expected by some MS toolchains */
 
 
-    /* Customer configuration is most often located
-     * at the end of the rom. It is conditional, and won't
-     * be written if not specified in the board specific linker
-     * file. */
+    /* Customer configuration is most often located at the end of the rom. It is
+     * conditional, and won't be written if not specified in the board specific
+     * linker file.
+     */
     .ccfg : {
         KEEP(*(.ccfg))
     } > ccfg
 
 
-    /* STATIC ELEMENTS FOR TOCK APPLICATIONS */
+    /* Section for application binaries in flash.
+     *
+     * This section is put into the "prog" memory, which is reserved for
+     * applications. This section is not used for the kernel, but including it
+     * in the .elf file allows for concatenating application binaries with the
+     * kernel.
+     */
     .apps :
     {
-        /* _sapps symbol used by tock to look for first application */
+        /* _sapps symbol used by Tock to look for first application. */
         . = ALIGN(4);
         _sapps = .;
 
-        /* Optional .app sections a convenience mechanism to bundle tock
-           kernel and apps into a single image */
-        KEEP (*(.app.*))
+        /* Include a placeholder byte in this section so that the linker
+         * includes a segment for it. Otherwise the section will be empty and
+         * the linker will ignore it when defining the segments.
+         */
+        BYTE(0)
     } > prog
     /* _eapps symbol used by tock to calculate the length of app flash */
     _eapps = _sapps + LENGTH(prog);
