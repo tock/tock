@@ -21,14 +21,14 @@ use crate::usbdev;
 
 pub const CHIP_FREQ: u32 = 50_000_000;
 
-pub struct Ibex {
+pub struct EarlGrey {
     userspace_kernel_boundary: SysCall,
     pmp: rv32i::pmp::PMPConfig,
 }
 
-impl Ibex {
-    pub unsafe fn new() -> Ibex {
-        Ibex {
+impl EarlGrey {
+    pub unsafe fn new() -> EarlGrey {
+        EarlGrey {
             userspace_kernel_boundary: SysCall::new(),
             pmp: rv32i::pmp::PMPConfig::new(4),
         }
@@ -103,7 +103,7 @@ impl Ibex {
     }
 }
 
-impl kernel::Chip for Ibex {
+impl kernel::Chip for EarlGrey {
     type MPU = rv32i::pmp::PMPConfig;
     type UserspaceKernelBoundary = SysCall;
     type SysTick = ();

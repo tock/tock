@@ -1,4 +1,4 @@
-//! Named interrupts for the Ibex core.
+//! Named interrupts for the Earl Grey chip.
 
 #![allow(dead_code)]
 

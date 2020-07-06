@@ -20,4 +20,4 @@ that Tock supports.
 | [SparkFun RedBoard Artemis Nano](redboard_artemis_nano/README.md)    | ARM Cortex-M4   | Apollo3        | custom     | custom         |
 | [SiFive HiFive1](hifive1/README.md)                                  | RISC-V          | FE310-G000     | openocd    | tockloader     |
 | [Digilent Arty A-7 100T](arty_e21/README.md)                         | RISC-V RV32IMAC | SiFive E21     | openocd    | tockloader     |
-| [Nexys Video OpenTitan](opentitan/README.md)                         | RISC-V RV32IMC  | Ibex           | custom     | custom         |
+| [Nexys Video OpenTitan](opentitan/README.md)                         | RISC-V RV32IMC  | EarlGrey       | custom     | custom         |

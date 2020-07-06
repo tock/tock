@@ -6,7 +6,7 @@
 //! -----
 //!
 //! ```rust
-//! let mux_i2c = components::i2c::I2CMuxComponent::new(&ibex::i2c::I2C)
+//! let mux_i2c = components::i2c::I2CMuxComponent::new(&earlgrey::i2c::I2C)
 //!     .finalize(components::i2c_mux_component_helper!());
 //!
 //! let mlx90614 = components::mlx90614::Mlx90614I2CComponent::new()
