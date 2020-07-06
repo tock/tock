@@ -10,18 +10,6 @@ use kernel::ReturnCode;
 pub trait EverythingClient: hil::adc::Client + hil::adc::HighSpeedClient {}
 impl<C: hil::adc::Client + hil::adc::HighSpeedClient> EverythingClient for C {}
 
-// #[repr(C)]
-// struct AdcRegisters {
-//     // adc12: AdcSeparateRegisters,
-//     // _reserved0: [u32; 48],
-
-//     // adc34: AdcSeparateRegisters,
-//     // _reserved3: [u32; 109],
-
-//     // common: AdcCommonRegisters,
-
-// }
-
 #[repr(C)]
 struct AdcRegisters {
     isr: ReadWrite<u32, ISR::Register>,
@@ -79,119 +67,119 @@ struct AdcCommonRegisters {
 }
 
 register_bitfields![u32,
-    //interrupt and status register
+    ///interrupt and status register
     ISR [
-        // Injected context queue overflow
+        /// Injected context queue overflow
         JQOVF OFFSET(10) NUMBITS(1) [],
-        // Analog watchdog 3 flag
+        /// Analog watchdog 3 flag
         AWD3 OFFSET(9) NUMBITS(1) [],
-        // Analog watchdog 2 flag
+        /// Analog watchdog 2 flag
         AWD2 OFFSET(8) NUMBITS(1) [],
-        // Analog watchdog 1 flag
+        /// Analog watchdog 1 flag
         AWD1 OFFSET(7) NUMBITS(1) [],
-        // Injected channel end of sequence flag
+        /// Injected channel end of sequence flag
         JEOS OFFSET(6) NUMBITS(1) [],
-        // Injected channel end of conversion flag
+        /// Injected channel end of conversion flag
         JEOC OFFSET(5) NUMBITS(1) [],
-        // ADC overrun
+        /// ADC overrun
         OVR OFFSET(4) NUMBITS(1) [],
-        // End of regular sequence flag
+        /// End of regular sequence flag
         EOS OFFSET(3) NUMBITS(1) [],
-        // End of conversion flag
+        /// End of conversion flag
         EOC OFFSET(2) NUMBITS(1) [],
-        // End of sampling flag
+        /// End of sampling flag
         EOSMP OFFSET(1) NUMBITS(1) [],
-        // ADC ready
+        /// ADC ready
         ADRDY OFFSET(0) NUMBITS(1) []
     ],
-    // Interrupt enable register
+    /// Interrupt enable register
     IER [
-        // Injected context queue overflow interrupt enable
+        /// Injected context queue overflow interrupt enable
         JQOVFIE OFFSET(10) NUMBITS(1) [],
-        // Analog watchdog 3 interrupt enable
+        /// Analog watchdog 3 interrupt enable
         AWD3IE OFFSET(9) NUMBITS(1) [],
-        // Analog watchdog 2 interrupt enable
+        /// Analog watchdog 2 interrupt enable
         AWD2IE OFFSET(8) NUMBITS(1) [],
-        // Analog watchdog 1 interrupt enable
+        /// Analog watchdog 1 interrupt enable
         AWD1IE OFFSET(7) NUMBITS(1) [],
-        // End of injected sequence of conversions interrupt enable
+        /// End of injected sequence of conversions interrupt enable
         JEOSIE OFFSET(6) NUMBITS(1) [],
-        // End of injected conversion interrupt enable
+        /// End of injected conversion interrupt enable
         JEOCIE OFFSET(5) NUMBITS(1) [],
-        // Overrun interrupt enable
+        /// Overrun interrupt enable
         OVRIE OFFSET(4) NUMBITS(1) [],
-        // End of regular sequence of conversions interrupt enable
+        /// End of regular sequence of conversions interrupt enable
         EOSIE OFFSET(3) NUMBITS(1) [],
-        // End of regular conversion interrupt enable
+        /// End of regular conversion interrupt enable
         EOCIE OFFSET(2) NUMBITS(1) [],
-        // End of sampling flag interrupt enable for regular conversions
+        /// End of sampling flag interrupt enable for regular conversions
         EOSMPIE OFFSET(1) NUMBITS(1) [],
-        // ADC ready interrupt enable
+        /// ADC ready interrupt enable
         ADRDYIE OFFSET(0) NUMBITS(1) []
     ],
-    // Control register
+    /// Control register
     CR [
-        // ADC calibration
+        /// ADC calibration
         ADCAL OFFSET(31) NUMBITS(1) [],
-        // Differential mode for calibration
+        /// Differential mode for calibration
         ADCALDIF OFFSET(30) NUMBITS(1) [],
-        // ADC voltage regulator enable
+        /// ADC voltage regulator enable
         ADVREGEN OFFSET(28) NUMBITS(2) [],
-        // ADC stop of injected conversion command
+        /// ADC stop of injected conversion command
         JADSTP OFFSET(5) NUMBITS(1) [],
-        // ADC stop of regular conversion command
+        /// ADC stop of regular conversion command
         ADSTP OFFSET(4) NUMBITS(1) [],
-        // ADC start of injected conversion
+        /// ADC start of injected conversion
         JADSTART OFFSET(3) NUMBITS(1) [],
-        // ADC start of regular conversion
+        /// ADC start of regular conversion
         ADSTART OFFSET(2) NUMBITS(1) [],
-        // ADC disable command
+        /// ADC disable command
         ADDIS OFFSET(1) NUMBITS(1) [],
-        // ADC enable control
+        /// ADC enable control
         ADEN OFFSET(0) NUMBITS(1) []
     ],
-    // Configuration register
+    /// Configuration register
     CFGR [
-        // Analog watchdog 1 channel selection
+        /// Analog watchdog 1 channel selection
         AWD1CH OFFSET(26) NUMBITS(5) [],
-        // Automatic injected group conversion
+        /// Automatic injected group conversion
         JAUTO OFFSET(25) NUMBITS(1) [],
-        // Analog watchdog 1 enable on injected channels
+        /// Analog watchdog 1 enable on injected channels
         JAWD1EN OFFSET(24) NUMBITS(1) [],
-        // Analog watchdog 1 enable on regular channels
+        /// Analog watchdog 1 enable on regular channels
         AWD1EN OFFSET(23) NUMBITS(1) [],
-        // Enable the watchdog 1 on a single channel or on all channels
+        /// Enable the watchdog 1 on a single channel or on all channels
         AWD1SGL OFFSET(22) NUMBITS(1) [],
-        // JSQR queue mode
+        /// JSQR queue mode
         JQM OFFSET(21) NUMBITS(1) [],
-        // Discontinuous mode on injected channels
+        /// Discontinuous mode on injected channels
         JDISCEN OFFSET(20) NUMBITS(1) [],
-        // Discontinuous mode channel count
+        /// Discontinuous mode channel count
         DISCNUM OFFSET(17) NUMBITS(3) [],
-        // Discontinuous mode for regular channels
+        /// Discontinuous mode for regular channels
         DISCEN OFFSET(16) NUMBITS(1) [],
-        // Delayed conversion mode
+        /// Delayed conversion mode
         AUTDLY OFFSET(14) NUMBITS(1) [],
-        // Single / continuous conversion mode for regular conversions
+        /// Single / continuous conversion mode for regular conversions
         CONT OFFSET(13) NUMBITS(1) [],
-        // Overrun Mode
+        /// Overrun Mode
         OVRMOD OFFSET(12) NUMBITS(1) [],
-        // External trigger enable and polarity selection for regular channels
+        /// External trigger enable and polarity selection for regular channels
         EXTEN OFFSET(10) NUMBITS(2) [],
-        // External trigger selection for regular group
+        /// External trigger selection for regular group
         EXTSEL OFFSET(6) NUMBITS(4) [],
-        // Data alignment
+        /// Data alignment
         ALIGN OFFSET(5) NUMBITS(1) [],
-        // Data resolution
+        /// Data resolution
         RES OFFSET(3) NUMBITS(2) [],
-        // Direct memory access configuration
+        /// Direct memory access configuration
         DMACFG OFFSET(1) NUMBITS(1) [],
-        // Direct memory access enable
+        /// Direct memory access enable
         DMAEN OFFSET(0) NUMBITS(1) []
     ],
-    // Sample time register 1
+    /// Sample time register 1
     SMPR1 [
-        // Channel x sampling time selection
+        /// Channel x sampling time selection
         SMP9 OFFSET(27) NUMBITS(3) [],
         SMP8 OFFSET(24) NUMBITS(3) [],
         SMP7 OFFSET(21) NUMBITS(3) [],
@@ -202,9 +190,9 @@ register_bitfields![u32,
         SMP2 OFFSET(6) NUMBITS(3) [],
         SMP1 OFFSET(3) NUMBITS(3) []
     ],
-    // Sample time register 2
+    /// Sample time register 2
     SMPR2 [
-        // Channel x sampling time selection
+        /// Channel x sampling time selection
         SMP18 OFFSET(24) NUMBITS(3) [],
         SMP17 OFFSET(21) NUMBITS(3) [],
         SMP16 OFFSET(18) NUMBITS(3) [],
@@ -215,202 +203,202 @@ register_bitfields![u32,
         SMP11 OFFSET(3) NUMBITS(3) [],
         SMP10 OFFSET(0) NUMBITS(3) []
     ],
-    // Watchdog threshold register 1
+    /// Watchdog threshold register 1
     TR1 [
-        // Analog watchdog 1 higher threshold
+        /// Analog watchdog 1 higher threshold
         HT1 OFFSET(16) NUMBITS(12) [],
-        // Analog watchdog 1 lower threshold
+        /// Analog watchdog 1 lower threshold
         LT1 OFFSET(0) NUMBITS(12) []
     ],
-    // Watchdog threshold register 2
+    /// Watchdog threshold register 2
     TR2 [
-        // Analog watchdog 2 higher threshold
+        /// Analog watchdog 2 higher threshold
         HT2 OFFSET(16) NUMBITS(8) [],
-        // Analog watchdog 2 lower threshold
+        /// Analog watchdog 2 lower threshold
         LT2 OFFSET(0) NUMBITS(8) []
     ],
-    // Watchdog threshold register 3
+    /// Watchdog threshold register 3
     TR3 [
-        // Analog watchdog 3 higher threshold
+        /// Analog watchdog 3 higher threshold
         HT3 OFFSET(16) NUMBITS(8) [],
-        // Analog watchdog 3 lower threshold
+        /// Analog watchdog 3 lower threshold
         LT3 OFFSET(0) NUMBITS(8) []
     ],
-    // Regular sequence register 1
+    /// Regular sequence register 1
     SQR1 [
-        // 4th conversion in regular sequence
+        /// 4th conversion in regular sequence
         SQ4 OFFSET(24) NUMBITS(5) [],
-        // 3rd conversion in regular sequence
+        /// 3rd conversion in regular sequence
         SQ3 OFFSET(18) NUMBITS(5) [],
-        // 2nd conversion in regular sequence
+        /// 2nd conversion in regular sequence
         SQ2 OFFSET(12) NUMBITS(5) [],
-        // 1st conversion in regular sequence
+        /// 1st conversion in regular sequence
         SQ1 OFFSET(6) NUMBITS(5) [],
-        // Regular channel sequence length
+        /// Regular channel sequence length
         L OFFSET(0) NUMBITS(4) []
     ],
-    // Regular sequence register 2
+    /// Regular sequence register 2
     SQR2 [
         SQ9 OFFSET(24) NUMBITS(5) [],
-        // 9th conversion in regular sequence
+        /// 9th conversion in regular sequence
         SQ8 OFFSET(18) NUMBITS(5) [],
-        // 8th conversion in regular sequence
+        /// 8th conversion in regular sequence
         SQ7 OFFSET(12) NUMBITS(5) [],
-        // 7th conversion in regular sequence
+        /// 7th conversion in regular sequence
         SQ6 OFFSET(6) NUMBITS(5) [],
-        // 6th conversion in regular sequence
+        /// 6th conversion in regular sequence
         SQ5 OFFSET(0) NUMBITS(5) []
     ],
-    // Regular sequence register 3
+    /// Regular sequence register 3
     SQR3 [
-        // 14th conversion in regular sequence
+        /// 14th conversion in regular sequence
         SQ14 OFFSET(24) NUMBITS(5) [],
-        // 13th conversion in regular sequence
+        /// 13th conversion in regular sequence
         SQ13 OFFSET(18) NUMBITS(5) [],
-        // 12th conversion in regular sequence
+        /// 12th conversion in regular sequence
         SQ12 OFFSET(12) NUMBITS(5) [],
-        // 11th conversion in regular sequence
+        /// 11th conversion in regular sequence
         SQ11 OFFSET(6) NUMBITS(5) [],
-        // 10th conversion in regular sequence
+        /// 10th conversion in regular sequence
         SQ10 OFFSET(0) NUMBITS(5) []
     ],
-    // Regular sequence register 4
+    /// Regular sequence register 4
     SQR4 [
-        // 16th conversion in regular sequence
+        /// 16th conversion in regular sequence
         SQ16 OFFSET(6) NUMBITS(5) [],
-        // 15th conversion in regular sequence
+        /// 15th conversion in regular sequence
         SQ15 OFFSET(0) NUMBITS(5) []
     ],
-    // Regular Data Register
+    /// Regular Data Register
     DR [
-        // Regular Data converted
+        /// Regular Data converted
         RDATA OFFSET(0) NUMBITS(16) []
     ],
-    // Injected sequence register
+    /// Injected sequence register
     JSQR [
-        // 4th conversion in the injected sequence
+        /// 4th conversion in the injected sequence
         JSQ4 OFFSET(26) NUMBITS(5) [],
-        // 3rd conversion in the injected sequence
+        /// 3rd conversion in the injected sequence
         JSQ3 OFFSET(20) NUMBITS(5) [],
-        // 2nd conversion in the injected sequence
+        /// 2nd conversion in the injected sequence
         JSQ2 OFFSET(14) NUMBITS(5) [],
-        // 1st conversion in the injected sequence
+        /// 1st conversion in the injected sequence
         JSQ1 OFFSET(8) NUMBITS(5) [],
-        // External Trigger Enable and Polarity Selection for injected channels
+        /// External Trigger Enable and Polarity Selection for injected channels
         JEXTEN OFFSET(6) NUMBITS(2) [],
-        // External Trigger Selection for injected group
+        /// External Trigger Selection for injected group
         JEXTSEL OFFSET(2) NUMBITS(4) [],
-        // Injected channel sequence length
+        /// Injected channel sequence length
         JL OFFSET(0) NUMBITS(2) []
     ],
-    // Offset register
+    /// Offset register
     OFR [
-        // Offset y Enable
+        /// Offset y Enable
         OFFSET_EN OFFSET(31) NUMBITS(1) [],
-        // Channel selection for the Data offset y
+        /// Channel selection for the Data offset y
         OFFSET_CH OFFSET(26) NUMBITS(5) [],
-        // Data offset y for the channel programmed into bits OFFSET_CH[4:0]
+        /// Data offset y for the channel programmed into bits OFFSET_CH[4:0]
         OFFSETy OFFSET(0) NUMBITS(12) []
     ],
-    // Injected data register
+    /// Injected data register
     JDR [
-        // Injected data
+        /// Injected data
         JDATA OFFSET(0) NUMBITS(16) []
     ],
-    // Analog Watchdog 2 Configuration Register
+    /// Analog Watchdog 2 Configuration Register
     AWD2CR [
-        // Analog watchdog 2 channel selection
+        /// Analog watchdog 2 channel selection
         AWD2CH OFFSET(1) NUMBITS(18) []
     ],
-    // Analog Watchdog 3 Configuration Register
+    /// Analog Watchdog 3 Configuration Register
     AWD3CR [
-        // Analog watchdog 3 channel selection
+        /// Analog watchdog 3 channel selection
         AWD3CH OFFSET(1) NUMBITS(18) []
     ],
-    // Differential Mode Selection Register
+    /// Differential Mode Selection Register
     DIFSEL [
-        // Differential mode for channels 18 to 16 r
-        // Differential mode for channels 15 to 1 r/w
+        /// Differential mode for channels 18 to 16 r
+        /// Differential mode for channels 15 to 1 r/w
         DIFSEL OFFSET(1) NUMBITS(18) []
     ],
-    // Calibration Factors
+    /// Calibration Factors
     CALFACT [
-        // Calibration Factors in differential mode
+        /// Calibration Factors in differential mode
         CALFACT_D OFFSET(16) NUMBITS(7) [],
-        // Calibration Factors In Single-Ended mode
+        /// Calibration Factors In Single-Ended mode
         CALFACT_S OFFSET(0) NUMBITS(7) []
     ],
-    // Common status register
+    /// Common status register
     CSR [
-        // Injected Context Queue Overflow flag of the slave ADC
+        /// Injected Context Queue Overflow flag of the slave ADC
         JQOVF_SLV OFFSET(26) NUMBITS(1) [],
-        // Analog watchdog 3 flag of the slave ADC
+        /// Analog watchdog 3 flag of the slave ADC
         AWD3_SLV OFFSET(25) NUMBITS(1) [],
-        // Analog watchdog 2 flag of the slave ADC
+        /// Analog watchdog 2 flag of the slave ADC
         AWD2_SLV OFFSET(24) NUMBITS(1) [],
-        // Analog watchdog 1 flag of the slave ADC
+        /// Analog watchdog 1 flag of the slave ADC
         AWD1_SLV OFFSET(23) NUMBITS(1) [],
-        // End of injected sequence flag of the slave ADC
+        /// End of injected sequence flag of the slave ADC
         JEOS_SLV OFFSET(22) NUMBITS(1) [],
-        // End of injected conversion flag of the slave ADC
+        /// End of injected conversion flag of the slave ADC
         JEOC_SLV OFFSET(21) NUMBITS(1) [],
-        // Overrun flag of the slave ADC
+        /// Overrun flag of the slave ADC
         OVR_SLV OFFSET(20) NUMBITS(1) [],
-        // End of regular sequence flag of the slave ADC
+        /// End of regular sequence flag of the slave ADC
         EOS_SLV OFFSET(19) NUMBITS(1) [],
-        // End of regular conversion of the slave ADC
+        /// End of regular conversion of the slave ADC
         EOC_SLV OFFSET(18) NUMBITS(1) [],
-        // End of Sampling phase flag of the slave ADC
+        /// End of Sampling phase flag of the slave ADC
         EOSMP_SLV OFFSET(17) NUMBITS(1) [],
-        // Slave ADC ready
+        /// Slave ADC ready
         ADRDY_SLV OFFSET(16) NUMBITS(1) [],
-        // Injected Context Queue Overflow flag of the master ADC
+        /// Injected Context Queue Overflow flag of the master ADC
         JQOVF_MST OFFSET(10) NUMBITS(1) [],
-        // Analog watchdog 3 flag of the master ADC
+        /// Analog watchdog 3 flag of the master ADC
         AWD3_MST OFFSET(9) NUMBITS(1) [],
-        // Analog watchdog 2 flag of the master ADC
+        /// Analog watchdog 2 flag of the master ADC
         AWD2_MST OFFSET(8) NUMBITS(1) [],
-        // Analog watchdog 1 flag of the master ADC
+        /// Analog watchdog 1 flag of the master ADC
         AWD1_MST OFFSET(7) NUMBITS(1) [],
-        // End of injected sequence flag of the master ADC
+        /// End of injected sequence flag of the master ADC
         JEOS_MST OFFSET(6) NUMBITS(1) [],
-        // End of injected conversion flag of the master ADC
+        /// End of injected conversion flag of the master ADC
         JEOC_MST OFFSET(5) NUMBITS(1) [],
-        // Overrun flag of the master ADC
+        /// Overrun flag of the master ADC
         OVR_MST OFFSET(4) NUMBITS(1) [],
-        // End of regular sequence flag of the master ADC
+        /// End of regular sequence flag of the master ADC
         EOS_MST OFFSET(3) NUMBITS(1) [],
-        // End of regular conversion of the master ADC
+        /// End of regular conversion of the master ADC
         EOC_MST OFFSET(2) NUMBITS(1) [],
-        // End of Sampling phase flag of the master ADC
+        /// End of Sampling phase flag of the master ADC
         EOSMP_MST OFFSET(1) NUMBITS(1) [],
-        // Master ADC ready
+        /// Master ADC ready
         ADRDY_MST OFFSET(0) NUMBITS(1) []
     ],
-    // Common control register
+    /// Common control register
     CCR [
-        // VBAT enable
+        /// VBAT enable
         VBATEN OFFSET(24) NUMBITS(1) [],
-        // Temperature sensor enable
+        /// Temperature sensor enable
         TSEN OFFSET(23) NUMBITS(1) [],
-        // VREFINT enable
+        /// VREFINT enable
         VREFEN OFFSET(22) NUMBITS(1) [],
-        // ADC clock mode
+        /// ADC clock mode
         CKMODE OFFSET(16) NUMBITS(2) [],
-        // Direct memory access mode for dual ADC mode
+        /// Direct memory access mode for dual ADC mode
         MDMA OFFSET(14) NUMBITS(2) [],
-        // DMA configuration (for dual ADC mode)
+        /// DMA configuration (for dual ADC mode)
         DMACFG OFFSET(13) NUMBITS(1) [],
-        // Delay between 2 sampling phases
+        /// Delay between 2 sampling phases
         DELAY OFFSET(8) NUMBITS(4) [],
-        // Dual ADC mode selection
+        /// Dual ADC mode selection
         DUAL OFFSET(0) NUMBITS(5) []
     ],
-    // Common regular data register for dual mode
+    /// Common regular data register for dual mode
     CDR [
-        // Regular data of the slave ADC
+        /// Regular data of the slave ADC
         RDATA_SLV OFFSET(16) NUMBITS(16) [],
-        // Regular data of the master ADC
+        /// Regular data of the master ADC
         RDATA_MST OFFSET(0) NUMBITS(16) []
     ]
 ];
@@ -545,16 +533,14 @@ impl Adc {
         // Wait for ADVRGEN to enable
         // This needs to be synchronous because there is no interrupt signaling
         // when ADVRGEN becomes enabled
-        for _i in 0..1000000 {
+        // we chose 720 because the frequency is 72MHz and it needs 10 us to become enabled
+        for _i in 0..720 {
             unsafe {
                 llvm_asm!(
                 "nop"
             : : : : "volatile" );
             }
         }
-
-        // Enable the temperature sensor
-        self.common_registers.ccr.modify(CCR::TSEN::SET);
 
         // Enable ADC Ready interrupt
         self.registers.ier.modify(IER::ADRDYIE::SET);
@@ -618,7 +604,7 @@ impl Adc {
     pub fn set_client<C: EverythingClient>(&self, client: &'static C) {
         self.client.set(client);
     }
-    // 12
+    
     pub fn is_enabled_clock(&self) -> bool {
         self.clock.is_enabled()
     }
