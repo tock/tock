@@ -6,7 +6,6 @@ use cortexm4::support;
 use kernel::common::math::log_base_two_u64;
 use kernel::common::registers::{register_bitfields, FieldValue, ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
-use kernel::hil;
 
 #[repr(C)]
 pub struct WdtRegisters {
@@ -220,16 +219,17 @@ impl Wdt {
     }
 }
 
-impl hil::watchdog::Watchdog for Wdt {
-    fn start(&self, period: usize) {
-        self.start(period);
-    }
-
-    fn stop(&self) {
-        self.stop();
+impl kernel::watchdog::WatchDog for Wdt {
+    fn setup(&self) {
+        // Setup the WatchDog with a 100ms period.
+        self.start(100);
     }
 
     fn tickle(&self) {
         self.tickle();
+    }
+
+    fn suspend(&self) {
+        self.stop();
     }
 }
