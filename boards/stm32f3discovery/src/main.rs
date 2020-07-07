@@ -188,7 +188,7 @@ unsafe fn set_pin_primary_functions() {
         pin.set_alternate_function(AlternateFunction::AF4);
     });
 
-    // ADC
+    // ADC1
     PinId::PA00.get_pin().as_ref().map(|pin| {
         pin.set_mode(stm32f303xc::gpio::Mode::AnalogMode);
     });
@@ -209,26 +209,7 @@ unsafe fn set_pin_primary_functions() {
         pin.set_mode(stm32f303xc::gpio::Mode::AnalogMode);
     });
 
-    PinId::PC00.get_pin().as_ref().map(|pin| {
-        pin.set_mode(stm32f303xc::gpio::Mode::AnalogMode);
-    });
-
-    PinId::PC01.get_pin().as_ref().map(|pin| {
-        pin.set_mode(stm32f303xc::gpio::Mode::AnalogMode);
-    });
-
-    PinId::PC02.get_pin().as_ref().map(|pin| {
-        pin.set_mode(stm32f303xc::gpio::Mode::AnalogMode);
-    });
-
-    PinId::PC03.get_pin().as_ref().map(|pin| {
-        pin.set_mode(stm32f303xc::gpio::Mode::AnalogMode);
-    });
-
-    PinId::PF02.get_pin().as_ref().map(|pin| {
-        pin.set_mode(stm32f303xc::gpio::Mode::AnalogMode);
-    });
-
+    // ADC2
     PinId::PA04.get_pin().as_ref().map(|pin| {
         pin.set_mode(stm32f303xc::gpio::Mode::AnalogMode);
     });
@@ -245,20 +226,7 @@ unsafe fn set_pin_primary_functions() {
         pin.set_mode(stm32f303xc::gpio::Mode::AnalogMode);
     });
 
-    //commented to use debugger
-
-    // PinId::PC04.get_pin().as_ref().map(|pin| {
-    //     pin.set_mode(stm32f303xc::gpio::Mode::AnalogMode);
-    // });
-
-    // PinId::PC05.get_pin().as_ref().map(|pin| {
-    //     pin.set_mode(stm32f303xc::gpio::Mode::AnalogMode);
-    // });
-
-    PinId::PB02.get_pin().as_ref().map(|pin| {
-        pin.set_mode(stm32f303xc::gpio::Mode::AnalogMode);
-    });
-
+    // ADC3
     PinId::PB01.get_pin().as_ref().map(|pin| {
         pin.set_mode(stm32f303xc::gpio::Mode::AnalogMode);
     });
@@ -275,50 +243,7 @@ unsafe fn set_pin_primary_functions() {
         pin.set_mode(stm32f303xc::gpio::Mode::AnalogMode);
     });
 
-    PinId::PB00.get_pin().as_ref().map(|pin| {
-        pin.set_mode(stm32f303xc::gpio::Mode::AnalogMode);
-    });
-
-    PinId::PE07.get_pin().as_ref().map(|pin| {
-        pin.set_mode(stm32f303xc::gpio::Mode::AnalogMode);
-    });
-
-    PinId::PE10.get_pin().as_ref().map(|pin| {
-        pin.set_mode(stm32f303xc::gpio::Mode::AnalogMode);
-    });
-
-    PinId::PE11.get_pin().as_ref().map(|pin| {
-        pin.set_mode(stm32f303xc::gpio::Mode::AnalogMode);
-    });
-
-    PinId::PE12.get_pin().as_ref().map(|pin| {
-        pin.set_mode(stm32f303xc::gpio::Mode::AnalogMode);
-    });
-
-    PinId::PE08.get_pin().as_ref().map(|pin| {
-        pin.set_mode(stm32f303xc::gpio::Mode::AnalogMode);
-    });
-
-    PinId::PD10.get_pin().as_ref().map(|pin| {
-        pin.set_mode(stm32f303xc::gpio::Mode::AnalogMode);
-    });
-
-    PinId::PD11.get_pin().as_ref().map(|pin| {
-        pin.set_mode(stm32f303xc::gpio::Mode::AnalogMode);
-    });
-
-    PinId::PD12.get_pin().as_ref().map(|pin| {
-        pin.set_mode(stm32f303xc::gpio::Mode::AnalogMode);
-    });
-
-    PinId::PD13.get_pin().as_ref().map(|pin| {
-        pin.set_mode(stm32f303xc::gpio::Mode::AnalogMode);
-    });
-
-    PinId::PD14.get_pin().as_ref().map(|pin| {
-        pin.set_mode(stm32f303xc::gpio::Mode::AnalogMode);
-    });
-
+    // ADC4
     PinId::PE14.get_pin().as_ref().map(|pin| {
         pin.set_mode(stm32f303xc::gpio::Mode::AnalogMode);
     });
@@ -336,14 +261,6 @@ unsafe fn set_pin_primary_functions() {
     });
 
     PinId::PB15.get_pin().as_ref().map(|pin| {
-        pin.set_mode(stm32f303xc::gpio::Mode::AnalogMode);
-    });
-
-    PinId::PD08.get_pin().as_ref().map(|pin| {
-        pin.set_mode(stm32f303xc::gpio::Mode::AnalogMode);
-    });
-
-    PinId::PD09.get_pin().as_ref().map(|pin| {
         pin.set_mode(stm32f303xc::gpio::Mode::AnalogMode);
     });
 
@@ -524,7 +441,7 @@ pub unsafe fn reset_handler() {
             // 4 => stm32f303xc::gpio::PinId::PF04.get_pin().as_ref().unwrap(),
             // 5 => stm32f303xc::gpio::PinId::PA05.get_pin().as_ref().unwrap(),
             // 6 => stm32f303xc::gpio::PinId::PA07.get_pin().as_ref().unwrap(),
-            7 => stm32f303xc::gpio::PinId::PC05.get_pin().as_ref().unwrap(),
+            // 7 => stm32f303xc::gpio::PinId::PC05.get_pin().as_ref().unwrap(),
             // 8 => stm32f303xc::gpio::PinId::PB01.get_pin().as_ref().unwrap(),
             9 => stm32f303xc::gpio::PinId::PE07.get_pin().as_ref().unwrap(),
             // 10 => stm32f303xc::gpio::PinId::PE09.get_pin().as_ref().unwrap(),
