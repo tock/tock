@@ -259,7 +259,7 @@ register_bitfields![u32,
 const ADC1_BASE: StaticRef<AdcRegisters> =
     unsafe { StaticRef::new(0x4001_2000 as *const AdcRegisters) };
 
-const ADC12_COMMON_BASE: StaticRef<AdcCommonRegisters> =
+const ADC_COMMON_BASE: StaticRef<AdcCommonRegisters> =
     unsafe { StaticRef::new(0x4001_2300 as *const AdcCommonRegisters) };
 
 #[allow(dead_code)]
@@ -282,50 +282,10 @@ pub enum Channel {
     Channel13 = 0b01101,
     Channel14 = 0b01110,
     Channel15 = 0b01111,
+    Channel16 = 0b10000,
+    Channel17 = 0b10001,
+    Channel18 = 0b10010,
 }
-
-// #[allow(dead_code)]
-// #[repr(u32)]
-// enum DiscontinuousMode {
-//     OneChannels = 0b000,
-//     TwoChannels = 0b001,
-//     ThreeChannels = 0b010,
-//     FourChannels = 0b011,
-//     FiveChannels = 0b100,
-//     SixChannels = 0b101,
-//     SevenChannels = 0b110,
-//     EightChannels = 0b111,
-// }
-
-// #[allow(dead_code)]
-// #[repr(u32)]
-// enum ExternalTriggerDetection {
-//     Disabled = 0b00,
-//     RisingEdge = 0b01,
-//     FallingEdge = 0b10,
-//     RisingAndFalling = 0b11,
-// }
-
-// #[allow(dead_code)]
-// #[repr(u32)]
-// enum ExternalTriggerSelection {
-//     Event0 = 0b0000,
-//     Event1 = 0b0001,
-//     Event2 = 0b0010,
-//     Event3 = 0b0011,
-//     Event4 = 0b0100,
-//     Event5 = 0b0101,
-//     Event6 = 0b0110,
-//     Event7 = 0b0111,
-//     Event8 = 0b1000,
-//     Event9 = 0b1001,
-//     Event10 = 0b1010,
-//     Event11 = 0b1011,
-//     Event12 = 0b1100,
-//     Event13 = 0b1101,
-//     Event14 = 0b1110,
-//     Event15 = 0b1111,
-// }
 
 #[allow(dead_code)]
 #[repr(u32)]
@@ -340,17 +300,15 @@ enum DataResolution {
 enum ADCStatus {
     Idle,
     Off,
-    PoweringOn,
     OneSample,
 }
 
 pub struct Adc {
     registers: StaticRef<AdcRegisters>,
-    common_registers: StaticRef<AdcCommonRegisters>,
+    _common_registers: StaticRef<AdcCommonRegisters>,
     clock: AdcClock,
     status: Cell<ADCStatus>,
     client: OptionalCell<&'static dyn EverythingClient>,
-    // clock34: AdcClock,
 }
 
 pub static mut ADC1: Adc = Adc::new();
@@ -359,18 +317,14 @@ impl Adc {
     const fn new() -> Adc {
         Adc {
             registers: ADC1_BASE,
-            //rcc copy
-            common_registers: ADC12_COMMON_BASE,
+            _common_registers: ADC_COMMON_BASE,
             clock: AdcClock(rcc::PeripheralClock::APB2(rcc::PCLK2::ADC1)),
-            // clock34: AdcClock(rcc::PeripheralClock::AHB(rcc::HCLK::ADC34)),
             status: Cell::new(ADCStatus::Off),
             client: OptionalCell::empty(),
         }
     }
 
     pub fn enable(&self) {
-        self.status.set(ADCStatus::PoweringOn);
-
         // Enable adc clock
         self.enable_clock();
 
