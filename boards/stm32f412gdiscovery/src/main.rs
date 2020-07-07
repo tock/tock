@@ -239,8 +239,35 @@ unsafe fn set_pin_primary_functions() {
         EXTI.associate_line_gpiopin(LineId::Exti5, pin);
     });
 
-    // ADC A0
+    // ADC
+
+    // Arduino A0
     PinId::PA01.get_pin().as_ref().map(|pin| {
+        pin.set_mode(stm32f412g::gpio::Mode::AnalogMode);
+    });
+
+    // Arduino A1
+    PinId::PC01.get_pin().as_ref().map(|pin| {
+        pin.set_mode(stm32f412g::gpio::Mode::AnalogMode);
+    });
+
+    // Arduino A2
+    PinId::PC03.get_pin().as_ref().map(|pin| {
+        pin.set_mode(stm32f412g::gpio::Mode::AnalogMode);
+    });
+
+    // Arduino A3
+    PinId::PC04.get_pin().as_ref().map(|pin| {
+        pin.set_mode(stm32f412g::gpio::Mode::AnalogMode);
+    });
+
+    // Arduino A4
+    PinId::PC05.get_pin().as_ref().map(|pin| {
+        pin.set_mode(stm32f412g::gpio::Mode::AnalogMode);
+    });
+
+    // Arduino A5
+    PinId::PB00.get_pin().as_ref().map(|pin| {
         pin.set_mode(stm32f412g::gpio::Mode::AnalogMode);
     });
 
@@ -448,8 +475,6 @@ pub unsafe fn reset_handler() {
     )
     .finalize(components::gpio_component_buf!(stm32f412g::gpio::Pin));
 
-    stm32f412g::adc::ADC1.enable();
-
     // FT6206
 
     let mux_i2c = components::i2c::I2CMuxComponent::new(
@@ -466,25 +491,17 @@ pub unsafe fn reset_handler() {
 
     ft6206.is_present();
 
+    stm32f412g::adc::ADC1.enable();
+
     let adc_channels = static_init!(
-        [&'static stm32f412g::adc::Channel; 16],
+        [&'static stm32f412g::adc::Channel; 6],
         [
-            &stm32f412g::adc::Channel::Channel0,
             &stm32f412g::adc::Channel::Channel1,
-            &stm32f412g::adc::Channel::Channel2,
-            &stm32f412g::adc::Channel::Channel3,
-            &stm32f412g::adc::Channel::Channel4,
-            &stm32f412g::adc::Channel::Channel5,
-            &stm32f412g::adc::Channel::Channel6,
-            &stm32f412g::adc::Channel::Channel7,
-            &stm32f412g::adc::Channel::Channel8,
-            &stm32f412g::adc::Channel::Channel9,
-            &stm32f412g::adc::Channel::Channel10,
             &stm32f412g::adc::Channel::Channel11,
-            &stm32f412g::adc::Channel::Channel12,
             &stm32f412g::adc::Channel::Channel13,
             &stm32f412g::adc::Channel::Channel14,
             &stm32f412g::adc::Channel::Channel15,
+            &stm32f412g::adc::Channel::Channel8,
         ]
     );
     let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
