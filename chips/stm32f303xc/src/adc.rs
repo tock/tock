@@ -1,3 +1,5 @@
+//! Analog to Digital Converter Peripheral
+
 use crate::rcc;
 use core::cell::Cell;
 use kernel::common::cells::OptionalCell;

@@ -530,9 +530,6 @@ pub unsafe fn reset_handler() {
         stm32f303xc::gpio::Pin<'static>
     ));
 
-    //start adc12
-    stm32f303xc::adc::ADC1.enable();
-
     // L3GD20 sensor
     let spi_mux = components::spi::SpiMuxComponent::new(&stm32f303xc::spi::SPI1)
         .finalize(components::spi_mux_component_helper!(stm32f303xc::spi::Spi));
@@ -583,6 +580,9 @@ pub unsafe fn reset_handler() {
 
     let ninedof = components::ninedof::NineDofComponent::new(board_kernel)
         .finalize(components::ninedof_component_helper!(l3gd20, lsm303dlhc));
+
+    //start adc12
+    stm32f303xc::adc::ADC1.enable();
 
     let adc_channels = static_init!(
         [&'static stm32f303xc::adc::Channel; 6],
