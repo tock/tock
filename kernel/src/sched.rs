@@ -72,7 +72,10 @@ impl Kernel {
     /// This is exposed publicly, but restricted with a capability. The intent
     /// is that external implementations of `ProcessType` need to be able to
     /// indicate there is more process work to do.
-    pub fn increment_work_external(&self, _capability: &dyn capabilities::MainLoopCapability) {
+    pub fn increment_work_external(
+        &self,
+        _capability: &dyn capabilities::ExternalProcessCapability,
+    ) {
         self.increment_work();
     }
 
@@ -90,7 +93,10 @@ impl Kernel {
     /// This is exposed publicly, but restricted with a capability. The intent
     /// is that external implementations of `ProcessType` need to be able to
     /// indicate that some process work has finished.
-    pub fn decrement_work_external(&self, _capability: &dyn capabilities::MainLoopCapability) {
+    pub fn decrement_work_external(
+        &self,
+        _capability: &dyn capabilities::ExternalProcessCapability,
+    ) {
         self.decrement_work();
     }
 
