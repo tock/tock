@@ -128,13 +128,7 @@ impl<'a> hil::touch::MultiTouchClient for Touch<'a> {
         } else {
             num_events
         };
-        // Event Buffer
-        //  0         1           2                  4                  6           7             8         ...
-        // +---------+-----------+------------------+------------------+-----------+-------------+--------- ...
-        // | id (u8) | type (u8) | x (u16)          | y (u16)          | area (u8) | weight (u8) |          ...
-        // +---------+-----------+------------------+------------------+-----------+-------------+--------- ...
-        // | Touch 0                                                                             | Touch 1  ...
-        debug!("touch");
+        debug!("{} touch(es)", len);
         for app in self.apps.iter() {
             app.enter(|app, _| {
                 if app.ack {
@@ -188,7 +182,7 @@ impl<'a> hil::touch::MultiTouchClient for Touch<'a> {
                             );
                         }
                     });
-                    app.ack = false;
+                // app.ack = false;
                 } else {
                     app.dropped_events = app.dropped_events + 1;
                 }
@@ -219,6 +213,36 @@ impl<'a> hil::touch::GestureClient for Touch<'a> {
 }
 
 impl<'a> Driver for Touch<'a> {
+    fn allow(
+        &self,
+        appid: AppId,
+        allow_num: usize,
+        slice: Option<AppSlice<Shared, u8>>,
+    ) -> ReturnCode {
+        match allow_num {
+            // allow a buffer for the multi touch
+            // buffer data format
+            //  0         1           2                  4                  6           7             8         ...
+            // +---------+-----------+------------------+------------------+-----------+-------------+--------- ...
+            // | id (u8) | type (u8) | x (u16)          | y (u16)          | area (u8) | weight (u8) |          ...
+            // +---------+-----------+------------------+------------------+-----------+-------------+--------- ...
+            // | Touch 0                                                                             | Touch 1  ...
+            2 => {
+                if self.multi_touch.is_some() {
+                    self.apps
+                        .enter(appid, |app, _| {
+                            app.events_buffer = slice;
+                            ReturnCode::SUCCESS
+                        })
+                        .unwrap_or_else(|err| err.into())
+                } else {
+                    ReturnCode::ENOSUPPORT
+                }
+            }
+            _ => ReturnCode::ENOSUPPORT,
+        }
+    }
+
     fn subscribe(
         &self,
         subscribe_num: usize,
@@ -244,20 +268,20 @@ impl<'a> Driver for Touch<'a> {
                 })
                 .unwrap_or_else(|err| err.into()),
 
-            _ => ReturnCode::ENOSUPPORT,
             // subscribe to multi touch
-            // 2 => {
-            //     if self.multi_touch.is_set() {
-            //         self.apps
-            //             .enter(app_id, |app, _| {
-            //                 app.multi_touch_callback = callback;
-            //                 ReturnCode::SUCCESS
-            //             })
-            //             .unwrap_or_else(|err| err.into())
-            //     } else {
-            //         ReturnCode::ENOSUPPORT
-            //     }
-            // }
+            2 => {
+                if self.multi_touch.is_some() {
+                    self.apps
+                        .enter(app_id, |app, _| {
+                            app.multi_touch_callback = callback;
+                            ReturnCode::SUCCESS
+                        })
+                        .unwrap_or_else(|err| err.into())
+                } else {
+                    ReturnCode::ENOSUPPORT
+                }
+            }
+            _ => ReturnCode::ENOSUPPORT,
         }
     }
 

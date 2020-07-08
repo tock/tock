@@ -24,7 +24,6 @@ use core::cell::Cell;
 use enum_primitive::cast::FromPrimitive;
 use enum_primitive::enum_from_primitive;
 use kernel::common::cells::{OptionalCell, TakeCell};
-use kernel::debug;
 use kernel::hil::gpio;
 use kernel::hil::i2c::{self, Error};
 use kernel::hil::touch::{self, GestureEvent, TouchEvent, TouchStatus};
@@ -133,7 +132,6 @@ impl i2c::I2CClient for Ft6x06<'_> {
                     0x49 => Some(GestureEvent::ZoomOut),
                     _ => None,
                 };
-                debug!("{}", buffer[0]);
                 if let Some(gesture) = gesture_event {
                     client.gesture_event(gesture);
                 }

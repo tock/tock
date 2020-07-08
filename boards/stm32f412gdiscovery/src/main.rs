@@ -56,6 +56,7 @@ struct STM32F412GDiscovery {
     gpio: &'static capsules::gpio::GPIO<'static, stm32f412g::gpio::Pin<'static>>,
     adc: &'static capsules::adc::Adc<'static, stm32f412g::adc::Adc>,
     ft6x06: &'static capsules::ft6x06::Ft6x06<'static>,
+    touch: &'static capsules::touch::Touch<'static>,
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
@@ -73,6 +74,7 @@ impl Platform for STM32F412GDiscovery {
             capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
             capsules::adc::DRIVER_NUM => f(Some(self.adc)),
             capsules::ft6x06::DRIVER_NUM => f(Some(self.ft6x06)),
+            capsules::touch::DRIVER_NUM => f(Some(self.touch)),
             _ => f(None),
         }
     }
@@ -229,7 +231,7 @@ unsafe fn set_pin_primary_functions() {
     stm32f412g::i2c::I2C1.enable_clock();
     stm32f412g::i2c::I2C1.set_speed(stm32f412g::i2c::I2CSpeed::Speed100k, 16);
 
-    // FT6x06 interrupt
+    // FT6206 interrupt
     PinId::PG05.get_pin().as_ref().map(|pin| {
         // By default, upon reset, the pin is in input mode, with no internal
         // pull-up, no internal pull-down (i.e., floating).
@@ -475,7 +477,7 @@ pub unsafe fn reset_handler() {
     )
     .finalize(components::gpio_component_buf!(stm32f412g::gpio::Pin));
 
-    // FT6x06
+    // FT6206
 
     let mux_i2c = components::i2c::I2CMuxComponent::new(
         &stm32f412g::i2c::I2C1,
@@ -489,8 +491,15 @@ pub unsafe fn reset_handler() {
     )
     .finalize(components::ft6x06_i2c_component_helper!(mux_i2c));
 
-    // ADC
+    let touch = components::touch::TouchComponent::new(board_kernel, ft6x06, Some(ft6x06), None)
+        .finalize(());
 
+    // Uncomment this for multi touch support
+    // let touch =
+    //     components::touch::MultiTouchComponent::new(board_kernel, ft6x06, Some(ft6x06), None)
+    //         .finalize(());
+
+    // ADC
     let adc_channels = static_init!(
         [&'static stm32f412g::adc::Channel; 6],
         [
@@ -526,6 +535,7 @@ pub unsafe fn reset_handler() {
         gpio: gpio,
         adc: adc,
         ft6x06: ft6x06,
+        touch: touch,
     };
 
     // // Optional kernel tests
@@ -578,9 +588,9 @@ pub unsafe fn reset_handler() {
     });
 
     board_kernel.kernel_loop(
-        &stm32f412g,
+        &nucleo_f412g,
         chip,
-        Some(&stm32f412g.ipc),
+        Some(&nucleo_f412g.ipc),
         &main_loop_capability,
     );
 }
