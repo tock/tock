@@ -95,7 +95,7 @@ impl AppId {
     ///
     /// This constructor is public but protected with a capability so that
     /// external implementations of `ProcessType` can use it.
-    pub fn new_public(
+    pub fn new_external(
         kernel: &'static Kernel,
         identifier: usize,
         index: usize,
