@@ -66,7 +66,7 @@ impl<L, T> AppSlice<L, T> {
     ///
     /// This constructor is public but protected with a capability to enable
     /// external implementations of `ProcessType` to create `AppSlice`s.
-    pub unsafe fn new_public(
+    pub unsafe fn new_external(
         ptr: NonNull<T>,
         len: usize,
         appid: AppId,
