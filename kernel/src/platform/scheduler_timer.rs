@@ -1,58 +1,111 @@
 //! Scheduler Timer for enforcing Process Timeslices
 //!
-//! Interface for use by the Kernel to configure timers which can preempt userspace
-//! processes.
+//! Interface for use by the Kernel to configure timers which can preempt
+//! userspace processes.
 
 use crate::hil::time::{self, Frequency};
 
-/// Interface for the system tick timer.
+/// Interface for the system scheduler timer.
 ///
-/// A system tick timer provides a countdown timer to enforce process scheduling
-/// quantums.  Implementations should have consistent timing while the CPU is
-/// active, but need not operate during sleep.
+/// A system scheduler timer provides a countdown timer to enforce process
+/// scheduling time quanta. Implementations should have consistent timing
+/// while the CPU is active, but need not operate during sleep.
 ///
-/// On most chips, this will be implemented by the core (e.g. the ARM core systick), but
-/// some chips lack this optional peripheral, in which case it might be
-/// implemented by another timer or alarm controller, or require virtualization
-/// on top of a single hardware timer.
+/// The primary requirement an implementation of this interface must satisfy is
+/// it must be capable of generating an interrupt when the timer expires. This
+/// interrupt will interrupt the executing process, returning control to the
+/// kernel, and allowing the scheduler to make decisions about what to run next.
+///
+/// On most chips, this interface will be implemented by a core peripheral (e.g.
+/// the ARM core systick peripheral). However, some chips lack this optional
+/// peripheral, in which case it might be implemented by another timer or alarm
+/// peripheral, or require virtualization on top of a shared hardware timer.
+///
+/// The `SchedulerTimer` interface is carefully designed to be rather general to
+/// support the various implementations required on different hardware
+/// platforms. The general operation is the kernel will start a timer, in effect
+/// starting the time quantum assigned to a process. While the process is
+/// running, it will arm the timer, indicating to the implementation to ensure
+/// that an interrupt will occur when the time quantum is exhausted. When the
+/// process has stopped running the timer will be disarmed, indicating that an
+/// interrupt is no longer required. Note, many scheduler implementations also
+/// charge time spent running the kernel against the process time quantum.
+/// When the kernel needs to know if a process has exhausted its time quantum
+/// it will call `expired()`.
+///
+/// Implementations must take care when using interrupts. Since the
+/// `SchedulerTimer` is used in the core kernel loop and scheduler, top half
+/// interrupt handlers may not have executed before `SchedulerTimer` functions
+/// are called. In particular, implementations on top of virtualized timers may
+/// receive the interrupt fired callback "late" (i.e. after the kernel calls
+/// `expired()`). Implementations should ensure that they can reliably check for
+/// timeslice expirations.
 pub trait SchedulerTimer {
-    /// Sets the timer as close as possible to the given interval in
-    /// microseconds, and starts counting down. Interrupts are not enabled.
+    /// Start a timer for a process timeslice.
+    ///
+    /// This must set a timer for an interval as close as possible to the given
+    /// interval in microseconds. Interrupts do need to be enabled.
     ///
     /// Callers can assume at least a 24-bit wide clock. Specific timing is
-    /// dependent on the driving clock. For ARM boards with a dedicated
-    /// SysTick peripheral, increments of 10ms are most
-    /// accurate thanks to additional hardware support for this value, but
-    /// values up to 400ms are valid.
+    /// dependent on the driving clock. For ARM boards with a dedicated SysTick
+    /// peripheral, increments of 10ms are most accurate thanks to additional
+    /// hardware support for this value. ARM SysTick supports intervals up to
+    /// 400ms.
     fn start_timer(&self, us: u32);
 
-    /// Returns if there is at least `us` microseconds left
-    fn at_least_us_remaining(&self, us: u32) -> bool;
-
-    /// Returns true if the timer has expired since the last time this or set_timer()
-    /// was called. If called a second time without an intermittent call to set_timer(),
-    /// the return value is unspecified (implementations can return whatever they like)
-    fn expired(&self) -> bool;
-
-    /// Resets the timer
+    /// Reset the scheduler timer.
     ///
-    /// Resets the timer to 0 and disables it
+    /// This must reset the timer, and can safely disable it and put it in a low
+    /// power state. Calling any function other than `start_timer()` immediately
+    /// after `reset()` is invalid.
+    ///
+    /// Implementations should disable the timer and put it in a lower power
+    /// state, but this will depend on the hardware and whether virualization
+    /// layers are used.
     fn reset(&self);
 
-    /// Disarm the underlying timer. This does not stop the timer,
-    /// but may disable the underlying interrupt if one has been set,
-    /// preventing overhead from the timer firing after an executing application
-    /// has returned to the kernel.
-    fn disarm(&self);
-
-    /// Arm the underlying timer. This does not start the timer,
-    /// it just guarantees that an interrupt will be generated
-    /// if an already started timer expires, which is useful for
-    /// preempting userspace applications.
+    /// Arm the SchedulerTimer timer and ensure an interrupt will be generated.
+    ///
+    /// The timer must already be started by calling `start_timer()`. This
+    /// function guarantees that an interrupt will be generated when the already
+    /// started timer expires. This interrupt will preempt the running userspace
+    /// process.
     fn arm(&self);
 
-    /// Return the number of microseconds remaining before the alarm expires.
+    /// Disarm the SchedulerTimer timer indicating an interrupt is no longer
+    /// required.
+    ///
+    /// This does not stop the timer, but indicates to the SchedulerTimer that
+    /// an interrupt is no longer required (i.e. the process is no longer
+    /// executing). By not requiring an interrupt this may allow certain
+    /// implementations to be more efficient by removing the overhead of
+    /// handling the interrupt. The implementation may disable the underlying
+    /// interrupt if one has been set, depending on the requirements of the
+    /// implementation.
+    fn disarm(&self);
+
+    /// Check if there are at least `us` microseconds remaining in the process's
+    /// timeslice.
+    fn at_least_us_remaining(&self, us: u32) -> bool;
+
+    /// Return the number of microseconds remaining in the process's timeslice.
     fn get_remaining_us(&self) -> u32;
+
+    /// Check if the process timeslice has expired.
+    ///
+    /// Returns `true` if the timer has expired since the last time this
+    /// function or `set_timer()` has been called. This function may not be
+    /// called after it has returned `true` for a given timeslice until
+    /// `set_timer()` is called again (to start a new timeslice). If `expired()`
+    /// is called again after returning `true` without an intervening call to
+    /// `set_timer()`, the return the return value is unspecified and
+    /// implementations may return whatever they like.
+    ///
+    /// The requirement that this may not be called again after it returns
+    /// `true` simplifies implementation on hardware platforms where the
+    /// hardware automatically clears the expired flag on a read, as with the
+    /// ARM SysTick peripheral.
+    fn expired(&self) -> bool;
 }
 
 /// A dummy `SchedulerTimer` implementation in which the timer never expires.
@@ -155,12 +208,14 @@ impl<A: 'static + time::Alarm<'static>> SchedulerTimer for VirtualSchedulerTimer
 
 impl<A: 'static + time::Alarm<'static>> time::AlarmClient for VirtualSchedulerTimer<A> {
     fn fired(&self) {
-        // No need to handle the interrupt! The entire purpose
-        // of the interrupt is to cause a transition to userspace, which
-        // already happens for any mtimer interrupt, and the overflow check is sufficient
-        // to determine that it was an mtimer interrupt.
-        // However, because of how the MuxAlarm code is written, if the passed alarm
-        // is a VirtualMuxAlarm, we must register as a client
-        // of the MuxAlarm in order to guarantee that requested interrupts are not dropped.
+        // No need to handle the interrupt! The entire purpose of the interrupt
+        // is to cause a transition to userspace, which already happens for any
+        // mtimer interrupt, and the overflow check is sufficient to determine
+        // that it was an mtimer interrupt.
+        //
+        // However, because of how the MuxAlarm code is written, if the passed
+        // alarm is a VirtualMuxAlarm, we must register as a client of the
+        // MuxAlarm in order to guarantee that requested interrupts are not
+        // dropped.
     }
 }
