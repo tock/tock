@@ -81,7 +81,7 @@
 //!
 //!    One note is that there are currently very few extensions to the core
 //!    kernel that live outside of the kernel crate. That means we have not
-//!    necessarily crated `_extern` functions for all the interfaces needed for
+//!    necessarily created `_extern` functions for all the interfaces needed for
 //!    this use case. It is likely we will have to create new interfaces as new
 //!    use cases are discovered.
 
