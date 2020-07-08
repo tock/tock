@@ -494,6 +494,7 @@ enum ADCStatus {
     Off,
     PoweringOn,
     OneSample,
+    Continuous,
 }
 
 pub struct Adc {
@@ -574,6 +575,8 @@ impl Adc {
         if self.registers.isr.is_set(ISR::EOC) {
             // Clear interrupt
             self.registers.ier.modify(IER::EOCIE::CLEAR);
+            self.client
+                .map(|client| client.sample_ready(self.registers.dr.read(DR::RDATA) as u16));
         }
         // Check if sequence of regular group conversion ended
         if self.registers.isr.is_set(ISR::EOS) {
@@ -586,8 +589,6 @@ impl Adc {
                 // set state
                 self.status.set(ADCStatus::Idle);
             }
-            self.client
-                .map(|client| client.sample_ready(self.registers.dr.read(DR::RDATA) as u16));
         }
         // Check if sampling ended
         if self.registers.isr.is_set(ISR::EOSMP) {
@@ -653,12 +654,30 @@ impl hil::adc::Adc for Adc {
         }
     }
 
-    fn sample_continuous(&self, _channel: &Self::Channel, _frequency: u32) -> ReturnCode {
-        ReturnCode::ENOSUPPORT
+    fn sample_continuous(&self, channel: &Self::Channel, _frequency: u32) -> ReturnCode {
+        if self.status.get() == ADCStatus::Idle {
+            self.status.set(ADCStatus::Continuous);
+            self.registers.cfgr.modify(CFGR::CONT::SET);
+            self.registers.ier.modify(IER::EOCIE::SET);
+            self.registers.sqr1.modify(SQR1::L.val(0b0000));
+            self.registers.sqr1.modify(SQR1::SQ1.val(*channel as u32));
+            self.registers.cfgr.modify(CFGR::CONT::SET);
+            ReturnCode::SUCCESS
+        } else {
+            ReturnCode::EBUSY
+        }
     }
 
     fn stop_sampling(&self) -> ReturnCode {
-        ReturnCode::ENOSUPPORT
+        if self.status.get() != ADCStatus::Idle && self.status.get() != ADCStatus::Off {
+            self.registers.cr.modify(CR::ADSTP::SET);
+            if self.registers.cfgr.is_set(CFGR::CONT) {
+                self.registers.cfgr.modify(CFGR::CONT::CLEAR);
+            }
+            ReturnCode::SUCCESS
+        } else {
+            ReturnCode::EBUSY
+        }
     }
 
     fn get_resolution_bits(&self) -> usize {
