@@ -52,7 +52,8 @@ impl Component for Ft6x06Component {
             Ft6x06::new(
                 static_buffer.0,
                 self.interupt_pin,
-                &mut capsules::ft6x06::BUFFER
+                &mut capsules::ft6x06::BUFFER,
+                &mut capsules::ft6x06::EVENTS_BUFFER
             )
         );
         static_buffer.0.set_client(ft6x06);

@@ -229,7 +229,7 @@ unsafe fn set_pin_primary_functions() {
     stm32f412g::i2c::I2C1.enable_clock();
     stm32f412g::i2c::I2C1.set_speed(stm32f412g::i2c::I2CSpeed::Speed100k, 16);
 
-    // FT6206 interrupt
+    // FT6x06 interrupt
     PinId::PG05.get_pin().as_ref().map(|pin| {
         // By default, upon reset, the pin is in input mode, with no internal
         // pull-up, no internal pull-down (i.e., floating).
@@ -475,7 +475,7 @@ pub unsafe fn reset_handler() {
     )
     .finalize(components::gpio_component_buf!(stm32f412g::gpio::Pin));
 
-    // FT6206
+    // FT6x06
 
     let mux_i2c = components::i2c::I2CMuxComponent::new(
         &stm32f412g::i2c::I2C1,

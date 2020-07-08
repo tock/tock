@@ -18,7 +18,7 @@ use kernel::hil;
 use kernel::hil::screen::ScreenRotation;
 use kernel::hil::touch::{GestureEvent, TouchEvent, TouchStatus};
 use kernel::ReturnCode;
-use kernel::{AppId, Callback, Driver, Grant};
+use kernel::{AppId, AppSlice, Callback, Driver, Grant, Shared};
 
 /// Syscall driver number.
 use crate::driver;
@@ -27,7 +27,10 @@ pub const DRIVER_NUM: usize = driver::NUM::Touch as usize;
 pub struct App {
     touch_callback: Option<Callback>,
     gesture_callback: Option<Callback>,
-    _multi_touch_callback: Option<Callback>,
+    multi_touch_callback: Option<Callback>,
+    events_buffer: Option<AppSlice<Shared, u8>>,
+    ack: bool,
+    dropped_events: usize,
 }
 
 impl Default for App {
@@ -35,7 +38,10 @@ impl Default for App {
         App {
             touch_callback: None,
             gesture_callback: None,
-            _multi_touch_callback: None,
+            multi_touch_callback: None,
+            events_buffer: None,
+            ack: true,
+            dropped_events: 0,
         }
     }
 }
@@ -116,24 +122,78 @@ impl<'a> hil::touch::TouchClient for Touch<'a> {
 }
 
 impl<'a> hil::touch::MultiTouchClient for Touch<'a> {
-    fn touch_events(&self, touch_events: &[TouchEvent], _num_events: usize) {
-        // update rotation if there is a screen attached
-        // self.update_rotation(&mut event);
-        // debug!(
-        //     "touch {:?} x {} y {} area {:?} weight {:?}",
-        //     event.status, event.x, event.y, event.area, event.weight
-        // );
-        // for app in self.apps.iter() {
-        //     app.enter(|app, _| {
-        //         app.touch_callback.map(|mut callback| {
-        //             let event_id = match event.status {
-        //                 TouchStatus::Released => 0,
-        //                 TouchStatus::Pressed => 1,
-        //             };
-        //             callback.schedule(event.x, event.y, event_id);
-        //         })
-        //     });
-        // }
+    fn touch_events(&self, touch_events: &[TouchEvent], num_events: usize) {
+        let len = if touch_events.len() < num_events {
+            touch_events.len()
+        } else {
+            num_events
+        };
+        // Event Buffer
+        //  0         1           2                  4                  6           7             8         ...
+        // +---------+-----------+------------------+------------------+-----------+-------------+--------- ...
+        // | id (u8) | type (u8) | x (u16)          | y (u16)          | area (u8) | weight (u8) |          ...
+        // +---------+-----------+------------------+------------------+-----------+-------------+--------- ...
+        // | Touch 0                                                                             | Touch 1  ...
+        debug!("touch");
+        for app in self.apps.iter() {
+            app.enter(|app, _| {
+                if app.ack {
+                    app.dropped_events = 0;
+                    app.multi_touch_callback.map(|mut callback| {
+                        if let Some(ref mut buffer) = app.events_buffer {
+                            let num = if buffer.len() / 8 < len {
+                                buffer.len() / 8
+                            } else {
+                                len
+                            };
+                            for event_index in 0..num {
+                                let mut event = touch_events[event_index].clone();
+                                self.update_rotation(&mut event);
+                                let event_status = match event.status {
+                                    TouchStatus::Released => 0,
+                                    TouchStatus::Pressed => 1,
+                                };
+                                debug!(
+                                    " multitouch {:?} x {} y {} area {:?} weight {:?}",
+                                    event.status, event.x, event.y, event.area, event.weight
+                                );
+                                // one touch entry is 8 bytes long
+                                let offset = event_index * 8;
+                                if buffer.len() > event_index + 8 {
+                                    buffer.as_mut()[offset] = event.id as u8;
+                                    buffer.as_mut()[offset + 1] = event_status as u8;
+                                    buffer.as_mut()[offset + 2] = ((event.x & 0xFFFF) >> 8) as u8;
+                                    buffer.as_mut()[offset + 3] = (event.x & 0xFF) as u8;
+                                    buffer.as_mut()[offset + 4] = ((event.y & 0xFFFF) >> 8) as u8;
+                                    buffer.as_mut()[offset + 5] = (event.y & 0xFF) as u8;
+                                    buffer.as_mut()[offset + 6] = if let Some(area) = event.area {
+                                        area as u8
+                                    } else {
+                                        0
+                                    };
+                                    buffer.as_mut()[offset + 7] = if let Some(weight) = event.weight
+                                    {
+                                        weight as u8
+                                    } else {
+                                        0
+                                    };
+                                } else {
+                                    break;
+                                }
+                            }
+                            callback.schedule(
+                                num,
+                                app.dropped_events,
+                                if num < len { len - num } else { 0 },
+                            );
+                        }
+                    });
+                    app.ack = false;
+                } else {
+                    app.dropped_events = app.dropped_events + 1;
+                }
+            });
+        }
     }
 }
 

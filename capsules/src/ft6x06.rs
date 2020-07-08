@@ -38,6 +38,17 @@ pub const DRIVER_NUM: usize = driver::NUM::Ft6x06 as usize;
 // Buffer to use for I2C messages
 pub static mut BUFFER: [u8; 17] = [0; 17];
 
+static NO_TOUCH: TouchEvent = TouchEvent {
+    id: 0,
+    x: 0,
+    y: 0,
+    status: TouchStatus::Released,
+    area: None,
+    weight: None,
+};
+
+pub static mut EVENTS_BUFFER: [TouchEvent; 2] = [NO_TOUCH, NO_TOUCH];
+
 enum State {
     Idle,
     ReadingTouches,
@@ -60,6 +71,7 @@ pub struct Ft6x06<'a> {
     state: Cell<State>,
     num_touches: Cell<usize>,
     buffer: TakeCell<'static, [u8]>,
+    events: TakeCell<'static, [TouchEvent]>,
 }
 
 impl<'a> Ft6x06<'a> {
@@ -67,6 +79,7 @@ impl<'a> Ft6x06<'a> {
         i2c: &'a dyn i2c::I2CDevice,
         interrupt_pin: &'a dyn gpio::InterruptPin<'a>,
         buffer: &'static mut [u8],
+        events: &'static mut [TouchEvent],
     ) -> Ft6x06<'a> {
         // setup and return struct
         interrupt_pin.enable_interrupts(gpio::InterruptEdge::FallingEdge);
@@ -79,6 +92,7 @@ impl<'a> Ft6x06<'a> {
             state: Cell::new(State::Idle),
             num_touches: Cell::new(0),
             buffer: TakeCell::new(buffer),
+            events: TakeCell::new(events),
         }
     }
 }
@@ -125,13 +139,35 @@ impl i2c::I2CClient for Ft6x06<'_> {
                 }
             }
         });
-        // put tyhe buffer back before the multi touch client might ask for events
-        self.buffer.replace(buffer);
         self.multi_touch_client.map(|client| {
             if self.num_touches.get() <= 2 {
-                client.touch_event(self.num_touches.get());
+                for touch_event in 0..self.num_touches.get() {
+                    let status = match buffer[1] >> 6 {
+                        0x00 => TouchStatus::Pressed,
+                        0x01 => TouchStatus::Released,
+                        _ => TouchStatus::Released,
+                    };
+                    let x = (((buffer[2] & 0x0F) as usize) << 8) + (buffer[3] as usize);
+                    let y = (((buffer[4] & 0x0F) as usize) << 8) + (buffer[5] as usize);
+                    let weight = Some(buffer[6] as usize);
+                    let area = Some(buffer[7] as usize);
+                    self.events.map(|buffer| {
+                        buffer[touch_event] = TouchEvent {
+                            status,
+                            x,
+                            y,
+                            id: 0,
+                            weight,
+                            area,
+                        };
+                    });
+                }
+                self.events.map(|buffer| {
+                    client.touch_events(buffer, self.num_touches.get());
+                });
             }
         });
+        self.buffer.replace(buffer);
         self.interrupt_pin
             .enable_interrupts(gpio::InterruptEdge::FallingEdge);
     }
