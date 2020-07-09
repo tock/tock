@@ -14,9 +14,9 @@ use capsules::alarm::AlarmDriver;
 use capsules::net::ieee802154::MacAddress;
 use capsules::net::ipv6::ip_utils::IPAddr;
 use capsules::virtual_alarm::VirtualMuxAlarm;
-use capsules::virtual_timer::MuxTimer;
 use capsules::virtual_i2c::MuxI2C;
 use capsules::virtual_spi::VirtualSpiMasterDevice;
+use capsules::virtual_timer::MuxTimer;
 use kernel::capabilities;
 use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::component::Component;
@@ -69,7 +69,6 @@ mod multi_alarm_test;
 
 #[allow(dead_code)]
 mod multi_timer_test;
-
 
 // State for loading apps.
 
@@ -558,7 +557,7 @@ pub unsafe fn reset_handler() {
         MuxTimer::new(virtual_alarm_timer)
     );
     virtual_alarm_timer.set_alarm_client(mux_timer);
-    
+
     multi_timer_test::run_multi_timer(mux_timer);
     debug!("Initialization complete. Entering main loop");
 

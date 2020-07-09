@@ -200,7 +200,6 @@ pub trait Alarm<'a>: Time {
     /// Return the minimum dt value that is supported. Any dt smaller than
     /// this will automatically be increased to this minimum value.
     fn minimum_dt(&self) -> Self::Ticks;
-       
 }
 
 /// Callback handler for when a timer fires.

@@ -7,7 +7,7 @@
 //! Last Modified: 6/22/2020
 use core::cell::Cell;
 use kernel::debug;
-use kernel::hil::time::{Timer, TimerClient, Ticks};
+use kernel::hil::time::{Ticks, Timer, TimerClient};
 
 pub struct TestRandomTimer<'a, T: 'a> {
     timer: &'a T,
@@ -63,7 +63,13 @@ impl<'a, T: Timer<'a>> TestRandomTimer<'a, T> {
 
 impl<'a, T: Timer<'a>> TimerClient for TestRandomTimer<'a, T> {
     fn timer(&self) {
-        debug!("Timer{} fired with interval {}, count {},  fired at {}.", self._id, self.interval.get(), self.counter.get(), self.timer.now().into_u32());
+        debug!(
+            "Timer{} fired with interval {}, count {},  fired at {}.",
+            self._id,
+            self.interval.get(),
+            self.counter.get(),
+            self.timer.now().into_u32()
+        );
         self.set_next_timer();
     }
 }

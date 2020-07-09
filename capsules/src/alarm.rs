@@ -1,9 +1,9 @@
 //! Provides userspace applications with a alarm API.
 
 use core::cell::Cell;
+use kernel::debug;
 use kernel::hil::time::{self, Alarm, Frequency, Ticks};
 use kernel::{AppId, Callback, Driver, Grant, ReturnCode};
-use kernel::debug;
 
 /// Syscall driver number.
 use crate::driver;
@@ -230,7 +230,11 @@ impl<'a, A: Alarm<'a>> time::AlarmClient for AlarmDriver<'a, A> {
                     alarm.expiration = Expiration::Disabled;
                     self.num_armed.set(self.num_armed.get() - 1);
                     alarm.callback.map(|mut cb| {
-                        cb.schedule(now.into_u32() as usize, reference.wrapping_add(ticks) as usize, 0)
+                        cb.schedule(
+                            now.into_u32() as usize,
+                            reference.wrapping_add(ticks) as usize,
+                            0,
+                        )
                     });
                 }
             }
