@@ -47,8 +47,8 @@ impl Default for App {
 }
 
 pub struct Touch<'a> {
-    touch: Option<&'a dyn hil::touch::Touch>,
-    multi_touch: Option<&'a dyn hil::touch::MultiTouch>,
+    touch: Option<&'a dyn hil::touch::Touch<'a>>,
+    multi_touch: Option<&'a dyn hil::touch::MultiTouch<'a>>,
     /// Screen under the touch panel
     /// Most of the touch panels have a screen that can be rotated
     /// 90 deg (clockwise), 180 deg (upside-down), 270 deg(clockwise).
@@ -60,8 +60,8 @@ pub struct Touch<'a> {
 
 impl<'a> Touch<'a> {
     pub fn new(
-        touch: Option<&'a dyn hil::touch::Touch>,
-        multi_touch: Option<&'a dyn hil::touch::MultiTouch>,
+        touch: Option<&'a dyn hil::touch::Touch<'a>>,
+        multi_touch: Option<&'a dyn hil::touch::MultiTouch<'a>>,
         screen: Option<&'a dyn hil::screen::Screen>,
         grant: Grant<App>,
     ) -> Touch<'a> {

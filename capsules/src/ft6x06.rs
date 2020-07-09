@@ -64,9 +64,9 @@ enum_from_primitive! {
 pub struct Ft6x06<'a> {
     i2c: &'a dyn i2c::I2CDevice,
     interrupt_pin: &'a dyn gpio::InterruptPin,
-    touch_client: OptionalCell<&'static dyn touch::TouchClient>,
-    gesture_client: OptionalCell<&'static dyn touch::GestureClient>,
-    multi_touch_client: OptionalCell<&'static dyn touch::MultiTouchClient>,
+    touch_client: OptionalCell<&'a dyn touch::TouchClient>,
+    gesture_client: OptionalCell<&'a dyn touch::GestureClient>,
+    multi_touch_client: OptionalCell<&'a dyn touch::MultiTouchClient>,
     state: Cell<State>,
     num_touches: Cell<usize>,
     buffer: TakeCell<'static, [u8]>,
@@ -96,7 +96,7 @@ impl<'a> Ft6x06<'a> {
     }
 }
 
-impl i2c::I2CClient for Ft6x06<'_> {
+impl<'a> i2c::I2CClient for Ft6x06<'a> {
     fn command_complete(&self, buffer: &'static mut [u8], _error: Error) {
         self.state.set(State::Idle);
         self.num_touches.set((buffer[1] & 0x0F) as usize);
@@ -171,7 +171,7 @@ impl i2c::I2CClient for Ft6x06<'_> {
     }
 }
 
-impl gpio::Client for Ft6x06<'_> {
+impl<'a> gpio::Client for Ft6x06<'a> {
     fn fired(&self) {
         self.buffer.take().map(|buffer| {
             self.interrupt_pin.disable_interrupts();
@@ -184,7 +184,7 @@ impl gpio::Client for Ft6x06<'_> {
     }
 }
 
-impl touch::Touch for Ft6x06<'_> {
+impl<'a> touch::Touch<'a> for Ft6x06<'a> {
     fn enable(&self) -> ReturnCode {
         ReturnCode::SUCCESS
     }
@@ -193,18 +193,18 @@ impl touch::Touch for Ft6x06<'_> {
         ReturnCode::SUCCESS
     }
 
-    fn set_client(&self, client: &'static dyn touch::TouchClient) {
+    fn set_client(&self, client: &'a dyn touch::TouchClient) {
         self.touch_client.replace(client);
     }
 }
 
-impl touch::Gesture for Ft6x06<'_> {
-    fn set_client(&self, client: &'static dyn touch::GestureClient) {
+impl<'a> touch::Gesture<'a> for Ft6x06<'a> {
+    fn set_client(&self, client: &'a dyn touch::GestureClient) {
         self.gesture_client.replace(client);
     }
 }
 
-impl touch::MultiTouch for Ft6x06<'_> {
+impl<'a> touch::MultiTouch<'a> for Ft6x06<'a> {
     fn enable(&self) -> ReturnCode {
         ReturnCode::SUCCESS
     }
@@ -247,7 +247,7 @@ impl touch::MultiTouch for Ft6x06<'_> {
         })
     }
 
-    fn set_client(&self, client: &'static dyn touch::MultiTouchClient) {
+    fn set_client(&self, client: &'a dyn touch::MultiTouchClient) {
         self.multi_touch_client.replace(client);
     }
 }

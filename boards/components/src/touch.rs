@@ -37,16 +37,16 @@ use kernel::static_init;
 
 pub struct TouchComponent {
     board_kernel: &'static kernel::Kernel,
-    touch: &'static dyn kernel::hil::touch::Touch,
-    gesture: Option<&'static dyn kernel::hil::touch::Gesture>,
+    touch: &'static dyn kernel::hil::touch::Touch<'static>,
+    gesture: Option<&'static dyn kernel::hil::touch::Gesture<'static>>,
     screen: Option<&'static dyn kernel::hil::screen::Screen>,
 }
 
 impl TouchComponent {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
-        touch: &'static dyn kernel::hil::touch::Touch,
-        gesture: Option<&'static dyn kernel::hil::touch::Gesture>,
+        touch: &'static dyn kernel::hil::touch::Touch<'static>,
+        gesture: Option<&'static dyn kernel::hil::touch::Gesture<'static>>,
         screen: Option<&'static dyn kernel::hil::screen::Screen>,
     ) -> TouchComponent {
         TouchComponent {
@@ -82,16 +82,16 @@ impl Component for TouchComponent {
 
 pub struct MultiTouchComponent {
     board_kernel: &'static kernel::Kernel,
-    multi_touch: &'static dyn kernel::hil::touch::MultiTouch,
-    gesture: Option<&'static dyn kernel::hil::touch::Gesture>,
+    multi_touch: &'static dyn kernel::hil::touch::MultiTouch<'static>,
+    gesture: Option<&'static dyn kernel::hil::touch::Gesture<'static>>,
     screen: Option<&'static dyn kernel::hil::screen::Screen>,
 }
 
 impl MultiTouchComponent {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
-        multi_touch: &'static dyn kernel::hil::touch::MultiTouch,
-        gesture: Option<&'static dyn kernel::hil::touch::Gesture>,
+        multi_touch: &'static dyn kernel::hil::touch::MultiTouch<'static>,
+        gesture: Option<&'static dyn kernel::hil::touch::Gesture<'static>>,
         screen: Option<&'static dyn kernel::hil::screen::Screen>,
     ) -> MultiTouchComponent {
         MultiTouchComponent {

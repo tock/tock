@@ -39,7 +39,7 @@ pub struct TouchEvent {
 }
 
 /// Single touch panels should implement this
-pub trait Touch {
+pub trait Touch<'a> {
     /// Enable the touche panel
     fn enable(&self) -> ReturnCode;
 
@@ -47,7 +47,7 @@ pub trait Touch {
     fn disable(&self) -> ReturnCode;
 
     /// Set the touch client
-    fn set_client(&self, touch_client: &'static dyn TouchClient);
+    fn set_client(&self, touch_client: &'a dyn TouchClient);
 }
 
 /// Multi-touch panels should implement this
@@ -58,7 +58,7 @@ pub trait MultiTouch<'a> {
     /// Disable the touch panel
     fn disable(&self) -> ReturnCode;
 
-    /// Returns the number of concurently supported touches
+    /// Returns the number of maximum concurently supported touches
     /// This function must be called in the same interrupt
     /// as the event, otherwise data might not be available.
     fn get_num_touches(&self) -> usize;
