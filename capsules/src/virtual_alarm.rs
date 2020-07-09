@@ -8,12 +8,22 @@ use kernel::hil::time::{self, Alarm, Ticks, Time};
 use kernel::ReturnCode;
 //use kernel::debug;
 
+/// An object to multiplex multiple "virtual" alarms over a single underlying alarm. A
+/// `VirtualMuxAlarm` is a node in a linked list of alarms that share the same underlying alarm.
 pub struct VirtualMuxAlarm<'a, A: Alarm<'a>> {
+    /// Underlying alarm which multiplexes all these virtual alarm.
     mux: &'a MuxAlarm<'a, A>,
+    /// Reference time point when this alarm was setup.
     reference: Cell<A::Ticks>,
+    /// Duration of this alarm w.r.t. the reference time point. In other words, this alarm should
+    /// fire at `reference + dt`.
     dt: Cell<A::Ticks>,
+    /// Whether this alarm is currently armed, i.e. whether it should fire when the time has
+    /// elapsed.
     armed: Cell<bool>,
+    /// Next alarm in the list.
     next: ListLink<'a, VirtualMuxAlarm<'a, A>>,
+    /// Alarm client for this node in the list.
     client: OptionalCell<&'a dyn time::AlarmClient>,
 }
 
@@ -125,8 +135,11 @@ impl<'a, A: Alarm<'a>> time::AlarmClient for VirtualMuxAlarm<'a, A> {
 // MuxAlarm
 
 pub struct MuxAlarm<'a, A: Alarm<'a>> {
+    /// Head of the linked list of virtual alarms multiplexed together.
     virtual_alarms: List<'a, VirtualMuxAlarm<'a, A>>,
+    /// Number of virtual alarms that are currently enabled.
     enabled: Cell<usize>,
+    /// Underlying alarm, over which the virtual alarms are multiplexed.
     alarm: &'a A,
 }
 
@@ -141,6 +154,8 @@ impl<'a, A: Alarm<'a>> MuxAlarm<'a, A> {
 }
 
 impl<'a, A: Alarm<'a>> time::AlarmClient for MuxAlarm<'a, A> {
+    /// When the underlying alarm has fired, we have to multiplex this event back to the virtual
+    /// alarms that should now fire.
     fn alarm(&self) {
         // The "now" is when the alarm fired, not the current
         // time; this is case there was some delay. This also
