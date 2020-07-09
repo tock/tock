@@ -44,18 +44,6 @@ impl<'a, A: Alarm<'a>> Time for VirtualMuxAlarm<'a, A> {
     fn now(&self) -> Self::Ticks {
         self.mux.alarm.now()
     }
-
-    fn ticks_from_seconds(s: u32) -> Self::Ticks {
-        A::ticks_from_seconds(s)
-    }
-
-    fn ticks_from_ms(ms: u32) -> Self::Ticks {
-        A::ticks_from_ms(ms)
-    }
-
-    fn ticks_from_us(us: u32) -> Self::Ticks {
-        A::ticks_from_us(us)
-    }
 }
 
 impl<'a, A: Alarm<'a>> Alarm<'a> for VirtualMuxAlarm<'a, A> {
