@@ -51,7 +51,7 @@ pub trait Touch {
 }
 
 /// Multi-touch panels should implement this
-pub trait MultiTouch {
+pub trait MultiTouch<'a> {
     /// Enable the touche panel
     fn enable(&self) -> ReturnCode;
 
