@@ -17,7 +17,7 @@ use crate::hil::time::{self, Frequency};
 /// kernel, and allowing the scheduler to make decisions about what to run next.
 ///
 /// On most chips, this interface will be implemented by a core peripheral (e.g.
-/// the ARM core systick peripheral). However, some chips lack this optional
+/// the ARM core SysTick peripheral). However, some chips lack this optional
 /// peripheral, in which case it might be implemented by another timer or alarm
 /// peripheral, or require virtualization on top of a shared hardware timer.
 ///
@@ -56,19 +56,19 @@ pub trait SchedulerTimer {
     /// Reset the scheduler timer.
     ///
     /// This must reset the timer, and can safely disable it and put it in a low
-    /// power state. Calling any function other than `start_timer()` immediately
-    /// after `reset()` is invalid.
+    /// power state. Calling any function other than `start()` immediately after
+    /// `reset()` is invalid.
     ///
     /// Implementations should disable the timer and put it in a lower power
-    /// state, but this will depend on the hardware and whether virualization
+    /// state, but this will depend on the hardware and whether virtualization
     /// layers are used.
     fn reset(&self);
 
     /// Arm the SchedulerTimer timer and ensure an interrupt will be generated.
     ///
-    /// The timer must already be started by calling `start_timer()`. This
-    /// function guarantees that an interrupt will be generated when the already
-    /// started timer expires. This interrupt will preempt the running userspace
+    /// The timer must already be started by calling `start()`. This function
+    /// guarantees that an interrupt will be generated when the already started
+    /// timer expires. This interrupt will preempt the running userspace
     /// process.
     fn arm(&self);
 
@@ -127,15 +127,16 @@ impl SchedulerTimer for () {
 }
 
 /// Implementation of SchedulerTimer trait on top of a virtual alarm.
+///
 /// Currently, this implementation depends slightly on the virtual alarm
-/// implementation in capsules -- namely it assumes that get_alarm will
-/// still return the passed value even after the timer is disarmed.
-/// Thus this should only be implemented with a virtual alarm. If a dedicated
-/// hardware timer is available, it is more performant to implement the scheduler
-/// timer directly for that hardware peripheral without the alarm abstraction
-/// in between.
-/// This mostly handles conversions from wall time, the required inputs
-/// to the trait, to ticks, which are used to track time for alarms.
+/// implementation in capsules -- namely it assumes that get_alarm will still
+/// return the passed value even after the timer is disarmed. Thus this should
+/// only be implemented with a virtual alarm. If a dedicated hardware timer is
+/// available, it is more performant to implement the scheduler timer directly
+/// for that hardware peripheral without the alarm abstraction in between.
+///
+/// This mostly handles conversions from wall time, the required inputs to the
+/// trait, to ticks, which are used to track time for alarms.
 pub struct VirtualSchedulerTimer<A: 'static + time::Alarm<'static>> {
     alarm: &'static A,
 }
