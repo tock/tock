@@ -158,13 +158,39 @@ impl kernel::SchedulerTimer for SysTick {
     }
 
     fn arm(&self) {
-        SYSTICK_BASE.syst_csr.modify(ControlAndStatus::TICKINT::SET);
+        let clock_source: FieldValue<u32, self::ControlAndStatus::Register> = if self.external_clock
+        {
+            // CLKSOURCE 0 --> external clock
+            ControlAndStatus::CLKSOURCE::CLEAR
+        } else {
+            // CLKSOURCE 1 --> internal clock
+            ControlAndStatus::CLKSOURCE::SET
+        };
+
+        // We really just need to set the TICKINT bit here, but can't use modify() because
+        // readying the CSR register will throw away evidence of expiration if one
+        // occurred, so we re-write entire value instead.
+        SYSTICK_BASE
+            .syst_csr
+            .write(ControlAndStatus::TICKINT::SET + ControlAndStatus::ENABLE::SET + clock_source);
     }
 
     fn disarm(&self) {
+        let clock_source: FieldValue<u32, self::ControlAndStatus::Register> = if self.external_clock
+        {
+            // CLKSOURCE 0 --> external clock
+            ControlAndStatus::CLKSOURCE::CLEAR
+        } else {
+            // CLKSOURCE 1 --> internal clock
+            ControlAndStatus::CLKSOURCE::SET
+        };
+
+        // We really just need to set the TICKINT bit here, but can't use modify() because
+        // readying the CSR register will throw away evidence of expiration if one
+        // occurred, so we re-write entire value instead.
         SYSTICK_BASE
             .syst_csr
-            .modify(ControlAndStatus::TICKINT::CLEAR);
+            .write(ControlAndStatus::TICKINT::CLEAR + ControlAndStatus::ENABLE::SET + clock_source);
     }
 
     fn get_remaining_us(&self) -> u32 {
