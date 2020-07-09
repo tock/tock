@@ -413,6 +413,11 @@ pub unsafe fn reset_handler() {
 
     nrf52_components::NrfClockComponent::new().finalize(());
 
+    // let alarm_test_component =
+    //     components::test::multi_alarm_test::MultiAlarmTestComponent::new(&mux_alarm).finalize(
+    //         components::multi_alarm_test_component_buf!(nrf52840::rtc::Rtc),
+    //     );
+
     let platform = Platform {
         button,
         ble_radio,
@@ -432,6 +437,8 @@ pub unsafe fn reset_handler() {
     platform.pconsole.start();
     debug!("Initialization complete. Entering main loop\r");
     debug!("{}", &nrf52840::ficr::FICR_INSTANCE);
+
+    // alarm_test_component.run();
 
     /// These symbols are defined in the linker script.
     extern "C" {

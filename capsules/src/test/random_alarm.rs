@@ -8,9 +8,10 @@ use core::cell::Cell;
 use kernel::debug;
 use kernel::hil::time::{Alarm, AlarmClient, Ticks};
 
-pub struct TestRandomAlarm<'a, A: 'a> {
+pub struct TestRandomAlarm<'a, A: Alarm<'a>> {
     alarm: &'a A,
     counter: Cell<usize>,
+    expected: Cell<A::Ticks>,
     _id: char,
 }
 
@@ -19,6 +20,7 @@ impl<'a, A: Alarm<'a>> TestRandomAlarm<'a, A> {
         TestRandomAlarm {
             alarm: alarm,
             counter: Cell::new(value),
+            expected: Cell::new(A::ticks_from_seconds(0)),
             _id: ch,
         }
     }
@@ -37,16 +39,21 @@ impl<'a, A: Alarm<'a>> TestRandomAlarm<'a, A> {
         }
         let delay = A::ticks_from_us(us);
         let now = self.alarm.now();
-        // Subtract 0-9 so we are always asking from the past
+        // Subtract 0-9 so we are always asking from the past.
+        // If the delay is already 0, don't subtract anything.
         let start = now.wrapping_sub(A::Ticks::from(us % 10));
         self.alarm.set_alarm(start, delay);
-        /*        debug!(
-            "Test{}@{}: Setting alarm to {}",
+        debug!(
+            "Test{}@{}: Expected at {} (diff = {}), setting alarm to {} (delay = {})",
             self._id,
             now.into_u32(),
-            start.wrapping_add(delay).into_u32()
-        );*/
+            self.expected.get().into_u32(),
+            now.wrapping_sub(self.expected.get()).into_u32(),
+            start.wrapping_add(delay).into_u32(),
+            delay.into_u32()
+        );
         self.counter.set(counter + 1);
+        self.expected.set(start.wrapping_add(delay));
     }
 }
 
