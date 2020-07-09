@@ -359,4 +359,9 @@ impl<'a> Alarm<'a> for TimerAlarm<'a> {
     fn is_armed(&self) -> bool {
         self.interrupts_enabled()
     }
+
+    fn minimum_dt(&self) -> Self::Ticks {
+        // TODO: not tested, arbitrary value
+        Self::Ticks::from(10)
+    }
 }

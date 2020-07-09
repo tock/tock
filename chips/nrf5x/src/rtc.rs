@@ -190,4 +190,9 @@ impl<'a> Alarm<'a> for Rtc<'a> {
     fn is_armed(&self) -> bool {
         self.registers.evten.is_set(Inte::COMPARE0)
     }
+
+    fn minimum_dt(&self) -> Self::Ticks {
+        // TODO: not tested, arbitrary value
+        Self::Ticks::from(10)
+    }
 }
