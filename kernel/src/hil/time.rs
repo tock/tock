@@ -160,7 +160,6 @@ pub trait AlarmClient {
 /// precise clock tick). Software that needs more functionality
 /// but can tolerate some jitter should use the `Timer` trait
 /// instead.
-
 pub trait Alarm<'a>: Time {
     /// Specify the callback for when the counter reaches the alarm
     /// value. If there was a previously installed callback this call

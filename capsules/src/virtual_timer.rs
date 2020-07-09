@@ -17,12 +17,20 @@ enum Mode {
     Repeating = 3,
 }
 
+/// An object to multiplex multiple "virtual" timers over a single underlying alarm. A
+/// `VirtualTimer` is a node in a linked list of timers that share the same underlying alarm.
 pub struct VirtualTimer<'a, A: Alarm<'a>> {
+    /// Underlying alarm which multiplexes all these virtual timers.
     mux: &'a MuxTimer<'a, A>,
+    /// Reference time point when this timer was setup.
     when: Cell<A::Ticks>,
+    /// Interval between events reported by this timer.
     interval: Cell<A::Ticks>,
+    /// Current mode of this timer.
     mode: Cell<Mode>,
+    /// Next timer in the list.
     next: ListLink<'a, VirtualTimer<'a, A>>,
+    /// Timer client for this node in the list.
     client: OptionalCell<&'a dyn time::TimerClient>,
 }
 
@@ -175,9 +183,13 @@ impl<'a, A: Alarm<'a>> time::AlarmClient for VirtualTimer<'a, A> {
     }
 }
 
+/// Structure to control a set of virtual timers multiplexed together on top of a single alarm.
 pub struct MuxTimer<'a, A: Alarm<'a>> {
+    /// Head of the linked list of virtual timers multiplexed together.
     timers: List<'a, VirtualTimer<'a, A>>,
+    /// Number of virtual timers that are currently enabled.
     enabled: Cell<usize>,
+    /// Underlying alarm, over which the virtual timers are multiplexed.
     alarm: &'a VirtualMuxAlarm<'a, A>,
 }
 

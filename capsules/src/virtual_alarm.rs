@@ -132,8 +132,7 @@ impl<'a, A: Alarm<'a>> time::AlarmClient for VirtualMuxAlarm<'a, A> {
     }
 }
 
-// MuxAlarm
-
+/// Structure to control a set of virtual alarms multiplexed together on top of a single alarm.
 pub struct MuxAlarm<'a, A: Alarm<'a>> {
     /// Head of the linked list of virtual alarms multiplexed together.
     virtual_alarms: List<'a, VirtualMuxAlarm<'a, A>>,
