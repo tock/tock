@@ -117,7 +117,7 @@ impl SysTick {
 }
 
 impl kernel::SchedulerTimer for SysTick {
-    fn start_timer(&self, us: u32) {
+    fn start(&self, us: u32) {
         let reload = {
             // We need to convert from microseconds to native tics, which could overflow in 32-bit
             // arithmetic. So we convert to 64-bit. 64-bit division is an expensive subroutine, but
@@ -147,22 +147,6 @@ impl kernel::SchedulerTimer for SysTick {
             .write(ControlAndStatus::ENABLE::SET + clock_source);
     }
 
-    fn at_least_us_remaining(&self, us: u32) -> bool {
-        let tics = {
-            // We need to convert from microseconds to native tics, which could overflow in 32-bit
-            // arithmetic. So we convert to 64-bit. 64-bit division is an expensive subroutine, but
-            // if `us` is a power of 10 the compiler will simplify it with the 1_000_000 divisor
-            // instead.
-            let us = us as u64;
-            let hertz = self.hertz() as u64;
-
-            (hertz * us / 1_000_000) as u32
-        };
-
-        let value = SYSTICK_BASE.syst_cvr.read(CurrentValue::CURRENT);
-        value > tics
-    }
-
     fn expired(&self) -> bool {
         SYSTICK_BASE.syst_csr.is_set(ControlAndStatus::COUNTFLAG)
     }
@@ -184,8 +168,9 @@ impl kernel::SchedulerTimer for SysTick {
     }
 
     fn get_remaining_us(&self) -> u32 {
-        let tics = SYSTICK_BASE.syst_cvr.read(CurrentValue::CURRENT);
-        let hertz = self.hertz();
-        tics * 1_000_000 / hertz
+        // use u64 in case of overflow when multiplying by 1,000,000
+        let tics = SYSTICK_BASE.syst_cvr.read(CurrentValue::CURRENT) as u64;
+        let hertz = self.hertz() as u64;
+        ((tics * 1_000_000) / hertz) as u32
     }
 }

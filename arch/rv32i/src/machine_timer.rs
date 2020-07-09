@@ -105,7 +105,7 @@ impl<'a> hil::time::Alarm<'a> for MachineTimer<'a> {
 /// hardware timer can be used to provide alarms to capsules and userspace. This
 /// implementation will not work alongside other uses of the machine timer.
 impl kernel::SchedulerTimer for MachineTimer<'_> {
-    fn start_timer(&self, us: u32) {
+    fn start(&self, us: u32) {
         let tics = {
             // We need to convert from microseconds to native tics, which could overflow in 32-bit
             // arithmetic. So we convert to 64-bit. 64-bit division is an expensive subroutine, but
@@ -119,22 +119,10 @@ impl kernel::SchedulerTimer for MachineTimer<'_> {
         self.registers.mtimecmp.write(MTimeCmp::MTIMECMP.val(tics));
     }
 
-    fn at_least_us_remaining(&self, us: u32) -> bool {
-        let tics = {
-            // We need to convert from microseconds to native tics, which could overflow in 32-bit
-            // arithmetic. So we convert to 64-bit. 64-bit division is an expensive subroutine, but
-            // if `us` is a power of 10 the compiler will simplify it with the 1_000_000 divisor
-            // instead.
-            let us = us as u64;
-            let hertz = <Self as Time>::Frequency::frequency() as u64;
-
-            (hertz * us / 1_000_000) as u32
-        };
-        self.now() + tics < self.get_alarm()
-    }
-
     fn get_remaining_us(&self) -> u32 {
-        self.get_alarm().wrapping_sub(self.now())
+        let tics = self.get_alarm().wrapping_sub(self.now()) as u64;
+        let hertz = <Self as Time>::Frequency::frequency() as u64;
+        ((tics * 1_000_000) / hertz) as u32
     }
 
     fn expired(&self) -> bool {

@@ -329,7 +329,7 @@ impl Kernel {
     ) {
         let scheduler_timer = chip.scheduler_timer();
         scheduler_timer.reset();
-        scheduler_timer.start_timer(KERNEL_TICK_DURATION_US);
+        scheduler_timer.start(KERNEL_TICK_DURATION_US);
 
         loop {
             if chip.has_pending_interrupts()
@@ -339,7 +339,7 @@ impl Kernel {
             }
 
             if scheduler_timer.expired()
-                || !scheduler_timer.at_least_us_remaining(MIN_QUANTA_THRESHOLD_US)
+                || scheduler_timer.get_remaining_us() <= MIN_QUANTA_THRESHOLD_US
             {
                 process.debug_timeslice_expired();
                 break;

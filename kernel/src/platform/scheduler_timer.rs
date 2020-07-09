@@ -51,7 +51,7 @@ pub trait SchedulerTimer {
     /// peripheral, increments of 10ms are most accurate thanks to additional
     /// hardware support for this value. ARM SysTick supports intervals up to
     /// 400ms.
-    fn start_timer(&self, us: u32);
+    fn start(&self, us: u32);
 
     /// Reset the scheduler timer.
     ///
@@ -84,10 +84,6 @@ pub trait SchedulerTimer {
     /// implementation.
     fn disarm(&self);
 
-    /// Check if there are at least `us` microseconds remaining in the process's
-    /// timeslice.
-    fn at_least_us_remaining(&self, us: u32) -> bool;
-
     /// Return the number of microseconds remaining in the process's timeslice.
     fn get_remaining_us(&self) -> u32;
 
@@ -115,7 +111,7 @@ pub trait SchedulerTimer {
 impl SchedulerTimer for () {
     fn reset(&self) {}
 
-    fn start_timer(&self, _: u32) {}
+    fn start(&self, _: u32) {}
 
     fn disarm(&self) {}
 
@@ -125,16 +121,19 @@ impl SchedulerTimer for () {
         false
     }
 
-    fn at_least_us_remaining(&self, _: u32) -> bool {
-        true
-    }
-
     fn get_remaining_us(&self) -> u32 {
         10000 // chose arbitrary large value
     }
 }
 
-/// Implementation of SchedulerTimer trait on top of an arbitrary Alarm.
+/// Implementation of SchedulerTimer trait on top of a virtual alarm.
+/// Currently, this implementation depends slightly on the virtual alarm
+/// implementation in capsules -- namely it assumes that get_alarm will
+/// still return the passed value even after the timer is disarmed.
+/// Thus this should only be implemented with a virtual alarm. If a dedicated
+/// hardware timer is available, it is more performant to implement the scheduler
+/// timer directly for that hardware peripheral without the alarm abstraction
+/// in between.
 /// This mostly handles conversions from wall time, the required inputs
 /// to the trait, to ticks, which are used to track time for alarms.
 pub struct VirtualSchedulerTimer<A: 'static + time::Alarm<'static>> {
@@ -152,7 +151,7 @@ impl<A: 'static + time::Alarm<'static>> SchedulerTimer for VirtualSchedulerTimer
         self.alarm.disable();
     }
 
-    fn start_timer(&self, us: u32) {
+    fn start(&self, us: u32) {
         let tics = {
             // We need to convert from microseconds to native tics, which could overflow in 32-bit
             // arithmetic. So we convert to 64-bit. 64-bit division is an expensive subroutine, but
@@ -185,24 +184,13 @@ impl<A: 'static + time::Alarm<'static>> SchedulerTimer for VirtualSchedulerTimer
         !(self.alarm.get_alarm().wrapping_sub(self.alarm.now()) < A::Frequency::frequency())
     }
 
-    fn at_least_us_remaining(&self, us: u32) -> bool {
-        let tics = {
-            // We need to convert from microseconds to native tics, which could overflow in 32-bit
-            // arithmetic. So we convert to 64-bit. 64-bit division is an expensive subroutine, but
-            // if `us` is a power of 10 the compiler will simplify it with the 1_000_000 divisor
-            // instead.
-            let us = us as u64;
-            let hertz = A::Frequency::frequency() as u64;
-
-            (hertz * us / 1_000_000) as u32
-        };
-        self.alarm.now() + tics < self.alarm.get_alarm()
-    }
-
     fn get_remaining_us(&self) -> u32 {
-        // Should this return 0 if the result is very large to handle it being called
-        // after the alarm fires?
-        self.alarm.get_alarm().wrapping_sub(self.alarm.now())
+        // We need to convert from native tics to us, multiplication could overflow in 32-bit
+        // arithmetic. So we convert to 64-bit.
+
+        let tics = self.alarm.get_alarm().wrapping_sub(self.alarm.now()) as u64;
+        let hertz = A::Frequency::frequency() as u64;
+        ((tics * 1_000_000) / hertz) as u32
     }
 }
 
