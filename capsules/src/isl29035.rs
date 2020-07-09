@@ -89,8 +89,8 @@ impl<'a, A: time::Alarm<'a>> Isl29035<'a, A> {
     }
 }
 
-impl<'a, A: time::Alarm<'a>> AmbientLight for Isl29035<'a, A> {
-    fn set_client(&self, client: &'static dyn AmbientLightClient) {
+impl<'a, A: time::Alarm<'a>> AmbientLight<'a> for Isl29035<'a, A> {
+    fn set_client(&self, client: &'a dyn AmbientLightClient) {
         self.client.set(client);
     }
 

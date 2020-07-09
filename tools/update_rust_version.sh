@@ -4,7 +4,7 @@
 # Ask rustup to pick the latest version that will work.
 # This requires rustup >= 1.20.0.
 echo "Updating rustc to latest compatible version..."
-rustup update nightly
+rustup update nightly --allow-downgrade --component cargo --component clippy --component llvm-tools-preview --component miri --component rls --component rust-analysis --component rust-docs --component rust-src --component rust-std --component rustc --component rustfmt
 
 # # Rerun the command so that it prints out the version it installed. We then have
 # # to extract that from the output. If there is a better way to do this then we
@@ -16,9 +16,11 @@ rustup update nightly
 # it decided on with the format required for `rust-toolchain`. That the dates
 # are off-by-one day is annoying. I'm resorting to just asking the user.
 
+
 echo "Please enter the version of Rust to use."
 echo "It is probably just one day later than whatever was printed out above."
-read BEST_DATE
+echo ""
+read -p "Date string: " BEST_DATE
 
 # Nightly version string
 NIGHTLY=nightly-$BEST_DATE

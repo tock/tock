@@ -232,9 +232,14 @@ impl<'a, A: hil::time::Alarm<'a>> uart::Transmit<'a> for SeggerRtt<'a, A> {
                     // Save the client buffer so we can pass it back with the callback.
                     self.client_buffer.replace(tx_data);
 
-                    // Start a short timer so that we get a callback and
-                    // can issue the callback to the client.
-                    let delay = A::ticks_from_us(100);
+                    // Start a short timer so that we get a callback and can issue the callback to
+                    // the client.
+                    //
+                    // This heuristic interval was tested with the console capsule on a nRF52840-DK
+                    // board, passing buffers up to 1500 bytes from userspace. 100 micro-seconds
+                    // was too short, even for buffers as small as 128 bytes. 1 milli-second seems to
+                    // be reliable.
+                    let delay = A::ticks_from_us(1000);
                     self.alarm.set_alarm(self.alarm.now(), delay);
                 })
             });

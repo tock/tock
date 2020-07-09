@@ -238,7 +238,7 @@ impl App {
 
     fn send_advertisement<'a, B, A>(&self, ble: &BLE<'a, B, A>, channel: RadioChannel) -> ReturnCode
     where
-        B: ble_advertising::BleAdvertisementDriver + ble_advertising::BleConfig,
+        B: ble_advertising::BleAdvertisementDriver<'a> + ble_advertising::BleConfig,
         A: kernel::hil::time::Alarm<'a>,
     {
         self.adv_data.as_ref().map_or(ReturnCode::FAIL, |adv_data| {
@@ -298,7 +298,7 @@ impl App {
 
 pub struct BLE<'a, B, A>
 where
-    B: ble_advertising::BleAdvertisementDriver + ble_advertising::BleConfig,
+    B: ble_advertising::BleAdvertisementDriver<'a> + ble_advertising::BleConfig,
     A: kernel::hil::time::Alarm<'a>,
 {
     radio: &'a B,
@@ -312,7 +312,7 @@ where
 
 impl<'a, B, A> BLE<'a, B, A>
 where
-    B: ble_advertising::BleAdvertisementDriver + ble_advertising::BleConfig,
+    B: ble_advertising::BleAdvertisementDriver<'a> + ble_advertising::BleConfig,
     A: kernel::hil::time::Alarm<'a>,
 {
     pub fn new(
@@ -368,7 +368,7 @@ where
 // Timer alarm
 impl<'a, B, A> kernel::hil::time::AlarmClient for BLE<'a, B, A>
 where
-    B: ble_advertising::BleAdvertisementDriver + ble_advertising::BleConfig,
+    B: ble_advertising::BleAdvertisementDriver<'a> + ble_advertising::BleConfig,
     A: kernel::hil::time::Alarm<'a>,
 {
     // When an alarm is fired, we find which apps have expired timers. Expired
@@ -438,7 +438,7 @@ where
 // Callback from the radio once a RX event occur
 impl<'a, B, A> ble_advertising::RxClient for BLE<'a, B, A>
 where
-    B: ble_advertising::BleAdvertisementDriver + ble_advertising::BleConfig,
+    B: ble_advertising::BleAdvertisementDriver<'a> + ble_advertising::BleConfig,
     A: kernel::hil::time::Alarm<'a>,
 {
     fn receive_event(&self, buf: &'static mut [u8], len: u8, result: ReturnCode) {
@@ -505,7 +505,7 @@ where
 // Callback from the radio once a TX event occur
 impl<'a, B, A> ble_advertising::TxClient for BLE<'a, B, A>
 where
-    B: ble_advertising::BleAdvertisementDriver + ble_advertising::BleConfig,
+    B: ble_advertising::BleAdvertisementDriver<'a> + ble_advertising::BleConfig,
     A: kernel::hil::time::Alarm<'a>,
 {
     // The ReturnCode indicates valid CRC or not, not used yet but could be used for
@@ -547,7 +547,7 @@ where
 // System Call implementation
 impl<'a, B, A> kernel::Driver for BLE<'a, B, A>
 where
-    B: ble_advertising::BleAdvertisementDriver + ble_advertising::BleConfig,
+    B: ble_advertising::BleAdvertisementDriver<'a> + ble_advertising::BleConfig,
     A: kernel::hil::time::Alarm<'a>,
 {
     fn command(

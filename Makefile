@@ -285,7 +285,8 @@ ci-runner-github-tests:\
 	ci-job-kernel\
 	ci-job-capsules\
 	ci-job-chips\
-	ci-job-tools
+	ci-job-tools\
+	ci-job-miri
 	$(call banner,CI-Runner: GitHub tests runner DONE)
 
 .PHONY: ci-runner-github-qemu
@@ -470,6 +471,23 @@ ci-job-tools: ci-setup-tools
 	$(if $(CI_JOB_TOOLS),$(call ci_job_tools))
 
 
+.PHONY: ci-setup-miri
+ci-setup-miri:
+	@rustup component list | grep miri | grep -q installed || rustup component add miri
+
+.PHONY: ci-job-miri
+ci-job-miri: ci-setup-miri
+	$(call banner,CI-Job: Miri)
+	#
+	# Note: This is highly experimental and limited at the moment.
+	#
+	@# Hangs forever during `Building` for this one :shrug:
+	@#cd libraries/tock-register-interface && CI=true cargo miri test
+	@cd kernel && CI=true cargo miri test
+	@for a in $$(tools/list_archs.sh); do cd arch/$$a && CI=true cargo miri test && cd ../..; done
+	@cd capsules && CI=true cargo miri test
+	@for c in $$(tools/list_chips.sh); do cd chips/$$c && CI=true cargo miri test && cd ../..; done
+
 
 ### ci-runner-github-qemu jobs:
 
@@ -492,7 +510,7 @@ define ci_setup_qemu_opentitan
 	# Download OpenTitan image
 	@printf "Downloading OpenTitan boot rom from: 1beb08b474790d4b6c67ae5b3423e2e8dfc9e368\n"
 	@pwd=$$(pwd) && \
-		temp=$$(mktemp -d)\
+		temp=$$(mktemp -d) && \
 		cd $$temp && \
 		curl $$(curl "https://dev.azure.com/lowrisc/opentitan/_apis/build/builds/14991/artifacts?artifactName=opentitan-dist&api-version=5.1" | cut -d \" -f 38) --output opentitan-dist.zip; \
 		unzip opentitan-dist.zip; \

@@ -17,6 +17,7 @@ use kernel::hil::i2c::I2CMaster;
 use kernel::Platform;
 use kernel::{create_capability, debug, static_init};
 
+pub mod ble;
 /// Support routines for debugging I/O.
 pub mod io;
 
@@ -32,10 +33,6 @@ static mut CHIP: Option<&'static apollo3::chip::Apollo3> = None;
 
 // How should the kernel respond when a process faults.
 const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultResponse::Panic;
-
-// RAM to be shared by all application processes.
-#[link_section = ".app_memory"]
-static mut APP_MEMORY: [u8; 32768] = [0; 32768];
 
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
@@ -53,6 +50,11 @@ struct RedboardArtemisNano {
     gpio: &'static capsules::gpio::GPIO<'static, apollo3::gpio::GpioPin>,
     console: &'static capsules::console::Console<'static>,
     i2c_master: &'static capsules::i2c_master::I2CMasterDriver<apollo3::iom::Iom<'static>>,
+    ble_radio: &'static capsules::ble_advertising_driver::BLE<
+        'static,
+        apollo3::ble::Ble<'static>,
+        VirtualMuxAlarm<'static, apollo3::stimer::STimer<'static>>,
+    >,
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
@@ -67,6 +69,7 @@ impl Platform for RedboardArtemisNano {
             capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
             capsules::console::DRIVER_NUM => f(Some(self.console)),
             capsules::i2c_master::DRIVER_NUM => f(Some(self.i2c_master)),
+            capsules::ble_advertising_driver::DRIVER_NUM => f(Some(self.ble_radio)),
             _ => f(None),
         }
     }
@@ -178,18 +181,32 @@ pub unsafe fn reset_handler() {
     apollo3::iom::IOM2.set_master_client(i2c_master);
     apollo3::iom::IOM2.enable();
 
+    // Setup BLE
+    apollo3::mcuctrl::MCUCTRL.enable_ble();
+    apollo3::clkgen::CLKGEN.enable_ble();
+    apollo3::pwrctrl::PWRCTRL.enable_ble();
+    apollo3::ble::BLE.setup_clocks();
+    apollo3::mcuctrl::MCUCTRL.reset_ble();
+    apollo3::ble::BLE.power_up();
+    apollo3::ble::BLE.ble_initialise();
+
+    let ble_radio =
+        ble::BLEComponent::new(board_kernel, &apollo3::ble::BLE, mux_alarm).finalize(());
+
+    apollo3::mcuctrl::MCUCTRL.print_chip_revision();
+
     debug!("Initialization complete. Entering main loop");
 
+    /// These symbols are defined in the linker script.
     extern "C" {
         /// Beginning of the ROM region containing app images.
-        ///
-        /// This symbol is defined in the linker script.
         static _sapps: u8;
-
         /// End of the ROM region containing app images.
-        ///
-        /// This symbol is defined in the linker script.
         static _eapps: u8;
+        /// Beginning of the RAM region for app memory.
+        static mut _sappmem: u8;
+        /// End of the RAM region for app memory.
+        static _eappmem: u8;
     }
 
     let artemis_nano = RedboardArtemisNano {
@@ -198,6 +215,7 @@ pub unsafe fn reset_handler() {
         gpio,
         led,
         i2c_master,
+        ble_radio,
     };
 
     kernel::procs::load_processes(
@@ -207,7 +225,10 @@ pub unsafe fn reset_handler() {
             &_sapps as *const u8,
             &_eapps as *const u8 as usize - &_sapps as *const u8 as usize,
         ),
-        &mut APP_MEMORY,
+        &mut core::slice::from_raw_parts_mut(
+            &mut _sappmem as *mut u8,
+            &_eappmem as *const u8 as usize - &_sappmem as *const u8 as usize,
+        ),
         &mut PROCESSES,
         FAULT_RESPONSE,
         &process_mgmt_cap,
