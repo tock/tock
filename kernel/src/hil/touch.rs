@@ -70,7 +70,7 @@ pub trait MultiTouch {
     fn get_touch(&self, index: usize) -> Option<TouchEvent>;
 
     /// Set the multi-touch client
-    fn set_client(&self, multi_touch_client: &'static dyn MultiTouchClient);
+    fn set_client(&self, multi_touch_client: &'a dyn MultiTouchClient);
 }
 
 /// The single touch client
