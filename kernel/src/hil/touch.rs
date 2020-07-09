@@ -87,9 +87,9 @@ pub trait MultiTouchClient {
 }
 
 /// Touch panels that support gestures
-pub trait Gesture {
+pub trait Gesture<'a> {
     /// Set the gesture client
-    fn set_client(&self, gesture_client: &'static dyn GestureClient);
+    fn set_client(&self, gesture_client: &'a dyn GestureClient);
 }
 
 /// The gesture client
