@@ -63,7 +63,8 @@ pub trait MultiTouch {
     /// as the event, otherwise data might not be available.
     fn get_num_touches(&self) -> usize;
 
-    /// Returns the touch event at index or None
+    /// Returns the touch event at index or `None`.
+    ///
     /// This function must be called in the same interrupt
     /// as the event, otherwise data might not be available.
     fn get_touch(&self, index: usize) -> Option<TouchEvent>;
