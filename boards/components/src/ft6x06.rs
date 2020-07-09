@@ -5,7 +5,6 @@
 //! ```rust
 //! let ft6x06 = components::ft6x06::Ft6x06Component::new()
 //!    .finalize(components::ft6x06_i2c_component_helper!(mux_i2c));
-
 //! ```
 use capsules::ft6x06::Ft6x06;
 use capsules::virtual_i2c::I2CDevice;
