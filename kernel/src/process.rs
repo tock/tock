@@ -681,6 +681,16 @@ pub struct FunctionCall {
 /// These pointers and counters are not strictly required for kernel operation,
 /// but provide helpful information when an app crashes.
 struct ProcessDebug {
+    /// If this process was compiled for fixed addresses, save the address
+    /// it must be at in flash. This is useful for debugging and saves having
+    /// to re-parse the entire TBF header.
+    fixed_address_flash: Option<u32>,
+
+    /// If this process was compiled for fixed addresses, save the address
+    /// it must be at in RAM. This is useful for debugging and saves having
+    /// to re-parse the entire TBF header.
+    fixed_address_ram: Option<u32>,
+
     /// Where the process has started its heap in RAM.
     app_heap_start_pointer: Option<*const u8>,
 
@@ -1488,16 +1498,36 @@ impl<C: Chip> ProcessType for Process<'_, C> {
             let _ = writer.write_fmt(format_args!("{}", config));
         });
 
-        let sram_start = self.memory.as_ptr() as usize;
-        let flash_start = self.flash.as_ptr() as usize;
-        let flash_init_fn = flash_start + self.header.get_init_function_offset() as usize;
+        // Print a helpful message on how to re-compile a process to view the
+        // listing file. If a process is PIC, then we also need to print the
+        // actual addresses the process executed at so that the .lst file can be
+        // generated for those addresses. If the process was already compiled
+        // for a fixed address, then just generating a .lst file is fine.
 
-        let _ = writer.write_fmt(format_args!(
-            "\
-             \r\nTo debug, run `make debug RAM_START={:#x} FLASH_INIT={:#x}`\
-             \r\nin the app's folder and open the .lst file.\r\n\r\n",
-            sram_start, flash_init_fn
-        ));
+        self.debug.map(|debug| {
+            if debug.fixed_address_flash.is_some() {
+                // Fixed addresses, can just run `make lst`.
+                let _ = writer.write_fmt(format_args!(
+                    "\
+                     \r\nTo debug, run `make lst` in the app's folder\
+                     \r\nand open the arch.{:#x}.{:#x}.lst file.\r\n\r\n",
+                    debug.fixed_address_flash.unwrap_or(0),
+                    debug.fixed_address_ram.unwrap_or(0)
+                ));
+            } else {
+                // PIC, need to specify the addresses.
+                let sram_start = self.memory.as_ptr() as usize;
+                let flash_start = self.flash.as_ptr() as usize;
+                let flash_init_fn = flash_start + self.header.get_init_function_offset() as usize;
+
+                let _ = writer.write_fmt(format_args!(
+                    "\
+                     \r\nTo debug, run `make debug RAM_START={:#x} FLASH_INIT={:#x}`\
+                     \r\nin the app's folder and open the .lst file.\r\n\r\n",
+                    sram_start, flash_init_fn
+                ));
+            }
+        });
     }
 }
 
@@ -1743,6 +1773,11 @@ impl<C: 'static + Chip> Process<'_, C> {
         // being created.
         let unique_identifier = kernel.create_process_identifier();
 
+        // Save copies of these in case the app was compiled for fixed addresses
+        // for later debugging.
+        let fixed_address_flash = tbf_header.get_fixed_address_flash();
+        let fixed_address_ram = tbf_header.get_fixed_address_ram();
+
         process
             .app_id
             .set(AppId::new(kernel, unique_identifier, index));
@@ -1779,6 +1814,8 @@ impl<C: 'static + Chip> Process<'_, C> {
         process.process_name = process_name.unwrap_or("");
 
         process.debug = MapCell::new(ProcessDebug {
+            fixed_address_flash: fixed_address_flash,
+            fixed_address_ram: fixed_address_ram,
             app_heap_start_pointer: app_heap_start_pointer,
             app_stack_start_pointer: app_stack_start_pointer,
             min_stack_pointer: initial_stack_pointer,
