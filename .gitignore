@@ -53,5 +53,8 @@ doc/rustdoc
 # are manually included for releases.
 Cargo.lock
 
+# The QEMU build directory
+tools/qemu-build
+
 # Python scripts
 __pycache__
