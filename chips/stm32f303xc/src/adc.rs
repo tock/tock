@@ -5,6 +5,7 @@ use core::cell::Cell;
 use kernel::common::cells::OptionalCell;
 use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
+use kernel::debug;
 use kernel::hil;
 use kernel::ClockInterface;
 use kernel::ReturnCode;
@@ -522,6 +523,7 @@ impl Adc {
     }
 
     pub fn enable(&self) {
+        debug!("ENABLE");
         self.status.set(ADCStatus::PoweringOn);
 
         // Enable adc clock
@@ -567,16 +569,23 @@ impl Adc {
         // Check if ADC is ready
         if self.registers.isr.is_set(ISR::ADRDY) {
             // Clear interrupt
+            self.registers.isr.modify(ISR::ADRDY::CLEAR);
             self.registers.ier.modify(IER::ADRDYIE::CLEAR);
             // Set Status
-            self.status.set(ADCStatus::Idle);
+            if self.status.get() == ADCStatus::PoweringOn {
+                self.status.set(ADCStatus::Idle);
+            }
         }
         // Check if regular group conversion ended
         if self.registers.isr.is_set(ISR::EOC) {
             // Clear interrupt
             self.registers.ier.modify(IER::EOCIE::CLEAR);
-            self.client
-                .map(|client| client.sample_ready(self.registers.dr.read(DR::RDATA) as u16));
+            self.registers.isr.modify(ISR::EOC::SET);
+            let data = self.registers.dr.read(DR::RDATA);
+            self.client.map(|client| client.sample_ready(data as u16));
+            if self.status.get() == ADCStatus::Continuous {
+                self.registers.ier.modify(IER::EOCIE::SET);
+            }
         }
         // Check if sequence of regular group conversion ended
         if self.registers.isr.is_set(ISR::EOS) {
@@ -646,7 +655,8 @@ impl hil::adc::Adc for Adc {
             self.registers.smpr2.modify(SMPR2::SMP16.val(0b100));
             self.registers.sqr1.modify(SQR1::L.val(0b0000));
             self.registers.sqr1.modify(SQR1::SQ1.val(*channel as u32));
-            self.registers.ier.modify(IER::EOSMPIE::SET);
+            self.registers.ier.modify(IER::EOCIE::SET);
+            self.registers.ier.modify(IER::EOSIE::SET);
             self.registers.cr.modify(CR::ADSTART::SET);
             ReturnCode::SUCCESS
         } else {
@@ -654,18 +664,9 @@ impl hil::adc::Adc for Adc {
         }
     }
 
-    fn sample_continuous(&self, channel: &Self::Channel, _frequency: u32) -> ReturnCode {
-        if self.status.get() == ADCStatus::Idle {
-            self.status.set(ADCStatus::Continuous);
-            self.registers.cfgr.modify(CFGR::CONT::SET);
-            self.registers.ier.modify(IER::EOCIE::SET);
-            self.registers.sqr1.modify(SQR1::L.val(0b0000));
-            self.registers.sqr1.modify(SQR1::SQ1.val(*channel as u32));
-            self.registers.cfgr.modify(CFGR::CONT::SET);
-            ReturnCode::SUCCESS
-        } else {
-            ReturnCode::EBUSY
-        }
+    fn sample_continuous(&self, _channel: &Self::Channel, _frequency: u32) -> ReturnCode {
+        // Has to be implementer with timers because the frequency is too high
+        ReturnCode::FAIL
     }
 
     fn stop_sampling(&self) -> ReturnCode {
