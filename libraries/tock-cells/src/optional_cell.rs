@@ -1,16 +1,15 @@
 //! `OptionalCell` convenience type
 
 use core::cell::Cell;
-use core::marker::Copy;
 
 /// `OptionalCell` is a `Cell` that wraps an `Option`. This is helper type
 /// that makes keeping types that can be `None` a little cleaner.
 #[derive(Default)]
-pub struct OptionalCell<T: Copy> {
+pub struct OptionalCell<T> {
     value: Cell<Option<T>>,
 }
 
-impl<T: Copy> OptionalCell<T> {
+impl<T> OptionalCell<T> {
     /// Create a new OptionalCell.
     pub const fn new(val: T) -> OptionalCell<T> {
         OptionalCell {
@@ -33,10 +32,7 @@ impl<T: Copy> OptionalCell<T> {
     /// Insert the value of the supplied `Option`, or `None` if the supplied
     /// `Option` is `None`.
     pub fn insert(&self, opt: Option<T>) {
-        match opt {
-            Some(v) => self.set(v),
-            None => self.clear(),
-        }
+        self.value.set(opt);
     }
 
     /// Replace the contents with the supplied value.
@@ -55,12 +51,18 @@ impl<T: Copy> OptionalCell<T> {
 
     /// Check if the cell contains something.
     pub fn is_some(&self) -> bool {
-        self.value.get().is_some()
+        let value = self.value.take();
+        let out = value.is_some();
+        self.value.set(value);
+        out
     }
 
     /// Check if the cell is None.
     pub fn is_none(&self) -> bool {
-        self.value.get().is_none()
+        let value = self.value.take();
+        let out = value.is_none();
+        self.value.set(value);
+        out
     }
 
     /// Returns true if the option is a Some value containing the given value.
@@ -68,11 +70,17 @@ impl<T: Copy> OptionalCell<T> {
     where
         T: PartialEq,
     {
-        self.value.get().contains(x)
+        let value = self.value.take();
+        let out = value.contains(x);
+        self.value.set(value);
+        out
     }
 
     /// Returns the contained value or panics if contents is `None`.
-    pub fn expect(&self, msg: &str) -> T {
+    pub fn expect(&self, msg: &str) -> T
+    where
+        T: Copy,
+    {
         self.value.get().expect(msg)
     }
 
@@ -80,13 +88,17 @@ impl<T: Copy> OptionalCell<T> {
     // panic'ing in the Tock kernel.
 
     /// Returns the contained value or a default.
-    pub fn unwrap_or(&self, default: T) -> T {
+    pub fn unwrap_or(&self, default: T) -> T
+    where
+        T: Copy,
+    {
         self.value.get().unwrap_or(default)
     }
 
     /// Returns the contained value or computes a default.
     pub fn unwrap_or_else<F>(&self, default: F) -> T
     where
+        T: Copy,
         F: FnOnce() -> T,
     {
         self.value.get().unwrap_or_else(default)
@@ -95,6 +107,7 @@ impl<T: Copy> OptionalCell<T> {
     /// Call a closure on the value if the value exists.
     pub fn map<F, R>(&self, closure: F) -> Option<R>
     where
+        T: Copy,
         F: FnOnce(&mut T) -> R,
     {
         self.value.get().map(|mut val| closure(&mut val))
@@ -104,6 +117,7 @@ impl<T: Copy> OptionalCell<T> {
     /// default if the value is `None`.
     pub fn map_or<F, R>(&self, default: R, closure: F) -> R
     where
+        T: Copy,
         F: FnOnce(&mut T) -> R,
     {
         self.value
@@ -116,6 +130,7 @@ impl<T: Copy> OptionalCell<T> {
     /// closure to return a default value.
     pub fn map_or_else<U, D, F>(&self, default: D, closure: F) -> U
     where
+        T: Copy,
         D: FnOnce() -> U,
         F: FnOnce(&mut T) -> U,
     {
@@ -131,7 +146,7 @@ impl<T: Copy> OptionalCell<T> {
     /// the result of a function call, it is recommended to use `ok_or_else`,
     /// which is lazily evaluated.
     pub fn ok_or<E>(self, err: E) -> Result<T, E> {
-        self.value.get().ok_or(err)
+        self.value.into_inner().ok_or(err)
     }
 
     /// Transforms the contained `Option<T>` into a `Result<T, E>`, mapping
@@ -140,17 +155,20 @@ impl<T: Copy> OptionalCell<T> {
     where
         F: FnOnce() -> E,
     {
-        self.value.get().ok_or_else(err)
+        self.value.into_inner().ok_or_else(err)
     }
 
     /// Returns `None` if the option is `None`, otherwise returns `optb`.
     pub fn and<U>(self, optb: Option<U>) -> Option<U> {
-        self.value.get().and(optb)
+        self.value.into_inner().and(optb)
     }
 
     /// If the cell is empty, return `None`. Otherwise, call a closure
     /// with the value of the cell and return the result.
-    pub fn and_then<U, F: FnOnce(T) -> Option<U>>(&self, f: F) -> Option<U> {
+    pub fn and_then<U, F: FnOnce(T) -> Option<U>>(&self, f: F) -> Option<U>
+    where
+        T: Copy,
+    {
         self.value.get().and_then(f)
     }
 
@@ -163,7 +181,7 @@ impl<T: Copy> OptionalCell<T> {
     where
         P: FnOnce(&T) -> bool,
     {
-        self.value.get().filter(predicate)
+        self.value.into_inner().filter(predicate)
     }
 
     /// Returns the option if it contains a value, otherwise returns `optb`.
@@ -172,7 +190,7 @@ impl<T: Copy> OptionalCell<T> {
     /// result of a function call, it is recommended to use `or_else`, which
     /// is lazily evaluated.
     pub fn or(self, optb: Option<T>) -> Option<T> {
-        self.value.get().or(optb)
+        self.value.into_inner().or(optb)
     }
 
     /// Returns the option if it contains a value, otherwise calls `f` and
@@ -181,7 +199,7 @@ impl<T: Copy> OptionalCell<T> {
     where
         F: FnOnce() -> Option<T>,
     {
-        self.value.get().or_else(f)
+        self.value.into_inner().or_else(f)
     }
 
     /// Return the contained value and replace it with None.
@@ -197,6 +215,6 @@ impl<T: Copy> OptionalCell<T> {
     where
         T: Default,
     {
-        self.value.get().unwrap_or_default()
+        self.value.into_inner().unwrap_or_default()
     }
 }
