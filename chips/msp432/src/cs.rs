@@ -1,6 +1,6 @@
 //! Clock System (CS)
 
-use kernel::common::peripherals::PeripheralManagement;
+use kernel::common::peripherals::{PeripheralManagement, PeripheralManager};
 use kernel::common::registers::{
     register_bitfields, register_structs, ReadOnly, ReadWrite, WriteOnly,
 };
@@ -243,47 +243,44 @@ register_bitfields! [u32,
     ]
 ];
 
-pub struct ClockSystem {
-    registers: StaticRef<CsRegisters>,
-}
+type CsRegisterManager<'a> = PeripheralManager<'a, ClockSystem, NoClockControl>;
+
+pub struct ClockSystem {}
 
 impl ClockSystem {
     const fn new() -> ClockSystem {
-        ClockSystem { registers: CS_BASE }
+        ClockSystem {}
     }
 
     // Not sure about the interface, so for testing provide a function to set
     // the master-clock to 48Mhz
     pub fn set_mclk_48mhz(&self) {
-        self.before_peripheral_access(self.get_clock(), self.get_registers());
+        let cs = CsRegisterManager::new(self);
 
         // Set HFXT to 40-48MHz range
-        self.registers.ctl2.modify(CSCTL2::HFXTFREQ.val(6));
+        cs.registers.ctl2.modify(CSCTL2::HFXTFREQ.val(6));
 
         // Set HFXT as MCLK source
-        self.registers
+        cs.registers
             .ctl1
             .modify(CSCTL1::SELM.val(5) + CSCTL1::DIVM.val(0));
 
-        while self.registers.ifg.is_set(CSIFG::HFXTIFG) {
-            self.registers
+        while cs.registers.ifg.is_set(CSIFG::HFXTIFG) {
+            cs.registers
                 .clrifg
                 .write(CSCLRIFG::HFXTIFG::SET + CSCLRIFG::FCNTHFIFG::SET);
         }
-        self.after_peripheral_access(self.get_clock(), self.get_registers());
     }
 
     // Setup the low-speed subsystem master clock (SMCLK) to 1/4 of the master-clock -> 12MHz
     pub fn set_smclk_12mhz(&self) {
-        self.before_peripheral_access(self.get_clock(), self.get_registers());
+        let cs = CsRegisterManager::new(self);
 
         // Set HFXT as clock-source for SMCLK
-        self.registers.ctl1.modify(CSCTL1::SELS.val(5));
+        cs.registers.ctl1.modify(CSCTL1::SELS.val(5));
 
         // Set SMCLK divider to 4 -> 48MHz / 4 = 12MHz
-        self.registers.ctl1.modify(CSCTL1::DIVS.val(2));
-
-        self.after_peripheral_access(self.get_clock(), self.get_registers());
+        cs.registers.ctl1.modify(CSCTL1::DIVS.val(2));
     }
 }
 
@@ -291,17 +288,20 @@ impl<'a> PeripheralManagement<NoClockControl> for ClockSystem {
     type RegisterType = CsRegisters;
 
     fn get_registers(&self) -> &CsRegisters {
-        &*self.registers
+        &*CS_BASE
     }
+
     fn get_clock(&self) -> &NoClockControl {
         unsafe { &kernel::NO_CLOCK_CONTROL }
     }
+
     fn before_peripheral_access(&self, _c: &NoClockControl, r: &Self::RegisterType) {
         // Unlocks the registers in order to allow write accesses
         r.key.modify(CSKEY::KEY.val(KEY));
     }
+
     fn after_peripheral_access(&self, _c: &NoClockControl, r: &Self::RegisterType) {
-        // Locks the registers
+        // Locks the registers in order to prevent write accesses
         // Every value except KEY written to the key register will perform the lock
         r.key.modify(CSKEY::KEY.val(0));
     }
