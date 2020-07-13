@@ -16,6 +16,20 @@ use kernel::component::Component;
 use kernel::hil;
 use kernel::{create_capability, static_init};
 
+use rubble::link::MIN_PDU_BUF;
+
+use rubble_nrf5x::radio::{BleRadio, PacketBuffer};
+
+use nrf52840_hal as hal;
+
+/// Send buffer
+pub static mut TX_BUF: PacketBuffer = [0; MIN_PDU_BUF];
+
+/// Recv buffer
+pub static mut RX_BUF: PacketBuffer = [0; MIN_PDU_BUF];
+
+type BleCapsule = capsules::rubble::BLE<'static, BleRadio, VirtualMuxAlarm<'static, Rtc<'static>>>;
+
 // Save some deep nesting
 
 pub struct RubbleComponent {
@@ -37,7 +51,7 @@ impl RubbleComponent {
 
 impl Component for RubbleComponent {
     type StaticInput = ();
-    type Output = &'static capsules::rubble::BLE<'static, VirtualMuxAlarm<'static, Rtc<'static>>>;
+    type Output = &'static BleCapsule;
 
     unsafe fn finalize(self, _s: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
@@ -47,12 +61,23 @@ impl Component for RubbleComponent {
             capsules::virtual_alarm::VirtualMuxAlarm::new(self.mux_alarm)
         );
 
+        // TODO: replace this
+        let peripherals = hal::target::Peripherals::take().unwrap();
+
+        // Rubble currently requires an RX buffer even though the radio is only used as a TX-only
+        // beacon.
+        let radio = BleRadio::new(
+            peripherals.RADIO,
+            &peripherals.FICR,
+            &mut TX_BUF,
+            &mut RX_BUF,
+        );
+
         let ble_radio = static_init!(
-            capsules::rubble::BLE<'static, VirtualMuxAlarm<'static, Rtc>>,
-            capsules::rubble::BLE::new(
+            BleCapsule,
+            BleCapsule::new(
                 self.board_kernel.create_grant(&grant_cap),
-                &mut capsules::rubble::TX_BUF,
-                &mut capsules::rubble::RX_BUF,
+                radio,
                 ble_radio_virtual_alarm
             )
         );
