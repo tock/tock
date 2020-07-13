@@ -1,4 +1,4 @@
-/* Memory layout for the STM32F446RE
+/* Memory layout for the i.MX RT 1050 EVKB
  * rom = 2MB (LENGTH = 0x02000000)
  * kernel = 256KB
  * user = 256KB
