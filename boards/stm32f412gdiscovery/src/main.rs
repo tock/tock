@@ -491,8 +491,6 @@ pub unsafe fn reset_handler() {
 
     ft6206.is_present();
 
-    stm32f412g::adc::ADC1.enable();
-
     let adc_channels = static_init!(
         [&'static stm32f412g::adc::Channel; 6],
         [

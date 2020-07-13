@@ -386,6 +386,9 @@ impl hil::adc::Adc for Adc {
     type Channel = Channel;
 
     fn sample(&self, channel: &Self::Channel) -> ReturnCode {
+        if self.status.get() == ADCStatus::Off {
+            self.enable();
+        }
         if self.status.get() == ADCStatus::Idle {
             self.status.set(ADCStatus::OneSample);
             self.registers.sqr1.modify(SQR1::L.val(0b0000));
