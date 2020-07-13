@@ -187,6 +187,47 @@ impl PMPConfig {
         }
         None
     }
+
+    fn sort_regions(&mut self) {
+        // Get the app region address
+        let app_addres = if self.app_region.is_some() {
+            Some(
+                self.regions[self.app_region.unwrap_or(0)]
+                    .unwrap()
+                    .location
+                    .0,
+            )
+        } else {
+            None
+        };
+
+        // Sort the regions
+        self.regions.sort_unstable_by(|a, b| {
+            let (a_start, _a_size) = match a {
+                Some(region) => (region.location().0 as usize, region.location().1),
+                None => (0xFFFF_FFFF, 0xFFFF_FFFF),
+            };
+            let (b_start, _b_size) = match b {
+                Some(region) => (region.location().0 as usize, region.location().1),
+                None => (0xFFFF_FFFF, 0xFFFF_FFFF),
+            };
+            a_start.cmp(&b_start)
+        });
+
+        // Update the app region after the sort
+        if app_addres.is_some() {
+            for (i, region) in self.regions.iter().enumerate() {
+                match region {
+                    Some(reg) => {
+                        if reg.location.0 == app_addres.unwrap() {
+                            self.app_region.set(i);
+                        }
+                    }
+                    None => {}
+                }
+            }
+        }
+    }
 }
 
 impl kernel::mpu::MPU for PMPConfig {
@@ -303,6 +344,8 @@ impl kernel::mpu::MPU for PMPConfig {
         config.regions[region_num] = Some(region);
         config.is_dirty.set(true);
 
+        config.sort_regions();
+
         Some(mpu::Region::new(start as *const u8, size))
     }
 
@@ -365,6 +408,8 @@ impl kernel::mpu::MPU for PMPConfig {
 
         config.app_region.set(region_num);
 
+        config.sort_regions();
+
         Some((region_start as *const u8, region_size))
     }
 
@@ -398,6 +443,8 @@ impl kernel::mpu::MPU for PMPConfig {
         config.regions[region_num] = Some(region);
         config.is_dirty.set(true);
 
+        config.sort_regions();
+
         Ok(())
     }
 
@@ -410,22 +457,8 @@ impl kernel::mpu::MPU for PMPConfig {
         // Skip PMP configuration if it is already configured for this app and the MPU
         // configuration of this app has not changed.
         if !last_configured_for_this_app || config.is_dirty.get() {
-            // Sort the regions before configuring PMP in TOR mode.
-            let mut regions_sorted = config.regions.clone();
-            regions_sorted.sort_unstable_by(|a, b| {
-                let (a_start, _a_size) = match a {
-                    Some(region) => (region.location().0 as usize, region.location().1),
-                    None => (0xFFFF_FFFF, 0xFFFF_FFFF),
-                };
-                let (b_start, _b_size) = match b {
-                    Some(region) => (region.location().0 as usize, region.location().1),
-                    None => (0xFFFF_FFFF, 0xFFFF_FFFF),
-                };
-                a_start.cmp(&b_start)
-            });
-
             for x in 0..self.total_regions {
-                let region = regions_sorted[x];
+                let region = config.regions[x];
                 match region {
                     Some(r) => {
                         let cfg_val = r.cfg.value;
