@@ -20,7 +20,7 @@ use kernel::AppId;
 //     physical PMP regions.
 
 // Generic PMP config
-register_bitfields![u32,
+register_bitfields![u8,
     pub pmpcfg [
         r OFFSET(0) NUMBITS(1) [],
         w OFFSET(1) NUMBITS(1) [],
@@ -39,13 +39,13 @@ register_bitfields![u32,
 #[derive(Copy, Clone)]
 pub struct PMPRegion {
     location: (*const u8, usize),
-    cfg: tock_registers::registers::FieldValue<u32, pmpcfg::Register>,
+    cfg: tock_registers::registers::FieldValue<u8, pmpcfg::Register>,
 }
 
 impl fmt::Display for PMPRegion {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fn bit_str<'a>(reg: &PMPRegion, bit: u32, on_str: &'a str, off_str: &'a str) -> &'a str {
-            match reg.cfg.value & bit {
+        fn bit_str<'a>(reg: &PMPRegion, bit: u8, on_str: &'a str, off_str: &'a str) -> &'a str {
+            match reg.cfg.value & bit as u8 {
                 0 => off_str,
                 _ => on_str,
             }
@@ -56,7 +56,7 @@ impl fmt::Display for PMPRegion {
             "addr={:p}, size={:#X}, cfg={:#X} ({}{}{})",
             self.location.0,
             self.location.1,
-            u32::from(self.cfg),
+            u8::from(self.cfg),
             bit_str(self, pmpcfg::r::SET.value, "r", "-"),
             bit_str(self, pmpcfg::w::SET.value, "w", "-"),
             bit_str(self, pmpcfg::x::SET.value, "x", "-"),
@@ -416,7 +416,7 @@ impl kernel::mpu::MPU for PMPConfig {
                 let region = regions_sorted[x];
                 match region {
                     Some(r) => {
-                        let cfg_val = r.cfg.value;
+                        let cfg_val = r.cfg.value as u32;
                         let start = r.location.0 as usize;
                         let size = r.location.1;
 
