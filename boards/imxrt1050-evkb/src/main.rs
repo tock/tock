@@ -55,10 +55,6 @@ const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultRespons
 #[link_section = ".boot_hdr"]
 static BOOT_HDR: [u8; 8192] = boot_header::BOOT_HDR;
 
-// RAM to be shared by all application processes.
-#[link_section = ".app_memory"]
-static mut APP_MEMORY: [u8; 65536] = [0; 65536];
-
 // Force the emission of the `.apps` segment in the kernel elf image
 // NOTE: This will cause the kernel to overwrite any existing apps when flashed!
 #[used]
@@ -400,11 +396,14 @@ pub unsafe fn reset_handler() {
         ///
         /// This symbol is defined in the linker script.
         static _sapps: u8;
-
         /// End of the ROM region containing app images.
         ///
         /// This symbol is defined in the linker script.
         static _eapps: u8;
+        /// Beginning of the RAM region for app memory.
+        static mut _sappmem: u8;
+        /// End of the RAM region for app memory.
+        static _eappmem: u8;
     }
 
     kernel::procs::load_processes(
@@ -414,7 +413,10 @@ pub unsafe fn reset_handler() {
             &_sapps as *const u8,
             &_eapps as *const u8 as usize - &_sapps as *const u8 as usize,
         ),
-        &mut APP_MEMORY,
+        &mut core::slice::from_raw_parts_mut(
+            &mut _sappmem as *mut u8,
+            &_eappmem as *const u8 as usize - &_sappmem as *const u8 as usize,
+        ),
         &mut PROCESSES,
         FAULT_RESPONSE,
         &process_management_capability,
