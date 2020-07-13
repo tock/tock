@@ -251,4 +251,16 @@ of a board that is merged into the main Tock repository:
    and help test the platform for future releases.
 
 With these requirements met we should be able to merge the platform into Tock
-relatively quickly.
+relatively quickly. In the pull request to add the platform, you should add this
+checklist:
+
+```md
+### New Platform Checklist
+
+- [ ] Hardware is widely available.
+- [ ] I can support the platform, at least initially.
+- Basic features are implemented:
+  - [ ] `Console`, including `debug!()` and userspace `printf()`.
+  - [ ] Timers.
+  - [ ] GPIO with interrupts.
+```
