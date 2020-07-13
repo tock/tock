@@ -650,6 +650,10 @@ impl hil::adc::Adc for Adc {
     type Channel = Channel;
 
     fn sample(&self, channel: &Self::Channel) -> ReturnCode {
+        if self.status.get() == ADCStatus::Off {
+            self.enable();
+        }
+
         if self.status.get() == ADCStatus::Idle {
             self.status.set(ADCStatus::OneSample);
             self.registers.smpr2.modify(SMPR2::SMP16.val(0b100));
@@ -666,7 +670,7 @@ impl hil::adc::Adc for Adc {
 
     fn sample_continuous(&self, _channel: &Self::Channel, _frequency: u32) -> ReturnCode {
         // Has to be implementer with timers because the frequency is too high
-        ReturnCode::FAIL
+        ReturnCode::ENOSUPPORT
     }
 
     fn stop_sampling(&self) -> ReturnCode {
