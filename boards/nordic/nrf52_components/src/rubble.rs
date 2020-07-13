@@ -16,7 +16,7 @@ use kernel::component::Component;
 use kernel::hil;
 use kernel::{create_capability, static_init};
 
-use rubble::link::MIN_PDU_BUF;
+use rubble::link::{DeviceAddress, MIN_PDU_BUF};
 
 use rubble_nrf5x::radio::{BleRadio, PacketBuffer};
 
@@ -28,7 +28,18 @@ pub static mut TX_BUF: PacketBuffer = [0; MIN_PDU_BUF];
 /// Recv buffer
 pub static mut RX_BUF: PacketBuffer = [0; MIN_PDU_BUF];
 
-type BleCapsule = capsules::rubble::BLE<'static, BleRadio, VirtualMuxAlarm<'static, Rtc<'static>>>;
+pub struct Nrf52BleRadio;
+
+impl hil::rubble::BleRadio for Nrf52BleRadio {
+    type Transmitter = rubble_nrf5x::radio::BleRadio;
+
+    fn get_device_address() -> DeviceAddress {
+        rubble_nrf5x::utils::get_device_address()
+    }
+}
+
+type BleCapsule =
+    capsules::rubble::BLE<'static, Nrf52BleRadio, VirtualMuxAlarm<'static, Rtc<'static>>>;
 
 // Save some deep nesting
 

@@ -12,9 +12,3 @@ enum_primitive = { path = "../libraries/enum_primitive" }
 version = "0.0.3"
 # TODO: use github or crates.io dependency
 path = "../../rubble/rubble"
-
-[dependencies.rubble-nrf5x]
-version = "0.0.3"
-# TODO: use github or crates.io dependency
-path = "../../rubble/rubble-nrf5x"
-features = ["52840"]

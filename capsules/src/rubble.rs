@@ -2,13 +2,13 @@
 
 use core::cell::RefCell;
 use kernel::debug;
+use kernel::hil::rubble::BleRadio;
 use kernel::hil::time::Frequency;
 use kernel::hil::time::Time;
 use kernel::ReturnCode;
 
 use rubble::beacon::Beacon;
 use rubble::link::{ad_structure::AdStructure, Transmitter};
-use rubble_nrf5x::utils::get_device_address;
 
 /// Syscall driver number.
 use crate::driver;
@@ -23,31 +23,29 @@ impl Default for App {
     }
 }
 
-pub struct BLE<'a, T, A>
+pub struct BLE<'a, R, A>
 where
-    T: Transmitter,
+    R: BleRadio,
     A: kernel::hil::time::Alarm<'a>,
 {
-    radio: RefCell<T>,
+    radio: RefCell<R::Transmitter>,
     beacon: Beacon,
     app: kernel::Grant<App>,
     alarm: &'a A,
 }
 
-impl<'a, T, A> BLE<'a, T, A>
+impl<'a, R, A> BLE<'a, R, A>
 where
-    T: Transmitter,
+    R: BleRadio,
     A: kernel::hil::time::Alarm<'a>,
 {
-    pub fn new(container: kernel::Grant<App>, radio: T, alarm: &'a A) -> Self {
-        // TODO: this should be moved into a hardware-specific initialize/new method
-
+    pub fn new(container: kernel::Grant<App>, radio: R::Transmitter, alarm: &'a A) -> Self {
         // Determine device address
-        let device_address = get_device_address();
+        let device_address = R::get_device_address();
 
         let beacon = Beacon::new(
             device_address,
-            &[AdStructure::CompleteLocalName("Beacon (nRF52840)")],
+            &[AdStructure::CompleteLocalName("Rusty Beacon (Tock)")],
         )
         .unwrap();
 
@@ -66,9 +64,9 @@ where
 }
 
 // Timer alarm
-impl<'a, T, A> kernel::hil::time::AlarmClient for BLE<'a, T, A>
+impl<'a, R, A> kernel::hil::time::AlarmClient for BLE<'a, R, A>
 where
-    T: Transmitter,
+    R: BleRadio,
     A: kernel::hil::time::Alarm<'a>,
 {
     fn fired(&self) {
@@ -79,9 +77,9 @@ where
 }
 
 // System Call implementation
-impl<'a, T, A> kernel::Driver for BLE<'a, T, A>
+impl<'a, R, A> kernel::Driver for BLE<'a, R, A>
 where
-    T: Transmitter,
+    R: BleRadio,
     A: kernel::hil::time::Alarm<'a>,
 {
     fn command(
