@@ -492,16 +492,12 @@ ci-job-miri: ci-setup-miri
 ### ci-runner-github-qemu jobs:
 
 define ci_setup_qemu_riscv
-	$(call banner,CI-Setup: Install Tock QEMU port)
+	$(call banner,CI-Setup: Build QEMU)
 	@# Use the latest QEMU as it has OpenTitan support
 	@printf "Building QEMU, this could take a few minutes\n\n"
-	# Download Tock qemu fork if needed
-	if ! bash -c 'cd tools/qemu && [[ $$(git rev-parse --short HEAD) == "7ff5b84" ]]'; then \
-		rm -rf tools/qemu; \
-		cd tools; git clone https://github.com/alistair23/qemu.git --depth 1 -b riscv-tock.next; \
-		cd qemu; ./configure --target-list=riscv32-softmmu; \
-	fi
-	# Build qemu
+	@git submodule sync; git submodule update --init
+	@cd tools/qemu; ./configure --target-list=riscv32-softmmu;
+	@# Build qemu
 	@$(MAKE) -C "tools/qemu" || (echo "You might need to install some missing packages" || exit 127)
 endef
 
@@ -510,7 +506,7 @@ define ci_setup_qemu_opentitan
 	# Download OpenTitan image
 	@printf "Downloading OpenTitan boot rom from: 1beb08b474790d4b6c67ae5b3423e2e8dfc9e368\n"
 	@pwd=$$(pwd) && \
-		temp=$$(mktemp -d)\
+		temp=$$(mktemp -d) && \
 		cd $$temp && \
 		curl $$(curl "https://dev.azure.com/lowrisc/opentitan/_apis/build/builds/14991/artifacts?artifactName=opentitan-dist&api-version=5.1" | cut -d \" -f 38) --output opentitan-dist.zip; \
 		unzip opentitan-dist.zip; \
@@ -521,8 +517,10 @@ endef
 .PHONY: ci-setup-qemu
 ci-setup-qemu:
 	$(call ci_setup_helper,\
-		cd tools/qemu && [[ $$(git rev-parse --short HEAD) == "1ef6d40" ]] && [ -x riscv32-softmmu ] && echo yes,\
-		Clone QEMU fork (with riscv fixes) and run its build scripts,\
+		status=$$(git submodule status -- tools/qemu); \
+		[[ "$${status:0:1}" != "" ]] && \
+			cd tools/qemu && make -q riscv32-softmmu && echo yes,\
+		Clone QEMU and run its build scripts,\
 		ci_setup_qemu_riscv,\
 		CI_JOB_QEMU_RISCV)
 	$(call ci_setup_helper,\
