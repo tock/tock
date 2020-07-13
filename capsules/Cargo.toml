@@ -7,13 +7,14 @@ edition = "2018"
 [dependencies]
 kernel = { path = "../kernel" }
 enum_primitive = { path = "../libraries/enum_primitive" }
-nrf52840-hal = { version = "0.10", features = ["rt"] }
 
 [dependencies.rubble]
 version = "0.0.3"
+# TODO: use github or crates.io dependency
 path = "../../rubble/rubble"
 
 [dependencies.rubble-nrf5x]
 version = "0.0.3"
+# TODO: use github or crates.io dependency
 path = "../../rubble/rubble-nrf5x"
 features = ["52840"]
