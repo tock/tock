@@ -132,9 +132,8 @@ pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 
 /// Supported drivers by the platform
 pub struct Platform {
-    ble_radio: &'static capsules::ble_advertising_driver::BLE<
+    ble_radio: &'static capsules::rubble::BLE<
         'static,
-        nrf52840::ble_radio::Radio<'static>,
         VirtualMuxAlarm<'static, nrf52840::rtc::Rtc<'static>>,
     >,
     ieee802154_radio: &'static capsules::ieee802154::RadioDriver<'static>,
@@ -172,7 +171,7 @@ impl kernel::Platform for Platform {
             capsules::led::DRIVER_NUM => f(Some(self.led)),
             capsules::button::DRIVER_NUM => f(Some(self.button)),
             capsules::rng::DRIVER_NUM => f(Some(self.rng)),
-            capsules::ble_advertising_driver::DRIVER_NUM => f(Some(self.ble_radio)),
+            capsules::rubble::DRIVER_NUM => f(Some(self.ble_radio)),
             capsules::ieee802154::DRIVER_NUM => f(Some(self.ieee802154_radio)),
             capsules::temperature::DRIVER_NUM => f(Some(self.temp)),
             capsules::analog_comparator::DRIVER_NUM => f(Some(self.analog_comparator)),
@@ -334,9 +333,7 @@ pub unsafe fn reset_handler() {
     // Create the debugger object that handles calls to `debug!()`.
     components::debug_writer::DebugWriterComponent::new(uart_mux).finalize(());
 
-    let ble_radio =
-        nrf52_components::BLEComponent::new(board_kernel, &nrf52840::ble_radio::RADIO, mux_alarm)
-            .finalize(());
+    let ble_radio = nrf52_components::RubbleComponent::new(board_kernel, mux_alarm).finalize(());
 
     let (ieee802154_radio, _mux_mac) = components::ieee802154::Ieee802154Component::new(
         board_kernel,
