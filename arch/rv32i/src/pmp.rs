@@ -193,9 +193,12 @@ impl kernel::mpu::MPU for PMPConfig {
     fn enable_mpu(&self) {}
 
     fn disable_mpu(&self) {
-        for x in 0..self.total_regions {
-            // If PMP is supported by the core then all 64 register sets must exist
-            // They don't all have to do anything, but let's zero them all just in case.
+        // `total_regions` here refers to the number of memory slices we can
+        // protect with the PMP. Each slice requires two PMP entries to protect,
+        // so `total_regions` is half of the number physical hardware PMP
+        // configuration entries. Therefore, we double `total_regions` to clear
+        // all the relevant `pmpcfg` entries.
+        for x in 0..(self.total_regions * 2) {
             match x % 4 {
                 0 => {
                     csr::CSR.pmpcfg[x / 4].modify(
