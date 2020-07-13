@@ -1,4 +1,6 @@
 /// Vector which contains the FCB header
+/// This section is extracted with objcopy from the hello world
+/// example in the i.MX RT 1050 EVKB SDK examples.
 pub const BOOT_HDR: [u8; 8192] = [
     70, 67, 70, 66, 0, 4, 1, 86, 0, 0, 0, 0, 3, 3, 3, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,

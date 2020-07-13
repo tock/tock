@@ -1,7 +1,7 @@
 i.MX RT1050 Crossover MCU with Arm® Cortex®-M7 core
 ====================================================
 
-For more details about the board [visit the NXP  board website](https://www.nxp.com/products/processors-and-microcontrollers/arm-microcontrollers/i-mx-rt-crossover-mcus/i-mx-rt1050-crossover-mcu-with-arm-cortex-m7-core:i.MX-RT1050).
+For more details about the board [visit the NXP  board website](https://www.nxp.com/design/development-boards/i-mx-evaluation-and-development-boards/i-mx-rt1050-evaluation-kit:MIMXRT1050-EVK). Details about the chip can be found [here](https://www.nxp.com/products/processors-and-microcontrollers/arm-microcontrollers/i-mx-rt-crossover-mcus/i-mx-rt1050-crossover-mcu-with-arm-cortex-m7-core:i.MX-RT1050)
 
 
 ## Building the app

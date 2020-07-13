@@ -1,4 +1,4 @@
-For Imxrt1050 series 
+Imxrt1050 Series MCU
 
 
 ## Links

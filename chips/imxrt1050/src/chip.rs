@@ -62,7 +62,6 @@ impl Chip for Imxrt1050 {
 
     fn has_pending_interrupts(&self) -> bool {
         unsafe { cortexm7::nvic::has_pending() || deferred_call::has_tasks() }
-        // false
     }
 
     fn mpu(&self) -> &cortexm7::mpu::MPU {
