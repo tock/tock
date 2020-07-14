@@ -1688,6 +1688,51 @@ impl<C: 'static + Chip> Process<'_, C> {
         // Minimum memory size for the process.
         let min_total_memory_size = min_app_ram_size + initial_kernel_memory_size;
 
+        // Check if this process requires a fixed memory start address. If so,
+        // try to adjust the memory region to work for this process.
+        //
+        // Right now, we only support skipping some RAM and leaving a chunk
+        // unused so that the memory region starts where the process needs it
+        // to.
+        let remaining_memory = if let Some(fixed_memory_start) = tbf_header.get_fixed_address_ram()
+        {
+            // The process does have a fixed address.
+            if fixed_memory_start == remaining_memory.as_ptr() as u32 {
+                // Address already matches.
+                remaining_memory
+            } else if fixed_memory_start > remaining_memory.as_ptr() as u32 {
+                // Process wants a memory address farther in memory. Try to
+                // advance the memory region to make the address match.
+                let diff = (fixed_memory_start - remaining_memory.as_ptr() as u32) as usize;
+                if diff > remaining_memory.len() {
+                    // We ran out of memory.
+                    let actual_address =
+                        remaining_memory.as_ptr() as u32 + remaining_memory.len() as u32 - 1;
+                    let expected_address = fixed_memory_start;
+                    return Err(ProcessLoadError::MemoryAddressMismatch {
+                        actual_address,
+                        expected_address,
+                    });
+                } else {
+                    // Change the memory range to start where the process
+                    // requested it.
+                    remaining_memory
+                        .get_mut(diff..)
+                        .ok_or(ProcessLoadError::InternalError)?
+                }
+            } else {
+                // Address is earlier in memory, nothing we can do.
+                let actual_address = remaining_memory.as_ptr() as u32;
+                let expected_address = fixed_memory_start;
+                return Err(ProcessLoadError::MemoryAddressMismatch {
+                    actual_address,
+                    expected_address,
+                });
+            }
+        } else {
+            remaining_memory
+        };
+
         // Determine where process memory will go and allocate MPU region for
         // app-owned memory.
         let (app_memory_start, app_memory_size) = match chip.mpu().allocate_app_memory_region(
