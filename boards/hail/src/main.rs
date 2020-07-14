@@ -9,7 +9,6 @@
 #![cfg_attr(not(doc), no_main)]
 #![feature(const_in_array_repeat_expressions)]
 #![deny(missing_docs)]
-#![feature(const_raw_ptr_to_usize_cast)]
 
 use capsules::virtual_alarm::VirtualMuxAlarm;
 use capsules::virtual_i2c::{I2CDevice, MuxI2C};
