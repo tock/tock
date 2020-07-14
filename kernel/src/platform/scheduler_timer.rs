@@ -31,14 +31,14 @@ use crate::hil::time::{self, Frequency};
 /// interrupt is no longer required. Note, many scheduler implementations also
 /// charge time spent running the kernel against the process time quantum.
 /// When the kernel needs to know if a process has exhausted its time quantum
-/// it will call `expired()`.
+/// it will call `has_expired()`.
 ///
 /// Implementations must take care when using interrupts. Since the
 /// `SchedulerTimer` is used in the core kernel loop and scheduler, top half
 /// interrupt handlers may not have executed before `SchedulerTimer` functions
 /// are called. In particular, implementations on top of virtualized timers may
 /// receive the interrupt fired callback "late" (i.e. after the kernel calls
-/// `expired()`). Implementations should ensure that they can reliably check for
+/// `has_expired()`). Implementations should ensure that they can reliably check for
 /// timeslice expirations.
 pub trait SchedulerTimer {
     /// Start a timer for a process timeslice.
@@ -90,18 +90,18 @@ pub trait SchedulerTimer {
     /// Check if the process timeslice has expired.
     ///
     /// Returns `true` if the timer has expired since the last time this
-    /// function or `set_timer()` has been called. This function may not be
+    /// function or `start()` has been called. This function may not be
     /// called after it has returned `true` for a given timeslice until
-    /// `set_timer()` is called again (to start a new timeslice). If `expired()`
+    /// `start()` is called again (to start a new timeslice). If `has_expired()`
     /// is called again after returning `true` without an intervening call to
-    /// `set_timer()`, the return the return value is unspecified and
+    /// `start()`, the return the return value is unspecified and
     /// implementations may return whatever they like.
     ///
     /// The requirement that this may not be called again after it returns
     /// `true` simplifies implementation on hardware platforms where the
     /// hardware automatically clears the expired flag on a read, as with the
     /// ARM SysTick peripheral.
-    fn expired(&self) -> bool;
+    fn has_expired(&self) -> bool;
 }
 
 /// A dummy `SchedulerTimer` implementation in which the timer never expires.
@@ -117,7 +117,7 @@ impl SchedulerTimer for () {
 
     fn arm(&self) {}
 
-    fn expired(&self) -> bool {
+    fn has_expired(&self) -> bool {
         false
     }
 
@@ -176,13 +176,17 @@ impl<A: 'static + time::Alarm<'static>> SchedulerTimer for VirtualSchedulerTimer
         self.alarm.disable();
     }
 
-    fn expired(&self) -> bool {
+    fn has_expired(&self) -> bool {
         // If next alarm is more than one second away from now, alarm must have expired.
         // Use this formulation to protect against errors when systick wraps around.
         // 1 second was chosen because it is significantly greater than the 400ms max value allowed
-        // by set_timer, and requires no computational overhead (e.g. using 500ms would require
+        // by start(), and requires no computational overhead (e.g. using 500ms would require
         // dividing the returned ticks by 2)
-        !(self.alarm.get_alarm().wrapping_sub(self.alarm.now()) < A::Frequency::frequency())
+        // However, if the alarm frequency is slow enough relative to the cpu frequency, it is
+        // possible this will be evaluated while now() == get_alarm(), so we special case that
+        // result where the alarm has fired but the subtraction has not overflowed
+        let diff = self.alarm.get_alarm().wrapping_sub(self.alarm.now());
+        diff >= A::Frequency::frequency() || diff == 0
     }
 
     fn get_remaining_us(&self) -> u32 {

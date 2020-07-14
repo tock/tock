@@ -338,7 +338,7 @@ impl Kernel {
                 break;
             }
 
-            if scheduler_timer.expired()
+            if scheduler_timer.has_expired()
                 || scheduler_timer.get_remaining_us() <= MIN_QUANTA_THRESHOLD_US
             {
                 process.debug_timeslice_expired();
@@ -531,7 +531,7 @@ impl Kernel {
                             }
                         }
                         Some(ContextSwitchReason::Interrupted) => {
-                            if scheduler_timer.expired() {
+                            if scheduler_timer.has_expired() {
                                 // this interrupt was a timeslice expiration,
                                 process.debug_timeslice_expired();
                             }

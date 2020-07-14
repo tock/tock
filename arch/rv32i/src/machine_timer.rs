@@ -125,7 +125,7 @@ impl kernel::SchedulerTimer for MachineTimer<'_> {
         ((tics * 1_000_000) / hertz) as u32
     }
 
-    fn expired(&self) -> bool {
+    fn has_expired(&self) -> bool {
         self.now() < self.get_alarm()
     }
 

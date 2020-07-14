@@ -147,7 +147,7 @@ impl kernel::SchedulerTimer for SysTick {
             .write(ControlAndStatus::ENABLE::SET + clock_source);
     }
 
-    fn expired(&self) -> bool {
+    fn has_expired(&self) -> bool {
         SYSTICK_BASE.syst_csr.is_set(ControlAndStatus::COUNTFLAG)
     }
 
