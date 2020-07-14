@@ -134,71 +134,74 @@ pub fn load_processes<C: Chip>(
     _capability: &dyn ProcessManagementCapability,
 ) -> Result<(), ProcessLoadError> {
     let mut remaining_flash = app_flash;
-    let mut remaining_memory = app_memory;
 
     if config::CONFIG.debug_load_processes {
         debug!(
             "Loading processes from flash={:#010X} into sram=[{:#010X}:{:#010X}]",
             app_flash.as_ptr() as usize,
-            remaining_memory.as_ptr() as usize,
-            remaining_memory.as_ptr() as usize + remaining_memory.len()
+            app_memory.as_ptr() as usize,
+            app_memory.as_ptr() as usize + app_memory.len()
         );
     }
+    let mut remaining_memory = app_memory;
 
     for i in 0..procs.len() {
-        unsafe {
-            // Get the first eight bytes of flash to check if there is another
-            // app.
-            let test_header_slice = match remaining_flash.get(0..8) {
-                Some(s) => s,
-                None => {
-                    // Not enough flash to test for another app. This just means
-                    // we are at the end of flash, and there are no more apps to
-                    // load.
-                    return Ok(());
-                }
-            };
+        // Get the first eight bytes of flash to check if there is another
+        // app.
+        let test_header_slice = match remaining_flash.get(0..8) {
+            Some(s) => s,
+            None => {
+                // Not enough flash to test for another app. This just means
+                // we are at the end of flash, and there are no more apps to
+                // load.
+                return Ok(());
+            }
+        };
 
-            // Pass the first eight bytes to tbfheader to parse out the length
-            // of the tbf header and app. We then use those values to see if we
-            // have enough flash remaining to parse the remainder of the header.
-            let (version, header_length, entry_length) = match tbfheader::parse_tbf_header_lengths(
-                test_header_slice
-                    .try_into()
-                    .or(Err(ProcessLoadError::InternalError))?,
-            ) {
-                Ok((v, hl, al)) => (v, hl, al),
-                Err(tbfheader::InitialTbfParseError::InvalidHeader(entry_length)) => {
-                    // If we could not parse the header, then we want to skip
-                    // over this app and look for the next one.
-                    (0, 0, entry_length)
-                }
-                Err(tbfheader::InitialTbfParseError::UnableToParse) => {
-                    // Since Tock apps use a linked list, it is very possible
-                    // the header we started to parse is intentionally invalid
-                    // to signal the end of apps. This is ok and just means we
-                    // have finished loading apps.
-                    return Ok(());
-                }
-            };
+        // Pass the first eight bytes to tbfheader to parse out the length
+        // of the tbf header and app. We then use those values to see if we
+        // have enough flash remaining to parse the remainder of the header.
+        let (version, header_length, entry_length) = match tbfheader::parse_tbf_header_lengths(
+            test_header_slice
+                .try_into()
+                .or(Err(ProcessLoadError::InternalError))?,
+        ) {
+            Ok((v, hl, al)) => (v, hl, al),
+            Err(tbfheader::InitialTbfParseError::InvalidHeader(entry_length)) => {
+                // If we could not parse the header, then we want to skip
+                // over this app and look for the next one.
+                (0, 0, entry_length)
+            }
+            Err(tbfheader::InitialTbfParseError::UnableToParse) => {
+                // Since Tock apps use a linked list, it is very possible
+                // the header we started to parse is intentionally invalid
+                // to signal the end of apps. This is ok and just means we
+                // have finished loading apps.
+                return Ok(());
+            }
+        };
 
-            // Now we can get a slice which only encompasses the length of
-            // flash described by this tbf header.  We will either parse this
-            // as an actual app, or skip over this region.
-            let entry_flash = remaining_flash
-                .get(0..entry_length as usize)
-                .ok_or(ProcessLoadError::NotEnoughFlash)?;
+        // Now we can get a slice which only encompasses the length of
+        // flash described by this tbf header.  We will either parse this
+        // as an actual app, or skip over this region.
+        let entry_flash = remaining_flash
+            .get(0..entry_length as usize)
+            .ok_or(ProcessLoadError::NotEnoughFlash)?;
 
-            // If we found an actual app header, try to create a `Process`
-            // object. We also need to shrink the amount of remaining memory
-            // based on whatever is assigned to the new process if one is
-            // created.
-            if header_length > 0 {
-                // Try to create a process object from that app slice. If we
-                // don't get a process and we didn't get a loading error (aka we
-                // got to this point), then the app is a disabled process or
-                // just padding.
-                if let Some((process, unused_memory)) = Process::create(
+        // If we found an actual app header, try to create a `Process`
+        // object. We also need to shrink the amount of remaining memory
+        // based on whatever is assigned to the new process if one is
+        // created.
+
+        // Need to reassign remaining_memory in every iteration
+        // so the compiler knows it will not be re-borrowed
+        remaining_memory = if header_length > 0 {
+            // Try to create a process object from that app slice. If we
+            // don't get a process and we didn't get a loading error (aka we
+            // got to this point), then the app is a disabled process or
+            // just padding.
+            let (proc_opt, unused_memory) = unsafe {
+                Process::create(
                     kernel,
                     chip,
                     entry_flash,
@@ -207,9 +210,11 @@ pub fn load_processes<C: Chip>(
                     remaining_memory,
                     fault_response,
                     i,
-                )? {
-                    if config::CONFIG.debug_load_processes {
-                        debug!(
+                )?
+            };
+            proc_opt.map(|process| {
+                if config::CONFIG.debug_load_processes {
+                    debug!(
                             "Loaded process[{}] from flash=[{:#010X}:{:#010X}] into sram=[{:#010X}:{:#010X}] = {:?}",
                             i,
                             entry_flash.as_ptr() as usize,
@@ -218,32 +223,24 @@ pub fn load_processes<C: Chip>(
                         process.mem_end() as usize,
                             process.get_process_name()
                         );
-                    }
-
-                    // Save the reference to this process in the processes
-                    // array.
-                    procs[i] = Some(process);
-
-                    remaining_memory = unused_memory;
-
-                    // // Update the `remaining_memory` slice to start after the
-                    // // end of the new process's allocated memory region.
-                    // let new_remaining_memory_starting_offset =
-                    //     process.mem_end() as usize - remaining_memory.as_mut_ptr() as usize;
-                    // remaining_memory = remaining_memory
-                    //     .get_mut(new_remaining_memory_starting_offset..)
-                    //     .ok_or(ProcessLoadError::InternalError)?;
                 }
-            }
 
-            // Advance in our buffers before seeing if there is an additional
-            // process to load. Flash is straightforward since we require that
-            // applications are back-to-back in flash. For RAM, we want to move
-            // the remaining RAM slice to after the slice used by this process.
-            remaining_flash = remaining_flash
-                .get(entry_flash.len()..)
-                .ok_or(ProcessLoadError::NotEnoughFlash)?;
-        }
+                // Save the reference to this process in the processes
+                // array.
+                procs[i] = Some(process);
+            });
+            unused_memory
+        } else {
+            remaining_memory
+        };
+
+        // Advance in our buffers before seeing if there is an additional
+        // process to load. Flash is straightforward since we require that
+        // applications are back-to-back in flash. For RAM, we want to move
+        // the remaining RAM slice to after the slice used by this process.
+        remaining_flash = remaining_flash
+            .get(entry_flash.len()..)
+            .ok_or(ProcessLoadError::NotEnoughFlash)?;
     }
 
     Ok(())
@@ -1557,6 +1554,7 @@ fn exceeded_check(size: usize, allocated: usize) -> &'static str {
 }
 
 impl<C: 'static + Chip> Process<'_, C> {
+    #[inline(always)]
     pub(crate) unsafe fn create(
         kernel: &'static Kernel,
         chip: &'static C,
@@ -1566,7 +1564,7 @@ impl<C: 'static + Chip> Process<'_, C> {
         remaining_memory: &'static mut [u8],
         fault_response: FaultResponse,
         index: usize,
-    ) -> Result<Option<(&'static dyn ProcessType, &'static mut [u8])>, ProcessLoadError> {
+    ) -> Result<(Option<&'static dyn ProcessType>, &'static mut [u8]), ProcessLoadError> {
         // Get a slice for just the app header.
         let header_flash = app_flash
             .get(0..header_length as usize)
@@ -1575,7 +1573,6 @@ impl<C: 'static + Chip> Process<'_, C> {
         // Parse the full TBF header to see if this is a valid app. If the
         // header can't parse, we will error right here.
         let tbf_header = tbfheader::parse_tbf_header(header_flash, app_version)?;
-
         // First thing: check that the process is at the correct location in
         // flash if the TBF header specified a fixed address. If there is a
         // mismatch we catch that early.
@@ -1615,10 +1612,8 @@ impl<C: 'static + Chip> Process<'_, C> {
                     );
                 }
             }
-            // Return a zero length slice signifying we did not use any memory
-            // for this process/padding. Getting a zero-length slice cannot
-            // fail, so this `InternalError` will not happen.
-            return Ok(None);
+            // Return no process and full memory slice we were given.
+            return Ok((None, remaining_memory));
         }
 
         // Otherwise, actually load the app.
@@ -1811,14 +1806,14 @@ impl<C: 'static + Chip> Process<'_, C> {
             .set(AppId::new(kernel, unique_identifier, index));
         process.kernel = kernel;
         process.chip = chip;
+        process.allow_high_water_mark = Cell::new(app_memory.as_ptr());
+        process.original_allow_high_water_mark = app_memory.as_ptr();
         process.memory = app_memory;
         process.header = tbf_header;
         process.kernel_memory_break = Cell::new(kernel_memory_break);
         process.original_kernel_memory_break = kernel_memory_break;
         process.app_break = Cell::new(initial_sbrk_pointer);
         process.original_app_break = initial_sbrk_pointer;
-        process.allow_high_water_mark = Cell::new(app_memory.as_ptr());
-        process.original_allow_high_water_mark = app_memory.as_ptr();
         process.current_stack_pointer = Cell::new(initial_stack_pointer);
         process.original_stack_pointer = initial_stack_pointer;
 
@@ -1897,8 +1892,8 @@ impl<C: 'static + Chip> Process<'_, C> {
         // Mark this process as having something to do (it has to start!)
         kernel.increment_work();
 
-        // return
-        Ok(Some((process, unused_memory)))
+        // return process and slice of memory that remains for apps
+        Ok((Some(process), unused_memory))
     }
 
     /// Attempt to restart the process.

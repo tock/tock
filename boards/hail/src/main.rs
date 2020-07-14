@@ -9,6 +9,7 @@
 #![cfg_attr(not(doc), no_main)]
 #![feature(const_in_array_repeat_expressions)]
 #![deny(missing_docs)]
+#![feature(const_raw_ptr_to_usize_cast)]
 
 use capsules::virtual_alarm::VirtualMuxAlarm;
 use capsules::virtual_i2c::{I2CDevice, MuxI2C};
@@ -453,7 +454,7 @@ pub unsafe fn reset_handler() {
             &_sapps as *const u8,
             &_eapps as *const u8 as usize - &_sapps as *const u8 as usize,
         ),
-        &mut core::slice::from_raw_parts_mut(
+        core::slice::from_raw_parts_mut(
             &mut _sappmem as *mut u8,
             &_eappmem as *const u8 as usize - &_sappmem as *const u8 as usize,
         ),
