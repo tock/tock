@@ -258,7 +258,7 @@ checklist:
 ### New Platform Checklist
 
 - [ ] Hardware is widely available.
-- [ ] I can support the platform, at least initially.
+- [ ] I can support the platform, which includes release testing for the platform, at least initially.
 - Basic features are implemented:
   - [ ] `Console`, including `debug!()` and userspace `printf()`.
   - [ ] Timers.
