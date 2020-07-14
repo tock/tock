@@ -9,6 +9,9 @@
 # First, need to fill out some variables that the Makefile will use
 $(eval ALL_BOARDS := $(shell ./tools/list_boards.sh))
 
+# Force the Shell to be bash as some systems have strange default shells
+SHELL := bash
+
 ##
 ## End: internal support.
 ##
@@ -76,7 +79,7 @@ define ci_setup_helper
 	$(eval build_function := $(strip $(3)))
 	$(eval guard_variable := $(strip $(4)))
 	@# First, if the dependency is installed, we can bail early
-	$(if $(shell bash -c '$(1)'),$(eval $(guard_variable) := true),
+	$(if $(shell '$(1)'),$(eval $(guard_variable) := true),
 	@# If running in CI context always yes
 	$(if $(CI),$(eval do_install := yes_CI),
 	@# If running nosetup always no
