@@ -1,9 +1,12 @@
 use core::cell::Cell;
-use kernel::ReturnCode;
-use kernel::cells::TakeCell;
+use core::ops::{Index, IndexMut};
 use kernel::common::registers::register_bitfields;
-use kernel::common::registers::{ReadOnly, WriteOnly, ReadWrite}
+use kernel::common::registers::{ReadOnly, WriteOnly, ReadWrite};
+use kernel::common::StaticRef;
 use kernel::hil;
+
+const FLASH_BASE: StaticRef<FlashRegisters> =
+    unsafe { StaticRef::new(0x8000_0000) as *const FlashRegisters };
 
 #[repr(C)]
 struct FlashRegisters {
@@ -15,7 +18,7 @@ struct FlashRegisters {
     pub kr: WriteOnly<u32, Key::Register>,
     /// Flash option key register
     /// Address offset 0x08
-    pub okr: WriteOnly<u32, OptionKey::Register>,
+    pub okr: WriteOnly<u32, Key::Register>,
     /// Flash status register
     /// Address offset 0x0C
     pub sr: ReadWrite<u32, Status::Register>,
@@ -54,9 +57,10 @@ register_bitfields! [u32,
         ]
     ],
     Key [
-        /// Flash key
-        /// Represents the keys to unlock the flash
-        FKEYR OFFSET(0) NUMBITS(32) []
+        /// Flash or option byte key
+        /// Represents the keys to unlock the flash or the option 
+        /// bytes write enable
+        KEYR OFFSET(0) NUMBITS(32) []
     ],
     OptionKey [
         /// Option byte key
@@ -117,7 +121,6 @@ register_bitfields! [u32,
         PER OFFSET(1) NUMBITS(1) [],
         /// Flash programming chosen
         PG OFFSET(0) NUMBITS(1) [],
-
     ],
     Address [
         /// Flash address
@@ -128,14 +131,59 @@ register_bitfields! [u32,
         FAR OFFSET(0) NUMBITS(32) []
     ],
     OptionByte [
+        DATA1 OFFSET(24) NUMBITS(8) [],
+        DATA0 OFFSET(16) NUMBITS(8) [],
         /// This allows the user to enable the SRAM hardware parity check.
         /// Disabled by default.
-        SRAM_PE OFFSET(14) NUMBITS(1) [
+        SRAMPE OFFSET(14) NUMBITS(1) [
             /// Parity check enabled
             ENABLED = 0,
             /// Parity check diasbled
             DISABLED = 1
         ],
+        /// This bit selects the analog monitoring on the VDDA power source
+        VDDAMONITOR OFFSET(13) NUMBITS(1) [
+            /// VDDA power supply supervisor disabled
+            DISABLED = 0,
+            /// VDDA power supply supervisor enabled
+            ENABLED = 1
+        ],
+        /// Together with the BOOT0, this bit selects Boot mode from the main
+        /// Flash memory, SRAM or System memory
+        NBOOT1 OFFSET(12) NUMBITS(1) [],
+        NRSTSTDBY OFFSET(10) NUMBITS(1) [
+            /// Reset generated when entering Standby mode
+            RST = 0,
+            /// No reset generated
+            NRST = 1
+        ],
+        NRSTSTOP OFFSET(9) NUMBITS(1) [
+            /// Reset generated when entering Stop mode
+            RST = 0,
+            /// No reset generated
+            NRST = 1
+        ],
+        /// Chooses watchdog type
+        WDGSW OFFSET(8) NUMBITS(1) [
+            /// Hardware watchdog
+            HARDWARE = 0,
+            /// Software watchdog
+            SOFTWARE = 1
+        ],
+        /// Read protection Level status
+        RDPRT OFFSET(1) NUMBITS(2) [
+            /// Read protection level 0 (ST production setup)
+            LVL0 = 0,
+            /// Read protection level 1
+            LVL1 = 1,
+            /// Read protection level 2
+            LVL2 = 3
+        ],
+        /// Option byte Load error
+        /// When set, this indicates that the loaded option byte and its 
+        /// complement do not match. The corresponding byte and its complement
+        /// are read as 0xFF in the OptionByte or WriteProtect register
+        OPTERR OFFSET(1) NUMBITS(1) []
     ],
     WriteProtect [
         /// Write protect
@@ -144,3 +192,93 @@ register_bitfields! [u32,
         WRP OFFSET(0) NUMBITS(32) []
     ]
 ];
+
+const PAGE_SIZE: usize = 2048;
+
+pub struct StmF303Page(pub [u8; PAGE_SIZE as usize]);
+
+impl Default for StmF303Page {
+    fn default() -> Self {
+        0: [0; PAGE_SIZE as usize],
+    }
+}
+
+impl StmF303Page {
+    fn len(&self) -> usize {
+        self.0.len();
+    }
+}
+
+impl Index<usize> for StmF303Page {
+    type Output = u8;
+
+    fn index(&self, idx: usize) -> &u8 {
+        &mut self.0[idx]
+    }
+}
+
+impl IndexMut<usize> for StmF303Page {
+    fn index_mut(&mut self, idx: usize) -> &mut u8 {
+        &mut self.0[idx]
+    }
+}
+
+impl AsMut<[u8]> for StmF303Page {
+    fn as_mut(&mut self) -> &mut [u8] {
+        &mut self.0
+    }
+}
+
+/// TODO: Verify if there should be other states
+pub enum FlashState {
+    Ready,
+    Read,
+    Write,
+    Erase,
+}
+
+pub static mut FLASH: Flash = Flash::new();
+
+// TODO: Choose proper Cell for struct fields
+pub struct Flash {
+    registers: StaticRef<FlashRegisters>,
+    client: OptionalCell<&'static dyn hil::flash::Client<Flash>>,
+    buffer: TakeCell<'static, StmF303Page>
+    state: Cell<FlashState>,
+}
+
+impl Flash {
+    pub const fn new() -> Flash {
+        Flash {
+            registers: FLASH_BASE,
+            client: OptionalCell::empty(),
+            buffer: TakeCell::empty(),
+            state: Cell::new(FlashState::Ready),
+        }
+    }
+}
+
+/// TODO
+impl hil::flash::Flash for Flash {
+    type Page = StmF303Page;
+
+    fn read_page(
+        &self,
+        page_number: usize,
+        buf: &'static mut Self::Page,
+    ) -> Result<(), (ReturnCode, &'static mut Self::Page)> {
+        self.read(page_number, buf)
+    }
+
+    fn write_page(
+        &self,
+        page_number: usize,
+        buf: &'static mut Self::Page,
+    ) -> Result<(), (ReturnCode, &'static mut Self::Page)> {
+        self.write(page_number, buf)
+    }
+
+    fn erase_page(&self, page_number: usize) -> ReturnCode {
+        self.erase(buf)
+    }
+}
