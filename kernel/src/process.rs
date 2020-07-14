@@ -119,11 +119,19 @@ impl fmt::Debug for ProcessLoadError {
 /// is able to create its own `load_processes()` function and use that instead.
 ///
 /// Processes are found in flash starting from the given address and iterating
-/// through Tock Binary Format headers. Processes are given memory out of the
-/// `app_memory` buffer until either the memory is exhausted or the allocated
-/// number of processes are created, with process structures placed in the
-/// provided array. How process faults are handled by the kernel is also
-/// selected.
+/// through Tock Binary Format (TBF) headers. Processes are given memory out of
+/// the `app_memory` buffer until either the memory is exhausted or the
+/// allocated number of processes are created. A reference to each process is
+/// stored in the provided `procs` array. How process faults are handled by the
+/// kernel must be provided and is assigned to every created process.
+///
+/// This function is made `pub` so that board files can use it, but loading
+/// processes from slices of flash an memory is fundamentally unsafe. Therefore,
+/// we require the `ProcessManagementCapability` to call this function.
+///
+/// Returns `Ok(())` if process discovery went as expected. Returns a
+/// `ProcessLoadError` if something goes wrong during TBF parsing or process
+/// creation.
 pub fn load_processes<C: Chip>(
     kernel: &'static Kernel,
     chip: &'static C,
@@ -133,18 +141,20 @@ pub fn load_processes<C: Chip>(
     fault_response: FaultResponse,
     _capability: &dyn ProcessManagementCapability,
 ) -> Result<(), ProcessLoadError> {
-    let mut remaining_flash = app_flash;
-
     if config::CONFIG.debug_load_processes {
         debug!(
-            "Loading processes from flash={:#010X} into sram=[{:#010X}:{:#010X}]",
+            "Loading processes from flash=[{:#010X}:{:#010X}] into sram=[{:#010X}:{:#010X}]",
             app_flash.as_ptr() as usize,
+            app_flash.as_ptr() as usize + app_flash.len() - 1,
             app_memory.as_ptr() as usize,
-            app_memory.as_ptr() as usize + app_memory.len()
+            app_memory.as_ptr() as usize + app_memory.len() - 1
         );
     }
+
+    let mut remaining_flash = app_flash;
     let mut remaining_memory = app_memory;
 
+    // Try to discover up to `procs.len()` processes in flash.
     for i in 0..procs.len() {
         // Get the first eight bytes of flash to check if there is another
         // app.
@@ -158,49 +168,48 @@ pub fn load_processes<C: Chip>(
             }
         };
 
-        // Pass the first eight bytes to tbfheader to parse out the length
-        // of the tbf header and app. We then use those values to see if we
-        // have enough flash remaining to parse the remainder of the header.
+        // Pass the first eight bytes to tbfheader to parse out the length of
+        // the tbf header and app. We then use those values to see if we have
+        // enough flash remaining to parse the remainder of the header.
         let (version, header_length, entry_length) = match tbfheader::parse_tbf_header_lengths(
             test_header_slice
                 .try_into()
                 .or(Err(ProcessLoadError::InternalError))?,
         ) {
-            Ok((v, hl, al)) => (v, hl, al),
+            Ok((v, hl, el)) => (v, hl, el),
             Err(tbfheader::InitialTbfParseError::InvalidHeader(entry_length)) => {
-                // If we could not parse the header, then we want to skip
-                // over this app and look for the next one.
+                // If we could not parse the header, then we want to skip over
+                // this app and look for the next one.
                 (0, 0, entry_length)
             }
             Err(tbfheader::InitialTbfParseError::UnableToParse) => {
-                // Since Tock apps use a linked list, it is very possible
-                // the header we started to parse is intentionally invalid
-                // to signal the end of apps. This is ok and just means we
-                // have finished loading apps.
+                // Since Tock apps use a linked list, it is very possible the
+                // header we started to parse is intentionally invalid to signal
+                // the end of apps. This is ok and just means we have finished
+                // loading apps.
                 return Ok(());
             }
         };
 
-        // Now we can get a slice which only encompasses the length of
-        // flash described by this tbf header.  We will either parse this
-        // as an actual app, or skip over this region.
+        // Now we can get a slice which only encompasses the length of flash
+        // described by this tbf header.  We will either parse this as an actual
+        // app, or skip over this region.
         let entry_flash = remaining_flash
             .get(0..entry_length as usize)
             .ok_or(ProcessLoadError::NotEnoughFlash)?;
 
-        // If we found an actual app header, try to create a `Process`
-        // object. We also need to shrink the amount of remaining memory
-        // based on whatever is assigned to the new process if one is
-        // created.
-
-        // Need to reassign remaining_memory in every iteration
-        // so the compiler knows it will not be re-borrowed
+        // Need to reassign remaining_memory in every iteration so the compiler
+        // knows it will not be re-borrowed.
         remaining_memory = if header_length > 0 {
-            // Try to create a process object from that app slice. If we
-            // don't get a process and we didn't get a loading error (aka we
-            // got to this point), then the app is a disabled process or
-            // just padding.
-            let (proc_opt, unused_memory) = unsafe {
+            // If we found an actual app header, try to create a `Process`
+            // object. We also need to shrink the amount of remaining memory
+            // based on whatever is assigned to the new process if one is
+            // created.
+
+            // Try to create a process object from that app slice. If we don't
+            // get a process and we didn't get a loading error (aka we got to
+            // this point), then the app is a disabled process or just padding.
+            let (process_option, unused_memory) = unsafe {
                 Process::create(
                     kernel,
                     chip,
@@ -212,32 +221,32 @@ pub fn load_processes<C: Chip>(
                     i,
                 )?
             };
-            proc_opt.map(|process| {
+            process_option.map(|process| {
                 if config::CONFIG.debug_load_processes {
                     debug!(
-                            "Loaded process[{}] from flash=[{:#010X}:{:#010X}] into sram=[{:#010X}:{:#010X}] = {:?}",
-                            i,
-                            entry_flash.as_ptr() as usize,
-                            entry_flash.as_ptr() as usize + entry_flash.len(),
+                        "Loaded process[{}] from flash=[{:#010X}:{:#010X}] into sram=[{:#010X}:{:#010X}] = {:?}",
+                        i,
+                        entry_flash.as_ptr() as usize,
+                        entry_flash.as_ptr() as usize + entry_flash.len() - 1,
                         process.mem_start() as usize,
-                        process.mem_end() as usize,
-                            process.get_process_name()
-                        );
+                        process.mem_end() as usize - 1,
+                        process.get_process_name()
+                    );
                 }
 
-                // Save the reference to this process in the processes
-                // array.
+                // Save the reference to this process in the processes array.
                 procs[i] = Some(process);
             });
             unused_memory
         } else {
+            // We are just skipping over this region of flash, so we have the
+            // same amount of process memory to allocate from.
             remaining_memory
         };
 
-        // Advance in our buffers before seeing if there is an additional
-        // process to load. Flash is straightforward since we require that
-        // applications are back-to-back in flash. For RAM, we want to move
-        // the remaining RAM slice to after the slice used by this process.
+        // Advance the flash slice for process discovery beyond this last entry.
+        // This will be the start of where we look for a new process since Tock processes
+        // are allocated back-to-back in flash.
         remaining_flash = remaining_flash
             .get(entry_flash.len()..)
             .ok_or(ProcessLoadError::NotEnoughFlash)?;
@@ -1573,6 +1582,7 @@ impl<C: 'static + Chip> Process<'_, C> {
         // Parse the full TBF header to see if this is a valid app. If the
         // header can't parse, we will error right here.
         let tbf_header = tbfheader::parse_tbf_header(header_flash, app_version)?;
+
         // First thing: check that the process is at the correct location in
         // flash if the TBF header specified a fixed address. If there is a
         // mismatch we catch that early.
@@ -1592,27 +1602,27 @@ impl<C: 'static + Chip> Process<'_, C> {
         let process_name = tbf_header.get_package_name();
 
         // If this isn't an app (i.e. it is padding) or it is an app but it
-        // isn't enabled, then we can skip it but increment past its flash.
+        // isn't enabled, then we can skip it and do not create a `Process`
+        // object.
         if !tbf_header.is_app() || !tbf_header.enabled() {
             if config::CONFIG.debug_load_processes {
                 if !tbf_header.is_app() {
                     debug!(
-                        "[!] flash=[{:#010X}:{:#010X}] process={:?} - process isn't an app",
+                        "Padding in flash=[{:#010X}:{:#010X}]",
                         app_flash.as_ptr() as usize,
-                        app_flash.as_ptr() as usize + app_flash.len(),
-                        process_name
+                        app_flash.as_ptr() as usize + app_flash.len()
                     );
                 }
                 if !tbf_header.enabled() {
                     debug!(
-                        "[!] flash=[{:#010X}:{:#010X}] process={:?} - process isn't enabled",
+                        "Note flash=[{:#010X}:{:#010X}] process={:?} not enabled",
                         app_flash.as_ptr() as usize,
                         app_flash.as_ptr() as usize + app_flash.len(),
                         process_name
                     );
                 }
             }
-            // Return no process and full memory slice we were given.
+            // Return no process and the full memory slice we were given.
             return Ok((None, remaining_memory));
         }
 
@@ -1665,8 +1675,9 @@ impl<C: 'static + Chip> Process<'_, C> {
         // Make room to store this process's metadata.
         let process_struct_offset = mem::size_of::<Process<C>>();
 
-        // Initial sizes of the app-owned and kernel-owned parts of process memory.
-        // Provide the app with plenty of initial process accessible memory.
+        // Initial sizes of the app-owned and kernel-owned parts of process
+        // memory. Provide the app with plenty of initial process accessible
+        // memory.
         let initial_kernel_memory_size =
             grant_ptrs_offset + callbacks_offset + process_struct_offset;
         let initial_app_memory_size = 3 * 1024;
@@ -1678,7 +1689,8 @@ impl<C: 'static + Chip> Process<'_, C> {
         // Minimum memory size for the process.
         let min_total_memory_size = min_app_ram_size + initial_kernel_memory_size;
 
-        // Determine where process memory will go and allocate MPU region for app-owned memory.
+        // Determine where process memory will go and allocate MPU region for
+        // app-owned memory.
         let (app_memory_start, app_memory_size) = match chip.mpu().allocate_app_memory_region(
             remaining_memory.as_ptr() as *const u8,
             remaining_memory.len(),
@@ -1709,12 +1721,12 @@ impl<C: 'static + Chip> Process<'_, C> {
         // `remaining_memory` slice passed to `create()` to allocate the
         // process's memory out of.
         let memory_start_offset = app_memory_start as usize - remaining_memory.as_ptr() as usize;
-        // First split the remaining memory into a slice that contains the app
-        // memory and a slice that will not be used by this app.
+        // First split the remaining memory into a slice that contains the
+        // process memory and a slice that will not be used by this process.
         let (app_memory_oversize, unused_memory) =
             remaining_memory.split_at_mut(memory_start_offset + app_memory_size);
-        // Then since the app's memory need not start at the beginning of the
-        // remaining slice given to create(), get a smaller slice as needed.
+        // Then since the process's memory need not start at the beginning of
+        // the remaining slice given to create(), get a smaller slice as needed.
         let app_memory = app_memory_oversize
             .get_mut(memory_start_offset..)
             .ok_or(ProcessLoadError::InternalError)?;
@@ -1746,45 +1758,49 @@ impl<C: 'static + Chip> Process<'_, C> {
         // pointers.
         kernel_memory_break = kernel_memory_break.offset(-(grant_ptrs_offset as isize));
 
-        // This is safe today, as MPU constraints ensure that `memory_start` will always
-        // be aligned on at least a word boundary, and that memory_size will be aligned on at least
-        // a word boundary, and `grant_ptrs_offset` is a multiple of the word size.
-        // Thus, `kernel_memory_break` must be word aligned.
-        // While this is unlikely to change, it should be more proactively enforced.
+        // This is safe today, as MPU constraints ensure that `memory_start`
+        // will always be aligned on at least a word boundary, and that
+        // memory_size will be aligned on at least a word boundary, and
+        // `grant_ptrs_offset` is a multiple of the word size. Thus,
+        // `kernel_memory_break` must be word aligned. While this is unlikely to
+        // change, it should be more proactively enforced.
         //
         // TODO: https://github.com/tock/tock/issues/1739
         #[allow(clippy::cast_ptr_alignment)]
-        // Set all pointers to null.
+        // Set all grant pointers to null.
         let opts =
             slice::from_raw_parts_mut(kernel_memory_break as *mut *const usize, grant_ptrs_num);
         for opt in opts.iter_mut() {
             *opt = ptr::null()
         }
 
-        // Now that we know we have the space we can setup the memory
-        // for the callbacks.
+        // Now that we know we have the space we can setup the memory for the
+        // callbacks.
         kernel_memory_break = kernel_memory_break.offset(-(callbacks_offset as isize));
 
-        // This is safe today, as MPU constraints ensure that `memory_start` will always
-        // be aligned on at least a word boundary, and that memory_size will be aligned on at least
-        // a word boundary, and `grant_ptrs_offset` is a multiple of the word size.
-        // Thus, `kernel_memory_break` must be word aligned.
-        // While this is unlikely to change, it should be more proactively enforced.
+        // This is safe today, as MPU constraints ensure that `memory_start`
+        // will always be aligned on at least a word boundary, and that
+        // memory_size will be aligned on at least a word boundary, and
+        // `grant_ptrs_offset` is a multiple of the word size. Thus,
+        // `kernel_memory_break` must be word aligned. While this is unlikely to
+        // change, it should be more proactively enforced.
         //
         // TODO: https://github.com/tock/tock/issues/1739
         #[allow(clippy::cast_ptr_alignment)]
-        // Set up ring buffer.
+        // Set up ring buffer for callbacks to the process.
         let callback_buf =
             slice::from_raw_parts_mut(kernel_memory_break as *mut Task, callback_len);
         let tasks = RingBuffer::new(callback_buf);
 
-        // Last thing is the process struct.
+        // Last thing in the kernel region of process RAM is the process struct.
         kernel_memory_break = kernel_memory_break.offset(-(process_struct_offset as isize));
         let process_struct_memory_location = kernel_memory_break;
 
-        // Determine the debug information to the best of our
-        // understanding. If the app is doing all of the PIC fixup and
-        // memory management we don't know much.
+        // Determine the debug information to the best of our understanding.
+        // Since processes have to do their own setup (allocating a stack and
+        // heap), we don't know much when the process is first created.
+        // Processes should use memop syscalls to inform the kernel of what
+        // these values are to help with debugging.
         let app_heap_start_pointer = None;
         let app_stack_start_pointer = None;
 
@@ -1792,8 +1808,8 @@ impl<C: 'static + Chip> Process<'_, C> {
         let mut process: &mut Process<C> =
             &mut *(process_struct_memory_location as *mut Process<'static, C>);
 
-        // Ask the kernel for a unique identifier for this process that is
-        // being created.
+        // Ask the kernel for a unique identifier for this process that is being
+        // created.
         let unique_identifier = kernel.create_process_identifier();
 
         // Save copies of these in case the app was compiled for fixed addresses
@@ -1889,10 +1905,10 @@ impl<C: 'static + Chip> Process<'_, C> {
             }
         };
 
-        // Mark this process as having something to do (it has to start!)
+        // Mark this process as having something to do (it has to start!).
         kernel.increment_work();
 
-        // return process and slice of memory that remains for apps
+        // Return the process object and a remaining memory for processes slice.
         Ok((Some(process), unused_memory))
     }
 
