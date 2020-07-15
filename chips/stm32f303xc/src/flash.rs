@@ -1,9 +1,13 @@
 use core::cell::Cell;
 use core::ops::{Index, IndexMut};
+use kernel::common::cells::OptionalCell;
+use kernel::common::cells::TakeCell;
+use kernel::common::cells::VolatileCell;
 use kernel::common::registers::register_bitfields;
 use kernel::common::registers::{ReadOnly, WriteOnly, ReadWrite};
 use kernel::common::StaticRef;
 use kernel::hil;
+use kernel::ReturnCode;
 
 const FLASH_BASE: StaticRef<FlashRegisters> =
     unsafe { StaticRef::new(0x8000_0000) as *const FlashRegisters };
@@ -61,11 +65,6 @@ register_bitfields! [u32,
         /// Represents the keys to unlock the flash or the option 
         /// bytes write enable
         KEYR OFFSET(0) NUMBITS(32) []
-    ],
-    OptionKey [
-        /// Option byte key
-        /// Represents the keys to unlock the option bytes write enable
-        OPTKEYR OFFSET(0) NUMBITS(32) []
     ],
     Status [
         /// End of operation
@@ -231,7 +230,8 @@ impl AsMut<[u8]> for StmF303Page {
 
 /// TODO: Verify if there should be other states
 pub enum FlashState {
-    Ready,
+    Locked,
+    Unlocked,
     Read,
     Write,
     Erase,
@@ -247,18 +247,18 @@ pub struct Flash {
     state: Cell<FlashState>,
 }
 
+// TODO handle interrupts and errors
 impl Flash {
     pub const fn new() -> Flash {
         Flash {
             registers: FLASH_BASE,
             client: OptionalCell::empty(),
             buffer: TakeCell::empty(),
-            state: Cell::new(FlashState::Ready),
+            state: Cell::new(FlashState::Locked),
         }
     }
 }
 
-/// TODO
 impl hil::flash::Flash for Flash {
     type Page = StmF303Page;
 
