@@ -40,12 +40,6 @@ pub unsafe extern "C" fn systick_handler() {
 pub unsafe extern "C" fn systick_handler() {
     llvm_asm!(
         "
-    /* Mark that the systick handler was called meaning that the process */
-    /* stopped executing because it has exceeded its timeslice. */
-    ldr r0, =SYSTICK_EXPIRED
-    mov r1, #1
-    str r1, [r0, #0]
-
     /* Set thread mode to privileged */
     mov r0, #0
     msr CONTROL, r0

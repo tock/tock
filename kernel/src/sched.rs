@@ -13,7 +13,7 @@ use crate::grant::Grant;
 use crate::ipc;
 use crate::memop;
 use crate::platform::mpu::MPU;
-use crate::platform::systick::SysTick;
+use crate::platform::scheduler_timer::SchedulerTimer;
 use crate::platform::{Chip, Platform};
 use crate::process::{self, Task};
 use crate::returncode::ReturnCode;
@@ -327,10 +327,9 @@ impl Kernel {
         process: &dyn process::ProcessType,
         ipc: Option<&crate::ipc::IPC>,
     ) {
-        let systick = chip.systick();
-        systick.reset();
-        systick.set_timer(KERNEL_TICK_DURATION_US);
-        systick.enable(false);
+        let scheduler_timer = chip.scheduler_timer();
+        scheduler_timer.reset();
+        scheduler_timer.start(KERNEL_TICK_DURATION_US);
 
         loop {
             if chip.has_pending_interrupts()
@@ -339,7 +338,9 @@ impl Kernel {
                 break;
             }
 
-            if systick.overflowed() || !systick.greater_than(MIN_QUANTA_THRESHOLD_US) {
+            if scheduler_timer.has_expired()
+                || scheduler_timer.get_remaining_us() <= MIN_QUANTA_THRESHOLD_US
+            {
                 process.debug_timeslice_expired();
                 break;
             }
@@ -351,9 +352,9 @@ impl Kernel {
                     // the process.
                     process.setup_mpu();
                     chip.mpu().enable_mpu();
-                    systick.enable(true);
+                    scheduler_timer.arm();
                     let context_switch_reason = process.switch_to();
-                    systick.enable(false);
+                    scheduler_timer.disarm();
                     chip.mpu().disable_mpu();
 
                     // Now the process has returned back to the kernel. Check
@@ -529,11 +530,11 @@ impl Kernel {
                                 }
                             }
                         }
-                        Some(ContextSwitchReason::TimesliceExpired) => {
-                            // break to handle other processes.
-                            break;
-                        }
                         Some(ContextSwitchReason::Interrupted) => {
+                            if scheduler_timer.has_expired() {
+                                // this interrupt was a timeslice expiration,
+                                process.debug_timeslice_expired();
+                            }
                             // break to handle other processes.
                             break;
                         }
@@ -599,6 +600,6 @@ impl Kernel {
                 }
             }
         }
-        systick.reset();
+        scheduler_timer.reset();
     }
 }

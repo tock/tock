@@ -7,7 +7,7 @@ use crate::syscall;
 use core::fmt::Write;
 
 pub mod mpu;
-pub(crate) mod systick;
+pub(crate) mod scheduler_timer;
 
 /// Interface for individual boards.
 ///
@@ -64,7 +64,7 @@ pub trait Platform {
 /// Interface for individual MCUs.
 ///
 /// The trait defines chip-specific properties of Tock's operation. These
-/// include whether and which memory protection mechanism and systick to use,
+/// include whether and which memory protection mechanism and scheduler_timer to use,
 /// how to switch between the kernel and userland applications, and how to
 /// handle hardware events.
 ///
@@ -80,7 +80,7 @@ pub trait Chip {
 
     /// The implementation of the timer used to create the timeslices provided
     /// to applications.
-    type SysTick: systick::SysTick;
+    type SchedulerTimer: scheduler_timer::SchedulerTimer;
 
     /// The kernel calls this function to tell the chip to check for all pending
     /// interrupts and to correctly dispatch them to the peripheral drivers for
@@ -97,9 +97,9 @@ pub trait Chip {
     /// Returns a reference to the implementation for the MPU on this chip.
     fn mpu(&self) -> &Self::MPU;
 
-    /// Returns a reference to the implementation of the systick timer for this
+    /// Returns a reference to the implementation of the scheduler_timer timer for this
     /// chip.
-    fn systick(&self) -> &Self::SysTick;
+    fn scheduler_timer(&self) -> &Self::SchedulerTimer;
 
     /// Returns a reference to the implementation for the interface between
     /// userspace and kernelspace.
