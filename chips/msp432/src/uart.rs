@@ -9,7 +9,7 @@ use kernel::ReturnCode;
 
 pub static mut UART0: Uart<'static> = Uart::new(usci::USCI_A0_BASE);
 
-const DEFAULT_CLOCK_FREQ_HZ: u32 = 12_000_000;
+const DEFAULT_CLOCK_FREQ_HZ: u32 = crate::cs::SMCLK_HZ;
 
 struct BaudFraction {
     frac: f32,

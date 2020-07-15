@@ -42,6 +42,7 @@ pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 struct MspExp432P401R {
     led: &'static capsules::led::LED<'static, msp432::gpio::Pin>,
     console: &'static capsules::console::Console<'static>,
+    button: &'static capsules::button::Button<'static, msp432::gpio::Pin>,
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
@@ -53,6 +54,7 @@ impl Platform for MspExp432P401R {
         match driver_num {
             capsules::led::DRIVER_NUM => f(Some(self.led)),
             capsules::console::DRIVER_NUM => f(Some(self.console)),
+            capsules::button::DRIVER_NUM => f(Some(self.button)),
             _ => f(None),
         }
     }
@@ -74,8 +76,8 @@ pub unsafe fn reset_handler() {
     msp432::flctl::FLCTL.set_buffering(true);
 
     // Setup the master-clock (MCLK) to 48MHz from external oscillator
-    msp432::gpio::PINS[msp432::gpio::PinNr::PJ_2 as usize].enable_primary_function();
-    msp432::gpio::PINS[msp432::gpio::PinNr::PJ_3 as usize].enable_primary_function();
+    msp432::gpio::PINS_J[msp432::gpio::PinJNr::PJ_2 as usize].enable_primary_function();
+    msp432::gpio::PINS_J[msp432::gpio::PinJNr::PJ_3 as usize].enable_primary_function();
     msp432::cs::CS.set_mclk_48mhz();
     // Setup the Low-speed subsystem master clock (SMCLK) to 12MHz
     msp432::cs::CS.set_smclk_12mhz();
@@ -94,6 +96,26 @@ pub unsafe fn reset_handler() {
     let chip = static_init!(msp432::chip::Msp432, msp432::chip::Msp432::new());
     CHIP = Some(chip);
 
+    // Setup buttons
+    let button = components::button::ButtonComponent::new(
+        board_kernel,
+        components::button_component_helper!(
+            msp432::gpio::Pin,
+            (
+                &msp432::gpio::PINS[msp432::gpio::PinNr::P01_1 as usize],
+                kernel::hil::gpio::ActivationMode::ActiveLow,
+                kernel::hil::gpio::FloatingState::PullUp
+            ),
+            (
+                &msp432::gpio::PINS[msp432::gpio::PinNr::P01_4 as usize],
+                kernel::hil::gpio::ActivationMode::ActiveLow,
+                kernel::hil::gpio::FloatingState::PullUp
+            )
+        ),
+    )
+    .finalize(components::button_component_buf!(msp432::gpio::Pin));
+
+    // Setup LEDs
     let leds = components::led::LedsComponent::new(components::led_component_helper!(
         msp432::gpio::Pin,
         (
@@ -138,6 +160,7 @@ pub unsafe fn reset_handler() {
     let msp_exp432p4014 = MspExp432P401R {
         led: leds,
         console: console,
+        button: button,
     };
 
     debug!("Initialization complete. Entering main loop");

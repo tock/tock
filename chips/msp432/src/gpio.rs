@@ -1,10 +1,11 @@
 //! General Purpose Input/Output (GPIO)
 
+use kernel::common::cells::OptionalCell;
 use kernel::common::registers::{register_bitfields, register_structs, ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
-use kernel::hil;
+use kernel::hil::gpio;
 
-pub static mut PINS: [Pin; 88] = [
+pub static mut PINS: [Pin; 80] = [
     Pin::new(PinNr::P01_0),
     Pin::new(PinNr::P01_1),
     Pin::new(PinNr::P01_2),
@@ -85,14 +86,17 @@ pub static mut PINS: [Pin; 88] = [
     Pin::new(PinNr::P10_5),
     Pin::new(PinNr::P10_6),
     Pin::new(PinNr::P10_7),
-    Pin::new(PinNr::PJ_0),
-    Pin::new(PinNr::PJ_1),
-    Pin::new(PinNr::PJ_2),
-    Pin::new(PinNr::PJ_3),
-    Pin::new(PinNr::PJ_4),
-    Pin::new(PinNr::PJ_5),
-    Pin::new(PinNr::PJ_6),
-    Pin::new(PinNr::PJ_7),
+];
+
+pub static mut PINS_J: [PinJ; 8] = [
+    PinJ::new(PinJNr::PJ_0),
+    PinJ::new(PinJNr::PJ_1),
+    PinJ::new(PinJNr::PJ_2),
+    PinJ::new(PinJNr::PJ_3),
+    PinJ::new(PinJNr::PJ_4),
+    PinJ::new(PinJNr::PJ_5),
+    PinJ::new(PinJNr::PJ_6),
+    PinJ::new(PinJNr::PJ_7),
 ];
 
 const GPIO_BASES: [StaticRef<GpioRegisters>; 6] = [
@@ -260,7 +264,6 @@ register_bitfields! [u16,
 ];
 
 #[rustfmt::skip]
-#[allow(non_camel_case_types)]
 #[repr(u8)]
 #[derive(Copy, Clone)]
 pub enum PinNr {
@@ -274,7 +277,20 @@ pub enum PinNr {
     P08_0, P08_1, P08_2, P08_3, P08_4, P08_5, P08_6, P08_7,
     P09_0, P09_1, P09_2, P09_3, P09_4, P09_5, P09_6, P09_7,
     P10_0, P10_1, P10_2, P10_3, P10_4, P10_5, P10_6, P10_7,
-    PJ_0,  PJ_1,  PJ_2,  PJ_3,  PJ_4,  PJ_5,  PJ_6,  PJ_7,
+}
+
+#[allow(non_camel_case_types)]
+#[repr(u8)]
+#[derive(Copy, Clone)]
+pub enum PinJNr {
+    PJ_0,
+    PJ_1,
+    PJ_2,
+    PJ_3,
+    PJ_4,
+    PJ_5,
+    PJ_6,
+    PJ_7,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -285,178 +301,279 @@ enum ModuleFunction {
     Tertiary,
 }
 
+/// Supports interrupts
 pub struct Pin {
+    pin: u8,
+    registers: StaticRef<GpioRegisters>,
+    reg_idx: usize,
+    client: OptionalCell<&'static dyn gpio::Client>,
+}
+
+/// Doesn't support interrupts
+pub struct PinJ {
     pin: u8,
     registers: StaticRef<GpioRegisters>,
     reg_idx: usize,
 }
 
+impl PinJ {
+    const fn new(pin: PinJNr) -> PinJ {
+        let pin_nr = (pin as u8) % PINS_PER_PORT;
+        PinJ {
+            pin: pin_nr,
+            registers: GPIO_BASES[5],
+            reg_idx: 0,
+        }
+    }
+}
+
 impl Pin {
     const fn new(pin: PinNr) -> Pin {
         let pin_nr = (pin as u8) % PINS_PER_PORT;
-        let port = (pin as u8) / PINS_PER_PORT;
+        let p = (pin as u8) / PINS_PER_PORT;
         Pin {
             pin: pin_nr,
-            registers: GPIO_BASES[(port / 2) as usize],
-            reg_idx: (port % 2) as usize,
+            registers: GPIO_BASES[(p / 2) as usize],
+            reg_idx: (p % 2) as usize,
+            client: OptionalCell::empty(),
         }
     }
 
-    fn enable_module_function(&self, mode: ModuleFunction) {
-        let mut sel0 = self.registers.sel0[self.reg_idx].get();
-        let mut sel1 = self.registers.sel1[self.reg_idx].get();
+    fn handle_interrupt(&self) {
+        self.client.map(|client| client.fired());
+    }
+}
 
+macro_rules! pin_implementation {
+    ($pin_type:ident) => {
+        impl $pin_type {
+            fn enable_module_function(&self, mode: ModuleFunction) {
+                let mut sel0 = self.registers.sel0[self.reg_idx].get();
+                let mut sel1 = self.registers.sel1[self.reg_idx].get();
+
+                match mode {
+                    ModuleFunction::Gpio => {
+                        sel0 &= !(1 << self.pin);
+                        sel1 &= !(1 << self.pin);
+                    }
+                    ModuleFunction::Primary => {
+                        sel0 |= 1 << self.pin;
+                        sel1 &= !(1 << self.pin);
+                    }
+                    ModuleFunction::Secondary => {
+                        sel0 &= !(1 << self.pin);
+                        sel1 |= 1 << self.pin;
+                    }
+                    ModuleFunction::Tertiary => {
+                        sel0 |= 1 << self.pin;
+                        sel1 |= 1 << self.pin;
+                    }
+                }
+
+                self.registers.sel0[self.reg_idx].set(sel0);
+                self.registers.sel1[self.reg_idx].set(sel1);
+            }
+
+            pub fn enable_primary_function(&self) {
+                self.enable_module_function(ModuleFunction::Primary);
+            }
+
+            pub fn enable_secondary_function(&self) {
+                self.enable_module_function(ModuleFunction::Secondary);
+            }
+
+            pub fn enable_tertiary_function(&self) {
+                self.enable_module_function(ModuleFunction::Tertiary);
+            }
+        }
+
+        impl gpio::Pin for $pin_type {}
+
+        impl gpio::Input for $pin_type {
+            fn read(&self) -> bool {
+                (self.registers.input[self.reg_idx].get() & (1 << self.pin)) > 0
+            }
+        }
+
+        impl gpio::Output for $pin_type {
+            fn set(&self) {
+                let mut val = self.registers.out[self.reg_idx].get();
+                val |= 1 << self.pin;
+                self.registers.out[self.reg_idx].set(val);
+            }
+
+            fn clear(&self) {
+                let mut val = self.registers.out[self.reg_idx].get();
+                val &= !(1 << self.pin);
+                self.registers.out[self.reg_idx].set(val);
+            }
+
+            fn toggle(&self) -> bool {
+                let mut val = self.registers.out[self.reg_idx].get();
+                val ^= 1 << self.pin;
+                self.registers.out[self.reg_idx].set(val);
+                (val & (1 << self.pin)) > 0
+            }
+        }
+
+        impl gpio::Configure for $pin_type {
+            fn configuration(&self) -> gpio::Configuration {
+                let regs = self.registers;
+                let dir = regs.dir[self.reg_idx].get();
+                let mut sel = ((regs.sel0[self.reg_idx].get() & (1 << self.pin)) > 0) as u8;
+                sel |= (((regs.sel1[self.reg_idx].get() & (1 << self.pin)) > 0) as u8) << 1;
+
+                if sel > 0 {
+                    gpio::Configuration::Function
+                } else {
+                    if (dir & (1 << self.pin)) > 0 {
+                        gpio::Configuration::Output
+                    } else {
+                        gpio::Configuration::Input
+                    }
+                }
+            }
+
+            fn make_output(&self) -> gpio::Configuration {
+                self.enable_module_function(ModuleFunction::Gpio);
+
+                let mut val = self.registers.dir[self.reg_idx].get();
+                val |= 1 << self.pin;
+                self.registers.dir[self.reg_idx].set(val);
+                gpio::Configuration::Output
+            }
+
+            fn disable_output(&self) -> gpio::Configuration {
+                self.make_input()
+            }
+
+            fn make_input(&self) -> gpio::Configuration {
+                self.enable_module_function(ModuleFunction::Gpio);
+
+                let mut val = self.registers.dir[self.reg_idx].get();
+                val &= !(1 << self.pin);
+                self.registers.dir[self.reg_idx].set(val);
+                gpio::Configuration::Input
+            }
+
+            fn disable_input(&self) -> gpio::Configuration {
+                // it's not possible to deactivate the pin at all, so just return the
+                // current configuration
+                self.configuration()
+            }
+
+            fn deactivate_to_low_power(&self) {
+                // the chip doesn't support any low-power, so set it to input with
+                // a pullup resistor which should not consume much current
+                self.make_input();
+                self.set_floating_state(gpio::FloatingState::PullUp);
+            }
+
+            fn set_floating_state(&self, state: gpio::FloatingState) {
+                let regs = self.registers;
+                let mut ren = regs.ren[self.reg_idx].get();
+                let mut out = regs.out[self.reg_idx].get();
+                match state {
+                    gpio::FloatingState::PullDown => {
+                        ren |= 1 << self.pin;
+                        out &= !(1 << self.pin);
+                    }
+                    gpio::FloatingState::PullUp => {
+                        ren |= 1 << self.pin;
+                        out |= 1 << self.pin;
+                    }
+                    gpio::FloatingState::PullNone => {
+                        ren &= !(1 << self.pin);
+                    }
+                }
+                regs.ren[self.reg_idx].set(ren);
+                regs.out[self.reg_idx].set(out);
+            }
+
+            fn floating_state(&self) -> gpio::FloatingState {
+                let ren = self.registers.ren[self.reg_idx].get();
+                let out = self.registers.out[self.reg_idx].get();
+
+                if (ren & (1 << self.pin)) > 0 {
+                    if (out & (1 << self.pin)) > 0 {
+                        gpio::FloatingState::PullUp
+                    } else {
+                        gpio::FloatingState::PullDown
+                    }
+                } else {
+                    gpio::FloatingState::PullNone
+                }
+            }
+        }
+    };
+}
+
+pin_implementation!(Pin);
+pin_implementation!(PinJ);
+
+impl gpio::Interrupt for Pin {
+    fn set_client(&self, client: &'static dyn gpio::Client) {
+        self.client.set(client);
+    }
+
+    fn enable_interrupts(&self, mode: gpio::InterruptEdge) {
+        // disable the interrupt at the beginning because modifying the edge-select register
+        // could trigger an interrupt -> datasheet p. 680 section 12.2.7.1
+        let mut enable = self.registers.ie[self.reg_idx].get();
+        enable &= !(1 << self.pin);
+        self.registers.ie[self.reg_idx].set(enable);
+
+        let mut edge = self.registers.ies[self.reg_idx].get();
         match mode {
-            ModuleFunction::Gpio => {
-                sel0 &= !(1 << self.pin);
-                sel1 &= !(1 << self.pin);
-            }
-            ModuleFunction::Primary => {
-                sel0 |= 1 << self.pin;
-                sel1 &= !(1 << self.pin);
-            }
-            ModuleFunction::Secondary => {
-                sel0 &= !(1 << self.pin);
-                sel1 |= 1 << self.pin;
-            }
-            ModuleFunction::Tertiary => {
-                sel0 |= 1 << self.pin;
-                sel1 |= 1 << self.pin;
+            gpio::InterruptEdge::FallingEdge => edge |= 1 << self.pin,
+            gpio::InterruptEdge::RisingEdge => edge &= !(1 << self.pin),
+            gpio::InterruptEdge::EitherEdge => {
+                edge |= 1 << self.pin;
+                // panic!("msp432: interrupt for both edges is not supported by the hardware")
             }
         }
 
-        self.registers.sel0[self.reg_idx].set(sel0);
-        self.registers.sel1[self.reg_idx].set(sel1);
+        enable |= 1 << self.pin;
+        self.registers.ies[self.reg_idx].set(edge);
+        self.registers.ie[self.reg_idx].set(enable);
     }
 
-    pub fn enable_primary_function(&self) {
-        self.enable_module_function(ModuleFunction::Primary);
+    fn disable_interrupts(&self) {
+        let mut enable = self.registers.ie[self.reg_idx].get();
+        enable &= !(1 << self.pin);
+        self.registers.ie[self.reg_idx].set(enable);
     }
 
-    pub fn enable_secondary_function(&self) {
-        self.enable_module_function(ModuleFunction::Secondary);
-    }
-
-    pub fn enable_tertiary_function(&self) {
-        self.enable_module_function(ModuleFunction::Tertiary);
-    }
-}
-
-impl hil::gpio::Pin for Pin {}
-
-impl hil::gpio::Input for Pin {
-    fn read(&self) -> bool {
-        (self.registers.input[self.reg_idx].get() & (1 << self.pin)) > 0
+    fn is_pending(&self) -> bool {
+        (self.registers.ifg[self.reg_idx].get() & (1 << self.pin)) > 0
     }
 }
 
-impl hil::gpio::Output for Pin {
-    fn set(&self) {
-        let mut val = self.registers.out[self.reg_idx].get();
-        val |= 1 << self.pin;
-        self.registers.out[self.reg_idx].set(val);
-    }
+impl gpio::InterruptPin for Pin {}
 
-    fn clear(&self) {
-        let mut val = self.registers.out[self.reg_idx].get();
-        val &= !(1 << self.pin);
-        self.registers.out[self.reg_idx].set(val);
-    }
+pub fn handle_interrupt(port_idx: usize) {
+    let regs: StaticRef<GpioRegisters> = GPIO_BASES[port_idx];
+    let ifg0 = regs.ifg[0].get();
+    let ifg1 = regs.ifg[1].get();
 
-    fn toggle(&self) -> bool {
-        let mut val = self.registers.out[self.reg_idx].get();
-        val ^= 1 << self.pin;
-        self.registers.out[self.reg_idx].set(val);
-        (val & (1 << self.pin)) > 0
-    }
-}
-
-impl hil::gpio::Configure for Pin {
-    fn configuration(&self) -> hil::gpio::Configuration {
-        let regs = self.registers;
-        let dir = regs.dir[self.reg_idx].get();
-        let mut sel = ((regs.sel0[self.reg_idx].get() & (1 << self.pin)) > 0) as u8;
-        sel |= (((regs.sel1[self.reg_idx].get() & (1 << self.pin)) > 0) as u8) << 1;
-
-        if sel > 0 {
-            hil::gpio::Configuration::Function
-        } else {
-            if (dir & (1 << self.pin)) > 0 {
-                hil::gpio::Configuration::Output
-            } else {
-                hil::gpio::Configuration::Input
+    for i in 0..8 {
+        let bit = 1 << i;
+        if (ifg0 & bit) > 0 {
+            unsafe {
+                PINS[(port_idx * 16) + i].handle_interrupt();
             }
+            // read back the current register value to avoid loosing interrupts which occured
+            // within this function
+            regs.ifg[0].set(regs.ifg[0].get() & !bit);
         }
-    }
 
-    fn make_output(&self) -> hil::gpio::Configuration {
-        self.enable_module_function(ModuleFunction::Gpio);
-
-        let mut val = self.registers.dir[self.reg_idx].get();
-        val |= 1 << self.pin;
-        self.registers.dir[self.reg_idx].set(val);
-        hil::gpio::Configuration::Output
-    }
-
-    fn disable_output(&self) -> hil::gpio::Configuration {
-        self.make_input()
-    }
-
-    fn make_input(&self) -> hil::gpio::Configuration {
-        self.enable_module_function(ModuleFunction::Gpio);
-
-        let mut val = self.registers.dir[self.reg_idx].get();
-        val &= !(1 << self.pin);
-        self.registers.dir[self.reg_idx].set(val);
-        hil::gpio::Configuration::Input
-    }
-
-    fn disable_input(&self) -> hil::gpio::Configuration {
-        // it's not possible to deactivate the pin at all, so just return the
-        // current configuration
-        self.configuration()
-    }
-
-    fn deactivate_to_low_power(&self) {
-        // the chip doesn't support any low-power, so set it to input with
-        // a pullup resistor which should not consume much current
-        self.make_input();
-        self.set_floating_state(hil::gpio::FloatingState::PullUp);
-    }
-
-    fn set_floating_state(&self, state: hil::gpio::FloatingState) {
-        let regs = self.registers;
-        let mut ren = regs.ren[self.reg_idx].get();
-        let mut out = regs.out[self.reg_idx].get();
-        match state {
-            hil::gpio::FloatingState::PullDown => {
-                ren |= 1 << self.pin;
-                out &= !(1 << self.pin);
+        if (ifg1 & bit) > 0 {
+            unsafe {
+                PINS[port_idx * 16 + 8 + i].handle_interrupt();
             }
-            hil::gpio::FloatingState::PullUp => {
-                ren |= 1 << self.pin;
-                out |= 1 << self.pin;
-            }
-            hil::gpio::FloatingState::PullNone => {
-                ren &= !(1 << self.pin);
-            }
-        }
-        regs.ren[self.reg_idx].set(ren);
-        regs.out[self.reg_idx].set(out);
-    }
-
-    fn floating_state(&self) -> hil::gpio::FloatingState {
-        let ren = self.registers.ren[self.reg_idx].get();
-        let out = self.registers.out[self.reg_idx].get();
-
-        if (ren & (1 << self.pin)) > 0 {
-            if (out & (1 << self.pin)) > 0 {
-                hil::gpio::FloatingState::PullUp
-            } else {
-                hil::gpio::FloatingState::PullDown
-            }
-        } else {
-            hil::gpio::FloatingState::PullNone
+            // read back the current register value to avoid loosing interrupts which occured
+            // within this function
+            regs.ifg[1].set(regs.ifg[1].get() & !bit);
         }
     }
 }

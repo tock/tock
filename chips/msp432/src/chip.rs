@@ -2,6 +2,7 @@ use core::fmt::Write;
 use cortexm4;
 use kernel::Chip;
 
+use crate::gpio;
 use crate::nvic;
 use crate::uart;
 
@@ -32,6 +33,12 @@ impl Chip for Msp432 {
                 if let Some(interrupt) = cortexm4::nvic::next_pending() {
                     match interrupt {
                         nvic::USCI_A0 => uart::UART0.handle_interrupt(),
+                        nvic::IO_PORT1 => gpio::handle_interrupt(0),
+                        nvic::IO_PORT2 => gpio::handle_interrupt(1),
+                        nvic::IO_PORT3 => gpio::handle_interrupt(2),
+                        nvic::IO_PORT4 => gpio::handle_interrupt(3),
+                        nvic::IO_PORT5 => gpio::handle_interrupt(4),
+                        nvic::IO_PORT6 => gpio::handle_interrupt(5),
                         _ => {
                             panic!("unhandled interrupt {}", interrupt);
                         }

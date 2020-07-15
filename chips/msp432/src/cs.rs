@@ -9,6 +9,9 @@ use kernel::NoClockControl;
 
 pub static mut CS: ClockSystem = ClockSystem::new();
 
+pub const MCLK_HZ: u32 = 48_000_000;
+pub const SMCLK_HZ: u32 = 12_000_000;
+
 const CS_BASE: StaticRef<CsRegisters> =
     unsafe { StaticRef::new(0x4001_0400u32 as *const CsRegisters) };
 
