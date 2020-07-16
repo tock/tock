@@ -54,6 +54,7 @@ impl<A: 'static + Alarm<'static>> kernel::Chip for E310x<A> {
     type MPU = rv32i::pmp::PMPConfig;
     type UserspaceKernelBoundary = rv32i::syscall::SysCall;
     type SchedulerTimer = kernel::VirtualSchedulerTimer<A>;
+    type WatchDog = ();
 
     fn mpu(&self) -> &Self::MPU {
         &self.pmp
@@ -61,6 +62,10 @@ impl<A: 'static + Alarm<'static>> kernel::Chip for E310x<A> {
 
     fn scheduler_timer(&self) -> &Self::SchedulerTimer {
         &self.scheduler_timer
+    }
+
+    fn watchdog(&self) -> &Self::WatchDog {
+        &()
     }
 
     fn userspace_kernel_boundary(&self) -> &rv32i::syscall::SysCall {
