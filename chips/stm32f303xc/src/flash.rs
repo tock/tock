@@ -228,10 +228,8 @@ impl AsMut<[u8]> for StmF303Page {
     }
 }
 
-/// TODO: Verify if there should be other states
 pub enum FlashState {
-    Locked,
-    Unlocked,
+    Ready,
     Read,
     Write,
     Erase,
@@ -239,7 +237,6 @@ pub enum FlashState {
 
 pub static mut FLASH: Flash = Flash::new();
 
-// TODO: Choose proper Cell for struct fields
 pub struct Flash {
     registers: StaticRef<FlashRegisters>,
     client: OptionalCell<&'static dyn hil::flash::Client<Flash>>,
@@ -257,6 +254,129 @@ impl Flash {
             state: Cell::new(FlashState::Locked),
         }
     }
+
+    pub fn is_locked(&self) {
+        self.registers.cr.is_set(Control::LOCK)
+    }
+
+    pub fn unlock(&self) {
+        self.registers.kr.write(Key::KEYR.val(0x45670123));
+        self.registers.kr.write(Key::KEYR.val(0xCDEF89AB));
+    }
+
+    pub fn lock(&self) {
+        self.registers.cr.set(Control::LOCK);
+    }
+
+    pub fn erase_page(&self, page_number: usize) -> ReturnCode {
+        if self.is_locked() {
+            self.unlock();
+        }
+
+        // Wait for the busy bit to be reset
+        while !self.registers.sr.is_set(Status::BSY) {}
+
+        // Choose page erase mode
+        self.registers.cr.set(Control::PER);
+        self.registers.ar.write(Address::FAR.val((page_number * PAGE_SIZE) as u32));
+        self.registers.cr.set(Control::STRT);
+
+        // Wait one clock cycle
+        unsafe {
+            llvm_asm!(
+                "nop"
+            : : : : "volatile");
+        }
+
+        self.state.set(FlashState::Erase);
+        
+        // NOTE: has to start checking one cycle after setting the strtbit
+        // Wait for the busy bit to be reset
+        while !self.registers.sr.is_set(Status::BSY) {}
+
+        if self.registers.sr.is_set(Status::EOP) {
+            self.registers.sr.modify(Status::EOP.val(0));
+            ReturnCode::SUCCESS
+        } else {
+            ReturnCode::FAIL
+        }
+    }
+
+    pub fn erase_all(&self) -> ReturnCode {
+        if self.is_locked() {
+            self.unlock();
+        }
+
+        // Wait for the busy bit to be reset
+        while !self.registers.sr.is_set(Status::BSY) {}
+
+        // Choose mass erase mode
+        self.registers.cr.set(Control::MER);
+        self.registers.cr.set(Control::STRT);
+
+        // Wait one clock cycle
+        unsafe {
+            llvm_asm!(
+                "nop"
+            : : : : "volatile"
+            )
+        }
+        self.state.set(FlashState::Erase);
+
+        // Wait for the busy bit to be reset
+        while !self.registers.sr.is_set(Status::BSY) {}
+
+        if self.registers.sr.is_set(Status::EOP) {
+            self.registers.sr.modify(Status::EOP.val(0));
+            ReturnCode::SUCCESS
+        } else {
+            ReturnCode::FAIL
+        }
+    }
+
+    pub fn write_page(
+        &self,
+        page_number: usize,
+        data: &'static mut StmF303Page,
+    ) -> Result<(), (ReturnCode, &'static mut StmF303Page)> {
+        if self.is_locked() {
+            self.unlock();
+        }
+
+        // Choose programming mode
+        self.registers.cr.set(Control::PG);
+        self.state.set(FlashState::Write);
+
+        // Perform halfword write to desired address
+        for i in (0..data.len().step_by(2)) {
+            let word: u16 = (data[i + 0] as u16) << 0
+                | (data[i + 1] as u16) << 8;
+
+            let address = ((page_number * PAGE_SIZE) + i) as u32;
+            // TODO: verify location
+            let location =  unsafe { address as VolatileCell<u16> };
+            location.set(word);
+        }
+
+        while !regs.sr.is_set(Status::BSY) {}
+
+        if self.registers.sr.is_set(Status::EOP) {
+            self.registers.sr.modify(Status::EOP.val(0));
+            ReturnCode::SUCCESS
+        } else {
+            ReturnCode::FAIL
+        }
+    }
+
+    pub fn read_page(
+
+    )
+}
+
+impl <C: hil::flash::Client<Self>> hil::flash::HasClient<'static, C> for Flash {
+    fn set_client(&self, client: &'static C) {
+        self.client.set(client);
+    }
 }
 
 impl hil::flash::Flash for Flash {
@@ -267,7 +387,7 @@ impl hil::flash::Flash for Flash {
         page_number: usize,
         buf: &'static mut Self::Page,
     ) -> Result<(), (ReturnCode, &'static mut Self::Page)> {
-        self.read(page_number, buf)
+        self.read_page(page_number, buf)
     }
 
     fn write_page(
@@ -275,10 +395,10 @@ impl hil::flash::Flash for Flash {
         page_number: usize,
         buf: &'static mut Self::Page,
     ) -> Result<(), (ReturnCode, &'static mut Self::Page)> {
-        self.write(page_number, buf)
+        self.write_page(page_number, buf)
     }
 
     fn erase_page(&self, page_number: usize) -> ReturnCode {
-        self.erase(buf)
+        self.erase_page(buf)
     }
 }
