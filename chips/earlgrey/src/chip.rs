@@ -6,6 +6,7 @@ use core::hint::unreachable_unchecked;
 use kernel;
 use kernel::common::registers::FieldValue;
 use kernel::debug;
+use kernel::hil::time::Alarm;
 use kernel::Chip;
 use rv32i::csr::{mcause, mie::mie, mip::mip, mtvec::mtvec, CSR};
 use rv32i::syscall::SysCall;
@@ -21,16 +22,18 @@ use crate::usbdev;
 
 pub const CHIP_FREQ: u32 = 50_000_000;
 
-pub struct EarlGrey {
+pub struct EarlGrey<A: 'static + Alarm<'static>> {
     userspace_kernel_boundary: SysCall,
     pmp: rv32i::pmp::PMPConfig,
+    scheduler_timer: kernel::VirtualSchedulerTimer<A>,
 }
 
-impl EarlGrey {
-    pub unsafe fn new() -> EarlGrey {
-        EarlGrey {
+impl<A: 'static + Alarm<'static>> EarlGrey<A> {
+    pub unsafe fn new(alarm: &'static A) -> Self {
+        Self {
             userspace_kernel_boundary: SysCall::new(),
             pmp: rv32i::pmp::PMPConfig::new(4),
+            scheduler_timer: kernel::VirtualSchedulerTimer::new(alarm),
         }
     }
 
@@ -103,18 +106,18 @@ impl EarlGrey {
     }
 }
 
-impl kernel::Chip for EarlGrey {
+impl<A: 'static + Alarm<'static>> kernel::Chip for EarlGrey<A> {
     type MPU = rv32i::pmp::PMPConfig;
     type UserspaceKernelBoundary = SysCall;
-    type SysTick = ();
+    type SchedulerTimer = kernel::VirtualSchedulerTimer<A>;
     type WatchDog = ();
 
     fn mpu(&self) -> &Self::MPU {
         &self.pmp
     }
 
-    fn systick(&self) -> &Self::SysTick {
-        &()
+    fn scheduler_timer(&self) -> &Self::SchedulerTimer {
+        &self.scheduler_timer
     }
 
     fn watchdog(&self) -> &Self::WatchDog {

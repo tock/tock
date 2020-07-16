@@ -27,7 +27,7 @@ use kernel::Chip;
 pub struct Sam4l {
     mpu: cortexm4::mpu::MPU,
     userspace_kernel_boundary: cortexm4::syscall::SysCall,
-    systick: cortexm4::systick::SysTick,
+    scheduler_timer: cortexm4::systick::SysTick,
 }
 
 impl Sam4l {
@@ -67,7 +67,7 @@ impl Sam4l {
         Sam4l {
             mpu: cortexm4::mpu::MPU::new(),
             userspace_kernel_boundary: cortexm4::syscall::SysCall::new(),
-            systick: cortexm4::systick::SysTick::new(),
+            scheduler_timer: cortexm4::systick::SysTick::new(),
         }
     }
 }
@@ -75,7 +75,7 @@ impl Sam4l {
 impl Chip for Sam4l {
     type MPU = cortexm4::mpu::MPU;
     type UserspaceKernelBoundary = cortexm4::syscall::SysCall;
-    type SysTick = cortexm4::systick::SysTick;
+    type SchedulerTimer = cortexm4::systick::SysTick;
     type WatchDog = ();
 
     fn service_pending_interrupts(&self) {
@@ -176,8 +176,8 @@ impl Chip for Sam4l {
         &self.mpu
     }
 
-    fn systick(&self) -> &cortexm4::systick::SysTick {
-        &self.systick
+    fn scheduler_timer(&self) -> &Self::SchedulerTimer {
+        &self.scheduler_timer
     }
 
     fn watchdog(&self) -> &Self::WatchDog {
