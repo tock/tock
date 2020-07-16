@@ -503,7 +503,6 @@ pub struct Adc {
     clock: AdcClock,
     status: Cell<ADCStatus>,
     client: OptionalCell<&'static dyn EverythingClient>,
-    // clock34: AdcClock,
 }
 
 pub static mut ADC1: Adc = Adc::new();
@@ -512,10 +511,8 @@ impl Adc {
     const fn new() -> Adc {
         Adc {
             registers: ADC1_BASE,
-            //rcc copy
             common_registers: ADC12_COMMON_BASE,
             clock: AdcClock(rcc::PeripheralClock::AHB(rcc::HCLK::ADC1)),
-            // clock34: AdcClock(rcc::PeripheralClock::AHB(rcc::HCLK::ADC34)),
             status: Cell::new(ADCStatus::Off),
             client: OptionalCell::empty(),
         }
