@@ -173,6 +173,10 @@ impl<A: 'static + Alarm<'static>> kernel::Chip for EarlGrey<A> {
     }
 
     unsafe fn print_state(&self, writer: &mut dyn Write) {
+        let _ = writer.write_fmt(format_args!(
+            "\r\n---| EarlGrey configuration for {} |---",
+            CONFIG.name
+        ));
         rv32i::print_riscv_state(writer);
     }
 }
