@@ -214,9 +214,6 @@ impl<'a> hil::uart::Configure for Uart<'a> {
         // Enable module
         regs.ctlw0.modify(usci::UCAxCTLW0::UCSWRST::CLEAR);
 
-        // Enable receive interrupt
-        // self.registers.ie.modify(usci::UCAxIE::UCRXIE::SET);
-
         ReturnCode::SUCCESS
     }
 }
