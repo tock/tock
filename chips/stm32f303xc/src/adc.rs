@@ -5,7 +5,6 @@ use core::cell::Cell;
 use kernel::common::cells::OptionalCell;
 use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
-use kernel::debug;
 use kernel::hil;
 use kernel::ClockInterface;
 use kernel::ReturnCode;
@@ -523,7 +522,6 @@ impl Adc {
     }
 
     pub fn enable(&self) {
-        debug!("ENABLE");
         self.status.set(ADCStatus::PoweringOn);
 
         // Enable adc clock

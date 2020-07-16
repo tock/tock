@@ -1,6 +1,5 @@
 use kernel::common::registers::{register_bitfields, ReadWrite};
 use kernel::common::StaticRef;
-use kernel::debug;
 use kernel::ClockInterface;
 
 /// Reset and clock control
@@ -603,7 +602,6 @@ impl Rcc {
     }
 
     fn enable_adc12_clock(&self) {
-        debug!("enable adc12 clock");
         self.registers.cfgr.modify(CFGR::HPRE.val(0b0000));
         self.registers.cfgr2.modify(CFGR2::ADC12PRES.val(0b10111));
         self.registers.ahbenr.modify(AHBENR::ADC12EN::SET);
