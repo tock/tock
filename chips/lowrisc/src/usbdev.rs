@@ -370,8 +370,54 @@ impl<'a> Usb<'a> {
         self.state.set(state);
     }
 
+    fn disable_interrupts(&self) {
+        self.registers.intr_enable.write(
+            INTR::PKT_RECEIVED::CLEAR
+                + INTR::PKT_SENT::CLEAR
+                + INTR::DISCONNECTED::CLEAR
+                + INTR::HOST_LOST::CLEAR
+                + INTR::LINK_RESET::CLEAR
+                + INTR::LINK_SUSPEND::CLEAR
+                + INTR::LINK_RESUME::CLEAR
+                + INTR::AV_EMPTY::CLEAR
+                + INTR::RX_FULL::CLEAR
+                + INTR::AV_OVERFLOW::CLEAR
+                + INTR::LINK_IN_ERR::CLEAR
+                + INTR::RX_CRC_ERR::CLEAR
+                + INTR::RX_PID_ERR::CLEAR
+                + INTR::RX_BITSTUFF_ERR::CLEAR
+                + INTR::FRAME::CLEAR
+                + INTR::CONNECTED::CLEAR,
+        );
+        self.registers.intr_state.set(0xFFFF_FFFF);
+    }
+
+    fn enable_interrupts(&self) {
+        self.registers.intr_enable.write(
+            INTR::PKT_RECEIVED::SET
+                + INTR::PKT_SENT::SET
+                + INTR::DISCONNECTED::SET
+                + INTR::HOST_LOST::SET
+                + INTR::LINK_RESET::SET
+                + INTR::LINK_SUSPEND::SET
+                + INTR::LINK_RESUME::SET
+                + INTR::AV_EMPTY::SET
+                + INTR::RX_FULL::SET
+                + INTR::AV_OVERFLOW::SET
+                + INTR::LINK_IN_ERR::SET
+                + INTR::RX_CRC_ERR::SET
+                + INTR::RX_PID_ERR::SET
+                + INTR::RX_BITSTUFF_ERR::SET
+                + INTR::FRAME::CLEAR
+                + INTR::CONNECTED::SET,
+        );
+    }
+
     pub fn handle_interrupt(&self) {
-        debug!("USB IRQ");
+        // Disable interrupts
+        self.disable_interrupts();
+
+        self.enable_interrupts();
     }
 
     /// Provide a buffer for transfers in and out of the given endpoint
@@ -424,6 +470,8 @@ impl<'a> hil::usb::UsbController<'a> for Usb<'a> {
             State::Active(_) => unreachable!("Already attached"),
             State::Idle(mode) => {
                 self.registers.usbctrl.write(USBCTRL::ENABLE::SET);
+
+                self.enable_interrupts();
 
                 self.set_state(State::Active(mode));
             }
