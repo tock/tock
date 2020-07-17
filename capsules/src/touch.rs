@@ -11,7 +11,6 @@
 //!     components::touch::TouchComponent::new(board_kernel, ts, Some(ts), Some(screen)).finalize(());
 //! ```
 
-// use core::convert::From;
 use core::mem;
 // use kernel::debug;
 use kernel::hil;
@@ -71,6 +70,53 @@ impl<'a> Touch<'a> {
             screen: screen,
             apps: grant,
         }
+    }
+
+    fn touch_enable(&self) -> ReturnCode {
+        let mut enabled = false;
+        for app in self.apps.iter() {
+            if app.enter(|app, _| {
+                if app.touch_callback.is_some() {
+                    true
+                } else {
+                    false
+                }
+            }) {
+                enabled = true;
+                break;
+            }
+        }
+        self.touch.map_or(ReturnCode::ENODEVICE, |touch| {
+            if enabled {
+                touch.enable()
+            } else {
+                touch.disable()
+            }
+        })
+    }
+
+    fn multi_touch_enable(&self) -> ReturnCode {
+        let mut enabled = false;
+        for app in self.apps.iter() {
+            if app.enter(|app, _| {
+                if app.multi_touch_callback.is_some() {
+                    true
+                } else {
+                    false
+                }
+            }) {
+                enabled = true;
+                break;
+            }
+        }
+        self.multi_touch
+            .map_or(ReturnCode::ENODEVICE, |multi_touch| {
+                if enabled {
+                    multi_touch.enable()
+                } else {
+                    multi_touch.disable()
+                }
+            })
     }
 
     /// Updates the (x, y) pf the touch event based on the
@@ -255,7 +301,7 @@ impl<'a> Driver for Touch<'a> {
                 .apps
                 .enter(app_id, |app, _| {
                     app.touch_callback = callback;
-                    ReturnCode::SUCCESS
+                    self.touch_enable()
                 })
                 .unwrap_or_else(|err| err.into()),
 
@@ -274,7 +320,7 @@ impl<'a> Driver for Touch<'a> {
                     self.apps
                         .enter(app_id, |app, _| {
                             app.multi_touch_callback = callback;
-                            ReturnCode::SUCCESS
+                            self.multi_touch_enable()
                         })
                         .unwrap_or_else(|err| err.into())
                 } else {
@@ -297,27 +343,6 @@ impl<'a> Driver for Touch<'a> {
             // This driver exists.
             {
                 ReturnCode::SUCCESS
-            }
-
-            // Touch Enable
-            1 => {
-                if let Some(touch) = self.touch {
-                    touch.enable()
-                } else if let Some(multi_touch) = self.multi_touch {
-                    multi_touch.enable()
-                } else {
-                    ReturnCode::ENODEVICE
-                }
-            }
-            // Touch Disable
-            2 => {
-                if let Some(touch) = self.touch {
-                    touch.disable()
-                } else if let Some(multi_touch) = self.multi_touch {
-                    multi_touch.disable()
-                } else {
-                    ReturnCode::ENODEVICE
-                }
             }
 
             _ => ReturnCode::ENOSUPPORT,

@@ -53,10 +53,14 @@ pub struct TouchEvent {
 
 /// Single touch panels should implement this
 pub trait Touch<'a> {
-    /// Enable the touche panel
+    /// Enable the touch panel
+    ///
+    /// returns SUCCESS even if device is already enabled
     fn enable(&self) -> ReturnCode;
 
     /// Disable the touch panel
+    ///
+    /// /// returns SUCCESS even if device is already disabled
     fn disable(&self) -> ReturnCode;
 
     /// Set the touch client
@@ -66,9 +70,13 @@ pub trait Touch<'a> {
 /// Multi-touch panels should implement this
 pub trait MultiTouch<'a> {
     /// Enable the touche panel
+    ///
+    /// returns SUCCESS even if device is already enabled
     fn enable(&self) -> ReturnCode;
 
     /// Disable the touch panel
+    ///
+    /// returns SUCCESS even if device is already disabled
     fn disable(&self) -> ReturnCode;
 
     /// Returns the number of maximum concurently supported touches.
