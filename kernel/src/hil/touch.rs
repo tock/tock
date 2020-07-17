@@ -39,8 +39,13 @@ pub struct TouchEvent {
     /// this must be set to `None`.
     pub size: Option<usize>,
 
-    /// touch weight
-    pub weight: Option<usize>,
+    /// Optional scaled value for the pressure of the touch. A larger value
+    /// corresponds to a "firmer" press. The pressure values range from 0
+    /// to 65536.
+    ///
+    /// If a touchscreen does not provide information about the pressure of a touch,
+    /// this must be set to `None`.
+    pub pressure: Option<usize>,
 }
 
 /// Single touch panels should implement this
