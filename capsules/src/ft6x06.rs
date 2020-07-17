@@ -42,8 +42,8 @@ static NO_TOUCH: TouchEvent = TouchEvent {
     x: 0,
     y: 0,
     status: TouchStatus::Released,
-    area: None,
-    weight: None,
+    size: None,
+    pressure: None,
 };
 
 pub static mut EVENTS_BUFFER: [TouchEvent; 2] = [NO_TOUCH, NO_TOUCH];
@@ -109,15 +109,15 @@ impl<'a> i2c::I2CClient for Ft6x06<'a> {
                 };
                 let x = (((buffer[2] & 0x0F) as usize) << 8) + (buffer[3] as usize);
                 let y = (((buffer[4] & 0x0F) as usize) << 8) + (buffer[5] as usize);
-                let weight = Some(buffer[6] as usize);
-                let area = Some(buffer[7] as usize);
+                let pressure = Some(buffer[6] as usize);
+                let size = Some(buffer[7] as usize);
                 client.touch_event(TouchEvent {
                     status,
                     x,
                     y,
                     id: 0,
-                    weight,
-                    area,
+                    pressure,
+                    size,
                 });
             }
         });
@@ -147,16 +147,16 @@ impl<'a> i2c::I2CClient for Ft6x06<'a> {
                     };
                     let x = (((buffer[2] & 0x0F) as usize) << 8) + (buffer[3] as usize);
                     let y = (((buffer[4] & 0x0F) as usize) << 8) + (buffer[5] as usize);
-                    let weight = Some(buffer[6] as usize);
-                    let area = Some(buffer[7] as usize);
+                    let pressure = Some(buffer[6] as usize);
+                    let size = Some(buffer[7] as usize);
                     self.events.map(|buffer| {
                         buffer[touch_event] = TouchEvent {
                             status,
                             x,
                             y,
                             id: 0,
-                            weight,
-                            area,
+                            pressure,
+                            size,
                         };
                     });
                 }
@@ -231,15 +231,15 @@ impl<'a> touch::MultiTouch<'a> for Ft6x06<'a> {
                     (((buffer[offset + 2] & 0x0F) as usize) << 8) + (buffer[offset + 3] as usize);
                 let y =
                     (((buffer[offset + 4] & 0x0F) as usize) << 8) + (buffer[offset + 5] as usize);
-                let weight = Some(buffer[offset + 6] as usize);
-                let area = Some(buffer[offset + 7] as usize);
+                let pressure = Some(buffer[offset + 6] as usize);
+                let size = Some(buffer[offset + 7] as usize);
                 Some(TouchEvent {
                     status,
                     x,
                     y,
                     id: 0,
-                    weight,
-                    area,
+                    pressure,
+                    size,
                 })
             } else {
                 None

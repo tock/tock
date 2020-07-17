@@ -13,7 +13,7 @@
 
 // use core::convert::From;
 use core::mem;
-use kernel::debug;
+// use kernel::debug;
 use kernel::hil;
 use kernel::hil::screen::ScreenRotation;
 use kernel::hil::touch::{GestureEvent, TouchEvent, TouchStatus};
@@ -103,10 +103,10 @@ impl<'a> hil::touch::TouchClient for Touch<'a> {
     fn touch_event(&self, mut event: TouchEvent) {
         // update rotation if there is a screen attached
         self.update_rotation(&mut event);
-        debug!(
-            "touch {:?} x {} y {} area {:?} weight {:?}",
-            event.status, event.x, event.y, event.area, event.weight
-        );
+        // debug!(
+        //     "touch {:?} x {} y {} size {:?} pressure {:?}",
+        //     event.status, event.x, event.y, event.size, event.pressure
+        // );
         for app in self.apps.iter() {
             app.enter(|app, _| {
                 app.touch_callback.map(|mut callback| {
@@ -128,7 +128,7 @@ impl<'a> hil::touch::MultiTouchClient for Touch<'a> {
         } else {
             num_events
         };
-        debug!("{} touch(es)", len);
+        // debug!("{} touch(es)", len);
         for app in self.apps.iter() {
             app.enter(|app, _| {
                 if app.ack {
@@ -147,10 +147,10 @@ impl<'a> hil::touch::MultiTouchClient for Touch<'a> {
                                     TouchStatus::Released => 0,
                                     TouchStatus::Pressed => 1,
                                 };
-                                debug!(
-                                    " multitouch {:?} x {} y {} area {:?} weight {:?}",
-                                    event.status, event.x, event.y, event.area, event.weight
-                                );
+                                // debug!(
+                                //     " multitouch {:?} x {} y {} size {:?} pressure {:?}",
+                                //     event.status, event.x, event.y, event.size, event.pressure
+                                // );
                                 // one touch entry is 8 bytes long
                                 let offset = event_index * 8;
                                 if buffer.len() > event_index + 8 {
@@ -160,17 +160,17 @@ impl<'a> hil::touch::MultiTouchClient for Touch<'a> {
                                     buffer.as_mut()[offset + 3] = (event.x & 0xFF) as u8;
                                     buffer.as_mut()[offset + 4] = ((event.y & 0xFFFF) >> 8) as u8;
                                     buffer.as_mut()[offset + 5] = (event.y & 0xFF) as u8;
-                                    buffer.as_mut()[offset + 6] = if let Some(area) = event.area {
-                                        area as u8
+                                    buffer.as_mut()[offset + 6] = if let Some(size) = event.size {
+                                        size as u8
                                     } else {
                                         0
                                     };
-                                    buffer.as_mut()[offset + 7] = if let Some(weight) = event.weight
-                                    {
-                                        weight as u8
-                                    } else {
-                                        0
-                                    };
+                                    buffer.as_mut()[offset + 7] =
+                                        if let Some(pressure) = event.pressure {
+                                            pressure as u8
+                                        } else {
+                                            0
+                                        };
                                 } else {
                                     break;
                                 }
@@ -193,7 +193,7 @@ impl<'a> hil::touch::MultiTouchClient for Touch<'a> {
 
 impl<'a> hil::touch::GestureClient for Touch<'a> {
     fn gesture_event(&self, event: GestureEvent) {
-        debug!("gesture {:?}", event);
+        // debug!("gesture {:?}", event);
         for app in self.apps.iter() {
             app.enter(|app, _| {
                 app.gesture_callback.map(|mut callback| {
@@ -224,7 +224,7 @@ impl<'a> Driver for Touch<'a> {
             // buffer data format
             //  0         1           2                  4                  6           7             8         ...
             // +---------+-----------+------------------+------------------+-----------+-------------+--------- ...
-            // | id (u8) | type (u8) | x (u16)          | y (u16)          | area (u8) | weight (u8) |          ...
+            // | id (u8) | type (u8) | x (u16)          | y (u16)          | size (u8) | pressure (u8) |          ...
             // +---------+-----------+------------------+------------------+-----------+-------------+--------- ...
             // | Touch 0                                                                             | Touch 1  ...
             2 => {
