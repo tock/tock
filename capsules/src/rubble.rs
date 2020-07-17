@@ -8,20 +8,18 @@
 //!
 //! The allow system calls are used to hand over buffers allocated by userland.
 //!
-//! TODO:
+//! - 0: give buffer to be read for outgoing advertisement data
 //!
-//! The possible return codes from the 'allow' system call indicate the following:
+//!   These are the raw bytes to send out as the advertisement. Can be
+//!   constructed nicely using rubble::link::ad_structure::AdStructure.
 //!
-//! * SUCCESS: The buffer has successfully been filled
-//! * ENOMEM: No sufficient memory available
-//! * EINVAL: Invalid address of the buffer or other error
-//! * EBUSY: The driver is currently busy with other tasks
-//! * ENOSUPPORT: The operation is not supported
-//! * ERROR: Operation `map` on Option failed
+//!   TODO: maybe a way to do this nicer? could use C structures to let us do
+//!   rubble computations?
+//! * 1: give buffer to be written to for incoming scanning data
 //!
 //! ### Subscribe system call
 //!
-//! N/A
+//! * 0: subscribe to advertisement scanning data
 //!
 //! ### Command system call
 //!
@@ -30,17 +28,36 @@
 //!
 //! We use `command number` to specify one of the following operations:
 //!
-//! - 0: stop advertising
-//! - 181: start advertising
-//! - 2: start scanning
+//! - 0: start or restart advertising
+//!
+//!   First argument is the advertisement interval in milliseconds. Second argument should be 0.
+//!
+//!   This will initiate advertising using the current contents of the "outgoing
+//!   advertisement data" buffer set using ALLOW 0. If the contents change, this
+//!   must be run again to restart advertising the new data.
+//!
+//!   Will return EFAIL if no advertising buffer has been given via ALLOW 0, or
+//!   EINVAL if the advertising data currently present in said buffer is invalid.
+//! - 1: stop advertising
+//!
+//!   Both arguments should be 0.
+//! - 2: start or restart scanning
+//!
+//!   First argument is scanning interval in milliseconds. Second argument should be 0.
+//! - 3: stop scanning
+//!
+//!   Both arguments should be 0.
+//! - TODO: scanning
 //! - TODO: connections??
+mod timer;
 
-use core::{cell::RefCell, marker::PhantomData};
+use core::{cell::RefCell, convert::TryInto, marker::PhantomData};
 use kernel::debug;
 use kernel::hil::rubble::BleRadio;
-use kernel::ReturnCode;
+use kernel::{AppId, AppSlice, Callback, ReturnCode, Shared};
 
 use rubble::{
+    bytes::{ByteReader, FromBytes},
     config::Config,
     link::{
         ad_structure::AdStructure,
@@ -50,23 +67,41 @@ use rubble::{
     time::Duration,
 };
 
-mod timer;
-
-/// Syscall driver number.
 use crate::driver;
-use timer::RubbleTimer;
+
+use self::timer::RubbleTimer;
+
+// Syscall driver number.
+
 pub const DRIVER_NUM: usize = driver::NUM::RubbleBle as usize;
 
+// Command Consants
+pub const CMD_START_ADVERTISING: usize = 0;
+pub const CMD_STOP_ADVERTISING: usize = 1;
+pub const CMD_START_SCANNING: usize = 2;
+pub const CMD_STOP_SCANNING: usize = 3;
+
+pub const CMD_ARG_UNUSED: usize = 0;
+
+pub const ALLOW_OUTGOING_AD_BUFFER: usize = 0;
+pub const ALLOW_INCOMING_SCANNING_DATA: usize = 1;
+
 /// Process specific memory
-pub struct App;
-// {
-//     adv_data: Option<kernel::AppSlice<kernel::Shared, u8>>,
-//     advertisement_interval_ms: u32,
-// }
+pub struct App {
+    outgoing_advertisement_data: Option<kernel::AppSlice<kernel::Shared, u8>>,
+    incoming_scanning_data: Option<kernel::AppSlice<kernel::Shared, u8>>,
+    advertisement_interval: Duration,
+    scan_interval_ms: Duration,
+}
 
 impl Default for App {
     fn default() -> App {
-        App
+        App {
+            outgoing_advertisement_data: None,
+            incoming_scanning_data: None,
+            advertisement_interval: Duration::from_millis(200),
+            scan_interval_ms: Duration::from_millis(200),
+        }
     }
 }
 
@@ -149,25 +184,29 @@ where
         }
     }
 
-    pub fn start_advertising(&self) {
-        use rubble::time::Timer;
-
+    pub fn start_advertising(&self, app: &mut App) -> Result<(), ReturnCode> {
         let data = &mut *self.mutable_data.borrow_mut();
-        debug!("Starting advertising.");
+        debug!("Starting advertising with app.");
         // TODO: this is unsound.
         let (_tx, tx_cons) = unsafe { &mut TX_QUEUE }.split();
         let (rx_prod, _rx) = unsafe { &mut RX_QUEUE }.split();
         // errors if we provide too much ad data.
-        debug!("Alarm gives time {}", self.alarm.now());
-        debug!(
-            "Rubble interpreted timer gives time {}",
-            data.ll.timer().now()
-        );
+
+        let ad_bytes = app
+            .outgoing_advertisement_data
+            .as_ref()
+            .ok_or(ReturnCode::FAIL)?
+            .as_ref();
+        let ad = AdStructure::from_bytes(&mut ByteReader::new(ad_bytes)).map_err(|e| {
+            debug!("Error converting app adv bytes to AdStructure: {}", e);
+            ReturnCode::EINVAL
+        })?;
+
         let next_update = data
             .ll
             .start_advertise(
-                Duration::from_millis(200),
-                &[AdStructure::CompleteLocalName("Tock Full Rubble")],
+                app.advertisement_interval,
+                &[ad],
                 &mut data.radio,
                 tx_cons,
                 rx_prod,
@@ -176,6 +215,17 @@ where
         debug!("Done. Going to set alarm to {:?}", next_update);
 
         self.set_alarm_for(next_update);
+        Ok(())
+    }
+
+    pub fn stop_advertising(&self) -> Result<(), ReturnCode> {
+        let data = &mut *self.mutable_data.borrow_mut();
+        if data.ll.is_advertising() {
+            data.ll.enter_standby();
+            Ok(())
+        } else {
+            Err(ReturnCode::EALREADY)
+        }
     }
 
     pub fn set_alarm_for(&self, update: NextUpdate) {
@@ -232,18 +282,55 @@ where
     R: BleRadio,
     A: kernel::hil::time::Alarm<'a>,
 {
-    fn command(
-        &self,
-        command_num: usize,
-        data: usize,
-        interval: usize,
-        appid: kernel::AppId,
-    ) -> ReturnCode {
+    fn command(&self, command_num: usize, r2: usize, r3: usize, app_id: AppId) -> ReturnCode {
         match command_num {
-            // Boilerplate kept to use shortly.
-            0 => self
+            CMD_START_ADVERTISING => {
+                let advertisement_interval_ms = r2;
+                assert_eq!(r3, CMD_ARG_UNUSED);
+
+                self.app
+                    .enter(app_id, |app, _alloc| {
+                        app.advertisement_interval = Duration::from_millis(
+                            advertisement_interval_ms
+                                .try_into()
+                                .map_err(|_| ReturnCode::EINVAL)?,
+                        );
+                        self.start_advertising(app)?;
+                        Ok(ReturnCode::SUCCESS)
+                    })
+                    .unwrap_or_else(|err| Err(err.into()))
+                    .unwrap_or_else(|e| e)
+            }
+            CMD_STOP_ADVERTISING => {
+                assert_eq!(r2, CMD_ARG_UNUSED);
+                assert_eq!(r3, CMD_ARG_UNUSED);
+
+                match self.stop_advertising() {
+                    Ok(()) => ReturnCode::SUCCESS,
+                    Err(e) => e,
+                }
+            }
+            _ => ReturnCode::ENOSUPPORT,
+        }
+    }
+
+    fn subscribe(&self, minor_num: usize, callback: Option<Callback>, app_id: AppId) -> ReturnCode {
+        ReturnCode::ENOSUPPORT
+    }
+
+    fn allow(
+        &self,
+        app_id: AppId,
+        minor_num: usize,
+        slice: Option<AppSlice<Shared, u8>>,
+    ) -> ReturnCode {
+        match minor_num {
+            ALLOW_OUTGOING_AD_BUFFER => self
                 .app
-                .enter(appid, |app, _| ReturnCode::SUCCESS)
+                .enter(app_id, |app, _alloc| {
+                    app.outgoing_advertisement_data = slice;
+                    ReturnCode::SUCCESS
+                })
                 .unwrap_or_else(|err| err.into()),
             _ => ReturnCode::ENOSUPPORT,
         }

@@ -98,8 +98,6 @@ impl Component for RubbleComponent {
         );
         hil::time::Alarm::set_client(ble_radio_virtual_alarm, ble_radio);
 
-        ble_radio.start_advertising();
-
         ble_radio
     }
 }
