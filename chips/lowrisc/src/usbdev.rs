@@ -10,12 +10,6 @@ use kernel::debug;
 use kernel::hil;
 use kernel::hil::usb::TransferType;
 
-macro_rules! client_warn {
-    [ $( $arg:expr ),+ ] => {
-        debug!($( $arg ),+);
-    };
-}
-
 pub const N_ENDPOINTS: usize = 12;
 pub const N_BUFFERS: usize = 32;
 
@@ -406,8 +400,8 @@ impl<'a> hil::usb::UsbController<'a> for Usb<'a> {
         let regs = self.registers;
 
         match self.get_state() {
-            State::Reset => client_warn!("Not enabled"),
-            State::Active(_) => client_warn!("Already attached"),
+            State::Reset => unreachable!("Not enabled"),
+            State::Active(_) => unreachable!("Already attached"),
             State::Idle(mode) => {
                 regs.rxenable_setup.write(RXENABLE_SETUP::SETUP10::SET);
                 regs.rxenable_out.write(RXENABLE_OUT::OUT0::SET);
