@@ -28,7 +28,10 @@ pub struct TouchEvent {
     pub x: usize,
     pub y: usize,
 
-    /// touch id, value defined by the driver
+    /// Numeric ID assigned to this touch. This ID allows the client to
+    /// to match different `TouchEvent`s to the same physical touch.
+    ///
+    /// The driver must assign a unique ID to each touch.
     pub id: usize,
 
     /// Optional scaled value for the size of the touch. A larger value
