@@ -946,6 +946,20 @@ impl Rcc {
     fn disable_usart3_clock(&self) {
         self.registers.apb1enr.modify(APB1ENR::USART3EN::CLEAR)
     }
+
+    // ADC1 clock
+
+    fn is_enabled_adc1_clock(&self) -> bool {
+        self.registers.apb2enr.is_set(APB2ENR::ADC1EN)
+    }
+
+    fn enable_adc1_clock(&self) {
+        self.registers.apb2enr.modify(APB2ENR::ADC1EN::SET)
+    }
+
+    fn disable_adc1_clock(&self) {
+        self.registers.apb2enr.modify(APB2ENR::ADC1EN::CLEAR)
+    }
 }
 
 /// Clock sources for CPU
@@ -992,6 +1006,7 @@ pub enum PCLK1 {
 
 /// Peripherals clocked by PCLK2
 pub enum PCLK2 {
+    ADC1,
     SYSCFG,
 }
 
@@ -1017,6 +1032,7 @@ impl ClockInterface for PeripheralClock {
                 PCLK1::SPI3 => unsafe { RCC.is_enabled_spi3_clock() },
             },
             &PeripheralClock::APB2(ref v) => match v {
+                PCLK2::ADC1 => unsafe { RCC.is_enabled_adc1_clock() },
                 PCLK2::SYSCFG => unsafe { RCC.is_enabled_syscfg_clock() },
             },
         }
@@ -1071,6 +1087,9 @@ impl ClockInterface for PeripheralClock {
                 },
             },
             &PeripheralClock::APB2(ref v) => match v {
+                PCLK2::ADC1 => unsafe {
+                    RCC.enable_adc1_clock();
+                },
                 PCLK2::SYSCFG => unsafe {
                     RCC.enable_syscfg_clock();
                 },
@@ -1127,6 +1146,9 @@ impl ClockInterface for PeripheralClock {
                 },
             },
             &PeripheralClock::APB2(ref v) => match v {
+                PCLK2::ADC1 => unsafe {
+                    RCC.disable_adc1_clock();
+                },
                 PCLK2::SYSCFG => unsafe {
                     RCC.disable_syscfg_clock();
                 },
