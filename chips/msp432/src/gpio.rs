@@ -1,5 +1,6 @@
 //! General Purpose Input/Output (GPIO)
 
+use core::cell::Cell;
 use kernel::common::cells::OptionalCell;
 use kernel::common::registers::{register_bitfields, register_structs, ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
@@ -306,6 +307,7 @@ pub struct Pin {
     pin: u8,
     registers: StaticRef<GpioRegisters>,
     reg_idx: usize,
+    detect_both_edges: Cell<bool>,
     client: OptionalCell<&'static dyn gpio::Client>,
 }
 
@@ -335,18 +337,43 @@ impl Pin {
             pin: pin_nr,
             registers: GPIO_BASES[(p / 2) as usize],
             reg_idx: (p % 2) as usize,
+            detect_both_edges: Cell::new(false),
             client: OptionalCell::empty(),
         }
     }
 
+    fn switch_detecting_edge(&self) {
+        // Don't rely on the current configuration of the edge-detection, read the current state
+        // of the pin and set the detecting edge based on this information. It could be that we
+        // already missed one or more interrupts, so it doesn't make sense to just switch the edge.
+
+        let mut edge = self.registers.ies[self.reg_idx].get();
+        if self.read_level() {
+            // Pin is high -> detect falling edge
+            edge |= 1 << self.pin;
+        } else {
+            // Pin is low -> detect rising edge
+            edge &= !(1 << self.pin);
+        }
+        self.registers.ies[self.reg_idx].set(edge);
+    }
+
     fn handle_interrupt(&self) {
         self.client.map(|client| client.fired());
+
+        if self.detect_both_edges.get() {
+            self.switch_detecting_edge();
+        }
     }
 }
 
 macro_rules! pin_implementation {
     ($pin_type:ident) => {
         impl $pin_type {
+            fn read_level(&self) -> bool {
+                (self.registers.input[self.reg_idx].get() & (1 << self.pin)) > 0
+            }
+
             fn enable_module_function(&self, mode: ModuleFunction) {
                 let mut sel0 = self.registers.sel0[self.reg_idx].get();
                 let mut sel1 = self.registers.sel1[self.reg_idx].get();
@@ -391,7 +418,7 @@ macro_rules! pin_implementation {
 
         impl gpio::Input for $pin_type {
             fn read(&self) -> bool {
-                (self.registers.input[self.reg_idx].get() & (1 << self.pin)) > 0
+                self.read_level()
             }
         }
 
@@ -519,23 +546,40 @@ impl gpio::Interrupt for Pin {
     fn enable_interrupts(&self, mode: gpio::InterruptEdge) {
         // disable the interrupt at the beginning because modifying the edge-select register
         // could trigger an interrupt -> datasheet p. 680 section 12.2.7.1
-        let mut enable = self.registers.ie[self.reg_idx].get();
-        enable &= !(1 << self.pin);
-        self.registers.ie[self.reg_idx].set(enable);
+        self.disable_interrupts();
 
         let mut edge = self.registers.ies[self.reg_idx].get();
         match mode {
-            gpio::InterruptEdge::FallingEdge => edge |= 1 << self.pin,
-            gpio::InterruptEdge::RisingEdge => edge &= !(1 << self.pin),
-            gpio::InterruptEdge::EitherEdge => {
+            gpio::InterruptEdge::FallingEdge => {
+                self.detect_both_edges.set(false);
                 edge |= 1 << self.pin;
-                // panic!("msp432: interrupt for both edges is not supported by the hardware")
+            }
+            gpio::InterruptEdge::RisingEdge => {
+                self.detect_both_edges.set(false);
+                edge &= !(1 << self.pin);
+            }
+            gpio::InterruptEdge::EitherEdge => {
+                // Implement a software based implementation for detecting both edges since
+                // this controller doesn't support this feature by hardware
+                self.detect_both_edges.set(true);
+                if self.read_level() {
+                    // If the pin-level is high, configure for falling edges.
+                    edge |= 1 << self.pin;
+                } else {
+                    // If the pin-level is low, configure for rising edges.
+                    edge &= !(1 << self.pin);
+                }
             }
         }
 
-        enable |= 1 << self.pin;
+        // Set the edge detection
         self.registers.ies[self.reg_idx].set(edge);
-        self.registers.ie[self.reg_idx].set(enable);
+        // Clear eventually caused interrupts
+        self.registers.ifg[self.reg_idx]
+            .set(self.registers.ifg[self.reg_idx].get() & !(1 << self.pin));
+        // Enable the interrupt
+        self.registers.ie[self.reg_idx]
+            .set(self.registers.ie[self.reg_idx].get() | (1 << self.pin));
     }
 
     fn disable_interrupts(&self) {
