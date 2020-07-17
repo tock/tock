@@ -456,42 +456,70 @@ impl<'a> hil::usb::UsbController<'a> for Usb<'a> {
     }
 
     fn endpoint_in_enable(&self, transfer_type: TransferType, endpoint: usize) {
-        let regs = self.registers;
-
         match transfer_type {
             TransferType::Control => {
-                regs.rxenable_setup.set(1 << endpoint);
-                regs.rxenable_out.set(1 << endpoint);
+                self.registers
+                    .rxenable_setup
+                    .set(1 << endpoint | self.registers.rxenable_setup.get());
+                self.descriptors[endpoint]
+                    .state
+                    .set(EndpointState::Ctrl(CtrlState::Init));
             }
             TransferType::Bulk => {
                 // How is this different to control?
-                regs.rxenable_setup.set(1 << endpoint);
-                regs.rxenable_out.set(1 << endpoint);
+                self.registers
+                    .rxenable_setup
+                    .set(1 << endpoint | self.registers.rxenable_setup.get());
+                self.descriptors[endpoint]
+                    .state
+                    .set(EndpointState::BulkIn(BulkInState::Init));
             }
             TransferType::Interrupt => unimplemented!(),
             TransferType::Isochronous => {
-                regs.rxenable_setup.set(1 << endpoint);
-                regs.rxenable_out.set(1 << endpoint);
-                regs.iso.set(1 << endpoint);
+                self.registers
+                    .rxenable_setup
+                    .set(1 << endpoint | self.registers.rxenable_setup.get());
+                self.registers.iso.set(1 << endpoint);
+                self.descriptors[endpoint].state.set(EndpointState::Iso);
             }
         };
     }
 
     fn endpoint_out_enable(&self, transfer_type: TransferType, endpoint: usize) {
-        let regs = self.registers;
-
         match transfer_type {
             TransferType::Control => {
-                regs.rxenable_setup.set(1 << endpoint);
+                self.registers
+                    .rxenable_setup
+                    .set(1 << endpoint | self.registers.rxenable_setup.get());
+                self.registers
+                    .rxenable_out
+                    .set(1 << endpoint | self.registers.rxenable_out.get());
+                self.descriptors[endpoint]
+                    .state
+                    .set(EndpointState::Ctrl(CtrlState::Init));
             }
             TransferType::Bulk => {
                 // How is this different to control?
-                regs.rxenable_setup.set(1 << endpoint);
+                self.registers
+                    .rxenable_setup
+                    .set(1 << endpoint | self.registers.rxenable_setup.get());
+                self.registers
+                    .rxenable_out
+                    .set(1 << endpoint | self.registers.rxenable_out.get());
+                self.descriptors[endpoint]
+                    .state
+                    .set(EndpointState::BulkOut(BulkOutState::Init));
             }
             TransferType::Interrupt => unimplemented!(),
             TransferType::Isochronous => {
-                regs.rxenable_setup.set(1 << endpoint);
-                regs.iso.set(1 << endpoint);
+                self.registers
+                    .rxenable_setup
+                    .set(1 << endpoint | self.registers.rxenable_setup.get());
+                self.registers
+                    .rxenable_out
+                    .set(1 << endpoint | self.registers.rxenable_out.get());
+                self.registers.iso.set(1 << endpoint);
+                self.descriptors[endpoint].state.set(EndpointState::Iso);
             }
         };
     }
