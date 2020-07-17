@@ -16,7 +16,7 @@ use kernel::component::Component;
 use kernel::hil;
 use kernel::{create_capability, static_init};
 
-use rubble::link::{DeviceAddress, MIN_PDU_BUF};
+use rubble::link::{DeviceAddress, RadioCmd, MIN_PDU_BUF};
 
 use rubble_nrf5x::radio::{BleRadio, PacketBuffer};
 
@@ -35,6 +35,10 @@ impl hil::rubble::BleRadio for Nrf52BleRadio {
 
     fn get_device_address() -> DeviceAddress {
         rubble_nrf5x::utils::get_device_address()
+    }
+
+    fn radio_accept_cmd(radio: &mut Self::Transmitter, cmd: RadioCmd) {
+        radio.configure_receiver(cmd);
     }
 }
 
@@ -93,7 +97,8 @@ impl Component for RubbleComponent {
             )
         );
         hil::time::Alarm::set_client(ble_radio_virtual_alarm, ble_radio);
-        ble_radio.set_alarm();
+
+        ble_radio.start_advertising();
 
         ble_radio
     }

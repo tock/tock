@@ -1,4 +1,4 @@
-use rubble::link::{DeviceAddress, Transmitter};
+use rubble::link::{DeviceAddress, RadioCmd, Transmitter};
 
 pub trait BleRadio {
     type Transmitter: Transmitter;
@@ -6,6 +6,8 @@ pub trait BleRadio {
     // TODO: is this something most chips will have?
     // TODO: do we need this?
     fn get_device_address() -> DeviceAddress;
+
+    fn radio_accept_cmd(radio: &mut Self::Transmitter, cmd: RadioCmd);
 }
 
 // /// Trait for Link Layer packet transmission.
