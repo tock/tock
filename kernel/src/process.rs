@@ -1614,7 +1614,7 @@ impl<C: 'static + Chip> Process<'_, C> {
                 }
                 if !tbf_header.enabled() {
                     debug!(
-                        "Note flash=[{:#010X}:{:#010X}] process={:?} not enabled",
+                        "Process not enabled flash=[{:#010X}:{:#010X}] process={:?}",
                         app_flash.as_ptr() as usize,
                         app_flash.as_ptr() as usize + app_flash.len(),
                         process_name
