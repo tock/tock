@@ -1,6 +1,6 @@
 //! USB Client driver.
 
-use core::ptr;
+use core::cell::Cell;
 use kernel::common::cells::{OptionalCell, VolatileCell};
 use kernel::common::registers::{
     register_bitfields, register_structs, LocalRegisterCopy, ReadOnly, ReadWrite, WriteOnly,
@@ -229,25 +229,11 @@ pub struct DeviceConfig {
 }
 
 #[derive(Copy, Clone, Debug)]
-pub struct DeviceState {
-    pub endpoint_states: [EndpointState; N_ENDPOINTS],
-}
-
-impl Default for DeviceState {
-    fn default() -> Self {
-        DeviceState {
-            endpoint_states: [EndpointState::Disabled; N_ENDPOINTS],
-        }
-    }
-}
-
-#[derive(Copy, Clone, Debug)]
 pub enum Mode {
     Host,
     Device {
         speed: hil::usb::DeviceSpeed,
         config: DeviceConfig,
-        state: DeviceState,
     },
 }
 
@@ -280,30 +266,43 @@ impl From<BankIndex> for usize {
 }
 
 #[repr(C)]
-pub struct Endpoint {
-    addr: VolatileCell<*mut u8>,
+pub struct Endpoint<'a> {
+    slice_in: OptionalCell<&'a [VolatileCell<u8>]>,
+    slice_out: OptionalCell<&'a [VolatileCell<u8>]>,
+    state: Cell<EndpointState>,
 
     _reserved: u32,
 }
 
-impl Endpoint {
-    pub const fn new() -> Endpoint {
+impl Endpoint<'_> {
+    pub const fn new() -> Self {
         Endpoint {
-            addr: VolatileCell::new(ptr::null_mut()),
+            slice_in: OptionalCell::empty(),
+            slice_out: OptionalCell::empty(),
+            state: Cell::new(EndpointState::Disabled),
             _reserved: 0,
         }
     }
+}
 
-    pub fn set_addr(&self, addr: *mut u8) {
-        self.addr.set(addr);
+#[derive(Copy, Clone)]
+struct Buffer {
+    id: usize,
+    free: bool,
+}
+
+impl Buffer {
+    pub const fn new(id: usize) -> Self {
+        Buffer { id, free: true }
     }
 }
 
 pub struct Usb<'a> {
     registers: StaticRef<UsbRegisters>,
-    descriptors: [Endpoint; N_ENDPOINTS],
+    descriptors: [Endpoint<'a>; N_ENDPOINTS],
     client: OptionalCell<&'a dyn hil::usb::Client<'a>>,
     state: OptionalCell<State>,
+    bufs: Cell<[Buffer; N_BUFFERS]>,
 }
 
 impl<'a> Usb<'a> {
@@ -326,6 +325,40 @@ impl<'a> Usb<'a> {
             ],
             client: OptionalCell::empty(),
             state: OptionalCell::new(State::Reset),
+            bufs: Cell::new([
+                Buffer::new(0),
+                Buffer::new(1),
+                Buffer::new(2),
+                Buffer::new(3),
+                Buffer::new(4),
+                Buffer::new(5),
+                Buffer::new(6),
+                Buffer::new(7),
+                Buffer::new(8),
+                Buffer::new(9),
+                Buffer::new(10),
+                Buffer::new(11),
+                Buffer::new(12),
+                Buffer::new(13),
+                Buffer::new(14),
+                Buffer::new(15),
+                Buffer::new(16),
+                Buffer::new(17),
+                Buffer::new(18),
+                Buffer::new(19),
+                Buffer::new(20),
+                Buffer::new(21),
+                Buffer::new(22),
+                Buffer::new(23),
+                Buffer::new(24),
+                Buffer::new(25),
+                Buffer::new(26),
+                Buffer::new(27),
+                Buffer::new(28),
+                Buffer::new(29),
+                Buffer::new(30),
+                Buffer::new(31),
+            ]),
         }
     }
 
@@ -343,11 +376,9 @@ impl<'a> Usb<'a> {
 
     /// Provide a buffer for transfers in and out of the given endpoint
     /// (The controller need not be enabled before calling this method.)
-    fn _endpoint_bank_set_buffer(&self, endpoint: usize, buf: &[VolatileCell<u8>]) {
-        let e: usize = From::from(endpoint);
-        let p = buf.as_ptr() as *mut u8;
-
-        self.descriptors[e].set_addr(p);
+    fn endpoint_bank_set_buffer(&self, endpoint: usize, buf: &'a [VolatileCell<u8>]) {
+        self.descriptors[endpoint].slice_in.set(buf);
+        self.descriptors[endpoint].slice_out.set(buf);
     }
 
     /// Enable the controller's clocks and interrupt and transition to Idle state
@@ -374,15 +405,15 @@ impl<'a> hil::usb::UsbController<'a> for Usb<'a> {
     }
 
     fn endpoint_set_ctrl_buffer(&self, buf: &'a [VolatileCell<u8>]) {
-        self._endpoint_bank_set_buffer(0, buf);
+        self.endpoint_bank_set_buffer(0, buf);
     }
 
     fn endpoint_set_in_buffer(&self, endpoint: usize, buf: &'a [VolatileCell<u8>]) {
-        self._endpoint_bank_set_buffer(endpoint, buf);
+        self.endpoint_bank_set_buffer(endpoint, buf);
     }
 
     fn endpoint_set_out_buffer(&self, endpoint: usize, buf: &'a [VolatileCell<u8>]) {
-        self._endpoint_bank_set_buffer(endpoint, buf);
+        self.endpoint_bank_set_buffer(endpoint, buf);
     }
 
     fn enable_as_device(&self, speed: hil::usb::DeviceSpeed) {
@@ -390,7 +421,6 @@ impl<'a> hil::usb::UsbController<'a> for Usb<'a> {
             State::Reset => self._enable(Mode::Device {
                 speed: speed,
                 config: DeviceConfig::default(),
-                state: DeviceState::default(),
             }),
             _ => debug!("Already enabled"),
         }
