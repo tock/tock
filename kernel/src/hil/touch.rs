@@ -31,8 +31,13 @@ pub struct TouchEvent {
     /// touch id, value defined by the driver
     pub id: usize,
 
-    /// touch area
-    pub area: Option<usize>,
+    /// Optional scaled value for the size of the touch. A larger value
+    /// corresponds to a "fatter" touch. The size values range from 0
+    /// to 65535.
+    ///
+    /// If a touchscreen does not provide information about the size of the touch,
+    /// this must be set to `None`.
+    pub size: Option<usize>,
 
     /// touch weight
     pub weight: Option<usize>,
