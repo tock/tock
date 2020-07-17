@@ -16,6 +16,9 @@ macro_rules! client_warn {
     };
 }
 
+pub const N_ENDPOINTS: usize = 12;
+pub const N_BUFFERS: usize = 32;
+
 register_structs! {
     pub UsbRegisters {
         (0x000 => intr_state: ReadWrite<u32, INTR::Register>),
@@ -29,11 +32,13 @@ register_structs! {
         (0x020 => rxenable_out: ReadWrite<u32, RXENABLE_OUT::Register>),
         (0x024 => in_sent: ReadWrite<u32, IN_SENT::Register>),
         (0x028 => stall: ReadWrite<u32, STALL::Register>),
-        (0x02c => configin: [ReadWrite<u32, CONFIGIN::Register>; 12]),
+        (0x02c => configin: [ReadWrite<u32, CONFIGIN::Register>; N_ENDPOINTS]),
         (0x05c => iso: ReadWrite<u32, ISO::Register>),
         (0x060 => data_toggle_clear: WriteOnly<u32, DATA_TOGGLE_CLEAR::Register>),
         (0x064 => phy_config: ReadWrite<u32, PHY_CONFIG::Register>),
-        (0x068 => @END),
+        (0x068 => _reserved0),
+        (0x800 => buffer: [ReadWrite<u64, BUFFER::Register>; N_BUFFERS]),
+        (0x900 => @END),
     }
 }
 
@@ -174,11 +179,21 @@ register_bitfields![u32,
         TX_DIFFERENTIAL_MODE OFFSET(1) NUMBITS(1) [],
         EOP_SINGLE_BIT OFFSET(2) NUMBITS(1) [],
         OVERRIDE_PWR_SENSE_EN OFFSET(3) NUMBITS(1) [],
-        OVERRIDE_PWR_SENSE_VAL OFFSET(4) NUMBITS(1) []
+        OVERRIDE_PWR_SENSE_VAL OFFSET(4) NUMBITS(1) [],
+        PINFLIP OFFSET(5) NUMBITS(1) [],
+        USB_REF_DISABLE OFFSET(6) NUMBITS(1) []
     ]
 ];
 
-pub const N_ENDPOINTS: usize = 12;
+register_bitfields![u64,
+    BUFFER [
+        REQUEST_TYPE OFFSET(0) NUMBITS(8) [],
+        REQUEST OFFSET(8) NUMBITS(8) [],
+        VALUE OFFSET(16) NUMBITS(16) [],
+        INDEX OFFSET(32) NUMBITS(16) [],
+        LENGTH OFFSET(48) NUMBITS(16) []
+    ]
+];
 
 #[derive(Copy, Clone, PartialEq, Debug)]
 pub enum CtrlState {
