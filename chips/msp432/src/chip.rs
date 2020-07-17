@@ -5,11 +5,12 @@ use kernel::Chip;
 use crate::gpio;
 use crate::nvic;
 use crate::uart;
+use crate::wdt;
 
 pub struct Msp432 {
     mpu: cortexm4::mpu::MPU,
     userspace_kernel_boundary: cortexm4::syscall::SysCall,
-    systick: cortexm4::systick::SysTick,
+    scheduler_timer: cortexm4::systick::SysTick,
 }
 
 impl Msp432 {
@@ -17,7 +18,7 @@ impl Msp432 {
         Msp432 {
             mpu: cortexm4::mpu::MPU::new(),
             userspace_kernel_boundary: cortexm4::syscall::SysCall::new(),
-            systick: cortexm4::systick::SysTick::new_with_calibration(48_000_000),
+            scheduler_timer: cortexm4::systick::SysTick::new_with_calibration(48_000_000),
         }
     }
 }
@@ -25,7 +26,8 @@ impl Msp432 {
 impl Chip for Msp432 {
     type MPU = cortexm4::mpu::MPU;
     type UserspaceKernelBoundary = cortexm4::syscall::SysCall;
-    type SysTick = cortexm4::systick::SysTick;
+    type SchedulerTimer = cortexm4::systick::SysTick;
+    type WatchDog = wdt::Wdt;
 
     fn service_pending_interrupts(&self) {
         unsafe {
@@ -62,8 +64,12 @@ impl Chip for Msp432 {
         &self.mpu
     }
 
-    fn systick(&self) -> &cortexm4::systick::SysTick {
-        &self.systick
+    fn scheduler_timer(&self) -> &cortexm4::systick::SysTick {
+        &self.scheduler_timer
+    }
+
+    fn watchdog(&self) -> &Self::WatchDog {
+        unsafe { &wdt::WDT }
     }
 
     fn userspace_kernel_boundary(&self) -> &cortexm4::syscall::SysCall {
