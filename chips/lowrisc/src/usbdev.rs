@@ -380,23 +380,6 @@ impl<'a> Usb<'a> {
         self.descriptors[endpoint].slice_in.set(buf);
         self.descriptors[endpoint].slice_out.set(buf);
     }
-
-    /// Enable the controller's clocks and interrupt and transition to Idle state
-    fn _enable(&self, mode: Mode) {
-        let regs = self.registers;
-
-        match self.get_state() {
-            State::Reset => {
-                regs.rxenable_setup.write(RXENABLE_SETUP::SETUP0::SET);
-                regs.rxenable_out.write(RXENABLE_OUT::OUT0::SET);
-
-                regs.usbctrl.write(USBCTRL::ENABLE::SET);
-
-                self.set_state(State::Idle(mode));
-            }
-            _ => panic!("Already enabled"),
-        }
-    }
 }
 
 impl<'a> hil::usb::UsbController<'a> for Usb<'a> {
@@ -418,25 +401,29 @@ impl<'a> hil::usb::UsbController<'a> for Usb<'a> {
 
     fn enable_as_device(&self, speed: hil::usb::DeviceSpeed) {
         match self.get_state() {
-            State::Reset => self._enable(Mode::Device {
-                speed: speed,
-                config: DeviceConfig::default(),
-            }),
+            State::Reset => {
+                self.registers.phy_config.write(
+                    PHY_CONFIG::PINFLIP::CLEAR
+                        + PHY_CONFIG::RX_DIFFERENTIAL_MODE::CLEAR
+                        + PHY_CONFIG::TX_DIFFERENTIAL_MODE::CLEAR
+                        + PHY_CONFIG::EOP_SINGLE_BIT::SET,
+                );
+
+                self.set_state(State::Idle(Mode::Device {
+                    speed: speed,
+                    config: DeviceConfig::default(),
+                }))
+            }
             _ => debug!("Already enabled"),
         }
     }
 
     fn attach(&self) {
-        let regs = self.registers;
-
         match self.get_state() {
             State::Reset => unreachable!("Not enabled"),
             State::Active(_) => unreachable!("Already attached"),
             State::Idle(mode) => {
-                regs.rxenable_setup.write(RXENABLE_SETUP::SETUP10::SET);
-                regs.rxenable_out.write(RXENABLE_OUT::OUT0::SET);
-
-                regs.usbctrl.write(USBCTRL::ENABLE::SET);
+                self.registers.usbctrl.write(USBCTRL::ENABLE::SET);
 
                 self.set_state(State::Active(mode));
             }
