@@ -59,8 +59,6 @@ pub trait MultiTouch<'a> {
     fn disable(&self) -> ReturnCode;
 
     /// Returns the number of maximum concurently supported touches.
-    /// This function must be called in the same interrupt
-    /// as the event, otherwise data might not be available.
     fn get_num_touches(&self) -> usize;
 
     /// Returns the touch event at index or `None`.
