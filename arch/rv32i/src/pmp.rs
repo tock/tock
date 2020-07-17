@@ -3,6 +3,7 @@
 use core::cell::Cell;
 use core::cmp;
 use core::fmt;
+use kernel::common::cells::OptionalCell;
 
 use crate::csr;
 use kernel;
@@ -124,9 +125,8 @@ pub struct PMPConfig {
     /// The application that the MPU was last configured for. Used (along with the `is_dirty` flag)
     /// to determine if MPU can skip writing the configuration to hardware.
     last_configured_for: MapCell<AppId>,
+    app_region: OptionalCell<usize>,
 }
-
-const APP_MEMORY_REGION_NUM: usize = 0;
 
 impl Default for PMPConfig {
     /// number of regions on the arty chip
@@ -136,6 +136,7 @@ impl Default for PMPConfig {
             total_regions: 8,
             is_dirty: Cell::new(true),
             last_configured_for: MapCell::empty(),
+            app_region: OptionalCell::empty(),
         }
     }
 }
@@ -169,12 +170,13 @@ impl PMPConfig {
 
             is_dirty: Cell::new(true),
             last_configured_for: MapCell::empty(),
+            app_region: OptionalCell::empty(),
         }
     }
 
     fn unused_region_number(&self) -> Option<usize> {
         for (number, region) in self.regions.iter().enumerate() {
-            if number == APP_MEMORY_REGION_NUM {
+            if self.app_region.contains(&number) {
                 continue;
             }
             if region.is_none() {
@@ -326,6 +328,12 @@ impl kernel::mpu::MPU for PMPConfig {
             }
         }
 
+        let region_num = if config.app_region.is_some() {
+            config.app_region.unwrap_or(0)
+        } else {
+            config.unused_region_number()?
+        };
+
         // Make sure there is enough memory for app memory and kernel memory.
         let memory_size = cmp::max(
             min_memory_size,
@@ -352,8 +360,10 @@ impl kernel::mpu::MPU for PMPConfig {
 
         let region = PMPRegion::new(region_start as *const u8, region_size, permissions);
 
-        config.regions[APP_MEMORY_REGION_NUM] = Some(region);
+        config.regions[region_num] = Some(region);
         config.is_dirty.set(true);
+
+        config.app_region.set(region_num);
 
         Some((region_start as *const u8, region_size))
     }
@@ -365,7 +375,9 @@ impl kernel::mpu::MPU for PMPConfig {
         permissions: mpu::Permissions,
         config: &mut Self::MpuConfig,
     ) -> Result<(), ()> {
-        let (region_start, region_size) = match config.regions[APP_MEMORY_REGION_NUM] {
+        let region_num = config.app_region.unwrap_or(0);
+
+        let (region_start, region_size) = match config.regions[region_num] {
             Some(region) => region.location(),
             None => {
                 // Error: Process tried to update app memory MPU region before it was created.
@@ -383,7 +395,7 @@ impl kernel::mpu::MPU for PMPConfig {
 
         let region = PMPRegion::new(region_start as *const u8, region_size, permissions);
 
-        config.regions[APP_MEMORY_REGION_NUM] = Some(region);
+        config.regions[region_num] = Some(region);
         config.is_dirty.set(true);
 
         Ok(())
