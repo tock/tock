@@ -7,7 +7,7 @@ use kernel::{AppId, Callback, Driver, Grant, ReturnCode};
 
 /// Syscall driver number.
 use crate::driver;
-pub const DRIVER_NUM: usize = driver::NUM::AlarmDt as usize;
+pub const DRIVER_NUM: usize = driver::NUM::Alarm as usize;
 
 // This should transition to using Ticks
 #[derive(Copy, Clone, Debug)]
@@ -191,8 +191,9 @@ impl<'a, A: Alarm<'a>> Driver for AlarmDriver<'a, A> {
                         }
                     },
                     4 /* Set absolute expiration */ => {
-                        let reference = data;
-                        let dt = data2;
+                        let reference = now.into_u32() as usize;
+                        let future_time = data;
+                        let dt = future_time.wrapping_sub(reference);
                         // if previously unarmed, but now will become armed
                         debug!("Rearming alarm for {} + {}", reference, dt);
                         rearm(reference, dt)
@@ -203,6 +204,17 @@ impl<'a, A: Alarm<'a>> Driver for AlarmDriver<'a, A> {
                         // if previously unarmed, but now will become armed
                         rearm(reference, dt)
                     },
+                    6 /* Set absolute expiration with reference point */ => {
+                        // Taking a reference timestamp from userspace
+                        // prevents wraparound bugs; future versions of
+                        // libtock will use only this call and deprecate
+                        // command #4; for now it is added as an additional
+                        // comamnd for backwards compatibility. -pal
+                        let reference = data;
+                        let dt = data2;
+                        debug!("Rearming alarm for {} + {} = {}", reference, dt, reference.wrapping_add(dt));
+                        rearm(reference, dt)
+                    }
                     _ => (ReturnCode::ENOSUPPORT, false)
                 };
                 if reset {
