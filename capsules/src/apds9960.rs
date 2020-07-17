@@ -1,4 +1,4 @@
-// Driver for APDS9960 Gesture, Light, and Proximity Sensor for Arduino Nano33 BLE SENSE Board
+/* // Driver for APDS9960 Gesture, Light, and Proximity Sensor for Arduino Nano33 BLE SENSE Board
 // Note: Only Proximity Reads are enabled as per this implementation
 
 use core::cell::Cell;
@@ -238,4 +238,218 @@ impl gpio::Client for APDS9960<'_> {
             self.state.set(State::ReadData);
         });
     }
+} */
+
+ // Driver for APDS9960 Gesture, Light, and Proximity Sensor for Arduino Nano33 BLE SENSE Board
+// Note: Only Proximity Reads are enabled as per this implementation
+
+use core::cell::Cell;
+use kernel::common::cells::{OptionalCell, TakeCell};
+use kernel::debug;
+use kernel::hil::gpio;
+use kernel::hil::i2c;
+use kernel::ReturnCode;
+
+// I2C Buffer of 16 bytes
+pub static mut BUFFER: [u8; 16] = [0; 16];
+
+#[allow(dead_code)]
+
+// Bits to set in registers
+
+const PON: u8 = 0b00000001; // Power-On
+const SAI: u8 = 0b00010000; // Sleep after Interrupt
+const PEN: u8 = 0b00000100; // Proximity Sensor Enable
+const PIEN: u8 = 0b00100000; // Proximity Sensor Enable
+
+
+#[repr(u8)]
+enum Registers {
+
+    ENABLE = 0x80,
+    ID = 0x92,
+    PILT = 0x89,
+    PIHT = 0x8B,
+    CONFIG3 = 0x9f,
+    PICCLR = 0xe5,
+    PERS = 0x8c,
+    PDATA = 0x9c,
+
 }
+
+
+#[derive(Clone, Copy, PartialEq)]
+enum State {
+    ReadId,
+    StartingProximity,
+    ConfiguringProximity1,
+    ConfiguringProximity2,
+    ConfiguringProximity3,
+    SendSAI,     // Send sleep-after-interrupt bit to Config3 reg
+    PowerOn,     // Send sensor activation and power on info to device
+    Idle,        // Waiting for Data (interrupt)
+    PowerOff,    // Sending power off command to device (to latch values in device data registers)
+    ReadData,    // Read data from reg
+}
+
+pub struct APDS9960<'a> {
+    i2c: &'a dyn i2c::I2CDevice,
+    interrupt_pin: &'a dyn gpio::InterruptPin,
+    prox_callback: OptionalCell<&'a dyn kernel::hil::sensors::ProximityClient>,
+    state: Cell<State>,
+    buffer: TakeCell<'static, [u8]>,
+}
+
+impl<'a> APDS9960<'a> {
+    pub fn new(
+        i2c: &'a dyn i2c::I2CDevice,
+        interrupt_pin: &'a dyn gpio::InterruptPin,
+        buffer: &'static mut [u8],
+    ) -> APDS9960<'a> {
+        // setup and return struct
+        APDS9960 {
+            i2c: i2c,
+            interrupt_pin: interrupt_pin,
+            prox_callback: OptionalCell::empty(),
+            state: Cell::new(State::Idle),
+            buffer: TakeCell::new(buffer),
+        }
+    }
+
+    pub fn read_id(&self) {
+        self.buffer.take().map(|buffer| {
+            
+            self.i2c.enable();
+
+            buffer[0] = Registers::ID as u8;
+            self.i2c.write_read(buffer, 1, 1);
+
+            self.state.set(State::ReadId); // Reading ID
+        });
+    }
+
+    pub fn take_measurement(&self) {
+        
+        // Enable interrupts and set GPIO pin as pull-up <-- interrupt is active low
+        self.interrupt_pin.make_input();
+        self.interrupt_pin
+            .set_floating_state(gpio::FloatingState::PullUp);
+        self.interrupt_pin
+            .enable_interrupts(gpio::InterruptEdge::FallingEdge);
+
+        self.buffer.take().map(|buffer| {
+            // Set the device to Sleep-After-Interrupt Mode
+            self.i2c.enable();
+
+            buffer[0] = Registers::CONFIG3 as u8;
+            buffer[1] = SAI;
+            self.i2c.write(buffer, 2);
+
+            self.state.set(State::SendSAI);
+        });
+    }
+}
+
+impl i2c::I2CClient for APDS9960<'_> {
+    fn command_complete(&self, buffer: &'static mut [u8], _error: i2c::Error) {
+        debug!("i2c command complete! {:#x} {:#x}", buffer[0], buffer[1]);
+        match self.state.get() {
+            State::ReadId => {
+                // The ID is in `buffer[0]`, and should be 0xAB.
+                self.buffer.replace(buffer);
+                self.i2c.disable();
+                self.state.set(State::Idle);
+            }
+            State::SendSAI => {
+                // Set persistence to 4
+                buffer[0] = Registers::PERS as u8;
+                buffer[1] = (0x4)<<4;
+                self.i2c.write(buffer,2);
+                self.state.set(State::StartingProximity);
+            }
+            State::StartingProximity => {
+                // Set the proximity threshold to 175.
+                // PILT = 0 (default)
+                // PIHT = 175
+                buffer[0] = Registers::PILT as u8;
+                buffer[1] = 0;
+                self.i2c.write(buffer, 2);
+                self.state.set(State::ConfiguringProximity1);
+            }
+            State::ConfiguringProximity1 => {
+                // Set the proximity threshold to 175.
+                // PILT = 0 (default)
+                // PIHT = 175
+                buffer[0] = Registers::PIHT as u8;
+                buffer[1] = 175;
+                self.i2c.write(buffer, 2);
+                self.state.set(State::ConfiguringProximity2);
+            }
+            State::ConfiguringProximity2 => {
+                // Clear proximity interrupt.
+                buffer[0] = Registers::PICCLR as u8;
+                self.i2c.write(buffer, 1);
+                self.state.set(State::ConfiguringProximity3);
+            }
+            State::ConfiguringProximity3 => {
+                // Enable Device
+                buffer[0] = Registers::ENABLE as u8;
+                buffer[1] = PON | PEN | PIEN;
+                self.i2c.write(buffer, 2);
+                self.state.set(State::PowerOn);
+            }
+            State::PowerOn => {
+                // Go into idle state and wait for interrupt for data
+                self.buffer.replace(buffer);
+                self.i2c.disable();
+                self.state.set(State::Idle);
+            }
+            State::ReadData => {
+                // read prox_data from buffer and then disable everything
+                let prox_data: u8 = buffer[0];
+                self.prox_callback.map(|cb| cb.callback(prox_data as usize));
+                // self.buffer.replace(buffer);
+                // self.i2c.disable();
+                // self.interrupt_pin.disable_interrupts();
+                // self.state.set(State::Idle);
+
+                // Clear proximity interrupt.
+                buffer[0] = Registers::PICCLR as u8;
+                self.i2c.write(buffer, 1);
+                self.state.set(State::PowerOn);
+            }
+
+            _ => {}
+        }
+    }
+}
+
+impl<'a> kernel::hil::sensors::ProximityDriver<'a> for APDS9960<'a> {
+    fn read_proximity(&self) -> kernel::ReturnCode {
+        self.take_measurement();
+        ReturnCode::SUCCESS
+    }
+
+    fn set_client(&self, client: &'a dyn kernel::hil::sensors::ProximityClient) {
+        self.prox_callback.set(client);
+    }
+}
+
+/// Interrupt Service Routine
+impl gpio::Client for APDS9960<'_> {
+    fn fired(&self) {
+        debug!("int fired");
+        self.buffer.take().map(|buffer| {
+            // Send power off command to device to latch data values
+            self.i2c.enable();
+            // buffer[0] = Registers::Enable as u8;
+            // buffer[1] = PEN & !PON; // PON --> 1 to 0
+            // self.i2c.write(buffer, 2);
+            // self.state.set(State::PowerOff);
+
+            buffer[0] = Registers::PDATA as u8;
+            self.i2c.write_read(buffer, 1, 1);
+            self.state.set(State::ReadData);
+        });
+    }
+} 
