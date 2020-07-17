@@ -2,12 +2,11 @@
 
 use kernel::common::registers::{register_bitfields, register_structs, ReadWrite};
 use kernel::common::StaticRef;
-use kernel::hil::watchdog;
 
-pub static mut WATCHDOG: Watchdog = Watchdog::new();
+pub static mut WDT: Wdt = Wdt::new();
 
-const WATCHDOG_BASE: StaticRef<WatchdogRegisters> =
-    unsafe { StaticRef::new(0x4000_4800u32 as *const WatchdogRegisters) };
+const WATCHDOG_BASE: StaticRef<WdtRegisters> =
+    unsafe { StaticRef::new(0x4000_4800u32 as *const WdtRegisters) };
 
 // Every write access has to set this 'password' in the upper 8 bit of the
 // register, otherwise the watchdog resets the whole system
@@ -15,7 +14,7 @@ const PASSWORD: u16 = 0x5A;
 
 register_structs! {
     /// WDT_A
-    WatchdogRegisters {
+    WdtRegisters {
         (0x000 => _reserved0),
         /// Watchdog Timer Control Register
         (0x00C => ctl: ReadWrite<u16, WDTCTL::Register>),
@@ -81,33 +80,64 @@ register_bitfields![u16,
     ]
 ];
 
-pub struct Watchdog {
-    registers: StaticRef<WatchdogRegisters>,
+pub struct Wdt {
+    registers: StaticRef<WdtRegisters>,
 }
 
-impl Watchdog {
-    pub const fn new() -> Watchdog {
-        Watchdog {
+impl Wdt {
+    const fn new() -> Wdt {
+        Wdt {
             registers: WATCHDOG_BASE,
         }
     }
-}
 
-impl watchdog::Watchdog for Watchdog {
-    fn start(&self, _period: usize) {
-        // TODO: implement the period for the watchdog
-        unimplemented!("Watchdog functionality currently not supported");
+    fn enable(&self) {
+        self.registers
+            .ctl
+            .modify(WDTCTL::WDTPW.val(PASSWORD) + WDTCTL::WDTHOLD::CLEAR + WDTCTL::WDTCNTCL::SET);
     }
 
-    fn stop(&self) {
+    pub fn disable(&self) {
         self.registers
             .ctl
             .modify(WDTCTL::WDTPW.val(PASSWORD) + WDTCTL::WDTHOLD::SET);
     }
+}
+
+impl kernel::watchdog::WatchDog for Wdt {
+    fn setup(&self) {
+        // The clock-source of the watchdog is the SMCLK which runs at 12MHz. We configure a
+        // prescaler of 2^19 which results in a watchdog interval of approximately 44ms ->
+        // 2^19 / 12.000.000Hz = 524288 / 12.000.000 = 0.04369s
+
+        // According to the datasheet p. 759 section 17.2.3 it's necessary to disable the watchdog
+        // before setting it up and it's also necessary to set the WDTCNTCL bit within the same
+        // write cycle where the config is applied in order to avoid unexpected interrupts and
+        // resets.
+        self.disable();
+        self.registers.ctl.modify(
+            WDTCTL::WDTPW.val(PASSWORD)
+                + WDTCTL::WDTSSEL::SMCLK // Set SMCLK as source -> 12MHz
+                + WDTCTL::WDTTMSEL::WatchdogMode // Enable Watchdog mode
+                + WDTCTL::WDTCNTCL::SET // according to datasheet necessary
+                + WDTCTL::WDTIS::WatchdogClockSource219000016At32768KHz, // Prescaler of 2^19
+        );
+
+        self.enable();
+    }
+
+    fn suspend(&self) {
+        self.disable();
+    }
 
     fn tickle(&self) {
-        self.registers
-            .ctl
-            .modify(WDTCTL::WDTPW.val(PASSWORD) + WDTCTL::WDTCNTCL::SET);
+        // If the watchdog was disabled (suspend()) enable it again.
+        if self.registers.ctl.is_set(WDTCTL::WDTHOLD) {
+            self.enable();
+        } else {
+            self.registers
+                .ctl
+                .modify(WDTCTL::WDTPW.val(PASSWORD) + WDTCTL::WDTCNTCL::SET);
+        }
     }
 }

@@ -12,7 +12,6 @@ use kernel::capabilities;
 use kernel::common::dynamic_deferred_call::DynamicDeferredCall;
 use kernel::common::dynamic_deferred_call::DynamicDeferredCallClientState;
 use kernel::component::Component;
-use kernel::hil::watchdog::Watchdog;
 use kernel::Platform;
 use kernel::{create_capability, debug, static_init};
 
@@ -69,7 +68,7 @@ impl Platform for MspExp432P401R {
 #[no_mangle]
 pub unsafe fn reset_handler() {
     msp432::init();
-    msp432::wdt::WATCHDOG.stop();
+    msp432::wdt::WDT.disable();
     msp432::sysctl::SYSCTL.enable_all_sram_banks();
     msp432::pcm::PCM.set_high_power();
     msp432::flctl::FLCTL.set_waitstates(msp432::flctl::WaitStates::_1);
