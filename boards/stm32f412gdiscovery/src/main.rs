@@ -588,9 +588,9 @@ pub unsafe fn reset_handler() {
     });
 
     board_kernel.kernel_loop(
-        &nucleo_f412g,
+        &stm32f412g,
         chip,
-        Some(&nucleo_f412g.ipc),
+        Some(&stm32f412g.ipc),
         &main_loop_capability,
     );
 }
