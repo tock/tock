@@ -413,6 +413,17 @@ impl<'a> Usb<'a> {
         );
     }
 
+    fn free_buffer(&self, buf_id: usize) {
+        let mut bufs = self.bufs.get();
+
+        for buf in bufs.iter_mut() {
+            if buf.id == buf_id {
+                buf.free = true;
+                break;
+            }
+        }
+    }
+
     pub fn handle_interrupt(&self) {
         // Disable interrupts
         self.disable_interrupts();
