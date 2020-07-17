@@ -425,8 +425,45 @@ impl<'a> Usb<'a> {
     }
 
     pub fn handle_interrupt(&self) {
+        let irqs = self.registers.intr_state.extract();
+
         // Disable interrupts
         self.disable_interrupts();
+
+        if !self.registers.usbstat.is_set(USBSTAT::AV_FULL) {
+            let mut bufs = self.bufs.get();
+
+            for buf in bufs.iter_mut() {
+                if !buf.free {
+                    continue;
+                }
+
+                if self.registers.usbstat.is_set(USBSTAT::AV_FULL) {
+                    break;
+                }
+
+                self.registers.avbuffer.set(buf.id as u32);
+                buf.free = false;
+            }
+
+            self.bufs.set(bufs);
+        }
+
+        if irqs.is_set(INTR::PKT_SENT) {
+            let mut in_sent = self.registers.in_sent.get();
+
+            while in_sent != 0 {
+                let endpoint = in_sent.trailing_zeros();
+
+                // We are handling this case, clear it
+                self.registers.in_sent.set(1 << endpoint);
+                in_sent = in_sent & !(1 << endpoint);
+
+                let buf = self.registers.configin[endpoint as usize].read(CONFIGIN::BUFFER);
+
+                self.free_buffer(buf as usize);
+            }
+        }
 
         self.enable_interrupts();
     }
