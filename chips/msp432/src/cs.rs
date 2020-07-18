@@ -10,7 +10,9 @@ use kernel::NoClockControl;
 pub static mut CS: ClockSystem = ClockSystem::new();
 
 pub const MCLK_HZ: u32 = 48_000_000;
-pub const SMCLK_HZ: u32 = 12_000_000;
+pub const HSMCLK_HZ: u32 = 12_000_000;
+pub const SMCLK_HZ: u32 = 750_000;
+pub const ACLK_HZ: u32 = 32_768;
 
 const CS_BASE: StaticRef<CsRegisters> =
     unsafe { StaticRef::new(0x4001_0400u32 as *const CsRegisters) };
@@ -255,15 +257,13 @@ impl ClockSystem {
         ClockSystem {}
     }
 
-    // Not sure about the interface, so for testing provide a function to set
-    // the master-clock to 48Mhz
-    pub fn set_mclk_48mhz(&self) {
+    fn set_mclk_48mhz(&self) {
         let cs = CsRegisterManager::new(self);
 
         // Set HFXT to 40-48MHz range
         cs.registers.ctl2.modify(CSCTL2::HFXTFREQ.val(6));
 
-        // Set HFXT as MCLK source
+        // Set HFXT (48MHz) as MCLK source
         cs.registers
             .ctl1
             .modify(CSCTL1::SELM.val(5) + CSCTL1::DIVM.val(0));
@@ -275,15 +275,44 @@ impl ClockSystem {
         }
     }
 
-    // Setup the low-speed subsystem master clock (SMCLK) to 1/4 of the master-clock -> 12MHz
-    pub fn set_smclk_12mhz(&self) {
+    // Setup the subsystem master clock (HSMCLK) to 1/4 of the master-clock -> 12MHz
+    fn set_hsmclk_12mhz(&self) {
         let cs = CsRegisterManager::new(self);
 
-        // Set HFXT as clock-source for SMCLK
+        // Set HFXT (48MHz) as clock-source for HSMCLK
         cs.registers.ctl1.modify(CSCTL1::SELS.val(5));
 
-        // Set SMCLK divider to 4 -> 48MHz / 4 = 12MHz
-        cs.registers.ctl1.modify(CSCTL1::DIVS.val(2));
+        // Set HSMCLK divider to 4 -> 48MHz / 4 = 12MHz
+        cs.registers.ctl1.modify(CSCTL1::DIVHS.val(2));
+    }
+
+    // Setup the low-speed subsystem master clock (SMCLK) to 1/64 of the master-clock -> 750kHz
+    fn set_smclk_750khz(&self) {
+        let cs = CsRegisterManager::new(self);
+
+        // Set HFXT (48MHz) as clock-source for SMCLK
+        cs.registers.ctl1.modify(CSCTL1::SELS.val(5));
+
+        // Set SMCLK divider to 128 -> 48MHz / 64 = 750kHz
+        cs.registers.ctl1.modify(CSCTL1::DIVS.val(6));
+    }
+
+    // Setup the auxiliary clock (ACLK) to 32.768kHz
+    fn set_aclk_32khz(&self) {
+        let cs = CsRegisterManager::new(self);
+
+        // Set LFXT (32.768kHz) as clock-source for ACLK
+        cs.registers.ctl1.modify(CSCTL1::SELA.val(0));
+
+        // SET ACLK divider to 1 -> 32.768kHz
+        cs.registers.ctl1.modify(CSCTL1::DIVA.val(0));
+    }
+
+    pub fn setup_clocks(&self) {
+        self.set_mclk_48mhz();
+        self.set_hsmclk_12mhz();
+        self.set_smclk_750khz();
+        self.set_aclk_32khz();
     }
 }
 
