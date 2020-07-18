@@ -14,11 +14,11 @@ nrf52840-hal = { version = "0.10", features = ["rt"] }
 
 [dependencies.rubble]
 version = "0.0.3"
-# TODO: use github or crates.io dependency
-path = "../../../../rubble/rubble"
+git = "https://github.com/daboross/rubble.git"
+rev = "7677f92f0fc1a9d0f17977ada6eabd545086d26d"
 
 [dependencies.rubble-nrf5x]
 version = "0.0.3"
-# TODO: use github or crates.io dependency
-path = "../../../../rubble/rubble-nrf5x"
+git = "https://github.com/daboross/rubble.git"
+rev = "7677f92f0fc1a9d0f17977ada6eabd545086d26d"
 features = ["52840"]
