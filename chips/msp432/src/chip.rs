@@ -4,6 +4,7 @@ use kernel::Chip;
 
 use crate::gpio;
 use crate::nvic;
+use crate::timer;
 use crate::uart;
 use crate::wdt;
 
@@ -41,6 +42,10 @@ impl Chip for Msp432 {
                         nvic::IO_PORT4 => gpio::handle_interrupt(3),
                         nvic::IO_PORT5 => gpio::handle_interrupt(4),
                         nvic::IO_PORT6 => gpio::handle_interrupt(5),
+                        nvic::TIMER_A0_0 | nvic::TIMER_A0_1 => timer::TIMER_A0.handle_interrupt(),
+                        nvic::TIMER_A1_0 | nvic::TIMER_A1_1 => timer::TIMER_A1.handle_interrupt(),
+                        nvic::TIMER_A2_0 | nvic::TIMER_A2_1 => timer::TIMER_A2.handle_interrupt(),
+                        nvic::TIMER_A3_0 | nvic::TIMER_A3_1 => timer::TIMER_A3.handle_interrupt(),
                         _ => {
                             panic!("unhandled interrupt {}", interrupt);
                         }

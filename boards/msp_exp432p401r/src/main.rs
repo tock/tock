@@ -42,6 +42,10 @@ struct MspExp432P401R {
     led: &'static capsules::led::LED<'static, msp432::gpio::Pin>,
     console: &'static capsules::console::Console<'static>,
     button: &'static capsules::button::Button<'static, msp432::gpio::Pin>,
+    alarm: &'static capsules::alarm::AlarmDriver<
+        'static,
+        capsules::virtual_alarm::VirtualMuxAlarm<'static, msp432::timer::TimerA<'static>>,
+    >,
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
@@ -54,6 +58,7 @@ impl Platform for MspExp432P401R {
             capsules::led::DRIVER_NUM => f(Some(self.led)),
             capsules::console::DRIVER_NUM => f(Some(self.console)),
             capsules::button::DRIVER_NUM => f(Some(self.button)),
+            capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
             _ => f(None),
         }
     }
@@ -74,12 +79,16 @@ pub unsafe fn reset_handler() {
     msp432::flctl::FLCTL.set_waitstates(msp432::flctl::WaitStates::_1);
     msp432::flctl::FLCTL.set_buffering(true);
 
-    // Setup the master-clock (MCLK) to 48MHz from external oscillator
+    // Setup the GPIO pins to use the HFXT (high frequency external) oscillator (48MHz)
     msp432::gpio::PINS_J[msp432::gpio::PinJNr::PJ_2 as usize].enable_primary_function();
     msp432::gpio::PINS_J[msp432::gpio::PinJNr::PJ_3 as usize].enable_primary_function();
-    msp432::cs::CS.set_mclk_48mhz();
-    // Setup the Low-speed subsystem master clock (SMCLK) to 12MHz
-    msp432::cs::CS.set_smclk_12mhz();
+
+    // Setup the GPIO pins to use the LFXT (low frequency external) oscillator (32.768kHz)
+    msp432::gpio::PINS_J[msp432::gpio::PinJNr::PJ_0 as usize].enable_primary_function();
+    msp432::gpio::PINS_J[msp432::gpio::PinJNr::PJ_1 as usize].enable_primary_function();
+
+    // Setup the clocks: MCLK: 48MHz, HSMCLK: 12MHz, SMCLK: 750kHz, ACLK: 32.768kHz
+    msp432::cs::CS.setup_clocks();
 
     debug::assign_gpios(
         Some(&msp432::gpio::PINS[msp432::gpio::PinNr::P01_0 as usize]), // Red LED
@@ -156,10 +165,18 @@ pub unsafe fn reset_handler() {
     // Create the debugger object that handles calls to `debug!()`.
     components::debug_writer::DebugWriterComponent::new(uart_mux).finalize(());
 
+    let timer0 = &msp432::timer::TIMER_A0;
+    let mux_alarm = components::alarm::AlarmMuxComponent::new(timer0).finalize(
+        components::alarm_mux_component_helper!(msp432::timer::TimerA),
+    );
+    let alarm = components::alarm::AlarmDriverComponent::new(board_kernel, mux_alarm)
+        .finalize(components::alarm_component_helper!(msp432::timer::TimerA));
+
     let msp_exp432p4014 = MspExp432P401R {
         led: leds,
         console: console,
         button: button,
+        alarm: alarm,
     };
 
     debug!("Initialization complete. Entering main loop");

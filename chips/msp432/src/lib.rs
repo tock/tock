@@ -14,6 +14,7 @@ pub mod gpio;
 pub mod nvic;
 pub mod pcm;
 pub mod sysctl;
+pub mod timer;
 pub mod uart;
 pub(crate) mod usci;
 pub mod wdt;
