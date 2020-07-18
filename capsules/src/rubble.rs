@@ -62,7 +62,7 @@ use rubble::{
     link::{
         ad_structure::AdStructure,
         queue::{PacketQueue, SimpleQueue},
-        LinkLayer, NextUpdate, Responder,
+        Cmd, LinkLayer, NextUpdate, Responder,
     },
     time::Duration,
 };
@@ -138,6 +138,29 @@ where
     radio: R::Transmitter,
     ll: LinkLayer<RubbleConfig<'a, R, A>>,
     responder: Responder<RubbleConfig<'a, R, A>>,
+}
+
+impl<'a, R, A> MutableBleData<'a, R, A>
+where
+    R: BleRadio,
+    A: kernel::hil::time::Alarm<'a>,
+{
+    pub fn handle_cmd(&mut self, cmd: Cmd) -> NextUpdate {
+        debug!("Got cmd: {:?}", cmd);
+        R::radio_accept_cmd(&mut self.radio, cmd.radio);
+        debug!("Radio accepted cmd");
+        if cmd.queued_work {
+            // TODO: do this some time more appropriate? It should be in an
+            // idle loop, when other things don't need to be done.
+            while self.responder.has_work() {
+                debug!("Working on queued work");
+                // unwrap: we've just checked we have work, so we can't reach Eof.
+                self.responder.process_one().unwrap();
+                debug!("Did one queued work");
+            }
+        }
+        cmd.next_update
+    }
 }
 
 pub struct BLE<'a, R, A>
@@ -221,7 +244,9 @@ where
     pub fn stop_advertising(&self) -> Result<(), ReturnCode> {
         let data = &mut *self.mutable_data.borrow_mut();
         if data.ll.is_advertising() {
-            data.ll.enter_standby();
+            let cmd = data.ll.enter_standby();
+            let next_update = data.handle_cmd(cmd);
+            self.set_alarm_for(next_update);
             Ok(())
         } else {
             Err(ReturnCode::EALREADY)
@@ -259,20 +284,8 @@ where
         let data = &mut *self.mutable_data.borrow_mut();
 
         let cmd = data.ll.update_timer(&mut data.radio);
-        debug!("Got cmd: {:?}", cmd);
-        R::radio_accept_cmd(&mut data.radio, cmd.radio);
-        debug!("Radio accepted cmd");
-        if cmd.queued_work {
-            // TODO: do this some time more appropriate? It should be in an
-            // idle loop, when other things don't need to be done.
-            while data.responder.has_work() {
-                debug!("Working on queued work");
-                // unwrap: we've just checked we have work, so we can't reach Eof.
-                data.responder.process_one().unwrap();
-                debug!("Did one queued work");
-            }
-        }
-        self.set_alarm_for(cmd.next_update);
+        let next_update = data.handle_cmd(cmd);
+        self.set_alarm_for(next_update);
     }
 }
 
