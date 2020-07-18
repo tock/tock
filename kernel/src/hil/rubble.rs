@@ -10,6 +10,8 @@ pub trait BleRadio {
     fn radio_accept_cmd(radio: &mut Self::Transmitter, cmd: RadioCmd);
 }
 
+// TODO: integrate or removed the commented code below:
+
 // /// Trait for Link Layer packet transmission.
 // ///
 // /// The specifics of sending a Link-Layer packet depend on the underlying hardware. The `link`

@@ -3,7 +3,7 @@
 //! Usage
 //! -----
 //! ```rust
-//! let ble_radio = RubbleComponent::new(board_kernel, &nrf52::ble_radio::RADIO, mux_alarm).finalize();
+//! let ble_radio = RubbleComponent::new(board_kernel, mux_alarm).finalize();
 //! ```
 
 use capsules;
