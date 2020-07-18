@@ -15,10 +15,10 @@ const PASSWORD: u16 = 0x5A;
 register_structs! {
     /// WDT_A
     WdtRegisters {
-        (0x000 => _reserved0),
+        (0x00 => _reserved0),
         /// Watchdog Timer Control Register
-        (0x00C => ctl: ReadWrite<u16, WDTCTL::Register>),
-        (0x00E => @END),
+        (0x0C => ctl: ReadWrite<u16, WDTCTL::Register>),
+        (0x0E => @END),
     }
 }
 
@@ -91,7 +91,8 @@ impl Wdt {
         }
     }
 
-    fn enable(&self) {
+    fn start(&self) {
+        // Enable the watchdog and clear the counter
         self.registers
             .ctl
             .modify(WDTCTL::WDTPW.val(PASSWORD) + WDTCTL::WDTHOLD::CLEAR + WDTCTL::WDTCNTCL::SET);
@@ -123,7 +124,7 @@ impl kernel::watchdog::WatchDog for Wdt {
                 + WDTCTL::WDTIS::WatchdogClockSource219000016At32768KHz, // Prescaler of 2^19
         );
 
-        self.enable();
+        self.start();
     }
 
     fn suspend(&self) {
@@ -131,9 +132,9 @@ impl kernel::watchdog::WatchDog for Wdt {
     }
 
     fn tickle(&self) {
-        // If the watchdog was disabled (suspend()) enable it again.
+        // If the watchdog was disabled (suspend()) start it again.
         if self.registers.ctl.is_set(WDTCTL::WDTHOLD) {
-            self.enable();
+            self.start();
         } else {
             self.registers
                 .ctl
