@@ -107,9 +107,9 @@ impl Wdt {
 
 impl kernel::watchdog::WatchDog for Wdt {
     fn setup(&self) {
-        // The clock-source of the watchdog is the SMCLK which runs at 12MHz. We configure a
-        // prescaler of 2^19 which results in a watchdog interval of approximately 44ms ->
-        // 2^19 / 12.000.000Hz = 524288 / 12.000.000 = 0.04369s
+        // The clock-source of the watchdog is the SMCLK which runs at 750kHz. We configure a
+        // prescaler of 2^15 which results in a watchdog interval of approximately 44ms ->
+        // 2^15 / 750_000Hz = 32768 / 750_000 = 0.04369s
 
         // According to the datasheet p. 759 section 17.2.3 it's necessary to disable the watchdog
         // before setting it up and it's also necessary to set the WDTCNTCL bit within the same
@@ -118,10 +118,10 @@ impl kernel::watchdog::WatchDog for Wdt {
         self.disable();
         self.registers.ctl.modify(
             WDTCTL::WDTPW.val(PASSWORD)
-                + WDTCTL::WDTSSEL::SMCLK // Set SMCLK as source -> 12MHz
+                + WDTCTL::WDTSSEL::SMCLK // Set SMCLK as source -> 750kHz
                 + WDTCTL::WDTTMSEL::WatchdogMode // Enable Watchdog mode
-                + WDTCTL::WDTCNTCL::SET // according to datasheet necessary
-                + WDTCTL::WDTIS::WatchdogClockSource219000016At32768KHz, // Prescaler of 2^19
+                + WDTCTL::WDTCNTCL::SET // According to datasheet necessary
+                + WDTCTL::WDTIS::WatchdogClockSource2151SAt32768KHz, // Prescaler of 2^15
         );
 
         self.start();
@@ -132,7 +132,7 @@ impl kernel::watchdog::WatchDog for Wdt {
     }
 
     fn tickle(&self) {
-        // If the watchdog was disabled (suspend()) start it again.
+        // If the watchdog was disabled (self.suspend()), start it again.
         if self.registers.ctl.is_set(WDTCTL::WDTHOLD) {
             self.start();
         } else {
