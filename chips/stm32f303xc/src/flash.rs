@@ -257,7 +257,7 @@ impl Flash {
         }
     }
 
-    pub fn is_locked(&self) {
+    pub fn is_locked(&self) -> bool {
         self.registers.cr.is_set(Control::LOCK)
     }
 
