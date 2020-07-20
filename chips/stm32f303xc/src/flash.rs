@@ -368,7 +368,7 @@ impl Flash {
         unsafe {
             for i in 0..buffer.len() {
                 buffer[i] = *byte;
-                byte.offset(1);
+                byte = byte.offset(1);
             }
         }
 
