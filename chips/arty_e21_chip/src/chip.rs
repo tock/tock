@@ -2,6 +2,7 @@ use core::fmt::Write;
 use kernel;
 use kernel::debug;
 use rv32i;
+use rv32i::pmp::PMPRegion;
 
 use crate::gpio;
 use crate::interrupts;
@@ -13,7 +14,7 @@ extern "C" {
 }
 
 pub struct ArtyExx {
-    pmp: rv32i::pmp::PMPConfig,
+    pmp: rv32i::pmp::PMPConfig<[Option<PMPRegion>; 4]>,
     userspace_kernel_boundary: rv32i::syscall::SysCall,
     clic: rv32i::clic::Clic,
 }
@@ -26,7 +27,7 @@ impl ArtyExx {
         let in_use_interrupts: u64 = 0x1FFFF0080;
 
         ArtyExx {
-            pmp: rv32i::pmp::PMPConfig::new(4),
+            pmp: rv32i::pmp::PMPConfig::default(),
             userspace_kernel_boundary: rv32i::syscall::SysCall::new(),
             clic: rv32i::clic::Clic::new(in_use_interrupts),
         }
@@ -105,7 +106,7 @@ impl ArtyExx {
 }
 
 impl kernel::Chip for ArtyExx {
-    type MPU = rv32i::pmp::PMPConfig;
+    type MPU = rv32i::pmp::PMPConfig<[Option<PMPRegion>; 4]>;
     type UserspaceKernelBoundary = rv32i::syscall::SysCall;
     type SchedulerTimer = ();
     type WatchDog = ();

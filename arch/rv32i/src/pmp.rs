@@ -116,9 +116,11 @@ impl PMPRegion {
     }
 }
 
+pub trait PMPConfigType: Default + Copy + Clone + Sized {}
+
 /// Struct storing region configuration for RISCV PMP.
-pub struct PMPConfig {
-    regions: [Option<PMPRegion>; 32],
+pub struct PMPConfig<N: PMPConfigType> {
+    regions: N,
     total_regions: usize,
     /// Indicates if the configuration has changed since the last time it was written to hardware.
     is_dirty: Cell<bool>,
@@ -128,12 +130,18 @@ pub struct PMPConfig {
     app_region: OptionalCell<usize>,
 }
 
-impl Default for PMPConfig {
+macro_rules! PMPConfigMacro {
+    ( $x:expr ) => {
+impl PMPConfigType for [Option<PMPRegion>; $x] {}
+
+impl Default for PMPConfig<[Option<PMPRegion>; $x]> {
     /// number of regions on the arty chip
-    fn default() -> PMPConfig {
+    fn default() -> Self {
         PMPConfig {
-            regions: [None; 32],
-            total_regions: 8,
+            regions: [None; $x],
+            // As we use the PMP TOR setup we only support half the number
+            // of regions as hardware supports
+            total_regions: $x / 2,
             is_dirty: Cell::new(true),
             last_configured_for: MapCell::empty(),
             app_region: OptionalCell::empty(),
@@ -141,7 +149,7 @@ impl Default for PMPConfig {
     }
 }
 
-impl fmt::Display for PMPConfig {
+impl fmt::Display for PMPConfig<[Option<PMPRegion>; $x]> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "PMP regions:")?;
         for n in 0..self.total_regions {
@@ -154,26 +162,7 @@ impl fmt::Display for PMPConfig {
     }
 }
 
-impl PMPConfig {
-    pub fn new(pmp_regions: usize) -> PMPConfig {
-        if pmp_regions > 64 {
-            panic!("There is an ISA maximum of 64 PMP regions");
-        }
-        if pmp_regions < 4 {
-            panic!("Tock requires at least 4 PMP regions");
-        }
-        PMPConfig {
-            regions: [None; 32],
-            // As we use the PMP TOR setup we only support half the number
-            // of regions as hardware supports
-            total_regions: pmp_regions / 2,
-
-            is_dirty: Cell::new(true),
-            last_configured_for: MapCell::empty(),
-            app_region: OptionalCell::empty(),
-        }
-    }
-
+impl PMPConfig<[Option<PMPRegion>; $x]> {
     fn unused_region_number(&self) -> Option<usize> {
         for (number, region) in self.regions.iter().enumerate() {
             if self.app_region.contains(&number) {
@@ -230,8 +219,8 @@ impl PMPConfig {
     }
 }
 
-impl kernel::mpu::MPU for PMPConfig {
-    type MpuConfig = PMPConfig;
+impl kernel::mpu::MPU for PMPConfig<[Option<PMPRegion>; $x]> {
+    type MpuConfig = PMPConfig<[Option<PMPRegion>; $x]>;
 
     fn enable_mpu(&self) {}
 
@@ -511,4 +500,9 @@ impl kernel::mpu::MPU for PMPConfig {
             self.last_configured_for.put(*app_id);
         }
     }
+        }
+    };
 }
+
+PMPConfigMacro!(4);
+PMPConfigMacro!(8);
