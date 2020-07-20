@@ -4,7 +4,7 @@ use kernel::common::cells::OptionalCell;
 use kernel::common::cells::TakeCell;
 use kernel::common::cells::VolatileCell;
 use kernel::common::registers::register_bitfields;
-use kernel::common::registers::{ReadOnly, WriteOnly, ReadWrite};
+use kernel::common::registers::{ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil;
 use kernel::ReturnCode;
@@ -62,7 +62,7 @@ register_bitfields! [u32,
     ],
     Key [
         /// Flash or option byte key
-        /// Represents the keys to unlock the flash or the option 
+        /// Represents the keys to unlock the flash or the option
         /// bytes write enable
         KEYR OFFSET(0) NUMBITS(32) []
     ],
@@ -71,17 +71,17 @@ register_bitfields! [u32,
         /// Set by the hardware when a flash operation (programming or erase)
         /// is completed.
         EOP OFFSET(5) NUMBITS(1) [],
-        /// Write protection error 
-        /// Set by the hardware when programming a write-protected 
+        /// Write protection error
+        /// Set by the hardware when programming a write-protected
         /// address of the flash memory.
         WRPRTERR OFFSET(4) NUMBITS(1) [],
         /// Programming error
-        /// Set by the hardware when an address to be programmed contains a 
+        /// Set by the hardware when an address to be programmed contains a
         /// value different from 0xFFFF before programming.
-        /// Note that the STRT bit in Control register should be reset when 
+        /// Note that the STRT bit in Control register should be reset when
         /// the operation finishes or and error occurs.
         PGERR OFFSET(2) NUMBITS(1) [],
-        /// Busy 
+        /// Busy
         /// Indicates that a flash operation is in progress. This is set on
         /// the beginning of a Flash operation and reset when the operation
         /// finishes or an error occurs.
@@ -93,7 +93,7 @@ register_bitfields! [u32,
         /// This generates a system reset.
         OBL_LAUNCH OFFSET(13) NUMBITS(1) [],
         /// End of operation interrupt enable
-        /// This enables the interrupt generation when the EOP bit in the 
+        /// This enables the interrupt generation when the EOP bit in the
         /// Status register is set.
         EOPIE OFFSET(12) NUMBITS(1) [],
         /// Error interrupt enable
@@ -101,13 +101,13 @@ register_bitfields! [u32,
         /// or WRPRTERR are set in the Status register
         ERRIE OFFSET(10) NUMBITS(1) [],
         /// Option bytes write enable
-        /// When set, the option bytes can be programmed. This bit is set on 
+        /// When set, the option bytes can be programmed. This bit is set on
         /// on writing the correct key sequence to the OptionKey register.
         OPTWRE OFFSET(9) NUMBITS(1) [],
         /// When set, it indicates that the Flash is locked. This bit is reset
         /// by hardware after detecting the unlock sequence.
         LOCK OFFSET(7) NUMBITS(1) [],
-        /// This bit triggers and ERASE operation when set. This bit is only 
+        /// This bit triggers and ERASE operation when set. This bit is only
         /// set by software and reset when the BSY bit is reset.
         STRT OFFSET(6) NUMBITS(1) [],
         /// Option byte erase chosen
@@ -123,9 +123,9 @@ register_bitfields! [u32,
     ],
     Address [
         /// Flash address
-        /// Chooses the address to program when programming is selected 
+        /// Chooses the address to program when programming is selected
         /// or a page to erase when Page Erase is selected.
-        /// Note that write access to this register is blocked when the 
+        /// Note that write access to this register is blocked when the
         /// BSY bit in the Status register is set.
         FAR OFFSET(0) NUMBITS(32) []
     ],
@@ -179,14 +179,14 @@ register_bitfields! [u32,
             LVL2 = 3
         ],
         /// Option byte Load error
-        /// When set, this indicates that the loaded option byte and its 
+        /// When set, this indicates that the loaded option byte and its
         /// complement do not match. The corresponding byte and its complement
         /// are read as 0xFF in the OptionByte or WriteProtect register
         OPTERR OFFSET(1) NUMBITS(1) []
     ],
     WriteProtect [
         /// Write protect
-        /// This register contains the write-protection option 
+        /// This register contains the write-protection option
         /// bytes loaded by the OBL
         WRP OFFSET(0) NUMBITS(32) []
     ]
@@ -198,7 +198,9 @@ pub struct StmF303Page(pub [u8; PAGE_SIZE as usize]);
 
 impl Default for StmF303Page {
     fn default() -> Self {
-        0: [0; PAGE_SIZE as usize],
+        Self {
+            0: [0; PAGE_SIZE as usize],
+        }
     }
 }
 
@@ -240,7 +242,7 @@ pub static mut FLASH: Flash = Flash::new();
 pub struct Flash {
     registers: StaticRef<FlashRegisters>,
     client: OptionalCell<&'static dyn hil::flash::Client<Flash>>,
-    buffer: TakeCell<'static, StmF303Page>
+    buffer: TakeCell<'static, StmF303Page>,
     state: Cell<FlashState>,
 }
 
@@ -278,18 +280,13 @@ impl Flash {
 
         // Choose page erase mode
         self.registers.cr.set(Control::PER);
-        self.registers.ar.write(Address::FAR.val((page_number * PAGE_SIZE) as u32));
+        self.registers
+            .ar
+            .write(Address::FAR.val((page_number * PAGE_SIZE) as u32));
         self.registers.cr.set(Control::STRT);
 
-        // Wait one clock cycle
-        unsafe {
-            llvm_asm!(
-                "nop"
-            : : : : "volatile");
-        }
-
         self.state.set(FlashState::Erase);
-        
+
         // NOTE: has to start checking one cycle after setting the strtbit
         // Wait for the busy bit to be reset
         while !self.registers.sr.is_set(Status::BSY) {}
@@ -314,16 +311,8 @@ impl Flash {
         self.registers.cr.set(Control::MER);
         self.registers.cr.set(Control::STRT);
 
-        // Wait one clock cycle
-        unsafe {
-            llvm_asm!(
-                "nop"
-            : : : : "volatile"
-            )
-        }
         self.state.set(FlashState::Erase);
 
-        // Wait for the busy bit to be reset
         while !self.registers.sr.is_set(Status::BSY) {}
 
         if self.registers.sr.is_set(Status::EOP) {
@@ -337,7 +326,7 @@ impl Flash {
     pub fn write_page(
         &self,
         page_number: usize,
-        data: &'static mut StmF303Page,
+        buffer: &'static mut StmF303Page,
     ) -> Result<(), (ReturnCode, &'static mut StmF303Page)> {
         if self.is_locked() {
             self.unlock();
@@ -349,31 +338,47 @@ impl Flash {
 
         // Perform halfword write to desired address
         for i in (0..data.len().step_by(2)) {
-            let word: u16 = (data[i + 0] as u16) << 0
-                | (data[i + 1] as u16) << 8;
+            let word: u16 = (buffer[i + 0] as u16) << 0 | (buffer[i + 1] as u16) << 8;
 
             let address = ((page_number * PAGE_SIZE) + i) as u32;
-            // TODO: verify location
-            let location =  unsafe { address as VolatileCell<u16> };
+            let location = unsafe { address as VolatileCell<u32> };
             location.set(word);
         }
 
+        // Wait for the busy bit to be reset
         while !regs.sr.is_set(Status::BSY) {}
 
         if self.registers.sr.is_set(Status::EOP) {
             self.registers.sr.modify(Status::EOP.val(0));
-            ReturnCode::SUCCESS
+            Ok(())
         } else {
-            ReturnCode::FAIL
+            (ReturnCode::FAIL, buffer)
         }
     }
 
+    // TODO: Verify if i have to use latency and if memory has to be erased before programming
     pub fn read_page(
+        &self,
+        page_number: usize,
+        buffer: &'static mut StmF303Page,
+    ) -> Result<(), (ReturnCode, &'static mut StmF303Page)> {
+        self.state.set(FlashState::Read);
 
-    )
+        let mut byte: *const u8 = (page_number * PAGE_SIZE) as *const u8;
+        unsafe {
+            for i in 0..buffer.len() {
+                buffer[i] = *byte;
+                byte.offset(1);
+            }
+        }
+
+        self.buffer.replace(buffer);
+
+        Ok(())
+    }
 }
 
-impl <C: hil::flash::Client<Self>> hil::flash::HasClient<'static, C> for Flash {
+impl<C: hil::flash::Client<Self>> hil::flash::HasClient<'static, C> for Flash {
     fn set_client(&self, client: &'static C) {
         self.client.set(client);
     }
@@ -399,6 +404,6 @@ impl hil::flash::Flash for Flash {
     }
 
     fn erase_page(&self, page_number: usize) -> ReturnCode {
-        self.erase_page(buf)
+        self.erase_page(page_number)
     }
 }
