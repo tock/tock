@@ -35,6 +35,7 @@ pub trait HumidityClient {
 pub trait ProximityDriver<'a> {
 
     fn set_client(&self , client: &'a dyn ProximityClient);
+    fn set_proximity_gain(&self , gain : u8) -> ReturnCode;
     fn read_proximity(&self) -> ReturnCode;
 
 }
