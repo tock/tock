@@ -55,6 +55,7 @@ struct STM32F412GDiscovery {
     >,
     gpio: &'static capsules::gpio::GPIO<'static, stm32f412g::gpio::Pin<'static>>,
     ft6206: &'static capsules::ft6206::Ft6206<'static>,
+    adc: &'static capsules::adc::Adc<'static, stm32f412g::adc::Adc>,
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
@@ -71,6 +72,7 @@ impl Platform for STM32F412GDiscovery {
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
             capsules::ft6206::DRIVER_NUM => f(Some(self.ft6206)),
+            capsules::adc::DRIVER_NUM => f(Some(self.adc)),
             _ => f(None),
         }
     }
@@ -236,6 +238,39 @@ unsafe fn set_pin_primary_functions() {
         // the rest.
         EXTI.associate_line_gpiopin(LineId::Exti5, pin);
     });
+
+    // ADC
+
+    // Arduino A0
+    PinId::PA01.get_pin().as_ref().map(|pin| {
+        pin.set_mode(stm32f412g::gpio::Mode::AnalogMode);
+    });
+
+    // Arduino A1
+    PinId::PC01.get_pin().as_ref().map(|pin| {
+        pin.set_mode(stm32f412g::gpio::Mode::AnalogMode);
+    });
+
+    // Arduino A2
+    PinId::PC03.get_pin().as_ref().map(|pin| {
+        pin.set_mode(stm32f412g::gpio::Mode::AnalogMode);
+    });
+
+    // Arduino A3
+    PinId::PC04.get_pin().as_ref().map(|pin| {
+        pin.set_mode(stm32f412g::gpio::Mode::AnalogMode);
+    });
+
+    // Arduino A4
+    PinId::PC05.get_pin().as_ref().map(|pin| {
+        pin.set_mode(stm32f412g::gpio::Mode::AnalogMode);
+    });
+
+    // Arduino A5
+    PinId::PB00.get_pin().as_ref().map(|pin| {
+        pin.set_mode(stm32f412g::gpio::Mode::AnalogMode);
+    });
+
     // EXTI9_5 interrupts is delivered at IRQn 23 (EXTI9_5)
     cortexm4::nvic::Nvic::new(stm32f412g::nvic::EXTI9_5).enable();
 }
@@ -456,6 +491,32 @@ pub unsafe fn reset_handler() {
 
     ft6206.is_present();
 
+    let adc_channels = static_init!(
+        [&'static stm32f412g::adc::Channel; 6],
+        [
+            &stm32f412g::adc::Channel::Channel1,
+            &stm32f412g::adc::Channel::Channel11,
+            &stm32f412g::adc::Channel::Channel13,
+            &stm32f412g::adc::Channel::Channel14,
+            &stm32f412g::adc::Channel::Channel15,
+            &stm32f412g::adc::Channel::Channel8,
+        ]
+    );
+    let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
+    let grant_adc = board_kernel.create_grant(&grant_cap);
+    let adc = static_init!(
+        capsules::adc::Adc<'static, stm32f412g::adc::Adc>,
+        capsules::adc::Adc::new(
+            &stm32f412g::adc::ADC1,
+            grant_adc,
+            adc_channels,
+            &mut capsules::adc::ADC_BUFFER1,
+            &mut capsules::adc::ADC_BUFFER2,
+            &mut capsules::adc::ADC_BUFFER3
+        )
+    );
+    stm32f412g::adc::ADC1.set_client(adc);
+
     let nucleo_f412g = STM32F412GDiscovery {
         console: console,
         ipc: kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability),
@@ -464,6 +525,7 @@ pub unsafe fn reset_handler() {
         alarm: alarm,
         gpio: gpio,
         ft6206: ft6206,
+        adc: adc,
     };
 
     // // Optional kernel tests

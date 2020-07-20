@@ -14,7 +14,7 @@ use crate::uart;
 pub struct Apollo3 {
     mpu: cortexm4::mpu::MPU,
     userspace_kernel_boundary: cortexm4::syscall::SysCall,
-    systick: cortexm4::systick::SysTick,
+    scheduler_timer: cortexm4::systick::SysTick,
 }
 
 impl Apollo3 {
@@ -22,7 +22,7 @@ impl Apollo3 {
         Apollo3 {
             mpu: cortexm4::mpu::MPU::new(),
             userspace_kernel_boundary: cortexm4::syscall::SysCall::new(),
-            systick: cortexm4::systick::SysTick::new_with_calibration(48_000_000),
+            scheduler_timer: cortexm4::systick::SysTick::new_with_calibration(48_000_000),
         }
     }
 }
@@ -30,7 +30,8 @@ impl Apollo3 {
 impl Chip for Apollo3 {
     type MPU = cortexm4::mpu::MPU;
     type UserspaceKernelBoundary = cortexm4::syscall::SysCall;
-    type SysTick = cortexm4::systick::SysTick;
+    type SchedulerTimer = cortexm4::systick::SysTick;
+    type WatchDog = ();
 
     fn service_pending_interrupts(&self) {
         unsafe {
@@ -71,8 +72,12 @@ impl Chip for Apollo3 {
         &self.mpu
     }
 
-    fn systick(&self) -> &cortexm4::systick::SysTick {
-        &self.systick
+    fn scheduler_timer(&self) -> &cortexm4::systick::SysTick {
+        &self.scheduler_timer
+    }
+
+    fn watchdog(&self) -> &Self::WatchDog {
+        &()
     }
 
     fn userspace_kernel_boundary(&self) -> &cortexm4::syscall::SysCall {

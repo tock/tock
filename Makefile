@@ -496,19 +496,19 @@ define ci_setup_qemu_riscv
 	@# Use the latest QEMU as it has OpenTitan support
 	@printf "Building QEMU, this could take a few minutes\n\n"
 	@git submodule sync; git submodule update --init
-	@cd tools/qemu; ./configure --target-list=riscv32-softmmu;
+	@mkdir -p tools/qemu-build && cd tools/qemu-build; ../qemu/configure --target-list=riscv32-softmmu;
 	@# Build qemu
-	@$(MAKE) -C "tools/qemu" || (echo "You might need to install some missing packages" || exit 127)
+	@$(MAKE) -C "tools/qemu-build" || (echo "You might need to install some missing packages" || exit 127)
 endef
 
 define ci_setup_qemu_opentitan
 	$(call banner,CI-Setup: Get OpenTitan boot ROM image)
 	# Download OpenTitan image
-	@printf "Downloading OpenTitan boot rom from: 1beb08b474790d4b6c67ae5b3423e2e8dfc9e368\n"
+	@printf "Downloading OpenTitan boot rom from: 37324a74ac3ae17696402f584a222f051e88278b\n"
 	@pwd=$$(pwd) && \
 		temp=$$(mktemp -d) && \
 		cd $$temp && \
-		curl $$(curl "https://dev.azure.com/lowrisc/opentitan/_apis/build/builds/14991/artifacts?artifactName=opentitan-dist&api-version=5.1" | cut -d \" -f 38) --output opentitan-dist.zip; \
+		curl $$(curl "https://dev.azure.com/lowrisc/opentitan/_apis/build/builds/16995/artifacts?artifactName=opentitan-dist&api-version=5.1" | cut -d \" -f 38) --output opentitan-dist.zip; \
 		unzip opentitan-dist.zip; \
 		tar -xf opentitan-dist/opentitan-snapshot-20191101-*.tar.xz; \
 		mv opentitan-snapshot-20191101-*/sw/device/boot_rom/boot_rom_fpga_nexysvideo.elf $$pwd/tools/qemu-runner/opentitan-boot-rom.elf
@@ -519,7 +519,7 @@ ci-setup-qemu:
 	$(call ci_setup_helper,\
 		status=$$(git submodule status -- tools/qemu); \
 		[[ "$${status:0:1}" != "" ]] && \
-			cd tools/qemu && make -q riscv32-softmmu && echo yes,\
+			cd tools/qemu-build && make -q riscv32-softmmu && echo yes,\
 		Clone QEMU and run its build scripts,\
 		ci_setup_qemu_riscv,\
 		CI_JOB_QEMU_RISCV)
@@ -535,7 +535,7 @@ ci-setup-qemu:
 define ci_job_qemu
 	$(call banner,CI-Job: QEMU)
 	@cd tools/qemu-runner;\
-		PATH="$(shell pwd)/tools/qemu/riscv32-softmmu/:${PATH}"\
+		PATH="$(shell pwd)/tools/qemu-build/riscv32-softmmu/:${PATH}"\
 		CI=true cargo run
 endef
 

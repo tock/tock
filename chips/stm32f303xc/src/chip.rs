@@ -5,6 +5,7 @@ use cortexm4;
 use kernel::common::deferred_call;
 use kernel::Chip;
 
+use crate::adc;
 use crate::exti;
 use crate::i2c;
 use crate::nvic;
@@ -16,7 +17,7 @@ use crate::flash;
 pub struct Stm32f3xx {
     mpu: cortexm4::mpu::MPU,
     userspace_kernel_boundary: cortexm4::syscall::SysCall,
-    systick: cortexm4::systick::SysTick,
+    scheduler_timer: cortexm4::systick::SysTick,
 }
 
 impl Stm32f3xx {
@@ -24,7 +25,7 @@ impl Stm32f3xx {
         Stm32f3xx {
             mpu: cortexm4::mpu::MPU::new(),
             userspace_kernel_boundary: cortexm4::syscall::SysCall::new(),
-            systick: cortexm4::systick::SysTick::new(),
+            scheduler_timer: cortexm4::systick::SysTick::new(),
         }
     }
 }
@@ -32,7 +33,8 @@ impl Stm32f3xx {
 impl Chip for Stm32f3xx {
     type MPU = cortexm4::mpu::MPU;
     type UserspaceKernelBoundary = cortexm4::syscall::SysCall;
-    type SysTick = cortexm4::systick::SysTick;
+    type SchedulerTimer = cortexm4::systick::SysTick;
+    type WatchDog = ();
 
     fn service_pending_interrupts(&self) {
         unsafe {
@@ -47,6 +49,7 @@ impl Chip for Stm32f3xx {
 
                         nvic::I2C1_EV => i2c::I2C1.handle_event(),
                         nvic::I2C1_ER => i2c::I2C1.handle_error(),
+                        nvic::ADC1_2 => adc::ADC1.handle_interrupt(),
 
                         nvic::FLASH => flash::FLASH.handle_interrupt(),
 
@@ -81,8 +84,12 @@ impl Chip for Stm32f3xx {
         &self.mpu
     }
 
-    fn systick(&self) -> &cortexm4::systick::SysTick {
-        &self.systick
+    fn scheduler_timer(&self) -> &cortexm4::systick::SysTick {
+        &self.scheduler_timer
+    }
+
+    fn watchdog(&self) -> &Self::WatchDog {
+        &()
     }
 
     fn userspace_kernel_boundary(&self) -> &cortexm4::syscall::SysCall {

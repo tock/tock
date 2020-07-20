@@ -12,3 +12,19 @@ capsules = { path = "../../capsules" }
 kernel = { path = "../../kernel" }
 earlgrey = { path = "../../chips/earlgrey" }
 lowrisc = { path = "../../chips/lowrisc" }
+
+[features]
+# OpenTitan SoC design can be synthesized or compiled for different targets. A
+# target can be a specific FPGA board, an ASIC technology, or a simulation tool.
+# Please see: https://docs.opentitan.org/doc/ug/getting_started/ for further
+# information.
+#
+# OpenTitan CPU and possibly other components must be configured appropriately
+# for a specific target:
+#    - fpga_nexysvideo:
+#      OpenTitan SoC design running on Nexys Video Artix-7 FPGA.
+#
+#    - sim_verilator:
+#      OpenTitan SoC design simulated in Verilator.
+fpga_nexysvideo = ["earlgrey/config_fpga_nexysvideo"]
+sim_verilator = ["earlgrey/config_sim_verilator"]
