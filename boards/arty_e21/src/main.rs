@@ -42,13 +42,13 @@ pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 /// capsules for this platform.
 struct ArtyE21 {
     console: &'static capsules::console::Console<'static>,
-    gpio: &'static capsules::gpio::GPIO<'static, arty_e21_chip::gpio::GpioPin>,
+    gpio: &'static capsules::gpio::GPIO<'static, arty_e21_chip::gpio::GpioPin<'static>>,
     alarm: &'static capsules::alarm::AlarmDriver<
         'static,
         VirtualMuxAlarm<'static, rv32i::machine_timer::MachineTimer<'static>>,
     >,
-    led: &'static capsules::led::LED<'static, arty_e21_chip::gpio::GpioPin>,
-    button: &'static capsules::button::Button<'static, arty_e21_chip::gpio::GpioPin>,
+    led: &'static capsules::led::LED<'static, arty_e21_chip::gpio::GpioPin<'static>>,
+    button: &'static capsules::button::Button<'static, arty_e21_chip::gpio::GpioPin<'static>>,
     // ipc: kernel::ipc::IPC,
 }
 

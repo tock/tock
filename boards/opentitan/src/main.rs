@@ -52,8 +52,8 @@ pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 /// A structure representing this platform that holds references to all
 /// capsules for this platform. We've included an alarm and console.
 struct OpenTitan {
-    led: &'static capsules::led::LED<'static, earlgrey::gpio::GpioPin>,
-    gpio: &'static capsules::gpio::GPIO<'static, earlgrey::gpio::GpioPin>,
+    led: &'static capsules::led::LED<'static, earlgrey::gpio::GpioPin<'static>>,
+    gpio: &'static capsules::gpio::GPIO<'static, earlgrey::gpio::GpioPin<'static>>,
     console: &'static capsules::console::Console<'static>,
     alarm: &'static capsules::alarm::AlarmDriver<
         'static,
