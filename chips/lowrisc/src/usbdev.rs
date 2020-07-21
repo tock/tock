@@ -541,6 +541,107 @@ impl<'a> Usb<'a> {
         });
     }
 
+    fn control_ep_receive(&self, ep: usize, buf_id: usize, size: u32, setup: u32) {
+        let hw_buf = self.registers.buffer[buf_id * 8].extract();
+
+        match self.descriptors[ep].state.get() {
+            EndpointState::Disabled => unimplemented!(),
+            EndpointState::Ctrl(state) => {
+                let request_type = hw_buf.read(BUFFER::REQUEST_TYPE);
+                let length = hw_buf.read(BUFFER::LENGTH);
+
+                let ep_buf = &self.descriptors[ep].slice_out;
+                let ep_buf = ep_buf.expect("No OUT slice set for this descriptor");
+                if ep_buf.len() < 8 {
+                    panic!("EP0 DMA buffer length < 8");
+                }
+
+                // Re-construct the SETUP packet from various registers. The
+                // client's ctrl_setup() will parse it as a SetupData
+                // descriptor.
+                for (i, buf) in hw_buf.get().to_ne_bytes().iter().enumerate() {
+                    ep_buf[i].set(*buf);
+                }
+
+                match state {
+                    CtrlState::Init => {
+                        if setup != 0 && size == 8 {
+                            self.client.map(|client| {
+                                // Notify the client that the ctrl setup event has occurred.
+                                // Allow it to configure any data we need to send back.
+                                match client.ctrl_setup(ep) {
+                                    hil::usb::CtrlSetupResult::OkSetAddress => {
+                                        self.registers.usbctrl.modify(
+                                            USBCTRL::DEVICE_ADDRESS.val(self.addr.get() as u32),
+                                        );
+                                    }
+                                    hil::usb::CtrlSetupResult::Ok => {
+                                        if length == 0 {
+                                            self.copy_slice_out_to_hw(0, 0, 0);
+                                            self.complete_ctrl_status();
+                                        } else {
+                                            let to_host = request_type & (1 << 7) != (1 << 7);
+                                            if to_host {
+                                                self.descriptors[ep]
+                                                    .state
+                                                    .set(EndpointState::Ctrl(CtrlState::WriteOut));
+                                            } else {
+                                                match client.ctrl_in(ep) {
+                                                    hil::usb::CtrlInResult::Packet(size, last) => {
+                                                        if size == 0 {
+                                                            panic!("Empty ctrl packet?");
+                                                        }
+
+                                                        self.copy_slice_out_to_hw(ep, buf_id, size);
+
+                                                        if last {
+                                                            self.descriptors[ep].state.set(
+                                                                EndpointState::Ctrl(
+                                                                    CtrlState::ReadStatus,
+                                                                ),
+                                                            );
+                                                        } else {
+                                                            self.descriptors[ep].state.set(
+                                                                EndpointState::Ctrl(
+                                                                    CtrlState::WriteOut,
+                                                                ),
+                                                            );
+                                                        }
+                                                    }
+                                                    hil::usb::CtrlInResult::Delay => {
+                                                        unimplemented!()
+                                                    }
+                                                    hil::usb::CtrlInResult::Error => unreachable!(),
+                                                }
+                                            }
+                                        }
+                                    }
+                                    _err => {
+                                        self.stall(ep);
+                                        self.free_buffer(buf_id);
+                                        self.descriptors[ep]
+                                            .state
+                                            .set(EndpointState::Ctrl(CtrlState::Init));
+                                    }
+                                };
+                            });
+                        }
+                    }
+                    CtrlState::ReadIn => {
+                        self.copy_from_hw(ep, buf_id, size as usize);
+                    }
+                    CtrlState::ReadStatus => {
+                        self.complete_ctrl_status();
+                    }
+                    CtrlState::WriteOut => unreachable!(),
+                }
+            }
+            EndpointState::BulkIn(_state) => unimplemented!(),
+            EndpointState::BulkOut(_state) => unimplemented!(),
+            EndpointState::Iso => unimplemented!(),
+        }
+    }
+
     pub fn handle_interrupt(&self) {
         let irqs = self.registers.intr_state.extract();
 
