@@ -129,12 +129,14 @@ impl<'a> Touch<'a> {
             let (x, y) = match rotation {
                 ScreenRotation::Rotated270 => {
                     mem::swap(&mut width, &mut height);
-                    (touch_event.y, height - touch_event.x)
+                    (touch_event.y, height as u16 - touch_event.x)
                 }
-                ScreenRotation::Rotated180 => (width - touch_event.x, height - touch_event.y),
+                ScreenRotation::Rotated180 => {
+                    (width as u16 - touch_event.x, height as u16 - touch_event.y)
+                }
                 ScreenRotation::Rotated90 => {
                     mem::swap(&mut width, &mut height);
-                    (width - touch_event.y, touch_event.x)
+                    (width as u16 - touch_event.y as u16, touch_event.x)
                 }
                 _ => (touch_event.x, touch_event.y),
             };
@@ -160,7 +162,18 @@ impl<'a> hil::touch::TouchClient for Touch<'a> {
                         TouchStatus::Released => 0,
                         TouchStatus::Pressed => 1,
                     };
-                    callback.schedule(event.x, event.y, event_id);
+                    let pressure_size = match event.pressure {
+                        Some(pressure) => (pressure as usize) << 16,
+                        None => 0,
+                    } | match event.size {
+                        Some(size) => size as usize,
+                        None => 0,
+                    };
+                    callback.schedule(
+                        event_id,
+                        (event.x as usize) << 16 | event.y as usize,
+                        pressure_size,
+                    );
                 })
             });
         }

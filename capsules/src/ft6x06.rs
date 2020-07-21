@@ -63,7 +63,7 @@ enum_from_primitive! {
 
 pub struct Ft6x06<'a> {
     i2c: &'a dyn i2c::I2CDevice,
-    interrupt_pin: &'a dyn gpio::InterruptPin,
+    interrupt_pin: &'a dyn gpio::InterruptPin<'a>,
     touch_client: OptionalCell<&'a dyn touch::TouchClient>,
     gesture_client: OptionalCell<&'a dyn touch::GestureClient>,
     multi_touch_client: OptionalCell<&'a dyn touch::MultiTouchClient>,
@@ -107,10 +107,10 @@ impl<'a> i2c::I2CClient for Ft6x06<'a> {
                     0x01 => TouchStatus::Released,
                     _ => TouchStatus::Released,
                 };
-                let x = (((buffer[2] & 0x0F) as usize) << 8) + (buffer[3] as usize);
-                let y = (((buffer[4] & 0x0F) as usize) << 8) + (buffer[5] as usize);
-                let pressure = Some(buffer[6] as usize);
-                let size = Some(buffer[7] as usize);
+                let x = (((buffer[2] & 0x0F) as u16) << 8) + (buffer[3] as u16);
+                let y = (((buffer[4] & 0x0F) as u16) << 8) + (buffer[5] as u16);
+                let pressure = Some(buffer[6] as u16);
+                let size = Some(buffer[7] as u16);
                 client.touch_event(TouchEvent {
                     status,
                     x,
@@ -145,10 +145,10 @@ impl<'a> i2c::I2CClient for Ft6x06<'a> {
                         0x01 => TouchStatus::Released,
                         _ => TouchStatus::Released,
                     };
-                    let x = (((buffer[2] & 0x0F) as usize) << 8) + (buffer[3] as usize);
-                    let y = (((buffer[4] & 0x0F) as usize) << 8) + (buffer[5] as usize);
-                    let pressure = Some(buffer[6] as usize);
-                    let size = Some(buffer[7] as usize);
+                    let x = (((buffer[2] & 0x0F) as u16) << 8) + (buffer[3] as u16);
+                    let y = (((buffer[4] & 0x0F) as u16) << 8) + (buffer[5] as u16);
+                    let pressure = Some(buffer[6] as u16);
+                    let size = Some(buffer[7] as u16);
                     self.events.map(|buffer| {
                         buffer[touch_event] = TouchEvent {
                             status,
@@ -227,12 +227,10 @@ impl<'a> touch::MultiTouch<'a> for Ft6x06<'a> {
                     0x01 => TouchStatus::Released,
                     _ => TouchStatus::Released,
                 };
-                let x =
-                    (((buffer[offset + 2] & 0x0F) as usize) << 8) + (buffer[offset + 3] as usize);
-                let y =
-                    (((buffer[offset + 4] & 0x0F) as usize) << 8) + (buffer[offset + 5] as usize);
-                let pressure = Some(buffer[offset + 6] as usize);
-                let size = Some(buffer[offset + 7] as usize);
+                let x = (((buffer[offset + 2] & 0x0F) as u16) << 8) + (buffer[offset + 3] as u16);
+                let y = (((buffer[offset + 4] & 0x0F) as u16) << 8) + (buffer[offset + 5] as u16);
+                let pressure = Some(buffer[offset + 6] as u16);
+                let size = Some(buffer[offset + 7] as u16);
                 Some(TouchEvent {
                     status,
                     x,

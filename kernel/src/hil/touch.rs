@@ -25,8 +25,8 @@ pub enum GestureEvent {
 pub struct TouchEvent {
     pub status: TouchStatus,
     /// touch (x, y) position
-    pub x: usize,
-    pub y: usize,
+    pub x: u16,
+    pub y: u16,
 
     /// Numeric ID assigned to this touch. This ID allows the client to
     /// to match different `TouchEvent`s to the same physical touch.
@@ -40,7 +40,7 @@ pub struct TouchEvent {
     ///
     /// If a touchscreen does not provide information about the size of the touch,
     /// this must be set to `None`.
-    pub size: Option<usize>,
+    pub size: Option<u16>,
 
     /// Optional scaled value for the pressure of the touch. A larger value
     /// corresponds to a "firmer" press. The pressure values range from 0
@@ -48,7 +48,7 @@ pub struct TouchEvent {
     ///
     /// If a touchscreen does not provide information about the pressure of a touch,
     /// this must be set to `None`.
-    pub pressure: Option<usize>,
+    pub pressure: Option<u16>,
 }
 
 /// Single touch panels should implement this

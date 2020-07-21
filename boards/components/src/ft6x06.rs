@@ -28,7 +28,7 @@ macro_rules! ft6x06_i2c_component_helper {
 }
 
 pub struct Ft6x06Component {
-    interupt_pin: &'static dyn gpio::InterruptPin,
+    interupt_pin: &'static dyn gpio::InterruptPin<'static>,
 }
 
 impl Ft6x06Component {
