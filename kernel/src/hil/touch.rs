@@ -60,7 +60,7 @@ pub trait Touch<'a> {
 
     /// Disable the touch panel
     ///
-    /// /// returns SUCCESS even if device is already disabled
+    /// returns SUCCESS even if device is already disabled
     fn disable(&self) -> ReturnCode;
 
     /// Set the touch client
