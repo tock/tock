@@ -461,6 +461,12 @@ impl<'a> Usb<'a> {
         self.bufs.set(bufs);
     }
 
+    fn stall(&self, endpoint: usize) {
+        self.registers
+            .stall
+            .set(1 << endpoint | self.registers.stall.get());
+    }
+
     pub fn handle_interrupt(&self) {
         let irqs = self.registers.intr_state.extract();
 
