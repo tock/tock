@@ -467,6 +467,76 @@ impl<'a> Usb<'a> {
             .set(1 << endpoint | self.registers.stall.get());
     }
 
+    fn copy_slice_out_to_hw(&self, ep: usize, buf_id: usize, size: usize) {
+        // Get the slice
+        let slice = self.descriptors[ep]
+            .slice_out
+            .expect("No OUT slice set for this descriptor");
+
+        let mut slice_start = 0;
+
+        for offset in 0..(size / 8) {
+            let slice_end = (offset + 1) * 8;
+
+            let mut to_write: u64 = 0;
+            for (i, buf) in slice[slice_start..slice_end].iter().enumerate() {
+                to_write |= (buf.get() as u64) << (i * 8);
+            }
+
+            // Write the data
+            self.registers.buffer[(buf_id * 8) + offset].set(to_write);
+
+            // Prepare for next loop
+            slice_start = slice_end;
+        }
+
+        // Check if there is any remainder less then 8
+        if slice_start < size {
+            let mut to_write: u64 = 0;
+            for (i, buf) in slice[slice_start..size].iter().enumerate() {
+                to_write |= (buf.get() as u64) << (i * 8);
+            }
+
+            // Write the data
+            self.registers.buffer[(buf_id * 8) + (slice_start / 8)].set(to_write);
+        }
+
+        self.registers.configin[ep].write(
+            CONFIGIN::BUFFER.val(buf_id as u32)
+                + CONFIGIN::SIZE.val(size as u32)
+                + CONFIGIN::RDY::SET,
+        );
+    }
+
+    fn copy_from_hw(&self, ep: usize, buf_id: usize, size: usize) {
+        // Get the slice
+        let slice = self.descriptors[ep]
+            .slice_in
+            .expect("No IN slice set for this descriptor");
+
+        // Read the date to the buffer
+        // TODO: Handle long packets
+        for offset in 0..(size / 8) {
+            let data = self.registers.buffer[(buf_id * 8) + offset].get();
+
+            for (i, d) in data.to_ne_bytes().iter().enumerate() {
+                slice[(offset * 8) + i].set(*d);
+            }
+        }
+    }
+
+    fn complete_ctrl_status(&self) {
+        let endpoint = 0;
+
+        self.client.map(|client| {
+            client.ctrl_status(endpoint);
+            client.ctrl_status_complete(endpoint);
+            self.descriptors[endpoint]
+                .state
+                .set(EndpointState::Ctrl(CtrlState::Init));
+        });
+    }
+
     pub fn handle_interrupt(&self) {
         let irqs = self.registers.intr_state.extract();
 
