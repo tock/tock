@@ -190,6 +190,40 @@ register_bitfields![u64,
     ]
 ];
 
+enum SetupRequest {
+    GetStatus = 0,
+    ClearFeature = 1,
+    SetFeature = 3,
+    SetAddress = 5,
+    GetDescriptor = 6,
+    SetDescriptor = 7,
+    GetConfiguration = 8,
+    SetConfiguration = 9,
+    GetInterface = 10,
+    SetInterface = 11,
+    SynchFrame = 12,
+    Unsupported = 100,
+}
+
+impl From<u32> for SetupRequest {
+    fn from(num: u32) -> Self {
+        match num {
+            0 => SetupRequest::GetStatus,
+            1 => SetupRequest::ClearFeature,
+            3 => SetupRequest::SetFeature,
+            5 => SetupRequest::SetAddress,
+            6 => SetupRequest::GetDescriptor,
+            7 => SetupRequest::SetDescriptor,
+            8 => SetupRequest::GetConfiguration,
+            9 => SetupRequest::SetConfiguration,
+            10 => SetupRequest::GetInterface,
+            11 => SetupRequest::SetInterface,
+            12 => SetupRequest::SynchFrame,
+            _ => SetupRequest::Unsupported,
+        }
+    }
+}
+
 #[derive(Copy, Clone, PartialEq, Debug)]
 pub enum CtrlState {
     Init,
