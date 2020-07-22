@@ -1,16 +1,23 @@
+//! Embedded Flash Memory Controller
+//!
+//! Used in order to read, program and erase the flash
+
 use core::cell::Cell;
 use core::ops::{Index, IndexMut};
 use kernel::common::cells::OptionalCell;
 use kernel::common::cells::TakeCell;
 use kernel::common::cells::VolatileCell;
+use kernel::common::deferred_call::DeferredCall;
 use kernel::common::registers::register_bitfields;
 use kernel::common::registers::{ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil;
 use kernel::ReturnCode;
 
+use crate::deferred_call_tasks::DeferredCallTask;
+
 const FLASH_BASE: StaticRef<FlashRegisters> =
-    unsafe { StaticRef::new(0x8000_0000) as *const FlashRegisters };
+    unsafe { StaticRef::new(0x8000_0000 as *const FlashRegisters) };
 
 #[repr(C)]
 struct FlashRegisters {
@@ -31,7 +38,7 @@ struct FlashRegisters {
     pub cr: ReadWrite<u32, Control::Register>,
     /// Flash address register
     /// Address offset 0x14
-    pub ar: WriteOnly<u32, Adress::Register>,
+    pub ar: WriteOnly<u32, Address::Register>,
     /// Reserved
     _reserved: u32,
     /// Flash option byte register
@@ -39,7 +46,7 @@ struct FlashRegisters {
     pub obr: ReadOnly<u32, OptionByte::Register>,
     /// Flash write protection register
     /// Address offset 0x20
-    pub wrpr: ReadOnly<u32, WriteProtect::register>,
+    pub wrpr: ReadOnly<u32, WriteProtect::Register>,
 }
 
 register_bitfields! [u32,
@@ -91,7 +98,7 @@ register_bitfields! [u32,
         /// Force option byte loading
         /// When set, this bit forces the option byte reloading.
         /// This generates a system reset.
-        OBL_LAUNCH OFFSET(13) NUMBITS(1) [],
+        OBLLAUNCH OFFSET(13) NUMBITS(1) [],
         /// End of operation interrupt enable
         /// This enables the interrupt generation when the EOP bit in the
         /// Status register is set.
@@ -119,7 +126,7 @@ register_bitfields! [u32,
         /// Page erase chosen
         PER OFFSET(1) NUMBITS(1) [],
         /// Flash programming chosen
-        PG OFFSET(0) NUMBITS(1) [],
+        PG OFFSET(0) NUMBITS(1) []
     ],
     Address [
         /// Flash address
@@ -192,6 +199,9 @@ register_bitfields! [u32,
     ]
 ];
 
+static DEFERRED_CALL: DeferredCall<DeferredCallTask> =
+    unsafe { DeferredCall::new(DeferredCallTask::Flash) };
+
 const PAGE_SIZE: usize = 2048;
 
 pub struct StmF303Page(pub [u8; PAGE_SIZE as usize]);
@@ -206,7 +216,7 @@ impl Default for StmF303Page {
 
 impl StmF303Page {
     fn len(&self) -> usize {
-        self.0.len();
+        self.0.len()
     }
 }
 
@@ -214,7 +224,7 @@ impl Index<usize> for StmF303Page {
     type Output = u8;
 
     fn index(&self, idx: usize) -> &u8 {
-        &mut self.0[idx]
+        &self.0[idx]
     }
 }
 
@@ -230,6 +240,7 @@ impl AsMut<[u8]> for StmF303Page {
     }
 }
 
+#[derive(Clone, Copy, PartialEq)]
 pub enum FlashState {
     Ready,
     Read,
@@ -246,14 +257,13 @@ pub struct Flash {
     state: Cell<FlashState>,
 }
 
-// TODO handle interrupts and errors
 impl Flash {
     pub const fn new() -> Flash {
         Flash {
             registers: FLASH_BASE,
             client: OptionalCell::empty(),
             buffer: TakeCell::empty(),
-            state: Cell::new(FlashState::Locked),
+            state: Cell::new(FlashState::Ready),
         }
     }
 
@@ -267,7 +277,35 @@ impl Flash {
     }
 
     pub fn lock(&self) {
-        self.registers.cr.set(Control::LOCK);
+        self.registers.cr.modify(Control::LOCK::SET);
+    }
+
+    pub fn handle_interrupt(&self) {
+        let state = self.state.get();
+        self.state.set(FlashState::Ready);
+
+        match state {
+            FlashState::Read => {
+                self.client.map(|client| {
+                    self.buffer.take().map(|buffer| {
+                        client.read_complete(buffer, hil::flash::Error::CommandComplete);
+                    });
+                });
+            }
+            FlashState::Write => {
+                self.client.map(|client| {
+                    self.buffer.take().map(|buffer| {
+                        client.write_complete(buffer, hil::flash::Error::CommandComplete);
+                    });
+                });
+            }
+            FlashState::Erase => {
+                self.client.map(|client| {
+                    client.erase_complete(hil::flash::Error::CommandComplete);
+                });
+            }
+            _ => {}
+        }
     }
 
     pub fn erase_page(&self, page_number: usize) -> ReturnCode {
@@ -279,11 +317,11 @@ impl Flash {
         while !self.registers.sr.is_set(Status::BSY) {}
 
         // Choose page erase mode
-        self.registers.cr.set(Control::PER);
+        self.registers.cr.modify(Control::PER::SET);
         self.registers
             .ar
             .write(Address::FAR.val((page_number * PAGE_SIZE) as u32));
-        self.registers.cr.set(Control::STRT);
+        self.registers.cr.modify(Control::STRT::SET);
 
         self.state.set(FlashState::Erase);
 
@@ -308,12 +346,13 @@ impl Flash {
         while !self.registers.sr.is_set(Status::BSY) {}
 
         // Choose mass erase mode
-        self.registers.cr.set(Control::MER);
-        self.registers.cr.set(Control::STRT);
-
-        self.state.set(FlashState::Erase);
+        self.registers.cr.modify(Control::MER::SET);
+        self.registers.cr.modify(Control::STRT::SET);
 
         while !self.registers.sr.is_set(Status::BSY) {}
+
+        self.state.set(FlashState::Erase);
+        DEFERRED_CALL.set();
 
         if self.registers.sr.is_set(Status::EOP) {
             self.registers.sr.modify(Status::EOP.val(0));
@@ -331,29 +370,27 @@ impl Flash {
         if self.is_locked() {
             self.unlock();
         }
-
         // Choose programming mode
-        self.registers.cr.set(Control::PG);
-        self.state.set(FlashState::Write);
+        self.registers.cr.modify(Control::PG::SET);
 
         // Perform halfword write to desired address
-        for i in (0..data.len().step_by(2)) {
+        for i in (0..buffer.len()).step_by(2) {
             let word: u16 = (buffer[i + 0] as u16) << 0 | (buffer[i + 1] as u16) << 8;
 
-            let address = ((page_number * PAGE_SIZE) + i) as u32;
-            let location = unsafe { address as VolatileCell<u32> };
+            let address = ((page_number * PAGE_SIZE) + i) as u16;
+            let location = unsafe { &*(address as *const VolatileCell<u16>) };
             location.set(word);
         }
 
         // Wait for the busy bit to be reset
-        while !regs.sr.is_set(Status::BSY) {}
+        while !self.registers.sr.is_set(Status::BSY) {}
 
-        if self.registers.sr.is_set(Status::EOP) {
-            self.registers.sr.modify(Status::EOP.val(0));
-            Ok(())
-        } else {
-            (ReturnCode::FAIL, buffer)
-        }
+        self.buffer.replace(buffer);
+
+        self.state.set(FlashState::Write);
+        DEFERRED_CALL.set();
+
+        Ok(())
     }
 
     // TODO: Verify if i have to use latency and if memory has to be erased before programming
@@ -362,8 +399,6 @@ impl Flash {
         page_number: usize,
         buffer: &'static mut StmF303Page,
     ) -> Result<(), (ReturnCode, &'static mut StmF303Page)> {
-        self.state.set(FlashState::Read);
-
         let mut byte: *const u8 = (page_number * PAGE_SIZE) as *const u8;
         unsafe {
             for i in 0..buffer.len() {
@@ -373,6 +408,9 @@ impl Flash {
         }
 
         self.buffer.replace(buffer);
+
+        self.state.set(FlashState::Read);
+        DEFERRED_CALL.set();
 
         Ok(())
     }
