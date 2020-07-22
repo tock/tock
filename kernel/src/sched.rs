@@ -1,5 +1,6 @@
-//! Defines the central Kernel struct and a trait that
-//! different scheduler implementations must implement. Also defines several
+//! Tock's central kernel logic and scheduler trait.
+//!
+//! Also defines several
 //! utility functions to reduce repeated code between different scheduler
 //! implementations.
 
@@ -34,12 +35,18 @@ pub(crate) const MIN_QUANTA_THRESHOLD_US: u32 = 500;
 /// Trait which any scheduler must implement.
 pub trait Scheduler<C: Chip> {
     /// Return the next process to run, and the timeslice length for that process.
-    /// Passing None instead of an AppId will lead to nothing being run.
-    /// Passing None instead of a timeslice will cause the process to be run cooperatively
+    ///
+    /// The first argument is an optional `AppId` of the process to run next.
+    /// Returning `None` instead of `Some(AppId)` means nothing will run. The second
+    /// argument is an optional number of microseconds to use as the length of the process's
+    /// timeslice. If an `AppId` is returned in the first argument, then returning `None`
+    /// instead of a timeslice will cause the process
+    /// to be run cooperatively (i.e. without preemption). Otherwise the process will run
+    /// with a timeslice set to the specified length.
     fn next(&self) -> (Option<AppId>, Option<u32>);
 
-    /// Informs the scheduler of why the last process stopped executing, and how
-    /// long it executed for. Notably, execution_time_us will be `None`
+    /// Inform the scheduler of why the last process stopped executing, and how
+    /// long it executed for. Notably, `execution_time_us` will be `None`
     /// if the the scheduler requested this process be run cooperatively.
     fn result(&self, result: StoppedExecutingReason, execution_time_us: Option<u32>);
 
@@ -48,14 +55,15 @@ pub trait Scheduler<C: Chip> {
     /// implementation, but schedulers which at times wish to defer interrupt
     /// handling will reimplement it.
     ///
-    /// The reason for stubbing this out to allow schedulers to reimplement it
-    /// is that I (Hudson Ayers) believe that deferring bottom half
-    /// interrupt handling, or only servicing certain interrupts,
-    /// can be useful in helping userspace apps to meet
-    /// deadlines if a scheduler is given sufficient information about app
-    /// workloads. This stub could also potentially be useful for a power aware
-    /// scheduler which toggles between chip power modes based on preexisting knowledge
-    /// of process workloads.
+    /// Providing this interface allows schedulers to fully manage how
+    /// the main kernel loop executes. For example, a more advanced
+    /// scheduler that attempts to help processes meet their deadlines may
+    /// need to defer bottom half interrupt handling or to selectively service
+    /// certain interrupts. Or, a power aware scheduler may want to selectively
+    /// choose what work to complete at any time to meet power requirements.
+    ///
+    /// Custom implementations of this function must be very careful, however,
+    /// as this function is called in the core kernel loop.
     unsafe fn execute_kernel_work(&self, chip: &C) {
         chip.service_pending_interrupts();
         DynamicDeferredCall::call_global_instance_while(|| !chip.has_pending_interrupts());
