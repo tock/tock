@@ -531,12 +531,12 @@ impl PinId {
     }
 }
 
-/// GPIO pin mode [^1]
-///
-/// [^1]: Section 7.1.4, page 187 of reference manual
 enum_from_primitive! {
     #[repr(u32)]
     #[derive(PartialEq)]
+    /// GPIO pin mode [^1]
+    ///
+    /// [^1]: Section 7.1.4, page 187 of reference manual
     pub enum Mode {
         Input = 0b00,
         GeneralPurposeOutputMode = 0b01,
@@ -578,11 +578,11 @@ pub enum AlternateFunction {
     AF15 = 0b1111,
 }
 
-/// GPIO pin internal pull-up and pull-down [^1]
-///
-/// [^1]: Section 7.4.4, page 189 of reference manual
 enum_from_primitive! {
     #[repr(u32)]
+    /// GPIO pin internal pull-up and pull-down [^1]
+    ///
+    /// [^1]: Section 7.4.4, page 189 of reference manual
     enum PullUpPullDown {
         NoPullUpPullDown = 0b00,
         PullUp = 0b01,
@@ -726,7 +726,7 @@ pub static mut PIN: [[Option<Pin<'static>>; 16]; 8] = [
     ],
 ];
 
-impl Pin<'a> {
+impl<'a> Pin<'a> {
     const fn new(pinid: PinId) -> Pin<'a> {
         Pin {
             pinid: pinid,
@@ -845,6 +845,30 @@ impl Pin<'a> {
             0b1101 => port.registers.otyper.modify(OTYPER::OT13::CLEAR),
             0b1110 => port.registers.otyper.modify(OTYPER::OT14::CLEAR),
             0b1111 => port.registers.otyper.modify(OTYPER::OT15::CLEAR),
+            _ => {}
+        }
+    }
+
+    pub fn set_mode_output_opendrain(&self) {
+        let port = self.pinid.get_port();
+
+        match self.pinid.get_pin_number() {
+            0b0000 => port.registers.otyper.modify(OTYPER::OT0::SET),
+            0b0001 => port.registers.otyper.modify(OTYPER::OT1::SET),
+            0b0010 => port.registers.otyper.modify(OTYPER::OT2::SET),
+            0b0011 => port.registers.otyper.modify(OTYPER::OT3::SET),
+            0b0100 => port.registers.otyper.modify(OTYPER::OT4::SET),
+            0b0101 => port.registers.otyper.modify(OTYPER::OT5::SET),
+            0b0110 => port.registers.otyper.modify(OTYPER::OT6::SET),
+            0b0111 => port.registers.otyper.modify(OTYPER::OT7::SET),
+            0b1000 => port.registers.otyper.modify(OTYPER::OT8::SET),
+            0b1001 => port.registers.otyper.modify(OTYPER::OT9::SET),
+            0b1010 => port.registers.otyper.modify(OTYPER::OT10::SET),
+            0b1011 => port.registers.otyper.modify(OTYPER::OT11::SET),
+            0b1100 => port.registers.otyper.modify(OTYPER::OT12::SET),
+            0b1101 => port.registers.otyper.modify(OTYPER::OT13::SET),
+            0b1110 => port.registers.otyper.modify(OTYPER::OT14::SET),
+            0b1111 => port.registers.otyper.modify(OTYPER::OT15::SET),
             _ => {}
         }
     }
@@ -1006,10 +1030,10 @@ impl Pin<'a> {
     }
 }
 
-impl hil::gpio::Pin for Pin<'a> {}
-impl hil::gpio::InterruptPin for Pin<'a> {}
+impl hil::gpio::Pin for Pin<'_> {}
+impl<'a> hil::gpio::InterruptPin<'a> for Pin<'a> {}
 
-impl hil::gpio::Configure for Pin<'a> {
+impl hil::gpio::Configure for Pin<'_> {
     /// Output mode default is push-pull
     fn make_output(&self) -> hil::gpio::Configuration {
         self.set_mode(Mode::GeneralPurposeOutputMode);
@@ -1081,7 +1105,7 @@ impl hil::gpio::Configure for Pin<'a> {
     }
 }
 
-impl hil::gpio::Output for Pin<'a> {
+impl hil::gpio::Output for Pin<'_> {
     fn set(&self) {
         self.set_output_high();
     }
@@ -1095,13 +1119,13 @@ impl hil::gpio::Output for Pin<'a> {
     }
 }
 
-impl hil::gpio::Input for Pin<'a> {
+impl hil::gpio::Input for Pin<'_> {
     fn read(&self) -> bool {
         self.read_input()
     }
 }
 
-impl hil::gpio::Interrupt for Pin<'a> {
+impl<'a> hil::gpio::Interrupt<'a> for Pin<'a> {
     fn enable_interrupts(&self, mode: hil::gpio::InterruptEdge) {
         unsafe {
             atomic(|| {
@@ -1145,7 +1169,7 @@ impl hil::gpio::Interrupt for Pin<'a> {
         }
     }
 
-    fn set_client(&self, client: &'static dyn hil::gpio::Client) {
+    fn set_client(&self, client: &'a dyn hil::gpio::Client) {
         self.client.set(client);
     }
 

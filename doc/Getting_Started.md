@@ -38,6 +38,11 @@ developing Tock.
    the options with `tockloader` support to load applications, as that
    is the configuration that most examples and tutorials assume.
 
+   **Note:** QEMU support in Tock is in the early stages. Please be
+   sure to check whether and how QEMU is supported for a board based on
+   the table in the [`boards/` subdirectory](../boards/README.md).
+   The `make ci-job-qemu` target is the authority on QEMU support.
+
    * Info about testing Tock on QEMU
      * 01/08/2020 : Among the boards supported by Tock, [SiFive HiFive1 RISC-V Board](../boards/hifive1/#running-in-qemu) can be tested in QEMU.
 
@@ -70,7 +75,7 @@ of installing some of these tools, but you can also install them yourself.
 
 #### Rust (nightly)
 
-We are using `nightly-2020-03-06`. We require
+We are using `nightly-2020-06-03`. We require
 installing it with [rustup](http://www.rustup.rs) so you can manage multiple
 versions of Rust and continue using stable versions for other Rust code:
 
@@ -85,7 +90,7 @@ to your `$PATH`.
 Then install the correct nightly version of Rust:
 
 ```bash
-$ rustup install nightly-2020-03-06
+$ rustup install nightly-2020-06-03
 ```
 
 #### Tockloader

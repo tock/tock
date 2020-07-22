@@ -189,7 +189,7 @@ pub struct L3gd20Spi<'a> {
     temperature_client: OptionalCell<&'a dyn sensors::TemperatureClient>,
 }
 
-impl L3gd20Spi<'a> {
+impl<'a> L3gd20Spi<'a> {
     pub fn new(
         spi: &'a dyn spi::SpiMasterDevice,
         txbuffer: &'static mut [u8; L3GD20_TX_SIZE],
@@ -293,7 +293,7 @@ impl L3gd20Spi<'a> {
     }
 }
 
-impl Driver for L3gd20Spi<'a> {
+impl Driver for L3gd20Spi<'_> {
     fn command(&self, command_num: usize, data1: usize, data2: usize, _: AppId) -> ReturnCode {
         match command_num {
             0 => ReturnCode::SUCCESS,
@@ -386,7 +386,7 @@ impl Driver for L3gd20Spi<'a> {
     }
 }
 
-impl spi::SpiMasterClient for L3gd20Spi<'a> {
+impl spi::SpiMasterClient for L3gd20Spi<'_> {
     fn read_write_done(
         &self,
         write_buffer: &'static mut [u8],
@@ -505,7 +505,7 @@ impl spi::SpiMasterClient for L3gd20Spi<'a> {
     }
 }
 
-impl sensors::NineDof for L3gd20Spi<'a> {
+impl<'a> sensors::NineDof<'a> for L3gd20Spi<'a> {
     fn set_client(&self, nine_dof_client: &'a dyn sensors::NineDofClient) {
         self.nine_dof_client.replace(nine_dof_client);
     }
@@ -520,7 +520,7 @@ impl sensors::NineDof for L3gd20Spi<'a> {
     }
 }
 
-impl sensors::TemperatureDriver for L3gd20Spi<'a> {
+impl<'a> sensors::TemperatureDriver<'a> for L3gd20Spi<'a> {
     fn set_client(&self, temperature_client: &'a dyn sensors::TemperatureClient) {
         self.temperature_client.replace(temperature_client);
     }

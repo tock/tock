@@ -1,4 +1,4 @@
-#![feature(const_fn, in_band_lifetimes)]
+#![feature(const_fn)]
 #![forbid(unsafe_code)]
 #![no_std]
 
@@ -23,6 +23,7 @@ pub mod dac;
 pub mod debug_process_restart;
 pub mod driver;
 pub mod fm25cl;
+pub mod ft6206;
 pub mod fxos8700cq;
 pub mod gpio;
 pub mod gpio_async;
@@ -42,6 +43,7 @@ pub mod lsm303dlhc;
 pub mod ltc294x;
 pub mod max17205;
 pub mod mcp230xx;
+pub mod mlx90614;
 pub mod mx25r6435f;
 pub mod ninedof;
 pub mod nonvolatile_storage_driver;
@@ -53,12 +55,13 @@ pub mod process_console;
 pub mod rf233;
 pub mod rf233_const;
 pub mod rng;
+pub mod screen;
 pub mod sdcard;
 pub mod segger_rtt;
 pub mod si7021;
 pub mod spi;
+pub mod st7735;
 pub mod temperature;
-pub mod tmp006;
 pub mod tsl2561;
 pub mod usb;
 pub mod virtual_alarm;

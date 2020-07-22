@@ -4,7 +4,9 @@
 //! Usage
 //! -----
 //!
-//! ```
+//! ```rust
+//! # use kernel::static_init;
+//!
 //! let adc_channels = static_init!(
 //!     [&'static sam4l::adc::AdcChannel; 6],
 //!     [
@@ -108,7 +110,7 @@ pub static mut ADC_BUFFER2: [u16; 128] = [0; 128];
 pub static mut ADC_BUFFER3: [u16; 128] = [0; 128];
 
 /// Functions to create, initialize, and interact with the ADC
-impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> Adc<'a, A> {
+impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed> Adc<'a, A> {
     /// Create a new `Adc` application interface.
     ///
     /// - `adc` - ADC driver to provide application access to
@@ -570,7 +572,7 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> Adc<'a, A> {
 }
 
 /// Callbacks from the ADC driver
-impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> hil::adc::Client for Adc<'a, A> {
+impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> hil::adc::Client for Adc<'_, A> {
     /// Single sample operation complete.
     ///
     /// Collects the sample and provides a callback to the application.
@@ -644,7 +646,7 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> hil::adc::Client for Adc<'a, A> 
 }
 
 /// Callbacks from the High Speed ADC driver
-impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> hil::adc::HighSpeedClient for Adc<'a, A> {
+impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> hil::adc::HighSpeedClient for Adc<'_, A> {
     /// Internal buffer has filled from a buffered sampling operation.
     /// Copies data over to application buffer, determines if more data is
     /// needed, and performs a callback to the application if ready. If
@@ -968,7 +970,7 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> hil::adc::HighSpeedClient for Ad
 }
 
 /// Implementations of application syscalls
-impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> Driver for Adc<'a, A> {
+impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> Driver for Adc<'_, A> {
     /// Provides access to a buffer from the application to store data in or
     /// read data from.
     ///

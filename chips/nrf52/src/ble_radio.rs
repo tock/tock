@@ -36,6 +36,7 @@
 use core::cell::Cell;
 use core::convert::TryFrom;
 use kernel::common::cells::OptionalCell;
+use kernel::common::cells::TakeCell;
 use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil::ble_advertising;
@@ -528,22 +529,24 @@ register_bitfields! [u32,
 static mut PAYLOAD: [u8; nrf5x::constants::RADIO_PAYLOAD_LENGTH] =
     [0x00; nrf5x::constants::RADIO_PAYLOAD_LENGTH];
 
-pub struct Radio {
+pub struct Radio<'a> {
     registers: StaticRef<RadioRegisters>,
     tx_power: Cell<TxPower>,
-    rx_client: OptionalCell<&'static dyn ble_advertising::RxClient>,
-    tx_client: OptionalCell<&'static dyn ble_advertising::TxClient>,
+    rx_client: OptionalCell<&'a dyn ble_advertising::RxClient>,
+    tx_client: OptionalCell<&'a dyn ble_advertising::TxClient>,
+    buffer: TakeCell<'static, [u8]>,
 }
 
 pub static mut RADIO: Radio = Radio::new();
 
-impl Radio {
-    pub const fn new() -> Radio {
+impl<'a> Radio<'a> {
+    pub const fn new() -> Radio<'a> {
         Radio {
             registers: RADIO_BASE,
             tx_power: Cell::new(TxPower::ZerodBm),
             rx_client: OptionalCell::empty(),
             tx_client: OptionalCell::empty(),
+            buffer: TakeCell::empty(),
         }
     }
 
@@ -631,7 +634,8 @@ impl Radio {
                 | nrf5x::constants::RADIO_STATE_TXDISABLE
                 | nrf5x::constants::RADIO_STATE_TX => {
                     self.radio_off();
-                    self.tx_client.map(|client| client.transmit_event(result));
+                    self.tx_client
+                        .map(|client| client.transmit_event(self.buffer.take().unwrap(), result));
                 }
                 nrf5x::constants::RADIO_STATE_RXRU
                 | nrf5x::constants::RADIO_STATE_RXIDLE
@@ -794,18 +798,13 @@ impl Radio {
     }
 }
 
-impl ble_advertising::BleAdvertisementDriver for Radio {
-    fn transmit_advertisement(
-        &self,
-        buf: &'static mut [u8],
-        _len: usize,
-        channel: RadioChannel,
-    ) -> &'static mut [u8] {
+impl<'a> ble_advertising::BleAdvertisementDriver<'a> for Radio<'a> {
+    fn transmit_advertisement(&self, buf: &'static mut [u8], _len: usize, channel: RadioChannel) {
         let res = self.replace_radio_buffer(buf);
+        self.buffer.replace(res);
         self.ble_initialize(channel);
         self.tx();
         self.enable_interrupts();
-        res
     }
 
     fn receive_advertisement(&self, channel: RadioChannel) {
@@ -814,16 +813,16 @@ impl ble_advertising::BleAdvertisementDriver for Radio {
         self.enable_interrupts();
     }
 
-    fn set_receive_client(&self, client: &'static dyn ble_advertising::RxClient) {
+    fn set_receive_client(&self, client: &'a dyn ble_advertising::RxClient) {
         self.rx_client.set(client);
     }
 
-    fn set_transmit_client(&self, client: &'static dyn ble_advertising::TxClient) {
+    fn set_transmit_client(&self, client: &'a dyn ble_advertising::TxClient) {
         self.tx_client.set(client);
     }
 }
 
-impl ble_advertising::BleConfig for Radio {
+impl ble_advertising::BleConfig for Radio<'_> {
     // The BLE Advertising Driver validates that the `tx_power` is between -20 to 10 dBm but then
     // underlying chip must validate if the current `tx_power` is supported as well
     fn set_tx_power(&self, tx_power: u8) -> kernel::ReturnCode {

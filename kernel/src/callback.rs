@@ -3,6 +3,7 @@
 use core::fmt;
 use core::ptr::NonNull;
 
+use crate::capabilities;
 use crate::config;
 use crate::debug;
 use crate::process;
@@ -43,7 +44,7 @@ pub struct AppId {
     /// Reference to the main kernel struct. This is needed for checking on
     /// certain properties of the referred app (like its editable bounds), but
     /// also for checking that the index is valid.
-    crate kernel: &'static Kernel,
+    pub(crate) kernel: &'static Kernel,
 
     /// The index in the kernel.PROCESSES[] array where this app's state is
     /// stored. This makes for fast lookup of the process and helps with
@@ -51,7 +52,7 @@ pub struct AppId {
     ///
     /// This value is crate visible to enable optimizations in sched.rs. Other
     /// users should call `.index()` instead.
-    crate index: usize,
+    pub(crate) index: usize,
 
     /// The unique identifier for this process. This can be used to refer to the
     /// process in situations where a single number is required, for instance
@@ -79,7 +80,27 @@ impl fmt::Debug for AppId {
 }
 
 impl AppId {
-    crate fn new(kernel: &'static Kernel, identifier: usize, index: usize) -> AppId {
+    /// Create a new `AppId` object based on the app identifier and its index
+    /// in the processes array.
+    pub(crate) fn new(kernel: &'static Kernel, identifier: usize, index: usize) -> AppId {
+        AppId {
+            kernel: kernel,
+            identifier: identifier,
+            index: index,
+        }
+    }
+
+    /// Create a new `AppId` object based on the app identifier and its index
+    /// in the processes array.
+    ///
+    /// This constructor is public but protected with a capability so that
+    /// external implementations of `ProcessType` can use it.
+    pub fn new_external(
+        kernel: &'static Kernel,
+        identifier: usize,
+        index: usize,
+        _capability: &dyn capabilities::ExternalProcessCapability,
+    ) -> AppId {
         AppId {
             kernel: kernel,
             identifier: identifier,
@@ -92,7 +113,7 @@ impl AppId {
     /// This will return `Some(index)` if the identifier stored in this `AppId`
     /// matches the app saved at the known index. If the identifier does not
     /// match then `None` will be returned.
-    crate fn index(&self) -> Option<usize> {
+    pub(crate) fn index(&self) -> Option<usize> {
         // Do a lookup to make sure that the index we have is correct.
         if self.kernel.appid_is_valid(self) {
             Some(self.index)
@@ -153,7 +174,7 @@ pub struct Callback {
 }
 
 impl Callback {
-    crate fn new(
+    pub(crate) fn new(
         app_id: AppId,
         callback_id: CallbackId,
         appdata: usize,

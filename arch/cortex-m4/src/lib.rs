@@ -2,7 +2,7 @@
 
 #![crate_name = "cortexm4"]
 #![crate_type = "rlib"]
-#![feature(asm, core_intrinsics, naked_functions)]
+#![feature(llvm_asm, naked_functions)]
 #![no_std]
 
 pub mod mpu;
@@ -36,24 +36,21 @@ pub unsafe extern "C" fn systick_handler() {
 }
 
 /// The `systick_handler` is called when the systick interrupt occurs, signaling
-/// that an application executed for longer than its timeslice. If this is
-/// called we want to return to the scheduler.
+/// that an application executed for longer than its timeslice. This interrupt
+/// handler is no longer responsible for signaling to the kernel thread that
+/// an interrupt has occurred, but is slightly more efficient than the generic_isr
+/// handler on account of not needing to mark the interrupt as pending.
 #[cfg(all(target_arch = "arm", target_os = "none"))]
 #[naked]
 pub unsafe extern "C" fn systick_handler() {
-    asm!(
+    llvm_asm!(
         "
-    // Mark that the systick handler was called meaning that the process stopped
-    // executing because it has exceeded its timeslice. This is a global
-    // variable that the `UserspaceKernelBoundary` code uses to determine why
-    // the application stopped executing.
-    ldr r0, =SYSTICK_EXPIRED
-    mov r1, #1
-    str r1, [r0, #0]
-
     // Set thread mode to privileged to switch back to kernel mode.
     mov r0, #0
     msr CONTROL, r0
+    /* CONTROL writes must be followed by ISB */
+    /* http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.dai0321a/BIHFJCAC.html */
+    isb
 
     movw LR, #0xFFF9
     movt LR, #0xFFFF
@@ -81,13 +78,16 @@ pub unsafe extern "C" fn generic_isr() {
 #[cfg(all(target_arch = "arm", target_os = "none"))]
 #[naked]
 pub unsafe extern "C" fn generic_isr() {
-    asm!(
+    llvm_asm!(
         "
     // Set thread mode to privileged to ensure we are executing as the kernel.
     // This may be redundant if the interrupt happened while the kernel code
     // was executing.
     mov r0, #0
     msr CONTROL, r0
+    /* CONTROL writes must be followed by ISB */
+    /* http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.dai0321a/BIHFJCAC.html */
+    isb
 
     // This is a special address to return Thread mode with Main stack
     movw LR, #0xFFF9
@@ -134,11 +134,45 @@ pub unsafe extern "C" fn generic_isr() {
     //
     str r0, [r3, r2, lsl #2]
 
+    /* The pending bit in ISPR might be reset by hardware for pulse interrupts
+     * at this point. So set it here again so the interrupt does not get lost
+     * in service_pending_interrupts()
+     * */
+    /* r3 = &NVIC.ISPR */
+    mov r3, #0xe200
+    movt r3, #0xe000
+    /* Set pending bit */
+    str r0, [r3, r2, lsl #2]
+
     // Now we can return from the interrupt context and resume what we were
     // doing. If an app was executing we will switch to the kernel so it can
     // choose whether to service the interrupt.
     "
     : : : : "volatile" );
+}
+
+// Mock implementation for tests on Travis-CI.
+#[cfg(not(any(target_arch = "arm", target_os = "none")))]
+pub unsafe extern "C" fn unhandled_interrupt() {
+    unimplemented!()
+}
+
+#[cfg(all(target_arch = "arm", target_os = "none"))]
+pub unsafe extern "C" fn unhandled_interrupt() {
+    let mut interrupt_number: u32;
+
+    // IPSR[8:0] holds the currently active interrupt
+    llvm_asm!(
+    "mrs    r0, ipsr                    "
+    : "={r0}"(interrupt_number)
+    :
+    : "r0"
+    :
+    );
+
+    interrupt_number = interrupt_number & 0x1ff;
+
+    panic!("Unhandled Interrupt. ISR {} is active.", interrupt_number);
 }
 
 // Mock implementation for tests on Travis-CI.
@@ -152,7 +186,7 @@ pub unsafe extern "C" fn svc_handler() {
 #[cfg(all(target_arch = "arm", target_os = "none"))]
 #[naked]
 pub unsafe extern "C" fn svc_handler() {
-    asm!(
+    llvm_asm!(
         "
     // First check to see which direction we are going in. If the link register
     // is something other than 0xfffffff9, then we are coming from an app which
@@ -164,6 +198,9 @@ pub unsafe extern "C" fn svc_handler() {
     // application. Set thread mode to unprivileged to run the application.
     mov r0, #1
     msr CONTROL, r0
+    /* CONTROL writes must be followed by ISB */
+    /* http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.dai0321a/BIHFJCAC.html */
+    isb
 
     // This is a special address to return Thread mode with Process stack
     movw lr, #0xfffd
@@ -183,6 +220,9 @@ pub unsafe extern "C" fn svc_handler() {
     // Set thread mode to privileged as we switch back to the kernel.
     mov r0, #0
     msr CONTROL, r0
+    /* CONTROL writes must be followed by ISB */
+    /* http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.dai0321a/BIHFJCAC.html */
+    isb
 
     // This is a special address to return Thread mode with Main stack
     movw LR, #0xFFF9
@@ -209,7 +249,7 @@ pub unsafe extern "C" fn switch_to_user(
     mut user_stack: *const usize,
     process_regs: &mut [usize; 8],
 ) -> *const usize {
-    asm!(
+    llvm_asm!(
         "
     // The arguments passed in are:
     // - `r0` is the top of the user stack
@@ -246,16 +286,14 @@ pub unsafe extern "C" fn switch_to_user(
 #[cfg(all(target_arch = "arm", target_os = "none"))]
 #[inline(never)]
 unsafe fn kernel_hardfault(faulting_stack: *mut u32) {
-    use core::intrinsics::offset;
-
-    let stacked_r0: u32 = *offset(faulting_stack, 0);
-    let stacked_r1: u32 = *offset(faulting_stack, 1);
-    let stacked_r2: u32 = *offset(faulting_stack, 2);
-    let stacked_r3: u32 = *offset(faulting_stack, 3);
-    let stacked_r12: u32 = *offset(faulting_stack, 4);
-    let stacked_lr: u32 = *offset(faulting_stack, 5);
-    let stacked_pc: u32 = *offset(faulting_stack, 6);
-    let stacked_xpsr: u32 = *offset(faulting_stack, 7);
+    let stacked_r0: u32 = *faulting_stack.offset(0);
+    let stacked_r1: u32 = *faulting_stack.offset(1);
+    let stacked_r2: u32 = *faulting_stack.offset(2);
+    let stacked_r3: u32 = *faulting_stack.offset(3);
+    let stacked_r12: u32 = *faulting_stack.offset(4);
+    let stacked_lr: u32 = *faulting_stack.offset(5);
+    let stacked_pc: u32 = *faulting_stack.offset(6);
+    let stacked_xpsr: u32 = *faulting_stack.offset(7);
 
     let mode_str = "Kernel";
 
@@ -400,49 +438,96 @@ pub unsafe extern "C" fn hard_fault_handler() {
     let faulting_stack: *mut u32;
     let kernel_stack: bool;
 
-    asm!(
-     "/* Read the SCB registers. */
-     ldr r0, =SCB_REGISTERS
-     ldr r1, =0xE000ED14
-     ldr r2, [r1, #0] /* CCR */
-     str r2, [r0, #0]
-     ldr r2, [r1, #20] /* CFSR */
-     str r2, [r0, #4]
-     ldr r2, [r1, #24] /* HFSR */
-     str r2, [r0, #8]
-     ldr r2, [r1, #32] /* MMFAR */
-     str r2, [r0, #12]
-     ldr r2, [r1, #36] /* BFAR */
-     str r2, [r0, #16]
-
-     mov    r1, 0                       \n\
-     tst    lr, #4                      \n\
-     itte   eq                          \n\
-     mrseq  r0, msp                     \n\
-     addeq  r1, 1                       \n\
-     mrsne  r0, psp                     "
+    // First need to determine if this a kernel fault or a userspace fault.
+    llvm_asm!(
+    "
+    mov    r1, 0     /* r1 = 0 */
+    tst    lr, #4    /* bitwise AND link register to 0b100 */
+    itte   eq        /* if lr==4, run next two instructions, else, run 3rd instruction. */
+    mrseq  r0, msp   /* r0 = kernel stack pointer */
+    addeq  r1, 1     /* r1 = 1, kernel was executing */
+    mrsne  r0, psp   /* r0 = userland stack pointer */"
     : "={r0}"(faulting_stack), "={r1}"(kernel_stack)
     :
     : "r0", "r1"
-    : "volatile"
-    );
+    : "volatile" );
 
     if kernel_stack {
-        kernel_hardfault(faulting_stack);
+        // Need to determine if we had a stack overflow before we push anything
+        // on to the stack. We check this by looking at the BusFault Status
+        // Register's (BFSR) `LSPERR` and `STKERR` bits to see if the hardware
+        // had any trouble stacking important registers to the stack during the
+        // fault. If so, then we cannot use this stack while handling this fault
+        // or we will trigger another fault.
+        let stack_overflow: bool;
+        llvm_asm!(
+        "
+        ldr   r2, =0xE000ED29  /* SCB BFSR register address */
+        ldrb  r2, [r2]         /* r2 = BFSR */
+        tst   r2, #0x30        /* r2 = BFSR & 0b00110000; LSPERR & STKERR bits */
+        ite   ne               /* check if the result of that bitwise AND was not 0 */
+        movne r3, #1           /* BFSR & 0b00110000 != 0; r3 = 1 */
+        moveq r3, #0           /* BFSR & 0b00110000 == 0; r3 = 0 */"
+        : "={r3}"(stack_overflow)
+        :
+        : "r3"
+        : "volatile" );
+
+        if stack_overflow {
+            // The hardware couldn't use the stack, so we have no saved data and
+            // we cannot use the kernel stack as is. We just want to report that
+            // the kernel's stack overflowed, since that is essential for
+            // debugging.
+            //
+            // To make room for a panic!() handler stack, we just re-use the
+            // kernel's original stack. This should in theory leave the bottom
+            // of the stack where the problem occurred untouched should one want
+            // to further debug.
+            llvm_asm!(
+            "
+            mov sp, r0   /* Set the stack pointer to _estack */"
+            :
+            : "{r0}"((_estack as *const ()) as u32)
+            : "volatile" );
+
+            // Panic to show the correct error.
+            panic!("kernel stack overflow");
+        } else {
+            // Show the normal kernel hardfault message.
+            kernel_hardfault(faulting_stack);
+        }
     } else {
-        // hard fault occurred in an app, not the kernel. The app should be
-        //  marked as in an error state and handled by the kernel
-        asm!(
-            "ldr r0, =APP_HARD_FAULT
-              mov r1, #1 /* Fault */
-              str r1, [r0, #0]
+        // Hard fault occurred in an app, not the kernel. The app should be
+        // marked as in an error state and handled by the kernel.
+        llvm_asm!(
+        "
+        /* Read the relevant SCB registers. */
+        ldr r0, =SCB_REGISTERS  /* Global variable address */
+        ldr r1, =0xE000ED14     /* SCB CCR register address */
+        ldr r2, [r1, #0]        /* CCR */
+        str r2, [r0, #0]
+        ldr r2, [r1, #20]       /* CFSR */
+        str r2, [r0, #4]
+        ldr r2, [r1, #24]       /* HFSR */
+        str r2, [r0, #8]
+        ldr r2, [r1, #32]       /* MMFAR */
+        str r2, [r0, #12]
+        ldr r2, [r1, #36]       /* BFAR */
+        str r2, [r0, #16]
 
-              /* Set thread mode to privileged */
-              mov r0, #0
-              msr CONTROL, r0
+        ldr r0, =APP_HARD_FAULT /* Global variable address */
+        mov r1, #1              /* r1 = 1 */
+        str r1, [r0, #0]        /* APP_HARD_FAULT = 1 */
 
-              movw LR, #0xFFF9
-              movt LR, #0xFFFF"
+        /* Set thread mode to privileged */
+        mov r0, #0
+        msr CONTROL, r0
+        /* CONTROL writes must be followed by ISB */
+        /* http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.dai0321a/BIHFJCAC.html */
+        isb
+
+        movw LR, #0xFFF9
+        movt LR, #0xFFFF"
         : : : : "volatile" );
     }
 }

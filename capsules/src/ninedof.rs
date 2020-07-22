@@ -6,6 +6,7 @@
 //! You need a device that provides the `hil::sensors::NineDof` trait.
 //!
 //! ```rust
+//! # use kernel::{hil, static_init};
 //!
 //! let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
 //! let grant_ninedof = board_kernel.create_grant(&grant_cap);
@@ -53,13 +54,13 @@ impl Default for App {
 }
 
 pub struct NineDof<'a> {
-    drivers: &'a [&'a dyn hil::sensors::NineDof],
+    drivers: &'a [&'a dyn hil::sensors::NineDof<'a>],
     apps: Grant<App>,
     current_app: OptionalCell<AppId>,
 }
 
-impl NineDof<'a> {
-    pub fn new(drivers: &'a [&'a dyn hil::sensors::NineDof], grant: Grant<App>) -> NineDof<'a> {
+impl<'a> NineDof<'a> {
+    pub fn new(drivers: &'a [&'a dyn hil::sensors::NineDof<'a>], grant: Grant<App>) -> NineDof<'a> {
         NineDof {
             drivers: drivers,
             apps: grant,
@@ -131,7 +132,7 @@ impl NineDof<'a> {
     }
 }
 
-impl hil::sensors::NineDofClient for NineDof<'a> {
+impl hil::sensors::NineDofClient for NineDof<'_> {
     fn callback(&self, arg1: usize, arg2: usize, arg3: usize) {
         // Notify the current application that the command finished.
         // Also keep track of what just finished to see if we can re-use
@@ -178,7 +179,7 @@ impl hil::sensors::NineDofClient for NineDof<'a> {
     }
 }
 
-impl Driver for NineDof<'a> {
+impl Driver for NineDof<'_> {
     fn subscribe(
         &self,
         subscribe_num: usize,

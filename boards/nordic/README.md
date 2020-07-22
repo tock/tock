@@ -24,9 +24,10 @@ features a nrf52832 chip.
 Tock Hierarchy
 --------------
 
-As much is shared across these platforms, Tock uses an "nrf52dk_base" crate.
-This is a library crate that contains code shared by boards that include any
-chips from the nrf52 family.
+As much is shared across these platforms, Tock includes chip-specific components
+for these platforms in this crate.
+The nrf52_components crate contains initialization code shared only by boards
+that include any chips from the nrf52 family.
 
 
 Legacy Boards

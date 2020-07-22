@@ -4,8 +4,9 @@
 //! - <https://github.com/tock/imix>
 
 #![no_std]
-#![no_main]
-#![feature(in_band_lifetimes)]
+// Disable this attribute when documenting, as a workaround for
+// https://github.com/rust-lang/rust/issues/62184.
+#![cfg_attr(not(doc), no_main)]
 #![deny(missing_docs)]
 
 mod imix_components;
@@ -37,13 +38,10 @@ use components::led::LedsComponent;
 use components::nrf51822::Nrf51822Component;
 use components::process_console::ProcessConsoleComponent;
 use components::rng::RngComponent;
-use components::si7021::{HumidityComponent, SI7021Component, TemperatureComponent};
+use components::si7021::{HumidityComponent, SI7021Component};
 use components::spi::{SpiComponent, SpiSyscallComponent};
 use imix_components::adc::AdcComponent;
-use imix_components::analog_comparator::AcComponent;
 use imix_components::fxos8700::NineDofComponent;
-use imix_components::nonvolatile_storage::NonvolatileStorageComponent;
-use imix_components::radio::RadioComponent;
 use imix_components::rf233::RF233Component;
 use imix_components::udp_driver::UDPDriverComponent;
 use imix_components::udp_mux::UDPMuxComponent;
@@ -82,9 +80,6 @@ const PAN_ID: u16 = 0xABCD;
 // how should the kernel respond when a process faults
 const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultResponse::Panic;
 
-#[link_section = ".app_memory"]
-static mut APP_MEMORY: [u8; 32768] = [0; 32768];
-
 static mut PROCESSES: [Option<&'static dyn kernel::procs::ProcessType>; NUM_PROCS] =
     [None; NUM_PROCS];
 static mut CHIP: Option<&'static sam4l::chip::Sam4l> = None;
@@ -100,14 +95,14 @@ struct Imix {
         components::process_console::Capability,
     >,
     console: &'static capsules::console::Console<'static>,
-    gpio: &'static capsules::gpio::GPIO<'static, sam4l::gpio::GPIOPin>,
+    gpio: &'static capsules::gpio::GPIO<'static, sam4l::gpio::GPIOPin<'static>>,
     alarm: &'static AlarmDriver<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>,
     temp: &'static capsules::temperature::TemperatureSensor<'static>,
     humidity: &'static capsules::humidity::HumiditySensor<'static>,
     ambient_light: &'static capsules::ambient_light::AmbientLight<'static>,
     adc: &'static capsules::adc::Adc<'static, sam4l::adc::Adc>,
-    led: &'static capsules::led::LED<'static, sam4l::gpio::GPIOPin>,
-    button: &'static capsules::button::Button<'static, sam4l::gpio::GPIOPin>,
+    led: &'static capsules::led::LED<'static, sam4l::gpio::GPIOPin<'static>>,
+    button: &'static capsules::button::Button<'static, sam4l::gpio::GPIOPin<'static>>,
     rng: &'static capsules::rng::RngDriver<'static>,
     analog_comparator: &'static capsules::analog_comparator::AnalogComparator<
         'static,
@@ -310,14 +305,18 @@ pub unsafe fn reset_handler() {
         .finalize(components::alarm_component_helper!(sam4l::ast::Ast));
 
     // # I2C and I2C Sensors
-    let mux_i2c = static_init!(MuxI2C<'static>, MuxI2C::new(&sam4l::i2c::I2C2));
+    let mux_i2c = static_init!(
+        MuxI2C<'static>,
+        MuxI2C::new(&sam4l::i2c::I2C2, None, dynamic_deferred_caller)
+    );
     sam4l::i2c::I2C2.set_master_client(mux_i2c);
 
     let ambient_light = AmbientLightComponent::new(board_kernel, mux_i2c, mux_alarm)
         .finalize(components::isl29035_component_helper!(sam4l::ast::Ast));
     let si7021 = SI7021Component::new(mux_i2c, mux_alarm, 0x40)
         .finalize(components::si7021_component_helper!(sam4l::ast::Ast));
-    let temp = TemperatureComponent::new(board_kernel, si7021).finalize(());
+    let temp =
+        components::temperature::TemperatureComponent::new(board_kernel, si7021).finalize(());
     let humidity = HumidityComponent::new(board_kernel, si7021).finalize(());
     let ninedof = NineDofComponent::new(board_kernel, mux_i2c, &sam4l::gpio::PC[13]).finalize(());
 
@@ -344,13 +343,13 @@ pub unsafe fn reset_handler() {
         board_kernel,
         components::gpio_component_helper!(
             sam4l::gpio::GPIOPin,
-            &sam4l::gpio::PC[31],
-            &sam4l::gpio::PC[30],
-            &sam4l::gpio::PC[29],
-            &sam4l::gpio::PC[28],
-            &sam4l::gpio::PC[27],
-            &sam4l::gpio::PC[26],
-            &sam4l::gpio::PA[20]
+            0 => &sam4l::gpio::PC[31],
+            1 => &sam4l::gpio::PC[30],
+            2 => &sam4l::gpio::PC[29],
+            3 => &sam4l::gpio::PC[28],
+            4 => &sam4l::gpio::PC[27],
+            5 => &sam4l::gpio::PC[26],
+            6 => &sam4l::gpio::PA[20]
         ),
     )
     .finalize(components::gpio_component_buf!(sam4l::gpio::GPIOPin));
@@ -377,7 +376,17 @@ pub unsafe fn reset_handler() {
     .finalize(components::button_component_buf!(sam4l::gpio::GPIOPin));
     let crc = CrcComponent::new(board_kernel, &sam4l::crccu::CRCCU)
         .finalize(components::crc_component_helper!(sam4l::crccu::Crccu));
-    let analog_comparator = AcComponent::new().finalize(());
+    let analog_comparator = components::analog_comparator::AcComponent::new(
+        &sam4l::acifc::ACIFC,
+        components::acomp_component_helper!(
+            <sam4l::acifc::Acifc as kernel::hil::analog_comparator::AnalogComparator>::Channel,
+            &sam4l::acifc::CHANNEL_AC0,
+            &sam4l::acifc::CHANNEL_AC1,
+            &sam4l::acifc::CHANNEL_AC2,
+            &sam4l::acifc::CHANNEL_AC3
+        ),
+    )
+    .finalize(components::acomp_component_buf!(sam4l::acifc::Acifc));
     let rng = RngComponent::new(board_kernel, &sam4l::trng::TRNG).finalize(());
 
     // For now, assign the 802.15.4 MAC address on the device as
@@ -391,17 +400,39 @@ pub unsafe fn reset_handler() {
 
     // Can this initialize be pushed earlier, or into component? -pal
     rf233.initialize(&mut RF233_BUF, &mut RF233_REG_WRITE, &mut RF233_REG_READ);
-    let (radio_driver, mux_mac) = RadioComponent::new(
+    let (radio_driver, mux_mac) = components::ieee802154::Ieee802154Component::new(
         board_kernel,
         rf233,
+        &sam4l::aes::AES,
         PAN_ID,
-        serial_num_bottom_16, //comment out for dual rx test only
-                              //49138, //comment in for dual rx test only
+        serial_num_bottom_16,
     )
-    .finalize(());
+    .finalize(components::ieee802154_component_helper!(
+        capsules::rf233::RF233<'static, VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw>>,
+        sam4l::aes::Aes<'static>
+    ));
 
     let usb_driver = UsbComponent::new(board_kernel).finalize(());
-    let nonvolatile_storage = NonvolatileStorageComponent::new(board_kernel).finalize(());
+
+    // Kernel storage region, allocated with the storage_volume!
+    // macro in common/utils.rs
+    extern "C" {
+        /// Beginning on the ROM region containing app images.
+        static _sstorage: u8;
+        static _estorage: u8;
+    }
+
+    let nonvolatile_storage = components::nonvolatile_storage::NonvolatileStorageComponent::new(
+        board_kernel,
+        &sam4l::flashcalw::FLASH_CONTROLLER,
+        0x60000,                          // Start address for userspace accessible region
+        0x20000,                          // Length of userspace accessible region
+        &_sstorage as *const u8 as usize, //start address of kernel region
+        &_estorage as *const u8 as usize - &_sstorage as *const u8 as usize, // length of kernel region
+    )
+    .finalize(components::nv_storage_component_helper!(
+        sam4l::flashcalw::FLASHCALW
+    ));
 
     let local_ip_ifaces = static_init!(
         [IPAddr; 3],
@@ -503,15 +534,18 @@ pub unsafe fn reset_handler() {
 
     debug!("Initialization complete. Entering main loop");
 
+    /// These symbols are defined in the linker script.
     extern "C" {
         /// Beginning of the ROM region containing app images.
         static _sapps: u8;
-
         /// End of the ROM region containing app images.
-        ///
-        /// This symbol is defined in the linker script.
         static _eapps: u8;
+        /// Beginning of the RAM region for app memory.
+        static mut _sappmem: u8;
+        /// End of the RAM region for app memory.
+        static _eappmem: u8;
     }
+
     kernel::procs::load_processes(
         board_kernel,
         chip,
@@ -519,7 +553,10 @@ pub unsafe fn reset_handler() {
             &_sapps as *const u8,
             &_eapps as *const u8 as usize - &_sapps as *const u8 as usize,
         ),
-        &mut APP_MEMORY,
+        &mut core::slice::from_raw_parts_mut(
+            &mut _sappmem as *mut u8,
+            &_eappmem as *const u8 as usize - &_sappmem as *const u8 as usize,
+        ),
         &mut PROCESSES,
         FAULT_RESPONSE,
         &process_mgmt_cap,

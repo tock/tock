@@ -27,6 +27,12 @@
  *    The `_sapps` symbol marks the beginning of application memory in flash.
  *    The `_eapps` symbol marks the end of application memory in flash by
  *    pointing to next address after application flash.
+ *
+ * `_sappmem`, `_eappmem`
+ *
+ *    The `_sappmem` symbol marks the beginning of application memory in RAM.
+ *    The `_eappmem` symbol marks the end of application memory in RAM by
+ *    pointing to next address after application RAM.
  */
 
 
@@ -303,8 +309,10 @@ SECTIONS
          * dynamically, requiring changes to this section.
          */
         . = ALIGN(MPU_MIN_ALIGN);
+        _sappmem = .;
         *(.app_memory)
     } > ram
+    _eappmem = ORIGIN(ram) + LENGTH(ram);
 
     /* Discard RISC-V relevant .eh_frame, we are not doing unwind on panic
        so it is not needed. */

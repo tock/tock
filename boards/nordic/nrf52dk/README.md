@@ -55,7 +55,7 @@ There already exist prepared scripts to support debugging in [the jtag folder](h
 Open two separate terminals go to the jtag directory by: </br>
 
 ```bash
-$ cd tock/boards/nrf52dk/jtag
+$ cd tock/boards/nordic/nrf52dk/jtag
 ```
 
 In the first window start the JLink gdb server by:

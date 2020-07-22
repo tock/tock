@@ -36,6 +36,9 @@
 //! connects a `ProcessConsole` directly up to USART0:
 //!
 //! ```rust
+//! # use kernel::{capabilities, hil, static_init};
+//! # use capsules::process_console::ProcessConsole;
+//!
 //! pub struct Capability;
 //! unsafe impl capabilities::ProcessManagementCapability for Capability {}
 //!
@@ -47,7 +50,7 @@
 //!                  &mut console::READ_BUF,
 //!                  &mut console::COMMAND_BUF,
 //!                  kernel,
-//!                  Capability);
+//!                  Capability));
 //! hil::uart::UART::set_client(&usart::USART0, pconsole);
 //!
 //! pconsole.initialize();
@@ -70,7 +73,9 @@
 //! Next, establish a serial console connection to the board. An easy way to do
 //! this is to run:
 //!
-//!     $ tockloader listen
+//! ```shell
+//! $ tockloader listen
+//! ```
 //!
 //! With that console open, you can issue commands. For example, to see all of
 //! the processes on the board, use `list`:

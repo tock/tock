@@ -170,7 +170,7 @@ pub static mut SPI3: Spi = Spi::new(
     Dma1Peripheral::SPI3_RX,
 );
 
-impl Spi<'a> {
+impl<'a> Spi<'a> {
     const fn new(
         base_addr: StaticRef<SpiRegisters>,
         clock: SpiClock,
@@ -337,7 +337,7 @@ impl Spi<'a> {
     }
 }
 
-impl spi::SpiMaster for Spi<'a> {
+impl spi::SpiMaster for Spi<'_> {
     type ChipSelect = PinId;
 
     fn set_client(&self, client: &'static dyn SpiMasterClient) {
@@ -404,16 +404,18 @@ impl spi::SpiMaster for Spi<'a> {
     /// We *only* support 1Mhz. If `rate` is set to any value other than
     /// `1_000_000`, then this function panics
     fn set_rate(&self, rate: u32) -> u32 {
-        if rate != 1_000_000 {
-            panic!("rate must be 1_000_000");
+        match rate {
+            1_000_000 => self.set_cr(|| {
+                // HSI is 16Mhz and Fpclk is also 16Mhz. 0b011 is Fpclk / 16
+                self.registers.cr1.modify(CR1::BR.val(0b011));
+            }),
+            4_000_000 => self.set_cr(|| {
+                // HSI is 16Mhz and Fpclk is also 16Mhz. 0b001 is Fpclk / 4
+                self.registers.cr1.modify(CR1::BR.val(0b001));
+            }),
+            _ => panic!("rate must be 1_000_000, 4_000_000"),
         }
-
-        self.set_cr(|| {
-            // HSI is 16Mhz and Fpclk is also 16Mhz. 0b011 is Fpclk / 16
-            self.registers.cr1.modify(CR1::BR.val(0b011));
-        });
-
-        1_000_000
+        rate
     }
 
     /// We *only* support 1Mhz. If we need to return any other value other than
@@ -455,7 +457,7 @@ impl spi::SpiMaster for Spi<'a> {
     }
 }
 
-impl dma1::StreamClient for Spi<'a> {
+impl dma1::StreamClient for Spi<'_> {
     fn transfer_done(&self, pid: dma1::Dma1Peripheral) {
         if pid == self.tx_dma_pid {
             self.disable_tx();

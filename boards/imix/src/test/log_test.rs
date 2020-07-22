@@ -50,7 +50,7 @@ pub unsafe fn run(
 ) {
     // Set up flash controller.
     flashcalw::FLASH_CONTROLLER.configure();
-    static mut PAGEBUFFER: flashcalw::Sam4lPage = flashcalw::Sam4lPage::new();
+    let pagebuffer = static_init!(flashcalw::Sam4lPage, flashcalw::Sam4lPage::default());
 
     // Create actual log storage abstraction on top of flash.
     let log = static_init!(
@@ -58,7 +58,7 @@ pub unsafe fn run(
         log::Log::new(
             &TEST_LOG,
             &flashcalw::FLASH_CONTROLLER,
-            &mut PAGEBUFFER,
+            pagebuffer,
             deferred_caller,
             true
         )

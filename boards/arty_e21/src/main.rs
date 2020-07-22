@@ -1,8 +1,10 @@
 //! Board file for the SiFive E21 Bitstream running on the Arty FPGA
 
 #![no_std]
-#![no_main]
-#![feature(const_fn, in_band_lifetimes)]
+// Disable this attribute when documenting, as a workaround for
+// https://github.com/rust-lang/rust/issues/62184.
+#![cfg_attr(not(doc), no_main)]
+#![feature(const_fn)]
 
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use kernel::capabilities;
@@ -24,10 +26,6 @@ const NUM_PROCS: usize = 4;
 // How should the kernel respond when a process faults.
 const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultResponse::Panic;
 
-// RAM to be shared by all application processes.
-#[link_section = ".app_memory"]
-static mut APP_MEMORY: [u8; 49152] = [0; 49152];
-
 // Actual memory for holding the active process structures.
 static mut PROCESSES: [Option<&'static dyn kernel::procs::ProcessType>; NUM_PROCS] =
     [None, None, None, None];
@@ -44,13 +42,13 @@ pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 /// capsules for this platform.
 struct ArtyE21 {
     console: &'static capsules::console::Console<'static>,
-    gpio: &'static capsules::gpio::GPIO<'static, arty_e21_chip::gpio::GpioPin>,
+    gpio: &'static capsules::gpio::GPIO<'static, arty_e21_chip::gpio::GpioPin<'static>>,
     alarm: &'static capsules::alarm::AlarmDriver<
         'static,
         VirtualMuxAlarm<'static, rv32i::machine_timer::MachineTimer<'static>>,
     >,
-    led: &'static capsules::led::LED<'static, arty_e21_chip::gpio::GpioPin>,
-    button: &'static capsules::button::Button<'static, arty_e21_chip::gpio::GpioPin>,
+    led: &'static capsules::led::LED<'static, arty_e21_chip::gpio::GpioPin<'static>>,
+    button: &'static capsules::button::Button<'static, arty_e21_chip::gpio::GpioPin<'static>>,
     // ipc: kernel::ipc::IPC,
 }
 
@@ -187,9 +185,9 @@ pub unsafe fn reset_handler() {
         board_kernel,
         components::gpio_component_helper!(
             arty_e21_chip::gpio::GpioPin,
-            &arty_e21_chip::gpio::PORT[7],
-            &arty_e21_chip::gpio::PORT[5],
-            &arty_e21_chip::gpio::PORT[6]
+            0 => &arty_e21_chip::gpio::PORT[7],
+            1 => &arty_e21_chip::gpio::PORT[5],
+            2 => &arty_e21_chip::gpio::PORT[6]
         ),
     )
     .finalize(components::gpio_component_buf!(
@@ -216,16 +214,16 @@ pub unsafe fn reset_handler() {
 
     // timertest.start();
 
+    /// These symbols are defined in the linker script.
     extern "C" {
         /// Beginning of the ROM region containing app images.
-        ///
-        /// This symbol is defined in the linker script.
         static _sapps: u8;
-
         /// End of the ROM region containing app images.
-        ///
-        /// This symbol is defined in the linker script.
         static _eapps: u8;
+        /// Beginning of the RAM region for app memory.
+        static mut _sappmem: u8;
+        /// End of the RAM region for app memory.
+        static _eappmem: u8;
     }
 
     kernel::procs::load_processes(
@@ -235,7 +233,10 @@ pub unsafe fn reset_handler() {
             &_sapps as *const u8,
             &_eapps as *const u8 as usize - &_sapps as *const u8 as usize,
         ),
-        &mut APP_MEMORY,
+        &mut core::slice::from_raw_parts_mut(
+            &mut _sappmem as *mut u8,
+            &_eappmem as *const u8 as usize - &_sappmem as *const u8 as usize,
+        ),
         &mut PROCESSES,
         FAULT_RESPONSE,
         &process_mgmt_cap,

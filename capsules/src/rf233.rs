@@ -200,7 +200,7 @@ pub struct RF233<'a, S: spi::SpiMasterDevice> {
     power_client_pending: Cell<bool>,
     reset_pin: &'a dyn gpio::Pin,
     sleep_pin: &'a dyn gpio::Pin,
-    irq_pin: &'a dyn gpio::InterruptPin,
+    irq_pin: &'a dyn gpio::InterruptPin<'a>,
     state: Cell<InternalState>,
     tx_buf: TakeCell<'static, [u8]>,
     rx_buf: TakeCell<'static, [u8]>,
@@ -276,7 +276,7 @@ fn interrupt_included(mask: u8, interrupt: InteruptFlags) -> bool {
     (mask & int) == int
 }
 
-impl<S: spi::SpiMasterDevice> spi::SpiMasterClient for RF233<'a, S> {
+impl<'a, S: spi::SpiMasterDevice> spi::SpiMasterClient for RF233<'a, S> {
     // This function is a bit confusing because the order of the logic in the
     // function is different than the order of operations during transmission
     // and reception.
@@ -1017,18 +1017,18 @@ impl<S: spi::SpiMasterDevice> spi::SpiMasterClient for RF233<'a, S> {
     }
 }
 
-impl<S: spi::SpiMasterDevice> gpio::Client for RF233<'a, S> {
+impl<S: spi::SpiMasterDevice> gpio::Client for RF233<'_, S> {
     fn fired(&self) {
         self.handle_interrupt();
     }
 }
 
-impl<S: spi::SpiMasterDevice> RF233<'a, S> {
+impl<'a, S: spi::SpiMasterDevice> RF233<'a, S> {
     pub fn new(
         spi: &'a S,
         reset: &'a dyn gpio::Pin,
         sleep: &'a dyn gpio::Pin,
-        irq: &'a dyn gpio::InterruptPin,
+        irq: &'a dyn gpio::InterruptPin<'a>,
         channel: u8,
     ) -> RF233<'a, S> {
         RF233 {
@@ -1162,9 +1162,9 @@ impl<S: spi::SpiMasterDevice> RF233<'a, S> {
     }
 }
 
-impl<S: spi::SpiMasterDevice> radio::Radio for RF233<'a, S> {}
+impl<S: spi::SpiMasterDevice> radio::Radio for RF233<'_, S> {}
 
-impl<S: spi::SpiMasterDevice> radio::RadioConfig for RF233<'a, S> {
+impl<S: spi::SpiMasterDevice> radio::RadioConfig for RF233<'_, S> {
     fn initialize(
         &self,
         buf: &'static mut [u8],
@@ -1329,7 +1329,7 @@ impl<S: spi::SpiMasterDevice> radio::RadioConfig for RF233<'a, S> {
     }
 }
 
-impl<S: spi::SpiMasterDevice> radio::RadioData for RF233<'a, S> {
+impl<S: spi::SpiMasterDevice> radio::RadioData for RF233<'_, S> {
     fn set_transmit_client(&self, client: &'static dyn radio::TxClient) {
         self.tx_client.set(client);
     }

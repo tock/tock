@@ -1,13 +1,16 @@
-//! Platform-independent USB 2.0 protocol library
+//! Platform-independent USB 2.0 protocol library.
+//!
+//! Mostly data types for USB descriptors.
 
 use core::cell::Cell;
+use core::cmp::min;
 use core::convert::From;
 use core::fmt;
 use kernel::common::cells::VolatileCell;
 use kernel::hil::usb::TransferType;
 
-// On Nordic, USB buffers must be 32-bit aligned, with a power-of-2 size. For now we apply these
-// constraints on all platforms.
+// On Nordic, USB buffers must be 32-bit aligned, with a power-of-2 size. For
+// now we apply these constraints on all platforms.
 #[derive(Default)]
 #[repr(align(4))]
 pub struct Buffer8 {
@@ -27,7 +30,7 @@ impl Default for Buffer64 {
     }
 }
 
-/// The datastructure sent in a SETUP handshake
+/// The data structure sent in a SETUP handshake.
 #[derive(Debug, Copy, Clone)]
 pub struct SetupData {
     pub request_type: DeviceRequestType,
@@ -155,6 +158,7 @@ pub enum DescriptorType {
     InterfacePower,
     HID = 0x21,
     Report = 0x22,
+    CdcInterface = 0x24,
 }
 
 fn get_descriptor_type(byte: u8) -> Option<DescriptorType> {
@@ -169,6 +173,7 @@ fn get_descriptor_type(byte: u8) -> Option<DescriptorType> {
         8 => Some(DescriptorType::InterfacePower),
         0x21 => Some(DescriptorType::HID),
         0x22 => Some(DescriptorType::Report),
+        0x24 => Some(DescriptorType::CdcInterface),
         _ => None,
     }
 }
@@ -370,6 +375,183 @@ impl Descriptor for DeviceDescriptor {
     }
 }
 
+/// Buffer for holding the device descriptor.
+// TODO it's dumb that these are Cells, but doing otherwise would require
+// rewriting the `write_to` functions
+pub struct DeviceBuffer {
+    pub buf: [Cell<u8>; 19],
+    pub len: usize,
+}
+
+impl DeviceBuffer {
+    pub fn write_to(&self, buf: &[Cell<u8>]) -> usize {
+        for i in 0..self.len {
+            buf[i].set(self.buf[i].get());
+        }
+        self.len
+    }
+}
+
+/// Buffer for holding the configuration, interface(s), and endpoint(s)
+/// descriptors. Also includes class-specific functional descriptors.
+pub struct DescriptorBuffer {
+    pub buf: [Cell<u8>; 128],
+    pub len: usize,
+}
+
+impl DescriptorBuffer {
+    pub fn write_to(&self, buf: &[Cell<u8>]) -> usize {
+        for i in 0..self.len {
+            buf[i].set(self.buf[i].get());
+        }
+        self.len
+    }
+}
+
+/// Transform descriptor structs into descriptor buffers that can be
+/// passed into the control endpoint handler. Each endpoint descriptor list
+/// corresponds to the matching index in the interface descriptor list. For
+/// example, if the interface descriptor list contains `[ID1, ID2, ID3]`,
+/// and the endpoint descriptors list is `[[ED1, ED2], [ED3, ED4, ED5],
+/// [ED6]]`, then the third interface descriptor (`ID3`) has one
+/// corresponding endpoint descriptor (`ED6`).
+pub fn create_descriptor_buffers(
+    device_descriptor: DeviceDescriptor,
+    mut configuration_descriptor: ConfigurationDescriptor,
+    interface_descriptor: &mut [InterfaceDescriptor],
+    endpoint_descriptors: &[&[EndpointDescriptor]],
+    hid_descriptor: Option<&HIDDescriptor>,
+    cdc_descriptor: Option<&[CdcInterfaceDescriptor]>,
+) -> (DeviceBuffer, DescriptorBuffer) {
+    // Create device descriptor buffer and fill.
+    // Cell doesn't implement Copy, so here we are.
+    let mut dev_buf = DeviceBuffer {
+        buf: [
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+        ],
+        len: 0,
+    };
+    dev_buf.len = device_descriptor.write_to(&dev_buf.buf);
+
+    // Create other descriptors buffer.
+    // For the moment, the Default trait is not implemented for arrays
+    // of length > 32, and the Cell type is not Copy, so we have to
+    // initialize each element manually.
+    let mut other_buf = DescriptorBuffer {
+        #[rustfmt::skip]
+        buf: [
+            Cell::default(), Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+            Cell::default(), Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+            Cell::default(), Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+            Cell::default(), Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+            Cell::default(), Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+            Cell::default(), Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+            Cell::default(), Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+            Cell::default(), Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+            Cell::default(), Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+            Cell::default(), Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+            Cell::default(), Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+            Cell::default(), Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+            Cell::default(), Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+            Cell::default(), Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+            Cell::default(), Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+            Cell::default(), Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+            Cell::default(), Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+            Cell::default(), Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+            Cell::default(), Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+            Cell::default(), Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+            Cell::default(), Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+            Cell::default(), Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+            Cell::default(), Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+            Cell::default(), Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+            Cell::default(), Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+            Cell::default(), Cell::default(), Cell::default(),
+        ],
+        len: 0,
+    };
+
+    // Setup certain descriptor fields since now we know the tree of
+    // descriptors.
+
+    // Configuration Descriptor. We assume there is only one configuration
+    // descriptor, since this is very common for most USB devices.
+    configuration_descriptor.num_interfaces = interface_descriptor.len() as u8;
+
+    // Calculate the length of all dependent descriptors.
+    // TODO should we be erroring here if len > 128? Otherwise we'll probably
+    // buffer overrun and panic.
+    configuration_descriptor.related_descriptor_length =
+        interface_descriptor.iter().map(|d| d.size()).sum::<usize>()
+            + endpoint_descriptors
+                .iter()
+                .map(|descs| descs.iter().map(|d| d.size()).sum::<usize>())
+                .sum::<usize>()
+            + hid_descriptor.map_or(0, |d| d.size())
+            + cdc_descriptor.map_or(0, |ds| ds.iter().map(|d| d.size()).sum::<usize>());
+
+    // Set the number of endpoints for each interface descriptor.
+    for (i, d) in interface_descriptor.iter_mut().enumerate() {
+        d.num_endpoints = endpoint_descriptors[i].len() as u8;
+    }
+
+    // Fill a single configuration into the buffer and track length.
+    let mut len = 0;
+    len += configuration_descriptor.write_to(&other_buf.buf[len..]);
+
+    // Fill in the interface descriptor and its associated endpoints.
+    for (i, d) in interface_descriptor.iter().enumerate() {
+        // Add the interface descriptor.
+        len += d.write_to(&other_buf.buf[len..]);
+
+        // If there is a HID descriptor, we include
+        // it with the first interface descriptor.
+        if i == 0 {
+            // HID descriptor, if any.
+            if let Some(dh) = hid_descriptor {
+                len += dh.write_to(&other_buf.buf[len..]);
+            }
+        }
+
+        // If there is a CDC descriptor array, we include
+        // it with the first interface descriptor.
+        if i == 0 {
+            // CDC descriptor, if any.
+            if let Some(dcdc) = cdc_descriptor {
+                for dcs in dcdc {
+                    len += dcs.write_to(&other_buf.buf[len..]);
+                }
+            }
+        }
+
+        // Endpoints for each interface.
+        for de in endpoint_descriptors[i] {
+            len += de.write_to(&other_buf.buf[len..]);
+        }
+    }
+    other_buf.len = min(len, other_buf.buf.len());
+
+    // return the two buffers
+    (dev_buf, other_buf)
+}
+
 pub struct ConfigurationDescriptor {
     pub num_interfaces: u8,
     pub configuration_value: u8,
@@ -383,7 +565,7 @@ impl Default for ConfigurationDescriptor {
     fn default() -> Self {
         ConfigurationDescriptor {
             num_interfaces: 1,
-            configuration_value: 0,
+            configuration_value: 1,
             string_index: 0,
             attributes: ConfigurationAttributes::new(true, false),
             max_power: 0, // in 2mA units
@@ -571,7 +753,7 @@ pub struct HIDSubordinateDescriptor {
     pub len: u16,
 }
 
-impl Descriptor for HIDDescriptor<'a> {
+impl<'a> Descriptor for HIDDescriptor<'a> {
     fn size(&self) -> usize {
         6 + (3 * self.sub_descriptors.len())
     }
@@ -595,7 +777,7 @@ pub struct ReportDescriptor<'a> {
     pub desc: &'a [u8],
 }
 
-impl Descriptor for ReportDescriptor<'a> {
+impl<'a> Descriptor for ReportDescriptor<'a> {
     fn size(&self) -> usize {
         self.desc.len()
     }
@@ -608,11 +790,80 @@ impl Descriptor for ReportDescriptor<'a> {
     }
 }
 
+//
+// For CDC
+//
+
+#[derive(Copy, Clone)]
+pub enum CdcInterfaceDescriptorSubType {
+    Header = 0x00,
+    CallManagement = 0x01,
+    AbstractControlManagement = 0x02,
+    DirectLineManagement = 0x03,
+    TelephoneRinger = 0x04,
+    TelephoneCallLineStateReportingCapbailities = 0x05,
+    Union = 0x06,
+    CountrySelection = 0x07,
+    TelephoneOperationalModes = 0x08,
+    UsbTerminal = 0x09,
+    NetworkChannelTerminal = 0x0a,
+    ProtocolUnit = 0x0b,
+    ExtensionUnity = 0x0c,
+    MultiChannelManagement = 0x0d,
+    CapiControlManagement = 0x0e,
+    EthernetNetworking = 0x0f,
+    AtmNetworking = 0x10,
+}
+
+pub struct CdcInterfaceDescriptor {
+    pub subtype: CdcInterfaceDescriptorSubType,
+    pub field1: u8,
+    pub field2: u8,
+}
+
+impl Descriptor for CdcInterfaceDescriptor {
+    fn size(&self) -> usize {
+        3 + match self.subtype {
+            CdcInterfaceDescriptorSubType::Header => 2,
+            CdcInterfaceDescriptorSubType::CallManagement => 2,
+            CdcInterfaceDescriptorSubType::AbstractControlManagement => 1,
+            CdcInterfaceDescriptorSubType::DirectLineManagement => 1,
+            CdcInterfaceDescriptorSubType::TelephoneRinger => 2,
+            CdcInterfaceDescriptorSubType::TelephoneCallLineStateReportingCapbailities => 4,
+            CdcInterfaceDescriptorSubType::Union => 2,
+            CdcInterfaceDescriptorSubType::CountrySelection => 2,
+            CdcInterfaceDescriptorSubType::TelephoneOperationalModes => 1,
+            CdcInterfaceDescriptorSubType::UsbTerminal => 1,
+            CdcInterfaceDescriptorSubType::NetworkChannelTerminal => 1,
+            CdcInterfaceDescriptorSubType::ProtocolUnit => 1,
+            CdcInterfaceDescriptorSubType::ExtensionUnity => 1,
+            CdcInterfaceDescriptorSubType::MultiChannelManagement => 1,
+            CdcInterfaceDescriptorSubType::CapiControlManagement => 1,
+            CdcInterfaceDescriptorSubType::EthernetNetworking => 1,
+            CdcInterfaceDescriptorSubType::AtmNetworking => 1,
+        }
+    }
+
+    fn write_to_unchecked(&self, buf: &[Cell<u8>]) -> usize {
+        let len = self.size();
+        buf[0].set(len as u8);
+        buf[1].set(DescriptorType::CdcInterface as u8);
+        buf[2].set(self.subtype as u8);
+        if len >= 4 {
+            buf[3].set(self.field1);
+        }
+        if len >= 5 {
+            buf[4].set(self.field2);
+        }
+        len
+    }
+}
+
 pub struct LanguagesDescriptor<'a> {
     pub langs: &'a [u16],
 }
 
-impl Descriptor for LanguagesDescriptor<'a> {
+impl<'a> Descriptor for LanguagesDescriptor<'a> {
     fn size(&self) -> usize {
         2 + (2 * self.langs.len())
     }
@@ -632,7 +883,7 @@ pub struct StringDescriptor<'a> {
     pub string: &'a str,
 }
 
-impl Descriptor for StringDescriptor<'a> {
+impl<'a> Descriptor for StringDescriptor<'a> {
     fn size(&self) -> usize {
         let mut len = 2;
         for ch in self.string.chars() {

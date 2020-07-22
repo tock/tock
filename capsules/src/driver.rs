@@ -53,6 +53,7 @@ pub enum NUM {
     Lps25hb               = 0x70004,
     L3gd20                = 0x70005,
     Lsm303dlch            = 0x70006,
+    Mlx90614              = 0x70007,
 
     // Other ICs
     Ltc294x               = 0x80000,
@@ -61,8 +62,11 @@ pub enum NUM {
     GpioAsync             = 0x80003,
     Nrf51822Serialization = 0x80004,
     Hd44780               = 0x80005,
+    St7735                = 0x80006,
+    Ft6206                = 0x80007,
 
     // Misc
     Buzzer                = 0x90000,
+    Screen                = 0x90001
 }
 }

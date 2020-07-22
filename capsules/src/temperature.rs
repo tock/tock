@@ -39,6 +39,7 @@
 //! You need a device that provides the `hil::sensors::TemperatureDriver` trait.
 //!
 //! ```rust
+//! # use kernel::static_init;
 //!
 //! let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
 //! let grant_temperature = board_kernel.create_grant(&grant_cap);
@@ -46,7 +47,8 @@
 //! let temp = static_init!(
 //!        capsules::temperature::TemperatureSensor<'static>,
 //!        capsules::temperature::TemperatureSensor::new(si7021,
-//!                                                 grant_temperature));
+//!                                                 board_kernel.create_grant(&grant_cap)));
+//!
 //! kernel::hil::sensors::TemperatureDriver::set_client(si7021, temp);
 //! ```
 
@@ -66,14 +68,14 @@ pub struct App {
 }
 
 pub struct TemperatureSensor<'a> {
-    driver: &'a dyn hil::sensors::TemperatureDriver,
+    driver: &'a dyn hil::sensors::TemperatureDriver<'a>,
     apps: Grant<App>,
     busy: Cell<bool>,
 }
 
-impl TemperatureSensor<'a> {
+impl<'a> TemperatureSensor<'a> {
     pub fn new(
-        driver: &'a dyn hil::sensors::TemperatureDriver,
+        driver: &'a dyn hil::sensors::TemperatureDriver<'a>,
         grant: Grant<App>,
     ) -> TemperatureSensor<'a> {
         TemperatureSensor {
@@ -107,7 +109,7 @@ impl TemperatureSensor<'a> {
     }
 }
 
-impl hil::sensors::TemperatureClient for TemperatureSensor<'a> {
+impl hil::sensors::TemperatureClient for TemperatureSensor<'_> {
     fn callback(&self, temp_val: usize) {
         for cntr in self.apps.iter() {
             cntr.enter(|app, _| {
@@ -121,7 +123,7 @@ impl hil::sensors::TemperatureClient for TemperatureSensor<'a> {
     }
 }
 
-impl Driver for TemperatureSensor<'a> {
+impl Driver for TemperatureSensor<'_> {
     fn subscribe(
         &self,
         subscribe_num: usize,

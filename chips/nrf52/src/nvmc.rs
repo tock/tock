@@ -159,16 +159,20 @@ const PAGE_MASK: usize = PAGE_SIZE - 1;
 /// ```rust
 /// # extern crate nrf52;
 /// # use nrf52::nvmc::NrfPage;
+/// # use kernel::static_init;
 ///
-/// static mut PAGEBUFFER: NrfPage = NrfPage::new();
+/// let pagebuffer = unsafe { static_init!(NrfPage, NrfPage::default()) };
 /// ```
 pub struct NrfPage(pub [u8; PAGE_SIZE as usize]);
 
-impl NrfPage {
-    pub const fn new() -> NrfPage {
-        NrfPage([0; PAGE_SIZE as usize])
+impl Default for NrfPage {
+    fn default() -> Self {
+        Self {
+            0: [0; PAGE_SIZE as usize],
+        }
     }
-
+}
+impl NrfPage {
     fn len(&self) -> usize {
         self.0.len()
     }

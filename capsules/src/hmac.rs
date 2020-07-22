@@ -4,10 +4,10 @@
 //! -----
 //!
 //! ```rust
-//! let hmac = &ibex::hmac::HMAC;
+//! let hmac = &earlgrey::hmac::HMAC;
 //!
 //! let mux_hmac = static_init!(MuxHmac<'static, lowrisc::hmac::Hmac>, MuxHmac::new(hmac));
-//! digest::Digest::set_client(&ibex::hmac::HMAC, mux_hmac);
+//! digest::Digest::set_client(&earlgrey::hmac::HMAC, mux_hmac);
 //!
 //! let virtual_hmac_user = static_init!(
 //!     VirtualMuxHmac<'static, lowrisc::hmac::Hmac>,
@@ -50,7 +50,7 @@ pub struct HmacDriver<'a, H: digest::Digest<'a, T>, T: 'static + DigestType> {
     dest_buffer: TakeCell<'static, T>,
 }
 
-impl<H: digest::Digest<'a, T> + digest::HMACSha256, T: DigestType> HmacDriver<'a, H, T>
+impl<'a, H: digest::Digest<'a, T> + digest::HMACSha256, T: DigestType> HmacDriver<'a, H, T>
 where
     T: AsMut<[u8]>,
 {
@@ -147,7 +147,7 @@ where
     }
 }
 
-impl<H: digest::Digest<'a, T> + digest::HMACSha256, T: DigestType> digest::Client<'a, T>
+impl<'a, H: digest::Digest<'a, T> + digest::HMACSha256, T: DigestType> digest::Client<'a, T>
     for HmacDriver<'a, H, T>
 {
     fn add_data_done(&'a self, _result: Result<(), ReturnCode>, data: &'static mut [u8]) {
@@ -187,7 +187,6 @@ impl<H: digest::Digest<'a, T> + digest::HMACSha256, T: DigestType> digest::Clien
                                 self.hmac.clear_data();
                                 self.appid.clear();
                                 self.check_queue();
-                                return;
                             }
                         }
                     });
@@ -298,7 +297,9 @@ impl<H: digest::Digest<'a, T> + digest::HMACSha256, T: DigestType> digest::Clien
 /// - `2`: Allow a buffer for storing the digest.
 ///        The kernel will fill this with the HMAC digest before calling
 ///        the `hash_done` callback.
-impl<H: digest::Digest<'a, T> + digest::HMACSha256, T: DigestType> Driver for HmacDriver<'a, H, T> {
+impl<'a, H: digest::Digest<'a, T> + digest::HMACSha256, T: DigestType> Driver
+    for HmacDriver<'a, H, T>
+{
     fn allow(
         &self,
         appid: AppId,

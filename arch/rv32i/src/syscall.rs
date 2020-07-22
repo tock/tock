@@ -125,7 +125,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         _stack_pointer: *const usize,
         state: &mut RiscvimacStoredState,
     ) -> (*mut usize, ContextSwitchReason) {
-        asm! ("
+        llvm_asm! ("
           // Before switching to the app we need to save the kernel registers to
           // the kernel stack. We then save the stack pointer in the mscratch
           // CSR (0x340) so we can retrieve it after returning to the kernel

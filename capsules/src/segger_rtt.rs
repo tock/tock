@@ -5,18 +5,22 @@
 //! the host uses a JTAG connection to read the messages out of the chip's
 //! memory.
 //!
-//!	Receiving RTT Messages
-//!	----------------------
+//! Receiving RTT Messages
+//! ----------------------
 //!
-//!	With the jlink tools, reciving RTT messages is a two step process. First,
-//!	open a JTAG connection with a command like:
+//! With the jlink tools, reciving RTT messages is a two step process. First,
+//! open a JTAG connection with a command like:
 //!
-//!         $ JLinkExe -device nrf52 -if swd -speed 1000 -autoconnect 1
+//! ```shell
+//! $ JLinkExe -device nrf52 -if swd -speed 1000 -autoconnect 1
+//! ```
 //!
-//!	Then, use the `JLinkRTTClient` tool in a different terminal to print the
-//!	messages:
+//! Then, use the `JLinkRTTClient` tool in a different terminal to print the
+//! messages:
 //!
-//!         $ JLinkRTTClient
+//! ```shell
+//! $ JLinkRTTClient
+//! ```
 //!
 //! Notes
 //! -----
@@ -34,25 +38,22 @@
 //! Usage
 //! -----
 //!
-//! ```
+//! ```rust
 //! pub struct Platform {
 //!     // Other fields omitted for clarity
-//!     console: &'static capsules::console::Console<
-//!         'static,
-//!         capsules::segger_rtt::SeggerRtt<
-//!             'static,
-//!             capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf5x::rtc::Rtc>,
-//!         >,
-//!     >,
+//!     console: &'static capsules::console::Console<'static>,
 //! }
 //! ```
 //!
 //! In `reset_handler()`:
 //!
-//! ```
+//! ```rust
+//! # use kernel::static_init;
+//! # use capsules::virtual_alarm::VirtualMuxAlarm;
+//!
 //! let virtual_alarm_rtt = static_init!(
-//!     capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf5x::rtc::Rtc>,
-//!     capsules::virtual_alarm::VirtualMuxAlarm::new(mux_alarm)
+//!     VirtualMuxAlarm<'static, nrf5x::rtc::Rtc>,
+//!     VirtualMuxAlarm::new(mux_alarm)
 //! );
 //!
 //! let rtt_memory = static_init!(
@@ -72,18 +73,12 @@
 //! virtual_alarm_rtt.set_client(rtt);
 //!
 //! let console = static_init!(
-//!     capsules::console::Console<
-//!         'static,
-//!         capsules::segger_rtt::SeggerRtt<
-//!             capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf5x::rtc::Rtc>,
-//!         >,
-//!     >,
+//!     capsules::console::Console<'static>,
 //!     capsules::console::Console::new(
 //!         rtt,
-//!         0, // Baud rate is meaningless with RTT
 //!         &mut capsules::console::WRITE_BUF,
 //!         &mut capsules::console::READ_BUF,
-//!         kernel::Grant::create()
+//!         board_kernel.create_grant(&grant_cap)
 //!     )
 //! );
 //! kernel::hil::uart::UART::set_client(rtt, console);
@@ -128,7 +123,7 @@ pub struct SeggerRttBuffer<'a> {
     _lifetime: PhantomData<&'a [u8]>,
 }
 
-impl SeggerRttMemory<'a> {
+impl<'a> SeggerRttMemory<'a> {
     pub fn new_raw(
         up_buffer_name: &'a [u8],
         up_buffer_ptr: *const u8,
@@ -238,9 +233,14 @@ impl<'a, A: hil::time::Alarm<'a>> uart::Transmit<'a> for SeggerRtt<'a, A> {
                     // Save the client buffer so we can pass it back with the callback.
                     self.client_buffer.replace(tx_data);
 
-                    // Start a short timer so that we get a callback and
-                    // can issue the callback to the client.
-                    let interval = (100 as u32) * <A::Frequency>::frequency() / 1000000;
+                    // Start a short timer so that we get a callback and can issue the callback to
+                    // the client.
+                    //
+                    // This heuristic interval was tested with the console capsule on a nRF52840-DK
+                    // board, passing buffers up to 1500 bytes from userspace. 100 micro-seconds
+                    // was too short, even for buffers as small as 128 bytes. 1 milli-second seems to
+                    // be reliable.
+                    let interval = (1000 as u32) * <A::Frequency>::frequency() / 1000000;
                     let tics = self.alarm.now().wrapping_add(interval);
                     self.alarm.set_alarm(tics);
                 })
@@ -260,7 +260,7 @@ impl<'a, A: hil::time::Alarm<'a>> uart::Transmit<'a> for SeggerRtt<'a, A> {
     }
 }
 
-impl<A: hil::time::Alarm<'a>> hil::time::AlarmClient for SeggerRtt<'a, A> {
+impl<'a, A: hil::time::Alarm<'a>> hil::time::AlarmClient for SeggerRtt<'a, A> {
     fn fired(&self) {
         self.client.map(|client| {
             self.client_buffer.take().map(|buffer| {

@@ -39,10 +39,12 @@
 //! You need a device that provides the `hil::sensors::HumidityDriver` trait.
 //!
 //! ```rust
+//! # use kernel::static_init;
+//!
 //! let humidity = static_init!(
 //!        capsules::humidity::HumiditySensor<'static>,
 //!        capsules::humidity::HumiditySensor::new(si7021,
-//!                                                kernel::Grant::create()));
+//!                                                board_kernel.create_grant(&grant_cap)));
 //! kernel::hil::sensors::HumidityDriver::set_client(si7021, humidity);
 //! ```
 
@@ -68,14 +70,14 @@ pub struct App {
 }
 
 pub struct HumiditySensor<'a> {
-    driver: &'a dyn hil::sensors::HumidityDriver,
+    driver: &'a dyn hil::sensors::HumidityDriver<'a>,
     apps: Grant<App>,
     busy: Cell<bool>,
 }
 
-impl HumiditySensor<'a> {
+impl<'a> HumiditySensor<'a> {
     pub fn new(
-        driver: &'a dyn hil::sensors::HumidityDriver,
+        driver: &'a dyn hil::sensors::HumidityDriver<'a>,
         grant: Grant<App>,
     ) -> HumiditySensor<'a> {
         HumiditySensor {
@@ -116,7 +118,7 @@ impl HumiditySensor<'a> {
     }
 }
 
-impl hil::sensors::HumidityClient for HumiditySensor<'a> {
+impl hil::sensors::HumidityClient for HumiditySensor<'_> {
     fn callback(&self, tmp_val: usize) {
         for cntr in self.apps.iter() {
             cntr.enter(|app, _| {
@@ -130,7 +132,7 @@ impl hil::sensors::HumidityClient for HumiditySensor<'a> {
     }
 }
 
-impl Driver for HumiditySensor<'a> {
+impl Driver for HumiditySensor<'_> {
     fn subscribe(
         &self,
         subscribe_num: usize,

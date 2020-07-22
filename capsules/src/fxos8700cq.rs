@@ -9,6 +9,8 @@
 //! -----
 //!
 //! ```rust
+//! # use kernel::static_init;
+//!
 //! let fxos8700_i2c = static_init!(I2CDevice, I2CDevice::new(i2c_bus, 0x1e));
 //! let fxos8700 = static_init!(
 //!     capsules::fxos8700cq::Fxos8700cq<'static>,
@@ -176,16 +178,16 @@ enum State {
 
 pub struct Fxos8700cq<'a> {
     i2c: &'a dyn I2CDevice,
-    interrupt_pin1: &'a dyn gpio::InterruptPin,
+    interrupt_pin1: &'a dyn gpio::InterruptPin<'a>,
     state: Cell<State>,
     buffer: TakeCell<'static, [u8]>,
-    callback: OptionalCell<&'static dyn hil::sensors::NineDofClient>,
+    callback: OptionalCell<&'a dyn hil::sensors::NineDofClient>,
 }
 
-impl Fxos8700cq<'a> {
+impl<'a> Fxos8700cq<'a> {
     pub fn new(
         i2c: &'a dyn I2CDevice,
-        interrupt_pin1: &'a dyn gpio::InterruptPin,
+        interrupt_pin1: &'a dyn gpio::InterruptPin<'a>,
         buffer: &'static mut [u8],
     ) -> Fxos8700cq<'a> {
         Fxos8700cq {
@@ -224,7 +226,7 @@ impl Fxos8700cq<'a> {
     }
 }
 
-impl gpio::Client for Fxos8700cq<'a> {
+impl gpio::Client for Fxos8700cq<'_> {
     fn fired(&self) {
         self.buffer.take().map(|buffer| {
             self.interrupt_pin1.disable_interrupts();
@@ -238,7 +240,7 @@ impl gpio::Client for Fxos8700cq<'a> {
     }
 }
 
-impl I2CClient for Fxos8700cq<'a> {
+impl I2CClient for Fxos8700cq<'_> {
     fn command_complete(&self, buffer: &'static mut [u8], _error: Error) {
         match self.state.get() {
             State::ReadAccelSetup => {
@@ -315,8 +317,8 @@ impl I2CClient for Fxos8700cq<'a> {
     }
 }
 
-impl hil::sensors::NineDof for Fxos8700cq<'a> {
-    fn set_client(&self, client: &'static dyn hil::sensors::NineDofClient) {
+impl<'a> hil::sensors::NineDof<'a> for Fxos8700cq<'a> {
+    fn set_client(&self, client: &'a dyn hil::sensors::NineDofClient) {
         self.callback.set(client);
     }
 

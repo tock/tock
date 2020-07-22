@@ -26,27 +26,29 @@
 //! Example usage:
 //!
 //! ```rust
+//! # use kernel::static_init;
+//!
 //! // Configure the MCP230xx. Device address 0x20.
-//! let mcp23008_i2c = static_init!(
+//! let mcp230xx_i2c = static_init!(
 //!     capsules::virtual_i2c::I2CDevice,
 //!     capsules::virtual_i2c::I2CDevice::new(i2c_mux, 0x20));
-//! let mcp23008 = static_init!(
+//! let mcp230xx = static_init!(
 //!     capsules::mcp230xx::MCP230xx<'static>,
-//!     capsules::mcp230xx::MCP230xx::new(mcp23008_i2c,
+//!     capsules::mcp230xx::MCP230xx::new(mcp230xx_i2c,
 //!                                       Some(&sam4l::gpio::PA[04]),
 //!                                       None,
-//!                                       &mut capsules::mcp23008::BUFFER,
+//!                                       &mut capsules::mcp230xx::BUFFER,
 //!                                       8, // How many pins in a bank
 //!                                       1, // How many pin banks on the chip
 //!                                       ));
-//! mcp23008_i2c.set_client(mcp23008);
-//! sam4l::gpio::PA[04].set_client(mcp23008);
+//! mcp230xx_i2c.set_client(mcp230xx);
+//! sam4l::gpio::PA[04].set_client(mcp230xx);
 //!
 //! // Create an array of the GPIO extenders so we can pass them to an
 //! // administrative layer that provides a single interface to them all.
 //! let async_gpio_ports = static_init!(
 //!     [&'static capsules::mcp230xx::MCP230xx; 1],
-//!     [mcp23008]);
+//!     [mcp230xx]);
 //!
 //! // `gpio_async` is the object that manages all of the extenders.
 //! let gpio_async = static_init!(
@@ -131,18 +133,18 @@ pub struct MCP230xx<'a> {
     bank_size: u8,       // How many GPIO pins per bank (likely 8)
     number_of_banks: u8, // How many GPIO banks this extender has (likely 1 or 2)
     buffer: TakeCell<'static, [u8]>,
-    interrupt_pin_a: Option<&'static dyn gpio::InterruptValuePin>,
-    interrupt_pin_b: Option<&'static dyn gpio::InterruptValuePin>,
+    interrupt_pin_a: Option<&'a dyn gpio::InterruptValuePin<'a>>,
+    interrupt_pin_b: Option<&'a dyn gpio::InterruptValuePin<'a>>,
     interrupts_enabled: Cell<u32>, // Whether the pin interrupt is enabled
     interrupts_mode: Cell<u32>,    // What interrupt mode the pin is in
     client: OptionalCell<&'static dyn gpio_async::Client>,
 }
 
-impl MCP230xx<'a> {
+impl<'a> MCP230xx<'a> {
     pub fn new(
         i2c: &'a dyn hil::i2c::I2CDevice,
-        interrupt_pin_a: Option<&'static dyn gpio::InterruptValuePin>,
-        interrupt_pin_b: Option<&'static dyn gpio::InterruptValuePin>,
+        interrupt_pin_a: Option<&'a dyn gpio::InterruptValuePin<'a>>,
+        interrupt_pin_b: Option<&'a dyn gpio::InterruptValuePin<'a>>,
         buffer: &'static mut [u8],
         bank_size: u8,
         number_of_banks: u8,
@@ -375,7 +377,7 @@ impl MCP230xx<'a> {
     }
 }
 
-impl hil::i2c::I2CClient for MCP230xx<'a> {
+impl hil::i2c::I2CClient for MCP230xx<'_> {
     fn command_complete(&self, buffer: &'static mut [u8], _error: hil::i2c::Error) {
         match self.state.get() {
             State::SelectIoDir(pin_number, direction) => {
@@ -524,7 +526,7 @@ impl hil::i2c::I2CClient for MCP230xx<'a> {
     }
 }
 
-impl gpio::ClientWithValue for MCP230xx<'a> {
+impl gpio::ClientWithValue for MCP230xx<'_> {
     fn fired(&self, value: u32) {
         if value < 2 {
             return; // Error, value specifies which pin A=0, B=1
@@ -543,7 +545,7 @@ impl gpio::ClientWithValue for MCP230xx<'a> {
     }
 }
 
-impl gpio_async::Port for MCP230xx<'a> {
+impl gpio_async::Port for MCP230xx<'_> {
     fn disable(&self, pin: usize) -> ReturnCode {
         // Best we can do is make this an input.
         self.set_direction(pin as u8, Direction::Input)

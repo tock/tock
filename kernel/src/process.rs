@@ -25,21 +25,36 @@ use core::cmp::max;
 
 /// Errors that can occur when trying to load and create processes.
 pub enum ProcessLoadError {
-    /// The TBF header for the app could not be successfully parsed.
+    /// The TBF header for the process could not be successfully parsed.
     TbfHeaderParseFailure(tbfheader::TbfParseError),
 
-    /// Not enough flash remaining to parse an app and its header.
+    /// Not enough flash remaining to parse a process and its header.
     NotEnoughFlash,
 
-    /// Not enough memory to meet the amount requested by an app.
-    /// Modify your app to request less memory or flash fewer apps or
-    /// increase the size of the region your board reserves for app memory.
+    /// Not enough memory to meet the amount requested by a process. Modify the
+    /// process to request less memory, flash fewer processes, or increase the
+    /// size of the region your board reserves for process memory.
     NotEnoughMemory,
 
-    /// An app was loaded with a length in flash that the MPU does not support.
-    /// The fix is probably to correct the app size, but this could also be caused
-    /// by a bad MPU implementation.
+    /// A process was loaded with a length in flash that the MPU does not
+    /// support. The fix is probably to correct the process size, but this could
+    /// also be caused by a bad MPU implementation.
     MpuInvalidFlashLength,
+
+    /// A process specified a fixed memory address that it needs its memory
+    /// range to start at, and the kernel did not or could not give the process
+    /// a memory region starting at that address.
+    MemoryAddressMismatch {
+        actual_address: u32,
+        expected_address: u32,
+    },
+
+    /// A process specified that its binary must start at a particular address,
+    /// and that is not the address the binary is actually placed at.
+    IncorrectFlashAddress {
+        actual_address: u32,
+        expected_address: u32,
+    },
 
     /// Process loading error due (likely) to a bug in the kernel. If you get
     /// this error please open a bug report.
@@ -75,6 +90,24 @@ impl fmt::Debug for ProcessLoadError {
             ProcessLoadError::MpuInvalidFlashLength => {
                 write!(f, "App flash length not supported by MPU")
             }
+
+            ProcessLoadError::MemoryAddressMismatch {
+                actual_address,
+                expected_address,
+            } => write!(
+                f,
+                "App memory does not match requested address Actual:{:#x}, Expected:{:#x}",
+                actual_address, expected_address
+            ),
+
+            ProcessLoadError::IncorrectFlashAddress {
+                actual_address,
+                expected_address,
+            } => write!(
+                f,
+                "App flash does not match requested address. Actual:{:#x}, Expected:{:#x}",
+                actual_address, expected_address
+            ),
 
             ProcessLoadError::InternalError => write!(f, "Error in kernel. Likely a bug."),
         }
@@ -130,13 +163,18 @@ pub fn load_processes<C: Chip>(
             // Pass the first eight bytes to tbfheader to parse out the length
             // of the tbf header and app. We then use those values to see if we
             // have enough flash remaining to parse the remainder of the header.
-            let (version, header_length, app_length) = match tbfheader::parse_tbf_header_lengths(
+            let (version, header_length, entry_length) = match tbfheader::parse_tbf_header_lengths(
                 test_header_slice
                     .try_into()
                     .or(Err(ProcessLoadError::InternalError))?,
             ) {
                 Ok((v, hl, al)) => (v, hl, al),
-                Err(_tbferr) => {
+                Err(tbfheader::InitialTbfParseError::InvalidHeader(entry_length)) => {
+                    // If we could not parse the header, then we want to skip
+                    // over this app and look for the next one.
+                    (0, 0, entry_length)
+                }
+                Err(tbfheader::InitialTbfParseError::UnableToParse) => {
                     // Since Tock apps use a linked list, it is very possible
                     // the header we started to parse is intentionally invalid
                     // to signal the end of apps. This is ok and just means we
@@ -145,52 +183,62 @@ pub fn load_processes<C: Chip>(
                 }
             };
 
-            // Now we can get a slice which only encompasses the app. At this
-            // point, since the version number in the beginning of the header is
-            // valid, we consider further parsing errors to be actual errors and
-            // report them to the caller.
-            let app_flash = remaining_flash
-                .get(0..app_length as usize)
+            // Now we can get a slice which only encompasses the length of
+            // flash described by this tbf header.  We will either parse this
+            // as an actual app, or skip over this region.
+            let entry_flash = remaining_flash
+                .get(0..entry_length as usize)
                 .ok_or(ProcessLoadError::NotEnoughFlash)?;
 
-            // Try to create a process object from that app slice.
-            let (process, memory_offset) = Process::create(
-                kernel,
-                chip,
-                app_flash,
-                header_length as usize,
-                version,
-                app_memory_ptr,
-                app_memory_size,
-                fault_response,
-                i,
-            )?;
+            // Determine how much of the available app memory this entry uses.
+            // Either enough for the newly created process, or none if this
+            // entry is not a process.
+            let process_memory_length = if header_length > 0 {
+                // Try to create a process object from that app slice.
+                let (process, process_memory_length) = Process::create(
+                    kernel,
+                    chip,
+                    entry_flash,
+                    header_length as usize,
+                    version,
+                    app_memory_ptr,
+                    app_memory_size,
+                    fault_response,
+                    i,
+                )?;
 
-            // Check to see if actually got a valid process to execute. If we
-            // didn't and we didn't get a loading error (aka we got to this
-            // point), then the app is a disabled process or just padding.
-            if process.is_some() {
-                if config::CONFIG.debug_load_processes {
-                    debug!(
-                        "Loaded process[{}] from flash=[{:#010X}:{:#010X}] into sram=[{:#010X}:{:#010X}] = {:?}",
-                        i,
-                        app_flash.as_ptr() as usize,
-                        app_flash.as_ptr() as usize + app_flash.len(),
-                        app_memory_ptr as usize,
-                        app_memory_ptr as usize + memory_offset,
-                        process.map(|p| p.get_process_name())
-                    );
+                // Check to see if actually got a valid process to execute. If we
+                // didn't and we didn't get a loading error (aka we got to this
+                // point), then the app is a disabled process or just padding.
+                if process.is_some() {
+                    if config::CONFIG.debug_load_processes {
+                        debug!(
+                            "Loaded process[{}] from flash=[{:#010X}:{:#010X}] into sram=[{:#010X}:{:#010X}] = {:?}",
+                            i,
+                            entry_flash.as_ptr() as usize,
+                            entry_flash.as_ptr() as usize + entry_flash.len(),
+                            app_memory_ptr as usize,
+                            app_memory_ptr as usize + process_memory_length,
+                            process.map(|p| p.get_process_name())
+                        );
+                    }
+                    procs[i] = process;
+                    process_memory_length
+                } else {
+                    0
                 }
-                procs[i] = process;
-            }
+            } else {
+                // We are just skipping over this region in flash.
+                0
+            };
 
             // Advance in our buffers before seeing if there is an additional
             // process to load.
             remaining_flash = remaining_flash
-                .get(app_flash.len()..)
+                .get(entry_flash.len()..)
                 .ok_or(ProcessLoadError::NotEnoughFlash)?;
-            app_memory_ptr = app_memory_ptr.add(memory_offset);
-            app_memory_size -= memory_offset;
+            app_memory_ptr = app_memory_ptr.add(process_memory_length);
+            app_memory_size -= process_memory_length;
         }
     }
 
@@ -528,6 +576,9 @@ impl From<Error> for ReturnCode {
 }
 
 /// Various states a process can be in.
+///
+/// This is made public in case external implementations of `ProcessType` want
+/// to re-use these process states in the external implementation.
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum State {
     /// Process expects to be running code. The process may not be currently
@@ -593,19 +644,28 @@ pub enum FaultResponse {
     Stop,
 }
 
+/// Tasks that can be enqueued for a process.
+///
+/// This is public for external implementations of `ProcessType`.
 #[derive(Copy, Clone)]
 pub enum Task {
+    /// Function pointer in the process to execute. Generally this is a callback
+    /// from a capsule.
     FunctionCall(FunctionCall),
+    /// An IPC operation that needs additional setup to configure memory access.
     IPC((AppId, ipc::IPCCallbackType)),
 }
 
-/// Enumeration to identify whether a function call comes directly from the
-/// kernel or from a callback subscribed through a driver.
+/// Enumeration to identify whether a function call for a process comes directly
+/// from the kernel or from a callback subscribed through a `Driver`
+/// implementation.
 ///
-/// An example of kernel function is the application entry point.
+/// An example of a kernel function is the application entry point.
 #[derive(Copy, Clone, Debug)]
 pub enum FunctionCallSource {
-    Kernel, // For functions coming directly from the kernel, such as `init_fn`.
+    /// For functions coming directly from the kernel, such as `init_fn`.
+    Kernel,
+    /// For functions coming from capsules or any implementation of `Driver`.
     Driver(CallbackId),
 }
 
@@ -633,6 +693,16 @@ pub struct FunctionCall {
 /// These pointers and counters are not strictly required for kernel operation,
 /// but provide helpful information when an app crashes.
 struct ProcessDebug {
+    /// If this process was compiled for fixed addresses, save the address
+    /// it must be at in flash. This is useful for debugging and saves having
+    /// to re-parse the entire TBF header.
+    fixed_address_flash: Option<u32>,
+
+    /// If this process was compiled for fixed addresses, save the address
+    /// it must be at in RAM. This is useful for debugging and saves having
+    /// to re-parse the entire TBF header.
+    fixed_address_ram: Option<u32>,
+
     /// Where the process has started its heap in RAM.
     app_heap_start_pointer: Option<*const u8>,
 
@@ -774,7 +844,7 @@ pub struct Process<'a, C: 'static + Chip> {
     debug: MapCell<ProcessDebug>,
 }
 
-impl<C: Chip> ProcessType for Process<'a, C> {
+impl<C: Chip> ProcessType for Process<'_, C> {
     fn appid(&self) -> AppId {
         self.app_id.get()
     }
@@ -942,7 +1012,7 @@ impl<C: Chip> ProcessType for Process<'a, C> {
 
     fn setup_mpu(&self) {
         self.mpu_config.map(|config| {
-            self.chip.mpu().configure_mpu(&config);
+            self.chip.mpu().configure_mpu(&config, &self.appid());
         });
     }
 
@@ -1009,7 +1079,7 @@ impl<C: Chip> ProcessType for Process<'a, C> {
                 } else {
                     let old_break = self.app_break.get();
                     self.app_break.set(new_break);
-                    self.chip.mpu().configure_mpu(&config);
+                    self.chip.mpu().configure_mpu(&config, &self.appid());
                     Ok(old_break)
                 }
             })
@@ -1230,13 +1300,6 @@ impl<C: Chip> ProcessType for Process<'a, C> {
             if self.current_stack_pointer.get() < debug.min_stack_pointer {
                 debug.min_stack_pointer = self.current_stack_pointer.get();
             }
-
-            // More debugging help. If this occurred because of a timeslice
-            // expiration, mark that so we can check later if a process is
-            // exceeding its timeslices too often.
-            if switch_reason == Some(syscall::ContextSwitchReason::TimesliceExpired) {
-                debug.timeslice_expiration_count += 1;
-            }
         });
 
         switch_reason
@@ -1440,16 +1503,36 @@ impl<C: Chip> ProcessType for Process<'a, C> {
             let _ = writer.write_fmt(format_args!("{}", config));
         });
 
-        let sram_start = self.memory.as_ptr() as usize;
-        let flash_start = self.flash.as_ptr() as usize;
-        let flash_init_fn = flash_start + self.header.get_init_function_offset() as usize;
+        // Print a helpful message on how to re-compile a process to view the
+        // listing file. If a process is PIC, then we also need to print the
+        // actual addresses the process executed at so that the .lst file can be
+        // generated for those addresses. If the process was already compiled
+        // for a fixed address, then just generating a .lst file is fine.
 
-        let _ = writer.write_fmt(format_args!(
-            "\
-             \r\nTo debug, run `make debug RAM_START={:#x} FLASH_INIT={:#x}`\
-             \r\nin the app's folder and open the .lst file.\r\n\r\n",
-            sram_start, flash_init_fn
-        ));
+        self.debug.map(|debug| {
+            if debug.fixed_address_flash.is_some() {
+                // Fixed addresses, can just run `make lst`.
+                let _ = writer.write_fmt(format_args!(
+                    "\
+                     \r\nTo debug, run `make lst` in the app's folder\
+                     \r\nand open the arch.{:#x}.{:#x}.lst file.\r\n\r\n",
+                    debug.fixed_address_flash.unwrap_or(0),
+                    debug.fixed_address_ram.unwrap_or(0)
+                ));
+            } else {
+                // PIC, need to specify the addresses.
+                let sram_start = self.memory.as_ptr() as usize;
+                let flash_start = self.flash.as_ptr() as usize;
+                let flash_init_fn = flash_start + self.header.get_init_function_offset() as usize;
+
+                let _ = writer.write_fmt(format_args!(
+                    "\
+                     \r\nTo debug, run `make debug RAM_START={:#x} FLASH_INIT={:#x}`\
+                     \r\nin the app's folder and open the .lst file.\r\n\r\n",
+                    sram_start, flash_init_fn
+                ));
+            }
+        });
     }
 }
 
@@ -1461,8 +1544,8 @@ fn exceeded_check(size: usize, allocated: usize) -> &'static str {
     }
 }
 
-impl<C: 'static + Chip> Process<'a, C> {
-    crate unsafe fn create(
+impl<C: 'static + Chip> Process<'_, C> {
+    pub(crate) unsafe fn create(
         kernel: &'static Kernel,
         chip: &'static C,
         app_flash: &'static [u8],
@@ -1481,6 +1564,22 @@ impl<C: 'static + Chip> Process<'a, C> {
         // Parse the full TBF header to see if this is a valid app. If the
         // header can't parse, we will error right here.
         let tbf_header = tbfheader::parse_tbf_header(header_flash, app_version)?;
+
+        // First thing: check that the process is at the correct location in
+        // flash if the TBF header specified a fixed address. If there is a
+        // mismatch we catch that early.
+        if let Some(fixed_flash_start) = tbf_header.get_fixed_address_flash() {
+            // The flash address in the header is based on the app binary,
+            // so we need to take into account the header length.
+            let actual_address = app_flash.as_ptr() as u32 + tbf_header.get_protected_size();
+            let expected_address = fixed_flash_start;
+            if actual_address != expected_address {
+                return Err(ProcessLoadError::IncorrectFlashAddress {
+                    actual_address,
+                    expected_address,
+                });
+            }
+        }
 
         let process_name = tbf_header.get_package_name();
 
@@ -1602,6 +1701,22 @@ impl<C: 'static + Chip> Process<'a, C> {
         // Set up process memory.
         let app_memory = slice::from_raw_parts_mut(memory_start as *mut u8, memory_size);
 
+        // Check if the memory region is valid for the process. If a process
+        // included a fixed address for the start of RAM in its TBF header (this
+        // field is optional, processes that are position independent do not
+        // need a fixed address) then we check that we used the same address
+        // when we allocated it RAM.
+        if let Some(fixed_memory_start) = tbf_header.get_fixed_address_ram() {
+            let actual_address = app_memory.as_ptr() as u32;
+            let expected_address = fixed_memory_start;
+            if actual_address != expected_address {
+                return Err(ProcessLoadError::MemoryAddressMismatch {
+                    actual_address,
+                    expected_address,
+                });
+            }
+        }
+
         // Set the initial process stack and memory to 3072 bytes.
         let initial_stack_pointer = memory_start.add(initial_app_memory_size);
         let initial_sbrk_pointer = memory_start.add(initial_app_memory_size);
@@ -1663,6 +1778,11 @@ impl<C: 'static + Chip> Process<'a, C> {
         // being created.
         let unique_identifier = kernel.create_process_identifier();
 
+        // Save copies of these in case the app was compiled for fixed addresses
+        // for later debugging.
+        let fixed_address_flash = tbf_header.get_fixed_address_flash();
+        let fixed_address_ram = tbf_header.get_fixed_address_ram();
+
         process
             .app_id
             .set(AppId::new(kernel, unique_identifier, index));
@@ -1699,6 +1819,8 @@ impl<C: 'static + Chip> Process<'a, C> {
         process.process_name = process_name.unwrap_or("");
 
         process.debug = MapCell::new(ProcessDebug {
+            fixed_address_flash: fixed_address_flash,
+            fixed_address_ram: fixed_address_ram,
             app_heap_start_pointer: app_heap_start_pointer,
             app_stack_start_pointer: app_stack_start_pointer,
             min_stack_pointer: initial_stack_pointer,

@@ -14,11 +14,15 @@
 //!
 //! struct NewChipPage(pub [u8; PAGE_SIZE as usize]);
 //!
-//! impl NewChipPage {
-//!     pub const fn new() -> NewChipPage {
-//!         NewChipPage([0; PAGE_SIZE as usize])
+//! impl Default for NewChipPage {
+//!     fn default() -> Self {
+//!         Self {
+//!             0: [0; PAGE_SIZE as usize],
+//!         }
 //!     }
+//! }
 //!
+//! impl NewChipPage {
 //!     fn len(&self) -> usize {
 //!         self.0.len()
 //!     }
@@ -107,7 +111,7 @@ pub trait HasClient<'a, C> {
 /// A page of writable persistent flash memory.
 pub trait Flash {
     /// Type of a single flash page for the given implementation.
-    type Page: AsMut<[u8]>;
+    type Page: AsMut<[u8]> + Default;
 
     /// Read a page of flash into the buffer.
     fn read_page(

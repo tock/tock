@@ -1,15 +1,27 @@
 //! A generic USB client layer managing control requests
 //!
-//! It responds to control requests and forwards bulk/interrupt transfers to the above layer.
+//! This layer responds to control requests and handles the state machine for
+//! implementing them.
+//!
+//! Right now, the stack looks like this:
+//!
+//! ```
+//!                  Client
+//!                  |   ^
+//!             |-----   |
+//!             v        |
+//!      ClientCtrl      |
+//!          |           |
+//!          v           |
+//!          UsbController
+//! ```
 
 use super::descriptors::Buffer64;
-use super::descriptors::ConfigurationDescriptor;
 use super::descriptors::Descriptor;
+use super::descriptors::DescriptorBuffer;
 use super::descriptors::DescriptorType;
-use super::descriptors::DeviceDescriptor;
-use super::descriptors::EndpointDescriptor;
+use super::descriptors::DeviceBuffer;
 use super::descriptors::HIDDescriptor;
-use super::descriptors::InterfaceDescriptor;
 use super::descriptors::LanguagesDescriptor;
 use super::descriptors::Recipient;
 use super::descriptors::ReportDescriptor;
@@ -22,58 +34,60 @@ use core::cmp::min;
 use kernel::hil;
 use kernel::hil::usb::TransferType;
 
-const DESCRIPTOR_BUFLEN: usize = 64;
+const DESCRIPTOR_BUFLEN: usize = 128;
 
 const N_ENDPOINTS: usize = 3;
 
-pub struct ClientCtrl<'a, 'b, C: 'a> {
-    // The hardware controller
-    controller: &'a C,
+/// Handler for USB control endpoint requests.
+pub struct ClientCtrl<'a, 'b, U: 'a> {
+    /// The USB hardware controller.
+    controller: &'a U,
 
-    // State for tracking each endpoint
+    /// State of each endpoint.
     state: [Cell<State>; N_ENDPOINTS],
 
-    // A 64-byte buffer for the control endpoint
-    ctrl_buffer: Buffer64,
+    /// A 64-byte buffer for the control endpoint to be passed to the USB
+    /// driver.
+    pub ctrl_buffer: Buffer64,
 
-    // Storage for composing responses to device-descriptor requests
+    /// Storage for composing responses to device descriptor requests.
     descriptor_storage: [Cell<u8>; DESCRIPTOR_BUFLEN],
 
-    // Descriptors to reply to control requests
-    device_descriptor: DeviceDescriptor,
+    /// Buffer containing the byte-packed representation of the device
+    /// descriptor. This is expected to be created and passed from the user of
+    /// `ClientCtrl`.
+    device_descriptor_buffer: DeviceBuffer,
 
-    // For now we only support one configuration...
-    configuration_descriptor: ConfigurationDescriptor,
+    /// Buffer containing the byte-serialized representation of the configuration
+    /// descriptor and all other descriptors for this device.
+    other_descriptor_buffer: DescriptorBuffer,
 
-    // ...with only one interface
-    interface_descriptor: InterfaceDescriptor,
-
-    // A list of endpoints for the configuration
-    endpoint_descriptors: &'b [EndpointDescriptor],
-
-    // A HID descriptor for the configuration, if any
+    /// An optional HID descriptor for the configuration. This can be requested
+    /// separately. It must also be included in `other_descriptor_buffer` if it exists.
     hid_descriptor: Option<&'b HIDDescriptor<'b>>,
 
-    // A report descriptor for the configuration, if any
+    /// An optional report descriptor for the configuration. This can be
+    /// requested separately. It must also be included in
+    /// `other_descriptor_buffer` if it exists.
     report_descriptor: Option<&'b ReportDescriptor<'b>>,
 
-    // Supported language (only one for now)
+    /// Supported language (only one for now).
     language: &'b [u16; 1],
 
-    // Strings
+    /// USB strings to provide human readable descriptions of certain descriptor attributes.
     strings: &'b [&'b str],
 }
 
+/// States for the individual endpoints.
 #[derive(Copy, Clone)]
 enum State {
     Init,
 
-    /// We are doing a Control In transfer of some data
-    /// in self.descriptor_storage, with the given extent
-    /// remaining to send
+    /// We are doing a Control In transfer of some data in
+    /// self.descriptor_storage, with the given extent remaining to send.
     CtrlIn(usize, usize),
 
-    /// We will accept data from the host
+    /// We will accept data from the host.
     CtrlOut,
 
     SetAddress,
@@ -85,102 +99,60 @@ impl Default for State {
     }
 }
 
-impl<'a, 'b, C: hil::usb::UsbController<'a>> ClientCtrl<'a, 'b, C> {
+impl<'a, 'b, U: hil::usb::UsbController<'a>> ClientCtrl<'a, 'b, U> {
     pub fn new(
-        controller: &'a C,
-        device_descriptor: DeviceDescriptor,
-        mut configuration_descriptor: ConfigurationDescriptor,
-        mut interface_descriptor: InterfaceDescriptor,
-        endpoint_descriptors: &'b [EndpointDescriptor],
+        controller: &'a U,
+        device_descriptor_buffer: DeviceBuffer,
+        other_descriptor_buffer: DescriptorBuffer,
         hid_descriptor: Option<&'b HIDDescriptor<'b>>,
         report_descriptor: Option<&'b ReportDescriptor<'b>>,
         language: &'b [u16; 1],
         strings: &'b [&'b str],
     ) -> Self {
-        // Tweak the configuration/interface descriptors for the given endpoints.
-        interface_descriptor.num_endpoints = endpoint_descriptors.len() as u8;
-
-        configuration_descriptor.num_interfaces = 1;
-        configuration_descriptor.related_descriptor_length = interface_descriptor.size()
-            + endpoint_descriptors.iter().map(|d| d.size()).sum::<usize>()
-            + hid_descriptor.map_or(0, |d| d.size());
-
         ClientCtrl {
             controller: controller,
             state: Default::default(),
-            ctrl_buffer: Buffer64::default(),
-            // For the moment, the Default trait is not implemented for arrays of length > 32, and
-            // the Cell type is not Copy, so we have to initialize each element manually.
+            // For the moment, the Default trait is not implemented for arrays
+            // of length > 32, and the Cell type is not Copy, so we have to
+            // initialize each element manually.
+            #[rustfmt::skip]
             descriptor_storage: [
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
-                Cell::default(),
+                Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+                Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+                Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+                Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+                Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+                Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+                Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+                Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+                Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+                Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+                Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+                Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+                Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+                Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+                Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+                Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+                Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+                Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+                Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+                Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+                Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+                Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+                Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+                Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+                Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+                Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+                Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+                Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+                Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+                Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+                Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+                Cell::default(), Cell::default(), Cell::default(), Cell::default(),
             ],
-            device_descriptor,
-            configuration_descriptor,
-            interface_descriptor,
-            endpoint_descriptors,
+            ctrl_buffer: Buffer64::default(),
+            device_descriptor_buffer,
+            other_descriptor_buffer,
             hid_descriptor,
             report_descriptor,
             language,
@@ -189,7 +161,7 @@ impl<'a, 'b, C: hil::usb::UsbController<'a>> ClientCtrl<'a, 'b, C> {
     }
 
     #[inline]
-    pub fn controller(&'a self) -> &'a C {
+    pub fn controller(&self) -> &'a U {
         self.controller
     }
 
@@ -274,56 +246,25 @@ impl<'a, 'b, C: hil::usb::UsbController<'a>> ClientCtrl<'a, 'b, C> {
                     DescriptorType::Device => match descriptor_index {
                         0 => {
                             let buf = self.descriptor_buf();
-                            let len = self.device_descriptor.write_to(buf);
+                            let len = self.device_descriptor_buffer.write_to(buf);
 
                             let end = min(len, requested_length as usize);
+
                             self.state[endpoint].set(State::CtrlIn(0, end));
                             hil::usb::CtrlSetupResult::Ok
                         }
                         _ => hil::usb::CtrlSetupResult::ErrInvalidDeviceIndex,
                     },
-                    DescriptorType::Configuration => {
-                        match descriptor_index {
-                            0 => {
-                                // Place all the descriptors related to this configuration into a
-                                // buffer contiguously.
-
-                                let buf = self.descriptor_buf();
-                                let mut len = 0;
-
-                                // A single configuration, with the following interface.
-                                len += self.configuration_descriptor.write_to(&buf[len..]);
-
-                                // A single interface, with the following descriptors and endpoints.
-                                len += self.interface_descriptor.write_to(&buf[len..]);
-
-                                // HID descriptor, if any.
-                                if let Some(dh) = self.hid_descriptor {
-                                    len += dh.write_to(&buf[len..]);
-                                }
-
-                                // Endpoints.
-                                for de in self.endpoint_descriptors {
-                                    len += de.write_to(&buf[len..]);
-                                }
-
-                                let end = min(len, requested_length as usize);
-                                self.state[endpoint].set(State::CtrlIn(0, end));
-                                hil::usb::CtrlSetupResult::Ok
-                            }
-                            _ => hil::usb::CtrlSetupResult::ErrInvalidConfigurationIndex,
-                        }
-                    }
-                    DescriptorType::Interface => match descriptor_index {
+                    DescriptorType::Configuration => match descriptor_index {
                         0 => {
                             let buf = self.descriptor_buf();
-                            let len = self.interface_descriptor.write_to(buf);
+                            let len = self.other_descriptor_buffer.write_to(buf);
 
                             let end = min(len, requested_length as usize);
                             self.state[endpoint].set(State::CtrlIn(0, end));
                             hil::usb::CtrlSetupResult::Ok
                         }
-                        _ => hil::usb::CtrlSetupResult::ErrInvalidInterfaceIndex,
+                        _ => hil::usb::CtrlSetupResult::ErrInvalidConfigurationIndex,
                     },
                     DescriptorType::String => {
                         if let Some(len) = match descriptor_index {

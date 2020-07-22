@@ -4,48 +4,26 @@
 
 #![crate_name = "stm32f4xx"]
 #![crate_type = "rlib"]
-#![feature(asm, const_fn, in_band_lifetimes)]
+#![feature(const_fn)]
 #![no_std]
-#![allow(unused_doc_comments)]
 
 pub mod chip;
 pub mod nvic;
 
 // Peripherals
+pub mod adc;
 pub mod dbg;
 pub mod dma1;
 pub mod exti;
 pub mod gpio;
+pub mod i2c;
 pub mod rcc;
 pub mod spi;
 pub mod syscfg;
 pub mod tim2;
 pub mod usart;
 
-use cortexm4::{hard_fault_handler, svc_handler, systick_handler};
-
-#[cfg(not(any(target_arch = "arm", target_os = "none")))]
-pub unsafe extern "C" fn unhandled_interrupt() {
-    unimplemented!()
-}
-
-#[cfg(all(target_arch = "arm", target_os = "none"))]
-pub unsafe extern "C" fn unhandled_interrupt() {
-    let mut interrupt_number: u32;
-
-    // IPSR[8:0] holds the currently active interrupt
-    asm!(
-    "mrs    r0, ipsr                    "
-    : "={r0}"(interrupt_number)
-    :
-    : "r0"
-    :
-    );
-
-    interrupt_number = interrupt_number & 0x1ff;
-
-    panic!("Unhandled Interrupt. ISR {} is active.", interrupt_number);
-}
+use cortexm4::{hard_fault_handler, svc_handler, systick_handler, unhandled_interrupt};
 
 extern "C" {
     // _estack is not really a function, but it makes the types work

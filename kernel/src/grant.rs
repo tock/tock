@@ -11,7 +11,7 @@ use crate::sched::Kernel;
 
 /// Region of process memory reserved for the kernel.
 pub struct Grant<T: Default> {
-    crate kernel: &'static Kernel,
+    pub(crate) kernel: &'static Kernel,
     grant_num: usize,
     ptr: PhantomData<T>,
 }
@@ -81,16 +81,16 @@ impl<T: ?Sized> DerefMut for Owned<T> {
 }
 
 impl Allocator {
-    pub fn alloc<T>(&mut self, data: T) -> Result<Owned<T>, Error> {
+    pub fn alloc<T: Default>(&mut self) -> Result<Owned<T>, Error> {
         unsafe {
-            let ptr = self.alloc_unowned(data)?;
+            let ptr = self.alloc_unowned()?;
             Ok(Owned::new(ptr, self.appid))
         }
     }
 
     // Like `alloc`, but the caller is responsible for free-ing the allocated
     // memory, as it is not wrapped in a type that implements `Drop`
-    unsafe fn alloc_unowned<T>(&mut self, data: T) -> Result<NonNull<T>, Error> {
+    unsafe fn alloc_unowned<T: Default>(&mut self) -> Result<NonNull<T>, Error> {
         self.appid
             .kernel
             .process_map_or(Err(Error::NoSuchApp), self.appid, |process| {
@@ -102,7 +102,7 @@ impl Allocator {
 
                         // We use `ptr::write` to avoid `Drop`ping the uninitialized memory in
                         // case `T` implements the `Drop` trait.
-                        write(ptr.as_ptr(), data);
+                        write(ptr.as_ptr(), T::default());
 
                         Ok(ptr)
                     },
@@ -116,7 +116,7 @@ pub struct Borrowed<'a, T: 'a + ?Sized> {
     appid: AppId,
 }
 
-impl<T: 'a + ?Sized> Borrowed<'a, T> {
+impl<'a, T: 'a + ?Sized> Borrowed<'a, T> {
     pub fn new(data: &'a mut T, appid: AppId) -> Borrowed<'a, T> {
         Borrowed {
             data: data,
@@ -129,21 +129,21 @@ impl<T: 'a + ?Sized> Borrowed<'a, T> {
     }
 }
 
-impl<T: 'a + ?Sized> Deref for Borrowed<'a, T> {
+impl<'a, T: 'a + ?Sized> Deref for Borrowed<'a, T> {
     type Target = T;
     fn deref(&self) -> &T {
         self.data
     }
 }
 
-impl<T: 'a + ?Sized> DerefMut for Borrowed<'a, T> {
+impl<'a, T: 'a + ?Sized> DerefMut for Borrowed<'a, T> {
     fn deref_mut(&mut self) -> &mut T {
         self.data
     }
 }
 
 impl<T: Default> Grant<T> {
-    crate fn new(kernel: &'static Kernel, grant_index: usize) -> Grant<T> {
+    pub(crate) fn new(kernel: &'static Kernel, grant_index: usize) -> Grant<T> {
         Grant {
             kernel: kernel,
             grant_num: grant_index,
@@ -223,7 +223,7 @@ impl<T: Default> Grant<T> {
                             // Note: This allocation is intentionally never
                             // freed.  A grant region is valid once allocated
                             // for the lifetime of the process.
-                            let new_region = allocator.alloc_unowned(T::default())?;
+                            let new_region = allocator.alloc_unowned()?;
 
                             // Update the grant pointer in the process. Again,
                             // since the process struct does not know about the
@@ -289,7 +289,7 @@ pub struct Iter<'a, T: 'a + Default> {
     >,
 }
 
-impl<T: Default> Iterator for Iter<'a, T> {
+impl<T: Default> Iterator for Iter<'_, T> {
     type Item = AppliedGrant<T>;
 
     fn next(&mut self) -> Option<Self::Item> {

@@ -8,20 +8,20 @@ use sifive::gpio::{pins, GpioPin, GpioRegisters};
 const GPIO0_BASE: StaticRef<GpioRegisters> =
     unsafe { StaticRef::new(0x1001_2000 as *const GpioRegisters) };
 
-pub struct Port {
-    pins: [GpioPin; 32],
+pub struct Port<'a> {
+    pins: [GpioPin<'a>; 32],
 }
 
-impl Index<usize> for Port {
-    type Output = GpioPin;
+impl<'a> Index<usize> for Port<'a> {
+    type Output = GpioPin<'a>;
 
-    fn index(&self, index: usize) -> &GpioPin {
+    fn index(&self, index: usize) -> &GpioPin<'a> {
         &self.pins[index]
     }
 }
 
-impl IndexMut<usize> for Port {
-    fn index_mut(&mut self, index: usize) -> &mut GpioPin {
+impl<'a> IndexMut<usize> for Port<'a> {
+    fn index_mut(&mut self, index: usize) -> &mut GpioPin<'a> {
         &mut self.pins[index]
     }
 }

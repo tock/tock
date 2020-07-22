@@ -1,6 +1,6 @@
 //! ARM Cortex-M SysTick peripheral.
 
-use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite};
+use kernel::common::registers::{register_bitfields, FieldValue, ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
 
 #[repr(C)]
@@ -53,6 +53,7 @@ register_bitfields![u32,
 /// Documented in the Cortex-MX Devices Generic User Guide, Chapter 4.4
 pub struct SysTick {
     hertz: u32,
+    external_clock: bool,
 }
 
 const BASE_ADDR: *const SystickRegisters = 0xE000E010 as *const SystickRegisters;
@@ -65,7 +66,10 @@ impl SysTick {
     /// Use this constructor if the core implementation has a pre-calibration
     /// value in hardware.
     pub unsafe fn new() -> SysTick {
-        SysTick { hertz: 0 }
+        SysTick {
+            hertz: 0,
+            external_clock: false,
+        }
     }
 
     /// Initialize the `SysTick` with an explicit clock speed
@@ -81,23 +85,39 @@ impl SysTick {
         res
     }
 
-    // Return the tic frequency in hertz. If the calibration value is set in
-    // hardware, use `self.hertz`, which is set in the `new_with_calibration`
-    // constructor.
+    /// Initialize the `SysTick` with an explicit clock speed and external source
+    ///
+    /// Use this constructor if the core implementation does not have a
+    /// pre-calibration value and you need an external clock source for  
+    /// the Systick.
+    ///
+    ///   * `clock_speed` - the frequency of SysTick tics in Hertz. For example,
+    ///   if the SysTick is driven by the CPU clock, it is simply the CPU speed.
+    pub unsafe fn new_with_calibration_and_external_clock(clock_speed: u32) -> SysTick {
+        let mut res = SysTick::new();
+        res.hertz = clock_speed;
+        res.external_clock = true;
+        res
+    }
+
+    // Return the tic frequency in hertz. If the value is configured by the
+    // user using the `new_with_calibration` constructor return `self.hertz`.
+    // Otherwise, compute the frequncy using the calibration value that is set
+    // in hardware.
     fn hertz(&self) -> u32 {
-        let tenms = SYSTICK_BASE.syst_calib.read(CalibrationValue::TENMS);
-        if tenms == 0 {
+        if self.hertz != 0 {
             self.hertz
         } else {
             // The `tenms` register is the reload value for 10ms, so
             // Hertz = number of tics in 1 second = tenms * 100
+            let tenms = SYSTICK_BASE.syst_calib.read(CalibrationValue::TENMS);
             tenms * 100
         }
     }
 }
 
-impl kernel::SysTick for SysTick {
-    fn set_timer(&self, us: u32) {
+impl kernel::SchedulerTimer for SysTick {
+    fn start(&self, us: u32) {
         let reload = {
             // We need to convert from microseconds to native tics, which could overflow in 32-bit
             // arithmetic. So we convert to 64-bit. 64-bit division is an expensive subroutine, but
@@ -108,31 +128,26 @@ impl kernel::SysTick for SysTick {
 
             hertz * us / 1_000_000
         };
+        let clock_source: FieldValue<u32, self::ControlAndStatus::Register> = if self.external_clock
+        {
+            // CLKSOURCE 0 --> external clock
+            ControlAndStatus::CLKSOURCE::CLEAR
+        } else {
+            // CLKSOURCE 1 --> internal clock
+            ControlAndStatus::CLKSOURCE::SET
+        };
 
         // n.b.: 4.4.5 'hints and tips' suggests setting reload before value
         SYSTICK_BASE
             .syst_rvr
             .write(ReloadValue::RELOAD.val(reload as u32));
         SYSTICK_BASE.syst_cvr.set(0);
+        SYSTICK_BASE
+            .syst_csr
+            .write(ControlAndStatus::ENABLE::SET + clock_source);
     }
 
-    fn greater_than(&self, us: u32) -> bool {
-        let tics = {
-            // We need to convert from microseconds to native tics, which could overflow in 32-bit
-            // arithmetic. So we convert to 64-bit. 64-bit division is an expensive subroutine, but
-            // if `us` is a power of 10 the compiler will simplify it with the 1_000_000 divisor
-            // instead.
-            let us = us as u64;
-            let hertz = self.hertz() as u64;
-
-            (hertz * us / 1_000_000) as u32
-        };
-
-        let value = SYSTICK_BASE.syst_cvr.read(CurrentValue::CURRENT);
-        value > tics
-    }
-
-    fn overflowed(&self) -> bool {
+    fn has_expired(&self) -> bool {
         SYSTICK_BASE.syst_csr.is_set(ControlAndStatus::COUNTFLAG)
     }
 
@@ -142,17 +157,46 @@ impl kernel::SysTick for SysTick {
         SYSTICK_BASE.syst_cvr.set(0);
     }
 
-    fn enable(&self, with_interrupt: bool) {
-        if with_interrupt {
-            SYSTICK_BASE.syst_csr.write(
-                ControlAndStatus::ENABLE::SET
-                    + ControlAndStatus::TICKINT::SET
-                    + ControlAndStatus::CLKSOURCE::SET,
-            );
+    fn arm(&self) {
+        let clock_source: FieldValue<u32, self::ControlAndStatus::Register> = if self.external_clock
+        {
+            // CLKSOURCE 0 --> external clock
+            ControlAndStatus::CLKSOURCE::CLEAR
         } else {
-            SYSTICK_BASE
-                .syst_csr
-                .write(ControlAndStatus::ENABLE::SET + ControlAndStatus::CLKSOURCE::SET);
-        }
+            // CLKSOURCE 1 --> internal clock
+            ControlAndStatus::CLKSOURCE::SET
+        };
+
+        // We really just need to set the TICKINT bit here, but can't use modify() because
+        // readying the CSR register will throw away evidence of expiration if one
+        // occurred, so we re-write entire value instead.
+        SYSTICK_BASE
+            .syst_csr
+            .write(ControlAndStatus::TICKINT::SET + ControlAndStatus::ENABLE::SET + clock_source);
+    }
+
+    fn disarm(&self) {
+        let clock_source: FieldValue<u32, self::ControlAndStatus::Register> = if self.external_clock
+        {
+            // CLKSOURCE 0 --> external clock
+            ControlAndStatus::CLKSOURCE::CLEAR
+        } else {
+            // CLKSOURCE 1 --> internal clock
+            ControlAndStatus::CLKSOURCE::SET
+        };
+
+        // We really just need to set the TICKINT bit here, but can't use modify() because
+        // readying the CSR register will throw away evidence of expiration if one
+        // occurred, so we re-write entire value instead.
+        SYSTICK_BASE
+            .syst_csr
+            .write(ControlAndStatus::TICKINT::CLEAR + ControlAndStatus::ENABLE::SET + clock_source);
+    }
+
+    fn get_remaining_us(&self) -> u32 {
+        // use u64 in case of overflow when multiplying by 1,000,000
+        let tics = SYSTICK_BASE.syst_cvr.read(CurrentValue::CURRENT) as u64;
+        let hertz = self.hertz() as u64;
+        ((tics * 1_000_000) / hertz) as u32
     }
 }

@@ -1,4 +1,4 @@
-#![feature(asm, const_fn)]
+#![feature(const_fn)]
 #![no_std]
 #![crate_name = "nrf52"]
 #![crate_type = "rlib"]

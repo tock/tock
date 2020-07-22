@@ -7,6 +7,8 @@
 //! -----
 //!
 //! ```rust
+//! # use kernel::{capabilities, static_init};
+//!
 //! struct ProcessMgmtCap;
 //! unsafe impl capabilities::ProcessManagementCapability for ProcessMgmtCap {}
 //! let debug_process_restart = static_init!(
@@ -32,7 +34,7 @@ use kernel::Kernel;
 pub struct DebugProcessRestart<'a, C: ProcessManagementCapability> {
     kernel: &'static Kernel,
     capability: C,
-    pin: &'a dyn gpio::InterruptPin,
+    pin: &'a dyn gpio::InterruptPin<'a>,
     mode: gpio::ActivationMode,
 }
 
@@ -40,7 +42,7 @@ impl<'a, C: ProcessManagementCapability> DebugProcessRestart<'a, C> {
     pub fn new(
         kernel: &'static Kernel,
         cap: C,
-        pin: &'a dyn gpio::InterruptPin,
+        pin: &'a dyn gpio::InterruptPin<'a>,
         mode: gpio::ActivationMode,
         floating_state: gpio::FloatingState,
     ) -> Self {

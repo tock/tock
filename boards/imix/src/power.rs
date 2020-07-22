@@ -26,7 +26,7 @@ use sam4l::gpio::PeripheralFunction::{A, B, E};
 use sam4l::gpio::{PA, PB, PC};
 
 struct DetachablePin {
-    pin: &'static GPIOPin,
+    pin: &'static GPIOPin<'static>,
     function: Option<PeripheralFunction>,
 }
 
@@ -43,7 +43,7 @@ impl DetachablePin {
 }
 
 struct Submodule<'a> {
-    gate_pin: &'static GPIOPin,
+    gate_pin: &'static GPIOPin<'static>,
     detachable_pins: &'a [DetachablePin],
 }
 

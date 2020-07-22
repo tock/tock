@@ -3,8 +3,8 @@
 use crate::returncode::ReturnCode;
 
 /// A basic interface for a temperature sensor
-pub trait TemperatureDriver {
-    fn set_client(&self, client: &'static dyn TemperatureClient);
+pub trait TemperatureDriver<'a> {
+    fn set_client(&self, client: &'a dyn TemperatureClient);
     fn read_temperature(&self) -> ReturnCode;
 }
 
@@ -18,8 +18,8 @@ pub trait TemperatureClient {
 }
 
 /// A basic interface for a humidity sensor
-pub trait HumidityDriver {
-    fn set_client(&self, client: &'static dyn HumidityClient);
+pub trait HumidityDriver<'a> {
+    fn set_client(&self, client: &'a dyn HumidityClient);
     fn read_humidity(&self) -> ReturnCode;
 }
 
@@ -32,10 +32,10 @@ pub trait HumidityClient {
 }
 
 /// A basic interface for an ambient light sensor.
-pub trait AmbientLight {
+pub trait AmbientLight<'a> {
     /// Set the client to be notified when the capsule has data ready or has
     /// finished some command.  This is likely called in a board's `main.rs`.
-    fn set_client(&self, client: &'static dyn AmbientLightClient);
+    fn set_client(&self, client: &'a dyn AmbientLightClient);
 
     /// Get a single instantaneous reading of the ambient light intensity.
     fn read_light_intensity(&self) -> ReturnCode {
@@ -58,11 +58,11 @@ pub trait AmbientLightClient {
 /// gyroscope) sensor. Any interface functions that a chip cannot implement
 /// can be ignored by the chip capsule and an error will automatically be
 /// returned.
-pub trait NineDof {
+pub trait NineDof<'a> {
     /// Set the client to be notified when the capsule has data ready or
     /// has finished some command. This is likely called in a board's main.rs
     /// and is set to the virtual_ninedof.rs driver.
-    fn set_client(&self, client: &'static dyn NineDofClient);
+    fn set_client(&self, client: &'a dyn NineDofClient);
 
     /// Get a single instantaneous reading of the acceleration in the
     /// X,Y,Z directions.

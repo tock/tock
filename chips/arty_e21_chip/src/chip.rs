@@ -42,7 +42,7 @@ impl ArtyExx {
     /// used later as needed.
     #[cfg(all(target_arch = "riscv32", target_os = "none"))]
     pub unsafe fn disable_machine_timer(&self) {
-        asm!("
+        llvm_asm!("
             // Initialize machine timer mtimecmp to disable the machine timer
             // interrupt.
             li   t0, -1       // Set mtimecmp to 0xFFFFFFFF
@@ -70,7 +70,7 @@ impl ArtyExx {
     /// valid for platforms with a CLIC.
     #[cfg(all(target_arch = "riscv32", target_os = "none"))]
     pub unsafe fn configure_trap_handler(&self) {
-        asm!("
+        llvm_asm!("
             // The csrw instruction writes a Control and Status Register (CSR)
             // with a new value.
             //
@@ -107,13 +107,18 @@ impl ArtyExx {
 impl kernel::Chip for ArtyExx {
     type MPU = rv32i::pmp::PMPConfig;
     type UserspaceKernelBoundary = rv32i::syscall::SysCall;
-    type SysTick = ();
+    type SchedulerTimer = ();
+    type WatchDog = ();
 
     fn mpu(&self) -> &Self::MPU {
         &self.pmp
     }
 
-    fn systick(&self) -> &Self::SysTick {
+    fn scheduler_timer(&self) -> &Self::SchedulerTimer {
+        &()
+    }
+
+    fn watchdog(&self) -> &Self::WatchDog {
         &()
     }
 
@@ -189,7 +194,7 @@ pub extern "C" fn start_trap_rust() {
     let mut mcause: i32;
 
     unsafe {
-        asm!("
+        llvm_asm!("
             // Read the mcause CSR to determine why we entered the trap handler.
             // Since we are using the CLIC, the hardware includes the interrupt
             // index in the mcause register.

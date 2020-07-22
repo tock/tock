@@ -6,7 +6,7 @@
 //!    let hmac_data_buffer = static_init!([u8; 64], [0; 64]);
 //!    let hmac_dest_buffer = static_init!([u8; 32], [0; 32]);
 //!
-//!    let mux_hmac = components::hmac::HmacMuxComponent::new(&ibex::hmac::HMAC).finalize(
+//!    let mux_hmac = components::hmac::HmacMuxComponent::new(&earlgrey::hmac::HMAC).finalize(
 //!        components::hmac_mux_component_helper!(lowrisc::hmac::Hmac, [u8; 32]),
 //!    );
 //!

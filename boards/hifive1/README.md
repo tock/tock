@@ -1,10 +1,10 @@
-SiFive HiFive1 RISC-V Board
-=================
+SiFive HiFive1 Rev B RISC-V Board
+==================================
 
-- https://www.sifive.com/boards/hifive1
+- https://www.sifive.com/boards/hifive1-rev-b
 
-Arduino-compatible dev board for RISC-V. This is the first release of this
-board ("Rev A01").
+Arduino-compatible dev board for RISC-V. This is the second release of this
+board ("Rev B").
 
 Programming
 -----------
@@ -55,3 +55,11 @@ $ cd [TOCK_ROOT]/boards/hifive
 $ make APP=[LIBTOCK-RS-DIR]/rv32imac.tbf qemu-app
 ```
 
+HiFive1 Revision A
+------------------
+
+Tock has dropped support for the older ("Rev A") version of this board. Since
+that version of the hardware is no longer being produced, Tock has decided to no
+longer maintain the older board file. If would like to run Tock on the rev A
+version, you should use the [version 1.5
+release](https://github.com/tock/tock/releases/tag/release-1.5) of Tock.
