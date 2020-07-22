@@ -123,6 +123,13 @@ pub enum StoppedExecutingReason {
     /// The process returned because it is no longer ready to run
     NoWorkLeft,
 
+    /// The process faulted, and the board restart policy was configured such that
+    /// it was not restarted and there was not a kernel panic.
+    StoppedFaulted,
+
+    /// The kernel stopped the process
+    Stopped,
+
     /// The process returned because its timeslice expired
     TimesliceExpired,
 
@@ -766,14 +773,17 @@ impl Kernel {
                     panic!("Attempted to schedule a faulty process");
                 }
                 process::State::StoppedRunning => {
+                    return_reason = StoppedExecutingReason::Stopped;
                     break;
                     // Do nothing
                 }
                 process::State::StoppedYielded => {
+                    return_reason = StoppedExecutingReason::Stopped;
                     break;
                     // Do nothing
                 }
                 process::State::StoppedFaulted => {
+                    return_reason = StoppedExecutingReason::StoppedFaulted;
                     break;
                     // Do nothing
                 }
