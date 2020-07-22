@@ -400,12 +400,12 @@ pub unsafe fn reset_handler() {
     ));
 
     let nvmc = static_init!(
-         nrf52840::nvmc::SyscallDriver,
-         nrf52840::nvmc::SyscallDriver::new(
-             &nrf52840::nvmc::NVMC,
-             board_kernel.create_grant(&memory_allocation_capability)
-         )
-     );
+        nrf52840::nvmc::SyscallDriver,
+        nrf52840::nvmc::SyscallDriver::new(
+            &nrf52840::nvmc::NVMC,
+            board_kernel.create_grant(&memory_allocation_capability)
+        )
+    );
 
     // Initialize AC using AIN5 (P0.29) as VIN+ and VIN- as AIN0 (P0.02)
     // These are hardcoded pin assignments specified in the driver
