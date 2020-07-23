@@ -143,7 +143,7 @@ pub fn load_processes<C: Chip>(
 ) -> Result<(), ProcessLoadError> {
     if config::CONFIG.debug_load_processes {
         debug!(
-            "Loading processes from flash=[{:#010X}:{:#010X}] into sram=[{:#010X}:{:#010X}]",
+            "Loading processes from flash={:#010X}-{:#010X} into sram={:#010X}-{:#010X}",
             app_flash.as_ptr() as usize,
             app_flash.as_ptr() as usize + app_flash.len() - 1,
             app_memory.as_ptr() as usize,
@@ -224,7 +224,7 @@ pub fn load_processes<C: Chip>(
             process_option.map(|process| {
                 if config::CONFIG.debug_load_processes {
                     debug!(
-                        "Loaded process[{}] from flash=[{:#010X}:{:#010X}] into sram=[{:#010X}:{:#010X}] = {:?}",
+                        "Loaded process[{}] from flash={:#010X}-{:#010X} into sram={:#010X}-{:#010X} = {:?}",
                         i,
                         entry_flash.as_ptr() as usize,
                         entry_flash.as_ptr() as usize + entry_flash.len() - 1,
@@ -1607,16 +1607,16 @@ impl<C: 'static + Chip> Process<'_, C> {
             if config::CONFIG.debug_load_processes {
                 if !tbf_header.is_app() {
                     debug!(
-                        "Padding in flash=[{:#010X}:{:#010X}]",
+                        "Padding in flash={:#010X}-{:#010X}",
                         app_flash.as_ptr() as usize,
-                        app_flash.as_ptr() as usize + app_flash.len()
+                        app_flash.as_ptr() as usize + app_flash.len() - 1
                     );
                 }
                 if !tbf_header.enabled() {
                     debug!(
-                        "Process not enabled flash=[{:#010X}:{:#010X}] process={:?}",
+                        "Process not enabled flash={:#010X}-{:#010X} process={:?}",
                         app_flash.as_ptr() as usize,
-                        app_flash.as_ptr() as usize + app_flash.len(),
+                        app_flash.as_ptr() as usize + app_flash.len() - 1,
                         process_name
                     );
                 }
@@ -1648,9 +1648,9 @@ impl<C: 'static + Chip> Process<'_, C> {
         {
             if config::CONFIG.debug_load_processes {
                 debug!(
-                    "[!] flash=[{:#010X}:{:#010X}] process={:?} - couldn't allocate MPU region for flash",
+                    "[!] flash={:#010X}-{:#010X} process={:?} - couldn't allocate MPU region for flash",
                     app_flash.as_ptr() as usize,
-                    app_flash.as_ptr() as usize + app_flash.len(),
+                    app_flash.as_ptr() as usize + app_flash.len() - 1,
                     process_name
                 );
             }
@@ -1704,7 +1704,7 @@ impl<C: 'static + Chip> Process<'_, C> {
                 // Failed to load process. Insufficient memory.
                 if config::CONFIG.debug_load_processes {
                     debug!(
-                        "[!] flash=[{:#010X}:{:#010X}] process={:?} - couldn't allocate memory region of size >= {:#X}",
+                        "[!] flash={:#010X}-{:#010X} process={:?} - couldn't allocate memory region of size >= {:#X}",
                         app_flash.as_ptr() as usize,
                         app_flash.as_ptr() as usize + app_flash.len(),
                         process_name,
@@ -1894,7 +1894,7 @@ impl<C: 'static + Chip> Process<'_, C> {
             _ => {
                 if config::CONFIG.debug_load_processes {
                     debug!(
-                        "[!] flash=[{:#010X}:{:#010X}] process={:?} - couldn't initialize process",
+                        "[!] flash={:#010X}-{:#010X} process={:?} - couldn't initialize process",
                         app_flash.as_ptr() as usize,
                         app_flash.as_ptr() as usize + app_flash.len(),
                         process_name
