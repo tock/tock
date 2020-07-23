@@ -132,22 +132,28 @@ impl<'a, A: 'static + time::Alarm<'static>> MLFQSched<'a, A> {
 }
 
 impl<'a, A: 'static + time::Alarm<'static>, C: Chip> Scheduler<C> for MLFQSched<'a, A> {
-    fn next(&self) -> (Option<AppId>, Option<u32>) {
-        let now = self.alarm.now();
-        if now >= self.next_reset.get() {
-            // Promote all processes to highest priority queue
-            let delta = (Self::PRIORITY_REFRESH_PERIOD_MS * A::Frequency::frequency()) / 1000;
-            self.next_reset.set(now.wrapping_add(delta));
-            self.redeem_all_procs();
-        }
-        let (node_ref_opt, queue_idx) = self.get_next_ready_process_node();
-        let node_ref = node_ref_opt.unwrap(); //Panic if fail bc processes_blocked()!
-        let timeslice = self.get_timeslice_us(queue_idx) - node_ref.state.us_used_this_queue.get();
-        let next = node_ref.appid;
-        self.last_queue_idx.set(queue_idx);
-        self.last_timeslice.set(timeslice);
+    fn next(&self, kernel: &Kernel) -> (Option<AppId>, Option<u32>) {
+        if kernel.processes_blocked() {
+            // No processes ready
+            (None, None)
+        } else {
+            let now = self.alarm.now();
+            if now >= self.next_reset.get() {
+                // Promote all processes to highest priority queue
+                let delta = (Self::PRIORITY_REFRESH_PERIOD_MS * A::Frequency::frequency()) / 1000;
+                self.next_reset.set(now.wrapping_add(delta));
+                self.redeem_all_procs();
+            }
+            let (node_ref_opt, queue_idx) = self.get_next_ready_process_node();
+            let node_ref = node_ref_opt.unwrap(); //Panic if fail bc processes_blocked()!
+            let timeslice =
+                self.get_timeslice_us(queue_idx) - node_ref.state.us_used_this_queue.get();
+            let next = node_ref.appid;
+            self.last_queue_idx.set(queue_idx);
+            self.last_timeslice.set(timeslice);
 
-        (Some(next), Some(timeslice))
+            (Some(next), Some(timeslice))
+        }
     }
 
     fn result(&self, result: StoppedExecutingReason, execution_time_us: Option<u32>) {

@@ -32,18 +32,23 @@ impl PrioritySched {
 }
 
 impl<C: Chip> Scheduler<C> for PrioritySched {
-    fn next(&self) -> (Option<AppId>, Option<u32>) {
-        // Iterates in-order through the process array, always running
-        // the first process it finds that is ready to run. This means
-        // that processes with higher
-        let next = self
-            .kernel
-            .get_process_iter()
-            .find(|&proc| proc.ready())
-            .map_or(None, |proc| Some(proc.appid()));
-        self.running.insert(next);
+    fn next(&self, kernel: &Kernel) -> (Option<AppId>, Option<u32>) {
+        if kernel.processes_blocked() {
+            // No processes ready
+            (None, None)
+        } else {
+            // Iterates in-order through the process array, always running
+            // the first process it finds that is ready to run. This means
+            // that processes with higher
+            let next = self
+                .kernel
+                .get_process_iter()
+                .find(|&proc| proc.ready())
+                .map_or(None, |proc| Some(proc.appid()));
+            self.running.insert(next);
 
-        (next, None)
+            (next, None)
+        }
     }
 
     unsafe fn continue_process(&self, _: AppId, chip: &C) -> bool {

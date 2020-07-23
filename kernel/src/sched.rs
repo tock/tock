@@ -43,7 +43,7 @@ pub trait Scheduler<C: Chip> {
     /// instead of a timeslice will cause the process
     /// to be run cooperatively (i.e. without preemption). Otherwise the process will run
     /// with a timeslice set to the specified length.
-    fn next(&self) -> (Option<AppId>, Option<u32>);
+    fn next(&self, kernel: &Kernel) -> (Option<AppId>, Option<u32>);
 
     /// Inform the scheduler of why the last process stopped executing, and how
     /// long it executed for. Notably, `execution_time_us` will be `None`
@@ -73,10 +73,9 @@ pub trait Scheduler<C: Chip> {
     /// processes to handle kernel tasks. Most schedulers will use this
     /// default implementation, which always prioritizes kernel work, but
     /// schedulers that wish to defer interrupt handling may reimplement it.
-    unsafe fn break_for_kernel_work(&self, kernel: &Kernel, chip: &C) -> bool {
+    unsafe fn kernel_work_ready(&self, chip: &C) -> bool {
         chip.has_pending_interrupts()
             || DynamicDeferredCall::global_instance_calls_pending().unwrap_or(false)
-            || kernel.processes_blocked()
     }
 
     /// Ask the scheduler whether to return from the loop in `do_process()`. Most
@@ -433,43 +432,55 @@ impl Kernel {
         scheduler: &SC,
         _capability: &dyn capabilities::MainLoopCapability,
     ) -> ! {
+        chip.watchdog().setup();
         loop {
-            chip.watchdog().setup();
+            chip.watchdog().tickle();
             unsafe {
-                scheduler.execute_kernel_work(chip);
-
-                loop {
-                    chip.watchdog().tickle();
-                    if scheduler.break_for_kernel_work(self, chip) {
-                        break;
+                match scheduler.kernel_work_ready(chip) {
+                    true => {
+                        // Execute kernel work
+                        scheduler.execute_kernel_work(chip);
                     }
-                    let (appid, timeslice_us) = scheduler.next();
-                    appid.map(|appid| {
-                        self.process_map_or((), appid, |process| {
-                            let (reason, time_executed) = self.do_process(
-                                platform,
-                                chip,
-                                scheduler,
-                                process,
-                                ipc,
-                                timeslice_us,
-                            );
-                            scheduler.result(reason, time_executed);
-                        });
-                    });
+                    false => {
+                        // No kernel work ready, so ask scheduler for a process
+                        let (appid, timeslice_us) = scheduler.next(self);
+                        // If a process is returned, run it! Otherwise, go to sleep, as there
+                        // we have determined kernel tasks are not ready and no processes should be
+                        // run
+                        match appid {
+                            Some(appid) => {
+                                // Run Process
+                                self.process_map_or((), appid, |process| {
+                                    let (reason, time_executed) = self.do_process(
+                                        platform,
+                                        chip,
+                                        scheduler,
+                                        process,
+                                        ipc,
+                                        timeslice_us,
+                                    );
+                                    scheduler.result(reason, time_executed);
+                                });
+                            }
+                            None => {
+                                // Sleep
+                                chip.atomic(|| {
+                                    // cannot sleep if interrupts are pending, as on most platforms
+                                    // unhandled interrupts will wake the device.
+                                    if !chip.has_pending_interrupts()
+                                        && !DynamicDeferredCall::global_instance_calls_pending()
+                                            .unwrap_or(false)
+                                    {
+                                        chip.watchdog().suspend();
+                                        chip.sleep();
+                                        chip.watchdog().resume();
+                                    }
+                                });
+                            }
+                        }
+                    }
                 }
-
-                chip.atomic(|| {
-                    if !chip.has_pending_interrupts()
-                        && !DynamicDeferredCall::global_instance_calls_pending().unwrap_or(false)
-                        && self.processes_blocked()
-                    {
-                        chip.watchdog().suspend();
-                        chip.sleep();
-                        chip.watchdog().resume();
-                    }
-                });
-            };
+            }
         }
     }
 

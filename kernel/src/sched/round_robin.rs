@@ -14,7 +14,7 @@
 use crate::callback::AppId;
 use crate::common::list::{List, ListLink, ListNode};
 use crate::platform::Chip;
-use crate::sched::{Scheduler, StoppedExecutingReason};
+use crate::sched::{Kernel, Scheduler, StoppedExecutingReason};
 use core::cell::Cell;
 
 /// A node in the linked list the scheduler uses to track processes
@@ -58,16 +58,20 @@ impl<'a> RoundRobinSched<'a> {
 }
 
 impl<'a, C: Chip> Scheduler<C> for RoundRobinSched<'a> {
-    fn next(&self) -> (Option<AppId>, Option<u32>) {
-        let next = self.processes.head().unwrap().appid;
-        let timeslice = if self.last_rescheduled.get() {
-            self.time_remaining.get()
+    fn next(&self, kernel: &Kernel) -> (Option<AppId>, Option<u32>) {
+        if kernel.processes_blocked() {
+            (None, None)
         } else {
-            Self::DEFAULT_TIMESLICE_US
-        };
-        assert!(timeslice != 0);
+            let next = self.processes.head().unwrap().appid;
+            let timeslice = if self.last_rescheduled.get() {
+                self.time_remaining.get()
+            } else {
+                Self::DEFAULT_TIMESLICE_US
+            };
+            assert!(timeslice != 0);
 
-        (Some(next), Some(timeslice))
+            (Some(next), Some(timeslice))
+        }
     }
 
     fn result(&self, result: StoppedExecutingReason, execution_time_us: Option<u32>) {
