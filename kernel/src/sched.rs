@@ -794,11 +794,18 @@ impl Kernel {
             }
         }
         let time_executed_us = timeslice_us.map_or(None, |timeslice| {
-            // min is to protect from wrapping
-            Some(u32::min(
-                timeslice - scheduler_timer.get_remaining_us(),
-                timeslice,
-            ))
+            let remaining = scheduler_timer.get_remaining_us();
+            if return_reason == StoppedExecutingReason::TimesliceExpired
+                || scheduler_timer.has_expired()
+            {
+                // get_remaining_us() will return an invalid value after a timeslice expiration,
+                // so we protect against that by checking for the expiration here. Checking
+                // the return reason is insufficient because it is possible for the timer to expire
+                // after the process has returned to the kernel but before these lines are reached.
+                Some(0)
+            } else {
+                Some(timeslice - remaining)
+            }
         });
         scheduler_timer.reset();
         (return_reason, time_executed_us)
