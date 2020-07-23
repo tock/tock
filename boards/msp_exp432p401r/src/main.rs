@@ -64,6 +64,28 @@ impl Platform for MspExp432P401R {
     }
 }
 
+/// Startup initialisation
+///
+/// This code was more or less copied from the code examples of Texas instruments.
+/// It disables the watchdog, enables all RAM banks, configures the chip to the high-power mode
+/// (which is necessary for 48MHz operation) and enables waitstates and buffering in a way that
+/// the flash returns valid data with 48MHz CPU frequency.
+unsafe fn startup_intilialisation() {
+    let wdt = msp432::wdt::Wdt::new();
+
+    msp432::init();
+
+    // The watchdog must be disabled, because it is enabled by default on reset and has a
+    // interval of approximately 10ms. See datasheet p. 759, section 17.2.2.
+    // Do this in a separate function which is executed before the kernel was started in order to
+    // make sure that not more than 1 watchdog instances exist at the same time.
+    wdt.disable();
+    msp432::sysctl::SYSCTL.enable_all_sram_banks();
+    msp432::pcm::PCM.set_high_power();
+    msp432::flctl::FLCTL.set_waitstates(msp432::flctl::WaitStates::_1);
+    msp432::flctl::FLCTL.set_buffering(true);
+}
+
 /// Reset Handler.
 ///
 /// This symbol is loaded into vector table by the MSP432 chip crate.
@@ -72,12 +94,7 @@ impl Platform for MspExp432P401R {
 /// execution begins here.
 #[no_mangle]
 pub unsafe fn reset_handler() {
-    msp432::init();
-    msp432::wdt::WDT.disable();
-    msp432::sysctl::SYSCTL.enable_all_sram_banks();
-    msp432::pcm::PCM.set_high_power();
-    msp432::flctl::FLCTL.set_waitstates(msp432::flctl::WaitStates::_1);
-    msp432::flctl::FLCTL.set_buffering(true);
+    startup_intilialisation();
 
     // Setup the GPIO pins to use the HFXT (high frequency external) oscillator (48MHz)
     msp432::gpio::PINS_J[msp432::gpio::PinJNr::PJ_2 as usize].enable_primary_function();

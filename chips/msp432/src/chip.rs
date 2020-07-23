@@ -12,6 +12,7 @@ pub struct Msp432 {
     mpu: cortexm4::mpu::MPU,
     userspace_kernel_boundary: cortexm4::syscall::SysCall,
     scheduler_timer: cortexm4::systick::SysTick,
+    watchdog: wdt::Wdt,
 }
 
 impl Msp432 {
@@ -20,6 +21,7 @@ impl Msp432 {
             mpu: cortexm4::mpu::MPU::new(),
             userspace_kernel_boundary: cortexm4::syscall::SysCall::new(),
             scheduler_timer: cortexm4::systick::SysTick::new_with_calibration(48_000_000),
+            watchdog: wdt::Wdt::new(),
         }
     }
 }
@@ -74,7 +76,7 @@ impl Chip for Msp432 {
     }
 
     fn watchdog(&self) -> &Self::WatchDog {
-        unsafe { &wdt::WDT }
+        &self.watchdog
     }
 
     fn userspace_kernel_boundary(&self) -> &cortexm4::syscall::SysCall {

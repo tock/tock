@@ -3,8 +3,6 @@
 use kernel::common::registers::{register_bitfields, register_structs, ReadWrite};
 use kernel::common::StaticRef;
 
-pub static mut WDT: Wdt = Wdt::new();
-
 const WATCHDOG_BASE: StaticRef<WdtRegisters> =
     unsafe { StaticRef::new(0x4000_4800u32 as *const WdtRegisters) };
 
@@ -85,7 +83,7 @@ pub struct Wdt {
 }
 
 impl Wdt {
-    const fn new() -> Wdt {
+    pub const fn new() -> Wdt {
         Wdt {
             registers: WATCHDOG_BASE,
         }
