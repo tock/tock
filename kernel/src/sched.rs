@@ -85,9 +85,11 @@ pub trait Scheduler<C: Chip> {
     /// However, schedulers which wish to defer interrupt handling may change this, or
     /// priority schedulers which wish to check if the execution of the current process
     /// has caused a higher priority process to become ready (such as in the case of IPC)
-    unsafe fn leave_do_process(&self, chip: &C) -> bool {
-        chip.has_pending_interrupts()
-            || DynamicDeferredCall::global_instance_calls_pending().unwrap_or(false)
+    /// The `AppId` of the process that is executing is passed in the event that future
+    /// schedulers need this info when reimplementing this.
+    unsafe fn continue_process(&self, _id: AppId, chip: &C) -> bool {
+        !(chip.has_pending_interrupts()
+            || DynamicDeferredCall::global_instance_calls_pending().unwrap_or(false))
     }
 }
 
@@ -422,6 +424,7 @@ impl Kernel {
         }
     }
 
+    /// Main loop of the OS
     pub fn kernel_loop<P: Platform, C: Chip, SC: Scheduler<C>>(
         &self,
         platform: &P,
@@ -478,9 +481,10 @@ impl Kernel {
     /// control to the scheduler if a process yields with no callbacks pending,
     /// exceeds its timeslice, or is interrupted.
     ///
-    /// Depending on the particular scheduler in use, this function can be configured
-    /// to act in a few different ways. `break_for_kernel_tasks` allows the
-    /// scheduler to tell the Kernel whether to return control to the scheduler as soon
+    /// Depending on the particular scheduler in use, this function may act
+    /// in a few different ways. `scheduler.continue_process()` allows the
+    /// scheduler to tell the Kernel whether to continue executing the process, or
+    /// to return control to the scheduler as soon
     /// as a kernel task becomes ready (either a bottom half interrupt handler or
     /// dynamic deferred call), or to continue executing the userspace process
     /// until it reaches one of the aforementioned stopping conditions.
@@ -523,7 +527,7 @@ impl Kernel {
                 break;
             }
 
-            if scheduler.leave_do_process(chip) {
+            if scheduler.continue_process(process.appid(), chip) {
                 return_reason = StoppedExecutingReason::KernelPreemption;
                 break;
             }

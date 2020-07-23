@@ -174,8 +174,8 @@ impl<'a, A: 'static + time::Alarm<'static>, C: Chip> Scheduler<C> for MLFQSched<
         }
     }
 
-    unsafe fn leave_do_process(&self, _: &C) -> bool {
+    unsafe fn continue_process(&self, _: AppId, _: &C) -> bool {
         // This MLFQ scheduler only preempts processes if there is a timeslice expiration
-        false
+        true
     }
 }

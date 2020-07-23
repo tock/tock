@@ -46,7 +46,7 @@ impl<C: Chip> Scheduler<C> for PrioritySched {
         (next, None)
     }
 
-    unsafe fn leave_do_process(&self, chip: &C) -> bool {
+    unsafe fn continue_process(&self, _: AppId, chip: &C) -> bool {
         // In addition to checking for interrupts, also
         // checks if any higher priority processes have become ready.
         // This check is necessary because a system call by this process could make
