@@ -39,9 +39,9 @@ pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 /// A structure representing this platform that holds references to all
 /// capsules for this platform.
 struct MspExp432P401R {
-    led: &'static capsules::led::LED<'static, msp432::gpio::Pin>,
+    led: &'static capsules::led::LED<'static, msp432::gpio::Pin<'static>>,
     console: &'static capsules::console::Console<'static>,
-    button: &'static capsules::button::Button<'static, msp432::gpio::Pin>,
+    button: &'static capsules::button::Button<'static, msp432::gpio::Pin<'static>>,
     alarm: &'static capsules::alarm::AlarmDriver<
         'static,
         capsules::virtual_alarm::VirtualMuxAlarm<'static, msp432::timer::TimerA<'static>>,
@@ -77,7 +77,7 @@ unsafe fn startup_intilialisation() {
 
     // The watchdog must be disabled, because it is enabled by default on reset and has a
     // interval of approximately 10ms. See datasheet p. 759, section 17.2.2.
-    // Do this in a separate function which is executed before the kernel was started in order to
+    // Do this in a separate function which is executed before the kernel is started in order to
     // make sure that not more than 1 watchdog instances exist at the same time.
     wdt.disable();
     msp432::sysctl::SYSCTL.enable_all_sram_banks();

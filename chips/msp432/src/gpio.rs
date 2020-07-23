@@ -1,6 +1,7 @@
 //! General Purpose Input/Output (GPIO)
 
 use core::cell::Cell;
+use core::marker::PhantomData;
 use kernel::common::cells::OptionalCell;
 use kernel::common::registers::{register_bitfields, register_structs, ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
@@ -303,34 +304,38 @@ enum ModuleFunction {
 }
 
 /// Supports interrupts
-pub struct Pin {
+pub struct Pin<'a> {
     pin: u8,
     registers: StaticRef<GpioRegisters>,
     reg_idx: usize,
     detect_both_edges: Cell<bool>,
-    client: OptionalCell<&'static dyn gpio::Client>,
+    client: OptionalCell<&'a dyn gpio::Client>,
 }
 
 /// Doesn't support interrupts
-pub struct PinJ {
+pub struct PinJ<'a> {
     pin: u8,
     registers: StaticRef<GpioRegisters>,
     reg_idx: usize,
+    // Add the phantom data in order to make the macro implementation work
+    // because Pin requires a lifetime parameter
+    phantom: PhantomData<&'a ()>,
 }
 
-impl PinJ {
-    const fn new(pin: PinJNr) -> PinJ {
+impl<'a> PinJ<'a> {
+    const fn new(pin: PinJNr) -> PinJ<'a> {
         let pin_nr = (pin as u8) % PINS_PER_PORT;
         PinJ {
             pin: pin_nr,
             registers: GPIO_BASES[5],
             reg_idx: 0,
+            phantom: PhantomData,
         }
     }
 }
 
-impl Pin {
-    const fn new(pin: PinNr) -> Pin {
+impl<'a> Pin<'a> {
+    const fn new(pin: PinNr) -> Pin<'a> {
         let pin_nr = (pin as u8) % PINS_PER_PORT;
         let p = (pin as u8) / PINS_PER_PORT;
         Pin {
@@ -369,7 +374,7 @@ impl Pin {
 
 macro_rules! pin_implementation {
     ($pin_type:ident) => {
-        impl $pin_type {
+        impl<'a> $pin_type<'a> {
             fn read_level(&self) -> bool {
                 (self.registers.input[self.reg_idx].get() & (1 << self.pin)) > 0
             }
@@ -414,15 +419,15 @@ macro_rules! pin_implementation {
             }
         }
 
-        impl gpio::Pin for $pin_type {}
+        impl<'a> gpio::Pin for $pin_type<'a> {}
 
-        impl gpio::Input for $pin_type {
+        impl<'a> gpio::Input for $pin_type<'a> {
             fn read(&self) -> bool {
                 self.read_level()
             }
         }
 
-        impl gpio::Output for $pin_type {
+        impl<'a> gpio::Output for $pin_type<'a> {
             fn set(&self) {
                 let mut val = self.registers.out[self.reg_idx].get();
                 val |= 1 << self.pin;
@@ -443,7 +448,7 @@ macro_rules! pin_implementation {
             }
         }
 
-        impl gpio::Configure for $pin_type {
+        impl<'a> gpio::Configure for $pin_type<'a> {
             fn configuration(&self) -> gpio::Configuration {
                 let regs = self.registers;
                 let dir = regs.dir[self.reg_idx].get();
@@ -538,8 +543,8 @@ macro_rules! pin_implementation {
 pin_implementation!(Pin);
 pin_implementation!(PinJ);
 
-impl gpio::Interrupt for Pin {
-    fn set_client(&self, client: &'static dyn gpio::Client) {
+impl<'a> gpio::Interrupt<'a> for Pin<'a> {
+    fn set_client(&self, client: &'a dyn gpio::Client) {
         self.client.set(client);
     }
 
@@ -593,7 +598,7 @@ impl gpio::Interrupt for Pin {
     }
 }
 
-impl gpio::InterruptPin for Pin {}
+impl<'a> gpio::InterruptPin<'a> for Pin<'a> {}
 
 pub fn handle_interrupt(port_idx: usize) {
     let regs: StaticRef<GpioRegisters> = GPIO_BASES[port_idx];
