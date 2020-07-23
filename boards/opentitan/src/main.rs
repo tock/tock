@@ -38,12 +38,6 @@ static mut CHIP: Option<
 // How should the kernel respond when a process faults.
 const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultResponse::Panic;
 
-// Force the emission of the `.apps` segment in the kernel elf image
-// NOTE: This will cause the kernel to overwrite any existing apps when flashed!
-#[used]
-#[link_section = ".app.hack"]
-static APP_HACK: u8 = 0;
-
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
 #[link_section = ".stack_buffer"]

@@ -140,9 +140,13 @@ SIZE      ?= $(TOOLCHAIN)-size
 OBJCOPY   ?= $(TOOLCHAIN)-objcopy
 OBJDUMP   ?= $(TOOLCHAIN)-objdump
 
-# Set additional flags to produce binary from .elf
-# --strip-sections prevents enormous binaries when SRAM is below flash
-OBJCOPY_FLAGS ?= --strip-sections -S
+# Set additional flags to produce binary from .elf.
+# * --strip-sections prevents enormous binaries when SRAM is below flash.
+# * --remove-section .apps prevents the .apps section from being included in the
+#   kernel binary file. This section is a placeholder for optionally including
+#   application binaries, and only needs to exist in the .elf. By removing it,
+#   we prevent the kernel binary from overwriting applications.
+OBJCOPY_FLAGS ?= --strip-sections -S --remove-section .apps
 # This make variable allows board-specific Makefiles to pass down options to
 # the Cargo build command. For example, in boards/<custom_board>/Makefile:
 # `CARGO_FLAGS += --features=foo` would pass feature `foo` to the top level
