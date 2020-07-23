@@ -73,7 +73,7 @@ pub trait Scheduler<C: Chip> {
     /// processes to handle kernel tasks. Most schedulers will use this
     /// default implementation, which always prioritizes kernel work, but
     /// schedulers that wish to defer interrupt handling may reimplement it.
-    unsafe fn break_for_kernel_tasks(&self, kernel: &Kernel, chip: &C) -> bool {
+    unsafe fn break_for_kernel_work(&self, kernel: &Kernel, chip: &C) -> bool {
         chip.has_pending_interrupts()
             || DynamicDeferredCall::global_instance_calls_pending().unwrap_or(false)
             || kernel.processes_blocked()
@@ -434,13 +434,13 @@ impl Kernel {
         _capability: &dyn capabilities::MainLoopCapability,
     ) -> ! {
         loop {
-            chip.watchdog().tickle();
+            chip.watchdog().setup();
             unsafe {
                 scheduler.execute_kernel_work(chip);
 
                 loop {
                     chip.watchdog().tickle();
-                    if scheduler.break_for_kernel_tasks(self, chip) {
+                    if scheduler.break_for_kernel_work(self, chip) {
                         break;
                     }
                     let (appid, timeslice_us) = scheduler.next();
@@ -527,7 +527,7 @@ impl Kernel {
                 break;
             }
 
-            if scheduler.continue_process(process.appid(), chip) {
+            if !scheduler.continue_process(process.appid(), chip) {
                 return_reason = StoppedExecutingReason::KernelPreemption;
                 break;
             }
