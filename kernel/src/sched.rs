@@ -141,7 +141,7 @@ pub enum StoppedExecutingReason {
     /// it was not restarted and there was not a kernel panic.
     StoppedFaulted,
 
-    /// The kernel stopped the process
+    /// The kernel stopped the process.
     Stopped,
 
     /// The process returned because its timeslice expired
