@@ -436,7 +436,9 @@ impl Kernel {
         }
     }
 
-    /// Main loop of the OS
+    /// Main loop of the OS.
+    ///
+    /// Most of the behavior of this loop is controlled by the `Scheduler` implementation in use.
     pub fn kernel_loop<P: Platform, C: Chip, SC: Scheduler<C>>(
         &self,
         platform: &P,
