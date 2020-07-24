@@ -74,7 +74,7 @@ pub trait Scheduler<C: Chip> {
     /// processes to handle kernel tasks. Most schedulers will use this
     /// default implementation, which always prioritizes kernel work, but
     /// schedulers that wish to defer interrupt handling may reimplement it.
-    unsafe fn kernel_work_ready(&self, chip: &C) -> bool {
+    unsafe fn do_kernel_work_now(&self, chip: &C) -> bool {
         chip.has_pending_interrupts()
             || DynamicDeferredCall::global_instance_calls_pending().unwrap_or(false)
     }
@@ -92,6 +92,7 @@ pub trait Scheduler<C: Chip> {
     /// However, schedulers which wish to defer interrupt handling may change this, or
     /// priority schedulers which wish to check if the execution of the current process
     /// has caused a higher priority process to become ready (such as in the case of IPC).
+    /// If this returns `false`, then `do_process` will exit with a `KernelPreemption`.
     ///
     /// `id` is the identifier of the currently active process.
     unsafe fn continue_process(&self, _id: AppId, chip: &C) -> bool {
@@ -460,7 +461,7 @@ impl Kernel {
         loop {
             chip.watchdog().tickle();
             unsafe {
-                match scheduler.kernel_work_ready(chip) {
+                match scheduler.do_kernel_work_now(chip) {
                     true => {
                         // Execute kernel work
                         scheduler.execute_kernel_work(chip);
