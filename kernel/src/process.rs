@@ -1706,7 +1706,7 @@ impl<C: 'static + Chip> Process<'_, C> {
                     debug!(
                         "[!] flash={:#010X}-{:#010X} process={:?} - couldn't allocate memory region of size >= {:#X}",
                         app_flash.as_ptr() as usize,
-                        app_flash.as_ptr() as usize + app_flash.len(),
+                        app_flash.as_ptr() as usize + app_flash.len() - 1,
                         process_name,
                         min_total_memory_size
                     );
@@ -1896,7 +1896,7 @@ impl<C: 'static + Chip> Process<'_, C> {
                     debug!(
                         "[!] flash={:#010X}-{:#010X} process={:?} - couldn't initialize process",
                         app_flash.as_ptr() as usize,
-                        app_flash.as_ptr() as usize + app_flash.len(),
+                        app_flash.as_ptr() as usize + app_flash.len() - 1,
                         process_name
                     );
                 }
