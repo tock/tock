@@ -59,6 +59,7 @@
 #![allow(clippy::suspicious_op_assign_impl)]
 #![allow(clippy::suspicious_arithmetic_impl)]
 
+use core::cell::UnsafeCell;
 use core::fmt;
 use core::marker::PhantomData;
 use core::ops::{Add, AddAssign, BitAnd, BitOr, BitOrAssign, Not, Shl, Shr};
@@ -117,7 +118,7 @@ pub trait TryFromValue<V> {
 // struct must be exactly the size of the `T`.
 #[repr(transparent)]
 pub struct ReadWrite<T: IntLike, R: RegisterLongName = ()> {
-    value: T,
+    value: UnsafeCell<T>,
     associated_register: PhantomData<R>,
 }
 
@@ -135,7 +136,7 @@ pub struct ReadOnly<T: IntLike, R: RegisterLongName = ()> {
 // struct must be exactly the size of the `T`.
 #[repr(transparent)]
 pub struct WriteOnly<T: IntLike, R: RegisterLongName = ()> {
-    value: T,
+    value: UnsafeCell<T>,
     associated_register: PhantomData<R>,
 }
 
@@ -148,7 +149,7 @@ pub struct WriteOnly<T: IntLike, R: RegisterLongName = ()> {
 // struct must be exactly the size of the `T`.
 #[repr(transparent)]
 pub struct Aliased<T: IntLike, R: RegisterLongName = (), W: RegisterLongName = ()> {
-    value: T,
+    value: UnsafeCell<T>,
     associated_register: PhantomData<(R, W)>,
 }
 
@@ -156,13 +157,13 @@ impl<T: IntLike, R: RegisterLongName> ReadWrite<T, R> {
     #[inline]
     /// Get the raw register value
     pub fn get(&self) -> T {
-        unsafe { ::core::ptr::read_volatile(&self.value) }
+        unsafe { ::core::ptr::read_volatile(self.value.get()) }
     }
 
     #[inline]
     /// Set the raw register value
     pub fn set(&self, value: T) {
-        unsafe { ::core::ptr::write_volatile(&self.value as *const T as *mut T, value) }
+        unsafe { ::core::ptr::write_volatile(self.value.get(), value) }
     }
 
     #[inline]
@@ -269,7 +270,7 @@ impl<T: IntLike, R: RegisterLongName> WriteOnly<T, R> {
     #[inline]
     /// Set the raw register value
     pub fn set(&self, value: T) {
-        unsafe { ::core::ptr::write_volatile(&self.value as *const T as *mut T, value) }
+        unsafe { ::core::ptr::write_volatile(self.value.get(), value) }
     }
 
     #[inline]
@@ -283,13 +284,13 @@ impl<T: IntLike, R: RegisterLongName, W: RegisterLongName> Aliased<T, R, W> {
     #[inline]
     /// Get the raw register value
     pub fn get(&self) -> T {
-        unsafe { ::core::ptr::read_volatile(&self.value) }
+        unsafe { ::core::ptr::read_volatile(self.value.get()) }
     }
 
     #[inline]
     /// Set the raw register value
     pub fn set(&self, value: T) {
-        unsafe { ::core::ptr::write_volatile(&self.value as *const T as *mut T, value) }
+        unsafe { ::core::ptr::write_volatile(self.value.get(), value) }
     }
 
     #[inline]
@@ -429,29 +430,28 @@ impl<R: RegisterLongName> From<LocalRegisterCopy<u64, R>> for u64 {
 /// In memory volatile register.
 // To successfully alias this structure onto hardware registers in memory, this
 // struct must be exactly the size of the `T`.
-#[derive(Copy, Clone)]
 #[repr(transparent)]
 pub struct InMemoryRegister<T: IntLike, R: RegisterLongName = ()> {
-    value: T,
+    value: UnsafeCell<T>,
     associated_register: PhantomData<R>,
 }
 
 impl<T: IntLike, R: RegisterLongName> InMemoryRegister<T, R> {
     pub const fn new(value: T) -> Self {
         InMemoryRegister {
-            value: value,
+            value: UnsafeCell::new(value),
             associated_register: PhantomData,
         }
     }
 
     #[inline]
     pub fn get(&self) -> T {
-        unsafe { ::core::ptr::read_volatile(&self.value) }
+        unsafe { ::core::ptr::read_volatile(self.value.get()) }
     }
 
     #[inline]
     pub fn set(&self, value: T) {
-        unsafe { ::core::ptr::write_volatile(&self.value as *const T as *mut T, value) }
+        unsafe { ::core::ptr::write_volatile(self.value.get(), value) }
     }
 
     #[inline]

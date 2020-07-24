@@ -31,12 +31,6 @@ static mut CHIP: Option<&'static stm32f412g::chip::Stm32f4xx> = None;
 // How should the kernel respond when a process faults.
 const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultResponse::Panic;
 
-// Force the emission of the `.apps` segment in the kernel elf image
-// NOTE: This will cause the kernel to overwrite any existing apps when flashed!
-#[used]
-#[link_section = ".app.hack"]
-static APP_HACK: u8 = 0;
-
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
 #[link_section = ".stack_buffer"]
@@ -54,7 +48,9 @@ struct STM32F412GDiscovery {
         VirtualMuxAlarm<'static, stm32f412g::tim2::Tim2<'static>>,
     >,
     gpio: &'static capsules::gpio::GPIO<'static, stm32f412g::gpio::Pin<'static>>,
-    ft6206: &'static capsules::ft6206::Ft6206<'static>,
+    adc: &'static capsules::adc::Adc<'static, stm32f412g::adc::Adc>,
+    ft6x06: &'static capsules::ft6x06::Ft6x06<'static>,
+    touch: &'static capsules::touch::Touch<'static>,
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
@@ -70,7 +66,9 @@ impl Platform for STM32F412GDiscovery {
             capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
-            capsules::ft6206::DRIVER_NUM => f(Some(self.ft6206)),
+            capsules::adc::DRIVER_NUM => f(Some(self.adc)),
+            capsules::ft6x06::DRIVER_NUM => f(Some(self.ft6x06)),
+            capsules::touch::DRIVER_NUM => f(Some(self.touch)),
             _ => f(None),
         }
     }
@@ -236,6 +234,39 @@ unsafe fn set_pin_primary_functions() {
         // the rest.
         EXTI.associate_line_gpiopin(LineId::Exti5, pin);
     });
+
+    // ADC
+
+    // Arduino A0
+    PinId::PA01.get_pin().as_ref().map(|pin| {
+        pin.set_mode(stm32f412g::gpio::Mode::AnalogMode);
+    });
+
+    // Arduino A1
+    PinId::PC01.get_pin().as_ref().map(|pin| {
+        pin.set_mode(stm32f412g::gpio::Mode::AnalogMode);
+    });
+
+    // Arduino A2
+    PinId::PC03.get_pin().as_ref().map(|pin| {
+        pin.set_mode(stm32f412g::gpio::Mode::AnalogMode);
+    });
+
+    // Arduino A3
+    PinId::PC04.get_pin().as_ref().map(|pin| {
+        pin.set_mode(stm32f412g::gpio::Mode::AnalogMode);
+    });
+
+    // Arduino A4
+    PinId::PC05.get_pin().as_ref().map(|pin| {
+        pin.set_mode(stm32f412g::gpio::Mode::AnalogMode);
+    });
+
+    // Arduino A5
+    PinId::PB00.get_pin().as_ref().map(|pin| {
+        pin.set_mode(stm32f412g::gpio::Mode::AnalogMode);
+    });
+
     // EXTI9_5 interrupts is delivered at IRQn 23 (EXTI9_5)
     cortexm4::nvic::Nvic::new(stm32f412g::nvic::EXTI9_5).enable();
 }
@@ -449,21 +480,56 @@ pub unsafe fn reset_handler() {
     )
     .finalize(components::i2c_mux_component_helper!());
 
-    let ft6206 = components::ft6206::Ft6206Component::new(
+    let ft6x06 = components::ft6x06::Ft6x06Component::new(
         stm32f412g::gpio::PinId::PG05.get_pin().as_ref().unwrap(),
     )
-    .finalize(components::ft6206_i2c_component_helper!(mux_i2c));
+    .finalize(components::ft6x06_i2c_component_helper!(mux_i2c));
 
-    ft6206.is_present();
+    let touch = components::touch::TouchComponent::new(board_kernel, ft6x06, Some(ft6x06), None)
+        .finalize(());
 
-    let nucleo_f412g = STM32F412GDiscovery {
+    // Uncomment this for multi touch support
+    // let touch =
+    //     components::touch::MultiTouchComponent::new(board_kernel, ft6x06, Some(ft6x06), None)
+    //         .finalize(());
+
+    // ADC
+    let adc_channels = static_init!(
+        [&'static stm32f412g::adc::Channel; 6],
+        [
+            &stm32f412g::adc::Channel::Channel1,
+            &stm32f412g::adc::Channel::Channel11,
+            &stm32f412g::adc::Channel::Channel13,
+            &stm32f412g::adc::Channel::Channel14,
+            &stm32f412g::adc::Channel::Channel15,
+            &stm32f412g::adc::Channel::Channel8,
+        ]
+    );
+    let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
+    let grant_adc = board_kernel.create_grant(&grant_cap);
+    let adc = static_init!(
+        capsules::adc::Adc<'static, stm32f412g::adc::Adc>,
+        capsules::adc::Adc::new(
+            &stm32f412g::adc::ADC1,
+            grant_adc,
+            adc_channels,
+            &mut capsules::adc::ADC_BUFFER1,
+            &mut capsules::adc::ADC_BUFFER2,
+            &mut capsules::adc::ADC_BUFFER3
+        )
+    );
+    stm32f412g::adc::ADC1.set_client(adc);
+
+    let stm32f412g = STM32F412GDiscovery {
         console: console,
         ipc: kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability),
         led: led,
         button: button,
         alarm: alarm,
         gpio: gpio,
-        ft6206: ft6206,
+        adc: adc,
+        ft6x06: ft6x06,
+        touch: touch,
     };
 
     // // Optional kernel tests
@@ -516,9 +582,9 @@ pub unsafe fn reset_handler() {
     });
 
     board_kernel.kernel_loop(
-        &nucleo_f412g,
+        &stm32f412g,
         chip,
-        Some(&nucleo_f412g.ipc),
+        Some(&stm32f412g.ipc),
         &main_loop_capability,
     );
 }

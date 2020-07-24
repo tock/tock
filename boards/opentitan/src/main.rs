@@ -14,6 +14,8 @@ use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferred
 use kernel::component::Component;
 use kernel::hil;
 use kernel::hil::i2c::I2CMaster;
+use kernel::hil::time::Alarm;
+use kernel::Chip;
 use kernel::Platform;
 use kernel::{create_capability, debug, static_init};
 use rv32i::csr;
@@ -29,16 +31,12 @@ pub mod usb;
 static mut PROCESSES: [Option<&'static dyn kernel::procs::ProcessType>; 4] =
     [None, None, None, None];
 
-static mut CHIP: Option<&'static earlgrey::chip::EarlGrey> = None;
+static mut CHIP: Option<
+    &'static earlgrey::chip::EarlGrey<VirtualMuxAlarm<'static, earlgrey::timer::RvTimer>>,
+> = None;
 
 // How should the kernel respond when a process faults.
 const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultResponse::Panic;
-
-// Force the emission of the `.apps` segment in the kernel elf image
-// NOTE: This will cause the kernel to overwrite any existing apps when flashed!
-#[used]
-#[link_section = ".app.hack"]
-static APP_HACK: u8 = 0;
 
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
@@ -48,8 +46,8 @@ pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 /// A structure representing this platform that holds references to all
 /// capsules for this platform. We've included an alarm and console.
 struct OpenTitan {
-    led: &'static capsules::led::LED<'static, earlgrey::gpio::GpioPin>,
-    gpio: &'static capsules::gpio::GPIO<'static, earlgrey::gpio::GpioPin>,
+    led: &'static capsules::led::LED<'static, earlgrey::gpio::GpioPin<'static>>,
+    gpio: &'static capsules::gpio::GPIO<'static, earlgrey::gpio::GpioPin<'static>>,
     console: &'static capsules::console::Console<'static>,
     alarm: &'static capsules::alarm::AlarmDriver<
         'static,
@@ -125,21 +123,10 @@ pub unsafe fn reset_handler() {
         None,
     );
 
-    let chip = static_init!(earlgrey::chip::EarlGrey, earlgrey::chip::EarlGrey::new());
-    CHIP = Some(chip);
-
-    // Need to enable all interrupts for Tock Kernel
-    chip.enable_plic_interrupts();
-    // enable interrupts globally
-    csr::CSR
-        .mie
-        .modify(csr::mie::mie::msoft::SET + csr::mie::mie::mtimer::SET + csr::mie::mie::mext::SET);
-    csr::CSR.mstatus.modify(csr::mstatus::mstatus::mie::SET);
-
     // Create a shared UART channel for the console and for kernel debug.
     let uart_mux = components::console::UartMuxComponent::new(
         &earlgrey::uart::UART0,
-        230400,
+        earlgrey::uart::UART0_BAUDRATE,
         dynamic_deferred_caller,
     )
     .finalize(());
@@ -215,6 +202,10 @@ pub unsafe fn reset_handler() {
         VirtualMuxAlarm<'static, earlgrey::timer::RvTimer>,
         VirtualMuxAlarm::new(mux_alarm)
     );
+    let scheduler_timer_virtual_alarm = static_init!(
+        VirtualMuxAlarm<'static, earlgrey::timer::RvTimer>,
+        VirtualMuxAlarm::new(mux_alarm)
+    );
     let alarm = static_init!(
         capsules::alarm::AlarmDriver<'static, VirtualMuxAlarm<'static, earlgrey::timer::RvTimer>>,
         capsules::alarm::AlarmDriver::new(
@@ -223,6 +214,21 @@ pub unsafe fn reset_handler() {
         )
     );
     hil::time::Alarm::set_client(virtual_alarm_user, alarm);
+
+    let chip = static_init!(
+        earlgrey::chip::EarlGrey<VirtualMuxAlarm<'static, earlgrey::timer::RvTimer>>,
+        earlgrey::chip::EarlGrey::new(scheduler_timer_virtual_alarm)
+    );
+    scheduler_timer_virtual_alarm.set_client(chip.scheduler_timer());
+    CHIP = Some(chip);
+
+    // Need to enable all interrupts for Tock Kernel
+    chip.enable_plic_interrupts();
+    // enable interrupts globally
+    csr::CSR
+        .mie
+        .modify(csr::mie::mie::msoft::SET + csr::mie::mie::mtimer::SET + csr::mie::mie::mext::SET);
+    csr::CSR.mstatus.modify(csr::mstatus::mstatus::mie::SET);
 
     // Setup the console.
     let console = components::console::ConsoleComponent::new(board_kernel, uart_mux).finalize(());

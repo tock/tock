@@ -50,6 +50,23 @@ You can also just use the `spiflash` program manually to download the image to t
 
 NOTE: You will need to download the Tock binary after every power cycle.
 
+### Compiling the Kernel for FPGA or Verilator
+
+Opentitan is supported on both an FPGA and in Verilator. Slightly different
+versions of the EarlGrey chip implementation are required for the different
+platforms. By default the kernel is compiled for the FPGA. To compile for
+Verilator, run:
+
+```shell
+make BOARD_CONFIGURATION=sim_verilator
+```
+
+To explicitly specify the FPGA, run:
+
+```shell
+make BOARD_CONFIGURATION=fpga_nexysvideo
+```
+
 Programming Apps
 ----------------
 

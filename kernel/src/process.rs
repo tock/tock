@@ -576,6 +576,9 @@ impl From<Error> for ReturnCode {
 }
 
 /// Various states a process can be in.
+///
+/// This is made public in case external implementations of `ProcessType` want
+/// to re-use these process states in the external implementation.
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum State {
     /// Process expects to be running code. The process may not be currently
@@ -641,19 +644,28 @@ pub enum FaultResponse {
     Stop,
 }
 
+/// Tasks that can be enqueued for a process.
+///
+/// This is public for external implementations of `ProcessType`.
 #[derive(Copy, Clone)]
 pub enum Task {
+    /// Function pointer in the process to execute. Generally this is a callback
+    /// from a capsule.
     FunctionCall(FunctionCall),
+    /// An IPC operation that needs additional setup to configure memory access.
     IPC((AppId, ipc::IPCCallbackType)),
 }
 
-/// Enumeration to identify whether a function call comes directly from the
-/// kernel or from a callback subscribed through a driver.
+/// Enumeration to identify whether a function call for a process comes directly
+/// from the kernel or from a callback subscribed through a `Driver`
+/// implementation.
 ///
-/// An example of kernel function is the application entry point.
+/// An example of a kernel function is the application entry point.
 #[derive(Copy, Clone, Debug)]
 pub enum FunctionCallSource {
-    Kernel, // For functions coming directly from the kernel, such as `init_fn`.
+    /// For functions coming directly from the kernel, such as `init_fn`.
+    Kernel,
+    /// For functions coming from capsules or any implementation of `Driver`.
     Driver(CallbackId),
 }
 
@@ -681,6 +693,16 @@ pub struct FunctionCall {
 /// These pointers and counters are not strictly required for kernel operation,
 /// but provide helpful information when an app crashes.
 struct ProcessDebug {
+    /// If this process was compiled for fixed addresses, save the address
+    /// it must be at in flash. This is useful for debugging and saves having
+    /// to re-parse the entire TBF header.
+    fixed_address_flash: Option<u32>,
+
+    /// If this process was compiled for fixed addresses, save the address
+    /// it must be at in RAM. This is useful for debugging and saves having
+    /// to re-parse the entire TBF header.
+    fixed_address_ram: Option<u32>,
+
     /// Where the process has started its heap in RAM.
     app_heap_start_pointer: Option<*const u8>,
 
@@ -1278,13 +1300,6 @@ impl<C: Chip> ProcessType for Process<'_, C> {
             if self.current_stack_pointer.get() < debug.min_stack_pointer {
                 debug.min_stack_pointer = self.current_stack_pointer.get();
             }
-
-            // More debugging help. If this occurred because of a timeslice
-            // expiration, mark that so we can check later if a process is
-            // exceeding its timeslices too often.
-            if switch_reason == Some(syscall::ContextSwitchReason::TimesliceExpired) {
-                debug.timeslice_expiration_count += 1;
-            }
         });
 
         switch_reason
@@ -1488,16 +1503,36 @@ impl<C: Chip> ProcessType for Process<'_, C> {
             let _ = writer.write_fmt(format_args!("{}", config));
         });
 
-        let sram_start = self.memory.as_ptr() as usize;
-        let flash_start = self.flash.as_ptr() as usize;
-        let flash_init_fn = flash_start + self.header.get_init_function_offset() as usize;
+        // Print a helpful message on how to re-compile a process to view the
+        // listing file. If a process is PIC, then we also need to print the
+        // actual addresses the process executed at so that the .lst file can be
+        // generated for those addresses. If the process was already compiled
+        // for a fixed address, then just generating a .lst file is fine.
 
-        let _ = writer.write_fmt(format_args!(
-            "\
-             \r\nTo debug, run `make debug RAM_START={:#x} FLASH_INIT={:#x}`\
-             \r\nin the app's folder and open the .lst file.\r\n\r\n",
-            sram_start, flash_init_fn
-        ));
+        self.debug.map(|debug| {
+            if debug.fixed_address_flash.is_some() {
+                // Fixed addresses, can just run `make lst`.
+                let _ = writer.write_fmt(format_args!(
+                    "\
+                     \r\nTo debug, run `make lst` in the app's folder\
+                     \r\nand open the arch.{:#x}.{:#x}.lst file.\r\n\r\n",
+                    debug.fixed_address_flash.unwrap_or(0),
+                    debug.fixed_address_ram.unwrap_or(0)
+                ));
+            } else {
+                // PIC, need to specify the addresses.
+                let sram_start = self.memory.as_ptr() as usize;
+                let flash_start = self.flash.as_ptr() as usize;
+                let flash_init_fn = flash_start + self.header.get_init_function_offset() as usize;
+
+                let _ = writer.write_fmt(format_args!(
+                    "\
+                     \r\nTo debug, run `make debug RAM_START={:#x} FLASH_INIT={:#x}`\
+                     \r\nin the app's folder and open the .lst file.\r\n\r\n",
+                    sram_start, flash_init_fn
+                ));
+            }
+        });
     }
 }
 
@@ -1743,6 +1778,11 @@ impl<C: 'static + Chip> Process<'_, C> {
         // being created.
         let unique_identifier = kernel.create_process_identifier();
 
+        // Save copies of these in case the app was compiled for fixed addresses
+        // for later debugging.
+        let fixed_address_flash = tbf_header.get_fixed_address_flash();
+        let fixed_address_ram = tbf_header.get_fixed_address_ram();
+
         process
             .app_id
             .set(AppId::new(kernel, unique_identifier, index));
@@ -1779,6 +1819,8 @@ impl<C: 'static + Chip> Process<'_, C> {
         process.process_name = process_name.unwrap_or("");
 
         process.debug = MapCell::new(ProcessDebug {
+            fixed_address_flash: fixed_address_flash,
+            fixed_address_ram: fixed_address_ram,
             app_heap_start_pointer: app_heap_start_pointer,
             app_stack_start_pointer: app_stack_start_pointer,
             min_stack_pointer: initial_stack_pointer,

@@ -3,6 +3,7 @@
 use core::cell::Cell;
 use core::cmp;
 use core::fmt;
+use kernel::common::cells::OptionalCell;
 
 use crate::csr;
 use kernel;
@@ -20,7 +21,7 @@ use kernel::AppId;
 //     physical PMP regions.
 
 // Generic PMP config
-register_bitfields![u32,
+register_bitfields![u8,
     pub pmpcfg [
         r OFFSET(0) NUMBITS(1) [],
         w OFFSET(1) NUMBITS(1) [],
@@ -39,13 +40,13 @@ register_bitfields![u32,
 #[derive(Copy, Clone)]
 pub struct PMPRegion {
     location: (*const u8, usize),
-    cfg: tock_registers::registers::FieldValue<u32, pmpcfg::Register>,
+    cfg: tock_registers::registers::FieldValue<u8, pmpcfg::Register>,
 }
 
 impl fmt::Display for PMPRegion {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fn bit_str<'a>(reg: &PMPRegion, bit: u32, on_str: &'a str, off_str: &'a str) -> &'a str {
-            match reg.cfg.value & bit {
+        fn bit_str<'a>(reg: &PMPRegion, bit: u8, on_str: &'a str, off_str: &'a str) -> &'a str {
+            match reg.cfg.value & bit as u8 {
                 0 => off_str,
                 _ => on_str,
             }
@@ -56,7 +57,7 @@ impl fmt::Display for PMPRegion {
             "addr={:p}, size={:#X}, cfg={:#X} ({}{}{})",
             self.location.0,
             self.location.1,
-            u32::from(self.cfg),
+            u8::from(self.cfg),
             bit_str(self, pmpcfg::r::SET.value, "r", "-"),
             bit_str(self, pmpcfg::w::SET.value, "w", "-"),
             bit_str(self, pmpcfg::x::SET.value, "x", "-"),
@@ -124,9 +125,8 @@ pub struct PMPConfig {
     /// The application that the MPU was last configured for. Used (along with the `is_dirty` flag)
     /// to determine if MPU can skip writing the configuration to hardware.
     last_configured_for: MapCell<AppId>,
+    app_region: OptionalCell<usize>,
 }
-
-const APP_MEMORY_REGION_NUM: usize = 0;
 
 impl Default for PMPConfig {
     /// number of regions on the arty chip
@@ -136,6 +136,7 @@ impl Default for PMPConfig {
             total_regions: 8,
             is_dirty: Cell::new(true),
             last_configured_for: MapCell::empty(),
+            app_region: OptionalCell::empty(),
         }
     }
 }
@@ -169,12 +170,13 @@ impl PMPConfig {
 
             is_dirty: Cell::new(true),
             last_configured_for: MapCell::empty(),
+            app_region: OptionalCell::empty(),
         }
     }
 
     fn unused_region_number(&self) -> Option<usize> {
         for (number, region) in self.regions.iter().enumerate() {
-            if number == APP_MEMORY_REGION_NUM {
+            if self.app_region.contains(&number) {
                 continue;
             }
             if region.is_none() {
@@ -185,6 +187,47 @@ impl PMPConfig {
         }
         None
     }
+
+    fn sort_regions(&mut self) {
+        // Get the app region address
+        let app_addres = if self.app_region.is_some() {
+            Some(
+                self.regions[self.app_region.unwrap_or(0)]
+                    .unwrap()
+                    .location
+                    .0,
+            )
+        } else {
+            None
+        };
+
+        // Sort the regions
+        self.regions.sort_unstable_by(|a, b| {
+            let (a_start, _a_size) = match a {
+                Some(region) => (region.location().0 as usize, region.location().1),
+                None => (0xFFFF_FFFF, 0xFFFF_FFFF),
+            };
+            let (b_start, _b_size) = match b {
+                Some(region) => (region.location().0 as usize, region.location().1),
+                None => (0xFFFF_FFFF, 0xFFFF_FFFF),
+            };
+            a_start.cmp(&b_start)
+        });
+
+        // Update the app region after the sort
+        if app_addres.is_some() {
+            for (i, region) in self.regions.iter().enumerate() {
+                match region {
+                    Some(reg) => {
+                        if reg.location.0 == app_addres.unwrap() {
+                            self.app_region.set(i);
+                        }
+                    }
+                    None => {}
+                }
+            }
+        }
+    }
 }
 
 impl kernel::mpu::MPU for PMPConfig {
@@ -193,9 +236,12 @@ impl kernel::mpu::MPU for PMPConfig {
     fn enable_mpu(&self) {}
 
     fn disable_mpu(&self) {
-        for x in 0..self.total_regions {
-            // If PMP is supported by the core then all 64 register sets must exist
-            // They don't all have to do anything, but let's zero them all just in case.
+        // `total_regions` here refers to the number of memory slices we can
+        // protect with the PMP. Each slice requires two PMP entries to protect,
+        // so `total_regions` is half of the number physical hardware PMP
+        // configuration entries. Therefore, we double `total_regions` to clear
+        // all the relevant `pmpcfg` entries.
+        for x in 0..(self.total_regions * 2) {
             match x % 4 {
                 0 => {
                     csr::CSR.pmpcfg[x / 4].modify(
@@ -301,6 +347,8 @@ impl kernel::mpu::MPU for PMPConfig {
         config.regions[region_num] = Some(region);
         config.is_dirty.set(true);
 
+        config.sort_regions();
+
         Some(mpu::Region::new(start as *const u8, size))
     }
 
@@ -325,6 +373,12 @@ impl kernel::mpu::MPU for PMPConfig {
                 }
             }
         }
+
+        let region_num = if config.app_region.is_some() {
+            config.app_region.unwrap_or(0)
+        } else {
+            config.unused_region_number()?
+        };
 
         // Make sure there is enough memory for app memory and kernel memory.
         let memory_size = cmp::max(
@@ -352,8 +406,12 @@ impl kernel::mpu::MPU for PMPConfig {
 
         let region = PMPRegion::new(region_start as *const u8, region_size, permissions);
 
-        config.regions[APP_MEMORY_REGION_NUM] = Some(region);
+        config.regions[region_num] = Some(region);
         config.is_dirty.set(true);
+
+        config.app_region.set(region_num);
+
+        config.sort_regions();
 
         Some((region_start as *const u8, region_size))
     }
@@ -365,7 +423,9 @@ impl kernel::mpu::MPU for PMPConfig {
         permissions: mpu::Permissions,
         config: &mut Self::MpuConfig,
     ) -> Result<(), ()> {
-        let (region_start, region_size) = match config.regions[APP_MEMORY_REGION_NUM] {
+        let region_num = config.app_region.unwrap_or(0);
+
+        let (region_start, region_size) = match config.regions[region_num] {
             Some(region) => region.location(),
             None => {
                 // Error: Process tried to update app memory MPU region before it was created.
@@ -383,8 +443,10 @@ impl kernel::mpu::MPU for PMPConfig {
 
         let region = PMPRegion::new(region_start as *const u8, region_size, permissions);
 
-        config.regions[APP_MEMORY_REGION_NUM] = Some(region);
+        config.regions[region_num] = Some(region);
         config.is_dirty.set(true);
+
+        config.sort_regions();
 
         Ok(())
     }
@@ -398,25 +460,11 @@ impl kernel::mpu::MPU for PMPConfig {
         // Skip PMP configuration if it is already configured for this app and the MPU
         // configuration of this app has not changed.
         if !last_configured_for_this_app || config.is_dirty.get() {
-            // Sort the regions before configuring PMP in TOR mode.
-            let mut regions_sorted = config.regions.clone();
-            regions_sorted.sort_unstable_by(|a, b| {
-                let (a_start, _a_size) = match a {
-                    Some(region) => (region.location().0 as usize, region.location().1),
-                    None => (0xFFFF_FFFF, 0xFFFF_FFFF),
-                };
-                let (b_start, _b_size) = match b {
-                    Some(region) => (region.location().0 as usize, region.location().1),
-                    None => (0xFFFF_FFFF, 0xFFFF_FFFF),
-                };
-                a_start.cmp(&b_start)
-            });
-
             for x in 0..self.total_regions {
-                let region = regions_sorted[x];
+                let region = config.regions[x];
                 match region {
                     Some(r) => {
-                        let cfg_val = r.cfg.value;
+                        let cfg_val = r.cfg.value as u32;
                         let start = r.location.0 as usize;
                         let size = r.location.1;
 

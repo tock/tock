@@ -81,16 +81,16 @@ impl<T: ?Sized> DerefMut for Owned<T> {
 }
 
 impl Allocator {
-    pub fn alloc<T>(&mut self, data: T) -> Result<Owned<T>, Error> {
+    pub fn alloc<T: Default>(&mut self) -> Result<Owned<T>, Error> {
         unsafe {
-            let ptr = self.alloc_unowned(data)?;
+            let ptr = self.alloc_unowned()?;
             Ok(Owned::new(ptr, self.appid))
         }
     }
 
     // Like `alloc`, but the caller is responsible for free-ing the allocated
     // memory, as it is not wrapped in a type that implements `Drop`
-    unsafe fn alloc_unowned<T>(&mut self, data: T) -> Result<NonNull<T>, Error> {
+    unsafe fn alloc_unowned<T: Default>(&mut self) -> Result<NonNull<T>, Error> {
         self.appid
             .kernel
             .process_map_or(Err(Error::NoSuchApp), self.appid, |process| {
@@ -102,7 +102,7 @@ impl Allocator {
 
                         // We use `ptr::write` to avoid `Drop`ping the uninitialized memory in
                         // case `T` implements the `Drop` trait.
-                        write(ptr.as_ptr(), data);
+                        write(ptr.as_ptr(), T::default());
 
                         Ok(ptr)
                     },
@@ -223,7 +223,7 @@ impl<T: Default> Grant<T> {
                             // Note: This allocation is intentionally never
                             // freed.  A grant region is valid once allocated
                             // for the lifetime of the process.
-                            let new_region = allocator.alloc_unowned(T::default())?;
+                            let new_region = allocator.alloc_unowned()?;
 
                             // Update the grant pointer in the process. Again,
                             // since the process struct does not know about the
