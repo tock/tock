@@ -4,6 +4,7 @@ use core::fmt::Write;
 use kernel;
 use kernel::debug;
 use kernel::hil::time::Alarm;
+use kernel::Chip;
 use rv32i;
 use rv32i::csr::{mcause, mie::mie, mip::mip, CSR};
 use rv32i::PMPConfigMacro;
@@ -96,7 +97,9 @@ impl<'a, A: 'static + Alarm<'static>, I: InterruptService<()> + 'a> E310x<'a, A,
             if !self.plic_interrupt_service.service_interrupt(interrupt) {
                 debug!("Pidx {}", interrupt);
             }
-            self.plic.complete(interrupt);
+            self.atomic(|| {
+                self.plic.complete(interrupt);
+            });
         }
     }
 }
@@ -149,7 +152,7 @@ impl<'a, A: 'static + Alarm<'static>, I: InterruptService<()> + 'a> kernel::Chip
     }
 
     fn has_pending_interrupts(&self) -> bool {
-        self.plic.has_pending()
+        self.plic.get_saved_interrupts().is_some()
     }
 
     fn sleep(&self) {

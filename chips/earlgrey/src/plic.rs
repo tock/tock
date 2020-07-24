@@ -107,6 +107,7 @@ impl Plic {
     /// This will save the interrupt at index internally to be handled later.
     /// Interrupts must be disabled before this is called.
     /// Saved interrupts can be retrieved by calling `get_saved_interrupts()`.
+    /// Saved interrupts are cleared when `'complete()` is called.
     pub unsafe fn save_interrupt(&self, index: u32) {
         let offset = if index < 32 {
             0
@@ -140,17 +141,23 @@ impl Plic {
 
     /// Signal that an interrupt is finished being handled. In Tock, this should be
     /// called from the normal main loop (not the interrupt handler).
-    pub fn complete(&self, index: u32) {
+    /// Interrupts must be disabled before this is called.
+    pub unsafe fn complete(&self, index: u32) {
         self.registers.claim.set(index);
-    }
 
-    /// Return `true` if there are any pending interrupts in the PLIC, `false`
-    /// otherwise.
-    pub fn has_pending(&self) -> bool {
-        self.registers
-            .pending
-            .iter()
-            .fold(0, |i, pending| pending.get() | i)
-            != 0
+        let offset = if index < 32 {
+            0
+        } else if index < 64 {
+            1
+        } else {
+            2
+        };
+        let irq = index % 32;
+
+        // OR the current saved state with the new value
+        let new_saved = self.saved[offset].get().get() & !(1 << irq);
+
+        // Set the new state
+        self.saved[offset].set(LocalRegisterCopy::new(new_saved));
     }
 }

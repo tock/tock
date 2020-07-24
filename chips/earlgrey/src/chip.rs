@@ -113,7 +113,10 @@ impl<'a, A: 'static + Alarm<'static>, I: InterruptService<()> + 'a> EarlGrey<'a,
             } else if !self.plic_interrupt_service.service_interrupt(interrupt) {
                 debug!("Pidx {}", interrupt);
             }
-            self.plic.complete(interrupt);
+            self.atomic(|| {
+                // Safe as interrupts are disabled
+                self.plic.complete(interrupt);
+            });
         }
     }
 
