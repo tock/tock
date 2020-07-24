@@ -1,5 +1,7 @@
 //! Platform Level Interrupt Control peripheral driver.
 
+use kernel::common::cells::VolatileCell;
+use kernel::common::registers::LocalRegisterCopy;
 use kernel::common::registers::{register_bitfields, register_structs, ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
 //use kernel::debug;
@@ -36,11 +38,19 @@ register_bitfields![u32,
 
 pub struct Plic {
     registers: StaticRef<PlicRegisters>,
+    saved: [VolatileCell<LocalRegisterCopy<u32>>; 3],
 }
 
 impl Plic {
     pub const fn new(base: StaticRef<PlicRegisters>) -> Self {
-        Plic { registers: base }
+        Plic {
+            registers: base,
+            saved: [
+                VolatileCell::new(LocalRegisterCopy::new(0)),
+                VolatileCell::new(LocalRegisterCopy::new(0)),
+                VolatileCell::new(LocalRegisterCopy::new(0)),
+            ],
+        }
     }
 
     /// Clear all pending interrupts.
@@ -89,6 +99,26 @@ impl Plic {
         } else {
             Some(claim)
         }
+    }
+
+    /// Save the current interrupt to be handled later
+    /// This will save the interrupt at index internally to be handled later.
+    /// Interrupts must be disabled before this is called.
+    pub unsafe fn save_interrupt(&self, index: u32) {
+        let offset = if index < 32 {
+            0
+        } else if index < 64 {
+            1
+        } else {
+            2
+        };
+        let irq = index % 32;
+
+        // OR the current saved state with the new value
+        let new_saved = self.saved[offset].get().get() | 1 << irq;
+
+        // Set the new state
+        self.saved[offset].set(LocalRegisterCopy::new(new_saved));
     }
 
     /// Signal that an interrupt is finished being handled. In Tock, this should be
