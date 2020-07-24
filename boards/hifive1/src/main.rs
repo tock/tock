@@ -155,7 +155,7 @@ pub unsafe fn reset_handler() {
         MuxAlarm<'static, rv32i::machine_timer::MachineTimer>,
         MuxAlarm::new(&e310x::timer::MACHINETIMER)
     );
-    hil::time::Alarm::set_client(&e310x::timer::MACHINETIMER, mux_alarm);
+    hil::time::Alarm::set_alarm_client(&e310x::timer::MACHINETIMER, mux_alarm);
 
     // Alarm
     let virtual_alarm_user = static_init!(
@@ -172,7 +172,7 @@ pub unsafe fn reset_handler() {
             board_kernel.create_grant(&memory_allocation_cap)
         )
     );
-    hil::time::Alarm::set_client(virtual_alarm_user, alarm);
+    hil::time::Alarm::set_alarm_client(virtual_alarm_user, alarm);
 
     // Setup the console.
     let console = components::console::ConsoleComponent::new(board_kernel, uart_mux).finalize(());

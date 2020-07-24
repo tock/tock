@@ -382,3 +382,52 @@ impl Ticks for Ticks24 {
         Ticks24(0x00FFFFFF)
     }
 }
+
+/// 64-bit `Ticks`
+#[derive(Clone, Copy)]
+pub struct Ticks64(u64);
+
+impl Ticks64 {
+    pub fn into_u64(self) -> u64 {
+        self.0
+    }
+}
+
+impl From<u32> for Ticks64 {
+    fn from(val: u32) -> Self {
+        Ticks64(val as u64)
+    }
+}
+
+impl From<u64> for Ticks64 {
+    fn from(val: u64) -> Self {
+        Ticks64(val as u64)
+    }
+}
+
+impl Ticks for Ticks64 {
+    fn into_usize(self) -> usize {
+        self.0 as usize
+    }
+
+    fn into_u32(self) -> u32 {
+        self.0 as u32
+    }
+
+    fn wrapping_add(self, other: Self) -> Self {
+        Ticks64(self.0.wrapping_add(other.0))
+    }
+
+    fn wrapping_sub(self, other: Self) -> Self {
+        Ticks64(self.0.wrapping_sub(other.0) & 0x00FFFFFF)
+    }
+
+    fn within_range(self, start: Self, end: Self) -> bool {
+        self.wrapping_sub(start).0 < end.wrapping_sub(start).0
+    }
+
+    /// Returns the maximum value of this type, which should be (2^width)-1.
+    fn max_value() -> Self {
+        Ticks64(!0u64)
+    }
+}

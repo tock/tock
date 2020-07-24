@@ -4,7 +4,8 @@ use crate::csr;
 use kernel::common::cells::OptionalCell;
 use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
-use kernel::hil;
+use kernel::hil::time::{self, Ticks};
+use kernel::ReturnCode;
 
 #[repr(C)]
 pub struct MachineTimerRegisters {
@@ -25,7 +26,7 @@ register_bitfields![u64,
 
 pub struct MachineTimer<'a> {
     registers: StaticRef<MachineTimerRegisters>,
-    client: OptionalCell<&'a dyn hil::time::AlarmClient>,
+    client: OptionalCell<&'a dyn time::AlarmClient>,
 }
 
 impl MachineTimer<'_> {
@@ -40,7 +41,7 @@ impl MachineTimer<'_> {
         self.disable_machine_timer();
 
         self.client.map(|client| {
-            client.fired();
+            client.alarm();
         });
     }
 
@@ -53,41 +54,52 @@ impl MachineTimer<'_> {
     }
 }
 
-impl hil::time::Time for MachineTimer<'_> {
-    type Frequency = hil::time::Freq32KHz;
+impl time::Time for MachineTimer<'_> {
+    type Frequency = time::Freq32KHz;
+    type Ticks = time::Ticks64;
 
-    fn now(&self) -> u32 {
-        self.registers.mtime.get() as u32
-    }
-
-    fn max_tics(&self) -> u32 {
-        core::u32::MAX
+    fn now(&self) -> Self::Ticks {
+        Self::Ticks::from(self.registers.mtime.get())
     }
 }
 
-impl<'a> hil::time::Alarm<'a> for MachineTimer<'a> {
-    fn set_client(&self, client: &'a dyn hil::time::AlarmClient) {
+impl<'a> time::Alarm<'a> for MachineTimer<'a> {
+    fn set_alarm_client(&self, client: &'a dyn time::AlarmClient) {
         self.client.set(client);
     }
 
-    fn set_alarm(&self, tics: u32) {
+    fn set_alarm(&self, reference: Self::Ticks, dt: Self::Ticks) {
+        let mut expire = reference.wrapping_add(dt);
+        let now = Self::Ticks::from(self.registers.mtime.get());
+        if !now.within_range(reference, expire) {
+            // expire has already passed, so fire immediately
+            // TODO(alevy): we probably need some wiggle room, but
+            //              I can't trivially figure out how much
+            expire = now;
+        }
+
         self.registers
             .mtimecmp
-            .write(MTimeCmp::MTIMECMP.val(tics as u64));
+            .write(MTimeCmp::MTIMECMP.val(expire.into_u64()));
         csr::CSR.mie.modify(csr::mie::mie::mtimer::SET);
     }
 
-    fn get_alarm(&self) -> u32 {
-        self.registers.mtimecmp.get() as u32
+    fn get_alarm(&self) -> Self::Ticks {
+        Self::Ticks::from(self.registers.mtimecmp.get())
     }
 
-    fn disable(&self) {
+    fn disarm(&self) -> ReturnCode {
         self.disable_machine_timer();
+        ReturnCode::SUCCESS
     }
 
-    fn is_enabled(&self) -> bool {
+    fn is_armed(&self) -> bool {
         // Check if mtimecmp is the max value. If it is, then we are not armed,
         // otherwise we assume we have a value set.
         self.registers.mtimecmp.get() != 0xFFFF_FFFF_FFFF_FFFF
+    }
+
+    fn minimum_dt(&self) -> Self::Ticks {
+        Self::Ticks::from(1u64)
     }
 }

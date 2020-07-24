@@ -124,7 +124,7 @@ pub unsafe fn reset_handler() {
         MuxAlarm<'static, rv32i::machine_timer::MachineTimer>,
         MuxAlarm::new(&arty_e21_chip::timer::MACHINETIMER)
     );
-    hil::time::Alarm::set_client(&arty_e21_chip::timer::MACHINETIMER, mux_alarm);
+    hil::time::Alarm::set_alarm_client(&arty_e21_chip::timer::MACHINETIMER, mux_alarm);
 
     // Alarm
     let alarm = components::alarm::AlarmDriverComponent::new(board_kernel, mux_alarm).finalize(
