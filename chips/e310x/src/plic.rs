@@ -93,6 +93,7 @@ impl Plic {
     /// Save the current interrupt to be handled later
     /// This will save the interrupt at index internally to be handled later.
     /// Interrupts must be disabled before this is called.
+    /// Saved interrupts can be retrieved by calling `get_saved_interrupts()`.
     pub unsafe fn save_interrupt(&self, index: u32) {
         let offset = if index < 32 { 0 } else { 1 };
         let irq = index % 32;
@@ -102,6 +103,20 @@ impl Plic {
 
         // Set the new state
         self.saved[offset].set(LocalRegisterCopy::new(new_saved));
+    }
+
+    /// The `next_pending()` function will only return enabled interrupts.
+    /// This function will return a pending interrupt that has been disabled by
+    /// `save_interrupt()`.
+    pub fn get_saved_interrupts(&self) -> Option<u32> {
+        for (i, pending) in self.saved.iter().enumerate() {
+            let saved = pending.get().get();
+            if saved != 0 {
+                return Some(saved.trailing_zeros() + (i as u32 * 32));
+            }
+        }
+
+        None
     }
 
     /// Signal that an interrupt is finished being handled. In Tock, this should be
