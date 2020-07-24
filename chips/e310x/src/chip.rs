@@ -19,7 +19,7 @@ PMPConfigMacro!(8);
 
 pub struct E310x<A: 'static + Alarm<'static>> {
     userspace_kernel_boundary: rv32i::syscall::SysCall,
-    pmp: PMPConfig<[Option<PMPRegion>; 8]>,
+    pmp: PMPConfig<[Option<PMPRegion>; 4]>,
     scheduler_timer: kernel::VirtualSchedulerTimer<A>,
 }
 
@@ -54,7 +54,7 @@ impl<A: 'static + Alarm<'static>> E310x<A> {
 }
 
 impl<A: 'static + Alarm<'static>> kernel::Chip for E310x<A> {
-    type MPU = PMPConfig<[Option<PMPRegion>; 8]>;
+    type MPU = PMPConfig<[Option<PMPRegion>; 4]>;
     type UserspaceKernelBoundary = rv32i::syscall::SysCall;
     type SchedulerTimer = kernel::VirtualSchedulerTimer<A>;
     type WatchDog = ();
