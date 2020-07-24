@@ -7,7 +7,7 @@ use kernel::debug;
 use kernel::hil::time::Alarm;
 use rv32i;
 use rv32i::csr::{mcause, mie::mie, mip::mip, CSR};
-use rv32i::pmp::PMPRegion;
+use rv32i::PMPConfigMacro;
 
 use crate::gpio;
 use crate::interrupts;
@@ -15,9 +15,11 @@ use crate::plic;
 use crate::timer;
 use crate::uart;
 
+PMPConfigMacro!(8);
+
 pub struct E310x<A: 'static + Alarm<'static>> {
     userspace_kernel_boundary: rv32i::syscall::SysCall,
-    pmp: rv32i::pmp::PMPConfig<[Option<PMPRegion>; 8]>,
+    pmp: PMPConfig<[Option<PMPRegion>; 8]>,
     scheduler_timer: kernel::VirtualSchedulerTimer<A>,
 }
 
@@ -25,7 +27,7 @@ impl<A: 'static + Alarm<'static>> E310x<A> {
     pub unsafe fn new(alarm: &'static A) -> Self {
         Self {
             userspace_kernel_boundary: rv32i::syscall::SysCall::new(),
-            pmp: rv32i::pmp::PMPConfig::default(),
+            pmp: PMPConfig::default(),
             scheduler_timer: kernel::VirtualSchedulerTimer::new(alarm),
         }
     }
@@ -52,7 +54,7 @@ impl<A: 'static + Alarm<'static>> E310x<A> {
 }
 
 impl<A: 'static + Alarm<'static>> kernel::Chip for E310x<A> {
-    type MPU = rv32i::pmp::PMPConfig<[Option<PMPRegion>; 8]>;
+    type MPU = PMPConfig<[Option<PMPRegion>; 8]>;
     type UserspaceKernelBoundary = rv32i::syscall::SysCall;
     type SchedulerTimer = kernel::VirtualSchedulerTimer<A>;
     type WatchDog = ();

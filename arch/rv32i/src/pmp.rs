@@ -1,13 +1,16 @@
 //! Implementation of the physical memory protection unit (PMP).
 
+#[macro_export]
+macro_rules! PMPConfigMacro {
+    ( $x:expr ) => {
 use core::cell::Cell;
 use core::cmp;
 use core::fmt;
 use kernel::common::cells::OptionalCell;
 
-use crate::csr;
-use kernel;
+use rv32i::csr;
 use kernel::common::cells::MapCell;
+use kernel::common::registers;
 use kernel::common::registers::register_bitfields;
 use kernel::mpu;
 use kernel::AppId;
@@ -40,7 +43,7 @@ register_bitfields![u8,
 #[derive(Copy, Clone)]
 pub struct PMPRegion {
     location: (*const u8, usize),
-    cfg: tock_registers::registers::FieldValue<u8, pmpcfg::Register>,
+    cfg: registers::FieldValue<u8, pmpcfg::Register>,
 }
 
 impl fmt::Display for PMPRegion {
@@ -130,8 +133,6 @@ pub struct PMPConfig<N: PMPConfigType> {
     app_region: OptionalCell<usize>,
 }
 
-macro_rules! PMPConfigMacro {
-    ( $x:expr ) => {
 impl PMPConfigType for [Option<PMPRegion>; $x] {}
 
 impl Default for PMPConfig<[Option<PMPRegion>; $x]> {
@@ -503,6 +504,3 @@ impl kernel::mpu::MPU for PMPConfig<[Option<PMPRegion>; $x]> {
         }
     };
 }
-
-PMPConfigMacro!(4);
-PMPConfigMacro!(8);
