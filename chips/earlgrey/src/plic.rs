@@ -9,6 +9,8 @@ use kernel::common::StaticRef;
 pub const PLIC_BASE: StaticRef<PlicRegisters> =
     unsafe { StaticRef::new(0x4009_0000 as *const PlicRegisters) };
 
+pub static mut PLIC: Plic = Plic::new(PLIC_BASE);
+
 register_structs! {
     pub PlicRegisters {
         /// Interrupt Pending Register

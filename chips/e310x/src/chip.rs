@@ -10,7 +10,7 @@ use rv32i::PMPConfigMacro;
 
 use crate::interrupts;
 use crate::plic::Plic;
-use crate::plic::PLIC_BASE;
+use crate::plic::PLIC;
 use kernel::InterruptService;
 
 PMPConfigMacro!(8);
@@ -18,7 +18,7 @@ PMPConfigMacro!(8);
 pub struct E310x<'a, A: 'static + Alarm<'static>, I: InterruptService<()> + 'a> {
     userspace_kernel_boundary: rv32i::syscall::SysCall,
     pmp: PMP,
-    plic: Plic,
+    plic: &'a Plic,
     scheduler_timer: kernel::VirtualSchedulerTimer<A>,
     timer: &'a rv32i::machine_timer::MachineTimer<'a>,
     plic_interrupt_service: &'a I,
@@ -78,7 +78,7 @@ impl<'a, A: 'static + Alarm<'static>, I: InterruptService<()> + 'a> E310x<'a, A,
         Self {
             userspace_kernel_boundary: rv32i::syscall::SysCall::new(),
             pmp: PMP::new(),
-            plic: Plic::new(PLIC_BASE),
+            plic: &PLIC,
             scheduler_timer: kernel::VirtualSchedulerTimer::new(alarm),
             timer,
             plic_interrupt_service,

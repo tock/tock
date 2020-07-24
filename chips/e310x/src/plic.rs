@@ -8,6 +8,8 @@ use kernel::common::StaticRef;
 pub const PLIC_BASE: StaticRef<PlicRegisters> =
     unsafe { StaticRef::new(0x0c00_0000 as *const PlicRegisters) };
 
+pub static mut PLIC: Plic = Plic::new(PLIC_BASE);
+
 #[repr(C)]
 pub struct PlicRegisters {
     /// Interrupt Priority Register

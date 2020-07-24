@@ -13,14 +13,14 @@ use rv32i::PMPConfigMacro;
 use crate::chip_config::CONFIG;
 use crate::interrupts;
 use crate::plic::Plic;
-use crate::plic::PLIC_BASE;
+use crate::plic::PLIC;
 
 PMPConfigMacro!(4);
 
 pub struct EarlGrey<'a, A: 'static + Alarm<'static>, I: InterruptService<()> + 'a> {
     userspace_kernel_boundary: SysCall,
     pmp: PMP,
-    plic: Plic,
+    plic: &'a Plic,
     scheduler_timer: kernel::VirtualSchedulerTimer<A>,
     timer: &'static crate::timer::RvTimer<'static>,
     pwrmgr: lowrisc::pwrmgr::PwrMgr,
@@ -92,7 +92,7 @@ impl<'a, A: 'static + Alarm<'static>, I: InterruptService<()> + 'a> EarlGrey<'a,
         Self {
             userspace_kernel_boundary: SysCall::new(),
             pmp: PMP::new(),
-            plic: Plic::new(PLIC_BASE),
+            plic: &PLIC,
             scheduler_timer: kernel::VirtualSchedulerTimer::new(virtual_alarm),
             pwrmgr: lowrisc::pwrmgr::PwrMgr::new(crate::pwrmgr::PWRMGR_BASE),
             timer,
