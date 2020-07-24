@@ -144,7 +144,7 @@ pub enum StoppedExecutingReason {
     /// The kernel stopped the process.
     Stopped,
 
-    /// The process returned because its timeslice expired
+    /// The process was preempted because its timeslice expired.
     TimesliceExpired,
 
     /// The process returned because it was preempted by kernel
