@@ -34,15 +34,16 @@ pub(crate) const MIN_QUANTA_THRESHOLD_US: u32 = 500;
 
 /// Trait which any scheduler must implement.
 pub trait Scheduler<C: Chip> {
-    /// Return the next process to run, and the timeslice length for that process.
+    /// Decide which process to run next.
     ///
-    /// The first argument is an optional `AppId` of the process to run next.
-    /// Returning `None` instead of `Some(AppId)` means nothing will run. The second
-    /// argument is an optional number of microseconds to use as the length of the process's
-    /// timeslice. If an `AppId` is returned in the first argument, then returning `None`
-    /// instead of a timeslice will cause the process
-    /// to be run cooperatively (i.e. without preemption). Otherwise the process will run
-    /// with a timeslice set to the specified length.
+    /// The scheduler must decide whether to run a process, and if so, which one.
+    /// If the scheduler chooses not to run a process, it can request that the chip
+    /// enter sleep mode.
+    ///
+    /// If the scheduler selects a process to run it must provide its `AppId` and an optional
+    /// timeslice length in microseconds to provide to that process. If the timeslice is `None`,
+    /// the process will be run cooperatively (i.e. without preemption). Otherwise the process
+    /// will run with a timeslice set to the specified length.
     fn next(&self, kernel: &Kernel) -> SchedulingDecision;
 
     /// Inform the scheduler of why the last process stopped executing, and how
@@ -78,21 +79,28 @@ pub trait Scheduler<C: Chip> {
             || DynamicDeferredCall::global_instance_calls_pending().unwrap_or(false)
     }
 
-    /// Ask the scheduler whether to return from the loop in `do_process()`. Most
-    /// schedulers will use this default implementation, which causes the do_process()
+    /// Ask the scheduler whether to continue trying to execute a process.
+    ///
+    /// Once a process is scheduled the kernel will try to execute it until it has no more
+    /// work to do or exhausts its timeslice. The kernel will call this function before
+    /// every loop to check with the scheduler if it wants to continue trying to execute
+    /// this process.
+    ///
+    /// Most
+    /// schedulers will use this default implementation, which causes the `do_process()`
     /// loop to return if there are interrupts or deferred calls that need to be serviced.
     /// However, schedulers which wish to defer interrupt handling may change this, or
     /// priority schedulers which wish to check if the execution of the current process
-    /// has caused a higher priority process to become ready (such as in the case of IPC)
-    /// The `AppId` of the process that is executing is passed in the event that future
-    /// schedulers need this info when reimplementing this.
+    /// has caused a higher priority process to become ready (such as in the case of IPC).
+    ///
+    /// `id` is the identifier of the currently active process.
     unsafe fn continue_process(&self, _id: AppId, chip: &C) -> bool {
         !(chip.has_pending_interrupts()
             || DynamicDeferredCall::global_instance_calls_pending().unwrap_or(false))
     }
 }
 
-/// Enum representing the actions the scheduler can request in each call to scheduler.next()
+/// Enum representing the actions the scheduler can request in each call to `scheduler.next()`.
 #[derive(Copy, Clone)]
 pub enum SchedulingDecision {
     /// Tell the kernel to run the specified process with the passed timeslice.
@@ -147,10 +155,11 @@ pub enum StoppedExecutingReason {
     /// The process was preempted because its timeslice expired.
     TimesliceExpired,
 
-    /// The process returned because it was preempted by kernel
-    /// work that became ready (most likely because an interrupt fired
+    /// The process returned because it was preempted by the kernel.
+    /// This can mean that kernel work became ready (most likely because an interrupt fired
     /// and the kernel thread needs to execute the bottom half of the
-    /// interrupt)
+    /// interrupt), or because the scheduler no longer wants to execute that
+    /// process.
     KernelPreemption,
 }
 
@@ -474,8 +483,11 @@ impl Kernel {
                             }
                             SchedulingDecision::Sleep => {
                                 chip.atomic(|| {
-                                    // cannot sleep if interrupts are pending, as on most platforms
-                                    // unhandled interrupts will wake the device.
+                                    // Cannot sleep if interrupts are pending, as on most platforms
+                                    // unhandled interrupts will wake the device. Also, if the only pending
+                                    // interrupt occurred after the scheduler decided to put the chip
+                                    // to sleep, but before this atomic section starts, the interrupt will
+                                    // not be serviced and the chip will never wake from sleep.
                                     if !chip.has_pending_interrupts()
                                         && !DynamicDeferredCall::global_instance_calls_pending()
                                             .unwrap_or(false)
