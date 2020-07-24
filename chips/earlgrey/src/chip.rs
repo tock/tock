@@ -281,7 +281,7 @@ unsafe fn handle_interrupt(intr: mcause::Interrupt) {
 /// For the Ibex this gets called when an interrupt occurs while the chip is
 /// in kernel mode. All we need to do is check which interrupt occurred and
 /// disable it.
-#[export_name = "_start_trap_rust"]
+#[export_name = "_start_trap_rust_from_kernel"]
 pub unsafe extern "C" fn start_trap_rust() {
     match mcause::Trap::from(CSR.mcause.extract()) {
         mcause::Trap::Interrupt(interrupt) => {
@@ -296,7 +296,7 @@ pub unsafe extern "C" fn start_trap_rust() {
 /// Function that gets called if an interrupt occurs while an app was running.
 /// mcause is passed in, and this function should correctly handle disabling the
 /// interrupt that fired so that it does not trigger again.
-#[export_name = "_disable_interrupt_trap_handler"]
+#[export_name = "_disable_interrupt_trap_rust_from_app"]
 pub unsafe extern "C" fn disable_interrupt_trap_handler(mcause_val: u32) {
     match mcause::Trap::from(mcause_val) {
         mcause::Trap::Interrupt(interrupt) => {
