@@ -13,7 +13,7 @@ use crate::callback::AppId;
 use crate::common::cells::OptionalCell;
 use crate::common::dynamic_deferred_call::DynamicDeferredCall;
 use crate::platform::Chip;
-use crate::sched::{Kernel, Scheduler, StoppedExecutingReason};
+use crate::sched::{Kernel, Scheduler, SchedulingDecision, StoppedExecutingReason};
 
 /// Preemptive Priority Scheduler
 pub struct PrioritySched {
@@ -32,10 +32,10 @@ impl PrioritySched {
 }
 
 impl<C: Chip> Scheduler<C> for PrioritySched {
-    fn next(&self, kernel: &Kernel) -> (Option<AppId>, Option<u32>) {
+    fn next(&self, kernel: &Kernel) -> SchedulingDecision {
         if kernel.processes_blocked() {
             // No processes ready
-            (None, None)
+            SchedulingDecision::Sleep
         } else {
             // Iterates in-order through the process array, always running
             // the first process it finds that is ready to run. This means
@@ -47,7 +47,7 @@ impl<C: Chip> Scheduler<C> for PrioritySched {
                 .map_or(None, |proc| Some(proc.appid()));
             self.running.insert(next);
 
-            (next, None)
+            SchedulingDecision::RunProcess((next.unwrap(), None))
         }
     }
 

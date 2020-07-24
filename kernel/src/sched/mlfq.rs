@@ -19,7 +19,7 @@ use crate::common::list::{List, ListLink, ListNode};
 use crate::hil::time;
 use crate::hil::time::Frequency;
 use crate::platform::Chip;
-use crate::sched::{Kernel, Scheduler, StoppedExecutingReason};
+use crate::sched::{Kernel, Scheduler, SchedulingDecision, StoppedExecutingReason};
 use core::cell::Cell;
 
 #[derive(Default)]
@@ -132,10 +132,10 @@ impl<'a, A: 'static + time::Alarm<'static>> MLFQSched<'a, A> {
 }
 
 impl<'a, A: 'static + time::Alarm<'static>, C: Chip> Scheduler<C> for MLFQSched<'a, A> {
-    fn next(&self, kernel: &Kernel) -> (Option<AppId>, Option<u32>) {
+    fn next(&self, kernel: &Kernel) -> SchedulingDecision {
         if kernel.processes_blocked() {
             // No processes ready
-            (None, None)
+            SchedulingDecision::Sleep
         } else {
             let now = self.alarm.now();
             if now >= self.next_reset.get() {
@@ -152,7 +152,7 @@ impl<'a, A: 'static + time::Alarm<'static>, C: Chip> Scheduler<C> for MLFQSched<
             self.last_queue_idx.set(queue_idx);
             self.last_timeslice.set(timeslice);
 
-            (Some(next), Some(timeslice))
+            SchedulingDecision::RunProcess((next, Some(timeslice)))
         }
     }
 

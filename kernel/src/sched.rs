@@ -43,7 +43,7 @@ pub trait Scheduler<C: Chip> {
     /// instead of a timeslice will cause the process
     /// to be run cooperatively (i.e. without preemption). Otherwise the process will run
     /// with a timeslice set to the specified length.
-    fn next(&self, kernel: &Kernel) -> (Option<AppId>, Option<u32>);
+    fn next(&self, kernel: &Kernel) -> SchedulingDecision;
 
     /// Inform the scheduler of why the last process stopped executing, and how
     /// long it executed for. Notably, `execution_time_us` will be `None`
@@ -90,6 +90,19 @@ pub trait Scheduler<C: Chip> {
         !(chip.has_pending_interrupts()
             || DynamicDeferredCall::global_instance_calls_pending().unwrap_or(false))
     }
+}
+
+/// Enum representing the actions the scheduler can request in each call to scheduler.next()
+#[derive(Copy, Clone)]
+pub enum SchedulingDecision {
+    /// Tell the kernel to run the specified process with the passed timeslice.
+    /// If `None` is passed as a timeslice, the process will be run cooperatively.
+    RunProcess((AppId, Option<u32>)),
+
+    /// Tell the kernel to go to sleep. Notably, if the scheduler asks the kernel
+    /// to sleep when kernel tasks are ready, the kernel will not sleep, and will
+    /// instead restart the main loop and call `next()` again.
+    Sleep,
 }
 
 /// Main object for the kernel. Each board will need to create one.
@@ -443,13 +456,8 @@ impl Kernel {
                     }
                     false => {
                         // No kernel work ready, so ask scheduler for a process
-                        let (appid, timeslice_us) = scheduler.next(self);
-                        // If a process is returned, run it! Otherwise, go to sleep, as there
-                        // we have determined kernel tasks are not ready and no processes should be
-                        // run
-                        match appid {
-                            Some(appid) => {
-                                // Run Process
+                        match scheduler.next(self) {
+                            SchedulingDecision::RunProcess((appid, timeslice_us)) => {
                                 self.process_map_or((), appid, |process| {
                                     let (reason, time_executed) = self.do_process(
                                         platform,
@@ -462,8 +470,7 @@ impl Kernel {
                                     scheduler.result(reason, time_executed);
                                 });
                             }
-                            None => {
-                                // Sleep
+                            SchedulingDecision::Sleep => {
                                 chip.atomic(|| {
                                     // cannot sleep if interrupts are pending, as on most platforms
                                     // unhandled interrupts will wake the device.
