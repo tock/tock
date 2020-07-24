@@ -134,7 +134,7 @@ pub struct Kernel {
 /// executing (aka why `do_process()` returned).
 #[derive(PartialEq, Eq)]
 pub enum StoppedExecutingReason {
-    /// The process returned because it is no longer ready to run
+    /// The process returned because it is no longer ready to run.
     NoWorkLeft,
 
     /// The process faulted, and the board restart policy was configured such that
