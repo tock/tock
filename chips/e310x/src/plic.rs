@@ -89,7 +89,13 @@ pub unsafe fn complete(index: u32) {
 pub unsafe fn has_pending() -> bool {
     let plic: &PlicRegisters = &*PLIC_BASE;
 
-    plic.pending.iter().fold(0, |i, pending| pending.get() | i) != 0
+    for (i, pending) in plic.pending.iter().enumerate() {
+        if pending.get() & plic.enable[i].get() != 0 {
+            return true;
+        }
+    }
+
+    false
 }
 
 /// This is a generic implementation. There may be board specific versions as
