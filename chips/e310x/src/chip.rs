@@ -93,7 +93,7 @@ impl<'a, A: 'static + Alarm<'static>, I: InterruptService<()> + 'a> E310x<'a, A,
     }
 
     unsafe fn handle_plic_interrupts(&self) {
-        while let Some(interrupt) = self.plic.next_pending() {
+        while let Some(interrupt) = self.plic.get_saved_interrupts() {
             if !self.plic_interrupt_service.service_interrupt(interrupt) {
                 debug!("Pidx {}", interrupt);
             }
@@ -135,13 +135,13 @@ impl<'a, A: 'static + Alarm<'static>, I: InterruptService<()> + 'a> kernel::Chip
             if mip.is_set(mip::mtimer) {
                 self.timer.handle_interrupt();
             }
-            if mip.is_set(mip::mext) {
+            if self.plic.get_saved_interrupts().is_some() {
                 unsafe {
                     self.handle_plic_interrupts();
                 }
             }
 
-            if !mip.matches_any(mip::mext::SET + mip::mtimer::SET) {
+            if !mip.matches_any(mip::mtimer::SET) && self.plic.get_saved_interrupts().is_none() {
                 break;
             }
         }
@@ -215,7 +215,28 @@ unsafe fn handle_interrupt(intr: mcause::Interrupt) {
             CSR.mie.modify(mie::mtimer::CLEAR);
         }
         mcause::Interrupt::MachineExternal => {
+            // We received an interrupt, disable interrupts while we handle them
             CSR.mie.modify(mie::mext::CLEAR);
+
+            // Claim the interrupt, unwrap() as we know an interrupt exists
+            // Once claimed this interrupt won't fire until it's completed
+            // NOTE: The interrupt is no longer pending in the PLIC
+            loop {
+                let interrupt = PLIC.next_pending();
+
+                match interrupt {
+                    Some(irq) => {
+                        // Safe as interrupts are disabled
+                        PLIC.save_interrupt(irq);
+                    }
+                    None => {
+                        // Enable generic interrupts
+                        CSR.mie.modify(mie::mext::SET);
+
+                        break;
+                    }
+                }
+            }
         }
 
         mcause::Interrupt::Unknown => {
@@ -227,8 +248,7 @@ unsafe fn handle_interrupt(intr: mcause::Interrupt) {
 /// Trap handler for board/chip specific code.
 ///
 /// For the e310 this gets called when an interrupt occurs while the chip is
-/// in kernel mode. All we need to do is check which interrupt occurred and
-/// disable it.
+/// in kernel mode.
 #[export_name = "_start_trap_rust_from_kernel"]
 pub unsafe extern "C" fn start_trap_rust() {
     match mcause::Trap::from(CSR.mcause.extract()) {
