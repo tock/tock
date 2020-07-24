@@ -16,7 +16,7 @@ extern "C" {
 }
 
 pub struct ArtyExx {
-    pmp: PMPConfig<[Option<PMPRegion>; 4]>,
+    pmp: PMPConfig<[Option<PMPRegion>; 2]>,
     userspace_kernel_boundary: rv32i::syscall::SysCall,
     clic: rv32i::clic::Clic,
 }
@@ -108,7 +108,7 @@ impl ArtyExx {
 }
 
 impl kernel::Chip for ArtyExx {
-    type MPU = PMPConfig<[Option<PMPRegion>; 4]>;
+    type MPU = PMPConfig<[Option<PMPRegion>; 2]>;
     type UserspaceKernelBoundary = rv32i::syscall::SysCall;
     type SchedulerTimer = ();
     type WatchDog = ();
