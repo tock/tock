@@ -99,7 +99,6 @@ impl<'a, A: 'static + Alarm<'static>, I: InterruptService<()> + 'a> EarlGrey<'a,
 
     pub unsafe fn enable_plic_interrupts(&self) {
         plic::disable_all();
-        plic::clear_all_pending();
         plic::enable_all();
     }
 

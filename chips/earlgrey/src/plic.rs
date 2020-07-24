@@ -36,7 +36,7 @@ const PLIC_BASE: StaticRef<PlicRegisters> =
 
 /// Clear all pending interrupts.
 pub unsafe fn clear_all_pending() {
-    let _plic: &PlicRegisters = &*PLIC_BASE;
+    unimplemented!()
 }
 
 /// Enable all interrupts.
