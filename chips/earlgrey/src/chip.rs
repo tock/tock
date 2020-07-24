@@ -12,13 +12,15 @@ use rv32i::PMPConfigMacro;
 
 use crate::chip_config::CONFIG;
 use crate::interrupts;
-use crate::plic;
+use crate::plic::Plic;
+use crate::plic::PLIC_BASE;
 
 PMPConfigMacro!(4);
 
 pub struct EarlGrey<'a, A: 'static + Alarm<'static>, I: InterruptService<()> + 'a> {
     userspace_kernel_boundary: SysCall,
     pmp: PMP,
+    plic: Plic,
     scheduler_timer: kernel::VirtualSchedulerTimer<A>,
     timer: &'static crate::timer::RvTimer<'static>,
     pwrmgr: lowrisc::pwrmgr::PwrMgr,
@@ -90,6 +92,7 @@ impl<'a, A: 'static + Alarm<'static>, I: InterruptService<()> + 'a> EarlGrey<'a,
         Self {
             userspace_kernel_boundary: SysCall::new(),
             pmp: PMP::new(),
+            plic: Plic::new(PLIC_BASE),
             scheduler_timer: kernel::VirtualSchedulerTimer::new(virtual_alarm),
             pwrmgr: lowrisc::pwrmgr::PwrMgr::new(crate::pwrmgr::PWRMGR_BASE),
             timer,
@@ -98,19 +101,19 @@ impl<'a, A: 'static + Alarm<'static>, I: InterruptService<()> + 'a> EarlGrey<'a,
     }
 
     pub unsafe fn enable_plic_interrupts(&self) {
-        plic::disable_all();
-        plic::enable_all();
+        self.plic.disable_all();
+        self.plic.enable_all();
     }
 
     unsafe fn handle_plic_interrupts(&self) {
-        while let Some(interrupt) = plic::next_pending() {
+        while let Some(interrupt) = self.plic.next_pending() {
             if interrupt == interrupts::PWRMGRWAKEUP {
                 self.pwrmgr.handle_interrupt();
                 self.check_until_true_or_interrupt(|| self.pwrmgr.check_clock_propagation(), None);
             } else if !self.plic_interrupt_service.service_interrupt(interrupt) {
                 debug!("Pidx {}", interrupt);
             }
-            plic::complete(interrupt);
+            self.plic.complete(interrupt);
         }
     }
 

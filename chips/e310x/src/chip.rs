@@ -9,7 +9,8 @@ use rv32i::csr::{mcause, mie::mie, mip::mip, CSR};
 use rv32i::PMPConfigMacro;
 
 use crate::interrupts;
-use crate::plic;
+use crate::plic::Plic;
+use crate::plic::PLIC_BASE;
 use kernel::InterruptService;
 
 PMPConfigMacro!(8);
@@ -17,6 +18,7 @@ PMPConfigMacro!(8);
 pub struct E310x<'a, A: 'static + Alarm<'static>, I: InterruptService<()> + 'a> {
     userspace_kernel_boundary: rv32i::syscall::SysCall,
     pmp: PMP,
+    plic: Plic,
     scheduler_timer: kernel::VirtualSchedulerTimer<A>,
     timer: &'a rv32i::machine_timer::MachineTimer<'a>,
     plic_interrupt_service: &'a I,
@@ -76,6 +78,7 @@ impl<'a, A: 'static + Alarm<'static>, I: InterruptService<()> + 'a> E310x<'a, A,
         Self {
             userspace_kernel_boundary: rv32i::syscall::SysCall::new(),
             pmp: PMP::new(),
+            plic: Plic::new(PLIC_BASE),
             scheduler_timer: kernel::VirtualSchedulerTimer::new(alarm),
             timer,
             plic_interrupt_service,
@@ -83,17 +86,17 @@ impl<'a, A: 'static + Alarm<'static>, I: InterruptService<()> + 'a> E310x<'a, A,
     }
 
     pub unsafe fn enable_plic_interrupts(&self) {
-        plic::disable_all();
-        plic::clear_all_pending();
-        plic::enable_all();
+        self.plic.disable_all();
+        self.plic.clear_all_pending();
+        self.plic.enable_all();
     }
 
     unsafe fn handle_plic_interrupts(&self) {
-        while let Some(interrupt) = plic::next_pending() {
+        while let Some(interrupt) = self.plic.next_pending() {
             if !self.plic_interrupt_service.service_interrupt(interrupt) {
                 debug!("Pidx {}", interrupt);
             }
-            plic::complete(interrupt);
+            self.plic.complete(interrupt);
         }
     }
 }
@@ -146,7 +149,7 @@ impl<'a, A: 'static + Alarm<'static>, I: InterruptService<()> + 'a> kernel::Chip
     }
 
     fn has_pending_interrupts(&self) -> bool {
-        CSR.mip.matches_any(mip::mext::SET + mip::mtimer::SET)
+        self.plic.has_pending()
     }
 
     fn sleep(&self) {
