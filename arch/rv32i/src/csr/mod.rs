@@ -19,28 +19,35 @@ pub mod utvec;
 
 #[repr(C)]
 pub struct CSR {
-    pub minstreth: ReadWriteRiscvCsr<u32, minstret::minstreth::Register>,
-    pub minstret: ReadWriteRiscvCsr<u32, minstret::minstret::Register>,
-    pub mcycleh: ReadWriteRiscvCsr<u32, mcycle::mcycleh::Register>,
-    pub mcycle: ReadWriteRiscvCsr<u32, mcycle::mcycle::Register>,
-    pub pmpcfg: [ReadWriteRiscvCsr<u32, pmpconfig::pmpcfg::Register>; 16],
-    pub pmpaddr: [ReadWriteRiscvCsr<u32, pmpaddr::pmpaddr::Register>; 64],
-    pub mie: ReadWriteRiscvCsr<u32, mie::mie::Register>,
-    pub mscratch: ReadWriteRiscvCsr<u32, mscratch::mscratch::Register>,
-    pub mepc: ReadWriteRiscvCsr<u32, mepc::mepc::Register>,
-    pub mcause: ReadWriteRiscvCsr<u32, mcause::mcause::Register>,
-    pub mtval: ReadWriteRiscvCsr<u32, mtval::mtval::Register>,
-    pub mip: ReadWriteRiscvCsr<u32, mip::mip::Register>,
-    pub mtvec: ReadWriteRiscvCsr<u32, mtvec::mtvec::Register>,
-    pub stvec: ReadWriteRiscvCsr<u32, stvec::stvec::Register>,
-    pub utvec: ReadWriteRiscvCsr<u32, utvec::utvec::Register>,
-    pub mstatus: ReadWriteRiscvCsr<u32, mstatus::mstatus::Register>,
+    #[cfg(not(feature = "riscv64"))]
+    pub minstreth: ReadWriteRiscvCsr<usize, minstret::minstreth::Register>,
+    pub minstret: ReadWriteRiscvCsr<usize, minstret::minstret::Register>,
+    #[cfg(not(feature = "riscv64"))]
+    pub mcycleh: ReadWriteRiscvCsr<usize, mcycle::mcycleh::Register>,
+    pub mcycle: ReadWriteRiscvCsr<usize, mcycle::mcycle::Register>,
+    #[cfg(not(all(feature = "riscv64", target_os = "none")))]
+    pub pmpcfg: [ReadWriteRiscvCsr<usize, pmpconfig::pmpcfg::Register>; 16],
+    #[cfg(feature = "riscv64")]
+    pub pmpcfg: [ReadWriteRiscvCsr<usize, pmpconfig::pmpcfg::Register>; 8],
+    pub pmpaddr: [ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register>; 64],
+    pub mie: ReadWriteRiscvCsr<usize, mie::mie::Register>,
+    pub mscratch: ReadWriteRiscvCsr<usize, mscratch::mscratch::Register>,
+    pub mepc: ReadWriteRiscvCsr<usize, mepc::mepc::Register>,
+    pub mcause: ReadWriteRiscvCsr<usize, mcause::mcause::Register>,
+    pub mtval: ReadWriteRiscvCsr<usize, mtval::mtval::Register>,
+    pub mip: ReadWriteRiscvCsr<usize, mip::mip::Register>,
+    pub mtvec: ReadWriteRiscvCsr<usize, mtvec::mtvec::Register>,
+    pub stvec: ReadWriteRiscvCsr<usize, stvec::stvec::Register>,
+    pub utvec: ReadWriteRiscvCsr<usize, utvec::utvec::Register>,
+    pub mstatus: ReadWriteRiscvCsr<usize, mstatus::mstatus::Register>,
 }
 
 // Define the "addresses" of each CSR register.
 pub const CSR: &CSR = &CSR {
+    #[cfg(not(feature = "riscv64"))]
     minstreth: ReadWriteRiscvCsr::new(riscv_csr::csr::MINSTRETH),
     minstret: ReadWriteRiscvCsr::new(riscv_csr::csr::MINSTRET),
+    #[cfg(not(feature = "riscv64"))]
     mcycleh: ReadWriteRiscvCsr::new(riscv_csr::csr::MCYCLEH),
     mcycle: ReadWriteRiscvCsr::new(riscv_csr::csr::MCYCLE),
     mie: ReadWriteRiscvCsr::new(riscv_csr::csr::MIE),
@@ -53,22 +60,31 @@ pub const CSR: &CSR = &CSR {
     mcause: ReadWriteRiscvCsr::new(riscv_csr::csr::MCAUSE),
     mtval: ReadWriteRiscvCsr::new(riscv_csr::csr::MTVAL),
     mip: ReadWriteRiscvCsr::new(riscv_csr::csr::MIP),
+
     pmpcfg: [
         ReadWriteRiscvCsr::new(riscv_csr::csr::PMPCFG0),
+        #[cfg(not(feature = "riscv64"))]
         ReadWriteRiscvCsr::new(riscv_csr::csr::PMPCFG1),
         ReadWriteRiscvCsr::new(riscv_csr::csr::PMPCFG2),
+        #[cfg(not(feature = "riscv64"))]
         ReadWriteRiscvCsr::new(riscv_csr::csr::PMPCFG3),
         ReadWriteRiscvCsr::new(riscv_csr::csr::PMPCFG4),
+        #[cfg(not(feature = "riscv64"))]
         ReadWriteRiscvCsr::new(riscv_csr::csr::PMPCFG5),
         ReadWriteRiscvCsr::new(riscv_csr::csr::PMPCFG6),
+        #[cfg(not(feature = "riscv64"))]
         ReadWriteRiscvCsr::new(riscv_csr::csr::PMPCFG7),
         ReadWriteRiscvCsr::new(riscv_csr::csr::PMPCFG8),
+        #[cfg(not(feature = "riscv64"))]
         ReadWriteRiscvCsr::new(riscv_csr::csr::PMPCFG9),
         ReadWriteRiscvCsr::new(riscv_csr::csr::PMPCFG10),
+        #[cfg(not(feature = "riscv64"))]
         ReadWriteRiscvCsr::new(riscv_csr::csr::PMPCFG11),
         ReadWriteRiscvCsr::new(riscv_csr::csr::PMPCFG12),
+        #[cfg(not(feature = "riscv64"))]
         ReadWriteRiscvCsr::new(riscv_csr::csr::PMPCFG13),
         ReadWriteRiscvCsr::new(riscv_csr::csr::PMPCFG14),
+        #[cfg(not(feature = "riscv64"))]
         ReadWriteRiscvCsr::new(riscv_csr::csr::PMPCFG15),
     ],
     pmpaddr: [
@@ -141,16 +157,39 @@ pub const CSR: &CSR = &CSR {
 
 impl CSR {
     // resets the cycle counter to 0
+    #[cfg(not(feature = "riscv64"))]
     pub fn reset_cycle_counter(&self) {
+        // Write lower first so that we don't overflow before writing the upper
+        CSR.mcycle.write(mcycle::mcycle::mcycle.val(0));
         CSR.mcycleh.write(mcycle::mcycleh::mcycleh.val(0));
+    }
+
+    // resets the cycle counter to 0
+    #[cfg(feature = "riscv64")]
+    pub fn reset_cycle_counter(&self) {
         CSR.mcycle.write(mcycle::mcycle::mcycle.val(0));
     }
 
     // reads the cycle counter
+    #[cfg(not(feature = "riscv64"))]
     pub fn read_cycle_counter(&self) -> u64 {
-        let top = CSR.mcycleh.read(mcycle::mcycleh::mcycleh);
-        let bot = CSR.mcycle.read(mcycle::mcycle::mcycle);
+        let (mut top, mut bot): (usize, usize);
 
-        u64::from(top).checked_shl(32).unwrap() + u64::from(bot)
+        // This should only ever loop twice
+        loop {
+            top = CSR.mcycleh.read(mcycle::mcycleh::mcycleh);
+            bot = CSR.mcycle.read(mcycle::mcycle::mcycle);
+            if top == CSR.mcycleh.read(mcycle::mcycleh::mcycleh) {
+                break;
+            }
+        }
+
+        (top as u64).checked_shl(32).unwrap() + bot as u64
+    }
+
+    // reads the cycle counter
+    #[cfg(feature = "riscv64")]
+    pub fn read_cycle_counter(&self) -> u64 {
+        CSR.mcycle.read(mcycle::mcycle::mcycle)
     }
 }

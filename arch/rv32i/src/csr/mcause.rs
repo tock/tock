@@ -1,15 +1,16 @@
+use crate::XLEN;
 use kernel::common::registers::{register_bitfields, LocalRegisterCopy};
 
-register_bitfields![u32,
+register_bitfields![usize,
     pub mcause [
-        is_interrupt OFFSET(31) NUMBITS(1) [],
-        reason OFFSET(0) NUMBITS(31) []
+        is_interrupt OFFSET(XLEN - 1) NUMBITS(1) [],
+        reason OFFSET(0) NUMBITS(XLEN - 1) []
     ],
     // Per the spec, implementations are allowed to use the higher bits of the
     // interrupt/exception reason for their own purposes.  For regular parsing,
     // we only concern ourselves with the "standard" values.
     reason [
-        reserved OFFSET(4) NUMBITS(27) [],
+        reserved OFFSET(4) NUMBITS(XLEN - 5) [],
         std OFFSET(0) NUMBITS(4) []
     ]
 ];
@@ -21,8 +22,8 @@ pub enum Trap {
     Exception(Exception),
 }
 
-impl From<LocalRegisterCopy<u32, mcause::Register>> for Trap {
-    fn from(val: LocalRegisterCopy<u32, mcause::Register>) -> Self {
+impl From<LocalRegisterCopy<usize, mcause::Register>> for Trap {
+    fn from(val: LocalRegisterCopy<usize, mcause::Register>) -> Self {
         if val.is_set(mcause::is_interrupt) {
             Trap::Interrupt(Interrupt::from_reason(val.read(mcause::reason)))
         } else {
@@ -31,9 +32,9 @@ impl From<LocalRegisterCopy<u32, mcause::Register>> for Trap {
     }
 }
 
-impl From<u32> for Trap {
-    fn from(csr_val: u32) -> Self {
-        Self::from(LocalRegisterCopy::<u32, mcause::Register>::new(csr_val))
+impl From<usize> for Trap {
+    fn from(csr_val: usize) -> Self {
+        Self::from(LocalRegisterCopy::<usize, mcause::Register>::new(csr_val))
     }
 }
 
@@ -73,8 +74,8 @@ pub enum Exception {
 }
 
 impl Interrupt {
-    fn from_reason(val: u32) -> Self {
-        let reason = LocalRegisterCopy::<u32, reason::Register>::new(val);
+    fn from_reason(val: usize) -> Self {
+        let reason = LocalRegisterCopy::<usize, reason::Register>::new(val);
         match reason.read(reason::std) {
             0 => Interrupt::UserSoft,
             1 => Interrupt::SupervisorSoft,
@@ -91,8 +92,8 @@ impl Interrupt {
 }
 
 impl Exception {
-    fn from_reason(val: u32) -> Self {
-        let reason = LocalRegisterCopy::<u32, reason::Register>::new(val);
+    fn from_reason(val: usize) -> Self {
+        let reason = LocalRegisterCopy::<usize, reason::Register>::new(val);
         match reason.read(reason::std) {
             0 => Exception::InstructionMisaligned,
             1 => Exception::InstructionFault,

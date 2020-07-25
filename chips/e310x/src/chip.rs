@@ -73,7 +73,7 @@ impl<A: 'static + Alarm<'static>> kernel::Chip for E310x<A> {
     }
 
     fn service_pending_interrupts(&self) {
-        let mut reenable_intr = FieldValue::<u32, mie::Register>::new(0, 0, 0);
+        let mut reenable_intr = FieldValue::<usize, mie::Register>::new(0, 0, 0);
 
         loop {
             let mip = CSR.mip.extract();
