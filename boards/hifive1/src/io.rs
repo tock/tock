@@ -6,7 +6,7 @@ use kernel::debug;
 use kernel::debug::IoWrite;
 use kernel::hil::gpio;
 use kernel::hil::led;
-use rv32i;
+use riscv;
 
 use crate::CHIP;
 use crate::PROCESSES;
@@ -51,7 +51,7 @@ pub unsafe extern "C" fn panic_fmt(pi: &PanicInfo) -> ! {
         &mut [led_red],
         writer,
         pi,
-        &rv32i::support::nop,
+        &riscv::support::nop,
         &PROCESSES,
         &CHIP,
     )

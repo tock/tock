@@ -45,7 +45,7 @@ struct ArtyE21 {
     gpio: &'static capsules::gpio::GPIO<'static, arty_e21_chip::gpio::GpioPin<'static>>,
     alarm: &'static capsules::alarm::AlarmDriver<
         'static,
-        VirtualMuxAlarm<'static, rv32i::machine_timer::MachineTimer<'static>>,
+        VirtualMuxAlarm<'static, riscv::machine_timer::MachineTimer<'static>>,
     >,
     led: &'static capsules::led::LED<'static, arty_e21_chip::gpio::GpioPin<'static>>,
     button: &'static capsules::button::Button<'static, arty_e21_chip::gpio::GpioPin<'static>>,
@@ -79,7 +79,7 @@ impl Platform for ArtyE21 {
 #[no_mangle]
 pub unsafe fn reset_handler() {
     // Basic setup of the platform.
-    rv32i::init_memory();
+    riscv::init_memory();
 
     let chip = static_init!(
         arty_e21_chip::chip::ArtyExx,
@@ -121,24 +121,24 @@ pub unsafe fn reset_handler() {
     // Create a shared virtualization mux layer on top of a single hardware
     // alarm.
     let mux_alarm = static_init!(
-        MuxAlarm<'static, rv32i::machine_timer::MachineTimer>,
+        MuxAlarm<'static, riscv::machine_timer::MachineTimer>,
         MuxAlarm::new(&arty_e21_chip::timer::MACHINETIMER)
     );
     hil::time::Alarm::set_client(&arty_e21_chip::timer::MACHINETIMER, mux_alarm);
 
     // Alarm
     let alarm = components::alarm::AlarmDriverComponent::new(board_kernel, mux_alarm).finalize(
-        components::alarm_component_helper!(rv32i::machine_timer::MachineTimer),
+        components::alarm_component_helper!(riscv::machine_timer::MachineTimer),
     );
 
     // TEST for timer
     //
     // let virtual_alarm_test = static_init!(
-    //     VirtualMuxAlarm<'static, rv32i::machine_timer::MachineTimer>,
+    //     VirtualMuxAlarm<'static, riscv::machine_timer::MachineTimer>,
     //     VirtualMuxAlarm::new(mux_alarm)
     // );
     // let timertest = static_init!(
-    //     timer_test::TimerTest<'static, VirtualMuxAlarm<'static, rv32i::machine_timer::MachineTimer>>,
+    //     timer_test::TimerTest<'static, VirtualMuxAlarm<'static, riscv::machine_timer::MachineTimer>>,
     //     timer_test::TimerTest::new(virtual_alarm_test)
     // );
     // virtual_alarm_test.set_client(timertest);

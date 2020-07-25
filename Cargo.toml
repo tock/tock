@@ -4,7 +4,7 @@ members = [
     "arch/cortex-m0",
     "arch/cortex-m3",
     "arch/cortex-m4",
-    "arch/rv32i",
+    "arch/riscv",
     "boards/acd52832",
     "boards/arty_e21",
     "boards/hail",

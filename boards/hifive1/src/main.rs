@@ -18,7 +18,7 @@ use kernel::hil::time::Alarm;
 use kernel::Chip;
 use kernel::Platform;
 use kernel::{create_capability, debug, static_init};
-use rv32i::csr;
+use riscv::csr;
 
 pub mod io;
 //
@@ -29,7 +29,7 @@ static mut PROCESSES: [Option<&'static dyn kernel::procs::ProcessType>; 4] =
 
 // Reference to the chip for panic dumps.
 static mut CHIP: Option<
-    &'static e310x::chip::E310x<VirtualMuxAlarm<'static, rv32i::machine_timer::MachineTimer>>,
+    &'static e310x::chip::E310x<VirtualMuxAlarm<'static, riscv::machine_timer::MachineTimer>>,
 > = None;
 
 // How should the kernel respond when a process faults.
@@ -51,7 +51,7 @@ struct HiFive1 {
     >,
     alarm: &'static capsules::alarm::AlarmDriver<
         'static,
-        VirtualMuxAlarm<'static, rv32i::machine_timer::MachineTimer<'static>>,
+        VirtualMuxAlarm<'static, riscv::machine_timer::MachineTimer<'static>>,
     >,
 }
 
@@ -78,9 +78,9 @@ impl Platform for HiFive1 {
 #[no_mangle]
 pub unsafe fn reset_handler() {
     // Basic setup of the platform.
-    rv32i::init_memory();
+    riscv::init_memory();
     // only machine mode
-    rv32i::configure_trap_handler(rv32i::PermissionMode::Machine);
+    riscv::configure_trap_handler(riscv::PermissionMode::Machine);
 
     // initialize capabilities
     let process_mgmt_cap = create_capability!(capabilities::ProcessManagementCapability);
@@ -144,24 +144,24 @@ pub unsafe fn reset_handler() {
     // Create a shared virtualization mux layer on top of a single hardware
     // alarm.
     let mux_alarm = static_init!(
-        MuxAlarm<'static, rv32i::machine_timer::MachineTimer>,
+        MuxAlarm<'static, riscv::machine_timer::MachineTimer>,
         MuxAlarm::new(&e310x::timer::MACHINETIMER)
     );
     hil::time::Alarm::set_client(&e310x::timer::MACHINETIMER, mux_alarm);
 
     // Alarm
     let virtual_alarm_user = static_init!(
-        VirtualMuxAlarm<'static, rv32i::machine_timer::MachineTimer>,
+        VirtualMuxAlarm<'static, riscv::machine_timer::MachineTimer>,
         VirtualMuxAlarm::new(mux_alarm)
     );
     let systick_virtual_alarm = static_init!(
-        VirtualMuxAlarm<'static, rv32i::machine_timer::MachineTimer>,
+        VirtualMuxAlarm<'static, riscv::machine_timer::MachineTimer>,
         VirtualMuxAlarm::new(mux_alarm)
     );
     let alarm = static_init!(
         capsules::alarm::AlarmDriver<
             'static,
-            VirtualMuxAlarm<'static, rv32i::machine_timer::MachineTimer>,
+            VirtualMuxAlarm<'static, riscv::machine_timer::MachineTimer>,
         >,
         capsules::alarm::AlarmDriver::new(
             virtual_alarm_user,
@@ -171,7 +171,7 @@ pub unsafe fn reset_handler() {
     hil::time::Alarm::set_client(virtual_alarm_user, alarm);
 
     let chip = static_init!(
-        e310x::chip::E310x<VirtualMuxAlarm<'static, rv32i::machine_timer::MachineTimer>>,
+        e310x::chip::E310x<VirtualMuxAlarm<'static, riscv::machine_timer::MachineTimer>>,
         e310x::chip::E310x::new(systick_virtual_alarm)
     );
     systick_virtual_alarm.set_client(chip.scheduler_timer());

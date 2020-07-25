@@ -119,7 +119,7 @@ copying it from flash. For the SAM4L, this is in the `init()` function in
 
 The `mtvec` register needs to be set on RISC-V to handle traps. Setting
 of the vectors is handled by chip specific functions. The common RISC-V trap
-handler is `_start_trap`, defined in `arch/rv32i/src/lib.rs`. 
+handler is `_start_trap`, defined in `arch/riscv/src/lib.rs`. 
 
 ### MCU Setup
 

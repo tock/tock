@@ -18,7 +18,7 @@ use kernel::hil::time::Alarm;
 use kernel::Chip;
 use kernel::Platform;
 use kernel::{create_capability, debug, static_init};
-use rv32i::csr;
+use riscv::csr;
 
 #[allow(dead_code)]
 mod aes_test;
@@ -96,7 +96,7 @@ impl Platform for OpenTitan {
 #[no_mangle]
 pub unsafe fn reset_handler() {
     // Basic setup of the platform.
-    rv32i::init_memory();
+    riscv::init_memory();
     // Ibex-specific handler
     earlgrey::chip::configure_trap_handler();
 

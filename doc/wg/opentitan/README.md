@@ -60,7 +60,7 @@ In addition, while it is not the focus of the group, because of the tight
 relationship in early stages of development, the OT working group is also
 responsible for:
 
-- `arch/rv32i`
+- `arch/riscv`
 
 Similarly, the OT working group is also responsible for RISC-V support in
 libtock-rs.
@@ -68,7 +68,7 @@ libtock-rs.
 As interest and breadth of efforts into RISC-V change, it may no longer be
 necessary for OT group to be responsible for the RISC-V architecture-level
 support, or it may be moved to a different working group. In general, changes to
-`arch/rv32i` should be in consultation with other RISC-V chip and board
+`arch/riscv` should be in consultation with other RISC-V chip and board
 maintainers, and changes to libtock-rs should be in consultation with other
 libtock-rs maintainers.
 

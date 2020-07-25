@@ -1,7 +1,7 @@
 //! Machine Timer instantiation.
 
 use kernel::common::StaticRef;
-use rv32i::machine_timer::{MachineTimer, MachineTimerRegisters};
+use riscv::machine_timer::{MachineTimer, MachineTimerRegisters};
 
 pub static mut MACHINETIMER: MachineTimer = MachineTimer::new(MTIME_BASE);
 

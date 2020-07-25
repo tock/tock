@@ -8,8 +8,8 @@ use kernel::common::registers::FieldValue;
 use kernel::debug;
 use kernel::hil::time::Alarm;
 use kernel::Chip;
-use rv32i::csr::{mcause, mie::mie, mip::mip, mtvec::mtvec, CSR};
-use rv32i::syscall::SysCall;
+use riscv::csr::{mcause, mie::mie, mip::mip, mtvec::mtvec, CSR};
+use riscv::syscall::SysCall;
 
 use crate::chip_config::CONFIG;
 use crate::gpio;
@@ -25,7 +25,7 @@ pub const CHIP_FREQ: u32 = CONFIG.chip_freq;
 
 pub struct EarlGrey<A: 'static + Alarm<'static>> {
     userspace_kernel_boundary: SysCall,
-    pmp: rv32i::pmp::PMPConfig,
+    pmp: riscv::pmp::PMPConfig,
     scheduler_timer: kernel::VirtualSchedulerTimer<A>,
 }
 
@@ -33,7 +33,7 @@ impl<A: 'static + Alarm<'static>> EarlGrey<A> {
     pub unsafe fn new(alarm: &'static A) -> Self {
         Self {
             userspace_kernel_boundary: SysCall::new(),
-            pmp: rv32i::pmp::PMPConfig::new(4),
+            pmp: riscv::pmp::PMPConfig::new(4),
             scheduler_timer: kernel::VirtualSchedulerTimer::new(alarm),
         }
     }
@@ -108,7 +108,7 @@ impl<A: 'static + Alarm<'static>> EarlGrey<A> {
 }
 
 impl<A: 'static + Alarm<'static>> kernel::Chip for EarlGrey<A> {
-    type MPU = rv32i::pmp::PMPConfig;
+    type MPU = riscv::pmp::PMPConfig;
     type UserspaceKernelBoundary = SysCall;
     type SchedulerTimer = kernel::VirtualSchedulerTimer<A>;
     type WatchDog = ();
@@ -166,7 +166,7 @@ impl<A: 'static + Alarm<'static>> kernel::Chip for EarlGrey<A> {
         unsafe {
             pwrmgr::PWRMGR.enable_low_power();
             self.check_until_true_or_interrupt(|| pwrmgr::PWRMGR.check_clock_propagation(), None);
-            rv32i::support::wfi();
+            riscv::support::wfi();
         }
     }
 
@@ -174,7 +174,7 @@ impl<A: 'static + Alarm<'static>> kernel::Chip for EarlGrey<A> {
     where
         F: FnOnce() -> R,
     {
-        rv32i::support::atomic(f)
+        riscv::support::atomic(f)
     }
 
     unsafe fn print_state(&self, writer: &mut dyn Write) {
@@ -182,7 +182,7 @@ impl<A: 'static + Alarm<'static>> kernel::Chip for EarlGrey<A> {
             "\r\n---| EarlGrey configuration for {} |---",
             CONFIG.name
         ));
-        rv32i::print_riscv_state(writer);
+        riscv::print_riscv_state(writer);
     }
 }
 

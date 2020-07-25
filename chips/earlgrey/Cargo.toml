@@ -13,6 +13,6 @@ config_disable_default = []
 
 [dependencies]
 lowrisc = { path = "../lowrisc" }
-rv32i = { path = "../../arch/rv32i" }
+riscv = { path = "../../arch/riscv" }
 kernel = { path = "../../kernel" }
 

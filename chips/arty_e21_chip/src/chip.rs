@@ -1,7 +1,7 @@
 use core::fmt::Write;
 use kernel;
 use kernel::debug;
-use rv32i;
+use riscv;
 
 use crate::gpio;
 use crate::interrupts;
@@ -13,9 +13,9 @@ extern "C" {
 }
 
 pub struct ArtyExx {
-    pmp: rv32i::pmp::PMPConfig,
-    userspace_kernel_boundary: rv32i::syscall::SysCall,
-    clic: rv32i::clic::Clic,
+    pmp: riscv::pmp::PMPConfig,
+    userspace_kernel_boundary: riscv::syscall::SysCall,
+    clic: riscv::clic::Clic,
 }
 
 impl ArtyExx {
@@ -26,9 +26,9 @@ impl ArtyExx {
         let in_use_interrupts: u64 = 0x1FFFF0080;
 
         ArtyExx {
-            pmp: rv32i::pmp::PMPConfig::new(4),
-            userspace_kernel_boundary: rv32i::syscall::SysCall::new(),
-            clic: rv32i::clic::Clic::new(in_use_interrupts),
+            pmp: riscv::pmp::PMPConfig::new(4),
+            userspace_kernel_boundary: riscv::syscall::SysCall::new(),
+            clic: riscv::clic::Clic::new(in_use_interrupts),
         }
     }
 
@@ -105,8 +105,8 @@ impl ArtyExx {
 }
 
 impl kernel::Chip for ArtyExx {
-    type MPU = rv32i::pmp::PMPConfig;
-    type UserspaceKernelBoundary = rv32i::syscall::SysCall;
+    type MPU = riscv::pmp::PMPConfig;
+    type UserspaceKernelBoundary = riscv::syscall::SysCall;
     type SchedulerTimer = ();
     type WatchDog = ();
 
@@ -122,7 +122,7 @@ impl kernel::Chip for ArtyExx {
         &()
     }
 
-    fn userspace_kernel_boundary(&self) -> &rv32i::syscall::SysCall {
+    fn userspace_kernel_boundary(&self) -> &riscv::syscall::SysCall {
         &self.userspace_kernel_boundary
     }
 
@@ -167,7 +167,7 @@ impl kernel::Chip for ArtyExx {
 
     fn sleep(&self) {
         unsafe {
-            rv32i::support::wfi();
+            riscv::support::wfi();
         }
     }
 
@@ -175,11 +175,11 @@ impl kernel::Chip for ArtyExx {
     where
         F: FnOnce() -> R,
     {
-        rv32i::support::atomic(f)
+        riscv::support::atomic(f)
     }
 
     unsafe fn print_state(&self, write: &mut dyn Write) {
-        rv32i::print_riscv_state(write);
+        riscv::print_riscv_state(write);
     }
 }
 
@@ -213,7 +213,7 @@ pub extern "C" fn start_trap_rust() {
         // bits.
         let interrupt_index = mcause & 0xFF;
         unsafe {
-            rv32i::clic::disable_interrupt(interrupt_index as u32);
+            riscv::clic::disable_interrupt(interrupt_index as u32);
         }
     } else {
         // Otherwise, the kernel encountered a fault...so panic!()?
@@ -230,6 +230,6 @@ pub extern "C" fn disable_interrupt_trap_handler(mcause: u32) {
     // bits.
     let interrupt_index = mcause & 0xFF;
     unsafe {
-        rv32i::clic::disable_interrupt(interrupt_index as u32);
+        riscv::clic::disable_interrupt(interrupt_index as u32);
     }
 }

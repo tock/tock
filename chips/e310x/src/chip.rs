@@ -5,8 +5,8 @@ use kernel;
 use kernel::common::registers::FieldValue;
 use kernel::debug;
 use kernel::hil::time::Alarm;
-use rv32i;
-use rv32i::csr::{mcause, mie::mie, mip::mip, CSR};
+use riscv;
+use riscv::csr::{mcause, mie::mie, mip::mip, CSR};
 
 use crate::gpio;
 use crate::interrupts;
@@ -15,16 +15,16 @@ use crate::timer;
 use crate::uart;
 
 pub struct E310x<A: 'static + Alarm<'static>> {
-    userspace_kernel_boundary: rv32i::syscall::SysCall,
-    pmp: rv32i::pmp::PMPConfig,
+    userspace_kernel_boundary: riscv::syscall::SysCall,
+    pmp: riscv::pmp::PMPConfig,
     scheduler_timer: kernel::VirtualSchedulerTimer<A>,
 }
 
 impl<A: 'static + Alarm<'static>> E310x<A> {
     pub unsafe fn new(alarm: &'static A) -> Self {
         Self {
-            userspace_kernel_boundary: rv32i::syscall::SysCall::new(),
-            pmp: rv32i::pmp::PMPConfig::new(8),
+            userspace_kernel_boundary: riscv::syscall::SysCall::new(),
+            pmp: riscv::pmp::PMPConfig::new(8),
             scheduler_timer: kernel::VirtualSchedulerTimer::new(alarm),
         }
     }
@@ -51,8 +51,8 @@ impl<A: 'static + Alarm<'static>> E310x<A> {
 }
 
 impl<A: 'static + Alarm<'static>> kernel::Chip for E310x<A> {
-    type MPU = rv32i::pmp::PMPConfig;
-    type UserspaceKernelBoundary = rv32i::syscall::SysCall;
+    type MPU = riscv::pmp::PMPConfig;
+    type UserspaceKernelBoundary = riscv::syscall::SysCall;
     type SchedulerTimer = kernel::VirtualSchedulerTimer<A>;
     type WatchDog = ();
 
@@ -68,7 +68,7 @@ impl<A: 'static + Alarm<'static>> kernel::Chip for E310x<A> {
         &()
     }
 
-    fn userspace_kernel_boundary(&self) -> &rv32i::syscall::SysCall {
+    fn userspace_kernel_boundary(&self) -> &riscv::syscall::SysCall {
         &self.userspace_kernel_boundary
     }
 
@@ -106,7 +106,7 @@ impl<A: 'static + Alarm<'static>> kernel::Chip for E310x<A> {
 
     fn sleep(&self) {
         unsafe {
-            rv32i::support::wfi();
+            riscv::support::wfi();
         }
     }
 
@@ -114,11 +114,11 @@ impl<A: 'static + Alarm<'static>> kernel::Chip for E310x<A> {
     where
         F: FnOnce() -> R,
     {
-        rv32i::support::atomic(f)
+        riscv::support::atomic(f)
     }
 
     unsafe fn print_state(&self, writer: &mut dyn Write) {
-        rv32i::print_riscv_state(writer);
+        riscv::print_riscv_state(writer);
     }
 }
 

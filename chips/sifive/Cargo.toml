@@ -5,6 +5,6 @@ authors = ["Tock Project Developers <tock-dev@googlegroups.com>"]
 edition = "2018"
 
 [dependencies]
-rv32i = { path = "../../arch/rv32i" }
+riscv = { path = "../../arch/riscv" }
 kernel = { path = "../../kernel" }
 

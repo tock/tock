@@ -43,7 +43,7 @@ pub unsafe extern "C" fn panic_fmt(pi: &PanicInfo) -> ! {
         &mut [first_led],
         writer,
         pi,
-        &rv32i::support::nop,
+        &riscv::support::nop,
         &PROCESSES,
         &CHIP,
     )

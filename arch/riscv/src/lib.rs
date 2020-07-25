@@ -1,6 +1,6 @@
 //! Support for the 32-bit RISC-V architecture.
 
-#![crate_name = "rv32i"]
+#![crate_name = "riscv"]
 #![crate_type = "rlib"]
 #![feature(llvm_asm, const_fn, naked_functions)]
 #![no_std]
