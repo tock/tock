@@ -46,11 +46,11 @@ extern "C" {
     // Defined by platform
     fn reset_handler();
 
-    static mut _szero: u32;
-    static mut _ezero: u32;
-    static mut _etext: u32;
-    static mut _srelocate: u32;
-    static mut _erelocate: u32;
+    static mut _szero: usize;
+    static mut _ezero: usize;
+    static mut _etext: usize;
+    static mut _srelocate: usize;
+    static mut _erelocate: usize;
 }
 
 #[cfg_attr(
