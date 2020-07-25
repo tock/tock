@@ -99,6 +99,11 @@ impl IntLike for u64 {
         0
     }
 }
+impl IntLike for usize {
+    fn zero() -> Self {
+        0
+    }
+}
 
 /// Descriptive name for each register.
 pub trait RegisterLongName {}
@@ -427,6 +432,12 @@ impl<R: RegisterLongName> From<LocalRegisterCopy<u64, R>> for u64 {
     }
 }
 
+impl<R: RegisterLongName> From<LocalRegisterCopy<usize, R>> for usize {
+    fn from(r: LocalRegisterCopy<usize, R>) -> usize {
+        r.value
+    }
+}
+
 /// In memory volatile register.
 // To successfully alias this structure onto hardware registers in memory, this
 // struct must be exactly the size of the `T`.
@@ -584,6 +595,20 @@ impl<R: RegisterLongName> Field<u64, R> {
     }
 }
 
+impl<R: RegisterLongName> Field<usize, R> {
+    pub const fn new(mask: usize, shift: usize) -> Field<usize, R> {
+        Field {
+            mask: mask,
+            shift: shift,
+            associated_register: PhantomData,
+        }
+    }
+
+    pub fn val(&self, value: usize) -> FieldValue<usize, R> {
+        FieldValue::<usize, R>::new(self.mask, self.shift, value)
+    }
+}
+
 /// Values for the specific register fields.
 // For the FieldValue, the masks and values are shifted into their actual
 // location in the register.
@@ -657,6 +682,22 @@ impl<R: RegisterLongName> FieldValue<u64, R> {
 
 impl<R: RegisterLongName> From<FieldValue<u64, R>> for u64 {
     fn from(val: FieldValue<u64, R>) -> u64 {
+        val.value
+    }
+}
+
+impl<R: RegisterLongName> FieldValue<usize, R> {
+    pub const fn new(mask: usize, shift: usize, value: usize) -> Self {
+        FieldValue {
+            mask: mask << shift,
+            value: (value & mask) << shift,
+            associated_register: PhantomData,
+        }
+    }
+}
+
+impl<R: RegisterLongName> From<FieldValue<usize, R>> for usize {
+    fn from(val: FieldValue<usize, R>) -> usize {
         val.value
     }
 }
