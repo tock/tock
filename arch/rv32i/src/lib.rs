@@ -18,18 +18,18 @@ extern crate tock_registers;
 extern "C" {
     // Where the end of the stack region is (and hence where the stack should
     // start).
-    static _estack: u32;
+    static _estack: usize;
 
     // Boundaries of the .bss section.
-    static mut _szero: u32;
-    static mut _ezero: u32;
+    static mut _szero: usize;
+    static mut _ezero: usize;
 
     // Where the .data section is stored in flash.
-    static mut _etext: u32;
+    static mut _etext: usize;
 
     // Boundaries of the .data section.
-    static mut _srelocate: u32;
-    static mut _erelocate: u32;
+    static mut _srelocate: usize;
+    static mut _erelocate: usize;
 }
 
 /// Entry point of all programs (`_start`).
