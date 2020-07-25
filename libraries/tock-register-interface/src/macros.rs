@@ -75,6 +75,7 @@ macro_rules! register_bitmasks {
             #[allow(unused_imports)]
             use $crate::registers::{FieldValue, TryFromValue};
             use super::$reg_desc;
+            pub use super::*;
 
             $(
             #[allow(non_upper_case_globals)]
@@ -115,7 +116,7 @@ macro_rules! register_bitmasks {
                     match v {
                         $(
                             $(#[$inner])*
-                            x if x == Value::$valname as $valtype => Some(Value::$valname),
+                            _x if _x == $value => Some(Value::$valname),
                         )*
 
                         _ => Option::None
@@ -141,6 +142,7 @@ macro_rules! register_bitmasks {
             #[allow(unused_imports)]
             use $crate::registers::{FieldValue, TryFromValue};
             use super::$reg_desc;
+            pub use super::*;
 
             #[allow(non_upper_case_globals)]
             #[allow(unused)]
@@ -190,6 +192,7 @@ macro_rules! register_bitfields {
                 impl $crate::registers::RegisterLongName for Register {}
 
                 use $crate::registers::Field;
+                pub use super::*;
 
                 $crate::register_bitmasks!( $valtype, Register, $fields );
             }
