@@ -131,384 +131,290 @@ impl<R: RegisterLongName> ReadWriteRiscvCsr<u32, R> {
     #[inline]
     pub fn get(&self) -> u32 {
         let r: u32;
-        if self.value == MINSTRETH {
-            unsafe {
+        match self.value {
+            MINSTRETH => unsafe {
                 asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const MINSTRETH);
-            }
-        } else if self.value == MINSTRET {
-            unsafe {
+            },
+            MINSTRET => unsafe {
                 asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const MINSTRET);
-            }
-        } else if self.value == MCYCLEH {
-            unsafe {
+            },
+            MCYCLEH => unsafe {
                 asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const MCYCLEH);
-            }
-        } else if self.value == MCYCLE {
-            unsafe {
+            },
+            MCYCLE => unsafe {
                 asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const MCYCLE);
-            }
-        } else if self.value == MIE {
-            unsafe {
+            },
+            MIE => unsafe {
                 asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const MIE);
-            }
-        } else if self.value == MTVEC {
-            unsafe {
+            },
+            MTVEC => unsafe {
                 asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const MTVEC);
-            }
-        } else if self.value == MSTATUS {
-            unsafe {
+            },
+            MSTATUS => unsafe {
                 asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const MSTATUS);
-            }
-        } else if self.value == UTVEC {
-            unsafe {
+            },
+            UTVEC => unsafe {
                 asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const UTVEC);
-            }
-        } else if self.value == STVEC {
-            unsafe {
+            },
+            STVEC => unsafe {
                 asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const STVEC);
-            }
-        } else if self.value == MSCRATCH {
-            unsafe {
+            },
+            MSCRATCH => unsafe {
                 asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const MSCRATCH);
-            }
-        } else if self.value == MEPC {
-            unsafe {
+            },
+            MEPC => unsafe {
                 asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const MEPC);
-            }
-        } else if self.value == MCAUSE {
-            unsafe {
+            },
+            MCAUSE => unsafe {
                 asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const MCAUSE);
-            }
-        } else if self.value == MTVAL {
-            unsafe {
+            },
+            MTVAL => unsafe {
                 asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const MTVAL);
-            }
-        } else if self.value == MIP {
-            unsafe {
+            },
+            MIP => unsafe {
                 asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const MIP);
-            }
-        } else if self.value == PMPCFG0 {
-            unsafe {
+            },
+            PMPCFG0 => unsafe {
                 asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPCFG0);
-            }
-        } else if self.value == PMPCFG1 {
-            unsafe {
+            },
+            PMPCFG1 => unsafe {
                 asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPCFG1);
-            }
-        } else if self.value == PMPCFG2 {
-            unsafe {
+            },
+            PMPCFG2 => unsafe {
                 asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPCFG2);
-            }
-        } else if self.value == PMPCFG3 {
-            unsafe {
+            },
+            PMPCFG3 => unsafe {
                 asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPCFG3);
-            }
-        } else if self.value == PMPCFG4 {
-            unsafe {
+            },
+            PMPCFG4 => unsafe {
                 asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPCFG4);
-            }
-        } else if self.value == PMPCFG5 {
-            unsafe {
+            },
+            PMPCFG5 => unsafe {
                 asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPCFG5);
-            }
-        } else if self.value == PMPCFG6 {
-            unsafe {
+            },
+            PMPCFG6 => unsafe {
                 asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPCFG6);
-            }
-        } else if self.value == PMPCFG7 {
-            unsafe {
+            },
+            PMPCFG7 => unsafe {
                 asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPCFG7);
-            }
-        } else if self.value == PMPCFG8 {
-            unsafe {
+            },
+            PMPCFG8 => unsafe {
                 asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPCFG8);
-            }
-        } else if self.value == PMPCFG9 {
-            unsafe {
+            },
+            PMPCFG9 => unsafe {
                 asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPCFG9);
-            }
-        } else if self.value == PMPCFG10 {
-            unsafe {
+            },
+            PMPCFG10 => unsafe {
                 asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPCFG10);
-            }
-        } else if self.value == PMPCFG11 {
-            unsafe {
+            },
+            PMPCFG11 => unsafe {
                 asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPCFG11);
-            }
-        } else if self.value == PMPCFG12 {
-            unsafe {
+            },
+            PMPCFG12 => unsafe {
                 asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPCFG12);
-            }
-        } else if self.value == PMPCFG13 {
-            unsafe {
+            },
+            PMPCFG13 => unsafe {
                 asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPCFG13);
-            }
-        } else if self.value == PMPCFG14 {
-            unsafe {
+            },
+            PMPCFG14 => unsafe {
                 asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPCFG14);
-            }
-        } else if self.value == PMPCFG15 {
-            unsafe {
+            },
+            PMPCFG15 => unsafe {
                 asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPCFG15);
-            }
-        } else if self.value == PMPADDR0 {
-            unsafe {
+            },
+            PMPADDR0 => unsafe {
                 asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR0);
-            }
-        } else if self.value == PMPADDR1 {
-            unsafe {
+            },
+            PMPADDR1 => unsafe {
                 asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR1);
-            }
-        } else if self.value == PMPADDR2 {
-            unsafe {
+            },
+            PMPADDR2 => unsafe {
                 asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR2);
-            }
-        } else if self.value == PMPADDR3 {
-            unsafe {
+            },
+            PMPADDR3 => unsafe {
                 asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR3);
-            }
-        } else if self.value == PMPADDR4 {
-            unsafe {
+            },
+            PMPADDR4 => unsafe {
                 asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR4);
-            }
-        } else if self.value == PMPADDR5 {
-            unsafe {
+            },
+            PMPADDR5 => unsafe {
                 asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR5);
-            }
-        } else if self.value == PMPADDR6 {
-            unsafe {
+            },
+            PMPADDR6 => unsafe {
                 asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR6);
-            }
-        } else if self.value == PMPADDR7 {
-            unsafe {
+            },
+            PMPADDR7 => unsafe {
                 asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR7);
-            }
-        } else if self.value == PMPADDR8 {
-            unsafe {
+            },
+            PMPADDR8 => unsafe {
                 asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR8);
-            }
-        } else if self.value == PMPADDR9 {
-            unsafe {
+            },
+            PMPADDR9 => unsafe {
                 asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR9);
-            }
-        } else if self.value == PMPADDR10 {
-            unsafe {
+            },
+            PMPADDR10 => unsafe {
                 asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR10);
-            }
-        } else if self.value == PMPADDR11 {
-            unsafe {
+            },
+            PMPADDR11 => unsafe {
                 asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR11);
-            }
-        } else if self.value == PMPADDR12 {
-            unsafe {
+            },
+            PMPADDR12 => unsafe {
                 asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR12);
-            }
-        } else if self.value == PMPADDR13 {
-            unsafe {
+            },
+            PMPADDR13 => unsafe {
                 asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR13);
-            }
-        } else if self.value == PMPADDR14 {
-            unsafe {
+            },
+            PMPADDR14 => unsafe {
                 asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR14);
-            }
-        } else if self.value == PMPADDR15 {
-            unsafe {
+            },
+            PMPADDR15 => unsafe {
                 asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR15);
-            }
-        } else if self.value == PMPADDR16 {
-            unsafe {
+            },
+            PMPADDR16 => unsafe {
                 asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR16);
-            }
-        } else if self.value == PMPADDR17 {
-            unsafe {
+            },
+            PMPADDR17 => unsafe {
                 asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR17);
-            }
-        } else if self.value == PMPADDR18 {
-            unsafe {
+            },
+            PMPADDR18 => unsafe {
                 asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR18);
-            }
-        } else if self.value == PMPADDR19 {
-            unsafe {
+            },
+            PMPADDR19 => unsafe {
                 asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR19);
-            }
-        } else if self.value == PMPADDR20 {
-            unsafe {
+            },
+            PMPADDR20 => unsafe {
                 asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR20);
-            }
-        } else if self.value == PMPADDR21 {
-            unsafe {
+            },
+            PMPADDR21 => unsafe {
                 asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR21);
-            }
-        } else if self.value == PMPADDR22 {
-            unsafe {
+            },
+            PMPADDR22 => unsafe {
                 asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR22);
-            }
-        } else if self.value == PMPADDR23 {
-            unsafe {
+            },
+            PMPADDR23 => unsafe {
                 asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR23);
-            }
-        } else if self.value == PMPADDR24 {
-            unsafe {
+            },
+            PMPADDR24 => unsafe {
                 asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR24);
-            }
-        } else if self.value == PMPADDR25 {
-            unsafe {
+            },
+            PMPADDR25 => unsafe {
                 asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR25);
-            }
-        } else if self.value == PMPADDR26 {
-            unsafe {
+            },
+            PMPADDR26 => unsafe {
                 asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR26);
-            }
-        } else if self.value == PMPADDR27 {
-            unsafe {
+            },
+            PMPADDR27 => unsafe {
                 asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR27);
-            }
-        } else if self.value == PMPADDR28 {
-            unsafe {
+            },
+            PMPADDR28 => unsafe {
                 asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR28);
-            }
-        } else if self.value == PMPADDR29 {
-            unsafe {
+            },
+            PMPADDR29 => unsafe {
                 asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR29);
-            }
-        } else if self.value == PMPADDR30 {
-            unsafe {
+            },
+            PMPADDR30 => unsafe {
                 asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR30);
-            }
-        } else if self.value == PMPADDR31 {
-            unsafe {
+            },
+            PMPADDR31 => unsafe {
                 asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR31);
-            }
-        } else if self.value == PMPADDR32 {
-            unsafe {
+            },
+            PMPADDR32 => unsafe {
                 asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR32);
-            }
-        } else if self.value == PMPADDR33 {
-            unsafe {
+            },
+            PMPADDR33 => unsafe {
                 asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR33);
-            }
-        } else if self.value == PMPADDR34 {
-            unsafe {
+            },
+            PMPADDR34 => unsafe {
                 asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR34);
-            }
-        } else if self.value == PMPADDR35 {
-            unsafe {
+            },
+            PMPADDR35 => unsafe {
                 asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR35);
-            }
-        } else if self.value == PMPADDR36 {
-            unsafe {
+            },
+            PMPADDR36 => unsafe {
                 asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR36);
-            }
-        } else if self.value == PMPADDR37 {
-            unsafe {
+            },
+            PMPADDR37 => unsafe {
                 asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR37);
-            }
-        } else if self.value == PMPADDR38 {
-            unsafe {
+            },
+            PMPADDR38 => unsafe {
                 asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR38);
-            }
-        } else if self.value == PMPADDR39 {
-            unsafe {
+            },
+            PMPADDR39 => unsafe {
                 asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR39);
-            }
-        } else if self.value == PMPADDR40 {
-            unsafe {
+            },
+            PMPADDR40 => unsafe {
                 asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR40);
-            }
-        } else if self.value == PMPADDR41 {
-            unsafe {
+            },
+            PMPADDR41 => unsafe {
                 asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR41);
-            }
-        } else if self.value == PMPADDR42 {
-            unsafe {
+            },
+            PMPADDR42 => unsafe {
                 asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR42);
-            }
-        } else if self.value == PMPADDR43 {
-            unsafe {
+            },
+            PMPADDR43 => unsafe {
                 asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR43);
-            }
-        } else if self.value == PMPADDR44 {
-            unsafe {
+            },
+            PMPADDR44 => unsafe {
                 asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR44);
-            }
-        } else if self.value == PMPADDR45 {
-            unsafe {
+            },
+            PMPADDR45 => unsafe {
                 asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR45);
-            }
-        } else if self.value == PMPADDR46 {
-            unsafe {
+            },
+            PMPADDR46 => unsafe {
                 asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR46);
-            }
-        } else if self.value == PMPADDR47 {
-            unsafe {
+            },
+            PMPADDR47 => unsafe {
                 asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR47);
-            }
-        } else if self.value == PMPADDR48 {
-            unsafe {
+            },
+            PMPADDR48 => unsafe {
                 asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR48);
-            }
-        } else if self.value == PMPADDR49 {
-            unsafe {
+            },
+            PMPADDR49 => unsafe {
                 asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR49);
-            }
-        } else if self.value == PMPADDR50 {
-            unsafe {
+            },
+            PMPADDR50 => unsafe {
                 asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR50);
-            }
-        } else if self.value == PMPADDR51 {
-            unsafe {
+            },
+            PMPADDR51 => unsafe {
                 asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR51);
-            }
-        } else if self.value == PMPADDR52 {
-            unsafe {
+            },
+            PMPADDR52 => unsafe {
                 asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR52);
-            }
-        } else if self.value == PMPADDR53 {
-            unsafe {
+            },
+            PMPADDR53 => unsafe {
                 asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR53);
-            }
-        } else if self.value == PMPADDR54 {
-            unsafe {
+            },
+            PMPADDR54 => unsafe {
                 asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR54);
-            }
-        } else if self.value == PMPADDR55 {
-            unsafe {
+            },
+            PMPADDR55 => unsafe {
                 asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR55);
-            }
-        } else if self.value == PMPADDR56 {
-            unsafe {
+            },
+            PMPADDR56 => unsafe {
                 asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR56);
-            }
-        } else if self.value == PMPADDR57 {
-            unsafe {
+            },
+            PMPADDR57 => unsafe {
                 asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR57);
-            }
-        } else if self.value == PMPADDR58 {
-            unsafe {
+            },
+            PMPADDR58 => unsafe {
                 asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR58);
-            }
-        } else if self.value == PMPADDR59 {
-            unsafe {
+            },
+            PMPADDR59 => unsafe {
                 asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR59);
-            }
-        } else if self.value == PMPADDR60 {
-            unsafe {
+            },
+            PMPADDR60 => unsafe {
                 asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR60);
-            }
-        } else if self.value == PMPADDR61 {
-            unsafe {
+            },
+            PMPADDR61 => unsafe {
                 asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR61);
-            }
-        } else if self.value == PMPADDR62 {
-            unsafe {
+            },
+            PMPADDR62 => unsafe {
                 asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR62);
-            }
-        } else if self.value == PMPADDR63 {
-            unsafe {
+            },
+            PMPADDR63 => unsafe {
                 asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR63);
-            }
-        } else {
-            panic!("Unsupported CSR read");
+            },
+            _ => panic!("Unsupported CSR read"),
         }
         r
     }
@@ -516,384 +422,290 @@ impl<R: RegisterLongName> ReadWriteRiscvCsr<u32, R> {
     #[cfg(all(target_arch = "riscv32", target_os = "none"))]
     #[inline]
     pub fn set(&self, val_to_set: u32) {
-        if self.value == MINSTRETH {
-            unsafe {
+        match self.value {
+            MINSTRETH => unsafe {
                 asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const MINSTRETH);
-            }
-        } else if self.value == MINSTRET {
-            unsafe {
+            },
+            MINSTRET => unsafe {
                 asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const MINSTRET);
-            }
-        } else if self.value == MCYCLEH {
-            unsafe {
+            },
+            MCYCLEH => unsafe {
                 asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const MCYCLEH);
-            }
-        } else if self.value == MCYCLE {
-            unsafe {
+            },
+            MCYCLE => unsafe {
                 asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const MCYCLE);
-            }
-        } else if self.value == MIE {
-            unsafe {
+            },
+            MIE => unsafe {
                 asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const MIE);
-            }
-        } else if self.value == MTVEC {
-            unsafe {
+            },
+            MTVEC => unsafe {
                 asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const MTVEC);
-            }
-        } else if self.value == MSTATUS {
-            unsafe {
+            },
+            MSTATUS => unsafe {
                 asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const MSTATUS);
-            }
-        } else if self.value == UTVEC {
-            unsafe {
+            },
+            UTVEC => unsafe {
                 asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const UTVEC);
-            }
-        } else if self.value == STVEC {
-            unsafe {
+            },
+            STVEC => unsafe {
                 asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const STVEC);
-            }
-        } else if self.value == MSCRATCH {
-            unsafe {
+            },
+            MSCRATCH => unsafe {
                 asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const MSCRATCH);
-            }
-        } else if self.value == MEPC {
-            unsafe {
+            },
+            MEPC => unsafe {
                 asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const MEPC);
-            }
-        } else if self.value == MCAUSE {
-            unsafe {
+            },
+            MCAUSE => unsafe {
                 asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const MCAUSE);
-            }
-        } else if self.value == MTVAL {
-            unsafe {
+            },
+            MTVAL => unsafe {
                 asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const MTVAL);
-            }
-        } else if self.value == MIP {
-            unsafe {
+            },
+            MIP => unsafe {
                 asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const MIP);
-            }
-        } else if self.value == PMPCFG0 {
-            unsafe {
+            },
+            PMPCFG0 => unsafe {
                 asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPCFG0);
-            }
-        } else if self.value == PMPCFG1 {
-            unsafe {
+            },
+            PMPCFG1 => unsafe {
                 asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPCFG1);
-            }
-        } else if self.value == PMPCFG2 {
-            unsafe {
+            },
+            PMPCFG2 => unsafe {
                 asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPCFG2);
-            }
-        } else if self.value == PMPCFG3 {
-            unsafe {
+            },
+            PMPCFG3 => unsafe {
                 asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPCFG3);
-            }
-        } else if self.value == PMPCFG4 {
-            unsafe {
+            },
+            PMPCFG4 => unsafe {
                 asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPCFG4);
-            }
-        } else if self.value == PMPCFG5 {
-            unsafe {
+            },
+            PMPCFG5 => unsafe {
                 asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPCFG5);
-            }
-        } else if self.value == PMPCFG6 {
-            unsafe {
+            },
+            PMPCFG6 => unsafe {
                 asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPCFG6);
-            }
-        } else if self.value == PMPCFG7 {
-            unsafe {
+            },
+            PMPCFG7 => unsafe {
                 asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPCFG7);
-            }
-        } else if self.value == PMPCFG8 {
-            unsafe {
+            },
+            PMPCFG8 => unsafe {
                 asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPCFG8);
-            }
-        } else if self.value == PMPCFG9 {
-            unsafe {
+            },
+            PMPCFG9 => unsafe {
                 asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPCFG9);
-            }
-        } else if self.value == PMPCFG10 {
-            unsafe {
+            },
+            PMPCFG10 => unsafe {
                 asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPCFG10);
-            }
-        } else if self.value == PMPCFG11 {
-            unsafe {
+            },
+            PMPCFG11 => unsafe {
                 asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPCFG11);
-            }
-        } else if self.value == PMPCFG12 {
-            unsafe {
+            },
+            PMPCFG12 => unsafe {
                 asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPCFG12);
-            }
-        } else if self.value == PMPCFG13 {
-            unsafe {
+            },
+            PMPCFG13 => unsafe {
                 asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPCFG13);
-            }
-        } else if self.value == PMPCFG14 {
-            unsafe {
+            },
+            PMPCFG14 => unsafe {
                 asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPCFG14);
-            }
-        } else if self.value == PMPCFG15 {
-            unsafe {
+            },
+            PMPCFG15 => unsafe {
                 asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPCFG15);
-            }
-        } else if self.value == PMPADDR0 {
-            unsafe {
+            },
+            PMPADDR0 => unsafe {
                 asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR0);
-            }
-        } else if self.value == PMPADDR1 {
-            unsafe {
+            },
+            PMPADDR1 => unsafe {
                 asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR1);
-            }
-        } else if self.value == PMPADDR2 {
-            unsafe {
+            },
+            PMPADDR2 => unsafe {
                 asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR2);
-            }
-        } else if self.value == PMPADDR3 {
-            unsafe {
+            },
+            PMPADDR3 => unsafe {
                 asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR3);
-            }
-        } else if self.value == PMPADDR4 {
-            unsafe {
+            },
+            PMPADDR4 => unsafe {
                 asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR4);
-            }
-        } else if self.value == PMPADDR5 {
-            unsafe {
+            },
+            PMPADDR5 => unsafe {
                 asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR5);
-            }
-        } else if self.value == PMPADDR6 {
-            unsafe {
+            },
+            PMPADDR6 => unsafe {
                 asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR6);
-            }
-        } else if self.value == PMPADDR7 {
-            unsafe {
+            },
+            PMPADDR7 => unsafe {
                 asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR7);
-            }
-        } else if self.value == PMPADDR8 {
-            unsafe {
+            },
+            PMPADDR8 => unsafe {
                 asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR8);
-            }
-        } else if self.value == PMPADDR9 {
-            unsafe {
+            },
+            PMPADDR9 => unsafe {
                 asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR9);
-            }
-        } else if self.value == PMPADDR10 {
-            unsafe {
+            },
+            PMPADDR10 => unsafe {
                 asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR10);
-            }
-        } else if self.value == PMPADDR11 {
-            unsafe {
+            },
+            PMPADDR11 => unsafe {
                 asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR11);
-            }
-        } else if self.value == PMPADDR12 {
-            unsafe {
+            },
+            PMPADDR12 => unsafe {
                 asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR12);
-            }
-        } else if self.value == PMPADDR13 {
-            unsafe {
+            },
+            PMPADDR13 => unsafe {
                 asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR13);
-            }
-        } else if self.value == PMPADDR14 {
-            unsafe {
+            },
+            PMPADDR14 => unsafe {
                 asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR14);
-            }
-        } else if self.value == PMPADDR15 {
-            unsafe {
+            },
+            PMPADDR15 => unsafe {
                 asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR15);
-            }
-        } else if self.value == PMPADDR16 {
-            unsafe {
+            },
+            PMPADDR16 => unsafe {
                 asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR16);
-            }
-        } else if self.value == PMPADDR17 {
-            unsafe {
+            },
+            PMPADDR17 => unsafe {
                 asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR17);
-            }
-        } else if self.value == PMPADDR18 {
-            unsafe {
+            },
+            PMPADDR18 => unsafe {
                 asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR18);
-            }
-        } else if self.value == PMPADDR19 {
-            unsafe {
+            },
+            PMPADDR19 => unsafe {
                 asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR19);
-            }
-        } else if self.value == PMPADDR20 {
-            unsafe {
+            },
+            PMPADDR20 => unsafe {
                 asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR20);
-            }
-        } else if self.value == PMPADDR21 {
-            unsafe {
+            },
+            PMPADDR21 => unsafe {
                 asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR21);
-            }
-        } else if self.value == PMPADDR22 {
-            unsafe {
+            },
+            PMPADDR22 => unsafe {
                 asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR22);
-            }
-        } else if self.value == PMPADDR23 {
-            unsafe {
+            },
+            PMPADDR23 => unsafe {
                 asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR23);
-            }
-        } else if self.value == PMPADDR24 {
-            unsafe {
+            },
+            PMPADDR24 => unsafe {
                 asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR24);
-            }
-        } else if self.value == PMPADDR25 {
-            unsafe {
+            },
+            PMPADDR25 => unsafe {
                 asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR25);
-            }
-        } else if self.value == PMPADDR26 {
-            unsafe {
+            },
+            PMPADDR26 => unsafe {
                 asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR26);
-            }
-        } else if self.value == PMPADDR27 {
-            unsafe {
+            },
+            PMPADDR27 => unsafe {
                 asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR27);
-            }
-        } else if self.value == PMPADDR28 {
-            unsafe {
+            },
+            PMPADDR28 => unsafe {
                 asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR28);
-            }
-        } else if self.value == PMPADDR29 {
-            unsafe {
+            },
+            PMPADDR29 => unsafe {
                 asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR29);
-            }
-        } else if self.value == PMPADDR30 {
-            unsafe {
+            },
+            PMPADDR30 => unsafe {
                 asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR30);
-            }
-        } else if self.value == PMPADDR31 {
-            unsafe {
+            },
+            PMPADDR31 => unsafe {
                 asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR31);
-            }
-        } else if self.value == PMPADDR32 {
-            unsafe {
+            },
+            PMPADDR32 => unsafe {
                 asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR32);
-            }
-        } else if self.value == PMPADDR33 {
-            unsafe {
+            },
+            PMPADDR33 => unsafe {
                 asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR33);
-            }
-        } else if self.value == PMPADDR34 {
-            unsafe {
+            },
+            PMPADDR34 => unsafe {
                 asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR34);
-            }
-        } else if self.value == PMPADDR35 {
-            unsafe {
+            },
+            PMPADDR35 => unsafe {
                 asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR35);
-            }
-        } else if self.value == PMPADDR36 {
-            unsafe {
+            },
+            PMPADDR36 => unsafe {
                 asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR36);
-            }
-        } else if self.value == PMPADDR37 {
-            unsafe {
+            },
+            PMPADDR37 => unsafe {
                 asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR37);
-            }
-        } else if self.value == PMPADDR38 {
-            unsafe {
+            },
+            PMPADDR38 => unsafe {
                 asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR38);
-            }
-        } else if self.value == PMPADDR39 {
-            unsafe {
+            },
+            PMPADDR39 => unsafe {
                 asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR39);
-            }
-        } else if self.value == PMPADDR40 {
-            unsafe {
+            },
+            PMPADDR40 => unsafe {
                 asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR40);
-            }
-        } else if self.value == PMPADDR41 {
-            unsafe {
+            },
+            PMPADDR41 => unsafe {
                 asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR41);
-            }
-        } else if self.value == PMPADDR42 {
-            unsafe {
+            },
+            PMPADDR42 => unsafe {
                 asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR42);
-            }
-        } else if self.value == PMPADDR43 {
-            unsafe {
+            },
+            PMPADDR43 => unsafe {
                 asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR43);
-            }
-        } else if self.value == PMPADDR44 {
-            unsafe {
+            },
+            PMPADDR44 => unsafe {
                 asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR44);
-            }
-        } else if self.value == PMPADDR45 {
-            unsafe {
+            },
+            PMPADDR45 => unsafe {
                 asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR45);
-            }
-        } else if self.value == PMPADDR46 {
-            unsafe {
+            },
+            PMPADDR46 => unsafe {
                 asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR46);
-            }
-        } else if self.value == PMPADDR47 {
-            unsafe {
+            },
+            PMPADDR47 => unsafe {
                 asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR47);
-            }
-        } else if self.value == PMPADDR48 {
-            unsafe {
+            },
+            PMPADDR48 => unsafe {
                 asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR48);
-            }
-        } else if self.value == PMPADDR49 {
-            unsafe {
+            },
+            PMPADDR49 => unsafe {
                 asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR49);
-            }
-        } else if self.value == PMPADDR50 {
-            unsafe {
+            },
+            PMPADDR50 => unsafe {
                 asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR50);
-            }
-        } else if self.value == PMPADDR51 {
-            unsafe {
+            },
+            PMPADDR51 => unsafe {
                 asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR51);
-            }
-        } else if self.value == PMPADDR52 {
-            unsafe {
+            },
+            PMPADDR52 => unsafe {
                 asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR52);
-            }
-        } else if self.value == PMPADDR53 {
-            unsafe {
+            },
+            PMPADDR53 => unsafe {
                 asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR53);
-            }
-        } else if self.value == PMPADDR54 {
-            unsafe {
+            },
+            PMPADDR54 => unsafe {
                 asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR54);
-            }
-        } else if self.value == PMPADDR55 {
-            unsafe {
+            },
+            PMPADDR55 => unsafe {
                 asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR55);
-            }
-        } else if self.value == PMPADDR56 {
-            unsafe {
+            },
+            PMPADDR56 => unsafe {
                 asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR56);
-            }
-        } else if self.value == PMPADDR57 {
-            unsafe {
+            },
+            PMPADDR57 => unsafe {
                 asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR57);
-            }
-        } else if self.value == PMPADDR58 {
-            unsafe {
+            },
+            PMPADDR58 => unsafe {
                 asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR58);
-            }
-        } else if self.value == PMPADDR59 {
-            unsafe {
+            },
+            PMPADDR59 => unsafe {
                 asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR59);
-            }
-        } else if self.value == PMPADDR60 {
-            unsafe {
+            },
+            PMPADDR60 => unsafe {
                 asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR60);
-            }
-        } else if self.value == PMPADDR61 {
-            unsafe {
+            },
+            PMPADDR61 => unsafe {
                 asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR61);
-            }
-        } else if self.value == PMPADDR62 {
-            unsafe {
+            },
+            PMPADDR62 => unsafe {
                 asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR62);
-            }
-        } else if self.value == PMPADDR63 {
-            unsafe {
+            },
+            PMPADDR63 => unsafe {
                 asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR63);
-            }
-        } else {
-            panic!("Unsupported CSR write");
+            },
+            _ => panic!("Unsupported CSR write"),
         }
     }
 
