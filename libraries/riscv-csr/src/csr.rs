@@ -118,7 +118,7 @@ pub struct ReadWriteRiscvCsr<T: IntLike, R: RegisterLongName = ()> {
 //value: T,
 //associated_register: PhantomData<R>}
 
-impl<R: RegisterLongName> ReadWriteRiscvCsr<u32, R> {
+impl<R: RegisterLongName> ReadWriteRiscvCsr<usize, R> {
     pub const fn new(value: usize) -> Self {
         ReadWriteRiscvCsr {
             value: value,
@@ -127,17 +127,23 @@ impl<R: RegisterLongName> ReadWriteRiscvCsr<u32, R> {
         }
     }
 
-    #[cfg(all(target_arch = "riscv32", target_os = "none"))]
+    #[cfg(all(
+        any(target_arch = "riscv32", target_arch = "riscv64"),
+        target_os = "none"
+    ))]
     #[inline]
-    pub fn get(&self) -> u32 {
-        let r: u32;
+    pub fn get(&self) -> usize {
+        let r: usize;
+
         match self.value {
+            #[cfg(not(target_arch = "riscv64"))]
             MINSTRETH => unsafe {
                 asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const MINSTRETH);
             },
             MINSTRET => unsafe {
                 asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const MINSTRET);
             },
+            #[cfg(not(target_arch = "riscv64"))]
             MCYCLEH => unsafe {
                 asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const MCYCLEH);
             },
@@ -177,48 +183,56 @@ impl<R: RegisterLongName> ReadWriteRiscvCsr<u32, R> {
             PMPCFG0 => unsafe {
                 asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPCFG0);
             },
+            #[cfg(not(target_arch = "riscv64"))]
             PMPCFG1 => unsafe {
                 asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPCFG1);
             },
             PMPCFG2 => unsafe {
                 asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPCFG2);
             },
+            #[cfg(not(target_arch = "riscv64"))]
             PMPCFG3 => unsafe {
                 asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPCFG3);
             },
             PMPCFG4 => unsafe {
                 asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPCFG4);
             },
+            #[cfg(not(target_arch = "riscv64"))]
             PMPCFG5 => unsafe {
                 asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPCFG5);
             },
             PMPCFG6 => unsafe {
                 asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPCFG6);
             },
+            #[cfg(not(target_arch = "riscv64"))]
             PMPCFG7 => unsafe {
                 asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPCFG7);
             },
             PMPCFG8 => unsafe {
                 asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPCFG8);
             },
+            #[cfg(not(target_arch = "riscv64"))]
             PMPCFG9 => unsafe {
                 asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPCFG9);
             },
             PMPCFG10 => unsafe {
                 asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPCFG10);
             },
+            #[cfg(not(target_arch = "riscv64"))]
             PMPCFG11 => unsafe {
                 asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPCFG11);
             },
             PMPCFG12 => unsafe {
                 asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPCFG12);
             },
+            #[cfg(not(feature = "riscv64"))]
             PMPCFG13 => unsafe {
                 asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPCFG13);
             },
             PMPCFG14 => unsafe {
                 asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPCFG14);
             },
+            #[cfg(not(target_arch = "riscv64"))]
             PMPCFG15 => unsafe {
                 asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPCFG15);
             },
@@ -419,16 +433,21 @@ impl<R: RegisterLongName> ReadWriteRiscvCsr<u32, R> {
         r
     }
 
-    #[cfg(all(target_arch = "riscv32", target_os = "none"))]
+    #[cfg(all(
+        any(target_arch = "riscv32", target_arch = "riscv64"),
+        target_os = "none"
+    ))]
     #[inline]
-    pub fn set(&self, val_to_set: u32) {
+    pub fn set(&self, val_to_set: usize) {
         match self.value {
+            #[cfg(not(target_arch = "riscv64"))]
             MINSTRETH => unsafe {
                 asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const MINSTRETH);
             },
             MINSTRET => unsafe {
                 asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const MINSTRET);
             },
+            #[cfg(not(target_arch = "riscv64"))]
             MCYCLEH => unsafe {
                 asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const MCYCLEH);
             },
@@ -468,48 +487,56 @@ impl<R: RegisterLongName> ReadWriteRiscvCsr<u32, R> {
             PMPCFG0 => unsafe {
                 asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPCFG0);
             },
+            #[cfg(not(target_arch = "riscv64"))]
             PMPCFG1 => unsafe {
                 asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPCFG1);
             },
             PMPCFG2 => unsafe {
                 asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPCFG2);
             },
+            #[cfg(not(target_arch = "riscv64"))]
             PMPCFG3 => unsafe {
                 asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPCFG3);
             },
             PMPCFG4 => unsafe {
                 asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPCFG4);
             },
+            #[cfg(not(target_arch = "riscv64"))]
             PMPCFG5 => unsafe {
                 asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPCFG5);
             },
             PMPCFG6 => unsafe {
                 asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPCFG6);
             },
+            #[cfg(not(target_arch = "riscv64"))]
             PMPCFG7 => unsafe {
                 asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPCFG7);
             },
             PMPCFG8 => unsafe {
                 asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPCFG8);
             },
+            #[cfg(not(feature = "riscv64"))]
             PMPCFG9 => unsafe {
                 asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPCFG9);
             },
             PMPCFG10 => unsafe {
                 asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPCFG10);
             },
+            #[cfg(not(target_arch = "riscv64"))]
             PMPCFG11 => unsafe {
                 asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPCFG11);
             },
             PMPCFG12 => unsafe {
                 asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPCFG12);
             },
+            #[cfg(not(target_arch = "riscv64"))]
             PMPCFG13 => unsafe {
                 asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPCFG13);
             },
             PMPCFG14 => unsafe {
                 asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPCFG14);
             },
+            #[cfg(not(target_arch = "riscv64"))]
             PMPCFG15 => unsafe {
                 asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPCFG15);
             },
@@ -710,60 +737,64 @@ impl<R: RegisterLongName> ReadWriteRiscvCsr<u32, R> {
     }
 
     // Mock implementations for tests on Travis-CI.
-    #[cfg(not(any(target_arch = "riscv32", target_os = "none")))]
-    pub fn get(&self) -> u32 {
+    #[cfg(not(any(target_arch = "riscv32", target_arch = "riscv64", target_os = "none")))]
+    pub fn get(&self) -> usize {
         unimplemented!("reading RISC-V CSR {}", self.value)
     }
 
-    #[cfg(not(any(target_arch = "riscv32", target_os = "none")))]
-    pub fn set(&self, _val_to_set: u32) {
+    #[cfg(not(any(target_arch = "riscv32", target_arch = "riscv64", target_os = "none")))]
+    pub fn set(&self, _val_to_set: usize) {
         unimplemented!("writing RISC-V CSR {}", self.value)
     }
 
     #[inline]
-    pub fn read(&self, field: Field<u32, R>) -> u32 {
+    pub fn read(&self, field: Field<usize, R>) -> usize {
         field.read(self.get())
     }
 
     #[inline]
-    pub fn read_as_enum<E: TryFromValue<u32, EnumType = E>>(
+    pub fn read_as_enum<E: TryFromValue<usize, EnumType = E>>(
         &self,
-        field: Field<u32, R>,
+        field: Field<usize, R>,
     ) -> Option<E> {
         field.read_as_enum(self.get())
     }
 
     #[inline]
-    pub fn extract(&self) -> LocalRegisterCopy<u32, R> {
+    pub fn extract(&self) -> LocalRegisterCopy<usize, R> {
         LocalRegisterCopy::new(self.get())
     }
 
     #[inline]
-    pub fn write(&self, field: FieldValue<u32, R>) {
+    pub fn write(&self, field: FieldValue<usize, R>) {
         self.set(field.value);
     }
 
     #[inline]
-    pub fn modify(&self, field: FieldValue<u32, R>) {
+    pub fn modify(&self, field: FieldValue<usize, R>) {
         self.set(field.modify(self.get()));
     }
 
     #[inline]
-    pub fn modify_no_read(&self, original: LocalRegisterCopy<u32, R>, field: FieldValue<u32, R>) {
+    pub fn modify_no_read(
+        &self,
+        original: LocalRegisterCopy<usize, R>,
+        field: FieldValue<usize, R>,
+    ) {
         self.set(field.modify(original.get()));
     }
     #[inline]
-    pub fn is_set(&self, field: Field<u32, R>) -> bool {
+    pub fn is_set(&self, field: Field<usize, R>) -> bool {
         field.is_set(self.get())
     }
 
     #[inline]
-    pub fn matches_any(&self, field: FieldValue<u32, R>) -> bool {
+    pub fn matches_any(&self, field: FieldValue<usize, R>) -> bool {
         field.matches_any(self.get())
     }
 
     #[inline]
-    pub fn matches_all(&self, field: FieldValue<u32, R>) -> bool {
+    pub fn matches_all(&self, field: FieldValue<usize, R>) -> bool {
         field.matches_all(self.get())
     }
 }
