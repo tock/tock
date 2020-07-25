@@ -87,10 +87,10 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
     ) -> Result<*mut usize, *mut usize> {
         // Set the register state for the application when it starts
         // executing. These are the argument registers.
-        state.regs[R_A0] = callback.argument0;
-        state.regs[R_A1] = callback.argument1;
-        state.regs[R_A2] = callback.argument2;
-        state.regs[R_A3] = callback.argument3;
+        state.regs[R_A0] = callback.argument0 as usize;
+        state.regs[R_A1] = callback.argument1 as usize;
+        state.regs[R_A2] = callback.argument2 as usize;
+        state.regs[R_A3] = callback.argument3 as usize;
 
         // We also need to set the return address (ra) register so that the new
         // function that the process is running returns to the correct location.
@@ -101,30 +101,31 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         state.regs[R_RA] = state.pc;
 
         // Save the PC we expect to execute.
-        state.pc = callback.pc;
+        state.pc = callback.pc as usize;
 
         Ok(stack_pointer as *mut usize)
     }
 
     // Mock implementation for tests on Travis-CI.
-    #[cfg(not(any(target_arch = "riscv32", target_os = "none")))]
+    #[cfg(not(target_os = "none"))]
     unsafe fn switch_to_process(
         &self,
         _stack_pointer: *const usize,
         _state: &mut RiscvimacStoredState,
     ) -> (*mut usize, ContextSwitchReason) {
         // Convince lint that 'mcause' and 'R_A4' are used during test build
-        let _cause = mcause::Trap::from(_state.mcause as u32);
+        let _cause = mcause::Trap::from(_state.mcause as usize);
         let _arg4 = _state.regs[R_A4];
         unimplemented!()
     }
 
-    #[cfg(all(target_arch = "riscv32", target_os = "none"))]
+    #[cfg(target_os = "none")]
     unsafe fn switch_to_process(
         &self,
         _stack_pointer: *const usize,
         state: &mut RiscvimacStoredState,
     ) -> (*mut usize, ContextSwitchReason) {
+        #[cfg(not(feature = "riscv64"))]
         llvm_asm! ("
           // Before switching to the app we need to save the kernel registers to
           // the kernel stack. We then save the stack pointer in the mscratch
@@ -328,7 +329,211 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
           : "memory"
           : "volatile");
 
-        let ret = match mcause::Trap::from(state.mcause as u32) {
+        #[cfg(feature = "riscv64")]
+        llvm_asm! ("
+          // Before switching to the app we need to save the kernel registers to
+          // the kernel stack. We then save the stack pointer in the mscratch
+          // CSR (0x340) so we can retrieve it after returning to the kernel
+          // from the app.
+          //
+          // A few values get saved to the kernel stack, including an app
+          // register temporarily after entering the trap handler. Here is a
+          // memory map to make it easier to keep track:
+          //
+          // ```
+          // 34*8(sp):          <- original stack pointer
+          // 33*8(sp):
+          // 32*8(sp): x31
+          // 31*8(sp): x30
+          // 30*8(sp): x29
+          // 29*8(sp): x28
+          // 28*8(sp): x27
+          // 27*8(sp): x26
+          // 26*8(sp): x25
+          // 25*8(sp): x24
+          // 24*8(sp): x23
+          // 23*8(sp): x22
+          // 22*8(sp): x21
+          // 21*8(sp): x20
+          // 20*8(sp): x19
+          // 19*8(sp): x18
+          // 18*8(sp): x17
+          // 17*8(sp): x16
+          // 16*8(sp): x15
+          // 15*8(sp): x14
+          // 14*8(sp): x13
+          // 13*8(sp): x12
+          // 12*8(sp): x11
+          // 11*8(sp): x10
+          // 10*8(sp): x9
+          //  9*8(sp): x8
+          //  8*8(sp): x7
+          //  7*8(sp): x6
+          //  6*8(sp): x5
+          //  5*8(sp): x4
+          //  4*8(sp): x3
+          //  3*8(sp): x1
+          //  2*8(sp): _return_to_kernel (address to resume after trap)
+          //  1*8(sp): *state   (Per-process StoredState struct)
+          //  0*8(sp): app s0   <- new stack pointer
+          // ```
+
+          addi sp, sp, -34*8  // Move the stack pointer down to make room.
+
+          sd   x1,  3*8(sp)    // Save all of the registers on the kernel stack.
+          sd   x3,  4*8(sp)
+          sd   x4,  5*8(sp)
+          sd   x5,  6*8(sp)
+          sd   x6,  7*8(sp)
+          sd   x7,  8*8(sp)
+          sd   x8,  9*8(sp)
+          sd   x9,  10*8(sp)
+          sd   x10, 11*8(sp)
+          sd   x11, 12*8(sp)
+          sd   x12, 13*8(sp)
+          sd   x13, 14*8(sp)
+          sd   x14, 15*8(sp)
+          sd   x15, 16*8(sp)
+          sd   x16, 17*8(sp)
+          sd   x17, 18*8(sp)
+          sd   x18, 19*8(sp)
+          sd   x19, 20*8(sp)
+          sd   x20, 21*8(sp)
+          sd   x21, 22*8(sp)
+          sd   x22, 23*8(sp)
+          sd   x23, 24*8(sp)
+          sd   x24, 25*8(sp)
+          sd   x25, 26*8(sp)
+          sd   x26, 27*8(sp)
+          sd   x27, 28*8(sp)
+          sd   x28, 29*8(sp)
+          sd   x29, 30*8(sp)
+          sd   x30, 31*8(sp)
+          sd   x31, 32*8(sp)
+
+          sd   $0, 1*8(sp)    // Store process state pointer on stack as well.
+                              // We need to have the available for after the app
+                              // returns to the kernel so we can store its
+                              // registers.
+
+          // Store the address to jump back to on the stack so that the trap
+          // handler knows where to return to after the app stops executing.
+          lui  t0, %hi(_return_to_kernel)
+          addi t0, t0, %lo(_return_to_kernel)
+          sd   t0, 2*8(sp)
+
+          csrw 0x340, sp      // Save stack pointer in mscratch. This allows
+                              // us to find it when the app returns back to
+                              // the kernel.
+
+          // Read current mstatus CSR and then modify it so we switch to
+          // user mode when running the app.
+          csrr t0, 0x300      // Read mstatus=0x300 CSR
+          // Set the mode to user mode and set MPIE.
+          li   t1, 0x1808     // t1 = MSTATUS_MPP & MSTATUS_MIE
+          not  t1, t1         // t1 = ~(MSTATUS_MPP & MSTATUS_MIE)
+          and  t0, t0, t1     // t0 = mstatus & ~(MSTATUS_MPP & MSTATUS_MIE)
+          ori  t0, t0, 0x80   // t0 = t0 | MSTATUS_MPIE
+          csrw 0x300, t0      // Set mstatus CSR so that we switch to user mode.
+
+          // We have to set the mepc CSR with the PC we want the app to start
+          // executing at. This has been saved in RiscvimacStoredState for us
+          // (either when the app returned back to the kernel or in the
+          // `set_process_function()` function).
+          ld   t0, 31*8($0)   // Retrieve the PC from RiscvimacStoredState
+          csrw 0x341, t0      // Set mepc CSR. This is the PC we want to go to.
+
+          // Restore all of the app registers from what we saved. If this is the
+          // first time running the app then most of these values are
+          // irrelevant, However we do need to set the four arguments to the
+          // `_start_ function in the app. If the app has been executing then this
+          // allows the app to correctly resume.
+          mv   t0,  $0       // Save the state pointer to a specific register.
+          ld   x1,  0*8(t0)  // ra
+          ld   x2,  1*8(t0)  // sp
+          ld   x3,  2*8(t0)  // gp
+          ld   x4,  3*8(t0)  // tp
+          ld   x6,  5*8(t0)  // t1
+          ld   x7,  6*8(t0)  // t2
+          ld   x8,  7*8(t0)  // s0,fp
+          ld   x9,  8*8(t0)  // s1
+          ld   x10, 9*8(t0)  // a0
+          ld   x11, 10*8(t0) // a1
+          ld   x12, 11*8(t0) // a2
+          ld   x13, 12*8(t0) // a3
+          ld   x14, 13*8(t0) // a4
+          ld   x15, 14*8(t0) // a5
+          ld   x16, 15*8(t0) // a6
+          ld   x17, 16*8(t0) // a7
+          ld   x18, 17*8(t0) // s2
+          ld   x19, 18*8(t0) // s3
+          ld   x20, 19*8(t0) // s4
+          ld   x21, 20*8(t0) // s5
+          ld   x22, 21*8(t0) // s6
+          ld   x23, 22*8(t0) // s7
+          ld   x24, 23*8(t0) // s8
+          ld   x25, 24*8(t0) // s9
+          ld   x26, 25*8(t0) // s10
+          ld   x27, 26*8(t0) // s11
+          ld   x28, 27*8(t0) // t3
+          ld   x29, 28*8(t0) // t4
+          ld   x30, 29*8(t0) // t5
+          ld   x31, 30*8(t0) // t6
+          ld   x5,  4*8(t0)  // t0. Do last since we overwrite our pointer.
+
+          // Call mret to jump to where mepc points, switch to user mode, and
+          // start running the app.
+          mret
+
+
+
+
+          // This is where the trap handler jumps back to after the app stops
+          // executing.
+        _return_to_kernel:
+
+          // We have already stored the app registers in the trap handler. We
+          // can restore the kernel registers before resuming kernel code.
+          ld   x1,  3*8(sp)
+          ld   x3,  4*8(sp)
+          ld   x4,  5*8(sp)
+          ld   x5,  6*8(sp)
+          ld   x6,  7*8(sp)
+          ld   x7,  8*8(sp)
+          ld   x8,  9*8(sp)
+          ld   x9,  10*8(sp)
+          ld   x10, 11*8(sp)
+          ld   x11, 12*8(sp)
+          ld   x12, 13*8(sp)
+          ld   x13, 14*8(sp)
+          ld   x14, 15*8(sp)
+          ld   x15, 16*8(sp)
+          ld   x16, 17*8(sp)
+          ld   x17, 18*8(sp)
+          ld   x18, 19*8(sp)
+          ld   x19, 20*8(sp)
+          ld   x20, 21*8(sp)
+          ld   x21, 22*8(sp)
+          ld   x22, 23*8(sp)
+          ld   x23, 24*8(sp)
+          ld   x24, 25*8(sp)
+          ld   x25, 26*8(sp)
+          ld   x26, 27*8(sp)
+          ld   x27, 28*8(sp)
+          ld   x28, 29*8(sp)
+          ld   x29, 30*8(sp)
+          ld   x30, 31*8(sp)
+          ld   x31, 32*8(sp)
+
+          addi sp, sp, 34*8   // Reset kernel stack pointer
+          "
+
+          :
+          : "r"(state as *mut RiscvimacStoredState)
+          : "memory"
+          : "volatile");
+
+        let ret = match mcause::Trap::from(state.mcause as usize) {
             mcause::Trap::Interrupt(_intr) => {
                 // An interrupt occurred while the app was running.
                 ContextSwitchReason::Interrupted
@@ -344,10 +549,10 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
 
                         let syscall = kernel::syscall::arguments_to_syscall(
                             state.regs[R_A0] as u8,
-                            state.regs[R_A1],
-                            state.regs[R_A2],
-                            state.regs[R_A3],
-                            state.regs[R_A4],
+                            state.regs[R_A1] as usize,
+                            state.regs[R_A2] as usize,
+                            state.regs[R_A3] as usize,
+                            state.regs[R_A4] as usize,
                         );
                         match syscall {
                             Some(s) => ContextSwitchReason::SyscallFired { syscall: s },

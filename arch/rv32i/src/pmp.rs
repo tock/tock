@@ -5,7 +5,7 @@ use core::cmp;
 use core::fmt;
 use kernel::common::cells::OptionalCell;
 
-use crate::csr;
+use crate::{csr, XLEN};
 use kernel;
 use kernel::common::cells::MapCell;
 use kernel::common::registers::register_bitfields;
@@ -35,6 +35,13 @@ register_bitfields![u8,
         l OFFSET(7) NUMBITS(1) []
     ]
 ];
+
+// The number of PMP configs packed into one CSR
+const CSR_CFGS: usize = XLEN / 8;
+// number of PMP configs needed for one region
+const REGION_CFGS: usize = 2;
+// number of regions in one CSR
+const CSR_REGIONS: usize = CSR_CFGS / REGION_CFGS;
 
 /// Struct storing configuration for a RISC-V PMP region.
 #[derive(Copy, Clone)]
@@ -166,7 +173,7 @@ impl PMPConfig {
             regions: [None; 32],
             // As we use the PMP TOR setup we only support half the number
             // of regions as hardware supports
-            total_regions: pmp_regions / 2,
+            total_regions: pmp_regions / REGION_CFGS,
 
             is_dirty: Cell::new(true),
             last_configured_for: MapCell::empty(),
@@ -205,11 +212,11 @@ impl PMPConfig {
         self.regions.sort_unstable_by(|a, b| {
             let (a_start, _a_size) = match a {
                 Some(region) => (region.location().0 as usize, region.location().1),
-                None => (0xFFFF_FFFF, 0xFFFF_FFFF),
+                None => (usize::MAX, usize::MAX),
             };
             let (b_start, _b_size) = match b {
                 Some(region) => (region.location().0 as usize, region.location().1),
-                None => (0xFFFF_FFFF, 0xFFFF_FFFF),
+                None => (usize::MAX, usize::MAX),
             };
             a_start.cmp(&b_start)
         });
@@ -236,61 +243,47 @@ impl kernel::mpu::MPU for PMPConfig {
     fn enable_mpu(&self) {}
 
     fn disable_mpu(&self) {
+        let unused: usize =
+            (pmpcfg::w::CLEAR + pmpcfg::x::CLEAR + pmpcfg::a::OFF + pmpcfg::l::CLEAR).value
+                as usize;
         // `total_regions` here refers to the number of memory slices we can
         // protect with the PMP. Each slice requires two PMP entries to protect,
         // so `total_regions` is half of the number physical hardware PMP
         // configuration entries. Therefore, we double `total_regions` to clear
         // all the relevant `pmpcfg` entries.
-        for x in 0..(self.total_regions * 2) {
-            match x % 4 {
-                0 => {
-                    csr::CSR.pmpcfg[x / 4].modify(
-                        csr::pmpconfig::pmpcfg::r0::CLEAR
-                            + csr::pmpconfig::pmpcfg::w0::CLEAR
-                            + csr::pmpconfig::pmpcfg::x0::CLEAR
-                            + csr::pmpconfig::pmpcfg::a0::OFF
-                            + csr::pmpconfig::pmpcfg::l0::CLEAR,
-                    );
-                }
-                1 => {
-                    csr::CSR.pmpcfg[x / 4].modify(
-                        csr::pmpconfig::pmpcfg::r1::CLEAR
-                            + csr::pmpconfig::pmpcfg::w1::CLEAR
-                            + csr::pmpconfig::pmpcfg::x1::CLEAR
-                            + csr::pmpconfig::pmpcfg::a1::OFF
-                            + csr::pmpconfig::pmpcfg::l1::CLEAR,
-                    );
-                }
-                2 => {
-                    csr::CSR.pmpcfg[x / 4].modify(
-                        csr::pmpconfig::pmpcfg::r2::CLEAR
-                            + csr::pmpconfig::pmpcfg::w2::CLEAR
-                            + csr::pmpconfig::pmpcfg::x2::CLEAR
-                            + csr::pmpconfig::pmpcfg::a2::OFF
-                            + csr::pmpconfig::pmpcfg::l2::CLEAR,
-                    );
-                }
-                3 => {
-                    csr::CSR.pmpcfg[x / 4].modify(
-                        csr::pmpconfig::pmpcfg::r3::CLEAR
-                            + csr::pmpconfig::pmpcfg::w3::CLEAR
-                            + csr::pmpconfig::pmpcfg::x3::CLEAR
-                            + csr::pmpconfig::pmpcfg::a3::OFF
-                            + csr::pmpconfig::pmpcfg::l3::CLEAR,
-                    );
-                }
+        for x in 0..(self.total_regions * REGION_CFGS) {
+            match x % CSR_CFGS {
+                0 => csr::CSR.pmpcfg[x / CSR_CFGS]
+                    .modify(csr::pmpconfig::pmpcfg::pmp0cfg.val(unused)),
+                1 => csr::CSR.pmpcfg[x / CSR_CFGS]
+                    .modify(csr::pmpconfig::pmpcfg::pmp1cfg.val(unused)),
+                2 => csr::CSR.pmpcfg[x / CSR_CFGS]
+                    .modify(csr::pmpconfig::pmpcfg::pmp2cfg.val(unused)),
+                3 => csr::CSR.pmpcfg[x / CSR_CFGS]
+                    .modify(csr::pmpconfig::pmpcfg::pmp3cfg.val(unused)),
+                #[cfg(target_arch = "riscv64")]
+                4 => csr::CSR.pmpcfg[x / CSR_CFGS]
+                    .modify(csr::pmpconfig::pmpcfg::pmp4cfg.val(unused)),
+                #[cfg(target_arch = "riscv64")]
+                5 => csr::CSR.pmpcfg[x / CSR_CFGS]
+                    .modify(csr::pmpconfig::pmpcfg::pmp5cfg.val(unused)),
+                #[cfg(target_arch = "riscv64")]
+                6 => csr::CSR.pmpcfg[x / CSR_CFGS]
+                    .modify(csr::pmpconfig::pmpcfg::pmp6cfg.val(unused)),
+                #[cfg(target_arch = "riscv64")]
+                7 => csr::CSR.pmpcfg[x / CSR_CFGS]
+                    .modify(csr::pmpconfig::pmpcfg::pmp7cfg.val(unused)),
                 _ => unreachable!(),
             }
-            csr::CSR.pmpaddr[x].set(0x0);
+            csr::CSR.pmpaddr[x].set(0);
         }
 
-        //set first PMP to have permissions to entire space
-        csr::CSR.pmpaddr[0].set(0xFFFF_FFFF);
-        //enable R W X fields
-        csr::CSR.pmpcfg[0].modify(csr::pmpconfig::pmpcfg::r0::SET);
-        csr::CSR.pmpcfg[0].modify(csr::pmpconfig::pmpcfg::w0::SET);
-        csr::CSR.pmpcfg[0].modify(csr::pmpconfig::pmpcfg::x0::SET);
-        csr::CSR.pmpcfg[0].modify(csr::pmpconfig::pmpcfg::a0::TOR);
+        // set first PMP to have permissions to entire space
+        csr::CSR.pmpaddr[0].write(csr::pmpaddr::pmpaddr::addr.val(usize::MAX));
+        // enable R W X fields
+        csr::CSR.pmpcfg[0].modify(csr::pmpconfig::pmpcfg::pmp0cfg.val(
+            (pmpcfg::r::SET + pmpcfg::w::SET + pmpcfg::x::SET + pmpcfg::a::TOR).value as usize,
+        ));
         // MPU is not configured for any process now
         self.last_configured_for.take();
     }
@@ -452,6 +445,10 @@ impl kernel::mpu::MPU for PMPConfig {
     }
 
     fn configure_mpu(&self, config: &Self::MpuConfig, app_id: &AppId) {
+        let disabled: usize =
+            (pmpcfg::w::CLEAR + pmpcfg::x::CLEAR + pmpcfg::a::TOR + pmpcfg::l::CLEAR).value
+                as usize;
+
         // Is the PMP already configured for this app?
         let last_configured_for_this_app = self
             .last_configured_for
@@ -464,42 +461,72 @@ impl kernel::mpu::MPU for PMPConfig {
                 let region = config.regions[x];
                 match region {
                     Some(r) => {
-                        let cfg_val = r.cfg.value as u32;
+                        let cfg_val = r.cfg.value as usize;
                         let start = r.location.0 as usize;
                         let size = r.location.1;
 
-                        match x % 2 {
+                        match x % CSR_REGIONS {
                             0 => {
                                 // Disable access up to the start address
-                                csr::CSR.pmpcfg[x / 2].modify(
-                                    csr::pmpconfig::pmpcfg::r0::CLEAR
-                                        + csr::pmpconfig::pmpcfg::w0::CLEAR
-                                        + csr::pmpconfig::pmpcfg::x0::CLEAR
-                                        + csr::pmpconfig::pmpcfg::a0::TOR,
-                                );
-                                csr::CSR.pmpaddr[x * 2].set((start as u32) >> 2);
+                                csr::CSR.pmpcfg[x / CSR_REGIONS]
+                                    .modify(csr::pmpconfig::pmpcfg::pmp0cfg.val(disabled));
+                                csr::CSR.pmpaddr[x * REGION_CFGS]
+                                    .write(csr::pmpaddr::pmpaddr::addr.val(start as usize >> 2));
 
                                 // Set access to end address
-                                csr::CSR.pmpcfg[x / 2]
-                                    .set(cfg_val << 8 | csr::CSR.pmpcfg[x / 2].get());
-                                csr::CSR.pmpaddr[(x * 2) + 1]
-                                    .set((start as u32 + size as u32) >> 2);
+                                csr::CSR.pmpcfg[x / CSR_REGIONS]
+                                    .modify(csr::pmpconfig::pmpcfg::pmp1cfg.val(cfg_val));
+                                csr::CSR.pmpaddr[x * REGION_CFGS + 1].write(
+                                    csr::pmpaddr::pmpaddr::addr
+                                        .val((start as usize + size as usize) >> 2),
+                                );
                             }
                             1 => {
                                 // Disable access up to the start address
-                                csr::CSR.pmpcfg[x / 2].modify(
-                                    csr::pmpconfig::pmpcfg::r2::CLEAR
-                                        + csr::pmpconfig::pmpcfg::w2::CLEAR
-                                        + csr::pmpconfig::pmpcfg::x2::CLEAR
-                                        + csr::pmpconfig::pmpcfg::a2::TOR,
-                                );
-                                csr::CSR.pmpaddr[x * 2].set((start as u32) >> 2);
+                                csr::CSR.pmpcfg[x / CSR_REGIONS]
+                                    .modify(csr::pmpconfig::pmpcfg::pmp2cfg.val(disabled));
+                                csr::CSR.pmpaddr[x * REGION_CFGS]
+                                    .write(csr::pmpaddr::pmpaddr::addr.val(start as usize >> 2));
 
                                 // Set access to end address
-                                csr::CSR.pmpcfg[x / 2]
-                                    .set(cfg_val << 24 | csr::CSR.pmpcfg[x / 2].get());
-                                csr::CSR.pmpaddr[(x * 2) + 1]
-                                    .set((start as u32 + size as u32) >> 2);
+                                csr::CSR.pmpcfg[x / CSR_REGIONS]
+                                    .modify(csr::pmpconfig::pmpcfg::pmp3cfg.val(cfg_val));
+                                csr::CSR.pmpaddr[x * REGION_CFGS + 1].write(
+                                    csr::pmpaddr::pmpaddr::addr
+                                        .val((start as usize + size as usize) >> 2),
+                                );
+                            }
+                            #[cfg(target_arch = "riscv64")]
+                            2 => {
+                                // Disable access up to the start address
+                                csr::CSR.pmpcfg[x / CSR_REGIONS]
+                                    .modify(csr::pmpconfig::pmpcfg::pmp4cfg.val(disabled));
+                                csr::CSR.pmpaddr[x * REGION_CFGS]
+                                    .write(csr::pmpaddr::pmpaddr::addr.val(start as usize >> 2));
+
+                                // Set access to end address
+                                csr::CSR.pmpcfg[x / CSR_REGIONS]
+                                    .modify(csr::pmpconfig::pmpcfg::pmp5cfg.val(cfg_val));
+                                csr::CSR.pmpaddr[x * REGION_CFGS + 1].write(
+                                    csr::pmpaddr::pmpaddr::addr
+                                        .val((start as usize + size as usize) >> 2),
+                                );
+                            }
+                            #[cfg(target_arch = "riscv64")]
+                            3 => {
+                                // Disable access up to the start address
+                                csr::CSR.pmpcfg[x / CSR_REGIONS]
+                                    .modify(csr::pmpconfig::pmpcfg::pmp6cfg.val(disabled));
+                                csr::CSR.pmpaddr[x * REGION_CFGS]
+                                    .write(csr::pmpaddr::pmpaddr::addr.val(start as usize >> 2));
+
+                                // Set access to end address
+                                csr::CSR.pmpcfg[x / CSR_REGIONS]
+                                    .modify(csr::pmpconfig::pmpcfg::pmp7cfg.val(cfg_val));
+                                csr::CSR.pmpaddr[x * REGION_CFGS + 1].write(
+                                    csr::pmpaddr::pmpaddr::addr
+                                        .val((start as usize + size as usize) >> 2),
+                                );
                             }
                             _ => break,
                         }
