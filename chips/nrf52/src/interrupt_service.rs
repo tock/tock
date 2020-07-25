@@ -56,17 +56,17 @@ pub trait InterruptService {
     unsafe fn service_interrupt(&self, interrupt: u32) -> bool;
 }
 
-pub struct Nrf52InterruptService {
-    gpio_port: &'static nrf5x::gpio::Port,
+pub struct Nrf52InterruptService<'a> {
+    gpio_port: &'a nrf5x::gpio::Port<'a>,
 }
 
-impl Nrf52InterruptService {
-    pub unsafe fn new(gpio_port: &'static nrf5x::gpio::Port) -> Nrf52InterruptService {
+impl<'a> Nrf52InterruptService<'a> {
+    pub unsafe fn new(gpio_port: &'a nrf5x::gpio::Port<'a>) -> Nrf52InterruptService<'a> {
         Nrf52InterruptService { gpio_port }
     }
 }
 
-impl InterruptService for Nrf52InterruptService {
+impl InterruptService for Nrf52InterruptService<'_> {
     unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt {
             peripheral_interrupts::COMP => acomp::ACOMP.handle_interrupt(),

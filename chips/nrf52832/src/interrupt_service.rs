@@ -2,7 +2,7 @@ use crate::gpio;
 use nrf52::interrupt_service::InterruptService;
 
 pub struct Nrf52832InterruptService {
-    nrf52: nrf52::interrupt_service::Nrf52InterruptService,
+    nrf52: nrf52::interrupt_service::Nrf52InterruptService<'static>,
 }
 
 impl Nrf52832InterruptService {

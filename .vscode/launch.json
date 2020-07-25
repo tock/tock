@@ -15,6 +15,19 @@
                 "monitor speed auto",
                 "b reset_handler"
             ]
+        },
+        {
+            "name": "MSP432 Cortex Debug",
+            "type": "cortex-debug",
+            "servertype": "openocd",
+            "request": "launch",
+            "executable": "${workspaceRoot}/target/thumbv7em-none-eabi/debug/msp-exp432p401r.elf",
+            "cwd": "${workspaceRoot}",
+            "svdFile": "${workspaceRoot}/boards/msp_exp432p401r/msp432.svd",
+            "runToMain": true,
+            "configFiles": [
+                "${workspaceRoot}/boards/msp_exp432p401r/openocd.cfg",
+            ]
         }
     ]
 }

@@ -99,12 +99,12 @@ macro_rules! gpio_component_buf {
     };};
 }
 
-pub struct GpioComponent<IP: 'static + gpio::InterruptPin> {
+pub struct GpioComponent<IP: 'static + gpio::InterruptPin<'static>> {
     board_kernel: &'static kernel::Kernel,
     gpio_pins: &'static [Option<&'static gpio::InterruptValueWrapper<'static, IP>>],
 }
 
-impl<IP: 'static + gpio::InterruptPin> GpioComponent<IP> {
+impl<IP: 'static + gpio::InterruptPin<'static>> GpioComponent<IP> {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
         gpio_pins: &'static [Option<&'static gpio::InterruptValueWrapper<'static, IP>>],
@@ -116,7 +116,7 @@ impl<IP: 'static + gpio::InterruptPin> GpioComponent<IP> {
     }
 }
 
-impl<IP: 'static + gpio::InterruptPin> Component for GpioComponent<IP> {
+impl<IP: 'static + gpio::InterruptPin<'static>> Component for GpioComponent<IP> {
     type StaticInput = &'static mut MaybeUninit<GPIO<'static, IP>>;
     type Output = &'static GPIO<'static, IP>;
 

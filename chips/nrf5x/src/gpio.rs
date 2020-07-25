@@ -353,16 +353,16 @@ enum_from_primitive! {
     }
 }
 
-pub struct GPIOPin {
+pub struct GPIOPin<'a> {
     pin: u8,
     port: u8,
-    client: OptionalCell<&'static dyn hil::gpio::Client>,
+    client: OptionalCell<&'a dyn hil::gpio::Client>,
     gpiote_registers: StaticRef<GpioteRegisters>,
     gpio_registers: StaticRef<GpioRegisters>,
 }
 
-impl GPIOPin {
-    pub const fn new(pin: Pin) -> GPIOPin {
+impl<'a> GPIOPin<'a> {
+    pub const fn new(pin: Pin) -> GPIOPin<'a> {
         GPIOPin {
             pin: ((pin as usize) % GPIO_PER_PORT) as u8,
             port: ((pin as usize) / GPIO_PER_PORT) as u8,
@@ -378,7 +378,7 @@ impl GPIOPin {
     }
 }
 
-impl hil::gpio::Configure for GPIOPin {
+impl hil::gpio::Configure for GPIOPin<'_> {
     fn set_floating_state(&self, mode: hil::gpio::FloatingState) {
         let gpio_regs = &*self.gpio_registers;
         let pin_config = match mode {
@@ -449,14 +449,14 @@ impl hil::gpio::Configure for GPIOPin {
     }
 }
 
-impl hil::gpio::Input for GPIOPin {
+impl hil::gpio::Input for GPIOPin<'_> {
     fn read(&self) -> bool {
         let gpio_regs = &*self.gpio_registers;
         gpio_regs.in_.get() & (1 << self.pin) != 0
     }
 }
 
-impl hil::gpio::Output for GPIOPin {
+impl hil::gpio::Output for GPIOPin<'_> {
     fn set(&self) {
         let gpio_regs = &*self.gpio_registers;
         gpio_regs.outset.set(1 << self.pin);
@@ -475,10 +475,10 @@ impl hil::gpio::Output for GPIOPin {
     }
 }
 
-impl hil::gpio::Pin for GPIOPin {}
+impl hil::gpio::Pin for GPIOPin<'_> {}
 
-impl hil::gpio::Interrupt for GPIOPin {
-    fn set_client(&self, client: &'static dyn hil::gpio::Client) {
+impl<'a> hil::gpio::Interrupt<'a> for GPIOPin<'a> {
+    fn set_client(&self, client: &'a dyn hil::gpio::Client) {
         self.client.set(client);
     }
 
@@ -518,9 +518,9 @@ impl hil::gpio::Interrupt for GPIOPin {
     }
 }
 
-impl hil::gpio::InterruptPin for GPIOPin {}
+impl<'a> hil::gpio::InterruptPin<'a> for GPIOPin<'a> {}
 
-impl GPIOPin {
+impl GPIOPin<'_> {
     /// Allocate a GPIOTE channel
     /// If the channel couldn't be allocated return error instead
     fn allocate_channel(&self) -> Result<usize, ()> {
@@ -553,25 +553,25 @@ impl GPIOPin {
     }
 }
 
-pub struct Port {
-    pub pins: &'static mut [GPIOPin],
+pub struct Port<'a> {
+    pub pins: &'a mut [GPIOPin<'a>],
 }
 
-impl Index<Pin> for Port {
-    type Output = GPIOPin;
+impl<'a> Index<Pin> for Port<'a> {
+    type Output = GPIOPin<'a>;
 
-    fn index(&self, index: Pin) -> &GPIOPin {
+    fn index(&self, index: Pin) -> &GPIOPin<'a> {
         &self.pins[index as usize]
     }
 }
 
-impl IndexMut<Pin> for Port {
-    fn index_mut(&mut self, index: Pin) -> &mut GPIOPin {
+impl<'a> IndexMut<Pin> for Port<'a> {
+    fn index_mut(&mut self, index: Pin) -> &mut GPIOPin<'a> {
         &mut self.pins[index as usize]
     }
 }
 
-impl Port {
+impl Port<'_> {
     /// GPIOTE interrupt: check each GPIOTE channel, if any has
     /// fired then trigger its corresponding pin's interrupt handler.
     pub fn handle_interrupt(&self) {

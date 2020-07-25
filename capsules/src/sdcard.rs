@@ -72,7 +72,7 @@ pub struct SDCard<'a, A: hil::time::Alarm<'a>> {
     is_initialized: Cell<bool>,
     card_type: Cell<SDCardType>,
 
-    detect_pin: Cell<Option<&'static dyn hil::gpio::InterruptPin>>,
+    detect_pin: Cell<Option<&'a dyn hil::gpio::InterruptPin<'a>>>,
 
     txbuffer: TakeCell<'static, [u8]>,
     rxbuffer: TakeCell<'static, [u8]>,
@@ -207,7 +207,7 @@ impl<'a, A: hil::time::Alarm<'a>> SDCard<'a, A> {
     pub fn new(
         spi: &'a dyn hil::spi::SpiMasterDevice,
         alarm: &'a A,
-        detect_pin: Option<&'static dyn hil::gpio::InterruptPin>,
+        detect_pin: Option<&'static dyn hil::gpio::InterruptPin<'a>>,
         txbuffer: &'static mut [u8; 515],
         rxbuffer: &'static mut [u8; 515],
     ) -> SDCard<'a, A> {

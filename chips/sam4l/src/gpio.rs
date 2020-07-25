@@ -132,26 +132,26 @@ pub enum Pin {
 ///
 /// [^1]: SAM4L datasheet section 23.8 (page 573): "Module Configuration" for
 ///       GPIO
-pub struct Port {
+pub struct Port<'a> {
     port: StaticRef<GpioRegisters>,
-    pins: [GPIOPin; 32],
+    pins: [GPIOPin<'a>; 32],
 }
 
-impl Index<usize> for Port {
-    type Output = GPIOPin;
+impl<'a> Index<usize> for Port<'a> {
+    type Output = GPIOPin<'a>;
 
-    fn index(&self, index: usize) -> &GPIOPin {
+    fn index(&self, index: usize) -> &GPIOPin<'a> {
         &self.pins[index]
     }
 }
 
-impl IndexMut<usize> for Port {
-    fn index_mut(&mut self, index: usize) -> &mut GPIOPin {
+impl<'a> IndexMut<usize> for Port<'a> {
+    fn index_mut(&mut self, index: usize) -> &mut GPIOPin<'a> {
         &mut self.pins[index]
     }
 }
 
-impl Port {
+impl<'a> Port<'a> {
     pub fn handle_interrupt(&self) {
         let port: &GpioRegisters = &*self.port;
 
@@ -287,14 +287,14 @@ pub static mut PC: Port = Port {
         GPIOPin::new(Pin::PC31),
     ],
 };
-pub struct GPIOPin {
+pub struct GPIOPin<'a> {
     port: StaticRef<GpioRegisters>,
     pin_mask: u32,
-    client: OptionalCell<&'static dyn hil::gpio::Client>,
+    client: OptionalCell<&'a dyn hil::gpio::Client>,
 }
 
-impl GPIOPin {
-    const fn new(pin: Pin) -> GPIOPin {
+impl<'a> GPIOPin<'a> {
+    const fn new(pin: Pin) -> GPIOPin<'a> {
         GPIOPin {
             port: unsafe {
                 StaticRef::new(
@@ -306,7 +306,7 @@ impl GPIOPin {
         }
     }
 
-    pub fn set_client(&self, client: &'static dyn gpio::Client) {
+    pub fn set_client(&self, client: &'a dyn gpio::Client) {
         self.client.set(client);
     }
 
@@ -462,7 +462,7 @@ impl GPIOPin {
     }
 }
 
-impl hil::Controller for GPIOPin {
+impl<'a> hil::Controller for GPIOPin<'a> {
     type Config = Option<PeripheralFunction>;
 
     fn configure(&self, config: Self::Config) {
@@ -473,10 +473,10 @@ impl hil::Controller for GPIOPin {
     }
 }
 
-impl gpio::Pin for GPIOPin {}
-impl gpio::InterruptPin for GPIOPin {}
+impl<'a> gpio::Pin for GPIOPin<'a> {}
+impl<'a> gpio::InterruptPin<'a> for GPIOPin<'a> {}
 
-impl gpio::Configure for GPIOPin {
+impl<'a> gpio::Configure for GPIOPin<'a> {
     fn set_floating_state(&self, mode: gpio::FloatingState) {
         match mode {
             gpio::FloatingState::PullUp => {
@@ -561,13 +561,13 @@ impl gpio::Configure for GPIOPin {
     }
 }
 
-impl gpio::Input for GPIOPin {
+impl<'a> gpio::Input for GPIOPin<'a> {
     fn read(&self) -> bool {
         GPIOPin::read(self)
     }
 }
 
-impl gpio::Output for GPIOPin {
+impl<'a> gpio::Output for GPIOPin<'a> {
     fn toggle(&self) -> bool {
         GPIOPin::toggle(self)
     }
@@ -581,7 +581,7 @@ impl gpio::Output for GPIOPin {
     }
 }
 
-impl gpio::Interrupt for GPIOPin {
+impl<'a> gpio::Interrupt<'a> for GPIOPin<'a> {
     fn enable_interrupts(&self, mode: gpio::InterruptEdge) {
         let mode_bits = match mode {
             hil::gpio::InterruptEdge::EitherEdge => 0b00,
@@ -596,7 +596,7 @@ impl gpio::Interrupt for GPIOPin {
         GPIOPin::disable_interrupt(self);
     }
 
-    fn set_client(&self, client: &'static dyn gpio::Client) {
+    fn set_client(&self, client: &'a dyn gpio::Client) {
         GPIOPin::set_client(self, client);
     }
 

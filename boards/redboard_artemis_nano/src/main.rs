@@ -46,8 +46,8 @@ struct RedboardArtemisNano {
         'static,
         VirtualMuxAlarm<'static, apollo3::stimer::STimer<'static>>,
     >,
-    led: &'static capsules::led::LED<'static, apollo3::gpio::GpioPin>,
-    gpio: &'static capsules::gpio::GPIO<'static, apollo3::gpio::GpioPin>,
+    led: &'static capsules::led::LED<'static, apollo3::gpio::GpioPin<'static>>,
+    gpio: &'static capsules::gpio::GPIO<'static, apollo3::gpio::GpioPin<'static>>,
     console: &'static capsules::console::Console<'static>,
     i2c_master: &'static capsules::i2c_master::I2CMasterDriver<apollo3::iom::Iom<'static>>,
     ble_radio: &'static capsules::ble_advertising_driver::BLE<

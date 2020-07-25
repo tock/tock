@@ -63,12 +63,12 @@ pub trait Pin: Input + Output + Configure {}
 
 /// The InterruptPin trait allows a pin to be used as either
 /// input or output and also to source interrupts.
-pub trait InterruptPin: Pin + Interrupt {}
+pub trait InterruptPin<'a>: Pin + Interrupt<'a> {}
 
 /// The InterruptValuePin trait allows a pin to be used as
 /// either input or output and also to source interrupts which
 /// pass a value.
-pub trait InterruptValuePin: Pin + InterruptWithValue {}
+pub trait InterruptValuePin<'a>: Pin + InterruptWithValue<'a> {}
 /// Control and configure a GPIO pin.
 pub trait Configure {
     /// Return the current pin configuration.
@@ -184,9 +184,9 @@ pub trait Input {
     }
 }
 
-pub trait Interrupt: Input {
+pub trait Interrupt<'a>: Input {
     /// Set the client for interrupt events.
-    fn set_client(&self, client: &'static dyn Client);
+    fn set_client(&self, client: &'a dyn Client);
 
     /// Enable an interrupt on the GPIO pin. This does not
     /// configure the pin except to enable an interrupt: it
@@ -215,9 +215,9 @@ pub trait Client {
 /// interrupts call the same callback function and it needs to
 /// distinguish which one is calling it by giving each one a unique
 /// value.
-pub trait InterruptWithValue: Input {
+pub trait InterruptWithValue<'a>: Input {
     /// Set the client for interrupt events.
-    fn set_client(&self, client: &'static dyn ClientWithValue);
+    fn set_client(&self, client: &'a dyn ClientWithValue);
 
     /// Enable an interrupt on the GPIO pin. This does not
     /// configure the pin except to enable an interrupt: it
@@ -254,13 +254,13 @@ pub trait ClientWithValue {
 /// Standard implementation of InterruptWithValue: handles an
 /// `gpio::Client::fired` and passes it up as a
 /// `gpio::ClientWithValue::fired`.
-pub struct InterruptValueWrapper<'a, IP: InterruptPin> {
+pub struct InterruptValueWrapper<'a, IP: InterruptPin<'a>> {
     value: Cell<u32>,
-    client: OptionalCell<&'static dyn ClientWithValue>,
+    client: OptionalCell<&'a dyn ClientWithValue>,
     source: &'a IP,
 }
 
-impl<'a, IP: InterruptPin> InterruptValueWrapper<'a, IP> {
+impl<'a, IP: InterruptPin<'a>> InterruptValueWrapper<'a, IP> {
     pub fn new(pin: &'a IP) -> Self {
         Self {
             value: Cell::new(0),
@@ -275,7 +275,7 @@ impl<'a, IP: InterruptPin> InterruptValueWrapper<'a, IP> {
     }
 }
 
-impl<IP: InterruptPin> InterruptWithValue for InterruptValueWrapper<'_, IP> {
+impl<'a, IP: InterruptPin<'a>> InterruptWithValue<'a> for InterruptValueWrapper<'a, IP> {
     fn set_value(&self, value: u32) {
         self.value.set(value);
     }
@@ -284,7 +284,7 @@ impl<IP: InterruptPin> InterruptWithValue for InterruptValueWrapper<'_, IP> {
         self.value.get()
     }
 
-    fn set_client(&self, client: &'static dyn ClientWithValue) {
+    fn set_client(&self, client: &'a dyn ClientWithValue) {
         self.client.replace(client);
     }
 
@@ -302,13 +302,13 @@ impl<IP: InterruptPin> InterruptWithValue for InterruptValueWrapper<'_, IP> {
     }
 }
 
-impl<IP: InterruptPin> Input for InterruptValueWrapper<'_, IP> {
+impl<'a, IP: InterruptPin<'a>> Input for InterruptValueWrapper<'a, IP> {
     fn read(&self) -> bool {
         self.source.read()
     }
 }
 
-impl<IP: InterruptPin> Configure for InterruptValueWrapper<'_, IP> {
+impl<'a, IP: InterruptPin<'a>> Configure for InterruptValueWrapper<'a, IP> {
     fn configuration(&self) -> Configuration {
         self.source.configuration()
     }
@@ -350,7 +350,7 @@ impl<IP: InterruptPin> Configure for InterruptValueWrapper<'_, IP> {
     }
 }
 
-impl<IP: InterruptPin> Output for InterruptValueWrapper<'_, IP> {
+impl<'a, IP: InterruptPin<'a>> Output for InterruptValueWrapper<'a, IP> {
     fn set(&self) {
         self.source.set();
     }
@@ -364,10 +364,10 @@ impl<IP: InterruptPin> Output for InterruptValueWrapper<'_, IP> {
     }
 }
 
-impl<IP: InterruptPin> InterruptValuePin for InterruptValueWrapper<'_, IP> {}
-impl<IP: InterruptPin> Pin for InterruptValueWrapper<'_, IP> {}
+impl<'a, IP: InterruptPin<'a>> InterruptValuePin<'a> for InterruptValueWrapper<'a, IP> {}
+impl<'a, IP: InterruptPin<'a>> Pin for InterruptValueWrapper<'a, IP> {}
 
-impl<IP: InterruptPin> Client for InterruptValueWrapper<'_, IP> {
+impl<'a, IP: InterruptPin<'a>> Client for InterruptValueWrapper<'a, IP> {
     fn fired(&self) {
         self.client.map(|c| c.fired(self.value()));
     }

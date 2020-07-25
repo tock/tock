@@ -5,6 +5,7 @@ use core::ptr::NonNull;
 use core::slice;
 
 use crate::callback::AppId;
+use crate::capabilities;
 
 /// Type for specifying an AppSlice is hidden from the kernel.
 #[derive(Debug)]
@@ -52,9 +53,25 @@ pub struct AppSlice<L, T> {
 }
 
 impl<L, T> AppSlice<L, T> {
-    /// Safety: Trusts that `ptr` + `len` is a buffer in `appid` and that no
-    /// other references to that memory range exist.
+    /// Safety: Trusts that `ptr` + `len` is a buffer in the memory region owned
+    /// by `appid` and that no other references to that memory range exist.
     pub(crate) unsafe fn new(ptr: NonNull<T>, len: usize, appid: AppId) -> AppSlice<L, T> {
+        AppSlice {
+            ptr: AppPtr::new(ptr, appid),
+            len: len,
+        }
+    }
+    /// Safety: Trusts that `ptr` + `len` is a buffer in the memory region owned
+    /// by `appid` and that no other references to that memory range exist.
+    ///
+    /// This constructor is public but protected with a capability to enable
+    /// external implementations of `ProcessType` to create `AppSlice`s.
+    pub unsafe fn new_external(
+        ptr: NonNull<T>,
+        len: usize,
+        appid: AppId,
+        _capability: &dyn capabilities::ExternalProcessCapability,
+    ) -> AppSlice<L, T> {
         AppSlice {
             ptr: AppPtr::new(ptr, appid),
             len: len,

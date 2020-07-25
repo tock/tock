@@ -25,8 +25,8 @@ pub struct RF233Component {
     spi: &'static VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw>,
     reset: &'static dyn hil::gpio::Pin,
     sleep: &'static dyn hil::gpio::Pin,
-    irq: &'static dyn hil::gpio::InterruptPin,
-    ctl: &'static sam4l::gpio::GPIOPin,
+    irq: &'static dyn hil::gpio::InterruptPin<'static>,
+    ctl: &'static sam4l::gpio::GPIOPin<'static>,
     channel: u8,
 }
 
@@ -35,8 +35,8 @@ impl RF233Component {
         spi: &'static VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw>,
         reset: &'static dyn hil::gpio::Pin,
         sleep: &'static dyn hil::gpio::Pin,
-        irq: &'static dyn hil::gpio::InterruptPin,
-        ctl: &'static sam4l::gpio::GPIOPin,
+        irq: &'static dyn hil::gpio::InterruptPin<'static>,
+        ctl: &'static sam4l::gpio::GPIOPin<'static>,
         channel: u8,
     ) -> RF233Component {
         RF233Component {

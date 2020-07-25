@@ -70,19 +70,19 @@ register_bitfields![u32,
     ]
 ];
 
-pub struct GpioPin {
+pub struct GpioPin<'a> {
     gpio_registers: StaticRef<GpioRegisters>,
     padctrl_registers: StaticRef<padctrl::PadCtrlRegisters>,
     pin: Field<u32, pins::Register>,
-    client: OptionalCell<&'static dyn gpio::Client>,
+    client: OptionalCell<&'a dyn gpio::Client>,
 }
 
-impl GpioPin {
+impl<'a> GpioPin<'a> {
     pub const fn new(
         gpio_base: StaticRef<GpioRegisters>,
         padctrl_base: StaticRef<padctrl::PadCtrlRegisters>,
         pin: Field<u32, pins::Register>,
-    ) -> GpioPin {
+    ) -> GpioPin<'a> {
         GpioPin {
             gpio_registers: gpio_base,
             padctrl_registers: padctrl_base,
@@ -122,7 +122,7 @@ impl GpioPin {
     }
 }
 
-impl gpio::Configure for GpioPin {
+impl gpio::Configure for GpioPin<'_> {
     fn configuration(&self) -> gpio::Configuration {
         match self.gpio_registers.direct_oe.is_set(self.pin) {
             true => gpio::Configuration::InputOutput,
@@ -213,13 +213,13 @@ impl gpio::Configure for GpioPin {
     }
 }
 
-impl gpio::Input for GpioPin {
+impl gpio::Input for GpioPin<'_> {
     fn read(&self) -> bool {
         self.gpio_registers.data_in.is_set(self.pin)
     }
 }
 
-impl gpio::Output for GpioPin {
+impl gpio::Output for GpioPin<'_> {
     fn toggle(&self) -> bool {
         let pin = self.pin;
         let new_state = !self.gpio_registers.direct_out.is_set(pin);
@@ -252,8 +252,8 @@ impl gpio::Output for GpioPin {
     }
 }
 
-impl gpio::Interrupt for GpioPin {
-    fn set_client(&self, client: &'static dyn gpio::Client) {
+impl<'a> gpio::Interrupt<'a> for GpioPin<'a> {
+    fn set_client(&self, client: &'a dyn gpio::Client) {
         self.client.set(client);
     }
 
@@ -291,5 +291,5 @@ impl gpio::Interrupt for GpioPin {
     }
 }
 
-impl gpio::Pin for GpioPin {}
-impl gpio::InterruptPin for GpioPin {}
+impl<'a> gpio::Pin for GpioPin<'a> {}
+impl<'a> gpio::InterruptPin<'a> for GpioPin<'a> {}
