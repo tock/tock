@@ -35,7 +35,7 @@ impl<C: Chip> Scheduler<C> for PrioritySched {
     fn next(&self, kernel: &Kernel) -> SchedulingDecision {
         if kernel.processes_blocked() {
             // No processes ready
-            SchedulingDecision::Sleep
+            SchedulingDecision::TrySleep
         } else {
             // Iterates in-order through the process array, always running
             // the first process it finds that is ready to run. This means

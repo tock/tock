@@ -135,7 +135,7 @@ impl<'a, A: 'static + time::Alarm<'static>, C: Chip> Scheduler<C> for MLFQSched<
     fn next(&self, kernel: &Kernel) -> SchedulingDecision {
         if kernel.processes_blocked() {
             // No processes ready
-            SchedulingDecision::Sleep
+            SchedulingDecision::TrySleep
         } else {
             let now = self.alarm.now();
             if now >= self.next_reset.get() {

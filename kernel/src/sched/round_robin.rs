@@ -61,7 +61,7 @@ impl<'a, C: Chip> Scheduler<C> for RoundRobinSched<'a> {
     fn next(&self, kernel: &Kernel) -> SchedulingDecision {
         if kernel.processes_blocked() {
             // No processes ready
-            SchedulingDecision::Sleep
+            SchedulingDecision::TrySleep
         } else {
             let next = self.processes.head().unwrap().appid;
             let timeslice = if self.last_rescheduled.get() {

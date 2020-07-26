@@ -111,7 +111,7 @@ pub enum SchedulingDecision {
     /// Tell the kernel to go to sleep. Notably, if the scheduler asks the kernel
     /// to sleep when kernel tasks are ready, the kernel will not sleep, and will
     /// instead restart the main loop and call `next()` again.
-    Sleep,
+    TrySleep,
 }
 
 /// Main object for the kernel. Each board will need to create one.
@@ -482,7 +482,7 @@ impl Kernel {
                                     scheduler.result(reason, time_executed);
                                 });
                             }
-                            SchedulingDecision::Sleep => {
+                            SchedulingDecision::TrySleep => {
                                 chip.atomic(|| {
                                     // Cannot sleep if interrupts are pending, as on most platforms
                                     // unhandled interrupts will wake the device. Also, if the only pending
