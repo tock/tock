@@ -1,8 +1,7 @@
 //! Tock's central kernel logic and scheduler trait.
 //!
-//! Also defines several
-//! utility functions to reduce repeated code between different scheduler
-//! implementations.
+//! Also defines several utility functions to reduce repeated 
+//! code between different scheduler implementations.
 
 pub(crate) mod cooperative;
 pub(crate) mod mlfq;
@@ -467,7 +466,7 @@ impl Kernel {
                         scheduler.execute_kernel_work(chip);
                     }
                     false => {
-                        // No kernel work ready, so ask scheduler for a process
+                        // No kernel work ready, so ask scheduler for a process.
                         match scheduler.next(self) {
                             SchedulingDecision::RunProcess((appid, timeslice_us)) => {
                                 self.process_map_or((), appid, |process| {
