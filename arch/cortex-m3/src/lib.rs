@@ -49,7 +49,7 @@ pub unsafe extern "C" fn systick_handler() {
 
     movw LR, #0xFFF9
     movt LR, #0xFFFF"
-    : : : : "volatile" );
+    : : : "r0" : "volatile" );
 }
 
 // Mock implementation for tests on Travis-CI.
@@ -170,7 +170,7 @@ pub unsafe extern "C" fn svc_handler() {
     movw LR, #0xFFF9
     movt LR, #0xFFFF
     bx lr"
-    : : : : "volatile" );
+    : : : "r0", "r1", "cc" : "volatile" );
 }
 
 // Mock implementation for tests on Travis-CI.
@@ -378,7 +378,7 @@ pub unsafe extern "C" fn hard_fault_handler() {
     mrsne  r0, psp   /* r0 = userland stack pointer */"
     : "={r0}"(faulting_stack), "={r1}"(kernel_stack)
     :
-    : "r0", "r1"
+    : "cc"
     : "volatile" );
 
     if kernel_stack {
@@ -399,7 +399,7 @@ pub unsafe extern "C" fn hard_fault_handler() {
         moveq r3, #0           /* BFSR & 0b00110000 == 0; r3 = 0 */"
         : "={r3}"(stack_overflow)
         :
-        : "r3"
+        : "r2", "cc"
         : "volatile" );
 
         if stack_overflow {
@@ -457,7 +457,7 @@ pub unsafe extern "C" fn hard_fault_handler() {
 
         movw LR, #0xFFF9
         movt LR, #0xFFFF"
-        : : : : "volatile" );
+        : : : "r1", "r0", "r2" : "volatile" );
     }
 }
 
