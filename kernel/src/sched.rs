@@ -1,6 +1,6 @@
 //! Tock's central kernel logic and scheduler trait.
 //!
-//! Also defines several utility functions to reduce repeated 
+//! Also defines several utility functions to reduce repeated
 //! code between different scheduler implementations.
 
 pub(crate) mod cooperative;
