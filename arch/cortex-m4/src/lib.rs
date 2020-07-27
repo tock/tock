@@ -228,7 +228,7 @@ pub unsafe extern "C" fn svc_handler() {
     movw LR, #0xFFF9
     movt LR, #0xFFFF
     bx lr"
-    : : : "r0", "r1", "cc" : "volatile" );
+    : : : "r0", "r1", "cc", "memory" : "volatile" );
 }
 
 // Mock implementation for tests on Travis-CI.
@@ -488,7 +488,8 @@ pub unsafe extern "C" fn hard_fault_handler() {
             mov sp, r0   /* Set the stack pointer to _estack */"
             :
             : "{r0}"((_estack as *const ()) as u32)
-            : : "volatile" );
+            :
+            : "volatile" );
 
             // Panic to show the correct error.
             panic!("kernel stack overflow");
@@ -528,7 +529,7 @@ pub unsafe extern "C" fn hard_fault_handler() {
 
         movw LR, #0xFFF9
         movt LR, #0xFFFF"
-        : : : "r1", "r0", "r2" : "volatile" );
+        : : : "r1", "r0", "r2", "memory" : "volatile" );
     }
 }
 
