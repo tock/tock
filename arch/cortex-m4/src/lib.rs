@@ -488,7 +488,7 @@ pub unsafe extern "C" fn hard_fault_handler() {
             mov sp, r0   /* Set the stack pointer to _estack */"
             :
             : "{r0}"((_estack as *const ()) as u32)
-            : "volatile" );
+            : : "volatile" );
 
             // Panic to show the correct error.
             panic!("kernel stack overflow");
