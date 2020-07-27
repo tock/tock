@@ -61,6 +61,7 @@ pub mod segger_rtt;
 pub mod si7021;
 pub mod spi;
 pub mod st7735;
+pub mod st77xx8080;
 pub mod temperature;
 pub mod touch;
 pub mod tsl2561;

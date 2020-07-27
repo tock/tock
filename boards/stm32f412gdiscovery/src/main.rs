@@ -7,14 +7,16 @@
 // https://github.com/rust-lang/rust/issues/62184.
 #![cfg_attr(not(doc), no_main)]
 #![deny(missing_docs)]
-
+#![feature(llvm_asm)]
 use capsules::virtual_alarm::VirtualMuxAlarm;
 use components::gpio::GpioComponent;
 use kernel::capabilities;
 use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::component::Component;
+use kernel::hil::gpio;
 use kernel::Platform;
 use kernel::{create_capability, debug, static_init};
+use stm32f412g::fsmc::FSMC;
 
 /// Support routines for debugging I/O.
 pub mod io;
@@ -51,6 +53,7 @@ struct STM32F412GDiscovery {
     adc: &'static capsules::adc::Adc<'static, stm32f412g::adc::Adc>,
     ft6x06: &'static capsules::ft6x06::Ft6x06<'static>,
     touch: &'static capsules::touch::Touch<'static>,
+    screen: &'static capsules::screen::Screen<'static>,
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
@@ -69,6 +72,7 @@ impl Platform for STM32F412GDiscovery {
             capsules::adc::DRIVER_NUM => f(Some(self.adc)),
             capsules::ft6x06::DRIVER_NUM => f(Some(self.ft6x06)),
             capsules::touch::DRIVER_NUM => f(Some(self.touch)),
+            capsules::screen::DRIVER_NUM => f(Some(self.screen)),
             _ => f(None),
         }
     }
@@ -269,6 +273,52 @@ unsafe fn set_pin_primary_functions() {
 
     // EXTI9_5 interrupts is delivered at IRQn 23 (EXTI9_5)
     cortexm4::nvic::Nvic::new(stm32f412g::nvic::EXTI9_5).enable();
+
+    // LCD
+
+    let pins = [
+        PinId::PD00,
+        PinId::PD01,
+        PinId::PD04,
+        PinId::PD05,
+        PinId::PD08,
+        PinId::PD09,
+        PinId::PD10,
+        PinId::PD14,
+        PinId::PD15,
+        PinId::PD07,
+        PinId::PE07,
+        PinId::PE08,
+        PinId::PE09,
+        PinId::PE10,
+        PinId::PE11,
+        PinId::PE12,
+        PinId::PE13,
+        PinId::PE14,
+        PinId::PE15,
+        PinId::PF00,
+    ];
+
+    for pin in pins.iter() {
+        pin.get_pin().as_ref().map(|pin| {
+            pin.set_mode(stm32f412g::gpio::Mode::AlternateFunctionMode);
+            pin.set_floating_state(gpio::FloatingState::PullUp);
+            pin.set_speed();
+            pin.set_alternate_function(stm32f412g::gpio::AlternateFunction::AF12);
+        });
+    }
+
+    use kernel::hil::gpio::Output;
+
+    PinId::PF05.get_pin().as_ref().map(|pin| {
+        pin.make_output();
+        pin.set_floating_state(gpio::FloatingState::PullNone);
+        pin.set();
+    });
+
+    PinId::PG04.get_pin().as_ref().map(|pin| {
+        pin.make_input();
+    });
 }
 
 /// Helper function for miscellaneous peripheral functions
@@ -282,6 +332,9 @@ unsafe fn setup_peripherals() {
     TIM2.enable_clock();
     TIM2.start();
     cortexm4::nvic::Nvic::new(stm32f412g::nvic::TIM2).enable();
+
+    // FSMC
+    FSMC.enable();
 }
 
 /// Reset Handler.
@@ -520,6 +573,30 @@ pub unsafe fn reset_handler() {
     );
     stm32f412g::adc::ADC1.set_client(adc);
 
+    let tft = components::st77xx8080::ST77XX8080Component::new(mux_alarm).finalize(
+        components::st77xx8080_component_helper!(
+            // screen
+            &capsules::st77xx8080::ST7789H2,
+            // bus 8080 type
+            stm32f412g::fsmc::Fsmc,
+            // bus 8080
+            &stm32f412g::fsmc::FSMC,
+            // timer type
+            stm32f412g::tim2::Tim2,
+            // pin type
+            stm32f412g::gpio::Pin,
+            // dc pin (optional)
+            None,
+            // reset pin
+            stm32f412g::gpio::PinId::PD11.get_pin().as_ref().unwrap()
+        ),
+    );
+
+    tft.init();
+
+    let screen = components::screen::ScreenComponent::new(board_kernel, tft, Some(tft))
+        .finalize(components::screen_buffer_size!(40960));
+
     let stm32f412g = STM32F412GDiscovery {
         console: console,
         ipc: kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability),
@@ -530,12 +607,15 @@ pub unsafe fn reset_handler() {
         adc: adc,
         ft6x06: ft6x06,
         touch: touch,
+        screen: screen,
     };
 
     // // Optional kernel tests
     // //
     // // See comment in `boards/imix/src/main.rs`
     // virtual_uart_rx_test::run_virtual_uart_receive(mux_uart);
+    // FSMC.write(0x04, 120);
+    // debug!("id {}", FSMC.read(0x05));
 
     debug!("Initialization complete. Entering main loop");
 

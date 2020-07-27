@@ -5,6 +5,7 @@
 #![crate_name = "stm32f4xx"]
 #![crate_type = "rlib"]
 #![feature(const_fn)]
+#![feature(llvm_asm)]
 #![no_std]
 
 pub mod chip;
@@ -13,8 +14,10 @@ pub mod nvic;
 // Peripherals
 pub mod adc;
 pub mod dbg;
+pub mod deferred_calls;
 pub mod dma1;
 pub mod exti;
+pub mod fsmc;
 pub mod gpio;
 pub mod i2c;
 pub mod rcc;
