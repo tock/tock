@@ -6,6 +6,7 @@
 // Disable this attribute when documenting, as a workaround for
 // https://github.com/rust-lang/rust/issues/62184.
 #![cfg_attr(not(doc), no_main)]
+#![feature(const_in_array_repeat_expressions)]
 #![deny(missing_docs)]
 
 use kernel::capabilities;
@@ -227,5 +228,13 @@ pub unsafe fn reset_handler() {
     )
     .unwrap();
 
-    board_kernel.kernel_loop(&msp_exp432p4014, chip, None, &main_loop_capability);
+    let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
+        .finalize(components::rr_component_helper!(NUM_PROCS));
+    board_kernel.kernel_loop(
+        &msp_exp432p4014,
+        chip,
+        None,
+        scheduler,
+        &main_loop_capability,
+    );
 }
