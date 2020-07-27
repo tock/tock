@@ -524,7 +524,31 @@ pub unsafe fn reset_handler() {
     )
     .finalize(components::gpio_component_buf!(stm32f412g::gpio::Pin));
 
-    // FT6206
+    let tft = components::st77xx8080::ST77XX8080Component::new(mux_alarm).finalize(
+        components::st77xx8080_component_helper!(
+            // screen
+            &capsules::st77xx8080::ST7789H2,
+            // bus 8080 type
+            stm32f412g::fsmc::Fsmc,
+            // bus 8080
+            &stm32f412g::fsmc::FSMC,
+            // timer type
+            stm32f412g::tim2::Tim2,
+            // pin type
+            stm32f412g::gpio::Pin,
+            // dc pin (optional)
+            None,
+            // reset pin
+            stm32f412g::gpio::PinId::PD11.get_pin().as_ref().unwrap()
+        ),
+    );
+
+    tft.init();
+
+    let screen = components::screen::ScreenComponent::new(board_kernel, tft, Some(tft))
+        .finalize(components::screen_buffer_size!(40960));
+
+    // FT6x06
 
     let mux_i2c = components::i2c::I2CMuxComponent::new(
         &stm32f412g::i2c::I2C1,
@@ -538,12 +562,13 @@ pub unsafe fn reset_handler() {
     )
     .finalize(components::ft6x06_i2c_component_helper!(mux_i2c));
 
-    let touch = components::touch::TouchComponent::new(board_kernel, ft6x06, Some(ft6x06), None)
-        .finalize(());
+    let touch =
+        components::touch::TouchComponent::new(board_kernel, ft6x06, Some(ft6x06), Some(tft))
+            .finalize(());
 
     // Uncomment this for multi touch support
     // let touch =
-    //     components::touch::MultiTouchComponent::new(board_kernel, ft6x06, Some(ft6x06), None)
+    //     components::touch::MultiTouchComponent::new(board_kernel, ft6x06, Some(ft6x06), Some(tft))
     //         .finalize(());
 
     // ADC
@@ -572,30 +597,6 @@ pub unsafe fn reset_handler() {
         )
     );
     stm32f412g::adc::ADC1.set_client(adc);
-
-    let tft = components::st77xx8080::ST77XX8080Component::new(mux_alarm).finalize(
-        components::st77xx8080_component_helper!(
-            // screen
-            &capsules::st77xx8080::ST7789H2,
-            // bus 8080 type
-            stm32f412g::fsmc::Fsmc,
-            // bus 8080
-            &stm32f412g::fsmc::FSMC,
-            // timer type
-            stm32f412g::tim2::Tim2,
-            // pin type
-            stm32f412g::gpio::Pin,
-            // dc pin (optional)
-            None,
-            // reset pin
-            stm32f412g::gpio::PinId::PD11.get_pin().as_ref().unwrap()
-        ),
-    );
-
-    tft.init();
-
-    let screen = components::screen::ScreenComponent::new(board_kernel, tft, Some(tft))
-        .finalize(components::screen_buffer_size!(40960));
 
     let stm32f412g = STM32F412GDiscovery {
         console: console,
