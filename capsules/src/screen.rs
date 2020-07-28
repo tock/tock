@@ -39,6 +39,7 @@ fn screen_pixel_format_from(screen_pixel_format: usize) -> Option<ScreenPixelFor
         2 => Some(ScreenPixelFormat::RGB_565),
         3 => Some(ScreenPixelFormat::RGB_888),
         4 => Some(ScreenPixelFormat::ARGB_8888),
+        5 => Some(ScreenPixelFormat::TEXT),
         _ => None,
     }
 }
@@ -62,6 +63,7 @@ enum ScreenCommand {
     SetWriteFrame,
     Write,
     Fill,
+    SpecificDriverCommand,
 }
 
 fn pixels_in_bytes(pixels: usize, bits_per_pixel: usize) -> usize {
@@ -86,6 +88,7 @@ pub struct App {
     height: usize,
     data1: usize,
     data2: usize,
+    command_num: usize,
 }
 
 impl Default for App {
@@ -103,6 +106,7 @@ impl Default for App {
             height: 0,
             write_len: 0,
             write_position: 0,
+            command_num: 0,
         }
     }
 }
@@ -141,6 +145,7 @@ impl<'a> Screen<'a> {
     fn enqueue_command(
         &self,
         command: ScreenCommand,
+        command_number: usize,
         data1: usize,
         data2: usize,
         appid: AppId,
@@ -150,7 +155,7 @@ impl<'a> Screen<'a> {
                 if self.screen_ready.get() && self.current_app.is_none() {
                     self.current_app.set(appid);
                     app.command = command;
-                    let r = self.call_screen(command, data1, data2, appid);
+                    let r = self.call_screen(command, command_number, data1, data2, appid);
                     if r != ReturnCode::SUCCESS {
                         self.current_app.clear();
                     }
@@ -164,6 +169,7 @@ impl<'a> Screen<'a> {
                         app.write_position = 0;
                         app.data1 = data1;
                         app.data2 = data2;
+                        app.command_num = command_number;
                         ReturnCode::SUCCESS
                     }
                 }
@@ -174,6 +180,7 @@ impl<'a> Screen<'a> {
     fn call_screen(
         &self,
         command: ScreenCommand,
+        command_num: usize,
         data1: usize,
         data2: usize,
         appid: AppId,
@@ -305,7 +312,11 @@ impl<'a> Screen<'a> {
                 .apps
                 .enter(appid, |app, _| {
                     let len = if let Some(ref shared) = app.shared {
-                        shared.len()
+                        if shared.len() < data1 {
+                            shared.len()
+                        } else {
+                            data1
+                        }
                     } else {
                         0
                     };
@@ -339,6 +350,13 @@ impl<'a> Screen<'a> {
                         .set_write_frame(app.x, app.y, app.width, app.height)
                 })
                 .unwrap_or_else(|err| err.into()),
+            ScreenCommand::SpecificDriverCommand => {
+                if let Some(screen) = self.screen_setup {
+                    screen.screen_command(command_num - 1000, data1, data2)
+                } else {
+                    ReturnCode::EINVAL
+                }
+            }
             _ => ReturnCode::ENOSUPPORT,
         }
     }
@@ -363,7 +381,13 @@ impl<'a> Screen<'a> {
                 if app.pending_command {
                     app.pending_command = false;
                     self.current_app.set(app.appid());
-                    let r = self.call_screen(app.command, app.data1, app.data2, app.appid());
+                    let r = self.call_screen(
+                        app.command,
+                        app.command_num,
+                        app.data1,
+                        app.data2,
+                        app.appid(),
+                    );
                     if r != ReturnCode::SUCCESS {
                         self.current_app.clear();
                     }
@@ -517,44 +541,88 @@ impl<'a> Driver for Screen<'a> {
                 value: self.screen_setup.is_some() as usize,
             },
             // Set Brightness
-            3 => self.enqueue_command(ScreenCommand::SetBrightness, data1, 0, appid),
+            3 => self.enqueue_command(ScreenCommand::SetBrightness, command_num, data1, 0, appid),
             // Invert On
-            4 => self.enqueue_command(ScreenCommand::InvertOn, 0, 0, appid),
+            4 => self.enqueue_command(ScreenCommand::InvertOn, command_num, 0, 0, appid),
             // Invert Off
-            5 => self.enqueue_command(ScreenCommand::InvertOff, 0, 0, appid),
+            5 => self.enqueue_command(ScreenCommand::InvertOff, command_num, 0, 0, appid),
 
             // Get Resolution Modes Number
-            11 => self.enqueue_command(ScreenCommand::GetSupportedResolutionModes, 0, 0, appid),
+            11 => self.enqueue_command(
+                ScreenCommand::GetSupportedResolutionModes,
+                command_num,
+                0,
+                0,
+                appid,
+            ),
             // Get Resolution Mode Width and Height
-            12 => self.enqueue_command(ScreenCommand::GetSupportedResolution, data1, 0, appid),
+            12 => self.enqueue_command(
+                ScreenCommand::GetSupportedResolution,
+                command_num,
+                data1,
+                0,
+                appid,
+            ),
 
             // Get Color Depth Modes Number
-            13 => self.enqueue_command(ScreenCommand::GetSupportedPixelFormats, 0, 0, appid),
+            13 => self.enqueue_command(
+                ScreenCommand::GetSupportedPixelFormats,
+                command_num,
+                0,
+                0,
+                appid,
+            ),
             // Get Color Depth Mode Bits per Pixel
-            14 => self.enqueue_command(ScreenCommand::GetSupportedPixelFormat, data1, 0, appid),
+            14 => self.enqueue_command(
+                ScreenCommand::GetSupportedPixelFormat,
+                command_num,
+                data1,
+                0,
+                appid,
+            ),
 
             // Get Rotation
-            21 => self.enqueue_command(ScreenCommand::GetRotation, 0, 0, appid),
+            21 => self.enqueue_command(ScreenCommand::GetRotation, command_num, 0, 0, appid),
             // Set Rotation
-            22 => self.enqueue_command(ScreenCommand::SetRotation, data1, 0, appid),
+            22 => self.enqueue_command(ScreenCommand::SetRotation, command_num, data1, 0, appid),
 
             // Get Resolution
-            23 => self.enqueue_command(ScreenCommand::GetResolution, 0, 0, appid),
+            23 => self.enqueue_command(ScreenCommand::GetResolution, command_num, 0, 0, appid),
             // Set Resolution
-            24 => self.enqueue_command(ScreenCommand::SetResolution, data1, data2, appid),
+            24 => self.enqueue_command(
+                ScreenCommand::SetResolution,
+                command_num,
+                data1,
+                data2,
+                appid,
+            ),
 
             // Get Color Depth
-            25 => self.enqueue_command(ScreenCommand::GetPixelFormat, 0, 0, appid),
+            25 => self.enqueue_command(ScreenCommand::GetPixelFormat, command_num, 0, 0, appid),
             // Set Color Depth
-            26 => self.enqueue_command(ScreenCommand::SetPixelFormat, data1, 0, appid),
+            26 => self.enqueue_command(ScreenCommand::SetPixelFormat, command_num, data1, 0, appid),
 
             // Set Write Frame
-            100 => self.enqueue_command(ScreenCommand::SetWriteFrame, data1, data2, appid),
+            100 => self.enqueue_command(
+                ScreenCommand::SetWriteFrame,
+                command_num,
+                data1,
+                data2,
+                appid,
+            ),
             // Write
-            200 => self.enqueue_command(ScreenCommand::Write, data1, data2, appid),
+            200 => self.enqueue_command(ScreenCommand::Write, command_num, data1, data2, appid),
             // Fill
-            300 => self.enqueue_command(ScreenCommand::Fill, data1, data2, appid),
+            300 => self.enqueue_command(ScreenCommand::Fill, command_num, data1, data2, appid),
 
+            // Specific Driver Command
+            1000..=2000 => self.enqueue_command(
+                ScreenCommand::SpecificDriverCommand,
+                command_num,
+                data1,
+                data2,
+                appid,
+            ),
             _ => ReturnCode::ENOSUPPORT,
         }
     }

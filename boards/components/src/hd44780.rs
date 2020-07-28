@@ -3,7 +3,7 @@
 //! Usage
 //! -----
 //! ```rust
-//! let lcd = components::hd44780::HD44780Component::new(board_kernel, mux_alarm).finalize(
+//! let lcd = components::hd44780::HD44780Component::new(mux_alarm).finalize(
 //!     components::hd44780_component_helper!(
 //!         stm32f429zi::tim2::Tim2,
 //!         // rs pin
@@ -24,9 +24,7 @@
 use capsules::hd44780::HD44780;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use core::mem::MaybeUninit;
-use kernel::capabilities;
 use kernel::component::Component;
-use kernel::create_capability;
 use kernel::hil::time;
 use kernel::hil::time::Alarm;
 use kernel::static_init_half;
@@ -54,17 +52,12 @@ macro_rules! hd44780_component_helper {
 }
 
 pub struct HD44780Component<A: 'static + time::Alarm<'static>> {
-    board_kernel: &'static kernel::Kernel,
     alarm_mux: &'static MuxAlarm<'static, A>,
 }
 
 impl<A: 'static + time::Alarm<'static>> HD44780Component<A> {
-    pub fn new(
-        board_kernel: &'static kernel::Kernel,
-        alarm_mux: &'static MuxAlarm<'static, A>,
-    ) -> HD44780Component<A> {
+    pub fn new(alarm_mux: &'static MuxAlarm<'static, A>) -> HD44780Component<A> {
         HD44780Component {
-            board_kernel: board_kernel,
             alarm_mux: alarm_mux,
         }
     }
@@ -84,9 +77,6 @@ impl<A: 'static + time::Alarm<'static>> Component for HD44780Component<A> {
     type Output = &'static HD44780<'static, VirtualMuxAlarm<'static, A>>;
 
     unsafe fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
-        let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
-        let grant_lcd = self.board_kernel.create_grant(&grant_cap);
-
         let lcd_alarm = static_init_half!(
             static_buffer.0,
             VirtualMuxAlarm<'static, A>,
@@ -103,10 +93,8 @@ impl<A: 'static + time::Alarm<'static>> Component for HD44780Component<A> {
                 static_buffer.5,
                 static_buffer.6,
                 static_buffer.7,
-                &mut capsules::hd44780::BUFFER,
                 &mut capsules::hd44780::ROW_OFFSETS,
                 lcd_alarm,
-                grant_lcd,
             )
         );
         lcd_alarm.set_client(hd44780);

@@ -919,6 +919,10 @@ impl<'a, A: Alarm<'a>> screen::ScreenSetup for ST7735<'a, A> {
             _ => None,
         }
     }
+
+    fn screen_command(&self, _data1: usize, _data2: usize, _data3: usize) -> ReturnCode {
+        ReturnCode::ENOSUPPORT
+    }
 }
 
 impl<'a, A: Alarm<'a>> screen::Screen for ST7735<'a, A> {

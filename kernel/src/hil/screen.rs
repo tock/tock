@@ -22,6 +22,8 @@ pub enum ScreenPixelFormat {
     RGB_888,
     /// Pixels encoded as 8-bit alpha channel, 8-bit red channel, 8-bit green channel, 8-bit blue channel.
     ARGB_8888,
+    /// Text pixel format
+    TEXT,
     // other pixel formats may be defined.
 }
 
@@ -33,6 +35,7 @@ impl ScreenPixelFormat {
             Self::RGB_565 => 16,
             Self::RGB_888 => 24,
             Self::ARGB_8888 => 32,
+            Self::TEXT => 8,
         }
     }
 }
@@ -96,6 +99,15 @@ pub trait ScreenSetup {
     /// This function is synchronous as the driver should know this value without
     /// requesting it from the screen.
     fn get_supported_pixel_format(&self, index: usize) -> Option<ScreenPixelFormat>;
+
+    /// Send to the screen a driver specific command
+    /// When finished, the driver will call the `command_complete()` callback.
+    ///
+    /// The return values can be:
+    /// - `SUCCESS` - the command was sent with success
+    /// - `EBUSY` - anoher command is in progress
+    /// - `EINVAL` - the parameters of the function were invalid
+    fn screen_command(&self, data1: usize, data2: usize, data3: usize) -> ReturnCode;
 }
 
 pub trait Screen {
