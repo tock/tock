@@ -52,12 +52,11 @@ impl<C: Chip> Scheduler<C> for PrioritySched {
     }
 
     unsafe fn continue_process(&self, _: AppId, chip: &C) -> bool {
-        // In addition to checking for interrupts, also
-        // checks if any higher priority processes have become ready.
-        // This check is necessary because a system call by this process could make
-        // another process ready, if this app is communicating
-        // via IPC with a higher priority app
-        chip.has_pending_interrupts()
+        // In addition to checking for interrupts, also checks if any higher
+        // priority processes have become ready. This check is necessary because
+        // a system call by this process could make another process ready, if
+        // this app is communicating via IPC with a higher priority app.
+        !(chip.has_pending_interrupts()
             || DynamicDeferredCall::global_instance_calls_pending().unwrap_or(false)
             || self
                 .kernel
@@ -66,7 +65,7 @@ impl<C: Chip> Scheduler<C> for PrioritySched {
                 .map_or(false, |ready_idx| {
                     self.running
                         .map_or(false, |running| ready_idx < running.index)
-                })
+                }))
     }
 
     fn result(&self, _: StoppedExecutingReason, _: Option<u32>) {
