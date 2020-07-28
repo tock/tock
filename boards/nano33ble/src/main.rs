@@ -4,6 +4,7 @@
 
 #![no_std]
 #![no_main]
+#![feature(const_in_array_repeat_expressions)]
 #![deny(missing_docs)]
 
 use kernel::capabilities;
@@ -309,5 +310,13 @@ pub unsafe fn reset_handler() {
         debug!("{:?}", err);
     });
 
-    board_kernel.kernel_loop(&platform, chip, Some(&platform.ipc), &main_loop_capability);
+    let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
+        .finalize(components::rr_component_helper!(NUM_PROCS));
+    board_kernel.kernel_loop(
+        &platform,
+        chip,
+        Some(&platform.ipc),
+        scheduler,
+        &main_loop_capability,
+    );
 }

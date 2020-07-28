@@ -1,4 +1,5 @@
 #![no_std]
+#![feature(const_in_array_repeat_expressions)]
 
 pub mod alarm;
 pub mod analog_comparator;
@@ -27,6 +28,7 @@ pub mod nrf51822;
 pub mod panic_button;
 pub mod process_console;
 pub mod rng;
+pub mod sched;
 pub mod screen;
 pub mod segger_rtt;
 pub mod si7021;

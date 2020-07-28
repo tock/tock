@@ -262,6 +262,9 @@ pub trait ProcessType {
     /// execute any new tasks.
     fn enqueue_task(&self, task: Task) -> bool;
 
+    /// Returns whether this process is ready to execute.
+    fn ready(&self) -> bool;
+
     /// Remove the scheduled operation from the front of the queue and return it
     /// to be handled by the scheduler.
     ///
@@ -869,6 +872,11 @@ impl<C: Chip> ProcessType for Process<'_, C> {
         }
 
         ret
+    }
+
+    fn ready(&self) -> bool {
+        self.tasks.map_or(false, |ring_buf| ring_buf.has_elements())
+            || self.state.get() == State::Running
     }
 
     fn remove_pending_callbacks(&self, callback_id: CallbackId) {

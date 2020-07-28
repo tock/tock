@@ -6,6 +6,7 @@
 // Disable this attribute when documenting, as a workaround for
 // https://github.com/rust-lang/rust/issues/62184.
 #![cfg_attr(not(doc), no_main)]
+#![feature(const_in_array_repeat_expressions)]
 
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules::virtual_hmac::VirtualMuxHmac;
@@ -313,5 +314,6 @@ pub unsafe fn reset_handler() {
         debug!("{:?}", err);
     });
 
-    board_kernel.kernel_loop(&opentitan, chip, None, &main_loop_cap);
+    let scheduler = components::sched::priority::PriorityComponent::new(board_kernel).finalize(());
+    board_kernel.kernel_loop(&opentitan, chip, None, scheduler, &main_loop_cap);
 }
