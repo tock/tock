@@ -37,6 +37,8 @@ pub trait ProximityDriver<'a> {
     fn set_client(&self , client: &'a dyn ProximityClient);
     fn set_proximity_gain(&self , gain : u8) -> ReturnCode;
     fn read_proximity(&self) -> ReturnCode;
+    fn read_proximity_on_interrupt(&self) -> ReturnCode;
+    fn set_proximity_interrupt_thresholds(&self , low : u8 , high : u8) -> ReturnCode;
 
 }
 

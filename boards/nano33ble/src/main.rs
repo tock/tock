@@ -320,7 +320,7 @@ pub unsafe fn reset_handler() {
 
     debug!("Initialization complete. Entering main loop.");
 
-    apds9960.take_measurement();
+    apds9960.take_measurement_on_interrupt();
 
     //--------------------------------------------------------------------------
     // PROCESSES AND MAIN LOOP
