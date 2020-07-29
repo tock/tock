@@ -13,14 +13,6 @@
 //!   These are the raw bytes to send out as the advertisement. Can be
 //!   constructed nicely using rubble::link::ad_structure::AdStructure.
 //!
-//!   TODO: maybe a way to do this nicer? could use C structures to let us do
-//!   rubble computations?
-//! * 1: give buffer to be written to for incoming scanning data
-//!
-//! ### Subscribe system call
-//!
-//! * 0: subscribe to advertisement scanning data
-//!
 //! ### Command system call
 //!
 //! The `command` system call supports two arguments, `command number` and
@@ -41,14 +33,6 @@
 //! - 1: stop advertising
 //!
 //!   Both arguments should be 0.
-//! - 2: start or restart scanning
-//!
-//!   First argument is scanning interval in milliseconds. Second argument should be 0.
-//! - 3: stop scanning
-//!
-//!   Both arguments should be 0.
-//! - TODO: scanning
-//! - TODO: connections??
 mod timer;
 
 use core::{cell::RefCell, convert::TryInto, marker::PhantomData};
@@ -78,18 +62,14 @@ pub const DRIVER_NUM: usize = driver::NUM::RubbleBle as usize;
 // Command Consants
 pub const CMD_START_ADVERTISING: usize = 0;
 pub const CMD_STOP_ADVERTISING: usize = 1;
-pub const CMD_START_SCANNING: usize = 2;
-pub const CMD_STOP_SCANNING: usize = 3;
 
 pub const CMD_ARG_UNUSED: usize = 0;
 
 pub const ALLOW_OUTGOING_AD_BUFFER: usize = 0;
-pub const ALLOW_INCOMING_SCANNING_DATA: usize = 1;
 
 /// Process specific memory
 pub struct App {
     outgoing_advertisement_data: Option<kernel::AppSlice<kernel::Shared, u8>>,
-    incoming_scanning_data: Option<kernel::AppSlice<kernel::Shared, u8>>,
     advertisement_interval: Duration,
     scan_interval_ms: Duration,
 }
@@ -98,7 +78,6 @@ impl Default for App {
     fn default() -> App {
         App {
             outgoing_advertisement_data: None,
-            incoming_scanning_data: None,
             advertisement_interval: Duration::from_millis(200),
             scan_interval_ms: Duration::from_millis(200),
         }
@@ -325,10 +304,6 @@ where
             }
             _ => ReturnCode::ENOSUPPORT,
         }
-    }
-
-    fn subscribe(&self, minor_num: usize, callback: Option<Callback>, app_id: AppId) -> ReturnCode {
-        ReturnCode::ENOSUPPORT
     }
 
     fn allow(
