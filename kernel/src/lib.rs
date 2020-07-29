@@ -112,7 +112,7 @@ mod tbfheader;
 
 pub use crate::callback::{AppId, Callback};
 pub use crate::driver::Driver;
-pub use crate::grant::Grant;
+pub use crate::grant::{DynamicGrant, Grant};
 pub use crate::mem::{AppSlice, Private, Shared};
 pub use crate::platform::scheduler_timer::{SchedulerTimer, VirtualSchedulerTimer};
 pub use crate::platform::watchdog;

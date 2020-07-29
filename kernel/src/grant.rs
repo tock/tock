@@ -34,6 +34,43 @@ impl<T> AppliedGrant<T> {
     }
 }
 
+/// Grant which was dynamically allocated in a particular app's memory.
+pub struct DynamicGrant<T: ?Sized> {
+    data: NonNull<T>,
+    appid: AppId,
+}
+
+impl<T: ?Sized> DynamicGrant<T> {
+    /// Creates a new `DynamicGrant`.
+    ///
+    /// # Safety
+    ///
+    /// `data` must point to a valid, initialized `T`.
+    unsafe fn new(data: NonNull<T>, appid: AppId) -> Self {
+        DynamicGrant { data, appid }
+    }
+
+    pub fn appid(&self) -> AppId {
+        self.appid
+    }
+
+    /// Gives access to inner data within the given closure.
+    ///
+    /// If the app has since been restarted or crashed, or the memory is otherwise no longer
+    /// present, then this function will not call the given closure, and will
+    /// instead directly return `None`.
+    pub fn enter<F, R>(&mut self, fun: F) -> Option<R>
+    where
+        F: FnOnce(Borrowed<'_, T>) -> R,
+    {
+        self.appid.kernel.process_map_or(None, self.appid, |_| {
+            let data = unsafe { self.data.as_mut() };
+            let borrowed = Borrowed::new(data, self.appid);
+            Some(fun(borrowed))
+        })
+    }
+}
+
 pub struct Allocator {
     appid: AppId,
 }
@@ -81,10 +118,10 @@ impl<T: ?Sized> DerefMut for Owned<T> {
 }
 
 impl Allocator {
-    pub fn alloc<T: Default>(&mut self) -> Result<Owned<T>, Error> {
+    pub fn alloc<T: Default>(&mut self) -> Result<DynamicGrant<T>, Error> {
         unsafe {
             let ptr = self.alloc_unowned()?;
-            Ok(Owned::new(ptr, self.appid))
+            Ok(DynamicGrant::new(ptr, self.appid))
         }
     }
 
