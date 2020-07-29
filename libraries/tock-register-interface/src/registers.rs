@@ -64,6 +64,8 @@ use core::fmt;
 use core::marker::PhantomData;
 use core::ops::{Add, AddAssign, BitAnd, BitOr, BitOrAssign, Not, Shl, Shr};
 
+use const_fn::const_fn;
+
 /// IntLike properties needed to read/write/modify a register.
 pub trait IntLike:
     BitAnd<Output = Self>
@@ -352,6 +354,7 @@ pub struct LocalRegisterCopy<T: IntLike, R: RegisterLongName = ()> {
 }
 
 impl<T: IntLike, R: RegisterLongName> LocalRegisterCopy<T, R> {
+    #[const_fn(feature = "unstable_const_fn")]
     pub const fn new(value: T) -> Self {
         LocalRegisterCopy {
             value: value,
@@ -437,6 +440,7 @@ pub struct InMemoryRegister<T: IntLike, R: RegisterLongName = ()> {
 }
 
 impl<T: IntLike, R: RegisterLongName> InMemoryRegister<T, R> {
+    #[const_fn(feature = "unstable_const_fn")]
     pub const fn new(value: T) -> Self {
         InMemoryRegister {
             value: UnsafeCell::new(value),
@@ -529,6 +533,7 @@ impl<T: IntLike, R: RegisterLongName> Field<T, R> {
 
 // For the Field, the mask is unshifted, ie. the LSB should always be set
 impl<R: RegisterLongName> Field<u8, R> {
+    #[const_fn(feature = "unstable_const_fn")]
     pub const fn new(mask: u8, shift: usize) -> Field<u8, R> {
         Field {
             mask: mask,
@@ -543,6 +548,7 @@ impl<R: RegisterLongName> Field<u8, R> {
 }
 
 impl<R: RegisterLongName> Field<u16, R> {
+    #[const_fn(feature = "unstable_const_fn")]
     pub const fn new(mask: u16, shift: usize) -> Field<u16, R> {
         Field {
             mask: mask,
@@ -557,6 +563,7 @@ impl<R: RegisterLongName> Field<u16, R> {
 }
 
 impl<R: RegisterLongName> Field<u32, R> {
+    #[const_fn(feature = "unstable_const_fn")]
     pub const fn new(mask: u32, shift: usize) -> Field<u32, R> {
         Field {
             mask: mask,
@@ -571,6 +578,7 @@ impl<R: RegisterLongName> Field<u32, R> {
 }
 
 impl<R: RegisterLongName> Field<u64, R> {
+    #[const_fn(feature = "unstable_const_fn")]
     pub const fn new(mask: u64, shift: usize) -> Field<u64, R> {
         Field {
             mask: mask,
@@ -598,6 +606,7 @@ pub struct FieldValue<T: IntLike, R: RegisterLongName> {
 // math isn't treated as const when the type is generic.
 // Tracking issue: https://github.com/rust-lang/rfcs/pull/2632
 impl<R: RegisterLongName> FieldValue<u8, R> {
+    #[const_fn(feature = "unstable_const_fn")]
     pub const fn new(mask: u8, shift: usize, value: u8) -> Self {
         FieldValue {
             mask: mask << shift,
@@ -614,6 +623,7 @@ impl<R: RegisterLongName> From<FieldValue<u8, R>> for u8 {
 }
 
 impl<R: RegisterLongName> FieldValue<u16, R> {
+    #[const_fn(feature = "unstable_const_fn")]
     pub const fn new(mask: u16, shift: usize, value: u16) -> Self {
         FieldValue {
             mask: mask << shift,
@@ -630,6 +640,7 @@ impl<R: RegisterLongName> From<FieldValue<u16, R>> for u16 {
 }
 
 impl<R: RegisterLongName> FieldValue<u32, R> {
+    #[const_fn(feature = "unstable_const_fn")]
     pub const fn new(mask: u32, shift: usize, value: u32) -> Self {
         FieldValue {
             mask: mask << shift,
@@ -646,6 +657,7 @@ impl<R: RegisterLongName> From<FieldValue<u32, R>> for u32 {
 }
 
 impl<R: RegisterLongName> FieldValue<u64, R> {
+    #[const_fn(feature = "unstable_const_fn")]
     pub const fn new(mask: u64, shift: usize, value: u64) -> Self {
         FieldValue {
             mask: mask << shift,

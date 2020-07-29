@@ -14,5 +14,6 @@ edition = "2018"
 [badges]
 travis-ci = { repository = "tock/tock", branch = "master" }
 
-[dependencies]
-tock-registers = { path = "../tock-register-interface" }
+[dependencies.tock-registers]
+path = "../tock-register-interface"
+features = ["unstable_const_fn"]

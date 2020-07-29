@@ -2,7 +2,7 @@
 //!
 //!
 
-#![feature(const_fn)]
+#![cfg_attr(feature = "unstable_const_fn", feature(const_fn))]
 #![no_std]
 
 pub mod macros;

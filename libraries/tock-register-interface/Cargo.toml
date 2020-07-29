@@ -14,5 +14,9 @@ edition = "2018"
 [badges]
 travis-ci = { repository = "tock/tock", branch = "master" }
 
+[dependencies]
+const_fn = "^0.3"
+
 [features]
 no_std_unit_tests = []
+unstable_const_fn = []
