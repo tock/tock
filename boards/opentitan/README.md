@@ -106,7 +106,9 @@ You will need to have the GCC version of RISC-V 32-bit objcopy installed as the 
 Running in QEMU
 ---------------
 
-The OpenTitan application can be run in the QEMU emulation platform, allowing quick and easy testing.
+The OpenTitan application can be run in the QEMU emulation platform for RISC-V, allowing quick and easy testing.
+
+Unfortunately you need QEMU 5.2, which at the time of writing is unlikely to be avaliable in your distro. Luckily Tock can build QEMU for you. From the top level of the Tock source just run `make ci-setup-qemu` and follow the steps.
 
 QEMU can be started with Tock using the `qemu` make target:
 
