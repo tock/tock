@@ -849,6 +849,30 @@ impl<'a> Pin<'a> {
         }
     }
 
+    pub fn set_speed(&self) {
+        let port = self.pinid.get_port();
+
+        match self.pinid.get_pin_number() {
+            0b0000 => port.registers.ospeedr.modify(OSPEEDR::OSPEEDR0.val(0b11)),
+            0b0001 => port.registers.ospeedr.modify(OSPEEDR::OSPEEDR1.val(0b11)),
+            0b0010 => port.registers.ospeedr.modify(OSPEEDR::OSPEEDR2.val(0b11)),
+            0b0011 => port.registers.ospeedr.modify(OSPEEDR::OSPEEDR3.val(0b11)),
+            0b0100 => port.registers.ospeedr.modify(OSPEEDR::OSPEEDR4.val(0b11)),
+            0b0101 => port.registers.ospeedr.modify(OSPEEDR::OSPEEDR5.val(0b11)),
+            0b0110 => port.registers.ospeedr.modify(OSPEEDR::OSPEEDR6.val(0b11)),
+            0b0111 => port.registers.ospeedr.modify(OSPEEDR::OSPEEDR7.val(0b11)),
+            0b1000 => port.registers.ospeedr.modify(OSPEEDR::OSPEEDR8.val(0b11)),
+            0b1001 => port.registers.ospeedr.modify(OSPEEDR::OSPEEDR9.val(0b11)),
+            0b1010 => port.registers.ospeedr.modify(OSPEEDR::OSPEEDR10.val(0b11)),
+            0b1011 => port.registers.ospeedr.modify(OSPEEDR::OSPEEDR11.val(0b11)),
+            0b1100 => port.registers.ospeedr.modify(OSPEEDR::OSPEEDR12.val(0b11)),
+            0b1101 => port.registers.ospeedr.modify(OSPEEDR::OSPEEDR13.val(0b11)),
+            0b1110 => port.registers.ospeedr.modify(OSPEEDR::OSPEEDR14.val(0b11)),
+            0b1111 => port.registers.ospeedr.modify(OSPEEDR::OSPEEDR15.val(0b11)),
+            _ => {}
+        }
+    }
+
     pub fn set_mode_output_opendrain(&self) {
         let port = self.pinid.get_port();
 

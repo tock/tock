@@ -1,11 +1,62 @@
 //! Interface for screens and displays.
 use crate::returncode::ReturnCode;
+use core::ops::Add;
+use core::ops::Sub;
 
+#[derive(Copy, Clone, PartialEq)]
 pub enum ScreenRotation {
     Normal,
     Rotated90,
     Rotated180,
     Rotated270,
+}
+
+impl Add for ScreenRotation {
+    type Output = Self;
+
+    fn add(self, other: Self) -> Self {
+        match (self, other) {
+            (ScreenRotation::Normal, _) => other,
+            (_, ScreenRotation::Normal) => self,
+            (ScreenRotation::Rotated90, ScreenRotation::Rotated90) => ScreenRotation::Rotated180,
+            (ScreenRotation::Rotated90, ScreenRotation::Rotated180) => ScreenRotation::Rotated270,
+            (ScreenRotation::Rotated90, ScreenRotation::Rotated270) => ScreenRotation::Normal,
+
+            (ScreenRotation::Rotated180, ScreenRotation::Rotated90) => ScreenRotation::Rotated270,
+            (ScreenRotation::Rotated180, ScreenRotation::Rotated180) => ScreenRotation::Normal,
+            (ScreenRotation::Rotated180, ScreenRotation::Rotated270) => ScreenRotation::Rotated90,
+
+            (ScreenRotation::Rotated270, ScreenRotation::Rotated90) => ScreenRotation::Normal,
+            (ScreenRotation::Rotated270, ScreenRotation::Rotated180) => ScreenRotation::Rotated90,
+            (ScreenRotation::Rotated270, ScreenRotation::Rotated270) => ScreenRotation::Rotated180,
+        }
+    }
+}
+
+impl Sub for ScreenRotation {
+    type Output = Self;
+
+    fn sub(self, other: Self) -> Self {
+        match (self, other) {
+            (_, ScreenRotation::Normal) => self,
+
+            (ScreenRotation::Normal, ScreenRotation::Rotated90) => ScreenRotation::Rotated270,
+            (ScreenRotation::Normal, ScreenRotation::Rotated180) => ScreenRotation::Rotated180,
+            (ScreenRotation::Normal, ScreenRotation::Rotated270) => ScreenRotation::Rotated90,
+
+            (ScreenRotation::Rotated90, ScreenRotation::Rotated90) => ScreenRotation::Normal,
+            (ScreenRotation::Rotated90, ScreenRotation::Rotated180) => ScreenRotation::Rotated270,
+            (ScreenRotation::Rotated90, ScreenRotation::Rotated270) => ScreenRotation::Rotated180,
+
+            (ScreenRotation::Rotated180, ScreenRotation::Rotated90) => ScreenRotation::Rotated90,
+            (ScreenRotation::Rotated180, ScreenRotation::Rotated180) => ScreenRotation::Normal,
+            (ScreenRotation::Rotated180, ScreenRotation::Rotated270) => ScreenRotation::Rotated270,
+
+            (ScreenRotation::Rotated270, ScreenRotation::Rotated90) => ScreenRotation::Rotated180,
+            (ScreenRotation::Rotated270, ScreenRotation::Rotated180) => ScreenRotation::Rotated90,
+            (ScreenRotation::Rotated270, ScreenRotation::Rotated270) => ScreenRotation::Normal,
+        }
+    }
 }
 
 #[derive(Copy, Clone, PartialEq)]
@@ -134,6 +185,15 @@ pub trait Screen {
     /// - `EINVAL`: Write is invalid or length is wrong.
     /// - `EBUSY`: Another write is in progress.
     fn write(&self, buffer: &'static mut [u8], len: usize) -> ReturnCode;
+
+    /// Continues the previous previous write command
+    /// When finished, the driver will call the `write_complete()` callback.
+    ///
+    /// Return values:
+    /// - `SUCCESS`: Write is valid and will be sent to the screen.
+    /// - `EINVAL`: Write is invalid or length is wrong.
+    /// - `EBUSY`: Another write is in progress.
+    fn write_continue(&self, buffer: &'static mut [u8], len: usize) -> ReturnCode;
 
     /// Set the object to receive the asynchronous command callbacks.
     fn set_client(&self, client: Option<&'static dyn ScreenClient>);
