@@ -64,7 +64,7 @@ struct STM32F3Discovery {
         'static,
         VirtualMuxAlarm<'static, stm32f303xc::tim2::Tim2<'static>>,
     >,
-    adc: &'static capsules::adc::Adc<'static, stm32f303xc::adc::Adc>,
+    adc: &'static capsules::adc_syscall::AdcSyscall<'static>,
     nonvolatile_storage: &'static capsules::nonvolatile_storage_driver::NonvolatileStorage<'static>,
 }
 
@@ -550,6 +550,7 @@ pub unsafe fn reset_handler() {
     let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
     let grant_temperature = board_kernel.create_grant(&grant_cap);
 
+    // Comment this if you want to use the ADC MCU temp sensor
     let temp = static_init!(
         capsules::temperature::TemperatureSensor<'static>,
         capsules::temperature::TemperatureSensor::new(l3gd20, grant_temperature)
@@ -581,36 +582,62 @@ pub unsafe fn reset_handler() {
     let ninedof = components::ninedof::NineDofComponent::new(board_kernel)
         .finalize(components::ninedof_component_helper!(l3gd20, lsm303dlhc));
 
-    let adc_channels = static_init!(
-        [&'static stm32f303xc::adc::Channel; 6],
-        [
-            // Reserved and not used
-            &stm32f303xc::adc::Channel::Channel0,
-            // PA0 ADC1, PA4 ADC2, PB1 ADC3, PE14 ADC4
-            &stm32f303xc::adc::Channel::Channel1,
-            // PA1 ADC1, PA5 ADC2, PE9 ADC3, PE15 ADC4
-            &stm32f303xc::adc::Channel::Channel2,
-            // PA2 ADC1, PA6 ADC2, PE13 ADC3, PB12 ADC4
-            &stm32f303xc::adc::Channel::Channel3,
-            // PA3 ADC1, PA7 ADC2, PB14 ADC4
-            &stm32f303xc::adc::Channel::Channel4,
-            // PF3 ADC1, PC4 ADC2, PB13 ADC3, PB15 ADC4
-            &stm32f303xc::adc::Channel::Channel5,
-        ]
+    let adc_mux = components::adc::AdcMuxComponent::new(&stm32f303xc::adc::ADC1)
+        .finalize(components::adc_mux_component_helper!(stm32f303xc::adc::Adc));
+
+    // Uncomment this if you want to use ADC MCU temp sensor
+    // let temp_sensor = components::temperature_stm::TemperatureSTMComponent::new(4.3, 1.43)
+    //     .finalize(components::temperaturestm_adc_component_helper!(
+    //         // spi type
+    //         stm32f303xc::adc::Adc,
+    //         // chip select
+    //         stm32f303xc::adc::Channel::Channel18,
+    //         // spi mux
+    //         adc_mux
+    //     ));
+    // let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
+    // let grant_temperature = board_kernel.create_grant(&grant_cap);
+
+    // let temp = static_init!(
+    //     capsules::temperature::TemperatureSensor<'static>,
+    //     capsules::temperature::TemperatureSensor::new(temp_sensor, grant_temperature)
+    // );
+    // kernel::hil::sensors::TemperatureDriver::set_client(temp_sensor, temp);
+
+    let adc_channel_0 =
+        components::adc::AdcComponent::new(&adc_mux, stm32f303xc::adc::Channel::Channel0)
+            .finalize(components::adc_component_helper!(stm32f303xc::adc::Adc));
+
+    let adc_channel_1 =
+        components::adc::AdcComponent::new(&adc_mux, stm32f303xc::adc::Channel::Channel1)
+            .finalize(components::adc_component_helper!(stm32f303xc::adc::Adc));
+
+    let adc_channel_2 =
+        components::adc::AdcComponent::new(&adc_mux, stm32f303xc::adc::Channel::Channel2)
+            .finalize(components::adc_component_helper!(stm32f303xc::adc::Adc));
+
+    let adc_channel_3 =
+        components::adc::AdcComponent::new(&adc_mux, stm32f303xc::adc::Channel::Channel3)
+            .finalize(components::adc_component_helper!(stm32f303xc::adc::Adc));
+
+    let adc_channel_4 =
+        components::adc::AdcComponent::new(&adc_mux, stm32f303xc::adc::Channel::Channel4)
+            .finalize(components::adc_component_helper!(stm32f303xc::adc::Adc));
+
+    let adc_channel_5 =
+        components::adc::AdcComponent::new(&adc_mux, stm32f303xc::adc::Channel::Channel5)
+            .finalize(components::adc_component_helper!(stm32f303xc::adc::Adc));
+
+    let adc_syscall = components::adc::AdcSyscallComponent::new(board_kernel).finalize(
+        components::adc_syscall_component_helper!(
+            adc_channel_0,
+            adc_channel_1,
+            adc_channel_2,
+            adc_channel_3,
+            adc_channel_4,
+            adc_channel_5
+        ),
     );
-    let grant_adc = board_kernel.create_grant(&grant_cap);
-    let adc = static_init!(
-        capsules::adc::Adc<'static, stm32f303xc::adc::Adc>,
-        capsules::adc::Adc::new(
-            &stm32f303xc::adc::ADC1,
-            grant_adc,
-            adc_channels,
-            &mut capsules::adc::ADC_BUFFER1,
-            &mut capsules::adc::ADC_BUFFER2,
-            &mut capsules::adc::ADC_BUFFER3
-        )
-    );
-    stm32f303xc::adc::ADC1.set_client(adc);
 
     // Kernel storage region, allocated with the storage_volume!
     // macro in common/utils.rs
@@ -643,7 +670,7 @@ pub unsafe fn reset_handler() {
         lsm303dlhc: lsm303dlhc,
         ninedof: ninedof,
         temp: temp,
-        adc: adc,
+        adc: adc_syscall,
         nonvolatile_storage: nonvolatile_storage,
     };
 

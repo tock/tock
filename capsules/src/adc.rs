@@ -66,7 +66,7 @@ pub struct Adc<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed> {
 /// ADC modes, used to track internal state and to signify to applications which
 /// state a callback came from
 #[derive(Copy, Clone, Debug, PartialEq)]
-enum AdcMode {
+pub(crate) enum AdcMode {
     NoMode = -1,
     SingleSample = 0,
     ContinuousSample = 1,
@@ -568,6 +568,14 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed> Adc<'a, A> {
                 })
                 .unwrap_or(ReturnCode::FAIL)
         })
+    }
+
+    fn get_resolution_bits(&self) -> usize {
+        self.adc.get_resolution_bits()
+    }
+
+    fn get_voltage_reference_mv(&self) -> Option<usize> {
+        self.adc.get_voltage_reference_mv()
     }
 }
 
@@ -1163,6 +1171,19 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> Driver for Adc<'_, A> {
 
             // Stop sampling
             5 => self.stop_sampling(),
+
+            // Get resolution bits
+            101 => ReturnCode::SuccessWithValue {
+                value: self.get_resolution_bits(),
+            },
+            // Get voltage reference mV
+            102 => {
+                if let Some(voltage) = self.get_voltage_reference_mv() {
+                    ReturnCode::SuccessWithValue { value: voltage }
+                } else {
+                    ReturnCode::ENOSUPPORT
+                }
+            }
 
             // default
             _ => ReturnCode::ENOSUPPORT,
