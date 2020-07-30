@@ -834,7 +834,7 @@ impl Kernel {
                 // so we protect against that by checking for the expiration here. Checking
                 // the return reason is insufficient because it is possible for the timer to expire
                 // after the process has returned to the kernel but before these lines are reached.
-                Some(0)
+                Some(timeslice)
             } else {
                 Some(timeslice - remaining)
             }
