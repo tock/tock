@@ -198,6 +198,13 @@ pub fn load_processes<C: Chip>(
             .get(0..entry_length as usize)
             .ok_or(ProcessLoadError::NotEnoughFlash)?;
 
+        // Advance the flash slice for process discovery beyond this last entry.
+        // This will be the start of where we look for a new process since Tock
+        // processes are allocated back-to-back in flash.
+        remaining_flash = remaining_flash
+            .get(entry_flash.len()..)
+            .ok_or(ProcessLoadError::NotEnoughFlash)?;
+
         // Need to reassign remaining_memory in every iteration so the compiler
         // knows it will not be re-borrowed.
         remaining_memory = if header_length > 0 {
@@ -243,13 +250,6 @@ pub fn load_processes<C: Chip>(
             // same amount of process memory to allocate from.
             remaining_memory
         };
-
-        // Advance the flash slice for process discovery beyond this last entry.
-        // This will be the start of where we look for a new process since Tock processes
-        // are allocated back-to-back in flash.
-        remaining_flash = remaining_flash
-            .get(entry_flash.len()..)
-            .ok_or(ProcessLoadError::NotEnoughFlash)?;
     }
 
     Ok(())
