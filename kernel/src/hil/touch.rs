@@ -7,6 +7,7 @@ use crate::ReturnCode;
 pub enum TouchStatus {
     Pressed,
     Released,
+    Moved,
 }
 
 /// Gesture event
