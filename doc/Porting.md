@@ -96,6 +96,15 @@ Moving forward, chips tend to break down into reasonable units of work.
 Implement something like `kernel::hil::UART` for your chip, then submit a pull
 request. Pick a new peripheral and repeat!
 
+Historically, Tock chips defined peripherals as `static mut` global variables, which made
+them easy to access but encouraged use of unsafe code and prevented boards from
+instantiating only the set of peripherals they needed. Now, peripherals are instantiated
+at runtime in `main.rs`, which resolves these issues. To prevent each board from having
+to instantiate peripherals individually, chips should provide a `ChipNameDefaultPeripherals`
+struct that defines and creates all peripherals available for the chip in Tock. This will be
+used by upstream boards using the chip, without forcing the overhead and code size of all peripherals
+on more minimal out-of-tree boards.
+
 
 ### `board` Crate
 

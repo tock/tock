@@ -103,8 +103,6 @@ pub struct Wdt {
     enabled: Cell<bool>,
 }
 
-pub static mut WDT: Wdt = Wdt::new();
-
 #[derive(Copy, Clone)]
 pub enum WdtClockSource {
     ClockRCSys = 0,
@@ -121,7 +119,7 @@ impl From<WdtClockSource> for FieldValue<u32, Control::Register> {
 }
 
 impl Wdt {
-    const fn new() -> Wdt {
+    pub const fn new() -> Wdt {
         Wdt {
             enabled: Cell::new(false),
         }

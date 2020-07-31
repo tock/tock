@@ -1,78 +1,241 @@
 //! Interrupt mapping and DMA channel setup.
 
-use crate::acifc;
-use crate::adc;
-use crate::aes;
-use crate::ast;
-use crate::crccu;
-use crate::dac;
 use crate::deferred_call_tasks::Task;
-use crate::dma;
-use crate::eic;
-use crate::flashcalw;
-use crate::gpio;
-use crate::i2c;
-use crate::nvic;
 use crate::pm;
-use crate::spi;
-use crate::trng;
-use crate::usart;
-use crate::usbc;
 
 use core::fmt::Write;
 use cortexm4;
 use kernel::common::deferred_call;
-use kernel::Chip;
+use kernel::{Chip, InterruptService};
 
-pub struct Sam4l {
+pub struct Sam4l<I: InterruptService<Task> + 'static> {
     mpu: cortexm4::mpu::MPU,
     userspace_kernel_boundary: cortexm4::syscall::SysCall,
     scheduler_timer: cortexm4::systick::SysTick,
+    pub pm: &'static crate::pm::PowerManager,
+    interrupt_service: &'static I,
 }
 
-impl Sam4l {
-    pub unsafe fn new() -> Sam4l {
-        usart::USART0.set_dma(&dma::DMA_CHANNELS[0], &dma::DMA_CHANNELS[1]);
-        dma::DMA_CHANNELS[0].initialize(&mut usart::USART0, dma::DMAWidth::Width8Bit);
-        dma::DMA_CHANNELS[1].initialize(&mut usart::USART0, dma::DMAWidth::Width8Bit);
-
-        usart::USART1.set_dma(&dma::DMA_CHANNELS[2], &dma::DMA_CHANNELS[3]);
-        dma::DMA_CHANNELS[2].initialize(&mut usart::USART1, dma::DMAWidth::Width8Bit);
-        dma::DMA_CHANNELS[3].initialize(&mut usart::USART1, dma::DMAWidth::Width8Bit);
-
-        usart::USART2.set_dma(&dma::DMA_CHANNELS[4], &dma::DMA_CHANNELS[5]);
-        dma::DMA_CHANNELS[4].initialize(&mut usart::USART2, dma::DMAWidth::Width8Bit);
-        dma::DMA_CHANNELS[5].initialize(&mut usart::USART2, dma::DMAWidth::Width8Bit);
-
-        usart::USART3.set_dma(&dma::DMA_CHANNELS[6], &dma::DMA_CHANNELS[7]);
-        dma::DMA_CHANNELS[6].initialize(&mut usart::USART3, dma::DMAWidth::Width8Bit);
-        dma::DMA_CHANNELS[7].initialize(&mut usart::USART3, dma::DMAWidth::Width8Bit);
-
-        spi::SPI.set_dma(&dma::DMA_CHANNELS[8], &dma::DMA_CHANNELS[9]);
-        dma::DMA_CHANNELS[8].initialize(&mut spi::SPI, dma::DMAWidth::Width8Bit);
-        dma::DMA_CHANNELS[9].initialize(&mut spi::SPI, dma::DMAWidth::Width8Bit);
-
-        i2c::I2C0.set_dma(&dma::DMA_CHANNELS[10]);
-        dma::DMA_CHANNELS[10].initialize(&mut i2c::I2C0, dma::DMAWidth::Width8Bit);
-
-        i2c::I2C1.set_dma(&dma::DMA_CHANNELS[11]);
-        dma::DMA_CHANNELS[11].initialize(&mut i2c::I2C1, dma::DMAWidth::Width8Bit);
-
-        i2c::I2C2.set_dma(&dma::DMA_CHANNELS[12]);
-        dma::DMA_CHANNELS[12].initialize(&mut i2c::I2C2, dma::DMAWidth::Width8Bit);
-
-        adc::ADC0.set_dma(&dma::DMA_CHANNELS[13]);
-        dma::DMA_CHANNELS[13].initialize(&mut adc::ADC0, dma::DMAWidth::Width16Bit);
-
-        Sam4l {
+impl<I: InterruptService<Task> + 'static> Sam4l<I> {
+    pub unsafe fn new(pm: &'static crate::pm::PowerManager, interrupt_service: &'static I) -> Self {
+        Self {
             mpu: cortexm4::mpu::MPU::new(),
             userspace_kernel_boundary: cortexm4::syscall::SysCall::new(),
             scheduler_timer: cortexm4::systick::SysTick::new(),
+            pm,
+            interrupt_service,
         }
     }
 }
 
-impl Chip for Sam4l {
+/// This struct, when initialized, instantiates all peripheral drivers for the apollo3.
+/// If a board wishes to use only a subset of these peripherals, this
+/// should not be used or imported, and a modified version should be
+/// constructed manually in main.rs.
+pub struct Sam4lDefaultPeripherals {
+    pub acifc: crate::acifc::Acifc<'static>,
+    pub adc: crate::adc::Adc,
+    pub aes: crate::aes::Aes<'static>,
+    pub ast: crate::ast::Ast<'static>,
+    pub crccu: crate::crccu::Crccu<'static>,
+    pub dac: crate::dac::Dac,
+    pub dma_channels: [crate::dma::DMAChannel; 16],
+    pub eic: crate::eic::Eic<'static>,
+    pub flash_controller: crate::flashcalw::FLASHCALW,
+    pub gloc: crate::gloc::Gloc,
+    pub pa: crate::gpio::Port<'static>,
+    pub pb: crate::gpio::Port<'static>,
+    pub pc: crate::gpio::Port<'static>,
+    pub i2c0: crate::i2c::I2CHw,
+    pub i2c1: crate::i2c::I2CHw,
+    pub i2c2: crate::i2c::I2CHw,
+    pub i2c3: crate::i2c::I2CHw,
+    pub spi: crate::spi::SpiHw,
+    pub trng: crate::trng::Trng<'static>,
+    pub usart0: crate::usart::USART<'static>,
+    pub usart1: crate::usart::USART<'static>,
+    pub usart2: crate::usart::USART<'static>,
+    pub usart3: crate::usart::USART<'static>,
+    pub usbc: crate::usbc::Usbc<'static>,
+}
+
+impl Sam4lDefaultPeripherals {
+    pub fn new(pm: &'static crate::pm::PowerManager) -> Self {
+        use crate::dma::{DMAChannel, DMAChannelNum};
+        Self {
+            acifc: crate::acifc::Acifc::new(),
+            adc: crate::adc::Adc::new(crate::dma::DMAPeripheral::ADCIFE_RX, pm),
+            aes: crate::aes::Aes::new(),
+            ast: crate::ast::Ast::new(),
+            crccu: crate::crccu::Crccu::new(),
+            dac: crate::dac::Dac::new(),
+            dma_channels: [
+                DMAChannel::new(DMAChannelNum::DMAChannel00),
+                DMAChannel::new(DMAChannelNum::DMAChannel01),
+                DMAChannel::new(DMAChannelNum::DMAChannel02),
+                DMAChannel::new(DMAChannelNum::DMAChannel03),
+                DMAChannel::new(DMAChannelNum::DMAChannel04),
+                DMAChannel::new(DMAChannelNum::DMAChannel05),
+                DMAChannel::new(DMAChannelNum::DMAChannel06),
+                DMAChannel::new(DMAChannelNum::DMAChannel07),
+                DMAChannel::new(DMAChannelNum::DMAChannel08),
+                DMAChannel::new(DMAChannelNum::DMAChannel09),
+                DMAChannel::new(DMAChannelNum::DMAChannel10),
+                DMAChannel::new(DMAChannelNum::DMAChannel11),
+                DMAChannel::new(DMAChannelNum::DMAChannel12),
+                DMAChannel::new(DMAChannelNum::DMAChannel13),
+                DMAChannel::new(DMAChannelNum::DMAChannel14),
+                DMAChannel::new(DMAChannelNum::DMAChannel15),
+            ],
+            eic: crate::eic::Eic::new(),
+            flash_controller: crate::flashcalw::FLASHCALW::new(
+                crate::pm::HSBClock::FLASHCALW,
+                crate::pm::HSBClock::FLASHCALWP,
+                crate::pm::PBBClock::FLASHCALW,
+            ),
+            gloc: crate::gloc::Gloc::new(),
+            pa: crate::gpio::Port::new_port_a(),
+            pb: crate::gpio::Port::new_port_b(),
+            pc: crate::gpio::Port::new_port_c(),
+            i2c0: crate::i2c::I2CHw::new_i2c0(pm),
+            i2c1: crate::i2c::I2CHw::new_i2c1(pm),
+            i2c2: crate::i2c::I2CHw::new_i2c2(pm),
+            i2c3: crate::i2c::I2CHw::new_i2c3(pm),
+            spi: crate::spi::SpiHw::new(pm),
+            trng: crate::trng::Trng::new(),
+            usart0: crate::usart::USART::new_usart0(pm),
+            usart1: crate::usart::USART::new_usart1(pm),
+            usart2: crate::usart::USART::new_usart2(pm),
+            usart3: crate::usart::USART::new_usart3(pm),
+            usbc: crate::usbc::Usbc::new(pm),
+        }
+    }
+
+    // Sam4l was the only chip that partially initialized some drivers in new, I
+    // have moved that initialization to this helper function.
+    // TODO: Delete explanation
+    pub fn setup_dma(&'static self) {
+        use crate::dma;
+        self.usart0
+            .set_dma(&self.dma_channels[0], &self.dma_channels[1]);
+        self.dma_channels[0].initialize(&self.usart0, dma::DMAWidth::Width8Bit);
+        self.dma_channels[1].initialize(&self.usart0, dma::DMAWidth::Width8Bit);
+
+        self.usart1
+            .set_dma(&self.dma_channels[2], &self.dma_channels[3]);
+        self.dma_channels[2].initialize(&self.usart1, dma::DMAWidth::Width8Bit);
+        self.dma_channels[3].initialize(&self.usart1, dma::DMAWidth::Width8Bit);
+
+        self.usart2
+            .set_dma(&self.dma_channels[4], &self.dma_channels[5]);
+        self.dma_channels[4].initialize(&self.usart2, dma::DMAWidth::Width8Bit);
+        self.dma_channels[5].initialize(&self.usart2, dma::DMAWidth::Width8Bit);
+
+        self.usart3
+            .set_dma(&self.dma_channels[6], &self.dma_channels[7]);
+        self.dma_channels[6].initialize(&self.usart3, dma::DMAWidth::Width8Bit);
+        self.dma_channels[7].initialize(&self.usart3, dma::DMAWidth::Width8Bit);
+
+        self.spi
+            .set_dma(&self.dma_channels[8], &self.dma_channels[9]);
+        self.dma_channels[8].initialize(&self.spi, dma::DMAWidth::Width8Bit);
+        self.dma_channels[9].initialize(&self.spi, dma::DMAWidth::Width8Bit);
+
+        self.i2c0.set_dma(&self.dma_channels[10]);
+        self.dma_channels[10].initialize(&self.i2c0, dma::DMAWidth::Width8Bit);
+
+        self.i2c1.set_dma(&self.dma_channels[11]);
+        self.dma_channels[11].initialize(&self.i2c1, dma::DMAWidth::Width8Bit);
+
+        self.i2c2.set_dma(&self.dma_channels[12]);
+        self.dma_channels[12].initialize(&self.i2c2, dma::DMAWidth::Width8Bit);
+
+        self.adc.set_dma(&self.dma_channels[13]);
+        self.dma_channels[13].initialize(&self.adc, dma::DMAWidth::Width16Bit);
+    }
+}
+impl kernel::InterruptService<Task> for Sam4lDefaultPeripherals {
+    unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
+        use crate::nvic;
+        match interrupt {
+            nvic::ASTALARM => self.ast.handle_interrupt(),
+
+            nvic::USART0 => self.usart0.handle_interrupt(),
+            nvic::USART1 => self.usart1.handle_interrupt(),
+            nvic::USART2 => self.usart2.handle_interrupt(),
+            nvic::USART3 => self.usart3.handle_interrupt(),
+
+            nvic::PDCA0 => self.dma_channels[0].handle_interrupt(),
+            nvic::PDCA1 => self.dma_channels[1].handle_interrupt(),
+            nvic::PDCA2 => self.dma_channels[2].handle_interrupt(),
+            nvic::PDCA3 => self.dma_channels[3].handle_interrupt(),
+            nvic::PDCA4 => self.dma_channels[4].handle_interrupt(),
+            nvic::PDCA5 => self.dma_channels[5].handle_interrupt(),
+            nvic::PDCA6 => self.dma_channels[6].handle_interrupt(),
+            nvic::PDCA7 => self.dma_channels[7].handle_interrupt(),
+            nvic::PDCA8 => self.dma_channels[8].handle_interrupt(),
+            nvic::PDCA9 => self.dma_channels[9].handle_interrupt(),
+            nvic::PDCA10 => self.dma_channels[10].handle_interrupt(),
+            nvic::PDCA11 => self.dma_channels[11].handle_interrupt(),
+            nvic::PDCA12 => self.dma_channels[12].handle_interrupt(),
+            nvic::PDCA13 => self.dma_channels[13].handle_interrupt(),
+            nvic::PDCA14 => self.dma_channels[14].handle_interrupt(),
+            nvic::PDCA15 => self.dma_channels[15].handle_interrupt(),
+
+            nvic::CRCCU => self.crccu.handle_interrupt(),
+            nvic::USBC => self.usbc.handle_interrupt(),
+
+            nvic::GPIO0 => self.pa.handle_interrupt(),
+            nvic::GPIO1 => self.pa.handle_interrupt(),
+            nvic::GPIO2 => self.pa.handle_interrupt(),
+            nvic::GPIO3 => self.pa.handle_interrupt(),
+            nvic::GPIO4 => self.pb.handle_interrupt(),
+            nvic::GPIO5 => self.pb.handle_interrupt(),
+            nvic::GPIO6 => self.pb.handle_interrupt(),
+            nvic::GPIO7 => self.pb.handle_interrupt(),
+            nvic::GPIO8 => self.pc.handle_interrupt(),
+            nvic::GPIO9 => self.pc.handle_interrupt(),
+            nvic::GPIO10 => self.pc.handle_interrupt(),
+            nvic::GPIO11 => self.pc.handle_interrupt(),
+
+            nvic::SPI => self.spi.handle_interrupt(),
+
+            nvic::TWIM0 => self.i2c0.handle_interrupt(),
+            nvic::TWIM1 => self.i2c1.handle_interrupt(),
+            nvic::TWIM2 => self.i2c2.handle_interrupt(),
+            nvic::TWIM3 => self.i2c3.handle_interrupt(),
+            nvic::TWIS0 => self.i2c0.handle_slave_interrupt(),
+            nvic::TWIS1 => self.i2c1.handle_slave_interrupt(),
+
+            nvic::HFLASHC => self.flash_controller.handle_interrupt(),
+            nvic::ADCIFE => self.adc.handle_interrupt(),
+            nvic::DACC => self.dac.handle_interrupt(),
+            nvic::ACIFC => self.acifc.handle_interrupt(),
+
+            nvic::TRNG => self.trng.handle_interrupt(),
+            nvic::AESA => self.aes.handle_interrupt(),
+
+            nvic::EIC1 => self.eic.handle_interrupt(&crate::eic::Line::Ext1),
+            nvic::EIC2 => self.eic.handle_interrupt(&crate::eic::Line::Ext2),
+            nvic::EIC3 => self.eic.handle_interrupt(&crate::eic::Line::Ext3),
+            nvic::EIC4 => self.eic.handle_interrupt(&crate::eic::Line::Ext4),
+            nvic::EIC5 => self.eic.handle_interrupt(&crate::eic::Line::Ext5),
+            nvic::EIC6 => self.eic.handle_interrupt(&crate::eic::Line::Ext6),
+            nvic::EIC7 => self.eic.handle_interrupt(&crate::eic::Line::Ext7),
+            nvic::EIC8 => self.eic.handle_interrupt(&crate::eic::Line::Ext8),
+            _ => return false,
+        }
+        true
+    }
+    unsafe fn service_deferred_call(&self, task: Task) -> bool {
+        match task {
+            crate::deferred_call_tasks::Task::Flashcalw => self.flash_controller.handle_interrupt(),
+        }
+        true
+    }
+}
+
+impl<I: InterruptService<Task> + 'static> Chip for Sam4l<I> {
     type MPU = cortexm4::mpu::MPU;
     type UserspaceKernelBoundary = cortexm4::syscall::SysCall;
     type SchedulerTimer = cortexm4::systick::SysTick;
@@ -82,81 +245,14 @@ impl Chip for Sam4l {
         unsafe {
             loop {
                 if let Some(task) = deferred_call::DeferredCall::next_pending() {
-                    match task {
-                        Task::Flashcalw => flashcalw::FLASH_CONTROLLER.handle_interrupt(),
+                    match self.interrupt_service.service_deferred_call(task) {
+                        true => {}
+                        false => panic!("unhandled deferred call task"),
                     }
                 } else if let Some(interrupt) = cortexm4::nvic::next_pending() {
-                    match interrupt {
-                        nvic::ASTALARM => ast::AST.handle_interrupt(),
-
-                        nvic::USART0 => usart::USART0.handle_interrupt(),
-                        nvic::USART1 => usart::USART1.handle_interrupt(),
-                        nvic::USART2 => usart::USART2.handle_interrupt(),
-                        nvic::USART3 => usart::USART3.handle_interrupt(),
-
-                        nvic::PDCA0 => dma::DMA_CHANNELS[0].handle_interrupt(),
-                        nvic::PDCA1 => dma::DMA_CHANNELS[1].handle_interrupt(),
-                        nvic::PDCA2 => dma::DMA_CHANNELS[2].handle_interrupt(),
-                        nvic::PDCA3 => dma::DMA_CHANNELS[3].handle_interrupt(),
-                        nvic::PDCA4 => dma::DMA_CHANNELS[4].handle_interrupt(),
-                        nvic::PDCA5 => dma::DMA_CHANNELS[5].handle_interrupt(),
-                        nvic::PDCA6 => dma::DMA_CHANNELS[6].handle_interrupt(),
-                        nvic::PDCA7 => dma::DMA_CHANNELS[7].handle_interrupt(),
-                        nvic::PDCA8 => dma::DMA_CHANNELS[8].handle_interrupt(),
-                        nvic::PDCA9 => dma::DMA_CHANNELS[9].handle_interrupt(),
-                        nvic::PDCA10 => dma::DMA_CHANNELS[10].handle_interrupt(),
-                        nvic::PDCA11 => dma::DMA_CHANNELS[11].handle_interrupt(),
-                        nvic::PDCA12 => dma::DMA_CHANNELS[12].handle_interrupt(),
-                        nvic::PDCA13 => dma::DMA_CHANNELS[13].handle_interrupt(),
-                        nvic::PDCA14 => dma::DMA_CHANNELS[14].handle_interrupt(),
-                        nvic::PDCA15 => dma::DMA_CHANNELS[15].handle_interrupt(),
-
-                        nvic::CRCCU => crccu::CRCCU.handle_interrupt(),
-                        nvic::USBC => usbc::USBC.handle_interrupt(),
-
-                        nvic::GPIO0 => gpio::PA.handle_interrupt(),
-                        nvic::GPIO1 => gpio::PA.handle_interrupt(),
-                        nvic::GPIO2 => gpio::PA.handle_interrupt(),
-                        nvic::GPIO3 => gpio::PA.handle_interrupt(),
-                        nvic::GPIO4 => gpio::PB.handle_interrupt(),
-                        nvic::GPIO5 => gpio::PB.handle_interrupt(),
-                        nvic::GPIO6 => gpio::PB.handle_interrupt(),
-                        nvic::GPIO7 => gpio::PB.handle_interrupt(),
-                        nvic::GPIO8 => gpio::PC.handle_interrupt(),
-                        nvic::GPIO9 => gpio::PC.handle_interrupt(),
-                        nvic::GPIO10 => gpio::PC.handle_interrupt(),
-                        nvic::GPIO11 => gpio::PC.handle_interrupt(),
-
-                        nvic::SPI => spi::SPI.handle_interrupt(),
-
-                        nvic::TWIM0 => i2c::I2C0.handle_interrupt(),
-                        nvic::TWIM1 => i2c::I2C1.handle_interrupt(),
-                        nvic::TWIM2 => i2c::I2C2.handle_interrupt(),
-                        nvic::TWIM3 => i2c::I2C3.handle_interrupt(),
-
-                        nvic::TWIS0 => i2c::I2C0.handle_slave_interrupt(),
-                        nvic::TWIS1 => i2c::I2C1.handle_slave_interrupt(),
-
-                        nvic::HFLASHC => flashcalw::FLASH_CONTROLLER.handle_interrupt(),
-                        nvic::ADCIFE => adc::ADC0.handle_interrupt(),
-                        nvic::DACC => dac::DAC.handle_interrupt(),
-                        nvic::ACIFC => acifc::ACIFC.handle_interrupt(),
-
-                        nvic::TRNG => trng::TRNG.handle_interrupt(),
-                        nvic::AESA => aes::AES.handle_interrupt(),
-
-                        nvic::EIC1 => eic::EIC.handle_interrupt(&eic::Line::Ext1),
-                        nvic::EIC2 => eic::EIC.handle_interrupt(&eic::Line::Ext2),
-                        nvic::EIC3 => eic::EIC.handle_interrupt(&eic::Line::Ext3),
-                        nvic::EIC4 => eic::EIC.handle_interrupt(&eic::Line::Ext4),
-                        nvic::EIC5 => eic::EIC.handle_interrupt(&eic::Line::Ext5),
-                        nvic::EIC6 => eic::EIC.handle_interrupt(&eic::Line::Ext6),
-                        nvic::EIC7 => eic::EIC.handle_interrupt(&eic::Line::Ext7),
-                        nvic::EIC8 => eic::EIC.handle_interrupt(&eic::Line::Ext8),
-
-                        _ => {
-                            panic!("unhandled interrupt {}", interrupt);
-                        }
+                    match self.interrupt_service.service_interrupt(interrupt) {
+                        true => {}
+                        false => panic!("unhandled interrupt"),
                     }
                     let n = cortexm4::nvic::Nvic::new(interrupt);
                     n.clear_pending();

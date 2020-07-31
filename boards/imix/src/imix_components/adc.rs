@@ -20,16 +20,19 @@ use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
 use kernel::static_init;
+use sam4l::adc::Channel;
 
 pub struct AdcComponent {
     board_kernel: &'static kernel::Kernel,
+    adc: &'static sam4l::adc::Adc,
 }
 
 impl AdcComponent {
-    pub fn new(board_kernel: &'static kernel::Kernel) -> AdcComponent {
-        AdcComponent {
-            board_kernel: board_kernel,
-        }
+    pub fn new(
+        board_kernel: &'static kernel::Kernel,
+        adc: &'static sam4l::adc::Adc,
+    ) -> AdcComponent {
+        AdcComponent { board_kernel, adc }
     }
 }
 
@@ -40,28 +43,41 @@ impl Component for AdcComponent {
     unsafe fn finalize(self, _s: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
         let adc_channels = static_init!(
-            [&'static sam4l::adc::AdcChannel; 6],
+            [sam4l::adc::AdcChannel; 6],
             [
-                &sam4l::adc::CHANNEL_AD1, // AD0
-                &sam4l::adc::CHANNEL_AD2, // AD1
-                &sam4l::adc::CHANNEL_AD3, // AD2
-                &sam4l::adc::CHANNEL_AD4, // AD3
-                &sam4l::adc::CHANNEL_AD5, // AD4
-                &sam4l::adc::CHANNEL_AD6, // AD5
+                sam4l::adc::AdcChannel::new(Channel::AD1), // AD0
+                sam4l::adc::AdcChannel::new(Channel::AD2), // AD1
+                sam4l::adc::AdcChannel::new(Channel::AD3), // AD2
+                sam4l::adc::AdcChannel::new(Channel::AD4), // AD3
+                sam4l::adc::AdcChannel::new(Channel::AD5), // AD4
+                sam4l::adc::AdcChannel::new(Channel::AD6), // AD5
+            ]
+        );
+        // Capsule expects references inside array bc it was built assuming model in which
+        // global structs are used, so this is a bit of a hack to pass it what it wants.
+        let ref_channels = static_init!(
+            [&sam4l::adc::AdcChannel; 6],
+            [
+                &adc_channels[0],
+                &adc_channels[1],
+                &adc_channels[2],
+                &adc_channels[3],
+                &adc_channels[4],
+                &adc_channels[5],
             ]
         );
         let adc = static_init!(
             adc::AdcDedicated<'static, sam4l::adc::Adc>,
             adc::AdcDedicated::new(
-                &sam4l::adc::ADC0,
+                &self.adc,
                 self.board_kernel.create_grant(&grant_cap),
-                adc_channels,
+                ref_channels,
                 &mut adc::ADC_BUFFER1,
                 &mut adc::ADC_BUFFER2,
                 &mut adc::ADC_BUFFER3
             )
         );
-        sam4l::adc::ADC0.set_client(adc);
+        self.adc.set_client(adc);
 
         adc
     }

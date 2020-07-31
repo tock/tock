@@ -560,6 +560,7 @@ pub struct I2CHw {
     slave_write_buffer: TakeCell<'static, [u8]>,
     slave_write_buffer_len: Cell<u8>,
     slave_write_buffer_index: Cell<u8>,
+    pm: &'static pm::PowerManager,
 }
 
 impl PeripheralManagement<TWIMClock> for I2CHw {
@@ -625,40 +626,6 @@ const fn create_twims_clocks(
 ) -> (TWIMClock, TWISClock) {
     (TWIMClock { master, slave }, TWISClock { master, slave })
 }
-pub static mut I2C0: I2CHw = I2CHw::new(
-    I2C_BASE_ADDRS[0],
-    Some(I2C_SLAVE_BASE_ADDRS[0]),
-    create_twims_clocks(
-        pm::Clock::PBA(pm::PBAClock::TWIM0),
-        Some(pm::Clock::PBA(pm::PBAClock::TWIS0)),
-    ),
-    DMAPeripheral::TWIM0_RX,
-    DMAPeripheral::TWIM0_TX,
-);
-pub static mut I2C1: I2CHw = I2CHw::new(
-    I2C_BASE_ADDRS[1],
-    Some(I2C_SLAVE_BASE_ADDRS[1]),
-    create_twims_clocks(
-        pm::Clock::PBA(pm::PBAClock::TWIM1),
-        Some(pm::Clock::PBA(pm::PBAClock::TWIS1)),
-    ),
-    DMAPeripheral::TWIM1_RX,
-    DMAPeripheral::TWIM1_TX,
-);
-pub static mut I2C2: I2CHw = I2CHw::new(
-    I2C_BASE_ADDRS[2],
-    None,
-    create_twims_clocks(pm::Clock::PBA(pm::PBAClock::TWIM2), None),
-    DMAPeripheral::TWIM2_RX,
-    DMAPeripheral::TWIM2_TX,
-);
-pub static mut I2C3: I2CHw = I2CHw::new(
-    I2C_BASE_ADDRS[3],
-    None,
-    create_twims_clocks(pm::Clock::PBA(pm::PBAClock::TWIM3), None),
-    DMAPeripheral::TWIM3_RX,
-    DMAPeripheral::TWIM3_TX,
-);
 
 // Need to implement the `new` function on the I2C device as a constructor.
 // This gets called from the device tree.
@@ -669,6 +636,7 @@ impl I2CHw {
         clocks: (TWIMClock, TWISClock),
         dma_rx: DMAPeripheral,
         dma_tx: DMAPeripheral,
+        pm: &'static pm::PowerManager,
     ) -> I2CHw {
         I2CHw {
             master_mmio_address: base_addr,
@@ -689,14 +657,59 @@ impl I2CHw {
             slave_write_buffer: TakeCell::empty(),
             slave_write_buffer_len: Cell::new(0),
             slave_write_buffer_index: Cell::new(0),
+            pm,
         }
+    }
+
+    pub const fn new_i2c0(pm: &'static pm::PowerManager) -> Self {
+        I2CHw::new(
+            I2C_BASE_ADDRS[0],
+            Some(I2C_SLAVE_BASE_ADDRS[0]),
+            create_twims_clocks(pm::Clock::PBA(pm::PBAClock::TWIM0), None),
+            DMAPeripheral::TWIM0_RX,
+            DMAPeripheral::TWIM0_TX,
+            pm,
+        )
+    }
+
+    pub const fn new_i2c1(pm: &'static pm::PowerManager) -> Self {
+        I2CHw::new(
+            I2C_BASE_ADDRS[1],
+            Some(I2C_SLAVE_BASE_ADDRS[1]),
+            create_twims_clocks(pm::Clock::PBA(pm::PBAClock::TWIM1), None),
+            DMAPeripheral::TWIM1_RX,
+            DMAPeripheral::TWIM1_TX,
+            pm,
+        )
+    }
+
+    pub const fn new_i2c2(pm: &'static pm::PowerManager) -> Self {
+        I2CHw::new(
+            I2C_BASE_ADDRS[2],
+            None,
+            create_twims_clocks(pm::Clock::PBA(pm::PBAClock::TWIM2), None),
+            DMAPeripheral::TWIM2_RX,
+            DMAPeripheral::TWIM2_TX,
+            pm,
+        )
+    }
+
+    pub const fn new_i2c3(pm: &'static pm::PowerManager) -> Self {
+        I2CHw::new(
+            I2C_BASE_ADDRS[3],
+            None,
+            create_twims_clocks(pm::Clock::PBA(pm::PBAClock::TWIM3), None),
+            DMAPeripheral::TWIM3_RX,
+            DMAPeripheral::TWIM3_TX,
+            pm,
+        )
     }
 
     /// Set the clock prescaler and the time widths of the I2C signals
     /// in the CWGR register to make the bus run at a particular I2C speed.
     fn set_bus_speed(&self, twim: &TWIMRegisterManager) {
         // Set I2C waveform timing parameters based on ASF code
-        let system_frequency = pm::get_system_frequency();
+        let system_frequency = self.pm.get_system_frequency();
         let mut exp = 0;
         let mut f_prescaled = system_frequency / 400000 / 2;
         while (f_prescaled > 0xff) && (exp <= 0x7) {

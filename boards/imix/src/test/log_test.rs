@@ -20,7 +20,7 @@
 //!
 //! To run the test, add the following line to the imix boot sequence:
 //! ```
-//!     test::log_test::run(mux_alarm, dynamic_deferred_caller);
+//!     test::log_test::run(mux_alarm, dynamic_deferred_caller, &peripherals.flash_controller);
 //! ```
 //! and use the `USER` and `RESET` buttons to manually erase the log and reboot the imix,
 //! respectively.
@@ -47,9 +47,10 @@ storage_volume!(TEST_LOG, 2);
 pub unsafe fn run(
     mux_alarm: &'static MuxAlarm<'static, Ast>,
     deferred_caller: &'static DynamicDeferredCall,
+    flash_controller: &'static sam4l::flashcalw::FLASHCALW,
 ) {
     // Set up flash controller.
-    flashcalw::FLASH_CONTROLLER.configure();
+    flash_controller.configure();
     let pagebuffer = static_init!(flashcalw::Sam4lPage, flashcalw::Sam4lPage::default());
 
     // Create actual log storage abstraction on top of flash.
@@ -57,13 +58,13 @@ pub unsafe fn run(
         Log,
         log::Log::new(
             &TEST_LOG,
-            &flashcalw::FLASH_CONTROLLER,
+            &flash_controller,
             pagebuffer,
             deferred_caller,
             true
         )
     );
-    flash::HasClient::set_client(&flashcalw::FLASH_CONTROLLER, log);
+    flash::HasClient::set_client(flash_controller, log);
     log.initialize_callback_handle(
         deferred_caller
             .register(log)
@@ -80,7 +81,7 @@ pub unsafe fn run(
     test.alarm.set_alarm_client(test);
 
     // Create user button.
-    let button_pin = &sam4l::gpio::PC[24];
+    let button_pin = sam4l::gpio::GPIOPin::new(sam4l::gpio::Pin::PC24);
     button_pin.enable_interrupts(gpio::InterruptEdge::RisingEdge);
     button_pin.set_client(test);
 

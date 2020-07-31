@@ -3,8 +3,6 @@
 use kernel::common::registers::{register_bitfields, register_structs, ReadWrite};
 use kernel::common::StaticRef;
 
-pub static mut CACHECTRL: CacheCtrl = CacheCtrl::new(CACHECTRL_BASE);
-
 const CACHECTRL_BASE: StaticRef<CacheCtrlRegisters> =
     unsafe { StaticRef::new(0x4001_8000 as *const CacheCtrlRegisters) };
 
@@ -52,8 +50,10 @@ pub struct CacheCtrl {
 }
 
 impl CacheCtrl {
-    pub const fn new(base: StaticRef<CacheCtrlRegisters>) -> CacheCtrl {
-        CacheCtrl { registers: base }
+    pub const fn new() -> CacheCtrl {
+        CacheCtrl {
+            registers: CACHECTRL_BASE,
+        }
     }
 
     pub fn enable_cache(&self) {
