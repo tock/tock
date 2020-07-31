@@ -1,24 +1,44 @@
 //! Implementation of the physical memory protection unit (PMP).
+//!
+//! Different PMP implementations support different numbers of PMP entries. To
+//! reduce memory overhead, the PMP implementation supports customizing the
+//! number of supported entries to match the hardware. Ideally we would do this
+//! by templating the implementation on the number of entries, but that is an
+//! experimental feature in Rust. To mimic that functionality, we wrap this
+//! entire PMP implementation in a macro, and then require that each chip with
+//! an PMP instantiate their own PMP implementation with the size customized for
+//! the chip's hardware.
+//!
+//! ## Implementation
+//!
+//! We use the PMP Top of Region (TOR) alignment as there are alignment issues
+//! with NAPOT. NAPOT would allow us to protect more memory regions (with NAPOT
+//! each PMP region can be a memory region), but the problem with NAPOT is the
+//! address must be aligned to the size, which results in wasted memory. To
+//! avoid this wasted memory we use TOR and each memory region uses two physical
+//! PMP regions.
+
+/// Instantiate a PMP configuration.
+///
+/// `$x` is the number of PMP entries the hardware supports.
+///
+/// Since we use TOR, we will use two PMP entries for each region. So the actual
+/// number of regions we can protect is `$x/2`.
+#[macro_export]
+macro_rules! PMPConfigMacro {
+    ( $x:expr ) => {
 
 use core::cell::Cell;
 use core::cmp;
 use core::fmt;
 use kernel::common::cells::OptionalCell;
 
-use crate::csr;
-use kernel;
+use rv32i::csr;
 use kernel::common::cells::MapCell;
+use kernel::common::registers;
 use kernel::common::registers::register_bitfields;
 use kernel::mpu;
 use kernel::AppId;
-
-// This is the RISC-V PMP support for Tock
-// We use the PMP TOR alignment as there are alignment issues with NAPOT
-// NAPOT would allow us to use more regions (each PMP region can be a
-//     memory region) but the problem with NAPOT is the address must be
-//     alignment to the size, which results in wasted memory.
-// To avoid this wasted memory we use TOR and each memory region uses two
-//     physical PMP regions.
 
 // Generic PMP config
 register_bitfields![u8,
@@ -40,7 +60,7 @@ register_bitfields![u8,
 #[derive(Copy, Clone)]
 pub struct PMPRegion {
     location: (*const u8, usize),
-    cfg: tock_registers::registers::FieldValue<u8, pmpcfg::Register>,
+    cfg: registers::FieldValue<u8, pmpcfg::Register>,
 }
 
 impl fmt::Display for PMPRegion {
@@ -116,36 +136,41 @@ impl PMPRegion {
     }
 }
 
+pub trait PMPConfigType: Default + Copy + Clone + Sized {}
+
 /// Struct storing region configuration for RISCV PMP.
-pub struct PMPConfig {
-    regions: [Option<PMPRegion>; 32],
-    total_regions: usize,
-    /// Indicates if the configuration has changed since the last time it was written to hardware.
+pub struct PMPConfig<N: PMPConfigType> {
+    /// Array of PMP regions. Each region requires two physical entries.
+    regions: N,
+    /// Indicates if the configuration has changed since the last time it was
+    /// written to hardware.
     is_dirty: Cell<bool>,
-    /// The application that the MPU was last configured for. Used (along with the `is_dirty` flag)
-    /// to determine if MPU can skip writing the configuration to hardware.
+    /// The application that the MPU was last configured for. Used (along with
+    /// the `is_dirty` flag) to determine if MPU can skip writing the
+    /// configuration to hardware.
     last_configured_for: MapCell<AppId>,
-    app_region: OptionalCell<usize>,
+    /// Which region index is used for app memory (if it has been configured).
+    app_memory_region: OptionalCell<usize>,
 }
 
-impl Default for PMPConfig {
-    /// number of regions on the arty chip
-    fn default() -> PMPConfig {
+impl PMPConfigType for [Option<PMPRegion>; $x / 2] {}
+
+impl Default for PMPConfig<[Option<PMPRegion>; $x / 2]> {
+    fn default() -> Self {
         PMPConfig {
-            regions: [None; 32],
-            total_regions: 8,
+            regions: [None; $x / 2],
             is_dirty: Cell::new(true),
             last_configured_for: MapCell::empty(),
-            app_region: OptionalCell::empty(),
+            app_memory_region: OptionalCell::empty(),
         }
     }
 }
 
-impl fmt::Display for PMPConfig {
+impl fmt::Display for PMPConfig<[Option<PMPRegion>; $x / 2]> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "PMP regions:")?;
-        for n in 0..self.total_regions {
-            match self.regions[n] {
+        for (n, region) in self.regions.iter().enumerate() {
+            match region {
                 None => writeln!(f, "<unset>")?,
                 Some(region) => writeln!(f, " [{}]: {}", n, region)?,
             }
@@ -154,35 +179,14 @@ impl fmt::Display for PMPConfig {
     }
 }
 
-impl PMPConfig {
-    pub fn new(pmp_regions: usize) -> PMPConfig {
-        if pmp_regions > 64 {
-            panic!("There is an ISA maximum of 64 PMP regions");
-        }
-        if pmp_regions < 4 {
-            panic!("Tock requires at least 4 PMP regions");
-        }
-        PMPConfig {
-            regions: [None; 32],
-            // As we use the PMP TOR setup we only support half the number
-            // of regions as hardware supports
-            total_regions: pmp_regions / 2,
-
-            is_dirty: Cell::new(true),
-            last_configured_for: MapCell::empty(),
-            app_region: OptionalCell::empty(),
-        }
-    }
-
+impl PMPConfig<[Option<PMPRegion>; $x / 2]> {
     fn unused_region_number(&self) -> Option<usize> {
         for (number, region) in self.regions.iter().enumerate() {
-            if self.app_region.contains(&number) {
+            if self.app_memory_region.contains(&number) {
                 continue;
             }
             if region.is_none() {
-                if number < self.total_regions {
-                    return Some(number);
-                }
+                return Some(number);
             }
         }
         None
@@ -190,9 +194,9 @@ impl PMPConfig {
 
     fn sort_regions(&mut self) {
         // Get the app region address
-        let app_addres = if self.app_region.is_some() {
+        let app_addres = if self.app_memory_region.is_some() {
             Some(
-                self.regions[self.app_region.unwrap_or(0)]
+                self.regions[self.app_memory_region.unwrap_or(0)]
                     .unwrap()
                     .location
                     .0,
@@ -220,7 +224,7 @@ impl PMPConfig {
                 match region {
                     Some(reg) => {
                         if reg.location.0 == app_addres.unwrap() {
-                            self.app_region.set(i);
+                            self.app_memory_region.set(i);
                         }
                     }
                     None => {}
@@ -230,18 +234,18 @@ impl PMPConfig {
     }
 }
 
-impl kernel::mpu::MPU for PMPConfig {
-    type MpuConfig = PMPConfig;
+impl kernel::mpu::MPU for PMPConfig<[Option<PMPRegion>; $x / 2]> {
+    type MpuConfig = PMPConfig<[Option<PMPRegion>; $x / 2]>;
 
     fn enable_mpu(&self) {}
 
     fn disable_mpu(&self) {
-        // `total_regions` here refers to the number of memory slices we can
-        // protect with the PMP. Each slice requires two PMP entries to protect,
-        // so `total_regions` is half of the number physical hardware PMP
-        // configuration entries. Therefore, we double `total_regions` to clear
-        // all the relevant `pmpcfg` entries.
-        for x in 0..(self.total_regions * 2) {
+        // The length of `self.regions` here refers to the number of memory
+        // slices we can protect with the PMP. Each slice requires two PMP
+        // entries to protect, so this is half of the number physical hardware
+        // PMP configuration entries. Therefore, we double the number of regions
+        // to clear all the relevant `pmpcfg` entries.
+        for x in 0..(self.regions.len() * 2) {
             match x % 4 {
                 0 => {
                     csr::CSR.pmpcfg[x / 4].modify(
@@ -296,7 +300,7 @@ impl kernel::mpu::MPU for PMPConfig {
     }
 
     fn number_total_regions(&self) -> usize {
-        self.total_regions
+        self.regions.len()
     }
 
     fn allocate_region(
@@ -374,8 +378,8 @@ impl kernel::mpu::MPU for PMPConfig {
             }
         }
 
-        let region_num = if config.app_region.is_some() {
-            config.app_region.unwrap_or(0)
+        let region_num = if config.app_memory_region.is_some() {
+            config.app_memory_region.unwrap_or(0)
         } else {
             config.unused_region_number()?
         };
@@ -409,7 +413,7 @@ impl kernel::mpu::MPU for PMPConfig {
         config.regions[region_num] = Some(region);
         config.is_dirty.set(true);
 
-        config.app_region.set(region_num);
+        config.app_memory_region.set(region_num);
 
         config.sort_regions();
 
@@ -423,7 +427,7 @@ impl kernel::mpu::MPU for PMPConfig {
         permissions: mpu::Permissions,
         config: &mut Self::MpuConfig,
     ) -> Result<(), ()> {
-        let region_num = config.app_region.unwrap_or(0);
+        let region_num = config.app_memory_region.unwrap_or(0);
 
         let (region_start, region_size) = match config.regions[region_num] {
             Some(region) => region.location(),
@@ -460,8 +464,7 @@ impl kernel::mpu::MPU for PMPConfig {
         // Skip PMP configuration if it is already configured for this app and the MPU
         // configuration of this app has not changed.
         if !last_configured_for_this_app || config.is_dirty.get() {
-            for x in 0..self.total_regions {
-                let region = config.regions[x];
+            for (x, region) in self.regions.iter().enumerate() {
                 match region {
                     Some(r) => {
                         let cfg_val = r.cfg.value as u32;
@@ -511,4 +514,6 @@ impl kernel::mpu::MPU for PMPConfig {
             self.last_configured_for.put(*app_id);
         }
     }
+        }
+    };
 }
