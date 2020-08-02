@@ -542,7 +542,7 @@ impl Kernel {
     /// scheduler timer; passing `None` for the timeslice will use a null
     /// scheduler timer even if the chip provides a real scheduler timer.
     /// Schedulers can pass a timeslice (in us) of their choice, though if the
-    /// passed timeslice is smalled than `MIN_QUANTA_THRESHOLD_US` the process
+    /// passed timeslice is smaller than `MIN_QUANTA_THRESHOLD_US` the process
     /// will not execute, and this function will return immediately.
     ///
     /// This function returns a tuple indicating the reason the reason this
