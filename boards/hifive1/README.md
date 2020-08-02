@@ -25,7 +25,7 @@ Unfortunately you need QEMU 5.1, which at the time of writing is unlikely to be 
 QEMU can be started with Tock using the following arguments (in Tock's top-level directory):
 
 ```bash
-$ qemu-system-riscv32 -M sifive_e -kernel $TOCK_ROOT/target/riscv32imac-unknown-none-elf/release/hifive1.elf  -nographic
+$ qemu-system-riscv32 -M sifive_e,revb=true -kernel $TOCK_ROOT/target/riscv32imac-unknown-none-elf/release/hifive1.elf  -nographic
 ```
 
 Or with the `qemu` make target:
@@ -37,7 +37,7 @@ $ make qemu
 QEMU can be started with Tock and a userspace app using the following arguments (in Tock's top-level directory):
 
 ```
-qemu-system-riscv32 -M sifive_e -kernel $TOCK_ROOT/target/riscv32imac-unknown-none-elf/release/hifive1.elf -device loader,file=./examples/hello.tbf,addr=0x20430000 -nographic
+qemu-system-riscv32 -M sifive_e,revb=true -kernel $TOCK_ROOT/target/riscv32imac-unknown-none-elf/release/hifive1.elf -device loader,file=./examples/hello.tbf,addr=0x20430000 -nographic
 ```
 Or with the `qemu-app` make target:
 
