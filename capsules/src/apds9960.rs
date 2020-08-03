@@ -23,9 +23,7 @@ const PEN: u8 = 1<<2; // Proximity Sensor Enable
 const PIEN: u8 = 1<<5; // Proximity Sensor Enable
 
 
-// Default Proximity Parameters (can be modified for user preference)
-static LOW_THRESH : u8 = 0;
-static HIGH_THRESH : u8 = 175;
+// Default Proximity Parameters (can be modified for developer preference)
 static PERS : u8 = 4;
 
 
@@ -231,8 +229,6 @@ impl<'a> APDS9960<'a> {
 
 impl i2c::I2CClient for APDS9960<'_> {
     fn command_complete(&self, buffer: &'static mut [u8], _error: i2c::Error) {
-
-        debug!("Reading Proximity Data: {:#x} , {:#x}", buffer[0] , buffer[1]);
         
         match self.state.get() {
             State::ReadId => {
