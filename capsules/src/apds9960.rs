@@ -182,6 +182,8 @@ impl<'a> APDS9960<'a> {
 
         });
 
+        debug!("Set thresholds");
+        self.prox_callback.map(|cb| cb.callback(0 as usize)); // Callback after command completes to let system call complete
 
     }
 
@@ -337,6 +339,9 @@ impl i2c::I2CClient for APDS9960<'_> {
             }
 
             State::SetPgain => {
+
+                debug!("Set pgain");
+                self.prox_callback.map(|cb| cb.callback(0 as usize)); // Callback after command completes to let system call complete
                 // Return to IDLE
                 self.buffer.replace(buffer);
                 self.i2c.disable();
