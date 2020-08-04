@@ -1,15 +1,18 @@
 //! Round Robin Scheduler for Tock
+//!
 //! This scheduler is specifically a Round Robin Scheduler with Interrupts.
 //!
 //! See: https://www.eecs.umich.edu/courses/eecs461/lecture/SWArchitecture.pdf
 //! for details.
-//! When hardware interrupts occur while a userspace process is executing,
-//! this scheduler executes the top half of the interrupt,
-//! and then stops executing the userspace process immediately and handles the bottom
-//! half of the interrupt. This design decision was made to mimic the behavior of the
+//!
+//! When hardware interrupts occur while a userspace process is executing, this
+//! scheduler executes the top half of the interrupt, and then stops executing
+//! the userspace process immediately and handles the bottom half of the
+//! interrupt. This design decision was made to mimic the behavior of the
 //! original Tock scheduler. In order to ensure fair use of timeslices, when
-//! userspace processes are interrupted the systick is paused, and the same process
-//! is resumed with the same systick value from when it was interrupted.
+//! userspace processes are interrupted the scheduler timer is paused, and the
+//! same process is resumed with the same scheduler timer value from when it was
+//! interrupted.
 
 use crate::callback::AppId;
 use crate::common::list::{List, ListLink, ListNode};

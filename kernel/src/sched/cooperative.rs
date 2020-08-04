@@ -1,10 +1,15 @@
 //! Cooperative Scheduler for Tock
 //!
-//! When hardware interrupts occur while a userspace process is executing,
-//! this scheduler executes the top half of the interrupt,
-//! and then stops executing the userspace process immediately and handles the bottom
-//! half of the interrupt. However it then continues executing the same userspace process
-//! that was executing. This scheduler overwrites the systick
+//! This scheduler runs all processes in a round-robin fashion, but does not use
+//! a scheduler timer to enforce process timeslices. That is, all processes are
+//! run cooperatively. Processes are run until they yield or stop executing
+//! (i.e. they crash or exit).
+//!
+//! When hardware interrupts occur while a userspace process is executing, this
+//! scheduler executes the top half of the interrupt, and then stops executing
+//! the userspace process immediately and handles the bottom half of the
+//! interrupt. However it then continues executing the same userspace process
+//! that was executing.
 
 use crate::callback::AppId;
 use crate::common::list::{List, ListLink, ListNode};
