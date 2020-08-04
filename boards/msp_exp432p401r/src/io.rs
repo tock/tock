@@ -7,6 +7,7 @@ use kernel::debug;
 use kernel::debug::IoWrite;
 use kernel::hil::led;
 use msp432::gpio::PinNr;
+use msp432::wdt::Wdt;
 
 /// Uart is used by kernel::debug to panic message to the serial port.
 pub struct Uart {
@@ -45,7 +46,9 @@ pub unsafe extern "C" fn panic_fmt(info: &PanicInfo) -> ! {
     const LED1_PIN: PinNr = PinNr::P01_0;
     let led = &mut led::LedHigh::new(&mut msp432::gpio::PINS[LED1_PIN as usize]);
     let writer = &mut UART;
+    let wdt = Wdt::new();
 
+    wdt.disable();
     debug::panic(
         &mut [led],
         writer,
