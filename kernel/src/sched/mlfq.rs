@@ -22,6 +22,7 @@ use crate::common::list::{List, ListLink, ListNode};
 use crate::hil::time;
 use crate::hil::time::Frequency;
 use crate::platform::Chip;
+use crate::process::ProcessType;
 use crate::sched::{Kernel, Scheduler, SchedulingDecision, StoppedExecutingReason};
 use core::cell::Cell;
 
@@ -33,15 +34,15 @@ struct MfProcState {
 
 /// Nodes store per-process state
 pub struct MLFQProcessNode<'a> {
-    appid: AppId,
+    proc: &'static Option<&'static dyn ProcessType>,
     state: MfProcState,
     next: ListLink<'a, MLFQProcessNode<'a>>,
 }
 
 impl<'a> MLFQProcessNode<'a> {
-    pub fn new(appid: AppId) -> MLFQProcessNode<'a> {
+    pub fn new(proc: &'static Option<&'static dyn ProcessType>) -> MLFQProcessNode<'a> {
         MLFQProcessNode {
-            appid,
+            proc,
             state: MfProcState::default(),
             next: ListLink::empty(),
         }
@@ -55,7 +56,6 @@ impl<'a> ListNode<'a, MLFQProcessNode<'a>> for MLFQProcessNode<'a> {
 }
 
 pub struct MLFQSched<'a, A: 'static + time::Alarm<'static>> {
-    kernel: &'static Kernel,
     alarm: &'static A,
     pub processes: [List<'a, MLFQProcessNode<'a>>; 3], // Using Self::NUM_QUEUES causes rustc to crash..
     next_reset: Cell<u32>,
@@ -68,9 +68,8 @@ impl<'a, A: 'static + time::Alarm<'static>> MLFQSched<'a, A> {
     pub const PRIORITY_REFRESH_PERIOD_MS: u32 = 5000;
     pub const NUM_QUEUES: usize = 3;
 
-    pub fn new(kernel: &'static Kernel, alarm: &'static A) -> Self {
+    pub fn new(alarm: &'static A) -> Self {
         Self {
-            kernel,
             alarm,
             processes: [List::new(), List::new(), List::new()],
             next_reset: Cell::new(0),
@@ -107,10 +106,9 @@ impl<'a, A: 'static + time::Alarm<'static>> MLFQSched<'a, A> {
     /// This method moves that node to the head of its queue.
     fn get_next_ready_process_node(&self) -> (Option<&MLFQProcessNode<'a>>, usize) {
         for (idx, queue) in self.processes.iter().enumerate() {
-            let next = queue.iter().find(|node_ref| {
-                self.kernel
-                    .process_map_or(false, node_ref.appid, |proc| proc.ready())
-            });
+            let next = queue
+                .iter()
+                .find(|node_ref| node_ref.proc.map_or(false, |proc| proc.ready()));
             if next.is_some() {
                 // pop procs to back until we get to match
                 loop {
@@ -148,10 +146,10 @@ impl<'a, A: 'static + time::Alarm<'static>, C: Chip> Scheduler<C> for MLFQSched<
                 self.redeem_all_procs();
             }
             let (node_ref_opt, queue_idx) = self.get_next_ready_process_node();
-            let node_ref = node_ref_opt.unwrap(); //Panic if fail bc processes_blocked()!
+            let node_ref = node_ref_opt.unwrap(); // Panic if fail bc processes_blocked()!
             let timeslice =
                 self.get_timeslice_us(queue_idx) - node_ref.state.us_used_this_queue.get();
-            let next = node_ref.appid;
+            let next = node_ref.proc.unwrap().appid(); // Panic if fail bc processes_blocked()!
             self.last_queue_idx.set(queue_idx);
             self.last_timeslice.set(timeslice);
 

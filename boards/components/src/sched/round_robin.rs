@@ -48,14 +48,12 @@ impl Component for RoundRobinComponent {
         let scheduler = static_init!(RoundRobinSched<'static>, RoundRobinSched::new());
 
         for (i, node) in buf.iter_mut().enumerate() {
-            if self.processes[i].is_some() {
-                let init_node = static_init_half!(
-                    node,
-                    RoundRobinProcessNode<'static>,
-                    RoundRobinProcessNode::new(self.processes[i].unwrap().appid(),)
-                );
-                scheduler.processes.push_head(init_node);
-            }
+            let init_node = static_init_half!(
+                node,
+                RoundRobinProcessNode<'static>,
+                RoundRobinProcessNode::new(&self.processes[i])
+            );
+            scheduler.processes.push_head(init_node);
         }
         scheduler
     }

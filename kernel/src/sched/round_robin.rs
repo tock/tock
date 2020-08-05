@@ -14,22 +14,23 @@
 //! same process is resumed with the same scheduler timer value from when it was
 //! interrupted.
 
-use crate::callback::AppId;
 use crate::common::list::{List, ListLink, ListNode};
 use crate::platform::Chip;
+use crate::procs::ProcessType;
 use crate::sched::{Kernel, Scheduler, SchedulingDecision, StoppedExecutingReason};
 use core::cell::Cell;
 
 /// A node in the linked list the scheduler uses to track processes
+/// Each node holds a pointer to a slot in the processes array
 pub struct RoundRobinProcessNode<'a> {
-    appid: AppId,
+    proc: &'static Option<&'static dyn ProcessType>,
     next: ListLink<'a, RoundRobinProcessNode<'a>>,
 }
 
 impl<'a> RoundRobinProcessNode<'a> {
-    pub fn new(appid: AppId) -> RoundRobinProcessNode<'a> {
+    pub fn new(proc: &'static Option<&'static dyn ProcessType>) -> RoundRobinProcessNode<'a> {
         RoundRobinProcessNode {
-            appid,
+            proc,
             next: ListLink::empty(),
         }
     }
@@ -66,7 +67,25 @@ impl<'a, C: Chip> Scheduler<C> for RoundRobinSched<'a> {
             // No processes ready
             SchedulingDecision::TrySleep
         } else {
-            let next = self.processes.head().unwrap().appid;
+            let mut next = None; // This will be replaced, bc a process is guaranteed
+                                 // to be ready if processes_blocked() is false
+
+            // Find next ready process. Place any *empty* process slots, or not-ready
+            // processes, at the back of the queue.
+            for node in self.processes.iter() {
+                match node.proc {
+                    Some(proc) => {
+                        if proc.ready() {
+                            next = Some(proc.appid());
+                            break;
+                        }
+                        self.processes.push_tail(self.processes.pop_head().unwrap());
+                    }
+                    None => {
+                        self.processes.push_tail(self.processes.pop_head().unwrap());
+                    }
+                }
+            }
             let timeslice = if self.last_rescheduled.get() {
                 self.time_remaining.get()
             } else {
@@ -76,7 +95,7 @@ impl<'a, C: Chip> Scheduler<C> for RoundRobinSched<'a> {
             };
             assert!(timeslice != 0);
 
-            SchedulingDecision::RunProcess((next, Some(timeslice)))
+            SchedulingDecision::RunProcess((next.unwrap(), Some(timeslice)))
         }
     }
 
