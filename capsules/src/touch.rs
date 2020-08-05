@@ -54,7 +54,7 @@ impl Default for App {
             dropped_events: 0,
             x: 0,
             y: 0,
-            status: 3,
+            status: touch_status_to_number(&TouchStatus::Unstarted),
         }
     }
 }
