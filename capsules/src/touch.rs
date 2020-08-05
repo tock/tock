@@ -22,6 +22,15 @@ use kernel::{AppId, AppSlice, Callback, Driver, Grant, Shared};
 use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::Touch as usize;
 
+fn touch_status_to_number(status: &TouchStatus) -> usize {
+    match status {
+        TouchStatus::Released => 0,
+        TouchStatus::Pressed => 1,
+        TouchStatus::Moved => 2,
+        TouchStatus::Unstarted => 3,
+    }
+}
+
 pub struct App {
     touch_callback: Option<Callback>,
     gesture_callback: Option<Callback>,
@@ -162,11 +171,7 @@ impl<'a> hil::touch::TouchClient for Touch<'a> {
         // );
         for app in self.apps.iter() {
             app.enter(|app, _| {
-                let event_status = match event.status {
-                    TouchStatus::Released => 0,
-                    TouchStatus::Pressed => 1,
-                    TouchStatus::Moved => 2,
-                };
+                let event_status = touch_status_to_number(&event.status);
                 if app.x != event.x || app.y != event.y || app.status != event_status {
                     app.x = event.x;
                     app.y = event.y;
@@ -213,11 +218,7 @@ impl<'a> hil::touch::MultiTouchClient for Touch<'a> {
                             for event_index in 0..num {
                                 let mut event = touch_events[event_index].clone();
                                 self.update_rotation(&mut event);
-                                let event_status = match event.status {
-                                    TouchStatus::Released => 0,
-                                    TouchStatus::Pressed => 1,
-                                    TouchStatus::Moved => 2,
-                                };
+                                let event_status = touch_status_to_number(&event.status);
                                 // debug!(
                                 //     " multitouch {:?} x {} y {} size {:?} pressure {:?}",
                                 //     event.status, event.x, event.y, event.size, event.pressure

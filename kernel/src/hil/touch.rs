@@ -5,6 +5,7 @@ use crate::ReturnCode;
 /// Touch Event Status
 #[derive(Debug, Copy, Clone)]
 pub enum TouchStatus {
+    Unstarted,
     Pressed,
     Released,
     Moved,
