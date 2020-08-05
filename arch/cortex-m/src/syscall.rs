@@ -21,13 +21,6 @@ pub static mut SYSCALL_FIRED: usize = 0;
 #[used]
 pub static mut APP_HARD_FAULT: usize = 0;
 
-/// This is called in the systick handler. When set to 1 this means the process
-/// exceeded its timeslice. Marked `pub` because it is used in the cortex-m*
-/// specific handler.
-#[no_mangle]
-#[used]
-pub static mut SYSTICK_EXPIRED: usize = 0;
-
 /// This is used in the hardfault handler. When an app faults, the hardfault
 /// handler stores the value of the SCB registers in this static array. This
 /// makes them available to be displayed in a diagnostic fault message.
@@ -157,10 +150,6 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         let syscall_fired = read_volatile(&SYSCALL_FIRED);
         write_volatile(&mut SYSCALL_FIRED, 0);
 
-        // Check to see if the systick timer for the process expired.
-        let systick_expired = read_volatile(&SYSTICK_EXPIRED);
-        write_volatile(&mut SYSTICK_EXPIRED, 0);
-
         // Now decide the reason based on which flags were set.
         let switch_reason = if app_fault == 1 {
             // APP_HARD_FAULT takes priority. This means we hit the hardfault
@@ -195,8 +184,6 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
                 Some(s) => kernel::syscall::ContextSwitchReason::SyscallFired { syscall: s },
                 None => kernel::syscall::ContextSwitchReason::Fault,
             }
-        } else if systick_expired == 1 {
-            kernel::syscall::ContextSwitchReason::TimesliceExpired
         } else {
             // If none of the above cases are true its because the process was interrupted by an
             // ISR for a hardware event

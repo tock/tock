@@ -25,7 +25,7 @@ use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
-use kernel::hil::time;
+use kernel::hil::time::{self, Alarm};
 use kernel::static_init_half;
 
 // Setup static space for the objects.
@@ -74,7 +74,7 @@ impl<A: 'static + time::Alarm<'static>> Component for AlarmMuxComponent<A> {
             MuxAlarm::new(self.alarm)
         );
 
-        time::Alarm::set_client(self.alarm, mux_alarm);
+        self.alarm.set_alarm_client(mux_alarm);
         mux_alarm
     }
 }
@@ -117,7 +117,7 @@ impl<A: 'static + time::Alarm<'static>> Component for AlarmDriverComponent<A> {
             AlarmDriver::new(virtual_alarm1, self.board_kernel.create_grant(&grant_cap))
         );
 
-        time::Alarm::set_client(virtual_alarm1, alarm);
+        virtual_alarm1.set_alarm_client(alarm);
         alarm
     }
 }

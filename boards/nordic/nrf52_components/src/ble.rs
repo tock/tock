@@ -13,14 +13,14 @@ use nrf52::rtc::Rtc;
 
 use kernel::capabilities;
 use kernel::component::Component;
-use kernel::hil;
+use kernel::hil::time::Alarm;
 use kernel::{create_capability, static_init};
 
 // Save some deep nesting
 
 pub struct BLEComponent {
     board_kernel: &'static kernel::Kernel,
-    radio: &'static nrf52::ble_radio::Radio,
+    radio: &'static nrf52::ble_radio::Radio<'static>,
     mux_alarm: &'static capsules::virtual_alarm::MuxAlarm<'static, nrf52::rtc::Rtc<'static>>,
 }
 
@@ -42,7 +42,7 @@ impl Component for BLEComponent {
     type StaticInput = ();
     type Output = &'static capsules::ble_advertising_driver::BLE<
         'static,
-        nrf52::ble_radio::Radio,
+        nrf52::ble_radio::Radio<'static>,
         VirtualMuxAlarm<'static, Rtc<'static>>,
     >;
 
@@ -73,7 +73,7 @@ impl Component for BLEComponent {
         kernel::hil::ble_advertising::BleAdvertisementDriver::set_transmit_client(
             self.radio, ble_radio,
         );
-        hil::time::Alarm::set_client(ble_radio_virtual_alarm, ble_radio);
+        ble_radio_virtual_alarm.set_alarm_client(ble_radio);
 
         ble_radio
     }

@@ -69,6 +69,7 @@
 use capsules::virtual_alarm::VirtualMuxAlarm;
 use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::component::Component;
+use kernel::hil::time::Counter;
 #[allow(unused_imports)]
 use kernel::{capabilities, create_capability, debug, debug_gpio, debug_verbose, static_init};
 use nrf52840::gpio::Pin;
@@ -119,9 +120,6 @@ const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultRespons
 // Number of concurrent processes this platform supports.
 const NUM_PROCS: usize = 8;
 
-#[link_section = ".app_memory"]
-static mut APP_MEMORY: [u8; 0x3C000] = [0; 0x3C000];
-
 static mut PROCESSES: [Option<&'static dyn kernel::procs::ProcessType>; NUM_PROCS] =
     [None; NUM_PROCS];
 
@@ -136,18 +134,18 @@ pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 pub struct Platform {
     ble_radio: &'static capsules::ble_advertising_driver::BLE<
         'static,
-        nrf52840::ble_radio::Radio,
+        nrf52840::ble_radio::Radio<'static>,
         VirtualMuxAlarm<'static, nrf52840::rtc::Rtc<'static>>,
     >,
     ieee802154_radio: &'static capsules::ieee802154::RadioDriver<'static>,
-    button: &'static capsules::button::Button<'static, nrf52840::gpio::GPIOPin>,
+    button: &'static capsules::button::Button<'static, nrf52840::gpio::GPIOPin<'static>>,
     pconsole: &'static capsules::process_console::ProcessConsole<
         'static,
         components::process_console::Capability,
     >,
     console: &'static capsules::console::Console<'static>,
-    gpio: &'static capsules::gpio::GPIO<'static, nrf52840::gpio::GPIOPin>,
-    led: &'static capsules::led::LED<'static, nrf52840::gpio::GPIOPin>,
+    gpio: &'static capsules::gpio::GPIO<'static, nrf52840::gpio::GPIOPin<'static>>,
+    led: &'static capsules::led::LED<'static, nrf52840::gpio::GPIOPin<'static>>,
     rng: &'static capsules::rng::RngDriver<'static>,
     temp: &'static capsules::temperature::TemperatureSensor<'static>,
     ipc: kernel::ipc::IPC,
@@ -415,6 +413,11 @@ pub unsafe fn reset_handler() {
 
     nrf52_components::NrfClockComponent::new().finalize(());
 
+    // let alarm_test_component =
+    //     components::test::multi_alarm_test::MultiAlarmTestComponent::new(&mux_alarm).finalize(
+    //         components::multi_alarm_test_component_buf!(nrf52840::rtc::Rtc),
+    //     );
+
     let platform = Platform {
         button,
         ble_radio,
@@ -435,15 +438,20 @@ pub unsafe fn reset_handler() {
     debug!("Initialization complete. Entering main loop\r");
     debug!("{}", &nrf52840::ficr::FICR_INSTANCE);
 
+    // alarm_test_component.run();
+
+    /// These symbols are defined in the linker script.
     extern "C" {
         /// Beginning of the ROM region containing app images.
         static _sapps: u8;
-
         /// End of the ROM region containing app images.
-        ///
-        /// This symbol is defined in the linker script.
         static _eapps: u8;
+        /// Beginning of the RAM region for app memory.
+        static mut _sappmem: u8;
+        /// End of the RAM region for app memory.
+        static _eappmem: u8;
     }
+
     kernel::procs::load_processes(
         board_kernel,
         chip,
@@ -451,7 +459,10 @@ pub unsafe fn reset_handler() {
             &_sapps as *const u8,
             &_eapps as *const u8 as usize - &_sapps as *const u8 as usize,
         ),
-        &mut APP_MEMORY,
+        &mut core::slice::from_raw_parts_mut(
+            &mut _sappmem as *mut u8,
+            &_eappmem as *const u8 as usize - &_sappmem as *const u8 as usize,
+        ),
         &mut PROCESSES,
         FAULT_RESPONSE,
         &process_management_capability,

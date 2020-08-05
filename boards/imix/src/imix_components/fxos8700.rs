@@ -34,13 +34,13 @@ use kernel::Grant;
 
 pub struct Fxos8700Component {
     i2c_mux: &'static MuxI2C<'static>,
-    gpio: &'static sam4l::gpio::GPIOPin,
+    gpio: &'static sam4l::gpio::GPIOPin<'static>,
 }
 
 impl Fxos8700Component {
     pub fn new(
         i2c: &'static MuxI2C<'static>,
-        gpio: &'static sam4l::gpio::GPIOPin,
+        gpio: &'static sam4l::gpio::GPIOPin<'static>,
     ) -> Fxos8700Component {
         Fxos8700Component {
             i2c_mux: i2c,
@@ -68,7 +68,7 @@ impl Component for Fxos8700Component {
 pub struct NineDofComponent {
     board_kernel: &'static kernel::Kernel,
     i2c_mux: &'static MuxI2C<'static>,
-    gpio: &'static sam4l::gpio::GPIOPin,
+    gpio: &'static sam4l::gpio::GPIOPin<'static>,
 }
 
 impl NineDofComponent {

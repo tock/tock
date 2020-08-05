@@ -1,7 +1,7 @@
 //! Component for USB
 //!
 //! This provides one Component, UsbComponent, which implements
-//! a userspace syscall interface to the USB peripheral on a lowRISC SoC.
+//! a userspace syscall interface to the USB peripheral on the EarlGrey SoC.
 //!
 //! Usage
 //! -----
@@ -39,7 +39,10 @@ impl Component for UsbComponent {
         // Configure the USB controller
         let usb_client = static_init!(
             capsules::usb::usbc_client::Client<'static, lowrisc::usbdev::Usb<'static>>,
-            capsules::usb::usbc_client::Client::new(&ibex::usbdev::USB)
+            capsules::usb::usbc_client::Client::new(
+                &earlgrey::usbdev::USB,
+                capsules::usb::usbc_client::MAX_CTRL_PACKET_SIZE_EARLGREY
+            )
         );
 
         // Configure the USB userspace driver

@@ -1,6 +1,5 @@
 #![feature(const_fn)]
 #![no_std]
-#![allow(unused_doc_comments)]
 
 pub mod aes;
 pub mod constants;

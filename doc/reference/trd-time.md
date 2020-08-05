@@ -5,7 +5,7 @@ Kernel Time HIL
 **Working Group:** Kernel<br/>
 **Type:** Documentary<br/>
 **Status:** Draft <br/>
-**Author:** Amit Levy and Philip Levis <br/>
+**Author:** Guillaume Endignoux, Amit Levy and Philip Levis <br/>
 **Draft-Created:** Feb 06, 2017<br/>
 **Draft-Modified:** March 18, 2020<br/>
 **Draft-Version:** 2<br/>
@@ -18,6 +18,7 @@ This document describes the hardware independent layer interface (HIL) for time
 in the Tock operating system kernel. It describes the Rust traits and other
 definitions for this service as well as the reasoning behind them. This
 document is in full compliance with [TRD1].
+
 
 1 Introduction
 ===============================
@@ -34,7 +35,7 @@ main traits:
 
   * `kernel::hil::time::Time`: provides an abstraction of a moment in time. It has two associated types. One describes the width and maximum value of a time value. The other specifies the frequency of the ticks of the time value.
   * `kernel::hil::time::Counter`: derives from `Time` and provides an abstraction of a free-running counter that can be started or stopped. A `Counter`'s moment in time is the current value of the counter.
-  * `kernel::hil::time::Alarm`: derives from `Time`, and provides an abstraction of being able to receive a callback at a future moment in time. 
+  * `kernel::hil::time::Alarm`: derives from `Time`, and provides an abstraction of being able to receive a callback at a future moment in time.
   * `kernel::hil::time::Timer`: derives from `Time`, and provides an abstraction of being able to receive a callback at some amount of time in the future, or a series of callbacks at a given period.
   * `kernel::hil::time::OverflowClient`: handles an overflow callback from a `Counter`.
   * `kernel::hil::time::AlarmClient`: handles the callback from an `Alarm`.
@@ -47,6 +48,7 @@ call capsules for alarm callbacks to work across boards and chips.
 
 This document describes these traits, their semantics, and the
 instances that a Tock chip is expected to implement.
+
 
 2 `Time`, `Frequency`, and `Ticks` traits
 ===============================
@@ -76,12 +78,13 @@ pub trait Ticks: Clone + Copy + From<u32> {
     fn wrapping_add(self, other: Self) -> Self;
     fn wrapping_sub(self, other: Self) -> Self;
 
-    // Returns whether when is in the range of [start, end), using
+    // Returns whether `self` is in the range of [`start`, `end`), using
     // unsigned arithmetic and considering wraparound. It returns true
-    // if, incrementing from start, when will be reached before end.
-    // Put another way, it returns (when - start) < (end - start) in
+    // if, incrementing from `start`, `self` will be reached before `end`.
+    // Put another way, it returns `self - start < end - start` in
     // unsigned arithmetic.
-    fn within_range(start: Self, when: Self, end: Self) -> bool;
+    fn within_range(self, start: Self, end: Self);
+
     fn max_value() -> Self;
 }
 
@@ -98,7 +101,7 @@ pub trait Time {
     // Returns the number of ticks in the provided number of seconds,
     // rounding down any fractions.
     fn ticks_from_seconds(s: u32) -> Self::Ticks;
-    
+
     // Returns the number of ticks in the provided number of milliseconds,
     // rounding down any fractions.
     fn ticks_from_ms(ms: u32) -> Self::Ticks;
@@ -113,7 +116,15 @@ Frequency is defined with an [associated type] of the `Time` trait
 (`Time::Frequencey`). It MUST implement the `Frequency` trait, which
 has a single method, `frequency`. `frequency` returns the frequency in
 Hz, e.g. 1MHz is 1000000. Clients can use this to write code that is
-independent of the underlying frequency. However, at the same time,
+independent of the underlying frequency.
+
+An instance of `Time` or derived trait MUST NOT have a `Frequency`
+which is greater than its underlying frequency precision.  It must be
+able to accurately return every possible value in the range of `Ticks`
+without further quantization. It is therefore not allowed to take a
+32kHz clock and present it as an instance of `Time` with a frequency
+of `Freq16MHz`.
+
 `Frequency` allows a user of `Time` to know the granularity of ticks
 and so avoid quantization error when two different times map to the
 same time tick. For example, if a user of `Time` needs microsecond
@@ -122,9 +133,10 @@ that is is not put on top of an implementation with 32kHz precision.
 
 The three `ticks_from` methods are helper functions to convert values
 in seconds, milliseconds, or microseconds to a number of ticks. These
-three methods all round down the result. This means, for example, that 
-if the `Time` instance has a frequency of 32kHz, calling `ticks_from_us(20)`
-returns 0, because a single tick of a 32kHz clock is 30.5 microseconds.
+three methods all round down the result. This means, for example, that
+if the `Time` instance has a frequency of 32kHz, calling
+`ticks_from_us(20)` returns 0, because a single tick of a 32kHz clock
+is 30.5 microseconds.
 
 [associated type]: https://doc.rust-lang.org/book/associated-types.html
 
@@ -146,7 +158,7 @@ pub trait Counter<'a>: Time {
   fn start(&self) -> ReturnCode;
   fn stop(&self) -> ReturnCode;
   fn is_running(&self) -> bool;
-  fn set_client(&'a self, &'a dyn OverflowClient);
+  fn set_overflow_client(&'a self, &'a dyn OverflowClient);
 }
 ```
 
@@ -163,7 +175,6 @@ underlying hardware counter has a frequency of 32kHz, then a `Counter`
 cannot say it has a frequency of 1MHz by multiplying the underlying
 counter by 32. A `Counter` implementation MAY provide a `Frequency` of
 a lower resolution (e.g., by stripping bits).
-
 
 
 4 `Alarm` and `AlarmClient` traits
@@ -186,39 +197,45 @@ the future, either once or periodically. `Alarm` requests a callback
 at an absolute moment while `Timer` requests a callback at a point
 relative to now.
 
-
-
 ```rust
 pub trait AlarmClient: OverflowClient {
   fn alarm(&self);
 }
 
 pub trait Alarm: Time {
-  fn set_alarm(&self, now: Self::Ticks, dt: Self::Ticks);
+  fn set_alarm(&self, reference: Self::Ticks, dt: Self::Ticks);
   fn get_alarm(&self) -> Self::Ticks;
-  fn disable(&self) -> ReturnCode;
-  fn set_client(&'a self, client: &'a dyn AlarmClient);    
+  fn disarm(&self) -> ReturnCode;
+  fn set_alarm_client(&'a self, client: &'a dyn AlarmClient);
 }
 ```
 
 `Alarm` has a `disable` in order to cancel an existing alarm. Calling
-`set_alarm` enables an alarm.
+`set_alarm` enables an alarm. The `reference` parameter is typically a
+sample of `Time::now` just before `set_alarm` is called, but it can
+also be a stored value from a previous call. The `reference` parameter
+follows the invariant that it is in the past: its value is by
+definition equal to or less than a call to `Time::now`.
 
-The `set_alarm` method takes a `now` and a `dt` parameter to handle
-edge cases in which it can be impossible distinguish between alarms
-for the very near future and alarms for the very far future. The edge
-case occurs when the underlying counter increments past the compare
-value between when the call was made and the compare register is
-actually set. Because the counter has moved past the intended compare
-value, it will have to wrap around before the alarm will
+The `set_alarm` method takes a `reference` and a `dt` parameter to
+handle edge cases in which it can be impossible distinguish between
+alarms for the very near past and alarms for the very far future. The
+edge case occurs when the underlying counter increments past the
+compare value between when the call was made and the compare register
+is actually set. Because the counter has moved past the intended
+compare value, it will have to wrap around before the alarm will
 fire. However, one cannot assume that the counter has moved past the
 intended compare and issue a callback: the software may have requested
 an alarm very far in the future, close to the width of the counter.
 
-Having a `now` and `dt` parameters disambiguates these two
-cases. Suppose the current counter value is `current`. If, using
-unsigned arithmetic, `(current - now) >= dt` then the callback should
-be issued immediately (e.g., with a deferred procedure call).
+Having a `reference` and `dt` parameters disambiguates these two
+cases. Suppose the current counter value is `current`.  If `current`
+is not within the range [`reference`, `reference + dt`) (considering
+unsigned wraparound), then this means the requested firing time has
+passed and the callback should be issued immediately (e.g., with a
+deferred procedure call, or setting the alarm very short in the
+future).
+
 
 5 `Timer` and `TimerClient` traits
 ===============================
@@ -233,11 +250,11 @@ The trait has a single callback, denoting that the timer has fired.
 
 ```rust
 pub trait TimerClient {
-  fn fired(&self);
+  fn timer(&self);
 }
 
 pub trait Timer<'a>: Time {
-  fn set_client(&'a self, &'a dyn TimerClient);
+  fn set_timer_client(&'a self, &'a dyn TimerClient);
   fn oneshot(&self, interval: Self::Ticks) -> Self::Ticks;
   fn repeating(&self, interval: Self::Ticks) -> Self::Ticks;
 
@@ -271,7 +288,6 @@ require a compare be set at least N ticks in the future) but MUST NOT
 be less than `interval`.
 
 
-
 6 `Frequency` and `Ticks` Implementations
 =================================
 
@@ -300,22 +316,29 @@ nRF platforms (e.g. nRF52840) that only support a 24 bit counter.
 7 Capsules
 ===============================
 
-The Tock kernel provides two standard
-capsules. `capsules::alarm::AlarmDriver` provides a system call driver
-for an `Alarm`. `capsules::virtual_alarm` provides a set of
-abstractions for virtualizing a single `Alarm` into many.
+The Tock kernel provides four standard capsules:
+
+  * `capsules::alarm::AlarmDriver` provides a system call driver for
+    an `Alarm`.
+  * `capsules::virtual_alarm` provides a set of
+    abstractions for virtualizing a single `Alarm` into many.
+  * `capsules::frequency` provides a set of abstractions for
+    scaling down from a higher `Frequency` to a lower one.
+  * `capsules::ticks` provides a set of abstractions for transforming
+    `Counter` instances between different `Tick` widths.
+
 
 8 Required Modules
 ===============================
 
-A chip MUST provide an instance of `Alarm` with a `Frequency` of `Freq32KHz` 
+A chip MUST provide an instance of `Alarm` with a `Frequency` of `Freq32KHz`
 and a `Ticks` of `Ticks32Bits`.
 
-A chip MUST provide an instance of `Time` with a `Frequency` of `Freq1MHz` and
+A chip MUST provide an instance of `Time` with a `Frequency` of `Freq32KHz` and
 a `Ticks` of `Ticks64Bits`.
 
-A chip SHOULD provide an Alarm with a `Frequency` of `Freq1MHz`.
-
+A chip SHOULD provide an Alarm with a `Frequency` of `Freq1MHz` and a `Ticks`
+of `Ticks32Bits`.
 
 
 9 Acknowledgements
@@ -329,6 +352,15 @@ others.
 10 Authors' Address
 =================================
 
-email - amit@amitlevy.com
+Amit Levy
+amit@amitlevy.com
 
-email - pal@cs.stanford.edu
+Philip Levis
+409 Gates Hall
+Stanford University
+Stanford, CA 94305
+USA
+pal@cs.stanford.edu
+
+Guillaume Endignoux
+guillaumee@google.com

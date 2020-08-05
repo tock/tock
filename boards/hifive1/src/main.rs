@@ -14,6 +14,8 @@ use kernel::capabilities;
 use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::component::Component;
 use kernel::hil;
+use kernel::hil::time::Alarm;
+use kernel::Chip;
 use kernel::Platform;
 use kernel::{create_capability, debug, static_init};
 use rv32i::csr;
@@ -26,24 +28,22 @@ static mut PROCESSES: [Option<&'static dyn kernel::procs::ProcessType>; 4] =
     [None, None, None, None];
 
 // Reference to the chip for panic dumps.
-static mut CHIP: Option<&'static e310x::chip::E310x> = None;
+static mut CHIP: Option<
+    &'static e310x::chip::E310x<VirtualMuxAlarm<'static, rv32i::machine_timer::MachineTimer>>,
+> = None;
 
 // How should the kernel respond when a process faults.
 const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultResponse::Panic;
 
-// RAM to be shared by all application processes.
-#[link_section = ".app_memory"]
-static mut APP_MEMORY: [u8; 6 * 1024] = [0; 6 * 1024];
-
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
 #[link_section = ".stack_buffer"]
-pub static mut STACK_MEMORY: [u8; 0x800] = [0; 0x800];
+pub static mut STACK_MEMORY: [u8; 0x900] = [0; 0x900];
 
 /// A structure representing this platform that holds references to all
 /// capsules for this platform. We've included an alarm and console.
 struct HiFive1 {
-    led: &'static capsules::led::LED<'static, sifive::gpio::GpioPin>,
+    led: &'static capsules::led::LED<'static, sifive::gpio::GpioPin<'static>>,
     console: &'static capsules::console::Console<'static>,
     lldb: &'static capsules::low_level_debug::LowLevelDebug<
         'static,
@@ -113,18 +113,6 @@ pub unsafe fn reset_handler() {
         None,
     );
 
-    let chip = static_init!(e310x::chip::E310x, e310x::chip::E310x::new());
-    CHIP = Some(chip);
-
-    // Need to enable all interrupts for Tock Kernel
-    chip.enable_plic_interrupts();
-
-    // enable interrupts globally
-    csr::CSR
-        .mie
-        .modify(csr::mie::mie::mext::SET + csr::mie::mie::msoft::SET + csr::mie::mie::mtimer::SET);
-    csr::CSR.mstatus.modify(csr::mstatus::mstatus::mie::SET);
-
     // Create a shared UART channel for the console and for kernel debug.
     let uart_mux = components::console::UartMuxComponent::new(
         &e310x::uart::UART0,
@@ -159,10 +147,14 @@ pub unsafe fn reset_handler() {
         MuxAlarm<'static, rv32i::machine_timer::MachineTimer>,
         MuxAlarm::new(&e310x::timer::MACHINETIMER)
     );
-    hil::time::Alarm::set_client(&e310x::timer::MACHINETIMER, mux_alarm);
+    hil::time::Alarm::set_alarm_client(&e310x::timer::MACHINETIMER, mux_alarm);
 
     // Alarm
     let virtual_alarm_user = static_init!(
+        VirtualMuxAlarm<'static, rv32i::machine_timer::MachineTimer>,
+        VirtualMuxAlarm::new(mux_alarm)
+    );
+    let systick_virtual_alarm = static_init!(
         VirtualMuxAlarm<'static, rv32i::machine_timer::MachineTimer>,
         VirtualMuxAlarm::new(mux_alarm)
     );
@@ -176,7 +168,23 @@ pub unsafe fn reset_handler() {
             board_kernel.create_grant(&memory_allocation_cap)
         )
     );
-    hil::time::Alarm::set_client(virtual_alarm_user, alarm);
+    hil::time::Alarm::set_alarm_client(virtual_alarm_user, alarm);
+
+    let chip = static_init!(
+        e310x::chip::E310x<VirtualMuxAlarm<'static, rv32i::machine_timer::MachineTimer>>,
+        e310x::chip::E310x::new(systick_virtual_alarm)
+    );
+    systick_virtual_alarm.set_alarm_client(chip.scheduler_timer());
+    CHIP = Some(chip);
+
+    // Need to enable all interrupts for Tock Kernel
+    chip.enable_plic_interrupts();
+
+    // enable interrupts globally
+    csr::CSR
+        .mie
+        .modify(csr::mie::mie::mext::SET + csr::mie::mie::msoft::SET + csr::mie::mie::mtimer::SET);
+    csr::CSR.mstatus.modify(csr::mstatus::mstatus::mie::SET);
 
     // Setup the console.
     let console = components::console::ConsoleComponent::new(board_kernel, uart_mux).finalize(());
@@ -190,16 +198,16 @@ pub unsafe fn reset_handler() {
     debug!("HiFive1 initialization complete.");
     debug!("Entering main loop.");
 
+    /// These symbols are defined in the linker script.
     extern "C" {
         /// Beginning of the ROM region containing app images.
-        ///
-        /// This symbol is defined in the linker script.
         static _sapps: u8;
-
         /// End of the ROM region containing app images.
-        ///
-        /// This symbol is defined in the linker script.
         static _eapps: u8;
+        /// Beginning of the RAM region for app memory.
+        static mut _sappmem: u8;
+        /// End of the RAM region for app memory.
+        static _eappmem: u8;
     }
 
     let hifive1 = HiFive1 {
@@ -216,7 +224,10 @@ pub unsafe fn reset_handler() {
             &_sapps as *const u8,
             &_eapps as *const u8 as usize - &_sapps as *const u8 as usize,
         ),
-        &mut APP_MEMORY,
+        &mut core::slice::from_raw_parts_mut(
+            &mut _sappmem as *mut u8,
+            &_eappmem as *const u8 as usize - &_sappmem as *const u8 as usize,
+        ),
         &mut PROCESSES,
         FAULT_RESPONSE,
         &process_mgmt_cap,

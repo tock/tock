@@ -238,7 +238,7 @@ use kernel::common::cells::{MapCell, TakeCell};
 use kernel::common::list::{List, ListLink, ListNode};
 use kernel::hil::radio;
 use kernel::hil::time;
-use kernel::hil::time::Frequency;
+use kernel::hil::time::{Frequency, Ticks};
 use kernel::ReturnCode;
 
 // Reassembly timeout in seconds
@@ -909,14 +909,14 @@ impl<'a, A: time::Alarm<'a>, C: ContextStore> Sixlowpan<'a, A, C> {
         let rx_state = self
             .rx_states
             .iter()
-            .find(|state| !state.is_busy(self.clock.now(), A::Frequency::frequency()));
+            .find(|state| !state.is_busy(self.clock.now().into_u32(), A::Frequency::frequency()));
         rx_state.map_or((None, ReturnCode::ENOMEM), |state| {
             state.start_receive(
                 src_mac_addr,
                 dst_mac_addr,
                 payload_len as u16,
                 0,
-                self.clock.now(),
+                self.clock.now().into_u32(),
             );
             // The packet buffer should *always* be there; in particular,
             // since this state is not busy, it must have the packet buffer.
@@ -976,10 +976,9 @@ impl<'a, A: time::Alarm<'a>, C: ContextStore> Sixlowpan<'a, A, C> {
 
         // Else find a free state
         if rx_state.is_none() {
-            rx_state = self
-                .rx_states
-                .iter()
-                .find(|state| !state.is_busy(self.clock.now(), A::Frequency::frequency()));
+            rx_state = self.rx_states.iter().find(|state| {
+                !state.is_busy(self.clock.now().into_u32(), A::Frequency::frequency())
+            });
             // Initialize new state
             rx_state.map(|state| {
                 state.start_receive(
@@ -987,7 +986,7 @@ impl<'a, A: time::Alarm<'a>, C: ContextStore> Sixlowpan<'a, A, C> {
                     dst_mac_addr,
                     dgram_size,
                     dgram_tag,
-                    self.clock.now(),
+                    self.clock.now().into_u32(),
                 )
             });
             if rx_state.is_none() {

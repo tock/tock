@@ -107,13 +107,18 @@ impl ArtyExx {
 impl kernel::Chip for ArtyExx {
     type MPU = rv32i::pmp::PMPConfig;
     type UserspaceKernelBoundary = rv32i::syscall::SysCall;
-    type SysTick = ();
+    type SchedulerTimer = ();
+    type WatchDog = ();
 
     fn mpu(&self) -> &Self::MPU {
         &self.pmp
     }
 
-    fn systick(&self) -> &Self::SysTick {
+    fn scheduler_timer(&self) -> &Self::SchedulerTimer {
+        &()
+    }
+
+    fn watchdog(&self) -> &Self::WatchDog {
         &()
     }
 

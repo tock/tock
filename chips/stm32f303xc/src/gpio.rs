@@ -516,12 +516,12 @@ impl PinId {
     }
 }
 
-/// GPIO pin mode [^1]
-///
-/// [^1]: Section 7.1.4, page 187 of reference manual
 enum_from_primitive! {
     #[repr(u32)]
     #[derive(PartialEq)]
+    /// GPIO pin mode [^1]
+    ///
+    /// [^1]: Section 7.1.4, page 187 of reference manual
     pub enum Mode {
         Input = 0b00,
         GeneralPurposeOutputMode = 0b01,
@@ -563,11 +563,11 @@ pub enum AlternateFunction {
     AF15 = 0b1111,
 }
 
-/// GPIO pin internal pull-up and pull-down [^1]
-///
-/// [^1]: Section 11.4.4, page 238 of reference manual
 enum_from_primitive! {
     #[repr(u32)]
+    /// GPIO pin internal pull-up and pull-down [^1]
+    ///
+    /// [^1]: Section 11.4.4, page 238 of reference manual
     enum PullUpPullDown {
         NoPullUpPullDown = 0b00,
         PullUp = 0b01,
@@ -976,7 +976,7 @@ impl<'a> Pin<'a> {
 }
 
 impl hil::gpio::Pin for Pin<'_> {}
-impl hil::gpio::InterruptPin for Pin<'_> {}
+impl<'a> hil::gpio::InterruptPin<'a> for Pin<'a> {}
 
 impl hil::gpio::Configure for Pin<'_> {
     /// Output mode default is push-pull
@@ -1070,7 +1070,7 @@ impl hil::gpio::Input for Pin<'_> {
     }
 }
 
-impl hil::gpio::Interrupt for Pin<'_> {
+impl<'a> hil::gpio::Interrupt<'a> for Pin<'a> {
     fn enable_interrupts(&self, mode: hil::gpio::InterruptEdge) {
         unsafe {
             atomic(|| {
@@ -1114,7 +1114,7 @@ impl hil::gpio::Interrupt for Pin<'_> {
         }
     }
 
-    fn set_client(&self, client: &'static dyn hil::gpio::Client) {
+    fn set_client(&self, client: &'a dyn hil::gpio::Client) {
         self.client.set(client);
     }
 

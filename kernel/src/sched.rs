@@ -13,7 +13,8 @@ use crate::grant::Grant;
 use crate::ipc;
 use crate::memop;
 use crate::platform::mpu::MPU;
-use crate::platform::systick::SysTick;
+use crate::platform::scheduler_timer::SchedulerTimer;
+use crate::platform::watchdog::WatchDog;
 use crate::platform::{Chip, Platform};
 use crate::process::{self, Task};
 use crate::returncode::ReturnCode;
@@ -61,14 +62,43 @@ impl Kernel {
     }
 
     /// Something was scheduled for a process, so there is more work to do.
+    ///
+    /// This is only exposed in the core kernel crate.
     pub(crate) fn increment_work(&self) {
         self.work.increment();
     }
 
+    /// Something was scheduled for a process, so there is more work to do.
+    ///
+    /// This is exposed publicly, but restricted with a capability. The intent
+    /// is that external implementations of `ProcessType` need to be able to
+    /// indicate there is more process work to do.
+    pub fn increment_work_external(
+        &self,
+        _capability: &dyn capabilities::ExternalProcessCapability,
+    ) {
+        self.increment_work();
+    }
+
     /// Something finished for a process, so we decrement how much work there is
     /// to do.
+    ///
+    /// This is only exposed in the core kernel crate.
     pub(crate) fn decrement_work(&self) {
         self.work.decrement();
+    }
+
+    /// Something finished for a process, so we decrement how much work there is
+    /// to do.
+    ///
+    /// This is exposed publicly, but restricted with a capability. The intent
+    /// is that external implementations of `ProcessType` need to be able to
+    /// indicate that some process work has finished.
+    pub fn decrement_work_external(
+        &self,
+        _capability: &dyn capabilities::ExternalProcessCapability,
+    ) {
+        self.decrement_work();
     }
 
     /// Helper function for determining if we should service processes or go to
@@ -258,6 +288,24 @@ impl Kernel {
         self.grant_counter.get()
     }
 
+    /// Returns the number of grants that have been setup in the system and
+    /// marks the grants as "finalized". This means that no more grants can
+    /// be created because data structures have been setup based on the number
+    /// of grants when this function is called.
+    ///
+    /// In practice, this is called when processes are created, and the process
+    /// memory is setup based on the number of current grants.
+    ///
+    /// This is exposed publicly, but restricted with a capability. The intent
+    /// is that external implementations of `ProcessType` need to be able to
+    /// retrieve the final number of grants.
+    pub fn get_grant_count_and_finalize_external(
+        &self,
+        _capability: &dyn capabilities::ExternalProcessCapability,
+    ) -> usize {
+        self.get_grant_count_and_finalize()
+    }
+
     /// Create a new unique identifier for a process and return the identifier.
     ///
     /// Typically we just choose a larger number than we have used for any process
@@ -292,12 +340,15 @@ impl Kernel {
         ipc: Option<&ipc::IPC>,
         _capability: &dyn capabilities::MainLoopCapability,
     ) {
+        chip.watchdog().setup();
         loop {
+            chip.watchdog().tickle();
             unsafe {
                 chip.service_pending_interrupts();
                 DynamicDeferredCall::call_global_instance_while(|| !chip.has_pending_interrupts());
 
                 for p in self.processes.iter() {
+                    chip.watchdog().tickle();
                     p.map(|process| {
                         self.do_process(platform, chip, process, ipc);
                     });
@@ -313,7 +364,9 @@ impl Kernel {
                         && !DynamicDeferredCall::global_instance_calls_pending().unwrap_or(false)
                         && self.processes_blocked()
                     {
+                        chip.watchdog().suspend();
                         chip.sleep();
+                        chip.watchdog().resume();
                     }
                 });
             };
@@ -327,10 +380,9 @@ impl Kernel {
         process: &dyn process::ProcessType,
         ipc: Option<&crate::ipc::IPC>,
     ) {
-        let systick = chip.systick();
-        systick.reset();
-        systick.set_timer(KERNEL_TICK_DURATION_US);
-        systick.enable(false);
+        let scheduler_timer = chip.scheduler_timer();
+        scheduler_timer.reset();
+        scheduler_timer.start(KERNEL_TICK_DURATION_US);
 
         loop {
             if chip.has_pending_interrupts()
@@ -339,7 +391,9 @@ impl Kernel {
                 break;
             }
 
-            if systick.overflowed() || !systick.greater_than(MIN_QUANTA_THRESHOLD_US) {
+            if scheduler_timer.has_expired()
+                || scheduler_timer.get_remaining_us() <= MIN_QUANTA_THRESHOLD_US
+            {
                 process.debug_timeslice_expired();
                 break;
             }
@@ -351,9 +405,7 @@ impl Kernel {
                     // the process.
                     process.setup_mpu();
                     chip.mpu().enable_mpu();
-                    systick.enable(true);
                     let context_switch_reason = process.switch_to();
-                    systick.enable(false);
                     chip.mpu().disable_mpu();
 
                     // Now the process has returned back to the kernel. Check
@@ -529,11 +581,11 @@ impl Kernel {
                                 }
                             }
                         }
-                        Some(ContextSwitchReason::TimesliceExpired) => {
-                            // break to handle other processes.
-                            break;
-                        }
                         Some(ContextSwitchReason::Interrupted) => {
+                            if scheduler_timer.has_expired() {
+                                // this interrupt was a timeslice expiration,
+                                process.debug_timeslice_expired();
+                            }
                             // break to handle other processes.
                             break;
                         }
@@ -599,6 +651,6 @@ impl Kernel {
                 }
             }
         }
-        systick.reset();
+        scheduler_timer.reset();
     }
 }

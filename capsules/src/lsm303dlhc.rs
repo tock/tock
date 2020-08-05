@@ -723,7 +723,7 @@ impl Driver for Lsm303dlhcI2C<'_> {
     }
 }
 
-impl<'a> sensors::NineDof for Lsm303dlhcI2C<'a> {
+impl<'a> sensors::NineDof<'a> for Lsm303dlhcI2C<'a> {
     fn set_client(&self, nine_dof_client: &'a dyn sensors::NineDofClient) {
         self.nine_dof_client.replace(nine_dof_client);
     }
@@ -747,7 +747,7 @@ impl<'a> sensors::NineDof for Lsm303dlhcI2C<'a> {
     }
 }
 
-impl<'a> sensors::TemperatureDriver for Lsm303dlhcI2C<'a> {
+impl<'a> sensors::TemperatureDriver<'a> for Lsm303dlhcI2C<'a> {
     fn set_client(&self, temperature_client: &'a dyn sensors::TemperatureClient) {
         self.temperature_client.replace(temperature_client);
     }

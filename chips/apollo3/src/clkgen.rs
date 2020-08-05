@@ -1,6 +1,6 @@
 //! Power Reset Clock Interrupt controller driver.
 
-use kernel::common::registers::{register_structs, ReadWrite};
+use kernel::common::registers::{register_bitfields, register_structs, ReadWrite};
 use kernel::common::StaticRef;
 
 pub static mut CLKGEN: ClkGen = ClkGen::new(CLKGEN_BASE);
@@ -25,7 +25,7 @@ register_structs! {
         (0x30 => clocken3stat: ReadWrite<u32>),
         (0x34 => freqctrl: ReadWrite<u32>),
         (0x38 => _reserved1),
-        (0x3c => blebucktonadj: ReadWrite<u32>),
+        (0x3c => blebucktonadj: ReadWrite<u32, BLEBUCKTONADJ::Register>),
         (0x40 => _reserved2),
         (0x100 => intrpten: ReadWrite<u32>),
         (0x104 => intrptstat: ReadWrite<u32>),
@@ -34,6 +34,20 @@ register_structs! {
         (0x110 => @END),
     }
 }
+
+register_bitfields![u32,
+    BLEBUCKTONADJ [
+        TONLOWTHRESHOLD OFFSET(0) NUMBITS(10) [],
+        TONHIGHTHRESHOLD OFFSET(10) NUMBITS(10) [],
+        TONADJUSTPERIOD OFFSET(20) NUMBITS(2) [],
+        TONADJUSTEN OFFSET(22) NUMBITS(1) [
+            DISABLE = 0x0,
+            ENALBE = 0x1
+        ],
+        ZEROLENDETECTTRIM OFFSET(23) NUMBITS(4) [],
+        ZEROLENDETECTEN OFFSET(23) NUMBITS(4) []
+    ]
+];
 
 pub enum ClockFrequency {
     Freq48MHz,
@@ -59,5 +73,12 @@ impl ClkGen {
                 regs.clkkey.set(0);
             }
         };
+    }
+
+    pub fn enable_ble(&self) {
+        let regs = self.registers;
+
+        regs.blebucktonadj
+            .modify(BLEBUCKTONADJ::TONADJUSTEN::DISABLE);
     }
 }

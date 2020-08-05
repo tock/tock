@@ -6,7 +6,7 @@
 //! -----
 //!
 //! ```rust
-//! let mux_i2c = components::i2c::I2CMuxComponent::new(&ibex::i2c::I2C)
+//! let mux_i2c = components::i2c::I2CMuxComponent::new(&earlgrey::i2c::I2C)
 //!     .finalize(components::i2c_mux_component_helper!());
 //!
 //! let mlx90614 = components::mlx90614::Mlx90614I2CComponent::new()
@@ -208,7 +208,7 @@ impl<'a> Driver for Mlx90614SMBus<'a> {
     }
 }
 
-impl<'a> sensors::TemperatureDriver for Mlx90614SMBus<'a> {
+impl<'a> sensors::TemperatureDriver<'a> for Mlx90614SMBus<'a> {
     fn set_client(&self, temperature_client: &'a dyn sensors::TemperatureClient) {
         self.temperature_client.replace(temperature_client);
     }

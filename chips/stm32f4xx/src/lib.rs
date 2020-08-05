@@ -6,16 +6,17 @@
 #![crate_type = "rlib"]
 #![feature(const_fn)]
 #![no_std]
-#![allow(unused_doc_comments)]
 
 pub mod chip;
 pub mod nvic;
 
 // Peripherals
+pub mod adc;
 pub mod dbg;
 pub mod dma1;
 pub mod exti;
 pub mod gpio;
+pub mod i2c;
 pub mod rcc;
 pub mod spi;
 pub mod syscfg;

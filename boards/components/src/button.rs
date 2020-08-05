@@ -64,7 +64,7 @@ macro_rules! button_component_buf {
     };};
 }
 
-pub struct ButtonComponent<IP: 'static + gpio::InterruptPin> {
+pub struct ButtonComponent<IP: 'static + gpio::InterruptPin<'static>> {
     board_kernel: &'static kernel::Kernel,
     button_pins: &'static [(
         &'static gpio::InterruptValueWrapper<'static, IP>,
@@ -73,7 +73,7 @@ pub struct ButtonComponent<IP: 'static + gpio::InterruptPin> {
     )],
 }
 
-impl<IP: 'static + gpio::InterruptPin> ButtonComponent<IP> {
+impl<IP: 'static + gpio::InterruptPin<'static>> ButtonComponent<IP> {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
         button_pins: &'static [(
@@ -89,7 +89,7 @@ impl<IP: 'static + gpio::InterruptPin> ButtonComponent<IP> {
     }
 }
 
-impl<IP: 'static + gpio::InterruptPin> Component for ButtonComponent<IP> {
+impl<IP: 'static + gpio::InterruptPin<'static>> Component for ButtonComponent<IP> {
     type StaticInput = &'static mut MaybeUninit<Button<'static, IP>>;
     type Output = &'static Button<'static, IP>;
 

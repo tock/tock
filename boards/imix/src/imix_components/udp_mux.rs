@@ -197,7 +197,7 @@ impl Component for UDPMuxComponent {
                 ip_vis,
             )
         );
-        ipsender_virtual_alarm.set_client(ip_send);
+        ipsender_virtual_alarm.set_alarm_client(ip_send);
 
         // Initially, set src IP of the sender to be the first IP in the Interface
         // list. Userland apps can change this if they so choose.

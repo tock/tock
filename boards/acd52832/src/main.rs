@@ -14,6 +14,7 @@ use kernel::hil;
 use kernel::hil::entropy::Entropy32;
 use kernel::hil::gpio::{Configure, InterruptWithValue, Output};
 use kernel::hil::rng::Rng;
+use kernel::hil::time::{Alarm, Counter};
 #[allow(unused_imports)]
 use kernel::{create_capability, debug, debug_gpio, static_init};
 use nrf52832::gpio::Pin;
@@ -42,9 +43,6 @@ const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultRespons
 // Number of concurrent processes this platform supports.
 const NUM_PROCS: usize = 4;
 
-#[link_section = ".app_memory"]
-static mut APP_MEMORY: [u8; 32768] = [0; 32768];
-
 static mut PROCESSES: [Option<&'static dyn kernel::procs::ProcessType>; NUM_PROCS] =
     [None; NUM_PROCS];
 
@@ -57,13 +55,13 @@ pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 pub struct Platform {
     ble_radio: &'static capsules::ble_advertising_driver::BLE<
         'static,
-        nrf52832::ble_radio::Radio,
+        nrf52832::ble_radio::Radio<'static>,
         VirtualMuxAlarm<'static, Rtc<'static>>,
     >,
-    button: &'static capsules::button::Button<'static, nrf52832::gpio::GPIOPin>,
+    button: &'static capsules::button::Button<'static, nrf52832::gpio::GPIOPin<'static>>,
     console: &'static capsules::console::Console<'static>,
-    gpio: &'static capsules::gpio::GPIO<'static, nrf52832::gpio::GPIOPin>,
-    led: &'static capsules::led::LED<'static, nrf52832::gpio::GPIOPin>,
+    gpio: &'static capsules::gpio::GPIO<'static, nrf52832::gpio::GPIOPin<'static>>,
+    led: &'static capsules::led::LED<'static, nrf52832::gpio::GPIOPin<'static>>,
     rng: &'static capsules::rng::RngDriver<'static>,
     temp: &'static capsules::temperature::TemperatureSensor<'static>,
     ipc: kernel::ipc::IPC,
@@ -228,7 +226,7 @@ pub unsafe fn reset_handler() {
         capsules::virtual_alarm::MuxAlarm<'static, nrf52832::rtc::Rtc>,
         capsules::virtual_alarm::MuxAlarm::new(&nrf52832::rtc::RTC)
     );
-    hil::time::Alarm::set_client(rtc, mux_alarm);
+    rtc.set_alarm_client(mux_alarm);
 
     //
     // Timer/Alarm
@@ -251,7 +249,7 @@ pub unsafe fn reset_handler() {
             board_kernel.create_grant(&memory_allocation_capability)
         )
     );
-    hil::time::Alarm::set_client(alarm_driver_virtual_alarm, alarm);
+    alarm_driver_virtual_alarm.set_alarm_client(alarm);
 
     //
     // RTT and Console and `debug!()`
@@ -437,7 +435,7 @@ pub unsafe fn reset_handler() {
             board_kernel.create_grant(&memory_allocation_capability)
         )
     );
-    hil::time::Alarm::set_client(virtual_alarm_buzzer, buzzer);
+    virtual_alarm_buzzer.set_alarm_client(buzzer);
 
     // Start all of the clocks. Low power operation will require a better
     // approach than this.
@@ -473,15 +471,18 @@ pub unsafe fn reset_handler() {
     debug!("Initialization complete. Entering main loop\r");
     debug!("{}", &nrf52832::ficr::FICR_INSTANCE);
 
+    /// These symbols are defined in the linker script.
     extern "C" {
         /// Beginning of the ROM region containing app images.
         static _sapps: u8;
-
         /// End of the ROM region containing app images.
-        ///
-        /// This symbol is defined in the linker script.
         static _eapps: u8;
+        /// Beginning of the RAM region for app memory.
+        static mut _sappmem: u8;
+        /// End of the RAM region for app memory.
+        static _eappmem: u8;
     }
+
     kernel::procs::load_processes(
         board_kernel,
         chip,
@@ -489,7 +490,10 @@ pub unsafe fn reset_handler() {
             &_sapps as *const u8,
             &_eapps as *const u8 as usize - &_sapps as *const u8 as usize,
         ),
-        &mut APP_MEMORY,
+        &mut core::slice::from_raw_parts_mut(
+            &mut _sappmem as *mut u8,
+            &_eappmem as *const u8 as usize - &_sappmem as *const u8 as usize,
+        ),
         &mut PROCESSES,
         FAULT_RESPONSE,
         &process_management_capability,

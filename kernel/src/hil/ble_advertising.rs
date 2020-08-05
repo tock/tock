@@ -49,11 +49,11 @@
 
 use crate::returncode::ReturnCode;
 
-pub trait BleAdvertisementDriver {
+pub trait BleAdvertisementDriver<'a> {
     fn transmit_advertisement(&self, buf: &'static mut [u8], len: usize, channel: RadioChannel);
     fn receive_advertisement(&self, channel: RadioChannel);
-    fn set_receive_client(&self, client: &'static dyn RxClient);
-    fn set_transmit_client(&self, client: &'static dyn TxClient);
+    fn set_receive_client(&self, client: &'a dyn RxClient);
+    fn set_transmit_client(&self, client: &'a dyn TxClient);
 }
 
 pub trait BleConfig {

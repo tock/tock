@@ -16,6 +16,7 @@ use capsules::net::ipv6::ip_utils::IPAddr;
 use capsules::virtual_alarm::VirtualMuxAlarm;
 use capsules::virtual_i2c::MuxI2C;
 use capsules::virtual_spi::VirtualSpiMasterDevice;
+use capsules::virtual_timer::MuxTimer;
 use kernel::capabilities;
 use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::component::Component;
@@ -23,6 +24,7 @@ use kernel::hil::i2c::I2CMaster;
 use kernel::hil::radio;
 #[allow(unused_imports)]
 use kernel::hil::radio::{RadioConfig, RadioData};
+use kernel::hil::time::Alarm;
 use kernel::hil::Controller;
 #[allow(unused_imports)]
 use kernel::{create_capability, debug, debug_gpio, static_init};
@@ -59,6 +61,15 @@ mod test;
 // Helper functions for enabling/disabling power on Imix submodules
 mod power;
 
+#[allow(dead_code)]
+mod alarm_test;
+
+#[allow(dead_code)]
+mod multi_alarm_test;
+
+#[allow(dead_code)]
+mod multi_timer_test;
+
 // State for loading apps.
 
 const NUM_PROCS: usize = 4;
@@ -80,9 +91,6 @@ const PAN_ID: u16 = 0xABCD;
 // how should the kernel respond when a process faults
 const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultResponse::Panic;
 
-#[link_section = ".app_memory"]
-static mut APP_MEMORY: [u8; 32768] = [0; 32768];
-
 static mut PROCESSES: [Option<&'static dyn kernel::procs::ProcessType>; NUM_PROCS] =
     [None; NUM_PROCS];
 static mut CHIP: Option<&'static sam4l::chip::Sam4l> = None;
@@ -98,14 +106,14 @@ struct Imix {
         components::process_console::Capability,
     >,
     console: &'static capsules::console::Console<'static>,
-    gpio: &'static capsules::gpio::GPIO<'static, sam4l::gpio::GPIOPin>,
+    gpio: &'static capsules::gpio::GPIO<'static, sam4l::gpio::GPIOPin<'static>>,
     alarm: &'static AlarmDriver<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>,
     temp: &'static capsules::temperature::TemperatureSensor<'static>,
     humidity: &'static capsules::humidity::HumiditySensor<'static>,
     ambient_light: &'static capsules::ambient_light::AmbientLight<'static>,
     adc: &'static capsules::adc::Adc<'static, sam4l::adc::Adc>,
-    led: &'static capsules::led::LED<'static, sam4l::gpio::GPIOPin>,
-    button: &'static capsules::button::Button<'static, sam4l::gpio::GPIOPin>,
+    led: &'static capsules::led::LED<'static, sam4l::gpio::GPIOPin<'static>>,
+    button: &'static capsules::button::Button<'static, sam4l::gpio::GPIOPin<'static>>,
     rng: &'static capsules::rng::RngDriver<'static>,
     analog_comparator: &'static capsules::analog_comparator::AnalogComparator<
         'static,
@@ -535,17 +543,33 @@ pub unsafe fn reset_handler() {
     );*/
     //udp_lowpan_test.start();
 
+    // alarm_test::run_alarm();
+    let virtual_alarm_timer = static_init!(
+        VirtualMuxAlarm<'static, sam4l::ast::Ast>,
+        VirtualMuxAlarm::new(mux_alarm)
+    );
+
+    let mux_timer = static_init!(
+        MuxTimer<'static, sam4l::ast::Ast>,
+        MuxTimer::new(virtual_alarm_timer)
+    );
+    virtual_alarm_timer.set_alarm_client(mux_timer);
+
+    multi_timer_test::run_multi_timer(mux_timer);
     debug!("Initialization complete. Entering main loop");
 
+    /// These symbols are defined in the linker script.
     extern "C" {
         /// Beginning of the ROM region containing app images.
         static _sapps: u8;
-
         /// End of the ROM region containing app images.
-        ///
-        /// This symbol is defined in the linker script.
         static _eapps: u8;
+        /// Beginning of the RAM region for app memory.
+        static mut _sappmem: u8;
+        /// End of the RAM region for app memory.
+        static _eappmem: u8;
     }
+
     kernel::procs::load_processes(
         board_kernel,
         chip,
@@ -553,7 +577,10 @@ pub unsafe fn reset_handler() {
             &_sapps as *const u8,
             &_eapps as *const u8 as usize - &_sapps as *const u8 as usize,
         ),
-        &mut APP_MEMORY,
+        &mut core::slice::from_raw_parts_mut(
+            &mut _sappmem as *mut u8,
+            &_eappmem as *const u8 as usize - &_sappmem as *const u8 as usize,
+        ),
         &mut PROCESSES,
         FAULT_RESPONSE,
         &process_mgmt_cap,

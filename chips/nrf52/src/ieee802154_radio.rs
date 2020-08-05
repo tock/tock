@@ -805,8 +805,12 @@ impl Radio {
                 let backoff_periods = self.random_nonce() & ((1 << self.cca_be.get()) - 1);
                 unsafe {
                     ppi::PPI.enable(ppi::Channel::CH21::SET);
-                    nrf5x::timer::TIMER0
-                        .set_alarm(backoff_periods * (IEEE802154_BACKOFF_PERIOD as u32));
+                    nrf5x::timer::TIMER0.set_alarm(
+                        kernel::hil::time::Ticks32::from(0),
+                        kernel::hil::time::Ticks32::from(
+                            backoff_periods * (IEEE802154_BACKOFF_PERIOD as u32),
+                        ),
+                    );
                 }
             } else {
                 self.transmitting.set(false);

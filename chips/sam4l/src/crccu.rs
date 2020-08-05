@@ -330,7 +330,7 @@ impl Crccu<'_> {
 }
 
 // Implement the generic CRC interface with the CRCCU
-impl<'a> crc::CRC for Crccu<'a> {
+impl<'a> crc::CRC<'a> for Crccu<'a> {
     /// Set a client to receive results from the CRCCU
     fn set_client(&self, client: &'a dyn crc::Client) {
         self.client.set(client);

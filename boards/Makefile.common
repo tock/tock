@@ -140,8 +140,13 @@ SIZE      ?= $(TOOLCHAIN)-size
 OBJCOPY   ?= $(TOOLCHAIN)-objcopy
 OBJDUMP   ?= $(TOOLCHAIN)-objdump
 
-# Set additional flags to produce binary from .elf
-OBJCOPY_FLAGS ?= -S
+# Set additional flags to produce binary from .elf.
+# * --strip-sections prevents enormous binaries when SRAM is below flash.
+# * --remove-section .apps prevents the .apps section from being included in the
+#   kernel binary file. This section is a placeholder for optionally including
+#   application binaries, and only needs to exist in the .elf. By removing it,
+#   we prevent the kernel binary from overwriting applications.
+OBJCOPY_FLAGS ?= --strip-sections -S --remove-section .apps
 # This make variable allows board-specific Makefiles to pass down options to
 # the Cargo build command. For example, in boards/<custom_board>/Makefile:
 # `CARGO_FLAGS += --features=foo` would pass feature `foo` to the top level
@@ -157,6 +162,16 @@ SIZE_FLAGS ?=
 # Need an extra flag for OBJDUMP if we are on a thumb platform.
 ifneq (,$(findstring thumb,$(TARGET)))
   OBJDUMP_FLAGS += --arch-name=thumb
+endif
+
+# Check whether the system already has a sha256sum application
+# present, if not use the custom shipped one
+ifeq (, $(shell sha256sum --version 2>/dev/null))
+  # No system sha256sum available
+  SHA256SUM := $(CARGO) run --manifest-path $(TOCK_ROOT_DIRECTORY)tools/sha256sum/Cargo.toml -- 2>/dev/null
+else
+  # Use system sha256sum
+  SHA256SUM := sha256sum
 endif
 
 # Dump configuration for verbose builds
@@ -187,6 +202,7 @@ ifneq ($(V),)
   $(info OBJDUMP              = $(OBJDUMP))
   $(info CARGO                = $(CARGO))
   $(info RUSTUP               = $(RUSTUP))
+  $(info SHA256SUM            = $(SHA256SUM))
   $(info )
   $(info cargo --version      = $(shell $(CARGO) --version))
   $(info rustc --version      = $(shell rustc --version))
@@ -247,9 +263,10 @@ target:
 %.elf: %
 	$(Q)cp $< $@
 
-%.bin: %.elf $(TOCK_ROOT_DIRECTORY)tools/sha256sum/target/debug/sha256sum
+
+%.bin: %.elf
 	$(Q)$(OBJCOPY) --output-target=binary $(OBJCOPY_FLAGS) $< $@
-	$(Q)$(TOCK_ROOT_DIRECTORY)tools/sha256sum/target/debug/sha256sum $@
+	$(Q)$(SHA256SUM) $@
 
 %.lst: %.elf
 	$(Q)$(OBJDUMP) $(OBJDUMP_FLAGS) $< > $@
