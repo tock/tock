@@ -4,6 +4,7 @@ use crate::dma;
 use crate::usci::{self, UsciARegisters};
 use core::cell::Cell;
 use kernel::common::cells::OptionalCell;
+use kernel::common::registers::{ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
 use kernel::hil;
 use kernel::ReturnCode;
@@ -69,7 +70,7 @@ pub struct Uart<'a> {
     tx_dma_src: u8,
 
     rx_client: OptionalCell<&'a dyn hil::uart::ReceiveClient>,
-    _rx_busy: Cell<bool>,
+    rx_busy: Cell<bool>,
     rx_dma: OptionalCell<&'a dma::DmaChannel<'a>>,
     pub(crate) rx_dma_chan: usize,
     rx_dma_src: u8,
@@ -97,7 +98,7 @@ impl<'a> Uart<'a> {
             rx_dma: OptionalCell::empty(),
             rx_dma_chan: rx_dma_chan,
             rx_dma_src: rx_dma_src,
-            _rx_busy: Cell::new(false),
+            rx_busy: Cell::new(false),
         }
     }
 
@@ -123,6 +124,15 @@ impl<'a> dma::DmaClient for Uart<'a> {
     ) {
         if rx_buf.is_some() {
             // RX-transfer done
+            self.rx_busy.set(false);
+            self.rx_client.map(|client| {
+                client.received_buffer(
+                    rx_buf.unwrap(),
+                    transmitted_bytes,
+                    ReturnCode::SUCCESS,
+                    hil::uart::Error::None,
+                )
+            });
         } else if tx_buf.is_some() {
             // TX-transfer done
             self.tx_busy.set(false);
@@ -240,7 +250,6 @@ impl<'a> hil::uart::Transmit<'a> for Uart<'a> {
         tx_buffer: &'static mut [u8],
         tx_len: usize,
     ) -> (ReturnCode, Option<&'static mut [u8]>) {
-        use kernel::common::registers::ReadWrite;
         if (tx_len == 0) || (tx_len > tx_buffer.len()) {
             return (ReturnCode::ESIZE, Some(tx_buffer));
         }
@@ -272,9 +281,21 @@ impl<'a> hil::uart::Receive<'a> for Uart<'a> {
     fn receive_buffer(
         &self,
         rx_buffer: &'static mut [u8],
-        _rx_len: usize,
+        rx_len: usize,
     ) -> (ReturnCode, Option<&'static mut [u8]>) {
-        (ReturnCode::FAIL, Some(rx_buffer))
+        if (rx_len == 0) || (rx_len > rx_buffer.len()) {
+            return (ReturnCode::ESIZE, Some(rx_buffer));
+        }
+
+        if self.rx_busy.get() {
+            (ReturnCode::EBUSY, Some(rx_buffer))
+        } else {
+            self.rx_busy.set(true);
+            let rx_reg = &self.registers.rxbuf as *const ReadOnly<u16> as *const ();
+            self.rx_dma
+                .map(move |dma| dma.transfer_periph_to_mem(rx_reg, rx_buffer, rx_len));
+            (ReturnCode::SUCCESS, None)
+        }
     }
 
     fn receive_word(&self) -> ReturnCode {
