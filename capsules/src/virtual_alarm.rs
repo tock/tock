@@ -6,7 +6,7 @@ use kernel::common::cells::OptionalCell;
 use kernel::common::{List, ListLink, ListNode};
 use kernel::hil::time::{self, Alarm, Ticks, Time};
 use kernel::ReturnCode;
-//use kernel::debug;
+use kernel::debug;
 
 /// An object to multiplex multiple "virtual" alarms over a single underlying alarm. A
 /// `VirtualMuxAlarm` is a node in a linked list of alarms that share the same underlying alarm.
@@ -101,7 +101,11 @@ impl<'a, A: Alarm<'a>> Alarm<'a> for VirtualMuxAlarm<'a, A> {
         // First alarm, so set it
         if enabled == 0 {
             self.mux.alarm.set_alarm(reference, dt);
-        } else {
+        } else if self.mux.firing.get() == false {
+            // If firing is true, the mux will scan all the alarms after
+            // firing and pick the soonest one so do not need to modify the
+            // mux. Otherwise, this is an alarm
+            // started in a separate code path (e.g., another event).
             // If the current alarm doesn't fall within the range of
             // [reference, reference + dt), this means this new alarm
             // will fire sooner. This covers the case even when the new
@@ -140,6 +144,8 @@ pub struct MuxAlarm<'a, A: Alarm<'a>> {
     enabled: Cell<usize>,
     /// Underlying alarm, over which the virtual alarms are multiplexed.
     alarm: &'a A,
+    /// Whether we are firing; used to delay restarted alarms
+    firing: Cell<bool>,
 }
 
 impl<'a, A: Alarm<'a>> MuxAlarm<'a, A> {
@@ -148,6 +154,7 @@ impl<'a, A: Alarm<'a>> MuxAlarm<'a, A> {
             virtual_alarms: List::new(),
             enabled: Cell::new(0),
             alarm: alarm,
+            firing: Cell::new(false),
         }
     }
 }
@@ -160,9 +167,10 @@ impl<'a, A: Alarm<'a>> time::AlarmClient for MuxAlarm<'a, A> {
         // time; this is case there was some delay. This also
         // ensures that all other timers are >= now.
         let now = self.alarm.get_alarm();
-        //debug!("Alarm virtualizer: alarm called at {}", now.into_u32());
+        debug!("Alarm virtualizer: alarm {} called at {}", now.into_u32(), self.alarm.now().into_u32());
         // Check whether to fire each alarm. At this level, alarms are one-shot,
         // so a repeating client will set it again in the alarm() callback.
+        self.firing.set(true);
         self.virtual_alarms
             .iter()
             .filter(|cur| {
@@ -175,10 +183,10 @@ impl<'a, A: Alarm<'a>> time::AlarmClient for MuxAlarm<'a, A> {
             .for_each(|cur| {
                 cur.armed.set(false);
                 self.enabled.set(self.enabled.get() - 1);
-                //debug!("  Virtualizer: {} outside {}-{}, fire!", now.into_u32(), cur.reference.get().into_u32(), cur.reference.get().wrapping_add(cur.dt.get()).into_u32());
+                debug!("  Virtualizer: {} outside {}-{}, fire!", now.into_u32(), cur.reference.get().into_u32(), cur.reference.get().wrapping_add(cur.dt.get()).into_u32());
                 cur.alarm();
             });
-
+        self.firing.set(false);
         // Find the soonest alarm client (if any) and set the "next" underlying
         // alarm based on it.  This needs to happen after firing all expired
         // alarms since those may have reset new alarms.

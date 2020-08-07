@@ -544,7 +544,7 @@ pub unsafe fn reset_handler() {
     //udp_lowpan_test.start();
 
     // alarm_test::run_alarm();
-    let virtual_alarm_timer = static_init!(
+    /*let virtual_alarm_timer = static_init!(
         VirtualMuxAlarm<'static, sam4l::ast::Ast>,
         VirtualMuxAlarm::new(mux_alarm)
     );
@@ -552,10 +552,10 @@ pub unsafe fn reset_handler() {
     let mux_timer = static_init!(
         MuxTimer<'static, sam4l::ast::Ast>,
         MuxTimer::new(virtual_alarm_timer)
-    );
-    virtual_alarm_timer.set_alarm_client(mux_timer);
+    );*/
+    //virtual_alarm_timer.set_alarm_client(mux_timer);
 
-    multi_timer_test::run_multi_timer(mux_timer);
+    multi_alarm_test::run_multi_alarm(mux_alarm);
     debug!("Initialization complete. Entering main loop");
 
     /// These symbols are defined in the linker script.

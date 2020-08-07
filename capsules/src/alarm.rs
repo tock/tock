@@ -48,10 +48,16 @@ impl<'a, A: Alarm<'a>> AlarmDriver<'a, A> {
         }
     }
 
+    // This logic is tricky because it needs to handle the case when the
+    // underlying alarm is wider than 32 bits.
     fn reset_active_alarm(&self) {
         let mut earliest_alarm = Expiration::Disabled;
         let mut earliest_end: A::Ticks = A::Ticks::from(0);
+        // Scale now down to a u32 since that is the width of the alarm;
+        // otherwise for larger wides (e.g., u64) now can be outside of
+        // the range of what an alarm can be set to.
         let now = self.alarm.now();
+        let now_lower_bits = A::Ticks::from(now.into_u32());
         // Find the first alarm to fire and store it in earliest_alarm,
         // its counter value at earliest_end. In the case that there
         // are multiple alarms in the past, just store one of them
@@ -89,7 +95,7 @@ impl<'a, A: Alarm<'a>> AlarmDriver<'a, A> {
                             if end.within_range(A::Ticks::from(earliest_reference), earliest_end) {
                                 earliest_end = end;
                                 alarm.expiration
-                            } else if !now.within_range(ref_ticks, end_ticks) {
+                            } else if !now_lower_bits.within_range(ref_ticks, end_ticks) {
                                 earliest_end = end;
                                 alarm.expiration
                             } else {
@@ -107,8 +113,19 @@ impl<'a, A: Alarm<'a>> AlarmDriver<'a, A> {
                 self.alarm.disarm();
             }
             Expiration::Enabled(reference, dt) => {
+                // This logic handles when the underlying Alarm is wider than
+                // 32 bits; it sets the reference to include the high bits of now
+                let mut high_bits = now.wrapping_sub(now_lower_bits);
+                // Now lower bits have wrapped around from reference; this means the
+                // reference's high bits are actually one less; if we don't subtract
+                // one then the alarm will incorrectly be set 1<<32 higher than it should.
+                // This uses the invariant that reference <= now/
+                if now_lower_bits.into_u32() < reference {
+                    high_bits = high_bits.wrapping_sub(A::Ticks::from(1));
+                }
+                let real_reference = high_bits.wrapping_add(A::Ticks::from(reference));
                 self.alarm
-                    .set_alarm(A::Ticks::from(reference), A::Ticks::from(dt));
+                    .set_alarm(real_reference, A::Ticks::from(dt));
             }
         }
     }

@@ -2,8 +2,10 @@
 
 use kernel::common::cells::OptionalCell;
 use kernel::common::registers::{register_bitfields, register_structs, ReadWrite, WriteOnly};
+use kernel::ReturnCode;
 use kernel::common::StaticRef;
 use kernel::hil::time;
+use kernel::hil::time::{Time, Ticks, Ticks64};
 
 use crate::chip::CHIP_FREQ;
 
@@ -54,14 +56,16 @@ register_bitfields![u32,
 
 pub struct RvTimer<'a> {
     registers: StaticRef<TimerRegisters>,
-    client: OptionalCell<&'a dyn time::AlarmClient>,
+    alarm_client: OptionalCell<&'a dyn time::AlarmClient>,
+    overflow_client: OptionalCell<&'a dyn time::OverflowClient>,
 }
 
 impl<'a> RvTimer<'a> {
     const fn new(base: StaticRef<TimerRegisters>) -> RvTimer<'a> {
         RvTimer {
             registers: base,
-            client: OptionalCell::empty(),
+            alarm_client: OptionalCell::empty(),
+            overflow_client: OptionalCell::empty(),
         }
     }
 
@@ -80,50 +84,113 @@ impl<'a> RvTimer<'a> {
 
         regs.intr_enable.write(intr::timer0::CLEAR);
         regs.intr_state.write(intr::timer0::SET);
-        self.client.map(|client| {
-            client.fired();
+        self.alarm_client.map(|client| {
+            client.alarm();
         });
     }
 }
 
 impl time::Time for RvTimer<'_> {
     type Frequency = Freq10KHz;
+    type Ticks = Ticks64;
 
-    fn now(&self) -> u32 {
-        self.registers.value_low.get()
+    fn now(&self) -> Ticks64 {
+        // RISC-V has a 64-bit counter but you can only read 32 bits
+        // at once, which creates a race condition if the lower register
+        // wraps between the reads. So the recommended approach is to read
+        // low, read high, read low, and if the second low is lower, re-read
+        // high. -pal 8/6/20
+        let first_low: u32 = self.registers.value_low.get();
+        let mut high: u32 = self.registers.value_high.get();
+        let second_low: u32 = self.registers.value_low.get();
+        if second_low < first_low { // Wraparound
+            high = self.registers.value_high.get();
+        }
+        Ticks64::from(((high as u64) << 32) | second_low as u64)
     }
-    fn max_tics(&self) -> u32 {
-        core::u32::MAX
+}
+
+impl<'a> time::Counter<'a> for RvTimer<'a> {
+    fn set_overflow_client(&'a self, client: &'a dyn time::OverflowClient) {
+        self.overflow_client.set(client);
+    }
+
+    fn start(&self) -> ReturnCode {
+        ReturnCode::SUCCESS
+    }
+
+    fn stop(&self) -> ReturnCode {
+        // RISCV counter can't be stopped...
+        ReturnCode::EBUSY
+    }
+
+    fn reset(&self) -> ReturnCode {
+        // RISCV counter can't be reset
+        ReturnCode::FAIL
+    }
+
+    fn is_running(&self) -> bool {
+        true
     }
 }
 
 impl<'a> time::Alarm<'a> for RvTimer<'a> {
-    fn set_client(&self, client: &'a dyn time::AlarmClient) {
-        self.client.set(client);
+    fn set_alarm_client(&self, client: &'a dyn time::AlarmClient) {
+        self.alarm_client.set(client);
     }
 
-    fn set_alarm(&self, tics: u32) {
+    fn set_alarm(&self, reference: Self::Ticks, dt: Self::Ticks) {
+        // This does not handle the 64-bit wraparound case.
+        // Because mtimer fires if the counter is >= the compare,
+        // handling wraparound requires setting compare to the
+        // maximum value, issuing a callback on the overflow client
+        // if there is one, spinning until it wraps around to 0, then
+        // setting the compare to the correct value.
         let regs = self.registers;
+        let now = self.now();
+        let mut expire = reference.wrapping_add(dt);
+        
+        if !now.within_range(reference, expire) {
+            expire = now;
+        }
 
-        // Make sure that any overlow into the high bits of the timer (which we are ignoring for
-        // now) do not have an effect on the alarm.
-        regs.value_high.set(0);
+        let val = expire.into_u64();
+        let high = (val >> 32) as u32;
+        let low = (val & 0xffffffff) as u32;
+        
+        // Recommended approach for setting the two compare registers
+        // (RISC-V Privileged Architectures 3.1.15) -pal 8/6/20
+        regs.compare_low.set(0xffffffff);
+        regs.compare_high.set(high);
+        regs.compare_low.set(low);
 
-        regs.compare_low.set(tics);
-        regs.intr_enable.write(intr::timer0::SET);
+        self.registers.intr_enable.write(intr::timer0::SET);
     }
 
-    fn get_alarm(&self) -> u32 {
-        self.registers.compare_low.get()
+    fn get_alarm(&self) -> Self::Ticks {
+        let mut val: u64 = (self.registers.compare_high.get() as u64) << 32;
+        val |= self.registers.compare_low.get() as u64;
+        Ticks64::from(val)
     }
-
-    fn disable(&self) {
+    
+    fn disarm(&self) -> ReturnCode {
+        // You clear the RISCV mtime interrupt by writing to the compare
+        // regsiters. Since the only way to do so is to set a new alarm,
+        // and this is also the only way to re-enable the interrupt, disabling
+        // the interrupt is sufficient. Calling set_alarm will clear the
+        // pending interrupt before re-enabling. -pal 8/6/20
         self.registers.intr_enable.write(intr::timer0::CLEAR);
+        ReturnCode::SUCCESS
     }
 
-    fn is_enabled(&self) -> bool {
+    fn is_armed(&self) -> bool {
         self.registers.intr_enable.is_set(intr::timer0)
     }
+
+    fn minimum_dt(&self) -> Self::Ticks {
+        Self::Ticks::from(1 as u64)
+    }
+    
 }
 
 const TIMER_BASE: StaticRef<TimerRegisters> =

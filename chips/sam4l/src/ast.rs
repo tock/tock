@@ -11,7 +11,7 @@ use kernel::common::StaticRef;
 use kernel::hil::time::{self, Ticks};
 use kernel::hil::Controller;
 use kernel::ReturnCode;
-//use kernel::debug;
+use kernel::debug;
 /// Minimum number of clock tics to make sure ALARM0 register is synchronized
 ///
 /// The datasheet has the following ominous language (Section 19.5.3.2):
@@ -333,8 +333,9 @@ impl<'a> time::Counter<'a> for Ast<'a> {
         ReturnCode::SUCCESS
     }
 
-    fn reset(&self) {
+    fn reset(&self) -> ReturnCode {
         self.set_counter(0);
+        ReturnCode::SUCCESS
     }
 
     fn is_running(&self) -> bool {
@@ -351,7 +352,8 @@ impl<'a> time::Alarm<'a> for Ast<'a> {
         let regs: &AstRegisters = &*self.registers;
         let now = Self::Ticks::from(self.get_counter());
         let mut expire = reference.wrapping_add(dt);
-        // debug!("ast: now: {}, reference: {}, dt: {}, expire: {}", now.into_u32(), reference.into_u32(), dt.into_u32(), expire.into_u32());
+        //debug!("ast: now: {}, reference: {}, dt: {}, expire: {}", now.into_u32(), reference.into_u32(), dt.into_u32(), expire.into_u32());
+        //debug!("ast: expire: {}", expire.into_u32());
         if !now.within_range(reference, expire) {
             // We have already passed when: just fire ASAP
             // Note this will also trigger the increment below

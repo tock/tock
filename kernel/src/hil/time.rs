@@ -136,7 +136,7 @@ pub trait Counter<'a>: Time {
     /// may require stopping and restarting it. Valid `ReturnCode` values are:
     ///    - `ReturnCode::SUCCESS`: the counter was reset to 0.
     ///    - `ReturnCode::FAIL`: the counter was not reset to 0.    
-    fn reset(&self);
+    fn reset(&self) -> ReturnCode;
 
     /// Returns whether the counter is currently running.
     fn is_running(&self) -> bool;

@@ -5,7 +5,6 @@ use core::cell::Cell;
 use core::cmp;
 use kernel::common::cells::{NumericCellExt, OptionalCell};
 use kernel::common::{List, ListLink, ListNode};
-use kernel::debug;
 use kernel::hil::time::{self, Alarm, Ticks, Time, Timer};
 use kernel::ReturnCode;
 
