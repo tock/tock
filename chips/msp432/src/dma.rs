@@ -555,11 +555,49 @@ impl<'a> DmaChannel<'a> {
         self.registers.ch_srccfg[self.chan_nr].set((conf.src_chan % (MAX_SRC_NR + 1)) as u32);
     }
 
+    fn enable_dma_channel(&self) {
+        self.registers
+            .enaset
+            .set(self.registers.enaset.get() | ((1 << self.chan_nr) as u32));
+    }
+
+    fn setup_basic_transfer(&self, src_end_ptr: u32, dst_end_ptr: u32, len: usize) {
+        let conf = self.config.get();
+        let width = conf.width as u32;
+
+        // Divide the byte-length by the width to get the number of necessary transfers
+        let transfers = len >> width;
+
+        unsafe {
+            DMA_CONFIG.0[self.chan_nr].src_ptr = src_end_ptr;
+            DMA_CONFIG.0[self.chan_nr].dst_ptr = dst_end_ptr;
+
+            // The DMA can only transmit 1024 words with 1 transfer
+            DMA_CONFIG.0[self.chan_nr].ctrl |= (((transfers - 1) % MAX_TRANSFERS_LEN) as u32) << 4;
+
+            // Reset the bits in case they were set before to a different value
+            DMA_CONFIG.0[self.chan_nr].ctrl &= !(0x0F << 14);
+
+            // Set the DMA mode since it the DMA module sets it back to to stop after every cycle
+            DMA_CONFIG.0[self.chan_nr].ctrl |= conf.mode as u32;
+        }
+
+        // Store to transmitting bytes
+        self.bytes_to_transmit.set(len);
+
+        // Store the remaining words
+        if transfers > MAX_TRANSFERS_LEN {
+            self.remaining_words.set(transfers - MAX_TRANSFERS_LEN);
+        } else {
+            self.remaining_words.set(0);
+        }
+    }
+
     fn handle_interrupt(&self) {
         let len = self.bytes_to_transmit.get();
         let rem_words = self.remaining_words.get();
         let tt = self.transfer_type.get();
-        let width = self.config.get().width;
+        let conf = self.config.get();
 
         if rem_words > 0 {
             // Update the buffer-pointers
@@ -569,7 +607,7 @@ impl<'a> DmaChannel<'a> {
                 // Update the destination-buffer pointer
                 unsafe {
                     DMA_CONFIG.0[self.chan_nr].dst_ptr +=
-                        (MAX_TRANSFERS_LEN as u32) << (width as u32);
+                        (MAX_TRANSFERS_LEN as u32) << (conf.width as u32);
                 }
             }
 
@@ -579,7 +617,7 @@ impl<'a> DmaChannel<'a> {
                 // Update the source-buffer pointer
                 unsafe {
                     DMA_CONFIG.0[self.chan_nr].src_ptr +=
-                        (MAX_TRANSFERS_LEN as u32) << (width as u32);
+                        (MAX_TRANSFERS_LEN as u32) << (conf.width as u32);
                 }
             }
 
@@ -588,6 +626,27 @@ impl<'a> DmaChannel<'a> {
                 self.remaining_words.set(rem_words - MAX_TRANSFERS_LEN);
             } else {
                 self.remaining_words.set(0);
+            }
+
+            // Set the DMA mode since the DMA module sets it back to stop after every cycle
+            unsafe {
+                DMA_CONFIG.0[self.chan_nr].ctrl |= conf.mode as u32;
+                DMA_CONFIG.0[self.chan_nr].ctrl |=
+                    (((rem_words - 1) % MAX_TRANSFERS_LEN) as u32) << 4;
+
+                // Reset the bits in case they were set before to a different value
+                DMA_CONFIG.0[self.chan_nr].ctrl &= !(0x0F << 14);
+
+                if tt == DmaTransferType::MemoryToMemory {
+                    let ld = if rem_words > MAX_TRANSFERS_LEN {
+                        31 - (MAX_TRANSFERS_LEN as u32).leading_zeros()
+                    } else {
+                        31 - (len as u32).leading_zeros()
+                    };
+
+                    // Set the number of cycles before a bus rearbitration
+                    DMA_CONFIG.0[self.chan_nr].ctrl |= ld << 14;
+                }
             }
         } else {
             // Disable the DMA channel since the data transfer has finished
@@ -644,52 +703,79 @@ impl<'a> DmaChannel<'a> {
         self.apply_config();
     }
 
+    /// Start a DMA transfer where one buffer is copied into another one
     pub fn transfer_mem_to_mem(
         &self,
-        _src_buf: &'static mut [u8],
-        _dst_buf: &'static mut [u8],
-        _len: usize,
+        src_buf: &'static mut [u8],
+        dst_buf: &'static mut [u8],
+        len: usize,
     ) {
-        unimplemented!();
-    }
+        // Note: This function is currently entirely untested, since there is currently no driver
+        // available where this function might be used.
 
-    pub fn transfer_periph_to_mem(
-        &self,
-        _src_reg: *const (),
-        _buf: &'static mut [u8],
-        _len: usize,
-    ) {
-        unimplemented!()
-    }
+        let width = self.config.get().width as u32;
 
-    pub fn transfer_mem_to_periph(&self, dst_reg: *const (), buf: &'static mut [u8], len: usize) {
-        let conf = self.config.get();
-        let width = conf.width as u32;
+        // Divide the byte-length by the width to get the number of necessary transfers
+        let transfers = len >> width;
+
+        // The pointers must point to the end of the buffer, for detailed calculation see
+        // datasheet p. 646, section 11.2.4.4.
+        let src_end_ptr = (&src_buf[0] as *const u8 as u32) + ((len as u32) - 1);
+        let dst_end_ptr = (&dst_buf[0] as *const u8 as u32) + ((len as u32) - 1);
+
+        self.setup_basic_transfer(src_end_ptr, dst_end_ptr, len);
+
         unsafe {
-            // The pointers must point to the end of the buffer, for detailed calculation see
-            // datasheet p. 646, section 11.2.4.4.
-            DMA_CONFIG.0[self.chan_nr].src_ptr = (&buf[0] as *const u8 as u32) + ((len as u32) - 1);
-            DMA_CONFIG.0[self.chan_nr].dst_ptr = dst_reg as u32;
+            // Set the the number of cycles after the module rearbitrates the bus.
+            // The 'register-value' for this is ld(cycles), e.g. cycles = 256 -> ld(256) = 8
+            // In order to get the number of cycles, just get the closest 2^n value of transfers
+            let ld = if transfers > MAX_TRANSFERS_LEN {
+                31 - (MAX_TRANSFERS_LEN as u32).leading_zeros()
+            } else {
+                31 - (len as u32).leading_zeros()
+            };
 
-            // Divide the byte-length by the width to get the number of necessary transfers
-            let transfers = len >> width;
-
-            // The DMA can only transmit 1024 words with 1 transfer
-            DMA_CONFIG.0[self.chan_nr].ctrl |= ((transfers % (MAX_TRANSFERS_LEN + 1)) as u32) << 4;
-
-            // Set the DMA mode since it the DMA module sets it back to to stop after every cycle
-            DMA_CONFIG.0[self.chan_nr].ctrl |= conf.mode as u32;
+            // Set the number of cycles before a bus rearbitration
+            DMA_CONFIG.0[self.chan_nr].ctrl |= ld << 14;
         }
 
-        // Store to transmitting bytes
-        self.bytes_to_transmit.set(len);
+        // Store the buffers
+        self.rx_buf.replace(dst_buf);
+        self.tx_buf.replace(src_buf);
 
-        // Store the remaining words
-        if len > MAX_TRANSFERS_LEN {
-            self.remaining_words.set(len - MAX_TRANSFERS_LEN);
-        } else {
-            self.remaining_words.set(0);
-        }
+        // Store tranfer-type
+        self.transfer_type.set(DmaTransferType::MemoryToMemory);
+
+        // Enable the DMA channel
+        self.enable_dma_channel();
+    }
+
+    /// Start a DMA transfer where the contents of any register will be copied into a provided buffer
+    pub fn transfer_periph_to_mem(&self, src_reg: *const (), buf: &'static mut [u8], len: usize) {
+        // The pointers must point to the end of the buffer, for detailed calculation see
+        // datasheet p. 646, section 11.2.4.4.
+        let src_end_ptr = src_reg as u32;
+        let dst_end_ptr = (&buf[0] as *const u8 as u32) + ((len as u32) - 1);
+
+        self.setup_basic_transfer(src_end_ptr, dst_end_ptr, len);
+
+        // Store the buffer
+        self.rx_buf.replace(buf);
+
+        // Store tranfer-type
+        self.transfer_type.set(DmaTransferType::PeripheralToMemory);
+
+        self.enable_dma_channel();
+    }
+
+    /// Start a DMA transfer where the contents of a buffer will be copied into a register
+    pub fn transfer_mem_to_periph(&self, dst_reg: *const (), buf: &'static mut [u8], len: usize) {
+        // The pointers must point to the end of the buffer, for detailed calculation see
+        // datasheet p. 646, section 11.2.4.4.
+        let src_end_ptr = (&buf[0] as *const u8 as u32) + ((len as u32) - 1);
+        let dst_end_ptr = dst_reg as u32;
+
+        self.setup_basic_transfer(src_end_ptr, dst_end_ptr, len);
 
         // Store the buffer
         self.tx_buf.replace(buf);
@@ -697,13 +783,7 @@ impl<'a> DmaChannel<'a> {
         // Store tranfer-type
         self.transfer_type.set(DmaTransferType::MemoryToPeripheral);
 
-        // Enable the DMA channel
-        self.registers
-            .enaset
-            .set(self.registers.enaset.get() | ((1 << self.chan_nr) as u32));
-
-        // Trigger the DMA channel
-        self.registers.sw_chtrig.set((1 << self.chan_nr) as u32);
+        self.enable_dma_channel();
     }
 }
 
@@ -717,10 +797,10 @@ pub fn handle_interrupt(int_nr: isize) {
             let bit = (1 << i) as u32;
             if (bit & int) > 0 {
                 unsafe {
-                    DMA_CHANNELS[i].handle_interrupt();
-
                     // Clear interrupt-bit
                     DMA_BASE.int0_clrflg.set(bit);
+
+                    DMA_CHANNELS[i].handle_interrupt();
                 }
             }
         }
