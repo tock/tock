@@ -11,21 +11,21 @@
 //! interrupt. However it then continues executing the same userspace process
 //! that was executing.
 
-use crate::callback::AppId;
 use crate::common::list::{List, ListLink, ListNode};
 use crate::platform::Chip;
+use crate::process::ProcessType;
 use crate::sched::{Kernel, Scheduler, SchedulingDecision, StoppedExecutingReason};
 
 /// A node in the linked list the scheduler uses to track processes
 pub struct CoopProcessNode<'a> {
-    appid: AppId,
+    proc: &'static Option<&'static dyn ProcessType>,
     next: ListLink<'a, CoopProcessNode<'a>>,
 }
 
 impl<'a> CoopProcessNode<'a> {
-    pub fn new(appid: AppId) -> CoopProcessNode<'a> {
+    pub fn new(proc: &'static Option<&'static dyn ProcessType>) -> CoopProcessNode<'a> {
         CoopProcessNode {
-            appid,
+            proc,
             next: ListLink::empty(),
         }
     }
@@ -56,9 +56,27 @@ impl<'a, C: Chip> Scheduler<C> for CooperativeSched<'a> {
             // No processes ready
             SchedulingDecision::TrySleep
         } else {
-            let next = self.processes.head().unwrap().appid;
+            let mut next = None; // This will be replaced, bc a process is guaranteed
+                                 // to be ready if processes_blocked() is false
 
-            SchedulingDecision::RunProcess((next, None))
+            // Find next ready process. Place any *empty* process slots, or not-ready
+            // processes, at the back of the queue.
+            for node in self.processes.iter() {
+                match node.proc {
+                    Some(proc) => {
+                        if proc.ready() {
+                            next = Some(proc.appid());
+                            break;
+                        }
+                        self.processes.push_tail(self.processes.pop_head().unwrap());
+                    }
+                    None => {
+                        self.processes.push_tail(self.processes.pop_head().unwrap());
+                    }
+                }
+            }
+
+            SchedulingDecision::RunProcess((next.unwrap(), None))
         }
     }
 
