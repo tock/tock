@@ -8,7 +8,7 @@ use kernel::{AppId, Callback, Driver, Grant};
 
 /// Syscall driver number.
 use crate::driver;
-pub const DRIVER_NUM: usize = driver::NUM::Humidity as usize;
+pub const DRIVER_NUM: usize = driver::NUM::Proximity as usize;
 
 #[derive(Default)]
 pub struct App {
@@ -78,20 +78,19 @@ impl<'a> ProximitySensor<'a> {
 }
 
 impl hil::sensors::ProximityClient for ProximitySensor<'_> {
-    fn callback(&self, tmp_val: usize) {
+    fn callback(&self, temp_val: usize) {
         for cntr in self.apps.iter() {
             cntr.enter(|app, _| {
-
-                if app.subsribed {
+                if app.subscribed {
                     self.busy.set(false);
                     app.subscribed = false;
-                    app.callback.map(|mut cb| cb.schedule(tmp_val, 0, 0));
+                    app.callback.map(|mut cb| cb.schedule(temp_val, 0, 0));
                 }
-
             });
         }
     }
 }
+
 
 impl Driver for ProximitySensor<'_> {
     fn subscribe(
