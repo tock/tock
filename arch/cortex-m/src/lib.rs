@@ -51,7 +51,7 @@ pub unsafe extern "C" fn systick_handler() {
     // This will resume in the switch to user function where application state
     // is saved and the scheduler can choose what to do next.
     "
-    : : : : "volatile" );
+    : : : "r0" : "volatile" );
 }
 
 /// This is called after a `svc` instruction, both when switching to userspace
@@ -101,7 +101,7 @@ pub unsafe extern "C" fn svc_handler() {
     movw LR, #0xFFF9
     movt LR, #0xFFFF
     bx lr"
-    : : : : "volatile" );
+    : : : "r0", "r1", "lr", "cc", "memory" : "volatile" );
 }
 
 /// All ISRs are caught by this handler. This must ensure the interrupt is
@@ -409,7 +409,7 @@ pub unsafe extern "C" fn hard_fault_handler_arm_v7m() {
     mrsne  r0, psp   /* r0 = userland stack pointer */"
     : "={r0}"(faulting_stack), "={r1}"(kernel_stack)
     :
-    : "r0", "r1"
+    : "cc"
     : "volatile" );
 
     if kernel_stack {
@@ -430,7 +430,7 @@ pub unsafe extern "C" fn hard_fault_handler_arm_v7m() {
         moveq r3, #0           /* BFSR & 0b00110000 == 0; r3 = 0 */"
         : "={r3}"(stack_overflow)
         :
-        : "r3"
+        : "r2", "cc"
         : "volatile" );
 
         if stack_overflow {
@@ -489,7 +489,7 @@ pub unsafe extern "C" fn hard_fault_handler_arm_v7m() {
 
         movw LR, #0xFFF9
         movt LR, #0xFFFF"
-        : : : : "volatile" );
+        : : : "r1", "r0", "r2", "memory" : "volatile" );
     }
 }
 
