@@ -177,6 +177,47 @@ impl DataHeader {
     }
 }
 
+/// Specifies if and how the radio should listen for transmissions.
+///
+/// Returned by the Link-Layer update and processing methods to reconfigure the radio as needed.
+///
+/// Clone of `rubble::link::RadioCmd`.
+#[derive(Debug, Clone)]
+pub enum RadioCmd {
+    /// Turn the radio off and don't call `LinkLayer::process_*` methods.
+    ///
+    /// `LinkLayer::update` must still be called according to `Cmd`'s `next_update` field.
+    Off,
+
+    /// Listen on an advertising channel. If a packet is received, pass it to
+    /// `LinkLayer::process_adv_packet`.
+    ListenAdvertising {
+        /// The advertising channel to listen on.
+        channel: AdvertisingChannel,
+    },
+
+    /// Listen on a data channel. If a matching packet is received, pass it to
+    /// `LinkLayer::process_data_packet`.
+    ListenData {
+        /// The data channel to listen on.
+        channel: DataChannel,
+
+        /// The Access Address to listen for.
+        ///
+        /// Packets with a different Access Address must not be passed to the Link-Layer. You may be
+        /// able to use your Radio's hardware address matching for this.
+        access_address: u32,
+
+        /// Initialization value of the CRC-24 calculation.
+        ///
+        /// Only the least significant 24 bits are relevant.
+        crc_init: u32,
+
+        /// Flag to indicate if the last connection event timed out.
+        timeout: bool,
+    },
+}
+
 /// A point in time, relative to an unspecfied epoch, specified in microseconds.
 ///
 /// This has microsecond resolution and may wrap around after >1 hour. Apart from the wraparound, it

@@ -23,15 +23,11 @@ pub use data_structures::*;
 /// This is intended to be implemented on something which requires the
 /// `BleHardware` trait, but `RubbleImplementation` itself never exposes any
 /// references to `BleHardware` - they act as two separate interface layers.
-pub trait RubbleImplementation<'a, A: Alarm<'a> + ?Sized>
-where
-    Self::Cmd: RubbleCmd<Self::RadioCmd>,
-{
+pub trait RubbleImplementation<'a, A: Alarm<'a> + ?Sized> {
     type BleRadio: RubbleBleRadio<'a, A, Self>;
     type LinkLayer: RubbleLinkLayer<'a, A, Self>;
     type Responder: RubbleResponder<'a, A, Self>;
-    type Cmd: fmt::Debug;
-    type RadioCmd: fmt::Debug;
+    type Cmd: fmt::Debug + RubbleCmd;
     /// The packet queue that this implementation uses.
     type PacketQueue: RubblePacketQueue + 'static;
 
@@ -64,10 +60,11 @@ pub trait RubblePacketQueue {
     type Producer: 'static;
     /// A static reference to the consumer half of the PacketQueue once split.
     type Consumer: 'static;
+
     fn split(&'static self) -> (Self::Producer, Self::Consumer);
 }
 
-pub trait RubbleCmd<RadioCmd> {
+pub trait RubbleCmd {
     fn next_update(&self) -> NextUpdate;
     fn queued_work(&self) -> bool;
     fn into_radio_cmd(self) -> RadioCmd;
@@ -78,7 +75,7 @@ where
     A: Alarm<'a> + ?Sized,
     R: RubbleImplementation<'a, A> + ?Sized,
 {
-    fn accept_cmd(&mut self, cmd: R::RadioCmd);
+    fn accept_cmd(&mut self, cmd: RadioCmd);
 }
 
 pub trait RubbleLinkLayer<'a, A, R>
@@ -145,11 +142,10 @@ where
 /// The primary interface between the rubble stack and the radio.
 pub trait BleHardware {
     type Transmitter: Transmitter;
-    type RadioCmd;
 
     fn get_device_address() -> DeviceAddress;
 
-    fn radio_accept_cmd(radio: &mut Self::Transmitter, cmd: Self::RadioCmd);
+    fn radio_accept_cmd(radio: &mut Self::Transmitter, cmd: RadioCmd);
 }
 
 /// Clone of `rubble::link::Transmitter`.

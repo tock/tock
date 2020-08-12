@@ -33,9 +33,21 @@ pub static mut RX_BUF: PacketBuffer = [0; MIN_PDU_BUF];
 
 pub struct Nrf52BleRadio;
 
+fn hil_to_rubble_advertising_channel(
+    hil_channel: hil::rubble::AdvertisingChannel,
+) -> AdvertisingChannel {
+    // TODO: Get rubble's AdvertisingChannel to support direct construction.
+    // LLVM should be able to figure out this is a no-op, but it's still a
+    // hack.
+    let mut rubble_channel = AdvertisingChannel::first();
+    for _ in 37..hil_channel.channel() {
+        rubble_channel = rubble_channel.cycle();
+    }
+    rubble_channel
+}
+
 impl hil::rubble::BleHardware for Nrf52BleRadio {
     type Transmitter = TransmitterWrapper;
-    type RadioCmd = RadioCmd;
 
     fn get_device_address() -> hil::rubble::DeviceAddress {
         let address = rubble_nrf5x::utils::get_device_address();
@@ -49,10 +61,27 @@ impl hil::rubble::BleHardware for Nrf52BleRadio {
         }
     }
 
-    fn radio_accept_cmd(radio: &mut Self::Transmitter, cmd: RadioCmd) {
-        radio.0.configure_receiver(cmd);
+    fn radio_accept_cmd(radio: &mut Self::Transmitter, cmd: hil::rubble::RadioCmd) {
+        radio.0.configure_receiver(match cmd {
+            hil::rubble::RadioCmd::Off => RadioCmd::Off,
+            hil::rubble::RadioCmd::ListenAdvertising { channel } => RadioCmd::ListenAdvertising {
+                channel: hil_to_rubble_advertising_channel(channel),
+            },
+            hil::rubble::RadioCmd::ListenData {
+                channel,
+                access_address,
+                crc_init,
+                timeout,
+            } => RadioCmd::ListenData {
+                channel: DataChannel::new(channel.index()),
+                access_address,
+                crc_init,
+                timeout,
+            },
+        });
     }
 }
+
 pub struct TransmitterWrapper(rubble_nrf5x::radio::BleRadio);
 
 // Note: this is significantly more clunky than it needs to be, since
@@ -67,20 +96,11 @@ impl hil::rubble::Transmitter for TransmitterWrapper {
     fn transmit_advertising(
         &mut self,
         header: hil::rubble::AdvertisingHeader,
-        hil_channel: hil::rubble::AdvertisingChannel,
+        channel: hil::rubble::AdvertisingChannel,
     ) {
         let header = advertising::Header::parse(&header.to_bytes());
-        // TODO: Get rubble's AdvertisingChannel to support direct construction.
-        // LLVM should be able to figure out this is a no-op, but it's still a
-        // workaround.
-        let rubble_channel = {
-            let mut rubble_channel = AdvertisingChannel::first();
-            for _ in 37..hil_channel.channel() {
-                rubble_channel = rubble_channel.cycle();
-            }
-            rubble_channel
-        };
-        self.0.transmit_advertising(header, rubble_channel);
+        let channel = hil_to_rubble_advertising_channel(channel);
+        self.0.transmit_advertising(header, channel);
     }
     fn transmit_data(
         &mut self,
