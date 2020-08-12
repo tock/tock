@@ -91,19 +91,15 @@ where
     R: RubbleImplementation<'a, A>,
 {
     pub fn handle_cmd(&mut self, cmd: R::Cmd) -> NextUpdate {
-        debug!("Got cmd: {:?}", cmd);
         let queued_work = cmd.queued_work();
         let next_update = cmd.next_update();
         self.radio.accept_cmd(cmd.into_radio_cmd());
-        debug!("Radio accepted cmd");
         if queued_work {
             // TODO: do this some time more appropriate? It should be in an
             // idle loop, when other things don't need to be done.
             while self.responder.has_work() {
-                debug!("Working on queued work");
                 // unwrap: we've just checked we have work, so we can't reach Eof.
                 self.responder.process_one().unwrap();
-                debug!("Did one queued work");
             }
         }
         next_update
@@ -128,7 +124,6 @@ where
     pub fn new(container: kernel::Grant<App>, radio: R::BleRadio, alarm: &'a A) -> Self {
         // Determine device address
         let device_address = R::get_device_address();
-        debug!("Hello from the rubble capsule!");
 
         let (tx, _tx_cons) = <R as RubbleImplementation<'a, A>>::tx_packet_queue().split();
         let (_rx_prod, rx) = <R as RubbleImplementation<'a, A>>::rx_packet_queue().split();
@@ -149,7 +144,6 @@ where
 
     pub fn start_advertising(&self, app: &mut App) -> Result<(), ReturnCode> {
         let data = &mut *self.mutable_data.borrow_mut();
-        debug!("Starting advertising with app.");
         let (_tx, tx_cons) = <R as RubbleImplementation<'a, A>>::tx_packet_queue().split();
         let (rx_prod, _rx) = <R as RubbleImplementation<'a, A>>::rx_packet_queue().split();
 
@@ -174,8 +168,6 @@ where
                 ReturnCode::EINVAL
             })?;
 
-        debug!("Done. Going to set alarm to {:?}", next_update);
-
         self.set_alarm_for(next_update);
         Ok(())
     }
@@ -183,19 +175,8 @@ where
     pub fn set_alarm_for(&self, update: NextUpdate) {
         match update {
             NextUpdate::Keep => {}
-            NextUpdate::Disable => {
-                debug!("Disabling alarm.");
-                self.alarm.disable()
-            }
-            NextUpdate::At(time) => {
-                let tock_time = time.to_alarm_time(self.alarm);
-                debug!(
-                    "Setting alarm for at {} (we're now at {})",
-                    tock_time,
-                    self.alarm.now()
-                );
-                self.alarm.set_alarm(tock_time);
-            }
+            NextUpdate::Disable => self.alarm.disable(),
+            NextUpdate::At(time) => self.alarm.set_alarm(time.to_alarm_time(self.alarm)),
         }
     }
 }
@@ -207,7 +188,6 @@ where
     R: RubbleImplementation<'a, A>,
 {
     fn fired(&self) {
-        debug!("Alarm fired");
         let data = &mut *self.mutable_data.borrow_mut();
 
         let cmd = data.ll.update_timer(&mut data.radio);
