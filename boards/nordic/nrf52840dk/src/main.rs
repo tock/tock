@@ -134,8 +134,11 @@ pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 pub struct Platform {
     ble_radio: &'static capsules::rubble::BLE<
         'static,
-        nrf52_components::rubble::Nrf52BleRadio,
         VirtualMuxAlarm<'static, nrf52840::rtc::Rtc<'static>>,
+        nrf52_components::rubble::Nrf52RubbleImplementation<
+            'static,
+            VirtualMuxAlarm<'static, nrf52840::rtc::Rtc<'static>>,
+        >,
     >,
     ieee802154_radio: &'static capsules::ieee802154::RadioDriver<'static>,
     button: &'static capsules::button::Button<'static, nrf52840::gpio::GPIOPin<'static>>,
