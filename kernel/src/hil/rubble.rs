@@ -50,7 +50,7 @@ pub trait RubbleImplementation<'a, A: Alarm<'a> + ?Sized> {
 /// to be to be shared everywhere. And to allow for non-static queues, we would
 /// need to declare `RubbleImplementation::Queue` as
 ///
-/// ```
+/// ```ignore
 /// type Queue<'a>: RubblePacketQueue<'a>;
 /// ```
 ///

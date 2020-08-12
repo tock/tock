@@ -304,7 +304,7 @@ impl Duration {
 #[cfg(test)]
 mod test {
     use super::*;
-    use kernel::hil::time::Freq32KHz;
+    use crate::hil::time::Freq32KHz;
 
     struct VAlarm;
     impl Time for VAlarm {
