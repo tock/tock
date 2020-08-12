@@ -16,7 +16,6 @@ use rubble::{
         NextUpdate, RadioCmd, Responder, Transmitter,
     },
     time::Duration,
-    Error,
 };
 use rubble_hil::{RubbleBleRadio, RubbleLinkLayer, RubblePacketQueue, RubbleResponder};
 use timer::TimerWrapper;
@@ -33,18 +32,17 @@ static TX_PACKET_QUEUE: refcell_packet_queue::RefCellQueue =
 pub struct Implementation<'a, A, H>(PhantomData<(&'a A, H)>)
 where
     A: Alarm<'a>,
-    H: BleHardware<RadioCmd = RadioCmd>;
+    H: BleHardware;
 
 impl<'a, A, H> RubbleImplementation<'a, A> for Implementation<'a, A, H>
 where
     A: Alarm<'a>,
-    H: BleHardware<RadioCmd = RadioCmd>,
+    H: BleHardware,
 {
     type BleRadio = BleRadioWrapper<H>;
     type LinkLayer = LinkLayerWrapper<'a, A, H>;
     type Responder = ResponderWrapper<'a, A, H>;
     type Cmd = CmdWrapper;
-    type RadioCmd = RadioCmd;
     type PacketQueue = refcell_packet_queue::RefCellQueue;
     fn get_device_address() -> rubble_hil::DeviceAddress {
         H::get_device_address()
@@ -103,7 +101,7 @@ impl CmdWrapper {
     }
 }
 
-impl RubbleCmd<RadioCmd> for CmdWrapper {
+impl RubbleCmd for CmdWrapper {
     fn next_update(&self) -> rubble_hil::NextUpdate {
         match self.0.next_update {
             NextUpdate::At(time) => {
@@ -116,8 +114,24 @@ impl RubbleCmd<RadioCmd> for CmdWrapper {
     fn queued_work(&self) -> bool {
         self.0.queued_work
     }
-    fn into_radio_cmd(self) -> RadioCmd {
-        self.0.radio
+    fn into_radio_cmd(self) -> rubble_hil::RadioCmd {
+        match self.0.radio {
+            RadioCmd::Off => rubble_hil::RadioCmd::Off,
+            RadioCmd::ListenAdvertising { channel } => rubble_hil::RadioCmd::ListenAdvertising {
+                channel: rubble_hil::AdvertisingChannel::new(channel.channel()).unwrap(),
+            },
+            RadioCmd::ListenData {
+                channel,
+                access_address,
+                crc_init,
+                timeout,
+            } => rubble_hil::RadioCmd::ListenData {
+                channel: rubble_hil::DataChannel::new(channel.index()).unwrap(),
+                access_address,
+                crc_init,
+                timeout,
+            },
+        }
     }
 }
 
@@ -135,9 +149,9 @@ where
 impl<'a, A, H> RubbleBleRadio<'a, A, Implementation<'a, A, H>> for BleRadioWrapper<H>
 where
     A: Alarm<'a>,
-    H: BleHardware<RadioCmd = RadioCmd>,
+    H: BleHardware,
 {
-    fn accept_cmd(&mut self, cmd: RadioCmd) {
+    fn accept_cmd(&mut self, cmd: rubble_hil::RadioCmd) {
         H::radio_accept_cmd(&mut (self.0).0, cmd)
     }
 }
@@ -189,7 +203,7 @@ where
 impl<'a, A, H> RubbleResponder<'a, A, Implementation<'a, A, H>> for ResponderWrapper<'a, A, H>
 where
     A: Alarm<'a>,
-    H: BleHardware<RadioCmd = RadioCmd>,
+    H: BleHardware,
 {
     type Error = rubble::Error;
     fn new(
@@ -223,7 +237,7 @@ where
     A: Alarm<'a>,
     // this line shouldn't be required, but is
     // Implementation<'a, A, H>: RubbleImplementation<'a, A, RadioCmd = RadioCmd, Cmd = CmdWrapper>,
-    H: BleHardware<RadioCmd = RadioCmd>,
+    H: BleHardware,
 {
     fn new(device_address: rubble_hil::DeviceAddress, alarm: &'a A) -> Self {
         LinkLayerWrapper(LinkLayer::new(
@@ -254,24 +268,26 @@ where
         // just directly create `AdStructure::Unknown` instances.
         let mut ad_byte_reader = ByteReader::new(data);
 
-        // Note: advertising data is at most 31 octets, and each ad must be at
-        // least 2 octets, so we have at most 16 adstructures.
-        let mut ad_structures = [AdStructure::Unknown { ty: 0, data: &[] }; 16];
-        let mut num_ads = 0;
-        while ad_byte_reader.bytes_left() > 0 {
-            let ad = AdStructure::from_bytes(&mut ad_byte_reader)?;
-            ad_structures[num_ads] = ad;
-            num_ads += 1;
-            if num_ads > 16 {
-                return Err(Error::InvalidLength);
-            }
-            // This is a temporary break to get code running.
-            // TODO: Debug why multiple ad structures aren't parsing, and remove this!
-            break;
-        }
+        // TODO: this should work, but doesn't. Debug it (rather than only
+        // allowing one ad structure).
+        // // Note: advertising data is at most 31 octets, and each ad must be at
+        // // least 2 octets, so we have at most 16 adstructures.
+        // let mut ad_structures = [AdStructure::Unknown { ty: 0, data: &[] }; 16];
+        // let mut num_ads = 0;
+        // while ad_byte_reader.bytes_left() > 0 {
+        //     let ad = AdStructure::from_bytes(&mut ad_byte_reader)?;
+        //     ad_structures[num_ads] = ad;
+        //     num_ads += 1;
+        //     if num_ads > 16 {
+        //         return Err(Error::InvalidLength);
+        //     }
+        // }
+        // let ad_structures = &ad_structures[..num_ads];
+        let ad_structures = &[AdStructure::from_bytes(&mut ad_byte_reader)?];
+
         let res = self.0.start_advertise(
             Duration::from_micros(interval.as_micros()),
-            &ad_structures[..num_ads],
+            ad_structures,
             &mut transmitter.0,
             tx,
             rx,
