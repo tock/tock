@@ -180,18 +180,6 @@ where
         Ok(())
     }
 
-    // pub fn stop_advertising(&self) -> Result<(), ReturnCode> {
-    //     let data = &mut *self.mutable_data.borrow_mut();
-    //     if data.ll.is_advertising() {
-    //         let cmd = data.ll.enter_standby();
-    //         let next_update = data.handle_cmd(cmd);
-    //         self.set_alarm_for(next_update);
-    //         Ok(())
-    //     } else {
-    //         Err(ReturnCode::EALREADY)
-    //     }
-    // }
-
     pub fn set_alarm_for(&self, update: NextUpdate) {
         match update {
             NextUpdate::Keep => {}
@@ -253,16 +241,6 @@ where
                     .unwrap_or_else(|err| Err(err.into()))
                     .unwrap_or_else(|e| e)
             }
-            // Rubble is currently missing a stop_advertising switch.
-            // CMD_STOP_ADVERTISING => {
-            //     assert_eq!(r2, CMD_ARG_UNUSED);
-            //     assert_eq!(r3, CMD_ARG_UNUSED);
-
-            //     match self.stop_advertising() {
-            //         Ok(()) => ReturnCode::SUCCESS,
-            //         Err(e) => e,
-            //     }
-            // }
             _ => ReturnCode::ENOSUPPORT,
         }
     }
