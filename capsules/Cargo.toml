@@ -7,8 +7,3 @@ edition = "2018"
 [dependencies]
 kernel = { path = "../kernel" }
 enum_primitive = { path = "../libraries/enum_primitive" }
-
-[dependencies.rubble]
-version = "0.0.3"
-git = "https://github.com/daboross/rubble.git"
-rev = "7677f92f0fc1a9d0f17977ada6eabd545086d26d"

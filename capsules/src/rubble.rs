@@ -30,30 +30,22 @@
 //!
 //!   Will return EFAIL if no advertising buffer has been given via ALLOW 0, or
 //!   EINVAL if the advertising data currently present in said buffer is invalid.
-//! - 1: stop advertising
 //!
-//!   Both arguments should be 0.
-mod timer;
+//!   Advertising is currently hardcoded to connectable advertisements, with no
+//!   control for what happens when something does connect.
 
 use core::{cell::RefCell, convert::TryInto, marker::PhantomData};
 use kernel::debug;
-use kernel::hil::rubble::BleRadio;
+use kernel::hil::{
+    rubble::{
+        Duration, NextUpdate, RubbleBleRadio, RubbleCmd, RubbleImplementation, RubbleLinkLayer,
+        RubblePacketQueue, RubbleResponder,
+    },
+    time::Alarm,
+};
 use kernel::{AppId, AppSlice, Callback, ReturnCode, Shared};
 
-use rubble::{
-    bytes::{ByteReader, FromBytes},
-    config::Config,
-    link::{
-        ad_structure::AdStructure,
-        queue::{PacketQueue, SimpleQueue},
-        Cmd, LinkLayer, NextUpdate, Responder,
-    },
-    time::Duration,
-};
-
 use crate::driver;
-
-use self::timer::RubbleTimer;
 
 // Syscall driver number.
 
@@ -84,51 +76,29 @@ impl Default for App {
     }
 }
 
-#[derive(Default)]
-struct RubbleConfig<'a, R, A>
+struct MutableBleData<'a, A, R>
 where
-    R: BleRadio,
-    A: kernel::hil::time::Alarm<'a>,
+    A: Alarm<'a>,
+    R: RubbleImplementation<'a, A>,
 {
-    radio: PhantomData<R>,
-    alarm: PhantomData<&'a A>,
+    radio: R::BleRadio,
+    ll: R::LinkLayer,
+    responder: R::Responder,
+    _phantom_timer: PhantomData<&'a A>,
 }
 
-impl<'a, R, A> Config for RubbleConfig<'a, R, A>
+impl<'a, A, R> MutableBleData<'a, A, R>
 where
-    R: BleRadio,
-    A: kernel::hil::time::Alarm<'a>,
+    A: Alarm<'a>,
+    R: RubbleImplementation<'a, A>,
 {
-    type Timer = self::timer::RubbleTimer<'a, A>;
-    type Transmitter = R::Transmitter;
-    type ChannelMapper =
-        rubble::l2cap::BleChannelMap<rubble::att::NoAttributes, rubble::security::NoSecurity>;
-    type PacketQueue = &'static mut SimpleQueue;
-}
-
-static mut TX_QUEUE: SimpleQueue = SimpleQueue::new();
-static mut RX_QUEUE: SimpleQueue = SimpleQueue::new();
-
-struct MutableBleData<'a, R, A>
-where
-    R: BleRadio,
-    A: kernel::hil::time::Alarm<'a>,
-{
-    radio: R::Transmitter,
-    ll: LinkLayer<RubbleConfig<'a, R, A>>,
-    responder: Responder<RubbleConfig<'a, R, A>>,
-}
-
-impl<'a, R, A> MutableBleData<'a, R, A>
-where
-    R: BleRadio,
-    A: kernel::hil::time::Alarm<'a>,
-{
-    pub fn handle_cmd(&mut self, cmd: Cmd) -> NextUpdate {
+    pub fn handle_cmd(&mut self, cmd: R::Cmd) -> NextUpdate {
         debug!("Got cmd: {:?}", cmd);
-        R::radio_accept_cmd(&mut self.radio, cmd.radio);
+        let queued_work = cmd.queued_work();
+        let next_update = cmd.next_update();
+        self.radio.accept_cmd(cmd.into_radio_cmd());
         debug!("Radio accepted cmd");
-        if cmd.queued_work {
+        if queued_work {
             // TODO: do this some time more appropriate? It should be in an
             // idle loop, when other things don't need to be done.
             while self.responder.has_work() {
@@ -138,48 +108,41 @@ where
                 debug!("Did one queued work");
             }
         }
-        cmd.next_update
+        next_update
     }
 }
 
-pub struct BLE<'a, R, A>
+pub struct BLE<'a, A, R>
 where
-    R: BleRadio,
-    A: kernel::hil::time::Alarm<'a>,
+    A: Alarm<'a>,
+    R: RubbleImplementation<'a, A>,
 {
-    mutable_data: RefCell<MutableBleData<'a, R, A>>,
+    mutable_data: RefCell<MutableBleData<'a, A, R>>,
     app: kernel::Grant<App>,
     alarm: &'a A,
 }
 
-impl<'a, R, A> BLE<'a, R, A>
+impl<'a, A, R> BLE<'a, A, R>
 where
-    R: BleRadio,
-    A: kernel::hil::time::Alarm<'a>,
+    A: Alarm<'a>,
+    R: RubbleImplementation<'a, A>,
 {
-    pub fn new(container: kernel::Grant<App>, radio: R::Transmitter, alarm: &'a A) -> Self {
+    pub fn new(container: kernel::Grant<App>, radio: R::BleRadio, alarm: &'a A) -> Self {
         // Determine device address
         let device_address = R::get_device_address();
-        debug!("Hello! I'm {:?}", device_address);
+        debug!("Hello from the rubble capsule!");
 
-        // TODO: this is emulating a rtic pattern, and I don't think it's
-        // currently sound as we're doing it.
-        let (tx, _tx_cons) = unsafe { &mut TX_QUEUE }.split();
-        let (_rx_prod, rx) = unsafe { &mut RX_QUEUE }.split();
+        let (tx, _tx_cons) = <R as RubbleImplementation<'a, A>>::tx_packet_queue().split();
+        let (_rx_prod, rx) = <R as RubbleImplementation<'a, A>>::rx_packet_queue().split();
 
-        let ll = LinkLayer::new(device_address, RubbleTimer::new(alarm));
-        let responder = Responder::new(
-            tx,
-            rx,
-            rubble::l2cap::L2CAPState::new(rubble::l2cap::BleChannelMap::with_attributes(
-                rubble::att::NoAttributes,
-            )),
-        );
+        let ll = R::LinkLayer::new(device_address, alarm);
+        let responder = R::Responder::new(tx, rx);
         BLE {
             mutable_data: RefCell::new(MutableBleData {
                 radio,
                 ll,
                 responder,
+                _phantom_timer: PhantomData,
             }),
             app: container,
             alarm,
@@ -189,48 +152,47 @@ where
     pub fn start_advertising(&self, app: &mut App) -> Result<(), ReturnCode> {
         let data = &mut *self.mutable_data.borrow_mut();
         debug!("Starting advertising with app.");
-        // TODO: this is unsound.
-        let (_tx, tx_cons) = unsafe { &mut TX_QUEUE }.split();
-        let (rx_prod, _rx) = unsafe { &mut RX_QUEUE }.split();
-        // errors if we provide too much ad data.
+        let (_tx, tx_cons) = <R as RubbleImplementation<'a, A>>::tx_packet_queue().split();
+        let (rx_prod, _rx) = <R as RubbleImplementation<'a, A>>::rx_packet_queue().split();
+
+        // this errors if we provide too much ad data.
 
         let ad_bytes = app
             .outgoing_advertisement_data
             .as_ref()
             .ok_or(ReturnCode::FAIL)?
             .as_ref();
-        let ad = AdStructure::from_bytes(&mut ByteReader::new(ad_bytes)).map_err(|e| {
-            debug!("Error converting app adv bytes to AdStructure: {}", e);
-            ReturnCode::EINVAL
-        })?;
-
         let next_update = data
             .ll
             .start_advertise(
                 app.advertisement_interval,
-                &[ad],
+                &ad_bytes,
                 &mut data.radio,
                 tx_cons,
                 rx_prod,
             )
-            .unwrap();
+            .map_err(|e| {
+                debug!("Error advertising with app ad data: {}", e);
+                ReturnCode::EINVAL
+            })?;
+
         debug!("Done. Going to set alarm to {:?}", next_update);
 
         self.set_alarm_for(next_update);
         Ok(())
     }
 
-    pub fn stop_advertising(&self) -> Result<(), ReturnCode> {
-        let data = &mut *self.mutable_data.borrow_mut();
-        if data.ll.is_advertising() {
-            let cmd = data.ll.enter_standby();
-            let next_update = data.handle_cmd(cmd);
-            self.set_alarm_for(next_update);
-            Ok(())
-        } else {
-            Err(ReturnCode::EALREADY)
-        }
-    }
+    // pub fn stop_advertising(&self) -> Result<(), ReturnCode> {
+    //     let data = &mut *self.mutable_data.borrow_mut();
+    //     if data.ll.is_advertising() {
+    //         let cmd = data.ll.enter_standby();
+    //         let next_update = data.handle_cmd(cmd);
+    //         self.set_alarm_for(next_update);
+    //         Ok(())
+    //     } else {
+    //         Err(ReturnCode::EALREADY)
+    //     }
+    // }
 
     pub fn set_alarm_for(&self, update: NextUpdate) {
         match update {
@@ -240,7 +202,7 @@ where
                 self.alarm.disable()
             }
             NextUpdate::At(time) => {
-                let tock_time = self::timer::rubble_instant_to_alarm_time::<A>(&self.alarm, time);
+                let tock_time = time.to_alarm_time(self.alarm);
                 debug!(
                     "Setting alarm for at {} (we're now at {})",
                     tock_time,
@@ -253,10 +215,10 @@ where
 }
 
 // Timer alarm
-impl<'a, R, A> kernel::hil::time::AlarmClient for BLE<'a, R, A>
+impl<'a, A, R> kernel::hil::time::AlarmClient for BLE<'a, A, R>
 where
-    R: BleRadio,
-    A: kernel::hil::time::Alarm<'a>,
+    A: Alarm<'a>,
+    R: RubbleImplementation<'a, A>,
 {
     fn fired(&self) {
         debug!("Alarm fired");
@@ -269,10 +231,10 @@ where
 }
 
 // System Call implementation
-impl<'a, R, A> kernel::Driver for BLE<'a, R, A>
+impl<'a, A, R> kernel::Driver for BLE<'a, A, R>
 where
-    R: BleRadio,
-    A: kernel::hil::time::Alarm<'a>,
+    A: Alarm<'a>,
+    R: RubbleImplementation<'a, A>,
 {
     fn command(&self, command_num: usize, r2: usize, r3: usize, app_id: AppId) -> ReturnCode {
         match command_num {
@@ -293,15 +255,16 @@ where
                     .unwrap_or_else(|err| Err(err.into()))
                     .unwrap_or_else(|e| e)
             }
-            CMD_STOP_ADVERTISING => {
-                assert_eq!(r2, CMD_ARG_UNUSED);
-                assert_eq!(r3, CMD_ARG_UNUSED);
+            // Rubble is currently missing a stop_advertising switch.
+            // CMD_STOP_ADVERTISING => {
+            //     assert_eq!(r2, CMD_ARG_UNUSED);
+            //     assert_eq!(r3, CMD_ARG_UNUSED);
 
-                match self.stop_advertising() {
-                    Ok(()) => ReturnCode::SUCCESS,
-                    Err(e) => e,
-                }
-            }
+            //     match self.stop_advertising() {
+            //         Ok(()) => ReturnCode::SUCCESS,
+            //         Err(e) => e,
+            //     }
+            // }
             _ => ReturnCode::ENOSUPPORT,
         }
     }

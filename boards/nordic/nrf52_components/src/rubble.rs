@@ -16,7 +16,10 @@ use kernel::component::Component;
 use kernel::hil;
 use kernel::{create_capability, static_init};
 
-use rubble::link::{DeviceAddress, RadioCmd, MIN_PDU_BUF};
+use rubble::{
+    link::{advertising, data, AddressKind, RadioCmd, Transmitter, MIN_PDU_BUF},
+    phy::{AdvertisingChannel, DataChannel},
+};
 
 use rubble_nrf5x::radio::{BleRadio, PacketBuffer};
 
@@ -30,22 +33,77 @@ pub static mut RX_BUF: PacketBuffer = [0; MIN_PDU_BUF];
 
 pub struct Nrf52BleRadio;
 
-impl hil::rubble::BleRadio for Nrf52BleRadio {
-    type Transmitter = rubble_nrf5x::radio::BleRadio;
+impl hil::rubble::BleHardware for Nrf52BleRadio {
+    type Transmitter = TransmitterWrapper;
+    type RadioCmd = RadioCmd;
 
-    fn get_device_address() -> DeviceAddress {
-        rubble_nrf5x::utils::get_device_address()
+    fn get_device_address() -> hil::rubble::DeviceAddress {
+        let address = rubble_nrf5x::utils::get_device_address();
+
+        hil::rubble::DeviceAddress {
+            bytes: *address.raw(),
+            kind: match address.kind() {
+                AddressKind::Public => hil::rubble::AddressKind::Public,
+                AddressKind::Random => hil::rubble::AddressKind::Random,
+            },
+        }
     }
 
     fn radio_accept_cmd(radio: &mut Self::Transmitter, cmd: RadioCmd) {
-        radio.configure_receiver(cmd);
+        radio.0.configure_receiver(cmd);
+    }
+}
+pub struct TransmitterWrapper(rubble_nrf5x::radio::BleRadio);
+
+// Note: this is significantly more clunky than it needs to be, since
+// we're converting every rubble data structure to its hil equivalent in
+// tock_rubble, then doing the conversion right back here. This
+// interface will make more sense when rubble_nrf5x is reimplemented in
+// of Tock's primitives.
+impl hil::rubble::Transmitter for TransmitterWrapper {
+    fn tx_payload_buf(&mut self) -> &mut [u8] {
+        self.0.tx_payload_buf()
+    }
+    fn transmit_advertising(
+        &mut self,
+        header: hil::rubble::AdvertisingHeader,
+        hil_channel: hil::rubble::AdvertisingChannel,
+    ) {
+        let header = advertising::Header::parse(&header.to_bytes());
+        // TODO: Get rubble's AdvertisingChannel to support direct construction.
+        // LLVM should be able to figure out this is a no-op, but it's still a
+        // workaround.
+        let rubble_channel = {
+            let mut rubble_channel = AdvertisingChannel::first();
+            for _ in 37..hil_channel.channel() {
+                rubble_channel = rubble_channel.cycle();
+            }
+            rubble_channel
+        };
+        self.0.transmit_advertising(header, rubble_channel);
+    }
+    fn transmit_data(
+        &mut self,
+        access_address: u32,
+        crc_iv: u32,
+        header: hil::rubble::DataHeader,
+        channel: hil::rubble::DataChannel,
+    ) {
+        let header = data::Header::parse(&header.to_bytes());
+        let channel = DataChannel::new(channel.index());
+        self.0
+            .transmit_data(access_address, crc_iv, header, channel)
     }
 }
 
-type BleCapsule =
-    capsules::rubble::BLE<'static, Nrf52BleRadio, VirtualMuxAlarm<'static, Rtc<'static>>>;
+pub type Nrf52RubbleImplementation<'a, A> = tock_rubble::Implementation<'a, A, Nrf52BleRadio>;
 
 // Save some deep nesting
+type BleCapsule = capsules::rubble::BLE<
+    'static,
+    VirtualMuxAlarm<'static, Rtc<'static>>,
+    Nrf52RubbleImplementation<'static, VirtualMuxAlarm<'static, Rtc<'static>>>,
+>;
 
 pub struct RubbleComponent {
     board_kernel: &'static kernel::Kernel,
@@ -81,12 +139,12 @@ impl Component for RubbleComponent {
 
         // Rubble currently requires an RX buffer even though the radio is only used as a TX-only
         // beacon.
-        let radio = BleRadio::new(
+        let radio = tock_rubble::BleRadioWrapper::new(TransmitterWrapper(BleRadio::new(
             peripherals.RADIO,
             &peripherals.FICR,
             &mut TX_BUF,
             &mut RX_BUF,
-        );
+        )));
 
         let ble_radio = static_init!(
             BleCapsule,
