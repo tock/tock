@@ -43,7 +43,7 @@ use kernel::hil::{
     },
     time::Alarm,
 };
-use kernel::{AppId, AppSlice, Callback, ReturnCode, Shared};
+use kernel::{AppId, AppSlice, ReturnCode, Shared};
 
 use crate::driver;
 
@@ -63,7 +63,6 @@ pub const ALLOW_OUTGOING_AD_BUFFER: usize = 0;
 pub struct App {
     outgoing_advertisement_data: Option<kernel::AppSlice<kernel::Shared, u8>>,
     advertisement_interval: Duration,
-    scan_interval_ms: Duration,
 }
 
 impl Default for App {
@@ -71,7 +70,6 @@ impl Default for App {
         App {
             outgoing_advertisement_data: None,
             advertisement_interval: Duration::from_millis(200),
-            scan_interval_ms: Duration::from_millis(200),
         }
     }
 }
