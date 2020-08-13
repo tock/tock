@@ -22,6 +22,11 @@ pub struct RiscvimacStoredState {
     /// We need to store the mcause CSR between when the trap occurs and after
     /// we exit the trap handler and resume the context switching code.
     mcause: usize,
+
+    /// We need to store the mtval CSR for the process in case the mcause
+    /// indicates a fault. In that case, the mtval contains useful debugging
+    /// information.
+    mtval: usize,
 }
 
 // Named offsets into the stored state registers.  These needs to be kept in

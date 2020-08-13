@@ -318,13 +318,16 @@ pub extern "C" fn _start_trap() {
             // need to store mcause because we use that to determine why the app
             // stopped executing and returned to the kernel. We store mepc
             // because it is where we need to return to in the app at some
-            // point.
+            // point. We need to store mtval in case the app faulted and we need
+            // mtval to help with debugging.
             csrr t0, 0x340    // CSR=0x340=mscratch
             sw   t0, 1*4(s0)  // Save the app sp to the stored state struct
             csrr t0, 0x341    // CSR=0x341=mepc
             sw   t0, 31*4(s0) // Save the PC to the stored state struct
             csrr t0, 0x342    // CSR=0x342=mcause
             sw   t0, 32*4(s0) // Save mcause to the stored state struct
+            csrr t0, 0x343    // CSR=0x343=mtval
+            sw   t0, 33*4(s0) // Save mtval to the stored state struct
 
             // Now we need to check if this was an interrupt, and if it was,
             // then we need to disable the interrupt before returning from this
