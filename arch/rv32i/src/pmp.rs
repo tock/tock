@@ -168,7 +168,6 @@ impl Default for PMPConfig {
         PMPConfig {
             regions: [None; $x / 2],
             is_dirty: Cell::new(true),
-
             app_memory_region: OptionalCell::empty(),
         }
     }
