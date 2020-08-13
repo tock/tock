@@ -407,12 +407,9 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
              \r\n R13: {:#010X}    R29: {:#010X}\
              \r\n R14: {:#010X}    R30: {:#010X}\
              \r\n R15: {:#010X}    R31: {:#010X}\
-             \r\n PC : {:#010X}\
-             \r\n SP:  {:#010X}\
+             \r\n PC : {:#010X}    SP : {:#010X}\
              \r\n\
-             \r\n MCAUSE: {:#010X}\
-             \r\n MTVAL:  {:#010X}\
-             \r\n",
+             \r\n mcause: {:#010X} (",
             0,
             state.regs[15],
             state.regs[0],
@@ -448,6 +445,12 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
             state.pc,
             stack_pointer as usize,
             state.mcause,
+        ));
+        crate::print_mcause(mcause::Trap::from(state.mcause as u32), writer);
+        let _ = writer.write_fmt(format_args!(
+            ")\
+             \r\n mtval:  {:#010X}\
+             \r\n\r\n",
             state.mtval,
         ));
     }
