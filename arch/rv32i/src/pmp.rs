@@ -90,7 +90,7 @@ impl fmt::Display for PMPRegion {
 
         write!(
             f,
-            "addr={:p}, size={:#X}, cfg={:#X} ({}{}{})",
+            "addr={:p}, size={:#010X}, cfg={:#X} ({}{}{})",
             self.location.0,
             self.location.1,
             u8::from(self.cfg),
@@ -175,11 +175,11 @@ impl Default for PMPConfig {
 
 impl fmt::Display for PMPConfig {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "PMP regions:")?;
+        writeln!(f, " PMP regions:")?;
         for (n, region) in self.regions.iter().enumerate() {
             match region {
-                None => writeln!(f, "<unset>")?,
-                Some(region) => writeln!(f, " [{}]: {}", n, region)?,
+                None => writeln!(f, "  <unset>")?,
+                Some(region) => writeln!(f, "  [{}]: {}", n, region)?,
             }
         }
         Ok(())
