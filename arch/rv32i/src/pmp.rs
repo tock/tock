@@ -56,6 +56,22 @@ register_bitfields![u8,
     ]
 ];
 
+/// Main PMP struct.
+pub struct PMP {
+    /// The application that the MPU was last configured for. Used (along with
+    /// the `is_dirty` flag) to determine if MPU can skip writing the
+    /// configuration to hardware.
+    last_configured_for: MapCell<AppId>,
+}
+
+impl PMP {
+    pub const unsafe fn new() -> PMP {
+        PMP {
+            last_configured_for: MapCell::empty(),
+        }
+    }
+}
+
 /// Struct storing configuration for a RISC-V PMP region.
 #[derive(Copy, Clone)]
 pub struct PMPRegion {
@@ -136,37 +152,28 @@ impl PMPRegion {
     }
 }
 
-pub trait PMPConfigType: Default + Copy + Clone + Sized {}
-
 /// Struct storing region configuration for RISCV PMP.
-pub struct PMPConfig<N: PMPConfigType> {
+pub struct PMPConfig {
     /// Array of PMP regions. Each region requires two physical entries.
-    regions: N,
+    regions: [Option<PMPRegion>; $x / 2],
     /// Indicates if the configuration has changed since the last time it was
     /// written to hardware.
     is_dirty: Cell<bool>,
-    /// The application that the MPU was last configured for. Used (along with
-    /// the `is_dirty` flag) to determine if MPU can skip writing the
-    /// configuration to hardware.
-    last_configured_for: MapCell<AppId>,
     /// Which region index is used for app memory (if it has been configured).
     app_memory_region: OptionalCell<usize>,
 }
 
-impl PMPConfigType for [Option<PMPRegion>; $x / 2] {}
-
-impl Default for PMPConfig<[Option<PMPRegion>; $x / 2]> {
+impl Default for PMPConfig {
     fn default() -> Self {
         PMPConfig {
             regions: [None; $x / 2],
             is_dirty: Cell::new(true),
-            last_configured_for: MapCell::empty(),
             app_memory_region: OptionalCell::empty(),
         }
     }
 }
 
-impl fmt::Display for PMPConfig<[Option<PMPRegion>; $x / 2]> {
+impl fmt::Display for PMPConfig {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "PMP regions:")?;
         for (n, region) in self.regions.iter().enumerate() {
@@ -179,7 +186,7 @@ impl fmt::Display for PMPConfig<[Option<PMPRegion>; $x / 2]> {
     }
 }
 
-impl PMPConfig<[Option<PMPRegion>; $x / 2]> {
+impl PMPConfig {
     fn unused_region_number(&self) -> Option<usize> {
         for (number, region) in self.regions.iter().enumerate() {
             if self.app_memory_region.contains(&number) {
@@ -234,18 +241,15 @@ impl PMPConfig<[Option<PMPRegion>; $x / 2]> {
     }
 }
 
-impl kernel::mpu::MPU for PMPConfig<[Option<PMPRegion>; $x / 2]> {
-    type MpuConfig = PMPConfig<[Option<PMPRegion>; $x / 2]>;
+impl kernel::mpu::MPU for PMP {
+    type MpuConfig = PMPConfig;
 
     fn enable_mpu(&self) {}
 
     fn disable_mpu(&self) {
-        // The length of `self.regions` here refers to the number of memory
-        // slices we can protect with the PMP. Each slice requires two PMP
-        // entries to protect, so this is half of the number physical hardware
-        // PMP configuration entries. Therefore, we double the number of regions
-        // to clear all the relevant `pmpcfg` entries.
-        for x in 0..(self.regions.len() * 2) {
+        // We want to disable all of the hardware entries, so we use `$x` here,
+        // and not `$x / 2`.
+        for x in 0..$x {
             match x % 4 {
                 0 => {
                     csr::CSR.pmpcfg[x / 4].modify(
@@ -300,7 +304,7 @@ impl kernel::mpu::MPU for PMPConfig<[Option<PMPRegion>; $x / 2]> {
     }
 
     fn number_total_regions(&self) -> usize {
-        self.regions.len()
+        $x / 2
     }
 
     fn allocate_region(
@@ -464,7 +468,7 @@ impl kernel::mpu::MPU for PMPConfig<[Option<PMPRegion>; $x / 2]> {
         // Skip PMP configuration if it is already configured for this app and the MPU
         // configuration of this app has not changed.
         if !last_configured_for_this_app || config.is_dirty.get() {
-            for (x, region) in self.regions.iter().enumerate() {
+            for (x, region) in config.regions.iter().enumerate() {
                 match region {
                     Some(r) => {
                         let cfg_val = r.cfg.value as u32;
@@ -514,6 +518,6 @@ impl kernel::mpu::MPU for PMPConfig<[Option<PMPRegion>; $x / 2]> {
             self.last_configured_for.put(*app_id);
         }
     }
-        }
-    };
+    }
+};
 }

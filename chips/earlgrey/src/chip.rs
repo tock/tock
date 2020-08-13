@@ -27,7 +27,7 @@ pub const CHIP_FREQ: u32 = CONFIG.chip_freq;
 
 pub struct EarlGrey<A: 'static + Alarm<'static>> {
     userspace_kernel_boundary: SysCall,
-    pmp: PMPConfig<[Option<PMPRegion>; 2]>,
+    pmp: PMP,
     scheduler_timer: kernel::VirtualSchedulerTimer<A>,
 }
 
@@ -35,7 +35,7 @@ impl<A: 'static + Alarm<'static>> EarlGrey<A> {
     pub unsafe fn new(alarm: &'static A) -> Self {
         Self {
             userspace_kernel_boundary: SysCall::new(),
-            pmp: PMPConfig::default(),
+            pmp: PMP::new(),
             scheduler_timer: kernel::VirtualSchedulerTimer::new(alarm),
         }
     }
@@ -110,7 +110,7 @@ impl<A: 'static + Alarm<'static>> EarlGrey<A> {
 }
 
 impl<A: 'static + Alarm<'static>> kernel::Chip for EarlGrey<A> {
-    type MPU = PMPConfig<[Option<PMPRegion>; 2]>;
+    type MPU = PMP;
     type UserspaceKernelBoundary = SysCall;
     type SchedulerTimer = kernel::VirtualSchedulerTimer<A>;
     type WatchDog = ();
