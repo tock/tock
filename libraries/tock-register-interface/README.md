@@ -166,9 +166,8 @@ Bitfields are defined through the `register_bitfields!` macro:
 
 ```rust
 register_bitfields! [
-    // First parameter is the register width for the bitfields. Can be u8, u16,
-    // u32, or u64.
-    u8,
+    // First parameter is the register width. Can be u8, u16, u32, or u64.
+    u32,
 
     // Each subsequent parameter is a register abbreviation, its descriptive
     // name, and its associated bitfields.
