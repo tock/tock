@@ -2,10 +2,10 @@
 
 use kernel::common::cells::OptionalCell;
 use kernel::common::registers::{register_bitfields, register_structs, ReadWrite, WriteOnly};
-use kernel::ReturnCode;
 use kernel::common::StaticRef;
 use kernel::hil::time;
-use kernel::hil::time::{Time, Ticks, Ticks64};
+use kernel::hil::time::{Ticks, Ticks64, Time};
+use kernel::ReturnCode;
 
 use crate::chip::CHIP_FREQ;
 
@@ -103,7 +103,8 @@ impl time::Time for RvTimer<'_> {
         let first_low: u32 = self.registers.value_low.get();
         let mut high: u32 = self.registers.value_high.get();
         let second_low: u32 = self.registers.value_low.get();
-        if second_low < first_low { // Wraparound
+        if second_low < first_low {
+            // Wraparound
             high = self.registers.value_high.get();
         }
         Ticks64::from(((high as u64) << 32) | second_low as u64)
@@ -149,7 +150,7 @@ impl<'a> time::Alarm<'a> for RvTimer<'a> {
         let regs = self.registers;
         let now = self.now();
         let mut expire = reference.wrapping_add(dt);
-        
+
         if !now.within_range(reference, expire) {
             expire = now;
         }
@@ -157,7 +158,7 @@ impl<'a> time::Alarm<'a> for RvTimer<'a> {
         let val = expire.into_u64();
         let high = (val >> 32) as u32;
         let low = (val & 0xffffffff) as u32;
-        
+
         // Recommended approach for setting the two compare registers
         // (RISC-V Privileged Architectures 3.1.15) -pal 8/6/20
         regs.compare_low.set(0xffffffff);
@@ -172,7 +173,7 @@ impl<'a> time::Alarm<'a> for RvTimer<'a> {
         val |= self.registers.compare_low.get() as u64;
         Ticks64::from(val)
     }
-    
+
     fn disarm(&self) -> ReturnCode {
         // You clear the RISCV mtime interrupt by writing to the compare
         // regsiters. Since the only way to do so is to set a new alarm,
@@ -190,7 +191,6 @@ impl<'a> time::Alarm<'a> for RvTimer<'a> {
     fn minimum_dt(&self) -> Self::Ticks {
         Self::Ticks::from(1 as u64)
     }
-    
 }
 
 const TIMER_BASE: StaticRef<TimerRegisters> =

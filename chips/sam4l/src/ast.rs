@@ -187,9 +187,8 @@ impl Controller for Ast<'_> {
         self.disable_alarm_irq();
         self.set_prescalar(0); // 32KHz / (2^(0 + 1)) = 16KHz
         self.enable_alarm_wake();
-        
-        self.clear_alarm();
 
+        self.clear_alarm();
     }
 }
 

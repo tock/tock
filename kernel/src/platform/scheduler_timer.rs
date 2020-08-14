@@ -171,7 +171,11 @@ impl<A: 'static + time::Alarm<'static>> SchedulerTimer for VirtualSchedulerTimer
         // However, if the alarm frequency is slow enough relative to the cpu frequency, it is
         // possible this will be evaluated while now() == get_alarm(), so we special case that
         // result where the alarm has fired but the subtraction has not overflowed
-        let diff = self.alarm.get_alarm().wrapping_sub(self.alarm.now()).into_u32();
+        let diff = self
+            .alarm
+            .get_alarm()
+            .wrapping_sub(self.alarm.now())
+            .into_u32();
         diff >= A::Frequency::frequency() || diff == 0
     }
 
@@ -179,7 +183,11 @@ impl<A: 'static + time::Alarm<'static>> SchedulerTimer for VirtualSchedulerTimer
         // We need to convert from native tics to us, multiplication could overflow in 32-bit
         // arithmetic. So we convert to 64-bit.
 
-        let tics = self.alarm.get_alarm().wrapping_sub(self.alarm.now()).into_u32() as u64;
+        let tics = self
+            .alarm
+            .get_alarm()
+            .wrapping_sub(self.alarm.now())
+            .into_u32() as u64;
         let hertz = A::Frequency::frequency() as u64;
         ((tics * 1_000_000) / hertz) as u32
     }

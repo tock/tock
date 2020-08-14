@@ -4,9 +4,9 @@
 use core::cell::Cell;
 use kernel::common::cells::OptionalCell;
 use kernel::common::{List, ListLink, ListNode};
+use kernel::debug;
 use kernel::hil::time::{self, Alarm, Ticks, Time};
 use kernel::ReturnCode;
-use kernel::debug;
 
 /// An object to multiplex multiple "virtual" alarms over a single underlying alarm. A
 /// `VirtualMuxAlarm` is a node in a linked list of alarms that share the same underlying alarm.

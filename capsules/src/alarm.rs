@@ -126,8 +126,7 @@ impl<'a, A: Alarm<'a>> AlarmDriver<'a, A> {
                     high_bits = high_bits.wrapping_sub(bit33);
                 }
                 let real_reference = high_bits.wrapping_add(A::Ticks::from(reference));
-                self.alarm
-                    .set_alarm(real_reference, A::Ticks::from(dt));
+                self.alarm.set_alarm(real_reference, A::Ticks::from(dt));
             }
         }
     }
