@@ -9,5 +9,5 @@ kernel = { path = "../../../kernel" }
 
 [dependencies.rubble]
 version = "0.0.3"
-git = "https://github.com/daboross/rubble.git"
-rev = "601ef83eabcec6431d4cf27f0b8c714e0e1d6b87"
+git = "https://github.com/jonas-schievink/rubble.git"
+rev = "1c2014ffe4d674404b8bb2f8f39d7a91a32567d8"
