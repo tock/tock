@@ -112,7 +112,7 @@ impl<'a> Consumer for RefCellConsumer<'a> {
         let raw_payload = bytes.read_slice(pl_len)?;
 
         let res = f(header, raw_payload);
-        if res.consume() {
+        if res.should_consume() {
             self.queue.full.set(false);
         }
         res.into_result()
