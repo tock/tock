@@ -337,9 +337,6 @@ impl kernel::mpu::MPU for PMP {
             start += 4 - (start % 4);
         }
 
-        // RISC-V PMP is not inclusive of the final address, while Tock is, increase the size by 1
-        size += 1;
-
         // Region size always has to align to 4 bytes
         if size % 4 != 0 {
             size += 4 - (size % 4);
@@ -389,13 +386,10 @@ impl kernel::mpu::MPU for PMP {
         };
 
         // Make sure there is enough memory for app memory and kernel memory.
-        let memory_size = cmp::max(
+        let mut region_size = cmp::max(
             min_memory_size,
             initial_app_memory_size + initial_kernel_memory_size,
-        );
-
-        // RISC-V PMP is not inclusive of the final address, while Tock is, increase the memory_size by 1
-        let mut region_size = memory_size as usize + 1;
+        ) as usize;
 
         // Region size always has to align to 4 bytes
         if region_size % 4 != 0 {
