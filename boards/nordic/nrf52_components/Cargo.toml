@@ -10,16 +10,4 @@ cortexm4 = { path = "../../../arch/cortex-m4" }
 capsules = { path = "../../../capsules" }
 kernel = { path = "../../../kernel" }
 nrf52 = { path = "../../../chips/nrf52" }
-nrf52840-hal = { version = "0.10", features = ["rt"] }
 tock_rubble = { path = "../../components/tock_rubble" }
-
-[dependencies.rubble]
-version = "0.0.3"
-git = "https://github.com/daboross/rubble.git"
-rev = "601ef83eabcec6431d4cf27f0b8c714e0e1d6b87"
-
-[dependencies.rubble-nrf5x]
-version = "0.0.3"
-git = "https://github.com/daboross/rubble.git"
-rev = "601ef83eabcec6431d4cf27f0b8c714e0e1d6b87"
-features = ["52840"]

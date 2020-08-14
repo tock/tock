@@ -12,62 +12,6 @@ use core::convert::{TryFrom, TryInto};
 
 use crate::hil::time::{Frequency, Time};
 
-/// One of 37 data channels on which data channel PDUs are sent between connected devices.
-///
-/// Copied from `rubble::phy::DataChannel`.
-///
-/// (channel indices 0..=36)
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub struct DataChannel(u8);
-
-impl DataChannel {
-    /// Creates a `DataChannel` from a raw index.
-    ///
-    /// # Errors
-    ///
-    /// Returns `None` if channel index is not within `0..=36`.
-    pub fn new(index: u8) -> Option<Self> {
-        match index {
-            0..=36 => Some(DataChannel(index)),
-            _ => None,
-        }
-    }
-
-    /// Returns the data channel index.
-    ///
-    /// The returned value is always in range 0..=36.
-    pub fn index(&self) -> u8 {
-        self.0
-    }
-}
-
-/// One of the three advertising channels (channel indices 37, 38 or 39).
-///
-/// Clone of `rubble::phy::AdvertisingChannel`.
-#[derive(Copy, Clone, Debug)]
-pub struct AdvertisingChannel(u8);
-
-impl AdvertisingChannel {
-    /// Creates an advertising from the given channel index.
-    ///
-    /// # Errors
-    ///
-    /// Returns `None` if channel index is not `37`, `38` or `39`.
-    pub fn new(idx: u8) -> Option<Self> {
-        match idx {
-            37..=39 => Some(AdvertisingChannel(idx)),
-            _ => None,
-        }
-    }
-
-    /// Returns the channel index.
-    ///
-    /// Channels 37, 38 and 39 are used for advertising.
-    pub fn channel(&self) -> u8 {
-        self.0
-    }
-}
-
 /// Specifies whether a device address is randomly generated or a LAN MAC address.
 ///
 /// Clone of `rubble::link::device_address::AddressKind`.
@@ -105,119 +49,6 @@ pub enum NextUpdate {
     At(Instant),
 }
 
-/// Values of the LLID field in `DataHeader`.
-///
-/// Clone of `rubble::link::data::Llid`.
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub enum Llid {
-    /// Reserved for future use.
-    Reserved = 0b00,
-
-    /// Continuation of L2CAP message, or empty PDU.
-    DataCont = 0b01,
-
-    /// Start of L2CAP message.
-    DataStart = 0b10,
-
-    /// LL control PDU.
-    Control = 0b11,
-}
-
-/// 16-bit Advertising Channel PDU header preceding the Payload.
-///
-/// The header looks like this:
-///
-/// ```notrust
-/// LSB                                                                     MSB
-/// +------------+------------+---------+---------+--------------+------------+
-/// |  PDU Type  |     -      |  TxAdd  |  RxAdd  |    Length    |     -      |
-/// |  (4 bits)  |  (2 bits)  | (1 bit) | (1 bit) |   (6 bits)   |  (2 bits)  |
-/// +------------+------------+---------+---------+--------------+------------+
-/// ```
-///
-/// The `TxAdd` and `RxAdd` field are only used for some payloads, for all others, they should be
-/// set to 0.
-///
-/// Length may be in range 6 to 37 (inclusive). With the 2-Byte header this is exactly the max.
-/// on-air packet size.
-///
-/// Clone of `rubble::link::advertising::Header`.
-#[derive(Copy, Clone)]
-pub struct AdvertisingHeader(u16);
-
-impl AdvertisingHeader {
-    /// Creates an [`AdvertisingHeader`] containing the given bytes.
-    pub fn from_bytes(bytes: [u8; 2]) -> Self {
-        AdvertisingHeader(u16::from_le_bytes(bytes))
-    }
-
-    /// Returns the raw representation of the header.
-    pub fn to_bytes(&self) -> [u8; 2] {
-        self.0.to_le_bytes()
-    }
-}
-
-/// 16-bit data channel header preceding the payload.
-///
-/// Clone of `rubble::link::data::Header`. See that structure for in-depth documentation.
-#[derive(Copy, Clone)]
-pub struct DataHeader(u16);
-
-impl DataHeader {
-    /// Creates a [`DataHeader`] from the given
-
-    /// Creates a [`DataHeader`] containing the given bytes.
-    pub fn from_bytes(bytes: [u8; 2]) -> Self {
-        DataHeader(u16::from_le_bytes(bytes))
-    }
-
-    /// Returns the raw representation of the header.
-    pub fn to_bytes(&self) -> [u8; 2] {
-        self.0.to_le_bytes()
-    }
-}
-
-/// Specifies if and how the radio should listen for transmissions.
-///
-/// Returned by the Link-Layer update and processing methods to reconfigure the radio as needed.
-///
-/// Clone of `rubble::link::RadioCmd`.
-#[derive(Debug, Clone)]
-pub enum RadioCmd {
-    /// Turn the radio off and don't call `LinkLayer::process_*` methods.
-    ///
-    /// `LinkLayer::update` must still be called according to `Cmd`'s `next_update` field.
-    Off,
-
-    /// Listen on an advertising channel. If a packet is received, pass it to
-    /// `LinkLayer::process_adv_packet`.
-    ListenAdvertising {
-        /// The advertising channel to listen on.
-        channel: AdvertisingChannel,
-    },
-
-    /// Listen on a data channel. If a matching packet is received, pass it to
-    /// `LinkLayer::process_data_packet`.
-    ListenData {
-        /// The data channel to listen on.
-        channel: DataChannel,
-
-        /// The Access Address to listen for.
-        ///
-        /// Packets with a different Access Address must not be passed to the Link-Layer. You may be
-        /// able to use your Radio's hardware address matching for this.
-        access_address: u32,
-
-        /// Initialization value of the CRC-24 calculation.
-        ///
-        /// Only the least significant 24 bits are relevant.
-        crc_init: u32,
-
-        /// Flag to indicate if the last connection event timed out.
-        timeout: bool,
-    },
-}
-
 /// A point in time, relative to an unspecfied epoch, specified in microseconds.
 ///
 /// This has microsecond resolution and may wrap around after >1 hour. Apart from the wraparound, it
@@ -226,7 +57,7 @@ pub enum RadioCmd {
 /// Clone of `rubble::timer::Instant`.
 #[derive(Debug, Copy, Clone)]
 pub struct Instant {
-    pub microseconds: u32,
+    microseconds: u32,
 }
 
 impl Instant {
@@ -234,6 +65,10 @@ impl Instant {
     /// reference point.
     pub fn from_raw_micros(microseconds: u32) -> Self {
         Instant { microseconds }
+    }
+
+    pub fn raw_micros(&self) -> u32 {
+        self.microseconds
     }
 
     pub fn from_alarm_time<A: Time>(raw: u32) -> Self {

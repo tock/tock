@@ -24,7 +24,7 @@ where
 {
     fn now(&self) -> rubble::time::Instant {
         rubble::time::Instant::from_raw_micros(
-            rubble_hil::Instant::from_alarm_time::<A>(self.alarm.now()).microseconds,
+            rubble_hil::Instant::from_alarm_time::<A>(self.alarm.now()).raw_micros(),
         )
     }
 }

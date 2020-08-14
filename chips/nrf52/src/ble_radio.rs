@@ -33,6 +33,7 @@
 //!
 //! * CRC - 3 bytes
 
+use crate::ficr::FICR_INSTANCE;
 use core::cell::Cell;
 use core::convert::TryFrom;
 use kernel::common::cells::OptionalCell;
@@ -41,6 +42,7 @@ use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOn
 use kernel::common::StaticRef;
 use kernel::hil::ble_advertising;
 use kernel::hil::ble_advertising::RadioChannel;
+use kernel::hil::rubble;
 use kernel::ReturnCode;
 use nrf5x::constants::TxPower;
 
@@ -583,7 +585,7 @@ impl<'a> Radio<'a> {
         regs.power.write(Task::ENABLE::SET);
     }
 
-    fn radio_off(&self) {
+    pub(super) fn radio_off(&self) {
         let regs = &*self.registers;
         regs.power.write(Task::ENABLE::CLEAR);
     }
@@ -819,6 +821,37 @@ impl<'a> ble_advertising::BleAdvertisementDriver<'a> for Radio<'a> {
 
     fn set_transmit_client(&self, client: &'a dyn ble_advertising::TxClient) {
         self.tx_client.set(client);
+    }
+}
+
+impl<'a> rubble::RubbleDataDriver<'a> for Radio<'a> {
+    fn get_device_address() -> rubble::DeviceAddress {
+        // This is sound as we're only using read-only access, and all other
+        // accessors of FICR also only use read-only access.
+        let (raw_address, address_type) = unsafe {
+            let ficr = &FICR_INSTANCE;
+            (ficr.full_address(), ficr.address_type())
+        };
+
+        rubble::DeviceAddress {
+            bytes: raw_address,
+            kind: match address_type {
+                crate::ficr::AddressType::Public => rubble::AddressKind::Public,
+                crate::ficr::AddressType::Random => rubble::AddressKind::Random,
+            },
+        }
+    }
+    fn transmit_data(
+        &self,
+        _buf: &'static mut [u8],
+        _access_address: u32,
+        _crc_iv: u32,
+        _channel: RadioChannel,
+    ) {
+        todo!()
+    }
+    fn receive_data(&self, _channel: RadioChannel, _access_address: u32, _crc_init: u32) {
+        todo!()
     }
 }
 

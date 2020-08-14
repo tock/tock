@@ -10,7 +10,11 @@
 //! implemented by chip crates.
 use core::fmt;
 
-use super::time::Alarm;
+use super::{
+    ble_advertising::{BleAdvertisementDriver, RadioChannel},
+    time::Alarm,
+};
+use crate::ReturnCode;
 
 mod data_structures;
 
@@ -41,6 +45,27 @@ pub trait RubbleImplementation<'a, A: Alarm<'a> + ?Sized> {
     /// Retrieve a statically-allocated packet queue for communication from the
     /// LinkLayer to the hardware.
     fn tx_packet_queue() -> &'static Self::PacketQueue;
+
+    /// Handle a receive event from the BLE stack. This is here as it needs
+    /// access to the BleRadio and LinkLayer structs simultaneously.
+    fn transmit_event(
+        radio: &mut Self::BleRadio,
+        ll: &mut Self::LinkLayer,
+        rx_end: Instant,
+        buf: &'static mut [u8],
+        result: ReturnCode,
+    );
+
+    /// Handle a receive event from the BLE stack. This is here as it needs
+    /// access to the BleRadio and LinkLayer structs simultaneously.
+    fn receive_event(
+        radio: &mut Self::BleRadio,
+        ll: &mut Self::LinkLayer,
+        rx_end: Instant,
+        buf: &'static mut [u8],
+        len: u8,
+        result: ReturnCode,
+    ) -> Self::Cmd;
 }
 
 /// A packet queue implementation that can be split into producer and consumer.
@@ -65,9 +90,10 @@ pub trait RubblePacketQueue {
 }
 
 pub trait RubbleCmd {
+    type RadioCmd;
     fn next_update(&self) -> NextUpdate;
     fn queued_work(&self) -> bool;
-    fn into_radio_cmd(self) -> RadioCmd;
+    fn into_radio_cmd(self) -> Self::RadioCmd;
 }
 
 pub trait RubbleBleRadio<'a, A, R>
@@ -75,7 +101,7 @@ where
     A: Alarm<'a> + ?Sized,
     R: RubbleImplementation<'a, A> + ?Sized,
 {
-    fn accept_cmd(&mut self, cmd: RadioCmd);
+    fn accept_cmd(&mut self, cmd: <R::Cmd as RubbleCmd>::RadioCmd);
 }
 
 pub trait RubbleLinkLayer<'a, A, R>
@@ -140,44 +166,22 @@ where
 }
 
 /// The primary interface between the rubble stack and the radio.
-pub trait BleHardware {
-    type Transmitter: Transmitter;
-
+///
+/// This is based off of a combination of rubble's `RadioCmd` interface for
+/// configuring radio receiving, rubble's `Transmitter` trait for data
+/// transmission, and Tock's `BleAdvertisementDriver`.
+///
+/// Event notifications well be sent to the [`RxClient`] and [`TxClient`] set
+/// using [`BleAdvertisementDriver`] methods. This allows radios supporting both
+/// advertisement and data connections to keep track of one set of event clients
+/// rather than two for different transmission types.
+///
+/// [`RxClient`]: crate::hil::ble_advertisement::RxClient
+/// [`TxClient`]: crate::hil::ble_advertisement::TxClient
+pub trait RubbleDataDriver<'a>: BleAdvertisementDriver<'a> {
+    /// Return the `DeviceAddress`, which is pre-programmed in the device FICR
+    /// (Factory information configuration registers).
     fn get_device_address() -> DeviceAddress;
-
-    fn radio_accept_cmd(radio: &mut Self::Transmitter, cmd: RadioCmd);
-}
-
-/// Clone of `rubble::link::Transmitter`.
-pub trait Transmitter {
-    /// Get a reference to the Transmitter's PDU payload buffer.
-    ///
-    /// The buffer must hold at least 37 Bytes, as that is the maximum length of advertising channel
-    /// payloads. While data channel payloads can be up to 251 Bytes in length (resulting in a
-    /// "length" field of 255 with the MIC), devices are allowed to use smaller buffers and report
-    /// the supported payload length.
-    ///
-    /// Both advertising and data channel packets also use an additional 2-Byte header preceding
-    /// this payload.
-    ///
-    /// This buffer must not be changed. The BLE stack relies on the buffer to retain its old
-    /// contents after transmitting a packet. A separate buffer must be used for received packets.
-    fn tx_payload_buf(&mut self) -> &mut [u8];
-
-    /// Transmit an Advertising Channel PDU.
-    ///
-    /// For Advertising Channel PDUs, the CRC initialization value is always `CRC_PRESET`, and the
-    /// Access Address is always `ADVERTISING_ADDRESS`.
-    ///
-    /// The implementor is expected to send the preamble and access address, and assemble the rest
-    /// of the packet, and must apply data whitening and do the CRC calculation. The inter-frame
-    /// spacing also has to be upheld by the implementor (`T_IFS`).
-    ///
-    /// # Parameters
-    ///
-    /// * `header`: Advertising Channel PDU Header to prepend to the Payload in `payload_buf()`.
-    /// * `channel`: Advertising Channel Index to transmit on.
-    fn transmit_advertising(&mut self, header: AdvertisingHeader, channel: AdvertisingChannel);
 
     /// Transmit a Data Channel PDU.
     ///
@@ -186,15 +190,31 @@ pub trait Transmitter {
     ///
     /// # Parameters
     ///
+    /// * `buf`: The data to send, including the Data Channel PDU Header as the
+    ///   first two bytes.
     /// * `access_address`: The Access Address of the Link-Layer packet.
     /// * `crc_iv`: CRC calculation initial value (`CRC_PRESET` for advertising channel).
-    /// * `header`: Data Channel PDU Header to be prepended to the Payload in `payload_buf()`.
     /// * `channel`: Data Channel Index to transmit on. Must be in 0..=36.
     fn transmit_data(
-        &mut self,
+        &self,
+        buf: &'static mut [u8],
         access_address: u32,
         crc_iv: u32,
-        header: DataHeader,
-        channel: DataChannel,
+        channel: RadioChannel,
     );
+
+    /// Configure the radio to receive data.
+    ///
+    /// # Parameters
+    ///
+    /// * `channel`: The data channel to listen on.
+    /// * `access_address`: The Access Address to listen for.
+    ///
+    ///   Packets with a different Access Address must not be passed to the
+    ///   to the `RxClient`. You may be able to use your Radio's hardware
+    ///   address matching for this.
+    /// * `crc_init`: Initialization value of the CRC-24 calculation.
+    ///
+    ///   Only the least 24 bits are relevant.
+    fn receive_data(&self, channel: RadioChannel, access_address: u32, crc_init: u32);
 }
