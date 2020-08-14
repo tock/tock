@@ -11,7 +11,7 @@ use kernel::common::StaticRef;
 use kernel::hil::time::{self, Ticks};
 use kernel::hil::Controller;
 use kernel::ReturnCode;
-use kernel::debug;
+//use kernel::debug;
 /// Minimum number of clock tics to make sure ALARM0 register is synchronized
 ///
 /// The datasheet has the following ominous language (Section 19.5.3.2):
@@ -187,7 +187,9 @@ impl Controller for Ast<'_> {
         self.disable_alarm_irq();
         self.set_prescalar(0); // 32KHz / (2^(0 + 1)) = 16KHz
         self.enable_alarm_wake();
+        
         self.clear_alarm();
+
     }
 }
 
