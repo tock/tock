@@ -361,7 +361,12 @@ pub unsafe fn reset_handler() {
     // Create the debugger object that handles calls to `debug!()`.
     components::debug_writer::DebugWriterComponent::new(uart_mux).finalize(());
 
-    let ble_radio = nrf52_components::RubbleComponent::new(board_kernel, mux_alarm).finalize(());
+    let ble_radio = nrf52_components::RubbleComponent::new(
+        board_kernel,
+        &nrf52840::ble_radio::RADIO,
+        mux_alarm,
+    )
+    .finalize(());
 
     let aes_mux = static_init!(
         MuxAES128CCM<'static, nrf52840::aes::AesECB>,

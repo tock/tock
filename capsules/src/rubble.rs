@@ -38,8 +38,8 @@ use core::{cell::RefCell, convert::TryInto, marker::PhantomData};
 use kernel::debug;
 use kernel::hil::{
     rubble::{
-        Duration, NextUpdate, RubbleBleRadio, RubbleCmd, RubbleImplementation, RubbleLinkLayer,
-        RubblePacketQueue, RubbleResponder,
+        Duration, Instant, NextUpdate, RubbleBleRadio, RubbleCmd, RubbleImplementation,
+        RubbleLinkLayer, RubblePacketQueue, RubbleResponder,
     },
     time::Alarm,
 };
@@ -178,6 +178,35 @@ where
             NextUpdate::Disable => self.alarm.disable(),
             NextUpdate::At(time) => self.alarm.set_alarm(time.to_alarm_time(self.alarm)),
         }
+    }
+}
+
+// Impl to forward events from radio driver to rubble stack
+
+impl<'a, A, R> kernel::hil::ble_advertising::RxClient for BLE<'a, A, R>
+where
+    A: Alarm<'a>,
+    R: RubbleImplementation<'a, A>,
+{
+    fn receive_event(&self, buf: &'static mut [u8], len: u8, result: ReturnCode) {
+        // TODO: how accurate is this? can we get a more accurate time stamp?
+        let rx_end = Instant::from_alarm_time::<A>(self.alarm.now());
+        let data = &mut *self.mutable_data.borrow_mut();
+        let cmd = R::receive_event(&mut data.radio, &mut data.ll, rx_end, buf, len, result);
+        let next_update = data.handle_cmd(cmd);
+        self.set_alarm_for(next_update);
+    }
+}
+impl<'a, A, R> kernel::hil::ble_advertising::TxClient for BLE<'a, A, R>
+where
+    A: Alarm<'a>,
+    R: RubbleImplementation<'a, A>,
+{
+    fn transmit_event(&self, buf: &'static mut [u8], result: ReturnCode) {
+        // TODO: how accurate is this? can we get a more accurate time stamp?
+        let rx_end = Instant::from_alarm_time::<A>(self.alarm.now());
+        let data = &mut *self.mutable_data.borrow_mut();
+        let () = R::transmit_event(&mut data.radio, &mut data.ll, rx_end, buf, result);
     }
 }
 
