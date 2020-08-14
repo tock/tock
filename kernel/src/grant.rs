@@ -81,14 +81,28 @@ impl<T: ?Sized> DerefMut for Owned<T> {
 }
 
 impl Allocator {
-    /// Allocates a new owned grant initialized to the given value.
-    pub fn alloc<T>(&mut self, val: T) -> Result<Owned<T>, Error> {
+    /// Allocates a new owned grant initialized using the given closure.
+    ///
+    /// The closure will be called exactly once, and the result will be used to
+    /// initialize the owned value.
+    ///
+    /// This interface was chosen instead of a simple `alloc(val)` as it's
+    /// much more likely to optimize out all stack intermediates. This
+    /// helps to prevent stack overflows when allocating large values.
+    ///
+    /// # Panic Safety
+    ///
+    /// If `init` panics, the freshly allocated memory may leak.
+    pub fn alloc_with<T, F>(&mut self, init: F) -> Result<Owned<T>, Error>
+    where
+        F: FnOnce() -> T,
+    {
         unsafe {
             let ptr = self.alloc_raw()?;
 
             // We use `ptr::write` to avoid `Drop`ping the uninitialized memory in
             // case `T` implements the `Drop` trait.
-            write(ptr.as_ptr(), val);
+            write(ptr.as_ptr(), init());
 
             Ok(Owned::new(ptr, self.appid))
         }
