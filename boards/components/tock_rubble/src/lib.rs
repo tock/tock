@@ -4,7 +4,6 @@
 //! This implements the [`kernel::hil::rubble`] interface using the Rubble library.
 use kernel::{
     common::cells::TakeCell,
-    debug,
     hil::{
         ble_advertising::{BleAdvertisementDriver, BleConfig, RadioChannel},
         rubble::{self as rubble_hil, RubbleCmd, RubbleDataDriver, RubbleImplementation},
@@ -73,7 +72,6 @@ where
         buf: &'static mut [u8],
         _result: ReturnCode,
     ) {
-        debug!("entering RubbleImplementation::transmit_event");
         assert_eq!(buf.len(), MIN_PDU_BUF);
         radio.tx_buf.replace(buf);
     }
@@ -85,9 +83,6 @@ where
         _len: u8,
         _result: ReturnCode,
     ) -> CmdWrapper {
-        debug!("entering RubbleImplementation::receive_event");
-        // TODO: what's a good way to handle errors that occur here?
-
         let rx_end = Instant::from_raw_micros(rx_end.raw_micros());
         let cmd = match radio.currently_receiving {
             CurrentlyReceiving::Advertisement => {
@@ -173,6 +168,7 @@ impl RubbleCmd for CmdWrapper {
 
 enum CurrentlyReceiving {
     Advertisement,
+    #[allow(unused)]
     Data,
 }
 
@@ -205,39 +201,36 @@ where
     A: Alarm<'a>,
     R: RubbleDataDriver<'a> + BleAdvertisementDriver<'a> + BleConfig + 'a,
 {
-    fn accept_cmd(&mut self, cmd: RadioCmd) {
-        debug!("entering RubbleBleRadio::accept_cmd({:?})", cmd);
-        if true {
-            // TODO: The current NRF52840 ble_radio driver doesn't support
-            // simultaneous sending & receiving data in the same way that
-            // rubble-nrf5x does. So, until we fix either that or rubble's
-            // expectations, just disable listening.
-            return;
-        }
-        match cmd {
-            RadioCmd::Off => {
-                // This is currently unsupported.
-            }
-            RadioCmd::ListenAdvertising { channel } => {
-                // panic safety: AdvertisingChannel's allowed ints is a subset of
-                // allowed ints
-                let channel = RadioChannel::from_channel_index(channel.channel().into()).unwrap();
-                self.currently_receiving = CurrentlyReceiving::Advertisement;
-                self.radio.receive_advertisement(channel);
-            }
-            RadioCmd::ListenData {
-                channel,
-                access_address,
-                crc_init,
-                timeout: _,
-            } => {
-                // panic safety: DataChannel's allowed ints is a subset of
-                // allowed ints
-                let channel = RadioChannel::from_channel_index(channel.index().into()).unwrap();
-                self.currently_receiving = CurrentlyReceiving::Data;
-                self.radio.receive_data(channel, access_address, crc_init);
-            }
-        }
+    fn accept_cmd(&mut self, _cmd: RadioCmd) {
+        // TODO: The current NRF52840 ble_radio driver doesn't support
+        // simultaneous sending & receiving data in the same way that
+        // rubble-nrf5x does. So, until we fix either that or rubble's
+        // expectations, just disable listening.
+
+        // match cmd {
+        //     RadioCmd::Off => {
+        //         // This is currently unsupported.
+        //     }
+        //     RadioCmd::ListenAdvertising { channel } => {
+        //         // panic safety: AdvertisingChannel's allowed ints is a subset of
+        //         // allowed ints
+        //         let channel = RadioChannel::from_channel_index(channel.channel().into()).unwrap();
+        //         self.currently_receiving = CurrentlyReceiving::Advertisement;
+        //         self.radio.receive_advertisement(channel);
+        //     }
+        //     RadioCmd::ListenData {
+        //         channel,
+        //         access_address,
+        //         crc_init,
+        //         timeout: _,
+        //     } => {
+        //         // panic safety: DataChannel's allowed ints is a subset of
+        //         // allowed ints
+        //         let channel = RadioChannel::from_channel_index(channel.index().into()).unwrap();
+        //         self.currently_receiving = CurrentlyReceiving::Data;
+        //         self.radio.receive_data(channel, access_address, crc_init);
+        //     }
+        // }
     }
 }
 
@@ -246,7 +239,6 @@ where
     R: RubbleDataDriver<'a> + BleAdvertisementDriver<'a> + BleConfig + 'a,
 {
     fn tx_payload_buf(&mut self) -> &mut [u8] {
-        debug!("entering BleRadioWrapper::tx_payload_buf");
         // TODO: To fully comply with what the rubble stack expects, we would
         // need to block here until the transmission is done. This should be
         // fixed on rubble's side.
@@ -262,7 +254,6 @@ where
         header: rubble::link::advertising::Header,
         channel: rubble::phy::AdvertisingChannel,
     ) {
-        debug!("entering BleRadioWrapper::transmit_advertising");
         let tx_buf = self
             .tx_buf
             .take()
@@ -284,7 +275,6 @@ where
         header: rubble::link::data::Header,
         channel: rubble::phy::DataChannel,
     ) {
-        debug!("entering BleRadioWrapper::transmit_data");
         let tx_buf = self
             .tx_buf
             .take()

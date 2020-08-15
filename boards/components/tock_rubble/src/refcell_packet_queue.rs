@@ -12,8 +12,7 @@ use rubble::{
     },
     Error,
 };
-// TODO: make an implementation of Producer/Consumer which uses an Owned rather
-// this.
+
 pub struct RefCellQueue {
     buf: RefCell<[u8; MIN_DATA_PDU_BUF]>,
     full: Cell<bool>,
