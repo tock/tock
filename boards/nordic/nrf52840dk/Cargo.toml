@@ -12,4 +12,3 @@ capsules = { path = "../../../capsules" }
 kernel = { path = "../../../kernel" }
 nrf52840 = { path = "../../../chips/nrf52840" }
 nrf52_components = { path = "../nrf52_components" }
-tock_rubble = { path = "../../components/tock_rubble" }
