@@ -6,7 +6,7 @@ use kernel::{
     common::cells::TakeCell,
     debug,
     hil::{
-        ble_advertising::{BleAdvertisementDriver, RadioChannel},
+        ble_advertising::{BleAdvertisementDriver, BleConfig, RadioChannel},
         rubble::{self as rubble_hil, RubbleCmd, RubbleDataDriver, RubbleImplementation},
         time::Alarm,
     },
@@ -22,6 +22,7 @@ use rubble::{
         DeviceAddress, LinkLayer, NextUpdate, RadioCmd, Responder, Transmitter,
     },
     time::{Duration, Instant},
+    Error,
 };
 use rubble_hil::{RubbleBleRadio, RubbleLinkLayer, RubblePacketQueue, RubbleResponder};
 use timer::TimerWrapper;
@@ -44,12 +45,12 @@ static TX_PACKET_QUEUE: refcell_packet_queue::RefCellQueue =
 pub struct Implementation<'a, A, R>(PhantomData<(&'a A, R)>)
 where
     A: Alarm<'a>,
-    R: RubbleDataDriver<'a> + BleAdvertisementDriver<'a> + 'a;
+    R: RubbleDataDriver<'a> + BleAdvertisementDriver<'a> + BleConfig + 'a;
 
 impl<'a, A, R> RubbleImplementation<'a, A> for Implementation<'a, A, R>
 where
     A: Alarm<'a>,
-    R: RubbleDataDriver<'a> + BleAdvertisementDriver<'a> + 'a,
+    R: RubbleDataDriver<'a> + BleAdvertisementDriver<'a> + BleConfig + 'a,
 {
     type BleRadio = BleRadioWrapper<'a, R>;
     type LinkLayer = LinkLayerWrapper<'a, A, R>;
@@ -124,7 +125,7 @@ impl RubblePacketQueue for refcell_packet_queue::RefCellQueue {
 struct RubbleConfig<'a, A, R>
 where
     A: Alarm<'a>,
-    R: RubbleDataDriver<'a> + BleAdvertisementDriver<'a> + 'a,
+    R: RubbleDataDriver<'a> + BleAdvertisementDriver<'a> + BleConfig + 'a,
 {
     radio: PhantomData<R>,
     alarm: PhantomData<&'a A>,
@@ -133,7 +134,7 @@ where
 impl<'a, A, R> Config for RubbleConfig<'a, A, R>
 where
     A: Alarm<'a>,
-    R: RubbleDataDriver<'a> + BleAdvertisementDriver<'a> + 'a,
+    R: RubbleDataDriver<'a> + BleAdvertisementDriver<'a> + BleConfig + 'a,
 {
     type Timer = self::timer::TimerWrapper<'a, A>;
     type Transmitter = BleRadioWrapper<'a, R>;
@@ -177,7 +178,7 @@ enum CurrentlyReceiving {
 
 pub struct BleRadioWrapper<'a, R>
 where
-    R: RubbleDataDriver<'a> + BleAdvertisementDriver<'a> + 'a,
+    R: RubbleDataDriver<'a> + BleAdvertisementDriver<'a> + BleConfig + 'a,
 {
     radio: &'a R,
     currently_receiving: CurrentlyReceiving,
@@ -187,7 +188,7 @@ where
 
 impl<'a, R> BleRadioWrapper<'a, R>
 where
-    R: RubbleDataDriver<'a> + BleAdvertisementDriver<'a> + 'a,
+    R: RubbleDataDriver<'a> + BleAdvertisementDriver<'a> + BleConfig + 'a,
 {
     pub fn new(radio: &'a R, tx_buf: &'static mut PacketBuffer) -> Self {
         BleRadioWrapper {
@@ -202,10 +203,17 @@ where
 impl<'a, A, R> RubbleBleRadio<'a, A, Implementation<'a, A, R>> for BleRadioWrapper<'a, R>
 where
     A: Alarm<'a>,
-    R: RubbleDataDriver<'a> + BleAdvertisementDriver<'a> + 'a,
+    R: RubbleDataDriver<'a> + BleAdvertisementDriver<'a> + BleConfig + 'a,
 {
     fn accept_cmd(&mut self, cmd: RadioCmd) {
         debug!("entering RubbleBleRadio::accept_cmd({:?})", cmd);
+        if true {
+            // TODO: The current NRF52840 ble_radio driver doesn't support
+            // simultaneous sending & receiving data in the same way that
+            // rubble-nrf5x does. So, until we fix either that or rubble's
+            // expectations, just disable listening.
+            return;
+        }
         match cmd {
             RadioCmd::Off => {
                 // This is currently unsupported.
@@ -235,7 +243,7 @@ where
 
 impl<'a, R> Transmitter for BleRadioWrapper<'a, R>
 where
-    R: RubbleDataDriver<'a> + BleAdvertisementDriver<'a> + 'a,
+    R: RubbleDataDriver<'a> + BleAdvertisementDriver<'a> + BleConfig + 'a,
 {
     fn tx_payload_buf(&mut self) -> &mut [u8] {
         debug!("entering BleRadioWrapper::tx_payload_buf");
@@ -266,6 +274,7 @@ where
         // panic safety: AdvertisingChannel's allowed ints is a subset of
         // allowed ints
         let channel = RadioChannel::from_channel_index(channel.channel().into()).unwrap();
+        self.radio.set_tx_power(0);
         self.radio.transmit_advertisement(tx_buf, len, channel);
     }
     fn transmit_data(
@@ -294,12 +303,12 @@ where
 pub struct ResponderWrapper<'a, A, R>(Responder<RubbleConfig<'a, A, R>>)
 where
     A: Alarm<'a>,
-    R: RubbleDataDriver<'a> + BleAdvertisementDriver<'a> + 'a;
+    R: RubbleDataDriver<'a> + BleAdvertisementDriver<'a> + BleConfig + 'a;
 
 impl<'a, A, R> RubbleResponder<'a, A, Implementation<'a, A, R>> for ResponderWrapper<'a, A, R>
 where
     A: Alarm<'a>,
-    R: RubbleDataDriver<'a> + BleAdvertisementDriver<'a> + 'a,
+    R: RubbleDataDriver<'a> + BleAdvertisementDriver<'a> + BleConfig + 'a,
 {
     type Error = rubble::Error;
     fn new(
@@ -326,15 +335,15 @@ where
 pub struct LinkLayerWrapper<'a, A, R>(LinkLayer<RubbleConfig<'a, A, R>>)
 where
     A: Alarm<'a>,
-    R: RubbleDataDriver<'a> + BleAdvertisementDriver<'a> + 'a;
+    R: RubbleDataDriver<'a> + BleAdvertisementDriver<'a> + BleConfig + 'a;
 
 impl<'a, A, R> RubbleLinkLayer<'a, A, Implementation<'a, A, R>> for LinkLayerWrapper<'a, A, R>
 where
     A: Alarm<'a>,
-    // this line shouldn't be required, but is
-    // Implementation<'a, A, R>: RubbleImplementation<'a, A, RadioCmd = RadioCmd, Cmd = CmdWrapper>,
-    R: RubbleDataDriver<'a> + BleAdvertisementDriver<'a> + 'a,
+    R: RubbleDataDriver<'a> + BleAdvertisementDriver<'a> + BleConfig + 'a,
 {
+    type Error = rubble::Error;
+
     fn new(device_address: rubble_hil::DeviceAddress, alarm: &'a A) -> Self {
         LinkLayerWrapper(LinkLayer::new(
             DeviceAddress::new(
@@ -347,7 +356,7 @@ where
             TimerWrapper::new(alarm),
         ))
     }
-    type Error = rubble::Error;
+
     fn start_advertise(
         &mut self,
         interval: rubble_hil::Duration,
@@ -364,22 +373,20 @@ where
         // just directly create `AdStructure::Unknown` instances.
         let mut ad_byte_reader = ByteReader::new(data);
 
-        // TODO: this should work, but doesn't. Debug it (rather than only
-        // allowing one ad structure).
-        // // Note: advertising data is at most 31 octets, and each ad must be at
-        // // least 2 octets, so we have at most 16 adstructures.
-        // let mut ad_structures = [AdStructure::Unknown { ty: 0, data: &[] }; 16];
-        // let mut num_ads = 0;
-        // while ad_byte_reader.bytes_left() > 0 {
-        //     let ad = AdStructure::from_bytes(&mut ad_byte_reader)?;
-        //     ad_structures[num_ads] = ad;
-        //     num_ads += 1;
-        //     if num_ads > 16 {
-        //         return Err(Error::InvalidLength);
-        //     }
-        // }
-        // let ad_structures = &ad_structures[..num_ads];
-        let ad_structures = &[AdStructure::from_bytes(&mut ad_byte_reader)?];
+        // Note: advertising data is at most 31 octets, and each ad must be at
+        // least 2 octets, so we have at most 16 adstructures.
+        // TODO: allocating this on the stack might not be the most wise.
+        let mut ad_structures = [AdStructure::Unknown { ty: 0, data: &[] }; 16];
+        let mut num_ads = 0;
+        while ad_byte_reader.bytes_left() > 0 {
+            let ad = AdStructure::from_bytes(&mut ad_byte_reader)?;
+            ad_structures[num_ads] = ad;
+            num_ads += 1;
+            if num_ads > 16 {
+                return Err(Error::InvalidLength);
+            }
+        }
+        let ad_structures = &ad_structures[..num_ads];
 
         let res = self.0.start_advertise(
             Duration::from_micros(interval.as_micros()),
