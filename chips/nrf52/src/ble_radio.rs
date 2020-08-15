@@ -830,7 +830,7 @@ impl<'a> rubble::RubbleDataDriver<'a> for Radio<'a> {
         // accessors of FICR also only use read-only access.
         let (raw_address, address_type) = unsafe {
             let ficr = &FICR_INSTANCE;
-            (ficr.full_address(), ficr.address_type())
+            (ficr.address(), ficr.address_type())
         };
 
         rubble::DeviceAddress {
