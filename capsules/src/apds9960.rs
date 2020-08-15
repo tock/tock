@@ -48,6 +48,8 @@ enum Registers {
 #[derive(Clone, Copy, PartialEq)]
 enum State {
     ReadId,
+
+    /// States visited in take_measurement_on_interrupt() function
     StartingProximity,
     ConfiguringProximity1,
     ConfiguringProximity2,
@@ -57,14 +59,18 @@ enum State {
     Idle,        // Waiting for Data (interrupt)
     PowerOff,    // Sending power off command to device (to latch values in device data registers)
     ReadData,    // Read data from reg
-    SetPgain, // Set Prox Gain
+    
+    /// States visited in take_measurement() function
+    TakeMeasurement1,
+    TakeMeasurement2,
+    TakeMeasurement3,
+
+    /// States for optional chip functionality
     SetPulse, // Set proximity pulse
     SetLdrive, // Set LED Current for Prox and ALS sensors
     Done, // Final state for take_measurement() state sequence
 
-    TakeMeasurement1,
-    TakeMeasurement2,
-    TakeMeasurement3,
+   
 }
 
 pub struct APDS9960<'a> {
@@ -129,27 +135,6 @@ impl<'a> APDS9960<'a> {
 
     }
 
-    // Set Proximity Gain (0 to 3)
-    pub fn set_proximity_gain(&self , mut gain : u8){
-
-        self.buffer.take().map(|buffer| {
-
-            self.i2c.enable();
-
-            if gain > 3{
-                gain = 3;
-            }
-
-            buffer[0] = Registers::CONTROLREG1 as u8;
-            buffer[1] = (gain<<2) as u8;
-            self.i2c.write(buffer , 2);
-
-            self.state.set(State::SetPgain); // Send gain command to device
-
-        });
-
-    }
-
     // Set LED Current Strength (0 -> 100 mA , 3 --> 12.5 mA)
     pub fn set_ldrive(&self , mut ldrive : u8){
 
@@ -169,21 +154,6 @@ impl<'a> APDS9960<'a> {
 
         });
 
-
-    }
-
-    // Set proximity interrupt thresholds
-    pub fn set_proximity_interrupt_thresholds(&self , low : u8 , high : u8){
-
-        self.buffer.take().map(|buffer| {
-
-            buffer[14] = low;
-            buffer[15] = high;
-
-        });
-
-        debug!("Set thresholds");
-        self.prox_callback.map(|cb| cb.callback(0 as usize)); // Callback after command completes to let system call complete
 
     }
 
@@ -207,7 +177,18 @@ impl<'a> APDS9960<'a> {
     
 
     // Take Simple proximity measurement with persistence=4, low threshold=0, high threshold=175, and Sleep-After-Interrupt Mode enabled
-    pub fn take_measurement_on_interrupt(&self) {
+    pub fn take_measurement_on_interrupt(&self, low: u8, high: u8) {
+
+        // Set threshold values
+        self.buffer.take().map(|buffer| {
+            
+            // Save proximity thresholds to buffer unused space
+            buffer[14] = low;
+            buffer[15] = high;
+
+            self.buffer.replace(buffer);
+
+        });
         
         // Configure interrupt pin
         self.interrupt_pin.make_input();
@@ -283,7 +264,7 @@ impl i2c::I2CClient for APDS9960<'_> {
                 // read prox_data from buffer and return it in callback
                 debug!("Reading Proximity Data: {:#x}", buffer[0]);
                 let prox_data: u8 = buffer[0];
-                self.prox_callback.map(|cb| cb.callback(prox_data as usize));
+                self.prox_callback.map(|cb| cb.callback(prox_data as usize , 2 as usize));
                 
 
                 // Clear proximity interrupt
@@ -321,7 +302,7 @@ impl i2c::I2CClient for APDS9960<'_> {
                 // read prox_data from buffer and return it in callback
                 debug!("Reading Proximity Data: {:#x}", buffer[0]);
                 let prox_data: u8 = buffer[0];
-                self.prox_callback.map(|cb| cb.callback(prox_data as usize));
+                self.prox_callback.map(|cb| cb.callback(prox_data as usize , 1 as usize));
 
                 buffer[0] = Registers::ENABLE as u8;
                 buffer[1] = 0 as u8;
@@ -338,15 +319,6 @@ impl i2c::I2CClient for APDS9960<'_> {
                 self.state.set(State::Idle);
             }
 
-            State::SetPgain => {
-
-                debug!("Set pgain");
-                self.prox_callback.map(|cb| cb.callback(0 as usize)); // Callback after command completes to let system call complete
-                // Return to IDLE
-                self.buffer.replace(buffer);
-                self.i2c.disable();
-                self.state.set(State::Idle);
-            }
             State::SetPulse => {
                 // Return to IDLE
                 self.buffer.replace(buffer);
@@ -388,20 +360,8 @@ impl<'a> kernel::hil::sensors::ProximityDriver<'a> for APDS9960<'a> {
         ReturnCode::SUCCESS
     }
 
-    fn read_proximity_on_interrupt(&self) -> kernel::ReturnCode {
-        self.take_measurement_on_interrupt();
-        ReturnCode::SUCCESS
-    }
-
-    fn set_proximity_interrupt_thresholds(&self , low : u8 , high : u8) -> kernel::ReturnCode {
-
-        self.set_proximity_interrupt_thresholds(low , high);
-        ReturnCode::SUCCESS
-
-    }
-
-    fn set_proximity_gain(&self , gain : u8) -> kernel::ReturnCode {
-        self.set_proximity_gain(gain);
+    fn read_proximity_on_interrupt(&self, low: u8, high: u8) -> kernel::ReturnCode {
+        self.take_measurement_on_interrupt(low, high);
         ReturnCode::SUCCESS
     }
 

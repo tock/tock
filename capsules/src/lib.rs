@@ -53,6 +53,7 @@ pub mod nrf51822_serialization;
 pub mod panic_button;
 pub mod pca9544a;
 pub mod process_console;
+pub mod proximity;
 pub mod rf233;
 pub mod rf233_const;
 pub mod rng;
