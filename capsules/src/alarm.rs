@@ -107,6 +107,7 @@ impl<'a, A: Alarm<'a>> AlarmDriver<'a, A> {
                 Expiration::Disabled => {}
             });
         }
+        //debug!("AlarmDriver: earliest: {:?}", earliest_alarm);
         self.next_alarm.set(earliest_alarm);
         match earliest_alarm {
             Expiration::Disabled => {
@@ -213,7 +214,7 @@ impl<'a, A: Alarm<'a>> Driver for AlarmDriver<'a, A> {
                         let future_time = data;
                         let dt = future_time.wrapping_sub(reference);
                         // if previously unarmed, but now will become armed
-                        debug!("Rearming alarm for {} + {}", reference, dt);
+                        //debug!("Rearming alarm for {} + {}", reference, dt);
                         rearm(reference, dt)
                     },
                     5 /* Set relative expiration */ => {
@@ -230,7 +231,7 @@ impl<'a, A: Alarm<'a>> Driver for AlarmDriver<'a, A> {
                         // comamnd for backwards compatibility. -pal
                         let reference = data;
                         let dt = data2;
-                        debug!("Rearming alarm for {} + {} = {}", reference, dt, reference.wrapping_add(dt));
+                        //debug!("Rearming alarm for {} + {} = {}", reference, dt, reference.wrapping_add(dt));
                         rearm(reference, dt)
                     }
                     _ => (ReturnCode::ENOSUPPORT, false)
@@ -247,7 +248,7 @@ impl<'a, A: Alarm<'a>> Driver for AlarmDriver<'a, A> {
 impl<'a, A: Alarm<'a>> time::AlarmClient for AlarmDriver<'a, A> {
     fn alarm(&self) {
         let now: A::Ticks = self.alarm.now();
-        debug!("AlarmDriver::alarm called at {}", now.into_u32());
+        //debug!("AlarmDriver::alarm called at {}", now.into_u32());
 
         self.app_alarms.each(|alarm| {
             if let Expiration::Enabled(reference, ticks) = alarm.expiration {
@@ -270,25 +271,13 @@ impl<'a, A: Alarm<'a>> time::AlarmClient for AlarmDriver<'a, A> {
             }
         });
 
-        // If there are armed alarms left, reset the underlying alarm to the
-        // nearest interval.  Otherwise, disable the underlying alarm.
+        // If there are no armed alarms left, skip checking and just disable.
+        // Otherwise, check all the alarms and find the next one, rescheduling
+        // the underlying alarm.
         if self.num_armed.get() == 0 {
             self.alarm.disarm();
         } else {
             self.reset_active_alarm();
-            match self.next_alarm.get() {
-                Expiration::Enabled(reference, dt) => {
-                    let new_now: A::Ticks = self.alarm.now();
-                    let ref_ticks = A::Ticks::from(reference);
-                    let end_ticks = ref_ticks.wrapping_add(A::Ticks::from(dt));
-                    if new_now.within_range(ref_ticks, end_ticks) {
-                        self.alarm();
-                    }
-                }
-                Expiration::Disabled => {
-                    self.alarm.disarm();
-                }
-            }
         }
     }
 }
