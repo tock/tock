@@ -3,10 +3,12 @@
 //! Usage
 //! -----
 //! ```rust
-//! let ble_radio = RubbleComponent::new(board_kernel, mux_alarm).finalize();
+//! let ble_radio =
+//!     nrf52_rubble::RubbleComponent::new(board_kernel, &nrf52840::ble_radio::RADIO, mux_alarm)
+//!        .finalize(());
 //! ```
+#![no_std]
 
-use capsules;
 use capsules::virtual_alarm::VirtualMuxAlarm;
 
 use nrf52::rtc::Rtc;
