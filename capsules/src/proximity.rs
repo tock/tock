@@ -59,27 +59,22 @@ impl<'a> ProximitySensor<'a> {
         // Enqueue command by saving command type, args, appid within app struct in grant region
         let r: ReturnCode = self.apps.enter(appid, |app, _| {
 
-            if !self.busy.get(){
 
-                // Return busy if same app attempts to enqueue second command before first one is callbacked
-                if app.subscribed {
-                    self.busy.set(true);
-                    return ReturnCode::EBUSY
-                }
-
-                if command == ProximityCommand::ReadProximityOnInterrupt{
-                    app.lower_proximity = arg1 as u8;
-                    app.upper_proximity = arg2 as u8;
-                }
-
-                app.subscribed = true; // enqueue
-                app.enqueued_command_type = command;
-
-                ReturnCode::SUCCESS
-
-            } else {
-                ReturnCode::EBUSY
+            // Return busy if same app attempts to enqueue second command before first one is callbacked
+            if app.subscribed {
+                return ReturnCode::EBUSY
             }
+
+            if command == ProximityCommand::ReadProximityOnInterrupt{
+                app.lower_proximity = arg1 as u8;
+                app.upper_proximity = arg2 as u8;
+            }
+
+            app.subscribed = true; // enqueue
+            app.enqueued_command_type = command;
+
+            ReturnCode::SUCCESS
+
 
         }).unwrap_or_else(|err| err.into());
 
@@ -141,6 +136,8 @@ impl<'a> ProximitySensor<'a> {
     fn find_thresholds(&self) -> Thresholds {
 
         // Get the lowest upper prox and highest lower prox of all subscribed apps
+        // With the IC thresholds set to these two values, we ensure to never miss an interrupt-causing proximity value for any of the
+        // apps
         let mut highest_lower_proximity: u8 = 0;
         let mut lowest_upper_proximity: u8 = 255;
 
@@ -155,7 +152,8 @@ impl<'a> ProximitySensor<'a> {
             }); 
         }
 
-        return Thresholds {
+        // return values
+        Thresholds {
             lower: highest_lower_proximity,
             upper: lowest_upper_proximity,
         }
@@ -189,7 +187,7 @@ impl hil::sensors::ProximityClient for ProximitySensor<'_> {
                 // Schedule callbacks for appropriate apps
                 for cntr in self.apps.iter(){
                     cntr.enter(|app, _|{
-                        if app.subscribed && (command_type == (app.enqueued_command_type as usize)){
+                        if app.subscribed && (command_type == (ProximityCommand::ReadProximity as usize)){
                             app.callback.map(|mut cb| cb.schedule(temp_val, 0, 0));
                             app.subscribed = false; // dequeue
                         }
@@ -201,7 +199,7 @@ impl hil::sensors::ProximityClient for ProximitySensor<'_> {
                 // Schedule callbacks for appropriate apps
                 for cntr in self.apps.iter(){
                     cntr.enter(|app, _|{
-                        if app.subscribed && (command_type == (app.enqueued_command_type as usize)){
+                        if app.subscribed && (command_type == (ProximityCommand::ReadProximityOnInterrupt as usize)){
                             // Only callback to those apps which we expect would want to know about this threshold reading
                             if ((temp_val as u8) > app.upper_proximity) || ((temp_val as u8) < app.lower_proximity){
                                 app.callback.map(|mut cb| cb.schedule(temp_val, 0, 0));
@@ -210,12 +208,11 @@ impl hil::sensors::ProximityClient for ProximitySensor<'_> {
                         }
                     });
                 }
-
             }
             _ => {}
         }
         
-        // When we are done with callback for one app then find another command to run and run it
+        // When we are done with callback (one command) then find another command to run and run it
         self.run_next_command();
     }
 }
