@@ -77,7 +77,7 @@ impl<'a, T: ?Sized> TakeCell<'a, T> {
     /// as the reference to this does.
     ///
     /// This escapes the "take" aspect of TakeCell in a way which is guaranteed
-    /// safe due to the difference in lifetimes.
+    /// safe due to the returned reference sharing the lifetime of `&mut self`.
     pub fn get_mut(&mut self) -> Option<&mut T> {
         self.val.get_mut().as_mut().map(|v| &mut **v)
     }
