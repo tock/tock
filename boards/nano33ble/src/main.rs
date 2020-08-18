@@ -82,6 +82,7 @@ pub struct Platform {
     // >,
     // ieee802154_radio: &'static capsules::ieee802154::RadioDriver<'static>,
     console: &'static capsules::console::Console<'static>,
+    proximity: &'static capsules::proximity::ProximitySensor<'static>,
     gpio: &'static capsules::gpio::GPIO<'static, nrf52::gpio::GPIOPin>,
     led: &'static capsules::led::LED<'static, nrf52::gpio::GPIOPin>,
     rng: &'static capsules::rng::RngDriver<'static>,
@@ -99,6 +100,7 @@ impl kernel::Platform for Platform {
     {
         match driver_num {
             capsules::console::DRIVER_NUM => f(Some(self.console)),
+            capsules::proximity::DRIVER_NUM => f(Some(self.proximity)),
             capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
             capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
             capsules::led::DRIVER_NUM => f(Some(self.led)),
@@ -274,6 +276,14 @@ pub unsafe fn reset_handler() {
     apds9960_i2c.set_client(apds9960);
     nrf52840::gpio::PORT[APDS9960_PIN].set_client(apds9960);
 
+    let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
+
+    let proximity = static_init!(
+        capsules::proximity::ProximitySensor<'static>,
+        capsules::proximity::ProximitySensor::new(apds9960 , board_kernel.create_grant(&grant_cap)));
+
+    kernel::hil::sensors::ProximityDriver::set_client(apds9960, proximity);
+
     //--------------------------------------------------------------------------
     // WIRELESS
     //--------------------------------------------------------------------------
@@ -301,6 +311,7 @@ pub unsafe fn reset_handler() {
         // ble_radio: ble_radio,
         // ieee802154_radio: ieee802154_radio,
         console: console,
+        proximity: proximity,
         led: led,
         gpio: gpio,
         rng: rng,
@@ -320,7 +331,7 @@ pub unsafe fn reset_handler() {
 
     debug!("Initialization complete. Entering main loop.");
 
-    apds9960.take_measurement_on_interrupt(0,175);
+    // apds9960.take_measurement_on_interrupt(0,100);
 
     //--------------------------------------------------------------------------
     // PROCESSES AND MAIN LOOP
