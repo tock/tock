@@ -224,15 +224,17 @@ impl From<u32> for SetupRequest {
     }
 }
 
+/// State of the control endpoint (endpoint 0).
 #[derive(Copy, Clone, PartialEq, Debug)]
 pub enum CtrlState {
+    /// Control endpoint is idle, and waiting for a command from the host.
     Init,
+    /// Control endpoint has started an IN transfer.
     ReadIn,
+    /// Control endpoint has moved to the status phase.
     ReadStatus,
+    /// Control endpoint is handling a control write (OUT) transfer.
     WriteOut,
-    WriteStatus,
-    WriteStatusWait,
-    InDelay,
 }
 
 #[derive(Copy, Clone, PartialEq, Debug)]
