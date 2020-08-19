@@ -684,16 +684,83 @@ impl<'a> Usb<'a> {
             let mut in_sent = self.registers.in_sent.get();
 
             while in_sent != 0 {
-                let endpoint = in_sent.trailing_zeros();
+                let ep = in_sent.trailing_zeros();
 
                 // We are handling this case, clear it
-                self.registers.in_sent.set(1 << endpoint);
-                in_sent = in_sent & !(1 << endpoint);
+                self.registers.in_sent.set(1 << ep);
+                in_sent = in_sent & !(1 << ep);
 
-                let buf = self.registers.configin[endpoint as usize].read(CONFIGIN::BUFFER);
+                let buf = self.registers.configin[ep as usize].read(CONFIGIN::BUFFER);
 
                 self.free_buffer(buf as usize);
+
+                match self.descriptors[ep as usize].state.get() {
+                    EndpointState::Disabled => unimplemented!(),
+                    EndpointState::Ctrl(state) => match state {
+                        CtrlState::Init => {}
+                        CtrlState::ReadIn => {
+                            unimplemented!();
+                        }
+                        CtrlState::ReadStatus => {
+                            self.complete_ctrl_status();
+                        }
+                        CtrlState::WriteOut => {
+                            self.client.map(|client| {
+                                match client.ctrl_in(ep as usize) {
+                                    hil::usb::CtrlInResult::Packet(size, last) => {
+                                        if size == 0 {
+                                            panic!("Empty ctrl packet?");
+                                        }
+
+                                        self.copy_slice_out_to_hw(ep as usize, buf as usize, size);
+
+                                        if last {
+                                            self.descriptors[ep as usize]
+                                                .state
+                                                .set(EndpointState::Ctrl(CtrlState::ReadStatus));
+                                        } else {
+                                            self.descriptors[ep as usize]
+                                                .state
+                                                .set(EndpointState::Ctrl(CtrlState::WriteOut));
+                                        }
+                                    }
+                                    hil::usb::CtrlInResult::Delay => unimplemented!(),
+                                    hil::usb::CtrlInResult::Error => unreachable!(),
+                                };
+                            });
+                        }
+                    },
+                    EndpointState::BulkIn(_state) => unimplemented!(),
+                    EndpointState::BulkOut(_state) => unimplemented!(),
+                    EndpointState::Iso => unimplemented!(),
+                }
             }
+        }
+
+        if irqs.is_set(INTR::PKT_RECEIVED) {
+            while !self.registers.usbstat.is_set(USBSTAT::RX_EMPTY) {
+                let rxinfo = self.registers.rxfifo.extract();
+                let buf = rxinfo.read(RXFIFO::BUFFER);
+                let size = rxinfo.read(RXFIFO::SIZE);
+                let ep = rxinfo.read(RXFIFO::EP);
+                let setup = rxinfo.read(RXFIFO::SETUP);
+
+                if ep == 0 {
+                    self.control_ep_receive(ep as usize, buf as usize, size, setup);
+                    self.free_buffer(buf as usize);
+                    break;
+                } else {
+                    unimplemented!()
+                }
+            }
+        }
+
+        if irqs.is_set(INTR::LINK_RESET) {
+            // The link was reset
+
+            self.descriptors[0]
+                .state
+                .set(EndpointState::Ctrl(CtrlState::Init));
         }
 
         self.enable_interrupts();
