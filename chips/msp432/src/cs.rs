@@ -286,7 +286,7 @@ impl ClockSystem {
         cs.registers.ctl1.modify(CSCTL1::DIVHS.val(2));
     }
 
-    // Setup the low-speed subsystem master clock (SMCLK) to 1/64 of the master-clock -> 750kHz
+    // Setup the low-speed subsystem master clock (SMCLK) to 1/32 of the master-clock -> 1.5MHz
     fn set_smclk_1500khz(&self) {
         let cs = CsRegisterManager::new(self);
 
