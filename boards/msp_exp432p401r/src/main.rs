@@ -105,7 +105,7 @@ pub unsafe fn reset_handler() {
     msp432::gpio::PINS_J[msp432::gpio::PinJNr::PJ_0 as usize].enable_primary_function();
     msp432::gpio::PINS_J[msp432::gpio::PinJNr::PJ_1 as usize].enable_primary_function();
 
-    // Setup the clocks: MCLK: 48MHz, HSMCLK: 12MHz, SMCLK: 750kHz, ACLK: 32.768kHz
+    // Setup the clocks: MCLK: 48MHz, HSMCLK: 12MHz, SMCLK: 1.5MHz, ACLK: 32.768kHz
     msp432::cs::CS.setup_clocks();
 
     debug::assign_gpios(
