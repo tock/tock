@@ -31,8 +31,8 @@ register_structs! {
         (0x060 => data_toggle_clear: WriteOnly<u32, DATA_TOGGLE_CLEAR::Register>),
         (0x064 => phy_config: ReadWrite<u32, PHY_CONFIG::Register>),
         (0x068 => _reserved0),
-        (0x800 => buffer: [ReadWrite<u64, BUFFER::Register>; N_BUFFERS]),
-        (0x900 => @END),
+        (0x800 => buffer: [ReadWrite<u64, BUFFER::Register>; N_BUFFERS * 8]),
+        (0x1000 => @END),
     }
 }
 
@@ -57,7 +57,7 @@ register_bitfields![u32,
     ],
     USBCTRL [
         ENABLE OFFSET(0) NUMBITS(1) [],
-        DEVICE_ADDRESS OFFSET(16) NUMBITS(6) []
+        DEVICE_ADDRESS OFFSET(16) NUMBITS(7) []
     ],
     USBSTAT [
         FRAME OFFSET(0) NUMBITS(10) [],
@@ -136,7 +136,7 @@ register_bitfields![u32,
     ],
     CONFIGIN [
         BUFFER OFFSET(0) NUMBITS(4) [],
-        SIZE OFFSET(8) NUMBITS(6) [],
+        SIZE OFFSET(8) NUMBITS(7) [],
         PEND OFFSET(30) NUMBITS(1) [],
         RDY OFFSET(31) NUMBITS(1) []
     ],
@@ -179,6 +179,8 @@ register_bitfields![u32,
     ]
 ];
 
+// This is only useful for decoding the data from the buffer
+// Don't use this to write.
 register_bitfields![u64,
     BUFFER [
         REQUEST_TYPE OFFSET(0) NUMBITS(8) [],
