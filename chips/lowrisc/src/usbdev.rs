@@ -340,6 +340,7 @@ pub struct Usb<'a> {
     client: OptionalCell<&'a dyn hil::usb::Client<'a>>,
     state: OptionalCell<State>,
     bufs: Cell<[Buffer; N_BUFFERS]>,
+    addr: Cell<u16>,
 }
 
 impl<'a> Usb<'a> {
@@ -396,6 +397,7 @@ impl<'a> Usb<'a> {
                 Buffer::new(30),
                 Buffer::new(31),
             ]),
+            addr: Cell::new(0),
         }
     }
 
@@ -645,8 +647,10 @@ impl<'a> hil::usb::UsbController<'a> for Usb<'a> {
         unimplemented!()
     }
 
-    fn set_address(&self, _addr: u16) {
-        unimplemented!()
+    fn set_address(&self, addr: u16) {
+        self.addr.set(addr);
+
+        self.copy_slice_out_to_hw(0, 0, 0);
     }
 
     fn enable_address(&self) {
