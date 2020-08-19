@@ -16,6 +16,7 @@ use kernel::component::Component;
 use kernel::hil;
 use kernel::hil::i2c::I2CMaster;
 use kernel::hil::time::Alarm;
+use kernel::hil::usb::Client;
 use kernel::Chip;
 use kernel::Platform;
 use kernel::{create_capability, debug, static_init};
@@ -256,8 +257,6 @@ pub unsafe fn reset_handler() {
         [u8; 32]
     ));
 
-    let usb = usb::UsbComponent::new(board_kernel).finalize(());
-
     let i2c_master = static_init!(
         capsules::i2c_master::I2CMasterDriver<lowrisc::i2c::I2c<'static>>,
         capsules::i2c_master::I2CMasterDriver::new(
@@ -268,6 +267,33 @@ pub unsafe fn reset_handler() {
     );
 
     earlgrey::i2c::I2C.set_master_client(i2c_master);
+
+    let usb = usb::UsbComponent::new(board_kernel).finalize(());
+
+    // Create the strings we include in the USB descriptor.
+    let strings = static_init!(
+        [&str; 3],
+        [
+            "LowRISC.",           // Manufacturer
+            "OpenTitan - TockOS", // Product
+            "18d1:503a",          // Serial number
+        ]
+    );
+
+    let cdc = components::cdc::CdcAcmComponent::new(
+        &earlgrey::usbdev::USB,
+        capsules::usb::cdc::MAX_CTRL_PACKET_SIZE_NRF52840,
+        0x18d1, // 0x18d1 Google Inc.
+        0x503a, // lowRISC generic FS USB
+        strings,
+    )
+    .finalize(components::usb_cdc_acm_component_helper!(
+        lowrisc::usbdev::Usb
+    ));
+
+    // Configure the USB stack to enable a serial port over CDC-ACM.
+    cdc.enable();
+    cdc.attach();
 
     debug!("OpenTitan initialisation complete. Entering main loop");
 
