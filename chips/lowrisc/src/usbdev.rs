@@ -6,7 +6,6 @@ use kernel::common::registers::{
     register_bitfields, register_structs, LocalRegisterCopy, ReadOnly, ReadWrite, WriteOnly,
 };
 use kernel::common::StaticRef;
-use kernel::debug;
 use kernel::hil;
 use kernel::hil::usb::TransferType;
 
@@ -510,7 +509,7 @@ impl<'a> hil::usb::UsbController<'a> for Usb<'a> {
                     config: DeviceConfig::default(),
                 }))
             }
-            _ => debug!("Already enabled"),
+            _ => panic!("Already enabled"),
         }
     }
 
