@@ -582,9 +582,22 @@ impl<'a> Usb<'a> {
                                         } else {
                                             let to_host = request_type & (1 << 7) != (1 << 7);
                                             if to_host {
-                                                self.descriptors[ep]
-                                                    .state
-                                                    .set(EndpointState::Ctrl(CtrlState::WriteOut));
+                                                match client.ctrl_out(ep, hw_buf.get() as u32) {
+                                                    hil::usb::CtrlOutResult::Ok => {
+                                                        self.descriptors[ep].state.set(
+                                                            EndpointState::Ctrl(
+                                                                CtrlState::ReadStatus,
+                                                            ),
+                                                        );
+                                                        self.copy_slice_out_to_hw(ep, buf_id, 0);
+                                                    }
+                                                    hil::usb::CtrlOutResult::Delay => {
+                                                        unimplemented!()
+                                                    }
+                                                    hil::usb::CtrlOutResult::Halted => {
+                                                        unimplemented!()
+                                                    }
+                                                }
                                             } else {
                                                 match client.ctrl_in(ep) {
                                                     hil::usb::CtrlInResult::Packet(size, last) => {
