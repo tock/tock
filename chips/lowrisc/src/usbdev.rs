@@ -235,6 +235,8 @@ pub enum CtrlState {
     ReadStatus,
     /// Control endpoint is handling a control write (OUT) transfer.
     WriteOut,
+    /// Control endpoint needs to set the address in hardware
+    SetAddress,
 }
 
 #[derive(Copy, Clone, PartialEq, Debug)]
@@ -571,9 +573,9 @@ impl<'a> Usb<'a> {
                                 // Allow it to configure any data we need to send back.
                                 match client.ctrl_setup(ep) {
                                     hil::usb::CtrlSetupResult::OkSetAddress => {
-                                        self.registers.usbctrl.modify(
-                                            USBCTRL::DEVICE_ADDRESS.val(self.addr.get() as u32),
-                                        );
+                                        self.descriptors[ep]
+                                            .state
+                                            .set(EndpointState::Ctrl(CtrlState::SetAddress));
                                     }
                                     hil::usb::CtrlSetupResult::Ok => {
                                         if length == 0 {
@@ -647,6 +649,7 @@ impl<'a> Usb<'a> {
                         self.complete_ctrl_status();
                     }
                     CtrlState::WriteOut => unreachable!(),
+                    CtrlState::SetAddress => unreachable!(),
                 }
             }
             EndpointState::BulkIn(_state) => unimplemented!(),
@@ -728,6 +731,14 @@ impl<'a> Usb<'a> {
                                     hil::usb::CtrlInResult::Error => unreachable!(),
                                 };
                             });
+                        }
+                        CtrlState::SetAddress => {
+                            self.registers
+                                .usbctrl
+                                .modify(USBCTRL::DEVICE_ADDRESS.val(self.addr.get() as u32));
+                            self.descriptors[ep as usize]
+                                .state
+                                .set(EndpointState::Ctrl(CtrlState::Init));
                         }
                     },
                     EndpointState::BulkIn(_state) => unimplemented!(),
