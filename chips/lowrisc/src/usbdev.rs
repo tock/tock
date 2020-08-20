@@ -423,6 +423,8 @@ impl<'a> Usb<'a> {
                 break;
             }
         }
+
+        self.bufs.set(bufs);
     }
 
     pub fn handle_interrupt(&self) {
