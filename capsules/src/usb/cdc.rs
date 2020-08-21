@@ -269,29 +269,28 @@ impl<'a, U: hil::usb::UsbController<'a>> hil::usb::Client<'a> for CdcAcm<'a, U> 
     fn ctrl_setup(&'a self, endpoint: usize) -> hil::usb::CtrlSetupResult {
         descriptors::SetupData::get(&self.client_ctrl.ctrl_buffer.buf).map(|setup_data| {
             let b_request = setup_data.request_code;
-            let value = setup_data.value;
 
             // Match on the two CDC control messages we care about:
-            // - `0x22`: SET_LINE_CONTROL_STATE
+            // - `0x22`: SET_CONTROL_LINE_STATE
             // - `0x23`: SEND_BREAK
             match b_request {
                 0x22 => {
-                    // This message seems to come with different values. We
-                    // don't care about the actual value's meaning, except for
-                    // value=0 which seems to bookend when the CDC client is
-                    // actually attached.
-                    if value == 0 {
-                        // On Linux, this seems to be a good signal of both when
-                        // a client connects and disconnects. So, based on our
-                        // current state, we can update our state.
-                        if self.state.get() != State::Connected {
-                            // We weren't previously connected so this must mean
-                            // a client connected.
-                            self.state.set(State::Connecting);
-                        } else {
-                            // We were connected, so disconnect.
-                            self.state.set(State::Enumerated)
-                        }
+                    // Bit 0 and 1 of the value (setup_data.value) can be set
+                    // D0: Indicates to DCE if DTE is present or not.
+                    //     - 0 -> Not present
+                    //     - 1 -> Present
+                    // D1: Carrier control for half duplex modems.
+                    //     - 0 -> Deactivate carrier
+                    //     - 1 -> Activate carrier
+                    // Currently we don't care about the value
+
+                    if self.state.get() != State::Connected {
+                        // We weren't previously connected so this must mean
+                        // a client connected.
+                        self.state.set(State::Connecting);
+                    } else {
+                        // We were connected, so disconnect.
+                        self.state.set(State::Enumerated)
                     }
                 }
                 0x23 => {
