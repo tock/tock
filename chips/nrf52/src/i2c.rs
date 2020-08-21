@@ -42,12 +42,20 @@ pub enum Speed {
 }
 
 impl TWIM {
-    const fn new(registers: StaticRef<TwimRegisters>) -> TWIM {
-        TWIM {
-            registers: registers,
+    const fn new(registers: StaticRef<TwimRegisters>) -> Self {
+        Self {
+            registers,
             client: OptionalCell::empty(),
             buf: TakeCell::empty(),
         }
+    }
+
+    pub const fn new_twim0() -> Self {
+        TWIM::new(INSTANCES[0])
+    }
+
+    pub const fn new_twim1() -> Self {
+        TWIM::new(INSTANCES[1])
     }
 
     pub fn set_client(&self, client: &'static dyn hil::i2c::I2CHwMasterClient) {
@@ -202,11 +210,6 @@ impl hil::i2c::I2CMaster for TWIM {
         self.buf.replace(buffer);
     }
 }
-
-/// I2C master instace 0.
-pub static mut TWIM0: TWIM = TWIM::new(INSTANCES[0]);
-/// I2C master instace 1.
-pub static mut TWIM1: TWIM = TWIM::new(INSTANCES[1]);
 
 // The SPI0_TWI0 and SPI1_TWI1 interrupts are dispatched to the
 // correct handler by the service_pending_interrupts() routine in

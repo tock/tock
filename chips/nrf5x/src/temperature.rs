@@ -108,10 +108,8 @@ pub struct Temp<'a> {
     client: OptionalCell<&'a dyn kernel::hil::sensors::TemperatureClient>,
 }
 
-pub static mut TEMP: Temp = Temp::new();
-
 impl<'a> Temp<'a> {
-    const fn new() -> Temp<'a> {
+    pub const fn new() -> Temp<'a> {
         Temp {
             registers: TEMP_BASE,
             client: OptionalCell::empty(),

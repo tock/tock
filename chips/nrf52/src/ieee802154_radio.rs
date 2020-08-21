@@ -658,7 +658,7 @@ register_bitfields! [u32,
     ]
 ];
 
-pub struct Radio {
+pub struct Radio<'p> {
     registers: StaticRef<RadioRegisters>,
     tx_power: Cell<TxPower>,
     rx_client: OptionalCell<&'static dyn radio::RxClient>,
@@ -673,13 +673,12 @@ pub struct Radio {
     random_nonce: Cell<u32>,
     channel: Cell<RadioChannel>,
     transmitting: Cell<bool>,
+    timer0: OptionalCell<&'p crate::timer::TimerAlarm<'p>>,
 }
 
-pub static mut RADIO: Radio = Radio::new();
-
-impl Radio {
-    pub const fn new() -> Radio {
-        Radio {
+impl<'p> Radio<'p> {
+    pub const fn new() -> Self {
+        Self {
             registers: RADIO_BASE,
             tx_power: Cell::new(TxPower::ZerodBm),
             rx_client: OptionalCell::empty(),
@@ -694,7 +693,12 @@ impl Radio {
             random_nonce: Cell::new(0xDEADBEEF),
             channel: Cell::new(RadioChannel::DataChannel26),
             transmitting: Cell::new(false),
+            timer0: OptionalCell::empty(),
         }
+    }
+
+    pub fn set_timer_ref(&self, timer: &'p crate::timer::TimerAlarm<'p>) {
+        self.timer0.set(timer);
     }
 
     pub fn is_enabled(&self) -> bool {
@@ -804,13 +808,15 @@ impl Radio {
                 let backoff_periods = self.random_nonce() & ((1 << self.cca_be.get()) - 1);
                 unsafe {
                     ppi::PPI.enable(ppi::Channel::CH21::SET);
-                    nrf5x::timer::TIMER0.set_alarm(
+                }
+                self.timer0
+                    .expect("Missing timer reference for CSMA")
+                    .set_alarm(
                         kernel::hil::time::Ticks32::from(0),
                         kernel::hil::time::Ticks32::from(
                             backoff_periods * (IEEE802154_BACKOFF_PERIOD as u32),
                         ),
                     );
-                }
             } else {
                 self.transmitting.set(false);
                 //if we are transmitting, the CRCstatus check is always going to be an error
@@ -1010,9 +1016,9 @@ impl Radio {
     }
 }
 
-impl kernel::hil::radio::Radio for Radio {}
+impl<'p> kernel::hil::radio::Radio for Radio<'p> {}
 
-impl kernel::hil::radio::RadioConfig for Radio {
+impl<'p> kernel::hil::radio::RadioConfig for Radio<'p> {
     fn initialize(
         &self,
         _spi_buf: &'static mut [u8],
@@ -1129,7 +1135,7 @@ impl kernel::hil::radio::RadioConfig for Radio {
     }
 }
 
-impl kernel::hil::radio::RadioData for Radio {
+impl<'p> kernel::hil::radio::RadioData for Radio<'p> {
     fn set_receive_client(&self, client: &'static dyn radio::RxClient, buffer: &'static mut [u8]) {
         self.rx_client.set(client);
         self.rx_buf.replace(buffer);

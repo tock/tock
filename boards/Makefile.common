@@ -78,6 +78,7 @@ endif
 # the final binary crate (being passed as parameter to `cargo rustc`).
 RUSTC_FLAGS_FOR_BIN ?= \
   -C link-arg=-L$(abspath .) \
+	-Z macro-backtrace
 
 # http://stackoverflow.com/questions/10858261/abort-makefile-if-variable-not-set
 # Check that given variables are set and all have non-empty values, print an
