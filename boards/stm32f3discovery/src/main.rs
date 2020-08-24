@@ -62,6 +62,7 @@ struct STM32F3Discovery {
         VirtualMuxAlarm<'static, stm32f303xc::tim2::Tim2<'static>>,
     >,
     adc: &'static capsules::adc::Adc<'static, stm32f303xc::adc::Adc>,
+    nonvolatile_storage: &'static capsules::nonvolatile_storage_driver::NonvolatileStorage<'static>,
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
@@ -82,6 +83,7 @@ impl Platform for STM32F3Discovery {
             capsules::temperature::DRIVER_NUM => f(Some(self.temp)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             capsules::adc::DRIVER_NUM => f(Some(self.adc)),
+            capsules::nonvolatile_storage_driver::DRIVER_NUM => f(Some(self.nonvolatile_storage)),
             _ => f(None),
         }
     }
@@ -607,6 +609,18 @@ pub unsafe fn reset_handler() {
     );
     stm32f303xc::adc::ADC1.set_client(adc);
 
+    let nonvolatile_storage = components::nonvolatile_storage::NonvolatileStorageComponent::new(
+        board_kernel,
+        &stm32f303xc::flash::FLASH,
+        0x08020000,
+        0x20000,
+        0x08000000,
+        0x20000,
+    )
+    .finalize(components::nv_storage_component_helper!(
+        stm32f303xc::flash::Flash
+    ));
+
     let stm32f3discovery = STM32F3Discovery {
         console: console,
         ipc: kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability),
@@ -619,6 +633,7 @@ pub unsafe fn reset_handler() {
         ninedof: ninedof,
         temp: temp,
         adc: adc,
+        nonvolatile_storage: nonvolatile_storage,
     };
 
     // // Optional kernel tests
