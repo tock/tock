@@ -3,10 +3,10 @@
 //! Used for reading, writing and erasing the flash and the option bytes.
 //! Erase and write operations have hardware interrupt support, while read
 //! operations use pseudo interrupts in the form of deferred calls. The
-//! programming interface only allows halfword(u16) writes. 
+//! programming interface only allows halfword(u16) writes.
 //!
-//! Option bytes should be used with caution, especially those concerning 
-//! read and write protection. For example, erasing the option bytes 
+//! Option bytes should be used with caution, especially those concerning
+//! read and write protection. For example, erasing the option bytes
 //! enables by default readout protection.
 
 use core::cell::Cell;
@@ -211,13 +211,13 @@ static DEFERRED_CALL: DeferredCall<DeferredCallTask> =
 
 const PAGE_SIZE: usize = 2048;
 
-/// Address of the first flash page
+/// Address of the first flash page.
 const PAGE_START: usize = 0x08000000;
 
-/// Address of the first option byte
+/// Address of the first option byte.
 const OPT_START: usize = 0x1FFFF800;
 
-/// Used for unlocking the flash or the option bytes
+/// Used for unlocking the flash or the option bytes.
 const KEY1: u32 = 0x45670123;
 const KEY2: u32 = 0xCDEF89AB;
 
@@ -272,12 +272,12 @@ impl AsMut<[u8]> for StmF303Page {
 
 #[derive(Clone, Copy, PartialEq)]
 pub enum FlashState {
-    Ready, // Entry state
-    Read, // Read procedure
-    Write, // Programming procedure
-    Erase, // Erase procedure
-    WriteOption, // Option bytes programming procedure
-    EraseOption, // Option bytes erase procedure
+    Ready,       // Entry state.
+    Read,        // Read procedure.
+    Write,       // Programming procedure.
+    Erase,       // Erase procedure.
+    WriteOption, // Option bytes programming procedure.
+    EraseOption, // Option bytes erase procedure.
 }
 
 pub static mut FLASH: Flash = Flash::new();
@@ -303,7 +303,7 @@ impl Flash {
         }
     }
 
-    /// Enables hardware interrupts
+    /// Enables hardware interrupts.
     pub fn enable(&self) {
         self.registers.cr.modify(Control::EOPIE::SET);
         self.registers.cr.modify(Control::ERRIE::SET);
@@ -331,14 +331,14 @@ impl Flash {
         self.registers.cr.modify(Control::OPTWRE::CLEAR);
     }
 
-    /// Forces option byte reloading. Also generates a system reset
+    /// Forces option byte reloading. Also generates a system reset.
     pub fn load_option(&self) {
         self.registers.cr.modify(Control::OBLLAUNCH::SET);
     }
 
     pub fn handle_interrupt(&self) {
         if self.registers.sr.is_set(Status::EOP) {
-            // Reset by writing a 1
+            // Reset by writing a 1.
             self.registers.sr.modify(Status::EOP::SET);
 
             match self.state.get() {
@@ -384,7 +384,7 @@ impl Flash {
                 _ => {}
             }
         }
-        
+
         if self.state.get() == FlashState::Read {
             self.state.set(FlashState::Ready);
             self.client.map(|client| {
@@ -403,7 +403,7 @@ impl Flash {
                 self.registers.cr.modify(Control::OPTPG::CLEAR);
             }
 
-            // Reset by writing a 1
+            // Reset by writing a 1.
             self.registers.sr.modify(Status::WRPRTERR::SET);
             panic!("WRPRTERR: programming a write-protected address.");
         }
@@ -417,11 +417,10 @@ impl Flash {
                 self.registers.cr.modify(Control::OPTPG::CLEAR);
             }
 
-            // Reset by writing a 1
+            // Reset by writing a 1.
             self.registers.sr.modify(Status::PGERR::SET);
             panic!("PGERR: address contains a value different from 0xFFFF before programming.");
         }
-
     }
 
     pub fn program_halfword(&self) {
@@ -432,12 +431,11 @@ impl Flash {
             let page_addr = PAGE_START + self.page_number.get() * PAGE_SIZE;
             let address = page_addr + i;
             let location = unsafe { &*(address as *const VolatileCell<u16>) };
-            location.set(halfword); 
+            location.set(halfword);
 
             self.buffer.replace(buffer);
         });
     }
-
 
     pub fn erase_page(&self, page_number: usize) -> ReturnCode {
         if page_number > 128 {
@@ -453,7 +451,7 @@ impl Flash {
         self.enable();
         self.state.set(FlashState::Erase);
 
-        // Choose page erase mode
+        // Choose page erase mode.
         self.registers.cr.modify(Control::PER::SET);
         self.registers
             .ar
@@ -473,7 +471,7 @@ impl Flash {
         self.enable();
         self.state.set(FlashState::Erase);
 
-        // Choose mass erase mode
+        // Choose mass erase mode.
         self.registers.cr.modify(Control::MER::SET);
         self.registers.cr.modify(Control::STRT::SET);
 
@@ -498,7 +496,7 @@ impl Flash {
         self.enable();
         self.state.set(FlashState::Write);
 
-        // Choose programming mode
+        // Choose programming mode.
         self.registers.cr.modify(Control::PG::SET);
 
         self.buffer.replace(buffer);
@@ -534,10 +532,10 @@ impl Flash {
         Ok(())
     }
 
-    /// Allows programming the 8 option bytes
+    /// Allows programming the 8 option bytes:
     /// 0: RDP, 1: USER, 2: DATA0, 3:DATA1, 4. WRP0, 5: WRP1, 6.WRP2, 7. WRP3
-    pub fn write_option(&self, byte_nr: usize,  value: u8) -> ReturnCode {
-        if byte_nr > 7 {
+    pub fn write_option(&self, byte_number: usize, value: u8) -> ReturnCode {
+        if byte_number > 7 {
             return ReturnCode::EINVAL;
         }
 
@@ -550,10 +548,10 @@ impl Flash {
         self.enable();
         self.state.set(FlashState::WriteOption);
 
-        // Choose option byte programming mode
+        // Choose option byte programming mode.
         self.registers.cr.modify(Control::OPTPG::SET);
 
-        let address = OPT_START + byte_nr * 2;
+        let address = OPT_START + byte_number * 2;
         let location = unsafe { &*(address as *const VolatileCell<u16>) };
         let halfword: u16 = value as u16;
         location.set(halfword);
@@ -561,7 +559,6 @@ impl Flash {
         ReturnCode::SUCCESS
     }
 
-    /// NOTE: Erasing the option bytes enables readout protection
     pub fn erase_option(&self) -> ReturnCode {
         while self.registers.sr.is_set(Status::BSY) {}
         if self.is_locked() {
@@ -572,7 +569,7 @@ impl Flash {
         self.enable();
         self.state.set(FlashState::EraseOption);
 
-        // Choose option byte erase mode
+        // Choose option byte erase mode.
         self.registers.cr.modify(Control::OPTER::SET);
         self.registers.cr.modify(Control::STRT::SET);
 
