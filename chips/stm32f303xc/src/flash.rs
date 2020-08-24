@@ -498,8 +498,6 @@ impl Flash {
     }
 
     pub fn erase_all(&self) -> ReturnCode {
-        while self.registers.sr.is_set(Status::BSY) {}
-
         if self.is_locked() {
             self.unlock();
         }
