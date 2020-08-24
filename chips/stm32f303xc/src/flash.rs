@@ -338,7 +338,7 @@ impl Flash {
 
     pub fn handle_interrupt(&self) {
         if self.registers.sr.is_set(Status::EOP) {
-            // Reset by writing a 1.
+            // Cleared by writing a 1.
             self.registers.sr.modify(Status::EOP::SET);
 
             match self.state.get() {
@@ -376,10 +376,20 @@ impl Flash {
                 FlashState::WriteOption => {
                     self.registers.cr.modify(Control::OPTPG::CLEAR);
                     self.state.set(FlashState::Ready);
+
+                    self.client.map(|client| {
+                        self.buffer.take().map(|buffer| {
+                            client.write_complete(buffer, hil::flash::Error::CommandComplete);
+                        });
+                    });
                 }
                 FlashState::EraseOption => {
                     self.registers.cr.modify(Control::OPTER::CLEAR);
                     self.state.set(FlashState::Ready);
+
+                    self.client.map(|client| {
+                        client.erase_complete(hil::flash::Error::CommandComplete);
+                    });
                 }
                 _ => {}
             }
@@ -395,31 +405,59 @@ impl Flash {
         }
 
         if self.registers.sr.is_set(Status::WRPRTERR) {
-            if self.registers.cr.is_set(Control::PG) {
-                self.registers.cr.modify(Control::PG::CLEAR);
-            }
-
-            if self.registers.cr.is_set(Control::OPTPG) {
-                self.registers.cr.modify(Control::OPTPG::CLEAR);
-            }
-
-            // Reset by writing a 1.
+            // Cleared by writing a 1.
             self.registers.sr.modify(Status::WRPRTERR::SET);
-            panic!("WRPRTERR: programming a write-protected address.");
+
+            match self.state.get() {
+                FlashState::Write => {
+                    self.registers.cr.modify(Control::PG::CLEAR);
+                    self.client.map(|client| {
+                        self.buffer.take().map(|buffer| {
+                            client.write_complete(buffer, hil::flash::Error::FlashError);
+                        });
+                    });
+                }
+                FlashState::Erase => {
+                    self.client.map(|client| {
+                        client.erase_complete(hil::flash::Error::FlashError);
+                    });
+                }
+                _ => {}
+            }
+
+            self.state.set(FlashState::Ready);
         }
 
         if self.registers.sr.is_set(Status::PGERR) {
-            if self.registers.cr.is_set(Control::PG) {
-                self.registers.cr.modify(Control::PG::CLEAR);
-            }
-
-            if self.registers.cr.is_set(Control::OPTPG) {
-                self.registers.cr.modify(Control::OPTPG::CLEAR);
-            }
-
-            // Reset by writing a 1.
+            // Cleared by writing a 1.
             self.registers.sr.modify(Status::PGERR::SET);
-            panic!("PGERR: address contains a value different from 0xFFFF before programming.");
+
+            match self.state.get() {
+                FlashState::Write => {
+                    self.registers.cr.modify(Control::PG::CLEAR);
+                    self.client.map(|client| {
+                        self.buffer.take().map(|buffer| {
+                            client.write_complete(buffer, hil::flash::Error::FlashError);
+                        });
+                    });
+                }
+                FlashState::WriteOption => {
+                    self.registers.cr.modify(Control::OPTPG::CLEAR);
+                    self.client.map(|client| {
+                        self.buffer.take().map(|buffer| {
+                            client.write_complete(buffer, hil::flash::Error::FlashError);
+                        });
+                    });
+                }
+                FlashState::Erase => {
+                    self.client.map(|client| {
+                        client.erase_complete(hil::flash::Error::FlashError);
+                    });
+                }
+                _ => {}
+            }
+
+            self.state.set(FlashState::Ready);
         }
     }
 
@@ -441,8 +479,6 @@ impl Flash {
         if page_number > 128 {
             return ReturnCode::EINVAL;
         }
-
-        while self.registers.sr.is_set(Status::BSY) {}
 
         if self.is_locked() {
             self.unlock();
@@ -487,8 +523,6 @@ impl Flash {
             return Err((ReturnCode::EINVAL, buffer));
         }
 
-        while self.registers.sr.is_set(Status::BSY) {}
-
         if self.is_locked() {
             self.unlock();
         }
@@ -515,8 +549,6 @@ impl Flash {
             return Err((ReturnCode::EINVAL, buffer));
         }
 
-        while self.registers.sr.is_set(Status::BSY) {}
-
         let mut byte: *const u8 = (PAGE_START + page_number * PAGE_SIZE) as *const u8;
         unsafe {
             for i in 0..buffer.len() {
@@ -539,7 +571,6 @@ impl Flash {
             return ReturnCode::EINVAL;
         }
 
-        while self.registers.sr.is_set(Status::BSY) {}
         if self.is_locked() {
             self.unlock();
         }
@@ -560,7 +591,6 @@ impl Flash {
     }
 
     pub fn erase_option(&self) -> ReturnCode {
-        while self.registers.sr.is_set(Status::BSY) {}
         if self.is_locked() {
             self.unlock();
         }
