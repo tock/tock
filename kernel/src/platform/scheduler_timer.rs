@@ -85,6 +85,8 @@ pub trait SchedulerTimer {
     fn disarm(&self);
 
     /// Return the number of microseconds remaining in the process's timeslice.
+    /// If a process' timeslice has expired, this is not guaranteed to return a valid
+    /// value.
     fn get_remaining_us(&self) -> u32;
 
     /// Check if the process timeslice has expired.

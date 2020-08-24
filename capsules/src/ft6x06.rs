@@ -102,9 +102,10 @@ impl<'a> i2c::I2CClient for Ft6x06<'a> {
         self.num_touches.set((buffer[1] & 0x0F) as usize);
         self.touch_client.map(|client| {
             if self.num_touches.get() <= 2 {
-                let status = match buffer[1] >> 6 {
+                let status = match buffer[2] >> 6 {
                     0x00 => TouchStatus::Pressed,
                     0x01 => TouchStatus::Released,
+                    0x02 => TouchStatus::Moved,
                     _ => TouchStatus::Released,
                 };
                 let x = (((buffer[2] & 0x0F) as u16) << 8) + (buffer[3] as u16);
@@ -140,15 +141,17 @@ impl<'a> i2c::I2CClient for Ft6x06<'a> {
         self.multi_touch_client.map(|client| {
             if self.num_touches.get() <= 2 {
                 for touch_event in 0..self.num_touches.get() {
-                    let status = match buffer[1] >> 6 {
+                    let status = match buffer[touch_event * 8 + 2] >> 6 {
                         0x00 => TouchStatus::Pressed,
                         0x01 => TouchStatus::Released,
                         _ => TouchStatus::Released,
                     };
-                    let x = (((buffer[2] & 0x0F) as u16) << 8) + (buffer[3] as u16);
-                    let y = (((buffer[4] & 0x0F) as u16) << 8) + (buffer[5] as u16);
-                    let pressure = Some(buffer[6] as u16);
-                    let size = Some(buffer[7] as u16);
+                    let x = (((buffer[touch_event * 8 + 2] & 0x0F) as u16) << 8)
+                        + (buffer[touch_event * 8 + 3] as u16);
+                    let y = (((buffer[touch_event * 8 + 4] & 0x0F) as u16) << 8)
+                        + (buffer[touch_event * 8 + 5] as u16);
+                    let pressure = Some(buffer[touch_event * 8 + 6] as u16);
+                    let size = Some(buffer[touch_event * 8 + 7] as u16);
                     self.events.map(|buffer| {
                         buffer[touch_event] = TouchEvent {
                             status,
@@ -225,6 +228,7 @@ impl<'a> touch::MultiTouch<'a> for Ft6x06<'a> {
                 let status = match buffer[offset + 1] >> 6 {
                     0x00 => TouchStatus::Pressed,
                     0x01 => TouchStatus::Released,
+                    0x02 => TouchStatus::Moved,
                     _ => TouchStatus::Released,
                 };
                 let x = (((buffer[offset + 2] & 0x0F) as u16) << 8) + (buffer[offset + 3] as u16);

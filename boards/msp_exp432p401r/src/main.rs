@@ -6,6 +6,7 @@
 // Disable this attribute when documenting, as a workaround for
 // https://github.com/rust-lang/rust/issues/62184.
 #![cfg_attr(not(doc), no_main)]
+#![feature(const_in_array_repeat_expressions)]
 #![deny(missing_docs)]
 
 use kernel::capabilities;
@@ -104,7 +105,7 @@ pub unsafe fn reset_handler() {
     msp432::gpio::PINS_J[msp432::gpio::PinJNr::PJ_0 as usize].enable_primary_function();
     msp432::gpio::PINS_J[msp432::gpio::PinJNr::PJ_1 as usize].enable_primary_function();
 
-    // Setup the clocks: MCLK: 48MHz, HSMCLK: 12MHz, SMCLK: 750kHz, ACLK: 32.768kHz
+    // Setup the clocks: MCLK: 48MHz, HSMCLK: 12MHz, SMCLK: 1.5MHz, ACLK: 32.768kHz
     msp432::cs::CS.setup_clocks();
 
     debug::assign_gpios(
@@ -217,7 +218,7 @@ pub unsafe fn reset_handler() {
             &_sapps as *const u8,
             &_eapps as *const u8 as usize - &_sapps as *const u8 as usize,
         ),
-        &mut core::slice::from_raw_parts_mut(
+        core::slice::from_raw_parts_mut(
             &mut _sappmem as *mut u8,
             &_eappmem as *const u8 as usize - &_sappmem as *const u8 as usize,
         ),
@@ -227,5 +228,13 @@ pub unsafe fn reset_handler() {
     )
     .unwrap();
 
-    board_kernel.kernel_loop(&msp_exp432p4014, chip, None, &main_loop_capability);
+    let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
+        .finalize(components::rr_component_helper!(NUM_PROCS));
+    board_kernel.kernel_loop(
+        &msp_exp432p4014,
+        chip,
+        None,
+        scheduler,
+        &main_loop_capability,
+    );
 }

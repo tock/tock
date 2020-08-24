@@ -11,7 +11,7 @@ pub static mut CS: ClockSystem = ClockSystem::new();
 
 pub const MCLK_HZ: u32 = 48_000_000;
 pub const HSMCLK_HZ: u32 = 12_000_000;
-pub const SMCLK_HZ: u32 = 750_000;
+pub const SMCLK_HZ: u32 = 1_500_000;
 pub const ACLK_HZ: u32 = 32_768;
 
 const CS_BASE: StaticRef<CsRegisters> =
@@ -286,15 +286,15 @@ impl ClockSystem {
         cs.registers.ctl1.modify(CSCTL1::DIVHS.val(2));
     }
 
-    // Setup the low-speed subsystem master clock (SMCLK) to 1/64 of the master-clock -> 750kHz
-    fn set_smclk_750khz(&self) {
+    // Setup the low-speed subsystem master clock (SMCLK) to 1/32 of the master-clock -> 1.5MHz
+    fn set_smclk_1500khz(&self) {
         let cs = CsRegisterManager::new(self);
 
         // Set HFXT (48MHz) as clock-source for SMCLK
         cs.registers.ctl1.modify(CSCTL1::SELS.val(5));
 
-        // Set SMCLK divider to 128 -> 48MHz / 64 = 750kHz
-        cs.registers.ctl1.modify(CSCTL1::DIVS.val(6));
+        // Set SMCLK divider to 32 -> 48MHz / 32 = 1.5MHz
+        cs.registers.ctl1.modify(CSCTL1::DIVS.val(5));
     }
 
     // Setup the auxiliary clock (ACLK) to 32.768kHz
@@ -311,7 +311,7 @@ impl ClockSystem {
     pub fn setup_clocks(&self) {
         self.set_mclk_48mhz();
         self.set_hsmclk_12mhz();
-        self.set_smclk_750khz();
+        self.set_smclk_1500khz();
         self.set_aclk_32khz();
     }
 }

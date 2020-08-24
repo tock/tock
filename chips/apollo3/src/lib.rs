@@ -77,11 +77,11 @@ pub static IRQS: [unsafe extern "C" fn(); 32] = [generic_isr; 32];
 pub static PATCH: [unsafe extern "C" fn(); 16] = [unhandled_interrupt; 16];
 
 extern "C" {
-    static mut _szero: u32;
-    static mut _ezero: u32;
-    static mut _etext: u32;
-    static mut _srelocate: u32;
-    static mut _erelocate: u32;
+    static mut _szero: usize;
+    static mut _ezero: usize;
+    static mut _etext: usize;
+    static mut _srelocate: usize;
+    static mut _erelocate: usize;
 }
 
 #[cfg(all(target_arch = "arm", target_os = "none"))]
