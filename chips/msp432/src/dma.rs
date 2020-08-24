@@ -3,7 +3,7 @@
 use core::cell::Cell;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::common::registers::{
-    register_bitfields, register_structs, ReadOnly, ReadWrite, WriteOnly,
+    register_bitfields, register_structs, InMemoryRegister, ReadOnly, ReadWrite, WriteOnly,
 };
 use kernel::common::StaticRef;
 
@@ -19,33 +19,33 @@ pub static mut DMA_CHANNELS: [DmaChannel<'static>; 8] = [
 ];
 
 const DMA_BASE: StaticRef<DmaRegisters> =
-    unsafe { StaticRef::new(0x4000E000 as *const DmaRegisters) };
+    unsafe { StaticRef::new(0x4000_E000 as *const DmaRegisters) };
 
-/// The uDMA of the MSP432 family don't offer own registers where the configuration of the
-/// individual DMA channels is stored, they require a pointer to a block of memory in the RAM
-/// where the actual configuration is stored. Within this block of memory the pointer to the
-/// data-source, the pointer to the destination and the configuration is stored. Probably due to
-/// alignment reasons the 4th word is unused.
-#[repr(packed)]
-#[derive(Copy, Clone)]
-struct DmaChannelControl {
-    src_ptr: u32,
-    dst_ptr: u32,
-    ctrl: u32,
-    _unused: u32,
-}
-
-#[repr(align(256))]
-struct AlignTo256Bytes([DmaChannelControl; 2 * AVAILABLE_DMA_CHANNELS]);
-
-/// It's necessary to allocate twice as much buffers as DMA channels are available. This is because
-/// the DMA supports modes where a primary buffer and an alternative one can be used.
-static mut DMA_CONFIG: AlignTo256Bytes =
-    AlignTo256Bytes([DmaChannelControl::const_default(); 2 * AVAILABLE_DMA_CHANNELS]);
+static DMA_CONFIG: DmaConfigBlock = DmaConfigBlock([
+    // Unfortunately the Default-trait does not support constant functions and the InMemoryRegister
+    // structs do not implement the copy-trait, so it's necessary to initialize this array by hand.
+    DmaChannelControl::const_default(),
+    DmaChannelControl::const_default(),
+    DmaChannelControl::const_default(),
+    DmaChannelControl::const_default(),
+    DmaChannelControl::const_default(),
+    DmaChannelControl::const_default(),
+    DmaChannelControl::const_default(),
+    DmaChannelControl::const_default(),
+    DmaChannelControl::const_default(),
+    DmaChannelControl::const_default(),
+    DmaChannelControl::const_default(),
+    DmaChannelControl::const_default(),
+    DmaChannelControl::const_default(),
+    DmaChannelControl::const_default(),
+    DmaChannelControl::const_default(),
+    DmaChannelControl::const_default(),
+]);
 
 /// Although there are 8bits reserved for selecting a source for the DMA trigger, the
 /// MSP432P4x family only supports numbers from 1 to 7. 0 doesn't cause an error, but it's
-/// marked as reserved, so probably it does nothing.
+/// marked as reserved. According to the device-specific datasheet 'reserved' can be used for
+/// transfering data from one location in the RAM to another one.
 const MAX_SRC_NR: u8 = 7;
 
 /// The MSP432 chips contain 8 DMA channels
@@ -405,6 +405,112 @@ register_bitfields![u32,
     ]
 ];
 
+register_bitfields![u32,
+    /// DMA control data configuration
+    DMA_CTRL [
+        /// Cycle control
+        CYCLE_CTRL OFFSET(0) NUMBITS(3) [
+            /// Stop. indicates that the data-structure is invalid
+            Stop = 0,
+            /// Basic transfer mode
+            Basic = 1,
+            /// Auto-request mode
+            Auto = 2,
+            /// Ping-pong mode
+            PingPong = 3,
+            /// Memory scatter-gather mode, which uses the primary data-structure
+            MemoryScatterGatherPrimary = 4,
+            /// Memory scatter-gather mode, which uses the alternate data-structure
+            MemoryScatterGatherAlternate = 5,
+            /// Peripheral scatter-gather mode, which uses the primary data-structure
+            PeripheralScatterGatherPrimary = 6,
+            /// Peripheral scatter-gather mode, which uses the alternate data-structure
+            PeripheralScatterGatherAlternate = 7
+        ],
+        /// Controls if the chnl_useburst_set bit is is set to 1
+        NEXT_USEBURST OFFSET(3) NUMBITS(1) [],
+        /// These bits represent the total number of DMA transfers minus 1
+        /// that the DMA cycle contains.
+        N_MINUS_1 OFFSET(4) NUMBITS(10) [],
+        /// These bits control how many DMA transfers can occur before the controller rearbitrates
+        /// the bus. The register-value is the 'ld' of the number of cycles. E.g. 128 cycles ->
+        /// regval = ld(128) = 7. The maximum number of cycles is 1024 -> regval = 10
+        R_POWER OFFSET(14) NUMBITS(4) [],
+        /// These bits set the control state of HPROT[3:1] when the controller reads data. For the
+        /// MSP432 family these bits can be ignored, because they have no effect. The DMA in the
+        /// MSP432-devices can access all memory, no matter how these bits are set.
+        SRC_PROT_CTRL OFFSET(18) NUMBITS(3) [],
+        /// These bits set the control state of HPROT[3:1] when the controller writes data. For the
+        /// MSP432 family these bits can be ignored, because they have no effect. The DMA in the
+        /// MSP432-devices can access all memory, no matter how these bits are set.
+        DST_PROT_CTRL OFFSET(21) NUMBITS(3) [],
+        /// These bits control the size of the source-data
+        SRC_SIZE OFFSET(24) NUMBITS(2) [
+            /// Byte -> 8bit
+            Byte = 0,
+            /// Half-word -> 16bit
+            HalfWord = 1,
+            /// Word -> 32bit
+            Word = 2
+        ],
+        /// These bits set the source address-increment
+        SRC_INC OFFSET(26) NUMBITS(2) [
+            /// Byte -> +1
+            Byte = 0,
+            /// Half-word -> +2
+            HalfWord = 1,
+            /// Word -> +4
+            Word = 2,
+            /// No increment -> +0
+            NoIncrement = 3
+        ],
+        /// These bits control the size of the destination-data.
+        /// NOTE: DST_SIZE must be the same as SRC_SIZE!
+        DST_SIZE OFFSET(28) NUMBITS(2) [
+            /// Byte -> 8bit
+            Byte = 0,
+            /// Half-word -> 16bit
+            HalfWord = 1,
+            /// Word -> 32bit
+            Word = 2
+        ],
+        /// These bits set the destination address-increment
+        DST_INC OFFSET(30) NUMBITS(2) [
+            /// Byte -> +1
+            Byte = 0,
+            /// Half-word -> +2
+            HalfWord = 1,
+            /// Word -> +4
+            Word = 2,
+            /// No increment -> +0
+            NoIncrement = 3
+        ]
+    ]
+];
+
+/// The uDMA of the MSP432 family don't offer own registers where the configuration of the
+/// individual DMA channels is stored, they require a pointer to a block of memory in the RAM
+/// where the actual configuration is stored. Within this block of memory the pointer to the
+/// data-source, the pointer to the destination and the configuration is stored. Probably due to
+/// alignment reasons the 4th word is unused.
+#[repr(align(16))]
+struct DmaChannelControl {
+    src_ptr: InMemoryRegister<u32>,
+    dst_ptr: InMemoryRegister<u32>,
+    ctrl: InMemoryRegister<u32, DMA_CTRL::Register>,
+    _unused: InMemoryRegister<u32>,
+}
+
+/// It's necessary to allocate twice as much buffers as DMA channels are available. This is because
+/// the DMA supports modes where a primary buffer and an alternative one can be used.
+#[repr(align(256))]
+struct DmaConfigBlock([DmaChannelControl; 2 * AVAILABLE_DMA_CHANNELS]);
+
+/// It's necessary to implement `Sync`, otherwise the `DMA_CONFIG` array cannot be instantiated
+/// because static variables require the `Sync` trait, otherwise they are not threadsafe.
+unsafe impl Sync for DmaConfigBlock {}
+
+/// Trait for handling the callbacks if a DMA transfer finished
 pub trait DmaClient {
     fn transfer_done(
         &self,
@@ -414,6 +520,7 @@ pub trait DmaClient {
     );
 }
 
+#[repr(u32)]
 #[derive(Copy, Clone, PartialEq)]
 pub enum DmaMode {
     Basic = 1,
@@ -473,10 +580,10 @@ pub struct DmaChannel<'a> {
 impl DmaChannelControl {
     const fn const_default() -> Self {
         Self {
-            src_ptr: 0,
-            dst_ptr: 0,
-            ctrl: 0,
-            _unused: 0,
+            src_ptr: InMemoryRegister::new(0),
+            dst_ptr: InMemoryRegister::new(0),
+            ctrl: InMemoryRegister::new(0),
+            _unused: InMemoryRegister::new(0),
         }
     }
 }
@@ -517,15 +624,15 @@ impl<'a> DmaChannel<'a> {
     fn enable_dma(&self) {
         // Enable the DMA module
         self.registers.cfg.write(DMA_CFG::MASTEN::ControllerEnabled);
+
         // Set the pointer to the configuration-memory
         // Since the config needs exactly 256 bytes, mask out the lower 256 bytes
-        let addr = unsafe { (&DMA_CONFIG.0[0] as *const DmaChannelControl as u32) & (!0xFFu32) };
+        let addr = (&DMA_CONFIG.0[0] as *const DmaChannelControl as u32) & (!0xFFu32);
         self.registers.ctlbase.set(addr);
     }
 
     fn apply_config(&self) {
         let conf = self.config.get();
-        let mut ctrl = 0u32;
 
         if conf.mode == DmaMode::PingPong {
             panic!("DMA: Ping Pong mode currently not supported!");
@@ -542,14 +649,12 @@ impl<'a> DmaChannel<'a> {
         // DMA module. In other words, the DMA can access every memory and register at every time.
         // For more information see datasheet p. 625 section 11.2.2.3.
 
-        ctrl |= (conf.width as u32) << 24;
-        ctrl |= (conf.src_incr as u32) << 26;
-        ctrl |= (conf.width as u32) << 28;
-        ctrl |= (conf.dst_incr as u32) << 30;
-
-        unsafe {
-            DMA_CONFIG.0[self.chan_nr].ctrl = ctrl;
-        }
+        DMA_CONFIG.0[self.chan_nr].ctrl.modify(
+            DMA_CTRL::SRC_SIZE.val(conf.width as u32)
+                + DMA_CTRL::DST_SIZE.val(conf.width as u32)
+                + DMA_CTRL::SRC_INC.val(conf.src_incr as u32)
+                + DMA_CTRL::DST_INC.val(conf.dst_incr as u32),
+        );
 
         // Set the source-peripheral for the DMA channel
         self.registers.ch_srccfg[self.chan_nr].set((conf.src_chan % (MAX_SRC_NR + 1)) as u32);
@@ -561,26 +666,24 @@ impl<'a> DmaChannel<'a> {
             .set(self.registers.enaset.get() | ((1 << self.chan_nr) as u32));
     }
 
-    fn setup_basic_transfer(&self, src_end_ptr: u32, dst_end_ptr: u32, len: usize) {
+    fn setup_transfer(&self, src_end_ptr: u32, dst_end_ptr: u32, len: usize) {
         let conf = self.config.get();
         let width = conf.width as u32;
 
         // Divide the byte-length by the width to get the number of necessary transfers
         let transfers = len >> width;
 
-        unsafe {
-            DMA_CONFIG.0[self.chan_nr].src_ptr = src_end_ptr;
-            DMA_CONFIG.0[self.chan_nr].dst_ptr = dst_end_ptr;
+        DMA_CONFIG.0[self.chan_nr].src_ptr.set(src_end_ptr);
+        DMA_CONFIG.0[self.chan_nr].dst_ptr.set(dst_end_ptr);
 
+        DMA_CONFIG.0[self.chan_nr].ctrl.modify(
             // The DMA can only transmit 1024 words with 1 transfer
-            DMA_CONFIG.0[self.chan_nr].ctrl |= (((transfers - 1) % MAX_TRANSFERS_LEN) as u32) << 4;
-
+            DMA_CTRL::N_MINUS_1.val(((transfers - 1) % MAX_TRANSFERS_LEN) as u32)
             // Reset the bits in case they were set before to a different value
-            DMA_CONFIG.0[self.chan_nr].ctrl &= !(0x0F << 14);
-
+            + DMA_CTRL::R_POWER.val(0)
             // Set the DMA mode since it the DMA module sets it back to to stop after every cycle
-            DMA_CONFIG.0[self.chan_nr].ctrl |= conf.mode as u32;
-        }
+            + DMA_CTRL::CYCLE_CTRL.val(conf.mode as u32),
+        );
 
         // Store to transmitting bytes
         self.bytes_to_transmit.set(len);
@@ -605,20 +708,20 @@ impl<'a> DmaChannel<'a> {
                 || (tt == DmaTransferType::MemoryToMemory)
             {
                 // Update the destination-buffer pointer
-                unsafe {
-                    DMA_CONFIG.0[self.chan_nr].dst_ptr +=
-                        (MAX_TRANSFERS_LEN as u32) << (conf.width as u32);
-                }
+                DMA_CONFIG.0[self.chan_nr].dst_ptr.set(
+                    DMA_CONFIG.0[self.chan_nr].dst_ptr.get()
+                        + ((MAX_TRANSFERS_LEN as u32) << (conf.width as u32)),
+                );
             }
 
             if (tt == DmaTransferType::MemoryToPeripheral)
                 || (tt == DmaTransferType::MemoryToMemory)
             {
                 // Update the source-buffer pointer
-                unsafe {
-                    DMA_CONFIG.0[self.chan_nr].src_ptr +=
-                        (MAX_TRANSFERS_LEN as u32) << (conf.width as u32);
-                }
+                DMA_CONFIG.0[self.chan_nr].src_ptr.set(
+                    DMA_CONFIG.0[self.chan_nr].src_ptr.get()
+                        + ((MAX_TRANSFERS_LEN as u32) << (conf.width as u32)),
+                );
             }
 
             // Update the remaining words
@@ -628,26 +731,27 @@ impl<'a> DmaChannel<'a> {
                 self.remaining_words.set(0);
             }
 
-            // Set the DMA mode since the DMA module sets it back to stop after every cycle
-            unsafe {
-                DMA_CONFIG.0[self.chan_nr].ctrl |= conf.mode as u32;
-                DMA_CONFIG.0[self.chan_nr].ctrl |=
-                    (((rem_words - 1) % MAX_TRANSFERS_LEN) as u32) << 4;
-
-                // Reset the bits in case they were set before to a different value
-                DMA_CONFIG.0[self.chan_nr].ctrl &= !(0x0F << 14);
-
-                if tt == DmaTransferType::MemoryToMemory {
-                    let ld = if rem_words > MAX_TRANSFERS_LEN {
-                        31 - (MAX_TRANSFERS_LEN as u32).leading_zeros()
-                    } else {
-                        31 - (len as u32).leading_zeros()
-                    };
-
-                    // Set the number of cycles before a bus rearbitration
-                    DMA_CONFIG.0[self.chan_nr].ctrl |= ld << 14;
+            // If the transfer type is MemoryToMemory, the R_POWER register can have a different
+            // value than 0, since the source- and destination address are incremented and it's not
+            // necessary to wait for any hardware module to process or 'generate' data.
+            let r_power = if tt == DmaTransferType::MemoryToMemory {
+                if rem_words > MAX_TRANSFERS_LEN {
+                    31 - (MAX_TRANSFERS_LEN as u32).leading_zeros()
+                } else {
+                    31 - (len as u32).leading_zeros()
                 }
-            }
+            } else {
+                0
+            };
+
+            DMA_CONFIG.0[self.chan_nr].ctrl.modify(
+                // Set the DMA mode since the DMA module sets it back to stop after every cycle
+                DMA_CTRL::CYCLE_CTRL.val(conf.mode as u32)
+                // Set the DMA cycles to the amount of remaining words
+                + DMA_CTRL::N_MINUS_1.val(((rem_words - 1) % MAX_TRANSFERS_LEN) as u32)
+                // Set the number of DMA-transfers after the DMA has to rearbitrate the bus
+                + DMA_CTRL::R_POWER.val(r_power),
+            );
         } else {
             // Disable the DMA channel since the data transfer has finished
             self.registers.enaclr.set((1 << self.chan_nr) as u32);
@@ -723,27 +827,27 @@ impl<'a> DmaChannel<'a> {
         let src_end_ptr = (&src_buf[0] as *const u8 as u32) + ((len as u32) - 1);
         let dst_end_ptr = (&dst_buf[0] as *const u8 as u32) + ((len as u32) - 1);
 
-        self.setup_basic_transfer(src_end_ptr, dst_end_ptr, len);
+        self.setup_transfer(src_end_ptr, dst_end_ptr, len);
 
-        unsafe {
-            // Set the the number of cycles after the module rearbitrates the bus.
-            // The 'register-value' for this is ld(cycles), e.g. cycles = 256 -> ld(256) = 8
-            // In order to get the number of cycles, just get the closest 2^n value of transfers
-            let ld = if transfers > MAX_TRANSFERS_LEN {
-                31 - (MAX_TRANSFERS_LEN as u32).leading_zeros()
-            } else {
-                31 - (len as u32).leading_zeros()
-            };
+        // Set the the number of cycles after the module rearbitrates the bus.
+        // The 'register-value' for this is ld(cycles), e.g. cycles = 256 -> ld(256) = 8
+        // In order to get the number of cycles, just get the closest 2^n value of transfers
+        let r_power = if transfers > MAX_TRANSFERS_LEN {
+            31 - (MAX_TRANSFERS_LEN as u32).leading_zeros()
+        } else {
+            31 - (len as u32).leading_zeros()
+        };
 
-            // Set the number of cycles before a bus rearbitration
-            DMA_CONFIG.0[self.chan_nr].ctrl |= ld << 14;
-        }
+        // Set the number of cycles before a bus rearbitration
+        DMA_CONFIG.0[self.chan_nr]
+            .ctrl
+            .modify(DMA_CTRL::R_POWER.val(r_power));
 
         // Store the buffers
         self.rx_buf.replace(dst_buf);
         self.tx_buf.replace(src_buf);
 
-        // Store tranfer-type
+        // Store transfer-type
         self.transfer_type.set(DmaTransferType::MemoryToMemory);
 
         // Enable the DMA channel
@@ -757,12 +861,12 @@ impl<'a> DmaChannel<'a> {
         let src_end_ptr = src_reg as u32;
         let dst_end_ptr = (&buf[0] as *const u8 as u32) + ((len as u32) - 1);
 
-        self.setup_basic_transfer(src_end_ptr, dst_end_ptr, len);
+        self.setup_transfer(src_end_ptr, dst_end_ptr, len);
 
         // Store the buffer
         self.rx_buf.replace(buf);
 
-        // Store tranfer-type
+        // Store transfer-type
         self.transfer_type.set(DmaTransferType::PeripheralToMemory);
 
         self.enable_dma_channel();
@@ -775,12 +879,12 @@ impl<'a> DmaChannel<'a> {
         let src_end_ptr = (&buf[0] as *const u8 as u32) + ((len as u32) - 1);
         let dst_end_ptr = dst_reg as u32;
 
-        self.setup_basic_transfer(src_end_ptr, dst_end_ptr, len);
+        self.setup_transfer(src_end_ptr, dst_end_ptr, len);
 
         // Store the buffer
         self.tx_buf.replace(buf);
 
-        // Store tranfer-type
+        // Store transfer-type
         self.transfer_type.set(DmaTransferType::MemoryToPeripheral);
 
         self.enable_dma_channel();
