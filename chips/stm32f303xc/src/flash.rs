@@ -229,7 +229,7 @@ const KEY2: u32 = 0xCDEF89AB;
 ///
 /// ```rust
 /// # extern crate stm32f303xc;
-/// # use stm32f303xc::flash::NrfPage;
+/// # use stm32f303xc::flash::StmF303Page;
 /// # use kernel::static_init;
 ///
 /// let pagebuffer = unsafe { static_init!(StmF303Page, StmF303Page::default()) };
