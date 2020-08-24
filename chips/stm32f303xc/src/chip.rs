@@ -52,6 +52,8 @@ impl Chip for Stm32f3xx {
 
                         nvic::SPI1 => spi::SPI1.handle_interrupt(),
 
+                        nvic::FLASH => flash::FLASH.handle_interrupt(),
+
                         nvic::I2C1_EV => i2c::I2C1.handle_event(),
                         nvic::I2C1_ER => i2c::I2C1.handle_error(),
                         nvic::ADC1_2 => adc::ADC1.handle_interrupt(),
