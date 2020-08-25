@@ -13,7 +13,6 @@ pub mod deferred_call_tasks;
 pub mod ficr;
 pub mod i2c;
 pub mod ieee802154_radio;
-pub mod interrupt_service;
 pub mod nvmc;
 pub mod power;
 pub mod ppi;
