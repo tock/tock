@@ -10,5 +10,6 @@ pub mod hmac;
 pub mod i2c;
 pub mod padctrl;
 pub mod pwrmgr;
+pub mod spi;
 pub mod uart;
 pub mod usbdev;
