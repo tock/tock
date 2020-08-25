@@ -1613,7 +1613,7 @@ impl<C: 'static + Chip> Process<'_, C> {
         remaining_memory: &'static mut [u8],
         fault_response: FaultResponse,
         index: usize,
-    ) -> Result<(Option<&'static Self>, &'static mut [u8]), ProcessLoadError> {
+    ) -> Result<(Option<&'static dyn ProcessType>, &'static mut [u8]), ProcessLoadError> {
         // Get a slice for just the app header.
         let header_flash = app_flash
             .get(0..header_length as usize)
