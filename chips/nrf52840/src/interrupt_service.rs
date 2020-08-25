@@ -17,9 +17,9 @@ macro_rules! create_default_nrf52840_peripherals {
             usbd: nrf52840::usbd::Usbd<'a>,
         }
         impl<'a> $N<'a> {
-            fn new() -> Self {
+            fn new(ppi: &'a ppi::Ppi) -> Self {
                 Self {
-                    nrf52_base: unsafe { Nrf52BasePeripherals::new(&nrf52840::gpio::PORT) },
+                    nrf52_base: unsafe { Nrf52BasePeripherals::new(&nrf52840::gpio::PORT, ppi) },
                     usbd: nrf52840::usbd::Usbd::new(),
                 }
             }

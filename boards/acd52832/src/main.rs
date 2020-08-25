@@ -48,6 +48,8 @@ const NUM_PROCS: usize = 4;
 static mut PROCESSES: [Option<&'static dyn kernel::procs::ProcessType>; NUM_PROCS] =
     [None; NUM_PROCS];
 
+nrf52832::create_default_nrf52832_peripherals!(Nrf52832Peripherals);
+
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
 #[link_section = ".stack_buffer"]
@@ -108,6 +110,13 @@ impl kernel::Platform for Platform {
 pub unsafe fn reset_handler() {
     // Loads relocations and clears BSS
     nrf52832::init();
+    let ppi = static_init!(nrf52832::ppi::Ppi, nrf52832::ppi::Ppi::new());
+    // Initialize chip peripheral drivers
+    let nrf52832_peripherals = static_init!(Nrf52832Peripherals, Nrf52832Peripherals::new(ppi));
+
+    // set up circular peripheral dependencies
+    nrf52832_peripherals.init();
+    let base_peripherals = &nrf52832_peripherals.nrf52_base;
 
     // Create capabilities that the board needs to call certain protected kernel
     // functions.
@@ -137,9 +146,9 @@ pub unsafe fn reset_handler() {
 
     // Configure kernel debug gpios as early as possible
     kernel::debug::assign_gpios(
-        Some(&nrf52832::gpio::PORT[LED2_PIN]),
-        Some(&nrf52832::gpio::PORT[LED3_PIN]),
-        Some(&nrf52832::gpio::PORT[LED4_PIN]),
+        Some(&base_peripherals.gpio_port[LED2_PIN]),
+        Some(&base_peripherals.gpio_port[LED3_PIN]),
+        Some(&base_peripherals.gpio_port[LED4_PIN]),
     );
 
     //
@@ -149,13 +158,13 @@ pub unsafe fn reset_handler() {
         board_kernel,
         components::gpio_component_helper!(
             nrf52832::gpio::GPIOPin,
-            0 => &nrf52832::gpio::PORT[Pin::P0_25],
-            1 => &nrf52832::gpio::PORT[Pin::P0_26],
-            2 => &nrf52832::gpio::PORT[Pin::P0_27],
-            3 => &nrf52832::gpio::PORT[Pin::P0_28],
-            4 => &nrf52832::gpio::PORT[Pin::P0_29],
-            5 => &nrf52832::gpio::PORT[Pin::P0_30],
-            6 => &nrf52832::gpio::PORT[Pin::P0_31]
+            0 => &base_peripherals.gpio_port[Pin::P0_25],
+            1 => &base_peripherals.gpio_port[Pin::P0_26],
+            2 => &base_peripherals.gpio_port[Pin::P0_27],
+            3 => &base_peripherals.gpio_port[Pin::P0_28],
+            4 => &base_peripherals.gpio_port[Pin::P0_29],
+            5 => &base_peripherals.gpio_port[Pin::P0_30],
+            6 => &base_peripherals.gpio_port[Pin::P0_31]
         ),
     )
     .finalize(components::gpio_component_buf!(nrf52832::gpio::GPIOPin));
@@ -166,19 +175,19 @@ pub unsafe fn reset_handler() {
     let led = components::led::LedsComponent::new(components::led_component_helper!(
         nrf52832::gpio::GPIOPin,
         (
-            &nrf52832::gpio::PORT[LED1_PIN],
+            &base_peripherals.gpio_port[LED1_PIN],
             kernel::hil::gpio::ActivationMode::ActiveLow
         ),
         (
-            &nrf52832::gpio::PORT[LED2_PIN],
+            &base_peripherals.gpio_port[LED2_PIN],
             kernel::hil::gpio::ActivationMode::ActiveLow
         ),
         (
-            &nrf52832::gpio::PORT[LED3_PIN],
+            &base_peripherals.gpio_port[LED3_PIN],
             kernel::hil::gpio::ActivationMode::ActiveLow
         ),
         (
-            &nrf52832::gpio::PORT[LED4_PIN],
+            &base_peripherals.gpio_port[LED4_PIN],
             kernel::hil::gpio::ActivationMode::ActiveLow
         )
     ))
@@ -193,25 +202,25 @@ pub unsafe fn reset_handler() {
             nrf52832::gpio::GPIOPin,
             // 13
             (
-                &nrf52832::gpio::PORT[BUTTON1_PIN],
+                &base_peripherals.gpio_port[BUTTON1_PIN],
                 hil::gpio::ActivationMode::ActiveLow,
                 hil::gpio::FloatingState::PullUp
             ),
             // 14
             (
-                &nrf52832::gpio::PORT[BUTTON2_PIN],
+                &base_peripherals.gpio_port[BUTTON2_PIN],
                 hil::gpio::ActivationMode::ActiveLow,
                 hil::gpio::FloatingState::PullUp
             ),
             // 15
             (
-                &nrf52832::gpio::PORT[BUTTON3_PIN],
+                &base_peripherals.gpio_port[BUTTON3_PIN],
                 hil::gpio::ActivationMode::ActiveLow,
                 hil::gpio::FloatingState::PullUp
             ),
             // 16
             (
-                &nrf52832::gpio::PORT[BUTTON4_PIN],
+                &base_peripherals.gpio_port[BUTTON4_PIN],
                 hil::gpio::ActivationMode::ActiveLow,
                 hil::gpio::FloatingState::PullUp
             )
@@ -222,11 +231,11 @@ pub unsafe fn reset_handler() {
     //
     // RTC for Timers
     //
-    let rtc = &nrf52832::rtc::RTC;
+    let rtc = &base_peripherals.rtc;
     rtc.start();
     let mux_alarm = static_init!(
         capsules::virtual_alarm::MuxAlarm<'static, nrf52832::rtc::Rtc>,
-        capsules::virtual_alarm::MuxAlarm::new(&nrf52832::rtc::RTC)
+        capsules::virtual_alarm::MuxAlarm::new(&base_peripherals.rtc)
     );
     rtc.set_alarm_client(mux_alarm);
 
@@ -282,23 +291,23 @@ pub unsafe fn reset_handler() {
     // Create shared mux for the I2C bus
     let i2c_mux = static_init!(
         capsules::virtual_i2c::MuxI2C<'static>,
-        capsules::virtual_i2c::MuxI2C::new(&nrf52832::i2c::TWIM0, None, dynamic_deferred_caller)
+        capsules::virtual_i2c::MuxI2C::new(&base_peripherals.twim0, None, dynamic_deferred_caller)
     );
-    nrf52832::i2c::TWIM0.configure(
+    base_peripherals.twim0.configure(
         nrf52832::pinmux::Pinmux::new(21),
         nrf52832::pinmux::Pinmux::new(20),
     );
-    nrf52832::i2c::TWIM0.set_client(i2c_mux);
+    base_peripherals.twim0.set_client(i2c_mux);
 
     // Configure the MCP23017. Device address 0x20.
     let mcp_pin0 = static_init!(
         hil::gpio::InterruptValueWrapper<'static, nrf52832::gpio::GPIOPin>,
-        hil::gpio::InterruptValueWrapper::new(&nrf52832::gpio::PORT[Pin::P0_11])
+        hil::gpio::InterruptValueWrapper::new(&base_peripherals.gpio_port[Pin::P0_11])
     )
     .finalize();
     let mcp_pin1 = static_init!(
         hil::gpio::InterruptValueWrapper<'static, nrf52832::gpio::GPIOPin>,
-        hil::gpio::InterruptValueWrapper::new(&nrf52832::gpio::PORT[Pin::P0_12])
+        hil::gpio::InterruptValueWrapper::new(&base_peripherals.gpio_port[Pin::P0_12])
     )
     .finalize();
     let mcp23017_i2c = static_init!(
@@ -343,7 +352,7 @@ pub unsafe fn reset_handler() {
     //
 
     let ble_radio =
-        BLEComponent::new(board_kernel, &nrf52832::ble_radio::RADIO, mux_alarm).finalize(());
+        BLEComponent::new(board_kernel, &base_peripherals.ble_radio, mux_alarm).finalize(());
 
     //
     // Temperature
@@ -353,11 +362,11 @@ pub unsafe fn reset_handler() {
     let temp = static_init!(
         capsules::temperature::TemperatureSensor<'static>,
         capsules::temperature::TemperatureSensor::new(
-            &nrf52832::temperature::TEMP,
+            &base_peripherals.temp,
             board_kernel.create_grant(&memory_allocation_capability)
         )
     );
-    kernel::hil::sensors::TemperatureDriver::set_client(&nrf52832::temperature::TEMP, temp);
+    kernel::hil::sensors::TemperatureDriver::set_client(&base_peripherals.temp, temp);
 
     //
     // RNG
@@ -366,9 +375,9 @@ pub unsafe fn reset_handler() {
     // Convert hardware RNG to the Random interface.
     let entropy_to_random = static_init!(
         capsules::rng::Entropy32ToRandom<'static>,
-        capsules::rng::Entropy32ToRandom::new(&nrf52832::trng::TRNG)
+        capsules::rng::Entropy32ToRandom::new(&base_peripherals.trng)
     );
-    nrf52832::trng::TRNG.set_client(entropy_to_random);
+    base_peripherals.trng.set_client(entropy_to_random);
 
     // Setup RNG for userspace
     let rng = static_init!(
@@ -388,12 +397,12 @@ pub unsafe fn reset_handler() {
     let analog_light_sensor = static_init!(
         capsules::analog_sensor::AnalogLightSensor<'static, nrf52832::adc::Adc>,
         capsules::analog_sensor::AnalogLightSensor::new(
-            &nrf52832::adc::ADC,
+            &base_peripherals.adc,
             &nrf52832::adc::AdcChannel::AnalogInput5,
             capsules::analog_sensor::AnalogLightSensorType::LightDependentResistor,
         )
     );
-    nrf52832::adc::ADC.set_client(analog_light_sensor);
+    base_peripherals.adc.set_client(analog_light_sensor);
 
     // Create userland driver for ambient light sensor
     let light = static_init!(
@@ -465,7 +474,10 @@ pub unsafe fn reset_handler() {
         ipc: kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability),
     };
 
-    let chip = static_init!(nrf52832::chip::Chip, nrf52832::chip::new());
+    let chip = static_init!(
+        nrf52832::chip::NRF52<Nrf52832Peripherals>,
+        nrf52832::chip::NRF52::new(nrf52832_peripherals)
+    );
 
     nrf52832::gpio::PORT[Pin::P0_31].make_output();
     nrf52832::gpio::PORT[Pin::P0_31].clear();

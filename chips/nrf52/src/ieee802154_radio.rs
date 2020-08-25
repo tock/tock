@@ -674,10 +674,11 @@ pub struct Radio<'p> {
     channel: Cell<RadioChannel>,
     transmitting: Cell<bool>,
     timer0: OptionalCell<&'p crate::timer::TimerAlarm<'p>>,
+    ppi: &'p crate::ppi::Ppi,
 }
 
 impl<'p> Radio<'p> {
-    pub const fn new() -> Self {
+    pub const fn new(ppi: &'p crate::ppi::Ppi) -> Self {
         Self {
             registers: RADIO_BASE,
             tx_power: Cell::new(TxPower::ZerodBm),
@@ -694,6 +695,7 @@ impl<'p> Radio<'p> {
             channel: Cell::new(RadioChannel::DataChannel26),
             transmitting: Cell::new(false),
             timer0: OptionalCell::empty(),
+            ppi,
         }
     }
 
@@ -775,9 +777,7 @@ impl<'p> Radio<'p> {
                 && self.registers.state.get() == nrf5x::constants::RADIO_STATE_RXIDLE
             {
                 if self.cca_count.get() > 0 {
-                    unsafe {
-                        ppi::PPI.disable(ppi::Channel::CH21::SET);
-                    }
+                    self.ppi.disable(ppi::Channel::CH21::SET);
                 }
                 self.registers.task_ccastart.write(Task::ENABLE::SET);
             } else {
@@ -806,9 +806,7 @@ impl<'p> Radio<'p> {
                 self.cca_count.set(self.cca_count.get() + 1);
                 self.cca_be.set(self.cca_be.get() + 1);
                 let backoff_periods = self.random_nonce() & ((1 << self.cca_be.get()) - 1);
-                unsafe {
-                    ppi::PPI.enable(ppi::Channel::CH21::SET);
-                }
+                self.ppi.enable(ppi::Channel::CH21::SET);
                 self.timer0
                     .expect("Missing timer reference for CSMA")
                     .set_alarm(

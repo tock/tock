@@ -57,13 +57,13 @@ macro_rules! create_default_nrf52_peripherals {
             nvmc: nvmc::Nvmc,
         }
         impl<'a> $N<'a> {
-            fn new(gpio_port: &'static gpio::Port<'static>) -> Self {
+            fn new(gpio_port: &'static gpio::Port<'static>, ppi: &'a ppi::Ppi) -> Self {
                 Self {
                     acomp: acomp::Comparator::new(),
                     ecb: aes::AesECB::new(),
                     gpio_port,
                     pwr_clk: power::Power::new(),
-                    ieee802154_radio: ieee802154_radio::Radio::new(),
+                    ieee802154_radio: ieee802154_radio::Radio::new(ppi),
                     ble_radio: ble_radio::Radio::new(),
                     trng: trng::Trng::new(),
                     rtc: rtc::Rtc::new(),

@@ -199,14 +199,12 @@ impl kernel::Platform for Platform {
 pub unsafe fn reset_handler() {
     // Loads relocations and clears BSS
     nrf52840::init();
+    let ppi = static_init!(nrf52840::ppi::Ppi, nrf52840::ppi::Ppi::new());
     // Initialize chip peripheral drivers
-    let nrf52840_peripherals = static_init!(Nrf52840Peripherals, Nrf52840Peripherals::new());
+    let nrf52840_peripherals = static_init!(Nrf52840Peripherals, Nrf52840Peripherals::new(ppi));
 
     // set up circular peripheral dependencies
-    {
-        nrf52840_peripherals.init();
-    }
-
+    nrf52840_peripherals.init();
     let base_peripherals = &nrf52840_peripherals.nrf52_base;
 
     let uart_channel = if USB_DEBUGGING {

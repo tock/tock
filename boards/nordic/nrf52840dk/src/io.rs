@@ -42,7 +42,7 @@ impl IoWrite for Writer {
     fn write(&mut self, buf: &[u8]) {
         match self {
             Writer::WriterUart(ref mut initialized) => {
-                // Here, we create a second instance of the USART3 struct.
+                // Here, we create a second instance of the Uarte struct.
                 // This is okay because we only call this during a panic, and
                 // we will never actually process the interrupts
                 let uart = nrf52840::uart::Uarte::new();
