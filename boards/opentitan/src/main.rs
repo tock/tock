@@ -68,6 +68,8 @@ struct OpenTitan {
         capsules::usb::usbc_client::Client<'static, lowrisc::usbdev::Usb<'static>>,
     >,
     i2c_master: &'static capsules::i2c_master::I2CMasterDriver<lowrisc::i2c::I2c<'static>>,
+    spi_peripheral:
+        &'static capsules::spi_peripheral::SpiPeripheral<'static, lowrisc::spi::SpiDevice>,
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
@@ -85,6 +87,7 @@ impl Platform for OpenTitan {
             capsules::low_level_debug::DRIVER_NUM => f(Some(self.lldb)),
             capsules::usb::usb_user::DRIVER_NUM => f(Some(self.usb)),
             capsules::i2c_master::DRIVER_NUM => f(Some(self.i2c_master)),
+            capsules::spi_peripheral::DRIVER_NUM => f(Some(self.spi_peripheral)),
             _ => f(None),
         }
     }
@@ -269,6 +272,11 @@ pub unsafe fn reset_handler() {
 
     earlgrey::i2c::I2C.set_master_client(i2c_master);
 
+    let spi_peripheral = components::spi::SpiPeripheralComponent::new(&earlgrey::spi::SPI_DEVICE)
+        .finalize(components::spi_peripheral_component_helper!(
+            lowrisc::spi::SpiDevice
+        ));
+
     debug!("OpenTitan initialisation complete. Entering main loop");
 
     /// These symbols are defined in the linker script.
@@ -292,6 +300,7 @@ pub unsafe fn reset_handler() {
         lldb: lldb,
         usb,
         i2c_master,
+        spi_peripheral,
     };
 
     kernel::procs::load_processes(
