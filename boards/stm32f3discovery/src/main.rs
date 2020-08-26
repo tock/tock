@@ -608,14 +608,22 @@ pub unsafe fn reset_handler() {
         )
     );
     stm32f303xc::adc::ADC1.set_client(adc);
+    
+    // Kernel storage region, allocated with the storage_volume!
+    // macro in common/utils.rs
+    extern "C" {
+        /// Beginning on the ROM region containing app images.
+        static _sstorage: u8;
+        static _estorage: u8;
+    }
 
     let nonvolatile_storage = components::nonvolatile_storage::NonvolatileStorageComponent::new(
         board_kernel,
         &stm32f303xc::flash::FLASH,
-        0x08020000,
-        0x20000,
-        0x08000000,
-        0x20000,
+        0x08038000,
+        0x2000,
+        &_sstorage as *const u8 as usize,
+        &_estorage as *const u8 as usize - &_sstorage as *const u8 as usize,
     )
     .finalize(components::nv_storage_component_helper!(
         stm32f303xc::flash::Flash
