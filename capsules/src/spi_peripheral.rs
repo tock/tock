@@ -6,50 +6,45 @@ use core::cmp;
 use kernel::common::cells::{MapCell, TakeCell};
 use kernel::hil::spi::ClockPhase;
 use kernel::hil::spi::ClockPolarity;
-use kernel::hil::spi::{SpiMasterClient, SpiMasterDevice};
+use kernel::hil::spi::{SpiSlaveClient, SpiSlaveDevice};
 use kernel::{AppId, AppSlice, Callback, Driver, ReturnCode, Shared};
 
 /// Syscall driver number.
 use crate::driver;
-pub const DRIVER_NUM: usize = driver::NUM::Spi as usize;
+pub const DRIVER_NUM: usize = driver::NUM::SpiPeripheral as usize;
 
 /// Suggested length for the Spi read and write buffer
 pub const DEFAULT_READ_BUF_LENGTH: usize = 1024;
 pub const DEFAULT_WRITE_BUF_LENGTH: usize = 1024;
 
-// SPI operations are handled by coping into a kernel buffer for
-// writes and copying out of a kernel buffer for reads.
-//
-// If the application buffer is larger than the kernel buffer,
-// the driver issues multiple HAL operations. The len field
-// of an application keeps track of the length of the desired
-// operation, while the index variable keeps track of the
-// index an ongoing operation is at in the buffers.
-
+// Since we provide an additional callback in slave mode for
+// when the chip is selected, we have added a "PeripheralApp" struct
+// that includes this new callback field.
 #[derive(Default)]
-struct App {
+struct PeripheralApp {
     callback: Option<Callback>,
+    selected_callback: Option<Callback>,
     app_read: Option<AppSlice<Shared, u8>>,
     app_write: Option<AppSlice<Shared, u8>>,
     len: usize,
     index: usize,
 }
 
-pub struct Spi<'a, S: SpiMasterDevice> {
-    spi_master: &'a S,
+pub struct SpiPeripheral<'a, S: SpiSlaveDevice> {
+    spi_slave: &'a S,
     busy: Cell<bool>,
-    app: MapCell<App>,
+    app: MapCell<PeripheralApp>,
     kernel_read: TakeCell<'static, [u8]>,
     kernel_write: TakeCell<'static, [u8]>,
     kernel_len: Cell<usize>,
 }
 
-impl<'a, S: SpiMasterDevice> Spi<'a, S> {
-    pub fn new(spi_master: &'a S) -> Spi<'a, S> {
-        Spi {
-            spi_master: spi_master,
+impl<'a, S: SpiSlaveDevice> SpiPeripheral<'a, S> {
+    pub fn new(spi_slave: &'a S) -> SpiPeripheral<'a, S> {
+        SpiPeripheral {
+            spi_slave: spi_slave,
             busy: Cell::new(false),
-            app: MapCell::new(App::default()),
+            app: MapCell::new(PeripheralApp::default()),
             kernel_len: Cell::new(0),
             kernel_read: TakeCell::empty(),
             kernel_write: TakeCell::empty(),
@@ -65,7 +60,7 @@ impl<'a, S: SpiMasterDevice> Spi<'a, S> {
 
     // Assumes checks for busy/etc. already done
     // Updates app.index to be index + length of op
-    fn do_next_read_write(&self, app: &mut App) {
+    fn do_next_read_write(&self, app: &mut PeripheralApp) {
         let start = app.index;
         let len = cmp::min(app.len - start, self.kernel_len.get());
         let end = start + len;
@@ -78,15 +73,18 @@ impl<'a, S: SpiMasterDevice> Spi<'a, S> {
                 }
             });
         });
-        self.spi_master.read_write_bytes(
-            self.kernel_write.take().unwrap(),
-            self.kernel_read.take(),
-            len,
-        );
+        self.spi_slave
+            .read_write_bytes(self.kernel_write.take(), self.kernel_read.take(), len);
     }
 }
 
-impl<'a, S: SpiMasterDevice> Driver for Spi<'a, S> {
+impl<S: SpiSlaveDevice> Driver for SpiPeripheral<'_, S> {
+    /// Provide read/write buffers to SpiPeripheral
+    ///
+    /// - allow_num 0: Provides an app_read buffer to receive transfers into.
+    ///
+    /// - allow_num 1: Provides an app_write buffer to send transfers from.
+    ///
     fn allow(
         &self,
         _appid: AppId,
@@ -94,24 +92,29 @@ impl<'a, S: SpiMasterDevice> Driver for Spi<'a, S> {
         slice: Option<AppSlice<Shared, u8>>,
     ) -> ReturnCode {
         match allow_num {
-            // Pass in a read buffer to receive bytes into.
             0 => {
-                self.app.map(|app| {
-                    app.app_read = slice;
-                });
+                self.app.map(|app| app.app_read = slice);
                 ReturnCode::SUCCESS
             }
-            // Pass in a write buffer to transmit bytes from.
             1 => {
-                self.app.map(|app| {
-                    app.app_write = slice;
-                });
+                self.app.map(|app| app.app_write = slice);
                 ReturnCode::SUCCESS
             }
             _ => ReturnCode::ENOSUPPORT,
         }
     }
 
+    /// Setup callbacks for SpiPeripheral
+    ///
+    /// - subscribe_num 0: Sets up a callback for when read_write completes. This
+    ///                  is called after completing a transfer/reception with
+    ///                  the Spi master. Note that this occurs after the pending
+    ///                  DMA transfer initiated by read_write_bytes completes.
+    ///
+    /// - subscribe_num 1: Sets up a callback for when the chip select line is
+    ///                  driven low, meaning that the slave was selected by
+    ///                  the Spi master. This occurs immediately before
+    ///                  a data transfer.
     fn subscribe(
         &self,
         subscribe_num: usize,
@@ -120,61 +123,55 @@ impl<'a, S: SpiMasterDevice> Driver for Spi<'a, S> {
     ) -> ReturnCode {
         match subscribe_num {
             0 /* read_write */ => {
-                self.app.map(|app| {
-                    app.callback = callback;
-                });
+                self.app.map(|app| app.callback = callback);
+                ReturnCode::SUCCESS
+            },
+            1 /* chip selected */ => {
+                self.app.map(|app| app.selected_callback = callback);
                 ReturnCode::SUCCESS
             },
             _ => ReturnCode::ENOSUPPORT
         }
     }
 
-    // 2: read/write buffers
-    //   - requires write buffer registered with allow
-    //   - read buffer optional
-    // 3: set chip select
-    //   - selects which peripheral (CS line) the SPI should
-    //     activate
-    //   - valid values are 0-3 for SAM4L
-    //   - invalid value will result in CS 0
-    // 4: get chip select
-    //   - returns current selected peripheral
-    // 5: set rate on current peripheral
-    //   - parameter in bps
-    // 6: get rate on current peripheral
-    //   - value in bps
-    // 7: set clock phase on current peripheral
-    //   - 0 is sample leading
-    //   - non-zero is sample trailing
-    // 8: get clock phase on current peripheral
-    //   - 0 is sample leading
-    //   - non-zero is sample trailing
-    // 9: set clock polarity on current peripheral
-    //   - 0 is idle low
-    //   - non-zero is idle high
-    // 10: get clock polarity on current peripheral
-    //   - 0 is idle low
-    //   - non-zero is idle high
-    //
-    // x: lock spi
-    //   - if you perform an operation without the lock,
-    //     it implicitly acquires the lock before the
-    //     operation and releases it after
-    //   - while an app holds the lock no other app can issue
-    //     operations on SPI (they are buffered)
-    // x+1: unlock spi
-    //   - does nothing if lock not held
-    //
+    /// - 0: check if present
+    /// - 1: read/write buffers
+    ///   - read and write buffers optional
+    ///   - fails if arg1 (bytes to write) >
+    ///     write_buffer.len()
+    /// - 2: get chip select
+    ///   - returns current selected peripheral
+    ///   - in slave mode, always returns 0
+    /// - 3: set clock phase on current peripheral
+    ///   - 0 is sample leading
+    ///   - non-zero is sample trailing
+    /// - 4: get clock phase on current peripheral
+    ///   - 0 is sample leading
+    ///   - non-zero is sample trailing
+    /// - 5: set clock polarity on current peripheral
+    ///   - 0 is idle low
+    ///   - non-zero is idle high
+    /// - 6: get clock polarity on current peripheral
+    ///   - 0 is idle low
+    ///   - non-zero is idle high
+    /// - x: lock spi
+    ///   - if you perform an operation without the lock,
+    ///     it implicitly acquires the lock before the
+    ///     operation and releases it after
+    ///   - while an app holds the lock no other app can issue
+    ///     operations on SPI (they are buffered)
+    ///   - not implemented or currently supported
+    /// - x+1: unlock spi
+    ///   - does nothing if lock not held
+    ///   - not implemented or currently supported
     fn command(&self, cmd_num: usize, arg1: usize, _: usize, _: AppId) -> ReturnCode {
         match cmd_num {
             0 /* check if present */ => ReturnCode::SUCCESS,
-            // No longer supported, wrap inside a read_write_bytes
-            1 /* read_write_byte */ => ReturnCode::ENOSUPPORT,
-            2 /* read_write_bytes */ => {
+            1 /* read_write_bytes */ => {
                 if self.busy.get() {
                     return ReturnCode::EBUSY;
                 }
-                self.app.map_or(ReturnCode::FAIL, |app| {
+                self.app.map_or(ReturnCode::FAIL /* XXX app is null? */, |app| {
                     let mut mlen = 0;
                     app.app_write.as_mut().map(|w| {
                         mlen = w.len();
@@ -193,53 +190,39 @@ impl<'a, S: SpiMasterDevice> Driver for Spi<'a, S> {
                     }
                 })
             }
-            3 /* set chip select */ => {
-                // XXX: TODO: do nothing, for now, until we fix interface
-                // so virtual instances can use multiple chip selects
-                ReturnCode::ENOSUPPORT
+            2 /* get chip select */ => {
+                // When in slave mode, the only possible chip select is 0
+                ReturnCode::SuccessWithValue { value: 0 }
             }
-            4 /* get chip select */ => {
-                // XXX: We don't really know what chip select is being used
-                // since we can't set it. Return error until set chip select
-                // works.
-                ReturnCode::ENOSUPPORT
-            }
-            5 /* set baud rate */ => {
-                self.spi_master.set_rate(arg1 as u32);
-                ReturnCode::SUCCESS
-            }
-            6 /* get baud rate */ => {
-                ReturnCode::SuccessWithValue { value: self.spi_master.get_rate() as usize }
-            }
-            7 /* set phase */ => {
+            3 /* set phase */ => {
                 match arg1 {
-                    0 => self.spi_master.set_phase(ClockPhase::SampleLeading),
-                    _ => self.spi_master.set_phase(ClockPhase::SampleTrailing),
+                    0 => self.spi_slave.set_phase(ClockPhase::SampleLeading),
+                    _ => self.spi_slave.set_phase(ClockPhase::SampleTrailing),
                 };
                 ReturnCode::SUCCESS
             }
-            8 /* get phase */ => {
-                ReturnCode::SuccessWithValue { value: self.spi_master.get_phase() as usize }
+            4 /* get phase */ => {
+                ReturnCode::SuccessWithValue { value: self.spi_slave.get_phase() as usize }
             }
-            9 /* set polarity */ => {
+            5 /* set polarity */ => {
                 match arg1 {
-                    0 => self.spi_master.set_polarity(ClockPolarity::IdleLow),
-                    _ => self.spi_master.set_polarity(ClockPolarity::IdleHigh),
+                    0 => self.spi_slave.set_polarity(ClockPolarity::IdleLow),
+                    _ => self.spi_slave.set_polarity(ClockPolarity::IdleHigh),
                 };
                 ReturnCode::SUCCESS
             }
-            10 /* get polarity */ => {
-                ReturnCode::SuccessWithValue { value: self.spi_master.get_polarity() as usize }
+            6 /* get polarity */ => {
+                ReturnCode::SuccessWithValue { value: self.spi_slave.get_polarity() as usize }
             }
             _ => ReturnCode::ENOSUPPORT
         }
     }
 }
 
-impl<S: SpiMasterDevice> SpiMasterClient for Spi<'_, S> {
+impl<S: SpiSlaveDevice> SpiSlaveClient for SpiPeripheral<'_, S> {
     fn read_write_done(
         &self,
-        writebuf: &'static mut [u8],
+        writebuf: Option<&'static mut [u8]>,
         readbuf: Option<&'static mut [u8]>,
         length: usize,
     ) {
@@ -257,7 +240,7 @@ impl<S: SpiMasterDevice> SpiMasterClient for Spi<'_, S> {
             }
 
             self.kernel_read.put(readbuf);
-            self.kernel_write.replace(writebuf);
+            self.kernel_write.put(writebuf);
 
             if app.index == app.len {
                 self.busy.set(false);
@@ -269,6 +252,15 @@ impl<S: SpiMasterDevice> SpiMasterClient for Spi<'_, S> {
             } else {
                 self.do_next_read_write(app);
             }
+        });
+    }
+
+    // Simple callback for when chip has been selected
+    fn chip_selected(&self) {
+        self.app.map(move |app| {
+            app.selected_callback.take().map(|mut cb| {
+                cb.schedule(app.len, 0, 0);
+            });
         });
     }
 }
