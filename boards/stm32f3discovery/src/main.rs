@@ -608,7 +608,7 @@ pub unsafe fn reset_handler() {
         )
     );
     stm32f303xc::adc::ADC1.set_client(adc);
-    
+
     // Kernel storage region, allocated with the storage_volume!
     // macro in common/utils.rs
     extern "C" {
