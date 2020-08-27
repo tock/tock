@@ -285,12 +285,7 @@ impl<'a, U: hil::usb::UsbController<'a>> hil::usb::Client<'a> for CdcAcm<'a, U> 
                     // Currently we don't care about the value
 
                     if self.state.get() != State::Connected {
-                        // We weren't previously connected so this must mean
-                        // a client connected.
                         self.state.set(State::Connecting);
-                    } else {
-                        // We were connected, so disconnect.
-                        self.state.set(State::Enumerated)
                     }
                 }
                 0x23 => {
