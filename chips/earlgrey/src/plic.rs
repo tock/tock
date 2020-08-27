@@ -43,10 +43,10 @@ pub unsafe fn clear_all_pending() {
 pub unsafe fn enable_all() {
     let plic: &PlicRegisters = &*PLIC_BASE;
     for enable in plic.enable.iter() {
-	// DANGER: For some reason USBDEV seems to be issuing
-	// unhandled CONNECT interrupts. So I have disabled them
-	// here. This should be changed back to 0xFFFFFFFF once
-	// this is resolved and before merging. -pal 8/26/20
+        // DANGER: For some reason USBDEV seems to be issuing
+        // unhandled CONNECT interrupts. So I have disabled them
+        // here. This should be changed back to 0xFFFFFFFF once
+        // this is resolved and before merging. -pal 8/26/20
         enable.set(0x0000_00FF);
     }
 
@@ -73,7 +73,7 @@ pub unsafe fn disable_all() {
 /// to grab the highest priority pending interrupt.
 pub unsafe fn next_pending() -> Option<u32> {
     let plic: &PlicRegisters = &*PLIC_BASE;
-    
+
     let claim = plic.claim.get();
     if claim == 0 {
         None

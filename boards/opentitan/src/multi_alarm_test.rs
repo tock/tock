@@ -11,12 +11,12 @@
 //! that alarms whose expiration was in the past due to the
 //! latency of software work correctly.
 
+use capsules::test::random_alarm::TestRandomAlarm;
+use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+use earlgrey::timer::RvTimer;
 use kernel::debug;
 use kernel::hil::time::Alarm;
 use kernel::static_init;
-use earlgrey::timer::RvTimer;
-use capsules::test::random_alarm::TestRandomAlarm;
-use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 
 pub unsafe fn run_multi_alarm(mux: &'static MuxAlarm<'static, RvTimer<'static>>) {
     debug!("Starting multi alarm test.");

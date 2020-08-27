@@ -10,7 +10,7 @@
 //! into these more general ones.
 
 use crate::ReturnCode;
-use core::cmp::{Eq, PartialOrd, Ord, Ordering};
+use core::cmp::{Eq, Ord, Ordering, PartialOrd};
 use core::fmt;
 
 /// An integer type defining the width of a time value, which allows
@@ -351,13 +351,13 @@ impl Ticks for Ticks32 {
 
 impl Ord for Ticks32 {
     fn cmp(&self, other: &Self) -> Ordering {
-	self.0.cmp(&other.0)
+        self.0.cmp(&other.0)
     }
 }
 
 impl PartialEq for Ticks32 {
     fn eq(&self, other: &Self) -> bool {
-	self.0 == other.0
+        self.0 == other.0
     }
 }
 
@@ -400,21 +400,19 @@ impl Ticks for Ticks24 {
     }
 }
 
-
 impl Ord for Ticks24 {
     fn cmp(&self, other: &Self) -> Ordering {
-	self.0.cmp(&other.0)
+        self.0.cmp(&other.0)
     }
 }
 
 impl PartialEq for Ticks24 {
     fn eq(&self, other: &Self) -> bool {
-	self.0 == other.0
+        self.0 == other.0
     }
 }
 
 impl Eq for Ticks24 {}
-
 
 /// 64-bit `Ticks`
 #[derive(Clone, Copy, Debug, PartialOrd)]
@@ -467,16 +465,14 @@ impl Ticks for Ticks64 {
 
 impl Ord for Ticks64 {
     fn cmp(&self, other: &Self) -> Ordering {
-	self.0.cmp(&other.0)
+        self.0.cmp(&other.0)
     }
 }
 
 impl PartialEq for Ticks64 {
     fn eq(&self, other: &Self) -> bool {
-	self.0 == other.0
+        self.0 == other.0
     }
 }
 
 impl Eq for Ticks64 {}
-
-

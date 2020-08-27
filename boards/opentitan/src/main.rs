@@ -220,7 +220,6 @@ pub unsafe fn reset_handler() {
     );
     hil::time::Alarm::set_alarm_client(virtual_alarm_user, alarm);
 
-
     let chip = static_init!(
         earlgrey::chip::EarlGrey<VirtualMuxAlarm<'static, earlgrey::timer::RvTimer>>,
         earlgrey::chip::EarlGrey::new(scheduler_timer_virtual_alarm)

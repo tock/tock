@@ -75,11 +75,9 @@ impl<'a> RvTimer<'a> {
         regs.config
             .write(config::prescale.val(PRESCALE as u32) + config::step.val(1u32));
         regs.compare_high.set(0);
-	regs.value_low.set(0xfff00000);
+        regs.value_low.set(0xfff00000);
         regs.intr_enable.write(intr::timer0::CLEAR);
         regs.ctrl.write(ctrl::enable::SET);
-
-
     }
 
     pub fn service_interrupt(&self) {
@@ -163,7 +161,7 @@ impl<'a> time::Alarm<'a> for RvTimer<'a> {
 
         // Recommended approach for setting the two compare registers
         // (RISC-V Privileged Architectures 3.1.15) -pal 8/6/20
-	regs.compare_low.set(0xffffffff);
+        regs.compare_low.set(0xffffffff);
         regs.compare_high.set(high);
         regs.compare_low.set(low);
         self.registers.intr_enable.write(intr::timer0::SET);

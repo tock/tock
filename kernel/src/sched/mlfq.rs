@@ -142,7 +142,8 @@ impl<'a, A: 'static + time::Alarm<'static>, C: Chip> Scheduler<C> for MLFQSched<
             if now.into_u32() >= self.next_reset.get() {
                 // Promote all processes to highest priority queue
                 let delta = (Self::PRIORITY_REFRESH_PERIOD_MS * A::Frequency::frequency()) / 1000;
-                self.next_reset.set(now.wrapping_add(A::Ticks::from(delta)).into_u32());
+                self.next_reset
+                    .set(now.wrapping_add(A::Ticks::from(delta)).into_u32());
                 self.redeem_all_procs();
             }
             let (node_ref_opt, queue_idx) = self.get_next_ready_process_node();

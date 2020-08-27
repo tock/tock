@@ -182,7 +182,7 @@ impl<'a, A: Alarm<'a>> time::AlarmClient for MuxAlarm<'a, A> {
             .for_each(|cur| {
                 cur.armed.set(false);
                 self.enabled.set(self.enabled.get() - 1);
-//                debug!("  Virtualizer: {:?} outside {:?}-{:?}, fire!", now, cur.reference.get(), cur.reference.get().wrapping_add(cur.dt.get()));
+                //                debug!("  Virtualizer: {:?} outside {:?}-{:?}, fire!", now, cur.reference.get(), cur.reference.get().wrapping_add(cur.dt.get()));
                 cur.alarm();
             });
         self.firing.set(false);
