@@ -621,7 +621,7 @@ pub unsafe fn reset_handler() {
         board_kernel,
         &stm32f303xc::flash::FLASH,
         0x08038000,
-        0x2000,
+        0x8000,
         &_sstorage as *const u8 as usize,
         &_estorage as *const u8 as usize - &_sstorage as *const u8 as usize,
     )
