@@ -6,6 +6,7 @@
 #![crate_type = "rlib"]
 
 mod interrupts;
+mod pmp;
 
 pub mod chip;
 pub mod gpio;

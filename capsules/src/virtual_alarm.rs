@@ -4,7 +4,7 @@
 use core::cell::Cell;
 use kernel::common::cells::OptionalCell;
 use kernel::common::{List, ListLink, ListNode};
-use kernel::debug;
+//use kernel::debug;
 use kernel::hil::time::{self, Alarm, Ticks, Time};
 use kernel::ReturnCode;
 
@@ -167,7 +167,6 @@ impl<'a, A: Alarm<'a>> time::AlarmClient for MuxAlarm<'a, A> {
         // time; this is case there was some delay. This also
         // ensures that all other timers are >= now.
         let now = self.alarm.get_alarm();
-        //debug!("Alarm virtualizer: alarm {} called at {}", now.into_u32(), self.alarm.now().into_u32());
         // Check whether to fire each alarm. At this level, alarms are one-shot,
         // so a repeating client will set it again in the alarm() callback.
         self.firing.set(true);
@@ -183,7 +182,7 @@ impl<'a, A: Alarm<'a>> time::AlarmClient for MuxAlarm<'a, A> {
             .for_each(|cur| {
                 cur.armed.set(false);
                 self.enabled.set(self.enabled.get() - 1);
-                //debug!("  Virtualizer: {} outside {}-{}, fire!", now.into_u32(), cur.reference.get().into_u32(), cur.reference.get().wrapping_add(cur.dt.get()).into_u32());
+//                debug!("  Virtualizer: {:?} outside {:?}-{:?}, fire!", now, cur.reference.get(), cur.reference.get().wrapping_add(cur.dt.get()));
                 cur.alarm();
             });
         self.firing.set(false);
@@ -199,7 +198,6 @@ impl<'a, A: Alarm<'a>> time::AlarmClient for MuxAlarm<'a, A> {
                     .get()
                     .wrapping_add(cur.dt.get())
                     .wrapping_sub(now)
-                    .into_u32()
             });
 
         // Set the alarm.

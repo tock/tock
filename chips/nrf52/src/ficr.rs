@@ -293,6 +293,13 @@ enum Flash {
     Unspecified = 0xffffffff,
 }
 
+#[derive(Debug)]
+#[repr(u32)]
+pub enum AddressType {
+    Public = 0x0,
+    Random = 0x1,
+}
+
 pub struct Ficr {
     registers: StaticRef<FicrRegisters>,
 }
@@ -371,9 +378,26 @@ impl Ficr {
         }
     }
 
-    pub fn address(&self) -> u32 {
+    pub fn address(&self) -> [u8; 6] {
         let regs = self.registers;
-        regs.deviceaddr0.read(DeviceAddress0::DEVICEADDRESS)
+
+        let lo = regs.deviceaddr0.read(DeviceAddress0::DEVICEADDRESS);
+        let hi = regs.deviceaddr1.read(DeviceAddress1::DEVICEADDRESS) as u16;
+        let mut addr = [0; 6];
+        addr[..4].copy_from_slice(&lo.to_le_bytes());
+        addr[4..].copy_from_slice(&hi.to_le_bytes());
+        addr
+    }
+
+    pub fn address_type(&self) -> AddressType {
+        let regs = self.registers;
+        match regs
+            .deviceaddrtype
+            .read(DeviceAddressType::DEVICEADDRESSTYPE)
+        {
+            0x0 => AddressType::Public,
+            _ => AddressType::Random,
+        }
     }
 
     /// Return a MAC address string that has been hardcoded on this chip in the

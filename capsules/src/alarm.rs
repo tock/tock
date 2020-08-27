@@ -1,7 +1,7 @@
 //! Provides userspace applications with a alarm API.
 
 use core::cell::Cell;
-use kernel::debug;
+//use kernel::debug;
 use kernel::hil::time::{self, Alarm, Frequency, Ticks};
 use kernel::{AppId, Callback, Driver, Grant, ReturnCode};
 

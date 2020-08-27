@@ -10,10 +10,13 @@
 //! into these more general ones.
 
 use crate::ReturnCode;
+use core::cmp::{Eq, PartialOrd, Ord, Ordering};
+use core::fmt;
 
 /// An integer type defining the width of a time value, which allows
 /// clients to know when wraparound will occur.
-pub trait Ticks: Clone + Copy + From<u32> {
+
+pub trait Ticks: Clone + Copy + From<u32> + fmt::Debug + Ord + PartialOrd + Eq {
     /// Converts the type into a `usize`, stripping the higher bits
     /// it if it is larger than `usize` and filling the higher bits
     /// with 0 if it is smaller than `usize`.
@@ -310,7 +313,7 @@ impl Frequency for Freq1KHz {
 }
 
 /// u32 `Ticks`
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug, PartialOrd)]
 pub struct Ticks32(u32);
 
 impl From<u32> for Ticks32 {
@@ -346,8 +349,22 @@ impl Ticks for Ticks32 {
     }
 }
 
+impl Ord for Ticks32 {
+    fn cmp(&self, other: &Self) -> Ordering {
+	self.0.cmp(&other.0)
+    }
+}
+
+impl PartialEq for Ticks32 {
+    fn eq(&self, other: &Self) -> bool {
+	self.0 == other.0
+    }
+}
+
+impl Eq for Ticks32 {}
+
 /// 24-bit `Ticks`
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug, PartialOrd)]
 pub struct Ticks24(u32);
 
 impl From<u32> for Ticks24 {
@@ -383,8 +400,24 @@ impl Ticks for Ticks24 {
     }
 }
 
+
+impl Ord for Ticks24 {
+    fn cmp(&self, other: &Self) -> Ordering {
+	self.0.cmp(&other.0)
+    }
+}
+
+impl PartialEq for Ticks24 {
+    fn eq(&self, other: &Self) -> bool {
+	self.0 == other.0
+    }
+}
+
+impl Eq for Ticks24 {}
+
+
 /// 64-bit `Ticks`
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug, PartialOrd)]
 pub struct Ticks64(u64);
 
 impl Ticks64 {
@@ -419,7 +452,7 @@ impl Ticks for Ticks64 {
     }
 
     fn wrapping_sub(self, other: Self) -> Self {
-        Ticks64(self.0.wrapping_sub(other.0) & 0x00FFFFFF)
+        Ticks64(self.0.wrapping_sub(other.0))
     }
 
     fn within_range(self, start: Self, end: Self) -> bool {
@@ -431,3 +464,19 @@ impl Ticks for Ticks64 {
         Ticks64(!0u64)
     }
 }
+
+impl Ord for Ticks64 {
+    fn cmp(&self, other: &Self) -> Ordering {
+	self.0.cmp(&other.0)
+    }
+}
+
+impl PartialEq for Ticks64 {
+    fn eq(&self, other: &Self) -> bool {
+	self.0 == other.0
+    }
+}
+
+impl Eq for Ticks64 {}
+
+
