@@ -4,16 +4,16 @@ use cortexm4::{self, nvic};
 use kernel::common::deferred_call;
 use kernel::InterruptService;
 
-pub struct NRF52<I: InterruptService<DeferredCallTask> + 'static> {
+pub struct NRF52<'a, I: InterruptService<DeferredCallTask> + 'a> {
     mpu: cortexm4::mpu::MPU,
     userspace_kernel_boundary: cortexm4::syscall::SysCall,
     scheduler_timer: cortexm4::systick::SysTick,
-    interrupt_service: &'static I,
+    interrupt_service: &'a I,
 }
 
-impl<I: InterruptService<DeferredCallTask> + 'static> NRF52<I> {
-    pub unsafe fn new(interrupt_service: &'static I) -> NRF52<I> {
-        NRF52 {
+impl<'a, I: InterruptService<DeferredCallTask> + 'a> NRF52<'a, I> {
+    pub unsafe fn new(interrupt_service: &'a I) -> Self {
+        Self {
             mpu: cortexm4::mpu::MPU::new(),
             userspace_kernel_boundary: cortexm4::syscall::SysCall::new(),
             // The NRF52's systick is uncalibrated, but is clocked from the
@@ -159,7 +159,7 @@ macro_rules! create_default_nrf52_peripherals {
     };
 }
 
-impl<I: InterruptService<DeferredCallTask> + 'static> kernel::Chip for NRF52<I> {
+impl<'a, I: InterruptService<DeferredCallTask> + 'a> kernel::Chip for NRF52<'a, I> {
     type MPU = cortexm4::mpu::MPU;
     type UserspaceKernelBoundary = cortexm4::syscall::SysCall;
     type SchedulerTimer = cortexm4::systick::SysTick;
