@@ -85,7 +85,7 @@ register_bitfields![u32,
 ];
 
 pub struct SpiDevice {
-    _registers: StaticRef<SpiDeviceRegisters>,
+    registers: StaticRef<SpiDeviceRegisters>,
 
     client: OptionalCell<&'static dyn hil::spi::SpiSlaveClient>,
 }
@@ -93,7 +93,7 @@ pub struct SpiDevice {
 impl SpiDevice {
     pub const fn new(base: StaticRef<SpiDeviceRegisters>) -> Self {
         SpiDevice {
-            _registers: base,
+            registers: base,
             client: OptionalCell::empty(),
         }
     }
@@ -160,16 +160,38 @@ impl hil::spi::SpiSlaveDevice for SpiDevice {
         unimplemented!();
     }
 
-    fn set_polarity(&self, _cpol: hil::spi::ClockPolarity) {
-        unimplemented!();
+    fn set_polarity(&self, cpol: hil::spi::ClockPolarity) {
+        match cpol {
+            hil::spi::ClockPolarity::IdleLow => {
+                self.registers.cfg.modify(CFG::CPOL::CLEAR);
+            }
+            hil::spi::ClockPolarity::IdleHigh => {
+                self.registers.cfg.modify(CFG::CPOL::SET);
+            }
+        }
     }
     fn get_polarity(&self) -> hil::spi::ClockPolarity {
-        unimplemented!();
+        if self.registers.cfg.read(CFG::CPOL) == 1 {
+            hil::spi::ClockPolarity::IdleHigh
+        } else {
+            hil::spi::ClockPolarity::IdleLow
+        }
     }
-    fn set_phase(&self, _cpal: hil::spi::ClockPhase) {
-        unimplemented!();
+    fn set_phase(&self, cpal: hil::spi::ClockPhase) {
+        match cpal {
+            hil::spi::ClockPhase::SampleTrailing => {
+                self.registers.cfg.modify(CFG::CPHA::CLEAR);
+            }
+            hil::spi::ClockPhase::SampleLeading => {
+                self.registers.cfg.modify(CFG::CPHA::SET);
+            }
+        }
     }
     fn get_phase(&self) -> hil::spi::ClockPhase {
-        unimplemented!();
+        if self.registers.cfg.read(CFG::CPHA) == 1 {
+            hil::spi::ClockPhase::SampleLeading
+        } else {
+            hil::spi::ClockPhase::SampleTrailing
+        }
     }
 }
