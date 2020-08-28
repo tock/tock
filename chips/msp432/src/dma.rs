@@ -900,10 +900,11 @@ pub fn handle_interrupt(int_nr: isize) {
         for i in 0..AVAILABLE_DMA_CHANNELS {
             let bit = (1 << i) as u32;
             if (bit & int) > 0 {
-                unsafe {
-                    // Clear interrupt-bit
-                    DMA_BASE.int0_clrflg.set(bit);
+                // Clear interrupt-bit
+                DMA_BASE.int0_clrflg.set(bit);
 
+                // This access must be unsafe because DMA_CHANNELS is a global mutable variable
+                unsafe {
                     DMA_CHANNELS[i].handle_interrupt();
                 }
             }
