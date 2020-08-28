@@ -83,7 +83,8 @@ These capsules provide a `Driver` interface for common MCU peripherals.
 - **[I2C_MASTER](src/i2c_master.rs)**: I2C master access only.
 - **[I2C_MASTER_SLAVE](src/i2c_master_slave_driver.rs)**: I2C master and slave access.
 - **[RNG](src/rng.rs)**: Random number generation.
-- **[SPI](src/spi.rs)**: SPI master and slave.
+- **[SPI Controller](src/spi_controller.rs)**: SPI controller device (SPI master)
+- **[SPI Peripheral](src/spi_peripheral.rs)**: SPI peripheral device (SPI slave)
 
 
 ### Helpful Userspace Capsules

@@ -27,7 +27,7 @@
 
 use core::mem::MaybeUninit;
 
-use capsules::spi::{Spi, DEFAULT_READ_BUF_LENGTH, DEFAULT_WRITE_BUF_LENGTH};
+use capsules::spi_controller::{Spi, DEFAULT_READ_BUF_LENGTH, DEFAULT_WRITE_BUF_LENGTH};
 use capsules::spi_peripheral::SpiPeripheral;
 use capsules::virtual_spi::{MuxSpiMaster, VirtualSpiMasterDevice};
 use kernel::component::Component;
@@ -48,7 +48,7 @@ macro_rules! spi_mux_component_helper {
 #[macro_export]
 macro_rules! spi_syscall_component_helper {
     ($S:ty) => {{
-        use capsules::spi::Spi;
+        use capsules::spi_controller::Spi;
         use capsules::virtual_spi::VirtualSpiMasterDevice;
         use core::mem::MaybeUninit;
         static mut BUF1: MaybeUninit<VirtualSpiMasterDevice<'static, $S>> = MaybeUninit::uninit();
