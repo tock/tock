@@ -1,10 +1,58 @@
-//! Proximity Sensor Interface to TockOS syscall interface
+//! Provides userspace with access to humidity sensors.
+//!
+//! Userspace Interface
+//! -------------------
+//!
+//! ### `subscribe` System Call
+//!
+//! The `subscribe` system call supports the single `subscribe_number` zero,
+//! which is used to provide a callback that will return back the result of
+//! a humidity reading.
+//! The `subscribe`call return codes indicate the following:
+//!
+//! * `SUCCESS`: the callback been successfully been configured.
+//! * `ENOSUPPORT`: Invalid allow_num.
+//! * `ENOMEM`: No sufficient memory available.
+//! * `EINVAL`: Invalid address of the buffer or other error.
+//!
+//!
+//! ### `command` System Call
+//!
+//! The `command` system call support one argument `cmd` which is used to specify the specific
+//! operation, currently the following cmd's are supported:
+//!
+//! * `0`: check whether the driver exist
+//! * `1`: read proximity
+//! * `2`: read proximity on interrupt
+//!
+//!
+//! The possible return from the 'command' system call indicates the following:
+//!
+//! * `SUCCESS`:    The operation has been successful.
+//! * `EBUSY`:      The driver is busy.
+//! * `ENOSUPPORT`: Invalid `cmd`.
+//!
+//! Usage
+//! -----
+//!
+//! You need a device that provides the `hil::sensors::ProximityDriver` trait.
+//! Here is an example of how to set up a proximity sensor with the apds9960 IC
+//!
+//! ```rust
+//! # use kernel::static_init;
+//!
+//!let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
+//!
+//!let proximity = static_init!(
+//!   capsules::proximity::ProximitySensor<'static>,
+//!   capsules::proximity::ProximitySensor::new(apds9960 , board_kernel.create_grant(&grant_cap)));
+//!
+//!kernel::hil::sensors::ProximityDriver::set_client(apds9960, proximity);
+//! ```
 
-use core::cell::Cell;
 use kernel::hil;
 use kernel::ReturnCode;
 use kernel::{AppId, Callback, Driver, Grant};
-use kernel::debug;
 
 /// Syscall driver number.
 use crate::driver;
@@ -39,7 +87,6 @@ pub struct Thresholds {
 pub struct ProximitySensor<'a> {
     driver: &'a dyn hil::sensors::ProximityDriver<'a>,
     apps: Grant<App>,
-    busy: Cell<bool>,
 }
 
 impl<'a> ProximitySensor<'a> {
@@ -50,13 +97,12 @@ impl<'a> ProximitySensor<'a> {
         ProximitySensor {
             driver: driver,
             apps: grant,
-            busy: Cell::new(false),
         }
     }
 
     fn enqueue_command(&self, command: ProximityCommand, arg1: usize, arg2: usize, appid: AppId) -> ReturnCode {
         
-        //debug!("Enqueueing command");
+        
         // Enqueue command by saving command type, args, appid within app struct in grant region
         let r: ReturnCode = self.apps.enter(appid, |app, _| {
 
@@ -102,7 +148,6 @@ impl<'a> ProximitySensor<'a> {
 
     fn  run_next_command(&self) -> ReturnCode {
         
-        //debug!("Running next command");
 
         let mut break_flag: bool = false;
 
@@ -157,8 +202,6 @@ impl<'a> ProximitySensor<'a> {
                 }
             }); 
         }
-
-        //debug!("Finding Thresholds {:#x} , {:#x}" , highest_lower_proximity , lowest_upper_proximity);
         
         // return values
         Thresholds {
@@ -168,7 +211,7 @@ impl<'a> ProximitySensor<'a> {
     }
 
     fn call_driver(&self , command: ProximityCommand, arg1: usize, arg2: usize) -> ReturnCode{
-        //debug!("Call driver");
+        
         match command {
             ProximityCommand::ReadProximity => self.driver.read_proximity(),
             ProximityCommand::ReadProximityOnInterrupt => self.driver.read_proximity_on_interrupt(arg1 as u8, arg2 as u8),
@@ -189,17 +232,15 @@ impl<'a> ProximitySensor<'a> {
 impl hil::sensors::ProximityClient for ProximitySensor<'_> {
     fn callback(&self, temp_val: usize, command_type: usize) {
         
-        //debug!("Callback!");
-
         // Here we callback the values only to the apps which are relevant for the callback
-        // We also dequeue any command for a callback so as to remove it from the wait queue and add other commands to continue
+        // We also dequeue any command for a callback so as to remove it from the wait list and add other commands to continue
         match command_type {
             command_type if command_type == ProximityCommand::ReadProximity as usize => {
                 // Schedule callbacks for appropriate apps
                 for cntr in self.apps.iter(){
                     cntr.enter(|app, _|{
                         if app.subscribed && (command_type == (ProximityCommand::ReadProximity as usize)){
-                            //debug!("Scheduling readProx callback");
+                            
                             app.callback.map(|mut cb| cb.schedule(temp_val, 0, 0));
                             app.subscribed = false; // dequeue
                         }
@@ -214,7 +255,7 @@ impl hil::sensors::ProximityClient for ProximitySensor<'_> {
                         if app.subscribed && (command_type == (ProximityCommand::ReadProximityOnInterrupt as usize)){
                             // Only callback to those apps which we expect would want to know about this threshold reading
                             if ((temp_val as u8) > app.upper_proximity) || ((temp_val as u8) < app.lower_proximity){
-                                //debug!("Scheduling readProxInt callback");
+                                
                                 app.callback.map(|mut cb| cb.schedule(temp_val, 0, 0));
                                 app.subscribed = false; // dequeue
                             }
@@ -225,7 +266,7 @@ impl hil::sensors::ProximityClient for ProximitySensor<'_> {
             _ => {}
         }
         
-        // When we are done with callback (one command) then find another command to run and run it
+        // When we are done with callback (one command) then find another waiting command to run and run it
         self.run_next_command();
     }
 }
@@ -246,7 +287,7 @@ impl Driver for ProximitySensor<'_> {
 
     fn command(&self, command_num: usize, arg1: usize, arg2: usize, appid: AppId) -> ReturnCode {
 
-        //debug!("Command syscall");
+        
 
         match command_num {
             // check whether the driver exist!!

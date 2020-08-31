@@ -1,18 +1,57 @@
-/// This driver presents a simple interface to the APDS9960 Proximity, Gesture, and Color Sensor IC
-/// This driver follows the generic proximity sensor interface for allowing user-space applications to read proximity measurements
-/// and set the proximity gain on the IC
-/// Function Implementations for setting the Proximity Pulse Count/Length and LED current are also present for reference but are not part of the driver interface
+//! Proximity Driver for the Adafruit APDS9960 gesture/ambient light/proximity sensor.
+//!
+//! <https://content.arduino.cc/assets/Nano_BLE_Sense_av02-4191en_ds_apds-9960.pdf>   <-- Datasheet
+//!
+//! > The APDS-9960 device features advanced Gesture detection, Proximity detection, Digital Ambient Light Sense
+//! > (ALS) and Color Sense (RGBC). The slim modular package,
+//! > L 3.94 x W 2.36 x H 1.35 mm, incorporates an IR LED and
+//! > factory calibrated LED driver for drop-in compatibility
+//! > with existing footprints
+//!
+//! Usage
+//! -----
+//!
+//! ```rust
+//! # use kernel::static_init;
+//! 
+//! let apds9960_i2c = static_init!(
+//!    capsules::virtual_i2c::I2CDevice,
+//!    capsules::virtual_i2c::I2CDevice::new(sensors_i2c_bus, 0x39 << 1)
+//!);
+//!
+//!let apds9960 = static_init!(
+//!    capsules::apds9960::APDS9960<'static>,
+//!    capsules::apds9960::APDS9960::new(
+//!        apds9960_i2c,
+//!        &nrf52840::gpio::PORT[APDS9960_PIN],
+//!        &mut capsules::apds9960::BUFFER
+//!    )
+//!);
+//!apds9960_i2c.set_client(apds9960);
+//!nrf52840::gpio::PORT[APDS9960_PIN].set_client(apds9960);
 
+//!let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
+//!
+//!let proximity = static_init!(
+//!    capsules::proximity::ProximitySensor<'static>,
+//!    capsules::proximity::ProximitySensor::new(apds9960 , board_kernel.create_grant(&grant_cap)));
+
+//!kernel::hil::sensors::ProximityDriver::set_client(apds9960, proximity);
+//! 
+//! ```
 
 use core::cell::Cell;
 use kernel::common::cells::{OptionalCell, TakeCell};
-use kernel::debug;
 use kernel::hil::gpio;
 use kernel::hil::i2c;
 use kernel::ReturnCode;
 
 // I2C Buffer of 16 bytes
 pub static mut BUFFER: [u8; 16] = [0, 0, 0 , 0, 0, 0, 0 , 0, 0, 0, 0 , 0, 0, 0, 0 , 175 ];
+
+// BUFFER Layout:  [0,...  ,   12                            , 13               ,                   14                ,   15]
+//                             ^take_meas() callback stored    ^take_meas_int callback stored       ^low thresh           ^high thresh
+
 
 #[allow(dead_code)]
 
@@ -24,7 +63,8 @@ const PIEN: u8 = 1<<5; // Proximity Sensor Enable
 const PVALID: u8 = 1<<1;  // Proximity Reading Valid Bit
 
 
-// Default Proximity Parameters (can be modified for developer preference)
+// Default Proximity Int Persistence  (amount of times a prox reading can be within the interrupt-generating range before an int is actually fired;
+// this is to prevent false triggers)
 static PERS : u8 = 4;
 
 
@@ -163,7 +203,8 @@ impl<'a> APDS9960<'a> {
 
     // Take measurement immediately
     pub fn take_measurement(&self){
-        //debug!("RP-1");
+        
+        // Enable power and proximity sensor
         self.buffer.take().map(|buffer| {
 
             self.i2c.enable();
@@ -216,7 +257,7 @@ impl<'a> APDS9960<'a> {
 
 impl i2c::I2CClient for APDS9960<'_> {
     fn command_complete(&self, buffer: &'static mut [u8], _error: i2c::Error) {
-        //debug!("Command complete: {:#x} , {:#x}", (buffer[0]) , buffer[1]);
+
         match self.state.get() {
             State::ReadId => {
                 // The ID is in `buffer[0]`, and should be 0xAB.
@@ -232,14 +273,14 @@ impl i2c::I2CClient for APDS9960<'_> {
                 self.state.set(State::StartingProximity);
             }
             State::StartingProximity => {
-                // Set low prox thresh to 0
+                // Set low prox thresh to value in buffer
                 buffer[0] = Registers::PILT as u8;
                 buffer[1] = buffer[14];
                 self.i2c.write(buffer, 2);
                 self.state.set(State::ConfiguringProximity1);
             }
             State::ConfiguringProximity1 => {
-                // Set high prox thresh to 175
+                // Set high prox thresh to value in buffer
                 buffer[0] = Registers::PIHT as u8;
                 buffer[1] = buffer[15];
                 self.i2c.write(buffer, 2);
@@ -266,14 +307,13 @@ impl i2c::I2CClient for APDS9960<'_> {
             }
             State::ReadData => {
                 // read prox_data from buffer and return it in callback
-                //debug!("Reading Proximity Data: {:#x}", buffer[0]);
                 buffer[13] = buffer[0]; // save callback to an unused place in buffer
                 
                 // Clear proximity interrupt
                 buffer[0] = Registers::PICCLR as u8;
                 self.i2c.write(buffer, 1);
                 self.interrupt_pin.disable_interrupts();
-                self.state.set(State::PowerOff); // Chane state transition to PowerOn for endless loop of interrupts to signal data values
+                self.state.set(State::PowerOff); 
             }
             State::PowerOff => {
 
@@ -286,7 +326,7 @@ impl i2c::I2CClient for APDS9960<'_> {
 
             }
             State::Done => {
-                // Return to IDLE
+                // Return to IDLE and perform callback
                 let prox_data: u8 = buffer[13];
 
                 self.buffer.replace(buffer);
@@ -297,7 +337,8 @@ impl i2c::I2CClient for APDS9960<'_> {
 
             }
             State::TakeMeasurement1 => {
-                //debug!("RP-2");
+
+                // Read status reg
                 buffer[0] = Registers::STATUS as u8;
                 self.i2c.write_read(buffer,1,1);
 
@@ -305,8 +346,7 @@ impl i2c::I2CClient for APDS9960<'_> {
             }
             State::TakeMeasurement2 => {
 
-                // read prox_data from buffer and return it in callback
-                // debug!("Reading Proximity Data: {:#x}", (buffer[0]));
+                // Determine if prox data is valid by checking PVALID bit in status reg
 
                 let status_reg: u8 = buffer[0];
 
@@ -318,6 +358,7 @@ impl i2c::I2CClient for APDS9960<'_> {
 
                 } else {
 
+                    // If not valid then keep rechecking status reg
                     buffer[0] = Registers::STATUS as u8;
                     self.i2c.write_read(buffer,1,1);
                     self.state.set(State::TakeMeasurement2);
@@ -327,9 +368,9 @@ impl i2c::I2CClient for APDS9960<'_> {
             }
             State::TakeMeasurement3 => {
 
-                let prox_data: u8 = buffer[0];
-                buffer[12] = prox_data; // Save callback value
+                buffer[12] = buffer[0]; // Save callback value
 
+                // Reset callback value
                 buffer[0] = Registers::ENABLE as u8;
                 buffer[1] = 0;
                 self.i2c.write(buffer,2);
@@ -337,8 +378,8 @@ impl i2c::I2CClient for APDS9960<'_> {
 
             }
             State::TakeMeasurement4 => {
-                // Return to IDLE
-                //debug!("RP-3");
+                // Return to IDLE and perform callback
+                
                 let prox_data: u8 = buffer[12]; // Get callback value
                 self.buffer.replace(buffer);
                 self.i2c.disable();
@@ -369,7 +410,7 @@ impl i2c::I2CClient for APDS9960<'_> {
 /// Interrupt Service Routine
 impl gpio::Client for APDS9960<'_> {
     fn fired(&self) {
-        //debug!("int fired");
+      
         self.buffer.take().map(|buffer| {
             // Read value in PDATA reg
             self.i2c.enable();
@@ -382,6 +423,7 @@ impl gpio::Client for APDS9960<'_> {
     }
 } 
 
+/// Proximity Driver Trait Implementation
 impl<'a> kernel::hil::sensors::ProximityDriver<'a> for APDS9960<'a> {
     fn read_proximity(&self) -> kernel::ReturnCode {
         self.take_measurement();
