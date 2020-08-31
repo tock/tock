@@ -4,6 +4,7 @@ use core::cell::Cell;
 use kernel::hil;
 use kernel::ReturnCode;
 use kernel::{AppId, Callback, Driver, Grant};
+use kernel::debug;
 
 /// Syscall driver number.
 use crate::driver;
@@ -55,7 +56,7 @@ impl<'a> ProximitySensor<'a> {
 
     fn enqueue_command(&self, command: ProximityCommand, arg1: usize, arg2: usize, appid: AppId) -> ReturnCode {
         
-
+        //debug!("Enqueueing command");
         // Enqueue command by saving command type, args, appid within app struct in grant region
         let r: ReturnCode = self.apps.enter(appid, |app, _| {
 
@@ -101,6 +102,8 @@ impl<'a> ProximitySensor<'a> {
 
     fn  run_next_command(&self) -> ReturnCode {
         
+        //debug!("Running next command");
+
         let mut break_flag: bool = false;
 
         // Find and run another command
@@ -112,9 +115,11 @@ impl<'a> ProximitySensor<'a> {
                     // run it
                     match app.enqueued_command_type {
                         ProximityCommand::ReadProximity => {
+                            
                             self.call_driver(app.enqueued_command_type , 0, 0);
                         }
                         ProximityCommand::ReadProximityOnInterrupt => {
+
                             let t: Thresholds = self.find_thresholds();
                             self.call_driver(app.enqueued_command_type, t.lower as usize , t.upper as usize );
                         }
@@ -135,6 +140,7 @@ impl<'a> ProximitySensor<'a> {
 
     fn find_thresholds(&self) -> Thresholds {
 
+        
         // Get the lowest upper prox and highest lower prox of all subscribed apps
         // With the IC thresholds set to these two values, we ensure to never miss an interrupt-causing proximity value for any of the
         // apps
@@ -152,6 +158,8 @@ impl<'a> ProximitySensor<'a> {
             }); 
         }
 
+        //debug!("Finding Thresholds {:#x} , {:#x}" , highest_lower_proximity , lowest_upper_proximity);
+        
         // return values
         Thresholds {
             lower: highest_lower_proximity,
@@ -160,6 +168,7 @@ impl<'a> ProximitySensor<'a> {
     }
 
     fn call_driver(&self , command: ProximityCommand, arg1: usize, arg2: usize) -> ReturnCode{
+        //debug!("Call driver");
         match command {
             ProximityCommand::ReadProximity => self.driver.read_proximity(),
             ProximityCommand::ReadProximityOnInterrupt => self.driver.read_proximity_on_interrupt(arg1 as u8, arg2 as u8),
@@ -180,6 +189,8 @@ impl<'a> ProximitySensor<'a> {
 impl hil::sensors::ProximityClient for ProximitySensor<'_> {
     fn callback(&self, temp_val: usize, command_type: usize) {
         
+        //debug!("Callback!");
+
         // Here we callback the values only to the apps which are relevant for the callback
         // We also dequeue any command for a callback so as to remove it from the wait queue and add other commands to continue
         match command_type {
@@ -188,6 +199,7 @@ impl hil::sensors::ProximityClient for ProximitySensor<'_> {
                 for cntr in self.apps.iter(){
                     cntr.enter(|app, _|{
                         if app.subscribed && (command_type == (ProximityCommand::ReadProximity as usize)){
+                            //debug!("Scheduling readProx callback");
                             app.callback.map(|mut cb| cb.schedule(temp_val, 0, 0));
                             app.subscribed = false; // dequeue
                         }
@@ -202,6 +214,7 @@ impl hil::sensors::ProximityClient for ProximitySensor<'_> {
                         if app.subscribed && (command_type == (ProximityCommand::ReadProximityOnInterrupt as usize)){
                             // Only callback to those apps which we expect would want to know about this threshold reading
                             if ((temp_val as u8) > app.upper_proximity) || ((temp_val as u8) < app.lower_proximity){
+                                //debug!("Scheduling readProxInt callback");
                                 app.callback.map(|mut cb| cb.schedule(temp_val, 0, 0));
                                 app.subscribed = false; // dequeue
                             }
@@ -232,6 +245,9 @@ impl Driver for ProximitySensor<'_> {
     }
 
     fn command(&self, command_num: usize, arg1: usize, arg2: usize, appid: AppId) -> ReturnCode {
+
+        //debug!("Command syscall");
+
         match command_num {
             // check whether the driver exist!!
             0 => ReturnCode::SUCCESS,

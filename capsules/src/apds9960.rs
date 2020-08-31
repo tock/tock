@@ -41,6 +41,7 @@ enum Registers {
     PDATA = 0x9c,
     CONTROLREG1 = 0x8f,
     PROXPULSEREG = 0x8e,
+    PVALID = 0x93,
 
 }
 
@@ -159,7 +160,7 @@ impl<'a> APDS9960<'a> {
 
     // Take measurement immediately
     pub fn take_measurement(&self){
-
+        debug!("RP-1");
         self.buffer.take().map(|buffer| {
 
             self.i2c.enable();
@@ -212,7 +213,7 @@ impl<'a> APDS9960<'a> {
 
 impl i2c::I2CClient for APDS9960<'_> {
     fn command_complete(&self, buffer: &'static mut [u8], _error: i2c::Error) {
-        
+        //debug!("Command complete: {:#x} , {:#x}", (buffer[0]) , buffer[1]);
         match self.state.get() {
             State::ReadId => {
                 // The ID is in `buffer[0]`, and should be 0xAB.
@@ -262,11 +263,9 @@ impl i2c::I2CClient for APDS9960<'_> {
             }
             State::ReadData => {
                 // read prox_data from buffer and return it in callback
-                debug!("Reading Proximity Data: {:#x}", buffer[0]);
-                let prox_data: u8 = buffer[0];
-                self.prox_callback.map(|cb| cb.callback(prox_data as usize , 2 as usize));
+                //debug!("Reading Proximity Data: {:#x}", buffer[0]);
+                buffer[13] = buffer[0]; // save callback to an unused place in buffer
                 
-
                 // Clear proximity interrupt
                 buffer[0] = Registers::PICCLR as u8;
                 self.i2c.write(buffer, 1);
@@ -285,13 +284,17 @@ impl i2c::I2CClient for APDS9960<'_> {
             }
             State::Done => {
                 // Return to IDLE
+                let prox_data: u8 = buffer[13];
+
                 self.buffer.replace(buffer);
                 self.i2c.disable();
                 self.state.set(State::Idle);
 
+                self.prox_callback.map(|cb| cb.callback(prox_data as usize , 2 as usize));
+
             }
             State::TakeMeasurement1 => {
-
+                debug!("RP-2");
                 buffer[0] = Registers::PDATA as u8;
                 self.i2c.write_read(buffer,1,1);
 
@@ -300,9 +303,9 @@ impl i2c::I2CClient for APDS9960<'_> {
             State::TakeMeasurement2 => {
 
                 // read prox_data from buffer and return it in callback
-                debug!("Reading Proximity Data: {:#x}", buffer[0]);
+                debug!("Reading Proximity Data: {:#x}", (buffer[0]));
                 let prox_data: u8 = buffer[0];
-                self.prox_callback.map(|cb| cb.callback(prox_data as usize , 1 as usize));
+                buffer[13] = prox_data; // Save callback value
 
                 buffer[0] = Registers::ENABLE as u8;
                 buffer[1] = 0 as u8;
@@ -314,9 +317,13 @@ impl i2c::I2CClient for APDS9960<'_> {
             }
             State::TakeMeasurement3 => {
                 // Return to IDLE
+                debug!("RP-3");
+                let prox_data: u8 = buffer[13]; // Get callback value
                 self.buffer.replace(buffer);
                 self.i2c.disable();
                 self.state.set(State::Idle);
+
+                self.prox_callback.map(|cb| cb.callback(prox_data as usize , 1 as usize));
             }
 
             State::SetPulse => {
@@ -341,7 +348,7 @@ impl i2c::I2CClient for APDS9960<'_> {
 /// Interrupt Service Routine
 impl gpio::Client for APDS9960<'_> {
     fn fired(&self) {
-        debug!("int fired");
+        //debug!("int fired");
         self.buffer.take().map(|buffer| {
             // Read value in PDATA reg
             self.i2c.enable();

@@ -284,6 +284,8 @@ pub unsafe fn reset_handler() {
 
     kernel::hil::sensors::ProximityDriver::set_client(apds9960, proximity);
 
+    // apds9960.take_measurement();
+
     //--------------------------------------------------------------------------
     // WIRELESS
     //--------------------------------------------------------------------------
@@ -331,7 +333,7 @@ pub unsafe fn reset_handler() {
 
     debug!("Initialization complete. Entering main loop.");
 
-    // apds9960.take_measurement_on_interrupt(0,100);
+    // apds9960.take_measurement();
 
     //--------------------------------------------------------------------------
     // PROCESSES AND MAIN LOOP
