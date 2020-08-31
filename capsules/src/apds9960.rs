@@ -21,10 +21,12 @@ const PON: u8 = 1<<0; // Power-On
 const SAI: u8 = 1<<4; // Sleep after Interrupt
 const PEN: u8 = 1<<2; // Proximity Sensor Enable
 const PIEN: u8 = 1<<5; // Proximity Sensor Enable
+const PVALID: u8 = 1<<1;  // Proximity Reading Valid Bit
 
 
 // Default Proximity Parameters (can be modified for developer preference)
 static PERS : u8 = 4;
+
 
 
 // Device Registers
@@ -41,7 +43,7 @@ enum Registers {
     PDATA = 0x9c,
     CONTROLREG1 = 0x8f,
     PROXPULSEREG = 0x8e,
-    PVALID = 0x93,
+    STATUS = 0x93,
 
 }
 
@@ -65,6 +67,7 @@ enum State {
     TakeMeasurement1,
     TakeMeasurement2,
     TakeMeasurement3,
+    TakeMeasurement4,
 
     /// States for optional chip functionality
     SetPulse, // Set proximity pulse
@@ -160,7 +163,7 @@ impl<'a> APDS9960<'a> {
 
     // Take measurement immediately
     pub fn take_measurement(&self){
-        debug!("RP-1");
+        //debug!("RP-1");
         self.buffer.take().map(|buffer| {
 
             self.i2c.enable();
@@ -294,8 +297,8 @@ impl i2c::I2CClient for APDS9960<'_> {
 
             }
             State::TakeMeasurement1 => {
-                debug!("RP-2");
-                buffer[0] = Registers::PDATA as u8;
+                //debug!("RP-2");
+                buffer[0] = Registers::STATUS as u8;
                 self.i2c.write_read(buffer,1,1);
 
                 self.state.set(State::TakeMeasurement2);
@@ -303,22 +306,40 @@ impl i2c::I2CClient for APDS9960<'_> {
             State::TakeMeasurement2 => {
 
                 // read prox_data from buffer and return it in callback
-                debug!("Reading Proximity Data: {:#x}", (buffer[0]));
-                let prox_data: u8 = buffer[0];
-                buffer[13] = prox_data; // Save callback value
+                // debug!("Reading Proximity Data: {:#x}", (buffer[0]));
 
-                buffer[0] = Registers::ENABLE as u8;
-                buffer[1] = 0 as u8;
+                let status_reg: u8 = buffer[0];
 
-                self.i2c.write(buffer , 2);
+                if status_reg & PVALID  > 0 {
 
-                self.state.set(State::TakeMeasurement3);
+                    buffer[0] = Registers::PDATA as u8;
+                    self.i2c.write_read(buffer,1,1);
+                    self.state.set(State::TakeMeasurement3);
+
+                } else {
+
+                    buffer[0] = Registers::STATUS as u8;
+                    self.i2c.write_read(buffer,1,1);
+                    self.state.set(State::TakeMeasurement2);
+
+                }
 
             }
             State::TakeMeasurement3 => {
+
+                let prox_data: u8 = buffer[0];
+                buffer[12] = prox_data; // Save callback value
+
+                buffer[0] = Registers::ENABLE as u8;
+                buffer[1] = 0;
+                self.i2c.write(buffer,2);
+                self.state.set(State::TakeMeasurement4);
+
+            }
+            State::TakeMeasurement4 => {
                 // Return to IDLE
-                debug!("RP-3");
-                let prox_data: u8 = buffer[13]; // Get callback value
+                //debug!("RP-3");
+                let prox_data: u8 = buffer[12]; // Get callback value
                 self.buffer.replace(buffer);
                 self.i2c.disable();
                 self.state.set(State::Idle);
