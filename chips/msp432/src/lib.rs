@@ -9,6 +9,7 @@ use cortexm4::{
 
 pub mod chip;
 pub mod cs;
+pub mod dma;
 pub mod flctl;
 pub mod gpio;
 pub mod nvic;

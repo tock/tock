@@ -1,13 +1,15 @@
 //! Universal Asynchronous Receiver/Transmitter (UART)
 
+use crate::dma;
 use crate::usci::{self, UsciARegisters};
 use core::cell::Cell;
-use kernel::common::cells::{OptionalCell, TakeCell};
+use kernel::common::cells::OptionalCell;
+use kernel::common::registers::{ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
 use kernel::hil;
 use kernel::ReturnCode;
 
-pub static mut UART0: Uart<'static> = Uart::new(usci::USCI_A0_BASE);
+pub static mut UART0: Uart<'static> = Uart::new(usci::USCI_A0_BASE, 0, 1, 1, 1);
 
 const DEFAULT_CLOCK_FREQ_HZ: u32 = crate::cs::SMCLK_HZ;
 
@@ -60,83 +62,83 @@ const BAUD_FRACTIONS: &'static [BaudFraction; 36] = &[
 pub struct Uart<'a> {
     registers: StaticRef<UsciARegisters>,
     clock_frequency: u32,
-    tx_client: OptionalCell<&'a dyn hil::uart::TransmitClient>,
-    rx_client: OptionalCell<&'a dyn hil::uart::ReceiveClient>,
 
-    tx_buffer: TakeCell<'static, [u8]>,
-    tx_len: Cell<usize>,
-    tx_index: Cell<usize>,
+    tx_client: OptionalCell<&'a dyn hil::uart::TransmitClient>,
+    tx_busy: Cell<bool>,
+    tx_dma: OptionalCell<&'a dma::DmaChannel<'a>>,
+    pub(crate) tx_dma_chan: usize,
+    tx_dma_src: u8,
+
+    rx_client: OptionalCell<&'a dyn hil::uart::ReceiveClient>,
+    rx_busy: Cell<bool>,
+    rx_dma: OptionalCell<&'a dma::DmaChannel<'a>>,
+    pub(crate) rx_dma_chan: usize,
+    rx_dma_src: u8,
 }
 
 impl<'a> Uart<'a> {
-    pub(crate) const fn new(regs: StaticRef<UsciARegisters>) -> Uart<'a> {
+    pub(crate) const fn new(
+        regs: StaticRef<UsciARegisters>,
+        tx_dma_chan: usize,
+        rx_dma_chan: usize,
+        tx_dma_src: u8,
+        rx_dma_src: u8,
+    ) -> Uart<'static> {
         Uart {
             registers: regs,
             clock_frequency: DEFAULT_CLOCK_FREQ_HZ,
+
             tx_client: OptionalCell::empty(),
+            tx_dma: OptionalCell::empty(),
+            tx_dma_chan: tx_dma_chan,
+            tx_dma_src: tx_dma_src,
+            tx_busy: Cell::new(false),
+
             rx_client: OptionalCell::empty(),
-            tx_buffer: TakeCell::empty(),
-            tx_len: Cell::new(0),
-            tx_index: Cell::new(0),
+            rx_dma: OptionalCell::empty(),
+            rx_dma_chan: rx_dma_chan,
+            rx_dma_src: rx_dma_src,
+            rx_busy: Cell::new(false),
         }
     }
 
-    fn enable_tx_interrupt(&self) {
-        self.registers.ie.modify(usci::UCAxIE::UCTXIE::SET);
-    }
-
-    fn disable_tx_interrupt(&self) {
-        self.registers
-            .ifg
-            .modify(usci::UCAxIFG::UCTXIFG::CLEAR + usci::UCAxIFG::UCTXCPTIFG::CLEAR);
-        self.registers.ie.modify(usci::UCAxIE::UCTXIE::CLEAR);
-    }
-
-    fn write_byte(&self, data: u8) {
-        self.registers.txbuf.set(data as u16);
-    }
-
-    fn start_transmit(&self) {
-        if self.tx_index.get() >= self.tx_len.get() {
-            // nothing to transmit
-            return;
-        }
-        self.enable_tx_interrupt();
-        self.transmit();
-    }
-
-    fn transmit(&self) {
-        let idx = self.tx_index.get();
-
-        self.tx_buffer.map(|tx_buf| self.write_byte(tx_buf[idx]));
-        self.tx_index.set(idx + 1);
-    }
-
-    pub fn handle_interrupt(&self) {
-        let regs = self.registers;
-
-        if regs.ifg.is_set(usci::UCAxIFG::UCTXIFG) {
-            let idx = self.tx_index.get();
-            let len = self.tx_len.get();
-
-            if idx >= len {
-                // transmission of buffer finished
-                self.disable_tx_interrupt();
-                self.tx_client.map(|client| {
-                    self.tx_buffer.take().map(|buf| {
-                        client.transmitted_buffer(buf, len, ReturnCode::SUCCESS);
-                    });
-                });
-            } else {
-                self.transmit();
-            }
-        }
+    pub fn set_dma(&self, tx_dma: &'a dma::DmaChannel<'a>, rx_dma: &'a dma::DmaChannel<'a>) {
+        self.tx_dma.replace(tx_dma);
+        self.rx_dma.replace(rx_dma);
     }
 
     pub fn transmit_sync(&self, data: &[u8]) {
         for b in data.iter() {
             while self.registers.statw.is_set(usci::UCAxSTATW::UCBUSY) {}
             self.registers.txbuf.set(*b as u16);
+        }
+    }
+}
+
+impl<'a> dma::DmaClient for Uart<'a> {
+    fn transfer_done(
+        &self,
+        tx_buf: Option<&'static mut [u8]>,
+        rx_buf: Option<&'static mut [u8]>,
+        transmitted_bytes: usize,
+    ) {
+        if rx_buf.is_some() {
+            // RX-transfer done
+            self.rx_busy.set(false);
+            self.rx_client.map(|client| {
+                client.received_buffer(
+                    rx_buf.unwrap(),
+                    transmitted_bytes,
+                    ReturnCode::SUCCESS,
+                    hil::uart::Error::None,
+                )
+            });
+        } else if tx_buf.is_some() {
+            // TX-transfer done
+            self.tx_busy.set(false);
+            self.tx_client.map(|client| {
+                client.transmitted_buffer(tx_buf.unwrap(), transmitted_bytes, ReturnCode::SUCCESS)
+            });
         }
     }
 }
@@ -214,6 +216,26 @@ impl<'a> hil::uart::Configure for Uart<'a> {
         // Enable module
         regs.ctlw0.modify(usci::UCAxCTLW0::UCSWRST::CLEAR);
 
+        // Configure the DMA
+        let tx_conf = dma::DmaConfig {
+            src_chan: self.tx_dma_src,
+            mode: dma::DmaMode::Basic,
+            width: dma::DmaDataWidth::Width8Bit,
+            src_incr: dma::DmaPtrIncrement::Incr8Bit,
+            dst_incr: dma::DmaPtrIncrement::NoIncr,
+        };
+
+        let rx_conf = dma::DmaConfig {
+            src_chan: self.rx_dma_src,
+            mode: dma::DmaMode::Basic,
+            width: dma::DmaDataWidth::Width8Bit,
+            src_incr: dma::DmaPtrIncrement::NoIncr,
+            dst_incr: dma::DmaPtrIncrement::Incr8Bit,
+        };
+
+        self.tx_dma.map(|dma| dma.initialize(&tx_conf));
+        self.rx_dma.map(|dma| dma.initialize(&rx_conf));
+
         ReturnCode::SUCCESS
     }
 }
@@ -228,17 +250,16 @@ impl<'a> hil::uart::Transmit<'a> for Uart<'a> {
         tx_buffer: &'static mut [u8],
         tx_len: usize,
     ) -> (ReturnCode, Option<&'static mut [u8]>) {
-        if tx_len == 0 || tx_len > tx_buffer.len() {
-            (ReturnCode::ESIZE, Some(tx_buffer))
-        } else if self.tx_buffer.is_some() {
+        if (tx_len == 0) || (tx_len > tx_buffer.len()) {
+            return (ReturnCode::ESIZE, Some(tx_buffer));
+        }
+        if self.tx_busy.get() {
             (ReturnCode::EBUSY, Some(tx_buffer))
         } else {
-            // Save the buffer so we can keep sending it.
-            self.tx_buffer.replace(tx_buffer);
-            self.tx_len.set(tx_len);
-            self.tx_index.set(0);
-
-            self.start_transmit();
+            self.tx_busy.set(true);
+            let tx_reg = &self.registers.txbuf as *const ReadWrite<u16> as *const ();
+            self.tx_dma
+                .map(move |dma| dma.transfer_mem_to_periph(tx_reg, tx_buffer, tx_len));
             (ReturnCode::SUCCESS, None)
         }
     }
@@ -260,9 +281,21 @@ impl<'a> hil::uart::Receive<'a> for Uart<'a> {
     fn receive_buffer(
         &self,
         rx_buffer: &'static mut [u8],
-        _rx_len: usize,
+        rx_len: usize,
     ) -> (ReturnCode, Option<&'static mut [u8]>) {
-        (ReturnCode::FAIL, Some(rx_buffer))
+        if (rx_len == 0) || (rx_len > rx_buffer.len()) {
+            return (ReturnCode::ESIZE, Some(rx_buffer));
+        }
+
+        if self.rx_busy.get() {
+            (ReturnCode::EBUSY, Some(rx_buffer))
+        } else {
+            self.rx_busy.set(true);
+            let rx_reg = &self.registers.rxbuf as *const ReadOnly<u16> as *const ();
+            self.rx_dma
+                .map(move |dma| dma.transfer_periph_to_mem(rx_reg, rx_buffer, rx_len));
+            (ReturnCode::SUCCESS, None)
+        }
     }
 
     fn receive_word(&self) -> ReturnCode {
