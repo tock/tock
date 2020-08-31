@@ -33,16 +33,14 @@ pub trait HumidityClient {
 
 /// A basic interface for a proximity sensor
 pub trait ProximityDriver<'a> {
-
-    fn set_client(&self , client: &'a dyn ProximityClient);
-    fn read_proximity(&self) -> ReturnCode;
-    fn read_proximity_on_interrupt(&self, low: u8, high: u8) -> ReturnCode;
-
+    fn set_client(&self, client: &'a dyn ProximityClient);
+    fn read_proximity(&self) -> ReturnCode; // Instantaneous proximity reading
+    fn read_proximity_on_interrupt(&self, low: u8, high: u8) -> ReturnCode; // Proximity reading returned only after interrupt is detected
 }
 
 pub trait ProximityClient {
     /// Called when proximity reading has completed (`command_type` is used by proximity.rs to match callbacks to the apps issuing the appropriate commands)
-    fn callback(&self , value: usize , command_type: usize);
+    fn callback(&self, value: usize, command_type: usize);
 }
 
 /// A basic interface for an ambient light sensor.

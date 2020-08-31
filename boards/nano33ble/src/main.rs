@@ -280,7 +280,8 @@ pub unsafe fn reset_handler() {
 
     let proximity = static_init!(
         capsules::proximity::ProximitySensor<'static>,
-        capsules::proximity::ProximitySensor::new(apds9960 , board_kernel.create_grant(&grant_cap)));
+        capsules::proximity::ProximitySensor::new(apds9960, board_kernel.create_grant(&grant_cap))
+    );
 
     kernel::hil::sensors::ProximityDriver::set_client(apds9960, proximity);
 
