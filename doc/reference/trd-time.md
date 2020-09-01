@@ -157,6 +157,7 @@ pub trait OverflowClient {
 pub trait Counter<'a>: Time {
   fn start(&self) -> ReturnCode;
   fn stop(&self) -> ReturnCode;
+  fn reset(&self) -> ReturnCode;
   fn is_running(&self) -> bool;
   fn set_overflow_client(&'a self, &'a dyn OverflowClient);
 }
@@ -176,6 +177,7 @@ cannot say it has a frequency of 1MHz by multiplying the underlying
 counter by 32. A `Counter` implementation MAY provide a `Frequency` of
 a lower resolution (e.g., by stripping bits).
 
+The `reset` method of `Counter` resets the counter to 0.
 
 4 `Alarm` and `AlarmClient` traits
 ===============================
