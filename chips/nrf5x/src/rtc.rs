@@ -143,8 +143,9 @@ impl<'a> time::Counter<'a> for Rtc<'a> {
         ReturnCode::SUCCESS
     }
 
-    fn reset(&self) {
+    fn reset(&self) -> ReturnCode {
         self.registers.tasks_clear.write(Task::ENABLE::SET);
+        ReturnCode::SUCCESS
     }
 
     fn is_running(&self) -> bool {
