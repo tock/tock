@@ -69,9 +69,14 @@ and the Nordic nRF51822 provides only a 24-bit counter. The `Ticks`
 associated type defines this, such that users of the `Time` trait can
 know when wraparound will occur.
 
+The `Ticks` trait requires several other traits from `core::cmp`: `Ord`,
+`PartialOrd`, and `Eq`. This is so that methods such as `min_by_key` can
+be used with Iterators for when examining a set of `Ticks` values.
+The `MuxAlarm` structure in `capsules::virtual_alarm` does this, for example,
+to find the next alarm that should fire.
 
 ```rust
-pub trait Ticks: Clone + Copy + From<u32> {
+pub trait Ticks: Clone + Copy + From<u32> + fmt::Debug + Ord + PartialOrd + Eq {
     fn into_usize(self) -> usize;
     fn into_u32(self) -> u32;
 
