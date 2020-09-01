@@ -323,7 +323,7 @@ nRF platforms (e.g. nRF52840) that only support a 24 bit counter.
 7 Capsules
 ===============================
 
-The Tock kernel provides four standard capsules:
+The Tock kernel provides three standard capsules:
 
   * `capsules::alarm::AlarmDriver` provides a system call driver for
     an `Alarm`.
