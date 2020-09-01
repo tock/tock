@@ -7,8 +7,8 @@ Kernel Time HIL
 **Status:** Draft <br/>
 **Author:** Guillaume Endignoux, Amit Levy and Philip Levis <br/>
 **Draft-Created:** Feb 06, 2017<br/>
-**Draft-Modified:** March 18, 2020<br/>
-**Draft-Version:** 2<br/>
+**Draft-Modified:** September 1, 2020<br/>
+**Draft-Version:** 3<br/>
 **Draft-Discuss:** tock-dev@googlegroups.com</br>
 
 Abstract
@@ -329,11 +329,8 @@ The Tock kernel provides four standard capsules:
     an `Alarm`.
   * `capsules::virtual_alarm` provides a set of
     abstractions for virtualizing a single `Alarm` into many.
-  * `capsules::frequency` provides a set of abstractions for
-    scaling down from a higher `Frequency` to a lower one.
-  * `capsules::ticks` provides a set of abstractions for transforming
-    `Counter` instances between different `Tick` widths.
-
+  * `capsules::virtual_timer` provides a set of abstractions for
+    virtualizing a single `Alarm` into many `Timer` instances.
 
 8 Required Modules
 ===============================
