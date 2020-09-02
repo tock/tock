@@ -207,6 +207,16 @@ impl<S: 'static + spi::SpiSlave + kernel::hil::spi::SpiSlaveDevice> Component
             SpiPeripheral::new(self.device)
         );
 
+        let spi_read_buf =
+            static_init!([u8; DEFAULT_READ_BUF_LENGTH], [0; DEFAULT_READ_BUF_LENGTH]);
+
+        let spi_write_buf = static_init!(
+            [u8; DEFAULT_WRITE_BUF_LENGTH],
+            [0; DEFAULT_WRITE_BUF_LENGTH]
+        );
+
+        spi_device.config_buffers(spi_read_buf, spi_write_buf);
+
         spi_device
     }
 }
