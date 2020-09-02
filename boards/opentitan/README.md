@@ -12,7 +12,7 @@ You can get started with OpenTitan using either the Nexys Video FPGA board or si
 Programming
 -----------
 
-Tock on OpenTitan requires lowRISC/opentitan@0e5d819d61b5bf56f8453ad877eb10e3c52fc542 or newer.
+Tock on OpenTitan requires lowRISC/opentitan@60138bdcbef679c4acd42176190720ae860bdd4d or newer. In general it is recommended that users start with the latest OpenTitan bitstream and if that results in issues try the one mentioned above.
 
 For more information you can follow the [OpenTitan development flow](https://docs.opentitan.org/doc/ug/getting_started_fpga/index.html#testing-the-demo-design) to flash the image.
 
@@ -106,7 +106,9 @@ You will need to have the GCC version of RISC-V 32-bit objcopy installed as the 
 Running in QEMU
 ---------------
 
-The OpenTitan application can be run in the QEMU emulation platform, allowing quick and easy testing.
+The OpenTitan application can be run in the QEMU emulation platform for RISC-V, allowing quick and easy testing.
+
+Unfortunately you need QEMU 5.2, which at the time of writing is unlikely to be avaliable in your distro. Luckily Tock can build QEMU for you. From the top level of the Tock source just run `make ci-setup-qemu` and follow the steps.
 
 QEMU can be started with Tock using the `qemu` make target:
 

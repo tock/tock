@@ -8,7 +8,8 @@ its extensions (called *capsules*) are written in Rust.
 
 Tock can run multiple, independent untrusted processes written in
 any language. The number of processes Tock can simultaneously support
-is constrained by MCU flash and RAM. The Tock scheduler is preemptive and
+is constrained by MCU flash and RAM. Tock can be configured to use different
+scheduling algorithms, but the default Tock scheduler is preemptive and
 uses a round-robin policy. Tock uses a microkernel architecture: complex
 drivers and services are often implemented as untrusted processes, which
 other processes, such as applications, can invoke through inter-process

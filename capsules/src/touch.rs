@@ -12,7 +12,6 @@
 //! ```
 
 use core::mem;
-// use kernel::debug;
 use kernel::hil;
 use kernel::hil::screen::ScreenRotation;
 use kernel::hil::touch::{GestureEvent, TouchEvent, TouchStatus};
@@ -23,6 +22,15 @@ use kernel::{AppId, AppSlice, Callback, Driver, Grant, Shared};
 use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::Touch as usize;
 
+fn touch_status_to_number(status: &TouchStatus) -> usize {
+    match status {
+        TouchStatus::Released => 0,
+        TouchStatus::Pressed => 1,
+        TouchStatus::Moved => 2,
+        TouchStatus::Unstarted => 3,
+    }
+}
+
 pub struct App {
     touch_callback: Option<Callback>,
     gesture_callback: Option<Callback>,
@@ -30,6 +38,9 @@ pub struct App {
     events_buffer: Option<AppSlice<Shared, u8>>,
     ack: bool,
     dropped_events: usize,
+    x: u16,
+    y: u16,
+    status: usize,
 }
 
 impl Default for App {
@@ -41,6 +52,9 @@ impl Default for App {
             events_buffer: None,
             ack: true,
             dropped_events: 0,
+            x: 0,
+            y: 0,
+            status: touch_status_to_number(&TouchStatus::Unstarted),
         }
     }
 }
@@ -157,24 +171,26 @@ impl<'a> hil::touch::TouchClient for Touch<'a> {
         // );
         for app in self.apps.iter() {
             app.enter(|app, _| {
-                app.touch_callback.map(|mut callback| {
-                    let event_id = match event.status {
-                        TouchStatus::Released => 0,
-                        TouchStatus::Pressed => 1,
-                    };
-                    let pressure_size = match event.pressure {
-                        Some(pressure) => (pressure as usize) << 16,
-                        None => 0,
-                    } | match event.size {
-                        Some(size) => size as usize,
-                        None => 0,
-                    };
-                    callback.schedule(
-                        event_id,
-                        (event.x as usize) << 16 | event.y as usize,
-                        pressure_size,
-                    );
-                })
+                let event_status = touch_status_to_number(&event.status);
+                if app.x != event.x || app.y != event.y || app.status != event_status {
+                    app.x = event.x;
+                    app.y = event.y;
+                    app.status = event_status;
+                    app.touch_callback.map(|mut callback| {
+                        let pressure_size = match event.pressure {
+                            Some(pressure) => (pressure as usize) << 16,
+                            None => 0,
+                        } | match event.size {
+                            Some(size) => size as usize,
+                            None => 0,
+                        };
+                        callback.schedule(
+                            event_status,
+                            (event.x as usize) << 16 | event.y as usize,
+                            pressure_size,
+                        );
+                    });
+                }
             });
         }
     }
@@ -202,10 +218,7 @@ impl<'a> hil::touch::MultiTouchClient for Touch<'a> {
                             for event_index in 0..num {
                                 let mut event = touch_events[event_index].clone();
                                 self.update_rotation(&mut event);
-                                let event_status = match event.status {
-                                    TouchStatus::Released => 0,
-                                    TouchStatus::Pressed => 1,
-                                };
+                                let event_status = touch_status_to_number(&event.status);
                                 // debug!(
                                 //     " multitouch {:?} x {} y {} size {:?} pressure {:?}",
                                 //     event.status, event.x, event.y, event.size, event.pressure
@@ -282,10 +295,10 @@ impl<'a> Driver for Touch<'a> {
             // allow a buffer for the multi touch
             // buffer data format
             //  0         1           2                  4                  6           7             8         ...
-            // +---------+-----------+------------------+------------------+-----------+-------------+--------- ...
+            // +---------+-----------+------------------+------------------+-----------+---------------+--------- ...
             // | id (u8) | type (u8) | x (u16)          | y (u16)          | size (u8) | pressure (u8) |          ...
-            // +---------+-----------+------------------+------------------+-----------+-------------+--------- ...
-            // | Touch 0                                                                             | Touch 1  ...
+            // +---------+-----------+------------------+------------------+-----------+---------------+--------- ...
+            // | Touch 0                                                                               | Touch 1  ...
             2 => {
                 if self.multi_touch.is_some() {
                     self.apps
@@ -356,6 +369,20 @@ impl<'a> Driver for Touch<'a> {
             // This driver exists.
             {
                 ReturnCode::SUCCESS
+            }
+
+            // number of touches
+            100 => {
+                let num_touches = if let Some(multi_touch) = self.multi_touch {
+                    multi_touch.get_num_touches()
+                } else {
+                    if self.touch.is_some() {
+                        1
+                    } else {
+                        0
+                    }
+                };
+                ReturnCode::SuccessWithValue { value: num_touches }
             }
 
             _ => ReturnCode::ENOSUPPORT,

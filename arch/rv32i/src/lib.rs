@@ -18,18 +18,18 @@ extern crate tock_registers;
 extern "C" {
     // Where the end of the stack region is (and hence where the stack should
     // start).
-    static _estack: u32;
+    static _estack: usize;
 
     // Boundaries of the .bss section.
-    static mut _szero: u32;
-    static mut _ezero: u32;
+    static mut _szero: usize;
+    static mut _ezero: usize;
 
     // Where the .data section is stored in flash.
-    static mut _etext: u32;
+    static mut _etext: usize;
 
     // Boundaries of the .data section.
-    static mut _srelocate: u32;
-    static mut _erelocate: u32;
+    static mut _srelocate: usize;
+    static mut _erelocate: usize;
 }
 
 /// Entry point of all programs (`_start`).
@@ -165,6 +165,42 @@ pub extern "C" fn _start_trap() {
         _from_kernel:
             // Swap back the zero value for the stack pointer in mscratch
             csrrw sp, 0x340, sp // CSR=0x340=mscratch
+
+            // Now, since we want to use the stack to save kernel registers, we
+            // first need to make sure that the trap wasn't the result of a
+            // stack overflow, in which case we can't use the current stack
+            // pointer. We also, however, cannot modify any of the current
+            // registers until we save them, and we cannot save them to the
+            // stack until we know the stack is valid. So, we use the mscratch
+            // trick again to get one register we can use.
+
+            // Save t0's contents to mscratch
+            csrw 0x340, t0                      // CSR=0x340=mscratch
+
+            // Load the address of the bottom of the stack (`_sstack`) into our
+            // newly freed-up t0 register.
+            lui  t0, %hi(_sstack)               // t0 = _sstack
+            addi t0, t0, %lo(_sstack)
+
+            // Compare the kernel stack pointer to the bottom of the stack. If
+            // the stack pointer is above the bottom of the stack, then continue
+            // handling the fault as normal.
+            bgtu sp, t0, _from_kernel_continue  // branch if sp > t0
+
+            // If we get here, then we did encounter a stack overflow. We are
+            // going to panic at this point, but for that to work we need a
+            // valid stack to run the panic code. We do this by just starting
+            // over with the kernel stack and placing the stack pointer at the
+            // top of the original stack.
+            lui  sp, %hi(_estack)               // sp = _estack
+            addi sp, sp, %lo(_estack)
+
+
+        _from_kernel_continue:
+
+            // Restore t0, and make sure mscratch is set back to 0 (our flag
+            // tracking that the kernel is executing).
+            csrrw t0, 0x340, zero // t0=mscratch, mscratch=0
 
             // Make room for the caller saved registers we need to restore after
             // running any trap handler code.
