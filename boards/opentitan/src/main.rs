@@ -24,8 +24,12 @@ use rv32i::csr;
 #[allow(dead_code)]
 mod aes_test;
 
+#[allow(dead_code)]
+mod multi_alarm_test;
+
 pub mod io;
 pub mod usb;
+
 //
 // Actual memory for holding the active process structures. Need an empty list
 // at least.
@@ -268,8 +272,7 @@ pub unsafe fn reset_handler() {
     );
 
     earlgrey::i2c::I2C.set_master_client(i2c_master);
-
-    debug!("OpenTitan initialisation complete. Entering main loop");
+    multi_alarm_test::run_multi_alarm(mux_alarm);
 
     /// These symbols are defined in the linker script.
     extern "C" {
@@ -313,6 +316,7 @@ pub unsafe fn reset_handler() {
         debug!("Error loading processes!");
         debug!("{:?}", err);
     });
+    debug!("OpenTitan initialisation complete. Entering main loop");
 
     let scheduler = components::sched::priority::PriorityComponent::new(board_kernel).finalize(());
     board_kernel.kernel_loop(&opentitan, chip, None, scheduler, &main_loop_cap);

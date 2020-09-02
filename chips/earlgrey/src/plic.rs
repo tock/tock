@@ -2,6 +2,7 @@
 
 use kernel::common::registers::{register_bitfields, register_structs, ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
+use kernel::debug;
 
 register_structs! {
     pub PlicRegisters {
@@ -42,7 +43,11 @@ pub unsafe fn clear_all_pending() {
 pub unsafe fn enable_all() {
     let plic: &PlicRegisters = &*PLIC_BASE;
     for enable in plic.enable.iter() {
-        enable.set(0xFFFF_FFFF);
+        // DANGER: For some reason USBDEV seems to be issuing
+        // unhandled CONNECT interrupts. So I have disabled them
+        // here. This should be changed back to 0xFFFFFFFF once
+        // this is resolved and before merging. -pal 8/26/20
+        enable.set(0x0000_00FF);
     }
 
     // Set the max priority for each interrupt. This is not really used

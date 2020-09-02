@@ -32,7 +32,7 @@ impl<'a, A: Alarm<'a>> TestRandomAlarm<'a, A> {
 
     fn set_next_alarm(&self) {
         let counter = self.counter.get();
-        let mut us: u32 = 3 * ((counter * 66841) % 51257) as u32;
+        let mut us: u32 = 3 * ((counter * 668410) % 512507) as u32;
         if us % 11 == 0 {
             // Try delays of zero in 1 of 11 cases
             us = 0;
@@ -44,13 +44,13 @@ impl<'a, A: Alarm<'a>> TestRandomAlarm<'a, A> {
         let start = now.wrapping_sub(A::Ticks::from(us % 10));
         self.alarm.set_alarm(start, delay);
         debug!(
-            "Test{}@{}: Expected at {} (diff = {}), setting alarm to {} (delay = {})",
+            "Test{}@{:?}: Expected at {:?} (diff = {:?}), setting alarm to {:?} (delay = {:?})",
             self._id,
-            now.into_u32(),
-            self.expected.get().into_u32(),
-            now.wrapping_sub(self.expected.get()).into_u32(),
-            start.wrapping_add(delay).into_u32(),
-            delay.into_u32()
+            now,
+            self.expected.get(),
+            now.wrapping_sub(self.expected.get()),
+            start.wrapping_add(delay),
+            delay
         );
         self.counter.set(counter + 1);
         self.expected.set(start.wrapping_add(delay));
@@ -59,6 +59,7 @@ impl<'a, A: Alarm<'a>> TestRandomAlarm<'a, A> {
 
 impl<'a, A: Alarm<'a>> AlarmClient for TestRandomAlarm<'a, A> {
     fn alarm(&self) {
+        debug!("Test{}: Alarm fired.", self._id);
         self.set_next_alarm();
     }
 }
