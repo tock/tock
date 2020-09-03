@@ -812,6 +812,53 @@ impl<'a> Usb<'a> {
         self.enable_interrupts();
     }
 
+    fn transmit_in(&self, ep: usize) {
+        self.client.map(|client| {
+            let result = client.packet_in(TransferType::Bulk, ep);
+
+            let new_in_state = match result {
+                hil::usb::InResult::Packet(size) => {
+                    let mut buf_id = None;
+                    let mut bufs = self.bufs.get();
+
+                    for buf in bufs.iter_mut() {
+                        if !buf.free {
+                            continue;
+                        }
+
+                        self.registers.avbuffer.set(buf.id as u32);
+                        buf.free = false;
+                        buf_id = Some(buf.id);
+                        break;
+                    }
+
+                    self.bufs.set(bufs);
+
+                    if buf_id.is_some() {
+                        self.copy_slice_out_to_hw(ep, buf_id.unwrap(), size)
+                    } else {
+                        panic!("No free bufs");
+                    }
+                    BulkInState::In(size)
+                }
+
+                hil::usb::InResult::Delay => {
+                    // No packet to send now. Wait for a resume call from the client.
+                    BulkInState::Init
+                }
+
+                hil::usb::InResult::Error => {
+                    self.stall(ep);
+                    BulkInState::Init
+                }
+            };
+
+            self.descriptors[ep]
+                .state
+                .set(EndpointState::Bulk(Some(new_in_state), None));
+        });
+    }
+
     /// Provide a buffer for transfers in and out of the given endpoint
     /// (The controller need not be enabled before calling this method.)
     fn endpoint_bank_set_buffer(&self, endpoint: usize, buf: &'a [VolatileCell<u8>]) {
@@ -957,8 +1004,8 @@ impl<'a> hil::usb::UsbController<'a> for Usb<'a> {
         unimplemented!()
     }
 
-    fn endpoint_resume_in(&self, _endpoint: usize) {
-        unimplemented!()
+    fn endpoint_resume_in(&self, endpoint: usize) {
+        self.transmit_in(endpoint)
     }
 
     fn endpoint_resume_out(&self, _endpoint: usize) {
