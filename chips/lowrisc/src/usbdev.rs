@@ -663,6 +663,29 @@ impl<'a> Usb<'a> {
         }
     }
 
+    fn ep_receive(&self, ep: usize, buf_id: usize, size: u32, _setup: u32) {
+        let ep_buf = &self.descriptors[ep].slice_out;
+        let ep_buf = ep_buf.expect("No OUT slice set for this descriptor");
+        if ep_buf.len() < 8 {
+            panic!("EP0 DMA buffer length < 8");
+        }
+
+        self.client.map(|client| {
+            self.copy_from_hw(ep, buf_id, size as usize);
+            let result = client.packet_out(TransferType::Bulk, ep as usize, size);
+            let new_out_state = match result {
+                hil::usb::OutResult::Ok => BulkOutState::Init,
+
+                hil::usb::OutResult::Delay => BulkOutState::OutDelay,
+
+                hil::usb::OutResult::Error => BulkOutState::Init,
+            };
+            self.descriptors[ep]
+                .state
+                .set(EndpointState::Bulk(None, Some(new_out_state)));
+        });
+    }
+
     pub fn handle_interrupt(&self) {
         let irqs = self.registers.intr_state.extract();
 
@@ -760,12 +783,20 @@ impl<'a> Usb<'a> {
                 let ep = rxinfo.read(RXFIFO::EP);
                 let setup = rxinfo.read(RXFIFO::SETUP);
 
-                if ep == 0 {
-                    self.control_ep_receive(ep as usize, buf as usize, size, setup);
-                    self.free_buffer(buf as usize);
-                    break;
-                } else {
-                    unimplemented!()
+                // Check if it's the control endpoint
+                match ep {
+                    0 => {
+                        self.control_ep_receive(ep as usize, buf as usize, size, setup);
+                        self.free_buffer(buf as usize);
+                        break;
+                    }
+                    1..=7 => {
+                        self.ep_receive(ep as usize, buf as usize, size, setup);
+                        self.free_buffer(buf as usize);
+                        // break;
+                    }
+                    8 => unimplemented!("isochronous endpoint"),
+                    _ => unimplemented!(),
                 }
             }
         }
