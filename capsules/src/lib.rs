@@ -19,6 +19,7 @@ pub mod button;
 pub mod buzzer_driver;
 pub mod console;
 pub mod crc;
+pub mod ctap;
 pub mod dac;
 pub mod debug_process_restart;
 pub mod driver;
