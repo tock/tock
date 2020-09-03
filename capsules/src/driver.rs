@@ -36,6 +36,7 @@ pub enum NUM {
     Rng                   = 0x40001,
     Crc                   = 0x40002,
     Hmac                  = 0x40003,
+    CtapHid               = 0x40004,
 
     // Storage
     AppFlash              = 0x50000,
