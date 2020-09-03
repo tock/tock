@@ -68,6 +68,10 @@ struct OpenTitan {
         'static,
         capsules::usb::usbc_client::Client<'static, lowrisc::usbdev::Usb<'static>>,
     >,
+    ctap: &'static capsules::ctap::CtapDriver<
+        'static,
+        capsules::usb::ctap::CtapHid<'static, lowrisc::usbdev::Usb<'static>>,
+    >,
     i2c_master: &'static capsules::i2c_master::I2CMasterDriver<lowrisc::i2c::I2c<'static>>,
 }
 
@@ -85,6 +89,7 @@ impl Platform for OpenTitan {
             capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
             capsules::low_level_debug::DRIVER_NUM => f(Some(self.lldb)),
             capsules::usb::usb_user::DRIVER_NUM => f(Some(self.usb)),
+            capsules::ctap::DRIVER_NUM => f(Some(self.ctap)),
             capsules::i2c_master::DRIVER_NUM => f(Some(self.i2c_master)),
             _ => f(None),
         }
@@ -111,7 +116,7 @@ pub unsafe fn reset_handler() {
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
 
     let dynamic_deferred_call_clients =
-        static_init!([DynamicDeferredCallClientState; 1], Default::default());
+        static_init!([DynamicDeferredCallClientState; 2], Default::default());
     let dynamic_deferred_caller = static_init!(
         DynamicDeferredCall,
         DynamicDeferredCall::new(dynamic_deferred_call_clients)
@@ -280,20 +285,22 @@ pub unsafe fn reset_handler() {
         ]
     );
 
-    let cdc = components::cdc::CdcAcmComponent::new(
+    let ctap_send_buffer = static_init!([u8; 64], [0; 64]);
+    let ctap_recv_buffer = static_init!([u8; 64], [0; 64]);
+
+    let (ctap, ctap_driver) = components::ctap::CtapComponent::new(
         &earlgrey::usbdev::USB,
-        capsules::usb::cdc::MAX_CTRL_PACKET_SIZE_NRF52840,
         0x18d1, // 0x18d1 Google Inc.
         0x503a, // lowRISC generic FS USB
         strings,
+        board_kernel,
+        ctap_send_buffer,
+        ctap_recv_buffer,
     )
-    .finalize(components::usb_cdc_acm_component_helper!(
-        lowrisc::usbdev::Usb
-    ));
+    .finalize(components::usb_ctap_component_helper!(lowrisc::usbdev::Usb));
 
-    // Configure the USB stack to enable a serial port over CDC-ACM.
-    cdc.enable();
-    cdc.attach();
+    ctap.enable();
+    ctap.attach();
 
     debug!("OpenTitan initialisation complete. Entering main loop");
 
@@ -318,6 +325,7 @@ pub unsafe fn reset_handler() {
         lldb: lldb,
         usb,
         i2c_master,
+        ctap: ctap_driver,
     };
 
     kernel::procs::load_processes(
