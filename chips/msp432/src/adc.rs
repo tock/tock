@@ -5,8 +5,23 @@ use kernel::common::registers::{
 };
 use kernel::common::StaticRef;
 
+pub static mut ADC: Adc = Adc {
+    registers: ADC_BASE,
+    resolution: AdcResolution::Bits14,
+    adc_channels: [
+        AdcChannel::new(18, ChannelSource::External),
+        AdcChannel::new(19, ChannelSource::External),
+        AdcChannel::new(20, ChannelSource::External),
+        AdcChannel::new(21, ChannelSource::External),
+        AdcChannel::new(22, ChannelSource::Internal),
+        AdcChannel::new(23, ChannelSource::Internal),
+    ],
+};
+
 const ADC_BASE: StaticRef<AdcRegisters> =
     unsafe { StaticRef::new(0x4001_2000 as *const AdcRegisters) };
+
+const AVAILABLE_ADC_CHANNELS: usize = 6;
 
 register_structs! {
     /// ADC14
@@ -469,7 +484,42 @@ register_bitfields![u32,
     ]
 ];
 
+#[repr(u32)]
+#[derive(Copy, Clone, PartialEq)]
+enum AdcResolution {
+    Bits8 = 0,
+    Bits10 = 1,
+    Bits12 = 2,
+    Bits14 = 3,
+}
+
+#[repr(u32)]
+#[derive(Copy, Clone, PartialEq)]
+enum ChannelSource {
+    External = 0,
+    Internal = 1,
+}
+
+pub struct Adc {
+    registers: StaticRef<AdcRegisters>,
+    resolution: AdcResolution,
+    adc_channels: [AdcChannel; AVAILABLE_ADC_CHANNELS],
+}
+
 pub struct AdcChannel {
     registers: StaticRef<AdcRegisters>,
     chan_nr: usize,
+    chan_src: ChannelSource,
 }
+
+impl AdcChannel {
+    const fn new(chan_nr: usize, chan_src: ChannelSource) -> AdcChannel {
+        AdcChannel {
+            registers: ADC_BASE,
+            chan_nr: chan_nr,
+            chan_src: chan_src,
+        }
+    }
+}
+
+impl Adc {}
