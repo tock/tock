@@ -5,7 +5,7 @@ use core::ops::FnOnce;
 /// NOP instruction
 pub fn nop() {
     unsafe {
-        asm!("nop");
+        asm!("nop", options(nomem, nostack, preserves_flags));
     }
 }
 
@@ -13,7 +13,7 @@ pub fn nop() {
 #[inline(always)]
 /// WFI instruction
 pub unsafe fn wfi() {
-    asm!("wfi");
+    asm!("wfi", options(nomem, preserves_flags));
 }
 
 #[cfg(all(target_arch = "arm", target_os = "none"))]

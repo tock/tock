@@ -197,6 +197,7 @@ pub unsafe extern "C" fn unhandled_interrupt() {
     asm!(
         "mrs r0, ipsr",
         out("r0") interrupt_number,
+        options(nomem, nostack, preserves_flags)
     );
 
     interrupt_number = interrupt_number & 0x1ff;
