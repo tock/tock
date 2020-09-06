@@ -26,7 +26,7 @@ use kernel::ReturnCode;
 /// less than or equal to four tics ahead of the current counter value, the
 /// alarm interrupt doesn't fire. Thus, we simply round up to at least eight
 /// tics. Seems safe enough and in practice has seemed to work.
-const ALARM0_SYNC_TICS: u32 = 10;
+const ALARM0_SYNC_TICS: u32 = 8;
 
 #[repr(C)]
 struct AstRegisters {

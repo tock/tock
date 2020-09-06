@@ -2,6 +2,7 @@ use core::fmt::Write;
 use cortexm4;
 use kernel::Chip;
 
+use crate::dma;
 use crate::gpio;
 use crate::nvic;
 use crate::timer;
@@ -17,6 +18,14 @@ pub struct Msp432 {
 
 impl Msp432 {
     pub unsafe fn new() -> Msp432 {
+        // Setup DMA channels
+        uart::UART0.set_dma(
+            &dma::DMA_CHANNELS[uart::UART0.tx_dma_chan],
+            &dma::DMA_CHANNELS[uart::UART0.rx_dma_chan],
+        );
+        dma::DMA_CHANNELS[uart::UART0.tx_dma_chan].set_client(&uart::UART0);
+        dma::DMA_CHANNELS[uart::UART0.rx_dma_chan].set_client(&uart::UART0);
+
         Msp432 {
             mpu: cortexm4::mpu::MPU::new(),
             userspace_kernel_boundary: cortexm4::syscall::SysCall::new(),
@@ -37,7 +46,11 @@ impl Chip for Msp432 {
             loop {
                 if let Some(interrupt) = cortexm4::nvic::next_pending() {
                     match interrupt {
-                        nvic::USCI_A0 => uart::UART0.handle_interrupt(),
+                        nvic::DMA_INT0 => dma::handle_interrupt(0),
+                        nvic::DMA_INT1 => dma::handle_interrupt(1),
+                        nvic::DMA_INT2 => dma::handle_interrupt(2),
+                        nvic::DMA_INT3 => dma::handle_interrupt(3),
+                        nvic::DMA_ERR => dma::handle_interrupt(-1),
                         nvic::IO_PORT1 => gpio::handle_interrupt(0),
                         nvic::IO_PORT2 => gpio::handle_interrupt(1),
                         nvic::IO_PORT3 => gpio::handle_interrupt(2),

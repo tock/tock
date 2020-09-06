@@ -20,7 +20,7 @@
 use crate::callback::AppId;
 use crate::common::list::{List, ListLink, ListNode};
 use crate::hil::time;
-use crate::hil::time::{Frequency, Ticks};
+use crate::hil::time::Ticks;
 use crate::platform::Chip;
 use crate::process::ProcessType;
 use crate::sched::{Kernel, Scheduler, SchedulingDecision, StoppedExecutingReason};
@@ -58,7 +58,8 @@ impl<'a> ListNode<'a, MLFQProcessNode<'a>> for MLFQProcessNode<'a> {
 pub struct MLFQSched<'a, A: 'static + time::Alarm<'static>> {
     alarm: &'static A,
     pub processes: [List<'a, MLFQProcessNode<'a>>; 3], // Using Self::NUM_QUEUES causes rustc to crash..
-    next_reset: Cell<u32>,
+    next_reset: Cell<A::Ticks>,
+    last_reset_check: Cell<A::Ticks>,
     last_timeslice: Cell<u32>,
     last_queue_idx: Cell<usize>,
 }
@@ -72,7 +73,8 @@ impl<'a, A: 'static + time::Alarm<'static>> MLFQSched<'a, A> {
         Self {
             alarm,
             processes: [List::new(), List::new(), List::new()],
-            next_reset: Cell::new(0),
+            next_reset: Cell::new(A::Ticks::from(0)),
+            last_reset_check: Cell::new(A::Ticks::from(0)),
             last_timeslice: Cell::new(0),
             last_queue_idx: Cell::new(0),
         }
@@ -139,13 +141,17 @@ impl<'a, A: 'static + time::Alarm<'static>, C: Chip> Scheduler<C> for MLFQSched<
             SchedulingDecision::TrySleep
         } else {
             let now = self.alarm.now();
-            if now.into_u32() >= self.next_reset.get() {
+            let next_reset = self.next_reset.get();
+            let last_reset_check = self.last_reset_check.get();
+
+            // storing last reset check is necessary to avoid missing a reset when the underlying
+            // alarm wraps around
+            if !now.within_range(last_reset_check, next_reset) {
                 // Promote all processes to highest priority queue
-                let delta = (Self::PRIORITY_REFRESH_PERIOD_MS * A::Frequency::frequency()) / 1000;
-                self.next_reset
-                    .set(now.wrapping_add(A::Ticks::from(delta)).into_u32());
+                self.next_reset.set(now.wrapping_add(A::ticks_from_ms(Self::PRIORITY_REFRESH_PERIOD_MS)));
                 self.redeem_all_procs();
             }
+            self.last_reset_check.set(now);
             let (node_ref_opt, queue_idx) = self.get_next_ready_process_node();
             let node_ref = node_ref_opt.unwrap(); // Panic if fail bc processes_blocked()!
             let timeslice =

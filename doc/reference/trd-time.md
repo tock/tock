@@ -7,8 +7,8 @@ Kernel Time HIL
 **Status:** Draft <br/>
 **Author:** Guillaume Endignoux, Amit Levy and Philip Levis <br/>
 **Draft-Created:** Feb 06, 2017<br/>
-**Draft-Modified:** March 18, 2020<br/>
-**Draft-Version:** 2<br/>
+**Draft-Modified:** September 1, 2020<br/>
+**Draft-Version:** 3<br/>
 **Draft-Discuss:** tock-dev@googlegroups.com</br>
 
 Abstract
@@ -69,9 +69,14 @@ and the Nordic nRF51822 provides only a 24-bit counter. The `Ticks`
 associated type defines this, such that users of the `Time` trait can
 know when wraparound will occur.
 
+The `Ticks` trait requires several other traits from `core::cmp`: `Ord`,
+`PartialOrd`, and `Eq`. This is so that methods such as `min_by_key` can
+be used with Iterators for when examining a set of `Ticks` values.
+The `MuxAlarm` structure in `capsules::virtual_alarm` does this, for example,
+to find the next alarm that should fire.
 
 ```rust
-pub trait Ticks: Clone + Copy + From<u32> {
+pub trait Ticks: Clone + Copy + From<u32> + fmt::Debug + Ord + PartialOrd + Eq {
     fn into_usize(self) -> usize;
     fn into_u32(self) -> u32;
 
@@ -157,6 +162,7 @@ pub trait OverflowClient {
 pub trait Counter<'a>: Time {
   fn start(&self) -> ReturnCode;
   fn stop(&self) -> ReturnCode;
+  fn reset(&self) -> ReturnCode;
   fn is_running(&self) -> bool;
   fn set_overflow_client(&'a self, &'a dyn OverflowClient);
 }
@@ -176,6 +182,7 @@ cannot say it has a frequency of 1MHz by multiplying the underlying
 counter by 32. A `Counter` implementation MAY provide a `Frequency` of
 a lower resolution (e.g., by stripping bits).
 
+The `reset` method of `Counter` resets the counter to 0.
 
 4 `Alarm` and `AlarmClient` traits
 ===============================
@@ -316,17 +323,14 @@ nRF platforms (e.g. nRF52840) that only support a 24 bit counter.
 7 Capsules
 ===============================
 
-The Tock kernel provides four standard capsules:
+The Tock kernel provides three standard capsules:
 
   * `capsules::alarm::AlarmDriver` provides a system call driver for
     an `Alarm`.
   * `capsules::virtual_alarm` provides a set of
     abstractions for virtualizing a single `Alarm` into many.
-  * `capsules::frequency` provides a set of abstractions for
-    scaling down from a higher `Frequency` to a lower one.
-  * `capsules::ticks` provides a set of abstractions for transforming
-    `Counter` instances between different `Tick` widths.
-
+  * `capsules::virtual_timer` provides a set of abstractions for
+    virtualizing a single `Alarm` into many `Timer` instances.
 
 8 Required Modules
 ===============================
