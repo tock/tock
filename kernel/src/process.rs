@@ -869,8 +869,6 @@ impl<C: Chip> ProcessType for Process<'_, C> {
             return false;
         }
 
-        self.kernel.increment_work();
-
         let ret = self.tasks.map_or(false, |tasks| tasks.enqueue(task));
 
         // Make a note that we lost this callback if the enqueue function
@@ -879,6 +877,8 @@ impl<C: Chip> ProcessType for Process<'_, C> {
             self.debug.map(|debug| {
                 debug.dropped_callback_count += 1;
             });
+        } else {
+            self.kernel.increment_work();
         }
 
         ret
@@ -910,6 +910,9 @@ impl<C: Chip> ProcessType for Process<'_, C> {
                     callback_id.subscribe_num,
                     count_before - count_after,
                 );
+                for _ in 0..count_before - count_after {
+                    self.kernel.decrement_work();
+                }
             }
         });
     }
