@@ -42,13 +42,15 @@ pub unsafe fn clear_all_pending() {
 /// Enable all interrupts.
 pub unsafe fn enable_all() {
     let plic: &PlicRegisters = &*PLIC_BASE;
-    for enable in plic.enable.iter() {
-        // DANGER: For some reason USBDEV seems to be issuing
-        // unhandled CONNECT interrupts. So I have disabled them
-        // here. This should be changed back to 0xFFFFFFFF once
-        // this is resolved and before merging. -pal 8/26/20
-        enable.set(0x0000_00FF);
-    }
+
+    // Enable all interrupts except USB. Disabling USB because
+    // it seems to throw spurious CONNECT interrupts when there
+    // are mtimer interrupts; for now, disable USB interrupts
+    // (and enable all others).
+    // -pal 9/5/20
+    plic.enable[0].set(0xFFFF_FFFF);
+    plic.enable[1].set(0xFFFF_FFFF);
+    plic.enable[2].set(0xFFFF_0000);
 
     // Set the max priority for each interrupt. This is not really used
     // at this point.
