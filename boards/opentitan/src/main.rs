@@ -10,6 +10,8 @@
 
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules::virtual_hmac::VirtualMuxHmac;
+use capsules::test::alarm::TestAlarm;
+
 use kernel::capabilities;
 use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::component::Component;
@@ -23,6 +25,8 @@ use rv32i::csr;
 
 #[allow(dead_code)]
 mod aes_test;
+
+
 
 pub mod io;
 pub mod usb;
@@ -314,6 +318,16 @@ pub unsafe fn reset_handler() {
         debug!("{:?}", err);
     });
 
+    let virtual_alarm_for_test = static_init!(
+        VirtualMuxAlarm<'static, earlgrey::timer::RvTimer>,
+        VirtualMuxAlarm::new(mux_alarm)
+    );
+    let virtual_alarm_test = static_init!(
+	TestAlarm<'static, VirtualMuxAlarm<'static, earlgrey::timer::RvTimer>>,
+	TestAlarm::new(virtual_alarm_for_test)
+    );
+    virtual_alarm_for_test.set_client(virtual_alarm_test);
+    virtual_alarm_test.run();
     let scheduler = components::sched::priority::PriorityComponent::new(board_kernel).finalize(());
     board_kernel.kernel_loop(&opentitan, chip, None, scheduler, &main_loop_cap);
 }

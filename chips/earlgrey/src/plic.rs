@@ -2,6 +2,7 @@
 
 use kernel::common::registers::{register_bitfields, register_structs, ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
+use kernel::debug;
 
 register_structs! {
     pub PlicRegisters {
@@ -41,9 +42,11 @@ pub unsafe fn clear_all_pending() {
 /// Enable all interrupts.
 pub unsafe fn enable_all() {
     let plic: &PlicRegisters = &*PLIC_BASE;
-    for enable in plic.enable.iter() {
-        enable.set(0xFFFF_FFFF);
-    }
+    plic.enable[0].set(0xFFFF_FFFF);
+    plic.enable[1].set(0xFFFF_FFFF);
+    // If you change [2] to 0xFFFF_0000 (no USB interrupts)
+    // then alarms work fine. -pal
+    plic.enable[2].set(0xFFFF_FFFF);
 
     // Set the max priority for each interrupt. This is not really used
     // at this point.
@@ -73,6 +76,11 @@ pub unsafe fn next_pending() -> Option<u32> {
     if claim == 0 {
         None
     } else {
+	static mut p: u32 = 0;
+	if p % 10 == 0 {
+	    debug!("Next-{}: {}", p, claim);
+	}
+	p = p + 1;
         Some(claim)
     }
 }

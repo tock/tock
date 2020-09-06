@@ -22,8 +22,8 @@ impl<'a, A: Alarm<'a>> TestAlarm<'a, A> {
 
     pub fn run(&self) {
         debug!("Starting alarms.");
-        self.ms.set(10000);
-        self.set_next_alarm(10000);
+        self.ms.set(100);
+        self.set_next_alarm(100);
     }
 
     fn set_next_alarm(&self, ms: u32) {
@@ -43,5 +43,6 @@ impl<'a, A: Alarm<'a>> AlarmClient for TestAlarm<'a, A> {
         // Generate a new interval that's irregular
         let new_ms: u32 = 10 + ((self.ms.get() + 137) % 757);
         self.set_next_alarm(new_ms);
+	debug!("Alarm at {}", self.alarm.now());
     }
 }
