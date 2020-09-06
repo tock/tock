@@ -901,8 +901,11 @@ impl<C: Chip> ProcessType for Process<'_, C> {
                 },
                 _ => true,
             });
+            let count_after = tasks.len();
+            for _ in 0..count_before - count_after {
+                self.kernel.decrement_work();
+            }
             if config::CONFIG.trace_syscalls {
-                let count_after = tasks.len();
                 debug!(
                     "[{:?}] remove_pending_callbacks[{:#x}:{}] = {} callback(s) removed",
                     self.appid(),
@@ -910,9 +913,6 @@ impl<C: Chip> ProcessType for Process<'_, C> {
                     callback_id.subscribe_num,
                     count_before - count_after,
                 );
-                for _ in 0..count_before - count_after {
-                    self.kernel.decrement_work();
-                }
             }
         });
     }
