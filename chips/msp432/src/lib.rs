@@ -15,6 +15,7 @@ pub mod flctl;
 pub mod gpio;
 pub mod nvic;
 pub mod pcm;
+pub mod ref_module;
 pub mod sysctl;
 pub mod timer;
 pub mod uart;
