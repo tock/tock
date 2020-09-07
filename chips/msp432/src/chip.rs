@@ -51,6 +51,7 @@ impl Chip for Msp432 {
             loop {
                 if let Some(interrupt) = cortexm4::nvic::next_pending() {
                     match interrupt {
+                        nvic::ADC => adc::ADC.handle_interrupt(),
                         nvic::DMA_INT0 => dma::handle_interrupt(0),
                         nvic::DMA_INT1 => dma::handle_interrupt(1),
                         nvic::DMA_INT2 => dma::handle_interrupt(2),

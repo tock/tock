@@ -1,6 +1,7 @@
 //! Analog-Digital Converter (ADC)
 
 use crate::ref_module;
+use core::cell::Cell;
 use kernel::common::cells::OptionalCell;
 use kernel::common::registers::{
     register_bitfields, register_structs, ReadOnly, ReadWrite, WriteOnly,
@@ -11,23 +12,17 @@ use kernel::ReturnCode;
 
 pub static mut ADC: Adc = Adc {
     registers: ADC_BASE,
-    resolution: AdcResolution::Bits14,
+    resolution: DEFAULT_ADC_RESOLUTION,
+    mode: Cell::new(AdcMode::Disabled),
+    active_channel: Cell::new(Channel::Channel0),
     ref_module: OptionalCell::empty(),
     client: OptionalCell::empty(),
-    adc_channels: [
-        AdcChannel::new(18, ChannelSource::External),
-        AdcChannel::new(19, ChannelSource::External),
-        AdcChannel::new(20, ChannelSource::External),
-        AdcChannel::new(21, ChannelSource::External),
-        AdcChannel::new(22, ChannelSource::Internal),
-        AdcChannel::new(23, ChannelSource::Internal),
-    ],
 };
 
 const ADC_BASE: StaticRef<AdcRegisters> =
     unsafe { StaticRef::new(0x4001_2000 as *const AdcRegisters) };
 
-const AVAILABLE_ADC_CHANNELS: usize = 6;
+const AVAILABLE_ADC_CHANNELS: usize = 24;
 
 const DEFAULT_ADC_RESOLUTION: AdcResolution = AdcResolution::Bits14;
 
@@ -127,7 +122,7 @@ register_bitfields![u32,
             /// Single channel, single conversion
             SingleChannelSingleConversion = 0,
             /// Sequence of channels
-            ChannelSequence = 1,
+            SingleChannelSequence = 1,
             /// Repeat single channel
             RepeatSingleChannel = 2,
             /// Repeat sequence of channels
@@ -246,7 +241,12 @@ register_bitfields![u32,
             Selected = 1
         ],
         /// Controls temperature sensor ADC input channel selection
-        TCMAP OFFSET(23) NUMBITS(1) [],
+        TCMAP OFFSET(23) NUMBITS(1) [
+            /// ADC internal temperature sensor is not selected
+            NotSelected = 0,
+            /// ADC internal temperature sensor is selected
+            Selected = 1
+        ],
         /// Controls internal channel 0 selection to ADC input channel MAX - 2
         CH0MAP OFFSET(24) NUMBITS(1) [],
         /// Controls internal channel 1 selection to ADC input channel MAX - 3
@@ -495,25 +495,39 @@ register_bitfields![u32,
 pub struct Adc<'a> {
     registers: StaticRef<AdcRegisters>,
     resolution: AdcResolution,
+    mode: Cell<AdcMode>,
+    active_channel: Cell<Channel>,
     ref_module: OptionalCell<&'a dyn ref_module::AnalogReference>,
     client: OptionalCell<&'a dyn hil::adc::Client>,
-    adc_channels: [AdcChannel; AVAILABLE_ADC_CHANNELS],
 }
 
+#[repr(u32)]
 #[derive(Copy, Clone, PartialEq)]
 pub enum Channel {
-    Channel18 = 0,
-    Channel19 = 1,
-    Channel20 = 2,
-    Channel21 = 3,
-    Channel22 = 4,
-    Channel23 = 5,
-}
-
-struct AdcChannel {
-    registers: StaticRef<AdcRegisters>,
-    chan_nr: usize,
-    chan_src: ChannelSource,
+    Channel0 = 0,
+    Channel1 = 1,
+    Channel2 = 2,
+    Channel3 = 3,
+    Channel4 = 4,
+    Channel5 = 5,
+    Channel6 = 6,
+    Channel7 = 7,
+    Channel8 = 8,
+    Channel9 = 9,
+    Channel10 = 10,
+    Channel11 = 11,
+    Channel12 = 12,
+    Channel13 = 13,
+    Channel14 = 14,
+    Channel15 = 15,
+    Channel16 = 16,
+    Channel17 = 17,
+    Channel18 = 18,
+    Channel19 = 19,
+    Channel20 = 20,
+    Channel21 = 21,
+    Channel22 = 22,
+    Channel23 = 23,
 }
 
 #[repr(u32)]
@@ -525,11 +539,12 @@ enum AdcResolution {
     Bits14 = 3,
 }
 
-#[repr(u32)]
 #[derive(Copy, Clone, PartialEq)]
-enum ChannelSource {
-    External = 0,
-    Internal = 1,
+enum AdcMode {
+    Single,
+    Repeated,
+    Highspeed,
+    Disabled,
 }
 
 impl<'a> Adc<'a> {
@@ -537,7 +552,82 @@ impl<'a> Adc<'a> {
         self.registers.ctl0.is_set(CTL0::ON)
     }
 
-    fn setup(&self) {}
+    fn stop(&self) {
+        // This is the recommended way to stop a conversation in any mode.
+        // See datasheet p. 855 section 22.2.8.6.
+        self.registers
+            .ctl0
+            .modify(CTL0::ENC::CLEAR + CTL0::CONSEQx::SingleChannelSequence);
+
+        // Disable all interrupts
+        self.registers.ie0.set(0);
+    }
+
+    fn setup(&self) {
+        self.stop();
+
+        for i in 0..AVAILABLE_ADC_CHANNELS {
+            self.registers.mctl[i].modify(
+                // Set the input for the channel
+                MCTLx::INCHx.val(i as u32)
+                // Set Reference voltage to Internal AVCC for Vref+ and AVSS (GND) for Vref-
+                + MCTLx::VRSEL::AvccAvss
+                // Configure the channel for single-ended mode
+                + MCTLx::DIF::SingleEnded
+                // Disable comparator window
+                + MCTLx::WINC::SET,
+            );
+        }
+
+        self.registers.ctl0.modify(
+            // Set predivider of the ADC-clock to 1
+            CTL0::PDIV::PreDivideBy1
+            // Set divider of the ADC-clock to 1
+            + CTL0::DIVx::DivideBy1
+            // Set ADC-clock source to HSMCLK
+            + CTL0::SSELx::HSMCLK
+            // Set the sample-and-hold source select to software-based
+            + CTL0::SHSx::SCBit
+            // Set the sampling-timer for generating the sample-period
+            + CTL0::SHP::SET
+            // Set the sample-and-hold time to 16 clock-cyles for channel 0-7 and 24-31
+            + CTL0::SHTOx::Cycles16
+            // Set the sample-and-hold time to 16 clock-cyles for channel 8-23
+            + CTL0::SHT1x::Cycles16,
+        );
+
+        self.registers.ctl1.modify(
+            // Enable the battery monitor on channel 23 (measures 1/2 * AVCC)
+            CTL1::BATMAP::Selected
+            // Enable the internal temperature sensor on channel 22
+            + CTL1::TCMAP::Selected
+            // Set the ADC resolution
+            + CTL1::RES.val(self.resolution as u32),
+        );
+
+        // Enable ADC
+        self.registers.ctl0.modify(CTL0::ON::SET);
+    }
+
+    fn get_sample(&self, chan: Channel) -> u16 {
+        // calculate the number of shifts which are necessary to align the sample to u16
+        let shift = 8 - 2 * (self.resolution as usize);
+
+        // Align the sample
+        (self.registers.mem[chan as usize].get() << shift) as u16
+    }
+
+    fn enable_interrupt(&self, chan: Channel) {
+        self.registers
+            .ie0
+            .set(self.registers.ie0.get() | (1 << (chan as u32)));
+    }
+
+    fn disable_interrupt(&self, chan: Channel) {
+        self.registers
+            .ie0
+            .set(self.registers.ie0.get() & !(1 << (chan as u32)));
+    }
 
     pub fn set_ref_module(&self, ref_module: &'a dyn ref_module::AnalogReference) {
         self.ref_module.set(ref_module);
@@ -546,14 +636,29 @@ impl<'a> Adc<'a> {
     pub fn set_client(&self, client: &'a dyn hil::adc::Client) {
         self.client.set(client);
     }
-}
 
-impl AdcChannel {
-    const fn new(chan_nr: usize, chan_src: ChannelSource) -> AdcChannel {
-        AdcChannel {
-            registers: ADC_BASE,
-            chan_nr: chan_nr,
-            chan_src: chan_src,
+    pub fn handle_interrupt(&self) {
+        let chan = self.active_channel.get();
+        let chan_nr = chan as usize;
+        let int_bit = 1 << (chan as u32);
+
+        if (self.registers.ifg0.get() & int_bit) > 0 {
+            // Clear interrupt flag
+            self.registers.clrifg0.set(int_bit);
+
+            if self.mode.get() == AdcMode::Single {
+                self.mode.set(AdcMode::Disabled);
+
+                self.disable_interrupt(chan);
+
+                // Stop sampling
+                self.registers.ctl0.modify(CTL0::ENC::CLEAR);
+
+                self.client
+                    .map(move |client| client.sample_ready(self.get_sample(chan)));
+            }
+        } else {
+            panic!("ADC: unhandled interrupt: channel {}", chan_nr);
         }
     }
 }
@@ -565,7 +670,31 @@ impl<'a> hil::adc::Adc for Adc<'a> {
         if !self.is_enabled() {
             self.setup();
         }
-        ReturnCode::ENOSUPPORT
+
+        if self.mode.get() != AdcMode::Disabled {
+            return ReturnCode::EBUSY;
+        }
+
+        self.mode.set(AdcMode::Single);
+        self.active_channel.set(*channel);
+
+        // Set the channel-number where to start sampling
+        self.registers
+            .ctl1
+            .modify(CTL1::STARTADDx.val(*channel as u32));
+
+        self.enable_interrupt(*channel);
+
+        self.registers.ctl0.modify(
+            // Set ADC to mode where a single channel gets sampled once
+            CTL0::CONSEQx::SingleChannelSingleConversion
+            // Enable conversation
+            + CTL0::ENC::SET
+            // Start conversation
+            + CTL0::SC::SET,
+        );
+
+        ReturnCode::SUCCESS
     }
 
     fn sample_continuous(&self, channel: &Self::Channel, frequency: u32) -> ReturnCode {
@@ -586,6 +715,6 @@ impl<'a> hil::adc::Adc for Adc<'a> {
     }
 
     fn get_voltage_reference_mv(&self) -> Option<usize> {
-        self.ref_module.map(|refmod| refmod.ref_voltage_mv())
+        self.ref_module.map(|ref_mod| ref_mod.ref_voltage_mv())
     }
 }
