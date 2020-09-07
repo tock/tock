@@ -1,13 +1,19 @@
 //! Analog-Digital Converter (ADC)
 
+use crate::ref_module;
+use kernel::common::cells::OptionalCell;
 use kernel::common::registers::{
     register_bitfields, register_structs, ReadOnly, ReadWrite, WriteOnly,
 };
 use kernel::common::StaticRef;
+use kernel::hil;
+use kernel::ReturnCode;
 
 pub static mut ADC: Adc = Adc {
     registers: ADC_BASE,
     resolution: AdcResolution::Bits14,
+    ref_module: OptionalCell::empty(),
+    client: OptionalCell::empty(),
     adc_channels: [
         AdcChannel::new(18, ChannelSource::External),
         AdcChannel::new(19, ChannelSource::External),
@@ -22,6 +28,8 @@ const ADC_BASE: StaticRef<AdcRegisters> =
     unsafe { StaticRef::new(0x4001_2000 as *const AdcRegisters) };
 
 const AVAILABLE_ADC_CHANNELS: usize = 6;
+
+const DEFAULT_ADC_RESOLUTION: AdcResolution = AdcResolution::Bits14;
 
 register_structs! {
     /// ADC14
@@ -484,6 +492,30 @@ register_bitfields![u32,
     ]
 ];
 
+pub struct Adc<'a> {
+    registers: StaticRef<AdcRegisters>,
+    resolution: AdcResolution,
+    ref_module: OptionalCell<&'a dyn ref_module::AnalogReference>,
+    client: OptionalCell<&'a dyn hil::adc::Client>,
+    adc_channels: [AdcChannel; AVAILABLE_ADC_CHANNELS],
+}
+
+#[derive(Copy, Clone, PartialEq)]
+pub enum Channel {
+    Channel18 = 0,
+    Channel19 = 1,
+    Channel20 = 2,
+    Channel21 = 3,
+    Channel22 = 4,
+    Channel23 = 5,
+}
+
+struct AdcChannel {
+    registers: StaticRef<AdcRegisters>,
+    chan_nr: usize,
+    chan_src: ChannelSource,
+}
+
 #[repr(u32)]
 #[derive(Copy, Clone, PartialEq)]
 enum AdcResolution {
@@ -500,16 +532,20 @@ enum ChannelSource {
     Internal = 1,
 }
 
-pub struct Adc {
-    registers: StaticRef<AdcRegisters>,
-    resolution: AdcResolution,
-    adc_channels: [AdcChannel; AVAILABLE_ADC_CHANNELS],
-}
+impl<'a> Adc<'a> {
+    fn is_enabled(&self) -> bool {
+        self.registers.ctl0.is_set(CTL0::ON)
+    }
 
-pub struct AdcChannel {
-    registers: StaticRef<AdcRegisters>,
-    chan_nr: usize,
-    chan_src: ChannelSource,
+    fn setup(&self) {}
+
+    pub fn set_ref_module(&self, ref_module: &'a dyn ref_module::AnalogReference) {
+        self.ref_module.set(ref_module);
+    }
+
+    pub fn set_client(&self, client: &'a dyn hil::adc::Client) {
+        self.client.set(client);
+    }
 }
 
 impl AdcChannel {
@@ -522,4 +558,34 @@ impl AdcChannel {
     }
 }
 
-impl Adc {}
+impl<'a> hil::adc::Adc for Adc<'a> {
+    type Channel = Channel;
+
+    fn sample(&self, channel: &Self::Channel) -> ReturnCode {
+        if !self.is_enabled() {
+            self.setup();
+        }
+        ReturnCode::ENOSUPPORT
+    }
+
+    fn sample_continuous(&self, channel: &Self::Channel, frequency: u32) -> ReturnCode {
+        ReturnCode::ENOSUPPORT
+    }
+
+    fn stop_sampling(&self) -> ReturnCode {
+        ReturnCode::ENOSUPPORT
+    }
+
+    fn get_resolution_bits(&self) -> usize {
+        match self.resolution {
+            AdcResolution::Bits8 => 8,
+            AdcResolution::Bits10 => 10,
+            AdcResolution::Bits12 => 12,
+            AdcResolution::Bits14 => 14,
+        }
+    }
+
+    fn get_voltage_reference_mv(&self) -> Option<usize> {
+        self.ref_module.map(|refmod| refmod.ref_voltage_mv())
+    }
+}
