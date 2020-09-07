@@ -3,6 +3,7 @@
 #![crate_name = "cortexm"]
 #![crate_type = "rlib"]
 #![feature(llvm_asm)]
+#![feature(asm)]
 #![feature(naked_functions)]
 #![no_std]
 
@@ -193,12 +194,10 @@ pub unsafe extern "C" fn unhandled_interrupt() {
     let mut interrupt_number: u32;
 
     // IPSR[8:0] holds the currently active interrupt
-    llvm_asm!(
-    "mrs    r0, ipsr                    "
-    : "={r0}"(interrupt_number)
-    :
-    : "r0"
-    :
+    asm!(
+        "mrs r0, ipsr",
+        out("r0") interrupt_number,
+        options(nomem, nostack, preserves_flags)
     );
 
     interrupt_number = interrupt_number & 0x1ff;
