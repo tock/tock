@@ -52,7 +52,6 @@ pub unsafe fn enable_all() {
     plic.enable[1].set(0xFFFF_FFFF);
     plic.enable[2].set(0xFFFF_0000); // USB are 64-79
 
-
     // Set the max priority for each interrupt. This is not really used
     // at this point.
     for priority in plic.priority.iter() {
