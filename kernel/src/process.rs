@@ -897,15 +897,19 @@ impl<C: Chip> ProcessType for Process<'_, C> {
                 // to `callback_id`.
                 Task::FunctionCall(function_call) => match function_call.source {
                     FunctionCallSource::Kernel => true,
-                    FunctionCallSource::Driver(id) => id != callback_id,
+                    FunctionCallSource::Driver(id) => {
+                        if id != callback_id {
+                            true
+                        } else {
+                            self.kernel.decrement_work();
+                            false
+                        }
+                    }
                 },
                 _ => true,
             });
-            let count_after = tasks.len();
-            for _ in 0..count_before - count_after {
-                self.kernel.decrement_work();
-            }
             if config::CONFIG.trace_syscalls {
+                let count_after = tasks.len();
                 debug!(
                     "[{:?}] remove_pending_callbacks[{:#x}:{}] = {} callback(s) removed",
                     self.appid(),
