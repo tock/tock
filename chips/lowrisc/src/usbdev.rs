@@ -426,6 +426,16 @@ impl<'a> Usb<'a> {
         self.state.set(state);
     }
 
+    fn get_transfer_type(&self, ep: usize) -> TransferType {
+        match self.descriptors[ep].state.get() {
+            EndpointState::Bulk(_, _) => TransferType::Bulk,
+            EndpointState::Iso => TransferType::Isochronous,
+            EndpointState::Interrupt(_, _) => TransferType::Interrupt,
+            EndpointState::Ctrl(_) => TransferType::Control,
+            EndpointState::Disabled => unreachable!(),
+        }
+    }
+
     fn disable_interrupts(&self) {
         self.registers.intr_enable.write(
             INTR::PKT_RECEIVED::CLEAR
@@ -682,17 +692,25 @@ impl<'a> Usb<'a> {
 
         self.client.map(|client| {
             self.copy_from_hw(ep, buf_id, size as usize);
-            let result = client.packet_out(TransferType::Bulk, ep as usize, size);
-            let new_out_state = match result {
-                hil::usb::OutResult::Ok => BulkOutState::Init,
+            let result = client.packet_out(self.get_transfer_type(ep), ep as usize, size);
+            match self.descriptors[ep].state.get() {
+                EndpointState::Disabled => unimplemented!(),
+                EndpointState::Ctrl(_state) => unimplemented!(),
+                EndpointState::Bulk(_in_state, _out_state) => {
+                    let new_out_state = match result {
+                        hil::usb::OutResult::Ok => BulkOutState::Init,
 
-                hil::usb::OutResult::Delay => BulkOutState::OutDelay,
+                        hil::usb::OutResult::Delay => BulkOutState::OutDelay,
 
-                hil::usb::OutResult::Error => BulkOutState::Init,
-            };
-            self.descriptors[ep]
-                .state
-                .set(EndpointState::Bulk(None, Some(new_out_state)));
+                        hil::usb::OutResult::Error => BulkOutState::Init,
+                    };
+                    self.descriptors[ep]
+                        .state
+                        .set(EndpointState::Bulk(None, Some(new_out_state)));
+                }
+                EndpointState::Iso => unimplemented!(),
+                EndpointState::Interrupt(_, _) => {}
+            }
         });
     }
 
@@ -825,7 +843,7 @@ impl<'a> Usb<'a> {
 
     fn transmit_in(&self, ep: usize) {
         self.client.map(|client| {
-            let result = client.packet_in(TransferType::Bulk, ep);
+            let result = client.packet_in(self.get_transfer_type(ep), ep);
 
             let new_in_state = match result {
                 hil::usb::InResult::Packet(size) => {
