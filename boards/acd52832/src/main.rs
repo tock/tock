@@ -20,6 +20,7 @@ use kernel::hil::time::{Alarm, Counter};
 #[allow(unused_imports)]
 use kernel::{create_capability, debug, debug_gpio, static_init};
 use nrf52832::gpio::Pin;
+use nrf52832::interrupt_service::Nrf52832DefaultPeripherals;
 use nrf52832::rtc::Rtc;
 
 use nrf52_components::ble::BLEComponent;
@@ -47,8 +48,6 @@ const NUM_PROCS: usize = 4;
 
 static mut PROCESSES: [Option<&'static dyn kernel::procs::ProcessType>; NUM_PROCS] =
     [None; NUM_PROCS];
-
-nrf52832::create_default_nrf52832_peripherals!(Nrf52832Peripherals);
 
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
@@ -112,7 +111,10 @@ pub unsafe fn reset_handler() {
     nrf52832::init();
     let ppi = static_init!(nrf52832::ppi::Ppi, nrf52832::ppi::Ppi::new());
     // Initialize chip peripheral drivers
-    let nrf52832_peripherals = static_init!(Nrf52832Peripherals, Nrf52832Peripherals::new(ppi));
+    let nrf52832_peripherals = static_init!(
+        Nrf52832DefaultPeripherals,
+        Nrf52832DefaultPeripherals::new(ppi)
+    );
 
     // set up circular peripheral dependencies
     nrf52832_peripherals.init();
@@ -475,7 +477,7 @@ pub unsafe fn reset_handler() {
     };
 
     let chip = static_init!(
-        nrf52832::chip::NRF52<Nrf52832Peripherals>,
+        nrf52832::chip::NRF52<Nrf52832DefaultPeripherals>,
         nrf52832::chip::NRF52::new(nrf52832_peripherals)
     );
 

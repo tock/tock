@@ -1,46 +1,39 @@
-/// This macro defines a struct that, when initialized,
-/// instantiates all peripheral drivers for the nrf52840 chip
-/// in Tock. If a board
-/// wishes to use only a subset of these peripherals, this
-/// macro cannot be used, and this struct should be
-/// constructed manually in main.rs. The input to the macro is the name of the struct
-/// that will hold the peripherals, which can be chosen by the board.
-#[macro_export]
-macro_rules! create_default_nrf52840_peripherals {
-    ($N:ident) => {
-        use nrf52840::deferred_call_tasks::DeferredCallTask;
-        //create all base nrf52 peripherals
-        use nrf52840::*;
-        nrf52840::create_default_nrf52_peripherals!(Nrf52BasePeripherals);
-        struct $N<'a> {
-            nrf52_base: Nrf52BasePeripherals<'a>,
-            usbd: nrf52840::usbd::Usbd<'a>,
+use crate::deferred_call_tasks::DeferredCallTask;
+use nrf52::chip::Nrf52DefaultPeripherals;
+
+/// This struct, when initialized, instantiates all peripheral drivers for the nrf52840.
+/// If a board wishes to use only a subset of these peripherals, this
+/// should not be used or imported, and a modified version should be
+/// constructed manually in main.rs.
+//create all base nrf52 peripherals
+pub struct Nrf52840DefaultPeripherals<'a> {
+    pub nrf52_base: Nrf52DefaultPeripherals<'a>,
+    pub usbd: crate::usbd::Usbd<'a>,
+}
+
+impl<'a> Nrf52840DefaultPeripherals<'a> {
+    pub fn new(ppi: &'a crate::ppi::Ppi) -> Self {
+        Self {
+            nrf52_base: unsafe { Nrf52DefaultPeripherals::new(&crate::gpio::PORT, ppi) },
+            usbd: crate::usbd::Usbd::new(),
         }
-        impl<'a> $N<'a> {
-            fn new(ppi: &'a ppi::Ppi) -> Self {
-                Self {
-                    nrf52_base: unsafe { Nrf52BasePeripherals::new(&nrf52840::gpio::PORT, ppi) },
-                    usbd: nrf52840::usbd::Usbd::new(),
-                }
-            }
-            // Necessary for setting up circular dependencies
-            fn init(&'a self) {
-                self.nrf52_base.pwr_clk.set_usb_client(&self.usbd);
-                self.usbd.set_power_ref(&self.nrf52_base.pwr_clk);
-                self.nrf52_base.init();
-            }
+    }
+    // Necessary for setting up circular dependencies
+    pub fn init(&'a self) {
+        self.nrf52_base.pwr_clk.set_usb_client(&self.usbd);
+        self.usbd.set_power_ref(&self.nrf52_base.pwr_clk);
+        self.nrf52_base.init();
+    }
+}
+impl<'a> kernel::InterruptService<DeferredCallTask> for Nrf52840DefaultPeripherals<'a> {
+    unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
+        match interrupt {
+            crate::peripheral_interrupts::USBD => self.usbd.handle_interrupt(),
+            _ => return self.nrf52_base.service_interrupt(interrupt),
         }
-        impl<'a> kernel::InterruptService<DeferredCallTask> for $N<'a> {
-            unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
-                match interrupt {
-                    nrf52840::peripheral_interrupts::USBD => self.usbd.handle_interrupt(),
-                    _ => return self.nrf52_base.service_interrupt(interrupt),
-                }
-                true
-            }
-            unsafe fn service_deferred_call(&self, task: DeferredCallTask) -> bool {
-                self.nrf52_base.service_deferred_call(task)
-            }
-        }
-    };
+        true
+    }
+    unsafe fn service_deferred_call(&self, task: DeferredCallTask) -> bool {
+        self.nrf52_base.service_deferred_call(task)
+    }
 }
