@@ -34,16 +34,6 @@ impl<L, T> AppPtr<L, T> {
     }
 }
 
-impl<L, T> Drop for AppPtr<L, T> {
-    fn drop(&mut self) {
-        self.process
-            .kernel
-            .process_map_or((), self.process, |process| unsafe {
-                process.free(self.ptr.as_ptr() as *mut u8)
-            })
-    }
-}
-
 /// Buffer of memory shared from an app to the kernel.
 ///
 /// This is the type created after an app calls the `allow` syscall.
