@@ -147,11 +147,9 @@ impl kernel::SchedulerTimer for SysTick {
         // We really just need to set the TICKINT bit here, but can't use modify() because
         // readying the CSR register will throw away evidence of expiration if one
         // occurred, so we re-write entire value instead.
-	SYSTICK_BASE
+        SYSTICK_BASE
             .syst_csr
-            .write(ControlAndStatus::TICKINT::SET +
-		   ControlAndStatus::ENABLE::SET +
-		   clock_source);
+            .write(ControlAndStatus::TICKINT::SET + ControlAndStatus::ENABLE::SET + clock_source);
     }
 
     fn has_expired(&self) -> bool {

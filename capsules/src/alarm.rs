@@ -13,7 +13,7 @@ pub const DRIVER_NUM: usize = driver::NUM::Alarm as usize;
 #[derive(Copy, Clone, Debug)]
 enum Expiration {
     Disabled,
-    Enabled {reference: u32, dt: u32},
+    Enabled { reference: u32, dt: u32 },
 }
 
 #[derive(Copy, Clone)]
@@ -64,16 +64,16 @@ impl<'a, A: Alarm<'a>> AlarmDriver<'a, A> {
         // and resolve ordering later, when we fire.
         for alarm in self.app_alarms.iter() {
             alarm.enter(|alarm, _| match alarm.expiration {
-                Expiration::Enabled{reference, dt} => {
+                Expiration::Enabled { reference, dt } => {
                     let end: A::Ticks = A::Ticks::from(reference.wrapping_add(dt));
-		    // Do this because reference shadowed below
-		    let current_reference = reference; 
+                    // Do this because reference shadowed below
+                    let current_reference = reference;
                     earliest_alarm = match earliest_alarm {
                         Expiration::Disabled => {
                             earliest_end = end;
                             alarm.expiration
                         }
-                        Expiration::Enabled{reference, dt} => {
+                        Expiration::Enabled { reference, dt } => {
                             // There are two cases when this might be
                             // an earlier alarm.  The first is if it
                             // fires inside the interval (reference,
@@ -115,7 +115,7 @@ impl<'a, A: Alarm<'a>> AlarmDriver<'a, A> {
             Expiration::Disabled => {
                 self.alarm.disarm();
             }
-            Expiration::Enabled{reference, dt} => {
+            Expiration::Enabled { reference, dt } => {
                 // This logic handles when the underlying Alarm is wider than
                 // 32 bits; it sets the reference to include the high bits of now
                 let mut high_bits = now.wrapping_sub(now_lower_bits);
@@ -178,7 +178,10 @@ impl<'a, A: Alarm<'a>> Driver for AlarmDriver<'a, A> {
                     if let Expiration::Disabled = td.expiration {
                         self.num_armed.set(self.num_armed.get() + 1);
                     }
-                    td.expiration = Expiration::Enabled{reference: reference as u32, dt: dt as u32};
+                    td.expiration = Expiration::Enabled {
+                        reference: reference as u32,
+                        dt: dt as u32,
+                    };
                     (
                         ReturnCode::SuccessWithValue {
                             value: reference.wrapping_add(dt),
@@ -253,7 +256,7 @@ impl<'a, A: Alarm<'a>> time::AlarmClient for AlarmDriver<'a, A> {
         //debug!("AlarmDriver::alarm called at {}", now.into_u32());
 
         self.app_alarms.each(|alarm| {
-            if let Expiration::Enabled{reference, dt} = alarm.expiration {
+            if let Expiration::Enabled { reference, dt } = alarm.expiration {
                 // Now is not within reference, reference + ticks; this timer
                 // as passed (since reference must be in the past)
                 if !now.within_range(

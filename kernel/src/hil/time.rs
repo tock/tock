@@ -174,11 +174,11 @@ pub trait Alarm<'a>: Time {
     fn set_alarm_client(&'a self, client: &'a dyn AlarmClient);
 
     /// Specify when the callback should be called and enable it. The
-    /// callback will be enqueued when `Time::now() == reference + dt`. The 
-    /// callback itself may not run exactly at this time, due to delays. 
-    /// However, it it assured to execute *after* `reference + dt`: it can 
-    /// be delayed but will never fire early. The method takes `reference` 
-    /// and `dt` rather than a single value denoting the counter value so it 
+    /// callback will be enqueued when `Time::now() == reference + dt`. The
+    /// callback itself may not run exactly at this time, due to delays.
+    /// However, it it assured to execute *after* `reference + dt`: it can
+    /// be delayed but will never fire early. The method takes `reference`
+    /// and `dt` rather than a single value denoting the counter value so it
     /// can distinguish between alarms which have very recently already
     /// passed and those in the far far future (see #1651).
     fn set_alarm(&self, reference: Self::Ticks, dt: Self::Ticks);
@@ -417,6 +417,71 @@ impl PartialEq for Ticks24 {
 }
 
 impl Eq for Ticks24 {}
+
+
+/// 24-bit `Ticks`
+#[derive(Clone, Copy, Debug, PartialOrd)]
+pub struct Ticks16(u16);
+
+impl From<u16> for Ticks16 {
+    fn from(val: u16) -> Self {
+        Ticks16(val)
+    }
+}
+
+impl From<u32> for Ticks16 {
+    fn from(val: u32) -> Self {
+        Ticks16((val & 0xffff) as u16)
+    }
+}
+
+impl Ticks16 {
+    pub fn into_u16(self) -> u16 {
+	self.0
+    }
+}
+
+impl Ticks for Ticks16 {
+    fn into_usize(self) -> usize {
+        self.0 as usize
+    }
+
+    fn into_u32(self) -> u32 {
+        self.0 as u32
+    }
+
+    fn wrapping_add(self, other: Self) -> Self {
+        Ticks16(self.0.wrapping_add(other.0))
+    }
+
+    fn wrapping_sub(self, other: Self) -> Self {
+        Ticks16(self.0.wrapping_sub(other.0))
+    }
+
+    fn within_range(self, start: Self, end: Self) -> bool {
+        self.wrapping_sub(start).0 < end.wrapping_sub(start).0
+    }
+
+    /// Returns the maximum value of this type, which should be (2^width)-1.
+    fn max_value() -> Self {
+        Ticks16(0xFFFF)
+    }
+}
+
+impl Ord for Ticks16 {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.0.cmp(&other.0)
+    }
+}
+
+impl PartialEq for Ticks16 {
+    fn eq(&self, other: &Self) -> bool {
+        self.0 == other.0
+    }
+}
+
+impl Eq for Ticks16 {}
+
 
 /// 64-bit `Ticks`
 #[derive(Clone, Copy, Debug, PartialOrd)]

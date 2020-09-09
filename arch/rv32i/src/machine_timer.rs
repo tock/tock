@@ -4,7 +4,7 @@ use crate::csr;
 use kernel::common::cells::OptionalCell;
 use kernel::common::registers::{register_structs, ReadWrite};
 use kernel::common::StaticRef;
-use kernel::hil::time::{self, Alarm, Frequency, Freq32KHz, Ticks, Ticks64, Time};
+use kernel::hil::time::{self, Alarm, Freq32KHz, Frequency, Ticks, Ticks64, Time};
 use kernel::ReturnCode;
 
 register_structs! {
@@ -106,8 +106,8 @@ impl<'a> time::Alarm<'a> for MachineTimer<'a> {
     fn is_armed(&self) -> bool {
         // Check if mtimecmp is the max value. If it is, then we are not armed,
         // otherwise we assume we have a value set.
-        self.registers.compare_high.get() != 0xFFFF_FFFF &&
-        self.registers.compare_low.get() != 0xFFFF_FFFF
+        self.registers.compare_high.get() != 0xFFFF_FFFF
+            && self.registers.compare_low.get() != 0xFFFF_FFFF
     }
 
     fn minimum_dt(&self) -> Self::Ticks {
@@ -139,5 +139,4 @@ impl kernel::SchedulerTimer for MachineTimer<'_> {
     fn reset(&self) {
         self.disable_machine_timer();
     }
-
 }

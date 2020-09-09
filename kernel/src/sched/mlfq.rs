@@ -148,7 +148,8 @@ impl<'a, A: 'static + time::Alarm<'static>, C: Chip> Scheduler<C> for MLFQSched<
             // alarm wraps around
             if !now.within_range(last_reset_check, next_reset) {
                 // Promote all processes to highest priority queue
-                self.next_reset.set(now.wrapping_add(A::ticks_from_ms(Self::PRIORITY_REFRESH_PERIOD_MS)));
+                self.next_reset
+                    .set(now.wrapping_add(A::ticks_from_ms(Self::PRIORITY_REFRESH_PERIOD_MS)));
                 self.redeem_all_procs();
             }
             self.last_reset_check.set(now);
