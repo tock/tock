@@ -39,11 +39,7 @@ impl MachineTimer<'_> {
     }
 
     fn disable_machine_timer(&self) {
-        // Disable by setting the mtimecmp register to its max value.
-        // In theory we won't hit it if we start at 0, but it's ridiculous that
-        // mtimer has no enable/disable mechanism.
-        self.registers.compare_high.set(0xFFFF_FFFF);
-        self.registers.compare_low.set(0xFFFF_FFFF);
+        csr::CSR.mie.modify(csr::mie::mie::mtimer::CLEAR);
     }
 }
 
