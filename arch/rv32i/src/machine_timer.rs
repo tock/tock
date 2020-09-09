@@ -144,7 +144,4 @@ impl kernel::SchedulerTimer for MachineTimer<'_> {
         self.disable_machine_timer();
     }
 
-    fn disarm(&self) {
-        csr::CSR.mie.modify(csr::mie::mie::mtimer::CLEAR);
-    }
 }
