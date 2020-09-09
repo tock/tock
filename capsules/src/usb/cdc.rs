@@ -72,6 +72,25 @@ enum CtrlState {
     SetLineCoding,
 }
 
+#[derive(PartialEq)]
+enum CDCCntrlMessage {
+    NotSupported,
+    SetLineCoding = 0x20,
+    SetControlLineState = 0x22,
+    SendBreak = 0x23,
+}
+
+impl From<u8> for CDCCntrlMessage {
+    fn from(num: u8) -> Self {
+        match num {
+            0x20 => CDCCntrlMessage::SetLineCoding,
+            0x22 => CDCCntrlMessage::SetControlLineState,
+            0x23 => CDCCntrlMessage::SendBreak,
+            _ => CDCCntrlMessage::NotSupported,
+        }
+    }
+}
+
 /// Implementation of the Abstract Control Model (ACM) for the Communications
 /// Class Device (CDC) over USB.
 pub struct CdcAcm<'a, U: 'a> {
@@ -284,15 +303,11 @@ impl<'a, U: hil::usb::UsbController<'a>> hil::usb::Client<'a> for CdcAcm<'a, U> 
         descriptors::SetupData::get(&self.client_ctrl.ctrl_buffer.buf).map(|setup_data| {
             let b_request = setup_data.request_code;
 
-            // Match on the CDC control messages we care about:
-            // - `0x20`: SET_LINE_CODING
-            // - `0x22`: SET_CONTROL_LINE_STATE
-            // - `0x23`: SEND_BREAK
-            match b_request {
-                0x20 => {
+            match CDCCntrlMessage::from(b_request) {
+                CDCCntrlMessage::SetLineCoding => {
                     self.ctrl_state.set(CtrlState::SetLineCoding);
                 }
-                0x22 => {
+                CDCCntrlMessage::SetControlLineState => {
                     // Bit 0 and 1 of the value (setup_data.value) can be set
                     // D0: Indicates to DCE if DTE is present or not.
                     //     - 0 -> Not present
@@ -302,7 +317,7 @@ impl<'a, U: hil::usb::UsbController<'a>> hil::usb::Client<'a> for CdcAcm<'a, U> 
                     //     - 1 -> Activate carrier
                     // Currently we don't care about the value
                 }
-                0x23 => {
+                CDCCntrlMessage::SendBreak => {
                     // On Mac, we seem to get the SEND_BREAK to signal that a
                     // client disconnects.
                     self.state.set(State::Enumerated)
