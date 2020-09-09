@@ -258,11 +258,20 @@ pub enum BulkOutState {
     OutData(usize),
 }
 
+#[derive(Copy, Clone, PartialEq, Debug)]
+pub enum InterruptState {
+    // The endpoint is ready to perform transactions.
+    Init,
+    // There is a pending IN packet transfer on this endpoint.
+    In(usize),
+}
+
 #[derive(Copy, Clone, Debug)]
 pub enum EndpointState {
     Disabled,
     Ctrl(CtrlState),
     Bulk(Option<BulkInState>, Option<BulkOutState>),
+    Interrupt(u32, InterruptState),
     Iso,
 }
 
@@ -660,6 +669,7 @@ impl<'a> Usb<'a> {
             }
             EndpointState::Bulk(_in_state, _out_state) => unimplemented!(),
             EndpointState::Iso => unimplemented!(),
+            EndpointState::Interrupt(_, _) => unimplemented!(),
         }
     }
 
@@ -771,6 +781,7 @@ impl<'a> Usb<'a> {
                     },
                     EndpointState::Bulk(_in_state, _out_state) => {}
                     EndpointState::Iso => unimplemented!(),
+                    EndpointState::Interrupt(_, _) => {}
                 }
             }
         }
@@ -942,7 +953,6 @@ impl<'a> hil::usb::UsbController<'a> for Usb<'a> {
                     .set(EndpointState::Ctrl(CtrlState::Init));
             }
             TransferType::Bulk => {
-                // How is this different to control?
                 self.registers
                     .rxenable_setup
                     .set(1 << endpoint | self.registers.rxenable_setup.get());
@@ -950,7 +960,14 @@ impl<'a> hil::usb::UsbController<'a> for Usb<'a> {
                     .state
                     .set(EndpointState::Bulk(Some(BulkInState::Init), None));
             }
-            TransferType::Interrupt => unimplemented!(),
+            TransferType::Interrupt => {
+                self.registers
+                    .rxenable_setup
+                    .set(1 << endpoint | self.registers.rxenable_setup.get());
+                self.descriptors[endpoint]
+                    .state
+                    .set(EndpointState::Interrupt(64, InterruptState::Init));
+            }
             TransferType::Isochronous => {
                 self.registers
                     .rxenable_setup
@@ -975,7 +992,6 @@ impl<'a> hil::usb::UsbController<'a> for Usb<'a> {
                     .set(EndpointState::Ctrl(CtrlState::Init));
             }
             TransferType::Bulk => {
-                // How is this different to control?
                 self.registers
                     .rxenable_setup
                     .set(1 << endpoint | self.registers.rxenable_setup.get());
@@ -986,7 +1002,14 @@ impl<'a> hil::usb::UsbController<'a> for Usb<'a> {
                     .state
                     .set(EndpointState::Bulk(None, Some(BulkOutState::Init)));
             }
-            TransferType::Interrupt => unimplemented!(),
+            TransferType::Interrupt => {
+                self.registers
+                    .rxenable_out
+                    .set(1 << endpoint | self.registers.rxenable_out.get());
+                self.descriptors[endpoint]
+                    .state
+                    .set(EndpointState::Interrupt(64, InterruptState::Init));
+            }
             TransferType::Isochronous => {
                 self.registers
                     .rxenable_setup
