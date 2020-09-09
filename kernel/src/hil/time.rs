@@ -128,15 +128,19 @@ pub trait Counter<'a>: Time {
     fn start(&self) -> ReturnCode;
 
     /// Stops the free-running hardware counter. Valid `ReturnCode` values are:
-    ///   - `ReturnCode::SUCCESS`: the counter is now stopped.
+    ///   - `ReturnCode::SUCCESS`: the counter is now stopped. No further
+    ///   overflow callbacks will be invoked.
     ///   - `ReturnCode::EBUSY`: the counter is in use in a way that means it
     ///   cannot be stopped and is busy.
     ///   - `ReturnCode::FAIL`: unidentified failure, counter is running.
     /// After a successful call to `stop`, `is_running` MUST return false.        
     fn stop(&self) -> ReturnCode;
 
-    /// Resets the counter to 0. If the counter is currently running, this
-    /// may require stopping and restarting it. Valid `ReturnCode` values are:
+    /// Resets the counter to 0. This may introduce jitter on the counter.
+    /// Resetting the counter has no effect on any pending overflow callbacks.
+    /// If a client needs to reset and clear pending callbacks it should
+    /// call `stop` before `reset`.
+    /// Valid `ReturnCode` values are:
     ///    - `ReturnCode::SUCCESS`: the counter was reset to 0.
     ///    - `ReturnCode::FAIL`: the counter was not reset to 0.    
     fn reset(&self) -> ReturnCode;
