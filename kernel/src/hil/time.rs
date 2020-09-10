@@ -1,5 +1,7 @@
 //! Hardware agnostic interfaces for time and timers within the Tock
-//! kernel. These traits are designed to be able encompass the wide
+//! kernel.
+//!
+//! These traits are designed to be able encompass the wide
 //! variety of hardare counters in a general yet efficient way. They
 //! abstract the frequency of a counter through the `Frequency` trait
 //! and the width of a time value through the `Ticks`
