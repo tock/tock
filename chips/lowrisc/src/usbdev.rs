@@ -6,7 +6,6 @@ use kernel::common::registers::{
     register_bitfields, register_structs, LocalRegisterCopy, ReadOnly, ReadWrite, WriteOnly,
 };
 use kernel::common::StaticRef;
-use kernel::debug;
 use kernel::hil;
 use kernel::hil::usb::TransferType;
 
@@ -31,8 +30,8 @@ register_structs! {
         (0x060 => data_toggle_clear: WriteOnly<u32, DATA_TOGGLE_CLEAR::Register>),
         (0x064 => phy_config: ReadWrite<u32, PHY_CONFIG::Register>),
         (0x068 => _reserved0),
-        (0x800 => buffer: [ReadWrite<u64, BUFFER::Register>; N_BUFFERS]),
-        (0x900 => @END),
+        (0x800 => buffer: [ReadWrite<u64, BUFFER::Register>; N_BUFFERS * 8]),
+        (0x1000 => @END),
     }
 }
 
@@ -57,7 +56,7 @@ register_bitfields![u32,
     ],
     USBCTRL [
         ENABLE OFFSET(0) NUMBITS(1) [],
-        DEVICE_ADDRESS OFFSET(16) NUMBITS(6) []
+        DEVICE_ADDRESS OFFSET(16) NUMBITS(7) []
     ],
     USBSTAT [
         FRAME OFFSET(0) NUMBITS(10) [],
@@ -136,7 +135,7 @@ register_bitfields![u32,
     ],
     CONFIGIN [
         BUFFER OFFSET(0) NUMBITS(4) [],
-        SIZE OFFSET(8) NUMBITS(6) [],
+        SIZE OFFSET(8) NUMBITS(7) [],
         PEND OFFSET(30) NUMBITS(1) [],
         RDY OFFSET(31) NUMBITS(1) []
     ],
@@ -179,6 +178,8 @@ register_bitfields![u32,
     ]
 ];
 
+// This is only useful for decoding the data from the buffer
+// Don't use this to write.
 register_bitfields![u64,
     BUFFER [
         REQUEST_TYPE OFFSET(0) NUMBITS(8) [],
@@ -189,35 +190,79 @@ register_bitfields![u64,
     ]
 ];
 
+enum SetupRequest {
+    GetStatus = 0,
+    ClearFeature = 1,
+    SetFeature = 3,
+    SetAddress = 5,
+    GetDescriptor = 6,
+    SetDescriptor = 7,
+    GetConfiguration = 8,
+    SetConfiguration = 9,
+    GetInterface = 10,
+    SetInterface = 11,
+    SynchFrame = 12,
+    Unsupported = 100,
+}
+
+impl From<u32> for SetupRequest {
+    fn from(num: u32) -> Self {
+        match num {
+            0 => SetupRequest::GetStatus,
+            1 => SetupRequest::ClearFeature,
+            3 => SetupRequest::SetFeature,
+            5 => SetupRequest::SetAddress,
+            6 => SetupRequest::GetDescriptor,
+            7 => SetupRequest::SetDescriptor,
+            8 => SetupRequest::GetConfiguration,
+            9 => SetupRequest::SetConfiguration,
+            10 => SetupRequest::GetInterface,
+            11 => SetupRequest::SetInterface,
+            12 => SetupRequest::SynchFrame,
+            _ => SetupRequest::Unsupported,
+        }
+    }
+}
+
+/// State of the control endpoint (endpoint 0).
 #[derive(Copy, Clone, PartialEq, Debug)]
 pub enum CtrlState {
+    /// Control endpoint is idle, and waiting for a command from the host.
     Init,
+    /// Control endpoint has started an IN transfer.
     ReadIn,
+    /// Control endpoint has moved to the status phase.
     ReadStatus,
+    /// Control endpoint is handling a control write (OUT) transfer.
     WriteOut,
-    WriteStatus,
-    WriteStatusWait,
-    InDelay,
+    /// Control endpoint needs to set the address in hardware
+    SetAddress,
 }
 
 #[derive(Copy, Clone, PartialEq, Debug)]
 pub enum BulkInState {
+    // The endpoint is ready to perform transactions.
     Init,
-    Delay,
+    // There is a pending IN packet transfer on this endpoint.
+    In(usize),
 }
 
 #[derive(Copy, Clone, PartialEq, Debug)]
 pub enum BulkOutState {
+    // The endpoint is ready to perform transactions.
     Init,
-    Delay,
+    // There is a pending OUT packet in this endpoint's buffer, to be read by
+    // the client application.
+    OutDelay,
+    // There is a pending EPDATA to reply to.
+    OutData(usize),
 }
 
 #[derive(Copy, Clone, Debug)]
 pub enum EndpointState {
     Disabled,
     Ctrl(CtrlState),
-    BulkIn(BulkInState),
-    BulkOut(BulkOutState),
+    Bulk(Option<BulkInState>, Option<BulkOutState>),
     Iso,
 }
 
@@ -303,6 +348,7 @@ pub struct Usb<'a> {
     client: OptionalCell<&'a dyn hil::usb::Client<'a>>,
     state: OptionalCell<State>,
     bufs: Cell<[Buffer; N_BUFFERS]>,
+    addr: Cell<u16>,
 }
 
 impl<'a> Usb<'a> {
@@ -359,6 +405,7 @@ impl<'a> Usb<'a> {
                 Buffer::new(30),
                 Buffer::new(31),
             ]),
+            addr: Cell::new(0),
         }
     }
 
@@ -422,6 +469,221 @@ impl<'a> Usb<'a> {
                 break;
             }
         }
+
+        self.bufs.set(bufs);
+    }
+
+    fn stall(&self, endpoint: usize) {
+        self.registers
+            .stall
+            .set(1 << endpoint | self.registers.stall.get());
+    }
+
+    fn copy_slice_out_to_hw(&self, ep: usize, buf_id: usize, size: usize) {
+        // Get the slice
+        let slice = self.descriptors[ep]
+            .slice_out
+            .expect("No OUT slice set for this descriptor");
+
+        let mut slice_start = 0;
+
+        for offset in 0..(size / 8) {
+            let slice_end = (offset + 1) * 8;
+
+            let mut to_write: u64 = 0;
+            for (i, buf) in slice[slice_start..slice_end].iter().enumerate() {
+                to_write |= (buf.get() as u64) << (i * 8);
+            }
+
+            // Write the data
+            self.registers.buffer[(buf_id * 8) + offset].set(to_write);
+
+            // Prepare for next loop
+            slice_start = slice_end;
+        }
+
+        // Check if there is any remainder less then 8
+        if slice_start < size {
+            let mut to_write: u64 = 0;
+            for (i, buf) in slice[slice_start..size].iter().enumerate() {
+                to_write |= (buf.get() as u64) << (i * 8);
+            }
+
+            // Write the data
+            self.registers.buffer[(buf_id * 8) + (slice_start / 8)].set(to_write);
+        }
+
+        self.registers.configin[ep].write(
+            CONFIGIN::BUFFER.val(buf_id as u32)
+                + CONFIGIN::SIZE.val(size as u32)
+                + CONFIGIN::RDY::SET,
+        );
+    }
+
+    fn copy_from_hw(&self, ep: usize, buf_id: usize, size: usize) {
+        // Get the slice
+        let slice = self.descriptors[ep]
+            .slice_in
+            .expect("No IN slice set for this descriptor");
+
+        // Read the date to the buffer
+        // TODO: Handle long packets
+        for offset in 0..(size / 8) {
+            let data = self.registers.buffer[(buf_id * 8) + offset].get();
+
+            for (i, d) in data.to_ne_bytes().iter().enumerate() {
+                slice[(offset * 8) + i].set(*d);
+            }
+        }
+    }
+
+    fn complete_ctrl_status(&self) {
+        let endpoint = 0;
+
+        self.client.map(|client| {
+            client.ctrl_status(endpoint);
+            client.ctrl_status_complete(endpoint);
+            self.descriptors[endpoint]
+                .state
+                .set(EndpointState::Ctrl(CtrlState::Init));
+        });
+    }
+
+    fn control_ep_receive(&self, ep: usize, buf_id: usize, size: u32, setup: u32) {
+        let hw_buf = self.registers.buffer[buf_id * 8].extract();
+
+        match self.descriptors[ep].state.get() {
+            EndpointState::Disabled => unimplemented!(),
+            EndpointState::Ctrl(state) => {
+                let request_type = hw_buf.read(BUFFER::REQUEST_TYPE);
+                let length = hw_buf.read(BUFFER::LENGTH);
+
+                let ep_buf = &self.descriptors[ep].slice_out;
+                let ep_buf = ep_buf.expect("No OUT slice set for this descriptor");
+                if ep_buf.len() < 8 {
+                    panic!("EP0 DMA buffer length < 8");
+                }
+
+                // Re-construct the SETUP packet from various registers. The
+                // client's ctrl_setup() will parse it as a SetupData
+                // descriptor.
+                for (i, buf) in hw_buf.get().to_ne_bytes().iter().enumerate() {
+                    ep_buf[i].set(*buf);
+                }
+
+                match state {
+                    CtrlState::Init => {
+                        if setup != 0 && size == 8 {
+                            self.client.map(|client| {
+                                // Notify the client that the ctrl setup event has occurred.
+                                // Allow it to configure any data we need to send back.
+                                match client.ctrl_setup(ep) {
+                                    hil::usb::CtrlSetupResult::OkSetAddress => {
+                                        self.descriptors[ep]
+                                            .state
+                                            .set(EndpointState::Ctrl(CtrlState::SetAddress));
+                                    }
+                                    hil::usb::CtrlSetupResult::Ok => {
+                                        if length == 0 {
+                                            self.copy_slice_out_to_hw(0, 0, 0);
+                                            self.complete_ctrl_status();
+                                        } else {
+                                            let to_host = request_type & (1 << 7) != (1 << 7);
+                                            if to_host {
+                                                match client.ctrl_out(ep, hw_buf.get() as u32) {
+                                                    hil::usb::CtrlOutResult::Ok => {
+                                                        self.descriptors[ep].state.set(
+                                                            EndpointState::Ctrl(
+                                                                CtrlState::ReadStatus,
+                                                            ),
+                                                        );
+                                                        self.copy_slice_out_to_hw(ep, buf_id, 0);
+                                                    }
+                                                    hil::usb::CtrlOutResult::Delay => {
+                                                        unimplemented!()
+                                                    }
+                                                    hil::usb::CtrlOutResult::Halted => {
+                                                        unimplemented!()
+                                                    }
+                                                }
+                                            } else {
+                                                match client.ctrl_in(ep) {
+                                                    hil::usb::CtrlInResult::Packet(size, last) => {
+                                                        if size == 0 {
+                                                            panic!("Empty ctrl packet?");
+                                                        }
+
+                                                        self.copy_slice_out_to_hw(ep, buf_id, size);
+
+                                                        if last {
+                                                            self.descriptors[ep].state.set(
+                                                                EndpointState::Ctrl(
+                                                                    CtrlState::ReadStatus,
+                                                                ),
+                                                            );
+                                                        } else {
+                                                            self.descriptors[ep].state.set(
+                                                                EndpointState::Ctrl(
+                                                                    CtrlState::WriteOut,
+                                                                ),
+                                                            );
+                                                        }
+                                                    }
+                                                    hil::usb::CtrlInResult::Delay => {
+                                                        unimplemented!()
+                                                    }
+                                                    hil::usb::CtrlInResult::Error => unreachable!(),
+                                                }
+                                            }
+                                        }
+                                    }
+                                    _err => {
+                                        self.stall(ep);
+                                        self.free_buffer(buf_id);
+                                        self.descriptors[ep]
+                                            .state
+                                            .set(EndpointState::Ctrl(CtrlState::Init));
+                                    }
+                                };
+                            });
+                        }
+                    }
+                    CtrlState::ReadIn => {
+                        self.copy_from_hw(ep, buf_id, size as usize);
+                    }
+                    CtrlState::ReadStatus => {
+                        self.complete_ctrl_status();
+                    }
+                    CtrlState::WriteOut => unreachable!(),
+                    CtrlState::SetAddress => unreachable!(),
+                }
+            }
+            EndpointState::Bulk(_in_state, _out_state) => unimplemented!(),
+            EndpointState::Iso => unimplemented!(),
+        }
+    }
+
+    fn ep_receive(&self, ep: usize, buf_id: usize, size: u32, _setup: u32) {
+        let ep_buf = &self.descriptors[ep].slice_out;
+        let ep_buf = ep_buf.expect("No OUT slice set for this descriptor");
+        if ep_buf.len() < 8 {
+            panic!("EP0 DMA buffer length < 8");
+        }
+
+        self.client.map(|client| {
+            self.copy_from_hw(ep, buf_id, size as usize);
+            let result = client.packet_out(TransferType::Bulk, ep as usize, size);
+            let new_out_state = match result {
+                hil::usb::OutResult::Ok => BulkOutState::Init,
+
+                hil::usb::OutResult::Delay => BulkOutState::OutDelay,
+
+                hil::usb::OutResult::Error => BulkOutState::Init,
+            };
+            self.descriptors[ep]
+                .state
+                .set(EndpointState::Bulk(None, Some(new_out_state)));
+        });
     }
 
     pub fn handle_interrupt(&self) {
@@ -453,19 +715,148 @@ impl<'a> Usb<'a> {
             let mut in_sent = self.registers.in_sent.get();
 
             while in_sent != 0 {
-                let endpoint = in_sent.trailing_zeros();
+                let ep = in_sent.trailing_zeros();
 
                 // We are handling this case, clear it
-                self.registers.in_sent.set(1 << endpoint);
-                in_sent = in_sent & !(1 << endpoint);
+                self.registers.in_sent.set(1 << ep);
+                in_sent = in_sent & !(1 << ep);
 
-                let buf = self.registers.configin[endpoint as usize].read(CONFIGIN::BUFFER);
+                let buf = self.registers.configin[ep as usize].read(CONFIGIN::BUFFER);
 
                 self.free_buffer(buf as usize);
+
+                match self.descriptors[ep as usize].state.get() {
+                    EndpointState::Disabled => unimplemented!(),
+                    EndpointState::Ctrl(state) => match state {
+                        CtrlState::Init => {}
+                        CtrlState::ReadIn => {
+                            unimplemented!();
+                        }
+                        CtrlState::ReadStatus => {
+                            self.complete_ctrl_status();
+                        }
+                        CtrlState::WriteOut => {
+                            self.client.map(|client| {
+                                match client.ctrl_in(ep as usize) {
+                                    hil::usb::CtrlInResult::Packet(size, last) => {
+                                        if size == 0 {
+                                            panic!("Empty ctrl packet?");
+                                        }
+
+                                        self.copy_slice_out_to_hw(ep as usize, buf as usize, size);
+
+                                        if last {
+                                            self.descriptors[ep as usize]
+                                                .state
+                                                .set(EndpointState::Ctrl(CtrlState::ReadStatus));
+                                        } else {
+                                            self.descriptors[ep as usize]
+                                                .state
+                                                .set(EndpointState::Ctrl(CtrlState::WriteOut));
+                                        }
+                                    }
+                                    hil::usb::CtrlInResult::Delay => unimplemented!(),
+                                    hil::usb::CtrlInResult::Error => unreachable!(),
+                                };
+                            });
+                        }
+                        CtrlState::SetAddress => {
+                            self.registers
+                                .usbctrl
+                                .modify(USBCTRL::DEVICE_ADDRESS.val(self.addr.get() as u32));
+                            self.descriptors[ep as usize]
+                                .state
+                                .set(EndpointState::Ctrl(CtrlState::Init));
+                        }
+                    },
+                    EndpointState::Bulk(_in_state, _out_state) => {}
+                    EndpointState::Iso => unimplemented!(),
+                }
             }
         }
 
+        if irqs.is_set(INTR::PKT_RECEIVED) {
+            while !self.registers.usbstat.is_set(USBSTAT::RX_EMPTY) {
+                let rxinfo = self.registers.rxfifo.extract();
+                let buf = rxinfo.read(RXFIFO::BUFFER);
+                let size = rxinfo.read(RXFIFO::SIZE);
+                let ep = rxinfo.read(RXFIFO::EP);
+                let setup = rxinfo.read(RXFIFO::SETUP);
+
+                // Check if it's the control endpoint
+                match ep {
+                    0 => {
+                        self.control_ep_receive(ep as usize, buf as usize, size, setup);
+                        self.free_buffer(buf as usize);
+                        break;
+                    }
+                    1..=7 => {
+                        self.ep_receive(ep as usize, buf as usize, size, setup);
+                        self.free_buffer(buf as usize);
+                        // break;
+                    }
+                    8 => unimplemented!("isochronous endpoint"),
+                    _ => unimplemented!(),
+                }
+            }
+        }
+
+        if irqs.is_set(INTR::LINK_RESET) {
+            // The link was reset
+
+            self.descriptors[0]
+                .state
+                .set(EndpointState::Ctrl(CtrlState::Init));
+        }
+
         self.enable_interrupts();
+    }
+
+    fn transmit_in(&self, ep: usize) {
+        self.client.map(|client| {
+            let result = client.packet_in(TransferType::Bulk, ep);
+
+            let new_in_state = match result {
+                hil::usb::InResult::Packet(size) => {
+                    let mut buf_id = None;
+                    let mut bufs = self.bufs.get();
+
+                    for buf in bufs.iter_mut() {
+                        if !buf.free {
+                            continue;
+                        }
+
+                        self.registers.avbuffer.set(buf.id as u32);
+                        buf.free = false;
+                        buf_id = Some(buf.id);
+                        break;
+                    }
+
+                    self.bufs.set(bufs);
+
+                    if buf_id.is_some() {
+                        self.copy_slice_out_to_hw(ep, buf_id.unwrap(), size)
+                    } else {
+                        panic!("No free bufs");
+                    }
+                    BulkInState::In(size)
+                }
+
+                hil::usb::InResult::Delay => {
+                    // No packet to send now. Wait for a resume call from the client.
+                    BulkInState::Init
+                }
+
+                hil::usb::InResult::Error => {
+                    self.stall(ep);
+                    BulkInState::Init
+                }
+            };
+
+            self.descriptors[ep]
+                .state
+                .set(EndpointState::Bulk(Some(new_in_state), None));
+        });
     }
 
     /// Provide a buffer for transfers in and out of the given endpoint
@@ -508,7 +899,7 @@ impl<'a> hil::usb::UsbController<'a> for Usb<'a> {
                     config: DeviceConfig::default(),
                 }))
             }
-            _ => debug!("Already enabled"),
+            _ => panic!("Already enabled"),
         }
     }
 
@@ -530,8 +921,10 @@ impl<'a> hil::usb::UsbController<'a> for Usb<'a> {
         unimplemented!()
     }
 
-    fn set_address(&self, _addr: u16) {
-        unimplemented!()
+    fn set_address(&self, addr: u16) {
+        self.addr.set(addr);
+
+        self.copy_slice_out_to_hw(0, 0, 0);
     }
 
     fn enable_address(&self) {
@@ -555,7 +948,7 @@ impl<'a> hil::usb::UsbController<'a> for Usb<'a> {
                     .set(1 << endpoint | self.registers.rxenable_setup.get());
                 self.descriptors[endpoint]
                     .state
-                    .set(EndpointState::BulkIn(BulkInState::Init));
+                    .set(EndpointState::Bulk(Some(BulkInState::Init), None));
             }
             TransferType::Interrupt => unimplemented!(),
             TransferType::Isochronous => {
@@ -591,7 +984,7 @@ impl<'a> hil::usb::UsbController<'a> for Usb<'a> {
                     .set(1 << endpoint | self.registers.rxenable_out.get());
                 self.descriptors[endpoint]
                     .state
-                    .set(EndpointState::BulkOut(BulkOutState::Init));
+                    .set(EndpointState::Bulk(None, Some(BulkOutState::Init)));
             }
             TransferType::Interrupt => unimplemented!(),
             TransferType::Isochronous => {
@@ -611,8 +1004,8 @@ impl<'a> hil::usb::UsbController<'a> for Usb<'a> {
         unimplemented!()
     }
 
-    fn endpoint_resume_in(&self, _endpoint: usize) {
-        unimplemented!()
+    fn endpoint_resume_in(&self, endpoint: usize) {
+        self.transmit_in(endpoint)
     }
 
     fn endpoint_resume_out(&self, _endpoint: usize) {

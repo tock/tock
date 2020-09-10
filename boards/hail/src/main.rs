@@ -58,7 +58,10 @@ struct Hail {
     temp: &'static capsules::temperature::TemperatureSensor<'static>,
     ninedof: &'static capsules::ninedof::NineDof<'static>,
     humidity: &'static capsules::humidity::HumiditySensor<'static>,
-    spi: &'static capsules::spi::Spi<'static, VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw>>,
+    spi: &'static capsules::spi_controller::Spi<
+        'static,
+        VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw>,
+    >,
     nrf51822: &'static capsules::nrf51822_serialization::Nrf51822Serialization<'static>,
     adc: &'static capsules::adc::Adc<'static, sam4l::adc::Adc>,
     led: &'static capsules::led::LED<'static, sam4l::gpio::GPIOPin<'static>>,
@@ -80,7 +83,7 @@ impl Platform for Hail {
             capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
 
             capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
-            capsules::spi::DRIVER_NUM => f(Some(self.spi)),
+            capsules::spi_controller::DRIVER_NUM => f(Some(self.spi)),
             capsules::nrf51822_serialization::DRIVER_NUM => f(Some(self.nrf51822)),
             capsules::ambient_light::DRIVER_NUM => f(Some(self.ambient_light)),
             capsules::adc::DRIVER_NUM => f(Some(self.adc)),

@@ -22,6 +22,7 @@ pub enum NUM {
 
     // HW Buses
     Spi                   = 0x20001,
+    SpiPeripheral         = 0x20002,
     I2cMaster             = 0x20003,
     UsbUser               = 0x20005,
     I2cMasterSlave        = 0x20006,
