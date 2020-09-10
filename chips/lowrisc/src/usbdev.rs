@@ -739,6 +739,54 @@ impl<'a> Usb<'a> {
             self.bufs.set(bufs);
         }
 
+        if irqs.is_set(INTR::FRAME) {
+            for (ep, desc) in self.descriptors.iter().enumerate() {
+                match desc.state.get() {
+                    EndpointState::Disabled => {}
+                    EndpointState::Ctrl(_) => {}
+                    EndpointState::Bulk(_in_state, _out_state) => {}
+                    EndpointState::Iso => {}
+                    EndpointState::Interrupt(packet_size, state) => match state {
+                        InterruptState::Init => {}
+                        InterruptState::In(send_size) => {
+                            let buf = self.registers.configin[ep as usize].read(CONFIGIN::BUFFER);
+                            self.free_buffer(buf as usize);
+
+                            self.client.map(|client| {
+                                match client.packet_in(TransferType::Interrupt, ep as usize) {
+                                    hil::usb::InResult::Packet(size) => {
+                                        if size == 0 {
+                                            panic!("Empty ctrl packet?");
+                                        }
+
+                                        self.copy_slice_out_to_hw(ep as usize, buf as usize, size);
+
+                                        if send_size == size {
+                                            self.descriptors[ep as usize].state.set(
+                                                EndpointState::Interrupt(
+                                                    packet_size,
+                                                    InterruptState::Init,
+                                                ),
+                                            );
+                                        } else {
+                                            self.descriptors[ep as usize].state.set(
+                                                EndpointState::Interrupt(
+                                                    packet_size,
+                                                    InterruptState::In(send_size - size),
+                                                ),
+                                            );
+                                        }
+                                    }
+                                    hil::usb::InResult::Delay => unimplemented!(),
+                                    hil::usb::InResult::Error => unreachable!(),
+                                };
+                            });
+                        }
+                    },
+                }
+            }
+        }
+
         if irqs.is_set(INTR::PKT_SENT) {
             let mut in_sent = self.registers.in_sent.get();
 
