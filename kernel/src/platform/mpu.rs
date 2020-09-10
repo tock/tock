@@ -195,7 +195,7 @@ pub trait MPU {
     /// This function returns the start address and the size of the memory block
     /// chosen for the process. If it is infeasible to find a memory block or
     /// allocate the MPU region, or if the function has already been called,
-    /// returns None.
+    /// returns None. If None is returned no changes are made.
     #[allow(unused_variables)]
     fn allocate_app_memory_region(
         &self,
@@ -234,7 +234,8 @@ pub trait MPU {
     /// # Return Value
     ///
     /// Returns an error if it is infeasible to update the MPU region, or if it
-    /// was never created.
+    /// was never created. If an error is returned no changes are made to the
+    /// configuration.
     #[allow(unused_variables)]
     fn update_app_memory_region(
         &self,
@@ -316,7 +317,8 @@ pub trait KernelMPU {
     /// # Return Value
     ///
     /// Returns the start and size of the requested memory region. If it is
-    /// infeasible to allocate the MPU region, returns None.
+    /// infeasible to allocate the MPU region, returns None. If None is
+    /// returned no changes are made.
     #[allow(unused_variables)]
     fn allocate_kernel_region(
         &self,
