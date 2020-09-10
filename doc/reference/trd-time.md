@@ -175,6 +175,19 @@ particular time. For hardware that has a limited number of
 compare registers, allocating one of them when the compare itself
 isn't needed would be wasteful.
 
+Note that Tock's concurrency model means interrupt bottom halves
+can be delayed until the current bottom half (or syscall
+invocation) completes. This means that an overflow callback can
+seem to occur *after* an overlow. For example, suppose there is
+an 8-bit counter. The following execution is possible:
+
+  1. Client code calls Time::now, which returns 250.
+  1. An overflow happens, marking an interrupt as pending but the 
+  bottom half doesn't execute yet.
+  1. Client code calls Time::now, which returns 12.
+  1. The main event loop runs, invoking the bottom half.
+  1. The Counter calls OverflowClient::overflow, notifying the client of the overflow.
+
 A `Counter` implementation MUST NOT provide a `Frequency` of a higher
 resolution than an underlying hardware counter. For example, if the
 underlying hardware counter has a frequency of 32kHz, then a `Counter`

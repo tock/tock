@@ -64,18 +64,6 @@ pub trait SchedulerTimer {
     /// layers are used.
     fn reset(&self);
 
-    /// Disarm the SchedulerTimer timer indicating an interrupt is no longer
-    /// required.
-    ///
-    /// This does not stop the timer, but indicates to the SchedulerTimer that
-    /// an interrupt is no longer required (i.e. the process is no longer
-    /// executing). By not requiring an interrupt this may allow certain
-    /// implementations to be more efficient by removing the overhead of
-    /// handling the interrupt. The implementation may disable the underlying
-    /// interrupt if one has been set, depending on the requirements of the
-    /// implementation.
-    fn disarm(&self);
-
     /// Return the number of microseconds remaining in the process's timeslice.
     /// If a process' timeslice has expired, this is not guaranteed to return a valid
     /// value.
@@ -106,8 +94,6 @@ impl SchedulerTimer for () {
     fn reset(&self) {}
 
     fn start(&self, _: u32) {}
-
-    fn disarm(&self) {}
 
     fn has_expired(&self) -> bool {
         false
@@ -158,10 +144,6 @@ impl<A: 'static + time::Alarm<'static>> SchedulerTimer for VirtualSchedulerTimer
         let now = self.alarm.now();
         let fire_at = now.wrapping_add(A::Ticks::from(tics));
         self.alarm.set_alarm(now, fire_at);
-    }
-
-    fn disarm(&self) {
-        self.alarm.disarm();
     }
 
     fn has_expired(&self) -> bool {

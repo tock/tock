@@ -4,7 +4,7 @@ use crate::csr;
 use kernel::common::cells::OptionalCell;
 use kernel::common::registers::{register_structs, ReadWrite};
 use kernel::common::StaticRef;
-use kernel::hil::time::{self, Alarm, Frequency, Freq32KHz, Ticks, Ticks64, Time};
+use kernel::hil::time::{self, Alarm, Freq32KHz, Frequency, Ticks, Ticks64, Time};
 use kernel::ReturnCode;
 
 register_structs! {
@@ -39,11 +39,7 @@ impl MachineTimer<'_> {
     }
 
     fn disable_machine_timer(&self) {
-        // Disable by setting the mtimecmp register to its max value.
-        // In theory we won't hit it if we start at 0, but it's ridiculous that
-        // mtimer has no enable/disable mechanism.
-        self.registers.compare_high.set(0xFFFF_FFFF);
-        self.registers.compare_low.set(0xFFFF_FFFF);
+        csr::CSR.mie.modify(csr::mie::mie::mtimer::CLEAR);
     }
 }
 
@@ -110,8 +106,8 @@ impl<'a> time::Alarm<'a> for MachineTimer<'a> {
     fn is_armed(&self) -> bool {
         // Check if mtimecmp is the max value. If it is, then we are not armed,
         // otherwise we assume we have a value set.
-        self.registers.compare_high.get() != 0xFFFF_FFFF &&
-        self.registers.compare_low.get() != 0xFFFF_FFFF
+        self.registers.compare_high.get() != 0xFFFF_FFFF
+            && self.registers.compare_low.get() != 0xFFFF_FFFF
     }
 
     fn minimum_dt(&self) -> Self::Ticks {
@@ -142,9 +138,5 @@ impl kernel::SchedulerTimer for MachineTimer<'_> {
 
     fn reset(&self) {
         self.disable_machine_timer();
-    }
-
-    fn disarm(&self) {
-        csr::CSR.mie.modify(csr::mie::mie::mtimer::CLEAR);
     }
 }

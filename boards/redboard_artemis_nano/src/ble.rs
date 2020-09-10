@@ -74,7 +74,7 @@ impl Component for BLEComponent {
         kernel::hil::ble_advertising::BleAdvertisementDriver::set_transmit_client(
             self.radio, ble_radio,
         );
-        hil::time::Alarm::set_client(ble_radio_virtual_alarm, ble_radio);
+        hil::time::Alarm::set_alarm_client(ble_radio_virtual_alarm, ble_radio);
 
         ble_radio
     }
