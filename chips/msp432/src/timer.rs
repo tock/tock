@@ -3,9 +3,11 @@
 use core::cell::Cell;
 use kernel::common::cells::OptionalCell;
 use kernel::common::registers::{register_bitfields, register_structs, ReadWrite};
-use kernel::ReturnCode;
 use kernel::common::StaticRef;
-use kernel::hil::time::{Alarm, AlarmClient, Counter, Frequency, OverflowClient, Ticks, Ticks16, Time};
+use kernel::hil::time::{
+    Alarm, AlarmClient, Counter, Frequency, OverflowClient, Ticks, Ticks16, Time,
+};
+use kernel::ReturnCode;
 
 pub static mut TIMER_A0: TimerA = TimerA::new(TIMER_A0_BASE);
 pub static mut TIMER_A1: TimerA = TimerA::new(TIMER_A1_BASE);
@@ -296,12 +298,10 @@ impl<'a> TimerA<'a> {
 impl<'a> Time for TimerA<'a> {
     type Frequency = TimerAFrequency;
     type Ticks = Ticks16;
-    
+
     fn now(&self) -> Ticks16 {
         Self::Ticks::from(self.registers.cnt.get())
     }
-
-
 }
 
 impl<'a> Counter<'a> for TimerA<'a> {
@@ -336,18 +336,17 @@ impl<'a> Alarm<'a> for TimerA<'a> {
         if self.mode.get() != TimerMode::Alarm {
             self.setup_for_alarm();
         }
-	let now = self.now();
-	let mut expire = reference.wrapping_add(dt);
-	if !now.within_range(reference, expire) {
-	    expire = now;
-	}
+        let now = self.now();
+        let mut expire = reference.wrapping_add(dt);
+        if !now.within_range(reference, expire) {
+            expire = now;
+        }
 
-	if expire.wrapping_sub(now) <= self.minimum_dt() {
-	    expire = now.wrapping_add(self.minimum_dt());
-	}
-	
+        if expire.wrapping_sub(now) <= self.minimum_dt() {
+            expire = now.wrapping_add(self.minimum_dt());
+        }
 
-	self.disarm();
+        self.disarm();
         // Set compare register
         self.registers.ccr0.set(expire.into_u16());
         // Enable capture/compare interrupt
@@ -368,10 +367,10 @@ impl<'a> Alarm<'a> for TimerA<'a> {
         self.registers.cctl0.modify(TAxCCTLx::CCIE::CLEAR);
         // Stop the timer completely
         //self.stop_timer();
-	ReturnCode::SUCCESS
+        ReturnCode::SUCCESS
     }
 
     fn minimum_dt(&self) -> Self::Ticks {
-	Self::Ticks::from(1 as u16)
+        Self::Ticks::from(1 as u16)
     }
 }

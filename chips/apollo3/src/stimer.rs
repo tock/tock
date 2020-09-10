@@ -4,7 +4,9 @@ use kernel::common::cells::OptionalCell;
 
 use kernel::common::registers::{register_bitfields, register_structs, ReadWrite};
 use kernel::common::StaticRef;
-use kernel::hil::time::{Alarm, AlarmClient, Counter, Freq16KHz, OverflowClient, Ticks, Ticks32, Time};
+use kernel::hil::time::{
+    Alarm, AlarmClient, Counter, Freq16KHz, OverflowClient, Ticks, Ticks32, Time,
+};
 
 use kernel::ReturnCode;
 
@@ -132,30 +134,28 @@ impl Time for STimer<'_> {
 
 impl<'a> Counter<'a> for STimer<'a> {
     fn set_overflow_client(&'a self, _client: &'a dyn OverflowClient) {
-	//self.overflow_client.set(client);
+        //self.overflow_client.set(client);
     }
 
     fn start(&self) -> ReturnCode {
-	// Set the clock source
+        // Set the clock source
         self.registers.stcfg.write(STCFG::CLKSEL::XTAL_DIV2);
-	ReturnCode::SUCCESS
+        ReturnCode::SUCCESS
     }
 
     fn stop(&self) -> ReturnCode {
-	ReturnCode::EBUSY
+        ReturnCode::EBUSY
     }
 
     fn reset(&self) -> ReturnCode {
-	ReturnCode::FAIL
+        ReturnCode::FAIL
     }
 
     fn is_running(&self) -> bool {
-	let regs = self.registers;
-	regs.stcfg.matches_any(STCFG::CLKSEL::XTAL_DIV2)
+        let regs = self.registers;
+        regs.stcfg.matches_any(STCFG::CLKSEL::XTAL_DIV2)
     }
-    
 }
-
 
 impl<'a> Alarm<'a> for STimer<'a> {
     fn set_alarm_client(&self, client: &'a dyn AlarmClient) {
@@ -164,11 +164,11 @@ impl<'a> Alarm<'a> for STimer<'a> {
 
     fn set_alarm(&self, reference: Self::Ticks, dt: Self::Ticks) {
         let regs = self.registers;
-	let now = self.now();
-	let mut expire = reference.wrapping_add(dt);
-	if !now.within_range(reference, expire) {
-	    expire = now;
-	}
+        let now = self.now();
+        let mut expire = reference.wrapping_add(dt);
+        if !now.within_range(reference, expire) {
+            expire = now;
+        }
 
         // Enable interrupts
         regs.stminten.modify(STMINT::COMPAREA::SET);
@@ -178,10 +178,10 @@ impl<'a> Alarm<'a> for STimer<'a> {
         let timer_delta = expire.wrapping_sub(self.now());
         let mut tries = 0;
 
-	// I think this is a bug -- shouldn't the compare be set to the
-	// compare value, not the delta value? Errata says delta but
-	// that can't be right.... keeping consistent with original code
-	// -pal 9/9/20
+        // I think this is a bug -- shouldn't the compare be set to the
+        // compare value, not the delta value? Errata says delta but
+        // that can't be right.... keeping consistent with original code
+        // -pal 9/9/20
         while Self::Ticks::from(regs.scmpr[0].get()) != expire && tries < 5 {
             regs.scmpr[0].set(timer_delta.into_u32());
             tries = tries + 1;
@@ -209,7 +209,7 @@ impl<'a> Alarm<'a> for STimer<'a> {
                 + STCFG::COMPARE_G_EN::CLEAR
                 + STCFG::COMPARE_H_EN::CLEAR,
         );
-	ReturnCode::SUCCESS
+        ReturnCode::SUCCESS
     }
 
     fn is_armed(&self) -> bool {
@@ -219,7 +219,6 @@ impl<'a> Alarm<'a> for STimer<'a> {
     }
 
     fn minimum_dt(&self) -> Self::Ticks {
-	Self::Ticks::from(1)
+        Self::Ticks::from(1)
     }
 }
-

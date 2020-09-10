@@ -418,7 +418,6 @@ impl PartialEq for Ticks24 {
 
 impl Eq for Ticks24 {}
 
-
 /// 24-bit `Ticks`
 #[derive(Clone, Copy, Debug, PartialOrd)]
 pub struct Ticks16(u16);
@@ -437,7 +436,7 @@ impl From<u32> for Ticks16 {
 
 impl Ticks16 {
     pub fn into_u16(self) -> u16 {
-	self.0
+        self.0
     }
 }
 
@@ -481,7 +480,6 @@ impl PartialEq for Ticks16 {
 }
 
 impl Eq for Ticks16 {}
-
 
 /// 64-bit `Ticks`
 #[derive(Clone, Copy, Debug, PartialOrd)]

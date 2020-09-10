@@ -3,7 +3,9 @@ use cortexm4::support::atomic;
 use kernel::common::cells::OptionalCell;
 use kernel::common::registers::{register_bitfields, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
-use kernel::hil::time::{Alarm, AlarmClient, Counter, Freq16KHz, OverflowClient, Ticks, Ticks32, Time};
+use kernel::hil::time::{
+    Alarm, AlarmClient, Counter, Freq16KHz, OverflowClient, Ticks, Ticks32, Time,
+};
 use kernel::ClockInterface;
 use kernel::ReturnCode;
 
@@ -367,30 +369,28 @@ impl Time for Tim2<'_> {
 }
 
 impl<'a> Counter<'a> for Tim2<'a> {
-
     fn set_overflow_client(&'a self, _client: &'a dyn OverflowClient) {}
 
     // starts the timer
     fn start(&self) -> ReturnCode {
-	self.start();
-	ReturnCode::SUCCESS
+        self.start();
+        ReturnCode::SUCCESS
     }
 
     fn stop(&self) -> ReturnCode {
-	self.registers.cr1.modify(CR1::CEN::CLEAR);
+        self.registers.cr1.modify(CR1::CEN::CLEAR);
         self.registers.sr.modify(SR::CC1IF::CLEAR);
-	ReturnCode::SUCCESS
+        ReturnCode::SUCCESS
     }
 
     fn reset(&self) -> ReturnCode {
-	self.registers.cnt.set(0);
-	ReturnCode::SUCCESS
+        self.registers.cnt.set(0);
+        ReturnCode::SUCCESS
     }
 
     fn is_running(&self) -> bool {
-	self.registers.cr1.is_set(CR1::CEN)
+        self.registers.cr1.is_set(CR1::CEN)
     }
-   
 }
 
 impl<'a> Alarm<'a> for Tim2<'a> {
@@ -399,19 +399,19 @@ impl<'a> Alarm<'a> for Tim2<'a> {
     }
 
     fn set_alarm(&self, reference: Self::Ticks, dt: Self::Ticks) {
-	let mut expire = reference.wrapping_add(dt);
-	let now = self.now();
-	if !now.within_range(reference, expire) {
-	    expire = now;
-	}
+        let mut expire = reference.wrapping_add(dt);
+        let now = self.now();
+        if !now.within_range(reference, expire) {
+            expire = now;
+        }
 
-	if expire.wrapping_sub(now) < self.minimum_dt() {
-	    expire = now.wrapping_add(self.minimum_dt());
-	}
+        if expire.wrapping_sub(now) < self.minimum_dt() {
+            expire = now.wrapping_add(self.minimum_dt());
+        }
 
-	self.disarm();
+        self.disarm();
         self.registers.ccr1.set(expire.into_u32());
-	self.registers.dier.modify(DIER::CC1IE::SET);
+        self.registers.dier.modify(DIER::CC1IE::SET);
     }
 
     fn get_alarm(&self) -> Self::Ticks {
@@ -426,7 +426,7 @@ impl<'a> Alarm<'a> for Tim2<'a> {
                 cortexm4::nvic::Nvic::new(self.irqn).clear_pending();
             });
         }
-    	ReturnCode::SUCCESS
+        ReturnCode::SUCCESS
     }
 
     fn is_armed(&self) -> bool {
@@ -435,11 +435,9 @@ impl<'a> Alarm<'a> for Tim2<'a> {
     }
 
     fn minimum_dt(&self) -> Self::Ticks {
-	Self::Ticks::from(1)
+        Self::Ticks::from(1)
     }
-    
 }
-
 
 struct Tim2Clock(rcc::PeripheralClock);
 
