@@ -48,6 +48,8 @@ pub unsafe fn enable_all() {
     // cause the system to hang. So enable all interrupts except
     // for the USB ones. Some open PRs on OT fix this, we'll re-enable
     // USB interrurupts.
+    //
+    // https://github.com/lowRISC/opentitan/issues/3388
     plic.enable[0].set(0xFFFF_FFFF);
     plic.enable[1].set(0xFFFF_FFFF);
     plic.enable[2].set(0xFFFF_0000); // USB are 64-79
