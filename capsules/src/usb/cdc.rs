@@ -63,6 +63,34 @@ enum State {
     Connected,
 }
 
+/// States of the Control Endpoint related to CDC-ACM.
+#[derive(Debug, Copy, Clone, PartialEq)]
+enum CtrlState {
+    /// No ongoing ctrl transcation.
+    Idle,
+    /// Host has sent a SET_LINE_CODING configuration request.
+    SetLineCoding,
+}
+
+#[derive(PartialEq)]
+enum CDCCntrlMessage {
+    NotSupported,
+    SetLineCoding = 0x20,
+    SetControlLineState = 0x22,
+    SendBreak = 0x23,
+}
+
+impl From<u8> for CDCCntrlMessage {
+    fn from(num: u8) -> Self {
+        match num {
+            0x20 => CDCCntrlMessage::SetLineCoding,
+            0x22 => CDCCntrlMessage::SetControlLineState,
+            0x23 => CDCCntrlMessage::SendBreak,
+            _ => CDCCntrlMessage::NotSupported,
+        }
+    }
+}
+
 /// Implementation of the Abstract Control Model (ACM) for the Communications
 /// Class Device (CDC) over USB.
 pub struct CdcAcm<'a, U: 'a> {
@@ -75,6 +103,10 @@ pub struct CdcAcm<'a, U: 'a> {
     /// Current state of the CDC driver. This helps us track if a CDC client is
     /// connected and listening or not.
     state: Cell<State>,
+
+    /// Current state of the Control Endpoint. This tracks which configuration
+    /// request the host is currently sending us.
+    ctrl_state: Cell<CtrlState>,
 
     /// A holder reference for the TX buffer we are transmitting from.
     tx_buffer: TakeCell<'static, [u8]>,
@@ -211,6 +243,7 @@ impl<'a, U: hil::usb::UsbController<'a>> CdcAcm<'a, U> {
                 Buffer64::default(),
             ],
             state: Cell::new(State::Disabled),
+            ctrl_state: Cell::new(CtrlState::Idle),
             tx_buffer: TakeCell::empty(),
             tx_len: Cell::new(0),
             tx_offset: Cell::new(0),
@@ -269,32 +302,22 @@ impl<'a, U: hil::usb::UsbController<'a>> hil::usb::Client<'a> for CdcAcm<'a, U> 
     fn ctrl_setup(&'a self, endpoint: usize) -> hil::usb::CtrlSetupResult {
         descriptors::SetupData::get(&self.client_ctrl.ctrl_buffer.buf).map(|setup_data| {
             let b_request = setup_data.request_code;
-            let value = setup_data.value;
 
-            // Match on the two CDC control messages we care about:
-            // - `0x22`: SET_LINE_CONTROL_STATE
-            // - `0x23`: SEND_BREAK
-            match b_request {
-                0x22 => {
-                    // This message seems to come with different values. We
-                    // don't care about the actual value's meaning, except for
-                    // value=0 which seems to bookend when the CDC client is
-                    // actually attached.
-                    if value == 0 {
-                        // On Linux, this seems to be a good signal of both when
-                        // a client connects and disconnects. So, based on our
-                        // current state, we can update our state.
-                        if self.state.get() != State::Connected {
-                            // We weren't previously connected so this must mean
-                            // a client connected.
-                            self.state.set(State::Connecting);
-                        } else {
-                            // We were connected, so disconnect.
-                            self.state.set(State::Enumerated)
-                        }
-                    }
+            match CDCCntrlMessage::from(b_request) {
+                CDCCntrlMessage::SetLineCoding => {
+                    self.ctrl_state.set(CtrlState::SetLineCoding);
                 }
-                0x23 => {
+                CDCCntrlMessage::SetControlLineState => {
+                    // Bit 0 and 1 of the value (setup_data.value) can be set
+                    // D0: Indicates to DCE if DTE is present or not.
+                    //     - 0 -> Not present
+                    //     - 1 -> Present
+                    // D1: Carrier control for half duplex modems.
+                    //     - 0 -> Deactivate carrier
+                    //     - 1 -> Activate carrier
+                    // Currently we don't care about the value
+                }
+                CDCCntrlMessage::SendBreak => {
                     // On Mac, we seem to get the SEND_BREAK to signal that a
                     // client disconnects.
                     self.state.set(State::Enumerated)
@@ -313,6 +336,23 @@ impl<'a, U: hil::usb::UsbController<'a>> hil::usb::Client<'a> for CdcAcm<'a, U> 
 
     /// Handle a Control Out transaction
     fn ctrl_out(&'a self, endpoint: usize, packet_bytes: u32) -> hil::usb::CtrlOutResult {
+        // Check what state our Ctrl endpoint is in.
+        if self.ctrl_state.get() == CtrlState::SetLineCoding {
+            // We got a Ctrl SET_LINE_CODING setup, now we are getting the data.
+            // We can parse the data we got.
+            descriptors::CdcAcmSetLineCodingData::get(&self.client_ctrl.ctrl_buffer.buf).map(
+                |line_coding| {
+                    // Check if we should switch our main state machine to
+                    // connecting meaning that the host is connecting to the virtual
+                    // serial port. We decide this based on if the host is
+                    // configuring the baud rate to what we expect.
+                    if self.state.get() == State::Enumerated && line_coding.baud_rate == 115200 {
+                        self.state.set(State::Connecting);
+                    }
+                },
+            );
+        }
+
         self.client_ctrl.ctrl_out(endpoint, packet_bytes)
     }
 
@@ -322,6 +362,8 @@ impl<'a, U: hil::usb::UsbController<'a>> hil::usb::Client<'a> for CdcAcm<'a, U> 
 
     /// Handle the completion of a Control transfer
     fn ctrl_status_complete(&'a self, endpoint: usize) {
+        self.ctrl_state.set(CtrlState::Idle);
+
         // Here we check to see if we just got connected to a CDC client. If so,
         // we can begin transmitting if needed.
         if self.state.get() == State::Connecting {
