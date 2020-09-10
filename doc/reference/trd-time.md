@@ -7,7 +7,7 @@ Kernel Time HIL
 **Status:** Draft <br/>
 **Author:** Guillaume Endignoux, Amit Levy and Philip Levis <br/>
 **Draft-Created:** Feb 06, 2017<br/>
-**Draft-Modified:** September 1, 2020<br/>
+**Draft-Modified:** September 9, 2020<br/>
 **Draft-Version:** 3<br/>
 **Draft-Discuss:** tock-dev@googlegroups.com</br>
 
@@ -345,7 +345,46 @@ A chip SHOULD provide an Alarm with a `Frequency` of `Freq1MHz` and a `Ticks`
 of `Ticks32Bits`.
 
 
-9 Acknowledgements
+9 Implementation Considerations
+===============================
+
+This section describes implementation considerations for hardware
+implementations.
+
+The trickiest aspects of implementing the traits in this document relate
+to the `Alarm` trait and the semantics of how and when callbacks
+are triggered. In particular, if `set_alarm` indicates a time that has
+already passed, then the implementation should adjust it so that it
+will trigger very soon (rather than wait for a wrap-around).
+
+This is complicated by the fact that as the code is executing, the
+underlying counter continues to tick. Therefore an implementation must
+also be careful that this "very soon" time does not fall into the
+past. Furthermore, many instances of timer hardware requires that a
+compare value be some minimum number of ticks in the future. In
+practice, this means setting "very soon" to be a safe number of ticks
+in the future is a better implementation approach than trying to be
+extremely precise and inadverently choosing too soon and then waiting
+for a wraparound.
+
+Pseudocode to handle these cases is as follows:
+
+```
+set_alarm(self, reference, dt):
+  now = now()
+  expires = reference.wrapping_add(dt)
+  if !now.within_range(reference, expired):
+    expires = now 
+
+  if expires.wrapping_sub(now) < MIN_DELAY:
+    expires = now.wrapping_add(MIN_DELAY)
+
+  clear_alarm()
+  set_compare(expires)
+  enable_alarm()
+```
+
+10 Acknowledgements
 ===============================
 
 The traits and abstractions in this document draw from contributions
@@ -353,7 +392,7 @@ and ideas from Patrick Mooney and Guillaume Endignoux as well as
 others.
 
 
-10 Authors' Address
+11 Authors' Address
 =================================
 
 Amit Levy
