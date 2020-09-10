@@ -363,7 +363,12 @@ impl CortexMRegion {
 impl kernel::mpu::MPU for MPU {
     type MpuConfig = CortexMConfig;
 
-    fn enable_mpu(&self) {
+    fn clear_mpu(&self) {
+        let regs = &*self.registers;
+        regs.ctrl.write(Control::ENABLE::CLEAR);
+    }
+
+    fn enable_app_mpu(&self) {
         let regs = &*self.registers;
 
         // Enable the MPU, disable it during HardFault/NMI handlers, and allow
@@ -372,9 +377,9 @@ impl kernel::mpu::MPU for MPU {
             .write(Control::ENABLE::SET + Control::HFNMIENA::CLEAR + Control::PRIVDEFENA::SET);
     }
 
-    fn disable_mpu(&self) {
-        let regs = &*self.registers;
-        regs.ctrl.write(Control::ENABLE::CLEAR);
+    fn disable_app_mpu(&self) {
+        // The MPU is not enabled for privileged mode, so we don't have to do
+        // anything
     }
 
     fn number_total_regions(&self) -> usize {
