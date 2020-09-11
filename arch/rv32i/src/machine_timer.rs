@@ -9,8 +9,10 @@ use kernel::ReturnCode;
 
 register_structs! {
     pub MachineTimerRegisters {
+        (0x0000 => _reserved),
         (0x4000 => value_low: ReadWrite<u32>),
         (0x4004 => value_high: ReadWrite<u32>),
+        (0x4008 => _reserved2),
         (0xBFF8 => compare_low: ReadWrite<u32>),
         (0xBFFC => compare_high: ReadWrite<u32>),
         (0xC000 => @END),
@@ -138,5 +140,13 @@ impl kernel::SchedulerTimer for MachineTimer<'_> {
 
     fn reset(&self) {
         self.disable_machine_timer();
+    }
+
+    fn arm(&self) {
+        csr::CSR.mie.modify(csr::mie::mie::mtimer::SET);
+    }
+
+    fn disarm(&self) {
+        csr::CSR.mie.modify(csr::mie::mie::mtimer::CLEAR);
     }
 }
