@@ -8,8 +8,10 @@ use crate::hil::time::{self, Frequency};
 /// Interface for the system scheduler timer.
 ///
 /// A system scheduler timer provides a countdown timer to enforce process
-/// scheduling time quanta. Implementations should have consistent timing
-/// while the CPU is active, but need not operate during sleep.
+/// scheduling time quanta. Implementations should have consistent timing while
+/// the CPU is active, but need not operate during sleep. Note, many scheduler
+/// implementations also charge time spent running the kernel on behalf of the
+/// process against the process time quantum.
 ///
 /// The primary requirement an implementation of this interface must satisfy is
 /// it must be capable of generating an interrupt when the timer expires. This
@@ -23,28 +25,42 @@ use crate::hil::time::{self, Frequency};
 ///
 /// The `SchedulerTimer` interface is carefully designed to be rather general to
 /// support the various implementations required on different hardware
-/// platforms. The general operation is the kernel will start a timer, in effect
-/// starting the time quantum assigned to a process. While the process is
-/// running, it will arm the timer, indicating to the implementation to ensure
+/// platforms. The general operation is the kernel will start a timer, which
+/// starts the time quantum assigned to a process. While the process is running,
+/// the kernel will arm the timer, telling the implementation it must ensure
 /// that an interrupt will occur when the time quantum is exhausted. When the
-/// process has stopped running the timer will be disarmed, indicating that an
-/// interrupt is no longer required. Note, many scheduler implementations also
-/// charge time spent running the kernel against the process time quantum.
-/// When the kernel needs to know if a process has exhausted its time quantum
-/// it will call `has_expired()`.
+/// process has stopped running, the kernel will disarm the timer, indicating to
+/// the implementation that an interrupt is no longer required. To check if the
+/// process has exhausted its time quantum the kernel will explicitly ask the
+/// implementation. The kernel itself does not expect to get an interrupt to
+/// handle when the time quantum is exhausted. This is because the time quantum
+/// may end while the kernel itself is running, and the kernel does not need to
+/// effectively preempt itself.
+///
+/// The `arm()` and `disarm()` functions in this interface serve as an optional
+/// optimization opportunity. This pair allows an implementation to only enable
+/// the interrupt when it is strictly necessary, i.e. while the process is
+/// actually executing. However, a correct implementation can have interrupts
+/// enabled anytime the scheduler timer has been started. What the
+/// implementation must ensure is that the interrupt is enabled when `arm()` is
+/// called.
 ///
 /// Implementations must take care when using interrupts. Since the
 /// `SchedulerTimer` is used in the core kernel loop and scheduler, top half
 /// interrupt handlers may not have executed before `SchedulerTimer` functions
 /// are called. In particular, implementations on top of virtualized timers may
 /// receive the interrupt fired callback "late" (i.e. after the kernel calls
-/// `has_expired()`). Implementations should ensure that they can reliably check for
-/// timeslice expirations.
+/// `has_expired()`). Implementations should ensure that they can reliably check
+/// for timeslice expirations.
 pub trait SchedulerTimer {
-    /// Start a timer for a process timeslice.
+    /// Start a timer for a process timeslice. The `us` argument is the length
+    /// of the timeslice in microseconds.
     ///
     /// This must set a timer for an interval as close as possible to the given
-    /// interval in microseconds. Interrupts do need to be enabled.
+    /// interval in microseconds. Interrupts do not need to be enabled. However,
+    /// if the implementation cannot separate time keeping from interrupt
+    /// generation, the implementation of `start()` may enable interrupts and
+    /// leave them enabled anytime the timer is active.
     ///
     /// Callers can assume at least a 24-bit wide clock. Specific timing is
     /// dependent on the driving clock. For ARM boards with a dedicated SysTick
@@ -53,15 +69,16 @@ pub trait SchedulerTimer {
     /// 400ms.
     fn start(&self, us: u32);
 
-    /// Reset the scheduler timer.
+    /// Reset the SchedulerTimer.
     ///
     /// This must reset the timer, and can safely disable it and put it in a low
     /// power state. Calling any function other than `start()` immediately after
     /// `reset()` is invalid.
     ///
-    /// Implementations should disable the timer and put it in a lower power
-    /// state, but this will depend on the hardware and whether virtualization
-    /// layers are used.
+    /// Implementations _should_ disable the timer and put it in a lower power
+    /// state. However, not all implementations will be able to guarantee this
+    /// (for example depending on the underlying hardware or if the timer is
+    /// implemented on top of a virtualized timer).
     fn reset(&self);
 
     /// Arm the SchedulerTimer timer and ensure an interrupt will be generated.
@@ -70,6 +87,9 @@ pub trait SchedulerTimer {
     /// guarantees that an interrupt will be generated when the already started
     /// timer expires. This interrupt will preempt the running userspace
     /// process.
+    ///
+    /// If the interrupt is already enabled when `arm()` is called, this
+    /// function should be a no-op implementation.
     fn arm(&self);
 
     /// Disarm the SchedulerTimer timer indicating an interrupt is no longer
@@ -79,25 +99,28 @@ pub trait SchedulerTimer {
     /// an interrupt is no longer required (i.e. the process is no longer
     /// executing). By not requiring an interrupt this may allow certain
     /// implementations to be more efficient by removing the overhead of
-    /// handling the interrupt. The implementation may disable the underlying
-    /// interrupt if one has been set, depending on the requirements of the
-    /// implementation.
+    /// handling the interrupt.
+    ///
+    /// If the implementation cannot disable the interrupt without stopping the
+    /// time keeping mechanism, this function should be a no-op implementation.
     fn disarm(&self);
 
     /// Return the number of microseconds remaining in the process's timeslice.
-    /// If a process' timeslice has expired, this is not guaranteed to return a valid
-    /// value.
+    ///
+    /// This function only needs to return a valid value if the timeslice has
+    /// not been exhausted. Therefore, if a process' timeslice has expired, this
+    /// is not guaranteed to return a valid value.
     fn get_remaining_us(&self) -> u32;
 
     /// Check if the process timeslice has expired.
     ///
     /// Returns `true` if the timer has expired since the last time this
-    /// function or `start()` has been called. This function may not be
-    /// called after it has returned `true` for a given timeslice until
-    /// `start()` is called again (to start a new timeslice). If `has_expired()`
-    /// is called again after returning `true` without an intervening call to
-    /// `start()`, the return the return value is unspecified and
-    /// implementations may return whatever they like.
+    /// function or `start()` has been called. This function may not be called
+    /// after it has returned `true` for a given timeslice until `start()` is
+    /// called again (to start a new timeslice). If `has_expired()` is called
+    /// again after returning `true` without an intervening call to `start()`,
+    /// the return the return value is unspecified and implementations may
+    /// return whatever they like.
     ///
     /// The requirement that this may not be called again after it returns
     /// `true` simplifies implementation on hardware platforms where the
