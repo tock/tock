@@ -25,9 +25,9 @@ use kernel::{create_capability, debug, static_init};
 pub mod io;
 
 // Unit Tests for drivers.
+mod multi_alarm_test;
 #[allow(dead_code)]
 mod virtual_uart_rx_test;
-mod multi_alarm_test;
 
 // Number of concurrent processes this platform supports.
 const NUM_PROCS: usize = 4;

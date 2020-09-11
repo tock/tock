@@ -14,8 +14,8 @@ use kernel::hil;
 use kernel::Platform;
 use kernel::{create_capability, debug, static_init};
 
-mod timer_test;
 mod multi_alarm_test;
+mod timer_test;
 
 pub mod io;
 
