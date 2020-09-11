@@ -81,7 +81,7 @@
 //!                 println!("Rand {}", random);
 //!                 let now = self.alarm.now();
 //!                 let dt = <A>::ticks_from_seconds(1);
-//!                 
+//!
 //!                 self.alarm.set_alarm(now, dt);
 //!                 hil::rng::Continue::Done
 //!             },
