@@ -26,6 +26,14 @@ $ make flash
 (or)
 
 $ make flash-debug
+
+# Note: This requires the `pycrypto` library, you may need to run
+#     pip3 install pycrypto
+#
+# Still having issues (on OS X?), you might be hitting
+# https://github.com/pycrypto/pycrypto/issues/156
+#
+# You'll need to rename `crypto` to `Crypto` manually in site-packages
 ```
 
 This will flash Tock onto the board via the /dev/ttyUSB0 port. If you would like to use a different port you can specify it from the `PORT` variable.
