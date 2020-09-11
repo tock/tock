@@ -872,9 +872,16 @@ impl<'a> Usb<'a> {
                         break;
                     }
                     1..=7 => {
-                        self.ep_receive(ep as usize, buf as usize, size, setup);
+                        let receive_size = match self.descriptors[ep as usize].state.get() {
+                            EndpointState::Disabled => size,
+                            EndpointState::Ctrl(_state) => size,
+                            EndpointState::Bulk(_in_state, _out_state) => size,
+                            EndpointState::Iso => size,
+                            EndpointState::Interrupt(packet_size, _state) => packet_size,
+                        };
+                        self.ep_receive(ep as usize, buf as usize, receive_size, setup);
                         self.free_buffer(buf as usize);
-                        // break;
+                        break;
                     }
                     8 => unimplemented!("isochronous endpoint"),
                     _ => unimplemented!(),
