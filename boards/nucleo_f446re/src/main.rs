@@ -23,6 +23,9 @@ pub mod io;
 // Unit Tests for drivers.
 #[allow(dead_code)]
 mod virtual_uart_rx_test;
+mod multi_alarm_test;
+
+
 
 // Number of concurrent processes this platform supports.
 const NUM_PROCS: usize = 4;
@@ -320,6 +323,8 @@ pub unsafe fn reset_handler() {
 
     let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
         .finalize(components::rr_component_helper!(NUM_PROCS));
+
+    multi_alarm_test::run_multi_alarm(mux_alarm);
     board_kernel.kernel_loop(
         &nucleo_f446re,
         chip,

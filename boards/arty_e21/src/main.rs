@@ -15,6 +15,7 @@ use kernel::Platform;
 use kernel::{create_capability, debug, static_init};
 
 mod timer_test;
+mod multi_alarm_test;
 
 pub mod io;
 
@@ -213,6 +214,7 @@ pub unsafe fn reset_handler() {
     debug!("Initialization complete. Entering main loop.");
 
     // timertest.start();
+    multi_alarm_test::run_multi_alarm(mux_alarm);
 
     /// These symbols are defined in the linker script.
     extern "C" {

@@ -22,6 +22,9 @@ pub mod ble;
 /// Support routines for debugging I/O.
 pub mod io;
 
+#[allow(dead_code)]
+mod multi_alarm_test;
+
 // Number of concurrent processes this platform supports.
 const NUM_PROCS: usize = 4;
 
@@ -240,5 +243,7 @@ pub unsafe fn reset_handler() {
 
     let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
         .finalize(components::rr_component_helper!(NUM_PROCS));
+
+    multi_alarm_test::run_multi_alarm(mux_alarm);
     board_kernel.kernel_loop(&artemis_nano, chip, None, scheduler, &main_loop_cap);
 }
