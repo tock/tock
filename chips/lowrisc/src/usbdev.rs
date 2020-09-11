@@ -927,23 +927,51 @@ impl<'a> Usb<'a> {
                     } else {
                         panic!("No free bufs");
                     }
-                    BulkInState::In(size)
+                    match self.descriptors[ep as usize].state.get() {
+                        EndpointState::Disabled => unreachable!(),
+                        EndpointState::Ctrl(_state) => unreachable!(),
+                        EndpointState::Bulk(_in_state, _out_state) => {
+                            EndpointState::Bulk(Some(BulkInState::In(size)), None)
+                        }
+                        EndpointState::Iso => unreachable!(),
+                        EndpointState::Interrupt(packet_size, _state) => {
+                            EndpointState::Interrupt(packet_size, InterruptState::In(size))
+                        }
+                    }
                 }
 
                 hil::usb::InResult::Delay => {
                     // No packet to send now. Wait for a resume call from the client.
-                    BulkInState::Init
+                    match self.descriptors[ep as usize].state.get() {
+                        EndpointState::Disabled => unreachable!(),
+                        EndpointState::Ctrl(_state) => unreachable!(),
+                        EndpointState::Bulk(_in_state, _out_state) => {
+                            EndpointState::Bulk(Some(BulkInState::Init), None)
+                        }
+                        EndpointState::Iso => unreachable!(),
+                        EndpointState::Interrupt(packet_size, _state) => {
+                            EndpointState::Interrupt(packet_size, InterruptState::Init)
+                        }
+                    }
                 }
 
                 hil::usb::InResult::Error => {
                     self.stall(ep);
-                    BulkInState::Init
+                    match self.descriptors[ep as usize].state.get() {
+                        EndpointState::Disabled => unreachable!(),
+                        EndpointState::Ctrl(_state) => unreachable!(),
+                        EndpointState::Bulk(_in_state, _out_state) => {
+                            EndpointState::Bulk(Some(BulkInState::Init), None)
+                        }
+                        EndpointState::Iso => unreachable!(),
+                        EndpointState::Interrupt(packet_size, _state) => {
+                            EndpointState::Interrupt(packet_size, InterruptState::Init)
+                        }
+                    }
                 }
             };
 
-            self.descriptors[ep]
-                .state
-                .set(EndpointState::Bulk(Some(new_in_state), None));
+            self.descriptors[ep].state.set(new_in_state);
         });
     }
 
