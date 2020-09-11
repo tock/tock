@@ -620,8 +620,8 @@ pub unsafe fn reset_handler() {
     let nonvolatile_storage = components::nonvolatile_storage::NonvolatileStorageComponent::new(
         board_kernel,
         &stm32f303xc::flash::FLASH,
-        0x08038000,
-        0x8000,
+        0x08038000, // Start address for userspace accesible region
+        0x8000,     // Length of userspace accesible region (16 pages)
         &_sstorage as *const u8 as usize,
         &_estorage as *const u8 as usize - &_sstorage as *const u8 as usize,
     )

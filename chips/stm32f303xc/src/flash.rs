@@ -476,7 +476,7 @@ impl Flash {
     }
 
     pub fn erase_page(&self, page_number: usize) -> ReturnCode {
-        if page_number > 128 {
+        if page_number > 127 {
             return ReturnCode::EINVAL;
         }
 
@@ -517,7 +517,7 @@ impl Flash {
         page_number: usize,
         buffer: &'static mut StmF303Page,
     ) -> Result<(), (ReturnCode, &'static mut StmF303Page)> {
-        if page_number > 128 {
+        if page_number > 127 {
             return Err((ReturnCode::EINVAL, buffer));
         }
 
@@ -543,7 +543,7 @@ impl Flash {
         page_number: usize,
         buffer: &'static mut StmF303Page,
     ) -> Result<(), (ReturnCode, &'static mut StmF303Page)> {
-        if page_number > 128 {
+        if page_number > 127 {
             return Err((ReturnCode::EINVAL, buffer));
         }
 
