@@ -492,13 +492,18 @@ register_bitfields![u32,
     ]
 ];
 
-pub struct Adc<'a> {
+/// Create a trait of both client types to allow a single client reference to
+/// act as both
+pub trait EverythingClient: hil::adc::Client + hil::adc::HighSpeedClient {}
+impl<C: hil::adc::Client + hil::adc::HighSpeedClient> EverythingClient for C {}
+
+pub struct Adc {
     registers: StaticRef<AdcRegisters>,
     resolution: AdcResolution,
     mode: Cell<AdcMode>,
     active_channel: Cell<Channel>,
-    ref_module: OptionalCell<&'a dyn ref_module::AnalogReference>,
-    client: OptionalCell<&'a dyn hil::adc::Client>,
+    ref_module: OptionalCell<&'static dyn ref_module::AnalogReference>,
+    client: OptionalCell<&'static dyn EverythingClient>,
 }
 
 #[repr(u32)]
@@ -530,6 +535,7 @@ pub enum Channel {
     Channel23 = 23,
 }
 
+#[allow(dead_code)]
 #[repr(u32)]
 #[derive(Copy, Clone, PartialEq)]
 enum AdcResolution {
@@ -539,6 +545,7 @@ enum AdcResolution {
     Bits14 = 3,
 }
 
+#[allow(dead_code)]
 #[derive(Copy, Clone, PartialEq)]
 enum AdcMode {
     Single,
@@ -547,7 +554,7 @@ enum AdcMode {
     Disabled,
 }
 
-impl<'a> Adc<'a> {
+impl Adc {
     fn is_enabled(&self) -> bool {
         self.registers.ctl0.is_set(CTL0::ON)
     }
@@ -561,6 +568,10 @@ impl<'a> Adc<'a> {
 
         // Disable all interrupts
         self.registers.ie0.set(0);
+
+        // Clear all pending interrupts
+        self.registers.clrifg0.set(core::u32::MAX);
+        self.registers.clrifg1.set(core::u32::MAX);
     }
 
     fn setup(&self) {
@@ -575,7 +586,7 @@ impl<'a> Adc<'a> {
                 // Configure the channel for single-ended mode
                 + MCTLx::DIF::SingleEnded
                 // Disable comparator window
-                + MCTLx::WINC::SET,
+                + MCTLx::WINC::CLEAR,
             );
         }
 
@@ -629,11 +640,11 @@ impl<'a> Adc<'a> {
             .set(self.registers.ie0.get() & !(1 << (chan as u32)));
     }
 
-    pub fn set_ref_module(&self, ref_module: &'a dyn ref_module::AnalogReference) {
+    pub fn set_ref_module(&self, ref_module: &'static dyn ref_module::AnalogReference) {
         self.ref_module.set(ref_module);
     }
 
-    pub fn set_client(&self, client: &'a dyn hil::adc::Client) {
+    pub fn set_client(&self, client: &'static dyn EverythingClient) {
         self.client.set(client);
     }
 
@@ -663,7 +674,7 @@ impl<'a> Adc<'a> {
     }
 }
 
-impl<'a> hil::adc::Adc for Adc<'a> {
+impl hil::adc::Adc for Adc {
     type Channel = Channel;
 
     fn sample(&self, channel: &Self::Channel) -> ReturnCode {
@@ -697,7 +708,7 @@ impl<'a> hil::adc::Adc for Adc<'a> {
         ReturnCode::SUCCESS
     }
 
-    fn sample_continuous(&self, channel: &Self::Channel, frequency: u32) -> ReturnCode {
+    fn sample_continuous(&self, _channel: &Self::Channel, _frequency: u32) -> ReturnCode {
         ReturnCode::ENOSUPPORT
     }
 
@@ -716,5 +727,41 @@ impl<'a> hil::adc::Adc for Adc<'a> {
 
     fn get_voltage_reference_mv(&self) -> Option<usize> {
         self.ref_module.map(|ref_mod| ref_mod.ref_voltage_mv())
+    }
+}
+
+impl hil::adc::AdcHighSpeed for Adc {
+    fn sample_highspeed(
+        &self,
+        _channel: &Self::Channel,
+        _frequency: u32,
+        buffer1: &'static mut [u16],
+        _length1: usize,
+        buffer2: &'static mut [u16],
+        _length2: usize,
+    ) -> (
+        ReturnCode,
+        Option<&'static mut [u16]>,
+        Option<&'static mut [u16]>,
+    ) {
+        (ReturnCode::ENOSUPPORT, Some(buffer1), Some(buffer2))
+    }
+
+    fn provide_buffer(
+        &self,
+        buf: &'static mut [u16],
+        _length: usize,
+    ) -> (ReturnCode, Option<&'static mut [u16]>) {
+        (ReturnCode::ENOSUPPORT, Some(buf))
+    }
+
+    fn retrieve_buffers(
+        &self,
+    ) -> (
+        ReturnCode,
+        Option<&'static mut [u16]>,
+        Option<&'static mut [u16]>,
+    ) {
+        (ReturnCode::ENOSUPPORT, None, None)
     }
 }
