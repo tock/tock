@@ -1,4 +1,4 @@
-use capsules::adc_syscall::AdcSyscall;
+use capsules::adc::AdcSyscall;
 use capsules::virtual_adc::{AdcDevice, MuxAdc};
 use core::mem::MaybeUninit;
 use kernel::capabilities;
@@ -30,7 +30,7 @@ macro_rules! adc_component_helper {
 #[macro_export]
 macro_rules! adc_syscall_component_helper {
     ($($P:expr),+ ) => {{
-        use capsules::adc_syscall::AdcSyscall;
+        use capsules::adc::AdcSyscall;
         use core::mem::MaybeUninit;
         use kernel::hil;
         use kernel::count_expressions;
@@ -120,7 +120,7 @@ impl Component for AdcSyscallComponent {
         &'static mut MaybeUninit<AdcSyscall<'static>>,
         &'static [&'static dyn kernel::hil::adc::AdcChannel],
     );
-    type Output = &'static capsules::adc_syscall::AdcSyscall<'static>;
+    type Output = &'static capsules::adc::AdcSyscall<'static>;
 
     unsafe fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
@@ -128,8 +128,8 @@ impl Component for AdcSyscallComponent {
 
         let ninedof = static_init_half!(
             static_buffer.0,
-            capsules::adc_syscall::AdcSyscall<'static>,
-            capsules::adc_syscall::AdcSyscall::new(static_buffer.1, grant_ninedof)
+            capsules::adc::AdcSyscall<'static>,
+            capsules::adc::AdcSyscall::new(static_buffer.1, grant_ninedof)
         );
 
         for driver in static_buffer.1 {

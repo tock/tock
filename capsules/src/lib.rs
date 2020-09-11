@@ -8,7 +8,6 @@ pub mod test;
 pub mod net;
 
 pub mod adc;
-pub mod adc_syscall;
 pub mod aes_ccm;
 pub mod alarm;
 pub mod ambient_light;

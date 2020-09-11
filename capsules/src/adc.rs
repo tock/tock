@@ -39,7 +39,15 @@ use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
 
 /// Syscall driver number.
 use crate::driver;
+use crate::virtual_adc::Operation;
 pub const DRIVER_NUM: usize = driver::NUM::Adc as usize;
+
+/// Multiplexed ADC Capsule for UserSpace
+pub struct AdcSyscall<'a> {
+    drivers: &'a [&'a dyn hil::adc::AdcChannel],
+    apps: Grant<AppSys>,
+    current_app: OptionalCell<AppId>,
+}
 
 /// ADC application driver, used by applications to interact with ADC.
 /// Not currently virtualized, only one application can use it at a time.
@@ -74,6 +82,13 @@ pub(crate) enum AdcMode {
     ContinuousBuffer = 3,
 }
 
+pub struct AppSys {
+    callback: Option<Callback>,
+    pending_command: bool,
+    command: OptionalCell<Operation>,
+    channel: usize,
+}
+
 /// Holds buffers that the application has passed us
 pub struct App {
     app_buf1: Option<AppSlice<Shared, u8>>,
@@ -101,6 +116,16 @@ impl Default for App {
     }
 }
 
+impl Default for AppSys {
+    fn default() -> AppSys {
+        AppSys {
+            callback: None,
+            pending_command: false,
+            command: OptionalCell::empty(),
+            channel: 0,
+        }
+    }
+}
 /// Buffers to use for DMA transfers
 /// The size is chosen somewhat arbitrarily, but has been tested. At 175000 Hz,
 /// buffers need to be swapped every 70 us and copied over before the next
@@ -576,6 +601,53 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed> Adc<'a, A> {
 
     fn get_voltage_reference_mv(&self) -> Option<usize> {
         self.adc.get_voltage_reference_mv()
+    }
+}
+
+impl<'a> AdcSyscall<'a> {
+    pub fn new(
+        drivers: &'a [&'a dyn hil::adc::AdcChannel],
+        grant: Grant<AppSys>,
+    ) -> AdcSyscall<'a> {
+        AdcSyscall {
+            drivers: drivers,
+            apps: grant,
+            current_app: OptionalCell::empty(),
+        }
+    }
+
+    fn enqueue_command(&self, command: Operation, channel: usize, appid: AppId) -> ReturnCode {
+        if channel < self.drivers.len() {
+            self.apps
+                .enter(appid, |app, _| {
+                    if self.current_app.is_none() {
+                        self.current_app.set(appid);
+                        let value = self.call_driver(command, channel);
+                        if value != ReturnCode::SUCCESS {
+                            self.current_app.clear();
+                        }
+                        value
+                    } else {
+                        if app.pending_command == true {
+                            ReturnCode::EBUSY
+                        } else {
+                            app.pending_command = true;
+                            app.command.set(command);
+                            app.channel = channel;
+                            ReturnCode::SUCCESS
+                        }
+                    }
+                })
+                .unwrap_or_else(|err| err.into())
+        } else {
+            ReturnCode::ENODEVICE
+        }
+    }
+
+    fn call_driver(&self, command: Operation, channel: usize) -> ReturnCode {
+        match command {
+            Operation::OneSample => self.drivers[channel].sample(),
+        }
     }
 }
 
@@ -1188,5 +1260,78 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> Driver for Adc<'_, A> {
             // default
             _ => ReturnCode::ENOSUPPORT,
         }
+    }
+}
+
+impl Driver for AdcSyscall<'_> {
+    fn subscribe(
+        &self,
+        subscribe_num: usize,
+        callback: Option<Callback>,
+        app_id: AppId,
+    ) -> ReturnCode {
+        match subscribe_num {
+            0 => self
+                .apps
+                .enter(app_id, |app, _| {
+                    app.callback = callback;
+                    ReturnCode::SUCCESS
+                })
+                .unwrap_or_else(|err| err.into()),
+            _ => ReturnCode::ENOSUPPORT,
+        }
+    }
+
+    fn command(&self, command_num: usize, channel: usize, _: usize, appid: AppId) -> ReturnCode {
+        match command_num {
+            // This driver exists and return the number of channels
+            0 => ReturnCode::SuccessWithValue {
+                value: self.drivers.len() as usize,
+            },
+
+            // Single sample.
+            1 => self.enqueue_command(Operation::OneSample, channel, appid),
+
+            // Get resolution bits
+            101 => {
+                if channel < self.drivers.len() {
+                    ReturnCode::SuccessWithValue {
+                        value: self.drivers[channel].get_resolution_bits() as usize,
+                    }
+                } else {
+                    ReturnCode::ENODEVICE
+                }
+            }
+
+            // Get voltage reference mV
+            102 => {
+                if channel < self.drivers.len() {
+                    if let Some(voltage) = self.drivers[channel].get_voltage_reference_mv() {
+                        ReturnCode::SuccessWithValue {
+                            value: voltage as usize,
+                        }
+                    } else {
+                        ReturnCode::ENOSUPPORT
+                    }
+                } else {
+                    ReturnCode::ENODEVICE
+                }
+            }
+
+            _ => ReturnCode::ENOSUPPORT,
+        }
+    }
+}
+
+impl<'a> hil::adc::Client for AdcSyscall<'a> {
+    fn sample_ready(&self, sample: u16) {
+        self.current_app.take().map(|appid| {
+            let _ = self.apps.enter(appid, |app, _| {
+                app.pending_command = false;
+                app.callback.map(|mut cb| {
+                    cb.schedule(AdcMode::SingleSample as usize, app.channel, sample as usize);
+                });
+            });
+        });
     }
 }
