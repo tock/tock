@@ -105,28 +105,20 @@ pub trait SchedulerTimer {
     /// time keeping mechanism, this function should be a no-op implementation.
     fn disarm(&self);
 
-    /// Return the number of microseconds remaining in the process's timeslice.
+    /// Return the number of microseconds remaining in the process's timeslice
+    /// if the timeslice is still active.
     ///
-    /// This function only needs to return a valid value if the timeslice has
-    /// not been exhausted. Therefore, if a process' timeslice has expired, this
-    /// is not guaranteed to return a valid value.
-    fn get_remaining_us(&self) -> u32;
-
-    /// Check if the process timeslice has expired.
+    /// If the timeslice is still active, this returns `Some()` with the number
+    /// of microseconds remaining in the timeslice. If the timeslice has
+    /// expired, this returns `None`.
     ///
-    /// Returns `true` if the timer has expired since the last time this
-    /// function or `start()` has been called. This function may not be called
-    /// after it has returned `true` for a given timeslice until `start()` is
-    /// called again (to start a new timeslice). If `has_expired()` is called
-    /// again after returning `true` without an intervening call to `start()`,
-    /// the return the return value is unspecified and implementations may
+    /// This function may not be called after it has returned `None` (signifying
+    /// the timeslice has expired) for a given timeslice until `start()` is
+    /// called again (to start a new timeslice). If `get_remaining_us()` is
+    /// called again after returning `None` without an intervening call to
+    /// `start()`, the return value is unspecified and implementations may
     /// return whatever they like.
-    ///
-    /// The requirement that this may not be called again after it returns
-    /// `true` simplifies implementation on hardware platforms where the
-    /// hardware automatically clears the expired flag on a read, as with the
-    /// ARM SysTick peripheral.
-    fn has_expired(&self) -> bool;
+    fn get_remaining_us(&self) -> Option<u32>;
 }
 
 /// A dummy `SchedulerTimer` implementation in which the timer never expires.
@@ -142,12 +134,8 @@ impl SchedulerTimer for () {
 
     fn arm(&self) {}
 
-    fn has_expired(&self) -> bool {
-        false
-    }
-
     fn get_remaining_us(&self) -> u32 {
-        10000 // chose arbitrary large value
+        Some(10000) // chose arbitrary large value
     }
 }
 
