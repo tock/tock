@@ -21,7 +21,7 @@
   * Phil: There's a bunch of work, but it's pretty mechanical. I think the most of it is deciding the details that we're doing now.
  * Amit: Timeline is getting delayed unsurprisingly.
 ### CTAP
- * Alistair: Mostly working on Tock. It's the ubikey authentication thing. FIDO spec. U2F used CTAP version 1. We've got CTAP version 2.
+ * Alistair: Mostly working on Tock. It's the Yubikey authentication thing. FIDO spec. U2F used CTAP version 1. We've got CTAP version 2.
 
 ## Alarm Redesign
  * Amit: Ready to go, modulo some help testing on some devices.
