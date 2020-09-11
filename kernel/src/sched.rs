@@ -587,9 +587,11 @@ impl Kernel {
         // no longer wants to execute this process or if it exceeds its
         // timeslice.
         loop {
-            if scheduler_timer.has_expired()
-                || scheduler_timer.get_remaining_us() <= MIN_QUANTA_THRESHOLD_US
-            {
+            let stop_running = match scheduler_timer.get_remaining_us() {
+                Some(us) => us <= MIN_QUANTA_THRESHOLD_US,
+                None => true,
+            };
+            if stop_running {
                 // Process ran out of time while the kernel was executing.
                 process.debug_timeslice_expired();
                 return_reason = StoppedExecutingReason::TimesliceExpired;
@@ -798,7 +800,7 @@ impl Kernel {
                             }
                         }
                         Some(ContextSwitchReason::Interrupted) => {
-                            if scheduler_timer.has_expired() {
+                            if scheduler_timer.get_remaining_us().is_none() {
                                 // This interrupt was a timeslice expiration.
                                 process.debug_timeslice_expired();
                                 return_reason = StoppedExecutingReason::TimesliceExpired;
@@ -877,18 +879,16 @@ impl Kernel {
         // Check how much time the process used while it was executing, and
         // return the value so we can provide it to the scheduler.
         let time_executed_us = timeslice_us.map_or(None, |timeslice| {
-            // Note, we cannot call `.has_expired()` again if it has previously
-            // returned `true`, so we _must_ check the return reason first.
-            if return_reason == StoppedExecutingReason::TimesliceExpired
-                || scheduler_timer.has_expired()
-            {
-                // Note we cannot call `.get_remaining_us()` as it will return
-                // an invalid value after a timeslice expiration. Instead, we
-                // just return the original length of the timeslice.
+            // Note, we cannot call `.get_remaining_us()` again if it has previously
+            // returned `None`, so we _must_ check the return reason first.
+            if return_reason == StoppedExecutingReason::TimesliceExpired {
+                // used the whole timeslice
                 Some(timeslice)
             } else {
-                let remaining = scheduler_timer.get_remaining_us();
-                Some(timeslice - remaining)
+                match scheduler_timer.get_remaining_us() {
+                    Some(remaining) => Some(timeslice - remaining),
+                    None => Some(timeslice), // used whole timeslice
+                }
             }
         });
 

@@ -59,7 +59,7 @@ pub trait SchedulerTimer {
     /// This must set a timer for an interval as close as possible to the given
     /// interval in microseconds. Interrupts do not need to be enabled. However,
     /// if the implementation cannot separate time keeping from interrupt
-    /// generation, the implementation of `start()` may enable interrupts and
+    /// generation, the implementation of `start()` should enable interrupts and
     /// leave them enabled anytime the timer is active.
     ///
     /// Callers can assume at least a 24-bit wide clock. Specific timing is
@@ -134,7 +134,7 @@ impl SchedulerTimer for () {
 
     fn arm(&self) {}
 
-    fn get_remaining_us(&self) -> u32 {
+    fn get_remaining_us(&self) -> Option<u32> {
         Some(10000) // chose arbitrary large value
     }
 }
@@ -189,7 +189,11 @@ impl<A: 'static + time::Alarm<'static>> SchedulerTimer for VirtualSchedulerTimer
         self.alarm.disable();
     }
 
-    fn has_expired(&self) -> bool {
+    fn get_remaining_us(&self) -> Option<u32> {
+        // We need to convert from native tics to us, multiplication could overflow in 32-bit
+        // arithmetic. So we convert to 64-bit.
+
+        let diff = self.alarm.get_alarm().wrapping_sub(self.alarm.now()) as u64;
         // If next alarm is more than one second away from now, alarm must have expired.
         // Use this formulation to protect against errors when systick wraps around.
         // 1 second was chosen because it is significantly greater than the 400ms max value allowed
@@ -198,17 +202,12 @@ impl<A: 'static + time::Alarm<'static>> SchedulerTimer for VirtualSchedulerTimer
         // However, if the alarm frequency is slow enough relative to the cpu frequency, it is
         // possible this will be evaluated while now() == get_alarm(), so we special case that
         // result where the alarm has fired but the subtraction has not overflowed
-        let diff = self.alarm.get_alarm().wrapping_sub(self.alarm.now());
-        diff >= A::Frequency::frequency() || diff == 0
-    }
-
-    fn get_remaining_us(&self) -> u32 {
-        // We need to convert from native tics to us, multiplication could overflow in 32-bit
-        // arithmetic. So we convert to 64-bit.
-
-        let tics = self.alarm.get_alarm().wrapping_sub(self.alarm.now()) as u64;
-        let hertz = A::Frequency::frequency() as u64;
-        ((tics * 1_000_000) / hertz) as u32
+        if diff >= A::Frequency::frequency() as u64 || diff == 0 {
+            None
+        } else {
+            let hertz = A::Frequency::frequency() as u64;
+            Some(((diff * 1_000_000) / hertz) as u32)
+        }
     }
 }
 
