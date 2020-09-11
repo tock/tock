@@ -801,6 +801,10 @@ impl<'a> Usb<'a> {
 
                 self.free_buffer(buf as usize);
 
+                self.client.map(|client| {
+                    client.packet_transmitted(ep as usize);
+                });
+
                 match self.descriptors[ep as usize].state.get() {
                     EndpointState::Disabled => unimplemented!(),
                     EndpointState::Ctrl(state) => match state {
