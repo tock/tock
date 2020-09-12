@@ -141,7 +141,7 @@ pub trait Chip {
 
 /// Interface for handling interrupts and deferred calls on a hardware chip.
 ///
-/// Each board must implement this trait to handle specific
+/// Each board must construct an implementation of this trait to handle specific
 /// interrupts. When an interrupt (identified by number) has triggered and
 /// should be handled, the implementation of this trait will be called with the
 /// interrupt number. The implementation can then handle the interrupt, or
@@ -162,23 +162,18 @@ pub trait Chip {
 /// calling to that object to handle the interrupt. This continues until the
 /// base object handles the interrupt or decides that the chip does not know how
 /// to handle the interrupt. For example, consider a `nRF52840` chip that
-/// depends on the `nRF52` crate which in turn depends on the `nRF5` crate. If
-/// all three have specific interrupts they know how to handle, the flow would
-/// look like:
+/// depends on the `nRF52` crate. If both have specific interrupts they
+/// know how to handle, the flow would look like:
 ///
 /// ```ignore
-///           +---->nrf52840
+///           +---->nrf52840_peripherals
 ///           |        |
 ///           |        |
 ///           |        v
-///           |      nrf52
-///           |        |
-///           |        |
-///           |        v
-/// kernel-->nrf5     nrf5
+/// kernel-->nrf52     nrf52_peripherals
 /// ```
-/// where the kernel instructs the `nrf5` crate to handle interrupts, and if
-/// there is an interrupt ready then that interrupt is passed through the crates
+/// where the kernel instructs the `nrf52` crate to handle interrupts, and if
+/// there is an interrupt ready then that interrupt is passed through the InterruptService objects
 /// until something can service it.
 pub trait InterruptService<T> {
     /// Service an interrupt, if supported by this chip. If this interrupt number is not supported,
