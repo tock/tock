@@ -130,7 +130,7 @@ pub unsafe fn reset_handler() {
 
     // set up circular peripheral dependencies
     nrf52840_peripherals.init();
-    let base_peripherals = &nrf52840_peripherals.nrf52_base;
+    let base_peripherals = &nrf52840_peripherals.nrf52;
 
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
 

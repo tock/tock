@@ -208,7 +208,7 @@ pub unsafe fn reset_handler() {
 
     // set up circular peripheral dependencies
     nrf52840_peripherals.init();
-    let base_peripherals = &nrf52840_peripherals.nrf52_base;
+    let base_peripherals = &nrf52840_peripherals.nrf52;
 
     let uart_channel = if USB_DEBUGGING {
         // Initialize early so any panic beyond this point can use the RTT memory object.

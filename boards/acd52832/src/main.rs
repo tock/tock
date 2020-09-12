@@ -118,7 +118,7 @@ pub unsafe fn reset_handler() {
 
     // set up circular peripheral dependencies
     nrf52832_peripherals.init();
-    let base_peripherals = &nrf52832_peripherals.nrf52_base;
+    let base_peripherals = &nrf52832_peripherals.nrf52;
 
     // Create capabilities that the board needs to call certain protected kernel
     // functions.
