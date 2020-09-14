@@ -10,9 +10,9 @@ pub struct Nrf52832DefaultPeripherals<'a> {
     // put additional 52832 specific peripherals here
 }
 impl<'a> Nrf52832DefaultPeripherals<'a> {
-    pub fn new(ppi: &'a crate::ppi::Ppi) -> Self {
+    pub unsafe fn new(ppi: &'a crate::ppi::Ppi) -> Self {
         Self {
-            nrf52: unsafe { Nrf52DefaultPeripherals::new(&crate::gpio::PORT, ppi) },
+            nrf52: Nrf52DefaultPeripherals::new(&crate::gpio::PORT, ppi),
         }
     }
     // Necessary for setting up circular dependencies
