@@ -176,9 +176,8 @@ impl<'a, I: InterruptService<DeferredCallTask> + 'a> kernel::Chip for NRF52<'a, 
         unsafe {
             loop {
                 if let Some(task) = deferred_call::DeferredCall::next_pending() {
-                    match self.interrupt_service.service_deferred_call(task) {
-                        true => {}
-                        false => panic!("unhandled deferred call task"),
+                    if !self.interrupt_service.service_deferred_call(task) {
+                        panic!("unhandled deferred call task");
                     }
                 } else if let Some(interrupt) = nvic::next_pending() {
                     if !self.interrupt_service.service_interrupt(interrupt) {
