@@ -14,6 +14,12 @@ pub struct Nrf52840DefaultPeripherals<'a> {
 impl<'a> Nrf52840DefaultPeripherals<'a> {
     pub unsafe fn new(ppi: &'a crate::ppi::Ppi) -> Self {
         Self {
+            // Note: The use of the global static mut crate::gpio::PORT
+            // does not fit with the updated model of not using globals
+            // to instantiate peripherals, however it is unergonomic
+            // to transition it to the new model until `min_const_generics`
+            // is made stable, such that there can be a shared Port type
+            // across chips with different numbers of gpio pins.
             nrf52: Nrf52DefaultPeripherals::new(&crate::gpio::PORT, ppi),
             usbd: crate::usbd::Usbd::new(),
         }
