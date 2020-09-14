@@ -709,7 +709,20 @@ impl<'a> Usb<'a> {
                         .set(EndpointState::Bulk(None, Some(new_out_state)));
                 }
                 EndpointState::Iso => unimplemented!(),
-                EndpointState::Interrupt(_, _) => {}
+                EndpointState::Interrupt(_, _) => {
+                    match result {
+                        hil::usb::OutResult::Ok => {}
+
+                        hil::usb::OutResult::Delay => {
+                            // Disable OUT so we don't get any more data
+                            self.registers
+                                .rxenable_out
+                                .set(!(1 << ep) & self.registers.rxenable_out.get());
+                        }
+
+                        hil::usb::OutResult::Error => unreachable!(),
+                    };
+                }
             }
         });
     }
@@ -1136,7 +1149,10 @@ impl<'a> hil::usb::UsbController<'a> for Usb<'a> {
         self.transmit_in(endpoint)
     }
 
-    fn endpoint_resume_out(&self, _endpoint: usize) {
-        unimplemented!()
+    fn endpoint_resume_out(&self, endpoint: usize) {
+        // Renable the out endpoint
+        self.registers
+            .rxenable_out
+            .set(1 << endpoint | self.registers.rxenable_out.get());
     }
 }
