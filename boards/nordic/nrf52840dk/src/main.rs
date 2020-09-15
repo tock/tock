@@ -70,6 +70,7 @@
 use capsules::virtual_alarm::VirtualMuxAlarm;
 use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::component::Component;
+use kernel::hil::gpio::Configure;
 #[allow(unused_imports)]
 use kernel::{capabilities, create_capability, debug, debug_gpio, debug_verbose, static_init};
 use nrf52840::gpio::Pin;
@@ -100,6 +101,9 @@ const SPI_CLK: Pin = Pin::P0_19;
 const SPI_MX25R6435F_CHIP_SELECT: Pin = Pin::P0_17;
 const SPI_MX25R6435F_WRITE_PROTECT_PIN: Pin = Pin::P0_22;
 const SPI_MX25R6435F_HOLD_PIN: Pin = Pin::P0_23;
+
+const QDEC_PIN_A: Pin = Pin::P0_02;
+const QDEC_PIN_B: Pin = Pin::P0_29;
 
 // Constants related to the configuration of the 15.4 network stack
 const SRC_MAC: u16 = 0xf00f;
@@ -158,6 +162,7 @@ pub struct Platform {
         capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52840::rtc::Rtc<'static>>,
     >,
     nonvolatile_storage: &'static capsules::nonvolatile_storage_driver::NonvolatileStorage<'static>,
+    qdec: &'static capsules::qdec::QdecInterface<'static>,
 }
 
 impl kernel::Platform for Platform {
@@ -177,6 +182,7 @@ impl kernel::Platform for Platform {
             capsules::temperature::DRIVER_NUM => f(Some(self.temp)),
             capsules::analog_comparator::DRIVER_NUM => f(Some(self.analog_comparator)),
             capsules::nonvolatile_storage_driver::DRIVER_NUM => f(Some(self.nonvolatile_storage)),
+            capsules::qdec::DRIVER_NUM => f(Some(self.qdec)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             _ => f(None),
         }
@@ -411,6 +417,26 @@ pub unsafe fn reset_handler() {
         nrf52840::acomp::Comparator
     ));
 
+    // qdec initialization
+    gpio_port[QDEC_PIN_A].make_input();
+    gpio_port[QDEC_PIN_B].make_input();
+    gpio_port[QDEC_PIN_A].set_floating_state(kernel::hil::gpio::FloatingState::PullUp);
+    gpio_port[QDEC_PIN_B].set_floating_state(kernel::hil::gpio::FloatingState::PullUp);
+
+    let qdec_nrf52 = &mut nrf52840::qdec::QDEC;
+    qdec_nrf52.set_pins(
+        nrf52840::pinmux::Pinmux::new(QDEC_PIN_A as u32),
+        nrf52840::pinmux::Pinmux::new(QDEC_PIN_B as u32),
+    );
+    let qdec = static_init!(
+        capsules::qdec::QdecInterface<'static>,
+        capsules::qdec::QdecInterface::new(
+            qdec_nrf52,
+            board_kernel.create_grant(&memory_allocation_capability)
+        )
+    );
+    kernel::hil::qdec::QdecDriver::set_client(&nrf52840::qdec::QDEC, qdec);
+
     nrf52_components::NrfClockComponent::new().finalize(());
 
     let platform = Platform {
@@ -426,6 +452,7 @@ pub unsafe fn reset_handler() {
         alarm,
         analog_comparator,
         nonvolatile_storage,
+        qdec,
         ipc: kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability),
     };
 

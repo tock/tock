@@ -85,7 +85,7 @@ These capsules provide a `Driver` interface for common MCU peripherals.
 - **[RNG](src/rng.rs)**: Random number generation.
 - **[SPI Controller](src/spi_controller.rs)**: SPI controller device (SPI master)
 - **[SPI Peripheral](src/spi_peripheral.rs)**: SPI peripheral device (SPI slave)
-
+- **[QDEC](src/qdec.rs)**: Quadrature DECoder for quadrature-encoded sensor signals
 
 ### Helpful Userspace Capsules
 

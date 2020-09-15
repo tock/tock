@@ -69,6 +69,7 @@ pub enum NUM {
     // Misc
     Buzzer                = 0x90000,
     Screen                = 0x90001,
-    Touch                 = 0x90002
+    Touch                 = 0x90002,
+    Qdec                  = 0x90003
 }
 }

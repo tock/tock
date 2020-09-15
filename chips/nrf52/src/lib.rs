@@ -18,6 +18,7 @@ pub mod nvmc;
 pub mod power;
 pub mod ppi;
 pub mod pwm;
+pub mod qdec;
 pub mod spi;
 pub mod uart;
 pub mod uicr;
