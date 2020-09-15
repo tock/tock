@@ -175,9 +175,12 @@ impl<'a> Alarm<'a> for STimer<'a> {
 
         // Set the delta, this can take a few goes
         // See Errata 4.14 at at https://ambiqmicro.com/static/mcu/files/Apollo3_Blue_MCU_Errata_List_v2_0.pdf
-        let timer_delta = expire.wrapping_sub(self.now());
+        let mut timer_delta = expire.wrapping_sub(self.now());
         let mut tries = 0;
 
+        if timer_delta < self.minimum_dt() {
+            timer_delta = self.minimum_dt();
+        }
         // I think this is a bug -- shouldn't the compare be set to the
         // compare value, not the delta value? Errata says delta but
         // that can't be right.... keeping consistent with original code
@@ -219,6 +222,6 @@ impl<'a> Alarm<'a> for STimer<'a> {
     }
 
     fn minimum_dt(&self) -> Self::Ticks {
-        Self::Ticks::from(1)
+        Self::Ticks::from(2)
     }
 }
