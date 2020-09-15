@@ -142,13 +142,23 @@ pub fn load_processes<C: Chip>(
     _capability: &dyn ProcessManagementCapability,
 ) -> Result<(), ProcessLoadError> {
     if config::CONFIG.debug_load_processes {
-        debug!(
-            "Loading processes from flash={:#010X}-{:#010X} into sram={:#010X}-{:#010X}",
-            app_flash.as_ptr() as usize,
-            app_flash.as_ptr() as usize + app_flash.len() - 1,
-            app_memory.as_ptr() as usize,
-            app_memory.as_ptr() as usize + app_memory.len() - 1
-        );
+        if core::mem::size_of::<usize>() == 8 {
+            debug!(
+                "Loading processes from flash={:#018X}-{:#018X} into sram={:#018X}-{:#018X}",
+                app_flash.as_ptr() as usize,
+                app_flash.as_ptr() as usize + app_flash.len() - 1,
+                app_memory.as_ptr() as usize,
+                app_memory.as_ptr() as usize + app_memory.len() - 1
+            );
+        } else {
+            debug!(
+                "Loading processes from flash={:#010X}-{:#010X} into sram={:#010X}-{:#010X}",
+                app_flash.as_ptr() as usize,
+                app_flash.as_ptr() as usize + app_flash.len() - 1,
+                app_memory.as_ptr() as usize,
+                app_memory.as_ptr() as usize + app_memory.len() - 1
+            );
+        }
     }
 
     let mut remaining_flash = app_flash;
@@ -230,6 +240,19 @@ pub fn load_processes<C: Chip>(
             };
             process_option.map(|process| {
                 if config::CONFIG.debug_load_processes {
+                    if core::mem::size_of::<usize>() == 8 {
+                    debug!(
+                        "Loaded process[{}] from flash={:#018X}-{:#018X} into sram={:#018X}-{:#018X} = {:?}",
+                        i,
+                        entry_flash.as_ptr() as usize,
+                        entry_flash.as_ptr() as usize + entry_flash.len() - 1,
+                        process.mem_start() as usize,
+                        process.mem_end() as usize - 1,
+                        process.get_process_name()
+                    );
+                }
+                else
+                {
                     debug!(
                         "Loaded process[{}] from flash={:#010X}-{:#010X} into sram={:#010X}-{:#010X} = {:?}",
                         i,
@@ -239,6 +262,7 @@ pub fn load_processes<C: Chip>(
                         process.mem_end() as usize - 1,
                         process.get_process_name()
                     );
+                }
                 }
 
                 // Save the reference to this process in the processes array.
@@ -939,8 +963,11 @@ impl<C: Chip> ProcessType for Process<'_, C> {
                 },
                 _ => true,
             });
+            let count_after = tasks.len();
+            for _ in 0..count_before - count_after {
+                self.kernel.decrement_work();
+            }
             if config::CONFIG.trace_syscalls {
-                let count_after = tasks.len();
                 debug!(
                     "[{:?}] remove_pending_callbacks[{:#x}:{}] = {} callback(s) removed",
                     self.appid(),
@@ -1432,111 +1459,226 @@ impl<C: Chip> ProcessType for Process<'_, C> {
             None => writer.write_str(" Last Syscall: None\r\n"),
         };
 
-        let _ = writer.write_fmt(format_args!(
-            "\
+        if core::mem::size_of::<usize>() == 8 {
+            let _ = writer.write_fmt(format_args!(
+                "\
+             \r\n\
+             \r\n ╔═══════════════════╤══════════════════════════════════════════╗\
+             \r\n ║      Address      │ Region Name    Used | Allocated (bytes)  ║\
+             \r\n ╚{:#018X}═╪══════════════════════════════════════════╝\
+             \r\n                     │ ▼ Grant      {:6} | {:6}{}\
+             \r\n  {:#018X} ┼───────────────────────────────────────────\
+             \r\n                     │ Unused\
+             \r\n  {:#018X} ┼───────────────────────────────────────────",
+                sram_end,
+                sram_grant_size,
+                sram_grant_allocated,
+                exceeded_check(sram_grant_size, sram_grant_allocated),
+                sram_grant_start,
+                sram_heap_end,
+            ));
+        } else {
+            let _ = writer.write_fmt(format_args!(
+                "\
              \r\n\
              \r\n ╔═══════════╤══════════════════════════════════════════╗\
              \r\n ║  Address  │ Region Name    Used | Allocated (bytes)  ║\
              \r\n ╚{:#010X}═╪══════════════════════════════════════════╝\
-             \r\n             │ ▼ Grant      {:6} | {:6}{}\
+             \r\n                     │ ▼ Grant      {:6} | {:6}{}\
              \r\n  {:#010X} ┼───────────────────────────────────────────\
-             \r\n             │ Unused\
+             \r\n                     │ Unused\
              \r\n  {:#010X} ┼───────────────────────────────────────────",
-            sram_end,
-            sram_grant_size,
-            sram_grant_allocated,
-            exceeded_check(sram_grant_size, sram_grant_allocated),
-            sram_grant_start,
-            sram_heap_end,
-        ));
+                sram_end,
+                sram_grant_size,
+                sram_grant_allocated,
+                exceeded_check(sram_grant_size, sram_grant_allocated),
+                sram_grant_start,
+                sram_heap_end,
+            ));
+        }
+        if core::mem::size_of::<usize>() == 8 {
+            match sram_heap_start {
+                Some(sram_heap_start) => {
+                    let sram_heap_size = sram_heap_end - sram_heap_start;
+                    let sram_heap_allocated = sram_grant_start - sram_heap_start;
 
-        match sram_heap_start {
-            Some(sram_heap_start) => {
-                let sram_heap_size = sram_heap_end - sram_heap_start;
-                let sram_heap_allocated = sram_grant_start - sram_heap_start;
+                    let _ = writer.write_fmt(format_args!(
+                        "\
+                     \r\n                     │ ▲ Heap       {:6} | {:6}{}     S\
+                     \r\n  {:#018X} ┼─────────────────────────────────────────── R",
+                        sram_heap_size,
+                        sram_heap_allocated,
+                        exceeded_check(sram_heap_size, sram_heap_allocated),
+                        sram_heap_start,
+                    ));
+                }
+                None => {
+                    let _ = writer.write_str(
+                        "\
+                     \r\n                     │ ▲ Heap            ? |      ?               S\
+                     \r\n  ?????????????????? ┼─────────────────────────────────────────── R",
+                    );
+                }
+            }
+        } else {
+            match sram_heap_start {
+                Some(sram_heap_start) => {
+                    let sram_heap_size = sram_heap_end - sram_heap_start;
+                    let sram_heap_allocated = sram_grant_start - sram_heap_start;
 
-                let _ = writer.write_fmt(format_args!(
-                    "\
+                    let _ = writer.write_fmt(format_args!(
+                        "\
                      \r\n             │ ▲ Heap       {:6} | {:6}{}     S\
                      \r\n  {:#010X} ┼─────────────────────────────────────────── R",
-                    sram_heap_size,
-                    sram_heap_allocated,
-                    exceeded_check(sram_heap_size, sram_heap_allocated),
-                    sram_heap_start,
-                ));
-            }
-            None => {
-                let _ = writer.write_str(
-                    "\
+                        sram_heap_size,
+                        sram_heap_allocated,
+                        exceeded_check(sram_heap_size, sram_heap_allocated),
+                        sram_heap_start,
+                    ));
+                }
+                None => {
+                    let _ = writer.write_str(
+                        "\
                      \r\n             │ ▲ Heap            ? |      ?               S\
                      \r\n  ?????????? ┼─────────────────────────────────────────── R",
-                );
+                    );
+                }
             }
         }
 
-        match (sram_heap_start, sram_stack_start) {
-            (Some(sram_heap_start), Some(sram_stack_start)) => {
-                let sram_data_size = sram_heap_start - sram_stack_start;
-                let sram_data_allocated = sram_data_size as usize;
+        if core::mem::size_of::<usize>() == 8 {
+            match (sram_heap_start, sram_stack_start) {
+                (Some(sram_heap_start), Some(sram_stack_start)) => {
+                    let sram_data_size = sram_heap_start - sram_stack_start;
+                    let sram_data_allocated = sram_data_size as usize;
 
-                let _ = writer.write_fmt(format_args!(
-                    "\
+                    let _ = writer.write_fmt(format_args!(
+                        "\
+                     \r\n                     │ Data         {:6} | {:6}               A",
+                        sram_data_size, sram_data_allocated,
+                    ));
+                }
+                _ => {
+                    let _ = writer.write_str(
+                        "\
+                     \r\n                     │ Data              ? |      ?               A",
+                    );
+                }
+            }
+        } else {
+            match (sram_heap_start, sram_stack_start) {
+                (Some(sram_heap_start), Some(sram_stack_start)) => {
+                    let sram_data_size = sram_heap_start - sram_stack_start;
+                    let sram_data_allocated = sram_data_size as usize;
+
+                    let _ = writer.write_fmt(format_args!(
+                        "\
                      \r\n             │ Data         {:6} | {:6}               A",
-                    sram_data_size, sram_data_allocated,
-                ));
-            }
-            _ => {
-                let _ = writer.write_str(
-                    "\
+                        sram_data_size, sram_data_allocated,
+                    ));
+                }
+                _ => {
+                    let _ = writer.write_str(
+                        "\
                      \r\n             │ Data              ? |      ?               A",
-                );
+                    );
+                }
             }
         }
 
-        match sram_stack_start {
-            Some(sram_stack_start) => {
-                let sram_stack_size = sram_stack_start - sram_stack_bottom;
-                let sram_stack_allocated = sram_stack_start - sram_start;
+        if core::mem::size_of::<usize>() == 8 {
+            match sram_stack_start {
+                Some(sram_stack_start) => {
+                    let sram_stack_size = sram_stack_start - sram_stack_bottom;
+                    let sram_stack_allocated = sram_stack_start - sram_start;
 
-                let _ = writer.write_fmt(format_args!(
-                    "\
+                    let _ = writer.write_fmt(format_args!(
+                        "\
+                     \r\n  {:#018X} ┼─────────────────────────────────────────── M\
+                     \r\n                     │ ▼ Stack      {:6} | {:6}{}",
+                        sram_stack_start,
+                        sram_stack_size,
+                        sram_stack_allocated,
+                        exceeded_check(sram_stack_size, sram_stack_allocated),
+                    ));
+                }
+                None => {
+                    let _ = writer.write_str(
+                        "\
+                     \r\n  ?????????????????? ┼─────────────────────────────────────────── M\
+                     \r\n                     │ ▼ Stack           ? |      ?",
+                    );
+                }
+            }
+        } else {
+            match sram_stack_start {
+                Some(sram_stack_start) => {
+                    let sram_stack_size = sram_stack_start - sram_stack_bottom;
+                    let sram_stack_allocated = sram_stack_start - sram_start;
+
+                    let _ = writer.write_fmt(format_args!(
+                        "\
                      \r\n  {:#010X} ┼─────────────────────────────────────────── M\
-                     \r\n             │ ▼ Stack      {:6} | {:6}{}",
-                    sram_stack_start,
-                    sram_stack_size,
-                    sram_stack_allocated,
-                    exceeded_check(sram_stack_size, sram_stack_allocated),
-                ));
-            }
-            None => {
-                let _ = writer.write_str(
-                    "\
+                     \r\n                     │ ▼ Stack      {:6} | {:6}{}",
+                        sram_stack_start,
+                        sram_stack_size,
+                        sram_stack_allocated,
+                        exceeded_check(sram_stack_size, sram_stack_allocated),
+                    ));
+                }
+                None => {
+                    let _ = writer.write_str(
+                        "\
                      \r\n  ?????????? ┼─────────────────────────────────────────── M\
-                     \r\n             │ ▼ Stack           ? |      ?",
-                );
+                     \r\n                     │ ▼ Stack           ? |      ?",
+                    );
+                }
             }
         }
 
-        let _ = writer.write_fmt(format_args!(
-            "\
+        if core::mem::size_of::<usize>() == 8 {
+            let _ = writer.write_fmt(format_args!(
+                "\
+             \r\n  {:#018X} ┼───────────────────────────────────────────\
+             \r\n                     │ Unused\
+             \r\n  {:#018X} ┴───────────────────────────────────────────\
+             \r\n                     .....\
+             \r\n  {:#018X} ┬─────────────────────────────────────────── F\
+             \r\n                     │ App Flash    {:6}                        L\
+             \r\n  {:#018X} ┼─────────────────────────────────────────── A\
+             \r\n                     │ Protected    {:6}                        S\
+             \r\n  {:#018X} ┴─────────────────────────────────────────── H\
+             \r\n",
+                sram_stack_bottom,
+                sram_start,
+                flash_end,
+                flash_app_size,
+                flash_app_start,
+                flash_protected_size,
+                flash_start
+            ));
+        } else {
+            let _ = writer.write_fmt(format_args!(
+                "\
              \r\n  {:#010X} ┼───────────────────────────────────────────\
-             \r\n             │ Unused\
+             \r\n                     │ Unused\
              \r\n  {:#010X} ┴───────────────────────────────────────────\
-             \r\n             .....\
+             \r\n                     .....\
              \r\n  {:#010X} ┬─────────────────────────────────────────── F\
-             \r\n             │ App Flash    {:6}                        L\
+             \r\n                     │ App Flash    {:6}                        L\
              \r\n  {:#010X} ┼─────────────────────────────────────────── A\
-             \r\n             │ Protected    {:6}                        S\
+             \r\n                     │ Protected    {:6}                        S\
              \r\n  {:#010X} ┴─────────────────────────────────────────── H\
              \r\n",
-            sram_stack_bottom,
-            sram_start,
-            flash_end,
-            flash_app_size,
-            flash_app_start,
-            flash_protected_size,
-            flash_start
-        ));
+                sram_stack_bottom,
+                sram_start,
+                flash_end,
+                flash_app_size,
+                flash_app_start,
+                flash_protected_size,
+                flash_start
+            ));
+        }
     }
 
     unsafe fn print_full_process(&self, writer: &mut dyn Write) {
@@ -1646,20 +1788,38 @@ impl<C: 'static + Chip> Process<'_, C> {
         // object.
         if !tbf_header.is_app() || !tbf_header.enabled() {
             if config::CONFIG.debug_load_processes {
-                if !tbf_header.is_app() {
-                    debug!(
-                        "Padding in flash={:#010X}-{:#010X}",
-                        app_flash.as_ptr() as usize,
-                        app_flash.as_ptr() as usize + app_flash.len() - 1
-                    );
-                }
-                if !tbf_header.enabled() {
-                    debug!(
-                        "Process not enabled flash={:#010X}-{:#010X} process={:?}",
-                        app_flash.as_ptr() as usize,
-                        app_flash.as_ptr() as usize + app_flash.len() - 1,
-                        process_name
-                    );
+                if core::mem::size_of::<usize>() == 8 {
+                    if !tbf_header.is_app() {
+                        debug!(
+                            "Padding in flash={:#018X}-{:#018X}",
+                            app_flash.as_ptr() as usize,
+                            app_flash.as_ptr() as usize + app_flash.len() - 1
+                        );
+                    }
+                    if !tbf_header.enabled() {
+                        debug!(
+                            "Process not enabled flash={:#018X}-{:#018X} process={:?}",
+                            app_flash.as_ptr() as usize,
+                            app_flash.as_ptr() as usize + app_flash.len() - 1,
+                            process_name
+                        );
+                    }
+                } else {
+                    if !tbf_header.is_app() {
+                        debug!(
+                            "Padding in flash={:#010X}-{:#010X}",
+                            app_flash.as_ptr() as usize,
+                            app_flash.as_ptr() as usize + app_flash.len() - 1
+                        );
+                    }
+                    if !tbf_header.enabled() {
+                        debug!(
+                            "Process not enabled flash={:#010X}-{:#010X} process={:?}",
+                            app_flash.as_ptr() as usize,
+                            app_flash.as_ptr() as usize + app_flash.len() - 1,
+                            process_name
+                        );
+                    }
                 }
             }
             // Return no process and the full memory slice we were given.
@@ -1688,12 +1848,21 @@ impl<C: 'static + Chip> Process<'_, C> {
             .is_none()
         {
             if config::CONFIG.debug_load_processes {
-                debug!(
+                if core::mem::size_of::<usize>() == 8 {
+                    debug!(
+                    "[!] flash={:#018X}-{:#018X} process={:?} - couldn't allocate MPU region for flash",
+                    app_flash.as_ptr() as usize,
+                    app_flash.as_ptr() as usize + app_flash.len() - 1,
+                    process_name
+                );
+                } else {
+                    debug!(
                     "[!] flash={:#010X}-{:#010X} process={:?} - couldn't allocate MPU region for flash",
                     app_flash.as_ptr() as usize,
                     app_flash.as_ptr() as usize + app_flash.len() - 1,
                     process_name
                 );
+                }
             }
             return Err(ProcessLoadError::MpuInvalidFlashLength);
         }
@@ -1780,13 +1949,23 @@ impl<C: 'static + Chip> Process<'_, C> {
             None => {
                 // Failed to load process. Insufficient memory.
                 if config::CONFIG.debug_load_processes {
-                    debug!(
+                    if core::mem::size_of::<usize>() == 8 {
+                        debug!(
+                        "[!] flash={:#018X}-{:#018X} process={:?} - couldn't allocate memory region of size >= {:#X}",
+                        app_flash.as_ptr() as usize,
+                        app_flash.as_ptr() as usize + app_flash.len() - 1,
+                        process_name,
+                        min_total_memory_size
+                    );
+                    } else {
+                        debug!(
                         "[!] flash={:#010X}-{:#010X} process={:?} - couldn't allocate memory region of size >= {:#X}",
                         app_flash.as_ptr() as usize,
                         app_flash.as_ptr() as usize + app_flash.len() - 1,
                         process_name,
                         min_total_memory_size
                     );
+                    }
                 }
                 return Err(ProcessLoadError::NotEnoughMemory);
             }
@@ -1971,12 +2150,21 @@ impl<C: 'static + Chip> Process<'_, C> {
             }
             _ => {
                 if config::CONFIG.debug_load_processes {
-                    debug!(
+                    if core::mem::size_of::<usize>() == 8 {
+                        debug!(
+                        "[!] flash={:#018X}-{:#018X} process={:?} - couldn't initialize process",
+                        app_flash.as_ptr() as usize,
+                        app_flash.as_ptr() as usize + app_flash.len() - 1,
+                        process_name
+                    );
+                    } else {
+                        debug!(
                         "[!] flash={:#010X}-{:#010X} process={:?} - couldn't initialize process",
                         app_flash.as_ptr() as usize,
                         app_flash.as_ptr() as usize + app_flash.len() - 1,
                         process_name
                     );
+                    }
                 }
                 return Err(ProcessLoadError::InternalError);
             }
