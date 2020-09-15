@@ -2,10 +2,12 @@
 //! system call interface.
 
 use core::fmt::Write;
-use core::ptr::{read_volatile, write_volatile};
+use core::ptr::{copy_nonoverlapping, read_volatile, write_volatile};
 
 use nix::libc;
 use nix::sys::signal::{self, SaFlags, SigAction, SigHandler, SigSet, Signal};
+
+use crate::{FLASH_POSITION, ORIGINAL_FLASH_POSITION};
 
 /// This is used in the syscall handler. When set to 1 this means the
 /// svc_handler was called. Marked `pub` because it is used in the cortex-m*
@@ -392,6 +394,21 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
             state.context.write_register(Regs::RDX, callback.argument2);
             state.context.write_register(Regs::RCX, callback.argument3);
         }
+
+        // Copy .text, .rodata and .data from originial flash
+        // as this might be a process restart and data in flash
+        // is already relocated
+        if state.first_run {
+            let offset = callback.argument0 - FLASH_POSITION;
+            let data_offset = read_volatile((callback.argument0 + 12) as *const u32);
+            let data_len = read_volatile((callback.argument0 + 20) as *const u32);
+            copy_nonoverlapping(
+                (ORIGINAL_FLASH_POSITION + offset) as *const u8,
+                (FLASH_POSITION + offset) as *mut u8,
+                (data_offset + data_len) as usize,
+            );
+        }
+
         Ok(stack_bottom)
     }
 

@@ -13,6 +13,9 @@ pub mod support;
 pub mod syscall;
 pub mod systick;
 
+pub static mut FLASH_POSITION: usize = 0;
+pub static mut ORIGINAL_FLASH_POSITION: usize = 0;
+
 pub unsafe fn initialize_flash(flash: &[u8]) -> *mut u8 {
     // allocate flash
     let mem = mmap(
@@ -24,6 +27,8 @@ pub unsafe fn initialize_flash(flash: &[u8]) -> *mut u8 {
         0,
     )
     .unwrap();
+    ORIGINAL_FLASH_POSITION = flash.as_ptr() as usize;
+    FLASH_POSITION = mem as *mut u8 as usize;
     // copy flash
     ptr::copy_nonoverlapping(flash.as_ptr() as *const u8, mem as *mut u8, flash.len());
     mem as *mut u8
