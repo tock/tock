@@ -934,16 +934,15 @@ impl<'a> Usb<'a> {
                     }
 
                     self.bufs.set(bufs);
-
-                    if buf_id.is_some() {
-                        self.copy_slice_out_to_hw(ep, buf_id.unwrap(), size)
-                    } else {
-                        panic!("No free bufs");
-                    }
                     match self.descriptors[ep as usize].state.get() {
                         EndpointState::Disabled => unreachable!(),
                         EndpointState::Ctrl(_state) => unreachable!(),
                         EndpointState::Bulk(_in_state, _out_state) => {
+                            if buf_id.is_some() {
+                                self.copy_slice_out_to_hw(ep, buf_id.unwrap(), size)
+                            } else {
+                                panic!("No free bufs");
+                            };
                             EndpointState::Bulk(Some(BulkInState::In(size)), None)
                         }
                         EndpointState::Iso => unreachable!(),
