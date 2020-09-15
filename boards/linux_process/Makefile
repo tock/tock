@@ -9,7 +9,7 @@ PLATFORM=linux_process
 
 RUSTC_FLAGS=
 
-APP=../../../libtock-c/examples/c_hello/build/linux/linux.tbf
+APP=../../../libtock-c/examples/c_hello/build/$(CPU)/$(CPU).tbf
 KERNEL=$(TOCK_ROOT_DIRECTORY)/target/$(TARGET)/debug/$(PLATFORM).elf
 KERNEL_WITH_APP=$(TOCK_ROOT_DIRECTORY)/target/$(TARGET)/debug/$(PLATFORM)-app.elf
 
