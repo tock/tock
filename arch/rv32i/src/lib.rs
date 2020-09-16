@@ -318,13 +318,16 @@ pub extern "C" fn _start_trap() {
             // need to store mcause because we use that to determine why the app
             // stopped executing and returned to the kernel. We store mepc
             // because it is where we need to return to in the app at some
-            // point.
+            // point. We need to store mtval in case the app faulted and we need
+            // mtval to help with debugging.
             csrr t0, 0x340    // CSR=0x340=mscratch
             sw   t0, 1*4(s0)  // Save the app sp to the stored state struct
             csrr t0, 0x341    // CSR=0x341=mepc
             sw   t0, 31*4(s0) // Save the PC to the stored state struct
             csrr t0, 0x342    // CSR=0x342=mcause
             sw   t0, 32*4(s0) // Save mcause to the stored state struct
+            csrr t0, 0x343    // CSR=0x343=mtval
+            sw   t0, 33*4(s0) // Save mtval to the stored state struct
 
             // Now we need to check if this was an interrupt, and if it was,
             // then we need to disable the interrupt before returning from this
@@ -381,12 +384,8 @@ pub extern "C" fn abort() {
     }
 }
 
-/// Prints out RISCV machine state, including basic system registers
-/// (mcause, mstatus, mtvec, mepc, mtval, interrupt status).
-pub unsafe fn print_riscv_state(writer: &mut dyn Write) {
-    let mcval: csr::mcause::Trap = core::convert::From::from(csr::CSR.mcause.extract());
-    let _ = writer.write_fmt(format_args!("\r\n---| RISC-V Machine State |---\r\n"));
-    let _ = writer.write_fmt(format_args!("Cause (mcause): "));
+/// Print a readable string for an mcause reason.
+pub unsafe fn print_mcause(mcval: csr::mcause::Trap, writer: &mut dyn Write) {
     match mcval {
         csr::mcause::Trap::Interrupt(interrupt) => match interrupt {
             csr::mcause::Interrupt::UserSoft => {
@@ -468,15 +467,24 @@ pub unsafe fn print_riscv_state(writer: &mut dyn Write) {
             }
         },
     }
+}
+
+/// Prints out RISCV machine state, including basic system registers
+/// (mcause, mstatus, mtvec, mepc, mtval, interrupt status).
+pub unsafe fn print_riscv_state(writer: &mut dyn Write) {
+    let mcval: csr::mcause::Trap = core::convert::From::from(csr::CSR.mcause.extract());
+    let _ = writer.write_fmt(format_args!("\r\n---| RISC-V Machine State |---\r\n"));
+    let _ = writer.write_fmt(format_args!("Last cause (mcause): "));
+    print_mcause(mcval, writer);
     let mval = csr::CSR.mcause.get();
     let interrupt = (mval & 0x80000000) == 0x80000000;
     let code = mval & 0x7fffffff;
     let _ = writer.write_fmt(format_args!(
-        " (interrupt={}, exception code={})",
+        " (interrupt={}, exception code={:#010X})",
         interrupt, code
     ));
     let _ = writer.write_fmt(format_args!(
-        "\r\nValue (mtval):  {:#010X}\
+        "\r\nLast value (mtval):  {:#010X}\
          \r\n\
          \r\nSystem register dump:\
          \r\n mepc:    {:#010X}    mstatus:     {:#010X}\
@@ -498,15 +506,19 @@ pub unsafe fn print_riscv_state(writer: &mut dyn Write) {
     let mpie = mstatus.is_set(csr::mstatus::mstatus::mpie);
     let spp = mstatus.is_set(csr::mstatus::mstatus::spp);
     let _ = writer.write_fmt(format_args!(
-        "\r\n mstatus:\
-         \r\n  uie:    {}\
-         \r\n  sie:    {}\
-         \r\n  mie:    {}\
-         \r\n  upie:   {}\
-         \r\n  spie:   {}\
-         \r\n  mpie:   {}\
+        "\r\n mstatus: {:#010X}\
+         \r\n  uie:    {:5}  upie:   {}\
+         \r\n  sie:    {:5}  spie:   {}\
+         \r\n  mie:    {:5}  mpie:   {}\
          \r\n  spp:    {}",
-        uie, sie, mie, upie, spie, mpie, spp
+        mstatus.get(),
+        uie,
+        upie,
+        sie,
+        spie,
+        mie,
+        mpie,
+        spp
     ));
     let e_usoft = csr::CSR.mie.is_set(csr::mie::mie::usoft);
     let e_ssoft = csr::CSR.mie.is_set(csr::mie::mie::ssoft);
@@ -528,7 +540,7 @@ pub unsafe fn print_riscv_state(writer: &mut dyn Write) {
     let p_sext = csr::CSR.mip.is_set(csr::mip::mip::sext);
     let p_mext = csr::CSR.mip.is_set(csr::mip::mip::mext);
     let _ = writer.write_fmt(format_args!(
-        "\r\n mie:   0x{:08X}   mip:   0x{:08X}\
+        "\r\n mie:   {:#010X}   mip:   {:#010X}\
          \r\n  usoft:  {:6}              {:6}\
          \r\n  ssoft:  {:6}              {:6}\
          \r\n  msoft:  {:6}              {:6}\

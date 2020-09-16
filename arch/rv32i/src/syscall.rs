@@ -22,6 +22,11 @@ pub struct RiscvimacStoredState {
     /// We need to store the mcause CSR between when the trap occurs and after
     /// we exit the trap handler and resume the context switching code.
     mcause: usize,
+
+    /// We need to store the mtval CSR for the process in case the mcause
+    /// indicates a fault. In that case, the mtval contains useful debugging
+    /// information.
+    mtval: usize,
 }
 
 // Named offsets into the stored state registers.  These needs to be kept in
@@ -389,9 +394,9 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
              \r\n R13: {:#010X}    R29: {:#010X}\
              \r\n R14: {:#010X}    R30: {:#010X}\
              \r\n R15: {:#010X}    R31: {:#010X}\
-             \r\n PC : {:#010X}\
-             \r\n SP:  {:#010X}\
-             \r\n",
+             \r\n PC : {:#010X}    SP : {:#010X}\
+             \r\n\
+             \r\n mcause: {:#010X} (",
             0,
             state.regs[15],
             state.regs[0],
@@ -426,6 +431,14 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
             state.regs[30],
             state.pc,
             stack_pointer as usize,
+            state.mcause,
+        ));
+        crate::print_mcause(mcause::Trap::from(state.mcause as u32), writer);
+        let _ = writer.write_fmt(format_args!(
+            ")\
+             \r\n mtval:  {:#010X}\
+             \r\n\r\n",
+            state.mtval,
         ));
     }
 }
