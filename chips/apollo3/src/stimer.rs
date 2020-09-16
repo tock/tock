@@ -175,16 +175,16 @@ impl<'a> Alarm<'a> for STimer<'a> {
 
         // Set the delta, this can take a few goes
         // See Errata 4.14 at at https://ambiqmicro.com/static/mcu/files/Apollo3_Blue_MCU_Errata_List_v2_0.pdf
-        let mut timer_delta = expire.wrapping_sub(self.now());
+        let mut timer_delta = expire.wrapping_sub(now);
         let mut tries = 0;
 
         if timer_delta < self.minimum_dt() {
             timer_delta = self.minimum_dt();
+            expire = now.wrapping_add(timer_delta);
         }
-        // I think this is a bug -- shouldn't the compare be set to the
-        // compare value, not the delta value? Errata says delta but
-        // that can't be right.... keeping consistent with original code
-        // -pal 9/9/20
+
+        // Apollo3 Blue Datasheet 14.1: 'Only offsets from "NOW" are written to
+        // comparator registers.'
         while Self::Ticks::from(regs.scmpr[0].get()) != expire && tries < 5 {
             regs.scmpr[0].set(timer_delta.into_u32());
             tries = tries + 1;
