@@ -31,7 +31,7 @@ pub struct QdecInterface<'a> {
 /// This struct contains the necessary fields for an app
 pub struct App {
     callback: Option<Callback>,
-    pos: i32,
+    position: i32,
 }
 
 impl<'a> QdecInterface<'a> {
