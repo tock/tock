@@ -4,7 +4,7 @@ DEFAULT_BOARD_CONFIGURATION=fpga_nexysvideo
 TARGET=riscv32imc-unknown-none-elf
 PLATFORM=opentitan
 FLASHID=--dev-id="0403:6010"
-RISC_PREFIX =? riscv32-none-elf
+RISC_PREFIX = riscv64-elf
 
 
 include ../Makefile.common

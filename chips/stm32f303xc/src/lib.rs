@@ -8,11 +8,13 @@
 #![no_std]
 
 pub mod chip;
+mod deferred_call_tasks;
 pub mod nvic;
 
 // Peripherals
 pub mod adc;
 pub mod exti;
+pub mod flash;
 pub mod gpio;
 pub mod i2c;
 pub mod rcc;
