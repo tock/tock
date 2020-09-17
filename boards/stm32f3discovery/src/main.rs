@@ -64,7 +64,7 @@ struct STM32F3Discovery {
         'static,
         VirtualMuxAlarm<'static, stm32f303xc::tim2::Tim2<'static>>,
     >,
-    adc: &'static capsules::adc::AdcSyscall<'static>,
+    adc: &'static capsules::adc::AdcVirtual<'static>,
     nonvolatile_storage: &'static capsules::nonvolatile_storage_driver::NonvolatileStorage<'static>,
 }
 
@@ -628,7 +628,7 @@ pub unsafe fn reset_handler() {
         components::adc::AdcComponent::new(&adc_mux, stm32f303xc::adc::Channel::Channel5)
             .finalize(components::adc_component_helper!(stm32f303xc::adc::Adc));
 
-    let adc_syscall = components::adc::AdcSyscallComponent::new(board_kernel).finalize(
+    let adc_syscall = components::adc::AdcVirtualComponent::new(board_kernel).finalize(
         components::adc_syscall_component_helper!(
             adc_channel_0,
             adc_channel_1,

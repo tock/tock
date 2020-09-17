@@ -52,7 +52,7 @@ struct STM32F412GDiscovery {
         VirtualMuxAlarm<'static, stm32f412g::tim2::Tim2<'static>>,
     >,
     gpio: &'static capsules::gpio::GPIO<'static, stm32f412g::gpio::Pin<'static>>,
-    adc: &'static capsules::adc::AdcSyscall<'static>,
+    adc: &'static capsules::adc::AdcVirtual<'static>,
     ft6x06: &'static capsules::ft6x06::Ft6x06<'static>,
     touch: &'static capsules::touch::Touch<'static>,
 }
@@ -543,7 +543,7 @@ pub unsafe fn reset_handler() {
         components::adc::AdcComponent::new(&adc_mux, stm32f412g::adc::Channel::Channel8)
             .finalize(components::adc_component_helper!(stm32f412g::adc::Adc));
 
-    let adc_syscall = components::adc::AdcSyscallComponent::new(board_kernel).finalize(
+    let adc_syscall = components::adc::AdcVirtualComponent::new(board_kernel).finalize(
         components::adc_syscall_component_helper!(
             adc_channel_0,
             adc_channel_1,

@@ -1,4 +1,4 @@
-use capsules::adc::AdcSyscall;
+use capsules::adc::AdcVirtual;
 use capsules::virtual_adc::{AdcDevice, MuxAdc};
 use core::mem::MaybeUninit;
 use kernel::capabilities;
@@ -30,7 +30,7 @@ macro_rules! adc_component_helper {
 #[macro_export]
 macro_rules! adc_syscall_component_helper {
     ($($P:expr),+ ) => {{
-        use capsules::adc::AdcSyscall;
+        use capsules::adc::AdcVirtual;
         use core::mem::MaybeUninit;
         use kernel::hil;
         use kernel::count_expressions;
@@ -43,7 +43,7 @@ macro_rules! adc_syscall_component_helper {
                 $($P,)*
             ]
         );
-        static mut BUF: MaybeUninit<AdcSyscall<'static>> =
+        static mut BUF: MaybeUninit<AdcVirtual<'static>> =
             MaybeUninit::uninit();
         (&mut BUF, drivers)
     };};
@@ -64,7 +64,7 @@ impl<A: 'static + adc::Adc> AdcMuxComponent<A> {
     }
 }
 
-pub struct AdcSyscallComponent {
+pub struct AdcVirtualComponent {
     board_kernel: &'static kernel::Kernel,
 }
 
@@ -107,20 +107,20 @@ impl<A: 'static + adc::Adc> Component for AdcComponent<A> {
     }
 }
 
-impl AdcSyscallComponent {
-    pub fn new(board_kernel: &'static kernel::Kernel) -> AdcSyscallComponent {
-        AdcSyscallComponent {
+impl AdcVirtualComponent {
+    pub fn new(board_kernel: &'static kernel::Kernel) -> AdcVirtualComponent {
+        AdcVirtualComponent {
             board_kernel: board_kernel,
         }
     }
 }
 
-impl Component for AdcSyscallComponent {
+impl Component for AdcVirtualComponent {
     type StaticInput = (
-        &'static mut MaybeUninit<AdcSyscall<'static>>,
+        &'static mut MaybeUninit<AdcVirtual<'static>>,
         &'static [&'static dyn kernel::hil::adc::AdcChannel],
     );
-    type Output = &'static capsules::adc::AdcSyscall<'static>;
+    type Output = &'static capsules::adc::AdcVirtual<'static>;
 
     unsafe fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
@@ -128,8 +128,8 @@ impl Component for AdcSyscallComponent {
 
         let adc = static_init_half!(
             static_buffer.0,
-            capsules::adc::AdcSyscall<'static>,
-            capsules::adc::AdcSyscall::new(static_buffer.1, grant_adc)
+            capsules::adc::AdcVirtual<'static>,
+            capsules::adc::AdcVirtual::new(static_buffer.1, grant_adc)
         );
 
         for driver in static_buffer.1 {

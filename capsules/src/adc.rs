@@ -42,8 +42,9 @@ use crate::driver;
 use crate::virtual_adc::Operation;
 pub const DRIVER_NUM: usize = driver::NUM::Adc as usize;
 
-/// Multiplexed ADC Capsule for UserSpace
-pub struct AdcSyscall<'a> {
+/// Multiplexed ADC application driver, used by applications and capsules.
+/// Virtualized, and can be use by multiple applications at the same time.
+pub struct AdcVirtual<'a> {
     drivers: &'a [&'a dyn hil::adc::AdcChannel],
     apps: Grant<AppSys>,
     current_app: OptionalCell<AppId>,
@@ -82,6 +83,7 @@ pub(crate) enum AdcMode {
     ContinuousBuffer = 3,
 }
 
+// Datas passed by the application to us
 pub struct AppSys {
     callback: Option<Callback>,
     pending_command: bool,
@@ -604,18 +606,23 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed> Adc<'a, A> {
     }
 }
 
-impl<'a> AdcSyscall<'a> {
+/// Functions to create, initialize, and interact with the virtualized ADC
+impl<'a> AdcVirtual<'a> {
+    /// Create a new `Adc` application interface.
+    ///
+    /// - `drivers` - Virtual ADC drivers to provide application access to
     pub fn new(
         drivers: &'a [&'a dyn hil::adc::AdcChannel],
         grant: Grant<AppSys>,
-    ) -> AdcSyscall<'a> {
-        AdcSyscall {
+    ) -> AdcVirtual<'a> {
+        AdcVirtual {
             drivers: drivers,
             apps: grant,
             current_app: OptionalCell::empty(),
         }
     }
 
+    /// Enqueue the command to be executed when the ADC is available.
     fn enqueue_command(&self, command: Operation, channel: usize, appid: AppId) -> ReturnCode {
         if channel < self.drivers.len() {
             self.apps
@@ -644,6 +651,7 @@ impl<'a> AdcSyscall<'a> {
         }
     }
 
+    /// Request the sample from the specified channel
     fn call_driver(&self, command: Operation, channel: usize) -> ReturnCode {
         match command {
             Operation::OneSample => self.drivers[channel].sample(),
@@ -1263,7 +1271,13 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> Driver for Adc<'_, A> {
     }
 }
 
-impl Driver for AdcSyscall<'_> {
+/// Implementation of the syscalls for the virtualized ADC.
+impl Driver for AdcVirtual<'_> {
+    /// Provides a callback which can be used to signal the application.
+    ///
+    /// - `subscribe_num` - which subscribe call this is
+    /// - `callback` - callback object which can be scheduled to signal the
+    /// - `app_id` - application
     fn subscribe(
         &self,
         subscribe_num: usize,
@@ -1271,6 +1285,7 @@ impl Driver for AdcSyscall<'_> {
         app_id: AppId,
     ) -> ReturnCode {
         match subscribe_num {
+            // subscribe to ADC sample done (from all types of sampling)
             0 => self
                 .apps
                 .enter(app_id, |app, _| {
@@ -1282,6 +1297,12 @@ impl Driver for AdcSyscall<'_> {
         }
     }
 
+    /// Method for the application to command or query this driver.
+    ///
+    /// - `command_num` - which command call this is
+    /// - `channel` - requested channel value
+    /// - `_` - value sent by the application, unused
+    /// - `appid` - application identifier
     fn command(&self, command_num: usize, channel: usize, _: usize, appid: AppId) -> ReturnCode {
         match command_num {
             // This driver exists and return the number of channels
@@ -1323,7 +1344,7 @@ impl Driver for AdcSyscall<'_> {
     }
 }
 
-impl<'a> hil::adc::Client for AdcSyscall<'a> {
+impl<'a> hil::adc::Client for AdcVirtual<'a> {
     fn sample_ready(&self, sample: u16) {
         self.current_app.take().map(|appid| {
             let _ = self.apps.enter(appid, |app, _| {
