@@ -265,11 +265,11 @@ impl kernel::hil::qdec::QdecDriver for Qdec {
         self.is_enabled()
     }
 
-    fn get_acc(&self) -> u32 {
+    fn get_acc(&self) -> i32 {
         let regs = &*self.registers;
         regs.tasks_readclracc.write(Task::ENABLE::SET);
         let val = regs.acc_read.read(Acc::ACC);
-        val
+        val as i32
     }
 
     fn set_client(&self, client: &'static dyn kernel::hil::qdec::QdecClient) {

@@ -13,7 +13,7 @@ pub trait QdecDriver {
     /// Enables the SAMPLERDY interrupt
     fn enable_interrupts(&self) -> ReturnCode;
 
-    /// Enables the Qdec, returning error if Qdec does not exist
+    /// Enables the Qdec, returning error if QDEC is not working
     fn enable_qdec(&self) -> ReturnCode;
 
     /// Checks if the qdec has been enabled
@@ -22,7 +22,7 @@ pub trait QdecDriver {
     /// Reads the accumulator value and resets it
     /// Note accumulator means the measure of how many ticks the
     /// QDEC has moved since the last time the function was called
-    fn get_acc(&self) -> u32;
+    fn get_acc(&self) -> i32;
 }
 
 pub trait QdecClient {
