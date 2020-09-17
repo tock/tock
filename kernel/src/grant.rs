@@ -56,17 +56,6 @@ impl<T: ?Sized> Owned<T> {
     }
 }
 
-impl<T: ?Sized> Drop for Owned<T> {
-    fn drop(&mut self) {
-        unsafe {
-            let data = self.data.as_ptr() as *mut u8;
-            self.appid.kernel.process_map_or((), self.appid, |process| {
-                process.free(data);
-            });
-        }
-    }
-}
-
 impl<T: ?Sized> Deref for Owned<T> {
     type Target = T;
     fn deref(&self) -> &T {
