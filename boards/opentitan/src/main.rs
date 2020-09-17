@@ -16,7 +16,6 @@ use kernel::component::Component;
 use kernel::hil;
 use kernel::hil::i2c::I2CMaster;
 use kernel::hil::time::Alarm;
-use kernel::hil::usb::Client;
 use kernel::Chip;
 use kernel::Platform;
 use kernel::{create_capability, debug, static_init};
@@ -64,14 +63,6 @@ struct OpenTitan {
         'static,
         capsules::virtual_uart::UartDevice<'static>,
     >,
-    usb: &'static capsules::usb::usb_user::UsbSyscallDriver<
-        'static,
-        capsules::usb::usbc_client::Client<'static, lowrisc::usbdev::Usb<'static>>,
-    >,
-    ctap: &'static capsules::ctap::CtapDriver<
-        'static,
-        capsules::usb::ctap::CtapHid<'static, lowrisc::usbdev::Usb<'static>>,
-    >,
     i2c_master: &'static capsules::i2c_master::I2CMasterDriver<lowrisc::i2c::I2c<'static>>,
 }
 
@@ -88,8 +79,6 @@ impl Platform for OpenTitan {
             capsules::console::DRIVER_NUM => f(Some(self.console)),
             capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
             capsules::low_level_debug::DRIVER_NUM => f(Some(self.lldb)),
-            capsules::usb::usb_user::DRIVER_NUM => f(Some(self.usb)),
-            capsules::ctap::DRIVER_NUM => f(Some(self.ctap)),
             capsules::i2c_master::DRIVER_NUM => f(Some(self.i2c_master)),
             _ => f(None),
         }
@@ -273,34 +262,36 @@ pub unsafe fn reset_handler() {
 
     earlgrey::i2c::I2C.set_master_client(i2c_master);
 
-    let usb = usb::UsbComponent::new(board_kernel).finalize(());
+    // USB support is currently broken in the OpenTitan hardware
+    // See https://github.com/lowRISC/opentitan/issues/2598 for more details
+    // let usb = usb::UsbComponent::new(board_kernel).finalize(());
 
-    // Create the strings we include in the USB descriptor.
-    let strings = static_init!(
-        [&str; 3],
-        [
-            "LowRISC.",           // Manufacturer
-            "OpenTitan - TockOS", // Product
-            "18d1:503a",          // Serial number
-        ]
-    );
+    // // Create the strings we include in the USB descriptor.
+    // let strings = static_init!(
+    //     [&str; 3],
+    //     [
+    //         "LowRISC.",           // Manufacturer
+    //         "OpenTitan - TockOS", // Product
+    //         "18d1:503a",          // Serial number
+    //     ]
+    // );
 
-    let ctap_send_buffer = static_init!([u8; 64], [0; 64]);
-    let ctap_recv_buffer = static_init!([u8; 64], [0; 64]);
+    // let ctap_send_buffer = static_init!([u8; 64], [0; 64]);
+    // let ctap_recv_buffer = static_init!([u8; 64], [0; 64]);
 
-    let (ctap, ctap_driver) = components::ctap::CtapComponent::new(
-        &earlgrey::usbdev::USB,
-        0x18d1, // 0x18d1 Google Inc.
-        0x503a, // lowRISC generic FS USB
-        strings,
-        board_kernel,
-        ctap_send_buffer,
-        ctap_recv_buffer,
-    )
-    .finalize(components::usb_ctap_component_helper!(lowrisc::usbdev::Usb));
+    // let (ctap, ctap_driver) = components::ctap::CtapComponent::new(
+    //     &earlgrey::usbdev::USB,
+    //     0x18d1, // 0x18d1 Google Inc.
+    //     0x503a, // lowRISC generic FS USB
+    //     strings,
+    //     board_kernel,
+    //     ctap_send_buffer,
+    //     ctap_recv_buffer,
+    // )
+    // .finalize(components::usb_ctap_component_helper!(lowrisc::usbdev::Usb));
 
-    ctap.enable();
-    ctap.attach();
+    // ctap.enable();
+    // ctap.attach();
 
     debug!("OpenTitan initialisation complete. Entering main loop");
 
@@ -323,9 +314,7 @@ pub unsafe fn reset_handler() {
         alarm: alarm,
         hmac,
         lldb: lldb,
-        usb,
         i2c_master,
-        ctap: ctap_driver,
     };
 
     kernel::procs::load_processes(
