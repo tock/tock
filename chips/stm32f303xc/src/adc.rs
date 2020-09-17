@@ -504,7 +504,8 @@ pub struct Adc {
     status: Cell<ADCStatus>,
     client: OptionalCell<&'static dyn hil::adc::Client>,
     requested: Cell<ADCStatus>,
-    requeste_channel: Cell<u32>,
+    requested_channel: Cell<u32>,
+    sc_enabled: Cell<bool>,
 }
 
 pub static mut ADC1: Adc = Adc::new();
@@ -518,7 +519,8 @@ impl Adc {
             status: Cell::new(ADCStatus::Off),
             client: OptionalCell::empty(),
             requested: Cell::new(ADCStatus::Idle),
-            requeste_channel: Cell::new(0),
+            requested_channel: Cell::new(0),
+            sc_enabled: Cell::new(false),
         }
     }
 
@@ -578,8 +580,7 @@ impl Adc {
                 self.status.set(ADCStatus::Idle);
                 match self.requested.get() {
                     ADCStatus::OneSample => {
-                        // self.registers.isr.modify(ISR::EOS::SET);
-                        self.sample_u32(self.requeste_channel.get());
+                        self.sample_u32(self.requested_channel.get());
                         return;
                     }
                     _ => {}
@@ -636,13 +637,16 @@ impl Adc {
 
     fn enable_special_channels(&self) {
         // enabling temperature channel
-        if self.requeste_channel.get() == 16 {
+        if self.requested_channel.get() == 16 {
+            self.sc_enabled.set(true);
             self.enable_temperature();
         }
     }
 
     fn sample_u32(&self, channel: u32) -> ReturnCode {
-        self.enable_special_channels();
+        if self.sc_enabled.get() == false {
+            self.enable_special_channels();
+        }
         if self.status.get() == ADCStatus::Idle {
             self.requested.set(ADCStatus::Idle);
             self.status.set(ADCStatus::OneSample);
@@ -682,7 +686,7 @@ impl hil::adc::Adc for Adc {
     fn sample(&self, channel: &Self::Channel) -> ReturnCode {
         if self.status.get() == ADCStatus::Off {
             self.requested.set(ADCStatus::OneSample);
-            self.requeste_channel.set(*channel as u32);
+            self.requested_channel.set(*channel as u32);
             self.enable();
             ReturnCode::SUCCESS
         } else {

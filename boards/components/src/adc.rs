@@ -124,18 +124,18 @@ impl Component for AdcSyscallComponent {
 
     unsafe fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
-        let grant_ninedof = self.board_kernel.create_grant(&grant_cap);
+        let grant_adc = self.board_kernel.create_grant(&grant_cap);
 
-        let ninedof = static_init_half!(
+        let adc = static_init_half!(
             static_buffer.0,
             capsules::adc::AdcSyscall<'static>,
-            capsules::adc::AdcSyscall::new(static_buffer.1, grant_ninedof)
+            capsules::adc::AdcSyscall::new(static_buffer.1, grant_adc)
         );
 
         for driver in static_buffer.1 {
-            kernel::hil::adc::AdcChannel::set_client(*driver, ninedof);
+            kernel::hil::adc::AdcChannel::set_client(*driver, adc);
         }
 
-        ninedof
+        adc
     }
 }
