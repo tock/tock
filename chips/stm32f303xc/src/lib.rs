@@ -22,6 +22,8 @@ pub mod spi;
 pub mod syscfg;
 pub mod tim2;
 pub mod usart;
+pub mod wdt;
+
 use cortexm4::{
     generic_isr, hard_fault_handler, svc_handler, systick_handler, unhandled_interrupt,
 };
