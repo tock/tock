@@ -395,44 +395,42 @@ unsafe fn kernel_hardfault_arm_v7m(faulting_stack: *mut u32) {
 #[naked]
 pub unsafe extern "C" fn hard_fault_handler_arm_v7m() {
     let faulting_stack: *mut u32;
-    let kernel_stack: bool;
+    let kernel_stack: u32;
 
     // First need to determine if this a kernel fault or a userspace fault.
-    llvm_asm!(
-    "
-    mov    r1, 0     /* r1 = 0 */
-    tst    lr, #4    /* bitwise AND link register to 0b100 */
-    itte   eq        /* if lr==4, run next two instructions, else, run 3rd instruction. */
-    mrseq  r0, msp   /* r0 = kernel stack pointer */
-    addeq  r1, 1     /* r1 = 1, kernel was executing */
-    mrsne  r0, psp   /* r0 = userland stack pointer */"
-    : "={r0}"(faulting_stack), "={r1}"(kernel_stack)
-    :
-    : "cc"
-    : "volatile" );
+    asm!(
+        "mov    r1, 0     /* r1 = 0 */",
+        "tst    lr, #4    /* bitwise AND link register to 0b100 */",
+        "itte   eq        /* if lr==4, run next two instructions, else, run 3rd instruction. */",
+        "mrseq  r0, msp   /* r0 = kernel stack pointer */",
+        "addeq  r1, 1     /* r1 = 1, kernel was executing */",
+        "mrsne  r0, psp   /* r0 = userland stack pointer */",
+        out("r0") faulting_stack,
+        out("r1") kernel_stack,
+        options(nomem, nostack)
+    );
 
-    if kernel_stack {
+    if kernel_stack != 0 {
         // Need to determine if we had a stack overflow before we push anything
         // on to the stack. We check this by looking at the BusFault Status
         // Register's (BFSR) `LSPERR` and `STKERR` bits to see if the hardware
         // had any trouble stacking important registers to the stack during the
         // fault. If so, then we cannot use this stack while handling this fault
         // or we will trigger another fault.
-        let stack_overflow: bool;
-        llvm_asm!(
-        "
-        ldr   r2, =0xE000ED29  /* SCB BFSR register address */
-        ldrb  r2, [r2]         /* r2 = BFSR */
-        tst   r2, #0x30        /* r2 = BFSR & 0b00110000; LSPERR & STKERR bits */
-        ite   ne               /* check if the result of that bitwise AND was not 0 */
-        movne r3, #1           /* BFSR & 0b00110000 != 0; r3 = 1 */
-        moveq r3, #0           /* BFSR & 0b00110000 == 0; r3 = 0 */"
-        : "={r3}"(stack_overflow)
-        :
-        : "r2", "cc"
-        : "volatile" );
+        let stack_overflow: u32;
+        asm!(
+            "ldr   r2, =0xE000ED29  /* SCB BFSR register address */",
+            "ldrb  r2, [r2]         /* r2 = BFSR */",
+            "tst   r2, #0x30        /* r2 = BFSR & 0b00110000; LSPERR & STKERR bits */",
+            "ite   ne               /* check if the result of that bitwise AND was not 0 */",
+            "movne r3, #1           /* BFSR & 0b00110000 != 0; r3 = 1 */",
+            "moveq r3, #0           /* BFSR & 0b00110000 == 0; r3 = 0 */",
+            out("r3") stack_overflow,
+            out("r2") _,
+            options(nostack, readonly)
+        );
 
-        if stack_overflow {
+        if stack_overflow != 0 {
             // The hardware couldn't use the stack, so we have no saved data and
             // we cannot use the kernel stack as is. We just want to report that
             // the kernel's stack overflowed, since that is essential for
@@ -442,13 +440,11 @@ pub unsafe extern "C" fn hard_fault_handler_arm_v7m() {
             // kernel's original stack. This should in theory leave the bottom
             // of the stack where the problem occurred untouched should one want
             // to further debug.
-            llvm_asm!(
-            "
-            mov sp, r0   /* Set the stack pointer to _estack */"
-            :
-            : "{r0}"((_estack as *const ()) as u32)
-            :
-            : "volatile" );
+            asm!(
+                "mov sp, r0   /* Set the stack pointer to _estack */",
+                in("r0") ((_estack as *const ()) as u32),
+                options(nomem, preserves_flags)
+            );
 
             // Panic to show the correct error.
             panic!("kernel stack overflow");
