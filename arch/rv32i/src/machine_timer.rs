@@ -10,11 +10,11 @@ use kernel::ReturnCode;
 register_structs! {
     pub MachineTimerRegisters {
         (0x0000 => _reserved),
-        (0x4000 => value_low: ReadWrite<u32>),
-        (0x4004 => value_high: ReadWrite<u32>),
+        (0x4000 => compare_low: ReadWrite<u32>),
+        (0x4004 => compare_high: ReadWrite<u32>),
         (0x4008 => _reserved2),
-        (0xBFF8 => compare_low: ReadWrite<u32>),
-        (0xBFFC => compare_high: ReadWrite<u32>),
+        (0xBFF8 => value_low: ReadWrite<u32>),
+        (0xBFFC => value_high: ReadWrite<u32>),
         (0xC000 => @END),
     }
 }
@@ -41,7 +41,8 @@ impl MachineTimer<'_> {
     }
 
     fn disable_machine_timer(&self) {
-        csr::CSR.mie.modify(csr::mie::mie::mtimer::CLEAR);
+        self.registers.compare_high.set(0xFFFF_FFFF);
+        self.registers.compare_low.set(0xFFFF_FFFF);
     }
 }
 
@@ -83,14 +84,16 @@ impl<'a> time::Alarm<'a> for MachineTimer<'a> {
         }
 
         let val = expire.into_u64();
+
         let high = (val >> 32) as u32;
         let low = (val & 0xffffffff) as u32;
 
         // Recommended approach for setting the two compare registers
         // (RISC-V Privileged Architectures 3.1.15) -pal 8/6/20
-        regs.compare_low.set(0xffffffff);
+        regs.compare_low.set(0xFFFF_FFFF);
         regs.compare_high.set(high);
         regs.compare_low.set(low);
+
         csr::CSR.mie.modify(csr::mie::mie::mtimer::SET);
     }
 
@@ -109,7 +112,7 @@ impl<'a> time::Alarm<'a> for MachineTimer<'a> {
         // Check if mtimecmp is the max value. If it is, then we are not armed,
         // otherwise we assume we have a value set.
         self.registers.compare_high.get() != 0xFFFF_FFFF
-            && self.registers.compare_low.get() != 0xFFFF_FFFF
+            || self.registers.compare_low.get() != 0xFFFF_FFFF
     }
 
     fn minimum_dt(&self) -> Self::Ticks {
