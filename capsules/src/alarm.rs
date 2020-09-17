@@ -70,7 +70,7 @@ impl<'a, A: Alarm<'a>> AlarmDriver<'a, A> {
                     let current_reference_ticks = A::Ticks::from(current_reference);
                     let current_dt = dt;
                     let current_dt_ticks = A::Ticks::from(current_dt);
-                    let current_end_ticks =  current_reference_ticks.wrapping_add(current_dt_ticks);
+                    let current_end_ticks = current_reference_ticks.wrapping_add(current_dt_ticks);
 
                     earliest_alarm = match earliest_alarm {
                         Expiration::Disabled => {
@@ -97,12 +97,17 @@ impl<'a, A: Alarm<'a>> AlarmDriver<'a, A> {
                             // determined by the scheduler not push order. -pal
                             let temp_earliest_reference = A::Ticks::from(reference);
                             let temp_earliest_dt = A::Ticks::from(dt);
-                            let temp_earliest_end = temp_earliest_reference.wrapping_add(temp_earliest_dt);
-                            
-                            if current_end_ticks.within_range(temp_earliest_reference, temp_earliest_end) {
+                            let temp_earliest_end =
+                                temp_earliest_reference.wrapping_add(temp_earliest_dt);
+
+                            if current_end_ticks
+                                .within_range(temp_earliest_reference, temp_earliest_end)
+                            {
                                 earliest_end = current_end_ticks;
                                 alarm.expiration
-                            } else if !now_lower_bits.within_range(temp_earliest_reference, temp_earliest_end) {
+                            } else if !now_lower_bits
+                                .within_range(temp_earliest_reference, temp_earliest_end)
+                            {
                                 earliest_end = temp_earliest_end;
                                 alarm.expiration
                             } else {
@@ -129,7 +134,11 @@ impl<'a, A: Alarm<'a>> AlarmDriver<'a, A> {
                 // one then the alarm will incorrectly be set 1<<32 higher than it should.
                 // This uses the invariant that reference <= now.
                 if now_lower_bits.into_u32() < reference {
-                    debug!("Incrementing bit 32: lower={}, reference={}", now_lower_bits.into_u32(), reference);
+                    debug!(
+                        "Incrementing bit 32: lower={}, reference={}",
+                        now_lower_bits.into_u32(),
+                        reference
+                    );
                     // Build 1<<32 in a way that just overflows to 0 if we are 32 bits
                     let bit33 = A::Ticks::from(0xffffffff).wrapping_add(A::Ticks::from(0x1));
                     high_bits = high_bits.wrapping_sub(bit33);
