@@ -63,6 +63,7 @@ register_structs! {
 
 register_bitfields![u32,
     Task [
+        /// Enable
         ENABLE 0
     ],
     Shorts [
@@ -82,11 +83,15 @@ register_bitfields![u32,
         SAMPLERDY_READCLRACC 6
     ],
     Event [
+        /// Ready to receive interrupts
         READY 0
     ],
     PinSelect [
+        /// Pins the QDEC is attached to
         Pin OFFSET(0) NUMBITS(5),
+        /// Port the QDEC is using
         Port OFFSET(5) NUMBITS(1),
+        /// Connects pins
         Connect OFFSET(31) NUMBITS(1)
     ],
     Inte [
@@ -102,46 +107,74 @@ register_bitfields![u32,
         STOPPED 4
     ],
     LedPol [
+        /// LED pin polarity
         LedPol OFFSET(0) NUMBITS(1) [
+            /// Active: Low
             ActiveLow = 0,
+            /// Active: High
             ActiveHigh = 1
         ]
     ],
     Sample [
+        /// Last motion sample
         SAMPLE 1
     ],
     SampPer [
+        /// Sample period
         SAMPLEPER OFFSET(0) NUMBITS(4) [
+            /// Sample every 128 microseconds
             us128 = 0,
+            /// Sample every 256 microseconds
             us256 = 1,
+            /// Sample every 512 microseconds
             us512 = 2,
+            /// Sample every 1024 microseconds
             us1024 = 3,
+            /// Sample every 2048 microseconds
             us2048 = 4,
+            /// Sample every 4096 microseconds
             us4096 = 5,
+            /// Sample every 8192 microseconds
             us8192 = 6,
+            /// Sample every 16384 microseconds
             us16384 = 7,
+            /// Sample every 32 milliseconds
             ms32 = 8,
+            /// Sample every 65 milliseconds
             ms65 = 9,
+            /// Sample every 131 milliseconds
             ms131 = 10
         ]
     ],
     ReportPer [
+        /// Captures several samples before being sent out by REPORTRDY event
         REPORTPER OFFSET(0) NUMBITS(4) [
+            /// 10 samples/report
             hz10 = 0,
+            /// 40 samples/report
             hz40 = 1,
+            /// 80 samples/report
             hz80 = 2,
+            /// 120 samples/report
             hz120 = 3,
+            /// 160 samples/report
             hz160 = 4,
+            /// 200 samples/report
             hz200 = 5,
+            /// 240 samples/report
             hz240 = 6,
+            /// 280 samples/report
             hz280 = 7,
+            /// 1 sample/report
             hz1 = 8
         ]
     ],
     Acc [
+        /// Valid motion value samples 
         ACC OFFSET(0) NUMBITS(32)
     ],
     AccDbl [
+        /// Invalid motion value samples
         ACCDBL OFFSET(0) NUMBITS(4)
     ]
 ];
@@ -153,6 +186,7 @@ const QDEC_BASE: StaticRef<QdecRegisters> =
 
 pub static mut QDEC: Qdec = Qdec::new();
 
+/// Enum defining the current QDEC state of started or stopped
 #[derive(PartialEq, Eq)]
 enum QdecState {
     Start,
@@ -206,7 +240,11 @@ impl Qdec {
                         0 => {
                             client.sample_ready();
                         }
-                        1 => { /*No handling for REPORTRDY*/ }
+                        1 => { /*For the time being, there will be no implementation in respone
+                                 to the firing of the REPORTRDY interrupt. It fires too frequently
+                                 in order to utilize it for position measuring. However, by that same 
+                                 token, it cannot merely be marked as unimplemented since it would
+                                 crash the program.*/ }
                         2 => {
                             client.overflow();
                         }
