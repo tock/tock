@@ -29,6 +29,12 @@ pub trait UsbController<'a> {
     fn endpoint_resume_in(&self, endpoint: usize);
 
     fn endpoint_resume_out(&self, endpoint: usize);
+
+    fn set_config(&self, configuration_value: u8);
+
+    fn endpoint_in_reset(&self, endpoint: usize);
+
+    fn endpoint_out_reset(&self, endpoint: usize);
 }
 
 #[derive(Clone, Copy, Debug)]
