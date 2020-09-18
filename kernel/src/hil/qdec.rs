@@ -10,7 +10,7 @@ pub trait QdecDriver {
     /// Sets the client which will receive interrupts
     fn set_client(&self, client: &'static dyn QdecClient);
 
-    /// Enables the SAMPLERDY interrupt
+    /// Enables the interrupt collecting and storing samples
     fn enable_interrupts(&self) -> ReturnCode;
 
     /// Enables the Qdec, returning error if QDEC is not working
@@ -18,12 +18,6 @@ pub trait QdecDriver {
 
     /// Disables the QDEC
     fn disable_qdec(&self) -> ReturnCode;
-
-    /// Checks if the qdec has been enabled
-    fn enabled(&self) -> ReturnCode;
-
-    /// Checks if the qdec has been disabled
-    fn disabled(&self) -> ReturnCode;
 
     /// Reads the accumulator value and resets it
     /// Note accumulator means the measure of how many ticks the

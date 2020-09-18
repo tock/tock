@@ -322,14 +322,6 @@ impl kernel::hil::qdec::QdecDriver for Qdec {
         self.is_disabled()
     }
 
-    fn enabled(&self) -> ReturnCode {
-        self.is_enabled()
-    }
-
-    fn disabled(&self) -> ReturnCode {
-        self.is_disabled()
-    }
-
     fn get_acc(&self) -> i32 {
         let regs = &*self.registers;
         regs.tasks_readclracc.write(Task::ENABLE::SET);

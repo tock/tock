@@ -97,13 +97,12 @@ impl<'a> Driver for QdecInterface<'a> {
         match command_num {
             0 => ReturnCode::SUCCESS,
             1 => self.driver.enable_qdec(),
-            2 => self.driver.enabled(),
+            2 => self.driver.disable_qdec(),
             3 => self.driver.enable_interrupts(),
             4 => ReturnCode::SuccessWithValue {
                 value: self.driver.get_acc() as usize,
             },
             5 => self.driver.disable_qdec(),
-            6 => self.driver.disabled(),
             _ => ReturnCode::ENOSUPPORT,
         }
     }
