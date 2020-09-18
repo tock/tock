@@ -16,8 +16,14 @@ pub trait QdecDriver {
     /// Enables the Qdec, returning error if QDEC is not working
     fn enable_qdec(&self) -> ReturnCode;
 
+    /// Disables the QDEC
+    fn disable_qdec(&self) -> ReturnCode;
+
     /// Checks if the qdec has been enabled
     fn enabled(&self) -> ReturnCode;
+
+    /// Checks if the qdec has been disabled
+    fn disabled(&self) -> ReturnCode;
 
     /// Reads the accumulator value and resets it
     /// Note accumulator means the measure of how many ticks the

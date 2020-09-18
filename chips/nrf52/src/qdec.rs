@@ -275,12 +275,28 @@ impl Qdec {
         regs.tasks_start.write(Task::ENABLE::SET);
     }
 
+    fn disable(&self) {
+        let regs = &*self.registers;
+        regs.enable.write(Task::ENABLE::CLEAR);
+        regs.tasks_start.write(Task::ENABLE::CLEAR);
+    }
+
     fn is_enabled(&self) -> ReturnCode {
         let regs = &*self.registers;
         let result = if regs.enable.is_set(Task::ENABLE) {
             ReturnCode::SUCCESS
         } else {
             ReturnCode::FAIL
+        };
+        result
+    }
+
+    fn is_disabled(&self) -> ReturnCode {
+        let regs = &*self.registers;
+        let result = if regs.enable.is_set(Task::ENABLE) {
+            ReturnCode::FAIL
+        } else {
+            ReturnCode::SUCCESS
         };
         result
     }
@@ -299,8 +315,19 @@ impl kernel::hil::qdec::QdecDriver for Qdec {
         self.is_enabled()
     }
 
+    fn disable_qdec(&self) -> ReturnCode {
+        if self.is_enabled() == ReturnCode::SUCCESS {
+            self.disable();
+        }
+        self.is_disabled()
+    }
+
     fn enabled(&self) -> ReturnCode {
         self.is_enabled()
+    }
+
+    fn disabled(&self) -> ReturnCode {
+        self.is_disabled()
     }
 
     fn get_acc(&self) -> i32 {

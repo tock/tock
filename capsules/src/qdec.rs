@@ -59,9 +59,9 @@ impl<'a> hil::qdec::QdecClient for QdecInterface<'a> {
     fn sample_ready(&self) {
         for cntr in self.apps.iter() {
             cntr.enter(|app, _| {
-                app.pos = app.pos + self.driver.get_acc();
+                app.position = app.position + self.driver.get_acc();
                 app.callback
-                    .map(|mut cb| cb.schedule(app.pos as usize, 0, 0));
+                    .map(|mut cb| cb.schedule(app.position as usize, 0, 0));
             });
         }
     }
@@ -102,6 +102,8 @@ impl<'a> Driver for QdecInterface<'a> {
             4 => ReturnCode::SuccessWithValue {
                 value: self.driver.get_acc() as usize,
             },
+            5 => self.driver.disable_qdec(),
+            6 => self.driver.disabled(),
             _ => ReturnCode::ENOSUPPORT,
         }
     }
