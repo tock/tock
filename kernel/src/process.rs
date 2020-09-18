@@ -632,6 +632,37 @@ pub enum State {
     Unstarted,
 }
 
+/// A wrapper around `Cell<State>` is used by `Process` to prevent bugs arising from
+/// the state duplication in the kernel work tracking and process state tracking.
+struct ProcessStateCell<'a> {
+    state: Cell<State>,
+    kernel: &'a Kernel,
+}
+
+impl<'a> ProcessStateCell<'a> {
+    fn new(kernel: &'a Kernel) -> Self {
+        Self {
+            state: Cell::new(State::Unstarted),
+            kernel,
+        }
+    }
+
+    fn get(&self) -> State {
+        self.state.get()
+    }
+
+    fn update(&self, new_state: State) {
+        let old_state = self.state.get();
+
+        if old_state == State::Running && new_state != State::Running {
+            self.kernel.decrement_work();
+        } else if new_state == State::Running && old_state != State::Running {
+            self.kernel.increment_work()
+        }
+        self.state.set(new_state);
+    }
+}
+
 /// The reaction the kernel should take when an app encounters a fault.
 ///
 /// When an exception occurs during an app's execution (a common example is an
@@ -830,7 +861,7 @@ pub struct Process<'a, C: 'static + Chip> {
     /// `Running` and `Yielded` states. The system can control the process by
     /// switching it to a "stopped" state to prevent the scheduler from
     /// scheduling it.
-    state: Cell<State>,
+    state: ProcessStateCell<'static>,
 
     /// How to deal with Faults occurring in the process
     fault_response: FaultResponse,
@@ -927,29 +958,28 @@ impl<C: Chip> ProcessType for Process<'_, C> {
 
     fn set_yielded_state(&self) {
         if self.state.get() == State::Running {
-            self.state.set(State::Yielded);
-            self.kernel.decrement_work();
+            self.state.update(State::Yielded);
         }
     }
 
     fn stop(&self) {
         match self.state.get() {
-            State::Running => self.state.set(State::StoppedRunning),
-            State::Yielded => self.state.set(State::StoppedYielded),
+            State::Running => self.state.update(State::StoppedRunning),
+            State::Yielded => self.state.update(State::StoppedYielded),
             _ => {} // Do nothing
         }
     }
 
     fn resume(&self) {
         match self.state.get() {
-            State::StoppedRunning => self.state.set(State::Running),
-            State::StoppedYielded => self.state.set(State::Yielded),
+            State::StoppedRunning => self.state.update(State::Running),
+            State::StoppedYielded => self.state.update(State::Yielded),
             _ => {} // Do nothing
         }
     }
 
     fn set_fault_state(&self) {
-        self.state.set(State::Fault);
+        self.state.update(State::Fault);
 
         match self.fault_response {
             FaultResponse::Panic => {
@@ -1266,14 +1296,9 @@ impl<C: Chip> ProcessType for Process<'_, C> {
                 // set and should mark that this process is ready to be
                 // scheduled.
 
-                // We just setup up a new callback to do, which means this
-                // process wants to execute, so we set that there is work to
-                // be done.
-                self.kernel.increment_work();
-
                 // Move this process to the "running" state so the scheduler
                 // will schedule it.
-                self.state.set(State::Running);
+                self.state.update(State::Running);
 
                 // Update helpful debugging metadata.
                 self.current_stack_pointer.set(stack_bottom as *mut u8);
@@ -1887,7 +1912,8 @@ impl<C: 'static + Chip> Process<'_, C> {
         process.flash = app_flash;
 
         process.stored_state = MapCell::new(Default::default());
-        process.state = Cell::new(State::Unstarted);
+        // Mark this process as unstarted
+        process.state = ProcessStateCell::new(process.kernel);
         process.fault_response = fault_response;
         process.restart_count = Cell::new(0);
 
@@ -1956,7 +1982,6 @@ impl<C: 'static + Chip> Process<'_, C> {
             }
         };
 
-        // Mark this process as having something to do (it has to start!).
         kernel.increment_work();
 
         // Return the process object and a remaining memory for processes slice.
@@ -1988,7 +2013,7 @@ impl<C: 'static + Chip> Process<'_, C> {
         self.terminate();
 
         // Set the state the process will be in if it cannot be restarted.
-        self.state.set(failure_state);
+        self.state.update(failure_state);
 
         // Check if the restart policy for this app allows us to continue with
         // the restart.
@@ -2080,7 +2105,7 @@ impl<C: 'static + Chip> Process<'_, C> {
         let flash_app_start = app_flash_address as usize + flash_protected_size;
 
         // Mark the state as `Unstarted` for the scheduler.
-        self.state.set(State::Unstarted);
+        self.state.update(State::Unstarted);
 
         // Mark that we restarted this process.
         self.restart_count.increment();
@@ -2126,7 +2151,7 @@ impl<C: 'static + Chip> Process<'_, C> {
         }
 
         // Mark the app as stopped so the scheduler won't try to run it.
-        self.state.set(State::StoppedFaulted);
+        self.state.update(State::StoppedFaulted);
     }
 
     /// Get the current stack pointer as a pointer.
