@@ -1,4 +1,6 @@
-//! Provides userspace access to the Qdec on a board.
+//! Provides userspace access to the Quadrature Decoder (QDEC) on a board.
+//! A QDEC provides buffered decoding of quadrature-encoded sensor signals.
+//! It is generally used to decode mechanical and optical signals.
 //!
 //! Usage
 //! -----
@@ -102,7 +104,6 @@ impl<'a> Driver for QdecInterface<'a> {
             4 => ReturnCode::SuccessWithValue {
                 value: self.driver.get_acc() as usize,
             },
-            5 => self.driver.disable_qdec(),
             _ => ReturnCode::ENOSUPPORT,
         }
     }

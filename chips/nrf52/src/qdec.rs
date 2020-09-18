@@ -170,7 +170,7 @@ register_bitfields![u32,
         ]
     ],
     Acc [
-        /// Valid motion value samples 
+        /// Valid motion value samples
         ACC OFFSET(0) NUMBITS(32)
     ],
     AccDbl [
@@ -241,10 +241,11 @@ impl Qdec {
                             client.sample_ready();
                         }
                         1 => { /*For the time being, there will be no implementation in respone
-                                 to the firing of the REPORTRDY interrupt. It fires too frequently
-                                 in order to utilize it for position measuring. However, by that same 
-                                 token, it cannot merely be marked as unimplemented since it would
-                                 crash the program.*/ }
+                             to the firing of the REPORTRDY interrupt. It fires too frequently
+                             in order to utilize it for position measuring. However, by that same
+                             token, it cannot merely be marked as unimplemented since it would
+                             crash the program.*/
+                        }
                         2 => {
                             client.overflow();
                         }
