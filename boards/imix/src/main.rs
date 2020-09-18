@@ -560,7 +560,7 @@ pub unsafe fn reset_handler() {
     //virtual_alarm_timer.set_alarm_client(mux_timer);
 
     //multi_alarm_test::run_multi_alarm(mux_alarm);
-    
+
     debug!("Initialization complete. Entering main loop");
 
     /// These symbols are defined in the linker script.

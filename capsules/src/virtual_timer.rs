@@ -61,7 +61,7 @@ impl<'a, A: Alarm<'a>> VirtualTimer<'a, A> {
             self.mux.timers.push_head(&self);
             self.mode.set(Mode::Disabled);
         }
-        
+
         if self.mode.get() == Mode::Disabled {
             self.mux.enabled.increment();
         }

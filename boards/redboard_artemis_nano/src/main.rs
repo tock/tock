@@ -246,6 +246,6 @@ pub unsafe fn reset_handler() {
 
     //Uncomment to run multi alarm test
     multi_alarm_test::run_multi_alarm(mux_alarm);
-    
+
     board_kernel.kernel_loop(&artemis_nano, chip, None, scheduler, &main_loop_cap);
 }
