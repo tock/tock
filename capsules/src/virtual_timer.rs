@@ -56,16 +56,13 @@ impl<'a, A: Alarm<'a>> VirtualTimer<'a, A> {
     // Start a new timer, configuring its mode and adjusting the
     // underlying alarm if needed.
     fn insert_timer(&'a self, interval: A::Ticks, mode: Mode) -> A::Ticks {
-        //        debug!("Inserting timer (mode: {:?}), interval: {}", mode, interval.into_u32());
-
+        // First time, add to list
         if self.mode.get() == Mode::Uninserted {
-            //debug!("  - First time, insert.");
             self.mux.timers.push_head(&self);
             self.mode.set(Mode::Disabled);
         }
-
+        
         if self.mode.get() == Mode::Disabled {
-            //            debug!("  - Disabled, increment count on mux.");
             self.mux.enabled.increment();
         }
         self.mode.set(mode);
@@ -203,7 +200,7 @@ impl<'a, A: Alarm<'a>> MuxTimer<'a, A> {
 
     fn calculate_alarm(&'a self, now: A::Ticks, interval: A::Ticks) {
         if self.enabled.get() == 1 {
-            //debug!("Calculating alarm: first, so set it.");
+            // First alarm, to just set it
             self.alarm.set_alarm(now, interval);
         } else {
             // If the current alarm doesn't fall within the range of
@@ -214,10 +211,9 @@ impl<'a, A: Alarm<'a>> MuxTimer<'a, A> {
             let cur_alarm = self.alarm.get_alarm();
             let when = now.wrapping_add(interval);
             if !cur_alarm.within_range(now, when) {
-                //debug!("Calculating alarm: earlier, so set it.");
+                // This alarm is earlier: reset alarm to it
                 self.alarm.set_alarm(now, interval);
             } else {
-                //debug!("Calculating alarm: later, do nothing.");
                 // current alarm will fire earlier, keep it
             }
         }
@@ -230,7 +226,6 @@ impl<'a, A: Alarm<'a>> time::AlarmClient for MuxTimer<'a, A> {
         // time; this is case there was some delay. This also
         // ensures that all other timers are >= now.
         let now = self.alarm.get_alarm();
-        //debug!("Alarm virtualizer: alarm called at {}", now.into_u32());
         // Check whether to fire each timer. At this level, alarms are one-shot,
         // so a repeating timer will reset its `when` in the alarm() callback.
         self.timers
@@ -243,7 +238,6 @@ impl<'a, A: Alarm<'a>> time::AlarmClient for MuxTimer<'a, A> {
                     )
             })
             .for_each(|cur| {
-                //debug!("  Virtualizer: {} outside {}-{}, fire!", now.into_u32(), cur.reference.get().into_u32(), cur.reference.get().wrapping_add(cur.dt.get()).into_u32());
                 cur.alarm();
             });
 

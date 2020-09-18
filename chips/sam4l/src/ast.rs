@@ -2,7 +2,7 @@
 //!
 //! - Author: Amit Levy <levya@cs.stanford.edu>
 //! - Author: Philip Levis <pal@cs.stanford.edu>
-//! - Date: July 16, 2015
+//! - Date: September 17, 2020
 
 use crate::pm::{self, PBDClock};
 use kernel::common::cells::OptionalCell;
@@ -11,7 +11,7 @@ use kernel::common::StaticRef;
 use kernel::hil::time::{self, Ticks};
 use kernel::hil::Controller;
 use kernel::ReturnCode;
-//use kernel::debug;
+
 /// Minimum number of clock tics to make sure ALARM0 register is synchronized
 ///
 /// The datasheet has the following ominous language (Section 19.5.3.2):
@@ -353,12 +353,9 @@ impl<'a> time::Alarm<'a> for Ast<'a> {
         let regs: &AstRegisters = &*self.registers;
         let now = Self::Ticks::from(self.get_counter());
         let mut expire = reference.wrapping_add(dt);
-        //debug!("ast: now: {}, reference: {}, dt: {}, expire: {}", now.into_u32(), reference.into_u32(), dt.into_u32(), expire.into_u32());
-        //debug!("ast: expire: {}", expire.into_u32());
         if !now.within_range(reference, expire) {
             // We have already passed when: just fire ASAP
             // Note this will also trigger the increment below
-            //debug!("  - set to fire ASAP");
             expire = Self::Ticks::from(now);
         }
 
@@ -366,10 +363,9 @@ impl<'a> time::Alarm<'a> for Ast<'a> {
         // to make sure we don't miss the tick
         if expire.wrapping_sub(now).into_u32() <= ALARM0_SYNC_TICS {
             expire = now.wrapping_add(Self::Ticks::from(ALARM0_SYNC_TICS));
-            //debug!("  - bump it to {}", expire.into_u32());
         }
 
-        // Clear any alarm event that may be pending before setting the new alarm.
+        // Clear any alarm event that may be pending before setting new alarm.
         self.clear_alarm();
 
         while self.busy() {}
@@ -386,8 +382,8 @@ impl<'a> time::Alarm<'a> for Ast<'a> {
     }
 
     fn disarm(&self) -> ReturnCode {
-        // After disable the IRQ and clearing the alarmn bit in the status register, the NVIC bit
-        // is also guaranteed to be clear.
+        // After disabling the IRQ and clearing the alarm bit in the
+        // status register, the NVIC bit is also guaranteed to be clear.
         self.disable_alarm_irq();
         self.clear_alarm();
         ReturnCode::SUCCESS

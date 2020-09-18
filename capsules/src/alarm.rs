@@ -1,7 +1,6 @@
 //! Provides userspace applications with a alarm API.
 
 use core::cell::Cell;
-use kernel::debug;
 use kernel::hil::time::{self, Alarm, Frequency, Ticks};
 use kernel::{AppId, Callback, Driver, Grant, ReturnCode};
 
@@ -119,7 +118,6 @@ impl<'a, A: Alarm<'a>> AlarmDriver<'a, A> {
                 Expiration::Disabled => {}
             });
         }
-        debug!("AlarmDriver: earliest: {:?}", earliest_alarm);
         self.next_alarm.set(earliest_alarm);
         match earliest_alarm {
             Expiration::Disabled => {
@@ -134,11 +132,6 @@ impl<'a, A: Alarm<'a>> AlarmDriver<'a, A> {
                 // one then the alarm will incorrectly be set 1<<32 higher than it should.
                 // This uses the invariant that reference <= now.
                 if now_lower_bits.into_u32() < reference {
-                    debug!(
-                        "Incrementing bit 32: lower={}, reference={}",
-                        now_lower_bits.into_u32(),
-                        reference
-                    );
                     // Build 1<<32 in a way that just overflows to 0 if we are 32 bits
                     let bit33 = A::Ticks::from(0xffffffff).wrapping_add(A::Ticks::from(0x1));
                     high_bits = high_bits.wrapping_sub(bit33);
@@ -234,7 +227,6 @@ impl<'a, A: Alarm<'a>> Driver for AlarmDriver<'a, A> {
                         let future_time = data;
                         let dt = future_time.wrapping_sub(reference);
                         // if previously unarmed, but now will become armed
-                        //debug!("Rearming alarm for {} + {}", reference, dt);
                         rearm(reference, dt)
                     },
                     5 /* Set relative expiration */ => {
@@ -251,7 +243,6 @@ impl<'a, A: Alarm<'a>> Driver for AlarmDriver<'a, A> {
                         // comamnd for backwards compatibility. -pal
                         let reference = data;
                         let dt = data2;
-                        //debug!("Rearming alarm for {} + {} = {}", reference, dt, reference.wrapping_add(dt));
                         rearm(reference, dt)
                     }
                     _ => (ReturnCode::ENOSUPPORT, false)
@@ -268,8 +259,6 @@ impl<'a, A: Alarm<'a>> Driver for AlarmDriver<'a, A> {
 impl<'a, A: Alarm<'a>> time::AlarmClient for AlarmDriver<'a, A> {
     fn alarm(&self) {
         let now: A::Ticks = self.alarm.now();
-        //debug!("AlarmDriver::alarm called at {}", now.into_u32());
-
         self.app_alarms.each(|alarm| {
             if let Expiration::Enabled { reference, dt } = alarm.expiration {
                 // Now is not within reference, reference + ticks; this timer

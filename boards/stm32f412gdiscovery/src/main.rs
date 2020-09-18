@@ -588,7 +588,8 @@ pub unsafe fn reset_handler() {
     let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
         .finalize(components::rr_component_helper!(NUM_PROCS));
 
-    multi_alarm_test::run_multi_alarm(mux_alarm);
+    //Uncomment to run multi alarm test
+    //multi_alarm_test::run_multi_alarm(mux_alarm);
 
     board_kernel.kernel_loop(
         &stm32f412g,
