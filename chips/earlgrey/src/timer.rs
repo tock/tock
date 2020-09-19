@@ -75,7 +75,7 @@ impl<'a> RvTimer<'a> {
         regs.config
             .write(config::prescale.val(PRESCALE as u32) + config::step.val(1u32));
         regs.compare_high.set(0);
-        regs.value_low.set(0xfff00000);
+        regs.value_low.set(0x0000_0000);
         regs.intr_enable.write(intr::timer0::CLEAR);
         regs.ctrl.write(ctrl::enable::SET);
     }
@@ -164,6 +164,7 @@ impl<'a> time::Alarm<'a> for RvTimer<'a> {
         regs.compare_low.set(0xffffffff);
         regs.compare_high.set(high);
         regs.compare_low.set(low);
+	//debug!("TIMER: set to {}", expire.into_u64());
         self.registers.intr_enable.write(intr::timer0::SET);
     }
 
