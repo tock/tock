@@ -93,7 +93,7 @@ impl<'a, A: Alarm<'a>> Alarm<'a> for VirtualMuxAlarm<'a, A> {
         let enabled = self.mux.enabled.get();
         self.reference.set(reference);
         self.dt.set(dt);
-	
+
         if !self.armed.get() {
             self.mux.enabled.set(enabled + 1);
             self.armed.set(true);
@@ -101,33 +101,32 @@ impl<'a, A: Alarm<'a>> Alarm<'a> for VirtualMuxAlarm<'a, A> {
 
         // First alarm, so set it
         if enabled == 0 {
-	    //debug!("virtual_alarm: first alarm: set it.");
+            //debug!("virtual_alarm: first alarm: set it.");
             self.mux.set_alarm(self.reference.get(), self.dt.get());
         } else if self.mux.firing.get() == false {
             // If firing is true, the mux will scan all the alarms after
             // firing and pick the soonest one so do not need to modify the
             // mux. Otherwise, this is an alarm
             // started in a separate code path (e.g., another event).
-	    // This new alarm fires sooner if two things are both true:
-	    //    1. The current earliest alarm expiration doesn't fall
-	    //    in the range of [reference, reference+dt): this means
-	    //    it is either in the past (before reference) or the future
-	    //    (reference + dt), AND
-	    //    2. now falls in the [reference, reference+dt)
-	    //    window of the current earliest alarm. This means the
-	    //    current earliest alarm hasn't fired yet (it is in the future).
+            // This new alarm fires sooner if two things are both true:
+            //    1. The current earliest alarm expiration doesn't fall
+            //    in the range of [reference, reference+dt): this means
+            //    it is either in the past (before reference) or the future
+            //    (reference + dt), AND
+            //    2. now falls in the [reference, reference+dt)
+            //    window of the current earliest alarm. This means the
+            //    current earliest alarm hasn't fired yet (it is in the future).
             // -pal
             let cur_alarm = self.mux.alarm.get_alarm();
-	    let now = self.mux.alarm.now();
-	    let expiration = reference.wrapping_add(dt);
+            let now = self.mux.alarm.now();
+            let expiration = reference.wrapping_add(dt);
             if !cur_alarm.within_range(reference, expiration) {
-		let next = self.mux.next_tick_vals.get();
-		if next.map_or(true, |(next_reference, next_dt)| {
-		    now.within_range(next_reference,
-				     next_reference.wrapping_add(next_dt))
-		}) {
+                let next = self.mux.next_tick_vals.get();
+                if next.map_or(true, |(next_reference, next_dt)| {
+                    now.within_range(next_reference, next_reference.wrapping_add(next_dt))
+                }) {
                     self.mux.set_alarm(reference, dt);
-		}
+                }
             } else {
                 // current alarm will fire earlier, keep it
             }
@@ -160,7 +159,7 @@ pub struct MuxAlarm<'a, A: Alarm<'a>> {
     /// Whether we are firing; used to delay restarted alarms
     firing: Cell<bool>,
     /// Reference to next alarm
-    next_tick_vals: Cell<Option<(A::Ticks, A::Ticks)>>
+    next_tick_vals: Cell<Option<(A::Ticks, A::Ticks)>>,
 }
 
 impl<'a, A: Alarm<'a>> MuxAlarm<'a, A> {
@@ -170,20 +169,19 @@ impl<'a, A: Alarm<'a>> MuxAlarm<'a, A> {
             enabled: Cell::new(0),
             alarm: alarm,
             firing: Cell::new(false),
-	    next_tick_vals: Cell::new(None),
+            next_tick_vals: Cell::new(None),
         }
     }
 
     pub fn set_alarm(&self, reference: A::Ticks, dt: A::Ticks) {
-	self.next_tick_vals.set(Some((reference, dt)));
-	self.alarm.set_alarm(reference, dt);
+        self.next_tick_vals.set(Some((reference, dt)));
+        self.alarm.set_alarm(reference, dt);
     }
 
     pub fn disarm(&self) {
-	self.next_tick_vals.set(None);
-	self.alarm.disarm();
+        self.next_tick_vals.set(None);
+        self.alarm.disarm();
     }
-    
 }
 
 impl<'a, A: Alarm<'a>> time::AlarmClient for MuxAlarm<'a, A> {

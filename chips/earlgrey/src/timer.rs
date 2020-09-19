@@ -164,7 +164,7 @@ impl<'a> time::Alarm<'a> for RvTimer<'a> {
         regs.compare_low.set(0xffffffff);
         regs.compare_high.set(high);
         regs.compare_low.set(low);
-	//debug!("TIMER: set to {}", expire.into_u64());
+        //debug!("TIMER: set to {}", expire.into_u64());
         self.registers.intr_enable.write(intr::timer0::SET);
     }
 
