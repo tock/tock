@@ -1,8 +1,8 @@
 //! Component for the ADC on the imix board.
 //!
-//! This provides one Component, AdcComponent, which implements
-//! a userspace syscall interface to the SAM4L ADC. It provides
-//! 6 ADC channels, AD0-AD5.
+//! This provides one Component, AdcComponent, which implements the
+//! dedicated userspace syscall interface to the SAM4L ADC. It
+//! provides 6 ADC channels, AD0-AD5.
 //!
 //! Usage
 //! -----
@@ -35,7 +35,7 @@ impl AdcComponent {
 
 impl Component for AdcComponent {
     type StaticInput = ();
-    type Output = &'static adc::Adc<'static, sam4l::adc::Adc>;
+    type Output = &'static adc::AdcDedicated<'static, sam4l::adc::Adc>;
 
     unsafe fn finalize(self, _s: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
@@ -51,8 +51,8 @@ impl Component for AdcComponent {
             ]
         );
         let adc = static_init!(
-            adc::Adc<'static, sam4l::adc::Adc>,
-            adc::Adc::new(
+            adc::AdcDedicated<'static, sam4l::adc::Adc>,
+            adc::AdcDedicated::new(
                 &sam4l::adc::ADC0,
                 self.board_kernel.create_grant(&grant_cap),
                 adc_channels,

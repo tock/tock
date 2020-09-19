@@ -64,7 +64,7 @@ struct STM32F3Discovery {
         'static,
         VirtualMuxAlarm<'static, stm32f303xc::tim2::Tim2<'static>>,
     >,
-    adc: &'static capsules::adc::AdcVirtual<'static>,
+    adc: &'static capsules::adc::AdcVirtualized<'static>,
     nonvolatile_storage: &'static capsules::nonvolatile_storage_driver::NonvolatileStorage<'static>,
 }
 

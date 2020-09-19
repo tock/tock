@@ -52,7 +52,7 @@ struct STM32F412GDiscovery {
         VirtualMuxAlarm<'static, stm32f412g::tim2::Tim2<'static>>,
     >,
     gpio: &'static capsules::gpio::GPIO<'static, stm32f412g::gpio::Pin<'static>>,
-    adc: &'static capsules::adc::AdcVirtual<'static>,
+    adc: &'static capsules::adc::AdcVirtualized<'static>,
     ft6x06: &'static capsules::ft6x06::Ft6x06<'static>,
     touch: &'static capsules::touch::Touch<'static>,
 }

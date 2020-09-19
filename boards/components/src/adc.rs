@@ -1,4 +1,4 @@
-use capsules::adc::AdcVirtual;
+use capsules::adc::AdcVirtualized;
 use capsules::virtual_adc::{AdcDevice, MuxAdc};
 use core::mem::MaybeUninit;
 use kernel::capabilities;
@@ -30,7 +30,7 @@ macro_rules! adc_component_helper {
 #[macro_export]
 macro_rules! adc_syscall_component_helper {
     ($($P:expr),+ ) => {{
-        use capsules::adc::AdcVirtual;
+        use capsules::adc::AdcVirtualized;
         use core::mem::MaybeUninit;
         use kernel::hil;
         use kernel::count_expressions;
@@ -43,7 +43,7 @@ macro_rules! adc_syscall_component_helper {
                 $($P,)*
             ]
         );
-        static mut BUF: MaybeUninit<AdcVirtual<'static>> =
+        static mut BUF: MaybeUninit<AdcVirtualized<'static>> =
             MaybeUninit::uninit();
         (&mut BUF, drivers)
     };};
@@ -117,10 +117,10 @@ impl AdcVirtualComponent {
 
 impl Component for AdcVirtualComponent {
     type StaticInput = (
-        &'static mut MaybeUninit<AdcVirtual<'static>>,
+        &'static mut MaybeUninit<AdcVirtualized<'static>>,
         &'static [&'static dyn kernel::hil::adc::AdcChannel],
     );
-    type Output = &'static capsules::adc::AdcVirtual<'static>;
+    type Output = &'static capsules::adc::AdcVirtualized<'static>;
 
     unsafe fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
@@ -128,8 +128,8 @@ impl Component for AdcVirtualComponent {
 
         let adc = static_init_half!(
             static_buffer.0,
-            capsules::adc::AdcVirtual<'static>,
-            capsules::adc::AdcVirtual::new(static_buffer.1, grant_adc)
+            capsules::adc::AdcVirtualized<'static>,
+            capsules::adc::AdcVirtualized::new(static_buffer.1, grant_adc)
         );
 
         for driver in static_buffer.1 {
