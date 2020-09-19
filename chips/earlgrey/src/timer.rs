@@ -75,7 +75,7 @@ impl<'a> RvTimer<'a> {
         regs.config
             .write(config::prescale.val(PRESCALE as u32) + config::step.val(1u32));
         regs.compare_high.set(0);
-        regs.value_low.set(0x0000_0000);
+        regs.value_low.set(0xFFFF_0000);
         regs.intr_enable.write(intr::timer0::CLEAR);
         regs.ctrl.write(ctrl::enable::SET);
     }
