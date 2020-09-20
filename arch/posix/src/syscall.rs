@@ -187,20 +187,18 @@ pub unsafe fn switch_context_kernel(user_state: &mut PosixStoredState, context: 
         std::mem::size_of::<PosixContext>(),
     );
 }
-
-// used for debugging
 #[no_mangle]
-#[inline(never)]
+// uncomment for denug
+// #[inline(never)]
 unsafe fn switched_context_kernel() {
-    llvm_asm! ("nop"::::"volatile");
     write_volatile(&mut RUNNING_KERNEL, true);
 }
 
 // used for debugging
 #[no_mangle]
-#[inline(never)]
+// uncomment for denug
+// #[inline(never)]
 unsafe fn switched_context_user() {
-    llvm_asm! ("nop"::::"volatile");
     write_volatile(&mut RUNNING_KERNEL, false);
 }
 
@@ -283,8 +281,7 @@ extern "C" fn handle_sigsegv(
                         context.read_register(Regs::pc()) + POSIX_NEXT_USER_PC,
                     );
                     switch_context_kernel(&mut CURRENT_PROCESS, &mut context);
-                    // uncomment for debug
-                    // switched_context_kernel();
+                    switched_context_kernel();
                 },
                 _ => {
                     // fault syscall, consider it a fault
