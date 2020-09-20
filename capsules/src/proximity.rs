@@ -111,7 +111,7 @@ impl<'a> ProximitySensor<'a> {
         let r: ReturnCode = self
             .apps
             .enter(appid, |app, _| {
-                // Return busy if same app attempts to enqueue second command before first one is callbacked
+                // Return busy if same app attempts to enqueue second command before first one is "callbacked"
                 if app.subscribed {
                     return ReturnCode::EBUSY;
                 }
@@ -159,15 +159,11 @@ impl<'a> ProximitySensor<'a> {
                     // run it
                     match app.enqueued_command_type {
                         ProximityCommand::ReadProximity => {
-                            self.call_driver(app.enqueued_command_type, 0, 0);
+                            self.driver.read_proximity();
                         }
                         ProximityCommand::ReadProximityOnInterrupt => {
                             let t: Thresholds = self.find_thresholds();
-                            self.call_driver(
-                                app.enqueued_command_type,
-                                t.lower as usize,
-                                t.upper as usize,
-                            );
+                            self.driver.read_proximity_on_interrupt(t.lower, t.upper);
                         }
                         _ => {}
                     }
@@ -233,13 +229,14 @@ impl hil::sensors::ProximityClient for ProximitySensor<'_> {
     fn callback(&self, temp_val: usize, command_type: usize) {
         // Here we callback the values only to the apps which are relevant for the callback
         // We also dequeue any command for a callback so as to remove it from the wait list and add other commands to continue
+
         match command_type {
             command_type if command_type == ProximityCommand::ReadProximity as usize => {
                 // Schedule callbacks for appropriate apps
                 for cntr in self.apps.iter() {
                     cntr.enter(|app, _| {
                         if app.subscribed
-                            && (command_type == (ProximityCommand::ReadProximity as usize))
+                            && (app.enqueued_command_type == ProximityCommand::ReadProximity)
                         {
                             app.callback.map(|mut cb| cb.schedule(temp_val, 0, 0));
                             app.subscribed = false; // dequeue
@@ -249,17 +246,26 @@ impl hil::sensors::ProximityClient for ProximitySensor<'_> {
             }
 
             command_type if command_type == ProximityCommand::ReadProximityOnInterrupt as usize => {
-                // Schedule callbacks for appropriate apps
+                // Schedule callbacks for appropriate apps (any apps waiting for a proximity command)
                 for cntr in self.apps.iter() {
                     cntr.enter(|app, _| {
                         if app.subscribed
-                            && (command_type
-                                == (ProximityCommand::ReadProximityOnInterrupt as usize))
+                            && ((app.enqueued_command_type
+                                == ProximityCommand::ReadProximityOnInterrupt)
+                                || (app.enqueued_command_type == ProximityCommand::ReadProximity))
                         {
-                            // Only callback to those apps which we expect would want to know about this threshold reading
-                            if ((temp_val as u8) > app.upper_proximity)
-                                || ((temp_val as u8) < app.lower_proximity)
+                            if app.enqueued_command_type
+                                == ProximityCommand::ReadProximityOnInterrupt
                             {
+                                // Only callback to those apps which we expect would want to know about this threshold reading for readproximityoninterrupt readings
+                                if ((temp_val as u8) > app.upper_proximity)
+                                    || ((temp_val as u8) < app.lower_proximity)
+                                {
+                                    app.callback.map(|mut cb| cb.schedule(temp_val, 0, 0));
+                                    app.subscribed = false; // dequeue
+                                }
+                            } else {
+                                // callback to all apps waiting on readproximity
                                 app.callback.map(|mut cb| cb.schedule(temp_val, 0, 0));
                                 app.subscribed = false; // dequeue
                             }

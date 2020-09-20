@@ -46,7 +46,7 @@ pub enum NUM {
     Humidity              = 0x60001,
     AmbientLight          = 0x60002,
     NINEDOF               = 0x60004,
-    Proximity             = 0x60003,
+    Proximity             = 0x60005,
 
     // Sensor ICs
     Tsl2561               = 0x70000,

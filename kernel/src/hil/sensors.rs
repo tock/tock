@@ -34,12 +34,23 @@ pub trait HumidityClient {
 /// A basic interface for a proximity sensor
 pub trait ProximityDriver<'a> {
     fn set_client(&self, client: &'a dyn ProximityClient);
-    fn read_proximity(&self) -> ReturnCode; // Instantaneous proximity reading
-    fn read_proximity_on_interrupt(&self, low: u8, high: u8) -> ReturnCode; // Proximity reading returned only after interrupt is detected
+    /// Callback issued after sensor reads proximity value
+    fn read_proximity(&self) -> ReturnCode;
+    /// Callback issued after sensor reads proximity value greater than 'high_threshold' or less than 'low_threshold'
+    ///
+    /// To elaborate, the callback is not issued by the driver until (prox_reading >= high_threshold || prox_reading <= low_threshold).
+    /// When (prox_reading >= high_threshold || prox_reading <= low_threshold) is read by the sensor, an I2C interrupt is generated and sent to the kernel
+    /// which prompts the driver to collect the proximity reading from the sensor and perform the callback.
+    /// Any apps issuing this command will have to wait for the proximity reading to fall within the aforementioned ranges in order to received a callback.
+    /// Threshold: A value of range [0 , 255] which represents at what proximity reading ranges an interrupt will occur.
+    fn read_proximity_on_interrupt(&self, low_threshold: u8, high_threshold: u8) -> ReturnCode;
 }
 
 pub trait ProximityClient {
-    /// Called when proximity reading has completed (`command_type` is used by proximity.rs to match callbacks to the apps issuing the appropriate commands)
+    /// Called when a proximity reading has completed.
+    ///
+    /// - `value`: the most recently read proximity value which ranges [0 , 255] where 255 -> object is closest readable distance, 0 -> object is farthest readable distance.
+    /// - 'command_type': callback is being issued after driver serviced this type of command (1 -> read_proximity, 2 -> read_proximity_on_interrupt)
     fn callback(&self, value: usize, command_type: usize);
 }
 
