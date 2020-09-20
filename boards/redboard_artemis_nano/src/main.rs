@@ -15,8 +15,11 @@ use kernel::common::dynamic_deferred_call::DynamicDeferredCall;
 use kernel::common::dynamic_deferred_call::DynamicDeferredCallClientState;
 use kernel::component::Component;
 use kernel::hil::i2c::I2CMaster;
+use kernel::hil::time::Counter;
 use kernel::Platform;
 use kernel::{create_capability, debug, static_init};
+
+
 
 pub mod ble;
 /// Support routines for debugging I/O.
@@ -165,6 +168,8 @@ pub unsafe fn reset_handler() {
     // Create a shared virtualisation mux layer on top of a single hardware
     // alarm.
     let alarm = &apollo3::stimer::STIMER;
+    alarm.start();
+    
     let mux_alarm = components::alarm::AlarmMuxComponent::new(alarm).finalize(
         components::alarm_mux_component_helper!(apollo3::stimer::STimer),
     );
