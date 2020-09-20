@@ -40,8 +40,7 @@ use kernel::hil::time::{self, Alarm, Frequency};
 use kernel::ReturnCode;
 use kernel::{AppId, Callback, Driver};
 
-const BUFFER_SIZE: usize = 24;
-pub static mut BUFFER: [u8; BUFFER_SIZE] = [0; BUFFER_SIZE];
+pub const BUFFER_SIZE: usize = 24;
 
 #[derive(PartialEq)]
 pub struct Command {
@@ -178,9 +177,7 @@ static WRITE_PIXEL: [SendCommand; 3] = [
     SendCommand::Position(&WRITE_RAM, 8, 2),
 ];
 
-const SEQUENCE_BUFFER_SIZE: usize = 24;
-pub static mut SEQUENCE_BUFFER: [SendCommand; SEQUENCE_BUFFER_SIZE] =
-    [SendCommand::Nop; SEQUENCE_BUFFER_SIZE];
+pub const SEQUENCE_BUFFER_SIZE: usize = 24;
 
 #[derive(Copy, Clone, PartialEq)]
 enum Status {

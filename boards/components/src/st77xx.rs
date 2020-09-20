@@ -53,12 +53,15 @@ use kernel::static_init_half;
 macro_rules! st77xx_component_helper {
     ($screen:expr, $B: ty, $bus:expr, $A:ty, $P:ty, $dc:expr, $reset:expr) => {{
         use capsules::bus::Bus;
-        use capsules::st77xx::ST77XX;
+        use capsules::st77xx::{SendCommand, BUFFER_SIZE, SEQUENCE_BUFFER_SIZE, ST77XX};
         use capsules::virtual_alarm::VirtualMuxAlarm;
         use capsules::virtual_spi::VirtualSpiMasterDevice;
         use core::mem::MaybeUninit;
         use kernel::hil::spi::{self, SpiMasterDevice};
         let st77xx_bus: &$B = $bus;
+        static mut BUFFER: [u8; BUFFER_SIZE] = [0; BUFFER_SIZE];
+        static mut SEQUENCE_BUFFER: [SendCommand; SEQUENCE_BUFFER_SIZE] =
+            [SendCommand::Nop; SEQUENCE_BUFFER_SIZE];
         static mut st77xx_alarm: MaybeUninit<VirtualMuxAlarm<'static, $A>> = MaybeUninit::uninit();
         static mut st77xx: MaybeUninit<ST77XX<'static, VirtualMuxAlarm<'static, $A>, $B, $P>> =
             MaybeUninit::uninit();
@@ -69,6 +72,8 @@ macro_rules! st77xx_component_helper {
             $reset,
             &mut st77xx,
             $screen,
+            &mut BUFFER,
+            &mut SEQUENCE_BUFFER,
         )
     };};
 }
@@ -105,6 +110,8 @@ impl<A: 'static + time::Alarm<'static>, B: 'static + bus::Bus<'static>, P: 'stat
         &'static P,
         &'static mut MaybeUninit<ST77XX<'static, VirtualMuxAlarm<'static, A>, B, P>>,
         &'static ST77XXScreen,
+        &'static mut [u8],
+        &'static mut [capsules::st77xx::SendCommand],
     );
     type Output = &'static ST77XX<'static, VirtualMuxAlarm<'static, A>, B, P>;
 
@@ -123,8 +130,8 @@ impl<A: 'static + time::Alarm<'static>, B: 'static + bus::Bus<'static>, P: 'stat
                 st77xx_alarm,
                 static_buffer.2,
                 static_buffer.3,
-                &mut capsules::st77xx::BUFFER,
-                &mut capsules::st77xx::SEQUENCE_BUFFER,
+                static_buffer.6,
+                static_buffer.7,
                 static_buffer.5
             )
         );

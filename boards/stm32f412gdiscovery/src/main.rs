@@ -573,7 +573,7 @@ pub unsafe fn reset_handler() {
     tft.init();
 
     let screen = components::screen::ScreenComponent::new(board_kernel, tft, Some(tft))
-        .finalize(components::screen_buffer_size!(40960));
+        .finalize(components::screen_buffer_size!(57600));
 
     let touch =
         components::touch::TouchComponent::new(board_kernel, ft6x06, Some(ft6x06), Some(tft))
