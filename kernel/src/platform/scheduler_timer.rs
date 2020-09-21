@@ -193,8 +193,12 @@ impl<A: 'static + time::Alarm<'static>> SchedulerTimer for VirtualSchedulerTimer
         // We need to convert from native tics to us, multiplication could overflow in 32-bit
         // arithmetic. So we convert to 64-bit.
 
-        let diff = self.alarm.get_alarm().wrapping_sub(self.alarm.now()).into_u32() as u64;
-        
+        let diff = self
+            .alarm
+            .get_alarm()
+            .wrapping_sub(self.alarm.now())
+            .into_u32() as u64;
+
         // If next alarm is more than one second away from now, alarm must have expired.
         // Use this formulation to protect against errors when now has passed alarm.
         // 1 second was chosen because it is significantly greater than the 400ms max value allowed
