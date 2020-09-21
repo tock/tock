@@ -1,4 +1,5 @@
-//! Provides userspace applications with a alarm API.
+//! Tock syscall driver capsule for Alarms, which issue callbacks when
+//! a point in time has been reached.
 
 use core::cell::Cell;
 use kernel::hil::time::{self, Alarm, Frequency, Ticks};
@@ -57,14 +58,14 @@ impl<'a, A: Alarm<'a>> AlarmDriver<'a, A> {
         // the range of what an alarm can be set to.
         let now = self.alarm.now();
         let now_lower_bits = A::Ticks::from(now.into_u32());
-        // Find the first alarm to fire and store it in earliest_alarm,6
+        // Find the first alarm to fire and store it in earliest_alarm,
         // its counter value at earliest_end. In the case that there
         // are multiple alarms in the past, just store one of them
         // and resolve ordering later, when we fire.
         for alarm in self.app_alarms.iter() {
             alarm.enter(|alarm, _| match alarm.expiration {
                 Expiration::Enabled { reference, dt } => {
-                    // Do this because reference shadowed below
+                    // Do this because `reference` shadowed below
                     let current_reference = reference;
                     let current_reference_ticks = A::Ticks::from(current_reference);
                     let current_dt = dt;
@@ -77,7 +78,7 @@ impl<'a, A: Alarm<'a>> AlarmDriver<'a, A> {
                             alarm.expiration
                         }
                         Expiration::Enabled { reference, dt } => {
-                            // There are two cases when this might be
+                            // There are two cases when current might be
                             // an earlier alarm.  The first is if it
                             // fires inside the interval (reference,
                             // reference+dt) of the existing earliest.
