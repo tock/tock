@@ -25,7 +25,7 @@ pub use cortexm::systick_handler;
 #[cfg(all(target_arch = "arm", target_os = "none"))]
 #[no_mangle]
 pub unsafe extern "C" fn switch_to_user(
-	user_stack: *const usize,
+    user_stack: *const usize,
     process_regs: &mut [usize; 8],
 ) -> *const usize {
     cortexm::switch_to_user_arm_v7m(user_stack, process_regs)
