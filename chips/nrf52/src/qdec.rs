@@ -249,7 +249,7 @@ impl Qdec {
                         2 => {
                             client.overflow();
                         }
-                        3 => { /*No handling for DBLRDY*/ }
+                        3 => { /*For the time being, there will be no  handling for DBLRDY.*/ }
                         4 => {
                             if self.state == QdecState::Stop {
                                 self.registers.sample_per.write(SampPer::SAMPLEPER.val(5));
