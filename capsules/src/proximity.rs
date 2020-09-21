@@ -48,6 +48,7 @@
 //!kernel::hil::sensors::ProximityDriver::set_client(apds9960, proximity);
 //! ```
 
+use core::cell::Cell;
 use kernel::hil;
 use kernel::ReturnCode;
 use kernel::{AppId, Callback, Driver, Grant};
@@ -70,6 +71,7 @@ pub enum ProximityCommand {
     Exists = 0,
     ReadProximity = 1,
     ReadProximityOnInterrupt = 2,
+    None = 4,
 }
 
 impl Default for ProximityCommand {
@@ -87,6 +89,7 @@ pub struct Thresholds {
 pub struct ProximitySensor<'a> {
     driver: &'a dyn hil::sensors::ProximityDriver<'a>,
     apps: Grant<App>,
+    command_running: Cell<ProximityCommand>,
 }
 
 impl<'a> ProximitySensor<'a> {
@@ -97,6 +100,7 @@ impl<'a> ProximitySensor<'a> {
         ProximitySensor {
             driver: driver,
             apps: grant,
+            command_running: Cell::new(ProximityCommand::None),
         }
     }
 
@@ -132,6 +136,28 @@ impl<'a> ProximitySensor<'a> {
             return ReturnCode::EBUSY;
         }
 
+        // If driver is currently processing a ReadProximityOnInterrupt command then we allow the current ReadProximityOnInterrupt command
+        // to interrupt it.  With new thresholds set, we can account for all apps waiting on ReadProximityOnInterrupt with different thresholds set
+        // to all receive a callback when appropriate.
+        // Doing so ensures that the app issuing the current command can have it serviced without having to wait for the previous command to fire.
+        if (self.command_running.get() == ProximityCommand::ReadProximityOnInterrupt)
+            && (command == ProximityCommand::ReadProximityOnInterrupt)
+        {
+            let t: Thresholds = self.find_thresholds();
+            self.driver.read_proximity_on_interrupt(t.lower, t.upper);
+            self.command_running
+                .set(ProximityCommand::ReadProximityOnInterrupt);
+            return ReturnCode::SUCCESS;
+        }
+
+        // If driver is currently processing a ReadProximityOnInterrupt command and current command is a ReadProximity then
+        // it is impractical for a lot of drivers and IC's to run a ReadProximity command and ReadProximityOnInterrupt command in parallel
+        if (self.command_running.get() == ProximityCommand::ReadProximityOnInterrupt)
+            && (command == ProximityCommand::ReadProximity)
+        {
+            return ReturnCode::EBUSY;
+        }
+
         // Only run command if it is only one in queue otherwise we wait for callback() for last run command to trigger another command to run
         let mut num_commands: u8 = 0;
 
@@ -160,10 +186,13 @@ impl<'a> ProximitySensor<'a> {
                     match app.enqueued_command_type {
                         ProximityCommand::ReadProximity => {
                             self.driver.read_proximity();
+                            self.command_running.set(ProximityCommand::ReadProximity);
                         }
                         ProximityCommand::ReadProximityOnInterrupt => {
                             let t: Thresholds = self.find_thresholds();
                             self.driver.read_proximity_on_interrupt(t.lower, t.upper);
+                            self.command_running
+                                .set(ProximityCommand::ReadProximityOnInterrupt);
                         }
                         _ => {}
                     }
@@ -181,18 +210,25 @@ impl<'a> ProximitySensor<'a> {
     }
 
     fn find_thresholds(&self) -> Thresholds {
-        // Get the lowest upper prox and highest lower prox of all subscribed apps
+        // Get the lowest upper prox and highest lower prox of all enqueued apps waiting on a readproximityoninterrupt command
         // With the IC thresholds set to these two values, we ensure to never miss an interrupt-causing proximity value for any of the
-        // apps
+        // apps waiting on a proximity interrupt
+        // Interrupts for thresholds t1,t2 where t1 < t2 are triggered when proximity > t2 or proximity < t1.
         let mut highest_lower_proximity: u8 = 0;
         let mut lowest_upper_proximity: u8 = 255;
 
         for cntr in self.apps.iter() {
             cntr.enter(|app, _| {
-                if (app.lower_proximity > highest_lower_proximity) && app.subscribed {
+                if (app.lower_proximity > highest_lower_proximity)
+                    && app.subscribed
+                    && app.enqueued_command_type == ProximityCommand::ReadProximityOnInterrupt
+                {
                     highest_lower_proximity = app.lower_proximity;
                 }
-                if (app.upper_proximity < lowest_upper_proximity) && app.subscribed {
+                if (app.upper_proximity < lowest_upper_proximity)
+                    && app.subscribed
+                    && app.enqueued_command_type == ProximityCommand::ReadProximityOnInterrupt
+                {
                     lowest_upper_proximity = app.upper_proximity;
                 }
             });
@@ -202,16 +238,6 @@ impl<'a> ProximitySensor<'a> {
         Thresholds {
             lower: highest_lower_proximity,
             upper: lowest_upper_proximity,
-        }
-    }
-
-    fn call_driver(&self, command: ProximityCommand, arg1: usize, arg2: usize) -> ReturnCode {
-        match command {
-            ProximityCommand::ReadProximity => self.driver.read_proximity(),
-            ProximityCommand::ReadProximityOnInterrupt => self
-                .driver
-                .read_proximity_on_interrupt(arg1 as u8, arg2 as u8),
-            _ => ReturnCode::ENOSUPPORT,
         }
     }
 
@@ -257,6 +283,7 @@ impl hil::sensors::ProximityClient for ProximitySensor<'_> {
                             if app.enqueued_command_type
                                 == ProximityCommand::ReadProximityOnInterrupt
                             {
+                                // Case: ReadProximityOnInterrupt
                                 // Only callback to those apps which we expect would want to know about this threshold reading for readproximityoninterrupt readings
                                 if ((temp_val as u8) > app.upper_proximity)
                                     || ((temp_val as u8) < app.lower_proximity)
@@ -265,7 +292,8 @@ impl hil::sensors::ProximityClient for ProximitySensor<'_> {
                                     app.subscribed = false; // dequeue
                                 }
                             } else {
-                                // callback to all apps waiting on readproximity
+                                // Case: ReadProximity
+                                // callback to all apps waiting on read_proximity
                                 app.callback.map(|mut cb| cb.schedule(temp_val, 0, 0));
                                 app.subscribed = false; // dequeue
                             }
@@ -275,6 +303,9 @@ impl hil::sensors::ProximityClient for ProximitySensor<'_> {
             }
             _ => {}
         }
+
+        // No command is temporarily being run here as we have performed the callback for our last command
+        self.command_running.set(ProximityCommand::None);
 
         // When we are done with callback (one command) then find another waiting command to run and run it
         self.run_next_command();
