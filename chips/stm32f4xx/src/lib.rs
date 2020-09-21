@@ -11,6 +11,7 @@ pub mod chip;
 pub mod nvic;
 
 // Peripherals
+pub mod adc;
 pub mod dbg;
 pub mod dma1;
 pub mod exti;
@@ -59,11 +60,11 @@ pub static BASE_VECTORS: [unsafe extern "C" fn(); 16] = [
 ];
 
 extern "C" {
-    static mut _szero: u32;
-    static mut _ezero: u32;
-    static mut _etext: u32;
-    static mut _srelocate: u32;
-    static mut _erelocate: u32;
+    static mut _szero: usize;
+    static mut _ezero: usize;
+    static mut _etext: usize;
+    static mut _srelocate: usize;
+    static mut _erelocate: usize;
 }
 
 pub unsafe fn init() {

@@ -293,6 +293,13 @@ enum Flash {
     Unspecified = 0xffffffff,
 }
 
+#[derive(Debug)]
+#[repr(u32)]
+pub enum AddressType {
+    Public = 0x0,
+    Random = 0x1,
+}
+
 pub struct Ficr {
     registers: StaticRef<FicrRegisters>,
 }
@@ -305,8 +312,7 @@ impl Ficr {
     }
 
     fn part(&self) -> Part {
-        let regs = &*self.registers;
-        match regs.info_part.get() {
+        match self.registers.info_part.get() {
             0x52832 => Part::N52832,
             0x52833 => Part::N52833,
             0x52840 => Part::N52840,
@@ -315,8 +321,7 @@ impl Ficr {
     }
 
     fn variant(&self) -> Variant {
-        let regs = &*self.registers;
-        match regs.info_variant.get() {
+        match self.registers.info_variant.get() {
             0x41414130 => Variant::AAA0,
             0x41414141 => Variant::AAAA,
             0x41414142 => Variant::AAAB,
@@ -336,8 +341,7 @@ impl Ficr {
     }
 
     fn package(&self) -> Package {
-        let regs = &*self.registers;
-        match regs.info_package.get() {
+        match self.registers.info_package.get() {
             0x2000 => Package::QF,
             0x2001 => Package::CH,
             0x2002 => Package::CI,
@@ -348,8 +352,7 @@ impl Ficr {
     }
 
     fn ram(&self) -> Ram {
-        let regs = &*self.registers;
-        match regs.info_ram.get() {
+        match self.registers.info_ram.get() {
             0x10 => Ram::K16,
             0x20 => Ram::K32,
             0x40 => Ram::K64,
@@ -360,8 +363,7 @@ impl Ficr {
     }
 
     fn flash(&self) -> Flash {
-        let regs = &*self.registers;
-        match regs.info_flash.get() {
+        match self.registers.info_flash.get() {
             0x80 => Flash::K128,
             0x100 => Flash::K256,
             0x200 => Flash::K512,
@@ -371,17 +373,43 @@ impl Ficr {
         }
     }
 
-    pub fn address(&self) -> u32 {
-        let regs = self.registers;
-        regs.deviceaddr0.read(DeviceAddress0::DEVICEADDRESS)
+    pub fn address(&self) -> [u8; 6] {
+        let lo = self
+            .registers
+            .deviceaddr0
+            .read(DeviceAddress0::DEVICEADDRESS);
+        let hi = self
+            .registers
+            .deviceaddr1
+            .read(DeviceAddress1::DEVICEADDRESS) as u16;
+        let mut addr = [0; 6];
+        addr[..4].copy_from_slice(&lo.to_le_bytes());
+        addr[4..].copy_from_slice(&hi.to_le_bytes());
+        addr
+    }
+
+    pub fn address_type(&self) -> AddressType {
+        match self
+            .registers
+            .deviceaddrtype
+            .read(DeviceAddressType::DEVICEADDRESSTYPE)
+        {
+            0x0 => AddressType::Public,
+            _ => AddressType::Random,
+        }
     }
 
     /// Return a MAC address string that has been hardcoded on this chip in the
     /// format `46:db:52:cd:93:9e`.
     pub fn address_str(&self, buf: &'static mut [u8; 17]) -> &'static str {
-        let regs = self.registers;
-        let lo = regs.deviceaddr0.read(DeviceAddress0::DEVICEADDRESS);
-        let hi = regs.deviceaddr1.read(DeviceAddress1::DEVICEADDRESS);
+        let lo = self
+            .registers
+            .deviceaddr0
+            .read(DeviceAddress0::DEVICEADDRESS);
+        let hi = self
+            .registers
+            .deviceaddr1
+            .read(DeviceAddress1::DEVICEADDRESS);
 
         let h: [u8; 16] = [
             '0' as u8, '1' as u8, '2' as u8, '3' as u8, '4' as u8, '5' as u8, '6' as u8, '7' as u8,

@@ -41,9 +41,18 @@ pub unsafe fn clear_all_pending() {
 /// Enable all interrupts.
 pub unsafe fn enable_all() {
     let plic: &PlicRegisters = &*PLIC_BASE;
-    for enable in plic.enable.iter() {
-        enable.set(0xFFFF_FFFF);
-    }
+
+    // USB hardware on current OT master branch seems to have
+    // interrupt bugs: running Alarms causes persistent USB
+    // CONNECTED interrupts that can't be masked from USBDEV and
+    // cause the system to hang. So enable all interrupts except
+    // for the USB ones. Some open PRs on OT fix this, we'll re-enable
+    // USB interrurupts.
+    //
+    // https://github.com/lowRISC/opentitan/issues/3388
+    plic.enable[0].set(0xFFFF_FFFF);
+    plic.enable[1].set(0xFFFF_FFFF);
+    plic.enable[2].set(0xFFFF_0000); // USB are 64-79
 
     // Set the max priority for each interrupt. This is not really used
     // at this point.

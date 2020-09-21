@@ -4,7 +4,7 @@
 // Disable this attribute when documenting, as a workaround for
 // https://github.com/rust-lang/rust/issues/62184.
 #![cfg_attr(not(doc), no_main)]
-#![feature(const_fn)]
+#![feature(const_fn, const_in_array_repeat_expressions)]
 
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use kernel::capabilities;
@@ -42,13 +42,13 @@ pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 /// capsules for this platform.
 struct ArtyE21 {
     console: &'static capsules::console::Console<'static>,
-    gpio: &'static capsules::gpio::GPIO<'static, arty_e21_chip::gpio::GpioPin>,
+    gpio: &'static capsules::gpio::GPIO<'static, arty_e21_chip::gpio::GpioPin<'static>>,
     alarm: &'static capsules::alarm::AlarmDriver<
         'static,
         VirtualMuxAlarm<'static, rv32i::machine_timer::MachineTimer<'static>>,
     >,
-    led: &'static capsules::led::LED<'static, arty_e21_chip::gpio::GpioPin>,
-    button: &'static capsules::button::Button<'static, arty_e21_chip::gpio::GpioPin>,
+    led: &'static capsules::led::LED<'static, arty_e21_chip::gpio::GpioPin<'static>>,
+    button: &'static capsules::button::Button<'static, arty_e21_chip::gpio::GpioPin<'static>>,
     // ipc: kernel::ipc::IPC,
 }
 
@@ -233,7 +233,7 @@ pub unsafe fn reset_handler() {
             &_sapps as *const u8,
             &_eapps as *const u8 as usize - &_sapps as *const u8 as usize,
         ),
-        &mut core::slice::from_raw_parts_mut(
+        core::slice::from_raw_parts_mut(
             &mut _sappmem as *mut u8,
             &_eappmem as *const u8 as usize - &_sappmem as *const u8 as usize,
         ),
@@ -246,5 +246,7 @@ pub unsafe fn reset_handler() {
         debug!("{:?}", err);
     });
 
-    board_kernel.kernel_loop(&artye21, chip, None, &main_loop_cap);
+    let scheduler = components::sched::priority::PriorityComponent::new(board_kernel).finalize(());
+
+    board_kernel.kernel_loop(&artye21, chip, None, scheduler, &main_loop_cap);
 }

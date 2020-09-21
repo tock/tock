@@ -18,6 +18,11 @@ fi
 #
 # - `clippy::if_same_then_else`: There are often good reasons to enumerate
 #   different states that have the same effect.
+# - `clippy::borrow_interior_mutable_const`: There's a common pattern of using
+#   a const `StaticRef` to reference mutable memory-mapped registers, and that
+#   triggers a false positive of this lint.
+#
+#   See https://github.com/rust-lang/rust-clippy/issues/5796.
 
 CLIPPY_ARGS="
 -A clippy::complexity
@@ -29,6 +34,7 @@ CLIPPY_ARGS="
 -A clippy::restriction
 
 -A clippy::if_same_then_else
+-A clippy::borrow_interior_mutable_const
 
 -D clippy::needless_return
 -D clippy::unnecessary_mut_passed

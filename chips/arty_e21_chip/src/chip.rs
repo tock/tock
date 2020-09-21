@@ -5,6 +5,7 @@ use rv32i;
 
 use crate::gpio;
 use crate::interrupts;
+use crate::pmp;
 use crate::timer;
 use crate::uart;
 
@@ -13,7 +14,7 @@ extern "C" {
 }
 
 pub struct ArtyExx {
-    pmp: rv32i::pmp::PMPConfig,
+    pmp: pmp::PMP,
     userspace_kernel_boundary: rv32i::syscall::SysCall,
     clic: rv32i::clic::Clic,
 }
@@ -26,7 +27,7 @@ impl ArtyExx {
         let in_use_interrupts: u64 = 0x1FFFF0080;
 
         ArtyExx {
-            pmp: rv32i::pmp::PMPConfig::new(4),
+            pmp: pmp::PMP::new(),
             userspace_kernel_boundary: rv32i::syscall::SysCall::new(),
             clic: rv32i::clic::Clic::new(in_use_interrupts),
         }
@@ -105,15 +106,20 @@ impl ArtyExx {
 }
 
 impl kernel::Chip for ArtyExx {
-    type MPU = rv32i::pmp::PMPConfig;
+    type MPU = pmp::PMP;
     type UserspaceKernelBoundary = rv32i::syscall::SysCall;
-    type SysTick = ();
+    type SchedulerTimer = ();
+    type WatchDog = ();
 
     fn mpu(&self) -> &Self::MPU {
         &self.pmp
     }
 
-    fn systick(&self) -> &Self::SysTick {
+    fn scheduler_timer(&self) -> &Self::SchedulerTimer {
+        &()
+    }
+
+    fn watchdog(&self) -> &Self::WatchDog {
         &()
     }
 

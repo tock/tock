@@ -80,21 +80,21 @@ register_bitfields![u32,
     ]
 ];
 
-pub struct GpioPin {
+pub struct GpioPin<'a> {
     registers: StaticRef<GpioRegisters>,
     pin: Field<u32, pins::Register>,
     set: FieldValue<u32, pins::Register>,
     clear: FieldValue<u32, pins::Register>,
-    client: OptionalCell<&'static dyn hil::gpio::Client>,
+    client: OptionalCell<&'a dyn hil::gpio::Client>,
 }
 
-impl GpioPin {
+impl<'a> GpioPin<'a> {
     pub const fn new(
         base: StaticRef<GpioRegisters>,
         pin: Field<u32, pins::Register>,
         set: FieldValue<u32, pins::Register>,
         clear: FieldValue<u32, pins::Register>,
-    ) -> GpioPin {
+    ) -> GpioPin<'a> {
         GpioPin {
             registers: base,
             pin: pin,
@@ -141,7 +141,7 @@ impl GpioPin {
     }
 }
 
-impl hil::gpio::Configure for GpioPin {
+impl hil::gpio::Configure for GpioPin<'_> {
     fn configuration(&self) -> hil::gpio::Configuration {
         let regs = self.registers;
 
@@ -223,7 +223,7 @@ impl hil::gpio::Configure for GpioPin {
     }
 }
 
-impl hil::gpio::Input for GpioPin {
+impl hil::gpio::Input for GpioPin<'_> {
     fn read(&self) -> bool {
         let regs = self.registers;
 
@@ -231,7 +231,7 @@ impl hil::gpio::Input for GpioPin {
     }
 }
 
-impl hil::gpio::Output for GpioPin {
+impl hil::gpio::Output for GpioPin<'_> {
     fn toggle(&self) -> bool {
         let regs = self.registers;
 
@@ -257,8 +257,8 @@ impl hil::gpio::Output for GpioPin {
     }
 }
 
-impl hil::gpio::Interrupt for GpioPin {
-    fn set_client(&self, client: &'static dyn hil::gpio::Client) {
+impl<'a> hil::gpio::Interrupt<'a> for GpioPin<'a> {
+    fn set_client(&self, client: &'a dyn hil::gpio::Client) {
         self.client.set(client);
     }
 
@@ -297,5 +297,5 @@ impl hil::gpio::Interrupt for GpioPin {
     }
 }
 
-impl hil::gpio::Pin for GpioPin {}
-impl hil::gpio::InterruptPin for GpioPin {}
+impl hil::gpio::Pin for GpioPin<'_> {}
+impl<'a> hil::gpio::InterruptPin<'a> for GpioPin<'a> {}

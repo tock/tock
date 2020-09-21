@@ -2,14 +2,16 @@
 
 use core::fmt::Write;
 use core::hint::unreachable_unchecked;
-
 use kernel;
 use kernel::common::registers::FieldValue;
 use kernel::debug;
+use kernel::hil::time::Alarm;
 use kernel::Chip;
 use rv32i::csr::{mcause, mie::mie, mip::mip, mtvec::mtvec, CSR};
 use rv32i::syscall::SysCall;
+use rv32i::PMPConfigMacro;
 
+use crate::chip_config::CONFIG;
 use crate::gpio;
 use crate::hmac;
 use crate::interrupts;
@@ -19,18 +21,22 @@ use crate::timer;
 use crate::uart;
 use crate::usbdev;
 
-pub const CHIP_FREQ: u32 = 50_000_000;
+PMPConfigMacro!(4);
 
-pub struct EarlGrey {
+pub const CHIP_FREQ: u32 = CONFIG.chip_freq;
+
+pub struct EarlGrey<A: 'static + Alarm<'static>> {
     userspace_kernel_boundary: SysCall,
-    pmp: rv32i::pmp::PMPConfig,
+    pmp: PMP,
+    scheduler_timer: kernel::VirtualSchedulerTimer<A>,
 }
 
-impl EarlGrey {
-    pub unsafe fn new() -> EarlGrey {
-        EarlGrey {
+impl<A: 'static + Alarm<'static>> EarlGrey<A> {
+    pub unsafe fn new(alarm: &'static A) -> Self {
+        Self {
             userspace_kernel_boundary: SysCall::new(),
-            pmp: rv32i::pmp::PMPConfig::new(4),
+            pmp: PMP::new(),
+            scheduler_timer: kernel::VirtualSchedulerTimer::new(alarm),
         }
     }
 
@@ -103,16 +109,21 @@ impl EarlGrey {
     }
 }
 
-impl kernel::Chip for EarlGrey {
-    type MPU = rv32i::pmp::PMPConfig;
+impl<A: 'static + Alarm<'static>> kernel::Chip for EarlGrey<A> {
+    type MPU = PMP;
     type UserspaceKernelBoundary = SysCall;
-    type SysTick = ();
+    type SchedulerTimer = kernel::VirtualSchedulerTimer<A>;
+    type WatchDog = ();
 
     fn mpu(&self) -> &Self::MPU {
         &self.pmp
     }
 
-    fn systick(&self) -> &Self::SysTick {
+    fn scheduler_timer(&self) -> &Self::SchedulerTimer {
+        &self.scheduler_timer
+    }
+
+    fn watchdog(&self) -> &Self::WatchDog {
         &()
     }
 
@@ -169,6 +180,10 @@ impl kernel::Chip for EarlGrey {
     }
 
     unsafe fn print_state(&self, writer: &mut dyn Write) {
+        let _ = writer.write_fmt(format_args!(
+            "\r\n---| EarlGrey configuration for {} |---",
+            CONFIG.name
+        ));
         rv32i::print_riscv_state(writer);
     }
 }

@@ -157,6 +157,9 @@ impl<'a> Uart<'a> {
 
     pub fn transmit_sync(&self, bytes: &[u8]) {
         let regs = self.registers;
+        // Make sure the UART is enabled.
+        regs.txctrl
+            .write(txctrl::txen::SET + txctrl::nstop::OneStopBit + txctrl::txcnt.val(1));
         for b in bytes.iter() {
             while regs.txdata.is_set(txdata::full) {}
             regs.txdata.write(txdata::data.val(*b as u32));

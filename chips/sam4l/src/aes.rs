@@ -189,35 +189,33 @@ impl<'a> Aes<'a> {
     }
 
     fn enable_interrupts(&self) {
-        let regs: &AesRegisters = &*self.registers;
-        regs.ier
+        self.registers
+            .ier
             .write(Interrupt::IBUFRDY.val(1) + Interrupt::ODATARDY.val(1));
     }
 
     fn disable_interrupts(&self) {
-        let regs: &AesRegisters = &*self.registers;
-        regs.idr
+        self.registers
+            .idr
             .write(Interrupt::IBUFRDY.val(1) + Interrupt::ODATARDY.val(1));
     }
 
     fn disable_input_interrupt(&self) {
-        let regs: &AesRegisters = &*self.registers;
         // Tell the AESA not to send an interrupt looking for more input
-        regs.idr.write(Interrupt::IBUFRDY.val(1));
+        self.registers.idr.write(Interrupt::IBUFRDY.val(1));
     }
 
     fn busy(&self) -> bool {
-        let regs: &AesRegisters = &*self.registers;
         // Are any interrupts set, meaning an encryption operation
         // is in progress?
-        (regs.imr.read(Interrupt::IBUFRDY) | regs.imr.read(Interrupt::ODATARDY)) != 0
+        (self.registers.imr.read(Interrupt::IBUFRDY) | self.registers.imr.read(Interrupt::ODATARDY))
+            != 0
     }
 
     fn set_mode(&self, encrypting: bool, mode: ConfidentialityMode) {
-        let regs: &AesRegisters = &*self.registers;
         let encrypt = if encrypting { 1 } else { 0 };
         let dma = 0;
-        regs.mode.write(
+        self.registers.mode.write(
             Mode::ENCRYPT.val(encrypt)
                 + Mode::DMA.val(dma)
                 + Mode::OPMODE.val(mode as u32)
@@ -229,13 +227,11 @@ impl<'a> Aes<'a> {
     }
 
     fn input_buffer_ready(&self) -> bool {
-        let regs: &AesRegisters = &*self.registers;
-        regs.sr.read(Status::IBUFRDY) != 0
+        self.registers.sr.read(Status::IBUFRDY) != 0
     }
 
     fn output_data_ready(&self) -> bool {
-        let regs: &AesRegisters = &*self.registers;
-        regs.sr.read(Status::ODATARDY) != 0
+        self.registers.sr.read(Status::ODATARDY) != 0
     }
 
     fn try_set_indices(&self, start_index: usize, stop_index: usize) -> bool {
@@ -279,7 +275,6 @@ impl<'a> Aes<'a> {
     // if there is a block left in the buffer.  Either way, this function
     // returns true if more blocks remain to send.
     fn write_block(&self) -> bool {
-        let regs: &AesRegisters = &*self.registers;
         self.source.map_or_else(
             || {
                 // The source and destination are the same buffer
@@ -299,7 +294,7 @@ impl<'a> Aes<'a> {
                             v |= (dest[index + (i * 4) + 1] as usize) << 8;
                             v |= (dest[index + (i * 4) + 2] as usize) << 16;
                             v |= (dest[index + (i * 4) + 3] as usize) << 24;
-                            regs.idata.set(v as u32);
+                            self.registers.idata.set(v as u32);
                         }
                         self.write_index.set(index + AES128_BLOCK_SIZE);
 
@@ -322,7 +317,7 @@ impl<'a> Aes<'a> {
                     v |= (source[index + (i * 4) + 1] as usize) << 8;
                     v |= (source[index + (i * 4) + 2] as usize) << 16;
                     v |= (source[index + (i * 4) + 3] as usize) << 24;
-                    regs.idata.set(v as u32);
+                    self.registers.idata.set(v as u32);
                 }
 
                 self.write_index.set(index + AES128_BLOCK_SIZE);
@@ -337,7 +332,6 @@ impl<'a> Aes<'a> {
     // if there is any room left.  Return true if we are still waiting for more
     // blocks after this
     fn read_block(&self) -> bool {
-        let regs: &AesRegisters = &*self.registers;
         self.dest.map_or_else(
             || {
                 debug!("Called read_block() with no data");
@@ -351,7 +345,7 @@ impl<'a> Aes<'a> {
                 }
 
                 for i in 0..4 {
-                    let v = regs.odata.get();
+                    let v = self.registers.odata.get();
                     dest[index + (i * 4) + 0] = (v >> 0) as u8;
                     dest[index + (i * 4) + 1] = (v >> 8) as u8;
                     dest[index + (i * 4) + 2] = (v >> 16) as u8;
@@ -405,14 +399,12 @@ impl<'a> Aes<'a> {
 
 impl<'a> hil::symmetric_encryption::AES128<'a> for Aes<'a> {
     fn enable(&self) {
-        let regs: &AesRegisters = &*self.registers;
         self.enable_clock();
-        regs.ctrl.write(Control::ENABLE.val(1));
+        self.registers.ctrl.write(Control::ENABLE.val(1));
     }
 
     fn disable(&self) {
-        let regs: &AesRegisters = &*self.registers;
-        regs.ctrl.set(0);
+        self.registers.ctrl.set(0);
         self.disable_clock();
     }
 
@@ -421,7 +413,6 @@ impl<'a> hil::symmetric_encryption::AES128<'a> for Aes<'a> {
     }
 
     fn set_key(&self, key: &[u8]) -> ReturnCode {
-        let regs: &AesRegisters = &*self.registers;
         if key.len() != AES128_KEY_SIZE {
             return ReturnCode::EINVAL;
         }
@@ -432,10 +423,10 @@ impl<'a> hil::symmetric_encryption::AES128<'a> for Aes<'a> {
             k |= (key[i * 4 + 2] as usize) << 16;
             k |= (key[i * 4 + 3] as usize) << 24;
             match i {
-                0 => regs.key0.set(k as u32),
-                1 => regs.key1.set(k as u32),
-                2 => regs.key2.set(k as u32),
-                3 => regs.key3.set(k as u32),
+                0 => self.registers.key0.set(k as u32),
+                1 => self.registers.key1.set(k as u32),
+                2 => self.registers.key2.set(k as u32),
+                3 => self.registers.key3.set(k as u32),
                 _ => {}
             }
         }
@@ -444,7 +435,6 @@ impl<'a> hil::symmetric_encryption::AES128<'a> for Aes<'a> {
     }
 
     fn set_iv(&self, iv: &[u8]) -> ReturnCode {
-        let regs: &AesRegisters = &*self.registers;
         if iv.len() != AES128_BLOCK_SIZE {
             return ReturnCode::EINVAL;
         }
@@ -456,10 +446,10 @@ impl<'a> hil::symmetric_encryption::AES128<'a> for Aes<'a> {
             c |= (iv[i * 4 + 2] as usize) << 16;
             c |= (iv[i * 4 + 3] as usize) << 24;
             match i {
-                0 => regs.initvect0.set(c as u32),
-                1 => regs.initvect1.set(c as u32),
-                2 => regs.initvect2.set(c as u32),
-                3 => regs.initvect3.set(c as u32),
+                0 => self.registers.initvect0.set(c as u32),
+                1 => self.registers.initvect1.set(c as u32),
+                2 => self.registers.initvect2.set(c as u32),
+                3 => self.registers.initvect3.set(c as u32),
                 _ => {}
             }
         }
@@ -471,8 +461,8 @@ impl<'a> hil::symmetric_encryption::AES128<'a> for Aes<'a> {
         if self.busy() {
             return;
         }
-        let regs: &AesRegisters = &*self.registers;
-        regs.ctrl
+        self.registers
+            .ctrl
             .write(Control::NEWMSG.val(1) + Control::ENABLE.val(1));
     }
 

@@ -122,14 +122,13 @@ impl<'a> Temp<'a> {
     pub fn handle_interrupt(&self) {
         // disable interrupts
         self.disable_interrupts();
-        let regs = &*self.registers;
 
         // get temperature
         // Result of temperature measurement in °C, 2's complement format, 0.25 °C
-        let temp = (regs.temp.get() / 4) * 100;
+        let temp = (self.registers.temp.get() / 4) * 100;
 
         // stop measurement
-        regs.task_stop.write(Task::ENABLE::SET);
+        self.registers.task_stop.write(Task::ENABLE::SET);
 
         // disable interrupts
         self.disable_interrupts();
@@ -139,22 +138,19 @@ impl<'a> Temp<'a> {
     }
 
     fn enable_interrupts(&self) {
-        let regs = &*self.registers;
-        regs.intenset.write(Intenset::DATARDY::SET);
+        self.registers.intenset.write(Intenset::DATARDY::SET);
     }
 
     fn disable_interrupts(&self) {
-        let regs = &*self.registers;
-        regs.intenclr.write(Intenclr::DATARDY::SET);
+        self.registers.intenclr.write(Intenclr::DATARDY::SET);
     }
 }
 
 impl<'a> kernel::hil::sensors::TemperatureDriver<'a> for Temp<'a> {
     fn read_temperature(&self) -> kernel::ReturnCode {
-        let regs = &*self.registers;
         self.enable_interrupts();
-        regs.event_datardy.write(Event::READY::CLEAR);
-        regs.task_start.write(Task::ENABLE::SET);
+        self.registers.event_datardy.write(Event::READY::CLEAR);
+        self.registers.task_start.write(Task::ENABLE::SET);
         kernel::ReturnCode::SUCCESS
     }
 

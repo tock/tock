@@ -154,7 +154,7 @@ pub trait Timer<'a, W = u32>: Time<W> {
 
     /// Returns whether this is a oneshot (rather than repeating) timer.
     fn is_oneshot(&self) -> bool {
-        self.interval().is_none()
+        self.interval().is_none() && self.is_enabled()
     }
 
     /// Returns whether this is a repeating (rather than oneshot) timer.

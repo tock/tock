@@ -55,12 +55,12 @@ use kernel::hil::gpio;
 use kernel::hil::gpio::{Configure, Input, InterruptWithValue, Output};
 use kernel::{AppId, Callback, Driver, Grant, ReturnCode};
 
-pub struct GPIO<'a, IP: gpio::InterruptPin> {
+pub struct GPIO<'a, IP: gpio::InterruptPin<'a>> {
     pins: &'a [Option<&'a gpio::InterruptValueWrapper<'a, IP>>],
     apps: Grant<Option<Callback>>,
 }
 
-impl<'a, IP: gpio::InterruptPin> GPIO<'a, IP> {
+impl<'a, IP: gpio::InterruptPin<'a>> GPIO<'a, IP> {
     pub fn new(
         pins: &'a [Option<&'a gpio::InterruptValueWrapper<'a, IP>>],
         grant: Grant<Option<Callback>>,
@@ -128,7 +128,7 @@ impl<'a, IP: gpio::InterruptPin> GPIO<'a, IP> {
     }
 }
 
-impl<IP: gpio::InterruptPin> gpio::ClientWithValue for GPIO<'_, IP> {
+impl<'a, IP: gpio::InterruptPin<'a>> gpio::ClientWithValue for GPIO<'a, IP> {
     fn fired(&self, pin_num: u32) {
         // read the value of the pin
         let pins = self.pins.as_ref();
@@ -143,7 +143,7 @@ impl<IP: gpio::InterruptPin> gpio::ClientWithValue for GPIO<'_, IP> {
     }
 }
 
-impl<IP: gpio::InterruptPin> Driver for GPIO<'_, IP> {
+impl<'a, IP: gpio::InterruptPin<'a>> Driver for GPIO<'a, IP> {
     /// Subscribe to GPIO pin events.
     ///
     /// ### `subscribe_num`

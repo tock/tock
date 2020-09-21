@@ -149,9 +149,8 @@ impl<'a> AesECB<'a> {
     }
 
     fn set_dma(&self) {
-        let regs = &*self.registers;
         unsafe {
-            regs.ecbdataptr.set(ECB_DATA.as_ptr() as u32);
+            self.registers.ecbdataptr.set(ECB_DATA.as_ptr() as u32);
         }
     }
 
@@ -169,22 +168,18 @@ impl<'a> AesECB<'a> {
     }
 
     fn crypt(&self) {
-        let regs = &*self.registers;
-
-        regs.event_endecb.write(Event::READY::CLEAR);
-        regs.task_startecb.set(1);
+        self.registers.event_endecb.write(Event::READY::CLEAR);
+        self.registers.task_startecb.set(1);
 
         self.enable_interrupts();
     }
 
     /// AesEcb Interrupt handler
     pub fn handle_interrupt(&self) {
-        let regs = &*self.registers;
-
         // disable interrupts
         self.disable_interrupts();
 
-        if regs.event_endecb.get() == 1 {
+        if self.registers.event_endecb.get() == 1 {
             let current_idx = self.current_idx.get();
             let end_idx = self.end_idx.get();
 
@@ -240,14 +235,14 @@ impl<'a> AesECB<'a> {
     }
 
     fn enable_interrupts(&self) {
-        let regs = &*self.registers;
-        regs.intenset
+        self.registers
+            .intenset
             .write(Intenset::ENDECB::SET + Intenset::ERRORECB::SET);
     }
 
     fn disable_interrupts(&self) {
-        let regs = &*self.registers;
-        regs.intenclr
+        self.registers
+            .intenclr
             .write(Intenclr::ENDECB::SET + Intenclr::ERRORECB::SET);
     }
 }
@@ -258,8 +253,7 @@ impl<'a> kernel::hil::symmetric_encryption::AES128<'a> for AesECB<'a> {
     }
 
     fn disable(&self) {
-        let regs = &*self.registers;
-        regs.task_stopecb.write(Task::ENABLE::CLEAR);
+        self.registers.task_stopecb.write(Task::ENABLE::CLEAR);
         self.disable_interrupts();
     }
 

@@ -9,6 +9,9 @@
 # First, need to fill out some variables that the Makefile will use
 $(eval ALL_BOARDS := $(shell ./tools/list_boards.sh))
 
+# Force the Shell to be bash as some systems have strange default shells
+SHELL := bash
+
 ##
 ## End: internal support.
 ##
@@ -76,7 +79,7 @@ define ci_setup_helper
 	$(eval build_function := $(strip $(3)))
 	$(eval guard_variable := $(strip $(4)))
 	@# First, if the dependency is installed, we can bail early
-	$(if $(shell bash -c '$(1)'),$(eval $(guard_variable) := true),
+	$(if $(shell '$(1)'),$(eval $(guard_variable) := true),
 	@# If running in CI context always yes
 	$(if $(CI),$(eval do_install := yes_CI),
 	@# If running nosetup always no
@@ -496,19 +499,19 @@ define ci_setup_qemu_riscv
 	@# Use the latest QEMU as it has OpenTitan support
 	@printf "Building QEMU, this could take a few minutes\n\n"
 	@git submodule sync; git submodule update --init
-	@cd tools/qemu; ./configure --target-list=riscv32-softmmu;
+	@mkdir -p tools/qemu-build && cd tools/qemu-build; ../qemu/configure --target-list=riscv32-softmmu;
 	@# Build qemu
-	@$(MAKE) -C "tools/qemu" || (echo "You might need to install some missing packages" || exit 127)
+	@$(MAKE) -C "tools/qemu-build" || (echo "You might need to install some missing packages" || exit 127)
 endef
 
 define ci_setup_qemu_opentitan
 	$(call banner,CI-Setup: Get OpenTitan boot ROM image)
 	# Download OpenTitan image
-	@printf "Downloading OpenTitan boot rom from: 1beb08b474790d4b6c67ae5b3423e2e8dfc9e368\n"
+	@printf "Downloading OpenTitan boot rom from: 5b2f67c10244a3f4d0e9b92a4fdc5c397fd69b73\n"
 	@pwd=$$(pwd) && \
 		temp=$$(mktemp -d) && \
 		cd $$temp && \
-		curl $$(curl "https://dev.azure.com/lowrisc/opentitan/_apis/build/builds/14991/artifacts?artifactName=opentitan-dist&api-version=5.1" | cut -d \" -f 38) --output opentitan-dist.zip; \
+		curl $$(curl "https://dev.azure.com/lowrisc/opentitan/_apis/build/builds/21336/artifacts?artifactName=opentitan-dist&api-version=5.1" | cut -d \" -f 38) --output opentitan-dist.zip; \
 		unzip opentitan-dist.zip; \
 		tar -xf opentitan-dist/opentitan-snapshot-20191101-*.tar.xz; \
 		mv opentitan-snapshot-20191101-*/sw/device/boot_rom/boot_rom_fpga_nexysvideo.elf $$pwd/tools/qemu-runner/opentitan-boot-rom.elf
@@ -519,7 +522,7 @@ ci-setup-qemu:
 	$(call ci_setup_helper,\
 		status=$$(git submodule status -- tools/qemu); \
 		[[ "$${status:0:1}" != "" ]] && \
-			cd tools/qemu && make -q riscv32-softmmu && echo yes,\
+			cd tools/qemu-build && make -q riscv32-softmmu && echo yes,\
 		Clone QEMU and run its build scripts,\
 		ci_setup_qemu_riscv,\
 		CI_JOB_QEMU_RISCV)
@@ -535,7 +538,7 @@ ci-setup-qemu:
 define ci_job_qemu
 	$(call banner,CI-Job: QEMU)
 	@cd tools/qemu-runner;\
-		PATH="$(shell pwd)/tools/qemu/riscv32-softmmu/:${PATH}"\
+		PATH="$(shell pwd)/tools/qemu-build/riscv32-softmmu/:${PATH}"\
 		CI=true cargo run
 endef
 

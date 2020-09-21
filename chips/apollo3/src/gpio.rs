@@ -11,25 +11,25 @@ use kernel::hil::gpio;
 const GPIO_BASE: StaticRef<GpioRegisters> =
     unsafe { StaticRef::new(0x4001_0000 as *const GpioRegisters) };
 
-pub struct Port {
-    pins: [GpioPin; 50],
+pub struct Port<'a> {
+    pins: [GpioPin<'a>; 50],
 }
 
-impl Index<usize> for Port {
-    type Output = GpioPin;
+impl<'a> Index<usize> for Port<'a> {
+    type Output = GpioPin<'a>;
 
-    fn index(&self, index: usize) -> &GpioPin {
+    fn index(&self, index: usize) -> &GpioPin<'a> {
         &self.pins[index]
     }
 }
 
-impl IndexMut<usize> for Port {
-    fn index_mut(&mut self, index: usize) -> &mut GpioPin {
+impl<'a> IndexMut<usize> for Port<'a> {
+    fn index_mut(&mut self, index: usize) -> &mut GpioPin<'a> {
         &mut self.pins[index]
     }
 }
 
-impl Port {
+impl Port<'_> {
     pub fn handle_interrupt(&self) {
         let regs = GPIO_BASE;
         let mut irqs = regs.int0stat.get();
@@ -472,14 +472,14 @@ register_bitfields![u32,
     ]
 ];
 
-pub struct GpioPin {
+pub struct GpioPin<'a> {
     registers: StaticRef<GpioRegisters>,
     pin: Pin,
-    client: OptionalCell<&'static dyn gpio::Client>,
+    client: OptionalCell<&'a dyn gpio::Client>,
 }
 
-impl GpioPin {
-    pub const fn new(base: StaticRef<GpioRegisters>, pin: Pin) -> GpioPin {
+impl<'a> GpioPin<'a> {
+    pub const fn new(base: StaticRef<GpioRegisters>, pin: Pin) -> GpioPin<'a> {
         GpioPin {
             registers: base,
             pin: pin,
@@ -492,7 +492,7 @@ impl GpioPin {
     }
 }
 
-impl gpio::Configure for GpioPin {
+impl<'a> gpio::Configure for GpioPin<'a> {
     fn configuration(&self) -> gpio::Configuration {
         unimplemented!();
     }
@@ -561,7 +561,7 @@ impl gpio::Configure for GpioPin {
     }
 }
 
-impl gpio::Input for GpioPin {
+impl<'a> gpio::Input for GpioPin<'a> {
     fn read(&self) -> bool {
         let regs = self.registers;
 
@@ -573,7 +573,7 @@ impl gpio::Input for GpioPin {
     }
 }
 
-impl gpio::Output for GpioPin {
+impl<'a> gpio::Output for GpioPin<'a> {
     fn toggle(&self) -> bool {
         let regs = self.registers;
         let cur_value;
@@ -618,8 +618,8 @@ impl gpio::Output for GpioPin {
     }
 }
 
-impl gpio::Interrupt for GpioPin {
-    fn set_client(&self, client: &'static dyn gpio::Client) {
+impl<'a> gpio::Interrupt<'a> for GpioPin<'a> {
+    fn set_client(&self, client: &'a dyn gpio::Client) {
         self.client.set(client);
     }
 
@@ -726,5 +726,5 @@ impl gpio::Interrupt for GpioPin {
     }
 }
 
-impl gpio::Pin for GpioPin {}
-impl gpio::InterruptPin for GpioPin {}
+impl<'a> gpio::Pin for GpioPin<'a> {}
+impl<'a> gpio::InterruptPin<'a> for GpioPin<'a> {}
