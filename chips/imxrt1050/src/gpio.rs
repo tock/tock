@@ -1033,7 +1033,7 @@ impl<'a> Pin<'a> {
 }
 
 impl hil::gpio::Pin for Pin<'_> {}
-impl hil::gpio::InterruptPin for Pin<'_> {}
+impl<'a> hil::gpio::InterruptPin<'a> for Pin<'a> {}
 
 impl hil::gpio::Configure for Pin<'_> {
     fn make_output(&self) -> hil::gpio::Configuration {
@@ -1104,12 +1104,12 @@ impl hil::gpio::Input for Pin<'_> {
 }
 
 /// Interrupt capabilities are not yet implemented
-impl hil::gpio::Interrupt for Pin<'_> {
+impl<'a> hil::gpio::Interrupt<'a> for Pin<'a> {
     fn enable_interrupts(&self, _mode: hil::gpio::InterruptEdge) {}
 
     fn disable_interrupts(&self) {}
 
-    fn set_client(&self, client: &'static dyn hil::gpio::Client) {
+    fn set_client(&self, client: &'a dyn hil::gpio::Client) {
         self.client.set(client);
     }
 

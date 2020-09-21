@@ -27,13 +27,13 @@ use kernel::static_init;
 
 pub struct Fxos8700Component {
     i2c_mux: &'static MuxI2C<'static>,
-    gpio: &'static dyn gpio::InterruptPin,
+    gpio: &'static dyn gpio::InterruptPin<'static>,
 }
 
 impl Fxos8700Component {
-    pub fn new(
+    pub fn new<'a>(
         i2c: &'static MuxI2C<'static>,
-        gpio: &'static dyn hil::gpio::InterruptPin,
+        gpio: &'static dyn hil::gpio::InterruptPin<'static>,
     ) -> Fxos8700Component {
         Fxos8700Component {
             i2c_mux: i2c,
