@@ -16,7 +16,7 @@
 //! ADC. It also supports multiple processes requesting ADC samples
 //! concurently. However, it only supports processes requesting single
 //! ADC samples: they cannot sample continuously or at high speed.
-//! 
+//!
 //!
 //! Usage
 //! -----
