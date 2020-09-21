@@ -1,5 +1,5 @@
-//! Implementation of the memory protection unit for the Cortex-M3,
-//! Cortex-M4 and Cortex-M7.
+//! Implementation of the memory protection unit for the Cortex-M3 and
+//! Cortex-M4.
 
 use core::cell::Cell;
 use core::cmp;
@@ -12,7 +12,7 @@ use kernel::common::StaticRef;
 use kernel::mpu;
 use kernel::AppId;
 
-/// MPU Registers for the Cortex-M3, Cortex-M4 and Cortex-M7 families
+/// MPU Registers for the Cortex-M3 and Cortex-M4 families
 /// Described in section 4.5 of
 /// <http://infocenter.arm.com/help/topic/com.arm.doc.dui0553a/DUI0553A_cortex_m4_dgug.pdf>
 #[repr(C)]
@@ -152,7 +152,7 @@ impl MPU {
 /// of region configuration calculation
 pub struct CortexMConfig {
     /// The computed region configuration for this process.
-    regions: [CortexMRegion; 16],
+    regions: [CortexMRegion; 8],
     /// Has the configuration changed since the last time the this process
     /// configuration was written to hardware?
     is_dirty: Cell<bool>,
@@ -172,14 +172,6 @@ impl Default for CortexMConfig {
                 CortexMRegion::empty(5),
                 CortexMRegion::empty(6),
                 CortexMRegion::empty(7),
-                CortexMRegion::empty(8),
-                CortexMRegion::empty(9),
-                CortexMRegion::empty(10),
-                CortexMRegion::empty(11),
-                CortexMRegion::empty(12),
-                CortexMRegion::empty(13),
-                CortexMRegion::empty(14),
-                CortexMRegion::empty(15),
             ],
             is_dirty: Cell::new(true),
         }
@@ -371,23 +363,26 @@ impl CortexMRegion {
 impl kernel::mpu::MPU for MPU {
     type MpuConfig = CortexMConfig;
 
-    fn enable_mpu(&self) {
-        let regs = &*self.registers;
+    fn clear_mpu(&self) {
+        self.registers.ctrl.write(Control::ENABLE::CLEAR);
+    }
 
+    fn enable_app_mpu(&self) {
         // Enable the MPU, disable it during HardFault/NMI handlers, and allow
         // privileged code access to all unprotected memory.
-        regs.ctrl
+        self.registers
+            .ctrl
             .write(Control::ENABLE::SET + Control::HFNMIENA::CLEAR + Control::PRIVDEFENA::SET);
     }
 
-    fn disable_mpu(&self) {
-        let regs = &*self.registers;
-        regs.ctrl.write(Control::ENABLE::CLEAR);
+    fn disable_app_mpu(&self) {
+        // The MPU is not enabled for privileged mode, so we don't have to do
+        // anything
+        self.registers.ctrl.write(Control::ENABLE::CLEAR);
     }
 
     fn number_total_regions(&self) -> usize {
-        let regs = &*self.registers;
-        regs.mpu_type.read(Type::DREGION) as usize
+        self.registers.mpu_type.read(Type::DREGION) as usize
     }
 
     fn allocate_region(
@@ -688,12 +683,10 @@ impl kernel::mpu::MPU for MPU {
         // If the hardware is already configured for this app and the app's MPU
         // configuration has not changed, then skip the hardware update.
         if !self.hardware_is_configured_for.contains(app_id) || config.is_dirty.get() {
-            let regs = &*self.registers;
-
             // Set MPU regions
             for region in config.regions.iter() {
-                regs.rbar.write(region.base_address());
-                regs.rasr.write(region.attributes());
+                self.registers.rbar.write(region.base_address());
+                self.registers.rasr.write(region.attributes());
             }
             self.hardware_is_configured_for.set(*app_id);
             config.is_dirty.set(false);

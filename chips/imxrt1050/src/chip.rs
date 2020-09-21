@@ -14,7 +14,7 @@ use crate::nvic;
 pub struct Imxrt1050 {
     mpu: cortexm7::mpu::MPU,
     userspace_kernel_boundary: cortexm7::syscall::SysCall,
-    systick: cortexm7::systick::SysTick,
+    scheduler_timer: cortexm7::systick::SysTick,
 }
 
 impl Imxrt1050 {
@@ -22,7 +22,7 @@ impl Imxrt1050 {
         Imxrt1050 {
             mpu: cortexm7::mpu::MPU::new(),
             userspace_kernel_boundary: cortexm7::syscall::SysCall::new(),
-            systick: cortexm7::systick::SysTick::new_with_calibration(792_000_000),
+            scheduler_timer: cortexm7::systick::SysTick::new_with_calibration(792_000_000),
         }
     }
 }
@@ -30,7 +30,8 @@ impl Imxrt1050 {
 impl Chip for Imxrt1050 {
     type MPU = cortexm7::mpu::MPU;
     type UserspaceKernelBoundary = cortexm7::syscall::SysCall;
-    type SysTick = cortexm7::systick::SysTick;
+    type SchedulerTimer = cortexm7::systick::SysTick;
+    type WatchDog = ();
 
     fn service_pending_interrupts(&self) {
         unsafe {
@@ -68,8 +69,12 @@ impl Chip for Imxrt1050 {
         &self.mpu
     }
 
-    fn systick(&self) -> &cortexm7::systick::SysTick {
-        &self.systick
+    fn scheduler_timer(&self) -> &cortexm7::systick::SysTick {
+        &self.scheduler_timer
+    }
+
+    fn watchdog(&self) -> &Self::WatchDog {
+        &()
     }
 
     fn userspace_kernel_boundary(&self) -> &cortexm7::syscall::SysCall {
