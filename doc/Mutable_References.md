@@ -180,10 +180,13 @@ call to `take`:
 
 ```rust
 pub fn abort_transfer(&self) -> Option<&'static mut [u8]> {
-    let registers: &DMARegisters = unsafe { &*self.registers };
-    registers.interrupt_disable.set(!0);
+    self.registers
+        .idr
+        .write(Interrupt::TERR::SET + Interrupt::TRC::SET + Interrupt::RCZ::SET);
+
     // Reset counter
-    registers.transfer_counter.set(0);
+    self.registers.tcr.write(TransferCounter::TCV.val(0));
+
     self.buffer.take()
 }
 ```

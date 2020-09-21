@@ -190,8 +190,6 @@ impl Pwm {
         frequency_hz: usize,
         duty_cycle: usize,
     ) -> ReturnCode {
-        let regs = &*self.registers;
-
         let prescaler = 0;
         let counter_top = (16000000 / frequency_hz) >> prescaler;
 
@@ -205,42 +203,49 @@ impl Pwm {
         let dc_out = counter_top - ((3 * duty_cycle) / frequency_hz);
 
         // Configure the pin
-        regs.psel_out[0].set(*pin);
+        self.registers.psel_out[0].set(*pin);
 
         // Start by enabling the peripheral.
-        regs.enable.write(ENABLE::ENABLE::SET);
+        self.registers.enable.write(ENABLE::ENABLE::SET);
         // Want count up mode.
-        regs.mode.write(MODE::UPDOWN::Up);
+        self.registers.mode.write(MODE::UPDOWN::Up);
         // Disable loop (repeat) mode.
-        regs.loopreg.write(LOOP::CNT.val(0));
+        self.registers.loopreg.write(LOOP::CNT.val(0));
         // Set the decoder settings.
-        regs.decoder
+        self.registers
+            .decoder
             .write(DECODER::LOAD::Common + DECODER::MODE::RefreshCount);
         // Set the prescaler.
-        regs.prescaler.write(PRESCALER::PRESCALER::DIV_1);
+        self.registers.prescaler.write(PRESCALER::PRESCALER::DIV_1);
         // Set the value to count to.
-        regs.countertop
+        self.registers
+            .countertop
             .write(COUNTERTOP::COUNTERTOP.val(counter_top as u32));
 
         // Setup the duty cycles
         unsafe {
             DUTY_CYCLES[0] = dc_out as u16;
-            regs.seq0.seq_ptr.set(&DUTY_CYCLES as *const u16);
+            self.registers.seq0.seq_ptr.set(&DUTY_CYCLES as *const u16);
         }
-        regs.seq0.seq_cnt.write(SEQ_CNT::CNT.val(1));
-        regs.seq0.seq_refresh.write(SEQ_REFRESH::CNT.val(0));
-        regs.seq0.seq_enddelay.write(SEQ_ENDDELAY::CNT.val(0));
+        self.registers.seq0.seq_cnt.write(SEQ_CNT::CNT.val(1));
+        self.registers
+            .seq0
+            .seq_refresh
+            .write(SEQ_REFRESH::CNT.val(0));
+        self.registers
+            .seq0
+            .seq_enddelay
+            .write(SEQ_ENDDELAY::CNT.val(0));
 
         // Start
-        regs.tasks_seqstart[0].write(TASK::TASK::SET);
+        self.registers.tasks_seqstart[0].write(TASK::TASK::SET);
 
         ReturnCode::SUCCESS
     }
 
     fn stop_pwm(&self, _pin: &nrf5x::pinmux::Pinmux) -> ReturnCode {
-        let regs = &*self.registers;
-        regs.tasks_stop.write(TASK::TASK::SET);
-        regs.enable.write(ENABLE::ENABLE::CLEAR);
+        self.registers.tasks_stop.write(TASK::TASK::SET);
+        self.registers.enable.write(ENABLE::ENABLE::CLEAR);
         ReturnCode::SUCCESS
     }
 }

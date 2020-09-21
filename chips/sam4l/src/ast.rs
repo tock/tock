@@ -204,54 +204,50 @@ enum Clock {
 
 impl<'a> Ast<'a> {
     fn clock_busy(&self) -> bool {
-        let regs: &AstRegisters = &*self.registers;
-        regs.sr.is_set(Status::CLKBUSY)
+        self.registers.sr.is_set(Status::CLKBUSY)
     }
 
     fn busy(&self) -> bool {
-        let regs: &AstRegisters = &*self.registers;
-        regs.sr.is_set(Status::BUSY)
+        self.registers.sr.is_set(Status::BUSY)
     }
 
     /// Clears the alarm bit in the status register (indicating the alarm value
     /// has been reached).
     fn clear_alarm(&self) {
-        let regs: &AstRegisters = &*self.registers;
         while self.busy() {}
-        regs.scr.write(Interrupt::ALARM0::SET);
+        self.registers.scr.write(Interrupt::ALARM0::SET);
         while self.busy() {}
     }
 
     // Configure the clock to use to drive the AST
     fn select_clock(&self, clock: Clock) {
-        let regs: &AstRegisters = &*self.registers;
         // Disable clock by setting first bit to zero
         while self.clock_busy() {}
-        regs.clock.modify(ClockControl::CEN::CLEAR);
+        self.registers.clock.modify(ClockControl::CEN::CLEAR);
         while self.clock_busy() {}
 
         // Select clock
-        regs.clock.write(ClockControl::CSSEL.val(clock as u32));
+        self.registers
+            .clock
+            .write(ClockControl::CSSEL.val(clock as u32));
         while self.clock_busy() {}
 
         // Re-enable clock
-        regs.clock.modify(ClockControl::CEN::SET);
+        self.registers.clock.modify(ClockControl::CEN::SET);
         while self.clock_busy() {}
     }
 
     /// Enables the AST registers
     fn enable(&self) {
-        let regs: &AstRegisters = &*self.registers;
         while self.busy() {}
-        regs.cr.modify(Control::EN::SET);
+        self.registers.cr.modify(Control::EN::SET);
         while self.busy() {}
     }
 
     /// Disable the AST registers
     fn disable(&self) {
-        let regs: &AstRegisters = &*self.registers;
         while self.busy() {}
-        regs.cr.modify(Control::EN::CLEAR);
+        self.registers.cr.modify(Control::EN::CLEAR);
         while self.busy() {}
     }
 
@@ -262,40 +258,34 @@ impl<'a> Ast<'a> {
     }
 
     /// Returns if an alarm is currently set
-    fn is_alarm_active(&self) -> bool {
-        let regs: &AstRegisters = &*self.registers;
+    fn is_alarm_enabled(&self) -> bool {
         while self.busy() {}
-        regs.sr.is_set(Status::ALARM0)
+        self.registers.sr.is_set(Status::ALARM0)
     }
 
     fn set_prescalar(&self, val: u8) {
-        let regs: &AstRegisters = &*self.registers;
         while self.busy() {}
-        regs.cr.modify(Control::PSEL.val(val as u32));
+        self.registers.cr.modify(Control::PSEL.val(val as u32));
         while self.busy() {}
     }
 
     fn enable_alarm_irq(&self) {
-        let regs: &AstRegisters = &*self.registers;
-        regs.ier.write(Interrupt::ALARM0::SET);
+        self.registers.ier.write(Interrupt::ALARM0::SET);
     }
 
     fn disable_alarm_irq(&self) {
-        let regs: &AstRegisters = &*self.registers;
-        regs.idr.write(Interrupt::ALARM0::SET);
+        self.registers.idr.write(Interrupt::ALARM0::SET);
     }
 
     fn enable_alarm_wake(&self) {
-        let regs: &AstRegisters = &*self.registers;
         while self.busy() {}
-        regs.wer.modify(Event::ALARM0::SET);
+        self.registers.wer.modify(Event::ALARM0::SET);
         while self.busy() {}
     }
 
     fn get_counter(&self) -> u32 {
-        let regs: &AstRegisters = &*self.registers;
         while self.busy() {}
-        regs.cv.read(Value::VALUE)
+        self.registers.cv.read(Value::VALUE)
     }
 
     fn set_counter(&self, val: u32) {
@@ -350,7 +340,6 @@ impl<'a> time::Alarm<'a> for Ast<'a> {
     }
 
     fn set_alarm(&self, reference: Self::Ticks, dt: Self::Ticks) {
-        let regs: &AstRegisters = &*self.registers;
         let now = Self::Ticks::from(self.get_counter());
         let mut expire = reference.wrapping_add(dt);
         if !now.within_range(reference, expire) {
@@ -369,16 +358,16 @@ impl<'a> time::Alarm<'a> for Ast<'a> {
         self.clear_alarm();
 
         while self.busy() {}
-        regs.ar0.write(Value::VALUE.val(expire.into_u32()));
+        self.registers.ar0.write(Value::VALUE.val(expire.into_u32()));
+
         while self.busy() {}
         self.enable_alarm_irq();
         self.enable();
     }
 
     fn get_alarm(&self) -> Self::Ticks {
-        let regs: &AstRegisters = &*self.registers;
         while self.busy() {}
-        Self::Ticks::from(regs.ar0.read(Value::VALUE))
+        Self::Ticks::from(self.registers.ar0.read(Value::VALUE))
     }
 
     fn disarm(&self) -> ReturnCode {
@@ -390,7 +379,7 @@ impl<'a> time::Alarm<'a> for Ast<'a> {
     }
 
     fn is_armed(&self) -> bool {
-        self.is_alarm_active()
+        self.is_alarm_enabled()
     }
 
     fn minimum_dt(&self) -> Self::Ticks {

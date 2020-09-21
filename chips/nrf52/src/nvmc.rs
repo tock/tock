@@ -221,27 +221,25 @@ impl Nvmc {
 
     /// Configure the NVMC to allow writes to flash.
     pub fn configure_writeable(&self) {
-        let regs = &*self.registers;
-        regs.config.write(Configuration::WEN::Wen);
+        self.registers.config.write(Configuration::WEN::Wen);
     }
 
     pub fn configure_eraseable(&self) {
-        let regs = &*self.registers;
-        regs.config.write(Configuration::WEN::Een);
+        self.registers.config.write(Configuration::WEN::Een);
     }
 
     pub fn erase_uicr(&self) {
-        let regs = &*self.registers;
-        regs.config.write(Configuration::WEN::Een);
+        self.registers.config.write(Configuration::WEN::Een);
         while !self.is_ready() {}
-        regs.erasepage.write(ErasePage::ERASEPAGE.val(0x10001000));
+        self.registers
+            .erasepage
+            .write(ErasePage::ERASEPAGE.val(0x10001000));
         while !self.is_ready() {}
     }
 
     /// Check if there is an ongoing operation with the NVMC peripheral.
     pub fn is_ready(&self) -> bool {
-        let regs = &*self.registers;
-        regs.ready.is_set(Ready::READY)
+        self.registers.ready.is_set(Ready::READY)
     }
 
     pub fn handle_interrupt(&self) {
@@ -273,19 +271,18 @@ impl Nvmc {
     }
 
     fn erase_page_helper(&self, page_number: usize) {
-        let regs = &*self.registers;
-
         // Put the NVMC in erase mode.
-        regs.config.write(Configuration::WEN::Een);
+        self.registers.config.write(Configuration::WEN::Een);
 
         // Tell the NVMC to erase the correct page by passing in the correct
         // address.
-        regs.erasepage
+        self.registers
+            .erasepage
             .write(ErasePage::ERASEPAGE.val((page_number * PAGE_SIZE) as u32));
 
         // Make sure that the NVMC is done. The CPU should be blocked while the
         // erase is happening, but it doesn't hurt to check too.
-        while !regs.ready.is_set(Ready::READY) {}
+        while !self.registers.ready.is_set(Ready::READY) {}
     }
 
     fn read_range(
@@ -318,13 +315,11 @@ impl Nvmc {
         page_number: usize,
         data: &'static mut NrfPage,
     ) -> Result<(), (ReturnCode, &'static mut NrfPage)> {
-        let regs = &*self.registers;
-
         // Need to erase the page first.
         self.erase_page_helper(page_number);
 
         // Put the NVMC in write mode.
-        regs.config.write(Configuration::WEN::Wen);
+        self.registers.config.write(Configuration::WEN::Wen);
 
         for i in (0..data.len()).step_by(4) {
             let word: u32 = (data[i + 0] as u32) << 0
@@ -339,7 +334,7 @@ impl Nvmc {
 
         // Make sure that the NVMC is done. The CPU should be blocked while the
         // write is happening, but it doesn't hurt to check too.
-        while !regs.ready.is_set(Ready::READY) {}
+        while !self.registers.ready.is_set(Ready::READY) {}
 
         // Save the buffer so we can return it with the callback.
         self.buffer.replace(data);

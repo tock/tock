@@ -131,14 +131,25 @@ impl kernel::SchedulerTimer for MachineTimer<'_> {
         self.set_alarm(now, tics);
     }
 
-    fn get_remaining_us(&self) -> u32 {
-        let tics = self.get_alarm().wrapping_sub(self.now()).into_u64();
-        let hertz = <Self as Time>::Frequency::frequency() as u64;
-        ((tics * 1_000_000) / hertz) as u32
-    }
+    fn get_remaining_us(&self) -> Option<u32> {
+        // We need to convert from native tics to us, multiplication could overflow in 32-bit
+        // arithmetic. So we convert to 64-bit.
+        let diff = self.get_alarm().wrapping_sub(self.now()).into_u64();
 
-    fn has_expired(&self) -> bool {
-        self.now() < self.get_alarm()
+        // If next alarm is more than one second away from now, alarm must have expired.
+        // Use this formulation to protect against errors when the alarm has passed.
+        // 1 second was chosen because it is significantly greater than the 400ms max value allowed
+        // by start(), and requires no computational overhead (e.g. using 500ms would require
+        // dividing the returned ticks by 2)
+        // However, if the alarm frequency is slow enough relative to the cpu frequency, it is
+        // possible this will be evaluated while now() == get_alarm(), so we special case that
+        // result where the alarm has fired but the subtraction has not overflowed
+        if diff >= <Self as Time>::Frequency::frequency() as u64 || diff == 0 {
+            None
+        } else {
+            let hertz = <Self as Time>::Frequency::frequency() as u64;
+            Some(((diff * 1_000_000) / hertz) as u32)
+        }
     }
 
     fn reset(&self) {

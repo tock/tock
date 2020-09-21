@@ -704,8 +704,7 @@ impl Radio {
     }
 
     fn rx(&self) {
-        let regs = &*self.registers;
-        regs.event_ready.write(Event::READY::CLEAR);
+        self.registers.event_ready.write(Event::READY::CLEAR);
 
         if self.transmitting.get() {
             let tbuf = self
@@ -722,41 +721,40 @@ impl Radio {
             self.rx_buf.replace(self.set_dma_ptr(rbuf));
         }
 
-        regs.task_rxen.write(Task::ENABLE::SET);
+        self.registers.task_rxen.write(Task::ENABLE::SET);
 
         self.enable_interrupts();
     }
 
     fn set_rx_address(&self) {
-        let regs = &*self.registers;
-        regs.rxaddresses.write(ReceiveAddresses::ADDRESS.val(1));
+        self.registers
+            .rxaddresses
+            .write(ReceiveAddresses::ADDRESS.val(1));
     }
 
     fn set_tx_address(&self) {
-        let regs = &*self.registers;
-        regs.txaddress.write(TransmitAddress::ADDRESS.val(0));
+        self.registers
+            .txaddress
+            .write(TransmitAddress::ADDRESS.val(0));
     }
 
     fn radio_on(&self) {
-        let regs = &*self.registers;
         // reset and enable power
-        regs.power.write(Task::ENABLE::CLEAR);
-        regs.power.write(Task::ENABLE::SET);
+        self.registers.power.write(Task::ENABLE::CLEAR);
+        self.registers.power.write(Task::ENABLE::SET);
     }
 
     fn radio_off(&self) {
-        let regs = &*self.registers;
-        regs.power.write(Task::ENABLE::CLEAR);
+        self.registers.power.write(Task::ENABLE::CLEAR);
     }
 
     fn set_tx_power(&self) {
-        let regs = &*self.registers;
-        regs.txpower.set(self.tx_power.get() as u32);
+        self.registers.txpower.set(self.tx_power.get() as u32);
     }
 
     fn set_dma_ptr(&self, buffer: &'static mut [u8]) -> &'static mut [u8] {
-        let regs = &*self.registers;
-        regs.packetptr
+        self.registers
+            .packetptr
             .set(buffer.as_ptr() as u32 + MIMIC_PSDU_OFFSET);
         buffer
     }
@@ -764,37 +762,38 @@ impl Radio {
     // TODO: Theres an additional step for 802154 rx/tx handling
     #[inline(never)]
     pub fn handle_interrupt(&self) {
-        let regs = &*self.registers;
         self.disable_all_interrupts();
 
-        if regs.event_ready.is_set(Event::READY) {
-            regs.event_ready.write(Event::READY::CLEAR);
-            regs.event_end.write(Event::READY::CLEAR);
-            if self.transmitting.get() && regs.state.get() == nrf5x::constants::RADIO_STATE_RXIDLE {
+        if self.registers.event_ready.is_set(Event::READY) {
+            self.registers.event_ready.write(Event::READY::CLEAR);
+            self.registers.event_end.write(Event::READY::CLEAR);
+            if self.transmitting.get()
+                && self.registers.state.get() == nrf5x::constants::RADIO_STATE_RXIDLE
+            {
                 if self.cca_count.get() > 0 {
                     unsafe {
                         ppi::PPI.disable(ppi::Channel::CH21::SET);
                     }
                 }
-                regs.task_ccastart.write(Task::ENABLE::SET);
+                self.registers.task_ccastart.write(Task::ENABLE::SET);
             } else {
-                regs.task_start.write(Task::ENABLE::SET);
+                self.registers.task_start.write(Task::ENABLE::SET);
             }
         }
 
-        if regs.event_framestart.is_set(Event::READY) {
-            regs.event_framestart.write(Event::READY::CLEAR);
+        if self.registers.event_framestart.is_set(Event::READY) {
+            self.registers.event_framestart.write(Event::READY::CLEAR);
         }
 
         //   IF we receive the go ahead (channel is clear)
         // THEN start the transmit part of the radio
-        if regs.event_ccaidle.is_set(Event::READY) {
-            regs.event_ccaidle.write(Event::READY::CLEAR);
-            regs.task_txen.write(Task::ENABLE::SET)
+        if self.registers.event_ccaidle.is_set(Event::READY) {
+            self.registers.event_ccaidle.write(Event::READY::CLEAR);
+            self.registers.task_txen.write(Task::ENABLE::SET)
         }
 
-        if regs.event_ccabusy.is_set(Event::READY) {
-            regs.event_ccabusy.write(Event::READY::CLEAR);
+        if self.registers.event_ccabusy.is_set(Event::READY) {
+            self.registers.event_ccabusy.write(Event::READY::CLEAR);
             //need to back off for a period of time outlined
             //in the IEEE 802.15.4 standard (see Figure 69 in
             //section 7.5.1.4 The CSMA-CA algorithm of the
@@ -824,22 +823,22 @@ impl Radio {
                     });
             }
 
-            regs.event_ready.write(Event::READY::CLEAR);
-            regs.task_disable.write(Task::ENABLE::SET);
+            self.registers.event_ready.write(Event::READY::CLEAR);
+            self.registers.task_disable.write(Task::ENABLE::SET);
             self.enable_interrupts();
         }
 
         // tx or rx finished!
-        if regs.event_end.is_set(Event::READY) {
-            regs.event_end.write(Event::READY::CLEAR);
+        if self.registers.event_end.is_set(Event::READY) {
+            self.registers.event_end.write(Event::READY::CLEAR);
 
-            let result = if regs.crcstatus.is_set(Event::READY) {
+            let result = if self.registers.crcstatus.is_set(Event::READY) {
                 ReturnCode::SUCCESS
             } else {
                 ReturnCode::FAIL
             };
 
-            match regs.state.get() {
+            match self.registers.state.get() {
                 nrf5x::constants::RADIO_STATE_TXRU
                 | nrf5x::constants::RADIO_STATE_TXIDLE
                 | nrf5x::constants::RADIO_STATE_TXDISABLE
@@ -869,7 +868,7 @@ impl Radio {
                         // And because the length field is directly read from the packet
                         // We need to add 2 to length to get the total length
 
-                        client.receive(rbuf, frame_len, regs.crcstatus.get() == 1, result)
+                        client.receive(rbuf, frame_len, self.registers.crcstatus.get() == 1, result)
                     });
                 }
                 // Radio state - Disabled
@@ -883,8 +882,7 @@ impl Radio {
     }
 
     pub fn enable_interrupts(&self) {
-        let regs = &*self.registers;
-        regs.intenset.write(
+        self.registers.intenset.write(
             Interrupt::READY::SET
                 + Interrupt::CCAIDLE::SET
                 + Interrupt::CCABUSY::SET
@@ -894,29 +892,25 @@ impl Radio {
     }
 
     pub fn enable_interrupt(&self, intr: u32) {
-        let regs = &*self.registers;
-        regs.intenset.set(intr);
+        self.registers.intenset.set(intr);
     }
 
     pub fn clear_interrupt(&self, intr: u32) {
-        let regs = &*self.registers;
-        regs.intenclr.set(intr);
+        self.registers.intenclr.set(intr);
     }
 
     pub fn disable_all_interrupts(&self) {
-        let regs = &*self.registers;
         // disable all possible interrupts
-        regs.intenclr.set(0xffffffff);
+        self.registers.intenclr.set(0xffffffff);
     }
 
     fn radio_initialize(&self) {
-        let regs = &*self.registers;
         self.radio_on();
 
         // Radio disable
-        regs.event_disabled.set(0);
-        regs.task_disable.write(Task::ENABLE::SET);
-        while regs.event_disabled.get() == 0 {}
+        self.registers.event_disabled.set(0);
+        self.registers.task_disable.write(Task::ENABLE::SET);
+        while self.registers.event_disabled.get() == 0 {}
         // end radio disable
 
         self.ieee802154_set_channel_rate();
@@ -942,22 +936,25 @@ impl Radio {
 
     // IEEE802.15.4 SPECIFICATION Section 6.20.12.5 of the NRF52840 Datasheet
     fn ieee802154_set_crc_config(&self) {
-        let regs = &*self.registers;
-        regs.crccnf
+        self.registers
+            .crccnf
             .write(CrcConfiguration::LEN::TWO + CrcConfiguration::SKIPADDR::IEEE802154);
-        regs.crcinit.set(nrf5x::constants::RADIO_CRCINIT_IEEE802154);
-        regs.crcpoly.set(nrf5x::constants::RADIO_CRCPOLY_IEEE802154);
+        self.registers
+            .crcinit
+            .set(nrf5x::constants::RADIO_CRCINIT_IEEE802154);
+        self.registers
+            .crcpoly
+            .set(nrf5x::constants::RADIO_CRCPOLY_IEEE802154);
     }
 
     fn ieee802154_set_rampup_mode(&self) {
-        let regs = &*self.registers;
-        regs.modecnf0
+        self.registers
+            .modecnf0
             .write(RadioModeConfig::RU::FAST + RadioModeConfig::DTX::CENTER);
     }
 
     fn ieee802154_set_cca_config(&self) {
-        let regs = &*self.registers;
-        regs.ccactrl.write(
+        self.registers.ccactrl.write(
             CCAControl::CCAMODE.val(nrf5x::constants::IEEE802154_CCA_MODE)
                 + CCAControl::CCAEDTHRESH.val(nrf5x::constants::IEEE802154_CCA_ED_THRESH)
                 + CCAControl::CCACORRTHRESH.val(nrf5x::constants::IEEE802154_CCA_CORR_THRESH)
@@ -968,26 +965,24 @@ impl Radio {
     // Packet configuration
     // Settings taken from RiotOS nrf52840 15.4 driver
     fn ieee802154_set_packet_config(&self) {
-        let regs = &*self.registers;
-
-        regs.pcnf0.write(
+        self.registers.pcnf0.write(
             PacketConfiguration0::LFLEN.val(8)
                 + PacketConfiguration0::PLEN::THIRTYTWOZEROS
                 + PacketConfiguration0::CRCINC::INCLUDE,
         );
 
-        regs.pcnf1
+        self.registers
+            .pcnf1
             .write(PacketConfiguration1::MAXLEN.val(nrf5x::constants::RADIO_PAYLOAD_LENGTH as u32));
     }
 
     fn ieee802154_set_channel_rate(&self) {
-        let regs = &*self.registers;
-        regs.mode.write(Mode::MODE::IEEE802154_250KBIT);
+        self.registers.mode.write(Mode::MODE::IEEE802154_250KBIT);
     }
 
     fn ieee802154_set_channel_freq(&self, channel: RadioChannel) {
-        let regs = &*self.registers;
-        regs.frequency
+        self.registers
+            .frequency
             .write(Frequency::FREQUENCY.val(channel as u32));
     }
 
