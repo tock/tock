@@ -274,16 +274,18 @@ impl CortexMRegion {
                 RegionAttributes::AP::ReadWrite,
                 RegionAttributes::XN::Disable,
             ),
-            mpu::Permissions::ReadExecuteOnly => {
-                (RegionAttributes::AP::ReadOnly, RegionAttributes::XN::Enable)
-            }
+            mpu::Permissions::ReadExecuteOnly => (
+                RegionAttributes::AP::UnprivilegedReadOnly,
+                RegionAttributes::XN::Enable,
+            ),
             mpu::Permissions::ReadOnly => (
-                RegionAttributes::AP::ReadOnly,
+                RegionAttributes::AP::UnprivilegedReadOnly,
                 RegionAttributes::XN::Disable,
             ),
-            mpu::Permissions::ExecuteOnly => {
-                (RegionAttributes::AP::NoAccess, RegionAttributes::XN::Enable)
-            }
+            mpu::Permissions::ExecuteOnly => (
+                RegionAttributes::AP::PrivilegedOnly,
+                RegionAttributes::XN::Enable,
+            ),
         };
 
         // Base address register
