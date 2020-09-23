@@ -298,7 +298,6 @@ register_bitfields![u32,
 const LPUART1_BASE: StaticRef<LpuartRegisters> =
     unsafe { StaticRef::new(0x40184000 as *const LpuartRegisters) };
 
-#[allow(non_camel_case_types)]
 #[derive(Copy, Clone, PartialEq)]
 enum LPUARTStateTX {
     Idle,
@@ -306,7 +305,6 @@ enum LPUARTStateTX {
     AbortRequested,
 }
 
-#[allow(non_camel_case_types)]
 #[derive(Copy, Clone, PartialEq)]
 enum USARTStateRX {
     Idle,
