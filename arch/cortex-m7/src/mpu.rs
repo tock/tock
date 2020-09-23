@@ -1,5 +1,5 @@
-//! Implementation of the memory protection unit for the Cortex-M3 and
-//! Cortex-M4.
+//! Implementation of the memory protection unit for the Cortex-M3,
+//! Cortex-M4 and Cortex-M7.
 
 use core::cell::Cell;
 use core::cmp;
@@ -12,7 +12,7 @@ use kernel::common::StaticRef;
 use kernel::mpu;
 use kernel::AppId;
 
-/// MPU Registers for the Cortex-M3 and Cortex-M4 families
+/// MPU Registers for the Cortex-M3, Cortex-M4 and Cortex-M7 families
 /// Described in section 4.5 of
 /// <http://infocenter.arm.com/help/topic/com.arm.doc.dui0553a/DUI0553A_cortex_m4_dgug.pdf>
 #[repr(C)]
@@ -152,7 +152,7 @@ impl MPU {
 /// of region configuration calculation
 pub struct CortexMConfig {
     /// The computed region configuration for this process.
-    regions: [CortexMRegion; 8],
+    regions: [CortexMRegion; 16],
     /// Has the configuration changed since the last time the this process
     /// configuration was written to hardware?
     is_dirty: Cell<bool>,
@@ -172,6 +172,14 @@ impl Default for CortexMConfig {
                 CortexMRegion::empty(5),
                 CortexMRegion::empty(6),
                 CortexMRegion::empty(7),
+                CortexMRegion::empty(8),
+                CortexMRegion::empty(9),
+                CortexMRegion::empty(10),
+                CortexMRegion::empty(11),
+                CortexMRegion::empty(12),
+                CortexMRegion::empty(13),
+                CortexMRegion::empty(14),
+                CortexMRegion::empty(15),
             ],
             is_dirty: Cell::new(true),
         }
