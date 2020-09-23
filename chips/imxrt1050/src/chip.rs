@@ -2,10 +2,8 @@
 
 use core::fmt::Write;
 use cortexm7;
-use kernel::common::deferred_call;
 use kernel::Chip;
 
-use crate::deferred_call_tasks::Task;
 use crate::gpt1;
 use crate::lpi2c;
 use crate::lpuart;
@@ -36,11 +34,7 @@ impl Chip for Imxrt1050 {
     fn service_pending_interrupts(&self) {
         unsafe {
             loop {
-                if let Some(task) = deferred_call::DeferredCall::next_pending() {
-                    match task {
-                        Task::Nop => {}
-                    }
-                } else if let Some(interrupt) = cortexm7::nvic::next_pending() {
+                if let Some(interrupt) = cortexm7::nvic::next_pending() {
                     match interrupt {
                         nvic::LPUART1 => lpuart::LPUART1.handle_interrupt(),
                         nvic::LPI2C1 => lpi2c::LPI2C1.handle_event(),
@@ -62,7 +56,7 @@ impl Chip for Imxrt1050 {
     }
 
     fn has_pending_interrupts(&self) -> bool {
-        unsafe { cortexm7::nvic::has_pending() || deferred_call::has_tasks() }
+        unsafe { cortexm7::nvic::has_pending() }
     }
 
     fn mpu(&self) -> &cortexm7::mpu::MPU {

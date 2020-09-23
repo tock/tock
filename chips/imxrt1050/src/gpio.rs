@@ -418,13 +418,14 @@ const GPIO4_BASE: StaticRef<GpioRegisters> =
 const GPIO5_BASE: StaticRef<GpioRegisters> =
     unsafe { StaticRef::new(0x400C0000 as *const GpioRegisters) };
 
-/// Imxrt1050-evkb has 5 GPIO ports labeled from 1-5 [^1]. This is represented
-/// by three bits.
-///
-/// [^1]: 12.5.1 GPIO memory map, page 1009 of the Reference Manual.
 enum_from_primitive! {
     #[repr(u8)]
     #[derive(PartialEq)]
+
+    /// Imxrt1050-evkb has 5 GPIO ports labeled from 1-5 [^1]. This is represented
+    /// by three bits.
+    ///
+    /// [^1]: 12.5.1 GPIO memory map, page 1009 of the Reference Manual.
     pub enum GpioPort {
         GPIO1 = 0b000,
         GPIO2 = 0b001,
@@ -572,16 +573,17 @@ impl PinId {
     }
 }
 
-/// GPIO pin mode
-/// In order to set alternate functions such as LPI2C or LPUART,
-/// you will need to use iomuxc enable_sw_mux_ctl_pad_gpio with
-/// the specific MUX_MODE according to the reference manual (Chapter 11).
-/// For the gpio mode, input or output we set the GDIR pin accordingly [^1]
-///
-/// [^1]: 12.4.3. GPIO Programming, page 1008 of the Reference Manual
 enum_from_primitive! {
     #[repr(u32)]
     #[derive(PartialEq)]
+
+    /// GPIO pin mode
+    /// In order to set alternate functions such as LPI2C or LPUART,
+    /// you will need to use iomuxc enable_sw_mux_ctl_pad_gpio with
+    /// the specific MUX_MODE according to the reference manual (Chapter 11).
+    /// For the gpio mode, input or output we set the GDIR pin accordingly [^1]
+    ///
+    /// [^1]: 12.4.3. GPIO Programming, page 1008 of the Reference Manual
     pub enum Mode {
         Input = 0b00,
         Output = 0b01

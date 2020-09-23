@@ -119,7 +119,7 @@ Maybe...
 
   * `make` (just instrumenting `cargo`)
 
-  * Rust (nightly for `llvm_asm!`, compiling `core`, etc)
+  * Rust (nightly for `asm!`, compiling `core`, etc)
 
   * `arm-none-eabi` GCC/LD to link binaries
 

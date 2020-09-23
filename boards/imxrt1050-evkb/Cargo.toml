@@ -11,6 +11,3 @@ cortexm7 = { path = "../../arch/cortex-m7" }
 capsules = { path = "../../capsules" }
 kernel = { path = "../../kernel" }
 imxrt1050 = { path = "../../chips/imxrt1050" }
-
-[build-dependencies]
-cc = "1.0.25"
