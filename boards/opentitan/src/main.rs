@@ -25,8 +25,12 @@ use rv32i::csr;
 #[allow(dead_code)]
 mod aes_test;
 
+#[allow(dead_code)]
+mod multi_alarm_test;
+
 pub mod io;
 pub mod usb;
+
 //
 // Actual memory for holding the active process structures. Need an empty list
 // at least.
@@ -197,7 +201,7 @@ pub unsafe fn reset_handler() {
         MuxAlarm<'static, earlgrey::timer::RvTimer>,
         MuxAlarm::new(alarm)
     );
-    hil::time::Alarm::set_client(&earlgrey::timer::TIMER, mux_alarm);
+    hil::time::Alarm::set_alarm_client(&earlgrey::timer::TIMER, mux_alarm);
 
     // Alarm
     let virtual_alarm_user = static_init!(
@@ -215,13 +219,13 @@ pub unsafe fn reset_handler() {
             board_kernel.create_grant(&memory_allocation_cap)
         )
     );
-    hil::time::Alarm::set_client(virtual_alarm_user, alarm);
+    hil::time::Alarm::set_alarm_client(virtual_alarm_user, alarm);
 
     let chip = static_init!(
         earlgrey::chip::EarlGrey<VirtualMuxAlarm<'static, earlgrey::timer::RvTimer>>,
         earlgrey::chip::EarlGrey::new(scheduler_timer_virtual_alarm)
     );
-    scheduler_timer_virtual_alarm.set_client(chip.scheduler_timer());
+    scheduler_timer_virtual_alarm.set_alarm_client(chip.scheduler_timer());
     CHIP = Some(chip);
 
     // Need to enable all interrupts for Tock Kernel
@@ -267,6 +271,8 @@ pub unsafe fn reset_handler() {
     );
 
     earlgrey::i2c::I2C.set_master_client(i2c_master);
+    //Uncomment to run multi alarm test
+    //multi_alarm_test::run_multi_alarm(mux_alarm);
 
     let usb = usb::UsbComponent::new(board_kernel).finalize(());
 
@@ -294,8 +300,6 @@ pub unsafe fn reset_handler() {
     // Configure the USB stack to enable a serial port over CDC-ACM.
     cdc.enable();
     cdc.attach();
-
-    debug!("OpenTitan initialisation complete. Entering main loop");
 
     /// These symbols are defined in the linker script.
     extern "C" {
@@ -339,6 +343,7 @@ pub unsafe fn reset_handler() {
         debug!("Error loading processes!");
         debug!("{:?}", err);
     });
+    debug!("OpenTitan initialisation complete. Entering main loop");
 
     let scheduler = components::sched::priority::PriorityComponent::new(board_kernel).finalize(());
     board_kernel.kernel_loop(&opentitan, chip, None, scheduler, &main_loop_cap);

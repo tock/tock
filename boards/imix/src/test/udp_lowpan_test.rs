@@ -132,7 +132,6 @@ use kernel::capabilities::NetworkCapabilityCreationCapability;
 use kernel::component::Component;
 use kernel::create_capability;
 use kernel::debug;
-use kernel::hil::time::Frequency;
 use kernel::hil::time::{self, Alarm};
 use kernel::static_init;
 use kernel::ReturnCode;
@@ -223,7 +222,7 @@ pub unsafe fn initialize_all(
         )
     );
 
-    udp_lowpan_test.alarm.set_client(udp_lowpan_test);
+    udp_lowpan_test.alarm.set_alarm_client(udp_lowpan_test);
 
     udp_lowpan_test
 }
@@ -265,9 +264,9 @@ impl<'a, A: time::Alarm<'a>> LowpanTest<'a, A> {
     }
 
     fn schedule_next(&self) {
-        let delta = (A::Frequency::frequency() * TEST_DELAY_MS) / 1000;
-        let next = self.alarm.now().wrapping_add(delta);
-        self.alarm.set_alarm(next);
+        let delta = A::ticks_from_ms(TEST_DELAY_MS);
+        let now = self.alarm.now();
+        self.alarm.set_alarm(now, delta);
     }
 
     fn run_test_and_increment(&self) {
@@ -688,7 +687,7 @@ impl<'a, A: time::Alarm<'a>> LowpanTest<'a, A> {
 }
 
 impl<'a, A: time::Alarm<'a>> time::AlarmClient for LowpanTest<'a, A> {
-    fn fired(&self) {
+    fn alarm(&self) {
         self.run_test_and_increment();
     }
 }

@@ -13,7 +13,7 @@ use nrf52::rtc::Rtc;
 
 use kernel::capabilities;
 use kernel::component::Component;
-use kernel::hil;
+use kernel::hil::time::Alarm;
 use kernel::{create_capability, static_init};
 
 // Save some deep nesting
@@ -73,7 +73,7 @@ impl Component for BLEComponent {
         kernel::hil::ble_advertising::BleAdvertisementDriver::set_transmit_client(
             self.radio, ble_radio,
         );
-        hil::time::Alarm::set_client(ble_radio_virtual_alarm, ble_radio);
+        ble_radio_virtual_alarm.set_alarm_client(ble_radio);
 
         ble_radio
     }

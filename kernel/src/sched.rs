@@ -612,6 +612,7 @@ impl Kernel {
                     // generate an interrupt when the timeslice has expired. The
                     // underlying timer is not affected.
                     process.setup_mpu();
+
                     chip.mpu().enable_app_mpu();
                     scheduler_timer.arm();
                     let context_switch_reason = process.switch_to();

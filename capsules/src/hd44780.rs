@@ -132,7 +132,7 @@ use crate::driver;
 use core::cell::Cell;
 use kernel::common::cells::TakeCell;
 use kernel::hil::gpio;
-use kernel::hil::time::{self, Alarm, Frequency};
+use kernel::hil::time::{self, Alarm};
 use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
 
 /// Syscall driver number.
@@ -525,7 +525,7 @@ impl<'a, A: Alarm<'a>> HD44780<'a, A> {
 
     /* pulse function starts executing the toggle needed by the device after
      * each write operation, according to the HD44780 datasheet, figure 26,
-     * toggle that will be continued in the fired() function.
+     * toggle that will be continued in the alarm() function.
      *
      * As argument, there is :
      *  - the status of the program after the process of pulse is done
@@ -595,7 +595,7 @@ impl<'a, A: Alarm<'a>> HD44780<'a, A> {
     /* lcd_command is the main funcion that communicates with the device, and
      * sends certain values received as arguments to the device (through
      * write_4_bits function). Due to the delays, the funcion is continued in
-     * the fired() function.
+     * the alarm() function.
      *
      * As arguments, there are:
      *  - the value to be sent to the device
@@ -652,11 +652,8 @@ impl<'a, A: Alarm<'a>> HD44780<'a, A> {
      */
     fn set_delay(&self, timer: u32, next_status: LCDStatus) {
         self.lcd_status.set(next_status);
-        self.alarm.set_alarm(
-            self.alarm
-                .now()
-                .wrapping_add(<A::Frequency>::frequency() / timer),
-        )
+        let interval = A::ticks_from_us(1000000 / timer);
+        self.alarm.set_alarm(self.alarm.now(), interval);
     }
 
     /* check_buffer checks if there is enough space available on the buffer
@@ -1029,10 +1026,10 @@ impl<'a, A: Alarm<'a>> Driver for HD44780<'a, A> {
 }
 
 impl<'a, A: Alarm<'a>> time::AlarmClient for HD44780<'a, A> {
-    /* fired() is called after each alarm finished, and depending on the
+    /* alarm() is called after each alarm finished, and depending on the
      * current state of the program, the next step in being decided.
      */
-    fn fired(&self) {
+    fn alarm(&self) {
         let state = self.lcd_status.get();
 
         match state {

@@ -4,7 +4,10 @@ use core::cell::Cell;
 use kernel::common::cells::OptionalCell;
 use kernel::common::registers::{register_bitfields, register_structs, ReadWrite};
 use kernel::common::StaticRef;
-use kernel::hil;
+use kernel::hil::time::{
+    Alarm, AlarmClient, Counter, Frequency, OverflowClient, Ticks, Ticks16, Time,
+};
+use kernel::ReturnCode;
 
 pub static mut TIMER_A0: TimerA = TimerA::new(TIMER_A0_BASE);
 pub static mut TIMER_A1: TimerA = TimerA::new(TIMER_A1_BASE);
@@ -230,7 +233,7 @@ enum TimerMode {
 
 pub struct TimerAFrequency {}
 
-impl hil::time::Frequency for TimerAFrequency {
+impl Frequency for TimerAFrequency {
     fn frequency() -> u32 {
         crate::cs::ACLK_HZ / 16
     }
@@ -239,7 +242,7 @@ impl hil::time::Frequency for TimerAFrequency {
 pub struct TimerA<'a> {
     registers: StaticRef<TimerRegisters>,
     mode: Cell<TimerMode>,
-    alarm_client: OptionalCell<&'a dyn hil::time::AlarmClient>,
+    alarm_client: OptionalCell<&'a dyn AlarmClient>,
 }
 
 impl<'a> TimerA<'a> {
@@ -279,7 +282,7 @@ impl<'a> TimerA<'a> {
     fn handle_alarm_interrupt(&self) {
         // Disable the interrupt, since the alarm was fired
         self.registers.cctl0.modify(TAxCCTLx::CCIE::CLEAR);
-        self.alarm_client.map(|client| client.fired());
+        self.alarm_client.map(|client| client.alarm());
     }
 
     pub fn handle_interrupt(&self) {
@@ -292,47 +295,82 @@ impl<'a> TimerA<'a> {
     }
 }
 
-impl<'a> hil::time::Time for TimerA<'a> {
+impl<'a> Time for TimerA<'a> {
     type Frequency = TimerAFrequency;
+    type Ticks = Ticks16;
 
-    fn now(&self) -> u32 {
-        self.registers.cnt.get() as u32
-    }
-
-    fn max_tics(&self) -> u32 {
-        core::u16::MAX as u32
+    fn now(&self) -> Ticks16 {
+        Self::Ticks::from(self.registers.cnt.get())
     }
 }
 
-impl<'a> hil::time::Alarm<'a> for TimerA<'a> {
-    fn set_client(&'a self, client: &'a dyn hil::time::AlarmClient) {
+impl<'a> Counter<'a> for TimerA<'a> {
+    fn set_overflow_client(&'a self, _client: &'a dyn OverflowClient) {}
+
+    fn start(&self) -> ReturnCode {
+        self.setup_for_alarm();
+        ReturnCode::SUCCESS
+    }
+
+    fn stop(&self) -> ReturnCode {
+        self.stop_timer();
+        ReturnCode::SUCCESS
+    }
+
+    fn reset(&self) -> ReturnCode {
+        self.registers.cnt.set(0);
+        ReturnCode::SUCCESS
+    }
+
+    fn is_running(&self) -> bool {
+        self.registers.cctl0.is_set(TAxCCTLx::CCIE)
+    }
+}
+
+impl<'a> Alarm<'a> for TimerA<'a> {
+    fn set_alarm_client(&'a self, client: &'a dyn AlarmClient) {
         self.alarm_client.set(client);
     }
 
-    fn set_alarm(&self, tics: u32) {
+    fn set_alarm(&self, reference: Self::Ticks, dt: Self::Ticks) {
         if self.mode.get() != TimerMode::Alarm {
             self.setup_for_alarm();
         }
+        let now = self.now();
+        let mut expire = reference.wrapping_add(dt);
+        if !now.within_range(reference, expire) {
+            expire = now;
+        }
 
+        if expire.wrapping_sub(now) <= self.minimum_dt() {
+            expire = now.wrapping_add(self.minimum_dt());
+        }
+
+        self.disarm();
         // Set compare register
-        self.registers.ccr0.set(tics as u16);
+        self.registers.ccr0.set(expire.into_u16());
         // Enable capture/compare interrupt
         self.registers.cctl0.modify(TAxCCTLx::CCIE::SET);
     }
 
-    fn get_alarm(&self) -> u32 {
-        self.registers.ccr0.get() as u32
+    fn get_alarm(&self) -> Self::Ticks {
+        Self::Ticks::from(self.registers.ccr0.get())
     }
 
-    fn is_enabled(&self) -> bool {
+    fn is_armed(&self) -> bool {
         let int_enabled = self.registers.cctl0.is_set(TAxCCTLx::CCIE);
         (self.mode.get() == TimerMode::Alarm) && int_enabled
     }
 
-    fn disable(&self) {
+    fn disarm(&self) -> ReturnCode {
         // Disable the capture/compare interrupt
         self.registers.cctl0.modify(TAxCCTLx::CCIE::CLEAR);
         // Stop the timer completely
-        self.stop_timer();
+        //self.stop_timer();
+        ReturnCode::SUCCESS
+    }
+
+    fn minimum_dt(&self) -> Self::Ticks {
+        Self::Ticks::from(1 as u16)
     }
 }

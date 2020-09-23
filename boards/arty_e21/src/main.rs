@@ -14,6 +14,9 @@ use kernel::hil;
 use kernel::Platform;
 use kernel::{create_capability, debug, static_init};
 
+#[allow(dead_code)]
+mod multi_alarm_test;
+#[allow(dead_code)]
 mod timer_test;
 
 pub mod io;
@@ -124,7 +127,7 @@ pub unsafe fn reset_handler() {
         MuxAlarm<'static, rv32i::machine_timer::MachineTimer>,
         MuxAlarm::new(&arty_e21_chip::timer::MACHINETIMER)
     );
-    hil::time::Alarm::set_client(&arty_e21_chip::timer::MACHINETIMER, mux_alarm);
+    hil::time::Alarm::set_alarm_client(&arty_e21_chip::timer::MACHINETIMER, mux_alarm);
 
     // Alarm
     let alarm = components::alarm::AlarmDriverComponent::new(board_kernel, mux_alarm).finalize(
@@ -212,7 +215,9 @@ pub unsafe fn reset_handler() {
 
     debug!("Initialization complete. Entering main loop.");
 
-    // timertest.start();
+    // Uncomment to run tests
+    //timertest.start();
+    //multi_alarm_test::run_multi_alarm(mux_alarm);
 
     /// These symbols are defined in the linker script.
     extern "C" {

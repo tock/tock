@@ -26,7 +26,7 @@ use core::cell::Cell;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::common::leasable_buffer::LeasableBuffer;
 use kernel::debug;
-use kernel::hil::time::{self, Frequency};
+use kernel::hil::time;
 use kernel::ReturnCode;
 
 /// This trait must be implemented by upper layers in order to receive
@@ -246,7 +246,7 @@ impl<'a, A: time::Alarm<'a>> IP6SendStruct<'a, A> {
 }
 
 impl<'a, A: time::Alarm<'a>> time::AlarmClient for IP6SendStruct<'a, A> {
-    fn fired(&self) {
+    fn alarm(&self) {
         let result = self.send_next_fragment();
         if result != ReturnCode::SUCCESS {
             self.send_completed(result);
@@ -271,9 +271,8 @@ impl<'a, A: time::Alarm<'a>> TxClient for IP6SendStruct<'a, A> {
             // One flaw with this is that we also introduce a delay after sending the last
             // fragment, before passing the send_done callback back to the client. This
             // could be optimized by checking if it is the last fragment before setting the timer.
-            let interval = (100000 as u32) * <A::Frequency>::frequency() / 1000000;
-            let tics = self.alarm.now().wrapping_add(interval);
-            self.alarm.set_alarm(tics);
+            self.alarm
+                .set_alarm(self.alarm.now(), A::ticks_from_ms(100));
         }
     }
 }

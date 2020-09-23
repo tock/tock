@@ -17,6 +17,7 @@ use capsules::net::ipv6::ip_utils::IPAddr;
 use capsules::virtual_alarm::VirtualMuxAlarm;
 use capsules::virtual_i2c::MuxI2C;
 use capsules::virtual_spi::VirtualSpiMasterDevice;
+//use capsules::virtual_timer::MuxTimer;
 use kernel::capabilities;
 use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::component::Component;
@@ -24,6 +25,7 @@ use kernel::hil::i2c::I2CMaster;
 use kernel::hil::radio;
 #[allow(unused_imports)]
 use kernel::hil::radio::{RadioConfig, RadioData};
+//use kernel::hil::time::Alarm;
 use kernel::hil::Controller;
 #[allow(unused_imports)]
 use kernel::{create_capability, debug, debug_gpio, static_init};
@@ -59,6 +61,15 @@ mod test;
 
 // Helper functions for enabling/disabling power on Imix submodules
 mod power;
+
+#[allow(dead_code)]
+mod alarm_test;
+
+#[allow(dead_code)]
+mod multi_alarm_test;
+
+#[allow(dead_code)]
+mod multi_timer_test;
 
 // State for loading apps.
 
@@ -535,6 +546,20 @@ pub unsafe fn reset_handler() {
         mux_alarm,
     );*/
     //udp_lowpan_test.start();
+
+    // alarm_test::run_alarm();
+    /*let virtual_alarm_timer = static_init!(
+        VirtualMuxAlarm<'static, sam4l::ast::Ast>,
+        VirtualMuxAlarm::new(mux_alarm)
+    );
+
+    let mux_timer = static_init!(
+        MuxTimer<'static, sam4l::ast::Ast>,
+        MuxTimer::new(virtual_alarm_timer)
+    );*/
+    //virtual_alarm_timer.set_alarm_client(mux_timer);
+
+    //multi_alarm_test::run_multi_alarm(mux_alarm);
 
     debug!("Initialization complete. Entering main loop");
 

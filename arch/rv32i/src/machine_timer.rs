@@ -2,31 +2,26 @@
 
 use crate::csr;
 use kernel::common::cells::OptionalCell;
-use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite};
+use kernel::common::registers::{register_structs, ReadWrite};
 use kernel::common::StaticRef;
-use kernel::hil;
-use kernel::hil::time::{Alarm, Frequency, Time};
+use kernel::hil::time::{self, Alarm, Freq32KHz, Frequency, Ticks, Ticks64, Time};
+use kernel::ReturnCode;
 
-#[repr(C)]
-pub struct MachineTimerRegisters {
-    _reserved0: [u8; 0x4000],
-    mtimecmp: ReadWrite<u64, MTimeCmp::Register>,
-    _reserved1: [u8; 0x7FF0],
-    mtime: ReadOnly<u64, MTime::Register>,
+register_structs! {
+    pub MachineTimerRegisters {
+        (0x0000 => _reserved),
+        (0x4000 => compare_low: ReadWrite<u32>),
+        (0x4004 => compare_high: ReadWrite<u32>),
+        (0x4008 => _reserved2),
+        (0xBFF8 => value_low: ReadWrite<u32>),
+        (0xBFFC => value_high: ReadWrite<u32>),
+        (0xC000 => @END),
+    }
 }
-
-register_bitfields![u64,
-    MTimeCmp [
-        MTIMECMP OFFSET(0) NUMBITS(64) []
-    ],
-    MTime [
-        MTIME OFFSET(0) NUMBITS(64) []
-    ]
-];
 
 pub struct MachineTimer<'a> {
     registers: StaticRef<MachineTimerRegisters>,
-    client: OptionalCell<&'a dyn hil::time::AlarmClient>,
+    client: OptionalCell<&'a dyn time::AlarmClient>,
 }
 
 impl MachineTimer<'_> {
@@ -41,62 +36,87 @@ impl MachineTimer<'_> {
         self.disable_machine_timer();
 
         self.client.map(|client| {
-            client.fired();
+            client.alarm();
         });
     }
 
     fn disable_machine_timer(&self) {
-        // Disable by setting the mtimecmp register to its max value, which
-        // we will never hit.
-        self.registers
-            .mtimecmp
-            .write(MTimeCmp::MTIMECMP.val(0xFFFF_FFFF_FFFF_FFFF));
+        self.registers.compare_high.set(0xFFFF_FFFF);
+        self.registers.compare_low.set(0xFFFF_FFFF);
     }
 }
 
-impl hil::time::Time for MachineTimer<'_> {
-    type Frequency = hil::time::Freq32KHz;
+impl Time for MachineTimer<'_> {
+    type Frequency = Freq32KHz;
+    type Ticks = Ticks64;
 
-    fn now(&self) -> u32 {
-        self.registers.mtime.get() as u32
-    }
-
-    fn max_tics(&self) -> u32 {
-        core::u32::MAX
+    fn now(&self) -> Ticks64 {
+        let first_low: u32 = self.registers.value_low.get();
+        let mut high: u32 = self.registers.value_high.get();
+        let second_low: u32 = self.registers.value_low.get();
+        if second_low < first_low {
+            // Wraparound
+            high = self.registers.value_high.get();
+        }
+        Ticks64::from(((high as u64) << 32) | second_low as u64)
     }
 }
 
-impl<'a> hil::time::Alarm<'a> for MachineTimer<'a> {
-    fn set_client(&self, client: &'a dyn hil::time::AlarmClient) {
+impl<'a> time::Alarm<'a> for MachineTimer<'a> {
+    fn set_alarm_client(&self, client: &'a dyn time::AlarmClient) {
         self.client.set(client);
     }
 
-    fn set_alarm(&self, tics: u32) {
-        // TODO: Need to avoid generating spurious interrupts from
-        // it taking 2 instructions to write 64 bit registers, see RISC-V Priveleged ISA
-        //
-        // Correct approach will require seperating MTIMECMP into separate registers. Then,
-        // first, set the upper register to the largest value possible without setting
-        // off the alarm; this way, we can set the lower register without setting
-        // off the alarm, then set the upper register to the correct value.
-        self.registers
-            .mtimecmp
-            .write(MTimeCmp::MTIMECMP.val(tics as u64));
+    fn set_alarm(&self, reference: Self::Ticks, dt: Self::Ticks) {
+        csr::CSR.mie.modify(csr::mie::mie::mtimer::CLEAR);
+        // This does not handle the 64-bit wraparound case.
+        // Because mtimer fires if the counter is >= the compare,
+        // handling wraparound requires setting compare to the
+        // maximum value, issuing a callback on the overflow client
+        // if there is one, spinning until it wraps around to 0, then
+        // setting the compare to the correct value.
+        let regs = self.registers;
+        let now = self.now();
+        let mut expire = reference.wrapping_add(dt);
+
+        if !now.within_range(reference, expire) {
+            expire = now;
+        }
+
+        let val = expire.into_u64();
+
+        let high = (val >> 32) as u32;
+        let low = (val & 0xffffffff) as u32;
+
+        // Recommended approach for setting the two compare registers
+        // (RISC-V Privileged Architectures 3.1.15) -pal 8/6/20
+        regs.compare_low.set(0xFFFF_FFFF);
+        regs.compare_high.set(high);
+        regs.compare_low.set(low);
+
         csr::CSR.mie.modify(csr::mie::mie::mtimer::SET);
     }
 
-    fn get_alarm(&self) -> u32 {
-        self.registers.mtimecmp.get() as u32
+    fn get_alarm(&self) -> Self::Ticks {
+        let mut val: u64 = (self.registers.compare_high.get() as u64) << 32;
+        val |= self.registers.compare_low.get() as u64;
+        Ticks64::from(val)
     }
 
-    fn disable(&self) {
+    fn disarm(&self) -> ReturnCode {
         self.disable_machine_timer();
+        ReturnCode::SUCCESS
     }
 
-    fn is_enabled(&self) -> bool {
+    fn is_armed(&self) -> bool {
         // Check if mtimecmp is the max value. If it is, then we are not armed,
         // otherwise we assume we have a value set.
-        self.registers.mtimecmp.get() != 0xFFFF_FFFF_FFFF_FFFF
+        self.registers.compare_high.get() != 0xFFFF_FFFF
+            || self.registers.compare_low.get() != 0xFFFF_FFFF
+    }
+
+    fn minimum_dt(&self) -> Self::Ticks {
+        Self::Ticks::from(1u64)
     }
 }
 
@@ -106,26 +126,18 @@ impl<'a> hil::time::Alarm<'a> for MachineTimer<'a> {
 /// implementation will not work alongside other uses of the machine timer.
 impl kernel::SchedulerTimer for MachineTimer<'_> {
     fn start(&self, us: u32) {
-        let tics = {
-            // We need to convert from microseconds to native tics, which could overflow in 32-bit
-            // arithmetic. So we convert to 64-bit. 64-bit division is an expensive subroutine, but
-            // if `us` is a power of 10 the compiler will simplify it with the 1_000_000 divisor
-            // instead.
-            let us = us as u64;
-            let hertz = <Self as Time>::Frequency::frequency() as u64;
-
-            hertz * us / 1_000_000
-        };
-        self.registers.mtimecmp.write(MTimeCmp::MTIMECMP.val(tics));
+        let now = self.now();
+        let tics = Self::ticks_from_us(us);
+        self.set_alarm(now, tics);
     }
 
     fn get_remaining_us(&self) -> Option<u32> {
         // We need to convert from native tics to us, multiplication could overflow in 32-bit
         // arithmetic. So we convert to 64-bit.
+        let diff = self.get_alarm().wrapping_sub(self.now()).into_u64();
 
-        let diff = self.get_alarm().wrapping_sub(self.now()) as u64;
         // If next alarm is more than one second away from now, alarm must have expired.
-        // Use this formulation to protect against errors when systick wraps around.
+        // Use this formulation to protect against errors when the alarm has passed.
         // 1 second was chosen because it is significantly greater than the 400ms max value allowed
         // by start(), and requires no computational overhead (e.g. using 500ms would require
         // dividing the returned ticks by 2)

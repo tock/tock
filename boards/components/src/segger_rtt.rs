@@ -22,8 +22,7 @@ use capsules::segger_rtt::{
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use core::mem::MaybeUninit;
 use kernel::component::Component;
-use kernel::hil::time;
-use kernel::hil::time::Alarm;
+use kernel::hil::time::{self, Alarm};
 use kernel::{static_init, static_init_half};
 
 // Setup static space for the objects.
@@ -139,7 +138,7 @@ impl<A: 'static + time::Alarm<'static>> Component for SeggerRttComponent<A> {
             )
         );
 
-        virtual_alarm_rtt.set_client(rtt);
+        virtual_alarm_rtt.set_alarm_client(rtt);
 
         rtt
     }

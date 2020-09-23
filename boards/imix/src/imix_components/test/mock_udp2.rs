@@ -107,7 +107,7 @@ impl Component for MockUDPComponent2 {
         );
         udp_send.set_client(mock_udp);
         udp_recv.set_client(mock_udp);
-        udp_alarm.set_client(mock_udp);
+        udp_alarm.set_alarm_client(mock_udp);
         mock_udp
     }
 }

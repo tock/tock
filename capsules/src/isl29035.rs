@@ -32,7 +32,7 @@ use core::cell::Cell;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::i2c::{Error, I2CClient, I2CDevice};
 use kernel::hil::sensors::{AmbientLight, AmbientLightClient};
-use kernel::hil::time::{self, Frequency};
+use kernel::hil::time;
 use kernel::ReturnCode;
 
 pub static mut BUF: [u8; 3] = [0; 3];
@@ -101,7 +101,7 @@ impl<'a, A: time::Alarm<'a>> AmbientLight<'a> for Isl29035<'a, A> {
 }
 
 impl<'a, A: time::Alarm<'a>> time::AlarmClient for Isl29035<'a, A> {
-    fn fired(&self) {
+    fn alarm(&self) {
         self.buffer.take().map(|buffer| {
             // Turn on i2c to send commands.
             self.i2c.enable();
@@ -120,9 +120,8 @@ impl<'a, A: time::Alarm<'a>> I2CClient for Isl29035<'a, A> {
             State::Enabling => {
                 // Set a timer to wait for the conversion to be done.
                 // For 8 bits, thats 410 us (per Table 11 in the datasheet).
-                let interval = (410 as u32) * <A::Frequency>::frequency() / 1000000;
-                let tics = self.alarm.now().wrapping_add(interval);
-                self.alarm.set_alarm(tics);
+                let interval = A::ticks_from_us(410);
+                self.alarm.set_alarm(self.alarm.now(), interval);
 
                 // Now wait for timer to expire
                 self.buffer.replace(buffer);

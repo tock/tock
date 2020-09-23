@@ -97,7 +97,7 @@ impl<S: 'static + spi::SpiMaster, A: 'static + time::Alarm<'static>> Component
             )
         );
         static_buffer.0.set_client(st7735);
-        st7735_alarm.set_client(st7735);
+        st7735_alarm.set_alarm_client(st7735);
 
         st7735
     }
