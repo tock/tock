@@ -68,15 +68,14 @@ pub struct App {
 
 #[derive(Clone, Copy, PartialEq)]
 pub enum ProximityCommand {
-    Exists = 0,
     ReadProximity = 1,
     ReadProximityOnInterrupt = 2,
-    None = 4,
+    NoCommand = 3,
 }
 
 impl Default for ProximityCommand {
     fn default() -> Self {
-        ProximityCommand::Exists
+        ProximityCommand::NoCommand
     }
 }
 
@@ -100,7 +99,7 @@ impl<'a> ProximitySensor<'a> {
         ProximitySensor {
             driver: driver,
             apps: grant,
-            command_running: Cell::new(ProximityCommand::None),
+            command_running: Cell::new(ProximityCommand::NoCommand),
         }
     }
 
@@ -151,11 +150,14 @@ impl<'a> ProximitySensor<'a> {
         }
 
         // If driver is currently processing a ReadProximityOnInterrupt command and current command is a ReadProximity then
-        // it is impractical for a lot of drivers and IC's to run a ReadProximity command and ReadProximityOnInterrupt command in parallel
+        // then command the driver to interrupt the former and replace with the latter.  The former will still be in the queue as the app region in the
+        // grant will have the `subscribed` boolean field set
         if (self.command_running.get() == ProximityCommand::ReadProximityOnInterrupt)
             && (command == ProximityCommand::ReadProximity)
         {
-            return ReturnCode::EBUSY;
+            self.driver.read_proximity();
+            self.command_running.set(ProximityCommand::ReadProximity);
+            return ReturnCode::SUCCESS;
         }
 
         // Only run command if it is only one in queue otherwise we wait for callback() for last run command to trigger another command to run
@@ -252,60 +254,40 @@ impl<'a> ProximitySensor<'a> {
 }
 
 impl hil::sensors::ProximityClient for ProximitySensor<'_> {
-    fn callback(&self, temp_val: usize, command_type: usize) {
+    fn callback(&self, temp_val: u8) {
         // Here we callback the values only to the apps which are relevant for the callback
         // We also dequeue any command for a callback so as to remove it from the wait list and add other commands to continue
 
-        match command_type {
-            command_type if command_type == ProximityCommand::ReadProximity as usize => {
-                // Schedule callbacks for appropriate apps
-                for cntr in self.apps.iter() {
-                    cntr.enter(|app, _| {
-                        if app.subscribed
-                            && (app.enqueued_command_type == ProximityCommand::ReadProximity)
+        // Schedule callbacks for appropriate apps (any apps waiting for a proximity command)
+        // For apps waiting on an interrupt, the reading is checked against the upper and lower thresholds of the app's enqueued command
+        // to notice if this reading will fulfill the app's command.
+        // The reading is also delivered to any apps waiting on an immediate reading.
+        for cntr in self.apps.iter() {
+            cntr.enter(|app, _| {
+                if app.subscribed {
+                    if app.enqueued_command_type == ProximityCommand::ReadProximityOnInterrupt {
+                        // Case: ReadProximityOnInterrupt
+                        // Only callback to those apps which we expect would want to know about this threshold reading.
+                        if ((temp_val as u8) > app.upper_proximity)
+                            || ((temp_val as u8) < app.lower_proximity)
                         {
-                            app.callback.map(|mut cb| cb.schedule(temp_val, 0, 0));
+                            app.callback
+                                .map(|mut cb| cb.schedule(temp_val as usize, 0, 0));
                             app.subscribed = false; // dequeue
                         }
-                    });
+                    } else {
+                        // Case: ReadProximity
+                        // Callback to all apps waiting on read_proximity.
+                        app.callback
+                            .map(|mut cb| cb.schedule(temp_val as usize, 0, 0));
+                        app.subscribed = false; // dequeue
+                    }
                 }
-            }
-
-            command_type if command_type == ProximityCommand::ReadProximityOnInterrupt as usize => {
-                // Schedule callbacks for appropriate apps (any apps waiting for a proximity command)
-                for cntr in self.apps.iter() {
-                    cntr.enter(|app, _| {
-                        if app.subscribed
-                            && ((app.enqueued_command_type
-                                == ProximityCommand::ReadProximityOnInterrupt)
-                                || (app.enqueued_command_type == ProximityCommand::ReadProximity))
-                        {
-                            if app.enqueued_command_type
-                                == ProximityCommand::ReadProximityOnInterrupt
-                            {
-                                // Case: ReadProximityOnInterrupt
-                                // Only callback to those apps which we expect would want to know about this threshold reading for readproximityoninterrupt readings
-                                if ((temp_val as u8) > app.upper_proximity)
-                                    || ((temp_val as u8) < app.lower_proximity)
-                                {
-                                    app.callback.map(|mut cb| cb.schedule(temp_val, 0, 0));
-                                    app.subscribed = false; // dequeue
-                                }
-                            } else {
-                                // Case: ReadProximity
-                                // callback to all apps waiting on read_proximity
-                                app.callback.map(|mut cb| cb.schedule(temp_val, 0, 0));
-                                app.subscribed = false; // dequeue
-                            }
-                        }
-                    });
-                }
-            }
-            _ => {}
+            });
         }
 
         // No command is temporarily being run here as we have performed the callback for our last command
-        self.command_running.set(ProximityCommand::None);
+        self.command_running.set(ProximityCommand::NoCommand);
 
         // When we are done with callback (one command) then find another waiting command to run and run it
         self.run_next_command();

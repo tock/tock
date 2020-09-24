@@ -197,7 +197,8 @@ impl<'a> APDS9960<'a> {
         });
     }
 
-    // Take Simple proximity measurement with persistence=4, low threshold=0, high threshold=175, and Sleep-After-Interrupt Mode enabled
+    // Take Simple proximity measurement with interrupt persistence set to 4; `low` and `high` indicate upper interrupt threshold values
+    // IC fires interrupt when (prox_reading < low) || (prox_reading > high)
     pub fn take_measurement_on_interrupt(&self, low: u8, high: u8) {
         // Set threshold values
         self.buffer.take().map(|buffer| {
@@ -303,8 +304,7 @@ impl i2c::I2CClient for APDS9960<'_> {
                 self.i2c.disable();
                 self.state.set(State::Idle);
 
-                self.prox_callback
-                    .map(|cb| cb.callback(prox_data as usize, 2 as usize));
+                self.prox_callback.map(|cb| cb.callback(prox_data as u8));
             }
             State::TakeMeasurement1 => {
                 // Read status reg
@@ -346,8 +346,7 @@ impl i2c::I2CClient for APDS9960<'_> {
                 self.i2c.disable();
                 self.state.set(State::Idle);
 
-                self.prox_callback
-                    .map(|cb| cb.callback(prox_data as usize, 1 as usize));
+                self.prox_callback.map(|cb| cb.callback(prox_data as u8));
             }
 
             State::SetPulse => {

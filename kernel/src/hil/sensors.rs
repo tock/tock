@@ -49,9 +49,9 @@ pub trait ProximityDriver<'a> {
 pub trait ProximityClient {
     /// Called when a proximity reading has completed.
     ///
-    /// - `value`: the most recently read proximity value which ranges [0 , 255] where 255 -> object is closest readable distance, 0 -> object is farthest readable distance.
-    /// - 'command_type': callback is being issued after driver serviced this type of command (1 -> read_proximity, 2 -> read_proximity_on_interrupt)
-    fn callback(&self, value: usize, command_type: usize);
+    /// - `value`: the most recently read proximity value which ranges [0 , 255]...
+    /// where 255 -> object is closest readable distance, 0 -> object is farthest readable distance.
+    fn callback(&self, value: u8);
 }
 
 /// A basic interface for an ambient light sensor.
