@@ -39,3 +39,4 @@ pub mod temperature;
 pub mod temperature_stm;
 pub mod test;
 pub mod touch;
+pub mod usb_ctap;
