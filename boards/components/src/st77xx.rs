@@ -44,8 +44,7 @@ use core::marker::PhantomData;
 use core::mem::MaybeUninit;
 use kernel::component::Component;
 use kernel::hil::gpio;
-use kernel::hil::time;
-use kernel::hil::time::Alarm;
+use kernel::hil::time::{self, Alarm};
 use kernel::static_init_half;
 
 // Setup static space for the objects.
@@ -136,7 +135,7 @@ impl<A: 'static + time::Alarm<'static>, B: 'static + bus::Bus<'static>, P: 'stat
             )
         );
         static_buffer.0.set_client(st77xx);
-        st77xx_alarm.set_client(st77xx);
+        st77xx_alarm.set_alarm_client(st77xx);
 
         st77xx
     }

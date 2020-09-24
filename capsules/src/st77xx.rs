@@ -36,7 +36,7 @@ use kernel::hil::gpio::Pin;
 use kernel::hil::screen::{
     self, ScreenClient, ScreenPixelFormat, ScreenRotation, ScreenSetupClient,
 };
-use kernel::hil::time::{self, Alarm, Frequency};
+use kernel::hil::time::{self, Alarm};
 use kernel::ReturnCode;
 use kernel::{AppId, Callback, Driver};
 
