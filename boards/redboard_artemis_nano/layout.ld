@@ -6,5 +6,6 @@ MEMORY
 }
 
 MPU_MIN_ALIGN = 8K;
+PAGE_SIZE = 8K;
 
 INCLUDE ../kernel_layout.ld

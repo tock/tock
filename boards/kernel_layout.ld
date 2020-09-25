@@ -1,8 +1,9 @@
 /*
  * This is the generic linker script for Tock. For most developers, it should
  * be sufficient to define {ROM/PROG/RAM}_{ORIGIN/LENGTH} (6 variables, the
- * start and length for each) and MPU_MIN_ALIGN (the minimum alignment
- * granularity supported by the MPU).
+ * start and length for each), MPU_MIN_ALIGN (the minimum alignment
+ * granularity supported by the MPU) and PAGE_SIZE (the size of a flash page).
+ * If undefined, PAGE_SIZE uses the default value of 512 bytes.
  *
  * --------------------------------------------------------------------------
  *
@@ -35,6 +36,7 @@
  *    pointing to next address after application RAM.
  */
 
+PAGE_SIZE = DEFINED(PAGE_SIZE) ? PAGE_SIZE : 512;
 
 SECTIONS
 {
@@ -185,18 +187,19 @@ SECTIONS
     PROVIDE_HIDDEN (__exidx_end = .);
 
     /* Region for on-chip kernel non-volatile storage.
-     * Align on 512 bytes since that is the page size.
-     * Volumes within this region are allocated with the
-     * storage_volume! macro in utils.rs. */
+     *
+     * Align on PAGE_SIZE number of bytes. Volumes within this region are 
+     * allocated with the storage_volume! macro in utils.rs.
+     */
     .storage :
     {
-      . = ALIGN(512);
+      . = ALIGN(PAGE_SIZE);
       _sstorage = .;
       *(.storage* storage*)
       _estorage = .;
-      . = ALIGN(512);
+      . = ALIGN(PAGE_SIZE);
     } > rom
-    . = ALIGN(512);
+    . = ALIGN(PAGE_SIZE);
 
     /* Mark the end of static elements */
     . = ALIGN(4);
@@ -204,25 +207,33 @@ SECTIONS
     _textend = .;   /* alias for _etext expected by some MS toolchains */
 
 
-    /* Customer configuration is most often located
-     * at the end of the rom. It is conditional, and won't
-     * be written if not specified in the board specific linker
-     * file. */
+    /* Customer configuration is most often located at the end of the rom. It is
+     * conditional, and won't be written if not specified in the board specific
+     * linker file.
+     */
     .ccfg : {
         KEEP(*(.ccfg))
     } > ccfg
 
 
-    /* STATIC ELEMENTS FOR TOCK APPLICATIONS */
+    /* Section for application binaries in flash.
+     *
+     * This section is put into the "prog" memory, which is reserved for
+     * applications. This section is not used for the kernel, but including it
+     * in the .elf file allows for concatenating application binaries with the
+     * kernel.
+     */
     .apps :
     {
-        /* _sapps symbol used by tock to look for first application */
+        /* _sapps symbol used by Tock to look for first application. */
         . = ALIGN(4);
         _sapps = .;
 
-        /* Optional .app sections a convenience mechanism to bundle tock
-           kernel and apps into a single image */
-        KEEP (*(.app.*))
+        /* Include a placeholder byte in this section so that the linker
+         * includes a segment for it. Otherwise the section will be empty and
+         * the linker will ignore it when defining the segments.
+         */
+        BYTE(0)
     } > prog
     /* _eapps symbol used by tock to calculate the length of app flash */
     _eapps = _sapps + LENGTH(prog);

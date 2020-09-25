@@ -23,9 +23,9 @@ pub mod sensors;
 pub mod spi;
 pub mod symmetric_encryption;
 pub mod time;
+pub mod touch;
 pub mod uart;
 pub mod usb;
-pub mod watchdog;
 
 /// Shared interface for configuring components.
 pub trait Controller {

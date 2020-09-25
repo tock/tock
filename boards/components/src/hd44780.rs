@@ -109,7 +109,7 @@ impl<A: 'static + time::Alarm<'static>> Component for HD44780Component<A> {
                 grant_lcd,
             )
         );
-        lcd_alarm.set_client(hd44780);
+        lcd_alarm.set_alarm_client(hd44780);
 
         hd44780
     }

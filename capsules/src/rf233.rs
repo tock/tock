@@ -200,7 +200,7 @@ pub struct RF233<'a, S: spi::SpiMasterDevice> {
     power_client_pending: Cell<bool>,
     reset_pin: &'a dyn gpio::Pin,
     sleep_pin: &'a dyn gpio::Pin,
-    irq_pin: &'a dyn gpio::InterruptPin,
+    irq_pin: &'a dyn gpio::InterruptPin<'a>,
     state: Cell<InternalState>,
     tx_buf: TakeCell<'static, [u8]>,
     rx_buf: TakeCell<'static, [u8]>,
@@ -1028,7 +1028,7 @@ impl<'a, S: spi::SpiMasterDevice> RF233<'a, S> {
         spi: &'a S,
         reset: &'a dyn gpio::Pin,
         sleep: &'a dyn gpio::Pin,
-        irq: &'a dyn gpio::InterruptPin,
+        irq: &'a dyn gpio::InterruptPin<'a>,
         channel: u8,
     ) -> RF233<'a, S> {
         RF233 {

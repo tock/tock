@@ -8,25 +8,35 @@
 // Disable this attribute when documenting, as a workaround for
 // https://github.com/rust-lang/rust/issues/62184.
 #![cfg_attr(not(doc), no_main)]
+#![feature(const_in_array_repeat_expressions)]
 
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use kernel::capabilities;
 use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::component::Component;
 use kernel::hil;
+use kernel::hil::time::Alarm;
+use kernel::Chip;
 use kernel::Platform;
 use kernel::{create_capability, debug, static_init};
 use rv32i::csr;
 
 pub mod io;
+
+#[allow(dead_code)]
+mod multi_alarm_test;
+
+pub const NUM_PROCS: usize = 4;
 //
 // Actual memory for holding the active process structures. Need an empty list
 // at least.
-static mut PROCESSES: [Option<&'static dyn kernel::procs::ProcessType>; 4] =
-    [None, None, None, None];
+static mut PROCESSES: [Option<&'static dyn kernel::procs::ProcessType>; NUM_PROCS] =
+    [None; NUM_PROCS];
 
 // Reference to the chip for panic dumps.
-static mut CHIP: Option<&'static e310x::chip::E310x> = None;
+static mut CHIP: Option<
+    &'static e310x::chip::E310x<VirtualMuxAlarm<'static, rv32i::machine_timer::MachineTimer>>,
+> = None;
 
 // How should the kernel respond when a process faults.
 const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultResponse::Panic;
@@ -34,12 +44,12 @@ const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultRespons
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
 #[link_section = ".stack_buffer"]
-pub static mut STACK_MEMORY: [u8; 0x800] = [0; 0x800];
+pub static mut STACK_MEMORY: [u8; 0x900] = [0; 0x900];
 
 /// A structure representing this platform that holds references to all
 /// capsules for this platform. We've included an alarm and console.
 struct HiFive1 {
-    led: &'static capsules::led::LED<'static, sifive::gpio::GpioPin>,
+    led: &'static capsules::led::LED<'static, sifive::gpio::GpioPin<'static>>,
     console: &'static capsules::console::Console<'static>,
     lldb: &'static capsules::low_level_debug::LowLevelDebug<
         'static,
@@ -109,18 +119,6 @@ pub unsafe fn reset_handler() {
         None,
     );
 
-    let chip = static_init!(e310x::chip::E310x, e310x::chip::E310x::new());
-    CHIP = Some(chip);
-
-    // Need to enable all interrupts for Tock Kernel
-    chip.enable_plic_interrupts();
-
-    // enable interrupts globally
-    csr::CSR
-        .mie
-        .modify(csr::mie::mie::mext::SET + csr::mie::mie::msoft::SET + csr::mie::mie::mtimer::SET);
-    csr::CSR.mstatus.modify(csr::mstatus::mstatus::mie::SET);
-
     // Create a shared UART channel for the console and for kernel debug.
     let uart_mux = components::console::UartMuxComponent::new(
         &e310x::uart::UART0,
@@ -155,10 +153,14 @@ pub unsafe fn reset_handler() {
         MuxAlarm<'static, rv32i::machine_timer::MachineTimer>,
         MuxAlarm::new(&e310x::timer::MACHINETIMER)
     );
-    hil::time::Alarm::set_client(&e310x::timer::MACHINETIMER, mux_alarm);
+    hil::time::Alarm::set_alarm_client(&e310x::timer::MACHINETIMER, mux_alarm);
 
     // Alarm
     let virtual_alarm_user = static_init!(
+        VirtualMuxAlarm<'static, rv32i::machine_timer::MachineTimer>,
+        VirtualMuxAlarm::new(mux_alarm)
+    );
+    let systick_virtual_alarm = static_init!(
         VirtualMuxAlarm<'static, rv32i::machine_timer::MachineTimer>,
         VirtualMuxAlarm::new(mux_alarm)
     );
@@ -172,7 +174,23 @@ pub unsafe fn reset_handler() {
             board_kernel.create_grant(&memory_allocation_cap)
         )
     );
-    hil::time::Alarm::set_client(virtual_alarm_user, alarm);
+    hil::time::Alarm::set_alarm_client(virtual_alarm_user, alarm);
+
+    let chip = static_init!(
+        e310x::chip::E310x<VirtualMuxAlarm<'static, rv32i::machine_timer::MachineTimer>>,
+        e310x::chip::E310x::new(systick_virtual_alarm)
+    );
+    systick_virtual_alarm.set_alarm_client(chip.scheduler_timer());
+    CHIP = Some(chip);
+
+    // Need to enable all interrupts for Tock Kernel
+    chip.enable_plic_interrupts();
+
+    // enable interrupts globally
+    csr::CSR
+        .mie
+        .modify(csr::mie::mie::mext::SET + csr::mie::mie::msoft::SET + csr::mie::mie::mtimer::SET);
+    csr::CSR.mstatus.modify(csr::mstatus::mstatus::mie::SET);
 
     // Setup the console.
     let console = components::console::ConsoleComponent::new(board_kernel, uart_mux).finalize(());
@@ -212,7 +230,7 @@ pub unsafe fn reset_handler() {
             &_sapps as *const u8,
             &_eapps as *const u8 as usize - &_sapps as *const u8 as usize,
         ),
-        &mut core::slice::from_raw_parts_mut(
+        core::slice::from_raw_parts_mut(
             &mut _sappmem as *mut u8,
             &_eappmem as *const u8 as usize - &_sappmem as *const u8 as usize,
         ),
@@ -225,5 +243,9 @@ pub unsafe fn reset_handler() {
         debug!("{:?}", err);
     });
 
-    board_kernel.kernel_loop(&hifive1, chip, None, &main_loop_cap);
+    multi_alarm_test::run_multi_alarm(mux_alarm);
+
+    let scheduler = components::sched::cooperative::CooperativeComponent::new(&PROCESSES)
+        .finalize(components::coop_component_helper!(NUM_PROCS));
+    board_kernel.kernel_loop(&hifive1, chip, None, scheduler, &main_loop_cap);
 }

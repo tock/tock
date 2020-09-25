@@ -178,7 +178,7 @@ enum State {
 
 pub struct Fxos8700cq<'a> {
     i2c: &'a dyn I2CDevice,
-    interrupt_pin1: &'a dyn gpio::InterruptPin,
+    interrupt_pin1: &'a dyn gpio::InterruptPin<'a>,
     state: Cell<State>,
     buffer: TakeCell<'static, [u8]>,
     callback: OptionalCell<&'a dyn hil::sensors::NineDofClient>,
@@ -187,7 +187,7 @@ pub struct Fxos8700cq<'a> {
 impl<'a> Fxos8700cq<'a> {
     pub fn new(
         i2c: &'a dyn I2CDevice,
-        interrupt_pin1: &'a dyn gpio::InterruptPin,
+        interrupt_pin1: &'a dyn gpio::InterruptPin<'a>,
         buffer: &'static mut [u8],
     ) -> Fxos8700cq<'a> {
         Fxos8700cq {

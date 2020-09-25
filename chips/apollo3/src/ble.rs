@@ -281,85 +281,79 @@ impl<'a> Ble<'a> {
     }
 
     pub fn setup_clocks(&self) {
-        let regs = self.registers;
-
-        regs.clkcfg.write(CLKCFG::CLK32KEN::SET);
-        regs.bledbg.write(BLEDBG::DBGDATA.val(1 << 14));
+        self.registers.clkcfg.write(CLKCFG::CLK32KEN::SET);
+        self.registers.bledbg.write(BLEDBG::DBGDATA.val(1 << 14));
     }
 
     pub fn power_up(&self) {
-        let regs = self.registers;
+        self.registers.blecfg.write(BLECFG::PWRSMEN::SET);
 
-        regs.blecfg.write(BLECFG::PWRSMEN::SET);
-
-        while regs.bstatus.read(BSTATUS::PWRST) != 3 {}
+        while self.registers.bstatus.read(BSTATUS::PWRST) != 3 {}
     }
 
     pub fn ble_initialise(&self) {
-        let regs = self.registers;
-
         // Configure the SPI
-        regs.mspicfg.write(
+        self.registers.mspicfg.write(
             MSPICFG::SPOL::SET
                 + MSPICFG::SPHA::SET
                 + MSPICFG::RDFC::CLEAR
                 + MSPICFG::WTFC::CLEAR
                 + MSPICFG::WTFCPOL::SET,
         );
-        regs.fifothr
+        self.registers
+            .fifothr
             .write(FIFOTHR::FIFOWTHR.val(16) + FIFOTHR::FIFORTHR.val(16));
-        regs.fifoctrl.modify(FIFOCTRL::POPWR::SET);
+        self.registers.fifoctrl.modify(FIFOCTRL::POPWR::SET);
 
         // Clock config
-        regs.clkcfg
+        self.registers
+            .clkcfg
             .write(CLKCFG::FSEL.val(0x04) + CLKCFG::IOCLKEN::SET + CLKCFG::CLK32KEN::SET);
 
         // Disable command queue
-        regs.cqcfg.modify(CQCFG::CQEN::CLEAR);
+        self.registers.cqcfg.modify(CQCFG::CQEN::CLEAR);
 
         // TODO: Apply the BLE patch
     }
 
     fn reset_fifo(&self) {
-        let regs = self.registers;
-
-        regs.fifoctrl.modify(FIFOCTRL::FIFORSTN::CLEAR);
-        regs.fifoctrl.modify(FIFOCTRL::FIFORSTN::SET);
+        self.registers.fifoctrl.modify(FIFOCTRL::FIFORSTN::CLEAR);
+        self.registers.fifoctrl.modify(FIFOCTRL::FIFORSTN::SET);
     }
 
     fn send_data(&self) {
-        let regs = &*self.registers;
-
         // Set the FIFO levels
-        regs.fifothr
+        self.registers
+            .fifothr
             .write(FIFOTHR::FIFORTHR.val(16) + FIFOTHR::FIFOWTHR.val(16));
 
         // Disable the FIFO
-        //regs.fifothr.write(FIFOTHR::FIFORTHR::CLEAR + FIFOTHR::FIFOWTHR::CLEAR);
+        //self.registers.fifothr.write(FIFOTHR::FIFORTHR::CLEAR + FIFOTHR::FIFOWTHR::CLEAR);
 
         // Setup the DMA
         unsafe {
-            regs.dmatargaddr.set(PAYLOAD.as_ptr() as u32);
+            self.registers.dmatargaddr.set(PAYLOAD.as_ptr() as u32);
         }
-        regs.dmatocount.set(self.write_len.get() as u32);
-        regs.dmatrigen.write(DMATRIGEN::DTHREN::SET);
-        regs.dmacfg
+        self.registers.dmatocount.set(self.write_len.get() as u32);
+        self.registers.dmatrigen.write(DMATRIGEN::DTHREN::SET);
+        self.registers
+            .dmacfg
             .write(DMACFG::DMADIR.val(1) + DMACFG::DMAPRI.val(1));
 
         // Setup the operation
-        regs.cmd
+        self.registers
+            .cmd
             .modify(CMD::TSIZE.val(self.write_len.get() as u32) + CMD::CMD::WRITE);
 
         // Enable DMA
-        regs.dmacfg.modify(DMACFG::DMAEN::SET);
+        self.registers.dmacfg.modify(DMACFG::DMAEN::SET);
 
         // Set the wake low
-        regs.blecfg.modify(BLECFG::WAKEUPCTL::OFF);
+        self.registers.blecfg.modify(BLECFG::WAKEUPCTL::OFF);
     }
 
     pub fn handle_interrupt(&self) {
-        let regs = self.registers;
-        let irqs = regs.intstat.extract();
+        let irqs = self.registers.intstat.extract();
 
         // Disable and clear interrupts
         self.disable_interrupts();
@@ -368,11 +362,11 @@ impl<'a> Ble<'a> {
             // Enable interrupts
             self.enable_interrupts();
 
-            if regs.bstatus.is_set(BSTATUS::BLEIRQ) {
+            if self.registers.bstatus.is_set(BSTATUS::BLEIRQ) {
                 panic!("Read requested while trying to write");
             }
 
-            if !regs.bstatus.is_set(BSTATUS::SPISTATUS) {
+            if !self.registers.bstatus.is_set(BSTATUS::SPISTATUS) {
                 panic!("SPI not ready");
             }
 
@@ -385,10 +379,10 @@ impl<'a> Ble<'a> {
 
         if irqs.is_set(INT::DCMP) {
             // Disable and clear DMA
-            regs.dmacfg.set(0x00000000);
+            self.registers.dmacfg.set(0x00000000);
 
             // Disable the wake controller
-            regs.blecfg.modify(BLECFG::WAKEUPCTL::OFF);
+            self.registers.blecfg.modify(BLECFG::WAKEUPCTL::OFF);
 
             // Reset FIFOs
             self.reset_fifo();
@@ -404,13 +398,15 @@ impl<'a> Ble<'a> {
 
         if irqs.is_set(INT::BLECIRQ) {
             self.rx_client.map(|client| {
-                regs.cmd.modify(CMD::TSIZE.val(0) + CMD::CMD::READ);
+                self.registers
+                    .cmd
+                    .modify(CMD::TSIZE.val(0) + CMD::CMD::READ);
 
                 unsafe {
                     let mut i = 0;
 
-                    while regs.fifoptr.read(FIFOPTR::FIFO1SIZ) > 0 && i < 40 {
-                        let temp = regs.fifopop.get().to_ne_bytes();
+                    while self.registers.fifoptr.read(FIFOPTR::FIFO1SIZ) > 0 && i < 40 {
+                        let temp = self.registers.fifopop.get().to_ne_bytes();
 
                         PAYLOAD[i + 0] = temp[0];
                         PAYLOAD[i + 1] = temp[1];
@@ -427,16 +423,12 @@ impl<'a> Ble<'a> {
     }
 
     pub fn enable_interrupts(&self) {
-        let regs = &*self.registers;
-
-        regs.inten.set(0x18381);
+        self.registers.inten.set(0x18381);
     }
 
     pub fn disable_interrupts(&self) {
-        let regs = &*self.registers;
-
-        regs.intclr.set(0xFFFF_FFFF);
-        regs.inten.set(0x00);
+        self.registers.intclr.set(0xFFFF_FFFF);
+        self.registers.inten.set(0x00);
     }
 
     fn replace_radio_buffer(&self, buf: &'static mut [u8]) -> &'static mut [u8] {
@@ -452,8 +444,6 @@ impl<'a> Ble<'a> {
 
 impl<'a> ble_advertising::BleAdvertisementDriver<'a> for Ble<'a> {
     fn transmit_advertisement(&self, buf: &'static mut [u8], len: usize, _channel: RadioChannel) {
-        let regs = &*self.registers;
-
         let res = self.replace_radio_buffer(buf);
 
         // Setup all of the buffers
@@ -466,10 +456,10 @@ impl<'a> ble_advertising::BleAdvertisementDriver<'a> for Ble<'a> {
         self.enable_interrupts();
 
         // Wakeup BLE
-        regs.blecfg.modify(BLECFG::WAKEUPCTL::ON);
+        self.registers.blecfg.modify(BLECFG::WAKEUPCTL::ON);
 
         // See if we can send the data
-        if regs.bstatus.is_set(BSTATUS::SPISTATUS) {
+        if self.registers.bstatus.is_set(BSTATUS::SPISTATUS) {
             self.send_data();
         }
     }

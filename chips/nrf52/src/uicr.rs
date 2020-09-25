@@ -137,8 +137,7 @@ impl Uicr {
     }
 
     pub fn set_psel0_reset_pin(&self, pin: Pin) {
-        let regs = &*self.registers;
-        regs.pselreset0.set(pin as u32);
+        self.registers.pselreset0.set(pin as u32);
     }
 
     pub fn get_psel0_reset_pin(&self) -> Option<Pin> {
@@ -146,8 +145,7 @@ impl Uicr {
     }
 
     pub fn set_psel1_reset_pin(&self, pin: Pin) {
-        let regs = &*self.registers;
-        regs.pselreset1.set(pin as u32);
+        self.registers.pselreset1.set(pin as u32);
     }
 
     pub fn get_psel1_reset_pin(&self) -> Option<Pin> {
@@ -155,8 +153,7 @@ impl Uicr {
     }
 
     pub fn set_vout(&self, vout: Regulator0Output) {
-        let regs = &*self.registers;
-        regs.regout0.modify(RegOut::VOUT.val(vout as u32));
+        self.registers.regout0.modify(RegOut::VOUT.val(vout as u32));
     }
 
     pub fn get_vout(&self) -> Regulator0Output {
@@ -164,11 +161,10 @@ impl Uicr {
     }
 
     pub fn set_nfc_pins_protection(&self, protected: bool) {
-        let regs = &*self.registers;
         if protected {
-            regs.nfcpins.write(NfcPins::PROTECT::NFC);
+            self.registers.nfcpins.write(NfcPins::PROTECT::NFC);
         } else {
-            regs.nfcpins.write(NfcPins::PROTECT::DISABLED);
+            self.registers.nfcpins.write(NfcPins::PROTECT::DISABLED);
         }
     }
 

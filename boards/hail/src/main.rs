@@ -7,6 +7,7 @@
 // Disable this attribute when documenting, as a workaround for
 // https://github.com/rust-lang/rust/issues/62184.
 #![cfg_attr(not(doc), no_main)]
+#![feature(const_in_array_repeat_expressions)]
 #![deny(missing_docs)]
 
 use capsules::virtual_alarm::VirtualMuxAlarm;
@@ -48,7 +49,7 @@ pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 /// capsules for this platform.
 struct Hail {
     console: &'static capsules::console::Console<'static>,
-    gpio: &'static capsules::gpio::GPIO<'static, sam4l::gpio::GPIOPin>,
+    gpio: &'static capsules::gpio::GPIO<'static, sam4l::gpio::GPIOPin<'static>>,
     alarm: &'static capsules::alarm::AlarmDriver<
         'static,
         VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>,
@@ -57,11 +58,14 @@ struct Hail {
     temp: &'static capsules::temperature::TemperatureSensor<'static>,
     ninedof: &'static capsules::ninedof::NineDof<'static>,
     humidity: &'static capsules::humidity::HumiditySensor<'static>,
-    spi: &'static capsules::spi::Spi<'static, VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw>>,
+    spi: &'static capsules::spi_controller::Spi<
+        'static,
+        VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw>,
+    >,
     nrf51822: &'static capsules::nrf51822_serialization::Nrf51822Serialization<'static>,
-    adc: &'static capsules::adc::Adc<'static, sam4l::adc::Adc>,
-    led: &'static capsules::led::LED<'static, sam4l::gpio::GPIOPin>,
-    button: &'static capsules::button::Button<'static, sam4l::gpio::GPIOPin>,
+    adc: &'static capsules::adc::AdcDedicated<'static, sam4l::adc::Adc>,
+    led: &'static capsules::led::LED<'static, sam4l::gpio::GPIOPin<'static>>,
+    button: &'static capsules::button::Button<'static, sam4l::gpio::GPIOPin<'static>>,
     rng: &'static capsules::rng::RngDriver<'static>,
     ipc: kernel::ipc::IPC,
     crc: &'static capsules::crc::Crc<'static, sam4l::crccu::Crccu<'static>>,
@@ -79,7 +83,7 @@ impl Platform for Hail {
             capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
 
             capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
-            capsules::spi::DRIVER_NUM => f(Some(self.spi)),
+            capsules::spi_controller::DRIVER_NUM => f(Some(self.spi)),
             capsules::nrf51822_serialization::DRIVER_NUM => f(Some(self.nrf51822)),
             capsules::ambient_light::DRIVER_NUM => f(Some(self.ambient_light)),
             capsules::adc::DRIVER_NUM => f(Some(self.adc)),
@@ -339,8 +343,8 @@ pub unsafe fn reset_handler() {
         ]
     );
     let adc = static_init!(
-        capsules::adc::Adc<'static, sam4l::adc::Adc>,
-        capsules::adc::Adc::new(
+        capsules::adc::AdcDedicated<'static, sam4l::adc::Adc>,
+        capsules::adc::AdcDedicated::new(
             &sam4l::adc::ADC0,
             board_kernel.create_grant(&memory_allocation_capability),
             adc_channels,
@@ -452,7 +456,7 @@ pub unsafe fn reset_handler() {
             &_sapps as *const u8,
             &_eapps as *const u8 as usize - &_sapps as *const u8 as usize,
         ),
-        &mut core::slice::from_raw_parts_mut(
+        core::slice::from_raw_parts_mut(
             &mut _sappmem as *mut u8,
             &_eappmem as *const u8 as usize - &_sappmem as *const u8 as usize,
         ),
@@ -465,5 +469,13 @@ pub unsafe fn reset_handler() {
         debug!("{:?}", err);
     });
 
-    board_kernel.kernel_loop(&hail, chip, Some(&hail.ipc), &main_loop_capability);
+    let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
+        .finalize(components::rr_component_helper!(NUM_PROCS));
+    board_kernel.kernel_loop(
+        &hail,
+        chip,
+        Some(&hail.ipc),
+        scheduler,
+        &main_loop_capability,
+    );
 }

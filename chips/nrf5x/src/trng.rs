@@ -125,8 +125,6 @@ impl<'a> Trng<'a> {
 
     /// RNG Interrupt handler
     pub fn handle_interrupt(&self) {
-        let regs = &*self.registers;
-
         self.disable_interrupts();
 
         match self.index.get() {
@@ -135,7 +133,7 @@ impl<'a> Trng<'a> {
                 // 3 lines below to change data in Cell, perhaps it can be done more nicely
                 let mut rn = self.randomness.get();
                 // 1 byte randomness
-                let r = regs.value.get();
+                let r = self.registers.value.get();
                 //  e = 0 -> byte 1 LSB
                 //  e = 1 -> byte 2
                 //  e = 2 -> byte 3
@@ -166,26 +164,22 @@ impl<'a> Trng<'a> {
     }
 
     fn enable_interrupts(&self) {
-        let regs = &*self.registers;
-        regs.intenset.write(Intenset::VALRDY::SET);
+        self.registers.intenset.write(Intenset::VALRDY::SET);
     }
 
     fn disable_interrupts(&self) {
-        let regs = &*self.registers;
-        regs.intenclr.write(Intenclr::VALRDY::SET);
+        self.registers.intenclr.write(Intenclr::VALRDY::SET);
     }
 
     fn start_rng(&self) {
-        let regs = &*self.registers;
-
         // Reset `valrdy`
-        regs.event_valrdy.write(Event::READY::CLEAR);
+        self.registers.event_valrdy.write(Event::READY::CLEAR);
 
         // Enable interrupts
         self.enable_interrupts();
 
         // Start rng
-        regs.task_start.write(Task::ENABLE::SET);
+        self.registers.task_start.write(Task::ENABLE::SET);
     }
 }
 

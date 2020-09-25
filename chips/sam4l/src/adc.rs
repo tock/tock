@@ -29,6 +29,7 @@ use kernel::hil;
 use kernel::ReturnCode;
 
 /// Representation of an ADC channel on the SAM4L.
+#[derive(PartialEq)]
 pub struct AdcChannel {
     chan_num: u32,
     internal: u32,
@@ -400,8 +401,7 @@ impl Adc {
 
     /// Interrupt handler for the ADC.
     pub fn handle_interrupt(&mut self) {
-        let regs: &AdcRegisters = &*self.registers;
-        let status = regs.sr.is_set(Status::SEOC);
+        let status = self.registers.sr.is_set(Status::SEOC);
 
         if self.enabled.get() && self.active.get() {
             if status {
@@ -413,7 +413,7 @@ impl Adc {
                     // we actually care about this sample
 
                     // single sample complete. Send value to client
-                    let val = regs.lcv.read(SequencerLastConvertedValue::LCV) as u16;
+                    let val = self.registers.lcv.read(SequencerLastConvertedValue::LCV) as u16;
                     self.client.map(|client| {
                         client.sample_ready(val);
                     });
@@ -425,7 +425,7 @@ impl Adc {
                     } else {
                         // single sampling, disable interrupt and set inactive
                         self.active.set(false);
-                        regs.idr.write(Interrupt::SEOC::SET);
+                        self.registers.idr.write(Interrupt::SEOC::SET);
                     }
                 } else {
                     // increment count and wait for next sample
@@ -433,12 +433,12 @@ impl Adc {
                 }
 
                 // clear status
-                regs.scr.write(Interrupt::SEOC::SET);
+                self.registers.scr.write(Interrupt::SEOC::SET);
             }
         } else {
             // we are inactive, why did we get an interrupt?
             // disable all interrupts, clear status, and just ignore it
-            regs.idr.write(
+            self.registers.idr.write(
                 Interrupt::TTO::SET
                     + Interrupt::SMTRG::SET
                     + Interrupt::WM::SET
@@ -451,8 +451,7 @@ impl Adc {
 
     /// Clear all status bits using the status clear register.
     fn clear_status(&self) {
-        let regs: &AdcRegisters = &*self.registers;
-        regs.scr.write(
+        self.registers.scr.write(
             Interrupt::TTO::SET
                 + Interrupt::SMTRG::SET
                 + Interrupt::WM::SET
@@ -473,15 +472,13 @@ impl Adc {
             // already configured to work on this frequency
             ReturnCode::SUCCESS
         } else {
-            let regs: &AdcRegisters = &*self.registers;
-
             // disabling the ADC before switching clocks is necessary to avoid
             // leaving it in undefined state
-            regs.cr.write(Control::DIS::SET);
+            self.registers.cr.write(Control::DIS::SET);
 
             // wait until status is disabled
             let mut timeout = 10000;
-            while regs.sr.is_set(Status::EN) {
+            while self.registers.sr.is_set(Status::EN) {
                 timeout -= 1;
                 if timeout == 0 {
                     // ADC never disabled
@@ -559,22 +556,22 @@ impl Adc {
                 cfg_val += Configuration::CLKSEL::GenericClock
             }
 
-            regs.cfg.write(cfg_val);
+            self.registers.cfg.write(cfg_val);
 
             // set startup to wait 24 cycles
-            regs.tim.write(
+            self.registers.tim.write(
                 TimingConfiguration::ENSTUP::Enable + TimingConfiguration::STARTUP.val(0x17),
             );
 
             // software reset (does not clear registers)
-            regs.cr.write(Control::SWRST::SET);
+            self.registers.cr.write(Control::SWRST::SET);
 
             // enable ADC
-            regs.cr.write(Control::EN::SET);
+            self.registers.cr.write(Control::EN::SET);
 
             // wait until status is enabled
             let mut timeout = 10000;
-            while !regs.sr.is_set(Status::EN) {
+            while !self.registers.sr.is_set(Status::EN) {
                 timeout -= 1;
                 if timeout == 0 {
                     // ADC never enabled
@@ -584,12 +581,14 @@ impl Adc {
 
             // enable Bandgap buffer and Reference buffer. I don't actually
             // know what these do, but you need to turn them on
-            regs.cr
+            self.registers
+                .cr
                 .write(Control::BGREQEN::SET + Control::REFBUFEN::SET);
 
             // wait until buffers are enabled
             timeout = 100000;
-            while !regs
+            while !self
+                .registers
                 .sr
                 .matches_all(Status::BGREQ::SET + Status::REFBUF::SET + Status::EN::SET)
             {
@@ -606,14 +605,12 @@ impl Adc {
 
     /// Disables the ADC so that the chip can return to deep sleep
     fn disable(&self) {
-        let regs: &AdcRegisters = &*self.registers;
-
         // disable ADC
-        regs.cr.write(Control::DIS::SET);
+        self.registers.cr.write(Control::DIS::SET);
 
         // wait until status is disabled
         let mut timeout = 10000;
-        while regs.sr.is_set(Status::EN) {
+        while self.registers.sr.is_set(Status::EN) {
             timeout -= 1;
             if timeout == 0 {
                 // ADC never disabled
@@ -622,7 +619,8 @@ impl Adc {
         }
 
         // disable bandgap and reference buffers
-        regs.cr
+        self.registers
+            .cr
             .write(Control::BGREQDIS::SET + Control::REFBUFDIS::SET);
 
         self.enabled.set(false);
@@ -640,8 +638,6 @@ impl hil::adc::Adc for Adc {
     ///
     /// - `channel`: the ADC channel to sample
     fn sample(&self, channel: &Self::Channel) -> ReturnCode {
-        let regs: &AdcRegisters = &*self.registers;
-
         // always configure to 1KHz to get the slowest clock with single sampling
         let res = self.config_and_enable(1000);
 
@@ -667,16 +663,16 @@ impl hil::adc::Adc for Adc {
                 + SequencerConfig::GAIN::Gain0p5x
                 + SequencerConfig::BIPOLAR::Disable
                 + SequencerConfig::HWLA::Enable;
-            regs.seqcfg.write(cfg);
+            self.registers.seqcfg.write(cfg);
 
             // clear any current status
             self.clear_status();
 
             // enable end of conversion interrupt
-            regs.ier.write(Interrupt::SEOC::SET);
+            self.registers.ier.write(Interrupt::SEOC::SET);
 
             // initiate conversion
-            regs.cr.write(Control::STRIG::SET);
+            self.registers.cr.write(Control::STRIG::SET);
 
             ReturnCode::SUCCESS
         }
@@ -691,8 +687,6 @@ impl hil::adc::Adc for Adc {
     /// - `channel`: the ADC channel to sample
     /// - `frequency`: the number of samples per second to collect
     fn sample_continuous(&self, channel: &Self::Channel, frequency: u32) -> ReturnCode {
-        let regs: &AdcRegisters = &*self.registers;
-
         let res = self.config_and_enable(frequency);
 
         if res != ReturnCode::SUCCESS {
@@ -724,10 +718,10 @@ impl hil::adc::Adc for Adc {
             } else {
                 cfg += SequencerConfig::TRGSEL::ContinuousMode;
             }
-            regs.seqcfg.write(cfg);
+            self.registers.seqcfg.write(cfg);
 
             // stop timer if running
-            regs.cr.write(Control::TSTOP::SET);
+            self.registers.cr.write(Control::TSTOP::SET);
 
             if self.cpu_clock.get() {
                 // This logic only applies for sampling off the CPU
@@ -760,7 +754,9 @@ impl hil::adc::Adc for Adc {
                 // f(timer) = f(adc) / (counter + 1)
                 let mut counter = (self.adc_clk_freq.get() / timer_frequency) - 1;
                 counter = cmp::max(cmp::min(counter, 0xFFFF), 0);
-                regs.itimer.write(InternalTimer::ITMC.val(counter));
+                self.registers
+                    .itimer
+                    .write(InternalTimer::ITMC.val(counter));
             } else {
                 // we can sample at this frequency directly with the timer
                 self.timer_repeats.set(0);
@@ -771,10 +767,10 @@ impl hil::adc::Adc for Adc {
             self.clear_status();
 
             // enable end of conversion interrupt
-            regs.ier.write(Interrupt::SEOC::SET);
+            self.registers.ier.write(Interrupt::SEOC::SET);
 
             // start timer
-            regs.cr.write(Control::TSTART::SET);
+            self.registers.cr.write(Control::TSTART::SET);
 
             ReturnCode::SUCCESS
         }
@@ -785,8 +781,6 @@ impl hil::adc::Adc for Adc {
     /// but can be called to abort any currently running operation. The buffer,
     /// if any, will be returned via the `samples_ready` callback.
     fn stop_sampling(&self) -> ReturnCode {
-        let regs: &AdcRegisters = &*self.registers;
-
         if !self.enabled.get() {
             ReturnCode::EOFF
         } else if !self.active.get() {
@@ -799,13 +793,13 @@ impl hil::adc::Adc for Adc {
             self.dma_running.set(false);
 
             // stop internal timer
-            regs.cr.write(Control::TSTOP::SET);
+            self.registers.cr.write(Control::TSTOP::SET);
 
             // disable sample interrupts
-            regs.idr.write(Interrupt::SEOC::SET);
+            self.registers.idr.write(Interrupt::SEOC::SET);
 
             // reset the ADC peripheral
-            regs.cr.write(Control::SWRST::SET);
+            self.registers.cr.write(Control::SWRST::SET);
 
             // disable the ADC
             self.disable();
@@ -845,6 +839,13 @@ impl hil::adc::Adc for Adc {
     fn get_voltage_reference_mv(&self) -> Option<usize> {
         Some(3300)
     }
+
+    /// Sets the client for this driver.
+    ///
+    /// - `client`: reference to capsule which handles responses
+    fn set_client(&self, _client: &'static dyn hil::adc::Client) {
+        unimplemented!();
+    }
 }
 
 /// Implements an ADC capable of continuous sampling
@@ -875,8 +876,6 @@ impl hil::adc::AdcHighSpeed for Adc {
         Option<&'static mut [u16]>,
         Option<&'static mut [u16]>,
     ) {
-        let regs: &AdcRegisters = &*self.registers;
-
         let res = self.config_and_enable(frequency);
 
         if res != ReturnCode::SUCCESS {
@@ -917,17 +916,19 @@ impl hil::adc::AdcHighSpeed for Adc {
             } else {
                 cfg += SequencerConfig::TRGSEL::ContinuousMode;
             }
-            regs.seqcfg.write(cfg);
+            self.registers.seqcfg.write(cfg);
 
             // stop timer if running
-            regs.cr.write(Control::TSTOP::SET);
+            self.registers.cr.write(Control::TSTOP::SET);
 
             if self.cpu_clock.get() {
                 // set timer, limit to bounds
                 // f(timer) = f(adc) / (counter + 1)
                 let mut counter = (self.adc_clk_freq.get() / frequency) - 1;
                 counter = cmp::max(cmp::min(counter, 0xFFFF), 0);
-                regs.itimer.write(InternalTimer::ITMC.val(counter));
+                self.registers
+                    .itimer
+                    .write(InternalTimer::ITMC.val(counter));
             }
 
             // clear any current status
@@ -956,7 +957,7 @@ impl hil::adc::AdcHighSpeed for Adc {
             });
 
             // start timer
-            regs.cr.write(Control::TSTART::SET);
+            self.registers.cr.write(Control::TSTART::SET);
 
             (ReturnCode::SUCCESS, None, None)
         }

@@ -353,16 +353,16 @@ enum_from_primitive! {
     }
 }
 
-pub struct GPIOPin {
+pub struct GPIOPin<'a> {
     pin: u8,
     port: u8,
-    client: OptionalCell<&'static dyn hil::gpio::Client>,
+    client: OptionalCell<&'a dyn hil::gpio::Client>,
     gpiote_registers: StaticRef<GpioteRegisters>,
     gpio_registers: StaticRef<GpioRegisters>,
 }
 
-impl GPIOPin {
-    pub const fn new(pin: Pin) -> GPIOPin {
+impl<'a> GPIOPin<'a> {
+    pub const fn new(pin: Pin) -> GPIOPin<'a> {
         GPIOPin {
             pin: ((pin as usize) % GPIO_PER_PORT) as u8,
             port: ((pin as usize) / GPIO_PER_PORT) as u8,
@@ -378,7 +378,7 @@ impl GPIOPin {
     }
 }
 
-impl hil::gpio::Configure for GPIOPin {
+impl hil::gpio::Configure for GPIOPin<'_> {
     fn set_floating_state(&self, mode: hil::gpio::FloatingState) {
         let gpio_regs = &*self.gpio_registers;
         let pin_config = match mode {
@@ -449,14 +449,14 @@ impl hil::gpio::Configure for GPIOPin {
     }
 }
 
-impl hil::gpio::Input for GPIOPin {
+impl hil::gpio::Input for GPIOPin<'_> {
     fn read(&self) -> bool {
         let gpio_regs = &*self.gpio_registers;
         gpio_regs.in_.get() & (1 << self.pin) != 0
     }
 }
 
-impl hil::gpio::Output for GPIOPin {
+impl hil::gpio::Output for GPIOPin<'_> {
     fn set(&self) {
         let gpio_regs = &*self.gpio_registers;
         gpio_regs.outset.set(1 << self.pin);
@@ -475,17 +475,16 @@ impl hil::gpio::Output for GPIOPin {
     }
 }
 
-impl hil::gpio::Pin for GPIOPin {}
+impl hil::gpio::Pin for GPIOPin<'_> {}
 
-impl hil::gpio::Interrupt for GPIOPin {
-    fn set_client(&self, client: &'static dyn hil::gpio::Client) {
+impl<'a> hil::gpio::Interrupt<'a> for GPIOPin<'a> {
+    fn set_client(&self, client: &'a dyn hil::gpio::Client) {
         self.client.set(client);
     }
 
     fn is_pending(&self) -> bool {
         if let Ok(channel) = self.find_channel(self.pin) {
-            let regs = &*self.gpiote_registers;
-            let ev = &regs.event_in[channel];
+            let ev = &self.gpiote_registers.event_in[channel];
             ev.matches_any(EventsIn::EVENT::Ready)
         } else {
             false
@@ -499,10 +498,10 @@ impl hil::gpio::Interrupt for GPIOPin {
                 hil::gpio::InterruptEdge::RisingEdge => Config::POLARITY::LoToHi,
                 hil::gpio::InterruptEdge::FallingEdge => Config::POLARITY::HiToLo,
             };
-            let regs = &*self.gpiote_registers;
             let pin: u32 = (GPIO_PER_PORT as u32 * self.port as u32) + self.pin as u32;
-            regs.config[channel].write(Config::MODE::Event + Config::PSEL.val(pin) + polarity);
-            regs.intenset.set(1 << channel);
+            self.gpiote_registers.config[channel]
+                .write(Config::MODE::Event + Config::PSEL.val(pin) + polarity);
+            self.gpiote_registers.intenset.set(1 << channel);
         } else {
             debug!("No available GPIOTE interrupt channels");
         }
@@ -510,22 +509,20 @@ impl hil::gpio::Interrupt for GPIOPin {
 
     fn disable_interrupts(&self) {
         if let Ok(channel) = self.find_channel(self.pin) {
-            let regs = &*self.gpiote_registers;
-            regs.config[channel]
+            self.gpiote_registers.config[channel]
                 .write(Config::MODE::CLEAR + Config::PSEL::CLEAR + Config::POLARITY::CLEAR);
-            regs.intenclr.set(1 << channel);
+            self.gpiote_registers.intenclr.set(1 << channel);
         }
     }
 }
 
-impl hil::gpio::InterruptPin for GPIOPin {}
+impl<'a> hil::gpio::InterruptPin<'a> for GPIOPin<'a> {}
 
-impl GPIOPin {
+impl GPIOPin<'_> {
     /// Allocate a GPIOTE channel
     /// If the channel couldn't be allocated return error instead
     fn allocate_channel(&self) -> Result<usize, ()> {
-        let regs = &*self.gpiote_registers;
-        for (i, ch) in regs.config.iter().enumerate() {
+        for (i, ch) in self.gpiote_registers.config.iter().enumerate() {
             if ch.matches_all(Config::MODE::Disabled) {
                 return Ok(i);
             }
@@ -536,8 +533,7 @@ impl GPIOPin {
     /// Return which channel is allocated to a pin,
     /// If the channel is not found return an error instead
     fn find_channel(&self, pin: u8) -> Result<usize, ()> {
-        let regs = &*self.gpiote_registers;
-        for (i, ch) in regs.config.iter().enumerate() {
+        for (i, ch) in self.gpiote_registers.config.iter().enumerate() {
             let encoded_pin = (GPIO_PER_PORT as u32 * self.port as u32) + pin as u32;
             if ch.matches_all(Config::PSEL.val(encoded_pin)) {
                 return Ok(i);
@@ -553,37 +549,37 @@ impl GPIOPin {
     }
 }
 
-pub struct Port {
-    pub pins: &'static mut [GPIOPin],
+pub struct Port<'a> {
+    pub pins: &'a mut [GPIOPin<'a>],
 }
 
-impl Index<Pin> for Port {
-    type Output = GPIOPin;
+impl<'a> Index<Pin> for Port<'a> {
+    type Output = GPIOPin<'a>;
 
-    fn index(&self, index: Pin) -> &GPIOPin {
+    fn index(&self, index: Pin) -> &GPIOPin<'a> {
         &self.pins[index as usize]
     }
 }
 
-impl IndexMut<Pin> for Port {
-    fn index_mut(&mut self, index: Pin) -> &mut GPIOPin {
+impl<'a> IndexMut<Pin> for Port<'a> {
+    fn index_mut(&mut self, index: Pin) -> &mut GPIOPin<'a> {
         &mut self.pins[index as usize]
     }
 }
 
-impl Port {
+impl Port<'_> {
     /// GPIOTE interrupt: check each GPIOTE channel, if any has
     /// fired then trigger its corresponding pin's interrupt handler.
     pub fn handle_interrupt(&self) {
         // do this just to get a pointer the memory map
         // doesn't matter which pin is used because it is the same
-        let regs = &*self.pins[0].gpiote_registers;
+        let pin_registers = self.pins[0].gpiote_registers;
 
-        for (i, ev) in regs.event_in.iter().enumerate() {
+        for (i, ev) in pin_registers.event_in.iter().enumerate() {
             if ev.matches_any(EventsIn::EVENT::Ready) {
                 ev.write(EventsIn::EVENT::NotReady);
                 // Get pin number for the event and `trigger` an interrupt manually on that pin
-                let pin = regs.config[i].read(Config::PSEL) as usize;
+                let pin = pin_registers.config[i].read(Config::PSEL) as usize;
                 self.pins[pin].handle_interrupt();
             }
         }

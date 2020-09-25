@@ -859,6 +859,31 @@ impl Descriptor for CdcInterfaceDescriptor {
     }
 }
 
+/// The data structure sent in a CDC-ACM Set Line Coding message.
+#[derive(Debug, Copy, Clone)]
+pub struct CdcAcmSetLineCodingData {
+    pub baud_rate: u32,
+    pub stop_bits: u8,
+    pub parity: u8,
+    pub data_bits: u8,
+}
+
+impl CdcAcmSetLineCodingData {
+    /// Create a `CdcAcmSetLineCodingData` structure from a packet received
+    /// after the ctrl endpoint setup.
+    pub fn get(p: &[VolatileCell<u8>]) -> Option<Self> {
+        if p.len() < 7 {
+            return None;
+        }
+        Some(CdcAcmSetLineCodingData {
+            baud_rate: get_u32(p[0].get(), p[1].get(), p[2].get(), p[3].get()),
+            stop_bits: p[4].get(),
+            parity: p[5].get(),
+            data_bits: p[6].get(),
+        })
+    }
+}
+
 pub struct LanguagesDescriptor<'a> {
     pub langs: &'a [u16],
 }
@@ -911,6 +936,11 @@ impl<'a> Descriptor for StringDescriptor<'a> {
 /// Parse a `u16` from two bytes as received on the bus
 fn get_u16(b0: u8, b1: u8) -> u16 {
     (b0 as u16) | ((b1 as u16) << 8)
+}
+
+/// Parse a `u32` from four bytes as received on the bus
+fn get_u32(b0: u8, b1: u8, b2: u8, b3: u8) -> u32 {
+    (b0 as u32) | ((b1 as u32) << 8) | ((b2 as u32) << 16) | ((b3 as u32) << 24)
 }
 
 /// Write a `u16` to a buffer for transmission on the bus

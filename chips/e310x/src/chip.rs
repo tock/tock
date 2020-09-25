@@ -4,8 +4,10 @@ use core::fmt::Write;
 use kernel;
 use kernel::common::registers::FieldValue;
 use kernel::debug;
+use kernel::hil::time::Alarm;
 use rv32i;
 use rv32i::csr::{mcause, mie::mie, mip::mip, CSR};
+use rv32i::PMPConfigMacro;
 
 use crate::gpio;
 use crate::interrupts;
@@ -13,16 +15,20 @@ use crate::plic;
 use crate::timer;
 use crate::uart;
 
-pub struct E310x {
+PMPConfigMacro!(8);
+
+pub struct E310x<A: 'static + Alarm<'static>> {
     userspace_kernel_boundary: rv32i::syscall::SysCall,
-    pmp: rv32i::pmp::PMPConfig,
+    pmp: PMP,
+    scheduler_timer: kernel::VirtualSchedulerTimer<A>,
 }
 
-impl E310x {
-    pub unsafe fn new() -> E310x {
-        E310x {
+impl<A: 'static + Alarm<'static>> E310x<A> {
+    pub unsafe fn new(alarm: &'static A) -> Self {
+        Self {
             userspace_kernel_boundary: rv32i::syscall::SysCall::new(),
-            pmp: rv32i::pmp::PMPConfig::new(8),
+            pmp: PMP::new(),
+            scheduler_timer: kernel::VirtualSchedulerTimer::new(alarm),
         }
     }
 
@@ -47,16 +53,21 @@ impl E310x {
     }
 }
 
-impl kernel::Chip for E310x {
-    type MPU = rv32i::pmp::PMPConfig;
+impl<A: 'static + Alarm<'static>> kernel::Chip for E310x<A> {
+    type MPU = PMP;
     type UserspaceKernelBoundary = rv32i::syscall::SysCall;
-    type SysTick = ();
+    type SchedulerTimer = kernel::VirtualSchedulerTimer<A>;
+    type WatchDog = ();
 
     fn mpu(&self) -> &Self::MPU {
         &self.pmp
     }
 
-    fn systick(&self) -> &Self::SysTick {
+    fn scheduler_timer(&self) -> &Self::SchedulerTimer {
+        &self.scheduler_timer
+    }
+
+    fn watchdog(&self) -> &Self::WatchDog {
         &()
     }
 

@@ -1,4 +1,12 @@
-//! Tock core scheduler.
+//! Tock's central kernel logic and scheduler trait.
+//!
+//! Also defines several utility functions to reduce duplicated code between
+//! different scheduler implementations.
+
+pub(crate) mod cooperative;
+pub(crate) mod mlfq;
+pub(crate) mod priority;
+pub(crate) mod round_robin;
 
 use core::cell::Cell;
 use core::ptr::NonNull;
@@ -13,16 +21,102 @@ use crate::grant::Grant;
 use crate::ipc;
 use crate::memop;
 use crate::platform::mpu::MPU;
-use crate::platform::systick::SysTick;
+use crate::platform::scheduler_timer::SchedulerTimer;
+use crate::platform::watchdog::WatchDog;
 use crate::platform::{Chip, Platform};
 use crate::process::{self, Task};
 use crate::returncode::ReturnCode;
 use crate::syscall::{ContextSwitchReason, Syscall};
 
-/// The time a process is permitted to run before being pre-empted
-const KERNEL_TICK_DURATION_US: u32 = 10000;
-/// Skip re-scheduling a process if its quanta is nearly exhausted
-const MIN_QUANTA_THRESHOLD_US: u32 = 500;
+/// Threshold in microseconds to consider a process's timeslice to be exhausted.
+/// That is, Tock will skip re-scheduling a process if its remaining timeslice
+/// is less than this threshold.
+pub(crate) const MIN_QUANTA_THRESHOLD_US: u32 = 500;
+
+/// Trait which any scheduler must implement.
+pub trait Scheduler<C: Chip> {
+    /// Decide which process to run next.
+    ///
+    /// The scheduler must decide whether to run a process, and if so, which
+    /// one. If the scheduler chooses not to run a process, it can request that
+    /// the chip enter sleep mode.
+    ///
+    /// If the scheduler selects a process to run it must provide its `AppId`
+    /// and an optional timeslice length in microseconds to provide to that
+    /// process. If the timeslice is `None`, the process will be run
+    /// cooperatively (i.e. without preemption). Otherwise the process will run
+    /// with a timeslice set to the specified length.
+    fn next(&self, kernel: &Kernel) -> SchedulingDecision;
+
+    /// Inform the scheduler of why the last process stopped executing, and how
+    /// long it executed for. Notably, `execution_time_us` will be `None`
+    /// if the the scheduler requested this process be run cooperatively.
+    fn result(&self, result: StoppedExecutingReason, execution_time_us: Option<u32>);
+
+    /// Tell the scheduler to execute kernel work such as interrupt bottom
+    /// halves and dynamic deferred calls. Most schedulers will use this default
+    /// implementation, but schedulers which at times wish to defer interrupt
+    /// handling will reimplement it.
+    ///
+    /// Providing this interface allows schedulers to fully manage how the main
+    /// kernel loop executes. For example, a more advanced scheduler that
+    /// attempts to help processes meet their deadlines may need to defer bottom
+    /// half interrupt handling or to selectively service certain interrupts.
+    /// Or, a power aware scheduler may want to selectively choose what work to
+    /// complete at any time to meet power requirements.
+    ///
+    /// Custom implementations of this function must be very careful, however,
+    /// as this function is called in the core kernel loop.
+    unsafe fn execute_kernel_work(&self, chip: &C) {
+        chip.service_pending_interrupts();
+        DynamicDeferredCall::call_global_instance_while(|| !chip.has_pending_interrupts());
+    }
+
+    /// Ask the scheduler whether to take a break from executing userspace
+    /// processes to handle kernel tasks. Most schedulers will use this default
+    /// implementation, which always prioritizes kernel work, but schedulers
+    /// that wish to defer interrupt handling may reimplement it.
+    unsafe fn do_kernel_work_now(&self, chip: &C) -> bool {
+        chip.has_pending_interrupts()
+            || DynamicDeferredCall::global_instance_calls_pending().unwrap_or(false)
+    }
+
+    /// Ask the scheduler whether to continue trying to execute a process.
+    ///
+    /// Once a process is scheduled the kernel will try to execute it until it
+    /// has no more work to do or exhausts its timeslice. The kernel will call
+    /// this function before every loop to check with the scheduler if it wants
+    /// to continue trying to execute this process.
+    ///
+    /// Most schedulers will use this default implementation, which causes the
+    /// `do_process()` loop to return if there are interrupts or deferred calls
+    /// that need to be serviced. However, schedulers which wish to defer
+    /// interrupt handling may change this, or priority schedulers which wish to
+    /// check if the execution of the current process has caused a higher
+    /// priority process to become ready (such as in the case of IPC). If this
+    /// returns `false`, then `do_process` will exit with a `KernelPreemption`.
+    ///
+    /// `id` is the identifier of the currently active process.
+    unsafe fn continue_process(&self, _id: AppId, chip: &C) -> bool {
+        !(chip.has_pending_interrupts()
+            || DynamicDeferredCall::global_instance_calls_pending().unwrap_or(false))
+    }
+}
+
+/// Enum representing the actions the scheduler can request in each call to
+/// `scheduler.next()`.
+#[derive(Copy, Clone)]
+pub enum SchedulingDecision {
+    /// Tell the kernel to run the specified process with the passed timeslice.
+    /// If `None` is passed as a timeslice, the process will be run
+    /// cooperatively.
+    RunProcess((AppId, Option<u32>)),
+
+    /// Tell the kernel to go to sleep. Notably, if the scheduler asks the
+    /// kernel to sleep when kernel tasks are ready, the kernel will not sleep,
+    /// and will instead restart the main loop and call `next()` again.
+    TrySleep,
+}
 
 /// Main object for the kernel. Each board will need to create one.
 pub struct Kernel {
@@ -49,11 +143,36 @@ pub struct Kernel {
     grants_finalized: Cell<bool>,
 }
 
+/// Enum used to inform scheduler why a process stopped executing (aka why
+/// `do_process()` returned).
+#[derive(PartialEq, Eq)]
+pub enum StoppedExecutingReason {
+    /// The process returned because it is no longer ready to run.
+    NoWorkLeft,
+
+    /// The process faulted, and the board restart policy was configured such
+    /// that it was not restarted and there was not a kernel panic.
+    StoppedFaulted,
+
+    /// The kernel stopped the process.
+    Stopped,
+
+    /// The process was preempted because its timeslice expired.
+    TimesliceExpired,
+
+    /// The process returned because it was preempted by the kernel. This can
+    /// mean that kernel work became ready (most likely because an interrupt
+    /// fired and the kernel thread needs to execute the bottom half of the
+    /// interrupt), or because the scheduler no longer wants to execute that
+    /// process.
+    KernelPreemption,
+}
+
 impl Kernel {
     pub fn new(processes: &'static [Option<&'static dyn process::ProcessType>]) -> Kernel {
         Kernel {
             work: Cell::new(0),
-            processes: processes,
+            processes,
             process_identifier_max: Cell::new(0),
             grant_counter: Cell::new(0),
             grants_finalized: Cell::new(false),
@@ -61,14 +180,43 @@ impl Kernel {
     }
 
     /// Something was scheduled for a process, so there is more work to do.
+    ///
+    /// This is only exposed in the core kernel crate.
     pub(crate) fn increment_work(&self) {
         self.work.increment();
     }
 
+    /// Something was scheduled for a process, so there is more work to do.
+    ///
+    /// This is exposed publicly, but restricted with a capability. The intent
+    /// is that external implementations of `ProcessType` need to be able to
+    /// indicate there is more process work to do.
+    pub fn increment_work_external(
+        &self,
+        _capability: &dyn capabilities::ExternalProcessCapability,
+    ) {
+        self.increment_work();
+    }
+
     /// Something finished for a process, so we decrement how much work there is
     /// to do.
+    ///
+    /// This is only exposed in the core kernel crate.
     pub(crate) fn decrement_work(&self) {
         self.work.decrement();
+    }
+
+    /// Something finished for a process, so we decrement how much work there is
+    /// to do.
+    ///
+    /// This is exposed publicly, but restricted with a capability. The intent
+    /// is that external implementations of `ProcessType` need to be able to
+    /// indicate that some process work has finished.
+    pub fn decrement_work_external(
+        &self,
+        _capability: &dyn capabilities::ExternalProcessCapability,
+    ) {
+        self.decrement_work();
     }
 
     /// Helper function for determining if we should service processes or go to
@@ -258,6 +406,24 @@ impl Kernel {
         self.grant_counter.get()
     }
 
+    /// Returns the number of grants that have been setup in the system and
+    /// marks the grants as "finalized". This means that no more grants can
+    /// be created because data structures have been setup based on the number
+    /// of grants when this function is called.
+    ///
+    /// In practice, this is called when processes are created, and the process
+    /// memory is setup based on the number of current grants.
+    ///
+    /// This is exposed publicly, but restricted with a capability. The intent
+    /// is that external implementations of `ProcessType` need to be able to
+    /// retrieve the final number of grants.
+    pub fn get_grant_count_and_finalize_external(
+        &self,
+        _capability: &dyn capabilities::ExternalProcessCapability,
+    ) -> usize {
+        self.get_grant_count_and_finalize()
+    }
+
     /// Create a new unique identifier for a process and return the identifier.
     ///
     /// Typically we just choose a larger number than we have used for any process
@@ -284,77 +450,174 @@ impl Kernel {
         }
     }
 
-    /// Main loop.
-    pub fn kernel_loop<P: Platform, C: Chip>(
-        &'static self,
-        platform: &P,
-        chip: &C,
-        ipc: Option<&ipc::IPC>,
-        _capability: &dyn capabilities::MainLoopCapability,
-    ) {
-        loop {
-            unsafe {
-                chip.service_pending_interrupts();
-                DynamicDeferredCall::call_global_instance_while(|| !chip.has_pending_interrupts());
-
-                for p in self.processes.iter() {
-                    p.map(|process| {
-                        self.do_process(platform, chip, process, ipc);
-                    });
-                    if chip.has_pending_interrupts()
-                        || DynamicDeferredCall::global_instance_calls_pending().unwrap_or(false)
-                    {
-                        break;
-                    }
-                }
-
-                chip.atomic(|| {
-                    if !chip.has_pending_interrupts()
-                        && !DynamicDeferredCall::global_instance_calls_pending().unwrap_or(false)
-                        && self.processes_blocked()
-                    {
-                        chip.sleep();
-                    }
-                });
-            };
-        }
-    }
-
-    unsafe fn do_process<P: Platform, C: Chip>(
+    /// Main loop of the OS.
+    ///
+    /// Most of the behavior of this loop is controlled by the `Scheduler`
+    /// implementation in use.
+    pub fn kernel_loop<P: Platform, C: Chip, SC: Scheduler<C>>(
         &self,
         platform: &P,
         chip: &C,
+        ipc: Option<&ipc::IPC>,
+        scheduler: &SC,
+        _capability: &dyn capabilities::MainLoopCapability,
+    ) -> ! {
+        chip.watchdog().setup();
+        loop {
+            chip.watchdog().tickle();
+            unsafe {
+                // Ask the scheduler if we should do tasks inside of the kernel,
+                // such as handle interrupts. A scheduler may want to prioritize
+                // processes instead, or there may be no kernel work to do.
+                match scheduler.do_kernel_work_now(chip) {
+                    true => {
+                        // Execute kernel work. This includes handling
+                        // interrupts and is how code in the chips/ and capsules
+                        // crates is able to execute.
+                        scheduler.execute_kernel_work(chip);
+                    }
+                    false => {
+                        // No kernel work ready, so ask scheduler for a process.
+                        match scheduler.next(self) {
+                            SchedulingDecision::RunProcess((appid, timeslice_us)) => {
+                                self.process_map_or((), appid, |process| {
+                                    let (reason, time_executed) = self.do_process(
+                                        platform,
+                                        chip,
+                                        scheduler,
+                                        process,
+                                        ipc,
+                                        timeslice_us,
+                                    );
+                                    scheduler.result(reason, time_executed);
+                                });
+                            }
+                            SchedulingDecision::TrySleep => {
+                                chip.atomic(|| {
+                                    // Cannot sleep if interrupts are pending,
+                                    // as on most platforms unhandled interrupts
+                                    // will wake the device. Also, if the only
+                                    // pending interrupt occurred after the
+                                    // scheduler decided to put the chip to
+                                    // sleep, but before this atomic section
+                                    // starts, the interrupt will not be
+                                    // serviced and the chip will never wake
+                                    // from sleep.
+                                    if !chip.has_pending_interrupts()
+                                        && !DynamicDeferredCall::global_instance_calls_pending()
+                                            .unwrap_or(false)
+                                    {
+                                        chip.watchdog().suspend();
+                                        chip.sleep();
+                                        chip.watchdog().resume();
+                                    }
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// Transfer control from the kernel to a userspace process.
+    ///
+    /// This function is called by the main kernel loop to run userspace code.
+    /// Notably, system calls from processes are handled in the kernel, *by the
+    /// kernel thread* in this function, and the syscall return value is set for
+    /// the process immediately. Normally, a process is allowed to continue
+    /// running after calling a syscall. However, the scheduler is given an out,
+    /// as `do_process()` will check with the scheduler before re-executing the
+    /// process to allow it to return from the syscall. If a process yields with
+    /// no callbacks pending, exits, exceeds its timeslice, or is interrupted,
+    /// then `do_process()` will return.
+    ///
+    /// Depending on the particular scheduler in use, this function may act in a
+    /// few different ways. `scheduler.continue_process()` allows the scheduler
+    /// to tell the Kernel whether to continue executing the process, or to
+    /// return control to the scheduler as soon as a kernel task becomes ready
+    /// (either a bottom half interrupt handler or dynamic deferred call), or to
+    /// continue executing the userspace process until it reaches one of the
+    /// aforementioned stopping conditions. Some schedulers may not require a
+    /// scheduler timer; passing `None` for the timeslice will use a null
+    /// scheduler timer even if the chip provides a real scheduler timer.
+    /// Schedulers can pass a timeslice (in us) of their choice, though if the
+    /// passed timeslice is smaller than `MIN_QUANTA_THRESHOLD_US` the process
+    /// will not execute, and this function will return immediately.
+    ///
+    /// This function returns a tuple indicating the reason the reason this
+    /// function has returned to the scheduler, and the amount of time the
+    /// process spent executing (or `None` if the process was run
+    /// cooperatively). Notably, time spent in this function by the kernel,
+    /// executing system calls or merely setting up the switch to/from
+    /// userspace, is charged to the process.
+    unsafe fn do_process<P: Platform, C: Chip, S: Scheduler<C>>(
+        &self,
+        platform: &P,
+        chip: &C,
+        scheduler: &S,
         process: &dyn process::ProcessType,
         ipc: Option<&crate::ipc::IPC>,
-    ) {
-        let systick = chip.systick();
-        systick.reset();
-        systick.set_timer(KERNEL_TICK_DURATION_US);
-        systick.enable(false);
+        timeslice_us: Option<u32>,
+    ) -> (StoppedExecutingReason, Option<u32>) {
+        // We must use a dummy scheduler timer if the process should be executed
+        // without any timeslice restrictions. Note, a chip may not provide a
+        // real scheduler timer implementation even if a timeslice is requested.
+        let scheduler_timer: &dyn SchedulerTimer = if timeslice_us.is_none() {
+            &() // dummy timer, no preemption
+        } else {
+            chip.scheduler_timer()
+        };
 
+        // Clear the scheduler timer and then start the counter. This starts the
+        // process's timeslice. Since the kernel is still executing at this
+        // point, the scheduler timer need not have an interrupt enabled after
+        // `start()`.
+        scheduler_timer.reset();
+        timeslice_us.map(|timeslice| scheduler_timer.start(timeslice));
+
+        // Need to track why the process is no longer executing so that we can
+        // inform the scheduler.
+        let mut return_reason = StoppedExecutingReason::NoWorkLeft;
+
+        // Since the timeslice counts both the process's execution time and the
+        // time spent in the kernel on behalf of the process (setting it up and
+        // handling its syscalls), we intend to keep running the process until
+        // it has no more work to do. We break out of this loop if the scheduler
+        // no longer wants to execute this process or if it exceeds its
+        // timeslice.
         loop {
-            if chip.has_pending_interrupts()
-                || DynamicDeferredCall::global_instance_calls_pending().unwrap_or(false)
-            {
+            let stop_running = match scheduler_timer.get_remaining_us() {
+                Some(us) => us <= MIN_QUANTA_THRESHOLD_US,
+                None => true,
+            };
+            if stop_running {
+                // Process ran out of time while the kernel was executing.
+                process.debug_timeslice_expired();
+                return_reason = StoppedExecutingReason::TimesliceExpired;
                 break;
             }
 
-            if systick.overflowed() || !systick.greater_than(MIN_QUANTA_THRESHOLD_US) {
-                process.debug_timeslice_expired();
+            // Check if the scheduler wishes to continue running this process.
+            if !scheduler.continue_process(process.appid(), chip) {
+                return_reason = StoppedExecutingReason::KernelPreemption;
                 break;
             }
 
             match process.get_state() {
                 process::State::Running => {
-                    // Running means that this process expects to be running,
-                    // so go ahead and set things up and switch to executing
-                    // the process.
+                    // Running means that this process expects to be running, so
+                    // go ahead and set things up and switch to executing the
+                    // process. Arming the scheduler timer instructs it to
+                    // generate an interrupt when the timeslice has expired. The
+                    // underlying timer is not affected.
                     process.setup_mpu();
-                    chip.mpu().enable_mpu();
-                    systick.enable(true);
+
+                    chip.mpu().enable_app_mpu();
+                    scheduler_timer.arm();
                     let context_switch_reason = process.switch_to();
-                    systick.enable(false);
-                    chip.mpu().disable_mpu();
+                    scheduler_timer.disarm();
+                    chip.mpu().disable_app_mpu();
 
                     // Now the process has returned back to the kernel. Check
                     // why and handle the process as appropriate.
@@ -418,10 +681,18 @@ impl Kernel {
                                     callback_ptr,
                                     appdata,
                                 } => {
+                                    // A callback is identified as a tuple of
+                                    // the driver number and the subdriver
+                                    // number.
                                     let callback_id = CallbackId {
                                         driver_num: driver_number,
                                         subscribe_num: subdriver_number,
                                     };
+                                    // Only one callback should exist per tuple.
+                                    // To ensure that there are no pending
+                                    // callbacks with the same identifier but
+                                    // with the old function pointer, we clear
+                                    // them now.
                                     process.remove_pending_callbacks(callback_id);
 
                                     let callback = NonNull::new(callback_ptr).map(|ptr| {
@@ -529,13 +800,18 @@ impl Kernel {
                                 }
                             }
                         }
-                        Some(ContextSwitchReason::TimesliceExpired) => {
-                            // break to handle other processes.
-                            break;
-                        }
                         Some(ContextSwitchReason::Interrupted) => {
-                            // break to handle other processes.
-                            break;
+                            if scheduler_timer.get_remaining_us().is_none() {
+                                // This interrupt was a timeslice expiration.
+                                process.debug_timeslice_expired();
+                                return_reason = StoppedExecutingReason::TimesliceExpired;
+                                break;
+                            }
+                            // Go to the beginning of loop to determine whether
+                            // to break to handle the interrupt, continue
+                            // executing this process, or switch to another
+                            // process.
+                            continue;
                         }
                         None => {
                             // Something went wrong when switching to this
@@ -545,60 +821,83 @@ impl Kernel {
                         }
                     }
                 }
-                process::State::Yielded | process::State::Unstarted => match process.dequeue_task()
-                {
-                    // If the process is yielded it might be waiting for a
-                    // callback. If there is a task scheduled for this process
-                    // go ahead and set the process to execute it.
-                    None => break,
-                    Some(cb) => match cb {
-                        Task::FunctionCall(ccb) => {
-                            if config::CONFIG.trace_syscalls {
-                                debug!(
-                                    "[{:?}] function_call @{:#x}({:#x}, {:#x}, {:#x}, {:#x})",
-                                    process.appid(),
-                                    ccb.pc,
-                                    ccb.argument0,
-                                    ccb.argument1,
-                                    ccb.argument2,
-                                    ccb.argument3,
+                process::State::Yielded | process::State::Unstarted => {
+                    // If the process is yielded or hasn't been started it is
+                    // waiting for a callback. If there is a task scheduled for
+                    // this process go ahead and set the process to execute it.
+                    match process.dequeue_task() {
+                        None => break,
+                        Some(cb) => match cb {
+                            Task::FunctionCall(ccb) => {
+                                if config::CONFIG.trace_syscalls {
+                                    debug!(
+                                        "[{:?}] function_call @{:#x}({:#x}, {:#x}, {:#x}, {:#x})",
+                                        process.appid(),
+                                        ccb.pc,
+                                        ccb.argument0,
+                                        ccb.argument1,
+                                        ccb.argument2,
+                                        ccb.argument3,
+                                    );
+                                }
+                                process.set_process_function(ccb);
+                            }
+                            Task::IPC((otherapp, ipc_type)) => {
+                                ipc.map_or_else(
+                                    || {
+                                        assert!(
+                                            false,
+                                            "Kernel consistency error: IPC Task with no IPC"
+                                        );
+                                    },
+                                    |ipc| {
+                                        ipc.schedule_callback(process.appid(), otherapp, ipc_type);
+                                    },
                                 );
                             }
-                            process.set_process_function(ccb);
-                        }
-                        Task::IPC((otherapp, ipc_type)) => {
-                            ipc.map_or_else(
-                                || {
-                                    assert!(
-                                        false,
-                                        "Kernel consistency error: IPC Task with no IPC"
-                                    );
-                                },
-                                |ipc| {
-                                    ipc.schedule_callback(process.appid(), otherapp, ipc_type);
-                                },
-                            );
-                        }
-                    },
-                },
+                        },
+                    }
+                }
                 process::State::Fault => {
                     // We should never be scheduling a process in fault.
                     panic!("Attempted to schedule a faulty process");
                 }
                 process::State::StoppedRunning => {
+                    return_reason = StoppedExecutingReason::Stopped;
                     break;
-                    // Do nothing
                 }
                 process::State::StoppedYielded => {
+                    return_reason = StoppedExecutingReason::Stopped;
                     break;
-                    // Do nothing
                 }
                 process::State::StoppedFaulted => {
+                    return_reason = StoppedExecutingReason::StoppedFaulted;
                     break;
-                    // Do nothing
                 }
             }
         }
-        systick.reset();
+
+        // Check how much time the process used while it was executing, and
+        // return the value so we can provide it to the scheduler.
+        let time_executed_us = timeslice_us.map_or(None, |timeslice| {
+            // Note, we cannot call `.get_remaining_us()` again if it has previously
+            // returned `None`, so we _must_ check the return reason first.
+            if return_reason == StoppedExecutingReason::TimesliceExpired {
+                // used the whole timeslice
+                Some(timeslice)
+            } else {
+                match scheduler_timer.get_remaining_us() {
+                    Some(remaining) => Some(timeslice - remaining),
+                    None => Some(timeslice), // used whole timeslice
+                }
+            }
+        });
+
+        // Reset the scheduler timer in case it unconditionally triggers
+        // interrupts upon expiration. We do not want it to expire while the
+        // chip is sleeping, for example.
+        scheduler_timer.reset();
+
+        (return_reason, time_executed_us)
     }
 }

@@ -3,6 +3,7 @@
 use core::fmt;
 use core::ptr::NonNull;
 
+use crate::capabilities;
 use crate::config;
 use crate::debug;
 use crate::process;
@@ -79,7 +80,27 @@ impl fmt::Debug for AppId {
 }
 
 impl AppId {
+    /// Create a new `AppId` object based on the app identifier and its index
+    /// in the processes array.
     pub(crate) fn new(kernel: &'static Kernel, identifier: usize, index: usize) -> AppId {
+        AppId {
+            kernel: kernel,
+            identifier: identifier,
+            index: index,
+        }
+    }
+
+    /// Create a new `AppId` object based on the app identifier and its index
+    /// in the processes array.
+    ///
+    /// This constructor is public but protected with a capability so that
+    /// external implementations of `ProcessType` can use it.
+    pub fn new_external(
+        kernel: &'static Kernel,
+        identifier: usize,
+        index: usize,
+        _capability: &dyn capabilities::ExternalProcessCapability,
+    ) -> AppId {
         AppId {
             kernel: kernel,
             identifier: identifier,

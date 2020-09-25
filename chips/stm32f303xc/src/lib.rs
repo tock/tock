@@ -4,14 +4,17 @@
 
 #![crate_name = "stm32f303xc"]
 #![crate_type = "rlib"]
-#![feature(const_fn)]
+#![feature(const_fn, llvm_asm)]
 #![no_std]
 
 pub mod chip;
+mod deferred_call_tasks;
 pub mod nvic;
 
 // Peripherals
+pub mod adc;
 pub mod exti;
+pub mod flash;
 pub mod gpio;
 pub mod i2c;
 pub mod rcc;
@@ -19,7 +22,6 @@ pub mod spi;
 pub mod syscfg;
 pub mod tim2;
 pub mod usart;
-
 use cortexm4::{
     generic_isr, hard_fault_handler, svc_handler, systick_handler, unhandled_interrupt,
 };
@@ -150,11 +152,11 @@ pub static IRQS: [unsafe extern "C" fn(); 82] = [
 ];
 
 extern "C" {
-    static mut _szero: u32;
-    static mut _ezero: u32;
-    static mut _etext: u32;
-    static mut _srelocate: u32;
-    static mut _erelocate: u32;
+    static mut _szero: usize;
+    static mut _ezero: usize;
+    static mut _etext: usize;
+    static mut _srelocate: usize;
+    static mut _erelocate: usize;
 }
 
 pub unsafe fn init() {

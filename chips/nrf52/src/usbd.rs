@@ -1121,10 +1121,8 @@ impl<'a> Usbd<'a> {
     }
 
     pub fn handle_interrupt(&self) {
-        let regs = &*self.registers;
-
         // Save then disable all interrupts.
-        let saved_inter = regs.intenset.extract();
+        let saved_inter = self.registers.intenset.extract();
         self.disable_all_interrupts();
 
         let active_events = self.active_events(&saved_inter);
@@ -1185,17 +1183,15 @@ impl<'a> Usbd<'a> {
         &self,
         _saved_inter: &LocalRegisterCopy<u32, Interrupt::Register>,
     ) -> InMemoryRegister<u32, Interrupt::Register> {
-        let regs = &*self.registers;
-
         let result = InMemoryRegister::new(0);
-        if Usbd::take_event(&regs.event_usbreset) {
+        if Usbd::take_event(&self.registers.event_usbreset) {
             debug_events!(
                 "- event: usbreset{}",
                 ignored_str(_saved_inter, Interrupt::USBRESET)
             );
             result.modify(Interrupt::USBRESET::SET);
         }
-        if Usbd::take_event(&regs.event_started) {
+        if Usbd::take_event(&self.registers.event_started) {
             debug_events!(
                 "- event: started{}",
                 ignored_str(_saved_inter, Interrupt::STARTED)
@@ -1203,7 +1199,7 @@ impl<'a> Usbd<'a> {
             result.modify(Interrupt::STARTED::SET);
         }
         for ep in 0..8 {
-            if Usbd::take_event(&regs.event_endepin[ep]) {
+            if Usbd::take_event(&self.registers.event_endepin[ep]) {
                 debug_events!(
                     "- event: endepin[{}]{}",
                     ep,
@@ -1212,14 +1208,14 @@ impl<'a> Usbd<'a> {
                 result.modify(inter_endepin(ep).val(1));
             }
         }
-        if Usbd::take_event(&regs.event_ep0datadone) {
+        if Usbd::take_event(&self.registers.event_ep0datadone) {
             debug_events!(
                 "- event: ep0datadone{}",
                 ignored_str(_saved_inter, Interrupt::EP0DATADONE)
             );
             result.modify(Interrupt::EP0DATADONE::SET);
         }
-        if Usbd::take_event(&regs.event_endisoin) {
+        if Usbd::take_event(&self.registers.event_endisoin) {
             debug_events!(
                 "- event: endisoin{}",
                 ignored_str(_saved_inter, Interrupt::ENDISOIN)
@@ -1227,7 +1223,7 @@ impl<'a> Usbd<'a> {
             result.modify(Interrupt::ENDISOIN::SET);
         }
         for ep in 0..8 {
-            if Usbd::take_event(&regs.event_endepout[ep]) {
+            if Usbd::take_event(&self.registers.event_endepout[ep]) {
                 debug_events!(
                     "- event: endepout[{}]{}",
                     ep,
@@ -1236,32 +1232,32 @@ impl<'a> Usbd<'a> {
                 result.modify(inter_endepout(ep).val(1));
             }
         }
-        if Usbd::take_event(&regs.event_endisoout) {
+        if Usbd::take_event(&self.registers.event_endisoout) {
             debug_events!(
                 "- event: endisoout{}",
                 ignored_str(_saved_inter, Interrupt::ENDISOOUT)
             );
             result.modify(Interrupt::ENDISOOUT::SET);
         }
-        if Usbd::take_event(&regs.event_sof) {
+        if Usbd::take_event(&self.registers.event_sof) {
             debug_events!("- event: sof{}", ignored_str(_saved_inter, Interrupt::SOF));
             result.modify(Interrupt::SOF::SET);
         }
-        if Usbd::take_event(&regs.event_usbevent) {
+        if Usbd::take_event(&self.registers.event_usbevent) {
             debug_events!(
                 "- event: usbevent{}",
                 ignored_str(_saved_inter, Interrupt::USBEVENT)
             );
             result.modify(Interrupt::USBEVENT::SET);
         }
-        if Usbd::take_event(&regs.event_ep0setup) {
+        if Usbd::take_event(&self.registers.event_ep0setup) {
             debug_events!(
                 "- event: ep0setup{}",
                 ignored_str(_saved_inter, Interrupt::EP0SETUP)
             );
             result.modify(Interrupt::EP0SETUP::SET);
         }
-        if Usbd::take_event(&regs.event_epdata) {
+        if Usbd::take_event(&self.registers.event_epdata) {
             debug_events!(
                 "- event: epdata{}",
                 ignored_str(_saved_inter, Interrupt::EPDATA)
@@ -1282,8 +1278,6 @@ impl<'a> Usbd<'a> {
     }
 
     fn handle_usbreset(&self) {
-        let regs = &*self.registers;
-
         for (ep, desc) in self.descriptors.iter().enumerate() {
             match desc.state.get() {
                 EndpointState::Disabled => {}
@@ -1296,7 +1290,7 @@ impl<'a> Usbd<'a> {
                     ));
                     if out_state.is_some() {
                         // Accept incoming OUT packets.
-                        regs.size_epout[ep].set(0);
+                        self.registers.size_epout[ep].set(0);
                     }
                 }
             }
@@ -1324,11 +1318,9 @@ impl<'a> Usbd<'a> {
     }
 
     fn handle_started(&self) {
-        let regs = &*self.registers;
-
-        let epstatus = regs.epstatus.extract();
+        let epstatus = self.registers.epstatus.extract();
         // Acknowledge the status by writing ones to the acknowledged bits.
-        regs.epstatus.set(epstatus.get());
+        self.registers.epstatus.set(epstatus.get());
         debug_events!("epstatus: {:08X}", epstatus.get());
 
         // Nothing to do here, we just wait for the corresponding ENDEP* event.
@@ -1360,8 +1352,6 @@ impl<'a> Usbd<'a> {
     /// Data has been sent over the USB bus, and the hardware has ACKed it.
     /// This is for the control endpoint only.
     fn handle_ep0datadone(&self) {
-        let regs = &*self.registers;
-
         let endpoint = 0;
         let state = self.descriptors[endpoint].state.get().ctrl_state();
         match state {
@@ -1391,7 +1381,7 @@ impl<'a> Usbd<'a> {
             CtrlState::Init => {
                 // We shouldn't be there. Let's STALL the endpoint.
                 debug_tasks!("- task: ep0stall");
-                regs.task_ep0stall.write(Task::ENABLE::SET);
+                self.registers.task_ep0stall.write(Task::ENABLE::SET);
             }
         }
     }
@@ -1404,8 +1394,6 @@ impl<'a> Usbd<'a> {
         // Make DMA available again for other endpoints.
         self.clear_pending_dma();
 
-        let regs = &*self.registers;
-
         match endpoint {
             0 => {
                 // We got data on the control endpoint during a CTRL WRITE
@@ -1415,7 +1403,7 @@ impl<'a> Usbd<'a> {
                 // Now we can handle it and pass it to the client to see
                 // what the client returns.
                 self.client.map(|client| {
-                    match client.ctrl_out(endpoint, regs.size_epout[endpoint].get()) {
+                    match client.ctrl_out(endpoint, self.registers.size_epout[endpoint].get()) {
                         hil::usb::CtrlOutResult::Ok => {
                             // We only handle the simple case where we have
                             // received all of the data we need to.
@@ -1430,7 +1418,7 @@ impl<'a> Usbd<'a> {
                             // Respond with STALL to any following transactions
                             // in this request
                             debug_tasks!("- task: ep0stall");
-                            regs.task_ep0stall.write(Task::ENABLE::SET);
+                            self.registers.task_ep0stall.write(Task::ENABLE::SET);
                             self.descriptors[endpoint]
                                 .state
                                 .set(EndpointState::Ctrl(CtrlState::Init));
@@ -1440,7 +1428,7 @@ impl<'a> Usbd<'a> {
             }
             1..=7 => {
                 // Notify the client about the new packet.
-                let packet_bytes = regs.size_epout[endpoint].get();
+                let packet_bytes = self.registers.size_epout[endpoint].get();
                 let (transfer_type, in_state, out_state) =
                     self.descriptors[endpoint].state.get().bulk_state();
                 assert_eq!(out_state, Some(BulkOutState::OutDma));
@@ -1453,7 +1441,7 @@ impl<'a> Usbd<'a> {
                     let new_out_state = match result {
                         hil::usb::OutResult::Ok => {
                             // Indicate that the endpoint is ready to receive data again.
-                            regs.size_epout[endpoint].set(0);
+                            self.registers.size_epout[endpoint].set(0);
                             BulkOutState::Init
                         }
 
@@ -1463,7 +1451,7 @@ impl<'a> Usbd<'a> {
                         }
 
                         hil::usb::OutResult::Error => {
-                            regs.epstall.write(
+                            self.registers.epstall.write(
                                 EndpointStall::EP.val(endpoint as u32)
                                     + EndpointStall::IO::Out
                                     + EndpointStall::STALL::Stall,
@@ -1492,11 +1480,9 @@ impl<'a> Usbd<'a> {
     }
 
     fn handle_usbevent(&self) {
-        let regs = &*self.registers;
-
-        let eventcause = regs.eventcause.extract();
+        let eventcause = self.registers.eventcause.extract();
         // Acknowledge the cause by writing ones to the acknowledged bits.
-        regs.eventcause.set(eventcause.get());
+        self.registers.eventcause.set(eventcause.get());
 
         debug_events!("eventcause: {:08x}", eventcause.get());
         if eventcause.is_set(EventCause::ISOOUTCRC) {
@@ -1522,11 +1508,9 @@ impl<'a> Usbd<'a> {
     }
 
     fn handle_epdata(&self) {
-        let regs = &*self.registers;
-
-        let epdatastatus = regs.epdatastatus.extract();
+        let epdatastatus = self.registers.epdatastatus.extract();
         // Acknowledge the status by writing ones to the acknowledged bits.
-        regs.epdatastatus.set(epdatastatus.get());
+        self.registers.epdatastatus.set(epdatastatus.get());
         debug_events!("epdatastatus: {:08X}", epdatastatus.get());
 
         // Endpoint 0 (control) receives an EP0DATADONE event instead.
@@ -1591,8 +1575,6 @@ impl<'a> Usbd<'a> {
 
     /// Handle the first event of a control transfer, the setup stage.
     fn handle_ep0setup(&self) {
-        let regs = &*self.registers;
-
         let endpoint = 0;
         let state = self.descriptors[endpoint].state.get().ctrl_state();
         match state {
@@ -1608,15 +1590,16 @@ impl<'a> Usbd<'a> {
                 // Re-construct the SETUP packet from various registers. The
                 // client's ctrl_setup() will parse it as a SetupData
                 // descriptor.
-                ep_buf[0].set((regs.bmrequesttype.get() & 0xff) as u8);
-                ep_buf[1].set((regs.brequest.get() & 0xff) as u8);
-                ep_buf[2].set(regs.wvaluel.read(Byte::VALUE) as u8);
-                ep_buf[3].set(regs.wvalueh.read(Byte::VALUE) as u8);
-                ep_buf[4].set(regs.windexl.read(Byte::VALUE) as u8);
-                ep_buf[5].set(regs.windexh.read(Byte::VALUE) as u8);
-                ep_buf[6].set(regs.wlengthl.read(Byte::VALUE) as u8);
-                ep_buf[7].set(regs.wlengthh.read(Byte::VALUE) as u8);
-                let size = regs.wlengthl.read(Byte::VALUE) + (regs.wlengthh.read(Byte::VALUE) << 8);
+                ep_buf[0].set((self.registers.bmrequesttype.get() & 0xff) as u8);
+                ep_buf[1].set((self.registers.brequest.get() & 0xff) as u8);
+                ep_buf[2].set(self.registers.wvaluel.read(Byte::VALUE) as u8);
+                ep_buf[3].set(self.registers.wvalueh.read(Byte::VALUE) as u8);
+                ep_buf[4].set(self.registers.windexl.read(Byte::VALUE) as u8);
+                ep_buf[5].set(self.registers.windexh.read(Byte::VALUE) as u8);
+                ep_buf[6].set(self.registers.wlengthl.read(Byte::VALUE) as u8);
+                ep_buf[7].set(self.registers.wlengthh.read(Byte::VALUE) as u8);
+                let size = self.registers.wlengthl.read(Byte::VALUE)
+                    + (self.registers.wlengthh.read(Byte::VALUE) << 8);
 
                 self.client.map(|client| {
                     // Notify the client that the ctrl setup event has occurred.
@@ -1629,7 +1612,11 @@ impl<'a> Usbd<'a> {
                                 // Directly handle a 0 length setup request.
                                 self.complete_ctrl_status();
                             } else {
-                                match regs.bmrequesttype.read_as_enum(RequestType::DIRECTION) {
+                                match self
+                                    .registers
+                                    .bmrequesttype
+                                    .read_as_enum(RequestType::DIRECTION)
+                                {
                                     Some(RequestType::DIRECTION::Value::HostToDevice) => {
                                         // CTRL WRITE transfer with data to
                                         // receive.
@@ -1658,7 +1645,7 @@ impl<'a> Usbd<'a> {
                                         // peripheral, we can wait until we get
                                         // the EP0DATADONE event to enable DMA.
                                         debug_tasks!("- task: ep0rcvout");
-                                        regs.task_ep0rcvout.write(Task::ENABLE::SET);
+                                        self.registers.task_ep0rcvout.write(Task::ENABLE::SET);
                                     }
                                     Some(RequestType::DIRECTION::Value::DeviceToHost) => {
                                         self.descriptors[endpoint]
@@ -1681,7 +1668,7 @@ impl<'a> Usbd<'a> {
                         _err => {
                             // An error occurred, we STALL
                             debug_tasks!("- task: ep0stall");
-                            regs.task_ep0stall.write(Task::ENABLE::SET);
+                            self.registers.task_ep0stall.write(Task::ENABLE::SET);
                         }
                     }
                 });
@@ -1691,19 +1678,18 @@ impl<'a> Usbd<'a> {
                 // Unexpected state to receive a SETUP packet. Let's STALL the endpoint.
                 internal_warn!("handle_ep0setup - unexpected state = {:?}", state);
                 debug_tasks!("- task: ep0stall");
-                regs.task_ep0stall.write(Task::ENABLE::SET);
+                self.registers.task_ep0stall.write(Task::ENABLE::SET);
             }
         }
     }
 
     fn complete_ctrl_status(&self) {
-        let regs = &*self.registers;
         let endpoint = 0;
 
         self.client.map(|client| {
             client.ctrl_status(endpoint);
             debug_tasks!("- task: ep0status");
-            regs.task_ep0status.write(Task::ENABLE::SET);
+            self.registers.task_ep0status.write(Task::ENABLE::SET);
             client.ctrl_status_complete(endpoint);
             self.descriptors[endpoint]
                 .state
@@ -1741,7 +1727,6 @@ impl<'a> Usbd<'a> {
     }
 
     fn transmit_in_ep0(&self) {
-        let regs = &*self.registers;
         let endpoint = 0;
 
         self.client.map(|client| {
@@ -1766,7 +1751,7 @@ impl<'a> Usbd<'a> {
                 hil::usb::CtrlInResult::Error => {
                     // An error occurred, we STALL
                     debug_tasks!("- task: ep0stall");
-                    regs.task_ep0stall.write(Task::ENABLE::SET);
+                    self.registers.task_ep0stall.write(Task::ENABLE::SET);
                 }
             };
         });
@@ -1784,7 +1769,6 @@ impl<'a> Usbd<'a> {
 
     fn transmit_in(&self, endpoint: usize) {
         debug_events!("transmit_in({})", endpoint);
-        let regs = &*self.registers;
 
         self.client.map(|client| {
             let (transfer_type, in_state, out_state) =
@@ -1805,7 +1789,7 @@ impl<'a> Usbd<'a> {
                 }
 
                 hil::usb::InResult::Error => {
-                    regs.epstall.write(
+                    self.registers.epstall.write(
                         EndpointStall::EP.val(endpoint as u32)
                             + EndpointStall::IO::In
                             + EndpointStall::STALL::Stall,
@@ -1839,8 +1823,6 @@ impl<'a> Usbd<'a> {
     }
 
     fn start_dma_in(&self, endpoint: usize, size: usize) {
-        let regs = &*self.registers;
-
         let slice = self.descriptors[endpoint]
             .slice_in
             .expect("No IN slice set for this descriptor");
@@ -1848,23 +1830,21 @@ impl<'a> Usbd<'a> {
 
         // Start DMA transfer
         self.set_pending_dma();
-        regs.epin[endpoint].set_buffer(&slice[..size]);
+        self.registers.epin[endpoint].set_buffer(&slice[..size]);
         debug_tasks!("- task: startepin[{}]", endpoint);
-        regs.task_startepin[endpoint].write(Task::ENABLE::SET);
+        self.registers.task_startepin[endpoint].write(Task::ENABLE::SET);
     }
 
     fn start_dma_out(&self, endpoint: usize) {
-        let regs = &*self.registers;
-
         let slice = self.descriptors[endpoint]
             .slice_out
             .expect("No OUT slice set for this descriptor");
 
         // Start DMA transfer
         self.set_pending_dma();
-        regs.epout[endpoint].set_buffer(slice);
+        self.registers.epout[endpoint].set_buffer(slice);
         debug_tasks!("- task: startepout[{}]", endpoint);
-        regs.task_startepout[endpoint].write(Task::ENABLE::SET);
+        self.registers.task_startepout[endpoint].write(Task::ENABLE::SET);
     }
 
     // Debug-only function

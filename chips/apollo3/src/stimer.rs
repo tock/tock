@@ -4,7 +4,11 @@ use kernel::common::cells::OptionalCell;
 
 use kernel::common::registers::{register_bitfields, register_structs, ReadWrite};
 use kernel::common::StaticRef;
-use kernel::hil;
+use kernel::hil::time::{
+    Alarm, AlarmClient, Counter, Freq16KHz, OverflowClient, Ticks, Ticks32, Time,
+};
+
+use kernel::ReturnCode;
 
 pub static mut STIMER: STimer = STimer::new(STIMER_BASE);
 
@@ -92,7 +96,7 @@ register_bitfields![u32,
 
 pub struct STimer<'a> {
     registers: StaticRef<STimerRegisters>,
-    client: OptionalCell<&'a dyn hil::time::AlarmClient>,
+    client: OptionalCell<&'a dyn AlarmClient>,
 }
 
 impl<'a> STimer<'_> {
@@ -115,38 +119,87 @@ impl<'a> STimer<'_> {
         // Clear interrupt
         regs.stmintclr.modify(STMINT::COMPAREA::SET);
 
-        self.client.map(|client| client.fired());
+        self.client.map(|client| client.alarm());
     }
 }
 
-impl<'a> hil::time::Alarm<'a> for STimer<'a> {
-    fn set_client(&self, client: &'a dyn hil::time::AlarmClient) {
+impl Time for STimer<'_> {
+    type Frequency = Freq16KHz;
+    type Ticks = Ticks32;
+
+    fn now(&self) -> Ticks32 {
+        Ticks32::from(self.registers.sttmr.get())
+    }
+}
+
+impl<'a> Counter<'a> for STimer<'a> {
+    fn set_overflow_client(&'a self, _client: &'a dyn OverflowClient) {
+        //self.overflow_client.set(client);
+    }
+
+    fn start(&self) -> ReturnCode {
+        // Set the clock source
+        self.registers.stcfg.write(STCFG::CLKSEL::XTAL_DIV2);
+        ReturnCode::SUCCESS
+    }
+
+    fn stop(&self) -> ReturnCode {
+        ReturnCode::EBUSY
+    }
+
+    fn reset(&self) -> ReturnCode {
+        ReturnCode::FAIL
+    }
+
+    fn is_running(&self) -> bool {
+        let regs = self.registers;
+        regs.stcfg.matches_any(STCFG::CLKSEL::XTAL_DIV2)
+    }
+}
+
+impl<'a> Alarm<'a> for STimer<'a> {
+    fn set_alarm_client(&self, client: &'a dyn AlarmClient) {
         self.client.set(client);
     }
 
-    fn set_alarm(&self, tics: u32) {
+    fn set_alarm(&self, reference: Self::Ticks, dt: Self::Ticks) {
         let regs = self.registers;
-
-        // Set the clock source
-        regs.stcfg.write(STCFG::CLKSEL::XTAL_DIV2);
+        let now = self.now();
+        let mut expire = reference.wrapping_add(dt);
+        if !now.within_range(reference, expire) {
+            expire = now;
+        }
 
         // Enable interrupts
         regs.stminten.modify(STMINT::COMPAREA::SET);
 
-        // Set the delta
-        regs.scmpr[0].set(tics - regs.sttmr.get());
+        // Set the delta, this can take a few goes
+        // See Errata 4.14 at at https://ambiqmicro.com/static/mcu/files/Apollo3_Blue_MCU_Errata_List_v2_0.pdf
+        let mut timer_delta = expire.wrapping_sub(now);
+        let mut tries = 0;
+
+        if timer_delta < self.minimum_dt() {
+            timer_delta = self.minimum_dt();
+            expire = now.wrapping_add(timer_delta);
+        }
+
+        // Apollo3 Blue Datasheet 14.1: 'Only offsets from "NOW" are written to
+        // comparator registers.'
+        while Self::Ticks::from(regs.scmpr[0].get()) != expire && tries < 5 {
+            regs.scmpr[0].set(timer_delta.into_u32());
+            tries = tries + 1;
+        }
 
         // Enable the compare
         regs.stcfg.modify(STCFG::COMPARE_A_EN::SET);
     }
 
-    fn get_alarm(&self) -> u32 {
+    fn get_alarm(&self) -> Self::Ticks {
         let regs = self.registers;
-
-        regs.scmpr[0].get()
+        Self::Ticks::from(regs.scmpr[0].get())
     }
 
-    fn disable(&self) {
+    fn disarm(&self) -> ReturnCode {
         let regs = self.registers;
 
         regs.stcfg.modify(
@@ -159,25 +212,16 @@ impl<'a> hil::time::Alarm<'a> for STimer<'a> {
                 + STCFG::COMPARE_G_EN::CLEAR
                 + STCFG::COMPARE_H_EN::CLEAR,
         );
+        ReturnCode::SUCCESS
     }
 
-    fn is_enabled(&self) -> bool {
+    fn is_armed(&self) -> bool {
         let regs = self.registers;
 
         regs.stcfg.read(STCFG::COMPARE_A_EN) != 0
     }
-}
 
-impl<'a> hil::time::Time for STimer<'_> {
-    type Frequency = hil::time::Freq16KHz;
-
-    fn now(&self) -> u32 {
-        let regs = self.registers;
-
-        regs.sttmr.get()
-    }
-
-    fn max_tics(&self) -> u32 {
-        core::u32::MAX
+    fn minimum_dt(&self) -> Self::Ticks {
+        Self::Ticks::from(2)
     }
 }

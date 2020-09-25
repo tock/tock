@@ -22,6 +22,7 @@ pub enum NUM {
 
     // HW Buses
     Spi                   = 0x20001,
+    SpiPeripheral         = 0x20002,
     I2cMaster             = 0x20003,
     UsbUser               = 0x20005,
     I2cMasterSlave        = 0x20006,
@@ -64,10 +65,11 @@ pub enum NUM {
     Nrf51822Serialization = 0x80004,
     Hd44780               = 0x80005,
     St7735                = 0x80006,
-    Ft6206                = 0x80007,
+    Ft6x06                = 0x80007,
 
     // Misc
     Buzzer                = 0x90000,
-    Screen                = 0x90001
+    Screen                = 0x90001,
+    Touch                 = 0x90002
 }
 }

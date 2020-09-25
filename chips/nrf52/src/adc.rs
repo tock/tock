@@ -222,7 +222,7 @@ register_bitfields![u32,
     ]
 ];
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum AdcChannel {
     AnalogInput0 = 1,
     AnalogInput1 = 2,
@@ -256,10 +256,6 @@ impl Adc {
             // state: Cell::new(State::Idle),
             client: OptionalCell::empty(),
         }
-    }
-
-    pub fn set_client(&self, client: &'static dyn hil::adc::Client) {
-        self.client.set(client);
     }
 
     pub fn handle_interrupt(&self) {
@@ -344,5 +340,9 @@ impl hil::adc::Adc for Adc {
 
     fn get_voltage_reference_mv(&self) -> Option<usize> {
         Some(3300)
+    }
+
+    fn set_client(&self, client: &'static dyn hil::adc::Client) {
+        self.client.set(client);
     }
 }

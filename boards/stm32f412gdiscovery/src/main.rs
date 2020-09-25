@@ -6,6 +6,7 @@
 // Disable this attribute when documenting, as a workaround for
 // https://github.com/rust-lang/rust/issues/62184.
 #![cfg_attr(not(doc), no_main)]
+#![feature(const_in_array_repeat_expressions)]
 #![deny(missing_docs)]
 
 use capsules::virtual_alarm::VirtualMuxAlarm;
@@ -19,6 +20,9 @@ use kernel::{create_capability, debug, static_init};
 /// Support routines for debugging I/O.
 pub mod io;
 
+#[allow(dead_code)]
+mod multi_alarm_test;
+
 // Number of concurrent processes this platform supports.
 const NUM_PROCS: usize = 4;
 
@@ -30,12 +34,6 @@ static mut CHIP: Option<&'static stm32f412g::chip::Stm32f4xx> = None;
 
 // How should the kernel respond when a process faults.
 const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultResponse::Panic;
-
-// Force the emission of the `.apps` segment in the kernel elf image
-// NOTE: This will cause the kernel to overwrite any existing apps when flashed!
-#[used]
-#[link_section = ".app.hack"]
-static APP_HACK: u8 = 0;
 
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
@@ -54,7 +52,9 @@ struct STM32F412GDiscovery {
         VirtualMuxAlarm<'static, stm32f412g::tim2::Tim2<'static>>,
     >,
     gpio: &'static capsules::gpio::GPIO<'static, stm32f412g::gpio::Pin<'static>>,
-    ft6206: &'static capsules::ft6206::Ft6206<'static>,
+    adc: &'static capsules::adc::AdcVirtualized<'static>,
+    ft6x06: &'static capsules::ft6x06::Ft6x06<'static>,
+    touch: &'static capsules::touch::Touch<'static>,
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
@@ -70,7 +70,9 @@ impl Platform for STM32F412GDiscovery {
             capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
-            capsules::ft6206::DRIVER_NUM => f(Some(self.ft6206)),
+            capsules::adc::DRIVER_NUM => f(Some(self.adc)),
+            capsules::ft6x06::DRIVER_NUM => f(Some(self.ft6x06)),
+            capsules::touch::DRIVER_NUM => f(Some(self.touch)),
             _ => f(None),
         }
     }
@@ -236,6 +238,39 @@ unsafe fn set_pin_primary_functions() {
         // the rest.
         EXTI.associate_line_gpiopin(LineId::Exti5, pin);
     });
+
+    // ADC
+
+    // Arduino A0
+    PinId::PA01.get_pin().as_ref().map(|pin| {
+        pin.set_mode(stm32f412g::gpio::Mode::AnalogMode);
+    });
+
+    // Arduino A1
+    PinId::PC01.get_pin().as_ref().map(|pin| {
+        pin.set_mode(stm32f412g::gpio::Mode::AnalogMode);
+    });
+
+    // Arduino A2
+    PinId::PC03.get_pin().as_ref().map(|pin| {
+        pin.set_mode(stm32f412g::gpio::Mode::AnalogMode);
+    });
+
+    // Arduino A3
+    PinId::PC04.get_pin().as_ref().map(|pin| {
+        pin.set_mode(stm32f412g::gpio::Mode::AnalogMode);
+    });
+
+    // Arduino A4
+    PinId::PC05.get_pin().as_ref().map(|pin| {
+        pin.set_mode(stm32f412g::gpio::Mode::AnalogMode);
+    });
+
+    // Arduino A5
+    PinId::PB00.get_pin().as_ref().map(|pin| {
+        pin.set_mode(stm32f412g::gpio::Mode::AnalogMode);
+    });
+
     // EXTI9_5 interrupts is delivered at IRQn 23 (EXTI9_5)
     cortexm4::nvic::Nvic::new(stm32f412g::nvic::EXTI9_5).enable();
 }
@@ -449,21 +484,86 @@ pub unsafe fn reset_handler() {
     )
     .finalize(components::i2c_mux_component_helper!());
 
-    let ft6206 = components::ft6206::Ft6206Component::new(
+    let ft6x06 = components::ft6x06::Ft6x06Component::new(
         stm32f412g::gpio::PinId::PG05.get_pin().as_ref().unwrap(),
     )
-    .finalize(components::ft6206_i2c_component_helper!(mux_i2c));
+    .finalize(components::ft6x06_i2c_component_helper!(mux_i2c));
 
-    ft6206.is_present();
+    let touch = components::touch::TouchComponent::new(board_kernel, ft6x06, Some(ft6x06), None)
+        .finalize(());
 
-    let nucleo_f412g = STM32F412GDiscovery {
+    // Uncomment this for multi touch support
+    // let touch =
+    //     components::touch::MultiTouchComponent::new(board_kernel, ft6x06, Some(ft6x06), None)
+    //         .finalize(());
+
+    // ADC
+    let adc_mux = components::adc::AdcMuxComponent::new(&stm32f412g::adc::ADC1)
+        .finalize(components::adc_mux_component_helper!(stm32f412g::adc::Adc));
+
+    let temp_sensor = components::temperature_stm::TemperatureSTMComponent::new(2.5, 0.76)
+        .finalize(components::temperaturestm_adc_component_helper!(
+            // spi type
+            stm32f412g::adc::Adc,
+            // chip select
+            stm32f412g::adc::Channel::Channel18,
+            // spi mux
+            adc_mux
+        ));
+    let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
+    let grant_temperature = board_kernel.create_grant(&grant_cap);
+
+    let temp = static_init!(
+        capsules::temperature::TemperatureSensor<'static>,
+        capsules::temperature::TemperatureSensor::new(temp_sensor, grant_temperature)
+    );
+    kernel::hil::sensors::TemperatureDriver::set_client(temp_sensor, temp);
+
+    let adc_channel_0 =
+        components::adc::AdcComponent::new(&adc_mux, stm32f412g::adc::Channel::Channel1)
+            .finalize(components::adc_component_helper!(stm32f412g::adc::Adc));
+
+    let adc_channel_1 =
+        components::adc::AdcComponent::new(&adc_mux, stm32f412g::adc::Channel::Channel11)
+            .finalize(components::adc_component_helper!(stm32f412g::adc::Adc));
+
+    let adc_channel_2 =
+        components::adc::AdcComponent::new(&adc_mux, stm32f412g::adc::Channel::Channel13)
+            .finalize(components::adc_component_helper!(stm32f412g::adc::Adc));
+
+    let adc_channel_3 =
+        components::adc::AdcComponent::new(&adc_mux, stm32f412g::adc::Channel::Channel14)
+            .finalize(components::adc_component_helper!(stm32f412g::adc::Adc));
+
+    let adc_channel_4 =
+        components::adc::AdcComponent::new(&adc_mux, stm32f412g::adc::Channel::Channel15)
+            .finalize(components::adc_component_helper!(stm32f412g::adc::Adc));
+
+    let adc_channel_5 =
+        components::adc::AdcComponent::new(&adc_mux, stm32f412g::adc::Channel::Channel8)
+            .finalize(components::adc_component_helper!(stm32f412g::adc::Adc));
+
+    let adc_syscall = components::adc::AdcVirtualComponent::new(board_kernel).finalize(
+        components::adc_syscall_component_helper!(
+            adc_channel_0,
+            adc_channel_1,
+            adc_channel_2,
+            adc_channel_3,
+            adc_channel_4,
+            adc_channel_5
+        ),
+    );
+
+    let stm32f412g = STM32F412GDiscovery {
         console: console,
         ipc: kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability),
         led: led,
         button: button,
         alarm: alarm,
         gpio: gpio,
-        ft6206: ft6206,
+        adc: adc_syscall,
+        ft6x06: ft6x06,
+        touch: touch,
     };
 
     // // Optional kernel tests
@@ -502,7 +602,7 @@ pub unsafe fn reset_handler() {
             &_sapps as *const u8,
             &_eapps as *const u8 as usize - &_sapps as *const u8 as usize,
         ),
-        &mut core::slice::from_raw_parts_mut(
+        core::slice::from_raw_parts_mut(
             &mut _sappmem as *mut u8,
             &_eappmem as *const u8 as usize - &_sappmem as *const u8 as usize,
         ),
@@ -515,10 +615,17 @@ pub unsafe fn reset_handler() {
         debug!("{:?}", err);
     });
 
+    let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
+        .finalize(components::rr_component_helper!(NUM_PROCS));
+
+    //Uncomment to run multi alarm test
+    //multi_alarm_test::run_multi_alarm(mux_alarm);
+
     board_kernel.kernel_loop(
-        &nucleo_f412g,
+        &stm32f412g,
         chip,
-        Some(&nucleo_f412g.ipc),
+        Some(&stm32f412g.ipc),
+        scheduler,
         &main_loop_capability,
     );
 }

@@ -50,6 +50,7 @@
 //! ```
 //! use kernel::hil;
 //! use kernel::hil::time::Frequency;
+//! use kernel::hil::time::Time;
 //! use kernel::ReturnCode;
 //!
 //! struct RngTest<'a, A: 'a + hil::time::Alarm<'a>> {
@@ -59,14 +60,14 @@
 //!
 //! impl<'a, A: hil::time::Alarm<'a>> RngTest<'a, A> {
 //!     pub fn initialize(&self) {
-//!         let interval = 1 * <A::Frequency>::frequency();
-//!         let tics = self.alarm.now().wrapping_add(interval);
-//!         self.alarm.set_alarm(tics);
+//!         let now = self.alarm.now();
+//!         let dt = <A>::ticks_from_seconds(1);
+//!         self.alarm.set_alarm(now, dt);
 //!     }
 //! }
 //!
 //! impl<'a, A: hil::time::Alarm<'a>> hil::time::AlarmClient for RngTest<'a, A> {
-//!     fn fired(&self) {
+//!     fn alarm(&self) {
 //!         self.rng.get();
 //!     }
 //! }
@@ -78,9 +79,10 @@
 //!         match randomness.next() {
 //!             Some(random) => {
 //!                 println!("Rand {}", random);
-//!                 let interval = 1 * <A::Frequency>::frequency();
-//!                 let tics = self.alarm.now().wrapping_add(interval);
-//!                 self.alarm.set_alarm(tics);
+//!                 let now = self.alarm.now();
+//!                 let dt = <A>::ticks_from_seconds(1);
+//!
+//!                 self.alarm.set_alarm(now, dt);
 //!                 hil::rng::Continue::Done
 //!             },
 //!             None => hil::rng::Continue::More

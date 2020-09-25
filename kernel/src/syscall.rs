@@ -50,14 +50,12 @@ pub enum Syscall {
 }
 
 /// Why the process stopped executing and execution returned to the kernel.
-#[derive(PartialEq)]
+#[derive(PartialEq, Copy, Clone)]
 pub enum ContextSwitchReason {
     /// Process called a syscall. Also returns the syscall and relevant values.
     SyscallFired { syscall: Syscall },
     /// Process triggered the hardfault handler.
     Fault,
-    /// Process exceeded its timeslice.
-    TimesliceExpired,
     /// Process interrupted (e.g. by a hardware event)
     Interrupted,
 }

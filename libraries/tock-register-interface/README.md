@@ -47,8 +47,8 @@ register_structs! {
 
         // The type for a register can be anything. Conveniently, you can use an
         // array when there are a bunch of similar registers.
-        (0x00C => array: [ReadWrite<u32>; 4])
-        (0x01C => ... )
+        (0x00C => array: [ReadWrite<u32>; 4]),
+        (0x01C => ... ),
 
         // Etc.
 
@@ -166,9 +166,8 @@ Bitfields are defined through the `register_bitfields!` macro:
 
 ```rust
 register_bitfields! [
-    // First parameter is the register width for the bitfields. Can be u8, u16,
-    // u32, or u64.
-    u8,
+    // First parameter is the register width. Can be u8, u16, u32, or u64.
+    u32,
 
     // Each subsequent parameter is a register abbreviation, its descriptive
     // name, and its associated bitfields.
@@ -179,7 +178,7 @@ register_bitfields! [
         // name OFFSET(shift) NUMBITS(num) [ /* optional values */ ]
 
         // This is a two-bit field which includes bits 4 and 5
-        RANGE OFFSET(4) NUMBITS(3) [
+        RANGE OFFSET(4) NUMBITS(2) [
             // Each of these defines a name for a value that the bitfield can be
             // written with or matched against. Note that this set is not exclusive--
             // the field can still be written with arbitrary constants.
@@ -440,13 +439,13 @@ with a register of the type `ReadWrite<_, Control>` (or `ReadOnly/WriteOnly`,
 etc). For instance, if we have the bitfields and registers as defined above,
 
 ```rust
-// This line compiles, because CR and registers.cr are both associated with the
-// Control group of bitfields.
+// This line compiles, because registers.cr is associated with the Control group
+// of bitfields.
 registers.cr.modify(Control::RANGE.val(1));
 
-// This line will not compile, because CR is associated with the Control group,
-// while registers.s is associated with the Status group.
-registers.s.modify(Control::RANGE.val(1));
+// This line will not compile, because registers.s is associated with the Status
+// group, not the Control group.
+let range = registers.s.read(Control::RANGE);
 ```
 
 ## Naming conventions
