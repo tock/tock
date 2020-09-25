@@ -360,6 +360,67 @@ impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> Driver for CtapDriver<'a, U> {
                     }
                 })
                 .unwrap_or_else(|err| err.into()),
+            // Send or receive
+            // This command has two parts.
+            //    Part 1: Receive
+            //            This will allow receives, the same as the Allow
+            //            receive command above. If data is ready to receive
+            //            the `packet_received()` callback will be called.
+            //            When this happens the client callback will be
+            //            scheduled and no send event will occur.
+            //    Part 2: Send
+            //            If no receive occurs we will be left in a start where
+            //            future recieves will be allowed. This is the same
+            //            outcome as calling the Allow receive command.
+            //            As well as that we will then send the data in the
+            //            send buffer.
+            4 => self
+                .app
+                .enter(appid, |app, _| {
+                    if let Some(usb) = self.usb {
+                        if app.can_receive.get() {
+                            // We are already receiving
+                            ReturnCode::EBUSY
+                        } else {
+                            app.can_receive.set(true);
+                            if let Some(buf) = self.recv_buffer.take() {
+                                match usb.receive_buffer(buf) {
+                                    Ok(_) => ReturnCode::SUCCESS,
+                                    Err((err, buffer)) => {
+                                        self.recv_buffer.replace(buffer);
+                                        return err;
+                                    }
+                                }
+                            } else {
+                                return ReturnCode::EBUSY;
+                            };
+
+                            if !app.can_receive.get() {
+                                // The call to receive_buffer() collected a pending packet.
+                            } else {
+                                match app.send_buf.as_ref() {
+                                    Some(d) => {
+                                        self.send_buffer.take().map(|buf| {
+                                            let data = d.as_ref();
+
+                                            // Copy the data into the static buffer
+                                            buf.copy_from_slice(&data[0..]);
+
+                                            let _ = usb.send_buffer(buf);
+                                        });
+                                    }
+                                    None => {
+                                        return ReturnCode::ERESERVE;
+                                    }
+                                };
+                            }
+                            ReturnCode::SUCCESS
+                        }
+                    } else {
+                        ReturnCode::ENOSUPPORT
+                    }
+                })
+                .unwrap_or_else(|err| err.into()),
 
             // default
             _ => ReturnCode::ENOSUPPORT,
