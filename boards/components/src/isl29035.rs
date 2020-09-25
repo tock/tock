@@ -31,8 +31,7 @@ use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
 use kernel::hil;
-use kernel::hil::time;
-use kernel::hil::time::Alarm;
+use kernel::hil::time::{self, Alarm};
 use kernel::{static_init, static_init_half};
 
 // Setup static space for the objects.
@@ -91,7 +90,7 @@ impl<A: 'static + time::Alarm<'static>> Component for Isl29035Component<A> {
             Isl29035::new(isl29035_i2c, isl29035_virtual_alarm, &mut I2C_BUF)
         );
         isl29035_i2c.set_client(isl29035);
-        isl29035_virtual_alarm.set_client(isl29035);
+        isl29035_virtual_alarm.set_alarm_client(isl29035);
         isl29035
     }
 }
@@ -138,7 +137,7 @@ impl<A: 'static + time::Alarm<'static>> Component for AmbientLightComponent<A> {
             Isl29035::new(isl29035_i2c, isl29035_virtual_alarm, &mut I2C_BUF)
         );
         isl29035_i2c.set_client(isl29035);
-        isl29035_virtual_alarm.set_client(isl29035);
+        isl29035_virtual_alarm.set_alarm_client(isl29035);
         let ambient_light = static_init!(
             AmbientLight<'static>,
             AmbientLight::new(isl29035, self.board_kernel.create_grant(&grant_cap))

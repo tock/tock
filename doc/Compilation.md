@@ -13,6 +13,7 @@ of how platforms program each onto an actual board.
 - [Compiling the kernel](#compiling-the-kernel)
   * [Life of a Tock compilation](#life-of-a-tock-compilation)
   * [LLVM Binutils](#llvm-binutils)
+  * [Special `.apps` section](#special-apps-section)
 - [Compiling a process](#compiling-a-process)
   * [Position Independent Code](#position-independent-code)
   * [Tock Binary Format](#tock-binary-format)
@@ -102,6 +103,28 @@ has three main ramifications:
 3. Tock no longer relies on an external dependency to provide these tools. That
    should ensure that all Tock developers are using the same version of the
    tools.
+
+### Special `.apps` section
+
+Tock kernels include a `.apps` section in the kernel .elf file that is at the
+same physical address where applications will be loaded. When compiling the
+kernel, this is just a placeholder and is not populated with any meaningful
+data. It exists to make it easy to update the kernel .elf file with an
+application binary to make a monolithic .elf file so that the kernel and apps
+can be flashed together.
+
+When the Tock build system creates the kernel binary, it explicitly removes this
+section so that the placeholder is not included in the kernel binary.
+
+To use the special `.apps` section, `objcopy` can replace the placeholder with an actual app binary. The general command looks like:
+
+```bash
+$ arm-none-eabi-objcopy --update-section .apps=libtock-c/examples/c_hello/build/cortex-m4/cortex-m4.tbf target/thumbv7em-none-eabi/release/stm32f412gdiscovery.elf target/thumbv7em-none-eabi/release/stm32f4discovery-app.elf
+```
+
+This replaces the placeholder section `.apps` with the "c_hello" application TBF
+in the stm32f412gdiscovery.elf kernel ELF, and creates a new .elf called
+`stm32f4discovery-app.elf`.
 
 ## Compiling a process
 

@@ -2,14 +2,15 @@
 //!
 //! - Author: Amit Levy <levya@cs.stanford.edu>
 //! - Author: Philip Levis <pal@cs.stanford.edu>
-//! - Date: July 16, 2015
+//! - Date: September 17, 2020
 
 use crate::pm::{self, PBDClock};
 use kernel::common::cells::OptionalCell;
 use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
-use kernel::hil::time::{self, Alarm, Freq16KHz, Time};
+use kernel::hil::time::{self, Ticks};
 use kernel::hil::Controller;
+use kernel::ReturnCode;
 
 /// Minimum number of clock tics to make sure ALARM0 register is synchronized
 ///
@@ -186,6 +187,7 @@ impl Controller for Ast<'_> {
         self.disable_alarm_irq();
         self.set_prescalar(0); // 32KHz / (2^(0 + 1)) = 16KHz
         self.enable_alarm_wake();
+
         self.clear_alarm();
     }
 }
@@ -202,150 +204,187 @@ enum Clock {
 
 impl<'a> Ast<'a> {
     fn clock_busy(&self) -> bool {
-        let regs: &AstRegisters = &*self.registers;
-        regs.sr.is_set(Status::CLKBUSY)
+        self.registers.sr.is_set(Status::CLKBUSY)
     }
 
     fn busy(&self) -> bool {
-        let regs: &AstRegisters = &*self.registers;
-        regs.sr.is_set(Status::BUSY)
+        self.registers.sr.is_set(Status::BUSY)
     }
 
     /// Clears the alarm bit in the status register (indicating the alarm value
     /// has been reached).
     fn clear_alarm(&self) {
-        let regs: &AstRegisters = &*self.registers;
         while self.busy() {}
-        regs.scr.write(Interrupt::ALARM0::SET);
+        self.registers.scr.write(Interrupt::ALARM0::SET);
         while self.busy() {}
     }
 
     // Configure the clock to use to drive the AST
     fn select_clock(&self, clock: Clock) {
-        let regs: &AstRegisters = &*self.registers;
         // Disable clock by setting first bit to zero
         while self.clock_busy() {}
-        regs.clock.modify(ClockControl::CEN::CLEAR);
+        self.registers.clock.modify(ClockControl::CEN::CLEAR);
         while self.clock_busy() {}
 
         // Select clock
-        regs.clock.write(ClockControl::CSSEL.val(clock as u32));
+        self.registers
+            .clock
+            .write(ClockControl::CSSEL.val(clock as u32));
         while self.clock_busy() {}
 
         // Re-enable clock
-        regs.clock.modify(ClockControl::CEN::SET);
+        self.registers.clock.modify(ClockControl::CEN::SET);
         while self.clock_busy() {}
     }
 
     /// Enables the AST registers
     fn enable(&self) {
-        let regs: &AstRegisters = &*self.registers;
         while self.busy() {}
-        regs.cr.modify(Control::EN::SET);
+        self.registers.cr.modify(Control::EN::SET);
         while self.busy() {}
     }
 
     /// Disable the AST registers
     fn disable(&self) {
+        while self.busy() {}
+        self.registers.cr.modify(Control::EN::CLEAR);
+        while self.busy() {}
+    }
+
+    fn is_enabled(&self) -> bool {
         let regs: &AstRegisters = &*self.registers;
         while self.busy() {}
-        regs.cr.modify(Control::EN::CLEAR);
-        while self.busy() {}
+        regs.cr.is_set(Control::EN)
     }
 
     /// Returns if an alarm is currently set
     fn is_alarm_enabled(&self) -> bool {
-        let regs: &AstRegisters = &*self.registers;
         while self.busy() {}
-        regs.sr.is_set(Status::ALARM0)
+        self.registers.sr.is_set(Status::ALARM0)
     }
 
     fn set_prescalar(&self, val: u8) {
-        let regs: &AstRegisters = &*self.registers;
         while self.busy() {}
-        regs.cr.modify(Control::PSEL.val(val as u32));
+        self.registers.cr.modify(Control::PSEL.val(val as u32));
         while self.busy() {}
     }
 
     fn enable_alarm_irq(&self) {
-        let regs: &AstRegisters = &*self.registers;
-        regs.ier.write(Interrupt::ALARM0::SET);
+        self.registers.ier.write(Interrupt::ALARM0::SET);
     }
 
     fn disable_alarm_irq(&self) {
-        let regs: &AstRegisters = &*self.registers;
-        regs.idr.write(Interrupt::ALARM0::SET);
+        self.registers.idr.write(Interrupt::ALARM0::SET);
     }
 
     fn enable_alarm_wake(&self) {
-        let regs: &AstRegisters = &*self.registers;
         while self.busy() {}
-        regs.wer.modify(Event::ALARM0::SET);
+        self.registers.wer.modify(Event::ALARM0::SET);
         while self.busy() {}
     }
 
     fn get_counter(&self) -> u32 {
+        while self.busy() {}
+        self.registers.cv.read(Value::VALUE)
+    }
+
+    fn set_counter(&self, val: u32) {
         let regs: &AstRegisters = &*self.registers;
         while self.busy() {}
-        regs.cv.read(Value::VALUE)
+        regs.cv.set(val);
     }
 
     pub fn handle_interrupt(&mut self) {
         self.clear_alarm();
         self.callback.map(|cb| {
-            cb.fired();
+            cb.alarm();
         });
     }
 }
 
-impl Time for Ast<'_> {
-    type Frequency = Freq16KHz;
+impl time::Time for Ast<'_> {
+    type Frequency = time::Freq16KHz;
+    type Ticks = time::Ticks32;
 
-    fn now(&self) -> u32 {
-        self.get_counter()
-    }
-
-    fn max_tics(&self) -> u32 {
-        core::u32::MAX
+    fn now(&self) -> Self::Ticks {
+        Self::Ticks::from(self.get_counter())
     }
 }
 
-impl<'a> Alarm<'a> for Ast<'a> {
-    fn set_client(&self, client: &'a dyn time::AlarmClient) {
+impl<'a> time::Counter<'a> for Ast<'a> {
+    fn set_overflow_client(&'a self, _client: &'a dyn time::OverflowClient) {}
+
+    fn start(&self) -> ReturnCode {
+        self.enable();
+        ReturnCode::SUCCESS
+    }
+
+    fn stop(&self) -> ReturnCode {
+        self.disable();
+        ReturnCode::SUCCESS
+    }
+
+    fn reset(&self) -> ReturnCode {
+        self.set_counter(0);
+        ReturnCode::SUCCESS
+    }
+
+    fn is_running(&self) -> bool {
+        self.is_enabled()
+    }
+}
+
+impl<'a> time::Alarm<'a> for Ast<'a> {
+    fn set_alarm_client(&self, client: &'a dyn time::AlarmClient) {
         self.callback.set(client);
     }
 
-    fn set_alarm(&self, mut tics: u32) {
-        let regs: &AstRegisters = &*self.registers;
-        let now = self.get_counter();
-        if tics.wrapping_sub(now) <= ALARM0_SYNC_TICS {
-            tics = now.wrapping_add(ALARM0_SYNC_TICS);
+    fn set_alarm(&self, reference: Self::Ticks, dt: Self::Ticks) {
+        let now = Self::Ticks::from(self.get_counter());
+        let mut expire = reference.wrapping_add(dt);
+        if !now.within_range(reference, expire) {
+            // We have already passed when: just fire ASAP
+            // Note this will also trigger the increment below
+            expire = Self::Ticks::from(now);
         }
 
-        // Clear any alarm event that may be pending before setting the new alarm.
+        // Firing is too close in the future, delay it a bit
+        // to make sure we don't miss the tick
+        if expire.wrapping_sub(now).into_u32() <= ALARM0_SYNC_TICS {
+            expire = now.wrapping_add(Self::Ticks::from(ALARM0_SYNC_TICS));
+        }
+
+        // Clear any alarm event that may be pending before setting new alarm.
         self.clear_alarm();
 
         while self.busy() {}
-        regs.ar0.write(Value::VALUE.val(tics));
+        self.registers
+            .ar0
+            .write(Value::VALUE.val(expire.into_u32()));
+
         while self.busy() {}
         self.enable_alarm_irq();
         self.enable();
     }
 
-    fn get_alarm(&self) -> u32 {
-        let regs: &AstRegisters = &*self.registers;
+    fn get_alarm(&self) -> Self::Ticks {
         while self.busy() {}
-        regs.ar0.read(Value::VALUE)
+        Self::Ticks::from(self.registers.ar0.read(Value::VALUE))
     }
 
-    fn disable(&self) {
-        // After disable the IRQ and clearing the alarmn bit in the status register, the NVIC bit
-        // is also guaranteed to be clear.
+    fn disarm(&self) -> ReturnCode {
+        // After disabling the IRQ and clearing the alarm bit in the
+        // status register, the NVIC bit is also guaranteed to be clear.
         self.disable_alarm_irq();
         self.clear_alarm();
+        ReturnCode::SUCCESS
     }
 
-    fn is_enabled(&self) -> bool {
+    fn is_armed(&self) -> bool {
         self.is_alarm_enabled()
+    }
+
+    fn minimum_dt(&self) -> Self::Ticks {
+        Self::Ticks::from(ALARM0_SYNC_TICS)
     }
 }

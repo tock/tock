@@ -106,7 +106,7 @@ use kernel::common::cells::OptionalCell;
 use kernel::debug;
 use kernel::hil::ble_advertising;
 use kernel::hil::ble_advertising::RadioChannel;
-use kernel::hil::time::Frequency;
+use kernel::hil::time::{Frequency, Ticks};
 use kernel::ReturnCode;
 
 /// Syscall driver number.
@@ -133,7 +133,7 @@ enum BLEState {
 #[derive(Copy, Clone)]
 enum Expiration {
     Disabled,
-    Abs(u32),
+    Enabled(u32, u32),
 }
 
 #[derive(Copy, Clone)]
@@ -292,7 +292,7 @@ impl App {
         let nonce = self.random_nonce() % 10;
 
         let period_ms = (self.advertisement_interval_ms + nonce) * F::frequency() / 1000;
-        self.alarm_data.expiration = Expiration::Abs(now.wrapping_add(period_ms));
+        self.alarm_data.expiration = Expiration::Enabled(now, period_ms);
     }
 }
 
@@ -341,22 +341,26 @@ where
     // likely be chosen.
     fn reset_active_alarm(&self) {
         let now = self.alarm.now();
-        let mut next_alarm = u32::max_value();
+        let mut next_ref = u32::max_value();
+        let mut next_dt = u32::max_value();
         let mut next_dist = u32::max_value();
         for app in self.app.iter() {
             app.enter(|app, _| match app.alarm_data.expiration {
-                Expiration::Abs(exp) => {
-                    let t_dist = exp.wrapping_sub(now);
+                Expiration::Enabled(reference, dt) => {
+                    let exp = reference.wrapping_add(dt);
+                    let t_dist = exp.wrapping_sub(now.into_u32());
                     if next_dist > t_dist {
-                        next_alarm = exp;
+                        next_ref = reference;
+                        next_dt = dt;
                         next_dist = t_dist;
                     }
                 }
                 Expiration::Disabled => {}
             });
         }
-        if next_alarm != u32::max_value() {
-            self.alarm.set_alarm(next_alarm);
+        if next_ref != u32::max_value() {
+            self.alarm
+                .set_alarm(A::Ticks::from(next_ref), A::Ticks::from(next_dt));
         }
     }
 }
@@ -379,21 +383,22 @@ where
     //
     // TODO: perhaps break ties more fairly by prioritizing apps that have least
     // recently performed an operation.
-    fn fired(&self) {
+    fn alarm(&self) {
         let now = self.alarm.now();
 
         self.app.each(|app| {
-            if let Expiration::Abs(exp) = app.alarm_data.expiration {
-                let expired =
-                    now.wrapping_sub(app.alarm_data.t0) >= exp.wrapping_sub(app.alarm_data.t0);
+            if let Expiration::Enabled(reference, dt) = app.alarm_data.expiration {
+                let exp = A::Ticks::from(reference.wrapping_add(dt));
+                let t0 = A::Ticks::from(app.alarm_data.t0);
+                let expired = t0.within_range(exp, now);
                 if expired {
                     if self.busy.get() {
                         // The radio is currently busy, so we won't be able to start the
                         // operation at the appropriate time. Instead, reschedule the
                         // operation for later. This is _kind_ of simulating actual
-                        // on-air interference
+                        // on-air interference. 3 seems like a small number of ticks.
                         debug!("BLE: operation delayed for app {:?}", app.appid());
-                        app.set_next_alarm::<A::Frequency>(self.alarm.now());
+                        app.set_next_alarm::<A::Frequency>(self.alarm.now().into_u32());
                         return;
                     }
 
@@ -486,7 +491,7 @@ where
                     Some(BLEState::Scanning(RadioChannel::AdvertisingChannel39)) => {
                         self.busy.set(false);
                         app.process_status = Some(BLEState::ScanningIdle);
-                        app.set_next_alarm::<A::Frequency>(self.alarm.now());
+                        app.set_next_alarm::<A::Frequency>(self.alarm.now().into_u32());
                     }
                     // Invalid state => don't care
                     _ => (),
@@ -528,7 +533,7 @@ where
                     Some(BLEState::Advertising(RadioChannel::AdvertisingChannel39)) => {
                         self.busy.set(false);
                         app.process_status = Some(BLEState::AdvertisingIdle);
-                        app.set_next_alarm::<A::Frequency>(self.alarm.now());
+                        app.set_next_alarm::<A::Frequency>(self.alarm.now().into_u32());
                     }
                     // Invalid state => don't care
                     _ => (),
@@ -563,9 +568,9 @@ where
                             ADV_IND | ADV_NONCONN_IND | ADV_SCAN_IND => {
                                 app.pdu_type = pdu_type;
                                 app.process_status = Some(BLEState::AdvertisingIdle);
-                                app.random_nonce = self.alarm.now();
+                                app.random_nonce = self.alarm.now().into_u32();
                                 app.advertisement_interval_ms = cmp::max(20, interval as u32);
-                                app.set_next_alarm::<A::Frequency>(self.alarm.now());
+                                app.set_next_alarm::<A::Frequency>(self.alarm.now().into_u32());
                                 self.reset_active_alarm();
                                 ReturnCode::SUCCESS
                             }
@@ -626,7 +631,7 @@ where
                 .enter(appid, |app, _| {
                     if let Some(BLEState::Initialized) = app.process_status {
                         app.process_status = Some(BLEState::ScanningIdle);
-                        app.set_next_alarm::<A::Frequency>(self.alarm.now());
+                        app.set_next_alarm::<A::Frequency>(self.alarm.now().into_u32());
                         self.reset_active_alarm();
                         ReturnCode::SUCCESS
                     } else {

@@ -6,6 +6,7 @@
 // Disable this attribute when documenting, as a workaround for
 // https://github.com/rust-lang/rust/issues/62184.
 #![cfg_attr(not(doc), no_main)]
+#![feature(const_in_array_repeat_expressions)]
 #![deny(missing_docs)]
 
 use capsules::virtual_alarm::VirtualMuxAlarm;
@@ -19,6 +20,10 @@ use kernel::{create_capability, debug, static_init};
 /// Support routines for debugging I/O.
 pub mod io;
 
+// Unit tests
+#[allow(dead_code)]
+mod multi_alarm_test;
+
 // Number of concurrent processes this platform supports.
 const NUM_PROCS: usize = 4;
 
@@ -30,12 +35,6 @@ static mut CHIP: Option<&'static stm32f429zi::chip::Stm32f4xx> = None;
 
 // How should the kernel respond when a process faults.
 const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultResponse::Panic;
-
-// Force the emission of the `.apps` segment in the kernel elf image
-// NOTE: This will cause the kernel to overwrite any existing apps when flashed!
-#[used]
-#[link_section = ".app.hack"]
-static APP_HACK: u8 = 0;
 
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
@@ -430,7 +429,7 @@ pub unsafe fn reset_handler() {
             &_sapps as *const u8,
             &_eapps as *const u8 as usize - &_sapps as *const u8 as usize,
         ),
-        &mut core::slice::from_raw_parts_mut(
+        core::slice::from_raw_parts_mut(
             &mut _sappmem as *mut u8,
             &_eappmem as *const u8 as usize - &_sappmem as *const u8 as usize,
         ),
@@ -443,10 +442,17 @@ pub unsafe fn reset_handler() {
         debug!("{:?}", err);
     });
 
+    let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
+        .finalize(components::rr_component_helper!(NUM_PROCS));
+
+    //Uncomment to run multi alarm test
+    //multi_alarm_test::run_multi_alarm(mux_alarm);
+
     board_kernel.kernel_loop(
         &nucleo_f429zi,
         chip,
         Some(&nucleo_f429zi.ipc),
+        scheduler,
         &main_loop_capability,
     );
 }

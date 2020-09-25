@@ -264,7 +264,7 @@ const ADC_COMMON_BASE: StaticRef<AdcCommonRegisters> =
 
 #[allow(dead_code)]
 #[repr(u32)]
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, PartialEq)]
 pub enum Channel {
     Channel0 = 0b00000,
     Channel1 = 0b00001,
@@ -305,10 +305,10 @@ enum ADCStatus {
 
 pub struct Adc {
     registers: StaticRef<AdcRegisters>,
-    _common_registers: StaticRef<AdcCommonRegisters>,
+    common_registers: StaticRef<AdcCommonRegisters>,
     clock: AdcClock,
     status: Cell<ADCStatus>,
-    client: OptionalCell<&'static dyn EverythingClient>,
+    client: OptionalCell<&'static dyn hil::adc::Client>,
 }
 
 pub static mut ADC1: Adc = Adc::new();
@@ -317,7 +317,7 @@ impl Adc {
     const fn new() -> Adc {
         Adc {
             registers: ADC1_BASE,
-            _common_registers: ADC_COMMON_BASE,
+            common_registers: ADC_COMMON_BASE,
             clock: AdcClock(rcc::PeripheralClock::APB2(rcc::PCLK2::ADC1)),
             status: Cell::new(ADCStatus::Off),
             client: OptionalCell::empty(),
@@ -349,10 +349,6 @@ impl Adc {
         }
     }
 
-    pub fn set_client<C: EverythingClient>(&self, client: &'static C) {
-        self.client.set(client);
-    }
-
     pub fn is_enabled_clock(&self) -> bool {
         self.clock.is_enabled()
     }
@@ -363,6 +359,10 @@ impl Adc {
 
     pub fn disable_clock(&self) {
         self.clock.disable();
+    }
+
+    pub fn enable_temperature(&self) {
+        self.common_registers.ccr.modify(CCR::TSVREFE::SET);
     }
 }
 
@@ -388,6 +388,9 @@ impl hil::adc::Adc for Adc {
     fn sample(&self, channel: &Self::Channel) -> ReturnCode {
         if self.status.get() == ADCStatus::Off {
             self.enable();
+        }
+        if *channel as u32 == 18 {
+            self.enable_temperature();
         }
         if self.status.get() == ADCStatus::Idle {
             self.status.set(ADCStatus::OneSample);
@@ -415,6 +418,10 @@ impl hil::adc::Adc for Adc {
 
     fn get_voltage_reference_mv(&self) -> Option<usize> {
         Some(3300)
+    }
+
+    fn set_client(&self, client: &'static dyn hil::adc::Client) {
+        self.client.set(client);
     }
 }
 

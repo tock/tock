@@ -6,6 +6,7 @@
 // Disable this attribute when documenting, as a workaround for
 // https://github.com/rust-lang/rust/issues/62184.
 #![cfg_attr(not(doc), no_main)]
+#![feature(const_in_array_repeat_expressions)]
 
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules::virtual_hmac::VirtualMuxHmac;
@@ -15,6 +16,7 @@ use kernel::component::Component;
 use kernel::hil;
 use kernel::hil::i2c::I2CMaster;
 use kernel::hil::time::Alarm;
+use kernel::hil::usb::Client;
 use kernel::Chip;
 use kernel::Platform;
 use kernel::{create_capability, debug, static_init};
@@ -23,8 +25,12 @@ use rv32i::csr;
 #[allow(dead_code)]
 mod aes_test;
 
+#[allow(dead_code)]
+mod multi_alarm_test;
+
 pub mod io;
 pub mod usb;
+
 //
 // Actual memory for holding the active process structures. Need an empty list
 // at least.
@@ -37,12 +43,6 @@ static mut CHIP: Option<
 
 // How should the kernel respond when a process faults.
 const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultResponse::Panic;
-
-// Force the emission of the `.apps` segment in the kernel elf image
-// NOTE: This will cause the kernel to overwrite any existing apps when flashed!
-#[used]
-#[link_section = ".app.hack"]
-static APP_HACK: u8 = 0;
 
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
@@ -201,7 +201,7 @@ pub unsafe fn reset_handler() {
         MuxAlarm<'static, earlgrey::timer::RvTimer>,
         MuxAlarm::new(alarm)
     );
-    hil::time::Alarm::set_client(&earlgrey::timer::TIMER, mux_alarm);
+    hil::time::Alarm::set_alarm_client(&earlgrey::timer::TIMER, mux_alarm);
 
     // Alarm
     let virtual_alarm_user = static_init!(
@@ -219,13 +219,13 @@ pub unsafe fn reset_handler() {
             board_kernel.create_grant(&memory_allocation_cap)
         )
     );
-    hil::time::Alarm::set_client(virtual_alarm_user, alarm);
+    hil::time::Alarm::set_alarm_client(virtual_alarm_user, alarm);
 
     let chip = static_init!(
         earlgrey::chip::EarlGrey<VirtualMuxAlarm<'static, earlgrey::timer::RvTimer>>,
         earlgrey::chip::EarlGrey::new(scheduler_timer_virtual_alarm)
     );
-    scheduler_timer_virtual_alarm.set_client(chip.scheduler_timer());
+    scheduler_timer_virtual_alarm.set_alarm_client(chip.scheduler_timer());
     CHIP = Some(chip);
 
     // Need to enable all interrupts for Tock Kernel
@@ -261,8 +261,6 @@ pub unsafe fn reset_handler() {
         [u8; 32]
     ));
 
-    let usb = usb::UsbComponent::new(board_kernel).finalize(());
-
     let i2c_master = static_init!(
         capsules::i2c_master::I2CMasterDriver<lowrisc::i2c::I2c<'static>>,
         capsules::i2c_master::I2CMasterDriver::new(
@@ -273,8 +271,35 @@ pub unsafe fn reset_handler() {
     );
 
     earlgrey::i2c::I2C.set_master_client(i2c_master);
+    //Uncomment to run multi alarm test
+    //multi_alarm_test::run_multi_alarm(mux_alarm);
 
-    debug!("OpenTitan initialisation complete. Entering main loop");
+    let usb = usb::UsbComponent::new(board_kernel).finalize(());
+
+    // Create the strings we include in the USB descriptor.
+    let strings = static_init!(
+        [&str; 3],
+        [
+            "LowRISC.",           // Manufacturer
+            "OpenTitan - TockOS", // Product
+            "18d1:503a",          // Serial number
+        ]
+    );
+
+    let cdc = components::cdc::CdcAcmComponent::new(
+        &earlgrey::usbdev::USB,
+        capsules::usb::cdc::MAX_CTRL_PACKET_SIZE_NRF52840,
+        0x18d1, // 0x18d1 Google Inc.
+        0x503a, // lowRISC generic FS USB
+        strings,
+    )
+    .finalize(components::usb_cdc_acm_component_helper!(
+        lowrisc::usbdev::Usb
+    ));
+
+    // Configure the USB stack to enable a serial port over CDC-ACM.
+    cdc.enable();
+    cdc.attach();
 
     /// These symbols are defined in the linker script.
     extern "C" {
@@ -306,7 +331,7 @@ pub unsafe fn reset_handler() {
             &_sapps as *const u8,
             &_eapps as *const u8 as usize - &_sapps as *const u8 as usize,
         ),
-        &mut core::slice::from_raw_parts_mut(
+        core::slice::from_raw_parts_mut(
             &mut _sappmem as *mut u8,
             &_eappmem as *const u8 as usize - &_sappmem as *const u8 as usize,
         ),
@@ -318,6 +343,8 @@ pub unsafe fn reset_handler() {
         debug!("Error loading processes!");
         debug!("{:?}", err);
     });
+    debug!("OpenTitan initialisation complete. Entering main loop");
 
-    board_kernel.kernel_loop(&opentitan, chip, None, &main_loop_cap);
+    let scheduler = components::sched::priority::PriorityComponent::new(board_kernel).finalize(());
+    board_kernel.kernel_loop(&opentitan, chip, None, scheduler, &main_loop_cap);
 }

@@ -6,6 +6,7 @@
 // Disable this attribute when documenting, as a workaround for
 // https://github.com/rust-lang/rust/issues/62184.
 #![cfg_attr(not(doc), no_main)]
+#![feature(const_in_array_repeat_expressions)]
 #![deny(missing_docs)]
 
 use capsules::virtual_alarm::VirtualMuxAlarm;
@@ -14,6 +15,7 @@ use kernel::common::dynamic_deferred_call::DynamicDeferredCall;
 use kernel::common::dynamic_deferred_call::DynamicDeferredCallClientState;
 use kernel::component::Component;
 use kernel::hil::i2c::I2CMaster;
+use kernel::hil::time::Counter;
 use kernel::Platform;
 use kernel::{create_capability, debug, static_init};
 
@@ -21,12 +23,14 @@ pub mod ble;
 /// Support routines for debugging I/O.
 pub mod io;
 
+#[allow(dead_code)]
+mod multi_alarm_test;
+
 // Number of concurrent processes this platform supports.
 const NUM_PROCS: usize = 4;
 
 // Actual memory for holding the active process structures.
-static mut PROCESSES: [Option<&'static dyn kernel::procs::ProcessType>; NUM_PROCS] =
-    [None, None, None, None];
+static mut PROCESSES: [Option<&'static dyn kernel::procs::ProcessType>; NUM_PROCS] = [None; 4];
 
 // Static reference to chip for panic dumps.
 static mut CHIP: Option<&'static apollo3::chip::Apollo3> = None;
@@ -162,6 +166,8 @@ pub unsafe fn reset_handler() {
     // Create a shared virtualisation mux layer on top of a single hardware
     // alarm.
     let alarm = &apollo3::stimer::STIMER;
+    alarm.start();
+
     let mux_alarm = components::alarm::AlarmMuxComponent::new(alarm).finalize(
         components::alarm_mux_component_helper!(apollo3::stimer::STimer),
     );
@@ -225,7 +231,7 @@ pub unsafe fn reset_handler() {
             &_sapps as *const u8,
             &_eapps as *const u8 as usize - &_sapps as *const u8 as usize,
         ),
-        &mut core::slice::from_raw_parts_mut(
+        core::slice::from_raw_parts_mut(
             &mut _sappmem as *mut u8,
             &_eappmem as *const u8 as usize - &_sappmem as *const u8 as usize,
         ),
@@ -238,5 +244,11 @@ pub unsafe fn reset_handler() {
         debug!("{:?}", err);
     });
 
-    board_kernel.kernel_loop(&artemis_nano, chip, None, &main_loop_cap);
+    let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
+        .finalize(components::rr_component_helper!(NUM_PROCS));
+
+    //Uncomment to run multi alarm test
+    multi_alarm_test::run_multi_alarm(mux_alarm);
+
+    board_kernel.kernel_loop(&artemis_nano, chip, None, scheduler, &main_loop_cap);
 }

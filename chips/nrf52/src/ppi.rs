@@ -163,12 +163,10 @@ impl Ppi {
     }
 
     pub fn enable(&self, channels: FieldValue<u32, Channel::Register>) {
-        let regs = &*self.registers;
-        regs.chenset.write(channels);
+        self.registers.chenset.write(channels);
     }
 
     pub fn disable(&self, channels: FieldValue<u32, Channel::Register>) {
-        let regs = &*self.registers;
-        regs.chenclr.write(channels);
+        self.registers.chenclr.write(channels);
     }
 }

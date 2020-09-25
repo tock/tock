@@ -1,5 +1,7 @@
 #![no_std]
+#![feature(const_in_array_repeat_expressions)]
 
+pub mod adc;
 pub mod alarm;
 pub mod analog_comparator;
 pub mod button;
@@ -8,7 +10,7 @@ pub mod console;
 pub mod crc;
 pub mod debug_queue;
 pub mod debug_writer;
-pub mod ft6206;
+pub mod ft6x06;
 pub mod gpio;
 pub mod hd44780;
 pub mod hmac;
@@ -27,9 +29,13 @@ pub mod nrf51822;
 pub mod panic_button;
 pub mod process_console;
 pub mod rng;
+pub mod sched;
 pub mod screen;
 pub mod segger_rtt;
 pub mod si7021;
 pub mod spi;
 pub mod st7735;
 pub mod temperature;
+pub mod temperature_stm;
+pub mod test;
+pub mod touch;

@@ -8,6 +8,7 @@
 // Disable this attribute when documenting, as a workaround for
 // https://github.com/rust-lang/rust/issues/62184.
 #![cfg_attr(not(doc), no_main)]
+#![feature(const_in_array_repeat_expressions)]
 
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use kernel::capabilities;
@@ -21,11 +22,16 @@ use kernel::{create_capability, debug, static_init};
 use rv32i::csr;
 
 pub mod io;
+
+#[allow(dead_code)]
+mod multi_alarm_test;
+
+pub const NUM_PROCS: usize = 4;
 //
 // Actual memory for holding the active process structures. Need an empty list
 // at least.
-static mut PROCESSES: [Option<&'static dyn kernel::procs::ProcessType>; 4] =
-    [None, None, None, None];
+static mut PROCESSES: [Option<&'static dyn kernel::procs::ProcessType>; NUM_PROCS] =
+    [None; NUM_PROCS];
 
 // Reference to the chip for panic dumps.
 static mut CHIP: Option<
@@ -147,7 +153,7 @@ pub unsafe fn reset_handler() {
         MuxAlarm<'static, rv32i::machine_timer::MachineTimer>,
         MuxAlarm::new(&e310x::timer::MACHINETIMER)
     );
-    hil::time::Alarm::set_client(&e310x::timer::MACHINETIMER, mux_alarm);
+    hil::time::Alarm::set_alarm_client(&e310x::timer::MACHINETIMER, mux_alarm);
 
     // Alarm
     let virtual_alarm_user = static_init!(
@@ -168,13 +174,13 @@ pub unsafe fn reset_handler() {
             board_kernel.create_grant(&memory_allocation_cap)
         )
     );
-    hil::time::Alarm::set_client(virtual_alarm_user, alarm);
+    hil::time::Alarm::set_alarm_client(virtual_alarm_user, alarm);
 
     let chip = static_init!(
         e310x::chip::E310x<VirtualMuxAlarm<'static, rv32i::machine_timer::MachineTimer>>,
         e310x::chip::E310x::new(systick_virtual_alarm)
     );
-    systick_virtual_alarm.set_client(chip.scheduler_timer());
+    systick_virtual_alarm.set_alarm_client(chip.scheduler_timer());
     CHIP = Some(chip);
 
     // Need to enable all interrupts for Tock Kernel
@@ -224,7 +230,7 @@ pub unsafe fn reset_handler() {
             &_sapps as *const u8,
             &_eapps as *const u8 as usize - &_sapps as *const u8 as usize,
         ),
-        &mut core::slice::from_raw_parts_mut(
+        core::slice::from_raw_parts_mut(
             &mut _sappmem as *mut u8,
             &_eappmem as *const u8 as usize - &_sappmem as *const u8 as usize,
         ),
@@ -237,5 +243,9 @@ pub unsafe fn reset_handler() {
         debug!("{:?}", err);
     });
 
-    board_kernel.kernel_loop(&hifive1, chip, None, &main_loop_cap);
+    multi_alarm_test::run_multi_alarm(mux_alarm);
+
+    let scheduler = components::sched::cooperative::CooperativeComponent::new(&PROCESSES)
+        .finalize(components::coop_component_helper!(NUM_PROCS));
+    board_kernel.kernel_loop(&hifive1, chip, None, scheduler, &main_loop_cap);
 }

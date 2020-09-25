@@ -73,6 +73,15 @@ impl<'a, T: ?Sized> TakeCell<'a, T> {
         self.val.replace(Some(val))
     }
 
+    /// Retrieves a mutable reference to the inner value that only lives as long
+    /// as the reference to this does.
+    ///
+    /// This escapes the "take" aspect of TakeCell in a way which is guaranteed
+    /// safe due to the returned reference sharing the lifetime of `&mut self`.
+    pub fn get_mut(&mut self) -> Option<&mut T> {
+        self.val.get_mut().as_mut().map(|v| &mut **v)
+    }
+
     /// Allows `closure` to borrow the contents of the `TakeCell` if-and-only-if
     /// it is not `take`n already. The state of the `TakeCell` is unchanged
     /// after the closure completes.

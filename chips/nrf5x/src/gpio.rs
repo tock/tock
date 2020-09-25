@@ -484,8 +484,7 @@ impl<'a> hil::gpio::Interrupt<'a> for GPIOPin<'a> {
 
     fn is_pending(&self) -> bool {
         if let Ok(channel) = self.find_channel(self.pin) {
-            let regs = &*self.gpiote_registers;
-            let ev = &regs.event_in[channel];
+            let ev = &self.gpiote_registers.event_in[channel];
             ev.matches_any(EventsIn::EVENT::Ready)
         } else {
             false
@@ -499,10 +498,10 @@ impl<'a> hil::gpio::Interrupt<'a> for GPIOPin<'a> {
                 hil::gpio::InterruptEdge::RisingEdge => Config::POLARITY::LoToHi,
                 hil::gpio::InterruptEdge::FallingEdge => Config::POLARITY::HiToLo,
             };
-            let regs = &*self.gpiote_registers;
             let pin: u32 = (GPIO_PER_PORT as u32 * self.port as u32) + self.pin as u32;
-            regs.config[channel].write(Config::MODE::Event + Config::PSEL.val(pin) + polarity);
-            regs.intenset.set(1 << channel);
+            self.gpiote_registers.config[channel]
+                .write(Config::MODE::Event + Config::PSEL.val(pin) + polarity);
+            self.gpiote_registers.intenset.set(1 << channel);
         } else {
             debug!("No available GPIOTE interrupt channels");
         }
@@ -510,10 +509,9 @@ impl<'a> hil::gpio::Interrupt<'a> for GPIOPin<'a> {
 
     fn disable_interrupts(&self) {
         if let Ok(channel) = self.find_channel(self.pin) {
-            let regs = &*self.gpiote_registers;
-            regs.config[channel]
+            self.gpiote_registers.config[channel]
                 .write(Config::MODE::CLEAR + Config::PSEL::CLEAR + Config::POLARITY::CLEAR);
-            regs.intenclr.set(1 << channel);
+            self.gpiote_registers.intenclr.set(1 << channel);
         }
     }
 }
@@ -524,8 +522,7 @@ impl GPIOPin<'_> {
     /// Allocate a GPIOTE channel
     /// If the channel couldn't be allocated return error instead
     fn allocate_channel(&self) -> Result<usize, ()> {
-        let regs = &*self.gpiote_registers;
-        for (i, ch) in regs.config.iter().enumerate() {
+        for (i, ch) in self.gpiote_registers.config.iter().enumerate() {
             if ch.matches_all(Config::MODE::Disabled) {
                 return Ok(i);
             }
@@ -536,8 +533,7 @@ impl GPIOPin<'_> {
     /// Return which channel is allocated to a pin,
     /// If the channel is not found return an error instead
     fn find_channel(&self, pin: u8) -> Result<usize, ()> {
-        let regs = &*self.gpiote_registers;
-        for (i, ch) in regs.config.iter().enumerate() {
+        for (i, ch) in self.gpiote_registers.config.iter().enumerate() {
             let encoded_pin = (GPIO_PER_PORT as u32 * self.port as u32) + pin as u32;
             if ch.matches_all(Config::PSEL.val(encoded_pin)) {
                 return Ok(i);
@@ -577,13 +573,13 @@ impl Port<'_> {
     pub fn handle_interrupt(&self) {
         // do this just to get a pointer the memory map
         // doesn't matter which pin is used because it is the same
-        let regs = &*self.pins[0].gpiote_registers;
+        let pin_registers = self.pins[0].gpiote_registers;
 
-        for (i, ev) in regs.event_in.iter().enumerate() {
+        for (i, ev) in pin_registers.event_in.iter().enumerate() {
             if ev.matches_any(EventsIn::EVENT::Ready) {
                 ev.write(EventsIn::EVENT::NotReady);
                 // Get pin number for the event and `trigger` an interrupt manually on that pin
-                let pin = regs.config[i].read(Config::PSEL) as usize;
+                let pin = pin_registers.config[i].read(Config::PSEL) as usize;
                 self.pins[pin].handle_interrupt();
             }
         }

@@ -142,13 +142,14 @@ impl kernel::SchedulerTimer for SysTick {
             .syst_rvr
             .write(ReloadValue::RELOAD.val(reload as u32));
         SYSTICK_BASE.syst_cvr.set(0);
+
+        // OK, arm it
+        // We really just need to set the TICKINT bit here, but can't use modify() because
+        // readying the CSR register will throw away evidence of expiration if one
+        // occurred, so we re-write entire value instead.
         SYSTICK_BASE
             .syst_csr
-            .write(ControlAndStatus::ENABLE::SET + clock_source);
-    }
-
-    fn has_expired(&self) -> bool {
-        SYSTICK_BASE.syst_csr.is_set(ControlAndStatus::COUNTFLAG)
+            .write(ControlAndStatus::TICKINT::SET + ControlAndStatus::ENABLE::SET + clock_source);
     }
 
     fn reset(&self) {
@@ -193,10 +194,14 @@ impl kernel::SchedulerTimer for SysTick {
             .write(ControlAndStatus::TICKINT::CLEAR + ControlAndStatus::ENABLE::SET + clock_source);
     }
 
-    fn get_remaining_us(&self) -> u32 {
+    fn get_remaining_us(&self) -> Option<u32> {
         // use u64 in case of overflow when multiplying by 1,000,000
         let tics = SYSTICK_BASE.syst_cvr.read(CurrentValue::CURRENT) as u64;
-        let hertz = self.hertz() as u64;
-        ((tics * 1_000_000) / hertz) as u32
+        if SYSTICK_BASE.syst_csr.is_set(ControlAndStatus::COUNTFLAG) {
+            None
+        } else {
+            let hertz = self.hertz() as u64;
+            Some(((tics * 1_000_000) / hertz) as u32)
+        }
     }
 }

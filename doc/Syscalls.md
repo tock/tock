@@ -132,7 +132,8 @@ the process will not execute again until another callback re-schedules the
 process.
 
 If a process has enqueued callbacks waiting to execute when Yield is called, the
-process immediately re-enters the Running state and the first callback runs.
+process immediately re-enters the Running state and the first callback runs, unless
+the scheduler chooses to prioritize some other operation first.
 
 ```rust
 yield()

@@ -119,7 +119,11 @@ pub use crate::platform::watchdog;
 pub use crate::platform::{mpu, Chip, Platform};
 pub use crate::platform::{ClockInterface, NoClockControl, NO_CLOCK_CONTROL};
 pub use crate::returncode::ReturnCode;
-pub use crate::sched::Kernel;
+pub use crate::sched::cooperative::{CoopProcessNode, CooperativeSched};
+pub use crate::sched::mlfq::{MLFQProcessNode, MLFQSched};
+pub use crate::sched::priority::PrioritySched;
+pub use crate::sched::round_robin::{RoundRobinProcessNode, RoundRobinSched};
+pub use crate::sched::{Kernel, Scheduler};
 
 // Export only select items from the process module. To remove the name conflict
 // this cannot be called `process`, so we use a shortened version. These

@@ -7,7 +7,7 @@ use crate::returncode::ReturnCode;
 /// Simple interface for reading an ADC sample on any channel.
 pub trait Adc {
     /// The chip-dependent type of an ADC channel.
-    type Channel;
+    type Channel: PartialEq;
 
     /// Request a single ADC sample on a particular channel.
     /// Used for individual samples that have no timing requirements.
@@ -37,6 +37,8 @@ pub trait Adc {
     ///
     /// The returned reference voltage is in millivolts, or `None` if unknown.
     fn get_voltage_reference_mv(&self) -> Option<usize>;
+
+    fn set_client(&self, client: &'static dyn Client);
 }
 
 /// Trait for handling callbacks from simple ADC calls.
@@ -112,4 +114,37 @@ pub trait HighSpeedClient {
     /// the buffer. Expects an additional call to either provide another buffer
     /// or stop sampling
     fn samples_ready(&self, buf: &'static mut [u16], length: usize);
+}
+
+pub trait AdcChannel {
+    /// Request a single ADC sample on a particular channel.
+    /// Used for individual samples that have no timing requirements.
+    /// All ADC samples will be the raw ADC value left-justified in the u16.
+    fn sample(&self) -> ReturnCode;
+
+    /// Request repeated ADC samples on a particular channel.
+    /// Callbacks will occur at the given frequency with low jitter and can be
+    /// set to any frequency supported by the chip implementation. However
+    /// callbacks may be limited based on how quickly the system can service
+    /// individual samples, leading to missed samples at high frequencies.
+    /// All ADC samples will be the raw ADC value left-justified in the u16.
+    fn sample_continuous(&self) -> ReturnCode;
+
+    /// Stop a sampling operation.
+    /// Can be used to stop any simple or high-speed sampling operation. No
+    /// further callbacks will occur.
+    fn stop_sampling(&self) -> ReturnCode;
+
+    /// Function to ask the ADC how many bits of resolution are in the samples
+    /// it is returning.
+    fn get_resolution_bits(&self) -> usize;
+
+    /// Function to ask the ADC what reference voltage it used when taking the
+    /// samples. This allows the user of this interface to calculate an actual
+    /// voltage from the ADC reading.
+    ///
+    /// The returned reference voltage is in millivolts, or `None` if unknown.
+    fn get_voltage_reference_mv(&self) -> Option<usize>;
+
+    fn set_client(&self, client: &'static dyn Client);
 }

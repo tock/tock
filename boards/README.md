@@ -21,3 +21,14 @@ that Tock supports.
 | [SiFive HiFive1](hifive1/README.md)                                  | RISC-V          | FE310-G000     | openocd    | tockloader     | [Yes (5.1)][qemu] |
 | [Digilent Arty A-7 100T](arty_e21/README.md)                         | RISC-V RV32IMAC | SiFive E21     | openocd    | tockloader     | No                |
 | [Nexys Video OpenTitan](opentitan/README.md)                         | RISC-V RV32IMC  | EarlGrey       | custom     | custom         | [Yes (5.1)][qemu] |
+
+# Out of Tree Boards
+
+Some projects that use Tock maintain their own board definitions outside the
+Tock repository.
+
+| Project                                                  | Boards                                     | Architecture   | MCU      | Build System  |
+|----------------------------------------------------------|--------------------------------------------|----------------|----------|---------------|
+| [OpenSK](https://github.com/google/opensk)               | nRF52840-DK, nRF52840-Dongle, nRF52840-MDK | ARM Cortex-M4  | nRF52840 | Python script |
+| [OpenTitan](https://github.com/lowrisc/opentitan)        | OpenTitan                                  | RISC-V RV32IMC | EarlGrey | Meson         |
+| [Tock-on-Titan](https://github.com/google/tock-on-titan) | golf2, papa                                | ARM Cortex-M3  | H1       | Makefiles     |

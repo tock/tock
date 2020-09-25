@@ -2,7 +2,6 @@
 
 use core::fmt::Write;
 use core::hint::unreachable_unchecked;
-
 use kernel;
 use kernel::common::registers::FieldValue;
 use kernel::debug;
@@ -10,6 +9,7 @@ use kernel::hil::time::Alarm;
 use kernel::Chip;
 use rv32i::csr::{mcause, mie::mie, mip::mip, mtvec::mtvec, CSR};
 use rv32i::syscall::SysCall;
+use rv32i::PMPConfigMacro;
 
 use crate::chip_config::CONFIG;
 use crate::gpio;
@@ -21,11 +21,13 @@ use crate::timer;
 use crate::uart;
 use crate::usbdev;
 
+PMPConfigMacro!(4);
+
 pub const CHIP_FREQ: u32 = CONFIG.chip_freq;
 
 pub struct EarlGrey<A: 'static + Alarm<'static>> {
     userspace_kernel_boundary: SysCall,
-    pmp: rv32i::pmp::PMPConfig,
+    pmp: PMP,
     scheduler_timer: kernel::VirtualSchedulerTimer<A>,
 }
 
@@ -33,7 +35,7 @@ impl<A: 'static + Alarm<'static>> EarlGrey<A> {
     pub unsafe fn new(alarm: &'static A) -> Self {
         Self {
             userspace_kernel_boundary: SysCall::new(),
-            pmp: rv32i::pmp::PMPConfig::new(4),
+            pmp: PMP::new(),
             scheduler_timer: kernel::VirtualSchedulerTimer::new(alarm),
         }
     }
@@ -108,7 +110,7 @@ impl<A: 'static + Alarm<'static>> EarlGrey<A> {
 }
 
 impl<A: 'static + Alarm<'static>> kernel::Chip for EarlGrey<A> {
-    type MPU = rv32i::pmp::PMPConfig;
+    type MPU = PMP;
     type UserspaceKernelBoundary = SysCall;
     type SchedulerTimer = kernel::VirtualSchedulerTimer<A>;
     type WatchDog = ();
