@@ -1,0 +1,10 @@
+[package]
+name = "litex"
+version = "0.1.0"
+authors = ["Tock Project Developers <tock-dev@googlegroups.com>"]
+edition = "2018"
+
+[dependencies]
+tock-registers = { path = "../../libraries/tock-register-interface" }
+litex-register-gen = { path = "../../libraries/litex-register-gen" }
+kernel = { path = "../../kernel" }

@@ -1,0 +1,14 @@
+[package]
+name = "litex_sim"
+version = "0.1.0"
+authors = ["Tock Project Developers <tock-dev@googlegroups.com>"]
+build = "build.rs"
+edition = "2018"
+
+[dependencies]
+components = { path = "../components" }
+rv32i = { path = "../../arch/rv32i" }
+capsules = { path = "../../capsules" }
+kernel = { path = "../../kernel" }
+litex = { path = "../../chips/litex" }
+litex_vexriscv = { path = "../../chips/litex_vexriscv" }
