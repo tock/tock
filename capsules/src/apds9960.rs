@@ -111,7 +111,7 @@ enum State {
 
 pub struct APDS9960<'a> {
     i2c: &'a dyn i2c::I2CDevice,
-    interrupt_pin: &'a dyn gpio::InterruptPin,
+    interrupt_pin: &'a dyn gpio::InterruptPin<'a>,
     prox_callback: OptionalCell<&'a dyn kernel::hil::sensors::ProximityClient>,
     state: Cell<State>,
     buffer: TakeCell<'static, [u8]>,
@@ -120,7 +120,7 @@ pub struct APDS9960<'a> {
 impl<'a> APDS9960<'a> {
     pub fn new(
         i2c: &'a dyn i2c::I2CDevice,
-        interrupt_pin: &'a dyn gpio::InterruptPin,
+        interrupt_pin: &'a dyn gpio::InterruptPin<'a>,
         buffer: &'static mut [u8],
     ) -> APDS9960<'a> {
         // setup and return struct
