@@ -215,12 +215,12 @@ unsafe fn handle_interrupt(intr: mcause::Interrupt) {
         mcause::Interrupt::UserSoft
         | mcause::Interrupt::UserTimer
         | mcause::Interrupt::UserExternal => {
-            debug!("unexpected user-mode interrupt");
+            panic!("unexpected user-mode interrupt");
         }
         mcause::Interrupt::SupervisorExternal
         | mcause::Interrupt::SupervisorTimer
         | mcause::Interrupt::SupervisorSoft => {
-            debug!("unexpected supervisor-mode interrupt");
+            panic!("unexpected supervisor-mode interrupt");
         }
 
         mcause::Interrupt::MachineSoft => {
@@ -234,7 +234,7 @@ unsafe fn handle_interrupt(intr: mcause::Interrupt) {
         }
 
         mcause::Interrupt::Unknown => {
-            debug!("interrupt of unknown cause");
+            panic!("interrupt of unknown cause");
         }
     }
 }
