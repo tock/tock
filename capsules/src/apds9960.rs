@@ -53,7 +53,6 @@ pub static mut BUFFER: [u8; 16] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 
 //                             ^take_meas() callback stored    ^take_meas_int callback stored       ^low thresh           ^high thresh
 
 #[allow(dead_code)]
-
 // Common Register Masks
 const PON: u8 = 1 << 0; // Power-On
 const SAI: u8 = 1 << 4; // Sleep after Interrupt
