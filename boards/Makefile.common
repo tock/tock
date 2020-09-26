@@ -1,3 +1,6 @@
+# Force the Shell to be bash as some systems have strange default shells
+SHELL := bash
+
 # Remove built-in rules and variables
 # n.b. no-op for make --version < 4.0
 MAKEFLAGS += -r
