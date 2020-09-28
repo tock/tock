@@ -20,7 +20,7 @@ pub struct Stm32f3xx {
     mpu: cortexm4::mpu::MPU,
     userspace_kernel_boundary: cortexm4::syscall::SysCall,
     scheduler_timer: cortexm4::systick::SysTick,
-    watchdog: wdt::Wdt,
+    watchdog: wdt::WindoWdg,
 }
 
 impl Stm32f3xx {
@@ -29,16 +29,12 @@ impl Stm32f3xx {
             mpu: cortexm4::mpu::MPU::new(),
             userspace_kernel_boundary: cortexm4::syscall::SysCall::new(),
             scheduler_timer: cortexm4::systick::SysTick::new(),
-            watchdog: wdt::Wdt::new(),
+            watchdog: wdt::WindoWdg::new(),
         }
     }
 
-    pub fn enable_wwdg(&self) {
-        self.watchdog.enable_windo();
-    }
-
-    pub fn enable_iwdg(&self) {
-        self.watchdog.enable_indep();
+    pub fn enable_watchdog(&self) {
+        self.watchdog.enable();
     }
 }
 
@@ -46,7 +42,7 @@ impl Chip for Stm32f3xx {
     type MPU = cortexm4::mpu::MPU;
     type UserspaceKernelBoundary = cortexm4::syscall::SysCall;
     type SchedulerTimer = cortexm4::systick::SysTick;
-    type WatchDog = wdt::Wdt;
+    type WatchDog = wdt::WindoWdg;
 
     fn service_pending_interrupts(&self) {
         unsafe {
@@ -57,7 +53,8 @@ impl Chip for Stm32f3xx {
                     }
                 } else if let Some(interrupt) = cortexm4::nvic::next_pending() {
                     match interrupt {
-                        nvic::WWDG => wdt::WATCHDOG.windo_wdg.handle_interrupt(),
+                        nvic::WWDG => wdt::WATCHDOG.handle_interrupt(),
+
                         nvic::USART1 => usart::USART1.handle_interrupt(),
 
                         nvic::TIM2 => tim2::TIM2.handle_interrupt(),

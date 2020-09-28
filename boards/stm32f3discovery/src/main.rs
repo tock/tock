@@ -713,7 +713,7 @@ pub unsafe fn reset_handler() {
         debug!("{:?}", err);
     });
 
-    chip.enable_iwdg();
+    chip.enable_watchdog();
     let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
         .finalize(components::rr_component_helper!(NUM_PROCS));
 
