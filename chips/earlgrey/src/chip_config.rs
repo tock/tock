@@ -31,9 +31,9 @@ pub struct Config<'a> {
 ))]
 pub const CONFIG: Config = Config {
     name: "fpga_nexysvideo",
-    cpu_freq: 50_000_000,
-    peripheral_freq: 12_500_000,
-    uart_baudrate: 230400,
+    cpu_freq: 10_000_000,
+    peripheral_freq: 2_500_000,
+    uart_baudrate: 115200,
 };
 
 /// Config for running EarlGrey in a verilog simulator.
