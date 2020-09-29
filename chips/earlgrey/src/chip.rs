@@ -23,8 +23,6 @@ use crate::usbdev;
 
 PMPConfigMacro!(4);
 
-pub const CHIP_FREQ: u32 = CONFIG.chip_freq;
-
 pub struct EarlGrey<A: 'static + Alarm<'static>> {
     userspace_kernel_boundary: SysCall,
     pmp: PMP,
