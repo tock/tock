@@ -104,6 +104,7 @@ _Note:_ GPIO is slated for re-numbering in Tock 2.0.
 | ✓ | 0x60002       | [Luminance](60002_luminance.md)               | Ambient Light Sensor (lumens)              |
 |   | 0x60003       | Pressure         | Pressure sensor                            |
 |   | 0x60004       | Ninedof          | Virtualized accelerometer/magnetometer/gyroscope |
+|   | 0x60005       | Proximity        | Proximity Sensor                                                        |
 
 ### Sensor ICs
 
