@@ -1,4 +1,4 @@
-//! Implementation of the stm32f3 watchdog timers.
+//! Window watchdog timer
 
 use core::cell::Cell;
 use kernel::common::cells::OptionalCell;
@@ -86,13 +86,21 @@ impl WindoWdg {
     }
 
     pub fn handle_interrupt(&self) {
-        if unsafe { WATCHDOG_SLEEP_FLAG } {
-            self.tickle();
+        if self.registers.sr.is_set(Status::EWIF) {
+            self.registers.sr.modify(Status::EWIF::CLEAR);
+
+            // We are feeding the watchdog here to avoid getting a reset
+            // as a consequence of staying in the sleep state for too long.
+            // To get a better idea, check the kernel_loop() function
+            // in kernel/src/sched.rs and the sleep() function in ./chip.rs.
             unsafe {
-                WATCHDOG_SLEEP_FLAG = false;
+                if WATCHDOG_SLEEP_FLAG {
+                    self.tickle();
+                    WATCHDOG_SLEEP_FLAG = false;
+                } else {
+                    self.client.map(|client| client.reset_happened());
+                }
             }
-        } else {
-            self.client.map(|client| client.reset_happened());
         }
     }
 
@@ -107,22 +115,32 @@ impl WindoWdg {
     }
 
     /// Modifies the time base of the prescaler.
-    pub fn set_prescaler(&self, time_base: u8) {
+    /// 0 - decrements the watchdog every clock cycle
+    /// 1 - decrements the watchdog every 2nd clock cycle
+    /// 2 - decrements the watchdog every 4th clock cycle
+    /// 3 - decrements the watchdog every 8th clock cycle
+    fn set_prescaler(&self, time_base: u8) {
         match time_base {
-            1 => self.registers.cfr.modify(Config::WDGTB::DIVONE),
-            2 => self.registers.cfr.modify(Config::WDGTB::DIVTWO),
-            4 => self.registers.cfr.modify(Config::WDGTB::DIVFOUR),
-            8 => self.registers.cfr.modify(Config::WDGTB::DIVEIGHT),
+            0 => self.registers.cfr.modify(Config::WDGTB::DIVONE),
+            1 => self.registers.cfr.modify(Config::WDGTB::DIVTWO),
+            2 => self.registers.cfr.modify(Config::WDGTB::DIVFOUR),
+            3 => self.registers.cfr.modify(Config::WDGTB::DIVEIGHT),
             _ => {}
         }
     }
 
     pub fn start(&self) {
         self.enable_interrupt();
+
+        // This disables the window feature.
         self.set_window(0x7F);
+        self.set_prescaler(3);
 
         // Set T[6] bit to avoid a reset just when the watchdog is activated.
         self.tickle();
+
+        // With the APB1 clock running at 36Mhz we are getting timeout value
+        // t_WWDG = (1 / 36000) * 4096 * 2^3 * (63 + 1) = 58ms
         self.registers.cr.modify(Control::WDGA::SET);
     }
 
@@ -149,12 +167,6 @@ impl kernel::watchdog::WatchDog for WindoWdg {
             unsafe {
                 WATCHDOG_SLEEP_FLAG = true;
             }
-        }
-    }
-
-    fn resume(&self) {
-        if self.enabled.get() {
-            self.tickle();
         }
     }
 }
