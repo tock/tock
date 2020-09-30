@@ -31,9 +31,5 @@ pub trait WatchDog {
     }
 }
 
-pub trait WatchdogClient {
-    fn reset_happened(&self) {}
-}
-
 /// Implement default WatchDog trait for unit.
 impl WatchDog for () {}

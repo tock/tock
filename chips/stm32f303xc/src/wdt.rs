@@ -80,11 +80,6 @@ impl WindoWdg {
         self.enabled.set(true);
     }
 
-    /// This interrupt is only cleared by hardware after a reset.
-    // fn enable_interrupt(&self) {
-    //     self.registers.cfr.modify(Config::EWI::SET);
-    // }
-
     fn set_window(&self, value: u32) {
         // Set the window value to the biggest possible one.
         self.registers.cfr.modify(Config::W.val(value));
@@ -108,9 +103,6 @@ impl WindoWdg {
     pub fn start(&self) {
         // Enable the APB1 clock for the watchdog.
         self.clock.enable();
-
-        // Activate interrupts.
-        // self.enable_interrupt();
 
         // This disables the window feature.
         self.set_window(0x7F);
