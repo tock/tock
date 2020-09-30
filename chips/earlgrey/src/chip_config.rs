@@ -15,8 +15,10 @@ pub struct Config<'a> {
     /// Identifier for the platform. This is useful for debugging to confirm the
     /// correct configuration of the chip is being used.
     pub name: &'a str,
-    /// The clock speed of the core in Hz.
-    pub chip_freq: u32,
+    /// The clock speed of the CPU in Hz.
+    pub cpu_freq: u32,
+    /// The clock speed of the peripherals in Hz.
+    pub peripheral_freq: u32,
     /// The baud rate for UART. This allows for a version of the chip that can
     /// support a faster baud rate to use it to help with debugging.
     pub uart_baudrate: u32,
@@ -29,7 +31,8 @@ pub struct Config<'a> {
 ))]
 pub const CONFIG: Config = Config {
     name: "fpga_nexysvideo",
-    chip_freq: 50_000_000,
+    cpu_freq: 50_000_000,
+    peripheral_freq: 12_500_000,
     uart_baudrate: 230400,
 };
 
@@ -37,6 +40,7 @@ pub const CONFIG: Config = Config {
 #[cfg(feature = "config_sim_verilator")]
 pub const CONFIG: Config = Config {
     name: "sim_verilator",
-    chip_freq: 500_000,
+    cpu_freq: 500_000,
+    peripheral_freq: 125_000,
     uart_baudrate: 9600,
 };
