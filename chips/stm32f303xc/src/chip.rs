@@ -53,8 +53,6 @@ impl Chip for Stm32f3xx {
                     }
                 } else if let Some(interrupt) = cortexm4::nvic::next_pending() {
                     match interrupt {
-                        nvic::WWDG => wdt::WATCHDOG.handle_interrupt(),
-
                         nvic::USART1 => usart::USART1.handle_interrupt(),
 
                         nvic::TIM2 => tim2::TIM2.handle_interrupt(),

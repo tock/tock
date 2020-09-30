@@ -1,9 +1,10 @@
 //! Window watchdog timer
 
+use crate::rcc;
 use core::cell::Cell;
-use kernel::common::cells::OptionalCell;
 use kernel::common::registers::{register_bitfields, ReadWrite};
 use kernel::common::StaticRef;
+use kernel::ClockInterface;
 
 const WINDOW_WATCHDOG_BASE: StaticRef<WwdgRegisters> =
     unsafe { StaticRef::new(0x4000_2C00 as *const WwdgRegisters) };
@@ -60,11 +61,9 @@ register_bitfields![u32,
 
 pub static mut WATCHDOG: WindoWdg = WindoWdg::new();
 
-static mut WATCHDOG_SLEEP_FLAG: bool = false;
-
 pub struct WindoWdg {
     registers: StaticRef<WwdgRegisters>,
-    client: OptionalCell<&'static dyn kernel::watchdog::WatchdogClient>,
+    clock: WdgClock,
     enabled: Cell<bool>,
 }
 
@@ -72,7 +71,7 @@ impl WindoWdg {
     pub const fn new() -> WindoWdg {
         WindoWdg {
             registers: WINDOW_WATCHDOG_BASE,
-            client: OptionalCell::empty(),
+            clock: WdgClock(rcc::PeripheralClock::APB1(rcc::PCLK1::WWDG)),
             enabled: Cell::new(false),
         }
     }
@@ -81,33 +80,10 @@ impl WindoWdg {
         self.enabled.set(true);
     }
 
-    pub fn set_client(&self, client: &'static dyn kernel::watchdog::WatchdogClient) {
-        self.client.set(client);
-    }
-
-    pub fn handle_interrupt(&self) {
-        if self.registers.sr.is_set(Status::EWIF) {
-            self.registers.sr.modify(Status::EWIF::CLEAR);
-
-            // We are feeding the watchdog here to avoid getting a reset
-            // as a consequence of staying in the sleep state for too long.
-            // To get a better idea, check the kernel_loop() function
-            // in kernel/src/sched.rs and the sleep() function in ./chip.rs.
-            unsafe {
-                if WATCHDOG_SLEEP_FLAG {
-                    self.tickle();
-                    WATCHDOG_SLEEP_FLAG = false;
-                } else {
-                    self.client.map(|client| client.reset_happened());
-                }
-            }
-        }
-    }
-
     /// This interrupt is only cleared by hardware after a reset.
-    fn enable_interrupt(&self) {
-        self.registers.cfr.modify(Config::EWI::SET);
-    }
+    // fn enable_interrupt(&self) {
+    //     self.registers.cfr.modify(Config::EWI::SET);
+    // }
 
     fn set_window(&self, value: u32) {
         // Set the window value to the biggest possible one.
@@ -130,7 +106,11 @@ impl WindoWdg {
     }
 
     pub fn start(&self) {
-        self.enable_interrupt();
+        // Enable the APB1 clock for the watchdog.
+        self.clock.enable();
+
+        // Activate interrupts.
+        // self.enable_interrupt();
 
         // This disables the window feature.
         self.set_window(0x7F);
@@ -149,6 +129,22 @@ impl WindoWdg {
     }
 }
 
+struct WdgClock(rcc::PeripheralClock);
+
+impl ClockInterface for WdgClock {
+    fn is_enabled(&self) -> bool {
+        self.0.is_enabled()
+    }
+
+    fn enable(&self) {
+        self.0.enable();
+    }
+
+    fn disable(&self) {
+        self.0.disable();
+    }
+}
+
 impl kernel::watchdog::WatchDog for WindoWdg {
     fn setup(&self) {
         if self.enabled.get() {
@@ -164,9 +160,13 @@ impl kernel::watchdog::WatchDog for WindoWdg {
 
     fn suspend(&self) {
         if self.enabled.get() {
-            unsafe {
-                WATCHDOG_SLEEP_FLAG = true;
-            }
+            self.clock.disable();
+        }
+    }
+
+    fn resume(&self) {
+        if self.enabled.get() {
+            self.clock.enable();
         }
     }
 }
