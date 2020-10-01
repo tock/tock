@@ -7,7 +7,8 @@ use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
 use kernel::hil;
-use kernel::static_init_half;
+use kernel::hil::usb::Client;
+use kernel::{static_init, static_init_half};
 
 // Setup static space for the objects.
 #[macro_export]
@@ -17,8 +18,7 @@ macro_rules! usb_ctap_component_buf {
         use capsules::usb::usbc_ctap_hid::ClientCtapHID;
         use core::mem::MaybeUninit;
         static mut BUF1: MaybeUninit<ClientCtapHID<'static, 'static, $C>> = MaybeUninit::uninit();
-        static mut BUF2: MaybeUninit<CtapUsbSyscallDriver<'static, 'static, $C>> =
-            MaybeUninit::uninit();
+        static mut BUF2: MaybeUninit<CtapUsbSyscallDriver<'static>> = MaybeUninit::uninit();
         (&mut BUF1, &mut BUF2)
     };};
 }
@@ -55,9 +55,9 @@ impl<C: 'static + hil::usb::UsbController<'static>> UsbCtapComponent<C> {
 impl<C: 'static + hil::usb::UsbController<'static>> Component for UsbCtapComponent<C> {
     type StaticInput = (
         &'static mut MaybeUninit<ClientCtapHID<'static, 'static, C>>,
-        &'static mut MaybeUninit<CtapUsbSyscallDriver<'static, 'static, C>>,
+        &'static mut MaybeUninit<CtapUsbSyscallDriver<'static>>,
     );
-    type Output = &'static CtapUsbSyscallDriver<'static, 'static, C>;
+    type Output = &'static CtapUsbSyscallDriver<'static>;
 
     unsafe fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
@@ -75,13 +75,24 @@ impl<C: 'static + hil::usb::UsbController<'static>> Component for UsbCtapCompone
         );
         self.controller.set_client(usb_ctap);
 
+        let send_buffer = static_init!([u8; 64], [0; 64]);
+        let recv_buffer = static_init!([u8; 64], [0; 64]);
+
         // Configure the USB userspace driver
         let usb_driver = static_init_half!(
             static_buffer.1,
-            CtapUsbSyscallDriver<'static, 'static, C>,
-            CtapUsbSyscallDriver::new(usb_ctap, self.board_kernel.create_grant(&grant_cap))
+            CtapUsbSyscallDriver<'static>,
+            CtapUsbSyscallDriver::new(
+                usb_ctap,
+                self.board_kernel.create_grant(&grant_cap),
+                send_buffer,
+                recv_buffer
+            )
         );
         usb_ctap.set_client(usb_driver);
+
+        usb_ctap.enable();
+        usb_ctap.attach();
 
         usb_driver
     }

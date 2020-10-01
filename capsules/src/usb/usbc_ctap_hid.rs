@@ -11,13 +11,12 @@ use super::descriptors::HIDSubordinateDescriptor;
 use super::descriptors::InterfaceDescriptor;
 use super::descriptors::ReportDescriptor;
 use super::descriptors::TransferDirection;
-use super::usb_ctap::CtapUsbClient;
 use super::usbc_client_ctrl::ClientCtrl;
 use core::cell::Cell;
-use kernel::common::cells::OptionalCell;
-use kernel::debug;
-use kernel::hil;
+use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::usb::TransferType;
+use kernel::ReturnCode;
+use kernel::{debug, hil};
 
 static LANGUAGES: &'static [u16; 1] = &[
     0x0409, // English (United States)
@@ -67,11 +66,11 @@ pub struct ClientCtapHID<'a, 'b, C: 'a> {
     out_buffer: Buffer64,
 
     // Interaction with the client
-    client: OptionalCell<&'b dyn CtapUsbClient>,
-    tx_packet: OptionalCell<[u8; 64]>,
-    pending_in: Cell<bool>,
-    pending_out: Cell<bool>,
+    client: OptionalCell<&'b dyn hil::usb_hid::Client<'b>>,
+    tx_buffer: TakeCell<'static, [u8; 64]>,
+    rx_buffer: TakeCell<'static, [u8; 64]>,
     delayed_out: Cell<bool>,
+    pending_in: Cell<bool>,
 }
 
 impl<'a, 'b, C: hil::usb::UsbController<'a>> ClientCtapHID<'a, 'b, C> {
@@ -147,77 +146,43 @@ impl<'a, 'b, C: hil::usb::UsbController<'a>> ClientCtapHID<'a, 'b, C> {
             in_buffer: Buffer64::default(),
             out_buffer: Buffer64::default(),
             client: OptionalCell::empty(),
-            tx_packet: OptionalCell::empty(),
-            pending_in: Cell::new(false),
-            pending_out: Cell::new(false),
+            tx_buffer: TakeCell::empty(),
+            rx_buffer: TakeCell::empty(),
             delayed_out: Cell::new(false),
+            pending_in: Cell::new(false),
         }
     }
 
-    pub fn set_client(&'a self, client: &'b dyn CtapUsbClient) {
+    pub fn set_client(&'a self, client: &'b dyn hil::usb_hid::Client<'b>) {
         self.client.set(client);
-    }
-
-    pub fn transmit_packet(&'a self, packet: &[u8]) -> bool {
-        if self.pending_in.get() {
-            // The previous packet has not yet been transmitted, reject the new one.
-            false
-        } else {
-            self.pending_in.set(true);
-            let mut buf: [u8; 64] = [0; 64];
-            buf.copy_from_slice(packet);
-            self.tx_packet.set(buf);
-            // Alert the controller that we now have data to send on the Interrupt IN endpoint.
-            self.controller().endpoint_resume_in(1);
-            true
-        }
-    }
-
-    pub fn receive_packet(&'a self) -> bool {
-        if self.pending_out.get() {
-            // The previous packet has not yet been received, reject the new one.
-            false
-        } else {
-            self.pending_out.set(true);
-            // In case we reported Delay before, send the pending packet back to the client.
-            // Otherwise, there's nothing to do, the controller will send us a packet_out when a
-            // packet arrives.
-            if self.delayed_out.take() {
-                if self.send_packet_to_client() {
-                    // If that succeeds, alert the controller that we can now
-                    // receive data on the Interrupt OUT endpoint.
-                    self.controller().endpoint_resume_out(1);
-                }
-            }
-            true
-        }
     }
 
     // Send an OUT packet available in the controller back to the client.
     // This returns false if the client is not ready to receive a packet, and true if the client
     // successfully accepted the packet.
     fn send_packet_to_client(&'a self) -> bool {
-        // Copy the packet into a buffer to send to the client.
-        let mut buf: [u8; 64] = [0; 64];
-        for (i, x) in self.out_buffer.buf.iter().enumerate() {
-            buf[i] = x.get();
-        }
-
         assert!(!self.delayed_out.get());
 
         // Notify the client
-        if self
-            .client
-            .map_or(false, |client| client.can_receive_packet())
-        {
-            assert!(self.pending_out.take());
-
+        if self.client.map_or(false, |client| client.can_receive()) {
             // Clear any pending packet on the transmitting side.
             // It's up to the client to handle the received packet and decide if this packet
             // should be re-transmitted or not.
-            self.cancel_in_transaction();
+            if let Some(buf) = self.tx_buffer.take() {
+                self.client.map(move |client| {
+                    client.packet_transmitted(ReturnCode::ECANCEL, buf, 64, ENDPOINT_NUM)
+                });
+            }
 
-            self.client.map(|client| client.packet_received(&buf));
+            // Copy the packet into a buffer to send to the client.
+            let buf = self.rx_buffer.take().unwrap();
+            for (i, x) in self.out_buffer.buf.iter().enumerate() {
+                buf[i] = x.get();
+            }
+
+            self.client.map(move |client| {
+                client.packet_received(ReturnCode::SUCCESS, buf, 64, ENDPOINT_NUM)
+            });
             true
         } else {
             // Cannot receive now, indicate a delay to the controller.
@@ -226,22 +191,64 @@ impl<'a, 'b, C: hil::usb::UsbController<'a>> ClientCtapHID<'a, 'b, C> {
         }
     }
 
-    pub fn cancel_transaction(&'a self) -> bool {
-        self.cancel_in_transaction() | self.cancel_out_transaction()
-    }
-
-    fn cancel_in_transaction(&'a self) -> bool {
-        self.tx_packet.take();
-        self.pending_in.take()
-    }
-
-    fn cancel_out_transaction(&'a self) -> bool {
-        self.pending_out.take()
-    }
-
     #[inline]
     fn controller(&'a self) -> &'a C {
         self.client_ctrl.controller()
+    }
+}
+
+impl<'a, 'b, C: hil::usb::UsbController<'a>> hil::usb_hid::UsbHid<'a> for ClientCtapHID<'a, 'b, C> {
+    fn send_buffer(
+        &'a self,
+        buf: &'static mut [u8; 64],
+    ) -> Result<usize, (ReturnCode, &'static mut [u8; 64])> {
+        if self.tx_buffer.is_some() {
+            // The previous packet has not yet been transmitted, reject the new one.
+            Err((ReturnCode::EBUSY, buf))
+        } else {
+            self.tx_buffer.replace(buf);
+            // Alert the controller that we now have data to send on the Interrupt IN endpoint.
+            self.controller().endpoint_resume_in(ENDPOINT_NUM);
+            Ok(64)
+        }
+    }
+
+    fn send_cancel(&'a self) -> Result<&'static mut [u8; 64], ReturnCode> {
+        if self.pending_in.get() {
+            // The packet is being sent at the moment. Cannot return the buffer yet.
+            Err(ReturnCode::EBUSY)
+        } else {
+            // Cancel the send if there was one. Return EALREADY if it was already cancelled.
+            self.tx_buffer.take().ok_or(ReturnCode::EALREADY)
+        }
+    }
+
+    fn receive_buffer(
+        &'a self,
+        buf: &'static mut [u8; 64],
+    ) -> Result<(), (ReturnCode, &'static mut [u8; 64])> {
+        if self.rx_buffer.is_some() {
+            // The previous packet has not yet been received, reject the new one.
+            Err((ReturnCode::EBUSY, buf))
+        } else {
+            self.rx_buffer.replace(buf);
+            // In case we reported Delay before, send the pending packet back to the client.
+            // Otherwise, there's nothing to do, the controller will send us a packet_out when a
+            // packet arrives.
+            if self.delayed_out.take() {
+                if self.send_packet_to_client() {
+                    // If that succeeds, alert the controller that we can now
+                    // receive data on the Interrupt OUT endpoint.
+                    self.controller().endpoint_resume_out(ENDPOINT_NUM);
+                }
+            }
+            Ok(())
+        }
+    }
+
+    fn receive_cancel(&'a self) -> Result<&'static mut [u8; 64], ReturnCode> {
+        // Cancel the receive if there was one. Return EALREADY if it was already cancelled.
+        self.rx_buffer.take().ok_or(ReturnCode::EALREADY)
     }
 }
 
@@ -252,11 +259,11 @@ impl<'a, 'b, C: hil::usb::UsbController<'a>> hil::usb::Client<'a> for ClientCtap
 
         // Set up the interrupt in-out endpoint
         self.controller()
-            .endpoint_set_in_buffer(1, &self.in_buffer.buf);
+            .endpoint_set_in_buffer(ENDPOINT_NUM, &self.in_buffer.buf);
         self.controller()
-            .endpoint_set_out_buffer(1, &self.out_buffer.buf);
+            .endpoint_set_out_buffer(ENDPOINT_NUM, &self.out_buffer.buf);
         self.controller()
-            .endpoint_in_out_enable(TransferType::Interrupt, 1);
+            .endpoint_in_out_enable(TransferType::Interrupt, ENDPOINT_NUM);
     }
 
     fn attach(&'a self) {
@@ -299,21 +306,24 @@ impl<'a, 'b, C: hil::usb::UsbController<'a>> hil::usb::Client<'a> for ClientCtap
         match transfer_type {
             TransferType::Bulk => hil::usb::InResult::Error,
             TransferType::Interrupt => {
-                if endpoint != 1 {
+                if endpoint != ENDPOINT_NUM {
                     return hil::usb::InResult::Error;
                 }
 
-                if let Some(packet) = self.tx_packet.take() {
-                    let buf = &self.in_buffer.buf;
-                    for i in 0..64 {
-                        buf[i].set(packet[i]);
-                    }
-
-                    hil::usb::InResult::Packet(64)
-                } else {
+                self.tx_buffer.map_or(
                     // Nothing to send
-                    hil::usb::InResult::Delay
-                }
+                    hil::usb::InResult::Delay,
+                    |packet| {
+                        self.pending_in.set(true);
+
+                        let buf = &self.in_buffer.buf;
+                        for i in 0..64 {
+                            buf[i].set(packet[i]);
+                        }
+
+                        hil::usb::InResult::Packet(64)
+                    },
+                )
             }
             TransferType::Control | TransferType::Isochronous => unreachable!(),
         }
@@ -329,7 +339,7 @@ impl<'a, 'b, C: hil::usb::UsbController<'a>> hil::usb::Client<'a> for ClientCtap
         match transfer_type {
             TransferType::Bulk => hil::usb::OutResult::Error,
             TransferType::Interrupt => {
-                if endpoint != 1 {
+                if endpoint != ENDPOINT_NUM {
                     return hil::usb::OutResult::Error;
                 }
 
@@ -349,21 +359,24 @@ impl<'a, 'b, C: hil::usb::UsbController<'a>> hil::usb::Client<'a> for ClientCtap
     }
 
     fn packet_transmitted(&'a self, endpoint: usize) {
-        if endpoint != 1 {
+        if endpoint != ENDPOINT_NUM {
             panic!("Unexpected transmission on ep {}", endpoint);
         }
-
-        if self.tx_packet.is_some() {
-            panic!("Unexpected tx_packet while a packet was being transmitted.");
-        }
-        self.pending_in.set(false);
 
         // Clear any pending packet on the receiving side.
         // It's up to the client to handle the transmitted packet and decide if they want to
         // receive another packet.
-        self.cancel_out_transaction();
+        if let Some(buf) = self.rx_buffer.take() {
+            self.client.map(move |client| {
+                client.packet_received(ReturnCode::ECANCEL, buf, 64, ENDPOINT_NUM)
+            });
+        }
 
         // Notify the client
-        self.client.map(|client| client.packet_transmitted());
+        assert!(self.pending_in.take());
+        let buf = self.tx_buffer.take().unwrap();
+        self.client.map(move |client| {
+            client.packet_transmitted(ReturnCode::SUCCESS, buf, 64, ENDPOINT_NUM)
+        });
     }
 }

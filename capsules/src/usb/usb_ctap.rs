@@ -1,6 +1,5 @@
-use super::usbc_ctap_hid::ClientCtapHID;
+use kernel::common::cells::TakeCell;
 use kernel::hil;
-use kernel::hil::usb::Client;
 use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
 
 /// Syscall number
@@ -85,31 +84,32 @@ impl App {
     }
 }
 
-pub trait CtapUsbClient {
-    // Whether this client is ready to receive a packet. This must be checked before calling
-    // packet_received().
-    fn can_receive_packet(&self) -> bool;
-
-    // Signal to the client that a packet has been received.
-    fn packet_received(&self, packet: &[u8; 64]);
-
-    // Signal to the client that a packet has been transmitted.
-    fn packet_transmitted(&self);
-}
-
-pub struct CtapUsbSyscallDriver<'a, 'b, C: 'a> {
-    usb_client: &'a ClientCtapHID<'a, 'b, C>,
+pub struct CtapUsbSyscallDriver<'a> {
+    usb_hid: &'a dyn hil::usb_hid::UsbHid<'a>,
     apps: Grant<App>,
+    // Buffers to pass to the USB-HID HIL
+    send_buffer: TakeCell<'static, [u8; 64]>,
+    recv_buffer: TakeCell<'static, [u8; 64]>,
 }
 
-impl<'a, 'b, C: hil::usb::UsbController<'a>> CtapUsbSyscallDriver<'a, 'b, C> {
-    pub fn new(usb_client: &'a ClientCtapHID<'a, 'b, C>, apps: Grant<App>) -> Self {
-        CtapUsbSyscallDriver { usb_client, apps }
+impl<'a> CtapUsbSyscallDriver<'a> {
+    pub fn new(
+        usb_hid: &'a dyn hil::usb_hid::UsbHid<'a>,
+        apps: Grant<App>,
+        send_buffer: &'static mut [u8; 64],
+        recv_buffer: &'static mut [u8; 64],
+    ) -> Self {
+        CtapUsbSyscallDriver {
+            usb_hid,
+            apps,
+            send_buffer: TakeCell::new(send_buffer),
+            recv_buffer: TakeCell::new(recv_buffer),
+        }
     }
 }
 
-impl<'a, 'b, C: hil::usb::UsbController<'a>> CtapUsbClient for CtapUsbSyscallDriver<'a, 'b, C> {
-    fn can_receive_packet(&self) -> bool {
+impl<'a> hil::usb_hid::Client<'a> for CtapUsbSyscallDriver<'a> {
+    fn can_receive(&'a self) -> bool {
         let mut result = false;
         for app in self.apps.iter() {
             app.enter(|app, _| {
@@ -123,7 +123,17 @@ impl<'a, 'b, C: hil::usb::UsbController<'a>> CtapUsbClient for CtapUsbSyscallDri
         result
     }
 
-    fn packet_received(&self, packet: &[u8; 64]) {
+    fn packet_received(
+        &self,
+        result: ReturnCode,
+        buffer: &'static mut [u8; 64],
+        len: usize,
+        endpoint: usize,
+    ) {
+        assert_eq!(result, ReturnCode::SUCCESS);
+        assert_eq!(len, 64);
+        assert_eq!(endpoint, 1);
+        let packet: &[u8; 64] = &*buffer;
         for app in self.apps.iter() {
             app.enter(|app, _| {
                 if app.connected && app.waiting && app.side.map_or(false, |side| side.can_receive())
@@ -139,9 +149,22 @@ impl<'a, 'b, C: hil::usb::UsbController<'a>> CtapUsbClient for CtapUsbSyscallDri
                 }
             });
         }
+        assert!(self.recv_buffer.is_none());
+        self.recv_buffer.replace(buffer);
     }
 
-    fn packet_transmitted(&self) {
+    fn packet_transmitted(
+        &self,
+        result: ReturnCode,
+        buffer: &'static mut [u8; 64],
+        len: usize,
+        endpoint: usize,
+    ) {
+        assert_eq!(result, ReturnCode::SUCCESS);
+        assert_eq!(len, 64);
+        assert_eq!(endpoint, 1);
+        let previous = self.send_buffer.replace(buffer);
+        assert!(previous.is_none());
         for app in self.apps.iter() {
             app.enter(|app, _| {
                 if app.connected
@@ -158,7 +181,7 @@ impl<'a, 'b, C: hil::usb::UsbController<'a>> CtapUsbClient for CtapUsbSyscallDri
     }
 }
 
-impl<'a, 'b, C: hil::usb::UsbController<'a>> Driver for CtapUsbSyscallDriver<'a, 'b, C> {
+impl<'a> Driver for CtapUsbSyscallDriver<'a> {
     fn allow(
         &self,
         appid: AppId,
@@ -239,8 +262,6 @@ impl<'a, 'b, C: hil::usb::UsbController<'a>> Driver for CtapUsbSyscallDriver<'a,
                         } else if busy {
                             ReturnCode::EBUSY
                         } else {
-                            self.usb_client.enable();
-                            self.usb_client.attach();
                             app.connected = true;
                             ReturnCode::SUCCESS
                         }
@@ -256,14 +277,22 @@ impl<'a, 'b, C: hil::usb::UsbController<'a>> Driver for CtapUsbSyscallDriver<'a,
                         if app.is_ready_for_command(Side::Transmit) {
                             if app.waiting {
                                 ReturnCode::EALREADY
-                            } else if self
-                                .usb_client
-                                .transmit_packet(app.buffer.as_ref().unwrap().as_ref())
-                            {
-                                app.waiting = true;
-                                ReturnCode::SUCCESS
                             } else {
-                                ReturnCode::EBUSY
+                                assert!(self.send_buffer.is_some());
+                                let send_buffer: &'static mut [u8; 64] =
+                                    self.send_buffer.take().unwrap();
+                                send_buffer.copy_from_slice(app.buffer.as_ref().unwrap().as_ref());
+                                match self.usb_hid.send_buffer(send_buffer) {
+                                    Ok(n) => {
+                                        assert_eq!(n, 64);
+                                        app.waiting = true;
+                                        ReturnCode::SUCCESS
+                                    }
+                                    Err((_code, send_buffer)) => {
+                                        self.send_buffer.replace(send_buffer);
+                                        ReturnCode::EBUSY
+                                    }
+                                }
                             }
                         } else {
                             ReturnCode::EINVAL
@@ -282,7 +311,11 @@ impl<'a, 'b, C: hil::usb::UsbController<'a>> Driver for CtapUsbSyscallDriver<'a,
                                 ReturnCode::EALREADY
                             } else {
                                 app.waiting = true;
-                                self.usb_client.receive_packet();
+                                assert!(self.recv_buffer.is_some());
+                                let recv_buffer: &'static mut [u8; 64] =
+                                    self.recv_buffer.take().unwrap();
+                                let result = self.usb_hid.receive_buffer(recv_buffer);
+                                assert!(result.is_ok());
                                 ReturnCode::SUCCESS
                             }
                         } else {
@@ -303,20 +336,31 @@ impl<'a, 'b, C: hil::usb::UsbController<'a>> Driver for CtapUsbSyscallDriver<'a,
                             } else {
                                 // Indicates to the driver that we can receive any pending packet.
                                 app.waiting = true;
-                                self.usb_client.receive_packet();
+                                assert!(self.recv_buffer.is_some());
+                                let recv_buffer: &'static mut [u8; 64] =
+                                    self.recv_buffer.take().unwrap();
+                                let result = self.usb_hid.receive_buffer(recv_buffer);
+                                assert!(result.is_ok());
 
                                 if !app.waiting {
                                     // The call to receive_packet() collected a pending packet.
                                     ReturnCode::SUCCESS
                                 } else {
                                     // Indicates to the driver that we have a packet to send.
-                                    if self
-                                        .usb_client
-                                        .transmit_packet(app.buffer.as_ref().unwrap().as_ref())
-                                    {
-                                        ReturnCode::SUCCESS
-                                    } else {
-                                        ReturnCode::EBUSY
+                                    assert!(self.send_buffer.is_some());
+                                    let send_buffer: &'static mut [u8; 64] =
+                                        self.send_buffer.take().unwrap();
+                                    send_buffer
+                                        .copy_from_slice(app.buffer.as_ref().unwrap().as_ref());
+                                    match self.usb_hid.send_buffer(send_buffer) {
+                                        Ok(n) => {
+                                            assert_eq!(n, 64);
+                                            ReturnCode::SUCCESS
+                                        }
+                                        Err((_code, send_buffer)) => {
+                                            self.send_buffer.replace(send_buffer);
+                                            ReturnCode::EBUSY
+                                        }
                                     }
                                 }
                             }
@@ -336,12 +380,48 @@ impl<'a, 'b, C: hil::usb::UsbController<'a>> Driver for CtapUsbSyscallDriver<'a,
                             // FIXME: if cancellation failed, the app should still wait. But that
                             // doesn't work yet.
                             app.waiting = false;
-                            if self.usb_client.cancel_transaction() {
-                                ReturnCode::SUCCESS
+                            assert!(self.recv_buffer.is_none() || self.send_buffer.is_none());
+
+                            // Cancel receiving.
+                            let recv_result = if self.recv_buffer.is_none() {
+                                match self.usb_hid.receive_cancel() {
+                                    Ok(recv_buffer) => {
+                                        self.recv_buffer.replace(recv_buffer);
+                                        ReturnCode::SUCCESS
+                                    }
+                                    Err(code) => {
+                                        assert_eq!(code, ReturnCode::EBUSY);
+                                        ReturnCode::EBUSY
+                                    }
+                                }
                             } else {
+                                ReturnCode::SUCCESS
+                            };
+
+                            // Cancel sending.
+                            let send_result = if self.send_buffer.is_none() {
+                                match self.usb_hid.send_cancel() {
+                                    Ok(send_buffer) => {
+                                        self.send_buffer.replace(send_buffer);
+                                        ReturnCode::SUCCESS
+                                    }
+                                    Err(code) => {
+                                        assert_eq!(code, ReturnCode::EBUSY);
+                                        ReturnCode::EBUSY
+                                    }
+                                }
+                            } else {
+                                ReturnCode::SUCCESS
+                            };
+
+                            match (recv_result, send_result) {
+                                (ReturnCode::SUCCESS, ReturnCode::SUCCESS) => ReturnCode::SUCCESS,
                                 // Cannot cancel now because the transaction is already in process.
                                 // The app should wait for the callback instead.
-                                ReturnCode::EBUSY
+                                (ReturnCode::SUCCESS, ReturnCode::EBUSY)
+                                | (ReturnCode::EBUSY, ReturnCode::SUCCESS)
+                                | (ReturnCode::EBUSY, ReturnCode::EBUSY) => ReturnCode::EBUSY,
+                                _ => unreachable!(),
                             }
                         } else {
                             ReturnCode::EALREADY
