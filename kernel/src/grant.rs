@@ -99,18 +99,20 @@ impl<'a, T: Default> AppliedGrant<'a, T> {
                     // freed.  A grant region is valid once allocated
                     // for the lifetime of the process.
                     let alloc_size = size_of::<T>();
-                    let new_region = appid
-                        .kernel
-                        .process_map_or(Err(Error::NoSuchApp), appid, |process| {
-                            process
-                                .alloc(alloc_size, align_of::<T>())
-                                .map_or(Err(Error::OutOfMemory), |buf| {
-                                    // Convert untyped `*mut u8` allocation to allocated type
-                                    let ptr = NonNull::cast::<T>(buf);
+                    let new_region =
+                        appid
+                            .kernel
+                            .process_map_or(Err(Error::NoSuchApp), appid, |process| {
+                                process.alloc(alloc_size, align_of::<T>()).map_or(
+                                    Err(Error::OutOfMemory),
+                                    |buf| {
+                                        // Convert untyped `*mut u8` allocation to allocated type
+                                        let ptr = NonNull::cast::<T>(buf);
 
-                                    Ok(ptr)
-                                })
-                        })?;
+                                        Ok(ptr)
+                                    },
+                                )
+                            })?;
 
                     // We use `ptr::write` to avoid `Drop`ping the uninitialized memory in
                     // case `T` implements the `Drop` trait.
@@ -145,20 +147,22 @@ impl<'a, T: Default> AppliedGrant<'a, T> {
     }
 
     fn get_if_allocated(grant: &Grant<T>, process: &'a dyn ProcessType) -> Option<Self> {
-        process.get_grant_ptr(grant.grant_num).and_then(|grant_ptr|
-            if grant_ptr.is_null() {
-                None
-            } else if grant_ptr == (!0 as *mut u8) {
-                None
-            } else {
-                Some(AppliedGrant {
-                    process: process,
-                    grant_num: grant.grant_num,
-                    grant: unsafe { &mut *(grant_ptr as *mut T) },
-                    _phantom: PhantomData,
-                })
-            }
-        )
+        process
+            .get_grant_ptr(grant.grant_num)
+            .and_then(|grant_ptr| {
+                if grant_ptr.is_null() {
+                    None
+                } else if grant_ptr == (!0 as *mut u8) {
+                    None
+                } else {
+                    Some(AppliedGrant {
+                        process: process,
+                        grant_num: grant.grant_num,
+                        grant: unsafe { &mut *(grant_ptr as *mut T) },
+                        _phantom: PhantomData,
+                    })
+                }
+            })
     }
 
     pub fn enter<F, R>(self, fun: F) -> R
@@ -172,7 +176,8 @@ impl<'a, T: Default> AppliedGrant<'a, T> {
         }
         let res = fun(&mut root, ());
         unsafe {
-            self.process.set_grant_ptr(self.grant_num, root.data as *mut _ as *mut u8);
+            self.process
+                .set_grant_ptr(self.grant_num, root.data as *mut _ as *mut u8);
         }
         res
     }
@@ -242,6 +247,7 @@ impl<'a, T: Default> Iterator for Iter<'a, T> {
         // Get the next `AppId` from the kernel processes array that is setup to use this grant.
         // Since the iterator itself is saved calling this function
         // again will start where we left off.
-        self.subiter.find_map(|process| AppliedGrant::get_if_allocated(grant, process) )
+        self.subiter
+            .find_map(|process| AppliedGrant::get_if_allocated(grant, process))
     }
 }
