@@ -41,13 +41,14 @@ impl<'a, T: 'a + ?Sized> DerefMut for Borrowed<'a, T> {
 }
 
 pub struct AppliedGrant<'a, T: 'a> {
-    appid: AppId,
+    process: &'a dyn ProcessType,
+    grant_num: usize,
     grant: &'a mut T,
     _phantom: PhantomData<T>,
 }
 
 impl<'a, T: Default> AppliedGrant<'a, T> {
-    fn get_or_allocate(grant: &Grant<T>, process: &dyn ProcessType) -> Result<Self, Error> {
+    fn get_or_allocate(grant: &Grant<T>, process: &'a dyn ProcessType) -> Result<Self, Error> {
         // Here is an example of how the grants are laid out in a
         // process's memory:
         //
@@ -123,6 +124,8 @@ impl<'a, T: Default> AppliedGrant<'a, T> {
                     // The allocator returns a `NonNull`, we just want
                     // the raw pointer.
                     new_region.as_ptr()
+                } else if untyped_grant_ptr == (!0 as *mut u8) {
+                    return Err(Error::AlreadyInUse);
                 } else {
                     // Grant region previously allocated, just convert the
                     // pointer.
@@ -130,7 +133,8 @@ impl<'a, T: Default> AppliedGrant<'a, T> {
                 };
 
                 Ok(AppliedGrant {
-                    appid: appid,
+                    process: process,
+                    grant_num: grant.grant_num,
                     grant: &mut *(typed_grant_pointer as *mut T),
                     _phantom: PhantomData,
                 })
@@ -140,13 +144,20 @@ impl<'a, T: Default> AppliedGrant<'a, T> {
         }
     }
 
-    fn get_if_allocated(grant: &Grant<T>, process: &dyn ProcessType) -> Option<Self> {
+    fn get_if_allocated(grant: &Grant<T>, process: &'a dyn ProcessType) -> Option<Self> {
         process.get_grant_ptr(grant.grant_num).and_then(|grant_ptr|
-            Some(AppliedGrant {
-                appid: process.appid(),
-                grant: unsafe { &mut *(grant_ptr as *mut T) },
-                _phantom: PhantomData,
-            })
+            if grant_ptr.is_null() {
+                None
+            } else if grant_ptr == (!0 as *mut u8) {
+                None
+            } else {
+                Some(AppliedGrant {
+                    process: process,
+                    grant_num: grant.grant_num,
+                    grant: unsafe { &mut *(grant_ptr as *mut T) },
+                    _phantom: PhantomData,
+                })
+            }
         )
     }
 
@@ -155,8 +166,15 @@ impl<'a, T: Default> AppliedGrant<'a, T> {
         F: FnOnce(&mut Borrowed<T>, ()) -> R,
         R: Copy,
     {
-        let mut root = Borrowed::new(self.grant, self.appid);
-        fun(&mut root, ())
+        let mut root = Borrowed::new(self.grant, self.process.appid());
+        unsafe {
+            self.process.set_grant_ptr(self.grant_num, !0 as *mut u8);
+        }
+        let res = fun(&mut root, ());
+        unsafe {
+            self.process.set_grant_ptr(self.grant_num, root.data as *mut _ as *mut u8);
+        }
+        res
     }
 }
 
