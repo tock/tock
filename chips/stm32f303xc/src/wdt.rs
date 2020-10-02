@@ -59,8 +59,6 @@ register_bitfields![u32,
     ]
 ];
 
-pub static mut WATCHDOG: WindoWdg = WindoWdg::new();
-
 pub struct WindoWdg {
     registers: StaticRef<WwdgRegisters>,
     clock: WdgClock,
@@ -104,19 +102,21 @@ impl WindoWdg {
         // Enable the APB1 clock for the watchdog.
         self.clock.enable();
 
-        // This disables the window feature.
+        // This disables the window feature. Set this to a value smaller than
+        // 0x7F if you want to enable it.
         self.set_window(0x7F);
         self.set_prescaler(3);
 
-        // Set T[6] bit to avoid a reset just when the watchdog is activated.
+        // Set the T[6] bit to avoid a reset when the watchdog is activated.
         self.tickle();
 
-        // With the APB1 clock running at 36Mhz we are getting timeout value
+        // With the APB1 clock running at 36Mhz we are getting timeout value of
         // t_WWDG = (1 / 36000) * 4096 * 2^3 * (63 + 1) = 58ms
         self.registers.cr.modify(Control::WDGA::SET);
     }
 
     pub fn tickle(&self) {
+        // Uses 63 as the value the watchdog starts counting from.
         self.registers.cr.modify(Control::T.val(0x7F));
     }
 }
