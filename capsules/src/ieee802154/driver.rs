@@ -777,7 +777,7 @@ impl Driver for RadioDriver<'_> {
             }),
             25 => self.remove_key(arg1),
             26 => {
-                self.do_with_app(appid, |app| {
+                let setup_tx = self.do_with_app(appid, |app| {
                     if app.pending_tx.is_some() {
                         // Cannot support more than one pending tx per process.
                         return ReturnCode::EBUSY;
@@ -809,9 +809,13 @@ impl Driver for RadioDriver<'_> {
                         return ReturnCode::EINVAL;
                     }
                     app.pending_tx = next_tx;
-
+                    ReturnCode::SUCCESS
+                });
+                if setup_tx == ReturnCode::SUCCESS {
                     self.do_next_tx_sync(appid)
-                })
+                } else {
+                    setup_tx
+                }
             }
             _ => ReturnCode::ENOSUPPORT,
         }
