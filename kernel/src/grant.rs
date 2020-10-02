@@ -47,6 +47,99 @@ pub struct AppliedGrant<'a, T: 'a> {
 }
 
 impl<'a, T: Default> AppliedGrant<'a, T> {
+    fn get_or_allocate(grant: &Grant<T>, process: &dyn ProcessType) -> Result<Self, Error> {
+        // Here is an example of how the grants are laid out in a
+        // process's memory:
+        //
+        // Mem. Addr.
+        // 0x0040000  ┌────────────────────
+        //            │   GrantPointer0 [0x003FFC8]
+        //            │   GrantPointer1 [0x003FFC0]
+        //            │   ...
+        //            │   GrantPointerN [0x0000000 (NULL)]
+        //            ├────────────────────
+        //            │   Process Control Block
+        // 0x003FFE0  ├────────────────────
+        //            │   GrantRegion0
+        // 0x003FFC8  ├────────────────────
+        //            │   GrantRegion1
+        // 0x003FFC0  ├────────────────────
+        //            │
+        //            │   --unallocated--
+        //            │
+        //            └────────────────────
+        //
+        // An array of pointers (one per possible grant region)
+        // point to where the actual grant memory is allocated
+        // inside of the process. The grant memory is not allocated
+        // until the actual grant region is actually used.
+        //
+        // This function provides the app access to the specific
+        // grant memory, and allocates the grant region in the
+        // process memory if needed.
+
+        // Get the GrantPointer to start. Since process.rs does not know
+        // anything about the datatype of the grant, and the grant
+        // memory may not yet be allocated, it can only return a `*mut
+        // u8` here. We will eventually convert this to a `*mut T`.
+        let grant_num = grant.grant_num;
+        let appid = process.appid();
+        if let Some(untyped_grant_ptr) = process.get_grant_ptr(grant_num) {
+            // If the grant pointer is NULL then the memory for the
+            // GrantRegion needs to be allocated. Otherwise, we can
+            // convert the pointer to a `*mut T` because we know we
+            // previously allocated enough memory for type T.
+            unsafe {
+                let typed_grant_pointer = if untyped_grant_ptr.is_null() {
+                    // Allocate space in the process's memory for
+                    // something of type `T` for the grant.
+                    //
+                    // Note: This allocation is intentionally never
+                    // freed.  A grant region is valid once allocated
+                    // for the lifetime of the process.
+                    let alloc_size = size_of::<T>();
+                    let new_region = appid
+                        .kernel
+                        .process_map_or(Err(Error::NoSuchApp), appid, |process| {
+                            process
+                                .alloc(alloc_size, align_of::<T>())
+                                .map_or(Err(Error::OutOfMemory), |buf| {
+                                    // Convert untyped `*mut u8` allocation to allocated type
+                                    let ptr = NonNull::cast::<T>(buf);
+
+                                    Ok(ptr)
+                                })
+                        })?;
+
+                    // We use `ptr::write` to avoid `Drop`ping the uninitialized memory in
+                    // case `T` implements the `Drop` trait.
+                    write(new_region.as_ptr(), T::default());
+
+                    // Update the grant pointer in the process. Again,
+                    // since the process struct does not know about the
+                    // grant type we must use a `*mut u8` here.
+                    process.set_grant_ptr(grant_num, new_region.as_ptr() as *mut u8);
+
+                    // The allocator returns a `NonNull`, we just want
+                    // the raw pointer.
+                    new_region.as_ptr()
+                } else {
+                    // Grant region previously allocated, just convert the
+                    // pointer.
+                    untyped_grant_ptr as *mut T
+                };
+
+                Ok(AppliedGrant {
+                    appid: appid,
+                    grant: &mut *(typed_grant_pointer as *mut T),
+                    _phantom: PhantomData,
+                })
+            }
+        } else {
+            Err(Error::InactiveApp)
+        }
+    }
+
     fn get_if_allocated(grant: &Grant<T>, process: &dyn ProcessType) -> Option<Self> {
         process.get_grant_ptr(grant.grant_num).and_then(|grant_ptr|
             Some(AppliedGrant {
@@ -65,33 +158,6 @@ impl<'a, T: Default> AppliedGrant<'a, T> {
         let mut root = Borrowed::new(self.grant, self.appid);
         fun(&mut root, ())
     }
-}
-
-/// Like `alloc`, but the caller is responsible for free-ing the allocated
-/// memory, as it is not wrapped in a type that implements `Drop`.
-///
-/// In contrast to `alloc_raw`, this method does initialize the returned
-/// memory.
-unsafe fn alloc_default_unowned<T: Default>(appid: AppId) -> Result<NonNull<T>, Error> {
-    let alloc_size = size_of::<T>();
-    let ptr = appid
-        .kernel
-        .process_map_or(Err(Error::NoSuchApp), appid, |process| {
-            process
-                .alloc(alloc_size, align_of::<T>())
-                .map_or(Err(Error::OutOfMemory), |buf| {
-                    // Convert untyped `*mut u8` allocation to allocated type
-                    let ptr = NonNull::cast::<T>(buf);
-
-                    Ok(ptr)
-                })
-        })?;
-
-    // We use `ptr::write` to avoid `Drop`ping the uninitialized memory in
-    // case `T` implements the `Drop` trait.
-    write(ptr.as_ptr(), T::default());
-
-    Ok(ptr)
 }
 
 /// Region of process memory reserved for the kernel.
@@ -118,84 +184,8 @@ impl<T: Default> Grant<T> {
         appid
             .kernel
             .process_map_or(Err(Error::NoSuchApp), appid, |process| {
-                // Here is an example of how the grants are laid out in a
-                // process's memory:
-                //
-                // Mem. Addr.
-                // 0x0040000  ┌────────────────────
-                //            │   GrantPointer0 [0x003FFC8]
-                //            │   GrantPointer1 [0x003FFC0]
-                //            │   ...
-                //            │   GrantPointerN [0x0000000 (NULL)]
-                //            ├────────────────────
-                //            │   Process Control Block
-                // 0x003FFE0  ├────────────────────
-                //            │   GrantRegion0
-                // 0x003FFC8  ├────────────────────
-                //            │   GrantRegion1
-                // 0x003FFC0  ├────────────────────
-                //            │
-                //            │   --unallocated--
-                //            │
-                //            └────────────────────
-                //
-                // An array of pointers (one per possible grant region)
-                // point to where the actual grant memory is allocated
-                // inside of the process. The grant memory is not allocated
-                // until the actual grant region is actually used.
-                //
-                // This function provides the app access to the specific
-                // grant memory, and allocates the grant region in the
-                // process memory if needed.
-
-                // Get the GrantPointer to start. Since process.rs does not know
-                // anything about the datatype of the grant, and the grant
-                // memory may not yet be allocated, it can only return a `*mut
-                // u8` here. We will eventually convert this to a `*mut T`.
-                if let Some(untyped_grant_ptr) = process.get_grant_ptr(self.grant_num) {
-                    // If the grant pointer is NULL then the memory for the
-                    // GrantRegion needs to be allocated. Otherwise, we can
-                    // convert the pointer to a `*mut T` because we know we
-                    // previously allocated enough memory for type T.
-                    let typed_grant_pointer = if untyped_grant_ptr.is_null() {
-                        unsafe {
-                            // Allocate space in the process's memory for
-                            // something of type `T` for the grant.
-                            //
-                            // Note: This allocation is intentionally never
-                            // freed.  A grant region is valid once allocated
-                            // for the lifetime of the process.
-                            let new_region = alloc_default_unowned(appid)?;
-
-                            // Update the grant pointer in the process. Again,
-                            // since the process struct does not know about the
-                            // grant type we must use a `*mut u8` here.
-                            process.set_grant_ptr(self.grant_num, new_region.as_ptr() as *mut u8);
-
-                            // The allocator returns a `NonNull`, we just want
-                            // the raw pointer.
-                            new_region.as_ptr()
-                        }
-                    } else {
-                        // Grant region previously allocated, just convert the
-                        // pointer.
-                        untyped_grant_ptr as *mut T
-                    };
-
-                    // Dereference the typed GrantPointer to make a GrantRegion
-                    // reference.
-                    let region = unsafe { &mut *typed_grant_pointer };
-
-                    // Wrap the grant reference in something that knows
-                    // what app its a part of.
-                    let mut borrowed_region = Borrowed::new(region, appid);
-
-                    // Call the passed in closure with the borrowed grant region.
-                    let res = fun(&mut borrowed_region, ());
-                    Ok(res)
-                } else {
-                    Err(Error::InactiveApp)
-                }
+                let ag = AppliedGrant::get_or_allocate(self, process)?;
+                Ok(ag.enter(fun))
             })
     }
 
