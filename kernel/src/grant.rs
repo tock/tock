@@ -127,7 +127,7 @@ impl<'a, T: Default> AppliedGrant<'a, T> {
                     // the raw pointer.
                     new_region.as_ptr()
                 } else if untyped_grant_ptr == (!0 as *mut u8) {
-                    return Err(Error::AlreadyInUse);
+                    panic!("Grant already in use (enter)");
                 } else {
                     // Grant region previously allocated, just convert the
                     // pointer.
@@ -153,7 +153,7 @@ impl<'a, T: Default> AppliedGrant<'a, T> {
                 if grant_ptr.is_null() {
                     None
                 } else if grant_ptr == (!0 as *mut u8) {
-                    None
+                    panic!("Grant already in use (iter)");
                 } else {
                     Some(AppliedGrant {
                         process: process,
