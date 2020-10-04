@@ -161,9 +161,9 @@ impl Default for PMPConfig {
 
 impl fmt::Display for PMPConfig {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "PMP regions:");
-        for n in 0..self.total_regions {
-            writeln!(f, " [{}]: {}", n, self.regions[n]);
+        writeln!(f, " PMP regions:")?;
+        for (n, region) in self.regions.iter().enumerate() {
+            writeln!(f, "  [{}]: {}", n, region)?;
         }
         Ok(())
     }
