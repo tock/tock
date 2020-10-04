@@ -26,6 +26,7 @@ pub mod time;
 pub mod touch;
 pub mod uart;
 pub mod usb;
+pub mod usb_hid;
 
 /// Shared interface for configuring components.
 pub trait Controller {
