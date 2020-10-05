@@ -41,7 +41,17 @@ pub trait Client<'a, T: UsbHidType> {
 
 pub trait UsbHid<'a, T: UsbHidType> {
     /// Sets the buffer to be sent and starts a send transaction.
-    /// On success returns the number of bytes that will be sent.
+    /// Once the packet is sent the `packet_transmitted()` callback will
+    /// be triggered and no more data will be sent until
+    /// this is called again.
+    ///
+    /// Once this is called, the implementation will wait until either
+    /// the packet is sent or `send_cancel()` is called.
+    ///
+    /// Calling `send_buffer()` while there is an outstanding
+    /// `send_buffer()` operation will return EBUSY.
+    ///
+    /// On success returns the length of data to be sent.
     /// On failure returns an error code and the buffer passed in.
     fn send_buffer(&'a self, send: &'static mut T) -> Result<usize, (ReturnCode, &'static mut T)>;
 
