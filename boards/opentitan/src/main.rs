@@ -68,6 +68,7 @@ struct OpenTitan {
         capsules::virtual_uart::UartDevice<'static>,
     >,
     i2c_master: &'static capsules::i2c_master::I2CMasterDriver<lowrisc::i2c::I2c<'static>>,
+    nonvolatile_storage: &'static capsules::nonvolatile_storage_driver::NonvolatileStorage<'static>,
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
@@ -84,6 +85,7 @@ impl Platform for OpenTitan {
             capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
             capsules::low_level_debug::DRIVER_NUM => f(Some(self.lldb)),
             capsules::i2c_master::DRIVER_NUM => f(Some(self.i2c_master)),
+            capsules::nonvolatile_storage_driver::DRIVER_NUM => f(Some(self.nonvolatile_storage)),
             _ => f(None),
         }
     }
@@ -270,6 +272,27 @@ pub unsafe fn reset_handler() {
     // See https://github.com/lowRISC/opentitan/issues/2598 for more details
     // let usb = usb::UsbComponent::new(board_kernel).finalize(());
 
+    // Kernel storage region, allocated with the storage_volume!
+    // macro in common/utils.rs
+    extern "C" {
+        /// Beginning on the ROM region containing app images.
+        static _sstorage: u8;
+        static _estorage: u8;
+    }
+
+    // Flash
+    let nonvolatile_storage = components::nonvolatile_storage::NonvolatileStorageComponent::new(
+        board_kernel,
+        &earlgrey::flash_ctrl::FLASH_CTRL,
+        0x20000000,                       // Start address for userspace accessible region
+        0x8000,                           // Length of userspace accessible region
+        &_sstorage as *const u8 as usize, // Start address of kernel region
+        &_estorage as *const u8 as usize - &_sstorage as *const u8 as usize, // Length of kernel region
+    )
+    .finalize(components::nv_storage_component_helper!(
+        lowrisc::flash_ctrl::FlashCtrl
+    ));
+
     /// These symbols are defined in the linker script.
     extern "C" {
         /// Beginning of the ROM region containing app images.
@@ -290,6 +313,7 @@ pub unsafe fn reset_handler() {
         hmac,
         lldb: lldb,
         i2c_master,
+        nonvolatile_storage,
     };
 
     kernel::procs::load_processes(
