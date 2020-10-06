@@ -205,13 +205,13 @@ pub fn load_processes<C: Chip>(
             if process.is_some() {
                 if config::CONFIG.debug_load_processes {
                     debug!(
-                        "Loaded process[{}] from flash=[{:#010X}:{:#010X}] into sram=[{:#010X}:{:#010X}] = {:?}",
+                        "Loaded process[{}] from flash=[{:#010X}:{:#010X}] into sram=[{:#010X}:{:#010X}] = {:}",
                         i,
                         app_flash.as_ptr() as usize,
                         app_flash.as_ptr() as usize + app_flash.len(),
                         app_memory_ptr as usize,
                         app_memory_ptr as usize + memory_offset,
-                        process.map(|p| p.get_process_name())
+                        process.map(|p| p.get_process_name()).unwrap_or("")
                     );
                 }
                 procs[i] = process;
@@ -1660,10 +1660,12 @@ impl<C: 'static + Chip> Process<'_, C> {
             {
                 if config::CONFIG.debug_load_processes {
                     debug!(
-                        "[!] flash=[{:#010X}:{:#010X}] process={:?} - couldn't allocate fixed memory region",
+                        "[!] flash=[{:#010X}:{:#010X}] fixed region=[{:#010X}:{:#010X}] process={:} - couldn't allocate fixed memory region",
                         app_flash.as_ptr() as usize,
                         app_flash.as_ptr() as usize + app_flash.len(),
-                        process_name
+                        fixed_memory.region_addr as usize,
+                        fixed_memory.region_addr as usize + fixed_memory.region_size as usize,
+                        process_name.unwrap_or("")
                     );
                 }
                 return Ok((None, 0));

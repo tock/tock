@@ -45,6 +45,12 @@ pub(crate) struct Config {
 /// A unique instance of `Config` where compile-time configuration options are defined. These
 /// options are available in the kernel crate to be used for relevant configuration.
 pub(crate) const CONFIG: Config = Config {
+#[cfg(not(trace_syscalls))]
     trace_syscalls: false,
+#[cfg(trace_syscalls)]
+    trace_syscalls: true,
+#[cfg(not(debug_load_processes))]
     debug_load_processes: false,
+#[cfg(debug_load_processes)]
+    debug_load_processes: true,
 };

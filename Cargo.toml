@@ -64,3 +64,7 @@ panic = "abort"
 lto = true
 opt-level = "z"
 debug = true
+
+[features]
+trace_syscall=[""]
+debug_load_processes=[""]
