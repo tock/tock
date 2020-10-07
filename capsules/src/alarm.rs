@@ -2,28 +2,27 @@
 //! a point in time has been reached.
 
 use core::cell::Cell;
-use kernel::hil::time::{self, Alarm, Frequency, Ticks};
+use kernel::hil::time::{self, Alarm, Frequency, Ticks, Ticks32};
 use kernel::{AppId, Callback, Driver, Grant, ReturnCode};
 
 /// Syscall driver number.
 use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::Alarm as usize;
 
-// This should transition to using Ticks
 #[derive(Copy, Clone, Debug)]
-enum Expiration {
+enum Expiration<T: Ticks> {
     Disabled,
-    Enabled { reference: u32, dt: u32 },
+    Enabled { reference: T, dt: T },
 }
 
 #[derive(Copy, Clone)]
-pub struct AlarmData {
-    expiration: Expiration,
+pub struct AlarmData<T: Ticks> {
+    expiration: Expiration<T>,
     callback: Option<Callback>,
 }
 
-impl Default for AlarmData {
-    fn default() -> AlarmData {
+impl<T: Ticks> Default for AlarmData<T> {
+    fn default() -> AlarmData<T> {
         AlarmData {
             expiration: Expiration::Disabled,
             callback: None,
@@ -34,12 +33,12 @@ impl Default for AlarmData {
 pub struct AlarmDriver<'a, A: Alarm<'a>> {
     alarm: &'a A,
     num_armed: Cell<usize>,
-    app_alarms: Grant<AlarmData>,
-    next_alarm: Cell<Expiration>,
+    app_alarms: Grant<AlarmData<A::Ticks>>,
+    next_alarm: Cell<Expiration<A::Ticks>>,
 }
 
 impl<'a, A: Alarm<'a>> AlarmDriver<'a, A> {
-    pub const fn new(alarm: &'a A, grant: Grant<AlarmData>) -> AlarmDriver<'a, A> {
+    pub const fn new(alarm: &'a A, grant: Grant<AlarmData<A::Ticks>>) -> AlarmDriver<'a, A> {
         AlarmDriver {
             alarm: alarm,
             num_armed: Cell::new(0),
@@ -48,16 +47,11 @@ impl<'a, A: Alarm<'a>> AlarmDriver<'a, A> {
         }
     }
 
-    // This logic is tricky because it needs to handle the case when the
-    // underlying alarm is wider than 32 bits.
     fn reset_active_alarm(&self) {
         let mut earliest_alarm = Expiration::Disabled;
         let mut earliest_end: A::Ticks = A::Ticks::from(0);
-        // Scale now down to a u32 since that is the width of the alarm;
-        // otherwise for larger widths (e.g., u64) now can be outside of
-        // the range of what an alarm can be set to.
         let now = self.alarm.now();
-        let now_lower_bits = A::Ticks::from(now.into_u32());
+
         // Find the first alarm to fire and store it in earliest_alarm,
         // its counter value at earliest_end. In the case that there
         // are multiple alarms in the past, just store one of them
@@ -65,16 +59,14 @@ impl<'a, A: Alarm<'a>> AlarmDriver<'a, A> {
         for alarm in self.app_alarms.iter() {
             alarm.enter(|alarm, _| match alarm.expiration {
                 Expiration::Enabled { reference, dt } => {
-                    // Do this because `reference` shadowed below
+                    // Do this because `reference` is shadowed below
                     let current_reference = reference;
-                    let current_reference_ticks = A::Ticks::from(current_reference);
                     let current_dt = dt;
-                    let current_dt_ticks = A::Ticks::from(current_dt);
-                    let current_end_ticks = current_reference_ticks.wrapping_add(current_dt_ticks);
+                    let current_end = current_reference.wrapping_add(current_dt);
 
                     earliest_alarm = match earliest_alarm {
                         Expiration::Disabled => {
-                            earliest_end = current_end_ticks;
+                            earliest_end = current_end;
                             alarm.expiration
                         }
                         Expiration::Enabled { reference, dt } => {
@@ -95,18 +87,16 @@ impl<'a, A: Alarm<'a>> AlarmDriver<'a, A> {
                             // we don't care about the order in which we push
                             // their callbacks, as their order of execution is
                             // determined by the scheduler not push order. -pal
-                            let temp_earliest_reference = A::Ticks::from(reference);
-                            let temp_earliest_dt = A::Ticks::from(dt);
+                            let temp_earliest_reference = reference;
+                            let temp_earliest_dt = dt;
                             let temp_earliest_end =
                                 temp_earliest_reference.wrapping_add(temp_earliest_dt);
 
-                            if current_end_ticks
-                                .within_range(temp_earliest_reference, temp_earliest_end)
+                            if current_end.within_range(temp_earliest_reference, temp_earliest_end)
                             {
-                                earliest_end = current_end_ticks;
+                                earliest_end = current_end;
                                 alarm.expiration
-                            } else if !now_lower_bits
-                                .within_range(temp_earliest_reference, temp_earliest_end)
+                            } else if !now.within_range(temp_earliest_reference, temp_earliest_end)
                             {
                                 earliest_end = temp_earliest_end;
                                 alarm.expiration
@@ -125,20 +115,7 @@ impl<'a, A: Alarm<'a>> AlarmDriver<'a, A> {
                 self.alarm.disarm();
             }
             Expiration::Enabled { reference, dt } => {
-                // This logic handles when the underlying Alarm is wider than
-                // 32 bits; it sets the reference to include the high bits of now
-                let mut high_bits = now.wrapping_sub(now_lower_bits);
-                // If lower bits have wrapped around from reference, this means the
-                // reference's high bits are actually one less; if we don't subtract
-                // one then the alarm will incorrectly be set 1<<32 higher than it should.
-                // This uses the invariant that reference <= now.
-                if now_lower_bits.into_u32() < reference {
-                    // Build 1<<32 in a way that just overflows to 0 if we are 32 bits
-                    let bit33 = A::Ticks::from(0xffffffff).wrapping_add(A::Ticks::from(0x1));
-                    high_bits = high_bits.wrapping_sub(bit33);
-                }
-                let real_reference = high_bits.wrapping_add(A::Ticks::from(reference));
-                self.alarm.set_alarm(real_reference, A::Ticks::from(dt));
+                self.alarm.set_alarm(reference, dt);
             }
         }
     }
@@ -183,71 +160,104 @@ impl<'a, A: Alarm<'a>> Driver for AlarmDriver<'a, A> {
         self.app_alarms
             .enter(caller_id, |td, _alloc| {
                 // helper function to rearm alarm
-                let mut rearm = |reference: usize, dt: usize| {
+                let rearm = |reference: A::Ticks, dt: A::Ticks| {
                     if let Expiration::Disabled = td.expiration {
                         self.num_armed.set(self.num_armed.get() + 1);
                     }
-                    td.expiration = Expiration::Enabled {
-                        reference: reference as u32,
-                        dt: dt as u32,
-                    };
-                    (
+		    (
+			Some(Expiration::Enabled {
+                            reference,
+                            dt,
+			}),
                         ReturnCode::SuccessWithValue {
-                            value: reference.wrapping_add(dt),
+                            value: reference.wrapping_add(dt).into_u32() as usize,
                         },
                         true,
                     )
                 };
                 let now = self.alarm.now();
-                let (return_code, reset) = match cmd_type {
-                    0 /* check if present */ => (ReturnCode::SuccessWithValue { value: 1 }, false),
+                let (new_expire, return_code, reset) = match cmd_type {
+                    0 /* check if present */ => (None, ReturnCode::SuccessWithValue { value: 1 }, false),
                     1 /* Get clock frequency */ => {
                         let freq = <A::Frequency>::frequency() as usize;
-                        (ReturnCode::SuccessWithValue { value: freq }, false)
+                        (None, ReturnCode::SuccessWithValue { value: freq }, false)
                     },
                     2 /* capture time */ => {
-                        (ReturnCode::SuccessWithValue { value: now.into_u32() as usize },
+                        (None, ReturnCode::SuccessWithValue { value: now.into_u32() as usize },
                          false)
                     },
                     3 /* Stop */ => {
                         match td.expiration {
                             Expiration::Disabled => {
                                 // Request to stop when already stopped
-                                (ReturnCode::EALREADY, false)
+                                (None, ReturnCode::EALREADY, false)
                             },
                             _ => {
                                 td.expiration = Expiration::Disabled;
                                 let new_num_armed = self.num_armed.get() - 1;
                                 self.num_armed.set(new_num_armed);
-                                (ReturnCode::SUCCESS, true)
+                                (Some(Expiration::Disabled), ReturnCode::SUCCESS, true)
                             }
                         }
                     },
                     4 /* Set absolute expiration */ => {
-                        let reference = now.into_u32() as usize;
-                        let future_time = data;
-                        let dt = future_time.wrapping_sub(reference);
+			// To set an absolute expiration value, the
+			// app delta is calculated with respect to the
+			// 32-bit scaled kernel time and then used to
+			// set the alarm respectively
+			//
+			// If the delta is too short (the alarm time
+			// has just passed), this will delay the alarm
+			// for a maximum of u32::MAX ticks
+			let kernel_reference: A::Ticks = now;
+			let app_alarm_time: Ticks32 = Ticks32::from(data as u32);
+			let app_dt: Ticks32 = app_alarm_time.wrapping_sub(kernel_reference.into_u32().into());
+			let kernel_dt: A::Ticks = A::Ticks::from(app_dt.into_u32());
                         // if previously unarmed, but now will become armed
-                        rearm(reference, dt)
+                        rearm(kernel_reference, kernel_dt)
                     },
                     5 /* Set relative expiration */ => {
-                        let reference = now.into_u32() as usize;
-                        let dt = data;
+                        let reference = now;
+                        let dt = A::Ticks::from(data as u32);
+
                         // if previously unarmed, but now will become armed
                         rearm(reference, dt)
                     },
                     6 /* Set absolute expiration with reference point */ => {
-                        // Taking a reference timestamp from userspace
-                        // prevents wraparound bugs; future versions of
-                        // libtock will use only this call and deprecate
-                        // command #4; for now it is added as an additional
-                        // comamnd for backwards compatibility. -pal
-                        let reference = data;
-                        let dt = data2;
-                        rearm(reference, dt)
+			// To set an alarm with an absolute expiration
+			// value and given reference point, the app
+			// reference is rebased onto the kernel
+			// reference and used to calculate a kernel
+			// delta.
+			//
+			// If the the alarm time has already passed
+			// (judging based on the app reference), the
+			// alarm will fire immediately.
+			let kernel_reference: A::Ticks = now;
+			let kernel_reference_appwidth: Ticks32 = Ticks32::from(kernel_reference.into_u32());
+                        let app_reference = Ticks32::from(data as u32);
+                        let app_dt = Ticks32::from(data2 as u32);
+
+			if kernel_reference_appwidth.within_range(app_reference, app_reference.wrapping_add(app_dt)) {
+			    // The alarm is yet to fire, calculate the
+			    // delta with respect to the kernel
+			    // reference and set it
+			    let kernel_dt = A::Ticks::from(app_dt.wrapping_sub(kernel_reference_appwidth.wrapping_sub(app_reference)).into_u32());
+			    rearm(kernel_reference, kernel_dt)
+			} else {
+			    // The kernel reference is outside of the
+			    // app's alarm reference-delta interval,
+			    // hence it must've already passed
+			    //
+			    // Fire an alarm immediately
+                            rearm(kernel_reference, 0.into())
+			}
                     }
-                    _ => (ReturnCode::ENOSUPPORT, false)
+                    _ => (None, ReturnCode::ENOSUPPORT, false)
                 };
+		if let Some(expire) = new_expire {
+		    td.expiration = expire;
+		}
                 if reset {
                     self.reset_active_alarm();
                 }
@@ -263,17 +273,14 @@ impl<'a, A: Alarm<'a>> time::AlarmClient for AlarmDriver<'a, A> {
         self.app_alarms.each(|alarm| {
             if let Expiration::Enabled { reference, dt } = alarm.expiration {
                 // Now is not within reference, reference + ticks; this timer
-                // as passed (since reference must be in the past)
-                if !now.within_range(
-                    A::Ticks::from(reference),
-                    A::Ticks::from(reference.wrapping_add(dt)),
-                ) {
+                // has passed (since reference must be in the past)
+                if !now.within_range(reference, reference.wrapping_add(dt)) {
                     alarm.expiration = Expiration::Disabled;
                     self.num_armed.set(self.num_armed.get() - 1);
                     alarm.callback.map(|mut cb| {
                         cb.schedule(
                             now.into_u32() as usize,
-                            reference.wrapping_add(dt) as usize,
+                            reference.wrapping_add(dt).into_u32() as usize,
                             0,
                         )
                     });
