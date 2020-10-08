@@ -37,17 +37,17 @@ on the board which then flashes the kernel. This requires that the bootloader be
 active. To force the board into bootloader mode, press the button on the board
 twice in rapid succession. You should see the yellow LED pulse on and off.
 
-At this point you should be able to simply run `make program` in this directory
+At this point you should be able to simply run `make flash` in this directory
 to install a fresh kernel.
 
 ```
-$ make program
+$ make flash
 ```
 
 You may need to specify the port like so:
 
 ```
-$ make program PORT=<serial port path>
+$ make flash PORT=<serial port path>
 ```
 
 ## Programming Applications

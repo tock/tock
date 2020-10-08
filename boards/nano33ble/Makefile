@@ -11,6 +11,6 @@ ifdef PORT
 endif
 
 # Upload the kernel using bossac
-.PHONY: program
-program: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).bin
+.PHONY: flash
+flash: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).bin
 	bossac $(FLAGS) -U -i -e -w $< -R
