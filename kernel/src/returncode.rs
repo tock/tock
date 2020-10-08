@@ -72,14 +72,22 @@ impl From<ReturnCode> for Result<ReturnCode, ReturnCode> {
         match original {
             ReturnCode::SUCCESS => Ok(ReturnCode::SUCCESS),
             ReturnCode::SuccessWithValue { value } => Ok(ReturnCode::SuccessWithValue { value }),
-            error => Err(error)
+            error => Err(error),
         }
     }
 }
 
-/// Quality of life shortcut for Result<ReturnCode, ReturnCode>::from(...)
-impl ReturnCode {
-    pub fn result(self) -> Result<ReturnCode, ReturnCode> {
+impl core::ops::Try for ReturnCode {
+    type Error = Self;
+    type Ok = Self;
+
+    fn into_result(self) -> Result<Self::Ok, Self::Error> {
         self.into()
+    }
+    fn from_error(v: Self::Error) -> Self {
+        v
+    }
+    fn from_ok(v: Self::Ok) -> Self {
+        v
     }
 }
