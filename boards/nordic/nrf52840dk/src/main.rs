@@ -64,9 +64,11 @@
 // Disable this attribute when documenting, as a workaround for
 // https://github.com/rust-lang/rust/issues/62184.
 #![cfg_attr(not(doc), no_main)]
-#![feature(const_in_array_repeat_expressions)]
 #![deny(missing_docs)]
+#![feature(const_in_array_repeat_expressions)]
 
+use capsules::net::ieee802154::MacAddress;
+use capsules::net::ipv6::ip_utils::IPAddr;
 use capsules::virtual_alarm::VirtualMuxAlarm;
 use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::component::Component;
@@ -103,8 +105,11 @@ const SPI_MX25R6435F_WRITE_PROTECT_PIN: Pin = Pin::P0_22;
 const SPI_MX25R6435F_HOLD_PIN: Pin = Pin::P0_23;
 
 // Constants related to the configuration of the 15.4 network stack
-const SRC_MAC: u16 = 0xf00f;
 const PAN_ID: u16 = 0xABCD;
+const DST_MAC_ADDR: capsules::net::ieee802154::MacAddress =
+    capsules::net::ieee802154::MacAddress::Short(49138);
+const DEFAULT_CTX_PREFIX_LEN: u8 = 8; //Length of context for 6LoWPAN compression
+const DEFAULT_CTX_PREFIX: [u8; 16] = [0x0 as u8; 16]; //Context for 6LoWPAN Compression
 
 /// Debug Writer
 pub mod io;
@@ -159,6 +164,7 @@ pub struct Platform {
         capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52840::rtc::Rtc<'static>>,
     >,
     nonvolatile_storage: &'static capsules::nonvolatile_storage_driver::NonvolatileStorage<'static>,
+    udp_driver: &'static capsules::net::udp::UDPDriver<'static>,
 }
 
 impl kernel::Platform for Platform {
@@ -178,6 +184,7 @@ impl kernel::Platform for Platform {
             capsules::temperature::DRIVER_NUM => f(Some(self.temp)),
             capsules::analog_comparator::DRIVER_NUM => f(Some(self.analog_comparator)),
             capsules::nonvolatile_storage_driver::DRIVER_NUM => f(Some(self.nonvolatile_storage)),
+            capsules::net::udp::DRIVER_NUM => f(Some(self.udp_driver)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             _ => f(None),
         }
@@ -339,17 +346,58 @@ pub unsafe fn reset_handler() {
         nrf52_components::BLEComponent::new(board_kernel, &nrf52840::ble_radio::RADIO, mux_alarm)
             .finalize(());
 
-    let (ieee802154_radio, _mux_mac) = components::ieee802154::Ieee802154Component::new(
+    let serial_num = nrf52840::ficr::FICR_INSTANCE.address();
+    let serial_num_bottom_16 = serial_num[0] as u16 + ((serial_num[1] as u16) << 8);
+    let src_mac_from_serial_num: MacAddress = MacAddress::Short(serial_num_bottom_16);
+    let (ieee802154_radio, mux_mac) = components::ieee802154::Ieee802154Component::new(
         board_kernel,
         &nrf52840::ieee802154_radio::RADIO,
         &nrf52840::aes::AESECB,
         PAN_ID,
-        SRC_MAC,
+        serial_num_bottom_16,
     )
     .finalize(components::ieee802154_component_helper!(
         nrf52840::ieee802154_radio::Radio,
         nrf52840::aes::AesECB<'static>
     ));
+
+    let local_ip_ifaces = static_init!(
+        [IPAddr; 3],
+        [
+            IPAddr([
+                0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d,
+                0x0e, 0x0f,
+            ]),
+            IPAddr([
+                0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d,
+                0x1e, 0x1f,
+            ]),
+            IPAddr::generate_from_mac(capsules::net::ieee802154::MacAddress::Short(
+                serial_num_bottom_16
+            )),
+        ]
+    );
+
+    let (udp_send_mux, udp_recv_mux, udp_port_table) = components::udp_mux::UDPMuxComponent::new(
+        mux_mac,
+        DEFAULT_CTX_PREFIX_LEN,
+        DEFAULT_CTX_PREFIX,
+        DST_MAC_ADDR,
+        src_mac_from_serial_num,
+        local_ip_ifaces,
+        mux_alarm,
+    )
+    .finalize(components::udp_mux_component_helper!(nrf52840::rtc::Rtc));
+
+    // UDP driver initialization happens here
+    let udp_driver = components::udp_driver::UDPDriverComponent::new(
+        board_kernel,
+        udp_send_mux,
+        udp_recv_mux,
+        udp_port_table,
+        local_ip_ifaces,
+    )
+    .finalize(components::udp_driver_component_helper!(nrf52840::rtc::Rtc));
 
     let temp = components::temperature::TemperatureComponent::new(
         board_kernel,
@@ -432,6 +480,7 @@ pub unsafe fn reset_handler() {
         alarm,
         analog_comparator,
         nonvolatile_storage,
+        udp_driver,
         ipc: kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability),
     };
 
