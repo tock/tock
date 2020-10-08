@@ -144,13 +144,13 @@ struct FsmcBank {
 }
 
 const FSMC_BANK1: StaticRef<FsmcBank> = unsafe { StaticRef::new(0x60000000 as *const FsmcBank) };
-const FSMC_BANK2_RESERVED: StaticRef<FsmcBank> = unsafe { StaticRef::new(0x0 as *const FsmcBank) };
+// const FSMC_BANK2_RESERVED: StaticRef<FsmcBank> = unsafe { StaticRef::new(0x0 as *const FsmcBank) };
 const FSMC_BANK3: StaticRef<FsmcBank> = unsafe { StaticRef::new(0x68000000 as *const FsmcBank) };
-const FSMC_BANK4_RESERVED: StaticRef<FsmcBank> = unsafe { StaticRef::new(0x0 as *const FsmcBank) };
+// const FSMC_BANK4_RESERVED: StaticRef<FsmcBank> = unsafe { StaticRef::new(0x0 as *const FsmcBank) };
 
 pub struct Fsmc {
     registers: StaticRef<FsmcBankRegisters>,
-    bank: [StaticRef<FsmcBank>; 4],
+    bank: [Option<StaticRef<FsmcBank>>; 4],
     clock: FsmcClock,
 
     client: OptionalCell<&'static dyn Client>,
@@ -163,7 +163,7 @@ pub struct Fsmc {
 impl Fsmc {
     const fn new(
         base_addr: StaticRef<FsmcBankRegisters>,
-        bank_addr: [StaticRef<FsmcBank>; 4],
+        bank_addr: [Option<StaticRef<FsmcBank>>; 4],
     ) -> Fsmc {
         Fsmc {
             registers: base_addr,
@@ -242,13 +242,13 @@ impl Fsmc {
     }
 
     #[inline]
-    pub fn read_reg(&self) -> u16 {
-        self.bank[0].ram.get()
+    pub fn read_reg(&self, bank_id: usize) -> Option<u16> {
+        self.bank[bank_id].map_or(None, |bank| Some(bank.ram.get()))
     }
 
     #[inline]
-    fn write_reg(&self, addr: u16) {
-        self.bank[0].reg.set(addr);
+    fn write_reg(&self, bank_id: usize, addr: u16) {
+        self.bank[bank_id].map(|bank| bank.reg.set(addr));
         #[cfg(all(target_arch = "arm", target_os = "none"))]
         unsafe {
             llvm_asm!("dsb 0xf");
@@ -256,8 +256,8 @@ impl Fsmc {
     }
 
     #[inline]
-    fn write_data(&self, data: u16) {
-        self.bank[0].ram.set(data);
+    fn write_data(&self, bank_id: usize, data: u16) {
+        self.bank[bank_id].map(|bank| bank.ram.set(data));
         #[cfg(all(target_arch = "arm", target_os = "none"))]
         unsafe {
             llvm_asm!("dsb 0xf");
@@ -285,7 +285,7 @@ impl Bus8080<'static> for Fsmc {
     fn set_addr(&self, addr_width: BusWidth, addr: usize) -> ReturnCode {
         match addr_width {
             BusWidth::Bits8 => {
-                self.write_reg(addr as u16);
+                self.write_reg(0, addr as u16);
                 DEFERRED_CALL.set();
                 ReturnCode::SUCCESS
             }
@@ -307,7 +307,7 @@ impl Bus8080<'static> for Fsmc {
                             }] as u16)
                             << (8 * byte);
                 }
-                self.write_data(data);
+                self.write_data(0, data);
             }
             self.buffer.replace(buffer);
             self.bus_width.set(bytes);
@@ -323,13 +323,16 @@ impl Bus8080<'static> for Fsmc {
         let bytes = data_width.width_in_bytes();
         if buffer.len() >= len * bytes {
             for pos in 0..len {
-                let data = self.read_reg();
-                for byte in 0..bytes {
-                    buffer[bytes * pos
-                        + match data_width {
-                            BusWidth::Bits8 | BusWidth::Bits16LE => byte,
-                            BusWidth::Bits16BE => (bytes - byte - 1),
-                        }] = (data >> (8 * byte)) as u8;
+                if let Some(data) = self.read_reg(0) {
+                    for byte in 0..bytes {
+                        buffer[bytes * pos
+                            + match data_width {
+                                BusWidth::Bits8 | BusWidth::Bits16LE => byte,
+                                BusWidth::Bits16BE => (bytes - byte - 1),
+                            }] = (data >> (8 * byte)) as u8;
+                    }
+                } else {
+                    return ReturnCode::ENOMEM;
                 }
             }
             self.buffer.replace(buffer);
@@ -347,12 +350,4 @@ impl Bus8080<'static> for Fsmc {
     }
 }
 
-pub static mut FSMC: Fsmc = Fsmc::new(
-    FSMC_BASE,
-    [
-        FSMC_BANK1,
-        FSMC_BANK2_RESERVED,
-        FSMC_BANK3,
-        FSMC_BANK4_RESERVED,
-    ],
-);
+pub static mut FSMC: Fsmc = Fsmc::new(FSMC_BASE, [Some(FSMC_BANK1), None, Some(FSMC_BANK3), None]);
