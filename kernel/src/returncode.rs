@@ -66,3 +66,20 @@ impl From<ReturnCode> for usize {
         isize::from(original) as usize
     }
 }
+
+impl From<ReturnCode> for Result<ReturnCode, ReturnCode> {
+    fn from(original: ReturnCode) -> Result<ReturnCode, ReturnCode> {
+        match original {
+            ReturnCode::SUCCESS => Ok(ReturnCode::SUCCESS),
+            ReturnCode::SuccessWithValue { value } => Ok(ReturnCode::SuccessWithValue { value }),
+            error => Err(error)
+        }
+    }
+}
+
+/// Quality of life shortcut for Result<ReturnCode, ReturnCode>::from(...)
+impl ReturnCode {
+    pub fn result(self) -> Result<ReturnCode, ReturnCode> {
+        self.into()
+    }
+}
