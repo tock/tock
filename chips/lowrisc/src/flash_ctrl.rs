@@ -21,14 +21,10 @@ register_structs! {
         (0x14 => addr: ReadWrite<u32, ADDR::Register>),
         (0x18 => region_cfg_regwen: [ReadWrite<u32, REGION_CFG_REGWEN::Register>; 8]),
         (0x38 => mp_region_cfg: [ReadWrite<u32, MP_REGION_CFG::Register>; 8]),
-        (0x58 => bank0_info0_regwen: [ReadWrite<u32, BANK_INFO_REGWEN::Register>; 4]),
-        (0x68 => bank0_info1_regwen: [ReadWrite<u32, BANK_INFO_REGWEN::Register>; 4]),
-        (0x78 => bank0_info0_page_cfg: [ReadWrite<u32, BANK_INFO_PAGE_CFG::Register>; 4]),
-        (0x88 => bank0_info1_page_cfg: [ReadWrite<u32, BANK_INFO_PAGE_CFG::Register>; 4]),
-        (0x98 => bank1_info0_regwen: [ReadWrite<u32, BANK_INFO_REGWEN::Register>; 4]),
-        (0xA8 => bank1_info1_regwen: [ReadWrite<u32, BANK_INFO_REGWEN::Register>; 4]),
-        (0xB8 => bank1_info0_page_cfg: [ReadWrite<u32, BANK_INFO_PAGE_CFG::Register>; 4]),
-        (0xC8 => bank1_info1_page_cfg: [ReadWrite<u32, BANK_INFO_PAGE_CFG::Register>; 4]),
+        (0x58 => bank0_info_regwen: [ReadWrite<u32, BANK_INFO_REGWEN::Register>; 8]),
+        (0x78 => bank0_info_page_cfg: [ReadWrite<u32, BANK_INFO_PAGE_CFG::Register>; 8]),
+        (0x98 => bank1_info_regwen: [ReadWrite<u32, BANK_INFO_REGWEN::Register>; 8]),
+        (0xB8 => bank1_info_page_cfg: [ReadWrite<u32, BANK_INFO_PAGE_CFG::Register>; 8]),
         (0xD8 => default_region: ReadWrite<u32, DEFAULT_REGION::Register>),
         (0xDC => bank_cfg_regwen: ReadWrite<u32, BANK_CFG_REGWEN::Register>),
         (0xE0 => mp_bank_cfg: ReadWrite<u32, MP_BANK_CFG::Register>),
@@ -178,6 +174,24 @@ impl AsMut<[u8]> for LowRiscPage {
     }
 }
 
+#[derive(PartialEq)]
+enum FlashBank {
+    BANK0 = 0,
+    BANK1 = 1,
+}
+
+#[derive(PartialEq, Clone, Copy)]
+pub enum FlashRegion {
+    REGION0 = 0,
+    REGION1 = 1,
+    REGION2 = 2,
+    REGION3 = 3,
+    REGION4 = 4,
+    REGION5 = 5,
+    REGION6 = 6,
+    REGION7 = 7,
+}
+
 pub struct FlashCtrl<'a> {
     registers: StaticRef<FlashCtrlRegisters>,
     flash_client: OptionalCell<&'a dyn hil::flash::Client<FlashCtrl<'a>>>,
@@ -187,10 +201,11 @@ pub struct FlashCtrl<'a> {
     read_index: Cell<usize>,
     write_buf: TakeCell<'static, LowRiscPage>,
     write_index: Cell<usize>,
+    region_num: FlashRegion,
 }
 
 impl<'a> FlashCtrl<'a> {
-    pub const fn new(base: StaticRef<FlashCtrlRegisters>) -> Self {
+    pub const fn new(base: StaticRef<FlashCtrlRegisters>, region_num: FlashRegion) -> Self {
         FlashCtrl {
             registers: base,
             flash_client: OptionalCell::empty(),
@@ -200,6 +215,7 @@ impl<'a> FlashCtrl<'a> {
             read_index: Cell::new(0),
             write_buf: TakeCell::empty(),
             write_index: Cell::new(0),
+            region_num,
         }
     }
 
@@ -221,14 +237,14 @@ impl<'a> FlashCtrl<'a> {
         self.registers.intr_state.set(0xFFFF_FFFF);
     }
 
-    fn configure_data_partition(&self) {
+    fn configure_data_partition(&self, num: FlashRegion) {
         self.registers.default_region.write(
             DEFAULT_REGION::RD_EN::SET
                 + DEFAULT_REGION::PROG_EN::SET
                 + DEFAULT_REGION::ERASE_EN::SET,
         );
 
-        self.registers.mp_region_cfg[0].write(
+        self.registers.mp_region_cfg[num as usize].write(
             MP_REGION_CFG::BASE.val(256)
                 + MP_REGION_CFG::SIZE.val(0x1)
                 + MP_REGION_CFG::RD_EN::SET
@@ -240,21 +256,26 @@ impl<'a> FlashCtrl<'a> {
         self.data_configured.set(true);
     }
 
-    fn configure_info_partition(&self) {
-        self.registers.bank0_info0_page_cfg[0].write(
-            BANK_INFO_PAGE_CFG::RD_EN::SET
-                + BANK_INFO_PAGE_CFG::PROG_EN::SET
-                + BANK_INFO_PAGE_CFG::ERASE_EN::SET
-                + BANK_INFO_PAGE_CFG::SCRAMBLE_EN::CLEAR
-                + BANK_INFO_PAGE_CFG::EN::SET,
-        );
-        self.registers.bank1_info0_page_cfg[0].write(
-            BANK_INFO_PAGE_CFG::RD_EN::SET
-                + BANK_INFO_PAGE_CFG::PROG_EN::SET
-                + BANK_INFO_PAGE_CFG::ERASE_EN::SET
-                + BANK_INFO_PAGE_CFG::SCRAMBLE_EN::CLEAR
-                + BANK_INFO_PAGE_CFG::EN::SET,
-        );
+    fn configure_info_partition(&self, bank: FlashBank, num: FlashRegion) {
+        if bank == FlashBank::BANK0 {
+            self.registers.bank0_info_page_cfg[num as usize].write(
+                BANK_INFO_PAGE_CFG::RD_EN::SET
+                    + BANK_INFO_PAGE_CFG::PROG_EN::SET
+                    + BANK_INFO_PAGE_CFG::ERASE_EN::SET
+                    + BANK_INFO_PAGE_CFG::SCRAMBLE_EN::CLEAR
+                    + BANK_INFO_PAGE_CFG::EN::SET,
+            );
+        } else if bank == FlashBank::BANK1 {
+            self.registers.bank1_info_page_cfg[num as usize].write(
+                BANK_INFO_PAGE_CFG::RD_EN::SET
+                    + BANK_INFO_PAGE_CFG::PROG_EN::SET
+                    + BANK_INFO_PAGE_CFG::ERASE_EN::SET
+                    + BANK_INFO_PAGE_CFG::SCRAMBLE_EN::CLEAR
+                    + BANK_INFO_PAGE_CFG::EN::SET,
+            );
+        } else {
+            panic!("Unsupported bank");
+        }
         self.info_configured.set(true);
     }
 
@@ -370,12 +391,12 @@ impl hil::flash::Flash for FlashCtrl<'_> {
 
         if !self.data_configured.get() {
             // If we aren't configured yet, configure now
-            self.configure_data_partition();
+            self.configure_data_partition(self.region_num);
         }
 
         if !self.info_configured.get() {
             // If we aren't configured yet, configure now
-            self.configure_info_partition();
+            self.configure_info_partition(FlashBank::BANK0, self.region_num);
         }
 
         // Enable interrupts and set the FIFO level
@@ -390,11 +411,17 @@ impl hil::flash::Flash for FlashCtrl<'_> {
         self.read_index.set(0);
 
         // Start the transaction
+        let info_sel = if self.region_num as u32 > 3 {
+            CONTROL::INFO_SEL::SET
+        } else {
+            CONTROL::INFO_SEL::CLEAR
+        };
         self.registers.control.write(
             CONTROL::OP::READ
                 + CONTROL::PARTITION_SEL::INFO
                 + CONTROL::NUM.val(((PAGE_SIZE / 4) - 1) as u32)
-                + CONTROL::START::SET,
+                + CONTROL::START::SET
+                + info_sel,
         );
 
         Ok(())
@@ -409,12 +436,12 @@ impl hil::flash::Flash for FlashCtrl<'_> {
 
         if !self.data_configured.get() {
             // If we aren't configured yet, configure now
-            self.configure_data_partition();
+            self.configure_data_partition(self.region_num);
         }
 
         if !self.info_configured.get() {
             // If we aren't configured yet, configure now
-            self.configure_info_partition();
+            self.configure_info_partition(FlashBank::BANK0, self.region_num);
         }
 
         // Erase the page first
@@ -427,11 +454,17 @@ impl hil::flash::Flash for FlashCtrl<'_> {
         self.write_index.set(0);
 
         // Start the transaction
+        let info_sel = if self.region_num as u32 > 3 {
+            CONTROL::INFO_SEL::SET
+        } else {
+            CONTROL::INFO_SEL::CLEAR
+        };
         self.registers.control.write(
             CONTROL::OP::PROG
                 + CONTROL::PARTITION_SEL::INFO
                 + CONTROL::NUM.val(((PAGE_SIZE / 4) - 1) as u32)
-                + CONTROL::START::SET,
+                + CONTROL::START::SET
+                + info_sel,
         );
 
         // Write the data until we are full or have written all the data
@@ -464,12 +497,12 @@ impl hil::flash::Flash for FlashCtrl<'_> {
 
         if !self.data_configured.get() {
             // If we aren't configured yet, configure now
-            self.configure_data_partition();
+            self.configure_data_partition(self.region_num);
         }
 
         if !self.info_configured.get() {
             // If we aren't configured yet, configure now
-            self.configure_info_partition();
+            self.configure_info_partition(FlashBank::BANK0, self.region_num);
         }
 
         // Enable erase
@@ -481,11 +514,17 @@ impl hil::flash::Flash for FlashCtrl<'_> {
         self.registers.addr.write(ADDR::START.val(addr as u32));
 
         // Start the transaction
+        let info_sel = if self.region_num as u32 > 3 {
+            CONTROL::INFO_SEL::SET
+        } else {
+            CONTROL::INFO_SEL::CLEAR
+        };
         self.registers.control.write(
             CONTROL::OP::ERASE
                 + CONTROL::ERASE_SEL::PAGE
                 + CONTROL::PARTITION_SEL::INFO
-                + CONTROL::START::SET,
+                + CONTROL::START::SET
+                + info_sel,
         );
 
         // Disable erase
