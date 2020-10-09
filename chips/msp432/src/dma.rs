@@ -8,14 +8,14 @@ use kernel::common::registers::{
 use kernel::common::StaticRef;
 
 pub static mut DMA_CHANNELS: [DmaChannel<'static>; 8] = [
-    DmaChannel::new(0),
-    DmaChannel::new(1),
+    DmaChannel::new(0), // Used for UART0 TX
+    DmaChannel::new(1), // Used for UART0 RX
     DmaChannel::new(2),
     DmaChannel::new(3),
     DmaChannel::new(4),
     DmaChannel::new(5),
     DmaChannel::new(6),
-    DmaChannel::new(7),
+    DmaChannel::new(7), // Used for ADC
 ];
 
 const DMA_BASE: StaticRef<DmaRegisters> =
@@ -559,9 +559,16 @@ pub struct DmaConfig {
 #[derive(Copy, Clone, PartialEq)]
 enum DmaTransferType {
     PeripheralToMemory,
+    PeripheralToMemoryPingPong,
     MemoryToPeripheral,
     MemoryToMemory,
     None,
+}
+
+#[derive(Copy, Clone, PartialEq)]
+enum ActiveBuffer {
+    Primary,
+    Alternative,
 }
 
 pub struct DmaChannel<'a> {
@@ -570,9 +577,13 @@ pub struct DmaChannel<'a> {
     in_use: Cell<bool>,
     config: Cell<DmaConfig>,
     transfer_type: Cell<DmaTransferType>,
-    tx_buf: TakeCell<'static, [u8]>,
-    rx_buf: TakeCell<'static, [u8]>,
-    bytes_to_transmit: Cell<usize>,
+    active_buf: Cell<ActiveBuffer>,
+    tx_buf_prim: TakeCell<'static, [u8]>,
+    rx_buf_prim: TakeCell<'static, [u8]>,
+    tx_buf_alt: TakeCell<'static, [u8]>,
+    rx_buf_alt: TakeCell<'static, [u8]>,
+    bytes_to_transmit_prim: Cell<usize>,
+    bytes_to_transmit_alt: Cell<usize>,
     remaining_words: Cell<usize>,
     client: OptionalCell<&'a dyn DmaClient>,
 }
@@ -609,9 +620,13 @@ impl<'a> DmaChannel<'a> {
             in_use: Cell::new(false),
             config: Cell::new(DmaConfig::const_default()),
             transfer_type: Cell::new(DmaTransferType::None),
-            tx_buf: TakeCell::empty(),
-            rx_buf: TakeCell::empty(),
-            bytes_to_transmit: Cell::new(0),
+            active_buf: Cell::new(ActiveBuffer::Primary),
+            tx_buf_prim: TakeCell::empty(),
+            rx_buf_prim: TakeCell::empty(),
+            tx_buf_alt: TakeCell::empty(),
+            rx_buf_alt: TakeCell::empty(),
+            bytes_to_transmit_prim: Cell::new(0),
+            bytes_to_transmit_alt: Cell::new(0),
             remaining_words: Cell::new(0),
             client: OptionalCell::empty(),
         }
@@ -634,9 +649,6 @@ impl<'a> DmaChannel<'a> {
     fn apply_config(&self) {
         let conf = self.config.get();
 
-        if conf.mode == DmaMode::PingPong {
-            panic!("DMA: Ping Pong mode currently not supported!");
-        }
         if conf.mode == DmaMode::MemoryScatterGather {
             panic!("DMA: Memory scatter-gather mode currently not supported!");
         }
@@ -666,27 +678,87 @@ impl<'a> DmaChannel<'a> {
             .set(self.registers.enaset.get() | ((1 << self.chan_nr) as u32));
     }
 
-    fn setup_transfer(&self, src_end_ptr: u32, dst_end_ptr: u32, len: usize) {
-        let conf = self.config.get();
-        let width = conf.width as u32;
-
-        // Divide the byte-length by the width to get the number of necessary transfers
-        let transfers = len >> width;
-
-        DMA_CONFIG.0[self.chan_nr].src_ptr.set(src_end_ptr);
-        DMA_CONFIG.0[self.chan_nr].dst_ptr.set(dst_end_ptr);
-
-        DMA_CONFIG.0[self.chan_nr].ctrl.modify(
-            // The DMA can only transmit 1024 words with 1 transfer
-            DMA_CTRL::N_MINUS_1.val(((transfers - 1) % MAX_TRANSFERS_LEN) as u32)
-            // Reset the bits in case they were set before to a different value
-            + DMA_CTRL::R_POWER.val(0)
-            // Set the DMA mode since it the DMA module sets it back to to stop after every cycle
-            + DMA_CTRL::CYCLE_CTRL.val(conf.mode as u32),
-        );
+    fn setup_transfer_primary_buffer(&self, len: usize) {
+        self.configure_channel(len, self.chan_nr);
 
         // Store to transmitting bytes
-        self.bytes_to_transmit.set(len);
+        self.bytes_to_transmit_prim.set(len);
+    }
+
+    fn setup_transfer_alternate_buffer(&self, len: usize) {
+        self.configure_channel(len, self.chan_nr + AVAILABLE_DMA_CHANNELS);
+
+        // Store to transmitting bytes
+        self.bytes_to_transmit_alt.set(len);
+    }
+
+    fn update_buffer_ptr(&self) {
+        let rem_words = self.remaining_words.get();
+        let tt = self.transfer_type.get();
+        let conf = self.config.get();
+        let (len, chan_nr) = if tt == DmaTransferType::PeripheralToMemoryPingPong
+            && self.active_buf.get() == ActiveBuffer::Alternative
+        {
+            (
+                self.bytes_to_transmit_alt.get(),
+                self.chan_nr + AVAILABLE_DMA_CHANNELS,
+            )
+        } else {
+            (self.bytes_to_transmit_prim.get(), self.chan_nr)
+        };
+
+        // Update the buffer-pointers
+        if tt == DmaTransferType::PeripheralToMemory
+            || tt == DmaTransferType::MemoryToMemory
+            || tt == DmaTransferType::PeripheralToMemoryPingPong
+        {
+            // Update the destination-buffer pointer
+            DMA_CONFIG.0[chan_nr].dst_ptr.set(
+                DMA_CONFIG.0[chan_nr].dst_ptr.get()
+                    + ((MAX_TRANSFERS_LEN as u32) << (conf.width as u32)),
+            );
+        }
+
+        if (tt == DmaTransferType::MemoryToPeripheral) || (tt == DmaTransferType::MemoryToMemory) {
+            // Update the source-buffer pointer
+            DMA_CONFIG.0[chan_nr].src_ptr.set(
+                DMA_CONFIG.0[chan_nr].src_ptr.get()
+                    + ((MAX_TRANSFERS_LEN as u32) << (conf.width as u32)),
+            );
+        }
+
+        // Update the remaining words
+        if rem_words > MAX_TRANSFERS_LEN {
+            self.remaining_words.set(rem_words - MAX_TRANSFERS_LEN);
+        } else {
+            self.remaining_words.set(0);
+        }
+
+        // If the transfer type is MemoryToMemory, the R_POWER register can have a different
+        // value than 0, since the source- and destination address are incremented and it's not
+        // necessary to wait for any hardware module to process or 'generate' data.
+        let r_power = if tt == DmaTransferType::MemoryToMemory {
+            if rem_words > MAX_TRANSFERS_LEN {
+                31 - (MAX_TRANSFERS_LEN as u32).leading_zeros()
+            } else {
+                31 - (len as u32).leading_zeros()
+            }
+        } else {
+            0
+        };
+
+        DMA_CONFIG.0[chan_nr].ctrl.modify(
+            // Set the DMA mode since the DMA module sets it back to stop after every cycle
+            DMA_CTRL::CYCLE_CTRL.val(conf.mode as u32)
+            // Set the DMA cycles to the amount of remaining words
+            + DMA_CTRL::N_MINUS_1.val(((rem_words - 1) % MAX_TRANSFERS_LEN) as u32)
+            // Set the number of DMA-transfers after the DMA has to rearbitrate the bus
+            + DMA_CTRL::R_POWER.val(r_power),
+        );
+    }
+
+    fn calc_remaining_words(&self, bytes_to_transmit: usize) {
+        let transfers = bytes_to_transmit >> (self.config.get().width as usize);
 
         // Store the remaining words
         if transfers > MAX_TRANSFERS_LEN {
@@ -696,90 +768,82 @@ impl<'a> DmaChannel<'a> {
         }
     }
 
-    fn handle_interrupt(&self) {
-        let len = self.bytes_to_transmit.get();
-        let rem_words = self.remaining_words.get();
-        let tt = self.transfer_type.get();
+    fn configure_channel(&self, bytes_to_transmit: usize, chan_nr: usize) {
         let conf = self.config.get();
+        let transfers = bytes_to_transmit >> (conf.width as usize);
+        DMA_CONFIG.0[chan_nr].ctrl.modify(
+            // The DMA can only transmit 1024 words with 1 transfer
+            DMA_CTRL::N_MINUS_1.val(((transfers - 1) % MAX_TRANSFERS_LEN) as u32)
+            // Reset the bits in case they were set before to a different value
+            + DMA_CTRL::R_POWER.val(0)
+            // Set the DMA mode since it the DMA module sets it back to to stop after every cycle
+            + DMA_CTRL::CYCLE_CTRL.val(conf.mode as u32),
+        );
+    }
 
-        if rem_words > 0 {
-            // Update the buffer-pointers
-            if (tt == DmaTransferType::PeripheralToMemory)
-                || (tt == DmaTransferType::MemoryToMemory)
-            {
-                // Update the destination-buffer pointer
-                DMA_CONFIG.0[self.chan_nr].dst_ptr.set(
-                    DMA_CONFIG.0[self.chan_nr].dst_ptr.get()
-                        + ((MAX_TRANSFERS_LEN as u32) << (conf.width as u32)),
-                );
-            }
+    fn set_primary_buffer(&self, src_end_ptr: u32, dst_end_ptr: u32) {
+        DMA_CONFIG.0[self.chan_nr].src_ptr.set(src_end_ptr);
+        DMA_CONFIG.0[self.chan_nr].dst_ptr.set(dst_end_ptr);
+    }
 
-            if (tt == DmaTransferType::MemoryToPeripheral)
-                || (tt == DmaTransferType::MemoryToMemory)
-            {
-                // Update the source-buffer pointer
-                DMA_CONFIG.0[self.chan_nr].src_ptr.set(
-                    DMA_CONFIG.0[self.chan_nr].src_ptr.get()
-                        + ((MAX_TRANSFERS_LEN as u32) << (conf.width as u32)),
-                );
-            }
+    fn set_alternative_buffer(&self, src_end_ptr: u32, dst_end_ptr: u32) {
+        DMA_CONFIG.0[self.chan_nr + AVAILABLE_DMA_CHANNELS]
+            .src_ptr
+            .set(src_end_ptr);
+        DMA_CONFIG.0[self.chan_nr + AVAILABLE_DMA_CHANNELS]
+            .dst_ptr
+            .set(dst_end_ptr);
+    }
 
-            // Update the remaining words
-            if rem_words > MAX_TRANSFERS_LEN {
-                self.remaining_words.set(rem_words - MAX_TRANSFERS_LEN);
-            } else {
-                self.remaining_words.set(0);
-            }
-
-            // If the transfer type is MemoryToMemory, the R_POWER register can have a different
-            // value than 0, since the source- and destination address are incremented and it's not
-            // necessary to wait for any hardware module to process or 'generate' data.
-            let r_power = if tt == DmaTransferType::MemoryToMemory {
-                if rem_words > MAX_TRANSFERS_LEN {
-                    31 - (MAX_TRANSFERS_LEN as u32).leading_zeros()
-                } else {
-                    31 - (len as u32).leading_zeros()
-                }
-            } else {
-                0
-            };
-
-            DMA_CONFIG.0[self.chan_nr].ctrl.modify(
-                // Set the DMA mode since the DMA module sets it back to stop after every cycle
-                DMA_CTRL::CYCLE_CTRL.val(conf.mode as u32)
-                // Set the DMA cycles to the amount of remaining words
-                + DMA_CTRL::N_MINUS_1.val(((rem_words - 1) % MAX_TRANSFERS_LEN) as u32)
-                // Set the number of DMA-transfers after the DMA has to rearbitrate the bus
-                + DMA_CTRL::R_POWER.val(r_power),
-            );
+    fn handle_interrupt(&self) {
+        if self.remaining_words.get() > 0 {
+            self.update_buffer_ptr();
         } else {
             // Disable the DMA channel since the data transfer has finished
             self.registers.enaclr.set((1 << self.chan_nr) as u32);
 
             // Fire the callback and return the buffer-references
-            match tt {
+            match self.transfer_type.get() {
                 DmaTransferType::PeripheralToMemory => {
                     self.client.map(|cl| {
-                        self.rx_buf
-                            .take()
-                            .map(|rx_buf| cl.transfer_done(None, Some(rx_buf), len))
+                        self.rx_buf_prim.take().map(|rx_buf| {
+                            cl.transfer_done(None, Some(rx_buf), self.bytes_to_transmit_prim.get())
+                        })
                     });
                 }
                 DmaTransferType::MemoryToPeripheral => {
                     self.client.map(|cl| {
-                        self.tx_buf
-                            .take()
-                            .map(|tx_buf| cl.transfer_done(Some(tx_buf), None, len))
+                        self.tx_buf_prim.take().map(|tx_buf| {
+                            cl.transfer_done(Some(tx_buf), None, self.bytes_to_transmit_prim.get())
+                        })
                     });
                 }
                 DmaTransferType::MemoryToMemory => {
                     self.client.map(|cl| {
-                        self.tx_buf.take().map(|tx_buf| {
-                            self.rx_buf.take().map(move |rx_buf| {
-                                cl.transfer_done(Some(tx_buf), Some(rx_buf), len)
+                        self.tx_buf_prim.take().map(|tx_buf| {
+                            self.rx_buf_prim.take().map(move |rx_buf| {
+                                cl.transfer_done(
+                                    Some(tx_buf),
+                                    Some(rx_buf),
+                                    self.bytes_to_transmit_prim.get(),
+                                )
                             })
                         })
                     });
+                }
+                DmaTransferType::PeripheralToMemoryPingPong => {
+                    let (buf, len) = if self.active_buf.get() == ActiveBuffer::Primary {
+                        self.active_buf.set(ActiveBuffer::Alternative);
+                        self.calc_remaining_words(self.bytes_to_transmit_alt.get());
+                        (self.rx_buf_prim.take(), self.bytes_to_transmit_prim.get())
+                    } else {
+                        self.active_buf.set(ActiveBuffer::Primary);
+                        self.calc_remaining_words(self.bytes_to_transmit_prim.get());
+                        (self.rx_buf_alt.take(), self.bytes_to_transmit_alt.get())
+                    };
+
+                    self.client
+                        .map(|cl| buf.map(|buf| cl.transfer_done(None, Some(buf), len)));
                 }
                 _ => {}
             }
@@ -827,7 +891,12 @@ impl<'a> DmaChannel<'a> {
         let src_end_ptr = (&src_buf[0] as *const u8 as u32) + ((len as u32) - 1);
         let dst_end_ptr = (&dst_buf[0] as *const u8 as u32) + ((len as u32) - 1);
 
-        self.setup_transfer(src_end_ptr, dst_end_ptr, len);
+        // Setup the DMA configuration
+        self.set_primary_buffer(src_end_ptr, dst_end_ptr);
+        self.setup_transfer_primary_buffer(len);
+
+        // Store remaining words
+        self.calc_remaining_words(len);
 
         // Set the the number of cycles after the module rearbitrates the bus.
         // The 'register-value' for this is ld(cycles), e.g. cycles = 256 -> ld(256) = 8
@@ -844,8 +913,8 @@ impl<'a> DmaChannel<'a> {
             .modify(DMA_CTRL::R_POWER.val(r_power));
 
         // Store the buffers
-        self.rx_buf.replace(dst_buf);
-        self.tx_buf.replace(src_buf);
+        self.rx_buf_prim.replace(dst_buf);
+        self.tx_buf_prim.replace(src_buf);
 
         // Store transfer-type
         self.transfer_type.set(DmaTransferType::MemoryToMemory);
@@ -861,10 +930,15 @@ impl<'a> DmaChannel<'a> {
         let src_end_ptr = src_reg as u32;
         let dst_end_ptr = (&buf[0] as *const u8 as u32) + ((len as u32) - 1);
 
-        self.setup_transfer(src_end_ptr, dst_end_ptr, len);
+        // Setup the DMA configuration
+        self.set_primary_buffer(src_end_ptr, dst_end_ptr);
+        self.setup_transfer_primary_buffer(len);
 
         // Store the buffer
-        self.rx_buf.replace(buf);
+        self.rx_buf_prim.replace(buf);
+
+        // Store remaining words
+        self.calc_remaining_words(len);
 
         // Store transfer-type
         self.transfer_type.set(DmaTransferType::PeripheralToMemory);
@@ -879,15 +953,97 @@ impl<'a> DmaChannel<'a> {
         let src_end_ptr = (&buf[0] as *const u8 as u32) + ((len as u32) - 1);
         let dst_end_ptr = dst_reg as u32;
 
-        self.setup_transfer(src_end_ptr, dst_end_ptr, len);
+        // Setup the DMA configuration
+        self.set_primary_buffer(src_end_ptr, dst_end_ptr);
+        self.setup_transfer_primary_buffer(len);
 
         // Store the buffer
-        self.tx_buf.replace(buf);
+        self.tx_buf_prim.replace(buf);
+
+        // Store remaining words
+        self.calc_remaining_words(len);
 
         // Store transfer-type
         self.transfer_type.set(DmaTransferType::MemoryToPeripheral);
 
         self.enable_dma_channel();
+    }
+
+    pub fn transfer_periph_to_mem_pingpong(
+        &self,
+        src_reg: *const (),
+        buf1: &'static mut [u8],
+        len1: usize,
+        buf2: &'static mut [u8],
+        len2: usize,
+    ) {
+        // The pointers must point to the end of the buffer, for detailed calculation see
+        // datasheet p. 646, section 11.2.4.4.
+
+        let src_end_ptr = src_reg as u32;
+        let dst_end_ptr1 = (&buf1[0] as *const u8 as u32) + ((len1 as u32) - 1);
+        let dst_end_ptr2 = (&buf2[0] as *const u8 as u32) + ((len2 as u32) - 1);
+
+        // Setup the DMA configuration
+        self.set_primary_buffer(src_end_ptr, dst_end_ptr1);
+        self.set_alternative_buffer(src_end_ptr, dst_end_ptr2);
+        self.setup_transfer_primary_buffer(len1);
+        self.setup_transfer_alternate_buffer(len2);
+
+        // Store the buffers
+        self.rx_buf_prim.replace(buf1);
+        self.rx_buf_alt.replace(buf2);
+
+        // Store remaining words
+        self.calc_remaining_words(len1);
+
+        // Store transfer-type
+        self.transfer_type
+            .set(DmaTransferType::PeripheralToMemoryPingPong);
+    }
+
+    pub fn provide_new_buffer(&self, buf: &'static mut [u8], len: usize) {
+        let buf_end_ptr = (&buf[0] as *const u8 as u32) + ((len as u32) - 1);
+
+        if self.transfer_type.get() == DmaTransferType::PeripheralToMemoryPingPong {
+            if self.active_buf.get() == ActiveBuffer::Primary {
+                // Replace alternative buffer, overwrite only destination pointer!
+                DMA_CONFIG.0[self.chan_nr + AVAILABLE_DMA_CHANNELS]
+                    .dst_ptr
+                    .set(buf_end_ptr);
+                self.setup_transfer_alternate_buffer(len);
+                self.rx_buf_alt.replace(buf);
+                self.bytes_to_transmit_alt.set(len);
+            } else {
+                // Replace primary buffer, overwrite only destination pointer!
+                DMA_CONFIG.0[self.chan_nr].dst_ptr.set(buf_end_ptr);
+                self.setup_transfer_primary_buffer(len);
+                self.rx_buf_prim.replace(buf);
+                self.bytes_to_transmit_prim.set(len);
+            }
+        }
+    }
+
+    pub fn stop(
+        &self,
+    ) -> (
+        Option<&'static mut [u8]>,
+        Option<&'static mut [u8]>,
+        Option<&'static mut [u8]>,
+        Option<&'static mut [u8]>,
+    ) {
+        // Disable the channel
+        self.registers.enaclr.set((1 << self.chan_nr) as u32);
+        // Set cycle-ctrl to stop in order to cancel an ongoing transaction
+        DMA_CONFIG.0[self.chan_nr]
+            .ctrl
+            .modify(DMA_CTRL::CYCLE_CTRL::Stop);
+        (
+            self.tx_buf_prim.take(),
+            self.rx_buf_prim.take(),
+            self.tx_buf_alt.take(),
+            self.rx_buf_alt.take(),
+        )
     }
 }
 
