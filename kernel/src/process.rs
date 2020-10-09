@@ -2075,6 +2075,28 @@ impl<C: 'static + Chip> Process<'_, C> {
         self.allow_high_water_mark
             .set(self.original_allow_high_water_mark);
 
+        // Reset the MPU configuration based on the original app_break, which is
+        // likely different than what the app break was when the app crashed.
+        let mpu_config_res = self.mpu_config.map_or(Err(()), |mut config| {
+            self.chip.mpu().update_app_memory_region(
+                self.app_break.get(),
+                self.kernel_memory_break.get(),
+                mpu::Permissions::ReadWriteOnly,
+                &mut config,
+            )?;
+            Ok(())
+        });
+        match mpu_config_res {
+            Ok(_) => {}
+            Err(_) => {
+                // We couldn't configure the MPU for the process. This shouldn't
+                // happen since we were able to start the process before, but at
+                // this point it is better to leave the app faulted and not
+                // schedule it.
+                return;
+            }
+        }
+
         // Handle any architecture-specific requirements for a process when it
         // first starts (as it would when it is new).
         let new_stack_pointer_res = self.stored_state.map_or(Err(()), |stored_state| unsafe {
