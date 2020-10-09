@@ -1,7 +1,6 @@
 //! Analog-Digital Converter (ADC)
 
-use crate::ref_module;
-use crate::timer;
+use crate::{dma, ref_module, timer};
 use core::cell::Cell;
 use kernel::common::cells::OptionalCell;
 use kernel::common::registers::{
@@ -16,8 +15,11 @@ pub static mut ADC: Adc = Adc {
     resolution: DEFAULT_ADC_RESOLUTION,
     mode: Cell::new(AdcMode::Disabled),
     active_channel: Cell::new(Channel::Channel0),
-    timer: OptionalCell::empty(), // must be TIMER_A3!
     ref_module: OptionalCell::empty(),
+    timer: OptionalCell::empty(), // must be TIMER_A3!
+    dma: OptionalCell::empty(),
+    dma_chan: 7,
+    dma_src: 7,
     client: OptionalCell::empty(),
 };
 
@@ -506,6 +508,9 @@ pub struct Adc {
     active_channel: Cell<Channel>,
     ref_module: OptionalCell<&'static dyn ref_module::AnalogReference>,
     timer: OptionalCell<&'static dyn timer::InternalTimer>,
+    dma: OptionalCell<&'static dma::DmaChannel<'static>>,
+    pub(crate) dma_chan: usize,
+    dma_src: u8,
     client: OptionalCell<&'static dyn EverythingClient>,
 }
 
@@ -600,11 +605,9 @@ impl Adc {
             + CTL0::DIVx::DivideBy1
             // Set ADC-clock source to HSMCLK
             + CTL0::SSELx::HSMCLK
-            // Set the sampling-timer for generating the sample-period
-            + CTL0::SHP::SET
-            // Set the sample-and-hold time to 16 clock-cyles for channel 0-7 and 24-31
+            // Set the sample-and-hold time to 4 clock-cyles for channel 0-7 and 24-31
             + CTL0::SHTOx::Cycles4
-            // Set the sample-and-hold time to 16 clock-cyles for channel 8-23
+            // Set the sample-and-hold time to 4 clock-cyles for channel 8-23
             + CTL0::SHT1x::Cycles4,
         );
 
@@ -616,6 +619,17 @@ impl Adc {
             // Set the ADC resolution
             + CTL1::RES.val(self.resolution as u32),
         );
+
+        let dma_conf = dma::DmaConfig {
+            src_chan: self.dma_src,
+            mode: dma::DmaMode::PingPong,
+            width: dma::DmaDataWidth::Width16Bit,
+            src_incr: dma::DmaPtrIncrement::NoIncr,
+            dst_incr: dma::DmaPtrIncrement::Incr16Bit,
+        };
+
+        // Setup DMA
+        self.dma.map(|dma| dma.initialize(&dma_conf));
 
         // Enable ADC
         self.registers.ctl0.modify(CTL0::ON::SET);
@@ -645,9 +659,11 @@ impl Adc {
         &self,
         ref_module: &'static dyn ref_module::AnalogReference,
         timer: &'static dyn timer::InternalTimer,
+        dma: &'static dma::DmaChannel,
     ) {
         self.ref_module.set(ref_module);
         self.timer.set(timer);
+        self.dma.set(dma);
     }
 
     pub fn set_client(&self, client: &'static dyn EverythingClient) {
@@ -676,15 +692,9 @@ impl Adc {
                 self.client
                     .map(move |client| client.sample_ready(self.get_sample(chan)));
             } else if mode == AdcMode::Repeated {
-                // It's necessary to toggle the ENC-bit in order to continue sampling
-                self.registers.ctl0.modify(CTL0::ENC::CLEAR);
-
                 // Throw callback
                 self.client
                     .map(move |client| client.sample_ready(self.get_sample(chan)));
-
-                // The ENC-bit must be 0 for at least 3 cycles -> set it after throwing the callback
-                self.registers.ctl0.modify(CTL0::ENC::SET);
             }
         } else {
             panic!("ADC: unhandled interrupt: channel {}", chan_nr);
@@ -719,6 +729,8 @@ impl hil::adc::Adc for Adc {
             CTL0::CONSEQx::SingleChannelSingleConversion
             // Set the sample-and-hold source select to software-based
             + CTL0::SHSx::SCBit
+            // Set the sampling-timer for generating the sample-period
+            + CTL0::SHP::SET
             // Enable conversation
             + CTL0::ENC::SET
             // Start conversation
@@ -758,11 +770,13 @@ impl hil::adc::Adc for Adc {
 
         self.registers.ctl0.modify(
             // Set ADC to mode where a single channel gets sampled once
-            CTL0::CONSEQx::SingleChannelSingleConversion
+            CTL0::CONSEQx::RepeatSingleChannel
             // Set the sample-and-hold source select to timer-triggered
             + CTL0::SHSx::Source7
+            // Use TIMER_A3 to generate the SAMPCON signal
+            + CTL0::SHP::CLEAR
             // Enable multiple sample and conversions
-            + CTL0::MSC::CLEAR
+            + CTL0::MSC::SET
             // Enable conversation
             + CTL0::ENC::SET,
         );
@@ -777,7 +791,7 @@ impl hil::adc::Adc for Adc {
             return ReturnCode::EOFF;
         }
 
-        if mode == AdcMode::Repeated {
+        if mode == AdcMode::Repeated || mode == AdcMode::Highspeed {
             self.timer.map(|timer| timer.stop());
             self.stop();
         }

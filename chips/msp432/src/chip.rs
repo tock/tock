@@ -28,8 +28,12 @@ impl Msp432 {
         dma::DMA_CHANNELS[uart::UART0.tx_dma_chan].set_client(&uart::UART0);
         dma::DMA_CHANNELS[uart::UART0.rx_dma_chan].set_client(&uart::UART0);
 
-        // Setup Reference Module and Timer for ADC
-        adc::ADC.set_modules(&ref_module::REF, &timer::TIMER_A3);
+        // Setup Reference Module, Timer and DMA for ADC
+        adc::ADC.set_modules(
+            &ref_module::REF,
+            &timer::TIMER_A3,
+            &dma::DMA_CHANNELS[adc::ADC.dma_chan],
+        );
 
         Msp432 {
             mpu: cortexm4::mpu::MPU::new(),
