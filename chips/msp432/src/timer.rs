@@ -18,13 +18,13 @@ const TIMER_A0_BASE: StaticRef<TimerRegisters> =
     unsafe { StaticRef::new(0x4000_0000u32 as *const TimerRegisters) };
 
 const TIMER_A1_BASE: StaticRef<TimerRegisters> =
-    unsafe { StaticRef::new(0x4000_4000u32 as *const TimerRegisters) };
+    unsafe { StaticRef::new(0x4000_0400u32 as *const TimerRegisters) };
 
 const TIMER_A2_BASE: StaticRef<TimerRegisters> =
-    unsafe { StaticRef::new(0x4000_8000u32 as *const TimerRegisters) };
+    unsafe { StaticRef::new(0x4000_0800u32 as *const TimerRegisters) };
 
 const TIMER_A3_BASE: StaticRef<TimerRegisters> =
-    unsafe { StaticRef::new(0x4000_C000u32 as *const TimerRegisters) };
+    unsafe { StaticRef::new(0x4000_0C00u32 as *const TimerRegisters) };
 
 register_structs! {
     /// Timer_Ax
@@ -229,6 +229,7 @@ register_bitfields! [u16,
 enum TimerMode {
     Disabled,
     Alarm,
+    InternalTimer,
 }
 
 pub struct TimerAFrequency {}
@@ -237,6 +238,18 @@ impl Frequency for TimerAFrequency {
     fn frequency() -> u32 {
         crate::cs::ACLK_HZ / 16
     }
+}
+
+pub trait InternalTimer {
+    /// Start timer in a given frequency. No interrupts are generated, the signal when the timer
+    /// has elapsed is used directly by a hardware module.
+    /// SUCCESS: timer started successfully
+    /// EINVAL: frequency too high or too low
+    /// EBUSY: timer already in use
+    fn start(&self, frequency_hz: u32) -> kernel::ReturnCode;
+
+    /// Stop the timer
+    fn stop(&self);
 }
 
 pub struct TimerA<'a> {
@@ -372,5 +385,55 @@ impl<'a> Alarm<'a> for TimerA<'a> {
 
     fn minimum_dt(&self) -> Self::Ticks {
         Self::Ticks::from(1 as u16)
+    }
+}
+
+impl<'a> InternalTimer for TimerA<'a> {
+    fn start(&self, frequency_hz: u32) -> kernel::ReturnCode {
+        if self.mode.get() != TimerMode::Disabled && self.mode.get() != TimerMode::InternalTimer {
+            return kernel::ReturnCode::EBUSY;
+        }
+
+        if frequency_hz > crate::cs::SMCLK_HZ {
+            return kernel::ReturnCode::EINVAL;
+        }
+
+        // Stop timer if a different frequency was configured before
+        self.stop_timer();
+
+        let reg_val = if frequency_hz <= 100 {
+            // Divide the SMCLK by 40 -> 1_500_000 / 40 = 375kHz
+            self.registers.ctl.modify(TAxCTL::ID::DividedBy8);
+            self.registers.ex0.modify(TAxEX0::TAIDEX::DivideBy5);
+            (crate::cs::SMCLK_HZ / 40) / frequency_hz
+        } else {
+            self.registers.ctl.modify(TAxCTL::ID::DividedBy1);
+            self.registers.ex0.modify(TAxEX0::TAIDEX::DivideBy1);
+            crate::cs::SMCLK_HZ / frequency_hz
+        };
+
+        self.registers.ctl.modify(
+            TAxCTL::TASSEL::SMCLK    // Set SMCLK as clock source
+            + TAxCTL::MC::UpMode            // Setup for up-mode    
+            + TAxCTL::TAIE::CLEAR           // Disable interrupts
+            + TAxCTL::TAIFG::CLEAR, // Clear any pending interrupts
+        );
+
+        // Set timer value
+        self.registers.ccr0.set(reg_val as u16);
+        self.registers.cctl0.modify(TAxCCTLx::CCIE::CLEAR);
+        // Set capture value to raise interrupt
+        self.registers.ccr1.set((reg_val - 1) as u16);
+        // Enable CCR interrupt to trigger the corresponding Hardware
+        self.registers
+            .cctl1
+            .modify(TAxCCTLx::OUTMOD::SetReset + TAxCCTLx::OUT::CLEAR + TAxCCTLx::CCIE::CLEAR);
+
+        self.mode.set(TimerMode::InternalTimer);
+        kernel::ReturnCode::SUCCESS
+    }
+
+    fn stop(&self) {
+        self.stop_timer();
     }
 }

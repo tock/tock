@@ -1,6 +1,7 @@
 //! Analog-Digital Converter (ADC)
 
 use crate::ref_module;
+use crate::timer;
 use core::cell::Cell;
 use kernel::common::cells::OptionalCell;
 use kernel::common::registers::{
@@ -15,6 +16,7 @@ pub static mut ADC: Adc = Adc {
     resolution: DEFAULT_ADC_RESOLUTION,
     mode: Cell::new(AdcMode::Disabled),
     active_channel: Cell::new(Channel::Channel0),
+    timer: OptionalCell::empty(), // must be TIMER_A3!
     ref_module: OptionalCell::empty(),
     client: OptionalCell::empty(),
 };
@@ -503,6 +505,7 @@ pub struct Adc {
     mode: Cell<AdcMode>,
     active_channel: Cell<Channel>,
     ref_module: OptionalCell<&'static dyn ref_module::AnalogReference>,
+    timer: OptionalCell<&'static dyn timer::InternalTimer>,
     client: OptionalCell<&'static dyn EverythingClient>,
 }
 
@@ -597,14 +600,12 @@ impl Adc {
             + CTL0::DIVx::DivideBy1
             // Set ADC-clock source to HSMCLK
             + CTL0::SSELx::HSMCLK
-            // Set the sample-and-hold source select to software-based
-            + CTL0::SHSx::SCBit
             // Set the sampling-timer for generating the sample-period
             + CTL0::SHP::SET
             // Set the sample-and-hold time to 16 clock-cyles for channel 0-7 and 24-31
-            + CTL0::SHTOx::Cycles16
+            + CTL0::SHTOx::Cycles4
             // Set the sample-and-hold time to 16 clock-cyles for channel 8-23
-            + CTL0::SHT1x::Cycles16,
+            + CTL0::SHT1x::Cycles4,
         );
 
         self.registers.ctl1.modify(
@@ -640,8 +641,13 @@ impl Adc {
             .set(self.registers.ie0.get() & !(1 << (chan as u32)));
     }
 
-    pub fn set_ref_module(&self, ref_module: &'static dyn ref_module::AnalogReference) {
+    pub fn set_modules(
+        &self,
+        ref_module: &'static dyn ref_module::AnalogReference,
+        timer: &'static dyn timer::InternalTimer,
+    ) {
         self.ref_module.set(ref_module);
+        self.timer.set(timer);
     }
 
     pub fn set_client(&self, client: &'static dyn EverythingClient) {
@@ -652,12 +658,13 @@ impl Adc {
         let chan = self.active_channel.get();
         let chan_nr = chan as usize;
         let int_bit = 1 << (chan as u32);
+        let mode = self.mode.get();
 
         if (self.registers.ifg0.get() & int_bit) > 0 {
             // Clear interrupt flag
             self.registers.clrifg0.set(int_bit);
 
-            if self.mode.get() == AdcMode::Single {
+            if mode == AdcMode::Single {
                 self.mode.set(AdcMode::Disabled);
 
                 self.disable_interrupt(chan);
@@ -665,8 +672,19 @@ impl Adc {
                 // Stop sampling
                 self.registers.ctl0.modify(CTL0::ENC::CLEAR);
 
+                // Throw callback
                 self.client
                     .map(move |client| client.sample_ready(self.get_sample(chan)));
+            } else if mode == AdcMode::Repeated {
+                // It's necessary to toggle the ENC-bit in order to continue sampling
+                self.registers.ctl0.modify(CTL0::ENC::CLEAR);
+
+                // Throw callback
+                self.client
+                    .map(move |client| client.sample_ready(self.get_sample(chan)));
+
+                // The ENC-bit must be 0 for at least 3 cycles -> set it after throwing the callback
+                self.registers.ctl0.modify(CTL0::ENC::SET);
             }
         } else {
             panic!("ADC: unhandled interrupt: channel {}", chan_nr);
@@ -686,7 +704,7 @@ impl hil::adc::Adc for Adc {
             return ReturnCode::EBUSY;
         }
 
-        self.mode.set(AdcMode::Single);
+        self.mode.set(AdcMode::Repeated);
         self.active_channel.set(*channel);
 
         // Set the channel-number where to start sampling
@@ -699,6 +717,8 @@ impl hil::adc::Adc for Adc {
         self.registers.ctl0.modify(
             // Set ADC to mode where a single channel gets sampled once
             CTL0::CONSEQx::SingleChannelSingleConversion
+            // Set the sample-and-hold source select to software-based
+            + CTL0::SHSx::SCBit
             // Enable conversation
             + CTL0::ENC::SET
             // Start conversation
@@ -708,12 +728,61 @@ impl hil::adc::Adc for Adc {
         ReturnCode::SUCCESS
     }
 
-    fn sample_continuous(&self, _channel: &Self::Channel, _frequency: u32) -> ReturnCode {
-        ReturnCode::ENOSUPPORT
+    fn sample_continuous(&self, channel: &Self::Channel, frequency: u32) -> ReturnCode {
+        if !self.is_enabled() {
+            self.setup();
+        }
+
+        if self.mode.get() != AdcMode::Disabled {
+            return ReturnCode::EBUSY;
+        }
+
+        if frequency == 0 || frequency > 5000 {
+            // Limit the frequency to 5kHz since the overhead of the callback and the interrupt
+            // handler is too big otherwise and the timing starts becoming incorrect
+            return ReturnCode::EINVAL;
+        }
+
+        self.mode.set(AdcMode::Repeated);
+        self.active_channel.set(*channel);
+
+        // Setup timer
+        self.timer.map(|timer| timer.start(frequency));
+
+        // Set the channel-number where to start sampling
+        self.registers
+            .ctl1
+            .modify(CTL1::STARTADDx.val(*channel as u32));
+
+        self.enable_interrupt(*channel);
+
+        self.registers.ctl0.modify(
+            // Set ADC to mode where a single channel gets sampled once
+            CTL0::CONSEQx::SingleChannelSingleConversion
+            // Set the sample-and-hold source select to timer-triggered
+            + CTL0::SHSx::Source7
+            // Enable multiple sample and conversions
+            + CTL0::MSC::CLEAR
+            // Enable conversation
+            + CTL0::ENC::SET,
+        );
+
+        ReturnCode::SUCCESS
     }
 
     fn stop_sampling(&self) -> ReturnCode {
-        ReturnCode::ENOSUPPORT
+        let mode = self.mode.get();
+
+        if mode == AdcMode::Disabled {
+            return ReturnCode::EOFF;
+        }
+
+        if mode == AdcMode::Repeated {
+            self.timer.map(|timer| timer.stop());
+            self.stop();
+        }
+
+        ReturnCode::SUCCESS
     }
 
     fn get_resolution_bits(&self) -> usize {
