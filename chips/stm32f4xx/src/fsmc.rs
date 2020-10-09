@@ -143,6 +143,14 @@ struct FsmcBank {
     ram: ReadWrite<u16>,
 }
 
+#[repr(usize)]
+pub enum FsmcBanks {
+    Bank1 = 0,
+    Bank2 = 1,
+    Bank3 = 2,
+    Bank4 = 3,
+}
+
 const FSMC_BANK1: StaticRef<FsmcBank> = unsafe { StaticRef::new(0x60000000 as *const FsmcBank) };
 // const FSMC_BANK2_RESERVED: StaticRef<FsmcBank> = unsafe { StaticRef::new(0x0 as *const FsmcBank) };
 const FSMC_BANK3: StaticRef<FsmcBank> = unsafe { StaticRef::new(0x68000000 as *const FsmcBank) };
@@ -242,13 +250,13 @@ impl Fsmc {
     }
 
     #[inline]
-    pub fn read_reg(&self, bank_id: usize) -> Option<u16> {
-        self.bank[bank_id].map_or(None, |bank| Some(bank.ram.get()))
+    pub fn read_reg(&self, bank: FsmcBanks) -> Option<u16> {
+        self.bank[bank as usize].map_or(None, |bank| Some(bank.ram.get()))
     }
 
     #[inline]
-    fn write_reg(&self, bank_id: usize, addr: u16) {
-        self.bank[bank_id].map(|bank| bank.reg.set(addr));
+    fn write_reg(&self, bank: FsmcBanks, addr: u16) {
+        self.bank[bank as usize].map(|bank| bank.reg.set(addr));
         #[cfg(all(target_arch = "arm", target_os = "none"))]
         unsafe {
             llvm_asm!("dsb 0xf");
@@ -256,8 +264,8 @@ impl Fsmc {
     }
 
     #[inline]
-    fn write_data(&self, bank_id: usize, data: u16) {
-        self.bank[bank_id].map(|bank| bank.ram.set(data));
+    fn write_data(&self, bank: FsmcBanks, data: u16) {
+        self.bank[bank as usize].map(|bank| bank.ram.set(data));
         #[cfg(all(target_arch = "arm", target_os = "none"))]
         unsafe {
             llvm_asm!("dsb 0xf");
@@ -285,7 +293,7 @@ impl Bus8080<'static> for Fsmc {
     fn set_addr(&self, addr_width: BusWidth, addr: usize) -> ReturnCode {
         match addr_width {
             BusWidth::Bits8 => {
-                self.write_reg(0, addr as u16);
+                self.write_reg(FsmcBanks::Bank1, addr as u16);
                 DEFERRED_CALL.set();
                 ReturnCode::SUCCESS
             }
@@ -307,7 +315,7 @@ impl Bus8080<'static> for Fsmc {
                             }] as u16)
                             << (8 * byte);
                 }
-                self.write_data(0, data);
+                self.write_data(FsmcBanks::Bank1, data);
             }
             self.buffer.replace(buffer);
             self.bus_width.set(bytes);
@@ -323,7 +331,7 @@ impl Bus8080<'static> for Fsmc {
         let bytes = data_width.width_in_bytes();
         if buffer.len() >= len * bytes {
             for pos in 0..len {
-                if let Some(data) = self.read_reg(0) {
+                if let Some(data) = self.read_reg(FsmcBanks::Bank1) {
                     for byte in 0..bytes {
                         buffer[bytes * pos
                             + match data_width {

@@ -186,7 +186,10 @@ pub trait Screen {
     /// - `EBUSY`: Another write is in progress.
     fn write(&self, buffer: &'static mut [u8], len: usize) -> ReturnCode;
 
-    /// Continues the previous previous write command
+    /// Sends a write command to write data in the selected video memory frame
+    /// without resetting the video memory frame position. It "continues" the
+    /// write from the previous position.
+    /// This allows using buffers that are smaller than the video mameory frame.
     /// When finished, the driver will call the `write_complete()` callback.
     ///
     /// Return values:
