@@ -219,7 +219,8 @@ impl<'a> Fxos8700cq<'a> {
             self.i2c.enable();
             // Configure the magnetometer.
             buf[0] = Registers::MCtrlReg1 as u8;
-            buf[1] = 0b00100001; // Enable magnetometer and one-shot read.
+            // Enable both accelerometer and magnetometer, and set one-shot read.
+            buf[1] = 0b00100011;
             self.i2c.write(buf, 2);
             self.state.set(State::ReadMagStart);
         });
