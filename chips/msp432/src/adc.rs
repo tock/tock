@@ -811,6 +811,10 @@ impl hil::adc::Adc for Adc {
     fn get_voltage_reference_mv(&self) -> Option<usize> {
         self.ref_module.map(|ref_mod| ref_mod.ref_voltage_mv())
     }
+
+    fn set_client(&self, _client: &'static dyn hil::adc::Client) {
+        unimplemented!();
+    }
 }
 
 impl hil::adc::AdcHighSpeed for Adc {

@@ -53,7 +53,7 @@ struct MspExp432P401R {
         capsules::virtual_alarm::VirtualMuxAlarm<'static, msp432::timer::TimerA<'static>>,
     >,
     ipc: kernel::ipc::IPC,
-    adc: &'static capsules::adc::Adc<'static, msp432::adc::Adc>,
+    adc: &'static capsules::adc::AdcDedicated<'static, msp432::adc::Adc>,
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
@@ -322,8 +322,8 @@ pub unsafe fn reset_handler() {
     let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
     let grant_adc = board_kernel.create_grant(&grant_cap);
     let adc = static_init!(
-        capsules::adc::Adc<'static, msp432::adc::Adc>,
-        capsules::adc::Adc::new(
+        capsules::adc::AdcDedicated<'static, msp432::adc::Adc>,
+        capsules::adc::AdcDedicated::new(
             &msp432::adc::ADC,
             grant_adc,
             adc_channels,
