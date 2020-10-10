@@ -97,13 +97,7 @@ register_bitfields![u32,
     ],
     PLLCFGR [
         /// Main PLL (PLL) division factor for USB OTG FS, SDIO and random num
-        PLLQ3 OFFSET(27) NUMBITS(1) [],
-        /// Main PLL (PLL) division factor for USB OTG FS, SDIO and random num
-        PLLQ2 OFFSET(26) NUMBITS(1) [],
-        /// Main PLL (PLL) division factor for USB OTG FS, SDIO and random num
-        PLLQ1 OFFSET(25) NUMBITS(1) [],
-        /// Main PLL (PLL) division factor for USB OTG FS, SDIO and random num
-        PLLQ0 OFFSET(24) NUMBITS(1) [],
+        PLLQ OFFSET(24) NUMBITS(4) [],
         /// Main PLL(PLL) and audio PLL (PLLI2S) entry clock source
         PLLSRC OFFSET(22) NUMBITS(1) [],
         /// Main PLL (PLL) division factor for main system clock
@@ -246,6 +240,8 @@ register_bitfields![u32,
     AHB2RSTR [
         /// USB OTG FS module reset
         OTGFSRST OFFSET(7) NUMBITS(1) [],
+        /// RNG module reset
+        RNGSRST OFFSET(6) NUMBITS(1) [],
         /// Camera interface reset
         DCMIRST OFFSET(0) NUMBITS(1) []
     ],
@@ -370,6 +366,8 @@ register_bitfields![u32,
     AHB2ENR [
         /// USB OTG FS clock enable
         OTGFSEN OFFSET(7) NUMBITS(1) [],
+        /// RNG clock enable
+        RNGEN OFFSET(6) NUMBITS(1) [],
         /// Camera interface enable
         DCMIEN OFFSET(0) NUMBITS(1) []
     ],
@@ -506,6 +504,8 @@ register_bitfields![u32,
     AHB2LPENR [
         /// USB OTG FS clock enable during Sleep mode
         OTGFSLPEN OFFSET(7) NUMBITS(1) [],
+        /// RNG clock enable during Sleep mode
+        RNGLPEN OFFSET(6) NUMBITS(1) [],
         /// Camera interface enable during Sleep mode
         DCMILPEN OFFSET(0) NUMBITS(1) []
     ],
@@ -731,6 +731,11 @@ impl Rcc {
         Rcc {
             registers: RCC_BASE,
         }
+    }
+
+    fn configure_rng_clock(&self) {
+        self.registers.pllcfgr.modify(PLLCFGR::PLLQ.val(2));
+        self.registers.cr.modify(CR::PLLON::SET);
     }
 
     // I2C1 clock
@@ -972,6 +977,34 @@ impl Rcc {
     fn disable_adc1_clock(&self) {
         self.registers.apb2enr.modify(APB2ENR::ADC1EN::CLEAR)
     }
+
+    // RNG clock
+
+    fn is_enabled_rng_clock(&self) -> bool {
+        self.registers.ahb2enr.is_set(AHB2ENR::RNGEN)
+    }
+
+    fn enable_rng_clock(&self) {
+        self.registers.ahb2enr.modify(AHB2ENR::RNGEN::SET);
+    }
+
+    fn disable_rng_clock(&self) {
+        self.registers.ahb2enr.modify(AHB2ENR::RNGEN::CLEAR);
+    }
+
+    // OTGFS clock
+
+    fn is_enabled_otgfs_clock(&self) -> bool {
+        self.registers.ahb2enr.is_set(AHB2ENR::OTGFSEN)
+    }
+
+    fn enable_otgfs_clock(&self) {
+        self.registers.ahb2enr.modify(AHB2ENR::OTGFSEN::SET);
+    }
+
+    fn disable_otgfs_clock(&self) {
+        self.registers.ahb2enr.modify(AHB2ENR::OTGFSEN::CLEAR);
+    }
 }
 
 /// Clock sources for CPU
@@ -988,12 +1021,9 @@ pub struct PeripheralClock<'a> {
 }
 
 /// Bus + Clock name for the peripherals
-///
-/// Not yet implemented clocks:
-///
-/// AHB2(HCLK2)
 pub enum PeripheralClockType {
     AHB1(HCLK1),
+    AHB2(HCLK2),
     AHB3(HCLK3),
     APB1(PCLK1),
     APB2(PCLK2),
@@ -1017,6 +1047,12 @@ pub enum HCLK3 {
     FMC,
 }
 
+/// Peripherals clocked by HCLK2
+pub enum HCLK2 {
+    RNG,
+    OTGFS,
+}
+
 /// Peripherals clocked by PCLK1
 pub enum PCLK1 {
     TIM2,
@@ -1036,6 +1072,10 @@ impl<'a> PeripheralClock<'a> {
     pub const fn new(clock: PeripheralClockType, rcc: &'a Rcc) -> Self {
         Self { clock, rcc }
     }
+
+    pub fn configure_rng_clock(&self) {
+        self.rcc.configure_rng_clock();
+    }
 }
 
 impl<'a> ClockInterface for PeripheralClock<'a> {
@@ -1051,6 +1091,10 @@ impl<'a> ClockInterface for PeripheralClock<'a> {
                 HCLK1::GPIOC => self.rcc.is_enabled_gpioc_clock(),
                 HCLK1::GPIOB => self.rcc.is_enabled_gpiob_clock(),
                 HCLK1::GPIOA => self.rcc.is_enabled_gpioa_clock(),
+            },
+            PeripheralClockType::AHB2(ref v) => match v {
+                HCLK2::RNG => self.rcc.is_enabled_rng_clock(),
+                HCLK2::OTGFS => self.rcc.is_enabled_otgfs_clock(),
             },
             PeripheralClockType::AHB3(ref v) => match v {
                 HCLK3::FMC => self.rcc.is_enabled_fmc_clock(),
@@ -1098,6 +1142,14 @@ impl<'a> ClockInterface for PeripheralClock<'a> {
                 }
                 HCLK1::GPIOA => {
                     self.rcc.enable_gpioa_clock();
+                }
+            },
+            PeripheralClockType::AHB2(ref v) => match v {
+                HCLK2::RNG => {
+                    self.rcc.enable_rng_clock();
+                }
+                HCLK2::OTGFS => {
+                    self.rcc.enable_otgfs_clock();
                 }
             },
             PeripheralClockType::AHB3(ref v) => match v {
@@ -1160,6 +1212,14 @@ impl<'a> ClockInterface for PeripheralClock<'a> {
                 }
                 HCLK1::GPIOA => {
                     self.rcc.disable_gpioa_clock();
+                }
+            },
+            PeripheralClockType::AHB2(ref v) => match v {
+                HCLK2::RNG => {
+                    self.rcc.disable_rng_clock();
+                }
+                HCLK2::OTGFS => {
+                    self.rcc.disable_otgfs_clock();
                 }
             },
             PeripheralClockType::AHB3(ref v) => match v {

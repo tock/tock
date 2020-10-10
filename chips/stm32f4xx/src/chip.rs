@@ -2,9 +2,8 @@
 
 use core::fmt::Write;
 use cortexm4;
-use kernel::Chip;
-
 use kernel::common::deferred_call;
+use kernel::Chip;
 use kernel::InterruptService;
 
 use crate::dma1;
