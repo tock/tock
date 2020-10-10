@@ -346,7 +346,7 @@ impl<'a, IP: InterruptPin<'a>> Configure for InterruptValueWrapper<'a, IP> {
     }
 
     fn is_output(&self) -> bool {
-        self.source.is_input()
+        self.source.is_output()
     }
 }
 
