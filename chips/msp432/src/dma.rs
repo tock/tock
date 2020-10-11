@@ -795,6 +795,12 @@ impl<'a> DmaChannel<'a> {
             .set(dst_end_ptr);
     }
 
+    fn set_dma_mode(&self, mode: DmaMode) {
+        let mut conf = self.config.get();
+        conf.mode = mode;
+        self.config.set(conf);
+    }
+
     fn handle_interrupt(&self) {
         if self.remaining_words.get() > 0 {
             self.update_buffer_ptr();
@@ -892,6 +898,7 @@ impl<'a> DmaChannel<'a> {
         let dst_end_ptr = (&dst_buf[0] as *const u8 as u32) + ((len as u32) - 1);
 
         // Setup the DMA configuration
+        self.set_dma_mode(DmaMode::Basic);
         self.set_primary_buffer(src_end_ptr, dst_end_ptr);
         self.setup_transfer_primary_buffer(len);
 
@@ -931,6 +938,7 @@ impl<'a> DmaChannel<'a> {
         let dst_end_ptr = (&buf[0] as *const u8 as u32) + ((len as u32) - 1);
 
         // Setup the DMA configuration
+        self.set_dma_mode(DmaMode::Basic);
         self.set_primary_buffer(src_end_ptr, dst_end_ptr);
         self.setup_transfer_primary_buffer(len);
 
@@ -954,6 +962,7 @@ impl<'a> DmaChannel<'a> {
         let dst_end_ptr = dst_reg as u32;
 
         // Setup the DMA configuration
+        self.set_dma_mode(DmaMode::Basic);
         self.set_primary_buffer(src_end_ptr, dst_end_ptr);
         self.setup_transfer_primary_buffer(len);
 
@@ -985,6 +994,7 @@ impl<'a> DmaChannel<'a> {
         let dst_end_ptr2 = (&buf2[0] as *const u8 as u32) + ((len2 as u32) - 1);
 
         // Setup the DMA configuration
+        self.set_dma_mode(DmaMode::PingPong);
         self.set_primary_buffer(src_end_ptr, dst_end_ptr1);
         self.set_alternative_buffer(src_end_ptr, dst_end_ptr2);
         self.setup_transfer_primary_buffer(len1);
@@ -1000,6 +1010,8 @@ impl<'a> DmaChannel<'a> {
         // Store transfer-type
         self.transfer_type
             .set(DmaTransferType::PeripheralToMemoryPingPong);
+
+        self.enable_dma_channel();
     }
 
     pub fn provide_new_buffer(&self, buf: &'static mut [u8], len: usize) {

@@ -34,6 +34,7 @@ impl Msp432 {
             &timer::TIMER_A3,
             &dma::DMA_CHANNELS[adc::ADC.dma_chan],
         );
+        dma::DMA_CHANNELS[adc::ADC.dma_chan].set_client(&adc::ADC);
 
         Msp432 {
             mpu: cortexm4::mpu::MPU::new(),

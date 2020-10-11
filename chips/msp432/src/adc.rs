@@ -2,7 +2,8 @@
 
 use crate::{dma, ref_module, timer};
 use core::cell::Cell;
-use kernel::common::cells::OptionalCell;
+use core::{mem, slice};
+use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::common::registers::{
     register_bitfields, register_structs, ReadOnly, ReadWrite, WriteOnly,
 };
@@ -20,6 +21,8 @@ pub static mut ADC: Adc = Adc {
     dma: OptionalCell::empty(),
     dma_chan: 7,
     dma_src: 7,
+    buffer1: TakeCell::empty(),
+    buffer2: TakeCell::empty(),
     client: OptionalCell::empty(),
 };
 
@@ -27,8 +30,8 @@ const ADC_BASE: StaticRef<AdcRegisters> =
     unsafe { StaticRef::new(0x4001_2000 as *const AdcRegisters) };
 
 const AVAILABLE_ADC_CHANNELS: usize = 24;
-
 const DEFAULT_ADC_RESOLUTION: AdcResolution = AdcResolution::Bits14;
+const MAX_SAMPLE_FREQ_HZ: u32 = 1_000_000; // Maximum sampling frequency is 1Msps
 
 register_structs! {
     /// ADC14
@@ -511,6 +514,8 @@ pub struct Adc {
     dma: OptionalCell<&'static dma::DmaChannel<'static>>,
     pub(crate) dma_chan: usize,
     dma_src: u8,
+    buffer1: TakeCell<'static, [u16]>,
+    buffer2: TakeCell<'static, [u16]>,
     client: OptionalCell<&'static dyn EverythingClient>,
 }
 
@@ -560,6 +565,16 @@ enum AdcMode {
     Repeated,
     Highspeed,
     Disabled,
+}
+
+fn buf_u8_to_buf_u16(buf: &'static mut [u8]) -> &'static mut [u16] {
+    let buf_ptr = unsafe { mem::transmute::<*mut u8, *mut u16>(buf.as_mut_ptr()) };
+    unsafe { slice::from_raw_parts_mut(buf_ptr, buf.len() / 2) }
+}
+
+fn buf_u16_to_buf_u8(buf: &'static mut [u16]) -> &'static mut [u8] {
+    let buf_ptr = unsafe { mem::transmute::<*mut u16, *mut u8>(buf.as_mut_ptr()) };
+    unsafe { slice::from_raw_parts_mut(buf_ptr, buf.len() * 2) }
 }
 
 impl Adc {
@@ -702,6 +717,29 @@ impl Adc {
     }
 }
 
+impl dma::DmaClient for Adc {
+    fn transfer_done(
+        &self,
+        _tx_buf: Option<&'static mut [u8]>,
+        rx_buf: Option<&'static mut [u8]>,
+        transmitted_bytes: usize,
+    ) {
+        if let Some(buffer) = rx_buf {
+            // Cast the [u8] buffer back to [u16]
+            let buf = buf_u8_to_buf_u16(buffer);
+
+            // Align the received data to 16bit
+            let samples = transmitted_bytes / 2;
+            let shift = 8 - 2 * (self.resolution as usize);
+            for i in 0..samples {
+                buf[i] <<= shift;
+            }
+
+            self.client.map(move |cl| cl.samples_ready(buf, samples));
+        }
+    }
+}
+
 impl hil::adc::Adc for Adc {
     type Channel = Channel;
 
@@ -791,11 +829,25 @@ impl hil::adc::Adc for Adc {
             return ReturnCode::EOFF;
         }
 
-        if mode == AdcMode::Repeated || mode == AdcMode::Highspeed {
-            self.timer.map(|timer| timer.stop());
-            self.stop();
+        self.timer.map(|timer| timer.stop());
+        self.stop();
+        if mode == AdcMode::Highspeed {
+            self.dma.map(|dma| {
+                let (_tx1, rx1, _tx2, rx2) = dma.stop();
+
+                if let Some(buffer) = rx1 {
+                    let buf = buf_u8_to_buf_u16(buffer);
+                    self.buffer1.replace(buf);
+                }
+
+                if let Some(buffer) = rx2 {
+                    let buf = buf_u8_to_buf_u16(buffer);
+                    self.buffer2.replace(buf);
+                }
+            });
         }
 
+        self.mode.set(AdcMode::Disabled);
         ReturnCode::SUCCESS
     }
 
@@ -820,26 +872,90 @@ impl hil::adc::Adc for Adc {
 impl hil::adc::AdcHighSpeed for Adc {
     fn sample_highspeed(
         &self,
-        _channel: &Self::Channel,
-        _frequency: u32,
+        channel: &Self::Channel,
+        frequency: u32,
         buffer1: &'static mut [u16],
-        _length1: usize,
+        length1: usize,
         buffer2: &'static mut [u16],
-        _length2: usize,
+        length2: usize,
     ) -> (
         ReturnCode,
         Option<&'static mut [u16]>,
         Option<&'static mut [u16]>,
     ) {
-        (ReturnCode::ENOSUPPORT, Some(buffer1), Some(buffer2))
+        if !self.is_enabled() {
+            self.setup();
+        }
+        if self.mode.get() != AdcMode::Disabled {
+            return (ReturnCode::EBUSY, Some(buffer1), Some(buffer2));
+        }
+        if frequency == 0 || frequency > MAX_SAMPLE_FREQ_HZ {
+            return (ReturnCode::EINVAL, Some(buffer1), Some(buffer2));
+        }
+        if length1 == 0 {
+            return (ReturnCode::EINVAL, Some(buffer1), Some(buffer2));
+        }
+
+        self.mode.set(AdcMode::Highspeed);
+        self.active_channel.set(*channel);
+
+        // Set the channel-number where to start sampling
+        self.registers
+            .ctl1
+            .modify(CTL1::STARTADDx.val(*channel as u32));
+
+        self.registers.ctl0.modify(
+            // Set ADC to mode where a single channel gets sampled once
+            CTL0::CONSEQx::RepeatSingleChannel
+            // Set the sample-and-hold source select to timer-triggered
+            + CTL0::SHSx::Source7
+            // Use TIMER_A3 to generate the SAMPCON signal
+            + CTL0::SHP::CLEAR
+            // Enable multiple sample and conversions
+            + CTL0::MSC::SET
+            // Enable conversation
+            + CTL0::ENC::SET,
+        );
+
+        let adc_reg = &self.registers.mem[*channel as usize] as *const ReadWrite<u32> as *const ();
+
+        // Convert the [u16] into an [u8] since the DMA works only with [u8]
+        let buf1 = buf_u16_to_buf_u8(buffer1);
+        let buf2 = buf_u16_to_buf_u8(buffer2);
+
+        // Setup the DMA transfer
+        if length2 == 0 {
+            // If only 1 buffer is provided, we do a simple DMA transfer without toggling
+            // the buffers
+            self.dma
+                .map(move |dma| dma.transfer_periph_to_mem(adc_reg, buf1, length1 * 2));
+        } else {
+            // If two buffers are provided, we use the pingpong mode of the DMA which can toggle
+            // between 2 buffers
+            self.dma.map(move |dma| {
+                dma.transfer_periph_to_mem_pingpong(adc_reg, buf1, length1 * 2, buf2, length2 * 2)
+            });
+        }
+
+        // Setup the timer
+        self.timer.map(|timer| timer.start(frequency));
+
+        (ReturnCode::SUCCESS, None, None)
     }
 
     fn provide_buffer(
         &self,
-        buf: &'static mut [u16],
-        _length: usize,
+        buffer: &'static mut [u16],
+        length: usize,
     ) -> (ReturnCode, Option<&'static mut [u16]>) {
-        (ReturnCode::ENOSUPPORT, Some(buf))
+        if self.mode.get() != AdcMode::Highspeed {
+            panic!("ADC: cannot provide buffers in a different mode than Highspeed!");
+        }
+
+        let buf = buf_u16_to_buf_u8(buffer);
+        self.dma
+            .map(move |dma| dma.provide_new_buffer(buf, length * 2));
+        (ReturnCode::SUCCESS, None)
     }
 
     fn retrieve_buffers(
@@ -849,6 +965,15 @@ impl hil::adc::AdcHighSpeed for Adc {
         Option<&'static mut [u16]>,
         Option<&'static mut [u16]>,
     ) {
-        (ReturnCode::ENOSUPPORT, None, None)
+        if self.mode.get() != AdcMode::Disabled {
+            // When the device is active, the buffers cannot be returned
+            (ReturnCode::EINVAL, None, None)
+        } else {
+            (
+                ReturnCode::SUCCESS,
+                self.buffer1.take(),
+                self.buffer2.take(),
+            )
+        }
     }
 }
