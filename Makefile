@@ -549,7 +549,7 @@ ci-job-qemu: ci-setup-qemu
 .PHONY: board-release-test
 board-release-test:
 	@cd tools/board-runner;\
-		cargo run
+		cargo run ${TARGET}
 
 
 ### ci-runner-netlify jobs:
