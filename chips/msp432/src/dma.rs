@@ -805,9 +805,10 @@ impl<'a> DmaChannel<'a> {
         if self.remaining_words.get() > 0 {
             self.update_buffer_ptr();
         } else {
-            // Disable the DMA channel since the data transfer has finished
-            self.registers.enaclr.set((1 << self.chan_nr) as u32);
-
+            if self.transfer_type.get() != DmaTransferType::PeripheralToMemoryPingPong {
+                // Disable the DMA channel since the data transfer has finished
+                self.registers.enaclr.set((1 << self.chan_nr) as u32);
+            }
             // Fire the callback and return the buffer-references
             match self.transfer_type.get() {
                 DmaTransferType::PeripheralToMemory => {

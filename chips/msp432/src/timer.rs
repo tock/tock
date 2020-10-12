@@ -402,7 +402,7 @@ impl<'a> InternalTimer for TimerA<'a> {
         self.stop_timer();
 
         let reg_val = if frequency_hz <= 100 {
-            // Divide the SMCLK by 40 -> 1_500_000 / 40 = 375kHz
+            // Divide the SMCLK by 40 -> 1_500_000 / 40 = 37.5kHz
             self.registers.ctl.modify(TAxCTL::ID::DividedBy8);
             self.registers.ex0.modify(TAxEX0::TAIDEX::DivideBy5);
             (crate::cs::SMCLK_HZ / 40) / frequency_hz
@@ -420,10 +420,10 @@ impl<'a> InternalTimer for TimerA<'a> {
         );
 
         // Set timer value
-        self.registers.ccr0.set(reg_val as u16);
+        self.registers.ccr0.set((reg_val - 1) as u16);
         self.registers.cctl0.modify(TAxCCTLx::CCIE::CLEAR);
         // Set capture value to raise interrupt
-        self.registers.ccr1.set((reg_val - 1) as u16);
+        self.registers.ccr1.set((reg_val - 2) as u16);
         // Enable CCR interrupt to trigger the corresponding Hardware
         self.registers
             .cctl1

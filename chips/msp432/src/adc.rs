@@ -31,7 +31,8 @@ const ADC_BASE: StaticRef<AdcRegisters> =
 
 const AVAILABLE_ADC_CHANNELS: usize = 24;
 const DEFAULT_ADC_RESOLUTION: AdcResolution = AdcResolution::Bits14;
-const MAX_SAMPLE_FREQ_HZ: u32 = 1_000_000; // Maximum sampling frequency is 1Msps
+// Maximum sampling frequency is 1Msps, but due to the timer, limit it to 150kHz
+const MAX_SAMPLE_FREQ_HZ: u32 = 150_000;
 
 register_structs! {
     /// ADC14
