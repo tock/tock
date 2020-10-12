@@ -546,6 +546,10 @@ endef
 ci-job-qemu: ci-setup-qemu
 	$(if $(CI_JOB_QEMU),$(call ci_job_qemu))
 
+.PHONY: board-release-test
+board-release-test:
+	@cd tools/board-runner;\
+		cargo run
 
 
 ### ci-runner-netlify jobs:
