@@ -3,7 +3,6 @@
 use core::fmt::Write;
 use core::hint::unreachable_unchecked;
 use kernel;
-use kernel::common::registers::FieldValue;
 use kernel::debug;
 use kernel::hil::time::Alarm;
 use kernel::Chip;
@@ -130,8 +129,6 @@ impl<A: 'static + Alarm<'static>> kernel::Chip for EarlGrey<A> {
     }
 
     fn service_pending_interrupts(&self) {
-        let mut reenable_intr = FieldValue::<u32, mie::Register>::new(0, 0, 0);
-
         loop {
             let mip = CSR.mip.extract();
 
@@ -139,13 +136,11 @@ impl<A: 'static + Alarm<'static>> kernel::Chip for EarlGrey<A> {
                 unsafe {
                     timer::TIMER.service_interrupt();
                 }
-                reenable_intr += mie::mtimer::SET;
             }
             if mip.is_set(mip::mext) {
                 unsafe {
                     self.handle_plic_interrupts();
                 }
-                reenable_intr += mie::mext::SET;
             }
 
             if !mip.matches_any(mip::mext::SET + mip::mtimer::SET) {
@@ -153,8 +148,9 @@ impl<A: 'static + Alarm<'static>> kernel::Chip for EarlGrey<A> {
             }
         }
 
-        // re-enable any interrupt classes which we handled
-        CSR.mie.modify(reenable_intr);
+        // Re-enable all MIE interrupts that we care about. Since we looped
+        // until we handled them all, we can re-enable all of them.
+        CSR.mie.modify(mie::mext::SET + mie::mtimer::SET);
     }
 
     fn has_pending_interrupts(&self) -> bool {
