@@ -50,6 +50,73 @@
 //!
 //! TickFS provides ACID properties.
 //!
+//! # Using TickFS
+//!
+//! To use TickFS first you need to implemented the `FlashCtrl<P>` trait.
+//!
+//! Then you will need to create a TickFS implementation.
+//!
+//!
+//! ```rust
+//! // EXAMPLE ONLY: The `DefaultHasher` is subject to change
+//! // and hence is not a good fit.
+//! use std::collections::hash_map::DefaultHasher;
+//! use std::cell::RefCell;
+//! use tickfs::TickFS;
+//! use tickfs::error_codes::ErrorCode;
+//! use tickfs::flash_controller::FlashController;
+//!
+//! struct FlashCtrl {
+//!     buf: RefCell<[[u8; 1024]; 64]>,
+//! }
+//!
+//! impl FlashCtrl {
+//!     fn new() -> Self {
+//!         Self {
+//!             buf: RefCell::new([[0xFF; 1024]; 64]),
+//!         }
+//!     }
+//! }
+//!
+//! impl FlashController for FlashCtrl {
+//!     fn read_region(&self, region_number: usize, offset: usize, buf: &mut [u8]) -> Result<(), ErrorCode> {
+//!         // TODO: Read the specified flash region
+//!         for (i, b) in buf.iter_mut().enumerate() {
+//!             *b = self.buf.borrow()[region_number][offset + i]
+//!         }
+//!         Ok(())
+//!     }
+//!
+//!     fn write(&self, address: usize, buf: &[u8]) -> Result<(), ErrorCode> {
+//!         // TODO: Write the data to the specified flash address
+//!         for (i, d) in buf.iter().enumerate() {
+//!             self.buf.borrow_mut()[address / 1024][(address % 1024) + i] = *d;
+//!         }
+//!         Ok(())
+//!     }
+//!
+//!     fn erase_region(&self, region_number: usize) -> Result<(), ErrorCode> {
+//!         // TODO: Erase the specified flash region
+//!         Ok(())
+//!     }
+//! }
+//!
+//! let mut read_buf: [u8; 1024] = [0; 1024];
+//! let tickfs = TickFS::<FlashCtrl, DefaultHasher>::new(FlashCtrl::new(),
+//!                   (&mut DefaultHasher::new(), &mut DefaultHasher::new()),
+//!                   &mut read_buf, 0x1000, 0x400).unwrap();
+//!
+//! // Add a key
+//! let value: [u8; 32] = [0x23; 32];
+//! tickfs.append_key(&mut DefaultHasher::new(), "ONE", &value).unwrap();
+//!
+//! // Get the same key back
+//! let mut buf: [u8; 32] = [0; 32];
+//! tickfs.get_key(&mut DefaultHasher::new(), "ONE", &mut buf).unwrap();
+//! ```
+//!
+//! You can then use the `get_key()` function to get the key back from flash.
+//!
 //! # Collisions
 //!
 //! TickFS will prevent a new key/value pair with a colliding hash of the key to be
@@ -106,3 +173,11 @@
 pub mod error_codes;
 pub mod flash_controller;
 pub mod tickfs;
+
+// Use this to generate nicer docs
+#[doc(inline)]
+pub use crate::error_codes::ErrorCode;
+#[doc(inline)]
+pub use crate::flash_controller::FlashController;
+#[doc(inline)]
+pub use crate::tickfs::TickFS;

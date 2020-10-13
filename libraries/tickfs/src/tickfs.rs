@@ -10,11 +10,11 @@ use core::marker::PhantomData;
 pub const VERSION: u8 = 0;
 
 /// The struct storing all of the TickFS information.
-pub struct TickFS<C: FlashController, H: Hasher> {
+pub struct TickFS<'a, C: FlashController, H: Hasher> {
     controller: C,
     flash_size: usize,
     region_size: usize,
-    read_buffer: Cell<&'static mut [u8]>,
+    read_buffer: Cell<&'a mut [u8]>,
     phantom_hasher: PhantomData<H>,
 }
 
@@ -52,7 +52,7 @@ pub(crate) const CHECK_SUM_LEN: usize = 8;
 const MAIN_KEY: &str = "tickfs-super-key";
 
 /// This is the main TickFS struct.
-impl<C: FlashController, H: Hasher> TickFS<C, H> {
+impl<'a, C: FlashController, H: Hasher> TickFS<'a, C, H> {
     /// Create a new struct
     ///
     /// `C`: An implementation of the `FlashController` trait
@@ -70,7 +70,7 @@ impl<C: FlashController, H: Hasher> TickFS<C, H> {
     pub fn new(
         controller: C,
         hash_function: (&mut H, &mut H),
-        read_buffer: &'static mut [u8],
+        read_buffer: &'a mut [u8],
         flash_size: usize,
         region_size: usize,
     ) -> Option<Self> {
