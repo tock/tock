@@ -1,3 +1,5 @@
+//! # TickFS
+//!
 //! TickFS (Tiny Circular Key Value File System) is a small file system allowing
 //! key value pairs to be stored in Flash Memory.
 //!
@@ -8,7 +10,7 @@
 //! TickFS is based on similar concepts as
 //! [Yaffs1](https://yaffs.net/documents/how-yaffs-works]).
 //!
-//! # Goals of TickFS
+//! ## Goals of TickFS
 //!
 //! TickFS is designed with these main goals (in order)
 //!
@@ -27,7 +29,38 @@
 //!  * Keys will rarely be deleted
 //!  * Key values will rarely need to be modified
 //!
-//! # How TickFS works
+//! ## ACID characteristics
+//!
+//! TickFS provides ACID properties. For the purpose of ACID a transaction is a
+//! key operation, that is finding, adding, invalidating or fully removing
+//! (garbage collection) a key.
+//!
+//! To provide ACIS characteristics TickFS requires that the `FlashController`
+//! implementation complete all transactions in a single operation. That is the
+//! flash `write()` function must either successfully write all of the data or
+//! none. If the implementation completes a partial operation, then the Atomicity
+//! and Consistency traits will be lost. If the implementation reports completion
+//! when the data hasn't been written yet, then the Isolation trait will be lost.
+//!
+//! Atomicity: TickFS guarantees that all operations are treated as a single unit
+//! inside the implementation. The database will be left unchanged if a
+//! transaction fails.
+//!
+//! Consistency: Consistency is maintained similar to atomicity. All operations
+//! can only take the database from a valid state to another valid state.
+//!
+//! Isolation: TickFS only allows a single operation at a time. In this way it
+//! provides isolation. The layer above TickFS is responsible for handling
+//! concurrent accesses by deferring operations for example.
+//!
+//! Durability: TickFS ensures durability and once a transaction has completed
+//! and been committed to flash it will remain there.
+//!
+//! ## Using TickFS
+//!
+//! See the generated Rust documentation for details on using this in your project.
+//!
+//! ## How TickFS works
 //!
 //! Unlike a regular File System (FS) TickFS is only designed to store Key/Value (KV)
 //! pairs in flash. It does not support writing actual files, directories or other
@@ -46,9 +79,74 @@
 //! the user wanted to store as well as extra header data. Objects are internal to
 //! TickFS and users don't need to understand them in detail to use it.
 //!
-//! To see the full TickFS spec check the [README.md file](https://github.com/tock/tock/blob/master/libraries/tickfs/README.md).
+//! For more details on the technical implementation see the [SPEC.md](./spec.md) file.
 //!
-//! TickFS provides ACID properties.
+//! # Using TickFS
+//!
+//! To use TickFS first you need to implemented the `FlashCtrl<P>` trait.
+//!
+//! Then you will need to create a TickFS implementation.
+//!
+//!
+//! ```rust
+//! // EXAMPLE ONLY: The `DefaultHasher` is subject to change
+//! // and hence is not a good fit.
+//! use std::collections::hash_map::DefaultHasher;
+//! use std::cell::RefCell;
+//! use tickfs::TickFS;
+//! use tickfs::error_codes::ErrorCode;
+//! use tickfs::flash_controller::FlashController;
+//!
+//! struct FlashCtrl {
+//!     buf: RefCell<[[u8; 1024]; 64]>,
+//! }
+//!
+//! impl FlashCtrl {
+//!     fn new() -> Self {
+//!         Self {
+//!             buf: RefCell::new([[0xFF; 1024]; 64]),
+//!         }
+//!     }
+//! }
+//!
+//! impl FlashController for FlashCtrl {
+//!     fn read_region(&self, region_number: usize, offset: usize, buf: &mut [u8]) -> Result<(), ErrorCode> {
+//!         // TODO: Read the specified flash region
+//!         for (i, b) in buf.iter_mut().enumerate() {
+//!             *b = self.buf.borrow()[region_number][offset + i]
+//!         }
+//!         Ok(())
+//!     }
+//!
+//!     fn write(&self, address: usize, buf: &[u8]) -> Result<(), ErrorCode> {
+//!         // TODO: Write the data to the specified flash address
+//!         for (i, d) in buf.iter().enumerate() {
+//!             self.buf.borrow_mut()[address / 1024][(address % 1024) + i] = *d;
+//!         }
+//!         Ok(())
+//!     }
+//!
+//!     fn erase_region(&self, region_number: usize) -> Result<(), ErrorCode> {
+//!         // TODO: Erase the specified flash region
+//!         Ok(())
+//!     }
+//! }
+//!
+//! let mut read_buf: [u8; 1024] = [0; 1024];
+//! let tickfs = TickFS::<FlashCtrl, DefaultHasher>::new(FlashCtrl::new(),
+//!                   (&mut DefaultHasher::new(), &mut DefaultHasher::new()),
+//!                   &mut read_buf, 0x1000, 0x400).unwrap();
+//!
+//! // Add a key
+//! let value: [u8; 32] = [0x23; 32];
+//! tickfs.append_key(&mut DefaultHasher::new(), "ONE", &value).unwrap();
+//!
+//! // Get the same key back
+//! let mut buf: [u8; 32] = [0; 32];
+//! tickfs.get_key(&mut DefaultHasher::new(), "ONE", &mut buf).unwrap();
+//! ```
+//!
+//! You can then use the `get_key()` function to get the key back from flash.
 //!
 //! # Collisions
 //!
@@ -99,6 +197,17 @@
 //!         value.hash(hash_function);
 //!         let check_sum = hash_function.finish();
 //! ```
+//! ## Versions
+//!
+//! TickFS stores the version when adding objects to the flash storage.
+//!
+//! TickFS is currently version 0.
+//!
+//!  * Version 0
+//!    * Version 0 is a draft version. It should NOT be used for important data!
+//!      Version 0 maintains no backwards compatible support and could change at
+//!      any time.
+//!
 
 #![no_std]
 #![forbid(unsafe_code)]
@@ -107,3 +216,11 @@
 pub mod error_codes;
 pub mod flash_controller;
 pub mod tickfs;
+
+// Use this to generate nicer docs
+#[doc(inline)]
+pub use crate::error_codes::ErrorCode;
+#[doc(inline)]
+pub use crate::flash_controller::FlashController;
+#[doc(inline)]
+pub use crate::tickfs::TickFS;
