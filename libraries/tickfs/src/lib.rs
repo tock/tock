@@ -48,6 +48,8 @@
 //!
 //! To see the full TickFS spec check the [README.md file](https://github.com/tock/tock/blob/master/libraries/tickfs/README.md).
 //!
+//! TickFS provides ACID properties.
+//!
 //! # Collisions
 //!
 //! TickFS will prevent a new key/value pair with a colliding hash of the key to be
@@ -76,9 +78,32 @@
 //! flash can change the values without being detected. An attacked with access
 //! to flash can also read all of the information. Any privacy, security or
 //! authentication measures need to be layered on top of TickFS.
+//!
+//! # Hash Function
+//!
+//! Any hash function that implements Rust's `core::hash::Hasher` trait can be used.
+//!
+//! The hash function ideally should generate uniform hashes and must not change during
+//! the lifetime of the filesystem.
+//!
+//! The Rust `core::hash::Hasher` implementation is a little strange. When the
+//! hash is calculated with the `finish()` function the internal state of the
+//! `Hasher` is not reset. This means that the check sum is generated with the
+//! following code and the key input becomes part of the check sum.
+//!
+//! ```rust,ignore
+//!         key.hash(hash_function);
+//!         let hash = hash_function.finish();
+//!
+//!         buf.hash(hash_function);
+//!         value.hash(hash_function);
+//!         let check_sum = hash_function.finish();
+//! ```
 
 #![no_std]
+#![forbid(unsafe_code)]
 #![deny(missing_docs)]
 
 pub mod error_codes;
 pub mod flash_controller;
+pub mod tickfs;
