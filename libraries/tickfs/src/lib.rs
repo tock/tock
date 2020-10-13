@@ -81,3 +81,4 @@
 #![deny(missing_docs)]
 
 pub mod error_codes;
+pub mod flash_controller;
