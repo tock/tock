@@ -181,3 +181,11 @@ pub use crate::error_codes::ErrorCode;
 pub use crate::flash_controller::FlashController;
 #[doc(inline)]
 pub use crate::tickfs::TickFS;
+
+// This is used to run the tests on a host
+#[cfg(test)]
+#[macro_use]
+extern crate std;
+
+#[cfg(test)]
+mod tests;
