@@ -265,8 +265,6 @@ pub unsafe fn reset_handler() {
     );
 
     earlgrey::i2c::I2C.set_master_client(i2c_master);
-    //Uncomment to run multi alarm test
-    //multi_alarm_test::run_multi_alarm(mux_alarm);
 
     // USB support is currently broken in the OpenTitan hardware
     // See https://github.com/lowRISC/opentitan/issues/2598 for more details
