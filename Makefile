@@ -507,11 +507,11 @@ endef
 define ci_setup_qemu_opentitan
 	$(call banner,CI-Setup: Get OpenTitan boot ROM image)
 	# Download OpenTitan image
-	@printf "Downloading OpenTitan boot rom from: 5b2f67c10244a3f4d0e9b92a4fdc5c397fd69b73\n"
+	@printf "Downloading OpenTitan boot rom from: 4429c362900713c059fbd870db140e0058e1c0eb\n"
 	@pwd=$$(pwd) && \
 		temp=$$(mktemp -d) && \
 		cd $$temp && \
-		curl $$(curl "https://dev.azure.com/lowrisc/opentitan/_apis/build/builds/21336/artifacts?artifactName=opentitan-dist&api-version=5.1" | cut -d \" -f 38) --output opentitan-dist.zip; \
+		curl $$(curl "https://dev.azure.com/lowrisc/opentitan/_apis/build/builds/23197/artifacts?artifactName=opentitan-dist&api-version=5.1" | cut -d \" -f 38) --output opentitan-dist.zip; \
 		unzip opentitan-dist.zip; \
 		tar -xf opentitan-dist/opentitan-snapshot-20191101-*.tar.xz; \
 		mv opentitan-snapshot-20191101-*/sw/device/boot_rom/boot_rom_fpga_nexysvideo.elf $$pwd/tools/qemu-runner/opentitan-boot-rom.elf
