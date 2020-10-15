@@ -138,14 +138,12 @@ enum Expiration {
 
 #[derive(Copy, Clone)]
 struct AlarmData {
-    t0: u32,
     expiration: Expiration,
 }
 
 impl AlarmData {
     fn new() -> AlarmData {
         AlarmData {
-            t0: 0,
             expiration: Expiration::Disabled,
         }
     }
@@ -288,7 +286,6 @@ impl App {
 
     // Set the next alarm for this app using the period and provided start time.
     fn set_next_alarm<F: Frequency>(&mut self, now: u32) {
-        self.alarm_data.t0 = now;
         let nonce = self.random_nonce() % 10;
 
         let period_ms = (self.advertisement_interval_ms + nonce) * F::frequency() / 1000;
@@ -389,8 +386,8 @@ where
         self.app.each(|app| {
             if let Expiration::Enabled(reference, dt) = app.alarm_data.expiration {
                 let exp = A::Ticks::from(reference.wrapping_add(dt));
-                let t0 = A::Ticks::from(app.alarm_data.t0);
-                let expired = t0.within_range(exp, now);
+                let t0 = A::Ticks::from(reference);
+                let expired = !now.within_range(t0, exp);
                 if expired {
                     if self.busy.get() {
                         // The radio is currently busy, so we won't be able to start the
