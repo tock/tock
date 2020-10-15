@@ -310,7 +310,7 @@ pub unsafe fn reset_handler() {
             stm32f429zi::gpio::Pin,
             (
                 stm32f429zi::gpio::PinId::PC13.get_pin().as_ref().unwrap(),
-                kernel::hil::gpio::ActivationMode::ActiveLow,
+                kernel::hil::gpio::ActivationMode::ActiveHigh,
                 kernel::hil::gpio::FloatingState::PullNone
             )
         ),
