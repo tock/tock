@@ -55,6 +55,7 @@ struct STM32F412GDiscovery {
     adc: &'static capsules::adc::AdcVirtualized<'static>,
     ft6x06: &'static capsules::ft6x06::Ft6x06<'static>,
     touch: &'static capsules::touch::Touch<'static>,
+    temperature: &'static capsules::temperature::TemperatureSensor<'static>,
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
@@ -73,6 +74,7 @@ impl Platform for STM32F412GDiscovery {
             capsules::adc::DRIVER_NUM => f(Some(self.adc)),
             capsules::ft6x06::DRIVER_NUM => f(Some(self.ft6x06)),
             capsules::touch::DRIVER_NUM => f(Some(self.touch)),
+            capsules::temperature::DRIVER_NUM => f(Some(self.temperature)),
             _ => f(None),
         }
     }
@@ -564,6 +566,7 @@ pub unsafe fn reset_handler() {
         adc: adc_syscall,
         ft6x06: ft6x06,
         touch: touch,
+        temperature: temp,
     };
 
     // // Optional kernel tests
