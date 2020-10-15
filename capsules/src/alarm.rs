@@ -2,7 +2,7 @@
 //! a point in time has been reached.
 
 use core::cell::Cell;
-use kernel::hil::time::{self, Alarm, Frequency, Ticks};
+use kernel::hil::time::{self, Alarm, Frequency, Ticks, Ticks32};
 use kernel::{AppId, Callback, Driver, Grant, ReturnCode};
 
 /// Syscall driver number.
@@ -259,14 +259,14 @@ impl<'a, A: Alarm<'a>> Driver for AlarmDriver<'a, A> {
 
 impl<'a, A: Alarm<'a>> time::AlarmClient for AlarmDriver<'a, A> {
     fn alarm(&self) {
-        let now: A::Ticks = self.alarm.now();
+        let now: Ticks32 = Ticks32::from(self.alarm.now().into_u32());
         self.app_alarms.each(|alarm| {
             if let Expiration::Enabled { reference, dt } = alarm.expiration {
                 // Now is not within reference, reference + ticks; this timer
                 // as passed (since reference must be in the past)
                 if !now.within_range(
-                    A::Ticks::from(reference),
-                    A::Ticks::from(reference.wrapping_add(dt)),
+                    Ticks32::from(reference),
+                    Ticks32::from(reference.wrapping_add(dt)),
                 ) {
                     alarm.expiration = Expiration::Disabled;
                     self.num_armed.set(self.num_armed.get() - 1);
