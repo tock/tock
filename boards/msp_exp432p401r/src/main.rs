@@ -50,6 +50,7 @@ struct MspExp432P401R {
         'static,
         capsules::virtual_alarm::VirtualMuxAlarm<'static, msp432::timer::TimerA<'static>>,
     >,
+    ipc: kernel::ipc::IPC,
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
@@ -63,6 +64,7 @@ impl Platform for MspExp432P401R {
             capsules::console::DRIVER_NUM => f(Some(self.console)),
             capsules::button::DRIVER_NUM => f(Some(self.button)),
             capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
+            kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             _ => f(None),
         }
     }
@@ -162,6 +164,7 @@ pub unsafe fn reset_handler() {
     ))
     .finalize(components::led_component_buf!(msp432::gpio::Pin));
 
+    let memory_allocation_capability = create_capability!(capabilities::MemoryAllocationCapability);
     let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
     let process_management_capability =
         create_capability!(capabilities::ProcessManagementCapability);
@@ -198,6 +201,7 @@ pub unsafe fn reset_handler() {
         console: console,
         button: button,
         alarm: alarm,
+        ipc: kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability),
     };
 
     debug!("Initialization complete. Entering main loop");
@@ -240,7 +244,7 @@ pub unsafe fn reset_handler() {
     board_kernel.kernel_loop(
         &msp_exp432p4014,
         chip,
-        None,
+        Some(&msp_exp432p4014.ipc),
         scheduler,
         &main_loop_capability,
     );
