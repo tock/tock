@@ -409,7 +409,7 @@ pub unsafe fn reset_handler() {
             stm32f303xc::gpio::Pin<'static>,
             (
                 stm32f303xc::gpio::PinId::PA00.get_pin().as_ref().unwrap(),
-                kernel::hil::gpio::ActivationMode::ActiveLow,
+                kernel::hil::gpio::ActivationMode::ActiveHigh,
                 kernel::hil::gpio::FloatingState::PullNone
             )
         ),
