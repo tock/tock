@@ -28,78 +28,6 @@ Tock is documented in the [doc](doc) folder. Read through the guides there to
 learn about the overview and design of Tock, its implementation, and much
 more.
 
-<details>
-  <summary>There are also several <a href="https://dl.acm.org/doi/10.1145/3132747.3132786">academic papers</a>
-that describe the design of Tock.</summary>
-  
-  <h4><a href="https://dl.acm.org/doi/10.1145/3132747.3132786">SOSP: Multiprogramming a 64kB Computer Safely and Efficiently</a></h4>
-  <p>This is the primary paper the describes the design consdierations of Tock.</p>
-  <pre>
-@inproceedings{levy17multiprogramming,
-	title = {Multiprogramming a 64kB Computer Safely and Efficiently},
-	booktitle = {Proceedings of the 26th Symposium on Operating Systems Principles},
-	series = {SOSP'17},
-	year = {2017},
-	month = {10},
-	isbn = {978-1-4503-5085-3},
-	location = {Shanghai, China},
-	pages = {234--251},
-	numpages = {18},
-	url = {http://doi.acm.org/10.1145/3132747.3132786},
-	doi = {10.1145/3132747.3132786},
-	acmid = {3132786},
-	publisher = {ACM},
-	address = {New York, NY, USA},
-	conference-url = {https://www.sigops.org/sosp/sosp17/},
-	author = {Levy, Amit and Campbell, Bradford and Ghena, Branden and Giffin, Daniel B. and Pannuto, Pat and Dutta, Prabal and Levis, Philip},
-}
-  </pre>
-  
-  <p>There are also two shorter papers that look at potential limitations of the Rust language for embedded software development. The earlier PLOS paper lays out challenges and the later APSys paper lays out potential solutions. Some persons describing work on programming languages and type theory may benefit from these references, but generally, most work should cite the SOSP paper above.</p>
-  <h4><a href="http://doi.acm.org/10.1145/3124680.3124717">APSys: The Case for Writing a Kernel in Rust</a></h4>
-  <pre>
-@inproceedings{levy17rustkernel,
-	title = {The Case for Writing a Kernel in Rust},
-	booktitle = {Proceedings of the 8th Asia-Pacific Workshop on Systems},
-	series = {APSys '17},
-	year = {2017},
-	month = {9},
-	isbn = {978-1-4503-5197-3},
-	location = {Mumbai, India},
-	pages = {1:1--1:7},
-	articleno = {1},
-	numpages = {7},
-	url = {http://doi.acm.org/10.1145/3124680.3124717},
-	doi = {10.1145/3124680.3124717},
-	acmid = {3124717},
-	publisher = {ACM},
-	address = {New York, NY, USA},
-	conference-url = {https://www.cse.iitb.ac.in/~apsys2017/},
-	author = {Levy, Amit and Campbell, Bradford and Ghena, Branden and Pannuto, Pat and Dutta, Prabal and Levis, Philip},
-}
-    </pre>
-    
-  <h4><a href="http://dx.doi.org/10.1145/2818302.2818306">PLOS: Ownership is Theft: Experiences Building an Embedded OS in Rust</a></h4>
-  <pre>
-@inproceedings{levy15ownership,
-	title = {Ownership is Theft: Experiences Building an Embedded {OS} in {R}ust},
-	booktitle = {Proceedings of the 8th Workshop on Programming Languages and Operating Systems},
-	series = {PLOS 2015},
-	year = {2015},
-	month = {10},
-	isbn = {978-1-4503-3942-1},
-	doi = {10.1145/2818302.2818306},
-	url = {http://dx.doi.org/10.1145/2818302.2818306},
-	location = {Monterey, CA},
-	publisher = {ACM},
-	address = {New York, NY, USA},
-	conference-url = {http://plosworkshop.org/2015/},
-	author = {Levy, Amit and Andersen, Michael P and Campbell, Bradford and Culler, David and Dutta, Prabal and Ghena, Branden and Levis, Philip and Pannuto, Pat},
-}
-</pre>
-    
-</details>
-
 
 
 ### Use Tock
@@ -157,6 +85,86 @@ repositories, chats, and meetup events. For moderation issues, please contact
 members of the @tock/core-wg.
 
 [coc]: https://www.rust-lang.org/conduct.html
+
+
+Cite this Project
+-----------------
+
+<h4>Tock was presented at SOSP'17: <a href="https://dl.acm.org/doi/10.1145/3132747.3132786">Multiprogramming a 64kB Computer Safely and Efficiently</a></h4>
+<p>
+<details>
+<summary>Bibtex</summary>
+<pre>
+@inproceedings{levy17multiprogramming,
+      title = {Multiprogramming a 64kB Computer Safely and Efficiently},
+      booktitle = {Proceedings of the 26th Symposium on Operating Systems Principles},
+      series = {SOSP'17},
+      year = {2017},
+      month = {10},
+      isbn = {978-1-4503-5085-3},
+      location = {Shanghai, China},
+      pages = {234--251},
+      numpages = {18},
+      url = {http://doi.acm.org/10.1145/3132747.3132786},
+      doi = {10.1145/3132747.3132786},
+      acmid = {3132786},
+      publisher = {ACM},
+      address = {New York, NY, USA},
+      conference-url = {https://www.sigops.org/sosp/sosp17/},
+      author = {Levy, Amit and Campbell, Bradford and Ghena, Branden and Giffin, Daniel B. and Pannuto, Pat and Dutta, Prabal and Levis, Philip},
+}
+</pre>
+</details>
+</p>
+
+
+<p>This is the primary paper the describes the design consdierations of Tock.</p>
+
+<details>
+  <summary>Other papers</summary>
+
+  <p>There are also two shorter papers that look at potential limitations of the Rust language for embedded software development. The earlier PLOS paper lays out challenges and the later APSys paper lays out potential solutions. Some persons describing work on programming languages and type theory may benefit from these references, but generally, most work should cite the SOSP paper above.</p>
+  <h4><a href="http://doi.acm.org/10.1145/3124680.3124717">APSys: The Case for Writing a Kernel in Rust</a></h4>
+<pre>
+@inproceedings{levy17rustkernel,
+	title = {The Case for Writing a Kernel in Rust},
+	booktitle = {Proceedings of the 8th Asia-Pacific Workshop on Systems},
+	series = {APSys '17},
+	year = {2017},
+	month = {9},
+	isbn = {978-1-4503-5197-3},
+	location = {Mumbai, India},
+	pages = {1:1--1:7},
+	articleno = {1},
+	numpages = {7},
+	url = {http://doi.acm.org/10.1145/3124680.3124717},
+	doi = {10.1145/3124680.3124717},
+	acmid = {3124717},
+	publisher = {ACM},
+	address = {New York, NY, USA},
+	conference-url = {https://www.cse.iitb.ac.in/~apsys2017/},
+	author = {Levy, Amit and Campbell, Bradford and Ghena, Branden and Pannuto, Pat and Dutta, Prabal and Levis, Philip},
+}</pre>
+
+  <h4><a href="http://dx.doi.org/10.1145/2818302.2818306">PLOS: Ownership is Theft: Experiences Building an Embedded OS in Rust</a></h4>
+<pre>
+@inproceedings{levy15ownership,
+	title = {Ownership is Theft: Experiences Building an Embedded {OS} in {R}ust},
+	booktitle = {Proceedings of the 8th Workshop on Programming Languages and Operating Systems},
+	series = {PLOS 2015},
+	year = {2015},
+	month = {10},
+	isbn = {978-1-4503-3942-1},
+	doi = {10.1145/2818302.2818306},
+	url = {http://dx.doi.org/10.1145/2818302.2818306},
+	location = {Monterey, CA},
+	publisher = {ACM},
+	address = {New York, NY, USA},
+	conference-url = {http://plosworkshop.org/2015/},
+	author = {Levy, Amit and Andersen, Michael P and Campbell, Bradford and Culler, David and Dutta, Prabal and Ghena, Branden and Levis, Philip and Pannuto, Pat},
+}</pre>
+</details>
+
 
 License
 -------
