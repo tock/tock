@@ -26,7 +26,7 @@ In the OpenTitan repo build the `spiflash` program.
 make -C sw/host/spiflash clean all
 ```
 
-Export the `OPENTITAN_TREE` enviroment variable to point to the OpenTitan tree.
+Export the `OPENTITAN_TREE` environment variable to point to the OpenTitan tree.
 
 ```shell
 export OPENTITAN_TREE=/home/opentitan/
@@ -72,7 +72,7 @@ Programming Apps
 
 Tock apps for OpenTitan must be included in the Tock binary file flashed with the steps mentioned above.
 
-Apps are built out of tree. Currently [libtock-rs](https://github.com/tock/libtock-rs) apps work well while [libtock-c](https://github.com/tock/libtock-c) apps require a special branch and complex work arounds. It is recomended that libtock-rs apps are used.
+Apps are built out of tree. Currently [libtock-rs](https://github.com/tock/libtock-rs) apps work well while [libtock-c](https://github.com/tock/libtock-c) apps require a special branch and complex work arounds. It is recommended that libtock-rs apps are used.
 
 Once an app is built and a tbf file is generated, you can use `riscv32-none-elf-objcopy` with `--update-section` to create an ELF image with the
 apps included.
@@ -108,7 +108,7 @@ Running in QEMU
 
 The OpenTitan application can be run in the QEMU emulation platform for RISC-V, allowing quick and easy testing.
 
-Unfortunately you need QEMU 5.2, which at the time of writing is unlikely to be avaliable in your distro. Luckily Tock can build QEMU for you. From the top level of the Tock source just run `make ci-setup-qemu` and follow the steps.
+Unfortunately you need QEMU 5.1, which at the time of writing is unlikely to be available in your distro. Luckily Tock can build QEMU for you. From the top level of the Tock source just run `make ci-setup-qemu` and follow the steps.
 
 QEMU can be started with Tock using the `qemu` make target:
 
@@ -126,7 +126,7 @@ $ make OPENTITAN_BOOT_ROM=<path_to_opentitan/sw/device/boot_rom/boot_rom_fpga_ne
 
 The TBF must be compiled for the OpenTitan board which is, at the time of writing,
 supported for Rust userland apps using libtock-rs. For example, you can build
-the Hello World exmple app from the libtock-rs repository by running:
+the Hello World example app from the libtock-rs repository by running:
 
 ```
 $ cd [LIBTOCK-RS-DIR]
