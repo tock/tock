@@ -15,6 +15,10 @@ TOOLCHAIN ?= llvm
 CARGO     ?= cargo
 RUSTUP    ?= rustup
 
+# `true` if a non-rustup toolchain (aka one installed via `rustup toolchain
+# link`) is in use.
+CUSTOM_RUST_TOOLCHAIN ?=
+
 # Default location of target directory (relative to board makefile)
 # passed to cargo --target_dir
 TARGET_DIRECTORY ?= $(TOCK_ROOT_DIRECTORY)target/
@@ -117,15 +121,17 @@ endif
 # Verify that various required Rust components are installed. All of these steps
 # only have to be done once per Rust version, but will take some time when
 # compiling for the first time.
-LLVM_TOOLS_INSTALLED := $(shell $(RUSTUP) component list | grep 'llvm-tools-preview.*(installed)' > /dev/null; echo $$?)
-ifeq ($(LLVM_TOOLS_INSTALLED),1)
-  $(shell $(RUSTUP) component add llvm-tools-preview)
-endif
-ifneq ($(shell $(RUSTUP) component list | grep rust-src),rust-src (installed))
-  $(shell $(RUSTUP) component add rust-src)
-endif
-ifneq ($(shell $(RUSTUP) target list | grep "$(TARGET) (installed)"),$(TARGET) (installed))
-  $(shell $(RUSTUP) target add $(TARGET))
+ifneq ($(CUSTOM_RUST_TOOLCHAIN),true)
+  LLVM_TOOLS_INSTALLED := $(shell $(RUSTUP) component list | grep 'llvm-tools-preview.*(installed)' > /dev/null; echo $$?)
+  ifeq ($(LLVM_TOOLS_INSTALLED),1)
+    $(shell $(RUSTUP) component add llvm-tools-preview)
+  endif
+  ifneq ($(shell $(RUSTUP) component list | grep rust-src),rust-src (installed))
+    $(shell $(RUSTUP) component add rust-src)
+  endif
+  ifneq ($(shell $(RUSTUP) target list | grep "$(TARGET) (installed)"),$(TARGET) (installed))
+    $(shell $(RUSTUP) target add $(TARGET))
+  endif
 endif
 
 # If the user is using the standard toolchain we need to get the full path.
