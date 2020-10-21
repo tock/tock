@@ -1,4 +1,5 @@
 #![feature(const_fn)]
+#![feature(min_const_generics)]
 #![forbid(unsafe_code)]
 #![no_std]
 
