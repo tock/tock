@@ -1595,6 +1595,15 @@ fn exceeded_check(size: usize, allocated: usize) -> &'static str {
 }
 
 impl<C: 'static + Chip> Process<'_, C> {
+    const INITIAL_APP_MEMORY_SIZE: usize = 3 * 1024;
+
+    // Memory offset for callback ring buffer (10 element length).
+    const CALLBACK_LEN: usize = 10;
+    const CALLBACKS_OFFSET: usize = mem::size_of::<Task>() * Self::CALLBACK_LEN;
+
+    // Memory offset to make room for this process's metadata.
+    const PROCESS_STRUCT_OFFSET: usize = mem::size_of::<Process<C>>();
+
     pub(crate) unsafe fn create(
         kernel: &'static Kernel,
         chip: &'static C,
@@ -1698,23 +1707,14 @@ impl<C: 'static + Chip> Process<'_, C> {
         let grant_ptrs_num = kernel.get_grant_count_and_finalize();
         let grant_ptrs_offset = grant_ptrs_num * grant_ptr_size;
 
-        // Allocate memory for callback ring buffer.
-        let callback_size = mem::size_of::<Task>();
-        let callback_len = 10;
-        let callbacks_offset = callback_len * callback_size;
-
-        // Make room to store this process's metadata.
-        let process_struct_offset = mem::size_of::<Process<C>>();
-
         // Initial sizes of the app-owned and kernel-owned parts of process
         // memory. Provide the app with plenty of initial process accessible
         // memory.
         let initial_kernel_memory_size =
-            grant_ptrs_offset + callbacks_offset + process_struct_offset;
-        let initial_app_memory_size = 3 * 1024;
+            grant_ptrs_offset + Self::CALLBACKS_OFFSET + Self::PROCESS_STRUCT_OFFSET;
 
-        if min_app_ram_size < initial_app_memory_size {
-            min_app_ram_size = initial_app_memory_size;
+        if min_app_ram_size < Self::INITIAL_APP_MEMORY_SIZE {
+            min_app_ram_size = Self::INITIAL_APP_MEMORY_SIZE;
         }
 
         // Minimum memory size for the process.
@@ -1771,7 +1771,7 @@ impl<C: 'static + Chip> Process<'_, C> {
             remaining_memory.as_ptr() as *const u8,
             remaining_memory.len(),
             min_total_memory_size,
-            initial_app_memory_size,
+            Self::INITIAL_APP_MEMORY_SIZE,
             initial_kernel_memory_size,
             mpu::Permissions::ReadWriteOnly,
             &mut mpu_config,
@@ -1824,8 +1824,8 @@ impl<C: 'static + Chip> Process<'_, C> {
         }
 
         // Set the initial process stack and memory to 3072 bytes.
-        let initial_stack_pointer = app_memory.as_ptr().add(initial_app_memory_size);
-        let initial_sbrk_pointer = app_memory.as_ptr().add(initial_app_memory_size);
+        let initial_stack_pointer = app_memory.as_ptr().add(Self::INITIAL_APP_MEMORY_SIZE);
+        let initial_sbrk_pointer = app_memory.as_ptr().add(Self::INITIAL_APP_MEMORY_SIZE);
 
         // Set up initial grant region.
         let mut kernel_memory_break = app_memory.as_mut_ptr().add(app_memory.len());
@@ -1852,7 +1852,7 @@ impl<C: 'static + Chip> Process<'_, C> {
 
         // Now that we know we have the space we can setup the memory for the
         // callbacks.
-        kernel_memory_break = kernel_memory_break.offset(-(callbacks_offset as isize));
+        kernel_memory_break = kernel_memory_break.offset(-(Self::CALLBACKS_OFFSET as isize));
 
         // This is safe today, as MPU constraints ensure that `memory_start`
         // will always be aligned on at least a word boundary, and that
@@ -1865,11 +1865,11 @@ impl<C: 'static + Chip> Process<'_, C> {
         #[allow(clippy::cast_ptr_alignment)]
         // Set up ring buffer for callbacks to the process.
         let callback_buf =
-            slice::from_raw_parts_mut(kernel_memory_break as *mut Task, callback_len);
+            slice::from_raw_parts_mut(kernel_memory_break as *mut Task, Self::CALLBACK_LEN);
         let tasks = RingBuffer::new(callback_buf);
 
         // Last thing in the kernel region of process RAM is the process struct.
-        kernel_memory_break = kernel_memory_break.offset(-(process_struct_offset as isize));
+        kernel_memory_break = kernel_memory_break.offset(-(Self::PROCESS_STRUCT_OFFSET as isize));
         let process_struct_memory_location = kernel_memory_break;
 
         // Determine the debug information to the best of our understanding.
@@ -2075,20 +2075,52 @@ impl<C: 'static + Chip> Process<'_, C> {
         self.allow_high_water_mark
             .set(self.original_allow_high_water_mark);
 
-        // Reset the MPU configuration based on the original app_break, which is
-        // likely different than what the app break was when the app crashed.
-        let mpu_config_res = self.mpu_config.map_or(Err(()), |mut config| {
-            self.chip.mpu().update_app_memory_region(
-                self.app_break.get(),
-                self.kernel_memory_break.get(),
+        // Reset MPU region configuration.
+        // TODO: ideally, this would be moved into a helper function used by both
+        // create() and reset(), but process load debugging complicates this.
+        // We just want to create new config with only flash and memory regions.
+        let mut mpu_config: <<C as Chip>::MPU as MPU>::MpuConfig = Default::default();
+        // Allocate MPU region for flash.
+        let app_mpu_flash_success = self
+            .chip
+            .mpu()
+            .allocate_region(
+                self.flash.as_ptr(),
+                self.flash.len(),
+                self.flash.len(),
+                mpu::Permissions::ReadExecuteOnly,
+                &mut mpu_config,
+            )
+            .is_some();
+
+        // Recalculate initial_kernel_memory_size as was done in create()
+        let grant_ptr_size = mem::size_of::<*const usize>();
+        let grant_ptrs_num = self.kernel.get_grant_count_and_finalize();
+        let grant_ptrs_offset = grant_ptrs_num * grant_ptr_size;
+
+        let initial_kernel_memory_size =
+            grant_ptrs_offset + Self::CALLBACKS_OFFSET + Self::PROCESS_STRUCT_OFFSET;
+
+        let app_mpu_mem_success = self
+            .chip
+            .mpu()
+            .allocate_app_memory_region(
+                self.memory.as_ptr() as *const u8,
+                self.memory.len(),
+                self.memory.len(), //we want exactly as much as we had before restart
+                Self::INITIAL_APP_MEMORY_SIZE,
+                initial_kernel_memory_size,
                 mpu::Permissions::ReadWriteOnly,
-                &mut config,
-            )?;
-            Ok(())
-        });
-        match mpu_config_res {
-            Ok(_) => {}
-            Err(_) => {
+                &mut mpu_config,
+            )
+            .is_some();
+
+        // Drop the old config and use the clean one
+        self.mpu_config.replace(mpu_config);
+
+        match (app_mpu_flash_success, app_mpu_mem_success) {
+            (true, true) => {}
+            _ => {
                 // We couldn't configure the MPU for the process. This shouldn't
                 // happen since we were able to start the process before, but at
                 // this point it is better to leave the app faulted and not
