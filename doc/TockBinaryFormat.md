@@ -85,6 +85,7 @@ struct TbfHeader {
     pic_options: Option<TbfHeaderPicOption1Fields>,
     name: Option<TbfHeaderPackageName>,
     flash_regions: Option<TbfHeaderWriteableFlashRegions>,
+    fixed_address: Option<TbfHeaderV2FixedAddresses>,
 }
 
 // Identifiers for the optional header structs.
@@ -134,6 +135,7 @@ struct TbfHeaderWriteableFlashRegions {
 
 // Fixed and required addresses for process RAM and/or process flash.
 struct TbfHeaderV2FixedAddresses {
+    base: TbfHeaderTlv,
     start_process_ram: u32,
     start_process_flash: u32,
 }
