@@ -42,6 +42,108 @@ use crate::callback::{AppId, Callback};
 use crate::mem::{AppSlice, Shared};
 use crate::returncode::ReturnCode;
 
+/// Possible return values of an `allow` driver method
+pub enum AllowResult {
+    /// The allow operation succeeded and the AppSlice has been stored
+    /// with the capsule
+    ///
+    /// The capsule **must** return any previously shared (potentially
+    /// empty, default constructed) AppSlice.
+    Success(AppSlice<Shared, u8>),
+    /// The allow operation was refused. The capsule has not stored
+    /// the AppSlice instance
+    ///
+    /// The capsule **must** return the passed AppSlice back.
+    Refuse(AppSlice<Shared, u8>, ReturnCode),
+}
+
+impl AllowResult {
+    pub fn success(old_appslice: AppSlice<Shared, u8>) -> Self {
+        AllowResult::Success(old_appslice)
+    }
+
+    pub fn refuse_allow(new_appslice: AppSlice<Shared, u8>, reason: ReturnCode) -> Self {
+        AllowResult::Refuse(new_appslice, reason)
+    }
+}
+
+// TODO: (to confirm) This can be the same type in the driver return
+// value and for the system call return value encoding (in contrast to
+// the current proposed AllowReturnValue and SubscribeReturnValue)
+//
+// Therefore, it is named CommandResult (analog to what the
+// Driver-trait return values for allow and subscribe would be called)
+// and it moved to driver.rs, as it's more closely associated with the
+// driver trait
+/// Possible return values of a `command` driver method
+#[derive(Copy, Clone, Debug)]
+pub enum CommandResult {
+    /// Generic error case
+    Error(ReturnCode),
+    /// Generic error case, with an additional 32-bit data field
+    ErrorU32(ReturnCode, u32),
+    /// Generic error case, with two additional 32-bit data fields
+    ErrorU32U32(ReturnCode, u32, u32),
+    /// Generic error case, with an additional 64-bit data field
+    ErrorU64(ReturnCode, u64),
+    /// Generic success case
+    Success,
+    /// Generic success case, with an additional 32-bit data field
+    SuccessU32(u32),
+    /// Generic success case, with two additional 32-bit data fields
+    SuccessU32U32(u32, u32),
+    /// Generic success case, with three additional 32-bit data fields
+    SuccessU32U32U32(u32, u32, u32),
+    /// Generic success case, with an additional 64-bit data field
+    SuccessU64(u64),
+    /// Generic success case, with an additional 32-bit and 64-bit
+    /// data field
+    SuccessU64U32(u64, u32),
+}
+
+impl CommandResult {
+    // TODO: Verify that these constructors get inlined
+    pub fn error(rc: ReturnCode) -> Self {
+        CommandResult::Error(rc)
+    }
+
+    pub fn error_u32(rc: ReturnCode, data0: u32) -> Self {
+        CommandResult::ErrorU32(rc, data0)
+    }
+
+    pub fn error_u32_u32(rc: ReturnCode, data0: u32, data1: u32) -> Self {
+        CommandResult::ErrorU32U32(rc, data0, data1)
+    }
+
+    pub fn error_u64(rc: ReturnCode, data0: u64) -> Self {
+        CommandResult::ErrorU64(rc, data0)
+    }
+
+    pub fn success() -> Self {
+        CommandResult::Success
+    }
+
+    pub fn success_u32(data0: u32) -> Self {
+        CommandResult::SuccessU32(data0)
+    }
+
+    pub fn success_u32_u32(data0: u32, data1: u32) -> Self {
+        CommandResult::SuccessU32U32(data0, data1)
+    }
+
+    pub fn success_u32_u32_u32(data0: u32, data1: u32, data2: u32) -> Self {
+        CommandResult::SuccessU32U32U32(data0, data1, data2)
+    }
+
+    pub fn success_u64(data0: u64) -> Self {
+        CommandResult::SuccessU64(data0)
+    }
+
+    pub fn success_u64_u32(data0: u64, data1: u32) -> Self {
+        CommandResult::SuccessU64U32(data0, data1)
+    }
+}
+
 /// `Driver`s implement the three driver-specific system calls: `subscribe`,
 /// `command` and `allow`.
 ///
@@ -96,6 +198,13 @@ pub trait Driver {
         ReturnCode::ENOSUPPORT
     }
 
+    // Tock 2.0 method preview:
+    //
+    // #[allow(unused_variables)]
+    // fn command(&self, minor_num: usize, r2: usize, r3: usize, caller_id: AppId) -> CommandResult {
+    //     CommandResult::error(ReturnCode::ENOSUPPORT)
+    // }
+
     /// `allow` lets an application give the driver access to a buffer in the
     /// application's memory. This returns `ENOSUPPORT` if not used.
     ///
@@ -111,4 +220,16 @@ pub trait Driver {
     ) -> ReturnCode {
         ReturnCode::ENOSUPPORT
     }
+
+    // Tock 2.0 method preview:
+    //
+    // #[allow(unused_variables)]
+    // fn allow(
+    //     &self,
+    //     app: AppId,
+    //     minor_num: usize,
+    //     slice: AppSlice<Shared, u8>,
+    // ) -> AllowResult {
+    //     AllowResult::refuse_allow(slice, ReturnCode::ENOSUPPORT)
+    // }
 }

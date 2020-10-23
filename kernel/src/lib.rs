@@ -111,7 +111,7 @@ mod sched;
 mod tbfheader;
 
 pub use crate::callback::{AppId, Callback};
-pub use crate::driver::Driver;
+pub use crate::driver::{AllowResult, CommandResult, Driver};
 pub use crate::grant::Grant;
 pub use crate::mem::{AppSlice, Private, Shared};
 pub use crate::platform::scheduler_timer::{SchedulerTimer, VirtualSchedulerTimer};
