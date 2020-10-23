@@ -90,7 +90,10 @@ members of the @tock/core-wg.
 Cite this Project
 -----------------
 
-<h4>Tock was presented at SOSP'17: <a href="https://dl.acm.org/doi/10.1145/3132747.3132786">Multiprogramming a 64kB Computer Safely and Efficiently</a></h4>
+<h4>Tock was presented at SOSP'17</h4>
+
+Amit Levy, Bradford Campbell, Branden Ghena, Daniel B. Giffin, Pat Pannuto, Prabal Dutta, and Philip Levis. 2017. Multiprogramming a 64kB Computer Safely and Efficiently. In Proceedings of the 26th Symposium on Operating Systems Principles (SOSP ’17). Association for Computing Machinery, New York, NY, USA, 234–251. DOI: https://doi.org/10.1145/3132747.3132786
+
 <p>
 <details>
 <summary>Bibtex</summary>
@@ -121,7 +124,7 @@ Cite this Project
 <p>This is the primary paper the describes the design consdierations of Tock.</p>
 
 <details>
-  <summary>Other papers</summary>
+  <summary>Other Tock-related papers</summary>
 
   <p>There are also two shorter papers that look at potential limitations of the Rust language for embedded software development. The earlier PLOS paper lays out challenges and the later APSys paper lays out potential solutions. Some persons describing work on programming languages and type theory may benefit from these references, but generally, most work should cite the SOSP paper above.</p>
   <h4><a href="http://doi.acm.org/10.1145/3124680.3124717">APSys: The Case for Writing a Kernel in Rust</a></h4>
