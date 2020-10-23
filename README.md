@@ -29,7 +29,6 @@ learn about the overview and design of Tock, its implementation, and much
 more.
 
 
-
 ### Use Tock
 
 Follow our [getting started guide](doc/Getting_Started.md) to set up your
