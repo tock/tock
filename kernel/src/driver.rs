@@ -42,6 +42,7 @@ use crate::callback::{AppId, Callback};
 use crate::errorcode::ErrorCode;
 use crate::mem::{AppSlice, Shared};
 use crate::returncode::ReturnCode;
+use crate::syscall::GenericSyscallReturnValue;
 
 /// Possible return values of an `allow` driver method
 pub enum AllowResult {
@@ -68,80 +69,57 @@ impl AllowResult {
     }
 }
 
-// TODO: (to confirm) This can be the same type in the driver return
-// value and for the system call return value encoding (in contrast to
-// the current proposed AllowReturnValue and SubscribeReturnValue)
-//
-// Therefore, it is named CommandResult (analog to what the
-// Driver-trait return values for allow and subscribe would be called)
-// and it moved to driver.rs, as it's more closely associated with the
-// driver trait
 /// Possible return values of a `command` driver method
-#[derive(Copy, Clone, Debug)]
-pub enum CommandResult {
-    /// Generic error case
-    Error(ErrorCode),
-    /// Generic error case, with an additional 32-bit data field
-    ErrorU32(ErrorCode, u32),
-    /// Generic error case, with two additional 32-bit data fields
-    ErrorU32U32(ErrorCode, u32, u32),
-    /// Generic error case, with an additional 64-bit data field
-    ErrorU64(ErrorCode, u64),
-    /// Generic success case
-    Success,
-    /// Generic success case, with an additional 32-bit data field
-    SuccessU32(u32),
-    /// Generic success case, with two additional 32-bit data fields
-    SuccessU32U32(u32, u32),
-    /// Generic success case, with three additional 32-bit data fields
-    SuccessU32U32U32(u32, u32, u32),
-    /// Generic success case, with an additional 64-bit data field
-    SuccessU64(u64),
-    /// Generic success case, with an additional 32-bit and 64-bit
-    /// data field
-    SuccessU64U32(u64, u32),
-}
-
+///
+/// This is a wrapper around
+/// [`GenericSyscallReturnValue`](crate::syscall::GenericSyscallReturnValue)
+/// since a `command` driver method may return all possible variants.
+pub struct CommandResult(GenericSyscallReturnValue);
 impl CommandResult {
-    // TODO: Verify that these constructors get inlined
+    pub(crate) fn into_inner(self) -> GenericSyscallReturnValue {
+        self.0
+    }
+
     pub fn error(rc: ErrorCode) -> Self {
-        CommandResult::Error(rc)
+        CommandResult(GenericSyscallReturnValue::Error(rc))
     }
 
     pub fn error_u32(rc: ErrorCode, data0: u32) -> Self {
-        CommandResult::ErrorU32(rc, data0)
+        CommandResult(GenericSyscallReturnValue::ErrorU32(rc, data0))
     }
 
     pub fn error_u32_u32(rc: ErrorCode, data0: u32, data1: u32) -> Self {
-        CommandResult::ErrorU32U32(rc, data0, data1)
+        CommandResult(GenericSyscallReturnValue::ErrorU32U32(rc, data0, data1))
     }
 
     pub fn error_u64(rc: ErrorCode, data0: u64) -> Self {
-        CommandResult::ErrorU64(rc, data0)
+        CommandResult(GenericSyscallReturnValue::ErrorU64(rc, data0))
     }
 
     pub fn success() -> Self {
-        CommandResult::Success
+        CommandResult(GenericSyscallReturnValue::Success)
     }
 
     pub fn success_u32(data0: u32) -> Self {
-        CommandResult::SuccessU32(data0)
+        CommandResult(GenericSyscallReturnValue::SuccessU32(data0))
     }
 
     pub fn success_u32_u32(data0: u32, data1: u32) -> Self {
-        CommandResult::SuccessU32U32(data0, data1)
+        CommandResult(GenericSyscallReturnValue::SuccessU32U32(data0, data1))
     }
 
     pub fn success_u32_u32_u32(data0: u32, data1: u32, data2: u32) -> Self {
-        CommandResult::SuccessU32U32U32(data0, data1, data2)
+        CommandResult(GenericSyscallReturnValue::SuccessU32U32U32(
+            data0, data1, data2,
+        ))
     }
 
     pub fn success_u64(data0: u64) -> Self {
-        CommandResult::SuccessU64(data0)
+        CommandResult(GenericSyscallReturnValue::SuccessU64(data0))
     }
 
     pub fn success_u64_u32(data0: u64, data1: u32) -> Self {
-        CommandResult::SuccessU64U32(data0, data1)
+        CommandResult(GenericSyscallReturnValue::SuccessU64U32(data0, data1))
     }
 }
 

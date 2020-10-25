@@ -128,20 +128,47 @@ impl AllowReturnValue {
     }
 }
 
-/// Possible return values of a `command`-type system call
+/// Possible system call return variants, generic over the system call
+/// type
 ///
-/// Since this has the exact same variants and fields as the
-/// `CommandResult` type for use the in the `Driver`'s `command`
-/// method return value, it simply wraps this value
+/// This struct is used to describe the system call return variants of
+/// the
 ///
-/// The `CommandReturnValue` features a default encoding function
+/// - `command` and
+/// - `memop`
+///
+/// type system calls. Capsules and drivers should use the appropriate
+/// [`CommandResult`](crate::CommandResult) struct instead.
 #[derive(Copy, Clone, Debug)]
-pub struct CommandReturnValue(CommandResult);
+pub enum GenericSyscallReturnValue {
+    /// Generic error case
+    Error(ErrorCode),
+    /// Generic error case, with an additional 32-bit data field
+    ErrorU32(ErrorCode, u32),
+    /// Generic error case, with two additional 32-bit data fields
+    ErrorU32U32(ErrorCode, u32, u32),
+    /// Generic error case, with an additional 64-bit data field
+    ErrorU64(ErrorCode, u64),
+    /// Generic success case
+    Success,
+    /// Generic success case, with an additional 32-bit data field
+    SuccessU32(u32),
+    /// Generic success case, with two additional 32-bit data fields
+    SuccessU32U32(u32, u32),
+    /// Generic success case, with three additional 32-bit data fields
+    SuccessU32U32U32(u32, u32, u32),
+    /// Generic success case, with an additional 64-bit data field
+    SuccessU64(u64),
+    /// Generic success case, with an additional 32-bit and 64-bit
+    /// data field
+    SuccessU64U32(u64, u32),
+}
 
-impl CommandReturnValue {
-    // TODO: Make this crate-public, it only ever needs to be constructed in the kernel
+impl GenericSyscallReturnValue {
+    // TODO: Make this crate-public, it only ever needs to be
+    // constructed in the kernel
     pub fn from_command_result(res: CommandResult) -> Self {
-        CommandReturnValue(res)
+        res.into_inner()
     }
 
     /// Encode the `command` system call return value into 4 registers
@@ -151,23 +178,23 @@ impl CommandReturnValue {
     /// Most architectures will want to use the (generic over all
     /// system call types) [`SyscallReturnValue::encode_syscall_return`] instead.
     fn encode_syscall_return(&self, a0: &mut u32, a1: &mut u32, a2: &mut u32, a3: &mut u32) {
-        match self.0 {
-            CommandResult::Error(e) => {
+        match self {
+            &GenericSyscallReturnValue::Error(e) => {
                 *a0 = SyscallReturnVariant::Failure as u32;
                 *a1 = usize::from(e) as u32;
             }
-            CommandResult::ErrorU32(e, data0) => {
+            &GenericSyscallReturnValue::ErrorU32(e, data0) => {
                 *a0 = SyscallReturnVariant::FailureU32 as u32;
                 *a1 = usize::from(e) as u32;
                 *a2 = data0;
             }
-            CommandResult::ErrorU32U32(e, data0, data1) => {
+            &GenericSyscallReturnValue::ErrorU32U32(e, data0, data1) => {
                 *a0 = SyscallReturnVariant::FailureU32U32 as u32;
                 *a1 = usize::from(e) as u32;
                 *a2 = data0;
                 *a3 = data1;
             }
-            CommandResult::ErrorU64(e, data0) => {
+            &GenericSyscallReturnValue::ErrorU64(e, data0) => {
                 let (data0_msb, data0_lsb) = u64_to_be_u32s(data0);
 
                 *a0 = SyscallReturnVariant::FailureU64 as u32;
@@ -175,32 +202,32 @@ impl CommandReturnValue {
                 *a2 = data0_lsb;
                 *a3 = data0_msb;
             }
-            CommandResult::Success => {
+            &GenericSyscallReturnValue::Success => {
                 *a0 = SyscallReturnVariant::Success as u32;
             }
-            CommandResult::SuccessU32(data0) => {
+            &GenericSyscallReturnValue::SuccessU32(data0) => {
                 *a0 = SyscallReturnVariant::SuccessU32 as u32;
                 *a1 = data0;
             }
-            CommandResult::SuccessU32U32(data0, data1) => {
+            &GenericSyscallReturnValue::SuccessU32U32(data0, data1) => {
                 *a0 = SyscallReturnVariant::SuccessU32U32 as u32;
                 *a1 = data0;
                 *a2 = data1;
             }
-            CommandResult::SuccessU32U32U32(data0, data1, data2) => {
+            &GenericSyscallReturnValue::SuccessU32U32U32(data0, data1, data2) => {
                 *a0 = SyscallReturnVariant::SuccessU32U32U32 as u32;
                 *a1 = data0;
                 *a2 = data1;
                 *a3 = data2;
             }
-            CommandResult::SuccessU64(data0) => {
+            &GenericSyscallReturnValue::SuccessU64(data0) => {
                 let (data0_msb, data0_lsb) = u64_to_be_u32s(data0);
 
                 *a0 = SyscallReturnVariant::SuccessU64 as u32;
                 *a1 = data0_lsb;
                 *a2 = data0_msb;
             }
-            CommandResult::SuccessU64U32(data0, data1) => {
+            &GenericSyscallReturnValue::SuccessU64U32(data0, data1) => {
                 let (data0_msb, data0_lsb) = u64_to_be_u32s(data0);
 
                 *a0 = SyscallReturnVariant::SuccessU64U32 as u32;
@@ -265,14 +292,14 @@ pub enum SyscallReturnValue {
     /// `allow`-type system call return values
     Allow(AllowReturnValue),
     /// `command`-type system call return values
-    Command(CommandReturnValue),
+    Command(GenericSyscallReturnValue),
     /// `subscribe`-type system call return values
     Subscribe(SubscribeReturnValue),
     /// `memop`-type system call return values
     ///
     /// The precise return value variant is dependent on the
     /// specific `memop` system call.
-    Memop(SyscallReturnVariant, u32, u32, u32),
+    Memop(GenericSyscallReturnValue),
 }
 
 impl SyscallReturnValue {
@@ -300,10 +327,7 @@ impl SyscallReturnValue {
             SyscallReturnValue::Allow(rv) => rv.encode_syscall_return(a0, a1, a2, a3),
             SyscallReturnValue::Command(rv) => rv.encode_syscall_return(a0, a1, a2, a3),
             SyscallReturnValue::Subscribe(rv) => rv.encode_syscall_return(a0, a1, a2, a3),
-            SyscallReturnValue::Memop(_, _, _, _) => {
-                // TODO: Would be duplicate of CommandReturnValue
-                unimplemented!();
-            }
+            SyscallReturnValue::Memop(rv) => rv.encode_syscall_return(a0, a1, a2, a3),
         }
     }
 }
