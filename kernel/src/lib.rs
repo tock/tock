@@ -30,6 +30,7 @@ pub mod zerocopy;
 mod callback;
 mod config;
 mod driver;
+mod errorcode;
 mod grant;
 mod mem;
 mod memop;
@@ -41,6 +42,7 @@ mod tbfheader;
 
 pub use crate::callback::{AppId, Callback, CallbackId};
 pub use crate::driver::Driver;
+pub use crate::errorcode::ErrorCode;
 pub use crate::grant::Grant;
 pub use crate::mem::{AppPtr, AppSlice, Private, Shared};
 pub use crate::platform::systick::SysTick;
