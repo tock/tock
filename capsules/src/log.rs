@@ -770,14 +770,16 @@ impl<'a, F: Flash + 'static> LogWrite<'a> for Log<'a, F> {
     }
 
     /// Sync log to storage.
+    ///
     /// ReturnCodes used:
-    ///     * SUCCESS: flush started successfully.
-    ///     * FAIL: flash driver not configured.
-    ///     * EBUSY: log or flash driver busy, try again later.
-    ///     * ERESERVE: no log client set.
+    /// * SUCCESS: flush started successfully.
+    /// * FAIL: flash driver not configured.
+    /// * EBUSY: log or flash driver busy, try again later.
+    /// * ERESERVE: no log client set.
+    ///
     /// ReturnCodes used in sync_done callback:
-    ///     * SUCCESS: append succeeded.
-    ///     * FAIL: write failed due to flash error.
+    /// * SUCCESS: append succeeded.
+    /// * FAIL: write failed due to flash error.
     fn sync(&self) -> ReturnCode {
         if self.append_entry_id.get() % self.page_size == PAGE_HEADER_SIZE {
             // Pagebuffer empty, don't need to flush.
