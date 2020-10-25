@@ -663,10 +663,11 @@ impl<'a, F: Flash + 'static> LogRead<'a> for Log<'a, F> {
 
     /// Seek to a new read entry ID. It is only legal to seek to entry IDs retrieved through the
     /// `log_start()`, `log_end()`, and `next_read_entry_id()` functions.
+    ///
     /// ReturnCodes used:
-    ///     * SUCCESS: seek succeeded.
-    ///     * EINVAL: entry ID not valid seek position within current log.
-    ///     * ERESERVE: no log client set.
+    /// * SUCCESS: seek succeeded.
+    /// * EINVAL: entry ID not valid seek position within current log.
+    /// * ERESERVE: no log client set.
     fn seek(&self, entry_id: Self::EntryID) -> ReturnCode {
         if entry_id <= self.append_entry_id.get() && entry_id >= self.oldest_entry_id.get() {
             self.read_entry_id.set(entry_id);
@@ -694,20 +695,23 @@ impl<'a, F: Flash + 'static> LogWrite<'a> for Log<'a, F> {
 
     /// Appends an entry onto the end of the log. Entry must fit within a page (including log
     /// metadata).
+    ///
     /// Returns:
-    ///     * Ok(()) on success.
-    ///     * Err((ReturnCode, Option<buffer>)) on failure. The buffer will only be `None` if the
-    ///       error is due to a loss of the buffer.
+    /// * Ok(()) on success.
+    /// * Err((ReturnCode, Option<buffer>)) on failure. The buffer will only be `None` if the error
+    ///     error is due to a loss of the buffer.
+    ///
     /// ReturnCodes used:
-    ///     * FAIL: end of non-circular log reached, cannot append any more entries.
-    ///     * EBUSY: log busy with another operation, try again later.
-    ///     * EINVAL: provided client buffer is too small.
-    ///     * ERESERVE: client or internal pagebuffer missing.
-    ///     * ESIZE: entry too large to append to log.
+    /// * FAIL: end of non-circular log reached, cannot append any more entries.
+    /// * EBUSY: log busy with another operation, try again later.
+    /// * EINVAL: provided client buffer is too small.
+    /// * ERESERVE: client or internal pagebuffer missing.
+    /// * ESIZE: entry too large to append to log.
+    ///
     /// ReturnCodes used in append_done callback:
-    ///     * SUCCESS: append succeeded.
-    ///     * FAIL: write failed due to flash error.
-    ///     * ECANCEL: write failed due to reaching the end of a non-circular log.
+    /// * SUCCESS: append succeeded.
+    /// * FAIL: write failed due to flash error.
+    /// * ECANCEL: write failed due to reaching the end of a non-circular log.
     fn append(
         &self,
         buffer: &'static mut [u8],
