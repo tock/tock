@@ -26,7 +26,7 @@ use crate::platform::watchdog::WatchDog;
 use crate::platform::{Chip, Platform};
 use crate::process::{self, Task};
 use crate::returncode::ReturnCode;
-use crate::syscall::{ContextSwitchReason, Syscall};
+use crate::syscall::{ContextSwitchReason, Syscall, SyscallReturnValue};
 
 /// Threshold in microseconds to consider a process's timeslice to be exhausted.
 /// That is, Tock will skip re-scheduling a process if its remaining timeslice
@@ -645,7 +645,9 @@ impl Kernel {
                             // decide how to handle the error.
                             if syscall != Syscall::YIELD {
                                 if let Err(response) = platform.filter_syscall(process, &syscall) {
-                                    process.set_syscall_return_value(response.into());
+                                    process.set_syscall_return_value(SyscallReturnValue::Legacy(
+                                        response.into(),
+                                    ));
                                     continue;
                                 }
                             }
@@ -664,7 +666,9 @@ impl Kernel {
                                             res
                                         );
                                     }
-                                    process.set_syscall_return_value(res.into());
+                                    process.set_syscall_return_value(SyscallReturnValue::Legacy(
+                                        res.into(),
+                                    ));
                                 }
                                 Syscall::YIELD => {
                                     if config::CONFIG.trace_syscalls {
@@ -728,7 +732,9 @@ impl Kernel {
                                             res
                                         );
                                     }
-                                    process.set_syscall_return_value(res.into());
+                                    process.set_syscall_return_value(SyscallReturnValue::Legacy(
+                                        res.into(),
+                                    ));
                                 }
                                 Syscall::COMMAND {
                                     driver_number,
@@ -761,7 +767,9 @@ impl Kernel {
                                             res
                                         );
                                     }
-                                    process.set_syscall_return_value(res.into());
+                                    process.set_syscall_return_value(SyscallReturnValue::Legacy(
+                                        res.into(),
+                                    ));
                                 }
                                 Syscall::ALLOW {
                                     driver_number,
@@ -796,7 +804,9 @@ impl Kernel {
                                             res
                                         );
                                     }
-                                    process.set_syscall_return_value(res.into());
+                                    process.set_syscall_return_value(SyscallReturnValue::Legacy(
+                                        res.into(),
+                                    ));
                                 }
                             }
                         }

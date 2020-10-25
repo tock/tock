@@ -19,7 +19,7 @@ use crate::platform::mpu::{self, MPU};
 use crate::platform::Chip;
 use crate::returncode::ReturnCode;
 use crate::sched::Kernel;
-use crate::syscall::{self, Syscall, UserspaceKernelBoundary};
+use crate::syscall::{self, Syscall, SyscallReturnValue, UserspaceKernelBoundary};
 use crate::tbfheader;
 use core::cmp::max;
 
@@ -453,7 +453,7 @@ pub trait ProcessType {
     ///
     /// It is not valid to call this function when the process is inactive (i.e.
     /// the process will not run again).
-    unsafe fn set_syscall_return_value(&self, return_value: isize);
+    unsafe fn set_syscall_return_value(&self, return_value: SyscallReturnValue);
 
     /// Set the function that is to be executed when the process is resumed.
     ///
@@ -1265,7 +1265,7 @@ impl<C: Chip> ProcessType for Process<'_, C> {
         self.process_name
     }
 
-    unsafe fn set_syscall_return_value(&self, return_value: isize) {
+    unsafe fn set_syscall_return_value(&self, return_value: SyscallReturnValue) {
         self.stored_state.map(|stored_state| {
             self.chip
                 .userspace_kernel_boundary()

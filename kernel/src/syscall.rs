@@ -3,8 +3,9 @@
 use core::fmt::Write;
 
 use crate::driver::CommandResult;
+use crate::errorcode::ErrorCode;
 use crate::process;
-use crate::ErrorCode;
+use crate::returncode::ReturnCode;
 
 // TODO: Maybe change the variant identifiers to have errors have the
 // most significant bit set as discussed in the core team call?
@@ -300,6 +301,13 @@ pub enum SyscallReturnValue {
     /// The precise return value variant is dependent on the
     /// specific `memop` system call.
     Memop(GenericSyscallReturnValue),
+    /// Legacy style system call return values
+    ///
+    /// This is only included for compatibility with the current (1.x)
+    /// Tock system call interface and should be removed prior to
+    /// release.
+    // TODO: Remove prior to 2.0 release!
+    Legacy(ReturnCode),
 }
 
 impl SyscallReturnValue {
@@ -328,6 +336,9 @@ impl SyscallReturnValue {
             SyscallReturnValue::Command(rv) => rv.encode_syscall_return(a0, a1, a2, a3),
             SyscallReturnValue::Subscribe(rv) => rv.encode_syscall_return(a0, a1, a2, a3),
             SyscallReturnValue::Memop(rv) => rv.encode_syscall_return(a0, a1, a2, a3),
+            SyscallReturnValue::Legacy(rc) => {
+                *a0 = isize::from(*rc) as u32;
+            }
         }
     }
 }
@@ -373,17 +384,8 @@ pub trait UserspaceKernelBoundary {
         &self,
         stack_pointer: *const usize,
         state: &mut Self::StoredState,
-        return_value: isize,
+        return_value: SyscallReturnValue,
     );
-
-    // Tock 2.0 method preview:
-    //
-    // unsafe fn set_syscall_return_value(
-    //     &self,
-    //     stack_pointer: *const usize,
-    //     state: &mut Self::StoredState,
-    //     return_value: SyscallReturnValue,
-    // );
 
     /// Set the function that the process should execute when it is resumed.
     /// This has two major uses: 1) sets up the initial function call to
