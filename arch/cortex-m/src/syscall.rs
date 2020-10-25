@@ -88,12 +88,34 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         &self,
         stack_pointer: *const usize,
         _state: &mut Self::StoredState,
-        return_value: isize,
+        return_value: kernel::syscall::SyscallReturnValue,
     ) {
-        // For the Cortex-M arch we set this in the same place that r0 was
-        // passed.
-        let sp = stack_pointer as *mut isize;
-        write_volatile(sp, return_value);
+        // For the Cortex-M arch, write the return values in the same
+        // place that they were originally passed in
+
+        // TODO: Maybe use a static assertion (as a sanity check) that
+        // the width of usize == 32-bit?
+
+        let sp = (stack_pointer as *const u32) as *mut u32;
+        let (r0, r1, r2, r3) = (sp.offset(0), sp.offset(1), sp.offset(2), sp.offset(3));
+
+        // TODO: Are these guarantees _always_ satisfied? E.g. must
+        // the stack_pointer always be properly aligned?
+
+        // These operations are only safe so long as
+        // - the pointers are properly aligned
+        // - the pointer is dereferencable, i.e. the memory range of
+        //   the given size starting at the pointer must all be within
+        //   the bounds of a single allocated object
+        // - the pointer must point to an initialized instance of its
+        //   type
+        // - during the lifetime of the returned reference (of the
+        //   cast, essentially an arbitrary 'a), the memory must not
+        //   get accessed (read or written) through any other pointer.
+        //
+        // Refer to
+        // https://doc.rust-lang.org/std/primitive.pointer.html#safety-13
+        return_value.encode_syscall_return(&mut *r0, &mut *r1, &mut *r2, &mut *r3);
     }
 
     /// When the process calls `svc` to enter the kernel, the hardware
