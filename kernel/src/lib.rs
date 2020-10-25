@@ -101,6 +101,7 @@ pub mod syscall;
 mod callback;
 mod config;
 mod driver;
+mod errorcode;
 mod grant;
 mod mem;
 mod memop;
@@ -112,6 +113,7 @@ mod tbfheader;
 
 pub use crate::callback::{AppId, Callback};
 pub use crate::driver::{AllowResult, CommandResult, Driver};
+pub use crate::errorcode::ErrorCode;
 pub use crate::grant::Grant;
 pub use crate::mem::{AppSlice, Private, Shared};
 pub use crate::platform::scheduler_timer::{SchedulerTimer, VirtualSchedulerTimer};

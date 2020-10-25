@@ -39,6 +39,7 @@
 //! understand its function and how it interacts with `subscribe`.
 
 use crate::callback::{AppId, Callback};
+use crate::errorcode::ErrorCode;
 use crate::mem::{AppSlice, Shared};
 use crate::returncode::ReturnCode;
 
@@ -54,7 +55,7 @@ pub enum AllowResult {
     /// the AppSlice instance
     ///
     /// The capsule **must** return the passed AppSlice back.
-    Refuse(AppSlice<Shared, u8>, ReturnCode),
+    Refuse(AppSlice<Shared, u8>, ErrorCode),
 }
 
 impl AllowResult {
@@ -62,7 +63,7 @@ impl AllowResult {
         AllowResult::Success(old_appslice)
     }
 
-    pub fn refuse_allow(new_appslice: AppSlice<Shared, u8>, reason: ReturnCode) -> Self {
+    pub fn refuse_allow(new_appslice: AppSlice<Shared, u8>, reason: ErrorCode) -> Self {
         AllowResult::Refuse(new_appslice, reason)
     }
 }
@@ -79,13 +80,13 @@ impl AllowResult {
 #[derive(Copy, Clone, Debug)]
 pub enum CommandResult {
     /// Generic error case
-    Error(ReturnCode),
+    Error(ErrorCode),
     /// Generic error case, with an additional 32-bit data field
-    ErrorU32(ReturnCode, u32),
+    ErrorU32(ErrorCode, u32),
     /// Generic error case, with two additional 32-bit data fields
-    ErrorU32U32(ReturnCode, u32, u32),
+    ErrorU32U32(ErrorCode, u32, u32),
     /// Generic error case, with an additional 64-bit data field
-    ErrorU64(ReturnCode, u64),
+    ErrorU64(ErrorCode, u64),
     /// Generic success case
     Success,
     /// Generic success case, with an additional 32-bit data field
@@ -103,19 +104,19 @@ pub enum CommandResult {
 
 impl CommandResult {
     // TODO: Verify that these constructors get inlined
-    pub fn error(rc: ReturnCode) -> Self {
+    pub fn error(rc: ErrorCode) -> Self {
         CommandResult::Error(rc)
     }
 
-    pub fn error_u32(rc: ReturnCode, data0: u32) -> Self {
+    pub fn error_u32(rc: ErrorCode, data0: u32) -> Self {
         CommandResult::ErrorU32(rc, data0)
     }
 
-    pub fn error_u32_u32(rc: ReturnCode, data0: u32, data1: u32) -> Self {
+    pub fn error_u32_u32(rc: ErrorCode, data0: u32, data1: u32) -> Self {
         CommandResult::ErrorU32U32(rc, data0, data1)
     }
 
-    pub fn error_u64(rc: ReturnCode, data0: u64) -> Self {
+    pub fn error_u64(rc: ErrorCode, data0: u64) -> Self {
         CommandResult::ErrorU64(rc, data0)
     }
 
@@ -202,7 +203,7 @@ pub trait Driver {
     //
     // #[allow(unused_variables)]
     // fn command(&self, minor_num: usize, r2: usize, r3: usize, caller_id: AppId) -> CommandResult {
-    //     CommandResult::error(ReturnCode::ENOSUPPORT)
+    //     CommandResult::error(ErrorCode::ENOSUPPORT)
     // }
 
     /// `allow` lets an application give the driver access to a buffer in the
@@ -230,6 +231,6 @@ pub trait Driver {
     //     minor_num: usize,
     //     slice: AppSlice<Shared, u8>,
     // ) -> AllowResult {
-    //     AllowResult::refuse_allow(slice, ReturnCode::ENOSUPPORT)
+    //     AllowResult::refuse_allow(slice, ErrorCode::ENOSUPPORT)
     // }
 }

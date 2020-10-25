@@ -4,7 +4,7 @@ use core::fmt::Write;
 
 use crate::driver::CommandResult;
 use crate::process;
-use crate::ReturnCode;
+use crate::ErrorCode;
 
 // TODO: Maybe change the variant identifiers to have errors have the
 // most significant bit set as discussed in the core team call?
@@ -102,10 +102,11 @@ pub enum AllowReturnValue {
     /// In the success case, bass back the pointer and respective
     /// length of the buffer shared from userspace
     Success(*mut u8, usize),
-    /// An `allow` operation is allowed to error, returning a
-    /// `ReturnCode` to the userspace app, along with the pointer and
-    /// length passed with the original allow syscall
-    Error(ReturnCode, *mut u8, usize),
+    /// An `allow` operation is allowed to error, returning an
+    /// [`ErrorCode`](crate::ErrorCode) to the userspace app, along
+    /// with the pointer and length passed with the original allow
+    /// syscall
+    Error(ErrorCode, *mut u8, usize),
 }
 
 impl AllowReturnValue {
@@ -117,9 +118,9 @@ impl AllowReturnValue {
                 *a1 = ptr as u32;
                 *a2 = length as u32;
             }
-            &AllowReturnValue::Error(rc, ptr, length) => {
+            &AllowReturnValue::Error(e, ptr, length) => {
                 *a0 = SyscallReturnVariant::FailureU32U32 as u32;
-                *a1 = isize::from(rc) as u32;
+                *a1 = usize::from(e) as u32;
                 *a2 = ptr as u32;
                 *a3 = length as u32;
             }
@@ -151,26 +152,26 @@ impl CommandReturnValue {
     /// system call types) [`SyscallReturnValue::encode_syscall_return`] instead.
     fn encode_syscall_return(&self, a0: &mut u32, a1: &mut u32, a2: &mut u32, a3: &mut u32) {
         match self.0 {
-            CommandResult::Error(rc) => {
+            CommandResult::Error(e) => {
                 *a0 = SyscallReturnVariant::Failure as u32;
-                *a1 = isize::from(rc) as u32;
+                *a1 = usize::from(e) as u32;
             }
-            CommandResult::ErrorU32(rc, data0) => {
+            CommandResult::ErrorU32(e, data0) => {
                 *a0 = SyscallReturnVariant::FailureU32 as u32;
-                *a1 = isize::from(rc) as u32;
+                *a1 = usize::from(e) as u32;
                 *a2 = data0;
             }
-            CommandResult::ErrorU32U32(rc, data0, data1) => {
+            CommandResult::ErrorU32U32(e, data0, data1) => {
                 *a0 = SyscallReturnVariant::FailureU32U32 as u32;
-                *a1 = isize::from(rc) as u32;
+                *a1 = usize::from(e) as u32;
                 *a2 = data0;
                 *a3 = data1;
             }
-            CommandResult::ErrorU64(rc, data0) => {
+            CommandResult::ErrorU64(e, data0) => {
                 let (data0_msb, data0_lsb) = u64_to_be_u32s(data0);
 
                 *a0 = SyscallReturnVariant::FailureU64 as u32;
-                *a1 = isize::from(rc) as u32;
+                *a1 = usize::from(e) as u32;
                 *a2 = data0_lsb;
                 *a3 = data0_msb;
             }
@@ -221,9 +222,9 @@ pub enum SubscribeReturnValue {
     /// and the supplied userdata to an userspace app
     Success(*mut (), usize),
     /// A `subscribe` operation is allowed to error, returning a
-    /// `ReturnCode` to the userspace app, along with the pointer and
-    /// userdata passed with the original syscall
-    Error(ReturnCode, *mut (), usize),
+    /// [`ErrorCode`](crate::ErrorCode) to the userspace app, along
+    /// with the pointer and userdata passed with the original syscall
+    Error(ErrorCode, *mut (), usize),
 }
 
 impl SubscribeReturnValue {
@@ -237,7 +238,7 @@ impl SubscribeReturnValue {
             }
             &SubscribeReturnValue::Error(rc, ptr, userdata) => {
                 *a0 = SyscallReturnVariant::FailureU32U32 as u32;
-                *a1 = isize::from(rc) as u32;
+                *a1 = usize::from(rc) as u32;
                 *a2 = ptr as u32;
                 *a3 = userdata as u32;
             }
