@@ -10,7 +10,7 @@
 //! after an entry with a smaller ID. IDs can also be used to determine the physical position of
 //! entries within the log's underlying storage volume - taking the ID modulo the size of the
 //! underlying storage volume yields the position of the entry's header relative to the start of
-//! the volume. Entries should not be created manually by clients, only retrieved through the
+//! the volume. Entry IDs should not be created manually by clients, only retrieved through the
 //! `log_start()`, `log_end()`, and `next_read_entry_id()` functions.
 //!
 //! Entry IDs are not explicitly stored in the log. Instead, each page of the log contains a header
