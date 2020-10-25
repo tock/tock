@@ -802,12 +802,14 @@ impl<'a, F: Flash + 'static> LogWrite<'a> for Log<'a, F> {
     }
 
     /// Erase the entire log.
+    ///
     /// ReturnCodes used:
-    ///     * SUCCESS: flush started successfully.
-    ///     * EBUSY: log busy, try again later.
+    /// * SUCCESS: flush started successfully.
+    /// * EBUSY: log busy, try again later.
+    ///
     /// ReturnCodes used in erase_done callback:
-    ///     * SUCCESS: erase succeeded.
-    ///     * EBUSY: erase interrupted by busy flash driver. Call erase again to resume.
+    /// * SUCCESS: erase succeeded.
+    /// * EBUSY: erase interrupted by busy flash driver. Call erase again to resume.
     fn erase(&self) -> ReturnCode {
         if self.state.get() != State::Idle {
             // Log busy, try appending again later.
