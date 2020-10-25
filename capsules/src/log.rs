@@ -7,7 +7,7 @@
 //!
 //! Entries can be identified and seeked-to with their unique Entry IDs. Entry IDs maintain the
 //! ordering of the underlying entries, and an entry with a larger entry ID is newer and comes
-//! after an entry with a smaller ID. IDs can also be used to determing the physical position of
+//! after an entry with a smaller ID. IDs can also be used to determine the physical position of
 //! entries within the log's underlying storage volume - taking the ID modulo the size of the
 //! underlying storage volume yields the position of the entry's header relative to the start of
 //! the volume. Entries should not be created manually by clients, only retrieved through the
