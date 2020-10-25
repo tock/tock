@@ -595,19 +595,22 @@ impl<'a, F: Flash + 'static> LogRead<'a> for Log<'a, F> {
 
     /// Read an entire log entry into a buffer, if there are any remaining. Updates the read entry
     /// ID to point at the next entry when done.
+    ///
     /// Returns:
-    ///     * Ok(()) on success.
-    ///     * Err((ReturnCode, Option<buffer>)) on failure. The buffer will only be `None` if the
-    ///       error is due to a loss of the buffer.
+    /// * Ok(()) on success.
+    /// * Err((ReturnCode, Option<buffer>)) on failure. The buffer will only be `None` if the error
+    ///     is due to a loss of the buffer.
+    ///
     /// ReturnCodes used:
-    ///     * FAIL: reached end of log, nothing to read.
-    ///     * EBUSY: log busy with another operation, try again later.
-    ///     * EINVAL: provided client buffer is too small.
-    ///     * ECANCEL: invalid internal state, read entry ID was reset to start of log.
-    ///     * ERESERVE: client or internal pagebuffer missing.
-    ///     * ESIZE: buffer not large enough to contain entry being read.
+    /// * FAIL: reached end of log, nothing to read.
+    /// * EBUSY: log busy with another operation, try again later.
+    /// * EINVAL: provided client buffer is too small.
+    /// * ECANCEL: invalid internal state, read entry ID was reset to start of log.
+    /// * ERESERVE: client or internal pagebuffer missing.
+    /// * ESIZE: buffer not large enough to contain entry being read.
+    ///
     /// ReturnCodes used in read_done callback:
-    ///     * SUCCESS: read succeeded.
+    /// * SUCCESS: read succeeded.
     fn read(
         &self,
         buffer: &'static mut [u8],
