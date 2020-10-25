@@ -14,6 +14,7 @@ use crate::ReturnCode;
 /// Each variant is associated with the respective variant identifier
 /// that would be passed along with the return value to userspace.
 #[repr(u32)]
+#[derive(Copy, Clone, Debug)]
 pub enum SyscallReturnVariant {
     Failure = 0,
     FailureU32 = 1,
@@ -255,12 +256,22 @@ impl SubscribeReturnValue {
 /// define their own encoding.
 #[derive(Copy, Clone, Debug)]
 pub enum SyscallReturnValue {
+    /// `yield`-type system call return value
+    ///
+    /// The return type vairant is dependent on whether a callback has
+    /// been executed, indicated by the associated boolean field.
+    Yield(bool),
     /// `allow`-type system call return values
     Allow(AllowReturnValue),
     /// `command`-type system call return values
     Command(CommandReturnValue),
     /// `subscribe`-type system call return values
     Subscribe(SubscribeReturnValue),
+    /// `memop`-type system call return values
+    ///
+    /// The precise return value variant is dependent on the
+    /// specific `memop` system call.
+    Memop(SyscallReturnVariant, u32, u32, u32),
 }
 
 impl SyscallReturnValue {
@@ -278,9 +289,20 @@ impl SyscallReturnValue {
     #[inline]
     pub fn encode_syscall_return(&self, a0: &mut u32, a1: &mut u32, a2: &mut u32, a3: &mut u32) {
         match self {
+            SyscallReturnValue::Yield(callback_executed) => {
+                *a0 = if *callback_executed {
+                    SyscallReturnVariant::Success as u32
+                } else {
+                    SyscallReturnVariant::Failure as u32
+                };
+            }
             SyscallReturnValue::Allow(rv) => rv.encode_syscall_return(a0, a1, a2, a3),
             SyscallReturnValue::Command(rv) => rv.encode_syscall_return(a0, a1, a2, a3),
             SyscallReturnValue::Subscribe(rv) => rv.encode_syscall_return(a0, a1, a2, a3),
+            SyscallReturnValue::Memop(_, _, _, _) => {
+                // TODO: Would be duplicate of CommandReturnValue
+                unimplemented!();
+            }
         }
     }
 }
