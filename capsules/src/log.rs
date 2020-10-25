@@ -666,7 +666,10 @@ impl<'a, F: Flash + 'static> LogRead<'a> for Log<'a, F> {
     ///
     /// ReturnCodes used:
     /// * SUCCESS: seek succeeded.
+<<<<<<< HEAD
     /// * EBUSY: log busy with another operation, try again later.
+=======
+>>>>>>> 7598e876f... 💡 Make "append" documentation render correctly
     /// * EINVAL: entry ID not valid seek position within current log.
     /// * ERESERVE: no log client set.
     fn seek(&self, entry_id: Self::EntryID) -> ReturnCode {
