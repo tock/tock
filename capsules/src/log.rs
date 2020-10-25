@@ -40,32 +40,36 @@
 //! Usage
 //! -----
 //!
-//! ```
-//!     storage_volume!(VOLUME, 2);
-//!     static mut PAGEBUFFER: sam4l::flashcalw::Sam4lPage = sam4l::flashcalw::Sam4lPage::new();
+//! ```rust
+//! storage_volume!(VOLUME, 2);
+//! static mut PAGEBUFFER: sam4l::flashcalw::Sam4lPage = sam4l::flashcalw::Sam4lPage::new();
 //!
-//!     let dynamic_deferred_call_clients =
-//!         static_init!([DynamicDeferredCallClientState; 2], Default::default());
-//!     let dynamic_deferred_caller = static_init!(
-//!         DynamicDeferredCall,
-//!         DynamicDeferredCall::new(dynamic_deferred_call_clients)
-//!     );
+//! let dynamic_deferred_call_clients =
+//!     static_init!([DynamicDeferredCallClientState; 2], Default::default());
+//! let dynamic_deferred_caller = static_init!(
+//!     DynamicDeferredCall,
+//!     DynamicDeferredCall::new(dynamic_deferred_call_clients)
+//! );
 //!
-//!     let log = static_init!(
-//!         capsules::log::Log,
-//!         capsules::log::Log::new(
-//!             &VOLUME,
-//!             &mut sam4l::flashcalw::FLASH_CONTROLLER,
-//!             &mut PAGEBUFFER,
-//!             dynamic_deferred_caller,
-//!             true
-//!         )
-//!     );
-//!     kernel::hil::flash::HasClient::set_client(&sam4l::flashcalw::FLASH_CONTROLLER, log);
-//!     log.initialize_callback_handle(dynamic_deferred_caller.register(log).expect("no deferred call slot available for log storage"));
+//! let log = static_init!(
+//!     capsules::log::Log,
+//!     capsules::log::Log::new(
+//!         &VOLUME,
+//!         &mut sam4l::flashcalw::FLASH_CONTROLLER,
+//!         &mut PAGEBUFFER,
+//!         dynamic_deferred_caller,
+//!         true
+//!     )
+//! );
+//! kernel::hil::flash::HasClient::set_client(&sam4l::flashcalw::FLASH_CONTROLLER, log);
+//! log.initialize_callback_handle(
+//!     dynamic_deferred_caller
+//!         .register(log)
+//!         .expect("no deferred call slot available for log storage")
+//! );
 //!
-//!     log.set_read_client(log_storage_read_client);
-//!     log.set_append_client(log_storage_append_client);
+//! log.set_read_client(log_storage_read_client);
+//! log.set_append_client(log_storage_append_client);
 //! ```
 
 use core::cell::Cell;
