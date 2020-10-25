@@ -23,14 +23,16 @@
 //! ID). Entries also have a header of their own, which contains the length of the entry.
 //!
 //! Logs support the following basic operations:
-//!     * Read:     Read back previously written entries in whole. Entries are read in their
-//!                 entirety (no partial reads) from oldest to newest.
-//!     * Seek:     Seek to different entries to begin reading from a different entry (can only
-//!                 seek to the start of entries).
-//!     * Append:   Append new data entries onto the end of a log. Can fail if the new entry is too
-//!                 large to fit within the log.
-//!     * Sync:     Sync a log to flash to ensure that all changes are persistent.
-//!     * Erase:    Erase a log in its entirety, clearing the underlying flash volume.
+//!
+//! * Read:     Read back previously written entries in whole. Entries are read in their entirety
+//!             (no partial reads) from oldest to newest.
+//! * Seek:     Seek to different entries to begin reading from a different entry (can only seek to
+//!             the start of entries).
+//! * Append:   Append new data entries onto the end of a log. Can fail if the new entry is too
+//!             large to fit within the log.
+//! * Sync:     Sync a log to flash to ensure that all changes are persistent.
+//! * Erase:    Erase a log in its entirety, clearing the underlying flash volume.
+//!
 //! See the documentation for each individual function for more detail on how they operate.
 //!
 //! Note that while logs persist across reboots, they will be erased upon flashing a new kernel.
