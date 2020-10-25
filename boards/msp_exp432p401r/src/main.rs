@@ -100,7 +100,7 @@ unsafe fn startup_intilialisation() {
 /// Function to setup all ADC-capaable pins
 /// Since the chips has 100 pins, we really setup all capable pins to work as ADC-pins.
 unsafe fn setup_adc_pins() {
-    use msp432::gpio::{IntPinNr, INT_PINS};
+    use msp432::gpio::{IntPinNr, PinNr, INT_PINS, PINS};
     INT_PINS[IntPinNr::P05_5 as usize].enable_tertiary_function(); // A0
     INT_PINS[IntPinNr::P05_4 as usize].enable_tertiary_function(); // A1
     INT_PINS[IntPinNr::P05_3 as usize].enable_tertiary_function(); // A2
@@ -117,12 +117,12 @@ unsafe fn setup_adc_pins() {
     INT_PINS[IntPinNr::P04_0 as usize].enable_tertiary_function(); // A13
     INT_PINS[IntPinNr::P06_1 as usize].enable_tertiary_function(); // A14
     INT_PINS[IntPinNr::P06_0 as usize].enable_tertiary_function(); // A15
-    INT_PINS[IntPinNr::P09_1 as usize].enable_tertiary_function(); // A16
-    INT_PINS[IntPinNr::P09_0 as usize].enable_tertiary_function(); // A17
-    INT_PINS[IntPinNr::P08_7 as usize].enable_tertiary_function(); // A18
-    INT_PINS[IntPinNr::P08_6 as usize].enable_tertiary_function(); // A19
-    INT_PINS[IntPinNr::P08_5 as usize].enable_tertiary_function(); // A20
-    INT_PINS[IntPinNr::P08_4 as usize].enable_tertiary_function(); // A21
+    PINS[PinNr::P09_1 as usize].enable_tertiary_function(); // A16
+    PINS[PinNr::P09_0 as usize].enable_tertiary_function(); // A17
+    PINS[PinNr::P08_7 as usize].enable_tertiary_function(); // A18
+    PINS[PinNr::P08_6 as usize].enable_tertiary_function(); // A19
+    PINS[PinNr::P08_5 as usize].enable_tertiary_function(); // A20
+    PINS[PinNr::P08_4 as usize].enable_tertiary_function(); // A21
 
     // Don't configure these pins since their channels are used for the internal
     // temperature sensor (Channel 22) and the Battery Monitor (A23)
