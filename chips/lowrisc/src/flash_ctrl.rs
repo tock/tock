@@ -411,17 +411,11 @@ impl hil::flash::Flash for FlashCtrl<'_> {
         self.read_index.set(0);
 
         // Start the transaction
-        let info_sel = if self.region_num as u32 > 3 {
-            CONTROL::INFO_SEL::SET
-        } else {
-            CONTROL::INFO_SEL::CLEAR
-        };
         self.registers.control.write(
             CONTROL::OP::READ
-                + CONTROL::PARTITION_SEL::INFO
+                + CONTROL::PARTITION_SEL::DATA
                 + CONTROL::NUM.val(((PAGE_SIZE / 4) - 1) as u32)
-                + CONTROL::START::SET
-                + info_sel,
+                + CONTROL::START::SET,
         );
 
         Ok(())
@@ -454,17 +448,11 @@ impl hil::flash::Flash for FlashCtrl<'_> {
         self.write_index.set(0);
 
         // Start the transaction
-        let info_sel = if self.region_num as u32 > 3 {
-            CONTROL::INFO_SEL::SET
-        } else {
-            CONTROL::INFO_SEL::CLEAR
-        };
         self.registers.control.write(
             CONTROL::OP::PROG
-                + CONTROL::PARTITION_SEL::INFO
+                + CONTROL::PARTITION_SEL::DATA
                 + CONTROL::NUM.val(((PAGE_SIZE / 4) - 1) as u32)
-                + CONTROL::START::SET
-                + info_sel,
+                + CONTROL::START::SET,
         );
 
         // Write the data until we are full or have written all the data
@@ -514,17 +502,11 @@ impl hil::flash::Flash for FlashCtrl<'_> {
         self.registers.addr.write(ADDR::START.val(addr as u32));
 
         // Start the transaction
-        let info_sel = if self.region_num as u32 > 3 {
-            CONTROL::INFO_SEL::SET
-        } else {
-            CONTROL::INFO_SEL::CLEAR
-        };
         self.registers.control.write(
             CONTROL::OP::ERASE
                 + CONTROL::ERASE_SEL::PAGE
-                + CONTROL::PARTITION_SEL::INFO
-                + CONTROL::START::SET
-                + info_sel,
+                + CONTROL::PARTITION_SEL::DATA
+                + CONTROL::START::SET,
         );
 
         // Disable erase
