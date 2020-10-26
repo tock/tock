@@ -14,24 +14,24 @@ fn check_region_main(buf: &[u8]) {
     assert_eq!(buf[LEN_OFFSET + 1], 19);
 
     // Check the hash
-    assert_eq!(buf[HASH_OFFSET + 0], 0x8e);
-    assert_eq!(buf[HASH_OFFSET + 1], 0x31);
-    assert_eq!(buf[HASH_OFFSET + 2], 0xe3);
-    assert_eq!(buf[HASH_OFFSET + 3], 0x3d);
-    assert_eq!(buf[HASH_OFFSET + 4], 0xac);
-    assert_eq!(buf[HASH_OFFSET + 5], 0xbf);
-    assert_eq!(buf[HASH_OFFSET + 6], 0xb9);
-    assert_eq!(buf[HASH_OFFSET + 7], 0x58);
+    assert_eq!(buf[HASH_OFFSET + 0], 0x13);
+    assert_eq!(buf[HASH_OFFSET + 1], 0x67);
+    assert_eq!(buf[HASH_OFFSET + 2], 0xd3);
+    assert_eq!(buf[HASH_OFFSET + 3], 0xe4);
+    assert_eq!(buf[HASH_OFFSET + 4], 0xe0);
+    assert_eq!(buf[HASH_OFFSET + 5], 0x9b);
+    assert_eq!(buf[HASH_OFFSET + 6], 0xf7);
+    assert_eq!(buf[HASH_OFFSET + 7], 0x6e);
 
     // Check the check hash
-    assert_eq!(buf[HASH_OFFSET + 8], 0x59);
-    assert_eq!(buf[HASH_OFFSET + 9], 0xe4);
-    assert_eq!(buf[HASH_OFFSET + 10], 0x6b);
-    assert_eq!(buf[HASH_OFFSET + 11], 0xa6);
-    assert_eq!(buf[HASH_OFFSET + 12], 0x61);
-    assert_eq!(buf[HASH_OFFSET + 13], 0x30);
-    assert_eq!(buf[HASH_OFFSET + 14], 0xac);
-    assert_eq!(buf[HASH_OFFSET + 15], 0x1b);
+    assert_eq!(buf[HASH_OFFSET + 8], 0xdb);
+    assert_eq!(buf[HASH_OFFSET + 9], 0x6d);
+    assert_eq!(buf[HASH_OFFSET + 10], 0x81);
+    assert_eq!(buf[HASH_OFFSET + 11], 0xc6);
+    assert_eq!(buf[HASH_OFFSET + 12], 0x6b);
+    assert_eq!(buf[HASH_OFFSET + 13], 0x95);
+    assert_eq!(buf[HASH_OFFSET + 14], 0x50);
+    assert_eq!(buf[HASH_OFFSET + 15], 0xdc);
 }
 
 fn check_region_one(buf: &[u8]) {
@@ -43,14 +43,14 @@ fn check_region_one(buf: &[u8]) {
     assert_eq!(buf[LEN_OFFSET + 1], 51);
 
     // Check the hash
-    assert_eq!(buf[HASH_OFFSET + 0], 0xED);
-    assert_eq!(buf[HASH_OFFSET + 1], 0xA1);
-    assert_eq!(buf[HASH_OFFSET + 2], 0x00);
-    assert_eq!(buf[HASH_OFFSET + 3], 0x78);
-    assert_eq!(buf[HASH_OFFSET + 4], 0x88);
-    assert_eq!(buf[HASH_OFFSET + 5], 0x61);
-    assert_eq!(buf[HASH_OFFSET + 6], 0x93);
-    assert_eq!(buf[HASH_OFFSET + 7], 0xba);
+    assert_eq!(buf[HASH_OFFSET + 0], 0x81);
+    assert_eq!(buf[HASH_OFFSET + 1], 0x13);
+    assert_eq!(buf[HASH_OFFSET + 2], 0x7e);
+    assert_eq!(buf[HASH_OFFSET + 3], 0x95);
+    assert_eq!(buf[HASH_OFFSET + 4], 0x9e);
+    assert_eq!(buf[HASH_OFFSET + 5], 0x93);
+    assert_eq!(buf[HASH_OFFSET + 6], 0xaa);
+    assert_eq!(buf[HASH_OFFSET + 7], 0x3d);
 
     // Check the value
     assert_eq!(buf[HASH_OFFSET + 8], 0x23);
@@ -59,13 +59,13 @@ fn check_region_one(buf: &[u8]) {
 
     // Check the check hash
     assert_eq!(buf[43], 0x08);
-    assert_eq!(buf[44], 0xD0);
-    assert_eq!(buf[45], 0x5E);
-    assert_eq!(buf[46], 0x25);
-    assert_eq!(buf[47], 0xDD);
-    assert_eq!(buf[48], 0xAD);
-    assert_eq!(buf[49], 0x4F);
-    assert_eq!(buf[50], 0x8C);
+    assert_eq!(buf[44], 0x05);
+    assert_eq!(buf[45], 0x89);
+    assert_eq!(buf[46], 0xef);
+    assert_eq!(buf[47], 0x5d);
+    assert_eq!(buf[48], 0x42);
+    assert_eq!(buf[49], 0x42);
+    assert_eq!(buf[50], 0xdc);
 }
 
 fn check_region_two(buf: &[u8]) {
@@ -77,14 +77,14 @@ fn check_region_two(buf: &[u8]) {
     assert_eq!(buf[LEN_OFFSET + 1], 51);
 
     // Check the hash
-    assert_eq!(buf[HASH_OFFSET + 0], 0xcd);
-    assert_eq!(buf[HASH_OFFSET + 1], 0xf8);
-    assert_eq!(buf[HASH_OFFSET + 2], 0xf5);
-    assert_eq!(buf[HASH_OFFSET + 3], 0x91);
-    assert_eq!(buf[HASH_OFFSET + 4], 0xb7);
-    assert_eq!(buf[HASH_OFFSET + 5], 0x7b);
-    assert_eq!(buf[HASH_OFFSET + 6], 0x80);
-    assert_eq!(buf[HASH_OFFSET + 7], 0xf6);
+    assert_eq!(buf[HASH_OFFSET + 0], 0x9d);
+    assert_eq!(buf[HASH_OFFSET + 1], 0xd3);
+    assert_eq!(buf[HASH_OFFSET + 2], 0x71);
+    assert_eq!(buf[HASH_OFFSET + 3], 0x45);
+    assert_eq!(buf[HASH_OFFSET + 4], 0x05);
+    assert_eq!(buf[HASH_OFFSET + 5], 0xc2);
+    assert_eq!(buf[HASH_OFFSET + 6], 0xf8);
+    assert_eq!(buf[HASH_OFFSET + 7], 0x66);
 
     // Check the value
     assert_eq!(buf[HASH_OFFSET + 8], 0x23);
@@ -92,14 +92,14 @@ fn check_region_two(buf: &[u8]) {
     assert_eq!(buf[42], 0x23);
 
     // Check the check hash
-    assert_eq!(buf[43], 0x9f);
-    assert_eq!(buf[44], 0xbb);
-    assert_eq!(buf[45], 0xd0);
-    assert_eq!(buf[46], 0xdd);
-    assert_eq!(buf[47], 0xe6);
-    assert_eq!(buf[48], 0x62);
-    assert_eq!(buf[49], 0x4b);
-    assert_eq!(buf[50], 0x8a);
+    assert_eq!(buf[43], 0xdb);
+    assert_eq!(buf[44], 0x1d);
+    assert_eq!(buf[45], 0xd4);
+    assert_eq!(buf[46], 0x8a);
+    assert_eq!(buf[47], 0x7b);
+    assert_eq!(buf[48], 0x39);
+    assert_eq!(buf[49], 0x53);
+    assert_eq!(buf[50], 0x8f);
 }
 
 /// Tests using a NOP flash controller
@@ -311,10 +311,10 @@ mod store_flast_ctrl {
         let value: [u8; 32] = [0x23; 32];
 
         tickfs
-            .append_key(&mut DefaultHasher::new(), "ONE", &value)
+            .append_key(&mut DefaultHasher::new(), b"ONE", &value)
             .unwrap();
         tickfs
-            .append_key(&mut DefaultHasher::new(), "TWO", &value)
+            .append_key(&mut DefaultHasher::new(), b"TWO", &value)
             .unwrap();
     }
 
@@ -335,42 +335,42 @@ mod store_flast_ctrl {
 
         println!("Add key ONE");
         tickfs
-            .append_key(&mut DefaultHasher::new(), "ONE", &value)
+            .append_key(&mut DefaultHasher::new(), b"ONE", &value)
             .unwrap();
 
         println!("Get key ONE");
         tickfs
-            .get_key(&mut DefaultHasher::new(), "ONE", &mut buf)
+            .get_key(&mut DefaultHasher::new(), b"ONE", &mut buf)
             .unwrap();
 
         println!("Get non-existant key TWO");
         assert_eq!(
-            tickfs.get_key(&mut DefaultHasher::new(), "TWO", &mut buf),
+            tickfs.get_key(&mut DefaultHasher::new(), b"TWO", &mut buf),
             Err(ErrorCode::KeyNotFound)
         );
 
         println!("Add key ONE again");
         assert_eq!(
-            tickfs.append_key(&mut DefaultHasher::new(), "ONE", &value),
+            tickfs.append_key(&mut DefaultHasher::new(), b"ONE", &value),
             Err(ErrorCode::KeyAlreadyExists)
         );
 
         println!("Add key TWO");
         tickfs
-            .append_key(&mut DefaultHasher::new(), "TWO", &value)
+            .append_key(&mut DefaultHasher::new(), b"TWO", &value)
             .unwrap();
         println!("Get key ONE");
         tickfs
-            .get_key(&mut DefaultHasher::new(), "ONE", &mut buf)
+            .get_key(&mut DefaultHasher::new(), b"ONE", &mut buf)
             .unwrap();
         println!("Get key TWO");
         tickfs
-            .get_key(&mut DefaultHasher::new(), "TWO", &mut buf)
+            .get_key(&mut DefaultHasher::new(), b"TWO", &mut buf)
             .unwrap();
 
         println!("Get non-existant key THREE");
         assert_eq!(
-            tickfs.get_key(&mut DefaultHasher::new(), "THREE", &mut buf),
+            tickfs.get_key(&mut DefaultHasher::new(), b"THREE", &mut buf),
             Err(ErrorCode::KeyNotFound)
         );
     }
@@ -392,28 +392,28 @@ mod store_flast_ctrl {
 
         println!("Add Key ONE");
         tickfs
-            .append_key(&mut DefaultHasher::new(), "ONE", &value)
+            .append_key(&mut DefaultHasher::new(), b"ONE", &value)
             .unwrap();
 
         println!("Get key ONE");
         tickfs
-            .get_key(&mut DefaultHasher::new(), "ONE", &mut buf)
+            .get_key(&mut DefaultHasher::new(), b"ONE", &mut buf)
             .unwrap();
 
         println!("Delete Key ONE");
         tickfs
-            .invalidate_key(&mut DefaultHasher::new(), "ONE")
+            .invalidate_key(&mut DefaultHasher::new(), b"ONE")
             .unwrap();
 
         println!("Get non-existant key ONE");
         assert_eq!(
-            tickfs.get_key(&mut DefaultHasher::new(), "ONE", &mut buf),
+            tickfs.get_key(&mut DefaultHasher::new(), b"ONE", &mut buf),
             Err(ErrorCode::KeyNotFound)
         );
 
         println!("Try to delete Key ONE Again");
         assert_eq!(
-            tickfs.invalidate_key(&mut DefaultHasher::new(), "ONE"),
+            tickfs.invalidate_key(&mut DefaultHasher::new(), b"ONE"),
             Err(ErrorCode::KeyNotFound)
         );
     }
@@ -438,7 +438,7 @@ mod store_flast_ctrl {
 
         println!("Add Key ONE");
         tickfs
-            .append_key(&mut DefaultHasher::new(), "ONE", &value)
+            .append_key(&mut DefaultHasher::new(), b"ONE", &value)
             .unwrap();
 
         println!("Garbage collect flash with valid key");
@@ -446,7 +446,7 @@ mod store_flast_ctrl {
 
         println!("Delete Key ONE");
         tickfs
-            .invalidate_key(&mut DefaultHasher::new(), "ONE")
+            .invalidate_key(&mut DefaultHasher::new(), b"ONE")
             .unwrap();
 
         println!("Garbage collect flash with deleted key");
@@ -454,13 +454,13 @@ mod store_flast_ctrl {
 
         println!("Get non-existant key ONE");
         assert_eq!(
-            tickfs.get_key(&mut DefaultHasher::new(), "ONE", &mut buf),
+            tickfs.get_key(&mut DefaultHasher::new(), b"ONE", &mut buf),
             Err(ErrorCode::KeyNotFound)
         );
 
         println!("Add Key ONE");
         tickfs
-            .append_key(&mut DefaultHasher::new(), "ONE", &value)
+            .append_key(&mut DefaultHasher::new(), b"ONE", &value)
             .unwrap();
     }
 }
@@ -538,94 +538,94 @@ mod no_check_store_flast_ctrl {
 
         println!("Add Key ONE");
         tickfs
-            .append_key(&mut DefaultHasher::new(), "ONE", &value)
+            .append_key(&mut DefaultHasher::new(), b"ONE", &value)
             .unwrap();
 
         println!("Add Key TWO");
         tickfs
-            .append_key(&mut DefaultHasher::new(), "TWO", &value)
+            .append_key(&mut DefaultHasher::new(), b"TWO", &value)
             .unwrap();
 
         println!("Add Key THREE");
         tickfs
-            .append_key(&mut DefaultHasher::new(), "THREE", &value)
+            .append_key(&mut DefaultHasher::new(), b"THREE", &value)
             .unwrap();
 
         println!("Add Key FOUR");
         tickfs
-            .append_key(&mut DefaultHasher::new(), "FOUR", &value)
+            .append_key(&mut DefaultHasher::new(), b"FOUR", &value)
             .unwrap();
 
         println!("Add Key FIVE");
         tickfs
-            .append_key(&mut DefaultHasher::new(), "FIVE", &value)
+            .append_key(&mut DefaultHasher::new(), b"FIVE", &value)
             .unwrap();
 
         println!("Add Key SIX");
         assert_eq!(
-            tickfs.append_key(&mut DefaultHasher::new(), "SIX", &value),
+            tickfs.append_key(&mut DefaultHasher::new(), b"SIX", &value),
             Err(ErrorCode::FlashFull)
         );
 
         println!("Get key ONE");
         tickfs
-            .get_key(&mut DefaultHasher::new(), "ONE", &mut buf)
+            .get_key(&mut DefaultHasher::new(), b"ONE", &mut buf)
             .unwrap();
 
         println!("Get key TWO");
         tickfs
-            .get_key(&mut DefaultHasher::new(), "TWO", &mut buf)
+            .get_key(&mut DefaultHasher::new(), b"TWO", &mut buf)
             .unwrap();
 
         println!("Get key THREE");
         tickfs
-            .get_key(&mut DefaultHasher::new(), "THREE", &mut buf)
+            .get_key(&mut DefaultHasher::new(), b"THREE", &mut buf)
             .unwrap();
 
         println!("Get key FOUR");
         tickfs
-            .get_key(&mut DefaultHasher::new(), "FOUR", &mut buf)
+            .get_key(&mut DefaultHasher::new(), b"FOUR", &mut buf)
             .unwrap();
 
         println!("Get key FIVE");
         tickfs
-            .get_key(&mut DefaultHasher::new(), "FIVE", &mut buf)
+            .get_key(&mut DefaultHasher::new(), b"FIVE", &mut buf)
             .unwrap();
 
         println!("Get key SIX");
         assert_eq!(
-            tickfs.get_key(&mut DefaultHasher::new(), "SIX", &mut buf),
+            tickfs.get_key(&mut DefaultHasher::new(), b"SIX", &mut buf),
             Err(ErrorCode::KeyNotFound)
         );
 
         println!("Delete Key ONE");
         tickfs
-            .invalidate_key(&mut DefaultHasher::new(), "ONE")
+            .invalidate_key(&mut DefaultHasher::new(), b"ONE")
             .unwrap();
 
         println!("Delete Key TWO");
         tickfs
-            .invalidate_key(&mut DefaultHasher::new(), "TWO")
+            .invalidate_key(&mut DefaultHasher::new(), b"TWO")
             .unwrap();
 
         println!("Delete Key THREE");
         tickfs
-            .invalidate_key(&mut DefaultHasher::new(), "THREE")
+            .invalidate_key(&mut DefaultHasher::new(), b"THREE")
             .unwrap();
 
         println!("Delete Key FOUR");
         tickfs
-            .invalidate_key(&mut DefaultHasher::new(), "FOUR")
+            .invalidate_key(&mut DefaultHasher::new(), b"FOUR")
             .unwrap();
 
         println!("Delete Key FIVE");
         tickfs
-            .invalidate_key(&mut DefaultHasher::new(), "FIVE")
+            .invalidate_key(&mut DefaultHasher::new(), b"FIVE")
             .unwrap();
 
         println!("Delete Key SIX");
         assert_eq!(
-            tickfs.invalidate_key(&mut DefaultHasher::new(), "SIX"),
+            tickfs.invalidate_key(&mut DefaultHasher::new(), b"SIX"),
             Err(ErrorCode::KeyNotFound)
         );
     }

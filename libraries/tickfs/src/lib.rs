@@ -139,11 +139,11 @@
 //!
 //! // Add a key
 //! let value: [u8; 32] = [0x23; 32];
-//! tickfs.append_key(&mut DefaultHasher::new(), "ONE", &value).unwrap();
+//! tickfs.append_key(&mut DefaultHasher::new(), b"ONE", &value).unwrap();
 //!
 //! // Get the same key back
 //! let mut buf: [u8; 32] = [0; 32];
-//! tickfs.get_key(&mut DefaultHasher::new(), "ONE", &mut buf).unwrap();
+//! tickfs.get_key(&mut DefaultHasher::new(), b"ONE", &mut buf).unwrap();
 //! ```
 //!
 //! You can then use the `get_key()` function to get the key back from flash.
