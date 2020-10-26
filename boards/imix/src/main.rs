@@ -46,8 +46,6 @@ use components::spi::{SpiComponent, SpiSyscallComponent};
 use imix_components::adc::AdcComponent;
 use imix_components::fxos8700::NineDofComponent;
 use imix_components::rf233::RF233Component;
-use imix_components::udp_driver::UDPDriverComponent;
-use imix_components::udp_mux::UDPMuxComponent;
 use imix_components::usb::UsbComponent;
 
 /// Support routines for debugging I/O.
@@ -464,7 +462,7 @@ pub unsafe fn reset_handler() {
         ]
     );
 
-    let (udp_send_mux, udp_recv_mux, udp_port_table) = UDPMuxComponent::new(
+    let (udp_send_mux, udp_recv_mux, udp_port_table) = components::udp_mux::UDPMuxComponent::new(
         mux_mac,
         DEFAULT_CTX_PREFIX_LEN,
         DEFAULT_CTX_PREFIX,
@@ -474,17 +472,17 @@ pub unsafe fn reset_handler() {
         local_ip_ifaces,
         mux_alarm,
     )
-    .finalize(());
+    .finalize(components::udp_mux_component_helper!(sam4l::ast::Ast));
 
     // UDP driver initialization happens here
-    let udp_driver = UDPDriverComponent::new(
+    let udp_driver = components::udp_driver::UDPDriverComponent::new(
         board_kernel,
         udp_send_mux,
         udp_recv_mux,
         udp_port_table,
         local_ip_ifaces,
     )
-    .finalize(());
+    .finalize(components::udp_driver_component_helper!(sam4l::ast::Ast));
 
     let imix = Imix {
         pconsole,
