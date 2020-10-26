@@ -1,5 +1,6 @@
 //! Tock Cell types.
 
+#![feature(const_fn)]
 // Feature used to opt-in the new `core::Option::contains()` API.
 //
 // This feature can be removed if needed by manually reimplementing the
@@ -7,7 +8,7 @@
 //
 // Tock expects this feature to stabilize in the near future.
 // Tracking: https://github.com/rust-lang/rust/issues/62358
-#![feature(option_result_contains, const_fn)]
+#![feature(option_result_contains)]
 #![no_std]
 
 pub mod map_cell;
