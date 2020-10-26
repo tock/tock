@@ -49,7 +49,7 @@ pub(crate) const HASH_OFFSET: usize = 3;
 pub(crate) const HEADER_LENGTH: usize = HASH_OFFSET + 8;
 pub(crate) const CHECK_SUM_LEN: usize = 8;
 
-const MAIN_KEY: &str = "tickfs-super-key";
+const MAIN_KEY: &[u8; 16] = b"tickfs-super-key";
 
 /// This is the main TickFS struct.
 impl<'a, C: FlashController, H: Hasher> TickFS<'a, C, H> {
@@ -105,7 +105,7 @@ impl<'a, C: FlashController, H: Hasher> TickFS<'a, C, H> {
     }
 
     /// Generate the hash and region number from a key
-    fn get_hash_and_region(&self, hash_function: &mut H, key: &str) -> (u64, usize) {
+    fn get_hash_and_region(&self, hash_function: &mut H, key: &[u8]) -> (u64, usize) {
         // Generate a hash of the key
         key.hash(hash_function);
         let hash = hash_function.finish();
@@ -242,7 +242,7 @@ impl<'a, C: FlashController, H: Hasher> TickFS<'a, C, H> {
     pub fn append_key(
         &self,
         hash_function: &mut H,
-        key: &str,
+        key: &[u8],
         value: &[u8],
     ) -> Result<(), ErrorCode> {
         let (hash, region) = self.get_hash_and_region(hash_function, key);
@@ -423,7 +423,7 @@ impl<'a, C: FlashController, H: Hasher> TickFS<'a, C, H> {
     pub fn get_key(
         &self,
         hash_function: &mut H,
-        key: &str,
+        key: &[u8],
         buf: &mut [u8],
     ) -> Result<(), ErrorCode> {
         let (hash, region) = self.get_hash_and_region(hash_function, key);
@@ -522,7 +522,7 @@ impl<'a, C: FlashController, H: Hasher> TickFS<'a, C, H> {
     ///
     /// If a power loss occurs before success is returned the data is
     /// assumed to be lost.
-    pub fn invalidate_key(&self, hash_function: &mut H, key: &str) -> Result<(), ErrorCode> {
+    pub fn invalidate_key(&self, hash_function: &mut H, key: &[u8]) -> Result<(), ErrorCode> {
         let (hash, region) = self.get_hash_and_region(hash_function, key);
 
         let mut region_offset: isize = 0;
