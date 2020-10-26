@@ -632,6 +632,37 @@ pub enum State {
     Unstarted,
 }
 
+/// A wrapper around `Cell<State>` is used by `Process` to prevent bugs arising from
+/// the state duplication in the kernel work tracking and process state tracking.
+struct ProcessStateCell<'a> {
+    state: Cell<State>,
+    kernel: &'a Kernel,
+}
+
+impl<'a> ProcessStateCell<'a> {
+    fn new(kernel: &'a Kernel) -> Self {
+        Self {
+            state: Cell::new(State::Unstarted),
+            kernel,
+        }
+    }
+
+    fn get(&self) -> State {
+        self.state.get()
+    }
+
+    fn update(&self, new_state: State) {
+        let old_state = self.state.get();
+
+        if old_state == State::Running && new_state != State::Running {
+            self.kernel.decrement_work();
+        } else if new_state == State::Running && old_state != State::Running {
+            self.kernel.increment_work()
+        }
+        self.state.set(new_state);
+    }
+}
+
 /// The reaction the kernel should take when an app encounters a fault.
 ///
 /// When an exception occurs during an app's execution (a common example is an
@@ -830,7 +861,7 @@ pub struct Process<'a, C: 'static + Chip> {
     /// `Running` and `Yielded` states. The system can control the process by
     /// switching it to a "stopped" state to prevent the scheduler from
     /// scheduling it.
-    state: Cell<State>,
+    state: ProcessStateCell<'static>,
 
     /// How to deal with Faults occurring in the process
     fault_response: FaultResponse,
@@ -927,29 +958,28 @@ impl<C: Chip> ProcessType for Process<'_, C> {
 
     fn set_yielded_state(&self) {
         if self.state.get() == State::Running {
-            self.state.set(State::Yielded);
-            self.kernel.decrement_work();
+            self.state.update(State::Yielded);
         }
     }
 
     fn stop(&self) {
         match self.state.get() {
-            State::Running => self.state.set(State::StoppedRunning),
-            State::Yielded => self.state.set(State::StoppedYielded),
+            State::Running => self.state.update(State::StoppedRunning),
+            State::Yielded => self.state.update(State::StoppedYielded),
             _ => {} // Do nothing
         }
     }
 
     fn resume(&self) {
         match self.state.get() {
-            State::StoppedRunning => self.state.set(State::Running),
-            State::StoppedYielded => self.state.set(State::Yielded),
+            State::StoppedRunning => self.state.update(State::Running),
+            State::StoppedYielded => self.state.update(State::Yielded),
             _ => {} // Do nothing
         }
     }
 
     fn set_fault_state(&self) {
-        self.state.set(State::Fault);
+        self.state.update(State::Fault);
 
         match self.fault_response {
             FaultResponse::Panic => {
@@ -1266,14 +1296,9 @@ impl<C: Chip> ProcessType for Process<'_, C> {
                 // set and should mark that this process is ready to be
                 // scheduled.
 
-                // We just setup up a new callback to do, which means this
-                // process wants to execute, so we set that there is work to
-                // be done.
-                self.kernel.increment_work();
-
                 // Move this process to the "running" state so the scheduler
                 // will schedule it.
-                self.state.set(State::Running);
+                self.state.update(State::Running);
 
                 // Update helpful debugging metadata.
                 self.current_stack_pointer.set(stack_bottom as *mut u8);
@@ -1570,6 +1595,15 @@ fn exceeded_check(size: usize, allocated: usize) -> &'static str {
 }
 
 impl<C: 'static + Chip> Process<'_, C> {
+    const INITIAL_APP_MEMORY_SIZE: usize = 3 * 1024;
+
+    // Memory offset for callback ring buffer (10 element length).
+    const CALLBACK_LEN: usize = 10;
+    const CALLBACKS_OFFSET: usize = mem::size_of::<Task>() * Self::CALLBACK_LEN;
+
+    // Memory offset to make room for this process's metadata.
+    const PROCESS_STRUCT_OFFSET: usize = mem::size_of::<Process<C>>();
+
     pub(crate) unsafe fn create(
         kernel: &'static Kernel,
         chip: &'static C,
@@ -1673,23 +1707,14 @@ impl<C: 'static + Chip> Process<'_, C> {
         let grant_ptrs_num = kernel.get_grant_count_and_finalize();
         let grant_ptrs_offset = grant_ptrs_num * grant_ptr_size;
 
-        // Allocate memory for callback ring buffer.
-        let callback_size = mem::size_of::<Task>();
-        let callback_len = 10;
-        let callbacks_offset = callback_len * callback_size;
-
-        // Make room to store this process's metadata.
-        let process_struct_offset = mem::size_of::<Process<C>>();
-
         // Initial sizes of the app-owned and kernel-owned parts of process
         // memory. Provide the app with plenty of initial process accessible
         // memory.
         let initial_kernel_memory_size =
-            grant_ptrs_offset + callbacks_offset + process_struct_offset;
-        let initial_app_memory_size = 3 * 1024;
+            grant_ptrs_offset + Self::CALLBACKS_OFFSET + Self::PROCESS_STRUCT_OFFSET;
 
-        if min_app_ram_size < initial_app_memory_size {
-            min_app_ram_size = initial_app_memory_size;
+        if min_app_ram_size < Self::INITIAL_APP_MEMORY_SIZE {
+            min_app_ram_size = Self::INITIAL_APP_MEMORY_SIZE;
         }
 
         // Minimum memory size for the process.
@@ -1746,7 +1771,7 @@ impl<C: 'static + Chip> Process<'_, C> {
             remaining_memory.as_ptr() as *const u8,
             remaining_memory.len(),
             min_total_memory_size,
-            initial_app_memory_size,
+            Self::INITIAL_APP_MEMORY_SIZE,
             initial_kernel_memory_size,
             mpu::Permissions::ReadWriteOnly,
             &mut mpu_config,
@@ -1799,8 +1824,8 @@ impl<C: 'static + Chip> Process<'_, C> {
         }
 
         // Set the initial process stack and memory to 3072 bytes.
-        let initial_stack_pointer = app_memory.as_ptr().add(initial_app_memory_size);
-        let initial_sbrk_pointer = app_memory.as_ptr().add(initial_app_memory_size);
+        let initial_stack_pointer = app_memory.as_ptr().add(Self::INITIAL_APP_MEMORY_SIZE);
+        let initial_sbrk_pointer = app_memory.as_ptr().add(Self::INITIAL_APP_MEMORY_SIZE);
 
         // Set up initial grant region.
         let mut kernel_memory_break = app_memory.as_mut_ptr().add(app_memory.len());
@@ -1827,7 +1852,7 @@ impl<C: 'static + Chip> Process<'_, C> {
 
         // Now that we know we have the space we can setup the memory for the
         // callbacks.
-        kernel_memory_break = kernel_memory_break.offset(-(callbacks_offset as isize));
+        kernel_memory_break = kernel_memory_break.offset(-(Self::CALLBACKS_OFFSET as isize));
 
         // This is safe today, as MPU constraints ensure that `memory_start`
         // will always be aligned on at least a word boundary, and that
@@ -1840,11 +1865,11 @@ impl<C: 'static + Chip> Process<'_, C> {
         #[allow(clippy::cast_ptr_alignment)]
         // Set up ring buffer for callbacks to the process.
         let callback_buf =
-            slice::from_raw_parts_mut(kernel_memory_break as *mut Task, callback_len);
+            slice::from_raw_parts_mut(kernel_memory_break as *mut Task, Self::CALLBACK_LEN);
         let tasks = RingBuffer::new(callback_buf);
 
         // Last thing in the kernel region of process RAM is the process struct.
-        kernel_memory_break = kernel_memory_break.offset(-(process_struct_offset as isize));
+        kernel_memory_break = kernel_memory_break.offset(-(Self::PROCESS_STRUCT_OFFSET as isize));
         let process_struct_memory_location = kernel_memory_break;
 
         // Determine the debug information to the best of our understanding.
@@ -1887,7 +1912,8 @@ impl<C: 'static + Chip> Process<'_, C> {
         process.flash = app_flash;
 
         process.stored_state = MapCell::new(Default::default());
-        process.state = Cell::new(State::Unstarted);
+        // Mark this process as unstarted
+        process.state = ProcessStateCell::new(process.kernel);
         process.fault_response = fault_response;
         process.restart_count = Cell::new(0);
 
@@ -1956,7 +1982,6 @@ impl<C: 'static + Chip> Process<'_, C> {
             }
         };
 
-        // Mark this process as having something to do (it has to start!).
         kernel.increment_work();
 
         // Return the process object and a remaining memory for processes slice.
@@ -1988,7 +2013,7 @@ impl<C: 'static + Chip> Process<'_, C> {
         self.terminate();
 
         // Set the state the process will be in if it cannot be restarted.
-        self.state.set(failure_state);
+        self.state.update(failure_state);
 
         // Check if the restart policy for this app allows us to continue with
         // the restart.
@@ -2050,6 +2075,60 @@ impl<C: 'static + Chip> Process<'_, C> {
         self.allow_high_water_mark
             .set(self.original_allow_high_water_mark);
 
+        // Reset MPU region configuration.
+        // TODO: ideally, this would be moved into a helper function used by both
+        // create() and reset(), but process load debugging complicates this.
+        // We just want to create new config with only flash and memory regions.
+        let mut mpu_config: <<C as Chip>::MPU as MPU>::MpuConfig = Default::default();
+        // Allocate MPU region for flash.
+        let app_mpu_flash_success = self
+            .chip
+            .mpu()
+            .allocate_region(
+                self.flash.as_ptr(),
+                self.flash.len(),
+                self.flash.len(),
+                mpu::Permissions::ReadExecuteOnly,
+                &mut mpu_config,
+            )
+            .is_some();
+
+        // Recalculate initial_kernel_memory_size as was done in create()
+        let grant_ptr_size = mem::size_of::<*const usize>();
+        let grant_ptrs_num = self.kernel.get_grant_count_and_finalize();
+        let grant_ptrs_offset = grant_ptrs_num * grant_ptr_size;
+
+        let initial_kernel_memory_size =
+            grant_ptrs_offset + Self::CALLBACKS_OFFSET + Self::PROCESS_STRUCT_OFFSET;
+
+        let app_mpu_mem_success = self
+            .chip
+            .mpu()
+            .allocate_app_memory_region(
+                self.memory.as_ptr() as *const u8,
+                self.memory.len(),
+                self.memory.len(), //we want exactly as much as we had before restart
+                Self::INITIAL_APP_MEMORY_SIZE,
+                initial_kernel_memory_size,
+                mpu::Permissions::ReadWriteOnly,
+                &mut mpu_config,
+            )
+            .is_some();
+
+        // Drop the old config and use the clean one
+        self.mpu_config.replace(mpu_config);
+
+        match (app_mpu_flash_success, app_mpu_mem_success) {
+            (true, true) => {}
+            _ => {
+                // We couldn't configure the MPU for the process. This shouldn't
+                // happen since we were able to start the process before, but at
+                // this point it is better to leave the app faulted and not
+                // schedule it.
+                return;
+            }
+        }
+
         // Handle any architecture-specific requirements for a process when it
         // first starts (as it would when it is new).
         let new_stack_pointer_res = self.stored_state.map_or(Err(()), |stored_state| unsafe {
@@ -2080,7 +2159,7 @@ impl<C: 'static + Chip> Process<'_, C> {
         let flash_app_start = app_flash_address as usize + flash_protected_size;
 
         // Mark the state as `Unstarted` for the scheduler.
-        self.state.set(State::Unstarted);
+        self.state.update(State::Unstarted);
 
         // Mark that we restarted this process.
         self.restart_count.increment();
@@ -2126,7 +2205,7 @@ impl<C: 'static + Chip> Process<'_, C> {
         }
 
         // Mark the app as stopped so the scheduler won't try to run it.
-        self.state.set(State::StoppedFaulted);
+        self.state.update(State::StoppedFaulted);
     }
 
     /// Get the current stack pointer as a pointer.

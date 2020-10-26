@@ -1,6 +1,5 @@
 //! Create a timer using the Machine Timer registers.
 
-use crate::csr;
 use kernel::common::cells::OptionalCell;
 use kernel::common::registers::{register_structs, ReadWrite};
 use kernel::common::StaticRef;
@@ -68,7 +67,6 @@ impl<'a> time::Alarm<'a> for MachineTimer<'a> {
     }
 
     fn set_alarm(&self, reference: Self::Ticks, dt: Self::Ticks) {
-        csr::CSR.mie.modify(csr::mie::mie::mtimer::CLEAR);
         // This does not handle the 64-bit wraparound case.
         // Because mtimer fires if the counter is >= the compare,
         // handling wraparound requires setting compare to the
@@ -93,8 +91,6 @@ impl<'a> time::Alarm<'a> for MachineTimer<'a> {
         regs.compare_low.set(0xFFFF_FFFF);
         regs.compare_high.set(high);
         regs.compare_low.set(low);
-
-        csr::CSR.mie.modify(csr::mie::mie::mtimer::SET);
     }
 
     fn get_alarm(&self) -> Self::Ticks {
@@ -157,10 +153,13 @@ impl kernel::SchedulerTimer for MachineTimer<'_> {
     }
 
     fn arm(&self) {
-        csr::CSR.mie.modify(csr::mie::mie::mtimer::SET);
+        // Arm and disarm are optional, but controlling the mtimer interrupt
+        // should be re-enabled if Tock moves to a design that allows direct control of
+        // interrupt enables
+        //csr::CSR.mie.modify(csr::mie::mie::mtimer::SET);
     }
 
     fn disarm(&self) {
-        csr::CSR.mie.modify(csr::mie::mie::mtimer::CLEAR);
+        //csr::CSR.mie.modify(csr::mie::mie::mtimer::CLEAR);
     }
 }

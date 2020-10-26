@@ -343,10 +343,12 @@ pub struct DebugWriter {
 /// needed so the debug!() macros have a reference to the object to use.
 static mut DEBUG_WRITER: Option<&'static mut DebugWriterWrapper> = None;
 
-pub unsafe fn get_debug_writer() -> &'static mut DebugWriterWrapper {
-    DEBUG_WRITER
-        .as_deref_mut()
-        .expect("Must call `set_debug_writer_wrapper` in board initialization.")
+unsafe fn try_get_debug_writer() -> Option<&'static mut DebugWriterWrapper> {
+    DEBUG_WRITER.as_deref_mut()
+}
+
+unsafe fn get_debug_writer() -> &'static mut DebugWriterWrapper {
+    try_get_debug_writer().expect("Must call `set_debug_writer_wrapper` in board initialization.")
 }
 
 /// Function used by board main.rs to set a reference to the writer.
@@ -563,31 +565,36 @@ impl Default for Debug {
 }
 
 pub unsafe fn flush<W: Write + IoWrite>(writer: &mut W) {
-    let debug_writer = get_debug_writer();
+    if let Some(debug_writer) = try_get_debug_writer() {
+        if let Some(ring_buffer) = debug_writer.extract() {
+            if ring_buffer.has_elements() {
+                let _ = writer.write_str(
+                    "\r\n---| Debug buffer not empty. Flushing. May repeat some of last message(s):\r\n",
+		);
 
-    if let Some(ring_buffer) = debug_writer.extract() {
-        if ring_buffer.has_elements() {
-            let _ = writer.write_str(
-                "\r\n---| Debug buffer not empty. Flushing. May repeat some of last message(s):\r\n",
-            );
-
-            writer.write_ring_buffer(ring_buffer);
+                writer.write_ring_buffer(ring_buffer);
+            }
         }
-    }
 
-    match DEBUG_QUEUE.as_deref_mut() {
-        None => {
-            let _ = writer.write_str(
-                "\r\n---| No debug queue found. You can set it with the DebugQueue component.\r\n",
-            );
-        }
-        Some(buffer) => {
-            let _ = writer.write_str("\r\n---| Flushing debug queue:\r\n");
-            buffer.dw.map(|dw| {
-                dw.ring_buffer.map(|ring_buffer| {
-                    writer.write_ring_buffer(ring_buffer);
+        match DEBUG_QUEUE.as_deref_mut() {
+            None => {
+                let _ = writer.write_str(
+                    "\r\n---| No debug queue found. You can set it with the DebugQueue component.\r\n",
+		);
+            }
+            Some(buffer) => {
+                let _ = writer.write_str("\r\n---| Flushing debug queue:\r\n");
+                buffer.dw.map(|dw| {
+                    dw.ring_buffer.map(|ring_buffer| {
+                        writer.write_ring_buffer(ring_buffer);
+                    });
                 });
-            });
+            }
         }
+    } else {
+        let _ = writer.write_str(
+            "\r\n---| Global debug writer not registered.\
+             \r\n     Call `set_debug_writer_wrapper` in board initialization.\r\n",
+        );
     }
 }

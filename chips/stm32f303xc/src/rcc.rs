@@ -623,6 +623,20 @@ impl Rcc {
     fn disable_adc34_clock(&self) {
         self.registers.ahbenr.modify(AHBENR::ADC34EN::CLEAR);
     }
+
+    // WWDG clock
+
+    fn is_enabled_wwdg_clock(&self) -> bool {
+        self.registers.apb1enr.is_set(APB1ENR::WWDGEN)
+    }
+
+    fn enable_wwdg_clock(&self) {
+        self.registers.apb1enr.modify(APB1ENR::WWDGEN::SET);
+    }
+
+    fn disable_wwdg_clock(&self) {
+        self.registers.apb1enr.modify(APB1ENR::WWDGEN::CLEAR);
+    }
 }
 
 /// Clock sources for CPU
@@ -667,6 +681,7 @@ pub enum PCLK1 {
     USART2,
     USART3,
     I2C1,
+    WWDG,
     // I2C2,
     // SPI3,
 }
@@ -697,6 +712,7 @@ impl ClockInterface for PeripheralClock {
                 PCLK1::USART2 => unsafe { RCC.is_enabled_usart2_clock() },
                 PCLK1::USART3 => unsafe { RCC.is_enabled_usart3_clock() },
                 PCLK1::I2C1 => unsafe { RCC.is_enabled_i2c1_clock() },
+                PCLK1::WWDG => unsafe { RCC.is_enabled_wwdg_clock() },
             },
             &PeripheralClock::APB2(ref v) => match v {
                 PCLK2::SPI1 => unsafe { RCC.is_enabled_spi1_clock() },
@@ -750,6 +766,9 @@ impl ClockInterface for PeripheralClock {
                 PCLK1::I2C1 => unsafe {
                     RCC.enable_i2c1_clock();
                     RCC.reset_i2c1();
+                },
+                PCLK1::WWDG => unsafe {
+                    RCC.enable_wwdg_clock();
                 },
             },
             &PeripheralClock::APB2(ref v) => match v {
@@ -809,6 +828,9 @@ impl ClockInterface for PeripheralClock {
                 },
                 PCLK1::I2C1 => unsafe {
                     RCC.disable_i2c1_clock();
+                },
+                PCLK1::WWDG => unsafe {
+                    RCC.disable_wwdg_clock();
                 },
             },
             &PeripheralClock::APB2(ref v) => match v {

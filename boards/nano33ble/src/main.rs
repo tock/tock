@@ -3,7 +3,9 @@
 //! It is based on nRF52840 SoC (Cortex M4 core with a BLE + IEEE 802.15.4 transceiver).
 
 #![no_std]
-#![no_main]
+// Disable this attribute when documenting, as a workaround for
+// https://github.com/rust-lang/rust/issues/62184.
+#![cfg_attr(not(doc), no_main)]
 #![feature(const_in_array_repeat_expressions)]
 #![deny(missing_docs)]
 
@@ -11,6 +13,10 @@ use kernel::capabilities;
 use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::component::Component;
 use kernel::hil::gpio::ActivationMode::ActiveLow;
+use kernel::hil::gpio::Configure;
+use kernel::hil::gpio::Interrupt;
+use kernel::hil::gpio::Output;
+use kernel::hil::i2c::I2CMaster;
 use kernel::hil::time::Counter;
 use kernel::hil::usb::Client;
 use kernel::mpu::MPU;
@@ -42,6 +48,16 @@ const GPIO_D10: Pin = Pin::P1_02;
 const _UART_TX_PIN: Pin = Pin::P1_03;
 const _UART_RX_PIN: Pin = Pin::P1_10;
 
+/// I2C pins for all of the sensors.
+const I2C_SDA_PIN: Pin = Pin::P0_14;
+const I2C_SCL_PIN: Pin = Pin::P0_15;
+
+/// GPIO tied to the VCC of the I2C pullup resistors.
+const I2C_PULLUP_PIN: Pin = Pin::P1_00;
+
+/// Interrupt pin for the APDS9960 sensor.
+const APDS9960_PIN: Pin = Pin::P0_19;
+
 /// UART Writer for panic!()s.
 pub mod io;
 
@@ -70,6 +86,7 @@ pub struct Platform {
     // >,
     // ieee802154_radio: &'static capsules::ieee802154::RadioDriver<'static>,
     console: &'static capsules::console::Console<'static>,
+    proximity: &'static capsules::proximity::ProximitySensor<'static>,
     gpio: &'static capsules::gpio::GPIO<'static, nrf52::gpio::GPIOPin<'static>>,
     led: &'static capsules::led::LED<'static, nrf52::gpio::GPIOPin<'static>>,
     rng: &'static capsules::rng::RngDriver<'static>,
@@ -87,6 +104,7 @@ impl kernel::Platform for Platform {
     {
         match driver_num {
             capsules::console::DRIVER_NUM => f(Some(self.console)),
+            capsules::proximity::DRIVER_NUM => f(Some(self.proximity)),
             capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
             capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
             capsules::led::DRIVER_NUM => f(Some(self.led)),
@@ -230,6 +248,48 @@ pub unsafe fn reset_handler() {
     let rng = components::rng::RngComponent::new(board_kernel, &nrf52::trng::TRNG).finalize(());
 
     //--------------------------------------------------------------------------
+    // SENSORS
+    //--------------------------------------------------------------------------
+
+    let sensors_i2c_bus = static_init!(
+        capsules::virtual_i2c::MuxI2C<'static>,
+        capsules::virtual_i2c::MuxI2C::new(&nrf52840::i2c::TWIM0, None, dynamic_deferred_caller)
+    );
+    nrf52840::i2c::TWIM0.configure(
+        nrf52840::pinmux::Pinmux::new(I2C_SCL_PIN as u32),
+        nrf52840::pinmux::Pinmux::new(I2C_SDA_PIN as u32),
+    );
+    nrf52840::i2c::TWIM0.set_master_client(sensors_i2c_bus);
+
+    &nrf52840::gpio::PORT[I2C_PULLUP_PIN].make_output();
+    &nrf52840::gpio::PORT[I2C_PULLUP_PIN].set();
+
+    let apds9960_i2c = static_init!(
+        capsules::virtual_i2c::I2CDevice,
+        capsules::virtual_i2c::I2CDevice::new(sensors_i2c_bus, 0x39 << 1)
+    );
+
+    let apds9960 = static_init!(
+        capsules::apds9960::APDS9960<'static>,
+        capsules::apds9960::APDS9960::new(
+            apds9960_i2c,
+            &nrf52840::gpio::PORT[APDS9960_PIN],
+            &mut capsules::apds9960::BUFFER
+        )
+    );
+    apds9960_i2c.set_client(apds9960);
+    nrf52840::gpio::PORT[APDS9960_PIN].set_client(apds9960);
+
+    let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
+
+    let proximity = static_init!(
+        capsules::proximity::ProximitySensor<'static>,
+        capsules::proximity::ProximitySensor::new(apds9960, board_kernel.create_grant(&grant_cap))
+    );
+
+    kernel::hil::sensors::ProximityDriver::set_client(apds9960, proximity);
+
+    //--------------------------------------------------------------------------
     // WIRELESS
     //--------------------------------------------------------------------------
 
@@ -256,6 +316,7 @@ pub unsafe fn reset_handler() {
         // ble_radio: ble_radio,
         // ieee802154_radio: ieee802154_radio,
         console: console,
+        proximity: proximity,
         led: led,
         gpio: gpio,
         rng: rng,

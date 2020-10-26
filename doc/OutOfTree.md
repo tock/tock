@@ -78,7 +78,7 @@ specify how the kernel is loaded onto your board.
   # Include Tock build rules
   include ../../tock/boards/Makefile.common
 
-  # Rules for loading via bootloader or other simple, direct conneciton
+  # Rules for loading via bootloader or other simple, direct connection
   program:
     ...
 

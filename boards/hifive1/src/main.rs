@@ -243,8 +243,6 @@ pub unsafe fn reset_handler() {
         debug!("{:?}", err);
     });
 
-    multi_alarm_test::run_multi_alarm(mux_alarm);
-
     let scheduler = components::sched::cooperative::CooperativeComponent::new(&PROCESSES)
         .finalize(components::coop_component_helper!(NUM_PROCS));
     board_kernel.kernel_loop(&hifive1, chip, None, scheduler, &main_loop_cap);

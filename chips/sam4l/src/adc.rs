@@ -29,6 +29,7 @@ use kernel::hil;
 use kernel::ReturnCode;
 
 /// Representation of an ADC channel on the SAM4L.
+#[derive(PartialEq)]
 pub struct AdcChannel {
     chan_num: u32,
     internal: u32,
@@ -837,6 +838,13 @@ impl hil::adc::Adc for Adc {
     /// of 0.5.
     fn get_voltage_reference_mv(&self) -> Option<usize> {
         Some(3300)
+    }
+
+    /// Sets the client for this driver.
+    ///
+    /// - `client`: reference to capsule which handles responses
+    fn set_client(&self, _client: &'static dyn hil::adc::Client) {
+        unimplemented!();
     }
 }
 

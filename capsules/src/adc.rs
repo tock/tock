@@ -1,5 +1,22 @@
-//! Provides userspace applications with the ability to sample
-//! analog signals.
+//! Syscall driver capsules for ADC sampling.
+//!
+//! This module has two ADC syscall driver capsule implementations.
+//!
+//! The first, called AdcDedicated, assumes that it has complete (dedicated)
+//! control of the kernel ADC. This capsule provides userspace with
+//! the ability to perform single, continuous, and high speed samples.
+//! However, using this capsule means that no other
+//! capsule or kernel service can use the ADC. It also allows only
+//! a single process to use the ADC: other processes will receive
+//! ENOMEM errors.
+//!
+//! The second, called AdcVirtualized, sits top of an ADC virtualizer.
+//! This capsule shares the ADC with the rest of the kernel through this
+//! virtualizer, so allows other kernel services and capsules to use the
+//! ADC. It also supports multiple processes requesting ADC samples
+//! concurently. However, it only supports processes requesting single
+//! ADC samples: they cannot sample continuously or at high speed.
+//!
 //!
 //! Usage
 //! -----
@@ -19,8 +36,8 @@
 //!     ]
 //! );
 //! let adc = static_init!(
-//!     capsules::adc::Adc<'static, sam4l::adc::Adc>,
-//!     capsules::adc::Adc::new(
+//!     capsules::adc::AdcDedicated<'static, sam4l::adc::Adc>,
+//!     capsules::adc::AdcDedicated::new(
 //!         &mut sam4l::adc::ADC0,
 //!         adc_channels,
 //!         &mut capsules::adc::ADC_BUFFER1,
@@ -39,11 +56,23 @@ use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
 
 /// Syscall driver number.
 use crate::driver;
+use crate::virtual_adc::Operation;
 pub const DRIVER_NUM: usize = driver::NUM::Adc as usize;
 
-/// ADC application driver, used by applications to interact with ADC.
-/// Not currently virtualized, only one application can use it at a time.
-pub struct Adc<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed> {
+/// Multiplexed ADC syscall driver, used by applications and capsules.
+/// Virtualized, and can be use by multiple applications at the same time;
+/// requests are queued. Does not support continuous or high-speed sampling.
+pub struct AdcVirtualized<'a> {
+    drivers: &'a [&'a dyn hil::adc::AdcChannel],
+    apps: Grant<AppSys>,
+    current_app: OptionalCell<AppId>,
+}
+
+/// ADC syscall driver, used by applications to interact with ADC.
+/// Not currently virtualized: does not share the ADC with other capsules
+/// and only one application can use it at a time. Supports continuous and
+/// high speed sampling.
+pub struct AdcDedicated<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed> {
     // ADC driver
     adc: &'a A,
     channels: &'a [&'a <A as hil::adc::Adc>::Channel],
@@ -66,12 +95,20 @@ pub struct Adc<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed> {
 /// ADC modes, used to track internal state and to signify to applications which
 /// state a callback came from
 #[derive(Copy, Clone, Debug, PartialEq)]
-enum AdcMode {
+pub(crate) enum AdcMode {
     NoMode = -1,
     SingleSample = 0,
     ContinuousSample = 1,
     SingleBuffer = 2,
     ContinuousBuffer = 3,
+}
+
+// Datas passed by the application to us
+pub struct AppSys {
+    callback: Option<Callback>,
+    pending_command: bool,
+    command: OptionalCell<Operation>,
+    channel: usize,
 }
 
 /// Holds buffers that the application has passed us
@@ -101,6 +138,16 @@ impl Default for App {
     }
 }
 
+impl Default for AppSys {
+    fn default() -> AppSys {
+        AppSys {
+            callback: None,
+            pending_command: false,
+            command: OptionalCell::empty(),
+            channel: 0,
+        }
+    }
+}
 /// Buffers to use for DMA transfers
 /// The size is chosen somewhat arbitrarily, but has been tested. At 175000 Hz,
 /// buffers need to be swapped every 70 us and copied over before the next
@@ -109,8 +156,7 @@ pub static mut ADC_BUFFER1: [u16; 128] = [0; 128];
 pub static mut ADC_BUFFER2: [u16; 128] = [0; 128];
 pub static mut ADC_BUFFER3: [u16; 128] = [0; 128];
 
-/// Functions to create, initialize, and interact with the ADC
-impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed> Adc<'a, A> {
+impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed> AdcDedicated<'a, A> {
     /// Create a new `Adc` application interface.
     ///
     /// - `adc` - ADC driver to provide application access to
@@ -124,8 +170,8 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed> Adc<'a, A> {
         adc_buf1: &'static mut [u16; 128],
         adc_buf2: &'static mut [u16; 128],
         adc_buf3: &'static mut [u16; 128],
-    ) -> Adc<'a, A> {
-        Adc {
+    ) -> AdcDedicated<'a, A> {
+        AdcDedicated {
             // ADC driver
             adc: adc,
             channels: channels,
@@ -569,10 +615,71 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed> Adc<'a, A> {
                 .unwrap_or(ReturnCode::FAIL)
         })
     }
+
+    fn get_resolution_bits(&self) -> usize {
+        self.adc.get_resolution_bits()
+    }
+
+    fn get_voltage_reference_mv(&self) -> Option<usize> {
+        self.adc.get_voltage_reference_mv()
+    }
+}
+
+/// Functions to create, initialize, and interact with the virtualized ADC
+impl<'a> AdcVirtualized<'a> {
+    /// Create a new `Adc` application interface.
+    ///
+    /// - `drivers` - Virtual ADC drivers to provide application access to
+    pub fn new(
+        drivers: &'a [&'a dyn hil::adc::AdcChannel],
+        grant: Grant<AppSys>,
+    ) -> AdcVirtualized<'a> {
+        AdcVirtualized {
+            drivers: drivers,
+            apps: grant,
+            current_app: OptionalCell::empty(),
+        }
+    }
+
+    /// Enqueue the command to be executed when the ADC is available.
+    fn enqueue_command(&self, command: Operation, channel: usize, appid: AppId) -> ReturnCode {
+        if channel < self.drivers.len() {
+            self.apps
+                .enter(appid, |app, _| {
+                    if self.current_app.is_none() {
+                        self.current_app.set(appid);
+                        let value = self.call_driver(command, channel);
+                        if value != ReturnCode::SUCCESS {
+                            self.current_app.clear();
+                        }
+                        value
+                    } else {
+                        if app.pending_command == true {
+                            ReturnCode::EBUSY
+                        } else {
+                            app.pending_command = true;
+                            app.command.set(command);
+                            app.channel = channel;
+                            ReturnCode::SUCCESS
+                        }
+                    }
+                })
+                .unwrap_or_else(|err| err.into())
+        } else {
+            ReturnCode::ENODEVICE
+        }
+    }
+
+    /// Request the sample from the specified channel
+    fn call_driver(&self, command: Operation, channel: usize) -> ReturnCode {
+        match command {
+            Operation::OneSample => self.drivers[channel].sample(),
+        }
+    }
 }
 
 /// Callbacks from the ADC driver
-impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> hil::adc::Client for Adc<'_, A> {
+impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> hil::adc::Client for AdcDedicated<'_, A> {
     /// Single sample operation complete.
     ///
     /// Collects the sample and provides a callback to the application.
@@ -646,7 +753,7 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> hil::adc::Client for Adc<'_, A> 
 }
 
 /// Callbacks from the High Speed ADC driver
-impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> hil::adc::HighSpeedClient for Adc<'_, A> {
+impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> hil::adc::HighSpeedClient for AdcDedicated<'_, A> {
     /// Internal buffer has filled from a buffered sampling operation.
     /// Copies data over to application buffer, determines if more data is
     /// needed, and performs a callback to the application if ready. If
@@ -970,7 +1077,7 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> hil::adc::HighSpeedClient for Ad
 }
 
 /// Implementations of application syscalls
-impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> Driver for Adc<'_, A> {
+impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> Driver for AdcDedicated<'_, A> {
     /// Provides access to a buffer from the application to store data in or
     /// read data from.
     ///
@@ -1164,8 +1271,107 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> Driver for Adc<'_, A> {
             // Stop sampling
             5 => self.stop_sampling(),
 
+            // Get resolution bits
+            101 => ReturnCode::SuccessWithValue {
+                value: self.get_resolution_bits(),
+            },
+            // Get voltage reference mV
+            102 => {
+                if let Some(voltage) = self.get_voltage_reference_mv() {
+                    ReturnCode::SuccessWithValue { value: voltage }
+                } else {
+                    ReturnCode::ENOSUPPORT
+                }
+            }
+
             // default
             _ => ReturnCode::ENOSUPPORT,
         }
+    }
+}
+
+/// Implementation of the syscalls for the virtualized ADC.
+impl Driver for AdcVirtualized<'_> {
+    /// Provides a callback which can be used to signal the application.
+    ///
+    /// - `subscribe_num` - which subscribe call this is
+    /// - `callback` - callback object which can be scheduled to signal the
+    /// - `app_id` - application
+    fn subscribe(
+        &self,
+        subscribe_num: usize,
+        callback: Option<Callback>,
+        app_id: AppId,
+    ) -> ReturnCode {
+        match subscribe_num {
+            // subscribe to ADC sample done (from all types of sampling)
+            0 => self
+                .apps
+                .enter(app_id, |app, _| {
+                    app.callback = callback;
+                    ReturnCode::SUCCESS
+                })
+                .unwrap_or_else(|err| err.into()),
+            _ => ReturnCode::ENOSUPPORT,
+        }
+    }
+
+    /// Method for the application to command or query this driver.
+    ///
+    /// - `command_num` - which command call this is
+    /// - `channel` - requested channel value
+    /// - `_` - value sent by the application, unused
+    /// - `appid` - application identifier
+    fn command(&self, command_num: usize, channel: usize, _: usize, appid: AppId) -> ReturnCode {
+        match command_num {
+            // This driver exists and return the number of channels
+            0 => ReturnCode::SuccessWithValue {
+                value: self.drivers.len() as usize,
+            },
+
+            // Single sample.
+            1 => self.enqueue_command(Operation::OneSample, channel, appid),
+
+            // Get resolution bits
+            101 => {
+                if channel < self.drivers.len() {
+                    ReturnCode::SuccessWithValue {
+                        value: self.drivers[channel].get_resolution_bits() as usize,
+                    }
+                } else {
+                    ReturnCode::ENODEVICE
+                }
+            }
+
+            // Get voltage reference mV
+            102 => {
+                if channel < self.drivers.len() {
+                    if let Some(voltage) = self.drivers[channel].get_voltage_reference_mv() {
+                        ReturnCode::SuccessWithValue {
+                            value: voltage as usize,
+                        }
+                    } else {
+                        ReturnCode::ENOSUPPORT
+                    }
+                } else {
+                    ReturnCode::ENODEVICE
+                }
+            }
+
+            _ => ReturnCode::ENOSUPPORT,
+        }
+    }
+}
+
+impl<'a> hil::adc::Client for AdcVirtualized<'a> {
+    fn sample_ready(&self, sample: u16) {
+        self.current_app.take().map(|appid| {
+            let _ = self.apps.enter(appid, |app, _| {
+                app.pending_command = false;
+                app.callback.map(|mut cb| {
+                    cb.schedule(AdcMode::SingleSample as usize, app.channel, sample as usize);
+                });
+            });
+        });
     }
 }

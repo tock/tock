@@ -506,14 +506,17 @@ endef
 
 define ci_setup_qemu_opentitan
 	$(call banner,CI-Setup: Get OpenTitan boot ROM image)
-	# Download OpenTitan image
-	@printf "Downloading OpenTitan boot rom from: 5b2f67c10244a3f4d0e9b92a4fdc5c397fd69b73\n"
+	# Download OpenTitan image. The latest image URL is available at
+	# https://storage.googleapis.com/artifacts.opentitan.org/latest.txt
+	# We download a fixed version so that new OpenTitan images do not
+	# unexpectedly change OpenTitan's behavior in our CI.
+	@printf "Downloading OpenTitan boot ROM\n"
 	@pwd=$$(pwd) && \
 		temp=$$(mktemp -d) && \
 		cd $$temp && \
-		curl $$(curl "https://dev.azure.com/lowrisc/opentitan/_apis/build/builds/21336/artifacts?artifactName=opentitan-dist&api-version=5.1" | cut -d \" -f 38) --output opentitan-dist.zip; \
-		unzip opentitan-dist.zip; \
-		tar -xf opentitan-dist/opentitan-snapshot-20191101-*.tar.xz; \
+		curl 'https://storage.googleapis.com/artifacts.opentitan.org/opentitan-snapshot-20191101-1-2744-g528004a3.tar.xz' \
+			--output opentitan-dist.tar.xz; \
+		tar -xf opentitan-dist.tar.xz; \
 		mv opentitan-snapshot-20191101-*/sw/device/boot_rom/boot_rom_fpga_nexysvideo.elf $$pwd/tools/qemu-runner/opentitan-boot-rom.elf
 endef
 
@@ -527,7 +530,7 @@ ci-setup-qemu:
 		ci_setup_qemu_riscv,\
 		CI_JOB_QEMU_RISCV)
 	$(call ci_setup_helper,\
-		[[ $$(cksum tools/qemu-runner/opentitan-boot-rom.elf | cut -d" " -f1) == "2835238144" ]] && echo yes,\
+		[[ $$(cksum tools/qemu-runner/opentitan-boot-rom.elf | cut -d" " -f1) == "328682170" ]] && echo yes,\
 		Download opentitan archive and unpack a ROM image,\
 		ci_setup_qemu_opentitan,\
 		CI_JOB_QEMU_OPENTITAN)
@@ -546,6 +549,10 @@ endef
 ci-job-qemu: ci-setup-qemu
 	$(if $(CI_JOB_QEMU),$(call ci_job_qemu))
 
+.PHONY: board-release-test
+board-release-test:
+	@cd tools/board-runner;\
+		cargo run ${TARGET}
 
 
 ### ci-runner-netlify jobs:
