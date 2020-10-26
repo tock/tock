@@ -39,7 +39,7 @@
 
 ## Tock 1.6
 
-* Brad: Merged every PR outstanding bugfix PR related to 1.6, one of
+* Brad: Merged every outstanding bugfix PR related to 1.6, one of
   which was [the MPU fix](https://github.com/tock/tock/pull/2146). The
   issue was that when a process restarted, it was getting its old MPU
   configuration from before it crashed, although the memory regions
@@ -458,11 +458,11 @@
   which would be confusing, which hurts security and would waste flash
   space."
 
-* Jonathan: I'm happy to reiterate on my proposal. I see a few
-  concerns, for instance that Leon wants a fixed size for the
-  application id such that we can statically allocate storage
-  locations for it. Not opposed to that, but given our cryptographic
-  requirements, those ids might then be 512 bits.
+* Jonathan: I'm happy to iterate on my proposal. I see a few concerns,
+  for instance that Leon wants a fixed size for the application id
+  such that we can statically allocate storage locations for it. Not
+  opposed to that, but given our cryptographic requirements, those ids
+  might then be 512 bits.
 
 * Leon: I would want a two-stage process where the size of the first
   id would be irrelevant and the second id derived from that would be
