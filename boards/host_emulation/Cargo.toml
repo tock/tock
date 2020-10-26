@@ -1,0 +1,16 @@
+[package]
+name = "host_emulation"
+authors = ["jflat", "Krzysztof Kanas"]
+version = "0.1.0"
+edition = "2018"
+
+[dependencies]
+capsules = { path = "../../capsules" }
+components = { path = "../components" }
+kernel = { path = "../../kernel" }
+tock-cells = { path = "../../libraries/tock-cells" }
+
+tempfile = "3.1.0"
+zerocopy = "0.3.0"
+clap = "2.33.0"
+
