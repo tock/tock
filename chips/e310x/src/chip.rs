@@ -8,26 +8,77 @@ use rv32i;
 use rv32i::csr::{mcause, mie::mie, mip::mip, CSR};
 use rv32i::PMPConfigMacro;
 
-use crate::gpio;
 use crate::interrupts;
 use crate::plic;
-use crate::timer;
-use crate::uart;
+use kernel::InterruptService;
 
 PMPConfigMacro!(8);
 
-pub struct E310x<A: 'static + Alarm<'static>> {
+pub struct E310x<'a, A: 'static + Alarm<'static>, I: InterruptService<()> + 'a> {
     userspace_kernel_boundary: rv32i::syscall::SysCall,
     pmp: PMP,
     scheduler_timer: kernel::VirtualSchedulerTimer<A>,
+    timer: &'a rv32i::machine_timer::MachineTimer<'a>,
+    plic_interrupt_service: &'a I,
 }
 
-impl<A: 'static + Alarm<'static>> E310x<A> {
-    pub unsafe fn new(alarm: &'static A) -> Self {
+pub struct E310xDefaultPeripherals<'a> {
+    pub uart0: sifive::uart::Uart<'a>,
+    pub gpio_port: crate::gpio::Port<'a>,
+    pub prci: sifive::prci::Prci,
+    pub pwm0: sifive::pwm::Pwm,
+    pub pwm1: sifive::pwm::Pwm,
+    pub pwm2: sifive::pwm::Pwm,
+    pub rtc: sifive::rtc::Rtc,
+    pub watchdog: sifive::watchdog::Watchdog,
+}
+
+impl<'a> E310xDefaultPeripherals<'a> {
+    pub fn new() -> Self {
+        Self {
+            uart0: sifive::uart::Uart::new(crate::uart::UART0_BASE, 16_000_000),
+            gpio_port: crate::gpio::Port::new(),
+            prci: sifive::prci::Prci::new(crate::prci::PRCI_BASE),
+            pwm0: sifive::pwm::Pwm::new(crate::pwm::PWM0_BASE),
+            pwm1: sifive::pwm::Pwm::new(crate::pwm::PWM1_BASE),
+            pwm2: sifive::pwm::Pwm::new(crate::pwm::PWM2_BASE),
+            rtc: sifive::rtc::Rtc::new(crate::rtc::RTC_BASE),
+            watchdog: sifive::watchdog::Watchdog::new(crate::watchdog::WATCHDOG_BASE),
+        }
+    }
+}
+
+impl<'a> InterruptService<()> for E310xDefaultPeripherals<'a> {
+    unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
+        match interrupt {
+            interrupts::UART0 => self.uart0.handle_interrupt(),
+            int_pin @ interrupts::GPIO0..=interrupts::GPIO31 => {
+                let pin = &self.gpio_port[(int_pin - interrupts::GPIO0) as usize];
+                pin.handle_interrupt();
+            }
+
+            _ => return false,
+        }
+        true
+    }
+
+    unsafe fn service_deferred_call(&self, _: ()) -> bool {
+        false
+    }
+}
+
+impl<'a, A: 'static + Alarm<'static>, I: InterruptService<()> + 'a> E310x<'a, A, I> {
+    pub unsafe fn new(
+        alarm: &'static A,
+        plic_interrupt_service: &'a I,
+        timer: &'a rv32i::machine_timer::MachineTimer<'a>,
+    ) -> Self {
         Self {
             userspace_kernel_boundary: rv32i::syscall::SysCall::new(),
             pmp: PMP::new(),
             scheduler_timer: kernel::VirtualSchedulerTimer::new(alarm),
+            timer,
+            plic_interrupt_service,
         }
     }
 
@@ -37,22 +88,19 @@ impl<A: 'static + Alarm<'static>> E310x<A> {
         plic::enable_all();
     }
 
-    unsafe fn handle_plic_interrupts() {
+    unsafe fn handle_plic_interrupts(&self) {
         while let Some(interrupt) = plic::next_pending() {
-            match interrupt {
-                interrupts::UART0 => uart::UART0.handle_interrupt(),
-                int_pin @ interrupts::GPIO0..=interrupts::GPIO31 => {
-                    let pin = &gpio::PORT[(int_pin - interrupts::GPIO0) as usize];
-                    pin.handle_interrupt();
-                }
-                _ => debug!("Pidx {}", interrupt),
+            if !self.plic_interrupt_service.service_interrupt(interrupt) {
+                debug!("Pidx {}", interrupt);
             }
             plic::complete(interrupt);
         }
     }
 }
 
-impl<A: 'static + Alarm<'static>> kernel::Chip for E310x<A> {
+impl<'a, A: 'static + Alarm<'static>, I: InterruptService<()> + 'a> kernel::Chip
+    for E310x<'a, A, I>
+{
     type MPU = PMP;
     type UserspaceKernelBoundary = rv32i::syscall::SysCall;
     type SchedulerTimer = kernel::VirtualSchedulerTimer<A>;
@@ -79,13 +127,11 @@ impl<A: 'static + Alarm<'static>> kernel::Chip for E310x<A> {
             let mip = CSR.mip.extract();
 
             if mip.is_set(mip::mtimer) {
-                unsafe {
-                    timer::MACHINETIMER.handle_interrupt();
-                }
+                self.timer.handle_interrupt();
             }
             if mip.is_set(mip::mext) {
                 unsafe {
-                    Self::handle_plic_interrupts();
+                    self.handle_plic_interrupts();
                 }
             }
 
@@ -148,12 +194,12 @@ unsafe fn handle_interrupt(intr: mcause::Interrupt) {
         mcause::Interrupt::UserSoft
         | mcause::Interrupt::UserTimer
         | mcause::Interrupt::UserExternal => {
-            debug!("unexpected user-mode interrupt");
+            panic!("unexpected user-mode interrupt");
         }
         mcause::Interrupt::SupervisorExternal
         | mcause::Interrupt::SupervisorTimer
         | mcause::Interrupt::SupervisorSoft => {
-            debug!("unexpected supervisor-mode interrupt");
+            panic!("unexpected supervisor-mode interrupt");
         }
 
         mcause::Interrupt::MachineSoft => {
@@ -167,7 +213,7 @@ unsafe fn handle_interrupt(intr: mcause::Interrupt) {
         }
 
         mcause::Interrupt::Unknown => {
-            debug!("interrupt of unknown cause");
+            panic!("interrupt of unknown cause");
         }
     }
 }
