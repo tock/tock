@@ -240,13 +240,22 @@ impl Frequency for TimerAFrequency {
     }
 }
 
+pub enum InternalTrigger {
+    CaptureCompare1,
+    CaptureCompare2,
+    CaptureCompare3,
+    CaptureCompare4,
+    CaptureCompare5,
+    CaptureCompare6,
+}
+
 pub trait InternalTimer {
     /// Start timer in a given frequency. No interrupts are generated, the signal when the timer
-    /// has elapsed is used directly by a hardware module.
+    /// has elapsed is directly forwarded to the dedicated hardware module.
     /// SUCCESS: timer started successfully
     /// EINVAL: frequency too high or too low
     /// EBUSY: timer already in use
-    fn start(&self, frequency_hz: u32) -> kernel::ReturnCode;
+    fn start(&self, frequency_hz: u32, int_src: InternalTrigger) -> kernel::ReturnCode;
 
     /// Stop the timer
     fn stop(&self);
@@ -288,7 +297,20 @@ impl<'a> TimerA<'a> {
 
     // Stops the timer, no matter how it is configured
     fn stop_timer(&self) {
-        self.registers.ctl.modify(TAxCTL::MC::StopMode);
+        // Disable interrupt and set timer to stop-mode
+        self.registers
+            .ctl
+            .modify(TAxCTL::MC::StopMode + TAxCTL::TAIE::CLEAR);
+
+        // Reset the configuration and disable interrupts of all capture-compare modules
+        self.registers.cctl0.set(0);
+        self.registers.cctl1.set(0);
+        self.registers.cctl2.set(0);
+        self.registers.cctl3.set(0);
+        self.registers.cctl4.set(0);
+        self.registers.cctl5.set(0);
+        self.registers.cctl6.set(0);
+
         self.mode.set(TimerMode::Disabled);
     }
 
@@ -389,7 +411,7 @@ impl<'a> Alarm<'a> for TimerA<'a> {
 }
 
 impl<'a> InternalTimer for TimerA<'a> {
-    fn start(&self, frequency_hz: u32) -> kernel::ReturnCode {
+    fn start(&self, frequency_hz: u32, trigger: InternalTrigger) -> kernel::ReturnCode {
         if self.mode.get() != TimerMode::Disabled && self.mode.get() != TimerMode::InternalTimer {
             return kernel::ReturnCode::EBUSY;
         }
@@ -422,12 +444,21 @@ impl<'a> InternalTimer for TimerA<'a> {
         // Set timer value
         self.registers.ccr0.set((reg_val - 1) as u16);
         self.registers.cctl0.modify(TAxCCTLx::CCIE::CLEAR);
+
+        // Get the correct capture-compare registers depending on the desired trigger
+        let (ccr_reg, cctl_reg) = match trigger {
+            InternalTrigger::CaptureCompare1 => (&self.registers.ccr1, &self.registers.cctl1),
+            InternalTrigger::CaptureCompare2 => (&self.registers.ccr2, &self.registers.cctl2),
+            InternalTrigger::CaptureCompare3 => (&self.registers.ccr3, &self.registers.cctl3),
+            InternalTrigger::CaptureCompare4 => (&self.registers.ccr4, &self.registers.cctl4),
+            InternalTrigger::CaptureCompare5 => (&self.registers.ccr5, &self.registers.cctl5),
+            InternalTrigger::CaptureCompare6 => (&self.registers.ccr6, &self.registers.cctl6),
+        };
+
         // Set capture value to raise interrupt
-        self.registers.ccr1.set((reg_val - 2) as u16);
+        ccr_reg.set((reg_val - 2) as u16);
         // Enable CCR interrupt to trigger the corresponding Hardware
-        self.registers
-            .cctl1
-            .modify(TAxCCTLx::OUTMOD::SetReset + TAxCCTLx::OUT::CLEAR + TAxCCTLx::CCIE::CLEAR);
+        cctl_reg.modify(TAxCCTLx::OUTMOD::SetReset + TAxCCTLx::OUT::CLEAR + TAxCCTLx::CCIE::CLEAR);
 
         self.mode.set(TimerMode::InternalTimer);
         kernel::ReturnCode::SUCCESS

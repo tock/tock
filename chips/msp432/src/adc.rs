@@ -798,7 +798,8 @@ impl hil::adc::Adc for Adc {
         self.active_channel.set(*channel);
 
         // Setup timer
-        self.timer.map(|timer| timer.start(frequency));
+        self.timer
+            .map(|timer| timer.start(frequency, timer::InternalTrigger::CaptureCompare1));
 
         // Set the channel-number where to start sampling
         self.registers
@@ -808,7 +809,7 @@ impl hil::adc::Adc for Adc {
         self.enable_interrupt(*channel);
 
         self.registers.ctl0.modify(
-            // Set ADC to mode where a single channel gets sampled once
+            // Set ADC to mode where a single channel gets sampled continuously
             CTL0::CONSEQx::RepeatSingleChannel
             // Set the sample-and-hold source select to timer-triggered
             + CTL0::SHSx::Source7
@@ -906,7 +907,7 @@ impl hil::adc::AdcHighSpeed for Adc {
             .modify(CTL1::STARTADDx.val(*channel as u32));
 
         self.registers.ctl0.modify(
-            // Set ADC to mode where a single channel gets sampled once
+            // Set ADC to mode where a single channel gets sampled continuously
             CTL0::CONSEQx::RepeatSingleChannel
             // Set the sample-and-hold source select to timer-triggered
             + CTL0::SHSx::Source7
@@ -939,7 +940,8 @@ impl hil::adc::AdcHighSpeed for Adc {
         }
 
         // Setup the timer
-        self.timer.map(|timer| timer.start(frequency));
+        self.timer
+            .map(|timer| timer.start(frequency, timer::InternalTrigger::CaptureCompare1));
 
         (ReturnCode::SUCCESS, None, None)
     }
