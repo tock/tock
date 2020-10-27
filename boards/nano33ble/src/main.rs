@@ -71,6 +71,7 @@ const NUM_PROCS: usize = 8;
 static mut PROCESSES: [Option<&'static dyn kernel::procs::ProcessType>; NUM_PROCS] = [None; 8];
 
 static mut CHIP: Option<&'static nrf52840::chip::Chip> = None;
+static mut CDC_REF: Option<&'static capsules::usb::cdc::CdcAcm<'static, nrf52::usbd::Usbd>> = None;
 
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
@@ -231,6 +232,7 @@ pub unsafe fn reset_handler() {
         strings,
     )
     .finalize(components::usb_cdc_acm_component_helper!(nrf52::usbd::Usbd));
+    CDC_REF = Some(cdc); //for use by panic handler
 
     // Create a shared UART channel for the console and for kernel debug.
     let uart_mux = components::console::UartMuxComponent::new(cdc, 115200, dynamic_deferred_caller)
