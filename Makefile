@@ -424,7 +424,7 @@ ci-job-kernel:
 ci-job-capsules:
 	$(call banner,CI-Job: Capsules)
 	@# Capsule initialization depends on board/chip specific imports, so ignore doc tests
-	@cd capsules && CI=true RUSTFLAGS="-D warnings" TOCK_KERNEL_VERSION=ci_test cargo test --lib
+	@cd capsules && CI=true RUSTFLAGS="-D warnings" TOCK_KERNEL_VERSION=ci_test cargo test --lib --examples
 
 .PHONY: ci-job-chips
 ci-job-chips:
