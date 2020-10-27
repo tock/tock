@@ -75,14 +75,14 @@ impl IoWrite for Writer {
         }
 
         unsafe {
-            // If CDC_REF is not yet set we panicked very early,
+            // If CDC_REF_FOR_PANIC is not yet set we panicked very early,
             // and not much we can do. Don't want to double fault,
             // so just return.
-            super::CDC_REF.map(|cdc| {
+            super::CDC_REF_FOR_PANIC.map(|cdc| {
                 // Lots of unsafe dereferencing of global static mut objects here.
                 // However, this should be okay, because it all happens within
                 // a single thread, and:
-                // - This is the only place the global CDC_REF is used, the logic is the same
+                // - This is the only place the global CDC_REF_FOR_PANIC is used, the logic is the same
                 //   as applies for the global CHIP variable used in the panic handler.
                 // - We do create multiple mutable references to the STATIC_PANIC_BUF, but we never
                 //   access the STATIC_PANIC_BUF after a slice of it is passed to transmit_buffer
