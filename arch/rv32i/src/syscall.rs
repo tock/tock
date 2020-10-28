@@ -80,10 +80,12 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
     ) {
         // Just need to put the return value in the a0 register for when the
         // process resumes executing.
-        return_value.encode_syscall_return(&mut (state.regs[R_A0] as u32),
-                                           &mut (state.regs[R_A1] as u32),
-                                           &mut (state.regs[R_A2] as u32),
-                                           &mut (state.regs[R_A3] as u32));
+        return_value.encode_syscall_return(
+            &mut (state.regs[R_A0] as u32),
+            &mut (state.regs[R_A1] as u32),
+            &mut (state.regs[R_A2] as u32),
+            &mut (state.regs[R_A3] as u32),
+        );
     }
 
     unsafe fn set_process_function(
