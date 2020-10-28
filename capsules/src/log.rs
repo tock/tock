@@ -666,12 +666,14 @@ impl<'a, F: Flash + 'static> LogRead<'a> for Log<'a, F> {
     ///
     /// ReturnCodes used:
     /// * SUCCESS: seek succeeded.
+    /// * EBUSY: log busy with another operation, try again later.
     /// * EINVAL: entry ID not valid seek position within current log.
     /// * ERESERVE: no log client set.
     fn seek(&self, entry_id: Self::EntryID) -> ReturnCode {
-        if entry_id <= self.append_entry_id.get() && entry_id >= self.oldest_entry_id.get() {
+        if self.state.get() != State::Idle {
+            ReturnCode::EBUSY
+        } else if entry_id <= self.append_entry_id.get() && entry_id >= self.oldest_entry_id.get() {
             self.read_entry_id.set(entry_id);
-
             self.state.set(State::Seek);
             self.error.set(ReturnCode::SUCCESS);
             self.deferred_client_callback();
