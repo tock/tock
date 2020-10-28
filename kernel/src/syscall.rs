@@ -333,9 +333,10 @@ impl SyscallReturnValue {
                 };
             }
             SyscallReturnValue::Allow(rv) => rv.encode_syscall_return(a0, a1, a2, a3),
-            SyscallReturnValue::Command(rv) => rv.encode_syscall_return(a0, a1, a2, a3),
             SyscallReturnValue::Subscribe(rv) => rv.encode_syscall_return(a0, a1, a2, a3),
-            SyscallReturnValue::Memop(rv) => rv.encode_syscall_return(a0, a1, a2, a3),
+            SyscallReturnValue::Command(rv) | SyscallReturnValue::Memop(rv) => {
+                rv.encode_syscall_return(a0, a1, a2, a3)
+            }
             SyscallReturnValue::Legacy(rc) => {
                 *a0 = isize::from(*rc) as u32;
             }
