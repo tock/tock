@@ -7,7 +7,7 @@ System Calls
 **Status:** Draft <br/>
 **Author:** Guillaume Endignoux, Jon Flatley, Philip Levis, Amit Levy, Leon Schuermann, Johnathan Van Why <br/>
 **Draft-Created:** August 31, 2020<br/>
-**Draft-Modified:** Sep 8, 2020<br/>
+**Draft-Modified:** Oct 28, 2020<br/>
 **Draft-Version:** 1<br/>
 **Draft-Discuss:** tock-dev@googlegroups.com</br>
 
@@ -15,7 +15,8 @@ Abstract
 -------------------------------
 
 This document describes the system call application binary interface (ABI)
-between user space applications and the Tock kernel.
+between user space applications and the Tock kernel for 32-bit ARM Cortex-M
+and RISC-V RV32I platforms.
 
 1 Introduction
 ===============================
@@ -30,9 +31,11 @@ and thread stack. Applications invoke operations on and receive callbacks
 from the Tock kernel through the system call programming interface.
 
 This document describes Tock's system call programming interface (API)
-and application binary interface (ABI). It describes the system calls
+and application binary interface (ABI) for 32-bit ARM Cortex-M and RISC-V
+RV32I platforms. It describes the system calls
 that Tock implements, their semantics, and how a userspace process
-invokes them.
+invokes them. The ABI for other architectures, if supported, will be
+described in other documents.
 
 2 Design Considerations
 ===============================
