@@ -11,6 +11,7 @@ use rv32i::syscall::SysCall;
 use rv32i::PMPConfigMacro;
 
 use crate::chip_config::CONFIG;
+use crate::flash_ctrl;
 use crate::gpio;
 use crate::hmac;
 use crate::interrupts;
@@ -66,7 +67,11 @@ impl<A: 'static + Alarm<'static>> EarlGrey<A> {
                         None,
                     );
                 }
-                _ => debug!("Pidx {}", interrupt),
+                interrupts::FLASH_PROG_EMPTY..=interrupts::FLASH_OP_ERROR => {
+                    flash_ctrl::FLASH_CTRL.handle_interrupt()
+                }
+
+                _ => debug!("Pidx {:#x}", interrupt),
             }
             plic::complete(interrupt);
         }
