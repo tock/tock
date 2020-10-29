@@ -74,6 +74,8 @@ use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferred
 use kernel::component::Component;
 use kernel::hil::time::Counter;
 #[allow(unused_imports)]
+use kernel::hil::usb::Client;
+#[allow(unused_imports)]
 use kernel::{capabilities, create_capability, debug, debug_gpio, debug_verbose, static_init};
 use nrf52840::gpio::Pin;
 use nrf52_components::{self, UartChannel, UartPins};
@@ -466,6 +468,38 @@ pub unsafe fn reset_handler() {
     //     components::test::multi_alarm_test::MultiAlarmTestComponent::new(&mux_alarm).finalize(
     //         components::multi_alarm_test_component_buf!(nrf52840::rtc::Rtc),
     //     );
+
+    //--------------------------------------------------------------------------
+    // USB CTAP EXAMPLE
+    //--------------------------------------------------------------------------
+    // Uncomment to experiment with this.
+
+    // // Create the strings we include in the USB descriptor.
+    // let strings = static_init!(
+    //     [&str; 3],
+    //     [
+    //         "Nordic Semiconductor", // Manufacturer
+    //         "nRF52840dk - TockOS",  // Product
+    //         "serial0001",           // Serial number
+    //     ]
+    // );
+
+    // let ctap_send_buffer = static_init!([u8; 64], [0; 64]);
+    // let ctap_recv_buffer = static_init!([u8; 64], [0; 64]);
+
+    // let (ctap, _ctap_driver) = components::ctap::CtapComponent::new(
+    //     &nrf52840::usbd::USBD,
+    //     0x1915, // Nordic Semiconductor
+    //     0x503a, // lowRISC generic FS USB
+    //     strings,
+    //     board_kernel,
+    //     ctap_send_buffer,
+    //     ctap_recv_buffer,
+    // )
+    // .finalize(components::usb_ctap_component_helper!(nrf52840::usbd::Usbd));
+
+    // ctap.enable();
+    // ctap.attach();
 
     let platform = Platform {
         button,
