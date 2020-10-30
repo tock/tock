@@ -147,3 +147,19 @@ impl<'a, A: digest::Digest<'a, T>, T: DigestType> MuxDigest<'a, A, T> {
         }
     }
 }
+
+
+// pub struct VirtualSpiMasterDevice<'a, Spi: hil::spi::SpiMaster> {
+//     //reference to the mux
+//     mux: &'a MuxSpiMaster<'a, Spi>,
+//
+//     // Pointer to next element in the list of devices
+//     next: ListLink<'a, VirtualSpiMasterDevice<'a, Spi>>,
+//
+//     // Per client data that must be stored across calls
+//     chip_select: Cell<Spi::ChipSelect>,
+//     txbuffer: TakeCell<'static, [u8]>,
+//     rxbuffer: TakeCell<'static, [u8]>,
+//     operation: Cell<Op>,
+//     client: OptionalCell<&'a dyn hil::spi::SpiMasterClient>,
+// }
