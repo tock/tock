@@ -93,7 +93,7 @@
  * Amit: We can add more path java-style to make them more unique. Basically I was saying that more than 32-bits is really helpful to having UUIDs.
 * Brad: I'm a little worried about "testapp" because those are exactly the users that we want this to "just work" for. People assigning keys are already gonna figure this out.
 * Amit: So those cases won't set anything in the TLV and the board will just automatically create one.
-* Johnathan: Could even have elf2tbf enforce that two things named the same always map to same ID. Could be something complex internally, but with a simple rule.
+* Johnathan: Could have elf2tab default to generating an app ID by hashing the package name. This would have the effect of making binaries with the same package name map to the same app ID. Our documentation could then describe that different binaries should have different names. Would be complex internally, but with a simple rule for users.
 * Phil: I've been reviving TRDs as I'm doing Tock 2.0. Johnathan would you be interested in writing something like that up for this?
 * Johnathan: I'm already writing something along those lines up for libtock-rs.
 * Phil: Important for people to understand why it is this way and also understand important points if they are making changes.
