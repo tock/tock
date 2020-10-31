@@ -1,6 +1,7 @@
+//! Virtualize the log storage abstraction.
 use crate::log::PAGE_HEADER_SIZE;
 use core::cell::Cell;
-use kernel::common::cells::OptionalCell;
+use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::common::list::{List, ListLink, ListNode};
 use kernel::hil::log::{LogRead, LogReadClient, LogWrite, LogWriteClient};
 use kernel::ReturnCode;
@@ -9,11 +10,11 @@ use kernel::ReturnCode;
 type EntryID = usize;
 
 // Represents the current operation that a virtual log device is performing.
-#[derive(PartialEq)]
+#[derive(Copy, Clone, PartialEq)]
 enum Op {
     Idle,
-    Read(&'static mut [u8], usize),
-    Append(&'static mut [u8], usize),
+    Read(usize),
+    Append(usize),
     Sync,
     Erase,
 }
@@ -27,16 +28,15 @@ pub struct VirtualLogDevice<'a, Log: LogRead<'a> + LogWrite<'a>> {
     read_client: OptionalCell<&'a dyn LogReadClient>,
     append_client: OptionalCell<&'a dyn LogWriteClient>,
     operation: Cell<Op>,
-    read_entry_id: Cell<EntryID>,
+    read_entry_id: Cell<usize>,
+    buffer: TakeCell<'static, [u8]>,
 }
 
-impl<'a, T, Log> ListNode<'a, T> for VirtualLogDevice<'a, Log>
-where
-    T: ?Sized,
-    Log: LogRead<'a> + LogWrite<'a>,
+impl<'a, Log: LogRead<'a> + LogWrite<'a>> ListNode<'a, VirtualLogDevice<'a, Log>>
+    for VirtualLogDevice<'a, Log>
 {
-    fn next(&'a self) -> &'a ListLink<'a, T> {
-        self.next
+    fn next(&'a self) -> &'a ListLink<'a, VirtualLogDevice<'a, Log>> {
+        &self.next
     }
 }
 
@@ -49,18 +49,19 @@ impl<'a, Log: LogRead<'a> + LogWrite<'a>> VirtualLogDevice<'a, Log> {
             append_client: OptionalCell::empty(),
             operation: Cell::new(Op::Idle),
             read_entry_id: Cell::new(PAGE_HEADER_SIZE),
+            buffer: TakeCell::empty(),
         }
     }
 }
 
 impl<'a, Log: LogRead<'a> + LogWrite<'a>> LogRead<'a> for VirtualLogDevice<'a, Log> {
-    type EntryID = usize;
+    type EntryID = <Log as LogRead<'a>>::EntryID;
 
     // This method is used by a capsule to register itself as a read client of the virtual log device.
     fn set_read_client(&'a self, read_client: &'a dyn LogReadClient) {
         // TODO: Should we check if we're already part of the mux's devices list?
         self.mux.devices.push_head(self);
-        self.read_client.set(client);
+        self.read_client.set(read_client);
     }
 
     fn read(
@@ -68,7 +69,8 @@ impl<'a, Log: LogRead<'a> + LogWrite<'a>> LogRead<'a> for VirtualLogDevice<'a, L
         buffer: &'static mut [u8],
         length: usize,
     ) -> Result<(), (ReturnCode, Option<&'static mut [u8]>)> {
-        self.operation.set(Op::Read(buffer, length));
+        self.buffer.replace(buffer);
+        self.operation.set(Op::Read(length));
         self.mux.do_next_op();
         Ok(())
     }
@@ -115,7 +117,8 @@ impl<'a, Log: LogRead<'a> + LogWrite<'a>> LogWrite<'a> for VirtualLogDevice<'a, 
         buffer: &'static mut [u8],
         length: usize,
     ) -> Result<(), (ReturnCode, Option<&'static mut [u8]>)> {
-        self.operation.set(Op::Append(buffer, length));
+        self.buffer.replace(buffer);
+        self.operation.set(Op::Append(length));
         self.mux.do_next_op();
         Ok(())
     }
@@ -168,15 +171,27 @@ impl<'a, Log: LogRead<'a> + LogWrite<'a>> MuxLog<'a, Log> {
             // Set the virtual log device's state to be idle after saving its operation locally.
             let op = node.operation.get();
             node.operation.set(Op::Idle);
+            // Actually perform the necessary operation.
             match op {
-                Op::Read(buffer, length) => {
+                Op::Read(length) => {
                     self.inflight.set(node);
-                    self.log.read(buffer, length);
+                    node.buffer.take().map(|buffer| {
+                        self.log.read(buffer, length);
+                    });
                 }
-                Op::Append(buffer, length) => {}
-                Op::Sync => {}
-                Op::Erase => {}
+                Op::Append(length) => {
+                    self.inflight.set(node);
+                    node.buffer.take().map(|buffer| {
+                        self.log.append(buffer, length);
+                    });
+                }
+                Op::Sync => {
+                    self.log.sync();
+                }
+                Op::Erase => {
+                    self.log.erase();
+                }
             }
-        })
+        });
     }
 }
