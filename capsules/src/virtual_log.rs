@@ -1,6 +1,7 @@
+use crate::log::PAGE_HEADER_SIZE;
 use core::cell::Cell;
 use kernel::common::cells::OptionalCell;
-use kernel::common::list::{List, ListLink};
+use kernel::common::list::{List, ListLink, ListNode};
 use kernel::hil::log::{LogRead, LogReadClient, LogWrite, LogWriteClient};
 use kernel::ReturnCode;
 
@@ -8,7 +9,7 @@ use kernel::ReturnCode;
 type EntryID = usize;
 
 // Represents the current operation that a virtual log device is performing.
-#[derive(Copy, PartialEq)]
+#[derive(PartialEq)]
 enum Op {
     Idle,
     Read(&'static mut [u8], usize),
@@ -23,10 +24,20 @@ pub struct VirtualLogDevice<'a, Log: LogRead<'a> + LogWrite<'a>> {
     // A pointer to the next virtual log device
     next: ListLink<'a, VirtualLogDevice<'a, Log>>,
     // Local state for the virtual log device
-    read_client: OptionalCell<&'a dyn LogReadClient>;
-    append_client: OptionalCell<&'a dyn LogWriteClient>;
+    read_client: OptionalCell<&'a dyn LogReadClient>,
+    append_client: OptionalCell<&'a dyn LogWriteClient>,
     operation: Cell<Op>,
     read_entry_id: Cell<EntryID>,
+}
+
+impl<'a, T, Log> ListNode<'a, T> for VirtualLogDevice<'a, Log>
+where
+    T: ?Sized,
+    Log: LogRead<'a> + LogWrite<'a>,
+{
+    fn next(&'a self) -> &'a ListLink<'a, T> {
+        self.next
+    }
 }
 
 impl<'a, Log: LogRead<'a> + LogWrite<'a>> VirtualLogDevice<'a, Log> {
@@ -59,7 +70,7 @@ impl<'a, Log: LogRead<'a> + LogWrite<'a>> LogRead<'a> for VirtualLogDevice<'a, L
     ) -> Result<(), (ReturnCode, Option<&'static mut [u8]>)> {
         self.operation.set(Op::Read(buffer, length));
         self.mux.do_next_op();
-        Ok(()))
+        Ok(())
     }
 
     fn log_start(&self) -> Self::EntryID {
