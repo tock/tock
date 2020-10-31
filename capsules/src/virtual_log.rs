@@ -4,10 +4,10 @@ use kernel::common::list::{List, ListLink};
 use kernel::hil::log::{LogRead, LogReadClient, LogWrite, LogWriteClient};
 use kernel::ReturnCode;
 
-// The purpose of this type alias is to make it clear when a usize represents a log entry ID.
+// Make it clear when a usize represents a log entry ID
 type EntryID = usize;
 
-// This enum represents the current operation that a virtual log device is performing.
+// Represents the current operation that a virtual log device is performing.
 #[derive(Copy, PartialEq)]
 enum Op {
     Idle,
@@ -18,11 +18,11 @@ enum Op {
 }
 
 pub struct VirtualLogDevice<'a, Log: LogRead<'a> + LogWrite<'a>> {
-    // Every virtual log device has a reference to the mux.
+    // A reference to the mux
     mux: &'a MuxLog<'a, Log>,
-    // Every virtual log device has a pointer to the next virtual log device.
+    // A pointer to the next virtual log device
     next: ListLink<'a, VirtualLogDevice<'a, Log>>,
-    // Every virtual log device has some local state.
+    // Local state for the virtual log device
     read_client: OptionalCell<&'a dyn LogReadClient>;
     append_client: OptionalCell<&'a dyn LogWriteClient>;
     operation: Cell<Op>,
