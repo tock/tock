@@ -7,7 +7,7 @@ use kernel::common::cells::{MapCell, TakeCell};
 use kernel::hil::spi::ClockPhase;
 use kernel::hil::spi::ClockPolarity;
 use kernel::hil::spi::{SpiSlaveClient, SpiSlaveDevice};
-use kernel::{AppId, AppSlice, Callback, Driver, ReturnCode, Shared};
+use kernel::{AppSlice, Callback, Driver, ProcessId, ReturnCode, Shared};
 
 /// Syscall driver number.
 use crate::driver;
@@ -87,7 +87,7 @@ impl<S: SpiSlaveDevice> Driver for SpiPeripheral<'_, S> {
     ///
     fn allow(
         &self,
-        _appid: AppId,
+        _appid: ProcessId,
         allow_num: usize,
         slice: Option<AppSlice<Shared, u8>>,
     ) -> ReturnCode {
@@ -119,7 +119,7 @@ impl<S: SpiSlaveDevice> Driver for SpiPeripheral<'_, S> {
         &self,
         subscribe_num: usize,
         callback: Option<Callback>,
-        _app_id: AppId,
+        _app_id: ProcessId,
     ) -> ReturnCode {
         match subscribe_num {
             0 /* read_write */ => {
@@ -164,7 +164,7 @@ impl<S: SpiSlaveDevice> Driver for SpiPeripheral<'_, S> {
     /// - x+1: unlock spi
     ///   - does nothing if lock not held
     ///   - not implemented or currently supported
-    fn command(&self, cmd_num: usize, arg1: usize, _: usize, _: AppId) -> ReturnCode {
+    fn command(&self, cmd_num: usize, arg1: usize, _: usize, _: ProcessId) -> ReturnCode {
         match cmd_num {
             0 /* check if present */ => ReturnCode::SUCCESS,
             1 /* read_write_bytes */ => {

@@ -133,7 +133,7 @@ use core::cell::Cell;
 use kernel::common::cells::TakeCell;
 use kernel::hil::gpio;
 use kernel::hil::time::{self, Alarm};
-use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
+use kernel::{AppSlice, Callback, Driver, Grant, ProcessId, ReturnCode, Shared};
 
 /// Syscall driver number.
 
@@ -697,7 +697,7 @@ impl<'a, A: Alarm<'a>> Driver for HD44780<'a, A> {
      */
     fn allow(
         &self,
-        appid: AppId,
+        appid: ProcessId,
         allow_num: usize,
         slice: Option<AppSlice<Shared, u8>>,
     ) -> ReturnCode {
@@ -774,7 +774,13 @@ impl<'a, A: Alarm<'a>> Driver for HD44780<'a, A> {
      * // save a Begin command with 16 and 1 as arguments
      * int ret = command(DRIVER_LCD_NUM, 0, 16, 1);
      */
-    fn command(&self, command_num: usize, data_1: usize, data_2: usize, _: AppId) -> ReturnCode {
+    fn command(
+        &self,
+        command_num: usize,
+        data_1: usize,
+        data_2: usize,
+        _: ProcessId,
+    ) -> ReturnCode {
         /* check to see how many slots we need in the command buffer for the
          * request
          */
@@ -1019,7 +1025,7 @@ impl<'a, A: Alarm<'a>> Driver for HD44780<'a, A> {
         &self,
         _subscribe_num: usize,
         _callback: Option<Callback>,
-        _app_id: AppId,
+        _app_id: ProcessId,
     ) -> ReturnCode {
         ReturnCode::ENOSUPPORT
     }

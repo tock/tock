@@ -40,7 +40,7 @@
 use core::cmp;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::uart;
-use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
+use kernel::{AppSlice, Callback, Driver, Grant, ProcessId, ReturnCode, Shared};
 
 /// Syscall driver number.
 use crate::driver;
@@ -65,9 +65,9 @@ pub static mut READ_BUF: [u8; 64] = [0; 64];
 pub struct Console<'a> {
     uart: &'a dyn uart::UartData<'a>,
     apps: Grant<App>,
-    tx_in_progress: OptionalCell<AppId>,
+    tx_in_progress: OptionalCell<ProcessId>,
     tx_buffer: TakeCell<'static, [u8]>,
-    rx_in_progress: OptionalCell<AppId>,
+    rx_in_progress: OptionalCell<ProcessId>,
     rx_buffer: TakeCell<'static, [u8]>,
 }
 
@@ -89,7 +89,7 @@ impl<'a> Console<'a> {
     }
 
     /// Internal helper function for setting up a new send transaction
-    fn send_new(&self, app_id: AppId, app: &mut App, len: usize) -> ReturnCode {
+    fn send_new(&self, app_id: ProcessId, app: &mut App, len: usize) -> ReturnCode {
         match app.write_buffer.take() {
             Some(slice) => {
                 app.write_len = cmp::min(len, slice.len());
@@ -103,7 +103,7 @@ impl<'a> Console<'a> {
 
     /// Internal helper function for continuing a previously set up transaction
     /// Returns true if this send is still active, or false if it has completed
-    fn send_continue(&self, app_id: AppId, app: &mut App) -> Result<bool, ReturnCode> {
+    fn send_continue(&self, app_id: ProcessId, app: &mut App) -> Result<bool, ReturnCode> {
         if app.write_remaining > 0 {
             app.write_buffer
                 .take()
@@ -118,7 +118,7 @@ impl<'a> Console<'a> {
 
     /// Internal helper function for sending data for an existing transaction.
     /// Cannot fail. If can't send now, it will schedule for sending later.
-    fn send(&self, app_id: AppId, app: &mut App, slice: AppSlice<Shared, u8>) {
+    fn send(&self, app_id: ProcessId, app: &mut App, slice: AppSlice<Shared, u8>) {
         if self.tx_in_progress.is_none() {
             self.tx_in_progress.set(app_id);
             self.tx_buffer.take().map(|buffer| {
@@ -152,7 +152,7 @@ impl<'a> Console<'a> {
     }
 
     /// Internal helper function for starting a receive operation
-    fn receive_new(&self, app_id: AppId, app: &mut App, len: usize) -> ReturnCode {
+    fn receive_new(&self, app_id: ProcessId, app: &mut App, len: usize) -> ReturnCode {
         if self.rx_buffer.is_none() {
             // For now, we tolerate only one concurrent receive operation on this console.
             // Competing apps will have to retry until success.
@@ -193,7 +193,7 @@ impl Driver for Console<'_> {
     /// - `2`: Writeable buffer for read buffer
     fn allow(
         &self,
-        appid: AppId,
+        appid: ProcessId,
         allow_num: usize,
         slice: Option<AppSlice<Shared, u8>>,
     ) -> ReturnCode {
@@ -225,7 +225,7 @@ impl Driver for Console<'_> {
         &self,
         subscribe_num: usize,
         callback: Option<Callback>,
-        app_id: AppId,
+        app_id: ProcessId,
     ) -> ReturnCode {
         match subscribe_num {
             1 /* putstr/write_done */ => {
@@ -255,7 +255,7 @@ impl Driver for Console<'_> {
     ///        passed in `arg1`
     /// - `3`: Cancel any in progress receives and return (via callback)
     ///        what has been received so far.
-    fn command(&self, cmd_num: usize, arg1: usize, _: usize, appid: AppId) -> ReturnCode {
+    fn command(&self, cmd_num: usize, arg1: usize, _: usize, appid: ProcessId) -> ReturnCode {
         match cmd_num {
             0 /* check if present */ => ReturnCode::SUCCESS,
             1 /* putstr */ => {

@@ -3,7 +3,7 @@
 
 use core::cell::Cell;
 use kernel::hil::time::{self, Alarm, Frequency, Ticks, Ticks32};
-use kernel::{AppId, Callback, Driver, Grant, ReturnCode};
+use kernel::{Callback, Driver, Grant, ProcessId, ReturnCode};
 
 /// Syscall driver number.
 use crate::driver;
@@ -154,7 +154,7 @@ impl<'a, A: Alarm<'a>> Driver for AlarmDriver<'a, A> {
         &self,
         _subscribe_num: usize,
         callback: Option<Callback>,
-        app_id: AppId,
+        app_id: ProcessId,
     ) -> ReturnCode {
         self.app_alarms
             .enter(app_id, |td, _allocator| {
@@ -174,7 +174,13 @@ impl<'a, A: Alarm<'a>> Driver for AlarmDriver<'a, A> {
     /// - `3`: Stop the alarm if it is outstanding
     /// - `4`: Set an alarm to fire at a given clock value `time`.
     /// - `5`: Set an alarm to fire at a given clock value `time` relative to `now` (EXPERIMENTAL).
-    fn command(&self, cmd_type: usize, data: usize, data2: usize, caller_id: AppId) -> ReturnCode {
+    fn command(
+        &self,
+        cmd_type: usize,
+        data: usize,
+        data2: usize,
+        caller_id: ProcessId,
+    ) -> ReturnCode {
         // Returns the error code to return to the user and whether we need to
         // reset which is the next active alarm. We _don't_ reset if
         //   - we're disabling the underlying alarm anyway,

@@ -12,7 +12,7 @@
 
 use core::cell::Cell;
 
-use crate::callback::AppId;
+use crate::callback::ProcessId;
 use crate::capabilities::ProcessManagementCapability;
 use crate::common::cells::NumericCellExt;
 use crate::process;
@@ -74,7 +74,7 @@ impl KernelInfo {
     /// Get the name of the process.
     pub fn process_name(
         &self,
-        app: AppId,
+        app: ProcessId,
         _capability: &dyn ProcessManagementCapability,
     ) -> &'static str {
         self.kernel
@@ -84,7 +84,7 @@ impl KernelInfo {
     /// Returns the number of syscalls the app has called.
     pub fn number_app_syscalls(
         &self,
-        app: AppId,
+        app: ProcessId,
         _capability: &dyn ProcessManagementCapability,
     ) -> usize {
         self.kernel
@@ -96,7 +96,7 @@ impl KernelInfo {
     /// tries to schedule a callback.
     pub fn number_app_dropped_callbacks(
         &self,
-        app: AppId,
+        app: ProcessId,
         _capability: &dyn ProcessManagementCapability,
     ) -> usize {
         self.kernel
@@ -106,7 +106,7 @@ impl KernelInfo {
     /// Returns the number of time this app has been restarted.
     pub fn number_app_restarts(
         &self,
-        app: AppId,
+        app: ProcessId,
         _capability: &dyn ProcessManagementCapability,
     ) -> usize {
         self.kernel
@@ -116,7 +116,7 @@ impl KernelInfo {
     /// Returns the number of time this app has exceeded its timeslice.
     pub fn number_app_timeslice_expirations(
         &self,
-        app: AppId,
+        app: ProcessId,
         _capability: &dyn ProcessManagementCapability,
     ) -> usize {
         self.kernel
@@ -127,7 +127,7 @@ impl KernelInfo {
     /// app has allocated, total number of grants that exist in the system).
     pub fn number_app_grant_uses(
         &self,
-        app: AppId,
+        app: ProcessId,
         _capability: &dyn ProcessManagementCapability,
     ) -> (usize, usize) {
         // Just need to get the number, this has already been finalized, but it

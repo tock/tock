@@ -10,7 +10,7 @@ use kernel::common::math;
 use kernel::common::registers::{register_bitfields, FieldValue, ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
 use kernel::mpu;
-use kernel::AppId;
+use kernel::ProcessId;
 
 /// MPU Registers for the Cortex-M3 and Cortex-M4 families
 /// Described in section 4.5 of
@@ -130,10 +130,10 @@ const MPU_BASE_ADDRESS: StaticRef<MpuRegisters> =
 pub struct MPU {
     /// MMIO reference to MPU registers.
     registers: StaticRef<MpuRegisters>,
-    /// Optimization logic. This is used to indicate which application the MPU
+    /// Optimization logic. This is used to indicate which process the MPU
     /// is currently configured for so that the MPU can skip updating when the
-    /// kernel returns to the same app.
-    hardware_is_configured_for: OptionalCell<AppId>,
+    /// kernel returns to the same process.
+    hardware_is_configured_for: OptionalCell<ProcessId>,
 }
 
 impl MPU {
@@ -681,16 +681,17 @@ impl kernel::mpu::MPU for MPU {
         Ok(())
     }
 
-    fn configure_mpu(&self, config: &Self::MpuConfig, app_id: &AppId) {
-        // If the hardware is already configured for this app and the app's MPU
-        // configuration has not changed, then skip the hardware update.
-        if !self.hardware_is_configured_for.contains(app_id) || config.is_dirty.get() {
+    fn configure_mpu(&self, config: &Self::MpuConfig, process_id: &ProcessId) {
+        // If the hardware is already configured for this process and
+        // the process's MPU configuration has not changed, then skip
+        // the hardware update.
+        if !self.hardware_is_configured_for.contains(process_id) || config.is_dirty.get() {
             // Set MPU regions
             for region in config.regions.iter() {
                 self.registers.rbar.write(region.base_address());
                 self.registers.rasr.write(region.attributes());
             }
-            self.hardware_is_configured_for.set(*app_id);
+            self.hardware_is_configured_for.set(*process_id);
             config.is_dirty.set(false);
         }
     }

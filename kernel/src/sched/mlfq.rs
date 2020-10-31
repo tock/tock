@@ -17,7 +17,7 @@
 //! - Rule 5: After some time period S, move all the jobs in the system to the
 //!           topmost queue.
 
-use crate::callback::AppId;
+use crate::callback::ProcessId;
 use crate::common::list::{List, ListLink, ListNode};
 use crate::hil::time;
 use crate::hil::time::Ticks;
@@ -157,7 +157,7 @@ impl<'a, A: 'static + time::Alarm<'static>, C: Chip> Scheduler<C> for MLFQSched<
             let node_ref = node_ref_opt.unwrap(); // Panic if fail bc processes_blocked()!
             let timeslice =
                 self.get_timeslice_us(queue_idx) - node_ref.state.us_used_this_queue.get();
-            let next = node_ref.proc.unwrap().appid(); // Panic if fail bc processes_blocked()!
+            let next = node_ref.proc.unwrap().process_id(); // Panic if fail bc processes_blocked()!
             self.last_queue_idx.set(queue_idx);
             self.last_timeslice.set(timeslice);
 
@@ -189,7 +189,7 @@ impl<'a, A: 'static + time::Alarm<'static>, C: Chip> Scheduler<C> for MLFQSched<
         }
     }
 
-    unsafe fn continue_process(&self, _: AppId, _: &C) -> bool {
+    unsafe fn continue_process(&self, _: ProcessId, _: &C) -> bool {
         // This MLFQ scheduler only preempts processes if there is a timeslice expiration
         true
     }

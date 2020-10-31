@@ -107,7 +107,7 @@ use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::sensors;
 use kernel::hil::spi;
 use kernel::ReturnCode;
-use kernel::{AppId, Callback, Driver};
+use kernel::{Callback, Driver, ProcessId};
 
 use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::L3gd20 as usize;
@@ -294,7 +294,7 @@ impl<'a> L3gd20Spi<'a> {
 }
 
 impl Driver for L3gd20Spi<'_> {
-    fn command(&self, command_num: usize, data1: usize, data2: usize, _: AppId) -> ReturnCode {
+    fn command(&self, command_num: usize, data1: usize, data2: usize, _: ProcessId) -> ReturnCode {
         match command_num {
             0 => ReturnCode::SUCCESS,
             // Check is sensor is correctly connected
@@ -373,7 +373,7 @@ impl Driver for L3gd20Spi<'_> {
         &self,
         subscribe_num: usize,
         callback: Option<Callback>,
-        _app_id: AppId,
+        _app_id: ProcessId,
     ) -> ReturnCode {
         match subscribe_num {
             0 /* set the one shot callback */ => {

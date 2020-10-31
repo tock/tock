@@ -4,7 +4,7 @@ use core::marker::PhantomData;
 use core::ptr::NonNull;
 use core::slice;
 
-use crate::callback::AppId;
+use crate::callback::ProcessId;
 use crate::capabilities;
 
 /// Type for specifying an AppSlice is hidden from the kernel.
@@ -19,13 +19,13 @@ pub struct Shared;
 /// the app shared with the kernel.
 pub(crate) struct AppPtr<L, T> {
     ptr: NonNull<T>,
-    process: AppId,
+    process: ProcessId,
     _phantom: PhantomData<L>,
 }
 
 impl<L, T> AppPtr<L, T> {
     /// Safety: Trusts that `ptr` points to userspace memory in `appid`
-    unsafe fn new(ptr: NonNull<T>, appid: AppId) -> AppPtr<L, T> {
+    unsafe fn new(ptr: NonNull<T>, appid: ProcessId) -> AppPtr<L, T> {
         AppPtr {
             ptr: ptr,
             process: appid,
@@ -45,7 +45,7 @@ pub struct AppSlice<L, T> {
 impl<L, T> AppSlice<L, T> {
     /// Safety: Trusts that `ptr` + `len` is a buffer in the memory region owned
     /// by `appid` and that no other references to that memory range exist.
-    pub(crate) unsafe fn new(ptr: NonNull<T>, len: usize, appid: AppId) -> AppSlice<L, T> {
+    pub(crate) unsafe fn new(ptr: NonNull<T>, len: usize, appid: ProcessId) -> AppSlice<L, T> {
         AppSlice {
             ptr: AppPtr::new(ptr, appid),
             len: len,
@@ -59,7 +59,7 @@ impl<L, T> AppSlice<L, T> {
     pub unsafe fn new_external(
         ptr: NonNull<T>,
         len: usize,
-        appid: AppId,
+        appid: ProcessId,
         _capability: &dyn capabilities::ExternalProcessCapability,
     ) -> AppSlice<L, T> {
         AppSlice {
@@ -70,7 +70,7 @@ impl<L, T> AppSlice<L, T> {
 
     /// Number of bytes in the `AppSlice`.
     ///
-    /// If the app died, has restarted, or its AppId identifier
+    /// If the app died, has restarted, or its ProcessId identifier
     /// changed for any other reason, return an accessible length of
     /// zero, consistent with the [`AsRef`](struct.AppSlice.html#impl-AsRef<[T]>)
     /// and [`AsMut`](struct.AppSlice.html#impl-AsMut<[T]>) implementations.
@@ -89,7 +89,7 @@ impl<L, T> AppSlice<L, T> {
 
     /// Provide access to one app's AppSlice to another app. This is used for
     /// IPC.
-    pub(crate) unsafe fn expose_to(&self, appid: AppId) -> bool {
+    pub(crate) unsafe fn expose_to(&self, appid: ProcessId) -> bool {
         if appid != self.ptr.process {
             self.ptr
                 .process
@@ -112,7 +112,7 @@ impl<L, T> AppSlice<L, T> {
     /// Internally this uses
     /// [`AsRef`](struct.AppSlice.html#impl-AsRef<[T]>), hence when
     /// the app dies, restarts or the
-    /// [`AppId`](crate::callback::AppId) changes for any other
+    /// [`ProcessId`](crate::callback::ProcessId) changes for any other
     /// reason, the iterator will be of zero length.
     pub fn iter(&self) -> slice::Iter<T> {
         self.as_ref().iter()
@@ -126,7 +126,7 @@ impl<L, T> AppSlice<L, T> {
     /// Internally this uses
     /// [`AsMut`](struct.AppSlice.html#impl-AsMut<[T]>), hence when
     /// the app dies, restarts or the
-    /// [`AppId`](crate::callback::AppId) changes for any other
+    /// [`ProcessId`](crate::callback::ProcessId) changes for any other
     /// reason, the iterator will be of zero length.
     pub fn iter_mut(&mut self) -> slice::IterMut<T> {
         self.as_mut().iter_mut()
@@ -141,7 +141,7 @@ impl<L, T> AppSlice<L, T> {
     /// Internally this uses
     /// [`AsRef`](struct.AppSlice.html#impl-AsRef<[T]>), hence when
     /// the app dies, restarts or the
-    /// [`AppId`](crate::callback::AppId) changes for any other
+    /// [`ProcessId`](crate::callback::ProcessId) changes for any other
     /// reason, a [`Chunks`](core::slice::Chunks) iterator of zero length will
     /// be returned.
     pub fn chunks(&self, size: usize) -> slice::Chunks<T> {
@@ -157,7 +157,7 @@ impl<L, T> AppSlice<L, T> {
     /// Internally this uses
     /// [`AsMut`](struct.AppSlice.html#impl-AsMut<[T]>), hence when
     /// the app dies, restarts or the
-    /// [`AppId`](crate::callback::AppId) changes for any other
+    /// [`ProcessId`](crate::callback::ProcessId) changes for any other
     /// reason, a [`ChunksMut`](core::slice::ChunksMut) iterator of zero length will
     /// be returned.
     ///
@@ -173,7 +173,7 @@ impl<L, T> AsRef<[T]> for AppSlice<L, T> {
     /// Get a slice reference over the userspace buffer
     ///
     /// This first checks whether the app died, restarted, or its
-    /// AppId identifier changed for any other reason. In this case, a
+    /// ProcessId identifier changed for any other reason. In this case, a
     /// slice of length zero is returned.
     fn as_ref(&self) -> &[T] {
         self.ptr
@@ -189,7 +189,7 @@ impl<L, T> AsMut<[T]> for AppSlice<L, T> {
     /// Get a mutable slice reference over the userspace buffer
     ///
     /// This first checks whether the app died, restarted, or its
-    /// AppId identifier changed for any other reason. In this case, a
+    /// ProcessId identifier changed for any other reason. In this case, a
     /// slice of length zero is returned.
     fn as_mut(&mut self) -> &mut [T] {
         self.ptr

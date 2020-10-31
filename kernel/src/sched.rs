@@ -11,7 +11,7 @@ pub(crate) mod round_robin;
 use core::cell::Cell;
 use core::ptr::NonNull;
 
-use crate::callback::{AppId, Callback, CallbackId};
+use crate::callback::{Callback, CallbackId, ProcessId};
 use crate::capabilities;
 use crate::common::cells::NumericCellExt;
 use crate::common::dynamic_deferred_call::DynamicDeferredCall;
@@ -41,7 +41,7 @@ pub trait Scheduler<C: Chip> {
     /// one. If the scheduler chooses not to run a process, it can request that
     /// the chip enter sleep mode.
     ///
-    /// If the scheduler selects a process to run it must provide its `AppId`
+    /// If the scheduler selects a process to run it must provide its `ProcessId`
     /// and an optional timeslice length in microseconds to provide to that
     /// process. If the timeslice is `None`, the process will be run
     /// cooperatively (i.e. without preemption). Otherwise the process will run
@@ -97,7 +97,7 @@ pub trait Scheduler<C: Chip> {
     /// returns `false`, then `do_process` will exit with a `KernelPreemption`.
     ///
     /// `id` is the identifier of the currently active process.
-    unsafe fn continue_process(&self, _id: AppId, chip: &C) -> bool {
+    unsafe fn continue_process(&self, _id: ProcessId, chip: &C) -> bool {
         !(chip.has_pending_interrupts()
             || DynamicDeferredCall::global_instance_calls_pending().unwrap_or(false))
     }
@@ -110,7 +110,7 @@ pub enum SchedulingDecision {
     /// Tell the kernel to run the specified process with the passed timeslice.
     /// If `None` is passed as a timeslice, the process will be run
     /// cooperatively.
-    RunProcess((AppId, Option<u32>)),
+    RunProcess((ProcessId, Option<u32>)),
 
     /// Tell the kernel to go to sleep. Notably, if the scheduler asks the
     /// kernel to sleep when kernel tasks are ready, the kernel will not sleep,
@@ -226,8 +226,8 @@ impl Kernel {
     }
 
     /// Run a closure on a specific process if it exists. If the process with a
-    /// matching `AppId` does not exist at the index specified within the
-    /// `AppId`, then `default` will be returned.
+    /// matching `ProcessId` does not exist at the index specified within the
+    /// `ProcessId`, then `default` will be returned.
     ///
     /// A match will not be found if the process was removed (and there is a
     /// `None` in the process array), if the process changed its identifier
@@ -235,15 +235,15 @@ impl Kernel {
     /// different index in the processes array. Note that a match _will_ be
     /// found if the process still exists in the correct location in the array
     /// but is in any "stopped" state.
-    pub(crate) fn process_map_or<F, R>(&self, default: R, appid: AppId, closure: F) -> R
+    pub(crate) fn process_map_or<F, R>(&self, default: R, process_id: ProcessId, closure: F) -> R
     where
         F: FnOnce(&dyn process::ProcessType) -> R,
     {
-        // We use the index in the `appid` so we can do a direct lookup.
-        // However, we are not guaranteed that the app still exists at that
+        // We use the index in the `process_id` so we can do a direct lookup.
+        // However, we are not guaranteed that the process still exists at that
         // index in the processes array. To avoid additional overhead, we do the
         // lookup and check here, rather than calling `.index()`.
-        let tentative_index = appid.index;
+        let tentative_index = process_id.index;
 
         // Get the process at that index, and if it matches, run the closure
         // on it.
@@ -254,8 +254,8 @@ impl Kernel {
                 // `None`.
                 process_entry.map_or(None, |process| {
                     // Check that the process stored here matches the identifier
-                    // in the `appid`.
-                    if process.appid() == appid {
+                    // in the `process_id`.
+                    if process.process_id() == process_id {
                         Some(closure(process))
                     } else {
                         None
@@ -341,15 +341,15 @@ impl Kernel {
         ReturnCode::FAIL
     }
 
-    /// Retrieve the `AppId` of the given app based on its identifier. This is
+    /// Retrieve the `ProcessId` of the given app based on its identifier. This is
     /// useful if an app identifier is passed to the kernel from somewhere (such
-    /// as from userspace) and needs to be expanded to a full `AppId` for use
+    /// as from userspace) and needs to be expanded to a full `ProcessId` for use
     /// with other APIs.
-    pub(crate) fn lookup_app_by_identifier(&self, identifier: usize) -> Option<AppId> {
+    pub(crate) fn lookup_app_by_identifier(&self, identifier: usize) -> Option<ProcessId> {
         self.processes.iter().find_map(|&p| {
             p.map_or(None, |p2| {
-                if p2.appid().id() == identifier {
-                    Some(p2.appid())
+                if p2.process_id().id() == identifier {
+                    Some(p2.process_id())
                 } else {
                     None
                 }
@@ -357,15 +357,17 @@ impl Kernel {
         })
     }
 
-    /// Checks if the provided `AppId` is still valid given the processes stored
-    /// in the processes array. Returns `true` if the AppId still refers to
+    /// Checks if the provided `ProcessId` is still valid given the processes stored
+    /// in the processes array. Returns `true` if the ProcessId still refers to
     /// a valid process, and `false` if not.
     ///
-    /// This is needed for `AppId` itself to implement the `.index()` command to
-    /// verify that the referenced app is still at the correct index.
-    pub(crate) fn appid_is_valid(&self, appid: &AppId) -> bool {
-        self.processes.get(appid.index).map_or(false, |p| {
-            p.map_or(false, |process| process.appid().id() == appid.id())
+    /// This is needed for `ProcessId` itself to implement the `.index()` command to
+    /// verify that the referenced process is still at the correct index.
+    pub(crate) fn process_id_is_valid(&self, process_id: &ProcessId) -> bool {
+        self.processes.get(process_id.index).map_or(false, |p| {
+            p.map_or(false, |process| {
+                process.process_id().id() == process_id.id()
+            })
         })
     }
 
@@ -599,7 +601,7 @@ impl Kernel {
             }
 
             // Check if the scheduler wishes to continue running this process.
-            if !scheduler.continue_process(process.appid(), chip) {
+            if !scheduler.continue_process(process.process_id(), chip) {
                 return_reason = StoppedExecutingReason::KernelPreemption;
                 break;
             }
@@ -657,7 +659,7 @@ impl Kernel {
                                     if config::CONFIG.trace_syscalls {
                                         debug!(
                                             "[{:?}] memop({}, {:#x}) = {:#x} = {:?}",
-                                            process.appid(),
+                                            process.process_id(),
                                             operand,
                                             arg0,
                                             usize::from(res),
@@ -668,7 +670,7 @@ impl Kernel {
                                 }
                                 Syscall::YIELD => {
                                     if config::CONFIG.trace_syscalls {
-                                        debug!("[{:?}] yield", process.appid());
+                                        debug!("[{:?}] yield", process.process_id());
                                     }
                                     process.set_yielded_state();
 
@@ -697,7 +699,7 @@ impl Kernel {
 
                                     let callback = NonNull::new(callback_ptr).map(|ptr| {
                                         Callback::new(
-                                            process.appid(),
+                                            process.process_id(),
                                             callback_id,
                                             appdata,
                                             ptr.cast(),
@@ -711,7 +713,7 @@ impl Kernel {
                                                 Some(d) => d.subscribe(
                                                     subdriver_number,
                                                     callback,
-                                                    process.appid(),
+                                                    process.process_id(),
                                                 ),
                                                 None => ReturnCode::ENODEVICE,
                                             },
@@ -719,7 +721,7 @@ impl Kernel {
                                     if config::CONFIG.trace_syscalls {
                                         debug!(
                                             "[{:?}] subscribe({:#x}, {}, @{:#x}, {:#x}) = {:#x} = {:?}",
-                                            process.appid(),
+                                            process.process_id(),
                                             driver_number,
                                             subdriver_number,
                                             callback_ptr as usize,
@@ -744,7 +746,7 @@ impl Kernel {
                                                     subdriver_number,
                                                     arg0,
                                                     arg1,
-                                                    process.appid(),
+                                                    process.process_id(),
                                                 ),
                                                 None => ReturnCode::ENODEVICE,
                                             },
@@ -752,7 +754,7 @@ impl Kernel {
                                     if config::CONFIG.trace_syscalls {
                                         debug!(
                                             "[{:?}] cmd({:#x}, {}, {:#x}, {:#x}) = {:#x} = {:?}",
-                                            process.appid(),
+                                            process.process_id(),
                                             driver_number,
                                             subdriver_number,
                                             arg0,
@@ -774,7 +776,7 @@ impl Kernel {
                                             Some(d) => {
                                                 match process.allow(allow_address, allow_size) {
                                                     Ok(oslice) => d.allow(
-                                                        process.appid(),
+                                                        process.process_id(),
                                                         subdriver_number,
                                                         oslice,
                                                     ),
@@ -787,7 +789,7 @@ impl Kernel {
                                     if config::CONFIG.trace_syscalls {
                                         debug!(
                                             "[{:?}] allow({:#x}, {}, @{:#x}, {:#x}) = {:#x} = {:?}",
-                                            process.appid(),
+                                            process.process_id(),
                                             driver_number,
                                             subdriver_number,
                                             allow_address as usize,
@@ -832,7 +834,7 @@ impl Kernel {
                                 if config::CONFIG.trace_syscalls {
                                     debug!(
                                         "[{:?}] function_call @{:#x}({:#x}, {:#x}, {:#x}, {:#x})",
-                                        process.appid(),
+                                        process.process_id(),
                                         ccb.pc,
                                         ccb.argument0,
                                         ccb.argument1,
@@ -851,7 +853,11 @@ impl Kernel {
                                         );
                                     },
                                     |ipc| {
-                                        ipc.schedule_callback(process.appid(), otherapp, ipc_type);
+                                        ipc.schedule_callback(
+                                            process.process_id(),
+                                            otherapp,
+                                            ipc_type,
+                                        );
                                     },
                                 );
                             }

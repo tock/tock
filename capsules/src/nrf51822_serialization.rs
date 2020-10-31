@@ -25,7 +25,7 @@ use core::cmp;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil;
 use kernel::hil::uart;
-use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
+use kernel::{AppSlice, Callback, Driver, Grant, ProcessId, ReturnCode, Shared};
 
 /// Syscall driver number.
 use crate::driver;
@@ -51,7 +51,7 @@ pub struct Nrf51822Serialization<'a> {
     uart: &'a dyn uart::UartAdvanced<'a>,
     reset_pin: &'a dyn hil::gpio::Pin,
     apps: Grant<App>,
-    active_app: OptionalCell<AppId>,
+    active_app: OptionalCell<ProcessId>,
     tx_buffer: TakeCell<'static, [u8]>,
     rx_buffer: TakeCell<'static, [u8]>,
 }
@@ -107,7 +107,7 @@ impl Driver for Nrf51822Serialization<'_> {
     /// - `1`: Provide a TX buffer.
     fn allow(
         &self,
-        appid: AppId,
+        appid: ProcessId,
         allow_type: usize,
         slice: Option<AppSlice<Shared, u8>>,
     ) -> ReturnCode {
@@ -151,7 +151,7 @@ impl Driver for Nrf51822Serialization<'_> {
         &self,
         subscribe_type: usize,
         callback: Option<Callback>,
-        appid: AppId,
+        appid: ProcessId,
     ) -> ReturnCode {
         match subscribe_type {
             // Add a callback
@@ -181,7 +181,7 @@ impl Driver for Nrf51822Serialization<'_> {
     /// - `0`: Driver check.
     /// - `1`: Send the allowed buffer to the nRF.
     /// - `2`: Reset the nRF51822.
-    fn command(&self, command_type: usize, _: usize, _: usize, appid: AppId) -> ReturnCode {
+    fn command(&self, command_type: usize, _: usize, _: usize, appid: ProcessId) -> ReturnCode {
         match command_type {
             0 /* check if present */ => ReturnCode::SUCCESS,
 

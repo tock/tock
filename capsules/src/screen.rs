@@ -16,7 +16,7 @@ use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil;
 use kernel::hil::screen::{ScreenPixelFormat, ScreenRotation};
 use kernel::ReturnCode;
-use kernel::{AppId, AppSlice, Callback, Driver, Grant, Shared};
+use kernel::{AppSlice, Callback, Driver, Grant, ProcessId, Shared};
 
 /// Syscall driver number.
 use crate::driver;
@@ -112,7 +112,7 @@ pub struct Screen<'a> {
     screen_setup: Option<&'a dyn hil::screen::ScreenSetup>,
     apps: Grant<App>,
     screen_ready: Cell<bool>,
-    current_app: OptionalCell<AppId>,
+    current_app: OptionalCell<ProcessId>,
     pixel_format: Cell<ScreenPixelFormat>,
     buffer: TakeCell<'static, [u8]>,
 }
@@ -143,7 +143,7 @@ impl<'a> Screen<'a> {
         command: ScreenCommand,
         data1: usize,
         data2: usize,
-        appid: AppId,
+        appid: ProcessId,
     ) -> ReturnCode {
         self.apps
             .enter(appid, |app, _| {
@@ -176,7 +176,7 @@ impl<'a> Screen<'a> {
         command: ScreenCommand,
         data1: usize,
         data2: usize,
-        appid: AppId,
+        appid: ProcessId,
     ) -> ReturnCode {
         match command {
             ScreenCommand::SetBrightness => self.screen.set_brightness(data1),
@@ -500,7 +500,7 @@ impl<'a> Driver for Screen<'a> {
         &self,
         subscribe_num: usize,
         callback: Option<Callback>,
-        app_id: AppId,
+        app_id: ProcessId,
     ) -> ReturnCode {
         match subscribe_num {
             0 => self
@@ -514,7 +514,13 @@ impl<'a> Driver for Screen<'a> {
         }
     }
 
-    fn command(&self, command_num: usize, data1: usize, data2: usize, appid: AppId) -> ReturnCode {
+    fn command(
+        &self,
+        command_num: usize,
+        data1: usize,
+        data2: usize,
+        appid: ProcessId,
+    ) -> ReturnCode {
         match command_num {
             0 =>
             // This driver exists.
@@ -570,7 +576,7 @@ impl<'a> Driver for Screen<'a> {
 
     fn allow(
         &self,
-        appid: AppId,
+        appid: ProcessId,
         allow_num: usize,
         slice: Option<AppSlice<Shared, u8>>,
     ) -> ReturnCode {

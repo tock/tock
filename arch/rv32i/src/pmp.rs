@@ -38,7 +38,7 @@ use kernel::common::cells::MapCell;
 use kernel::common::registers;
 use kernel::common::registers::register_bitfields;
 use kernel::mpu;
-use kernel::AppId;
+use kernel::ProcessId;
 
 // Generic PMP config
 register_bitfields![u8,
@@ -61,7 +61,7 @@ pub struct PMP {
     /// The application that the MPU was last configured for. Used (along with
     /// the `is_dirty` flag) to determine if MPU can skip writing the
     /// configuration to hardware.
-    last_configured_for: MapCell<AppId>,
+    last_configured_for: MapCell<ProcessId>,
 }
 
 impl PMP {
@@ -468,15 +468,15 @@ impl kernel::mpu::MPU for PMP {
         Ok(())
     }
 
-    fn configure_mpu(&self, config: &Self::MpuConfig, app_id: &AppId) {
-        // Is the PMP already configured for this app?
-        let last_configured_for_this_app = self
+    fn configure_mpu(&self, config: &Self::MpuConfig, process_id: &ProcessId) {
+        // Is the PMP already configured for this process?
+        let last_configured_for_this_process = self
             .last_configured_for
-            .map_or(false, |last_app_id| last_app_id == app_id);
+            .map_or(false, |last_process_id| last_process_id == process_id);
 
-        // Skip PMP configuration if it is already configured for this app and the MPU
-        // configuration of this app has not changed.
-        if !last_configured_for_this_app || config.is_dirty.get() {
+        // Skip PMP configuration if it is already configured for this process and the MPU
+        // configuration of this process has not changed.
+        if !last_configured_for_this_process || config.is_dirty.get() {
             for (x, region) in config.regions.iter().enumerate() {
                 match region {
                     Some(r) => {
@@ -524,7 +524,7 @@ impl kernel::mpu::MPU for PMP {
                 };
             }
             config.is_dirty.set(false);
-            self.last_configured_for.put(*app_id);
+            self.last_configured_for.put(*process_id);
         }
     }
     }

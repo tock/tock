@@ -25,7 +25,7 @@
 use core::cmp;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil;
-use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
+use kernel::{AppSlice, Callback, Driver, Grant, ProcessId, ReturnCode, Shared};
 
 /// Syscall driver number.
 use crate::driver;
@@ -42,7 +42,7 @@ pub struct App {
 pub struct AppFlash<'a> {
     driver: &'a dyn hil::nonvolatile_storage::NonvolatileStorage<'static>,
     apps: Grant<App>,
-    current_app: OptionalCell<AppId>,
+    current_app: OptionalCell<ProcessId>,
     buffer: TakeCell<'static, [u8]>,
 }
 
@@ -63,7 +63,7 @@ impl<'a> AppFlash<'a> {
     // Check to see if we are doing something. If not, go ahead and do this
     // command. If so, this is queued and will be run when the pending command
     // completes.
-    fn enqueue_write(&self, flash_address: usize, appid: AppId) -> ReturnCode {
+    fn enqueue_write(&self, flash_address: usize, appid: ProcessId) -> ReturnCode {
         self.apps
             .enter(appid, |app, _| {
                 // Check that this is a valid range in the app's flash.
@@ -168,7 +168,7 @@ impl Driver for AppFlash<'_> {
     /// - `0`: Set write buffer. This entire buffer will be written to flash.
     fn allow(
         &self,
-        appid: AppId,
+        appid: ProcessId,
         allow_num: usize,
         slice: Option<AppSlice<Shared, u8>>,
     ) -> ReturnCode {
@@ -193,7 +193,7 @@ impl Driver for AppFlash<'_> {
         &self,
         subscribe_num: usize,
         callback: Option<Callback>,
-        app_id: AppId,
+        app_id: ProcessId,
     ) -> ReturnCode {
         match subscribe_num {
             0 => self
@@ -213,7 +213,7 @@ impl Driver for AppFlash<'_> {
     ///
     /// - `0`: Driver check.
     /// - `1`: Write the memory from the `allow` buffer to the address in flash.
-    fn command(&self, command_num: usize, arg1: usize, _: usize, appid: AppId) -> ReturnCode {
+    fn command(&self, command_num: usize, arg1: usize, _: usize, appid: ProcessId) -> ReturnCode {
         match command_num {
             0 =>
             /* This driver exists. */

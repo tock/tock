@@ -260,7 +260,7 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                                     let info: KernelInfo = KernelInfo::new(self.kernel);
 
                                     let pname = proc.get_process_name();
-                                    let appid = proc.appid();
+                                    let appid = proc.process_id();
                                     let (grants_used, grants_total) = info.number_app_grant_uses(appid, &self.capability);
 
                                     debug!(

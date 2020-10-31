@@ -70,7 +70,7 @@
 use kernel::common::cells::OptionalCell;
 use kernel::hil;
 use kernel::hil::crc::CrcAlg;
-use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
+use kernel::{AppSlice, Callback, Driver, Grant, ProcessId, ReturnCode, Shared};
 
 /// Syscall driver number.
 use crate::driver;
@@ -92,7 +92,7 @@ pub struct App {
 pub struct Crc<'a, C: hil::crc::CRC<'a>> {
     crc_unit: &'a C,
     apps: Grant<App>,
-    serving_app: OptionalCell<AppId>,
+    serving_app: OptionalCell<ProcessId>,
 }
 
 impl<'a, C: hil::crc::CRC<'a>> Crc<'a, C> {
@@ -173,7 +173,7 @@ impl<'a, C: hil::crc::CRC<'a>> Driver for Crc<'a, C> {
     ///
     fn allow(
         &self,
-        appid: AppId,
+        appid: ProcessId,
         allow_num: usize,
         slice: Option<AppSlice<Shared, u8>>,
     ) -> ReturnCode {
@@ -213,7 +213,7 @@ impl<'a, C: hil::crc::CRC<'a>> Driver for Crc<'a, C> {
         &self,
         subscribe_num: usize,
         callback: Option<Callback>,
-        app_id: AppId,
+        app_id: ProcessId,
     ) -> ReturnCode {
         match subscribe_num {
             // Set callback for CRC result
@@ -287,7 +287,13 @@ impl<'a, C: hil::crc::CRC<'a>> Driver for Crc<'a, C> {
     ///   * `4: SAM4L-32C`  This algorithm uses the same polynomial as
     ///   `CRC-32C`, but does no post-processing on the output value.  It
     ///   can be performed purely in hardware on the SAM4L.
-    fn command(&self, command_num: usize, algorithm: usize, _: usize, appid: AppId) -> ReturnCode {
+    fn command(
+        &self,
+        command_num: usize,
+        algorithm: usize,
+        _: usize,
+        appid: ProcessId,
+    ) -> ReturnCode {
         match command_num {
             // This driver is present
             0 => ReturnCode::SUCCESS,

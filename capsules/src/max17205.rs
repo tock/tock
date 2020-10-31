@@ -40,7 +40,7 @@
 use core::cell::Cell;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::i2c;
-use kernel::{AppId, Callback, Driver, ReturnCode};
+use kernel::{Callback, Driver, ProcessId, ReturnCode};
 
 /// Syscall driver number.
 use crate::driver;
@@ -420,7 +420,7 @@ impl Driver for MAX17205Driver<'_> {
         &self,
         subscribe_num: usize,
         callback: Option<Callback>,
-        _app_id: AppId,
+        _app_id: ProcessId,
     ) -> ReturnCode {
         match subscribe_num {
             0 => {
@@ -443,7 +443,7 @@ impl Driver for MAX17205Driver<'_> {
     /// - `3`: Read the current voltage and current draw.
     /// - `4`: Read the raw coulomb count.
     /// - `5`: Read the unique 64 bit RomID.
-    fn command(&self, command_num: usize, _data: usize, _: usize, _: AppId) -> ReturnCode {
+    fn command(&self, command_num: usize, _data: usize, _: usize, _: ProcessId) -> ReturnCode {
         match command_num {
             0 => ReturnCode::SUCCESS,
 

@@ -3,7 +3,7 @@
 use enum_primitive::enum_from_primitive;
 use kernel::common::cells::{MapCell, OptionalCell, TakeCell};
 use kernel::hil::i2c;
-use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
+use kernel::{AppSlice, Callback, Driver, Grant, ProcessId, ReturnCode, Shared};
 
 /// Syscall driver number.
 use crate::driver;
@@ -20,7 +20,7 @@ pub static mut BUF: [u8; 64] = [0; 64];
 struct Transaction {
     /// The buffer containing the bytes to transmit as it should be returned to
     /// the client
-    app_id: AppId,
+    app_id: ProcessId,
     /// The total amount to transmit
     read_len: OptionalCell<usize>,
 }
@@ -44,7 +44,7 @@ impl<I: 'static + i2c::I2CMaster> I2CMasterDriver<I> {
 
     fn operation(
         &self,
-        app_id: AppId,
+        app_id: ProcessId,
         app: &mut App,
         command: Cmd,
         addr: u8,
@@ -110,7 +110,7 @@ impl<I: i2c::I2CMaster> Driver for I2CMasterDriver<I> {
     /// - `1`: buffer for command
     fn allow(
         &self,
-        appid: AppId,
+        appid: ProcessId,
         allow_num: usize,
         slice: Option<AppSlice<Shared, u8>>,
     ) -> ReturnCode {
@@ -135,7 +135,7 @@ impl<I: i2c::I2CMaster> Driver for I2CMasterDriver<I> {
         &self,
         subscribe_num: usize,
         callback: Option<Callback>,
-        app_id: AppId,
+        app_id: ProcessId,
     ) -> ReturnCode {
         match subscribe_num {
             1 /* write_read_done */ => {
@@ -149,7 +149,7 @@ impl<I: i2c::I2CMaster> Driver for I2CMasterDriver<I> {
     }
 
     /// Initiate transfers
-    fn command(&self, cmd_num: usize, arg1: usize, arg2: usize, appid: AppId) -> ReturnCode {
+    fn command(&self, cmd_num: usize, arg1: usize, arg2: usize, appid: ProcessId) -> ReturnCode {
         if let Some(cmd) = Cmd::from_usize(cmd_num) {
             match cmd {
                 Cmd::Ping => ReturnCode::SUCCESS,

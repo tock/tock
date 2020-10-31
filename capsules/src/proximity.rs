@@ -51,7 +51,7 @@
 use core::cell::Cell;
 use kernel::hil;
 use kernel::ReturnCode;
-use kernel::{AppId, Callback, Driver, Grant};
+use kernel::{Callback, Driver, Grant, ProcessId};
 
 /// Syscall driver number.
 use crate::driver;
@@ -108,7 +108,7 @@ impl<'a> ProximitySensor<'a> {
         command: ProximityCommand,
         arg1: usize,
         arg2: usize,
-        appid: AppId,
+        appid: ProcessId,
     ) -> ReturnCode {
         // Enqueue command by saving command type, args, appid within app struct in grant region
         let r: ReturnCode = self
@@ -243,7 +243,7 @@ impl<'a> ProximitySensor<'a> {
         }
     }
 
-    fn configure_callback(&self, callback: Option<Callback>, app_id: AppId) -> ReturnCode {
+    fn configure_callback(&self, callback: Option<Callback>, app_id: ProcessId) -> ReturnCode {
         self.apps
             .enter(app_id, |app, _| {
                 app.callback = callback;
@@ -299,7 +299,7 @@ impl Driver for ProximitySensor<'_> {
         &self,
         subscribe_num: usize,
         callback: Option<Callback>,
-        app_id: AppId,
+        app_id: ProcessId,
     ) -> ReturnCode {
         match subscribe_num {
             0 => self.configure_callback(callback, app_id),
@@ -307,7 +307,13 @@ impl Driver for ProximitySensor<'_> {
         }
     }
 
-    fn command(&self, command_num: usize, arg1: usize, arg2: usize, appid: AppId) -> ReturnCode {
+    fn command(
+        &self,
+        command_num: usize,
+        arg1: usize,
+        arg2: usize,
+        appid: ProcessId,
+    ) -> ReturnCode {
         match command_num {
             // check whether the driver exist!!
             0 => ReturnCode::SUCCESS,

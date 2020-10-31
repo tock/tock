@@ -20,7 +20,7 @@ use core::{cmp, mem};
 use kernel::capabilities::UdpDriverCapability;
 use kernel::common::cells::MapCell;
 use kernel::common::leasable_buffer::LeasableBuffer;
-use kernel::{debug, AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
+use kernel::{debug, AppSlice, Callback, Driver, Grant, ProcessId, ReturnCode, Shared};
 
 use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::Udp as usize;
@@ -80,7 +80,7 @@ pub struct UDPDriver<'a> {
     /// Grant of apps that use this radio driver.
     apps: Grant<App>,
     /// ID of app whose transmission request is being processed.
-    current_app: Cell<Option<AppId>>,
+    current_app: Cell<Option<ProcessId>>,
 
     /// List of IP Addresses of the interfaces on the device
     interface_list: &'static [IPAddr],
@@ -124,7 +124,7 @@ impl<'a> UDPDriver<'a> {
 
     /// Utility function to perform an action on an app in a system call.
     #[inline]
-    fn do_with_app<F>(&self, appid: AppId, closure: F) -> ReturnCode
+    fn do_with_app<F>(&self, appid: ProcessId, closure: F) -> ReturnCode
     where
         F: FnOnce(&mut App) -> ReturnCode,
     {
@@ -136,7 +136,7 @@ impl<'a> UDPDriver<'a> {
     /// Utility function to perform an action using an app's config buffer.
     #[inline]
     #[allow(dead_code)]
-    fn do_with_cfg<F>(&self, appid: AppId, len: usize, closure: F) -> ReturnCode
+    fn do_with_cfg<F>(&self, appid: ProcessId, len: usize, closure: F) -> ReturnCode
     where
         F: FnOnce(&[u8]) -> ReturnCode,
     {
@@ -154,7 +154,7 @@ impl<'a> UDPDriver<'a> {
 
     /// Utility function to perform a write to an app's config buffer.
     #[inline]
-    fn do_with_cfg_mut<F>(&self, appid: AppId, len: usize, closure: F) -> ReturnCode
+    fn do_with_cfg_mut<F>(&self, appid: ProcessId, len: usize, closure: F) -> ReturnCode
     where
         F: FnOnce(&mut [u8]) -> ReturnCode,
     {
@@ -174,7 +174,7 @@ impl<'a> UDPDriver<'a> {
     /// (quick and dirty ctrl-c, ctrl-v from above)
     #[inline]
     #[allow(dead_code)]
-    fn do_with_rx_cfg<F>(&self, appid: AppId, closure: F) -> ReturnCode
+    fn do_with_rx_cfg<F>(&self, appid: ProcessId, closure: F) -> ReturnCode
     where
         F: FnOnce(&[u8]) -> ReturnCode,
     {
@@ -191,7 +191,7 @@ impl<'a> UDPDriver<'a> {
     /// (also a quick and dirty ctrl-c)
     #[inline]
     #[allow(dead_code)]
-    fn do_with_rx_cfg_mut<F>(&self, appid: AppId, len: usize, closure: F) -> ReturnCode
+    fn do_with_rx_cfg_mut<F>(&self, appid: ProcessId, len: usize, closure: F) -> ReturnCode
     where
         F: FnOnce(&mut [u8]) -> ReturnCode,
     {
@@ -208,8 +208,8 @@ impl<'a> UDPDriver<'a> {
     }
 
     /// If the driver is currently idle and there are pending transmissions,
-    /// pick an app with a pending transmission and return its `AppId`.
-    fn get_next_tx_if_idle(&self) -> Option<AppId> {
+    /// pick an app with a pending transmission and return its `ProcessId`.
+    fn get_next_tx_if_idle(&self) -> Option<ProcessId> {
         if self.current_app.get().is_some() {
             // Tx already in progress
             return None;
@@ -233,7 +233,7 @@ impl<'a> UDPDriver<'a> {
     /// `tx_callback`. Assumes that the driver is currently idle and the app has
     /// a pending transmission.
     #[inline]
-    fn perform_tx_async(&self, appid: AppId) {
+    fn perform_tx_async(&self, appid: ProcessId) {
         let result = self.perform_tx_sync(appid);
         if result != ReturnCode::SUCCESS {
             let _ = self.apps.enter(appid, |app, _| {
@@ -247,7 +247,7 @@ impl<'a> UDPDriver<'a> {
     /// returned immediately to the app. Assumes that the driver is currently
     /// idle and the app has a pending transmission.
     #[inline]
-    fn perform_tx_sync(&self, appid: AppId) -> ReturnCode {
+    fn perform_tx_sync(&self, appid: ProcessId) -> ReturnCode {
         self.do_with_app(appid, |app| {
             let addr_ports = match app.pending_tx.take() {
                 Some(pending_tx) => pending_tx,
@@ -309,7 +309,7 @@ impl<'a> UDPDriver<'a> {
     /// On the other hand, if it is some other app, then return any errors via
     /// callbacks.
     #[inline]
-    fn do_next_tx_immediate(&self, new_appid: AppId) -> ReturnCode {
+    fn do_next_tx_immediate(&self, new_appid: ProcessId) -> ReturnCode {
         self.get_next_tx_if_idle()
             .map_or(ReturnCode::SUCCESS, |appid| {
                 if appid == new_appid {
@@ -362,7 +362,7 @@ impl<'a> Driver for UDPDriver<'a> {
     ///        be waiting for an incoming packet asynchronously).
     fn allow(
         &self,
-        appid: AppId,
+        appid: ProcessId,
         allow_num: usize,
         slice: Option<AppSlice<Shared, u8>>,
     ) -> ReturnCode {
@@ -410,7 +410,7 @@ impl<'a> Driver for UDPDriver<'a> {
         &self,
         subscribe_num: usize,
         callback: Option<Callback>,
-        app_id: AppId,
+        app_id: ProcessId,
     ) -> ReturnCode {
         match subscribe_num {
             0 => self.do_with_app(app_id, |app| {
@@ -476,7 +476,7 @@ impl<'a> Driver for UDPDriver<'a> {
     ///        This represents the size of the payload buffer in the kernel. Apps can use this
     ///        syscall to ensure they do not attempt to send too-large messages.
 
-    fn command(&self, command_num: usize, arg1: usize, _: usize, appid: AppId) -> ReturnCode {
+    fn command(&self, command_num: usize, arg1: usize, _: usize, appid: ProcessId) -> ReturnCode {
         match command_num {
             0 => ReturnCode::SUCCESS,
 

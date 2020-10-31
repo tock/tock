@@ -65,7 +65,7 @@ impl<'a, C: Chip> Scheduler<C> for CooperativeSched<'a> {
                 match node.proc {
                     Some(proc) => {
                         if proc.ready() {
-                            next = Some(proc.appid());
+                            next = Some(proc.process_id());
                             break;
                         }
                         self.processes.push_tail(self.processes.pop_head().unwrap());

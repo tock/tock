@@ -5,7 +5,7 @@ mod fmt;
 
 use core::cell::Cell;
 use kernel::hil::uart::{Transmit, TransmitClient};
-use kernel::{AppId, Grant, ReturnCode};
+use kernel::{Grant, ProcessId, ReturnCode};
 
 // LowLevelDebug requires a &mut [u8] buffer of length at least BUF_LEN.
 pub use fmt::BUF_LEN;
@@ -41,7 +41,7 @@ impl<'u, U: Transmit<'u>> LowLevelDebug<'u, U> {
 }
 
 impl<'u, U: Transmit<'u>> kernel::Driver for LowLevelDebug<'u, U> {
-    fn command(&self, minor_num: usize, r2: usize, r3: usize, caller_id: AppId) -> ReturnCode {
+    fn command(&self, minor_num: usize, r2: usize, r3: usize, caller_id: ProcessId) -> ReturnCode {
         match minor_num {
             0 => return ReturnCode::SUCCESS,
             1 => self.push_entry(DebugEntry::AlertCode(r2), caller_id),
@@ -94,7 +94,7 @@ impl<'u, U: Transmit<'u>> TransmitClient for LowLevelDebug<'u, U> {
 impl<'u, U: Transmit<'u>> LowLevelDebug<'u, U> {
     // If the UART is not busy (the buffer is available), transmits the entry.
     // Otherwise, adds it to the app's queue.
-    fn push_entry(&self, entry: DebugEntry, appid: AppId) {
+    fn push_entry(&self, entry: DebugEntry, appid: ProcessId) {
         use DebugEntry::Dropped;
 
         if let Some(buffer) = self.buffer.take() {

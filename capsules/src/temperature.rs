@@ -55,7 +55,7 @@
 use core::cell::Cell;
 use kernel::hil;
 use kernel::ReturnCode;
-use kernel::{AppId, Callback, Driver, Grant};
+use kernel::{Callback, Driver, Grant, ProcessId};
 
 /// Syscall driver number.
 use crate::driver;
@@ -85,7 +85,7 @@ impl<'a> TemperatureSensor<'a> {
         }
     }
 
-    fn enqueue_command(&self, appid: AppId) -> ReturnCode {
+    fn enqueue_command(&self, appid: ProcessId) -> ReturnCode {
         self.apps
             .enter(appid, |app, _| {
                 if !self.busy.get() {
@@ -99,7 +99,7 @@ impl<'a> TemperatureSensor<'a> {
             .unwrap_or_else(|err| err.into())
     }
 
-    fn configure_callback(&self, callback: Option<Callback>, app_id: AppId) -> ReturnCode {
+    fn configure_callback(&self, callback: Option<Callback>, app_id: ProcessId) -> ReturnCode {
         self.apps
             .enter(app_id, |app, _| {
                 app.callback = callback;
@@ -128,7 +128,7 @@ impl Driver for TemperatureSensor<'_> {
         &self,
         subscribe_num: usize,
         callback: Option<Callback>,
-        app_id: AppId,
+        app_id: ProcessId,
     ) -> ReturnCode {
         match subscribe_num {
             // subscribe to temperature reading with callback
@@ -137,7 +137,7 @@ impl Driver for TemperatureSensor<'_> {
         }
     }
 
-    fn command(&self, command_num: usize, _: usize, _: usize, appid: AppId) -> ReturnCode {
+    fn command(&self, command_num: usize, _: usize, _: usize, appid: ProcessId) -> ReturnCode {
         match command_num {
             // check whether the driver exists!!
             0 => ReturnCode::SUCCESS,

@@ -16,7 +16,7 @@ use core::cmp;
 use kernel::common::cells::{MapCell, TakeCell};
 use kernel::hil;
 use kernel::ReturnCode;
-use kernel::{AppId, AppSlice, Callback, Driver, Shared};
+use kernel::{AppSlice, Callback, Driver, ProcessId, Shared};
 
 pub static mut BUFFER1: [u8; 256] = [0; 256];
 pub static mut BUFFER2: [u8; 256] = [0; 256];
@@ -213,7 +213,7 @@ impl hil::i2c::I2CHwSlaveClient for I2CMasterSlaveDriver<'_> {
 impl Driver for I2CMasterSlaveDriver<'_> {
     fn allow(
         &self,
-        _appid: AppId,
+        _appid: ProcessId,
         allow_num: usize,
         slice: Option<AppSlice<Shared, u8>>,
     ) -> ReturnCode {
@@ -255,7 +255,7 @@ impl Driver for I2CMasterSlaveDriver<'_> {
         &self,
         subscribe_num: usize,
         callback: Option<Callback>,
-        _app_id: AppId,
+        _app_id: ProcessId,
     ) -> ReturnCode {
         match subscribe_num {
             0 => {
@@ -270,7 +270,7 @@ impl Driver for I2CMasterSlaveDriver<'_> {
         }
     }
 
-    fn command(&self, command_num: usize, data: usize, _: usize, _: AppId) -> ReturnCode {
+    fn command(&self, command_num: usize, data: usize, _: usize, _: ProcessId) -> ReturnCode {
         match command_num {
             0 /* check if present */ => ReturnCode::SUCCESS,
 

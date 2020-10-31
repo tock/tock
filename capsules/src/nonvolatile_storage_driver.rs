@@ -58,7 +58,7 @@ use core::cell::Cell;
 use core::cmp;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil;
-use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
+use kernel::{AppSlice, Callback, Driver, Grant, ProcessId, ReturnCode, Shared};
 
 /// Syscall driver number.
 use crate::driver;
@@ -76,7 +76,7 @@ pub enum NonvolatileCommand {
 
 #[derive(Clone, Copy)]
 pub enum NonvolatileUser {
-    App { app_id: AppId },
+    App { app_id: ProcessId },
     Kernel,
 }
 
@@ -178,7 +178,7 @@ impl<'a> NonvolatileStorage<'a> {
         command: NonvolatileCommand,
         offset: usize,
         length: usize,
-        app_id: Option<AppId>,
+        app_id: Option<ProcessId>,
     ) -> ReturnCode {
         // Do bounds check.
         match command {
@@ -476,7 +476,7 @@ impl Driver for NonvolatileStorage<'_> {
     /// - `1`: Setup a buffer to write bytes to the nonvolatile storage.
     fn allow(
         &self,
-        appid: AppId,
+        appid: ProcessId,
         allow_num: usize,
         slice: Option<AppSlice<Shared, u8>>,
     ) -> ReturnCode {
@@ -502,7 +502,7 @@ impl Driver for NonvolatileStorage<'_> {
         &self,
         subscribe_num: usize,
         callback: Option<Callback>,
-        app_id: AppId,
+        app_id: ProcessId,
     ) -> ReturnCode {
         self.apps
             .enter(app_id, |app, _| {
@@ -526,7 +526,7 @@ impl Driver for NonvolatileStorage<'_> {
     /// - `1`: Return the number of bytes available to userspace.
     /// - `2`: Start a read from the nonvolatile storage.
     /// - `3`: Start a write to the nonvolatile_storage.
-    fn command(&self, arg0: usize, arg1: usize, _: usize, appid: AppId) -> ReturnCode {
+    fn command(&self, arg0: usize, arg1: usize, _: usize, appid: ProcessId) -> ReturnCode {
         let command_num = arg0 & 0xFF;
 
         match command_num {

@@ -54,7 +54,7 @@
 use core::cell::Cell;
 use kernel::hil::gpio;
 use kernel::hil::gpio::{Configure, Input, InterruptWithValue};
-use kernel::{AppId, Callback, Driver, Grant, ReturnCode};
+use kernel::{Callback, Driver, Grant, ProcessId, ReturnCode};
 
 /// Syscall driver number.
 use crate::driver;
@@ -117,7 +117,7 @@ impl<'a, P: gpio::InterruptPin<'a>> Driver for Button<'a, P> {
         &self,
         subscribe_num: usize,
         callback: Option<Callback>,
-        app_id: AppId,
+        app_id: ProcessId,
     ) -> ReturnCode {
         match subscribe_num {
             0 => self
@@ -149,7 +149,7 @@ impl<'a, P: gpio::InterruptPin<'a>> Driver for Button<'a, P> {
     /// - `2`: Disable interrupts for a button. No affect or reliance on
     ///   registered callback.
     /// - `3`: Read the current state of the button.
-    fn command(&self, command_num: usize, data: usize, _: usize, appid: AppId) -> ReturnCode {
+    fn command(&self, command_num: usize, data: usize, _: usize, appid: ProcessId) -> ReturnCode {
         let pins = self.pins;
         match command_num {
             // return button count

@@ -25,7 +25,7 @@ use kernel::hil::entropy;
 use kernel::hil::entropy::{Entropy32, Entropy8};
 use kernel::hil::rng;
 use kernel::hil::rng::{Client, Continue, Random, Rng};
-use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
+use kernel::{AppSlice, Callback, Driver, Grant, ProcessId, ReturnCode, Shared};
 
 /// Syscall driver number.
 use crate::driver;
@@ -136,7 +136,7 @@ impl rng::Client for RngDriver<'_> {
 impl<'a> Driver for RngDriver<'a> {
     fn allow(
         &self,
-        appid: AppId,
+        appid: ProcessId,
         allow_num: usize,
         slice: Option<AppSlice<Shared, u8>>,
     ) -> ReturnCode {
@@ -157,7 +157,7 @@ impl<'a> Driver for RngDriver<'a> {
         &self,
         subscribe_num: usize,
         callback: Option<Callback>,
-        app_id: AppId,
+        app_id: ProcessId,
     ) -> ReturnCode {
         match subscribe_num {
             0 => self
@@ -173,7 +173,7 @@ impl<'a> Driver for RngDriver<'a> {
         }
     }
 
-    fn command(&self, command_num: usize, data: usize, _: usize, appid: AppId) -> ReturnCode {
+    fn command(&self, command_num: usize, data: usize, _: usize, appid: ProcessId) -> ReturnCode {
         match command_num {
             0 =>
             /* Check if exists */

@@ -31,7 +31,7 @@ use core::cell::Cell;
 use core::marker::PhantomData;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::usb_hid;
-use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
+use kernel::{AppSlice, Callback, Driver, Grant, ProcessId, ReturnCode, Shared};
 
 /// Syscall driver number.
 use crate::driver;
@@ -59,7 +59,7 @@ pub struct CtapDriver<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> {
     usb: Option<&'a U>,
 
     app: Grant<App>,
-    appid: OptionalCell<AppId>,
+    appid: OptionalCell<ProcessId>,
     phantom: PhantomData<&'a U>,
 
     send_buffer: TakeCell<'static, [u8; 64]>,
@@ -195,7 +195,7 @@ impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> usb_hid::Client<'a, [u8; 64]> for Cta
 impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> Driver for CtapDriver<'a, U> {
     fn allow(
         &self,
-        appid: AppId,
+        appid: ProcessId,
         allow_num: usize,
         slice: Option<AppSlice<Shared, u8>>,
     ) -> ReturnCode {
@@ -235,7 +235,7 @@ impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> Driver for CtapDriver<'a, U> {
         &self,
         subscribe_num: usize,
         callback: Option<Callback>,
-        appid: AppId,
+        appid: ProcessId,
     ) -> ReturnCode {
         match subscribe_num {
             0 => {
@@ -258,7 +258,7 @@ impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> Driver for CtapDriver<'a, U> {
         command_num: usize,
         _data1: usize,
         _data2: usize,
-        appid: AppId,
+        appid: ProcessId,
     ) -> ReturnCode {
         let can_access = self.appid.map_or(true, |owning_app| {
             if owning_app == &appid {

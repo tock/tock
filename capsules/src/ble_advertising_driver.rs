@@ -221,8 +221,8 @@ impl App {
     // Byte 1            0xf0
     // Byte 2-5          random
     // Byte 6            0xf0
-    // FIXME: For now use AppId as "randomness"
-    fn generate_random_address(&mut self, appid: kernel::AppId) -> ReturnCode {
+    // FIXME: For now use ProcessId as "randomness"
+    fn generate_random_address(&mut self, appid: kernel::ProcessId) -> ReturnCode {
         self.address = [
             0xf0,
             (appid.id() & 0xff) as u8,
@@ -303,8 +303,8 @@ where
     app: kernel::Grant<App>,
     kernel_tx: kernel::common::cells::TakeCell<'static, [u8]>,
     alarm: &'a A,
-    sending_app: OptionalCell<kernel::AppId>,
-    receiving_app: OptionalCell<kernel::AppId>,
+    sending_app: OptionalCell<kernel::ProcessId>,
+    receiving_app: OptionalCell<kernel::ProcessId>,
 }
 
 impl<'a, B, A> BLE<'a, B, A>
@@ -552,7 +552,7 @@ where
         command_num: usize,
         data: usize,
         interval: usize,
-        appid: kernel::AppId,
+        appid: kernel::ProcessId,
     ) -> ReturnCode {
         match command_num {
             // Start periodic advertisements
@@ -643,7 +643,7 @@ where
 
     fn allow(
         &self,
-        appid: kernel::AppId,
+        appid: kernel::ProcessId,
         allow_num: usize,
         slice: Option<kernel::AppSlice<kernel::Shared, u8>>,
     ) -> ReturnCode {
@@ -684,7 +684,7 @@ where
         &self,
         subscribe_num: usize,
         callback: Option<kernel::Callback>,
-        app_id: kernel::AppId,
+        app_id: kernel::ProcessId,
     ) -> ReturnCode {
         match subscribe_num {
             // Callback for scanning

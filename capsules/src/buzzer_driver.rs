@@ -43,7 +43,7 @@ use core::cmp;
 use kernel::common::cells::OptionalCell;
 use kernel::hil;
 use kernel::hil::time::Frequency;
-use kernel::{AppId, Callback, Driver, Grant, ReturnCode};
+use kernel::{Callback, Driver, Grant, ProcessId, ReturnCode};
 
 /// Syscall driver number.
 use crate::driver;
@@ -74,7 +74,7 @@ pub struct Buzzer<'a, A: hil::time::Alarm<'a>> {
     // Per-app state.
     apps: Grant<App>,
     // Which app is currently using the buzzer.
-    active_app: OptionalCell<AppId>,
+    active_app: OptionalCell<ProcessId>,
     // Max buzz time.
     max_duration_ms: usize,
 }
@@ -98,7 +98,7 @@ impl<'a, A: hil::time::Alarm<'a>> Buzzer<'a, A> {
     // Check so see if we are doing something. If not, go ahead and do this
     // command. If so, this is queued and will be run when the pending
     // command completes.
-    fn enqueue_command(&self, command: BuzzerCommand, app_id: AppId) -> ReturnCode {
+    fn enqueue_command(&self, command: BuzzerCommand, app_id: ProcessId) -> ReturnCode {
         if self.active_app.is_none() {
             // No app is currently using the buzzer, so we just use this app.
             self.active_app.set(app_id);
@@ -192,7 +192,7 @@ impl<'a, A: hil::time::Alarm<'a>> Driver for Buzzer<'a, A> {
         &self,
         subscribe_num: usize,
         callback: Option<Callback>,
-        app_id: AppId,
+        app_id: ProcessId,
     ) -> ReturnCode {
         self.apps
             .enter(app_id, |app, _| {
@@ -213,7 +213,13 @@ impl<'a, A: hil::time::Alarm<'a>> Driver for Buzzer<'a, A> {
     /// - `1`: Buzz the buzzer. `arg1` is used for the frequency in hertz, and
     ///   `arg2` is the duration in ms. Note the duration is capped at 5000
     ///   milliseconds.
-    fn command(&self, command_num: usize, arg1: usize, arg2: usize, appid: AppId) -> ReturnCode {
+    fn command(
+        &self,
+        command_num: usize,
+        arg1: usize,
+        arg2: usize,
+        appid: ProcessId,
+    ) -> ReturnCode {
         match command_num {
             0 =>
             /* This driver exists. */

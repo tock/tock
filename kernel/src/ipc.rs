@@ -3,7 +3,7 @@
 //! This is a special syscall driver that allows userspace applications to
 //! share memory.
 
-use crate::callback::{AppId, Callback};
+use crate::callback::{Callback, ProcessId};
 use crate::capabilities::MemoryAllocationCapability;
 use crate::driver::Driver;
 use crate::grant::Grant;
@@ -56,8 +56,8 @@ impl IPC {
     /// scheduler loop if an IPC task was queued for the process.
     pub(crate) unsafe fn schedule_callback(
         &self,
-        appid: AppId,
-        otherapp: AppId,
+        appid: ProcessId,
+        otherapp: ProcessId,
         cb_type: IPCCallbackType,
     ) {
         self.data
@@ -113,7 +113,7 @@ impl Driver for IPC {
         &self,
         subscribe_num: usize,
         callback: Option<Callback>,
-        app_id: AppId,
+        process_id: ProcessId,
     ) -> ReturnCode {
         match subscribe_num {
             // subscribe(0)
@@ -126,7 +126,7 @@ impl Driver for IPC {
             // process notifies the server process.
             0 => self
                 .data
-                .enter(app_id, |data, _| {
+                .enter(process_id, |data, _| {
                     data.callback = callback;
                     ReturnCode::SUCCESS
                 })
@@ -148,7 +148,7 @@ impl Driver for IPC {
                 let otherapp = self.data.kernel.lookup_app_by_identifier(app_identifier);
 
                 self.data
-                    .enter(app_id, |data, _| {
+                    .enter(process_id, |data, _| {
                         match otherapp.map_or(None, |oa| oa.index()) {
                             Some(i) => {
                                 if i > 8 {
@@ -178,7 +178,7 @@ impl Driver for IPC {
         target_id: usize,
         client_or_svc: usize,
         _: usize,
-        appid: AppId,
+        appid: ProcessId,
     ) -> ReturnCode {
         let cb_type = if client_or_svc == 0 {
             IPCCallbackType::Service
@@ -219,7 +219,7 @@ impl Driver for IPC {
     /// access the buffer, it does not signal the service.
     fn allow(
         &self,
-        appid: AppId,
+        process_id: ProcessId,
         target_id: usize,
         slice: Option<AppSlice<Shared, u8>>,
     ) -> ReturnCode {
@@ -233,7 +233,7 @@ impl Driver for IPC {
                             && s.iter().zip(slice_data.iter()).all(|(c1, c2)| c1 == c2)
                         {
                             ReturnCode::SuccessWithValue {
-                                value: (p.appid().id() as usize) + 1,
+                                value: (p.process_id().id() as usize) + 1,
                             }
                         } else {
                             ReturnCode::FAIL
@@ -249,7 +249,7 @@ impl Driver for IPC {
             return ReturnCode::EINVAL; /* AppSlice must have non-zero length */
         }
         self.data
-            .enter(appid, |data, _| {
+            .enter(process_id, |data, _| {
                 // Lookup the index of the app based on the passed in
                 // identifier. This also let's us check that the other app is
                 // actually valid.

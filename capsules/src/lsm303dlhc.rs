@@ -85,7 +85,7 @@ use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::common::registers::register_bitfields;
 use kernel::hil::i2c::{self, Error};
 use kernel::hil::sensors;
-use kernel::{AppId, Callback, Driver, ReturnCode};
+use kernel::{Callback, Driver, ProcessId, ReturnCode};
 
 register_bitfields![u8,
     CTRL_REG1 [
@@ -607,7 +607,7 @@ impl i2c::I2CClient for Lsm303dlhcI2C<'_> {
 }
 
 impl Driver for Lsm303dlhcI2C<'_> {
-    fn command(&self, command_num: usize, data1: usize, data2: usize, _: AppId) -> ReturnCode {
+    fn command(&self, command_num: usize, data1: usize, data2: usize, _: ProcessId) -> ReturnCode {
         match command_num {
             0 => ReturnCode::SUCCESS,
             // Check is sensor is correctly connected
@@ -710,7 +710,7 @@ impl Driver for Lsm303dlhcI2C<'_> {
         &self,
         subscribe_num: usize,
         callback: Option<Callback>,
-        _app_id: AppId,
+        _app_id: ProcessId,
     ) -> ReturnCode {
         match subscribe_num {
             0 /* set the one shot callback */ => {

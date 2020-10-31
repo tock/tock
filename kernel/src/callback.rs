@@ -9,28 +9,30 @@ use crate::debug;
 use crate::process;
 use crate::sched::Kernel;
 
-/// Userspace app identifier.
+/// Userspace process identifier.
 ///
-/// This should be treated as an opaque type that can be used to represent an
-/// application on the board without requiring an actual reference to a
-/// `ProcessType` object. Having this `AppId` reference type is useful for
-/// managing ownership and type issues in Rust, but more importantly `AppId`
-/// serves as a tool for capsules to hold pointers to applications.
+/// This should be treated as an opaque type that can be used to represent a
+/// process (defined as a runtime instantiation of an application binary, as
+/// defined in the [threat_model](../../doc/threat_model/README.md) on the
+/// board without requiring an actual reference to a `ProcessType` object.
+/// Having this `ProcessId` reference type is useful for managing ownership
+/// and type issues in Rust, but more importantly `ProcessId`  serves as a
+/// tool for capsules to hold pointers to applications instances.
 ///
-/// Since `AppId` implements `Copy`, having an `AppId` does _not_ ensure that
-/// the process the `AppId` refers to is still valid. The process may have been
+/// Since `ProcessId` implements `Copy`, having an `ProcessId` does _not_ ensure that
+/// the process the `ProcessId` refers to is still valid. The process may have been
 /// removed, terminated, or restarted as a new process. Therefore, all uses of
-/// `AppId` in the kernel must check that the `AppId` is still valid. This check
+/// `ProcessId` in the kernel must check that the `ProcessId` is still valid. This check
 /// happens automatically when `.index()` is called, as noted by the return
 /// type: `Option<usize>`. `.index()` will return the index of the process in
 /// the processes array, but if the process no longer exists then `None` is
 /// returned.
 ///
-/// Outside of the kernel crate, holders of an `AppId` may want to use `.id()`
+/// Outside of the kernel crate, holders of an `ProcessId` may want to use `.id()`
 /// to retrieve a simple identifier for the process that can be communicated
 /// over a UART bus or syscall interface. This call is guaranteed to return a
-/// suitable identifier for the `AppId`, but does not check that the
-/// corresponding application still exists.
+/// suitable identifier for the `ProcessId`, but does not check that the
+/// corresponding application instance still exists.
 ///
 /// This type also provides capsules an interface for interacting with processes
 /// since they otherwise would have no reference to a `ProcessType`. Very limited
@@ -40,7 +42,7 @@ use crate::sched::Kernel;
 /// the `get_editable_flash_range()` function so they can safely allow an app
 /// to modify its own flash.
 #[derive(Clone, Copy)]
-pub struct AppId {
+pub struct ProcessId {
     /// Reference to the main kernel struct. This is needed for checking on
     /// certain properties of the referred app (like its editable bounds), but
     /// also for checking that the index is valid.
@@ -59,38 +61,38 @@ pub struct AppId {
     /// when referring to specific applications across the syscall interface.
     ///
     /// The combination of (index, identifier) is used to check if the app this
-    /// `AppId` refers to is still valid. If the stored identifier in the
+    /// `ProcessId` refers to is still valid. If the stored identifier in the
     /// process at the given index does not match the value saved here, then the
-    /// process moved or otherwise ended, and this `AppId` is no longer valid.
+    /// process moved or otherwise ended, and this `ProcessId` is no longer valid.
     identifier: usize,
 }
 
-impl PartialEq for AppId {
-    fn eq(&self, other: &AppId) -> bool {
+impl PartialEq for ProcessId {
+    fn eq(&self, other: &ProcessId) -> bool {
         self.identifier == other.identifier
     }
 }
 
-impl Eq for AppId {}
+impl Eq for ProcessId {}
 
-impl fmt::Debug for AppId {
+impl fmt::Debug for ProcessId {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self.identifier)
     }
 }
 
-impl AppId {
-    /// Create a new `AppId` object based on the app identifier and its index
+impl ProcessId {
+    /// Create a new `ProcessId` object based on the app identifier and its index
     /// in the processes array.
-    pub(crate) fn new(kernel: &'static Kernel, identifier: usize, index: usize) -> AppId {
-        AppId {
+    pub(crate) fn new(kernel: &'static Kernel, identifier: usize, index: usize) -> ProcessId {
+        ProcessId {
             kernel: kernel,
             identifier: identifier,
             index: index,
         }
     }
 
-    /// Create a new `AppId` object based on the app identifier and its index
+    /// Create a new `ProcessId` object based on the app identifier and its index
     /// in the processes array.
     ///
     /// This constructor is public but protected with a capability so that
@@ -100,8 +102,8 @@ impl AppId {
         identifier: usize,
         index: usize,
         _capability: &dyn capabilities::ExternalProcessCapability,
-    ) -> AppId {
-        AppId {
+    ) -> ProcessId {
+        ProcessId {
             kernel: kernel,
             identifier: identifier,
             index: index,
@@ -110,22 +112,22 @@ impl AppId {
 
     /// Get the location of this app in the processes array.
     ///
-    /// This will return `Some(index)` if the identifier stored in this `AppId`
+    /// This will return `Some(index)` if the identifier stored in this `ProcessId`
     /// matches the app saved at the known index. If the identifier does not
     /// match then `None` will be returned.
     pub(crate) fn index(&self) -> Option<usize> {
         // Do a lookup to make sure that the index we have is correct.
-        if self.kernel.appid_is_valid(self) {
+        if self.kernel.process_id_is_valid(self) {
             Some(self.index)
         } else {
             None
         }
     }
 
-    /// Get a `usize` unique identifier for the app this `AppId` refers to.
+    /// Get a `usize` unique identifier for the app this `ProcessId` refers to.
     ///
     /// This function should not generally be used, instead code should just use
-    /// the `AppId` object itself to refer to various apps on the system.
+    /// the `ProcessId` object itself to refer to various apps on the system.
     /// However, getting just a `usize` identifier is particularly useful when
     /// referring to a specific app with things outside of the kernel, say for
     /// userspace (e.g. IPC) or tockloader (e.g. for debugging) where a concrete
@@ -167,7 +169,7 @@ pub struct CallbackId {
 /// This is essentially a wrapper around a function pointer.
 #[derive(Clone, Copy)]
 pub struct Callback {
-    app_id: AppId,
+    process_id: ProcessId,
     callback_id: CallbackId,
     appdata: usize,
     fn_ptr: NonNull<*mut ()>,
@@ -175,13 +177,13 @@ pub struct Callback {
 
 impl Callback {
     pub(crate) fn new(
-        app_id: AppId,
+        process_id: ProcessId,
         callback_id: CallbackId,
         appdata: usize,
         fn_ptr: NonNull<*mut ()>,
     ) -> Callback {
         Callback {
-            app_id,
+            process_id,
             callback_id,
             appdata,
             fn_ptr,
@@ -198,9 +200,9 @@ impl Callback {
     /// are specific to the individual `Driver` interfaces.
     pub fn schedule(&mut self, r0: usize, r1: usize, r2: usize) -> bool {
         let res = self
-            .app_id
+            .process_id
             .kernel
-            .process_map_or(false, self.app_id, |process| {
+            .process_map_or(false, self.process_id, |process| {
                 process.enqueue_task(process::Task::FunctionCall(process::FunctionCall {
                     source: process::FunctionCallSource::Driver(self.callback_id),
                     argument0: r0,
@@ -213,7 +215,7 @@ impl Callback {
         if config::CONFIG.trace_syscalls {
             debug!(
                 "[{:?}] schedule[{:#x}:{}] @{:#x}({:#x}, {:#x}, {:#x}, {:#x}) = {}",
-                self.app_id,
+                self.process_id,
                 self.callback_id.driver_num,
                 self.callback_id.subscribe_num,
                 self.fn_ptr.as_ptr() as usize,

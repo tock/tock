@@ -28,7 +28,7 @@
 use kernel::common::cells::OptionalCell;
 use kernel::hil;
 use kernel::ReturnCode;
-use kernel::{AppId, Callback, Driver};
+use kernel::{Callback, Driver, ProcessId};
 
 /// Syscall driver number.
 use crate::driver;
@@ -102,7 +102,7 @@ impl<Port: hil::gpio_async::Port> Driver for GPIOAsync<'_, Port> {
         &self,
         subscribe_num: usize,
         callback: Option<Callback>,
-        _app_id: AppId,
+        _app_id: ProcessId,
     ) -> ReturnCode {
         match subscribe_num {
             // Set callback for `done()` events
@@ -146,7 +146,7 @@ impl<Port: hil::gpio_async::Port> Driver for GPIOAsync<'_, Port> {
     ///   interrupt, and 2 for a falling edge interrupt.
     /// - `8`: Disable an interrupt on a pin.
     /// - `9`: Disable a GPIO pin.
-    fn command(&self, command_num: usize, pin: usize, data: usize, _: AppId) -> ReturnCode {
+    fn command(&self, command_num: usize, pin: usize, data: usize, _: ProcessId) -> ReturnCode {
         let port = data & 0xFFFF;
         let other = (data >> 16) & 0xFFFF;
         let ports = self.ports.as_ref();

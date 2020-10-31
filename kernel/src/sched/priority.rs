@@ -10,7 +10,7 @@
 //! is running. The only way for a process to longer be the highest priority is
 //! for an interrupt to occur, which will cause the process to stop running.
 
-use crate::callback::AppId;
+use crate::callback::ProcessId;
 use crate::common::cells::OptionalCell;
 use crate::common::dynamic_deferred_call::DynamicDeferredCall;
 use crate::platform::Chip;
@@ -19,7 +19,7 @@ use crate::sched::{Kernel, Scheduler, SchedulingDecision, StoppedExecutingReason
 /// Priority scheduler based on the order of processes in the `PROCESSES` array.
 pub struct PrioritySched {
     kernel: &'static Kernel,
-    running: OptionalCell<AppId>,
+    running: OptionalCell<ProcessId>,
 }
 
 impl PrioritySched {
@@ -44,14 +44,14 @@ impl<C: Chip> Scheduler<C> for PrioritySched {
                 .kernel
                 .get_process_iter()
                 .find(|&proc| proc.ready())
-                .map_or(None, |proc| Some(proc.appid()));
+                .map_or(None, |proc| Some(proc.process_id()));
             self.running.insert(next);
 
             SchedulingDecision::RunProcess((next.unwrap(), None))
         }
     }
 
-    unsafe fn continue_process(&self, _: AppId, chip: &C) -> bool {
+    unsafe fn continue_process(&self, _: ProcessId, chip: &C) -> bool {
         // In addition to checking for interrupts, also checks if any higher
         // priority processes have become ready. This check is necessary because
         // a system call by this process could make another process ready, if

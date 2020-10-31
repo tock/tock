@@ -17,7 +17,7 @@ use kernel::hil;
 use kernel::hil::screen::ScreenRotation;
 use kernel::hil::touch::{GestureEvent, TouchEvent, TouchStatus};
 use kernel::ReturnCode;
-use kernel::{AppId, AppSlice, Callback, Driver, Grant, Shared};
+use kernel::{AppSlice, Callback, Driver, Grant, ProcessId, Shared};
 
 /// Syscall driver number.
 use crate::driver;
@@ -294,7 +294,7 @@ impl<'a> hil::touch::GestureClient for Touch<'a> {
 impl<'a> Driver for Touch<'a> {
     fn allow(
         &self,
-        appid: AppId,
+        appid: ProcessId,
         allow_num: usize,
         slice: Option<AppSlice<Shared, u8>>,
     ) -> ReturnCode {
@@ -326,7 +326,7 @@ impl<'a> Driver for Touch<'a> {
         &self,
         subscribe_num: usize,
         callback: Option<Callback>,
-        app_id: AppId,
+        app_id: ProcessId,
     ) -> ReturnCode {
         match subscribe_num {
             // subscribe to touch
@@ -369,7 +369,7 @@ impl<'a> Driver for Touch<'a> {
         command_num: usize,
         _data1: usize,
         _data2: usize,
-        _appid: AppId,
+        _appid: ProcessId,
     ) -> ReturnCode {
         match command_num {
             0 =>

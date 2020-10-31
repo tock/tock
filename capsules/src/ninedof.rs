@@ -21,7 +21,7 @@
 use kernel::common::cells::OptionalCell;
 use kernel::hil;
 use kernel::ReturnCode;
-use kernel::{AppId, Callback, Driver, Grant};
+use kernel::{Callback, Driver, Grant, ProcessId};
 
 /// Syscall driver number.
 use crate::driver;
@@ -56,7 +56,7 @@ impl Default for App {
 pub struct NineDof<'a> {
     drivers: &'a [&'a dyn hil::sensors::NineDof<'a>],
     apps: Grant<App>,
-    current_app: OptionalCell<AppId>,
+    current_app: OptionalCell<ProcessId>,
 }
 
 impl<'a> NineDof<'a> {
@@ -71,7 +71,12 @@ impl<'a> NineDof<'a> {
     // Check so see if we are doing something. If not,
     // go ahead and do this command. If so, this is queued
     // and will be run when the pending command completes.
-    fn enqueue_command(&self, command: NineDofCommand, arg1: usize, appid: AppId) -> ReturnCode {
+    fn enqueue_command(
+        &self,
+        command: NineDofCommand,
+        arg1: usize,
+        appid: ProcessId,
+    ) -> ReturnCode {
         self.apps
             .enter(appid, |app, _| {
                 if self.current_app.is_none() {
@@ -184,7 +189,7 @@ impl Driver for NineDof<'_> {
         &self,
         subscribe_num: usize,
         callback: Option<Callback>,
-        app_id: AppId,
+        app_id: ProcessId,
     ) -> ReturnCode {
         match subscribe_num {
             0 => self
@@ -198,7 +203,7 @@ impl Driver for NineDof<'_> {
         }
     }
 
-    fn command(&self, command_num: usize, arg1: usize, _: usize, appid: AppId) -> ReturnCode {
+    fn command(&self, command_num: usize, arg1: usize, _: usize, appid: ProcessId) -> ReturnCode {
         match command_num {
             0 =>
             /* This driver exists. */

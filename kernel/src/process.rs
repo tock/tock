@@ -7,7 +7,7 @@ use core::fmt::Write;
 use core::ptr::{write_volatile, NonNull};
 use core::{mem, ptr, slice, str};
 
-use crate::callback::{AppId, CallbackId};
+use crate::callback::{CallbackId, ProcessId};
 use crate::capabilities::ProcessManagementCapability;
 use crate::common::cells::{MapCell, NumericCellExt};
 use crate::common::{Queue, RingBuffer};
@@ -258,7 +258,7 @@ pub fn load_processes<C: Chip>(
 /// This trait is implemented by process structs.
 pub trait ProcessType {
     /// Returns the process's identifier
-    fn appid(&self) -> AppId;
+    fn process_id(&self) -> ProcessId;
 
     /// Queue a `Task` for the process. This will be added to a per-process
     /// buffer and executed by the scheduler. `Task`s are some function the app
@@ -697,7 +697,7 @@ pub enum Task {
     /// from a capsule.
     FunctionCall(FunctionCall),
     /// An IPC operation that needs additional setup to configure memory access.
-    IPC((AppId, ipc::IPCCallbackType)),
+    IPC((ProcessId, ipc::IPCCallbackType)),
 }
 
 /// Enumeration to identify whether a function call for a process comes directly
@@ -777,7 +777,7 @@ struct ProcessDebug {
 pub struct Process<'a, C: 'static + Chip> {
     /// Identifier of this process and the index of the process in the process
     /// table.
-    app_id: Cell<AppId>,
+    process_id: Cell<ProcessId>,
 
     /// Pointer to the main Kernel struct.
     kernel: &'static Kernel,
@@ -889,8 +889,8 @@ pub struct Process<'a, C: 'static + Chip> {
 }
 
 impl<C: Chip> ProcessType for Process<'_, C> {
-    fn appid(&self) -> AppId {
-        self.app_id.get()
+    fn process_id(&self) -> ProcessId {
+        self.process_id.get()
     }
 
     fn enqueue_task(&self, task: Task) -> bool {
@@ -943,7 +943,7 @@ impl<C: Chip> ProcessType for Process<'_, C> {
                 let count_after = tasks.len();
                 debug!(
                     "[{:?}] remove_pending_callbacks[{:#x}:{}] = {} callback(s) removed",
-                    self.appid(),
+                    self.process_id(),
                     callback_id.driver_num,
                     callback_id.subscribe_num,
                     count_before - count_after,
@@ -1067,7 +1067,7 @@ impl<C: Chip> ProcessType for Process<'_, C> {
 
     fn setup_mpu(&self) {
         self.mpu_config.map(|config| {
-            self.chip.mpu().configure_mpu(&config, &self.appid());
+            self.chip.mpu().configure_mpu(&config, &self.process_id());
         });
     }
 
@@ -1134,7 +1134,7 @@ impl<C: Chip> ProcessType for Process<'_, C> {
                 } else {
                     let old_break = self.app_break.get();
                     self.app_break.set(new_break);
-                    self.chip.mpu().configure_mpu(&config, &self.appid());
+                    self.chip.mpu().configure_mpu(&config, &self.process_id());
                     Ok(old_break)
                 }
             })
@@ -1168,7 +1168,7 @@ impl<C: Chip> ProcessType for Process<'_, C> {
                     // aliases (i.e. the same buffer has not been `allow`ed twice).
                     //
                     // TODO: We do not currently satisfy the second promise.
-                    let slice = unsafe { AppSlice::new(buf_start, size, self.appid()) };
+                    let slice = unsafe { AppSlice::new(buf_start, size, self.process_id()) };
                     Ok(Some(slice))
                 } else {
                     Err(ReturnCode::EINVAL)
@@ -1894,8 +1894,8 @@ impl<C: 'static + Chip> Process<'_, C> {
         let fixed_address_ram = tbf_header.get_fixed_address_ram();
 
         process
-            .app_id
-            .set(AppId::new(kernel, unique_identifier, index));
+            .process_id
+            .set(ProcessId::new(kernel, unique_identifier, index));
         process.kernel = kernel;
         process.chip = chip;
         process.allow_high_water_mark = Cell::new(app_memory.as_ptr());
@@ -2039,15 +2039,16 @@ impl<C: 'static + Chip> Process<'_, C> {
             }
         }
 
-        // We need a new process identifier for this process since the restarted
-        // version is in effect a new process. This is also necessary to
-        // invalidate any stored `AppId`s that point to the old version of the
-        // process. However, the process has not moved locations in the
-        // processes array, so we copy the existing index.
-        let old_index = self.app_id.get().index;
+        // We need a new process identifier for this process since the
+        // restarted version is in effect a new process. This is also
+        // necessary to invalidate any stored `ProcessId`s
+        // that point to the old version of the process. However, the
+        // process has not moved locations in the processes array, so
+        // we copy the existing index.
+        let old_index = self.process_id.get().index;
         let new_identifier = self.kernel.create_process_identifier();
-        self.app_id
-            .set(AppId::new(self.kernel, new_identifier, old_index));
+        self.process_id
+            .set(ProcessId::new(self.kernel, new_identifier, old_index));
 
         // Reset debug information that is per-execution and not per-process.
         self.debug.map(|debug| {

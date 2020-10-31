@@ -28,7 +28,7 @@
 
 use kernel::common::cells::OptionalCell;
 use kernel::hil;
-use kernel::{AppId, Callback, Driver, Grant, ReturnCode};
+use kernel::{Callback, Driver, Grant, ProcessId, ReturnCode};
 
 use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::UsbUser as usize;
@@ -42,7 +42,7 @@ pub struct App {
 pub struct UsbSyscallDriver<'a, C: hil::usb::Client<'a>> {
     usbc_client: &'a C,
     apps: Grant<App>,
-    serving_app: OptionalCell<AppId>,
+    serving_app: OptionalCell<ProcessId>,
 }
 
 impl<'a, C> UsbSyscallDriver<'a, C>
@@ -108,7 +108,7 @@ where
         &self,
         subscribe_num: usize,
         callback: Option<Callback>,
-        app_id: AppId,
+        app_id: ProcessId,
     ) -> ReturnCode {
         match subscribe_num {
             // Set callback for result
@@ -123,7 +123,7 @@ where
         }
     }
 
-    fn command(&self, command_num: usize, _arg: usize, _: usize, appid: AppId) -> ReturnCode {
+    fn command(&self, command_num: usize, _arg: usize, _: usize, appid: ProcessId) -> ReturnCode {
         match command_num {
             // This driver is present
             0 => ReturnCode::SUCCESS,

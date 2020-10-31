@@ -14,7 +14,7 @@
 
 use core::cell::Cell;
 use kernel::hil;
-use kernel::{AppId, Callback, Driver, Grant, ReturnCode};
+use kernel::{Callback, Driver, Grant, ProcessId, ReturnCode};
 
 /// Syscall driver number.
 use crate::driver;
@@ -42,7 +42,7 @@ impl<'a> AmbientLight<'a> {
         }
     }
 
-    fn enqueue_sensor_reading(&self, appid: AppId) -> ReturnCode {
+    fn enqueue_sensor_reading(&self, appid: ProcessId) -> ReturnCode {
         self.apps
             .enter(appid, |app, _| {
                 if app.pending {
@@ -71,7 +71,7 @@ impl Driver for AmbientLight<'_> {
         &self,
         subscribe_num: usize,
         callback: Option<Callback>,
-        app_id: AppId,
+        app_id: ProcessId,
     ) -> ReturnCode {
         match subscribe_num {
             0 => self
@@ -96,7 +96,7 @@ impl Driver for AmbientLight<'_> {
     ///
     /// - `0`: Check driver presence
     /// - `1`: Start a light sensor reading
-    fn command(&self, command_num: usize, _: usize, _: usize, appid: AppId) -> ReturnCode {
+    fn command(&self, command_num: usize, _: usize, _: usize, appid: ProcessId) -> ReturnCode {
         match command_num {
             0 /* check if present */ => ReturnCode::SUCCESS,
             1 => {

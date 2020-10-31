@@ -34,7 +34,7 @@ use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::common::leasable_buffer::LeasableBuffer;
 use kernel::hil::digest;
 use kernel::hil::digest::DigestType;
-use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
+use kernel::{AppSlice, Callback, Driver, Grant, ProcessId, ReturnCode, Shared};
 
 pub struct HmacDriver<'a, H: digest::Digest<'a, T>, T: 'static + DigestType> {
     hmac: &'a H,
@@ -42,7 +42,7 @@ pub struct HmacDriver<'a, H: digest::Digest<'a, T>, T: 'static + DigestType> {
     active: Cell<bool>,
 
     apps: Grant<App>,
-    appid: OptionalCell<AppId>,
+    appid: OptionalCell<ProcessId>,
     phantom: PhantomData<&'a T>,
 
     data_buffer: TakeCell<'static, [u8]>,
@@ -304,7 +304,7 @@ impl<'a, H: digest::Digest<'a, T> + digest::HMACSha256, T: DigestType> Driver
 {
     fn allow(
         &self,
-        appid: AppId,
+        appid: ProcessId,
         allow_num: usize,
         slice: Option<AppSlice<Shared, u8>>,
     ) -> ReturnCode {
@@ -351,7 +351,7 @@ impl<'a, H: digest::Digest<'a, T> + digest::HMACSha256, T: DigestType> Driver
         &self,
         subscribe_num: usize,
         callback: Option<Callback>,
-        appid: AppId,
+        appid: ProcessId,
     ) -> ReturnCode {
         match subscribe_num {
             0 => {
@@ -388,7 +388,13 @@ impl<'a, H: digest::Digest<'a, T> + digest::HMACSha256, T: DigestType> Driver
     ///
     /// - `0`: set_algorithm
     /// - `1`: run
-    fn command(&self, command_num: usize, data1: usize, _data2: usize, appid: AppId) -> ReturnCode {
+    fn command(
+        &self,
+        command_num: usize,
+        data1: usize,
+        _data2: usize,
+        appid: ProcessId,
+    ) -> ReturnCode {
         let match_or_empty_or_nonexistant = self.appid.map_or(true, |owning_app| {
             // We have recorded that an app has ownership of the HMAC.
 
@@ -466,7 +472,7 @@ impl<'a, H: digest::Digest<'a, T> + digest::HMACSha256, T: DigestType> Driver
 
 pub struct App {
     callback: OptionalCell<Callback>,
-    pending_run_app: Option<AppId>,
+    pending_run_app: Option<ProcessId>,
     key: Option<AppSlice<Shared, u8>>,
     data: Option<AppSlice<Shared, u8>>,
     dest: Option<AppSlice<Shared, u8>>,

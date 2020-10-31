@@ -17,7 +17,7 @@ use core::cell::Cell;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::gpio;
 use kernel::hil::i2c;
-use kernel::{AppId, Callback, Driver, ReturnCode};
+use kernel::{Callback, Driver, ProcessId, ReturnCode};
 
 /// Syscall driver number.
 use crate::driver;
@@ -441,7 +441,7 @@ impl Driver for TSL2561<'_> {
         &self,
         subscribe_num: usize,
         callback: Option<Callback>,
-        _app_id: AppId,
+        _app_id: ProcessId,
     ) -> ReturnCode {
         match subscribe_num {
             // Set a callback
@@ -455,7 +455,7 @@ impl Driver for TSL2561<'_> {
         }
     }
 
-    fn command(&self, command_num: usize, _: usize, _: usize, _: AppId) -> ReturnCode {
+    fn command(&self, command_num: usize, _: usize, _: usize, _: ProcessId) -> ReturnCode {
         match command_num {
             0 /* check if present */ => ReturnCode::SUCCESS,
             // Take a measurement
