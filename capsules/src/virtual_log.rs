@@ -150,6 +150,32 @@ impl<'a, Log: LogRead<'a> + LogWrite<'a>> LogReadClient for VirtualLogDevice<'a,
     }
 }
 
+impl<'a, Log: LogRead<'a> + LogWrite<'a>> LogWriteClient for VirtualLogDevice<'a, Log> {
+    fn append_done(
+        &self,
+        buffer: &'static mut [u8],
+        length: usize,
+        records_lost: bool,
+        error: ReturnCode,
+    ) {
+        self.append_client.map(move |client| {
+            client.append_done(buffer, length, records_lost, error);
+        });
+    }
+
+    fn sync_done(&self, error: ReturnCode) {
+        self.append_client.map(move |client| {
+            client.sync_done(error);
+        });
+    }
+
+    fn erase_done(&self, error: ReturnCode) {
+        self.append_client.map(move |client| {
+            client.erase_done(error);
+        });
+    }
+}
+
 /// The MuxLog struct manages multiple virtual log devices (i.e. VirtualLogDevice).
 pub struct MuxLog<'a, Log: LogRead<'a> + LogWrite<'a>> {
     // The underlying log device being virtualized.
@@ -172,6 +198,35 @@ impl<'a, Log: LogRead<'a> + LogWrite<'a>> LogReadClient for MuxLog<'a, Log> {
         self.inflight.take().map(|device| {
             self.do_next_op();
             device.seek_done(error);
+        });
+    }
+}
+
+impl<'a, Log: LogRead<'a> + LogWrite<'a>> LogWriteClient for MuxLog<'a, Log> {
+    fn append_done(
+        &self,
+        buffer: &'static mut [u8],
+        length: usize,
+        records_lost: bool,
+        error: ReturnCode,
+    ) {
+        self.inflight.take().map(move |device| {
+            self.do_next_op();
+            device.append_done(buffer, length, records_lost, error);
+        });
+    }
+
+    fn sync_done(&self, error: ReturnCode) {
+        self.inflight.take().map(move |device| {
+            self.do_next_op();
+            device.sync_done(error);
+        });
+    }
+
+    fn erase_done(&self, error: ReturnCode) {
+        self.inflight.take().map(|device| {
+            self.do_next_op();
+            device.erase_done(error);
         });
     }
 }
