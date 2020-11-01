@@ -7,8 +7,8 @@ System Calls
 **Status:** Draft <br/>
 **Author:** Guillaume Endignoux, Jon Flatley, Philip Levis, Amit Levy, Leon Schuermann, Johnathan Van Why <br/>
 **Draft-Created:** August 31, 2020<br/>
-**Draft-Modified:** Oct 28, 2020<br/>
-**Draft-Version:** 1<br/>
+**Draft-Modified:** Nov 1, 2020<br/>
+**Draft-Version:** 2<br/>
 **Draft-Discuss:** tock-dev@googlegroups.com</br>
 
 Abstract
@@ -240,6 +240,10 @@ specifies which instance of that system call on that driver to invoke. For examp
 Console driver has driver identifier `0x1` and a Command to the console driver with
 syscall identifier `0x2` starts receiving console data into a buffer.
 
+If userspace invokes a system call on a peripheral driver that is not installed in
+the kernel, the kernel MUST return the corresponding failure result with an error
+of `NOSUPPORT`. 
+
 4.1 Yield (Class ID: 0)
 --------------------------------
 
@@ -286,7 +290,7 @@ r0-r3 correspond to r0-r3 on CortexM and a0-a3 on RISC-V.
 | Argument               | Register |
 |------------------------|----------|
 | Driver identifer       | r0       |
-| Syscall identifier     | r1       |
+| Subscribe identifier   | r1       |
 | Callback pointer       | r2       |
 | Application data       | r3       |
 
@@ -299,20 +303,20 @@ unmodified.
 A passed callback MUST be valid until the next invocation of `subscribe`
 with the same syscall and driver identifier. When userspace invokes
 subscribe, the kernel MUST cancel all pending callbacks for that driver
-and syscall identifier: it MUST NOT invoke the previous callback after
+and subscribe identifier: it MUST NOT invoke the previous callback after
 the call to subscribe, and MUST NOT invoke the new callback for events
 that occurred before the call to subscribe. 
 
-Note that these semantics
-create a period over which callbacks might be lost: any callbacks that
-were pending when `subscribe` was called will not be invoked. On one
-hand, losing callbacks can create strange behavior in userspace.
-On the other, ensuring correctness is difficult. If the pending
-callbacks are invoked on the old function, there is a safety/liveness
-issue; this means that a callback function must exist after it has
-been removed, and so for safety may need to be static (exist for
-the lifetime of the process). Therefore, to allow dynamic callbacks,
-a callback can't be invoked after it's unregistered.
+Note that these semantics create a period over which callbacks might
+be lost: any callbacks that were pending when `subscribe` was called
+will not be invoked. On one hand, losing callbacks can create strange
+behavior in userspace.  On the other, ensuring correctness is
+difficult. If the pending callbacks are invoked on the old function,
+there is a safety/liveness issue; this means that a callback function
+must exist after it has been removed, and so for safety may need to be
+static (exist for the lifetime of the process). Therefore, to allow
+dynamic callbacks, a callback can't be invoked after it's
+unregistered.
 
 At the same time, invoking the new callback in response to prior
 events has its own correctness issues. For example, suppose that
@@ -324,6 +328,36 @@ incorrect.
 
 If userspace requires that it not lose any callbacks, it should
 not re-subcribe and instead use some form of userspace dispatch.
+
+The return values for Subscribe system calls are `Failure with 2 u32`
+and `Success with 2 u32`. For success, the first `u32` is the callback
+pointer passed in the previous call to Subscribe (the existing
+callback) and the second `u32` is the application data pointer passed
+in the previous call to Subscribe (the existing application data). For
+failure, the first `u32` is the passed callback pointer and the second
+`u32` is the passed application data pointer. For the first successful
+call to Subscribe for a given callback, the callback pointer and
+application data pointer returned MUST be the Null Callback (describe
+below).
+
+4.2.1 The Null Callback and Subscribe Identifier 0
+---------------------------------
+
+The Tock kernel defines a callback pointer as the Null Callback. This
+pointer MUST be outside valid process memory. The Null Callback is
+used for two reasons. First, a userspace process passing the Null
+Callback as the callback pointer for Subscribe indicates that there
+should be no callbacks. Second, the first time a userspace process
+calls Subscribe for a particular callback, the kernel needs to return
+callback and application pointers indicating the current
+configuration; in this case, the kernel returns the Null Callback.
+
+Subscribe identifier 0 is reserved and behaves in a special way. Every
+driver MUST implement subscribe identifier 0 to return a failure
+result in which both `u32` values contain the Null Callback. This
+allows userspace to easily determine the Null Callback value, e.g., to
+disable callbacks.
+
 
 4.3 Command (Class ID: 2)
 ---------------------------------
@@ -348,9 +382,20 @@ Argument 0 and argument 1 are unsigned 32-bit integers. Command calls should
 never pass pointers: those are passed with Allow calls, as they can adjust
 memory protection to allow the kernel to access them.
 
-The return types of Command are instance-specific. Each specific Command
-instance (combination of major and minor identifier) specifies its failure
-type and success type.
+The return types of Command are instance-specific. Each specific
+Command instance (combination of major and minor identifier) specifies
+its failure type and success type. If userspace invokes a command on a
+peripheral that is not installed, the kernel returns a failure type of
+`Failure`.
+
+4.3.1 Command Identifier 0
+--------------------------------
+
+Every device driver MUST implement command identifier 0 as the
+"exists" command.  This command always returns `Success`. This command
+allows userspace to determine if a particular system call driver is
+installed; if it is, the command returns `Success`. If it is not, the
+kernel returns `Failure` with an error code of `NOSUPPORT`.
 
 4.4 Allow (Class ID: 3)
 ---------------------------------
