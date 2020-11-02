@@ -459,10 +459,6 @@ impl<'a> NfcTag<'a> {
         self.clear_errors();
     }
 
-    fn handle_txstart(&self) {
-        self.set_tx_registers();
-    }
-
     fn handle_txend(&self) {
         self.state.set(NfcState::Transmitted);
         // Return the buffer to the capsule
@@ -506,11 +502,6 @@ impl<'a> NfcTag<'a> {
         }
         if events_to_process.is_set(Interrupt::SELECTED) {
             self.handle_selected();
-        }
-        if events_to_process.is_set(Interrupt::TXFRAMESTART) {
-            self.handle_txstart();
-            // Enable TXFRAMEEND
-            self.registers.intenset.modify(Interrupt::TXFRAMEEND::SET);
         }
         self.clear_errors();
     }
@@ -579,14 +570,6 @@ impl<'a> NfcTag<'a> {
         self.registers.intenclr.set(0xffffffff);
     }
 
-    fn enable_interrupt(&self, intr: u32) {
-        self.registers.intenset.set(intr);
-    }
-
-    fn clear_interrupt(&self, intr: u32) {
-        self.registers.intenclr.set(intr);
-    }
-
     fn configure(&self) {
         self.clear_errors();
         self.registers
@@ -614,24 +597,6 @@ impl<'a> NfcTag<'a> {
     fn disable(&self) {
         self.disable_all_interrupts();
         self.registers.task_disable.write(Task::ENABLE::Trigger);
-    }
-
-    fn set_tx_registers(&self) {
-        self.tx_buffer.map(|buffer| {
-            self.registers.packetptr.set(buffer.as_ptr() as u32);
-            self.registers
-                .maxlen
-                .write(MaxLen::LEN.val(buffer.len() as u32));
-        });
-    }
-
-    fn set_rx_registers(&self) {
-        self.rx_buffer.map(|buffer| {
-            self.registers.packetptr.set(buffer.as_ptr() as u32);
-            self.registers
-                .maxlen
-                .write(MaxLen::LEN.val(buffer.len() as u32));
-        });
     }
 
     pub fn set_dma_registers(&self, buffer: &[u8]) {
