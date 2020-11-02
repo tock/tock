@@ -15,6 +15,7 @@ pub mod gpio_async;
 pub mod i2c;
 pub mod led;
 pub mod log;
+pub mod nfc;
 pub mod nonvolatile_storage;
 pub mod pwm;
 pub mod radio;
