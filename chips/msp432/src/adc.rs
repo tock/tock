@@ -568,14 +568,27 @@ enum AdcMode {
     Disabled,
 }
 
-fn buf_u8_to_buf_u16(buf: &'static mut [u8]) -> &'static mut [u16] {
-    let buf_ptr = unsafe { mem::transmute::<*mut u8, *mut u16>(buf.as_mut_ptr()) };
-    unsafe { slice::from_raw_parts_mut(buf_ptr, buf.len() / 2) }
+/// This function converts an u8-array to an u16-array.
+/// The provivided reference to the buffer must have an even length, otherwise the function will
+/// panic because the conversion from u8 to u16 would end up in undefined behavior if the last word
+/// of the buffer converted is accessed!
+/// This function is necessary since the DMA returns only u8-buffers whereas the ADC-traits only
+/// work with u16 buffers.
+unsafe fn buf_u8_to_buf_u16(buf: &'static mut [u8]) -> &'static mut [u16] {
+    if (buf.len() % 2) > 0 {
+        panic!("ADC: cannot convert an u8 array with an odd length to an u16 array");
+    }
+
+    let buf_ptr = mem::transmute::<*mut u8, *mut u16>(buf.as_mut_ptr());
+    slice::from_raw_parts_mut(buf_ptr, buf.len() / 2)
 }
 
-fn buf_u16_to_buf_u8(buf: &'static mut [u16]) -> &'static mut [u8] {
-    let buf_ptr = unsafe { mem::transmute::<*mut u16, *mut u8>(buf.as_mut_ptr()) };
-    unsafe { slice::from_raw_parts_mut(buf_ptr, buf.len() * 2) }
+/// This function converts an u16-array to an u8-array.
+/// Since the DMA only accepts only u8-buffers and the ADC-traits use u16-buffers, they have to be
+/// converted.
+unsafe fn buf_u16_to_buf_u8(buf: &'static mut [u16]) -> &'static mut [u8] {
+    let buf_ptr = mem::transmute::<*mut u16, *mut u8>(buf.as_mut_ptr());
+    slice::from_raw_parts_mut(buf_ptr, buf.len() * 2)
 }
 
 impl Adc {
@@ -727,7 +740,7 @@ impl dma::DmaClient for Adc {
     ) {
         if let Some(buffer) = rx_buf {
             // Cast the [u8] buffer back to [u16]
-            let buf = buf_u8_to_buf_u16(buffer);
+            let buf = unsafe { buf_u8_to_buf_u16(buffer) };
 
             // Align the received data to 16bit
             let samples = transmitted_bytes / 2;
@@ -838,12 +851,12 @@ impl hil::adc::Adc for Adc {
                 let (_tx1, rx1, _tx2, rx2) = dma.stop();
 
                 if let Some(buffer) = rx1 {
-                    let buf = buf_u8_to_buf_u16(buffer);
+                    let buf = unsafe { buf_u8_to_buf_u16(buffer) };
                     self.buffer1.replace(buf);
                 }
 
                 if let Some(buffer) = rx2 {
-                    let buf = buf_u8_to_buf_u16(buffer);
+                    let buf = unsafe { buf_u8_to_buf_u16(buffer) };
                     self.buffer2.replace(buf);
                 }
             });
@@ -922,8 +935,8 @@ impl hil::adc::AdcHighSpeed for Adc {
         let adc_reg = &self.registers.mem[*channel as usize] as *const ReadWrite<u32> as *const ();
 
         // Convert the [u16] into an [u8] since the DMA works only with [u8]
-        let buf1 = buf_u16_to_buf_u8(buffer1);
-        let buf2 = buf_u16_to_buf_u8(buffer2);
+        let buf1 = unsafe { buf_u16_to_buf_u8(buffer1) };
+        let buf2 = unsafe { buf_u16_to_buf_u8(buffer2) };
 
         // Setup the DMA transfer
         if length2 == 0 {
@@ -955,7 +968,7 @@ impl hil::adc::AdcHighSpeed for Adc {
             panic!("ADC: cannot provide buffers in a different mode than Highspeed!");
         }
 
-        let buf = buf_u16_to_buf_u8(buffer);
+        let buf = unsafe { buf_u16_to_buf_u8(buffer) };
         self.dma
             .map(move |dma| dma.provide_new_buffer(buf, length * 2));
         (ReturnCode::SUCCESS, None)
