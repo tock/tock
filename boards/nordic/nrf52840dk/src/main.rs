@@ -120,7 +120,7 @@ pub mod io;
 // Whether to use UART debugging or Segger RTT (USB) debugging.
 // - Set to false to use UART.
 // - Set to true to use Segger RTT over USB.
-const USB_DEBUGGING: bool = true;
+const USB_DEBUGGING: bool = false;
 
 // State for loading and holding applications.
 // How should the kernel respond when a process faults.
