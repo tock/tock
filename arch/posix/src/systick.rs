@@ -68,9 +68,9 @@ impl kernel::SchedulerTimer for SysTick {
         self.expires.set(0);
     }
 
-    fn has_expired(&self) -> bool {
-        self.expires.get() != 0 && self.expires.get() < Self::get_system_micros()
-    }
+    // fn has_expired(&self) -> bool {
+    //     self.expires.get() != 0 && self.expires.get() < Self::get_system_micros()
+    // }
 
     fn reset(&self) {
         self.us.set(0);
@@ -93,14 +93,14 @@ impl kernel::SchedulerTimer for SysTick {
         }
     }
 
-    fn get_remaining_us(&self) -> u32 {
+    fn get_remaining_us(&self) -> Option<u32> {
         let micros = Self::get_system_micros();
         if self.expires.get() == 0 {
-            self.us.get()
+            Some(self.us.get())
         } else if self.expires.get() > micros {
-            (self.expires.get() - micros) as u32
+            Some((self.expires.get() - micros) as u32)
         } else {
-            0
+            None
         }
     }
 }
