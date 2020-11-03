@@ -9,7 +9,6 @@ use kernel::{AppId, Callback, Driver, Grant, ReturnCode};
 use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::Alarm as usize;
 
-// This should transition to using Ticks
 #[derive(Copy, Clone, Debug)]
 enum Expiration {
     Disabled,
