@@ -9,7 +9,6 @@ use kernel::hil::gpio::Output;
 use kernel::hil::spi::{self, ClockPhase, ClockPolarity, SpiMasterClient};
 use kernel::{ClockInterface, ReturnCode};
 
-use crate::gpio::PinId;
 use crate::rcc;
 
 const SPI_READ_IN_PROGRESS: u8 = 0b001;
@@ -182,12 +181,12 @@ const SPI1_BASE: StaticRef<SpiRegisters> =
 
 pub struct Spi<'a> {
     registers: StaticRef<SpiRegisters>,
-    clock: SpiClock,
+    clock: SpiClock<'a>,
 
     // SPI slave support not yet implemented
     master_client: OptionalCell<&'a dyn hil::spi::SpiMasterClient>,
 
-    active_slave: OptionalCell<PinId>,
+    active_slave: OptionalCell<&'a crate::gpio::Pin<'a>>,
 
     tx_buffer: TakeCell<'static, [u8]>,
     tx_position: Cell<usize>,
@@ -201,13 +200,8 @@ pub struct Spi<'a> {
     active_after: Cell<bool>,
 }
 
-pub static mut SPI1: Spi = Spi::new(
-    SPI1_BASE,
-    SpiClock(rcc::PeripheralClock::APB2(rcc::PCLK2::SPI1)),
-);
-
-impl Spi<'_> {
-    const fn new(base_addr: StaticRef<SpiRegisters>, clock: SpiClock) -> Self {
+impl<'a> Spi<'a> {
+    const fn new(base_addr: StaticRef<SpiRegisters>, clock: SpiClock<'a>) -> Self {
         Self {
             registers: base_addr,
             clock,
@@ -227,6 +221,16 @@ impl Spi<'_> {
 
             active_after: Cell::new(false),
         }
+    }
+
+    pub const fn new_spi1(rcc: &'a rcc::Rcc) -> Self {
+        Self::new(
+            SPI1_BASE,
+            SpiClock(rcc::PeripheralClock::new(
+                rcc::PeripheralClockType::APB2(rcc::PCLK2::SPI1),
+                rcc,
+            )),
+        )
     }
 
     pub fn is_enabled_clock(&self) -> bool {
@@ -279,9 +283,7 @@ impl Spi<'_> {
             // initiate another SPI transfer right away
             if !self.active_after.get() {
                 self.active_slave.map(|p| {
-                    p.get_pin().as_ref().map(|pin| {
-                        pin.set();
-                    });
+                    p.set();
                 });
             }
             self.transfers.set(SPI_IDLE);
@@ -294,7 +296,7 @@ impl Spi<'_> {
         }
     }
 
-    fn set_active_slave(&self, slave_pin: PinId) {
+    fn set_active_slave(&self, slave_pin: &'a crate::gpio::Pin<'a>) {
         self.active_slave.set(slave_pin);
     }
 
@@ -354,9 +356,7 @@ impl Spi<'_> {
         if self.transfers.get() == 0 {
             self.registers.cr2.modify(CR2::RXNEIE::CLEAR);
             self.active_slave.map(|p| {
-                p.get_pin().as_ref().map(|pin| {
-                    pin.clear();
-                });
+                p.clear();
             });
 
             self.transfers.set(self.transfers.get() | SPI_IN_PROGRESS);
@@ -402,8 +402,8 @@ impl Spi<'_> {
     }
 }
 
-impl spi::SpiMaster for Spi<'_> {
-    type ChipSelect = PinId;
+impl<'a> spi::SpiMaster for Spi<'a> {
+    type ChipSelect = &'a crate::gpio::Pin<'a>;
 
     fn set_client(&self, client: &'static dyn SpiMasterClient) {
         self.master_client.set(client);
@@ -527,9 +527,9 @@ impl spi::SpiMaster for Spi<'_> {
     }
 }
 
-struct SpiClock(rcc::PeripheralClock);
+struct SpiClock<'a>(rcc::PeripheralClock<'a>);
 
-impl ClockInterface for SpiClock {
+impl ClockInterface for SpiClock<'_> {
     fn is_enabled(&self) -> bool {
         self.0.is_enabled()
     }

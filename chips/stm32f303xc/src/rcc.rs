@@ -385,10 +385,8 @@ pub struct Rcc {
     registers: StaticRef<RccRegisters>,
 }
 
-pub static mut RCC: Rcc = Rcc::new();
-
 impl Rcc {
-    const fn new() -> Rcc {
+    pub const fn new() -> Rcc {
         Rcc {
             registers: RCC_BASE,
         }
@@ -646,6 +644,11 @@ pub enum CPUClock {
     PLLCLK,
 }
 
+pub struct PeripheralClock<'a> {
+    pub clock: PeripheralClockType,
+    rcc: &'a Rcc,
+}
+
 /// Bus + Clock name for the peripherals
 ///
 /// Not yet implemented clocks:
@@ -654,7 +657,7 @@ pub enum CPUClock {
 /// AHB3(HCLK3)
 /// APB1(PCLK1),
 /// APB2(PCLK2),
-pub enum PeripheralClock {
+pub enum PeripheralClockType {
     AHB(HCLK),
     APB2(PCLK2),
     APB1(PCLK1),
@@ -693,156 +696,162 @@ pub enum PCLK2 {
     SPI1,
 }
 
-impl ClockInterface for PeripheralClock {
+impl<'a> PeripheralClock<'a> {
+    pub const fn new(clock: PeripheralClockType, rcc: &'a Rcc) -> Self {
+        Self { clock, rcc }
+    }
+}
+
+impl<'a> ClockInterface for PeripheralClock<'a> {
     fn is_enabled(&self) -> bool {
-        match self {
-            &PeripheralClock::AHB(ref v) => match v {
-                HCLK::ADC1 | HCLK::ADC2 => unsafe { RCC.is_enabled_adc12_clock() },
-                HCLK::ADC3 | HCLK::ADC4 => unsafe { RCC.is_enabled_adc34_clock() },
-                HCLK::DMA1 => unsafe { RCC.is_enabled_dma1_clock() },
-                HCLK::GPIOF => unsafe { RCC.is_enabled_gpiof_clock() },
-                HCLK::GPIOE => unsafe { RCC.is_enabled_gpioe_clock() },
-                HCLK::GPIOD => unsafe { RCC.is_enabled_gpiod_clock() },
-                HCLK::GPIOC => unsafe { RCC.is_enabled_gpioc_clock() },
-                HCLK::GPIOB => unsafe { RCC.is_enabled_gpiob_clock() },
-                HCLK::GPIOA => unsafe { RCC.is_enabled_gpioa_clock() },
+        match self.clock {
+            PeripheralClockType::AHB(ref v) => match v {
+                HCLK::ADC1 | HCLK::ADC2 => self.rcc.is_enabled_adc12_clock(),
+                HCLK::ADC3 | HCLK::ADC4 => self.rcc.is_enabled_adc34_clock(),
+                HCLK::DMA1 => self.rcc.is_enabled_dma1_clock(),
+                HCLK::GPIOF => self.rcc.is_enabled_gpiof_clock(),
+                HCLK::GPIOE => self.rcc.is_enabled_gpioe_clock(),
+                HCLK::GPIOD => self.rcc.is_enabled_gpiod_clock(),
+                HCLK::GPIOC => self.rcc.is_enabled_gpioc_clock(),
+                HCLK::GPIOB => self.rcc.is_enabled_gpiob_clock(),
+                HCLK::GPIOA => self.rcc.is_enabled_gpioa_clock(),
             },
-            &PeripheralClock::APB1(ref v) => match v {
-                PCLK1::TIM2 => unsafe { RCC.is_enabled_tim2_clock() },
-                PCLK1::USART2 => unsafe { RCC.is_enabled_usart2_clock() },
-                PCLK1::USART3 => unsafe { RCC.is_enabled_usart3_clock() },
-                PCLK1::I2C1 => unsafe { RCC.is_enabled_i2c1_clock() },
-                PCLK1::WWDG => unsafe { RCC.is_enabled_wwdg_clock() },
+            PeripheralClockType::APB1(ref v) => match v {
+                PCLK1::TIM2 => self.rcc.is_enabled_tim2_clock(),
+                PCLK1::USART2 => self.rcc.is_enabled_usart2_clock(),
+                PCLK1::USART3 => self.rcc.is_enabled_usart3_clock(),
+                PCLK1::I2C1 => self.rcc.is_enabled_i2c1_clock(),
+                PCLK1::WWDG => self.rcc.is_enabled_wwdg_clock(),
             },
-            &PeripheralClock::APB2(ref v) => match v {
-                PCLK2::SPI1 => unsafe { RCC.is_enabled_spi1_clock() },
-                PCLK2::SYSCFG => unsafe { RCC.is_enabled_syscfg_clock() },
-                PCLK2::USART1 => unsafe { RCC.is_enabled_usart1_clock() },
+            PeripheralClockType::APB2(ref v) => match v {
+                PCLK2::SPI1 => self.rcc.is_enabled_spi1_clock(),
+                PCLK2::SYSCFG => self.rcc.is_enabled_syscfg_clock(),
+                PCLK2::USART1 => self.rcc.is_enabled_usart1_clock(),
             },
         }
     }
 
     fn enable(&self) {
-        match self {
-            &PeripheralClock::AHB(ref v) => match v {
-                HCLK::ADC1 | HCLK::ADC2 => unsafe {
-                    RCC.enable_adc12_clock();
-                },
-                HCLK::ADC3 | HCLK::ADC4 => unsafe {
-                    RCC.enable_adc34_clock();
-                },
-                HCLK::DMA1 => unsafe {
-                    RCC.enable_dma1_clock();
-                },
-                HCLK::GPIOF => unsafe {
-                    RCC.enable_gpiof_clock();
-                },
-                HCLK::GPIOE => unsafe {
-                    RCC.enable_gpioe_clock();
-                },
-                HCLK::GPIOD => unsafe {
-                    RCC.enable_gpiod_clock();
-                },
-                HCLK::GPIOC => unsafe {
-                    RCC.enable_gpioc_clock();
-                },
-                HCLK::GPIOB => unsafe {
-                    RCC.enable_gpiob_clock();
-                },
-                HCLK::GPIOA => unsafe {
-                    RCC.enable_gpioa_clock();
-                },
+        match self.clock {
+            PeripheralClockType::AHB(ref v) => match v {
+                HCLK::ADC1 | HCLK::ADC2 => {
+                    self.rcc.enable_adc12_clock();
+                }
+                HCLK::ADC3 | HCLK::ADC4 => {
+                    self.rcc.enable_adc34_clock();
+                }
+                HCLK::DMA1 => {
+                    self.rcc.enable_dma1_clock();
+                }
+                HCLK::GPIOF => {
+                    self.rcc.enable_gpiof_clock();
+                }
+                HCLK::GPIOE => {
+                    self.rcc.enable_gpioe_clock();
+                }
+                HCLK::GPIOD => {
+                    self.rcc.enable_gpiod_clock();
+                }
+                HCLK::GPIOC => {
+                    self.rcc.enable_gpioc_clock();
+                }
+                HCLK::GPIOB => {
+                    self.rcc.enable_gpiob_clock();
+                }
+                HCLK::GPIOA => {
+                    self.rcc.enable_gpioa_clock();
+                }
             },
-            &PeripheralClock::APB1(ref v) => match v {
-                PCLK1::TIM2 => unsafe {
-                    RCC.enable_tim2_clock();
-                },
-                PCLK1::USART2 => unsafe {
-                    RCC.enable_usart2_clock();
-                },
-                PCLK1::USART3 => unsafe {
-                    RCC.enable_usart3_clock();
-                },
-                PCLK1::I2C1 => unsafe {
-                    RCC.enable_i2c1_clock();
-                    RCC.reset_i2c1();
-                },
-                PCLK1::WWDG => unsafe {
-                    RCC.enable_wwdg_clock();
-                },
+            PeripheralClockType::APB1(ref v) => match v {
+                PCLK1::TIM2 => {
+                    self.rcc.enable_tim2_clock();
+                }
+                PCLK1::USART2 => {
+                    self.rcc.enable_usart2_clock();
+                }
+                PCLK1::USART3 => {
+                    self.rcc.enable_usart3_clock();
+                }
+                PCLK1::I2C1 => {
+                    self.rcc.enable_i2c1_clock();
+                    self.rcc.reset_i2c1();
+                }
+                PCLK1::WWDG => {
+                    self.rcc.enable_wwdg_clock();
+                }
             },
-            &PeripheralClock::APB2(ref v) => match v {
-                PCLK2::SYSCFG => unsafe {
-                    RCC.enable_syscfg_clock();
-                },
-                PCLK2::USART1 => unsafe {
-                    RCC.enable_usart1_clock();
-                },
-                PCLK2::SPI1 => unsafe {
-                    RCC.enable_spi1_clock();
-                },
+            PeripheralClockType::APB2(ref v) => match v {
+                PCLK2::SYSCFG => {
+                    self.rcc.enable_syscfg_clock();
+                }
+                PCLK2::USART1 => {
+                    self.rcc.enable_usart1_clock();
+                }
+                PCLK2::SPI1 => {
+                    self.rcc.enable_spi1_clock();
+                }
             },
         }
     }
 
     fn disable(&self) {
-        match self {
-            &PeripheralClock::AHB(ref v) => match v {
-                HCLK::ADC1 | HCLK::ADC2 => unsafe {
-                    RCC.disable_adc12_clock();
-                },
-                HCLK::ADC3 | HCLK::ADC4 => unsafe {
-                    RCC.disable_adc34_clock();
-                },
-                HCLK::DMA1 => unsafe {
-                    RCC.disable_dma1_clock();
-                },
-                HCLK::GPIOF => unsafe {
-                    RCC.disable_gpiof_clock();
-                },
-                HCLK::GPIOE => unsafe {
-                    RCC.disable_gpioe_clock();
-                },
-                HCLK::GPIOD => unsafe {
-                    RCC.disable_gpiod_clock();
-                },
-                HCLK::GPIOC => unsafe {
-                    RCC.disable_gpioc_clock();
-                },
-                HCLK::GPIOB => unsafe {
-                    RCC.disable_gpiob_clock();
-                },
-                HCLK::GPIOA => unsafe {
-                    RCC.disable_gpioa_clock();
-                },
+        match self.clock {
+            PeripheralClockType::AHB(ref v) => match v {
+                HCLK::ADC1 | HCLK::ADC2 => {
+                    self.rcc.disable_adc12_clock();
+                }
+                HCLK::ADC3 | HCLK::ADC4 => {
+                    self.rcc.disable_adc34_clock();
+                }
+                HCLK::DMA1 => {
+                    self.rcc.disable_dma1_clock();
+                }
+                HCLK::GPIOF => {
+                    self.rcc.disable_gpiof_clock();
+                }
+                HCLK::GPIOE => {
+                    self.rcc.disable_gpioe_clock();
+                }
+                HCLK::GPIOD => {
+                    self.rcc.disable_gpiod_clock();
+                }
+                HCLK::GPIOC => {
+                    self.rcc.disable_gpioc_clock();
+                }
+                HCLK::GPIOB => {
+                    self.rcc.disable_gpiob_clock();
+                }
+                HCLK::GPIOA => {
+                    self.rcc.disable_gpioa_clock();
+                }
             },
-            &PeripheralClock::APB1(ref v) => match v {
-                PCLK1::TIM2 => unsafe {
-                    RCC.disable_tim2_clock();
-                },
-                PCLK1::USART2 => unsafe {
-                    RCC.disable_usart2_clock();
-                },
-                PCLK1::USART3 => unsafe {
-                    RCC.disable_usart3_clock();
-                },
-                PCLK1::I2C1 => unsafe {
-                    RCC.disable_i2c1_clock();
-                },
-                PCLK1::WWDG => unsafe {
-                    RCC.disable_wwdg_clock();
-                },
+            PeripheralClockType::APB1(ref v) => match v {
+                PCLK1::TIM2 => {
+                    self.rcc.disable_tim2_clock();
+                }
+                PCLK1::USART2 => {
+                    self.rcc.disable_usart2_clock();
+                }
+                PCLK1::USART3 => {
+                    self.rcc.disable_usart3_clock();
+                }
+                PCLK1::I2C1 => {
+                    self.rcc.disable_i2c1_clock();
+                }
+                PCLK1::WWDG => {
+                    self.rcc.disable_wwdg_clock();
+                }
             },
-            &PeripheralClock::APB2(ref v) => match v {
-                PCLK2::SYSCFG => unsafe {
-                    RCC.disable_syscfg_clock();
-                },
-                PCLK2::USART1 => unsafe {
-                    RCC.disable_usart1_clock();
-                },
-                PCLK2::SPI1 => unsafe {
-                    RCC.disable_spi1_clock();
-                },
+            PeripheralClockType::APB2(ref v) => match v {
+                PCLK2::SYSCFG => {
+                    self.rcc.disable_syscfg_clock();
+                }
+                PCLK2::USART1 => {
+                    self.rcc.disable_usart1_clock();
+                }
+                PCLK2::SPI1 => {
+                    self.rcc.disable_spi1_clock();
+                }
             },
         }
     }
