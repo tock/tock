@@ -6,7 +6,7 @@
 #![no_main]
 #![deny(missing_docs)]
 
-use capsules::virtual_alarm::{VirtualMuxAlarm};
+use capsules::virtual_alarm::VirtualMuxAlarm;
 use components::gpio::GpioComponent;
 use kernel::capabilities;
 use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};

@@ -4,11 +4,9 @@ use kernel::common::cells::OptionalCell;
 use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
 use kernel::hil;
+use kernel::hil::time::{Freq2475MHz, Ticks, Ticks32, Time};
 use kernel::ClockInterface;
 use kernel::ReturnCode;
-use kernel::hil::time::{
-    Freq2475MHz, Ticks, Ticks32, Time
-};
 
 use crate::ccm;
 use crate::nvic;
@@ -246,7 +244,6 @@ impl<'a> Gpt1<'a> {
     }
 }
 
-
 /// The frequency is dependent on the ARM_PLL1 frequency.
 /// In our case, we get a 24.75 MHz frequency for the timer.
 /// The frequency will be fixed when the ARM_PLL1 CLK will
@@ -282,7 +279,7 @@ impl<'a> hil::time::Alarm<'a> for Gpt1<'a> {
     }
 
     fn get_alarm(&self) -> Self::Ticks {
-         Self::Ticks::from(self.registers.ocr1.get())
+        Self::Ticks::from(self.registers.ocr1.get())
     }
 
     fn disarm(&self) -> ReturnCode {
