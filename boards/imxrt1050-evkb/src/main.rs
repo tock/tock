@@ -146,7 +146,7 @@ unsafe fn set_pin_primary_functions() {
     // User_Button is connected to IOMUXC_SNVS_WAKEUP.
     PORT[4].enable_clock();
 
-    // First we configure the pin in GPIO mode and disable the Software Input
+    // We configure the pin in GPIO mode and disable the Software Input
     // on Field, so that the Input Path is determined by functionality.
     imxrt1050::iomuxc::IOMUXC.enable_sw_mux_ctl_pad_gpio(
         PadId::Snvs,
@@ -154,18 +154,6 @@ unsafe fn set_pin_primary_functions() {
         Sion::Disabled,
         0,
     );
-
-    // Configure the pin resistance value, pull up or pull down and other
-    // physical aspects.
-    // imxrt1050::iomuxc::IOMUXC.configure_sw_pad_ctl_pad_gpio(
-    //     PadId::Snvs,
-    //     0,
-    //     PullUpDown::Pus0_100kOhmPullDown,   // 100K Ohm Pull Down
-    //     PullKeepEn::Pke1PullKeeperEnabled,  // Pull-down resistor or keep the previous value
-    //     OpenDrainEn::Ode0OpenDrainDisabled, // Output is CMOS, either 0 logic or 1 logic
-    //     Speed::Medium2,                     // Operating frequency: 100MHz - 150MHz
-    //     DriveStrength::DSE6, // Dual/Single voltage: 43/43 Ohm @ 1.8V, 40/26 Ohm @ 3.3V
-    // );
 
     // Configuring the IOMUXC_SNVS_WAKEUP pin as input
     PinId::Wakeup.get_pin().as_ref().map(|pin| {
@@ -432,14 +420,6 @@ pub unsafe fn reset_handler() {
     // virtual_uart_rx_test::run_virtual_uart_receive(mux_uart);
 
     debug!("Tock OS initialization complete. Entering main loop");
-
-    // PinId::Wakeup.get_pin().as_ref().map(|pin| {
-    //     let mut val:bool;
-    //     for _ in 0..100 {
-    //         val = pin.read_input();
-    //         debug!("Val: {}", val);
-    //     }
-    // });
 
     extern "C" {
         /// Beginning of the ROM region containing app images.

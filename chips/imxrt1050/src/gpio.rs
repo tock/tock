@@ -1491,7 +1491,7 @@ impl<'a> Pin<'a> {
         }
     }
 
-    pub fn read_input(&self) -> bool {
+    fn read_input(&self) -> bool {
         let port = self.pinid.get_port();
 
         match self.pinid.get_pin_number() {
