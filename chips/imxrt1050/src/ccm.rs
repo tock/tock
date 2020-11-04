@@ -307,6 +307,21 @@ impl Ccm {
         self.registers.clpcr.modify(CLPCR::LPM.val(0b00 as u32));
     }
 
+    // Iomuxc_snvs clock
+    pub fn is_enabled_iomuxc_snvs_clock(&self) -> bool {
+        self.registers.ccgr2.is_set(CCGR2::CG2)
+    }
+
+    pub fn enable_iomuxc_snvs_clock(&self) {
+        self.registers.ccgr2.modify(CCGR2::CG2.val(0b01 as u32));
+        self.registers.ccgr3.modify(CCGR3::CG15.val(0b01 as u32));
+    }
+
+    pub fn disable_iomuxc_snvs_clock(&self) {
+        self.registers.ccgr2.modify(CCGR2::CG2::CLEAR);
+        self.registers.ccgr3.modify(CCGR3::CG15::CLEAR);
+    }
+
     /// Iomuxc clock
     pub fn is_enabled_iomuxc_clock(&self) -> bool {
         self.registers.ccgr4.is_set(CCGR4::CG0) && self.registers.ccgr4.is_set(CCGR4::CG1)
@@ -477,7 +492,8 @@ pub enum HCLK1 {
 }
 pub enum HCLK2 {
     LPI2C1,
-    GPIO3, // and others ...
+    GPIO3,
+    IOMUXCSNVS, // and others ...
 }
 
 pub enum HCLK3 {
@@ -509,6 +525,7 @@ impl ClockInterface for PeripheralClock {
             &PeripheralClock::CCGR2(ref v) => match v {
                 HCLK2::LPI2C1 => unsafe { CCM.is_enabled_lpi2c1_clock() },
                 HCLK2::GPIO3 => unsafe { CCM.is_enabled_gpio3_clock() },
+                HCLK2::IOMUXCSNVS => unsafe { CCM.is_enabled_iomuxc_snvs_clock() },
             },
             &PeripheralClock::CCGR3(ref v) => match v {
                 HCLK3::GPIO4 => unsafe { CCM.is_enabled_gpio4_clock() },
@@ -546,6 +563,9 @@ impl ClockInterface for PeripheralClock {
                 },
                 HCLK2::GPIO3 => unsafe {
                     CCM.enable_gpio3_clock();
+                },
+                HCLK2::IOMUXCSNVS => unsafe {
+                    CCM.enable_iomuxc_snvs_clock();
                 },
             },
             &PeripheralClock::CCGR3(ref v) => match v {
@@ -590,6 +610,9 @@ impl ClockInterface for PeripheralClock {
                 },
                 HCLK2::GPIO3 => unsafe {
                     CCM.disable_gpio3_clock();
+                },
+                HCLK2::IOMUXCSNVS => unsafe {
+                    CCM.disable_iomuxc_snvs_clock();
                 },
             },
             &PeripheralClock::CCGR3(ref v) => match v {

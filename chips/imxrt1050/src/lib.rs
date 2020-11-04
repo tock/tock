@@ -15,6 +15,7 @@ pub mod ccm;
 pub mod gpio;
 pub mod gpt1;
 pub mod iomuxc;
+pub mod iomuxc_snvs;
 pub mod lpi2c;
 pub mod lpuart;
 
@@ -163,16 +164,16 @@ pub static IRQS: [unsafe extern "C" fn(); 160] = [
     generic_isr, // GPIO1 (77)
     generic_isr, // GPIO1 (78)
     generic_isr, // GPIO1 (79)
-    generic_isr, // GPIO1 (80)
-    generic_isr, // GPIO1 (81)
-    generic_isr, // GPIO2 (82)
-    generic_isr, // GPIO2 (83)
-    generic_isr, // GPIO3 (84)
-    generic_isr, // GPIO3 (85)
-    generic_isr, // GPIO4 (86)
-    generic_isr, // GPIO4 (87)
-    generic_isr, // GPIO5 (88)
-    generic_isr, // GPIO5 (89)
+    generic_isr, // GPIO1_1 (80)
+    generic_isr, // GPIO1_2 (81)
+    generic_isr, // GPIO2_1 (82)
+    generic_isr, // GPIO2_2 (83)
+    generic_isr, // GPIO3_1 (84)
+    generic_isr, // GPIO3_2 (85)
+    generic_isr, // GPIO4_1 (86)
+    generic_isr, // GPIO4_2 (87)
+    generic_isr, // GPIO5_1 (88)
+    generic_isr, // GPIO5_2 (89)
     generic_isr, // FLEXIO1 (90)
     generic_isr, // FLEXIO2 (91)
     generic_isr, // WDOG1 (92)

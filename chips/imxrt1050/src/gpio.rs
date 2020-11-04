@@ -1,3 +1,4 @@
+use cortexm7::support::atomic;
 use enum_primitive::cast::FromPrimitive;
 use enum_primitive::enum_from_primitive;
 use kernel::common::cells::OptionalCell;
@@ -487,7 +488,9 @@ pub enum PinId {
     SdB1_00 = 0b110000000, SdB1_01 = 0b110000001, SdB1_02 = 0b110000010, SdB1_03 = 0b110000011,
     SdB1_04 = 0b110000100, SdB1_05 = 0b110000101, SdB1_06 = 0b110000110, SdB1_07 = 0b110000111,
     SdB1_08 = 0b110001000, SdB1_09 = 0b110001001, SdB1_10 = 0b110001010, SdB1_11 = 0b110001011,
-    SdB1_12 = 0b110001100 
+    SdB1_12 = 0b110001100,
+
+    Wakeup = 0b111000000, PmicOnReq = 0b111000001, PmicStbyReq = 0b111000010, 
 }
 
 impl PinId {
@@ -511,6 +514,7 @@ impl PinId {
             0b100 => GpioPort::GPIO2,
             0b101 => GpioPort::GPIO3,
             0b110 => GpioPort::GPIO3,
+            0b111 => GpioPort::GPIO5,
             _ => GpioPort::GPIO1,
         }
     }
@@ -630,6 +634,86 @@ impl Port {
     pub fn disable_clock(&self) {
         self.clock.disable();
     }
+
+    pub fn handle_interrupt(&self, gpio_port: GpioPort) {
+        let mut isr_val: u32 = 0;
+        let mut imr_val: u32 = self.registers.imr.get();
+
+        // Read the `ISR` register and toggle the appropriate bits in
+        // `isr`. Once that is done, write the value of `isr` back. We
+        // can have a situation where memory value of `ISR` could have
+        // changed due to an external interrupt. `ISR` is a read/clear write
+        // 1 register (`rc_w1`). So, we only clear bits whose value has been
+        // transferred to `isr`.
+        unsafe {
+            atomic(|| {
+                isr_val = self.registers.isr.get();
+                self.registers.isr.set(isr_val);
+            });
+        }
+
+        let mut flagged_bit = 0;
+
+        // stay in loop until we have processed all the flagged event bits
+        while isr_val != 0 && imr_val != 0 {
+            if (isr_val & 0b1) != 0 && (imr_val & 0b1) != 0 {
+                let mut pin_num = usize::from(flagged_bit as u8);
+
+                // depending on the gpio_port and the pin_number in gpio port
+                // we determine the actual pin from the PIN array
+                let pad_num = match gpio_port {
+                    GpioPort::GPIO1 => {
+                        if pin_num < 16 {
+                            1
+                        } else {
+                            pin_num -= 16;
+                            2
+                        }
+                    }
+                    GpioPort::GPIO2 => {
+                        if pin_num < 16 {
+                            3
+                        } else {
+                            pin_num -= 16;
+                            4
+                        }
+                    }
+                    GpioPort::GPIO3 => {
+                        if pin_num < 12 {
+                            6
+                        } else if pin_num < 18 {
+                            pin_num -= 18;
+                            5
+                        } else {
+                            pin_num += 32;
+                            0
+                        }
+                    }
+                    GpioPort::GPIO4 => 0,
+                    GpioPort::GPIO5 => 7,
+                };
+
+                unsafe {
+                    let pin = &PIN[pad_num][(pin_num as usize)];
+                    match pin {
+                        Some(val) => {
+                            val.handle_interrupt();
+                        }
+                        None => {
+                            panic!(
+                                "Tried to access wrong pin from internal array {} {}",
+                                pad_num, pin_num
+                            );
+                        }
+                    }
+                }
+            }
+            // move to next bit
+            flagged_bit += 1;
+            isr_val >>= 1;
+            imr_val >>= 1;
+        }
+    }
 }
 
 struct PortClock(ccm::PeripheralClock);
@@ -648,11 +732,9 @@ impl ClockInterface for PortClock {
     }
 }
 
-// no `exti_lineid` for the moment
 pub struct Pin<'a> {
     pinid: PinId,
     client: OptionalCell<&'a dyn hil::gpio::Client>,
-    // exti_lineid: OptionalCell<exti::LineId>,
 }
 
 macro_rules! declare_gpio_pins {
@@ -666,7 +748,7 @@ macro_rules! declare_gpio_pins {
 // We need to use `Option<Pin>`, instead of just `Pin` because AdB0 for
 // example has only sixteen pins - from AdB0_00 to AdB0_15, rather than
 // the 42 pins needed for Emc.
-pub static mut PIN: [[Option<Pin<'static>>; 42]; 7] = [
+pub static mut PIN: [[Option<Pin<'static>>; 42]; 8] = [
     declare_gpio_pins! {
         Emc00 Emc01 Emc02 Emc03 Emc04 Emc05 Emc06 Emc07
         Emc08 Emc09 Emc10 Emc11 Emc12 Emc13 Emc14 Emc15
@@ -939,6 +1021,50 @@ pub static mut PIN: [[Option<Pin<'static>>; 42]; 7] = [
         None,
         None,
     ],
+    [
+        Some(Pin::new(PinId::Wakeup)),
+        Some(Pin::new(PinId::PmicOnReq)),
+        Some(Pin::new(PinId::PmicStbyReq)),
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+    ],
 ];
 
 impl<'a> Pin<'a> {
@@ -946,7 +1072,6 @@ impl<'a> Pin<'a> {
         Pin {
             pinid: pinid,
             client: OptionalCell::empty(),
-            // no exti for the moment
         }
     }
 
@@ -962,7 +1087,38 @@ impl<'a> Pin<'a> {
         let port = self.pinid.get_port();
 
         let val = match self.pinid.get_pin_number() {
+            0b000000 => port.registers.gdir.read(GDIR::GDIR0),
+            0b000001 => port.registers.gdir.read(GDIR::GDIR1),
+            0b000010 => port.registers.gdir.read(GDIR::GDIR2),
+            0b000011 => port.registers.gdir.read(GDIR::GDIR3),
+            0b000100 => port.registers.gdir.read(GDIR::GDIR4),
+            0b000101 => port.registers.gdir.read(GDIR::GDIR5),
+            0b000110 => port.registers.gdir.read(GDIR::GDIR6),
+            0b000111 => port.registers.gdir.read(GDIR::GDIR7),
+            0b001000 => port.registers.gdir.read(GDIR::GDIR8),
             0b001001 => port.registers.gdir.read(GDIR::GDIR9),
+            0b001010 => port.registers.gdir.read(GDIR::GDIR10),
+            0b001011 => port.registers.gdir.read(GDIR::GDIR11),
+            0b001100 => port.registers.gdir.read(GDIR::GDIR12),
+            0b001101 => port.registers.gdir.read(GDIR::GDIR13),
+            0b001110 => port.registers.gdir.read(GDIR::GDIR14),
+            0b001111 => port.registers.gdir.read(GDIR::GDIR15),
+            0b010000 => port.registers.gdir.read(GDIR::GDIR16),
+            0b010001 => port.registers.gdir.read(GDIR::GDIR17),
+            0b010010 => port.registers.gdir.read(GDIR::GDIR18),
+            0b010011 => port.registers.gdir.read(GDIR::GDIR19),
+            0b010100 => port.registers.gdir.read(GDIR::GDIR20),
+            0b010101 => port.registers.gdir.read(GDIR::GDIR21),
+            0b010110 => port.registers.gdir.read(GDIR::GDIR22),
+            0b010111 => port.registers.gdir.read(GDIR::GDIR23),
+            0b011000 => port.registers.gdir.read(GDIR::GDIR24),
+            0b011001 => port.registers.gdir.read(GDIR::GDIR25),
+            0b011010 => port.registers.gdir.read(GDIR::GDIR26),
+            0b011011 => port.registers.gdir.read(GDIR::GDIR27),
+            0b011100 => port.registers.gdir.read(GDIR::GDIR28),
+            0b011101 => port.registers.gdir.read(GDIR::GDIR29),
+            0b011110 => port.registers.gdir.read(GDIR::GDIR30),
+            0b011111 => port.registers.gdir.read(GDIR::GDIR31),
             _ => 0,
         };
 
@@ -973,10 +1129,102 @@ impl<'a> Pin<'a> {
         let port = self.pinid.get_port();
 
         match self.pinid.get_pin_number() {
+            0b000000 => {
+                port.registers.gdir.modify(GDIR::GDIR0.val(mode as u32));
+            }
+            0b000001 => {
+                port.registers.gdir.modify(GDIR::GDIR1.val(mode as u32));
+            }
+            0b000010 => {
+                port.registers.gdir.modify(GDIR::GDIR2.val(mode as u32));
+            }
+            0b000011 => {
+                port.registers.gdir.modify(GDIR::GDIR3.val(mode as u32));
+            }
+            0b000100 => {
+                port.registers.gdir.modify(GDIR::GDIR4.val(mode as u32));
+            }
+            0b000101 => {
+                port.registers.gdir.modify(GDIR::GDIR5.val(mode as u32));
+            }
+            0b000110 => {
+                port.registers.gdir.modify(GDIR::GDIR6.val(mode as u32));
+            }
+            0b000111 => {
+                port.registers.gdir.modify(GDIR::GDIR7.val(mode as u32));
+            }
+            0b001000 => {
+                port.registers.gdir.modify(GDIR::GDIR8.val(mode as u32));
+            }
             0b001001 => {
                 port.registers.gdir.modify(GDIR::GDIR9.val(mode as u32));
             }
-            0b10000 => {}
+            0b001010 => {
+                port.registers.gdir.modify(GDIR::GDIR10.val(mode as u32));
+            }
+            0b001011 => {
+                port.registers.gdir.modify(GDIR::GDIR11.val(mode as u32));
+            }
+            0b001100 => {
+                port.registers.gdir.modify(GDIR::GDIR12.val(mode as u32));
+            }
+            0b001101 => {
+                port.registers.gdir.modify(GDIR::GDIR13.val(mode as u32));
+            }
+            0b001110 => {
+                port.registers.gdir.modify(GDIR::GDIR14.val(mode as u32));
+            }
+            0b001111 => {
+                port.registers.gdir.modify(GDIR::GDIR15.val(mode as u32));
+            }
+            0b010000 => {
+                port.registers.gdir.modify(GDIR::GDIR16.val(mode as u32));
+            }
+            0b010001 => {
+                port.registers.gdir.modify(GDIR::GDIR17.val(mode as u32));
+            }
+            0b010010 => {
+                port.registers.gdir.modify(GDIR::GDIR18.val(mode as u32));
+            }
+            0b010011 => {
+                port.registers.gdir.modify(GDIR::GDIR19.val(mode as u32));
+            }
+            0b010100 => {
+                port.registers.gdir.modify(GDIR::GDIR20.val(mode as u32));
+            }
+            0b010101 => {
+                port.registers.gdir.modify(GDIR::GDIR21.val(mode as u32));
+            }
+            0b010110 => {
+                port.registers.gdir.modify(GDIR::GDIR22.val(mode as u32));
+            }
+            0b010111 => {
+                port.registers.gdir.modify(GDIR::GDIR23.val(mode as u32));
+            }
+            0b011000 => {
+                port.registers.gdir.modify(GDIR::GDIR24.val(mode as u32));
+            }
+            0b011001 => {
+                port.registers.gdir.modify(GDIR::GDIR25.val(mode as u32));
+            }
+            0b011010 => {
+                port.registers.gdir.modify(GDIR::GDIR26.val(mode as u32));
+            }
+            0b011011 => {
+                port.registers.gdir.modify(GDIR::GDIR27.val(mode as u32));
+            }
+            0b011100 => {
+                port.registers.gdir.modify(GDIR::GDIR28.val(mode as u32));
+            }
+            0b011101 => {
+                port.registers.gdir.modify(GDIR::GDIR29.val(mode as u32));
+            }
+            0b011110 => {
+                port.registers.gdir.modify(GDIR::GDIR30.val(mode as u32));
+            }
+            0b011111 => {
+                port.registers.gdir.modify(GDIR::GDIR31.val(mode as u32));
+            }
             _ => {}
         }
     }
@@ -989,8 +1237,101 @@ impl<'a> Pin<'a> {
         let port = self.pinid.get_port();
 
         match self.pinid.get_pin_number() {
-            0b01001 => {
+            0b000000 => {
+                port.registers.dr.write(DR::DR0::SET);
+            }
+            0b000001 => {
+                port.registers.dr.write(DR::DR1::SET);
+            }
+            0b000010 => {
+                port.registers.dr.write(DR::DR2::SET);
+            }
+            0b000011 => {
+                port.registers.dr.write(DR::DR3::SET);
+            }
+            0b000100 => {
+                port.registers.dr.write(DR::DR4::SET);
+            }
+            0b000101 => {
+                port.registers.dr.write(DR::DR5::SET);
+            }
+            0b000110 => {
+                port.registers.dr.write(DR::DR6::SET);
+            }
+            0b000111 => {
+                port.registers.dr.write(DR::DR7::SET);
+            }
+            0b001000 => {
+                port.registers.dr.write(DR::DR8::SET);
+            }
+            0b001001 => {
                 port.registers.dr.write(DR::DR9::SET);
+            }
+            0b001010 => {
+                port.registers.dr.write(DR::DR10::SET);
+            }
+            0b001011 => {
+                port.registers.dr.write(DR::DR11::SET);
+            }
+            0b001100 => {
+                port.registers.dr.write(DR::DR12::SET);
+            }
+            0b001101 => {
+                port.registers.dr.write(DR::DR13::SET);
+            }
+            0b001110 => {
+                port.registers.dr.write(DR::DR14::SET);
+            }
+            0b001111 => {
+                port.registers.dr.write(DR::DR15::SET);
+            }
+            0b010000 => {
+                port.registers.dr.write(DR::DR16::SET);
+            }
+            0b010001 => {
+                port.registers.dr.write(DR::DR17::SET);
+            }
+            0b010010 => {
+                port.registers.dr.write(DR::DR18::SET);
+            }
+            0b010011 => {
+                port.registers.dr.write(DR::DR19::SET);
+            }
+            0b010100 => {
+                port.registers.dr.write(DR::DR20::SET);
+            }
+            0b010101 => {
+                port.registers.dr.write(DR::DR21::SET);
+            }
+            0b010110 => {
+                port.registers.dr.write(DR::DR22::SET);
+            }
+            0b010111 => {
+                port.registers.dr.write(DR::DR23::SET);
+            }
+            0b011000 => {
+                port.registers.dr.write(DR::DR24::SET);
+            }
+            0b011001 => {
+                port.registers.dr.write(DR::DR25::SET);
+            }
+            0b011010 => {
+                port.registers.dr.write(DR::DR26::SET);
+            }
+            0b011011 => {
+                port.registers.dr.write(DR::DR27::SET);
+            }
+            0b011100 => {
+                port.registers.dr.write(DR::DR28::SET);
+            }
+            0b011101 => {
+                port.registers.dr.write(DR::DR29::SET);
+            }
+            0b011110 => {
+                port.registers.dr.write(DR::DR30::SET);
+            }
+            0b011111 => {
+                port.registers.dr.write(DR::DR31::SET);
             }
             _ => {}
         }
@@ -1000,7 +1341,102 @@ impl<'a> Pin<'a> {
         let port = self.pinid.get_port();
 
         match self.pinid.get_pin_number() {
-            0b01001 => port.registers.dr.write(DR::DR9::CLEAR),
+            0b000000 => {
+                port.registers.dr.write(DR::DR0::CLEAR);
+            }
+            0b000001 => {
+                port.registers.dr.write(DR::DR1::CLEAR);
+            }
+            0b000010 => {
+                port.registers.dr.write(DR::DR2::CLEAR);
+            }
+            0b000011 => {
+                port.registers.dr.write(DR::DR3::CLEAR);
+            }
+            0b000100 => {
+                port.registers.dr.write(DR::DR4::CLEAR);
+            }
+            0b000101 => {
+                port.registers.dr.write(DR::DR5::CLEAR);
+            }
+            0b000110 => {
+                port.registers.dr.write(DR::DR6::CLEAR);
+            }
+            0b000111 => {
+                port.registers.dr.write(DR::DR7::CLEAR);
+            }
+            0b001000 => {
+                port.registers.dr.write(DR::DR8::CLEAR);
+            }
+            0b001001 => {
+                port.registers.dr.write(DR::DR9::CLEAR);
+            }
+            0b001010 => {
+                port.registers.dr.write(DR::DR10::CLEAR);
+            }
+            0b001011 => {
+                port.registers.dr.write(DR::DR11::CLEAR);
+            }
+            0b001100 => {
+                port.registers.dr.write(DR::DR12::CLEAR);
+            }
+            0b001101 => {
+                port.registers.dr.write(DR::DR13::CLEAR);
+            }
+            0b001110 => {
+                port.registers.dr.write(DR::DR14::CLEAR);
+            }
+            0b001111 => {
+                port.registers.dr.write(DR::DR15::CLEAR);
+            }
+            0b010000 => {
+                port.registers.dr.write(DR::DR16::CLEAR);
+            }
+            0b010001 => {
+                port.registers.dr.write(DR::DR17::CLEAR);
+            }
+            0b010010 => {
+                port.registers.dr.write(DR::DR18::CLEAR);
+            }
+            0b010011 => {
+                port.registers.dr.write(DR::DR19::CLEAR);
+            }
+            0b010100 => {
+                port.registers.dr.write(DR::DR20::CLEAR);
+            }
+            0b010101 => {
+                port.registers.dr.write(DR::DR21::CLEAR);
+            }
+            0b010110 => {
+                port.registers.dr.write(DR::DR22::CLEAR);
+            }
+            0b010111 => {
+                port.registers.dr.write(DR::DR23::CLEAR);
+            }
+            0b011000 => {
+                port.registers.dr.write(DR::DR24::CLEAR);
+            }
+            0b011001 => {
+                port.registers.dr.write(DR::DR25::CLEAR);
+            }
+            0b011010 => {
+                port.registers.dr.write(DR::DR26::CLEAR);
+            }
+            0b011011 => {
+                port.registers.dr.write(DR::DR27::CLEAR);
+            }
+            0b011100 => {
+                port.registers.dr.write(DR::DR28::CLEAR);
+            }
+            0b011101 => {
+                port.registers.dr.write(DR::DR29::CLEAR);
+            }
+            0b011110 => {
+                port.registers.dr.write(DR::DR30::CLEAR);
+            }
+            0b011111 => {
+                port.registers.dr.write(DR::DR31::CLEAR);
+            }
             _ => {}
         }
     }
@@ -1009,7 +1445,38 @@ impl<'a> Pin<'a> {
         let port = self.pinid.get_port();
 
         match self.pinid.get_pin_number() {
-            0b01001 => port.registers.dr.is_set(DR::DR9),
+            0b000000 => port.registers.dr.is_set(DR::DR0),
+            0b000001 => port.registers.dr.is_set(DR::DR1),
+            0b000010 => port.registers.dr.is_set(DR::DR2),
+            0b000011 => port.registers.dr.is_set(DR::DR3),
+            0b000100 => port.registers.dr.is_set(DR::DR4),
+            0b000101 => port.registers.dr.is_set(DR::DR5),
+            0b000110 => port.registers.dr.is_set(DR::DR6),
+            0b000111 => port.registers.dr.is_set(DR::DR7),
+            0b001000 => port.registers.dr.is_set(DR::DR8),
+            0b001001 => port.registers.dr.is_set(DR::DR9),
+            0b001010 => port.registers.dr.is_set(DR::DR10),
+            0b001011 => port.registers.dr.is_set(DR::DR11),
+            0b001100 => port.registers.dr.is_set(DR::DR12),
+            0b001101 => port.registers.dr.is_set(DR::DR13),
+            0b001110 => port.registers.dr.is_set(DR::DR14),
+            0b001111 => port.registers.dr.is_set(DR::DR15),
+            0b010000 => port.registers.dr.is_set(DR::DR16),
+            0b010001 => port.registers.dr.is_set(DR::DR17),
+            0b010010 => port.registers.dr.is_set(DR::DR18),
+            0b010011 => port.registers.dr.is_set(DR::DR19),
+            0b010100 => port.registers.dr.is_set(DR::DR20),
+            0b010101 => port.registers.dr.is_set(DR::DR21),
+            0b010110 => port.registers.dr.is_set(DR::DR22),
+            0b010111 => port.registers.dr.is_set(DR::DR23),
+            0b011000 => port.registers.dr.is_set(DR::DR24),
+            0b011001 => port.registers.dr.is_set(DR::DR25),
+            0b011010 => port.registers.dr.is_set(DR::DR26),
+            0b011011 => port.registers.dr.is_set(DR::DR27),
+            0b011100 => port.registers.dr.is_set(DR::DR28),
+            0b011101 => port.registers.dr.is_set(DR::DR29),
+            0b011110 => port.registers.dr.is_set(DR::DR30),
+            0b011111 => port.registers.dr.is_set(DR::DR31),
             _ => false,
         }
     }
@@ -1024,12 +1491,471 @@ impl<'a> Pin<'a> {
         }
     }
 
-    fn read_input(&self) -> bool {
+    pub fn read_input(&self) -> bool {
         let port = self.pinid.get_port();
 
         match self.pinid.get_pin_number() {
-            0b1001 => port.registers.dr.is_set(DR::DR9),
+            0b000000 => port.registers.dr.is_set(DR::DR0),
+            0b000001 => port.registers.dr.is_set(DR::DR1),
+            0b000010 => port.registers.dr.is_set(DR::DR2),
+            0b000011 => port.registers.dr.is_set(DR::DR3),
+            0b000100 => port.registers.dr.is_set(DR::DR4),
+            0b000101 => port.registers.dr.is_set(DR::DR5),
+            0b000110 => port.registers.dr.is_set(DR::DR6),
+            0b000111 => port.registers.dr.is_set(DR::DR7),
+            0b001000 => port.registers.dr.is_set(DR::DR8),
+            0b001001 => port.registers.dr.is_set(DR::DR9),
+            0b001010 => port.registers.dr.is_set(DR::DR10),
+            0b001011 => port.registers.dr.is_set(DR::DR11),
+            0b001100 => port.registers.dr.is_set(DR::DR12),
+            0b001101 => port.registers.dr.is_set(DR::DR13),
+            0b001110 => port.registers.dr.is_set(DR::DR14),
+            0b001111 => port.registers.dr.is_set(DR::DR15),
+            0b010000 => port.registers.dr.is_set(DR::DR16),
+            0b010001 => port.registers.dr.is_set(DR::DR17),
+            0b010010 => port.registers.dr.is_set(DR::DR18),
+            0b010011 => port.registers.dr.is_set(DR::DR19),
+            0b010100 => port.registers.dr.is_set(DR::DR20),
+            0b010101 => port.registers.dr.is_set(DR::DR21),
+            0b010110 => port.registers.dr.is_set(DR::DR22),
+            0b010111 => port.registers.dr.is_set(DR::DR23),
+            0b011000 => port.registers.dr.is_set(DR::DR24),
+            0b011001 => port.registers.dr.is_set(DR::DR25),
+            0b011010 => port.registers.dr.is_set(DR::DR26),
+            0b011011 => port.registers.dr.is_set(DR::DR27),
+            0b011100 => port.registers.dr.is_set(DR::DR28),
+            0b011101 => port.registers.dr.is_set(DR::DR29),
+            0b011110 => port.registers.dr.is_set(DR::DR30),
+            0b011111 => port.registers.dr.is_set(DR::DR31),
             _ => false,
+        }
+    }
+
+    fn mask_interrupt(&self) {
+        let port = self.pinid.get_port();
+        match self.pinid.get_pin_number() {
+            0b000000 => port.registers.imr.write(IMR::IMR0::CLEAR),
+            0b000001 => port.registers.imr.write(IMR::IMR1::CLEAR),
+            0b000010 => port.registers.imr.write(IMR::IMR2::CLEAR),
+            0b000011 => port.registers.imr.write(IMR::IMR3::CLEAR),
+            0b000100 => port.registers.imr.write(IMR::IMR4::CLEAR),
+            0b000101 => port.registers.imr.write(IMR::IMR5::CLEAR),
+            0b000110 => port.registers.imr.write(IMR::IMR6::CLEAR),
+            0b000111 => port.registers.imr.write(IMR::IMR7::CLEAR),
+            0b001000 => port.registers.imr.write(IMR::IMR8::CLEAR),
+            0b001001 => port.registers.imr.write(IMR::IMR9::CLEAR),
+            0b001010 => port.registers.imr.write(IMR::IMR10::CLEAR),
+            0b001011 => port.registers.imr.write(IMR::IMR11::CLEAR),
+            0b001100 => port.registers.imr.write(IMR::IMR12::CLEAR),
+            0b001101 => port.registers.imr.write(IMR::IMR13::CLEAR),
+            0b001110 => port.registers.imr.write(IMR::IMR14::CLEAR),
+            0b001111 => port.registers.imr.write(IMR::IMR15::CLEAR),
+            0b010000 => port.registers.imr.write(IMR::IMR16::CLEAR),
+            0b010001 => port.registers.imr.write(IMR::IMR17::CLEAR),
+            0b010010 => port.registers.imr.write(IMR::IMR18::CLEAR),
+            0b010011 => port.registers.imr.write(IMR::IMR19::CLEAR),
+            0b010100 => port.registers.imr.write(IMR::IMR20::CLEAR),
+            0b010101 => port.registers.imr.write(IMR::IMR21::CLEAR),
+            0b010110 => port.registers.imr.write(IMR::IMR22::CLEAR),
+            0b010111 => port.registers.imr.write(IMR::IMR23::CLEAR),
+            0b011000 => port.registers.imr.write(IMR::IMR24::CLEAR),
+            0b011001 => port.registers.imr.write(IMR::IMR25::CLEAR),
+            0b011010 => port.registers.imr.write(IMR::IMR26::CLEAR),
+            0b011011 => port.registers.imr.write(IMR::IMR27::CLEAR),
+            0b011100 => port.registers.imr.write(IMR::IMR28::CLEAR),
+            0b011101 => port.registers.imr.write(IMR::IMR29::CLEAR),
+            0b011110 => port.registers.imr.write(IMR::IMR30::CLEAR),
+            0b011111 => port.registers.imr.write(IMR::IMR31::CLEAR),
+            _ => {}
+        }
+    }
+
+    fn unmask_interrupt(&self) {
+        let port = self.pinid.get_port();
+        match self.pinid.get_pin_number() {
+            0b000000 => port.registers.imr.write(IMR::IMR0::SET),
+            0b000001 => port.registers.imr.write(IMR::IMR1::SET),
+            0b000010 => port.registers.imr.write(IMR::IMR2::SET),
+            0b000011 => port.registers.imr.write(IMR::IMR3::SET),
+            0b000100 => port.registers.imr.write(IMR::IMR4::SET),
+            0b000101 => port.registers.imr.write(IMR::IMR5::SET),
+            0b000110 => port.registers.imr.write(IMR::IMR6::SET),
+            0b000111 => port.registers.imr.write(IMR::IMR7::SET),
+            0b001000 => port.registers.imr.write(IMR::IMR8::SET),
+            0b001001 => port.registers.imr.write(IMR::IMR9::SET),
+            0b001010 => port.registers.imr.write(IMR::IMR10::SET),
+            0b001011 => port.registers.imr.write(IMR::IMR11::SET),
+            0b001100 => port.registers.imr.write(IMR::IMR12::SET),
+            0b001101 => port.registers.imr.write(IMR::IMR13::SET),
+            0b001110 => port.registers.imr.write(IMR::IMR14::SET),
+            0b001111 => port.registers.imr.write(IMR::IMR15::SET),
+            0b010000 => port.registers.imr.write(IMR::IMR16::SET),
+            0b010001 => port.registers.imr.write(IMR::IMR17::SET),
+            0b010010 => port.registers.imr.write(IMR::IMR18::SET),
+            0b010011 => port.registers.imr.write(IMR::IMR19::SET),
+            0b010100 => port.registers.imr.write(IMR::IMR20::SET),
+            0b010101 => port.registers.imr.write(IMR::IMR21::SET),
+            0b010110 => port.registers.imr.write(IMR::IMR22::SET),
+            0b010111 => port.registers.imr.write(IMR::IMR23::SET),
+            0b011000 => port.registers.imr.write(IMR::IMR24::SET),
+            0b011001 => port.registers.imr.write(IMR::IMR25::SET),
+            0b011010 => port.registers.imr.write(IMR::IMR26::SET),
+            0b011011 => port.registers.imr.write(IMR::IMR27::SET),
+            0b011100 => port.registers.imr.write(IMR::IMR28::SET),
+            0b011101 => port.registers.imr.write(IMR::IMR29::SET),
+            0b011110 => port.registers.imr.write(IMR::IMR30::SET),
+            0b011111 => port.registers.imr.write(IMR::IMR31::SET),
+            _ => {}
+        }
+    }
+
+    fn clear_pending(&self) {
+        let port = self.pinid.get_port();
+        match self.pinid.get_pin_number() {
+            0b000000 => port.registers.isr.write(ISR::ISR0::SET),
+            0b000001 => port.registers.isr.write(ISR::ISR1::SET),
+            0b000010 => port.registers.isr.write(ISR::ISR2::SET),
+            0b000011 => port.registers.isr.write(ISR::ISR3::SET),
+            0b000100 => port.registers.isr.write(ISR::ISR4::SET),
+            0b000101 => port.registers.isr.write(ISR::ISR5::SET),
+            0b000110 => port.registers.isr.write(ISR::ISR6::SET),
+            0b000111 => port.registers.isr.write(ISR::ISR7::SET),
+            0b001000 => port.registers.isr.write(ISR::ISR8::SET),
+            0b001001 => port.registers.isr.write(ISR::ISR9::SET),
+            0b001010 => port.registers.isr.write(ISR::ISR10::SET),
+            0b001011 => port.registers.isr.write(ISR::ISR11::SET),
+            0b001100 => port.registers.isr.write(ISR::ISR12::SET),
+            0b001101 => port.registers.isr.write(ISR::ISR13::SET),
+            0b001110 => port.registers.isr.write(ISR::ISR14::SET),
+            0b001111 => port.registers.isr.write(ISR::ISR15::SET),
+            0b010000 => port.registers.isr.write(ISR::ISR16::SET),
+            0b010001 => port.registers.isr.write(ISR::ISR17::SET),
+            0b010010 => port.registers.isr.write(ISR::ISR18::SET),
+            0b010011 => port.registers.isr.write(ISR::ISR19::SET),
+            0b010100 => port.registers.isr.write(ISR::ISR20::SET),
+            0b010101 => port.registers.isr.write(ISR::ISR21::SET),
+            0b010110 => port.registers.isr.write(ISR::ISR22::SET),
+            0b010111 => port.registers.isr.write(ISR::ISR23::SET),
+            0b011000 => port.registers.isr.write(ISR::ISR24::SET),
+            0b011001 => port.registers.isr.write(ISR::ISR25::SET),
+            0b011010 => port.registers.isr.write(ISR::ISR26::SET),
+            0b011011 => port.registers.isr.write(ISR::ISR27::SET),
+            0b011100 => port.registers.isr.write(ISR::ISR28::SET),
+            0b011101 => port.registers.isr.write(ISR::ISR29::SET),
+            0b011110 => port.registers.isr.write(ISR::ISR30::SET),
+            0b011111 => port.registers.isr.write(ISR::ISR31::SET),
+            _ => {}
+        }
+    }
+
+    // deselect either_edge first and then enable rising edge
+    fn select_rising_trigger(&self) {
+        let port = self.pinid.get_port();
+        match self.pinid.get_pin_number() {
+            0b000000 => {
+                port.registers.edge_sel.write(EDGE_SEL::EDGE_SEL0::CLEAR);
+                port.registers.icr1.modify(ICR1::ICR0.val(0b10 as u32));
+            }
+            0b000001 => {
+                port.registers.edge_sel.write(EDGE_SEL::EDGE_SEL1::CLEAR);
+                port.registers.icr1.modify(ICR1::ICR1.val(0b10 as u32));
+            }
+            0b000010 => {
+                port.registers.edge_sel.write(EDGE_SEL::EDGE_SEL2::CLEAR);
+                port.registers.icr1.modify(ICR1::ICR2.val(0b10 as u32));
+            }
+            0b000011 => {
+                port.registers.edge_sel.write(EDGE_SEL::EDGE_SEL3::CLEAR);
+                port.registers.icr1.modify(ICR1::ICR3.val(0b10 as u32));
+            }
+            0b000100 => {
+                port.registers.edge_sel.write(EDGE_SEL::EDGE_SEL4::CLEAR);
+                port.registers.icr1.modify(ICR1::ICR4.val(0b10 as u32));
+            }
+            0b000101 => {
+                port.registers.edge_sel.write(EDGE_SEL::EDGE_SEL5::CLEAR);
+                port.registers.icr1.modify(ICR1::ICR5.val(0b10 as u32));
+            }
+            0b000110 => {
+                port.registers.edge_sel.write(EDGE_SEL::EDGE_SEL6::CLEAR);
+                port.registers.icr1.modify(ICR1::ICR6.val(0b10 as u32));
+            }
+            0b000111 => {
+                port.registers.edge_sel.write(EDGE_SEL::EDGE_SEL7::CLEAR);
+                port.registers.icr1.modify(ICR1::ICR7.val(0b10 as u32));
+            }
+            0b001000 => {
+                port.registers.edge_sel.write(EDGE_SEL::EDGE_SEL8::CLEAR);
+                port.registers.icr1.modify(ICR1::ICR8.val(0b10 as u32));
+            }
+            0b001001 => {
+                port.registers.edge_sel.write(EDGE_SEL::EDGE_SEL9::CLEAR);
+                port.registers.icr1.modify(ICR1::ICR9.val(0b10 as u32));
+            }
+            0b001010 => {
+                port.registers.edge_sel.write(EDGE_SEL::EDGE_SEL10::CLEAR);
+                port.registers.icr1.modify(ICR1::ICR10.val(0b10 as u32));
+            }
+            0b001011 => {
+                port.registers.edge_sel.write(EDGE_SEL::EDGE_SEL11::CLEAR);
+                port.registers.icr1.modify(ICR1::ICR11.val(0b10 as u32));
+            }
+            0b001100 => {
+                port.registers.edge_sel.write(EDGE_SEL::EDGE_SEL12::CLEAR);
+                port.registers.icr1.modify(ICR1::ICR12.val(0b10 as u32));
+            }
+            0b001101 => {
+                port.registers.edge_sel.write(EDGE_SEL::EDGE_SEL13::CLEAR);
+                port.registers.icr1.modify(ICR1::ICR13.val(0b10 as u32));
+            }
+            0b001110 => {
+                port.registers.edge_sel.write(EDGE_SEL::EDGE_SEL14::CLEAR);
+                port.registers.icr1.modify(ICR1::ICR14.val(0b10 as u32));
+            }
+            0b001111 => {
+                port.registers.edge_sel.write(EDGE_SEL::EDGE_SEL15::CLEAR);
+                port.registers.icr1.modify(ICR1::ICR15.val(0b10 as u32));
+            }
+            0b010000 => {
+                port.registers.edge_sel.write(EDGE_SEL::EDGE_SEL16::CLEAR);
+                port.registers.icr2.modify(ICR2::ICR16.val(0b10 as u32));
+            }
+            0b010001 => {
+                port.registers.edge_sel.write(EDGE_SEL::EDGE_SEL17::CLEAR);
+                port.registers.icr2.modify(ICR2::ICR17.val(0b10 as u32));
+            }
+            0b010010 => {
+                port.registers.edge_sel.write(EDGE_SEL::EDGE_SEL18::CLEAR);
+                port.registers.icr2.modify(ICR2::ICR18.val(0b10 as u32));
+            }
+            0b010011 => {
+                port.registers.edge_sel.write(EDGE_SEL::EDGE_SEL19::CLEAR);
+                port.registers.icr2.modify(ICR2::ICR19.val(0b10 as u32));
+            }
+            0b010100 => {
+                port.registers.edge_sel.write(EDGE_SEL::EDGE_SEL20::CLEAR);
+                port.registers.icr2.modify(ICR2::ICR20.val(0b10 as u32));
+            }
+            0b010101 => {
+                port.registers.edge_sel.write(EDGE_SEL::EDGE_SEL21::CLEAR);
+                port.registers.icr2.modify(ICR2::ICR21.val(0b10 as u32));
+            }
+            0b010110 => {
+                port.registers.edge_sel.write(EDGE_SEL::EDGE_SEL22::CLEAR);
+                port.registers.icr2.modify(ICR2::ICR22.val(0b10 as u32));
+            }
+            0b010111 => {
+                port.registers.edge_sel.write(EDGE_SEL::EDGE_SEL23::CLEAR);
+                port.registers.icr2.modify(ICR2::ICR23.val(0b10 as u32));
+            }
+            0b011000 => {
+                port.registers.edge_sel.write(EDGE_SEL::EDGE_SEL24::CLEAR);
+                port.registers.icr2.modify(ICR2::ICR24.val(0b10 as u32));
+            }
+            0b011001 => {
+                port.registers.edge_sel.write(EDGE_SEL::EDGE_SEL25::CLEAR);
+                port.registers.icr2.modify(ICR2::ICR25.val(0b10 as u32));
+            }
+            0b011010 => {
+                port.registers.edge_sel.write(EDGE_SEL::EDGE_SEL26::CLEAR);
+                port.registers.icr2.modify(ICR2::ICR26.val(0b10 as u32));
+            }
+            0b011011 => {
+                port.registers.edge_sel.write(EDGE_SEL::EDGE_SEL27::CLEAR);
+                port.registers.icr2.modify(ICR2::ICR27.val(0b10 as u32));
+            }
+            0b011100 => {
+                port.registers.edge_sel.write(EDGE_SEL::EDGE_SEL28::CLEAR);
+                port.registers.icr2.modify(ICR2::ICR28.val(0b10 as u32));
+            }
+            0b011101 => {
+                port.registers.edge_sel.write(EDGE_SEL::EDGE_SEL29::CLEAR);
+                port.registers.icr2.modify(ICR2::ICR29.val(0b10 as u32));
+            }
+            0b011110 => {
+                port.registers.edge_sel.write(EDGE_SEL::EDGE_SEL30::CLEAR);
+                port.registers.icr2.modify(ICR2::ICR30.val(0b10 as u32));
+            }
+            0b011111 => {
+                port.registers.edge_sel.write(EDGE_SEL::EDGE_SEL31::CLEAR);
+                port.registers.icr2.modify(ICR2::ICR31.val(0b10 as u32));
+            }
+            _ => {}
+        }
+    }
+
+    // deselect either_edge first and then enable falling edge
+    fn select_falling_trigger(&self) {
+        let port = self.pinid.get_port();
+        match self.pinid.get_pin_number() {
+            0b000000 => {
+                port.registers.edge_sel.write(EDGE_SEL::EDGE_SEL0::CLEAR);
+                port.registers.icr1.modify(ICR1::ICR0.val(0b11 as u32));
+            }
+            0b000001 => {
+                port.registers.edge_sel.write(EDGE_SEL::EDGE_SEL1::CLEAR);
+                port.registers.icr1.modify(ICR1::ICR1.val(0b11 as u32));
+            }
+            0b000010 => {
+                port.registers.edge_sel.write(EDGE_SEL::EDGE_SEL2::CLEAR);
+                port.registers.icr1.modify(ICR1::ICR2.val(0b11 as u32));
+            }
+            0b000011 => {
+                port.registers.edge_sel.write(EDGE_SEL::EDGE_SEL3::CLEAR);
+                port.registers.icr1.modify(ICR1::ICR3.val(0b11 as u32));
+            }
+            0b000100 => {
+                port.registers.edge_sel.write(EDGE_SEL::EDGE_SEL4::CLEAR);
+                port.registers.icr1.modify(ICR1::ICR4.val(0b11 as u32));
+            }
+            0b000101 => {
+                port.registers.edge_sel.write(EDGE_SEL::EDGE_SEL5::CLEAR);
+                port.registers.icr1.modify(ICR1::ICR5.val(0b11 as u32));
+            }
+            0b000110 => {
+                port.registers.edge_sel.write(EDGE_SEL::EDGE_SEL6::CLEAR);
+                port.registers.icr1.modify(ICR1::ICR6.val(0b11 as u32));
+            }
+            0b000111 => {
+                port.registers.edge_sel.write(EDGE_SEL::EDGE_SEL7::CLEAR);
+                port.registers.icr1.modify(ICR1::ICR7.val(0b11 as u32));
+            }
+            0b001000 => {
+                port.registers.edge_sel.write(EDGE_SEL::EDGE_SEL8::CLEAR);
+                port.registers.icr1.modify(ICR1::ICR8.val(0b11 as u32));
+            }
+            0b001001 => {
+                port.registers.edge_sel.write(EDGE_SEL::EDGE_SEL9::CLEAR);
+                port.registers.icr1.modify(ICR1::ICR9.val(0b11 as u32));
+            }
+            0b001010 => {
+                port.registers.edge_sel.write(EDGE_SEL::EDGE_SEL10::CLEAR);
+                port.registers.icr1.modify(ICR1::ICR10.val(0b11 as u32));
+            }
+            0b001011 => {
+                port.registers.edge_sel.write(EDGE_SEL::EDGE_SEL11::CLEAR);
+                port.registers.icr1.modify(ICR1::ICR11.val(0b11 as u32));
+            }
+            0b001100 => {
+                port.registers.edge_sel.write(EDGE_SEL::EDGE_SEL12::CLEAR);
+                port.registers.icr1.modify(ICR1::ICR12.val(0b11 as u32));
+            }
+            0b001101 => {
+                port.registers.edge_sel.write(EDGE_SEL::EDGE_SEL13::CLEAR);
+                port.registers.icr1.modify(ICR1::ICR13.val(0b11 as u32));
+            }
+            0b001110 => {
+                port.registers.edge_sel.write(EDGE_SEL::EDGE_SEL14::CLEAR);
+                port.registers.icr1.modify(ICR1::ICR14.val(0b11 as u32));
+            }
+            0b001111 => {
+                port.registers.edge_sel.write(EDGE_SEL::EDGE_SEL15::CLEAR);
+                port.registers.icr1.modify(ICR1::ICR15.val(0b11 as u32));
+            }
+            0b010000 => {
+                port.registers.edge_sel.write(EDGE_SEL::EDGE_SEL16::CLEAR);
+                port.registers.icr2.modify(ICR2::ICR16.val(0b11 as u32));
+            }
+            0b010001 => {
+                port.registers.edge_sel.write(EDGE_SEL::EDGE_SEL17::CLEAR);
+                port.registers.icr2.modify(ICR2::ICR17.val(0b11 as u32));
+            }
+            0b010010 => {
+                port.registers.edge_sel.write(EDGE_SEL::EDGE_SEL18::CLEAR);
+                port.registers.icr2.modify(ICR2::ICR18.val(0b11 as u32));
+            }
+            0b010011 => {
+                port.registers.edge_sel.write(EDGE_SEL::EDGE_SEL19::CLEAR);
+                port.registers.icr2.modify(ICR2::ICR19.val(0b11 as u32));
+            }
+            0b010100 => {
+                port.registers.edge_sel.write(EDGE_SEL::EDGE_SEL20::CLEAR);
+                port.registers.icr2.modify(ICR2::ICR20.val(0b11 as u32));
+            }
+            0b010101 => {
+                port.registers.edge_sel.write(EDGE_SEL::EDGE_SEL21::CLEAR);
+                port.registers.icr2.modify(ICR2::ICR21.val(0b11 as u32));
+            }
+            0b010110 => {
+                port.registers.edge_sel.write(EDGE_SEL::EDGE_SEL22::CLEAR);
+                port.registers.icr2.modify(ICR2::ICR22.val(0b11 as u32));
+            }
+            0b010111 => {
+                port.registers.edge_sel.write(EDGE_SEL::EDGE_SEL23::CLEAR);
+                port.registers.icr2.modify(ICR2::ICR23.val(0b11 as u32));
+            }
+            0b011000 => {
+                port.registers.edge_sel.write(EDGE_SEL::EDGE_SEL24::CLEAR);
+                port.registers.icr2.modify(ICR2::ICR24.val(0b11 as u32));
+            }
+            0b011001 => {
+                port.registers.edge_sel.write(EDGE_SEL::EDGE_SEL25::CLEAR);
+                port.registers.icr2.modify(ICR2::ICR25.val(0b11 as u32));
+            }
+            0b011010 => {
+                port.registers.edge_sel.write(EDGE_SEL::EDGE_SEL26::CLEAR);
+                port.registers.icr2.modify(ICR2::ICR26.val(0b11 as u32));
+            }
+            0b011011 => {
+                port.registers.edge_sel.write(EDGE_SEL::EDGE_SEL27::CLEAR);
+                port.registers.icr2.modify(ICR2::ICR27.val(0b11 as u32));
+            }
+            0b011100 => {
+                port.registers.edge_sel.write(EDGE_SEL::EDGE_SEL28::CLEAR);
+                port.registers.icr2.modify(ICR2::ICR28.val(0b11 as u32));
+            }
+            0b011101 => {
+                port.registers.edge_sel.write(EDGE_SEL::EDGE_SEL29::CLEAR);
+                port.registers.icr2.modify(ICR2::ICR29.val(0b11 as u32));
+            }
+            0b011110 => {
+                port.registers.edge_sel.write(EDGE_SEL::EDGE_SEL30::CLEAR);
+                port.registers.icr2.modify(ICR2::ICR30.val(0b11 as u32));
+            }
+            0b011111 => {
+                port.registers.edge_sel.write(EDGE_SEL::EDGE_SEL31::CLEAR);
+                port.registers.icr2.modify(ICR2::ICR31.val(0b11 as u32));
+            }
+            _ => {}
+        }
+    }
+
+    fn select_either_trigger(&self) {
+        let port = self.pinid.get_port();
+        match self.pinid.get_pin_number() {
+            0b000000 => port.registers.edge_sel.write(EDGE_SEL::EDGE_SEL0::SET),
+            0b000001 => port.registers.edge_sel.write(EDGE_SEL::EDGE_SEL1::SET),
+            0b000010 => port.registers.edge_sel.write(EDGE_SEL::EDGE_SEL2::SET),
+            0b000011 => port.registers.edge_sel.write(EDGE_SEL::EDGE_SEL3::SET),
+            0b000100 => port.registers.edge_sel.write(EDGE_SEL::EDGE_SEL4::SET),
+            0b000101 => port.registers.edge_sel.write(EDGE_SEL::EDGE_SEL5::SET),
+            0b000110 => port.registers.edge_sel.write(EDGE_SEL::EDGE_SEL6::SET),
+            0b000111 => port.registers.edge_sel.write(EDGE_SEL::EDGE_SEL7::SET),
+            0b001000 => port.registers.edge_sel.write(EDGE_SEL::EDGE_SEL8::SET),
+            0b001001 => port.registers.edge_sel.write(EDGE_SEL::EDGE_SEL9::SET),
+            0b001010 => port.registers.edge_sel.write(EDGE_SEL::EDGE_SEL10::SET),
+            0b001011 => port.registers.edge_sel.write(EDGE_SEL::EDGE_SEL11::SET),
+            0b001100 => port.registers.edge_sel.write(EDGE_SEL::EDGE_SEL12::SET),
+            0b001101 => port.registers.edge_sel.write(EDGE_SEL::EDGE_SEL13::SET),
+            0b001110 => port.registers.edge_sel.write(EDGE_SEL::EDGE_SEL14::SET),
+            0b001111 => port.registers.edge_sel.write(EDGE_SEL::EDGE_SEL15::SET),
+            0b010000 => port.registers.edge_sel.write(EDGE_SEL::EDGE_SEL16::SET),
+            0b010001 => port.registers.edge_sel.write(EDGE_SEL::EDGE_SEL17::SET),
+            0b010010 => port.registers.edge_sel.write(EDGE_SEL::EDGE_SEL18::SET),
+            0b010011 => port.registers.edge_sel.write(EDGE_SEL::EDGE_SEL19::SET),
+            0b010100 => port.registers.edge_sel.write(EDGE_SEL::EDGE_SEL20::SET),
+            0b010101 => port.registers.edge_sel.write(EDGE_SEL::EDGE_SEL21::SET),
+            0b010110 => port.registers.edge_sel.write(EDGE_SEL::EDGE_SEL22::SET),
+            0b010111 => port.registers.edge_sel.write(EDGE_SEL::EDGE_SEL23::SET),
+            0b011000 => port.registers.edge_sel.write(EDGE_SEL::EDGE_SEL24::SET),
+            0b011001 => port.registers.edge_sel.write(EDGE_SEL::EDGE_SEL25::SET),
+            0b011010 => port.registers.edge_sel.write(EDGE_SEL::EDGE_SEL26::SET),
+            0b011011 => port.registers.edge_sel.write(EDGE_SEL::EDGE_SEL27::SET),
+            0b011100 => port.registers.edge_sel.write(EDGE_SEL::EDGE_SEL28::SET),
+            0b011101 => port.registers.edge_sel.write(EDGE_SEL::EDGE_SEL29::SET),
+            0b011110 => port.registers.edge_sel.write(EDGE_SEL::EDGE_SEL30::SET),
+            0b011111 => port.registers.edge_sel.write(EDGE_SEL::EDGE_SEL31::SET),
+            _ => {}
         }
     }
 }
@@ -1105,17 +2031,80 @@ impl hil::gpio::Input for Pin<'_> {
     }
 }
 
-/// Interrupt capabilities are not yet implemented
 impl<'a> hil::gpio::Interrupt<'a> for Pin<'a> {
-    fn enable_interrupts(&self, _mode: hil::gpio::InterruptEdge) {}
+    fn enable_interrupts(&self, mode: hil::gpio::InterruptEdge) {
+        unsafe {
+            atomic(|| {
+                // disable the interrupt
+                self.mask_interrupt();
+                self.clear_pending();
 
-    fn disable_interrupts(&self) {}
+                match mode {
+                    hil::gpio::InterruptEdge::EitherEdge => {
+                        self.select_either_trigger();
+                    }
+                    hil::gpio::InterruptEdge::RisingEdge => {
+                        self.select_rising_trigger();
+                    }
+                    hil::gpio::InterruptEdge::FallingEdge => {
+                        self.select_falling_trigger();
+                    }
+                }
+
+                self.unmask_interrupt();
+            });
+        }
+    }
+
+    fn disable_interrupts(&self) {
+        unsafe {
+            atomic(|| {
+                self.mask_interrupt();
+                self.clear_pending();
+            });
+        }
+    }
 
     fn set_client(&self, client: &'a dyn hil::gpio::Client) {
         self.client.set(client);
     }
 
     fn is_pending(&self) -> bool {
-        false
+        let port = self.pinid.get_port();
+        match self.pinid.get_pin_number() {
+            0b000000 => port.registers.isr.is_set(ISR::ISR0),
+            0b000001 => port.registers.isr.is_set(ISR::ISR1),
+            0b000010 => port.registers.isr.is_set(ISR::ISR2),
+            0b000011 => port.registers.isr.is_set(ISR::ISR3),
+            0b000100 => port.registers.isr.is_set(ISR::ISR4),
+            0b000101 => port.registers.isr.is_set(ISR::ISR5),
+            0b000110 => port.registers.isr.is_set(ISR::ISR6),
+            0b000111 => port.registers.isr.is_set(ISR::ISR7),
+            0b001000 => port.registers.isr.is_set(ISR::ISR8),
+            0b001001 => port.registers.isr.is_set(ISR::ISR9),
+            0b001010 => port.registers.isr.is_set(ISR::ISR10),
+            0b001011 => port.registers.isr.is_set(ISR::ISR11),
+            0b001100 => port.registers.isr.is_set(ISR::ISR12),
+            0b001101 => port.registers.isr.is_set(ISR::ISR13),
+            0b001110 => port.registers.isr.is_set(ISR::ISR14),
+            0b001111 => port.registers.isr.is_set(ISR::ISR15),
+            0b010000 => port.registers.isr.is_set(ISR::ISR16),
+            0b010001 => port.registers.isr.is_set(ISR::ISR17),
+            0b010010 => port.registers.isr.is_set(ISR::ISR18),
+            0b010011 => port.registers.isr.is_set(ISR::ISR19),
+            0b010100 => port.registers.isr.is_set(ISR::ISR20),
+            0b010101 => port.registers.isr.is_set(ISR::ISR21),
+            0b010110 => port.registers.isr.is_set(ISR::ISR22),
+            0b010111 => port.registers.isr.is_set(ISR::ISR23),
+            0b011000 => port.registers.isr.is_set(ISR::ISR24),
+            0b011001 => port.registers.isr.is_set(ISR::ISR25),
+            0b011010 => port.registers.isr.is_set(ISR::ISR26),
+            0b011011 => port.registers.isr.is_set(ISR::ISR27),
+            0b011100 => port.registers.isr.is_set(ISR::ISR28),
+            0b011101 => port.registers.isr.is_set(ISR::ISR29),
+            0b011110 => port.registers.isr.is_set(ISR::ISR30),
+            0b011111 => port.registers.isr.is_set(ISR::ISR31),
+            _ => false,
+        }
     }
 }

@@ -1,3 +1,4 @@
+use crate::iomuxc_snvs::IOMUXC_SNVS;
 use enum_primitive::cast::FromPrimitive;
 use enum_primitive::enum_from_primitive;
 use kernel::common::registers::{register_bitfields, ReadWrite};
@@ -215,7 +216,7 @@ pub struct Iomuxc {
 
 pub static mut IOMUXC: Iomuxc = Iomuxc::new();
 
-// Most of the gpio pins are grouped in the following 7 pads:
+// Most of the gpio pins are grouped in the following 8 pads:
 #[repr(u32)]
 pub enum PadId {
     EMC = 0b000,
@@ -225,6 +226,7 @@ pub enum PadId {
     B1 = 0b100,
     SdB0 = 0b101,
     SdB1 = 0b110,
+    Snvs = 0b111,
 }
 
 // Sion - Software Input On Field [^1], forces input path of pad, or lets
@@ -371,6 +373,7 @@ impl Iomuxc {
             PadId::SdB1 => {
                 self.registers.sw_mux_ctl_pad_gpio_sd_b1[pin].is_set(SW_MUX_CTL_PAD_GPIO::MUX_MODE)
             }
+            PadId::Snvs => unsafe { IOMUXC_SNVS.is_enabled_sw_mux_ctl_pad_gpio_mode(pin) },
         }
     }
 
@@ -419,6 +422,9 @@ impl Iomuxc {
                         + SW_MUX_CTL_PAD_GPIO::SION.val(sion as u32),
                 );
             }
+            PadId::Snvs => unsafe {
+                IOMUXC_SNVS.enable_sw_mux_ctl_pad_gpio(mode, sion, pin);
+            },
         }
     }
 
@@ -460,6 +466,7 @@ impl Iomuxc {
                     SW_MUX_CTL_PAD_GPIO::MUX_MODE::CLEAR + SW_MUX_CTL_PAD_GPIO::SION::CLEAR,
                 );
             }
+            PadId::Snvs => unsafe { IOMUXC_SNVS.disable_sw_mux_ctl_pad_gpio(pin) },
         }
     }
 
@@ -539,6 +546,9 @@ impl Iomuxc {
                         + SW_PAD_CTL_PAD_GPIO::DSE.val(dse as u32),
                 );
             }
+            PadId::Snvs => unsafe {
+                IOMUXC_SNVS.configure_sw_pad_ctl_pad_gpio(pin, pus, pke, ode, speed, dse);
+            },
         }
     }
 
