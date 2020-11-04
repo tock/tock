@@ -4,7 +4,6 @@ use core::cell::Cell;
 use kernel::debug;
 use kernel::hil;
 use kernel::hil::i2c::I2CMaster;
-use sam4l::i2c;
 
 // ===========================================
 // Scan for I2C Slaves
@@ -12,11 +11,17 @@ use sam4l::i2c;
 
 struct ScanClient {
     dev_id: Cell<u8>,
+    i2c_master: &'static dyn I2CMaster,
 }
 
-static mut SCAN_CLIENT: ScanClient = ScanClient {
-    dev_id: Cell::new(1),
-};
+impl ScanClient {
+    pub fn new(i2c_master: &'static dyn I2CMaster) -> Self {
+        Self {
+            dev_id: Cell::new(1),
+            i2c_master,
+        }
+    }
+}
 
 impl hil::i2c::I2CHwMasterClient for ScanClient {
     fn command_complete(&self, buffer: &'static mut [u8], error: hil::i2c::Error) {
@@ -26,7 +31,7 @@ impl hil::i2c::I2CHwMasterClient for ScanClient {
             debug!("{:#x}", dev_id);
         }
 
-        let dev: &mut dyn I2CMaster = unsafe { &mut i2c::I2C2 };
+        let dev: &dyn I2CMaster = self.i2c_master;
         if dev_id < 0x7F {
             dev_id += 1;
             self.dev_id.set(dev_id);
@@ -40,15 +45,15 @@ impl hil::i2c::I2CHwMasterClient for ScanClient {
     }
 }
 
-pub fn i2c_scan_slaves() {
+/// This test should be called with I2C2, specifically
+pub fn i2c_scan_slaves(i2c_master: &'static mut dyn I2CMaster) {
     static mut DATA: [u8; 255] = [0; 255];
 
-    let dev = unsafe { &mut i2c::I2C2 };
+    let dev = i2c_master;
 
-    let i2c_client = unsafe { &SCAN_CLIENT };
+    let i2c_client = unsafe { kernel::static_init!(ScanClient, ScanClient::new(dev)) };
     dev.set_master_client(i2c_client);
 
-    let dev: &mut dyn I2CMaster = dev;
     dev.enable();
 
     debug!("Scanning for I2C devices...");
@@ -69,15 +74,21 @@ enum AccelClientState {
 
 struct AccelClient {
     state: Cell<AccelClientState>,
+    i2c_master: &'static dyn I2CMaster,
 }
 
-static mut ACCEL_CLIENT: AccelClient = AccelClient {
-    state: Cell::new(AccelClientState::ReadingWhoami),
-};
+impl AccelClient {
+    pub fn new(i2c_master: &'static dyn I2CMaster) -> Self {
+        Self {
+            state: Cell::new(AccelClientState::ReadingWhoami),
+            i2c_master,
+        }
+    }
+}
 
 impl hil::i2c::I2CHwMasterClient for AccelClient {
     fn command_complete(&self, buffer: &'static mut [u8], error: hil::i2c::Error) {
-        let dev = unsafe { &mut i2c::I2C2 };
+        let dev = self.i2c_master;
 
         match self.state.get() {
             AccelClientState::ReadingWhoami => {
@@ -130,12 +141,13 @@ impl hil::i2c::I2CHwMasterClient for AccelClient {
     }
 }
 
-pub fn i2c_accel_test() {
+/// This test should be called with I2C2, specifically
+pub fn i2c_accel_test(i2c_master: &'static dyn I2CMaster) {
     static mut DATA: [u8; 255] = [0; 255];
 
-    let dev = unsafe { &mut i2c::I2C2 };
+    let dev = i2c_master;
 
-    let i2c_client = unsafe { &ACCEL_CLIENT };
+    let i2c_client = unsafe { kernel::static_init!(AccelClient, AccelClient::new(dev)) };
     dev.set_master_client(i2c_client);
     dev.enable();
 
@@ -158,15 +170,21 @@ enum LiClientState {
 
 struct LiClient {
     state: Cell<LiClientState>,
+    i2c_master: &'static dyn I2CMaster,
 }
 
-static mut LI_CLIENT: LiClient = LiClient {
-    state: Cell::new(LiClientState::Enabling),
-};
+impl LiClient {
+    pub fn new(i2c_master: &'static dyn I2CMaster) -> Self {
+        Self {
+            state: Cell::new(LiClientState::Enabling),
+            i2c_master,
+        }
+    }
+}
 
 impl hil::i2c::I2CHwMasterClient for LiClient {
     fn command_complete(&self, buffer: &'static mut [u8], error: hil::i2c::Error) {
-        let dev = unsafe { &mut i2c::I2C2 };
+        let dev = self.i2c_master;
 
         match self.state.get() {
             LiClientState::Enabling => {
@@ -187,17 +205,17 @@ impl hil::i2c::I2CHwMasterClient for LiClient {
     }
 }
 
-pub fn i2c_li_test() {
+/// This test should be called with I2C2, specifically
+pub fn i2c_li_test(i2c_master: &'static dyn I2CMaster) {
     static mut DATA: [u8; 255] = [0; 255];
 
-    unsafe {
-        sam4l::gpio::PA[16].enable_output();
-        sam4l::gpio::PA[16].set();
-    }
+    let pin = sam4l::gpio::GPIOPin::new(sam4l::gpio::Pin::PA16);
+    pin.enable_output();
+    pin.set();
 
-    let dev = unsafe { &mut i2c::I2C2 };
+    let dev = i2c_master;
 
-    let i2c_client = unsafe { &LI_CLIENT };
+    let i2c_client = unsafe { kernel::static_init!(LiClient, LiClient::new(dev)) };
     dev.set_master_client(i2c_client);
     dev.enable();
 

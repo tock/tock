@@ -9,6 +9,7 @@
 #![feature(const_in_array_repeat_expressions)]
 #![deny(missing_docs)]
 
+use apollo3::chip::Apollo3DefaultPeripherals;
 use capsules::virtual_alarm::VirtualMuxAlarm;
 use kernel::capabilities;
 use kernel::common::dynamic_deferred_call::DynamicDeferredCall;
@@ -33,7 +34,7 @@ const NUM_PROCS: usize = 4;
 static mut PROCESSES: [Option<&'static dyn kernel::procs::ProcessType>; NUM_PROCS] = [None; 4];
 
 // Static reference to chip for panic dumps.
-static mut CHIP: Option<&'static apollo3::chip::Apollo3> = None;
+static mut CHIP: Option<&'static apollo3::chip::Apollo3<Apollo3DefaultPeripherals>> = None;
 
 // How should the kernel respond when a process faults.
 const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultResponse::Panic;
@@ -89,7 +90,14 @@ impl Platform for RedboardArtemisNano {
 pub unsafe fn reset_handler() {
     apollo3::init();
 
-    apollo3::clkgen::CLKGEN.set_clock_frequency(apollo3::clkgen::ClockFrequency::Freq48MHz);
+    let peripherals = static_init!(Apollo3DefaultPeripherals, Apollo3DefaultPeripherals::new());
+
+    // No need to statically allocate mcu/pwr/clk_ctrl because they are only used in main!
+    let mcu_ctrl = apollo3::mcuctrl::McuCtrl::new();
+    let pwr_ctrl = apollo3::pwrctrl::PwrCtrl::new();
+    let clkgen = apollo3::clkgen::ClkGen::new();
+
+    clkgen.set_clock_frequency(apollo3::clkgen::ClockFrequency::Freq48MHz);
 
     // initialize capabilities
     let process_mgmt_cap = create_capability!(capabilities::ProcessManagementCapability);
@@ -107,27 +115,28 @@ pub unsafe fn reset_handler() {
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
 
     // Power up components
-    apollo3::pwrctrl::PWRCTRL.enable_uart0();
-    apollo3::pwrctrl::PWRCTRL.enable_iom2();
+    pwr_ctrl.enable_uart0();
+    pwr_ctrl.enable_iom2();
 
     // Enable PinCfg
-    apollo3::gpio::PORT.enable_uart(&apollo3::gpio::PORT[48], &apollo3::gpio::PORT[49]);
+    &peripherals
+        .gpio_port
+        .enable_uart(&&peripherals.gpio_port[48], &&peripherals.gpio_port[49]);
     // Enable SDA and SCL for I2C2 (exposed via Qwiic)
-    apollo3::gpio::PORT.enable_i2c(&apollo3::gpio::PORT[25], &apollo3::gpio::PORT[27]);
+    &peripherals
+        .gpio_port
+        .enable_i2c(&&peripherals.gpio_port[25], &&peripherals.gpio_port[27]);
 
     // Configure kernel debug gpios as early as possible
     kernel::debug::assign_gpios(
-        Some(&apollo3::gpio::PORT[19]), // Blue LED
+        Some(&peripherals.gpio_port[19]), // Blue LED
         None,
         None,
     );
 
-    let chip = static_init!(apollo3::chip::Apollo3, apollo3::chip::Apollo3::new());
-    CHIP = Some(chip);
-
     // Create a shared UART channel for the console and for kernel debug.
     let uart_mux = components::console::UartMuxComponent::new(
-        &apollo3::uart::UART0,
+        &peripherals.uart0,
         115200,
         dynamic_deferred_caller,
     )
@@ -142,7 +151,7 @@ pub unsafe fn reset_handler() {
     let led = components::led::LedsComponent::new(components::led_component_helper!(
         apollo3::gpio::GpioPin,
         (
-            &apollo3::gpio::PORT[19],
+            &&peripherals.gpio_port[19],
             kernel::hil::gpio::ActivationMode::ActiveHigh
         )
     ))
@@ -154,21 +163,19 @@ pub unsafe fn reset_handler() {
         board_kernel,
         components::gpio_component_helper!(
             apollo3::gpio::GpioPin,
-            0 => &apollo3::gpio::PORT[13],  // A0
-            1 => &apollo3::gpio::PORT[33],  // A1
-            2 => &apollo3::gpio::PORT[11],  // A2
-            3 => &apollo3::gpio::PORT[29],  // A3
-            5 => &apollo3::gpio::PORT[31]  // A5
+            0 => &&peripherals.gpio_port[13],  // A0
+            1 => &&peripherals.gpio_port[33],  // A1
+            2 => &&peripherals.gpio_port[11],  // A2
+            3 => &&peripherals.gpio_port[29],  // A3
+            5 => &&peripherals.gpio_port[31]  // A5
         ),
     )
     .finalize(components::gpio_component_buf!(apollo3::gpio::GpioPin));
 
     // Create a shared virtualisation mux layer on top of a single hardware
     // alarm.
-    let alarm = &apollo3::stimer::STIMER;
-    alarm.start();
-
-    let mux_alarm = components::alarm::AlarmMuxComponent::new(alarm).finalize(
+    peripherals.stimer.start();
+    let mux_alarm = components::alarm::AlarmMuxComponent::new(&peripherals.stimer).finalize(
         components::alarm_mux_component_helper!(apollo3::stimer::STimer),
     );
     let alarm = components::alarm::AlarmDriverComponent::new(board_kernel, mux_alarm)
@@ -178,28 +185,27 @@ pub unsafe fn reset_handler() {
     let i2c_master = static_init!(
         capsules::i2c_master::I2CMasterDriver<apollo3::iom::Iom<'static>>,
         capsules::i2c_master::I2CMasterDriver::new(
-            &apollo3::iom::IOM2,
+            &peripherals.iom2,
             &mut capsules::i2c_master::BUF,
             board_kernel.create_grant(&memory_allocation_cap)
         )
     );
 
-    apollo3::iom::IOM2.set_master_client(i2c_master);
-    apollo3::iom::IOM2.enable();
+    &peripherals.iom2.set_master_client(i2c_master);
+    &peripherals.iom2.enable();
 
     // Setup BLE
-    apollo3::mcuctrl::MCUCTRL.enable_ble();
-    apollo3::clkgen::CLKGEN.enable_ble();
-    apollo3::pwrctrl::PWRCTRL.enable_ble();
-    apollo3::ble::BLE.setup_clocks();
-    apollo3::mcuctrl::MCUCTRL.reset_ble();
-    apollo3::ble::BLE.power_up();
-    apollo3::ble::BLE.ble_initialise();
+    mcu_ctrl.enable_ble();
+    clkgen.enable_ble();
+    pwr_ctrl.enable_ble();
+    &peripherals.ble.setup_clocks();
+    mcu_ctrl.reset_ble();
+    &peripherals.ble.power_up();
+    &peripherals.ble.ble_initialise();
 
-    let ble_radio =
-        ble::BLEComponent::new(board_kernel, &apollo3::ble::BLE, mux_alarm).finalize(());
+    let ble_radio = ble::BLEComponent::new(board_kernel, &peripherals.ble, mux_alarm).finalize(());
 
-    apollo3::mcuctrl::MCUCTRL.print_chip_revision();
+    mcu_ctrl.print_chip_revision();
 
     debug!("Initialization complete. Entering main loop");
 
@@ -215,14 +221,23 @@ pub unsafe fn reset_handler() {
         static _eappmem: u8;
     }
 
-    let artemis_nano = RedboardArtemisNano {
-        alarm,
-        console,
-        gpio,
-        led,
-        i2c_master,
-        ble_radio,
-    };
+    let artemis_nano = static_init!(
+        RedboardArtemisNano,
+        RedboardArtemisNano {
+            alarm,
+            console,
+            gpio,
+            led,
+            i2c_master,
+            ble_radio,
+        }
+    );
+
+    let chip = static_init!(
+        apollo3::chip::Apollo3<Apollo3DefaultPeripherals>,
+        apollo3::chip::Apollo3::new(peripherals)
+    );
+    CHIP = Some(chip);
 
     kernel::procs::load_processes(
         board_kernel,
@@ -247,5 +262,5 @@ pub unsafe fn reset_handler() {
     let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
         .finalize(components::rr_component_helper!(NUM_PROCS));
 
-    board_kernel.kernel_loop(&artemis_nano, chip, None, scheduler, &main_loop_cap);
+    board_kernel.kernel_loop(artemis_nano, chip, None, scheduler, &main_loop_cap);
 }

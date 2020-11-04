@@ -116,7 +116,7 @@ pub use crate::grant::Grant;
 pub use crate::mem::{AppSlice, Private, Shared};
 pub use crate::platform::scheduler_timer::{SchedulerTimer, VirtualSchedulerTimer};
 pub use crate::platform::watchdog;
-pub use crate::platform::{mpu, Chip, Platform};
+pub use crate::platform::{mpu, Chip, InterruptService, Platform};
 pub use crate::platform::{ClockInterface, NoClockControl, NO_CLOCK_CONTROL};
 pub use crate::returncode::ReturnCode;
 pub use crate::sched::cooperative::{CoopProcessNode, CooperativeSched};

@@ -152,6 +152,126 @@ impl<'a> IndexMut<usize> for Port<'a> {
 }
 
 impl<'a> Port<'a> {
+    pub const fn new_port_a() -> Self {
+        Self {
+            port: unsafe { StaticRef::new(BASE_ADDRESS as *const GpioRegisters) },
+            pins: [
+                GPIOPin::new(Pin::PA00),
+                GPIOPin::new(Pin::PA01),
+                GPIOPin::new(Pin::PA02),
+                GPIOPin::new(Pin::PA03),
+                GPIOPin::new(Pin::PA04),
+                GPIOPin::new(Pin::PA05),
+                GPIOPin::new(Pin::PA06),
+                GPIOPin::new(Pin::PA07),
+                GPIOPin::new(Pin::PA08),
+                GPIOPin::new(Pin::PA09),
+                GPIOPin::new(Pin::PA10),
+                GPIOPin::new(Pin::PA11),
+                GPIOPin::new(Pin::PA12),
+                GPIOPin::new(Pin::PA13),
+                GPIOPin::new(Pin::PA14),
+                GPIOPin::new(Pin::PA15),
+                GPIOPin::new(Pin::PA16),
+                GPIOPin::new(Pin::PA17),
+                GPIOPin::new(Pin::PA18),
+                GPIOPin::new(Pin::PA19),
+                GPIOPin::new(Pin::PA20),
+                GPIOPin::new(Pin::PA21),
+                GPIOPin::new(Pin::PA22),
+                GPIOPin::new(Pin::PA23),
+                GPIOPin::new(Pin::PA24),
+                GPIOPin::new(Pin::PA25),
+                GPIOPin::new(Pin::PA26),
+                GPIOPin::new(Pin::PA27),
+                GPIOPin::new(Pin::PA28),
+                GPIOPin::new(Pin::PA29),
+                GPIOPin::new(Pin::PA30),
+                GPIOPin::new(Pin::PA31),
+            ],
+        }
+    }
+
+    pub const fn new_port_b() -> Self {
+        Self {
+            port: unsafe { StaticRef::new((BASE_ADDRESS + 1 * SIZE) as *const GpioRegisters) },
+            pins: [
+                GPIOPin::new(Pin::PB00),
+                GPIOPin::new(Pin::PB01),
+                GPIOPin::new(Pin::PB02),
+                GPIOPin::new(Pin::PB03),
+                GPIOPin::new(Pin::PB04),
+                GPIOPin::new(Pin::PB05),
+                GPIOPin::new(Pin::PB06),
+                GPIOPin::new(Pin::PB07),
+                GPIOPin::new(Pin::PB08),
+                GPIOPin::new(Pin::PB09),
+                GPIOPin::new(Pin::PB10),
+                GPIOPin::new(Pin::PB11),
+                GPIOPin::new(Pin::PB12),
+                GPIOPin::new(Pin::PB13),
+                GPIOPin::new(Pin::PB14),
+                GPIOPin::new(Pin::PB15),
+                GPIOPin::new(Pin::PB16),
+                GPIOPin::new(Pin::PB17),
+                GPIOPin::new(Pin::PB18),
+                GPIOPin::new(Pin::PB19),
+                GPIOPin::new(Pin::PB20),
+                GPIOPin::new(Pin::PB21),
+                GPIOPin::new(Pin::PB22),
+                GPIOPin::new(Pin::PB23),
+                GPIOPin::new(Pin::PB24),
+                GPIOPin::new(Pin::PB25),
+                GPIOPin::new(Pin::PB26),
+                GPIOPin::new(Pin::PB27),
+                GPIOPin::new(Pin::PB28),
+                GPIOPin::new(Pin::PB29),
+                GPIOPin::new(Pin::PB30),
+                GPIOPin::new(Pin::PB31),
+            ],
+        }
+    }
+
+    pub const fn new_port_c() -> Self {
+        Self {
+            port: unsafe { StaticRef::new((BASE_ADDRESS + 2 * SIZE) as *const GpioRegisters) },
+            pins: [
+                GPIOPin::new(Pin::PC00),
+                GPIOPin::new(Pin::PC01),
+                GPIOPin::new(Pin::PC02),
+                GPIOPin::new(Pin::PC03),
+                GPIOPin::new(Pin::PC04),
+                GPIOPin::new(Pin::PC05),
+                GPIOPin::new(Pin::PC06),
+                GPIOPin::new(Pin::PC07),
+                GPIOPin::new(Pin::PC08),
+                GPIOPin::new(Pin::PC09),
+                GPIOPin::new(Pin::PC10),
+                GPIOPin::new(Pin::PC11),
+                GPIOPin::new(Pin::PC12),
+                GPIOPin::new(Pin::PC13),
+                GPIOPin::new(Pin::PC14),
+                GPIOPin::new(Pin::PC15),
+                GPIOPin::new(Pin::PC16),
+                GPIOPin::new(Pin::PC17),
+                GPIOPin::new(Pin::PC18),
+                GPIOPin::new(Pin::PC19),
+                GPIOPin::new(Pin::PC20),
+                GPIOPin::new(Pin::PC21),
+                GPIOPin::new(Pin::PC22),
+                GPIOPin::new(Pin::PC23),
+                GPIOPin::new(Pin::PC24),
+                GPIOPin::new(Pin::PC25),
+                GPIOPin::new(Pin::PC26),
+                GPIOPin::new(Pin::PC27),
+                GPIOPin::new(Pin::PC28),
+                GPIOPin::new(Pin::PC29),
+                GPIOPin::new(Pin::PC30),
+                GPIOPin::new(Pin::PC31),
+            ],
+        }
+    }
+
     pub fn handle_interrupt(&self) {
         let port: &GpioRegisters = &*self.port;
 
@@ -171,122 +291,6 @@ impl<'a> Port<'a> {
     }
 }
 
-/// Port A
-pub static mut PA: Port = Port {
-    port: unsafe { StaticRef::new(BASE_ADDRESS as *const GpioRegisters) },
-    pins: [
-        GPIOPin::new(Pin::PA00),
-        GPIOPin::new(Pin::PA01),
-        GPIOPin::new(Pin::PA02),
-        GPIOPin::new(Pin::PA03),
-        GPIOPin::new(Pin::PA04),
-        GPIOPin::new(Pin::PA05),
-        GPIOPin::new(Pin::PA06),
-        GPIOPin::new(Pin::PA07),
-        GPIOPin::new(Pin::PA08),
-        GPIOPin::new(Pin::PA09),
-        GPIOPin::new(Pin::PA10),
-        GPIOPin::new(Pin::PA11),
-        GPIOPin::new(Pin::PA12),
-        GPIOPin::new(Pin::PA13),
-        GPIOPin::new(Pin::PA14),
-        GPIOPin::new(Pin::PA15),
-        GPIOPin::new(Pin::PA16),
-        GPIOPin::new(Pin::PA17),
-        GPIOPin::new(Pin::PA18),
-        GPIOPin::new(Pin::PA19),
-        GPIOPin::new(Pin::PA20),
-        GPIOPin::new(Pin::PA21),
-        GPIOPin::new(Pin::PA22),
-        GPIOPin::new(Pin::PA23),
-        GPIOPin::new(Pin::PA24),
-        GPIOPin::new(Pin::PA25),
-        GPIOPin::new(Pin::PA26),
-        GPIOPin::new(Pin::PA27),
-        GPIOPin::new(Pin::PA28),
-        GPIOPin::new(Pin::PA29),
-        GPIOPin::new(Pin::PA30),
-        GPIOPin::new(Pin::PA31),
-    ],
-};
-
-/// Port B
-pub static mut PB: Port = Port {
-    port: unsafe { StaticRef::new((BASE_ADDRESS + 1 * SIZE) as *const GpioRegisters) },
-    pins: [
-        GPIOPin::new(Pin::PB00),
-        GPIOPin::new(Pin::PB01),
-        GPIOPin::new(Pin::PB02),
-        GPIOPin::new(Pin::PB03),
-        GPIOPin::new(Pin::PB04),
-        GPIOPin::new(Pin::PB05),
-        GPIOPin::new(Pin::PB06),
-        GPIOPin::new(Pin::PB07),
-        GPIOPin::new(Pin::PB08),
-        GPIOPin::new(Pin::PB09),
-        GPIOPin::new(Pin::PB10),
-        GPIOPin::new(Pin::PB11),
-        GPIOPin::new(Pin::PB12),
-        GPIOPin::new(Pin::PB13),
-        GPIOPin::new(Pin::PB14),
-        GPIOPin::new(Pin::PB15),
-        GPIOPin::new(Pin::PB16),
-        GPIOPin::new(Pin::PB17),
-        GPIOPin::new(Pin::PB18),
-        GPIOPin::new(Pin::PB19),
-        GPIOPin::new(Pin::PB20),
-        GPIOPin::new(Pin::PB21),
-        GPIOPin::new(Pin::PB22),
-        GPIOPin::new(Pin::PB23),
-        GPIOPin::new(Pin::PB24),
-        GPIOPin::new(Pin::PB25),
-        GPIOPin::new(Pin::PB26),
-        GPIOPin::new(Pin::PB27),
-        GPIOPin::new(Pin::PB28),
-        GPIOPin::new(Pin::PB29),
-        GPIOPin::new(Pin::PB30),
-        GPIOPin::new(Pin::PB31),
-    ],
-};
-
-/// Port C
-pub static mut PC: Port = Port {
-    port: unsafe { StaticRef::new((BASE_ADDRESS + 2 * SIZE) as *const GpioRegisters) },
-    pins: [
-        GPIOPin::new(Pin::PC00),
-        GPIOPin::new(Pin::PC01),
-        GPIOPin::new(Pin::PC02),
-        GPIOPin::new(Pin::PC03),
-        GPIOPin::new(Pin::PC04),
-        GPIOPin::new(Pin::PC05),
-        GPIOPin::new(Pin::PC06),
-        GPIOPin::new(Pin::PC07),
-        GPIOPin::new(Pin::PC08),
-        GPIOPin::new(Pin::PC09),
-        GPIOPin::new(Pin::PC10),
-        GPIOPin::new(Pin::PC11),
-        GPIOPin::new(Pin::PC12),
-        GPIOPin::new(Pin::PC13),
-        GPIOPin::new(Pin::PC14),
-        GPIOPin::new(Pin::PC15),
-        GPIOPin::new(Pin::PC16),
-        GPIOPin::new(Pin::PC17),
-        GPIOPin::new(Pin::PC18),
-        GPIOPin::new(Pin::PC19),
-        GPIOPin::new(Pin::PC20),
-        GPIOPin::new(Pin::PC21),
-        GPIOPin::new(Pin::PC22),
-        GPIOPin::new(Pin::PC23),
-        GPIOPin::new(Pin::PC24),
-        GPIOPin::new(Pin::PC25),
-        GPIOPin::new(Pin::PC26),
-        GPIOPin::new(Pin::PC27),
-        GPIOPin::new(Pin::PC28),
-        GPIOPin::new(Pin::PC29),
-        GPIOPin::new(Pin::PC30),
-        GPIOPin::new(Pin::PC31),
-    ],
-};
 pub struct GPIOPin<'a> {
     port: StaticRef<GpioRegisters>,
     pin_mask: u32,
@@ -294,7 +298,7 @@ pub struct GPIOPin<'a> {
 }
 
 impl<'a> GPIOPin<'a> {
-    const fn new(pin: Pin) -> GPIOPin<'a> {
+    pub const fn new(pin: Pin) -> GPIOPin<'a> {
         GPIOPin {
             port: unsafe {
                 StaticRef::new(

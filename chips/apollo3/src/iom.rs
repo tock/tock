@@ -8,13 +8,6 @@ use kernel::common::StaticRef;
 use kernel::hil;
 use kernel::hil::i2c;
 
-pub static mut IOM0: Iom = Iom::new(IOM0_BASE);
-pub static mut IOM1: Iom = Iom::new(IOM1_BASE);
-pub static mut IOM2: Iom = Iom::new(IOM2_BASE);
-pub static mut IOM3: Iom = Iom::new(IOM3_BASE);
-pub static mut IOM4: Iom = Iom::new(IOM4_BASE);
-pub static mut IOM5: Iom = Iom::new(IOM5_BASE);
-
 const IOM0_BASE: StaticRef<IomRegisters> =
     unsafe { StaticRef::new(0x5000_4000 as *const IomRegisters) };
 const IOM1_BASE: StaticRef<IomRegisters> =
@@ -281,9 +274,69 @@ pub struct Iom<'a> {
 }
 
 impl<'a> Iom<'_> {
-    pub const fn new(base: StaticRef<IomRegisters>) -> Iom<'a> {
+    pub const fn new0() -> Iom<'a> {
         Iom {
-            registers: base,
+            registers: IOM0_BASE,
+            master_client: OptionalCell::empty(),
+            buffer: TakeCell::empty(),
+            write_len: Cell::new(0),
+            write_index: Cell::new(0),
+            read_len: Cell::new(0),
+            read_index: Cell::new(0),
+            smbus: Cell::new(false),
+        }
+    }
+    pub const fn new1() -> Iom<'a> {
+        Iom {
+            registers: IOM1_BASE,
+            master_client: OptionalCell::empty(),
+            buffer: TakeCell::empty(),
+            write_len: Cell::new(0),
+            write_index: Cell::new(0),
+            read_len: Cell::new(0),
+            read_index: Cell::new(0),
+            smbus: Cell::new(false),
+        }
+    }
+    pub const fn new2() -> Iom<'a> {
+        Iom {
+            registers: IOM2_BASE,
+            master_client: OptionalCell::empty(),
+            buffer: TakeCell::empty(),
+            write_len: Cell::new(0),
+            write_index: Cell::new(0),
+            read_len: Cell::new(0),
+            read_index: Cell::new(0),
+            smbus: Cell::new(false),
+        }
+    }
+    pub const fn new3() -> Iom<'a> {
+        Iom {
+            registers: IOM3_BASE,
+            master_client: OptionalCell::empty(),
+            buffer: TakeCell::empty(),
+            write_len: Cell::new(0),
+            write_index: Cell::new(0),
+            read_len: Cell::new(0),
+            read_index: Cell::new(0),
+            smbus: Cell::new(false),
+        }
+    }
+    pub const fn new4() -> Iom<'a> {
+        Iom {
+            registers: IOM4_BASE,
+            master_client: OptionalCell::empty(),
+            buffer: TakeCell::empty(),
+            write_len: Cell::new(0),
+            write_index: Cell::new(0),
+            read_len: Cell::new(0),
+            read_index: Cell::new(0),
+            smbus: Cell::new(false),
+        }
+    }
+    pub const fn new5() -> Iom<'a> {
+        Iom {
+            registers: IOM5_BASE,
             master_client: OptionalCell::empty(),
             buffer: TakeCell::empty(),
             write_len: Cell::new(0),

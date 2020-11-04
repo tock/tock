@@ -237,7 +237,7 @@ impl<'a> Eic<'a> {
         }
     }
 
-    const fn new() -> Eic<'a> {
+    pub const fn new() -> Eic<'a> {
         Eic {
             callbacks: [
                 OptionalCell::empty(),
@@ -342,6 +342,3 @@ impl<'a> Eic<'a> {
         ((*line as u32) & regs.asynchronous.get()) != 0
     }
 }
-
-/// Static state to manage the EIC
-pub static mut EIC: Eic = Eic::new();

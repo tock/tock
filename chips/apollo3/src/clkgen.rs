@@ -3,8 +3,6 @@
 use kernel::common::registers::{register_bitfields, register_structs, ReadWrite};
 use kernel::common::StaticRef;
 
-pub static mut CLKGEN: ClkGen = ClkGen::new(CLKGEN_BASE);
-
 const CLKGEN_BASE: StaticRef<ClkGenRegisters> =
     unsafe { StaticRef::new(0x4000_4000 as *const ClkGenRegisters) };
 
@@ -58,8 +56,10 @@ pub struct ClkGen {
 }
 
 impl ClkGen {
-    pub const fn new(base: StaticRef<ClkGenRegisters>) -> ClkGen {
-        ClkGen { registers: base }
+    pub const fn new() -> ClkGen {
+        ClkGen {
+            registers: CLKGEN_BASE,
+        }
     }
 
     pub fn set_clock_frequency(&self, frequency: ClockFrequency) {

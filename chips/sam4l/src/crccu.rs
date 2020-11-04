@@ -238,9 +238,9 @@ pub struct Crccu<'a> {
 const DSCR_RESERVE: usize = 512 + 5 * 4;
 
 impl Crccu<'_> {
-    const fn new(base_address: StaticRef<CrccuRegisters>) -> Self {
+    pub const fn new() -> Self {
         Crccu {
-            registers: base_address,
+            registers: BASE_ADDRESS,
             client: OptionalCell::empty(),
             state: Cell::new(State::Invalid),
             alg: Cell::new(CrcAlg::Crc32C),
@@ -297,7 +297,7 @@ impl Crccu<'_> {
     }
 
     /// Handle an interrupt from the CRCCU
-    pub fn handle_interrupt(&mut self) {
+    pub fn handle_interrupt(&self) {
         if self.registers.isr.is_set(Interrupt::ERR) {
             // A CRC error has occurred
         }
@@ -392,6 +392,3 @@ impl<'a> crc::CRC<'a> for Crccu<'a> {
         Crccu::disable(self);
     }
 }
-
-/// Static state to manage the CRCCU
-pub static mut CRCCU: Crccu<'static> = Crccu::new(BASE_ADDRESS);

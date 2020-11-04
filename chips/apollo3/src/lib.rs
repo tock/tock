@@ -2,7 +2,7 @@
 
 #![crate_name = "apollo3"]
 #![crate_type = "rlib"]
-#![feature(llvm_asm, const_fn, naked_functions)]
+#![feature(llvm_asm, naked_functions, const_fn)]
 #![no_std]
 
 // Peripherals
@@ -89,7 +89,8 @@ pub unsafe fn init() {
     tock_rt0::init_data(&mut _etext, &mut _srelocate, &mut _erelocate);
     tock_rt0::zero_bss(&mut _szero, &mut _ezero);
 
-    cachectrl::CACHECTRL.enable_cache();
+    let cache_ctrl = crate::cachectrl::CacheCtrl::new();
+    cache_ctrl.enable_cache();
 
     // Explicitly tell the core where Tock's vector table is located. If Tock is the
     // only thing on the chip then this is effectively a no-op. If, however, there is

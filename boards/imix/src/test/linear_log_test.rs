@@ -34,9 +34,10 @@ storage_volume!(LINEAR_TEST_LOG, 1);
 pub unsafe fn run(
     mux_alarm: &'static MuxAlarm<'static, Ast>,
     deferred_caller: &'static DynamicDeferredCall,
+    flash_controller: &'static sam4l::flashcalw::FLASHCALW,
 ) {
     // Set up flash controller.
-    flashcalw::FLASH_CONTROLLER.configure();
+    flash_controller.configure();
     let pagebuffer = static_init!(flashcalw::Sam4lPage, flashcalw::Sam4lPage::default());
 
     // Create actual log storage abstraction on top of flash.
@@ -44,13 +45,13 @@ pub unsafe fn run(
         Log,
         log::Log::new(
             &LINEAR_TEST_LOG,
-            &flashcalw::FLASH_CONTROLLER,
+            &flash_controller,
             pagebuffer,
             deferred_caller,
             false
         )
     );
-    flash::HasClient::set_client(&flashcalw::FLASH_CONTROLLER, log);
+    flash::HasClient::set_client(flash_controller, log);
     log.initialize_callback_handle(
         deferred_caller
             .register(log)

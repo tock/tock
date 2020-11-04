@@ -19,16 +19,16 @@ use capsules::test::rng::TestRng;
 use kernel::hil::entropy::{Entropy32, Entropy8};
 use kernel::hil::rng::Rng;
 use kernel::static_init;
-use sam4l::trng::TRNG;
+use sam4l::trng::Trng;
 
-pub unsafe fn run_entropy32() {
-    let t = static_init_test_entropy32();
+pub unsafe fn run_entropy32(trng: &'static Trng) {
+    let t = static_init_test_entropy32(trng);
     t.run();
 }
 
-unsafe fn static_init_test_entropy32() -> &'static TestRng<'static> {
-    let e1 = static_init!(rng::Entropy32To8<'static>, rng::Entropy32To8::new(&TRNG));
-    TRNG.set_client(e1);
+unsafe fn static_init_test_entropy32(trng: &'static Trng) -> &'static TestRng<'static> {
+    let e1 = static_init!(rng::Entropy32To8<'static>, rng::Entropy32To8::new(trng));
+    trng.set_client(e1);
     let e2 = static_init!(rng::Entropy8To32<'static>, rng::Entropy8To32::new(e1));
     e1.set_client(e2);
     let er = static_init!(

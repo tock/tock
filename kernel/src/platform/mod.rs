@@ -139,6 +139,19 @@ pub trait Chip {
     unsafe fn print_state(&self, writer: &mut dyn Write);
 }
 
+/// Trait for objects that can map interrupts to hardware peripherals.
+/// Each chip should accept a generic argument of this type, and use it to
+/// map interrupts. This allows out-of-tree boards to exclude code for chip peripheral drivers
+/// they do not use.
+pub trait InterruptService<T> {
+    /// Service an interrupt, if supported by this chip. If this interrupt number is not supported,
+    /// return false.
+    unsafe fn service_interrupt(&self, interrupt: u32) -> bool;
+
+    /// Service a deferred call. If this task is not supported, return false.
+    unsafe fn service_deferred_call(&self, task: T) -> bool;
+}
+
 /// Generic operations that clock-like things are expected to support.
 pub trait ClockInterface {
     fn is_enabled(&self) -> bool;
