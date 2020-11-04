@@ -5,6 +5,10 @@ use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
 use kernel::hil;
 use kernel::ClockInterface;
+use kernel::ReturnCode;
+use kernel::hil::time::{
+    Freq2475MHz, Ticks, Ticks32, Time
+};
 
 use crate::ccm;
 use crate::nvic;
@@ -174,7 +178,7 @@ impl<'a> Gpt1<'a> {
         self.registers.sr.modify(SR::OF1::SET);
         self.registers.ir.modify(IR::OF1IE::CLEAR);
 
-        self.client.map(|client| client.fired());
+        self.client.map(|client| client.alarm());
     }
 
     pub fn start(&self) {
@@ -242,21 +246,46 @@ impl<'a> Gpt1<'a> {
     }
 }
 
+
+/// The frequency is dependent on the ARM_PLL1 frequency.
+/// In our case, we get a 24.75 MHz frequency for the timer.
+/// The frequency will be fixed when the ARM_PLL1 CLK will
+/// be correctly configured.
+impl hil::time::Time for Gpt1<'_> {
+    type Frequency = Freq2475MHz;
+    type Ticks = Ticks32;
+
+    fn now(&self) -> Ticks32 {
+        Ticks32::from(self.registers.cnt.get())
+    }
+}
+
 impl<'a> hil::time::Alarm<'a> for Gpt1<'a> {
-    fn set_client(&self, client: &'a dyn hil::time::AlarmClient) {
+    fn set_alarm_client(&self, client: &'a dyn hil::time::AlarmClient) {
         self.client.set(client);
     }
 
-    fn set_alarm(&self, tics: u32) {
-        self.registers.ocr1.set(tics);
+    fn set_alarm(&self, reference: Self::Ticks, dt: Self::Ticks) {
+        let mut expire = reference.wrapping_add(dt);
+        let now = self.now();
+        if !now.within_range(reference, expire) {
+            expire = now;
+        }
+
+        if expire.wrapping_sub(now) < self.minimum_dt() {
+            expire = now.wrapping_add(self.minimum_dt());
+        }
+
+        self.disarm();
+        self.registers.ocr1.set(expire.into_u32());
         self.registers.ir.modify(IR::OF1IE::SET);
     }
 
-    fn get_alarm(&self) -> u32 {
-        self.registers.ocr1.get()
+    fn get_alarm(&self) -> Self::Ticks {
+         Self::Ticks::from(self.registers.ocr1.get())
     }
 
-    fn disable(&self) {
+    fn disarm(&self) -> ReturnCode {
         unsafe {
             atomic(|| {
                 // Disable counter
@@ -264,27 +293,16 @@ impl<'a> hil::time::Alarm<'a> for Gpt1<'a> {
                 cortexm7::nvic::Nvic::new(self.irqn).clear_pending();
             });
         }
+        ReturnCode::SUCCESS
     }
 
-    fn is_enabled(&self) -> bool {
+    fn is_armed(&self) -> bool {
         // If alarm is enabled, then OF1IE is set
         self.registers.ir.is_set(IR::OF1IE)
     }
-}
 
-/// The frequency is dependent on the ARM_PLL1 frequency.
-/// In our case, we get a 24.75 MHz frequency for the timer.
-/// The frequency will be fixed when the ARM_PLL1 CLK will
-/// be correctly configured.
-impl hil::time::Time for Gpt1<'_> {
-    type Frequency = hil::time::Freq2475MHz;
-
-    fn now(&self) -> u32 {
-        self.registers.cnt.get()
-    }
-
-    fn max_tics(&self) -> u32 {
-        core::u32::MAX
+    fn minimum_dt(&self) -> Self::Ticks {
+        Self::Ticks::from(1)
     }
 }
 

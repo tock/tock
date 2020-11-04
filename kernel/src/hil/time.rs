@@ -288,6 +288,8 @@ pub struct Freq2475MHz;
 impl Frequency for Freq2475MHz {
     fn frequency() -> u32 {
         24750000
+    }
+}
 
 /// 1MHz `Frequency`
 #[derive(Debug)]

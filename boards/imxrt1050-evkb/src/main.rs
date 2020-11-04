@@ -6,14 +6,13 @@
 #![no_main]
 #![deny(missing_docs)]
 
-use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+use capsules::virtual_alarm::{VirtualMuxAlarm};
 use components::gpio::GpioComponent;
 use kernel::capabilities;
 use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::component::Component;
 use kernel::debug;
 use kernel::hil::gpio::Configure;
-use kernel::hil::time::Alarm;
 use kernel::Platform;
 use kernel::{create_capability, static_init};
 
@@ -301,24 +300,13 @@ pub unsafe fn reset_handler() {
     .finalize(components::button_component_buf!(imxrt1050::gpio::Pin));
 
     // ALARM
-    let mux_alarm = static_init!(
-        MuxAlarm<'static, imxrt1050::gpt1::Gpt1>,
-        MuxAlarm::new(&imxrt1050::gpt1::GPT1)
+    let gpt1 = &imxrt1050::gpt1::GPT1;
+    let mux_alarm = components::alarm::AlarmMuxComponent::new(gpt1).finalize(
+        components::alarm_mux_component_helper!(imxrt1050::gpt1::Gpt1),
     );
-    imxrt1050::gpt1::GPT1.set_client(mux_alarm);
 
-    let virtual_alarm = static_init!(
-        VirtualMuxAlarm<'static, imxrt1050::gpt1::Gpt1>,
-        VirtualMuxAlarm::new(mux_alarm)
-    );
-    let alarm = static_init!(
-        capsules::alarm::AlarmDriver<'static, VirtualMuxAlarm<'static, imxrt1050::gpt1::Gpt1>>,
-        capsules::alarm::AlarmDriver::new(
-            virtual_alarm,
-            board_kernel.create_grant(&memory_allocation_capability)
-        )
-    );
-    virtual_alarm.set_client(alarm);
+    let alarm = components::alarm::AlarmDriverComponent::new(board_kernel, mux_alarm)
+        .finalize(components::alarm_component_helper!(imxrt1050::gpt1::Gpt1));
 
     // GPIO
     // For now we expose only two pins
