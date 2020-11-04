@@ -342,7 +342,7 @@ pub struct DebugWriterWrapper {
 /// the UART provider and this debug module.
 pub struct DebugWriter {
     // What provides the actual writing mechanism.
-    uart: &'static dyn hil::uart::Transmit<'static>,
+    uart: Cell<&'static dyn hil::uart::Transmit<'static>>,
     // The buffer that is passed to the writing mechanism.
     output_buffer: TakeCell<'static, [u8]>,
     // An internal buffer that is used to hold debug!() calls as they come in.
@@ -381,11 +381,18 @@ impl DebugWriter {
         internal_buffer: &'static mut RingBuffer<'static, u8>,
     ) -> DebugWriter {
         DebugWriter {
-            uart: uart,
+            uart: Cell::new(uart),
             output_buffer: TakeCell::new(out_buffer),
             internal_buffer: TakeCell::new(internal_buffer),
             count: Cell::new(0), // how many debug! calls
         }
+    }
+
+    pub fn replace_uart(
+        &self,
+        new_uart: &'static dyn hil::uart::Transmit<'static>,
+    ) -> &'static dyn hil::uart::Transmit<'static> {
+        self.uart.replace(new_uart)
     }
 
     fn increment_count(&self) {
@@ -419,7 +426,7 @@ impl DebugWriter {
 
                 if count != 0 {
                     // Transmit the data in the output buffer.
-                    let (_rval, opt) = self.uart.transmit_buffer(out_buffer, count);
+                    let (_rval, opt) = self.uart.get().transmit_buffer(out_buffer, count);
                     self.output_buffer.put(opt);
                 }
             }

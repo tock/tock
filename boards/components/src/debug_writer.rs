@@ -34,7 +34,7 @@ unsafe impl capabilities::ProcessManagementCapability for Capability {}
 
 impl Component for DebugWriterComponent {
     type StaticInput = ();
-    type Output = ();
+    type Output = &'static kernel::debug::DebugWriter;
 
     unsafe fn finalize(self, _s: Self::StaticInput) -> Self::Output {
         // The sum of the output_buf and internal_buf is set to 1024 bytes in order to avoid excessive
@@ -60,5 +60,6 @@ impl Component for DebugWriterComponent {
             kernel::debug::DebugWriterWrapper::new(debugger)
         );
         kernel::debug::set_debug_writer_wrapper(debug_wrapper);
+        debugger
     }
 }
