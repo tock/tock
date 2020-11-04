@@ -7,55 +7,58 @@ use kernel::common::registers::{register_bitfields, register_structs, ReadOnly, 
 use kernel::common::StaticRef;
 use kernel::hil::gpio;
 
-pub static mut PINS: [Pin; 80] = [
-    Pin::new(PinNr::P01_0),
-    Pin::new(PinNr::P01_1),
-    Pin::new(PinNr::P01_2),
-    Pin::new(PinNr::P01_3),
-    Pin::new(PinNr::P01_4),
-    Pin::new(PinNr::P01_5),
-    Pin::new(PinNr::P01_6),
-    Pin::new(PinNr::P01_7),
-    Pin::new(PinNr::P02_0),
-    Pin::new(PinNr::P02_1),
-    Pin::new(PinNr::P02_2),
-    Pin::new(PinNr::P02_3),
-    Pin::new(PinNr::P02_4),
-    Pin::new(PinNr::P02_5),
-    Pin::new(PinNr::P02_6),
-    Pin::new(PinNr::P02_7),
-    Pin::new(PinNr::P03_0),
-    Pin::new(PinNr::P03_1),
-    Pin::new(PinNr::P03_2),
-    Pin::new(PinNr::P03_3),
-    Pin::new(PinNr::P03_4),
-    Pin::new(PinNr::P03_5),
-    Pin::new(PinNr::P03_6),
-    Pin::new(PinNr::P03_7),
-    Pin::new(PinNr::P04_0),
-    Pin::new(PinNr::P04_1),
-    Pin::new(PinNr::P04_2),
-    Pin::new(PinNr::P04_3),
-    Pin::new(PinNr::P04_4),
-    Pin::new(PinNr::P04_5),
-    Pin::new(PinNr::P04_6),
-    Pin::new(PinNr::P04_7),
-    Pin::new(PinNr::P05_0),
-    Pin::new(PinNr::P05_1),
-    Pin::new(PinNr::P05_2),
-    Pin::new(PinNr::P05_3),
-    Pin::new(PinNr::P05_4),
-    Pin::new(PinNr::P05_5),
-    Pin::new(PinNr::P05_6),
-    Pin::new(PinNr::P05_7),
-    Pin::new(PinNr::P06_0),
-    Pin::new(PinNr::P06_1),
-    Pin::new(PinNr::P06_2),
-    Pin::new(PinNr::P06_3),
-    Pin::new(PinNr::P06_4),
-    Pin::new(PinNr::P06_5),
-    Pin::new(PinNr::P06_6),
-    Pin::new(PinNr::P06_7),
+pub static mut INT_PINS: [IntPin; 48] = [
+    IntPin::new(IntPinNr::P01_0),
+    IntPin::new(IntPinNr::P01_1),
+    IntPin::new(IntPinNr::P01_2),
+    IntPin::new(IntPinNr::P01_3),
+    IntPin::new(IntPinNr::P01_4),
+    IntPin::new(IntPinNr::P01_5),
+    IntPin::new(IntPinNr::P01_6),
+    IntPin::new(IntPinNr::P01_7),
+    IntPin::new(IntPinNr::P02_0),
+    IntPin::new(IntPinNr::P02_1),
+    IntPin::new(IntPinNr::P02_2),
+    IntPin::new(IntPinNr::P02_3),
+    IntPin::new(IntPinNr::P02_4),
+    IntPin::new(IntPinNr::P02_5),
+    IntPin::new(IntPinNr::P02_6),
+    IntPin::new(IntPinNr::P02_7),
+    IntPin::new(IntPinNr::P03_0),
+    IntPin::new(IntPinNr::P03_1),
+    IntPin::new(IntPinNr::P03_2),
+    IntPin::new(IntPinNr::P03_3),
+    IntPin::new(IntPinNr::P03_4),
+    IntPin::new(IntPinNr::P03_5),
+    IntPin::new(IntPinNr::P03_6),
+    IntPin::new(IntPinNr::P03_7),
+    IntPin::new(IntPinNr::P04_0),
+    IntPin::new(IntPinNr::P04_1),
+    IntPin::new(IntPinNr::P04_2),
+    IntPin::new(IntPinNr::P04_3),
+    IntPin::new(IntPinNr::P04_4),
+    IntPin::new(IntPinNr::P04_5),
+    IntPin::new(IntPinNr::P04_6),
+    IntPin::new(IntPinNr::P04_7),
+    IntPin::new(IntPinNr::P05_0),
+    IntPin::new(IntPinNr::P05_1),
+    IntPin::new(IntPinNr::P05_2),
+    IntPin::new(IntPinNr::P05_3),
+    IntPin::new(IntPinNr::P05_4),
+    IntPin::new(IntPinNr::P05_5),
+    IntPin::new(IntPinNr::P05_6),
+    IntPin::new(IntPinNr::P05_7),
+    IntPin::new(IntPinNr::P06_0),
+    IntPin::new(IntPinNr::P06_1),
+    IntPin::new(IntPinNr::P06_2),
+    IntPin::new(IntPinNr::P06_3),
+    IntPin::new(IntPinNr::P06_4),
+    IntPin::new(IntPinNr::P06_5),
+    IntPin::new(IntPinNr::P06_6),
+    IntPin::new(IntPinNr::P06_7),
+];
+
+pub static mut PINS: [Pin; 40] = [
     Pin::new(PinNr::P07_0),
     Pin::new(PinNr::P07_1),
     Pin::new(PinNr::P07_2),
@@ -88,17 +91,14 @@ pub static mut PINS: [Pin; 80] = [
     Pin::new(PinNr::P10_5),
     Pin::new(PinNr::P10_6),
     Pin::new(PinNr::P10_7),
-];
-
-pub static mut PINS_J: [PinJ; 8] = [
-    PinJ::new(PinJNr::PJ_0),
-    PinJ::new(PinJNr::PJ_1),
-    PinJ::new(PinJNr::PJ_2),
-    PinJ::new(PinJNr::PJ_3),
-    PinJ::new(PinJNr::PJ_4),
-    PinJ::new(PinJNr::PJ_5),
-    PinJ::new(PinJNr::PJ_6),
-    PinJ::new(PinJNr::PJ_7),
+    Pin::new(PinNr::PJ_0),
+    Pin::new(PinNr::PJ_1),
+    Pin::new(PinNr::PJ_2),
+    Pin::new(PinNr::PJ_3),
+    Pin::new(PinNr::PJ_4),
+    Pin::new(PinNr::PJ_5),
+    Pin::new(PinNr::PJ_6),
+    Pin::new(PinNr::PJ_7),
 ];
 
 const GPIO_BASES: [StaticRef<GpioRegisters>; 6] = [
@@ -268,31 +268,25 @@ register_bitfields! [u16,
 #[rustfmt::skip]
 #[repr(u8)]
 #[derive(Copy, Clone)]
-pub enum PinNr {
+pub enum IntPinNr {
     P01_0, P01_1, P01_2, P01_3, P01_4, P01_5, P01_6, P01_7,
     P02_0, P02_1, P02_2, P02_3, P02_4, P02_5, P02_6, P02_7,
     P03_0, P03_1, P03_2, P03_3, P03_4, P03_5, P03_6, P03_7,
     P04_0, P04_1, P04_2, P04_3, P04_4, P04_5, P04_6, P04_7,
     P05_0, P05_1, P05_2, P05_3, P05_4, P05_5, P05_6, P05_7,
     P06_0, P06_1, P06_2, P06_3, P06_4, P06_5, P06_6, P06_7,
+}
+
+#[rustfmt::skip]
+#[allow(non_camel_case_types)]
+#[repr(u8)]
+#[derive(Copy, Clone)]
+pub enum PinNr {
     P07_0, P07_1, P07_2, P07_3, P07_4, P07_5, P07_6, P07_7,
     P08_0, P08_1, P08_2, P08_3, P08_4, P08_5, P08_6, P08_7,
     P09_0, P09_1, P09_2, P09_3, P09_4, P09_5, P09_6, P09_7,
     P10_0, P10_1, P10_2, P10_3, P10_4, P10_5, P10_6, P10_7,
-}
-
-#[allow(non_camel_case_types)]
-#[repr(u8)]
-#[derive(Copy, Clone)]
-pub enum PinJNr {
-    PJ_0,
-    PJ_1,
-    PJ_2,
-    PJ_3,
-    PJ_4,
-    PJ_5,
-    PJ_6,
-    PJ_7,
+    PJ_0,  PJ_1,  PJ_2,  PJ_3,  PJ_4,  PJ_5,  PJ_6,  PJ_7,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -304,7 +298,7 @@ enum ModuleFunction {
 }
 
 /// Supports interrupts
-pub struct Pin<'a> {
+pub struct IntPin<'a> {
     pin: u8,
     registers: StaticRef<GpioRegisters>,
     reg_idx: usize,
@@ -312,26 +306,14 @@ pub struct Pin<'a> {
     client: OptionalCell<&'a dyn gpio::Client>,
 }
 
-/// Doesn't support interrupts
-pub struct PinJ<'a> {
+/// Does not support interrupts
+pub struct Pin<'a> {
     pin: u8,
     registers: StaticRef<GpioRegisters>,
     reg_idx: usize,
     // Add the phantom data in order to make the macro implementation work
-    // because Pin requires a lifetime parameter
+    // because IntPin requires a lifetime parameter
     phantom: PhantomData<&'a ()>,
-}
-
-impl<'a> PinJ<'a> {
-    const fn new(pin: PinJNr) -> PinJ<'a> {
-        let pin_nr = (pin as u8) % PINS_PER_PORT;
-        PinJ {
-            pin: pin_nr,
-            registers: GPIO_BASES[5],
-            reg_idx: 0,
-            phantom: PhantomData,
-        }
-    }
 }
 
 impl<'a> Pin<'a> {
@@ -339,6 +321,19 @@ impl<'a> Pin<'a> {
         let pin_nr = (pin as u8) % PINS_PER_PORT;
         let p = (pin as u8) / PINS_PER_PORT;
         Pin {
+            pin: pin_nr,
+            registers: GPIO_BASES[3 + ((p / 2) as usize)],
+            reg_idx: (p % 2) as usize,
+            phantom: PhantomData,
+        }
+    }
+}
+
+impl<'a> IntPin<'a> {
+    const fn new(pin: IntPinNr) -> IntPin<'a> {
+        let pin_nr = (pin as u8) % PINS_PER_PORT;
+        let p = (pin as u8) / PINS_PER_PORT;
+        IntPin {
             pin: pin_nr,
             registers: GPIO_BASES[(p / 2) as usize],
             reg_idx: (p % 2) as usize,
@@ -540,10 +535,10 @@ macro_rules! pin_implementation {
     };
 }
 
+pin_implementation!(IntPin);
 pin_implementation!(Pin);
-pin_implementation!(PinJ);
 
-impl<'a> gpio::Interrupt<'a> for Pin<'a> {
+impl<'a> gpio::Interrupt<'a> for IntPin<'a> {
     fn set_client(&self, client: &'a dyn gpio::Client) {
         self.client.set(client);
     }
@@ -598,31 +593,26 @@ impl<'a> gpio::Interrupt<'a> for Pin<'a> {
     }
 }
 
-impl<'a> gpio::InterruptPin<'a> for Pin<'a> {}
+impl<'a> gpio::InterruptPin<'a> for IntPin<'a> {}
 
 pub fn handle_interrupt(port_idx: usize) {
-    let regs: StaticRef<GpioRegisters> = GPIO_BASES[port_idx];
-    let ifg0 = regs.ifg[0].get();
-    let ifg1 = regs.ifg[1].get();
+    let regs: StaticRef<GpioRegisters> = GPIO_BASES[port_idx / 2];
+    let ifgs: [u8; 2] = [regs.ifg[0].get(), regs.ifg[1].get()];
+
+    let handle_int = |ifg_idx: usize, i: usize| {
+        let bit = 1 << i;
+        if (ifgs[ifg_idx] & bit) > 0 {
+            unsafe {
+                INT_PINS[(port_idx * 8) + i].handle_interrupt();
+            }
+            // read back the current register value to avoid loosing interrupts which occured
+            // within this function
+            regs.ifg[ifg_idx].set(regs.ifg[ifg_idx].get() & !bit);
+        }
+    };
 
     for i in 0..8 {
-        let bit = 1 << i;
-        if (ifg0 & bit) > 0 {
-            unsafe {
-                PINS[(port_idx * 16) + i].handle_interrupt();
-            }
-            // read back the current register value to avoid loosing interrupts which occured
-            // within this function
-            regs.ifg[0].set(regs.ifg[0].get() & !bit);
-        }
-
-        if (ifg1 & bit) > 0 {
-            unsafe {
-                PINS[port_idx * 16 + 8 + i].handle_interrupt();
-            }
-            // read back the current register value to avoid loosing interrupts which occured
-            // within this function
-            regs.ifg[1].set(regs.ifg[1].get() & !bit);
-        }
+        handle_int(0, i);
+        handle_int(1, i);
     }
 }

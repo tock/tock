@@ -3,6 +3,9 @@
 DEFAULT_BOARD_CONFIGURATION=fpga_nexysvideo
 TARGET=riscv32imc-unknown-none-elf
 PLATFORM=opentitan
+FLASHID=--dev-id="0403:6010"
+RISC_PREFIX = riscv64-elf
+
 
 include ../Makefile.common
 
@@ -23,9 +26,9 @@ qemu-app: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf
 	qemu-system-riscv32 -M opentitan -kernel $^ -bios $(OPENTITAN_BOOT_ROM) -device loader,file=$(APP),addr=0x20030000 -nographic -serial mon:stdio
 
 flash: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).bin
-	$(OPENTITAN_TREE)/build-out/sw/host/spiflash/spiflash --input=$(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).bin
+	$(OPENTITAN_TREE)/build-out/sw/host/spiflash/spiflash $(FLASHID) --input=$(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).bin
 
 flash-app: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf
-	riscv64-elf-objcopy --update-section .apps=$(APP) $^ $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM)-app.elf
-	riscv64-elf-objcopy --output-target=binary $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM)-app.elf $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM)-app.bin
-	$(OPENTITAN_TREE)/build-out/sw/host/spiflash/spiflash --input=$(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM)-app.bin
+	$(RISC_PREFIX)-objcopy --update-section .apps=$(APP) $^ $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM)-app.elf
+	$(RISC_PREFIX)-objcopy --output-target=binary $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM)-app.elf $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM)-app.bin
+	$(OPENTITAN_TREE)/build-out/sw/host/spiflash/spiflash $(FLASHID) --input=$(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM)-app.bin

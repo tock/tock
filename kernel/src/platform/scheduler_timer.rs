@@ -3,7 +3,7 @@
 //! Interface for use by the Kernel to configure timers which can preempt
 //! userspace processes.
 
-use crate::hil::time::{self, Frequency};
+use crate::hil::time::{self, Frequency, Ticks};
 
 /// Interface for the system scheduler timer.
 ///
@@ -162,7 +162,7 @@ impl<A: 'static + time::Alarm<'static>> VirtualSchedulerTimer<A> {
 
 impl<A: 'static + time::Alarm<'static>> SchedulerTimer for VirtualSchedulerTimer<A> {
     fn reset(&self) {
-        self.alarm.disable();
+        self.alarm.disarm();
     }
 
     fn start(&self, us: u32) {
@@ -176,26 +176,31 @@ impl<A: 'static + time::Alarm<'static>> SchedulerTimer for VirtualSchedulerTimer
 
             (hertz * us / 1_000_000) as u32
         };
-        let fire_at = self.alarm.now().wrapping_add(tics);
-        self.alarm.set_alarm(fire_at);
-        self.alarm.disable(); //interrupts are off, but value is saved by MuxAlarm
+        let now = self.alarm.now();
+        let fire_at = now.wrapping_add(A::Ticks::from(tics));
+        self.alarm.set_alarm(now, fire_at);
     }
 
     fn arm(&self) {
-        self.alarm.enable();
+        //self.alarm.arm();
     }
 
     fn disarm(&self) {
-        self.alarm.disable();
+        //self.alarm.disarm();
     }
 
     fn get_remaining_us(&self) -> Option<u32> {
         // We need to convert from native tics to us, multiplication could overflow in 32-bit
         // arithmetic. So we convert to 64-bit.
 
-        let diff = self.alarm.get_alarm().wrapping_sub(self.alarm.now()) as u64;
+        let diff = self
+            .alarm
+            .get_alarm()
+            .wrapping_sub(self.alarm.now())
+            .into_u32() as u64;
+
         // If next alarm is more than one second away from now, alarm must have expired.
-        // Use this formulation to protect against errors when systick wraps around.
+        // Use this formulation to protect against errors when now has passed alarm.
         // 1 second was chosen because it is significantly greater than the 400ms max value allowed
         // by start(), and requires no computational overhead (e.g. using 500ms would require
         // dividing the returned ticks by 2)
@@ -212,7 +217,7 @@ impl<A: 'static + time::Alarm<'static>> SchedulerTimer for VirtualSchedulerTimer
 }
 
 impl<A: 'static + time::Alarm<'static>> time::AlarmClient for VirtualSchedulerTimer<A> {
-    fn fired(&self) {
+    fn alarm(&self) {
         // No need to handle the interrupt! The entire purpose of the interrupt
         // is to cause a transition to userspace, which already happens for any
         // mtimer interrupt, and the overflow check is sufficient to determine

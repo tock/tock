@@ -40,7 +40,6 @@ use core::cell::Cell;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::i2c;
 use kernel::hil::time;
-use kernel::hil::time::Frequency;
 use kernel::ReturnCode;
 
 // Buffer to use for I2C messages
@@ -136,10 +135,8 @@ impl<'a, A: time::Alarm<'a>> SI7021<'a, A> {
     }
 
     fn init_measurement(&self, buffer: &'static mut [u8]) {
-        let interval = (20 as u32) * <A::Frequency>::frequency() / 1000;
-
-        let tics = self.alarm.now().wrapping_add(interval);
-        self.alarm.set_alarm(tics);
+        let delay = A::ticks_from_ms(20);
+        self.alarm.set_alarm(self.alarm.now(), delay);
 
         // Now wait for timer to expire
         self.buffer.replace(buffer);
@@ -242,16 +239,12 @@ impl<'a, A: time::Alarm<'a>> i2c::I2CClient for SI7021<'a, A> {
 
 impl<'a, A: time::Alarm<'a>> kernel::hil::sensors::TemperatureDriver<'a> for SI7021<'a, A> {
     fn read_temperature(&self) -> kernel::ReturnCode {
-        self.buffer.take().map_or_else(
-            || {
-                if self.on_deck.get() != OnDeck::Nothing {
-                    ReturnCode::EBUSY
-                } else {
-                    self.on_deck.set(OnDeck::Temperature);
-                    ReturnCode::SUCCESS
-                }
-            },
-            |buffer| {
+        // This chip handles both humidity and temperature measurements. We can
+        // only start a new measurement if the chip is idle. If it isn't then we
+        // can put this request "on deck" and it will happen after the
+        // temperature measurement has finished.
+        if self.state.get() == State::Idle {
+            self.buffer.take().map_or(ReturnCode::EBUSY, |buffer| {
                 // turn on i2c to send commands
                 self.i2c.enable();
 
@@ -259,8 +252,16 @@ impl<'a, A: time::Alarm<'a>> kernel::hil::sensors::TemperatureDriver<'a> for SI7
                 self.i2c.write(buffer, 1);
                 self.state.set(State::TakeTempMeasurementInit);
                 ReturnCode::SUCCESS
-            },
-        )
+            })
+        } else {
+            // Queue this request if nothing else queued.
+            if self.on_deck.get() == OnDeck::Nothing {
+                self.on_deck.set(OnDeck::Temperature);
+                ReturnCode::SUCCESS
+            } else {
+                ReturnCode::EBUSY
+            }
+        }
     }
 
     fn set_client(&self, client: &'a dyn kernel::hil::sensors::TemperatureClient) {
@@ -270,16 +271,12 @@ impl<'a, A: time::Alarm<'a>> kernel::hil::sensors::TemperatureDriver<'a> for SI7
 
 impl<'a, A: time::Alarm<'a>> kernel::hil::sensors::HumidityDriver<'a> for SI7021<'a, A> {
     fn read_humidity(&self) -> kernel::ReturnCode {
-        self.buffer.take().map_or_else(
-            || {
-                if self.on_deck.get() != OnDeck::Nothing {
-                    ReturnCode::EBUSY
-                } else {
-                    self.on_deck.set(OnDeck::Humidity);
-                    ReturnCode::SUCCESS
-                }
-            },
-            |buffer| {
+        // This chip handles both humidity and temperature measurements. We can
+        // only start a new measurement if the chip is idle. If it isn't then we
+        // can put this request "on deck" and it will happen after the
+        // temperature measurement has finished.
+        if self.state.get() == State::Idle {
+            self.buffer.take().map_or(ReturnCode::EBUSY, |buffer| {
                 // turn on i2c to send commands
                 self.i2c.enable();
 
@@ -287,8 +284,17 @@ impl<'a, A: time::Alarm<'a>> kernel::hil::sensors::HumidityDriver<'a> for SI7021
                 self.i2c.write(buffer, 1);
                 self.state.set(State::TakeRhMeasurementInit);
                 ReturnCode::SUCCESS
-            },
-        )
+            })
+        } else {
+            // Not idle, so queue this request if nothing else is queued. If we have already
+            // queued a request return an error.
+            if self.on_deck.get() == OnDeck::Nothing {
+                self.on_deck.set(OnDeck::Humidity);
+                ReturnCode::SUCCESS
+            } else {
+                ReturnCode::EBUSY
+            }
+        }
     }
 
     fn set_client(&self, client: &'a dyn kernel::hil::sensors::HumidityClient) {
@@ -297,7 +303,7 @@ impl<'a, A: time::Alarm<'a>> kernel::hil::sensors::HumidityDriver<'a> for SI7021
 }
 
 impl<'a, A: time::Alarm<'a>> time::AlarmClient for SI7021<'a, A> {
-    fn fired(&self) {
+    fn alarm(&self) {
         self.buffer.take().map(|buffer| {
             // turn on i2c to send commands
             self.i2c.enable();

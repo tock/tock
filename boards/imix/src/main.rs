@@ -17,6 +17,7 @@ use capsules::net::ipv6::ip_utils::IPAddr;
 use capsules::virtual_alarm::VirtualMuxAlarm;
 use capsules::virtual_i2c::MuxI2C;
 use capsules::virtual_spi::VirtualSpiMasterDevice;
+//use capsules::virtual_timer::MuxTimer;
 use kernel::capabilities;
 use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::component::Component;
@@ -24,6 +25,7 @@ use kernel::hil::i2c::I2CMaster;
 use kernel::hil::radio;
 #[allow(unused_imports)]
 use kernel::hil::radio::{RadioConfig, RadioData};
+//use kernel::hil::time::Alarm;
 use kernel::hil::Controller;
 #[allow(unused_imports)]
 use kernel::{create_capability, debug, debug_gpio, static_init};
@@ -44,8 +46,6 @@ use components::spi::{SpiComponent, SpiSyscallComponent};
 use imix_components::adc::AdcComponent;
 use imix_components::fxos8700::NineDofComponent;
 use imix_components::rf233::RF233Component;
-use imix_components::udp_driver::UDPDriverComponent;
-use imix_components::udp_mux::UDPMuxComponent;
 use imix_components::usb::UsbComponent;
 
 /// Support routines for debugging I/O.
@@ -59,6 +59,15 @@ mod test;
 
 // Helper functions for enabling/disabling power on Imix submodules
 mod power;
+
+#[allow(dead_code)]
+mod alarm_test;
+
+#[allow(dead_code)]
+mod multi_alarm_test;
+
+#[allow(dead_code)]
+mod multi_timer_test;
 
 // State for loading apps.
 
@@ -101,7 +110,7 @@ struct Imix {
     temp: &'static capsules::temperature::TemperatureSensor<'static>,
     humidity: &'static capsules::humidity::HumiditySensor<'static>,
     ambient_light: &'static capsules::ambient_light::AmbientLight<'static>,
-    adc: &'static capsules::adc::Adc<'static, sam4l::adc::Adc>,
+    adc: &'static capsules::adc::AdcDedicated<'static, sam4l::adc::Adc>,
     led: &'static capsules::led::LED<'static, sam4l::gpio::GPIOPin<'static>>,
     button: &'static capsules::button::Button<'static, sam4l::gpio::GPIOPin<'static>>,
     rng: &'static capsules::rng::RngDriver<'static>,
@@ -453,7 +462,7 @@ pub unsafe fn reset_handler() {
         ]
     );
 
-    let (udp_send_mux, udp_recv_mux, udp_port_table) = UDPMuxComponent::new(
+    let (udp_send_mux, udp_recv_mux, udp_port_table) = components::udp_mux::UDPMuxComponent::new(
         mux_mac,
         DEFAULT_CTX_PREFIX_LEN,
         DEFAULT_CTX_PREFIX,
@@ -463,17 +472,17 @@ pub unsafe fn reset_handler() {
         local_ip_ifaces,
         mux_alarm,
     )
-    .finalize(());
+    .finalize(components::udp_mux_component_helper!(sam4l::ast::Ast));
 
     // UDP driver initialization happens here
-    let udp_driver = UDPDriverComponent::new(
+    let udp_driver = components::udp_driver::UDPDriverComponent::new(
         board_kernel,
         udp_send_mux,
         udp_recv_mux,
         udp_port_table,
         local_ip_ifaces,
     )
-    .finalize(());
+    .finalize(components::udp_driver_component_helper!(sam4l::ast::Ast));
 
     let imix = Imix {
         pconsole,
@@ -535,6 +544,20 @@ pub unsafe fn reset_handler() {
         mux_alarm,
     );*/
     //udp_lowpan_test.start();
+
+    // alarm_test::run_alarm();
+    /*let virtual_alarm_timer = static_init!(
+        VirtualMuxAlarm<'static, sam4l::ast::Ast>,
+        VirtualMuxAlarm::new(mux_alarm)
+    );
+
+    let mux_timer = static_init!(
+        MuxTimer<'static, sam4l::ast::Ast>,
+        MuxTimer::new(virtual_alarm_timer)
+    );*/
+    //virtual_alarm_timer.set_alarm_client(mux_timer);
+
+    //multi_alarm_test::run_multi_alarm(mux_alarm);
 
     debug!("Initialization complete. Entering main loop");
 

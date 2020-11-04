@@ -390,6 +390,13 @@ impl kernel::mpu::MPU for PMP {
             config.unused_region_number()?
         };
 
+        // App memory size is what we actual set the region to. So this region
+        // has to be aligned to 4 bytes.
+        let mut initial_app_memory_size: usize = initial_app_memory_size;
+        if initial_app_memory_size % 4 != 0 {
+            initial_app_memory_size += 4 - (initial_app_memory_size % 4);
+        }
+
         // Make sure there is enough memory for app memory and kernel memory.
         let mut region_size = cmp::max(
             min_memory_size,
@@ -411,7 +418,7 @@ impl kernel::mpu::MPU for PMP {
             return None;
         }
 
-        let region = PMPRegion::new(region_start as *const u8, region_size, permissions);
+        let region = PMPRegion::new(region_start as *const u8, initial_app_memory_size, permissions);
 
         config.regions[region_num] = Some(region);
         config.is_dirty.set(true);
@@ -432,7 +439,7 @@ impl kernel::mpu::MPU for PMP {
     ) -> Result<(), ()> {
         let region_num = config.app_memory_region.unwrap_or(0);
 
-        let (region_start, region_size) = match config.regions[region_num] {
+        let (region_start, _) = match config.regions[region_num] {
             Some(region) => region.location(),
             None => {
                 // Error: Process tried to update app memory MPU region before it was created.
@@ -447,6 +454,9 @@ impl kernel::mpu::MPU for PMP {
         if app_memory_break > kernel_memory_break {
             return Err(());
         }
+
+        // Get size of updated region
+        let region_size = app_memory_break - region_start as usize;
 
         let region = PMPRegion::new(region_start as *const u8, region_size, permissions);
 

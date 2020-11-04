@@ -52,6 +52,7 @@ members = [
 ]
 exclude = [
     "tools/alert_codes",
+    "tools/board-runner",
     "tools/qemu-runner",
     "tools/sha256sum",
     "tools/usb/bulk-echo",

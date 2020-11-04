@@ -108,7 +108,10 @@ supports reading and writing to a serial console with `tockloader listen`.
 If the kernel or an app encounter a `panic!()`, the panic handler specified in
 `io.rs` is called. This causes the kernel to stop. You will notice the yellow
 LED starts blinking in a repeating but slightly irregular pattern. There is also
-a panic print out that provides a fair bit of debugging information. However,
-currently that panic print info is transmitted over `UARTE0`, not the USB port.
-So, to view the panic info, you will need to connect to the two pins on the
-board labeled `TX1` and `RX0` and view the UART information there.
+a panic print out that provides a fair bit of debugging information. That panic
+output is output over the USB CDC connection and so should be visible as part
+of the output of `tockloader listen`, however if your kernel panics so early
+that the USB connection has not yet been established you will be unable to view
+any panic output. In this case, you can modify the panic handler to instead
+output panic information over the UART pins, but you will have to separately interface
+with the UART pins on the board in order to observe the serial output.

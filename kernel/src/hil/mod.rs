@@ -3,6 +3,7 @@
 pub mod adc;
 pub mod analog_comparator;
 pub mod ble_advertising;
+pub mod bus8080;
 pub mod crc;
 pub mod dac;
 pub mod digest;
@@ -26,6 +27,7 @@ pub mod time;
 pub mod touch;
 pub mod uart;
 pub mod usb;
+pub mod usb_hid;
 
 /// Shared interface for configuring components.
 pub trait Controller {

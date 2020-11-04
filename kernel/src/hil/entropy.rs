@@ -53,14 +53,14 @@
 //!
 //! impl<'a, A: Alarm<'a>> EntropyTest<'a, A> {
 //!     pub fn initialize(&self) {
-//!         let interval = 1 * <A::Frequency>::frequency();
-//!         let tics = self.alarm.now().wrapping_add(interval);
-//!         self.alarm.set_alarm(tics);
+//!         let now = self.alarm.now();
+//!         let dt = <A>::ticks_from_seconds(1);
+//!         self.alarm.set_alarm(now, dt);
 //!     }
 //! }
 //!
 //! impl<'a, A: Alarm<'a>> AlarmClient for EntropyTest<'a, A> {
-//!     fn fired(&self) {
+//!     fn alarm(&self) {
 //!         self.entropy.get();
 //!     }
 //! }
@@ -72,9 +72,9 @@
 //!         match entropy.next() {
 //!             Some(val) => {
 //!                 println!("Entropy {}", val);
-//!                 let interval = 1 * <A::Frequency>::frequency();
-//!                 let tics = self.alarm.now().wrapping_add(interval);
-//!                 self.alarm.set_alarm(tics);
+//!                 let now = self.alarm.now();
+//!                 let dt = <A>::ticks_from_seconds(1);
+//!                 self.alarm.set_alarm(now, dt);
 //!                 hil::entropy::Continue::Done
 //!             },
 //!             None => hil::entropy::Continue::More

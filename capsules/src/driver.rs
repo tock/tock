@@ -36,6 +36,7 @@ pub enum NUM {
     Rng                   = 0x40001,
     Crc                   = 0x40002,
     Hmac                  = 0x40003,
+    CtapHid               = 0x40004,
 
     // Storage
     AppFlash              = 0x50000,
@@ -47,6 +48,7 @@ pub enum NUM {
     Humidity              = 0x60001,
     AmbientLight          = 0x60002,
     NINEDOF               = 0x60004,
+    Proximity             = 0x60005,
 
     // Sensor ICs
     Tsl2561               = 0x70000,

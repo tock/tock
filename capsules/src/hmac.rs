@@ -246,7 +246,7 @@ impl<'a, H: digest::Digest<'a, T> + digest::HMACSha256, T: DigestType> digest::C
         });
     }
 
-    fn hash_done(&'a self, result: Result<(), ReturnCode>, digest: &mut T) {
+    fn hash_done(&'a self, result: Result<(), ReturnCode>, digest: &'static mut T) {
         self.appid.map(|id| {
             self.apps
                 .enter(*id, |app, _| {
@@ -279,6 +279,8 @@ impl<'a, H: digest::Digest<'a, T> + digest::HMACSha256, T: DigestType> digest::C
                     }
                 })
         });
+
+        self.dest_buffer.replace(digest);
     }
 }
 

@@ -3,7 +3,6 @@
 use core::fmt::Write;
 use core::hint::unreachable_unchecked;
 use kernel;
-use kernel::common::registers::FieldValue;
 use kernel::debug;
 use kernel::hil::time::Alarm;
 use kernel::Chip;
@@ -12,6 +11,7 @@ use rv32i::syscall::SysCall;
 use rv32i::PMPConfigMacro;
 
 use crate::chip_config::CONFIG;
+use crate::flash_ctrl;
 use crate::gpio;
 use crate::hmac;
 use crate::interrupts;
@@ -22,8 +22,6 @@ use crate::uart;
 use crate::usbdev;
 
 PMPConfigMacro!(4);
-
-pub const CHIP_FREQ: u32 = CONFIG.chip_freq;
 
 pub struct EarlGrey<A: 'static + Alarm<'static>> {
     userspace_kernel_boundary: SysCall,
@@ -69,7 +67,11 @@ impl<A: 'static + Alarm<'static>> EarlGrey<A> {
                         None,
                     );
                 }
-                _ => debug!("Pidx {}", interrupt),
+                interrupts::FLASH_PROG_EMPTY..=interrupts::FLASH_OP_ERROR => {
+                    flash_ctrl::FLASH_CTRL.handle_interrupt()
+                }
+
+                _ => debug!("Pidx {:#x}", interrupt),
             }
             plic::complete(interrupt);
         }
@@ -132,8 +134,6 @@ impl<A: 'static + Alarm<'static>> kernel::Chip for EarlGrey<A> {
     }
 
     fn service_pending_interrupts(&self) {
-        let mut reenable_intr = FieldValue::<u32, mie::Register>::new(0, 0, 0);
-
         loop {
             let mip = CSR.mip.extract();
 
@@ -141,13 +141,11 @@ impl<A: 'static + Alarm<'static>> kernel::Chip for EarlGrey<A> {
                 unsafe {
                     timer::TIMER.service_interrupt();
                 }
-                reenable_intr += mie::mtimer::SET;
             }
             if mip.is_set(mip::mext) {
                 unsafe {
                     self.handle_plic_interrupts();
                 }
-                reenable_intr += mie::mext::SET;
             }
 
             if !mip.matches_any(mip::mext::SET + mip::mtimer::SET) {
@@ -155,8 +153,9 @@ impl<A: 'static + Alarm<'static>> kernel::Chip for EarlGrey<A> {
             }
         }
 
-        // re-enable any interrupt classes which we handled
-        CSR.mie.modify(reenable_intr);
+        // Re-enable all MIE interrupts that we care about. Since we looped
+        // until we handled them all, we can re-enable all of them.
+        CSR.mie.modify(mie::mext::SET + mie::mtimer::SET);
     }
 
     fn has_pending_interrupts(&self) -> bool {
@@ -215,12 +214,12 @@ unsafe fn handle_interrupt(intr: mcause::Interrupt) {
         mcause::Interrupt::UserSoft
         | mcause::Interrupt::UserTimer
         | mcause::Interrupt::UserExternal => {
-            debug!("unexpected user-mode interrupt");
+            panic!("unexpected user-mode interrupt");
         }
         mcause::Interrupt::SupervisorExternal
         | mcause::Interrupt::SupervisorTimer
         | mcause::Interrupt::SupervisorSoft => {
-            debug!("unexpected supervisor-mode interrupt");
+            panic!("unexpected supervisor-mode interrupt");
         }
 
         mcause::Interrupt::MachineSoft => {
@@ -234,7 +233,7 @@ unsafe fn handle_interrupt(intr: mcause::Interrupt) {
         }
 
         mcause::Interrupt::Unknown => {
-            debug!("interrupt of unknown cause");
+            panic!("interrupt of unknown cause");
         }
     }
 }

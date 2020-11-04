@@ -142,9 +142,14 @@ impl kernel::SchedulerTimer for SysTick {
             .syst_rvr
             .write(ReloadValue::RELOAD.val(reload as u32));
         SYSTICK_BASE.syst_cvr.set(0);
+
+        // OK, arm it
+        // We really just need to set the TICKINT bit here, but can't use modify() because
+        // readying the CSR register will throw away evidence of expiration if one
+        // occurred, so we re-write entire value instead.
         SYSTICK_BASE
             .syst_csr
-            .write(ControlAndStatus::ENABLE::SET + clock_source);
+            .write(ControlAndStatus::TICKINT::SET + ControlAndStatus::ENABLE::SET + clock_source);
     }
 
     fn reset(&self) {

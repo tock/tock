@@ -12,7 +12,7 @@ You can get started with OpenTitan using either the Nexys Video FPGA board or si
 Programming
 -----------
 
-Tock on OpenTitan requires lowRISC/opentitan@60138bdcbef679c4acd42176190720ae860bdd4d or newer. In general it is recommended that users start with the latest OpenTitan bitstream and if that results in issues try the one mentioned above.
+Tock on OpenTitan requires lowRISC/opentitan@4429c362900713c059fbd870db140e0058e1c0eb or newer. In general it is recommended that users start with the latest OpenTitan bitstream and if that results in issues try the one mentioned above.
 
 For more information you can follow the [OpenTitan development flow](https://docs.opentitan.org/doc/ug/getting_started_fpga/index.html#testing-the-demo-design) to flash the image.
 

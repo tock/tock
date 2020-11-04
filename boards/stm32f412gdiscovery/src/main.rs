@@ -6,19 +6,24 @@
 // Disable this attribute when documenting, as a workaround for
 // https://github.com/rust-lang/rust/issues/62184.
 #![cfg_attr(not(doc), no_main)]
-#![feature(const_in_array_repeat_expressions)]
 #![deny(missing_docs)]
-
+#![feature(const_in_array_repeat_expressions)]
 use capsules::virtual_alarm::VirtualMuxAlarm;
 use components::gpio::GpioComponent;
 use kernel::capabilities;
 use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::component::Component;
+use kernel::hil::gpio;
+use kernel::hil::screen::ScreenRotation;
 use kernel::Platform;
 use kernel::{create_capability, debug, static_init};
+use stm32f412g::fsmc::FSMC;
 
 /// Support routines for debugging I/O.
 pub mod io;
+
+#[allow(dead_code)]
+mod multi_alarm_test;
 
 // Number of concurrent processes this platform supports.
 const NUM_PROCS: usize = 4;
@@ -49,9 +54,11 @@ struct STM32F412GDiscovery {
         VirtualMuxAlarm<'static, stm32f412g::tim2::Tim2<'static>>,
     >,
     gpio: &'static capsules::gpio::GPIO<'static, stm32f412g::gpio::Pin<'static>>,
-    adc: &'static capsules::adc::Adc<'static, stm32f412g::adc::Adc>,
+    adc: &'static capsules::adc::AdcVirtualized<'static>,
     ft6x06: &'static capsules::ft6x06::Ft6x06<'static>,
     touch: &'static capsules::touch::Touch<'static>,
+    screen: &'static capsules::screen::Screen<'static>,
+    temperature: &'static capsules::temperature::TemperatureSensor<'static>,
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
@@ -70,6 +77,8 @@ impl Platform for STM32F412GDiscovery {
             capsules::adc::DRIVER_NUM => f(Some(self.adc)),
             capsules::ft6x06::DRIVER_NUM => f(Some(self.ft6x06)),
             capsules::touch::DRIVER_NUM => f(Some(self.touch)),
+            capsules::screen::DRIVER_NUM => f(Some(self.screen)),
+            capsules::temperature::DRIVER_NUM => f(Some(self.temperature)),
             _ => f(None),
         }
     }
@@ -270,6 +279,52 @@ unsafe fn set_pin_primary_functions() {
 
     // EXTI9_5 interrupts is delivered at IRQn 23 (EXTI9_5)
     cortexm4::nvic::Nvic::new(stm32f412g::nvic::EXTI9_5).enable();
+
+    // LCD
+
+    let pins = [
+        PinId::PD00,
+        PinId::PD01,
+        PinId::PD04,
+        PinId::PD05,
+        PinId::PD08,
+        PinId::PD09,
+        PinId::PD10,
+        PinId::PD14,
+        PinId::PD15,
+        PinId::PD07,
+        PinId::PE07,
+        PinId::PE08,
+        PinId::PE09,
+        PinId::PE10,
+        PinId::PE11,
+        PinId::PE12,
+        PinId::PE13,
+        PinId::PE14,
+        PinId::PE15,
+        PinId::PF00,
+    ];
+
+    for pin in pins.iter() {
+        pin.get_pin().as_ref().map(|pin| {
+            pin.set_mode(stm32f412g::gpio::Mode::AlternateFunctionMode);
+            pin.set_floating_state(gpio::FloatingState::PullUp);
+            pin.set_speed();
+            pin.set_alternate_function(stm32f412g::gpio::AlternateFunction::AF12);
+        });
+    }
+
+    use kernel::hil::gpio::Output;
+
+    PinId::PF05.get_pin().as_ref().map(|pin| {
+        pin.make_output();
+        pin.set_floating_state(gpio::FloatingState::PullNone);
+        pin.set();
+    });
+
+    PinId::PG04.get_pin().as_ref().map(|pin| {
+        pin.make_input();
+    });
 }
 
 /// Helper function for miscellaneous peripheral functions
@@ -283,6 +338,9 @@ unsafe fn setup_peripherals() {
     TIM2.enable_clock();
     TIM2.start();
     cortexm4::nvic::Nvic::new(stm32f412g::nvic::TIM2).enable();
+
+    // FSMC
+    FSMC.enable();
 }
 
 /// Reset Handler.
@@ -486,8 +544,44 @@ pub unsafe fn reset_handler() {
     )
     .finalize(components::ft6x06_i2c_component_helper!(mux_i2c));
 
-    let touch = components::touch::TouchComponent::new(board_kernel, ft6x06, Some(ft6x06), None)
-        .finalize(());
+    let bus = components::bus::Bus8080BusComponent::new().finalize(
+        components::bus8080_bus_component_helper!(
+            // bus type
+            stm32f412g::fsmc::Fsmc,
+            // bus
+            &stm32f412g::fsmc::FSMC
+        ),
+    );
+
+    let tft = components::st77xx::ST77XXComponent::new(mux_alarm).finalize(
+        components::st77xx_component_helper!(
+            // screen
+            &capsules::st77xx::ST7789H2,
+            // bus type
+            capsules::bus::Bus8080Bus<'static, stm32f412g::fsmc::Fsmc>,
+            // bus
+            &bus,
+            // timer type
+            stm32f412g::tim2::Tim2,
+            // pin type
+            stm32f412g::gpio::Pin,
+            // dc pin (optional)
+            None,
+            // reset pin
+            stm32f412g::gpio::PinId::PD11.get_pin().as_ref().unwrap()
+        ),
+    );
+
+    tft.init();
+
+    let screen = components::screen::ScreenComponent::new(board_kernel, tft, Some(tft))
+        .finalize(components::screen_buffer_size!(57600));
+
+    let touch =
+        components::touch::TouchComponent::new(board_kernel, ft6x06, Some(ft6x06), Some(tft))
+            .finalize(());
+
+    touch.set_screen_rotation_offset(ScreenRotation::Rotated90);
 
     // Uncomment this for multi touch support
     // let touch =
@@ -495,31 +589,61 @@ pub unsafe fn reset_handler() {
     //         .finalize(());
 
     // ADC
-    let adc_channels = static_init!(
-        [&'static stm32f412g::adc::Channel; 6],
-        [
-            &stm32f412g::adc::Channel::Channel1,
-            &stm32f412g::adc::Channel::Channel11,
-            &stm32f412g::adc::Channel::Channel13,
-            &stm32f412g::adc::Channel::Channel14,
-            &stm32f412g::adc::Channel::Channel15,
-            &stm32f412g::adc::Channel::Channel8,
-        ]
-    );
+    let adc_mux = components::adc::AdcMuxComponent::new(&stm32f412g::adc::ADC1)
+        .finalize(components::adc_mux_component_helper!(stm32f412g::adc::Adc));
+
+    let temp_sensor = components::temperature_stm::TemperatureSTMComponent::new(2.5, 0.76)
+        .finalize(components::temperaturestm_adc_component_helper!(
+            // spi type
+            stm32f412g::adc::Adc,
+            // chip select
+            stm32f412g::adc::Channel::Channel18,
+            // spi mux
+            adc_mux
+        ));
     let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
-    let grant_adc = board_kernel.create_grant(&grant_cap);
-    let adc = static_init!(
-        capsules::adc::Adc<'static, stm32f412g::adc::Adc>,
-        capsules::adc::Adc::new(
-            &stm32f412g::adc::ADC1,
-            grant_adc,
-            adc_channels,
-            &mut capsules::adc::ADC_BUFFER1,
-            &mut capsules::adc::ADC_BUFFER2,
-            &mut capsules::adc::ADC_BUFFER3
-        )
+    let grant_temperature = board_kernel.create_grant(&grant_cap);
+
+    let temp = static_init!(
+        capsules::temperature::TemperatureSensor<'static>,
+        capsules::temperature::TemperatureSensor::new(temp_sensor, grant_temperature)
     );
-    stm32f412g::adc::ADC1.set_client(adc);
+    kernel::hil::sensors::TemperatureDriver::set_client(temp_sensor, temp);
+
+    let adc_channel_0 =
+        components::adc::AdcComponent::new(&adc_mux, stm32f412g::adc::Channel::Channel1)
+            .finalize(components::adc_component_helper!(stm32f412g::adc::Adc));
+
+    let adc_channel_1 =
+        components::adc::AdcComponent::new(&adc_mux, stm32f412g::adc::Channel::Channel11)
+            .finalize(components::adc_component_helper!(stm32f412g::adc::Adc));
+
+    let adc_channel_2 =
+        components::adc::AdcComponent::new(&adc_mux, stm32f412g::adc::Channel::Channel13)
+            .finalize(components::adc_component_helper!(stm32f412g::adc::Adc));
+
+    let adc_channel_3 =
+        components::adc::AdcComponent::new(&adc_mux, stm32f412g::adc::Channel::Channel14)
+            .finalize(components::adc_component_helper!(stm32f412g::adc::Adc));
+
+    let adc_channel_4 =
+        components::adc::AdcComponent::new(&adc_mux, stm32f412g::adc::Channel::Channel15)
+            .finalize(components::adc_component_helper!(stm32f412g::adc::Adc));
+
+    let adc_channel_5 =
+        components::adc::AdcComponent::new(&adc_mux, stm32f412g::adc::Channel::Channel8)
+            .finalize(components::adc_component_helper!(stm32f412g::adc::Adc));
+
+    let adc_syscall = components::adc::AdcVirtualComponent::new(board_kernel).finalize(
+        components::adc_syscall_component_helper!(
+            adc_channel_0,
+            adc_channel_1,
+            adc_channel_2,
+            adc_channel_3,
+            adc_channel_4,
+            adc_channel_5
+        ),
+    );
 
     let stm32f412g = STM32F412GDiscovery {
         console: console,
@@ -528,15 +652,19 @@ pub unsafe fn reset_handler() {
         button: button,
         alarm: alarm,
         gpio: gpio,
-        adc: adc,
+        adc: adc_syscall,
         ft6x06: ft6x06,
         touch: touch,
+        screen: screen,
+        temperature: temp,
     };
 
     // // Optional kernel tests
     // //
     // // See comment in `boards/imix/src/main.rs`
     // virtual_uart_rx_test::run_virtual_uart_receive(mux_uart);
+    // FSMC.write(0x04, 120);
+    // debug!("id {}", FSMC.read(0x05));
 
     debug!("Initialization complete. Entering main loop");
 
@@ -584,6 +712,9 @@ pub unsafe fn reset_handler() {
 
     let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
         .finalize(components::rr_component_helper!(NUM_PROCS));
+
+    //Uncomment to run multi alarm test
+    //multi_alarm_test::run_multi_alarm(mux_alarm);
 
     board_kernel.kernel_loop(
         &stm32f412g,

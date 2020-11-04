@@ -63,7 +63,7 @@ struct Hail {
         VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw>,
     >,
     nrf51822: &'static capsules::nrf51822_serialization::Nrf51822Serialization<'static>,
-    adc: &'static capsules::adc::Adc<'static, sam4l::adc::Adc>,
+    adc: &'static capsules::adc::AdcDedicated<'static, sam4l::adc::Adc>,
     led: &'static capsules::led::LED<'static, sam4l::gpio::GPIOPin<'static>>,
     button: &'static capsules::button::Button<'static, sam4l::gpio::GPIOPin<'static>>,
     rng: &'static capsules::rng::RngDriver<'static>,
@@ -343,8 +343,8 @@ pub unsafe fn reset_handler() {
         ]
     );
     let adc = static_init!(
-        capsules::adc::Adc<'static, sam4l::adc::Adc>,
-        capsules::adc::Adc::new(
+        capsules::adc::AdcDedicated<'static, sam4l::adc::Adc>,
+        capsules::adc::AdcDedicated::new(
             &sam4l::adc::ADC0,
             board_kernel.create_grant(&memory_allocation_capability),
             adc_channels,
@@ -363,10 +363,10 @@ pub unsafe fn reset_handler() {
         board_kernel,
         components::gpio_component_helper!(
             sam4l::gpio::GPIOPin,
-            0 => &sam4l::gpio::PC[14], // D0
-            1 => &sam4l::gpio::PC[15], // D1
-            2 => &sam4l::gpio::PC[11], // D6
-            3 => &sam4l::gpio::PC[12]  // D7
+            0 => &sam4l::gpio::PB[14], // D0
+            1 => &sam4l::gpio::PB[15], // D1
+            2 => &sam4l::gpio::PB[11], // D6
+            3 => &sam4l::gpio::PB[12]  // D7
         ),
     )
     .finalize(components::gpio_component_buf!(sam4l::gpio::GPIOPin));

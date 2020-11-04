@@ -9,6 +9,7 @@
 #![feature(const_in_array_repeat_expressions)]
 #![deny(missing_docs)]
 
+use components::gpio::GpioComponent;
 use kernel::capabilities;
 use kernel::common::dynamic_deferred_call::DynamicDeferredCall;
 use kernel::common::dynamic_deferred_call::DynamicDeferredCallClientState;
@@ -18,6 +19,9 @@ use kernel::{create_capability, debug, static_init};
 
 /// Support routines for debugging I/O.
 pub mod io;
+
+#[allow(dead_code)]
+mod multi_alarm_test;
 
 /// Number of concurrent processes this platform supports.
 const NUM_PROCS: usize = 4;
@@ -40,13 +44,15 @@ pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 /// A structure representing this platform that holds references to all
 /// capsules for this platform.
 struct MspExp432P401R {
-    led: &'static capsules::led::LED<'static, msp432::gpio::Pin<'static>>,
+    led: &'static capsules::led::LED<'static, msp432::gpio::IntPin<'static>>,
     console: &'static capsules::console::Console<'static>,
-    button: &'static capsules::button::Button<'static, msp432::gpio::Pin<'static>>,
+    button: &'static capsules::button::Button<'static, msp432::gpio::IntPin<'static>>,
+    gpio: &'static capsules::gpio::GPIO<'static, msp432::gpio::IntPin<'static>>,
     alarm: &'static capsules::alarm::AlarmDriver<
         'static,
         capsules::virtual_alarm::VirtualMuxAlarm<'static, msp432::timer::TimerA<'static>>,
     >,
+    ipc: kernel::ipc::IPC,
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
@@ -59,7 +65,9 @@ impl Platform for MspExp432P401R {
             capsules::led::DRIVER_NUM => f(Some(self.led)),
             capsules::console::DRIVER_NUM => f(Some(self.console)),
             capsules::button::DRIVER_NUM => f(Some(self.button)),
+            capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
             capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
+            kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             _ => f(None),
         }
     }
@@ -98,25 +106,25 @@ pub unsafe fn reset_handler() {
     startup_intilialisation();
 
     // Setup the GPIO pins to use the HFXT (high frequency external) oscillator (48MHz)
-    msp432::gpio::PINS_J[msp432::gpio::PinJNr::PJ_2 as usize].enable_primary_function();
-    msp432::gpio::PINS_J[msp432::gpio::PinJNr::PJ_3 as usize].enable_primary_function();
+    msp432::gpio::PINS[msp432::gpio::PinNr::PJ_2 as usize].enable_primary_function();
+    msp432::gpio::PINS[msp432::gpio::PinNr::PJ_3 as usize].enable_primary_function();
 
     // Setup the GPIO pins to use the LFXT (low frequency external) oscillator (32.768kHz)
-    msp432::gpio::PINS_J[msp432::gpio::PinJNr::PJ_0 as usize].enable_primary_function();
-    msp432::gpio::PINS_J[msp432::gpio::PinJNr::PJ_1 as usize].enable_primary_function();
+    msp432::gpio::PINS[msp432::gpio::PinNr::PJ_0 as usize].enable_primary_function();
+    msp432::gpio::PINS[msp432::gpio::PinNr::PJ_1 as usize].enable_primary_function();
 
     // Setup the clocks: MCLK: 48MHz, HSMCLK: 12MHz, SMCLK: 1.5MHz, ACLK: 32.768kHz
     msp432::cs::CS.setup_clocks();
 
     debug::assign_gpios(
-        Some(&msp432::gpio::PINS[msp432::gpio::PinNr::P01_0 as usize]), // Red LED
-        Some(&msp432::gpio::PINS[msp432::gpio::PinNr::P03_5 as usize]),
-        Some(&msp432::gpio::PINS[msp432::gpio::PinNr::P03_7 as usize]),
+        Some(&msp432::gpio::INT_PINS[msp432::gpio::IntPinNr::P01_0 as usize]), // Red LED
+        Some(&msp432::gpio::INT_PINS[msp432::gpio::IntPinNr::P03_5 as usize]),
+        Some(&msp432::gpio::INT_PINS[msp432::gpio::IntPinNr::P03_7 as usize]),
     );
 
     // Setup pins for UART0
-    msp432::gpio::PINS[msp432::gpio::PinNr::P01_2 as usize].enable_primary_function();
-    msp432::gpio::PINS[msp432::gpio::PinNr::P01_3 as usize].enable_primary_function();
+    msp432::gpio::INT_PINS[msp432::gpio::IntPinNr::P01_2 as usize].enable_primary_function();
+    msp432::gpio::INT_PINS[msp432::gpio::IntPinNr::P01_3 as usize].enable_primary_function();
 
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
     let chip = static_init!(msp432::chip::Msp432, msp432::chip::Msp432::new());
@@ -126,39 +134,90 @@ pub unsafe fn reset_handler() {
     let button = components::button::ButtonComponent::new(
         board_kernel,
         components::button_component_helper!(
-            msp432::gpio::Pin,
+            msp432::gpio::IntPin,
             (
-                &msp432::gpio::PINS[msp432::gpio::PinNr::P01_1 as usize],
+                &msp432::gpio::INT_PINS[msp432::gpio::IntPinNr::P01_1 as usize],
                 kernel::hil::gpio::ActivationMode::ActiveLow,
                 kernel::hil::gpio::FloatingState::PullUp
             ),
             (
-                &msp432::gpio::PINS[msp432::gpio::PinNr::P01_4 as usize],
+                &msp432::gpio::INT_PINS[msp432::gpio::IntPinNr::P01_4 as usize],
                 kernel::hil::gpio::ActivationMode::ActiveLow,
                 kernel::hil::gpio::FloatingState::PullUp
             )
         ),
     )
-    .finalize(components::button_component_buf!(msp432::gpio::Pin));
+    .finalize(components::button_component_buf!(msp432::gpio::IntPin));
 
     // Setup LEDs
     let leds = components::led::LedsComponent::new(components::led_component_helper!(
-        msp432::gpio::Pin,
+        msp432::gpio::IntPin,
         (
-            &msp432::gpio::PINS[msp432::gpio::PinNr::P02_0 as usize],
+            &msp432::gpio::INT_PINS[msp432::gpio::IntPinNr::P02_0 as usize],
             kernel::hil::gpio::ActivationMode::ActiveHigh
         ),
         (
-            &msp432::gpio::PINS[msp432::gpio::PinNr::P02_1 as usize],
+            &msp432::gpio::INT_PINS[msp432::gpio::IntPinNr::P02_1 as usize],
             kernel::hil::gpio::ActivationMode::ActiveHigh
         ),
         (
-            &msp432::gpio::PINS[msp432::gpio::PinNr::P02_2 as usize],
+            &msp432::gpio::INT_PINS[msp432::gpio::IntPinNr::P02_2 as usize],
             kernel::hil::gpio::ActivationMode::ActiveHigh
         )
     ))
-    .finalize(components::led_component_buf!(msp432::gpio::Pin));
+    .finalize(components::led_component_buf!(msp432::gpio::IntPin));
 
+    // Setup user-GPIOs
+    let gpio = GpioComponent::new(
+        board_kernel,
+        components::gpio_component_helper!(
+            msp432::gpio::IntPin<'static>,
+            // Left outer connector, top to bottom
+            // 0 => &msp432::gpio::INT_PINS[msp432::gpio::IntPinNr::P06_0 as usize], // A15
+            1 => &msp432::gpio::INT_PINS[msp432::gpio::IntPinNr::P03_2 as usize],
+            2 => &msp432::gpio::INT_PINS[msp432::gpio::IntPinNr::P03_3 as usize],
+            // 3 => &msp432::gpio::INT_PINS[msp432::gpio::IntPinNr::P04_1 as usize], // A12
+            // 4 => &msp432::gpio::INT_PINS[msp432::gpio::IntPinNr::P04_3 as usize], // A10
+            5 => &msp432::gpio::INT_PINS[msp432::gpio::IntPinNr::P01_5 as usize],
+            // 6 => &msp432::gpio::INT_PINS[msp432::gpio::IntPinNr::P04_6 as usize], // A7
+            7 => &msp432::gpio::INT_PINS[msp432::gpio::IntPinNr::P06_5 as usize],
+            8 => &msp432::gpio::INT_PINS[msp432::gpio::IntPinNr::P06_4 as usize],
+            // Left inner connector, top to bottom
+            // 9 => &msp432::gpio::INT_PINS[msp432::gpio::IntPinNr::P06_1 as usize], // A14
+            // 10 => &msp432::gpio::INT_PINS[msp432::gpio::IntPinNr::P04_0 as usize], // A13
+            // 11 => &msp432::gpio::INT_PINS[msp432::gpio::IntPinNr::P04_2 as usize], // A11
+            // 12 => &msp432::gpio::INT_PINS[msp432::gpio::IntPinNr::P04_4 as usize], // A9
+            // 13 => &msp432::gpio::INT_PINS[msp432::gpio::IntPinNr::P04_5 as usize], // A8
+            // 14 => &msp432::gpio::INT_PINS[msp432::gpio::IntPinNr::P04_7 as usize], // A6
+            // 15 => &msp432::gpio::INT_PINS[msp432::gpio::IntPinNr::P05_4 as usize], // A1
+            // 16 => &msp432::gpio::INT_PINS[msp432::gpio::IntPinNr::P05_5 as usize], // A0
+            // Right inner connector, top to bottom
+            17 => &msp432::gpio::INT_PINS[msp432::gpio::IntPinNr::P02_7 as usize],
+            18 => &msp432::gpio::INT_PINS[msp432::gpio::IntPinNr::P02_6 as usize],
+            19 => &msp432::gpio::INT_PINS[msp432::gpio::IntPinNr::P02_4 as usize],
+            20 => &msp432::gpio::INT_PINS[msp432::gpio::IntPinNr::P05_6 as usize],
+            21 => &msp432::gpio::INT_PINS[msp432::gpio::IntPinNr::P06_6 as usize],
+            22 => &msp432::gpio::INT_PINS[msp432::gpio::IntPinNr::P06_7 as usize],
+            23 => &msp432::gpio::INT_PINS[msp432::gpio::IntPinNr::P02_3 as usize],
+            // 24 => &msp432::gpio::INT_PINS[msp432::gpio::IntPinNr::P05_1 as usize], // A4
+            // 25 => &msp432::gpio::INT_PINS[msp432::gpio::IntPinNr::P03_5 as usize], // debug-gpio
+            // 26 => &msp432::gpio::INT_PINS[msp432::gpio::IntPinNr::P03_7 as usize], // debug-gpio
+            // Right outer connector, top to bottom
+            27 => &msp432::gpio::INT_PINS[msp432::gpio::IntPinNr::P02_5 as usize],
+            28 => &msp432::gpio::INT_PINS[msp432::gpio::IntPinNr::P03_0 as usize],
+            29 => &msp432::gpio::INT_PINS[msp432::gpio::IntPinNr::P05_7 as usize],
+            30 => &msp432::gpio::INT_PINS[msp432::gpio::IntPinNr::P01_6 as usize],
+            31 => &msp432::gpio::INT_PINS[msp432::gpio::IntPinNr::P01_7 as usize],
+            // 32 => &msp432::gpio::INT_PINS[msp432::gpio::IntPinNr::P05_0 as usize], // A5
+            // 33 => &msp432::gpio::INT_PINS[msp432::gpio::IntPinNr::P05_2 as usize], // A3
+            34 => &msp432::gpio::INT_PINS[msp432::gpio::IntPinNr::P03_6 as usize]
+        ),
+    )
+    .finalize(components::gpio_component_buf!(
+        msp432::gpio::IntPin<'static>
+    ));
+
+    let memory_allocation_capability = create_capability!(capabilities::MemoryAllocationCapability);
     let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
     let process_management_capability =
         create_capability!(capabilities::ProcessManagementCapability);
@@ -194,7 +253,9 @@ pub unsafe fn reset_handler() {
         led: leds,
         console: console,
         button: button,
+        gpio: gpio,
         alarm: alarm,
+        ipc: kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability),
     };
 
     debug!("Initialization complete. Entering main loop");
@@ -230,10 +291,14 @@ pub unsafe fn reset_handler() {
 
     let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
         .finalize(components::rr_component_helper!(NUM_PROCS));
+
+    //Uncomment to run multi alarm test
+    //multi_alarm_test::run_multi_alarm(mux_alarm);
+
     board_kernel.kernel_loop(
         &msp_exp432p4014,
         chip,
-        None,
+        Some(&msp_exp432p4014.ipc),
         scheduler,
         &main_loop_capability,
     );

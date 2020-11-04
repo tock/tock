@@ -1140,8 +1140,14 @@ impl<'a> hil::usb::UsbController<'a> for Usb<'a> {
         };
     }
 
-    fn endpoint_in_out_enable(&self, _transfer_type: TransferType, _endpoint: usize) {
-        unimplemented!()
+    fn endpoint_in_out_enable(&self, transfer_type: TransferType, endpoint: usize) {
+        match transfer_type {
+            TransferType::Bulk => {
+                panic!("IN/OUT Bulk transfer is unsupported ");
+            }
+            _ => {}
+        }
+        self.endpoint_out_enable(transfer_type, endpoint)
     }
 
     fn endpoint_resume_in(&self, endpoint: usize) {

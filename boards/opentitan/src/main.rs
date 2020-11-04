@@ -16,7 +16,6 @@ use kernel::component::Component;
 use kernel::hil;
 use kernel::hil::i2c::I2CMaster;
 use kernel::hil::time::Alarm;
-use kernel::hil::usb::Client;
 use kernel::Chip;
 use kernel::Platform;
 use kernel::{create_capability, debug, static_init};
@@ -25,8 +24,12 @@ use rv32i::csr;
 #[allow(dead_code)]
 mod aes_test;
 
+#[allow(dead_code)]
+mod multi_alarm_test;
+
 pub mod io;
 pub mod usb;
+
 //
 // Actual memory for holding the active process structures. Need an empty list
 // at least.
@@ -64,11 +67,8 @@ struct OpenTitan {
         'static,
         capsules::virtual_uart::UartDevice<'static>,
     >,
-    usb: &'static capsules::usb::usb_user::UsbSyscallDriver<
-        'static,
-        capsules::usb::usbc_client::Client<'static, lowrisc::usbdev::Usb<'static>>,
-    >,
     i2c_master: &'static capsules::i2c_master::I2CMasterDriver<lowrisc::i2c::I2c<'static>>,
+    nonvolatile_storage: &'static capsules::nonvolatile_storage_driver::NonvolatileStorage<'static>,
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
@@ -84,8 +84,8 @@ impl Platform for OpenTitan {
             capsules::console::DRIVER_NUM => f(Some(self.console)),
             capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
             capsules::low_level_debug::DRIVER_NUM => f(Some(self.lldb)),
-            capsules::usb::usb_user::DRIVER_NUM => f(Some(self.usb)),
             capsules::i2c_master::DRIVER_NUM => f(Some(self.i2c_master)),
+            capsules::nonvolatile_storage_driver::DRIVER_NUM => f(Some(self.nonvolatile_storage)),
             _ => f(None),
         }
     }
@@ -197,7 +197,7 @@ pub unsafe fn reset_handler() {
         MuxAlarm<'static, earlgrey::timer::RvTimer>,
         MuxAlarm::new(alarm)
     );
-    hil::time::Alarm::set_client(&earlgrey::timer::TIMER, mux_alarm);
+    hil::time::Alarm::set_alarm_client(&earlgrey::timer::TIMER, mux_alarm);
 
     // Alarm
     let virtual_alarm_user = static_init!(
@@ -215,13 +215,13 @@ pub unsafe fn reset_handler() {
             board_kernel.create_grant(&memory_allocation_cap)
         )
     );
-    hil::time::Alarm::set_client(virtual_alarm_user, alarm);
+    hil::time::Alarm::set_alarm_client(virtual_alarm_user, alarm);
 
     let chip = static_init!(
         earlgrey::chip::EarlGrey<VirtualMuxAlarm<'static, earlgrey::timer::RvTimer>>,
         earlgrey::chip::EarlGrey::new(scheduler_timer_virtual_alarm)
     );
-    scheduler_timer_virtual_alarm.set_client(chip.scheduler_timer());
+    scheduler_timer_virtual_alarm.set_alarm_client(chip.scheduler_timer());
     CHIP = Some(chip);
 
     // Need to enable all interrupts for Tock Kernel
@@ -268,34 +268,30 @@ pub unsafe fn reset_handler() {
 
     earlgrey::i2c::I2C.set_master_client(i2c_master);
 
-    let usb = usb::UsbComponent::new(board_kernel).finalize(());
+    // USB support is currently broken in the OpenTitan hardware
+    // See https://github.com/lowRISC/opentitan/issues/2598 for more details
+    // let usb = usb::UsbComponent::new(board_kernel).finalize(());
 
-    // Create the strings we include in the USB descriptor.
-    let strings = static_init!(
-        [&str; 3],
-        [
-            "LowRISC.",           // Manufacturer
-            "OpenTitan - TockOS", // Product
-            "18d1:503a",          // Serial number
-        ]
-    );
+    // Kernel storage region, allocated with the storage_volume!
+    // macro in common/utils.rs
+    extern "C" {
+        /// Beginning on the ROM region containing app images.
+        static _sstorage: u8;
+        static _estorage: u8;
+    }
 
-    let cdc = components::cdc::CdcAcmComponent::new(
-        &earlgrey::usbdev::USB,
-        capsules::usb::cdc::MAX_CTRL_PACKET_SIZE_NRF52840,
-        0x18d1, // 0x18d1 Google Inc.
-        0x503a, // lowRISC generic FS USB
-        strings,
+    // Flash
+    let nonvolatile_storage = components::nonvolatile_storage::NonvolatileStorageComponent::new(
+        board_kernel,
+        &earlgrey::flash_ctrl::FLASH_CTRL,
+        0x20000000,                       // Start address for userspace accessible region
+        0x8000,                           // Length of userspace accessible region
+        &_sstorage as *const u8 as usize, // Start address of kernel region
+        &_estorage as *const u8 as usize - &_sstorage as *const u8 as usize, // Length of kernel region
     )
-    .finalize(components::usb_cdc_acm_component_helper!(
-        lowrisc::usbdev::Usb
+    .finalize(components::nv_storage_component_helper!(
+        lowrisc::flash_ctrl::FlashCtrl
     ));
-
-    // Configure the USB stack to enable a serial port over CDC-ACM.
-    cdc.enable();
-    cdc.attach();
-
-    debug!("OpenTitan initialisation complete. Entering main loop");
 
     /// These symbols are defined in the linker script.
     extern "C" {
@@ -316,8 +312,8 @@ pub unsafe fn reset_handler() {
         alarm: alarm,
         hmac,
         lldb: lldb,
-        usb,
         i2c_master,
+        nonvolatile_storage,
     };
 
     kernel::procs::load_processes(
@@ -339,6 +335,7 @@ pub unsafe fn reset_handler() {
         debug!("Error loading processes!");
         debug!("{:?}", err);
     });
+    debug!("OpenTitan initialisation complete. Entering main loop");
 
     let scheduler = components::sched::priority::PriorityComponent::new(board_kernel).finalize(());
     board_kernel.kernel_loop(&opentitan, chip, None, scheduler, &main_loop_cap);

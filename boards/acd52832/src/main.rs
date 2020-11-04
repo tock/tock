@@ -12,9 +12,11 @@ use kernel::capabilities;
 use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::component::Component;
 use kernel::hil;
+use kernel::hil::adc::Adc;
 use kernel::hil::entropy::Entropy32;
 use kernel::hil::gpio::{Configure, InterruptWithValue, Output};
 use kernel::hil::rng::Rng;
+use kernel::hil::time::{Alarm, Counter};
 #[allow(unused_imports)]
 use kernel::{create_capability, debug, debug_gpio, static_init};
 use nrf52832::gpio::Pin;
@@ -226,7 +228,7 @@ pub unsafe fn reset_handler() {
         capsules::virtual_alarm::MuxAlarm<'static, nrf52832::rtc::Rtc>,
         capsules::virtual_alarm::MuxAlarm::new(&nrf52832::rtc::RTC)
     );
-    hil::time::Alarm::set_client(rtc, mux_alarm);
+    rtc.set_alarm_client(mux_alarm);
 
     //
     // Timer/Alarm
@@ -249,7 +251,7 @@ pub unsafe fn reset_handler() {
             board_kernel.create_grant(&memory_allocation_capability)
         )
     );
-    hil::time::Alarm::set_client(alarm_driver_virtual_alarm, alarm);
+    alarm_driver_virtual_alarm.set_alarm_client(alarm);
 
     //
     // RTT and Console and `debug!()`
@@ -435,7 +437,7 @@ pub unsafe fn reset_handler() {
             board_kernel.create_grant(&memory_allocation_capability)
         )
     );
-    hil::time::Alarm::set_client(virtual_alarm_buzzer, buzzer);
+    virtual_alarm_buzzer.set_alarm_client(buzzer);
 
     // Start all of the clocks. Low power operation will require a better
     // approach than this.
