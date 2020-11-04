@@ -69,6 +69,7 @@ struct Imxrt1050EVKB {
         'static,
         VirtualMuxAlarm<'static, imxrt1050::gpt1::Gpt1<'static>>,
     >,
+    button: &'static capsules::button::Button<'static, imxrt1050::gpio::Pin<'static>>,
     console: &'static capsules::console::Console<'static>,
     gpio: &'static capsules::gpio::GPIO<'static, imxrt1050::gpio::Pin<'static>>,
     ipc: kernel::ipc::IPC,
@@ -84,6 +85,7 @@ impl Platform for Imxrt1050EVKB {
     {
         match driver_num {
             capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
+            capsules::button::DRIVER_NUM => f(Some(self.button)),
             capsules::console::DRIVER_NUM => f(Some(self.console)),
             capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
@@ -105,6 +107,7 @@ unsafe fn set_pin_primary_functions() {
     use imxrt1050::gpio::{PinId, PORT};
 
     CCM.enable_iomuxc_clock();
+    CCM.enable_iomuxc_snvs_clock();
 
     PORT[0].enable_clock();
 
@@ -138,6 +141,35 @@ unsafe fn set_pin_primary_functions() {
 
         // Configure kernel debug gpios as early as possible
         kernel::debug::assign_gpios(Some(pin), None, None);
+    });
+
+    // User_Button is connected to IOMUXC_SNVS_WAKEUP.
+    PORT[4].enable_clock();
+
+    // First we configure the pin in GPIO mode and disable the Software Input
+    // on Field, so that the Input Path is determined by functionality.
+    imxrt1050::iomuxc::IOMUXC.enable_sw_mux_ctl_pad_gpio(
+        PadId::Snvs,
+        MuxMode::ALT5, // ALT5 for AdB0_09: GPIO5_IO00 of instance: gpio5
+        Sion::Disabled,
+        0,
+    );
+
+    // Configure the pin resistance value, pull up or pull down and other
+    // physical aspects.
+    // imxrt1050::iomuxc::IOMUXC.configure_sw_pad_ctl_pad_gpio(
+    //     PadId::Snvs,
+    //     0,
+    //     PullUpDown::Pus0_100kOhmPullDown,   // 100K Ohm Pull Down
+    //     PullKeepEn::Pke1PullKeeperEnabled,  // Pull-down resistor or keep the previous value
+    //     OpenDrainEn::Ode0OpenDrainDisabled, // Output is CMOS, either 0 logic or 1 logic
+    //     Speed::Medium2,                     // Operating frequency: 100MHz - 150MHz
+    //     DriveStrength::DSE6, // Dual/Single voltage: 43/43 Ohm @ 1.8V, 40/26 Ohm @ 3.3V
+    // );
+
+    // Configuring the IOMUXC_SNVS_WAKEUP pin as input
+    PinId::Wakeup.get_pin().as_ref().map(|pin| {
+        pin.make_input();
     });
 }
 
@@ -266,6 +298,20 @@ pub unsafe fn reset_handler() {
         imxrt1050::gpio::Pin<'static>
     ));
 
+    // BUTTONs
+    let button = components::button::ButtonComponent::new(
+        board_kernel,
+        components::button_component_helper!(
+            imxrt1050::gpio::Pin,
+            (
+                imxrt1050::gpio::PinId::Wakeup.get_pin().as_ref().unwrap(),
+                kernel::hil::gpio::ActivationMode::ActiveHigh,
+                kernel::hil::gpio::FloatingState::PullDown
+            )
+        ),
+    )
+    .finalize(components::button_component_buf!(imxrt1050::gpio::Pin));
+
     // ALARM
     let mux_alarm = static_init!(
         MuxAlarm<'static, imxrt1050::gpt1::Gpt1>,
@@ -287,7 +333,7 @@ pub unsafe fn reset_handler() {
     virtual_alarm.set_client(alarm);
 
     // GPIO
-    // For now we expose only one pin
+    // For now we expose only two pins
     let gpio = GpioComponent::new(
         board_kernel,
         components::gpio_component_helper!(
@@ -374,6 +420,7 @@ pub unsafe fn reset_handler() {
         console: console,
         ipc: kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability),
         led: led,
+        button: button,
         ninedof: ninedof,
         alarm: alarm,
         gpio: gpio,
@@ -385,6 +432,15 @@ pub unsafe fn reset_handler() {
     // virtual_uart_rx_test::run_virtual_uart_receive(mux_uart);
 
     debug!("Tock OS initialization complete. Entering main loop");
+
+    // PinId::Wakeup.get_pin().as_ref().map(|pin| {
+    //     let mut val:bool;
+    //     for _ in 0..100 {
+    //         val = pin.read_input();
+    //         debug!("Val: {}", val);
+    //     }
+    // });
+
     extern "C" {
         /// Beginning of the ROM region containing app images.
         ///
