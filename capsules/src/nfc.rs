@@ -54,26 +54,39 @@ impl<'a> NfcDriver<'a> {
             return ReturnCode::EOFF;
         }
         match app.tx_buffer.take() {
-            Some(slice) => {
-                self.transmit(app_id, app, slice, len);
-                ReturnCode::SUCCESS
-            }
+            Some(slice) => self.transmit(app_id, app, slice, len),
             None => ReturnCode::EBUSY,
         }
     }
 
     /// Internal helper function for data transmission
-    fn transmit(&self, app_id: AppId, app: &mut App, slice: AppSlice<Shared, u8>, len: usize) {
+    fn transmit(
+        &self,
+        app_id: AppId,
+        app: &mut App,
+        slice: AppSlice<Shared, u8>,
+        len: usize,
+    ) -> ReturnCode {
         if self.tx_in_progress.is_none() {
             self.tx_in_progress.set(app_id);
-            self.tx_buffer.take().map(|buffer| {
-                for (i, c) in slice.as_ref().iter().enumerate() {
-                    buffer[i] = *c;
-                }
-                self.driver.transmit_buffer(buffer, len);
-            });
+            self.tx_buffer
+                .take()
+                .map(|buffer| {
+                    for (i, c) in slice.as_ref().iter().enumerate() {
+                        buffer[i] = *c;
+                    }
+                    let result = self.driver.transmit_buffer(buffer, len);
+                    if result.is_err() {
+                        let (err, buf) = result.unwrap_err();
+                        self.tx_buffer.replace(buf);
+                        return err;
+                    }
+                    ReturnCode::SUCCESS
+                })
+                .unwrap()
         } else {
             app.tx_buffer = Some(slice);
+            ReturnCode::EBUSY
         }
     }
 
@@ -88,11 +101,19 @@ impl<'a> NfcDriver<'a> {
         }
 
         if app.rx_buffer.is_some() {
-            self.rx_buffer.take().map(|buffer| {
-                self.rx_in_progress.set(app_id);
-                self.driver.receive_buffer(buffer);
-            });
-            ReturnCode::SUCCESS
+            self.rx_buffer
+                .take()
+                .map(|buffer| {
+                    self.rx_in_progress.set(app_id);
+                    let result = self.driver.receive_buffer(buffer);
+                    if result.is_err() {
+                        let (err, buf) = result.unwrap_err();
+                        self.rx_buffer.replace(buf);
+                        return err;
+                    }
+                    ReturnCode::SUCCESS
+                })
+                .unwrap()
         } else {
             debug!(" >> FAIL: no application buffer supplied!");
             // Must supply buffer before performing receive operation
@@ -105,7 +126,7 @@ impl<'a> nfc::Client<'a> for NfcDriver<'a> {
     fn tag_selected(&self) {
         self.driver_selected.set(true);
         // 0xfffff results in 1048575 / 13.56e6 = 77ms
-        // The anticollision is finished, we can now
+        // The anti-collision is finished, we can now
         // set the frame delay to the maximum value
         self.driver.set_framedelaymax(0xfffff);
     }
@@ -253,16 +274,19 @@ impl Driver for NfcDriver<'_> {
                 }).unwrap_or_else(|err| err.into())
             },
             3 /* enable tag emulation */=> {
-                match arg1 as u8 {
-                    0 /* false */ => self.driver.deactivate(),
-                    _ /* true */ => self.driver.activate(),
-                }
-                ReturnCode::SUCCESS
+                self.application.enter(appid, |_, _| {
+                    match arg1 as u8 {
+                        0 /* false */ => self.driver.deactivate(),
+                        _ /* true */ => self.driver.activate(),
+                    }
+                    ReturnCode::SUCCESS
+                }).unwrap_or_else(|err| err.into())
             }
             4 /* tag type configuration */ => {
-                let tag_type = arg1;
-                self.driver.configure(tag_type as u8);
-                ReturnCode::SUCCESS
+                self.application.enter(appid, |_, _| {
+                    let tag_type = arg1;
+                    self.driver.configure(tag_type as u8)
+                }).unwrap_or_else(|err| err.into())
             }
             _ => ReturnCode::ENOSUPPORT,
         }
