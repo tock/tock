@@ -527,7 +527,7 @@ impl<'a, A: Alarm<'a>> HD44780<'a, A> {
         self.lcd_status.set(next_status);
         self.alarm.set_alarm(
             self.alarm.now(),
-            A::Ticks::from(<A::Frequency>::frequency() / timer)
+            A::Ticks::from(<A::Frequency>::frequency() / timer),
         );
     }
 

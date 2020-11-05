@@ -77,7 +77,7 @@ pub trait TextScreen {
     /// - `EBUSY`: Another command is in progress.
     fn display_off(&self) -> ReturnCode;
 
-    /// Sends to the driver a command to cleat the display of the screen.
+    /// Sends to the driver a command to clear the display of the screen.
     /// When finised, the driver will call the `command_complete()` callback.
     ///
     /// Return values:
