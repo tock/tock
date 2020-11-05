@@ -80,7 +80,7 @@ pub struct Aes<'a> {
 }
 
 impl<'a> Aes<'a> {
-    const fn new() -> Aes<'a> {
+    pub const fn new() -> Aes<'a> {
         Aes {
             registers: AES_BASE,
             client: OptionalCell::empty(),
@@ -340,8 +340,6 @@ impl<'a> hil::symmetric_encryption::AES128<'a> for Aes<'a> {
         None
     }
 }
-
-pub static mut AES: Aes<'static> = Aes::new();
 
 impl kernel::hil::symmetric_encryption::AES128ECB for Aes<'_> {
     fn set_mode_aes128ecb(&self, encrypting: bool) {

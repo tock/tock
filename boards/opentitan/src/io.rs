@@ -22,9 +22,13 @@ impl Write for Writer {
 
 impl IoWrite for Writer {
     fn write(&mut self, buf: &[u8]) {
-        unsafe {
-            earlgrey::uart::UART0.transmit_sync(buf);
-        }
+        // This creates a second instance of the UART peripheral, and should only be used
+        // during panic.
+        earlgrey::uart::Uart::new(
+            earlgrey::uart::UART0_BASE,
+            earlgrey::chip_config::CONFIG.peripheral_freq,
+        )
+        .transmit_sync(buf);
     }
 }
 
@@ -33,9 +37,13 @@ impl IoWrite for Writer {
 #[no_mangle]
 #[panic_handler]
 pub unsafe extern "C" fn panic_fmt(pi: &PanicInfo) -> ! {
-    // turn off the non panic leds, just in case
-    let first_led = &mut led::LedLow::new(&mut earlgrey::gpio::PORT[7]);
-    gpio::Pin::make_output(&earlgrey::gpio::PORT[7]);
+    let first_led_pin = &mut earlgrey::gpio::GpioPin::new(
+        earlgrey::gpio::GPIO0_BASE,
+        earlgrey::gpio::PADCTRL_BASE,
+        earlgrey::gpio::pins::pin7,
+    );
+    gpio::Pin::make_output(first_led_pin);
+    let first_led = &mut led::LedLow::new(first_led_pin);
 
     let writer = &mut WRITER;
 

@@ -5,36 +5,95 @@ use core::hint::unreachable_unchecked;
 use kernel;
 use kernel::debug;
 use kernel::hil::time::Alarm;
-use kernel::Chip;
+use kernel::{Chip, InterruptService};
 use rv32i::csr::{mcause, mie::mie, mip::mip, mtvec::mtvec, CSR};
 use rv32i::syscall::SysCall;
 use rv32i::PMPConfigMacro;
 
 use crate::chip_config::CONFIG;
-use crate::flash_ctrl;
-use crate::gpio;
-use crate::hmac;
 use crate::interrupts;
 use crate::plic;
-use crate::pwrmgr;
-use crate::timer;
-use crate::uart;
-use crate::usbdev;
 
 PMPConfigMacro!(4);
 
-pub struct EarlGrey<A: 'static + Alarm<'static>> {
+pub struct EarlGrey<'a, A: 'static + Alarm<'static>, I: InterruptService<()> + 'a> {
     userspace_kernel_boundary: SysCall,
     pmp: PMP,
     scheduler_timer: kernel::VirtualSchedulerTimer<A>,
+    timer: &'static crate::timer::RvTimer<'static>,
+    pwrmgr: lowrisc::pwrmgr::PwrMgr,
+    plic_interrupt_service: &'a I,
 }
 
-impl<A: 'static + Alarm<'static>> EarlGrey<A> {
-    pub unsafe fn new(alarm: &'static A) -> Self {
+pub struct EarlGreyDefaultPeripherals<'a> {
+    pub aes: crate::aes::Aes<'a>,
+    pub hmac: lowrisc::hmac::Hmac<'a>,
+    pub usb: lowrisc::usbdev::Usb<'a>,
+    pub uart0: lowrisc::uart::Uart<'a>,
+    pub gpio_port: crate::gpio::Port<'a>,
+    pub i2c: lowrisc::i2c::I2c<'a>,
+    pub flash_ctrl: lowrisc::flash_ctrl::FlashCtrl<'a>,
+}
+
+impl<'a> EarlGreyDefaultPeripherals<'a> {
+    pub fn new() -> Self {
+        Self {
+            aes: crate::aes::Aes::new(),
+            hmac: lowrisc::hmac::Hmac::new(crate::hmac::HMAC0_BASE),
+            usb: lowrisc::usbdev::Usb::new(crate::usbdev::USB0_BASE),
+            uart0: lowrisc::uart::Uart::new(crate::uart::UART0_BASE, CONFIG.peripheral_freq),
+            gpio_port: crate::gpio::Port::new(),
+            i2c: lowrisc::i2c::I2c::new(crate::i2c::I2C_BASE, (1 / CONFIG.cpu_freq) * 1000 * 1000),
+            flash_ctrl: lowrisc::flash_ctrl::FlashCtrl::new(
+                crate::flash_ctrl::FLASH_CTRL_BASE,
+                lowrisc::flash_ctrl::FlashRegion::REGION0,
+            ),
+        }
+    }
+}
+
+impl<'a> InterruptService<()> for EarlGreyDefaultPeripherals<'a> {
+    unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
+        match interrupt {
+            interrupts::UART_TX_WATERMARK..=interrupts::UART_RX_PARITY_ERR => {
+                self.uart0.handle_interrupt();
+            }
+            int_pin @ interrupts::GPIO_PIN0..=interrupts::GPIO_PIN31 => {
+                let pin = &self.gpio_port[(int_pin - interrupts::GPIO_PIN0) as usize];
+                pin.handle_interrupt();
+            }
+            interrupts::HMAC_HMAC_DONE..=interrupts::HMAC_HMAC_ERR => {
+                self.hmac.handle_interrupt();
+            }
+            interrupts::USBDEV_PKT_RECEIVED..=interrupts::USBDEV_CONNECTED => {
+                self.usb.handle_interrupt();
+            }
+            interrupts::FLASH_PROG_EMPTY..=interrupts::FLASH_OP_ERROR => {
+                self.flash_ctrl.handle_interrupt()
+            }
+            _ => return false,
+        }
+        true
+    }
+
+    unsafe fn service_deferred_call(&self, _: ()) -> bool {
+        false
+    }
+}
+
+impl<'a, A: 'static + Alarm<'static>, I: InterruptService<()> + 'a> EarlGrey<'a, A, I> {
+    pub unsafe fn new(
+        virtual_alarm: &'static A,
+        plic_interrupt_service: &'a I,
+        timer: &'static crate::timer::RvTimer,
+    ) -> Self {
         Self {
             userspace_kernel_boundary: SysCall::new(),
             pmp: PMP::new(),
-            scheduler_timer: kernel::VirtualSchedulerTimer::new(alarm),
+            scheduler_timer: kernel::VirtualSchedulerTimer::new(virtual_alarm),
+            pwrmgr: lowrisc::pwrmgr::PwrMgr::new(crate::pwrmgr::PWRMGR_BASE),
+            timer,
+            plic_interrupt_service,
         }
     }
 
@@ -46,32 +105,11 @@ impl<A: 'static + Alarm<'static>> EarlGrey<A> {
 
     unsafe fn handle_plic_interrupts(&self) {
         while let Some(interrupt) = plic::next_pending() {
-            match interrupt {
-                interrupts::UART_TX_WATERMARK..=interrupts::UART_RX_PARITY_ERR => {
-                    uart::UART0.handle_interrupt()
-                }
-                int_pin @ interrupts::GPIO_PIN0..=interrupts::GPIO_PIN31 => {
-                    let pin = &gpio::PORT[(int_pin - interrupts::GPIO_PIN0) as usize];
-                    pin.handle_interrupt();
-                }
-                interrupts::HMAC_HMAC_DONE..=interrupts::HMAC_HMAC_ERR => {
-                    hmac::HMAC.handle_interrupt()
-                }
-                interrupts::USBDEV_PKT_RECEIVED..=interrupts::USBDEV_CONNECTED => {
-                    usbdev::USB.handle_interrupt()
-                }
-                interrupts::PWRMGRWAKEUP => {
-                    pwrmgr::PWRMGR.handle_interrupt();
-                    self.check_until_true_or_interrupt(
-                        || pwrmgr::PWRMGR.check_clock_propagation(),
-                        None,
-                    );
-                }
-                interrupts::FLASH_PROG_EMPTY..=interrupts::FLASH_OP_ERROR => {
-                    flash_ctrl::FLASH_CTRL.handle_interrupt()
-                }
-
-                _ => debug!("Pidx {:#x}", interrupt),
+            if interrupt == interrupts::PWRMGRWAKEUP {
+                self.pwrmgr.handle_interrupt();
+                self.check_until_true_or_interrupt(|| self.pwrmgr.check_clock_propagation(), None);
+            } else if !self.plic_interrupt_service.service_interrupt(interrupt) {
+                debug!("Pidx {}", interrupt);
             }
             plic::complete(interrupt);
         }
@@ -111,7 +149,9 @@ impl<A: 'static + Alarm<'static>> EarlGrey<A> {
     }
 }
 
-impl<A: 'static + Alarm<'static>> kernel::Chip for EarlGrey<A> {
+impl<'a, A: 'static + Alarm<'static>, I: InterruptService<()> + 'a> kernel::Chip
+    for EarlGrey<'a, A, I>
+{
     type MPU = PMP;
     type UserspaceKernelBoundary = SysCall;
     type SchedulerTimer = kernel::VirtualSchedulerTimer<A>;
@@ -138,9 +178,7 @@ impl<A: 'static + Alarm<'static>> kernel::Chip for EarlGrey<A> {
             let mip = CSR.mip.extract();
 
             if mip.is_set(mip::mtimer) {
-                unsafe {
-                    timer::TIMER.service_interrupt();
-                }
+                self.timer.service_interrupt();
             }
             if mip.is_set(mip::mext) {
                 unsafe {
@@ -165,8 +203,8 @@ impl<A: 'static + Alarm<'static>> kernel::Chip for EarlGrey<A> {
 
     fn sleep(&self) {
         unsafe {
-            pwrmgr::PWRMGR.enable_low_power();
-            self.check_until_true_or_interrupt(|| pwrmgr::PWRMGR.check_clock_propagation(), None);
+            self.pwrmgr.enable_low_power();
+            self.check_until_true_or_interrupt(|| self.pwrmgr.check_clock_propagation(), None);
             rv32i::support::wfi();
         }
     }
