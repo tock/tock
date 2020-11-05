@@ -1,35 +1,86 @@
 use core::fmt::Write;
 use kernel;
 use kernel::debug;
+use kernel::InterruptService;
 use rv32i;
 
-use crate::gpio;
 use crate::interrupts;
 use crate::pmp;
 use crate::timer;
-use crate::uart;
 
 extern "C" {
     fn _start_trap();
 }
 
-pub struct ArtyExx {
+pub struct ArtyExx<'a, I: InterruptService<()> + 'a> {
     pmp: pmp::PMP,
     userspace_kernel_boundary: rv32i::syscall::SysCall,
     clic: rv32i::clic::Clic,
+    interrupt_service: &'a I,
 }
 
-impl ArtyExx {
-    pub unsafe fn new() -> ArtyExx {
+pub struct ArtyExxDefaultPeripherals<'a> {
+    pub machinetimer: rv32i::machine_timer::MachineTimer<'a>,
+    pub gpio_port: crate::gpio::Port<'a>,
+    pub uart0: sifive::uart::Uart<'a>,
+}
+
+impl<'a> ArtyExxDefaultPeripherals<'a> {
+    pub fn new() -> Self {
+        Self {
+            machinetimer: rv32i::machine_timer::MachineTimer::new(timer::MTIME_BASE),
+            gpio_port: crate::gpio::Port::new(),
+            uart0: sifive::uart::Uart::new(crate::uart::UART0_BASE, 32_000_000),
+        }
+    }
+}
+
+impl<'a> InterruptService<()> for ArtyExxDefaultPeripherals<'a> {
+    unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
+        match interrupt {
+            interrupts::MTIP => self.machinetimer.handle_interrupt(),
+
+            interrupts::GPIO0 => self.gpio_port[0].handle_interrupt(),
+            interrupts::GPIO1 => self.gpio_port[1].handle_interrupt(),
+            interrupts::GPIO2 => self.gpio_port[2].handle_interrupt(),
+            interrupts::GPIO3 => self.gpio_port[3].handle_interrupt(),
+            interrupts::GPIO4 => self.gpio_port[4].handle_interrupt(),
+            interrupts::GPIO5 => self.gpio_port[5].handle_interrupt(),
+            interrupts::GPIO6 => self.gpio_port[6].handle_interrupt(),
+            interrupts::GPIO7 => self.gpio_port[7].handle_interrupt(),
+            interrupts::GPIO8 => self.gpio_port[8].handle_interrupt(),
+            interrupts::GPIO9 => self.gpio_port[9].handle_interrupt(),
+            interrupts::GPIO10 => self.gpio_port[10].handle_interrupt(),
+            interrupts::GPIO11 => self.gpio_port[11].handle_interrupt(),
+            interrupts::GPIO12 => self.gpio_port[12].handle_interrupt(),
+            interrupts::GPIO13 => self.gpio_port[13].handle_interrupt(),
+            interrupts::GPIO14 => self.gpio_port[14].handle_interrupt(),
+            interrupts::GPIO15 => self.gpio_port[15].handle_interrupt(),
+
+            interrupts::UART0 => self.uart0.handle_interrupt(),
+
+            _ => return false,
+        }
+        true
+    }
+
+    unsafe fn service_deferred_call(&self, _: ()) -> bool {
+        false
+    }
+}
+
+impl<'a, I: InterruptService<()> + 'a> ArtyExx<'a, I> {
+    pub unsafe fn new(interrupt_service: &'a I) -> Self {
         // Make a bit-vector of all interrupt locations that we actually intend
         // to use on this chip.
         // 0001 1111 1111 1111 1111 0000 0000 1000 0000
         let in_use_interrupts: u64 = 0x1FFFF0080;
 
-        ArtyExx {
+        Self {
             pmp: pmp::PMP::new(),
             userspace_kernel_boundary: rv32i::syscall::SysCall::new(),
             clic: rv32i::clic::Clic::new(in_use_interrupts),
+            interrupt_service,
         }
     }
 
@@ -105,7 +156,7 @@ impl ArtyExx {
     }
 }
 
-impl kernel::Chip for ArtyExx {
+impl<'a, I: InterruptService<()> + 'a> kernel::Chip for ArtyExx<'a, I> {
     type MPU = pmp::PMP;
     type UserspaceKernelBoundary = rv32i::syscall::SysCall;
     type SchedulerTimer = ();
@@ -130,29 +181,8 @@ impl kernel::Chip for ArtyExx {
     fn service_pending_interrupts(&self) {
         unsafe {
             while let Some(interrupt) = self.clic.next_pending() {
-                match interrupt {
-                    interrupts::MTIP => timer::MACHINETIMER.handle_interrupt(),
-
-                    interrupts::GPIO0 => gpio::PORT[0].handle_interrupt(),
-                    interrupts::GPIO1 => gpio::PORT[1].handle_interrupt(),
-                    interrupts::GPIO2 => gpio::PORT[2].handle_interrupt(),
-                    interrupts::GPIO3 => gpio::PORT[3].handle_interrupt(),
-                    interrupts::GPIO4 => gpio::PORT[4].handle_interrupt(),
-                    interrupts::GPIO5 => gpio::PORT[5].handle_interrupt(),
-                    interrupts::GPIO6 => gpio::PORT[6].handle_interrupt(),
-                    interrupts::GPIO7 => gpio::PORT[7].handle_interrupt(),
-                    interrupts::GPIO8 => gpio::PORT[8].handle_interrupt(),
-                    interrupts::GPIO9 => gpio::PORT[9].handle_interrupt(),
-                    interrupts::GPIO10 => gpio::PORT[10].handle_interrupt(),
-                    interrupts::GPIO11 => gpio::PORT[11].handle_interrupt(),
-                    interrupts::GPIO12 => gpio::PORT[12].handle_interrupt(),
-                    interrupts::GPIO13 => gpio::PORT[13].handle_interrupt(),
-                    interrupts::GPIO14 => gpio::PORT[14].handle_interrupt(),
-                    interrupts::GPIO15 => gpio::PORT[15].handle_interrupt(),
-
-                    interrupts::UART0 => uart::UART0.handle_interrupt(),
-
-                    _ => debug!("Pidx {}", interrupt),
+                if !self.interrupt_service.service_interrupt(interrupt) {
+                    debug!("unhandled interrupt: {:?}", interrupt);
                 }
 
                 // Mark that we are done with this interrupt and the hardware
