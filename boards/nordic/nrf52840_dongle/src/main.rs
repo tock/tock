@@ -17,6 +17,7 @@ use kernel::hil::time::Counter;
 #[allow(unused_imports)]
 use kernel::{capabilities, create_capability, debug, debug_gpio, debug_verbose, static_init};
 use nrf52840::gpio::Pin;
+use nrf52840::interrupt_service::Nrf52840DefaultPeripherals;
 use nrf52_components::{self, UartChannel, UartPins};
 
 // The nRF52840 Dongle LEDs
@@ -57,7 +58,7 @@ static mut PROCESSES: [Option<&'static dyn kernel::procs::ProcessType>; NUM_PROC
     [None; NUM_PROCS];
 
 // Static reference to chip for panic dumps
-static mut CHIP: Option<&'static nrf52840::chip::Chip> = None;
+static mut CHIP: Option<&'static nrf52840::chip::NRF52<Nrf52840DefaultPeripherals>> = None;
 
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
@@ -120,6 +121,16 @@ impl kernel::Platform for Platform {
 pub unsafe fn reset_handler() {
     // Loads relocations and clears BSS
     nrf52840::init();
+    let ppi = static_init!(nrf52840::ppi::Ppi, nrf52840::ppi::Ppi::new());
+    // Initialize chip peripheral drivers
+    let nrf52840_peripherals = static_init!(
+        Nrf52840DefaultPeripherals,
+        Nrf52840DefaultPeripherals::new(ppi)
+    );
+
+    // set up circular peripheral dependencies
+    nrf52840_peripherals.init();
+    let base_peripherals = &nrf52840_peripherals.nrf52;
 
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
 
@@ -164,7 +175,7 @@ pub unsafe fn reset_handler() {
         components::button_component_helper!(
             nrf52840::gpio::GPIOPin,
             (
-                &nrf52840::gpio::PORT[BUTTON_PIN],
+                &base_peripherals.gpio_port[BUTTON_PIN],
                 kernel::hil::gpio::ActivationMode::ActiveLow,
                 kernel::hil::gpio::FloatingState::PullUp
             )
@@ -175,25 +186,28 @@ pub unsafe fn reset_handler() {
     let led = components::led::LedsComponent::new(components::led_component_helper!(
         nrf52840::gpio::GPIOPin,
         (
-            &nrf52840::gpio::PORT[LED1_PIN],
+            &base_peripherals.gpio_port[LED1_PIN],
             kernel::hil::gpio::ActivationMode::ActiveLow
         ),
         (
-            &nrf52840::gpio::PORT[LED2_R_PIN],
+            &base_peripherals.gpio_port[LED2_R_PIN],
             kernel::hil::gpio::ActivationMode::ActiveLow
         ),
         (
-            &nrf52840::gpio::PORT[LED2_G_PIN],
+            &base_peripherals.gpio_port[LED2_G_PIN],
             kernel::hil::gpio::ActivationMode::ActiveLow
         ),
         (
-            &nrf52840::gpio::PORT[LED2_B_PIN],
+            &base_peripherals.gpio_port[LED2_B_PIN],
             kernel::hil::gpio::ActivationMode::ActiveLow
         )
     ))
     .finalize(components::led_component_buf!(nrf52840::gpio::GPIOPin));
 
-    let chip = static_init!(nrf52840::chip::Chip, nrf52840::chip::new());
+    let chip = static_init!(
+        nrf52840::chip::NRF52<Nrf52840DefaultPeripherals>,
+        nrf52840::chip::NRF52::new(nrf52840_peripherals)
+    );
     CHIP = Some(chip);
 
     nrf52_components::startup::NrfStartupComponent::new(
@@ -210,7 +224,7 @@ pub unsafe fn reset_handler() {
     let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
     let memory_allocation_capability = create_capability!(capabilities::MemoryAllocationCapability);
 
-    let gpio_port = &nrf52840::gpio::PORT;
+    let gpio_port = &base_peripherals.gpio_port;
 
     // Configure kernel debug gpios as early as possible
     kernel::debug::assign_gpios(
@@ -219,14 +233,19 @@ pub unsafe fn reset_handler() {
         Some(&gpio_port[LED2_B_PIN]),
     );
 
-    let rtc = &nrf52840::rtc::RTC;
+    let rtc = &base_peripherals.rtc;
     rtc.start();
     let mux_alarm = components::alarm::AlarmMuxComponent::new(rtc)
         .finalize(components::alarm_mux_component_helper!(nrf52840::rtc::Rtc));
     let alarm = components::alarm::AlarmDriverComponent::new(board_kernel, mux_alarm)
         .finalize(components::alarm_component_helper!(nrf52840::rtc::Rtc));
     let uart_channel = UartChannel::Pins(UartPins::new(UART_RTS, UART_TXD, UART_CTS, UART_RXD));
-    let channel = nrf52_components::UartChannelComponent::new(uart_channel, mux_alarm).finalize(());
+    let channel = nrf52_components::UartChannelComponent::new(
+        uart_channel,
+        mux_alarm,
+        &base_peripherals.uarte0,
+    )
+    .finalize(());
 
     let dynamic_deferred_call_clients =
         static_init!([DynamicDeferredCallClientState; 2], Default::default());
@@ -251,13 +270,13 @@ pub unsafe fn reset_handler() {
     components::debug_writer::DebugWriterComponent::new(uart_mux).finalize(());
 
     let ble_radio =
-        nrf52_components::BLEComponent::new(board_kernel, &nrf52840::ble_radio::RADIO, mux_alarm)
+        nrf52_components::BLEComponent::new(board_kernel, &base_peripherals.ble_radio, mux_alarm)
             .finalize(());
 
     let (ieee802154_radio, _mux_mac) = components::ieee802154::Ieee802154Component::new(
         board_kernel,
-        &nrf52840::ieee802154_radio::RADIO,
-        &nrf52840::aes::AESECB,
+        &base_peripherals.ieee802154_radio,
+        &base_peripherals.ecb,
         PAN_ID,
         SRC_MAC,
     )
@@ -266,18 +285,16 @@ pub unsafe fn reset_handler() {
         nrf52840::aes::AesECB<'static>
     ));
 
-    let temp = components::temperature::TemperatureComponent::new(
-        board_kernel,
-        &nrf52840::temperature::TEMP,
-    )
-    .finalize(());
+    let temp =
+        components::temperature::TemperatureComponent::new(board_kernel, &base_peripherals.temp)
+            .finalize(());
 
-    let rng = components::rng::RngComponent::new(board_kernel, &nrf52840::trng::TRNG).finalize(());
+    let rng = components::rng::RngComponent::new(board_kernel, &base_peripherals.trng).finalize(());
 
     // Initialize AC using AIN5 (P0.29) as VIN+ and VIN- as AIN0 (P0.02)
     // These are hardcoded pin assignments specified in the driver
     let analog_comparator = components::analog_comparator::AcComponent::new(
-        &nrf52840::acomp::ACOMP,
+        &base_peripherals.acomp,
         components::acomp_component_helper!(
             nrf52840::acomp::Channel,
             &nrf52840::acomp::CHANNEL_AC0

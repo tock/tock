@@ -537,8 +537,6 @@ pub struct Radio<'a> {
     buffer: TakeCell<'static, [u8]>,
 }
 
-pub static mut RADIO: Radio = Radio::new();
-
 impl<'a> Radio<'a> {
     pub const fn new() -> Radio<'a> {
         Radio {

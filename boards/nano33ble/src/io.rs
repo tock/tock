@@ -89,7 +89,7 @@ impl IoWrite for Writer {
                 //   until the slice has been returned in the uart callback.
                 // - Similarly, only this function uses the global DUMMY variable, and we do not
                 //   mutate it.
-                let usb = &mut nrf52840::usbd::USBD;
+                let usb = &mut cdc.controller();
                 STATIC_PANIC_BUF[..max].copy_from_slice(&buf[..max]);
                 let static_buf = &mut STATIC_PANIC_BUF;
                 cdc.set_transmit_client(&DUMMY);
