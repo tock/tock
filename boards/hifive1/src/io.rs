@@ -24,9 +24,8 @@ impl Write for Writer {
 
 impl IoWrite for Writer {
     fn write(&mut self, buf: &[u8]) {
-        unsafe {
-            e310x::uart::UART0.transmit_sync(buf);
-        }
+        let uart = sifive::uart::Uart::new(e310x::uart::UART0_BASE, 16_000_000);
+        uart.transmit_sync(buf);
     }
 }
 
@@ -36,15 +35,31 @@ impl IoWrite for Writer {
 #[panic_handler]
 pub unsafe extern "C" fn panic_fmt(pi: &PanicInfo) -> ! {
     // turn off the non panic leds, just in case
-    let led_green = &e310x::gpio::PORT[19];
-    gpio::Pin::make_output(led_green);
-    gpio::Pin::set(led_green);
+    let led_green = sifive::gpio::GpioPin::new(
+        e310x::gpio::GPIO0_BASE,
+        sifive::gpio::pins::pin19,
+        sifive::gpio::pins::pin19::SET,
+        sifive::gpio::pins::pin19::CLEAR,
+    );
+    gpio::Pin::make_output(&led_green);
+    gpio::Pin::set(&led_green);
 
-    let led_blue = &e310x::gpio::PORT[21];
-    gpio::Pin::make_output(led_blue);
-    gpio::Pin::set(led_blue);
+    let led_blue = sifive::gpio::GpioPin::new(
+        e310x::gpio::GPIO0_BASE,
+        sifive::gpio::pins::pin21,
+        sifive::gpio::pins::pin21::SET,
+        sifive::gpio::pins::pin21::CLEAR,
+    );
+    gpio::Pin::make_output(&led_blue);
+    gpio::Pin::set(&led_blue);
 
-    let led_red = &mut led::LedLow::new(&mut e310x::gpio::PORT[22]);
+    let mut led_red_pin = sifive::gpio::GpioPin::new(
+        e310x::gpio::GPIO0_BASE,
+        sifive::gpio::pins::pin22,
+        sifive::gpio::pins::pin22::SET,
+        sifive::gpio::pins::pin22::CLEAR,
+    );
+    let led_red = &mut led::LedLow::new(&mut led_red_pin);
     let writer = &mut WRITER;
 
     debug::panic(
