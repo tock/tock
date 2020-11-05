@@ -528,7 +528,7 @@ impl<'a, A: Alarm<'a>> HD44780<'a, A> {
         self.alarm.set_alarm(
             self.alarm.now(),
             A::Ticks::from(<A::Frequency>::frequency() / timer)
-        )
+        );
     }
 
     /// write_character will send the next character to be written on the
