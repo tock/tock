@@ -5,8 +5,6 @@
 //!
 //! * Jean-Michel Picod <jmichel@google.com>
 //! * Mirna Al-Shetairy <mshetairy@google.com>
-//! * Date: May 8 2019
-//! * Last update: October 29 2020
 
 use core::cell::Cell;
 use kernel::common::cells::{OptionalCell, TakeCell};
@@ -14,6 +12,7 @@ use kernel::common::registers::{
     register_bitfields, register_structs, InMemoryRegister, ReadOnly, ReadWrite, WriteOnly,
 };
 use kernel::common::StaticRef;
+use kernel::debug;
 use kernel::hil;
 use kernel::ReturnCode;
 
@@ -479,6 +478,7 @@ impl<'a> NfcTag<'a> {
         self.clear_errors();
     }
 
+    /// Helper function that clears TX/RX errors related registers.
     fn clear_errors(&self) {
         self.registers
             .errorstatus
@@ -503,6 +503,7 @@ impl<'a> NfcTag<'a> {
         if events_to_process.is_set(Interrupt::SELECTED) {
             self.handle_selected();
         }
+        // Ensure there are no spurious errors.
         self.clear_errors();
     }
 
@@ -589,7 +590,6 @@ impl<'a> NfcTag<'a> {
         self.registers.framedelay_max.set(0x1000);
         // TODO: Remove TASKS_ACTIVATE and Enable TASKS_SENSE instead.
         self.registers.task_activate.write(Task::ENABLE::Trigger);
-        // self.registers.task_sense.write(Task::ENABLE::Trigger);
         self.registers.intenset.write(Interrupt::SELECTED::SET);
         self.state.set(NfcState::Initialized);
     }
@@ -631,16 +631,24 @@ impl<'a> hil::nfc::NfcTag<'a> for NfcTag<'a> {
         // TODO: Enable task sense when it's correctly configured.
     }
 
-    fn transmit_buffer(&self, buf: &'static mut [u8], amount: usize) {
+    fn transmit_buffer(
+        &self,
+        buf: &'static mut [u8],
+        amount: usize,
+    ) -> Result<usize, (ReturnCode, &'static mut [u8])> {
         self.state.set(NfcState::Transmitting);
         self.set_dma_registers(&buf[..amount]);
         self.tx_buffer.replace(buf);
         self.registers.intenset.modify(Interrupt::TXFRAMEEND::SET);
         self.clear_errors();
         self.registers.task_starttx.write(Task::ENABLE::Trigger);
+        Ok(amount)
     }
 
-    fn receive_buffer(&self, buf: &'static mut [u8]) {
+    fn receive_buffer(
+        &self,
+        buf: &'static mut [u8],
+    ) -> Result<(), (ReturnCode, &'static mut [u8])> {
         self.state.set(NfcState::Receiving);
         self.set_dma_registers(buf);
         self.rx_buffer.replace(buf);
@@ -648,14 +656,19 @@ impl<'a> hil::nfc::NfcTag<'a> for NfcTag<'a> {
         self.registers
             .task_enablerxdata
             .write(Task::ENABLE::Trigger);
+        Ok(())
     }
 
-    fn configure(&self, tag_type: u8) {
+    fn configure(&self, tag_type: u8) -> ReturnCode {
         match tag_type {
             4 => self.tag_type.set(TagType::Type4),
-            _ => panic!("No implementation for this tag type."),
+            _ => {
+                debug!("No implementation for this tag type.");
+                return ReturnCode::ENOSUPPORT;
+            }
         }
         self.configure();
+        ReturnCode::SUCCESS
     }
 
     fn set_framedelaymax(&self, max_delay: u32) {
