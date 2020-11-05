@@ -23,6 +23,7 @@ pub mod screen;
 pub mod sensors;
 pub mod spi;
 pub mod symmetric_encryption;
+pub mod text_screen;
 pub mod time;
 pub mod touch;
 pub mod uart;
