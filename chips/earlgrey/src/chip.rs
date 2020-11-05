@@ -12,13 +12,15 @@ use rv32i::PMPConfigMacro;
 
 use crate::chip_config::CONFIG;
 use crate::interrupts;
-use crate::plic;
+use crate::plic::Plic;
+use crate::plic::PLIC;
 
 PMPConfigMacro!(4);
 
 pub struct EarlGrey<'a, A: 'static + Alarm<'static>, I: InterruptService<()> + 'a> {
     userspace_kernel_boundary: SysCall,
     pmp: PMP,
+    plic: &'a Plic,
     scheduler_timer: kernel::VirtualSchedulerTimer<A>,
     timer: &'static crate::timer::RvTimer<'static>,
     pwrmgr: lowrisc::pwrmgr::PwrMgr,
@@ -90,6 +92,7 @@ impl<'a, A: 'static + Alarm<'static>, I: InterruptService<()> + 'a> EarlGrey<'a,
         Self {
             userspace_kernel_boundary: SysCall::new(),
             pmp: PMP::new(),
+            plic: &PLIC,
             scheduler_timer: kernel::VirtualSchedulerTimer::new(virtual_alarm),
             pwrmgr: lowrisc::pwrmgr::PwrMgr::new(crate::pwrmgr::PWRMGR_BASE),
             timer,
@@ -98,20 +101,22 @@ impl<'a, A: 'static + Alarm<'static>, I: InterruptService<()> + 'a> EarlGrey<'a,
     }
 
     pub unsafe fn enable_plic_interrupts(&self) {
-        plic::disable_all();
-        plic::clear_all_pending();
-        plic::enable_all();
+        self.plic.disable_all();
+        self.plic.enable_all();
     }
 
     unsafe fn handle_plic_interrupts(&self) {
-        while let Some(interrupt) = plic::next_pending() {
+        while let Some(interrupt) = self.plic.get_saved_interrupts() {
             if interrupt == interrupts::PWRMGRWAKEUP {
                 self.pwrmgr.handle_interrupt();
                 self.check_until_true_or_interrupt(|| self.pwrmgr.check_clock_propagation(), None);
             } else if !self.plic_interrupt_service.service_interrupt(interrupt) {
                 debug!("Pidx {}", interrupt);
             }
-            plic::complete(interrupt);
+            self.atomic(|| {
+                // Safe as interrupts are disabled
+                self.plic.complete(interrupt);
+            });
         }
     }
 
@@ -180,13 +185,13 @@ impl<'a, A: 'static + Alarm<'static>, I: InterruptService<()> + 'a> kernel::Chip
             if mip.is_set(mip::mtimer) {
                 self.timer.service_interrupt();
             }
-            if mip.is_set(mip::mext) {
+            if self.plic.get_saved_interrupts().is_some() {
                 unsafe {
                     self.handle_plic_interrupts();
                 }
             }
 
-            if !mip.matches_any(mip::mext::SET + mip::mtimer::SET) {
+            if !mip.matches_any(mip::mtimer::SET) && self.plic.get_saved_interrupts().is_none() {
                 break;
             }
         }
@@ -194,11 +199,12 @@ impl<'a, A: 'static + Alarm<'static>, I: InterruptService<()> + 'a> kernel::Chip
         // Re-enable all MIE interrupts that we care about. Since we looped
         // until we handled them all, we can re-enable all of them.
         CSR.mie.modify(mie::mext::SET + mie::mtimer::SET);
+        self.plic.enable_all();
     }
 
     fn has_pending_interrupts(&self) -> bool {
         let mip = CSR.mip.extract();
-        mip.matches_any(mip::mext::SET + mip::mtimer::SET)
+        self.plic.get_saved_interrupts().is_some() || mip.matches_any(mip::mtimer::SET)
     }
 
     fn sleep(&self) {
@@ -267,7 +273,27 @@ unsafe fn handle_interrupt(intr: mcause::Interrupt) {
             CSR.mie.modify(mie::mtimer::CLEAR);
         }
         mcause::Interrupt::MachineExternal => {
+            // We received an interrupt, disable interrupts while we handle them
             CSR.mie.modify(mie::mext::CLEAR);
+
+            // Claim the interrupt, unwrap() as we know an interrupt exists
+            // Once claimed this interrupt won't fire until it's completed
+            // NOTE: The interrupt is no longer pending in the PLIC
+            loop {
+                let interrupt = PLIC.next_pending();
+
+                match interrupt {
+                    Some(irq) => {
+                        // Safe as interrupts are disabled
+                        PLIC.save_interrupt(irq);
+                    }
+                    None => {
+                        // Enable generic interrupts
+                        CSR.mie.modify(mie::mext::SET);
+                        break;
+                    }
+                }
+            }
         }
 
         mcause::Interrupt::Unknown => {
@@ -279,9 +305,8 @@ unsafe fn handle_interrupt(intr: mcause::Interrupt) {
 /// Trap handler for board/chip specific code.
 ///
 /// For the Ibex this gets called when an interrupt occurs while the chip is
-/// in kernel mode. All we need to do is check which interrupt occurred and
-/// disable it.
-#[export_name = "_start_trap_rust"]
+/// in kernel mode.
+#[export_name = "_start_trap_rust_from_kernel"]
 pub unsafe extern "C" fn start_trap_rust() {
     match mcause::Trap::from(CSR.mcause.extract()) {
         mcause::Trap::Interrupt(interrupt) => {
@@ -296,7 +321,7 @@ pub unsafe extern "C" fn start_trap_rust() {
 /// Function that gets called if an interrupt occurs while an app was running.
 /// mcause is passed in, and this function should correctly handle disabling the
 /// interrupt that fired so that it does not trigger again.
-#[export_name = "_disable_interrupt_trap_handler"]
+#[export_name = "_disable_interrupt_trap_rust_from_app"]
 pub unsafe extern "C" fn disable_interrupt_trap_handler(mcause_val: u32) {
     match mcause::Trap::from(mcause_val) {
         mcause::Trap::Interrupt(interrupt) => {

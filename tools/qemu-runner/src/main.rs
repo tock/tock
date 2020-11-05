@@ -61,9 +61,8 @@ fn opentitan() -> Result<(), Error> {
         Some(10_000),
     )?;
 
-    p.exp_string("Boot ROM initialisation has completed, jump into flash")?;
-    p.exp_string("OpenTitan initialisation complete.")?;
-    p.exp_string("Entering main loop")?;
+    p.exp_string("Boot ROM initialisation has completed, jump into flash!")?;
+    p.exp_string("OpenTitan initialisation complete. Entering main loop")?;
 
     // Test completed, kill QEMU
     kill_qemu(&mut p)?;

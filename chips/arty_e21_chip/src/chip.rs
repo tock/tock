@@ -220,7 +220,7 @@ impl<'a, I: InterruptService<()> + 'a> kernel::Chip for ArtyExx<'a, I> {
 /// in kernel mode. All we need to do is check which interrupt occurred and
 /// disable it.
 #[cfg(all(target_arch = "riscv32", target_os = "none"))]
-#[export_name = "_start_trap_rust"]
+#[export_name = "_start_trap_rust_from_kernel"]
 pub extern "C" fn start_trap_rust() {
     let mut mcause: i32;
 
@@ -255,7 +255,7 @@ pub extern "C" fn start_trap_rust() {
 /// Function that gets called if an interrupt occurs while an app was running.
 /// mcause is passed in, and this function should correctly handle disabling the
 /// interrupt that fired so that it does not trigger again.
-#[export_name = "_disable_interrupt_trap_handler"]
+#[export_name = "_disable_interrupt_trap_rust_from_app"]
 pub extern "C" fn disable_interrupt_trap_handler(mcause: u32) {
     // The interrupt number is then the lowest 8
     // bits.
