@@ -7,7 +7,6 @@
 //! ```
 
 // Author: Mirna Al-Shetairy <mshetairy@google.com>
-// Last modified: 19/10/2020
 
 use capsules::nfc;
 use kernel::capabilities;
