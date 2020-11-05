@@ -92,10 +92,8 @@ pub struct Dbg {
     registers: StaticRef<DbgRegisters>,
 }
 
-pub static mut DBG: Dbg = Dbg::new();
-
 impl Dbg {
-    const fn new() -> Dbg {
+    pub const fn new() -> Dbg {
         Dbg {
             registers: DBG_BASE,
         }

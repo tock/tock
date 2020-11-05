@@ -114,18 +114,19 @@ enum_from_primitive! {
     }
 }
 
-pub struct Syscfg {
+pub struct Syscfg<'a> {
     registers: StaticRef<SyscfgRegisters>,
-    clock: SyscfgClock,
+    clock: SyscfgClock<'a>,
 }
 
-pub static mut SYSCFG: Syscfg = Syscfg::new();
-
-impl Syscfg {
-    const fn new() -> Syscfg {
-        Syscfg {
+impl<'a> Syscfg<'a> {
+    pub const fn new(rcc: &'a rcc::Rcc) -> Self {
+        Self {
             registers: SYSCFG_BASE,
-            clock: SyscfgClock(rcc::PeripheralClock::APB2(rcc::PCLK2::SYSCFG)),
+            clock: SyscfgClock(rcc::PeripheralClock::new(
+                rcc::PeripheralClockType::APB2(rcc::PCLK2::SYSCFG),
+                rcc,
+            )),
         }
     }
 
@@ -224,9 +225,9 @@ impl Syscfg {
     }
 }
 
-struct SyscfgClock(rcc::PeripheralClock);
+struct SyscfgClock<'a>(rcc::PeripheralClock<'a>);
 
-impl ClockInterface for SyscfgClock {
+impl ClockInterface for SyscfgClock<'_> {
     fn is_enabled(&self) -> bool {
         self.0.is_enabled()
     }

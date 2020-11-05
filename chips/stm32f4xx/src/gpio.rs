@@ -473,45 +473,34 @@ pub enum PinId {
     PH00 = 0b1110000, PH01 = 0b1110001,
 }
 
+impl<'a> GpioPorts<'a> {
+    pub fn get_pin(&self, pinid: PinId) -> Option<&Pin<'a>> {
+        let mut port_num: u8 = pinid as u8;
+
+        // Right shift p by 4 bits, so we can get rid of pin bits
+        port_num >>= 4;
+
+        let mut pin_num: u8 = pinid as u8;
+        // Mask top 3 bits, so can get only the suffix
+        pin_num &= 0b0001111;
+
+        self.pins[usize::from(port_num)][usize::from(pin_num)].as_ref()
+    }
+
+    pub fn get_port(&self, pinid: PinId) -> &Port {
+        let mut port_num: u8 = pinid as u8;
+
+        // Right shift p by 4 bits, so we can get rid of pin bits
+        port_num >>= 4;
+        &self.ports[usize::from(port_num)]
+    }
+
+    pub fn get_port_from_port_id(&self, portid: PortId) -> &Port {
+        &self.ports[portid as usize]
+    }
+}
+
 impl PinId {
-    pub fn get_pin(&self) -> &Option<Pin<'static>> {
-        let mut port_num: u8 = *self as u8;
-
-        // Right shift p by 4 bits, so we can get rid of pin bits
-        port_num >>= 4;
-
-        let mut pin_num: u8 = *self as u8;
-        // Mask top 3 bits, so can get only the suffix
-        pin_num &= 0b0001111;
-
-        unsafe { &PIN[usize::from(port_num)][usize::from(pin_num)] }
-    }
-
-    #[allow(clippy::mut_from_ref)]
-    // This function is inherently unsafe, but no more unsafe than multiple accesses
-    // to `pub static mut PIN` made directly, so okay to ignore this clippy lint
-    // so long as the function is marked unsafe.
-    pub unsafe fn get_pin_mut(&self) -> &mut Option<Pin<'static>> {
-        let mut port_num: u8 = *self as u8;
-
-        // Right shift p by 4 bits, so we can get rid of pin bits
-        port_num >>= 4;
-
-        let mut pin_num: u8 = *self as u8;
-        // Mask top 3 bits, so can get only the suffix
-        pin_num &= 0b0001111;
-
-        &mut PIN[usize::from(port_num)][usize::from(pin_num)]
-    }
-
-    pub fn get_port(&self) -> &Port {
-        let mut port_num: u8 = *self as u8;
-
-        // Right shift p by 4 bits, so we can get rid of pin bits
-        port_num >>= 4;
-        unsafe { &PORT[usize::from(port_num)] }
-    }
-
     // extract the last 4 bits. [3:0] is the pin number, [6:4] is the port
     // number
     pub fn get_pin_number(&self) -> u8 {
@@ -590,47 +579,152 @@ enum_from_primitive! {
     }
 }
 
-pub struct Port {
+pub struct Port<'a> {
     registers: StaticRef<GpioRegisters>,
-    clock: PortClock,
+    clock: PortClock<'a>,
 }
 
-pub static mut PORT: [Port; 8] = [
-    Port {
-        registers: GPIOA_BASE,
-        clock: PortClock(rcc::PeripheralClock::AHB1(rcc::HCLK1::GPIOA)),
-    },
-    Port {
-        registers: GPIOB_BASE,
-        clock: PortClock(rcc::PeripheralClock::AHB1(rcc::HCLK1::GPIOB)),
-    },
-    Port {
-        registers: GPIOC_BASE,
-        clock: PortClock(rcc::PeripheralClock::AHB1(rcc::HCLK1::GPIOC)),
-    },
-    Port {
-        registers: GPIOD_BASE,
-        clock: PortClock(rcc::PeripheralClock::AHB1(rcc::HCLK1::GPIOD)),
-    },
-    Port {
-        registers: GPIOE_BASE,
-        clock: PortClock(rcc::PeripheralClock::AHB1(rcc::HCLK1::GPIOE)),
-    },
-    Port {
-        registers: GPIOF_BASE,
-        clock: PortClock(rcc::PeripheralClock::AHB1(rcc::HCLK1::GPIOF)),
-    },
-    Port {
-        registers: GPIOG_BASE,
-        clock: PortClock(rcc::PeripheralClock::AHB1(rcc::HCLK1::GPIOG)),
-    },
-    Port {
-        registers: GPIOH_BASE,
-        clock: PortClock(rcc::PeripheralClock::AHB1(rcc::HCLK1::GPIOH)),
-    },
-];
+macro_rules! declare_gpio_pins {
+    ($($pin:ident)*, $exti:expr) => {
+        [
+            $(Some(Pin::new(PinId::$pin, $exti)), )*
+        ]
+    }
+}
 
-impl Port {
+// Note: This would probably be better structured as each port holding
+// the pins associated with it, but here they are kept separate for
+// historical reasons. If writing new GPIO code, look elsewhere for
+// a template on how to structure the relationship between ports and pins.
+// We need to use `Option<Pin>`, instead of just `Pin` because GPIOH has
+// only two pins - PH00 and PH01, rather than the usual sixteen pins.
+pub struct GpioPorts<'a> {
+    ports: [Port<'a>; 8],
+    pub pins: [[Option<Pin<'a>>; 16]; 8],
+}
+
+impl<'a> GpioPorts<'a> {
+    pub fn new(rcc: &'a rcc::Rcc, exti: &'a exti::Exti<'a>) -> Self {
+        Self {
+            ports: [
+                Port {
+                    registers: GPIOA_BASE,
+                    clock: PortClock(rcc::PeripheralClock::new(
+                        rcc::PeripheralClockType::AHB1(rcc::HCLK1::GPIOA),
+                        rcc,
+                    )),
+                },
+                Port {
+                    registers: GPIOB_BASE,
+                    clock: PortClock(rcc::PeripheralClock::new(
+                        rcc::PeripheralClockType::AHB1(rcc::HCLK1::GPIOB),
+                        rcc,
+                    )),
+                },
+                Port {
+                    registers: GPIOC_BASE,
+                    clock: PortClock(rcc::PeripheralClock::new(
+                        rcc::PeripheralClockType::AHB1(rcc::HCLK1::GPIOC),
+                        rcc,
+                    )),
+                },
+                Port {
+                    registers: GPIOD_BASE,
+                    clock: PortClock(rcc::PeripheralClock::new(
+                        rcc::PeripheralClockType::AHB1(rcc::HCLK1::GPIOD),
+                        rcc,
+                    )),
+                },
+                Port {
+                    registers: GPIOE_BASE,
+                    clock: PortClock(rcc::PeripheralClock::new(
+                        rcc::PeripheralClockType::AHB1(rcc::HCLK1::GPIOE),
+                        rcc,
+                    )),
+                },
+                Port {
+                    registers: GPIOF_BASE,
+                    clock: PortClock(rcc::PeripheralClock::new(
+                        rcc::PeripheralClockType::AHB1(rcc::HCLK1::GPIOF),
+                        rcc,
+                    )),
+                },
+                Port {
+                    registers: GPIOG_BASE,
+                    clock: PortClock(rcc::PeripheralClock::new(
+                        rcc::PeripheralClockType::AHB1(rcc::HCLK1::GPIOG),
+                        rcc,
+                    )),
+                },
+                Port {
+                    registers: GPIOH_BASE,
+                    clock: PortClock(rcc::PeripheralClock::new(
+                        rcc::PeripheralClockType::AHB1(rcc::HCLK1::GPIOH),
+                        rcc,
+                    )),
+                },
+            ],
+            pins: [
+                declare_gpio_pins! {
+                    PA00 PA01 PA02 PA03 PA04 PA05 PA06 PA07
+                    PA08 PA09 PA10 PA11 PA12 PA13 PA14 PA15, exti
+                },
+                declare_gpio_pins! {
+                    PB00 PB01 PB02 PB03 PB04 PB05 PB06 PB07
+                    PB08 PB09 PB10 PB11 PB12 PB13 PB14 PB15, exti
+                },
+                declare_gpio_pins! {
+                    PC00 PC01 PC02 PC03 PC04 PC05 PC06 PC07
+                    PC08 PC09 PC10 PC11 PC12 PC13 PC14 PC15, exti
+                },
+                declare_gpio_pins! {
+                    PD00 PD01 PD02 PD03 PD04 PD05 PD06 PD07
+                    PD08 PD09 PD10 PD11 PD12 PD13 PD14 PD15, exti
+                },
+                declare_gpio_pins! {
+                    PE00 PE01 PE02 PE03 PE04 PE05 PE06 PE07
+                    PE08 PE09 PE10 PE11 PE12 PE13 PE14 PE15, exti
+                },
+                declare_gpio_pins! {
+                    PF00 PF01 PF02 PF03 PF04 PF05 PF06 PF07
+                    PF08 PF09 PF10 PF11 PF12 PF13 PF14 PF15, exti
+                },
+                declare_gpio_pins! {
+                    PG00 PG01 PG02 PG03 PG04 PG05 PG06 PG07
+                    PG08 PG09 PG10 PG11 PG12 PG13 PG14 PG15, exti
+                },
+                [
+                    Some(Pin::new(PinId::PH00, exti)),
+                    Some(Pin::new(PinId::PH01, exti)),
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                ],
+            ],
+        }
+    }
+
+    pub fn setup_circular_deps(&'a self) {
+        for pin_group in self.pins.iter() {
+            for pin in pin_group {
+                pin.as_ref().map(|p| p.set_ports_ref(self));
+            }
+        }
+    }
+}
+
+impl Port<'_> {
     pub fn is_enabled_clock(&self) -> bool {
         self.clock.is_enabled()
     }
@@ -644,9 +738,9 @@ impl Port {
     }
 }
 
-struct PortClock(rcc::PeripheralClock);
+struct PortClock<'a>(rcc::PeripheralClock<'a>);
 
-impl ClockInterface for PortClock {
+impl ClockInterface for PortClock<'_> {
     fn is_enabled(&self) -> bool {
         self.0.is_enabled()
     }
@@ -663,76 +757,25 @@ impl ClockInterface for PortClock {
 // `exti_lineid` is used to configure EXTI settings for the Pin.
 pub struct Pin<'a> {
     pinid: PinId,
+    ports_ref: OptionalCell<&'a GpioPorts<'a>>,
+    exti: &'a exti::Exti<'a>,
     client: OptionalCell<&'a dyn hil::gpio::Client>,
     exti_lineid: OptionalCell<exti::LineId>,
 }
 
-macro_rules! declare_gpio_pins {
-    ($($pin:ident)*) => {
-        [
-            $(Some(Pin::new(PinId::$pin)), )*
-        ]
-    }
-}
-
-// We need to use `Option<Pin>`, instead of just `Pin` because GPIOH has
-// only two pins - PH00 and PH01, rather than the usual sixteen pins.
-pub static mut PIN: [[Option<Pin<'static>>; 16]; 8] = [
-    declare_gpio_pins! {
-        PA00 PA01 PA02 PA03 PA04 PA05 PA06 PA07
-        PA08 PA09 PA10 PA11 PA12 PA13 PA14 PA15
-    },
-    declare_gpio_pins! {
-        PB00 PB01 PB02 PB03 PB04 PB05 PB06 PB07
-        PB08 PB09 PB10 PB11 PB12 PB13 PB14 PB15
-    },
-    declare_gpio_pins! {
-        PC00 PC01 PC02 PC03 PC04 PC05 PC06 PC07
-        PC08 PC09 PC10 PC11 PC12 PC13 PC14 PC15
-    },
-    declare_gpio_pins! {
-        PD00 PD01 PD02 PD03 PD04 PD05 PD06 PD07
-        PD08 PD09 PD10 PD11 PD12 PD13 PD14 PD15
-    },
-    declare_gpio_pins! {
-        PE00 PE01 PE02 PE03 PE04 PE05 PE06 PE07
-        PE08 PE09 PE10 PE11 PE12 PE13 PE14 PE15
-    },
-    declare_gpio_pins! {
-        PF00 PF01 PF02 PF03 PF04 PF05 PF06 PF07
-        PF08 PF09 PF10 PF11 PF12 PF13 PF14 PF15
-    },
-    declare_gpio_pins! {
-        PG00 PG01 PG02 PG03 PG04 PG05 PG06 PG07
-        PG08 PG09 PG10 PG11 PG12 PG13 PG14 PG15
-    },
-    [
-        Some(Pin::new(PinId::PH00)),
-        Some(Pin::new(PinId::PH01)),
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-    ],
-];
-
 impl<'a> Pin<'a> {
-    const fn new(pinid: PinId) -> Pin<'a> {
-        Pin {
-            pinid: pinid,
+    pub const fn new(pinid: PinId, exti: &'a exti::Exti<'a>) -> Self {
+        Self {
+            pinid,
+            ports_ref: OptionalCell::empty(),
+            exti,
             client: OptionalCell::empty(),
             exti_lineid: OptionalCell::empty(),
         }
+    }
+
+    pub fn set_ports_ref(&self, ports: &'a GpioPorts<'a>) {
+        self.ports_ref.set(ports);
     }
 
     pub fn set_client(&self, client: &'a dyn hil::gpio::Client) {
@@ -744,7 +787,7 @@ impl<'a> Pin<'a> {
     }
 
     pub fn get_mode(&self) -> Mode {
-        let port = self.pinid.get_port();
+        let port = self.ports_ref.expect("").get_port(self.pinid);
 
         let val = match self.pinid.get_pin_number() {
             0b0000 => port.registers.moder.read(MODER::MODER0),
@@ -770,7 +813,7 @@ impl<'a> Pin<'a> {
     }
 
     pub fn set_mode(&self, mode: Mode) {
-        let port = self.pinid.get_port();
+        let port = self.ports_ref.expect("").get_port(self.pinid);
 
         match self.pinid.get_pin_number() {
             0b0000 => port.registers.moder.modify(MODER::MODER0.val(mode as u32)),
@@ -794,7 +837,7 @@ impl<'a> Pin<'a> {
     }
 
     pub fn set_alternate_function(&self, af: AlternateFunction) {
-        let port = self.pinid.get_port();
+        let port = self.ports_ref.expect("").get_port(self.pinid);
 
         match self.pinid.get_pin_number() {
             0b0000 => port.registers.afrl.modify(AFRL::AFRL0.val(af as u32)),
@@ -826,7 +869,7 @@ impl<'a> Pin<'a> {
     }
 
     fn set_mode_output_pushpull(&self) {
-        let port = self.pinid.get_port();
+        let port = self.ports_ref.expect("").get_port(self.pinid);
 
         match self.pinid.get_pin_number() {
             0b0000 => port.registers.otyper.modify(OTYPER::OT0::CLEAR),
@@ -850,7 +893,7 @@ impl<'a> Pin<'a> {
     }
 
     pub fn set_speed(&self) {
-        let port = self.pinid.get_port();
+        let port = self.ports_ref.expect("").get_port(self.pinid);
 
         match self.pinid.get_pin_number() {
             0b0000 => port.registers.ospeedr.modify(OSPEEDR::OSPEEDR0.val(0b11)),
@@ -874,7 +917,7 @@ impl<'a> Pin<'a> {
     }
 
     pub fn set_mode_output_opendrain(&self) {
-        let port = self.pinid.get_port();
+        let port = self.ports_ref.expect("").get_port(self.pinid);
 
         match self.pinid.get_pin_number() {
             0b0000 => port.registers.otyper.modify(OTYPER::OT0::SET),
@@ -898,7 +941,7 @@ impl<'a> Pin<'a> {
     }
 
     fn get_pullup_pulldown(&self) -> PullUpPullDown {
-        let port = self.pinid.get_port();
+        let port = self.ports_ref.expect("").get_port(self.pinid);
 
         let val = match self.pinid.get_pin_number() {
             0b0000 => port.registers.pupdr.read(PUPDR::PUPDR0),
@@ -924,7 +967,7 @@ impl<'a> Pin<'a> {
     }
 
     fn set_pullup_pulldown(&self, pupd: PullUpPullDown) {
-        let port = self.pinid.get_port();
+        let port = self.ports_ref.expect("").get_port(self.pinid);
 
         match self.pinid.get_pin_number() {
             0b0000 => port.registers.pupdr.modify(PUPDR::PUPDR0.val(pupd as u32)),
@@ -948,7 +991,7 @@ impl<'a> Pin<'a> {
     }
 
     fn set_output_high(&self) {
-        let port = self.pinid.get_port();
+        let port = self.ports_ref.expect("").get_port(self.pinid);
 
         match self.pinid.get_pin_number() {
             0b0000 => port.registers.bsrr.write(BSRR::BS0::SET),
@@ -972,7 +1015,7 @@ impl<'a> Pin<'a> {
     }
 
     fn set_output_low(&self) {
-        let port = self.pinid.get_port();
+        let port = self.ports_ref.expect("").get_port(self.pinid);
 
         match self.pinid.get_pin_number() {
             0b0000 => port.registers.bsrr.write(BSRR::BR0::SET),
@@ -996,7 +1039,7 @@ impl<'a> Pin<'a> {
     }
 
     fn is_output_high(&self) -> bool {
-        let port = self.pinid.get_port();
+        let port = self.ports_ref.expect("").get_port(self.pinid);
 
         match self.pinid.get_pin_number() {
             0b0000 => port.registers.odr.is_set(ODR::ODR0),
@@ -1030,7 +1073,7 @@ impl<'a> Pin<'a> {
     }
 
     fn read_input(&self) -> bool {
-        let port = self.pinid.get_port();
+        let port = self.ports_ref.expect("").get_port(self.pinid);
 
         match self.pinid.get_pin_number() {
             0b0000 => port.registers.idr.is_set(IDR::IDR0),
@@ -1157,25 +1200,25 @@ impl<'a> hil::gpio::Interrupt<'a> for Pin<'a> {
                     let l = lineid.clone();
 
                     // disable the interrupt
-                    exti::EXTI.mask_interrupt(l);
-                    exti::EXTI.clear_pending(l);
+                    self.exti.mask_interrupt(l);
+                    self.exti.clear_pending(l);
 
                     match mode {
                         hil::gpio::InterruptEdge::EitherEdge => {
-                            exti::EXTI.select_rising_trigger(l);
-                            exti::EXTI.select_falling_trigger(l);
+                            self.exti.select_rising_trigger(l);
+                            self.exti.select_falling_trigger(l);
                         }
                         hil::gpio::InterruptEdge::RisingEdge => {
-                            exti::EXTI.select_rising_trigger(l);
-                            exti::EXTI.deselect_falling_trigger(l);
+                            self.exti.select_rising_trigger(l);
+                            self.exti.deselect_falling_trigger(l);
                         }
                         hil::gpio::InterruptEdge::FallingEdge => {
-                            exti::EXTI.deselect_rising_trigger(l);
-                            exti::EXTI.select_falling_trigger(l);
+                            self.exti.deselect_rising_trigger(l);
+                            self.exti.select_falling_trigger(l);
                         }
                     }
 
-                    exti::EXTI.unmask_interrupt(l);
+                    self.exti.unmask_interrupt(l);
                 });
             });
         }
@@ -1186,8 +1229,8 @@ impl<'a> hil::gpio::Interrupt<'a> for Pin<'a> {
             atomic(|| {
                 self.exti_lineid.map(|lineid| {
                     let l = lineid.clone();
-                    exti::EXTI.mask_interrupt(l);
-                    exti::EXTI.clear_pending(l);
+                    self.exti.mask_interrupt(l);
+                    self.exti.clear_pending(l);
                 });
             });
         }
@@ -1198,9 +1241,7 @@ impl<'a> hil::gpio::Interrupt<'a> for Pin<'a> {
     }
 
     fn is_pending(&self) -> bool {
-        unsafe {
-            self.exti_lineid
-                .map_or(false, |&mut lineid| exti::EXTI.is_pending(lineid))
-        }
+        self.exti_lineid
+            .map_or(false, |&mut lineid| self.exti.is_pending(lineid))
     }
 }
