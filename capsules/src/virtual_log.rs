@@ -1,13 +1,9 @@
 //! Virtualize the log storage abstraction.
-use crate::log::PAGE_HEADER_SIZE;
 use core::cell::Cell;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::common::list::{List, ListLink, ListNode};
 use kernel::hil::log::{LogRead, LogReadClient, LogWrite, LogWriteClient};
 use kernel::ReturnCode;
-
-// Make it clear when a usize represents a log entry ID
-type EntryID = usize;
 
 // Represents the current operation that a virtual log device is performing.
 #[derive(Copy, Clone, PartialEq)]
@@ -28,7 +24,7 @@ pub struct VirtualLogDevice<'a, Log: LogRead<'a> + LogWrite<'a>> {
     read_client: OptionalCell<&'a dyn LogReadClient>,
     append_client: OptionalCell<&'a dyn LogWriteClient>,
     operation: Cell<Op>,
-    read_entry_id: Cell<usize>,
+    read_entry_id: Cell<Log::EntryID>,
     buffer: TakeCell<'static, [u8]>,
 }
 
@@ -41,14 +37,14 @@ impl<'a, Log: LogRead<'a> + LogWrite<'a>> ListNode<'a, VirtualLogDevice<'a, Log>
 }
 
 impl<'a, Log: LogRead<'a> + LogWrite<'a>> VirtualLogDevice<'a, Log> {
-    pub const fn new(mux: &'a MuxLog<'a, Log>) -> VirtualLogDevice<'a, Log> {
+    pub fn new(mux: &'a MuxLog<'a, Log>) -> VirtualLogDevice<'a, Log> {
         VirtualLogDevice {
             mux: mux,
             next: ListLink::empty(),
             read_client: OptionalCell::empty(),
             append_client: OptionalCell::empty(),
             operation: Cell::new(Op::Idle),
-            read_entry_id: Cell::new(PAGE_HEADER_SIZE),
+            read_entry_id: Cell::new(mux.log.log_start()),
             buffer: TakeCell::empty(),
         }
     }
@@ -276,6 +272,7 @@ impl<'a, Log: LogRead<'a> + LogWrite<'a>> MuxLog<'a, Log> {
                 Op::Erase => {
                     self.log.erase();
                 }
+                Op::Idle => {} // Can't get here...
             }
         });
     }
