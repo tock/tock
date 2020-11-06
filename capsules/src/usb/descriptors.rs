@@ -9,14 +9,6 @@ use core::fmt;
 use kernel::common::cells::VolatileCell;
 use kernel::hil::usb::TransferType;
 
-pub const DESCRIPTOR_BUFLEN_MAX: usize = 256;
-
-const fn init_cell_u8_array<const N: usize>() -> [Cell<u8>; N] {
-    const C: Cell<u8> = Cell::new(0u8);
-
-    [C; N]
-}
-
 // On Nordic, USB buffers must be 32-bit aligned, with a power-of-2 size. For
 // now we apply these constraints on all platforms.
 #[derive(Default)]
@@ -392,13 +384,6 @@ pub struct DeviceBuffer {
 }
 
 impl DeviceBuffer {
-    pub fn new() -> Self {
-        Self {
-            buf: init_cell_u8_array(),
-            len: 0,
-        }
-    }
-
     pub fn write_to(&self, buf: &[Cell<u8>]) -> usize {
         for i in 0..self.len {
             buf[i].set(self.buf[i].get());
@@ -410,18 +395,11 @@ impl DeviceBuffer {
 /// Buffer for holding the configuration, interface(s), and endpoint(s)
 /// descriptors. Also includes class-specific functional descriptors.
 pub struct DescriptorBuffer {
-    pub buf: [Cell<u8>; DESCRIPTOR_BUFLEN_MAX],
+    pub buf: [Cell<u8>; 128],
     pub len: usize,
 }
 
 impl DescriptorBuffer {
-    pub fn new() -> Self {
-        Self {
-            buf: init_cell_u8_array(),
-            len: 0,
-        }
-    }
-
     pub fn write_to(&self, buf: &[Cell<u8>]) -> usize {
         for i in 0..self.len {
             buf[i].set(self.buf[i].get());
@@ -447,14 +425,68 @@ pub fn create_descriptor_buffers(
 ) -> (DeviceBuffer, DescriptorBuffer) {
     // Create device descriptor buffer and fill.
     // Cell doesn't implement Copy, so here we are.
-    let mut dev_buf = DeviceBuffer::new();
+    let mut dev_buf = DeviceBuffer {
+        buf: [
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+            Cell::default(),
+        ],
+        len: 0,
+    };
     dev_buf.len = device_descriptor.write_to(&dev_buf.buf);
 
     // Create other descriptors buffer.
     // For the moment, the Default trait is not implemented for arrays
     // of length > 32, and the Cell type is not Copy, so we have to
     // initialize each element manually.
-    let mut other_buf = DescriptorBuffer::new();
+    let mut other_buf = DescriptorBuffer {
+        #[rustfmt::skip]
+        buf: [
+            Cell::default(), Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+            Cell::default(), Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+            Cell::default(), Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+            Cell::default(), Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+            Cell::default(), Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+            Cell::default(), Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+            Cell::default(), Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+            Cell::default(), Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+            Cell::default(), Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+            Cell::default(), Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+            Cell::default(), Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+            Cell::default(), Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+            Cell::default(), Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+            Cell::default(), Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+            Cell::default(), Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+            Cell::default(), Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+            Cell::default(), Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+            Cell::default(), Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+            Cell::default(), Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+            Cell::default(), Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+            Cell::default(), Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+            Cell::default(), Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+            Cell::default(), Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+            Cell::default(), Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+            Cell::default(), Cell::default(), Cell::default(), Cell::default(), Cell::default(),
+            Cell::default(), Cell::default(), Cell::default(),
+        ],
+        len: 0,
+    };
 
     // Setup certain descriptor fields since now we know the tree of
     // descriptors.
