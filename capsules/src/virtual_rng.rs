@@ -1,108 +1,151 @@
 use core::cell::Cell;
-use core::marker::PhantomData;
 use kernel::common::cells::OptionalCell;
 use kernel::common::{List, ListLink, ListNode};
-// TODO: use these for every reference to Rng
 use kernel::hil::rng::{Client, Continue, Random, Rng};
 use kernel::ReturnCode;
 
 // The Mux struct manages multiple Rng clients. Each client may have
 // at most one outstanding Rng request.
-pub struct MuxRngMaster<'a, Rng: kernel::hil::rng::Rng<'a>> {
-    rng: &'a Rng,
-    // TODO: check if valid (stolen from virtual digest)
-    running: Cell<bool>,
-    running_id: Cell<u32>,
-    next_id: Cell<u32>,
+pub struct MuxRngMaster<'a, R: Rng<'a>> {
+    rng: &'a R,
+    devices: List<'a, VirtualRngMasterDevice<'a, R>>,
     // Additional data storage needed to implement virtualization logic
-    inflight: OptionalCell<&'a VirtualRngMasterDevice<'a, Rng>>,
+    inflight: OptionalCell<&'a VirtualRngMasterDevice<'a, R>>,
 }
 
-impl<'a, Rng: kernel::hil::rng::Rng<'a>> MuxRngMaster<'a, Rng> {
-    pub const fn new(rng: &'a Rng) -> MuxRngMaster<'a, Rng> {
+impl<'a, R: Rng<'a>> ListNode<'a, VirtualRngMasterDevice<'a, R>> for VirtualRngMasterDevice<'a, R> {
+    fn next(&self) -> &'a ListLink<VirtualRngMasterDevice<'a, R>> {
+        &self.next
+    }
+}
+
+
+impl<'a, R: Random<'a> + Rng<'a>> MuxRngMaster<'a, R> {
+    pub const fn new(rng: &'a R) -> MuxRngMaster<'a, R> {
         MuxRngMaster {
             rng: rng,
-            running: Cell::new(false),
-            running_id: Cell::new(0),
-            next_id: Cell::new(0),
+            devices: List::new(),
             inflight: OptionalCell::empty(),
         }
     }
 
     // TODO: Implement virtualization logic helper functions
+    fn do_next_op(&self) {
+        if self.inflight.is_none() {
+            let mnode = self
+                .devices
+                .iter()
+                .find(|node| node.operation.get() != Op::Idle);
+            mnode.map(|node| {
+                // self.spi.specify_chip_select(node.chip_select.get());
+                let op = node.operation.get();
+                // Need to set idle here in case callback changes state
+                node.operation.set(Op::Idle);
+                match op {
+                    Op::SetClient => {
+                        self.rng.set_client(node);
+                    }
+                    Op::Initialize => {
+                        self.rng.initialize();
+                    }
+                    Op::GetRandom => {
+                        self.inflight.set(node);
+                        self.rng.random();
+                    }
+                    Op::Reseed(seed) => {
+                        self.rng.reseed(seed);
+                    }
+                    Op::Idle => {} // Can't get here...
+                }
+            });
+        }
+    }
 }
 
-pub struct VirtualRngMasterDevice<'a, Rng: kernel::hil::rng::Rng<'a>> {
+pub struct VirtualRngMasterDevice<'a, R: Rng<'a>> {
     //reference to the mux
-    mux: &'a MuxRngMaster<'a, Rng>,
+    mux: &'a MuxRngMaster<'a, R>,
 
     // Pointer to next element in the list of devices
-    next: ListLink<'a, VirtualRngMasterDevice<'a, Rng>>,
-    client: OptionalCell<&'a dyn kernel::hil::rng::Client>,
+    next: ListLink<'a, VirtualRngMasterDevice<'a, R>>,
+    client: OptionalCell<&'a dyn Client>,
+    operation: Cell<Op>,
 }
 
-impl<'a, Rng: kernel::hil::rng::Rng<'a>> VirtualRngMasterDevice<'a, Rng> {
+#[derive(Copy, Clone, PartialEq)]
+enum Op {
+    Idle,
+    SetClient,
+    Initialize,
+    Reseed(u32),
+    GetRandom,
+}
+
+impl<'a, R: Random<'a> + Rng<'a>> VirtualRngMasterDevice<'a, R> {
     pub const fn new(
-        mux: &'a MuxRngMaster<'a, Rng>,
-    ) -> VirtualRngMasterDevice<'a, Rng> {
+        mux: &'a MuxRngMaster<'a, R>,
+    ) -> VirtualRngMasterDevice<'a, R> {
         VirtualRngMasterDevice {
             mux: mux,
             next: ListLink::empty(),
             client: OptionalCell::empty(),
+            operation: Cell::new(Op::Idle),
         }
     }
 
     // Most virtualizers will use a set_client method that looks exactly like this
-    pub fn set_client(&'a self, client: &'a dyn kernel::hil::rng::Client) {
-        // self.mux.devices.push_head(self);
-        // TODO: check whether we need to use a linked list or not
+    pub fn set_client(&'a self, client: &'a dyn Client) {
+        self.mux.devices.push_head(self);
         self.client.set(client);
     }
 }
 
-impl<'a, Rng: kernel::hil::rng::Rng<'a>> kernel::hil::rng::Rng<'a> for VirtualRngMasterDevice<'a, Rng> {
+
+impl<'a, R: Random<'a> + Rng<'a>> Rng<'a> for VirtualRngMasterDevice<'a, R> {
     fn get(&self) -> ReturnCode {
-        // TODO: return random get
-        // self.egen.get()
-        return ReturnCode::SUCCESS; //TODO: remove filler
+        return self.mux.rng.get();
     }
 
     fn cancel(&self) -> ReturnCode {
-        // TODO: cancel random get
-        return ReturnCode::SUCCESS; //TODO: remove filler
+        return self.mux.rng.cancel();
     }
 
     fn set_client(&'a self, _: &'a dyn Client) {
-        // TODO: set the client (refer to rng)
+        self.operation.set(Op::SetClient);
+        self.mux.do_next_op();
     }
 }
 
-impl<'a, Rng: kernel::hil::rng::Rng<'a>> kernel::hil::rng::Random<'a> for VirtualRngMasterDevice<'a, Rng> {
+impl<'a, R: Random<'a> + Rng<'a>> Random<'a> for VirtualRngMasterDevice<'a, R> {
     fn initialize(&'a self) {
-        // TODO: init mux
+        self.operation.set(Op::Initialize);
+        self.mux.do_next_op();
     }
 
     fn reseed(&self, seed: u32) {
-        // TODO: reseed the capsule
+        self.operation.set(Op::Reseed(seed));
+        self.mux.do_next_op();
     }
 
     fn random(&self) -> u32 {
-        // TODO: return a random number
-        return 0;
+        self.operation.set(Op::GetRandom);
+        self.mux.do_next_op();
+        //  TODO: return actual value
+        0
     }
 }
 
-impl<'a, Rng: kernel::hil::rng::Rng<'a>> kernel::hil::rng::Client for VirtualRngMasterDevice<'a, Rng> {
+//TODO: Clean up and call underlying hardware trait if possible
+impl<'a, R: Random<'a> + Rng<'a>> Client for VirtualRngMasterDevice<'a, R> {
     fn randomness_available(
         &self,
         randomness: &mut dyn Iterator<Item = u32>,
-        error: ReturnCode,
+        _error: ReturnCode,
     ) -> Continue {
         match randomness.next() {
             None => Continue::More,
             Some(val) => {
-                // TODO: set the random seed
-                // self.seed.set(val);
+                self.reseed(val);
                 Continue::Done
             }
         }
