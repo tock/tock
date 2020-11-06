@@ -62,7 +62,7 @@ pub trait TextScreen {
     fn blink_cursor_off(&self) -> ReturnCode;
 
     /// Sends to the driver a command to turn on the display of the screen.
-    /// When finised, the driver will call the `command_complete()` callback.
+    /// When finished, the driver will call the `command_complete()` callback.
     ///
     /// Return values:
     /// - `SUCCESS`: The command is valid and will be sent to the driver.
@@ -70,7 +70,7 @@ pub trait TextScreen {
     fn display_on(&self) -> ReturnCode;
 
     /// Sends to the driver a command to turn off the display of the screen.
-    /// When finised, the driver will call the `command_complete()` callback.
+    /// When finished, the driver will call the `command_complete()` callback.
     ///
     /// Return values:
     /// - `SUCCESS`: The command is valid and will be sent to the driver.
@@ -78,7 +78,7 @@ pub trait TextScreen {
     fn display_off(&self) -> ReturnCode;
 
     /// Sends to the driver a command to clear the display of the screen.
-    /// When finised, the driver will call the `command_complete()` callback.
+    /// When finished, the driver will call the `command_complete()` callback.
     ///
     /// Return values:
     /// - `SUCCESS`: The command is valid and will be sent to the driver.
