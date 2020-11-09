@@ -3,8 +3,6 @@
 use kernel::common::registers::{register_bitfields, register_structs, ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
 
-pub static mut FLCTL: FlCtl = FlCtl::new();
-
 const FLCTL_BASE: StaticRef<FlCtlRegisters> =
     unsafe { StaticRef::new(0x4001_1000u32 as *const FlCtlRegisters) };
 
@@ -827,7 +825,7 @@ pub struct FlCtl {
 }
 
 impl FlCtl {
-    const fn new() -> FlCtl {
+    pub const fn new() -> FlCtl {
         FlCtl {
             registers: FLCTL_BASE,
         }

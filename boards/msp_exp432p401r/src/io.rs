@@ -33,9 +33,8 @@ impl Write for Uart {
 
 impl IoWrite for Uart {
     fn write(&mut self, buf: &[u8]) {
-        unsafe {
-            msp432::uart::UART0.transmit_sync(buf);
-        }
+        let uart0 = msp432::uart::Uart::new(0, 1, 1, 1);
+        uart0.transmit_sync(buf);
     }
 }
 
@@ -44,7 +43,8 @@ impl IoWrite for Uart {
 #[panic_handler]
 pub unsafe extern "C" fn panic_fmt(info: &PanicInfo) -> ! {
     const LED1_PIN: IntPinNr = IntPinNr::P01_0;
-    let led = &mut led::LedHigh::new(&msp432::gpio::INT_PINS[LED1_PIN as usize]);
+    let gpio_pin = msp432::gpio::IntPin::new(LED1_PIN);
+    let led = &mut led::LedHigh::new(&gpio_pin);
     let writer = &mut UART;
     let wdt = Wdt::new();
 
