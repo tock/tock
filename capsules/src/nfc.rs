@@ -27,6 +27,8 @@ pub struct NfcDriver<'a> {
     rx_in_progress: OptionalCell<AppId>,
     rx_buffer: TakeCell<'static, [u8]>,
     driver_selected: Cell<bool>,
+    tag_configured: Cell<bool>,
+    current_field: Cell<nfc::NfcFieldState>,
 }
 
 impl<'a> NfcDriver<'a> {
@@ -44,11 +46,23 @@ impl<'a> NfcDriver<'a> {
             rx_in_progress: OptionalCell::empty(),
             rx_buffer: TakeCell::new(rx_buffer),
             driver_selected: Cell::new(false),
+            tag_configured: Cell::new(false),
+            current_field: Cell::new(nfc::NfcFieldState::None),
         }
+    }
+
+    /// Helper function to reset the state of the capsule
+    fn reset(&self) {
+        self.driver_selected.set(false);
+        self.current_field.set(nfc::NfcFieldState::Off);
+        self.tag_configured.set(false);
     }
 
     /// Internal helper function for setting up frame transmission
     fn transmit_new(&self, app_id: AppId, app: &mut App, len: usize) -> ReturnCode {
+        if self.current_field.get() != nfc::NfcFieldState::On {
+            return ReturnCode::ECANCEL;
+        }
         // Driver not ready yet
         if !self.driver_selected.get() {
             return ReturnCode::EOFF;
@@ -92,14 +106,16 @@ impl<'a> NfcDriver<'a> {
 
     /// Internal helper function for starting a receive operation
     fn receive_new(&self, app_id: AppId, app: &mut App, _len: usize) -> ReturnCode {
-        // Driver not ready yet
-        if !self.driver_selected.get() {
+        if !self.tag_configured.get() {
             return ReturnCode::EOFF;
         }
-        if self.rx_buffer.is_none() {
+        if self.current_field.get() != nfc::NfcFieldState::On {
+            return ReturnCode::ECANCEL;
+        }
+        // Driver not ready yet
+        if !self.driver_selected.get() | self.rx_buffer.is_none() {
             return ReturnCode::EBUSY;
         }
-
         if app.rx_buffer.is_some() {
             self.rx_buffer
                 .take()
@@ -131,10 +147,39 @@ impl<'a> nfc::Client<'a> for NfcDriver<'a> {
         self.driver.set_framedelaymax(0xfffff);
     }
 
-    fn field_detected(&self) {}
+    fn tag_deactivated(&self) {
+        self.reset();
+    }
 
-    fn field_lost(&self) {
-        self.driver_selected.set(false);
+    fn field_detected(&self) {
+        self.current_field.set(nfc::NfcFieldState::On);
+    }
+
+    fn field_lost(
+        &self,
+        rx_buffer: Option<&'static mut [u8]>,
+        tx_buffer: Option<&'static mut [u8]>,
+    ) {
+        // Check any unanswered CBs and retake ownership of the buffers
+        if self.rx_in_progress.is_some() {
+            self.rx_buffer.replace(rx_buffer.unwrap());
+            self.rx_in_progress.take().map(|appid| {
+                let _ = self.application.enter(appid, |app, _| {
+                    app.rx_callback
+                        .map(|mut cb| cb.schedule((ReturnCode::ECANCEL).into(), 0, 0));
+                });
+            });
+        }
+        if self.tx_in_progress.is_some() {
+            self.tx_buffer.replace(tx_buffer.unwrap());
+            self.tx_in_progress.take().map(|appid| {
+                let _ = self.application.enter(appid, |app, _| {
+                    app.tx_callback
+                        .map(|mut cb| cb.schedule((ReturnCode::ECANCEL).into(), 0, 0));
+                });
+            });
+        }
+        self.reset();
     }
 
     fn frame_received(&self, buffer: &'static mut [u8], rx_len: usize, result: ReturnCode) {
@@ -284,6 +329,7 @@ impl Driver for NfcDriver<'_> {
             }
             4 /* tag type configuration */ => {
                 self.application.enter(appid, |_, _| {
+                    self.tag_configured.set(true);
                     let tag_type = arg1;
                     self.driver.configure(tag_type as u8)
                 }).unwrap_or_else(|err| err.into())

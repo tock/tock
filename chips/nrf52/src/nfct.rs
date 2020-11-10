@@ -14,6 +14,7 @@ use kernel::common::registers::{
 use kernel::common::StaticRef;
 use kernel::debug;
 use kernel::hil;
+use kernel::hil::nfc::NfcFieldState;
 use kernel::ReturnCode;
 
 const NFCT_BASE: StaticRef<NfctRegisters> =
@@ -428,6 +429,19 @@ impl<'a> NfcTag<'a> {
         rx_amount
     }
 
+    fn field_check(&self) -> bool {
+        if !self
+            .registers
+            .fieldpresent
+            .is_set(FieldPresent::FIELDPRESENT)
+            && !self.registers.fieldpresent.is_set(FieldPresent::LOCKDETECT)
+        {
+            // No active field
+            return false;
+        }
+        true
+    }
+
     fn handle_selected(&self) {
         self.state.set(NfcState::Activated);
         self.client.map(|client| client.tag_selected());
@@ -478,6 +492,25 @@ impl<'a> NfcTag<'a> {
         self.clear_errors();
     }
 
+    fn handle_field(&self, mut field_state: NfcFieldState) {
+        if field_state == NfcFieldState::Unknown {
+            field_state = if self.field_check() {
+                NfcFieldState::On
+            } else {
+                NfcFieldState::Off
+            };
+        }
+
+        match field_state {
+            NfcFieldState::On => self.client.map(|client| client.field_detected()).unwrap(),
+            NfcFieldState::Off => self
+                .client
+                .map(|client| client.field_lost(self.rx_buffer.take(), self.tx_buffer.take()))
+                .unwrap(),
+            _ => (),
+        }
+    }
+
     /// Helper function that clears TX/RX errors related registers.
     fn clear_errors(&self) {
         self.registers
@@ -489,11 +522,25 @@ impl<'a> NfcTag<'a> {
     }
 
     pub fn handle_interrupt(&self) {
+        let mut current_field = NfcFieldState::None;
         let saved_inter = self.registers.intenset.extract();
         self.disable_all_interrupts();
 
         let active_events = self.active_events();
         let events_to_process = saved_inter.bitand(active_events.get());
+        if events_to_process.is_set(Interrupt::FIELDDETECTED) {
+            current_field = NfcFieldState::On;
+        }
+        if events_to_process.is_set(Interrupt::FIELDLOST) {
+            current_field = match current_field {
+                NfcFieldState::None => NfcFieldState::Off,
+                _ => NfcFieldState::Unknown,
+            }
+        }
+        if current_field != NfcFieldState::None {
+            self.handle_field(current_field);
+        }
+
         if events_to_process.is_set(Interrupt::RXFRAMEEND) {
             self.handle_rxend();
         }
@@ -505,6 +552,7 @@ impl<'a> NfcTag<'a> {
         }
         // Ensure there are no spurious errors.
         self.clear_errors();
+        self.enable_interrupts();
     }
 
     fn active_events(&self) -> InMemoryRegister<u32, Interrupt::Register> {
@@ -571,6 +619,13 @@ impl<'a> NfcTag<'a> {
         self.registers.intenclr.set(0xffffffff);
     }
 
+    /// Enable the main event interrupts
+    fn enable_interrupts(&self) {
+        self.registers.intenset.write(
+            Interrupt::SELECTED::SET + Interrupt::FIELDLOST::SET + Interrupt::FIELDDETECTED::SET,
+        );
+    }
+
     fn configure(&self) {
         self.clear_errors();
         self.registers
@@ -590,11 +645,12 @@ impl<'a> NfcTag<'a> {
         self.registers.framedelay_max.set(0x1000);
         // TODO: Remove TASKS_ACTIVATE and Enable TASKS_SENSE instead.
         self.registers.task_activate.write(Task::ENABLE::Trigger);
-        self.registers.intenset.write(Interrupt::SELECTED::SET);
+        self.enable_interrupts();
         self.state.set(NfcState::Initialized);
     }
 
     fn disable(&self) {
+        self.state.set(NfcState::Disabled);
         self.disable_all_interrupts();
         self.registers.task_disable.write(Task::ENABLE::Trigger);
     }
@@ -626,7 +682,7 @@ impl<'a> hil::nfc::NfcTag<'a> for NfcTag<'a> {
     }
 
     fn deactivate(&self) {
-        self.client.map(|client| client.field_lost());
+        self.client.map(|client| client.tag_deactivated());
         self.disable();
         // TODO: Enable task sense when it's correctly configured.
     }

@@ -1,5 +1,18 @@
 use crate::returncode::ReturnCode;
 
+#[derive(Copy, Clone, Debug, PartialEq)]
+/// An enum to keep track of the NFC field status
+pub enum NfcFieldState {
+    /// Initial value that indicates no NFCT field events.
+    None,
+    /// The NFCT FIELDLOST event has been set.
+    On,
+    /// The NFCT FIELDDETECTED event has been set.
+    Off,
+    /// Both NFCT field events have been set - ambiguous state.
+    Unknown,
+}
+
 /// Controls an NFC tag main functionalities
 pub trait NfcTag<'a> {
     /// Set the client instance that will handle callbacks
@@ -60,13 +73,22 @@ pub trait Client<'a> {
     /// the default value in use.
     fn tag_selected(&'a self);
 
+    // Reset the state automaton of the capsule.
+    fn tag_deactivated(&'a self);
+
     /// Called when a field is detected.
     /// This will notify the app of the presence of a field to activate the tag.
     fn field_detected(&'a self);
 
     /// Called when a field is lost.
-    /// This will notify the app of the absence of a field to deactivate the tag.
-    fn field_lost(&'a self);
+    /// This will notify the app of the absence of a field.
+    /// Returns any buffers passed either in `receive_buffer()` or `transmit_buffer()`
+    /// back to the capsule. Also trigger any ready callback functions.
+    fn field_lost(
+        &'a self,
+        rx_buffer: Option<&'static mut [u8]>,
+        tx_buffer: Option<&'static mut [u8]>,
+    );
 
     /// Called when a frame is received.
     /// This will return the buffer passed into `receive_buffer()`.
