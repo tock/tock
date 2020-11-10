@@ -31,7 +31,7 @@ impl<'a> Msp432DefaultPeripherals<'a> {
     pub fn new() -> Self {
         Self {
             adc: crate::adc::Adc::new(),
-            uart0: crate::uart::Uart::new(0, 1, 1, 1),
+            uart0: crate::uart::Uart::new(crate::usci::USCI_A0_BASE, 0, 1, 1, 1),
             cs: crate::cs::ClockSystem::new(),
             dma_channels: crate::dma::DmaChannels::new(),
             adc_ref: crate::ref_module::Ref::new(),

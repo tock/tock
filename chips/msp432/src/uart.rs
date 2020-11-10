@@ -76,13 +76,14 @@ pub struct Uart<'a> {
 
 impl<'a> Uart<'a> {
     pub const fn new(
+        registers: StaticRef<UsciARegisters>,
         tx_dma_chan: usize,
         rx_dma_chan: usize,
         tx_dma_src: u8,
         rx_dma_src: u8,
     ) -> Self {
         Self {
-            registers: usci::USCI_A0_BASE,
+            registers,
             clock_frequency: DEFAULT_CLOCK_FREQ_HZ,
 
             tx_client: OptionalCell::empty(),
