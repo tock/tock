@@ -11,7 +11,8 @@
     const_fn,
     panic_info_message,
     associated_type_defaults,
-    try_trait
+    try_trait,
+    min_const_generics
 )]
 #![warn(unreachable_pub)]
 #![no_std]
@@ -24,6 +25,7 @@ pub mod hil;
 pub mod introspection;
 pub mod ipc;
 pub mod syscall;
+pub mod zerocopy;
 
 mod callback;
 mod config;
