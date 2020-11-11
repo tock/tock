@@ -25,7 +25,7 @@
 use core::cmp;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil;
-use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
+use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, SharedReadWrite};
 
 /// Syscall driver number.
 use crate::driver;
@@ -34,7 +34,7 @@ pub const DRIVER_NUM: usize = driver::NUM::AppFlash as usize;
 #[derive(Default)]
 pub struct App {
     callback: Option<Callback>,
-    buffer: Option<AppSlice<Shared, u8>>,
+    buffer: Option<AppSlice<SharedReadWrite, u8>>,
     pending_command: bool,
     flash_address: usize,
 }
@@ -166,11 +166,11 @@ impl Driver for AppFlash<'_> {
     /// ### `allow_num`
     ///
     /// - `0`: Set write buffer. This entire buffer will be written to flash.
-    fn allow(
+    fn allow_readwrite(
         &self,
         appid: AppId,
         allow_num: usize,
-        slice: Option<AppSlice<Shared, u8>>,
+        slice: Option<AppSlice<SharedReadWrite, u8>>,
     ) -> ReturnCode {
         match allow_num {
             0 => self

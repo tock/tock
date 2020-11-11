@@ -16,7 +16,7 @@ use core::cmp;
 use kernel::common::cells::{MapCell, TakeCell};
 use kernel::hil;
 use kernel::ReturnCode;
-use kernel::{AppId, AppSlice, Callback, Driver, Shared};
+use kernel::{AppId, AppSlice, Callback, Driver, SharedReadWrite};
 
 pub static mut BUFFER1: [u8; 256] = [0; 256];
 pub static mut BUFFER2: [u8; 256] = [0; 256];
@@ -29,10 +29,10 @@ pub const DRIVER_NUM: usize = driver::NUM::I2cMasterSlave as usize;
 #[derive(Default)]
 pub struct App {
     callback: Option<Callback>,
-    master_tx_buffer: Option<AppSlice<Shared, u8>>,
-    master_rx_buffer: Option<AppSlice<Shared, u8>>,
-    slave_tx_buffer: Option<AppSlice<Shared, u8>>,
-    slave_rx_buffer: Option<AppSlice<Shared, u8>>,
+    master_tx_buffer: Option<AppSlice<SharedReadWrite, u8>>,
+    master_rx_buffer: Option<AppSlice<SharedReadWrite, u8>>,
+    slave_tx_buffer: Option<AppSlice<SharedReadWrite, u8>>,
+    slave_rx_buffer: Option<AppSlice<SharedReadWrite, u8>>,
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -211,11 +211,11 @@ impl hil::i2c::I2CHwSlaveClient for I2CMasterSlaveDriver<'_> {
 }
 
 impl Driver for I2CMasterSlaveDriver<'_> {
-    fn allow(
+    fn allow_readwrite(
         &self,
         _appid: AppId,
         allow_num: usize,
-        slice: Option<AppSlice<Shared, u8>>,
+        slice: Option<AppSlice<SharedReadWrite, u8>>,
     ) -> ReturnCode {
         match allow_num {
             // Pass in a buffer for transmitting a `write` to another

@@ -70,7 +70,7 @@
 use kernel::common::cells::OptionalCell;
 use kernel::hil;
 use kernel::hil::crc::CrcAlg;
-use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
+use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, SharedReadWrite};
 
 /// Syscall driver number.
 use crate::driver;
@@ -80,7 +80,7 @@ pub const DRIVER_NUM: usize = driver::NUM::Crc as usize;
 #[derive(Default)]
 pub struct App {
     callback: Option<Callback>,
-    buffer: Option<AppSlice<Shared, u8>>,
+    buffer: Option<AppSlice<SharedReadWrite, u8>>,
 
     // if Some, the application is awaiting the result of a CRC
     //   using the given algorithm
@@ -171,11 +171,11 @@ impl<'a, C: hil::crc::CRC<'a>> Driver for Crc<'a, C> {
     /// `allow_num` zero, which is used to provide a buffer over which
     /// to compute a CRC computation.
     ///
-    fn allow(
+    fn allow_readwrite(
         &self,
         appid: AppId,
         allow_num: usize,
-        slice: Option<AppSlice<Shared, u8>>,
+        slice: Option<AppSlice<SharedReadWrite, u8>>,
     ) -> ReturnCode {
         match allow_num {
             // Provide user buffer to compute CRC over

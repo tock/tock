@@ -25,7 +25,7 @@ use kernel::hil::entropy;
 use kernel::hil::entropy::{Entropy32, Entropy8};
 use kernel::hil::rng;
 use kernel::hil::rng::{Client, Continue, Random, Rng};
-use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
+use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, SharedReadWrite};
 
 /// Syscall driver number.
 use crate::driver;
@@ -34,7 +34,7 @@ pub const DRIVER_NUM: usize = driver::NUM::Rng as usize;
 #[derive(Default)]
 pub struct App {
     callback: Option<Callback>,
-    buffer: Option<AppSlice<Shared, u8>>,
+    buffer: Option<AppSlice<SharedReadWrite, u8>>,
     remaining: usize,
     idx: usize,
 }
@@ -134,11 +134,11 @@ impl rng::Client for RngDriver<'_> {
 }
 
 impl<'a> Driver for RngDriver<'a> {
-    fn allow(
+    fn allow_readwrite(
         &self,
         appid: AppId,
         allow_num: usize,
-        slice: Option<AppSlice<Shared, u8>>,
+        slice: Option<AppSlice<SharedReadWrite, u8>>,
     ) -> ReturnCode {
         // pass buffer in from application
         match allow_num {

@@ -16,7 +16,7 @@ use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil;
 use kernel::hil::screen::{ScreenPixelFormat, ScreenRotation};
 use kernel::ReturnCode;
-use kernel::{AppId, AppSlice, Callback, Driver, Grant, Shared};
+use kernel::{AppId, AppSlice, Callback, Driver, Grant, SharedReadWrite};
 
 /// Syscall driver number.
 use crate::driver;
@@ -76,7 +76,7 @@ fn pixels_in_bytes(pixels: usize, bits_per_pixel: usize) -> usize {
 pub struct App {
     callback: Option<Callback>,
     pending_command: bool,
-    shared: Option<AppSlice<Shared, u8>>,
+    shared: Option<AppSlice<SharedReadWrite, u8>>,
     write_position: usize,
     write_len: usize,
     command: ScreenCommand,
@@ -559,11 +559,11 @@ impl<'a> Driver for Screen<'a> {
         }
     }
 
-    fn allow(
+    fn allow_readwrite(
         &self,
         appid: AppId,
         allow_num: usize,
-        slice: Option<AppSlice<Shared, u8>>,
+        slice: Option<AppSlice<SharedReadWrite, u8>>,
     ) -> ReturnCode {
         match allow_num {
             // TODO should refuse allow while writing

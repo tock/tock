@@ -7,7 +7,7 @@ use kernel::common::cells::{MapCell, TakeCell};
 use kernel::hil::spi::ClockPhase;
 use kernel::hil::spi::ClockPolarity;
 use kernel::hil::spi::{SpiMasterClient, SpiMasterDevice};
-use kernel::{AppId, AppSlice, Callback, Driver, ReturnCode, Shared};
+use kernel::{AppId, AppSlice, Callback, Driver, ReturnCode, SharedReadWrite};
 
 /// Syscall driver number.
 use crate::driver;
@@ -29,8 +29,8 @@ pub const DEFAULT_WRITE_BUF_LENGTH: usize = 1024;
 #[derive(Default)]
 struct App {
     callback: Option<Callback>,
-    app_read: Option<AppSlice<Shared, u8>>,
-    app_write: Option<AppSlice<Shared, u8>>,
+    app_read: Option<AppSlice<SharedReadWrite, u8>>,
+    app_write: Option<AppSlice<SharedReadWrite, u8>>,
     len: usize,
     index: usize,
 }
@@ -87,11 +87,11 @@ impl<'a, S: SpiMasterDevice> Spi<'a, S> {
 }
 
 impl<'a, S: SpiMasterDevice> Driver for Spi<'a, S> {
-    fn allow(
+    fn allow_readwrite(
         &self,
         _appid: AppId,
         allow_num: usize,
-        slice: Option<AppSlice<Shared, u8>>,
+        slice: Option<AppSlice<SharedReadWrite, u8>>,
     ) -> ReturnCode {
         match allow_num {
             // Pass in a read buffer to receive bytes into.

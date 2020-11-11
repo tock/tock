@@ -20,7 +20,7 @@ use core::{cmp, mem};
 use kernel::capabilities::UdpDriverCapability;
 use kernel::common::cells::MapCell;
 use kernel::common::leasable_buffer::LeasableBuffer;
-use kernel::{debug, AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
+use kernel::{debug, AppId, AppSlice, Callback, Driver, Grant, ReturnCode, SharedReadWrite};
 
 use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::Udp as usize;
@@ -64,10 +64,10 @@ impl UDPEndpoint {
 pub struct App {
     rx_callback: Option<Callback>,
     tx_callback: Option<Callback>,
-    app_read: Option<AppSlice<Shared, u8>>,
-    app_write: Option<AppSlice<Shared, u8>>,
-    app_cfg: Option<AppSlice<Shared, u8>>,
-    app_rx_cfg: Option<AppSlice<Shared, u8>>,
+    app_read: Option<AppSlice<SharedReadWrite, u8>>,
+    app_write: Option<AppSlice<SharedReadWrite, u8>>,
+    app_cfg: Option<AppSlice<SharedReadWrite, u8>>,
+    app_rx_cfg: Option<AppSlice<SharedReadWrite, u8>>,
     pending_tx: Option<[UDPEndpoint; 2]>,
     bound_port: Option<UDPEndpoint>,
 }
@@ -360,11 +360,11 @@ impl<'a> Driver for UDPDriver<'a> {
     /// - `3`: Rx config buffer. Used to contain source/destination addresses
     ///        and ports for receives (separate from `2` because receives may
     ///        be waiting for an incoming packet asynchronously).
-    fn allow(
+    fn allow_readwrite(
         &self,
         appid: AppId,
         allow_num: usize,
-        slice: Option<AppSlice<Shared, u8>>,
+        slice: Option<AppSlice<SharedReadWrite, u8>>,
     ) -> ReturnCode {
         match allow_num {
             0 | 1 | 2 | 3 => self.do_with_app(appid, |app| {

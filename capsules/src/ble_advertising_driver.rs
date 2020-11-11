@@ -107,7 +107,7 @@ use kernel::debug;
 use kernel::hil::ble_advertising;
 use kernel::hil::ble_advertising::RadioChannel;
 use kernel::hil::time::{Frequency, Ticks};
-use kernel::ReturnCode;
+use kernel::{AppSlice, ReturnCode, SharedReadWrite};
 
 /// Syscall driver number.
 use crate::driver;
@@ -170,7 +170,7 @@ pub struct App {
     alarm_data: AlarmData,
 
     // Advertising meta-data
-    adv_data: Option<kernel::AppSlice<kernel::Shared, u8>>,
+    adv_data: Option<AppSlice<SharedReadWrite, u8>>,
     address: [u8; PACKET_ADDR_LEN],
     pdu_type: AdvPduType,
     advertisement_interval_ms: u32,
@@ -183,7 +183,7 @@ pub struct App {
     random_nonce: u32,
 
     // Scanning meta-data
-    scan_buffer: Option<kernel::AppSlice<kernel::Shared, u8>>,
+    scan_buffer: Option<AppSlice<SharedReadWrite, u8>>,
     scan_callback: Option<kernel::Callback>,
 }
 
@@ -641,11 +641,11 @@ where
         }
     }
 
-    fn allow(
+    fn allow_readwrite(
         &self,
         appid: kernel::AppId,
         allow_num: usize,
-        slice: Option<kernel::AppSlice<kernel::Shared, u8>>,
+        slice: Option<AppSlice<SharedReadWrite, u8>>,
     ) -> ReturnCode {
         match allow_num {
             // Advertisement buffer

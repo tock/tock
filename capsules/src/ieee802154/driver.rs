@@ -10,7 +10,7 @@ use crate::net::stream::{decode_bytes, decode_u8, encode_bytes, encode_u8, SResu
 use core::cell::Cell;
 use core::cmp::min;
 use kernel::common::cells::{MapCell, OptionalCell, TakeCell};
-use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
+use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, SharedReadWrite};
 
 const MAX_NEIGHBORS: usize = 4;
 const MAX_KEYS: usize = 4;
@@ -147,9 +147,9 @@ impl KeyDescriptor {
 pub struct App {
     rx_callback: Option<Callback>,
     tx_callback: Option<Callback>,
-    app_read: Option<AppSlice<Shared, u8>>,
-    app_write: Option<AppSlice<Shared, u8>>,
-    app_cfg: Option<AppSlice<Shared, u8>>,
+    app_read: Option<AppSlice<SharedReadWrite, u8>>,
+    app_write: Option<AppSlice<SharedReadWrite, u8>>,
+    app_cfg: Option<AppSlice<SharedReadWrite, u8>>,
     pending_tx: Option<(u16, Option<(SecurityLevel, KeyId)>)>,
 }
 
@@ -533,11 +533,11 @@ impl Driver for RadioDriver<'_> {
     /// - `2`: Config buffer. Used to contain miscellaneous data associated with
     ///        some commands because the system call parameters / return codes are
     ///        not enough to convey the desired information.
-    fn allow(
+    fn allow_readwrite(
         &self,
         appid: AppId,
         allow_num: usize,
-        slice: Option<AppSlice<Shared, u8>>,
+        slice: Option<AppSlice<SharedReadWrite, u8>>,
     ) -> ReturnCode {
         match allow_num {
             0 | 1 | 2 => self.do_with_app(appid, |app| {

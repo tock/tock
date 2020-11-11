@@ -7,7 +7,7 @@ use kernel::common::cells::{MapCell, TakeCell};
 use kernel::hil::spi::ClockPhase;
 use kernel::hil::spi::ClockPolarity;
 use kernel::hil::spi::{SpiSlaveClient, SpiSlaveDevice};
-use kernel::{AppId, AppSlice, Callback, Driver, ReturnCode, Shared};
+use kernel::{AppId, AppSlice, Callback, Driver, ReturnCode, SharedReadWrite};
 
 /// Syscall driver number.
 use crate::driver;
@@ -24,8 +24,8 @@ pub const DEFAULT_WRITE_BUF_LENGTH: usize = 1024;
 struct PeripheralApp {
     callback: Option<Callback>,
     selected_callback: Option<Callback>,
-    app_read: Option<AppSlice<Shared, u8>>,
-    app_write: Option<AppSlice<Shared, u8>>,
+    app_read: Option<AppSlice<SharedReadWrite, u8>>,
+    app_write: Option<AppSlice<SharedReadWrite, u8>>,
     len: usize,
     index: usize,
 }
@@ -85,11 +85,11 @@ impl<S: SpiSlaveDevice> Driver for SpiPeripheral<'_, S> {
     ///
     /// - allow_num 1: Provides an app_write buffer to send transfers from.
     ///
-    fn allow(
+    fn allow_readwrite(
         &self,
         _appid: AppId,
         allow_num: usize,
-        slice: Option<AppSlice<Shared, u8>>,
+        slice: Option<AppSlice<SharedReadWrite, u8>>,
     ) -> ReturnCode {
         match allow_num {
             0 => {
