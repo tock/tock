@@ -356,8 +356,13 @@ Subscribe identifier 0 is reserved and behaves in a special way. Every
 driver MUST implement subscribe identifier 0 to return a failure
 result in which both `u32` values contain the Null Callback. This
 allows userspace to easily determine the Null Callback value, e.g., to
-disable callbacks.
+disable callbacks. Because a capsule cannot store the Callback for
+subscribe identifier 0, a failure result returned by subscribe
+identifier 0 MUST have an error code of NOMEM.
 
+If a userspace process invokes subscribe on a driver ID that is not
+installed in the kernel, the kernel MUST return a failure with an
+error code of NOSUPPORT and a callback of the Null Callback.
 
 4.3 Command (Class ID: 2)
 ---------------------------------
