@@ -317,24 +317,25 @@ impl<'a, F: Flash + 'static> Log<'a, F> {
     }
 
     /// Returns the ID of the next entry to read or an error if no entry could be retrieved.
+    ///
     /// ReturnCodes used:
-    ///     * FAIL: reached end of log, nothing to read.
-    ///     * ERESERVE: client or internal pagebuffer missing.
+    ///
+    /// * FAIL: reached end of log, nothing to read.
+    /// * ERESERVE: client or internal pagebuffer missing.
     fn get_next_entry(&self) -> Result<EntryID, ReturnCode> {
         self.pagebuffer
-            .take()
-            .map_or(Err(ReturnCode::ERESERVE), move |pagebuffer| {
+            .map_or(Err(ReturnCode::ERESERVE), |pagebuffer| {
                 let mut entry_id = self.read_entry_id.get();
-
-                // Skip page header if at start of page or skip padded bytes if at end of page.
-                if entry_id % self.page_size == 0 {
+                let page_offset = entry_id % self.page_size;
+                if page_offset == 0 {
+                    // At the start of a page; skip the page header.
                     entry_id += PAGE_HEADER_SIZE;
                 } else if self.get_byte(entry_id, pagebuffer) == PAD_BYTE {
-                    entry_id += self.page_size - entry_id % self.page_size + PAGE_HEADER_SIZE;
+                    // At the start of a page's padding; skip the padding and the next page header.
+                    let padding = self.page_size - page_offset;
+                    entry_id += padding + PAGE_HEADER_SIZE;
                 }
-
-                // Check if end of log was reached and return.
-                self.pagebuffer.replace(pagebuffer);
+                // Check to see if the end of the log as been reached.
                 if entry_id >= self.append_entry_id.get() {
                     Err(ReturnCode::FAIL)
                 } else {
