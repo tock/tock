@@ -509,7 +509,14 @@ code by the userspace library.
 5.1 libtock-rs
 ---------------------------------
 
-N Authors' Address
+6 The Driver trait
+=================================
+
+The core kernel, in response to userspace system calls, 
+invokes methods on the Driver trait implemented by system call drivers. 
+This section describes the Driver trait API. 
+
+7 Authors' Address
 =================================
 ```
 email - Guillaume Endignoux <guillaumee@google.com>
