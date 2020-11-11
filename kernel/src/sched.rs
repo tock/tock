@@ -780,8 +780,8 @@ impl Kernel {
                                     let res = platform.with_driver(driver_number, |driver| {
                                         match driver {
                                             Some(d) => {
-                                                match process.allow(allow_address, allow_size) {
-                                                    Ok(oslice) => d.allow(
+                                                match process.allow_readwrite(allow_address, allow_size) {
+                                                    Ok(oslice) => d.allow_readwrite(
                                                         process.appid(),
                                                         subdriver_number,
                                                         oslice,

@@ -52,7 +52,7 @@ use core::cell::Cell;
 use core::cmp;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil;
-use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
+use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, SharedReadWrite};
 
 /// Syscall driver number.
 use crate::driver;
@@ -113,8 +113,8 @@ pub struct AppSys {
 
 /// Holds buffers that the application has passed us
 pub struct App {
-    app_buf1: Option<AppSlice<Shared, u8>>,
-    app_buf2: Option<AppSlice<Shared, u8>>,
+    app_buf1: Option<AppSlice<SharedReadWrite, u8>>,
+    app_buf2: Option<AppSlice<SharedReadWrite, u8>>,
     callback: OptionalCell<Callback>,
     app_buf_offset: Cell<usize>,
     samples_remaining: Cell<usize>,
@@ -1084,11 +1084,11 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> Driver for AdcDedicated<'_, A> {
     /// - `_appid` - application identifier, unused
     /// - `allow_num` - which allow call this is
     /// - `slice` - representation of application memory to copy data into
-    fn allow(
+    fn allow_readwrite(
         &self,
         appid: AppId,
         allow_num: usize,
-        slice: Option<AppSlice<Shared, u8>>,
+        slice: Option<AppSlice<SharedReadWrite, u8>>,
     ) -> ReturnCode {
         // Return true if this app already owns the ADC capsule, if no app owns
         // the ADC capsule, or if the app that is marked as owning the ADC

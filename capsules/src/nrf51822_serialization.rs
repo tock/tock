@@ -25,7 +25,7 @@ use core::cmp;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil;
 use kernel::hil::uart;
-use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
+use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, SharedReadWrite};
 
 /// Syscall driver number.
 use crate::driver;
@@ -34,8 +34,8 @@ pub const DRIVER_NUM: usize = driver::NUM::Nrf51822Serialization as usize;
 #[derive(Default)]
 pub struct App {
     callback: Option<Callback>,
-    tx_buffer: Option<AppSlice<Shared, u8>>,
-    rx_buffer: Option<AppSlice<Shared, u8>>,
+    tx_buffer: Option<AppSlice<SharedReadWrite, u8>>,
+    rx_buffer: Option<AppSlice<SharedReadWrite, u8>>,
     rx_recv_so_far: usize, // How many RX bytes we have currently received.
     rx_recv_total: usize,  // The total number of bytes we expect to receive.
 }
@@ -105,11 +105,11 @@ impl Driver for Nrf51822Serialization<'_> {
     ///
     /// - `0`: Provide a RX buffer.
     /// - `1`: Provide a TX buffer.
-    fn allow(
+    fn allow_readwrite(
         &self,
         appid: AppId,
         allow_type: usize,
-        slice: Option<AppSlice<Shared, u8>>,
+        slice: Option<AppSlice<SharedReadWrite, u8>>,
     ) -> ReturnCode {
         match allow_type {
             // Provide an RX buffer.

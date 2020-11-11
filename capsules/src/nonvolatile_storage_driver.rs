@@ -58,7 +58,7 @@ use core::cell::Cell;
 use core::cmp;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil;
-use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
+use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, SharedReadWrite};
 
 /// Syscall driver number.
 use crate::driver;
@@ -87,8 +87,8 @@ pub struct App {
     command: NonvolatileCommand,
     offset: usize,
     length: usize,
-    buffer_read: Option<AppSlice<Shared, u8>>,
-    buffer_write: Option<AppSlice<Shared, u8>>,
+    buffer_read: Option<AppSlice<SharedReadWrite, u8>>,
+    buffer_write: Option<AppSlice<SharedReadWrite, u8>>,
 }
 
 impl Default for App {
@@ -474,11 +474,11 @@ impl Driver for NonvolatileStorage<'_> {
     ///
     /// - `0`: Setup a buffer to read from the nonvolatile storage into.
     /// - `1`: Setup a buffer to write bytes to the nonvolatile storage.
-    fn allow(
+    fn allow_readwrite(
         &self,
         appid: AppId,
         allow_num: usize,
-        slice: Option<AppSlice<Shared, u8>>,
+        slice: Option<AppSlice<SharedReadWrite, u8>>,
     ) -> ReturnCode {
         self.apps
             .enter(appid, |app, _| {

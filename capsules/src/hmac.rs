@@ -34,7 +34,7 @@ use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::common::leasable_buffer::LeasableBuffer;
 use kernel::hil::digest;
 use kernel::hil::digest::DigestType;
-use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
+use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, SharedReadWrite};
 
 pub struct HmacDriver<'a, H: digest::Digest<'a, T>, T: 'static + DigestType> {
     hmac: &'a H,
@@ -302,11 +302,11 @@ impl<'a, H: digest::Digest<'a, T> + digest::HMACSha256, T: DigestType> digest::C
 impl<'a, H: digest::Digest<'a, T> + digest::HMACSha256, T: DigestType> Driver
     for HmacDriver<'a, H, T>
 {
-    fn allow(
+    fn allow_readwrite(
         &self,
         appid: AppId,
         allow_num: usize,
-        slice: Option<AppSlice<Shared, u8>>,
+        slice: Option<AppSlice<SharedReadWrite, u8>>,
     ) -> ReturnCode {
         match allow_num {
             // Pass buffer for the key to be in
@@ -467,9 +467,9 @@ impl<'a, H: digest::Digest<'a, T> + digest::HMACSha256, T: DigestType> Driver
 pub struct App {
     callback: OptionalCell<Callback>,
     pending_run_app: Option<AppId>,
-    key: Option<AppSlice<Shared, u8>>,
-    data: Option<AppSlice<Shared, u8>>,
-    dest: Option<AppSlice<Shared, u8>>,
+    key: Option<AppSlice<SharedReadWrite, u8>>,
+    data: Option<AppSlice<SharedReadWrite, u8>>,
+    dest: Option<AppSlice<SharedReadWrite, u8>>,
 }
 
 impl Default for App {

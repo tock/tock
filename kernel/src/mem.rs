@@ -1,6 +1,17 @@
-//! Data structure for passing application memory to the kernel.
+//! Data structures for passing application memory to the kernel.
+//!
+//! A Tock process can pass read-write or read-only buffers into
+//! the kernel for it to use. The kernel checks that read-write
+//! buffers exist within a process's RAM address space, and that
+//! read-only buffers exist either within RAM or flash. These buffers
+//! are shared with the allow() and allow_read_only() system calls.
+//!
+//! Both read-only and read-write application buffers are represented
+//! with the AppSlice type, which is parameterized by whether it is
+//! Shared (read-write) or SharedReadOnly (read-only).
 
 use core::marker::PhantomData;
+use core::ops::{Deref, DerefMut};
 use core::ptr::NonNull;
 use core::slice;
 
@@ -13,7 +24,15 @@ pub struct Private;
 
 /// Type for specifying an AppSlice is shared with the kernel.
 #[derive(Debug)]
-pub struct Shared;
+pub struct SharedReadWrite;
+
+/// Type for specifying an AppSlice that is shared read-only with the kernel
+#[derive(Debug)]
+pub struct SharedReadOnly;
+
+pub trait Read {}
+impl Read for SharedReadWrite {}
+impl Read for SharedReadOnly {}
 
 /// Base type for an AppSlice that holds the raw pointer to the memory region
 /// the app shared with the kernel.
@@ -33,6 +52,40 @@ impl<L, T> AppPtr<L, T> {
         }
     }
 }
+
+impl<L: Read, T> AppPtr<L, T> {
+    pub(crate) fn make_read_only(self) -> AppPtr<SharedReadOnly, T> {
+        unsafe { AppPtr::new(self.ptr, self.process) }
+    }
+}
+
+pub trait ReadWrite: Read {}
+impl ReadWrite for SharedReadWrite {}
+
+impl<L: Read, T> Deref for AppPtr<L, T> {
+    type Target = T;
+
+    fn deref(&self) -> &T {
+        unsafe { self.ptr.as_ref() }
+    }
+}
+
+impl<L: ReadWrite, T> DerefMut for AppPtr<L, T> {
+    fn deref_mut(&mut self) -> &mut T {
+        unsafe { self.ptr.as_mut() }
+    }
+}
+
+impl <L, T> Drop for AppPtr<L, T> {
+    fn drop (&mut self) {
+        self.process
+            .kernel
+            .process_map_or((), self.process, |process| unsafe {
+                process.free(self.ptr.as_ptr() as *mut u8)
+            })
+    }
+}
+
 
 /// Buffer of memory shared from an app to the kernel.
 ///
@@ -103,6 +156,15 @@ impl<L, T> AppSlice<L, T> {
             false
         }
     }
+}
+
+impl <L: Read, T> AppSlice<L, T> {
+    pub fn make_read_only(self) -> AppSlice<SharedReadOnly, T> {
+        AppSlice {
+            ptr: self.ptr.make_read_only(),
+            len: self.len,
+        }
+    }
 
     /// Returns an iterator over the slice
     ///
@@ -116,20 +178,6 @@ impl<L, T> AppSlice<L, T> {
     /// reason, the iterator will be of zero length.
     pub fn iter(&self) -> slice::Iter<T> {
         self.as_ref().iter()
-    }
-
-    /// Returns an iterator that allows modifying each value
-    ///
-    /// See
-    /// [`std::slice::iter_mut()`](https://doc.rust-lang.org/std/primitive.slice.html#method.iter_mut).
-    ///
-    /// Internally this uses
-    /// [`AsMut`](struct.AppSlice.html#impl-AsMut<[T]>), hence when
-    /// the app dies, restarts or the
-    /// [`AppId`](crate::callback::AppId) changes for any other
-    /// reason, the iterator will be of zero length.
-    pub fn iter_mut(&mut self) -> slice::IterMut<T> {
-        self.as_mut().iter_mut()
     }
 
     /// Iterate over `chunk_size` elements at a time, starting at the
@@ -146,6 +194,22 @@ impl<L, T> AppSlice<L, T> {
     /// be returned.
     pub fn chunks(&self, size: usize) -> slice::Chunks<T> {
         self.as_ref().chunks(size)
+    }
+}
+
+impl<L: ReadWrite, T> AppSlice<L, T> {
+    /// Returns an iterator that allows modifying each value
+    ///
+    /// See
+    /// [`std::slice::iter_mut()`](https://doc.rust-lang.org/std/primitive.slice.html#method.iter_mut).
+    ///
+    /// Internally this uses
+    /// [`AsMut`](struct.AppSlice.html#impl-AsMut<[T]>), hence when
+    /// the app dies, restarts or the
+    /// [`AppId`](crate::callback::AppId) changes for any other
+    /// reason, the iterator will be of zero length.
+    pub fn iter_mut(&mut self) -> slice::IterMut<T> {
+        self.as_mut().iter_mut()
     }
 
     /// Mutably iterate over `chunk_size` elements at a time, starting at the
@@ -169,7 +233,7 @@ impl<L, T> AppSlice<L, T> {
     }
 }
 
-impl<L, T> AsRef<[T]> for AppSlice<L, T> {
+impl<L: Read, T> AsRef<[T]> for AppSlice<L, T> {
     /// Get a slice reference over the userspace buffer
     ///
     /// This first checks whether the app died, restarted, or its
@@ -180,12 +244,12 @@ impl<L, T> AsRef<[T]> for AppSlice<L, T> {
             .process
             .kernel
             .process_map_or(&[], self.ptr.process, |_| unsafe {
-                slice::from_raw_parts(self.ptr.ptr.as_ref(), self.len)
+                slice::from_raw_parts(&*self.ptr, self.len)
             })
     }
 }
 
-impl<L, T> AsMut<[T]> for AppSlice<L, T> {
+impl<L: ReadWrite, T> AsMut<[T]> for AppSlice<L, T> {
     /// Get a mutable slice reference over the userspace buffer
     ///
     /// This first checks whether the app died, restarted, or its
@@ -196,7 +260,7 @@ impl<L, T> AsMut<[T]> for AppSlice<L, T> {
             .process
             .kernel
             .process_map_or(&mut [], self.ptr.process, |_| unsafe {
-                slice::from_raw_parts_mut(self.ptr.ptr.as_mut(), self.len)
+                slice::from_raw_parts_mut(&mut *self.ptr, self.len)
             })
     }
 }

@@ -133,7 +133,7 @@ use core::cell::Cell;
 use kernel::common::cells::TakeCell;
 use kernel::hil::gpio;
 use kernel::hil::time::{self, Alarm};
-use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
+use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, SharedReadWrite};
 
 /// Syscall driver number.
 
@@ -203,7 +203,7 @@ pub static mut ROW_OFFSETS: [u8; 4] = [0; 4];
 
 #[derive(Default)]
 pub struct App {
-    text_buffer: Option<AppSlice<Shared, u8>>,
+    text_buffer: Option<AppSlice<SharedReadWrite, u8>>,
 }
 
 // The states the program can be in.
@@ -695,11 +695,11 @@ impl<'a, A: Alarm<'a>> Driver for HD44780<'a, A> {
      * char buffer[128];
      * int ret = allow(DRIVER_LCD_NUM, 1, (void *) buffer, 0);
      */
-    fn allow(
+    fn allow_readwrite(
         &self,
         appid: AppId,
         allow_num: usize,
-        slice: Option<AppSlice<Shared, u8>>,
+        slice: Option<AppSlice<SharedReadWrite, u8>>,
     ) -> ReturnCode {
         let mut ret = 0;
         let mut partial: bool = false;

@@ -44,7 +44,7 @@ use core::cell::Cell;
 use core::cmp;
 use kernel::common::cells::{MapCell, OptionalCell, TakeCell};
 use kernel::hil;
-use kernel::{AppId, AppSlice, Callback, Driver, ReturnCode, Shared};
+use kernel::{AppId, AppSlice, Callback, Driver, ReturnCode, SharedReadWrite};
 
 /// Syscall driver number.
 use crate::driver;
@@ -1390,8 +1390,8 @@ pub struct SDCardDriver<'a, A: hil::time::Alarm<'a>> {
 #[derive(Default)]
 struct App {
     callback: Option<Callback>,
-    write_buffer: Option<AppSlice<Shared, u8>>,
-    read_buffer: Option<AppSlice<Shared, u8>>,
+    write_buffer: Option<AppSlice<SharedReadWrite, u8>>,
+    read_buffer: Option<AppSlice<SharedReadWrite, u8>>,
 }
 
 /// Buffer for SD card driver, assigned in board `main.rs` files
@@ -1484,11 +1484,11 @@ impl<'a, A: hil::time::Alarm<'a>> SDCardClient for SDCardDriver<'a, A> {
 
 /// Connections to userspace syscalls
 impl<'a, A: hil::time::Alarm<'a>> Driver for SDCardDriver<'a, A> {
-    fn allow(
+    fn allow_readwrite(
         &self,
         _appid: AppId,
         allow_num: usize,
-        slice: Option<AppSlice<Shared, u8>>,
+        slice: Option<AppSlice<SharedReadWrite, u8>>,
     ) -> ReturnCode {
         match allow_num {
             // Pass read buffer in from application

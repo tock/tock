@@ -16,7 +16,7 @@ use kernel::hil;
 use kernel::hil::screen::ScreenRotation;
 use kernel::hil::touch::{GestureEvent, TouchEvent, TouchStatus};
 use kernel::ReturnCode;
-use kernel::{AppId, AppSlice, Callback, Driver, Grant, Shared};
+use kernel::{AppId, AppSlice, Callback, Driver, Grant, SharedReadWrite};
 
 /// Syscall driver number.
 use crate::driver;
@@ -35,7 +35,7 @@ pub struct App {
     touch_callback: Option<Callback>,
     gesture_callback: Option<Callback>,
     multi_touch_callback: Option<Callback>,
-    events_buffer: Option<AppSlice<Shared, u8>>,
+    events_buffer: Option<AppSlice<SharedReadWrite, u8>>,
     ack: bool,
     dropped_events: usize,
     x: u16,
@@ -285,11 +285,11 @@ impl<'a> hil::touch::GestureClient for Touch<'a> {
 }
 
 impl<'a> Driver for Touch<'a> {
-    fn allow(
+    fn allow_readwrite(
         &self,
         appid: AppId,
         allow_num: usize,
-        slice: Option<AppSlice<Shared, u8>>,
+        slice: Option<AppSlice<SharedReadWrite, u8>>,
     ) -> ReturnCode {
         match allow_num {
             // allow a buffer for the multi touch

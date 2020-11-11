@@ -7,7 +7,7 @@ use crate::callback::{AppId, Callback};
 use crate::capabilities::MemoryAllocationCapability;
 use crate::driver::Driver;
 use crate::grant::Grant;
-use crate::mem::{AppSlice, Shared};
+use crate::mem::{AppSlice, SharedReadWrite};
 use crate::process;
 use crate::returncode::ReturnCode;
 use crate::sched::Kernel;
@@ -31,7 +31,7 @@ pub enum IPCCallbackType {
 struct IPCData {
     /// An array of app slices that this application has shared with other
     /// applications.
-    shared_memory: [Option<AppSlice<Shared, u8>>; 8],
+    shared_memory: [Option<AppSlice<SharedReadWrite, u8>>; 8],
     /// An array of callbacks this process has registered to receive callbacks
     /// from other services.
     client_callbacks: [Option<Callback>; 8],
@@ -217,11 +217,11 @@ impl Driver for IPC {
     /// application is explicitly sharing a slice with an IPC service (as
     /// specified by the target_id). allow() simply allows both processes to
     /// access the buffer, it does not signal the service.
-    fn allow(
+    fn allow_readwrite(
         &self,
         appid: AppId,
         target_id: usize,
-        slice: Option<AppSlice<Shared, u8>>,
+        slice: Option<AppSlice<SharedReadWrite, u8>>,
     ) -> ReturnCode {
         if target_id == 0 {
             match slice {

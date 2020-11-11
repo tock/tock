@@ -40,7 +40,7 @@
 
 use crate::callback::{AppId, Callback};
 use crate::errorcode::ErrorCode;
-use crate::mem::{AppSlice, Shared};
+use crate::mem::{AppSlice, SharedReadOnly, SharedReadWrite};
 use crate::returncode::ReturnCode;
 use crate::syscall::GenericSyscallReturnValue;
 
@@ -51,23 +51,49 @@ pub enum AllowResult {
     ///
     /// The capsule **must** return any previously shared (potentially
     /// empty, default constructed) AppSlice.
-    Success(AppSlice<Shared, u8>),
+    Success(AppSlice<SharedReadWrite, u8>),
     /// The allow operation was refused. The capsule has not stored
     /// the AppSlice instance
     ///
     /// The capsule **must** return the passed AppSlice back.
-    Refuse(AppSlice<Shared, u8>, ErrorCode),
+    Refuse(AppSlice<SharedReadWrite, u8>, ErrorCode),
 }
 
 impl AllowResult {
-    pub fn success(old_appslice: AppSlice<Shared, u8>) -> Self {
+    pub fn success(old_appslice: AppSlice<SharedReadWrite, u8>) -> Self {
         AllowResult::Success(old_appslice)
     }
 
-    pub fn refuse_allow(new_appslice: AppSlice<Shared, u8>, reason: ErrorCode) -> Self {
+    pub fn refuse_allow(new_appslice: AppSlice<SharedReadWrite, u8>, reason: ErrorCode) -> Self {
         AllowResult::Refuse(new_appslice, reason)
     }
 }
+
+/// Possible return values of an `allow_readonly` driver method
+pub enum AllowReadOnlyResult {
+    /// The allow operation succeeded and the AppSlice has been stored
+    /// with the capsule
+    ///
+    /// The capsule **must** return any previously shared (potentially
+    /// empty, default constructed) AppSlice.
+    Success(AppSlice<SharedReadOnly, u8>),
+    /// The allow operation was refused. The capsule has not stored
+    /// the AppSlice instance
+    ///
+    /// The capsule **must** return the passed AppSlice back.
+    Refuse(AppSlice<SharedReadOnly, u8>, ErrorCode),
+}
+
+impl AllowReadOnlyResult {
+    pub fn success(old_appslice: AppSlice<SharedReadOnly, u8>) -> Self {
+        AllowReadOnlyResult::Success(old_appslice)
+    }
+
+    pub fn refuse_allow(new_appslice: AppSlice<SharedReadOnly, u8>, reason: ErrorCode) -> Self {
+        AllowReadOnlyResult::Refuse(new_appslice, reason)
+    }
+}
+
 
 /// Possible return values of a `command` driver method
 ///
@@ -184,18 +210,19 @@ pub trait Driver {
     //     CommandResult::error(ErrorCode::ENOSUPPORT)
     // }
 
-    /// `allow` lets an application give the driver access to a buffer in the
-    /// application's memory. This returns `ENOSUPPORT` if not used.
+    /// `allow_readwrite` lets an application give the driver
+    /// read-write access to a buffer in the application's
+    /// memory. This returns `ENOSUPPORT` if not used.
     ///
     /// The buffer is __shared__ between the application and driver, meaning the
     /// driver should not rely on the contents of the buffer to remain
     /// unchanged.
     #[allow(unused_variables)]
-    fn allow(
+    fn allow_readwrite(
         &self,
         app: AppId,
         minor_num: usize,
-        slice: Option<AppSlice<Shared, u8>>,
+        slice: Option<AppSlice<SharedReadWrite, u8>>,
     ) -> ReturnCode {
         ReturnCode::ENOSUPPORT
     }
@@ -211,4 +238,22 @@ pub trait Driver {
     // ) -> AllowResult {
     //     AllowResult::refuse_allow(slice, ErrorCode::ENOSUPPORT)
     // }
+
+    /// `allow_readonly` lets an application give the driver read-only access
+    /// to a buffer in the application's memory. This returns
+    /// `ENOSUPPORT` if not used.
+    ///
+    /// The buffer is __shared__ between the application and driver, meaning the
+    /// driver should not rely on the contents of the buffer to remain
+    /// unchanged.
+    #[allow(unused_variables)]
+    fn allow_readonly(
+        &self,
+        app: AppId,
+        minor_num: usize,
+        slice: Option<AppSlice<SharedReadOnly, u8>>,
+    ) -> ReturnCode {
+        ReturnCode::ENOSUPPORT
+    }
+
 }

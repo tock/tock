@@ -14,7 +14,7 @@ use crate::common::{Queue, RingBuffer};
 use crate::config;
 use crate::debug;
 use crate::ipc;
-use crate::mem::{AppSlice, Shared};
+use crate::mem::{AppSlice, SharedReadOnly, SharedReadWrite};
 use crate::platform::mpu::{self, MPU};
 use crate::platform::Chip;
 use crate::returncode::ReturnCode;
@@ -371,7 +371,8 @@ pub trait ProcessType {
 
     // additional memop like functions
 
-    /// Creates an `AppSlice` from the given offset and size in process memory.
+    /// Creates a read/write `AppSlice` from the given offset and size
+    /// in process memory.
     ///
     /// If `buf_start_addr` is NULL this will have no effect and the return
     /// value will be `None` to signal the capsule to drop the buffer.
@@ -387,11 +388,35 @@ pub trait ProcessType {
     /// signaling the capsule to delete the entry. If the buffer is within the
     /// process's accessible memory, returns an `AppSlice` wrapping that buffer.
     /// Otherwise, returns an error `ReturnCode`.
-    fn allow(
+    fn allow_readwrite(
         &self,
         buf_start_addr: *const u8,
         size: usize,
-    ) -> Result<Option<AppSlice<Shared, u8>>, ReturnCode>;
+    ) -> Result<Option<AppSlice<SharedReadWrite, u8>>, ReturnCode>;
+
+    /// Creates a read-only `AppSlice` from the given offset and size
+    /// in process memory.
+    ///
+    /// If `buf_start_addr` is NULL this will have no effect and the return
+    /// value will be `None` to signal the capsule to drop the buffer.
+    ///
+    /// If the process is not active then this will return an error as it is not
+    /// valid to "allow" a buffer for a process that will not resume executing.
+    /// In practice this case should not happen as the process will not be
+    /// executing to call the allow syscall.
+    ///
+    /// ## Returns
+    ///
+    /// If the buffer is null (a zero-valued offset) this returns
+    /// `None`, signaling the capsule to delete the entry. If the
+    /// buffer is within the process's readable (RAM or code/flash)
+    /// memory, returns an `AppSlice` wrapping that buffer.
+    /// Otherwise, returns an error `ReturnCode`.
+    fn allow_readonly(
+        &self,
+        buf_start_addr: *const u8,
+        size: usize,
+    ) -> Result<Option<AppSlice<SharedReadOnly, u8>>, ReturnCode>;
 
     /// Get the first address of process's flash that isn't protected by the
     /// kernel. The protected range of flash contains the TBF header and
@@ -1140,11 +1165,11 @@ impl<C: Chip> ProcessType for Process<'_, C> {
             })
     }
 
-    fn allow(
+    fn allow_readwrite(
         &self,
         buf_start_addr: *const u8,
         size: usize,
-    ) -> Result<Option<AppSlice<Shared, u8>>, ReturnCode> {
+    ) -> Result<Option<AppSlice<SharedReadWrite, u8>>, ReturnCode> {
         if !self.is_active() {
             // Do not modify an inactive process.
             return Err(ReturnCode::FAIL);
@@ -1177,6 +1202,46 @@ impl<C: Chip> ProcessType for Process<'_, C> {
         }
     }
 
+    fn allow_readonly(
+        &self,
+        buf_start_addr: *const u8,
+        size: usize,
+    ) -> Result<Option<AppSlice<SharedReadOnly, u8>>, ReturnCode> {
+        if !self.is_active() {
+            // Do not modify an inactive process.
+            return Err(ReturnCode::FAIL);
+        }
+
+        match NonNull::new(buf_start_addr as *mut u8) {
+            None => {
+                // A null buffer means pass in `None` to the capsule
+                Ok(None)
+            }
+            Some(buf_start) => {
+                if self.in_app_owned_memory(buf_start_addr, size) {
+                    // Valid slice, we need to adjust the app's watermark
+                    // note: in_app_owned_memory ensures this offset does not wrap
+                    let buf_end_addr = buf_start_addr.wrapping_add(size);
+                    let new_water_mark = max(self.allow_high_water_mark.get(), buf_end_addr);
+                    self.allow_high_water_mark.set(new_water_mark);
+
+                    // The `unsafe` promise we should be making here is that this
+                    // buffer is inside of app memory and that it does not create any
+                    // aliases (i.e. the same buffer has not been `allow`ed twice).
+                    //
+                    // TODO: We do not currently satisfy the second promise.
+                    let slice = unsafe { AppSlice::new(buf_start, size, self.appid()) };
+                    Ok(Some(slice))
+                } else if self.in_app_ro_memory(buf_start_addr, size) {
+                    let slice = unsafe { AppSlice::new(buf_start, size, self.appid()) };
+                    Ok(Some(slice))
+                } else {
+                    Err(ReturnCode::EINVAL)
+                }
+            }
+        }
+    }
+    
     fn alloc(&self, size: usize, align: usize) -> Option<NonNull<u8>> {
         // Do not modify an inactive process.
         if !self.is_active() {
@@ -2222,7 +2287,7 @@ impl<C: 'static + Chip> Process<'_, C> {
     }
 
     /// Checks if the buffer represented by the passed in base pointer and size
-    /// are within the memory bounds currently exposed to the processes (i.e.
+    /// are within the RAM bounds currently exposed to the processes (i.e.
     /// ending at `app_break`. If this method returns true, the buffer
     /// is guaranteed to be accessible to the process and to not overlap with
     /// the grant region.
@@ -2234,6 +2299,19 @@ impl<C: 'static + Chip> Process<'_, C> {
             && buf_end_addr <= self.app_break.get()
     }
 
+
+    /// Checks if the buffer represented by the passed in base pointer and size
+    /// are within the readable region of an application's flash
+    /// memory.  If this method returns true, the buffer
+    /// is guaranteed to be readable to the process.
+    fn in_app_ro_memory(&self, buf_start_addr: *const u8, size: usize) -> bool {
+        let buf_end_addr = buf_start_addr.wrapping_add(size);
+
+        buf_end_addr >= buf_start_addr
+            && buf_start_addr >= self.flash_non_protected_start()
+            && buf_end_addr <= self.flash_end()
+    }
+    
     /// Reset all `grant_ptr`s to NULL.
     // This is safe today, as MPU constraints ensure that `mem_end` will always
     // be aligned on at least a word boundary. While this is unlikely to

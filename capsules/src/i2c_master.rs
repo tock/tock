@@ -3,7 +3,7 @@
 use enum_primitive::enum_from_primitive;
 use kernel::common::cells::{MapCell, OptionalCell, TakeCell};
 use kernel::hil::i2c;
-use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
+use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, SharedReadWrite};
 
 /// Syscall driver number.
 use crate::driver;
@@ -12,7 +12,7 @@ pub const DRIVER_NUM: usize = driver::NUM::I2cMaster as usize;
 #[derive(Default)]
 pub struct App {
     callback: Option<Callback>,
-    slice: Option<AppSlice<Shared, u8>>,
+    slice: Option<AppSlice<SharedReadWrite, u8>>,
 }
 
 pub static mut BUF: [u8; 64] = [0; 64];
@@ -108,11 +108,11 @@ impl<I: i2c::I2CMaster> Driver for I2CMasterDriver<I> {
     /// ### `allow_num`
     ///
     /// - `1`: buffer for command
-    fn allow(
+    fn allow_readwrite(
         &self,
         appid: AppId,
         allow_num: usize,
-        slice: Option<AppSlice<Shared, u8>>,
+        slice: Option<AppSlice<SharedReadWrite, u8>>,
     ) -> ReturnCode {
         match allow_num {
             1 => self

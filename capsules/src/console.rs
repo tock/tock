@@ -40,7 +40,7 @@
 use core::cmp;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::uart;
-use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
+use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, SharedReadWrite};
 
 /// Syscall driver number.
 use crate::driver;
@@ -49,13 +49,13 @@ pub const DRIVER_NUM: usize = driver::NUM::Console as usize;
 #[derive(Default)]
 pub struct App {
     write_callback: Option<Callback>,
-    write_buffer: Option<AppSlice<Shared, u8>>,
+    write_buffer: Option<AppSlice<SharedReadWrite, u8>>,
     write_len: usize,
     write_remaining: usize, // How many bytes didn't fit in the buffer and still need to be printed.
     pending_write: bool,
 
     read_callback: Option<Callback>,
-    read_buffer: Option<AppSlice<Shared, u8>>,
+    read_buffer: Option<AppSlice<SharedReadWrite, u8>>,
     read_len: usize,
 }
 
@@ -118,7 +118,7 @@ impl<'a> Console<'a> {
 
     /// Internal helper function for sending data for an existing transaction.
     /// Cannot fail. If can't send now, it will schedule for sending later.
-    fn send(&self, app_id: AppId, app: &mut App, slice: AppSlice<Shared, u8>) {
+    fn send(&self, app_id: AppId, app: &mut App, slice: AppSlice<SharedReadWrite, u8>) {
         if self.tx_in_progress.is_none() {
             self.tx_in_progress.set(app_id);
             self.tx_buffer.take().map(|buffer| {
@@ -191,11 +191,11 @@ impl Driver for Console<'_> {
     ///
     /// - `1`: Writeable buffer for write buffer
     /// - `2`: Writeable buffer for read buffer
-    fn allow(
+    fn allow_readwrite(
         &self,
         appid: AppId,
         allow_num: usize,
-        slice: Option<AppSlice<Shared, u8>>,
+        slice: Option<AppSlice<SharedReadWrite, u8>>,
     ) -> ReturnCode {
         match allow_num {
             1 => self
