@@ -417,7 +417,7 @@ impl<'a> Iom<'_> {
             for i in (data_popped / 4)..(len / 4) {
                 let data_idx = i * 4;
 
-                if regs.fifoptr.read(FIFOPTR::FIFO1REM) <= 4 {
+                if regs.fifoptr.read(FIFOPTR::FIFO1SIZ) < 4 {
                     self.read_index.set(data_popped as usize);
                     break;
                 }
