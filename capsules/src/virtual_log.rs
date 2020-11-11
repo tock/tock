@@ -172,7 +172,9 @@ impl<'a, Log: LogRead<'a> + LogWrite<'a>> LogWriteClient for VirtualLogDevice<'a
     }
 }
 
-/// The MuxLog struct manages multiple virtual log devices (i.e. VirtualLogDevice).
+/// The MuxLog struct manages multiple virtual log devices (i.e. VirtualLogDevice) and is the lone
+/// client of the underlying log device. Each of the virtual log devices can have at most one
+/// outstanding log request.
 pub struct MuxLog<'a, Log: LogRead<'a> + LogWrite<'a>> {
     // The underlying log device being virtualized.
     log: &'a Log,
