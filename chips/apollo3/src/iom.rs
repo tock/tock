@@ -408,6 +408,10 @@ impl<'a> Iom<'_> {
         let mut data_popped = self.read_index.get();
         let len = self.read_len.get();
 
+        if data_popped == len {
+            return;
+        }
+
         self.buffer.map(|buf| {
             // Pop some data from the FIFO
             for i in (data_popped / 4)..(len / 4) {
