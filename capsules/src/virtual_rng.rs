@@ -4,16 +4,25 @@ use kernel::common::{List, ListLink, ListNode};
 use kernel::hil::rng::{Client, Continue, Random, Rng};
 use kernel::ReturnCode;
 
+#[derive(Copy, Clone, PartialEq)]
+enum Op {
+    Idle,
+    SetClient,
+    Initialize,
+    Reseed(u32),
+    GetRandom,
+}
+
 // The Mux struct manages multiple Rng clients. Each client may have
 // at most one outstanding Rng request.
-pub struct MuxRngMaster<'a, R: Rng<'a>> {
+pub struct MuxRngMaster<'a, R: Random<'a> + Rng<'a>> {
     rng: &'a R,
     devices: List<'a, VirtualRngMasterDevice<'a, R>>,
     // Additional data storage needed to implement virtualization logic
     inflight: OptionalCell<&'a VirtualRngMasterDevice<'a, R>>,
 }
 
-impl<'a, R: Rng<'a>> ListNode<'a, VirtualRngMasterDevice<'a, R>> for VirtualRngMasterDevice<'a, R> {
+impl<'a, R: Random<'a> + Rng<'a>> ListNode<'a, VirtualRngMasterDevice<'a, R>> for VirtualRngMasterDevice<'a, R> {
     fn next(&self) -> &'a ListLink<VirtualRngMasterDevice<'a, R>> {
         &self.next
     }
@@ -29,7 +38,6 @@ impl<'a, R: Random<'a> + Rng<'a>> MuxRngMaster<'a, R> {
         }
     }
 
-    // TODO: Implement virtualization logic helper functions
     fn do_next_op(&self) {
         if self.inflight.is_none() {
             let mnode = self
@@ -62,7 +70,7 @@ impl<'a, R: Random<'a> + Rng<'a>> MuxRngMaster<'a, R> {
     }
 }
 
-pub struct VirtualRngMasterDevice<'a, R: Rng<'a>> {
+pub struct VirtualRngMasterDevice<'a, R: Random<'a> + Rng<'a>> {
     //reference to the mux
     mux: &'a MuxRngMaster<'a, R>,
 
@@ -72,13 +80,18 @@ pub struct VirtualRngMasterDevice<'a, R: Rng<'a>> {
     operation: Cell<Op>,
 }
 
-#[derive(Copy, Clone, PartialEq)]
-enum Op {
-    Idle,
-    SetClient,
-    Initialize,
-    Reseed(u32),
-    GetRandom,
+impl<'a, R: Random<'a> + Rng<'a>> Client for MuxRngMaster<'a, R> {
+    fn randomness_available(
+        &self,
+        _randomness: &mut dyn Iterator<Item = u32>,
+        _error: ReturnCode,
+    ) -> Continue {
+        self.inflight.take().map(move |device| {
+            self.do_next_op();
+            device.randomness_available(_randomness, _error)
+        });
+        Continue::Done
+    }
 }
 
 impl<'a, R: Random<'a> + Rng<'a>> VirtualRngMasterDevice<'a, R> {
@@ -142,12 +155,10 @@ impl<'a, R: Random<'a> + Rng<'a>> Client for VirtualRngMasterDevice<'a, R> {
         randomness: &mut dyn Iterator<Item = u32>,
         _error: ReturnCode,
     ) -> Continue {
-        match randomness.next() {
-            None => Continue::More,
-            Some(val) => {
-                self.reseed(val);
-                Continue::Done
-            }
-        }
+        self.client.map(move |client| {
+            client.randomness_available(randomness, _error)
+        });
+        // TODO: is this a valid failsafe?
+        Continue::Done
     }
 }
