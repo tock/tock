@@ -374,35 +374,34 @@ impl<'a, F: Flash + 'static> Log<'a, F> {
 
     /// Reads the next entry into a buffer. Returns the number of bytes read on success, or an
     /// error otherwise.
+    ///
     /// ReturnCodes used:
-    ///     * FAIL: reached end of log, nothing to read.
-    ///     * ERESERVE: internal pagebuffer missing, log is presumably broken.
-    ///     * ESIZE: buffer not large enough to contain entry being read.
+    ///
+    /// * `FAIL`: reached end of log, nothing to read.
+    /// * `ERESERVE`: internal pagebuffer missing, log is presumably broken.
+    /// * `ESIZE`: the entry to be read is larger than the client's max read length.
     fn read_entry(&self, buffer: &mut [u8], length: usize) -> Result<usize, ReturnCode> {
         // Get next entry to read. Immediately returns FAIL in event of failure.
         let entry_id = self.get_next_entry()?;
         let entry_length = self.read_entry_header(entry_id)?;
+        if entry_length > length {
+            // The entry is larger than the client's max read length.
+            return Err(ReturnCode::ESIZE);
+        }
 
         // Read entry into buffer.
         self.pagebuffer
-            .take()
-            .map_or(Err(ReturnCode::ERESERVE), move |pagebuffer| {
-                // Ensure buffer is large enough to hold log entry.
-                if entry_length > length {
-                    self.pagebuffer.replace(pagebuffer);
-                    return Err(ReturnCode::ESIZE);
-                }
-                let entry_id = entry_id + ENTRY_HEADER_SIZE;
+            .map_or(Err(ReturnCode::ERESERVE), |pagebuffer| {
+                let entry_data_start = entry_id + ENTRY_HEADER_SIZE;
 
                 // Copy data into client buffer.
-                let data = self.get_bytes(entry_id, entry_length, pagebuffer);
+                let data = self.get_bytes(entry_data_start, entry_length, pagebuffer);
                 for i in 0..entry_length {
                     buffer[i] = data[i];
                 }
 
                 // Update read entry ID and return number of bytes read.
-                self.read_entry_id.set(entry_id + entry_length);
-                self.pagebuffer.replace(pagebuffer);
+                self.read_entry_id.set(entry_data_start + entry_length);
                 Ok(entry_length)
             })
     }
