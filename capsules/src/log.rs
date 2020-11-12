@@ -508,13 +508,15 @@ impl<'a, F: Flash + 'static> Log<'a, F> {
 
         // Increment append entry ID to point at start of next page.
         if append_entry_id % self.page_size != 0 {
-            append_entry_id += self.page_size - append_entry_id % self.page_size;
+            let page_offset = append_entry_id % self.page_size;
+            let remaining_bytes = self.page_size - page_offset;
+            append_entry_id += remaining_bytes;
         }
 
-        // Write page header to pagebuffer.
+        // Write page header to the pagebuffer.
         let id_bytes = append_entry_id.to_ne_bytes();
-        for index in 0..id_bytes.len() {
-            pagebuffer.as_mut()[index] = id_bytes[index];
+        for i in 0..id_bytes.len() {
+            pagebuffer.as_mut()[i] = id_bytes[i];
         }
 
         // Note: this is the only place where the append entry ID can cross page boundaries.
