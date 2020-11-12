@@ -219,16 +219,17 @@ impl<'a, F: Flash + 'static> Log<'a, F> {
         &buffer[offset..offset + num_bytes]
     }
 
-    /// Resets a log back to an empty log. Returns whether or not the log was reset successfully.
+    /// Resets the log back to an empty state. Returns whether or not the log was reset successfully.
     fn reset(&self) -> bool {
-        self.oldest_entry_id.set(PAGE_HEADER_SIZE);
-        self.read_entry_id.set(PAGE_HEADER_SIZE);
-        self.append_entry_id.set(PAGE_HEADER_SIZE);
-        self.pagebuffer.take().map_or(false, move |pagebuffer| {
-            for e in pagebuffer.as_mut().iter_mut() {
-                *e = 0;
+        self.pagebuffer.map_or(false, |pagebuffer| {
+            // Reset internal entry IDs.
+            self.oldest_entry_id.set(PAGE_HEADER_SIZE);
+            self.read_entry_id.set(PAGE_HEADER_SIZE);
+            self.append_entry_id.set(PAGE_HEADER_SIZE);
+            // Clear internal page buffer.
+            for byte_pointer in pagebuffer.as_mut().iter_mut() {
+                *byte_pointer = 0;
             }
-            self.pagebuffer.replace(pagebuffer);
             true
         })
     }
