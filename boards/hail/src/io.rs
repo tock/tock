@@ -62,8 +62,8 @@ pub unsafe extern "C" fn panic_fmt(pi: &PanicInfo) -> ! {
     led_blue.enable_output();
     led_blue.set();
 
-    let mut red_pin = sam4l::gpio::GPIOPin::new(sam4l::gpio::Pin::PA13);
-    let led_red = &mut led::LedLow::new(&mut red_pin);
+    let red_pin = sam4l::gpio::GPIOPin::new(sam4l::gpio::Pin::PA13);
+    let led_red = &mut led::LedLow::new(&red_pin);
     let writer = &mut WRITER;
     debug::panic(
         &mut [led_red],

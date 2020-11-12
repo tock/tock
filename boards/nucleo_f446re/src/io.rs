@@ -70,10 +70,10 @@ pub unsafe extern "C" fn panic_fmt(info: &PanicInfo) -> ! {
     let rcc = stm32f446re::rcc::Rcc::new();
     let syscfg = stm32f446re::syscfg::Syscfg::new(&rcc);
     let exti = stm32f446re::exti::Exti::new(&syscfg);
-    let mut pin = stm32f446re::gpio::Pin::new(PinId::PA05, &exti);
+    let pin = stm32f446re::gpio::Pin::new(PinId::PA05, &exti);
     let gpio_ports = stm32f446re::gpio::GpioPorts::new(&rcc, &exti);
     pin.set_ports_ref(&gpio_ports);
-    let led = &mut led::LedHigh::new(&mut pin);
+    let led = &mut led::LedHigh::new(&pin);
 
     let writer = &mut WRITER;
 

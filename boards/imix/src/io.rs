@@ -54,8 +54,8 @@ impl IoWrite for Writer {
 #[no_mangle]
 #[panic_handler]
 pub unsafe extern "C" fn panic_fmt(pi: &PanicInfo) -> ! {
-    let mut led_pin = sam4l::gpio::GPIOPin::new(sam4l::gpio::Pin::PC22);
-    let led = &mut led::LedLow::new(&mut led_pin);
+    let led_pin = sam4l::gpio::GPIOPin::new(sam4l::gpio::Pin::PC22);
+    let led = &mut led::LedLow::new(&led_pin);
     let writer = &mut WRITER;
     debug::panic(
         &mut [led],

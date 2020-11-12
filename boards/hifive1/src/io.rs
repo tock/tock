@@ -53,13 +53,13 @@ pub unsafe extern "C" fn panic_fmt(pi: &PanicInfo) -> ! {
     gpio::Pin::make_output(&led_blue);
     gpio::Pin::set(&led_blue);
 
-    let mut led_red_pin = sifive::gpio::GpioPin::new(
+    let led_red_pin = sifive::gpio::GpioPin::new(
         e310x::gpio::GPIO0_BASE,
         sifive::gpio::pins::pin22,
         sifive::gpio::pins::pin22::SET,
         sifive::gpio::pins::pin22::CLEAR,
     );
-    let led_red = &mut led::LedLow::new(&mut led_red_pin);
+    let led_red = &mut led::LedLow::new(&led_red_pin);
     let writer = &mut WRITER;
 
     debug::panic(
