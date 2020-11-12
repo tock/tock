@@ -187,7 +187,10 @@ impl<'a, F: Flash + 'static> Log<'a, F> {
 
     /// Returns the page number of the page containing the entry with the given ID.
     fn page_number(&self, entry_id: EntryID) -> usize {
-        (self.volume.as_ptr() as usize + entry_id % self.volume.len()) / self.page_size
+        let offset_global = self.volume.as_ptr() as usize;
+        let offset_local = entry_id % self.volume.len();
+        let offset_total = offset_global + offset_local;
+        offset_total / self.page_size
     }
 
     /// Gets the buffer containing the byte at the given position in the log.
