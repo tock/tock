@@ -17,6 +17,7 @@ use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferred
 use kernel::component::Component;
 use kernel::hil::gpio::Configure;
 use kernel::hil::gpio::Output;
+use kernel::hil::led::LedHigh;
 use kernel::hil::time::Counter;
 use kernel::Platform;
 use kernel::{create_capability, debug, static_init};
@@ -55,7 +56,10 @@ struct STM32F3Discovery {
     console: &'static capsules::console::Console<'static>,
     ipc: kernel::ipc::IPC,
     gpio: &'static capsules::gpio::GPIO<'static, stm32f303xc::gpio::Pin<'static>>,
-    led: &'static capsules::led::LED<'static, stm32f303xc::gpio::Pin<'static>>,
+    led: &'static capsules::led::LedDriver<
+        'static,
+        LedHigh<'static, stm32f303xc::gpio::Pin<'static>>,
+    >,
     button: &'static capsules::button::Button<'static, stm32f303xc::gpio::Pin<'static>>,
     ninedof: &'static capsules::ninedof::NineDof<'static>,
     l3gd20: &'static capsules::l3gd20::L3gd20Spi<'static>,
@@ -389,66 +393,58 @@ pub unsafe fn reset_handler() {
     // Clock to Port E is enabled in `set_pin_primary_functions()`
 
     let led = components::led::LedsComponent::new(components::led_component_helper!(
-        stm32f303xc::gpio::Pin<'static>,
-        (
+        LedHigh<'static, stm32f303xc::gpio::Pin<'static>>,
+        LedHigh::new(
             &peripherals
                 .gpio_ports
                 .get_pin(stm32f303xc::gpio::PinId::PE09)
-                .unwrap(),
-            kernel::hil::gpio::ActivationMode::ActiveHigh
+                .unwrap()
         ),
-        (
+        LedHigh::new(
             &peripherals
                 .gpio_ports
                 .get_pin(stm32f303xc::gpio::PinId::PE08)
-                .unwrap(),
-            kernel::hil::gpio::ActivationMode::ActiveHigh
+                .unwrap()
         ),
-        (
+        LedHigh::new(
             &peripherals
                 .gpio_ports
                 .get_pin(stm32f303xc::gpio::PinId::PE10)
-                .unwrap(),
-            kernel::hil::gpio::ActivationMode::ActiveHigh
+                .unwrap()
         ),
-        (
+        LedHigh::new(
             &peripherals
                 .gpio_ports
                 .get_pin(stm32f303xc::gpio::PinId::PE15)
-                .unwrap(),
-            kernel::hil::gpio::ActivationMode::ActiveHigh
+                .unwrap()
         ),
-        (
+        LedHigh::new(
             &peripherals
                 .gpio_ports
                 .get_pin(stm32f303xc::gpio::PinId::PE11)
-                .unwrap(),
-            kernel::hil::gpio::ActivationMode::ActiveHigh
+                .unwrap()
         ),
-        (
+        LedHigh::new(
             &peripherals
                 .gpio_ports
                 .get_pin(stm32f303xc::gpio::PinId::PE14)
-                .unwrap(),
-            kernel::hil::gpio::ActivationMode::ActiveHigh
+                .unwrap()
         ),
-        (
+        LedHigh::new(
             &peripherals
                 .gpio_ports
                 .get_pin(stm32f303xc::gpio::PinId::PE12)
-                .unwrap(),
-            kernel::hil::gpio::ActivationMode::ActiveHigh
+                .unwrap()
         ),
-        (
+        LedHigh::new(
             &peripherals
                 .gpio_ports
                 .get_pin(stm32f303xc::gpio::PinId::PE13)
-                .unwrap(),
-            kernel::hil::gpio::ActivationMode::ActiveHigh
-        )
+                .unwrap()
+        ),
     ))
     .finalize(components::led_component_buf!(
-        stm32f303xc::gpio::Pin<'static>
+        LedHigh<'static, stm32f303xc::gpio::Pin<'static>>
     ));
 
     // BUTTONs

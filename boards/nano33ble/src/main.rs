@@ -12,11 +12,11 @@
 use kernel::capabilities;
 use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::component::Component;
-use kernel::hil::gpio::ActivationMode::ActiveLow;
 use kernel::hil::gpio::Configure;
 use kernel::hil::gpio::Interrupt;
 use kernel::hil::gpio::Output;
 use kernel::hil::i2c::I2CMaster;
+use kernel::hil::led::LedLow;
 use kernel::hil::time::Counter;
 use kernel::hil::usb::Client;
 use kernel::mpu::MPU;
@@ -92,7 +92,7 @@ pub struct Platform {
     console: &'static capsules::console::Console<'static>,
     proximity: &'static capsules::proximity::ProximitySensor<'static>,
     gpio: &'static capsules::gpio::GPIO<'static, nrf52::gpio::GPIOPin<'static>>,
-    led: &'static capsules::led::LED<'static, nrf52::gpio::GPIOPin<'static>>,
+    led: &'static capsules::led::LedDriver<'static, LedLow<'static, nrf52::gpio::GPIOPin<'static>>>,
     rng: &'static capsules::rng::RngDriver<'static>,
     ipc: kernel::ipc::IPC,
     alarm: &'static capsules::alarm::AlarmDriver<
@@ -189,12 +189,14 @@ pub unsafe fn reset_handler() {
     //--------------------------------------------------------------------------
 
     let led = components::led::LedsComponent::new(components::led_component_helper!(
-        nrf52840::gpio::GPIOPin,
-        (&base_peripherals.gpio_port[LED_RED_PIN], ActiveLow),
-        (&base_peripherals.gpio_port[LED_GREEN_PIN], ActiveLow),
-        (&base_peripherals.gpio_port[LED_BLUE_PIN], ActiveLow)
+        LedLow<'static, nrf52840::gpio::GPIOPin>,
+        LedLow::new(&base_peripherals.gpio_port[LED_RED_PIN]),
+        LedLow::new(&base_peripherals.gpio_port[LED_GREEN_PIN]),
+        LedLow::new(&base_peripherals.gpio_port[LED_BLUE_PIN]),
     ))
-    .finalize(components::led_component_buf!(nrf52840::gpio::GPIOPin));
+    .finalize(components::led_component_buf!(
+        LedLow<'static, nrf52840::gpio::GPIOPin>
+    ));
 
     //--------------------------------------------------------------------------
     // Deferred Call (Dynamic) Setup

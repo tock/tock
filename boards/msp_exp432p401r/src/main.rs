@@ -44,7 +44,10 @@ pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 /// A structure representing this platform that holds references to all
 /// capsules for this platform.
 struct MspExp432P401R {
-    led: &'static capsules::led::LED<'static, msp432::gpio::IntPin<'static>>,
+    led: &'static capsules::led::LedDriver<
+        'static,
+        kernel::hil::led::LedHigh<'static, msp432::gpio::IntPin<'static>>,
+    >,
     console: &'static capsules::console::Console<'static>,
     button: &'static capsules::button::Button<'static, msp432::gpio::IntPin<'static>>,
     gpio: &'static capsules::gpio::GPIO<'static, msp432::gpio::IntPin<'static>>,
@@ -186,21 +189,20 @@ pub unsafe fn reset_handler() {
 
     // Setup LEDs
     let leds = components::led::LedsComponent::new(components::led_component_helper!(
-        msp432::gpio::IntPin,
-        (
-            &msp432::gpio::INT_PINS[msp432::gpio::IntPinNr::P02_0 as usize],
-            kernel::hil::gpio::ActivationMode::ActiveHigh
+        kernel::hil::led::LedHigh<'static, msp432::gpio::IntPin>,
+        kernel::hil::led::LedHigh::new(
+            &msp432::gpio::INT_PINS[msp432::gpio::IntPinNr::P02_0 as usize]
         ),
-        (
-            &msp432::gpio::INT_PINS[msp432::gpio::IntPinNr::P02_1 as usize],
-            kernel::hil::gpio::ActivationMode::ActiveHigh
+        kernel::hil::led::LedHigh::new(
+            &msp432::gpio::INT_PINS[msp432::gpio::IntPinNr::P02_1 as usize]
         ),
-        (
-            &msp432::gpio::INT_PINS[msp432::gpio::IntPinNr::P02_2 as usize],
-            kernel::hil::gpio::ActivationMode::ActiveHigh
-        )
+        kernel::hil::led::LedHigh::new(
+            &msp432::gpio::INT_PINS[msp432::gpio::IntPinNr::P02_2 as usize]
+        ),
     ))
-    .finalize(components::led_component_buf!(msp432::gpio::IntPin));
+    .finalize(components::led_component_buf!(
+        kernel::hil::led::LedHigh<'static, msp432::gpio::IntPin>
+    ));
 
     // Setup user-GPIOs
     let gpio = GpioComponent::new(

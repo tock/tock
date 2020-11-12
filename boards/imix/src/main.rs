@@ -26,6 +26,7 @@ use kernel::hil::radio;
 #[allow(unused_imports)]
 use kernel::hil::radio::{RadioConfig, RadioData};
 //use kernel::hil::time::Alarm;
+use kernel::hil::led::LedHigh;
 use kernel::hil::Controller;
 #[allow(unused_imports)]
 use kernel::{create_capability, debug, debug_gpio, static_init};
@@ -113,7 +114,8 @@ struct Imix {
     humidity: &'static capsules::humidity::HumiditySensor<'static>,
     ambient_light: &'static capsules::ambient_light::AmbientLight<'static>,
     adc: &'static capsules::adc::AdcDedicated<'static, sam4l::adc::Adc>,
-    led: &'static capsules::led::LED<'static, sam4l::gpio::GPIOPin<'static>>,
+    led:
+        &'static capsules::led::LedDriver<'static, LedHigh<'static, sam4l::gpio::GPIOPin<'static>>>,
     button: &'static capsules::button::Button<'static, sam4l::gpio::GPIOPin<'static>>,
     rng: &'static capsules::rng::RngDriver<'static>,
     analog_comparator: &'static capsules::analog_comparator::AnalogComparator<
@@ -384,13 +386,13 @@ pub unsafe fn reset_handler() {
     .finalize(components::gpio_component_buf!(sam4l::gpio::GPIOPin));
 
     let led = LedsComponent::new(components::led_component_helper!(
-        sam4l::gpio::GPIOPin,
-        (
-            &peripherals.pc[10],
-            kernel::hil::gpio::ActivationMode::ActiveHigh
-        )
+        LedHigh<'static, sam4l::gpio::GPIOPin>,
+        LedHigh::new(&peripherals.pc[10]),
     ))
-    .finalize(components::led_component_buf!(sam4l::gpio::GPIOPin));
+    .finalize(components::led_component_buf!(
+        LedHigh<'static, sam4l::gpio::GPIOPin>
+    ));
+
     let button = components::button::ButtonComponent::new(
         board_kernel,
         components::button_component_helper!(
@@ -403,6 +405,7 @@ pub unsafe fn reset_handler() {
         ),
     )
     .finalize(components::button_component_buf!(sam4l::gpio::GPIOPin));
+
     let crc = CrcComponent::new(board_kernel, &peripherals.crccu)
         .finalize(components::crc_component_helper!(sam4l::crccu::Crccu));
 
