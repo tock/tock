@@ -406,13 +406,10 @@ impl<'a, F: Flash + 'static> Log<'a, F> {
             })
     }
 
-    /// Writes an entry header at the given position within a page. Must write at most
-    /// ENTRY_HEADER_SIZE bytes.
-    fn write_entry_header(&self, length: usize, pos: usize, pagebuffer: &mut F::Page) {
-        let mut offset = 0;
-        for byte in &length.to_ne_bytes() {
-            pagebuffer.as_mut()[pos + offset] = *byte;
-            offset += 1;
+    /// Writes an entry header at the given position within a page.
+    fn write_entry_header(&self, header: usize, pos: usize, pagebuffer: &mut F::Page) {
+        for (offset, &byte) in header.to_ne_bytes().iter().enumerate() {
+            pagebuffer.as_mut()[pos + offset] = byte;
         }
     }
 
