@@ -451,43 +451,43 @@ impl<'a, F: Flash + 'static> Log<'a, F> {
         self.client_callback();
     }
 
-    /// Flushes the pagebuffer to flash. Log state must be non-idle before calling, else data races
-    /// may occur due to asynchronous page write.
+    /// Flushes the pagebuffer to flash. Log state must be idle before calling otherwise data races
+    /// may occur due to the asynchronous nature of page writes.
+    ///
     /// ReturnCodes used:
-    ///     * SUCCESS: flush started successfully.
-    ///     * FAIL: flash driver not configured.
-    ///     * EBUSY: flash driver busy.
+    ///
+    /// * SUCCESS: flush started successfully.
+    /// * FAIL: flash driver not configured.
+    /// * EBUSY: flash driver busy.
     fn flush_pagebuffer(&self, pagebuffer: &'static mut F::Page) -> ReturnCode {
-        // Pad end of page.
-        let mut pad_ptr = self.append_entry_id.get();
-        while pad_ptr % self.page_size != 0 {
-            pagebuffer.as_mut()[pad_ptr % self.page_size] = PAD_BYTE;
-            pad_ptr += 1;
+        // Pad the end of the page buffer.
+        let pad_start = self.append_entry_id.get() % self.page_size;
+        for i in pad_start..self.page_size {
+            pagebuffer.as_mut()[i] = PAD_BYTE;
         }
 
-        // Get flash page to write to and log page being overwritten. Subtract page_size since
-        // padding pointer points to start of the page following the one we want to flush after the
-        // padding operation.
-        let page_number = self.page_number(pad_ptr - self.page_size);
-        let overwritten_page = (pad_ptr - self.volume.len() - self.page_size) / self.page_size;
+        // Get flash page to write to and log page being overwritten.
+        let page_number = self.page_number(self.append_entry_id.get());
+        let overwritten_page = (self.append_entry_id.get() - self.volume.len()) / self.page_size;
 
-        // Advance read and oldest entry IDs, if within flash page being overwritten.
-        let read_entry_id = self.read_entry_id.get();
-        if read_entry_id / self.page_size == overwritten_page {
-            // Move read entry ID to start of next page.
-            self.read_entry_id.set(
-                read_entry_id + self.page_size + PAGE_HEADER_SIZE - read_entry_id % self.page_size,
-            );
+        // Advance the read entry ID if it resides in the overwritten page.
+        let read_entry_id_page = self.read_entry_id.get() / self.page_size;
+        if read_entry_id_page == overwritten_page {
+            // Move the read entry ID to the start of next page.
+            self.read_entry_id
+                .set((read_entry_id_page + 1) * self.page_size + PAGE_HEADER_SIZE);
         }
 
-        let oldest_entry_id = self.oldest_entry_id.get();
-        if oldest_entry_id / self.page_size == overwritten_page {
-            self.oldest_entry_id.set(oldest_entry_id + self.page_size);
+        // Advance the oldest entry ID if it resides in the overwritten page.
+        let oldest_entry_id_page = self.oldest_entry_id.get() / self.page_size;
+        if oldest_entry_id_page == overwritten_page {
+            self.oldest_entry_id
+                .set((oldest_entry_id_page + 1) + self.page_size);
         }
 
         // Sync page to flash.
         match self.driver.write_page(page_number, pagebuffer) {
-            Ok(()) => ReturnCode::SUCCESS,
+            Ok(_) => ReturnCode::SUCCESS,
             Err((return_code, pagebuffer)) => {
                 self.pagebuffer.replace(pagebuffer);
                 return_code
