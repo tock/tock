@@ -349,26 +349,23 @@ impl<'a, F: Flash + 'static> Log<'a, F> {
     }
 
     /// Reads and returns the contents of an entry header with the given ID. Fails if the header
-    /// data is invalid.
+    /// data is invalid. Recall that the header stores the byte length of the entry.
+    ///
     /// ReturnCodes used:
-    ///     * FAIL: entry header invalid.
-    ///     * ERESERVE: client or internal pagebuffer missing.
+    ///
+    /// * `FAIL`: entry header invalid.
+    /// * `ERESERVE`: internal pagebuffer missing.
     fn read_entry_header(&self, entry_id: EntryID) -> Result<usize, ReturnCode> {
         self.pagebuffer
-            .take()
-            .map_or(Err(ReturnCode::ERESERVE), move |pagebuffer| {
-                // Get length.
-                const LENGTH_SIZE: usize = size_of::<usize>();
-                let length_bytes = self.get_bytes(entry_id, LENGTH_SIZE, pagebuffer);
-                let length_bytes = <[u8; LENGTH_SIZE]>::try_from(length_bytes).unwrap();
-                let length = usize::from_ne_bytes(length_bytes);
-
-                // Return length of next entry.
-                self.pagebuffer.replace(pagebuffer);
-                if length == 0 || length > self.page_size - PAGE_HEADER_SIZE - ENTRY_HEADER_SIZE {
+            .map_or(Err(ReturnCode::ERESERVE), |pagebuffer| {
+                let header_bytes = self.get_bytes(entry_id, ENTRY_HEADER_SIZE, pagebuffer);
+                let header_bytes = <[u8; ENTRY_HEADER_SIZE]>::try_from(header_bytes).unwrap();
+                let header = usize::from_ne_bytes(header_bytes);
+                let max_header = self.page_size - PAGE_HEADER_SIZE - ENTRY_HEADER_SIZE;
+                if header == 0 || header > max_header {
                     Err(ReturnCode::FAIL)
                 } else {
-                    Ok(length)
+                    Ok(header)
                 }
             })
     }
