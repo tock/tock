@@ -524,13 +524,14 @@ impl<'a, F: Flash + 'static> Log<'a, F> {
         true
     }
 
-    /// Erases a single page from storage.
+    /// Erases the oldest page from storage.
+    ///
+    /// When the flash driver is done with erasing the oldest page, it will call the `erase_complete`
+    /// callback which triggers the erasure of the next oldest page. Pages are erased from oldest to
+    /// newest so that the log will remain valid even if it fails to be erase completely.
     fn erase_page(&self) -> ReturnCode {
-        // Uses oldest entry ID to keep track of which page to erase. Thus, the oldest pages will be
-        // erased first and the log will remain in a valid state even if it fails to be erased
-        // completely.
-        self.driver
-            .erase_page(self.page_number(self.oldest_entry_id.get()))
+        let oldest_page = self.page_number(self.oldest_entry_id.get());
+        self.driver.erase_page(oldest_page)
     }
 
     /// Initializes a callback handle for deferred callbacks.
