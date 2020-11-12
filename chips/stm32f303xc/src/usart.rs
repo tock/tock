@@ -290,7 +290,7 @@ enum USARTStateRX {
 
 pub struct Usart<'a> {
     registers: StaticRef<UsartRegisters>,
-    clock: UsartClock,
+    clock: UsartClock<'a>,
 
     tx_client: OptionalCell<&'a dyn hil::uart::TransmitClient>,
     rx_client: OptionalCell<&'a dyn hil::uart::ReceiveClient>,
@@ -306,23 +306,8 @@ pub struct Usart<'a> {
     rx_status: Cell<USARTStateRX>,
 }
 
-pub static mut USART1: Usart = Usart::new(
-    USART1_BASE,
-    UsartClock(rcc::PeripheralClock::APB2(rcc::PCLK2::USART1)),
-);
-
-pub static mut USART2: Usart = Usart::new(
-    USART2_BASE,
-    UsartClock(rcc::PeripheralClock::APB1(rcc::PCLK1::USART2)),
-);
-
-pub static mut USART3: Usart = Usart::new(
-    USART3_BASE,
-    UsartClock(rcc::PeripheralClock::APB1(rcc::PCLK1::USART3)),
-);
-
-impl Usart<'_> {
-    const fn new(base_addr: StaticRef<UsartRegisters>, clock: UsartClock) -> Self {
+impl<'a> Usart<'a> {
+    const fn new(base_addr: StaticRef<UsartRegisters>, clock: UsartClock<'a>) -> Self {
         Self {
             registers: base_addr,
             clock: clock,
@@ -340,6 +325,36 @@ impl Usart<'_> {
             rx_len: Cell::new(0),
             rx_status: Cell::new(USARTStateRX::Idle),
         }
+    }
+
+    pub const fn new_usart1(rcc: &'a rcc::Rcc) -> Self {
+        Self::new(
+            USART1_BASE,
+            UsartClock(rcc::PeripheralClock::new(
+                rcc::PeripheralClockType::APB2(rcc::PCLK2::USART1),
+                rcc,
+            )),
+        )
+    }
+
+    pub const fn new_usart2(rcc: &'a rcc::Rcc) -> Self {
+        Self::new(
+            USART2_BASE,
+            UsartClock(rcc::PeripheralClock::new(
+                rcc::PeripheralClockType::APB1(rcc::PCLK1::USART2),
+                rcc,
+            )),
+        )
+    }
+
+    pub const fn new_usart3(rcc: &'a rcc::Rcc) -> Self {
+        Self::new(
+            USART3_BASE,
+            UsartClock(rcc::PeripheralClock::new(
+                rcc::PeripheralClockType::APB1(rcc::PCLK1::USART3),
+                rcc,
+            )),
+        )
     }
 
     pub fn is_enabled_clock(&self) -> bool {
@@ -607,9 +622,9 @@ impl<'a> hil::uart::Receive<'a> for Usart<'a> {
 impl<'a> hil::uart::UartData<'a> for Usart<'a> {}
 impl<'a> hil::uart::Uart<'a> for Usart<'a> {}
 
-struct UsartClock(rcc::PeripheralClock);
+struct UsartClock<'a>(rcc::PeripheralClock<'a>);
 
-impl ClockInterface for UsartClock {
+impl ClockInterface for UsartClock<'_> {
     fn is_enabled(&self) -> bool {
         self.0.is_enabled()
     }
