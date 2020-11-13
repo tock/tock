@@ -370,7 +370,7 @@ pub unsafe fn reset_handler() {
             .finalize(());
 
     let nfc_driver =
-        components::nfc::NfcComponent::new(board_kernel, &nrf52840::nfct::NFCT).finalize(());
+        components::nfc::NfcComponent::new(board_kernel, &base_peripherals.nfct).finalize(());
 
     let serial_num = nrf52840::ficr::FICR_INSTANCE.address();
     let serial_num_bottom_16 = serial_num[0] as u16 + ((serial_num[1] as u16) << 8);

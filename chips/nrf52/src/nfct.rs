@@ -353,8 +353,6 @@ register_bitfields![u32,
     ]
 ];
 
-pub static mut NFCT: NfcTag = NfcTag::new();
-
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum TagType {
     Type1,
@@ -388,8 +386,8 @@ pub struct NfcTag<'a> {
 }
 
 impl<'a> NfcTag<'a> {
-    const fn new() -> Self {
-        NfcTag {
+    pub const fn new() -> Self {
+        Self {
             registers: NFCT_BASE,
             client: OptionalCell::empty(),
             state: Cell::new(NfcState::Disabled),

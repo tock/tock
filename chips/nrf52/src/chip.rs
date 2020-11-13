@@ -49,6 +49,7 @@ pub struct Nrf52DefaultPeripherals<'a> {
     pub spim2: crate::spi::SPIM,
     pub adc: crate::adc::Adc,
     pub nvmc: crate::nvmc::Nvmc,
+    pub nfct: crate::nfct::NfcTag<'a>,
 }
 
 impl<'a> Nrf52DefaultPeripherals<'a> {
@@ -74,6 +75,7 @@ impl<'a> Nrf52DefaultPeripherals<'a> {
             spim2: crate::spi::SPIM::new(2),
             adc: crate::adc::Adc::new(),
             nvmc: crate::nvmc::Nvmc::new(),
+            nfct: crate::nfct::NfcTag::new(),
         }
     }
     // Necessary for setting up circular dependencies
@@ -138,6 +140,7 @@ impl<'a> kernel::InterruptService<DeferredCallTask> for Nrf52DefaultPeripherals<
             }
             crate::peripheral_interrupts::SPIM2_SPIS2_SPI2 => self.spim2.handle_interrupt(),
             crate::peripheral_interrupts::ADC => self.adc.handle_interrupt(),
+            crate::peripheral_interrupts::NFCT => self.nfct.handle_interrupt(),
             _ => return false,
         }
         true
