@@ -13,7 +13,7 @@ pub mod nvic;
 // Peripherals
 pub mod ccm;
 pub mod gpio;
-pub mod gpt1;
+pub mod gpt;
 pub mod iomuxc;
 pub mod iomuxc_snvs;
 pub mod lpi2c;

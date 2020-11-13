@@ -13,7 +13,7 @@ use crate::nvic;
 
 /// General purpose timers
 #[repr(C)]
-struct Gpt1Registers {
+struct GptRegisters {
     /// GPT Control Register
     cr: ReadWrite<u32, CR::Register>,
     /// GPT Prescaler Register
@@ -138,25 +138,28 @@ register_bitfields![u32,
     ]
 ];
 
-const GPT1_BASE: StaticRef<Gpt1Registers> =
-    unsafe { StaticRef::new(0x401EC000 as *const Gpt1Registers) };
+const GPT1_BASE: StaticRef<GptRegisters> =
+    unsafe { StaticRef::new(0x401EC000 as *const GptRegisters) };
+const GPT2_BASE: StaticRef<GptRegisters> =
+    unsafe { StaticRef::new(0x401F0000 as *const GptRegisters) };
 
-pub struct Gpt1<'a> {
-    registers: StaticRef<Gpt1Registers>,
+pub struct Gpt<'a> {
+    registers: StaticRef<GptRegisters>,
     clock: Gpt1Clock,
     client: OptionalCell<&'a dyn hil::time::AlarmClient>,
     irqn: u32,
 }
 
-pub static mut GPT1: Gpt1<'static> = Gpt1::new();
+pub static mut GPT1: Gpt<'static> = Gpt::new(GPT1_BASE, nvic::GPT1);
+pub static mut GPT2: Gpt<'static> = Gpt::new(GPT2_BASE, nvic::GPT2);
 
-impl<'a> Gpt1<'a> {
-    const fn new() -> Gpt1<'a> {
-        Gpt1 {
-            registers: GPT1_BASE,
+impl<'a> Gpt<'a> {
+    const fn new(registers: StaticRef<GptRegisters>, irqn: u32) -> Gpt<'a> {
+        Gpt {
+            registers,
             clock: Gpt1Clock(ccm::PeripheralClock::CCGR1(ccm::HCLK1::GPT1)),
             client: OptionalCell::empty(),
-            irqn: nvic::GPT1,
+            irqn,
         }
     }
 
@@ -248,7 +251,7 @@ impl<'a> Gpt1<'a> {
 /// In our case, we get a 24.75 MHz frequency for the timer.
 /// The frequency will be fixed when the ARM_PLL1 CLK will
 /// be correctly configured.
-impl hil::time::Time for Gpt1<'_> {
+impl hil::time::Time for Gpt<'_> {
     type Frequency = Freq2475MHz;
     type Ticks = Ticks32;
 
@@ -257,7 +260,7 @@ impl hil::time::Time for Gpt1<'_> {
     }
 }
 
-impl<'a> hil::time::Alarm<'a> for Gpt1<'a> {
+impl<'a> hil::time::Alarm<'a> for Gpt<'a> {
     fn set_alarm_client(&self, client: &'a dyn hil::time::AlarmClient) {
         self.client.set(client);
     }
