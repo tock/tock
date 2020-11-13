@@ -20,6 +20,7 @@ pub use cortexm::svc_handler;
 pub use cortexm::syscall;
 pub use cortexm::systick;
 pub use cortexm::systick_handler;
+pub use cortexm::unhandled_interrupt;
 
 /// Provide a `switch_to_user` function with exactly that name for syscall.rs.
 #[cfg(all(target_arch = "arm", target_os = "none"))]
