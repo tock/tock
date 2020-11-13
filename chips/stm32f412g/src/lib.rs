@@ -6,6 +6,7 @@ pub use stm32f4xx::{
     adc, chip, dbg, dma1, exti, fsmc, gpio, i2c, nvic, rcc, spi, syscfg, tim2, usart,
 };
 
+pub mod interrupt_service;
 pub mod stm32f412g_nvic;
 
 // STM32F412g has total of 97 interrupts
