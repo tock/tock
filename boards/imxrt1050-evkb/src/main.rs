@@ -19,7 +19,6 @@ use kernel::{create_capability, static_init};
 
 // use components::fxos8700::Fxos8700Component;
 // use components::ninedof::NineDofComponent;
-
 use imxrt1050::iomuxc::DriveStrength;
 use imxrt1050::iomuxc::MuxMode;
 use imxrt1050::iomuxc::OpenDrainEn;
@@ -28,6 +27,7 @@ use imxrt1050::iomuxc::PullKeepEn;
 use imxrt1050::iomuxc::PullUpDown;
 use imxrt1050::iomuxc::Sion;
 use imxrt1050::iomuxc::Speed;
+use imxrt10xx as imxrt1050;
 
 // Unit Tests for drivers.
 // #[allow(dead_code)]

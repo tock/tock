@@ -7,7 +7,7 @@ use kernel::hil::led;
 use kernel::hil::uart;
 use kernel::hil::uart::Configure;
 
-use imxrt1050;
+use crate::imxrt1050;
 use imxrt1050::gpio::PinId;
 
 use crate::CHIP;
