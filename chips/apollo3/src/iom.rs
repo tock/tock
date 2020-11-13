@@ -391,14 +391,14 @@ impl<'a> Iom<'_> {
 
                     regs.fifopush.set(d);
                 } else if len % 4 == 2 {
-                    let mut d = (buf[len as usize - 2] as u32) << 8;
-                    d |= (buf[len as usize - 1] as u32) << 0;
+                    let mut d = (buf[len as usize - 1] as u32) << 8;
+                    d |= (buf[len as usize - 2] as u32) << 0;
 
                     regs.fifopush.set(d);
                 } else if len % 4 == 3 {
-                    let mut d = (buf[len as usize - 3] as u32) << 16;
+                    let mut d = (buf[len as usize - 1] as u32) << 16;
                     d |= (buf[len as usize - 2] as u32) << 8;
-                    d |= (buf[len as usize - 1] as u32) << 0;
+                    d |= (buf[len as usize - 3] as u32) << 0;
 
                     regs.fifopush.set(d);
                 }
