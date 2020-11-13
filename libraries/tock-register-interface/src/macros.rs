@@ -15,7 +15,7 @@ macro_rules! register_bitmasks {
         // BITFIELD_NAME OFFSET(x)
         $(#[$outer:meta])*
         $valtype:ident, $reg_desc:ident, [
-            $( $(#[$inner:meta])* $field:ident OFFSET($offset:expr)),+
+            $( $(#[$inner:meta])* $field:ident OFFSET($offset:expr)),+ $(,)?
         ]
     } => {
         $(#[$outer])*
@@ -26,7 +26,7 @@ macro_rules! register_bitmasks {
         // All fields are 1 bit
         $(#[$outer:meta])*
         $valtype:ident, $reg_desc:ident, [
-            $( $(#[$inner:meta])* $field:ident $offset:expr ),+
+            $( $(#[$inner:meta])* $field:ident $offset:expr ),+ $(,)?
         ]
     } => {
         $(#[$outer])*
@@ -37,7 +37,7 @@ macro_rules! register_bitmasks {
         // BITFIELD_NAME OFFSET(x) NUMBITS(y)
         $(#[$outer:meta])*
         $valtype:ident, $reg_desc:ident, [
-            $( $(#[$inner:meta])* $field:ident OFFSET($offset:expr) NUMBITS($numbits:expr) ),+
+            $( $(#[$inner:meta])* $field:ident OFFSET($offset:expr) NUMBITS($numbits:expr) ),+ $(,)?
         ]
     } => {
         $(#[$outer])*
@@ -49,7 +49,7 @@ macro_rules! register_bitmasks {
         $(#[$outer:meta])*
         $valtype:ident, $reg_desc:ident, [
             $( $(#[$inner:meta])* $field:ident OFFSET($offset:expr) NUMBITS($numbits:expr)
-               $values:tt ),+
+               $values:tt ),+ $(,)?
         ]
     } => {
         $(#[$outer])*
@@ -59,7 +59,7 @@ macro_rules! register_bitmasks {
     {
         $valtype:ident, $reg_desc:ident, $(#[$outer:meta])* $field:ident,
                     $offset:expr, $numbits:expr,
-                    [$( $(#[$inner:meta])* $valname:ident = $value:expr ),+]
+                    [$( $(#[$inner:meta])* $valname:ident = $value:expr ),+ $(,)?]
     } => { // this match arm is duplicated below with an allowance for 0 elements in the valname -> value array,
         // to seperately support the case of zero-variant enums not supporting non-default
         // representations.
@@ -174,7 +174,7 @@ macro_rules! register_bitmasks {
 #[macro_export]
 macro_rules! register_bitfields {
     {
-        $valtype:ident, $( $(#[$inner:meta])* $vis:vis $reg:ident $fields:tt ),*
+        $valtype:ident, $( $(#[$inner:meta])* $vis:vis $reg:ident $fields:tt ),* $(,)?
     } => {
         $(
             #[allow(non_snake_case)]
