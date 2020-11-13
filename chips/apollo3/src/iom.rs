@@ -359,6 +359,10 @@ impl<'a> Iom<'_> {
         let mut data_pushed = self.write_index.get();
         let len = self.write_len.get();
 
+        if data_pushed == len {
+            return;
+        }
+
         self.buffer.map(|buf| {
             // Push some data to FIFO
             for i in (data_pushed / 4)..(len / 4) {
