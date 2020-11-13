@@ -1,8 +1,8 @@
-//! Peripheral implementations for the IMXRT1050 MCU.
+//! Peripheral implementations for the IMXRT1050 and IMXRT1060 MCUs.
 //!
 //! imxrt1050 chip: <https://www.nxp.com/design/development-boards/i-mx-evaluation-and-development-boards/i-mx-rt1050-evaluation-kit:MIMXRT1050-EVK>
 
-#![crate_name = "imxrt1050"]
+#![crate_name = "imxrt10xx"]
 #![crate_type = "rlib"]
 #![feature(llvm_asm, const_fn)]
 #![no_std]
