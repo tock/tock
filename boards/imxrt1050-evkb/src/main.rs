@@ -45,7 +45,7 @@ const NUM_PROCS: usize = 1;
 // Actual memory for holding the active process structures.
 static mut PROCESSES: [Option<&'static dyn kernel::procs::ProcessType>; NUM_PROCS] = [None];
 
-static mut CHIP: Option<&'static imxrt1050::chip::Imxrt1050> = None;
+static mut CHIP: Option<&'static imxrt1050::chip::Imxrt10xx> = None;
 
 // How should the kernel respond when a process faults.
 const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultResponse::Panic;
@@ -201,8 +201,8 @@ pub unsafe fn reset_handler() {
     DynamicDeferredCall::set_global_instance(dynamic_deferred_caller);
 
     let chip = static_init!(
-        imxrt1050::chip::Imxrt1050,
-        imxrt1050::chip::Imxrt1050::new()
+        imxrt1050::chip::Imxrt10xx,
+        imxrt1050::chip::Imxrt10xx::new()
     );
     CHIP = Some(chip);
 

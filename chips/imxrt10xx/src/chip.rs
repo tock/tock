@@ -11,15 +11,15 @@ use crate::lpi2c;
 use crate::lpuart;
 use crate::nvic;
 
-pub struct Imxrt1050 {
+pub struct Imxrt10xx {
     mpu: cortexm7::mpu::MPU,
     userspace_kernel_boundary: cortexm7::syscall::SysCall,
     scheduler_timer: cortexm7::systick::SysTick,
 }
 
-impl Imxrt1050 {
-    pub unsafe fn new() -> Imxrt1050 {
-        Imxrt1050 {
+impl Imxrt10xx {
+    pub unsafe fn new() -> Imxrt10xx {
+        Imxrt10xx {
             mpu: cortexm7::mpu::MPU::new(),
             userspace_kernel_boundary: cortexm7::syscall::SysCall::new(),
             scheduler_timer: cortexm7::systick::SysTick::new_with_calibration(792_000_000),
@@ -27,7 +27,7 @@ impl Imxrt1050 {
     }
 }
 
-impl Chip for Imxrt1050 {
+impl Chip for Imxrt10xx {
     type MPU = cortexm7::mpu::MPU;
     type UserspaceKernelBoundary = cortexm7::syscall::SysCall;
     type SchedulerTimer = cortexm7::systick::SysTick;
