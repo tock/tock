@@ -39,6 +39,7 @@ impl Chip for Imxrt10xx {
                 if let Some(interrupt) = cortexm7::nvic::next_pending() {
                     match interrupt {
                         nvic::LPUART1 => lpuart::LPUART1.handle_interrupt(),
+                        nvic::LPUART2 => lpuart::LPUART2.handle_interrupt(),
                         nvic::LPI2C1 => lpi2c::LPI2C1.handle_event(),
                         nvic::GPT1 => gpt::GPT1.handle_interrupt(),
                         nvic::GPT2 => gpt::GPT2.handle_interrupt(),

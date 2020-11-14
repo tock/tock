@@ -23,7 +23,7 @@
 // pub const CM7: u32 = 18;
 // pub const CM7: u32 = 19;
 pub const LPUART1: u32 = 20;
-// pub const LPUART2: u32 = 21;
+pub const LPUART2: u32 = 21;
 // pub const LPUART3: u32 = 22;
 // pub const LPUART4: u32 = 23;
 // pub const LPUART5: u32 = 24;

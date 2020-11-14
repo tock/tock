@@ -443,6 +443,19 @@ impl Ccm {
         self.registers.ccgr5.modify(CCGR5::CG12::CLEAR);
     }
 
+    // LPUART2 clock
+    pub fn is_enabled_lpuart2_clock(&self) -> bool {
+        self.registers.ccgr0.is_set(CCGR0::CG14)
+    }
+
+    pub fn enable_lpuart2_clock(&self) {
+        self.registers.ccgr0.modify(CCGR0::CG14.val(0b11 as u32));
+    }
+
+    pub fn disable_lpuart2_clock(&self) {
+        self.registers.ccgr0.modify(CCGR0::CG14::CLEAR);
+    }
+
     // UART clock multiplexor
     pub fn is_enabled_uart_clock_mux(&self) -> bool {
         self.registers.cscdr1.is_set(CSCDR1::UART_CLK_SEL)
@@ -483,6 +496,7 @@ pub enum PeripheralClock {
 
 pub enum HCLK0 {
     GPIO2,
+    LPUART2,
 }
 
 pub enum HCLK1 {
@@ -516,6 +530,7 @@ impl ClockInterface for PeripheralClock {
         match self {
             &PeripheralClock::CCGR0(ref v) => match v {
                 HCLK0::GPIO2 => unsafe { CCM.is_enabled_gpio2_clock() },
+                HCLK0::LPUART2 => unsafe { CCM.is_enabled_lpuart2_clock() },
             },
             &PeripheralClock::CCGR1(ref v) => match v {
                 HCLK1::GPIO1 => unsafe { CCM.is_enabled_gpio1_clock() },
@@ -544,6 +559,9 @@ impl ClockInterface for PeripheralClock {
             &PeripheralClock::CCGR0(ref v) => match v {
                 HCLK0::GPIO2 => unsafe {
                     CCM.enable_gpio2_clock();
+                },
+                HCLK0::LPUART2 => unsafe {
+                    CCM.enable_lpuart2_clock();
                 },
             },
             &PeripheralClock::CCGR1(ref v) => match v {
@@ -591,6 +609,9 @@ impl ClockInterface for PeripheralClock {
             &PeripheralClock::CCGR0(ref v) => match v {
                 HCLK0::GPIO2 => unsafe {
                     CCM.disable_gpio2_clock();
+                },
+                HCLK0::LPUART2 => unsafe {
+                    CCM.disable_lpuart2_clock();
                 },
             },
             &PeripheralClock::CCGR1(ref v) => match v {
