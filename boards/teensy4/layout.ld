@@ -2,9 +2,9 @@
  * Teensy 4 Linker Script
  *
  * We do not utilize any of the tightly-coupled memory (TCM)
- * regions. Notably, there's another 512KB region that could be
- * used for RAM, or for instruction execution (ITCM), or for quickly-
- * accessible data (DTCM).
+ * regions. There's another 512KB region that could be
+ * used for RAM, or for instruction execution (ITCM), or for
+ * quickly-accessible data (DTCM).
  *
  * NXP's iMXRT processors require a special boot section, which
  * we call '.boot' below. It contains the Firmware Configuration
@@ -19,7 +19,6 @@ MEMORY
   ram   (rwx) : ORIGIN = 0x20200000, LENGTH = 512K
 }
 
-/* TODO figure out what this should be */
 MPU_MIN_ALIGN = 8K;
 
 SECTIONS

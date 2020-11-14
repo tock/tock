@@ -1,6 +1,7 @@
 //! System configuration
 //!
-//! - UART2 allocated for a debug console
+//! - LED on pin 13
+//! - UART2 allocated for a debug console on pins 14 and 15
 //! - GPT1 is the alarm source
 
 #![no_std]
@@ -10,8 +11,8 @@
 mod fcb;
 mod io;
 
-use imxrt10xx;
-use imxrt10xx::iomuxc::{MuxMode, PadId, Sion, IOMUXC};
+use imxrt1060::iomuxc::{MuxMode, PadId, Sion, IOMUXC};
+use imxrt10xx as imxrt1060;
 use kernel::capabilities;
 use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::component::Component;
@@ -29,12 +30,12 @@ const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultRespons
 
 /// Teensy 4 platform
 struct Teensy4 {
-    led: &'static capsules::led::LED<'static, imxrt10xx::gpio::Pin<'static>>,
+    led: &'static capsules::led::LED<'static, imxrt1060::gpio::Pin<'static>>,
     console: &'static capsules::console::Console<'static>,
     ipc: kernel::ipc::IPC,
     alarm: &'static capsules::alarm::AlarmDriver<
         'static,
-        capsules::virtual_alarm::VirtualMuxAlarm<'static, imxrt10xx::gpt::Gpt1<'static>>,
+        capsules::virtual_alarm::VirtualMuxAlarm<'static, imxrt1060::gpt::Gpt1<'static>>,
     >,
 }
 
@@ -53,18 +54,19 @@ impl kernel::Platform for Teensy4 {
     }
 }
 
-static mut CHIP: Option<&'static imxrt10xx::chip::Imxrt10xx> = None;
+type Chip = imxrt1060::chip::Imxrt10xx;
+static mut CHIP: Option<&'static Chip> = None;
 
 #[no_mangle]
 pub unsafe fn reset_handler() {
-    imxrt10xx::init();
-    imxrt10xx::ccm::CCM.enable_iomuxc_clock();
-    imxrt10xx::ccm::CCM.enable_iomuxc_snvs_clock();
+    imxrt1060::init();
+    imxrt1060::ccm::CCM.enable_iomuxc_clock();
+    imxrt1060::ccm::CCM.enable_iomuxc_snvs_clock();
 
-    imxrt10xx::ccm::CCM.set_perclk_sel(imxrt10xx::ccm::PerclkClockSel::Oscillator);
-    imxrt10xx::ccm::CCM.set_perclk_divider(8);
+    imxrt1060::ccm::CCM.set_perclk_sel(imxrt1060::ccm::PerclkClockSel::Oscillator);
+    imxrt1060::ccm::CCM.set_perclk_divider(8);
 
-    imxrt10xx::gpio::PinId::B0_03.get_pin().as_ref().map(|pin| {
+    imxrt1060::gpio::PinId::B0_03.get_pin().as_ref().map(|pin| {
         use kernel::hil::gpio::Configure;
         pin.make_output();
     });
@@ -79,26 +81,19 @@ pub unsafe fn reset_handler() {
     IOMUXC.enable_lpuart2_tx_select_input();
     IOMUXC.enable_lpuart2_rx_select_input();
 
-    imxrt10xx::lpuart::LPUART2.enable_clock();
-    imxrt10xx::lpuart::LPUART2.set_baud();
+    imxrt1060::lpuart::LPUART2.enable_clock();
+    imxrt1060::lpuart::LPUART2.set_baud();
 
-    imxrt10xx::gpt::GPT1.enable_clock();
-    imxrt10xx::gpt::GPT1.start(
-        imxrt10xx::ccm::CCM.perclk_sel(),
-        imxrt10xx::ccm::CCM.perclk_divider(),
+    imxrt1060::gpt::GPT1.enable_clock();
+    imxrt1060::gpt::GPT1.start(
+        imxrt1060::ccm::CCM.perclk_sel(),
+        imxrt1060::ccm::CCM.perclk_divider(),
     );
 
-    cortexm7::nvic::Nvic::new(imxrt10xx::nvic::GPT1).enable();
-    cortexm7::nvic::Nvic::new(imxrt10xx::nvic::LPUART2).enable();
+    cortexm7::nvic::Nvic::new(imxrt1060::nvic::GPT1).enable();
+    cortexm7::nvic::Nvic::new(imxrt1060::nvic::LPUART2).enable();
 
-    // Prepare the chip
-    //
-    // Chip initialization employs some static peripheral setup, so
-    // it should be called early.
-    let chip = static_init!(
-        imxrt10xx::chip::Imxrt10xx,
-        imxrt10xx::chip::Imxrt10xx::new()
-    );
+    let chip = static_init!(Chip, Chip::new());
     CHIP = Some(chip);
 
     // Start loading the kernel
@@ -113,7 +108,7 @@ pub unsafe fn reset_handler() {
     DynamicDeferredCall::set_global_instance(dynamic_deferred_caller);
 
     let uart_mux = components::console::UartMuxComponent::new(
-        &imxrt10xx::lpuart::LPUART2,
+        &imxrt1060::lpuart::LPUART2,
         115_200,
         dynamic_deferred_caller,
     )
@@ -126,20 +121,20 @@ pub unsafe fn reset_handler() {
 
     // LED
     let led = components::led::LedsComponent::new(components::led_component_helper!(
-        imxrt10xx::gpio::Pin,
+        imxrt1060::gpio::Pin,
         (
-            imxrt10xx::gpio::PinId::B0_03.get_pin().as_ref().unwrap(),
+            imxrt1060::gpio::PinId::B0_03.get_pin().as_ref().unwrap(),
             kernel::hil::gpio::ActivationMode::ActiveHigh
         )
     ))
-    .finalize(components::led_component_buf!(imxrt10xx::gpio::Pin));
+    .finalize(components::led_component_buf!(imxrt1060::gpio::Pin));
 
     // Alarm
-    let mux_alarm = components::alarm::AlarmMuxComponent::new(&imxrt10xx::gpt::GPT1).finalize(
-        components::alarm_mux_component_helper!(imxrt10xx::gpt::Gpt1),
+    let mux_alarm = components::alarm::AlarmMuxComponent::new(&imxrt1060::gpt::GPT1).finalize(
+        components::alarm_mux_component_helper!(imxrt1060::gpt::Gpt1),
     );
     let alarm = components::alarm::AlarmDriverComponent::new(board_kernel, mux_alarm)
-        .finalize(components::alarm_component_helper!(imxrt10xx::gpt::Gpt1));
+        .finalize(components::alarm_component_helper!(imxrt1060::gpt::Gpt1));
 
     //
     // Capabilities
@@ -160,11 +155,6 @@ pub unsafe fn reset_handler() {
         ipc,
         alarm,
     };
-
-    // TODO figure out why we need this...
-    for _ in 0..5_000_000 {
-        cortexm7::support::nop();
-    }
 
     //
     // Kernel startup

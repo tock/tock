@@ -6,8 +6,8 @@ use kernel::hil::{
     uart::{self, Configure},
 };
 
-use imxrt10xx::gpio;
-use imxrt10xx::lpuart;
+use crate::imxrt1060::gpio;
+use crate::imxrt1060::lpuart;
 
 struct Writer {
     output: &'static mut lpuart::Lpuart<'static>,
@@ -44,7 +44,6 @@ impl Write for Writer {
     }
 }
 
-#[cfg(all(target_arch = "arm", target_os = "none"))]
 #[no_mangle]
 #[panic_handler]
 unsafe fn panic_handler(panic_info: &core::panic::PanicInfo) -> ! {
