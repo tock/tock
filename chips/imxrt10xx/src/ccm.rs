@@ -12,8 +12,16 @@ struct CcmRegisters {
     csr: ReadOnly<u32, CSR::Register>,
     // CCM Clock Switcher Register
     ccsr: ReadWrite<u32, CCSR::Register>,
-    // unimplemented
-    _reserved2: [u8; 20],
+    // ARM clock root
+    cacrr: ReadWrite<u32 /* Unimplemented */>,
+    // Bus clock divider
+    cbcdr: ReadWrite<u32 /* Unimplemented */>,
+    // Bus clock multiplexer
+    cbcmr: ReadWrite<u32 /* Unimplemented */>,
+    // Serial clock multiplexer 1
+    cscmr1: ReadWrite<u32, CSCMR1::Register>,
+    // Serial clock multiplexer 2
+    cscmr2: ReadWrite<u32 /* Unimplemented */>,
     cscdr1: ReadWrite<u32, CSCDR1::Register>,
     _reserved3: [u8; 44],
     clpcr: ReadWrite<u32, CLPCR::Register>,
@@ -39,9 +47,9 @@ register_bitfields![u32,
         RBC_EN OFFSET(27) NUMBITS(1) [],
         /// Counter for analog_reg_bypass
         REG_BYPASS_COUNT OFFSET(21) NUMBITS(6) [],
-        /// On chip oscilator enable bit
+        /// On chip oscillator enable bit
         COSC_EN OFFSET(12) NUMBITS(1) [],
-        /// Oscilator ready counter value
+        /// Oscillator ready counter value
         OSCNT OFFSET(0) NUMBITS(8) []
     ],
 
@@ -56,6 +64,24 @@ register_bitfields![u32,
 
     CCSR [
         PLL3_SW_CLK_SEL OFFSET(0) NUMBITS(1) []
+    ],
+
+    CSCMR1 [
+        // Selector for the PERCLK clock multiplexer
+        PERCLK_CLK_SEL OFFSET(6) NUMBITS(1) [
+            // Derive clock from IPG CLK root
+            IpgClockRoot = 0,
+            // Derive clock from OSCILLATOR
+            Oscillator = 1
+        ],
+        // Divider for PERCLK PODF
+        //
+        // 0 = divide by 1
+        // 1 = divide by 2
+        // 2 = divide by 3
+        // ...
+        // 63 = divide by 64
+        PERCLK_PODF OFFSET(0) NUMBITS(6) []
     ],
 
     CSCDR1 [
@@ -483,6 +509,46 @@ impl Ccm {
     pub fn disable_uart_clock_podf(&self) {
         self.registers.cscdr1.modify(CSCDR1::UART_CLK_PODF::CLEAR);
     }
+
+    //
+    // PERCLK
+    //
+
+    /// Returns the selection for the periodic clock
+    pub fn perclk_sel(&self) -> PerclkClockSel {
+        use CSCMR1::PERCLK_CLK_SEL::Value;
+        match self.registers.cscmr1.read_as_enum(CSCMR1::PERCLK_CLK_SEL) {
+            Some(Value::Oscillator) => PerclkClockSel::Oscillator,
+            Some(Value::IpgClockRoot) => PerclkClockSel::IPG,
+            _ => unreachable!("Implemented all periodic clock selections"),
+        }
+    }
+
+    /// Set the periodic clock selection
+    pub fn set_perclk_sel(&self, sel: PerclkClockSel) {
+        let sel = match sel {
+            PerclkClockSel::IPG => CSCMR1::PERCLK_CLK_SEL::IpgClockRoot,
+            PerclkClockSel::Oscillator => CSCMR1::PERCLK_CLK_SEL::Oscillator,
+        };
+        self.registers.cscmr1.modify(sel);
+    }
+
+    /// Set the periodic clock selection and divider
+    ///
+    /// This should only be called when all associated clock gates are disabled.
+    ///
+    /// `divider` will be clamped between 1 and 64.
+    pub fn set_perclk_divider(&self, divider: u8) {
+        let divider: u32 = divider.min(64).max(1).into();
+        self.registers
+            .cscmr1
+            .modify(CSCMR1::PERCLK_PODF.val(divider - 1));
+    }
+
+    /// Returns the periodic clock divider, guaranteed to be non-zero
+    pub fn perclk_divider(&self) -> u8 {
+        (self.registers.cscmr1.read(CSCMR1::PERCLK_PODF) as u8) + 1
+    }
 }
 
 pub enum PeripheralClock {
@@ -523,6 +589,15 @@ pub enum HCLK4 {
 pub enum HCLK5 {
     LPUART1,
     // and others ...
+}
+
+/// Periodic clock selection for GPTs and PITs
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PerclkClockSel {
+    /// IPG clock selection (default)
+    IPG,
+    /// Crystal oscillator
+    Oscillator,
 }
 
 impl ClockInterface for PeripheralClock {

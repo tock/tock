@@ -67,7 +67,7 @@ pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 struct Imxrt1050EVKB {
     alarm: &'static capsules::alarm::AlarmDriver<
         'static,
-        VirtualMuxAlarm<'static, imxrt1050::gpt::Gpt<'static>>,
+        VirtualMuxAlarm<'static, imxrt1050::gpt::Gpt1<'static>>,
     >,
     button: &'static capsules::button::Button<'static, imxrt1050::gpio::Pin<'static>>,
     console: &'static capsules::console::Console<'static>,
@@ -163,6 +163,7 @@ unsafe fn set_pin_primary_functions() {
 
 /// Helper function for miscellaneous peripheral functions
 unsafe fn setup_peripherals() {
+    use imxrt1050::ccm::CCM;
     use imxrt1050::gpt::GPT1;
 
     // LPUART1 IRQn is 20
@@ -170,7 +171,7 @@ unsafe fn setup_peripherals() {
 
     // TIM2 IRQn is 28
     GPT1.enable_clock();
-    GPT1.start();
+    GPT1.start(CCM.perclk_sel(), CCM.perclk_divider());
     cortexm7::nvic::Nvic::new(imxrt1050::nvic::GPT1).enable();
 }
 
@@ -299,11 +300,12 @@ pub unsafe fn reset_handler() {
 
     // ALARM
     let gpt1 = &imxrt1050::gpt::GPT1;
-    let mux_alarm = components::alarm::AlarmMuxComponent::new(gpt1)
-        .finalize(components::alarm_mux_component_helper!(imxrt1050::gpt::Gpt));
+    let mux_alarm = components::alarm::AlarmMuxComponent::new(gpt1).finalize(
+        components::alarm_mux_component_helper!(imxrt1050::gpt::Gpt1),
+    );
 
     let alarm = components::alarm::AlarmDriverComponent::new(board_kernel, mux_alarm)
-        .finalize(components::alarm_component_helper!(imxrt1050::gpt::Gpt));
+        .finalize(components::alarm_component_helper!(imxrt1050::gpt::Gpt1));
 
     // GPIO
     // For now we expose only two pins

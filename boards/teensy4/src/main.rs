@@ -34,7 +34,7 @@ struct Teensy4 {
     ipc: kernel::ipc::IPC,
     alarm: &'static capsules::alarm::AlarmDriver<
         'static,
-        capsules::virtual_alarm::VirtualMuxAlarm<'static, imxrt10xx::gpt::Gpt<'static>>,
+        capsules::virtual_alarm::VirtualMuxAlarm<'static, imxrt10xx::gpt::Gpt1<'static>>,
     >,
 }
 
@@ -61,6 +61,9 @@ pub unsafe fn reset_handler() {
     imxrt10xx::ccm::CCM.enable_iomuxc_clock();
     imxrt10xx::ccm::CCM.enable_iomuxc_snvs_clock();
 
+    imxrt10xx::ccm::CCM.set_perclk_sel(imxrt10xx::ccm::PerclkClockSel::Oscillator);
+    imxrt10xx::ccm::CCM.set_perclk_divider(8);
+
     imxrt10xx::gpio::PinId::B0_03.get_pin().as_ref().map(|pin| {
         use kernel::hil::gpio::Configure;
         pin.make_output();
@@ -80,7 +83,10 @@ pub unsafe fn reset_handler() {
     imxrt10xx::lpuart::LPUART2.set_baud();
 
     imxrt10xx::gpt::GPT1.enable_clock();
-    imxrt10xx::gpt::GPT1.start();
+    imxrt10xx::gpt::GPT1.start(
+        imxrt10xx::ccm::CCM.perclk_sel(),
+        imxrt10xx::ccm::CCM.perclk_divider(),
+    );
 
     cortexm7::nvic::Nvic::new(imxrt10xx::nvic::GPT1).enable();
     cortexm7::nvic::Nvic::new(imxrt10xx::nvic::LPUART2).enable();
@@ -129,10 +135,11 @@ pub unsafe fn reset_handler() {
     .finalize(components::led_component_buf!(imxrt10xx::gpio::Pin));
 
     // Alarm
-    let mux_alarm = components::alarm::AlarmMuxComponent::new(&imxrt10xx::gpt::GPT1)
-        .finalize(components::alarm_mux_component_helper!(imxrt10xx::gpt::Gpt));
+    let mux_alarm = components::alarm::AlarmMuxComponent::new(&imxrt10xx::gpt::GPT1).finalize(
+        components::alarm_mux_component_helper!(imxrt10xx::gpt::Gpt1),
+    );
     let alarm = components::alarm::AlarmDriverComponent::new(board_kernel, mux_alarm)
-        .finalize(components::alarm_component_helper!(imxrt10xx::gpt::Gpt));
+        .finalize(components::alarm_component_helper!(imxrt10xx::gpt::Gpt1));
 
     //
     // Capabilities
