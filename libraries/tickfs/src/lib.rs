@@ -227,10 +227,6 @@ pub use crate::error_codes::ErrorCode;
 #[doc(inline)]
 pub use crate::flash_controller::FlashController;
 #[doc(inline)]
-pub use crate::tickfs::Operation;
-#[doc(inline)]
-pub use crate::tickfs::State;
-#[doc(inline)]
 pub use crate::tickfs::TickFS;
 
 // This is used to run the tests on a host
