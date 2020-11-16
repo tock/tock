@@ -142,14 +142,15 @@ mod simple_flash_ctrl {
     #[test]
     fn test_init() {
         let mut read_buf: [u8; 2048] = [0; 2048];
-        TickFS::<FlashCtrl, DefaultHasher>::new(
+        let tickfs = TickFS::<FlashCtrl, DefaultHasher>::new(
             FlashCtrl::new(),
-            (&mut DefaultHasher::new(), &mut DefaultHasher::new()),
             &mut read_buf,
             0x20000,
             0x800,
-        )
-        .unwrap();
+        );
+        tickfs
+            .initalise((&mut DefaultHasher::new(), &mut DefaultHasher::new()))
+            .unwrap();
     }
 }
 
@@ -199,24 +200,26 @@ mod single_erase_flash_ctrl {
     #[test]
     fn test_double_init() {
         let mut read_buf1: [u8; 2048] = [0; 2048];
-        TickFS::<FlashCtrl, DefaultHasher>::new(
+        let tickfs1 = TickFS::<FlashCtrl, DefaultHasher>::new(
             FlashCtrl::new(),
-            (&mut DefaultHasher::new(), &mut DefaultHasher::new()),
             &mut read_buf1,
             0x20000,
             0x800,
-        )
-        .unwrap();
+        );
+        tickfs1
+            .initalise((&mut DefaultHasher::new(), &mut DefaultHasher::new()))
+            .unwrap();
 
         let mut read_buf2: [u8; 2048] = [0; 2048];
-        TickFS::<FlashCtrl, DefaultHasher>::new(
+        let tickfs2 = TickFS::<FlashCtrl, DefaultHasher>::new(
             FlashCtrl::new(),
-            (&mut DefaultHasher::new(), &mut DefaultHasher::new()),
             &mut read_buf2,
             0x20000,
             0x800,
-        )
-        .unwrap();
+        );
+        tickfs2
+            .initalise((&mut DefaultHasher::new(), &mut DefaultHasher::new()))
+            .unwrap();
     }
 }
 
@@ -301,12 +304,13 @@ mod store_flast_ctrl {
         let mut read_buf: [u8; 1024] = [0; 1024];
         let tickfs = TickFS::<FlashCtrl, DefaultHasher>::new(
             FlashCtrl::new(),
-            (&mut DefaultHasher::new(), &mut DefaultHasher::new()),
             &mut read_buf,
             0x10000,
             0x400,
-        )
-        .unwrap();
+        );
+        tickfs
+            .initalise((&mut DefaultHasher::new(), &mut DefaultHasher::new()))
+            .unwrap();
 
         let value: [u8; 32] = [0x23; 32];
 
@@ -323,12 +327,13 @@ mod store_flast_ctrl {
         let mut read_buf: [u8; 1024] = [0; 1024];
         let tickfs = TickFS::<FlashCtrl, DefaultHasher>::new(
             FlashCtrl::new(),
-            (&mut DefaultHasher::new(), &mut DefaultHasher::new()),
             &mut read_buf,
             0x10000,
             0x400,
-        )
-        .unwrap();
+        );
+        tickfs
+            .initalise((&mut DefaultHasher::new(), &mut DefaultHasher::new()))
+            .unwrap();
 
         let value: [u8; 32] = [0x23; 32];
         let mut buf: [u8; 32] = [0; 32];
@@ -380,12 +385,13 @@ mod store_flast_ctrl {
         let mut read_buf: [u8; 1024] = [0; 1024];
         let tickfs = TickFS::<FlashCtrl, DefaultHasher>::new(
             FlashCtrl::new(),
-            (&mut DefaultHasher::new(), &mut DefaultHasher::new()),
             &mut read_buf,
             0x10000,
             0x400,
-        )
-        .unwrap();
+        );
+        tickfs
+            .initalise((&mut DefaultHasher::new(), &mut DefaultHasher::new()))
+            .unwrap();
 
         let value: [u8; 32] = [0x23; 32];
         let mut buf: [u8; 32] = [0; 32];
@@ -423,12 +429,13 @@ mod store_flast_ctrl {
         let mut read_buf: [u8; 1024] = [0; 1024];
         let tickfs = TickFS::<FlashCtrl, DefaultHasher>::new(
             FlashCtrl::new(),
-            (&mut DefaultHasher::new(), &mut DefaultHasher::new()),
             &mut read_buf,
             0x10000,
             0x400,
-        )
-        .unwrap();
+        );
+        tickfs
+            .initalise((&mut DefaultHasher::new(), &mut DefaultHasher::new()))
+            .unwrap();
 
         let value: [u8; 32] = [0x23; 32];
         let mut buf: [u8; 32] = [0; 32];
@@ -524,14 +531,11 @@ mod no_check_store_flast_ctrl {
     #[test]
     fn test_region_full() {
         let mut read_buf: [u8; 256] = [0; 256];
-        let tickfs = TickFS::<FlashCtrl, DefaultHasher>::new(
-            FlashCtrl::new(),
-            (&mut DefaultHasher::new(), &mut DefaultHasher::new()),
-            &mut read_buf,
-            0x200,
-            0x100,
-        )
-        .unwrap();
+        let tickfs =
+            TickFS::<FlashCtrl, DefaultHasher>::new(FlashCtrl::new(), &mut read_buf, 0x200, 0x100);
+        tickfs
+            .initalise((&mut DefaultHasher::new(), &mut DefaultHasher::new()))
+            .unwrap();
 
         let value: [u8; 64] = [0x23; 64];
         let mut buf: [u8; 64] = [0; 64];
