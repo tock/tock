@@ -16,6 +16,7 @@ use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferred
 use kernel::component::Component;
 use kernel::hil;
 use kernel::hil::i2c::I2CMaster;
+use kernel::hil::led::LedHigh;
 use kernel::hil::time::Alarm;
 use kernel::Chip;
 use kernel::Platform;
@@ -55,7 +56,10 @@ pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 /// A structure representing this platform that holds references to all
 /// capsules for this platform. We've included an alarm and console.
 struct OpenTitan {
-    led: &'static capsules::led::LED<'static, earlgrey::gpio::GpioPin<'static>>,
+    led: &'static capsules::led::LedDriver<
+        'static,
+        LedHigh<'static, earlgrey::gpio::GpioPin<'static>>,
+    >,
     gpio: &'static capsules::gpio::GPIO<'static, earlgrey::gpio::GpioPin<'static>>,
     console: &'static capsules::console::Console<'static>,
     alarm: &'static capsules::alarm::AlarmDriver<
@@ -145,41 +149,19 @@ pub unsafe fn reset_handler() {
     // LEDs
     // Start with half on and half off
     let led = components::led::LedsComponent::new(components::led_component_helper!(
-        earlgrey::gpio::GpioPin,
-        (
-            &peripherals.gpio_port[8],
-            kernel::hil::gpio::ActivationMode::ActiveHigh
-        ),
-        (
-            &peripherals.gpio_port[9],
-            kernel::hil::gpio::ActivationMode::ActiveHigh
-        ),
-        (
-            &peripherals.gpio_port[10],
-            kernel::hil::gpio::ActivationMode::ActiveHigh
-        ),
-        (
-            &peripherals.gpio_port[11],
-            kernel::hil::gpio::ActivationMode::ActiveHigh
-        ),
-        (
-            &peripherals.gpio_port[12],
-            kernel::hil::gpio::ActivationMode::ActiveHigh
-        ),
-        (
-            &peripherals.gpio_port[13],
-            kernel::hil::gpio::ActivationMode::ActiveHigh
-        ),
-        (
-            &peripherals.gpio_port[14],
-            kernel::hil::gpio::ActivationMode::ActiveHigh
-        ),
-        (
-            &peripherals.gpio_port[15],
-            kernel::hil::gpio::ActivationMode::ActiveHigh
-        )
+        LedHigh<'static, earlgrey::gpio::GpioPin>,
+        LedHigh::new(&peripherals.gpio_port[8]),
+        LedHigh::new(&peripherals.gpio_port[9]),
+        LedHigh::new(&peripherals.gpio_port[10]),
+        LedHigh::new(&peripherals.gpio_port[11]),
+        LedHigh::new(&peripherals.gpio_port[12]),
+        LedHigh::new(&peripherals.gpio_port[13]),
+        LedHigh::new(&peripherals.gpio_port[14]),
+        LedHigh::new(&peripherals.gpio_port[15]),
     ))
-    .finalize(components::led_component_buf!(earlgrey::gpio::GpioPin));
+    .finalize(components::led_component_buf!(
+        LedHigh<'static, earlgrey::gpio::GpioPin>
+    ));
 
     let gpio = components::gpio::GpioComponent::new(
         board_kernel,

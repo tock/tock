@@ -16,6 +16,7 @@ use kernel::common::dynamic_deferred_call::DynamicDeferredCall;
 use kernel::common::dynamic_deferred_call::DynamicDeferredCallClientState;
 use kernel::component::Component;
 use kernel::hil::i2c::I2CMaster;
+use kernel::hil::led::LedHigh;
 use kernel::hil::time::Counter;
 use kernel::Platform;
 use kernel::{create_capability, debug, static_init};
@@ -51,7 +52,10 @@ struct RedboardArtemisNano {
         'static,
         VirtualMuxAlarm<'static, apollo3::stimer::STimer<'static>>,
     >,
-    led: &'static capsules::led::LED<'static, apollo3::gpio::GpioPin<'static>>,
+    led: &'static capsules::led::LedDriver<
+        'static,
+        LedHigh<'static, apollo3::gpio::GpioPin<'static>>,
+    >,
     gpio: &'static capsules::gpio::GPIO<'static, apollo3::gpio::GpioPin<'static>>,
     console: &'static capsules::console::Console<'static>,
     i2c_master: &'static capsules::i2c_master::I2CMasterDriver<apollo3::iom::Iom<'static>>,
@@ -149,13 +153,12 @@ pub unsafe fn reset_handler() {
 
     // LEDs
     let led = components::led::LedsComponent::new(components::led_component_helper!(
-        apollo3::gpio::GpioPin,
-        (
-            &&peripherals.gpio_port[19],
-            kernel::hil::gpio::ActivationMode::ActiveHigh
-        )
+        LedHigh<'static, apollo3::gpio::GpioPin>,
+        LedHigh::new(&peripherals.gpio_port[19]),
     ))
-    .finalize(components::led_component_buf!(apollo3::gpio::GpioPin));
+    .finalize(components::led_component_buf!(
+        LedHigh<'static, apollo3::gpio::GpioPin>
+    ));
 
     // GPIOs
     // These are also ADC channels, but let's expose them as GPIOs

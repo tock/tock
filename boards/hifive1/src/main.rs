@@ -16,6 +16,7 @@ use kernel::capabilities;
 use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::component::Component;
 use kernel::hil;
+use kernel::hil::led::LedLow;
 use kernel::hil::time::Alarm;
 use kernel::Chip;
 use kernel::Platform;
@@ -53,7 +54,8 @@ pub static mut STACK_MEMORY: [u8; 0x900] = [0; 0x900];
 /// A structure representing this platform that holds references to all
 /// capsules for this platform. We've included an alarm and console.
 struct HiFive1 {
-    led: &'static capsules::led::LED<'static, sifive::gpio::GpioPin<'static>>,
+    led:
+        &'static capsules::led::LedDriver<'static, LedLow<'static, sifive::gpio::GpioPin<'static>>>,
     console: &'static capsules::console::Console<'static>,
     lldb: &'static capsules::low_level_debug::LowLevelDebug<
         'static,
@@ -137,21 +139,14 @@ pub unsafe fn reset_handler() {
 
     // LEDs
     let led = components::led::LedsComponent::new(components::led_component_helper!(
-        sifive::gpio::GpioPin,
-        (
-            &peripherals.gpio_port[22], // Red
-            kernel::hil::gpio::ActivationMode::ActiveLow
-        ),
-        (
-            &peripherals.gpio_port[19], // Green
-            kernel::hil::gpio::ActivationMode::ActiveLow
-        ),
-        (
-            &peripherals.gpio_port[21], // Blue
-            kernel::hil::gpio::ActivationMode::ActiveLow
-        )
+        LedLow<'static, sifive::gpio::GpioPin>,
+        LedLow::new(&peripherals.gpio_port[22]), // Red
+        LedLow::new(&peripherals.gpio_port[19]), // Green
+        LedLow::new(&peripherals.gpio_port[21]), // Blue
     ))
-    .finalize(components::led_component_buf!(sifive::gpio::GpioPin));
+    .finalize(components::led_component_buf!(
+        LedLow<'static, sifive::gpio::GpioPin>
+    ));
 
     peripherals
         .uart0

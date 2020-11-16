@@ -123,7 +123,7 @@ impl IoWrite for Writer {
 #[panic_handler]
 pub unsafe extern "C" fn panic_fmt(pi: &PanicInfo) -> ! {
     const LED_KERNEL_PIN: Pin = Pin::P0_13;
-    let led = &mut led::LedLow::new(&mut nrf52840::gpio::PORT[LED_KERNEL_PIN]);
+    let led = &mut led::LedLow::new(&nrf52840::gpio::PORT[LED_KERNEL_PIN]);
     let writer = &mut WRITER;
     debug::panic(
         &mut [led],

@@ -55,7 +55,7 @@ impl IoWrite for Writer {
 pub unsafe extern "C" fn panic_fmt(pi: &PanicInfo) -> ! {
     // The nRF52 DK LEDs (see back of board)
     const LED1_PIN: Pin = Pin::P0_17;
-    let led = &mut led::LedLow::new(&mut nrf52832::gpio::PORT[LED1_PIN]);
+    let led = &mut led::LedLow::new(&nrf52832::gpio::PORT[LED1_PIN]);
     let writer = &mut WRITER;
     debug::panic(
         &mut [led],

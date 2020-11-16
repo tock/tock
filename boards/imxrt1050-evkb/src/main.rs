@@ -13,6 +13,7 @@ use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferred
 use kernel::component::Component;
 use kernel::debug;
 use kernel::hil::gpio::Configure;
+use kernel::hil::led::LedLow;
 use kernel::Platform;
 use kernel::{create_capability, static_init};
 
@@ -72,7 +73,7 @@ struct Imxrt1050EVKB {
     console: &'static capsules::console::Console<'static>,
     gpio: &'static capsules::gpio::GPIO<'static, imxrt1050::gpio::Pin<'static>>,
     ipc: kernel::ipc::IPC,
-    led: &'static capsules::led::LED<'static, imxrt1050::gpio::Pin<'static>>,
+    led: &'static capsules::led::LedDriver<'static, LedLow<'static, imxrt1050::gpio::Pin<'static>>>,
     ninedof: &'static capsules::ninedof::NineDof<'static>,
 }
 
@@ -275,14 +276,11 @@ pub unsafe fn reset_handler() {
 
     // Clock to Port A is enabled in `set_pin_primary_functions()
     let led = components::led::LedsComponent::new(components::led_component_helper!(
-        imxrt1050::gpio::Pin<'static>,
-        (
-            imxrt1050::gpio::PinId::AdB0_09.get_pin().as_ref().unwrap(),
-            kernel::hil::gpio::ActivationMode::ActiveLow
-        )
+        LedLow<'static, imxrt1050::gpio::Pin<'static>>,
+        LedLow::new(imxrt1050::gpio::PinId::AdB0_09.get_pin().as_ref().unwrap()),
     ))
     .finalize(components::led_component_buf!(
-        imxrt1050::gpio::Pin<'static>
+        LedLow<'static, imxrt1050::gpio::Pin<'static>>
     ));
 
     // BUTTONs

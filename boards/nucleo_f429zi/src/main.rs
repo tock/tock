@@ -14,6 +14,7 @@ use components::gpio::GpioComponent;
 use kernel::capabilities;
 use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::component::Component;
+use kernel::hil::led::LedHigh;
 use kernel::Platform;
 use kernel::{create_capability, debug, static_init};
 
@@ -49,7 +50,10 @@ pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 struct NucleoF429ZI {
     console: &'static capsules::console::Console<'static>,
     ipc: kernel::ipc::IPC,
-    led: &'static capsules::led::LED<'static, stm32f429zi::gpio::Pin<'static>>,
+    led: &'static capsules::led::LedDriver<
+        'static,
+        LedHigh<'static, stm32f429zi::gpio::Pin<'static>>,
+    >,
     button: &'static capsules::button::Button<'static, stm32f429zi::gpio::Pin<'static>>,
     adc: &'static capsules::adc::AdcVirtualized<'static>,
     alarm: &'static capsules::alarm::AlarmDriver<
@@ -315,21 +319,14 @@ pub unsafe fn reset_handler() {
     let gpio_ports = &base_peripherals.gpio_ports;
 
     let led = components::led::LedsComponent::new(components::led_component_helper!(
-        stm32f429zi::gpio::Pin,
-        (
-            gpio_ports.get_pin(stm32f429zi::gpio::PinId::PB00).unwrap(),
-            kernel::hil::gpio::ActivationMode::ActiveHigh
-        ),
-        (
-            gpio_ports.get_pin(stm32f429zi::gpio::PinId::PB07).unwrap(),
-            kernel::hil::gpio::ActivationMode::ActiveHigh
-        ),
-        (
-            gpio_ports.get_pin(stm32f429zi::gpio::PinId::PB14).unwrap(),
-            kernel::hil::gpio::ActivationMode::ActiveHigh
-        )
+        LedHigh<'static, stm32f429zi::gpio::Pin>,
+        LedHigh::new(gpio_ports.get_pin(stm32f429zi::gpio::PinId::PB00).unwrap()),
+        LedHigh::new(gpio_ports.get_pin(stm32f429zi::gpio::PinId::PB07).unwrap()),
+        LedHigh::new(gpio_ports.get_pin(stm32f429zi::gpio::PinId::PB14).unwrap()),
     ))
-    .finalize(components::led_component_buf!(stm32f429zi::gpio::Pin));
+    .finalize(components::led_component_buf!(
+        LedHigh<'static, stm32f429zi::gpio::Pin>
+    ));
 
     // BUTTONs
     let button = components::button::ButtonComponent::new(

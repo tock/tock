@@ -14,6 +14,7 @@ use kernel::capabilities;
 use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::component::Component;
 use kernel::hil::gpio;
+use kernel::hil::led::LedLow;
 use kernel::hil::screen::ScreenRotation;
 use kernel::Platform;
 use kernel::{create_capability, debug, static_init};
@@ -47,7 +48,8 @@ pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 struct STM32F412GDiscovery {
     console: &'static capsules::console::Console<'static>,
     ipc: kernel::ipc::IPC,
-    led: &'static capsules::led::LED<'static, stm32f412g::gpio::Pin<'static>>,
+    led:
+        &'static capsules::led::LedDriver<'static, LedLow<'static, stm32f412g::gpio::Pin<'static>>>,
     button: &'static capsules::button::Button<'static, stm32f412g::gpio::Pin<'static>>,
     alarm: &'static capsules::alarm::AlarmDriver<
         'static,
@@ -454,37 +456,35 @@ pub unsafe fn reset_handler() {
     // Clock to Port A is enabled in `set_pin_primary_functions()`
 
     let led = components::led::LedsComponent::new(components::led_component_helper!(
-        stm32f412g::gpio::Pin,
-        (
+        LedLow<'static, stm32f412g::gpio::Pin>,
+        LedLow::new(
             base_peripherals
                 .gpio_ports
                 .get_pin(stm32f412g::gpio::PinId::PE00)
-                .unwrap(),
-            kernel::hil::gpio::ActivationMode::ActiveLow
+                .unwrap()
         ),
-        (
+        LedLow::new(
             base_peripherals
                 .gpio_ports
                 .get_pin(stm32f412g::gpio::PinId::PE01)
-                .unwrap(),
-            kernel::hil::gpio::ActivationMode::ActiveLow
+                .unwrap()
         ),
-        (
+        LedLow::new(
             base_peripherals
                 .gpio_ports
                 .get_pin(stm32f412g::gpio::PinId::PE02)
-                .unwrap(),
-            kernel::hil::gpio::ActivationMode::ActiveLow
+                .unwrap()
         ),
-        (
+        LedLow::new(
             base_peripherals
                 .gpio_ports
                 .get_pin(stm32f412g::gpio::PinId::PE03)
-                .unwrap(),
-            kernel::hil::gpio::ActivationMode::ActiveLow
-        )
+                .unwrap()
+        ),
     ))
-    .finalize(components::led_component_buf!(stm32f412g::gpio::Pin));
+    .finalize(components::led_component_buf!(
+        LedLow<'static, stm32f412g::gpio::Pin>
+    ));
 
     // BUTTONs
     let button = components::button::ButtonComponent::new(

@@ -15,6 +15,7 @@ use kernel::hil;
 use kernel::hil::adc::Adc;
 use kernel::hil::entropy::Entropy32;
 use kernel::hil::gpio::{Configure, InterruptWithValue, Output};
+use kernel::hil::led::LedLow;
 use kernel::hil::rng::Rng;
 use kernel::hil::time::{Alarm, Counter};
 #[allow(unused_imports)]
@@ -64,7 +65,10 @@ pub struct Platform {
     button: &'static capsules::button::Button<'static, nrf52832::gpio::GPIOPin<'static>>,
     console: &'static capsules::console::Console<'static>,
     gpio: &'static capsules::gpio::GPIO<'static, nrf52832::gpio::GPIOPin<'static>>,
-    led: &'static capsules::led::LED<'static, nrf52832::gpio::GPIOPin<'static>>,
+    led: &'static capsules::led::LedDriver<
+        'static,
+        LedLow<'static, nrf52832::gpio::GPIOPin<'static>>,
+    >,
     rng: &'static capsules::rng::RngDriver<'static>,
     temp: &'static capsules::temperature::TemperatureSensor<'static>,
     ipc: kernel::ipc::IPC,
@@ -175,25 +179,15 @@ pub unsafe fn reset_handler() {
     // LEDs
     //
     let led = components::led::LedsComponent::new(components::led_component_helper!(
-        nrf52832::gpio::GPIOPin,
-        (
-            &base_peripherals.gpio_port[LED1_PIN],
-            kernel::hil::gpio::ActivationMode::ActiveLow
-        ),
-        (
-            &base_peripherals.gpio_port[LED2_PIN],
-            kernel::hil::gpio::ActivationMode::ActiveLow
-        ),
-        (
-            &base_peripherals.gpio_port[LED3_PIN],
-            kernel::hil::gpio::ActivationMode::ActiveLow
-        ),
-        (
-            &base_peripherals.gpio_port[LED4_PIN],
-            kernel::hil::gpio::ActivationMode::ActiveLow
-        )
+        LedLow<'static, nrf52832::gpio::GPIOPin>,
+        LedLow::new(&base_peripherals.gpio_port[LED1_PIN]),
+        LedLow::new(&base_peripherals.gpio_port[LED2_PIN]),
+        LedLow::new(&base_peripherals.gpio_port[LED3_PIN]),
+        LedLow::new(&base_peripherals.gpio_port[LED4_PIN]),
     ))
-    .finalize(components::led_component_buf!(nrf52832::gpio::GPIOPin));
+    .finalize(components::led_component_buf!(
+        LedLow<'static, nrf52832::gpio::GPIOPin>
+    ));
 
     //
     // Buttons

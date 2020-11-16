@@ -51,7 +51,10 @@ struct ArtyE21 {
         'static,
         VirtualMuxAlarm<'static, rv32i::machine_timer::MachineTimer<'static>>,
     >,
-    led: &'static capsules::led::LED<'static, arty_e21_chip::gpio::GpioPin<'static>>,
+    led: &'static capsules::led::LedDriver<
+        'static,
+        hil::led::LedHigh<'static, arty_e21_chip::gpio::GpioPin<'static>>,
+    >,
     button: &'static capsules::button::Button<'static, arty_e21_chip::gpio::GpioPin<'static>>,
     // ipc: kernel::ipc::IPC,
 }
@@ -151,24 +154,14 @@ pub unsafe fn reset_handler() {
 
     // LEDs
     let led = components::led::LedsComponent::new(components::led_component_helper!(
-        arty_e21_chip::gpio::GpioPin,
-        (
-            // Red
-            &peripherals.gpio_port[2],
-            kernel::hil::gpio::ActivationMode::ActiveHigh
-        ),
-        (
-            // Green
-            &peripherals.gpio_port[1],
-            kernel::hil::gpio::ActivationMode::ActiveHigh
-        ),
-        (
-            // Blue
-            &peripherals.gpio_port[0],
-            kernel::hil::gpio::ActivationMode::ActiveHigh
-        )
+        hil::led::LedHigh<'static, arty_e21_chip::gpio::GpioPin>,
+        hil::led::LedHigh::new(&peripherals.gpio_port[2]), // Red
+        hil::led::LedHigh::new(&peripherals.gpio_port[1]), // Green
+        hil::led::LedHigh::new(&peripherals.gpio_port[0]), // Blue
     ))
-    .finalize(components::led_component_buf!(arty_e21_chip::gpio::GpioPin));
+    .finalize(components::led_component_buf!(
+        hil::led::LedHigh<'static, arty_e21_chip::gpio::GpioPin>
+    ));
 
     // BUTTONs
     let button = components::button::ButtonComponent::new(
