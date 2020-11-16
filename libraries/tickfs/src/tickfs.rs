@@ -56,52 +56,52 @@ impl<'a, C: FlashController, H: Hasher> TickFS<'a, C, H> {
     /// Create a new struct
     ///
     /// `C`: An implementation of the `FlashController` trait
-    /// `H`: An implementation of a `core::hash::Hasher` trait. This MUST
-    ///      always return the same hash for the same input. That is the
-    ///      implementation can NOT change over time.
     ///
     /// `controller`: An new struct implementing `FlashController`
     /// `flash_size`: The total size of the flash used for TickFS
     /// `region_size`: The smallest size that can be erased in a single operation.
     ///                This must be a multiple of the start address and `flash_size`
-    ///
-    /// If the specified region has not already been setup for TickFS
-    /// the entire region will be erased.
     pub fn new(
         controller: C,
-        hash_function: (&mut H, &mut H),
         read_buffer: &'a mut [u8],
         flash_size: usize,
         region_size: usize,
-    ) -> Option<Self> {
-        let tickfs = Self {
+    ) -> Self {
+        Self {
             controller,
             flash_size,
             region_size,
             read_buffer: Cell::new(read_buffer),
             phantom_hasher: PhantomData,
-        };
+        }
+    }
 
+    /// This function setups the flash region to be used as a key-value store.
+    /// If the region is already initalised this won't make any changes.
+    ///
+    /// `H`: An implementation of a `core::hash::Hasher` trait. This MUST
+    ///      always return the same hash for the same input. That is the
+    ///      implementation can NOT change over time.
+    ///
+    /// If the specified region has not already been setup for TickFS
+    /// the entire region will be erased.
+    pub fn initalise(&self, hash_function: (&mut H, &mut H)) -> Result<(), ErrorCode> {
         let mut buf: [u8; 0] = [0; 0];
 
-        match tickfs.get_key(hash_function.0, MAIN_KEY, &mut buf) {
+        match self.get_key(hash_function.0, MAIN_KEY, &mut buf) {
             Ok(()) => {}
             Err(_e) => {
                 // Erase all regions
-                for r in 0..(flash_size / region_size) {
-                    if tickfs.controller.erase_region(r).is_err() {
-                        return None;
-                    }
+                for r in 0..(self.flash_size / self.region_size) {
+                    self.controller.erase_region(r)?
                 }
 
                 // Save the main key
-                if tickfs.append_key(hash_function.1, MAIN_KEY, &buf).is_err() {
-                    return None;
-                }
+                self.append_key(hash_function.1, MAIN_KEY, &buf)?
             }
         };
 
-        Some(tickfs)
+        Ok(())
     }
 
     /// Generate the hash and region number from a key

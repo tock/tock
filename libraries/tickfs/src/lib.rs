@@ -103,8 +103,10 @@
 //!
 //! let mut read_buf: [u8; 1024] = [0; 1024];
 //! let tickfs = TickFS::<FlashCtrl, DefaultHasher>::new(FlashCtrl::new(),
-//!                   (&mut DefaultHasher::new(), &mut DefaultHasher::new()),
-//!                   &mut read_buf, 0x1000, 0x400).unwrap();
+//!                   &mut read_buf, 0x1000, 0x400);
+//! tickfs
+//!    .initalise((&mut DefaultHasher::new(), &mut DefaultHasher::new()))
+//!    .unwrap();
 //!
 //! // Add a key
 //! let value: [u8; 32] = [0x23; 32];
