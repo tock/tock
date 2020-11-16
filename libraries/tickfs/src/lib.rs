@@ -172,8 +172,10 @@
 #![no_std]
 #![deny(missing_docs)]
 
+pub mod async_ops;
 pub mod error_codes;
 pub mod flash_controller;
+pub mod success_codes;
 pub mod tickfs;
 
 // Use this to generate nicer docs
@@ -181,6 +183,10 @@ pub mod tickfs;
 pub use crate::error_codes::ErrorCode;
 #[doc(inline)]
 pub use crate::flash_controller::FlashController;
+#[doc(inline)]
+pub use crate::tickfs::Operation;
+#[doc(inline)]
+pub use crate::tickfs::State;
 #[doc(inline)]
 pub use crate::tickfs::TickFS;
 

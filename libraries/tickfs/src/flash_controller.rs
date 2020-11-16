@@ -56,6 +56,12 @@ pub trait FlashController {
     ///
     /// On success it should return nothing, on failure it
     /// should return ErrorCode::ReadFail.
+    ///
+    /// If the read operation is to be complete asynchronously then
+    /// `read_region()` can return `ErrorCode::ReadNotReady(region_number)`.
+    /// By returning `ErrorCode::ReadNotReady(region_number)`
+    /// `read_region()` can indicate that the operation should be retried in
+    /// the future.
     fn read_region(
         &self,
         region_number: usize,
