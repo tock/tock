@@ -9,6 +9,30 @@ use core::marker::PhantomData;
 /// The current version of TickFS
 pub const VERSION: u8 = 0;
 
+#[derive(Debug)]
+/// The operation to try and complete.
+/// This is used when returning from a complete async `FlashController` call.
+pub enum Operation {
+    /// The `append_key()` function
+    AppendKey,
+    /// The `get_key()` function
+    GetKey,
+    /// The `invalidate_key()` function
+    InvalidateKey,
+}
+
+#[derive(Debug, Clone, Copy)]
+/// The current state machine when trying to complete a previous operation.
+/// This is used when returning from a complete async `FlashController` call.
+pub enum State {
+    /// No previous state
+    None,
+    /// The requested read has completed, including the region that was read
+    ReadComplete(isize),
+    /// The requested erase has completed, including the region that was read
+    EraseComplete(usize),
+}
+
 /// The struct storing all of the TickFS information.
 pub struct TickFS<'a, C: FlashController, H: Hasher> {
     controller: C,
@@ -16,6 +40,7 @@ pub struct TickFS<'a, C: FlashController, H: Hasher> {
     region_size: usize,
     read_buffer: Cell<&'a mut [u8]>,
     phantom_hasher: PhantomData<H>,
+    continue_state: Cell<State>,
 }
 
 /// This is the current object header used for TickFS objects
@@ -73,6 +98,7 @@ impl<'a, C: FlashController, H: Hasher> TickFS<'a, C, H> {
             region_size,
             read_buffer: Cell::new(read_buffer),
             phantom_hasher: PhantomData,
+            continue_state: Cell::new(State::None),
         }
     }
 
@@ -85,23 +111,54 @@ impl<'a, C: FlashController, H: Hasher> TickFS<'a, C, H> {
     ///
     /// If the specified region has not already been setup for TickFS
     /// the entire region will be erased.
+    ///
+    /// On success nothing will be returned.
+    /// On error a `ErrorCode` will be returned.
     pub fn initalise(&self, hash_function: (&mut H, &mut H)) -> Result<(), ErrorCode> {
         let mut buf: [u8; 0] = [0; 0];
 
         match self.get_key(hash_function.0, MAIN_KEY, &mut buf) {
-            Ok(()) => {}
-            Err(_e) => {
-                // Erase all regions
-                for r in 0..(self.flash_size / self.region_size) {
-                    self.controller.erase_region(r)?
+            Ok(()) => Ok(()),
+            Err(e) => {
+                match e {
+                    ErrorCode::ReadNotReady(reg) => Err(ErrorCode::ReadNotReady(reg)),
+                    _ => {
+                        // Erase all regions
+                        let mut start = 0;
+                        if let State::EraseComplete(reg) = self.continue_state.get() {
+                            start = reg;
+                        }
+
+                        if start < (self.flash_size / self.region_size) {
+                            for r in start..(self.flash_size / self.region_size) {
+                                self.controller.erase_region(r)?
+                            }
+                        }
+
+                        // Save the main key
+                        self.append_key(hash_function.1, MAIN_KEY, &buf)
+                    }
                 }
-
-                // Save the main key
-                self.append_key(hash_function.1, MAIN_KEY, &buf)?
             }
-        };
+        }
+    }
 
-        Ok(())
+    /// Continue the initalise process after an async access.
+    ///
+    /// `state`: The current state of the previous operation.
+    /// `H`: An implementation of a `core::hash::Hasher` trait. This MUST
+    ///      always return the same hash for the same input. That is the
+    ///      implementation can NOT change over time.
+    ///
+    /// On success nothing will be returned.
+    /// On error a `ErrorCode` will be returned.
+    pub fn continue_initalise(
+        &self,
+        state: State,
+        hash_function: (&mut H, &mut H),
+    ) -> Result<(), ErrorCode> {
+        self.continue_state.set(state);
+        self.initalise(hash_function)
     }
 
     /// Generate the hash and region number from a key
@@ -229,6 +286,38 @@ impl<'a, C: FlashController, H: Hasher> TickFS<'a, C, H> {
         }
     }
 
+    /// Continue a previous key operation after an async access.
+    ///
+    /// `operation`: The previous operation that should be continued.
+    /// `state`: The current state of the previous operation.
+    /// `hash_function`: Hash function with no previous state. This is
+    ///                  usually a newly created hash.
+    /// `key`: A unhashed key. This will be hashed internally. This key
+    ///        will be used in future to retrieve or remove the `value`.
+    /// `value`: A buffer containing the data to be stored to flash.
+    /// `buf`: A buffer to store the value to.
+    ///
+    /// On success nothing will be returned.
+    /// On error a `ErrorCode` will be returned.
+    pub fn continue_operation(
+        &self,
+        operation: Operation,
+        state: State,
+        hash_function: Option<&mut H>,
+        key: Option<&[u8]>,
+        value: Option<&[u8]>,
+        buf: Option<&mut [u8]>,
+    ) -> Result<(), ErrorCode> {
+        self.continue_state.set(state);
+        match operation {
+            Operation::AppendKey => {
+                self.append_key(hash_function.unwrap(), key.unwrap(), value.unwrap())
+            }
+            Operation::GetKey => self.get_key(hash_function.unwrap(), key.unwrap(), buf.unwrap()),
+            Operation::InvalidateKey => self.invalidate_key(hash_function.unwrap(), key.unwrap()),
+        }
+    }
+
     /// Appends the key/value pair to flash storage.
     ///
     /// `hash_function`: Hash function with no previous state. This is
@@ -261,8 +350,13 @@ impl<'a, C: FlashController, H: Hasher> TickFS<'a, C, H> {
         let mut region_offset: isize = 0;
 
         loop {
-            // Get the data from that region
-            let new_region = region as isize + region_offset;
+            let new_region = match self.continue_state.get() {
+                State::ReadComplete(reg) => reg,
+                _ => {
+                    // Get the data from that region
+                    region as isize + region_offset
+                }
+            };
 
             let mut region_data = self.read_buffer.take();
             match self
@@ -431,8 +525,13 @@ impl<'a, C: FlashController, H: Hasher> TickFS<'a, C, H> {
         let mut region_offset: isize = 0;
 
         loop {
-            // Get the data from that region
-            let new_region = region as isize + region_offset;
+            let new_region = match self.continue_state.get() {
+                State::ReadComplete(reg) => reg,
+                _ => {
+                    // Get the data from that region
+                    region as isize + region_offset
+                }
+            };
 
             // Get the data from that region
             let mut region_data = self.read_buffer.take();
@@ -529,8 +628,15 @@ impl<'a, C: FlashController, H: Hasher> TickFS<'a, C, H> {
 
         loop {
             // Get the data from that region
-            let new_region = region as isize + region_offset;
+            let new_region = match self.continue_state.get() {
+                State::ReadComplete(reg) => reg,
+                _ => {
+                    // Get the data from that region
+                    region as isize + region_offset
+                }
+            };
 
+            // Get the data from that region
             let mut region_data = self.read_buffer.take();
             match self
                 .controller
@@ -660,8 +766,13 @@ impl<'a, C: FlashController, H: Hasher> TickFS<'a, C, H> {
     pub fn garbage_collect(&self) -> Result<usize, ErrorCode> {
         let num_region = self.flash_size / self.region_size;
         let mut flash_freed = 0;
+        let start = match self.continue_state.get() {
+            State::ReadComplete(reg) => reg as usize,
+            State::EraseComplete(reg) => reg,
+            _ => 0,
+        };
 
-        for i in 0..num_region {
+        for i in start..num_region {
             match self.garbage_collect_region(i) {
                 Ok(freed) => flash_freed += freed,
                 Err(e) => return Err(e),
@@ -669,5 +780,16 @@ impl<'a, C: FlashController, H: Hasher> TickFS<'a, C, H> {
         }
 
         Ok(flash_freed)
+    }
+
+    /// Continue the garbage collection process after an async access.
+    ///
+    /// `state`: The current state of the previous operation.
+    ///
+    /// On success the number of bytes freed will be returned.
+    /// On error a `ErrorCode` will be returned.
+    pub fn continue_garbage_collection(&self, state: State) -> Result<usize, ErrorCode> {
+        self.continue_state.set(state);
+        self.garbage_collect()
     }
 }

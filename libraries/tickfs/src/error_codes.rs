@@ -33,6 +33,13 @@ pub enum ErrorCode {
     /// The supplied buffer is too small.
     /// The error code includes the total length of the value.
     BufferTooSmall(usize),
+    /// Indicates that the flash read operation is not yet ready.
+    /// The process can be retried by calling `continue_operation()`.
+    ReadNotReady(usize),
+    /// Indicates that the flash write operation is not yet ready.
+    WriteNotReady(usize),
+    /// Indicates that the flash erase operation is not yet ready.
+    EraseNotReady(usize),
 }
 
 impl From<ErrorCode> for isize {
@@ -50,6 +57,9 @@ impl From<ErrorCode> for isize {
             ErrorCode::EraseFail => -10,
             ErrorCode::ObjectTooLarge => -11,
             ErrorCode::BufferTooSmall(_) => -12,
+            ErrorCode::ReadNotReady(_) => -13,
+            ErrorCode::WriteNotReady(_) => -14,
+            ErrorCode::EraseNotReady(_) => -15,
         }
     }
 }
