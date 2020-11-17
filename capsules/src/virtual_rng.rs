@@ -1,3 +1,4 @@
+// Virtualizer for the RNG
 use core::cell::Cell;
 use kernel::common::cells::OptionalCell;
 use kernel::common::{List, ListLink, ListNode};
