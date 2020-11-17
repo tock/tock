@@ -27,6 +27,7 @@ use kernel::hil::rng;
 use kernel::hil::rng::{Client, Continue, Random, Rng};
 use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
 
+
 /// Syscall driver number.
 use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::Rng as usize;
@@ -40,7 +41,8 @@ pub struct App {
 }
 
 pub struct RngDriver<'a> {
-    rng: &'a dyn Rng<'a>,
+    // TODO: Revert back to private field ASAP
+    pub rng: &'a dyn Rng<'a>,
     apps: Grant<App>,
     getting_randomness: Cell<bool>,
 }

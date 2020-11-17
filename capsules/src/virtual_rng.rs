@@ -14,16 +14,18 @@ enum Op {
 }
 
 // Struct to manage multiple rng requests
-pub struct MuxRngMaster<'a, R: Random<'a> + Rng<'a>> {
-    rng: &'a R,
+pub struct MuxRngMaster<'a, R: Rng<'a>> {
+    rng: &'a dyn Rng<'a>,
+    random: &'a dyn Random<'a>,
     devices: List<'a, VirtualRngMasterDevice<'a, R>>,
     inflight: OptionalCell<&'a VirtualRngMasterDevice<'a, R>>,
 }
 
-impl<'a, R: Random<'a> + Rng<'a>> MuxRngMaster<'a, R> {
-    pub const fn new(rng: &'a R) -> MuxRngMaster<'a, R> {
+impl<'a, R: Rng<'a>> MuxRngMaster<'a, R> {
+    pub const fn new(rng: &'a dyn Rng<'a>, random: &'a dyn Random<'a>) -> MuxRngMaster<'a, R> {
         MuxRngMaster {
             rng: rng,
+            random: random,
             devices: List::new(),
             inflight: OptionalCell::empty(),
         }
@@ -47,15 +49,15 @@ impl<'a, R: Random<'a> + Rng<'a>> MuxRngMaster<'a, R> {
                         return 0;
                     }
                     Op::Initialize => {
-                        self.rng.initialize();
+                        self.random.initialize();
                         return 0;
                     }
                     Op::GetRandom => {
                         self.inflight.set(node);
-                        self.rng.random()
+                        self.random.random()
                     }
                     Op::Reseed(seed) => {
-                        self.rng.reseed(seed);
+                        self.random.reseed(seed);
                         return 0;
                     }
                     Op::Idle => {return 0;} // Can't get here...
@@ -67,7 +69,7 @@ impl<'a, R: Random<'a> + Rng<'a>> MuxRngMaster<'a, R> {
     }
 }
 
-impl<'a, R: Random<'a> + Rng<'a>> Client for MuxRngMaster<'a, R> {
+impl<'a, R: Rng<'a>> Client for MuxRngMaster<'a, R> {
     fn randomness_available(
         &self,
         _randomness: &mut dyn Iterator<Item = u32>,
@@ -82,7 +84,7 @@ impl<'a, R: Random<'a> + Rng<'a>> Client for MuxRngMaster<'a, R> {
 }
 
 // Struct for a single rng device
-pub struct VirtualRngMasterDevice<'a, R: Random<'a> + Rng<'a>> {
+pub struct VirtualRngMasterDevice<'a, R: Rng<'a>> {
     //reference to the mux
     mux: &'a MuxRngMaster<'a, R>,
 
@@ -93,13 +95,13 @@ pub struct VirtualRngMasterDevice<'a, R: Random<'a> + Rng<'a>> {
 }
 
 // Implement ListNode trait for virtual rng device
-impl<'a, R: Random<'a> + Rng<'a>> ListNode<'a, VirtualRngMasterDevice<'a, R>> for VirtualRngMasterDevice<'a, R> {
+impl<'a, R: Rng<'a>> ListNode<'a, VirtualRngMasterDevice<'a, R>> for VirtualRngMasterDevice<'a, R> {
     fn next(&self) -> &'a ListLink<VirtualRngMasterDevice<'a, R>> {
         &self.next
     }
 }
 
-impl<'a, R: Random<'a> + Rng<'a>> VirtualRngMasterDevice<'a, R> {
+impl<'a, R: Rng<'a>> VirtualRngMasterDevice<'a, R> {
     pub const fn new(
         mux: &'a MuxRngMaster<'a, R>,
     ) -> VirtualRngMasterDevice<'a, R> {
@@ -117,7 +119,7 @@ impl<'a, R: Random<'a> + Rng<'a>> VirtualRngMasterDevice<'a, R> {
     }
 }
 
-impl<'a, R: Random<'a> + Rng<'a>> Rng<'a> for VirtualRngMasterDevice<'a, R> {
+impl<'a, R: Rng<'a>> Rng<'a> for VirtualRngMasterDevice<'a, R> {
     fn get(&self) -> ReturnCode {
         return self.mux.rng.get();
     }
@@ -132,7 +134,7 @@ impl<'a, R: Random<'a> + Rng<'a>> Rng<'a> for VirtualRngMasterDevice<'a, R> {
     }
 }
 
-impl<'a, R: Random<'a> + Rng<'a>> Random<'a> for VirtualRngMasterDevice<'a, R> {
+impl<'a, R: Rng<'a>> Random<'a> for VirtualRngMasterDevice<'a, R> {
     fn initialize(&'a self) {
         self.operation.set(Op::Initialize);
         self.mux.do_next_op();
@@ -149,7 +151,7 @@ impl<'a, R: Random<'a> + Rng<'a>> Random<'a> for VirtualRngMasterDevice<'a, R> {
     }
 }
 
-impl<'a, R: Random<'a> + Rng<'a>> Client for VirtualRngMasterDevice<'a, R> {
+impl<'a, R: Rng<'a>> Client for VirtualRngMasterDevice<'a, R> {
     fn randomness_available(
         &self,
         randomness: &mut dyn Iterator<Item = u32>,
@@ -158,7 +160,6 @@ impl<'a, R: Random<'a> + Rng<'a>> Client for VirtualRngMasterDevice<'a, R> {
         self.client.map(move |client| {
             client.randomness_available(randomness, _error)
         });
-        // TODO: is this the valid default return value?
         Continue::Done
     }
 }
