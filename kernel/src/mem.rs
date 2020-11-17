@@ -194,6 +194,16 @@ impl<L: Read, T> AppSlice<L, T> {
     pub fn chunks(&self, size: usize) -> slice::Chunks<T> {
         self.as_ref().chunks(size)
     }
+
+    pub fn readonly_map_or<F, R>(&self, default: R, fun: F) -> R
+    where
+        F: FnOnce(&[T]) -> R,
+    {
+        self.ptr
+            .process
+            .kernel
+            .process_map_or(default, self.ptr.process, |_| fun(self.as_ref()))
+    }
 }
 
 impl<L: ReadWrite, T> AppSlice<L, T> {
@@ -229,6 +239,16 @@ impl<L: ReadWrite, T> AppSlice<L, T> {
     /// Panics if `chunk_size` is 0.
     pub fn chunks_mut(&mut self, size: usize) -> slice::ChunksMut<T> {
         self.as_mut().chunks_mut(size)
+    }
+
+    pub fn readwrite_map_or<F, R>(&mut self, default: R, fun: F) -> R
+    where
+        F: FnOnce(&mut [T]) -> R,
+    {
+        self.ptr
+            .process
+            .kernel
+            .process_map_or(default, self.ptr.process, |_| fun(self.as_mut()))
     }
 }
 
