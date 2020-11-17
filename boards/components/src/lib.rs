@@ -19,6 +19,7 @@ pub mod hmac;
 pub mod i2c;
 pub mod ieee802154;
 pub mod isl29035;
+pub mod kv_store;
 pub mod l3gd20;
 pub mod led;
 pub mod lldb;
