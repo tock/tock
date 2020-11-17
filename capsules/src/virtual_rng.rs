@@ -1,37 +1,34 @@
 use core::cell::Cell;
 use kernel::common::cells::OptionalCell;
 use kernel::common::{List, ListLink, ListNode};
-use kernel::hil::rng::{Client, Continue, Random, Rng};
+use kernel::hil::rng::{Client, Continue, Rng};
 use kernel::ReturnCode;
 
 #[derive(Copy, Clone, PartialEq)]
 enum Op {
     Idle,
+    Get,
     SetClient,
-    Initialize,
-    Reseed(u32),
-    GetRandom,
 }
 
 // Struct to manage multiple rng requests
 pub struct MuxRngMaster<'a, R: Rng<'a>> {
     rng: &'a dyn Rng<'a>,
-    random: &'a dyn Random<'a>,
     devices: List<'a, VirtualRngMasterDevice<'a, R>>,
     inflight: OptionalCell<&'a VirtualRngMasterDevice<'a, R>>,
 }
 
 impl<'a, R: Rng<'a>> MuxRngMaster<'a, R> {
-    pub const fn new(rng: &'a dyn Rng<'a>, random: &'a dyn Random<'a>) -> MuxRngMaster<'a, R> {
+    pub const fn new(rng: &'a dyn Rng<'a>) -> MuxRngMaster<'a, R> {
         MuxRngMaster {
             rng: rng,
-            random: random,
             devices: List::new(),
             inflight: OptionalCell::empty(),
         }
     }
 
-    fn do_next_op(&self) -> u32{
+    // TODO: return type is a hacky way of surfacing the return code from rng.get()
+    fn do_next_op(&self) -> ReturnCode{
         if self.inflight.is_none() {
             let mnode = self
                 .devices
@@ -42,30 +39,18 @@ impl<'a, R: Rng<'a>> MuxRngMaster<'a, R> {
                 // Need to set idle here in case callback changes state
                 node.operation.set(Op::Idle);
                 match op {
-                    // TODO: return values are a hacky way of getting rng.random()
-                    //       back to callback. Is there a better way?
                     Op::SetClient => {
                         self.rng.set_client(node);
-                        return 0;
+                        ReturnCode::SUCCESS
                     }
-                    Op::Initialize => {
-                        self.random.initialize();
-                        return 0;
+                    Op::Get => {
+                        self.rng.get()
                     }
-                    Op::GetRandom => {
-                        self.inflight.set(node);
-                        self.random.random()
-                    }
-                    Op::Reseed(seed) => {
-                        self.random.reseed(seed);
-                        return 0;
-                    }
-                    Op::Idle => {return 0;} // Can't get here...
+                    Op::Idle => {ReturnCode::SUCCESS} // Can't get here...
                 }
             });
         }
-        // Return value indicating success
-        0
+        ReturnCode::SUCCESS
     }
 }
 
@@ -121,33 +106,17 @@ impl<'a, R: Rng<'a>> VirtualRngMasterDevice<'a, R> {
 
 impl<'a, R: Rng<'a>> Rng<'a> for VirtualRngMasterDevice<'a, R> {
     fn get(&self) -> ReturnCode {
-        return self.mux.rng.get();
+        self.operation.set(Op::Get);
+        self.mux.do_next_op()
     }
 
     fn cancel(&self) -> ReturnCode {
-        return self.mux.rng.cancel();
+        self.mux.rng.cancel()
     }
 
     fn set_client(&'a self, _: &'a dyn Client) {
         self.operation.set(Op::SetClient);
         self.mux.do_next_op();
-    }
-}
-
-impl<'a, R: Rng<'a>> Random<'a> for VirtualRngMasterDevice<'a, R> {
-    fn initialize(&'a self) {
-        self.operation.set(Op::Initialize);
-        self.mux.do_next_op();
-    }
-
-    fn reseed(&self, seed: u32) {
-        self.operation.set(Op::Reseed(seed));
-        self.mux.do_next_op();
-    }
-
-    fn random(&self) -> u32 {
-        self.operation.set(Op::GetRandom);
-        self.mux.do_next_op()
     }
 }
 

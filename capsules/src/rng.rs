@@ -41,8 +41,7 @@ pub struct App {
 }
 
 pub struct RngDriver<'a> {
-    // TODO: Revert back to private field ASAP
-    pub rng: &'a dyn Rng<'a>,
+    rng: &'a dyn Rng<'a>,
     apps: Grant<App>,
     getting_randomness: Cell<bool>,
 }
