@@ -9,7 +9,6 @@
 #![feature(const_in_array_repeat_expressions)]
 #![deny(missing_docs)]
 
-
 use kernel::capabilities;
 use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::component::Component;

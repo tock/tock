@@ -29,7 +29,7 @@ impl<'a, R: Rng<'a>> MuxRngMaster<'a, R> {
     }
 
     // TODO: return type is a hacky way of surfacing the return code from rng.get()
-    fn do_next_op(&self) -> ReturnCode{
+    fn do_next_op(&self) -> ReturnCode {
         if self.inflight.is_none() {
             let mnode = self
                 .devices
@@ -44,10 +44,8 @@ impl<'a, R: Rng<'a>> MuxRngMaster<'a, R> {
                         self.rng.set_client(node);
                         ReturnCode::SUCCESS
                     }
-                    Op::Get => {
-                        self.rng.get()
-                    }
-                    Op::Idle => {ReturnCode::SUCCESS} // Can't get here...
+                    Op::Get => self.rng.get(),
+                    Op::Idle => ReturnCode::SUCCESS, // Can't get here...
                 }
             });
         }
@@ -88,9 +86,7 @@ impl<'a, R: Rng<'a>> ListNode<'a, VirtualRngMasterDevice<'a, R>> for VirtualRngM
 }
 
 impl<'a, R: Rng<'a>> VirtualRngMasterDevice<'a, R> {
-    pub const fn new(
-        mux: &'a MuxRngMaster<'a, R>,
-    ) -> VirtualRngMasterDevice<'a, R> {
+    pub const fn new(mux: &'a MuxRngMaster<'a, R>) -> VirtualRngMasterDevice<'a, R> {
         VirtualRngMasterDevice {
             mux: mux,
             next: ListLink::empty(),
@@ -127,9 +123,8 @@ impl<'a, R: Rng<'a>> Client for VirtualRngMasterDevice<'a, R> {
         randomness: &mut dyn Iterator<Item = u32>,
         _error: ReturnCode,
     ) -> Continue {
-        self.client.map(move |client| {
-            client.randomness_available(randomness, _error)
-        });
+        self.client
+            .map(move |client| client.randomness_available(randomness, _error));
         Continue::Done
     }
 }

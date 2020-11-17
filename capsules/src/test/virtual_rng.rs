@@ -15,9 +15,7 @@ pub struct TestRng<'a, R: Rng<'a>> {
 impl<'a, R: Rng<'a>> TestRng<'a, R> {
     pub fn new(rng: &'a VirtualRngMasterDevice<'a, R>) -> TestRng<'a, R> {
         debug!("Initialized virtual_rng tester");
-        TestRng {
-            rng: rng,
-        }
+        TestRng { rng: rng }
     }
 
     pub fn run(&self) {
