@@ -8,6 +8,7 @@
 #![cfg_attr(not(doc), no_main)]
 
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+use capsules::virtual_flash::FlashUser;
 use capsules::virtual_hmac::VirtualMuxHmac;
 use earlgrey::chip::EarlGreyDefaultPeripherals;
 use kernel::capabilities;
@@ -75,7 +76,10 @@ struct EarlGreyNexysVideo {
         capsules::virtual_uart::UartDevice<'static>,
     >,
     i2c_master: &'static capsules::i2c_master::I2CMasterDriver<lowrisc::i2c::I2c<'static>>,
-    nonvolatile_storage: &'static capsules::nonvolatile_storage_driver::NonvolatileStorage<'static>,
+    kvstore: &'static capsules::kv_store::KVStoreDriver<
+        'static,
+        FlashUser<'static, lowrisc::flash_ctrl::FlashCtrl<'static>>,
+    >,
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
@@ -92,7 +96,7 @@ impl Platform for EarlGreyNexysVideo {
             capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
             capsules::low_level_debug::DRIVER_NUM => f(Some(self.lldb)),
             capsules::i2c_master::DRIVER_NUM => f(Some(self.i2c_master)),
-            capsules::nonvolatile_storage_driver::DRIVER_NUM => f(Some(self.nonvolatile_storage)),
+            capsules::kv_store::DRIVER_NUM => f(Some(self.kvstore)),
             _ => f(None),
         }
     }
@@ -274,17 +278,31 @@ pub unsafe fn reset_handler() {
     }
 
     // Flash
-    let nonvolatile_storage = components::nonvolatile_storage::NonvolatileStorageComponent::new(
+    let flash_ctrl_read_buf = static_init!(
+        [u8; lowrisc::flash_ctrl::PAGE_SIZE],
+        [0; lowrisc::flash_ctrl::PAGE_SIZE]
+    );
+    let page_buffer = static_init!(
+        lowrisc::flash_ctrl::LowRiscPage,
+        lowrisc::flash_ctrl::LowRiscPage::default()
+    );
+
+    let mux_flash = components::kv_store::FlashMuxComponent::new(&peripherals.flash_ctrl).finalize(
+        components::flash_user_component_helper!(lowrisc::flash_ctrl::FlashCtrl),
+    );
+
+    let kvstore = components::kv_store::KVStoreComponent::new(
         board_kernel,
-        &peripherals.flash_ctrl,
-        0x20000000,                       // Start address for userspace accessible region
-        0x8000,                           // Length of userspace accessible region
-        &_sstorage as *const u8 as usize, // Start address of kernel region
-        &_estorage as *const u8 as usize - &_sstorage as *const u8 as usize, // Length of kernel region
+        &mux_flash,
+        0x20040000 / lowrisc::flash_ctrl::PAGE_SIZE,
+        0x10000, // Length of region
+        flash_ctrl_read_buf,
+        page_buffer,
     )
-    .finalize(components::nv_storage_component_helper!(
+    .finalize(components::kv_store_component_helper!(
         lowrisc::flash_ctrl::FlashCtrl
     ));
+    hil::flash::HasClient::set_client(&peripherals.flash_ctrl, mux_flash);
 
     /// These symbols are defined in the linker script.
     extern "C" {
@@ -306,7 +324,7 @@ pub unsafe fn reset_handler() {
         hmac,
         lldb: lldb,
         i2c_master,
-        nonvolatile_storage,
+        kvstore,
     };
 
     kernel::procs::load_processes(

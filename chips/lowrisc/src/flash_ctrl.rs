@@ -142,7 +142,7 @@ register_bitfields![u32,
     ]
 ];
 
-const PAGE_SIZE: usize = 1024;
+pub const PAGE_SIZE: usize = 1024;
 
 pub struct LowRiscPage(pub [u8; PAGE_SIZE as usize]);
 
