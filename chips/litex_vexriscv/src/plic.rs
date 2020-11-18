@@ -59,16 +59,32 @@ mod vexriscv_irq_raw {
         CSR.mstatus.modify(mstatus::mstatus::mie.val(ie as u32))
     }
 
+    #[cfg(not(any(target_arch = "riscv32", target_os = "none")))]
+    pub unsafe fn irq_getmask() -> usize {
+        0
+    }
+
+    #[cfg(all(target_arch = "riscv32", target_os = "none"))]
     pub unsafe fn irq_getmask() -> usize {
         let mask: usize;
         asm!("csrr {mask}, {csr}", mask = out(reg) mask, csr = const CSR_IRQ_MASK);
         mask
     }
 
+    #[cfg(not(any(target_arch = "riscv32", target_os = "none")))]
+    pub unsafe fn irq_setmask(_mask: usize) {}
+
+    #[cfg(all(target_arch = "riscv32", target_os = "none"))]
     pub unsafe fn irq_setmask(mask: usize) {
         asm!("csrw {csr}, {mask}", csr = const CSR_IRQ_MASK, mask = in(reg) mask);
     }
 
+    #[cfg(not(any(target_arch = "riscv32", target_os = "none")))]
+    pub unsafe fn irq_pending() -> usize {
+        0
+    }
+
+    #[cfg(all(target_arch = "riscv32", target_os = "none"))]
     pub unsafe fn irq_pending() -> usize {
         let pending: usize;
         asm!("csrr {pending}, {csr}", pending = out(reg) pending, csr = const CSR_IRQ_PENDING);
