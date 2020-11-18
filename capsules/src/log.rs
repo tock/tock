@@ -234,29 +234,37 @@ impl<'a, F: Flash + 'static> Log<'a, F> {
         })
     }
 
-    /// Reconstructs a log from flash.
-    fn reconstruct(&self) {
-        // Read page headers, get IDs of oldest and newest pages.
-        let mut oldest_page_id: EntryID = core::usize::MAX;
-        let mut newest_page_id: EntryID = 0;
-        for header_pos in (0..self.volume.len()).step_by(self.page_size) {
-            let page_id = {
+    /// Returns the byte offset, from the beginning of the log, of the oldest and newest pages in
+    /// the log as a tuple with two elements. The first element is the offset of the oldest page
+    /// while the second is the offset of the newest page.
+    ///
+    /// If the log is linear, then the offset of the oldest page will always be zero. However, if
+    /// the log is circular, then this might not be the case.
+    fn get_log_page_bounds(&self) -> (EntryID, EntryID) {
+        let mut offset_of_oldest_page = usize::MAX;
+        let mut offset_of_newest_page = 0;
+        let number_of_pages = self.volume.len() / self.page_size;
+        for page_number in 0..number_of_pages {
+            let header_pos = page_number * self.page_size;
+            // Determine the page's offset from the beginning of the log.
+            let offset_of_current_page = {
                 const ID_SIZE: usize = size_of::<EntryID>();
                 let id_bytes = &self.volume[header_pos..header_pos + ID_SIZE];
                 let id_bytes = <[u8; ID_SIZE]>::try_from(id_bytes).unwrap();
                 usize::from_ne_bytes(id_bytes)
             };
-
-            // Validate page ID read from header.
-            if page_id % self.volume.len() == header_pos {
-                if page_id < oldest_page_id {
-                    oldest_page_id = page_id;
-                }
-                if page_id > newest_page_id {
-                    newest_page_id = page_id;
-                }
+            // Make sure that the offset is valid and update oldest and newest page offsets
+            if offset_of_current_page % self.volume.len() == header_pos {
+                offset_of_oldest_page = cmp::min(offset_of_oldest_page, offset_of_current_page);
+                offset_of_newest_page = cmp::min(offset_of_newest_page, offset_of_current_page);
             }
         }
+        (offset_of_oldest_page, offset_of_newest_page)
+    }
+
+    /// Reconstructs a log from flash.
+    fn reconstruct(&self) {
+        let (oldest_page_id, newest_page_id) = self.get_log_page_bounds();
 
         // Reconstruct log if at least one valid page was found (meaning oldest page ID was set to
         // something not usize::MAX).
