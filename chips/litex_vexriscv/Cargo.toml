@@ -7,3 +7,4 @@ edition = "2018"
 [dependencies]
 rv32i = { path = "../../arch/rv32i" }
 kernel = { path = "../../kernel" }
+litex = { path = "../litex" }

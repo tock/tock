@@ -32,9 +32,13 @@ use litex_generated_constants as socc;
 /// Structure for dynamic interrupt mapping, depending on the SoC
 /// configuration
 struct LiteXSimInterruptablePeripherals {
-    uart0: &'static litex::uart::LiteXUart<'static, socc::SoCRegisterFmt>,
-    timer0: &'static litex::timer::LiteXTimer<'static, socc::SoCRegisterFmt, socc::ClockFrequency>,
-    ethmac0: &'static litex::liteeth::LiteEth<'static, socc::SoCRegisterFmt>,
+    uart0: &'static litex_vexriscv::uart::LiteXUart<'static, socc::SoCRegisterFmt>,
+    timer0: &'static litex_vexriscv::timer::LiteXTimer<
+        'static,
+        socc::SoCRegisterFmt,
+        socc::ClockFrequency,
+    >,
+    ethmac0: &'static litex_vexriscv::liteeth::LiteEth<'static, socc::SoCRegisterFmt>,
 }
 
 impl InterruptService<()> for LiteXSimInterruptablePeripherals {
@@ -74,7 +78,7 @@ struct LiteXSimPanicReferences {
         &'static litex_vexriscv::chip::LiteXVexRiscv<
             VirtualMuxAlarm<
                 'static,
-                litex::timer::LiteXAlarm<
+                litex_vexriscv::timer::LiteXAlarm<
                     'static,
                     'static,
                     socc::SoCRegisterFmt,
@@ -84,7 +88,7 @@ struct LiteXSimPanicReferences {
             LiteXSimInterruptablePeripherals,
         >,
     >,
-    uart: Option<&'static litex::uart::LiteXUart<'static, socc::SoCRegisterFmt>>,
+    uart: Option<&'static litex_vexriscv::uart::LiteXUart<'static, socc::SoCRegisterFmt>>,
 }
 static mut PANIC_REFERENCES: LiteXSimPanicReferences = LiteXSimPanicReferences {
     chip: None,
@@ -111,7 +115,12 @@ struct LiteXSim {
         'static,
         VirtualMuxAlarm<
             'static,
-            litex::timer::LiteXAlarm<'static, 'static, socc::SoCRegisterFmt, socc::ClockFrequency>,
+            litex_vexriscv::timer::LiteXAlarm<
+                'static,
+                'static,
+                socc::SoCRegisterFmt,
+                socc::ClockFrequency,
+            >,
         >,
     >,
 }
@@ -161,23 +170,33 @@ pub unsafe fn reset_handler() {
 
     // Initialize the hardware timer
     let timer0 = static_init!(
-        litex::timer::LiteXTimer<'static, socc::SoCRegisterFmt, socc::ClockFrequency>,
-        litex::timer::LiteXTimer::new(StaticRef::new(
-            socc::CSR_TIMER0_BASE as *const litex::timer::LiteXTimerRegisters<socc::SoCRegisterFmt>
+        litex_vexriscv::timer::LiteXTimer<'static, socc::SoCRegisterFmt, socc::ClockFrequency>,
+        litex_vexriscv::timer::LiteXTimer::new(StaticRef::new(
+            socc::CSR_TIMER0_BASE
+                as *const litex_vexriscv::timer::LiteXTimerRegisters<socc::SoCRegisterFmt>
         ),)
     );
 
     // The SoC is expected to feature the 64-bit uptime extension to the timer hardware
     let timer0_uptime = static_init!(
-        litex::timer::LiteXTimerUptime<'static, socc::SoCRegisterFmt, socc::ClockFrequency>,
-        litex::timer::LiteXTimerUptime::new(timer0)
+        litex_vexriscv::timer::LiteXTimerUptime<
+            'static,
+            socc::SoCRegisterFmt,
+            socc::ClockFrequency,
+        >,
+        litex_vexriscv::timer::LiteXTimerUptime::new(timer0)
     );
 
     // Create the LiteXAlarm based on the hardware LiteXTimer core and
     // the uptime peripheral
     let litex_alarm = static_init!(
-        litex::timer::LiteXAlarm<'static, 'static, socc::SoCRegisterFmt, socc::ClockFrequency>,
-        litex::timer::LiteXAlarm::new(timer0_uptime, timer0)
+        litex_vexriscv::timer::LiteXAlarm<
+            'static,
+            'static,
+            socc::SoCRegisterFmt,
+            socc::ClockFrequency,
+        >,
+        litex_vexriscv::timer::LiteXAlarm::new(timer0_uptime, timer0)
     );
     timer0.set_timer_client(litex_alarm);
     litex_alarm.initialize();
@@ -187,7 +206,12 @@ pub unsafe fn reset_handler() {
     let mux_alarm = static_init!(
         MuxAlarm<
             'static,
-            litex::timer::LiteXAlarm<'static, 'static, socc::SoCRegisterFmt, socc::ClockFrequency>,
+            litex_vexriscv::timer::LiteXAlarm<
+                'static,
+                'static,
+                socc::SoCRegisterFmt,
+                socc::ClockFrequency,
+            >,
         >,
         MuxAlarm::new(litex_alarm)
     );
@@ -197,7 +221,12 @@ pub unsafe fn reset_handler() {
     let virtual_alarm_user = static_init!(
         VirtualMuxAlarm<
             'static,
-            litex::timer::LiteXAlarm<'static, 'static, socc::SoCRegisterFmt, socc::ClockFrequency>,
+            litex_vexriscv::timer::LiteXAlarm<
+                'static,
+                'static,
+                socc::SoCRegisterFmt,
+                socc::ClockFrequency,
+            >,
         >,
         VirtualMuxAlarm::new(mux_alarm)
     );
@@ -206,7 +235,7 @@ pub unsafe fn reset_handler() {
             'static,
             VirtualMuxAlarm<
                 'static,
-                litex::timer::LiteXAlarm<
+                litex_vexriscv::timer::LiteXAlarm<
                     'static,
                     'static,
                     socc::SoCRegisterFmt,
@@ -225,7 +254,12 @@ pub unsafe fn reset_handler() {
     let systick_virtual_alarm = static_init!(
         VirtualMuxAlarm<
             'static,
-            litex::timer::LiteXAlarm<'static, 'static, socc::SoCRegisterFmt, socc::ClockFrequency>,
+            litex_vexriscv::timer::LiteXAlarm<
+                'static,
+                'static,
+                socc::SoCRegisterFmt,
+                socc::ClockFrequency,
+            >,
         >,
         VirtualMuxAlarm::new(mux_alarm)
     );
@@ -234,10 +268,11 @@ pub unsafe fn reset_handler() {
 
     // Initialize the HW UART
     let uart0 = static_init!(
-        litex::uart::LiteXUart<socc::SoCRegisterFmt>,
-        litex::uart::LiteXUart::new(
+        litex_vexriscv::uart::LiteXUart<socc::SoCRegisterFmt>,
+        litex_vexriscv::uart::LiteXUart::new(
             StaticRef::new(
-                socc::CSR_UART_BASE as *const litex::uart::LiteXUartRegisters<socc::SoCRegisterFmt>,
+                socc::CSR_UART_BASE
+                    as *const litex_vexriscv::uart::LiteXUartRegisters<socc::SoCRegisterFmt>,
             ),
             None, // LiteX simulator has no UART phy
             dynamic_deferred_caller,
@@ -266,11 +301,11 @@ pub unsafe fn reset_handler() {
 
     // ETHMAC peripheral
     let ethmac0 = static_init!(
-        litex::liteeth::LiteEth<socc::SoCRegisterFmt>,
-        litex::liteeth::LiteEth::new(
+        litex_vexriscv::liteeth::LiteEth<socc::SoCRegisterFmt>,
+        litex_vexriscv::liteeth::LiteEth::new(
             StaticRef::new(
                 socc::CSR_ETHMAC_BASE
-                    as *const litex::liteeth::LiteEthMacRegisters<socc::SoCRegisterFmt>,
+                    as *const litex_vexriscv::liteeth::LiteEthMacRegisters<socc::SoCRegisterFmt>,
             ),
             socc::MEM_ETHMAC_BASE,
             socc::MEM_ETHMAC_SIZE,
@@ -299,7 +334,7 @@ pub unsafe fn reset_handler() {
         litex_vexriscv::chip::LiteXVexRiscv<
             VirtualMuxAlarm<
                 'static,
-                litex::timer::LiteXAlarm<
+                litex_vexriscv::timer::LiteXAlarm<
                     'static,
                     'static,
                     socc::SoCRegisterFmt,

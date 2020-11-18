@@ -1,9 +1,7 @@
 #![allow(unused)]
 
-use litex;
-
 // LiteX SoC Wishbone Register format
-pub type SoCRegisterFmt = litex::litex_registers::LiteXSoCRegistersC32B32;
+pub type SoCRegisterFmt = litex_vexriscv::litex_registers::LiteXSoCRegistersC32B32;
 
 // constants defined in `generated/soc.h`
 

@@ -10,5 +10,4 @@ components = { path = "../components" }
 rv32i = { path = "../../arch/rv32i" }
 capsules = { path = "../../capsules" }
 kernel = { path = "../../kernel" }
-litex = { path = "../../chips/litex" }
 litex_vexriscv = { path = "../../chips/litex_vexriscv" }
