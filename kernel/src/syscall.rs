@@ -111,7 +111,7 @@ pub enum AllowReturnValue {
 }
 
 impl AllowReturnValue {
-    // TODO: This would break on 64-bit systems
+    // Note: this only works in 32-bit systems.
     fn encode_syscall_return(&self, a0: &mut u32, a1: &mut u32, a2: &mut u32, a3: &mut u32) {
         match self {
             &AllowReturnValue::Success(ptr, length) => {
@@ -146,7 +146,10 @@ pub enum AllowReadOnlyReturnValue {
 }
 
 impl AllowReadOnlyReturnValue {
-    // TODO: This would break on 64-bit systems
+    // Note: this only works in 32-bit systems
+    // allow(dead_code) is here because initially no capsules have
+    // read_only allows.
+#[allow(dead_code)]
     fn encode_syscall_return(&self, a0: &mut u32, a1: &mut u32, a2: &mut u32, a3: &mut u32) {
         match self {
             &AllowReadOnlyReturnValue::Success(ptr, length) => {
