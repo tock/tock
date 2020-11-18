@@ -31,7 +31,7 @@ use core::cell::Cell;
 use core::marker::PhantomData;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::usb_hid;
-use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
+use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, SharedReadWrite};
 
 /// Syscall driver number.
 use crate::driver;
@@ -39,8 +39,8 @@ pub const DRIVER_NUM: usize = driver::NUM::CtapHid as usize;
 
 pub struct App {
     callback: OptionalCell<Callback>,
-    recv_buf: Option<AppSlice<Shared, u8>>,
-    send_buf: Option<AppSlice<Shared, u8>>,
+    recv_buf: Option<AppSlice<SharedReadWrite, u8>>,
+    send_buf: Option<AppSlice<SharedReadWrite, u8>>,
     can_receive: Cell<bool>,
 }
 
@@ -193,11 +193,11 @@ impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> usb_hid::Client<'a, [u8; 64]> for Cta
 }
 
 impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> Driver for CtapDriver<'a, U> {
-    fn allow(
+    fn allow_readwrite(
         &self,
         appid: AppId,
         allow_num: usize,
-        slice: Option<AppSlice<Shared, u8>>,
+        slice: Option<AppSlice<SharedReadWrite, u8>>,
     ) -> ReturnCode {
         match allow_num {
             // Pass buffer for the recvieved data to be stored in
