@@ -453,8 +453,8 @@ impl<'a, F: Flash + 'static> Log<'a, F> {
         self.client_callback();
     }
 
-    /// Flushes the pagebuffer to flash. Log state must be idle before calling otherwise data races
-    /// may occur due to the asynchronous nature of page writes.
+    /// Flushes the pagebuffer to flash. The log must be set to a non-idle state to prevent other
+    /// operations from happening concurrently.
     ///
     /// ReturnCodes used:
     ///
