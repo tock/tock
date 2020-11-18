@@ -73,6 +73,7 @@
 //! ```
 
 use core::cell::Cell;
+use core::cmp;
 use core::convert::TryFrom;
 use core::mem::size_of;
 use core::unreachable;
