@@ -26,7 +26,7 @@ use crate::platform::watchdog::WatchDog;
 use crate::platform::{Chip, Platform};
 use crate::process::{self, Task};
 use crate::returncode::ReturnCode;
-use crate::syscall::{ContextSwitchReason, Syscall, SyscallReturnValue};
+use crate::syscall::{ContextSwitchReason, Syscall, SyscallResult};
 
 /// Threshold in microseconds to consider a process's timeslice to be exhausted.
 /// That is, Tock will skip re-scheduling a process if its remaining timeslice
@@ -645,7 +645,7 @@ impl Kernel {
                             // decide how to handle the error.
                             if syscall != Syscall::YIELD {
                                 if let Err(response) = platform.filter_syscall(process, &syscall) {
-                                    process.set_syscall_return_value(SyscallReturnValue::Legacy(
+                                    process.set_syscall_return_value(SyscallResult::Legacy(
                                         response.into(),
                                     ));
                                     continue;
@@ -666,7 +666,7 @@ impl Kernel {
                                             res
                                         );
                                     }
-                                    process.set_syscall_return_value(SyscallReturnValue::Legacy(
+                                    process.set_syscall_return_value(SyscallResult::Legacy(
                                         res.into(),
                                     ));
                                 }
@@ -732,7 +732,7 @@ impl Kernel {
                                             res
                                         );
                                     }
-                                    process.set_syscall_return_value(SyscallReturnValue::Legacy(
+                                    process.set_syscall_return_value(SyscallResult::Legacy(
                                         res.into(),
                                     ));
                                 }
@@ -767,7 +767,7 @@ impl Kernel {
                                             res
                                         );
                                     }
-                                    process.set_syscall_return_value(SyscallReturnValue::Legacy(
+                                    process.set_syscall_return_value(SyscallResult::Legacy(
                                         res.into(),
                                     ));
                                 }
@@ -804,7 +804,7 @@ impl Kernel {
                                             res
                                         );
                                     }
-                                    process.set_syscall_return_value(SyscallReturnValue::Legacy(
+                                    process.set_syscall_return_value(SyscallResult::Legacy(
                                         res.into(),
                                     ));
                                 }

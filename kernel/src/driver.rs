@@ -1,29 +1,35 @@
-//! System call interface for userspace applications.
+//! System call interface for userspace processes.
 //!
-//! Drivers implement these interfaces to expose operations to applications.
+//! Drivers implement these interfaces to expose operations to processes.
 //!
 //! # System-call Overview
 //!
-//! Tock supports four system calls. The `yield` system call is handled entirely
-//! by the scheduler, while three others are passed along to drivers:
+//! Tock supports six system calls. The `yield` and `memop` system calls are
+//! handled by the core kernel, while four others are implemented by drivers:
 //!
-//!   * `subscribe` lets an application pass a callback to the driver to be
-//!   called later, when an event has occurred or data of interest is available.
+//!   * `subscribe` passes a callback to the driver which it can
+//!   invoke on the process later, when an event has occurred or data
+//!   of interest is available.
 //!
 //!   * `command` tells the driver to do something immediately.
 //!
-//!   * `allow` provides the driver access to an application buffer.
+//!   * `allow read-write` provides the driver read-write access to an
+//!   application buffer.
+//!
+//!   * `allow read-only` provides the driver read-only access to an
+//!   application buffer.
 //!
 //! ## Mapping system-calls to drivers
 //!
-//! Each of these three system calls takes at least two parameters. The first is
-//! a _driver major number_ and tells the scheduler which driver to forward the
-//! system call to. The second parameters is a _driver minor number_ and is used
-//! by the driver to differentiate system calls with different driver-specific
-//! meanings (e.g. `subscribe` to "data ready" vs `subscribe` to "send
-//! complete"). The mapping between _driver major numbers_ and drivers is
-//! determined by a particular platform, while the _driver minor number_ is
-//! driver-specific.
+//! Each of these three system calls takes at least two
+//! parameters. The first is a _driver identifier_ and tells the
+//! scheduler which driver to forward the system call to. The second
+//! parameters is a __syscall identifer_ and is used by the driver to
+//! differentiate instances of the call with different driver-specific
+//! meanings (e.g. `subscribe` for "data received" vs `subscribe` for
+//! "send completed"). The mapping between _driver identifiers_ and
+//! drivers is determined by a particular platform, while the _syscall
+//! identifier_ is driver-specific.
 //!
 //! One convention in Tock is that _driver minor number_ 0 for the `command`
 //! syscall can always be used to determine if the driver is supported by
@@ -33,19 +39,61 @@
 //! command can also return more information, like the number of supported
 //! devices (useful for things like the number of LEDs).
 //!
-//! # The `yield` System-call
+//! # The `yield` system call class
 //!
-//! While drivers do not handle the `yield` system call, it is important to
-//! understand its function and how it interacts with `subscribe`.
+//! While drivers do not handle `yield` system calls, it is important
+//! to understand them and how they interacts with `subscribe`, which
+//! registers callback functions with the kernel. When a process calls
+//! a `yield` system call, the kernel checks if there are any pending
+//! callbacks for the process. If there are pending callbacks, it
+//! pushes one callback onto the process stack. If there are no
+//! pending callbacks, `yield-wait` will cause the process to sleep
+//! until a callback is trigered, while `yield-no-wait` returns
+//! immediately.
+//!
+//! # Method result types
+//!
+//! Each driver method has a limited set of valid return types. Every
+//! method has a single return type corresponding to success and a
+//! single return type corresponding to failure. For the `subscribe`
+//! and `allow` system calls, these return types are the same for
+//! every instance of those calls. Each instance of the `command`
+//! system call, however, has its own specified return types. A
+//! command that requests a timestamp, for example, might return a
+//! 32-bit number on success and an error code on failure, while a
+//! command that requests time of day in microsecond granularity might
+//! return a 64-bit number and a 32-bit timezone encoding on success,
+//! and an error code on failure.
+//!
+//! These result types are represented as safe Rust types. The core
+//! kernel (the scheduler and syscall dispatcher) is responsible for
+//! encoding these types into the Tock system call ABI specification.
+
+
 
 use crate::callback::{AppId, Callback};
 use crate::errorcode::ErrorCode;
 use crate::mem::{AppSlice, SharedReadOnly, SharedReadWrite};
 use crate::returncode::ReturnCode;
-use crate::syscall::GenericSyscallReturnValue;
+use crate::syscall::{GenericSyscallReturnValue, SyscallReturnVariant};
 
-/// Possible return values of an `allow` driver method
-pub enum AllowResult {
+pub enum SubscribeResult {
+    Success(Callback, u32),
+    Failure(Callback, u32, ErrorCode),
+}
+
+impl SubscribeResult {
+    pub fn success(old_callback: Callback, val: u32) -> Self {
+        SubscribeResult::Success(old_callback, val)
+    }
+
+    pub fn failure(new_callback: Callback, val: u32, reason: ErrorCode) -> Self {
+        SubscribeResult::Failure(new_callback, val, reason)
+    }
+}
+
+/// Possible return values of a read-write `allow` driver method.
+pub enum AllowReadWriteResult {
     /// The allow operation succeeded and the AppSlice has been stored
     /// with the capsule
     ///
@@ -56,16 +104,16 @@ pub enum AllowResult {
     /// the AppSlice instance
     ///
     /// The capsule **must** return the passed AppSlice back.
-    Refuse(AppSlice<SharedReadWrite, u8>, ErrorCode),
+    Failure(AppSlice<SharedReadWrite, u8>, ErrorCode),
 }
 
-impl AllowResult {
+impl AllowReadWriteResult {
     pub fn success(old_appslice: AppSlice<SharedReadWrite, u8>) -> Self {
-        AllowResult::Success(old_appslice)
+        AllowReadWriteResult::Success(old_appslice)
     }
 
-    pub fn refuse_allow(new_appslice: AppSlice<SharedReadWrite, u8>, reason: ErrorCode) -> Self {
-        AllowResult::Refuse(new_appslice, reason)
+    pub fn failure(new_appslice: AppSlice<SharedReadWrite, u8>, reason: ErrorCode) -> Self {
+        AllowReadWriteResult::Failure(new_appslice, reason)
     }
 }
 
@@ -81,7 +129,7 @@ pub enum AllowReadOnlyResult {
     /// the AppSlice instance
     ///
     /// The capsule **must** return the passed AppSlice back.
-    Refuse(AppSlice<SharedReadOnly, u8>, ErrorCode),
+    Failure(AppSlice<SharedReadOnly, u8>, ErrorCode),
 }
 
 impl AllowReadOnlyResult {
@@ -89,8 +137,8 @@ impl AllowReadOnlyResult {
         AllowReadOnlyResult::Success(old_appslice)
     }
 
-    pub fn refuse_allow(new_appslice: AppSlice<SharedReadOnly, u8>, reason: ErrorCode) -> Self {
-        AllowReadOnlyResult::Refuse(new_appslice, reason)
+    pub fn failure(new_appslice: AppSlice<SharedReadOnly, u8>, reason: ErrorCode) -> Self {
+        AllowReadOnlyResult::Failure(new_appslice, reason)
     }
 
 }
@@ -231,13 +279,13 @@ pub trait Driver {
     // Tock 2.0 method preview:
     //
     // #[allow(unused_variables)]
-    // fn allow(
+    // fn allow_readwrite(
     //     &self,
     //     app: AppId,
     //     minor_num: usize,
-    //     slice: AppSlice<Shared, u8>,
-    // ) -> AllowResult {
-    //     AllowResult::refuse_allow(slice, ErrorCode::ENOSUPPORT)
+    //     slice: AppSlice<SharedReadWrite, u8>,
+    // ) -> AllowReadWriteResult {
+    //     AllowReadWriteResult::refuse_allow(slice, ErrorCode::ENOSUPPORT)
     // }
 
     /// `allow_readonly` lets an application give the driver read-only access
@@ -257,4 +305,85 @@ pub trait Driver {
         ReturnCode::ENOSUPPORT
     }
 
+    
+    // Tock 2.0 method preview:
+    //
+    // #[allow(unused_variables)]
+    // fn allow_readonly(
+    //     &self,
+    //     app: AppId,
+    //     minor_num: usize,
+    //     slice: AppSlice<SharedReadOnly, u8>,
+    // ) -> AllowReadOnlyResult {
+    //     AllowReadOnlyResult::refuse_allow(slice, ErrorCode::ENOSUPPORT)
+    // }
+
+
 }
+
+
+impl AllowReadWriteResult {
+    pub fn encode_syscall_return(&self, a0: &mut u32, a1: &mut u32, a2: &mut u32, a3: &mut u32) {
+        match self {
+            AllowReadWriteResult::Success(slice) => {
+                *a0 = SyscallReturnVariant::SuccessU32U32 as u32;
+                *a1 = slice.ptr() as u32;
+                *a2 = slice.len() as u32;
+            }
+            AllowReadWriteResult::Failure(slice, error) => {
+                *a0 = SyscallReturnVariant::FailureU32U32 as u32;
+                *a1 = usize::from(*error) as u32;
+                *a2 = slice.ptr() as u32;
+                *a3 = slice.len() as u32;
+            }
+        }
+    }
+}
+
+
+impl AllowReadOnlyResult {
+    pub fn encode_syscall_return(&self, a0: &mut u32, a1: &mut u32, a2: &mut u32, a3: &mut u32) {
+        match self {
+            AllowReadOnlyResult::Success(slice) => {
+                *a0 = SyscallReturnVariant::SuccessU32U32 as u32;
+                *a1 = slice.ptr() as u32;
+                *a2 = slice.len() as u32;
+            }
+            AllowReadOnlyResult::Failure(slice, error) => {
+                *a0 = SyscallReturnVariant::FailureU32U32 as u32;
+                *a1 = usize::from(*error) as u32;
+                *a2 = slice.ptr() as u32;
+                *a3 = slice.len() as u32;
+            }
+        }
+    }
+}
+
+impl SubscribeResult {
+    pub fn encode_syscall_return(&self, a0: &mut u32, a1: &mut u32, a2: &mut u32, a3: &mut u32) {
+        match self {
+            SubscribeResult::Success(callback, userdata) => {
+                *a0 = SyscallReturnVariant::SuccessU32U32 as u32;
+                *a1 = callback.function_pointer();
+                *a2 = *userdata as u32;
+            }
+            SubscribeResult::Failure(callback, userdata, error) => {
+                *a0 = SyscallReturnVariant::FailureU32U32 as u32;
+                *a1 = usize::from(*error) as u32;
+                *a2 = callback.function_pointer();
+                *a3 = *userdata as u32;
+            }
+        }
+    }
+}
+
+impl CommandResult {
+    pub fn encode_syscall_return(&self, a0: &mut u32, a1: &mut u32, a2: &mut u32, a3: &mut u32) {
+        match self {
+            &CommandResult(rv) => {
+                rv.encode_syscall_return(a0, a1, a2, a3)
+            }
+        }
+    }
+}
+

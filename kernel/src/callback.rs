@@ -226,4 +226,8 @@ impl Callback {
         }
         res
     }
+
+    pub fn function_pointer(&self) -> u32 {
+        self.fn_ptr.as_ptr() as u32
+    }
 }

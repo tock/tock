@@ -150,12 +150,13 @@ registers: for CortexM they are r0-r3 and for RISC-V they are a0-a3.
 | Success with 3 u32       | 132 | Return Value 0     | Return Value 1     | Return Value 2     |
 | Success with u32 and u64 | 133 | Return Value 0     | Return Value 1 LSB | Return Value 1 MSB | 
 
-There are a wide variety of failure and success values because different
-system calls need to pass different amounts of data. A command that requests
-a 64-bit timestamp, for example, needs its success to return a `u64`, but its
-failure can return nothing. In contrast, a system call that passes a pointer
-into the kernel may have a simple success return value but requires a failure with
-1 value so the pointer can be passed back.
+There are a wide variety of failure and success values because
+different system calls need to pass different amounts of data. A
+command that requests a 64-bit timestamp, for example, needs its
+success to return a `u64`, but its failure can return nothing. In
+contrast, a system call that passes a pointer into the kernel may have
+a simple success return value but requires a failure with one 32-bit
+value so the pointer can be passed back.
 
 Every system call MUST return only one failure and only one success type. Different
 system calls may use different failure and success types, but any specific system
@@ -215,14 +216,14 @@ the platform has and which have drivers installed in the kernel.
 
 The 6 classes are:
 
-| Syscall Class   | Syscall Class ID |
-|-----------------|------------------|
-| Yield           |        0         |
-| Subscribe       |        1         |
-| Command         |        2         |
-| Allow           |        3         |
-| Read-Only Allow |        4         | 
-| Memory          |        5         |
+| Syscall Class    | Syscall Class ID |
+|------------------|------------------|
+| Yield            |        0         |
+| Subscribe        |        1         |
+| Command          |        2         |
+| Read-Write Allow |        3         |
+| Read-Only Allow  |        4         | 
+| Memory           |        5         |
 
 All of the system call classes except Yield are non-blocking. When a userspace
 process calls a Subscribe, Command, Allow, Read-Only Allow, or Memory syscall,
@@ -275,6 +276,9 @@ The second call, 'yield-no-wait', executes a single callback if any is pending.
 If no callbacks are pending it returns immediately. The `yield-no-wait` system
 call returns `Success` if a callback executed and `Failure` if no callback
 executed.
+
+The return values for Yield system calls are `Success` and `Failure`. 
+
 
 4.2 Subscribe (Class ID: 1)
 --------------------------------
@@ -402,19 +406,21 @@ allows userspace to determine if a particular system call driver is
 installed; if it is, the command returns `Success`. If it is not, the
 kernel returns `Failure` with an error code of `NOSUPPORT`.
 
-4.4 Allow (Class ID: 3)
+4.4 Read-Write Allow (Class ID: 3)
 ---------------------------------
 
-The Allow system call class is how a userspace process shares a read-write buffer
-with the kernel. When userspace shares a buffer, it can no longer access
-it. Calling an Allow system call also returns a buffer (address and length).
-On the first call to an
-Allow system call, the kernel returns a zero-length buffer. Subsequent calls
-to Allow return the previous buffer passed. Therefore, to regain access to the
-buffer, the process must call the same Allow system call again. 
+The Read-Write Allow system call class is how a userspace process
+shares a read-write buffer with the kernel. When userspace shares a
+buffer, it can no longer access it. Calling a Read-Write Allow system
+call also returns a buffer (address and length).  On the first call to
+a Read-Write Allow system call, the kernel returns a zero-length
+buffer. Subsequent calls to Read-Write Allow return the previous
+buffer passed. Therefore, to regain access to the buffer, the process
+must call the same Read-Write Allow system call again.
 
-The register arguments for Allow system calls are as follows. The registers
-r0-r3 correspond to r0-r3 on CortexM and a0-a3 on RISC-V.
+The register arguments for Read-Write Allow system calls are as
+follows. The registers r0-r3 correspond to r0-r3 on CortexM and a0-a3
+on RISC-V.
 
 | Argument               | Register |
 |------------------------|----------|
@@ -423,34 +429,39 @@ r0-r3 correspond to r0-r3 on CortexM and a0-a3 on RISC-V.
 | Address                | r2       |
 | Size                   | r3       |
 
-The return values for Allow system calls are `Failure with 2 u32` and `Success with 2 u32`.
-In both cases, `Argument 0` contains an address and `Argument 1` contains a length.
-In the case of failure, the address and length are those that were passed in the call.
-In the case of success, the address and length are those that were passed in the previous
-call. On the first successful invocation of a particular Allow system call, the kernel returns
+The return values for Read-Write Allow system calls are `Failure with
+2 u32` and `Success with 2 u32`.  In both cases, `Argument 0` contains
+an address and `Argument 1` contains a length.  In the case of
+failure, the address and length are those that were passed in the
+call.  In the case of success, the address and length are those that
+were passed in the previous call. On the first successful invocation
+of a particular Read-Write Allow system call, the kernel returns
 address 0 and size 0.
 
-The buffer identifier specifies which buffer this is. A driver may support multiple
-allowed buffers. For example, the console driver has a read buffer (buffer identifier 2)
-and a write buffer (buffer identifier 1).
+The buffer identifier specifies which buffer this is. A driver may
+support multiple allowed buffers.
 
-The Tock kernel MUST check that the passed buffer is contained within the application's
-address space. Specifically, every byte of the passed buffer must be readable and writeable
-by the process. Zero-length buffers may therefore have abitrary addresses.
+The Tock kernel MUST check that the passed buffer is contained within
+the application's address space. Every byte of the passed buffer must
+be readable and writeable by the process. Zero-length buffers may
+therefore have abitrary addresses.
 
-Because a process relinquishes access to a buffer when it makes an Allow call with it,
-the buffer passed on the subsequent Allow call cannot overlap with the first passed buffer.
-This is because the application does not have access to that memory. If an application needs
-to extend a buffer, it must first call Allow to reclaim the buffer, then call Allow again
-to re-allow it with a different size.
+Because a process relinquishes access to a buffer when it makes a
+Read-Write Allow call with it, the buffer passed on the subsequent
+Read-Write Allow call cannot overlap with the first passed buffer.
+This is because the application does not have access to that
+memory. If an application needs to extend a buffer, it must first call
+Read-Write Allow to reclaim the buffer, then call Read-Write Allow
+again to re-allow it with a different size.
 
 
 4.5 Read-Only Allow (Class ID: 4)
 ---------------------------------
 
-The Read-Only Allow class is identical to the Allow class with one exception: the buffer
-it passes to the kernel is read-only: the kernel cannot write to it. It semantics and
-calling conventions are otherwise identical to Allow.
+The Read-Only Allow class is identical to the Read-Write Allow class
+with one exception: the buffer it passes to the kernel is
+read-only. The kernel cannot write to it. It semantics and calling
+conventions are otherwise identical to Read-Write Allow.
 
 The Read-Only Allow class exists so that userspace can pass references to constant data
 to the kernel. Often, constant data is stored in flash rather than RAM. Constant data
@@ -509,12 +520,51 @@ code by the userspace library.
 5.1 libtock-rs
 ---------------------------------
 
-6 The Driver trait
+6 The Driver Trait
 =================================
 
-The core kernel, in response to userspace system calls, 
-invokes methods on the Driver trait implemented by system call drivers. 
-This section describes the Driver trait API. 
+The core kernel, in response to userspace system calls, invokes methods on the Driver 
+trait implemented by system call drivers.  This section describes the Driver trait API
+and how it interacts with the core kernel's system calls. Note that 
+
+
+6.1 Return Types
+---------------------------------
+
+Methods in the Driver trait have return values of Rust types that
+correspond to their allowed return values and which have corresponding
+in encodings desribed in Section 3.2.
+
+6.1.1 Return Type Values
+---------------------------------
+
+
+
+6.1.2 Yield Return Type
+---------------------------------
+
+The Yield return type is called `YieldResult`:
+
+```
+pub enum YieldResult {
+    Success,
+	Failure(ErrorCode)
+}
+```
+
+6.1.3 Subscribe Return Type
+---------------------------------
+
+6.1.4 Command  Return Type
+---------------------------------
+
+6.1.5 Allow Return Type
+---------------------------------
+
+6.1.6 Memop Return Type
+---------------------------------
+
+
 
 7 Authors' Address
 =================================

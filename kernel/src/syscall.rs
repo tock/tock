@@ -2,14 +2,11 @@
 
 use core::fmt::Write;
 
-use crate::driver::CommandResult;
+use crate::driver::{CommandResult, AllowReadWriteResult, AllowReadOnlyResult, SubscribeResult};
 use crate::errorcode::ErrorCode;
 use crate::process;
 use crate::returncode::ReturnCode;
 
-// TODO: Maybe change the variant identifiers to have errors have the
-// most significant bit set as discussed in the core team call?
-// (e.g. negative numbers with two's complement)
 /// Enumeration over the possible system call return type variants
 ///
 /// Each variant is associated with the respective variant identifier
@@ -94,80 +91,6 @@ pub enum ContextSwitchReason {
     Interrupted,
 }
 
-/// Possible return values of an `allow`-type system call
-///
-/// Since this only contains the raw pointer to the allowed buffer, it
-/// implements `Copy`.
-#[derive(Copy, Clone, Debug)]
-pub enum AllowReturnValue {
-    /// In the success case, bass back the pointer and respective
-    /// length of the buffer shared from userspace
-    Success(*mut u8, usize),
-    /// An `allow` operation is allowed to error, returning an
-    /// [`ErrorCode`](crate::ErrorCode) to the userspace app, along
-    /// with the pointer and length passed with the original allow
-    /// syscall
-    Error(ErrorCode, *mut u8, usize),
-}
-
-impl AllowReturnValue {
-    // Note: this only works in 32-bit systems.
-    fn encode_syscall_return(&self, a0: &mut u32, a1: &mut u32, a2: &mut u32, a3: &mut u32) {
-        match self {
-            &AllowReturnValue::Success(ptr, length) => {
-                *a0 = SyscallReturnVariant::SuccessU32U32 as u32;
-                *a1 = ptr as u32;
-                *a2 = length as u32;
-            }
-            &AllowReturnValue::Error(e, ptr, length) => {
-                *a0 = SyscallReturnVariant::FailureU32U32 as u32;
-                *a1 = usize::from(e) as u32;
-                *a2 = ptr as u32;
-                *a3 = length as u32;
-            }
-        }
-    }
-}
-
-/// Possible return values of an `allow`-type system call
-///
-/// Since this only contains the raw pointer to the allowed buffer, it
-/// implements `Copy`.
-#[derive(Copy, Clone, Debug)]
-pub enum AllowReadOnlyReturnValue {
-    /// In the success case, bass back the pointer and respective
-    /// length of the buffer shared from userspace
-    Success(*const u8, usize),
-    /// An `allow` operation is allowed to error, returning an
-    /// [`ErrorCode`](crate::ErrorCode) to the userspace app, along
-    /// with the pointer and length passed with the original allow
-    /// syscall
-    Error(ErrorCode, *const u8, usize),
-}
-
-impl AllowReadOnlyReturnValue {
-    // Note: this only works in 32-bit systems
-    // allow(dead_code) is here because initially no capsules have
-    // read_only allows.
-#[allow(dead_code)]
-    fn encode_syscall_return(&self, a0: &mut u32, a1: &mut u32, a2: &mut u32, a3: &mut u32) {
-        match self {
-            &AllowReadOnlyReturnValue::Success(ptr, length) => {
-                *a0 = SyscallReturnVariant::SuccessU32U32 as u32;
-                *a1 = ptr as u32;
-                *a2 = length as u32;
-            }
-            &AllowReadOnlyReturnValue::Error(e, ptr, length) => {
-                *a0 = SyscallReturnVariant::FailureU32U32 as u32;
-                *a1 = usize::from(e) as u32;
-                *a2 = ptr as u32;
-                *a3 = length as u32;
-            }
-        }
-    }
-}
-
-
 /// Possible system call return variants, generic over the system call
 /// type
 ///
@@ -217,7 +140,7 @@ impl GenericSyscallReturnValue {
     ///
     /// Most architectures will want to use the (generic over all
     /// system call types) [`SyscallReturnValue::encode_syscall_return`] instead.
-    fn encode_syscall_return(&self, a0: &mut u32, a1: &mut u32, a2: &mut u32, a3: &mut u32) {
+    pub(crate) fn encode_syscall_return(&self, a0: &mut u32, a1: &mut u32, a2: &mut u32, a3: &mut u32) {
         match self {
             &GenericSyscallReturnValue::Error(e) => {
                 *a0 = SyscallReturnVariant::Failure as u32;
@@ -279,67 +202,23 @@ impl GenericSyscallReturnValue {
     }
 }
 
-/// Possible return values of a `subscribe`-type system call
-///
-/// Since this only contains the raw pointer to the callback function,
-/// it implements `Copy`.
-#[derive(Copy, Clone, Debug)]
-pub enum SubscribeReturnValue {
-    /// In the success case, pass back the callback function pointer
-    /// and the supplied userdata to an userspace app
-    Success(*mut (), usize),
-    /// A `subscribe` operation is allowed to error, returning a
-    /// [`ErrorCode`](crate::ErrorCode) to the userspace app, along
-    /// with the pointer and userdata passed with the original syscall
-    Error(ErrorCode, *mut (), usize),
-}
-
-impl SubscribeReturnValue {
-    // TODO: This would break on 64-bit systems
-    fn encode_syscall_return(&self, a0: &mut u32, a1: &mut u32, a2: &mut u32, a3: &mut u32) {
-        match self {
-            &SubscribeReturnValue::Success(ptr, userdata) => {
-                *a0 = SyscallReturnVariant::SuccessU32U32 as u32;
-                *a1 = ptr as u32;
-                *a2 = userdata as u32;
-            }
-            &SubscribeReturnValue::Error(rc, ptr, userdata) => {
-                *a0 = SyscallReturnVariant::FailureU32U32 as u32;
-                *a1 = usize::from(rc) as u32;
-                *a2 = ptr as u32;
-                *a3 = userdata as u32;
-            }
-        }
-    }
-}
-
-/// A union over all system call type's return values
+/// A union over all possible system call results.
 ///
 /// This is passed down to the architecture which then determines how
-/// to encode the system call return arguments for the userspace app.
+/// to encode the system call return arguments for a process.
 ///
 /// For encoding, the architecture *may* decide use the provided
 /// `syscall_return_to_arguments`, which can be seen as a counterpart
 /// to `arguments_to_syscall`. Architectures are however free to
 /// define their own encoding.
-#[derive(Copy, Clone, Debug)]
-pub enum SyscallReturnValue {
-    /// `yield`-type system call return value
-    ///
-    /// The return type vairant is dependent on whether a callback has
-    /// been executed, indicated by the associated boolean field.
+pub enum SyscallResult {
     Yield(bool),
-    /// `allow`-type system call return values
-    Allow(AllowReturnValue),
-    /// `command`-type system call return values
-    Command(GenericSyscallReturnValue),
-    /// `subscribe`-type system call return values
-    Subscribe(SubscribeReturnValue),
-    /// `memop`-type system call return values
-    ///
-    /// The precise return value variant is dependent on the
-    /// specific `memop` system call.
+    Subscribe(SubscribeResult),
+    Command(CommandResult),
+    AllowReadWrite(AllowReadWriteResult),
+    AllowReadOnly(AllowReadOnlyResult),
     Memop(GenericSyscallReturnValue),
+
     /// Legacy style system call return values
     ///
     /// This is only included for compatibility with the current (1.x)
@@ -349,7 +228,7 @@ pub enum SyscallReturnValue {
     Legacy(ReturnCode),
 }
 
-impl SyscallReturnValue {
+impl SyscallResult {
     /// Encode the system call return values into a series of
     /// `u32`-values to be passed to the userspace app
     ///
@@ -364,19 +243,20 @@ impl SyscallReturnValue {
     #[inline]
     pub fn encode_syscall_return(&self, a0: &mut u32, a1: &mut u32, a2: &mut u32, a3: &mut u32) {
         match self {
-            SyscallReturnValue::Yield(callback_executed) => {
+            SyscallResult::Yield(callback_executed) => {
                 *a0 = if *callback_executed {
                     SyscallReturnVariant::Success as u32
                 } else {
                     SyscallReturnVariant::Failure as u32
                 };
             }
-            SyscallReturnValue::Allow(rv) => rv.encode_syscall_return(a0, a1, a2, a3),
-            SyscallReturnValue::Subscribe(rv) => rv.encode_syscall_return(a0, a1, a2, a3),
-            SyscallReturnValue::Command(rv) | SyscallReturnValue::Memop(rv) => {
-                rv.encode_syscall_return(a0, a1, a2, a3)
-            }
-            SyscallReturnValue::Legacy(rc) => {
+            SyscallResult::AllowReadWrite(rv) => rv.encode_syscall_return(a0, a1, a2, a3),
+            SyscallResult::AllowReadOnly(rv) => rv.encode_syscall_return(a0, a1, a2, a3),
+            
+            SyscallResult::Subscribe(rv) => rv.encode_syscall_return(a0, a1, a2, a3),
+            SyscallResult::Command(rv) =>                rv.encode_syscall_return(a0, a1, a2, a3),
+            SyscallResult::Memop(rv) => rv.encode_syscall_return(a0, a1, a2, a3),
+            SyscallResult::Legacy(rc) => {
                 *a0 = isize::from(*rc) as u32;
             }
         }
@@ -424,7 +304,7 @@ pub trait UserspaceKernelBoundary {
         &self,
         stack_pointer: *const usize,
         state: &mut Self::StoredState,
-        return_value: SyscallReturnValue,
+        return_value: SyscallResult,
     );
 
     /// Set the function that the process should execute when it is resumed.
