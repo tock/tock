@@ -129,6 +129,42 @@ impl AllowReturnValue {
     }
 }
 
+/// Possible return values of an `allow`-type system call
+///
+/// Since this only contains the raw pointer to the allowed buffer, it
+/// implements `Copy`.
+#[derive(Copy, Clone, Debug)]
+pub enum AllowReadOnlyReturnValue {
+    /// In the success case, bass back the pointer and respective
+    /// length of the buffer shared from userspace
+    Success(*const u8, usize),
+    /// An `allow` operation is allowed to error, returning an
+    /// [`ErrorCode`](crate::ErrorCode) to the userspace app, along
+    /// with the pointer and length passed with the original allow
+    /// syscall
+    Error(ErrorCode, *const u8, usize),
+}
+
+impl AllowReadOnlyReturnValue {
+    // TODO: This would break on 64-bit systems
+    fn encode_syscall_return(&self, a0: &mut u32, a1: &mut u32, a2: &mut u32, a3: &mut u32) {
+        match self {
+            &AllowReadOnlyReturnValue::Success(ptr, length) => {
+                *a0 = SyscallReturnVariant::SuccessU32U32 as u32;
+                *a1 = ptr as u32;
+                *a2 = length as u32;
+            }
+            &AllowReadOnlyReturnValue::Error(e, ptr, length) => {
+                *a0 = SyscallReturnVariant::FailureU32U32 as u32;
+                *a1 = usize::from(e) as u32;
+                *a2 = ptr as u32;
+                *a3 = length as u32;
+            }
+        }
+    }
+}
+
+
 /// Possible system call return variants, generic over the system call
 /// type
 ///

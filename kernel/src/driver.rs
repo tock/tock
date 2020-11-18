@@ -42,7 +42,7 @@ use crate::callback::{AppId, Callback};
 use crate::errorcode::ErrorCode;
 use crate::mem::{AppSlice, SharedReadOnly, SharedReadWrite};
 use crate::returncode::ReturnCode;
-use crate::syscall::GenericSyscallReturnValue;
+use crate::syscall::{AllowReadOnlyReturnValue, GenericSyscallReturnValue};
 
 /// Possible return values of an `allow` driver method
 pub enum AllowResult {
@@ -91,6 +91,17 @@ impl AllowReadOnlyResult {
 
     pub fn refuse_allow(new_appslice: AppSlice<SharedReadOnly, u8>, reason: ErrorCode) -> Self {
         AllowReadOnlyResult::Refuse(new_appslice, reason)
+    }
+
+    pub fn into_value(self) -> AllowReadOnlyReturnValue {
+        match self {
+            AllowReadOnlyResult::Success(oldslice) => {
+                AllowReadOnlyReturnValue::Success(oldslice.ptr(), oldslice.len())
+            },
+            AllowReadOnlyResult::Refuse(newslice, reason) => {
+                AllowReadOnlyReturnValue::Error(reason, newslice.ptr(), newslice.len())               
+            }
+        }
     }
 }
 
