@@ -21,7 +21,7 @@
 //!
 //! The generated register abstractions follow the naming scheme
 //!
-//! ```
+//! ```text
 //! <AccessTypes><RegisterWidth>C<CSRDataWidth>B<BaseWidth>
 //! ```
 //!
