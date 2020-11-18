@@ -4,8 +4,6 @@ use kernel::common::registers::{register_bitfields, register_structs, ReadWrite}
 use kernel::common::StaticRef;
 use kernel::debug;
 
-pub static mut MCUCTRL: McuCtrl = McuCtrl::new(MCUCTRL_BASE);
-
 const MCUCTRL_BASE: StaticRef<McuCtrlRegisters> =
     unsafe { StaticRef::new(0x4002_0000 as *const McuCtrlRegisters) };
 
@@ -107,8 +105,10 @@ pub struct McuCtrl {
 }
 
 impl McuCtrl {
-    pub const fn new(base: StaticRef<McuCtrlRegisters>) -> McuCtrl {
-        McuCtrl { registers: base }
+    pub const fn new() -> McuCtrl {
+        McuCtrl {
+            registers: MCUCTRL_BASE,
+        }
     }
 
     pub fn print_chip_revision(&self) {

@@ -34,10 +34,7 @@ use crate::driver;
 /// Syscall driver number.
 pub const DRIVER_NUM: usize = driver::NUM::Ft6x06 as usize;
 
-// Buffer to use for I2C messages
-pub static mut BUFFER: [u8; 17] = [0; 17];
-
-static NO_TOUCH: TouchEvent = TouchEvent {
+pub static NO_TOUCH: TouchEvent = TouchEvent {
     id: 0,
     x: 0,
     y: 0,
@@ -45,8 +42,6 @@ static NO_TOUCH: TouchEvent = TouchEvent {
     size: None,
     pressure: None,
 };
-
-pub static mut EVENTS_BUFFER: [TouchEvent; 2] = [NO_TOUCH, NO_TOUCH];
 
 enum State {
     Idle,

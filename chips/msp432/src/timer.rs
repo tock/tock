@@ -18,13 +18,13 @@ const TIMER_A0_BASE: StaticRef<TimerRegisters> =
     unsafe { StaticRef::new(0x4000_0000u32 as *const TimerRegisters) };
 
 const TIMER_A1_BASE: StaticRef<TimerRegisters> =
-    unsafe { StaticRef::new(0x4000_4000u32 as *const TimerRegisters) };
+    unsafe { StaticRef::new(0x4000_0400u32 as *const TimerRegisters) };
 
 const TIMER_A2_BASE: StaticRef<TimerRegisters> =
-    unsafe { StaticRef::new(0x4000_8000u32 as *const TimerRegisters) };
+    unsafe { StaticRef::new(0x4000_0800u32 as *const TimerRegisters) };
 
 const TIMER_A3_BASE: StaticRef<TimerRegisters> =
-    unsafe { StaticRef::new(0x4000_C000u32 as *const TimerRegisters) };
+    unsafe { StaticRef::new(0x4000_0C00u32 as *const TimerRegisters) };
 
 register_structs! {
     /// Timer_Ax
@@ -229,6 +229,7 @@ register_bitfields! [u16,
 enum TimerMode {
     Disabled,
     Alarm,
+    InternalTimer,
 }
 
 pub struct TimerAFrequency {}
@@ -237,6 +238,27 @@ impl Frequency for TimerAFrequency {
     fn frequency() -> u32 {
         crate::cs::ACLK_HZ / 16
     }
+}
+
+pub enum InternalTrigger {
+    CaptureCompare1,
+    CaptureCompare2,
+    CaptureCompare3,
+    CaptureCompare4,
+    CaptureCompare5,
+    CaptureCompare6,
+}
+
+pub trait InternalTimer {
+    /// Start timer in a given frequency. No interrupts are generated, the signal when the timer
+    /// has elapsed is directly forwarded to the dedicated hardware module.
+    /// SUCCESS: timer started successfully
+    /// EINVAL: frequency too high or too low
+    /// EBUSY: timer already in use
+    fn start(&self, frequency_hz: u32, int_src: InternalTrigger) -> kernel::ReturnCode;
+
+    /// Stop the timer
+    fn stop(&self);
 }
 
 pub struct TimerA<'a> {
@@ -275,7 +297,20 @@ impl<'a> TimerA<'a> {
 
     // Stops the timer, no matter how it is configured
     fn stop_timer(&self) {
-        self.registers.ctl.modify(TAxCTL::MC::StopMode);
+        // Disable interrupt and set timer to stop-mode
+        self.registers
+            .ctl
+            .modify(TAxCTL::MC::StopMode + TAxCTL::TAIE::CLEAR);
+
+        // Reset the configuration and disable interrupts of all capture-compare modules
+        self.registers.cctl0.set(0);
+        self.registers.cctl1.set(0);
+        self.registers.cctl2.set(0);
+        self.registers.cctl3.set(0);
+        self.registers.cctl4.set(0);
+        self.registers.cctl5.set(0);
+        self.registers.cctl6.set(0);
+
         self.mode.set(TimerMode::Disabled);
     }
 
@@ -372,5 +407,64 @@ impl<'a> Alarm<'a> for TimerA<'a> {
 
     fn minimum_dt(&self) -> Self::Ticks {
         Self::Ticks::from(1 as u16)
+    }
+}
+
+impl<'a> InternalTimer for TimerA<'a> {
+    fn start(&self, frequency_hz: u32, trigger: InternalTrigger) -> kernel::ReturnCode {
+        if self.mode.get() != TimerMode::Disabled && self.mode.get() != TimerMode::InternalTimer {
+            return kernel::ReturnCode::EBUSY;
+        }
+
+        if frequency_hz > crate::cs::SMCLK_HZ {
+            return kernel::ReturnCode::EINVAL;
+        }
+
+        // Stop timer if a different frequency was configured before
+        self.stop_timer();
+
+        let reg_val = if frequency_hz <= 100 {
+            // Divide the SMCLK by 40 -> 1_500_000 / 40 = 37.5kHz
+            self.registers.ctl.modify(TAxCTL::ID::DividedBy8);
+            self.registers.ex0.modify(TAxEX0::TAIDEX::DivideBy5);
+            (crate::cs::SMCLK_HZ / 40) / frequency_hz
+        } else {
+            self.registers.ctl.modify(TAxCTL::ID::DividedBy1);
+            self.registers.ex0.modify(TAxEX0::TAIDEX::DivideBy1);
+            crate::cs::SMCLK_HZ / frequency_hz
+        };
+
+        self.registers.ctl.modify(
+            TAxCTL::TASSEL::SMCLK    // Set SMCLK as clock source
+            + TAxCTL::MC::UpMode            // Setup for up-mode    
+            + TAxCTL::TAIE::CLEAR           // Disable interrupts
+            + TAxCTL::TAIFG::CLEAR, // Clear any pending interrupts
+        );
+
+        // Set timer value
+        self.registers.ccr0.set((reg_val - 1) as u16);
+        self.registers.cctl0.modify(TAxCCTLx::CCIE::CLEAR);
+
+        // Get the correct capture-compare registers depending on the desired trigger
+        let (ccr_reg, cctl_reg) = match trigger {
+            InternalTrigger::CaptureCompare1 => (&self.registers.ccr1, &self.registers.cctl1),
+            InternalTrigger::CaptureCompare2 => (&self.registers.ccr2, &self.registers.cctl2),
+            InternalTrigger::CaptureCompare3 => (&self.registers.ccr3, &self.registers.cctl3),
+            InternalTrigger::CaptureCompare4 => (&self.registers.ccr4, &self.registers.cctl4),
+            InternalTrigger::CaptureCompare5 => (&self.registers.ccr5, &self.registers.cctl5),
+            InternalTrigger::CaptureCompare6 => (&self.registers.ccr6, &self.registers.cctl6),
+        };
+
+        // Set capture value to raise interrupt
+        ccr_reg.set((reg_val - 2) as u16);
+        // Enable CCR interrupt to trigger the corresponding Hardware
+        cctl_reg.modify(TAxCCTLx::OUTMOD::SetReset + TAxCCTLx::OUT::CLEAR + TAxCCTLx::CCIE::CLEAR);
+
+        self.mode.set(TimerMode::InternalTimer);
+        kernel::ReturnCode::SUCCESS
+    }
+
+    fn stop(&self) {
+        self.stop_timer();
     }
 }

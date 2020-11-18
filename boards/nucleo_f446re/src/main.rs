@@ -14,8 +14,10 @@ use kernel::capabilities;
 use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::component::Component;
 use kernel::hil::gpio::Configure;
+use kernel::hil::led::LedHigh;
 use kernel::Platform;
 use kernel::{create_capability, debug, static_init};
+use stm32f446re::interrupt_service::Stm32f446reDefaultPeripherals;
 
 /// Support routines for debugging I/O.
 pub mod io;
@@ -34,7 +36,8 @@ static mut PROCESSES: [Option<&'static dyn kernel::procs::ProcessType>; NUM_PROC
     [None, None, None, None];
 
 // Static reference to chip for panic dumps.
-static mut CHIP: Option<&'static stm32f446re::chip::Stm32f4xx> = None;
+static mut CHIP: Option<&'static stm32f446re::chip::Stm32f4xx<Stm32f446reDefaultPeripherals>> =
+    None;
 
 // How should the kernel respond when a process faults.
 const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultResponse::Panic;
@@ -49,7 +52,10 @@ pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 struct NucleoF446RE {
     console: &'static capsules::console::Console<'static>,
     ipc: kernel::ipc::IPC,
-    led: &'static capsules::led::LED<'static, stm32f446re::gpio::Pin<'static>>,
+    led: &'static capsules::led::LedDriver<
+        'static,
+        LedHigh<'static, stm32f446re::gpio::Pin<'static>>,
+    >,
     button: &'static capsules::button::Button<'static, stm32f446re::gpio::Pin<'static>>,
     alarm: &'static capsules::alarm::AlarmDriver<
         'static,
@@ -75,23 +81,26 @@ impl Platform for NucleoF446RE {
 }
 
 /// Helper function called during bring-up that configures DMA.
-unsafe fn setup_dma() {
-    use stm32f446re::dma1::{Dma1Peripheral, DMA1};
+unsafe fn setup_dma(
+    dma: &stm32f446re::dma1::Dma1,
+    dma_streams: &'static [stm32f446re::dma1::Stream; 8],
+    usart2: &'static stm32f446re::usart::Usart,
+) {
+    use stm32f446re::dma1::Dma1Peripheral;
     use stm32f446re::usart;
-    use stm32f446re::usart::USART2;
 
-    DMA1.enable_clock();
+    dma.enable_clock();
 
-    let usart2_tx_stream = Dma1Peripheral::USART2_TX.get_stream();
-    let usart2_rx_stream = Dma1Peripheral::USART2_RX.get_stream();
+    let usart2_tx_stream = &dma_streams[Dma1Peripheral::USART2_TX.get_stream_idx()];
+    let usart2_rx_stream = &dma_streams[Dma1Peripheral::USART2_RX.get_stream_idx()];
 
-    USART2.set_dma(
+    usart2.set_dma(
         usart::TxDMA(usart2_tx_stream),
         usart::RxDMA(usart2_rx_stream),
     );
 
-    usart2_tx_stream.set_client(&USART2);
-    usart2_rx_stream.set_client(&USART2);
+    usart2_tx_stream.set_client(usart2);
+    usart2_rx_stream.set_client(usart2);
 
     usart2_tx_stream.setup(Dma1Peripheral::USART2_TX);
     usart2_rx_stream.setup(Dma1Peripheral::USART2_RX);
@@ -101,17 +110,20 @@ unsafe fn setup_dma() {
 }
 
 /// Helper function called during bring-up that configures multiplexed I/O.
-unsafe fn set_pin_primary_functions() {
-    use stm32f446re::exti::{LineId, EXTI};
-    use stm32f446re::gpio::{AlternateFunction, Mode, PinId, PortId, PORT};
-    use stm32f446re::syscfg::SYSCFG;
+unsafe fn set_pin_primary_functions(
+    syscfg: &stm32f446re::syscfg::Syscfg,
+    exti: &stm32f446re::exti::Exti,
+    gpio_ports: &'static stm32f446re::gpio::GpioPorts<'static>,
+) {
+    use stm32f446re::exti::LineId;
+    use stm32f446re::gpio::{AlternateFunction, Mode, PinId, PortId};
 
-    SYSCFG.enable_clock();
+    syscfg.enable_clock();
 
-    PORT[PortId::A as usize].enable_clock();
+    gpio_ports.get_port_from_port_id(PortId::A).enable_clock();
 
     // User LD2 is connected to PA05. Configure PA05 as `debug_gpio!(0, ...)`
-    PinId::PA05.get_pin().as_ref().map(|pin| {
+    gpio_ports.get_pin(PinId::PA05).map(|pin| {
         pin.make_output();
 
         // Configure kernel debug gpios as early as possible
@@ -119,42 +131,40 @@ unsafe fn set_pin_primary_functions() {
     });
 
     // pa2 and pa3 (USART2) is connected to ST-LINK virtual COM port
-    PinId::PA02.get_pin().as_ref().map(|pin| {
+    gpio_ports.get_pin(PinId::PA02).map(|pin| {
         pin.set_mode(Mode::AlternateFunctionMode);
         // AF7 is USART2_TX
         pin.set_alternate_function(AlternateFunction::AF7);
     });
-    PinId::PA03.get_pin().as_ref().map(|pin| {
+    gpio_ports.get_pin(PinId::PA03).map(|pin| {
         pin.set_mode(Mode::AlternateFunctionMode);
         // AF7 is USART2_RX
         pin.set_alternate_function(AlternateFunction::AF7);
     });
 
-    PORT[PortId::C as usize].enable_clock();
+    gpio_ports.get_port_from_port_id(PortId::C).enable_clock();
 
     // button is connected on pc13
-    PinId::PC13.get_pin().as_ref().map(|pin| {
+    gpio_ports.get_pin(PinId::PC13).map(|pin| {
         // By default, upon reset, the pin is in input mode, with no internal
         // pull-up, no internal pull-down (i.e., floating).
         //
         // Only set the mapping between EXTI line and the Pin and let capsule do
         // the rest.
-        EXTI.associate_line_gpiopin(LineId::Exti13, pin);
+        exti.associate_line_gpiopin(LineId::Exti13, pin);
     });
     // EXTI13 interrupts is delivered at IRQn 40 (EXTI15_10)
     cortexm4::nvic::Nvic::new(stm32f446re::nvic::EXTI15_10).enable();
 }
 
 /// Helper function for miscellaneous peripheral functions
-unsafe fn setup_peripherals() {
-    use stm32f446re::tim2::TIM2;
-
+unsafe fn setup_peripherals(tim2: &stm32f446re::tim2::Tim2) {
     // USART2 IRQn is 38
     cortexm4::nvic::Nvic::new(stm32f446re::nvic::USART2).enable();
 
     // TIM2 IRQn is 28
-    TIM2.enable_clock();
-    TIM2.start();
+    tim2.enable_clock();
+    tim2.start();
     cortexm4::nvic::Nvic::new(stm32f446re::nvic::TIM2).enable();
 }
 
@@ -169,12 +179,32 @@ pub unsafe fn reset_handler() {
     stm32f446re::init();
 
     // We use the default HSI 16Mhz clock
+    let rcc = static_init!(stm32f446re::rcc::Rcc, stm32f446re::rcc::Rcc::new());
+    let syscfg = static_init!(
+        stm32f446re::syscfg::Syscfg,
+        stm32f446re::syscfg::Syscfg::new(rcc)
+    );
+    let exti = static_init!(
+        stm32f446re::exti::Exti,
+        stm32f446re::exti::Exti::new(syscfg)
+    );
+    let dma1 = static_init!(stm32f446re::dma1::Dma1, stm32f446re::dma1::Dma1::new(rcc));
+    let peripherals = static_init!(
+        Stm32f446reDefaultPeripherals,
+        Stm32f446reDefaultPeripherals::new(rcc, exti, dma1)
+    );
+    peripherals.init();
+    let base_peripherals = &peripherals.stm32f4;
 
-    set_pin_primary_functions();
+    setup_peripherals(&base_peripherals.tim2);
 
-    setup_dma();
+    set_pin_primary_functions(syscfg, &base_peripherals.exti, &base_peripherals.gpio_ports);
 
-    setup_peripherals();
+    setup_dma(
+        dma1,
+        &base_peripherals.dma_streams,
+        &base_peripherals.usart2,
+    );
 
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
     let dynamic_deferred_call_clients =
@@ -186,17 +216,17 @@ pub unsafe fn reset_handler() {
     DynamicDeferredCall::set_global_instance(dynamic_deferred_caller);
 
     let chip = static_init!(
-        stm32f446re::chip::Stm32f4xx,
-        stm32f446re::chip::Stm32f4xx::new()
+        stm32f446re::chip::Stm32f4xx<Stm32f446reDefaultPeripherals>,
+        stm32f446re::chip::Stm32f4xx::new(peripherals)
     );
     CHIP = Some(chip);
 
     // UART
 
     // Create a shared UART channel for kernel debug.
-    stm32f446re::usart::USART2.enable_clock();
+    base_peripherals.usart2.enable_clock();
     let uart_mux = components::console::UartMuxComponent::new(
-        &stm32f446re::usart::USART2,
+        &base_peripherals.usart2,
         115200,
         dynamic_deferred_caller,
     )
@@ -239,16 +269,16 @@ pub unsafe fn reset_handler() {
     // process_console.start();
 
     // LEDs
+    let gpio_ports = &base_peripherals.gpio_ports;
 
     // Clock to Port A is enabled in `set_pin_primary_functions()`
     let led = components::led::LedsComponent::new(components::led_component_helper!(
-        stm32f446re::gpio::Pin,
-        (
-            stm32f446re::gpio::PinId::PA05.get_pin().as_ref().unwrap(),
-            kernel::hil::gpio::ActivationMode::ActiveHigh
-        )
+        LedHigh<'static, stm32f446re::gpio::Pin>,
+        LedHigh::new(gpio_ports.get_pin(stm32f446re::gpio::PinId::PA05).unwrap()),
     ))
-    .finalize(components::led_component_buf!(stm32f446re::gpio::Pin));
+    .finalize(components::led_component_buf!(
+        LedHigh<'static, stm32f446re::gpio::Pin>
+    ));
 
     // BUTTONs
     let button = components::button::ButtonComponent::new(
@@ -256,7 +286,7 @@ pub unsafe fn reset_handler() {
         components::button_component_helper!(
             stm32f446re::gpio::Pin,
             (
-                stm32f446re::gpio::PinId::PC13.get_pin().as_ref().unwrap(),
+                gpio_ports.get_pin(stm32f446re::gpio::PinId::PC13).unwrap(),
                 kernel::hil::gpio::ActivationMode::ActiveLow,
                 kernel::hil::gpio::FloatingState::PullNone
             )
@@ -265,7 +295,7 @@ pub unsafe fn reset_handler() {
     .finalize(components::button_component_buf!(stm32f446re::gpio::Pin));
 
     // ALARM
-    let tim2 = &stm32f446re::tim2::TIM2;
+    let tim2 = &base_peripherals.tim2;
     let mux_alarm = components::alarm::AlarmMuxComponent::new(tim2).finalize(
         components::alarm_mux_component_helper!(stm32f446re::tim2::Tim2),
     );

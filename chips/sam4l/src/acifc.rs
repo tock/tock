@@ -40,7 +40,7 @@ pub struct AcChannel {
 
 #[derive(Copy, Clone, Debug)]
 #[repr(u8)]
-enum Channel {
+pub enum Channel {
     AC0 = 0x00,
     AC1 = 0x01,
     AC2 = 0x02,
@@ -52,18 +52,12 @@ impl AcChannel {
     /// Create a new AC channel.
     ///
     /// - `channel`: Channel enum representing the channel number
-    const fn new(channel: Channel) -> AcChannel {
+    pub const fn new(channel: Channel) -> AcChannel {
         AcChannel {
             chan_num: ((channel as u8) & 0x0F) as u32,
         }
     }
 }
-
-// SAM4L has 2 or 4 possible channels. Hail has 2, Imix has 4.
-pub static mut CHANNEL_AC0: AcChannel = AcChannel::new(Channel::AC0);
-pub static mut CHANNEL_AC1: AcChannel = AcChannel::new(Channel::AC1);
-pub static mut CHANNEL_AC2: AcChannel = AcChannel::new(Channel::AC2);
-pub static mut CHANNEL_AC3: AcChannel = AcChannel::new(Channel::AC3);
 
 #[repr(C)]
 struct AcifcRegisters {
@@ -279,7 +273,7 @@ pub struct Acifc<'a> {
 
 /// Implement constructor for struct Acifc
 impl<'a> Acifc<'a> {
-    const fn new() -> Acifc<'a> {
+    pub const fn new() -> Acifc<'a> {
         Acifc {
             client: Cell::new(None),
         }
@@ -336,7 +330,7 @@ impl<'a> Acifc<'a> {
     /// doesn't fire anymore until the condition is false (e.g. Vinp < Vinn).
     /// This way we won't get a barrage of interrupts as soon as Vinp > Vinn:
     /// we'll get just one.
-    pub fn handle_interrupt(&mut self) {
+    pub fn handle_interrupt(&self) {
         let regs = ACIFC_BASE;
 
         // We check which AC generated the interrupt, and callback to the client accordingly
@@ -537,6 +531,3 @@ impl<'a> analog_comparator::AnalogComparator<'a> for Acifc<'a> {
         self.client.set(Some(client));
     }
 }
-
-/// Static state to manage the ACIFC
-pub static mut ACIFC: Acifc = Acifc::new();

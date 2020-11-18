@@ -26,9 +26,11 @@ use kernel::hil::radio;
 #[allow(unused_imports)]
 use kernel::hil::radio::{RadioConfig, RadioData};
 //use kernel::hil::time::Alarm;
+use kernel::hil::led::LedHigh;
 use kernel::hil::Controller;
 #[allow(unused_imports)]
 use kernel::{create_capability, debug, debug_gpio, static_init};
+use sam4l::chip::Sam4lDefaultPeripherals;
 
 use components;
 use components::alarm::{AlarmDriverComponent, AlarmMuxComponent};
@@ -46,8 +48,6 @@ use components::spi::{SpiComponent, SpiSyscallComponent};
 use imix_components::adc::AdcComponent;
 use imix_components::fxos8700::NineDofComponent;
 use imix_components::rf233::RF233Component;
-use imix_components::udp_driver::UDPDriverComponent;
-use imix_components::udp_mux::UDPMuxComponent;
 use imix_components::usb::UsbComponent;
 
 /// Support routines for debugging I/O.
@@ -94,7 +94,8 @@ const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultRespons
 
 static mut PROCESSES: [Option<&'static dyn kernel::procs::ProcessType>; NUM_PROCS] =
     [None; NUM_PROCS];
-static mut CHIP: Option<&'static sam4l::chip::Sam4l> = None;
+
+static mut CHIP: Option<&'static sam4l::chip::Sam4l<Sam4lDefaultPeripherals>> = None;
 
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
@@ -113,7 +114,8 @@ struct Imix {
     humidity: &'static capsules::humidity::HumiditySensor<'static>,
     ambient_light: &'static capsules::ambient_light::AmbientLight<'static>,
     adc: &'static capsules::adc::AdcDedicated<'static, sam4l::adc::Adc>,
-    led: &'static capsules::led::LED<'static, sam4l::gpio::GPIOPin<'static>>,
+    led:
+        &'static capsules::led::LedDriver<'static, LedHigh<'static, sam4l::gpio::GPIOPin<'static>>>,
     button: &'static capsules::button::Button<'static, sam4l::gpio::GPIOPin<'static>>,
     rng: &'static capsules::rng::RngDriver<'static>,
     analog_comparator: &'static capsules::analog_comparator::AnalogComparator<
@@ -181,75 +183,74 @@ impl kernel::Platform for Imix {
     }
 }
 
-unsafe fn set_pin_primary_functions() {
+unsafe fn set_pin_primary_functions(peripherals: &Sam4lDefaultPeripherals) {
     use sam4l::gpio::PeripheralFunction::{A, B, C, E};
-    use sam4l::gpio::{PA, PB, PC};
 
     // Right column: Imix pin name
     // Left  column: SAM4L peripheral function
-    PA[04].configure(Some(A)); // AD0         --  ADCIFE AD0
-    PA[05].configure(Some(A)); // AD1         --  ADCIFE AD1
-    PA[06].configure(Some(C)); // EXTINT1     --  EIC EXTINT1
-    PA[07].configure(Some(A)); // AD1         --  ADCIFE AD2
-    PA[08].configure(None); //... RF233 IRQ   --  GPIO pin
-    PA[09].configure(None); //... RF233 RST   --  GPIO pin
-    PA[10].configure(None); //... RF233 SLP   --  GPIO pin
-    PA[13].configure(None); //... TRNG EN     --  GPIO pin
-    PA[14].configure(None); //... TRNG_OUT    --  GPIO pin
-    PA[17].configure(None); //... NRF INT     -- GPIO pin
-    PA[18].configure(Some(A)); // NRF CLK     -- USART2_CLK
-    PA[20].configure(None); //... D8          -- GPIO pin
-    PA[21].configure(Some(E)); // TWI2 SDA    -- TWIM2_SDA
-    PA[22].configure(Some(E)); // TWI2 SCL    --  TWIM2 TWCK
-    PA[25].configure(Some(A)); // USB_N       --  USB DM
-    PA[26].configure(Some(A)); // USB_P       --  USB DP
-    PB[00].configure(Some(A)); // TWI1_SDA    --  TWIMS1 TWD
-    PB[01].configure(Some(A)); // TWI1_SCL    --  TWIMS1 TWCK
-    PB[02].configure(Some(A)); // AD3         --  ADCIFE AD3
-    PB[03].configure(Some(A)); // AD4         --  ADCIFE AD4
-    PB[04].configure(Some(A)); // AD5         --  ADCIFE AD5
-    PB[05].configure(Some(A)); // VHIGHSAMPLE --  ADCIFE AD6
-    PB[06].configure(Some(A)); // RTS3        --  USART3 RTS
-    PB[07].configure(None); //... NRF RESET   --  GPIO
-    PB[09].configure(Some(A)); // RX3         --  USART3 RX
-    PB[10].configure(Some(A)); // TX3         --  USART3 TX
-    PB[11].configure(Some(A)); // CTS0        --  USART0 CTS
-    PB[12].configure(Some(A)); // RTS0        --  USART0 RTS
-    PB[13].configure(Some(A)); // CLK0        --  USART0 CLK
-    PB[14].configure(Some(A)); // RX0         --  USART0 RX
-    PB[15].configure(Some(A)); // TX0         --  USART0 TX
-    PC[00].configure(Some(A)); // CS2         --  SPI NPCS2
-    PC[01].configure(Some(A)); // CS3 (RF233) --  SPI NPCS3
-    PC[02].configure(Some(A)); // CS1         --  SPI NPCS1
-    PC[03].configure(Some(A)); // CS0         --  SPI NPCS0
-    PC[04].configure(Some(A)); // MISO        --  SPI MISO
-    PC[05].configure(Some(A)); // MOSI        --  SPI MOSI
-    PC[06].configure(Some(A)); // SCK         --  SPI CLK
-    PC[07].configure(Some(B)); // RTS2 (BLE)  -- USART2_RTS
-    PC[08].configure(Some(E)); // CTS2 (BLE)  -- USART2_CTS
-                               //PC[09].configure(None); //... NRF GPIO    -- GPIO
-                               //PC[10].configure(None); //... USER LED    -- GPIO
-    PC[09].configure(Some(E)); // ACAN1       -- ACIFC comparator
-    PC[10].configure(Some(E)); // ACAP1       -- ACIFC comparator
-    PC[11].configure(Some(B)); // RX2 (BLE)   -- USART2_RX
-    PC[12].configure(Some(B)); // TX2 (BLE)   -- USART2_TX
-                               //PC[13].configure(None); //... ACC_INT1    -- GPIO
-                               //PC[14].configure(None); //... ACC_INT2    -- GPIO
-    PC[13].configure(Some(E)); //... ACBN1    -- ACIFC comparator
-    PC[14].configure(Some(E)); //... ACBP1    -- ACIFC comparator
-    PC[16].configure(None); //... SENSE_PWR   --  GPIO pin
-    PC[17].configure(None); //... NRF_PWR     --  GPIO pin
-    PC[18].configure(None); //... RF233_PWR   --  GPIO pin
-    PC[19].configure(None); //... TRNG_PWR    -- GPIO Pin
-    PC[22].configure(None); //... KERNEL LED  -- GPIO Pin
-    PC[24].configure(None); //... USER_BTN    -- GPIO Pin
-    PC[25].configure(Some(B)); // LI_INT      --  EIC EXTINT2
-    PC[26].configure(None); //... D7          -- GPIO Pin
-    PC[27].configure(None); //... D6          -- GPIO Pin
-    PC[28].configure(None); //... D5          -- GPIO Pin
-    PC[29].configure(None); //... D4          -- GPIO Pin
-    PC[30].configure(None); //... D3          -- GPIO Pin
-    PC[31].configure(None); //... D2          -- GPIO Pin
+    peripherals.pa[04].configure(Some(A)); // AD0         --  ADCIFE AD0
+    peripherals.pa[05].configure(Some(A)); // AD1         --  ADCIFE AD1
+    peripherals.pa[06].configure(Some(C)); // EXTINT1     --  EIC EXTINT1
+    peripherals.pa[07].configure(Some(A)); // AD1         --  ADCIFE AD2
+    peripherals.pa[08].configure(None); //... RF233 IRQ   --  GPIO pin
+    peripherals.pa[09].configure(None); //... RF233 RST   --  GPIO pin
+    peripherals.pa[10].configure(None); //... RF233 SLP   --  GPIO pin
+    peripherals.pa[13].configure(None); //... TRNG EN     --  GPIO pin
+    peripherals.pa[14].configure(None); //... TRNG_OUT    --  GPIO pin
+    peripherals.pa[17].configure(None); //... NRF INT     -- GPIO pin
+    peripherals.pa[18].configure(Some(A)); // NRF CLK     -- USART2_CLK
+    peripherals.pa[20].configure(None); //... D8          -- GPIO pin
+    peripherals.pa[21].configure(Some(E)); // TWI2 SDA    -- TWIM2_SDA
+    peripherals.pa[22].configure(Some(E)); // TWI2 SCL    --  TWIM2 TWCK
+    peripherals.pa[25].configure(Some(A)); // USB_N       --  USB DM
+    peripherals.pa[26].configure(Some(A)); // USB_P       --  USB DP
+    peripherals.pb[00].configure(Some(A)); // TWI1_SDA    --  TWIMS1 TWD
+    peripherals.pb[01].configure(Some(A)); // TWI1_SCL    --  TWIMS1 TWCK
+    peripherals.pb[02].configure(Some(A)); // AD3         --  ADCIFE AD3
+    peripherals.pb[03].configure(Some(A)); // AD4         --  ADCIFE AD4
+    peripherals.pb[04].configure(Some(A)); // AD5         --  ADCIFE AD5
+    peripherals.pb[05].configure(Some(A)); // VHIGHSAMPLE --  ADCIFE AD6
+    peripherals.pb[06].configure(Some(A)); // RTS3        --  USART3 RTS
+    peripherals.pb[07].configure(None); //... NRF RESET   --  GPIO
+    peripherals.pb[09].configure(Some(A)); // RX3         --  USART3 RX
+    peripherals.pb[10].configure(Some(A)); // TX3         --  USART3 TX
+    peripherals.pb[11].configure(Some(A)); // CTS0        --  USART0 CTS
+    peripherals.pb[12].configure(Some(A)); // RTS0        --  USART0 RTS
+    peripherals.pb[13].configure(Some(A)); // CLK0        --  USART0 CLK
+    peripherals.pb[14].configure(Some(A)); // RX0         --  USART0 RX
+    peripherals.pb[15].configure(Some(A)); // TX0         --  USART0 TX
+    peripherals.pc[00].configure(Some(A)); // CS2         --  SPI Nperipherals.pcS2
+    peripherals.pc[01].configure(Some(A)); // CS3 (RF233) --  SPI Nperipherals.pcS3
+    peripherals.pc[02].configure(Some(A)); // CS1         --  SPI Nperipherals.pcS1
+    peripherals.pc[03].configure(Some(A)); // CS0         --  SPI Nperipherals.pcS0
+    peripherals.pc[04].configure(Some(A)); // MISO        --  SPI MISO
+    peripherals.pc[05].configure(Some(A)); // MOSI        --  SPI MOSI
+    peripherals.pc[06].configure(Some(A)); // SCK         --  SPI CLK
+    peripherals.pc[07].configure(Some(B)); // RTS2 (BLE)  -- USART2_RTS
+    peripherals.pc[08].configure(Some(E)); // CTS2 (BLE)  -- USART2_CTS
+                                           //peripherals.pc[09].configure(None); //... NRF GPIO    -- GPIO
+                                           //peripherals.pc[10].configure(None); //... USER LED    -- GPIO
+    peripherals.pc[09].configure(Some(E)); // ACAN1       -- ACIFC comparator
+    peripherals.pc[10].configure(Some(E)); // ACAP1       -- ACIFC comparator
+    peripherals.pc[11].configure(Some(B)); // RX2 (BLE)   -- USART2_RX
+    peripherals.pc[12].configure(Some(B)); // TX2 (BLE)   -- USART2_TX
+                                           //peripherals.pc[13].configure(None); //... ACC_INT1    -- GPIO
+                                           //peripherals.pc[14].configure(None); //... ACC_INT2    -- GPIO
+    peripherals.pc[13].configure(Some(E)); //... ACBN1    -- ACIFC comparator
+    peripherals.pc[14].configure(Some(E)); //... ACBP1    -- ACIFC comparator
+    peripherals.pc[16].configure(None); //... SENSE_PWR   --  GPIO pin
+    peripherals.pc[17].configure(None); //... NRF_PWR     --  GPIO pin
+    peripherals.pc[18].configure(None); //... RF233_PWR   --  GPIO pin
+    peripherals.pc[19].configure(None); //... TRNG_PWR    -- GPIO Pin
+    peripherals.pc[22].configure(None); //... KERNEL LED  -- GPIO Pin
+    peripherals.pc[24].configure(None); //... USER_BTN    -- GPIO Pin
+    peripherals.pc[25].configure(Some(B)); // LI_INT      --  EIC EXTINT2
+    peripherals.pc[26].configure(None); //... D7          -- GPIO Pin
+    peripherals.pc[27].configure(None); //... D6          -- GPIO Pin
+    peripherals.pc[28].configure(None); //... D5          -- GPIO Pin
+    peripherals.pc[29].configure(None); //... D4          -- GPIO Pin
+    peripherals.pc[30].configure(None); //... D3          -- GPIO Pin
+    peripherals.pc[31].configure(None); //... D2          -- GPIO Pin
 }
 
 /// Reset Handler.
@@ -261,16 +262,28 @@ unsafe fn set_pin_primary_functions() {
 #[no_mangle]
 pub unsafe fn reset_handler() {
     sam4l::init();
+    let pm = static_init!(sam4l::pm::PowerManager, sam4l::pm::PowerManager::new());
+    let peripherals = static_init!(Sam4lDefaultPeripherals, Sam4lDefaultPeripherals::new(pm));
 
-    sam4l::pm::PM.setup_system_clock(sam4l::pm::SystemClockSource::PllExternalOscillatorAt48MHz {
-        frequency: sam4l::pm::OscillatorFrequency::Frequency16MHz,
-        startup_mode: sam4l::pm::OscillatorStartup::FastStart,
-    });
+    pm.setup_system_clock(
+        sam4l::pm::SystemClockSource::PllExternalOscillatorAt48MHz {
+            frequency: sam4l::pm::OscillatorFrequency::Frequency16MHz,
+            startup_mode: sam4l::pm::OscillatorStartup::FastStart,
+        },
+        &peripherals.flash_controller,
+    );
 
     // Source 32Khz and 1Khz clocks from RC23K (SAM4L Datasheet 11.6.8)
     sam4l::bpm::set_ck32source(sam4l::bpm::CK32Source::RC32K);
 
-    set_pin_primary_functions();
+    set_pin_primary_functions(peripherals);
+
+    peripherals.setup_dma();
+    let chip = static_init!(
+        sam4l::chip::Sam4l<Sam4lDefaultPeripherals>,
+        sam4l::chip::Sam4l::new(pm, peripherals)
+    );
+    CHIP = Some(chip);
 
     // Create capabilities that the board needs to call certain protected kernel
     // functions.
@@ -278,12 +291,17 @@ pub unsafe fn reset_handler() {
     let main_cap = create_capability!(capabilities::MainLoopCapability);
     let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
-    power::configure_submodules(power::SubmoduleConfig {
-        rf233: true,
-        nrf51422: true,
-        sensors: true,
-        trng: true,
-    });
+    power::configure_submodules(
+        &peripherals.pa,
+        &peripherals.pb,
+        &peripherals.pc,
+        power::SubmoduleConfig {
+            rf233: true,
+            nrf51422: true,
+            sensors: true,
+            trng: true,
+        },
+    );
 
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
 
@@ -297,34 +315,32 @@ pub unsafe fn reset_handler() {
 
     // # CONSOLE
     // Create a shared UART channel for the consoles and for kernel debug.
-    sam4l::usart::USART3.set_mode(sam4l::usart::UsartMode::Uart);
+    peripherals.usart3.set_mode(sam4l::usart::UsartMode::Uart);
     let uart_mux =
-        UartMuxComponent::new(&sam4l::usart::USART3, 115200, dynamic_deferred_caller).finalize(());
+        UartMuxComponent::new(&peripherals.usart3, 115200, dynamic_deferred_caller).finalize(());
 
     let pconsole = ProcessConsoleComponent::new(board_kernel, uart_mux).finalize(());
     let console = ConsoleComponent::new(board_kernel, uart_mux).finalize(());
     DebugWriterComponent::new(uart_mux).finalize(());
 
     // Allow processes to communicate over BLE through the nRF51822
-    sam4l::usart::USART2.set_mode(sam4l::usart::UsartMode::Uart);
+    peripherals.usart2.set_mode(sam4l::usart::UsartMode::Uart);
     let nrf_serialization =
-        Nrf51822Component::new(&sam4l::usart::USART2, &sam4l::gpio::PB[07], board_kernel)
-            .finalize(());
+        Nrf51822Component::new(&peripherals.usart2, &peripherals.pb[07], board_kernel).finalize(());
 
     // # TIMER
-    let ast = &sam4l::ast::AST;
-    let mux_alarm = AlarmMuxComponent::new(ast)
+    let mux_alarm = AlarmMuxComponent::new(&peripherals.ast)
         .finalize(components::alarm_mux_component_helper!(sam4l::ast::Ast));
-    ast.configure(mux_alarm);
+    peripherals.ast.configure(mux_alarm);
     let alarm = AlarmDriverComponent::new(board_kernel, mux_alarm)
         .finalize(components::alarm_component_helper!(sam4l::ast::Ast));
 
     // # I2C and I2C Sensors
     let mux_i2c = static_init!(
         MuxI2C<'static>,
-        MuxI2C::new(&sam4l::i2c::I2C2, None, dynamic_deferred_caller)
+        MuxI2C::new(&peripherals.i2c2, None, dynamic_deferred_caller)
     );
-    sam4l::i2c::I2C2.set_master_client(mux_i2c);
+    peripherals.i2c2.set_master_client(mux_i2c);
 
     let ambient_light = AmbientLightComponent::new(board_kernel, mux_i2c, mux_alarm)
         .finalize(components::isl29035_component_helper!(sam4l::ast::Ast));
@@ -333,10 +349,10 @@ pub unsafe fn reset_handler() {
     let temp =
         components::temperature::TemperatureComponent::new(board_kernel, si7021).finalize(());
     let humidity = HumidityComponent::new(board_kernel, si7021).finalize(());
-    let ninedof = NineDofComponent::new(board_kernel, mux_i2c, &sam4l::gpio::PC[13]).finalize(());
+    let ninedof = NineDofComponent::new(board_kernel, mux_i2c, &peripherals.pc[13]).finalize(());
 
     // SPI MUX, SPI syscall driver and RF233 radio
-    let mux_spi = components::spi::SpiMuxComponent::new(&sam4l::spi::SPI)
+    let mux_spi = components::spi::SpiMuxComponent::new(&peripherals.spi)
         .finalize(components::spi_mux_component_helper!(sam4l::spi::SpiHw));
 
     let spi_syscalls = SpiSyscallComponent::new(mux_spi, 3)
@@ -345,64 +361,82 @@ pub unsafe fn reset_handler() {
         .finalize(components::spi_component_helper!(sam4l::spi::SpiHw));
     let rf233 = RF233Component::new(
         rf233_spi,
-        &sam4l::gpio::PA[09], // reset
-        &sam4l::gpio::PA[10], // sleep
-        &sam4l::gpio::PA[08], // irq
-        &sam4l::gpio::PA[08],
+        &peripherals.pa[09], // reset
+        &peripherals.pa[10], // sleep
+        &peripherals.pa[08], // irq
+        &peripherals.pa[08],
         RADIO_CHANNEL,
     )
     .finalize(());
 
-    let adc = AdcComponent::new(board_kernel).finalize(());
+    let adc = AdcComponent::new(board_kernel, &peripherals.adc).finalize(());
     let gpio = GpioComponent::new(
         board_kernel,
         components::gpio_component_helper!(
             sam4l::gpio::GPIOPin,
-            0 => &sam4l::gpio::PC[31],
-            1 => &sam4l::gpio::PC[30],
-            2 => &sam4l::gpio::PC[29],
-            3 => &sam4l::gpio::PC[28],
-            4 => &sam4l::gpio::PC[27],
-            5 => &sam4l::gpio::PC[26],
-            6 => &sam4l::gpio::PA[20]
+            0 => &peripherals.pc[31],
+            1 => &peripherals.pc[30],
+            2 => &peripherals.pc[29],
+            3 => &peripherals.pc[28],
+            4 => &peripherals.pc[27],
+            5 => &peripherals.pc[26],
+            6 => &peripherals.pa[20]
         ),
     )
     .finalize(components::gpio_component_buf!(sam4l::gpio::GPIOPin));
 
     let led = LedsComponent::new(components::led_component_helper!(
-        sam4l::gpio::GPIOPin,
-        (
-            &sam4l::gpio::PC[10],
-            kernel::hil::gpio::ActivationMode::ActiveHigh
-        )
+        LedHigh<'static, sam4l::gpio::GPIOPin>,
+        LedHigh::new(&peripherals.pc[10]),
     ))
-    .finalize(components::led_component_buf!(sam4l::gpio::GPIOPin));
+    .finalize(components::led_component_buf!(
+        LedHigh<'static, sam4l::gpio::GPIOPin>
+    ));
+
     let button = components::button::ButtonComponent::new(
         board_kernel,
         components::button_component_helper!(
             sam4l::gpio::GPIOPin,
             (
-                &sam4l::gpio::PC[24],
+                &peripherals.pc[24],
                 kernel::hil::gpio::ActivationMode::ActiveLow,
                 kernel::hil::gpio::FloatingState::PullNone
             )
         ),
     )
     .finalize(components::button_component_buf!(sam4l::gpio::GPIOPin));
-    let crc = CrcComponent::new(board_kernel, &sam4l::crccu::CRCCU)
+
+    let crc = CrcComponent::new(board_kernel, &peripherals.crccu)
         .finalize(components::crc_component_helper!(sam4l::crccu::Crccu));
+
+    let ac_0 = static_init!(
+        sam4l::acifc::AcChannel,
+        sam4l::acifc::AcChannel::new(sam4l::acifc::Channel::AC0)
+    );
+    let ac_1 = static_init!(
+        sam4l::acifc::AcChannel,
+        sam4l::acifc::AcChannel::new(sam4l::acifc::Channel::AC0)
+    );
+    let ac_2 = static_init!(
+        sam4l::acifc::AcChannel,
+        sam4l::acifc::AcChannel::new(sam4l::acifc::Channel::AC0)
+    );
+    let ac_3 = static_init!(
+        sam4l::acifc::AcChannel,
+        sam4l::acifc::AcChannel::new(sam4l::acifc::Channel::AC0)
+    );
     let analog_comparator = components::analog_comparator::AcComponent::new(
-        &sam4l::acifc::ACIFC,
+        &peripherals.acifc,
         components::acomp_component_helper!(
             <sam4l::acifc::Acifc as kernel::hil::analog_comparator::AnalogComparator>::Channel,
-            &sam4l::acifc::CHANNEL_AC0,
-            &sam4l::acifc::CHANNEL_AC1,
-            &sam4l::acifc::CHANNEL_AC2,
-            &sam4l::acifc::CHANNEL_AC3
+            ac_0,
+            ac_1,
+            ac_2,
+            ac_3
         ),
     )
     .finalize(components::acomp_component_buf!(sam4l::acifc::Acifc));
-    let rng = RngComponent::new(board_kernel, &sam4l::trng::TRNG).finalize(());
+    let rng = RngComponent::new(board_kernel, &peripherals.trng).finalize(());
 
     // For now, assign the 802.15.4 MAC address on the device as
     // simply a 16-bit short address which represents the last 16 bits
@@ -418,7 +452,7 @@ pub unsafe fn reset_handler() {
     let (radio_driver, mux_mac) = components::ieee802154::Ieee802154Component::new(
         board_kernel,
         rf233,
-        &sam4l::aes::AES,
+        &peripherals.aes,
         PAN_ID,
         serial_num_bottom_16,
     )
@@ -427,7 +461,7 @@ pub unsafe fn reset_handler() {
         sam4l::aes::Aes<'static>
     ));
 
-    let usb_driver = UsbComponent::new(board_kernel).finalize(());
+    let usb_driver = UsbComponent::new(board_kernel, &peripherals.usbc).finalize(());
 
     // Kernel storage region, allocated with the storage_volume!
     // macro in common/utils.rs
@@ -439,7 +473,7 @@ pub unsafe fn reset_handler() {
 
     let nonvolatile_storage = components::nonvolatile_storage::NonvolatileStorageComponent::new(
         board_kernel,
-        &sam4l::flashcalw::FLASH_CONTROLLER,
+        &peripherals.flash_controller,
         0x60000,                          // Start address for userspace accessible region
         0x20000,                          // Length of userspace accessible region
         &_sstorage as *const u8 as usize, //start address of kernel region
@@ -464,7 +498,7 @@ pub unsafe fn reset_handler() {
         ]
     );
 
-    let (udp_send_mux, udp_recv_mux, udp_port_table) = UDPMuxComponent::new(
+    let (udp_send_mux, udp_recv_mux, udp_port_table) = components::udp_mux::UDPMuxComponent::new(
         mux_mac,
         DEFAULT_CTX_PREFIX_LEN,
         DEFAULT_CTX_PREFIX,
@@ -474,17 +508,17 @@ pub unsafe fn reset_handler() {
         local_ip_ifaces,
         mux_alarm,
     )
-    .finalize(());
+    .finalize(components::udp_mux_component_helper!(sam4l::ast::Ast));
 
     // UDP driver initialization happens here
-    let udp_driver = UDPDriverComponent::new(
+    let udp_driver = components::udp_driver::UDPDriverComponent::new(
         board_kernel,
         udp_send_mux,
         udp_recv_mux,
         udp_port_table,
         local_ip_ifaces,
     )
-    .finalize(());
+    .finalize(components::udp_driver_component_helper!(sam4l::ast::Ast));
 
     let imix = Imix {
         pconsole,
@@ -507,11 +541,8 @@ pub unsafe fn reset_handler() {
         udp_driver,
         usb_driver,
         nrf51822: nrf_serialization,
-        nonvolatile_storage: nonvolatile_storage,
+        nonvolatile_storage,
     };
-
-    let chip = static_init!(sam4l::chip::Sam4l, sam4l::chip::Sam4l::new());
-    CHIP = Some(chip);
 
     // Need to initialize the UART for the nRF51 serialization.
     imix.nrf51822.initialize();
@@ -530,12 +561,20 @@ pub unsafe fn reset_handler() {
     // -pal, 11/20/18
     //
     //test::virtual_uart_rx_test::run_virtual_uart_receive(uart_mux);
-    //test::rng_test::run_entropy32();
-    //test::aes_ccm_test::run();
-    //test::aes_test::run_aes128_ctr();
-    //test::aes_test::run_aes128_cbc();
-    //test::log_test::run(mux_alarm, dynamic_deferred_caller);
-    //test::linear_log_test::run(mux_alarm, dynamic_deferred_caller);
+    //test::rng_test::run_entropy32(&peripherals.trng);
+    //test::aes_ccm_test::run(&peripherals.aes);
+    //test::aes_test::run_aes128_ctr(&peripherals.aes);
+    //test::aes_test::run_aes128_cbc(&peripherals.aes);
+    //test::log_test::run(
+    //    mux_alarm,
+    //    dynamic_deferred_caller,
+    //    &peripherals.flash_controller,
+    //);
+    //test::linear_log_test::run(
+    //    mux_alarm,
+    //    dynamic_deferred_caller,
+    //    &peripherals.flash_controller,
+    //);
     //test::icmp_lowpan_test::run(mux_mac, mux_alarm);
     //let lowpan_frag_test = test::ipv6_lowpan_test::initialize_all(mux_mac, mux_alarm);
     //lowpan_frag_test.start(); // If flashing the transmitting Imix
@@ -547,7 +586,7 @@ pub unsafe fn reset_handler() {
     );*/
     //udp_lowpan_test.start();
 
-    // alarm_test::run_alarm();
+    // alarm_test::run_alarm(&peripherals.ast);
     /*let virtual_alarm_timer = static_init!(
         VirtualMuxAlarm<'static, sam4l::ast::Ast>,
         VirtualMuxAlarm::new(mux_alarm)

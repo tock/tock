@@ -141,7 +141,7 @@ pub const TEST_LOOP: bool = false;
 static mut UDP_PAYLOAD: [u8; PAYLOAD_LEN] = [0; PAYLOAD_LEN]; //Becomes payload of UDP packet
 
 const UDP_HDR_SIZE: usize = 8;
-const PAYLOAD_LEN: usize = super::super::imix_components::udp_mux::PAYLOAD_LEN;
+const PAYLOAD_LEN: usize = components::udp_mux::MAX_PAYLOAD_LEN;
 static mut UDP_PAYLOAD1: [u8; PAYLOAD_LEN - UDP_HDR_SIZE] = [0; PAYLOAD_LEN - UDP_HDR_SIZE];
 static mut UDP_PAYLOAD2: [u8; PAYLOAD_LEN - UDP_HDR_SIZE] = [0; PAYLOAD_LEN - UDP_HDR_SIZE];
 

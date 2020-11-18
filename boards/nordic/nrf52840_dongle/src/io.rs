@@ -25,7 +25,10 @@ impl Write for Writer {
 
 impl IoWrite for Writer {
     fn write(&mut self, buf: &[u8]) {
-        let uart = unsafe { &mut nrf52840::uart::UARTE0 };
+        // Here, we create a second instance of the Uarte struct.
+        // This is okay because we only call this during a panic, and
+        // we will never actually process the interrupts
+        let uart = nrf52840::uart::Uarte::new();
         if !self.initialized {
             self.initialized = true;
             uart.configure(uart::Parameters {
@@ -52,7 +55,7 @@ impl IoWrite for Writer {
 pub unsafe extern "C" fn panic_fmt(pi: &PanicInfo) -> ! {
     // The nRF52840 Dongle LEDs (see back of board)
     const LED1_PIN: Pin = Pin::P0_06;
-    let led = &mut led::LedLow::new(&mut nrf52840::gpio::PORT[LED1_PIN]);
+    let led = &mut led::LedLow::new(&nrf52840::gpio::PORT[LED1_PIN]);
     let writer = &mut WRITER;
     debug::panic(
         &mut [led],

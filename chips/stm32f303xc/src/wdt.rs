@@ -59,17 +59,20 @@ register_bitfields![u32,
     ]
 ];
 
-pub struct WindoWdg {
+pub struct WindoWdg<'a> {
     registers: StaticRef<WwdgRegisters>,
-    clock: WdgClock,
+    clock: WdgClock<'a>,
     enabled: Cell<bool>,
 }
 
-impl WindoWdg {
-    pub const fn new() -> WindoWdg {
-        WindoWdg {
+impl<'a> WindoWdg<'a> {
+    pub const fn new(rcc: &'a rcc::Rcc) -> Self {
+        Self {
             registers: WINDOW_WATCHDOG_BASE,
-            clock: WdgClock(rcc::PeripheralClock::APB1(rcc::PCLK1::WWDG)),
+            clock: WdgClock(rcc::PeripheralClock::new(
+                rcc::PeripheralClockType::APB1(rcc::PCLK1::WWDG),
+                rcc,
+            )),
             enabled: Cell::new(false),
         }
     }
@@ -121,9 +124,9 @@ impl WindoWdg {
     }
 }
 
-struct WdgClock(rcc::PeripheralClock);
+struct WdgClock<'a>(rcc::PeripheralClock<'a>);
 
-impl ClockInterface for WdgClock {
+impl ClockInterface for WdgClock<'_> {
     fn is_enabled(&self) -> bool {
         self.0.is_enabled()
     }
@@ -137,7 +140,7 @@ impl ClockInterface for WdgClock {
     }
 }
 
-impl kernel::watchdog::WatchDog for WindoWdg {
+impl<'a> kernel::watchdog::WatchDog for WindoWdg<'a> {
     fn setup(&self) {
         if self.enabled.get() {
             self.start();

@@ -32,9 +32,8 @@ impl Write for Writer {
 
 impl IoWrite for Writer {
     fn write(&mut self, buf: &[u8]) {
-        unsafe {
-            apollo3::uart::UART0.transmit_sync(buf);
-        }
+        let uart = apollo3::uart::Uart::new_uart_0(); // Aliases memory for uart0. Okay bc we are panicking.
+        uart.transmit_sync(buf);
     }
 }
 
@@ -42,7 +41,14 @@ impl IoWrite for Writer {
 #[no_mangle]
 #[panic_handler]
 pub unsafe extern "C" fn panic_fmt(info: &PanicInfo) -> ! {
-    let led = &mut led::LedLow::new(&mut apollo3::gpio::PORT[19]);
+    // just create a new pin reference here instead of using global
+    let led_pin = &mut apollo3::gpio::GpioPin::new(
+        kernel::common::StaticRef::new(
+            apollo3::gpio::GPIO_BASE_RAW as *const apollo3::gpio::GpioRegisters,
+        ),
+        apollo3::gpio::Pin::Pin19,
+    );
+    let led = &mut led::LedLow::new(led_pin);
     let writer = &mut WRITER;
 
     debug::panic(

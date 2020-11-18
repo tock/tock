@@ -227,7 +227,7 @@ pub extern "C" fn _start_trap() {
             // Jump to board-specific trap handler code. Likely this was an
             // interrupt and we want to disable a particular interrupt, but each
             // board/chip can customize this as needed.
-            jal ra, _start_trap_rust
+            jal ra, _start_trap_rust_from_kernel
 
             // Restore the registers from the stack.
             lw   ra, 0*4(sp)
@@ -337,7 +337,7 @@ pub extern "C" fn _start_trap() {
             bge  t0, zero, _from_app_continue
             // Copy mcause into a0 and then call the interrupt disable function.
             mv   a0, t0
-            jal  ra, _disable_interrupt_trap_handler
+            jal  ra, _disable_interrupt_trap_rust_from_app
 
         _from_app_continue:
             // Now determine the address of _return_to_kernel and resume the

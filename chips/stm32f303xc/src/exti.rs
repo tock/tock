@@ -502,17 +502,16 @@ enum_from_primitive! {
 // // `line_gpiopin_map` is used to call `handle_interrupt()` on the pin.
 pub struct Exti<'a> {
     registers: StaticRef<ExtiRegisters>,
-    clock: ExtiClock,
-    line_gpiopin_map: [OptionalCell<&'a gpio::Pin<'a>>; 16],
+    clock: ExtiClock<'a>,
+    line_gpiopin_map: [OptionalCell<&'static gpio::Pin<'static>>; 16],
+    syscfg: &'a syscfg::Syscfg<'a>,
 }
 
-pub static mut EXTI: Exti<'static> = Exti::new();
-
 impl<'a> Exti<'a> {
-    const fn new() -> Exti<'a> {
+    pub const fn new(syscfg: &'a syscfg::Syscfg<'a>) -> Exti<'a> {
         Exti {
             registers: EXTI_BASE,
-            clock: ExtiClock(),
+            clock: ExtiClock(syscfg),
             line_gpiopin_map: [
                 OptionalCell::empty(),
                 OptionalCell::empty(),
@@ -531,6 +530,7 @@ impl<'a> Exti<'a> {
                 OptionalCell::empty(),
                 OptionalCell::empty(),
             ],
+            syscfg,
         }
     }
 
@@ -546,11 +546,9 @@ impl<'a> Exti<'a> {
         self.clock.disable();
     }
 
-    pub fn associate_line_gpiopin(&self, lineid: LineId, pin: &'a gpio::Pin<'a>) {
+    pub fn associate_line_gpiopin(&self, lineid: LineId, pin: &'static gpio::Pin<'static>) {
         self.line_gpiopin_map[usize::from(lineid as u8)].set(pin);
-        unsafe {
-            syscfg::SYSCFG.configure_interrupt(pin.get_pinid());
-        }
+        self.syscfg.configure_interrupt(pin.get_pinid());
         pin.set_exti_lineid(lineid);
 
         // By default, all interrupts are masked. But, this will ensure that it
@@ -766,22 +764,18 @@ impl<'a> Exti<'a> {
 
 /// The configuration registers for Exti is in Syscfg, so we need to
 /// enable clock to Syscfg, when using Exti.
-struct ExtiClock();
+struct ExtiClock<'a>(&'a syscfg::Syscfg<'a>);
 
-impl ClockInterface for ExtiClock {
+impl ClockInterface for ExtiClock<'_> {
     fn is_enabled(&self) -> bool {
-        unsafe { syscfg::SYSCFG.is_enabled_clock() }
+        self.0.is_enabled_clock()
     }
 
     fn enable(&self) {
-        unsafe {
-            syscfg::SYSCFG.enable_clock();
-        }
+        self.0.enable_clock();
     }
 
     fn disable(&self) {
-        unsafe {
-            syscfg::SYSCFG.disable_clock();
-        }
+        self.0.disable_clock();
     }
 }

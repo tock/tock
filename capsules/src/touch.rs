@@ -11,6 +11,7 @@
 //!     components::touch::TouchComponent::new(board_kernel, ts, Some(ts), Some(screen)).finalize(());
 //! ```
 
+use core::cell::Cell;
 use core::mem;
 use kernel::hil;
 use kernel::hil::screen::ScreenRotation;
@@ -69,6 +70,7 @@ pub struct Touch<'a> {
     /// updates the touch (x, y) position
     screen: Option<&'a dyn hil::screen::Screen>,
     apps: Grant<App>,
+    screen_rotation_offset: Cell<ScreenRotation>,
 }
 
 impl<'a> Touch<'a> {
@@ -82,8 +84,13 @@ impl<'a> Touch<'a> {
             touch: touch,
             multi_touch: multi_touch,
             screen: screen,
+            screen_rotation_offset: Cell::new(ScreenRotation::Normal),
             apps: grant,
         }
+    }
+
+    pub fn set_screen_rotation_offset(&self, screen_rotation_offset: ScreenRotation) {
+        self.screen_rotation_offset.set(screen_rotation_offset);
     }
 
     fn touch_enable(&self) -> ReturnCode {
@@ -137,18 +144,18 @@ impl<'a> Touch<'a> {
     /// screen rotation (if there si a screen)
     fn update_rotation(&self, touch_event: &mut TouchEvent) {
         if let Some(screen) = self.screen {
-            let rotation = screen.get_rotation();
+            let rotation = screen.get_rotation() + self.screen_rotation_offset.get();
             let (mut width, mut height) = screen.get_resolution();
 
             let (x, y) = match rotation {
-                ScreenRotation::Rotated270 => {
+                ScreenRotation::Rotated90 => {
                     mem::swap(&mut width, &mut height);
                     (touch_event.y, height as u16 - touch_event.x)
                 }
                 ScreenRotation::Rotated180 => {
                     (width as u16 - touch_event.x, height as u16 - touch_event.y)
                 }
-                ScreenRotation::Rotated90 => {
+                ScreenRotation::Rotated270 => {
                     mem::swap(&mut width, &mut height);
                     (width as u16 - touch_event.y as u16, touch_event.x)
                 }

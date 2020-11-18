@@ -44,7 +44,7 @@ impl IoWrite for Uart {
 #[panic_handler]
 pub unsafe extern "C" fn panic_fmt(info: &PanicInfo) -> ! {
     const LED1_PIN: IntPinNr = IntPinNr::P01_0;
-    let led = &mut led::LedHigh::new(&mut msp432::gpio::INT_PINS[LED1_PIN as usize]);
+    let led = &mut led::LedHigh::new(&msp432::gpio::INT_PINS[LED1_PIN as usize]);
     let writer = &mut UART;
     let wdt = Wdt::new();
 

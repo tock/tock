@@ -38,7 +38,7 @@ pub struct AdcChannel {
 /// SAM4L ADC channels.
 #[derive(Copy, Clone, Debug)]
 #[repr(u8)]
-enum Channel {
+pub enum Channel {
     AD0 = 0x00,
     AD1 = 0x01,
     AD2 = 0x02,
@@ -67,36 +67,13 @@ impl AdcChannel {
     ///
     /// - `channel`: Channel enum representing the channel number and whether it
     ///   is internal
-    const fn new(channel: Channel) -> AdcChannel {
+    pub const fn new(channel: Channel) -> AdcChannel {
         AdcChannel {
             chan_num: ((channel as u8) & 0x0F) as u32,
             internal: (((channel as u8) >> 4) & 0x01) as u32,
         }
     }
 }
-
-/// Statically allocated ADC channels. Used in board configurations to specify
-/// which channels are used on the platform.
-pub static mut CHANNEL_AD0: AdcChannel = AdcChannel::new(Channel::AD0);
-pub static mut CHANNEL_AD1: AdcChannel = AdcChannel::new(Channel::AD1);
-pub static mut CHANNEL_AD2: AdcChannel = AdcChannel::new(Channel::AD2);
-pub static mut CHANNEL_AD3: AdcChannel = AdcChannel::new(Channel::AD3);
-pub static mut CHANNEL_AD4: AdcChannel = AdcChannel::new(Channel::AD4);
-pub static mut CHANNEL_AD5: AdcChannel = AdcChannel::new(Channel::AD5);
-pub static mut CHANNEL_AD6: AdcChannel = AdcChannel::new(Channel::AD6);
-pub static mut CHANNEL_AD7: AdcChannel = AdcChannel::new(Channel::AD7);
-pub static mut CHANNEL_AD8: AdcChannel = AdcChannel::new(Channel::AD8);
-pub static mut CHANNEL_AD9: AdcChannel = AdcChannel::new(Channel::AD9);
-pub static mut CHANNEL_AD10: AdcChannel = AdcChannel::new(Channel::AD10);
-pub static mut CHANNEL_AD11: AdcChannel = AdcChannel::new(Channel::AD11);
-pub static mut CHANNEL_AD12: AdcChannel = AdcChannel::new(Channel::AD12);
-pub static mut CHANNEL_AD13: AdcChannel = AdcChannel::new(Channel::AD13);
-pub static mut CHANNEL_AD14: AdcChannel = AdcChannel::new(Channel::AD14);
-pub static mut CHANNEL_BANDGAP: AdcChannel = AdcChannel::new(Channel::Bandgap);
-pub static mut CHANNEL_SCALED_VCC: AdcChannel = AdcChannel::new(Channel::ScaledVCC);
-pub static mut CHANNEL_DAC: AdcChannel = AdcChannel::new(Channel::DAC);
-pub static mut CHANNEL_VSINGLE: AdcChannel = AdcChannel::new(Channel::Vsingle);
-pub static mut CHANNEL_REFERENCE_GROUND: AdcChannel = AdcChannel::new(Channel::ReferenceGround);
 
 /// Create a trait of both client types to allow a single client reference to
 /// act as both
@@ -129,6 +106,7 @@ pub struct Adc {
 
     // ADC client to send sample complete notifications to
     client: OptionalCell<&'static dyn EverythingClient>,
+    pm: &'static pm::PowerManager,
 }
 
 /// Memory mapped registers for the ADC.
@@ -342,23 +320,15 @@ register_bitfields![u32,
 const BASE_ADDRESS: StaticRef<AdcRegisters> =
     unsafe { StaticRef::new(0x40038000 as *const AdcRegisters) };
 
-/// Statically allocated ADC driver. Used in board configurations to connect to
-/// various capsules.
-pub static mut ADC0: Adc = Adc::new(BASE_ADDRESS, dma::DMAPeripheral::ADCIFE_RX);
-
 /// Functions for initializing the ADC.
 impl Adc {
     /// Create a new ADC driver.
     ///
-    /// - `base_address`: pointer to the ADC's memory mapped I/O registers
     /// - `rx_dma_peripheral`: type used for DMA transactions
-    const fn new(
-        base_address: StaticRef<AdcRegisters>,
-        rx_dma_peripheral: dma::DMAPeripheral,
-    ) -> Adc {
+    pub const fn new(rx_dma_peripheral: dma::DMAPeripheral, pm: &'static pm::PowerManager) -> Adc {
         Adc {
             // pointer to memory mapped I/O registers
-            registers: base_address,
+            registers: BASE_ADDRESS,
 
             // status of the ADC peripheral
             enabled: Cell::new(false),
@@ -382,6 +352,7 @@ impl Adc {
 
             // higher layer to send responses to
             client: OptionalCell::empty(),
+            pm,
         }
     }
 
@@ -400,7 +371,7 @@ impl Adc {
     }
 
     /// Interrupt handler for the ADC.
-    pub fn handle_interrupt(&mut self) {
+    pub fn handle_interrupt(&self) {
         let status = self.registers.sr.is_set(Status::SEOC);
 
         if self.enabled.get() && self.active.get() {
@@ -538,7 +509,7 @@ impl Adc {
                 // Formula: f(ADC_CLK) = f(CLK_CPU)/2^(N+2) <= 1.5 MHz
                 // and we solve for N
                 // becomes: N <= ceil(log_2(f(CLK_CPU)/1500000)) - 2
-                let cpu_frequency = pm::get_system_frequency();
+                let cpu_frequency = self.pm.get_system_frequency();
                 let divisor = (cpu_frequency + (1500000 - 1)) / 1500000; // ceiling of division
                 let divisor_pow2 = math::closest_power_of_two(divisor);
                 let clock_divisor = cmp::min(

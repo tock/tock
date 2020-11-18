@@ -174,25 +174,6 @@ pub enum DMAWidth {
     Width32Bit = 2,
 }
 
-pub static mut DMA_CHANNELS: [DMAChannel; 16] = [
-    DMAChannel::new(DMAChannelNum::DMAChannel00),
-    DMAChannel::new(DMAChannelNum::DMAChannel01),
-    DMAChannel::new(DMAChannelNum::DMAChannel02),
-    DMAChannel::new(DMAChannelNum::DMAChannel03),
-    DMAChannel::new(DMAChannelNum::DMAChannel04),
-    DMAChannel::new(DMAChannelNum::DMAChannel05),
-    DMAChannel::new(DMAChannelNum::DMAChannel06),
-    DMAChannel::new(DMAChannelNum::DMAChannel07),
-    DMAChannel::new(DMAChannelNum::DMAChannel08),
-    DMAChannel::new(DMAChannelNum::DMAChannel09),
-    DMAChannel::new(DMAChannelNum::DMAChannel10),
-    DMAChannel::new(DMAChannelNum::DMAChannel11),
-    DMAChannel::new(DMAChannelNum::DMAChannel12),
-    DMAChannel::new(DMAChannelNum::DMAChannel13),
-    DMAChannel::new(DMAChannelNum::DMAChannel14),
-    DMAChannel::new(DMAChannelNum::DMAChannel15),
-];
-
 pub struct DMAChannel {
     registers: StaticRef<DMARegisters>,
     client: OptionalCell<&'static dyn DMAClient>,
@@ -206,7 +187,7 @@ pub trait DMAClient {
 }
 
 impl DMAChannel {
-    const fn new(channel: DMAChannelNum) -> DMAChannel {
+    pub const fn new(channel: DMAChannelNum) -> DMAChannel {
         DMAChannel {
             registers: unsafe {
                 StaticRef::new(
@@ -220,7 +201,7 @@ impl DMAChannel {
         }
     }
 
-    pub fn initialize(&self, client: &'static mut dyn DMAClient, width: DMAWidth) {
+    pub fn initialize(&self, client: &'static dyn DMAClient, width: DMAWidth) {
         self.client.set(client);
         self.width.set(width);
     }
@@ -261,7 +242,7 @@ impl DMAChannel {
         self.enabled.get()
     }
 
-    pub fn handle_interrupt(&mut self) {
+    pub fn handle_interrupt(&self) {
         self.registers
             .idr
             .write(Interrupt::TERR::SET + Interrupt::TRC::SET + Interrupt::RCZ::SET);

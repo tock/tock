@@ -21,9 +21,8 @@
 
 use kernel::hil::Controller;
 use sam4l::gpio::GPIOPin;
-use sam4l::gpio::PeripheralFunction;
 use sam4l::gpio::PeripheralFunction::{A, B, E};
-use sam4l::gpio::{PA, PB, PC};
+use sam4l::gpio::{PeripheralFunction, Port};
 
 struct DetachablePin {
     pin: &'static GPIOPin<'static>,
@@ -74,64 +73,69 @@ pub struct SubmoduleConfig {
     pub trng: bool,
 }
 
-pub unsafe fn configure_submodules(enabled_submodules: SubmoduleConfig) {
+pub unsafe fn configure_submodules(
+    pa: &'static Port,
+    pb: &'static Port,
+    pc: &'static Port,
+    enabled_submodules: SubmoduleConfig,
+) {
     let rf233_detachable_pins = [
         DetachablePin {
-            pin: &PA[08],
+            pin: &pa[08],
             function: None,
         },
         DetachablePin {
-            pin: &PA[09],
+            pin: &pa[09],
             function: None,
         },
         DetachablePin {
-            pin: &PA[10],
+            pin: &pa[10],
             function: None,
         },
     ];
     let rf233 = Submodule {
-        gate_pin: &PC[18],
+        gate_pin: &pc[18],
         detachable_pins: &rf233_detachable_pins,
     };
 
     let nrf_detachable_pins = [
         DetachablePin {
-            pin: &PB[07],
+            pin: &pb[07],
             function: None,
         },
         DetachablePin {
-            pin: &PA[17],
+            pin: &pa[17],
             function: None,
         },
         DetachablePin {
-            pin: &PA[18],
+            pin: &pa[18],
             function: Some(A),
         },
         DetachablePin {
-            pin: &PC[07],
+            pin: &pc[07],
             function: Some(B),
         },
         DetachablePin {
-            pin: &PC[08],
+            pin: &pc[08],
             function: Some(E),
         },
         DetachablePin {
-            pin: &PC[09],
+            pin: &pc[09],
             function: None,
         },
     ];
     let nrf = Submodule {
-        gate_pin: &PC[17],
+        gate_pin: &pc[17],
         detachable_pins: &nrf_detachable_pins,
     };
 
     let sensors = Submodule {
-        gate_pin: &PC[16],
+        gate_pin: &pc[16],
         detachable_pins: &[],
     };
 
     let trng = Submodule {
-        gate_pin: &PC[19],
+        gate_pin: &pc[19],
         detachable_pins: &[],
     };
 

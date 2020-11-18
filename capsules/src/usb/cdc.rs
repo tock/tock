@@ -256,7 +256,7 @@ impl<'a, U: hil::usb::UsbController<'a>> CdcAcm<'a, U> {
     }
 
     #[inline]
-    fn controller(&self) -> &'a U {
+    pub fn controller(&self) -> &'a U {
         self.client_ctrl.controller()
     }
 

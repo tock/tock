@@ -242,6 +242,7 @@ pub struct Usbc<'a> {
     state: OptionalCell<State>,
     requests: [Cell<Requests>; N_ENDPOINTS],
     client: OptionalCell<&'a dyn hil::usb::Client<'a>>,
+    pm: &'a pm::PowerManager,
 }
 
 #[derive(Copy, Clone, Default, Debug)]
@@ -424,7 +425,7 @@ register_bitfields![u32,
 ];
 
 impl<'a> Usbc<'a> {
-    const fn new() -> Self {
+    pub const fn new(pm: &'a pm::PowerManager) -> Self {
         Usbc {
             client: OptionalCell::empty(),
             state: OptionalCell::new(State::Reset),
@@ -448,6 +449,7 @@ impl<'a> Usbc<'a> {
                 Cell::new(Requests::new()),
                 Cell::new(Requests::new()),
             ],
+            pm,
         }
     }
 
@@ -574,7 +576,7 @@ impl<'a> Usbc<'a> {
     fn _attach(&self) {
         match self.get_state() {
             State::Idle(mode) => {
-                if pm::get_system_frequency() != 48000000 {
+                if self.pm.get_system_frequency() != 48000000 {
                     internal_err!("The system clock does not support USB");
                 }
 
@@ -1575,6 +1577,3 @@ impl<'a> hil::usb::UsbController<'a> for Usbc<'a> {
         self.handle_requests();
     }
 }
-
-/// Static state to manage the USBC
-pub static mut USBC: Usbc<'static> = Usbc::new();

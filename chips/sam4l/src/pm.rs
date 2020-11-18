@@ -566,19 +566,27 @@ pub struct PowerManager {
     system_initial_configs: Cell<bool>,
 }
 
-pub static mut PM: PowerManager = PowerManager {
-    /// Set to the RCSYS by default.
-    system_clock_source: Cell::new(SystemClockSource::RcsysAt115kHz),
+impl PowerManager {
+    pub const fn new() -> Self {
+        Self {
+            /// Set to the RCSYS by default.
+            system_clock_source: Cell::new(SystemClockSource::RcsysAt115kHz),
 
-    system_on_clocks: Cell::new(ClockMask::RCSYS as u32),
+            system_on_clocks: Cell::new(ClockMask::RCSYS as u32),
 
-    system_initial_configs: Cell::new(false),
-};
+            system_initial_configs: Cell::new(false),
+        }
+    }
+}
 
 impl PowerManager {
     /// Sets up the system clock. This should be called as one of the first
     /// lines in the `reset_handler` within the platform's `main.rs`.
-    pub unsafe fn setup_system_clock(&self, clock_source: SystemClockSource) {
+    pub unsafe fn setup_system_clock(
+        &self,
+        clock_source: SystemClockSource,
+        flash_controller: &flashcalw::FLASHCALW,
+    ) {
         if !self.system_initial_configs.get() {
             // For now, always go to PS2 as it enables all core speeds
             // These features are not available in PS1: USB, DFLL, Flash programming/erasing
@@ -588,10 +596,10 @@ impl PowerManager {
             bscif::enable_rc32k();
 
             // Enable HCACHE
-            flashcalw::FLASH_CONTROLLER.enable_cache();
+            flash_controller.enable_cache();
 
             // Enable flash high speed mode, only for PS2
-            flashcalw::FLASH_CONTROLLER.enable_high_speed_flash();
+            flash_controller.enable_high_speed_flash();
 
             self.system_initial_configs.set(true);
         }
@@ -600,16 +608,16 @@ impl PowerManager {
             SystemClockSource::RcsysAt115kHz => {
                 // No configurations necessary, RCSYS is always on in run mode
                 // Set Flash wait state to 0 for <= 24MHz in PS2
-                flashcalw::FLASH_CONTROLLER.set_wait_state(0);
+                flash_controller.set_wait_state(0);
                 // Change the system clock to RCSYS
                 select_main_clock(MainClock::RCSYS);
             }
 
             SystemClockSource::DfllRc32kAt48MHz => {
                 // Configure and turn on DFLL at 48MHz
-                configure_48mhz_dfll();
+                self.configure_48mhz_dfll();
                 // Set Flash wait state to 1 for > 24MHz in PS2
-                flashcalw::FLASH_CONTROLLER.set_wait_state(1);
+                flash_controller.set_wait_state(1);
                 // Change the system clock to DFLL
                 select_main_clock(MainClock::DFLL);
             }
@@ -619,9 +627,9 @@ impl PowerManager {
                 startup_mode,
             } => {
                 // Configure and turn on OSC0
-                configure_external_oscillator(frequency, startup_mode);
+                self.configure_external_oscillator(frequency, startup_mode);
                 // Set Flash wait state to 0 for <= 24MHz in PS2
-                flashcalw::FLASH_CONTROLLER.set_wait_state(0);
+                flash_controller.set_wait_state(0);
                 // Change the system clock to OSC0
                 select_main_clock(MainClock::OSC0);
             }
@@ -631,16 +639,16 @@ impl PowerManager {
                 startup_mode,
             } => {
                 // Configure and turn on PLL at 48MHz
-                configure_external_oscillator_pll(frequency, startup_mode);
+                self.configure_external_oscillator_pll(frequency, startup_mode);
                 // Set Flash wait state to 1 for > 24MHz in PS2
-                flashcalw::FLASH_CONTROLLER.set_wait_state(1);
+                flash_controller.set_wait_state(1);
                 // Change the system clock to PLL
                 select_main_clock(MainClock::PLL);
             }
 
             SystemClockSource::RC80M => {
                 // Configure and turn on RC80M
-                configure_80mhz_rc();
+                self.configure_80mhz_rc();
 
                 // If the 80MHz RC is used as the main clock source, it must be divided by
                 //  at least 2 before being used as CPU's clock source
@@ -653,7 +661,7 @@ impl PowerManager {
                 while (*PM_REGS).sr.matches_all(InterruptOrStatus::CKRDY::CLEAR) {}
 
                 // Set Flash wait state to 1 for > 24MHz in PS2
-                flashcalw::FLASH_CONTROLLER.set_wait_state(1);
+                flash_controller.set_wait_state(1);
                 // Change the system clock to RC80M
                 select_main_clock(MainClock::RC80M);
             }
@@ -661,24 +669,24 @@ impl PowerManager {
             SystemClockSource::RCFAST { frequency } => {
                 // Check if RCFAST is already on, in which case temporarily switch the system to RCSYS
                 // since RCFAST has to be disabled before its configurations can be changed
-                if (PM.system_on_clocks.get() & (ClockMask::RCFAST as u32)) != 0 {
+                if (self.system_on_clocks.get() & (ClockMask::RCFAST as u32)) != 0 {
                     select_main_clock(MainClock::RCSYS);
                     scif::disable_rcfast();
                 }
 
                 // Configure and turn on RCFAST at specified frequency
-                configure_rcfast(frequency);
+                self.configure_rcfast(frequency);
                 // Set Flash wait state to 0 for <= 24MHz in PS2
-                flashcalw::FLASH_CONTROLLER.set_wait_state(0);
+                flash_controller.set_wait_state(0);
                 // Change the system clock to RCFAST
                 select_main_clock(MainClock::RCFAST);
             }
 
             SystemClockSource::RC1M => {
                 // Configure and turn on RC1M
-                configure_1mhz_rc();
+                self.configure_1mhz_rc();
                 // Set Flash wait state to 0 for <= 24MHz in PS2
-                flashcalw::FLASH_CONTROLLER.set_wait_state(0);
+                flash_controller.set_wait_state(0);
                 // Change the system clock to RC1M
                 select_main_clock(MainClock::RC1M);
             }
@@ -801,15 +809,19 @@ impl PowerManager {
 
     // Changes the system clock to the clock passed in as clock_source and disables
     // the previous system clock
-    pub unsafe fn change_system_clock(&self, clock_source: SystemClockSource) {
+    pub unsafe fn change_system_clock(
+        &self,
+        clock_source: SystemClockSource,
+        flash_controller: &flashcalw::FLASHCALW,
+    ) {
         // If the clock you want to switch to is the current system clock, do nothing
-        let prev_clock_source = PM.system_clock_source.get();
+        let prev_clock_source = self.system_clock_source.get();
         if prev_clock_source == clock_source {
             return;
         }
 
         // Turn on and switch to the new system clock
-        self.setup_system_clock(clock_source);
+        self.setup_system_clock(clock_source, flash_controller);
 
         // Don't disable RCFAST if the current clock is still RCFAST, just at
         // a different frequency
@@ -825,144 +837,139 @@ impl PowerManager {
         // Disable the previous system clock
         self.disable_system_clock(prev_clock_source);
     }
-}
 
-fn unlock(register_offset: u32) {
-    PM_REGS.unlock.set(0xAA000000 | register_offset);
-}
+    /// Configure the system clock to use the DFLL with the RC32K as the source.
+    /// Run at 48 MHz.
+    unsafe fn configure_48mhz_dfll(&self) {
+        // Start the DFLL
+        scif::setup_dfll_rc32k_48mhz();
 
-fn select_main_clock(clock: MainClock) {
-    unlock(0);
-    PM_REGS.mcctrl.set(clock as u32);
-}
+        let clock_mask = self.system_on_clocks.get();
+        self.system_on_clocks
+            .set(clock_mask | ClockMask::DFLL as u32);
+    }
 
-/// Configure the system clock to use the DFLL with the RC32K as the source.
-/// Run at 48 MHz.
-unsafe fn configure_48mhz_dfll() {
-    // Start the DFLL
-    scif::setup_dfll_rc32k_48mhz();
-
-    let clock_mask = PM.system_on_clocks.get();
-    PM.system_on_clocks.set(clock_mask | ClockMask::DFLL as u32);
-}
-
-/// Configure the system clock to use the 16 MHz external crystal directly
-unsafe fn configure_external_oscillator(
-    frequency: OscillatorFrequency,
-    startup_mode: OscillatorStartup,
-) {
-    // Start the OSC0 if it isn't already in use by the PLL
-    if (PM.system_on_clocks.get() & ClockMask::PLL as u32) == 0 {
-        match frequency {
-            OscillatorFrequency::Frequency16MHz => {
-                match startup_mode {
-                    OscillatorStartup::FastStart => scif::setup_osc_16mhz_fast_startup(),
-                    OscillatorStartup::SlowStart => scif::setup_osc_16mhz_slow_startup(),
-                };
+    /// Configure the system clock to use the 16 MHz external crystal directly
+    unsafe fn configure_external_oscillator(
+        &self,
+        frequency: OscillatorFrequency,
+        startup_mode: OscillatorStartup,
+    ) {
+        // Start the OSC0 if it isn't already in use by the PLL
+        if (self.system_on_clocks.get() & ClockMask::PLL as u32) == 0 {
+            match frequency {
+                OscillatorFrequency::Frequency16MHz => {
+                    match startup_mode {
+                        OscillatorStartup::FastStart => scif::setup_osc_16mhz_fast_startup(),
+                        OscillatorStartup::SlowStart => scif::setup_osc_16mhz_slow_startup(),
+                    };
+                }
             }
         }
+
+        let clock_mask = self.system_on_clocks.get();
+        self.system_on_clocks
+            .set(clock_mask | ClockMask::OSC0 as u32);
     }
 
-    let clock_mask = PM.system_on_clocks.get();
-    PM.system_on_clocks.set(clock_mask | ClockMask::OSC0 as u32);
-}
-
-/// Configure the system clock to use the PLL with the 16 MHz external crystal
-unsafe fn configure_external_oscillator_pll(
-    frequency: OscillatorFrequency,
-    startup_mode: OscillatorStartup,
-) {
-    // Start the OSC0 if it isn't already on
-    if (PM.system_on_clocks.get() & ClockMask::OSC0 as u32) == 0 {
-        match frequency {
-            OscillatorFrequency::Frequency16MHz => {
-                match startup_mode {
-                    OscillatorStartup::FastStart => scif::setup_osc_16mhz_fast_startup(),
-                    OscillatorStartup::SlowStart => scif::setup_osc_16mhz_slow_startup(),
-                };
+    /// Configure the system clock to use the PLL with the 16 MHz external crystal
+    unsafe fn configure_external_oscillator_pll(
+        &self,
+        frequency: OscillatorFrequency,
+        startup_mode: OscillatorStartup,
+    ) {
+        // Start the OSC0 if it isn't already on
+        if (self.system_on_clocks.get() & ClockMask::OSC0 as u32) == 0 {
+            match frequency {
+                OscillatorFrequency::Frequency16MHz => {
+                    match startup_mode {
+                        OscillatorStartup::FastStart => scif::setup_osc_16mhz_fast_startup(),
+                        OscillatorStartup::SlowStart => scif::setup_osc_16mhz_slow_startup(),
+                    };
+                }
             }
         }
+
+        // Start the PLL
+        scif::setup_pll_osc_48mhz();
+
+        let clock_mask = self.system_on_clocks.get();
+        self.system_on_clocks
+            .set(clock_mask | ClockMask::PLL as u32);
     }
 
-    // Start the PLL
-    scif::setup_pll_osc_48mhz();
+    unsafe fn configure_80mhz_rc(&self) {
+        // Start the 80mhz RC oscillator
+        scif::setup_rc_80mhz();
 
-    let clock_mask = PM.system_on_clocks.get();
-    PM.system_on_clocks.set(clock_mask | ClockMask::PLL as u32);
-}
+        // Divide peripheral clocks so that fCPU >= fAPBx
+        let pbasel = (*PM_REGS).pbasel.extract();
+        unlock(0x0000000C);
+        (*PM_REGS).pbasel.modify_no_read(
+            pbasel,
+            PeripheralBusXClockSelect::PBDIV::SET + PeripheralBusXClockSelect::PBSEL::CLEAR,
+        );
+        while (*PM_REGS).sr.matches_all(InterruptOrStatus::CKRDY::CLEAR) {}
 
-unsafe fn configure_80mhz_rc() {
-    // Start the 80mhz RC oscillator
-    scif::setup_rc_80mhz();
+        let pbbsel = (*PM_REGS).pbbsel.extract();
+        unlock(0x00000010);
+        (*PM_REGS).pbbsel.modify_no_read(
+            pbbsel,
+            PeripheralBusXClockSelect::PBDIV::SET + PeripheralBusXClockSelect::PBSEL::CLEAR,
+        );
+        while (*PM_REGS).sr.matches_all(InterruptOrStatus::CKRDY::CLEAR) {}
 
-    // Divide peripheral clocks so that fCPU >= fAPBx
-    let pbasel = (*PM_REGS).pbasel.extract();
-    unlock(0x0000000C);
-    (*PM_REGS).pbasel.modify_no_read(
-        pbasel,
-        PeripheralBusXClockSelect::PBDIV::SET + PeripheralBusXClockSelect::PBSEL::CLEAR,
-    );
-    while (*PM_REGS).sr.matches_all(InterruptOrStatus::CKRDY::CLEAR) {}
+        let pbcsel = (*PM_REGS).pbcsel.extract();
+        unlock(0x00000014);
+        (*PM_REGS).pbcsel.modify_no_read(
+            pbcsel,
+            PeripheralBusXClockSelect::PBDIV::SET + PeripheralBusXClockSelect::PBSEL::CLEAR,
+        );
+        while (*PM_REGS).sr.matches_all(InterruptOrStatus::CKRDY::CLEAR) {}
 
-    let pbbsel = (*PM_REGS).pbbsel.extract();
-    unlock(0x00000010);
-    (*PM_REGS).pbbsel.modify_no_read(
-        pbbsel,
-        PeripheralBusXClockSelect::PBDIV::SET + PeripheralBusXClockSelect::PBSEL::CLEAR,
-    );
-    while (*PM_REGS).sr.matches_all(InterruptOrStatus::CKRDY::CLEAR) {}
+        let pbdsel = (*PM_REGS).pbdsel.extract();
+        unlock(0x00000018);
+        (*PM_REGS).pbdsel.modify_no_read(
+            pbdsel,
+            PeripheralBusXClockSelect::PBDIV::SET + PeripheralBusXClockSelect::PBSEL::CLEAR,
+        );
+        while (*PM_REGS).sr.matches_all(InterruptOrStatus::CKRDY::CLEAR) {}
 
-    let pbcsel = (*PM_REGS).pbcsel.extract();
-    unlock(0x00000014);
-    (*PM_REGS).pbcsel.modify_no_read(
-        pbcsel,
-        PeripheralBusXClockSelect::PBDIV::SET + PeripheralBusXClockSelect::PBSEL::CLEAR,
-    );
-    while (*PM_REGS).sr.matches_all(InterruptOrStatus::CKRDY::CLEAR) {}
-
-    let pbdsel = (*PM_REGS).pbdsel.extract();
-    unlock(0x00000018);
-    (*PM_REGS).pbdsel.modify_no_read(
-        pbdsel,
-        PeripheralBusXClockSelect::PBDIV::SET + PeripheralBusXClockSelect::PBSEL::CLEAR,
-    );
-    while (*PM_REGS).sr.matches_all(InterruptOrStatus::CKRDY::CLEAR) {}
-
-    let clock_mask = PM.system_on_clocks.get();
-    PM.system_on_clocks
-        .set(clock_mask | ClockMask::RC80M as u32);
-}
-
-unsafe fn configure_rcfast(frequency: RcfastFrequency) {
-    // Start the RCFAST at the specified frequency
-    match frequency {
-        RcfastFrequency::Frequency4MHz => {
-            scif::setup_rcfast_4mhz();
-        }
-        RcfastFrequency::Frequency8MHz => {
-            scif::setup_rcfast_8mhz();
-        }
-        RcfastFrequency::Frequency12MHz => {
-            scif::setup_rcfast_12mhz();
-        }
+        let clock_mask = self.system_on_clocks.get();
+        self.system_on_clocks
+            .set(clock_mask | ClockMask::RC80M as u32);
     }
 
-    let clock_mask = PM.system_on_clocks.get();
-    PM.system_on_clocks
-        .set(clock_mask | ClockMask::RCFAST as u32);
-}
+    unsafe fn configure_rcfast(&self, frequency: RcfastFrequency) {
+        // Start the RCFAST at the specified frequency
+        match frequency {
+            RcfastFrequency::Frequency4MHz => {
+                scif::setup_rcfast_4mhz();
+            }
+            RcfastFrequency::Frequency8MHz => {
+                scif::setup_rcfast_8mhz();
+            }
+            RcfastFrequency::Frequency12MHz => {
+                scif::setup_rcfast_12mhz();
+            }
+        }
 
-unsafe fn configure_1mhz_rc() {
-    // Start the RC1M
-    bscif::setup_rc_1mhz();
-    let clock_mask = PM.system_on_clocks.get();
-    PM.system_on_clocks.set(clock_mask | ClockMask::RC1M as u32);
-}
+        let clock_mask = self.system_on_clocks.get();
+        self.system_on_clocks
+            .set(clock_mask | ClockMask::RCFAST as u32);
+    }
 
-pub fn get_system_frequency() -> u32 {
-    // Return the current system frequency
-    unsafe {
-        match PM.system_clock_source.get() {
+    unsafe fn configure_1mhz_rc(&self) {
+        // Start the RC1M
+        bscif::setup_rc_1mhz();
+        let clock_mask = self.system_on_clocks.get();
+        self.system_on_clocks
+            .set(clock_mask | ClockMask::RC1M as u32);
+    }
+
+    pub fn get_system_frequency(&self) -> u32 {
+        // Return the current system frequency
+        match self.system_clock_source.get() {
             SystemClockSource::RcsysAt115kHz => 115200,
             SystemClockSource::DfllRc32kAt48MHz => 48000000,
             SystemClockSource::ExternalOscillator { .. } => 16000000,
@@ -976,6 +983,15 @@ pub fn get_system_frequency() -> u32 {
             SystemClockSource::RC1M => 1000000,
         }
     }
+}
+
+fn unlock(register_offset: u32) {
+    PM_REGS.unlock.set(0xAA000000 | register_offset);
+}
+
+fn select_main_clock(clock: MainClock) {
+    unlock(0);
+    PM_REGS.mcctrl.set(clock as u32);
 }
 
 /// Utility macro to modify clock mask registers

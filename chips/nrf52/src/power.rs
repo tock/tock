@@ -263,7 +263,7 @@ pub trait PowerClient {
 }
 
 impl<'a> Power<'a> {
-    const fn new() -> Self {
+    pub const fn new() -> Self {
         Power {
             registers: POWER_BASE,
             usb_client: OptionalCell::empty(),
@@ -343,5 +343,3 @@ impl<'a> Power<'a> {
         self.registers.usbregstatus.is_set(UsbRegStatus::OUTPUTRDY)
     }
 }
-
-pub static mut POWER: Power<'static> = Power::new();

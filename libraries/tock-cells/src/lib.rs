@@ -9,6 +9,8 @@
 // Tock expects this feature to stabilize in the near future.
 // Tracking: https://github.com/rust-lang/rust/issues/62358
 #![feature(option_result_contains)]
+// Feature required with newer versions of rustc (at least 2020-10-25).
+#![feature(const_mut_refs)]
 #![no_std]
 
 pub mod map_cell;

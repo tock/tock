@@ -280,8 +280,6 @@ pub enum FlashState {
     EraseOption, // Option bytes erase procedure.
 }
 
-pub static mut FLASH: Flash = Flash::new();
-
 pub struct Flash {
     registers: StaticRef<FlashRegisters>,
     client: OptionalCell<&'static dyn hil::flash::Client<Flash>>,
