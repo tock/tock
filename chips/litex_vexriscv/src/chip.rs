@@ -51,43 +51,6 @@ impl<A: 'static + Alarm<'static>, I: 'static + InterruptService<()>> LiteXVexRis
             }
         }
     }
-
-    // TODO: Do we have a powersave mode? Otherwise can probably be removed.
-    // /// Run a predicate f in an interruptable loop.
-    // ///
-    // /// The predicate will run until it returns true, an interrupt
-    // /// occurs or if `max_tries` is not `None` and that limit is
-    // /// reached.
-    // ///
-    // /// If the predicate returns true this call will also return
-    // /// true. If an interrupt occurs or `max_tries` is reached this
-    // /// call will return false.
-    // fn check_until_true_or_interrupt<F>(&self, f: F, max_tries: Option<usize>) -> bool
-    // where
-    //     F: Fn() -> bool,
-    // {
-    //     match max_tries {
-    //         Some(t) => {
-    //             for _i in 0..t {
-    //                 if self.has_pending_interrupts() {
-    //                     return false;
-    //                 }
-    //                 if f() {
-    //                     return true;
-    //                 }
-    //             }
-    //         }
-    //         None => {
-    //             while !self.has_pending_interrupts() {
-    //                 if f() {
-    //                     return true;
-    //                 }
-    //             }
-    //         }
-    //     }
-
-    //     false
-    // }
 }
 
 impl<A: 'static + Alarm<'static>, I: 'static + InterruptService<()>> kernel::Chip
@@ -123,7 +86,7 @@ impl<A: 'static + Alarm<'static>, I: 'static + InterruptService<()>> kernel::Chi
             let mip = CSR.mip.extract();
 
             if mip.is_set(mip::mtimer) {
-                // TODO: Actually implement a timer
+                // TODO: Actually implement the riscv machine timer with VexRiscv
                 // unsafe {
                 //     timer::TIMER.service_interrupt();
                 // }
@@ -152,9 +115,6 @@ impl<A: 'static + Alarm<'static>, I: 'static + InterruptService<()>> kernel::Chi
 
     fn sleep(&self) {
         unsafe {
-            // TODO: Is this everything we need to do?
-            //pwrmgr::PWRMGR.enable_low_power();
-            //self.check_until_true_or_interrupt(|| pwrmgr::PWRMGR.check_clock_propagation(), None);
             rv32i::support::wfi();
         }
     }
@@ -261,75 +221,3 @@ pub unsafe extern "C" fn disable_interrupt_trap_handler(mcause_val: u32) {
         }
     }
 }
-
-// pub unsafe fn configure_trap_handler() {
-//     // The Ibex CPU does not support non-vectored trap entries.
-//     CSR.mtvec
-//         .write(mtvec::trap_addr.val(_start_trap_vectored as u32 >> 2) + mtvec::mode::Vectored)
-// }
-
-// // Mock implementation for crate tests that does not include the section
-// // specifier, as the test will not use our linker script, and the host
-// // compilation environment may not allow the section name.
-// #[cfg(not(any(target_arch = "riscv32", target_os = "none")))]
-// pub extern "C" fn _start_trap_vectored() {
-//     unsafe {
-//         unreachable_unchecked();
-//     }
-// }
-
-// #[cfg(all(target_arch = "riscv32", target_os = "none"))]
-// #[link_section = ".riscv.trap_vectored"]
-// #[export_name = "_start_trap_vectored"]
-// #[naked]
-// pub extern "C" fn _start_trap_vectored() -> ! {
-//     unsafe {
-//         // According to the Ibex user manual:
-//         // [NMI] has interrupt ID 31, i.e., it has the highest priority of all
-//         // interrupts and the core jumps to the trap-handler base address (in
-//         // mtvec) plus 0x7C to handle the NMI.
-//         //
-//         // Below are 32 (non-compressed) jumps to cover the entire possible
-//         // range of vectored traps.
-//         #[cfg(all(target_arch = "riscv32", target_os = "none"))]
-//         llvm_asm!("
-//             j _start_trap
-//             j _start_trap
-//             j _start_trap
-//             j _start_trap
-//             j _start_trap
-//             j _start_trap
-//             j _start_trap
-//             j _start_trap
-//             j _start_trap
-//             j _start_trap
-//             j _start_trap
-//             j _start_trap
-//             j _start_trap
-//             j _start_trap
-//             j _start_trap
-//             j _start_trap
-//             j _start_trap
-//             j _start_trap
-//             j _start_trap
-//             j _start_trap
-//             j _start_trap
-//             j _start_trap
-//             j _start_trap
-//             j _start_trap
-//             j _start_trap
-//             j _start_trap
-//             j _start_trap
-//             j _start_trap
-//             j _start_trap
-//             j _start_trap
-//             j _start_trap
-//             j _start_trap
-//         "
-//         :
-//         :
-//         :
-//         : "volatile");
-//         unreachable_unchecked()
-//     }
-// }
