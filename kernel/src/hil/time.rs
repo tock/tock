@@ -282,6 +282,15 @@ impl Frequency for Freq16MHz {
     }
 }
 
+/// 24.75MHz `Frequency`
+#[derive(Debug)]
+pub struct Freq2475MHz;
+impl Frequency for Freq2475MHz {
+    fn frequency() -> u32 {
+        24750000
+    }
+}
+
 /// 1MHz `Frequency`
 #[derive(Debug)]
 pub struct Freq1MHz;
@@ -319,7 +328,7 @@ impl Frequency for Freq1KHz {
 }
 
 /// u32 `Ticks`
-#[derive(Clone, Copy, Debug, PartialOrd)]
+#[derive(Clone, Copy, Debug)]
 pub struct Ticks32(u32);
 
 impl From<u32> for Ticks32 {
@@ -355,6 +364,12 @@ impl Ticks for Ticks32 {
     }
 }
 
+impl PartialOrd for Ticks32 {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
 impl Ord for Ticks32 {
     fn cmp(&self, other: &Self) -> Ordering {
         self.0.cmp(&other.0)
@@ -370,7 +385,7 @@ impl PartialEq for Ticks32 {
 impl Eq for Ticks32 {}
 
 /// 24-bit `Ticks`
-#[derive(Clone, Copy, Debug, PartialOrd)]
+#[derive(Clone, Copy, Debug)]
 pub struct Ticks24(u32);
 
 impl From<u32> for Ticks24 {
@@ -406,6 +421,12 @@ impl Ticks for Ticks24 {
     }
 }
 
+impl PartialOrd for Ticks24 {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
 impl Ord for Ticks24 {
     fn cmp(&self, other: &Self) -> Ordering {
         self.0.cmp(&other.0)
@@ -420,8 +441,8 @@ impl PartialEq for Ticks24 {
 
 impl Eq for Ticks24 {}
 
-/// 24-bit `Ticks`
-#[derive(Clone, Copy, Debug, PartialOrd)]
+/// 16-bit `Ticks`
+#[derive(Clone, Copy, Debug)]
 pub struct Ticks16(u16);
 
 impl From<u16> for Ticks16 {
@@ -469,6 +490,12 @@ impl Ticks for Ticks16 {
     }
 }
 
+impl PartialOrd for Ticks16 {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
 impl Ord for Ticks16 {
     fn cmp(&self, other: &Self) -> Ordering {
         self.0.cmp(&other.0)
@@ -484,7 +511,7 @@ impl PartialEq for Ticks16 {
 impl Eq for Ticks16 {}
 
 /// 64-bit `Ticks`
-#[derive(Clone, Copy, Debug, PartialOrd)]
+#[derive(Clone, Copy, Debug)]
 pub struct Ticks64(u64);
 
 impl Ticks64 {
@@ -529,6 +556,12 @@ impl Ticks for Ticks64 {
     /// Returns the maximum value of this type, which should be (2^width)-1.
     fn max_value() -> Self {
         Ticks64(!0u64)
+    }
+}
+
+impl PartialOrd for Ticks64 {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
     }
 }
 

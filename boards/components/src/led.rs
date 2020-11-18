@@ -4,72 +4,70 @@
 //! -----
 //! ```rust
 //! let led = components::led::LedsComponent::new(components::led_component_helper!(
-//!     sam4l::gpio::GPIOPin,
-//!     (
-//!         &sam4l::gpio::PORT[LED_RED_PIN],
-//!         kernel::hil::gpio::ActivationMode::ActiveLow
-//!     ),
-//!     (
-//!         &sam4l::gpio::PORT[LED_GREEN_PIN],
-//!         kernel::hil::gpio::ActivationMode::ActiveLow
-//!     ),
-//!     (
-//!         &sam4l::gpio::PORT[LED_BLUE_PIN],
-//!         kernel::hil::gpio::ActivationMode::ActiveLow
-//!     )
+//!     kernel::hil::led::LedLow<'static, sam4l::gpio::GPIOPin>,
+//!     LedLow::new(&sam4l::gpio::PORT[LED_RED_PIN]),
+//!     LedLow::new(&sam4l::gpio::PORT[LED_GREEN_PIN]),
+//!     LedLow::new(&sam4l::gpio::PORT[LED_BLUE_PIN]),
 //! ))
-//! .finalize(led_component_buf!(sam4l::gpio::GPIOPin));
+//! .finalize(led_component_buf!(kernel::hil::led::LedLow<'static, sam4l::gpio::GPIOPin>));
 //! ```
 
-use capsules::led::LED;
+use capsules::led::LedDriver;
 use core::mem::MaybeUninit;
 use kernel::component::Component;
+use kernel::hil::led::Led;
 use kernel::static_init_half;
 
 #[macro_export]
 macro_rules! led_component_helper {
-    ($Pin:ty, $($P:expr),+ ) => {{
+    ($Led:ty, $($L:expr),+ $(,)?) => {{
         use kernel::count_expressions;
         use kernel::static_init;
-        const NUM_LEDS: usize = count_expressions!($($P),+);
+        const NUM_LEDS: usize = count_expressions!($($L),+);
 
-        static_init!(
-            [(
-                &'static $Pin,
-                kernel::hil::gpio::ActivationMode
-            ); NUM_LEDS],
-            [
-                $($P,)*
-            ]
-        )
+	static_init!(
+	    [&'static mut $Led; NUM_LEDS],
+	    [
+		$(
+		    static_init!(
+			$Led,
+			$L
+		    )
+		),+
+	    ]
+	)
     };};
 }
 
 #[macro_export]
 macro_rules! led_component_buf {
-    ($Pin:ty) => {{
-        use capsules::led::LED;
+    ($Led:ty) => {{
+        use capsules::led::LedDriver;
         use core::mem::MaybeUninit;
-        static mut BUF: MaybeUninit<LED<'static, $Pin>> = MaybeUninit::uninit();
+        static mut BUF: MaybeUninit<LedDriver<'static, $Led>> = MaybeUninit::uninit();
         &mut BUF
     };};
 }
 
-pub struct LedsComponent<P: 'static + kernel::hil::gpio::Pin> {
-    pins: &'static [(&'static P, kernel::hil::gpio::ActivationMode)],
+pub struct LedsComponent<L: 'static + Led> {
+    leds: &'static mut [&'static mut L],
 }
 
-impl<P: 'static + kernel::hil::gpio::Pin> LedsComponent<P> {
-    pub fn new(pins: &'static [(&'static P, kernel::hil::gpio::ActivationMode)]) -> Self {
-        Self { pins }
+impl<L: 'static + Led> LedsComponent<L> {
+    pub fn new(leds: &'static mut [&'static mut L]) -> Self {
+        Self { leds }
     }
 }
 
-impl<P: 'static + kernel::hil::gpio::Pin> Component for LedsComponent<P> {
-    type StaticInput = &'static mut MaybeUninit<LED<'static, P>>;
-    type Output = &'static LED<'static, P>;
+impl<L: 'static + Led> Component for LedsComponent<L> {
+    type StaticInput = &'static mut MaybeUninit<LedDriver<'static, L>>;
+    type Output = &'static LedDriver<'static, L>;
 
     unsafe fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
-        static_init_half!(static_buffer, LED<'static, P>, LED::new(self.pins))
+        static_init_half!(
+            static_buffer,
+            LedDriver<'static, L>,
+            LedDriver::new(self.leds)
+        )
     }
 }

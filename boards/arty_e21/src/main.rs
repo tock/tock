@@ -6,6 +6,7 @@
 #![cfg_attr(not(doc), no_main)]
 #![feature(const_fn, const_in_array_repeat_expressions)]
 
+use arty_e21_chip::chip::ArtyExxDefaultPeripherals;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use kernel::capabilities;
 use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
@@ -34,7 +35,7 @@ static mut PROCESSES: [Option<&'static dyn kernel::procs::ProcessType>; NUM_PROC
     [None, None, None, None];
 
 // Reference to the chip for panic dumps.
-static mut CHIP: Option<&'static arty_e21_chip::chip::ArtyExx> = None;
+static mut CHIP: Option<&'static arty_e21_chip::chip::ArtyExx<ArtyExxDefaultPeripherals>> = None;
 
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
@@ -50,7 +51,10 @@ struct ArtyE21 {
         'static,
         VirtualMuxAlarm<'static, rv32i::machine_timer::MachineTimer<'static>>,
     >,
-    led: &'static capsules::led::LED<'static, arty_e21_chip::gpio::GpioPin<'static>>,
+    led: &'static capsules::led::LedDriver<
+        'static,
+        hil::led::LedHigh<'static, arty_e21_chip::gpio::GpioPin<'static>>,
+    >,
     button: &'static capsules::button::Button<'static, arty_e21_chip::gpio::GpioPin<'static>>,
     // ipc: kernel::ipc::IPC,
 }
@@ -84,9 +88,11 @@ pub unsafe fn reset_handler() {
     // Basic setup of the platform.
     rv32i::init_memory();
 
+    let peripherals = static_init!(ArtyExxDefaultPeripherals, ArtyExxDefaultPeripherals::new());
+
     let chip = static_init!(
-        arty_e21_chip::chip::ArtyExx,
-        arty_e21_chip::chip::ArtyExx::new()
+        arty_e21_chip::chip::ArtyExx<ArtyExxDefaultPeripherals>,
+        arty_e21_chip::chip::ArtyExx::new(peripherals)
     );
     CHIP = Some(chip);
     chip.initialize();
@@ -106,14 +112,14 @@ pub unsafe fn reset_handler() {
 
     // Configure kernel debug gpios as early as possible
     kernel::debug::assign_gpios(
-        Some(&arty_e21_chip::gpio::PORT[0]), // Blue
-        Some(&arty_e21_chip::gpio::PORT[1]), // Green
-        Some(&arty_e21_chip::gpio::PORT[8]),
+        Some(&peripherals.gpio_port[0]), // Blue
+        Some(&peripherals.gpio_port[1]), // Green
+        Some(&peripherals.gpio_port[8]),
     );
 
     // Create a shared UART channel for the console and for kernel debug.
     let uart_mux = components::console::UartMuxComponent::new(
-        &arty_e21_chip::uart::UART0,
+        &peripherals.uart0,
         115200,
         dynamic_deferred_caller,
     )
@@ -125,9 +131,9 @@ pub unsafe fn reset_handler() {
     // alarm.
     let mux_alarm = static_init!(
         MuxAlarm<'static, rv32i::machine_timer::MachineTimer>,
-        MuxAlarm::new(&arty_e21_chip::timer::MACHINETIMER)
+        MuxAlarm::new(&peripherals.machinetimer)
     );
-    hil::time::Alarm::set_alarm_client(&arty_e21_chip::timer::MACHINETIMER, mux_alarm);
+    hil::time::Alarm::set_alarm_client(&peripherals.machinetimer, mux_alarm);
 
     // Alarm
     let alarm = components::alarm::AlarmDriverComponent::new(board_kernel, mux_alarm).finalize(
@@ -148,24 +154,14 @@ pub unsafe fn reset_handler() {
 
     // LEDs
     let led = components::led::LedsComponent::new(components::led_component_helper!(
-        arty_e21_chip::gpio::GpioPin,
-        (
-            // Red
-            &arty_e21_chip::gpio::PORT[2],
-            kernel::hil::gpio::ActivationMode::ActiveHigh
-        ),
-        (
-            // Green
-            &arty_e21_chip::gpio::PORT[1],
-            kernel::hil::gpio::ActivationMode::ActiveHigh
-        ),
-        (
-            // Blue
-            &arty_e21_chip::gpio::PORT[0],
-            kernel::hil::gpio::ActivationMode::ActiveHigh
-        )
+        hil::led::LedHigh<'static, arty_e21_chip::gpio::GpioPin>,
+        hil::led::LedHigh::new(&peripherals.gpio_port[2]), // Red
+        hil::led::LedHigh::new(&peripherals.gpio_port[1]), // Green
+        hil::led::LedHigh::new(&peripherals.gpio_port[0]), // Blue
     ))
-    .finalize(components::led_component_buf!(arty_e21_chip::gpio::GpioPin));
+    .finalize(components::led_component_buf!(
+        hil::led::LedHigh<'static, arty_e21_chip::gpio::GpioPin>
+    ));
 
     // BUTTONs
     let button = components::button::ButtonComponent::new(
@@ -173,7 +169,7 @@ pub unsafe fn reset_handler() {
         components::button_component_helper!(
             arty_e21_chip::gpio::GpioPin,
             (
-                &arty_e21_chip::gpio::PORT[4],
+                &peripherals.gpio_port[4],
                 kernel::hil::gpio::ActivationMode::ActiveHigh,
                 kernel::hil::gpio::FloatingState::PullNone
             )
@@ -188,9 +184,9 @@ pub unsafe fn reset_handler() {
         board_kernel,
         components::gpio_component_helper!(
             arty_e21_chip::gpio::GpioPin,
-            0 => &arty_e21_chip::gpio::PORT[7],
-            1 => &arty_e21_chip::gpio::PORT[5],
-            2 => &arty_e21_chip::gpio::PORT[6]
+            0 => &peripherals.gpio_port[7],
+            1 => &peripherals.gpio_port[5],
+            2 => &peripherals.gpio_port[6]
         ),
     )
     .finalize(components::gpio_component_buf!(
@@ -211,7 +207,7 @@ pub unsafe fn reset_handler() {
     // Create virtual device for kernel debug.
     components::debug_writer::DebugWriterComponent::new(uart_mux).finalize(());
 
-    // arty_e21_chip::uart::UART0.initialize_gpio_pins(&arty_e21_chip::gpio::PORT[17], &arty_e21_chip::gpio::PORT[16]);
+    // arty_e21_chip::uart::UART0.initialize_gpio_pins(&peripherals.gpio_port[17], &peripherals.gpio_port[16]);
 
     debug!("Initialization complete. Entering main loop.");
 

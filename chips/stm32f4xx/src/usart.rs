@@ -12,7 +12,7 @@ use crate::rcc;
 
 /// Universal synchronous asynchronous receiver transmitter
 #[repr(C)]
-struct UsartRegisters {
+pub struct UsartRegisters {
     /// Status register
     sr: ReadWrite<u32, SR::Register>,
     /// Data register
@@ -144,10 +144,15 @@ register_bitfields![u32,
     ]
 ];
 
-const USART2_BASE: StaticRef<UsartRegisters> =
+pub const USART2_BASE: StaticRef<UsartRegisters> =
     unsafe { StaticRef::new(0x40004400 as *const UsartRegisters) };
-const USART3_BASE: StaticRef<UsartRegisters> =
+pub const USART3_BASE: StaticRef<UsartRegisters> =
     unsafe { StaticRef::new(0x40004800 as *const UsartRegisters) };
+
+// for use by dma1
+pub(crate) fn get_address_dr(regs: StaticRef<UsartRegisters>) -> u32 {
+    &regs.dr as *const ReadWrite<u32> as u32
+}
 
 #[allow(non_camel_case_types)]
 #[derive(Copy, Clone, PartialEq)]
@@ -166,7 +171,7 @@ enum USARTStateTX {
 
 pub struct Usart<'a> {
     registers: StaticRef<UsartRegisters>,
-    clock: UsartClock,
+    clock: UsartClock<'a>,
 
     tx_client: OptionalCell<&'a dyn hil::uart::TransmitClient>,
     rx_client: OptionalCell<&'a dyn hil::uart::ReceiveClient>,
@@ -187,28 +192,14 @@ pub struct Usart<'a> {
 pub struct TxDMA<'a>(pub &'a dma1::Stream<'a>);
 pub struct RxDMA<'a>(pub &'a dma1::Stream<'a>);
 
-pub static mut USART2: Usart = Usart::new(
-    USART2_BASE,
-    UsartClock(rcc::PeripheralClock::APB1(rcc::PCLK1::USART2)),
-    Dma1Peripheral::USART2_TX,
-    Dma1Peripheral::USART2_RX,
-);
-
-pub static mut USART3: Usart = Usart::new(
-    USART3_BASE,
-    UsartClock(rcc::PeripheralClock::APB1(rcc::PCLK1::USART3)),
-    Dma1Peripheral::USART3_TX,
-    Dma1Peripheral::USART3_RX,
-);
-
 impl<'a> Usart<'a> {
     const fn new(
         base_addr: StaticRef<UsartRegisters>,
-        clock: UsartClock,
+        clock: UsartClock<'a>,
         tx_dma_pid: Dma1Peripheral,
         rx_dma_pid: Dma1Peripheral,
-    ) -> Usart<'a> {
-        Usart {
+    ) -> Self {
+        Self {
             registers: base_addr,
             clock: clock,
 
@@ -226,6 +217,30 @@ impl<'a> Usart<'a> {
             usart_tx_state: Cell::new(USARTStateTX::Idle),
             usart_rx_state: Cell::new(USARTStateRX::Idle),
         }
+    }
+
+    pub const fn new_usart2(rcc: &'a rcc::Rcc) -> Self {
+        Self::new(
+            USART2_BASE,
+            UsartClock(rcc::PeripheralClock::new(
+                rcc::PeripheralClockType::APB1(rcc::PCLK1::USART2),
+                rcc,
+            )),
+            Dma1Peripheral::USART2_TX,
+            Dma1Peripheral::USART2_RX,
+        )
+    }
+
+    pub const fn new_usart3(rcc: &'a rcc::Rcc) -> Self {
+        Self::new(
+            USART3_BASE,
+            UsartClock(rcc::PeripheralClock::new(
+                rcc::PeripheralClockType::APB1(rcc::PCLK1::USART3),
+                rcc,
+            )),
+            Dma1Peripheral::USART3_TX,
+            Dma1Peripheral::USART3_RX,
+        )
     }
 
     pub fn is_enabled_clock(&self) -> bool {
@@ -269,11 +284,6 @@ impl<'a> Usart<'a> {
                 });
             });
         }
-    }
-
-    // for use by dma1
-    pub fn get_address_dr(&self) -> u32 {
-        &self.registers.dr as *const ReadWrite<u32> as u32
     }
 
     // for use by panic in io.rs
@@ -530,9 +540,9 @@ impl dma1::StreamClient for Usart<'_> {
     }
 }
 
-struct UsartClock(rcc::PeripheralClock);
+struct UsartClock<'a>(rcc::PeripheralClock<'a>);
 
-impl ClockInterface for UsartClock {
+impl ClockInterface for UsartClock<'_> {
     fn is_enabled(&self) -> bool {
         self.0.is_enabled()
     }

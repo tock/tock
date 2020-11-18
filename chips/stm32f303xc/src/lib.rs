@@ -13,6 +13,7 @@ pub mod nvic;
 
 // Peripherals
 pub mod adc;
+pub mod dma;
 pub mod exti;
 pub mod flash;
 pub mod gpio;

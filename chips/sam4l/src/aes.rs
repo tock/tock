@@ -161,7 +161,7 @@ pub struct Aes<'a> {
 }
 
 impl<'a> Aes<'a> {
-    const fn new() -> Aes<'a> {
+    pub const fn new() -> Aes<'a> {
         Aes {
             registers: AES_BASE,
             client: OptionalCell::empty(),
@@ -503,5 +503,3 @@ impl hil::symmetric_encryption::AES128CBC for Aes<'_> {
         self.set_mode(encrypting, ConfidentialityMode::CBC);
     }
 }
-
-pub static mut AES: Aes<'static> = Aes::new();

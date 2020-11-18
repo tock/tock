@@ -217,9 +217,9 @@ pub struct Comparator<'a> {
 }
 
 impl<'a> Comparator<'a> {
-    const fn new(registers: StaticRef<CompRegisters>) -> Self {
+    pub const fn new() -> Self {
         Comparator {
-            registers: registers,
+            registers: ACOMP_BASE,
             client: OptionalCell::empty(),
         }
     }
@@ -328,5 +328,3 @@ impl<'a> analog_comparator::AnalogComparator<'a> for Comparator<'a> {
 
 const ACOMP_BASE: StaticRef<CompRegisters> =
     unsafe { StaticRef::new(0x40013000 as *const CompRegisters) };
-
-pub static mut ACOMP: Comparator = Comparator::new(ACOMP_BASE);

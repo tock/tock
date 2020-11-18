@@ -497,10 +497,10 @@ enum ADCStatus {
     Continuous,
 }
 
-pub struct Adc {
+pub struct Adc<'a> {
     registers: StaticRef<AdcRegisters>,
     common_registers: StaticRef<AdcCommonRegisters>,
-    clock: AdcClock,
+    clock: AdcClock<'a>,
     status: Cell<ADCStatus>,
     client: OptionalCell<&'static dyn hil::adc::Client>,
     requested: Cell<ADCStatus>,
@@ -508,14 +508,15 @@ pub struct Adc {
     sc_enabled: Cell<bool>,
 }
 
-pub static mut ADC1: Adc = Adc::new();
-
-impl Adc {
-    const fn new() -> Adc {
-        Adc {
+impl<'a> Adc<'a> {
+    pub const fn new(rcc: &'a rcc::Rcc) -> Self {
+        Self {
             registers: ADC1_BASE,
             common_registers: ADC12_COMMON_BASE,
-            clock: AdcClock(rcc::PeripheralClock::AHB(rcc::HCLK::ADC1)),
+            clock: AdcClock(rcc::PeripheralClock::new(
+                rcc::PeripheralClockType::AHB(rcc::HCLK::ADC1),
+                rcc,
+            )),
             status: Cell::new(ADCStatus::Off),
             client: OptionalCell::empty(),
             requested: Cell::new(ADCStatus::Idle),
@@ -664,9 +665,9 @@ impl Adc {
     }
 }
 
-struct AdcClock(rcc::PeripheralClock);
+struct AdcClock<'a>(rcc::PeripheralClock<'a>);
 
-impl ClockInterface for AdcClock {
+impl ClockInterface for AdcClock<'_> {
     fn is_enabled(&self) -> bool {
         self.0.is_enabled()
     }
@@ -680,7 +681,7 @@ impl ClockInterface for AdcClock {
     }
 }
 
-impl hil::adc::Adc for Adc {
+impl hil::adc::Adc for Adc<'_> {
     type Channel = Channel;
 
     fn sample(&self, channel: &Self::Channel) -> ReturnCode {
@@ -725,7 +726,7 @@ impl hil::adc::Adc for Adc {
 }
 
 /// Not yet supported
-impl hil::adc::AdcHighSpeed for Adc {
+impl hil::adc::AdcHighSpeed for Adc<'_> {
     /// Capture buffered samples from the ADC continuously at a given
     /// frequency, calling the client whenever a buffer fills up. The client is
     /// then expected to either stop sampling or provide an additional buffer

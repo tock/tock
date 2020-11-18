@@ -50,11 +50,10 @@ pub struct Trng<'a> {
     client: OptionalCell<&'a dyn entropy::Client32>,
 }
 
-pub static mut TRNG: Trng<'static> = Trng::new();
 const KEY: u32 = 0x524e47;
 
 impl<'a> Trng<'a> {
-    const fn new() -> Trng<'a> {
+    pub const fn new() -> Trng<'a> {
         Trng {
             regs: BASE_ADDRESS,
             client: OptionalCell::empty(),

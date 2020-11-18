@@ -180,7 +180,7 @@ const I2C1_BASE: StaticRef<I2CRegisters> =
 
 pub struct I2C<'a> {
     registers: StaticRef<I2CRegisters>,
-    clock: I2CClock,
+    clock: I2CClock<'a>,
 
     // I2C slave support not yet implemented
     master_client: OptionalCell<&'a dyn hil::i2c::I2CHwMasterClient>,
@@ -204,16 +204,14 @@ enum I2CStatus {
     Reading,
 }
 
-pub static mut I2C1: I2C = I2C::new(
-    I2C1_BASE,
-    I2CClock(rcc::PeripheralClock::APB1(rcc::PCLK1::I2C1)),
-);
-
-impl I2C<'_> {
-    const fn new(base_addr: StaticRef<I2CRegisters>, clock: I2CClock) -> Self {
+impl<'a> I2C<'a> {
+    pub const fn new(rcc: &'a rcc::Rcc) -> Self {
         Self {
-            registers: base_addr,
-            clock,
+            registers: I2C1_BASE,
+            clock: I2CClock(rcc::PeripheralClock::new(
+                rcc::PeripheralClockType::APB1(rcc::PCLK1::I2C1),
+                rcc,
+            )),
 
             master_client: OptionalCell::empty(),
 
@@ -444,9 +442,9 @@ impl i2c::I2CMaster for I2C<'_> {
     }
 }
 
-struct I2CClock(rcc::PeripheralClock);
+struct I2CClock<'a>(rcc::PeripheralClock<'a>);
 
-impl ClockInterface for I2CClock {
+impl ClockInterface for I2CClock<'_> {
     fn is_enabled(&self) -> bool {
         self.0.is_enabled()
     }

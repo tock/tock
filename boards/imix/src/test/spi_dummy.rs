@@ -1,6 +1,5 @@
 //! A dummy SPI client to test the SPI implementation
 
-use kernel::hil::gpio;
 use kernel::hil::gpio::Configure;
 use kernel::hil::spi::{self, SpiMaster};
 use kernel::ReturnCode;
@@ -8,6 +7,16 @@ use kernel::ReturnCode;
 #[allow(unused_variables, dead_code)]
 pub struct DummyCB {
     val: u8,
+    spi: &'static sam4l::spi::SpiHw,
+}
+
+impl DummyCB {
+    pub fn new(spi: &'static sam4l::spi::SpiHw) -> Self {
+        Self {
+            val: 0x55 as u8,
+            spi,
+        }
+    }
 }
 
 pub static mut FLOP: bool = false;
@@ -25,7 +34,7 @@ impl spi::SpiMasterClient for DummyCB {
     ) {
         unsafe {
             // do actual stuff
-            sam4l::spi::SPI.read_write_bytes(&mut A5, None, A5.len());
+            self.spi.read_write_bytes(&mut A5, None, A5.len());
 
             // FLOP = !FLOP;
             // let len: usize = BUF1.len();
@@ -37,8 +46,6 @@ impl spi::SpiMasterClient for DummyCB {
         }
     }
 }
-
-pub static mut SPICB: DummyCB = DummyCB { val: 0x55 as u8 };
 
 // This test first turns on the Imix's User led, asserts pin D2 and then
 // initiates a continuous SPI transfer of 8 bytes.
@@ -55,24 +62,26 @@ pub static mut SPICB: DummyCB = DummyCB { val: 0x55 as u8 };
 // the board.
 #[inline(never)]
 #[allow(unused_variables, dead_code)]
-pub unsafe fn spi_dummy_test() {
+pub unsafe fn spi_dummy_test(spi: &'static sam4l::spi::SpiHw) {
     // set the LED to mark that we've programmed.
-    sam4l::gpio::PC[10].make_output();
-    &sam4l::gpio::PC[10].set();
+    let pin = sam4l::gpio::GPIOPin::new(sam4l::gpio::Pin::PC10);
+    pin.make_output();
+    pin.set();
 
-    let pin2: &mut dyn gpio::Pin = &mut sam4l::gpio::PC[31]; // It's on D2 of the IMIX
+    let pin2 = sam4l::gpio::GPIOPin::new(sam4l::gpio::Pin::PC31); // It's on D2 of the IMIX
     pin2.make_output();
     pin2.set();
 
-    sam4l::spi::SPI.set_active_peripheral(sam4l::spi::Peripheral::Peripheral0);
-    sam4l::spi::SPI.set_client(&SPICB);
-    sam4l::spi::SPI.init();
-    sam4l::spi::SPI.set_baud_rate(200000);
+    let spicb = kernel::static_init!(DummyCB, DummyCB::new(spi));
+    spi.set_active_peripheral(sam4l::spi::Peripheral::Peripheral0);
+    spi.set_client(spicb);
+    spi.init();
+    spi.set_baud_rate(200000);
 
     let len = BUF2.len();
-    if sam4l::spi::SPI.read_write_bytes(&mut BUF2, Some(&mut BUF1), len) != ReturnCode::SUCCESS {
+    if spi.read_write_bytes(&mut BUF2, Some(&mut BUF1), len) != ReturnCode::SUCCESS {
         loop {
-            sam4l::spi::SPI.write_byte(0xA5);
+            spi.write_byte(0xA5);
         }
     }
 

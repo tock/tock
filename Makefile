@@ -424,7 +424,7 @@ ci-job-kernel:
 ci-job-capsules:
 	$(call banner,CI-Job: Capsules)
 	@# Capsule initialization depends on board/chip specific imports, so ignore doc tests
-	@cd capsules && CI=true RUSTFLAGS="-D warnings" TOCK_KERNEL_VERSION=ci_test cargo test --lib
+	@cd capsules && CI=true RUSTFLAGS="-D warnings" TOCK_KERNEL_VERSION=ci_test cargo test --lib --examples
 
 .PHONY: ci-job-chips
 ci-job-chips:
@@ -499,9 +499,9 @@ define ci_setup_qemu_riscv
 	@# Use the latest QEMU as it has OpenTitan support
 	@printf "Building QEMU, this could take a few minutes\n\n"
 	@git submodule sync; git submodule update --init
-	@mkdir -p tools/qemu-build && cd tools/qemu-build; ../qemu/configure --target-list=riscv32-softmmu;
+	@cd tools/qemu; ../qemu/configure --target-list=riscv32-softmmu --disable-linux-io-uring --disable-libdaxctl;
 	@# Build qemu
-	@$(MAKE) -C "tools/qemu-build" || (echo "You might need to install some missing packages" || exit 127)
+	@$(MAKE) -C "tools/qemu/build" || (echo "You might need to install some missing packages" || exit 127)
 endef
 
 define ci_setup_qemu_opentitan
@@ -525,7 +525,7 @@ ci-setup-qemu:
 	$(call ci_setup_helper,\
 		status=$$(git submodule status -- tools/qemu); \
 		[[ "$${status:0:1}" != "" ]] && \
-			cd tools/qemu-build && make -q riscv32-softmmu && echo yes,\
+			cd tools/qemu/build && make -q riscv32-softmmu && echo yes,\
 		Clone QEMU and run its build scripts,\
 		ci_setup_qemu_riscv,\
 		CI_JOB_QEMU_RISCV)
@@ -541,7 +541,7 @@ ci-setup-qemu:
 define ci_job_qemu
 	$(call banner,CI-Job: QEMU)
 	@cd tools/qemu-runner;\
-		PATH="$(shell pwd)/tools/qemu-build/riscv32-softmmu/:${PATH}"\
+		PATH="$(shell pwd)/tools/qemu/build/riscv32-softmmu/:${PATH}"\
 		CI=true cargo run
 endef
 

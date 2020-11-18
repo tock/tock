@@ -25,7 +25,10 @@ impl Write for Writer {
 
 impl IoWrite for Writer {
     fn write(&mut self, buf: &[u8]) {
-        let uart = unsafe { &mut sam4l::usart::USART0 };
+        // Here, we create a second instance of the USART0 struct.
+        // This is okay because we only call this during a panic, and
+        // we will never actually process the interrupts
+        let uart = unsafe { sam4l::usart::USART::new_usart0(CHIP.unwrap().pm) };
         let regs_manager = &sam4l::usart::USARTRegManager::panic_new(&uart);
         if !self.initialized {
             self.initialized = true;
@@ -52,14 +55,15 @@ impl IoWrite for Writer {
 #[panic_handler]
 pub unsafe extern "C" fn panic_fmt(pi: &PanicInfo) -> ! {
     // turn off the non panic leds, just in case
-    let led_green = &sam4l::gpio::PA[14];
+    let led_green = sam4l::gpio::GPIOPin::new(sam4l::gpio::Pin::PA14);
     led_green.enable_output();
     led_green.set();
-    let led_blue = &sam4l::gpio::PA[15];
+    let led_blue = sam4l::gpio::GPIOPin::new(sam4l::gpio::Pin::PA15);
     led_blue.enable_output();
     led_blue.set();
 
-    let led_red = &mut led::LedLow::new(&mut sam4l::gpio::PA[13]);
+    let red_pin = sam4l::gpio::GPIOPin::new(sam4l::gpio::Pin::PA13);
+    let led_red = &mut led::LedLow::new(&red_pin);
     let writer = &mut WRITER;
     debug::panic(
         &mut [led_red],

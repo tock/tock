@@ -127,7 +127,7 @@ pub trait Flash {
         buf: &'static mut Self::Page,
     ) -> Result<(), (ReturnCode, &'static mut Self::Page)>;
 
-    /// Erase a page of flash.
+    /// Erase a page of flash by setting every byte to 0xFF.
     fn erase_page(&self, page_number: usize) -> ReturnCode;
 }
 

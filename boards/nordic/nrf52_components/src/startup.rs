@@ -144,16 +144,19 @@ pub enum UartChannel<'a> {
 pub struct UartChannelComponent {
     uart_channel: UartChannel<'static>,
     mux_alarm: &'static MuxAlarm<'static, nrf52::rtc::Rtc<'static>>,
+    uarte0: &'static nrf52::uart::Uarte<'static>,
 }
 
 impl UartChannelComponent {
     pub fn new(
         uart_channel: UartChannel<'static>,
         mux_alarm: &'static MuxAlarm<'static, nrf52::rtc::Rtc<'static>>,
+        uarte0: &'static nrf52::uart::Uarte<'static>,
     ) -> Self {
         Self {
             uart_channel,
             mux_alarm,
+            uarte0,
         }
     }
 }
@@ -165,13 +168,13 @@ impl Component for UartChannelComponent {
     unsafe fn finalize(self, _s: Self::StaticInput) -> Self::Output {
         match self.uart_channel {
             UartChannel::Pins(uart_pins) => {
-                nrf52::uart::UARTE0.initialize(
+                self.uarte0.initialize(
                     nrf52::pinmux::Pinmux::new(uart_pins.txd as u32),
                     nrf52::pinmux::Pinmux::new(uart_pins.rxd as u32),
                     uart_pins.cts.map(|x| nrf52::pinmux::Pinmux::new(x as u32)),
                     uart_pins.rts.map(|x| nrf52::pinmux::Pinmux::new(x as u32)),
                 );
-                &nrf52::uart::UARTE0
+                self.uarte0
             }
             UartChannel::Rtt(rtt_memory) => {
                 let rtt =

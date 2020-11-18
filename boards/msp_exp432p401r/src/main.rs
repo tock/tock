@@ -44,7 +44,10 @@ pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 /// A structure representing this platform that holds references to all
 /// capsules for this platform.
 struct MspExp432P401R {
-    led: &'static capsules::led::LED<'static, msp432::gpio::IntPin<'static>>,
+    led: &'static capsules::led::LedDriver<
+        'static,
+        kernel::hil::led::LedHigh<'static, msp432::gpio::IntPin<'static>>,
+    >,
     console: &'static capsules::console::Console<'static>,
     button: &'static capsules::button::Button<'static, msp432::gpio::IntPin<'static>>,
     gpio: &'static capsules::gpio::GPIO<'static, msp432::gpio::IntPin<'static>>,
@@ -53,6 +56,7 @@ struct MspExp432P401R {
         capsules::virtual_alarm::VirtualMuxAlarm<'static, msp432::timer::TimerA<'static>>,
     >,
     ipc: kernel::ipc::IPC,
+    adc: &'static capsules::adc::AdcDedicated<'static, msp432::adc::Adc>,
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
@@ -68,6 +72,7 @@ impl Platform for MspExp432P401R {
             capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
             capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
+            capsules::adc::DRIVER_NUM => f(Some(self.adc)),
             _ => f(None),
         }
     }
@@ -93,6 +98,39 @@ unsafe fn startup_intilialisation() {
     msp432::pcm::PCM.set_high_power();
     msp432::flctl::FLCTL.set_waitstates(msp432::flctl::WaitStates::_1);
     msp432::flctl::FLCTL.set_buffering(true);
+}
+
+/// Function to setup all ADC-capaable pins
+/// Since the chips has 100 pins, we really setup all capable pins to work as ADC-pins.
+unsafe fn setup_adc_pins() {
+    use msp432::gpio::{IntPinNr, PinNr, INT_PINS, PINS};
+    INT_PINS[IntPinNr::P05_5 as usize].enable_tertiary_function(); // A0
+    INT_PINS[IntPinNr::P05_4 as usize].enable_tertiary_function(); // A1
+    INT_PINS[IntPinNr::P05_3 as usize].enable_tertiary_function(); // A2
+    INT_PINS[IntPinNr::P05_2 as usize].enable_tertiary_function(); // A3
+    INT_PINS[IntPinNr::P05_1 as usize].enable_tertiary_function(); // A4
+    INT_PINS[IntPinNr::P05_0 as usize].enable_tertiary_function(); // A5
+    INT_PINS[IntPinNr::P04_7 as usize].enable_tertiary_function(); // A6
+    INT_PINS[IntPinNr::P04_6 as usize].enable_tertiary_function(); // A7
+    INT_PINS[IntPinNr::P04_5 as usize].enable_tertiary_function(); // A8
+    INT_PINS[IntPinNr::P04_4 as usize].enable_tertiary_function(); // A9
+    INT_PINS[IntPinNr::P04_3 as usize].enable_tertiary_function(); // A10
+    INT_PINS[IntPinNr::P04_2 as usize].enable_tertiary_function(); // A11
+    INT_PINS[IntPinNr::P04_1 as usize].enable_tertiary_function(); // A12
+    INT_PINS[IntPinNr::P04_0 as usize].enable_tertiary_function(); // A13
+    INT_PINS[IntPinNr::P06_1 as usize].enable_tertiary_function(); // A14
+    INT_PINS[IntPinNr::P06_0 as usize].enable_tertiary_function(); // A15
+    PINS[PinNr::P09_1 as usize].enable_tertiary_function(); // A16
+    PINS[PinNr::P09_0 as usize].enable_tertiary_function(); // A17
+    PINS[PinNr::P08_7 as usize].enable_tertiary_function(); // A18
+    PINS[PinNr::P08_6 as usize].enable_tertiary_function(); // A19
+    PINS[PinNr::P08_5 as usize].enable_tertiary_function(); // A20
+    PINS[PinNr::P08_4 as usize].enable_tertiary_function(); // A21
+
+    // Don't configure these pins since their channels are used for the internal
+    // temperature sensor (Channel 22) and the Battery Monitor (A23)
+    // PINS[PinNr::P08_3 as usize].enable_tertiary_function(); // A22
+    // PINS[PinNr::P08_2 as usize].enable_tertiary_function(); // A23
 }
 
 /// Reset Handler.
@@ -151,21 +189,20 @@ pub unsafe fn reset_handler() {
 
     // Setup LEDs
     let leds = components::led::LedsComponent::new(components::led_component_helper!(
-        msp432::gpio::IntPin,
-        (
-            &msp432::gpio::INT_PINS[msp432::gpio::IntPinNr::P02_0 as usize],
-            kernel::hil::gpio::ActivationMode::ActiveHigh
+        kernel::hil::led::LedHigh<'static, msp432::gpio::IntPin>,
+        kernel::hil::led::LedHigh::new(
+            &msp432::gpio::INT_PINS[msp432::gpio::IntPinNr::P02_0 as usize]
         ),
-        (
-            &msp432::gpio::INT_PINS[msp432::gpio::IntPinNr::P02_1 as usize],
-            kernel::hil::gpio::ActivationMode::ActiveHigh
+        kernel::hil::led::LedHigh::new(
+            &msp432::gpio::INT_PINS[msp432::gpio::IntPinNr::P02_1 as usize]
         ),
-        (
-            &msp432::gpio::INT_PINS[msp432::gpio::IntPinNr::P02_2 as usize],
-            kernel::hil::gpio::ActivationMode::ActiveHigh
-        )
+        kernel::hil::led::LedHigh::new(
+            &msp432::gpio::INT_PINS[msp432::gpio::IntPinNr::P02_2 as usize]
+        ),
     ))
-    .finalize(components::led_component_buf!(msp432::gpio::IntPin));
+    .finalize(components::led_component_buf!(
+        kernel::hil::led::LedHigh<'static, msp432::gpio::IntPin>
+    ));
 
     // Setup user-GPIOs
     let gpio = GpioComponent::new(
@@ -242,12 +279,68 @@ pub unsafe fn reset_handler() {
     // Create the debugger object that handles calls to `debug!()`.
     components::debug_writer::DebugWriterComponent::new(uart_mux).finalize(());
 
+    // Setup alarm
     let timer0 = &msp432::timer::TIMER_A0;
     let mux_alarm = components::alarm::AlarmMuxComponent::new(timer0).finalize(
         components::alarm_mux_component_helper!(msp432::timer::TimerA),
     );
     let alarm = components::alarm::AlarmDriverComponent::new(board_kernel, mux_alarm)
         .finalize(components::alarm_component_helper!(msp432::timer::TimerA));
+
+    // Setup ADC
+
+    setup_adc_pins();
+
+    let adc_channels = static_init!(
+        [&'static msp432::adc::Channel; 24],
+        [
+            &msp432::adc::Channel::Channel0,  // A0
+            &msp432::adc::Channel::Channel1,  // A1
+            &msp432::adc::Channel::Channel2,  // A2
+            &msp432::adc::Channel::Channel3,  // A3
+            &msp432::adc::Channel::Channel4,  // A4
+            &msp432::adc::Channel::Channel5,  // A5
+            &msp432::adc::Channel::Channel6,  // A6
+            &msp432::adc::Channel::Channel7,  // A7
+            &msp432::adc::Channel::Channel8,  // A8
+            &msp432::adc::Channel::Channel9,  // A9
+            &msp432::adc::Channel::Channel10, // A10
+            &msp432::adc::Channel::Channel11, // A11
+            &msp432::adc::Channel::Channel12, // A12
+            &msp432::adc::Channel::Channel13, // A13
+            &msp432::adc::Channel::Channel14, // A14
+            &msp432::adc::Channel::Channel15, // A15
+            &msp432::adc::Channel::Channel16, // A16
+            &msp432::adc::Channel::Channel17, // A17
+            &msp432::adc::Channel::Channel18, // A18
+            &msp432::adc::Channel::Channel19, // A19
+            &msp432::adc::Channel::Channel20, // A20
+            &msp432::adc::Channel::Channel21, // A21
+            &msp432::adc::Channel::Channel22, // A22
+            &msp432::adc::Channel::Channel23, // A23
+        ]
+    );
+
+    let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
+    let grant_adc = board_kernel.create_grant(&grant_cap);
+    let adc = static_init!(
+        capsules::adc::AdcDedicated<'static, msp432::adc::Adc>,
+        capsules::adc::AdcDedicated::new(
+            &msp432::adc::ADC,
+            grant_adc,
+            adc_channels,
+            &mut capsules::adc::ADC_BUFFER1,
+            &mut capsules::adc::ADC_BUFFER2,
+            &mut capsules::adc::ADC_BUFFER3
+        )
+    );
+
+    msp432::adc::ADC.set_client(adc);
+
+    // Set the reference voltage for the ADC to 2.5V
+    msp432::ref_module::REF.select_ref_voltage(msp432::ref_module::ReferenceVoltage::Volt2_5);
+    // Enable the internal temperature sensor on ADC Channel 22
+    msp432::ref_module::REF.enable_temp_sensor(true);
 
     let msp_exp432p4014 = MspExp432P401R {
         led: leds,
@@ -256,6 +349,7 @@ pub unsafe fn reset_handler() {
         gpio: gpio,
         alarm: alarm,
         ipc: kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability),
+        adc: adc,
     };
 
     debug!("Initialization complete. Entering main loop");

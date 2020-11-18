@@ -291,7 +291,9 @@ enum Size {
     Word = 0b10,
 }
 
+#[allow(unused)]
 struct Msize(Size);
+#[allow(unused)]
 struct Psize(Size);
 
 /// List of peripherals managed by DMA1
@@ -303,18 +305,19 @@ pub enum Dma1Peripheral {
     USART1_RX,
 }
 
-pub struct Dma1 {
-    registers: StaticRef<Dma1Registers>,
-    clock: Dma1Clock,
+pub struct Dma1<'a> {
+    _registers: StaticRef<Dma1Registers>,
+    clock: Dma1Clock<'a>,
 }
 
-pub static mut DMA1: Dma1 = Dma1::new();
-
-impl Dma1 {
-    const fn new() -> Dma1 {
-        Dma1 {
-            registers: DMA1_BASE,
-            clock: Dma1Clock(rcc::PeripheralClock::AHB(rcc::HCLK::DMA1)),
+impl<'a> Dma1<'a> {
+    pub const fn new(rcc: &'a rcc::Rcc) -> Self {
+        Self {
+            _registers: DMA1_BASE,
+            clock: Dma1Clock(rcc::PeripheralClock::new(
+                rcc::PeripheralClockType::AHB(rcc::HCLK::DMA1),
+                rcc,
+            )),
         }
     }
 
@@ -331,9 +334,9 @@ impl Dma1 {
     }
 }
 
-struct Dma1Clock(rcc::PeripheralClock);
+struct Dma1Clock<'a>(rcc::PeripheralClock<'a>);
 
-impl ClockInterface for Dma1Clock {
+impl ClockInterface for Dma1Clock<'_> {
     fn is_enabled(&self) -> bool {
         self.0.is_enabled()
     }

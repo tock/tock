@@ -90,23 +90,24 @@ pub struct Rtc<'a> {
     enabled: Cell<bool>,
 }
 
-pub static mut RTC: Rtc = Rtc {
-    registers: RTC1_BASE,
-    overflow_client: OptionalCell::empty(),
-    alarm_client: OptionalCell::empty(),
-    enabled: Cell::new(false),
-};
-
 impl<'a> Rtc<'a> {
+    pub const fn new() -> Self {
+        Self {
+            registers: RTC1_BASE,
+            overflow_client: OptionalCell::empty(),
+            alarm_client: OptionalCell::empty(),
+            enabled: Cell::new(false),
+        }
+    }
+
     pub fn handle_interrupt(&self) {
-        let regs = &*self.registers;
-        if regs.events_ovrflw.is_set(Event::READY) {
-            regs.events_ovrflw.write(Event::READY::CLEAR);
+        if self.registers.events_ovrflw.is_set(Event::READY) {
+            self.registers.events_ovrflw.write(Event::READY::CLEAR);
             self.overflow_client.map(|client| client.overflow());
         }
-        if regs.events_compare[0].is_set(Event::READY) {
-            regs.intenclr.write(Inte::COMPARE0::SET);
-            regs.events_compare[0].write(Event::READY::CLEAR);
+        if self.registers.events_compare[0].is_set(Event::READY) {
+            self.registers.intenclr.write(Inte::COMPARE0::SET);
+            self.registers.events_compare[0].write(Event::READY::CLEAR);
             self.alarm_client.map(|client| {
                 client.alarm();
             });

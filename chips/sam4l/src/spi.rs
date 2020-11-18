@@ -192,6 +192,7 @@ pub struct SpiHw {
     // Slave client is distinct from master client
     slave_client: OptionalCell<&'static dyn SpiSlaveClient>,
     role: Cell<SpiRole>,
+    pm: &'static pm::PowerManager,
 }
 
 const SPI_BASE: StaticRef<SpiRegisters> =
@@ -221,11 +222,9 @@ impl PeripheralManagement<pm::Clock> for SpiHw {
 
 type SpiRegisterManager<'a> = PeripheralManager<'a, SpiHw, pm::Clock>;
 
-pub static mut SPI: SpiHw = SpiHw::new();
-
 impl SpiHw {
     /// Creates a new SPI object, with peripheral 0 selected
-    const fn new() -> SpiHw {
+    pub const fn new(pm: &'static pm::PowerManager) -> SpiHw {
         SpiHw {
             client: OptionalCell::empty(),
             dma_read: OptionalCell::empty(),
@@ -235,6 +234,7 @@ impl SpiHw {
 
             slave_client: OptionalCell::empty(),
             role: Cell::new(SpiRole::SpiMaster),
+            pm,
         }
     }
 
@@ -300,7 +300,7 @@ impl SpiHw {
     pub fn set_baud_rate(&self, rate: u32) -> u32 {
         // Main clock frequency
         let mut real_rate = rate;
-        let clock = pm::get_system_frequency();
+        let clock = self.pm.get_system_frequency();
 
         if real_rate < 188235 {
             real_rate = 188235;
@@ -417,7 +417,7 @@ impl SpiHw {
     }
 
     /// Set the DMA channels used for reading and writing.
-    pub fn set_dma(&mut self, read: &'static DMAChannel, write: &'static DMAChannel) {
+    pub fn set_dma(&self, read: &'static DMAChannel, write: &'static DMAChannel) {
         self.dma_read.set(read);
         self.dma_write.set(write);
     }
