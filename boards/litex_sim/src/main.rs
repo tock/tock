@@ -358,14 +358,14 @@ pub unsafe fn reset_handler() {
 
     PANIC_REFERENCES.chip = Some(chip);
 
-    // Enable and unmask interrupts
-    chip.enable_interrupts();
-
     // Enable RISC-V interrupts globally
     csr::CSR
         .mie
-        .modify(csr::mie::mie::mext::SET + csr::mie::mie::msoft::SET + csr::mie::mie::mtimer::SET);
+        .modify(csr::mie::mie::mext::SET + csr::mie::mie::msoft::SET);
     csr::CSR.mstatus.modify(csr::mstatus::mstatus::mie::SET);
+
+    // Unmask all interrupt sources in the interrupt controller
+    chip.unmask_interrupts();
 
     // Setup the console.
     let console = components::console::ConsoleComponent::new(board_kernel, uart_mux).finalize(());

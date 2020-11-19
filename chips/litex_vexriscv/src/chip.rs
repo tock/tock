@@ -2,15 +2,14 @@
 
 use core::fmt::Write;
 use kernel;
-use kernel::common::registers::FieldValue;
 use kernel::debug;
 use kernel::hil::time::Alarm;
 use kernel::InterruptService;
-use rv32i::csr::{mcause, mie::mie, mip::mip, CSR};
+use rv32i::csr::{mcause, mie::mie, CSR};
 use rv32i::syscall::SysCall;
 use rv32i::PMPConfigMacro;
 
-use crate::interrupt_controller;
+use crate::interrupt_controller::VexRiscvInterruptController;
 
 // TODO: Actually implement the PMP
 PMPConfigMacro!(4);
@@ -38,16 +37,16 @@ impl<A: 'static + Alarm<'static>, I: 'static + InterruptService<()>> LiteXVexRis
         }
     }
 
-    pub unsafe fn enable_interrupts(&self) {
-        interrupt_controller::enable_interrupts();
-        interrupt_controller::unmask_all_interrupts();
+    pub unsafe fn unmask_interrupts(&self) {
+        VexRiscvInterruptController::unmask_all_interrupts();
     }
 
     unsafe fn handle_interrupts(&self) {
-        while let Some(interrupt) = interrupt_controller::next_pending() {
+        while let Some(interrupt) = VexRiscvInterruptController::global_instance().next_saved() {
             if !self.interrupt_service.service_interrupt(interrupt as u32) {
                 debug!("Unknown interrupt: {}", interrupt);
             }
+            VexRiscvInterruptController::global_instance().complete_saved(interrupt);
         }
     }
 }
@@ -79,37 +78,25 @@ impl<A: 'static + Alarm<'static>, I: 'static + InterruptService<()>> kernel::Chi
     }
 
     fn service_pending_interrupts(&self) {
-        let mut reenable_intr = FieldValue::<u32, mie::Register>::new(0, 0, 0);
-
-        loop {
-            let mip = CSR.mip.extract();
-
-            if mip.is_set(mip::mtimer) {
-                // TODO: Actually implement the riscv machine timer with VexRiscv
-                // unsafe {
-                //     timer::TIMER.service_interrupt();
-                // }
-                reenable_intr += mie::mtimer::SET;
-            }
-            if mip.is_set(mip::mext) {
-                unsafe {
-                    self.handle_interrupts();
-                }
-                reenable_intr += mie::mext::SET;
-            }
-
-            if !mip.matches_any(mip::mext::SET + mip::mtimer::SET) {
-                break;
+        while VexRiscvInterruptController::global_instance()
+            .next_saved()
+            .is_some()
+        {
+            unsafe {
+                self.handle_interrupts();
             }
         }
 
-        // re-enable any interrupt classes which we handled
-        CSR.mie.modify(reenable_intr);
+        // Re-enable all MIE interrupts that we care about. Since we
+        // looped until we handled them all, we can re-enable all of
+        // them.
+        CSR.mie.modify(mie::mext::SET);
     }
 
     fn has_pending_interrupts(&self) -> bool {
-        let mip = CSR.mip.extract();
-        mip.matches_any(mip::mext::SET + mip::mtimer::SET)
+        VexRiscvInterruptController::global_instance()
+            .next_saved()
+            .is_some()
     }
 
     fn sleep(&self) {
@@ -176,7 +163,17 @@ unsafe fn handle_interrupt(intr: mcause::Interrupt) {
             CSR.mie.modify(mie::mtimer::CLEAR);
         }
         mcause::Interrupt::MachineExternal => {
+            // We received an interrupt, disable interrupts while we handle them
             CSR.mie.modify(mie::mext::CLEAR);
+
+            // Save the interrupts and check whether at least one
+            // interrupt is to be handled
+            //
+            // If no interrupt was saved, reenable interrupts
+            // immediately
+            if !VexRiscvInterruptController::global_instance().save_pending() {
+                CSR.mie.modify(mie::mext::SET);
+            }
         }
 
         mcause::Interrupt::Unknown => {
@@ -187,11 +184,8 @@ unsafe fn handle_interrupt(intr: mcause::Interrupt) {
 
 /// Trap handler for board/chip specific code.
 ///
-/// For the Ibex this gets called when an interrupt occurs while the chip is
-/// in kernel mode. All we need to do is check which interrupt occurred and
-/// disable it.
-///
-/// TODO: Only for ibex?
+/// This gets called when an interrupt occurs while the chip is in
+/// kernel mode.
 #[export_name = "_start_trap_rust_from_kernel"]
 pub unsafe extern "C" fn start_trap_rust() {
     match mcause::Trap::from(CSR.mcause.extract()) {
@@ -207,8 +201,6 @@ pub unsafe extern "C" fn start_trap_rust() {
 /// Function that gets called if an interrupt occurs while an app was running.
 /// mcause is passed in, and this function should correctly handle disabling the
 /// interrupt that fired so that it does not trigger again.
-///
-/// TODO
 #[export_name = "_disable_interrupt_trap_rust_from_app"]
 pub unsafe extern "C" fn disable_interrupt_trap_handler(mcause_val: u32) {
     match mcause::Trap::from(mcause_val) {
