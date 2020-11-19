@@ -230,4 +230,8 @@ impl Callback {
     pub fn function_pointer(&self) -> u32 {
         self.fn_ptr.as_ptr() as u32
     }
+
+    pub(crate) fn appdata(&self) -> u32 {
+        self.appdata as u32
+    }
 }

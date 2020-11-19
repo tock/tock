@@ -76,17 +76,17 @@ use crate::returncode::ReturnCode;
 use crate::syscall::{GenericSyscallReturnValue, SyscallReturnVariant};
 
 pub enum SubscribeResult {
-    Success(Callback, u32),
-    Failure(Callback, u32, ErrorCode),
+    Success(Callback),
+    Failure(Callback, ErrorCode),
 }
 
 impl SubscribeResult {
-    pub fn success(old_callback: Callback, val: u32) -> Self {
-        SubscribeResult::Success(old_callback, val)
+    pub fn success(old_callback: Callback) -> Self {
+        SubscribeResult::Success(old_callback)
     }
 
-    pub fn failure(new_callback: Callback, val: u32, reason: ErrorCode) -> Self {
-        SubscribeResult::Failure(new_callback, val, reason)
+    pub fn failure(new_callback: Callback, reason: ErrorCode) -> Self {
+        SubscribeResult::Failure(new_callback, reason)
     }
 }
 
@@ -353,16 +353,16 @@ impl AllowReadOnlyResult {
 impl SubscribeResult {
     pub fn encode_syscall_return(&self, a0: &mut u32, a1: &mut u32, a2: &mut u32, a3: &mut u32) {
         match self {
-            SubscribeResult::Success(callback, userdata) => {
+            SubscribeResult::Success(callback) => {
                 *a0 = SyscallReturnVariant::SuccessU32U32 as u32;
                 *a1 = callback.function_pointer();
-                *a2 = *userdata as u32;
+                *a2 = callback.appdata();
             }
-            SubscribeResult::Failure(callback, userdata, error) => {
+            SubscribeResult::Failure(callback, error) => {
                 *a0 = SyscallReturnVariant::FailureU32U32 as u32;
                 *a1 = usize::from(*error) as u32;
                 *a2 = callback.function_pointer();
-                *a3 = *userdata as u32;
+                *a3 = callback.appdata();
             }
         }
     }
