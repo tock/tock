@@ -76,8 +76,8 @@ impl<L: ReadWrite, T> DerefMut for AppPtr<L, T> {
     }
 }
 
-impl <L, T> Drop for AppPtr<L, T> {
-    fn drop (&mut self) {
+impl<L, T> Drop for AppPtr<L, T> {
+    fn drop(&mut self) {
         self.process
             .kernel
             .process_map_or((), self.process, |process| unsafe {
@@ -85,7 +85,6 @@ impl <L, T> Drop for AppPtr<L, T> {
             })
     }
 }
-
 
 /// Buffer of memory shared from an app to the kernel.
 ///
@@ -156,10 +155,9 @@ impl<L, T> AppSlice<L, T> {
             false
         }
     }
-
 }
 
-impl <L: Read, T> AppSlice<L, T> {
+impl<L: Read, T> AppSlice<L, T> {
     pub fn make_read_only(self) -> AppSlice<SharedReadOnly, T> {
         AppSlice {
             ptr: self.ptr.make_read_only(),
@@ -198,16 +196,14 @@ impl <L: Read, T> AppSlice<L, T> {
     }
 
     pub fn readonly_map_or<F, R>(&self, default: R, fun: F) -> R
-    where F: FnOnce(&[T]) -> R {
+    where
+        F: FnOnce(&[T]) -> R,
+    {
         self.ptr
             .process
             .kernel
-            .process_map_or(default,
-                            self.ptr.process,
-                            |_| fun(self.as_ref()))
-                            
+            .process_map_or(default, self.ptr.process, |_| fun(self.as_ref()))
     }
-    
 }
 
 impl<L: ReadWrite, T> AppSlice<L, T> {
@@ -246,17 +242,14 @@ impl<L: ReadWrite, T> AppSlice<L, T> {
     }
 
     pub fn readwrite_map_or<F, R>(&mut self, default: R, fun: F) -> R
-    where F: FnOnce(&mut [T]) -> R {
+    where
+        F: FnOnce(&mut [T]) -> R,
+    {
         self.ptr
             .process
             .kernel
-            .process_map_or(default,
-                            self.ptr.process,
-                            |_| fun(self.as_mut()))
-                            
+            .process_map_or(default, self.ptr.process, |_| fun(self.as_mut()))
     }
-
-    
 }
 
 impl<L: Read, T> AsRef<[T]> for AppSlice<L, T> {

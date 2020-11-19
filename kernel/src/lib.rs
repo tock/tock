@@ -115,7 +115,7 @@ pub use crate::callback::{AppId, Callback};
 pub use crate::driver::{AllowReadOnlyResult, AllowReadWriteResult, CommandResult, Driver};
 pub use crate::errorcode::ErrorCode;
 pub use crate::grant::Grant;
-pub use crate::mem::{AppSlice, Private, Read, ReadWrite, SharedReadWrite, SharedReadOnly};
+pub use crate::mem::{AppSlice, Private, Read, ReadWrite, SharedReadOnly, SharedReadWrite};
 pub use crate::platform::scheduler_timer::{SchedulerTimer, VirtualSchedulerTimer};
 pub use crate::platform::watchdog;
 pub use crate::platform::{mpu, Chip, InterruptService, Platform};

@@ -2,7 +2,7 @@
 
 use core::fmt::Write;
 
-use crate::driver::{CommandResult, AllowReadWriteResult, AllowReadOnlyResult, SubscribeResult};
+use crate::driver::{AllowReadOnlyResult, AllowReadWriteResult, CommandResult, SubscribeResult};
 use crate::errorcode::ErrorCode;
 use crate::process;
 use crate::returncode::ReturnCode;
@@ -140,7 +140,13 @@ impl GenericSyscallReturnValue {
     ///
     /// Most architectures will want to use the (generic over all
     /// system call types) [`SyscallReturnValue::encode_syscall_return`] instead.
-    pub(crate) fn encode_syscall_return(&self, a0: &mut u32, a1: &mut u32, a2: &mut u32, a3: &mut u32) {
+    pub(crate) fn encode_syscall_return(
+        &self,
+        a0: &mut u32,
+        a1: &mut u32,
+        a2: &mut u32,
+        a3: &mut u32,
+    ) {
         match self {
             &GenericSyscallReturnValue::Error(e) => {
                 *a0 = SyscallReturnVariant::Failure as u32;
@@ -252,9 +258,9 @@ impl SyscallResult {
             }
             SyscallResult::AllowReadWrite(rv) => rv.encode_syscall_return(a0, a1, a2, a3),
             SyscallResult::AllowReadOnly(rv) => rv.encode_syscall_return(a0, a1, a2, a3),
-            
+
             SyscallResult::Subscribe(rv) => rv.encode_syscall_return(a0, a1, a2, a3),
-            SyscallResult::Command(rv) =>                rv.encode_syscall_return(a0, a1, a2, a3),
+            SyscallResult::Command(rv) => rv.encode_syscall_return(a0, a1, a2, a3),
             SyscallResult::Memop(rv) => rv.encode_syscall_return(a0, a1, a2, a3),
             SyscallResult::Legacy(rc) => {
                 *a0 = isize::from(*rc) as u32;

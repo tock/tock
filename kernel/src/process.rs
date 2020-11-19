@@ -1241,7 +1241,7 @@ impl<C: Chip> ProcessType for Process<'_, C> {
             }
         }
     }
-    
+
     fn alloc(&self, size: usize, align: usize) -> Option<NonNull<u8>> {
         // Do not modify an inactive process.
         if !self.is_active() {
@@ -2299,7 +2299,6 @@ impl<C: 'static + Chip> Process<'_, C> {
             && buf_end_addr <= self.app_break.get()
     }
 
-
     /// Checks if the buffer represented by the passed in base pointer and size
     /// are within the readable region of an application's flash
     /// memory.  If this method returns true, the buffer
@@ -2311,7 +2310,7 @@ impl<C: 'static + Chip> Process<'_, C> {
             && buf_start_addr >= self.flash_non_protected_start()
             && buf_end_addr <= self.flash_end()
     }
-    
+
     /// Reset all `grant_ptr`s to NULL.
     // This is safe today, as MPU constraints ensure that `mem_end` will always
     // be aligned on at least a word boundary. While this is unlikely to

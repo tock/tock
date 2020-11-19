@@ -69,8 +69,6 @@
 //! kernel (the scheduler and syscall dispatcher) is responsible for
 //! encoding these types into the Tock system call ABI specification.
 
-
-
 use crate::callback::{AppId, Callback};
 use crate::errorcode::ErrorCode;
 use crate::mem::{AppSlice, SharedReadOnly, SharedReadWrite};
@@ -140,9 +138,7 @@ impl AllowReadOnlyResult {
     pub fn failure(new_appslice: AppSlice<SharedReadOnly, u8>, reason: ErrorCode) -> Self {
         AllowReadOnlyResult::Failure(new_appslice, reason)
     }
-
 }
-
 
 /// Possible return values of a `command` driver method
 ///
@@ -305,7 +301,6 @@ pub trait Driver {
         ReturnCode::ENOSUPPORT
     }
 
-    
     // Tock 2.0 method preview:
     //
     // #[allow(unused_variables)]
@@ -317,10 +312,7 @@ pub trait Driver {
     // ) -> AllowReadOnlyResult {
     //     AllowReadOnlyResult::refuse_allow(slice, ErrorCode::ENOSUPPORT)
     // }
-
-
 }
-
 
 impl AllowReadWriteResult {
     pub fn encode_syscall_return(&self, a0: &mut u32, a1: &mut u32, a2: &mut u32, a3: &mut u32) {
@@ -339,7 +331,6 @@ impl AllowReadWriteResult {
         }
     }
 }
-
 
 impl AllowReadOnlyResult {
     pub fn encode_syscall_return(&self, a0: &mut u32, a1: &mut u32, a2: &mut u32, a3: &mut u32) {
@@ -380,10 +371,7 @@ impl SubscribeResult {
 impl CommandResult {
     pub fn encode_syscall_return(&self, a0: &mut u32, a1: &mut u32, a2: &mut u32, a3: &mut u32) {
         match self {
-            &CommandResult(rv) => {
-                rv.encode_syscall_return(a0, a1, a2, a3)
-            }
+            &CommandResult(rv) => rv.encode_syscall_return(a0, a1, a2, a3),
         }
     }
 }
-
