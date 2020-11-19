@@ -712,11 +712,18 @@ impl Kernel {
                                         platform.with_driver(
                                             driver_number,
                                             |driver| match driver {
-                                                Some(d) => d.subscribe(
-                                                    subdriver_number,
-                                                    callback,
-                                                    process.appid(),
-                                                ),
+                                                Some(Ok(_)) => {
+                                                    // Tock 2.0 driver handling
+                                                    ReturnCode::ENODEVICE
+                                                }
+                                                Some(Err(d)) => {
+                                                    // Legacy Tock 1.x driver handling
+                                                    d.subscribe(
+                                                        subdriver_number,
+                                                        callback,
+                                                        process.appid(),
+                                                    )
+                                                }
                                                 None => ReturnCode::ENODEVICE,
                                             },
                                         );
@@ -746,12 +753,19 @@ impl Kernel {
                                         platform.with_driver(
                                             driver_number,
                                             |driver| match driver {
-                                                Some(d) => d.command(
-                                                    subdriver_number,
-                                                    arg0,
-                                                    arg1,
-                                                    process.appid(),
-                                                ),
+                                                Some(Ok(_)) => {
+                                                    // Tock 2.0 driver handling
+                                                    ReturnCode::ENODEVICE
+                                                }
+                                                Some(Err(d)) => {
+                                                    // Legacy Tock 1.x driver handling
+                                                    d.command(
+                                                        subdriver_number,
+                                                        arg0,
+                                                        arg1,
+                                                        process.appid(),
+                                                    )
+                                                }
                                                 None => ReturnCode::ENODEVICE,
                                             },
                                         );
@@ -779,7 +793,12 @@ impl Kernel {
                                 } => {
                                     let res = platform.with_driver(driver_number, |driver| {
                                         match driver {
-                                            Some(d) => {
+                                            Some(Ok(_)) => {
+                                                // Tock 2.0 driver handling
+                                                ReturnCode::ENODEVICE
+                                            }
+                                            Some(Err(d)) => {
+                                                // Legacy Tock 1.x driver handling
                                                 match process
                                                     .allow_readwrite(allow_address, allow_size)
                                                 {

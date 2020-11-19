@@ -5,7 +5,7 @@
 
 use crate::callback::{AppId, Callback};
 use crate::capabilities::MemoryAllocationCapability;
-use crate::driver::Driver;
+use crate::driver::LegacyDriver;
 use crate::grant::Grant;
 use crate::mem::{AppSlice, SharedReadWrite};
 use crate::process;
@@ -106,7 +106,8 @@ impl IPC {
     }
 }
 
-impl Driver for IPC {
+// TODO: Write a Tock 2.0 driver implementation
+impl LegacyDriver for IPC {
     /// subscribe enables processes using IPC to register callbacks that fire
     /// when notify() is called.
     fn subscribe(

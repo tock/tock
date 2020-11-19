@@ -112,7 +112,9 @@ mod sched;
 mod tbfheader;
 
 pub use crate::callback::{AppId, Callback};
-pub use crate::driver::{AllowReadOnlyResult, AllowReadWriteResult, CommandResult, Driver};
+pub use crate::driver::{
+    AllowReadOnlyResult, AllowReadWriteResult, CommandResult, Driver, LegacyDriver,
+};
 pub use crate::errorcode::ErrorCode;
 pub use crate::grant::Grant;
 pub use crate::mem::{AppSlice, Private, Read, ReadWrite, SharedReadOnly, SharedReadWrite};
