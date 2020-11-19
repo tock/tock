@@ -3,7 +3,9 @@
 /// Standard success codes.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum SuccessCode {
-    /// The key was written to flash, the operation is complete
+    /// Operation complete, no changes have been made to flash.
+    Complete,
+    /// All changes have been written to flash. The operation is complete.
     Written,
     /// The write operation has been queued
     Queued,
@@ -12,8 +14,9 @@ pub enum SuccessCode {
 impl From<SuccessCode> for isize {
     fn from(original: SuccessCode) -> isize {
         match original {
-            SuccessCode::Written => -1,
-            SuccessCode::Queued => -2,
+            SuccessCode::Complete => -1,
+            SuccessCode::Written => -2,
+            SuccessCode::Queued => -3,
         }
     }
 }
