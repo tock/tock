@@ -1,5 +1,4 @@
-// TODO: This module may require renaming, as in VexRiscv the
-// interrupt controller probably isn't really called "PLIC"
+//! VexRiscv-specific interrupt controller implementation
 
 pub unsafe fn next_pending() -> Option<usize> {
     let pending_interrupts = vexriscv_irq_raw::irq_pending();

@@ -358,8 +358,8 @@ pub unsafe fn reset_handler() {
 
     PANIC_REFERENCES.chip = Some(chip);
 
-    // Enable and unmask all PLIC interrupts
-    chip.enable_plic_interrupts();
+    // Enable and unmask interrupts
+    chip.enable_interrupts();
 
     // Enable RISC-V interrupts globally
     csr::CSR

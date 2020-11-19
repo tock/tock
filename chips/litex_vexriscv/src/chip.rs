@@ -10,8 +10,7 @@ use rv32i::csr::{mcause, mie::mie, mip::mip, CSR};
 use rv32i::syscall::SysCall;
 use rv32i::PMPConfigMacro;
 
-// TODO: Rename this module? Is this really a PLIC?
-use crate::plic;
+use crate::interrupt_controller;
 
 // TODO: Actually implement the PMP
 PMPConfigMacro!(4);
@@ -39,13 +38,13 @@ impl<A: 'static + Alarm<'static>, I: 'static + InterruptService<()>> LiteXVexRis
         }
     }
 
-    pub unsafe fn enable_plic_interrupts(&self) {
-        plic::enable_interrupts();
-        plic::unmask_all_interrupts();
+    pub unsafe fn enable_interrupts(&self) {
+        interrupt_controller::enable_interrupts();
+        interrupt_controller::unmask_all_interrupts();
     }
 
-    unsafe fn handle_plic_interrupts(&self) {
-        while let Some(interrupt) = plic::next_pending() {
+    unsafe fn handle_interrupts(&self) {
+        while let Some(interrupt) = interrupt_controller::next_pending() {
             if !self.interrupt_service.service_interrupt(interrupt as u32) {
                 debug!("Unknown interrupt: {}", interrupt);
             }
@@ -94,7 +93,7 @@ impl<A: 'static + Alarm<'static>, I: 'static + InterruptService<()>> kernel::Chi
             }
             if mip.is_set(mip::mext) {
                 unsafe {
-                    self.handle_plic_interrupts();
+                    self.handle_interrupts();
                 }
                 reenable_intr += mie::mext::SET;
             }

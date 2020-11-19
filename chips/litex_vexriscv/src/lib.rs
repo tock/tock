@@ -8,4 +8,4 @@
 pub use litex::{event_manager, led_controller, liteeth, litex_registers, timer, uart};
 
 pub mod chip;
-pub mod plic;
+pub mod interrupt_controller;
