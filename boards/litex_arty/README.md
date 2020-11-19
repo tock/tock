@@ -15,7 +15,7 @@ tested with
 - using the included [target
   file](https://github.com/enjoy-digital/litex/blob/444a605deae6a561dbe2c49bf3062eae6f3cd887/litex/boards/targets/arty.py)
 - built around a VexRiscv-CPU
-- along with the folling configuration options:
+- along with the following configuration options:
 
   ```
   --uart-baudrate=1000000

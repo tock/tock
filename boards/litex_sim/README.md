@@ -1,4 +1,4 @@
-LiteX SoC on the Digilent Arty-A7 FPGA Board
+LiteX SoC in a Verilated Simulation
 ============================================
 
 This board is targeting a
@@ -14,7 +14,7 @@ tested with
 - using the included [lx_sim.py](https://github.com/enjoy-digital/litex/blob/444a605deae6a561dbe2c49bf3062eae6f3cd887/litex/tools/litex_sim.py)
 - built around a VexRiscv-CPU
 - featuring a TIMER0 with 64-bit wide hardware uptime
-- along with the folling configuration options:
+- along with the following configuration options:
 
   ```
   --csr-data-width=32
@@ -55,7 +55,7 @@ Please refer to the [LiteX
 documentation](https://github.com/enjoy-digital/litex/wiki/) for
 instructions on how to install and use the LiteX SoC generator.
 
-Once LiteX is installed, building a bitstream should be as simple as:
+Once LiteX is installed, running the simulation:
 
 ```
 $ cd $PATH_TO_LITEX/litex/tools
