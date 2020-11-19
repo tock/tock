@@ -81,16 +81,16 @@ struct Imxrt1050EVKB {
 impl Platform for Imxrt1050EVKB {
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
     where
-        F: FnOnce(Option<&dyn kernel::Driver>) -> R,
+        F: FnOnce(Option<Result<&dyn kernel::Driver, &dyn kernel::LegacyDriver>>) -> R,
     {
         match driver_num {
-            capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
-            capsules::button::DRIVER_NUM => f(Some(self.button)),
-            capsules::console::DRIVER_NUM => f(Some(self.console)),
-            capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
-            kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
-            capsules::led::DRIVER_NUM => f(Some(self.led)),
-            capsules::ninedof::DRIVER_NUM => f(Some(self.ninedof)),
+            capsules::alarm::DRIVER_NUM => f(Some(Err(self.alarm))),
+            capsules::button::DRIVER_NUM => f(Some(Err(self.button))),
+            capsules::console::DRIVER_NUM => f(Some(Err(self.console))),
+            capsules::gpio::DRIVER_NUM => f(Some(Err(self.gpio))),
+            kernel::ipc::DRIVER_NUM => f(Some(Err(&self.ipc))),
+            capsules::led::DRIVER_NUM => f(Some(Err(self.led))),
+            capsules::ninedof::DRIVER_NUM => f(Some(Err(self.ninedof))),
             _ => f(None),
         }
     }

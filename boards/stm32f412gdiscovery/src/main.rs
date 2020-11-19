@@ -67,20 +67,20 @@ struct STM32F412GDiscovery {
 impl Platform for STM32F412GDiscovery {
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
     where
-        F: FnOnce(Option<&dyn kernel::Driver>) -> R,
+        F: FnOnce(Option<Result<&dyn kernel::Driver, &dyn kernel::LegacyDriver>>) -> R,
     {
         match driver_num {
-            capsules::console::DRIVER_NUM => f(Some(self.console)),
-            capsules::led::DRIVER_NUM => f(Some(self.led)),
-            capsules::button::DRIVER_NUM => f(Some(self.button)),
-            capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
-            kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
-            capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
-            capsules::adc::DRIVER_NUM => f(Some(self.adc)),
-            capsules::ft6x06::DRIVER_NUM => f(Some(self.ft6x06)),
-            capsules::touch::DRIVER_NUM => f(Some(self.touch)),
-            capsules::screen::DRIVER_NUM => f(Some(self.screen)),
-            capsules::temperature::DRIVER_NUM => f(Some(self.temperature)),
+            capsules::console::DRIVER_NUM => f(Some(Err(self.console))),
+            capsules::led::DRIVER_NUM => f(Some(Err(self.led))),
+            capsules::button::DRIVER_NUM => f(Some(Err(self.button))),
+            capsules::alarm::DRIVER_NUM => f(Some(Err(self.alarm))),
+            kernel::ipc::DRIVER_NUM => f(Some(Err(&self.ipc))),
+            capsules::gpio::DRIVER_NUM => f(Some(Err(self.gpio))),
+            capsules::adc::DRIVER_NUM => f(Some(Err(self.adc))),
+            capsules::ft6x06::DRIVER_NUM => f(Some(Err(self.ft6x06))),
+            capsules::touch::DRIVER_NUM => f(Some(Err(self.touch))),
+            capsules::screen::DRIVER_NUM => f(Some(Err(self.screen))),
+            capsules::temperature::DRIVER_NUM => f(Some(Err(self.temperature))),
             _ => f(None),
         }
     }
