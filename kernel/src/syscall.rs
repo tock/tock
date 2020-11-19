@@ -220,7 +220,7 @@ impl GenericSyscallReturnValue {
 pub enum SyscallResult {
     Yield(bool),
     Subscribe(SubscribeResult),
-    Command(CommandResult),
+    Command(GenericSyscallReturnValue),
     AllowReadWrite(AllowReadWriteResult),
     AllowReadOnly(AllowReadOnlyResult),
     Memop(GenericSyscallReturnValue),
@@ -258,10 +258,16 @@ impl SyscallResult {
             }
             SyscallResult::AllowReadWrite(rv) => rv.encode_syscall_return(a0, a1, a2, a3),
             SyscallResult::AllowReadOnly(rv) => rv.encode_syscall_return(a0, a1, a2, a3),
-
             SyscallResult::Subscribe(rv) => rv.encode_syscall_return(a0, a1, a2, a3),
-            SyscallResult::Command(rv) => rv.encode_syscall_return(a0, a1, a2, a3),
-            SyscallResult::Memop(rv) => rv.encode_syscall_return(a0, a1, a2, a3),
+            // The command and memop match arms must be matched using
+            // the pipe-syntax. This ensures that both `rv`s are of
+            // the same type and hence the match arm body will only be
+            // generated once, which will cause the
+            // `encode_syscall_return` method on
+            // `GenericSyscallReturnValue` to be inlined here.
+            SyscallResult::Command(rv) | SyscallResult::Memop(rv) => {
+                rv.encode_syscall_return(a0, a1, a2, a3)
+            }
             SyscallResult::Legacy(rc) => {
                 *a0 = isize::from(*rc) as u32;
             }
