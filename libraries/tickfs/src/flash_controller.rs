@@ -62,6 +62,10 @@ pub trait FlashController {
     /// By returning `ErrorCode::ReadNotReady(region_number)`
     /// `read_region()` can indicate that the operation should be retried in
     /// the future.
+    /// After running the `continue_()` functions after a async
+    /// `read_region()` has returned `ErrorCode::ReadNotReady(region_number)`
+    /// the `read_region()` function will be called again and this time should
+    /// return the data.
     fn read_region(
         &self,
         region_number: usize,
@@ -77,11 +81,22 @@ pub trait FlashController {
     ///
     /// On success it should return nothing, on failure it
     /// should return ErrorCode::WriteFail.
+    ///
+    /// If the write operation is to be complete asynchronously then
+    /// `write()` can return `ErrorCode::WriteNotReady(region_number)`.
+    /// By returning `ErrorCode::WriteNotReady(region_number)`
+    /// `read_region()` can indicate that the operation should be retried in
+    /// the future. Note that that region will not be written
+    /// again so the write must occur otherwise the operation fails.
     fn write(&self, address: usize, buf: &[u8]) -> Result<(), ErrorCode>;
 
     /// This function must erase the region specified by `region_number`.
     ///
     /// On success it should return nothing, on failure it
     /// should return ErrorCode::WriteFail.
+    ///
+    /// If the erase is going to happen asynchronously then this should return
+    /// `EraseNotReady(region_number)`. Note that that region will not be erased
+    /// again so the erasure must occur otherwise the operation fails.
     fn erase_region(&self, region_number: usize) -> Result<(), ErrorCode>;
 }
