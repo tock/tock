@@ -18,7 +18,6 @@ use kernel::hil::gpio::Interrupt;
 use kernel::hil::gpio::Output;
 use kernel::hil::i2c::I2CMaster;
 use kernel::hil::time::Counter;
-
 use kernel::hil::usb::Client;
 use kernel::mpu::MPU;
 use kernel::Chip;
