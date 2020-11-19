@@ -70,7 +70,7 @@
 use kernel::common::cells::OptionalCell;
 use kernel::hil;
 use kernel::hil::crc::CrcAlg;
-use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, SharedReadWrite};
+use kernel::{AppId, AppSlice, Callback, Grant, LegacyDriver, ReturnCode, SharedReadWrite};
 
 /// Syscall driver number.
 use crate::driver;
@@ -166,7 +166,7 @@ impl<'a, C: hil::crc::CRC<'a>> Crc<'a, C> {
 /// the `subscribe` system call and `allow`s the driver access to the buffer over-which to compute.
 /// Then, it initiates a CRC computation using the `command` system call. See function-specific
 /// comments for details.
-impl<'a, C: hil::crc::CRC<'a>> Driver for Crc<'a, C> {
+impl<'a, C: hil::crc::CRC<'a>> LegacyDriver for Crc<'a, C> {
     /// The `allow` syscall for this driver supports the single
     /// `allow_num` zero, which is used to provide a buffer over which
     /// to compute a CRC computation.

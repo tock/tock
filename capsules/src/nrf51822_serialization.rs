@@ -25,7 +25,7 @@ use core::cmp;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil;
 use kernel::hil::uart;
-use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, SharedReadWrite};
+use kernel::{AppId, AppSlice, Callback, Grant, LegacyDriver, ReturnCode, SharedReadWrite};
 
 /// Syscall driver number.
 use crate::driver;
@@ -95,7 +95,7 @@ impl<'a> Nrf51822Serialization<'a> {
     }
 }
 
-impl Driver for Nrf51822Serialization<'_> {
+impl LegacyDriver for Nrf51822Serialization<'_> {
     /// Pass application space memory to this driver.
     ///
     /// This also sets which app is currently using this driver. Only one app

@@ -542,7 +542,7 @@ where
 }
 
 // System Call implementation
-impl<'a, B, A> kernel::Driver for BLE<'a, B, A>
+impl<'a, B, A> kernel::LegacyDriver for BLE<'a, B, A>
 where
     B: ble_advertising::BleAdvertisementDriver<'a> + ble_advertising::BleConfig,
     A: kernel::hil::time::Alarm<'a>,

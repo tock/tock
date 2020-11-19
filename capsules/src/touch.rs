@@ -17,7 +17,7 @@ use kernel::hil;
 use kernel::hil::screen::ScreenRotation;
 use kernel::hil::touch::{GestureEvent, TouchEvent, TouchStatus};
 use kernel::ReturnCode;
-use kernel::{AppId, AppSlice, Callback, Driver, Grant, SharedReadWrite};
+use kernel::{AppId, AppSlice, Callback, Grant, LegacyDriver, SharedReadWrite};
 
 /// Syscall driver number.
 use crate::driver;
@@ -291,7 +291,7 @@ impl<'a> hil::touch::GestureClient for Touch<'a> {
     }
 }
 
-impl<'a> Driver for Touch<'a> {
+impl<'a> LegacyDriver for Touch<'a> {
     fn allow_readwrite(
         &self,
         appid: AppId,

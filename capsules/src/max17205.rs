@@ -40,7 +40,7 @@
 use core::cell::Cell;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::i2c;
-use kernel::{AppId, Callback, Driver, ReturnCode};
+use kernel::{AppId, Callback, LegacyDriver, ReturnCode};
 
 /// Syscall driver number.
 use crate::driver;
@@ -410,7 +410,7 @@ impl MAX17205Client for MAX17205Driver<'_> {
     }
 }
 
-impl Driver for MAX17205Driver<'_> {
+impl LegacyDriver for MAX17205Driver<'_> {
     /// Setup callback.
     ///
     /// ### `subscribe_num`

@@ -40,7 +40,7 @@ impl<'u, U: Transmit<'u>> LowLevelDebug<'u, U> {
     }
 }
 
-impl<'u, U: Transmit<'u>> kernel::Driver for LowLevelDebug<'u, U> {
+impl<'u, U: Transmit<'u>> kernel::LegacyDriver for LowLevelDebug<'u, U> {
     fn command(&self, minor_num: usize, r2: usize, r3: usize, caller_id: AppId) -> ReturnCode {
         match minor_num {
             0 => return ReturnCode::SUCCESS,

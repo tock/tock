@@ -25,7 +25,7 @@ use kernel::hil::entropy;
 use kernel::hil::entropy::{Entropy32, Entropy8};
 use kernel::hil::rng;
 use kernel::hil::rng::{Client, Continue, Random, Rng};
-use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, SharedReadWrite};
+use kernel::{AppId, AppSlice, Callback, Grant, LegacyDriver, ReturnCode, SharedReadWrite};
 
 /// Syscall driver number.
 use crate::driver;
@@ -133,7 +133,7 @@ impl rng::Client for RngDriver<'_> {
     }
 }
 
-impl<'a> Driver for RngDriver<'a> {
+impl<'a> LegacyDriver for RngDriver<'a> {
     fn allow_readwrite(
         &self,
         appid: AppId,

@@ -133,7 +133,7 @@ use core::cell::Cell;
 use kernel::common::cells::TakeCell;
 use kernel::hil::gpio;
 use kernel::hil::time::{self, Alarm};
-use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, SharedReadWrite};
+use kernel::{AppId, AppSlice, Callback, Grant, LegacyDriver, ReturnCode, SharedReadWrite};
 
 /// Syscall driver number.
 
@@ -676,7 +676,7 @@ impl<'a, A: Alarm<'a>> HD44780<'a, A> {
     }
 }
 
-impl<'a, A: Alarm<'a>> Driver for HD44780<'a, A> {
+impl<'a, A: Alarm<'a>> LegacyDriver for HD44780<'a, A> {
     /* Send a buffer to be displayed on the LCD device. The buffer is fully
      * saved in the command buffer if there are enough empty slots left, or
      * partially saved until the buffer gets full.

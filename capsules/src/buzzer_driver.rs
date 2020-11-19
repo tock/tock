@@ -43,7 +43,7 @@ use core::cmp;
 use kernel::common::cells::OptionalCell;
 use kernel::hil;
 use kernel::hil::time::Frequency;
-use kernel::{AppId, Callback, Driver, Grant, ReturnCode};
+use kernel::{AppId, Callback, Grant, LegacyDriver, ReturnCode};
 
 /// Syscall driver number.
 use crate::driver;
@@ -182,7 +182,7 @@ impl<'a, A: hil::time::Alarm<'a>> hil::time::AlarmClient for Buzzer<'a, A> {
 }
 
 /// Provide an interface for userland.
-impl<'a, A: hil::time::Alarm<'a>> Driver for Buzzer<'a, A> {
+impl<'a, A: hil::time::Alarm<'a>> LegacyDriver for Buzzer<'a, A> {
     /// Setup callbacks.
     ///
     /// ### `subscribe_num`

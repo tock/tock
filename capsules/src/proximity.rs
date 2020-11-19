@@ -51,7 +51,7 @@
 use core::cell::Cell;
 use kernel::hil;
 use kernel::ReturnCode;
-use kernel::{AppId, Callback, Driver, Grant};
+use kernel::{AppId, Callback, Grant, LegacyDriver};
 
 /// Syscall driver number.
 use crate::driver;
@@ -294,7 +294,7 @@ impl hil::sensors::ProximityClient for ProximitySensor<'_> {
     }
 }
 
-impl Driver for ProximitySensor<'_> {
+impl LegacyDriver for ProximitySensor<'_> {
     fn subscribe(
         &self,
         subscribe_num: usize,

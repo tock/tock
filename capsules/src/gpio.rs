@@ -53,7 +53,7 @@ pub const DRIVER_NUM: usize = driver::NUM::Gpio as usize;
 
 use kernel::hil::gpio;
 use kernel::hil::gpio::{Configure, Input, InterruptWithValue, Output};
-use kernel::{AppId, Callback, Driver, Grant, ReturnCode};
+use kernel::{AppId, Callback, Grant, LegacyDriver, ReturnCode};
 
 pub struct GPIO<'a, IP: gpio::InterruptPin<'a>> {
     pins: &'a [Option<&'a gpio::InterruptValueWrapper<'a, IP>>],
@@ -143,7 +143,7 @@ impl<'a, IP: gpio::InterruptPin<'a>> gpio::ClientWithValue for GPIO<'a, IP> {
     }
 }
 
-impl<'a, IP: gpio::InterruptPin<'a>> Driver for GPIO<'a, IP> {
+impl<'a, IP: gpio::InterruptPin<'a>> LegacyDriver for GPIO<'a, IP> {
     /// Subscribe to GPIO pin events.
     ///
     /// ### `subscribe_num`

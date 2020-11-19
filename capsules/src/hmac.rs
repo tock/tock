@@ -34,7 +34,7 @@ use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::common::leasable_buffer::LeasableBuffer;
 use kernel::hil::digest;
 use kernel::hil::digest::DigestType;
-use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, SharedReadWrite};
+use kernel::{AppId, AppSlice, Callback, Grant, LegacyDriver, ReturnCode, SharedReadWrite};
 
 pub struct HmacDriver<'a, H: digest::Digest<'a, T>, T: 'static + DigestType> {
     hmac: &'a H,
@@ -299,7 +299,7 @@ impl<'a, H: digest::Digest<'a, T> + digest::HMACSha256, T: DigestType> digest::C
 /// - `2`: Allow a buffer for storing the digest.
 ///        The kernel will fill this with the HMAC digest before calling
 ///        the `hash_done` callback.
-impl<'a, H: digest::Digest<'a, T> + digest::HMACSha256, T: DigestType> Driver
+impl<'a, H: digest::Digest<'a, T> + digest::HMACSha256, T: DigestType> LegacyDriver
     for HmacDriver<'a, H, T>
 {
     fn allow_readwrite(

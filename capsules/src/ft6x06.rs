@@ -27,7 +27,7 @@ use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::gpio;
 use kernel::hil::i2c::{self, Error};
 use kernel::hil::touch::{self, GestureEvent, TouchEvent, TouchStatus};
-use kernel::{AppId, Driver, ReturnCode};
+use kernel::{AppId, LegacyDriver, ReturnCode};
 
 use crate::driver;
 
@@ -249,7 +249,7 @@ impl<'a> touch::MultiTouch<'a> for Ft6x06<'a> {
     }
 }
 
-impl Driver for Ft6x06<'_> {
+impl LegacyDriver for Ft6x06<'_> {
     fn command(&self, command_num: usize, _: usize, _: usize, _: AppId) -> ReturnCode {
         match command_num {
             // is driver present

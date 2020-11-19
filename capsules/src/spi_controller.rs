@@ -7,7 +7,7 @@ use kernel::common::cells::{MapCell, TakeCell};
 use kernel::hil::spi::ClockPhase;
 use kernel::hil::spi::ClockPolarity;
 use kernel::hil::spi::{SpiMasterClient, SpiMasterDevice};
-use kernel::{AppId, AppSlice, Callback, Driver, ReturnCode, SharedReadWrite};
+use kernel::{AppId, AppSlice, Callback, LegacyDriver, ReturnCode, SharedReadWrite};
 
 /// Syscall driver number.
 use crate::driver;
@@ -97,7 +97,7 @@ impl<'a, S: SpiMasterDevice> Spi<'a, S> {
     }
 }
 
-impl<'a, S: SpiMasterDevice> Driver for Spi<'a, S> {
+impl<'a, S: SpiMasterDevice> LegacyDriver for Spi<'a, S> {
     fn allow_readwrite(
         &self,
         _appid: AppId,

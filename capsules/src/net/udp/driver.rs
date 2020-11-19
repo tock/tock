@@ -20,7 +20,7 @@ use core::{cmp, mem};
 use kernel::capabilities::UdpDriverCapability;
 use kernel::common::cells::MapCell;
 use kernel::common::leasable_buffer::LeasableBuffer;
-use kernel::{debug, AppId, AppSlice, Callback, Driver, Grant, ReturnCode, SharedReadWrite};
+use kernel::{debug, AppId, AppSlice, Callback, Grant, LegacyDriver, ReturnCode, SharedReadWrite};
 
 use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::Udp as usize;
@@ -348,7 +348,7 @@ impl<'a> UDPDriver<'a> {
     }
 }
 
-impl<'a> Driver for UDPDriver<'a> {
+impl<'a> LegacyDriver for UDPDriver<'a> {
     /// Setup buffers to read/write from.
     ///
     /// ### `allow_num`

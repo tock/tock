@@ -58,7 +58,7 @@ use core::cell::Cell;
 use core::cmp;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil;
-use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, SharedReadWrite};
+use kernel::{AppId, AppSlice, Callback, Grant, LegacyDriver, ReturnCode, SharedReadWrite};
 
 /// Syscall driver number.
 use crate::driver;
@@ -467,7 +467,7 @@ impl hil::nonvolatile_storage::NonvolatileStorage<'static> for NonvolatileStorag
 }
 
 /// Provide an interface for userland.
-impl Driver for NonvolatileStorage<'_> {
+impl LegacyDriver for NonvolatileStorage<'_> {
     /// Setup shared buffers.
     ///
     /// ### `allow_num`

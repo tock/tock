@@ -22,7 +22,7 @@ use core::cell::Cell;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::gpio;
 use kernel::hil::i2c;
-use kernel::{AppId, Callback, Driver, ReturnCode};
+use kernel::{AppId, Callback, LegacyDriver, ReturnCode};
 
 /// Syscall driver number.
 use crate::driver;
@@ -221,7 +221,7 @@ impl gpio::Client for LPS25HB<'_> {
     }
 }
 
-impl Driver for LPS25HB<'_> {
+impl LegacyDriver for LPS25HB<'_> {
     fn subscribe(
         &self,
         subscribe_num: usize,

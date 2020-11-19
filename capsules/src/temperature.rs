@@ -55,7 +55,7 @@
 use core::cell::Cell;
 use kernel::hil;
 use kernel::ReturnCode;
-use kernel::{AppId, Callback, Driver, Grant};
+use kernel::{AppId, Callback, Grant, LegacyDriver};
 
 /// Syscall driver number.
 use crate::driver;
@@ -123,7 +123,7 @@ impl hil::sensors::TemperatureClient for TemperatureSensor<'_> {
     }
 }
 
-impl Driver for TemperatureSensor<'_> {
+impl LegacyDriver for TemperatureSensor<'_> {
     fn subscribe(
         &self,
         subscribe_num: usize,

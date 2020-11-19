@@ -40,7 +40,7 @@
 use core::cmp;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::uart;
-use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, SharedReadWrite};
+use kernel::{AppId, AppSlice, Callback, Grant, LegacyDriver, ReturnCode, SharedReadWrite};
 
 /// Syscall driver number.
 use crate::driver;
@@ -184,7 +184,7 @@ impl<'a> Console<'a> {
     }
 }
 
-impl Driver for Console<'_> {
+impl LegacyDriver for Console<'_> {
     /// Setup shared buffers.
     ///
     /// ### `allow_num`

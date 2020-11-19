@@ -21,7 +21,7 @@
 use kernel::common::cells::OptionalCell;
 use kernel::hil;
 use kernel::ReturnCode;
-use kernel::{AppId, Callback, Driver, Grant};
+use kernel::{AppId, Callback, Grant, LegacyDriver};
 
 /// Syscall driver number.
 use crate::driver;
@@ -179,7 +179,7 @@ impl hil::sensors::NineDofClient for NineDof<'_> {
     }
 }
 
-impl Driver for NineDof<'_> {
+impl LegacyDriver for NineDof<'_> {
     fn subscribe(
         &self,
         subscribe_num: usize,

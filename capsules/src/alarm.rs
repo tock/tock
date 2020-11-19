@@ -3,7 +3,7 @@
 
 use core::cell::Cell;
 use kernel::hil::time::{self, Alarm, Frequency, Ticks, Ticks32};
-use kernel::{AppId, Callback, Driver, Grant, ReturnCode};
+use kernel::{AppId, Callback, Grant, LegacyDriver, ReturnCode};
 
 /// Syscall driver number.
 use crate::driver;
@@ -143,7 +143,7 @@ impl<'a, A: Alarm<'a>> AlarmDriver<'a, A> {
     }
 }
 
-impl<'a, A: Alarm<'a>> Driver for AlarmDriver<'a, A> {
+impl<'a, A: Alarm<'a>> LegacyDriver for AlarmDriver<'a, A> {
     /// Subscribe to alarm expiration
     ///
     /// ### `_subscribe_num`

@@ -3,7 +3,7 @@
 use enum_primitive::enum_from_primitive;
 use kernel::common::cells::{MapCell, OptionalCell, TakeCell};
 use kernel::hil::i2c;
-use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, SharedReadWrite};
+use kernel::{AppId, AppSlice, Callback, Grant, LegacyDriver, ReturnCode, SharedReadWrite};
 
 /// Syscall driver number.
 use crate::driver;
@@ -102,7 +102,7 @@ pub enum Cmd {
 }
 }
 
-impl<I: i2c::I2CMaster> Driver for I2CMasterDriver<I> {
+impl<I: i2c::I2CMaster> LegacyDriver for I2CMasterDriver<I> {
     /// Setup shared buffers.
     ///
     /// ### `allow_num`

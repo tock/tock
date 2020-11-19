@@ -85,7 +85,7 @@ use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::common::registers::register_bitfields;
 use kernel::hil::i2c::{self, Error};
 use kernel::hil::sensors;
-use kernel::{AppId, Callback, Driver, ReturnCode};
+use kernel::{AppId, Callback, LegacyDriver, ReturnCode};
 
 register_bitfields![u8,
     CTRL_REG1 [
@@ -606,7 +606,7 @@ impl i2c::I2CClient for Lsm303dlhcI2C<'_> {
     }
 }
 
-impl Driver for Lsm303dlhcI2C<'_> {
+impl LegacyDriver for Lsm303dlhcI2C<'_> {
     fn command(&self, command_num: usize, data1: usize, data2: usize, _: AppId) -> ReturnCode {
         match command_num {
             0 => ReturnCode::SUCCESS,
