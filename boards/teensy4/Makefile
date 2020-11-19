@@ -22,7 +22,6 @@ flash:
 
 # For testing with a blinky LED
 BLINK=../../../libtock-c/examples/blink/build/cortex-m7/cortex-m7.tbf
-.PHONY: program
 app.elf: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf
 	$(Q)arm-none-eabi-objcopy --update-section .apps=$(BLINK) $< $@
 

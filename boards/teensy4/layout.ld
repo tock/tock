@@ -7,9 +7,9 @@
  * quickly-accessible data (DTCM).
  *
  * NXP's iMXRT processors require a special boot section, which
- * we call '.boot' below. It contains the Firmware Configuration
- * Block (FCB) and the image vector table (IVT). We supply these
- * two components as prebuilt binary blobs.
+ * we call '.boot' below. It contains the FlexSPI Configuration
+ * Block (FCB) for serial NOR flash, and the image vector table
+ * (IVT). The FCB is available in src/fcb.rs.
  */
 
 MEMORY
@@ -25,7 +25,7 @@ SECTIONS
 {
   .boot : 
   {
-    /* Firmware Configuration Block (defined in source) */
+    /* FlexSPI Configuration Block (defined in source) */
     KEEP(*(.fcb));
     KEEP(*(.fcb_buffer));
     /* ------------------
@@ -70,4 +70,3 @@ SECTIONS
 }
 
 INCLUDE ../kernel_layout.ld
-ENTRY(_ivt);

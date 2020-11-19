@@ -1,7 +1,7 @@
-//! Firmware Configuration Block (FCB)
+//! FlexSPI Configuration Block (FCB)
 //!
 //! The FCB holds command sequences and configurations necessary to boot
-//! an iMXRT10xx processor from FLASH over serial SPI.
+//! an iMXRT10xx processor from FLASH over SPI.
 //!
 //! The array was auto-generated using the [`imxrt-boot-gen` crate](https://github.com/imxrt-rs/imxrt-boot-gen).
 //! We copied the array of magic numbers here, rather than incorporating
