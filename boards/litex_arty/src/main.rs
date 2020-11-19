@@ -32,6 +32,11 @@ use litex_generated_constants as socc;
 
 /// Structure for dynamic interrupt mapping, depending on the SoC
 /// configuration
+///
+/// This struct is deliberately kept in the board crate. Because of
+/// the configurable nature of LiteX, it does not make sense to define
+/// a default interrupt mapping, as the interrupt numbers are
+/// generated sequentially for all softcores.
 struct LiteXArtyInterruptablePeripherals {
     uart0: &'static litex_vexriscv::uart::LiteXUart<'static, socc::SoCRegisterFmt>,
     timer0: &'static litex_vexriscv::timer::LiteXTimer<
@@ -41,7 +46,6 @@ struct LiteXArtyInterruptablePeripherals {
     >,
     ethmac0: &'static litex_vexriscv::liteeth::LiteEth<'static, socc::SoCRegisterFmt>,
 }
-
 impl InterruptService<()> for LiteXArtyInterruptablePeripherals {
     unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt as usize {
