@@ -194,12 +194,78 @@ impl CommandResult {
     }
 }
 
-/// `Driver`s implement the three driver-specific system calls: `subscribe`,
-/// `command` and `allow`.
+// TODO: Tock 2.0 Driver trait
+pub trait Driver {}
+
+impl AllowReadWriteResult {
+    pub fn encode_syscall_return(&self, a0: &mut u32, a1: &mut u32, a2: &mut u32, a3: &mut u32) {
+        match self {
+            AllowReadWriteResult::Success(slice) => {
+                *a0 = SyscallReturnVariant::SuccessU32U32 as u32;
+                *a1 = slice.ptr() as u32;
+                *a2 = slice.len() as u32;
+            }
+            AllowReadWriteResult::Failure(slice, error) => {
+                *a0 = SyscallReturnVariant::FailureU32U32 as u32;
+                *a1 = usize::from(*error) as u32;
+                *a2 = slice.ptr() as u32;
+                *a3 = slice.len() as u32;
+            }
+        }
+    }
+}
+
+impl AllowReadOnlyResult {
+    pub fn encode_syscall_return(&self, a0: &mut u32, a1: &mut u32, a2: &mut u32, a3: &mut u32) {
+        match self {
+            AllowReadOnlyResult::Success(slice) => {
+                *a0 = SyscallReturnVariant::SuccessU32U32 as u32;
+                *a1 = slice.ptr() as u32;
+                *a2 = slice.len() as u32;
+            }
+            AllowReadOnlyResult::Failure(slice, error) => {
+                *a0 = SyscallReturnVariant::FailureU32U32 as u32;
+                *a1 = usize::from(*error) as u32;
+                *a2 = slice.ptr() as u32;
+                *a3 = slice.len() as u32;
+            }
+        }
+    }
+}
+
+impl SubscribeResult {
+    pub fn encode_syscall_return(&self, a0: &mut u32, a1: &mut u32, a2: &mut u32, a3: &mut u32) {
+        match self {
+            SubscribeResult::Success(callback) => {
+                *a0 = SyscallReturnVariant::SuccessU32U32 as u32;
+                *a1 = callback.function_pointer();
+                *a2 = callback.appdata();
+            }
+            SubscribeResult::Failure(callback, error) => {
+                *a0 = SyscallReturnVariant::FailureU32U32 as u32;
+                *a1 = usize::from(*error) as u32;
+                *a2 = callback.function_pointer();
+                *a3 = callback.appdata();
+            }
+        }
+    }
+}
+
+impl CommandResult {
+    pub fn encode_syscall_return(&self, a0: &mut u32, a1: &mut u32, a2: &mut u32, a3: &mut u32) {
+        match self {
+            &CommandResult(rv) => rv.encode_syscall_return(a0, a1, a2, a3),
+        }
+    }
+}
+
+/// Tock 1.x "legacy" system call interface
 ///
-/// See [the module level documentation](index.html) for an overview of how
-/// system calls are assigned to drivers.
-pub trait Driver {
+/// This is included for compatibility with capsules not ported to the
+/// new system call interface. It will be removed prior to a Tock 2.0
+/// release.
+// TODO: Remove prior to Tock 2.0
+pub trait LegacyDriver {
     /// `subscribe` lets an application pass a callback to the driver to be
     /// called later. This returns `ENOSUPPORT` if not used.
     ///
@@ -312,66 +378,4 @@ pub trait Driver {
     // ) -> AllowReadOnlyResult {
     //     AllowReadOnlyResult::refuse_allow(slice, ErrorCode::ENOSUPPORT)
     // }
-}
-
-impl AllowReadWriteResult {
-    pub fn encode_syscall_return(&self, a0: &mut u32, a1: &mut u32, a2: &mut u32, a3: &mut u32) {
-        match self {
-            AllowReadWriteResult::Success(slice) => {
-                *a0 = SyscallReturnVariant::SuccessU32U32 as u32;
-                *a1 = slice.ptr() as u32;
-                *a2 = slice.len() as u32;
-            }
-            AllowReadWriteResult::Failure(slice, error) => {
-                *a0 = SyscallReturnVariant::FailureU32U32 as u32;
-                *a1 = usize::from(*error) as u32;
-                *a2 = slice.ptr() as u32;
-                *a3 = slice.len() as u32;
-            }
-        }
-    }
-}
-
-impl AllowReadOnlyResult {
-    pub fn encode_syscall_return(&self, a0: &mut u32, a1: &mut u32, a2: &mut u32, a3: &mut u32) {
-        match self {
-            AllowReadOnlyResult::Success(slice) => {
-                *a0 = SyscallReturnVariant::SuccessU32U32 as u32;
-                *a1 = slice.ptr() as u32;
-                *a2 = slice.len() as u32;
-            }
-            AllowReadOnlyResult::Failure(slice, error) => {
-                *a0 = SyscallReturnVariant::FailureU32U32 as u32;
-                *a1 = usize::from(*error) as u32;
-                *a2 = slice.ptr() as u32;
-                *a3 = slice.len() as u32;
-            }
-        }
-    }
-}
-
-impl SubscribeResult {
-    pub fn encode_syscall_return(&self, a0: &mut u32, a1: &mut u32, a2: &mut u32, a3: &mut u32) {
-        match self {
-            SubscribeResult::Success(callback) => {
-                *a0 = SyscallReturnVariant::SuccessU32U32 as u32;
-                *a1 = callback.function_pointer();
-                *a2 = callback.appdata();
-            }
-            SubscribeResult::Failure(callback, error) => {
-                *a0 = SyscallReturnVariant::FailureU32U32 as u32;
-                *a1 = usize::from(*error) as u32;
-                *a2 = callback.function_pointer();
-                *a3 = callback.appdata();
-            }
-        }
-    }
-}
-
-impl CommandResult {
-    pub fn encode_syscall_return(&self, a0: &mut u32, a1: &mut u32, a2: &mut u32, a3: &mut u32) {
-        match self {
-            &CommandResult(rv) => rv.encode_syscall_return(a0, a1, a2, a3),
-        }
-    }
 }
