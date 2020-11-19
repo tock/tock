@@ -68,17 +68,17 @@ struct NucleoF429ZI {
 impl Platform for NucleoF429ZI {
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
     where
-        F: FnOnce(Option<&dyn kernel::Driver>) -> R,
+        F: FnOnce(Option<Result<&dyn kernel::Driver, &dyn kernel::LegacyDriver>>) -> R,
     {
         match driver_num {
-            capsules::console::DRIVER_NUM => f(Some(self.console)),
-            capsules::led::DRIVER_NUM => f(Some(self.led)),
-            capsules::button::DRIVER_NUM => f(Some(self.button)),
-            capsules::adc::DRIVER_NUM => f(Some(self.adc)),
-            capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
-            capsules::temperature::DRIVER_NUM => f(Some(self.temperature)),
-            kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
-            capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
+            capsules::console::DRIVER_NUM => f(Some(Err(self.console))),
+            capsules::led::DRIVER_NUM => f(Some(Err(self.led))),
+            capsules::button::DRIVER_NUM => f(Some(Err(self.button))),
+            capsules::adc::DRIVER_NUM => f(Some(Err(self.adc))),
+            capsules::alarm::DRIVER_NUM => f(Some(Err(self.alarm))),
+            capsules::temperature::DRIVER_NUM => f(Some(Err(self.temperature))),
+            kernel::ipc::DRIVER_NUM => f(Some(Err(&self.ipc))),
+            capsules::gpio::DRIVER_NUM => f(Some(Err(self.gpio))),
             _ => f(None),
         }
     }

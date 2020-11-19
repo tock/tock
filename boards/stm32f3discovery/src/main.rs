@@ -77,21 +77,23 @@ struct STM32F3Discovery {
 impl Platform for STM32F3Discovery {
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
     where
-        F: FnOnce(Option<&dyn kernel::Driver>) -> R,
+        F: FnOnce(Option<Result<&dyn kernel::Driver, &dyn kernel::LegacyDriver>>) -> R,
     {
         match driver_num {
-            capsules::console::DRIVER_NUM => f(Some(self.console)),
-            capsules::led::DRIVER_NUM => f(Some(self.led)),
-            capsules::button::DRIVER_NUM => f(Some(self.button)),
-            capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
-            capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
-            capsules::l3gd20::DRIVER_NUM => f(Some(self.l3gd20)),
-            capsules::lsm303dlhc::DRIVER_NUM => f(Some(self.lsm303dlhc)),
-            capsules::ninedof::DRIVER_NUM => f(Some(self.ninedof)),
-            capsules::temperature::DRIVER_NUM => f(Some(self.temp)),
-            kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
-            capsules::adc::DRIVER_NUM => f(Some(self.adc)),
-            capsules::nonvolatile_storage_driver::DRIVER_NUM => f(Some(self.nonvolatile_storage)),
+            capsules::console::DRIVER_NUM => f(Some(Err(self.console))),
+            capsules::led::DRIVER_NUM => f(Some(Err(self.led))),
+            capsules::button::DRIVER_NUM => f(Some(Err(self.button))),
+            capsules::alarm::DRIVER_NUM => f(Some(Err(self.alarm))),
+            capsules::gpio::DRIVER_NUM => f(Some(Err(self.gpio))),
+            capsules::l3gd20::DRIVER_NUM => f(Some(Err(self.l3gd20))),
+            capsules::lsm303dlhc::DRIVER_NUM => f(Some(Err(self.lsm303dlhc))),
+            capsules::ninedof::DRIVER_NUM => f(Some(Err(self.ninedof))),
+            capsules::temperature::DRIVER_NUM => f(Some(Err(self.temp))),
+            kernel::ipc::DRIVER_NUM => f(Some(Err(&self.ipc))),
+            capsules::adc::DRIVER_NUM => f(Some(Err(self.adc))),
+            capsules::nonvolatile_storage_driver::DRIVER_NUM => {
+                f(Some(Err(self.nonvolatile_storage)))
+            }
             _ => f(None),
         }
     }
