@@ -21,7 +21,7 @@ that Tock supports.
 | [i.MX RT 1052 Evaluation Kit](imxrt1050-evkb/README.md)              | ARM Cortex-M7   | i.MX RT 1052   | custom     | custom         | No                |
 | [SiFive HiFive1](hifive1/README.md)                                  | RISC-V          | FE310-G000     | openocd    | tockloader     | [Yes (5.1)][qemu] |
 | [Digilent Arty A-7 100T](arty_e21/README.md)                         | RISC-V RV32IMAC | SiFive E21     | openocd    | tockloader     | No                |
-| [Nexys Video OpenTitan](opentitan/README.md)                         | RISC-V RV32IMC  | EarlGrey       | custom     | custom         | [Yes (5.1)][qemu] |
+| [Earlgrey on Nexys Video](earlgrey_nexysvideo/README.md)             | RISC-V RV32IMC  | EarlGrey       | custom     | custom         | [Yes (5.1)][qemu] |
 
 # Out of Tree Boards
 
