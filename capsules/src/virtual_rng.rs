@@ -9,7 +9,6 @@ use kernel::ReturnCode;
 enum Op {
     Idle,
     Get,
-    SetClient,
 }
 
 // Struct to manage multiple rng requests
@@ -28,7 +27,7 @@ impl<'a, R: Rng<'a>> MuxRngMaster<'a, R> {
         }
     }
 
-    // TODO: return type is a hacky way of surfacing the return code from rng.get()
+    // TODO: return value is hacky way to surface return value from get
     fn do_next_op(&self) -> ReturnCode {
         if self.inflight.is_none() {
             let mnode = self
@@ -37,14 +36,28 @@ impl<'a, R: Rng<'a>> MuxRngMaster<'a, R> {
                 .find(|node| node.operation.get() != Op::Idle);
             mnode.map(|node| {
                 let op = node.operation.get();
+
                 // Need to set idle here in case callback changes state
                 node.operation.set(Op::Idle);
+                self.inflight.set(node);
+
                 match op {
-                    Op::SetClient => {
-                        self.rng.set_client(node);
-                        ReturnCode::SUCCESS
+                    Op::Get => {
+                        let client = node.client.take();
+                        match client {
+                            Some(p) => {
+                                // Set rng client to current node
+                                self.rng.set_client(p);
+                                node.client.insert(client);
+                                self.rng.get()
+                            }
+                            None => {
+                                // If no clients to handle callbacks, fail get request
+                                node.client.insert(client);
+                                ReturnCode::FAIL
+                            }
+                        }
                     }
-                    Op::Get => self.rng.get(),
                     Op::Idle => ReturnCode::SUCCESS, // Can't get here...
                 }
             });
@@ -59,11 +72,11 @@ impl<'a, R: Rng<'a>> Client for MuxRngMaster<'a, R> {
         _randomness: &mut dyn Iterator<Item = u32>,
         _error: ReturnCode,
     ) -> Continue {
-        self.inflight.take().map(move |device| {
+        // Try find if randomness is available, or return done
+        self.inflight.take().map_or(Continue::Done, move |device| {
             self.do_next_op();
             device.randomness_available(_randomness, _error)
-        });
-        Continue::Done
+        })
     }
 }
 
@@ -101,6 +114,14 @@ impl<'a, R: Rng<'a>> VirtualRngMasterDevice<'a, R> {
     }
 }
 
+impl<'a, R: Rng<'a>> PartialEq<VirtualRngMasterDevice<'a, R>> for VirtualRngMasterDevice<'a, R> {
+    fn eq(&self, other: &VirtualRngMasterDevice<'a, R>) -> bool {
+        // Check whether two rng devices point to the same device
+        self as *const VirtualRngMasterDevice<'a, R>
+            == other as *const VirtualRngMasterDevice<'a, R>
+    }
+}
+
 impl<'a, R: Rng<'a>> Rng<'a> for VirtualRngMasterDevice<'a, R> {
     fn get(&self) -> ReturnCode {
         self.operation.set(Op::Get);
@@ -108,12 +129,28 @@ impl<'a, R: Rng<'a>> Rng<'a> for VirtualRngMasterDevice<'a, R> {
     }
 
     fn cancel(&self) -> ReturnCode {
-        self.mux.rng.cancel()
+        let current_node = self.mux.inflight.take();
+        match current_node {
+            Some(p) => {
+                // Find if current device is the one in flight or not
+                self.mux.inflight.set(p);
+                if p == self {
+                    self.mux.rng.cancel()
+                } else {
+                    self.operation.set(Op::Idle);
+                    ReturnCode::SUCCESS
+                }
+            }
+            None => {
+                // If no node inflight, set current operation and break
+                self.operation.set(Op::Idle);
+                ReturnCode::SUCCESS
+            }
+        }
     }
 
-    fn set_client(&'a self, _: &'a dyn Client) {
-        self.operation.set(Op::SetClient);
-        self.mux.do_next_op();
+    fn set_client(&'a self, client: &'a dyn Client) {
+        self.client.set(client);
     }
 }
 
@@ -123,8 +160,8 @@ impl<'a, R: Rng<'a>> Client for VirtualRngMasterDevice<'a, R> {
         randomness: &mut dyn Iterator<Item = u32>,
         _error: ReturnCode,
     ) -> Continue {
-        self.client
-            .map(move |client| client.randomness_available(randomness, _error));
-        Continue::Done
+        self.client.map_or(Continue::Done, move |client| {
+            client.randomness_available(randomness, _error)
+        })
     }
 }
