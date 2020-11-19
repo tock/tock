@@ -10,7 +10,7 @@ use crate::net::stream::{decode_bytes, decode_u8, encode_bytes, encode_u8, SResu
 use core::cell::Cell;
 use core::cmp::min;
 use kernel::common::cells::{MapCell, OptionalCell, TakeCell};
-use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, SharedReadWrite};
+use kernel::{AppId, AppSlice, Callback, Grant, LegacyDriver, ReturnCode, SharedReadWrite};
 
 const MAX_NEIGHBORS: usize = 4;
 const MAX_KEYS: usize = 4;
@@ -523,7 +523,7 @@ impl framer::KeyProcedure for RadioDriver<'_> {
     }
 }
 
-impl Driver for RadioDriver<'_> {
+impl LegacyDriver for RadioDriver<'_> {
     /// Setup buffers to read/write from.
     ///
     /// ### `allow_num`

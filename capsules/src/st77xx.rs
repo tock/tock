@@ -38,7 +38,7 @@ use kernel::hil::screen::{
 };
 use kernel::hil::time::{self, Alarm};
 use kernel::ReturnCode;
-use kernel::{AppId, Callback, Driver};
+use kernel::{AppId, Callback, LegacyDriver};
 
 pub const BUFFER_SIZE: usize = 24;
 
@@ -754,7 +754,7 @@ impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> ST77XX<'a, A, B, P> {
     }
 }
 
-impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> Driver for ST77XX<'a, A, B, P> {
+impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> LegacyDriver for ST77XX<'a, A, B, P> {
     fn command(&self, command_num: usize, data1: usize, data2: usize, _: AppId) -> ReturnCode {
         match command_num {
             0 => ReturnCode::SUCCESS,

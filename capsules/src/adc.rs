@@ -52,7 +52,7 @@ use core::cell::Cell;
 use core::cmp;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil;
-use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, SharedReadWrite};
+use kernel::{AppId, AppSlice, Callback, Grant, LegacyDriver, ReturnCode, SharedReadWrite};
 
 /// Syscall driver number.
 use crate::driver;
@@ -1077,7 +1077,7 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> hil::adc::HighSpeedClient for Ad
 }
 
 /// Implementations of application syscalls
-impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> Driver for AdcDedicated<'_, A> {
+impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> LegacyDriver for AdcDedicated<'_, A> {
     /// Provides access to a buffer from the application to store data in or
     /// read data from.
     ///
@@ -1291,7 +1291,7 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> Driver for AdcDedicated<'_, A> {
 }
 
 /// Implementation of the syscalls for the virtualized ADC.
-impl Driver for AdcVirtualized<'_> {
+impl LegacyDriver for AdcVirtualized<'_> {
     /// Provides a callback which can be used to signal the application.
     ///
     /// - `subscribe_num` - which subscribe call this is

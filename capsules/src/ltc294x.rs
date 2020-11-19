@@ -50,7 +50,7 @@ use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::gpio;
 use kernel::hil::i2c;
 use kernel::ReturnCode;
-use kernel::{AppId, Callback, Driver};
+use kernel::{AppId, Callback, LegacyDriver};
 
 /// Syscall driver number.
 use crate::driver;
@@ -469,7 +469,7 @@ impl LTC294XClient for LTC294XDriver<'_> {
     }
 }
 
-impl Driver for LTC294XDriver<'_> {
+impl LegacyDriver for LTC294XDriver<'_> {
     /// Setup callbacks.
     ///
     /// ### `subscribe_num`

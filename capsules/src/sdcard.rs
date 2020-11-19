@@ -44,7 +44,7 @@ use core::cell::Cell;
 use core::cmp;
 use kernel::common::cells::{MapCell, OptionalCell, TakeCell};
 use kernel::hil;
-use kernel::{AppId, AppSlice, Callback, Driver, ReturnCode, SharedReadWrite};
+use kernel::{AppId, AppSlice, Callback, LegacyDriver, ReturnCode, SharedReadWrite};
 
 /// Syscall driver number.
 use crate::driver;
@@ -1483,7 +1483,7 @@ impl<'a, A: hil::time::Alarm<'a>> SDCardClient for SDCardDriver<'a, A> {
 }
 
 /// Connections to userspace syscalls
-impl<'a, A: hil::time::Alarm<'a>> Driver for SDCardDriver<'a, A> {
+impl<'a, A: hil::time::Alarm<'a>> LegacyDriver for SDCardDriver<'a, A> {
     fn allow_readwrite(
         &self,
         _appid: AppId,

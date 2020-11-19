@@ -28,7 +28,7 @@
 use kernel::common::cells::OptionalCell;
 use kernel::hil;
 use kernel::ReturnCode;
-use kernel::{AppId, Callback, Driver};
+use kernel::{AppId, Callback, LegacyDriver};
 
 /// Syscall driver number.
 use crate::driver;
@@ -83,7 +83,7 @@ impl<Port: hil::gpio_async::Port> hil::gpio_async::Client for GPIOAsync<'_, Port
     }
 }
 
-impl<Port: hil::gpio_async::Port> Driver for GPIOAsync<'_, Port> {
+impl<Port: hil::gpio_async::Port> LegacyDriver for GPIOAsync<'_, Port> {
     /// Setup callbacks for gpio_async events.
     ///
     /// ### `subscribe_num`

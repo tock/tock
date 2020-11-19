@@ -16,7 +16,7 @@ use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil;
 use kernel::hil::screen::{ScreenPixelFormat, ScreenRotation};
 use kernel::ReturnCode;
-use kernel::{AppId, AppSlice, Callback, Driver, Grant, SharedReadWrite};
+use kernel::{AppId, AppSlice, Callback, Grant, LegacyDriver, SharedReadWrite};
 
 /// Syscall driver number.
 use crate::driver;
@@ -495,7 +495,7 @@ impl<'a> hil::screen::ScreenSetupClient for Screen<'a> {
     }
 }
 
-impl<'a> Driver for Screen<'a> {
+impl<'a> LegacyDriver for Screen<'a> {
     fn subscribe(
         &self,
         subscribe_num: usize,

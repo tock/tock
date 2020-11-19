@@ -54,7 +54,7 @@
 use core::cell::Cell;
 use kernel::hil::gpio;
 use kernel::hil::gpio::{Configure, Input, InterruptWithValue};
-use kernel::{AppId, Callback, Driver, Grant, ReturnCode};
+use kernel::{AppId, Callback, Grant, LegacyDriver, ReturnCode};
 
 /// Syscall driver number.
 use crate::driver;
@@ -103,7 +103,7 @@ impl<'a, P: gpio::InterruptPin<'a>> Button<'a, P> {
     }
 }
 
-impl<'a, P: gpio::InterruptPin<'a>> Driver for Button<'a, P> {
+impl<'a, P: gpio::InterruptPin<'a>> LegacyDriver for Button<'a, P> {
     /// Set callbacks.
     ///
     /// ### `subscribe_num`

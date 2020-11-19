@@ -31,7 +31,7 @@ use core::cell::Cell;
 use core::marker::PhantomData;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::usb_hid;
-use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, SharedReadWrite};
+use kernel::{AppId, AppSlice, Callback, Grant, LegacyDriver, ReturnCode, SharedReadWrite};
 
 /// Syscall driver number.
 use crate::driver;
@@ -192,7 +192,7 @@ impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> usb_hid::Client<'a, [u8; 64]> for Cta
     }
 }
 
-impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> Driver for CtapDriver<'a, U> {
+impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> LegacyDriver for CtapDriver<'a, U> {
     fn allow_readwrite(
         &self,
         appid: AppId,

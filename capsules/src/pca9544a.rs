@@ -31,7 +31,7 @@
 use core::cell::Cell;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::i2c;
-use kernel::{AppId, Callback, Driver, ReturnCode};
+use kernel::{AppId, Callback, LegacyDriver, ReturnCode};
 
 /// Syscall driver number.
 use crate::driver;
@@ -148,7 +148,7 @@ impl i2c::I2CClient for PCA9544A<'_> {
     }
 }
 
-impl Driver for PCA9544A<'_> {
+impl LegacyDriver for PCA9544A<'_> {
     /// Setup callback for event done.
     ///
     /// ### `subscribe_num`

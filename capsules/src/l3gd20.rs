@@ -107,7 +107,7 @@ use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::sensors;
 use kernel::hil::spi;
 use kernel::ReturnCode;
-use kernel::{AppId, Callback, Driver};
+use kernel::{AppId, Callback, LegacyDriver};
 
 use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::L3gd20 as usize;
@@ -293,7 +293,7 @@ impl<'a> L3gd20Spi<'a> {
     }
 }
 
-impl Driver for L3gd20Spi<'_> {
+impl LegacyDriver for L3gd20Spi<'_> {
     fn command(&self, command_num: usize, data1: usize, data2: usize, _: AppId) -> ReturnCode {
         match command_num {
             0 => ReturnCode::SUCCESS,

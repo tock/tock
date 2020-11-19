@@ -52,7 +52,7 @@
 
 use kernel::common::cells::TakeCell;
 use kernel::hil::led;
-use kernel::{AppId, Driver, ReturnCode};
+use kernel::{AppId, LegacyDriver, ReturnCode};
 
 /// Syscall driver number.
 use crate::driver;
@@ -78,7 +78,7 @@ impl<'a, L: led::Led> LedDriver<'a, L> {
     }
 }
 
-impl<L: led::Led> Driver for LedDriver<'_, L> {
+impl<L: led::Led> LegacyDriver for LedDriver<'_, L> {
     /// Control the LEDs.
     ///
     /// ### `command_num`

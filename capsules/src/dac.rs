@@ -16,7 +16,7 @@ use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::Dac as usize;
 
 use kernel::hil;
-use kernel::{AppId, Driver, ReturnCode};
+use kernel::{AppId, LegacyDriver, ReturnCode};
 
 pub struct Dac<'a> {
     dac: &'a dyn hil::dac::DacChannel,
@@ -28,7 +28,7 @@ impl<'a> Dac<'a> {
     }
 }
 
-impl Driver for Dac<'_> {
+impl LegacyDriver for Dac<'_> {
     /// Control the DAC.
     ///
     /// ### `command_num`

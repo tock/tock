@@ -14,7 +14,7 @@
 
 use core::cell::Cell;
 use kernel::hil;
-use kernel::{AppId, Callback, Driver, Grant, ReturnCode};
+use kernel::{AppId, Callback, Grant, LegacyDriver, ReturnCode};
 
 /// Syscall driver number.
 use crate::driver;
@@ -60,7 +60,7 @@ impl<'a> AmbientLight<'a> {
     }
 }
 
-impl Driver for AmbientLight<'_> {
+impl LegacyDriver for AmbientLight<'_> {
     /// Subscribe to light intensity readings
     ///
     /// ### `subscribe`

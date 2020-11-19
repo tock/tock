@@ -28,7 +28,7 @@
 
 use kernel::common::cells::OptionalCell;
 use kernel::hil;
-use kernel::{AppId, Callback, Driver, Grant, ReturnCode};
+use kernel::{AppId, Callback, Grant, LegacyDriver, ReturnCode};
 
 use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::UsbUser as usize;
@@ -100,7 +100,7 @@ enum Request {
     EnableAndAttach,
 }
 
-impl<'a, C> Driver for UsbSyscallDriver<'a, C>
+impl<'a, C> LegacyDriver for UsbSyscallDriver<'a, C>
 where
     C: hil::usb::Client<'a>,
 {

@@ -25,7 +25,7 @@
 use core::cmp;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil;
-use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, SharedReadWrite};
+use kernel::{AppId, AppSlice, Callback, Grant, LegacyDriver, ReturnCode, SharedReadWrite};
 
 /// Syscall driver number.
 use crate::driver;
@@ -160,7 +160,7 @@ impl hil::nonvolatile_storage::NonvolatileStorageClient<'static> for AppFlash<'_
     }
 }
 
-impl Driver for AppFlash<'_> {
+impl LegacyDriver for AppFlash<'_> {
     /// Setup buffer to write from.
     ///
     /// ### `allow_num`

@@ -16,7 +16,7 @@ use core::cmp;
 use kernel::common::cells::{MapCell, TakeCell};
 use kernel::hil;
 use kernel::ReturnCode;
-use kernel::{AppId, AppSlice, Callback, Driver, SharedReadWrite};
+use kernel::{AppId, AppSlice, Callback, LegacyDriver, SharedReadWrite};
 
 pub static mut BUFFER1: [u8; 256] = [0; 256];
 pub static mut BUFFER2: [u8; 256] = [0; 256];
@@ -210,7 +210,7 @@ impl hil::i2c::I2CHwSlaveClient for I2CMasterSlaveDriver<'_> {
     }
 }
 
-impl Driver for I2CMasterSlaveDriver<'_> {
+impl LegacyDriver for I2CMasterSlaveDriver<'_> {
     fn allow_readwrite(
         &self,
         _appid: AppId,
