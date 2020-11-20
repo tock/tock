@@ -7,7 +7,7 @@ use core::{
     slice,
 };
 
-use crate::AppId;
+use crate::{AppId, ReturnCode};
 
 #[derive(Copy, Clone, Eq, PartialEq)]
 enum BufferBorrow {
@@ -52,6 +52,10 @@ impl ZeroCopyBuffer {
         self.logical_len.set(len);
     }
 
+    pub fn physical_len(&self) -> usize {
+        self.physical_len
+    }
+
     pub fn as_kernel_mut_ref(&'static self) -> Option<KernelRef> {
         match self.borrow.get() {
             BufferBorrow::AppExclusive(_) | BufferBorrow::KernelExclusive => None,
@@ -67,17 +71,32 @@ impl ZeroCopyBuffer {
         }
     }
 
+    pub fn as_app_ref(&'static self, app_id: &AppId) -> Option<AppRef> {
+        match self.borrow.get() {
+            BufferBorrow::AppExclusive(_) | BufferBorrow::KernelExclusive => None,
+            BufferBorrow::None => {
+                // TODO: handle failure here.
+                unsafe { self.map_into_app(*app_id) };
+                self.borrow.set(BufferBorrow::AppExclusive(*app_id));
+                Some(AppRef { ctx: self })
+            }
+        }
+    }
+
     /// Configures the MPU to allow `app_id` to access the zero-copy buffer.
-    unsafe fn map_into_app(&'static self, app_id: AppId) -> bool {
-        app_id.kernel.process_map_or(false, app_id, |process| {
-            process
-                .add_mpu_region(
+    unsafe fn map_into_app(&'static self, app_id: AppId) -> ReturnCode {
+        app_id
+            .kernel
+            .process_map_or(ReturnCode::FAIL, app_id, |process| {
+                match process.add_mpu_region(
                     self.buf.as_ptr() as *const u8,
                     self.physical_len,
                     self.physical_len,
-                )
-                .is_some()
-        })
+                ) {
+                    Some(_) => ReturnCode::SUCCESS,
+                    None => ReturnCode::ENOMEM,
+                }
+            })
     }
 }
 
@@ -145,6 +164,10 @@ impl AppRef {
 
     pub fn len(&self) -> usize {
         self.ctx.logical_len.get()
+    }
+
+    pub fn physical_len(&self) -> usize {
+        self.ctx.physical_len
     }
 }
 
