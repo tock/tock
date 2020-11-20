@@ -16,7 +16,7 @@
  ### OpenTitan
  * Brad: We decided to rename OpenTitan board to reduce confusion with the overall project. This is one kernel that runs on the hardware, not necessarily the only or final version.
  * Garret: We'll also have another top-level board pretty soon. So this clarifies which one this is.
- ### 
+ ### Libtock-rs
  * Johnathan: I sent a PR, the Platform Design Story, to Libtock-rs. And it's being discussed in depth. https://github.com/tock/libtock-rs/pull/256
 
 ## Dynamic App Loading
