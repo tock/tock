@@ -16,29 +16,29 @@ pub enum ErrorCode {
     /// Generic failure condition
     FAIL = 0,
     /// Underlying system is busy; retry
-    EBUSY = 1,
+    BUSY = 1,
     /// The state requested is already set
-    EALREADY = 2,
+    ALREADY = 2,
     /// The component is powered down
-    EOFF = 3,
+    OFF = 3,
     /// Reservation required before use
-    ERESERVE = 4,
+    RESERVE = 4,
     /// An invalid parameter was passed
-    EINVAL = 5,
+    INVAL = 5,
     /// Parameter passed was too large
-    ESIZE = 6,
+    SIZE = 6,
     /// Operation canceled by a call
-    ECANCEL = 7,
+    CANCEL = 7,
     /// Memory required not available
-    ENOMEM = 8,
+    NOMEM = 8,
     /// Operation or command is unsupported
-    ENOSUPPORT = 9,
+    NOSUPPORT = 9,
     /// Device does not exist
-    ENODEVICE = 10,
+    NODEVICE = 10,
     /// Device is not physically installed
-    EUNINSTALLED = 11,
+    UNINSTALLED = 11,
     /// Packet transmission not acknowledged
-    ENOACK = 12,
+    NOACK = 12,
 }
 
 impl From<ErrorCode> for usize {
@@ -55,18 +55,18 @@ impl TryFrom<ReturnCode> for ErrorCode {
             ReturnCode::SuccessWithValue { .. } => Err(()),
             ReturnCode::SUCCESS => Err(()),
             ReturnCode::FAIL => Ok(ErrorCode::FAIL),
-            ReturnCode::EBUSY => Ok(ErrorCode::EBUSY),
-            ReturnCode::EALREADY => Ok(ErrorCode::EALREADY),
-            ReturnCode::EOFF => Ok(ErrorCode::EOFF),
-            ReturnCode::ERESERVE => Ok(ErrorCode::ERESERVE),
-            ReturnCode::EINVAL => Ok(ErrorCode::EINVAL),
-            ReturnCode::ESIZE => Ok(ErrorCode::ESIZE),
-            ReturnCode::ECANCEL => Ok(ErrorCode::ECANCEL),
-            ReturnCode::ENOMEM => Ok(ErrorCode::ENOMEM),
-            ReturnCode::ENOSUPPORT => Ok(ErrorCode::ENOSUPPORT),
-            ReturnCode::ENODEVICE => Ok(ErrorCode::ENODEVICE),
-            ReturnCode::EUNINSTALLED => Ok(ErrorCode::EUNINSTALLED),
-            ReturnCode::ENOACK => Ok(ErrorCode::ENOACK),
+            ReturnCode::EBUSY => Ok(ErrorCode::BUSY),
+            ReturnCode::EALREADY => Ok(ErrorCode::ALREADY),
+            ReturnCode::EOFF => Ok(ErrorCode::OFF),
+            ReturnCode::ERESERVE => Ok(ErrorCode::RESERVE),
+            ReturnCode::EINVAL => Ok(ErrorCode::INVAL),
+            ReturnCode::ESIZE => Ok(ErrorCode::SIZE),
+            ReturnCode::ECANCEL => Ok(ErrorCode::CANCEL),
+            ReturnCode::ENOMEM => Ok(ErrorCode::NOMEM),
+            ReturnCode::ENOSUPPORT => Ok(ErrorCode::NOSUPPORT),
+            ReturnCode::ENODEVICE => Ok(ErrorCode::NODEVICE),
+            ReturnCode::EUNINSTALLED => Ok(ErrorCode::UNINSTALLED),
+            ReturnCode::ENOACK => Ok(ErrorCode::NOACK),
         }
     }
 }
