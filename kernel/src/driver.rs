@@ -151,19 +151,19 @@ impl CommandResult {
         self.0
     }
 
-    pub fn error(rc: ErrorCode) -> Self {
+    pub fn failure(rc: ErrorCode) -> Self {
         CommandResult(GenericSyscallReturnValue::Error(rc))
     }
 
-    pub fn error_u32(rc: ErrorCode, data0: u32) -> Self {
+    pub fn failure_u32(rc: ErrorCode, data0: u32) -> Self {
         CommandResult(GenericSyscallReturnValue::ErrorU32(rc, data0))
     }
 
-    pub fn error_u32_u32(rc: ErrorCode, data0: u32, data1: u32) -> Self {
+    pub fn failure_u32_u32(rc: ErrorCode, data0: u32, data1: u32) -> Self {
         CommandResult(GenericSyscallReturnValue::ErrorU32U32(rc, data0, data1))
     }
 
-    pub fn error_u64(rc: ErrorCode, data0: u64) -> Self {
+    pub fn failure_u64(rc: ErrorCode, data0: u64) -> Self {
         CommandResult(GenericSyscallReturnValue::ErrorU64(rc, data0))
     }
 
@@ -194,8 +194,36 @@ impl CommandResult {
     }
 }
 
-// TODO: Tock 2.0 Driver trait
-pub trait Driver {}
+#[allow(unused_variables)]
+pub trait Driver {
+
+    fn subscribe(&self, which: usize, callback: Callback, app_id: AppId) -> SubscribeResult {
+        SubscribeResult::failure(callback, ErrorCode::NOSUPPORT)
+    }
+    
+    fn command(&self, which: usize, r2: usize, r3: usize, caller_id: AppId) -> CommandResult {
+        CommandResult::failure(ErrorCode::NOSUPPORT)
+    }
+    
+    fn allow_readwrite(
+        &self,
+        app: AppId,
+        which: usize,
+        slice: AppSlice<SharedReadWrite, u8>,
+    ) -> AllowReadWriteResult {
+        AllowReadWriteResult::failure(slice, ErrorCode::NOSUPPORT)
+    }
+
+    fn allow_readonly(
+        &self,
+        app: AppId,
+        which: usize,
+        slice: AppSlice<SharedReadOnly, u8>,
+    ) -> AllowReadOnlyResult {
+        AllowReadOnlyResult::failure(slice, ErrorCode::NOSUPPORT)
+    }
+    
+}
 
 impl AllowReadWriteResult {
     pub fn encode_syscall_return(&self, a0: &mut u32, a1: &mut u32, a2: &mut u32, a3: &mut u32) {
@@ -314,13 +342,6 @@ pub trait LegacyDriver {
         ReturnCode::ENOSUPPORT
     }
 
-    // Tock 2.0 method preview:
-    //
-    // #[allow(unused_variables)]
-    // fn command(&self, minor_num: usize, r2: usize, r3: usize, caller_id: AppId) -> CommandResult {
-    //     CommandResult::error(ErrorCode::ENOSUPPORT)
-    // }
-
     /// `allow_readwrite` lets an application give the driver
     /// read-write access to a buffer in the application's
     /// memory. This returns `ENOSUPPORT` if not used.
@@ -338,18 +359,6 @@ pub trait LegacyDriver {
         ReturnCode::ENOSUPPORT
     }
 
-    // Tock 2.0 method preview:
-    //
-    // #[allow(unused_variables)]
-    // fn allow_readwrite(
-    //     &self,
-    //     app: AppId,
-    //     minor_num: usize,
-    //     slice: AppSlice<SharedReadWrite, u8>,
-    // ) -> AllowReadWriteResult {
-    //     AllowReadWriteResult::refuse_allow(slice, ErrorCode::ENOSUPPORT)
-    // }
-
     /// `allow_readonly` lets an application give the driver read-only access
     /// to a buffer in the application's memory. This returns
     /// `ENOSUPPORT` if not used.
@@ -366,16 +375,4 @@ pub trait LegacyDriver {
     ) -> ReturnCode {
         ReturnCode::ENOSUPPORT
     }
-
-    // Tock 2.0 method preview:
-    //
-    // #[allow(unused_variables)]
-    // fn allow_readonly(
-    //     &self,
-    //     app: AppId,
-    //     minor_num: usize,
-    //     slice: AppSlice<SharedReadOnly, u8>,
-    // ) -> AllowReadOnlyResult {
-    //     AllowReadOnlyResult::refuse_allow(slice, ErrorCode::ENOSUPPORT)
-    // }
 }
