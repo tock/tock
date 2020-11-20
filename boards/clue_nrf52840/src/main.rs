@@ -1,6 +1,6 @@
-//! Tock kernel for the Arduino Nano 33 BLE.
+//! Tock kernel for the Adafruit CLUE nRF52480 Express.
 //!
-//! It is based on nRF52840 SoC (Cortex M4 core with a BLE + IEEE 802.15.4 transceiver).
+//! It is based on nRF52840 Express SoC (Cortex M4 core with a BLE + IEEE 802.15.4 transceiver).
 
 #![no_std]
 // Disable this attribute when documenting, as a workaround for
