@@ -555,11 +555,11 @@ impl<'a, F: Flash + 'static> Log<'a, F> {
             State::Read | State::Seek => {
                 self.state.set(State::Idle);
                 self.read_client
-                    .map(move |read_client| match state {
+                    .map(|read_client| match state {
                         State::Read => self
                             .buffer
                             .take()
-                            .map(move |buffer| {
+                            .map(|buffer| {
                                 read_client.read_done(buffer, self.length.get(), self.error.get());
                             })
                             .unwrap(),
@@ -571,11 +571,11 @@ impl<'a, F: Flash + 'static> Log<'a, F> {
             State::Append | State::Sync | State::Erase => {
                 self.state.set(State::Idle);
                 self.append_client
-                    .map(move |append_client| match state {
+                    .map(|append_client| match state {
                         State::Append => self
                             .buffer
                             .take()
-                            .map(move |buffer| {
+                            .map(|buffer| {
                                 append_client.append_done(
                                     buffer,
                                     self.length.get(),
