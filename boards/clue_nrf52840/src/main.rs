@@ -33,7 +33,6 @@ const LED_WHITE_PIN: Pin = Pin::P0_10;
 
 const LED_KERNEL_PIN: Pin = Pin::P1_01;
 
-
 // Buttons
 const BUTTON_LEFT: Pin = Pin::P1_02;
 const BUTTON_RIGHT: Pin = Pin::P1_10;
@@ -46,16 +45,7 @@ const GPIO_D7: Pin = Pin::P0_07;
 const GPIO_D8: Pin = Pin::P1_04;
 const GPIO_D9: Pin = Pin::P0_27;
 const GPIO_D10: Pin = Pin::P0_30;
-// const GPIO_D11: Pin = Pin::P1_10;
-// const GPIO_D12: Pin = Pin::P0_31;
-// const GPIO_D13: Pin = Pin::P0_08;
-// const GPIO_D14: Pin = Pin::P0_06;
-// const GPIO_D15: Pin = Pin::P0_26;
-// const GPIO_D16: Pin = Pin::P0_29;
-// const GPIO_D17: Pin = Pin::P1_01;
-// const GPIO_D18: Pin = Pin::P0_16;
-// const GPIO_D19: Pin = Pin::P0_25;
-// const GPIO_D20: Pin = Pin::P0_24;
+const GPIO_D12: Pin = Pin::P0_31;
 
 const _UART_TX_PIN: Pin = Pin::P0_05;
 const _UART_RX_PIN: Pin = Pin::P0_04;
@@ -69,6 +59,17 @@ const I2C_PULLUP_PIN: Pin = Pin::P1_00;
 
 /// Interrupt pin for the APDS9960 sensor.
 const APDS9960_PIN: Pin = Pin::P0_09;
+
+/// TFT ST7789H2
+const ST7789H2_SCK: Pin = Pin::P0_14;
+const ST7789H2_MOSI: Pin = Pin::P0_15;
+const ST7789H2_MISO: Pin = Pin::P0_26; // ST7789H2 has no MISO Pin, but SPI requires a MISO Pin
+const ST7789H2_CS: Pin = Pin::P0_12;
+const ST7789H2_DC: Pin = Pin::P0_13;
+const ST7789H2_RESET: Pin = Pin::P1_03;
+
+/// TFT backlight
+const _ST7789H2_LITE: Pin = Pin::P1_05;
 
 /// UART Writer for panic!()s.
 pub mod io;
@@ -103,8 +104,10 @@ pub struct Platform {
     console: &'static capsules::console::Console<'static>,
     proximity: &'static capsules::proximity::ProximitySensor<'static>,
     gpio: &'static capsules::gpio::GPIO<'static, nrf52::gpio::GPIOPin<'static>>,
-    led: &'static capsules::led::LedDriver<'static, LedHigh<'static, nrf52::gpio::GPIOPin<'static>>>,
+    led:
+        &'static capsules::led::LedDriver<'static, LedHigh<'static, nrf52::gpio::GPIOPin<'static>>>,
     button: &'static capsules::button::Button<'static, nrf52::gpio::GPIOPin<'static>>,
+    screen: &'static capsules::screen::Screen<'static>,
     rng: &'static capsules::rng::RngDriver<'static>,
     ipc: kernel::ipc::IPC,
     alarm: &'static capsules::alarm::AlarmDriver<
@@ -125,6 +128,7 @@ impl kernel::Platform for Platform {
             capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
             capsules::led::DRIVER_NUM => f(Some(self.led)),
             capsules::button::DRIVER_NUM => f(Some(self.button)),
+            capsules::screen::DRIVER_NUM => f(Some(self.screen)),
             capsules::rng::DRIVER_NUM => f(Some(self.rng)),
             // capsules::ble_advertising_driver::DRIVER_NUM => f(Some(self.ble_radio)),
             // capsules::ieee802154::DRIVER_NUM => f(Some(radio)),
@@ -191,7 +195,8 @@ pub unsafe fn reset_handler() {
             7 => &base_peripherals.gpio_port[GPIO_D7],
             8 => &base_peripherals.gpio_port[GPIO_D8],
             9 => &base_peripherals.gpio_port[GPIO_D9],
-            10 => &base_peripherals.gpio_port[GPIO_D10]
+            10 => &base_peripherals.gpio_port[GPIO_D10],
+            12 => &base_peripherals.gpio_port[GPIO_D12]
         ),
     )
     .finalize(components::gpio_component_buf!(nrf52840::gpio::GPIOPin));
@@ -269,9 +274,9 @@ pub unsafe fn reset_handler() {
     let strings = static_init!(
         [&str; 3],
         [
-            "Adafruit",              // Manufacturer
+            "Adafruit",               // Manufacturer
             "CLUE nRF52840 - TockOS", // Product
-            serial_number_string,   // Serial number
+            serial_number_string,     // Serial number
         ]
     );
 
@@ -343,6 +348,57 @@ pub unsafe fn reset_handler() {
     kernel::hil::sensors::ProximityDriver::set_client(apds9960, proximity);
 
     //--------------------------------------------------------------------------
+    // TFT
+    //--------------------------------------------------------------------------
+
+    let spi_mux = components::spi::SpiMuxComponent::new(&base_peripherals.spim0)
+        .finalize(components::spi_mux_component_helper!(nrf52840::spi::SPIM));
+
+    base_peripherals.spim0.configure(
+        nrf52840::pinmux::Pinmux::new(ST7789H2_MOSI as u32),
+        nrf52840::pinmux::Pinmux::new(ST7789H2_MISO as u32),
+        nrf52840::pinmux::Pinmux::new(ST7789H2_SCK as u32),
+    );
+
+    let bus = components::bus::SpiMasterBusComponent::new().finalize(
+        components::spi_bus_component_helper!(
+            // spi type
+            nrf52840::spi::SPIM,
+            // chip select
+            &nrf52840::gpio::PORT[ST7789H2_CS],
+            // spi mux
+            spi_mux
+        ),
+    );
+
+    let tft = components::st77xx::ST77XXComponent::new(mux_alarm).finalize(
+        components::st77xx_component_helper!(
+            // screen
+            &capsules::st77xx::ST7789H2,
+            // bus type
+            capsules::bus::SpiMasterBus<
+                'static,
+                VirtualSpiMasterDevice<'static, nrf52840::spi::SPIM>,
+            >,
+            // bus
+            &bus,
+            // timer type
+            nrf52840::rtc::Rtc,
+            // pin type
+            nrf52::gpio::GPIOPin<'static>,
+            // dc
+            Some(&nrf52840::gpio::PORT[ST7789H2_DC]),
+            // reset
+            &nrf52840::gpio::PORT[ST7789H2_RESET]
+        ),
+    );
+
+    tft.init();
+
+    let screen = components::screen::ScreenComponent::new(board_kernel, tft, Some(tft))
+        .finalize(components::screen_buffer_size!(57600));
+
+    //--------------------------------------------------------------------------
     // WIRELESS
     //--------------------------------------------------------------------------
 
@@ -372,6 +428,7 @@ pub unsafe fn reset_handler() {
         proximity: proximity,
         led: led,
         gpio: gpio,
+        screen: screen,
         button: button,
         rng: rng,
         alarm: alarm,

@@ -270,14 +270,14 @@ impl SPIM {
             self.chip_select.map(|cs| cs.set());
             self.registers.events_end.write(EVENT::EVENT::CLEAR);
 
+            self.busy.set(false);
+
             self.client.map(|client| match self.tx_buf.take() {
                 None => (),
                 Some(tx_buf) => {
                     client.read_write_done(tx_buf, self.rx_buf.take(), self.transfer_len.take())
                 }
             });
-
-            self.busy.set(false);
         }
 
         // Although we only configured the chip interrupt on the
