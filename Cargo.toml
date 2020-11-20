@@ -22,7 +22,7 @@ members = [
     "boards/redboard_artemis_nano",
     "boards/stm32f3discovery",
     "boards/stm32f412gdiscovery",
-    "boards/teensy4",
+    "boards/teensy40",
     "boards/nano33ble",
     "capsules",
     "chips/apollo3",

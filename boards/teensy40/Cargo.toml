@@ -1,5 +1,5 @@
 [package]
-name = "teensy4"
+name = "teensy40"
 version = "0.1.0"
 authors = ["Tock Project Developers <tock-dev@googlegroups.com>"]
 build = "build.rs"

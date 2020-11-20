@@ -30,7 +30,7 @@ static mut PROCESSES: [Option<&'static dyn kernel::procs::ProcessType>; NUM_PROC
 const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultResponse::Panic;
 
 /// Teensy 4 platform
-struct Teensy4 {
+struct Teensy40 {
     led:
         &'static capsules::led::LedDriver<'static, LedHigh<'static, imxrt1060::gpio::Pin<'static>>>,
     console: &'static capsules::console::Console<'static>,
@@ -41,7 +41,7 @@ struct Teensy4 {
     >,
 }
 
-impl kernel::Platform for Teensy4 {
+impl kernel::Platform for Teensy40 {
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
     where
         F: FnOnce(Option<&dyn kernel::Driver>) -> R,
@@ -150,7 +150,7 @@ pub unsafe fn reset_handler() {
     //
     // Platform
     //
-    let teensy4 = Teensy4 {
+    let teensy40 = Teensy40 {
         led,
         console,
         ipc,
@@ -195,9 +195,9 @@ pub unsafe fn reset_handler() {
     let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
         .finalize(components::rr_component_helper!(NUM_PROCS));
     board_kernel.kernel_loop(
-        &teensy4,
+        &teensy40,
         chip,
-        Some(&teensy4.ipc),
+        Some(&teensy40.ipc),
         scheduler,
         &main_loop_capability,
     );

@@ -1,7 +1,7 @@
 Teensy 4.0 Development Board
 ============================
 
-The `teensy4` board supports the Teensy **4.0** development board.
+The `teensy40` board supports the Teensy **4.0** development board.
 For more information, visit the
 [Teensy 4.0 Development Board](https://www.pjrc.com/store/teensy40.html)
 product page.
@@ -16,7 +16,7 @@ board, such as extended flash memory and RAM, an on-board SD card, or ethernet.
 Programming Dependencies
 ------------------------
 
-Before attempting to program your Teensy 4 with Tock and Tock apps, make sure
+Before attempting to program your Teensy 4.0 with Tock and Tock apps, make sure
 that you have either
 
 - a build of [`teensy_loader_cli`](https://github.com/PaulStoffregen/teensy_loader_cli), or
@@ -43,8 +43,8 @@ with the Teensy 4 Tock kernel.
 ```bash
 $ arm-none-eabi-objcopy \
     --update-section .apps=../../../libtock-c/examples/blink/build/cortex-m7/cortex-m7.tbf \
-    ../../target/thumbv7em-none-eabi/release/teensy4.elf \
-    ../../target/thumbv7em-none-eabi/release/teensy4-app.elf
+    ../../target/thumbv7em-none-eabi/release/teensy40.elf \
+    ../../target/thumbv7em-none-eabi/release/teensy40-app.elf
 ```
 
 Once you've created a single ELF image, use `arm-none-eabi-objcopy` to turn
@@ -52,26 +52,26 @@ that into HEX:
 
 ```bash
 $ arm-none-eabi-objcopy -O ihex \
-    ../../target/thumbv7em-none-eabi/release/teensy4-app.elf \
-    ../../target/thumbv7em-none-eabi/release/teensy4-app.hex
+    ../../target/thumbv7em-none-eabi/release/teensy40-app.elf \
+    ../../target/thumbv7em-none-eabi/release/teensy40-app.hex
 ```
 
-Finally, use a Teensy programmer to flash `teensy4-app.hex` to your board!
+Finally, use a Teensy programmer to flash `teensy40-app.hex` to your board!
 
 ```bash
-$ teensy_loader_cli -w -v --mcu=TEENSY40 target/thumbv7em-none-eabi/release/teensy4-app.hex
+$ teensy_loader_cli -w -v --mcu=TEENSY40 target/thumbv7em-none-eabi/release/teensy40-app.hex
 ```
 
 Use the example `Makefile` below to create a build and flash workflow:
 
 ```Makefile
 APP=../../../libtock-c/examples/blink/build/cortex-m7/cortex-m7.tbf
-KERNEL=$(TOCK_ROOT_DIRECTORY)/target/teensy4/release/teensy4.elf
-KERNEL_WITH_APP=$(TOCK_ROOT_DIRECTORY)/target/teensy4/release/teensy4-app.elf
-KERNEL_WITH_APP_HEX=$(TOCK_ROOT_DIRECTORY)/target/teensy4/release/teensy4-app.hex
+KERNEL=$(TOCK_ROOT_DIRECTORY)/target/teensy40/release/teensy40.elf
+KERNEL_WITH_APP=$(TOCK_ROOT_DIRECTORY)/target/teensy40/release/teensy40-app.elf
+KERNEL_WITH_APP_HEX=$(TOCK_ROOT_DIRECTORY)/target/teensy40/release/teensy40-app.hex
 
 .PHONY: program
-program: target/thumbv7em-none-eabi/release/teensy4.elf
+program: target/thumbv7em-none-eabi/release/teensy40.elf
 	arm-none-eabi-objcopy --update-section .apps=$(APP) $(KERNEL) $(KERNEL_WITH_APP)
 	arm-none-eabi-objcopy -O ihex $(KENERL_WITH_APP) $(KERNEL_WITH_APP_HEX)
     teensy_loader_cli -w -v --mcu=TEENSY40 $(KERNEL_WITH_APP_HEX)
