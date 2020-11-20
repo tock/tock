@@ -16,6 +16,7 @@ use imxrt10xx as imxrt1060;
 use kernel::capabilities;
 use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::component::Component;
+use kernel::hil::led::LedHigh;
 use kernel::{create_capability, static_init};
 
 /// Number of concurrent processes this platform supports
@@ -30,7 +31,8 @@ const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultRespons
 
 /// Teensy 4 platform
 struct Teensy4 {
-    led: &'static capsules::led::LED<'static, imxrt1060::gpio::Pin<'static>>,
+    led:
+        &'static capsules::led::LedDriver<'static, LedHigh<'static, imxrt1060::gpio::Pin<'static>>>,
     console: &'static capsules::console::Console<'static>,
     ipc: kernel::ipc::IPC,
     alarm: &'static capsules::alarm::AlarmDriver<
@@ -121,13 +123,12 @@ pub unsafe fn reset_handler() {
 
     // LED
     let led = components::led::LedsComponent::new(components::led_component_helper!(
-        imxrt1060::gpio::Pin,
-        (
-            imxrt1060::gpio::PinId::B0_03.get_pin().as_ref().unwrap(),
-            kernel::hil::gpio::ActivationMode::ActiveHigh
-        )
+        LedHigh<imxrt1060::gpio::Pin>,
+        LedHigh::new(imxrt1060::gpio::PinId::B0_03.get_pin().as_ref().unwrap())
     ))
-    .finalize(components::led_component_buf!(imxrt1060::gpio::Pin));
+    .finalize(components::led_component_buf!(
+        LedHigh<'static, imxrt1060::gpio::Pin>
+    ));
 
     // Alarm
     let mux_alarm = components::alarm::AlarmMuxComponent::new(&imxrt1060::gpt::GPT1).finalize(
