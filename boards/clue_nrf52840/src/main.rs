@@ -12,9 +12,7 @@
 use kernel::capabilities;
 use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::component::Component;
-use kernel::hil::gpio::Configure;
 use kernel::hil::gpio::Interrupt;
-use kernel::hil::gpio::Output;
 use kernel::hil::i2c::I2CMaster;
 use kernel::hil::led::LedHigh;
 use kernel::hil::time::Counter;
@@ -53,9 +51,6 @@ const _UART_RX_PIN: Pin = Pin::P0_04;
 /// I2C pins for all of the sensors.
 const I2C_SDA_PIN: Pin = Pin::P0_24;
 const I2C_SCL_PIN: Pin = Pin::P0_25;
-
-/// GPIO tied to the VCC of the I2C pullup resistors.
-const I2C_PULLUP_PIN: Pin = Pin::P1_00;
 
 /// Interrupt pin for the APDS9960 sensor.
 const APDS9960_PIN: Pin = Pin::P0_09;
@@ -152,6 +147,7 @@ pub unsafe fn reset_handler() {
 
     // set up circular peripheral dependencies
     nrf52840_peripherals.init();
+
     let base_peripherals = &nrf52840_peripherals.nrf52;
 
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
@@ -318,9 +314,6 @@ pub unsafe fn reset_handler() {
         nrf52840::pinmux::Pinmux::new(I2C_SDA_PIN as u32),
     );
     base_peripherals.twim0.set_master_client(sensors_i2c_bus);
-
-    &nrf52840::gpio::PORT[I2C_PULLUP_PIN].make_output();
-    &nrf52840::gpio::PORT[I2C_PULLUP_PIN].set();
 
     let apds9960_i2c = static_init!(
         capsules::virtual_i2c::I2CDevice,
