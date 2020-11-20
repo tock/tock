@@ -19,7 +19,7 @@ It has the same form factor with BBC:Microbit
 
 First, follow the [Tock Getting Started guide](../../../doc/Getting_Started.md)
 
-You will need the bossac bootloader tool:
+You will need Adafruit's nrfutil bootloader tool:
 
 ```shell
 $ pip3 install --user adafruit-nrfutil
@@ -62,25 +62,25 @@ supported.
 ### Userspace Resource Mapping
 
 This table shows the mappings between resources available in userspace
-and the physical elements on the Nano 33 BLE board.
+and the physical elements on the CLUE nRF52480 board.
 
 | Software Resource | Physical Element    |
 |-------------------|---------------------|
-| GPIO[2]           | Pin D2              |
-| GPIO[3]           | Pin D3              |
-| GPIO[4]           | Pin D4              |
-| GPIO[6]           | Pin D6              |
-| GPIO[7]           | Pin D7              |
-| GPIO[8]           | Pin D8              |
-| GPIO[9]           | Pin D9              |
-| GPIO[10]          | Pin D10             |
-| GPIO[12]          | Pin D12             |
+| GPIO[2]           | Pad D2              |
+| GPIO[3]           | Pad D3              |
+| GPIO[4]           | Pad D4              |
+| GPIO[6]           | Pad D6              |
+| GPIO[7]           | Pad D7              |
+| GPIO[8]           | Pad D8              |
+| GPIO[9]           | Pad D9              |
+| GPIO[10]          | Pad D10             |
+| GPIO[12]          | Pad D12             |
 | LED[0]            | Red LED Red         |
 | LED[1]            | White LEDs          |
 
 ## Debugging
 
-The Nano 33 board uses a virtual serial console over USB to send debugging info
+The CLUE nRF2840 board uses a virtual serial console over USB to send debugging info
 from the kernel and print messages from applications. You can use whatever your
 favorite serial terminal program is to view the output. Tockloader also
 supports reading and writing to a serial console with `tockloader listen`.

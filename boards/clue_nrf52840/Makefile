@@ -1,4 +1,4 @@
-# Makefile for building the tock kernel for the Arduino Nano 33 BLE board.
+# Makefile for building the tock kernel for the CLUE nRF52840 board.
 
 TOCK_ARCH=cortex-m4
 TARGET=thumbv7em-none-eabi
