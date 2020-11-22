@@ -27,7 +27,6 @@ impl<'a, R: Rng<'a>> MuxRngMaster<'a, R> {
         }
     }
 
-    // TODO: return value is hacky way to surface return value from get
     fn do_next_op(&self) -> ReturnCode {
         if self.inflight.is_none() {
             let mnode = self
@@ -36,30 +35,25 @@ impl<'a, R: Rng<'a>> MuxRngMaster<'a, R> {
                 .find(|node| node.operation.get() != Op::Idle);
             mnode.map(|node| {
                 let op = node.operation.get();
-
-                // Need to set idle here in case callback changes state
-                node.operation.set(Op::Idle);
-                self.inflight.set(node);
-
-                match op {
+                let operation_code = match op {
                     Op::Get => {
-                        let client = node.client.take();
-                        match client {
-                            Some(p) => {
-                                // Set rng client to current node
-                                self.rng.set_client(p);
-                                node.client.insert(client);
-                                self.rng.get()
+                        node.client.map_or(ReturnCode::FAIL, |client| {
+                            self.rng.set_client(*client);
+                            let success_code = self.rng.get();
+
+                            // Only set inflight to node if we successfully initiated rng
+                            if success_code == ReturnCode::SUCCESS {
+                                self.inflight.set(node);
                             }
-                            None => {
-                                // If no clients to handle callbacks, fail get request
-                                node.client.insert(client);
-                                ReturnCode::FAIL
-                            }
-                        }
+                            success_code
+                        })
                     }
-                    Op::Idle => ReturnCode::SUCCESS, // Can't get here...
-                }
+                    Op::Idle => unreachable!("Attempted to run idle operation in virtual_rng!"), // Can't get here...
+                };
+
+                // Mark operation as done
+                node.operation.set(Op::Idle);
+                return operation_code;
             });
         }
         ReturnCode::SUCCESS
@@ -73,7 +67,7 @@ impl<'a, R: Rng<'a>> Client for MuxRngMaster<'a, R> {
         _error: ReturnCode,
     ) -> Continue {
         // Try find if randomness is available, or return done
-        self.inflight.take().map_or(Continue::Done, move |device| {
+        self.inflight.take().map_or(Continue::Done, |device| {
             self.do_next_op();
             device.randomness_available(_randomness, _error)
         })
@@ -107,11 +101,6 @@ impl<'a, R: Rng<'a>> VirtualRngMasterDevice<'a, R> {
             operation: Cell::new(Op::Idle),
         }
     }
-
-    pub fn set_client(&'a self, client: &'a dyn Client) {
-        self.mux.devices.push_head(self);
-        self.client.set(client);
-    }
 }
 
 impl<'a, R: Rng<'a>> PartialEq<VirtualRngMasterDevice<'a, R>> for VirtualRngMasterDevice<'a, R> {
@@ -129,27 +118,22 @@ impl<'a, R: Rng<'a>> Rng<'a> for VirtualRngMasterDevice<'a, R> {
     }
 
     fn cancel(&self) -> ReturnCode {
-        let current_node = self.mux.inflight.take();
-        match current_node {
-            Some(p) => {
-                // Find if current device is the one in flight or not
-                self.mux.inflight.set(p);
-                if p == self {
-                    self.mux.rng.cancel()
-                } else {
-                    self.operation.set(Op::Idle);
-                    ReturnCode::SUCCESS
-                }
-            }
-            None => {
-                // If no node inflight, set current operation and break
+        self.mux.inflight.map(|current_node| {
+            // Find if current device is the one in flight or not
+            if *current_node == self {
+                return self.mux.rng.cancel();
+            } else {
                 self.operation.set(Op::Idle);
-                ReturnCode::SUCCESS
+                return ReturnCode::SUCCESS;
             }
-        }
+        });
+        // If no node inflight, just set node to idle and return
+        self.operation.set(Op::Idle);
+        ReturnCode::SUCCESS
     }
 
     fn set_client(&'a self, client: &'a dyn Client) {
+        self.mux.devices.push_head(self);
         self.client.set(client);
     }
 }
