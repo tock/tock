@@ -18,7 +18,6 @@ use kernel::hil::gpio::Interrupt;
 use kernel::hil::gpio::Output;
 use kernel::hil::i2c::I2CMaster;
 use kernel::hil::time::Counter;
-
 use kernel::hil::usb::Client;
 use kernel::mpu::MPU;
 use kernel::Chip;
@@ -181,6 +180,7 @@ pub unsafe fn reset_handler() {
         (&nrf52840::gpio::PORT[LED_BLUE_PIN], ActiveLow)
     ))
     .finalize(components::led_component_buf!(nrf52840::gpio::GPIOPin));
+
     //--------------------------------------------------------------------------
     // Deferred Call (Dynamic) Setup
     //--------------------------------------------------------------------------
