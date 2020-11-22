@@ -99,6 +99,11 @@ impl IntLike for u64 {
         0
     }
 }
+impl IntLike for u128 {
+    fn zero() -> Self {
+        0
+    }
+}
 
 /// Descriptive name for each register.
 pub trait RegisterLongName {}
