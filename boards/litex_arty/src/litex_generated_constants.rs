@@ -3,6 +3,9 @@
 // LiteX SoC Wishbone Register format
 pub type SoCRegisterFmt = litex_vexriscv::litex_registers::LiteXSoCRegistersC32B32;
 
+// Uart baudrate (configurable with `--uart-baudrate` in LiteX)
+pub const UART_BAUDRATE: u32 = 1_000_000;
+
 // constants defined in `generated/soc.h`
 
 pub type ClockFrequency = kernel::hil::time::Freq100MHz;

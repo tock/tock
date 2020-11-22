@@ -329,9 +329,12 @@ pub unsafe fn reset_handler() {
     PANIC_REFERENCES.uart = Some(uart0);
 
     // Create a shared UART channel for the console and for kernel debug.
-    let uart_mux =
-        components::console::UartMuxComponent::new(uart0, 1_000_000, dynamic_deferred_caller)
-            .finalize(());
+    let uart_mux = components::console::UartMuxComponent::new(
+        uart0,
+        socc::UART_BAUDRATE,
+        dynamic_deferred_caller,
+    )
+    .finalize(());
 
     // ---------- ETHERNET ----------
 
