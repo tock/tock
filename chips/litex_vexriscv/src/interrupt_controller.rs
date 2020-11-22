@@ -41,13 +41,18 @@ impl VexRiscvInterruptController {
     /// The ordering is determined by the interrupt number, lower
     /// having a higher priority.
     pub fn next_saved(&self) -> Option<usize> {
-        let saved_interrupts = self.saved_interrupts.get();
+        let saved_interrupts: usize = self.saved_interrupts.get();
         let interrupt_bits = size_of::<usize>() * 8;
 
-        // This is essentially an inefficient version of C's find first
-        // set (ffs()) function, giving the index of the least significant
-        // bit that is set
-        (0..interrupt_bits).find(|test| saved_interrupts & (1 << test) != 0)
+        // If there are no interrupts pending (saved_interrupts == 0),
+        // usize::trailing_zeros will return usize::BITS, in which
+        // case we need to return None
+        let trailing_zeros = usize::trailing_zeros(saved_interrupts) as usize;
+        if trailing_zeros == interrupt_bits {
+            None
+        } else {
+            Some(trailing_zeros)
+        }
     }
 
     /// Mark a saved interrupt as complete, removing it from the
