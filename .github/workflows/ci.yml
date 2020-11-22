@@ -92,6 +92,9 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Update package repositories
+        run: |
+          sudo apt update
       - name: Install dependencies
         continue-on-error: true
         run: |
