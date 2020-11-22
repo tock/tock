@@ -33,7 +33,7 @@ impl<'a, R: Rng<'a>> MuxRngMaster<'a, R> {
                 .devices
                 .iter()
                 .find(|node| node.operation.get() != Op::Idle);
-            mnode.map(|node| {
+            let return_code = mnode.map(|node| {
                 let op = node.operation.get();
                 let operation_code = match op {
                     Op::Get => {
@@ -53,10 +53,18 @@ impl<'a, R: Rng<'a>> MuxRngMaster<'a, R> {
 
                 // Mark operation as done
                 node.operation.set(Op::Idle);
-                return operation_code;
+                operation_code
             });
+
+            // Check if return code has a value
+            if let Some(r) = return_code {
+                r
+            } else {
+                ReturnCode::FAIL
+            }
+        } else {
+            ReturnCode::SUCCESS
         }
-        ReturnCode::SUCCESS
     }
 }
 
@@ -118,18 +126,19 @@ impl<'a, R: Rng<'a>> Rng<'a> for VirtualRngMasterDevice<'a, R> {
     }
 
     fn cancel(&self) -> ReturnCode {
-        self.mux.inflight.map(|current_node| {
+        self.mux.inflight.map_or_else(|| {
+            // If no node inflight, just set node to idle and return
+            self.operation.set(Op::Idle);
+            ReturnCode::SUCCESS
+        }, |current_node| {
             // Find if current device is the one in flight or not
             if *current_node == self {
-                return self.mux.rng.cancel();
+                self.mux.rng.cancel()
             } else {
                 self.operation.set(Op::Idle);
-                return ReturnCode::SUCCESS;
+                ReturnCode::SUCCESS
             }
-        });
-        // If no node inflight, just set node to idle and return
-        self.operation.set(Op::Idle);
-        ReturnCode::SUCCESS
+        })
     }
 
     fn set_client(&'a self, client: &'a dyn Client) {
