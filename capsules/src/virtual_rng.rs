@@ -126,19 +126,22 @@ impl<'a, R: Rng<'a>> Rng<'a> for VirtualRngMasterDevice<'a, R> {
     }
 
     fn cancel(&self) -> ReturnCode {
-        self.mux.inflight.map_or_else(|| {
-            // If no node inflight, just set node to idle and return
-            self.operation.set(Op::Idle);
-            ReturnCode::SUCCESS
-        }, |current_node| {
-            // Find if current device is the one in flight or not
-            if *current_node == self {
-                self.mux.rng.cancel()
-            } else {
+        self.mux.inflight.map_or_else(
+            || {
+                // If no node inflight, just set node to idle and return
                 self.operation.set(Op::Idle);
                 ReturnCode::SUCCESS
-            }
-        })
+            },
+            |current_node| {
+                // Find if current device is the one in flight or not
+                if *current_node == self {
+                    self.mux.rng.cancel()
+                } else {
+                    self.operation.set(Op::Idle);
+                    ReturnCode::SUCCESS
+                }
+            },
+        )
     }
 
     fn set_client(&'a self, client: &'a dyn Client) {
