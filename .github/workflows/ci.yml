@@ -68,9 +68,9 @@ jobs:
 
     steps:
       - name: Install dependencies
-        continue-on-error: true
         run: |
           sudo apt install libudev-dev
+        if: matrix.os == 'ubuntu-latest'
       - uses: actions/checkout@v2
       - uses: actions-rs/toolchain@v1
       - name: ci-job-libraries
