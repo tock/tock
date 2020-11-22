@@ -30,8 +30,8 @@ a different set of FPGA cores and perform further modifications, the
 `src/main.rs` file will have to be modified.
 
 
-Warning
--------
+Please note
+-----------
 
 This board is still in development. The memory protection (PMP)
 mechanism is not yet integrated into the VexRiscv core. Nonetheless,
@@ -43,7 +43,6 @@ The following on-board components and cores are supported:
 - [X] Ethernet MAC
 
 The following components and cores require porting:
-- [ ] Compressed instruction support in the VexRiscv CPU
 - [ ] Memory protection (PMP) support in the VexRiscv CPU ([upstream
       PR](https://github.com/SpinalHDL/VexRiscv/pull/147))
 

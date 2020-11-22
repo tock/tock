@@ -32,8 +32,8 @@ a different set of FPGA cores and perform further modifications, the
 `src/main.rs` file will have to be modified.
 
 
-Warning
--------
+Please note
+-----------
 
 This board is still in development. The memory protection (PMP)
 mechanism is not yet integrated into the VexRiscv core and more
@@ -43,16 +43,15 @@ can run multiple userspace applications.
 The following on-board components and cores are supported:
 - [X] Timer (with uptime support)
 - [X] UART output via USB-FTDI
-- [X] Green LEDs
+- [X] Green onboard LEDs
 - [X] 100MBit/s Ethernet MAC
 
 The following components and cores require porting:
-- [ ] Compressed instruction support in the VexRiscv CPU
 - [ ] Memory protection (PMP) support in the VexRiscv CPU ([upstream
       PR](https://github.com/SpinalHDL/VexRiscv/pull/147))
 - [ ] GPIO Interface
 - [ ] Buttons and Switches
-- [ ] SPI
+- [ ] RGB LEDs
 
 
 Building the SoC / Programming the FPGA
