@@ -11,12 +11,17 @@ use rv32i::PMPConfigMacro;
 
 use crate::interrupt_controller::VexRiscvInterruptController;
 
+/// Global static variable for the InterruptController, as it must be
+/// accessible to the raw interrupt handler functions
+static mut INTERRUPT_CONTROLLER: VexRiscvInterruptController = VexRiscvInterruptController::new();
+
 // TODO: Actually implement the PMP
 PMPConfigMacro!(4);
 
 pub struct LiteXVexRiscv<A: 'static + Alarm<'static>, I: 'static + InterruptService<()>> {
     soc_identifier: &'static str,
     userspace_kernel_boundary: SysCall,
+    interrupt_controller: &'static VexRiscvInterruptController,
     _pmp: PMP,
     scheduler_timer: kernel::VirtualSchedulerTimer<A>,
     interrupt_service: &'static I,
@@ -31,6 +36,7 @@ impl<A: 'static + Alarm<'static>, I: 'static + InterruptService<()>> LiteXVexRis
         Self {
             soc_identifier,
             userspace_kernel_boundary: SysCall::new(),
+            interrupt_controller: &INTERRUPT_CONTROLLER,
             _pmp: PMP::new(),
             scheduler_timer: kernel::VirtualSchedulerTimer::new(alarm),
             interrupt_service,
@@ -42,11 +48,11 @@ impl<A: 'static + Alarm<'static>, I: 'static + InterruptService<()>> LiteXVexRis
     }
 
     unsafe fn handle_interrupts(&self) {
-        while let Some(interrupt) = VexRiscvInterruptController::global_instance().next_saved() {
+        while let Some(interrupt) = self.interrupt_controller.next_saved() {
             if !self.interrupt_service.service_interrupt(interrupt as u32) {
                 debug!("Unknown interrupt: {}", interrupt);
             }
-            VexRiscvInterruptController::global_instance().complete_saved(interrupt);
+            self.interrupt_controller.complete_saved(interrupt);
         }
     }
 }
@@ -78,10 +84,7 @@ impl<A: 'static + Alarm<'static>, I: 'static + InterruptService<()>> kernel::Chi
     }
 
     fn service_pending_interrupts(&self) {
-        while VexRiscvInterruptController::global_instance()
-            .next_saved()
-            .is_some()
-        {
+        while self.interrupt_controller.next_saved().is_some() {
             unsafe {
                 self.handle_interrupts();
             }
@@ -94,9 +97,7 @@ impl<A: 'static + Alarm<'static>, I: 'static + InterruptService<()>> kernel::Chi
     }
 
     fn has_pending_interrupts(&self) -> bool {
-        VexRiscvInterruptController::global_instance()
-            .next_saved()
-            .is_some()
+        self.interrupt_controller.next_saved().is_some()
     }
 
     fn sleep(&self) {
@@ -171,7 +172,7 @@ unsafe fn handle_interrupt(intr: mcause::Interrupt) {
             //
             // If no interrupt was saved, reenable interrupts
             // immediately
-            if !VexRiscvInterruptController::global_instance().save_pending() {
+            if !INTERRUPT_CONTROLLER.save_pending() {
                 CSR.mie.modify(mie::mext::SET);
             }
         }

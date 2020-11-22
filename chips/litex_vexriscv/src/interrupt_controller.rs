@@ -3,10 +3,6 @@
 use core::cell::Cell;
 use core::mem::size_of;
 
-/// Global static variable for the InterruptController, as it must be
-/// accessible to the raw interrupt handler functions
-static mut INTERRUPT_CONTROLLER: VexRiscvInterruptController = VexRiscvInterruptController::new();
-
 /// Rust wrapper around the raw CSR-based VexRiscv interrupt
 /// controller
 ///
@@ -22,15 +18,6 @@ impl VexRiscvInterruptController {
         VexRiscvInterruptController {
             saved_interrupts: Cell::new(0),
         }
-    }
-
-    /// Reference to the global VexRiscvInterruptController instance
-    ///
-    /// This is safe as long as Tock is guaranteed to only have a
-    /// single thread of execution and the methods don't execute
-    /// external functions (closures, etc.)
-    pub fn global_instance() -> &'static Self {
-        unsafe { &INTERRUPT_CONTROLLER }
     }
 
     /// Save the currently pending interrupts in hardware to the
