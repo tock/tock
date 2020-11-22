@@ -60,21 +60,6 @@ impl VexRiscvInterruptController {
             .set(self.saved_interrupts.get() & !(1 << idx));
     }
 
-    /// Return the next pending interrupt from the interrupt
-    /// controller
-    ///
-    /// If no interrupt is pending in the interrupt controller, this
-    /// function returns `None`.
-    pub unsafe fn next_pending() -> Option<usize> {
-        let pending_interrupts = vexriscv_irq_raw::irq_pending();
-        let interrupt_bits = size_of::<usize>() * 8;
-
-        // This is essentially an inefficient version of C's find first
-        // set (ffs()) function, giving the index of the least significant
-        // bit that is set
-        (0..interrupt_bits).find(|test| pending_interrupts & (1 << test) != 0)
-    }
-
     /// Suppress (mask) a specific interrupt source in the interrupt
     /// controller
     pub unsafe fn mask_interrupt(idx: usize) {
