@@ -37,7 +37,7 @@ use kernel::{static_init, static_init_half};
 // Setup static space for the objects.
 #[macro_export]
 macro_rules! isl29035_component_helper {
-    ($A:ty) => {{
+    ($A:ty $(,)?) => {{
         use capsules::isl29035::Isl29035;
         use core::mem::MaybeUninit;
         static mut BUF1: MaybeUninit<VirtualMuxAlarm<'static, $A>> = MaybeUninit::uninit();

@@ -37,7 +37,7 @@ use kernel::{static_init, static_init_half};
 // Setup static space for the objects.
 #[macro_export]
 macro_rules! spi_mux_component_helper {
-    ($S:ty) => {{
+    ($S:ty $(,)?) => {{
         use capsules::virtual_spi::MuxSpiMaster;
         use core::mem::MaybeUninit;
         static mut BUF: MaybeUninit<MuxSpiMaster<'static, $S>> = MaybeUninit::uninit();
@@ -47,7 +47,7 @@ macro_rules! spi_mux_component_helper {
 
 #[macro_export]
 macro_rules! spi_syscall_component_helper {
-    ($S:ty) => {{
+    ($S:ty $(,)?) => {{
         use capsules::spi_controller::Spi;
         use capsules::virtual_spi::VirtualSpiMasterDevice;
         use core::mem::MaybeUninit;
@@ -60,7 +60,7 @@ macro_rules! spi_syscall_component_helper {
 
 #[macro_export]
 macro_rules! spi_component_helper {
-    ($S:ty) => {{
+    ($S:ty $(,)?) => {{
         use capsules::virtual_spi::VirtualSpiMasterDevice;
         use core::mem::MaybeUninit;
         static mut BUF: MaybeUninit<VirtualSpiMasterDevice<'static, $S>> = MaybeUninit::uninit();
@@ -70,7 +70,7 @@ macro_rules! spi_component_helper {
 
 #[macro_export]
 macro_rules! spi_peripheral_component_helper {
-    ($S:ty) => {{
+    ($S:ty $(,)?) => {{
         use capsules::spi_peripheral::SpiPeripheral;
         use core::mem::MaybeUninit;
         static mut BUF: MaybeUninit<SpiPeripheral<'static, $S>> = MaybeUninit::uninit();

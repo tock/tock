@@ -40,7 +40,7 @@ use kernel::static_init_half;
 // Setup static space for the objects.
 #[macro_export]
 macro_rules! bus8080_bus_component_helper {
-    ($B:ty, $bus8080: expr) => {{
+    ($B:ty, $bus8080:expr $(,)?) => {{
         use capsules::bus::Bus8080Bus;
         use core::mem::{size_of, MaybeUninit};
         static mut bus: MaybeUninit<Bus8080Bus<'static, $B>> = MaybeUninit::uninit();
@@ -50,7 +50,7 @@ macro_rules! bus8080_bus_component_helper {
 
 #[macro_export]
 macro_rules! spi_bus_component_helper {
-    ($S:ty, $select:expr, $spi_mux: expr) => {{
+    ($S:ty, $select:expr, $spi_mux:expr $(,)?) => {{
         use capsules::bus::SpiMasterBus;
         use capsules::virtual_spi::VirtualSpiMasterDevice;
         use core::mem::{size_of, MaybeUninit};

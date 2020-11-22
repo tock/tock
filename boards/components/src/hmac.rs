@@ -38,7 +38,7 @@ use kernel::static_init_half;
 // Setup static space for the objects.
 #[macro_export]
 macro_rules! hmac_mux_component_helper {
-    ($A:ty, $T:ty) => {{
+    ($A:ty, $T:ty $(,)?) => {{
         use capsules::virtual_hmac::MuxHmac;
         use capsules::virtual_hmac::VirtualMuxHmac;
         use core::mem::MaybeUninit;
@@ -82,7 +82,7 @@ impl<A: 'static + digest::Digest<'static, T>, T: 'static + digest::DigestType> C
 // Setup static space for the objects.
 #[macro_export]
 macro_rules! hmac_component_helper {
-    ($A:ty, $T:ty) => {{
+    ($A:ty, $T:ty $(,)?) => {{
         use capsules::hmac::HmacDriver;
         use capsules::virtual_hmac::MuxHmac;
         use capsules::virtual_hmac::VirtualMuxHmac;

@@ -34,7 +34,7 @@ use kernel::static_init_half;
 // Setup static space for the objects.
 #[macro_export]
 macro_rules! hd44780_component_helper {
-    ($A:ty, $rs:expr, $en: expr, $data_4_pin: expr, $data_5_pin: expr, $data_6_pin: expr, $data_7_pin: expr) => {{
+    ($A:ty, $rs:expr, $en:expr, $data_4_pin:expr, $data_5_pin:expr, $data_6_pin:expr, $data_7_pin:expr $(,)?) => {{
         use capsules::hd44780::HD44780;
         use core::mem::MaybeUninit;
         static mut BUF1: MaybeUninit<VirtualMuxAlarm<'static, $A>> = MaybeUninit::uninit();

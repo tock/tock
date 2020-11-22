@@ -18,7 +18,7 @@ use kernel::static_init_half;
 
 #[macro_export]
 macro_rules! ninedof_component_helper {
-    ($($P:expr),+ ) => {{
+    ($($P:expr),+ $(,)?) => {{
         use capsules::ninedof::NineDof;
         use core::mem::MaybeUninit;
         use kernel::hil;

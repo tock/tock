@@ -23,7 +23,7 @@ use kernel::static_init_half;
 
 #[macro_export]
 macro_rules! panic_button_component_buf {
-    ($Pin:ty) => {{
+    ($Pin:ty $(,)?) => {{
         use capsules::button::PanicButton;
         use core::mem::MaybeUninit;
         static mut BUF: MaybeUninit<PanicButton<'static, $Pin>> = MaybeUninit::uninit();

@@ -29,7 +29,7 @@ use kernel::static_init_half;
 // Setup static space for the objects.
 #[macro_export]
 macro_rules! usb_cdc_acm_component_helper {
-    ($U:ty) => {{
+    ($U:ty $(,)?) => {{
         use core::mem::MaybeUninit;
         static mut BUF: MaybeUninit<capsules::usb::cdc::CdcAcm<'static, $U>> =
             MaybeUninit::uninit();

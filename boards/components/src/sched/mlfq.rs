@@ -16,7 +16,7 @@ use kernel::{MLFQProcessNode, MLFQSched};
 
 #[macro_export]
 macro_rules! mlfq_component_helper {
-    ($A:ty, $N:expr) => {{
+    ($A:ty, $N:expr $(,)?) => {{
         use core::mem::MaybeUninit;
         use kernel::static_init;
         use kernel::{MLFQProcessNode, MLFQSched};

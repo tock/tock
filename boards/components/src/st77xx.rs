@@ -50,7 +50,7 @@ use kernel::static_init_half;
 // Setup static space for the objects.
 #[macro_export]
 macro_rules! st77xx_component_helper {
-    ($screen:expr, $B: ty, $bus:expr, $A:ty, $P:ty, $dc:expr, $reset:expr) => {{
+    ($screen:expr, $B: ty, $bus:expr, $A:ty, $P:ty, $dc:expr, $reset:expr $(,)?) => {{
         use capsules::bus::Bus;
         use capsules::st77xx::{SendCommand, BUFFER_SIZE, SEQUENCE_BUFFER_SIZE, ST77XX};
         use capsules::virtual_alarm::VirtualMuxAlarm;

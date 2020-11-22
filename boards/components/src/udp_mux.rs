@@ -78,7 +78,7 @@ static mut USED_KERNEL_PORTS: [Option<SocketBindingEntry>; MAX_NUM_BOUND_PORTS] 
 // Setup static space for the objects.
 #[macro_export]
 macro_rules! udp_mux_component_helper {
-    ($A:ty) => {{
+    ($A:ty $(,)?) => {{
         use capsules;
         use capsules::net::sixlowpan::{sixlowpan_compression, sixlowpan_state};
         use capsules::net::udp::udp_send::MuxUdpSender;

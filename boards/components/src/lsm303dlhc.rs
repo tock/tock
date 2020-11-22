@@ -27,7 +27,7 @@ use kernel::static_init_half;
 // Setup static space for the objects.
 #[macro_export]
 macro_rules! lsm303dlhc_i2c_component_helper {
-    ($i2c_mux: expr) => {{
+    ($i2c_mux:expr $(,)?) => {{
         use capsules::lsm303dlhc::Lsm303dlhcI2C;
         use capsules::virtual_i2c::I2CDevice;
         use core::mem::MaybeUninit;

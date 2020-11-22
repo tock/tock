@@ -41,7 +41,7 @@ macro_rules! led_component_helper {
 
 #[macro_export]
 macro_rules! led_component_buf {
-    ($Led:ty) => {{
+    ($Led:ty $(,)?) => {{
         use capsules::led::LedDriver;
         use core::mem::MaybeUninit;
         static mut BUF: MaybeUninit<LedDriver<'static, $Led>> = MaybeUninit::uninit();

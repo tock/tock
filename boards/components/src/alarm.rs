@@ -31,7 +31,7 @@ use kernel::static_init_half;
 // Setup static space for the objects.
 #[macro_export]
 macro_rules! alarm_mux_component_helper {
-    ($A:ty) => {{
+    ($A:ty $(,)?) => {{
         use capsules::virtual_alarm::MuxAlarm;
         use core::mem::MaybeUninit;
         static mut BUF: MaybeUninit<MuxAlarm<'static, $A>> = MaybeUninit::uninit();
@@ -42,7 +42,7 @@ macro_rules! alarm_mux_component_helper {
 // Setup static space for the objects.
 #[macro_export]
 macro_rules! alarm_component_helper {
-    ($A:ty) => {{
+    ($A:ty $(,)?) => {{
         use capsules::alarm::AlarmDriver;
         use capsules::virtual_alarm::VirtualMuxAlarm;
         use core::mem::MaybeUninit;

@@ -33,7 +33,7 @@ use kernel::{create_capability, static_init, static_init_half};
 // Setup static space for the objects.
 #[macro_export]
 macro_rules! ieee802154_component_helper {
-    ($R:ty, $A:ty) => {{
+    ($R:ty, $A:ty $(,)?) => {{
         use capsules::ieee802154::mac::AwakeMac;
         use core::mem::MaybeUninit;
         use kernel::hil::symmetric_encryption::{AES128Ctr, AES128, AES128CBC, AES128CCM};

@@ -20,7 +20,7 @@ use kernel::{RoundRobinProcessNode, RoundRobinSched};
 
 #[macro_export]
 macro_rules! rr_component_helper {
-    ($N:expr) => {{
+    ($N:expr $(,)?) => {{
         use core::mem::MaybeUninit;
         use kernel::static_buf;
         use kernel::RoundRobinProcessNode;

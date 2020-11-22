@@ -19,7 +19,7 @@ use kernel::{CoopProcessNode, CooperativeSched};
 
 #[macro_export]
 macro_rules! coop_component_helper {
-    ($N:expr) => {{
+    ($N:expr $(,)?) => {{
         use core::mem::MaybeUninit;
         use kernel::static_buf;
         use kernel::CoopProcessNode;

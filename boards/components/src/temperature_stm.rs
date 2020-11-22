@@ -9,7 +9,7 @@ use kernel::static_init_half;
 
 #[macro_export]
 macro_rules! temperaturestm_adc_component_helper {
-    ($A:ty, $channel: expr, $adc_mux: expr) => {{
+    ($A:ty, $channel:expr, $adc_mux:expr $(,)?) => {{
         use capsules::temperature_stm::TemperatureSTM;
         use capsules::virtual_adc::AdcDevice;
         use core::mem::MaybeUninit;
