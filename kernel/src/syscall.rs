@@ -105,13 +105,13 @@ pub enum ContextSwitchReason {
 #[derive(Copy, Clone, Debug)]
 pub enum GenericSyscallReturnValue {
     /// Generic error case
-    Error(ErrorCode),
+    Failure(ErrorCode),
     /// Generic error case, with an additional 32-bit data field
-    ErrorU32(ErrorCode, u32),
+    FailureU32(ErrorCode, u32),
     /// Generic error case, with two additional 32-bit data fields
-    ErrorU32U32(ErrorCode, u32, u32),
+    FailureU32U32(ErrorCode, u32, u32),
     /// Generic error case, with an additional 64-bit data field
-    ErrorU64(ErrorCode, u64),
+    FailureU64(ErrorCode, u64),
     /// Generic success case
     Success,
     /// Generic success case, with an additional 32-bit data field
@@ -148,22 +148,22 @@ impl GenericSyscallReturnValue {
         a3: &mut u32,
     ) {
         match self {
-            &GenericSyscallReturnValue::Error(e) => {
+            &GenericSyscallReturnValue::Failure(e) => {
                 *a0 = SyscallReturnVariant::Failure as u32;
                 *a1 = usize::from(e) as u32;
             }
-            &GenericSyscallReturnValue::ErrorU32(e, data0) => {
+            &GenericSyscallReturnValue::FailureU32(e, data0) => {
                 *a0 = SyscallReturnVariant::FailureU32 as u32;
                 *a1 = usize::from(e) as u32;
                 *a2 = data0;
             }
-            &GenericSyscallReturnValue::ErrorU32U32(e, data0, data1) => {
+            &GenericSyscallReturnValue::FailureU32U32(e, data0, data1) => {
                 *a0 = SyscallReturnVariant::FailureU32U32 as u32;
                 *a1 = usize::from(e) as u32;
                 *a2 = data0;
                 *a3 = data1;
             }
-            &GenericSyscallReturnValue::ErrorU64(e, data0) => {
+            &GenericSyscallReturnValue::FailureU64(e, data0) => {
                 let (data0_msb, data0_lsb) = u64_to_be_u32s(data0);
 
                 *a0 = SyscallReturnVariant::FailureU64 as u32;
