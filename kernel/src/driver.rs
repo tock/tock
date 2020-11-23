@@ -69,6 +69,8 @@
 //! kernel (the scheduler and syscall dispatcher) is responsible for
 //! encoding these types into the Tock system call ABI specification.
 
+use core::fmt;
+
 use crate::callback::{AppId, Callback};
 use crate::errorcode::ErrorCode;
 use crate::mem::{AppSlice, SharedReadOnly, SharedReadWrite};
@@ -87,6 +89,21 @@ impl SubscribeResult {
 
     pub fn failure(new_callback: Callback, reason: ErrorCode) -> Self {
         SubscribeResult::Failure(new_callback, reason)
+    }
+}
+impl fmt::Debug for SubscribeResult {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            SubscribeResult::Success(_) => f
+                .debug_tuple("SubscribeResult::Success")
+                .field(&"Callback")
+                .finish(),
+            SubscribeResult::Failure(_, err) => f
+                .debug_tuple("SubscribeResult::Failure")
+                .field(&"Callback")
+                .field(&format_args!("{:?}", err))
+                .finish(),
+        }
     }
 }
 
@@ -115,6 +132,22 @@ impl AllowReadWriteResult {
     }
 }
 
+impl fmt::Debug for AllowReadWriteResult {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            AllowReadWriteResult::Success(_) => f
+                .debug_tuple("AllowReadWriteResult::Success")
+                .field(&"AppSlice")
+                .finish(),
+            AllowReadWriteResult::Failure(_, err) => f
+                .debug_tuple("AllowReadWriteResult::Failure")
+                .field(&"AppSlice")
+                .field(&format_args!("{:?}", err))
+                .finish(),
+        }
+    }
+}
+
 /// Possible return values of an `allow_readonly` driver method
 pub enum AllowReadOnlyResult {
     /// The allow operation succeeded and the AppSlice has been stored
@@ -137,6 +170,22 @@ impl AllowReadOnlyResult {
 
     pub fn failure(new_appslice: AppSlice<SharedReadOnly, u8>, reason: ErrorCode) -> Self {
         AllowReadOnlyResult::Failure(new_appslice, reason)
+    }
+}
+
+impl fmt::Debug for AllowReadOnlyResult {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            AllowReadOnlyResult::Success(_) => f
+                .debug_tuple("AllowReadOnlyResult::Success")
+                .field(&"AppSlice")
+                .finish(),
+            AllowReadOnlyResult::Failure(_, err) => f
+                .debug_tuple("AllowReadOnlyResult::Failure")
+                .field(&"AppSlice")
+                .field(&format_args!("{:?}", err))
+                .finish(),
+        }
     }
 }
 
