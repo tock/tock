@@ -260,7 +260,7 @@ pub unsafe fn reset_handler() {
     //--------------------------------------------------------------------------
 
     // Setup the CDC-ACM over USB driver that we will use for UART.
-    // We use the Arduino Vendor ID and Product ID since the device is the same.
+    // We use the Adafruit Vendor ID and Product ID since the device is the same.
 
     // Create the strings we include in the USB descriptor. We use the hardcoded
     // DEVICEADDR register on the nRF52 to set the serial number.
