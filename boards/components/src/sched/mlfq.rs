@@ -23,7 +23,8 @@ macro_rules! mlfq_component_helper {
         static mut BUF1: MaybeUninit<VirtualMuxAlarm<'static, $A>> = MaybeUninit::uninit();
         static mut BUF2: MaybeUninit<MLFQSched<'static, VirtualMuxAlarm<'static, $A>>> =
             MaybeUninit::uninit();
-        static mut BUF3: [MaybeUninit<MLFQProcessNode<'static>>; $N] = [MaybeUninit::uninit(); $N];
+        const UNINIT: MaybeUninit<MLFQProcessNode<'static>> = MaybeUninit::uninit();
+        static mut BUF3: [MaybeUninit<MLFQProcessNode<'static>>; $N] = [UNINIT; $N];
         (&mut BUF1, &mut BUF2, &mut BUF3)
     };};
 }
