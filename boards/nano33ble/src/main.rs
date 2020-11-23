@@ -59,6 +59,9 @@ const I2C_PULLUP_PIN: Pin = Pin::P1_00;
 /// Interrupt pin for the APDS9960 sensor.
 const APDS9960_PIN: Pin = Pin::P0_19;
 
+/// Personal Area Network ID for the IEEE 802.15.4 radio
+const PAN_ID: u16 = 0xABCD;
+
 /// UART Writer for panic!()s.
 pub mod io;
 
@@ -83,12 +86,12 @@ pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 
 /// Supported drivers by the platform
 pub struct Platform {
-    // ble_radio: &'static capsules::ble_advertising_driver::BLE<
-    //     'static,
-    //     nrf52::ble_radio::Radio,
-    //     VirtualMuxAlarm<'static, Rtc<'static>>,
-    // >,
-    // ieee802154_radio: &'static capsules::ieee802154::RadioDriver<'static>,
+    ble_radio: &'static capsules::ble_advertising_driver::BLE<
+        'static,
+        nrf52::ble_radio::Radio<'static>,
+        capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc<'static>>,
+    >,
+    ieee802154_radio: &'static capsules::ieee802154::RadioDriver<'static>,
     console: &'static capsules::console::Console<'static>,
     proximity: &'static capsules::proximity::ProximitySensor<'static>,
     gpio: &'static capsules::gpio::GPIO<'static, nrf52::gpio::GPIOPin<'static>>,
@@ -113,8 +116,8 @@ impl kernel::Platform for Platform {
             capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
             capsules::led::DRIVER_NUM => f(Some(self.led)),
             capsules::rng::DRIVER_NUM => f(Some(self.rng)),
-            // capsules::ble_advertising_driver::DRIVER_NUM => f(Some(self.ble_radio)),
-            // capsules::ieee802154::DRIVER_NUM => f(Some(radio)),
+            capsules::ble_advertising_driver::DRIVER_NUM => f(Some(self.ble_radio)),
+            capsules::ieee802154::DRIVER_NUM => f(Some(self.ieee802154_radio)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             _ => f(None),
         }
@@ -314,16 +317,23 @@ pub unsafe fn reset_handler() {
     // WIRELESS
     //--------------------------------------------------------------------------
 
-    // let ble_radio =
-    //     BLEComponent::new(board_kernel, &base_peripherals.ble_radio, mux_alarm).finalize(());
+    let ble_radio =
+        nrf52_components::BLEComponent::new(board_kernel, &base_peripherals.ble_radio, mux_alarm)
+            .finalize(());
 
-    // let (ieee802154_radio, _) = Ieee802154Component::new(
-    //     board_kernel,
-    //     &base_peripherals.ieee802154_radio,
-    //     PAN_ID,
-    //     SRC_MAC,
-    // )
-    // .finalize(());
+    let serial_num = nrf52840::ficr::FICR_INSTANCE.address();
+    let serial_num_bottom_16 = serial_num[0] as u16 + ((serial_num[1] as u16) << 8);
+    let (ieee802154_radio, _mux_mac) = components::ieee802154::Ieee802154Component::new(
+        board_kernel,
+        &base_peripherals.ieee802154_radio,
+        &base_peripherals.ecb,
+        PAN_ID,
+        serial_num_bottom_16,
+    )
+    .finalize(components::ieee802154_component_helper!(
+        nrf52840::ieee802154_radio::Radio,
+        nrf52840::aes::AesECB<'static>
+    ));
 
     //--------------------------------------------------------------------------
     // FINAL SETUP AND BOARD BOOT
@@ -334,8 +344,8 @@ pub unsafe fn reset_handler() {
     nrf52_components::NrfClockComponent::new().finalize(());
 
     let platform = Platform {
-        // ble_radio: ble_radio,
-        // ieee802154_radio: ieee802154_radio,
+        ble_radio: ble_radio,
+        ieee802154_radio: ieee802154_radio,
         console: console,
         proximity: proximity,
         led: led,
