@@ -71,6 +71,10 @@ pub enum NUM {
     // Misc
     Buzzer                = 0x90000,
     Screen                = 0x90001,
-    Touch                 = 0x90002
+    Touch                 = 0x90002,
+
+    // Test (not allocated, to be removed)
+    // TODO: Remove prior to releasing Tock 2.0
+    Tock2Test             = 0xA0000,
 }
 }
