@@ -9,6 +9,7 @@ pub(crate) mod priority;
 pub(crate) mod round_robin;
 
 use core::cell::Cell;
+use core::convert::TryFrom;
 use core::ptr::NonNull;
 
 use crate::callback::{AppId, Callback, CallbackId};
@@ -17,9 +18,11 @@ use crate::common::cells::NumericCellExt;
 use crate::common::dynamic_deferred_call::DynamicDeferredCall;
 use crate::config;
 use crate::debug;
+use crate::driver::AllowReadWriteResult;
 use crate::errorcode::ErrorCode;
 use crate::grant::Grant;
 use crate::ipc;
+use crate::mem::AppSlice;
 use crate::memop;
 use crate::platform::mpu::MPU;
 use crate::platform::scheduler_timer::SchedulerTimer;
@@ -891,35 +894,101 @@ impl Kernel {
             } => {
                 let res = platform.with_driver(driver_number, |driver| {
                     match driver {
-                        Some(Ok(_)) => {
+                        Some(Ok(d)) => {
                             // Tock 2.0 driver handling
-                            ReturnCode::ENODEVICE
-                        }
-                        Some(Err(d)) => {
-                            // Legacy Tock 1.x driver handling
+
+                            // TODO: Replace by an appropriate
+                            // reimplementation of `allow_readwrite`
+                            // for the Tock 2.0 system call interface
                             match process.allow_readwrite(allow_address, allow_size) {
                                 Ok(oslice) => {
-                                    d.allow_readwrite(process.appid(), subdriver_number, oslice)
+                                    // In Tock 2.0 land we don't use
+                                    // buffers with address 0 to
+                                    // unallow, hence call expect
+                                    // here. This should really use a
+                                    // reimplementation of
+                                    // allow_readwrite, where this
+                                    // can't happen
+                                    let oslice = oslice.expect("Tock 2.0 allow with 0x0 address");
+
+                                    // TODO: Check for buffer aliasing here!
+
+                                    let driver_res = d.allow_readwrite(
+                                        process.appid(),
+                                        subdriver_number,
+                                        oslice,
+                                    );
+
+                                    // TODO: Check that the driver returned the correct AppSlice!
+
+                                    SyscallResult::AllowReadWrite(driver_res)
                                 }
-                                Err(err) => err, /* memory not valid */
+                                Err(err) => {
+                                    // TODO: What about NonNull here? How does
+                                    // that play out with the TRD? Is NULL
+                                    // always an invalid address?
+                                    //
+                                    // Panicing here is definitely wrong! But
+                                    // we have to return the passed address
+                                    // and size even if they are invalid.
+                                    let nnaddr = NonNull::new(allow_address).expect("null address");
+                                    let newslice =
+                                        AppSlice::new(nnaddr, allow_size, process.appid());
+
+                                    SyscallResult::AllowReadWrite(AllowReadWriteResult::failure(
+                                        newslice,
+                                        ErrorCode::try_from(err)
+                                            .expect("error with success-variant"),
+                                    ))
+                                }
                             }
                         }
-                        None => ReturnCode::ENODEVICE,
+                        Some(Err(ld)) => {
+                            // Legacy Tock 1.x driver handling
+                            let rc = match process.allow_readwrite(allow_address, allow_size) {
+                                Ok(oslice) => {
+                                    ld.allow_readwrite(process.appid(), subdriver_number, oslice)
+                                }
+                                Err(err) => err, /* memory not valid */
+                            };
+
+                            SyscallResult::Legacy(rc)
+                        }
+                        None => {
+                            // TODO: What about NonNull here? How does
+                            // that play out with the TRD? Is NULL
+                            // always an invalid address?
+                            //
+                            // Panicing here is definitely wrong! But
+                            // we have to return the passed address
+                            // and size even if they are invalid.
+                            let nnaddr = NonNull::new(allow_address).expect("null address");
+                            let newslice = AppSlice::new(nnaddr, allow_size, process.appid());
+
+                            // System call transition note: This does not
+                            // match the expected error code for the Tock
+                            // 1.0 system call API, hence making system
+                            // calls to non-existant drivers from
+                            // userspace will break
+                            SyscallResult::AllowReadWrite(AllowReadWriteResult::failure(
+                                newslice,
+                                ErrorCode::NOSUPPORT,
+                            ))
+                        }
                     }
                 });
                 if config::CONFIG.trace_syscalls {
                     debug!(
-                        "[{:?}] allow({:#x}, {}, @{:#x}, {:#x}) = {:#x} = {:?}",
+                        "[{:?}] allow({:#x}, {}, @{:#x}, {:#x}) = {:?}",
                         process.appid(),
                         driver_number,
                         subdriver_number,
                         allow_address as usize,
                         allow_size,
-                        usize::from(res),
                         res
                     );
                 }
-                process.set_syscall_return_value(SyscallResult::Legacy(res.into()));
+                process.set_syscall_return_value(res);
             }
         }
     }
