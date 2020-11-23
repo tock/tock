@@ -784,8 +784,8 @@ impl Kernel {
                 }
                 process.set_yielded_state();
 
-                // There might be already enqueued callbacks
-                return;
+                // There might be already enqueued callbacks, handle
+                // them in the next loop iteration
             }
             Syscall::SUBSCRIBE {
                 driver_number,
