@@ -201,19 +201,19 @@ impl CommandResult {
     }
 
     pub fn failure(rc: ErrorCode) -> Self {
-        CommandResult(GenericSyscallReturnValue::Error(rc))
+        CommandResult(GenericSyscallReturnValue::Failure(rc))
     }
 
     pub fn failure_u32(rc: ErrorCode, data0: u32) -> Self {
-        CommandResult(GenericSyscallReturnValue::ErrorU32(rc, data0))
+        CommandResult(GenericSyscallReturnValue::FailureU32(rc, data0))
     }
 
     pub fn failure_u32_u32(rc: ErrorCode, data0: u32, data1: u32) -> Self {
-        CommandResult(GenericSyscallReturnValue::ErrorU32U32(rc, data0, data1))
+        CommandResult(GenericSyscallReturnValue::FailureU32U32(rc, data0, data1))
     }
 
     pub fn failure_u64(rc: ErrorCode, data0: u64) -> Self {
-        CommandResult(GenericSyscallReturnValue::ErrorU64(rc, data0))
+        CommandResult(GenericSyscallReturnValue::FailureU64(rc, data0))
     }
 
     pub fn success() -> Self {
