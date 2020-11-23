@@ -217,6 +217,7 @@ impl GenericSyscallReturnValue {
 /// `syscall_return_to_arguments`, which can be seen as a counterpart
 /// to `arguments_to_syscall`. Architectures are however free to
 /// define their own encoding.
+#[derive(Debug)]
 pub enum SyscallResult {
     Yield(bool),
     Subscribe(SubscribeResult),
