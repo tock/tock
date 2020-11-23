@@ -17,6 +17,7 @@ use crate::common::cells::NumericCellExt;
 use crate::common::dynamic_deferred_call::DynamicDeferredCall;
 use crate::config;
 use crate::debug;
+use crate::errorcode::ErrorCode;
 use crate::grant::Grant;
 use crate::ipc;
 use crate::memop;
@@ -26,7 +27,7 @@ use crate::platform::watchdog::WatchDog;
 use crate::platform::{Chip, Platform};
 use crate::process::{self, Task};
 use crate::returncode::ReturnCode;
-use crate::syscall::{ContextSwitchReason, Syscall, SyscallResult};
+use crate::syscall::{ContextSwitchReason, GenericSyscallReturnValue, Syscall, SyscallResult};
 
 /// Threshold in microseconds to consider a process's timeslice to be exhausted.
 /// That is, Tock will skip re-scheduling a process if its remaining timeslice
@@ -841,29 +842,46 @@ impl Kernel {
                 arg1,
             } => {
                 let res = platform.with_driver(driver_number, |driver| match driver {
-                    Some(Ok(_)) => {
+                    Some(Ok(d)) => {
                         // Tock 2.0 driver handling
-                        ReturnCode::ENODEVICE
+                        SyscallResult::Command(
+                            d.command(subdriver_number, arg0, arg1, process.appid())
+                                .into_inner(),
+                        )
                     }
-                    Some(Err(d)) => {
+                    Some(Err(ld)) => {
                         // Legacy Tock 1.x driver handling
-                        d.command(subdriver_number, arg0, arg1, process.appid())
+                        SyscallResult::Legacy(ld.command(
+                            subdriver_number,
+                            arg0,
+                            arg1,
+                            process.appid(),
+                        ))
                     }
-                    None => ReturnCode::ENODEVICE,
+                    None => {
+                        // System call transition note: This does not
+                        // match the expected error code for the Tock
+                        // 1.0 system call API, hence making system
+                        // calls to non-existant drivers from
+                        // userspace will break
+                        SyscallResult::Command(GenericSyscallReturnValue::Failure(
+                            ErrorCode::NOSUPPORT,
+                        ))
+                    }
                 });
+
                 if config::CONFIG.trace_syscalls {
                     debug!(
-                        "[{:?}] cmd({:#x}, {}, {:#x}, {:#x}) = {:#x} = {:?}",
+                        "[{:?}] cmd({:#x}, {}, {:#x}, {:#x}) = {:?}",
                         process.appid(),
                         driver_number,
                         subdriver_number,
                         arg0,
                         arg1,
-                        usize::from(res),
-                        res
+                        res,
                     );
                 }
-                process.set_syscall_return_value(SyscallResult::Legacy(res.into()));
+                process.set_syscall_return_value(res);
             }
             Syscall::ALLOW {
                 driver_number,
