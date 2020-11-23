@@ -81,3 +81,6 @@ pub mod virtual_pwm;
 pub mod virtual_spi;
 pub mod virtual_timer;
 pub mod virtual_uart;
+
+// TODO: Remove prior to releasing Tock 2.0
+pub mod tock2_test;

@@ -172,6 +172,7 @@ pub struct Platform {
     >,
     nonvolatile_storage: &'static capsules::nonvolatile_storage_driver::NonvolatileStorage<'static>,
     udp_driver: &'static capsules::net::udp::UDPDriver<'static>,
+    tock2_test_driver: &'static capsules::tock2_test::Tock2TestDriver,
 }
 
 impl kernel::Platform for Platform {
@@ -194,6 +195,7 @@ impl kernel::Platform for Platform {
                 f(Some(Err(self.nonvolatile_storage)))
             }
             capsules::net::udp::DRIVER_NUM => f(Some(Err(self.udp_driver))),
+            capsules::tock2_test::DRIVER_NUM => f(Some(Ok(self.tock2_test_driver))),
             kernel::ipc::DRIVER_NUM => f(Some(Err(&self.ipc))),
             _ => f(None),
         }
@@ -514,6 +516,13 @@ pub unsafe fn reset_handler() {
     // ctap.enable();
     // ctap.attach();
 
+    // Tock 2.0 test driver
+    // TODO: Remove prior to releasing Tock 2.0
+    let tock2_test_driver = static_init!(
+        capsules::tock2_test::Tock2TestDriver,
+        capsules::tock2_test::Tock2TestDriver::new()
+    );
+
     let platform = Platform {
         button,
         ble_radio,
@@ -528,6 +537,7 @@ pub unsafe fn reset_handler() {
         analog_comparator,
         nonvolatile_storage,
         udp_driver,
+        tock2_test_driver,
         ipc: kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability),
     };
 
