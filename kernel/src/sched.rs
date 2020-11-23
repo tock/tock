@@ -627,209 +627,7 @@ impl Kernel {
                             process.set_fault_state();
                         }
                         Some(ContextSwitchReason::SyscallFired { syscall }) => {
-                            process.debug_syscall_called(syscall);
-
-                            // Enforce platform-specific syscall filtering here.
-                            //
-                            // Before continuing to handle non-yield syscalls
-                            // the kernel first checks if the platform wants to
-                            // block that syscall for the process, and if it
-                            // does, sets a return value which is returned to
-                            // the calling process.
-                            //
-                            // Filtering a syscall (i.e. blocking the syscall
-                            // from running) does not cause the process to loose
-                            // its timeslice. The error will be returned
-                            // immediately (assuming the process has not already
-                            // exhausted its timeslice) allowing the process to
-                            // decide how to handle the error.
-                            if syscall != Syscall::YIELD {
-                                if let Err(response) = platform.filter_syscall(process, &syscall) {
-                                    process.set_syscall_return_value(SyscallResult::Legacy(
-                                        response.into(),
-                                    ));
-                                    continue;
-                                }
-                            }
-
-                            // Handle each of the syscalls.
-                            match syscall {
-                                Syscall::MEMOP { operand, arg0 } => {
-                                    let res = memop::memop(process, operand, arg0);
-                                    if config::CONFIG.trace_syscalls {
-                                        debug!(
-                                            "[{:?}] memop({}, {:#x}) = {:#x} = {:?}",
-                                            process.appid(),
-                                            operand,
-                                            arg0,
-                                            usize::from(res),
-                                            res
-                                        );
-                                    }
-                                    process.set_syscall_return_value(SyscallResult::Legacy(
-                                        res.into(),
-                                    ));
-                                }
-                                Syscall::YIELD => {
-                                    if config::CONFIG.trace_syscalls {
-                                        debug!("[{:?}] yield", process.appid());
-                                    }
-                                    process.set_yielded_state();
-
-                                    // There might be already enqueued callbacks
-                                    continue;
-                                }
-                                Syscall::SUBSCRIBE {
-                                    driver_number,
-                                    subdriver_number,
-                                    callback_ptr,
-                                    appdata,
-                                } => {
-                                    // A callback is identified as a tuple of
-                                    // the driver number and the subdriver
-                                    // number.
-                                    let callback_id = CallbackId {
-                                        driver_num: driver_number,
-                                        subscribe_num: subdriver_number,
-                                    };
-                                    // Only one callback should exist per tuple.
-                                    // To ensure that there are no pending
-                                    // callbacks with the same identifier but
-                                    // with the old function pointer, we clear
-                                    // them now.
-                                    process.remove_pending_callbacks(callback_id);
-
-                                    let callback = NonNull::new(callback_ptr).map(|ptr| {
-                                        Callback::new(
-                                            process.appid(),
-                                            callback_id,
-                                            appdata,
-                                            ptr.cast(),
-                                        )
-                                    });
-
-                                    let res =
-                                        platform.with_driver(
-                                            driver_number,
-                                            |driver| match driver {
-                                                Some(Ok(_)) => {
-                                                    // Tock 2.0 driver handling
-                                                    ReturnCode::ENODEVICE
-                                                }
-                                                Some(Err(d)) => {
-                                                    // Legacy Tock 1.x driver handling
-                                                    d.subscribe(
-                                                        subdriver_number,
-                                                        callback,
-                                                        process.appid(),
-                                                    )
-                                                }
-                                                None => ReturnCode::ENODEVICE,
-                                            },
-                                        );
-                                    if config::CONFIG.trace_syscalls {
-                                        debug!(
-                                            "[{:?}] subscribe({:#x}, {}, @{:#x}, {:#x}) = {:#x} = {:?}",
-                                            process.appid(),
-                                            driver_number,
-                                            subdriver_number,
-                                            callback_ptr as usize,
-                                            appdata,
-                                            usize::from(res),
-                                            res
-                                        );
-                                    }
-                                    process.set_syscall_return_value(SyscallResult::Legacy(
-                                        res.into(),
-                                    ));
-                                }
-                                Syscall::COMMAND {
-                                    driver_number,
-                                    subdriver_number,
-                                    arg0,
-                                    arg1,
-                                } => {
-                                    let res =
-                                        platform.with_driver(
-                                            driver_number,
-                                            |driver| match driver {
-                                                Some(Ok(_)) => {
-                                                    // Tock 2.0 driver handling
-                                                    ReturnCode::ENODEVICE
-                                                }
-                                                Some(Err(d)) => {
-                                                    // Legacy Tock 1.x driver handling
-                                                    d.command(
-                                                        subdriver_number,
-                                                        arg0,
-                                                        arg1,
-                                                        process.appid(),
-                                                    )
-                                                }
-                                                None => ReturnCode::ENODEVICE,
-                                            },
-                                        );
-                                    if config::CONFIG.trace_syscalls {
-                                        debug!(
-                                            "[{:?}] cmd({:#x}, {}, {:#x}, {:#x}) = {:#x} = {:?}",
-                                            process.appid(),
-                                            driver_number,
-                                            subdriver_number,
-                                            arg0,
-                                            arg1,
-                                            usize::from(res),
-                                            res
-                                        );
-                                    }
-                                    process.set_syscall_return_value(SyscallResult::Legacy(
-                                        res.into(),
-                                    ));
-                                }
-                                Syscall::ALLOW {
-                                    driver_number,
-                                    subdriver_number,
-                                    allow_address,
-                                    allow_size,
-                                } => {
-                                    let res = platform.with_driver(driver_number, |driver| {
-                                        match driver {
-                                            Some(Ok(_)) => {
-                                                // Tock 2.0 driver handling
-                                                ReturnCode::ENODEVICE
-                                            }
-                                            Some(Err(d)) => {
-                                                // Legacy Tock 1.x driver handling
-                                                match process
-                                                    .allow_readwrite(allow_address, allow_size)
-                                                {
-                                                    Ok(oslice) => d.allow_readwrite(
-                                                        process.appid(),
-                                                        subdriver_number,
-                                                        oslice,
-                                                    ),
-                                                    Err(err) => err, /* memory not valid */
-                                                }
-                                            }
-                                            None => ReturnCode::ENODEVICE,
-                                        }
-                                    });
-                                    if config::CONFIG.trace_syscalls {
-                                        debug!(
-                                            "[{:?}] allow({:#x}, {}, @{:#x}, {:#x}) = {:#x} = {:?}",
-                                            process.appid(),
-                                            driver_number,
-                                            subdriver_number,
-                                            allow_address as usize,
-                                            allow_size,
-                                            usize::from(res),
-                                            res
-                                        );
-                                    }
-                                    process.set_syscall_return_value(SyscallResult::Legacy(
-                                        res.into(),
-                                    ));
-                                }
-                            }
+                            self.handle_syscall_fired(platform, process, syscall);
                         }
                         Some(ContextSwitchReason::Interrupted) => {
                             if scheduler_timer.get_remaining_us().is_none() {
@@ -930,5 +728,181 @@ impl Kernel {
         scheduler_timer.reset();
 
         (return_reason, time_executed_us)
+    }
+
+    #[inline]
+    unsafe fn handle_syscall_fired<P: Platform>(
+        &self,
+        platform: &P,
+        process: &dyn process::ProcessType,
+        syscall: Syscall,
+    ) {
+        process.debug_syscall_called(syscall);
+
+        // Enforce platform-specific syscall filtering here.
+        //
+        // Before continuing to handle non-yield syscalls
+        // the kernel first checks if the platform wants to
+        // block that syscall for the process, and if it
+        // does, sets a return value which is returned to
+        // the calling process.
+        //
+        // Filtering a syscall (i.e. blocking the syscall
+        // from running) does not cause the process to loose
+        // its timeslice. The error will be returned
+        // immediately (assuming the process has not already
+        // exhausted its timeslice) allowing the process to
+        // decide how to handle the error.
+        if syscall != Syscall::YIELD {
+            if let Err(response) = platform.filter_syscall(process, &syscall) {
+                process.set_syscall_return_value(SyscallResult::Legacy(response.into()));
+
+                return;
+            }
+        }
+
+        // Handle each of the syscalls.
+        match syscall {
+            Syscall::MEMOP { operand, arg0 } => {
+                let res = memop::memop(process, operand, arg0);
+                if config::CONFIG.trace_syscalls {
+                    debug!(
+                        "[{:?}] memop({}, {:#x}) = {:#x} = {:?}",
+                        process.appid(),
+                        operand,
+                        arg0,
+                        usize::from(res),
+                        res
+                    );
+                }
+                process.set_syscall_return_value(SyscallResult::Legacy(res.into()));
+            }
+            Syscall::YIELD => {
+                if config::CONFIG.trace_syscalls {
+                    debug!("[{:?}] yield", process.appid());
+                }
+                process.set_yielded_state();
+
+                // There might be already enqueued callbacks
+                return;
+            }
+            Syscall::SUBSCRIBE {
+                driver_number,
+                subdriver_number,
+                callback_ptr,
+                appdata,
+            } => {
+                // A callback is identified as a tuple of
+                // the driver number and the subdriver
+                // number.
+                let callback_id = CallbackId {
+                    driver_num: driver_number,
+                    subscribe_num: subdriver_number,
+                };
+                // Only one callback should exist per tuple.
+                // To ensure that there are no pending
+                // callbacks with the same identifier but
+                // with the old function pointer, we clear
+                // them now.
+                process.remove_pending_callbacks(callback_id);
+
+                let callback = NonNull::new(callback_ptr)
+                    .map(|ptr| Callback::new(process.appid(), callback_id, appdata, ptr.cast()));
+
+                let res = platform.with_driver(driver_number, |driver| match driver {
+                    Some(Ok(_)) => {
+                        // Tock 2.0 driver handling
+                        ReturnCode::ENODEVICE
+                    }
+                    Some(Err(d)) => {
+                        // Legacy Tock 1.x driver handling
+                        d.subscribe(subdriver_number, callback, process.appid())
+                    }
+                    None => ReturnCode::ENODEVICE,
+                });
+                if config::CONFIG.trace_syscalls {
+                    debug!(
+                        "[{:?}] subscribe({:#x}, {}, @{:#x}, {:#x}) = {:#x} = {:?}",
+                        process.appid(),
+                        driver_number,
+                        subdriver_number,
+                        callback_ptr as usize,
+                        appdata,
+                        usize::from(res),
+                        res
+                    );
+                }
+                process.set_syscall_return_value(SyscallResult::Legacy(res.into()));
+            }
+            Syscall::COMMAND {
+                driver_number,
+                subdriver_number,
+                arg0,
+                arg1,
+            } => {
+                let res = platform.with_driver(driver_number, |driver| match driver {
+                    Some(Ok(_)) => {
+                        // Tock 2.0 driver handling
+                        ReturnCode::ENODEVICE
+                    }
+                    Some(Err(d)) => {
+                        // Legacy Tock 1.x driver handling
+                        d.command(subdriver_number, arg0, arg1, process.appid())
+                    }
+                    None => ReturnCode::ENODEVICE,
+                });
+                if config::CONFIG.trace_syscalls {
+                    debug!(
+                        "[{:?}] cmd({:#x}, {}, {:#x}, {:#x}) = {:#x} = {:?}",
+                        process.appid(),
+                        driver_number,
+                        subdriver_number,
+                        arg0,
+                        arg1,
+                        usize::from(res),
+                        res
+                    );
+                }
+                process.set_syscall_return_value(SyscallResult::Legacy(res.into()));
+            }
+            Syscall::ALLOW {
+                driver_number,
+                subdriver_number,
+                allow_address,
+                allow_size,
+            } => {
+                let res = platform.with_driver(driver_number, |driver| {
+                    match driver {
+                        Some(Ok(_)) => {
+                            // Tock 2.0 driver handling
+                            ReturnCode::ENODEVICE
+                        }
+                        Some(Err(d)) => {
+                            // Legacy Tock 1.x driver handling
+                            match process.allow_readwrite(allow_address, allow_size) {
+                                Ok(oslice) => {
+                                    d.allow_readwrite(process.appid(), subdriver_number, oslice)
+                                }
+                                Err(err) => err, /* memory not valid */
+                            }
+                        }
+                        None => ReturnCode::ENODEVICE,
+                    }
+                });
+                if config::CONFIG.trace_syscalls {
+                    debug!(
+                        "[{:?}] allow({:#x}, {}, @{:#x}, {:#x}) = {:#x} = {:?}",
+                        process.appid(),
+                        driver_number,
+                        subdriver_number,
+                        allow_address as usize,
+                        allow_size,
+                        usize::from(res),
+                        res
+                    );
+                }
+                process.set_syscall_return_value(SyscallResult::Legacy(res.into()));
+            }
+        }
     }
 }
