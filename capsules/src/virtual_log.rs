@@ -302,40 +302,49 @@ where
     }
 
     fn do_next_op(&self) {
-        // If there's already a virtual log device being serviced, then return.
-        if self.inflight.is_some() {
-            return;
-        }
-        // Otherwise, we service the first log device that has something to do.
         // FIXME: Are there any fairness concerns here? What if we start searching where we left off?
-        self.virtual_log_devices
-            .iter()
-            .find(|virtual_log_device| virtual_log_device.operation.get() != Op::Idle)
-            .map(|virtual_log_device| {
-                self.log.seek(virtual_log_device.read_entry_id.get());
-                let op = virtual_log_device.operation.get();
-                virtual_log_device.operation.set(Op::Idle);
-                match op {
-                    Op::Read(length) => {
-                        self.inflight.set(virtual_log_device);
-                        virtual_log_device.buffer.take().map(|buffer| {
-                            self.log.read(buffer, length);
-                        });
+        if self.inflight.is_none() {
+            self.virtual_log_devices
+                .iter()
+                .find(|virtual_log_device| virtual_log_device.operation.get() != Op::Idle)
+                .map(|virtual_log_device| {
+                    self.inflight.set(virtual_log_device);
+                    self.log.seek(virtual_log_device.read_entry_id.get());
+                    let op = virtual_log_device.operation.get();
+                    virtual_log_device.operation.set(Op::Idle);
+                    match op {
+                        Op::Read(length) => match virtual_log_device.buffer.take() {
+                            Some(read_buffer) => match self.log.read(read_buffer, length) {
+                                Ok(()) => (),
+                                Err((error_code, Some(read_buffer))) => {
+                                    self.read_done(read_buffer, 0, error_code) // FIXME: change the signature of read_done to Result<usize, ReturnCode>
+                                }
+                                Err((_, None)) => unreachable!(), // FIXME: change the return type of read() to get rid of this case
+                            },
+                            None => debug!("Error: read buffer is missing when issuing log read."),
+                        },
+                        Op::Append(length) => match virtual_log_device.buffer.take() {
+                            Some(append_buffer) => match self.log.append(append_buffer, length) {
+                                Ok(()) => (),
+                                Err((error_code, Some(append_buffer))) => {
+                                    // FIXME: change the signature of append_done to Result<(usize, bool), ReturnCode>
+                                    self.append_done(append_buffer, 0, false, error_code)
+                                }
+                                Err((_, None)) => unreachable!(), // FIXME: change the return type of append() to get rid of this case
+                            },
+                            None => {
+                                debug!("Error: append buffer is missing when issuing log append.")
+                            }
+                        },
+                        Op::Sync => {
+                            self.log.sync();
+                        }
+                        Op::Erase => {
+                            self.log.erase();
+                        }
+                        Op::Idle => unreachable!(),
                     }
-                    Op::Append(length) => {
-                        self.inflight.set(virtual_log_device);
-                        virtual_log_device.buffer.take().map(|buffer| {
-                            self.log.append(buffer, length);
-                        });
-                    }
-                    Op::Sync => {
-                        self.log.sync();
-                    }
-                    Op::Erase => {
-                        self.log.erase();
-                    }
-                    Op::Idle => unreachable!(),
-                }
-            });
+                });
+        }
     }
 }
