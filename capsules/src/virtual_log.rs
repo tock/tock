@@ -152,6 +152,7 @@ impl<'a, Log: LogRead<'a> + LogWrite<'a>> LogReadClient for VirtualLogDevice<'a,
 }
 
 impl<'a, Log: LogRead<'a> + LogWrite<'a>> LogWriteClient for VirtualLogDevice<'a, Log> {
+    /// Propagates the `append_done` callback up to the end user.
     fn append_done(
         &self,
         buffer: &'static mut [u8],
@@ -159,21 +160,26 @@ impl<'a, Log: LogRead<'a> + LogWrite<'a>> LogWriteClient for VirtualLogDevice<'a
         records_lost: bool,
         error: ReturnCode,
     ) {
-        self.append_client.map(move |client| {
-            client.append_done(buffer, length, records_lost, error);
-        });
+        self.append_client.map_or_else(
+            || debug!("Log append complete but log client is gone."),
+            move |client| client.append_done(buffer, length, records_lost, error),
+        )
     }
 
+    /// Propagates the `sync_done` callback up to the end user.
     fn sync_done(&self, error: ReturnCode) {
-        self.append_client.map(move |client| {
-            client.sync_done(error);
-        });
+        self.append_client.map_or_else(
+            || debug!("Log sync complete but log client is gone."),
+            |client| client.sync_done(error),
+        )
     }
 
+    /// Propagates the `erase_done` callback up to the end user.
     fn erase_done(&self, error: ReturnCode) {
-        self.append_client.map(move |client| {
-            client.erase_done(error);
-        });
+        self.append_client.map_or_else(
+            || debug!("Log append complete but log client is gone."),
+            |client| client.erase_done(error),
+        )
     }
 }
 
