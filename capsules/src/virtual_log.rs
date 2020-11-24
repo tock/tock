@@ -139,8 +139,13 @@ where
         buffer: &'static mut [u8],
         length: usize,
     ) -> Result<(), (ReturnCode, Option<&'static mut [u8]>)> {
-        self.buffer.replace(buffer);
         self.operation.set(Op::Append(length));
+        match self.buffer.replace(buffer) {
+            Some(_) => {
+                debug!("Unexpected replacement of an append buffer that should've been returned via append_done.")
+            }
+            None => (),
+        }
         self.mux.do_next_op();
         Ok(())
     }
