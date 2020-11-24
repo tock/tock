@@ -79,31 +79,21 @@ pub trait IntLike:
     fn zero() -> Self;
 }
 
-impl IntLike for u8 {
-    fn zero() -> Self {
-        0
-    }
+macro_rules! IntLike_impl_for {
+    ($type:ty) => {
+        impl IntLike for $type {
+            fn zero() -> Self {
+                0
+            }
+        }
+    };
 }
-impl IntLike for u16 {
-    fn zero() -> Self {
-        0
-    }
-}
-impl IntLike for u32 {
-    fn zero() -> Self {
-        0
-    }
-}
-impl IntLike for u64 {
-    fn zero() -> Self {
-        0
-    }
-}
-impl IntLike for u128 {
-    fn zero() -> Self {
-        0
-    }
-}
+
+IntLike_impl_for!(u8);
+IntLike_impl_for!(u16);
+IntLike_impl_for!(u32);
+IntLike_impl_for!(u64);
+IntLike_impl_for!(u128);
 
 /// Descriptive name for each register.
 pub trait RegisterLongName {}
@@ -408,29 +398,21 @@ impl<T: IntLike + fmt::Debug, R: RegisterLongName> fmt::Debug for LocalRegisterC
     }
 }
 
-impl<R: RegisterLongName> From<LocalRegisterCopy<u8, R>> for u8 {
-    fn from(r: LocalRegisterCopy<u8, R>) -> u8 {
-        r.value
-    }
+macro_rules! From_impl_for {
+    ($type:ty) => {
+        impl<R: RegisterLongName> From<LocalRegisterCopy<$type, R>> for $type {
+            fn from(r: LocalRegisterCopy<$type, R>) -> $type {
+                r.value
+            }
+        }
+    };
 }
 
-impl<R: RegisterLongName> From<LocalRegisterCopy<u16, R>> for u16 {
-    fn from(r: LocalRegisterCopy<u16, R>) -> u16 {
-        r.value
-    }
-}
-
-impl<R: RegisterLongName> From<LocalRegisterCopy<u32, R>> for u32 {
-    fn from(r: LocalRegisterCopy<u32, R>) -> u32 {
-        r.value
-    }
-}
-
-impl<R: RegisterLongName> From<LocalRegisterCopy<u64, R>> for u64 {
-    fn from(r: LocalRegisterCopy<u64, R>) -> u64 {
-        r.value
-    }
-}
+From_impl_for!(u8);
+From_impl_for!(u16);
+From_impl_for!(u32);
+From_impl_for!(u64);
+From_impl_for!(u128);
 
 /// In memory volatile register.
 // To successfully alias this structure onto hardware registers in memory, this
@@ -506,6 +488,8 @@ impl<T: IntLike, R: RegisterLongName> InMemoryRegister<T, R> {
 }
 
 /// Specific section of a register.
+///
+/// For the Field, the mask is unshifted, ie. the LSB should always be set.
 #[derive(Copy, Clone)]
 pub struct Field<T: IntLike, R: RegisterLongName> {
     mask: T,
@@ -514,6 +498,14 @@ pub struct Field<T: IntLike, R: RegisterLongName> {
 }
 
 impl<T: IntLike, R: RegisterLongName> Field<T, R> {
+    pub const fn new(mask: T, shift: usize) -> Field<T, R> {
+        Field {
+            mask: mask,
+            shift: shift,
+            associated_register: PhantomData,
+        }
+    }
+
     #[inline]
     pub fn read(self, val: T) -> T {
         (val & (self.mask << self.shift)) >> self.shift
@@ -532,66 +524,26 @@ impl<T: IntLike, R: RegisterLongName> Field<T, R> {
     }
 }
 
-// For the Field, the mask is unshifted, ie. the LSB should always be set
-impl<R: RegisterLongName> Field<u8, R> {
-    pub const fn new(mask: u8, shift: usize) -> Field<u8, R> {
-        Field {
-            mask: mask,
-            shift: shift,
-            associated_register: PhantomData,
+macro_rules! Field_impl_for {
+    ($type:ty) => {
+        impl<R: RegisterLongName> Field<$type, R> {
+            pub fn val(&self, value: $type) -> FieldValue<$type, R> {
+                FieldValue::<$type, R>::new(self.mask, self.shift, value)
+            }
         }
-    }
-
-    pub fn val(&self, value: u8) -> FieldValue<u8, R> {
-        FieldValue::<u8, R>::new(self.mask, self.shift, value)
-    }
+    };
 }
 
-impl<R: RegisterLongName> Field<u16, R> {
-    pub const fn new(mask: u16, shift: usize) -> Field<u16, R> {
-        Field {
-            mask: mask,
-            shift: shift,
-            associated_register: PhantomData,
-        }
-    }
-
-    pub fn val(&self, value: u16) -> FieldValue<u16, R> {
-        FieldValue::<u16, R>::new(self.mask, self.shift, value)
-    }
-}
-
-impl<R: RegisterLongName> Field<u32, R> {
-    pub const fn new(mask: u32, shift: usize) -> Field<u32, R> {
-        Field {
-            mask: mask,
-            shift: shift,
-            associated_register: PhantomData,
-        }
-    }
-
-    pub fn val(&self, value: u32) -> FieldValue<u32, R> {
-        FieldValue::<u32, R>::new(self.mask, self.shift, value)
-    }
-}
-
-impl<R: RegisterLongName> Field<u64, R> {
-    pub const fn new(mask: u64, shift: usize) -> Field<u64, R> {
-        Field {
-            mask: mask,
-            shift: shift,
-            associated_register: PhantomData,
-        }
-    }
-
-    pub fn val(&self, value: u64) -> FieldValue<u64, R> {
-        FieldValue::<u64, R>::new(self.mask, self.shift, value)
-    }
-}
+Field_impl_for!(u8);
+Field_impl_for!(u16);
+Field_impl_for!(u32);
+Field_impl_for!(u64);
+Field_impl_for!(u128);
 
 /// Values for the specific register fields.
-// For the FieldValue, the masks and values are shifted into their actual
-// location in the register.
+///
+/// For the FieldValue, the masks and values are shifted into their actual
+/// location in the register.
 #[derive(Copy, Clone)]
 pub struct FieldValue<T: IntLike, R: RegisterLongName> {
     mask: T,
@@ -599,72 +551,36 @@ pub struct FieldValue<T: IntLike, R: RegisterLongName> {
     associated_register: PhantomData<R>,
 }
 
-// Necessary to split the implementation of new() out because the bitwise
-// math isn't treated as const when the type is generic.
-// Tracking issue: https://github.com/rust-lang/rfcs/pull/2632
-impl<R: RegisterLongName> FieldValue<u8, R> {
-    pub const fn new(mask: u8, shift: usize, value: u8) -> Self {
-        FieldValue {
-            mask: mask << shift,
-            value: (value & mask) << shift,
-            associated_register: PhantomData,
+macro_rules! FieldValue_impl_for {
+    ($type:ty) => {
+        // Necessary to split the implementation of new() out because the bitwise
+        // math isn't treated as const when the type is generic.
+        // Tracking issue: https://github.com/rust-lang/rfcs/pull/2632
+        impl<R: RegisterLongName> FieldValue<$type, R> {
+            pub const fn new(mask: $type, shift: usize, value: $type) -> Self {
+                FieldValue {
+                    mask: mask << shift,
+                    value: (value & mask) << shift,
+                    associated_register: PhantomData,
+                }
+            }
         }
-    }
-}
 
-impl<R: RegisterLongName> From<FieldValue<u8, R>> for u8 {
-    fn from(val: FieldValue<u8, R>) -> u8 {
-        val.value
-    }
-}
-
-impl<R: RegisterLongName> FieldValue<u16, R> {
-    pub const fn new(mask: u16, shift: usize, value: u16) -> Self {
-        FieldValue {
-            mask: mask << shift,
-            value: (value & mask) << shift,
-            associated_register: PhantomData,
+        // Necessary to split the implementation of From<> out because of the orphan rule
+        // for foreign trait implementation (see [E0210](https://doc.rust-lang.org/error-index.html#E0210)).
+        impl<R: RegisterLongName> From<FieldValue<$type, R>> for $type {
+            fn from(val: FieldValue<$type, R>) -> $type {
+                val.value
+            }
         }
-    }
+    };
 }
 
-impl<R: RegisterLongName> From<FieldValue<u16, R>> for u16 {
-    fn from(val: FieldValue<u16, R>) -> u16 {
-        val.value
-    }
-}
-
-impl<R: RegisterLongName> FieldValue<u32, R> {
-    pub const fn new(mask: u32, shift: usize, value: u32) -> Self {
-        FieldValue {
-            mask: mask << shift,
-            value: (value & mask) << shift,
-            associated_register: PhantomData,
-        }
-    }
-}
-
-impl<R: RegisterLongName> From<FieldValue<u32, R>> for u32 {
-    fn from(val: FieldValue<u32, R>) -> u32 {
-        val.value
-    }
-}
-
-impl<R: RegisterLongName> FieldValue<u64, R> {
-    pub const fn new(mask: u64, shift: usize, value: u64) -> Self {
-        FieldValue {
-            mask: mask << shift,
-            value: (value & mask) << shift,
-            associated_register: PhantomData,
-        }
-    }
-}
-
-impl<R: RegisterLongName> From<FieldValue<u64, R>> for u64 {
-    fn from(val: FieldValue<u64, R>) -> u64 {
-        val.value
-    }
-}
+FieldValue_impl_for!(u8);
+FieldValue_impl_for!(u16);
+FieldValue_impl_for!(u32);
+FieldValue_impl_for!(u64);
+FieldValue_impl_for!(u128);
 
 impl<T: IntLike, R: RegisterLongName> FieldValue<T, R> {
     /// Get the raw bitmask represented by this FieldValue.
