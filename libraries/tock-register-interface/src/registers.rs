@@ -331,15 +331,17 @@ impl<T: IntLike, R: RegisterLongName, W: RegisterLongName> Aliased<T, R, W> {
     }
 }
 
-/// A read-only copy register contents
+/// A read-write copy of register contents.
 ///
-/// This behaves very similarly to a read-only register, but instead of doing a
+/// This behaves very similarly to a read-write register, but instead of doing a
 /// volatile read to MMIO to get the value for each function call, a copy of the
 /// register contents are stored locally in memory. This allows a peripheral
 /// to do a single read on a register, and then check which bits are set without
 /// having to do a full MMIO read each time. It also allows the value of the
 /// register to be "cached" in case the peripheral driver needs to clear the
 /// register in hardware yet still be able to check the bits.
+/// You can write to a local register, which will modify the stored value, but
+/// will not modify any hardware because it operates only on local copy.
 #[derive(Copy, Clone)]
 pub struct LocalRegisterCopy<T: IntLike, R: RegisterLongName = ()> {
     value: T,
@@ -354,31 +356,55 @@ impl<T: IntLike, R: RegisterLongName> LocalRegisterCopy<T, R> {
         }
     }
 
+    /// Get the raw register value
     #[inline]
     pub fn get(&self) -> T {
         self.value
     }
 
+    /// Set the raw register value
+    #[inline]
+    pub fn set(&mut self, value: T) {
+        self.value = value;
+    }
+
+    /// Read the value of the given field
     #[inline]
     pub fn read(&self, field: Field<T, R>) -> T {
         field.read(self.get())
     }
 
+    /// Read value of the given field as an enum member
     #[inline]
     pub fn read_as_enum<E: TryFromValue<T, EnumType = E>>(&self, field: Field<T, R>) -> Option<E> {
         field.read_as_enum(self.get())
     }
 
+    /// Write the value of one or more fields, overwriting the other fields with zero
+    #[inline]
+    pub fn write(&mut self, field: FieldValue<T, R>) {
+        self.set(field.value);
+    }
+
+    /// Write the value of one or more fields, leaving the other fields unchanged
+    #[inline]
+    pub fn modify(&mut self, field: FieldValue<T, R>) {
+        self.set(field.modify(self.get()));
+    }
+
+    /// Check if one or more bits in a field are set
     #[inline]
     pub fn is_set(&self, field: Field<T, R>) -> bool {
         field.is_set(self.get())
     }
 
+    /// Check if any specified parts of a field match
     #[inline]
     pub fn matches_any(&self, field: FieldValue<T, R>) -> bool {
         field.matches_any(self.get())
     }
 
+    /// Check if all specified parts of a field match
     #[inline]
     pub fn matches_all(&self, field: FieldValue<T, R>) -> bool {
         field.matches_all(self.get())
