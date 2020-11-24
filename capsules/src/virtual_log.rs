@@ -138,7 +138,7 @@ where
         &self,
         buffer: &'static mut [u8],
         length: usize,
-    ) -> Result<(), (ReturnCode, Option<&'static mut [u8]>)> {
+    ) -> Result<(), (ReturnCode, &'static mut [u8])> {
         self.operation.set(Op::Append(length));
         match self.buffer.replace(buffer) {
             Some(_) => {
@@ -313,10 +313,9 @@ where
                         Op::Append(length) => match virtual_log_device.buffer.take() {
                             Some(append_buffer) => match self.log.append(append_buffer, length) {
                                 Ok(()) => (),
-                                Err((error_code, Some(append_buffer))) => {
+                                Err((error_code, append_buffer)) => {
                                     self.append_done(append_buffer, Err(error_code))
                                 }
-                                Err((_, None)) => unreachable!(), // FIXME: change the return type of append() to get rid of this case
                             },
                             None => {
                                 debug!("Error: append buffer is missing when issuing log append.")

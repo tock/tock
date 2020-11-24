@@ -731,22 +731,22 @@ impl<'a, F: Flash + 'static> LogWrite<'a> for Log<'a, F> {
         &self,
         buffer: &'static mut [u8],
         length: usize,
-    ) -> Result<(), (ReturnCode, Option<&'static mut [u8]>)> {
+    ) -> Result<(), (ReturnCode, &'static mut [u8])> {
         let entry_size = length + ENTRY_HEADER_SIZE;
 
         // Check for failure cases.
         if self.state.get() != State::Idle {
             // Log busy, try appending again later.
-            return Err((ReturnCode::EBUSY, Some(buffer)));
+            return Err((ReturnCode::EBUSY, buffer));
         } else if length == 0 || buffer.len() < length {
             // Invalid length provided.
-            return Err((ReturnCode::EINVAL, Some(buffer)));
+            return Err((ReturnCode::EINVAL, buffer));
         } else if entry_size + PAGE_HEADER_SIZE > self.page_size {
             // Entry too big, won't fit within a single page.
-            return Err((ReturnCode::ESIZE, Some(buffer)));
+            return Err((ReturnCode::ESIZE, buffer));
         } else if !self.circular && self.append_entry_id.get() + entry_size > self.volume.len() {
             // End of non-circular log has been reached.
-            return Err((ReturnCode::FAIL, Some(buffer)));
+            return Err((ReturnCode::FAIL, buffer));
         }
 
         // Perform append.
@@ -766,21 +766,21 @@ impl<'a, F: Flash + 'static> LogWrite<'a> for Log<'a, F> {
                     Ok(())
                 } else {
                     // Need to sync pagebuffer first, then append to new page.
+                    // FIXME: it doesn't look like the append is actually performed!
                     self.buffer.replace(buffer);
                     let return_code = self.flush_pagebuffer(pagebuffer);
                     if return_code == ReturnCode::SUCCESS {
                         Ok(())
                     } else {
                         self.state.set(State::Idle);
-                        self.buffer
-                            .take()
-                            .map_or(Err((return_code, None)), move |buffer| {
-                                Err((return_code, Some(buffer)))
-                            })
+                        match self.buffer.take() {
+                            Some(buffer) => Err((return_code, buffer)),
+                            None => unreachable!(),
+                        }
                     }
                 }
             }
-            None => Err((ReturnCode::ERESERVE, Some(buffer))),
+            None => Err((ReturnCode::ERESERVE, buffer)),
         }
     }
 

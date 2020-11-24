@@ -59,7 +59,7 @@ pub trait LogWrite<'a> {
         &self,
         buffer: &'static mut [u8],
         length: usize,
-    ) -> Result<(), (ReturnCode, Option<&'static mut [u8]>)>;
+    ) -> Result<(), (ReturnCode, &'static mut [u8])>;
 
     /// Sync log to storage, making all entries persistent (not including any entries that were
     /// previously overwritten). There is no guarantee that any changes to the log are persistent
