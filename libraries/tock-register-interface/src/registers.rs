@@ -694,6 +694,9 @@ mod tests {
             let field64 = Field::<u64, ()>::new(0x12345678_9abcdef0, 1);
             assert_eq!(field64.mask, 0x12345678_9abcdef0_u64);
             assert_eq!(field64.shift, 1);
+            let field128 = Field::<u128, ()>::new(0x12345678_9abcdef0_0fedcba9_87654321, 1);
+            assert_eq!(field128.mask, 0x12345678_9abcdef0_0fedcba9_87654321_u128);
+            assert_eq!(field128.shift, 1);
         }
 
         #[test]
