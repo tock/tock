@@ -67,10 +67,14 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
+      - name: Update package repositories
+        run: |
+          sudo apt update
+        if: matrix.os == 'ubuntu-latest'
       - name: Install dependencies
-        continue-on-error: true
         run: |
           sudo apt install libudev-dev
+        if: matrix.os == 'ubuntu-latest'
       - uses: actions/checkout@v2
       - uses: actions-rs/toolchain@v1
       - name: ci-job-libraries
@@ -88,6 +92,9 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Update package repositories
+        run: |
+          sudo apt update
       - name: Install dependencies
         continue-on-error: true
         run: |
