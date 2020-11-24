@@ -155,9 +155,7 @@ impl<A: Alarm<'static>> LogTest<A> {
                     *e = 0;
                 }
 
-                if let Err((error, original_buffer)) = self.log.read(buffer, buffer.len()) {
-                    self.buffer
-                        .replace(original_buffer.expect("No buffer returned in error!"));
+                if let Err((error, _original_buffer)) = self.log.read(buffer, buffer.len()) {
                     match error {
                         ReturnCode::FAIL => {
                             // No more entries, start writing again.
@@ -195,9 +193,7 @@ impl<A: Alarm<'static>> LogTest<A> {
                     };
                 }
 
-                if let Err((error, original_buffer)) = self.log.append(buffer, len) {
-                    self.buffer.replace(original_buffer.expect("No buffer returned in error!"));
-
+                if let Err((error, _original_buffer)) = self.log.append(buffer, len) {
                     match error {
                         ReturnCode::FAIL =>
                             if expect_write_fail {
@@ -245,9 +241,9 @@ impl<A: Alarm<'static>> LogTest<A> {
 }
 
 impl<A: Alarm<'static>> LogReadClient for LogTest<A> {
-    fn read_done(&self, buffer: &'static mut [u8], length: usize, error: ReturnCode) {
-        match error {
-            ReturnCode::SUCCESS => {
+    fn read_done(&self, buffer: &'static mut [u8], result: Result<usize, ReturnCode>) {
+        match result {
+            Ok(length) => {
                 // Verify correct value was read.
                 assert!(length > 0);
                 for i in 0..length {
@@ -258,14 +254,12 @@ impl<A: Alarm<'static>> LogReadClient for LogTest<A> {
                         );
                     }
                 }
-
                 debug!("Successful read of size {}", length);
+                // TODO: should we increment to op_index here?
                 self.buffer.replace(buffer);
                 self.wait();
             }
-            _ => {
-                panic!("Read failed unexpectedly!");
-            }
+            Err(error_code) => panic!("Read failed with error code {:?}", error_code),
         }
     }
 
@@ -275,23 +269,16 @@ impl<A: Alarm<'static>> LogReadClient for LogTest<A> {
 }
 
 impl<A: Alarm<'static>> LogWriteClient for LogTest<A> {
-    fn append_done(
-        &self,
-        buffer: &'static mut [u8],
-        length: usize,
-        records_lost: bool,
-        error: ReturnCode,
-    ) {
-        assert!(!records_lost);
-        match error {
-            ReturnCode::SUCCESS => {
+    fn append_done(&self, buffer: &'static mut [u8], result: Result<(usize, bool), ReturnCode>) {
+        match result {
+            Ok((length, records_lost)) => {
+                assert!(!records_lost);
                 debug!("Write succeeded on {} byte write, as expected", length);
-
                 self.buffer.replace(buffer);
                 self.op_index.increment();
                 self.wait();
             }
-            error => panic!("WRITE FAILED IN CALLBACK: {:?}", error),
+            Err(error_code) => panic!("Write failed with error code {:?}", error_code),
         }
     }
 

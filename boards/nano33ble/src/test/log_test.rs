@@ -267,9 +267,7 @@ impl<A: Alarm<'static>> LogTest<A> {
                 // Clear buffer first to make debugging more sane.
                 buffer.clone_from_slice(&0u64.to_be_bytes());
 
-                if let Err((error, original_buffer)) = self.log.read(buffer, BUFFER_LEN) {
-                    self.buffer
-                        .replace(original_buffer.expect("No buffer returned in error!"));
+                if let Err((error, _original_buffer)) = self.log.read(buffer, BUFFER_LEN) {
                     match error {
                         ReturnCode::FAIL => {
                             // No more entries, start writing again.
@@ -299,9 +297,7 @@ impl<A: Alarm<'static>> LogTest<A> {
             .map(
                 move |buffer| match self.log.read(buffer, buffer.len() + 1) {
                     Ok(_) => panic!("Read with too-large max read length succeeded unexpectedly!"),
-                    Err((error, original_buffer)) => {
-                        self.buffer
-                            .replace(original_buffer.expect("No buffer returned in error!"));
+                    Err((error, _original_buffer)) => {
                         assert_eq!(error, ReturnCode::EINVAL);
                     }
                 },
@@ -313,9 +309,7 @@ impl<A: Alarm<'static>> LogTest<A> {
             .take()
             .map(move |buffer| match self.log.read(buffer, BUFFER_LEN - 1) {
                 Ok(_) => panic!("Read with too-small buffer succeeded unexpectedly!"),
-                Err((error, original_buffer)) => {
-                    self.buffer
-                        .replace(original_buffer.expect("No buffer returned in error!"));
+                Err((error, _original_buffer)) => {
                     if self.read_val.get() == self.write_val.get() {
                         assert_eq!(error, ReturnCode::FAIL);
                     } else {
@@ -336,10 +330,7 @@ impl<A: Alarm<'static>> LogTest<A> {
                 buffer.clone_from_slice(
                     &(MAGIC + (self.write_val.get() << VALUE_SHIFT)).to_be_bytes(),
                 );
-                if let Err((error, original_buffer)) = self.log.append(buffer, BUFFER_LEN) {
-                    self.buffer
-                        .replace(original_buffer.expect("No buffer returned in error!"));
-
+                if let Err((error, _original_buffer)) = self.log.append(buffer, BUFFER_LEN) {
                     match error {
                         ReturnCode::EBUSY => self.wait(),
                         _ => panic!("WRITE FAILED: {:?}", error),
@@ -357,9 +348,7 @@ impl<A: Alarm<'static>> LogTest<A> {
             .take()
             .map(move |buffer| match self.log.append(buffer, 0) {
                 Ok(_) => panic!("Appending entry of size 0 succeeded unexpectedly!"),
-                Err((error, original_buffer)) => {
-                    self.buffer
-                        .replace(original_buffer.expect("No buffer returned in error!"));
+                Err((error, _original_buffer)) => {
                     assert_eq!(error, ReturnCode::EINVAL);
                 }
             })
@@ -371,9 +360,7 @@ impl<A: Alarm<'static>> LogTest<A> {
             .map(
                 move |buffer| match self.log.append(buffer, buffer.len() + 1) {
                     Ok(_) => panic!("Appending with too-small buffer succeeded unexpectedly!"),
-                    Err((error, original_buffer)) => {
-                        self.buffer
-                            .replace(original_buffer.expect("No buffer returned in error!"));
+                    Err((error, _original_buffer)) => {
                         assert_eq!(error, ReturnCode::EINVAL);
                     }
                 },
@@ -438,9 +425,9 @@ impl<A: Alarm<'static>> LogTest<A> {
 }
 
 impl<A: Alarm<'static>> LogReadClient for LogTest<A> {
-    fn read_done(&self, buffer: &'static mut [u8], length: usize, error: ReturnCode) {
-        match error {
-            ReturnCode::SUCCESS => {
+    fn read_done(&self, buffer: &'static mut [u8], result: Result<usize, ReturnCode>) {
+        match result {
+            Ok(length) => {
                 // Verify correct number of bytes were read.
                 if length != BUFFER_LEN {
                     panic!(
@@ -472,9 +459,7 @@ impl<A: Alarm<'static>> LogReadClient for LogTest<A> {
                 self.op_start.set(false);
                 self.wait();
             }
-            _ => {
-                panic!("Read failed unexpectedly!");
-            }
+            Err(error_code) => panic!("Read failed with error code {:?}", error_code),
         }
     }
 
@@ -495,18 +480,11 @@ impl<A: Alarm<'static>> LogReadClient for LogTest<A> {
 }
 
 impl<A: Alarm<'static>> LogWriteClient for LogTest<A> {
-    fn append_done(
-        &self,
-        buffer: &'static mut [u8],
-        length: usize,
-        records_lost: bool,
-        error: ReturnCode,
-    ) {
-        self.buffer.replace(buffer);
-        self.op_start.set(false);
-
-        match error {
-            ReturnCode::SUCCESS => {
+    fn append_done(&self, buffer: &'static mut [u8], result: Result<(usize, bool), ReturnCode>) {
+        match result {
+            Ok((length, records_lost)) => {
+                self.buffer.replace(buffer);
+                self.op_start.set(false);
                 if length != BUFFER_LEN {
                     panic!(
                         "Appended {} bytes, expected {} (write #{}, offset {:?})!",
@@ -536,18 +514,11 @@ impl<A: Alarm<'static>> LogWriteClient for LogTest<A> {
                     );
                     self.next_op();
                 }
-
                 self.write_val.set(self.write_val.get() + 1);
+                self.wait();
             }
-            ReturnCode::FAIL => {
-                assert_eq!(length, 0);
-                assert!(!records_lost);
-                debug!("Append failed due to flash error, retrying...");
-            }
-            error => panic!("UNEXPECTED APPEND FAILURE: {:?}", error),
+            Err(error_code) => panic!("Write failed with error code {:?}", error_code),
         }
-
-        self.wait();
     }
 
     fn sync_done(&self, error: ReturnCode) {
@@ -588,9 +559,7 @@ impl<A: Alarm<'static>> LogWriteClient for LogTest<A> {
 
                 // Make sure that a read on an empty log fails normally.
                 self.buffer.take().map(move |buffer| {
-                    if let Err((error, original_buffer)) = self.log.read(buffer, BUFFER_LEN) {
-                        self.buffer
-                            .replace(original_buffer.expect("No buffer returned in error!"));
+                    if let Err((error, _original_buffer)) = self.log.read(buffer, BUFFER_LEN) {
                         match error {
                             ReturnCode::FAIL => (),
                             ReturnCode::EBUSY => {
