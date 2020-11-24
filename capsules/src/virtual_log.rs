@@ -1,5 +1,6 @@
 //! Virtualize the log storage abstraction.
 use core::cell::Cell;
+use core::marker::Copy;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::common::list::{List, ListLink, ListNode};
 use kernel::debug;
@@ -16,7 +17,10 @@ enum Op {
     Erase,
 }
 
-pub struct VirtualLogDevice<'a, Log: LogRead<'a> + LogWrite<'a>> {
+pub struct VirtualLogDevice<'a, Log>
+where
+    Log: LogRead<'a> + LogWrite<'a>,
+{
     // A reference to the mux
     mux: &'a MuxLog<'a, Log>,
     // A pointer to the next virtual log device
@@ -29,15 +33,19 @@ pub struct VirtualLogDevice<'a, Log: LogRead<'a> + LogWrite<'a>> {
     buffer: TakeCell<'static, [u8]>,
 }
 
-impl<'a, Log: LogRead<'a> + LogWrite<'a>> ListNode<'a, VirtualLogDevice<'a, Log>>
-    for VirtualLogDevice<'a, Log>
+impl<'a, Log> ListNode<'a, VirtualLogDevice<'a, Log>> for VirtualLogDevice<'a, Log>
+where
+    Log: LogRead<'a> + LogWrite<'a>,
 {
     fn next(&'a self) -> &'a ListLink<'a, VirtualLogDevice<'a, Log>> {
         &self.next
     }
 }
 
-impl<'a, Log: LogRead<'a> + LogWrite<'a>> VirtualLogDevice<'a, Log> {
+impl<'a, Log> VirtualLogDevice<'a, Log>
+where
+    Log: LogRead<'a> + LogWrite<'a>,
+{
     pub fn new(mux: &'a MuxLog<'a, Log>) -> VirtualLogDevice<'a, Log> {
         VirtualLogDevice {
             mux: mux,
@@ -51,7 +59,11 @@ impl<'a, Log: LogRead<'a> + LogWrite<'a>> VirtualLogDevice<'a, Log> {
     }
 }
 
-impl<'a, Log: LogRead<'a> + LogWrite<'a>> LogRead<'a> for VirtualLogDevice<'a, Log> {
+impl<'a, Log> LogRead<'a> for VirtualLogDevice<'a, Log>
+where
+    Log: LogRead<'a> + LogWrite<'a>,
+    Log::EntryID: Copy,
+{
     type EntryID = <Log as LogRead<'a>>::EntryID;
 
     // This method is used by a capsule to register itself as a read client of the virtual log device.
@@ -66,6 +78,7 @@ impl<'a, Log: LogRead<'a> + LogWrite<'a>> LogRead<'a> for VirtualLogDevice<'a, L
         buffer: &'static mut [u8],
         length: usize,
     ) -> Result<(), (ReturnCode, Option<&'static mut [u8]>)> {
+        self.mux.log.seek(self.read_entry_id.get());
         self.buffer.replace(buffer);
         self.operation.set(Op::Read(length));
         self.mux.do_next_op();
@@ -88,7 +101,6 @@ impl<'a, Log: LogRead<'a> + LogWrite<'a>> LogRead<'a> for VirtualLogDevice<'a, L
     // The seek function on the virtual log device doesn't actually cause a seek to occur on the
     // underlying persistent storage device. All it does is update a state variable representing
     // the location of its position in the log file.
-    // TODO: check for errors
     fn seek(&self, entry: Self::EntryID) -> ReturnCode {
         self.read_entry_id.set(entry);
         ReturnCode::SUCCESS
@@ -101,7 +113,10 @@ impl<'a, Log: LogRead<'a> + LogWrite<'a>> LogRead<'a> for VirtualLogDevice<'a, L
 
 // TODO: Should the append, sync, and erase functions check to make sure the virtual log device is idle?
 // TODO: Should the virtual log device do some queuing of operations on its own?
-impl<'a, Log: LogRead<'a> + LogWrite<'a>> LogWrite<'a> for VirtualLogDevice<'a, Log> {
+impl<'a, Log> LogWrite<'a> for VirtualLogDevice<'a, Log>
+where
+    Log: LogRead<'a> + LogWrite<'a>,
+{
     // This method is used by a capsule to register itself as an append client of the virtual log device.
     fn set_append_client(&'a self, append_client: &'a dyn LogWriteClient) {
         // TODO: Should we check if we're already part of the mux's devices list?
@@ -133,7 +148,10 @@ impl<'a, Log: LogRead<'a> + LogWrite<'a>> LogWrite<'a> for VirtualLogDevice<'a, 
     }
 }
 
-impl<'a, Log: LogRead<'a> + LogWrite<'a>> LogReadClient for VirtualLogDevice<'a, Log> {
+impl<'a, Log> LogReadClient for VirtualLogDevice<'a, Log>
+where
+    Log: LogRead<'a> + LogWrite<'a>,
+{
     /// Propagates the `read_done` callback up to the end user.
     fn read_done(&self, buffer: &'static mut [u8], length: usize, error: ReturnCode) {
         self.read_client.map_or_else(
@@ -151,7 +169,10 @@ impl<'a, Log: LogRead<'a> + LogWrite<'a>> LogReadClient for VirtualLogDevice<'a,
     }
 }
 
-impl<'a, Log: LogRead<'a> + LogWrite<'a>> LogWriteClient for VirtualLogDevice<'a, Log> {
+impl<'a, Log> LogWriteClient for VirtualLogDevice<'a, Log>
+where
+    Log: LogRead<'a> + LogWrite<'a>,
+{
     /// Propagates the `append_done` callback up to the end user.
     fn append_done(
         &self,
@@ -186,7 +207,10 @@ impl<'a, Log: LogRead<'a> + LogWrite<'a>> LogWriteClient for VirtualLogDevice<'a
 /// The MuxLog struct manages multiple virtual log devices (i.e. VirtualLogDevice) and is the lone
 /// client of the underlying log device. Each of the virtual log devices can have at most one
 /// outstanding log request.
-pub struct MuxLog<'a, Log: LogRead<'a> + LogWrite<'a>> {
+pub struct MuxLog<'a, Log>
+where
+    Log: LogRead<'a> + LogWrite<'a>,
+{
     // The underlying log device being virtualized.
     log: &'a Log,
     // A list of virtual log devices that the mux manages.
@@ -195,7 +219,10 @@ pub struct MuxLog<'a, Log: LogRead<'a> + LogWrite<'a>> {
     inflight: OptionalCell<&'a VirtualLogDevice<'a, Log>>,
 }
 
-impl<'a, Log: LogRead<'a> + LogWrite<'a>> LogReadClient for MuxLog<'a, Log> {
+impl<'a, Log> LogReadClient for MuxLog<'a, Log>
+where
+    Log: LogRead<'a> + LogWrite<'a>,
+{
     fn read_done(&self, buffer: &'static mut [u8], length: usize, error: ReturnCode) {
         self.inflight.take().map(move |device| {
             self.do_next_op();
@@ -211,7 +238,10 @@ impl<'a, Log: LogRead<'a> + LogWrite<'a>> LogReadClient for MuxLog<'a, Log> {
     }
 }
 
-impl<'a, Log: LogRead<'a> + LogWrite<'a>> LogWriteClient for MuxLog<'a, Log> {
+impl<'a, Log> LogWriteClient for MuxLog<'a, Log>
+where
+    Log: LogRead<'a> + LogWrite<'a>,
+{
     fn append_done(
         &self,
         buffer: &'static mut [u8],
@@ -240,7 +270,10 @@ impl<'a, Log: LogRead<'a> + LogWrite<'a>> LogWriteClient for MuxLog<'a, Log> {
     }
 }
 
-impl<'a, Log: LogRead<'a> + LogWrite<'a>> MuxLog<'a, Log> {
+impl<'a, Log> MuxLog<'a, Log>
+where
+    Log: LogRead<'a> + LogWrite<'a>,
+{
     /// Creates a multiplexer around an underlying log device to virtualize it.
     pub const fn new(log: &'a Log) -> MuxLog<'a, Log> {
         MuxLog {
