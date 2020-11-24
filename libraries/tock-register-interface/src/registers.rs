@@ -584,7 +584,7 @@ FieldValue_impl_for!(u128);
 
 impl<T: IntLike, R: RegisterLongName> FieldValue<T, R> {
     /// Get the raw bitmask represented by this FieldValue.
-    pub fn mask(self) -> T {
+    pub fn mask(&self) -> T {
         self.mask as T
     }
 
@@ -599,12 +599,12 @@ impl<T: IntLike, R: RegisterLongName> FieldValue<T, R> {
     }
 
     /// Check if any specified parts of a field match
-    pub fn matches_any(self, val: T) -> bool {
+    pub fn matches_any(&self, val: T) -> bool {
         val & self.mask != T::zero()
     }
 
     /// Check if all specified parts of a field match
-    pub fn matches_all(self, val: T) -> bool {
+    pub fn matches_all(&self, val: T) -> bool {
         val & self.mask == self.value
     }
 }
