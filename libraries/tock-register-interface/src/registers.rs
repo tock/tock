@@ -586,6 +586,7 @@ FieldValue_impl_for!(u128);
 
 impl<T: IntLike, R: RegisterLongName> FieldValue<T, R> {
     /// Get the raw bitmask represented by this FieldValue.
+    #[inline]
     pub fn mask(&self) -> T {
         self.mask as T
     }
@@ -596,16 +597,19 @@ impl<T: IntLike, R: RegisterLongName> FieldValue<T, R> {
     }
 
     /// Modify fields in a register value
+    #[inline]
     pub fn modify(self, val: T) -> T {
         (val & !self.mask) | self.value
     }
 
     /// Check if any specified parts of a field match
+    #[inline]
     pub fn matches_any(&self, val: T) -> bool {
         val & self.mask != T::zero()
     }
 
     /// Check if all specified parts of a field match
+    #[inline]
     pub fn matches_all(&self, val: T) -> bool {
         val & self.mask == self.value
     }
@@ -614,6 +618,8 @@ impl<T: IntLike, R: RegisterLongName> FieldValue<T, R> {
 // Combine two fields with the addition operator
 impl<T: IntLike, R: RegisterLongName> Add for FieldValue<T, R> {
     type Output = Self;
+
+    #[inline]
     fn add(self, rhs: Self) -> Self {
         FieldValue {
             mask: self.mask | rhs.mask,
@@ -625,6 +631,7 @@ impl<T: IntLike, R: RegisterLongName> Add for FieldValue<T, R> {
 
 // Combine two fields with the += operator
 impl<T: IntLike, R: RegisterLongName> AddAssign for FieldValue<T, R> {
+    #[inline]
     fn add_assign(&mut self, rhs: FieldValue<T, R>) {
         self.mask |= rhs.mask;
         self.value |= rhs.value;
