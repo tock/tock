@@ -812,7 +812,6 @@ impl Kernel {
 
                 let callback = NonNull::new(callback_ptr)
                     .map(|ptr| Callback::new(process.appid(), callback_id, appdata, ptr.cast()));
-
                 let res = platform.with_driver(driver_number, |driver| match driver {
                     Some(Ok(_)) => {
                         // Tock 2.0 driver handling
@@ -836,7 +835,15 @@ impl Kernel {
                         res
                     );
                 }
-                process.set_syscall_return_value(SyscallResult::Legacy(res.into()));
+
+                if callback.is_some() {
+                    process.set_syscall_return_value(SyscallResult::Legacy(res.into()));
+                } else {
+                    // This is where we would generate the correct
+                    // return type from a GenericReturnValue
+                    process.set_syscall_return_value(SyscallResult::Legacy(ReturnCode::EINVAL.into()));
+                    //process.set_syscall_return_value(SyscallResult::Generic(GenericSyscallReturnValue::FailureU32U32(ErrorCode::INVAL, callback_ptr as u32, app_data as u32));
+                }
             }
             Syscall::COMMAND {
                 driver_number,
