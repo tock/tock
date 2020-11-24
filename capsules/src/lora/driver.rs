@@ -1,5 +1,6 @@
 use super::radio::Radio;
 use crate::driver;
+use kernel::hil::lora::{PacketConfig, RadioConfig, RadioData};
 use kernel::{AppId, Driver, ReturnCode};
 
 pub const DRIVER_NUM: usize = driver::NUM::Lora as usize;
@@ -34,15 +35,16 @@ impl Driver for RadioDriver<'_> {
         match command_num {
             0 => ReturnCode::SUCCESS,
 
-            1 => self.device.begin(865000000),
+            1 => self.device.start(),
 
-            2 => self.device.end(),
+            2 => self.device.stop(),
 
-            3 => self.device.begin_packet(arg1 != 0),
+            3 => self.device.transmit(arg1 != 0),
 
-            4 => self.device.end_packet(arg1 != 0),
-
-            5 => self.device.handle_lora_irq(),
+            4 => {
+                self.device.receive(1);
+                ReturnCode::SUCCESS
+            }
 
             _ => ReturnCode::ENOSUPPORT,
         }

@@ -66,6 +66,9 @@
 #![cfg_attr(not(doc), no_main)]
 #![deny(missing_docs)]
 
+use capsules::virtual_spi::VirtualSpiMasterDevice;
+use components::spi::SpiSyscallComponent;
+
 use capsules::virtual_alarm::VirtualMuxAlarm;
 use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::component::Component;
@@ -93,9 +96,9 @@ const UART_CTS: Option<Pin> = Some(Pin::P0_07);
 const UART_RXD: Pin = Pin::P0_08;
 
 // FIX: nRF52 SPI seems to work only when respective pins are P0_29,P0_30,P0_26
-const SPI_MOSI: Pin = Pin::P0_20;
-const SPI_MISO: Pin = Pin::P0_21;
-const SPI_CLK: Pin = Pin::P0_19;
+const SPI_MOSI: Pin = Pin::P0_29;
+const SPI_MISO: Pin = Pin::P0_30;
+const SPI_CLK: Pin = Pin::P0_26;
 
 const SPI_MX25R6435F_CHIP_SELECT: Pin = Pin::P0_17;
 const SPI_MX25R6435F_WRITE_PROTECT_PIN: Pin = Pin::P0_22;
@@ -146,6 +149,7 @@ pub struct Platform {
     >,
     ieee802154_radio: &'static capsules::ieee802154::RadioDriver<'static>,
     lora_radio: &'static capsules::lora::driver::RadioDriver<'static>,
+    spi: &'static capsules::spi::Spi<'static, VirtualSpiMasterDevice<'static, nrf52840::spi::SPIM>>,
     button: &'static capsules::button::Button<'static, nrf52840::gpio::GPIOPin>,
     pconsole: &'static capsules::process_console::ProcessConsole<
         'static,
@@ -165,7 +169,7 @@ pub struct Platform {
         'static,
         capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52840::rtc::Rtc<'static>>,
     >,
-    nonvolatile_storage: &'static capsules::nonvolatile_storage_driver::NonvolatileStorage<'static>,
+    // nonvolatile_storage: &'static capsules::nonvolatile_storage_driver::NonvolatileStorage<'static>,
 }
 
 impl kernel::Platform for Platform {
@@ -183,9 +187,10 @@ impl kernel::Platform for Platform {
             capsules::ble_advertising_driver::DRIVER_NUM => f(Some(self.ble_radio)),
             capsules::ieee802154::DRIVER_NUM => f(Some(self.ieee802154_radio)),
             capsules::lora::driver::DRIVER_NUM => f(Some(self.lora_radio)),
+            capsules::spi::DRIVER_NUM => f(Some(self.spi)),
             capsules::temperature::DRIVER_NUM => f(Some(self.temp)),
             capsules::analog_comparator::DRIVER_NUM => f(Some(self.analog_comparator)),
-            capsules::nonvolatile_storage_driver::DRIVER_NUM => f(Some(self.nonvolatile_storage)),
+            //capsules::nonvolatile_storage_driver::DRIVER_NUM => f(Some(self.nonvolatile_storage)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             _ => f(None),
         }
@@ -375,6 +380,10 @@ pub unsafe fn reset_handler() {
         nrf52840::pinmux::Pinmux::new(SPI_CLK as u32),
     );
 
+    let spi = SpiSyscallComponent::new(mux_spi, &gpio_port[Pin::P1_10]).finalize(
+        components::spi_syscall_component_helper!(nrf52840::spi::SPIM),
+    );
+
     let mx25r6435f = components::mx25r6435f::Mx25r6435fComponent::new(
         &gpio_port[SPI_MX25R6435F_WRITE_PROTECT_PIN],
         &gpio_port[SPI_MX25R6435F_HOLD_PIN],
@@ -408,7 +417,7 @@ pub unsafe fn reset_handler() {
     // External LoRa radio
     let lora_radio = components::lora::LoraComponent::new(
         mux_spi,
-        &gpio_port[LORA_CHIP_SELECT] as &dyn kernel::hil::gpio::Pin,
+        &gpio_port[LORA_CHIP_SELECT],
         &gpio_port[LORA_RESET],
     )
     .finalize(components::lora_component_helper!(nrf52840::spi::SPIM));
@@ -434,6 +443,7 @@ pub unsafe fn reset_handler() {
         ble_radio,
         ieee802154_radio,
         lora_radio,
+        spi,
         button,
         pconsole,
         console,
@@ -443,7 +453,7 @@ pub unsafe fn reset_handler() {
         temp,
         alarm,
         analog_comparator,
-        nonvolatile_storage,
+        //nonvolatile_storage,
         ipc: kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability),
     };
 

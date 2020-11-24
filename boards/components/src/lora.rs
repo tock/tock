@@ -74,6 +74,8 @@ impl<S: 'static + hil::spi::SpiMaster, P: 'static + hil::gpio::Pin> Component
             Radio::new(lora_spi, self.reset_pin)
         );
         radio_device.initialize(&mut LORA_BUF, &mut LORA_REG_WRITE, &mut LORA_REG_READ);
+        radio_device.reset();
+
         // Create the actual radio instance
         let radio_driver = static_init_half!(
             static_buffer.2,
