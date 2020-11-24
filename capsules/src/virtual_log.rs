@@ -28,8 +28,13 @@ where
     // Local state for the virtual log device
     read_client: OptionalCell<&'a dyn LogReadClient>,
     append_client: OptionalCell<&'a dyn LogWriteClient>,
+    // The operation currently being performed.
     operation: Cell<Op>,
+    // Virtual log device have their own local `read_entry_id` but
+    // share a global `oldest_entry_id` and `append_entry_id`.
     read_entry_id: Cell<Log::EntryID>,
+    // Although log devices can both read and write/append, only one buffer
+    // is necessary because there can only be one outstanding operation.
     buffer: TakeCell<'static, [u8]>,
 }
 
@@ -69,7 +74,7 @@ where
     // This method is used by a capsule to register itself as a read client of the virtual log device.
     fn set_read_client(&'a self, read_client: &'a dyn LogReadClient) {
         // TODO: Should we check if we're already part of the mux's devices list?
-        self.mux.devices.push_head(self);
+        self.mux.virtual_log_devices.push_head(self);
         self.read_client.set(read_client);
     }
 
@@ -78,7 +83,6 @@ where
         buffer: &'static mut [u8],
         length: usize,
     ) -> Result<(), (ReturnCode, Option<&'static mut [u8]>)> {
-        self.mux.log.seek(self.read_entry_id.get());
         self.buffer.replace(buffer);
         self.operation.set(Op::Read(length));
         self.mux.do_next_op();
@@ -116,11 +120,12 @@ where
 impl<'a, Log> LogWrite<'a> for VirtualLogDevice<'a, Log>
 where
     Log: LogRead<'a> + LogWrite<'a>,
+    Log::EntryID: Copy,
 {
     // This method is used by a capsule to register itself as an append client of the virtual log device.
     fn set_append_client(&'a self, append_client: &'a dyn LogWriteClient) {
         // TODO: Should we check if we're already part of the mux's devices list?
-        self.mux.devices.push_head(self);
+        self.mux.virtual_log_devices.push_head(self);
         self.append_client.set(append_client);
     }
 
@@ -214,7 +219,7 @@ where
     // The underlying log device being virtualized.
     log: &'a Log,
     // A list of virtual log devices that the mux manages.
-    devices: List<'a, VirtualLogDevice<'a, Log>>,
+    virtual_log_devices: List<'a, VirtualLogDevice<'a, Log>>,
     // Which virtual log device is currently being serviced.
     inflight: OptionalCell<&'a VirtualLogDevice<'a, Log>>,
 }
@@ -222,6 +227,7 @@ where
 impl<'a, Log> LogReadClient for MuxLog<'a, Log>
 where
     Log: LogRead<'a> + LogWrite<'a>,
+    Log::EntryID: Copy,
 {
     fn read_done(&self, buffer: &'static mut [u8], length: usize, error: ReturnCode) {
         self.inflight.take().map(move |device| {
@@ -241,6 +247,7 @@ where
 impl<'a, Log> LogWriteClient for MuxLog<'a, Log>
 where
     Log: LogRead<'a> + LogWrite<'a>,
+    Log::EntryID: Copy,
 {
     fn append_done(
         &self,
@@ -273,12 +280,13 @@ where
 impl<'a, Log> MuxLog<'a, Log>
 where
     Log: LogRead<'a> + LogWrite<'a>,
+    Log::EntryID: Copy,
 {
     /// Creates a multiplexer around an underlying log device to virtualize it.
     pub const fn new(log: &'a Log) -> MuxLog<'a, Log> {
         MuxLog {
             log: log,
-            devices: List::new(),
+            virtual_log_devices: List::new(),
             inflight: OptionalCell::empty(),
         }
     }
@@ -290,36 +298,34 @@ where
         }
         // Otherwise, we service the first log device that has something to do.
         // FIXME: Are there any fairness concerns here? What if we start searching where we left off?
-        let mnode = self
-            .devices
+        self.virtual_log_devices
             .iter()
-            .find(|node| node.operation.get() != Op::Idle);
-        mnode.map(|node| {
-            // Set the virtual log device's state to be idle after saving its operation locally.
-            let op = node.operation.get();
-            node.operation.set(Op::Idle);
-            // Actually perform the necessary operation.
-            match op {
-                Op::Read(length) => {
-                    self.inflight.set(node);
-                    node.buffer.take().map(|buffer| {
-                        self.log.read(buffer, length);
-                    });
+            .find(|virtual_log_device| virtual_log_device.operation.get() != Op::Idle)
+            .map(|virtual_log_device| {
+                self.log.seek(virtual_log_device.read_entry_id.get());
+                let op = virtual_log_device.operation.get();
+                virtual_log_device.operation.set(Op::Idle);
+                match op {
+                    Op::Read(length) => {
+                        self.inflight.set(virtual_log_device);
+                        virtual_log_device.buffer.take().map(|buffer| {
+                            self.log.read(buffer, length);
+                        });
+                    }
+                    Op::Append(length) => {
+                        self.inflight.set(virtual_log_device);
+                        virtual_log_device.buffer.take().map(|buffer| {
+                            self.log.append(buffer, length);
+                        });
+                    }
+                    Op::Sync => {
+                        self.log.sync();
+                    }
+                    Op::Erase => {
+                        self.log.erase();
+                    }
+                    Op::Idle => unreachable!(),
                 }
-                Op::Append(length) => {
-                    self.inflight.set(node);
-                    node.buffer.take().map(|buffer| {
-                        self.log.append(buffer, length);
-                    });
-                }
-                Op::Sync => {
-                    self.log.sync();
-                }
-                Op::Erase => {
-                    self.log.erase();
-                }
-                Op::Idle => {} // Can't get here...
-            }
-        });
+            });
     }
 }
