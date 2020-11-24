@@ -125,6 +125,32 @@ pub enum GenericSyscallReturnValue {
     /// Generic success case, with an additional 32-bit and 64-bit
     /// data field
     SuccessU64U32(u64, u32),
+
+    // These following types are used by the scheduler so that it can
+    // return values to userspace in an architecture (pointer-width)
+    // independent way. The kernel passes these types (rather than
+    // AppSlice or Callback) for two reasons. First, since the
+    // kernel/scheduler makes promises about the lifetime and safety
+    // of these types (e.g., an accepted allow does not overlap with
+    // an existing accepted AppSlice), it does not want to leak them
+    // to other code. Second, if subscribe or allow calls pass invalid
+    // values (pointers out of valid memory), the kernel cannot
+    // construct an AppSlice or Callback type but needs to be able to
+    // return a failure. -pal 11/24/20
+    /// Read/Write allow success case
+    AllowReadWriteSuccess(*mut usize, usize),
+    /// Read/Write allow failure case
+    AllowReadWriteFailure(ErrorCode, *mut usize, usize),
+
+    /// Read only allow success case
+    AllowReadOnlySuccess(*const usize, usize),
+    /// Read only allow failure case
+    AllowReadOnlyFailure(ErrorCode, *const usize, usize),
+
+    /// Subscribe success case
+    SubscribeSuccess(*const usize, usize),
+    /// Subscribe failure case
+    SubscribeFailure(ErrorCode, *const usize, usize),
 }
 
 impl GenericSyscallReturnValue {
@@ -204,6 +230,16 @@ impl GenericSyscallReturnValue {
                 *a2 = data0_msb;
                 *a3 = data1;
             }
+            &GenericSyscallReturnValue::AllowReadWriteSuccess(ptr, len) => {
+                *a0 = SyscallReturnVariant::SuccessU32U32 as u32;
+                *a1 = ptr as u32;
+                *a2 = len as u32;
+            }
+            &GenericSyscallReturnValue::AllowReadWriteFailure(err, ptr, len) => {}
+            &GenericSyscallReturnValue::AllowReadOnlySuccess(ptr, len) => {}
+            &GenericSyscallReturnValue::AllowReadOnlyFailure(err, ptr, len) => {}
+            &GenericSyscallReturnValue::SubscribeSuccess(ptr, data) => {}
+            &GenericSyscallReturnValue::SubscribeFailure(err, ptr, data) => {}
         }
     }
 }
