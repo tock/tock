@@ -336,12 +336,14 @@ where
                                 debug!("Error: append buffer is missing when issuing log append.")
                             }
                         },
-                        Op::Sync => {
-                            self.log.sync();
-                        }
-                        Op::Erase => {
-                            self.log.erase();
-                        }
+                        Op::Sync => match self.log.sync() {
+                            ReturnCode::SUCCESS => (),
+                            error_code => self.sync_done(error_code),
+                        },
+                        Op::Erase => match self.log.erase() {
+                            ReturnCode::SUCCESS => (),
+                            error_code => self.erase_done(error_code),
+                        },
                         Op::Idle => unreachable!(),
                     }
                 });
