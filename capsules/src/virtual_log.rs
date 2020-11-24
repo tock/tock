@@ -82,7 +82,7 @@ where
         &self,
         buffer: &'static mut [u8],
         length: usize,
-    ) -> Result<(), (ReturnCode, Option<&'static mut [u8]>)> {
+    ) -> Result<(), (ReturnCode, &'static mut [u8])> {
         self.operation.set(Op::Read(length));
         match self.buffer.replace(buffer) {
             Some(_) => {
@@ -304,10 +304,9 @@ where
                         Op::Read(length) => match virtual_log_device.buffer.take() {
                             Some(read_buffer) => match self.log.read(read_buffer, length) {
                                 Ok(()) => (),
-                                Err((error_code, Some(read_buffer))) => {
+                                Err((error_code, read_buffer)) => {
                                     self.read_done(read_buffer, Err(error_code))
                                 }
-                                Err((_, None)) => unreachable!(), // FIXME: change the return type of read() to get rid of this case
                             },
                             None => debug!("Error: read buffer is missing when issuing log read."),
                         },

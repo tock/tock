@@ -627,21 +627,21 @@ impl<'a, F: Flash + 'static> LogRead<'a> for Log<'a, F> {
         &self,
         buffer: &'static mut [u8],
         length: usize,
-    ) -> Result<(), (ReturnCode, Option<&'static mut [u8]>)> {
+    ) -> Result<(), (ReturnCode, &'static mut [u8])> {
         // Check for failure cases.
         if self.state.get() != State::Idle {
             // Log busy, try reading again later.
-            return Err((ReturnCode::EBUSY, Some(buffer)));
+            return Err((ReturnCode::EBUSY, buffer));
         } else if buffer.len() < length {
             // Client buffer too small for provided length.
-            return Err((ReturnCode::EINVAL, Some(buffer)));
+            return Err((ReturnCode::EINVAL, buffer));
         } else if self.read_entry_id.get() > self.append_entry_id.get() {
             // Read entry ID beyond append entry ID, must be invalid.
             self.read_entry_id.set(self.oldest_entry_id.get());
-            return Err((ReturnCode::ECANCEL, Some(buffer)));
+            return Err((ReturnCode::ECANCEL, buffer));
         } else if self.read_client.is_none() {
             // No client for callback.
-            return Err((ReturnCode::ERESERVE, Some(buffer)));
+            return Err((ReturnCode::ERESERVE, buffer));
         }
 
         // Try reading next entry.
@@ -654,7 +654,7 @@ impl<'a, F: Flash + 'static> LogRead<'a> for Log<'a, F> {
                 self.deferred_client_callback();
                 Ok(())
             }
-            Err(return_code) => Err((return_code, Some(buffer))),
+            Err(return_code) => Err((return_code, buffer)),
         }
     }
 

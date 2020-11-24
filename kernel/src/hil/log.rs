@@ -19,7 +19,7 @@ pub trait LogRead<'a> {
         &self,
         buffer: &'static mut [u8],
         length: usize,
-    ) -> Result<(), (ReturnCode, Option<&'static mut [u8]>)>;
+    ) -> Result<(), (ReturnCode, &'static mut [u8])>;
 
     /// Returns the entry ID at the start of the log. This is the ID of the oldest remaining entry.
     fn log_start(&self) -> Self::EntryID;
