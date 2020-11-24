@@ -464,9 +464,10 @@ again to re-allow it with a different size.
 ---------------------------------
 
 The Read-Only Allow class is identical to the Read-Write Allow class
-with one exception: the buffer it passes to the kernel is
-read-only. The kernel cannot write to it. It semantics and calling
-conventions are otherwise identical to Read-Write Allow.
+with two exceptions: the buffer it passes to the kernel is read-only, and the
+process retains read access to the buffer. The kernel cannot write to the
+buffer. Read-Only Allow's semantics and calling conventions are otherwise
+identical to Read-Write Allow.
 
 The Read-Only Allow class exists so that userspace can pass references to constant data
 to the kernel. Often, constant data is stored in flash rather than RAM. Constant data
