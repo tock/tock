@@ -207,7 +207,7 @@ where
     /// Propagates the `erase_done` callback up to the end user.
     fn erase_done(&self, error: ReturnCode) {
         self.append_client.map_or_else(
-            || debug!("Log append complete but log client is gone."),
+            || debug!("Log erase complete but log client is gone."),
             |client| client.erase_done(error),
         )
     }
@@ -254,24 +254,33 @@ where
     Log::EntryID: Copy,
 {
     fn append_done(&self, buffer: &'static mut [u8], result: Result<(usize, bool), ReturnCode>) {
-        self.inflight.take().map(move |device| {
-            self.do_next_op();
-            device.append_done(buffer, result);
-        });
+        match self.inflight.take() {
+            Some(virtual_log_device) => {
+                virtual_log_device.append_done(buffer, result);
+                self.do_next_op();
+            }
+            None => debug!("Log append complete but virtual log device is gone."),
+        }
     }
 
     fn sync_done(&self, error: ReturnCode) {
-        self.inflight.take().map(move |device| {
-            self.do_next_op();
-            device.sync_done(error);
-        });
+        match self.inflight.take() {
+            Some(virtual_log_device) => {
+                virtual_log_device.sync_done(error);
+                self.do_next_op();
+            }
+            None => debug!("Log sync complete but virtual log device is gone."),
+        }
     }
 
     fn erase_done(&self, error: ReturnCode) {
-        self.inflight.take().map(|device| {
-            self.do_next_op();
-            device.erase_done(error);
-        });
+        match self.inflight.take() {
+            Some(virtual_log_device) => {
+                virtual_log_device.erase_done(error);
+                self.do_next_op();
+            }
+            None => debug!("Log erase complete but virtual log device is gone."),
+        }
     }
 }
 
