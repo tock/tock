@@ -304,6 +304,11 @@ the callback function. The `application data` argument is a parameter
 that an application passes in and the kernel passes back in callbacks
 unmodified. 
 
+If the passed callback is not valid (is outside process executable
+memory and is not the Null Callback described below), the kernel MUST
+NOT invoke the requested driver and MUST immediately return a failure
+with a return code of EINVAL.
+
 A passed callback MUST be valid until the next invocation of `subscribe`
 with the same syscall and driver identifier. When userspace invokes
 subscribe, the kernel MUST cancel all pending callbacks for that driver
