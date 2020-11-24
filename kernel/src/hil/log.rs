@@ -43,7 +43,7 @@ pub trait LogRead<'a> {
 pub trait LogReadClient {
     /// Returns a buffer containing data read and the length of the number of bytes read or an error
     /// code if the read failed.
-    fn read_done(&self, buffer: &'static mut [u8], length: usize, error: ReturnCode);
+    fn read_done(&self, buffer: &'static mut [u8], result: Result<usize, ReturnCode>);
 
     /// Returns whether the seek succeeded or failed.
     fn seek_done(&self, error: ReturnCode);

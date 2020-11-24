@@ -168,10 +168,10 @@ where
     Log: LogRead<'a> + LogWrite<'a>,
 {
     /// Propagates the `read_done` callback up to the end user.
-    fn read_done(&self, buffer: &'static mut [u8], length: usize, error: ReturnCode) {
+    fn read_done(&self, buffer: &'static mut [u8], result: Result<usize, ReturnCode>) {
         self.read_client.map_or_else(
             || debug!("Log read complete but log client is gone."),
-            move |client| client.read_done(buffer, length, error),
+            move |client| client.read_done(buffer, result),
         )
     }
 
@@ -239,10 +239,10 @@ where
     Log: LogRead<'a> + LogWrite<'a>,
     Log::EntryID: Copy,
 {
-    fn read_done(&self, buffer: &'static mut [u8], length: usize, error: ReturnCode) {
+    fn read_done(&self, buffer: &'static mut [u8], result: Result<usize, ReturnCode>) {
         self.inflight.take().map(move |device| {
             self.do_next_op();
-            device.read_done(buffer, length, error);
+            device.read_done(buffer, result);
         });
     }
 
@@ -317,7 +317,7 @@ where
                             Some(read_buffer) => match self.log.read(read_buffer, length) {
                                 Ok(()) => (),
                                 Err((error_code, Some(read_buffer))) => {
-                                    self.read_done(read_buffer, 0, error_code) // FIXME: change the signature of read_done to Result<usize, ReturnCode>
+                                    self.read_done(read_buffer, Err(error_code))
                                 }
                                 Err((_, None)) => unreachable!(), // FIXME: change the return type of read() to get rid of this case
                             },

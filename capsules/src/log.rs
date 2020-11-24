@@ -559,8 +559,11 @@ impl<'a, F: Flash + 'static> Log<'a, F> {
                         State::Read => self
                             .buffer
                             .take()
-                            .map(|buffer| {
-                                read_client.read_done(buffer, self.length.get(), self.error.get());
+                            .map(|buffer| match self.error.get() {
+                                ReturnCode::SUCCESS => {
+                                    read_client.read_done(buffer, Ok(self.length.get()))
+                                }
+                                _ => read_client.read_done(buffer, Err(self.error.get())),
                             })
                             .unwrap(),
                         State::Seek => read_client.seek_done(self.error.get()),
