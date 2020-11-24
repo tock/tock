@@ -81,7 +81,11 @@ static mut PROCESSES: [Option<&'static dyn kernel::procs::ProcessType>; NUM_PROC
 
 static mut CHIP: Option<&'static nrf52840::chip::NRF52<Nrf52840DefaultPeripherals>> = None;
 static mut CDC_REF_FOR_PANIC: Option<
-    &'static capsules::usb::cdc::CdcAcm<'static, nrf52::usbd::Usbd>,
+    &'static capsules::usb::cdc::CdcAcm<
+        'static,
+        nrf52::usbd::Usbd,
+        capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc>,
+    >,
 > = None;
 
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
@@ -283,8 +287,13 @@ pub unsafe fn reset_handler() {
         0x239a,
         0x8071,
         strings,
+        mux_alarm,
+        dynamic_deferred_caller,
     )
-    .finalize(components::usb_cdc_acm_component_helper!(nrf52::usbd::Usbd));
+    .finalize(components::usb_cdc_acm_component_helper!(
+        nrf52::usbd::Usbd,
+        nrf52::rtc::Rtc
+    ));
     CDC_REF_FOR_PANIC = Some(cdc); //for use by panic handler
 
     // Create a shared UART channel for the console and for kernel debug.
