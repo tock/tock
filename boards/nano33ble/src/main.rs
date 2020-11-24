@@ -27,6 +27,10 @@ use kernel::{create_capability, debug, debug_gpio, debug_verbose, static_init};
 use nrf52840::gpio::Pin;
 use nrf52840::interrupt_service::Nrf52840DefaultPeripherals;
 
+// Unit Tests for drivers.
+#[allow(dead_code)]
+mod test;
+
 // Three-color LED.
 const LED_RED_PIN: Pin = Pin::P0_24;
 const LED_GREEN_PIN: Pin = Pin::P0_16;
@@ -357,6 +361,16 @@ pub unsafe fn reset_handler() {
     // Configure the USB stack to enable a serial port over CDC-ACM.
     cdc.enable();
     cdc.attach();
+
+    //--------------------------------------------------------------------------
+    // OPTIONAL KERNEL TESTS
+    //--------------------------------------------------------------------------
+
+    // Test logging facilities in linear mode.
+    test::linear_log_test::run(mux_alarm, dynamic_deferred_caller, &base_peripherals.nvmc);
+
+    // Test logging facilities in circular mode.
+    test::log_test::run(mux_alarm, dynamic_deferred_caller, &base_peripherals.nvmc);
 
     debug!("Initialization complete. Entering main loop.");
 
