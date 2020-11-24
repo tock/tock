@@ -140,7 +140,7 @@ impl<'a, Log: LogRead<'a> + LogWrite<'a>> LogReadClient for VirtualLogDevice<'a,
     }
 
     fn seek_done(&self, error: ReturnCode) {
-        self.read_client.map(move |client| {
+        self.read_client.map(|client| {
             client.seek_done(error);
         });
     }
