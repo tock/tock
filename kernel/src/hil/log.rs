@@ -74,15 +74,10 @@ pub trait LogWrite<'a> {
 
 /// Receive callbacks from `LogWrite`.
 pub trait LogWriteClient {
-    /// Returns the original buffer that contained the data to write, the number of bytes written,
-    /// and whether any old entries in the log were lost (due to a circular log being filled up).
-    fn append_done(
-        &self,
-        buffer: &'static mut [u8],
-        length: usize,
-        records_lost: bool,
-        error: ReturnCode,
-    );
+    /// Returns the original buffer that contained the data to write. If the append was successful,
+    /// then also returns the number of bytes written and whether any old entries in the log were
+    /// lost (due to a circular log being filled up). Otherwise, returns the error code.
+    fn append_done(&self, buffer: &'static mut [u8], result: Result<(usize, bool), ReturnCode>);
 
     /// Returns whether or not all pages were correctly synced, making all changes persistent.
     fn sync_done(&self, error: ReturnCode);

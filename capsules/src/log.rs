@@ -578,13 +578,12 @@ impl<'a, F: Flash + 'static> Log<'a, F> {
                         State::Append => self
                             .buffer
                             .take()
-                            .map(|buffer| {
-                                append_client.append_done(
+                            .map(|buffer| match self.error.get() {
+                                ReturnCode::SUCCESS => append_client.append_done(
                                     buffer,
-                                    self.length.get(),
-                                    self.records_lost.get(),
-                                    self.error.get(),
-                                );
+                                    Ok((self.length.get(), self.records_lost.get())),
+                                ),
+                                _ => append_client.append_done(buffer, Err(self.error.get())),
                             })
                             .unwrap(),
                         State::Sync => append_client.sync_done(self.error.get()),

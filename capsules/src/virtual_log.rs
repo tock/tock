@@ -189,16 +189,10 @@ where
     Log: LogRead<'a> + LogWrite<'a>,
 {
     /// Propagates the `append_done` callback up to the end user.
-    fn append_done(
-        &self,
-        buffer: &'static mut [u8],
-        length: usize,
-        records_lost: bool,
-        error: ReturnCode,
-    ) {
+    fn append_done(&self, buffer: &'static mut [u8], result: Result<(usize, bool), ReturnCode>) {
         self.append_client.map_or_else(
             || debug!("Log append complete but log client is gone."),
-            move |client| client.append_done(buffer, length, records_lost, error),
+            move |client| client.append_done(buffer, result),
         )
     }
 
@@ -259,16 +253,10 @@ where
     Log: LogRead<'a> + LogWrite<'a>,
     Log::EntryID: Copy,
 {
-    fn append_done(
-        &self,
-        buffer: &'static mut [u8],
-        length: usize,
-        records_lost: bool,
-        error: ReturnCode,
-    ) {
+    fn append_done(&self, buffer: &'static mut [u8], result: Result<(usize, bool), ReturnCode>) {
         self.inflight.take().map(move |device| {
             self.do_next_op();
-            device.append_done(buffer, length, records_lost, error);
+            device.append_done(buffer, result);
         });
     }
 
@@ -327,8 +315,7 @@ where
                             Some(append_buffer) => match self.log.append(append_buffer, length) {
                                 Ok(()) => (),
                                 Err((error_code, Some(append_buffer))) => {
-                                    // FIXME: change the signature of append_done to Result<(usize, bool), ReturnCode>
-                                    self.append_done(append_buffer, 0, false, error_code)
+                                    self.append_done(append_buffer, Err(error_code))
                                 }
                                 Err((_, None)) => unreachable!(), // FIXME: change the return type of append() to get rid of this case
                             },
