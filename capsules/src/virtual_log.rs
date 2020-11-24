@@ -2,6 +2,7 @@
 use core::cell::Cell;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::common::list::{List, ListLink, ListNode};
+use kernel::debug;
 use kernel::hil::log::{LogRead, LogReadClient, LogWrite, LogWriteClient};
 use kernel::ReturnCode;
 
@@ -133,16 +134,20 @@ impl<'a, Log: LogRead<'a> + LogWrite<'a>> LogWrite<'a> for VirtualLogDevice<'a, 
 }
 
 impl<'a, Log: LogRead<'a> + LogWrite<'a>> LogReadClient for VirtualLogDevice<'a, Log> {
+    /// Propagates the `read_done` callback up to the end user.
     fn read_done(&self, buffer: &'static mut [u8], length: usize, error: ReturnCode) {
-        self.read_client.map(move |client| {
-            client.read_done(buffer, length, error);
-        });
+        self.read_client.map_or_else(
+            || debug!("Log read complete but log client is gone."),
+            move |client| client.read_done(buffer, length, error),
+        )
     }
 
+    /// Propagates the `seek_done` callback up to the end user.
     fn seek_done(&self, error: ReturnCode) {
-        self.read_client.map(|client| {
-            client.seek_done(error);
-        });
+        self.read_client.map_or_else(
+            || debug!("Log seek complete but log client is gone."),
+            |client| client.seek_done(error),
+        )
     }
 }
 
