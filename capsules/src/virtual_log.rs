@@ -234,17 +234,23 @@ where
     Log::EntryID: Copy,
 {
     fn read_done(&self, buffer: &'static mut [u8], result: Result<usize, ReturnCode>) {
-        self.inflight.take().map(move |device| {
-            self.do_next_op();
-            device.read_done(buffer, result);
-        });
+        match self.inflight.take() {
+            Some(virtual_log_device) => {
+                virtual_log_device.read_done(buffer, result);
+                self.do_next_op();
+            }
+            None => debug!("Log read complete but virtual log device is gone."),
+        }
     }
 
     fn seek_done(&self, error: ReturnCode) {
-        self.inflight.take().map(|device| {
-            self.do_next_op();
-            device.seek_done(error);
-        });
+        match self.inflight.take() {
+            Some(virtual_log_device) => {
+                virtual_log_device.seek_done(error);
+                self.do_next_op();
+            }
+            None => debug!("Log seek complete but virtual log device is gone."),
+        }
     }
 }
 
