@@ -683,7 +683,7 @@ impl<'a, F: Flash + 'static> LogRead<'a> for Log<'a, F> {
     fn seek(&self, entry_id: Self::EntryID) -> ReturnCode {
         if self.state.get() != State::Idle {
             ReturnCode::EBUSY
-        } else if entry_id <= self.append_entry_id.get() && entry_id >= self.oldest_entry_id.get() {
+        } else if entry_id < self.append_entry_id.get() && entry_id >= self.oldest_entry_id.get() {
             self.read_entry_id.set(entry_id);
             self.state.set(State::Seek);
             self.error.set(ReturnCode::SUCCESS);
