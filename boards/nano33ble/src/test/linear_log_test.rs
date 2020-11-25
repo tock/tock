@@ -19,11 +19,16 @@ use core::cell::Cell;
 use kernel::common::cells::{NumericCellExt, TakeCell};
 use kernel::common::dynamic_deferred_call::DynamicDeferredCall;
 use kernel::hil::flash;
+use kernel::hil::gpio::{Client, Interrupt, InterruptEdge};
 use kernel::hil::log::{LogRead, LogReadClient, LogWrite, LogWriteClient};
 use kernel::hil::time::{Alarm, AlarmClient};
 use kernel::ReturnCode;
 use kernel::{debug_verbose, static_init, storage_volume};
-use nrf52840::{nvmc, rtc::Rtc};
+use nrf52840::{
+    gpio::{GPIOPin, Pin},
+    nvmc,
+    rtc::Rtc,
+};
 
 // Allocate 1kiB volume for log storage.
 storage_volume!(LINEAR_TEST_LOG, 1);
@@ -64,6 +69,11 @@ pub unsafe fn run(
     log.set_read_client(test);
     log.set_append_client(test);
     test.alarm.set_alarm_client(test);
+
+    // Configure GPIO pin P1.08 as the log erase pin.
+    let log_erase_pin = GPIOPin::new(Pin::P0_04);
+    log_erase_pin.enable_interrupts(InterruptEdge::RisingEdge);
+    log_erase_pin.set_client(test);
 
     test.run();
 }
@@ -107,6 +117,12 @@ struct LogTest<A: Alarm<'static>> {
     alarm: A,
     ops: &'static [TestOp],
     op_index: Cell<usize>,
+}
+
+impl<A: Alarm<'static>> Client for LogTest<A> {
+    fn fired(&self) {
+        self.erase();
+    }
 }
 
 impl<A: Alarm<'static>> LogTest<A> {
@@ -244,6 +260,10 @@ impl<A: Alarm<'static>> LogTest<A> {
         let delay = A::ticks_from_ms(WAIT_MS);
         let now = self.alarm.now();
         self.alarm.set_alarm(now, delay);
+    }
+
+    fn erase(&self) {
+        debug_verbose!("Log erasure triggered - {:?}", self.log.erase());
     }
 }
 
