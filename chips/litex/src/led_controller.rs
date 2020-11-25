@@ -20,7 +20,7 @@ pub struct LiteXLedController<R: LiteXSoCRegisterConfiguration> {
 }
 
 impl<R: LiteXSoCRegisterConfiguration> LiteXLedController<R> {
-    pub const fn new(
+    pub fn new(
         base: StaticRef<LiteXLedRegisters<R>>,
         led_count: usize,
         active_low: bool,
