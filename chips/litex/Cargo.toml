@@ -6,5 +6,4 @@ edition = "2018"
 
 [dependencies]
 tock-registers = { path = "../../libraries/tock-register-interface" }
-litex-register-gen = { path = "../../libraries/litex-register-gen" }
 kernel = { path = "../../kernel" }

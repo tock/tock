@@ -267,6 +267,7 @@ where
     }
 }
 
+// ---------- COLLECTION OF REGISTER TYPES FOR A SPECIFIC LITEX CONFIGURATION ----------
 pub trait LiteXSoCRegisterConfiguration {
     type ReadOnly8: BaseReadableRegister<u8, Reg = ()>;
     type WriteOnly8: BaseWriteableRegister<u8, Reg = ()>;
@@ -284,102 +285,6 @@ pub trait LiteXSoCRegisterConfiguration {
     type WriteOnly64: BaseWriteableRegister<u64, Reg = ()>;
     type ReadWrite64: BaseReadableRegister<u64, Reg = ()> + BaseWriteableRegister<u64, Reg = ()>;
 }
-
-litex_register_abstraction!(ReadOnly8C8B32 {
-    access_type: "read_only",
-    value_width: 8,
-    wishbone_data_width: 8,
-    base_width: 32,
-    endianess: "big",
-});
-
-litex_register_abstraction!(WriteOnly8C8B32 {
-    access_type: "write_only",
-    value_width: 8,
-    wishbone_data_width: 8,
-    base_width: 32,
-    endianess: "big",
-});
-
-litex_register_abstraction!(ReadWrite8C8B32 {
-    access_type: "read_write",
-    value_width: 8,
-    wishbone_data_width: 8,
-    base_width: 32,
-    endianess: "big",
-});
-
-litex_register_abstraction!(ReadOnly16C8B32 {
-    access_type: "read_only",
-    value_width: 16,
-    wishbone_data_width: 8,
-    base_width: 32,
-    endianess: "big",
-});
-
-litex_register_abstraction!(WriteOnly16C8B32 {
-    access_type: "write_only",
-    value_width: 16,
-    wishbone_data_width: 8,
-    base_width: 32,
-    endianess: "big",
-});
-
-litex_register_abstraction!(ReadWrite16C8B32 {
-    access_type: "read_write",
-    value_width: 16,
-    wishbone_data_width: 8,
-    base_width: 32,
-    endianess: "big",
-});
-
-litex_register_abstraction!(ReadOnly32C8B32 {
-    access_type: "read_only",
-    value_width: 32,
-    wishbone_data_width: 8,
-    base_width: 32,
-    endianess: "big",
-});
-
-litex_register_abstraction!(WriteOnly32C8B32 {
-    access_type: "write_only",
-    value_width: 32,
-    wishbone_data_width: 8,
-    base_width: 32,
-    endianess: "big",
-});
-
-litex_register_abstraction!(ReadWrite32C8B32 {
-    access_type: "read_write",
-    value_width: 32,
-    wishbone_data_width: 8,
-    base_width: 32,
-    endianess: "big",
-});
-
-litex_register_abstraction!(ReadOnly64C8B32 {
-    access_type: "read_only",
-    value_width: 64,
-    wishbone_data_width: 8,
-    base_width: 32,
-    endianess: "big",
-});
-
-litex_register_abstraction!(WriteOnly64C8B32 {
-    access_type: "write_only",
-    value_width: 64,
-    wishbone_data_width: 8,
-    base_width: 32,
-    endianess: "big",
-});
-
-litex_register_abstraction!(ReadWrite64C8B32 {
-    access_type: "read_write",
-    value_width: 64,
-    wishbone_data_width: 8,
-    base_width: 32,
-    endianess: "big",
-});
 
 pub enum LiteXSoCRegistersC8B32 {}
 impl LiteXSoCRegisterConfiguration for LiteXSoCRegistersC8B32 {
@@ -400,102 +305,6 @@ impl LiteXSoCRegisterConfiguration for LiteXSoCRegistersC8B32 {
     type ReadWrite64 = ReadWrite64C8B32;
 }
 
-litex_register_abstraction!(ReadOnly8C32B32 {
-    access_type: "read_only",
-    value_width: 8,
-    wishbone_data_width: 32,
-    base_width: 32,
-    endianess: "big",
-});
-
-litex_register_abstraction!(WriteOnly8C32B32 {
-    access_type: "write_only",
-    value_width: 8,
-    wishbone_data_width: 32,
-    base_width: 32,
-    endianess: "big",
-});
-
-litex_register_abstraction!(ReadWrite8C32B32 {
-    access_type: "read_write",
-    value_width: 8,
-    wishbone_data_width: 32,
-    base_width: 32,
-    endianess: "big",
-});
-
-litex_register_abstraction!(ReadOnly16C32B32 {
-    access_type: "read_only",
-    value_width: 16,
-    wishbone_data_width: 32,
-    base_width: 32,
-    endianess: "big",
-});
-
-litex_register_abstraction!(WriteOnly16C32B32 {
-    access_type: "write_only",
-    value_width: 16,
-    wishbone_data_width: 32,
-    base_width: 32,
-    endianess: "big",
-});
-
-litex_register_abstraction!(ReadWrite16C32B32 {
-    access_type: "read_write",
-    value_width: 16,
-    wishbone_data_width: 32,
-    base_width: 32,
-    endianess: "big",
-});
-
-litex_register_abstraction!(ReadOnly32C32B32 {
-    access_type: "read_only",
-    value_width: 32,
-    wishbone_data_width: 32,
-    base_width: 32,
-    endianess: "big",
-});
-
-litex_register_abstraction!(WriteOnly32C32B32 {
-    access_type: "write_only",
-    value_width: 32,
-    wishbone_data_width: 32,
-    base_width: 32,
-    endianess: "big",
-});
-
-litex_register_abstraction!(ReadWrite32C32B32 {
-    access_type: "read_write",
-    value_width: 32,
-    wishbone_data_width: 32,
-    base_width: 32,
-    endianess: "big",
-});
-
-litex_register_abstraction!(ReadOnly64C32B32 {
-    access_type: "read_only",
-    value_width: 64,
-    wishbone_data_width: 32,
-    base_width: 32,
-    endianess: "big",
-});
-
-litex_register_abstraction!(WriteOnly64C32B32 {
-    access_type: "write_only",
-    value_width: 64,
-    wishbone_data_width: 32,
-    base_width: 32,
-    endianess: "big",
-});
-
-litex_register_abstraction!(ReadWrite64C32B32 {
-    access_type: "read_write",
-    value_width: 64,
-    wishbone_data_width: 32,
-    base_width: 32,
-    endianess: "big",
-});
-
 pub enum LiteXSoCRegistersC32B32 {}
 impl LiteXSoCRegisterConfiguration for LiteXSoCRegistersC32B32 {
     type ReadOnly8 = ReadOnly8C32B32;
@@ -515,6 +324,7 @@ impl LiteXSoCRegisterConfiguration for LiteXSoCRegistersC32B32 {
     type ReadWrite64 = ReadWrite64C32B32;
 }
 
+// ---------- WRAPPERS AROUND READ,WRITE,READWRITE TRAITS WITH GENERIC REGISTER NAMES ----------
 pub struct ReadRegWrapper<'a, T: IntLike, N: RegisterLongName, R: BaseReadableRegister<T>>(
     &'a R,
     PhantomData<T>,
@@ -605,5 +415,832 @@ impl<T: IntLike, N: RegisterLongName, R: BaseReadableRegister<T> + BaseWriteable
     #[inline]
     fn base_set(&self, value: T) {
         self.0.base_set(value)
+    }
+}
+
+// ---------- AUTOMATICALLY GENERATED CODE ----------
+//
+// The following code has been gerated by the `litex-register-gen`
+// procedural macro, which is not yet included with Tock.
+//
+// The following arguments to the macro produced the results below:
+//
+// litex_register_abstraction!(ReadOnly8C8B32 {
+//     access_type: "read_only",
+//     value_width: 8,
+//     wishbone_data_width: 8,
+//     base_width: 32,
+//     endianess: "big",
+// });
+//
+// litex_register_abstraction!(WriteOnly8C8B32 {
+//     access_type: "write_only",
+//     value_width: 8,
+//     wishbone_data_width: 8,
+//     base_width: 32,
+//     endianess: "big",
+// });
+//
+// litex_register_abstraction!(ReadWrite8C8B32 {
+//     access_type: "read_write",
+//     value_width: 8,
+//     wishbone_data_width: 8,
+//     base_width: 32,
+//     endianess: "big",
+// });
+//
+// litex_register_abstraction!(ReadOnly16C8B32 {
+//     access_type: "read_only",
+//     value_width: 16,
+//     wishbone_data_width: 8,
+//     base_width: 32,
+//     endianess: "big",
+// });
+//
+// litex_register_abstraction!(WriteOnly16C8B32 {
+//     access_type: "write_only",
+//     value_width: 16,
+//     wishbone_data_width: 8,
+//     base_width: 32,
+//     endianess: "big",
+// });
+//
+// litex_register_abstraction!(ReadWrite16C8B32 {
+//     access_type: "read_write",
+//     value_width: 16,
+//     wishbone_data_width: 8,
+//     base_width: 32,
+//     endianess: "big",
+// });
+//
+// litex_register_abstraction!(ReadOnly32C8B32 {
+//     access_type: "read_only",
+//     value_width: 32,
+//     wishbone_data_width: 8,
+//     base_width: 32,
+//     endianess: "big",
+// });
+//
+// litex_register_abstraction!(WriteOnly32C8B32 {
+//     access_type: "write_only",
+//     value_width: 32,
+//     wishbone_data_width: 8,
+//     base_width: 32,
+//     endianess: "big",
+// });
+//
+// litex_register_abstraction!(ReadWrite32C8B32 {
+//     access_type: "read_write",
+//     value_width: 32,
+//     wishbone_data_width: 8,
+//     base_width: 32,
+//     endianess: "big",
+// });
+//
+// litex_register_abstraction!(ReadOnly64C8B32 {
+//     access_type: "read_only",
+//     value_width: 64,
+//     wishbone_data_width: 8,
+//     base_width: 32,
+//     endianess: "big",
+// });
+//
+// litex_register_abstraction!(WriteOnly64C8B32 {
+//     access_type: "write_only",
+//     value_width: 64,
+//     wishbone_data_width: 8,
+//     base_width: 32,
+//     endianess: "big",
+// });
+//
+// litex_register_abstraction!(ReadWrite64C8B32 {
+//     access_type: "read_write",
+//     value_width: 64,
+//     wishbone_data_width: 8,
+//     base_width: 32,
+//     endianess: "big",
+// });
+//
+//
+// litex_register_abstraction!(ReadOnly8C32B32 {
+//     access_type: "read_only",
+//     value_width: 8,
+//     wishbone_data_width: 32,
+//     base_width: 32,
+//     endianess: "big",
+// });
+//
+// litex_register_abstraction!(WriteOnly8C32B32 {
+//     access_type: "write_only",
+//     value_width: 8,
+//     wishbone_data_width: 32,
+//     base_width: 32,
+//     endianess: "big",
+// });
+//
+// litex_register_abstraction!(ReadWrite8C32B32 {
+//     access_type: "read_write",
+//     value_width: 8,
+//     wishbone_data_width: 32,
+//     base_width: 32,
+//     endianess: "big",
+// });
+//
+// litex_register_abstraction!(ReadOnly16C32B32 {
+//     access_type: "read_only",
+//     value_width: 16,
+//     wishbone_data_width: 32,
+//     base_width: 32,
+//     endianess: "big",
+// });
+//
+// litex_register_abstraction!(WriteOnly16C32B32 {
+//     access_type: "write_only",
+//     value_width: 16,
+//     wishbone_data_width: 32,
+//     base_width: 32,
+//     endianess: "big",
+// });
+//
+// litex_register_abstraction!(ReadWrite16C32B32 {
+//     access_type: "read_write",
+//     value_width: 16,
+//     wishbone_data_width: 32,
+//     base_width: 32,
+//     endianess: "big",
+// });
+//
+// litex_register_abstraction!(ReadOnly32C32B32 {
+//     access_type: "read_only",
+//     value_width: 32,
+//     wishbone_data_width: 32,
+//     base_width: 32,
+//     endianess: "big",
+// });
+//
+// litex_register_abstraction!(WriteOnly32C32B32 {
+//     access_type: "write_only",
+//     value_width: 32,
+//     wishbone_data_width: 32,
+//     base_width: 32,
+//     endianess: "big",
+// });
+//
+// litex_register_abstraction!(ReadWrite32C32B32 {
+//     access_type: "read_write",
+//     value_width: 32,
+//     wishbone_data_width: 32,
+//     base_width: 32,
+//     endianess: "big",
+// });
+//
+// litex_register_abstraction!(ReadOnly64C32B32 {
+//     access_type: "read_only",
+//     value_width: 64,
+//     wishbone_data_width: 32,
+//     base_width: 32,
+//     endianess: "big",
+// });
+//
+// litex_register_abstraction!(WriteOnly64C32B32 {
+//     access_type: "write_only",
+//     value_width: 64,
+//     wishbone_data_width: 32,
+//     base_width: 32,
+//     endianess: "big",
+// });
+//
+// litex_register_abstraction!(ReadWrite64C32B32 {
+//     access_type: "read_write",
+//     value_width: 64,
+//     wishbone_data_width: 32,
+//     base_width: 32,
+//     endianess: "big",
+// });
+
+#[repr(C)]
+pub struct ReadOnly8C8B32<N: RegisterLongName = ()> {
+    reg_p0: TRReadOnly<u8>,
+    _reserved_0: [u8; 3usize],
+    _regname: PhantomData<N>,
+}
+impl<N: RegisterLongName> BaseReadableRegister<u8> for ReadOnly8C8B32<N> {
+    type Reg = N;
+    const REG_WIDTH: usize = 8usize;
+    #[inline]
+    fn base_get(&self) -> u8 {
+        let reg_p0_val: [u8; 1usize] = u8::to_be_bytes(self.reg_p0.get());
+        u8::from_be_bytes([reg_p0_val[0usize]])
+    }
+}
+#[repr(C)]
+pub struct WriteOnly8C8B32<N: RegisterLongName = ()> {
+    reg_p0: TRWriteOnly<u8>,
+    _reserved_0: [u8; 3usize],
+    _regname: PhantomData<N>,
+}
+impl<N: RegisterLongName> BaseWriteableRegister<u8> for WriteOnly8C8B32<N> {
+    type Reg = N;
+    const REG_WIDTH: usize = 8usize;
+    #[inline]
+    fn base_set(&self, value: u8) {
+        let bytes: [u8; 1usize] = u8::to_be_bytes(value);
+        self.reg_p0.set(u8::from_be_bytes([bytes[0usize]]));
+    }
+}
+#[repr(C)]
+pub struct ReadWrite8C8B32<N: RegisterLongName = ()> {
+    reg_p0: TRReadWrite<u8>,
+    _reserved_0: [u8; 3usize],
+    _regname: PhantomData<N>,
+}
+impl<N: RegisterLongName> BaseReadableRegister<u8> for ReadWrite8C8B32<N> {
+    type Reg = N;
+    const REG_WIDTH: usize = 8usize;
+    #[inline]
+    fn base_get(&self) -> u8 {
+        let reg_p0_val: [u8; 1usize] = u8::to_be_bytes(self.reg_p0.get());
+        u8::from_be_bytes([reg_p0_val[0usize]])
+    }
+}
+impl<N: RegisterLongName> BaseWriteableRegister<u8> for ReadWrite8C8B32<N> {
+    type Reg = N;
+    const REG_WIDTH: usize = 8usize;
+    #[inline]
+    fn base_set(&self, value: u8) {
+        let bytes: [u8; 1usize] = u8::to_be_bytes(value);
+        self.reg_p0.set(u8::from_be_bytes([bytes[0usize]]));
+    }
+}
+#[repr(C)]
+pub struct ReadOnly16C8B32<N: RegisterLongName = ()> {
+    reg_p0: TRReadOnly<u8>,
+    _reserved_0: [u8; 3usize],
+    reg_p1: TRReadOnly<u8>,
+    _reserved_1: [u8; 3usize],
+    _regname: PhantomData<N>,
+}
+impl<N: RegisterLongName> BaseReadableRegister<u16> for ReadOnly16C8B32<N> {
+    type Reg = N;
+    const REG_WIDTH: usize = 16usize;
+    #[inline]
+    fn base_get(&self) -> u16 {
+        let reg_p0_val: [u8; 1usize] = u8::to_be_bytes(self.reg_p0.get());
+        let reg_p1_val: [u8; 1usize] = u8::to_be_bytes(self.reg_p1.get());
+        u16::from_be_bytes([reg_p0_val[0usize], reg_p1_val[0usize]])
+    }
+}
+#[repr(C)]
+pub struct WriteOnly16C8B32<N: RegisterLongName = ()> {
+    reg_p0: TRWriteOnly<u8>,
+    _reserved_0: [u8; 3usize],
+    reg_p1: TRWriteOnly<u8>,
+    _reserved_1: [u8; 3usize],
+    _regname: PhantomData<N>,
+}
+impl<N: RegisterLongName> BaseWriteableRegister<u16> for WriteOnly16C8B32<N> {
+    type Reg = N;
+    const REG_WIDTH: usize = 16usize;
+    #[inline]
+    fn base_set(&self, value: u16) {
+        let bytes: [u8; 2usize] = u16::to_be_bytes(value);
+        self.reg_p0.set(u8::from_be_bytes([bytes[0usize]]));
+        self.reg_p1.set(u8::from_be_bytes([bytes[1usize]]));
+    }
+}
+#[repr(C)]
+pub struct ReadWrite16C8B32<N: RegisterLongName = ()> {
+    reg_p0: TRReadWrite<u8>,
+    _reserved_0: [u8; 3usize],
+    reg_p1: TRReadWrite<u8>,
+    _reserved_1: [u8; 3usize],
+    _regname: PhantomData<N>,
+}
+impl<N: RegisterLongName> BaseReadableRegister<u16> for ReadWrite16C8B32<N> {
+    type Reg = N;
+    const REG_WIDTH: usize = 16usize;
+    #[inline]
+    fn base_get(&self) -> u16 {
+        let reg_p0_val: [u8; 1usize] = u8::to_be_bytes(self.reg_p0.get());
+        let reg_p1_val: [u8; 1usize] = u8::to_be_bytes(self.reg_p1.get());
+        u16::from_be_bytes([reg_p0_val[0usize], reg_p1_val[0usize]])
+    }
+}
+impl<N: RegisterLongName> BaseWriteableRegister<u16> for ReadWrite16C8B32<N> {
+    type Reg = N;
+    const REG_WIDTH: usize = 16usize;
+    #[inline]
+    fn base_set(&self, value: u16) {
+        let bytes: [u8; 2usize] = u16::to_be_bytes(value);
+        self.reg_p0.set(u8::from_be_bytes([bytes[0usize]]));
+        self.reg_p1.set(u8::from_be_bytes([bytes[1usize]]));
+    }
+}
+#[repr(C)]
+pub struct ReadOnly32C8B32<N: RegisterLongName = ()> {
+    reg_p0: TRReadOnly<u8>,
+    _reserved_0: [u8; 3usize],
+    reg_p1: TRReadOnly<u8>,
+    _reserved_1: [u8; 3usize],
+    reg_p2: TRReadOnly<u8>,
+    _reserved_2: [u8; 3usize],
+    reg_p3: TRReadOnly<u8>,
+    _reserved_3: [u8; 3usize],
+    _regname: PhantomData<N>,
+}
+impl<N: RegisterLongName> BaseReadableRegister<u32> for ReadOnly32C8B32<N> {
+    type Reg = N;
+    const REG_WIDTH: usize = 32usize;
+    #[inline]
+    fn base_get(&self) -> u32 {
+        let reg_p0_val: [u8; 1usize] = u8::to_be_bytes(self.reg_p0.get());
+        let reg_p1_val: [u8; 1usize] = u8::to_be_bytes(self.reg_p1.get());
+        let reg_p2_val: [u8; 1usize] = u8::to_be_bytes(self.reg_p2.get());
+        let reg_p3_val: [u8; 1usize] = u8::to_be_bytes(self.reg_p3.get());
+        u32::from_be_bytes([
+            reg_p0_val[0usize],
+            reg_p1_val[0usize],
+            reg_p2_val[0usize],
+            reg_p3_val[0usize],
+        ])
+    }
+}
+#[repr(C)]
+pub struct WriteOnly32C8B32<N: RegisterLongName = ()> {
+    reg_p0: TRWriteOnly<u8>,
+    _reserved_0: [u8; 3usize],
+    reg_p1: TRWriteOnly<u8>,
+    _reserved_1: [u8; 3usize],
+    reg_p2: TRWriteOnly<u8>,
+    _reserved_2: [u8; 3usize],
+    reg_p3: TRWriteOnly<u8>,
+    _reserved_3: [u8; 3usize],
+    _regname: PhantomData<N>,
+}
+impl<N: RegisterLongName> BaseWriteableRegister<u32> for WriteOnly32C8B32<N> {
+    type Reg = N;
+    const REG_WIDTH: usize = 32usize;
+    #[inline]
+    fn base_set(&self, value: u32) {
+        let bytes: [u8; 4usize] = u32::to_be_bytes(value);
+        self.reg_p0.set(u8::from_be_bytes([bytes[0usize]]));
+        self.reg_p1.set(u8::from_be_bytes([bytes[1usize]]));
+        self.reg_p2.set(u8::from_be_bytes([bytes[2usize]]));
+        self.reg_p3.set(u8::from_be_bytes([bytes[3usize]]));
+    }
+}
+#[repr(C)]
+pub struct ReadWrite32C8B32<N: RegisterLongName = ()> {
+    reg_p0: TRReadWrite<u8>,
+    _reserved_0: [u8; 3usize],
+    reg_p1: TRReadWrite<u8>,
+    _reserved_1: [u8; 3usize],
+    reg_p2: TRReadWrite<u8>,
+    _reserved_2: [u8; 3usize],
+    reg_p3: TRReadWrite<u8>,
+    _reserved_3: [u8; 3usize],
+    _regname: PhantomData<N>,
+}
+impl<N: RegisterLongName> BaseReadableRegister<u32> for ReadWrite32C8B32<N> {
+    type Reg = N;
+    const REG_WIDTH: usize = 32usize;
+    #[inline]
+    fn base_get(&self) -> u32 {
+        let reg_p0_val: [u8; 1usize] = u8::to_be_bytes(self.reg_p0.get());
+        let reg_p1_val: [u8; 1usize] = u8::to_be_bytes(self.reg_p1.get());
+        let reg_p2_val: [u8; 1usize] = u8::to_be_bytes(self.reg_p2.get());
+        let reg_p3_val: [u8; 1usize] = u8::to_be_bytes(self.reg_p3.get());
+        u32::from_be_bytes([
+            reg_p0_val[0usize],
+            reg_p1_val[0usize],
+            reg_p2_val[0usize],
+            reg_p3_val[0usize],
+        ])
+    }
+}
+impl<N: RegisterLongName> BaseWriteableRegister<u32> for ReadWrite32C8B32<N> {
+    type Reg = N;
+    const REG_WIDTH: usize = 32usize;
+    #[inline]
+    fn base_set(&self, value: u32) {
+        let bytes: [u8; 4usize] = u32::to_be_bytes(value);
+        self.reg_p0.set(u8::from_be_bytes([bytes[0usize]]));
+        self.reg_p1.set(u8::from_be_bytes([bytes[1usize]]));
+        self.reg_p2.set(u8::from_be_bytes([bytes[2usize]]));
+        self.reg_p3.set(u8::from_be_bytes([bytes[3usize]]));
+    }
+}
+#[repr(C)]
+pub struct ReadOnly64C8B32<N: RegisterLongName = ()> {
+    reg_p0: TRReadOnly<u8>,
+    _reserved_0: [u8; 3usize],
+    reg_p1: TRReadOnly<u8>,
+    _reserved_1: [u8; 3usize],
+    reg_p2: TRReadOnly<u8>,
+    _reserved_2: [u8; 3usize],
+    reg_p3: TRReadOnly<u8>,
+    _reserved_3: [u8; 3usize],
+    reg_p4: TRReadOnly<u8>,
+    _reserved_4: [u8; 3usize],
+    reg_p5: TRReadOnly<u8>,
+    _reserved_5: [u8; 3usize],
+    reg_p6: TRReadOnly<u8>,
+    _reserved_6: [u8; 3usize],
+    reg_p7: TRReadOnly<u8>,
+    _reserved_7: [u8; 3usize],
+    _regname: PhantomData<N>,
+}
+impl<N: RegisterLongName> BaseReadableRegister<u64> for ReadOnly64C8B32<N> {
+    type Reg = N;
+    const REG_WIDTH: usize = 64usize;
+    #[inline]
+    fn base_get(&self) -> u64 {
+        let reg_p0_val: [u8; 1usize] = u8::to_be_bytes(self.reg_p0.get());
+        let reg_p1_val: [u8; 1usize] = u8::to_be_bytes(self.reg_p1.get());
+        let reg_p2_val: [u8; 1usize] = u8::to_be_bytes(self.reg_p2.get());
+        let reg_p3_val: [u8; 1usize] = u8::to_be_bytes(self.reg_p3.get());
+        let reg_p4_val: [u8; 1usize] = u8::to_be_bytes(self.reg_p4.get());
+        let reg_p5_val: [u8; 1usize] = u8::to_be_bytes(self.reg_p5.get());
+        let reg_p6_val: [u8; 1usize] = u8::to_be_bytes(self.reg_p6.get());
+        let reg_p7_val: [u8; 1usize] = u8::to_be_bytes(self.reg_p7.get());
+        u64::from_be_bytes([
+            reg_p0_val[0usize],
+            reg_p1_val[0usize],
+            reg_p2_val[0usize],
+            reg_p3_val[0usize],
+            reg_p4_val[0usize],
+            reg_p5_val[0usize],
+            reg_p6_val[0usize],
+            reg_p7_val[0usize],
+        ])
+    }
+}
+#[repr(C)]
+pub struct WriteOnly64C8B32<N: RegisterLongName = ()> {
+    reg_p0: TRWriteOnly<u8>,
+    _reserved_0: [u8; 3usize],
+    reg_p1: TRWriteOnly<u8>,
+    _reserved_1: [u8; 3usize],
+    reg_p2: TRWriteOnly<u8>,
+    _reserved_2: [u8; 3usize],
+    reg_p3: TRWriteOnly<u8>,
+    _reserved_3: [u8; 3usize],
+    reg_p4: TRWriteOnly<u8>,
+    _reserved_4: [u8; 3usize],
+    reg_p5: TRWriteOnly<u8>,
+    _reserved_5: [u8; 3usize],
+    reg_p6: TRWriteOnly<u8>,
+    _reserved_6: [u8; 3usize],
+    reg_p7: TRWriteOnly<u8>,
+    _reserved_7: [u8; 3usize],
+    _regname: PhantomData<N>,
+}
+impl<N: RegisterLongName> BaseWriteableRegister<u64> for WriteOnly64C8B32<N> {
+    type Reg = N;
+    const REG_WIDTH: usize = 64usize;
+    #[inline]
+    fn base_set(&self, value: u64) {
+        let bytes: [u8; 8usize] = u64::to_be_bytes(value);
+        self.reg_p0.set(u8::from_be_bytes([bytes[0usize]]));
+        self.reg_p1.set(u8::from_be_bytes([bytes[1usize]]));
+        self.reg_p2.set(u8::from_be_bytes([bytes[2usize]]));
+        self.reg_p3.set(u8::from_be_bytes([bytes[3usize]]));
+        self.reg_p4.set(u8::from_be_bytes([bytes[4usize]]));
+        self.reg_p5.set(u8::from_be_bytes([bytes[5usize]]));
+        self.reg_p6.set(u8::from_be_bytes([bytes[6usize]]));
+        self.reg_p7.set(u8::from_be_bytes([bytes[7usize]]));
+    }
+}
+#[repr(C)]
+pub struct ReadWrite64C8B32<N: RegisterLongName = ()> {
+    reg_p0: TRReadWrite<u8>,
+    _reserved_0: [u8; 3usize],
+    reg_p1: TRReadWrite<u8>,
+    _reserved_1: [u8; 3usize],
+    reg_p2: TRReadWrite<u8>,
+    _reserved_2: [u8; 3usize],
+    reg_p3: TRReadWrite<u8>,
+    _reserved_3: [u8; 3usize],
+    reg_p4: TRReadWrite<u8>,
+    _reserved_4: [u8; 3usize],
+    reg_p5: TRReadWrite<u8>,
+    _reserved_5: [u8; 3usize],
+    reg_p6: TRReadWrite<u8>,
+    _reserved_6: [u8; 3usize],
+    reg_p7: TRReadWrite<u8>,
+    _reserved_7: [u8; 3usize],
+    _regname: PhantomData<N>,
+}
+impl<N: RegisterLongName> BaseReadableRegister<u64> for ReadWrite64C8B32<N> {
+    type Reg = N;
+    const REG_WIDTH: usize = 64usize;
+    #[inline]
+    fn base_get(&self) -> u64 {
+        let reg_p0_val: [u8; 1usize] = u8::to_be_bytes(self.reg_p0.get());
+        let reg_p1_val: [u8; 1usize] = u8::to_be_bytes(self.reg_p1.get());
+        let reg_p2_val: [u8; 1usize] = u8::to_be_bytes(self.reg_p2.get());
+        let reg_p3_val: [u8; 1usize] = u8::to_be_bytes(self.reg_p3.get());
+        let reg_p4_val: [u8; 1usize] = u8::to_be_bytes(self.reg_p4.get());
+        let reg_p5_val: [u8; 1usize] = u8::to_be_bytes(self.reg_p5.get());
+        let reg_p6_val: [u8; 1usize] = u8::to_be_bytes(self.reg_p6.get());
+        let reg_p7_val: [u8; 1usize] = u8::to_be_bytes(self.reg_p7.get());
+        u64::from_be_bytes([
+            reg_p0_val[0usize],
+            reg_p1_val[0usize],
+            reg_p2_val[0usize],
+            reg_p3_val[0usize],
+            reg_p4_val[0usize],
+            reg_p5_val[0usize],
+            reg_p6_val[0usize],
+            reg_p7_val[0usize],
+        ])
+    }
+}
+impl<N: RegisterLongName> BaseWriteableRegister<u64> for ReadWrite64C8B32<N> {
+    type Reg = N;
+    const REG_WIDTH: usize = 64usize;
+    #[inline]
+    fn base_set(&self, value: u64) {
+        let bytes: [u8; 8usize] = u64::to_be_bytes(value);
+        self.reg_p0.set(u8::from_be_bytes([bytes[0usize]]));
+        self.reg_p1.set(u8::from_be_bytes([bytes[1usize]]));
+        self.reg_p2.set(u8::from_be_bytes([bytes[2usize]]));
+        self.reg_p3.set(u8::from_be_bytes([bytes[3usize]]));
+        self.reg_p4.set(u8::from_be_bytes([bytes[4usize]]));
+        self.reg_p5.set(u8::from_be_bytes([bytes[5usize]]));
+        self.reg_p6.set(u8::from_be_bytes([bytes[6usize]]));
+        self.reg_p7.set(u8::from_be_bytes([bytes[7usize]]));
+    }
+}
+#[repr(C)]
+pub struct ReadOnly8C32B32<N: RegisterLongName = ()> {
+    reg_p0: TRReadOnly<u8>,
+    _reserved_0: [u8; 3usize],
+    _regname: PhantomData<N>,
+}
+impl<N: RegisterLongName> BaseReadableRegister<u8> for ReadOnly8C32B32<N> {
+    type Reg = N;
+    const REG_WIDTH: usize = 8usize;
+    fn base_get(&self) -> u8 {
+        self.reg_p0.get()
+    }
+}
+#[repr(C)]
+pub struct WriteOnly8C32B32<N: RegisterLongName = ()> {
+    reg_p0: TRWriteOnly<u8>,
+    _reserved_0: [u8; 3usize],
+    _regname: PhantomData<N>,
+}
+impl<N: RegisterLongName> BaseWriteableRegister<u8> for WriteOnly8C32B32<N> {
+    type Reg = N;
+    const REG_WIDTH: usize = 8usize;
+    #[inline]
+    fn base_set(&self, value: u8) {
+        self.reg_p0.set(value)
+    }
+}
+#[repr(C)]
+pub struct ReadWrite8C32B32<N: RegisterLongName = ()> {
+    reg_p0: TRReadWrite<u8>,
+    _reserved_0: [u8; 3usize],
+    _regname: PhantomData<N>,
+}
+impl<N: RegisterLongName> BaseReadableRegister<u8> for ReadWrite8C32B32<N> {
+    type Reg = N;
+    const REG_WIDTH: usize = 8usize;
+    fn base_get(&self) -> u8 {
+        self.reg_p0.get()
+    }
+}
+impl<N: RegisterLongName> BaseWriteableRegister<u8> for ReadWrite8C32B32<N> {
+    type Reg = N;
+    const REG_WIDTH: usize = 8usize;
+    #[inline]
+    fn base_set(&self, value: u8) {
+        self.reg_p0.set(value)
+    }
+}
+#[repr(C)]
+pub struct ReadOnly16C32B32<N: RegisterLongName = ()> {
+    reg_p0: TRReadOnly<u16>,
+    _reserved_0: [u8; 2usize],
+    _regname: PhantomData<N>,
+}
+impl<N: RegisterLongName> BaseReadableRegister<u16> for ReadOnly16C32B32<N> {
+    type Reg = N;
+    const REG_WIDTH: usize = 16usize;
+    fn base_get(&self) -> u16 {
+        self.reg_p0.get()
+    }
+}
+#[repr(C)]
+pub struct WriteOnly16C32B32<N: RegisterLongName = ()> {
+    reg_p0: TRWriteOnly<u16>,
+    _reserved_0: [u8; 2usize],
+    _regname: PhantomData<N>,
+}
+impl<N: RegisterLongName> BaseWriteableRegister<u16> for WriteOnly16C32B32<N> {
+    type Reg = N;
+    const REG_WIDTH: usize = 16usize;
+    #[inline]
+    fn base_set(&self, value: u16) {
+        self.reg_p0.set(value)
+    }
+}
+#[repr(C)]
+pub struct ReadWrite16C32B32<N: RegisterLongName = ()> {
+    reg_p0: TRReadWrite<u16>,
+    _reserved_0: [u8; 2usize],
+    _regname: PhantomData<N>,
+}
+impl<N: RegisterLongName> BaseReadableRegister<u16> for ReadWrite16C32B32<N> {
+    type Reg = N;
+    const REG_WIDTH: usize = 16usize;
+    fn base_get(&self) -> u16 {
+        self.reg_p0.get()
+    }
+}
+impl<N: RegisterLongName> BaseWriteableRegister<u16> for ReadWrite16C32B32<N> {
+    type Reg = N;
+    const REG_WIDTH: usize = 16usize;
+    #[inline]
+    fn base_set(&self, value: u16) {
+        self.reg_p0.set(value)
+    }
+}
+#[repr(C)]
+pub struct ReadOnly32C32B32<N: RegisterLongName = ()> {
+    reg_p0: TRReadOnly<u32>,
+    _reserved_0: [u8; 0usize],
+    _regname: PhantomData<N>,
+}
+impl<N: RegisterLongName> BaseReadableRegister<u32> for ReadOnly32C32B32<N> {
+    type Reg = N;
+    const REG_WIDTH: usize = 32usize;
+    #[inline]
+    fn base_get(&self) -> u32 {
+        let reg_p0_val: [u8; 4usize] = u32::to_be_bytes(self.reg_p0.get());
+        u32::from_be_bytes([
+            reg_p0_val[0usize],
+            reg_p0_val[1usize],
+            reg_p0_val[2usize],
+            reg_p0_val[3usize],
+        ])
+    }
+}
+#[repr(C)]
+pub struct WriteOnly32C32B32<N: RegisterLongName = ()> {
+    reg_p0: TRWriteOnly<u32>,
+    _reserved_0: [u8; 0usize],
+    _regname: PhantomData<N>,
+}
+impl<N: RegisterLongName> BaseWriteableRegister<u32> for WriteOnly32C32B32<N> {
+    type Reg = N;
+    const REG_WIDTH: usize = 32usize;
+    #[inline]
+    fn base_set(&self, value: u32) {
+        let bytes: [u8; 4usize] = u32::to_be_bytes(value);
+        self.reg_p0.set(u32::from_be_bytes([
+            bytes[0usize],
+            bytes[1usize],
+            bytes[2usize],
+            bytes[3usize],
+        ]));
+    }
+}
+#[repr(C)]
+pub struct ReadWrite32C32B32<N: RegisterLongName = ()> {
+    reg_p0: TRReadWrite<u32>,
+    _reserved_0: [u8; 0usize],
+    _regname: PhantomData<N>,
+}
+impl<N: RegisterLongName> BaseReadableRegister<u32> for ReadWrite32C32B32<N> {
+    type Reg = N;
+    const REG_WIDTH: usize = 32usize;
+    #[inline]
+    fn base_get(&self) -> u32 {
+        let reg_p0_val: [u8; 4usize] = u32::to_be_bytes(self.reg_p0.get());
+        u32::from_be_bytes([
+            reg_p0_val[0usize],
+            reg_p0_val[1usize],
+            reg_p0_val[2usize],
+            reg_p0_val[3usize],
+        ])
+    }
+}
+impl<N: RegisterLongName> BaseWriteableRegister<u32> for ReadWrite32C32B32<N> {
+    type Reg = N;
+    const REG_WIDTH: usize = 32usize;
+    #[inline]
+    fn base_set(&self, value: u32) {
+        let bytes: [u8; 4usize] = u32::to_be_bytes(value);
+        self.reg_p0.set(u32::from_be_bytes([
+            bytes[0usize],
+            bytes[1usize],
+            bytes[2usize],
+            bytes[3usize],
+        ]));
+    }
+}
+#[repr(C)]
+pub struct ReadOnly64C32B32<N: RegisterLongName = ()> {
+    reg_p0: TRReadOnly<u32>,
+    _reserved_0: [u8; 0usize],
+    reg_p1: TRReadOnly<u32>,
+    _reserved_1: [u8; 0usize],
+    _regname: PhantomData<N>,
+}
+impl<N: RegisterLongName> BaseReadableRegister<u64> for ReadOnly64C32B32<N> {
+    type Reg = N;
+    const REG_WIDTH: usize = 64usize;
+    #[inline]
+    fn base_get(&self) -> u64 {
+        let reg_p0_val: [u8; 4usize] = u32::to_be_bytes(self.reg_p0.get());
+        let reg_p1_val: [u8; 4usize] = u32::to_be_bytes(self.reg_p1.get());
+        u64::from_be_bytes([
+            reg_p0_val[0usize],
+            reg_p0_val[1usize],
+            reg_p0_val[2usize],
+            reg_p0_val[3usize],
+            reg_p1_val[0usize],
+            reg_p1_val[1usize],
+            reg_p1_val[2usize],
+            reg_p1_val[3usize],
+        ])
+    }
+}
+#[repr(C)]
+pub struct WriteOnly64C32B32<N: RegisterLongName = ()> {
+    reg_p0: TRWriteOnly<u32>,
+    _reserved_0: [u8; 0usize],
+    reg_p1: TRWriteOnly<u32>,
+    _reserved_1: [u8; 0usize],
+    _regname: PhantomData<N>,
+}
+impl<N: RegisterLongName> BaseWriteableRegister<u64> for WriteOnly64C32B32<N> {
+    type Reg = N;
+    const REG_WIDTH: usize = 64usize;
+    #[inline]
+    fn base_set(&self, value: u64) {
+        let bytes: [u8; 8usize] = u64::to_be_bytes(value);
+        self.reg_p0.set(u32::from_be_bytes([
+            bytes[0usize],
+            bytes[1usize],
+            bytes[2usize],
+            bytes[3usize],
+        ]));
+        self.reg_p1.set(u32::from_be_bytes([
+            bytes[4usize],
+            bytes[5usize],
+            bytes[6usize],
+            bytes[7usize],
+        ]));
+    }
+}
+#[repr(C)]
+pub struct ReadWrite64C32B32<N: RegisterLongName = ()> {
+    reg_p0: TRReadWrite<u32>,
+    _reserved_0: [u8; 0usize],
+    reg_p1: TRReadWrite<u32>,
+    _reserved_1: [u8; 0usize],
+    _regname: PhantomData<N>,
+}
+impl<N: RegisterLongName> BaseReadableRegister<u64> for ReadWrite64C32B32<N> {
+    type Reg = N;
+    const REG_WIDTH: usize = 64usize;
+    #[inline]
+    fn base_get(&self) -> u64 {
+        let reg_p0_val: [u8; 4usize] = u32::to_be_bytes(self.reg_p0.get());
+        let reg_p1_val: [u8; 4usize] = u32::to_be_bytes(self.reg_p1.get());
+        u64::from_be_bytes([
+            reg_p0_val[0usize],
+            reg_p0_val[1usize],
+            reg_p0_val[2usize],
+            reg_p0_val[3usize],
+            reg_p1_val[0usize],
+            reg_p1_val[1usize],
+            reg_p1_val[2usize],
+            reg_p1_val[3usize],
+        ])
+    }
+}
+impl<N: RegisterLongName> BaseWriteableRegister<u64> for ReadWrite64C32B32<N> {
+    type Reg = N;
+    const REG_WIDTH: usize = 64usize;
+    #[inline]
+    fn base_set(&self, value: u64) {
+        let bytes: [u8; 8usize] = u64::to_be_bytes(value);
+        self.reg_p0.set(u32::from_be_bytes([
+            bytes[0usize],
+            bytes[1usize],
+            bytes[2usize],
+            bytes[3usize],
+        ]));
+        self.reg_p1.set(u32::from_be_bytes([
+            bytes[4usize],
+            bytes[5usize],
+            bytes[6usize],
+            bytes[7usize],
+        ]));
     }
 }

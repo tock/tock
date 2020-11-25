@@ -48,7 +48,6 @@ members = [
     "chips/stm32f4xx",
     "kernel",
     "libraries/enum_primitive",
-    "libraries/litex-register-gen",
     "libraries/riscv-csr",
     "libraries/tock-cells",
     "libraries/tock-register-interface",

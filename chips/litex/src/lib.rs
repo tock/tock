@@ -5,9 +5,6 @@
 #![crate_name = "litex"]
 #![crate_type = "rlib"]
 
-#[macro_use]
-extern crate litex_register_gen;
-
 // Exported as the LiteX Register Abstraction may be used by other
 // modules
 pub mod litex_registers;
