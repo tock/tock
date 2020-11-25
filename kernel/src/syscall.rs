@@ -139,19 +139,21 @@ pub enum GenericSyscallReturnValue {
     // return a failure. -pal 11/24/20
  
     /// Read/Write allow success case
-    AllowReadWriteSuccess(*mut usize, usize),
+    AllowReadWriteSuccess(*mut u8, usize),
     /// Read/Write allow failure case
-    AllowReadWriteFailure(ErrorCode, *mut usize, usize),
+    AllowReadWriteFailure(ErrorCode, *mut u8, usize),
 
     /// Read only allow success case
-    AllowReadOnlySuccess(*const usize, usize),
+    AllowReadOnlySuccess(*const u8, usize),
     /// Read only allow failure case
-    AllowReadOnlyFailure(ErrorCode, *const usize, usize),
+    AllowReadOnlyFailure(ErrorCode, *const u8, usize),
     
     /// Subscribe success case
-    SubscribeSuccess(*const usize, usize),
+    SubscribeSuccess(*const u8, usize),
     /// Subscribe failure case
-    SubscribeFailure(ErrorCode, *const usize, usize),
+    SubscribeFailure(ErrorCode, *const u8, usize),
+
+    Legacy(ReturnCode),
 }
 
 impl GenericSyscallReturnValue {
@@ -161,13 +163,36 @@ impl GenericSyscallReturnValue {
         res.into_inner()
     }
 
+    pub fn from_allow_readwrite_result(res: AllowReadWriteResult) -> Self {
+        match res {
+            AllowReadWriteResult::Success(mut slice) => GenericSyscallReturnValue::AllowReadWriteSuccess(slice.as_mut().as_mut_ptr(), slice.len()),
+            AllowReadWriteResult::Failure(mut slice, err) => GenericSyscallReturnValue::AllowReadWriteFailure(err, slice.as_mut().as_mut_ptr(), slice.len())
+
+        }
+    }
+     
+    pub fn from_allow_readonly_result(res: AllowReadOnlyResult) -> Self {
+        match res {
+            AllowReadOnlyResult::Success(slice) => GenericSyscallReturnValue::AllowReadOnlySuccess(slice.as_ref().as_ptr(), slice.len()),
+            AllowReadOnlyResult::Failure(slice, err) => GenericSyscallReturnValue::AllowReadOnlyFailure(err, slice.as_ref().as_ptr(), slice.len())
+        }
+    }
+
+    pub fn from_subscribe_result(res: SubscribeResult) -> Self {
+        match res {
+            SubscribeResult::Success(callback) => GenericSyscallReturnValue::SubscribeSuccess(callback.function_pointer(), callback.appdata() as usize),
+            SubscribeResult::Failure(callback, err) => GenericSyscallReturnValue::SubscribeFailure(err, callback.function_pointer(), callback.appdata() as usize)
+        }
+
+    }
+
     /// Encode the `command` system call return value into 4 registers
     ///
     /// Architectures are free to define their own encoding.
     ///
     /// Most architectures will want to use the (generic over all
     /// system call types) [`SyscallReturnValue::encode_syscall_return`] instead.
-    pub(crate) fn encode_syscall_return(
+    pub fn encode_syscall_return(
         &self,
         a0: &mut u32,
         a1: &mut u32,
@@ -192,7 +217,6 @@ impl GenericSyscallReturnValue {
             },
             &GenericSyscallReturnValue::FailureU64(e, data0) => {
                 let (data0_msb, data0_lsb) = u64_to_be_u32s(data0);
-
                 *a0 = SyscallReturnVariant::FailureU64 as u32;
                 *a1 = usize::from(e) as u32;
                 *a2 = data0_lsb;
@@ -237,87 +261,35 @@ impl GenericSyscallReturnValue {
                 *a2 = len as u32;
             },
             &GenericSyscallReturnValue::AllowReadWriteFailure(err, ptr, len) => {
-
+                *a0 = SyscallReturnVariant::FailureU32U32 as u32;
+                *a1 = usize::from(err) as u32;
+                *a2 = ptr as u32;
+                *a3 = len as u32;
             },
             &GenericSyscallReturnValue::AllowReadOnlySuccess(ptr, len) => {
-
+                *a0 = SyscallReturnVariant::SuccessU32U32 as u32;
+                *a1 = ptr as u32;
+                *a2 = len as u32;
             },
             &GenericSyscallReturnValue::AllowReadOnlyFailure(err, ptr, len) => {
-
+                *a0 = SyscallReturnVariant::FailureU32U32 as u32;
+                *a1 = usize::from(err) as u32;
+                *a2 = ptr as u32;
+                *a3 = len as u32;
             },
             &GenericSyscallReturnValue::SubscribeSuccess(ptr, data) => {
-                
+                *a0 = SyscallReturnVariant::SuccessU32U32 as u32;
+                *a1 = ptr as u32;
+                *a2 = data as u32;
             },
             &GenericSyscallReturnValue::SubscribeFailure(err, ptr, data) => {
-
+                *a0 = SyscallReturnVariant::FailureU32U32 as u32;
+                *a1 = usize::from(err) as u32;
+                *a2 = ptr as u32;
+                *a3 = data as u32;
             }
-        }
-    }
-}
-
-/// A union over all possible system call results.
-///
-/// This is passed down to the architecture which then determines how
-/// to encode the system call return arguments for a process.
-///
-/// For encoding, the architecture *may* decide use the provided
-/// `syscall_return_to_arguments`, which can be seen as a counterpart
-/// to `arguments_to_syscall`. Architectures are however free to
-/// define their own encoding.
-#[derive(Debug)]
-pub enum SyscallResult {
-    Yield(bool),
-    Subscribe(SubscribeResult),
-    Command(GenericSyscallReturnValue),
-    AllowReadWrite(AllowReadWriteResult),
-    AllowReadOnly(AllowReadOnlyResult),
-    Memop(GenericSyscallReturnValue),
-
-    /// Legacy style system call return values
-    ///
-    /// This is only included for compatibility with the current (1.x)
-    /// Tock system call interface and should be removed prior to
-    /// release.
-    // TODO: Remove prior to 2.0 release!
-    Legacy(ReturnCode),
-}
-
-impl SyscallResult {
-    /// Encode the system call return values into a series of
-    /// `u32`-values to be passed to the userspace app
-    ///
-    /// An architecture may decide to use this function, or define its
-    /// own method for encoding the return values for the userspace
-    /// app.
-    ///
-    /// The provided `u32` variables should be made available to the
-    /// userspace app as it will be scheduled again. They can be
-    /// provided as registers or on the stack, depending on the
-    /// architecture.
-    #[inline]
-    pub fn encode_syscall_return(&self, a0: &mut u32, a1: &mut u32, a2: &mut u32, a3: &mut u32) {
-        match self {
-            SyscallResult::Yield(callback_executed) => {
-                *a0 = if *callback_executed {
-                    SyscallReturnVariant::Success as u32
-                } else {
-                    SyscallReturnVariant::Failure as u32
-                };
-            }
-            SyscallResult::AllowReadWrite(rv) => rv.encode_syscall_return(a0, a1, a2, a3),
-            SyscallResult::AllowReadOnly(rv) => rv.encode_syscall_return(a0, a1, a2, a3),
-            SyscallResult::Subscribe(rv) => rv.encode_syscall_return(a0, a1, a2, a3),
-            // The command and memop match arms must be matched using
-            // the pipe-syntax. This ensures that both `rv`s are of
-            // the same type and hence the match arm body will only be
-            // generated once, which will cause the
-            // `encode_syscall_return` method on
-            // `GenericSyscallReturnValue` to be inlined here.
-            SyscallResult::Command(rv) | SyscallResult::Memop(rv) => {
-                rv.encode_syscall_return(a0, a1, a2, a3)
-            }
-            SyscallResult::Legacy(rc) => {
-                *a0 = isize::from(*rc) as u32;
+            &GenericSyscallReturnValue::Legacy(rcode) => {
+                *a0 = usize::from(rcode) as u32;
             }
         }
     }
@@ -364,7 +336,7 @@ pub trait UserspaceKernelBoundary {
         &self,
         stack_pointer: *const usize,
         state: &mut Self::StoredState,
-        return_value: SyscallResult,
+        return_value: GenericSyscallReturnValue,
     );
 
     /// Set the function that the process should execute when it is resumed.

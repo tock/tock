@@ -227,8 +227,8 @@ impl Callback {
         res
     }
 
-    pub(crate) fn function_pointer(&self) -> u32 {
-        self.fn_ptr.as_ptr() as u32
+    pub(crate) fn function_pointer(&self) -> *const u8 {
+        self.fn_ptr.as_ptr() as *const u8
     }
 
     pub(crate) fn appdata(&self) -> u32 {
