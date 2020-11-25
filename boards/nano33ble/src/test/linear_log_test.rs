@@ -170,35 +170,16 @@ impl<A: Alarm<'static>> LogTest<A> {
     }
 
     fn read(&self) {
-        self.buffer.take().map_or_else(
-            || panic!("NO BUFFER"),
-            move |buffer| {
-                // Clear buffer first to make debugging more sane.
-                for e in buffer.iter_mut() {
-                    *e = 0;
-                }
-
-                if let Err((error, _original_buffer)) = self.log.read(buffer, buffer.len()) {
-                    match error {
-                        ReturnCode::FAIL => {
-                            // No more entries, start writing again.
-                            debug_verbose!(
-                                "READ DONE: READ OFFSET: {:?} / WRITE OFFSET: {:?}",
-                                self.log.next_read_entry_id(),
-                                self.log.log_end()
-                            );
-                            self.op_index.increment();
-                            self.run();
-                        }
-                        ReturnCode::EBUSY => {
-                            debug_verbose!("Flash busy, waiting before reattempting read");
-                            self.wait();
-                        }
-                        _ => panic!("READ FAILED: {:?}", error),
-                    }
-                }
+        match self.buffer.take() {
+            Some(buffer) => match self.log.read(buffer, buffer.len()) {
+                Ok(_) => debug_verbose!("Dispatch of asynchronous log read succeeded."),
+                Err((error_code, _)) => debug_verbose!(
+                    "Dispatch of asynchronous log read failed with error code {:?}.",
+                    error_code
+                ),
             },
-        );
+            None => panic!("Aborting read with no buffer."),
+        }
     }
 
     fn write(&self, len: usize) {
