@@ -32,6 +32,7 @@ members = [
     "chips/imxrt1050",
     "chips/earlgrey",
     "chips/imxrt1050",
+    "chips/litex",
     "chips/litex_vexriscv",
     "chips/lowrisc",
     "chips/msp432",
