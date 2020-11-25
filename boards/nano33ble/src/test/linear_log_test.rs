@@ -173,10 +173,15 @@ impl<A: Alarm<'static>> LogTest<A> {
         match self.buffer.take() {
             Some(buffer) => match self.log.read(buffer, buffer.len()) {
                 Ok(_) => debug_verbose!("Dispatch of asynchronous log read succeeded."),
-                Err((error_code, _)) => debug_verbose!(
-                    "Dispatch of asynchronous log read failed with error code {:?}.",
-                    error_code
-                ),
+                Err((error_code, buffer)) => {
+                    debug_verbose!(
+                        "Dispatch of asynchronous log read failed with error code {:?}.",
+                        error_code
+                    );
+                    self.buffer.replace(buffer);
+                    self.op_index.increment();
+                    self.run();
+                }
             },
             None => panic!("Aborting read with no buffer."),
         }
