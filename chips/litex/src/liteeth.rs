@@ -95,7 +95,7 @@ pub struct LiteEth<'a, R: LiteXSoCRegisterConfiguration> {
 }
 
 impl<'a, R: LiteXSoCRegisterConfiguration> LiteEth<'a, R> {
-    pub const unsafe fn new(
+    pub unsafe fn new(
         mac_regs: StaticRef<LiteEthMacRegisters<R>>,
         mac_memory_base: usize,
         mac_memory_len: usize,
