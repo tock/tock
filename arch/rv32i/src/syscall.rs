@@ -76,7 +76,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         &self,
         _stack_pointer: *const usize,
         state: &mut Self::StoredState,
-        return_value: kernel::syscall::SyscallResult,
+        return_value: kernel::syscall::GenericSyscallReturnValue,
     ) {
         // Just need to put the return value in the a0 register for when the
         // process resumes executing.

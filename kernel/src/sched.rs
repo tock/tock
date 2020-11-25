@@ -18,7 +18,7 @@ use crate::common::cells::NumericCellExt;
 use crate::common::dynamic_deferred_call::DynamicDeferredCall;
 use crate::config;
 use crate::debug;
-use crate::driver::AllowReadWriteResult;
+use crate::driver::{AllowReadWriteResult, CommandResult};
 use crate::errorcode::ErrorCode;
 use crate::grant::Grant;
 use crate::ipc;
@@ -30,7 +30,7 @@ use crate::platform::watchdog::WatchDog;
 use crate::platform::{Chip, Platform};
 use crate::process::{self, Task};
 use crate::returncode::ReturnCode;
-use crate::syscall::{ContextSwitchReason, GenericSyscallReturnValue, Syscall, SyscallResult};
+use crate::syscall::{ContextSwitchReason, GenericSyscallReturnValue, Syscall};
 
 /// Threshold in microseconds to consider a process's timeslice to be exhausted.
 /// That is, Tock will skip re-scheduling a process if its remaining timeslice
@@ -759,7 +759,8 @@ impl Kernel {
         // decide how to handle the error.
         if syscall != Syscall::YIELD {
             if let Err(response) = platform.filter_syscall(process, &syscall) {
-                process.set_syscall_return_value(SyscallResult::Legacy(response.into()));
+                process
+                    .set_syscall_return_value(GenericSyscallReturnValue::Legacy(response.into()));
 
                 return;
             }
@@ -779,7 +780,7 @@ impl Kernel {
                         res
                     );
                 }
-                process.set_syscall_return_value(SyscallResult::Legacy(res.into()));
+                process.set_syscall_return_value(GenericSyscallReturnValue::Legacy(res.into()));
             }
             Syscall::YIELD => {
                 if config::CONFIG.trace_syscalls {
@@ -837,12 +838,13 @@ impl Kernel {
                 }
 
                 if callback.is_some() {
-                    process.set_syscall_return_value(SyscallResult::Legacy(res.into()));
+                    process.set_syscall_return_value(GenericSyscallReturnValue::Legacy(res.into()));
                 } else {
                     // This is where we would generate the correct
                     // return type from a GenericReturnValue
-                    process
-                        .set_syscall_return_value(SyscallResult::Legacy(ReturnCode::EINVAL.into()));
+                    process.set_syscall_return_value(GenericSyscallReturnValue::Legacy(
+                        ReturnCode::EINVAL.into(),
+                    ));
                     //process.set_syscall_return_value(SyscallResult::Generic(GenericSyscallReturnValue::FailureU32U32(ErrorCode::INVAL, callback_ptr as u32, app_data as u32));
                 }
             }
@@ -855,14 +857,13 @@ impl Kernel {
                 let res = platform.with_driver(driver_number, |driver| match driver {
                     Some(Ok(d)) => {
                         // Tock 2.0 driver handling
-                        SyscallResult::Command(
-                            d.command(subdriver_number, arg0, arg1, process.appid())
-                                .into_inner(),
+                        GenericSyscallReturnValue::from_command_result(
+                            d.command(subdriver_number, arg0, arg1, process.appid()), //.into_inner(),
                         )
                     }
                     Some(Err(ld)) => {
                         // Legacy Tock 1.x driver handling
-                        SyscallResult::Legacy(ld.command(
+                        GenericSyscallReturnValue::Legacy(ld.command(
                             subdriver_number,
                             arg0,
                             arg1,
@@ -875,7 +876,7 @@ impl Kernel {
                         // 1.0 system call API, hence making system
                         // calls to non-existant drivers from
                         // userspace will break
-                        SyscallResult::Command(GenericSyscallReturnValue::Failure(
+                        GenericSyscallReturnValue::from_command_result(CommandResult::failure(
                             ErrorCode::NOSUPPORT,
                         ))
                     }
@@ -929,7 +930,9 @@ impl Kernel {
 
                                     // TODO: Check that the driver returned the correct AppSlice!
 
-                                    SyscallResult::AllowReadWrite(driver_res)
+                                    GenericSyscallReturnValue::from_allow_readwrite_result(
+                                        driver_res,
+                                    )
                                 }
                                 Err(err) => {
                                     // TODO: What about NonNull here? How does
@@ -943,11 +946,13 @@ impl Kernel {
                                     let newslice =
                                         AppSlice::new(nnaddr, allow_size, process.appid());
 
-                                    SyscallResult::AllowReadWrite(AllowReadWriteResult::failure(
-                                        newslice,
-                                        ErrorCode::try_from(err)
-                                            .expect("error with success-variant"),
-                                    ))
+                                    GenericSyscallReturnValue::from_allow_readwrite_result(
+                                        AllowReadWriteResult::failure(
+                                            newslice,
+                                            ErrorCode::try_from(err)
+                                                .expect("error with success-variant"),
+                                        ),
+                                    )
                                 }
                             }
                         }
@@ -960,7 +965,7 @@ impl Kernel {
                                 Err(err) => err, /* memory not valid */
                             };
 
-                            SyscallResult::Legacy(rc)
+                            GenericSyscallReturnValue::Legacy(rc)
                         }
                         None => {
                             // TODO: What about NonNull here? How does
@@ -978,10 +983,9 @@ impl Kernel {
                             // 1.0 system call API, hence making system
                             // calls to non-existant drivers from
                             // userspace will break
-                            SyscallResult::AllowReadWrite(AllowReadWriteResult::failure(
-                                newslice,
-                                ErrorCode::NOSUPPORT,
-                            ))
+                            GenericSyscallReturnValue::from_allow_readwrite_result(
+                                AllowReadWriteResult::failure(newslice, ErrorCode::NOSUPPORT),
+                            )
                         }
                     }
                 });

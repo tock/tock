@@ -313,13 +313,13 @@ impl SubscribeResult {
         match self {
             SubscribeResult::Success(callback) => {
                 *a0 = SyscallReturnVariant::SuccessU32U32 as u32;
-                *a1 = callback.function_pointer();
+                *a1 = callback.function_pointer() as u32;
                 *a2 = callback.appdata();
             }
             SubscribeResult::Failure(callback, error) => {
                 *a0 = SyscallReturnVariant::FailureU32U32 as u32;
                 *a1 = usize::from(*error) as u32;
-                *a2 = callback.function_pointer();
+                *a2 = callback.function_pointer() as u32;
                 *a3 = callback.appdata();
             }
         }
