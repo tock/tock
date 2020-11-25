@@ -94,7 +94,7 @@ static mut BUFFER: [u8; 310] = [0; 310];
 const WAIT_MS: u32 = 3;
 
 // A single operation within the test.
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq, Debug)]
 enum TestOp {
     Read,
     Write(usize),
@@ -135,14 +135,22 @@ impl<A: Alarm<'static>> LogTest<A> {
     fn run(&self) {
         let op_index = self.op_index.get();
         if op_index == self.ops.len() {
-            debug!("Linear Log Storage test succeeded!");
-            return;
-        }
-
-        match self.ops[op_index] {
-            TestOp::Read => self.read(),
-            TestOp::Write(len) => self.write(len),
-            TestOp::Sync => self.sync(),
+            // There are no operations to perform.
+            debug!("[LinearLogTest] Success!");
+        } else {
+            // There are still operations to perform.
+            let op_total = self.ops.len();
+            debug!(
+                "[LinearLogTest] Executing operation {} of {}: {:?}.",
+                op_index + 1,
+                op_total,
+                self.ops[op_index]
+            );
+            match self.ops[op_index] {
+                TestOp::Read => self.read(),
+                TestOp::Write(len) => self.write(len),
+                TestOp::Sync => self.sync(),
+            }
         }
     }
 
