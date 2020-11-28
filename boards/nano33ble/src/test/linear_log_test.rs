@@ -155,37 +155,40 @@ impl<A: Alarm<'static>> LogTest<A> {
     }
 
     fn read(&self) {
-        self.buffer.take().map_or_else(
-            || panic!("NO BUFFER"),
-            move |buffer| {
+        match self.buffer.take() {
+            Some(buffer) => {
                 // Clear buffer first to make debugging more sane.
                 for e in buffer.iter_mut() {
                     *e = 0;
                 }
 
-                if let Err((error, original_buffer)) = self.log.read(buffer, buffer.len()) {
-                    self.buffer
-                        .replace(original_buffer.expect("No buffer returned in error!"));
-                    match error {
-                        ReturnCode::FAIL => {
-                            // No more entries, start writing again.
-                            debug_verbose!(
-                                "READ DONE: READ OFFSET: {:?} / WRITE OFFSET: {:?}",
-                                self.log.next_read_entry_id(),
-                                self.log.log_end()
-                            );
-                            self.op_index.increment();
-                            self.run();
+                match self.log.read(buffer, buffer.len()) {
+                    Ok(_) => debug_verbose!("Dispatched asynchronous read operation."),
+                    Err((return_code, Some(buffer))) => {
+                        self.buffer.replace(buffer);
+                        match return_code {
+                            ReturnCode::FAIL => {
+                                // No more entries, start writing again.
+                                debug_verbose!(
+                                    "READ DONE: READ OFFSET: {:?} / WRITE OFFSET: {:?}",
+                                    self.log.next_read_entry_id(),
+                                    self.log.log_end()
+                                );
+                                self.op_index.increment();
+                                self.run();
+                            }
+                            ReturnCode::EBUSY => {
+                                debug_verbose!("Flash busy, waiting before reattempting read");
+                                self.wait();
+                            }
+                            _ => panic!("READ FAILED: {:?}", return_code),
                         }
-                        ReturnCode::EBUSY => {
-                            debug_verbose!("Flash busy, waiting before reattempting read");
-                            self.wait();
-                        }
-                        _ => panic!("READ FAILED: {:?}", error),
                     }
+                    Err((_, None)) => panic!("No buffer returned in error!"),
                 }
-            },
-        );
+            }
+            None => panic!("NO BUFFER"),
+        }
     }
 
     fn write(&self, len: usize) {
