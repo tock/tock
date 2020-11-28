@@ -18,7 +18,7 @@ use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use core::cell::Cell;
 use kernel::common::cells::{NumericCellExt, TakeCell};
 use kernel::common::dynamic_deferred_call::DynamicDeferredCall;
-use kernel::debug;
+use kernel::debug_verbose;
 use kernel::hil::flash;
 use kernel::hil::log::{LogRead, LogReadClient, LogWrite, LogWriteClient};
 use kernel::hil::time::{Alarm, AlarmClient};
@@ -121,7 +121,7 @@ impl<A: Alarm<'static>> LogTest<A> {
         alarm: A,
         ops: &'static [TestOp],
     ) -> LogTest<A> {
-        debug!(
+        debug_verbose!(
             "Log recovered from flash (Start and end entry IDs: {:?} to {:?})",
             log.log_start(),
             log.log_end()
@@ -139,7 +139,7 @@ impl<A: Alarm<'static>> LogTest<A> {
     fn run(&self) {
         let op_index = self.op_index.get();
         if op_index == self.ops.len() {
-            debug!("Linear Log Storage test succeeded!");
+            debug_verbose!("Linear Log Storage test succeeded!");
             return;
         }
 
@@ -165,7 +165,7 @@ impl<A: Alarm<'static>> LogTest<A> {
                     match error {
                         ReturnCode::FAIL => {
                             // No more entries, start writing again.
-                            debug!(
+                            debug_verbose!(
                                 "READ DONE: READ OFFSET: {:?} / WRITE OFFSET: {:?}",
                                 self.log.next_read_entry_id(),
                                 self.log.log_end()
@@ -174,7 +174,7 @@ impl<A: Alarm<'static>> LogTest<A> {
                             self.run();
                         }
                         ReturnCode::EBUSY => {
-                            debug!("Flash busy, waiting before reattempting read");
+                            debug_verbose!("Flash busy, waiting before reattempting read");
                             self.wait();
                         }
                         _ => panic!("READ FAILED: {:?}", error),
@@ -205,7 +205,7 @@ impl<A: Alarm<'static>> LogTest<A> {
                     match error {
                         ReturnCode::FAIL =>
                             if expect_write_fail {
-                                debug!(
+                                debug_verbose!(
                                     "Write failed on {} byte write, as expected",
                                     len
                                 );
@@ -263,7 +263,7 @@ impl<A: Alarm<'static>> LogReadClient for LogTest<A> {
                     }
                 }
 
-                debug!("Successful read of size {}", length);
+                debug_verbose!("Successful read of size {}", length);
                 self.buffer.replace(buffer);
                 self.wait();
             }
@@ -289,7 +289,7 @@ impl<A: Alarm<'static>> LogWriteClient for LogTest<A> {
         assert!(!records_lost);
         match error {
             ReturnCode::SUCCESS => {
-                debug!("Write succeeded on {} byte write, as expected", length);
+                debug_verbose!("Write succeeded on {} byte write, as expected", length);
 
                 self.buffer.replace(buffer);
                 self.op_index.increment();
@@ -301,7 +301,7 @@ impl<A: Alarm<'static>> LogWriteClient for LogTest<A> {
 
     fn sync_done(&self, error: ReturnCode) {
         if error == ReturnCode::SUCCESS {
-            debug!(
+            debug_verbose!(
                 "SYNC DONE: READ OFFSET: {:?} / WRITE OFFSET: {:?}",
                 self.log.next_read_entry_id(),
                 self.log.log_end()
