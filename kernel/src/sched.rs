@@ -815,13 +815,13 @@ impl Kernel {
                 let res = platform.with_driver(driver_number, |driver| match driver {
                     Some(Ok(_)) => {
                         // Tock 2.0 driver handling
-                        ReturnCode::ENODEVICE
+                        ReturnCode::ENOSUPPORT
                     }
                     Some(Err(d)) => {
                         // Legacy Tock 1.x driver handling
                         d.subscribe(subdriver_number, callback, process.appid())
                     }
-                    None => ReturnCode::ENODEVICE,
+                    None => ReturnCode::ENOSUPPORT,
                 });
                 if config::CONFIG.trace_syscalls {
                     debug!(
@@ -894,6 +894,90 @@ impl Kernel {
                 }
                 process.set_syscall_return_value(res);
             }
+            Syscall::ReadOnlyAllow {
+                driver_number,
+                subdriver_number,
+                allow_address,
+                allow_size,
+            } => {
+                // This system call is not present in the Tock 1.x
+                // legacy system call interface, return NOSUPPORT in
+                // case of a Tock 1.x driver
+                let res = platform.with_driver(driver_number, |driver| {
+                    match driver {
+                        Some(Err(_ld)) => {
+                            // Tock 1.x legacy driver
+                            GenericSyscallReturnValue::AllowReadOnlyFailure(
+                                ErrorCode::NOSUPPORT,
+                                allow_address,
+                                allow_size,
+                            )
+                        }
+                        Some(Ok(d)) => {
+                            match process.allow_readonly(allow_address, allow_size) {
+                                Ok(oslice) => {
+                                    // In Tock 2.0 land we don't use
+                                    // buffers with address 0 to
+                                    // unallow, hence call expect
+                                    // here. This should really use a
+                                    // reimplementation of
+                                    // allow_readonly, where this
+                                    // can't happen
+                                    let oslice = oslice.expect("Tock 2.0 allow with 0x0 address");
+
+                                    // TODO: Check for buffer aliasing here!
+
+                                    let driver_res =
+                                        d.allow_readonly(process.appid(), subdriver_number, oslice);
+
+                                    // TODO: Check that the driver
+                                    // returned the correct AppSlice,
+                                    // deregister it from the table
+                                    // and convert it automatically
+                                    // into a
+                                    // GenericSyscallReturnValue using
+                                    // a method on process
+
+                                    GenericSyscallReturnValue::from_allow_readonly_result(
+                                        driver_res,
+                                    )
+                                }
+                                Err(err) => GenericSyscallReturnValue::AllowReadOnlyFailure(
+                                    ErrorCode::try_from(err).expect("error with success-variant"),
+                                    allow_address,
+                                    allow_size,
+                                ),
+                            }
+                        }
+                        None => {
+                            // System call transition note: This does
+                            // not match the expected error code for
+                            // the Tock 1.0 system call API, hence
+                            // making system calls to non-existant
+                            // drivers from userspace will break
+                            GenericSyscallReturnValue::AllowReadOnlyFailure(
+                                ErrorCode::NOSUPPORT,
+                                allow_address,
+                                allow_size,
+                            )
+                        }
+                    }
+                });
+
+                if config::CONFIG.trace_syscalls {
+                    debug!(
+                        "[{:?}] read-only allow({:#x}, {}, @{:#x}, {:#x}) = {:?}",
+                        process.appid(),
+                        driver_number,
+                        subdriver_number,
+                        allow_address as usize,
+                        allow_size,
+                        res
+                    );
+                }
+
+                process.set_syscall_return_value(res);
+            }
             Syscall::ReadWriteAllow {
                 driver_number,
                 subdriver_number,
@@ -933,7 +1017,13 @@ impl Kernel {
                                         oslice,
                                     );
 
-                                    // TODO: Check that the driver returned the correct AppSlice!
+                                    // TODO: Check that the driver
+                                    // returned the correct AppSlice,
+                                    // deregister it from the table
+                                    // and convert it automatically
+                                    // into a
+                                    // GenericSyscallReturnValue using
+                                    // a method on process
 
                                     GenericSyscallReturnValue::from_allow_readwrite_result(
                                         driver_res,
@@ -959,11 +1049,11 @@ impl Kernel {
                             GenericSyscallReturnValue::Legacy(rc)
                         }
                         None => {
-                            // System call transition note: This does not
-                            // match the expected error code for the Tock
-                            // 1.0 system call API, hence making system
-                            // calls to non-existant drivers from
-                            // userspace will break
+                            // System call transition note: This does
+                            // not match the expected error code for
+                            // the Tock 1.0 system call API, hence
+                            // making system calls to non-existant
+                            // drivers from userspace will break
                             GenericSyscallReturnValue::AllowReadWriteFailure(
                                 ErrorCode::NOSUPPORT,
                                 allow_address,
@@ -975,7 +1065,7 @@ impl Kernel {
 
                 if config::CONFIG.trace_syscalls {
                     debug!(
-                        "[{:?}] allow({:#x}, {}, @{:#x}, {:#x}) = {:?}",
+                        "[{:?}] read-write allow({:#x}, {}, @{:#x}, {:#x}) = {:?}",
                         process.appid(),
                         driver_number,
                         subdriver_number,
