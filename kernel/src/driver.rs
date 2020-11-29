@@ -160,53 +160,72 @@ impl fmt::Debug for AllowReadOnlyResult {
 
 /// Possible return values of a `command` driver method
 ///
-/// This is a wrapper around
-/// [`GenericSyscallReturnValue`](crate::syscall::GenericSyscallReturnValue)
-/// since a `command` driver method may return all possible variants.
+/// This is just a wrapper around
+/// [`GenericSyscallReturnValue`](GenericSyscallReturnValue) since a
+/// `command` driver method may only return primitve integer types as
+/// payload.
+///
+/// It is important for this wrapper to only be constructable over
+/// variants of
+/// [`GenericSyscallReturnValue`](GenericSyscallReturnValue) that are
+/// deemed safe for a capsule to construct and return to an
+/// application (e.g. not
+/// [`SubscribeSuccess`](crate::syscall::GenericSyscallReturnValue::SubscribeSuccess)).
+/// This means that the inner value **must** remain private.
 pub struct CommandResult(GenericSyscallReturnValue);
 impl CommandResult {
     pub(crate) fn into_inner(self) -> GenericSyscallReturnValue {
         self.0
     }
 
+    /// Command error
     pub fn failure(rc: ErrorCode) -> Self {
         CommandResult(GenericSyscallReturnValue::Failure(rc))
     }
 
+    /// Command error with an additional 32-bit data field
     pub fn failure_u32(rc: ErrorCode, data0: u32) -> Self {
         CommandResult(GenericSyscallReturnValue::FailureU32(rc, data0))
     }
 
+    /// Command error with two additional 32-bit data fields
     pub fn failure_u32_u32(rc: ErrorCode, data0: u32, data1: u32) -> Self {
         CommandResult(GenericSyscallReturnValue::FailureU32U32(rc, data0, data1))
     }
 
+    /// Command error with an additional 64-bit data field
     pub fn failure_u64(rc: ErrorCode, data0: u64) -> Self {
         CommandResult(GenericSyscallReturnValue::FailureU64(rc, data0))
     }
 
+    /// Successful command
     pub fn success() -> Self {
         CommandResult(GenericSyscallReturnValue::Success)
     }
 
+    /// Successful command with an additional 32-bit data field
     pub fn success_u32(data0: u32) -> Self {
         CommandResult(GenericSyscallReturnValue::SuccessU32(data0))
     }
 
+    /// Successful command with two additional 32-bit data fields
     pub fn success_u32_u32(data0: u32, data1: u32) -> Self {
         CommandResult(GenericSyscallReturnValue::SuccessU32U32(data0, data1))
     }
 
+    /// Successful command with three additional 32-bit data fields
     pub fn success_u32_u32_u32(data0: u32, data1: u32, data2: u32) -> Self {
         CommandResult(GenericSyscallReturnValue::SuccessU32U32U32(
             data0, data1, data2,
         ))
     }
 
+    /// Successful command with an additional 64-bit data field
     pub fn success_u64(data0: u64) -> Self {
         CommandResult(GenericSyscallReturnValue::SuccessU64(data0))
     }
 
+    /// Successful command with an additional 64-bit and 32-bit data field
     pub fn success_u64_u32(data0: u64, data1: u32) -> Self {
         CommandResult(GenericSyscallReturnValue::SuccessU64U32(data0, data1))
     }
