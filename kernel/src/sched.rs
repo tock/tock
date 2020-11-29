@@ -759,7 +759,8 @@ impl Kernel {
         // decide how to handle the error.
         if syscall != Syscall::YIELD {
             if let Err(response) = platform.filter_syscall(process, &syscall) {
-                process.set_syscall_return_value(GenericSyscallReturnValue::Legacy(response.into()));
+                process
+                    .set_syscall_return_value(GenericSyscallReturnValue::Legacy(response.into()));
 
                 return;
             }
@@ -841,7 +842,9 @@ impl Kernel {
                 } else {
                     // This is where we would generate the correct
                     // return type from a GenericReturnValue
-                    process.set_syscall_return_value(GenericSyscallReturnValue::Legacy(ReturnCode::EINVAL.into()));
+                    process.set_syscall_return_value(GenericSyscallReturnValue::Legacy(
+                        ReturnCode::EINVAL.into(),
+                    ));
                     //process.set_syscall_return_value(SyscallResult::Generic(GenericSyscallReturnValue::FailureU32U32(ErrorCode::INVAL, callback_ptr as u32, app_data as u32));
                 }
             }
@@ -855,8 +858,7 @@ impl Kernel {
                     Some(Ok(d)) => {
                         // Tock 2.0 driver handling
                         GenericSyscallReturnValue::from_command_result(
-                            d.command(subdriver_number, arg0, arg1, process.appid())
-                                //.into_inner(),
+                            d.command(subdriver_number, arg0, arg1, process.appid()), //.into_inner(),
                         )
                     }
                     Some(Err(ld)) => {
@@ -874,7 +876,9 @@ impl Kernel {
                         // 1.0 system call API, hence making system
                         // calls to non-existant drivers from
                         // userspace will break
-                        GenericSyscallReturnValue::from_command_result(CommandResult::failure(ErrorCode::NOSUPPORT))
+                        GenericSyscallReturnValue::from_command_result(CommandResult::failure(
+                            ErrorCode::NOSUPPORT,
+                        ))
                     }
                 });
 
@@ -926,7 +930,9 @@ impl Kernel {
 
                                     // TODO: Check that the driver returned the correct AppSlice!
 
-                                    GenericSyscallReturnValue::from_allow_readwrite_result(driver_res)
+                                    GenericSyscallReturnValue::from_allow_readwrite_result(
+                                        driver_res,
+                                    )
                                 }
                                 Err(err) => {
                                     // TODO: What about NonNull here? How does
@@ -940,11 +946,13 @@ impl Kernel {
                                     let newslice =
                                         AppSlice::new(nnaddr, allow_size, process.appid());
 
-                                    GenericSyscallReturnValue::from_allow_readwrite_result(AllowReadWriteResult::failure(
-                                        newslice,
-                                        ErrorCode::try_from(err)
-                                            .expect("error with success-variant"),
-                                    ))
+                                    GenericSyscallReturnValue::from_allow_readwrite_result(
+                                        AllowReadWriteResult::failure(
+                                            newslice,
+                                            ErrorCode::try_from(err)
+                                                .expect("error with success-variant"),
+                                        ),
+                                    )
                                 }
                             }
                         }
@@ -975,10 +983,9 @@ impl Kernel {
                             // 1.0 system call API, hence making system
                             // calls to non-existant drivers from
                             // userspace will break
-                            GenericSyscallReturnValue::from_allow_readwrite_result(AllowReadWriteResult::failure(
-                                newslice,
-                                ErrorCode::NOSUPPORT,
-                            ))
+                            GenericSyscallReturnValue::from_allow_readwrite_result(
+                                AllowReadWriteResult::failure(newslice, ErrorCode::NOSUPPORT),
+                            )
                         }
                     }
                 });

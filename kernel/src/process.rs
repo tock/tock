@@ -19,7 +19,7 @@ use crate::platform::mpu::{self, MPU};
 use crate::platform::Chip;
 use crate::returncode::ReturnCode;
 use crate::sched::Kernel;
-use crate::syscall::{self, Syscall, GenericSyscallReturnValue, UserspaceKernelBoundary};
+use crate::syscall::{self, GenericSyscallReturnValue, Syscall, UserspaceKernelBoundary};
 use crate::tbfheader;
 use core::cmp::max;
 

@@ -137,7 +137,6 @@ pub enum GenericSyscallReturnValue {
     // values (pointers out of valid memory), the kernel cannot
     // construct an AppSlice or Callback type but needs to be able to
     // return a failure. -pal 11/24/20
- 
     /// Read/Write allow success case
     AllowReadWriteSuccess(*mut u8, usize),
     /// Read/Write allow failure case
@@ -147,7 +146,7 @@ pub enum GenericSyscallReturnValue {
     AllowReadOnlySuccess(*const u8, usize),
     /// Read only allow failure case
     AllowReadOnlyFailure(ErrorCode, *const u8, usize),
-    
+
     /// Subscribe success case
     SubscribeSuccess(*const u8, usize),
     /// Subscribe failure case
@@ -165,25 +164,50 @@ impl GenericSyscallReturnValue {
 
     pub fn from_allow_readwrite_result(res: AllowReadWriteResult) -> Self {
         match res {
-            AllowReadWriteResult::Success(mut slice) => GenericSyscallReturnValue::AllowReadWriteSuccess(slice.as_mut().as_mut_ptr(), slice.len()),
-            AllowReadWriteResult::Failure(mut slice, err) => GenericSyscallReturnValue::AllowReadWriteFailure(err, slice.as_mut().as_mut_ptr(), slice.len())
-
+            AllowReadWriteResult::Success(mut slice) => {
+                GenericSyscallReturnValue::AllowReadWriteSuccess(
+                    slice.as_mut().as_mut_ptr(),
+                    slice.len(),
+                )
+            }
+            AllowReadWriteResult::Failure(mut slice, err) => {
+                GenericSyscallReturnValue::AllowReadWriteFailure(
+                    err,
+                    slice.as_mut().as_mut_ptr(),
+                    slice.len(),
+                )
+            }
         }
     }
-     
+
     pub fn from_allow_readonly_result(res: AllowReadOnlyResult) -> Self {
         match res {
-            AllowReadOnlyResult::Success(slice) => GenericSyscallReturnValue::AllowReadOnlySuccess(slice.as_ref().as_ptr(), slice.len()),
-            AllowReadOnlyResult::Failure(slice, err) => GenericSyscallReturnValue::AllowReadOnlyFailure(err, slice.as_ref().as_ptr(), slice.len())
+            AllowReadOnlyResult::Success(slice) => GenericSyscallReturnValue::AllowReadOnlySuccess(
+                slice.as_ref().as_ptr(),
+                slice.len(),
+            ),
+            AllowReadOnlyResult::Failure(slice, err) => {
+                GenericSyscallReturnValue::AllowReadOnlyFailure(
+                    err,
+                    slice.as_ref().as_ptr(),
+                    slice.len(),
+                )
+            }
         }
     }
 
     pub fn from_subscribe_result(res: SubscribeResult) -> Self {
         match res {
-            SubscribeResult::Success(callback) => GenericSyscallReturnValue::SubscribeSuccess(callback.function_pointer(), callback.appdata() as usize),
-            SubscribeResult::Failure(callback, err) => GenericSyscallReturnValue::SubscribeFailure(err, callback.function_pointer(), callback.appdata() as usize)
+            SubscribeResult::Success(callback) => GenericSyscallReturnValue::SubscribeSuccess(
+                callback.function_pointer(),
+                callback.appdata() as usize,
+            ),
+            SubscribeResult::Failure(callback, err) => GenericSyscallReturnValue::SubscribeFailure(
+                err,
+                callback.function_pointer(),
+                callback.appdata() as usize,
+            ),
         }
-
     }
 
     /// Encode the `command` system call return value into 4 registers
@@ -192,61 +216,55 @@ impl GenericSyscallReturnValue {
     ///
     /// Most architectures will want to use the (generic over all
     /// system call types) [`SyscallReturnValue::encode_syscall_return`] instead.
-    pub fn encode_syscall_return(
-        &self,
-        a0: &mut u32,
-        a1: &mut u32,
-        a2: &mut u32,
-        a3: &mut u32,
-    ) {
+    pub fn encode_syscall_return(&self, a0: &mut u32, a1: &mut u32, a2: &mut u32, a3: &mut u32) {
         match self {
             &GenericSyscallReturnValue::Failure(e) => {
                 *a0 = SyscallReturnVariant::Failure as u32;
                 *a1 = usize::from(e) as u32;
-            },
+            }
             &GenericSyscallReturnValue::FailureU32(e, data0) => {
                 *a0 = SyscallReturnVariant::FailureU32 as u32;
                 *a1 = usize::from(e) as u32;
                 *a2 = data0;
-            },
+            }
             &GenericSyscallReturnValue::FailureU32U32(e, data0, data1) => {
                 *a0 = SyscallReturnVariant::FailureU32U32 as u32;
                 *a1 = usize::from(e) as u32;
                 *a2 = data0;
                 *a3 = data1;
-            },
+            }
             &GenericSyscallReturnValue::FailureU64(e, data0) => {
                 let (data0_msb, data0_lsb) = u64_to_be_u32s(data0);
                 *a0 = SyscallReturnVariant::FailureU64 as u32;
                 *a1 = usize::from(e) as u32;
                 *a2 = data0_lsb;
                 *a3 = data0_msb;
-            },
+            }
             &GenericSyscallReturnValue::Success => {
                 *a0 = SyscallReturnVariant::Success as u32;
-            },
+            }
             &GenericSyscallReturnValue::SuccessU32(data0) => {
                 *a0 = SyscallReturnVariant::SuccessU32 as u32;
                 *a1 = data0;
-            },
+            }
             &GenericSyscallReturnValue::SuccessU32U32(data0, data1) => {
                 *a0 = SyscallReturnVariant::SuccessU32U32 as u32;
                 *a1 = data0;
                 *a2 = data1;
-            },
+            }
             &GenericSyscallReturnValue::SuccessU32U32U32(data0, data1, data2) => {
                 *a0 = SyscallReturnVariant::SuccessU32U32U32 as u32;
                 *a1 = data0;
                 *a2 = data1;
                 *a3 = data2;
-            },
+            }
             &GenericSyscallReturnValue::SuccessU64(data0) => {
                 let (data0_msb, data0_lsb) = u64_to_be_u32s(data0);
 
                 *a0 = SyscallReturnVariant::SuccessU64 as u32;
                 *a1 = data0_lsb;
                 *a2 = data0_msb;
-            },
+            }
             &GenericSyscallReturnValue::SuccessU64U32(data0, data1) => {
                 let (data0_msb, data0_lsb) = u64_to_be_u32s(data0);
 
@@ -254,34 +272,34 @@ impl GenericSyscallReturnValue {
                 *a1 = data0_lsb;
                 *a2 = data0_msb;
                 *a3 = data1;
-            },
+            }
             &GenericSyscallReturnValue::AllowReadWriteSuccess(ptr, len) => {
                 *a0 = SyscallReturnVariant::SuccessU32U32 as u32;
                 *a1 = ptr as u32;
                 *a2 = len as u32;
-            },
+            }
             &GenericSyscallReturnValue::AllowReadWriteFailure(err, ptr, len) => {
                 *a0 = SyscallReturnVariant::FailureU32U32 as u32;
                 *a1 = usize::from(err) as u32;
                 *a2 = ptr as u32;
                 *a3 = len as u32;
-            },
+            }
             &GenericSyscallReturnValue::AllowReadOnlySuccess(ptr, len) => {
                 *a0 = SyscallReturnVariant::SuccessU32U32 as u32;
                 *a1 = ptr as u32;
                 *a2 = len as u32;
-            },
+            }
             &GenericSyscallReturnValue::AllowReadOnlyFailure(err, ptr, len) => {
                 *a0 = SyscallReturnVariant::FailureU32U32 as u32;
                 *a1 = usize::from(err) as u32;
                 *a2 = ptr as u32;
                 *a3 = len as u32;
-            },
+            }
             &GenericSyscallReturnValue::SubscribeSuccess(ptr, data) => {
                 *a0 = SyscallReturnVariant::SuccessU32U32 as u32;
                 *a1 = ptr as u32;
                 *a2 = data as u32;
-            },
+            }
             &GenericSyscallReturnValue::SubscribeFailure(err, ptr, data) => {
                 *a0 = SyscallReturnVariant::FailureU32U32 as u32;
                 *a1 = usize::from(err) as u32;
