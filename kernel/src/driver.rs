@@ -75,7 +75,7 @@ use crate::callback::{AppId, Callback};
 use crate::errorcode::ErrorCode;
 use crate::mem::{AppSlice, SharedReadOnly, SharedReadWrite};
 use crate::returncode::ReturnCode;
-use crate::syscall::{GenericSyscallReturnValue, SyscallReturnVariant};
+use crate::syscall::GenericSyscallReturnValue;
 
 pub enum SubscribeResult {
     Success(Callback),
@@ -91,6 +91,7 @@ impl SubscribeResult {
         SubscribeResult::Failure(new_callback, reason)
     }
 }
+
 impl fmt::Debug for SubscribeResult {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -269,68 +270,6 @@ pub trait Driver {
         slice: AppSlice<SharedReadOnly, u8>,
     ) -> AllowReadOnlyResult {
         AllowReadOnlyResult::failure(slice, ErrorCode::NOSUPPORT)
-    }
-}
-
-impl AllowReadWriteResult {
-    pub fn encode_syscall_return(&self, a0: &mut u32, a1: &mut u32, a2: &mut u32, a3: &mut u32) {
-        match self {
-            AllowReadWriteResult::Success(slice) => {
-                *a0 = SyscallReturnVariant::SuccessU32U32 as u32;
-                *a1 = slice.ptr() as u32;
-                *a2 = slice.len() as u32;
-            }
-            AllowReadWriteResult::Failure(slice, error) => {
-                *a0 = SyscallReturnVariant::FailureU32U32 as u32;
-                *a1 = usize::from(*error) as u32;
-                *a2 = slice.ptr() as u32;
-                *a3 = slice.len() as u32;
-            }
-        }
-    }
-}
-
-impl AllowReadOnlyResult {
-    pub fn encode_syscall_return(&self, a0: &mut u32, a1: &mut u32, a2: &mut u32, a3: &mut u32) {
-        match self {
-            AllowReadOnlyResult::Success(slice) => {
-                *a0 = SyscallReturnVariant::SuccessU32U32 as u32;
-                *a1 = slice.ptr() as u32;
-                *a2 = slice.len() as u32;
-            }
-            AllowReadOnlyResult::Failure(slice, error) => {
-                *a0 = SyscallReturnVariant::FailureU32U32 as u32;
-                *a1 = usize::from(*error) as u32;
-                *a2 = slice.ptr() as u32;
-                *a3 = slice.len() as u32;
-            }
-        }
-    }
-}
-
-impl SubscribeResult {
-    pub fn encode_syscall_return(&self, a0: &mut u32, a1: &mut u32, a2: &mut u32, a3: &mut u32) {
-        match self {
-            SubscribeResult::Success(callback) => {
-                *a0 = SyscallReturnVariant::SuccessU32U32 as u32;
-                *a1 = callback.function_pointer() as u32;
-                *a2 = callback.appdata();
-            }
-            SubscribeResult::Failure(callback, error) => {
-                *a0 = SyscallReturnVariant::FailureU32U32 as u32;
-                *a1 = usize::from(*error) as u32;
-                *a2 = callback.function_pointer() as u32;
-                *a3 = callback.appdata();
-            }
-        }
-    }
-}
-
-impl CommandResult {
-    pub fn encode_syscall_return(&self, a0: &mut u32, a1: &mut u32, a2: &mut u32, a3: &mut u32) {
-        match self {
-            &CommandResult(rv) => rv.encode_syscall_return(a0, a1, a2, a3),
-        }
     }
 }
 
