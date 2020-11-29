@@ -88,7 +88,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         &self,
         stack_pointer: *const usize,
         _state: &mut Self::StoredState,
-        return_value: kernel::syscall::SyscallResult,
+        return_value: kernel::syscall::GenericSyscallReturnValue,
     ) {
         // For the Cortex-M arch, write the return values in the same
         // place that they were originally passed in
