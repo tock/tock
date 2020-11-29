@@ -756,7 +756,7 @@ impl Kernel {
         // immediately (assuming the process has not already
         // exhausted its timeslice) allowing the process to
         // decide how to handle the error.
-        if syscall != Syscall::YIELD {
+        if syscall != Syscall::Yield {
             if let Err(response) = platform.filter_syscall(process, &syscall) {
                 process
                     .set_syscall_return_value(GenericSyscallReturnValue::Legacy(response.into()));
@@ -767,7 +767,7 @@ impl Kernel {
 
         // Handle each of the syscalls.
         match syscall {
-            Syscall::MEMOP { operand, arg0 } => {
+            Syscall::Memop { operand, arg0 } => {
                 let res = memop::memop(process, operand, arg0);
                 if config::CONFIG.trace_syscalls {
                     debug!(
@@ -781,7 +781,7 @@ impl Kernel {
                 }
                 process.set_syscall_return_value(GenericSyscallReturnValue::Legacy(res.into()));
             }
-            Syscall::YIELD => {
+            Syscall::Yield => {
                 if config::CONFIG.trace_syscalls {
                     debug!("[{:?}] yield", process.appid());
                 }
@@ -790,7 +790,7 @@ impl Kernel {
                 // There might be already enqueued callbacks, handle
                 // them in the next loop iteration
             }
-            Syscall::SUBSCRIBE {
+            Syscall::Subscribe {
                 driver_number,
                 subdriver_number,
                 callback_ptr,
@@ -847,7 +847,7 @@ impl Kernel {
                     //process.set_syscall_return_value(SyscallResult::Generic(GenericSyscallReturnValue::FailureU32U32(ErrorCode::INVAL, callback_ptr as u32, app_data as u32));
                 }
             }
-            Syscall::COMMAND {
+            Syscall::Command {
                 driver_number,
                 subdriver_number,
                 arg0,
@@ -894,7 +894,7 @@ impl Kernel {
                 }
                 process.set_syscall_return_value(res);
             }
-            Syscall::ALLOW {
+            Syscall::ReadWriteAllow {
                 driver_number,
                 subdriver_number,
                 allow_address,

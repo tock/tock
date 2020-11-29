@@ -198,9 +198,10 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
             let svc_instr = read_volatile(pcptr.offset(-1));
             let svc_num = (svc_instr & 0xff) as u8;
 
-            // Use the helper function to convert these raw values into a Tock
-            // `Syscall` type.
-            let syscall = kernel::syscall::arguments_to_syscall(svc_num, r0, r1, r2, r3);
+            // Use the default constructor to convert these raw values
+            // into a Tock `Syscall` type.
+            let syscall =
+                kernel::syscall::Syscall::from_register_arguments(svc_num, r0, r1, r2, r3);
 
             match syscall {
                 Some(s) => kernel::syscall::ContextSwitchReason::SyscallFired { syscall: s },
