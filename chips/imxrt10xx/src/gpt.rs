@@ -159,23 +159,35 @@ const GPT2_BASE: StaticRef<GptRegisters> =
 
 pub struct Gpt<'a, S> {
     registers: StaticRef<GptRegisters>,
-    clock: Gpt1Clock,
+    clock: GptClock,
     client: OptionalCell<&'a dyn hil::time::AlarmClient>,
     irqn: u32,
     _selection: core::marker::PhantomData<S>,
 }
 
-pub type Gpt1<'a> = Gpt<'static, _1>;
-pub type Gpt2<'a> = Gpt<'static, _2>;
+pub type Gpt1<'a> = Gpt<'a, _1>;
+pub type Gpt2<'a> = Gpt<'a, _2>;
 
-pub static mut GPT1: Gpt1<'static> = Gpt::new(GPT1_BASE, nvic::GPT1);
-pub static mut GPT2: Gpt2<'static> = Gpt::new(GPT2_BASE, nvic::GPT2);
+pub static mut GPT1: Gpt1<'static> = Gpt::new(
+    GPT1_BASE,
+    nvic::GPT1,
+    ccm::PeripheralClock::CCGR1(ccm::HCLK1::GPT1),
+);
+pub static mut GPT2: Gpt2<'static> = Gpt::new(
+    GPT2_BASE,
+    nvic::GPT2,
+    ccm::PeripheralClock::CCGR0(ccm::HCLK0::GPT2),
+);
 
 impl<'a, S> Gpt<'a, S> {
-    const fn new(registers: StaticRef<GptRegisters>, irqn: u32) -> Self {
+    const fn new(
+        registers: StaticRef<GptRegisters>,
+        irqn: u32,
+        clock_gate: ccm::PeripheralClock,
+    ) -> Self {
         Gpt {
             registers,
-            clock: Gpt1Clock(ccm::PeripheralClock::CCGR1(ccm::HCLK1::GPT1)),
+            clock: GptClock(clock_gate),
             client: OptionalCell::empty(),
             irqn,
             _selection: core::marker::PhantomData,
@@ -387,9 +399,9 @@ impl<'a, F: hil::time::Frequency> hil::time::Alarm<'a> for Gpt<'a, F> {
     }
 }
 
-struct Gpt1Clock(ccm::PeripheralClock);
+struct GptClock(ccm::PeripheralClock);
 
-impl ClockInterface for Gpt1Clock {
+impl ClockInterface for GptClock {
     fn is_enabled(&self) -> bool {
         self.0.is_enabled()
     }

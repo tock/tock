@@ -443,6 +443,21 @@ impl Ccm {
         self.registers.ccgr1.modify(CCGR1::CG11::CLEAR);
     }
 
+    // GPT2 clock
+    pub fn is_enabled_gpt2_clock(&self) -> bool {
+        self.registers.ccgr0.is_set(CCGR0::CG13)
+    }
+
+    pub fn enable_gpt2_clock(&self) {
+        self.registers.ccgr0.modify(CCGR0::CG12.val(0b11 as u32));
+        self.registers.ccgr0.modify(CCGR0::CG13.val(0b11 as u32));
+    }
+
+    pub fn disable_gpt2_clock(&self) {
+        self.registers.ccgr0.modify(CCGR0::CG12::CLEAR);
+        self.registers.ccgr0.modify(CCGR0::CG13::CLEAR);
+    }
+
     // LPI2C1 clock
     pub fn is_enabled_lpi2c1_clock(&self) -> bool {
         self.registers.ccgr2.is_set(CCGR2::CG3)
@@ -563,6 +578,7 @@ pub enum PeripheralClock {
 pub enum HCLK0 {
     GPIO2,
     LPUART2,
+    GPT2,
 }
 
 pub enum HCLK1 {
@@ -605,6 +621,7 @@ impl ClockInterface for PeripheralClock {
         match self {
             &PeripheralClock::CCGR0(ref v) => match v {
                 HCLK0::GPIO2 => unsafe { CCM.is_enabled_gpio2_clock() },
+                HCLK0::GPT2 => unsafe { CCM.is_enabled_gpt2_clock() },
                 HCLK0::LPUART2 => unsafe { CCM.is_enabled_lpuart2_clock() },
             },
             &PeripheralClock::CCGR1(ref v) => match v {
@@ -634,6 +651,9 @@ impl ClockInterface for PeripheralClock {
             &PeripheralClock::CCGR0(ref v) => match v {
                 HCLK0::GPIO2 => unsafe {
                     CCM.enable_gpio2_clock();
+                },
+                HCLK0::GPT2 => unsafe {
+                    CCM.enable_gpt2_clock();
                 },
                 HCLK0::LPUART2 => unsafe {
                     CCM.enable_lpuart2_clock();
@@ -684,6 +704,9 @@ impl ClockInterface for PeripheralClock {
             &PeripheralClock::CCGR0(ref v) => match v {
                 HCLK0::GPIO2 => unsafe {
                     CCM.disable_gpio2_clock();
+                },
+                HCLK0::GPT2 => unsafe {
+                    CCM.disable_gpt2_clock();
                 },
                 HCLK0::LPUART2 => unsafe {
                     CCM.disable_lpuart2_clock();
