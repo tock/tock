@@ -92,22 +92,6 @@ impl SubscribeResult {
     }
 }
 
-impl fmt::Debug for SubscribeResult {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            SubscribeResult::Success(_) => f
-                .debug_tuple("SubscribeResult::Success")
-                .field(&"Callback")
-                .finish(),
-            SubscribeResult::Failure(_, err) => f
-                .debug_tuple("SubscribeResult::Failure")
-                .field(&"Callback")
-                .field(&format_args!("{:?}", err))
-                .finish(),
-        }
-    }
-}
-
 /// Possible return values of a read-write `allow` driver method.
 pub enum AllowReadWriteResult {
     /// The allow operation succeeded and the AppSlice has been stored
@@ -130,22 +114,6 @@ impl AllowReadWriteResult {
 
     pub fn failure(new_appslice: AppSlice<SharedReadWrite, u8>, reason: ErrorCode) -> Self {
         AllowReadWriteResult::Failure(new_appslice, reason)
-    }
-}
-
-impl fmt::Debug for AllowReadWriteResult {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            AllowReadWriteResult::Success(_) => f
-                .debug_tuple("AllowReadWriteResult::Success")
-                .field(&"AppSlice")
-                .finish(),
-            AllowReadWriteResult::Failure(_, err) => f
-                .debug_tuple("AllowReadWriteResult::Failure")
-                .field(&"AppSlice")
-                .field(&format_args!("{:?}", err))
-                .finish(),
-        }
     }
 }
 
