@@ -34,6 +34,7 @@ pub enum SyscallClass {
     Subscribe = 1,
     Command = 2,
     ReadWriteAllow = 3,
+    ReadOnlyAllow = 4,
     Memop = 5,
 }
 
@@ -49,6 +50,7 @@ impl TryFrom<u8> for SyscallClass {
             1 => Ok(SyscallClass::Subscribe),
             2 => Ok(SyscallClass::Command),
             3 => Ok(SyscallClass::ReadWriteAllow),
+            4 => Ok(SyscallClass::ReadOnlyAllow),
             5 => Ok(SyscallClass::Memop),
             i => Err(i),
         }
@@ -92,6 +94,17 @@ pub enum Syscall {
         driver_number: usize,
         subdriver_number: usize,
         allow_address: *mut u8,
+        allow_size: usize,
+    },
+
+    /// Share a memory buffer with the kernel, which the kernel may
+    /// only read from and never write to.
+    ///
+    /// System call class ID 4
+    ReadOnlyAllow {
+        driver_number: usize,
+        subdriver_number: usize,
+        allow_address: *const u8,
         allow_size: usize,
     },
 
@@ -139,6 +152,12 @@ impl Syscall {
                 driver_number: r0,
                 subdriver_number: r1,
                 allow_address: r2 as *mut u8,
+                allow_size: r3,
+            }),
+            Ok(SyscallClass::ReadOnlyAllow) => Some(Syscall::ReadOnlyAllow {
+                driver_number: r0,
+                subdriver_number: r1,
+                allow_address: r2 as *const u8,
                 allow_size: r3,
             }),
             Ok(SyscallClass::Memop) => Some(Syscall::Memop {
