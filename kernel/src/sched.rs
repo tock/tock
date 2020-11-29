@@ -18,11 +18,10 @@ use crate::common::cells::NumericCellExt;
 use crate::common::dynamic_deferred_call::DynamicDeferredCall;
 use crate::config;
 use crate::debug;
-use crate::driver::{AllowReadWriteResult, CommandResult};
+use crate::driver::CommandResult;
 use crate::errorcode::ErrorCode;
 use crate::grant::Grant;
 use crate::ipc;
-use crate::mem::AppSlice;
 use crate::memop;
 use crate::platform::mpu::MPU;
 use crate::platform::scheduler_timer::SchedulerTimer;
@@ -909,6 +908,12 @@ impl Kernel {
                             // TODO: Replace by an appropriate
                             // reimplementation of `allow_readwrite`
                             // for the Tock 2.0 system call interface
+                            //
+                            // This function must check the passed
+                            // pointer & length for validity, whether
+                            // it points to process memory and whether
+                            // it is not already registered with the
+                            // allow-table. It must then construct an AppSlice
                             match process.allow_readwrite(allow_address, allow_size) {
                                 Ok(oslice) => {
                                     // In Tock 2.0 land we don't use
@@ -934,30 +939,16 @@ impl Kernel {
                                         driver_res,
                                     )
                                 }
-                                Err(err) => {
-                                    // TODO: What about NonNull here? How does
-                                    // that play out with the TRD? Is NULL
-                                    // always an invalid address?
-                                    //
-                                    // Panicing here is definitely wrong! But
-                                    // we have to return the passed address
-                                    // and size even if they are invalid.
-                                    let nnaddr = NonNull::new(allow_address).expect("null address");
-                                    let newslice =
-                                        AppSlice::new(nnaddr, allow_size, process.appid());
-
-                                    GenericSyscallReturnValue::from_allow_readwrite_result(
-                                        AllowReadWriteResult::failure(
-                                            newslice,
-                                            ErrorCode::try_from(err)
-                                                .expect("error with success-variant"),
-                                        ),
-                                    )
-                                }
+                                Err(err) => GenericSyscallReturnValue::AllowReadWriteFailure(
+                                    ErrorCode::try_from(err).expect("error with success-variant"),
+                                    allow_address,
+                                    allow_size,
+                                ),
                             }
                         }
                         Some(Err(ld)) => {
                             // Legacy Tock 1.x driver handling
+
                             let rc = match process.allow_readwrite(allow_address, allow_size) {
                                 Ok(oslice) => {
                                     ld.allow_readwrite(process.appid(), subdriver_number, oslice)
@@ -968,27 +959,20 @@ impl Kernel {
                             GenericSyscallReturnValue::Legacy(rc)
                         }
                         None => {
-                            // TODO: What about NonNull here? How does
-                            // that play out with the TRD? Is NULL
-                            // always an invalid address?
-                            //
-                            // Panicing here is definitely wrong! But
-                            // we have to return the passed address
-                            // and size even if they are invalid.
-                            let nnaddr = NonNull::new(allow_address).expect("null address");
-                            let newslice = AppSlice::new(nnaddr, allow_size, process.appid());
-
                             // System call transition note: This does not
                             // match the expected error code for the Tock
                             // 1.0 system call API, hence making system
                             // calls to non-existant drivers from
                             // userspace will break
-                            GenericSyscallReturnValue::from_allow_readwrite_result(
-                                AllowReadWriteResult::failure(newslice, ErrorCode::NOSUPPORT),
+                            GenericSyscallReturnValue::AllowReadWriteFailure(
+                                ErrorCode::NOSUPPORT,
+                                allow_address,
+                                allow_size,
                             )
                         }
                     }
                 });
+
                 if config::CONFIG.trace_syscalls {
                     debug!(
                         "[{:?}] allow({:#x}, {}, @{:#x}, {:#x}) = {:?}",
