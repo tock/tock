@@ -223,10 +223,10 @@ The 6 classes are:
 | Command          |        2         |
 | Read-Write Allow |        3         |
 | Read-Only Allow  |        4         | 
-| Memory           |        5         |
+| Memop            |        5         |
 
 All of the system call classes except Yield are non-blocking. When a userspace
-process calls a Subscribe, Command, Allow, Read-Only Allow, or Memory syscall,
+process calls a Subscribe, Command, Allow, Read-Only Allow, or Memop syscall,
 the kernel will not put it on a wait queue. Instead, it will return immediately
 upon completion. The kernel scheduler may decide to suspect the process due to
 a timeslice expiration or the kernel thread being runnable, but the system calls
