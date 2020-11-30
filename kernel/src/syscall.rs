@@ -237,19 +237,32 @@ impl GenericSyscallReturnValue {
                 *a2 = len as u32;
             },
             &GenericSyscallReturnValue::AllowReadWriteFailure(err, ptr, len) => {
-
+                *a0 = SyscallReturnVariant::FailureU32U32 as u32;
+                *a1 = usize::from(err) as u32;
+                *a2 = ptr as u32;
+                *a3 = len as u32;
             },
             &GenericSyscallReturnValue::AllowReadOnlySuccess(ptr, len) => {
-
+                *a0 = SyscallReturnVariant::SuccessU32U32 as u32;
+                *a1 = ptr as u32;
+                *a2 = len as u32;
             },
             &GenericSyscallReturnValue::AllowReadOnlyFailure(err, ptr, len) => {
-
+                *a0 = SyscallReturnVariant::FailureU32U32 as u32;
+                *a1 = usize::from(err) as u32;
+                *a2 = ptr as u32;
+                *a3 = len as u32;
             },
             &GenericSyscallReturnValue::SubscribeSuccess(ptr, data) => {
-                
+                *a0 = SyscallReturnVariant::SuccessU32U32 as u32;
+                *a1 = ptr as u32;
+                *a2 = data as u32;
             },
             &GenericSyscallReturnValue::SubscribeFailure(err, ptr, data) => {
-
+                *a0 = SyscallReturnVariant::FailureU32U32 as u32;
+                *a1 = usize::from(err) as u32;
+                *a2 = ptr as u32;
+                *a3 = data as u32;
             }
         }
     }
