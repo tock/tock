@@ -69,8 +69,6 @@
 //! kernel (the scheduler and syscall dispatcher) is responsible for
 //! encoding these types into the Tock system call ABI specification.
 
-use core::fmt;
-
 use crate::callback::{AppId, Callback};
 use crate::errorcode::ErrorCode;
 use crate::mem::{AppSlice, SharedReadOnly, SharedReadWrite};
@@ -139,22 +137,6 @@ impl AllowReadOnlyResult {
 
     pub fn failure(new_appslice: AppSlice<SharedReadOnly, u8>, reason: ErrorCode) -> Self {
         AllowReadOnlyResult::Failure(new_appslice, reason)
-    }
-}
-
-impl fmt::Debug for AllowReadOnlyResult {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            AllowReadOnlyResult::Success(_) => f
-                .debug_tuple("AllowReadOnlyResult::Success")
-                .field(&"AppSlice")
-                .finish(),
-            AllowReadOnlyResult::Failure(_, err) => f
-                .debug_tuple("AllowReadOnlyResult::Failure")
-                .field(&"AppSlice")
-                .field(&format_args!("{:?}", err))
-                .finish(),
-        }
     }
 }
 
