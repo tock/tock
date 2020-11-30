@@ -369,6 +369,11 @@ pub unsafe fn reset_handler() {
     //     dynamic_deferred_caller,
     //     &nrf52840_peripherals.nrf52.nvmc,
     // );
+    // test::log_test::run(
+    //     mux_alarm,
+    //     dynamic_deferred_caller,
+    //     &nrf52840_peripherals.nrf52.nvmc,
+    // );
 
     debug!("Initialization complete. Entering main loop.");
 
