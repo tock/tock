@@ -245,7 +245,7 @@ debug-lst:  $(TARGET_PATH)/debug/$(PLATFORM).lst
 doc: | target
 	@# This mess is all to work around rustdoc giving no way to return an
 	@# error if there are warnings. This effectively simulates that.
-	$(Q)RUSTDOCFLAGS='-Z unstable-options --document-hidden-items -D warnings' $(CARGO) --color=always doc $(VERBOSE) --release --package $(PLATFORM) --target-dir=$(TARGET_DIRECTORY) 2>&1 | tee $$(if [ -c /dev/tty ]; then echo /dev/tty; else echo /dev/null; fi) | grep -q warning && (echo "Warnings detected during doc build" && if [[ $$CI == "true" ]]; then echo "Erroring due to CI context" && exit 33; fi) || if [ $$? -eq 33 ]; then exit 1; fi
+	$(Q)RUSTDOCFLAGS='-Z unstable-options --document-hidden-items -D warnings' $(CARGO) --color=always doc $(VERBOSE) --release --package $(PLATFORM) --target-dir=$(TARGET_DIRECTORY) 2>&1 | tee $$(if [ -e /dev/tty ]; then echo /dev/tty; else echo /dev/null; fi) | grep -q warning && (echo "Warnings detected during doc build" && if [[ $$CI == "true" ]]; then echo "Erroring due to CI context" && exit 33; fi) || if [ $$? -eq 33 ]; then exit 1; fi
 
 
 .PHONY: lst
