@@ -6,10 +6,16 @@
 //! writes once it is full. For testing all of the general capabilities of the log storage
 //! interface, see log_test.rs.
 //!
-//! To run the test, add the following line to the imix boot sequence:
+//! To run the test, uncomment the following line to the nano33ble boot sequence:
+//!
+//! ```rust
+//! test::linear_log_test::run(
+//!     mux_alarm,
+//!     dynamic_deferred_caller,
+//!     &nrf52840_peripherals.nrf52.nvmc,
+//! );
 //! ```
-//!     test::linear_log_test::run(mux_alarm, dynamic_deferred_caller);
-//! ```
+//!
 //! and use the `USER` and `RESET` buttons to manually erase the log and reboot the imix,
 //! respectively.
 
