@@ -91,7 +91,7 @@ impl Platform for Hail {
             capsules::nrf51822_serialization::DRIVER_NUM => f(Some(Err(self.nrf51822))),
             capsules::ambient_light::DRIVER_NUM => f(Some(Err(self.ambient_light))),
             capsules::adc::DRIVER_NUM => f(Some(Err(self.adc))),
-            capsules::led::DRIVER_NUM => f(Some(Err(self.led))),
+            capsules::led::DRIVER_NUM => f(Some(Ok(self.led))),
             capsules::button::DRIVER_NUM => f(Some(Err(self.button))),
             capsules::humidity::DRIVER_NUM => f(Some(Err(self.humidity))),
             capsules::temperature::DRIVER_NUM => f(Some(Err(self.temp))),

@@ -168,7 +168,7 @@ impl kernel::Platform for Platform {
             capsules::console::DRIVER_NUM => f(Some(Err(self.console))),
             capsules::gpio::DRIVER_NUM => f(Some(Err(self.gpio))),
             capsules::alarm::DRIVER_NUM => f(Some(Err(self.alarm))),
-            capsules::led::DRIVER_NUM => f(Some(Err(self.led))),
+            capsules::led::DRIVER_NUM => f(Some(Ok(self.led))),
             capsules::button::DRIVER_NUM => f(Some(Err(self.button))),
             capsules::rng::DRIVER_NUM => f(Some(Err(self.rng))),
             capsules::ble_advertising_driver::DRIVER_NUM => f(Some(Err(self.ble_radio))),

@@ -112,12 +112,11 @@ mod sched;
 mod tbfheader;
 
 pub use crate::callback::{AppId, Callback};
-pub use crate::driver::{
-    AllowReadOnlyResult, AllowReadWriteResult, CommandResult, Driver, LegacyDriver,
-};
+pub use crate::driver::{CommandResult, Driver, LegacyDriver};
 pub use crate::errorcode::ErrorCode;
 pub use crate::grant::Grant;
-pub use crate::mem::{AppSlice, Private, Read, ReadWrite, SharedReadOnly, SharedReadWrite};
+pub use crate::mem::legacy::{AppSlice, SharedReadWrite};
+pub use crate::mem::{Read, ReadOnlyAppSlice, ReadWrite, ReadWriteAppSlice};
 pub use crate::platform::scheduler_timer::{SchedulerTimer, VirtualSchedulerTimer};
 pub use crate::platform::watchdog;
 pub use crate::platform::{mpu, Chip, InterruptService, Platform};

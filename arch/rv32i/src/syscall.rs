@@ -76,7 +76,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         &self,
         _stack_pointer: *const usize,
         state: &mut Self::StoredState,
-        return_value: kernel::syscall::SyscallResult,
+        return_value: kernel::syscall::GenericSyscallReturnValue,
     ) {
         // Just need to put the return value in the a0 register for when the
         // process resumes executing.
@@ -352,13 +352,14 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
                         // instruction. The hardware does not do this for us.
                         state.pc += 4;
 
-                        let syscall = kernel::syscall::arguments_to_syscall(
+                        let syscall = kernel::syscall::Syscall::from_register_arguments(
                             state.regs[R_A4] as u8,
                             state.regs[R_A0],
                             state.regs[R_A1],
                             state.regs[R_A2],
                             state.regs[R_A3],
                         );
+
                         match syscall {
                             Some(s) => ContextSwitchReason::SyscallFired { syscall: s },
                             None => ContextSwitchReason::Fault,
