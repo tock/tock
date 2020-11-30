@@ -52,7 +52,7 @@
 
 use kernel::common::cells::TakeCell;
 use kernel::hil::led;
-use kernel::{AppId, LegacyDriver, ReturnCode};
+use kernel::{AppId, CommandResult, Driver, ErrorCode};
 
 /// Syscall driver number.
 use crate::driver;
@@ -78,7 +78,7 @@ impl<'a, L: led::Led> LedDriver<'a, L> {
     }
 }
 
-impl<L: led::Led> LegacyDriver for LedDriver<'_, L> {
+impl<L: led::Led> Driver for LedDriver<'_, L> {
     /// Control the LEDs.
     ///
     /// ### `command_num`
@@ -91,47 +91,44 @@ impl<L: led::Led> LegacyDriver for LedDriver<'_, L> {
     ///        if the LED index is not valid.
     /// - `3`: Toggle the LED at index specified by `data` on or off. Returns
     ///        `EINVAL` if the LED index is not valid.
-    fn command(&self, command_num: usize, data: usize, _: usize, _: AppId) -> ReturnCode {
+    fn command(&self, command_num: usize, data: usize, _: usize, _: AppId) -> CommandResult {
         self.leds
             .map(|leds| {
                 match command_num {
                     // get number of LEDs
-                    0 => ReturnCode::SuccessWithValue {
-                        value: leds.len() as usize,
-                    },
-
+                    0 => CommandResult::success_u32(leds.len() as u32),
                     // on
                     1 => {
                         if data >= leds.len() {
-                            ReturnCode::EINVAL /* led out of range */
+                            CommandResult::failure(ErrorCode::INVAL) /* led out of range */
                         } else {
                             leds[data].on();
-                            ReturnCode::SUCCESS
+                            CommandResult::success()
                         }
-                    }
+                    },
 
                     // off
                     2 => {
                         if data >= leds.len() {
-                            ReturnCode::EINVAL /* led out of range */
+                            CommandResult::failure(ErrorCode::INVAL) /* led out of range */
                         } else {
                             leds[data].off();
-                            ReturnCode::SUCCESS
+                            CommandResult::success()
                         }
-                    }
+                    },
 
                     // toggle
                     3 => {
                         if data >= leds.len() {
-                            ReturnCode::EINVAL /* led out of range */
+                            CommandResult::failure(ErrorCode::INVAL) /* led out of range */
                         } else {
                             leds[data].toggle();
-                            ReturnCode::SUCCESS
+                            CommandResult::success()
                         }
-                    }
+                    },
 
                     // default
-                    _ => ReturnCode::ENOSUPPORT,
+                    _ => CommandResult::failure(ErrorCode::NOSUPPORT),
                 }
             })
             .expect("LEDs slice taken")

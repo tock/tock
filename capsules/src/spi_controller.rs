@@ -65,35 +65,24 @@ impl<'a, S: SpiMasterDevice> Spi<'a, S> {
 
     // Assumes checks for busy/etc. already done
     // Updates app.index to be index + length of op
-    fn do_next_read_write(&self, app: &mut App) -> bool {
+    fn do_next_read_write(&self, app: &mut App) {
         let start = app.index;
         let len = cmp::min(app.len - start, self.kernel_len.get());
         let end = start + len;
         app.index = end;
 
-        let count = self.kernel_write.map_or(0, |kwbuf| {
-            app.app_write.as_mut().map_or(0, |src| {
-                src.readonly_map_or(0, |buf| {
-                    let mut rval = 0;
-                    for (i, c) in buf[start..end].iter().enumerate() {
-                        kwbuf[i] = *c;
-                        rval = i + 1;
-                    }
-                    rval
-                })
-            })
+        self.kernel_write.map(|kwbuf| {
+            app.app_write.as_mut().map(|src| {
+                for (i, c) in src.as_ref()[start..end].iter().enumerate() {
+                    kwbuf[i] = *c;
+                }
+            });
         });
-
-        if count > 0 {
-            self.spi_master.read_write_bytes(
-                self.kernel_write.take().unwrap(),
-                self.kernel_read.take(),
-                len,
-            );
-            true
-        } else {
-            false
-        }
+        self.spi_master.read_write_bytes(
+            self.kernel_write.take().unwrap(),
+            self.kernel_read.take(),
+            len,
+        );
     }
 }
 
@@ -196,12 +185,9 @@ impl<'a, S: SpiMasterDevice> LegacyDriver for Spi<'a, S> {
                     if mlen >= arg1 {
                         app.len = arg1;
                         app.index = 0;
-                        if self.do_next_read_write(app) {
-                            self.busy.set(true);
-                            ReturnCode::SUCCESS
-                        } else {
-                            ReturnCode::ENOMEM
-                        }
+                        self.busy.set(true);
+                        self.do_next_read_write(app);
+                        ReturnCode::SUCCESS
                     } else {
                         ReturnCode::EINVAL /* write buffer too small */
                     }
@@ -273,17 +259,15 @@ impl<S: SpiMasterDevice> SpiMasterClient for Spi<'_, S> {
             self.kernel_read.put(readbuf);
             self.kernel_write.replace(writebuf);
 
-            let mut busy = false;
-            if app.index != app.len {
-                busy = self.do_next_read_write(app);
-            }
-            if !busy {
+            if app.index == app.len {
                 self.busy.set(false);
                 app.len = 0;
                 app.index = 0;
                 app.callback.take().map(|mut cb| {
                     cb.schedule(app.len, 0, 0);
                 });
+            } else {
+                self.do_next_read_write(app);
             }
         });
     }

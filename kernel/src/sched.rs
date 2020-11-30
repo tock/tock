@@ -9,7 +9,6 @@ pub(crate) mod priority;
 pub(crate) mod round_robin;
 
 use core::cell::Cell;
-use core::convert::TryFrom;
 use core::ptr::NonNull;
 
 use crate::callback::{AppId, Callback, CallbackId};
@@ -18,11 +17,10 @@ use crate::common::cells::NumericCellExt;
 use crate::common::dynamic_deferred_call::DynamicDeferredCall;
 use crate::config;
 use crate::debug;
-use crate::driver::AllowReadWriteResult;
+use crate::driver::CommandResult;
 use crate::errorcode::ErrorCode;
 use crate::grant::Grant;
 use crate::ipc;
-use crate::mem::AppSlice;
 use crate::memop;
 use crate::platform::mpu::MPU;
 use crate::platform::scheduler_timer::SchedulerTimer;
@@ -30,7 +28,7 @@ use crate::platform::watchdog::WatchDog;
 use crate::platform::{Chip, Platform};
 use crate::process::{self, Task};
 use crate::returncode::ReturnCode;
-use crate::syscall::{ContextSwitchReason, GenericSyscallReturnValue, Syscall, SyscallResult};
+use crate::syscall::{ContextSwitchReason, GenericSyscallReturnValue, Syscall};
 
 /// Threshold in microseconds to consider a process's timeslice to be exhausted.
 /// That is, Tock will skip re-scheduling a process if its remaining timeslice
@@ -177,7 +175,9 @@ impl Kernel {
         Kernel {
             work: Cell::new(0),
             processes,
-            process_identifier_max: Cell::new(0),
+            // Process identifier 0 is reserved for a dummy ProcessId
+            // (used in default AppSlices and Callbacks)
+            process_identifier_max: Cell::new(1),
             grant_counter: Cell::new(0),
             grants_finalized: Cell::new(false),
         }
@@ -757,9 +757,10 @@ impl Kernel {
         // immediately (assuming the process has not already
         // exhausted its timeslice) allowing the process to
         // decide how to handle the error.
-        if syscall != Syscall::YIELD {
+        if syscall != Syscall::Yield {
             if let Err(response) = platform.filter_syscall(process, &syscall) {
-                process.set_syscall_return_value(SyscallResult::Legacy(response.into()));
+                process
+                    .set_syscall_return_value(GenericSyscallReturnValue::Legacy(response.into()));
 
                 return;
             }
@@ -767,7 +768,7 @@ impl Kernel {
 
         // Handle each of the syscalls.
         match syscall {
-            Syscall::MEMOP { operand, arg0 } => {
+            Syscall::Memop { operand, arg0 } => {
                 let res = memop::memop(process, operand, arg0);
                 if config::CONFIG.trace_syscalls {
                     debug!(
@@ -779,9 +780,9 @@ impl Kernel {
                         res
                     );
                 }
-                process.set_syscall_return_value(SyscallResult::Legacy(res.into()));
+                process.set_syscall_return_value(GenericSyscallReturnValue::Legacy(res.into()));
             }
-            Syscall::YIELD => {
+            Syscall::Yield => {
                 if config::CONFIG.trace_syscalls {
                     debug!("[{:?}] yield", process.appid());
                 }
@@ -790,7 +791,7 @@ impl Kernel {
                 // There might be already enqueued callbacks, handle
                 // them in the next loop iteration
             }
-            Syscall::SUBSCRIBE {
+            Syscall::Subscribe {
                 driver_number,
                 subdriver_number,
                 callback_ptr,
@@ -815,13 +816,13 @@ impl Kernel {
                 let res = platform.with_driver(driver_number, |driver| match driver {
                     Some(Ok(_)) => {
                         // Tock 2.0 driver handling
-                        ReturnCode::ENODEVICE
+                        ReturnCode::ENOSUPPORT
                     }
                     Some(Err(d)) => {
                         // Legacy Tock 1.x driver handling
                         d.subscribe(subdriver_number, callback, process.appid())
                     }
-                    None => ReturnCode::ENODEVICE,
+                    None => ReturnCode::ENOSUPPORT,
                 });
                 if config::CONFIG.trace_syscalls {
                     debug!(
@@ -837,15 +838,17 @@ impl Kernel {
                 }
 
                 if callback.is_some() {
-                    process.set_syscall_return_value(SyscallResult::Legacy(res.into()));
+                    process.set_syscall_return_value(GenericSyscallReturnValue::Legacy(res.into()));
                 } else {
                     // This is where we would generate the correct
                     // return type from a GenericReturnValue
-                    process.set_syscall_return_value(SyscallResult::Legacy(ReturnCode::EINVAL.into()));
+                    process.set_syscall_return_value(GenericSyscallReturnValue::Legacy(
+                        ReturnCode::EINVAL.into(),
+                    ));
                     //process.set_syscall_return_value(SyscallResult::Generic(GenericSyscallReturnValue::FailureU32U32(ErrorCode::INVAL, callback_ptr as u32, app_data as u32));
                 }
             }
-            Syscall::COMMAND {
+            Syscall::Command {
                 driver_number,
                 subdriver_number,
                 arg0,
@@ -854,14 +857,16 @@ impl Kernel {
                 let res = platform.with_driver(driver_number, |driver| match driver {
                     Some(Ok(d)) => {
                         // Tock 2.0 driver handling
-                        SyscallResult::Command(
-                            d.command(subdriver_number, arg0, arg1, process.appid())
-                                .into_inner(),
-                        )
+                        GenericSyscallReturnValue::from_command_result(d.command(
+                            subdriver_number,
+                            arg0,
+                            arg1,
+                            process.appid(),
+                        ))
                     }
                     Some(Err(ld)) => {
                         // Legacy Tock 1.x driver handling
-                        SyscallResult::Legacy(ld.command(
+                        GenericSyscallReturnValue::Legacy(ld.command(
                             subdriver_number,
                             arg0,
                             arg1,
@@ -874,7 +879,7 @@ impl Kernel {
                         // 1.0 system call API, hence making system
                         // calls to non-existant drivers from
                         // userspace will break
-                        SyscallResult::Command(GenericSyscallReturnValue::Failure(
+                        GenericSyscallReturnValue::from_command_result(CommandResult::failure(
                             ErrorCode::NOSUPPORT,
                         ))
                     }
@@ -893,7 +898,7 @@ impl Kernel {
                 }
                 process.set_syscall_return_value(res);
             }
-            Syscall::ALLOW {
+            Syscall::ReadWriteAllow {
                 driver_number,
                 subdriver_number,
                 allow_address,
@@ -902,91 +907,41 @@ impl Kernel {
                 let res = platform.with_driver(driver_number, |driver| {
                     match driver {
                         Some(Ok(d)) => {
-                            // Tock 2.0 driver handling
-
-                            // TODO: Replace by an appropriate
-                            // reimplementation of `allow_readwrite`
-                            // for the Tock 2.0 system call interface
-                            match process.allow_readwrite(allow_address, allow_size) {
-                                Ok(oslice) => {
-                                    // In Tock 2.0 land we don't use
-                                    // buffers with address 0 to
-                                    // unallow, hence call expect
-                                    // here. This should really use a
-                                    // reimplementation of
-                                    // allow_readwrite, where this
-                                    // can't happen
-                                    let oslice = oslice.expect("Tock 2.0 allow with 0x0 address");
-
-                                    // TODO: Check for buffer aliasing here!
-
-                                    let driver_res = d.allow_readwrite(
-                                        process.appid(),
-                                        subdriver_number,
-                                        oslice,
-                                    );
-
-                                    // TODO: Check that the driver returned the correct AppSlice!
-
-                                    SyscallResult::AllowReadWrite(driver_res)
-                                }
-                                Err(err) => {
-                                    // TODO: What about NonNull here? How does
-                                    // that play out with the TRD? Is NULL
-                                    // always an invalid address?
-                                    //
-                                    // Panicing here is definitely wrong! But
-                                    // we have to return the passed address
-                                    // and size even if they are invalid.
-                                    let nnaddr = NonNull::new(allow_address).expect("null address");
-                                    let newslice =
-                                        AppSlice::new(nnaddr, allow_size, process.appid());
-
-                                    SyscallResult::AllowReadWrite(AllowReadWriteResult::failure(
-                                        newslice,
-                                        ErrorCode::try_from(err)
-                                            .expect("error with success-variant"),
-                                    ))
-                                }
-                            }
+                            // Tock 2.0 driver
+                            process.allow_readwrite(allow_address, allow_size, &|appslice| {
+                                d.allow_readwrite(process.appid(), subdriver_number, appslice)
+                            })
                         }
                         Some(Err(ld)) => {
                             // Legacy Tock 1.x driver handling
-                            let rc = match process.allow_readwrite(allow_address, allow_size) {
+                            let rc = match process.legacy_allow_readwrite(allow_address, allow_size)
+                            {
                                 Ok(oslice) => {
                                     ld.allow_readwrite(process.appid(), subdriver_number, oslice)
                                 }
                                 Err(err) => err, /* memory not valid */
                             };
 
-                            SyscallResult::Legacy(rc)
+                            GenericSyscallReturnValue::Legacy(rc)
                         }
                         None => {
-                            // TODO: What about NonNull here? How does
-                            // that play out with the TRD? Is NULL
-                            // always an invalid address?
-                            //
-                            // Panicing here is definitely wrong! But
-                            // we have to return the passed address
-                            // and size even if they are invalid.
-                            let nnaddr = NonNull::new(allow_address).expect("null address");
-                            let newslice = AppSlice::new(nnaddr, allow_size, process.appid());
-
-                            // System call transition note: This does not
-                            // match the expected error code for the Tock
-                            // 1.0 system call API, hence making system
-                            // calls to non-existant drivers from
-                            // userspace will break
-                            SyscallResult::AllowReadWrite(AllowReadWriteResult::failure(
-                                newslice,
+                            // System call transition note: This does
+                            // not match the expected error code for
+                            // the Tock 1.0 system call API, hence
+                            // making system calls to non-existant
+                            // drivers from userspace will break
+                            GenericSyscallReturnValue::AllowReadWriteFailure(
                                 ErrorCode::NOSUPPORT,
-                            ))
+                                allow_address,
+                                allow_size,
+                            )
                         }
                     }
                 });
+
                 if config::CONFIG.trace_syscalls {
                     debug!(
-                        "[{:?}] allow({:#x}, {}, @{:#x}, {:#x}) = {:?}",
+                        "[{:?}] read-write allow({:#x}, {}, @{:#x}, {:#x}) = {:?}",
                         process.appid(),
                         driver_number,
                         subdriver_number,
@@ -995,6 +950,60 @@ impl Kernel {
                         res
                     );
                 }
+                process.set_syscall_return_value(res);
+            }
+            Syscall::ReadOnlyAllow {
+                driver_number,
+                subdriver_number,
+                allow_address,
+                allow_size,
+            } => {
+                // This system call is not present in the Tock 1.x
+                // legacy system call interface, return NOSUPPORT in
+                // case of a Tock 1.x driver
+                let res = platform.with_driver(driver_number, |driver| {
+                    match driver {
+                        Some(Err(_ld)) => {
+                            // Tock 1.x legacy driver
+                            GenericSyscallReturnValue::AllowReadOnlyFailure(
+                                ErrorCode::NOSUPPORT,
+                                allow_address,
+                                allow_size,
+                            )
+                        }
+                        Some(Ok(d)) => {
+                            // Tock 2.0 driver
+                            process.allow_readonly(allow_address, allow_size, &|appslice| {
+                                d.allow_readonly(process.appid(), subdriver_number, appslice)
+                            })
+                        }
+                        None => {
+                            // System call transition note: This does
+                            // not match the expected error code for
+                            // the Tock 1.0 system call API, hence
+                            // making system calls to non-existant
+                            // drivers from userspace will break
+                            GenericSyscallReturnValue::AllowReadOnlyFailure(
+                                ErrorCode::NOSUPPORT,
+                                allow_address,
+                                allow_size,
+                            )
+                        }
+                    }
+                });
+
+                if config::CONFIG.trace_syscalls {
+                    debug!(
+                        "[{:?}] read-only allow({:#x}, {}, @{:#x}, {:#x}) = {:?}",
+                        process.appid(),
+                        driver_number,
+                        subdriver_number,
+                        allow_address as usize,
+                        allow_size,
+                        res
+                    );
+                }
+
                 process.set_syscall_return_value(res);
             }
         }

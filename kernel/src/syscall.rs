@@ -1,13 +1,177 @@
 //! Tock syscall number definitions and arch-agnostic interface trait.
 
+use core::convert::TryFrom;
 use core::fmt::Write;
 
-use crate::driver::{AllowReadOnlyResult, AllowReadWriteResult, CommandResult, SubscribeResult};
+use crate::driver::CommandResult;
 use crate::errorcode::ErrorCode;
 use crate::process;
 use crate::returncode::ReturnCode;
 
-/// Enumeration over the possible system call return type variants
+/// Helper function to split a u64 into a higher and lower u32
+///
+/// Used in encoding 64-bit wide system call return values on 32-bit
+/// platforms.
+#[inline]
+fn u64_to_be_u32s(src: u64) -> (u32, u32) {
+    let src_bytes = src.to_be_bytes();
+    let src_msb = u32::from_be_bytes([src_bytes[0], src_bytes[1], src_bytes[2], src_bytes[3]]);
+    let src_lsb = u32::from_be_bytes([src_bytes[4], src_bytes[5], src_bytes[6], src_bytes[7]]);
+
+    (src_msb, src_lsb)
+}
+
+// ---------- SYSTEMCALL ARGUMENT DECODING ----------
+
+/// Enumeration over the possible system call classes
+///
+/// Each system call class is associated with the respective ID for
+/// encoding a system call in registers.
+#[repr(u8)]
+#[derive(Copy, Clone, Debug)]
+pub enum SyscallClass {
+    Yield = 0,
+    Subscribe = 1,
+    Command = 2,
+    ReadWriteAllow = 3,
+    ReadOnlyAllow = 4,
+    Memop = 5,
+}
+
+// Required as long as no solution to
+// https://github.com/rust-lang/rfcs/issues/2783 is integrated into
+// the standard library
+impl TryFrom<u8> for SyscallClass {
+    type Error = u8;
+
+    fn try_from(syscall_class_id: u8) -> Result<SyscallClass, u8> {
+        match syscall_class_id {
+            0 => Ok(SyscallClass::Yield),
+            1 => Ok(SyscallClass::Subscribe),
+            2 => Ok(SyscallClass::Command),
+            3 => Ok(SyscallClass::ReadWriteAllow),
+            4 => Ok(SyscallClass::ReadOnlyAllow),
+            5 => Ok(SyscallClass::Memop),
+            i => Err(i),
+        }
+    }
+}
+
+/// Decoded system calls
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub enum Syscall {
+    /// Return to the kernel to allow other processes to execute or to wait for
+    /// interrupts and callbacks.
+    ///
+    /// System call class ID 0
+    Yield,
+
+    /// Pass a callback function to the kernel.
+    ///
+    /// System call class ID 1
+    Subscribe {
+        driver_number: usize,
+        subdriver_number: usize,
+        callback_ptr: *mut (),
+        appdata: usize,
+    },
+
+    /// Instruct the kernel or a capsule to perform an operation.
+    ///
+    /// System call class ID 2
+    Command {
+        driver_number: usize,
+        subdriver_number: usize,
+        arg0: usize,
+        arg1: usize,
+    },
+
+    /// Share a memory buffer with the kernel, which the kernel may
+    /// read from and write to.
+    ///
+    /// System call class ID 3
+    ReadWriteAllow {
+        driver_number: usize,
+        subdriver_number: usize,
+        allow_address: *mut u8,
+        allow_size: usize,
+    },
+
+    /// Share a memory buffer with the kernel, which the kernel may
+    /// only read from and never write to.
+    ///
+    /// System call class ID 4
+    ReadOnlyAllow {
+        driver_number: usize,
+        subdriver_number: usize,
+        allow_address: *const u8,
+        allow_size: usize,
+    },
+
+    /// Various memory operations.
+    ///
+    /// System call class ID 5
+    Memop { operand: usize, arg0: usize },
+}
+
+impl Syscall {
+    /// Helper function for converting raw values passed back from an application
+    /// into a `Syscall` type in Tock.
+    ///
+    /// Different architectures may have different mechanisms for passing
+    /// information about what syscall an app called, but they will have have to
+    /// convert the series of raw values into a more useful Rust type. While
+    /// implementations are free to do this themselves, this provides a generic
+    /// helper function which should help reduce duplicated code.
+    ///
+    /// The mappings between raw `syscall_number` values and the associated syscall
+    /// type are specified and fixed by Tock. After that, this function only
+    /// converts raw values to more meaningful types based on the syscall.
+    pub fn from_register_arguments(
+        syscall_number: u8,
+        r0: usize,
+        r1: usize,
+        r2: usize,
+        r3: usize,
+    ) -> Option<Self> {
+        match SyscallClass::try_from(syscall_number) {
+            Ok(SyscallClass::Yield) => Some(Syscall::Yield),
+            Ok(SyscallClass::Subscribe) => Some(Syscall::Subscribe {
+                driver_number: r0,
+                subdriver_number: r1,
+                callback_ptr: r2 as *mut (),
+                appdata: r3,
+            }),
+            Ok(SyscallClass::Command) => Some(Syscall::Command {
+                driver_number: r0,
+                subdriver_number: r1,
+                arg0: r2,
+                arg1: r3,
+            }),
+            Ok(SyscallClass::ReadWriteAllow) => Some(Syscall::ReadWriteAllow {
+                driver_number: r0,
+                subdriver_number: r1,
+                allow_address: r2 as *mut u8,
+                allow_size: r3,
+            }),
+            Ok(SyscallClass::ReadOnlyAllow) => Some(Syscall::ReadOnlyAllow {
+                driver_number: r0,
+                subdriver_number: r1,
+                allow_address: r2 as *const u8,
+                allow_size: r3,
+            }),
+            Ok(SyscallClass::Memop) => Some(Syscall::Memop {
+                operand: r0,
+                arg0: r1,
+            }),
+            Err(_) => None,
+        }
+    }
+}
+
+// ---------- SYSCALL RETURN VALUE ENCODING ----------
+
+/// Enumeration over the possible system call return type variants.
 ///
 /// Each variant is associated with the respective variant identifier
 /// that would be passed along with the return value to userspace.
@@ -26,82 +190,21 @@ pub enum SyscallReturnVariant {
     SuccessU64U32 = 133,
 }
 
-#[inline]
-fn u64_to_be_u32s(src: u64) -> (u32, u32) {
-    let src_bytes = src.to_be_bytes();
-    let src_msb = u32::from_be_bytes([src_bytes[0], src_bytes[1], src_bytes[2], src_bytes[3]]);
-    let src_lsb = u32::from_be_bytes([src_bytes[4], src_bytes[5], src_bytes[6], src_bytes[7]]);
-
-    (src_msb, src_lsb)
-}
-
-/// The syscall number assignments.
-#[derive(Copy, Clone, Debug, PartialEq)]
-pub enum Syscall {
-    /// Return to the kernel to allow other processes to execute or to wait for
-    /// interrupts and callbacks.
-    ///
-    /// SVC_NUM = 0
-    YIELD,
-
-    /// Pass a callback function to the kernel.
-    ///
-    /// SVC_NUM = 1
-    SUBSCRIBE {
-        driver_number: usize,
-        subdriver_number: usize,
-        callback_ptr: *mut (),
-        appdata: usize,
-    },
-
-    /// Instruct the kernel or a capsule to perform an operation.
-    ///
-    /// SVC_NUM = 2
-    COMMAND {
-        driver_number: usize,
-        subdriver_number: usize,
-        arg0: usize,
-        arg1: usize,
-    },
-
-    /// Share a memory buffer with the kernel.
-    ///
-    /// SVC_NUM = 3
-    ALLOW {
-        driver_number: usize,
-        subdriver_number: usize,
-        allow_address: *mut u8,
-        allow_size: usize,
-    },
-
-    /// Various memory operations.
-    ///
-    /// SVC_NUM = 4
-    MEMOP { operand: usize, arg0: usize },
-}
-
-/// Why the process stopped executing and execution returned to the kernel.
-#[derive(PartialEq, Copy, Clone)]
-pub enum ContextSwitchReason {
-    /// Process called a syscall. Also returns the syscall and relevant values.
-    SyscallFired { syscall: Syscall },
-    /// Process triggered the hardfault handler.
-    Fault,
-    /// Process interrupted (e.g. by a hardware event)
-    Interrupted,
-}
-
 /// Possible system call return variants, generic over the system call
 /// type
 ///
-/// This struct is used to describe the system call return variants of
-/// the
+/// This struct operates over primitive types such as integers of
+/// fixed length and pointers. It is constructed by the scheduler and
+/// passed down to the architecture to be encoded into registers,
+/// possibly using the provided
+/// [`encode_syscall_return`](GenericSyscallReturnValue::encode_syscall_return)
+/// method.
 ///
-/// - `command` and
-/// - `memop`
-///
-/// type system calls. Capsules and drivers should use the appropriate
-/// [`CommandResult`](crate::CommandResult) struct instead.
+/// Capsules use higher level Rust types
+/// (e.g. [`AppSlice`](crate::AppSlice) and
+/// [`Callback`](crate::Callback)) or wrappers around this struct
+/// ([`CommandResult`](crate::CommandResult)) which limit the
+/// available constructors to safely constructable variants.
 #[derive(Copy, Clone, Debug)]
 pub enum GenericSyscallReturnValue {
     /// Generic error case
@@ -137,92 +240,81 @@ pub enum GenericSyscallReturnValue {
     // values (pointers out of valid memory), the kernel cannot
     // construct an AppSlice or Callback type but needs to be able to
     // return a failure. -pal 11/24/20
- 
     /// Read/Write allow success case
-    AllowReadWriteSuccess(*mut usize, usize),
+    AllowReadWriteSuccess(*mut u8, usize),
     /// Read/Write allow failure case
-    AllowReadWriteFailure(ErrorCode, *mut usize, usize),
+    AllowReadWriteFailure(ErrorCode, *mut u8, usize),
 
     /// Read only allow success case
-    AllowReadOnlySuccess(*const usize, usize),
+    AllowReadOnlySuccess(*const u8, usize),
     /// Read only allow failure case
-    AllowReadOnlyFailure(ErrorCode, *const usize, usize),
-    
+    AllowReadOnlyFailure(ErrorCode, *const u8, usize),
+
     /// Subscribe success case
-    SubscribeSuccess(*const usize, usize),
+    SubscribeSuccess(*const u8, usize),
     /// Subscribe failure case
-    SubscribeFailure(ErrorCode, *const usize, usize),
+    SubscribeFailure(ErrorCode, *const u8, usize),
+
+    Legacy(ReturnCode),
 }
 
 impl GenericSyscallReturnValue {
-    // TODO: Make this crate-public, it only ever needs to be
-    // constructed in the kernel
-    pub fn from_command_result(res: CommandResult) -> Self {
+    pub(crate) fn from_command_result(res: CommandResult) -> Self {
         res.into_inner()
     }
 
-    /// Encode the `command` system call return value into 4 registers
+    /// Encode the system call return value into 4 registers
     ///
     /// Architectures are free to define their own encoding.
-    ///
-    /// Most architectures will want to use the (generic over all
-    /// system call types) [`SyscallReturnValue::encode_syscall_return`] instead.
-    pub(crate) fn encode_syscall_return(
-        &self,
-        a0: &mut u32,
-        a1: &mut u32,
-        a2: &mut u32,
-        a3: &mut u32,
-    ) {
+    pub fn encode_syscall_return(&self, a0: &mut u32, a1: &mut u32, a2: &mut u32, a3: &mut u32) {
         match self {
             &GenericSyscallReturnValue::Failure(e) => {
                 *a0 = SyscallReturnVariant::Failure as u32;
                 *a1 = usize::from(e) as u32;
-            },
+            }
             &GenericSyscallReturnValue::FailureU32(e, data0) => {
                 *a0 = SyscallReturnVariant::FailureU32 as u32;
                 *a1 = usize::from(e) as u32;
                 *a2 = data0;
-            },
+            }
             &GenericSyscallReturnValue::FailureU32U32(e, data0, data1) => {
                 *a0 = SyscallReturnVariant::FailureU32U32 as u32;
                 *a1 = usize::from(e) as u32;
                 *a2 = data0;
                 *a3 = data1;
-            },
+            }
             &GenericSyscallReturnValue::FailureU64(e, data0) => {
                 let (data0_msb, data0_lsb) = u64_to_be_u32s(data0);
-
                 *a0 = SyscallReturnVariant::FailureU64 as u32;
                 *a1 = usize::from(e) as u32;
                 *a2 = data0_lsb;
                 *a3 = data0_msb;
-            },
+            }
             &GenericSyscallReturnValue::Success => {
                 *a0 = SyscallReturnVariant::Success as u32;
-            },
+            }
             &GenericSyscallReturnValue::SuccessU32(data0) => {
                 *a0 = SyscallReturnVariant::SuccessU32 as u32;
                 *a1 = data0;
-            },
+            }
             &GenericSyscallReturnValue::SuccessU32U32(data0, data1) => {
                 *a0 = SyscallReturnVariant::SuccessU32U32 as u32;
                 *a1 = data0;
                 *a2 = data1;
-            },
+            }
             &GenericSyscallReturnValue::SuccessU32U32U32(data0, data1, data2) => {
                 *a0 = SyscallReturnVariant::SuccessU32U32U32 as u32;
                 *a1 = data0;
                 *a2 = data1;
                 *a3 = data2;
-            },
+            }
             &GenericSyscallReturnValue::SuccessU64(data0) => {
                 let (data0_msb, data0_lsb) = u64_to_be_u32s(data0);
 
                 *a0 = SyscallReturnVariant::SuccessU64 as u32;
                 *a1 = data0_lsb;
                 *a2 = data0_msb;
-            },
+            }
             &GenericSyscallReturnValue::SuccessU64U32(data0, data1) => {
                 let (data0_msb, data0_lsb) = u64_to_be_u32s(data0);
 
@@ -230,110 +322,58 @@ impl GenericSyscallReturnValue {
                 *a1 = data0_lsb;
                 *a2 = data0_msb;
                 *a3 = data1;
-            },
+            }
             &GenericSyscallReturnValue::AllowReadWriteSuccess(ptr, len) => {
                 *a0 = SyscallReturnVariant::SuccessU32U32 as u32;
                 *a1 = ptr as u32;
                 *a2 = len as u32;
-            },
+            }
             &GenericSyscallReturnValue::AllowReadWriteFailure(err, ptr, len) => {
                 *a0 = SyscallReturnVariant::FailureU32U32 as u32;
                 *a1 = usize::from(err) as u32;
                 *a2 = ptr as u32;
                 *a3 = len as u32;
-            },
+            }
             &GenericSyscallReturnValue::AllowReadOnlySuccess(ptr, len) => {
                 *a0 = SyscallReturnVariant::SuccessU32U32 as u32;
                 *a1 = ptr as u32;
                 *a2 = len as u32;
-            },
+            }
             &GenericSyscallReturnValue::AllowReadOnlyFailure(err, ptr, len) => {
                 *a0 = SyscallReturnVariant::FailureU32U32 as u32;
                 *a1 = usize::from(err) as u32;
                 *a2 = ptr as u32;
                 *a3 = len as u32;
-            },
+            }
             &GenericSyscallReturnValue::SubscribeSuccess(ptr, data) => {
                 *a0 = SyscallReturnVariant::SuccessU32U32 as u32;
                 *a1 = ptr as u32;
                 *a2 = data as u32;
-            },
+            }
             &GenericSyscallReturnValue::SubscribeFailure(err, ptr, data) => {
                 *a0 = SyscallReturnVariant::FailureU32U32 as u32;
                 *a1 = usize::from(err) as u32;
                 *a2 = ptr as u32;
                 *a3 = data as u32;
             }
+            &GenericSyscallReturnValue::Legacy(rcode) => {
+                *a0 = usize::from(rcode) as u32;
+            }
         }
     }
 }
 
-/// A union over all possible system call results.
-///
-/// This is passed down to the architecture which then determines how
-/// to encode the system call return arguments for a process.
-///
-/// For encoding, the architecture *may* decide use the provided
-/// `syscall_return_to_arguments`, which can be seen as a counterpart
-/// to `arguments_to_syscall`. Architectures are however free to
-/// define their own encoding.
-#[derive(Debug)]
-pub enum SyscallResult {
-    Yield(bool),
-    Subscribe(SubscribeResult),
-    Command(GenericSyscallReturnValue),
-    AllowReadWrite(AllowReadWriteResult),
-    AllowReadOnly(AllowReadOnlyResult),
-    Memop(GenericSyscallReturnValue),
+// ---------- USERSPACE KERNEL BOUNDARY ----------
 
-    /// Legacy style system call return values
-    ///
-    /// This is only included for compatibility with the current (1.x)
-    /// Tock system call interface and should be removed prior to
-    /// release.
-    // TODO: Remove prior to 2.0 release!
-    Legacy(ReturnCode),
-}
-
-impl SyscallResult {
-    /// Encode the system call return values into a series of
-    /// `u32`-values to be passed to the userspace app
-    ///
-    /// An architecture may decide to use this function, or define its
-    /// own method for encoding the return values for the userspace
-    /// app.
-    ///
-    /// The provided `u32` variables should be made available to the
-    /// userspace app as it will be scheduled again. They can be
-    /// provided as registers or on the stack, depending on the
-    /// architecture.
-    #[inline]
-    pub fn encode_syscall_return(&self, a0: &mut u32, a1: &mut u32, a2: &mut u32, a3: &mut u32) {
-        match self {
-            SyscallResult::Yield(callback_executed) => {
-                *a0 = if *callback_executed {
-                    SyscallReturnVariant::Success as u32
-                } else {
-                    SyscallReturnVariant::Failure as u32
-                };
-            }
-            SyscallResult::AllowReadWrite(rv) => rv.encode_syscall_return(a0, a1, a2, a3),
-            SyscallResult::AllowReadOnly(rv) => rv.encode_syscall_return(a0, a1, a2, a3),
-            SyscallResult::Subscribe(rv) => rv.encode_syscall_return(a0, a1, a2, a3),
-            // The command and memop match arms must be matched using
-            // the pipe-syntax. This ensures that both `rv`s are of
-            // the same type and hence the match arm body will only be
-            // generated once, which will cause the
-            // `encode_syscall_return` method on
-            // `GenericSyscallReturnValue` to be inlined here.
-            SyscallResult::Command(rv) | SyscallResult::Memop(rv) => {
-                rv.encode_syscall_return(a0, a1, a2, a3)
-            }
-            SyscallResult::Legacy(rc) => {
-                *a0 = isize::from(*rc) as u32;
-            }
-        }
-    }
+/// Why the process stopped executing and execution returned to the kernel.
+#[derive(PartialEq, Copy, Clone)]
+pub enum ContextSwitchReason {
+    /// Process called a syscall. Also returns the syscall and relevant values.
+    SyscallFired { syscall: Syscall },
+    /// Process triggered the hardfault handler.
+    Fault,
+    /// Process interrupted (e.g. by a hardware event)
+    Interrupted,
 }
 
 /// This trait must be implemented by the architecture of the chip Tock is
@@ -377,7 +417,7 @@ pub trait UserspaceKernelBoundary {
         &self,
         stack_pointer: *const usize,
         state: &mut Self::StoredState,
-        return_value: SyscallResult,
+        return_value: GenericSyscallReturnValue,
     );
 
     /// Set the function that the process should execute when it is resumed.
@@ -434,51 +474,4 @@ pub trait UserspaceKernelBoundary {
         state: &Self::StoredState,
         writer: &mut dyn Write,
     );
-}
-
-/// Helper function for converting raw values passed back from an application
-/// into a `Syscall` type in Tock.
-///
-/// Different architectures may have different mechanisms for passing
-/// information about what syscall an app called, but they will have have to
-/// convert the series of raw values into a more useful Rust type. While
-/// implementations are free to do this themselves, this provides a generic
-/// helper function which should help reduce duplicated code.
-///
-/// The mappings between raw `syscall_number` values and the associated syscall
-/// type are specified and fixed by Tock. After that, this function only
-/// converts raw values to more meaningful types based on the syscall.
-pub fn arguments_to_syscall(
-    syscall_number: u8,
-    r0: usize,
-    r1: usize,
-    r2: usize,
-    r3: usize,
-) -> Option<Syscall> {
-    match syscall_number {
-        0 => Some(Syscall::YIELD),
-        1 => Some(Syscall::SUBSCRIBE {
-            driver_number: r0,
-            subdriver_number: r1,
-            callback_ptr: r2 as *mut (),
-            appdata: r3,
-        }),
-        2 => Some(Syscall::COMMAND {
-            driver_number: r0,
-            subdriver_number: r1,
-            arg0: r2,
-            arg1: r3,
-        }),
-        3 => Some(Syscall::ALLOW {
-            driver_number: r0,
-            subdriver_number: r1,
-            allow_address: r2 as *mut u8,
-            allow_size: r3,
-        }),
-        4 => Some(Syscall::MEMOP {
-            operand: r0,
-            arg0: r1,
-        }),
-        _ => None,
-    }
 }

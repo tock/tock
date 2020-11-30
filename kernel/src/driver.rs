@@ -69,175 +69,81 @@
 //! kernel (the scheduler and syscall dispatcher) is responsible for
 //! encoding these types into the Tock system call ABI specification.
 
-use core::fmt;
-
 use crate::callback::{AppId, Callback};
 use crate::errorcode::ErrorCode;
-use crate::mem::{AppSlice, SharedReadOnly, SharedReadWrite};
+use crate::mem::legacy::{AppSlice, SharedReadWrite};
+use crate::mem::{ReadOnlyAppSlice, ReadWriteAppSlice};
 use crate::returncode::ReturnCode;
-use crate::syscall::{GenericSyscallReturnValue, SyscallReturnVariant};
-
-pub enum SubscribeResult {
-    Success(Callback),
-    Failure(Callback, ErrorCode),
-}
-
-impl SubscribeResult {
-    pub fn success(old_callback: Callback) -> Self {
-        SubscribeResult::Success(old_callback)
-    }
-
-    pub fn failure(new_callback: Callback, reason: ErrorCode) -> Self {
-        SubscribeResult::Failure(new_callback, reason)
-    }
-}
-impl fmt::Debug for SubscribeResult {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            SubscribeResult::Success(_) => f
-                .debug_tuple("SubscribeResult::Success")
-                .field(&"Callback")
-                .finish(),
-            SubscribeResult::Failure(_, err) => f
-                .debug_tuple("SubscribeResult::Failure")
-                .field(&"Callback")
-                .field(&format_args!("{:?}", err))
-                .finish(),
-        }
-    }
-}
-
-/// Possible return values of a read-write `allow` driver method.
-pub enum AllowReadWriteResult {
-    /// The allow operation succeeded and the AppSlice has been stored
-    /// with the capsule
-    ///
-    /// The capsule **must** return any previously shared (potentially
-    /// empty, default constructed) AppSlice.
-    Success(AppSlice<SharedReadWrite, u8>),
-    /// The allow operation was refused. The capsule has not stored
-    /// the AppSlice instance
-    ///
-    /// The capsule **must** return the passed AppSlice back.
-    Failure(AppSlice<SharedReadWrite, u8>, ErrorCode),
-}
-
-impl AllowReadWriteResult {
-    pub fn success(old_appslice: AppSlice<SharedReadWrite, u8>) -> Self {
-        AllowReadWriteResult::Success(old_appslice)
-    }
-
-    pub fn failure(new_appslice: AppSlice<SharedReadWrite, u8>, reason: ErrorCode) -> Self {
-        AllowReadWriteResult::Failure(new_appslice, reason)
-    }
-}
-
-impl fmt::Debug for AllowReadWriteResult {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            AllowReadWriteResult::Success(_) => f
-                .debug_tuple("AllowReadWriteResult::Success")
-                .field(&"AppSlice")
-                .finish(),
-            AllowReadWriteResult::Failure(_, err) => f
-                .debug_tuple("AllowReadWriteResult::Failure")
-                .field(&"AppSlice")
-                .field(&format_args!("{:?}", err))
-                .finish(),
-        }
-    }
-}
-
-/// Possible return values of an `allow_readonly` driver method
-pub enum AllowReadOnlyResult {
-    /// The allow operation succeeded and the AppSlice has been stored
-    /// with the capsule
-    ///
-    /// The capsule **must** return any previously shared (potentially
-    /// empty, default constructed) AppSlice.
-    Success(AppSlice<SharedReadOnly, u8>),
-    /// The allow operation was refused. The capsule has not stored
-    /// the AppSlice instance
-    ///
-    /// The capsule **must** return the passed AppSlice back.
-    Failure(AppSlice<SharedReadOnly, u8>, ErrorCode),
-}
-
-impl AllowReadOnlyResult {
-    pub fn success(old_appslice: AppSlice<SharedReadOnly, u8>) -> Self {
-        AllowReadOnlyResult::Success(old_appslice)
-    }
-
-    pub fn failure(new_appslice: AppSlice<SharedReadOnly, u8>, reason: ErrorCode) -> Self {
-        AllowReadOnlyResult::Failure(new_appslice, reason)
-    }
-}
-
-impl fmt::Debug for AllowReadOnlyResult {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            AllowReadOnlyResult::Success(_) => f
-                .debug_tuple("AllowReadOnlyResult::Success")
-                .field(&"AppSlice")
-                .finish(),
-            AllowReadOnlyResult::Failure(_, err) => f
-                .debug_tuple("AllowReadOnlyResult::Failure")
-                .field(&"AppSlice")
-                .field(&format_args!("{:?}", err))
-                .finish(),
-        }
-    }
-}
+use crate::syscall::GenericSyscallReturnValue;
 
 /// Possible return values of a `command` driver method
 ///
-/// This is a wrapper around
-/// [`GenericSyscallReturnValue`](crate::syscall::GenericSyscallReturnValue)
-/// since a `command` driver method may return all possible variants.
+/// This is just a wrapper around
+/// [`GenericSyscallReturnValue`](GenericSyscallReturnValue) since a
+/// `command` driver method may only return primitve integer types as
+/// payload.
+///
+/// It is important for this wrapper to only be constructable over
+/// variants of
+/// [`GenericSyscallReturnValue`](GenericSyscallReturnValue) that are
+/// deemed safe for a capsule to construct and return to an
+/// application (e.g. not
+/// [`SubscribeSuccess`](crate::syscall::GenericSyscallReturnValue::SubscribeSuccess)).
+/// This means that the inner value **must** remain private.
 pub struct CommandResult(GenericSyscallReturnValue);
 impl CommandResult {
     pub(crate) fn into_inner(self) -> GenericSyscallReturnValue {
         self.0
     }
 
+    /// Command error
     pub fn failure(rc: ErrorCode) -> Self {
         CommandResult(GenericSyscallReturnValue::Failure(rc))
     }
 
+    /// Command error with an additional 32-bit data field
     pub fn failure_u32(rc: ErrorCode, data0: u32) -> Self {
         CommandResult(GenericSyscallReturnValue::FailureU32(rc, data0))
     }
 
+    /// Command error with two additional 32-bit data fields
     pub fn failure_u32_u32(rc: ErrorCode, data0: u32, data1: u32) -> Self {
         CommandResult(GenericSyscallReturnValue::FailureU32U32(rc, data0, data1))
     }
 
+    /// Command error with an additional 64-bit data field
     pub fn failure_u64(rc: ErrorCode, data0: u64) -> Self {
         CommandResult(GenericSyscallReturnValue::FailureU64(rc, data0))
     }
 
+    /// Successful command
     pub fn success() -> Self {
         CommandResult(GenericSyscallReturnValue::Success)
     }
 
+    /// Successful command with an additional 32-bit data field
     pub fn success_u32(data0: u32) -> Self {
         CommandResult(GenericSyscallReturnValue::SuccessU32(data0))
     }
 
+    /// Successful command with two additional 32-bit data fields
     pub fn success_u32_u32(data0: u32, data1: u32) -> Self {
         CommandResult(GenericSyscallReturnValue::SuccessU32U32(data0, data1))
     }
 
+    /// Successful command with three additional 32-bit data fields
     pub fn success_u32_u32_u32(data0: u32, data1: u32, data2: u32) -> Self {
         CommandResult(GenericSyscallReturnValue::SuccessU32U32U32(
             data0, data1, data2,
         ))
     }
 
+    /// Successful command with an additional 64-bit data field
     pub fn success_u64(data0: u64) -> Self {
         CommandResult(GenericSyscallReturnValue::SuccessU64(data0))
     }
 
+    /// Successful command with an additional 64-bit and 32-bit data field
     pub fn success_u64_u32(data0: u64, data1: u32) -> Self {
         CommandResult(GenericSyscallReturnValue::SuccessU64U32(data0, data1))
     }
@@ -245,8 +151,13 @@ impl CommandResult {
 
 #[allow(unused_variables)]
 pub trait Driver {
-    fn subscribe(&self, which: usize, callback: Callback, app_id: AppId) -> SubscribeResult {
-        SubscribeResult::failure(callback, ErrorCode::NOSUPPORT)
+    fn subscribe(
+        &self,
+        which: usize,
+        callback: Callback,
+        app_id: AppId,
+    ) -> Result<Callback, (Callback, ErrorCode)> {
+        Err((callback, ErrorCode::NOSUPPORT))
     }
 
     fn command(&self, which: usize, r2: usize, r3: usize, caller_id: AppId) -> CommandResult {
@@ -257,80 +168,18 @@ pub trait Driver {
         &self,
         app: AppId,
         which: usize,
-        slice: AppSlice<SharedReadWrite, u8>,
-    ) -> AllowReadWriteResult {
-        AllowReadWriteResult::failure(slice, ErrorCode::NOSUPPORT)
+        slice: ReadWriteAppSlice,
+    ) -> Result<ReadWriteAppSlice, (ReadWriteAppSlice, ErrorCode)> {
+        Err((slice, ErrorCode::NOSUPPORT))
     }
 
     fn allow_readonly(
         &self,
         app: AppId,
         which: usize,
-        slice: AppSlice<SharedReadOnly, u8>,
-    ) -> AllowReadOnlyResult {
-        AllowReadOnlyResult::failure(slice, ErrorCode::NOSUPPORT)
-    }
-}
-
-impl AllowReadWriteResult {
-    pub fn encode_syscall_return(&self, a0: &mut u32, a1: &mut u32, a2: &mut u32, a3: &mut u32) {
-        match self {
-            AllowReadWriteResult::Success(slice) => {
-                *a0 = SyscallReturnVariant::SuccessU32U32 as u32;
-                *a1 = slice.ptr() as u32;
-                *a2 = slice.len() as u32;
-            }
-            AllowReadWriteResult::Failure(slice, error) => {
-                *a0 = SyscallReturnVariant::FailureU32U32 as u32;
-                *a1 = usize::from(*error) as u32;
-                *a2 = slice.ptr() as u32;
-                *a3 = slice.len() as u32;
-            }
-        }
-    }
-}
-
-impl AllowReadOnlyResult {
-    pub fn encode_syscall_return(&self, a0: &mut u32, a1: &mut u32, a2: &mut u32, a3: &mut u32) {
-        match self {
-            AllowReadOnlyResult::Success(slice) => {
-                *a0 = SyscallReturnVariant::SuccessU32U32 as u32;
-                *a1 = slice.ptr() as u32;
-                *a2 = slice.len() as u32;
-            }
-            AllowReadOnlyResult::Failure(slice, error) => {
-                *a0 = SyscallReturnVariant::FailureU32U32 as u32;
-                *a1 = usize::from(*error) as u32;
-                *a2 = slice.ptr() as u32;
-                *a3 = slice.len() as u32;
-            }
-        }
-    }
-}
-
-impl SubscribeResult {
-    pub fn encode_syscall_return(&self, a0: &mut u32, a1: &mut u32, a2: &mut u32, a3: &mut u32) {
-        match self {
-            SubscribeResult::Success(callback) => {
-                *a0 = SyscallReturnVariant::SuccessU32U32 as u32;
-                *a1 = callback.function_pointer();
-                *a2 = callback.appdata();
-            }
-            SubscribeResult::Failure(callback, error) => {
-                *a0 = SyscallReturnVariant::FailureU32U32 as u32;
-                *a1 = usize::from(*error) as u32;
-                *a2 = callback.function_pointer();
-                *a3 = callback.appdata();
-            }
-        }
-    }
-}
-
-impl CommandResult {
-    pub fn encode_syscall_return(&self, a0: &mut u32, a1: &mut u32, a2: &mut u32, a3: &mut u32) {
-        match self {
-            &CommandResult(rv) => rv.encode_syscall_return(a0, a1, a2, a3),
-        }
+        slice: ReadOnlyAppSlice,
+    ) -> Result<ReadOnlyAppSlice, (ReadOnlyAppSlice, ErrorCode)> {
+        Err((slice, ErrorCode::NOSUPPORT))
     }
 }
 
@@ -402,23 +251,6 @@ pub trait LegacyDriver {
         app: AppId,
         minor_num: usize,
         slice: Option<AppSlice<SharedReadWrite, u8>>,
-    ) -> ReturnCode {
-        ReturnCode::ENOSUPPORT
-    }
-
-    /// `allow_readonly` lets an application give the driver read-only access
-    /// to a buffer in the application's memory. This returns
-    /// `ENOSUPPORT` if not used.
-    ///
-    /// The buffer is __shared__ between the application and driver, meaning the
-    /// driver should not rely on the contents of the buffer to remain
-    /// unchanged.
-    #[allow(unused_variables)]
-    fn allow_readonly(
-        &self,
-        app: AppId,
-        minor_num: usize,
-        slice: Option<AppSlice<SharedReadOnly, u8>>,
     ) -> ReturnCode {
         ReturnCode::ENOSUPPORT
     }

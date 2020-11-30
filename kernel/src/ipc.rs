@@ -7,7 +7,7 @@ use crate::callback::{AppId, Callback};
 use crate::capabilities::MemoryAllocationCapability;
 use crate::driver::LegacyDriver;
 use crate::grant::Grant;
-use crate::mem::{AppSlice, SharedReadWrite};
+use crate::mem::legacy::{AppSlice, SharedReadWrite};
 use crate::process;
 use crate::returncode::ReturnCode;
 use crate::sched::Kernel;
