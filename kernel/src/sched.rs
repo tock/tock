@@ -857,9 +857,12 @@ impl Kernel {
                 let res = platform.with_driver(driver_number, |driver| match driver {
                     Some(Ok(d)) => {
                         // Tock 2.0 driver handling
-                        GenericSyscallReturnValue::from_command_result(
-                            d.command(subdriver_number, arg0, arg1, process.appid()), //.into_inner(),
-                        )
+                        GenericSyscallReturnValue::from_command_result(d.command(
+                            subdriver_number,
+                            arg0,
+                            arg1,
+                            process.appid(),
+                        ))
                     }
                     Some(Err(ld)) => {
                         // Legacy Tock 1.x driver handling
@@ -907,7 +910,6 @@ impl Kernel {
                             // Tock 2.0 driver
                             process.allow_readwrite(allow_address, allow_size, &|appslice| {
                                 d.allow_readwrite(process.appid(), subdriver_number, appslice)
-                                    .into_inner()
                             })
                         }
                         Some(Err(ld)) => {
@@ -973,7 +975,6 @@ impl Kernel {
                             // Tock 2.0 driver
                             process.allow_readonly(allow_address, allow_size, &|appslice| {
                                 d.allow_readonly(process.appid(), subdriver_number, appslice)
-                                    .into_inner()
                             })
                         }
                         None => {
