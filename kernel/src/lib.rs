@@ -117,7 +117,7 @@ pub use crate::driver::{
 };
 pub use crate::errorcode::ErrorCode;
 pub use crate::grant::Grant;
-pub use crate::mem::legacy::{AppSlice, SharedReadOnly, SharedReadWrite};
+pub use crate::mem::legacy::{AppSlice, SharedReadWrite};
 pub use crate::mem::{Read, ReadOnlyAppSlice, ReadWrite, ReadWriteAppSlice};
 pub use crate::platform::scheduler_timer::{SchedulerTimer, VirtualSchedulerTimer};
 pub use crate::platform::watchdog;

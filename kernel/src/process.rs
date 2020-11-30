@@ -15,7 +15,7 @@ use crate::config;
 use crate::debug;
 use crate::errorcode::ErrorCode;
 use crate::ipc;
-use crate::mem::legacy::{AppSlice, SharedReadOnly, SharedReadWrite};
+use crate::mem::legacy::{AppSlice, SharedReadWrite};
 use crate::mem::{ReadOnlyAppSlice, ReadWriteAppSlice};
 use crate::platform::mpu::{self, MPU};
 use crate::platform::Chip;
@@ -400,48 +400,20 @@ pub trait ProcessType {
         &self,
         buf_start_addr: *mut u8,
         size: usize,
-        driver_invoc_closure: &dyn FnOnce(
+        driver_invoc_closure: &dyn Fn(
             ReadWriteAppSlice,
-        ) -> Result<
-            ReadWriteAppSlice,
-            (ReadWriteAppSlice, ErrorCode),
-        >,
+        )
+            -> Result<ReadWriteAppSlice, (ReadWriteAppSlice, ErrorCode)>,
     ) -> GenericSyscallReturnValue;
-
-    /// Creates a read-only `AppSlice` from the given offset and size
-    /// in process memory.
-    ///
-    /// If `buf_start_addr` is NULL this will have no effect and the return
-    /// value will be `None` to signal the capsule to drop the buffer.
-    ///
-    /// If the process is not active then this will return an error as it is not
-    /// valid to "allow" a buffer for a process that will not resume executing.
-    /// In practice this case should not happen as the process will not be
-    /// executing to call the allow syscall.
-    ///
-    /// ## Returns
-    ///
-    /// If the buffer is null (a zero-valued offset) this returns
-    /// `None`, signaling the capsule to delete the entry. If the
-    /// buffer is within the process's readable (RAM or code/flash)
-    /// memory, returns an `AppSlice` wrapping that buffer.
-    /// Otherwise, returns an error `ReturnCode`.
-    fn legacy_allow_readonly(
-        &self,
-        buf_start_addr: *const u8,
-        size: usize,
-    ) -> Result<Option<AppSlice<SharedReadOnly, u8>>, ReturnCode>;
 
     fn allow_readonly(
         &self,
         buf_start_addr: *const u8,
         size: usize,
-        driver_invoc_closure: &dyn FnOnce(
+        driver_invoc_closure: &dyn Fn(
             ReadOnlyAppSlice,
-        ) -> Result<
-            ReadOnlyAppSlice,
-            (ReadOnlyAppSlice, ErrorCode),
-        >,
+        )
+            -> Result<ReadOnlyAppSlice, (ReadOnlyAppSlice, ErrorCode)>,
     ) -> GenericSyscallReturnValue;
 
     /// Get the first address of process's flash that isn't protected by the
@@ -1233,12 +1205,10 @@ impl<C: Chip> ProcessType for Process<'_, C> {
         &self,
         buf_start_addr: *mut u8,
         size: usize,
-        _driver_invoc_closure: &dyn FnOnce(
+        driver_invoc_closure: &dyn Fn(
             ReadWriteAppSlice,
-        ) -> Result<
-            ReadWriteAppSlice,
-            (ReadWriteAppSlice, ErrorCode),
-        >,
+        )
+            -> Result<ReadWriteAppSlice, (ReadWriteAppSlice, ErrorCode)>,
     ) -> GenericSyscallReturnValue {
         if !self.is_active() {
             // Do not operate on an inactive process
@@ -1249,50 +1219,43 @@ impl<C: Chip> ProcessType for Process<'_, C> {
             );
         }
 
-        // TODO: Check for zero length AppSlice and allow in any case
+        // A process is allowed to pass any pointer if the slice
+        // length is 0, as to revoke kernel access to a memory region
+        // without granting access to another one
+        let new_slice = if size == 0 {
+            unsafe { ReadWriteAppSlice::new(buf_start_addr, 0, self.appid()) }
+        } else if self.in_app_owned_memory(buf_start_addr, size) {
+            // TODO: Check for buffer aliasing here
 
-        // TODO: Check for buffer aliasing
+            // Valid slice, we need to adjust the app's watermark
+            // note: in_app_owned_memory ensures this offset does not wrap
+            let buf_end_addr = buf_start_addr.wrapping_add(size);
+            let new_water_mark = max(self.allow_high_water_mark.get(), buf_end_addr);
+            self.allow_high_water_mark.set(new_water_mark);
 
-        unimplemented!()
-    }
+            unsafe { ReadWriteAppSlice::new(buf_start_addr, size, self.appid()) }
+        } else {
+            return GenericSyscallReturnValue::AllowReadWriteFailure(
+                ErrorCode::INVAL,
+                buf_start_addr,
+                size,
+            );
+        };
 
-    // TODO: Remove prior to releasing Tock 2.0
-    fn legacy_allow_readonly(
-        &self,
-        buf_start_addr: *const u8,
-        size: usize,
-    ) -> Result<Option<AppSlice<SharedReadOnly, u8>>, ReturnCode> {
-        if !self.is_active() {
-            // Do not modify an inactive process.
-            return Err(ReturnCode::FAIL);
-        }
+        let allow_result = driver_invoc_closure(new_slice);
 
-        match NonNull::new(buf_start_addr as *mut u8) {
-            None => {
-                // A null buffer means pass in `None` to the capsule
-                Ok(None)
+        // TODO: Check whether the capsule either made the allow fail
+        // and returned the new slice, or it made the allow succeed
+        // and returned the expected slice from the allow table
+
+        match allow_result {
+            Ok(old_slice) => {
+                let (ptr, len) = old_slice.consume();
+                GenericSyscallReturnValue::AllowReadWriteSuccess(ptr, len)
             }
-            Some(buf_start) => {
-                if self.in_app_owned_memory(buf_start_addr, size) {
-                    // Valid slice, we need to adjust the app's watermark
-                    // note: in_app_owned_memory ensures this offset does not wrap
-                    let buf_end_addr = buf_start_addr.wrapping_add(size);
-                    let new_water_mark = max(self.allow_high_water_mark.get(), buf_end_addr);
-                    self.allow_high_water_mark.set(new_water_mark);
-
-                    // The `unsafe` promise we should be making here is that this
-                    // buffer is inside of app memory and that it does not create any
-                    // aliases (i.e. the same buffer has not been `allow`ed twice).
-                    //
-                    // TODO: We do not currently satisfy the second promise.
-                    let slice = unsafe { AppSlice::new(buf_start, size, self.appid()) };
-                    Ok(Some(slice))
-                } else if self.in_app_ro_memory(buf_start_addr, size) {
-                    let slice = unsafe { AppSlice::new(buf_start, size, self.appid()) };
-                    Ok(Some(slice))
-                } else {
-                    Err(ReturnCode::EINVAL)
-                }
+            Err((new_slice, err)) => {
+                let (ptr, len) = new_slice.consume();
+                GenericSyscallReturnValue::AllowReadWriteFailure(err, ptr, len)
             }
         }
     }
@@ -1301,12 +1264,10 @@ impl<C: Chip> ProcessType for Process<'_, C> {
         &self,
         buf_start_addr: *const u8,
         size: usize,
-        _driver_invoc_closure: &dyn FnOnce(
+        driver_invoc_closure: &dyn Fn(
             ReadOnlyAppSlice,
-        ) -> Result<
-            ReadOnlyAppSlice,
-            (ReadOnlyAppSlice, ErrorCode),
-        >,
+        )
+            -> Result<ReadOnlyAppSlice, (ReadOnlyAppSlice, ErrorCode)>,
     ) -> GenericSyscallReturnValue {
         if !self.is_active() {
             // Do not operate on an inactive process
@@ -1317,11 +1278,47 @@ impl<C: Chip> ProcessType for Process<'_, C> {
             );
         }
 
-        // TODO: Check for zero length AppSlice and allow in any case
+        // A process is allowed to pass any pointer if the slice
+        // length is 0, as to revoke kernel access to a memory region
+        // without granting access to another one
+        let new_slice = if size == 0 {
+            unsafe { ReadOnlyAppSlice::new(buf_start_addr, 0, self.appid()) }
+        } else if self.in_app_owned_memory(buf_start_addr, size)
+            || self.in_app_ro_memory(buf_start_addr, size)
+        {
+            // TODO: Check for buffer aliasing here
 
-        // TODO: Check for buffer aliasing
+            // Valid slice, we need to adjust the app's watermark
+            // note: in_app_owned_memory ensures this offset does not wrap
+            let buf_end_addr = buf_start_addr.wrapping_add(size);
+            let new_water_mark = max(self.allow_high_water_mark.get(), buf_end_addr);
+            self.allow_high_water_mark.set(new_water_mark);
 
-        unimplemented!()
+            unsafe { ReadOnlyAppSlice::new(buf_start_addr, size, self.appid()) }
+        } else {
+            return GenericSyscallReturnValue::AllowReadOnlyFailure(
+                ErrorCode::INVAL,
+                buf_start_addr,
+                size,
+            );
+        };
+
+        let allow_result = driver_invoc_closure(new_slice);
+
+        // TODO: Check whether the capsule either made the allow fail
+        // and returned the new slice, or it made the allow succeed
+        // and returned the expected slice from the allow table
+
+        match allow_result {
+            Ok(old_slice) => {
+                let (ptr, len) = old_slice.consume();
+                GenericSyscallReturnValue::AllowReadOnlySuccess(ptr, len)
+            }
+            Err((new_slice, err)) => {
+                let (ptr, len) = new_slice.consume();
+                GenericSyscallReturnValue::AllowReadOnlyFailure(err, ptr, len)
+            }
+        }
     }
 
     fn alloc(&self, size: usize, align: usize) -> Option<NonNull<u8>> {

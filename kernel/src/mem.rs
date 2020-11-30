@@ -129,6 +129,10 @@ impl ReadWriteAppSlice {
     ) -> Self {
         Self::new(ptr, len, process_id)
     }
+
+    pub(crate) fn consume(self) -> (*mut u8, usize) {
+        (self.ptr, self.len)
+    }
 }
 
 impl Default for ReadWriteAppSlice {
@@ -220,6 +224,10 @@ impl ReadOnlyAppSlice {
     ) -> Self {
         Self::new(ptr, len, process_id)
     }
+
+    pub(crate) fn consume(self) -> (*const u8, usize) {
+        (self.ptr, self.len)
+    }
 }
 
 impl Default for ReadOnlyAppSlice {
@@ -274,11 +282,6 @@ pub(crate) mod legacy {
     /// Type for specifying an AppSlice is shared with the kernel.
     #[derive(Debug)]
     pub struct SharedReadWrite;
-
-    // TODO: Remove, was never part of the Tock 1.x interface
-    /// Type for specifying an AppSlice is shared read-only with the kernel.
-    #[derive(Debug)]
-    pub struct SharedReadOnly;
 
     /// Base type for an AppSlice that holds the raw pointer to the memory region
     /// the app shared with the kernel.
