@@ -349,25 +349,31 @@ call to Subscribe for a given callback, the callback pointer and
 application data pointer returned MUST be the Null Callback (describe
 below).
 
-4.2.1 The Null Callback and Subscribe Identifier 0
+4.2.1 The Null Callback 
 ---------------------------------
 
-The Tock kernel defines a callback pointer as the Null Callback. This
-pointer MUST be outside valid process memory. The Null Callback is
-used for two reasons. First, a userspace process passing the Null
-Callback as the callback pointer for Subscribe indicates that there
-should be no callbacks. Second, the first time a userspace process
-calls Subscribe for a particular callback, the kernel needs to return
-callback and application pointers indicating the current
-configuration; in this case, the kernel returns the Null Callback.
+The Tock kernel defines a callback pointer as the Null Callback. 
+The Null Callback denotes a callback that the kernel will never invoke.
+The Null Callback is used for two reasons. First, a userspace process 
+passing the Null Callback as the callback pointer for Subscribe 
+indicates that there should be no more callbacks. Second, the first 
+time a userspace process calls Subscribe for a particular callback, 
+the kernel needs to return callback and application pointers indicating 
+the current configuration; in this case, the kernel returns the Null 
+Callback. The Tock kernel MUST NOT invoke the Null Callback.
 
-Subscribe identifier 0 is reserved and behaves in a special way. Every
-driver MUST implement subscribe identifier 0 to return a failure
-result in which both `u32` values contain the Null Callback. This
-allows userspace to easily determine the Null Callback value, e.g., to
-disable callbacks. Because a capsule cannot store the Callback for
-subscribe identifier 0, a failure result returned by subscribe
-identifier 0 MUST have an error code of NOMEM.
+The Null Callback MUST be 0x0. This means it is not possible for userspace
+to pass address 0x0 as a valid code entry point. Unlike systems with
+virtual memory, where 0x0 can be reserved a special meaning, in 
+microcontrollers with only physical memory 0x0 is a valid memory location.
+It is possible that a Tock kernel is configured so its applications
+start at address 0x0. However, even if they do begin at 0x0, the
+Tock Binary Format for application images mean that the first address
+will not be executable code and so 0x0 will not be a valid function.
+In the case that 0x0 is valid application process memory and where the
+linker places a callback function, the first instruction of the function
+should be a no-op and the address of the second instruction passed 
+instead.
 
 If a userspace process invokes subscribe on a driver ID that is not
 installed in the kernel, the kernel MUST return a failure with an
