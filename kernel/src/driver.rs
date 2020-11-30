@@ -76,71 +76,6 @@ use crate::mem::{ReadOnlyAppSlice, ReadWriteAppSlice};
 use crate::returncode::ReturnCode;
 use crate::syscall::GenericSyscallReturnValue;
 
-pub enum SubscribeResult {
-    Success(Callback),
-    Failure(Callback, ErrorCode),
-}
-
-impl SubscribeResult {
-    pub fn success(old_callback: Callback) -> Self {
-        SubscribeResult::Success(old_callback)
-    }
-
-    pub fn failure(new_callback: Callback, reason: ErrorCode) -> Self {
-        SubscribeResult::Failure(new_callback, reason)
-    }
-}
-
-/// Possible return values of a read-write `allow` driver method.
-pub struct AllowReadWriteResult(Result<ReadWriteAppSlice, (ReadWriteAppSlice, ErrorCode)>);
-impl AllowReadWriteResult {
-    /// The allow operation succeeded and the AppSlice has been stored
-    /// with the capsule
-    ///
-    /// The capsule **must** return any previously shared (potentially
-    /// empty, default constructed) AppSlice.
-    pub fn success(old_appslice: ReadWriteAppSlice) -> Self {
-        AllowReadWriteResult(Ok(old_appslice))
-    }
-
-    /// The allow operation was refused. The capsule has not stored
-    /// the AppSlice instance
-    ///
-    /// The capsule **must** return the passed AppSlice back.
-    pub fn failure(new_appslice: ReadWriteAppSlice, reason: ErrorCode) -> Self {
-        AllowReadWriteResult(Err((new_appslice, reason)))
-    }
-
-    pub(crate) fn into_inner(self) -> Result<ReadWriteAppSlice, (ReadWriteAppSlice, ErrorCode)> {
-        self.0
-    }
-}
-
-/// Possible return values of an `allow_readonly` driver method
-pub struct AllowReadOnlyResult(Result<ReadOnlyAppSlice, (ReadOnlyAppSlice, ErrorCode)>);
-impl AllowReadOnlyResult {
-    /// The allow operation succeeded and the AppSlice has been stored
-    /// with the capsule
-    ///
-    /// The capsule **must** return any previously shared (potentially
-    /// empty, default constructed) AppSlice.
-    pub fn success(old_appslice: ReadOnlyAppSlice) -> Self {
-        AllowReadOnlyResult(Ok(old_appslice))
-    }
-
-    /// The allow operation was refused. The capsule has not stored
-    /// the AppSlice instance
-    ///
-    /// The capsule **must** return the passed AppSlice back.
-    pub fn failure(new_appslice: ReadOnlyAppSlice, reason: ErrorCode) -> Self {
-        AllowReadOnlyResult(Err((new_appslice, reason)))
-    }
-
-    pub(crate) fn into_inner(self) -> Result<ReadOnlyAppSlice, (ReadOnlyAppSlice, ErrorCode)> {
-        self.0
-    }
-}
-
 /// Possible return values of a `command` driver method
 ///
 /// This is just a wrapper around
@@ -216,8 +151,13 @@ impl CommandResult {
 
 #[allow(unused_variables)]
 pub trait Driver {
-    fn subscribe(&self, which: usize, callback: Callback, app_id: AppId) -> SubscribeResult {
-        SubscribeResult::failure(callback, ErrorCode::NOSUPPORT)
+    fn subscribe(
+        &self,
+        which: usize,
+        callback: Callback,
+        app_id: AppId,
+    ) -> Result<Callback, (Callback, ErrorCode)> {
+        Err((callback, ErrorCode::NOSUPPORT))
     }
 
     fn command(&self, which: usize, r2: usize, r3: usize, caller_id: AppId) -> CommandResult {
@@ -229,8 +169,8 @@ pub trait Driver {
         app: AppId,
         which: usize,
         slice: ReadWriteAppSlice,
-    ) -> AllowReadWriteResult {
-        AllowReadWriteResult::failure(slice, ErrorCode::NOSUPPORT)
+    ) -> Result<ReadWriteAppSlice, (ReadWriteAppSlice, ErrorCode)> {
+        Err((slice, ErrorCode::NOSUPPORT))
     }
 
     fn allow_readonly(
@@ -238,8 +178,8 @@ pub trait Driver {
         app: AppId,
         which: usize,
         slice: ReadOnlyAppSlice,
-    ) -> AllowReadOnlyResult {
-        AllowReadOnlyResult::failure(slice, ErrorCode::NOSUPPORT)
+    ) -> Result<ReadOnlyAppSlice, (ReadOnlyAppSlice, ErrorCode)> {
+        Err((slice, ErrorCode::NOSUPPORT))
     }
 }
 

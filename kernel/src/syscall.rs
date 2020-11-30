@@ -3,7 +3,7 @@
 use core::convert::TryFrom;
 use core::fmt::Write;
 
-use crate::driver::{CommandResult, SubscribeResult};
+use crate::driver::CommandResult;
 use crate::errorcode::ErrorCode;
 use crate::process;
 use crate::returncode::ReturnCode;
@@ -259,24 +259,8 @@ pub enum GenericSyscallReturnValue {
 }
 
 impl GenericSyscallReturnValue {
-    // TODO: Make this crate-public, it only ever needs to be
-    // constructed in the kernel
-    pub fn from_command_result(res: CommandResult) -> Self {
+    pub(crate) fn from_command_result(res: CommandResult) -> Self {
         res.into_inner()
-    }
-
-    pub fn from_subscribe_result(res: SubscribeResult) -> Self {
-        match res {
-            SubscribeResult::Success(callback) => GenericSyscallReturnValue::SubscribeSuccess(
-                callback.function_pointer(),
-                callback.appdata() as usize,
-            ),
-            SubscribeResult::Failure(callback, err) => GenericSyscallReturnValue::SubscribeFailure(
-                err,
-                callback.function_pointer(),
-                callback.appdata() as usize,
-            ),
-        }
     }
 
     /// Encode the system call return value into 4 registers
