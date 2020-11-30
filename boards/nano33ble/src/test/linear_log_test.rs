@@ -82,23 +82,23 @@ pub unsafe fn run(
 static TEST_OPS: [TestOp; 9] = [
     TestOp::Read,
     // Write to first page.
-    TestOp::Write(8),
-    TestOp::Write(300),
+    TestOp::Write(64),
+    TestOp::Write(2400),
     // Write to next page, too large to fit on first.
-    TestOp::Write(304),
+    TestOp::Write(2432),
     // Write should fail, not enough space remaining.
-    TestOp::Write(306),
+    TestOp::Write(2448),
     // Write should succeed, enough space for a smaller entry.
-    TestOp::Write(9),
+    TestOp::Write(72),
     // Read back everything to verify and sync.
     TestOp::Read,
     TestOp::Sync,
     // Write should still fail after sync.
-    TestOp::Write(308),
+    TestOp::Write(2464),
 ];
 
 // Buffer for reading from and writing to in the log tests.
-static mut BUFFER: [u8; 310] = [0; 310];
+static mut BUFFER: [u8; 2480] = [0; 2480];
 // Time to wait in between log operations.
 const WAIT_MS: u32 = 3;
 
