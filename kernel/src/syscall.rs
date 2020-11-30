@@ -3,7 +3,7 @@
 use core::convert::TryFrom;
 use core::fmt::Write;
 
-use crate::driver::{AllowReadOnlyResult, AllowReadWriteResult, CommandResult, SubscribeResult};
+use crate::driver::{CommandResult, SubscribeResult};
 use crate::errorcode::ErrorCode;
 use crate::process;
 use crate::returncode::ReturnCode;
@@ -263,40 +263,6 @@ impl GenericSyscallReturnValue {
     // constructed in the kernel
     pub fn from_command_result(res: CommandResult) -> Self {
         res.into_inner()
-    }
-
-    pub fn from_allow_readwrite_result(res: AllowReadWriteResult) -> Self {
-        match res {
-            AllowReadWriteResult::Success(mut slice) => {
-                GenericSyscallReturnValue::AllowReadWriteSuccess(
-                    slice.as_mut().as_mut_ptr(),
-                    slice.len(),
-                )
-            }
-            AllowReadWriteResult::Failure(mut slice, err) => {
-                GenericSyscallReturnValue::AllowReadWriteFailure(
-                    err,
-                    slice.as_mut().as_mut_ptr(),
-                    slice.len(),
-                )
-            }
-        }
-    }
-
-    pub fn from_allow_readonly_result(res: AllowReadOnlyResult) -> Self {
-        match res {
-            AllowReadOnlyResult::Success(slice) => GenericSyscallReturnValue::AllowReadOnlySuccess(
-                slice.as_ref().as_ptr(),
-                slice.len(),
-            ),
-            AllowReadOnlyResult::Failure(slice, err) => {
-                GenericSyscallReturnValue::AllowReadOnlyFailure(
-                    err,
-                    slice.as_ref().as_ptr(),
-                    slice.len(),
-                )
-            }
-        }
     }
 
     pub fn from_subscribe_result(res: SubscribeResult) -> Self {
