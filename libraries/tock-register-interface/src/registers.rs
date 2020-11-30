@@ -79,31 +79,21 @@ pub trait IntLike:
     fn zero() -> Self;
 }
 
-impl IntLike for u8 {
-    fn zero() -> Self {
-        0
-    }
+macro_rules! IntLike_impl_for {
+    ($type:ty) => {
+        impl IntLike for $type {
+            fn zero() -> Self {
+                0
+            }
+        }
+    };
 }
-impl IntLike for u16 {
-    fn zero() -> Self {
-        0
-    }
-}
-impl IntLike for u32 {
-    fn zero() -> Self {
-        0
-    }
-}
-impl IntLike for u64 {
-    fn zero() -> Self {
-        0
-    }
-}
-impl IntLike for u128 {
-    fn zero() -> Self {
-        0
-    }
-}
+
+IntLike_impl_for!(u8);
+IntLike_impl_for!(u16);
+IntLike_impl_for!(u32);
+IntLike_impl_for!(u64);
+IntLike_impl_for!(u128);
 
 /// Descriptive name for each register.
 pub trait RegisterLongName {}
@@ -341,15 +331,17 @@ impl<T: IntLike, R: RegisterLongName, W: RegisterLongName> Aliased<T, R, W> {
     }
 }
 
-/// A read-only copy register contents
+/// A read-write copy of register contents.
 ///
-/// This behaves very similarly to a read-only register, but instead of doing a
+/// This behaves very similarly to a read-write register, but instead of doing a
 /// volatile read to MMIO to get the value for each function call, a copy of the
 /// register contents are stored locally in memory. This allows a peripheral
 /// to do a single read on a register, and then check which bits are set without
 /// having to do a full MMIO read each time. It also allows the value of the
 /// register to be "cached" in case the peripheral driver needs to clear the
 /// register in hardware yet still be able to check the bits.
+/// You can write to a local register, which will modify the stored value, but
+/// will not modify any hardware because it operates only on local copy.
 #[derive(Copy, Clone)]
 pub struct LocalRegisterCopy<T: IntLike, R: RegisterLongName = ()> {
     value: T,
@@ -364,31 +356,55 @@ impl<T: IntLike, R: RegisterLongName> LocalRegisterCopy<T, R> {
         }
     }
 
+    /// Get the raw register value
     #[inline]
     pub fn get(&self) -> T {
         self.value
     }
 
+    /// Set the raw register value
+    #[inline]
+    pub fn set(&mut self, value: T) {
+        self.value = value;
+    }
+
+    /// Read the value of the given field
     #[inline]
     pub fn read(&self, field: Field<T, R>) -> T {
         field.read(self.get())
     }
 
+    /// Read value of the given field as an enum member
     #[inline]
     pub fn read_as_enum<E: TryFromValue<T, EnumType = E>>(&self, field: Field<T, R>) -> Option<E> {
         field.read_as_enum(self.get())
     }
 
+    /// Write the value of one or more fields, overwriting the other fields with zero
+    #[inline]
+    pub fn write(&mut self, field: FieldValue<T, R>) {
+        self.set(field.value);
+    }
+
+    /// Write the value of one or more fields, leaving the other fields unchanged
+    #[inline]
+    pub fn modify(&mut self, field: FieldValue<T, R>) {
+        self.set(field.modify(self.get()));
+    }
+
+    /// Check if one or more bits in a field are set
     #[inline]
     pub fn is_set(&self, field: Field<T, R>) -> bool {
         field.is_set(self.get())
     }
 
+    /// Check if any specified parts of a field match
     #[inline]
     pub fn matches_any(&self, field: FieldValue<T, R>) -> bool {
         field.matches_any(self.get())
     }
 
+    /// Check if all specified parts of a field match
     #[inline]
     pub fn matches_all(&self, field: FieldValue<T, R>) -> bool {
         field.matches_all(self.get())
@@ -408,29 +424,21 @@ impl<T: IntLike + fmt::Debug, R: RegisterLongName> fmt::Debug for LocalRegisterC
     }
 }
 
-impl<R: RegisterLongName> From<LocalRegisterCopy<u8, R>> for u8 {
-    fn from(r: LocalRegisterCopy<u8, R>) -> u8 {
-        r.value
-    }
+macro_rules! From_impl_for {
+    ($type:ty) => {
+        impl<R: RegisterLongName> From<LocalRegisterCopy<$type, R>> for $type {
+            fn from(r: LocalRegisterCopy<$type, R>) -> $type {
+                r.value
+            }
+        }
+    };
 }
 
-impl<R: RegisterLongName> From<LocalRegisterCopy<u16, R>> for u16 {
-    fn from(r: LocalRegisterCopy<u16, R>) -> u16 {
-        r.value
-    }
-}
-
-impl<R: RegisterLongName> From<LocalRegisterCopy<u32, R>> for u32 {
-    fn from(r: LocalRegisterCopy<u32, R>) -> u32 {
-        r.value
-    }
-}
-
-impl<R: RegisterLongName> From<LocalRegisterCopy<u64, R>> for u64 {
-    fn from(r: LocalRegisterCopy<u64, R>) -> u64 {
-        r.value
-    }
-}
+From_impl_for!(u8);
+From_impl_for!(u16);
+From_impl_for!(u32);
+From_impl_for!(u64);
+From_impl_for!(u128);
 
 /// In memory volatile register.
 // To successfully alias this structure onto hardware registers in memory, this
@@ -506,6 +514,8 @@ impl<T: IntLike, R: RegisterLongName> InMemoryRegister<T, R> {
 }
 
 /// Specific section of a register.
+///
+/// For the Field, the mask is unshifted, ie. the LSB should always be set.
 #[derive(Copy, Clone)]
 pub struct Field<T: IntLike, R: RegisterLongName> {
     mask: T,
@@ -514,6 +524,14 @@ pub struct Field<T: IntLike, R: RegisterLongName> {
 }
 
 impl<T: IntLike, R: RegisterLongName> Field<T, R> {
+    pub const fn new(mask: T, shift: usize) -> Field<T, R> {
+        Field {
+            mask: mask,
+            shift: shift,
+            associated_register: PhantomData,
+        }
+    }
+
     #[inline]
     pub fn read(self, val: T) -> T {
         (val & (self.mask << self.shift)) >> self.shift
@@ -532,66 +550,26 @@ impl<T: IntLike, R: RegisterLongName> Field<T, R> {
     }
 }
 
-// For the Field, the mask is unshifted, ie. the LSB should always be set
-impl<R: RegisterLongName> Field<u8, R> {
-    pub const fn new(mask: u8, shift: usize) -> Field<u8, R> {
-        Field {
-            mask: mask,
-            shift: shift,
-            associated_register: PhantomData,
+macro_rules! Field_impl_for {
+    ($type:ty) => {
+        impl<R: RegisterLongName> Field<$type, R> {
+            pub fn val(&self, value: $type) -> FieldValue<$type, R> {
+                FieldValue::<$type, R>::new(self.mask, self.shift, value)
+            }
         }
-    }
-
-    pub fn val(&self, value: u8) -> FieldValue<u8, R> {
-        FieldValue::<u8, R>::new(self.mask, self.shift, value)
-    }
+    };
 }
 
-impl<R: RegisterLongName> Field<u16, R> {
-    pub const fn new(mask: u16, shift: usize) -> Field<u16, R> {
-        Field {
-            mask: mask,
-            shift: shift,
-            associated_register: PhantomData,
-        }
-    }
-
-    pub fn val(&self, value: u16) -> FieldValue<u16, R> {
-        FieldValue::<u16, R>::new(self.mask, self.shift, value)
-    }
-}
-
-impl<R: RegisterLongName> Field<u32, R> {
-    pub const fn new(mask: u32, shift: usize) -> Field<u32, R> {
-        Field {
-            mask: mask,
-            shift: shift,
-            associated_register: PhantomData,
-        }
-    }
-
-    pub fn val(&self, value: u32) -> FieldValue<u32, R> {
-        FieldValue::<u32, R>::new(self.mask, self.shift, value)
-    }
-}
-
-impl<R: RegisterLongName> Field<u64, R> {
-    pub const fn new(mask: u64, shift: usize) -> Field<u64, R> {
-        Field {
-            mask: mask,
-            shift: shift,
-            associated_register: PhantomData,
-        }
-    }
-
-    pub fn val(&self, value: u64) -> FieldValue<u64, R> {
-        FieldValue::<u64, R>::new(self.mask, self.shift, value)
-    }
-}
+Field_impl_for!(u8);
+Field_impl_for!(u16);
+Field_impl_for!(u32);
+Field_impl_for!(u64);
+Field_impl_for!(u128);
 
 /// Values for the specific register fields.
-// For the FieldValue, the masks and values are shifted into their actual
-// location in the register.
+///
+/// For the FieldValue, the masks and values are shifted into their actual
+/// location in the register.
 #[derive(Copy, Clone)]
 pub struct FieldValue<T: IntLike, R: RegisterLongName> {
     mask: T,
@@ -599,76 +577,41 @@ pub struct FieldValue<T: IntLike, R: RegisterLongName> {
     associated_register: PhantomData<R>,
 }
 
-// Necessary to split the implementation of new() out because the bitwise
-// math isn't treated as const when the type is generic.
-// Tracking issue: https://github.com/rust-lang/rfcs/pull/2632
-impl<R: RegisterLongName> FieldValue<u8, R> {
-    pub const fn new(mask: u8, shift: usize, value: u8) -> Self {
-        FieldValue {
-            mask: mask << shift,
-            value: (value & mask) << shift,
-            associated_register: PhantomData,
+macro_rules! FieldValue_impl_for {
+    ($type:ty) => {
+        // Necessary to split the implementation of new() out because the bitwise
+        // math isn't treated as const when the type is generic.
+        // Tracking issue: https://github.com/rust-lang/rfcs/pull/2632
+        impl<R: RegisterLongName> FieldValue<$type, R> {
+            pub const fn new(mask: $type, shift: usize, value: $type) -> Self {
+                FieldValue {
+                    mask: mask << shift,
+                    value: (value & mask) << shift,
+                    associated_register: PhantomData,
+                }
+            }
         }
-    }
-}
 
-impl<R: RegisterLongName> From<FieldValue<u8, R>> for u8 {
-    fn from(val: FieldValue<u8, R>) -> u8 {
-        val.value
-    }
-}
-
-impl<R: RegisterLongName> FieldValue<u16, R> {
-    pub const fn new(mask: u16, shift: usize, value: u16) -> Self {
-        FieldValue {
-            mask: mask << shift,
-            value: (value & mask) << shift,
-            associated_register: PhantomData,
+        // Necessary to split the implementation of From<> out because of the orphan rule
+        // for foreign trait implementation (see [E0210](https://doc.rust-lang.org/error-index.html#E0210)).
+        impl<R: RegisterLongName> From<FieldValue<$type, R>> for $type {
+            fn from(val: FieldValue<$type, R>) -> $type {
+                val.value
+            }
         }
-    }
+    };
 }
 
-impl<R: RegisterLongName> From<FieldValue<u16, R>> for u16 {
-    fn from(val: FieldValue<u16, R>) -> u16 {
-        val.value
-    }
-}
-
-impl<R: RegisterLongName> FieldValue<u32, R> {
-    pub const fn new(mask: u32, shift: usize, value: u32) -> Self {
-        FieldValue {
-            mask: mask << shift,
-            value: (value & mask) << shift,
-            associated_register: PhantomData,
-        }
-    }
-}
-
-impl<R: RegisterLongName> From<FieldValue<u32, R>> for u32 {
-    fn from(val: FieldValue<u32, R>) -> u32 {
-        val.value
-    }
-}
-
-impl<R: RegisterLongName> FieldValue<u64, R> {
-    pub const fn new(mask: u64, shift: usize, value: u64) -> Self {
-        FieldValue {
-            mask: mask << shift,
-            value: (value & mask) << shift,
-            associated_register: PhantomData,
-        }
-    }
-}
-
-impl<R: RegisterLongName> From<FieldValue<u64, R>> for u64 {
-    fn from(val: FieldValue<u64, R>) -> u64 {
-        val.value
-    }
-}
+FieldValue_impl_for!(u8);
+FieldValue_impl_for!(u16);
+FieldValue_impl_for!(u32);
+FieldValue_impl_for!(u64);
+FieldValue_impl_for!(u128);
 
 impl<T: IntLike, R: RegisterLongName> FieldValue<T, R> {
     /// Get the raw bitmask represented by this FieldValue.
-    pub fn mask(self) -> T {
+    #[inline]
+    pub fn mask(&self) -> T {
         self.mask as T
     }
 
@@ -678,17 +621,20 @@ impl<T: IntLike, R: RegisterLongName> FieldValue<T, R> {
     }
 
     /// Modify fields in a register value
+    #[inline]
     pub fn modify(self, val: T) -> T {
         (val & !self.mask) | self.value
     }
 
     /// Check if any specified parts of a field match
-    pub fn matches_any(self, val: T) -> bool {
+    #[inline]
+    pub fn matches_any(&self, val: T) -> bool {
         val & self.mask != T::zero()
     }
 
     /// Check if all specified parts of a field match
-    pub fn matches_all(self, val: T) -> bool {
+    #[inline]
+    pub fn matches_all(&self, val: T) -> bool {
         val & self.mask == self.value
     }
 }
@@ -696,6 +642,8 @@ impl<T: IntLike, R: RegisterLongName> FieldValue<T, R> {
 // Combine two fields with the addition operator
 impl<T: IntLike, R: RegisterLongName> Add for FieldValue<T, R> {
     type Output = Self;
+
+    #[inline]
     fn add(self, rhs: Self) -> Self {
         FieldValue {
             mask: self.mask | rhs.mask,
@@ -707,6 +655,7 @@ impl<T: IntLike, R: RegisterLongName> Add for FieldValue<T, R> {
 
 // Combine two fields with the += operator
 impl<T: IntLike, R: RegisterLongName> AddAssign for FieldValue<T, R> {
+    #[inline]
     fn add_assign(&mut self, rhs: FieldValue<T, R>) {
         self.mask |= rhs.mask;
         self.value |= rhs.value;
@@ -771,6 +720,9 @@ mod tests {
             let field64 = Field::<u64, ()>::new(0x12345678_9abcdef0, 1);
             assert_eq!(field64.mask, 0x12345678_9abcdef0_u64);
             assert_eq!(field64.shift, 1);
+            let field128 = Field::<u128, ()>::new(0x12345678_9abcdef0_0fedcba9_87654321, 1);
+            assert_eq!(field128.mask, 0x12345678_9abcdef0_0fedcba9_87654321_u128);
+            assert_eq!(field128.shift, 1);
         }
 
         #[test]
