@@ -36,8 +36,8 @@ use nrf52840::{
     rtc::Rtc,
 };
 
-// Allocate 4 KiB volume for log storage (the nano33ble page size is 4 KiB).
-storage_volume!(LINEAR_TEST_LOG, 4);
+// Allocate 8 KiB volume for log storage (the nano33ble page size is 4 KiB).
+storage_volume!(LINEAR_TEST_LOG, 8);
 
 pub unsafe fn run(
     mux_alarm: &'static MuxAlarm<'static, Rtc>,
