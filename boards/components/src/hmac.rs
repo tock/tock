@@ -2,7 +2,7 @@
 //!
 //! Usage
 //! -----
-//! ```rust
+//! ```ignore
 //!    let hmac_data_buffer = static_init!([u8; 64], [0; 64]);
 //!    let hmac_dest_buffer = static_init!([u8; 32], [0; 32]);
 //!
@@ -20,7 +20,6 @@
 //!        lowrisc::hmac::Hmac,
 //!        [u8; 32]
 //!    ));
-//! ));
 //! ```
 
 use capsules;
