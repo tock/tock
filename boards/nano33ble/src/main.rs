@@ -322,7 +322,7 @@ pub unsafe fn reset_handler() {
             .finalize(());
 
     let serial_num = nrf52840::ficr::FICR_INSTANCE.address();
-    let serial_num_bottom_16 = serial_num[0] as u16 + ((serial_num[1] as u16) << 8);
+    let serial_num_bottom_16 = u16::from_le_bytes([serial_num[0], serial_num[1]]);
     let (ieee802154_radio, _mux_mac) = components::ieee802154::Ieee802154Component::new(
         board_kernel,
         &base_peripherals.ieee802154_radio,
