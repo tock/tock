@@ -7,8 +7,8 @@
 //! behaves as expected. The tests perform both valid and invalid operations to fully test the log's
 //! behavior.
 //!
-//! Pressing the `USER` button on the imix at any time during the test will erase the log and reset
-//! the test state. Pressing the `RESET` button will reboot the imix without erasing the log,
+//! Shorting the `P1.08` button on the nano33ble at any time during the test will erase the log and reset
+//! the test state. Pressing the `RESET` button will reboot the nano33ble without erasing the log,
 //! allowing for testing logs across reboots.
 //!
 //! In order to fully test the log, the tester should try a variety of erases and reboots to ensure
@@ -18,11 +18,15 @@
 //! scenarios (e.g. saturating/not saturating log pages with data, always/not always ending
 //! operations at page boundaries, etc.).
 //!
-//! To run the test, add the following line to the imix boot sequence:
+//! To run the test, uncomment the following line to the nano33ble boot sequence:
 //! ```
-//!     test::log_test::run(mux_alarm, dynamic_deferred_caller, &peripherals.flash_controller);
+//! test::log_test::run(
+//!     mux_alarm,
+//!     dynamic_deferred_caller,
+//!     &nrf52840_peripherals.nrf52.nvmc,
+//! );
 //! ```
-//! and use the `USER` and `RESET` buttons to manually erase the log and reboot the imix,
+//! and use the `USER` and `RESET` buttons to manually erase the log and reboot the nano33ble,
 //! respectively.
 
 use capsules::log;
