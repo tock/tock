@@ -72,7 +72,7 @@ impl Platform for NucleoF429ZI {
     {
         match driver_num {
             capsules::console::DRIVER_NUM => f(Some(Err(self.console))),
-            capsules::led::DRIVER_NUM => f(Some(Err(self.led))),
+            capsules::led::DRIVER_NUM => f(Some(Ok(self.led))),
             capsules::button::DRIVER_NUM => f(Some(Err(self.button))),
             capsules::adc::DRIVER_NUM => f(Some(Err(self.adc))),
             capsules::alarm::DRIVER_NUM => f(Some(Err(self.alarm))),

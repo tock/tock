@@ -66,7 +66,7 @@ impl Platform for MspExp432P401R {
         F: FnOnce(Option<Result<&dyn kernel::Driver, &dyn kernel::LegacyDriver>>) -> R,
     {
         match driver_num {
-            capsules::led::DRIVER_NUM => f(Some(Err(self.led))),
+            capsules::led::DRIVER_NUM => f(Some(Ok(self.led))),
             capsules::console::DRIVER_NUM => f(Some(Err(self.console))),
             capsules::button::DRIVER_NUM => f(Some(Err(self.button))),
             capsules::gpio::DRIVER_NUM => f(Some(Err(self.gpio))),

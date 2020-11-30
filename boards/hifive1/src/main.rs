@@ -74,7 +74,7 @@ impl Platform for HiFive1 {
         F: FnOnce(Option<Result<&dyn kernel::Driver, &dyn kernel::LegacyDriver>>) -> R,
     {
         match driver_num {
-            capsules::led::DRIVER_NUM => f(Some(Err(self.led))),
+            capsules::led::DRIVER_NUM => f(Some(Ok(self.led))),
             capsules::console::DRIVER_NUM => f(Some(Err(self.console))),
             capsules::alarm::DRIVER_NUM => f(Some(Err(self.alarm))),
             capsules::low_level_debug::DRIVER_NUM => f(Some(Err(self.lldb))),
