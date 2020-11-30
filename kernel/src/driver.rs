@@ -91,52 +91,60 @@ impl SubscribeResult {
 }
 
 /// Possible return values of a read-write `allow` driver method.
-pub enum AllowReadWriteResult {
+pub struct AllowReadWriteResult(
+    Result<AppSlice<SharedReadWrite, u8>, (AppSlice<SharedReadWrite, u8>, ErrorCode)>,
+);
+impl AllowReadWriteResult {
     /// The allow operation succeeded and the AppSlice has been stored
     /// with the capsule
     ///
     /// The capsule **must** return any previously shared (potentially
     /// empty, default constructed) AppSlice.
-    Success(AppSlice<SharedReadWrite, u8>),
+    pub fn success(old_appslice: AppSlice<SharedReadWrite, u8>) -> Self {
+        AllowReadWriteResult(Ok(old_appslice))
+    }
+
     /// The allow operation was refused. The capsule has not stored
     /// the AppSlice instance
     ///
     /// The capsule **must** return the passed AppSlice back.
-    Failure(AppSlice<SharedReadWrite, u8>, ErrorCode),
-}
-
-impl AllowReadWriteResult {
-    pub fn success(old_appslice: AppSlice<SharedReadWrite, u8>) -> Self {
-        AllowReadWriteResult::Success(old_appslice)
+    pub fn failure(new_appslice: AppSlice<SharedReadWrite, u8>, reason: ErrorCode) -> Self {
+        AllowReadWriteResult(Err((new_appslice, reason)))
     }
 
-    pub fn failure(new_appslice: AppSlice<SharedReadWrite, u8>, reason: ErrorCode) -> Self {
-        AllowReadWriteResult::Failure(new_appslice, reason)
+    pub(crate) fn into_inner(
+        self,
+    ) -> Result<AppSlice<SharedReadWrite, u8>, (AppSlice<SharedReadWrite, u8>, ErrorCode)> {
+        self.0
     }
 }
 
 /// Possible return values of an `allow_readonly` driver method
-pub enum AllowReadOnlyResult {
+pub struct AllowReadOnlyResult(
+    Result<AppSlice<SharedReadOnly, u8>, (AppSlice<SharedReadOnly, u8>, ErrorCode)>,
+);
+impl AllowReadOnlyResult {
     /// The allow operation succeeded and the AppSlice has been stored
     /// with the capsule
     ///
     /// The capsule **must** return any previously shared (potentially
     /// empty, default constructed) AppSlice.
-    Success(AppSlice<SharedReadOnly, u8>),
+    pub fn success(old_appslice: AppSlice<SharedReadOnly, u8>) -> Self {
+        AllowReadOnlyResult(Ok(old_appslice))
+    }
+
     /// The allow operation was refused. The capsule has not stored
     /// the AppSlice instance
     ///
     /// The capsule **must** return the passed AppSlice back.
-    Failure(AppSlice<SharedReadOnly, u8>, ErrorCode),
-}
-
-impl AllowReadOnlyResult {
-    pub fn success(old_appslice: AppSlice<SharedReadOnly, u8>) -> Self {
-        AllowReadOnlyResult::Success(old_appslice)
+    pub fn failure(new_appslice: AppSlice<SharedReadOnly, u8>, reason: ErrorCode) -> Self {
+        AllowReadOnlyResult(Err((new_appslice, reason)))
     }
 
-    pub fn failure(new_appslice: AppSlice<SharedReadOnly, u8>, reason: ErrorCode) -> Self {
-        AllowReadOnlyResult::Failure(new_appslice, reason)
+    pub(crate) fn into_inner(
+        self,
+    ) -> Result<AppSlice<SharedReadOnly, u8>, (AppSlice<SharedReadOnly, u8>, ErrorCode)> {
+        self.0
     }
 }
 

@@ -13,6 +13,7 @@ use crate::common::cells::{MapCell, NumericCellExt};
 use crate::common::{Queue, RingBuffer};
 use crate::config;
 use crate::debug;
+use crate::errorcode::ErrorCode;
 use crate::ipc;
 use crate::mem::{AppSlice, SharedReadOnly, SharedReadWrite};
 use crate::platform::mpu::{self, MPU};
@@ -388,11 +389,23 @@ pub trait ProcessType {
     /// signaling the capsule to delete the entry. If the buffer is within the
     /// process's accessible memory, returns an `AppSlice` wrapping that buffer.
     /// Otherwise, returns an error `ReturnCode`.
-    fn allow_readwrite(
+    fn legacy_allow_readwrite(
         &self,
         buf_start_addr: *const u8,
         size: usize,
     ) -> Result<Option<AppSlice<SharedReadWrite, u8>>, ReturnCode>;
+
+    fn allow_readwrite(
+        &self,
+        buf_start_addr: *mut u8,
+        size: usize,
+        driver_invoc_closure: &dyn FnOnce(
+            AppSlice<SharedReadWrite, u8>,
+        ) -> Result<
+            AppSlice<SharedReadWrite, u8>,
+            (AppSlice<SharedReadWrite, u8>, ErrorCode),
+        >,
+    ) -> GenericSyscallReturnValue;
 
     /// Creates a read-only `AppSlice` from the given offset and size
     /// in process memory.
@@ -412,11 +425,23 @@ pub trait ProcessType {
     /// buffer is within the process's readable (RAM or code/flash)
     /// memory, returns an `AppSlice` wrapping that buffer.
     /// Otherwise, returns an error `ReturnCode`.
-    fn allow_readonly(
+    fn legacy_allow_readonly(
         &self,
         buf_start_addr: *const u8,
         size: usize,
     ) -> Result<Option<AppSlice<SharedReadOnly, u8>>, ReturnCode>;
+
+    fn allow_readonly(
+        &self,
+        buf_start_addr: *const u8,
+        size: usize,
+        driver_invoc_closure: &dyn FnOnce(
+            AppSlice<SharedReadOnly, u8>,
+        ) -> Result<
+            AppSlice<SharedReadOnly, u8>,
+            (AppSlice<SharedReadOnly, u8>, ErrorCode),
+        >,
+    ) -> GenericSyscallReturnValue;
 
     /// Get the first address of process's flash that isn't protected by the
     /// kernel. The protected range of flash contains the TBF header and
@@ -1165,7 +1190,8 @@ impl<C: Chip> ProcessType for Process<'_, C> {
             })
     }
 
-    fn allow_readwrite(
+    // TODO: Remove prior to releasing Tock 2.0
+    fn legacy_allow_readwrite(
         &self,
         buf_start_addr: *const u8,
         size: usize,
@@ -1202,7 +1228,35 @@ impl<C: Chip> ProcessType for Process<'_, C> {
         }
     }
 
-    fn allow_readonly(
+    fn allow_readwrite(
+        &self,
+        buf_start_addr: *mut u8,
+        size: usize,
+        _driver_invoc_closure: &dyn FnOnce(
+            AppSlice<SharedReadWrite, u8>,
+        ) -> Result<
+            AppSlice<SharedReadWrite, u8>,
+            (AppSlice<SharedReadWrite, u8>, ErrorCode),
+        >,
+    ) -> GenericSyscallReturnValue {
+        if !self.is_active() {
+            // Do not operate on an inactive process
+            return GenericSyscallReturnValue::AllowReadWriteFailure(
+                ErrorCode::FAIL,
+                buf_start_addr,
+                size,
+            );
+        }
+
+        // TODO: Check for zero length AppSlice and allow in any case
+
+        // TODO: Check for buffer aliasing
+
+        unimplemented!()
+    }
+
+    // TODO: Remove prior to releasing Tock 2.0
+    fn legacy_allow_readonly(
         &self,
         buf_start_addr: *const u8,
         size: usize,
@@ -1240,6 +1294,33 @@ impl<C: Chip> ProcessType for Process<'_, C> {
                 }
             }
         }
+    }
+
+    fn allow_readonly(
+        &self,
+        buf_start_addr: *const u8,
+        size: usize,
+        _driver_invoc_closure: &dyn FnOnce(
+            AppSlice<SharedReadOnly, u8>,
+        ) -> Result<
+            AppSlice<SharedReadOnly, u8>,
+            (AppSlice<SharedReadOnly, u8>, ErrorCode),
+        >,
+    ) -> GenericSyscallReturnValue {
+        if !self.is_active() {
+            // Do not operate on an inactive process
+            return GenericSyscallReturnValue::AllowReadOnlyFailure(
+                ErrorCode::FAIL,
+                buf_start_addr,
+                size,
+            );
+        }
+
+        // TODO: Check for zero length AppSlice and allow in any case
+
+        // TODO: Check for buffer aliasing
+
+        unimplemented!()
     }
 
     fn alloc(&self, size: usize, align: usize) -> Option<NonNull<u8>> {
