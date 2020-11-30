@@ -15,7 +15,8 @@ use crate::config;
 use crate::debug;
 use crate::errorcode::ErrorCode;
 use crate::ipc;
-use crate::mem::{AppSlice, SharedReadOnly, SharedReadWrite};
+use crate::mem::legacy::{AppSlice, SharedReadOnly, SharedReadWrite};
+use crate::mem::{ReadOnlyAppSlice, ReadWriteAppSlice};
 use crate::platform::mpu::{self, MPU};
 use crate::platform::Chip;
 use crate::returncode::ReturnCode;
@@ -400,10 +401,10 @@ pub trait ProcessType {
         buf_start_addr: *mut u8,
         size: usize,
         driver_invoc_closure: &dyn FnOnce(
-            AppSlice<SharedReadWrite, u8>,
+            ReadWriteAppSlice,
         ) -> Result<
-            AppSlice<SharedReadWrite, u8>,
-            (AppSlice<SharedReadWrite, u8>, ErrorCode),
+            ReadWriteAppSlice,
+            (ReadWriteAppSlice, ErrorCode),
         >,
     ) -> GenericSyscallReturnValue;
 
@@ -436,10 +437,10 @@ pub trait ProcessType {
         buf_start_addr: *const u8,
         size: usize,
         driver_invoc_closure: &dyn FnOnce(
-            AppSlice<SharedReadOnly, u8>,
+            ReadOnlyAppSlice,
         ) -> Result<
-            AppSlice<SharedReadOnly, u8>,
-            (AppSlice<SharedReadOnly, u8>, ErrorCode),
+            ReadOnlyAppSlice,
+            (ReadOnlyAppSlice, ErrorCode),
         >,
     ) -> GenericSyscallReturnValue;
 
@@ -1233,10 +1234,10 @@ impl<C: Chip> ProcessType for Process<'_, C> {
         buf_start_addr: *mut u8,
         size: usize,
         _driver_invoc_closure: &dyn FnOnce(
-            AppSlice<SharedReadWrite, u8>,
+            ReadWriteAppSlice,
         ) -> Result<
-            AppSlice<SharedReadWrite, u8>,
-            (AppSlice<SharedReadWrite, u8>, ErrorCode),
+            ReadWriteAppSlice,
+            (ReadWriteAppSlice, ErrorCode),
         >,
     ) -> GenericSyscallReturnValue {
         if !self.is_active() {
@@ -1301,10 +1302,10 @@ impl<C: Chip> ProcessType for Process<'_, C> {
         buf_start_addr: *const u8,
         size: usize,
         _driver_invoc_closure: &dyn FnOnce(
-            AppSlice<SharedReadOnly, u8>,
+            ReadOnlyAppSlice,
         ) -> Result<
-            AppSlice<SharedReadOnly, u8>,
-            (AppSlice<SharedReadOnly, u8>, ErrorCode),
+            ReadOnlyAppSlice,
+            (ReadOnlyAppSlice, ErrorCode),
         >,
     ) -> GenericSyscallReturnValue {
         if !self.is_active() {
