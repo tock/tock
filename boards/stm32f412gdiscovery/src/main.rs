@@ -71,7 +71,7 @@ impl Platform for STM32F412GDiscovery {
     {
         match driver_num {
             capsules::console::DRIVER_NUM => f(Some(Err(self.console))),
-            capsules::led::DRIVER_NUM => f(Some(Err(self.led))),
+            capsules::led::DRIVER_NUM => f(Some(Ok(self.led))),
             capsules::button::DRIVER_NUM => f(Some(Err(self.button))),
             capsules::alarm::DRIVER_NUM => f(Some(Err(self.alarm))),
             kernel::ipc::DRIVER_NUM => f(Some(Err(&self.ipc))),
