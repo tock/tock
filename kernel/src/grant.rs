@@ -232,8 +232,7 @@ impl<T: Default> Grant<T> {
 
     pub fn enter<F, R>(&self, appid: AppId, fun: F) -> Result<R, Error>
     where
-        F: FnOnce(&mut Borrowed<T>, &mut Allocator) -> R,
-        R: Copy,
+        F: FnOnce(&mut Borrowed<T>, &mut Allocator) -> R
     {
         appid
             .kernel
