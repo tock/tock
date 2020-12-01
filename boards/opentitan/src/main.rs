@@ -89,7 +89,7 @@ impl Platform for OpenTitan {
             capsules::led::DRIVER_NUM => f(Some(Ok(self.led))),
             capsules::hmac::DRIVER_NUM => f(Some(Err(self.hmac))),
             capsules::gpio::DRIVER_NUM => f(Some(Err(self.gpio))),
-            capsules::console::DRIVER_NUM => f(Some(Err(self.console))),
+            capsules::console::DRIVER_NUM => f(Some(Ok(self.console))),
             capsules::alarm::DRIVER_NUM => f(Some(Err(self.alarm))),
             capsules::low_level_debug::DRIVER_NUM => f(Some(Err(self.lldb))),
             capsules::i2c_master::DRIVER_NUM => f(Some(Err(self.i2c_master))),
