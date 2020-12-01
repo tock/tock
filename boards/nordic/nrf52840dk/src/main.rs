@@ -181,7 +181,7 @@ impl kernel::Platform for Platform {
         F: FnOnce(Option<Result<&dyn kernel::Driver, &dyn kernel::LegacyDriver>>) -> R,
     {
         match driver_num {
-            capsules::console::DRIVER_NUM => f(Some(Err(self.console))),
+            capsules::console::DRIVER_NUM => f(Some(Ok(self.console))),
             capsules::gpio::DRIVER_NUM => f(Some(Err(self.gpio))),
             capsules::alarm::DRIVER_NUM => f(Some(Err(self.alarm))),
             capsules::led::DRIVER_NUM => f(Some(Ok(self.led))),
