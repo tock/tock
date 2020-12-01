@@ -86,7 +86,7 @@ impl Platform for Imxrt1050EVKB {
         match driver_num {
             capsules::alarm::DRIVER_NUM => f(Some(Err(self.alarm))),
             capsules::button::DRIVER_NUM => f(Some(Err(self.button))),
-            capsules::console::DRIVER_NUM => f(Some(Err(self.console))),
+            capsules::console::DRIVER_NUM => f(Some(Ok(self.console))),
             capsules::gpio::DRIVER_NUM => f(Some(Err(self.gpio))),
             kernel::ipc::DRIVER_NUM => f(Some(Err(&self.ipc))),
             capsules::led::DRIVER_NUM => f(Some(Ok(self.led))),

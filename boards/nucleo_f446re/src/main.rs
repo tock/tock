@@ -70,7 +70,7 @@ impl Platform for NucleoF446RE {
         F: FnOnce(Option<Result<&dyn kernel::Driver, &dyn kernel::LegacyDriver>>) -> R,
     {
         match driver_num {
-            capsules::console::DRIVER_NUM => f(Some(Err(self.console))),
+            capsules::console::DRIVER_NUM => f(Some(Ok(self.console))),
             capsules::led::DRIVER_NUM => f(Some(Ok(self.led))),
             capsules::button::DRIVER_NUM => f(Some(Err(self.button))),
             capsules::alarm::DRIVER_NUM => f(Some(Err(self.alarm))),
