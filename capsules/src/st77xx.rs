@@ -1317,6 +1317,10 @@ pub struct ST77XXScreen {
     default_width: usize,
     default_height: usize,
     inverted: bool,
+
+    /// This function allows the translation of the image
+    /// as some screen implementations might have off screen
+    /// pixels for some of the rotations
     offset: fn(rotation: ScreenRotation) -> (usize, usize),
 }
 
