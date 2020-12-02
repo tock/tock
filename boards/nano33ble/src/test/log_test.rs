@@ -654,10 +654,10 @@ fn entry_id_to_test_value(entry_id: usize) -> u64 {
     let pages_written = entry_id / PAGE_SIZE;
     let entry_size = log::ENTRY_HEADER_SIZE + BUFFER_LEN;
     let entries_per_page = (PAGE_SIZE - log::PAGE_HEADER_SIZE) / entry_size;
-    let entries_lRtc_page = if entry_id % PAGE_SIZE >= log::PAGE_HEADER_SIZE {
+    let entries_lrtc_page = if entry_id % PAGE_SIZE >= log::PAGE_HEADER_SIZE {
         (entry_id % PAGE_SIZE - log::PAGE_HEADER_SIZE) / entry_size
     } else {
         0
     };
-    (pages_written * entries_per_page + entries_lRtc_page) as u64
+    (pages_written * entries_per_page + entries_lrtc_page) as u64
 }
