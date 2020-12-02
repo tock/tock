@@ -23,7 +23,8 @@ macro_rules! coop_component_helper {
         use core::mem::MaybeUninit;
         use kernel::static_buf;
         use kernel::CoopProcessNode;
-        static mut BUF: [MaybeUninit<CoopProcessNode<'static>>; $N] = [MaybeUninit::uninit(); $N];
+        const UNINIT: MaybeUninit<CoopProcessNode<'static>> = MaybeUninit::uninit();
+        static mut BUF: [MaybeUninit<CoopProcessNode<'static>>; $N] = [UNINIT; $N];
         &mut BUF
     };};
 }

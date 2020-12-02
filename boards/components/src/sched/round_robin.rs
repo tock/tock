@@ -24,8 +24,8 @@ macro_rules! rr_component_helper {
         use core::mem::MaybeUninit;
         use kernel::static_buf;
         use kernel::RoundRobinProcessNode;
-        static mut BUF: [MaybeUninit<RoundRobinProcessNode<'static>>; $N] =
-            [MaybeUninit::uninit(); $N];
+        const UNINIT: MaybeUninit<RoundRobinProcessNode<'static>> = MaybeUninit::uninit();
+        static mut BUF: [MaybeUninit<RoundRobinProcessNode<'static>>; $N] = [UNINIT; $N];
         &mut BUF
     };};
 }
