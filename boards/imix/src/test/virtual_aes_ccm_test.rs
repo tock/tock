@@ -1,5 +1,12 @@
+//! notice that there will be 18 tests, 6 for each,
+//! and the test output will make the debug buffer full,
+//! please go to boards/components/src/debug_writer.rs and change
+//!     let buf = static_init!([u8; 1024], [0; 1024]);
+//! to
+//!     let buf = static_init!([u8; 4096], [0; 4096]);
+//! Thanks!
 //! To run this test, include the code
-//! ```
+//! ```rust
 //!    test::virtual_aes_ccm_test::run();
 //! ```
 //! In the boot sequence. If it runs correctly, you should see the following
@@ -30,7 +37,6 @@
 use capsules::test::aes_ccm::Test;
 use capsules::virtual_aes_ccm;
 use kernel::common::dynamic_deferred_call::DynamicDeferredCall;
-// use kernel::debug;
 use kernel::hil::symmetric_encryption::{AES128, AES128CCM, AES128_BLOCK_SIZE};
 use kernel::static_init;
 use sam4l::aes::Aes;
@@ -95,11 +101,5 @@ pub unsafe fn run(
     t1.run();
     t2.run();
     t3.run();
-    // notice that there will be 18 tests, 6 for each,
-    // and the test output will make the debug buffer full,
-    // please go to boards/components/src/debug_writer.rs and change
-    //     let buf = static_init!([u8; 1024], [0; 1024]);
-    // to
-    //     let buf = static_init!([u8; 4096], [0; 4096]);
-    // Thanks!
+    
 }
