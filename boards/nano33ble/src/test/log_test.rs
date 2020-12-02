@@ -649,7 +649,7 @@ impl<A: Alarm<'static>> gpio::Client for LogTest<A> {
 
 fn entry_id_to_test_value(entry_id: usize) -> u64 {
     // Page and entry header sizes for log storage.
-    const PAGE_SIZE: usize = 512;
+    const PAGE_SIZE: usize = 4096;
 
     let pages_written = entry_id / PAGE_SIZE;
     let entry_size = log::ENTRY_HEADER_SIZE + BUFFER_LEN;
