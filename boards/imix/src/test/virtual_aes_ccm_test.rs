@@ -101,5 +101,4 @@ pub unsafe fn run(
     t1.run();
     t2.run();
     t3.run();
-    
 }
