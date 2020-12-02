@@ -133,19 +133,6 @@ impl ReadWriteAppSlice {
     pub(crate) fn consume(self) -> (*mut u8, usize) {
         (self.ptr, self.len)
     }
-
-    pub fn swap(into: &mut ReadWriteAppSlice, val: &mut ReadWriteAppSlice) {
-        let mut newslice = ReadWriteAppSlice::default();
-        newslice.ptr = into.ptr;
-        newslice.len = into.len;
-        newslice.process_id = into.process_id;
-        into.ptr = val.ptr;
-        into.len = val.len;
-        into.process_id = val.process_id;
-        val.ptr = newslice.ptr;
-        val.len = newslice.len;
-        val.process_id = newslice.process_id;
-    }
 }
 
 impl Default for ReadWriteAppSlice {
@@ -241,18 +228,6 @@ impl ReadOnlyAppSlice {
     pub(crate) fn consume(self) -> (*const u8, usize) {
         (self.ptr, self.len)
     }
-
-    pub fn swap(into: &mut ReadOnlyAppSlice, val: ReadOnlyAppSlice) -> ReadOnlyAppSlice {
-        let mut newslice = ReadOnlyAppSlice::default();
-        newslice.ptr = into.ptr;
-        newslice.len = into.len;
-        newslice.process_id = into.process_id;
-        into.ptr = val.ptr;
-        into.len = val.len;
-        into.process_id = val.process_id;
-        newslice
-    }
-    
 }
 
 impl Default for ReadOnlyAppSlice {

@@ -37,7 +37,7 @@
 //! the driver. Successive writes must call `allow` each time a buffer is to be
 //! written.
 
-use core::cmp;
+use core::{cmp, mem};
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::uart;
 use kernel::{AppId, Callback, ErrorCode, Grant};
@@ -171,22 +171,25 @@ impl Driver for Console<'_> {
         &self,
         appid: AppId,
         allow_num: usize,
-        mut slice: ReadWriteAppSlice
-    ) -> Result <ReadWriteAppSlice, (ReadWriteAppSlice, ErrorCode)> {
-        match allow_num {
-            1 => {
-                match self.apps.enter(appid, |app, _| {
-                    ReadWriteAppSlice::swap(&mut app.read_buffer, &mut slice);
-                    ()
-                }) {
-                    Ok(x) => Ok(slice),
-                    Err(e) => Err((slice, e.into()))
-                }
-            }
-            _ => Err((slice, ErrorCode::NOSUPPORT)),
+        mut slice: ReadWriteAppSlice,
+    ) -> Result<ReadWriteAppSlice, (ReadWriteAppSlice, ErrorCode)> {
+        let res = match allow_num {
+            1 => self
+                .apps
+                .enter(appid, |app, _| {
+                    mem::swap(&mut app.read_buffer, &mut slice);
+                })
+                .map_err(ErrorCode::from),
+            _ => Err(ErrorCode::NOSUPPORT),
+        };
+
+        if let Err(e) = res {
+            Err((slice, e))
+        } else {
+            Ok(slice)
         }
     }
-    
+
     /// Setup shared buffers.
     ///
     /// ### `allow_num`
@@ -196,18 +199,22 @@ impl Driver for Console<'_> {
         &self,
         appid: AppId,
         allow_num: usize,
-        slice: ReadOnlyAppSlice
-    ) -> Result <ReadOnlyAppSlice, (ReadOnlyAppSlice, ErrorCode)> {
-        match allow_num {
-            1 => self 
+        mut slice: ReadOnlyAppSlice,
+    ) -> Result<ReadOnlyAppSlice, (ReadOnlyAppSlice, ErrorCode)> {
+        let res = match allow_num {
+            1 => self
                 .apps
                 .enter(appid, |app, _| {
-                    Ok(ReadOnlyAppSlice::swap(&mut app.write_buffer, slice))
+                    mem::swap(&mut app.write_buffer, &mut slice);
                 })
-                .unwrap_or_else(|err| {
-                    Err((ReadOnlyAppSlice::default(), err.into()))
-                }),
-            _ => Err((slice, ErrorCode::NOSUPPORT)),
+                .map_err(ErrorCode::from),
+            _ => Err(ErrorCode::NOSUPPORT),
+        };
+
+        if let Err(e) = res {
+            Err((slice, e))
+        } else {
+            Ok(slice)
         }
     }
 /*
