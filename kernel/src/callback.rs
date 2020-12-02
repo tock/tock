@@ -166,11 +166,16 @@ pub struct CallbackId {
 ///
 /// This is essentially a wrapper around a function pointer.
 #[derive(Clone, Copy)]
-pub struct Callback {
+struct ProcessCallback {
     app_id: AppId,
     callback_id: CallbackId,
     appdata: usize,
     fn_ptr: NonNull<*mut ()>,
+}
+
+#[derive(Clone, Copy, Default)]
+pub struct Callback {
+    cb: Option<ProcessCallback>,
 }
 
 impl Callback {
@@ -181,13 +186,32 @@ impl Callback {
         fn_ptr: NonNull<*mut ()>,
     ) -> Callback {
         Callback {
+            cb: Some(ProcessCallback::new(app_id, callback_id, appdata, fn_ptr)),
+        }
+    }
+
+    pub fn schedule(&mut self, r0: usize, r1: usize, r2: usize) -> bool {
+        self.cb.map_or(true, |mut cb| cb.schedule(r0, r1, r2))
+    }
+}
+
+impl ProcessCallback {
+    fn new(
+        app_id: AppId,
+        callback_id: CallbackId,
+        appdata: usize,
+        fn_ptr: NonNull<*mut ()>,
+    ) -> ProcessCallback {
+        ProcessCallback {
             app_id,
             callback_id,
             appdata,
             fn_ptr,
         }
     }
+}
 
+impl ProcessCallback {
     /// Actually trigger the callback.
     ///
     /// This will queue the `Callback` for the associated process. It returns
@@ -196,7 +220,7 @@ impl Callback {
     ///
     /// The arguments (`r0-r2`) are the values passed back to the process and
     /// are specific to the individual `Driver` interfaces.
-    pub fn schedule(&mut self, r0: usize, r1: usize, r2: usize) -> bool {
+    fn schedule(&mut self, r0: usize, r1: usize, r2: usize) -> bool {
         let res = self
             .app_id
             .kernel
