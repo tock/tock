@@ -9,6 +9,7 @@ members = [
     "boards/acd52832",
     "boards/arty_e21",
     "boards/earlgrey-nexysvideo",
+    "boards/clue_nrf52840",
     "boards/hail",
     "boards/hifive1",
     "boards/imix",

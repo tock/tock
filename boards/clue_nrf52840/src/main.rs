@@ -1,6 +1,6 @@
-//! Tock kernel for the Arduino Nano 33 BLE.
+//! Tock kernel for the Adafruit CLUE nRF52480 Express.
 //!
-//! It is based on nRF52840 SoC (Cortex M4 core with a BLE + IEEE 802.15.4 transceiver).
+//! It is based on nRF52840 Express SoC (Cortex M4 core with a BLE + IEEE 802.15.4 transceiver).
 
 #![no_std]
 // Disable this attribute when documenting, as a workaround for
@@ -12,11 +12,9 @@
 use kernel::capabilities;
 use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::component::Component;
-use kernel::hil::gpio::Configure;
 use kernel::hil::gpio::Interrupt;
-use kernel::hil::gpio::Output;
 use kernel::hil::i2c::I2CMaster;
-use kernel::hil::led::LedLow;
+use kernel::hil::led::LedHigh;
 use kernel::hil::time::Counter;
 use kernel::hil::usb::Client;
 use kernel::mpu::MPU;
@@ -27,37 +25,46 @@ use kernel::{create_capability, debug, debug_gpio, debug_verbose, static_init};
 use nrf52840::gpio::Pin;
 use nrf52840::interrupt_service::Nrf52840DefaultPeripherals;
 
-// Three-color LED.
-const LED_RED_PIN: Pin = Pin::P0_24;
-const LED_GREEN_PIN: Pin = Pin::P0_16;
-const LED_BLUE_PIN: Pin = Pin::P0_06;
+// LEDs.
+const LED_RED_PIN: Pin = Pin::P1_01;
+const LED_WHITE_PIN: Pin = Pin::P0_10;
 
-const LED_KERNEL_PIN: Pin = Pin::P0_13;
+const LED_KERNEL_PIN: Pin = Pin::P1_01;
 
-const _BUTTON_RST_PIN: Pin = Pin::P0_18;
+// Buttons
+const BUTTON_LEFT: Pin = Pin::P1_02;
+const BUTTON_RIGHT: Pin = Pin::P1_10;
 
-const GPIO_D2: Pin = Pin::P1_11;
-const GPIO_D3: Pin = Pin::P1_12;
-const GPIO_D4: Pin = Pin::P1_15;
-const GPIO_D5: Pin = Pin::P1_13;
-const GPIO_D6: Pin = Pin::P1_14;
-const GPIO_D7: Pin = Pin::P0_23;
-const GPIO_D8: Pin = Pin::P0_21;
+const GPIO_D2: Pin = Pin::P0_03;
+const GPIO_D3: Pin = Pin::P0_28;
+const GPIO_D4: Pin = Pin::P0_02;
+const GPIO_D6: Pin = Pin::P1_09;
+const GPIO_D7: Pin = Pin::P0_07;
+const GPIO_D8: Pin = Pin::P1_04;
 const GPIO_D9: Pin = Pin::P0_27;
-const GPIO_D10: Pin = Pin::P1_02;
+const GPIO_D10: Pin = Pin::P0_30;
+const GPIO_D12: Pin = Pin::P0_31;
 
-const _UART_TX_PIN: Pin = Pin::P1_03;
-const _UART_RX_PIN: Pin = Pin::P1_10;
+const _UART_TX_PIN: Pin = Pin::P0_05;
+const _UART_RX_PIN: Pin = Pin::P0_04;
 
 /// I2C pins for all of the sensors.
-const I2C_SDA_PIN: Pin = Pin::P0_14;
-const I2C_SCL_PIN: Pin = Pin::P0_15;
-
-/// GPIO tied to the VCC of the I2C pullup resistors.
-const I2C_PULLUP_PIN: Pin = Pin::P1_00;
+const I2C_SDA_PIN: Pin = Pin::P0_24;
+const I2C_SCL_PIN: Pin = Pin::P0_25;
 
 /// Interrupt pin for the APDS9960 sensor.
-const APDS9960_PIN: Pin = Pin::P0_19;
+const APDS9960_PIN: Pin = Pin::P0_09;
+
+/// TFT ST7789H2
+const ST7789H2_SCK: Pin = Pin::P0_14;
+const ST7789H2_MOSI: Pin = Pin::P0_15;
+const ST7789H2_MISO: Pin = Pin::P0_26; // ST7789H2 has no MISO Pin, but SPI requires a MISO Pin
+const ST7789H2_CS: Pin = Pin::P0_12;
+const ST7789H2_DC: Pin = Pin::P0_13;
+const ST7789H2_RESET: Pin = Pin::P1_03;
+
+/// TFT backlight
+const _ST7789H2_LITE: Pin = Pin::P1_05;
 
 /// UART Writer for panic!()s.
 pub mod io;
@@ -93,7 +100,10 @@ pub struct Platform {
     console: &'static capsules::console::Console<'static>,
     proximity: &'static capsules::proximity::ProximitySensor<'static>,
     gpio: &'static capsules::gpio::GPIO<'static, nrf52::gpio::GPIOPin<'static>>,
-    led: &'static capsules::led::LedDriver<'static, LedLow<'static, nrf52::gpio::GPIOPin<'static>>>,
+    led:
+        &'static capsules::led::LedDriver<'static, LedHigh<'static, nrf52::gpio::GPIOPin<'static>>>,
+    button: &'static capsules::button::Button<'static, nrf52::gpio::GPIOPin<'static>>,
+    screen: &'static capsules::screen::Screen<'static>,
     rng: &'static capsules::rng::RngDriver<'static>,
     ipc: kernel::ipc::IPC,
     alarm: &'static capsules::alarm::AlarmDriver<
@@ -113,6 +123,8 @@ impl kernel::Platform for Platform {
             capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
             capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
             capsules::led::DRIVER_NUM => f(Some(self.led)),
+            capsules::button::DRIVER_NUM => f(Some(self.button)),
+            capsules::screen::DRIVER_NUM => f(Some(self.screen)),
             capsules::rng::DRIVER_NUM => f(Some(self.rng)),
             // capsules::ble_advertising_driver::DRIVER_NUM => f(Some(self.ble_radio)),
             // capsules::ieee802154::DRIVER_NUM => f(Some(radio)),
@@ -136,6 +148,7 @@ pub unsafe fn reset_handler() {
 
     // set up circular peripheral dependencies
     nrf52840_peripherals.init();
+
     let base_peripherals = &nrf52840_peripherals.nrf52;
 
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
@@ -175,12 +188,12 @@ pub unsafe fn reset_handler() {
             2 => &base_peripherals.gpio_port[GPIO_D2],
             3 => &base_peripherals.gpio_port[GPIO_D3],
             4 => &base_peripherals.gpio_port[GPIO_D4],
-            5 => &base_peripherals.gpio_port[GPIO_D5],
             6 => &base_peripherals.gpio_port[GPIO_D6],
             7 => &base_peripherals.gpio_port[GPIO_D7],
             8 => &base_peripherals.gpio_port[GPIO_D8],
             9 => &base_peripherals.gpio_port[GPIO_D9],
-            10 => &base_peripherals.gpio_port[GPIO_D10]
+            10 => &base_peripherals.gpio_port[GPIO_D10],
+            12 => &base_peripherals.gpio_port[GPIO_D12]
         ),
     )
     .finalize(components::gpio_component_buf!(nrf52840::gpio::GPIOPin));
@@ -190,14 +203,34 @@ pub unsafe fn reset_handler() {
     //--------------------------------------------------------------------------
 
     let led = components::led::LedsComponent::new(components::led_component_helper!(
-        LedLow<'static, nrf52840::gpio::GPIOPin>,
-        LedLow::new(&base_peripherals.gpio_port[LED_RED_PIN]),
-        LedLow::new(&base_peripherals.gpio_port[LED_GREEN_PIN]),
-        LedLow::new(&base_peripherals.gpio_port[LED_BLUE_PIN]),
+        LedHigh<'static, nrf52840::gpio::GPIOPin>,
+        LedHigh::new(&base_peripherals.gpio_port[LED_RED_PIN]),
+        LedHigh::new(&base_peripherals.gpio_port[LED_WHITE_PIN])
     ))
     .finalize(components::led_component_buf!(
-        LedLow<'static, nrf52840::gpio::GPIOPin>
+        LedHigh<'static, nrf52840::gpio::GPIOPin>
     ));
+
+    //--------------------------------------------------------------------------
+    // Buttons
+    //--------------------------------------------------------------------------
+    let button = components::button::ButtonComponent::new(
+        board_kernel,
+        components::button_component_helper!(
+            nrf52840::gpio::GPIOPin,
+            (
+                &base_peripherals.gpio_port[BUTTON_LEFT],
+                kernel::hil::gpio::ActivationMode::ActiveHigh,
+                kernel::hil::gpio::FloatingState::PullUp
+            ), // Left
+            (
+                &base_peripherals.gpio_port[BUTTON_RIGHT],
+                kernel::hil::gpio::ActivationMode::ActiveLow,
+                kernel::hil::gpio::FloatingState::PullUp
+            ) // Right
+        ),
+    )
+    .finalize(components::button_component_buf!(nrf52840::gpio::GPIOPin));
 
     //--------------------------------------------------------------------------
     // Deferred Call (Dynamic) Setup
@@ -228,7 +261,7 @@ pub unsafe fn reset_handler() {
     //--------------------------------------------------------------------------
 
     // Setup the CDC-ACM over USB driver that we will use for UART.
-    // We use the Arduino Vendor ID and Product ID since the device is the same.
+    // We use the Adafruit Vendor ID and Product ID since the device is the same.
 
     // Create the strings we include in the USB descriptor. We use the hardcoded
     // DEVICEADDR register on the nRF52 to set the serial number.
@@ -238,17 +271,17 @@ pub unsafe fn reset_handler() {
     let strings = static_init!(
         [&str; 3],
         [
-            "Arduino",              // Manufacturer
-            "Nano 33 BLE - TockOS", // Product
-            serial_number_string,   // Serial number
+            "Adafruit",               // Manufacturer
+            "CLUE nRF52840 - TockOS", // Product
+            serial_number_string,     // Serial number
         ]
     );
 
     let cdc = components::cdc::CdcAcmComponent::new(
         &nrf52840_peripherals.usbd,
         capsules::usb::cdc::MAX_CTRL_PACKET_SIZE_NRF52840,
-        0x2341,
-        0x005a,
+        0x239a,
+        0x8071,
         strings,
     )
     .finalize(components::usb_cdc_acm_component_helper!(nrf52::usbd::Usbd));
@@ -283,9 +316,6 @@ pub unsafe fn reset_handler() {
     );
     base_peripherals.twim0.set_master_client(sensors_i2c_bus);
 
-    &nrf52840::gpio::PORT[I2C_PULLUP_PIN].make_output();
-    &nrf52840::gpio::PORT[I2C_PULLUP_PIN].set();
-
     let apds9960_i2c = static_init!(
         capsules::virtual_i2c::I2CDevice,
         capsules::virtual_i2c::I2CDevice::new(sensors_i2c_bus, 0x39 << 1)
@@ -310,6 +340,57 @@ pub unsafe fn reset_handler() {
     );
 
     kernel::hil::sensors::ProximityDriver::set_client(apds9960, proximity);
+
+    //--------------------------------------------------------------------------
+    // TFT
+    //--------------------------------------------------------------------------
+
+    let spi_mux = components::spi::SpiMuxComponent::new(&base_peripherals.spim0)
+        .finalize(components::spi_mux_component_helper!(nrf52840::spi::SPIM));
+
+    base_peripherals.spim0.configure(
+        nrf52840::pinmux::Pinmux::new(ST7789H2_MOSI as u32),
+        nrf52840::pinmux::Pinmux::new(ST7789H2_MISO as u32),
+        nrf52840::pinmux::Pinmux::new(ST7789H2_SCK as u32),
+    );
+
+    let bus = components::bus::SpiMasterBusComponent::new().finalize(
+        components::spi_bus_component_helper!(
+            // spi type
+            nrf52840::spi::SPIM,
+            // chip select
+            &nrf52840::gpio::PORT[ST7789H2_CS],
+            // spi mux
+            spi_mux
+        ),
+    );
+
+    let tft = components::st77xx::ST77XXComponent::new(mux_alarm).finalize(
+        components::st77xx_component_helper!(
+            // screen
+            &capsules::st77xx::ST7789H2,
+            // bus type
+            capsules::bus::SpiMasterBus<
+                'static,
+                VirtualSpiMasterDevice<'static, nrf52840::spi::SPIM>,
+            >,
+            // bus
+            &bus,
+            // timer type
+            nrf52840::rtc::Rtc,
+            // pin type
+            nrf52::gpio::GPIOPin<'static>,
+            // dc
+            Some(&nrf52840::gpio::PORT[ST7789H2_DC]),
+            // reset
+            &nrf52840::gpio::PORT[ST7789H2_RESET]
+        ),
+    );
+
+    tft.init();
+
+    let screen = components::screen::ScreenComponent::new(board_kernel, tft, Some(tft))
+        .finalize(components::screen_buffer_size!(57600));
 
     //--------------------------------------------------------------------------
     // WIRELESS
@@ -341,6 +422,8 @@ pub unsafe fn reset_handler() {
         proximity: proximity,
         led: led,
         gpio: gpio,
+        screen: screen,
+        button: button,
         rng: rng,
         alarm: alarm,
         ipc: kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability),
