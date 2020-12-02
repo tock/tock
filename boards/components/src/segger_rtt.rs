@@ -28,7 +28,7 @@ use kernel::{static_init, static_init_half};
 // Setup static space for the objects.
 #[macro_export]
 macro_rules! segger_rtt_component_helper {
-    ($A:ty) => {{
+    ($A:ty $(,)?) => {{
         use capsules::segger_rtt::SeggerRtt;
         use capsules::virtual_alarm::VirtualMuxAlarm;
         use core::mem::MaybeUninit;

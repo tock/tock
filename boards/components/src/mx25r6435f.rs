@@ -28,7 +28,7 @@ use kernel::static_init_half;
 // Setup static space for the objects.
 #[macro_export]
 macro_rules! mx25r6435f_component_helper {
-    ($S:ty, $P: ty, $A: ty) => {{
+    ($S:ty, $P:ty, $A:ty $(,)?) => {{
         use capsules::mx25r6435f::MX25R6435F;
         use capsules::virtual_alarm::VirtualMuxAlarm;
         use capsules::virtual_spi::VirtualSpiMasterDevice;
