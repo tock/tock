@@ -38,11 +38,13 @@
 //! written.
 
 use core::{cmp, mem};
+use core::convert::TryFrom;
+
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::uart;
 use kernel::{AppId, Callback, ErrorCode, Grant};
 use kernel::{ReadOnlyAppSlice, ReadWriteAppSlice, Read, ReadWrite};
-use kernel::{Driver, ReturnCode, SharedReadWrite};
+use kernel::{Driver, ReturnCode, SharedReadWrite, CommandResult};
 
 /// Syscall driver number.
 use crate::driver;
@@ -50,13 +52,13 @@ pub const DRIVER_NUM: usize = driver::NUM::Console as usize;
 
 #[derive(Default)]
 pub struct App {
-    write_callback: Option<Callback>,
+    write_callback: Callback,
     write_buffer: ReadOnlyAppSlice,
     write_len: usize,
     write_remaining: usize, // How many bytes didn't fit in the buffer and still need to be printed.
     pending_write: bool,
 
-    read_callback: Option<Callback>,
+    read_callback: Callback,
     read_buffer: ReadWriteAppSlice,
     read_len: usize,
 }
@@ -217,7 +219,6 @@ impl Driver for Console<'_> {
             Ok(slice)
         }
     }
-/*
     /// Setup callbacks.
     ///
     /// ### `subscribe_num`
@@ -226,27 +227,32 @@ impl Driver for Console<'_> {
     fn subscribe(
         &self,
         subscribe_num: usize, 
-        callback: Callback,
+        mut callback: Callback,
         app_id: AppId,
     ) -> Result<Callback, (Callback, ErrorCode)> {
-        match subscribe_num {
+        let res = match subscribe_num {
             1 => { // putstr/write done
-                self.apps.enter(app_id, |app, _| {
-                    let rval = app.write_callback;
-                    app.write_callback = callback;
-                    Ok(rval)
-                }).unwrap_or_else(|err| {
-                    Err((callback, err.into()))
-                }
+                self
+                .apps
+                .enter(app_id, |app, _| {
+                    mem::swap(&mut app.write_callback, &mut callback);
+                })
+               .map_err(ErrorCode::from)
             },
             2 => { // getnstr/read done
-                self.apps.enter(app_id, |app, _| {
-                    let rval = app.read_callback;
-                    app.read_callback = callback;
-                    Ok(rval)
-                }).unwrap_or_else(|err| err.into())
+                self
+                .apps
+                .enter(app_id, |app, _| {
+                     mem::swap(&mut app.read_callback, &mut callback);
+                }).map_err(ErrorCode::from)
             },
-            _ => Err((callback, ErrorCode::NOSUPPORT))
+            _ => Err(ErrorCode::NOSUPPORT)
+        };
+
+        if let Err(e) = res {
+            Err((callback, e))
+        } else {
+            Ok(callback)
         }
     }
 
@@ -261,29 +267,39 @@ impl Driver for Console<'_> {
     ///        passed in `arg1`
     /// - `3`: Cancel any in progress receives and return (via callback)
     ///        what has been received so far.
-    fn command(&self, cmd_num: usize, arg1: usize, _: usize, appid: AppId) -> ReturnCode {
-        match cmd_num {
-            0 => ReturnCode::SUCCESS, // Check if present
+    fn command(&self, cmd_num: usize, arg1: usize, _: usize, appid: AppId) -> CommandResult{
+        let res = match cmd_num {
+            0 => Ok(ReturnCode::SUCCESS),
             1 => { // putstr
                 let len = arg1;
                 self.apps.enter(appid, |app, _| {
                     self.send_new(appid, app, len)
-                }).unwrap_or_else(|err| err.into())
+                }).map_err(ErrorCode::from)
             },
             2 => { // getnstr
                 let len = arg1;
                 self.apps.enter(appid, |app, _| {
                     self.receive_new(appid, app, len)
-                }).unwrap_or_else(|err| err.into())
+                }).map_err(ErrorCode::from)
             },
             3 => { // Abort RX
                 self.uart.receive_abort();
-                ReturnCode::SUCCESS
+                Ok(ReturnCode::SUCCESS)
             }
-            _ => ReturnCode::ENOSUPPORT
+            _ => Err(ErrorCode::NOSUPPORT)
+        };
+        match res {
+            Ok(r) => {
+                let res = ErrorCode::try_from(r);
+                match res {
+                    Err(_) =>  CommandResult::success(),
+                    Ok(e) => CommandResult::failure(e)
+                }
+            },
+            Err(e) => CommandResult::failure(e)
         }
     }
-*/
+
 }
 
 impl uart::TransmitClient for Console<'_> {
@@ -299,9 +315,7 @@ impl uart::TransmitClient for Console<'_> {
                             // Go ahead and signal the application
                             let written = app.write_len;
                             app.write_len = 0;
-                            app.write_callback.map(|mut cb| {
-                                cb.schedule(written, 0, 0);
-                            });
+                            app.write_callback.schedule(written, 0, 0);
                         }
                     }
                     Err(return_code) => {
@@ -310,9 +324,7 @@ impl uart::TransmitClient for Console<'_> {
                         app.write_remaining = 0;
                         app.pending_write = false;
                         let r0 = isize::from(return_code) as usize;
-                        app.write_callback.map(|mut cb| {
-                            cb.schedule(r0, 0, 0);
-                        });
+                        app.write_callback.schedule(r0, 0, 0);
                     }
                 }
             })
@@ -333,9 +345,7 @@ impl uart::TransmitClient for Console<'_> {
                                 app.write_remaining = 0;
                                 app.pending_write = false;
                                 let r0 = isize::from(return_code) as usize;
-                                app.write_callback.map(|mut cb| {
-                                    cb.schedule(r0, 0, 0);
-                                });
+                                app.write_callback.schedule(r0, 0, 0);
                                 false
                             }
                         }
@@ -364,61 +374,62 @@ impl uart::ReceiveClient for Console<'_> {
             .map(|appid| {
                 self.apps
                     .enter(appid, |app, _| {
-                        app.read_callback.map(|mut cb| {
-                            // An iterator over the returned buffer yielding only the first `rx_len`
-                            // bytes
-                            let rx_buffer = buffer.iter().take(rx_len);
-                            match error {
-                                uart::Error::None | uart::Error::Aborted => {
-                                    // Receive some bytes, signal error type and return bytes to process buffer
-                                    let count = app.read_buffer.mut_map_or(-1, |data| {
-                                        let mut c = 0;
-                                        for (a, b) in data.iter_mut().zip(rx_buffer) {
-                                            c = c + 1;
-                                            *a = *b;
-                                        }
-                                        c
-                                    });
-
-                                    
-                                    // Make sure we report the same number
-                                    // of bytes that we actually copied into
-                                    // the app's buffer. This is defensive:
-                                    // we shouldn't ever receive more bytes
-                                    // than will fit in the app buffer since
-                                    // we use the app_buffer's length when
-                                    // calling `receive()`. However, a buggy
-                                    // lower layer could return more bytes
-                                    // than we asked for, and we don't want
-                                    // to propagate that length error to
-                                    // userspace. However, we do return an
-                                    // error code so that userspace knows
-                                    // something went wrong.
-                                    let (ret, received_length) = if count < 0 {
-                                        (ReturnCode::ENOMEM, 0)
-                                    } else if rx_len > app.read_buffer.len() {
-                                        // Return `ESIZE` indicating that
-                                        // some received bytes were dropped.
-                                        // We report the length that we
-                                        // actually copied into the buffer,
-                                        // but also indicate that there was
-                                        // an issue in the kernel with the
-                                        // receive.
-                                        (ReturnCode::ESIZE, app.read_buffer.len())
-                                    } else {
-                                        // This is the normal and expected
-                                        // case.
-                                        (rcode, rx_len)
-                                    };
-                                    
-                                    cb.schedule(From::from(ret), received_length, 0);
-                                }
-                                _ => {
-                                    // Some UART error occurred
-                                    cb.schedule(From::from(ReturnCode::FAIL), 0, 0);
-                                }
+                        // An iterator over the returned buffer yielding only the first `rx_len`
+                        // bytes
+                        let rx_buffer = buffer.iter().take(rx_len);
+                        match error {
+                            uart::Error::None | uart::Error::Aborted => {
+                                // Receive some bytes, signal error type and return bytes to process buffer
+                                let count = app.read_buffer.mut_map_or(-1, |data| {
+                                    let mut c = 0;
+                                    for (a, b) in data.iter_mut().zip(rx_buffer) {
+                                        c = c + 1;
+                                        *a = *b;
+                                    }
+                                    c
+                                });
+                                
+                                
+                                // Make sure we report the same number
+                                // of bytes that we actually copied into
+                                // the app's buffer. This is defensive:
+                                // we shouldn't ever receive more bytes
+                                // than will fit in the app buffer since
+                                // we use the app_buffer's length when
+                                // calling `receive()`. However, a buggy
+                                // lower layer could return more bytes
+                                // than we asked for, and we don't want
+                                // to propagate that length error to
+                                // userspace. However, we do return an
+                                // error code so that userspace knows
+                                // something went wrong.
+                                //
+                                // If count < 0 this means the buffer
+                                // disappeared: return ENOMEM.
+                                let (ret, received_length) = if count < 0 {
+                                    (ReturnCode::ENOMEM, 0)
+                                } else if rx_len > app.read_buffer.len() {
+                                    // Return `ESIZE` indicating that
+                                    // some received bytes were dropped.
+                                    // We report the length that we
+                                    // actually copied into the buffer,
+                                    // but also indicate that there was
+                                    // an issue in the kernel with the
+                                    // receive.
+                                    (ReturnCode::ESIZE, app.read_buffer.len())
+                                } else {
+                                    // This is the normal and expected
+                                    // case.
+                                    (rcode, rx_len)
+                                };
+                                
+                                app.read_callback.schedule(From::from(ret), received_length, 0);
                             }
-                        });
+                            _ => {
+                                // Some UART error occurred
+                                app.read_callback.schedule(From::from(ReturnCode::FAIL), 0, 0);
+                            }
+                        }
                     })
                     .unwrap_or_default();
             })
