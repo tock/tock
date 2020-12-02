@@ -3,7 +3,7 @@
 use kernel::common::registers::{register_bitfields, register_structs, ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
 
-pub(crate) const USCI_A0_BASE: StaticRef<UsciARegisters> =
+pub const USCI_A0_BASE: StaticRef<UsciARegisters> =
     unsafe { StaticRef::new(0x4000_1000 as *const UsciARegisters) };
 #[allow(dead_code)]
 pub(crate) const USCI_A1_BASE: StaticRef<UsciARegisters> =
@@ -29,7 +29,7 @@ pub(crate) const USCI_B3_BASE: StaticRef<UsciBRegisters> =
 
 register_structs! {
     /// EUSCI_Ax
-    pub(crate) UsciARegisters {
+    pub UsciARegisters {
         /// eUSCI_Ax Control Word Register 0
         (0x00 => pub(crate) ctlw0: ReadWrite<u16, UCAxCTLW0::Register>),
         /// eUSCI_Ax Control Word Register 1

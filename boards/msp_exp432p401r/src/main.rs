@@ -31,7 +31,8 @@ static mut PROCESSES: [Option<&'static dyn kernel::procs::ProcessType>; NUM_PROC
     [None; NUM_PROCS];
 
 /// Static reference to chip for panic dumps.
-static mut CHIP: Option<&'static msp432::chip::Msp432> = None;
+static mut CHIP: Option<&'static msp432::chip::Msp432<msp432::chip::Msp432DefaultPeripherals>> =
+    None;
 
 /// How should the kernel respond when a process faults.
 const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultResponse::Panic;
@@ -56,7 +57,7 @@ struct MspExp432P401R {
         capsules::virtual_alarm::VirtualMuxAlarm<'static, msp432::timer::TimerA<'static>>,
     >,
     ipc: kernel::ipc::IPC,
-    adc: &'static capsules::adc::AdcDedicated<'static, msp432::adc::Adc>,
+    adc: &'static capsules::adc::AdcDedicated<'static, msp432::adc::Adc<'static>>,
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
@@ -85,52 +86,59 @@ impl Platform for MspExp432P401R {
 /// (which is necessary for 48MHz operation) and enables waitstates and buffering in a way that
 /// the flash returns valid data with 48MHz CPU frequency.
 unsafe fn startup_intilialisation() {
-    let wdt = msp432::wdt::Wdt::new();
-
     msp432::init();
+
+    // For now, these peripherals are only used at startup, so we do not
+    // allocate them for the life of the program. If these are later used by the
+    // chip crate (such as for handling interrupts), they will need to be
+    // added to Msp432DefaultPeripherals
+    let wdt = msp432::wdt::Wdt::new();
+    let sysctl = msp432::sysctl::SysCtl::new();
+    let flctl = msp432::flctl::FlCtl::new();
+    let pcm = msp432::pcm::Pcm::new();
 
     // The watchdog must be disabled, because it is enabled by default on reset and has a
     // interval of approximately 10ms. See datasheet p. 759, section 17.2.2.
     // Do this in a separate function which is executed before the kernel is started in order to
     // make sure that not more than 1 watchdog instances exist at the same time.
     wdt.disable();
-    msp432::sysctl::SYSCTL.enable_all_sram_banks();
-    msp432::pcm::PCM.set_high_power();
-    msp432::flctl::FLCTL.set_waitstates(msp432::flctl::WaitStates::_1);
-    msp432::flctl::FLCTL.set_buffering(true);
+    sysctl.enable_all_sram_banks();
+    pcm.set_high_power();
+    flctl.set_waitstates(msp432::flctl::WaitStates::_1);
+    flctl.set_buffering(true);
 }
 
 /// Function to setup all ADC-capaable pins
 /// Since the chips has 100 pins, we really setup all capable pins to work as ADC-pins.
-unsafe fn setup_adc_pins() {
-    use msp432::gpio::{IntPinNr, PinNr, INT_PINS, PINS};
-    INT_PINS[IntPinNr::P05_5 as usize].enable_tertiary_function(); // A0
-    INT_PINS[IntPinNr::P05_4 as usize].enable_tertiary_function(); // A1
-    INT_PINS[IntPinNr::P05_3 as usize].enable_tertiary_function(); // A2
-    INT_PINS[IntPinNr::P05_2 as usize].enable_tertiary_function(); // A3
-    INT_PINS[IntPinNr::P05_1 as usize].enable_tertiary_function(); // A4
-    INT_PINS[IntPinNr::P05_0 as usize].enable_tertiary_function(); // A5
-    INT_PINS[IntPinNr::P04_7 as usize].enable_tertiary_function(); // A6
-    INT_PINS[IntPinNr::P04_6 as usize].enable_tertiary_function(); // A7
-    INT_PINS[IntPinNr::P04_5 as usize].enable_tertiary_function(); // A8
-    INT_PINS[IntPinNr::P04_4 as usize].enable_tertiary_function(); // A9
-    INT_PINS[IntPinNr::P04_3 as usize].enable_tertiary_function(); // A10
-    INT_PINS[IntPinNr::P04_2 as usize].enable_tertiary_function(); // A11
-    INT_PINS[IntPinNr::P04_1 as usize].enable_tertiary_function(); // A12
-    INT_PINS[IntPinNr::P04_0 as usize].enable_tertiary_function(); // A13
-    INT_PINS[IntPinNr::P06_1 as usize].enable_tertiary_function(); // A14
-    INT_PINS[IntPinNr::P06_0 as usize].enable_tertiary_function(); // A15
-    PINS[PinNr::P09_1 as usize].enable_tertiary_function(); // A16
-    PINS[PinNr::P09_0 as usize].enable_tertiary_function(); // A17
-    PINS[PinNr::P08_7 as usize].enable_tertiary_function(); // A18
-    PINS[PinNr::P08_6 as usize].enable_tertiary_function(); // A19
-    PINS[PinNr::P08_5 as usize].enable_tertiary_function(); // A20
-    PINS[PinNr::P08_4 as usize].enable_tertiary_function(); // A21
+unsafe fn setup_adc_pins(gpio: &msp432::gpio::GpioManager) {
+    use msp432::gpio::{IntPinNr, PinNr};
+    gpio.int_pins[IntPinNr::P05_5 as usize].enable_tertiary_function(); // A0
+    gpio.int_pins[IntPinNr::P05_4 as usize].enable_tertiary_function(); // A1
+    gpio.int_pins[IntPinNr::P05_3 as usize].enable_tertiary_function(); // A2
+    gpio.int_pins[IntPinNr::P05_2 as usize].enable_tertiary_function(); // A3
+    gpio.int_pins[IntPinNr::P05_1 as usize].enable_tertiary_function(); // A4
+    gpio.int_pins[IntPinNr::P05_0 as usize].enable_tertiary_function(); // A5
+    gpio.int_pins[IntPinNr::P04_7 as usize].enable_tertiary_function(); // A6
+    gpio.int_pins[IntPinNr::P04_6 as usize].enable_tertiary_function(); // A7
+    gpio.int_pins[IntPinNr::P04_5 as usize].enable_tertiary_function(); // A8
+    gpio.int_pins[IntPinNr::P04_4 as usize].enable_tertiary_function(); // A9
+    gpio.int_pins[IntPinNr::P04_3 as usize].enable_tertiary_function(); // A10
+    gpio.int_pins[IntPinNr::P04_2 as usize].enable_tertiary_function(); // A11
+    gpio.int_pins[IntPinNr::P04_1 as usize].enable_tertiary_function(); // A12
+    gpio.int_pins[IntPinNr::P04_0 as usize].enable_tertiary_function(); // A13
+    gpio.int_pins[IntPinNr::P06_1 as usize].enable_tertiary_function(); // A14
+    gpio.int_pins[IntPinNr::P06_0 as usize].enable_tertiary_function(); // A15
+    gpio.pins[PinNr::P09_1 as usize].enable_tertiary_function(); // A16
+    gpio.pins[PinNr::P09_0 as usize].enable_tertiary_function(); // A17
+    gpio.pins[PinNr::P08_7 as usize].enable_tertiary_function(); // A18
+    gpio.pins[PinNr::P08_6 as usize].enable_tertiary_function(); // A19
+    gpio.pins[PinNr::P08_5 as usize].enable_tertiary_function(); // A20
+    gpio.pins[PinNr::P08_4 as usize].enable_tertiary_function(); // A21
 
     // Don't configure these pins since their channels are used for the internal
     // temperature sensor (Channel 22) and the Battery Monitor (A23)
-    // PINS[PinNr::P08_3 as usize].enable_tertiary_function(); // A22
-    // PINS[PinNr::P08_2 as usize].enable_tertiary_function(); // A23
+    // gpio.pins[PinNr::P08_3 as usize].enable_tertiary_function(); // A22
+    // gpio.pins[PinNr::P08_2 as usize].enable_tertiary_function(); // A23
 }
 
 /// Reset Handler.
@@ -143,29 +151,38 @@ unsafe fn setup_adc_pins() {
 pub unsafe fn reset_handler() {
     startup_intilialisation();
 
+    let peripherals = static_init!(
+        msp432::chip::Msp432DefaultPeripherals,
+        msp432::chip::Msp432DefaultPeripherals::new()
+    );
+    peripherals.init();
+
     // Setup the GPIO pins to use the HFXT (high frequency external) oscillator (48MHz)
-    msp432::gpio::PINS[msp432::gpio::PinNr::PJ_2 as usize].enable_primary_function();
-    msp432::gpio::PINS[msp432::gpio::PinNr::PJ_3 as usize].enable_primary_function();
+    peripherals.gpio.pins[msp432::gpio::PinNr::PJ_2 as usize].enable_primary_function();
+    peripherals.gpio.pins[msp432::gpio::PinNr::PJ_3 as usize].enable_primary_function();
 
     // Setup the GPIO pins to use the LFXT (low frequency external) oscillator (32.768kHz)
-    msp432::gpio::PINS[msp432::gpio::PinNr::PJ_0 as usize].enable_primary_function();
-    msp432::gpio::PINS[msp432::gpio::PinNr::PJ_1 as usize].enable_primary_function();
+    peripherals.gpio.pins[msp432::gpio::PinNr::PJ_0 as usize].enable_primary_function();
+    peripherals.gpio.pins[msp432::gpio::PinNr::PJ_1 as usize].enable_primary_function();
 
     // Setup the clocks: MCLK: 48MHz, HSMCLK: 12MHz, SMCLK: 1.5MHz, ACLK: 32.768kHz
-    msp432::cs::CS.setup_clocks();
+    peripherals.cs.setup_clocks();
 
     debug::assign_gpios(
-        Some(&msp432::gpio::INT_PINS[msp432::gpio::IntPinNr::P01_0 as usize]), // Red LED
-        Some(&msp432::gpio::INT_PINS[msp432::gpio::IntPinNr::P03_5 as usize]),
-        Some(&msp432::gpio::INT_PINS[msp432::gpio::IntPinNr::P03_7 as usize]),
+        Some(&peripherals.gpio.int_pins[msp432::gpio::IntPinNr::P01_0 as usize]), // Red LED
+        Some(&peripherals.gpio.int_pins[msp432::gpio::IntPinNr::P03_5 as usize]),
+        Some(&peripherals.gpio.int_pins[msp432::gpio::IntPinNr::P03_7 as usize]),
     );
 
     // Setup pins for UART0
-    msp432::gpio::INT_PINS[msp432::gpio::IntPinNr::P01_2 as usize].enable_primary_function();
-    msp432::gpio::INT_PINS[msp432::gpio::IntPinNr::P01_3 as usize].enable_primary_function();
+    peripherals.gpio.int_pins[msp432::gpio::IntPinNr::P01_2 as usize].enable_primary_function();
+    peripherals.gpio.int_pins[msp432::gpio::IntPinNr::P01_3 as usize].enable_primary_function();
 
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
-    let chip = static_init!(msp432::chip::Msp432, msp432::chip::Msp432::new());
+    let chip = static_init!(
+        msp432::chip::Msp432<msp432::chip::Msp432DefaultPeripherals>,
+        msp432::chip::Msp432::new(peripherals)
+    );
     CHIP = Some(chip);
 
     // Setup buttons
@@ -174,12 +191,12 @@ pub unsafe fn reset_handler() {
         components::button_component_helper!(
             msp432::gpio::IntPin,
             (
-                &msp432::gpio::INT_PINS[msp432::gpio::IntPinNr::P01_1 as usize],
+                &peripherals.gpio.int_pins[msp432::gpio::IntPinNr::P01_1 as usize],
                 kernel::hil::gpio::ActivationMode::ActiveLow,
                 kernel::hil::gpio::FloatingState::PullUp
             ),
             (
-                &msp432::gpio::INT_PINS[msp432::gpio::IntPinNr::P01_4 as usize],
+                &peripherals.gpio.int_pins[msp432::gpio::IntPinNr::P01_4 as usize],
                 kernel::hil::gpio::ActivationMode::ActiveLow,
                 kernel::hil::gpio::FloatingState::PullUp
             )
@@ -191,13 +208,13 @@ pub unsafe fn reset_handler() {
     let leds = components::led::LedsComponent::new(components::led_component_helper!(
         kernel::hil::led::LedHigh<'static, msp432::gpio::IntPin>,
         kernel::hil::led::LedHigh::new(
-            &msp432::gpio::INT_PINS[msp432::gpio::IntPinNr::P02_0 as usize]
+            &peripherals.gpio.int_pins[msp432::gpio::IntPinNr::P02_0 as usize]
         ),
         kernel::hil::led::LedHigh::new(
-            &msp432::gpio::INT_PINS[msp432::gpio::IntPinNr::P02_1 as usize]
+            &peripherals.gpio.int_pins[msp432::gpio::IntPinNr::P02_1 as usize]
         ),
         kernel::hil::led::LedHigh::new(
-            &msp432::gpio::INT_PINS[msp432::gpio::IntPinNr::P02_2 as usize]
+            &peripherals.gpio.int_pins[msp432::gpio::IntPinNr::P02_2 as usize]
         ),
     ))
     .finalize(components::led_component_buf!(
@@ -210,44 +227,44 @@ pub unsafe fn reset_handler() {
         components::gpio_component_helper!(
             msp432::gpio::IntPin<'static>,
             // Left outer connector, top to bottom
-            // 0 => &msp432::gpio::INT_PINS[msp432::gpio::IntPinNr::P06_0 as usize], // A15
-            1 => &msp432::gpio::INT_PINS[msp432::gpio::IntPinNr::P03_2 as usize],
-            2 => &msp432::gpio::INT_PINS[msp432::gpio::IntPinNr::P03_3 as usize],
-            // 3 => &msp432::gpio::INT_PINS[msp432::gpio::IntPinNr::P04_1 as usize], // A12
-            // 4 => &msp432::gpio::INT_PINS[msp432::gpio::IntPinNr::P04_3 as usize], // A10
-            5 => &msp432::gpio::INT_PINS[msp432::gpio::IntPinNr::P01_5 as usize],
-            // 6 => &msp432::gpio::INT_PINS[msp432::gpio::IntPinNr::P04_6 as usize], // A7
-            7 => &msp432::gpio::INT_PINS[msp432::gpio::IntPinNr::P06_5 as usize],
-            8 => &msp432::gpio::INT_PINS[msp432::gpio::IntPinNr::P06_4 as usize],
+            // 0 => &peripherals.gpio.int_pins[msp432::gpio::IntPinNr::P06_0 as usize], // A15
+            1 => &peripherals.gpio.int_pins[msp432::gpio::IntPinNr::P03_2 as usize],
+            2 => &peripherals.gpio.int_pins[msp432::gpio::IntPinNr::P03_3 as usize],
+            // 3 => &peripherals.gpio.int_pins[msp432::gpio::IntPinNr::P04_1 as usize], // A12
+            // 4 => &peripherals.gpio.int_pins[msp432::gpio::IntPinNr::P04_3 as usize], // A10
+            5 => &peripherals.gpio.int_pins[msp432::gpio::IntPinNr::P01_5 as usize],
+            // 6 => &peripherals.gpio.int_pins[msp432::gpio::IntPinNr::P04_6 as usize], // A7
+            7 => &peripherals.gpio.int_pins[msp432::gpio::IntPinNr::P06_5 as usize],
+            8 => &peripherals.gpio.int_pins[msp432::gpio::IntPinNr::P06_4 as usize],
             // Left inner connector, top to bottom
-            // 9 => &msp432::gpio::INT_PINS[msp432::gpio::IntPinNr::P06_1 as usize], // A14
-            // 10 => &msp432::gpio::INT_PINS[msp432::gpio::IntPinNr::P04_0 as usize], // A13
-            // 11 => &msp432::gpio::INT_PINS[msp432::gpio::IntPinNr::P04_2 as usize], // A11
-            // 12 => &msp432::gpio::INT_PINS[msp432::gpio::IntPinNr::P04_4 as usize], // A9
-            // 13 => &msp432::gpio::INT_PINS[msp432::gpio::IntPinNr::P04_5 as usize], // A8
-            // 14 => &msp432::gpio::INT_PINS[msp432::gpio::IntPinNr::P04_7 as usize], // A6
-            // 15 => &msp432::gpio::INT_PINS[msp432::gpio::IntPinNr::P05_4 as usize], // A1
-            // 16 => &msp432::gpio::INT_PINS[msp432::gpio::IntPinNr::P05_5 as usize], // A0
+            // 9 => &peripherals.gpio.int_pins[msp432::gpio::IntPinNr::P06_1 as usize], // A14
+            // 10 => &peripherals.gpio.int_pins[msp432::gpio::IntPinNr::P04_0 as usize], // A13
+            // 11 => &peripherals.gpio.int_pins[msp432::gpio::IntPinNr::P04_2 as usize], // A11
+            // 12 => &peripherals.gpio.int_pins[msp432::gpio::IntPinNr::P04_4 as usize], // A9
+            // 13 => &peripherals.gpio.int_pins[msp432::gpio::IntPinNr::P04_5 as usize], // A8
+            // 14 => &peripherals.gpio.int_pins[msp432::gpio::IntPinNr::P04_7 as usize], // A6
+            // 15 => &peripherals.gpio.int_pins[msp432::gpio::IntPinNr::P05_4 as usize], // A1
+            // 16 => &peripherals.gpio.int_pins[msp432::gpio::IntPinNr::P05_5 as usize], // A0
             // Right inner connector, top to bottom
-            17 => &msp432::gpio::INT_PINS[msp432::gpio::IntPinNr::P02_7 as usize],
-            18 => &msp432::gpio::INT_PINS[msp432::gpio::IntPinNr::P02_6 as usize],
-            19 => &msp432::gpio::INT_PINS[msp432::gpio::IntPinNr::P02_4 as usize],
-            20 => &msp432::gpio::INT_PINS[msp432::gpio::IntPinNr::P05_6 as usize],
-            21 => &msp432::gpio::INT_PINS[msp432::gpio::IntPinNr::P06_6 as usize],
-            22 => &msp432::gpio::INT_PINS[msp432::gpio::IntPinNr::P06_7 as usize],
-            23 => &msp432::gpio::INT_PINS[msp432::gpio::IntPinNr::P02_3 as usize],
-            // 24 => &msp432::gpio::INT_PINS[msp432::gpio::IntPinNr::P05_1 as usize], // A4
-            // 25 => &msp432::gpio::INT_PINS[msp432::gpio::IntPinNr::P03_5 as usize], // debug-gpio
-            // 26 => &msp432::gpio::INT_PINS[msp432::gpio::IntPinNr::P03_7 as usize], // debug-gpio
+            17 => &peripherals.gpio.int_pins[msp432::gpio::IntPinNr::P02_7 as usize],
+            18 => &peripherals.gpio.int_pins[msp432::gpio::IntPinNr::P02_6 as usize],
+            19 => &peripherals.gpio.int_pins[msp432::gpio::IntPinNr::P02_4 as usize],
+            20 => &peripherals.gpio.int_pins[msp432::gpio::IntPinNr::P05_6 as usize],
+            21 => &peripherals.gpio.int_pins[msp432::gpio::IntPinNr::P06_6 as usize],
+            22 => &peripherals.gpio.int_pins[msp432::gpio::IntPinNr::P06_7 as usize],
+            23 => &peripherals.gpio.int_pins[msp432::gpio::IntPinNr::P02_3 as usize],
+            // 24 => &peripherals.gpio.int_pins[msp432::gpio::IntPinNr::P05_1 as usize], // A4
+            // 25 => &peripherals.gpio.int_pins[msp432::gpio::IntPinNr::P03_5 as usize], // debug-gpio
+            // 26 => &peripherals.gpio.int_pins[msp432::gpio::IntPinNr::P03_7 as usize], // debug-gpio
             // Right outer connector, top to bottom
-            27 => &msp432::gpio::INT_PINS[msp432::gpio::IntPinNr::P02_5 as usize],
-            28 => &msp432::gpio::INT_PINS[msp432::gpio::IntPinNr::P03_0 as usize],
-            29 => &msp432::gpio::INT_PINS[msp432::gpio::IntPinNr::P05_7 as usize],
-            30 => &msp432::gpio::INT_PINS[msp432::gpio::IntPinNr::P01_6 as usize],
-            31 => &msp432::gpio::INT_PINS[msp432::gpio::IntPinNr::P01_7 as usize],
-            // 32 => &msp432::gpio::INT_PINS[msp432::gpio::IntPinNr::P05_0 as usize], // A5
-            // 33 => &msp432::gpio::INT_PINS[msp432::gpio::IntPinNr::P05_2 as usize], // A3
-            34 => &msp432::gpio::INT_PINS[msp432::gpio::IntPinNr::P03_6 as usize]
+            27 => &peripherals.gpio.int_pins[msp432::gpio::IntPinNr::P02_5 as usize],
+            28 => &peripherals.gpio.int_pins[msp432::gpio::IntPinNr::P03_0 as usize],
+            29 => &peripherals.gpio.int_pins[msp432::gpio::IntPinNr::P05_7 as usize],
+            30 => &peripherals.gpio.int_pins[msp432::gpio::IntPinNr::P01_6 as usize],
+            31 => &peripherals.gpio.int_pins[msp432::gpio::IntPinNr::P01_7 as usize],
+            // 32 => &peripherals.gpio.int_pins[msp432::gpio::IntPinNr::P05_0 as usize], // A5
+            // 33 => &peripherals.gpio.int_pins[msp432::gpio::IntPinNr::P05_2 as usize], // A3
+            34 => &peripherals.gpio.int_pins[msp432::gpio::IntPinNr::P03_6 as usize]
         ),
     )
     .finalize(components::gpio_component_buf!(
@@ -268,7 +285,7 @@ pub unsafe fn reset_handler() {
 
     // Setup UART0
     let uart_mux = components::console::UartMuxComponent::new(
-        &msp432::uart::UART0,
+        &peripherals.uart0,
         115200,
         dynamic_deferred_caller,
     )
@@ -280,7 +297,7 @@ pub unsafe fn reset_handler() {
     components::debug_writer::DebugWriterComponent::new(uart_mux).finalize(());
 
     // Setup alarm
-    let timer0 = &msp432::timer::TIMER_A0;
+    let timer0 = &peripherals.timer_a0;
     let mux_alarm = components::alarm::AlarmMuxComponent::new(timer0).finalize(
         components::alarm_mux_component_helper!(msp432::timer::TimerA),
     );
@@ -289,7 +306,7 @@ pub unsafe fn reset_handler() {
 
     // Setup ADC
 
-    setup_adc_pins();
+    setup_adc_pins(&peripherals.gpio);
 
     let adc_channels = static_init!(
         [&'static msp432::adc::Channel; 24],
@@ -326,7 +343,7 @@ pub unsafe fn reset_handler() {
     let adc = static_init!(
         capsules::adc::AdcDedicated<'static, msp432::adc::Adc>,
         capsules::adc::AdcDedicated::new(
-            &msp432::adc::ADC,
+            &peripherals.adc,
             grant_adc,
             adc_channels,
             &mut capsules::adc::ADC_BUFFER1,
@@ -335,12 +352,14 @@ pub unsafe fn reset_handler() {
         )
     );
 
-    msp432::adc::ADC.set_client(adc);
+    peripherals.adc.set_client(adc);
 
     // Set the reference voltage for the ADC to 2.5V
-    msp432::ref_module::REF.select_ref_voltage(msp432::ref_module::ReferenceVoltage::Volt2_5);
+    peripherals
+        .adc_ref
+        .select_ref_voltage(msp432::ref_module::ReferenceVoltage::Volt2_5);
     // Enable the internal temperature sensor on ADC Channel 22
-    msp432::ref_module::REF.enable_temp_sensor(true);
+    peripherals.adc_ref.enable_temp_sensor(true);
 
     let msp_exp432p4014 = MspExp432P401R {
         led: leds,

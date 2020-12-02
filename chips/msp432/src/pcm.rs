@@ -5,8 +5,6 @@ use kernel::common::registers::{
 };
 use kernel::common::StaticRef;
 
-pub static mut PCM: Pcm = Pcm::new();
-
 const PCM_BASE: StaticRef<PcmRegisters> =
     unsafe { StaticRef::new(0x4001_0000 as *const PcmRegisters) };
 
@@ -171,7 +169,7 @@ pub struct Pcm {
 }
 
 impl Pcm {
-    const fn new() -> Pcm {
+    pub const fn new() -> Pcm {
         Pcm {
             registers: PCM_BASE,
         }

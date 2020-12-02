@@ -9,26 +9,21 @@ use kernel::hil::time::{
 };
 use kernel::ReturnCode;
 
-pub static mut TIMER_A0: TimerA = TimerA::new(TIMER_A0_BASE);
-pub static mut TIMER_A1: TimerA = TimerA::new(TIMER_A1_BASE);
-pub static mut TIMER_A2: TimerA = TimerA::new(TIMER_A2_BASE);
-pub static mut TIMER_A3: TimerA = TimerA::new(TIMER_A3_BASE);
-
-const TIMER_A0_BASE: StaticRef<TimerRegisters> =
+pub const TIMER_A0_BASE: StaticRef<TimerRegisters> =
     unsafe { StaticRef::new(0x4000_0000u32 as *const TimerRegisters) };
 
-const TIMER_A1_BASE: StaticRef<TimerRegisters> =
+pub const TIMER_A1_BASE: StaticRef<TimerRegisters> =
     unsafe { StaticRef::new(0x4000_0400u32 as *const TimerRegisters) };
 
-const TIMER_A2_BASE: StaticRef<TimerRegisters> =
+pub const TIMER_A2_BASE: StaticRef<TimerRegisters> =
     unsafe { StaticRef::new(0x4000_0800u32 as *const TimerRegisters) };
 
-const TIMER_A3_BASE: StaticRef<TimerRegisters> =
+pub const TIMER_A3_BASE: StaticRef<TimerRegisters> =
     unsafe { StaticRef::new(0x4000_0C00u32 as *const TimerRegisters) };
 
 register_structs! {
     /// Timer_Ax
-    TimerRegisters {
+    pub TimerRegisters {
         /// Timer_Ax Control
         (0x00 => ctl: ReadWrite<u16, TAxCTL::Register>),
         /// Timer_Ax Capture/Compare Control 0
@@ -268,7 +263,7 @@ pub struct TimerA<'a> {
 }
 
 impl<'a> TimerA<'a> {
-    const fn new(base: StaticRef<TimerRegisters>) -> TimerA<'a> {
+    pub const fn new(base: StaticRef<TimerRegisters>) -> TimerA<'a> {
         TimerA {
             registers: base,
             mode: Cell::new(TimerMode::Disabled),
