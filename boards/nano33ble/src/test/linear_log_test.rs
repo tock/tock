@@ -100,7 +100,7 @@ static TEST_OPS: [TestOp; 9] = [
 // Buffer for reading from and writing to in the log tests.
 static mut BUFFER: [u8; 2480] = [0; 2480];
 // Time to wait in between log operations.
-const WAIT_MS: u32 = 3;
+const WAIT_MS: u32 = 100;
 
 // A single operation within the test.
 #[derive(Clone, Copy, PartialEq, Debug)]
