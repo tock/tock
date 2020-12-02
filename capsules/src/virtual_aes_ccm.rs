@@ -145,7 +145,7 @@ pub struct MuxAES128CCM<'a, A: AES128<'a> + AES128Ctr + AES128CBC> {
 
 impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> MuxAES128CCM<'a, A> {
     pub fn new(aes: &'a A, deferred_caller: &'a DynamicDeferredCall) -> MuxAES128CCM<'a, A> {
-        // aes.enable(); // enable the hardware
+        aes.enable(); // enable the hardware, in case it's forgotten elsewhere
         MuxAES128CCM {
             aes: aes,
             clients: List::new(),
