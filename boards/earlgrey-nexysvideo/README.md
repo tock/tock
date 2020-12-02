@@ -3,27 +3,44 @@ OpenTitan RISC-V Board
 
 - https://opentitan.org/
 
-OpenTitan is the first open source project building a transparent, high-quality reference design and integration guidelines for silicon root of trust (RoT) chips.
+OpenTitan is the first open source project building a transparent,
+high-quality reference design and integration guidelines for
+silicon root of trust (RoT) chips.
 
-Tock currently supports the OpenTitan snapshot-20191101-2 release on a Nexys Video FPGA, as described here: https://docs.opentitan.org/doc/ug/getting_started_fpga/index.html.
+Tock currently supports OpenTitan on the Nexys Video FPGA, as described
+here: https://docs.opentitan.org/doc/ug/getting_started_fpga/index.html.
 
-You can get started with OpenTitan using either the Nexys Video FPGA board or simulation. See the OpenTitan [getting started](https://docs.opentitan.org/doc/ug/getting_started/index.html) for more details.
+You can get started with OpenTitan using either the Nexys Video FPGA
+board or simulation. See the OpenTitan
+[getting started](https://docs.opentitan.org/doc/ug/getting_started/index.html)
+for more details.
 
 Programming
 -----------
 
-Tock on OpenTitan requires lowRISC/opentitan@4429c362900713c059fbd870db140e0058e1c0eb or newer. In general it is recommended that users start with the latest OpenTitan bitstream and if that results in issues try the one mentioned above.
+Tock on OpenTitan requires
+lowRISC/opentitan@24ab6ca6e1d06d071213f4b1efa3d2653a060aa6 or newer. In
+general it is recommended that users start with the latest OpenTitan bitstream
+and if that results in issues try the one mentioned above.
 
-For more information you can follow the [OpenTitan development flow](https://docs.opentitan.org/doc/ug/getting_started_fpga/index.html#testing-the-demo-design) to flash the image.
+For more information you can follow the
+[OpenTitan development flow](https://docs.opentitan.org/doc/ug/getting_started_fpga/index.html#testing-the-demo-design)
+to flash the image.
 
-First setup the development board using the steps here: https://docs.opentitan.org/doc/ug/getting_started_fpga/index.html. You need to make sure the boot ROM is working and that your machine can communicate with the OpenTitan ROM. You will need to use the `PROG` USB port on the board for this.
+First setup the development board using the steps here:
+https://docs.opentitan.org/doc/ug/getting_started_fpga/index.html.
+You need to make sure the boot ROM is working and that your machine can
+communicate with the OpenTitan ROM. You will need to use the `PROG` USB
+port on the board for this.
 
-To use `make flash` you first need to clone the OpenTitan repo and build the `spiflash` tool.
+To use `make flash` you first need to clone the OpenTitan repo and build
+the `spiflash` tool.
 
 In the OpenTitan repo build the `spiflash` program.
 
 ```shell
-make -C sw/host/spiflash clean all
+./meson_init.sh
+ninja -C build-out/
 ```
 
 Export the `OPENTITAN_TREE` enviroment variable to point to the OpenTitan tree.
@@ -34,7 +51,10 @@ export OPENTITAN_TREE=/home/opentitan/
 
 Back in the Tock directory run `make flash`
 
-If everything works you should see something like this on the console. If you need help getting console access check the [testing the design](https://docs.opentitan.org/doc/ug/getting_started_fpga/index.html#testing-the-demo-design) section in the OpenTitan documentation.
+If everything works you should see something like this on the console.
+If you need help getting console access check the
+[testing the design](https://docs.opentitan.org/doc/ug/getting_started_fpga/index.html#testing-the-demo-design)
+section in the OpenTitan documentation.
 
 ```
 bootstrap: DONE!
@@ -42,7 +62,8 @@ Jump!
 OpenTitan initialisation complete. Entering main loop
 ```
 
-You can also just use the `spiflash` program manually to download the image to the board if you don't want to use `make flash`.
+You can also just use the `spiflash` program manually to download the image
+to the board if you don't want to use `make flash`.
 
 ```shell
 ./sw/host/spiflash/spiflash --input=../../target/riscv32imc-unknown-none-elf/release/opentitan.bin
@@ -70,12 +91,17 @@ make BOARD_CONFIGURATION=fpga_nexysvideo
 Programming Apps
 ----------------
 
-Tock apps for OpenTitan must be included in the Tock binary file flashed with the steps mentioned above.
+Tock apps for OpenTitan must be included in the Tock binary file flashed with
+the steps mentioned above.
 
-Apps are built out of tree. Currently [libtock-rs](https://github.com/tock/libtock-rs) apps work well while [libtock-c](https://github.com/tock/libtock-c) apps require a special branch and complex work arounds. It is recomended that libtock-rs apps are used.
+Apps are built out of tree. Currently
+[libtock-rs](https://github.com/tock/libtock-rs) apps work well while
+[libtock-c](https://github.com/tock/libtock-c) apps are not built by default.
+It is recomended that libtock-rs apps are used.
 
-Once an app is built and a tbf file is generated, you can use `riscv32-none-elf-objcopy` with `--update-section` to create an ELF image with the
-apps included.
+Once an app is built and a tbf file is generated, you can use
+`riscv32-none-elf-objcopy` with `--update-section` to create an ELF image
+with the apps included.
 
 ```shell
 $ riscv32-oe-elf-objcopy \
@@ -94,21 +120,27 @@ $ riscv32-oe-elf-objcopy \
 
 ```
 
-The OpenTitan Makefile can also handle this process automatically. Follow the steps above but instead run the `flash-app` make target.
+The OpenTitan Makefile can also handle this process automatically. Follow
+the steps above but instead run the `flash-app` make target.
 
 ```shell
 $ make flash-app APP=<...> OPENTITAN_TREE=/home/opentitan/
 ```
 
-You will need to have the GCC version of RISC-V 32-bit objcopy installed as the LLVM one doesn't support updating sections.
-
+You will need to have the GCC version of RISC-V 32-bit objcopy installed as
+the LLVM one doesn't support updating sections.
 
 Running in QEMU
 ---------------
 
-The OpenTitan application can be run in the QEMU emulation platform for RISC-V, allowing quick and easy testing.
+The OpenTitan application can be run in the QEMU emulation platform for
+RISC-V, allowing quick and easy testing. This is also a good option for
+those who can't afford the FPGA development board.
 
-Unfortunately you need QEMU 5.2, which at the time of writing is unlikely to be avaliable in your distro. Luckily Tock can build QEMU for you. From the top level of the Tock source just run `make ci-setup-qemu` and follow the steps.
+Unfortunately you need QEMU 5.2, which at the time of writing is unlikely
+to be avaliable in your distro. Luckily Tock can build QEMU for you. From
+the top level of the Tock source just run `make ci-setup-qemu` and
+follow the steps.
 
 QEMU can be started with Tock using the `qemu` make target:
 
@@ -116,16 +148,19 @@ QEMU can be started with Tock using the `qemu` make target:
 $ make OPENTITAN_BOOT_ROM=<path_to_opentitan>/sw/device/boot_rom/boot_rom_fpga_nexysvideo.elf qemu
 ```
 
-Where OPENTITAN_BOOT_ROM is set to point to the OpenTitan ELF file. This is usually located at `sw/device/boot_rom/boot_rom_fpga_nexysvideo.elf` in the OpenTitan build output.
+Where OPENTITAN_BOOT_ROM is set to point to the OpenTitan ELF file. This is
+usually located at `sw/device/boot_rom/boot_rom_fpga_nexysvideo.elf` in the
+OpenTitan build output. Note that the `make ci-setup-qemu` target will also
+download a ROM file.
 
-QEMU can be started with Tock and a userspace app with the `qemu-app` make target:
+QEMU can be started with Tock and a userspace app with the `qemu-app` make
+target:
 
 ```shell
 $ make OPENTITAN_BOOT_ROM=<path_to_opentitan/sw/device/boot_rom/boot_rom_fpga_nexysvideo.elf> APP=/path/to/app.tbf qemu-app
 ```
 
-The TBF must be compiled for the OpenTitan board which is, at the time of writing,
-supported for Rust userland apps using libtock-rs. For example, you can build
+The TBF must be compiled for the OpenTitan board. For example, you can build
 the Hello World exmple app from the libtock-rs repository by running:
 
 ```
