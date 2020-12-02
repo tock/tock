@@ -1,8 +1,14 @@
 MEMORY
 {
-  # Make space for the UF2 bootloader
-  rom (rx)  : ORIGIN = 0x00026000, LENGTH = 192K
-  prog (rx) : ORIGIN = 0x00056000, LENGTH = 640K
+  # Make space for the UF2 bootloader (152K)
+  rom (rx)  : ORIGIN = 0x00026000, LENGTH = 360K
+  prog (rx) : ORIGIN = 0x00080000, LENGTH = 512K
+
+  # if you need more space for apps, this configuration works
+  # but there might be some MPU issues
+  # rom (rx)  : ORIGIN = 0x00026000, LENGTH = 256K
+  # prog (rx) : ORIGIN = 0x00066000, LENGTH = 616K
+
   ram (rwx) : ORIGIN = 0x20006000, LENGTH = 232K
 }
 
