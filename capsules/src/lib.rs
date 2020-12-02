@@ -8,7 +8,6 @@ pub mod test;
 pub mod net;
 
 pub mod adc;
-pub mod aes_ccm;
 pub mod alarm;
 pub mod ambient_light;
 pub mod analog_comparator;
@@ -72,6 +71,7 @@ pub mod touch;
 pub mod tsl2561;
 pub mod usb;
 pub mod virtual_adc;
+pub mod virtual_aes_ccm;
 pub mod virtual_alarm;
 pub mod virtual_digest;
 pub mod virtual_flash;

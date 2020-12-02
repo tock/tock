@@ -85,7 +85,7 @@ impl<'a, A: AES128CCM<'a>> Test<'a, A> {
         let encrypting = self.encrypting.get();
 
         let buf = match self.buf.take() {
-            None => panic!("aes_ccm_test failed: buffer is not present."),
+            None => panic!("aes_ccm_test failed: buffer is not present in trigger_test."),
             Some(buf) => buf,
         };
 
@@ -121,7 +121,7 @@ impl<'a, A: AES128CCM<'a>> Test<'a, A> {
         let encrypting = self.encrypting.get();
 
         let buf = match self.buf.take() {
-            None => panic!("aes_ccm_test failed: buffer is not present."),
+            None => panic!("aes_ccm_test failed: buffer is not present in check_test."),
             Some(buf) => buf,
         };
 

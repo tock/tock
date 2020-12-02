@@ -13,6 +13,7 @@ mod imix_components;
 use capsules::alarm::AlarmDriver;
 use capsules::net::ieee802154::MacAddress;
 use capsules::net::ipv6::ip_utils::IPAddr;
+use capsules::virtual_aes_ccm::MuxAES128CCM;
 use capsules::virtual_alarm::VirtualMuxAlarm;
 use capsules::virtual_i2c::MuxI2C;
 use capsules::virtual_spi::VirtualSpiMasterDevice;
@@ -24,6 +25,7 @@ use kernel::hil::i2c::I2CMaster;
 use kernel::hil::radio;
 #[allow(unused_imports)]
 use kernel::hil::radio::{RadioConfig, RadioData};
+use kernel::hil::symmetric_encryption::AES128;
 //use kernel::hil::time::Alarm;
 use kernel::hil::led::LedHigh;
 use kernel::hil::Controller;
@@ -305,7 +307,7 @@ pub unsafe fn reset_handler() {
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
 
     let dynamic_deferred_call_clients =
-        static_init!([DynamicDeferredCallClientState; 2], Default::default());
+        static_init!([DynamicDeferredCallClientState; 4], Default::default());
     let dynamic_deferred_caller = static_init!(
         DynamicDeferredCall,
         DynamicDeferredCall::new(dynamic_deferred_call_clients)
@@ -446,12 +448,23 @@ pub unsafe fn reset_handler() {
     let serial_num_bottom_16 = (serial_num.get_lower_64() & 0x0000_0000_0000_ffff) as u16;
     let src_mac_from_serial_num: MacAddress = MacAddress::Short(serial_num_bottom_16);
 
+    let aes_mux = static_init!(
+        MuxAES128CCM<'static, sam4l::aes::Aes>,
+        MuxAES128CCM::new(&peripherals.aes, dynamic_deferred_caller)
+    );
+    peripherals.aes.set_client(aes_mux);
+    aes_mux.initialize_callback_handle(
+        dynamic_deferred_caller
+            .register(aes_mux)
+            .expect("no deferred call slot available for ccm mux"),
+    );
+
     // Can this initialize be pushed earlier, or into component? -pal
     rf233.initialize(&mut RF233_BUF, &mut RF233_REG_WRITE, &mut RF233_REG_READ);
     let (radio_driver, mux_mac) = components::ieee802154::Ieee802154Component::new(
         board_kernel,
         rf233,
-        &peripherals.aes,
+        aes_mux,
         PAN_ID,
         serial_num_bottom_16,
     )
@@ -561,7 +574,7 @@ pub unsafe fn reset_handler() {
     //
     //test::virtual_uart_rx_test::run_virtual_uart_receive(uart_mux);
     //test::rng_test::run_entropy32(&peripherals.trng);
-    //test::aes_ccm_test::run(&peripherals.aes);
+    //test::virtual_aes_ccm_test::run(&peripherals.aes, dynamic_deferred_caller);
     //test::aes_test::run_aes128_ctr(&peripherals.aes);
     //test::aes_test::run_aes128_cbc(&peripherals.aes);
     //test::log_test::run(
