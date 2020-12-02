@@ -296,15 +296,11 @@ impl<'a, R: LiteXSoCRegisterConfiguration> LiteEth<'a, R> {
         // being received or finished transmitting. Check and handle
         // both cases
 
-        if self.mac_regs.rx_ev().event_enabled(LITEETH_RX_EVENT)
-            && self.mac_regs.rx_ev().event_pending(LITEETH_RX_EVENT)
-        {
+        if self.mac_regs.rx_ev().event_asserted(LITEETH_RX_EVENT) {
             self.rx_interrupt();
         }
 
-        if self.mac_regs.tx_ev().event_enabled(LITEETH_TX_EVENT)
-            && self.mac_regs.tx_ev().event_pending(LITEETH_TX_EVENT)
-        {
+        if self.mac_regs.tx_ev().event_asserted(LITEETH_TX_EVENT) {
             self.tx_interrupt();
         }
     }

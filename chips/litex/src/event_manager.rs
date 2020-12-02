@@ -161,6 +161,16 @@ where
         self.pending.get()
     }
 
+    /// Check whether an event source is asserting the event manager's
+    /// CPU interrupt (both enabled and pending).
+    ///
+    ///
+    /// The event source is addressed by its index in the event
+    /// manager's registers (starting at 0).
+    pub fn event_asserted(&self, index: usize) -> bool {
+        self.event_enabled(index) && self.event_pending(index)
+    }
+
     /// Clear a pending event source.
     ///
     /// This operation may have side effects in the device (for

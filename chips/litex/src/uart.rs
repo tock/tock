@@ -164,15 +164,14 @@ impl<'a, R: LiteXSoCRegisterConfiguration> LiteXUart<'a, R> {
     pub fn service_interrupt(&self) {
         let ev = self.uart_regs.ev();
 
-        // We need to mask the events depending on their "enable"
-        // state to avoid falsely calling an interrupt handler which
-        // shouldn't fire
+        if ev.event_asserted(EVENT_MANAGER_INDEX_RX) {
+            // We cannot clear the event here, as that would discard
+            // data from the UART RX FIFO
 
-        if ev.event_enabled(EVENT_MANAGER_INDEX_RX) && ev.event_pending(EVENT_MANAGER_INDEX_RX) {
             self.rx_data();
         }
 
-        if ev.event_enabled(EVENT_MANAGER_INDEX_TX) && ev.event_pending(EVENT_MANAGER_INDEX_TX) {
+        if ev.event_asserted(EVENT_MANAGER_INDEX_TX) {
             ev.clear_event(EVENT_MANAGER_INDEX_TX);
             self.resume_tx();
         }
