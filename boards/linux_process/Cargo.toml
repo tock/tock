@@ -7,7 +7,7 @@ edition = "2018"
 
 [dependencies]
 components = { path = "../components" }
-posix = { path = "../../arch/posix" }
+posix_x86_64 = { path = "../../arch/posix_x86_64" }
 capsules = { path = "../../capsules" }
 kernel = { path = "../../kernel" }
 linux = { path = "../../chips/linux" }

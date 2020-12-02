@@ -5,5 +5,5 @@ authors = ["Tock Project Developers <tock-dev@googlegroups.com>"]
 edition = "2018"
 
 [dependencies]
-posix = { path = "../../arch/posix" }
+posix_x86_64 = { path = "../../arch/posix_x86_64" }
 kernel = { path = "../../kernel" }

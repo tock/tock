@@ -5,30 +5,30 @@ use crate::deferred_call_tasks::DeferredCallTask;
 
 use core::fmt::Write;
 use kernel::Chip;
-use posix;
+use posix_x86_64;
 
 use kernel::common::deferred_call;
 
 pub struct Linux {
     mpu: (),
-    userspace_kernel_boundary: posix::syscall::SysCall,
-    scheduler_timer: posix::systick::SysTick,
+    userspace_kernel_boundary: posix_x86_64::syscall::SysCall,
+    scheduler_timer: posix_x86_64::systick::SysTick,
 }
 
 impl Linux {
     pub unsafe fn new() -> Linux {
         Linux {
             mpu: (),
-            userspace_kernel_boundary: posix::syscall::SysCall::new(),
-            scheduler_timer: posix::systick::SysTick::new(),
+            userspace_kernel_boundary: posix_x86_64::syscall::SysCall::new(),
+            scheduler_timer: posix_x86_64::systick::SysTick::new(),
         }
     }
 }
 
 impl Chip for Linux {
     type MPU = ();
-    type UserspaceKernelBoundary = posix::syscall::SysCall;
-    type SchedulerTimer = posix::systick::SysTick;
+    type UserspaceKernelBoundary = posix_x86_64::syscall::SysCall;
+    type SchedulerTimer = posix_x86_64::systick::SysTick;
     type WatchDog = ();
 
     fn service_pending_interrupts(&self) {
@@ -97,7 +97,7 @@ impl Chip for Linux {
     }
 
     fn has_pending_interrupts(&self) -> bool {
-        unsafe { posix::nvic::has_pending() || deferred_call::has_tasks() }
+        unsafe { posix_x86_64::nvic::has_pending() || deferred_call::has_tasks() }
     }
 
     fn mpu(&self) -> &Self::MPU {
@@ -117,17 +117,17 @@ impl Chip for Linux {
     }
 
     fn sleep(&self) {
-        posix::support::wfi();
+        posix_x86_64::support::wfi();
     }
 
     unsafe fn atomic<F, R>(&self, f: F) -> R
     where
         F: FnOnce() -> R,
     {
-        posix::support::atomic(f)
+        posix_x86_64::support::atomic(f)
     }
 
     unsafe fn print_state(&self, write: &mut dyn Write) {
-        posix::print_cpu_state(write);
+        posix_x86_64::print_cpu_state(write);
     }
 }

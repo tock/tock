@@ -59,7 +59,7 @@ impl Platform for LinuxProcess {
 unsafe fn reset_handler() {
     linux::init();
 
-    let flash = posix::initialize_flash(&APP_FLASH);
+    let flash = posix_x86_64::initialize_flash(&APP_FLASH);
 
     panic::set_hook(Box::new(|panic_info| {
         io::panic_fmt(panic_info);

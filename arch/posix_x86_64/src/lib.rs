@@ -1,6 +1,6 @@
 //! Generic support for POSIX platforms.
 
-#![crate_name = "posix"]
+#![crate_name = "posix_x86_64"]
 #![crate_type = "rlib"]
 #![feature(llvm_asm)]
 

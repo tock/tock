@@ -1,5 +1,5 @@
 #![feature(const_fn)]
-use posix::syscall;
+use posix_x86_64::syscall;
 
 pub mod chip;
 pub mod console;

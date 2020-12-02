@@ -1,7 +1,7 @@
 use core::fmt::Write;
 use core::panic::PanicInfo;
 
-use posix;
+use posix_x86_64;
 
 use kernel::debug;
 use kernel::debug::IoWrite;
@@ -52,7 +52,7 @@ pub unsafe fn panic_fmt(info: &PanicInfo) -> ! {
         &mut [&mut led],
         writer,
         info,
-        &posix::support::nop,
+        &posix_x86_64::support::nop,
         &PROCESSES,
         &CHIP,
     )

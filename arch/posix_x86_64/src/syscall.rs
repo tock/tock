@@ -10,21 +10,19 @@ use nix::sys::signal::{self, SaFlags, SigAction, SigHandler, SigSet, Signal};
 use crate::{FLASH_POSITION, ORIGINAL_FLASH_POSITION};
 
 /// This is used in the syscall handler. When set to 1 this means the
-/// svc_handler was called. Marked `pub` because it is used in the cortex-m*
-/// specific handler.
+/// svc_handler was called.
 #[no_mangle]
 #[used]
-pub static mut SYSCALL_FIRED: usize = 0;
+static mut SYSCALL_FIRED: usize = 0;
 
 /// This is called in the hard fault handler. When set to 1 this means the hard
-/// fault handler was called. Marked `pub` because it is used in the cortex-m*
-/// specific handler.
+/// fault handler was called.
 ///
 /// n.b. If the kernel hard faults, it immediately panic's. This flag is only
 /// for handling application hard faults.
 #[no_mangle]
 #[used]
-pub static mut APP_HARD_FAULT: usize = 0;
+static mut APP_HARD_FAULT: usize = 0;
 
 /// This is used to verify if the kernel or a process is running
 pub static mut RUNNING_KERNEL: bool = true;
