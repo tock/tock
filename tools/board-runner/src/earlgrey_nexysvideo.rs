@@ -8,7 +8,7 @@ use std::process::{Command, Stdio};
 use std::time::Duration;
 use std::{thread, time};
 
-fn opentitan_flash(
+fn earlgrey_nexysvideo_flash(
     app_name: &str,
 ) -> Result<rexpect::session::StreamSession<std::boxed::Box<dyn serialport::SerialPort>>, Error> {
     let s = SerialPortSettings {
@@ -34,7 +34,7 @@ fn opentitan_flash(
     // Flash the Tock kernel and app
     let mut build = Command::new("make")
         .arg("-C")
-        .arg("../../boards/opentitan")
+        .arg("../../boards/earlgrey_nexysvideo")
         .arg(format!(
             "OPENTITAN_TREE={}",
             env::var("OPENTITAN_TREE").unwrap()
@@ -58,26 +58,26 @@ fn opentitan_flash(
     Ok(p)
 }
 
-fn opentitan_c_hello() -> Result<(), Error> {
+fn earlgrey_nexysvideo_c_hello() -> Result<(), Error> {
     let app = format!(
         "{}/{}",
         env::var("LIBTOCK_C_TREE").unwrap(),
         "examples/c_hello/build/rv32imc/rv32imc.0x20030080.0x10005000.tbf"
     );
-    let mut p = opentitan_flash(&app).unwrap();
+    let mut p = earlgrey_nexysvideo_flash(&app).unwrap();
 
     p.exp_string("Hello World!")?;
 
     Ok(())
 }
 
-fn opentitan_blink() -> Result<(), Error> {
+fn earlgrey_nexysvideo_blink() -> Result<(), Error> {
     let app = format!(
         "{}/{}",
         env::var("LIBTOCK_C_TREE").unwrap(),
         "examples/blink/build/rv32imc/rv32imc.0x20030080.0x10005000.tbf"
     );
-    let _p = opentitan_flash(&app).unwrap();
+    let _p = earlgrey_nexysvideo_flash(&app).unwrap();
 
     println!("Make sure the LEDs are blinking");
 
@@ -87,7 +87,7 @@ fn opentitan_blink() -> Result<(), Error> {
     Ok(())
 }
 
-fn opentitan_c_hello_and_printf_long() -> Result<(), Error> {
+fn earlgrey_nexysvideo_c_hello_and_printf_long() -> Result<(), Error> {
     let app = OpenOptions::new()
         .write(true)
         .create(true)
@@ -123,7 +123,7 @@ fn opentitan_c_hello_and_printf_long() -> Result<(), Error> {
         .expect("failed to spawn build");
     assert!(build.wait().unwrap().success());
 
-    let mut p = opentitan_flash("../../tools/board-runner/app").unwrap();
+    let mut p = earlgrey_nexysvideo_flash("../../tools/board-runner/app").unwrap();
 
     p.exp_string("Hello World!")?;
     p.exp_string("Hi welcome to Tock. This test makes sure that a greater than 64 byte message can be printed.")?;
@@ -132,7 +132,7 @@ fn opentitan_c_hello_and_printf_long() -> Result<(), Error> {
     Ok(())
 }
 
-fn opentitan_recv_short_and_recv_long() -> Result<(), Error> {
+fn earlgrey_nexysvideo_recv_short_and_recv_long() -> Result<(), Error> {
     let app = OpenOptions::new()
         .write(true)
         .create(true)
@@ -168,14 +168,14 @@ fn opentitan_recv_short_and_recv_long() -> Result<(), Error> {
         .expect("failed to spawn build");
     assert!(build.wait().unwrap().success());
 
-    let mut p = opentitan_flash("../../tools/board-runner/app").unwrap();
+    let mut p = earlgrey_nexysvideo_flash("../../tools/board-runner/app").unwrap();
 
     p.exp_string("Error doing UART receive: -2")?;
 
     Ok(())
 }
 
-fn opentitan_blink_and_c_hello_and_buttons() -> Result<(), Error> {
+fn earlgrey_nexysvideo_blink_and_c_hello_and_buttons() -> Result<(), Error> {
     let app = OpenOptions::new()
         .write(true)
         .create(true)
@@ -228,7 +228,7 @@ fn opentitan_blink_and_c_hello_and_buttons() -> Result<(), Error> {
         .expect("failed to spawn build");
     assert!(build.wait().unwrap().success());
 
-    let mut p = opentitan_flash("../../tools/board-runner/app").unwrap();
+    let mut p = earlgrey_nexysvideo_flash("../../tools/board-runner/app").unwrap();
 
     p.exp_string("Hello World!")?;
 
@@ -240,13 +240,13 @@ fn opentitan_blink_and_c_hello_and_buttons() -> Result<(), Error> {
     Ok(())
 }
 
-fn opentitan_console_recv_short() -> Result<(), Error> {
+fn earlgrey_nexysvideo_console_recv_short() -> Result<(), Error> {
     let app = format!(
         "{}/{}",
         env::var("LIBTOCK_C_TREE").unwrap(),
         "examples/tests/console_recv_short/build/rv32imc/rv32imc.0x20030080.0x10005000.tbf"
     );
-    let mut p = opentitan_flash(&app).unwrap();
+    let mut p = earlgrey_nexysvideo_flash(&app).unwrap();
 
     p.send_line("Short recv")?;
 
@@ -256,13 +256,13 @@ fn opentitan_console_recv_short() -> Result<(), Error> {
     Ok(())
 }
 
-fn opentitan_console_timeout() -> Result<(), Error> {
+fn earlgrey_nexysvideo_console_timeout() -> Result<(), Error> {
     let app = format!(
         "{}/{}",
         env::var("LIBTOCK_C_TREE").unwrap(),
         "examples/tests/console_timeout/build/rv32imc/rv32imc.0x20030080.0x10005000.tbf"
     );
-    let mut p = opentitan_flash(&app).unwrap();
+    let mut p = earlgrey_nexysvideo_flash(&app).unwrap();
 
     // Send message
     p.send_line("Test message")?;
@@ -281,13 +281,13 @@ fn opentitan_console_timeout() -> Result<(), Error> {
 }
 
 #[allow(dead_code)]
-fn opentitan_malloc_test1() -> Result<(), Error> {
+fn earlgrey_nexysvideo_malloc_test1() -> Result<(), Error> {
     let app = format!(
         "{}/{}",
         env::var("LIBTOCK_C_TREE").unwrap(),
         "examples/tests/malloc_test01/build/rv32imc/rv32imc.0x20030080.0x10005000.tbf"
     );
-    let mut p = opentitan_flash(&app).unwrap();
+    let mut p = earlgrey_nexysvideo_flash(&app).unwrap();
 
     p.exp_string("malloc01: success")?;
 
@@ -295,13 +295,13 @@ fn opentitan_malloc_test1() -> Result<(), Error> {
 }
 
 #[allow(dead_code)]
-fn opentitan_stack_size_test1() -> Result<(), Error> {
+fn earlgrey_nexysvideo_stack_size_test1() -> Result<(), Error> {
     let app = format!(
         "{}/{}",
         env::var("LIBTOCK_C_TREE").unwrap(),
         "examples/tests/stack_size_test01/build/rv32imc/rv32imc.0x20030080.0x10005000.tbf"
     );
-    let mut p = opentitan_flash(&app).unwrap();
+    let mut p = earlgrey_nexysvideo_flash(&app).unwrap();
 
     p.exp_string("Stack Test App")?;
     p.exp_string("Current stack pointer: 0x100")?;
@@ -310,13 +310,13 @@ fn opentitan_stack_size_test1() -> Result<(), Error> {
 }
 
 #[allow(dead_code)]
-fn opentitan_stack_size_test2() -> Result<(), Error> {
+fn earlgrey_nexysvideo_stack_size_test2() -> Result<(), Error> {
     let app = format!(
         "{}/{}",
         env::var("LIBTOCK_C_TREE").unwrap(),
         "examples/tests/stack_size_test02/build/rv32imc/rv32imc.0x20030080.0x10005000.tbf"
     );
-    let mut p = opentitan_flash(&app).unwrap();
+    let mut p = earlgrey_nexysvideo_flash(&app).unwrap();
 
     p.exp_string("Stack Test App")?;
     p.exp_string("Current stack pointer: 0x100")?;
@@ -324,13 +324,13 @@ fn opentitan_stack_size_test2() -> Result<(), Error> {
     Ok(())
 }
 
-fn opentitan_mpu_stack_growth() -> Result<(), Error> {
+fn earlgrey_nexysvideo_mpu_stack_growth() -> Result<(), Error> {
     let app = format!(
         "{}/{}",
         env::var("LIBTOCK_C_TREE").unwrap(),
         "examples/tests/mpu_stack_growth/build/rv32imc/rv32imc.0x20030080.0x10005000.tbf"
     );
-    let mut p = opentitan_flash(&app).unwrap();
+    let mut p = earlgrey_nexysvideo_flash(&app).unwrap();
 
     p.exp_string("This test should recursively add stack frames until exceeding")?;
     p.exp_string("panicked at 'Process mpu_stack_growth had a fault'")?;
@@ -340,13 +340,13 @@ fn opentitan_mpu_stack_growth() -> Result<(), Error> {
 }
 
 #[allow(dead_code)]
-fn opentitan_mpu_walk_region() -> Result<(), Error> {
+fn earlgrey_nexysvideo_mpu_walk_region() -> Result<(), Error> {
     let app = format!(
         "{}/{}",
         env::var("LIBTOCK_C_TREE").unwrap(),
         "examples/tests/mpu_walk_region/build/rv32imc/rv32imc.0x20030080.0x10005000.tbf"
     );
-    let mut p = opentitan_flash(&app).unwrap();
+    let mut p = earlgrey_nexysvideo_flash(&app).unwrap();
 
     p.exp_string("MPU Walk Regions")?;
     p.exp_string("Walking flash")?;
@@ -356,13 +356,13 @@ fn opentitan_mpu_walk_region() -> Result<(), Error> {
     Ok(())
 }
 
-fn opentitan_multi_alarm_test() -> Result<(), Error> {
+fn earlgrey_nexysvideo_multi_alarm_test() -> Result<(), Error> {
     let app = format!(
         "{}/{}",
         env::var("LIBTOCK_C_TREE").unwrap(),
         "examples/tests/multi_alarm_test/build/rv32imc/rv32imc.0x20030080.0x10005000.tbf"
     );
-    let _p = opentitan_flash(&app).unwrap();
+    let _p = earlgrey_nexysvideo_flash(&app).unwrap();
 
     println!("Make sure the LEDs are blinking");
 
@@ -372,52 +372,58 @@ fn opentitan_multi_alarm_test() -> Result<(), Error> {
     Ok(())
 }
 
-pub fn all_opentitan_tests() {
+pub fn all_earlgrey_nexysvideo_tests() {
     println!("Tock board-runner starting...");
     println!();
-    println!("Running opentitan tests...");
-    opentitan_c_hello().unwrap_or_else(|e| panic!("opentitan job failed with {}", e));
-    opentitan_blink().unwrap_or_else(|e| panic!("opentitan job failed with {}", e));
-    opentitan_c_hello_and_printf_long()
-        .unwrap_or_else(|e| panic!("opentitan job failed with {}", e));
-    opentitan_recv_short_and_recv_long()
-        .unwrap_or_else(|e| panic!("opentitan job failed with {}", e));
-    opentitan_blink_and_c_hello_and_buttons()
-        .unwrap_or_else(|e| panic!("opentitan job failed with {}", e));
-    opentitan_console_recv_short().unwrap_or_else(|e| panic!("opentitan job failed with {}", e));
-    opentitan_console_timeout().unwrap_or_else(|e| panic!("opentitan job failed with {}", e));
+    println!("Running earlgrey_nexysvideo tests...");
+    earlgrey_nexysvideo_c_hello()
+        .unwrap_or_else(|e| panic!("earlgrey_nexysvideo job failed with {}", e));
+    earlgrey_nexysvideo_blink()
+        .unwrap_or_else(|e| panic!("earlgrey_nexysvideo job failed with {}", e));
+    earlgrey_nexysvideo_c_hello_and_printf_long()
+        .unwrap_or_else(|e| panic!("earlgrey_nexysvideo job failed with {}", e));
+    earlgrey_nexysvideo_recv_short_and_recv_long()
+        .unwrap_or_else(|e| panic!("earlgrey_nexysvideo job failed with {}", e));
+    earlgrey_nexysvideo_blink_and_c_hello_and_buttons()
+        .unwrap_or_else(|e| panic!("earlgrey_nexysvideo job failed with {}", e));
+    earlgrey_nexysvideo_console_recv_short()
+        .unwrap_or_else(|e| panic!("earlgrey_nexysvideo job failed with {}", e));
+    earlgrey_nexysvideo_console_timeout()
+        .unwrap_or_else(|e| panic!("earlgrey_nexysvideo job failed with {}", e));
 
     // Disabled by default.
     // Requires:
     //    STACK_SIZE       = 2048
     //    APP_HEAP_SIZE    = 4096
     //    KERNEL_HEAP_SIZE = 2048
-    // opentitan_malloc_test1().unwrap_or_else(|e| panic!("opentitan job failed with {}", e));
+    // earlgrey_nexysvideo_malloc_test1().unwrap_or_else(|e| panic!("earlgrey_nexysvideo job failed with {}", e));
 
     // Disabled by default.
     // Requires:
     //    STACK_SIZE       = 2048
     //    APP_HEAP_SIZE    = 4096
     //    KERNEL_HEAP_SIZE = 2048
-    // opentitan_stack_size_test1().unwrap_or_else(|e| panic!("opentitan job failed with {}", e));
+    // earlgrey_nexysvideo_stack_size_test1().unwrap_or_else(|e| panic!("earlgrey_nexysvideo job failed with {}", e));
 
     // Disabled by default.
     // Requires:
     //    STACK_SIZE       = 2048
     //    APP_HEAP_SIZE    = 4096
     //    KERNEL_HEAP_SIZE = 2048
-    // opentitan_stack_size_test2().unwrap_or_else(|e| panic!("opentitan job failed with {}", e));
+    // earlgrey_nexysvideo_stack_size_test2().unwrap_or_else(|e| panic!("earlgrey_nexysvideo job failed with {}", e));
 
-    opentitan_mpu_stack_growth().unwrap_or_else(|e| panic!("opentitan job failed with {}", e));
+    earlgrey_nexysvideo_mpu_stack_growth()
+        .unwrap_or_else(|e| panic!("earlgrey_nexysvideo job failed with {}", e));
 
     // Disabled by default.
     // Requires:
     //    STACK_SIZE       = 2048
     //    APP_HEAP_SIZE    = 4096
     //    KERNEL_HEAP_SIZE = 2048
-    // opentitan_mpu_walk_region().unwrap_or_else(|e| panic!("opentitan job failed with {}", e));
+    // earlgrey_nexysvideo_mpu_walk_region().unwrap_or_else(|e| panic!("earlgrey_nexysvideo job failed with {}", e));
 
-    opentitan_multi_alarm_test().unwrap_or_else(|e| panic!("opentitan job failed with {}", e));
+    earlgrey_nexysvideo_multi_alarm_test()
+        .unwrap_or_else(|e| panic!("earlgrey_nexysvideo job failed with {}", e));
 
-    println!("opentitan SUCCESS.");
+    println!("earlgrey_nexysvideo SUCCESS.");
 }

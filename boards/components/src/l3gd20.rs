@@ -27,7 +27,7 @@ use kernel::static_init_half;
 // Setup static space for the objects.
 #[macro_export]
 macro_rules! l3gd20_spi_component_helper {
-    ($A:ty, $select: expr, $spi_mux: expr) => {{
+    ($A:ty, $select:expr, $spi_mux:expr $(,)?) => {{
         use capsules::l3gd20::L3gd20Spi;
         use capsules::virtual_spi::VirtualSpiMasterDevice;
         use core::mem::MaybeUninit;

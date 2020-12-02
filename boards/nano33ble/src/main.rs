@@ -6,9 +6,9 @@
 // Disable this attribute when documenting, as a workaround for
 // https://github.com/rust-lang/rust/issues/62184.
 #![cfg_attr(not(doc), no_main)]
-#![feature(const_in_array_repeat_expressions)]
 #![deny(missing_docs)]
 
+use capsules::virtual_aes_ccm::MuxAES128CCM;
 use kernel::capabilities;
 use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::component::Component;
@@ -17,6 +17,7 @@ use kernel::hil::gpio::Interrupt;
 use kernel::hil::gpio::Output;
 use kernel::hil::i2c::I2CMaster;
 use kernel::hil::led::LedLow;
+use kernel::hil::symmetric_encryption::AES128;
 use kernel::hil::time::Counter;
 use kernel::hil::usb::Client;
 use kernel::mpu::MPU;
@@ -26,6 +27,9 @@ use kernel::{create_capability, debug, debug_gpio, debug_verbose, static_init};
 
 use nrf52840::gpio::Pin;
 use nrf52840::interrupt_service::Nrf52840DefaultPeripherals;
+
+#[allow(dead_code)]
+mod test;
 
 // Three-color LED.
 const LED_RED_PIN: Pin = Pin::P0_24;
@@ -59,6 +63,9 @@ const I2C_PULLUP_PIN: Pin = Pin::P1_00;
 /// Interrupt pin for the APDS9960 sensor.
 const APDS9960_PIN: Pin = Pin::P0_19;
 
+/// Personal Area Network ID for the IEEE 802.15.4 radio
+const PAN_ID: u16 = 0xABCD;
+
 /// UART Writer for panic!()s.
 pub mod io;
 
@@ -69,11 +76,16 @@ const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultRespons
 // Number of concurrent processes this platform supports.
 const NUM_PROCS: usize = 8;
 
-static mut PROCESSES: [Option<&'static dyn kernel::procs::ProcessType>; NUM_PROCS] = [None; 8];
+static mut PROCESSES: [Option<&'static dyn kernel::procs::ProcessType>; NUM_PROCS] =
+    [None; NUM_PROCS];
 
 static mut CHIP: Option<&'static nrf52840::chip::NRF52<Nrf52840DefaultPeripherals>> = None;
 static mut CDC_REF_FOR_PANIC: Option<
-    &'static capsules::usb::cdc::CdcAcm<'static, nrf52::usbd::Usbd>,
+    &'static capsules::usb::cdc::CdcAcm<
+        'static,
+        nrf52::usbd::Usbd,
+        capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc>,
+    >,
 > = None;
 
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
@@ -83,12 +95,12 @@ pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 
 /// Supported drivers by the platform
 pub struct Platform {
-    // ble_radio: &'static capsules::ble_advertising_driver::BLE<
-    //     'static,
-    //     nrf52::ble_radio::Radio,
-    //     VirtualMuxAlarm<'static, Rtc<'static>>,
-    // >,
-    // ieee802154_radio: &'static capsules::ieee802154::RadioDriver<'static>,
+    ble_radio: &'static capsules::ble_advertising_driver::BLE<
+        'static,
+        nrf52::ble_radio::Radio<'static>,
+        capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc<'static>>,
+    >,
+    ieee802154_radio: &'static capsules::ieee802154::RadioDriver<'static>,
     console: &'static capsules::console::Console<'static>,
     proximity: &'static capsules::proximity::ProximitySensor<'static>,
     gpio: &'static capsules::gpio::GPIO<'static, nrf52::gpio::GPIOPin<'static>>,
@@ -113,8 +125,8 @@ impl kernel::Platform for Platform {
             capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
             capsules::led::DRIVER_NUM => f(Some(self.led)),
             capsules::rng::DRIVER_NUM => f(Some(self.rng)),
-            // capsules::ble_advertising_driver::DRIVER_NUM => f(Some(self.ble_radio)),
-            // capsules::ieee802154::DRIVER_NUM => f(Some(radio)),
+            capsules::ble_advertising_driver::DRIVER_NUM => f(Some(self.ble_radio)),
+            capsules::ieee802154::DRIVER_NUM => f(Some(self.ieee802154_radio)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             _ => f(None),
         }
@@ -249,8 +261,13 @@ pub unsafe fn reset_handler() {
         0x2341,
         0x005a,
         strings,
+        mux_alarm,
+        dynamic_deferred_caller,
     )
-    .finalize(components::usb_cdc_acm_component_helper!(nrf52::usbd::Usbd));
+    .finalize(components::usb_cdc_acm_component_helper!(
+        nrf52::usbd::Usbd,
+        nrf52::rtc::Rtc
+    ));
     CDC_REF_FOR_PANIC = Some(cdc); //for use by panic handler
 
     // Create a shared UART channel for the console and for kernel debug.
@@ -314,16 +331,34 @@ pub unsafe fn reset_handler() {
     // WIRELESS
     //--------------------------------------------------------------------------
 
-    // let ble_radio =
-    //     BLEComponent::new(board_kernel, &base_peripherals.ble_radio, mux_alarm).finalize(());
+    let ble_radio =
+        nrf52_components::BLEComponent::new(board_kernel, &base_peripherals.ble_radio, mux_alarm)
+            .finalize(());
 
-    // let (ieee802154_radio, _) = Ieee802154Component::new(
-    //     board_kernel,
-    //     &base_peripherals.ieee802154_radio,
-    //     PAN_ID,
-    //     SRC_MAC,
-    // )
-    // .finalize(());
+    let aes_mux = static_init!(
+        MuxAES128CCM<'static, nrf52840::aes::AesECB>,
+        MuxAES128CCM::new(&base_peripherals.ecb, dynamic_deferred_caller)
+    );
+    base_peripherals.ecb.set_client(aes_mux);
+    aes_mux.initialize_callback_handle(
+        dynamic_deferred_caller
+            .register(aes_mux)
+            .expect("no deferred call slot available for ccm mux"),
+    );
+
+    let serial_num = nrf52840::ficr::FICR_INSTANCE.address();
+    let serial_num_bottom_16 = u16::from_le_bytes([serial_num[0], serial_num[1]]);
+    let (ieee802154_radio, _mux_mac) = components::ieee802154::Ieee802154Component::new(
+        board_kernel,
+        &base_peripherals.ieee802154_radio,
+        aes_mux,
+        PAN_ID,
+        serial_num_bottom_16,
+    )
+    .finalize(components::ieee802154_component_helper!(
+        nrf52840::ieee802154_radio::Radio,
+        nrf52840::aes::AesECB<'static>
+    ));
 
     //--------------------------------------------------------------------------
     // FINAL SETUP AND BOARD BOOT
@@ -334,8 +369,8 @@ pub unsafe fn reset_handler() {
     nrf52_components::NrfClockComponent::new().finalize(());
 
     let platform = Platform {
-        // ble_radio: ble_radio,
-        // ieee802154_radio: ieee802154_radio,
+        ble_radio: ble_radio,
+        ieee802154_radio: ieee802154_radio,
         console: console,
         proximity: proximity,
         led: led,
@@ -357,6 +392,20 @@ pub unsafe fn reset_handler() {
     // Configure the USB stack to enable a serial port over CDC-ACM.
     cdc.enable();
     cdc.attach();
+
+    //--------------------------------------------------------------------------
+    // TESTS
+    //--------------------------------------------------------------------------
+    // test::linear_log_test::run(
+    //     mux_alarm,
+    //     dynamic_deferred_caller,
+    //     &nrf52840_peripherals.nrf52.nvmc,
+    // );
+    // test::log_test::run(
+    //     mux_alarm,
+    //     dynamic_deferred_caller,
+    //     &nrf52840_peripherals.nrf52.nvmc,
+    // );
 
     debug!("Initialization complete. Entering main loop.");
 

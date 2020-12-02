@@ -7,100 +7,6 @@ use kernel::common::registers::{register_bitfields, register_structs, ReadOnly, 
 use kernel::common::StaticRef;
 use kernel::hil::gpio;
 
-pub static mut INT_PINS: [IntPin; 48] = [
-    IntPin::new(IntPinNr::P01_0),
-    IntPin::new(IntPinNr::P01_1),
-    IntPin::new(IntPinNr::P01_2),
-    IntPin::new(IntPinNr::P01_3),
-    IntPin::new(IntPinNr::P01_4),
-    IntPin::new(IntPinNr::P01_5),
-    IntPin::new(IntPinNr::P01_6),
-    IntPin::new(IntPinNr::P01_7),
-    IntPin::new(IntPinNr::P02_0),
-    IntPin::new(IntPinNr::P02_1),
-    IntPin::new(IntPinNr::P02_2),
-    IntPin::new(IntPinNr::P02_3),
-    IntPin::new(IntPinNr::P02_4),
-    IntPin::new(IntPinNr::P02_5),
-    IntPin::new(IntPinNr::P02_6),
-    IntPin::new(IntPinNr::P02_7),
-    IntPin::new(IntPinNr::P03_0),
-    IntPin::new(IntPinNr::P03_1),
-    IntPin::new(IntPinNr::P03_2),
-    IntPin::new(IntPinNr::P03_3),
-    IntPin::new(IntPinNr::P03_4),
-    IntPin::new(IntPinNr::P03_5),
-    IntPin::new(IntPinNr::P03_6),
-    IntPin::new(IntPinNr::P03_7),
-    IntPin::new(IntPinNr::P04_0),
-    IntPin::new(IntPinNr::P04_1),
-    IntPin::new(IntPinNr::P04_2),
-    IntPin::new(IntPinNr::P04_3),
-    IntPin::new(IntPinNr::P04_4),
-    IntPin::new(IntPinNr::P04_5),
-    IntPin::new(IntPinNr::P04_6),
-    IntPin::new(IntPinNr::P04_7),
-    IntPin::new(IntPinNr::P05_0),
-    IntPin::new(IntPinNr::P05_1),
-    IntPin::new(IntPinNr::P05_2),
-    IntPin::new(IntPinNr::P05_3),
-    IntPin::new(IntPinNr::P05_4),
-    IntPin::new(IntPinNr::P05_5),
-    IntPin::new(IntPinNr::P05_6),
-    IntPin::new(IntPinNr::P05_7),
-    IntPin::new(IntPinNr::P06_0),
-    IntPin::new(IntPinNr::P06_1),
-    IntPin::new(IntPinNr::P06_2),
-    IntPin::new(IntPinNr::P06_3),
-    IntPin::new(IntPinNr::P06_4),
-    IntPin::new(IntPinNr::P06_5),
-    IntPin::new(IntPinNr::P06_6),
-    IntPin::new(IntPinNr::P06_7),
-];
-
-pub static mut PINS: [Pin; 40] = [
-    Pin::new(PinNr::P07_0),
-    Pin::new(PinNr::P07_1),
-    Pin::new(PinNr::P07_2),
-    Pin::new(PinNr::P07_3),
-    Pin::new(PinNr::P07_4),
-    Pin::new(PinNr::P07_5),
-    Pin::new(PinNr::P07_6),
-    Pin::new(PinNr::P07_7),
-    Pin::new(PinNr::P08_0),
-    Pin::new(PinNr::P08_1),
-    Pin::new(PinNr::P08_2),
-    Pin::new(PinNr::P08_3),
-    Pin::new(PinNr::P08_4),
-    Pin::new(PinNr::P08_5),
-    Pin::new(PinNr::P08_6),
-    Pin::new(PinNr::P08_7),
-    Pin::new(PinNr::P09_0),
-    Pin::new(PinNr::P09_1),
-    Pin::new(PinNr::P09_2),
-    Pin::new(PinNr::P09_3),
-    Pin::new(PinNr::P09_4),
-    Pin::new(PinNr::P09_5),
-    Pin::new(PinNr::P09_6),
-    Pin::new(PinNr::P09_7),
-    Pin::new(PinNr::P10_0),
-    Pin::new(PinNr::P10_1),
-    Pin::new(PinNr::P10_2),
-    Pin::new(PinNr::P10_3),
-    Pin::new(PinNr::P10_4),
-    Pin::new(PinNr::P10_5),
-    Pin::new(PinNr::P10_6),
-    Pin::new(PinNr::P10_7),
-    Pin::new(PinNr::PJ_0),
-    Pin::new(PinNr::PJ_1),
-    Pin::new(PinNr::PJ_2),
-    Pin::new(PinNr::PJ_3),
-    Pin::new(PinNr::PJ_4),
-    Pin::new(PinNr::PJ_5),
-    Pin::new(PinNr::PJ_6),
-    Pin::new(PinNr::PJ_7),
-];
-
 const GPIO_BASES: [StaticRef<GpioRegisters>; 6] = [
     unsafe { StaticRef::new(0x4000_4C00u32 as *const GpioRegisters) }, // PORT 1&2
     unsafe { StaticRef::new(0x4000_4C20u32 as *const GpioRegisters) }, // PORT 3&4
@@ -297,6 +203,110 @@ enum ModuleFunction {
     Tertiary,
 }
 
+pub struct GpioManager<'a> {
+    pub int_pins: [IntPin<'a>; 48],
+    pub pins: [Pin<'a>; 40],
+}
+
+impl GpioManager<'_> {
+    pub fn new() -> Self {
+        Self {
+            int_pins: [
+                IntPin::new(IntPinNr::P01_0),
+                IntPin::new(IntPinNr::P01_1),
+                IntPin::new(IntPinNr::P01_2),
+                IntPin::new(IntPinNr::P01_3),
+                IntPin::new(IntPinNr::P01_4),
+                IntPin::new(IntPinNr::P01_5),
+                IntPin::new(IntPinNr::P01_6),
+                IntPin::new(IntPinNr::P01_7),
+                IntPin::new(IntPinNr::P02_0),
+                IntPin::new(IntPinNr::P02_1),
+                IntPin::new(IntPinNr::P02_2),
+                IntPin::new(IntPinNr::P02_3),
+                IntPin::new(IntPinNr::P02_4),
+                IntPin::new(IntPinNr::P02_5),
+                IntPin::new(IntPinNr::P02_6),
+                IntPin::new(IntPinNr::P02_7),
+                IntPin::new(IntPinNr::P03_0),
+                IntPin::new(IntPinNr::P03_1),
+                IntPin::new(IntPinNr::P03_2),
+                IntPin::new(IntPinNr::P03_3),
+                IntPin::new(IntPinNr::P03_4),
+                IntPin::new(IntPinNr::P03_5),
+                IntPin::new(IntPinNr::P03_6),
+                IntPin::new(IntPinNr::P03_7),
+                IntPin::new(IntPinNr::P04_0),
+                IntPin::new(IntPinNr::P04_1),
+                IntPin::new(IntPinNr::P04_2),
+                IntPin::new(IntPinNr::P04_3),
+                IntPin::new(IntPinNr::P04_4),
+                IntPin::new(IntPinNr::P04_5),
+                IntPin::new(IntPinNr::P04_6),
+                IntPin::new(IntPinNr::P04_7),
+                IntPin::new(IntPinNr::P05_0),
+                IntPin::new(IntPinNr::P05_1),
+                IntPin::new(IntPinNr::P05_2),
+                IntPin::new(IntPinNr::P05_3),
+                IntPin::new(IntPinNr::P05_4),
+                IntPin::new(IntPinNr::P05_5),
+                IntPin::new(IntPinNr::P05_6),
+                IntPin::new(IntPinNr::P05_7),
+                IntPin::new(IntPinNr::P06_0),
+                IntPin::new(IntPinNr::P06_1),
+                IntPin::new(IntPinNr::P06_2),
+                IntPin::new(IntPinNr::P06_3),
+                IntPin::new(IntPinNr::P06_4),
+                IntPin::new(IntPinNr::P06_5),
+                IntPin::new(IntPinNr::P06_6),
+                IntPin::new(IntPinNr::P06_7),
+            ],
+            pins: [
+                Pin::new(PinNr::P07_0),
+                Pin::new(PinNr::P07_1),
+                Pin::new(PinNr::P07_2),
+                Pin::new(PinNr::P07_3),
+                Pin::new(PinNr::P07_4),
+                Pin::new(PinNr::P07_5),
+                Pin::new(PinNr::P07_6),
+                Pin::new(PinNr::P07_7),
+                Pin::new(PinNr::P08_0),
+                Pin::new(PinNr::P08_1),
+                Pin::new(PinNr::P08_2),
+                Pin::new(PinNr::P08_3),
+                Pin::new(PinNr::P08_4),
+                Pin::new(PinNr::P08_5),
+                Pin::new(PinNr::P08_6),
+                Pin::new(PinNr::P08_7),
+                Pin::new(PinNr::P09_0),
+                Pin::new(PinNr::P09_1),
+                Pin::new(PinNr::P09_2),
+                Pin::new(PinNr::P09_3),
+                Pin::new(PinNr::P09_4),
+                Pin::new(PinNr::P09_5),
+                Pin::new(PinNr::P09_6),
+                Pin::new(PinNr::P09_7),
+                Pin::new(PinNr::P10_0),
+                Pin::new(PinNr::P10_1),
+                Pin::new(PinNr::P10_2),
+                Pin::new(PinNr::P10_3),
+                Pin::new(PinNr::P10_4),
+                Pin::new(PinNr::P10_5),
+                Pin::new(PinNr::P10_6),
+                Pin::new(PinNr::P10_7),
+                Pin::new(PinNr::PJ_0),
+                Pin::new(PinNr::PJ_1),
+                Pin::new(PinNr::PJ_2),
+                Pin::new(PinNr::PJ_3),
+                Pin::new(PinNr::PJ_4),
+                Pin::new(PinNr::PJ_5),
+                Pin::new(PinNr::PJ_6),
+                Pin::new(PinNr::PJ_7),
+            ],
+        }
+    }
+}
+
 /// Supports interrupts
 pub struct IntPin<'a> {
     pin: u8,
@@ -330,7 +340,7 @@ impl<'a> Pin<'a> {
 }
 
 impl<'a> IntPin<'a> {
-    const fn new(pin: IntPinNr) -> IntPin<'a> {
+    pub const fn new(pin: IntPinNr) -> IntPin<'a> {
         let pin_nr = (pin as u8) % PINS_PER_PORT;
         let p = (pin as u8) / PINS_PER_PORT;
         IntPin {
@@ -595,24 +605,24 @@ impl<'a> gpio::Interrupt<'a> for IntPin<'a> {
 
 impl<'a> gpio::InterruptPin<'a> for IntPin<'a> {}
 
-pub fn handle_interrupt(port_idx: usize) {
-    let regs: StaticRef<GpioRegisters> = GPIO_BASES[port_idx / 2];
-    let ifgs: [u8; 2] = [regs.ifg[0].get(), regs.ifg[1].get()];
+impl<'a> GpioManager<'a> {
+    pub fn handle_interrupt(&self, port_idx: usize) {
+        let regs: StaticRef<GpioRegisters> = GPIO_BASES[port_idx / 2];
+        let ifgs: [u8; 2] = [regs.ifg[0].get(), regs.ifg[1].get()];
 
-    let handle_int = |ifg_idx: usize, i: usize| {
-        let bit = 1 << i;
-        if (ifgs[ifg_idx] & bit) > 0 {
-            unsafe {
-                INT_PINS[(port_idx * 8) + i].handle_interrupt();
+        let handle_int = |ifg_idx: usize, i: usize| {
+            let bit = 1 << i;
+            if (ifgs[ifg_idx] & bit) > 0 {
+                self.int_pins[(port_idx * 8) + i].handle_interrupt();
+                // read back the current register value to avoid loosing interrupts which occured
+                // within this function
+                regs.ifg[ifg_idx].set(regs.ifg[ifg_idx].get() & !bit);
             }
-            // read back the current register value to avoid loosing interrupts which occured
-            // within this function
-            regs.ifg[ifg_idx].set(regs.ifg[ifg_idx].get() & !bit);
-        }
-    };
+        };
 
-    for i in 0..8 {
-        handle_int(0, i);
-        handle_int(1, i);
+        for i in 0..8 {
+            handle_int(0, i);
+            handle_int(1, i);
+        }
     }
 }

@@ -6,7 +6,6 @@
 // Disable this attribute when documenting, as a workaround for
 // https://github.com/rust-lang/rust/issues/62184.
 #![cfg_attr(not(doc), no_main)]
-#![feature(const_in_array_repeat_expressions)]
 
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules::virtual_hmac::VirtualMuxHmac;
@@ -55,7 +54,7 @@ pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 
 /// A structure representing this platform that holds references to all
 /// capsules for this platform. We've included an alarm and console.
-struct OpenTitan {
+struct EarlGreyNexysVideo {
     led: &'static capsules::led::LedDriver<
         'static,
         LedHigh<'static, earlgrey::gpio::GpioPin<'static>>,
@@ -80,7 +79,7 @@ struct OpenTitan {
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
-impl Platform for OpenTitan {
+impl Platform for EarlGreyNexysVideo {
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
     where
         F: FnOnce(Option<&dyn kernel::Driver>) -> R,
@@ -299,7 +298,7 @@ pub unsafe fn reset_handler() {
         static _eappmem: u8;
     }
 
-    let opentitan = OpenTitan {
+    let earlgrey_nexysvideo = EarlGreyNexysVideo {
         gpio: gpio,
         led: led,
         console: console,
@@ -332,5 +331,5 @@ pub unsafe fn reset_handler() {
     debug!("OpenTitan initialisation complete. Entering main loop");
 
     let scheduler = components::sched::priority::PriorityComponent::new(board_kernel).finalize(());
-    board_kernel.kernel_loop(&opentitan, chip, None, scheduler, &main_loop_cap);
+    board_kernel.kernel_loop(&earlgrey_nexysvideo, chip, None, scheduler, &main_loop_cap);
 }

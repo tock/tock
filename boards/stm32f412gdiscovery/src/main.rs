@@ -7,9 +7,9 @@
 // https://github.com/rust-lang/rust/issues/62184.
 #![cfg_attr(not(doc), no_main)]
 #![deny(missing_docs)]
-#![feature(const_in_array_repeat_expressions)]
 use capsules::virtual_alarm::VirtualMuxAlarm;
 use components::gpio::GpioComponent;
+use components::rng::RngComponent;
 use kernel::capabilities;
 use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::component::Component;
@@ -41,7 +41,7 @@ const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultRespons
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
 #[link_section = ".stack_buffer"]
-pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
+pub static mut STACK_MEMORY: [u8; 0x2000] = [0; 0x2000];
 
 /// A structure representing this platform that holds references to all
 /// capsules for this platform.
@@ -61,6 +61,7 @@ struct STM32F412GDiscovery {
     touch: &'static capsules::touch::Touch<'static>,
     screen: &'static capsules::screen::Screen<'static>,
     temperature: &'static capsules::temperature::TemperatureSensor<'static>,
+    rng: &'static capsules::rng::RngDriver<'static>,
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
@@ -81,6 +82,7 @@ impl Platform for STM32F412GDiscovery {
             capsules::touch::DRIVER_NUM => f(Some(self.touch)),
             capsules::screen::DRIVER_NUM => f(Some(self.screen)),
             capsules::temperature::DRIVER_NUM => f(Some(self.temperature)),
+            capsules::rng::DRIVER_NUM => f(Some(self.rng)),
             _ => f(None),
         }
     }
@@ -337,7 +339,11 @@ unsafe fn set_pin_primary_functions(
 }
 
 /// Helper function for miscellaneous peripheral functions
-unsafe fn setup_peripherals(tim2: &stm32f412g::tim2::Tim2, fsmc: &stm32f412g::fsmc::Fsmc) {
+unsafe fn setup_peripherals(
+    tim2: &stm32f412g::tim2::Tim2,
+    fsmc: &stm32f412g::fsmc::Fsmc,
+    trng: &stm32f412g::trng::Trng,
+) {
     // USART2 IRQn is 38
     cortexm4::nvic::Nvic::new(stm32f412g::nvic::USART2).enable();
 
@@ -348,6 +354,8 @@ unsafe fn setup_peripherals(tim2: &stm32f412g::tim2::Tim2, fsmc: &stm32f412g::fs
 
     // FSMC
     fsmc.enable();
+
+    trng.enable_clock();
 }
 
 /// Reset Handler.
@@ -374,7 +382,11 @@ pub unsafe fn reset_handler() {
     );
     peripherals.init();
     let base_peripherals = &peripherals.stm32f4;
-    setup_peripherals(&base_peripherals.tim2, &base_peripherals.fsmc);
+    setup_peripherals(
+        &base_peripherals.tim2,
+        &base_peripherals.fsmc,
+        &peripherals.trng,
+    );
 
     // We use the default HSI 16Mhz clock
     set_pin_primary_functions(
@@ -584,6 +596,9 @@ pub unsafe fn reset_handler() {
     )
     .finalize(components::gpio_component_buf!(stm32f412g::gpio::Pin));
 
+    // RNG
+    let rng = RngComponent::new(board_kernel, &peripherals.trng).finalize(());
+
     // FT6206
 
     let mux_i2c = components::i2c::I2CMuxComponent::new(
@@ -717,6 +732,7 @@ pub unsafe fn reset_handler() {
         touch: touch,
         screen: screen,
         temperature: temp,
+        rng: rng,
     };
 
     // // Optional kernel tests

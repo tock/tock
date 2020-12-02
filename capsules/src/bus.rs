@@ -8,7 +8,6 @@
 //! ```rust
 //! let bus = components::bus::I2CMasterBusComponent::new(i2c_mux, address)
 //!     .finalize(components::spi_bus_component_helper!());
-//! ));
 //! ```
 //!
 //! SPI example

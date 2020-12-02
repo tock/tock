@@ -9,8 +9,6 @@ use kernel::common::StaticRef;
 use kernel::hil;
 use kernel::ReturnCode;
 
-pub static mut UART0: Uart<'static> = Uart::new(usci::USCI_A0_BASE, 0, 1, 1, 1);
-
 const DEFAULT_CLOCK_FREQ_HZ: u32 = crate::cs::SMCLK_HZ;
 
 struct BaudFraction {
@@ -77,15 +75,15 @@ pub struct Uart<'a> {
 }
 
 impl<'a> Uart<'a> {
-    pub(crate) const fn new(
-        regs: StaticRef<UsciARegisters>,
+    pub const fn new(
+        registers: StaticRef<UsciARegisters>,
         tx_dma_chan: usize,
         rx_dma_chan: usize,
         tx_dma_src: u8,
         rx_dma_src: u8,
-    ) -> Uart<'static> {
-        Uart {
-            registers: regs,
+    ) -> Self {
+        Self {
+            registers,
             clock_frequency: DEFAULT_CLOCK_FREQ_HZ,
 
             tx_client: OptionalCell::empty(),

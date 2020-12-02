@@ -11,21 +11,6 @@ use kernel::common::StaticRef;
 use kernel::hil;
 use kernel::ReturnCode;
 
-pub static mut ADC: Adc = Adc {
-    registers: ADC_BASE,
-    resolution: DEFAULT_ADC_RESOLUTION,
-    mode: Cell::new(AdcMode::Disabled),
-    active_channel: Cell::new(Channel::Channel0),
-    ref_module: OptionalCell::empty(),
-    timer: OptionalCell::empty(), // must be TIMER_A3!
-    dma: OptionalCell::empty(),
-    dma_chan: 7,
-    dma_src: 7,
-    buffer1: TakeCell::empty(),
-    buffer2: TakeCell::empty(),
-    client: OptionalCell::empty(),
-};
-
 const ADC_BASE: StaticRef<AdcRegisters> =
     unsafe { StaticRef::new(0x4001_2000 as *const AdcRegisters) };
 
@@ -505,19 +490,38 @@ register_bitfields![u32,
 pub trait EverythingClient: hil::adc::Client + hil::adc::HighSpeedClient {}
 impl<C: hil::adc::Client + hil::adc::HighSpeedClient> EverythingClient for C {}
 
-pub struct Adc {
+pub struct Adc<'a> {
     registers: StaticRef<AdcRegisters>,
     resolution: AdcResolution,
     mode: Cell<AdcMode>,
     active_channel: Cell<Channel>,
-    ref_module: OptionalCell<&'static dyn ref_module::AnalogReference>,
-    timer: OptionalCell<&'static dyn timer::InternalTimer>,
-    dma: OptionalCell<&'static dma::DmaChannel<'static>>,
+    ref_module: OptionalCell<&'a dyn ref_module::AnalogReference>,
+    timer: OptionalCell<&'a dyn timer::InternalTimer>,
+    dma: OptionalCell<&'a dma::DmaChannel<'a>>,
     pub(crate) dma_chan: usize,
     dma_src: u8,
     buffer1: TakeCell<'static, [u16]>,
     buffer2: TakeCell<'static, [u16]>,
     client: OptionalCell<&'static dyn EverythingClient>,
+}
+
+impl Adc<'_> {
+    pub const fn new() -> Self {
+        Self {
+            registers: ADC_BASE,
+            resolution: DEFAULT_ADC_RESOLUTION,
+            mode: Cell::new(AdcMode::Disabled),
+            active_channel: Cell::new(Channel::Channel0),
+            ref_module: OptionalCell::empty(),
+            timer: OptionalCell::empty(), // must be TIMER_A3!
+            dma: OptionalCell::empty(),
+            dma_chan: 7,
+            dma_src: 7,
+            buffer1: TakeCell::empty(),
+            buffer2: TakeCell::empty(),
+            client: OptionalCell::empty(),
+        }
+    }
 }
 
 #[repr(u32)]
@@ -591,7 +595,7 @@ unsafe fn buf_u16_to_buf_u8(buf: &'static mut [u16]) -> &'static mut [u8] {
     slice::from_raw_parts_mut(buf_ptr, buf.len() * 2)
 }
 
-impl Adc {
+impl<'a> Adc<'a> {
     fn is_enabled(&self) -> bool {
         self.registers.ctl0.is_set(CTL0::ON)
     }
@@ -686,9 +690,9 @@ impl Adc {
 
     pub fn set_modules(
         &self,
-        ref_module: &'static dyn ref_module::AnalogReference,
-        timer: &'static dyn timer::InternalTimer,
-        dma: &'static dma::DmaChannel,
+        ref_module: &'a dyn ref_module::AnalogReference,
+        timer: &'a dyn timer::InternalTimer,
+        dma: &'a dma::DmaChannel<'a>,
     ) {
         self.ref_module.set(ref_module);
         self.timer.set(timer);
@@ -731,7 +735,7 @@ impl Adc {
     }
 }
 
-impl dma::DmaClient for Adc {
+impl dma::DmaClient for Adc<'_> {
     fn transfer_done(
         &self,
         _tx_buf: Option<&'static mut [u8]>,
@@ -754,7 +758,7 @@ impl dma::DmaClient for Adc {
     }
 }
 
-impl hil::adc::Adc for Adc {
+impl hil::adc::Adc for Adc<'_> {
     type Channel = Channel;
 
     fn sample(&self, channel: &Self::Channel) -> ReturnCode {
@@ -884,7 +888,7 @@ impl hil::adc::Adc for Adc {
     }
 }
 
-impl hil::adc::AdcHighSpeed for Adc {
+impl hil::adc::AdcHighSpeed for Adc<'_> {
     fn sample_highspeed(
         &self,
         channel: &Self::Channel,
