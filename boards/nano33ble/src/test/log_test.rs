@@ -89,7 +89,7 @@ pub unsafe fn run(
     test.alarm.set_alarm_client(test);
 
     // Configure GPIO pin P1.08 as the log erase pin.
-    let log_erase_pin = GPIOPin::new(Pin::P0_08);
+    let log_erase_pin = GPIOPin::new(Pin::P1_08);
     log_erase_pin.enable_interrupts(InterruptEdge::RisingEdge);
     log_erase_pin.set_client(test);
 
