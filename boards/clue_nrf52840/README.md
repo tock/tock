@@ -35,11 +35,7 @@ twice in rapid succession. You should see the red LED pulse on and off.
 At this point you should be able to simply run `make program` in this directory
 to install a fresh kernel.
 
-```
-$ make program
-```
-
-You may need to specify the port like so:
+You will need to specify the port like so:
 
 ```
 $ make program PORT=<serial port path>
@@ -58,6 +54,22 @@ $ make
 This previous step will create a TAB (`.tab` file) that normally tockloader
 would use to program on the board. However, tockloader is currently not
 supported.
+
+Modify the `APP` variable in the `Makefile` to point towards the TBF file.
+
+```makefile
+APP=../../../libtock-c/examples/screen/build/cortex-m4/cortex-m4.tbf
+
+```
+
+At this point you should be able to simply run `make program-apps` in this directory
+to install a fresh kernel with the app(s).
+
+You will need to specify the port like so:
+
+```
+$ make program-apps PORT=<serial port path>
+```
 
 ### Userspace Resource Mapping
 
