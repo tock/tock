@@ -9,12 +9,14 @@
 #![feature(const_in_array_repeat_expressions)]
 #![deny(missing_docs)]
 
+use capsules::virtual_aes_ccm::MuxAES128CCM;
 use kernel::capabilities;
 use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::component::Component;
 use kernel::hil::gpio::Interrupt;
 use kernel::hil::i2c::I2CMaster;
 use kernel::hil::led::LedHigh;
+use kernel::hil::symmetric_encryption::AES128;
 use kernel::hil::time::Counter;
 use kernel::hil::usb::Client;
 use kernel::mpu::MPU;
@@ -412,6 +414,17 @@ pub unsafe fn reset_handler() {
         nrf52_components::BLEComponent::new(board_kernel, &base_peripherals.ble_radio, mux_alarm)
             .finalize(());
 
+    let aes_mux = static_init!(
+        MuxAES128CCM<'static, nrf52840::aes::AesECB>,
+        MuxAES128CCM::new(&base_peripherals.ecb, dynamic_deferred_caller)
+    );
+    base_peripherals.ecb.set_client(aes_mux);
+    aes_mux.initialize_callback_handle(
+        dynamic_deferred_caller
+            .register(aes_mux)
+            .expect("no deferred call slot available for ccm mux"),
+    );
+
     let serial_num = nrf52840::ficr::FICR_INSTANCE.address();
 
     let serial_num_bottom_16 = u16::from_le_bytes([serial_num[0], serial_num[1]]);
@@ -419,7 +432,7 @@ pub unsafe fn reset_handler() {
     let (ieee802154_radio, _mux_mac) = components::ieee802154::Ieee802154Component::new(
         board_kernel,
         &base_peripherals.ieee802154_radio,
-        &base_peripherals.ecb,
+        aes_mux,
         PAN_ID,
         serial_num_bottom_16,
     )
