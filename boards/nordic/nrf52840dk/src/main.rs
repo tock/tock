@@ -359,7 +359,7 @@ pub unsafe fn reset_handler() {
     components::debug_writer::DebugWriterComponent::new(uart_mux).finalize(());
 
     let ble_radio =
-        nrf52_components::BLEComponent::new(board_kernel, &nrf52840::ble_radio::RADIO, mux_alarm)
+        nrf52_components::BLEComponent::new(board_kernel, &base_peripherals.ble_radio, mux_alarm)
             .finalize(());
 
     let aes_mux = static_init!(

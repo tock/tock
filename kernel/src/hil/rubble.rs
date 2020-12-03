@@ -176,8 +176,8 @@ where
 /// advertisement and data connections to keep track of one set of event clients
 /// rather than two for different transmission types.
 ///
-/// [`RxClient`]: crate::hil::ble_advertisement::RxClient
-/// [`TxClient`]: crate::hil::ble_advertisement::TxClient
+/// [`RxClient`]: crate::hil::ble_advertising::RxClient
+/// [`TxClient`]: crate::hil::ble_advertising::TxClient
 pub trait RubbleDataDriver<'a>: BleAdvertisementDriver<'a> {
     /// Return the `DeviceAddress`, which is pre-programmed in the device FICR
     /// (Factory information configuration registers).

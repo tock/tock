@@ -4,7 +4,7 @@
 //! -----
 //! ```rust
 //! let ble_radio =
-//!     nrf52_rubble::RubbleComponent::new(board_kernel, &nrf52840::ble_radio::RADIO, mux_alarm)
+//!     nrf52_rubble::RubbleComponent::new(board_kernel, &base_peripherals.ble_radio, mux_alarm)
 //!        .finalize(());
 //! ```
 #![no_std]
@@ -74,7 +74,7 @@ impl Component for RubbleComponent {
                 ble_radio_virtual_alarm
             )
         );
-        hil::time::Alarm::set_client(ble_radio_virtual_alarm, ble_radio);
+        hil::time::Alarm::set_alarm_client(ble_radio_virtual_alarm, ble_radio);
         self.radio.set_receive_client(ble_radio);
         self.radio.set_transmit_client(ble_radio);
 

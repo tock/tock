@@ -85,14 +85,13 @@ impl Instant {
         }
     }
 
-    pub fn to_alarm_time<A: Time>(&self, alarm: &A) -> u32 {
+    pub fn to_alarm_time<A: Time>(&self, _alarm: &A) -> u32 {
         // instant.raw_micros() is microseconds, and we want NOW_UNIT.
         // Frequency::frequency() returns NOW_UNIT / second, so `raw_micros * frequency` gives us
         // `NOW_UNIT * microseconds / seconds`. `microseconds = 1000_000 seconds`,
         // so `raw_micros * frequency / 1000_000` is NOW_UNIT.
         u32::try_from(self.microseconds as u64 * A::Frequency::frequency() as u64 / 1000_000u64)
             .unwrap()
-            % alarm.max_tics()
     }
 }
 /// A duration with microsecond resolution.
@@ -139,16 +138,15 @@ impl Duration {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::hil::time::Freq32KHz;
+    use crate::hil::time::{Freq32KHz, Ticks32};
 
     struct VAlarm;
     impl Time for VAlarm {
         type Frequency = Freq32KHz;
-        fn now(&self) -> u32 {
+        type Ticks = Ticks32;
+
+        fn now(&self) -> Ticks32 {
             panic!()
-        }
-        fn max_tics(&self) -> u32 {
-            !0u32
         }
     }
 

@@ -67,9 +67,12 @@ Finally, add code to initialize the rubble driver to the `reset_handler` functio
 pub unsafe fn reset_handler() {
     // ...
 
-    let ble_radio =
-        nrf52_rubble::RubbleComponent::new(board_kernel, &nrf52840::ble_radio::RADIO, mux_alarm)
-            .finalize(());
+    let ble_radio = nrf52_components::RubbleComponent::new(
+        board_kernel,
+        &base_peripherals.ble_radio,
+        mux_alarm,
+    )
+    .finalize(());
 
     // ...
 

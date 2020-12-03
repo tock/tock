@@ -36,6 +36,7 @@
 
 use core::{cell::RefCell, convert::TryInto, marker::PhantomData};
 use kernel::debug;
+use kernel::hil::time::Ticks;
 use kernel::hil::{
     rubble::{
         Duration, Instant, NextUpdate, RubbleBleRadio, RubbleCmd, RubbleImplementation,
@@ -48,7 +49,6 @@ use kernel::{AppId, AppSlice, ReturnCode, Shared};
 use crate::driver;
 
 // Syscall driver number.
-
 pub const DRIVER_NUM: usize = driver::NUM::RubbleBle as usize;
 
 // Command Consants
@@ -175,8 +175,14 @@ where
     pub fn set_alarm_for(&self, update: NextUpdate) {
         match update {
             NextUpdate::Keep => {}
-            NextUpdate::Disable => self.alarm.disable(),
-            NextUpdate::At(time) => self.alarm.set_alarm(time.to_alarm_time(self.alarm)),
+            NextUpdate::Disable => {
+                self.alarm.disarm();
+            }
+            NextUpdate::At(time) => {
+                let now = self.alarm.now();
+                self.alarm
+                    .set_alarm(now, time.to_alarm_time(self.alarm).into());
+            }
         }
     }
 }
@@ -190,7 +196,7 @@ where
 {
     fn receive_event(&self, buf: &'static mut [u8], len: u8, result: ReturnCode) {
         // TODO: how accurate is this? can we get a more accurate time stamp?
-        let rx_end = Instant::from_alarm_time::<A>(self.alarm.now());
+        let rx_end = Instant::from_alarm_time::<A>(self.alarm.now().into_u32());
         let data = &mut *self.mutable_data.borrow_mut();
         let cmd = R::receive_event(&mut data.radio, &mut data.ll, rx_end, buf, len, result);
         let next_update = data.handle_cmd(cmd);
@@ -204,7 +210,7 @@ where
 {
     fn transmit_event(&self, buf: &'static mut [u8], result: ReturnCode) {
         // TODO: how accurate is this? can we get a more accurate time stamp?
-        let rx_end = Instant::from_alarm_time::<A>(self.alarm.now());
+        let rx_end = Instant::from_alarm_time::<A>(self.alarm.now().into_u32());
         let data = &mut *self.mutable_data.borrow_mut();
         let () = R::transmit_event(&mut data.radio, &mut data.ll, rx_end, buf, result);
     }
@@ -216,7 +222,7 @@ where
     A: Alarm<'a>,
     R: RubbleImplementation<'a, A>,
 {
-    fn fired(&self) {
+    fn alarm(&self) {
         let data = &mut *self.mutable_data.borrow_mut();
 
         let cmd = data.ll.update_timer(&mut data.radio);

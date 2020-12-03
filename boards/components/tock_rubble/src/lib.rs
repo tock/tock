@@ -56,15 +56,19 @@ where
     type Responder = ResponderWrapper<'a, A, R>;
     type Cmd = CmdWrapper;
     type PacketQueue = refcell_packet_queue::RefCellQueue;
+
     fn get_device_address() -> rubble_hil::DeviceAddress {
         R::get_device_address()
     }
+
     fn rx_packet_queue() -> &'static Self::PacketQueue {
         &RX_PACKET_QUEUE
     }
+
     fn tx_packet_queue() -> &'static Self::PacketQueue {
         &TX_PACKET_QUEUE
     }
+
     fn transmit_event(
         radio: &mut Self::BleRadio,
         _ll: &mut Self::LinkLayer,
@@ -75,6 +79,7 @@ where
         assert_eq!(buf.len(), MIN_PDU_BUF);
         radio.tx_buf.replace(buf);
     }
+
     fn receive_event(
         radio: &mut Self::BleRadio,
         ll: &mut Self::LinkLayer,
@@ -158,9 +163,11 @@ impl RubbleCmd for CmdWrapper {
             NextUpdate::Keep => rubble_hil::NextUpdate::Keep,
         }
     }
+
     fn queued_work(&self) -> bool {
         self.0.queued_work
     }
+
     fn into_radio_cmd(self) -> RadioCmd {
         self.0.radio
     }
