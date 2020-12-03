@@ -8,6 +8,8 @@ use crate::config;
 use crate::debug;
 use crate::process;
 use crate::sched::Kernel;
+use crate::syscall::GenericSyscallReturnValue;
+use crate::ErrorCode;
 
 /// Userspace app identifier.
 ///
@@ -192,6 +194,27 @@ impl Callback {
 
     pub fn schedule(&mut self, r0: usize, r1: usize, r2: usize) -> bool {
         self.cb.map_or(true, |mut cb| cb.schedule(r0, r1, r2))
+    }
+
+    pub(crate) fn into_subscribe_success(self) -> GenericSyscallReturnValue {
+        match self.cb {
+            None => GenericSyscallReturnValue::SubscribeSuccess(0 as *mut u8, 0),
+            Some(cb) => GenericSyscallReturnValue::SubscribeSuccess(
+                cb.fn_ptr.as_ptr() as *const u8,
+                cb.appdata,
+            ),
+        }
+    }
+
+    pub(crate) fn into_subscribe_failure(self, err: ErrorCode) -> GenericSyscallReturnValue {
+        match self.cb {
+            None => GenericSyscallReturnValue::SubscribeFailure(err, 0 as *mut u8, 0),
+            Some(cb) => GenericSyscallReturnValue::SubscribeFailure(
+                err,
+                cb.fn_ptr.as_ptr() as *const u8,
+                cb.appdata,
+            ),
+        }
     }
 }
 

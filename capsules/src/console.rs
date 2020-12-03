@@ -43,7 +43,7 @@ use core::{cmp, mem};
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::uart;
 use kernel::{AppId, Callback, ErrorCode, Grant};
-use kernel::{CommandResult, Driver, ReturnCode, SharedReadWrite};
+use kernel::{CommandResult, Driver, ReturnCode};
 use kernel::{Read, ReadOnlyAppSlice, ReadWrite, ReadWriteAppSlice};
 
 /// Syscall driver number.
