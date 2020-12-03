@@ -231,6 +231,8 @@ pub struct ST77XX<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> {
 
     write_buffer: TakeCell<'static, [u8]>,
 
+    current_rotation: Cell<ScreenRotation>,
+
     screen: &'static ST77XXScreen,
 }
 
@@ -274,6 +276,8 @@ impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> ST77XX<'a, A, B, P> {
             power_on: Cell::new(false),
 
             write_buffer: TakeCell::empty(),
+
+            current_rotation: Cell::new(ScreenRotation::Normal),
 
             screen: screen,
         }
@@ -447,6 +451,7 @@ impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> ST77XX<'a, A, B, P> {
             );
             self.setup_command.set(true);
             self.send_command(&MADCTL, 0, 1, 1);
+            self.current_rotation.set(rotation);
             ReturnCode::SUCCESS
         } else {
             ReturnCode::EBUSY
@@ -659,20 +664,21 @@ impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> ST77XX<'a, A, B, P> {
             && sx <= ex
             && sy <= ey
         {
+            let (ox, oy) = (self.screen.offset)(self.current_rotation.get());
             if self.status.get() == Status::Idle {
                 self.buffer.map_or_else(
                     || panic!("st77xx: set memory frame has no buffer"),
                     |buffer| {
                         // CASET
-                        buffer[position] = 0;
-                        buffer[position + 1] = sx as u8;
-                        buffer[position + 2] = 0;
-                        buffer[position + 3] = ex as u8;
+                        buffer[position] = (((sx + ox) >> 8) & 0xFF) as u8;
+                        buffer[position + 1] = ((sx + ox) & 0xFF) as u8;
+                        buffer[position + 2] = (((ex + ox) >> 8) & 0xFF) as u8;
+                        buffer[position + 3] = ((ex + ox) & 0xFF) as u8;
                         // RASET
-                        buffer[position + 4] = 0;
-                        buffer[position + 5] = sy as u8;
-                        buffer[position + 6] = 0;
-                        buffer[position + 7] = ey as u8;
+                        buffer[position + 4] = (((sy + oy) >> 8) & 0xFF) as u8;
+                        buffer[position + 5] = ((sy + oy) & 0xFF) as u8;
+                        buffer[position + 6] = (((ey + oy) >> 8) & 0xFF) as u8;
+                        buffer[position + 7] = ((ey + oy) & 0xFF) as u8;
                     },
                 );
                 ReturnCode::SUCCESS
@@ -858,7 +864,7 @@ impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> screen::Screen for ST77XX<'a, A, B, P
     }
 
     fn get_rotation(&self) -> ScreenRotation {
-        ScreenRotation::Normal
+        self.current_rotation.get()
     }
 
     fn set_write_frame(&self, x: usize, y: usize, width: usize, height: usize) -> ReturnCode {
@@ -1311,6 +1317,11 @@ pub struct ST77XXScreen {
     default_width: usize,
     default_height: usize,
     inverted: bool,
+
+    /// This function allows the translation of the image
+    /// as some screen implementations might have off screen
+    /// pixels for some of the rotations
+    offset: fn(rotation: ScreenRotation) -> (usize, usize),
 }
 
 pub const ST7735: ST77XXScreen = ST77XXScreen {
@@ -1318,6 +1329,7 @@ pub const ST7735: ST77XXScreen = ST77XXScreen {
     default_width: 128,
     default_height: 160,
     inverted: false,
+    offset: |_| (0, 0),
 };
 
 pub const ST7789H2: ST77XXScreen = ST77XXScreen {
@@ -1325,6 +1337,11 @@ pub const ST7789H2: ST77XXScreen = ST77XXScreen {
     default_width: 240,
     default_height: 240,
     inverted: true,
+    offset: |rotation| match rotation {
+        ScreenRotation::Rotated180 => (0, 80),
+        ScreenRotation::Rotated270 => (80, 0),
+        _ => (0, 0),
+    },
 };
 
 pub const LS016B8UY: ST77XXScreen = ST77XXScreen {
@@ -1332,4 +1349,5 @@ pub const LS016B8UY: ST77XXScreen = ST77XXScreen {
     default_width: 240,
     default_height: 240,
     inverted: false,
+    offset: |_| (0, 0),
 };
