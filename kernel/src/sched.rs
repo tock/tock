@@ -811,42 +811,44 @@ impl Kernel {
                 // them now.
                 process.remove_pending_callbacks(callback_id);
 
-                let callback = NonNull::new(callback_ptr)
-                    .map(|ptr| Callback::new(process.appid(), callback_id, appdata, ptr.cast()));
-                let res = platform.with_driver(driver_number, |driver| match driver {
-                    Some(Ok(_)) => {
-                        // Tock 2.0 driver handling
-                        ReturnCode::ENOSUPPORT
+                let ptr = NonNull::new(callback_ptr);
+                let callback = ptr.map_or(Callback::default(), 
+                                          |ptr| Callback::new(process.appid(), callback_id, appdata, ptr.cast()));
+                let rval = platform.with_driver(driver_number, |driver| match driver {
+                    Some(Ok(d)) => {
+                        let res = d.subscribe(subdriver_number, callback, process.appid());
+                        match res {
+                            Ok(newcb) => {
+                                newcb.into_subscribe_success()
+                            }
+                            Err((newcb, err)) => { 
+                                newcb.into_subscribe_failure(err)
+                            }
+                        }
                     }
                     Some(Err(d)) => {
                         // Legacy Tock 1.x driver handling
-                        d.subscribe(subdriver_number, callback, process.appid())
+                        if ptr.is_some() {
+                            GenericSyscallReturnValue::Legacy(d.subscribe(subdriver_number, Some(callback), process.appid()))
+                        } else {
+                            GenericSyscallReturnValue::Legacy(d.subscribe(subdriver_number, None, process.appid()))
+                        }
                     }
-                    None => ReturnCode::ENOSUPPORT,
+                    None => GenericSyscallReturnValue::Legacy(ReturnCode::ENOSUPPORT),
                 });
                 if config::CONFIG.trace_syscalls {
                     debug!(
-                        "[{:?}] subscribe({:#x}, {}, @{:#x}, {:#x}) = {:#x} = {:?}",
+                        "[{:?}] subscribe({:#x}, {}, @{:#x}, {:#x}) = {:?}",
                         process.appid(),
                         driver_number,
                         subdriver_number,
                         callback_ptr as usize,
                         appdata,
-                        usize::from(res),
-                        res
+                        rval
                     );
                 }
 
-                if callback.is_some() {
-                    process.set_syscall_return_value(GenericSyscallReturnValue::Legacy(res.into()));
-                } else {
-                    // This is where we would generate the correct
-                    // return type from a GenericReturnValue
-                    process.set_syscall_return_value(GenericSyscallReturnValue::Legacy(
-                        ReturnCode::EINVAL.into(),
-                    ));
-                    //process.set_syscall_return_value(SyscallResult::Generic(GenericSyscallReturnValue::FailureU32U32(ErrorCode::INVAL, callback_ptr as u32, app_data as u32));
-                }
+                process.set_syscall_return_value(rval);
             }
             Syscall::Command {
                 driver_number,

@@ -44,7 +44,7 @@ use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::uart;
 use kernel::{AppId, Callback, ErrorCode, Grant};
 use kernel::{ReadOnlyAppSlice, ReadWriteAppSlice, Read, ReadWrite};
-use kernel::{Driver, ReturnCode, SharedReadWrite, CommandResult};
+use kernel::{Driver, ReturnCode, CommandResult};
 
 /// Syscall driver number.
 use crate::driver;
