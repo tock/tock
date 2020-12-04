@@ -118,6 +118,11 @@ impl<'a> Console<'a> {
             self.tx_in_progress.set(app_id);
             self.tx_buffer.take().map(|buffer| {
                 let transaction_len = app.write_buffer.map_or(0, |data| {
+                    // A slice has changed under us and is now smaller than
+                    // what we need to write -- just write what we can.
+                    if app.write_remaining > data.len() {
+                        app.write_remaining = data.len();
+                    }
                     for (i, c) in data[data.len() - app.write_remaining..data.len()]
                         .iter()
                         .enumerate()
