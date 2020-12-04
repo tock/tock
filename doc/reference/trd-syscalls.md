@@ -309,12 +309,23 @@ memory and is not the Null Callback described below), the kernel MUST
 NOT invoke the requested driver and MUST immediately return a failure
 with a return code of EINVAL.
 
-A passed callback MUST be valid until the next invocation of `subscribe`
-with the same syscall and driver identifier. When userspace invokes
-subscribe, the kernel MUST cancel all pending callbacks for that driver
-and subscribe identifier: it MUST NOT invoke the previous callback after
-the call to subscribe, and MUST NOT invoke the new callback for events
-that occurred before the call to subscribe. 
+When the kernel invokes a driver, it passes a handle representing the passed
+callback to the driver. The driver is then responsible for storing the handle,
+and MUST return a handle, which is returned to the caller of `subscribe`. With
+the exception of a handle to the Null Callback, capsules cannot create or
+duplicate these handles.
+
+A passed callback MUST remain valid until all handles to that callback have been
+returned to userspace. When userspace invokes subscribe, the kernel MUST cancel
+all pending callbacks for that driver and subscribe identifier: it MUST NOT
+invoke the returned callback after the call to subscribe.
+
+Drivers SHOULD implement swapping semantics for the subscribe handles for each
+subscribe identifier. Conceptually, on each `subscribe` call drivers SHOULD keep
+the new handle and return the previous handle for the subscribe identifier.
+Drivers SHOULD start with their handles initialized to the Null Callback.
+Drivers SHOULD NOT use a callback handle in response to an event that occurred
+before the handle was created.
 
 Note that these semantics create a period over which callbacks might
 be lost: any callbacks that were pending when `subscribe` was called
@@ -338,16 +349,13 @@ incorrect.
 If userspace requires that it not lose any callbacks, it should
 not re-subcribe and instead use some form of userspace dispatch.
 
-The return values for Subscribe system calls are `Failure with 2 u32`
-and `Success with 2 u32`. For success, the first `u32` is the callback
-pointer passed in the previous call to Subscribe (the existing
-callback) and the second `u32` is the application data pointer passed
-in the previous call to Subscribe (the existing application data). For
-failure, the first `u32` is the passed callback pointer and the second
-`u32` is the passed application data pointer. For the first successful
-call to Subscribe for a given callback, the callback pointer and
-application data pointer returned MUST be the Null Callback (describe
-below).
+The return values for Subscribe system calls are `Failure with 2 u32` and
+`Success with 2 u32`. For Subscribe calls that failed without invoking a driver,
+the first `u32` is the passed callback pointer and the second `u32` is the
+passed application data. For all Subscribe calls that invoke a driver
+(regardless of success or failure), the first `u32` is the callback pointer for
+the returned handle and the second `u32` is the application data for the
+returned handle.
 
 4.2.1 The Null Callback 
 ---------------------------------
