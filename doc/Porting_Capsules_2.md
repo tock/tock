@@ -9,21 +9,6 @@ gives code examples.
 
 <!-- toc -->
 
-- [Overview](#overview)
-- [Crate Details](#crate-details)
-  * [`arch` Crate](#arch-crate)
-  * [`chip` Crate](#chip-crate)
-  * [`board` Crate](#board-crate)
-    + [Board Support](#board-support)
-      - [`panic!`s (aka `io.rs`)](#panics-aka-iors)
-      - [Board Cargo.toml, build.rs](#board-cargotoml-buildrs)
-      - [Board Makefile](#board-makefile)
-        * [Getting the built kernel onto a board](#getting-the-built-kernel-onto-a-board)
-      - [Board README](#board-readme)
-    + [Loading Apps](#loading-apps)
-    + [Common Pitfalls](#common-pitfalls)
-- [Adding a Platform to Tock Repository](#adding-a-platform-to-tock-repository)
-
 <!-- tocstop -->
 
 Overview
@@ -41,7 +26,7 @@ The Tock system call API is implemented in the `Driver` trait. Tock
 2.0 updates this trait to be more precise and correctly support Rust's
 memory semantics. 
 
-# `LegacyDriver`
+### `LegacyDriver`
 
 The old version of the `Driver` trait has been renamed `LegacyDriver.`
 When the scheduler dispatches system calls, it first checks if a given
@@ -75,7 +60,7 @@ impl kernel::Platform for Imix {
 You can see that in this code, `self.console` implements the 2.0 `Driver` and
 `self.gpio` implements the 1.x `LegacyDriver`.
 
-# `Driver`
+### `Driver`
 
 This is the signature for the 2.0 `Driver` trait:
 
@@ -154,7 +139,7 @@ becomes simpler: `Options` have been replaced by structures, and
 there's a basic structure to swapping callbacks or application slices.
 
 
-# Examples of command and `CommandResult`
+### Examples of command and `CommandResult`
 
 The LED capsule implements only commands, so it provides a very simple
 example of what commands look like.
@@ -244,7 +229,7 @@ success, so it returns a `CommandResult::Success`. If it can be convered
 into an error code, or if the grant produced an error, it returns a
 `CommandResult::Failure`. 
 
-## ReturnCode versus ErrorCode 
+#### ReturnCode versus ErrorCode 
 
 Because the new system call ABI explicitly distinguishes failures and
 successes, it replaces `ReturnCode` with `ErrorCode` to denote which
@@ -253,7 +238,7 @@ success cases, and with names that remove the leading E since it's
 obvious they are an error: `ErrorCode::FAIL` is the equivalent of
 `ReturnCode::EFAIL`.
 
-# Examples of `allow_readwrite` and `allow_readonly`
+### Examples of `allow_readwrite` and `allow_readonly`
 
 Because `ReadWriteAppSlice` and `ReadOnlyAppSlice` represent access to
 userspace memory, the kernel tightly constrains how these objects
@@ -299,7 +284,7 @@ method swaps the passed `ReadOnlyAppSlice` and the one in the `App` region,
 returning the one that was in the app region. It then returns `slice`,
 which is either the passed slice or the swapped out one.
 
-# Implementation of `subscribe`
+### Example of `subscribe`
 
 A call to `subscribe` has a similar structure to `allow`. Here is
 an example from `console`:
@@ -345,7 +330,7 @@ as a `Callback` where the `Option` is `None`. This is then encapsulated
 within the call to `Callback::schedule`, where the Null Callback does
 nothing.
 
-# Using `ReadOnlyAppSlice` and `ReadWriteAppSlice`
+### Using `ReadOnlyAppSlice` and `ReadWriteAppSlice`
 
 One key change in the Tock 2.0 API is explicitly acknowledging that
 application slices may disappear at any time. For example, if a process
