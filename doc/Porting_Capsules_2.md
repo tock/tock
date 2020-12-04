@@ -1,4 +1,4 @@
-Porting Tock
+Porting Tock Capsules to Tock 2.0
 ============
 
 This guide covers how to port Tock capsules from the 1.x system call API
