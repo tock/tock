@@ -482,13 +482,28 @@ At a minimum TickFS requires a `PageSize` amount of free memory to store the
 buffer obtained when reading flash. This could be reduced by instead performing
 multiple reads of a smaller fixed size.
 
-### Synchronous
+### Synchronous and Asynchronous Usage
 
-TickFS is fully synchronous and every call is blocking.
+TickFS supports both an synchronous and asynchronous usage. For developers
+used to Tock's callback method the the async usage might seem strange and
+sub-optimal. There are a few reasons that it is done this way.
 
-This is unfortunately inherently different to Tock's asynchronous design. The
-justification for this design is that in general writing and erasing flash
-can be tricky if we are executing from the same bank. A synchronous design
-seems like an overall more useful implementation to allow this. It also means
-we block in the critical moments where a power loss would loose the data we
-want to preserve.
+One of the goals of TickFS is to allow other non Tock users to use it. The
+current method should allow the library to be used to crates.io by other
+developers.
+
+Another reason for the synchronous support is that generally when there is
+only a single flash bank all flash writes and erases must be done synchronously.
+The synchronous API should allow these type of operations to occur.
+
+On top of that it is much simpler to unit test a synchronous API. This means the
+TickFS implementation can take advantage of a large range of unit tests to
+ensure correctness in the design. This is more difficult and complex to do in
+a async only operation.
+
+The async functions (see the documentation) can be used to implement a fully
+async operation. This is done using a "retry" method, such that special busy
+error codes indicate operations should be retried. This ends up being easier to
+implement as TickFS uses loops to find keys. This could be split out into
+callbacks, but it is expected that the end result will look very similar as the
+callbacks will maintain state and then restart the loop where it last left off.
