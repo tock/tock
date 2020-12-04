@@ -114,12 +114,12 @@ mod simple_flash_ctrl {
         }
     }
 
-    impl FlashController for FlashCtrl {
+    impl FlashController<2048> for FlashCtrl {
         fn read_region(
             &self,
             _region_number: usize,
             _offset: usize,
-            buf: &mut [u8],
+            buf: &mut [u8; 2048],
         ) -> Result<(), ErrorCode> {
             for b in buf.iter_mut() {
                 *b = 0xFF;
@@ -142,12 +142,8 @@ mod simple_flash_ctrl {
     #[test]
     fn test_init() {
         let mut read_buf: [u8; 2048] = [0; 2048];
-        let tickfs = TickFS::<FlashCtrl, DefaultHasher>::new(
-            FlashCtrl::new(),
-            &mut read_buf,
-            0x20000,
-            0x800,
-        );
+        let tickfs =
+            TickFS::<FlashCtrl, DefaultHasher, 2048>::new(FlashCtrl::new(), &mut read_buf, 0x20000);
         tickfs
             .initalise((&mut DefaultHasher::new(), &mut DefaultHasher::new()))
             .unwrap();
@@ -168,12 +164,12 @@ mod single_erase_flash_ctrl {
         }
     }
 
-    impl FlashController for FlashCtrl {
+    impl FlashController<2048> for FlashCtrl {
         fn read_region(
             &self,
             _region_number: usize,
             _offset: usize,
-            buf: &mut [u8],
+            buf: &mut [u8; 2048],
         ) -> Result<(), ErrorCode> {
             for b in buf.iter_mut() {
                 *b = 0xFF;
@@ -200,22 +196,20 @@ mod single_erase_flash_ctrl {
     #[test]
     fn test_double_init() {
         let mut read_buf1: [u8; 2048] = [0; 2048];
-        let tickfs1 = TickFS::<FlashCtrl, DefaultHasher>::new(
+        let tickfs1 = TickFS::<FlashCtrl, DefaultHasher, 2048>::new(
             FlashCtrl::new(),
             &mut read_buf1,
             0x20000,
-            0x800,
         );
         tickfs1
             .initalise((&mut DefaultHasher::new(), &mut DefaultHasher::new()))
             .unwrap();
 
         let mut read_buf2: [u8; 2048] = [0; 2048];
-        let tickfs2 = TickFS::<FlashCtrl, DefaultHasher>::new(
+        let tickfs2 = TickFS::<FlashCtrl, DefaultHasher, 2048>::new(
             FlashCtrl::new(),
             &mut read_buf2,
             0x20000,
-            0x800,
         );
         tickfs2
             .initalise((&mut DefaultHasher::new(), &mut DefaultHasher::new()))
@@ -241,12 +235,12 @@ mod store_flast_ctrl {
         }
     }
 
-    impl FlashController for FlashCtrl {
+    impl FlashController<1024> for FlashCtrl {
         fn read_region(
             &self,
             region_number: usize,
             offset: usize,
-            buf: &mut [u8],
+            buf: &mut [u8; 1024],
         ) -> Result<(), ErrorCode> {
             println!("Read from region: {}", region_number);
 
@@ -302,12 +296,8 @@ mod store_flast_ctrl {
     #[test]
     fn test_simple_append() {
         let mut read_buf: [u8; 1024] = [0; 1024];
-        let tickfs = TickFS::<FlashCtrl, DefaultHasher>::new(
-            FlashCtrl::new(),
-            &mut read_buf,
-            0x10000,
-            0x400,
-        );
+        let tickfs =
+            TickFS::<FlashCtrl, DefaultHasher, 1024>::new(FlashCtrl::new(), &mut read_buf, 0x10000);
         tickfs
             .initalise((&mut DefaultHasher::new(), &mut DefaultHasher::new()))
             .unwrap();
@@ -325,12 +315,8 @@ mod store_flast_ctrl {
     #[test]
     fn test_double_append() {
         let mut read_buf: [u8; 1024] = [0; 1024];
-        let tickfs = TickFS::<FlashCtrl, DefaultHasher>::new(
-            FlashCtrl::new(),
-            &mut read_buf,
-            0x10000,
-            0x400,
-        );
+        let tickfs =
+            TickFS::<FlashCtrl, DefaultHasher, 1024>::new(FlashCtrl::new(), &mut read_buf, 0x10000);
         tickfs
             .initalise((&mut DefaultHasher::new(), &mut DefaultHasher::new()))
             .unwrap();
@@ -383,12 +369,8 @@ mod store_flast_ctrl {
     #[test]
     fn test_append_and_delete() {
         let mut read_buf: [u8; 1024] = [0; 1024];
-        let tickfs = TickFS::<FlashCtrl, DefaultHasher>::new(
-            FlashCtrl::new(),
-            &mut read_buf,
-            0x10000,
-            0x400,
-        );
+        let tickfs =
+            TickFS::<FlashCtrl, DefaultHasher, 1024>::new(FlashCtrl::new(), &mut read_buf, 0x10000);
         tickfs
             .initalise((&mut DefaultHasher::new(), &mut DefaultHasher::new()))
             .unwrap();
@@ -427,12 +409,8 @@ mod store_flast_ctrl {
     #[test]
     fn test_garbage_collect() {
         let mut read_buf: [u8; 1024] = [0; 1024];
-        let tickfs = TickFS::<FlashCtrl, DefaultHasher>::new(
-            FlashCtrl::new(),
-            &mut read_buf,
-            0x10000,
-            0x400,
-        );
+        let tickfs =
+            TickFS::<FlashCtrl, DefaultHasher, 1024>::new(FlashCtrl::new(), &mut read_buf, 0x10000);
         tickfs
             .initalise((&mut DefaultHasher::new(), &mut DefaultHasher::new()))
             .unwrap();
@@ -487,12 +465,12 @@ mod no_check_store_flast_ctrl {
         }
     }
 
-    impl FlashController for FlashCtrl {
+    impl FlashController<256> for FlashCtrl {
         fn read_region(
             &self,
             region_number: usize,
             offset: usize,
-            buf: &mut [u8],
+            buf: &mut [u8; 256],
         ) -> Result<(), ErrorCode> {
             println!("Read from region: {}", region_number);
 
@@ -532,7 +510,7 @@ mod no_check_store_flast_ctrl {
     fn test_region_full() {
         let mut read_buf: [u8; 256] = [0; 256];
         let tickfs =
-            TickFS::<FlashCtrl, DefaultHasher>::new(FlashCtrl::new(), &mut read_buf, 0x200, 0x100);
+            TickFS::<FlashCtrl, DefaultHasher, 256>::new(FlashCtrl::new(), &mut read_buf, 0x200);
         tickfs
             .initalise((&mut DefaultHasher::new(), &mut DefaultHasher::new()))
             .unwrap();

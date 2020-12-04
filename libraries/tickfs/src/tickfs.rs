@@ -55,12 +55,11 @@ enum State {
 }
 
 /// The struct storing all of the TickFS information.
-pub struct TickFS<'a, C: FlashController, H: Hasher> {
+pub struct TickFS<'a, C: FlashController<S>, H: Hasher, const S: usize> {
     /// The controller used for flash commands
     pub controller: C,
     flash_size: usize,
-    region_size: usize,
-    read_buffer: Cell<&'a mut [u8]>,
+    read_buffer: Cell<Option<&'a mut [u8; S]>>,
     phantom_hasher: PhantomData<H>,
     state: Cell<State>,
 }
@@ -99,26 +98,18 @@ pub(crate) const CHECK_SUM_LEN: usize = 8;
 const MAIN_KEY: &[u8; 16] = b"tickfs-super-key";
 
 /// This is the main TickFS struct.
-impl<'a, C: FlashController, H: Hasher> TickFS<'a, C, H> {
+impl<'a, C: FlashController<S>, H: Hasher, const S: usize> TickFS<'a, C, H, S> {
     /// Create a new struct
     ///
     /// `C`: An implementation of the `FlashController` trait
     ///
     /// `controller`: An new struct implementing `FlashController`
     /// `flash_size`: The total size of the flash used for TickFS
-    /// `region_size`: The smallest size that can be erased in a single operation.
-    ///                This must be a multiple of the start address and `flash_size`
-    pub fn new(
-        controller: C,
-        read_buffer: &'a mut [u8],
-        flash_size: usize,
-        region_size: usize,
-    ) -> Self {
+    pub fn new(controller: C, read_buffer: &'a mut [u8; S], flash_size: usize) -> Self {
         Self {
             controller,
             flash_size,
-            region_size,
-            read_buffer: Cell::new(read_buffer),
+            read_buffer: Cell::new(Some(read_buffer)),
             phantom_hasher: PhantomData,
             state: Cell::new(State::None),
         }
@@ -169,8 +160,8 @@ impl<'a, C: FlashController, H: Hasher> TickFS<'a, C, H> {
                                     start = reg + 1;
                                 }
 
-                                if start < (self.flash_size / self.region_size) {
-                                    for r in start..(self.flash_size / self.region_size) {
+                                if start < (self.flash_size / S) {
+                                    for r in start..(self.flash_size / S) {
                                         match self.controller.erase_region(r) {
                                             Ok(()) => {}
                                             Err(e) => {
@@ -248,7 +239,7 @@ impl<'a, C: FlashController, H: Hasher> TickFS<'a, C, H> {
         assert_ne!(hash, 0);
 
         // Determine the number of regions
-        let num_region = self.flash_size / self.region_size;
+        let num_region = self.flash_size / S;
 
         // Determine the block where the data should be
         let region = (hash as usize & 0xFFFF) % num_region;
@@ -271,7 +262,7 @@ impl<'a, C: FlashController, H: Hasher> TickFS<'a, C, H> {
             };
 
             // Make sure our new offset is valid
-            if new_offset as usize > ((self.flash_size / self.region_size) - 1) {
+            if new_offset as usize > ((self.flash_size / S) - 1) {
                 too_big = true;
                 continue;
             }
@@ -307,7 +298,7 @@ impl<'a, C: FlashController, H: Hasher> TickFS<'a, C, H> {
         let mut empty: bool = true;
 
         loop {
-            if offset + HEADER_LENGTH >= self.region_size {
+            if offset + HEADER_LENGTH >= S {
                 // We have reached the end of the region
                 return Err((false, ErrorCode::KeyNotFound));
             }
@@ -454,14 +445,14 @@ impl<'a, C: FlashController, H: Hasher> TickFS<'a, C, H> {
                 _ => unreachable!(),
             };
 
-            let mut region_data = self.read_buffer.take();
+            let mut region_data = self.read_buffer.take().unwrap();
             match self
                 .controller
                 .read_region(new_region as usize, 0, &mut region_data)
             {
                 Ok(()) => {}
                 Err(e) => {
-                    self.read_buffer.replace(region_data);
+                    self.read_buffer.replace(Some(region_data));
                     if let ErrorCode::ReadNotReady(reg) = e {
                         self.state.set(State::AppendKey(KeyState::ReadRegion(reg)));
                     }
@@ -469,21 +460,21 @@ impl<'a, C: FlashController, H: Hasher> TickFS<'a, C, H> {
                 }
             };
 
-            if self.find_key_offset(hash, &region_data).is_ok() {
+            if self.find_key_offset(hash, region_data).is_ok() {
                 // Check to make sure we don't already have this key
-                self.read_buffer.replace(region_data);
+                self.read_buffer.replace(Some(region_data));
                 return Err(ErrorCode::KeyAlreadyExists);
             }
 
             let mut offset: usize = 0;
 
             loop {
-                if offset + package_length >= self.region_size {
+                if offset + package_length >= S {
                     // We have reached the end of the region
                     // We will need to try the next region
 
                     // Replace the buffer
-                    self.read_buffer.replace(region_data);
+                    self.read_buffer.replace(Some(region_data));
 
                     match self.increment_region_offset(new_region) {
                         Some(o) => {
@@ -500,7 +491,7 @@ impl<'a, C: FlashController, H: Hasher> TickFS<'a, C, H> {
                 if region_data[offset + VERSION_OFFSET] != 0xFF {
                     // We found a version, check that we support it
                     if region_data[offset + VERSION_OFFSET] != VERSION {
-                        self.read_buffer.replace(region_data);
+                        self.read_buffer.replace(Some(region_data));
                         return Err(ErrorCode::UnsupportedVersion);
                     }
 
@@ -519,35 +510,35 @@ impl<'a, C: FlashController, H: Hasher> TickFS<'a, C, H> {
                 // Check to see if the entire header is 0xFFFF_FFFF_FFFF_FFFF
                 // To avoid operating on 64-bit values check every 8 bytes at a time
                 if region_data[offset + HASH_OFFSET] != 0xFF {
-                    self.read_buffer.replace(region_data);
+                    self.read_buffer.replace(Some(region_data));
                     return Err(ErrorCode::CorruptData);
                 }
                 if region_data[offset + HASH_OFFSET + 1] != 0xFF {
-                    self.read_buffer.replace(region_data);
+                    self.read_buffer.replace(Some(region_data));
                     return Err(ErrorCode::CorruptData);
                 }
                 if region_data[offset + HASH_OFFSET + 2] != 0xFF {
-                    self.read_buffer.replace(region_data);
+                    self.read_buffer.replace(Some(region_data));
                     return Err(ErrorCode::CorruptData);
                 }
                 if region_data[offset + HASH_OFFSET + 3] != 0xFF {
-                    self.read_buffer.replace(region_data);
+                    self.read_buffer.replace(Some(region_data));
                     return Err(ErrorCode::CorruptData);
                 }
                 if region_data[offset + HASH_OFFSET + 4] != 0xFF {
-                    self.read_buffer.replace(region_data);
+                    self.read_buffer.replace(Some(region_data));
                     return Err(ErrorCode::CorruptData);
                 }
                 if region_data[offset + HASH_OFFSET + 5] != 0xFF {
-                    self.read_buffer.replace(region_data);
+                    self.read_buffer.replace(Some(region_data));
                     return Err(ErrorCode::CorruptData);
                 }
                 if region_data[offset + HASH_OFFSET + 6] != 0xFF {
-                    self.read_buffer.replace(region_data);
+                    self.read_buffer.replace(Some(region_data));
                     return Err(ErrorCode::CorruptData);
                 }
                 if region_data[offset + HASH_OFFSET + 7] != 0xFF {
-                    self.read_buffer.replace(region_data);
+                    self.read_buffer.replace(Some(region_data));
                     return Err(ErrorCode::CorruptData);
                 }
 
@@ -588,17 +579,17 @@ impl<'a, C: FlashController, H: Hasher> TickFS<'a, C, H> {
 
                 // Write the data back to the region
                 if let Err(e) = self.controller.write(
-                    self.region_size * new_region as usize + offset,
+                    S * new_region as usize + offset,
                     &region_data[offset..(offset + package_length + CHECK_SUM_LEN)],
                 ) {
-                    self.read_buffer.replace(region_data);
+                    self.read_buffer.replace(Some(region_data));
                     match e {
                         ErrorCode::WriteNotReady(_) => return Ok(SuccessCode::Queued),
                         _ => return Err(e),
                     }
                 }
 
-                self.read_buffer.replace(region_data);
+                self.read_buffer.replace(Some(region_data));
                 return Ok(SuccessCode::Written);
             }
         }
@@ -645,14 +636,14 @@ impl<'a, C: FlashController, H: Hasher> TickFS<'a, C, H> {
             };
 
             // Get the data from that region
-            let mut region_data = self.read_buffer.take();
+            let mut region_data = self.read_buffer.take().unwrap();
             match self
                 .controller
                 .read_region(new_region as usize, 0, &mut region_data)
             {
                 Ok(()) => {}
                 Err(e) => {
-                    self.read_buffer.replace(region_data);
+                    self.read_buffer.replace(Some(region_data));
                     if let ErrorCode::ReadNotReady(reg) = e {
                         self.state.set(State::GetKey(KeyState::ReadRegion(reg)));
                     }
@@ -660,7 +651,7 @@ impl<'a, C: FlashController, H: Hasher> TickFS<'a, C, H> {
                 }
             };
 
-            match self.find_key_offset(hash, &region_data) {
+            match self.find_key_offset(hash, region_data) {
                 Ok((offset, total_length)) => {
                     // Add the header data to the check hash
                     for i in 0..HEADER_LENGTH {
@@ -669,7 +660,7 @@ impl<'a, C: FlashController, H: Hasher> TickFS<'a, C, H> {
 
                     // Make sure if will fit in the buffer
                     if buf.len() < (total_length as usize - HEADER_LENGTH - CHECK_SUM_LEN) {
-                        self.read_buffer.replace(region_data);
+                        self.read_buffer.replace(Some(region_data));
                         return Err(ErrorCode::BufferTooSmall(
                             total_length as usize - HEADER_LENGTH - CHECK_SUM_LEN,
                         ));
@@ -697,15 +688,15 @@ impl<'a, C: FlashController, H: Hasher> TickFS<'a, C, H> {
                         || check_sum[1] != region_data[offset + total_length as usize - 7]
                         || check_sum[0] != region_data[offset + total_length as usize - 8]
                     {
-                        self.read_buffer.replace(region_data);
+                        self.read_buffer.replace(Some(region_data));
                         return Err(ErrorCode::InvalidCheckSum);
                     }
 
-                    self.read_buffer.replace(region_data);
+                    self.read_buffer.replace(Some(region_data));
                     return Ok(SuccessCode::Complete);
                 }
                 Err((cont, e)) => {
-                    self.read_buffer.replace(region_data);
+                    self.read_buffer.replace(Some(region_data));
 
                     if cont {
                         match self.increment_region_offset(new_region) {
@@ -755,14 +746,14 @@ impl<'a, C: FlashController, H: Hasher> TickFS<'a, C, H> {
             };
 
             // Get the data from that region
-            let mut region_data = self.read_buffer.take();
+            let mut region_data = self.read_buffer.take().unwrap();
             match self
                 .controller
                 .read_region(new_region as usize, 0, &mut region_data)
             {
                 Ok(()) => {}
                 Err(e) => {
-                    self.read_buffer.replace(region_data);
+                    self.read_buffer.replace(Some(region_data));
                     if let ErrorCode::ReadNotReady(reg) = e {
                         self.state
                             .set(State::InvalidateKey(KeyState::ReadRegion(reg)));
@@ -771,27 +762,27 @@ impl<'a, C: FlashController, H: Hasher> TickFS<'a, C, H> {
                 }
             };
 
-            match self.find_key_offset(hash, &region_data) {
+            match self.find_key_offset(hash, region_data) {
                 Ok((offset, _data_len)) => {
                     // We found a key, let's delete it
                     region_data[offset + LEN_OFFSET] &= !0x80;
 
                     if let Err(e) = self.controller.write(
-                        self.region_size * new_region as usize + offset + LEN_OFFSET,
+                        S * new_region as usize + offset + LEN_OFFSET,
                         &region_data[offset + LEN_OFFSET..offset + LEN_OFFSET + 1],
                     ) {
-                        self.read_buffer.replace(region_data);
+                        self.read_buffer.replace(Some(region_data));
                         match e {
                             ErrorCode::WriteNotReady(_) => return Ok(SuccessCode::Queued),
                             _ => return Err(e),
                         }
                     }
 
-                    self.read_buffer.replace(region_data);
+                    self.read_buffer.replace(Some(region_data));
                     return Ok(SuccessCode::Written);
                 }
                 Err((cont, e)) => {
-                    self.read_buffer.replace(region_data);
+                    self.read_buffer.replace(Some(region_data));
 
                     if cont {
                         match self.increment_region_offset(new_region) {
@@ -812,11 +803,11 @@ impl<'a, C: FlashController, H: Hasher> TickFS<'a, C, H> {
 
     fn garbage_collect_region(&self, region: usize) -> Result<usize, ErrorCode> {
         // Get the data from that region
-        let mut region_data = self.read_buffer.take();
+        let mut region_data = self.read_buffer.take().unwrap();
         match self.controller.read_region(region, 0, &mut region_data) {
             Ok(()) => {}
             Err(e) => {
-                self.read_buffer.replace(region_data);
+                self.read_buffer.replace(Some(region_data));
                 if let ErrorCode::ReadNotReady(reg) = e {
                     self.state
                         .set(State::GarbageCollect(RubbishState::ReadRegion(reg)));
@@ -829,7 +820,7 @@ impl<'a, C: FlashController, H: Hasher> TickFS<'a, C, H> {
         let mut offset: usize = 0;
 
         loop {
-            if offset >= self.region_size {
+            if offset >= S {
                 // We have reached the end of the region without finding a
                 // valid object. All entries must be marked for deletion then.
                 break;
@@ -839,7 +830,7 @@ impl<'a, C: FlashController, H: Hasher> TickFS<'a, C, H> {
             if region_data[offset + VERSION_OFFSET] != 0xFF {
                 // We found a version, check that we support it
                 if region_data[offset + VERSION_OFFSET] != VERSION {
-                    self.read_buffer.replace(region_data);
+                    self.read_buffer.replace(Some(region_data));
                     return Err(ErrorCode::UnsupportedVersion);
                 }
 
@@ -860,7 +851,7 @@ impl<'a, C: FlashController, H: Hasher> TickFS<'a, C, H> {
 
                 // We have found a valid entry!
                 // Don't perform an erase!
-                self.read_buffer.replace(region_data);
+                self.read_buffer.replace(Some(region_data));
                 return Ok(0);
             } else {
                 // We hit the end of valid data.
@@ -870,14 +861,14 @@ impl<'a, C: FlashController, H: Hasher> TickFS<'a, C, H> {
                 //      deletion
                 if !entry_found {
                     // We didn't find anything, don't bother erasing an empty region.
-                    self.read_buffer.replace(region_data);
+                    self.read_buffer.replace(Some(region_data));
                     return Ok(0);
                 }
                 break;
             }
         }
 
-        self.read_buffer.replace(region_data);
+        self.read_buffer.replace(Some(region_data));
 
         // If we got down here, the region is ready to be erased.
 
@@ -889,7 +880,7 @@ impl<'a, C: FlashController, H: Hasher> TickFS<'a, C, H> {
             return Err(e);
         }
 
-        Ok(self.region_size)
+        Ok(S)
     }
 
     /// Perform a garbage collection on TickFS
@@ -897,7 +888,7 @@ impl<'a, C: FlashController, H: Hasher> TickFS<'a, C, H> {
     /// On success the number of bytes freed will be returned.
     /// On error a `ErrorCode` will be returned.
     pub fn garbage_collect(&self) -> Result<usize, ErrorCode> {
-        let num_region = self.flash_size / self.region_size;
+        let num_region = self.flash_size / S;
         let mut flash_freed = 0;
         let start = match self.state.get() {
             State::None => 0,
