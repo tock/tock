@@ -83,7 +83,8 @@
 //!
 //! # Using TickFS
 //!
-//! To use TickFS first you need to implemented the `FlashCtrl<P>` trait.
+//! To use TickFS first you need to implemented the `FlashCtrl` trait. The
+//! example below is for 1024 byte region sizes.
 //!
 //! Then you will need to create a TickFS implementation.
 //!
@@ -109,8 +110,8 @@
 //!     }
 //! }
 //!
-//! impl FlashController for FlashCtrl {
-//!     fn read_region(&self, region_number: usize, offset: usize, buf: &mut [u8]) -> Result<(), ErrorCode> {
+//! impl FlashController<1024> for FlashCtrl {
+//!     fn read_region(&self, region_number: usize, offset: usize, buf: &mut [u8; 1024]) -> Result<(), ErrorCode> {
 //!         // TODO: Read the specified flash region
 //!         for (i, b) in buf.iter_mut().enumerate() {
 //!             *b = self.buf.borrow()[region_number][offset + i]
@@ -133,8 +134,8 @@
 //! }
 //!
 //! let mut read_buf: [u8; 1024] = [0; 1024];
-//! let tickfs = TickFS::<FlashCtrl, DefaultHasher>::new(FlashCtrl::new(),
-//!                   &mut read_buf, 0x1000, 0x400);
+//! let tickfs = TickFS::<FlashCtrl, DefaultHasher, 1024>::new(FlashCtrl::new(),
+//!                   &mut read_buf, 0x1000);
 //! tickfs
 //!    .initalise((&mut DefaultHasher::new(), &mut DefaultHasher::new()))
 //!    .unwrap();

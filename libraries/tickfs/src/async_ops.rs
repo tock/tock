@@ -30,12 +30,12 @@
 //!     }
 //! }
 //!
-//! impl FlashController for FlashCtrl {
+//! impl FlashController<1024> for FlashCtrl {
 //!     fn read_region(
 //!         &self,
 //!         region_number: usize,
 //!         offset: usize,
-//!         buf: &mut [u8],
+//!         buf: &mut [u8; 1024],
 //!     ) -> Result<(), ErrorCode> {
 //!         if self.async_read_region.get() != region_number {
 //!             // We aren't ready yet, launch the async operation
@@ -74,8 +74,8 @@
 //! // callbacks/interrupts and make this async.
 //!
 //! let mut read_buf: [u8; 1024] = [0; 1024];
-//! let tickfs = TickFS::<FlashCtrl, DefaultHasher>::new(FlashCtrl::new(),
-//!                   &mut read_buf, 0x1000, 0x400);
+//! let tickfs = TickFS::<FlashCtrl, DefaultHasher, 1024>::new(FlashCtrl::new(),
+//!                   &mut read_buf, 0x1000);
 //!
 //! let mut ret = tickfs.initalise((&mut DefaultHasher::new(), &mut DefaultHasher::new()));
 //! while ret.is_err() {
@@ -238,12 +238,12 @@ mod store_flast_ctrl {
         }
     }
 
-    impl FlashController for FlashCtrl {
+    impl FlashController<1024> for FlashCtrl {
         fn read_region(
             &self,
             region_number: usize,
             offset: usize,
-            buf: &mut [u8],
+            buf: &mut [u8; 1024],
         ) -> Result<(), ErrorCode> {
             println!("Read from region: {}", region_number);
 
@@ -316,7 +316,7 @@ mod store_flast_ctrl {
     fn test_simple_append() {
         let mut read_buf: [u8; 1024] = [0; 1024];
         let tickfs =
-            TickFS::<FlashCtrl, DefaultHasher>::new(FlashCtrl::new(), &mut read_buf, 0x1000, 0x400);
+            TickFS::<FlashCtrl, DefaultHasher, 1024>::new(FlashCtrl::new(), &mut read_buf, 0x1000);
 
         let mut ret = tickfs.initalise((&mut DefaultHasher::new(), &mut DefaultHasher::new()));
         while ret.is_err() {
@@ -364,12 +364,8 @@ mod store_flast_ctrl {
     #[test]
     fn test_double_append() {
         let mut read_buf: [u8; 1024] = [0; 1024];
-        let tickfs = TickFS::<FlashCtrl, DefaultHasher>::new(
-            FlashCtrl::new(),
-            &mut read_buf,
-            0x10000,
-            0x400,
-        );
+        let tickfs =
+            TickFS::<FlashCtrl, DefaultHasher, 1024>::new(FlashCtrl::new(), &mut read_buf, 0x10000);
 
         let mut ret = tickfs.initalise((&mut DefaultHasher::new(), &mut DefaultHasher::new()));
         while ret.is_err() {
@@ -522,12 +518,8 @@ mod store_flast_ctrl {
     #[test]
     fn test_append_and_delete() {
         let mut read_buf: [u8; 1024] = [0; 1024];
-        let tickfs = TickFS::<FlashCtrl, DefaultHasher>::new(
-            FlashCtrl::new(),
-            &mut read_buf,
-            0x10000,
-            0x400,
-        );
+        let tickfs =
+            TickFS::<FlashCtrl, DefaultHasher, 1024>::new(FlashCtrl::new(), &mut read_buf, 0x10000);
 
         let mut ret = tickfs.initalise((&mut DefaultHasher::new(), &mut DefaultHasher::new()));
         while ret.is_err() {
@@ -582,12 +574,8 @@ mod store_flast_ctrl {
     #[test]
     fn test_garbage_collect() {
         let mut read_buf: [u8; 1024] = [0; 1024];
-        let tickfs = TickFS::<FlashCtrl, DefaultHasher>::new(
-            FlashCtrl::new(),
-            &mut read_buf,
-            0x10000,
-            0x400,
-        );
+        let tickfs =
+            TickFS::<FlashCtrl, DefaultHasher, 1024>::new(FlashCtrl::new(), &mut read_buf, 0x10000);
 
         let mut ret = tickfs.initalise((&mut DefaultHasher::new(), &mut DefaultHasher::new()));
         while ret.is_err() {

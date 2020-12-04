@@ -9,8 +9,9 @@ use crate::error_codes::ErrorCode;
 /// This is the public trait for the Flash controller implementation.
 ///
 /// The size of the regions (pages) must be the smallest size that can be
-/// erased in a single operation. This must match the `region_size`
-/// and the length of the `read_buffer` slice used in TickFS.
+/// erased in a single operation. This is specified as the constant `S`
+/// when implementing `FlashController` and `TickFS` and it must match
+/// the length of the `read_buffer`.
 ///
 /// The start and end address of the FlashController must be aligned
 /// to the size of regions.
@@ -34,8 +35,8 @@ use crate::error_codes::ErrorCode;
 ///     }
 /// }
 ///
-/// impl FlashController for FlashCtrl {
-///     fn read_region(&self, region_number: usize, offset: usize, buf: &mut [u8]) -> Result<(), ErrorCode> {
+/// impl FlashController<1024> for FlashCtrl {
+///     fn read_region(&self, region_number: usize, offset: usize, buf: &mut [u8; 1024]) -> Result<(), ErrorCode> {
 ///         unimplemented!()
 ///     }
 ///
@@ -48,7 +49,7 @@ use crate::error_codes::ErrorCode;
 ///     }
 /// }
 /// ```
-pub trait FlashController {
+pub trait FlashController<const S: usize> {
     /// This function must read the data from the flash region specified by
     /// `region_number` into `buf`. The length of the data read should be the
     /// same length as buf. `offset` indicates an offset into the region that
@@ -70,7 +71,7 @@ pub trait FlashController {
         &self,
         region_number: usize,
         offset: usize,
-        buf: &mut [u8],
+        buf: &mut [u8; S],
     ) -> Result<(), ErrorCode>;
 
     /// This function must write the length of `buf` to the specified address
