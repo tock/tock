@@ -246,7 +246,7 @@ pub unsafe fn reset_handler() {
     //--------------------------------------------------------------------------
 
     let dynamic_deferred_call_clients =
-        static_init!([DynamicDeferredCallClientState; 2], Default::default());
+        static_init!([DynamicDeferredCallClientState; 3], Default::default());
     let dynamic_deferred_caller = static_init!(
         DynamicDeferredCall,
         DynamicDeferredCall::new(dynamic_deferred_call_clients)
