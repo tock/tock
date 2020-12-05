@@ -300,7 +300,7 @@ pub unsafe fn disable_fpca() {
     SCB.cpacr
         .modify(CoprocessorAccessControl::CP10::CLEAR + CoprocessorAccessControl::CP11::CLEAR);
 
-    asm!("dsb", "isb");
+    asm!("dsb", "isb", options(nomem, nostack, preserves_flags));
 
     if SCB.cpacr.read(CoprocessorAccessControl::CP10) != 0
         || SCB.cpacr.read(CoprocessorAccessControl::CP11) != 0

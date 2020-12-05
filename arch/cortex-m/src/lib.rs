@@ -395,6 +395,7 @@ unsafe fn kernel_hardfault_arm_v7m(faulting_stack: *mut u32) {
 #[naked]
 pub unsafe extern "C" fn hard_fault_handler_arm_v7m() {
     let faulting_stack: *mut u32;
+    // Variable `kernel_stack` stores a boolean value.
     let kernel_stack: u32;
 
     // First need to determine if this a kernel fault or a userspace fault.
@@ -417,6 +418,8 @@ pub unsafe extern "C" fn hard_fault_handler_arm_v7m() {
         // had any trouble stacking important registers to the stack during the
         // fault. If so, then we cannot use this stack while handling this fault
         // or we will trigger another fault.
+
+        // Variable `stack_overflow` stores a boolean value.
         let stack_overflow: u32;
         asm!(
             "ldr   r2, =0xE000ED29  /* SCB BFSR register address */",
