@@ -36,7 +36,7 @@ use capsules::net::sixlowpan::sixlowpan_compression;
 use capsules::net::sixlowpan::sixlowpan_state::{
     RxState, Sixlowpan, SixlowpanRxClient, SixlowpanState, TxState,
 };
-use capsules::net::udp::udp::UDPHeader;
+use capsules::net::udp::UDPHeader;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use core::cell::Cell;
 use kernel::debug;
