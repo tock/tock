@@ -20,7 +20,6 @@
 //!        lowrisc::hmac::Hmac,
 //!        [u8; 32]
 //!    ));
-//! ));
 //! ```
 
 use capsules;
