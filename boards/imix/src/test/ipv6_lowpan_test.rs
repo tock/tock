@@ -31,7 +31,7 @@
 use capsules::ieee802154::device::{MacDevice, TxClient};
 use capsules::net::ieee802154::MacAddress;
 use capsules::net::ipv6::ip_utils::{ip6_nh, IPAddr};
-use capsules::net::ipv6::ipv6::{IP6Header, IP6Packet, IPPayload, TransportHeader};
+use capsules::net::ipv6::{IP6Header, IP6Packet, IPPayload, TransportHeader};
 use capsules::net::sixlowpan::sixlowpan_compression;
 use capsules::net::sixlowpan::sixlowpan_state::{
     RxState, Sixlowpan, SixlowpanRxClient, SixlowpanState, TxState,

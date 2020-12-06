@@ -16,8 +16,8 @@
 //! packet to the MuxUdpSender queue at a time.
 
 use crate::net::ipv6::ip_utils::IPAddr;
-use crate::net::ipv6::ipv6::TransportHeader;
 use crate::net::ipv6::ipv6_send::{IP6SendClient, IP6Sender};
+use crate::net::ipv6::TransportHeader;
 use crate::net::network_capabilities::{NetworkCapability, UdpVisibilityCapability};
 use crate::net::udp::udp::UDPHeader;
 use crate::net::udp::udp_port_table::UdpPortBindingTx;
