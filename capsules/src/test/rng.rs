@@ -11,7 +11,7 @@ use kernel::hil::entropy;
 use kernel::hil::rng;
 use kernel::ReturnCode;
 
-const ELEMENTS: usize = 2;
+const ELEMENTS: usize = 8;
 
 pub struct TestRandom<'a> {
     random: &'a dyn rng::Random<'a>,
@@ -69,7 +69,7 @@ impl<'a> rng::Client for TestRng<'a> {
             );
         }
         while val.is_some() {
-            // debug!("RNG test: iterator returned Some.");
+            //debug!("RNG test: iterator returned Some.");
             let data = val.unwrap();
 
             let mut pool = self.pool.get();
