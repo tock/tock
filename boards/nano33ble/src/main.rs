@@ -61,6 +61,8 @@ const APDS9960_PIN: Pin = Pin::P0_19;
 /// UART Writer for panic!()s.
 pub mod io;
 
+mod test;
+
 // State for loading and holding applications.
 // How should the kernel respond when a process faults.
 const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultResponse::Panic;

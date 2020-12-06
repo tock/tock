@@ -10,15 +10,16 @@ enum Op {
     Idle,
     Get,
 }
+// TODO: REMOVE SIZED
 
 // Struct to manage multiple rng requests
-pub struct MuxRngMaster<'a, R: Rng<'a>> {
+pub struct MuxRngMaster<'a, R: Rng<'a> + ?Sized> {
     rng: &'a dyn Rng<'a>,
     devices: List<'a, VirtualRngMasterDevice<'a, R>>,
     inflight: OptionalCell<&'a VirtualRngMasterDevice<'a, R>>,
 }
 
-impl<'a, R: Rng<'a>> MuxRngMaster<'a, R> {
+impl<'a, R: Rng<'a> + ?Sized> MuxRngMaster<'a, R> {
     pub const fn new(rng: &'a dyn Rng<'a>) -> MuxRngMaster<'a, R> {
         MuxRngMaster {
             rng: rng,
@@ -33,20 +34,20 @@ impl<'a, R: Rng<'a>> MuxRngMaster<'a, R> {
                 .devices
                 .iter()
                 .find(|node| node.operation.get() != Op::Idle);
+
             let return_code = mnode.map(|node| {
                 let op = node.operation.get();
                 let operation_code = match op {
                     Op::Get => {
-                        node.client.map_or(ReturnCode::FAIL, |client| {
-                            self.rng.set_client(*client);
-                            let success_code = self.rng.get();
+                        // Set client for rng to be current virtualizer
+                        self.rng.set_client(node.mux);
+                        let success_code = self.rng.get();
 
-                            // Only set inflight to node if we successfully initiated rng
-                            if success_code == ReturnCode::SUCCESS {
-                                self.inflight.set(node);
-                            }
-                            success_code
-                        })
+                        // Only set inflight to node if we successfully initiated rng
+                        if success_code == ReturnCode::SUCCESS {
+                            self.inflight.set(node);
+                        }
+                        success_code
                     }
                     Op::Idle => unreachable!("Attempted to run idle operation in virtual_rng!"), // Can't get here...
                 };
@@ -68,7 +69,7 @@ impl<'a, R: Rng<'a>> MuxRngMaster<'a, R> {
     }
 }
 
-impl<'a, R: Rng<'a>> Client for MuxRngMaster<'a, R> {
+impl<'a, R: Rng<'a> + ?Sized> Client for MuxRngMaster<'a, R> {
     fn randomness_available(
         &self,
         _randomness: &mut dyn Iterator<Item = u32>,
@@ -77,13 +78,20 @@ impl<'a, R: Rng<'a>> Client for MuxRngMaster<'a, R> {
         // Try find if randomness is available, or return done
         self.inflight.take().map_or(Continue::Done, |device| {
             self.do_next_op();
-            device.randomness_available(_randomness, _error)
+            let cont_code = device.randomness_available(_randomness, _error);
+
+            // Get more randomness if requested
+            if cont_code == Continue::More {
+                device.get();
+            }
+
+            cont_code
         })
     }
 }
 
 // Struct for a single rng device
-pub struct VirtualRngMasterDevice<'a, R: Rng<'a>> {
+pub struct VirtualRngMasterDevice<'a, R: Rng<'a> + ?Sized> {
     //reference to the mux
     mux: &'a MuxRngMaster<'a, R>,
 
@@ -94,13 +102,15 @@ pub struct VirtualRngMasterDevice<'a, R: Rng<'a>> {
 }
 
 // Implement ListNode trait for virtual rng device
-impl<'a, R: Rng<'a>> ListNode<'a, VirtualRngMasterDevice<'a, R>> for VirtualRngMasterDevice<'a, R> {
+impl<'a, R: Rng<'a> + ?Sized> ListNode<'a, VirtualRngMasterDevice<'a, R>>
+    for VirtualRngMasterDevice<'a, R>
+{
     fn next(&self) -> &'a ListLink<VirtualRngMasterDevice<'a, R>> {
         &self.next
     }
 }
 
-impl<'a, R: Rng<'a>> VirtualRngMasterDevice<'a, R> {
+impl<'a, R: Rng<'a> + ?Sized> VirtualRngMasterDevice<'a, R> {
     pub const fn new(mux: &'a MuxRngMaster<'a, R>) -> VirtualRngMasterDevice<'a, R> {
         VirtualRngMasterDevice {
             mux: mux,
@@ -111,7 +121,9 @@ impl<'a, R: Rng<'a>> VirtualRngMasterDevice<'a, R> {
     }
 }
 
-impl<'a, R: Rng<'a>> PartialEq<VirtualRngMasterDevice<'a, R>> for VirtualRngMasterDevice<'a, R> {
+impl<'a, R: Rng<'a> + ?Sized> PartialEq<VirtualRngMasterDevice<'a, R>>
+    for VirtualRngMasterDevice<'a, R>
+{
     fn eq(&self, other: &VirtualRngMasterDevice<'a, R>) -> bool {
         // Check whether two rng devices point to the same device
         self as *const VirtualRngMasterDevice<'a, R>
@@ -119,7 +131,7 @@ impl<'a, R: Rng<'a>> PartialEq<VirtualRngMasterDevice<'a, R>> for VirtualRngMast
     }
 }
 
-impl<'a, R: Rng<'a>> Rng<'a> for VirtualRngMasterDevice<'a, R> {
+impl<'a, R: Rng<'a> + ?Sized> Rng<'a> for VirtualRngMasterDevice<'a, R> {
     fn get(&self) -> ReturnCode {
         self.operation.set(Op::Get);
         self.mux.do_next_op()
@@ -145,12 +157,12 @@ impl<'a, R: Rng<'a>> Rng<'a> for VirtualRngMasterDevice<'a, R> {
     }
 
     fn set_client(&'a self, client: &'a dyn Client) {
-        self.mux.devices.push_head(self);
+        self.mux.devices.push_head(&self);
         self.client.set(client);
     }
 }
 
-impl<'a, R: Rng<'a>> Client for VirtualRngMasterDevice<'a, R> {
+impl<'a, R: Rng<'a> + ?Sized> Client for VirtualRngMasterDevice<'a, R> {
     fn randomness_available(
         &self,
         randomness: &mut dyn Iterator<Item = u32>,

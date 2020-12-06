@@ -1,49 +1,61 @@
-// Test file for virtual_rng
-// Currently tests out getting rng sequentially
+//! Test virtual rng for a single device
+//! Gets a specified number of random numbers by making sequential calls to get()
+//! Full test harness for this can be found in nano33ble/test/virtual_rng_test
 
-// TODO: REMOVE SIZED MAN
-
-use crate::virtual_rng::{MuxRngMaster, VirtualRngMasterDevice};
+use crate::virtual_rng::VirtualRngMasterDevice;
+use core::cell::Cell;
 use kernel::debug;
-use kernel::hil::rng::Rng;
+use kernel::hil::rng::{Client, Continue, Rng};
 use kernel::ReturnCode;
 
-const ELEMENTS: usize = 4;
+const NUM_REQUESTS: usize = 2;
 
-pub struct TestRng<'a, R: Rng<'a>+ ?Sized> {
-    mux: &'a MuxRngMaster<'a, R>,
+// Use this test to test an Rng
+pub struct TestRng<'a, R: Rng<'a> + ?Sized> {
+    device_id: usize,
+    device: &'a VirtualRngMasterDevice<'a, R>,
+    num_requests: Cell<usize>,
 }
 
-impl<'a, R: Rng<'a>+ ?Sized> TestRng<'a, R> {
-    pub fn new(mux: &'a MuxRngMaster<'a, R>) -> TestRng<'a, R> {
-        debug!("Initialized virtual_rng tester");
-        TestRng { mux: mux }
+impl<'a, R: Rng<'a> + ?Sized> TestRng<'a, R> {
+    pub fn new(device_id: usize, device: &'a VirtualRngMasterDevice<'a, R>) -> TestRng<'a, R> {
+        TestRng {
+            device_id: device_id,
+            device: device,
+            num_requests: Cell::new(NUM_REQUESTS),
+        }
     }
 
-    pub fn run(&self) {
-        debug!("Starting virtual_rng get tests:");
+    pub fn get_random_nums(&self) {
+        match self.device.get() {
+            ReturnCode::SUCCESS => debug!("Virtual RNG device {}: get SUCCESS", self.device_id),
+            _ => panic!("Virtual RNG test: unable to get random numbers"),
+        }
+    }
+}
 
-        // Setup clients:
-        let client1 = VirtualRngMasterDevice::new(self.mux);
-        let client2 = VirtualRngMasterDevice::new(self.mux);
-        let client3 = VirtualRngMasterDevice::new(self.mux);
+impl<'a, R: Rng<'a> + ?Sized> Client for TestRng<'a, R> {
+    fn randomness_available(
+        &self,
+        randomness: &mut dyn Iterator<Item = u32>,
+        error: ReturnCode,
+    ) -> Continue {
+        let val = randomness.next();
+        if error != ReturnCode::SUCCESS {
+            panic!(
+                "Virtual RNG device {}: randomness_available called with error {:?}",
+                self.device_id, error
+            );
+        }
 
-        // Check clients are able to get random numbers sequentially
-        for x in 1..ELEMENTS {
-            match client1.get() {
-                ReturnCode::SUCCESS => debug!("virtual_rng test: get {} SUCCESS", x),
-                _ => panic!("Virtual RNG test: unable to get random numbers"),
-            }
-
-            match client2.get() {
-                ReturnCode::SUCCESS => debug!("virtual_rng test: get {} SUCCESS", x),
-                _ => panic!("Virtual RNG test: unable to get random numbers"),
-            }
-
-            match client3.get() {
-                ReturnCode::SUCCESS => debug!("virtual_rng test: get {} SUCCESS", x),
-                _ => panic!("Virtual RNG test: unable to get random numbers"),
-            }
+        let num_requests_remaining = self.num_requests.get();
+        let data = val.unwrap();
+        debug!("Random Number from device {}: {:08x}", self.device_id, data);
+        self.num_requests.set(num_requests_remaining - 1);
+        if num_requests_remaining == 1 {
+            Continue::Done
+        } else {
+            Continue::More
         }
     }
 }
