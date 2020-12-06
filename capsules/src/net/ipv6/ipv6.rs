@@ -66,7 +66,7 @@
 // a major problem in general, it makes handling encapsulated IPv6 packets
 // (as required by 6LoWPAN) difficult.
 
-use crate::net::icmpv6::icmpv6::ICMP6Header;
+use crate::net::icmpv6::ICMP6Header;
 use crate::net::ipv6::ip_utils::{compute_icmp_checksum, compute_udp_checksum, ip6_nh, IPAddr};
 use crate::net::stream::SResult;
 use crate::net::stream::{decode_bytes, decode_u16, decode_u8};

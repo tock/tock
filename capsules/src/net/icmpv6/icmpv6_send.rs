@@ -7,7 +7,7 @@
 //!
 //! - Author: Conor McAvity <cmcavity@stanford.edu>
 
-use crate::net::icmpv6::icmpv6::ICMP6Header;
+use crate::net::icmpv6::ICMP6Header;
 use crate::net::ipv6::ip_utils::IPAddr;
 use crate::net::ipv6::ipv6_send::{IP6SendClient, IP6Sender};
 use crate::net::ipv6::TransportHeader;

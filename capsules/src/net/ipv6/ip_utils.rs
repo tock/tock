@@ -2,7 +2,7 @@
 //! of the IP stack. Note that this file also contains the definition for the
 //! [IPAddr](struct.IPAddr.html) struct and associated helper functions.
 
-use crate::net::icmpv6::icmpv6::{ICMP6Header, ICMP6HeaderOptions};
+use crate::net::icmpv6::{ICMP6Header, ICMP6HeaderOptions};
 use crate::net::ieee802154::MacAddress;
 use crate::net::ipv6::IP6Header;
 use crate::net::udp::UDPHeader;
