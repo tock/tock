@@ -1,4 +1,4 @@
-//! Driver for SHT3x Temperature and Himidity Sensor
+//! Driver for SHT3x Temperature and Humidity Sensor
 //!
 //! Author: Cosmin Daniel Radu <cosmindanielradu19@gmail.com>
 //!
