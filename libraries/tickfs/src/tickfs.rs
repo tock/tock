@@ -20,8 +20,6 @@ pub(crate) enum InitState {
     EraseComplete,
     /// Trying to read a region while appending a key
     AppendKeyReadRegion(usize),
-    /// Trying to write a region while appending a key
-    AppendKeyWriteRegion(usize),
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -59,7 +57,7 @@ pub struct TickFS<'a, C: FlashController<S>, H: Hasher, const S: usize> {
     /// The controller used for flash commands
     pub controller: C,
     flash_size: usize,
-    read_buffer: Cell<Option<&'a mut [u8; S]>>,
+    pub(crate) read_buffer: Cell<Option<&'a mut [u8; S]>>,
     phantom_hasher: PhantomData<H>,
     pub(crate) state: Cell<State>,
 }
@@ -172,11 +170,11 @@ impl<'a, C: FlashController<S>, H: Hasher, const S: usize> TickFS<'a, C, H, S> {
                                         }
                                     }
                                 }
+
+                                self.state.set(State::Init(InitState::EraseComplete));
                             }
                             _ => {}
                         }
-
-                        self.state.set(State::Init(InitState::EraseComplete));
 
                         // Save the main key
                         match self.append_key(hash_function.1, MAIN_KEY, &buf) {
@@ -190,9 +188,8 @@ impl<'a, C: FlashController<S>, H: Hasher, const S: usize> TickFS<'a, C, H, S> {
                                         .set(State::Init(InitState::AppendKeyReadRegion(reg)));
                                     Err(e)
                                 }
-                                ErrorCode::WriteNotReady(reg) => {
-                                    self.state
-                                        .set(State::Init(InitState::AppendKeyWriteRegion(reg)));
+                                ErrorCode::WriteNotReady(_) => {
+                                    self.state.set(State::None);
                                     Ok(SuccessCode::Queued)
                                 }
                                 _ => Err(e),
@@ -383,19 +380,24 @@ impl<'a, C: FlashController<S>, H: Hasher, const S: usize> TickFS<'a, C, H, S> {
             };
 
             let mut region_data = self.read_buffer.take().unwrap();
-            match self
-                .controller
-                .read_region(new_region as usize, 0, &mut region_data)
+            if self.state.get() != State::AppendKey(KeyState::ReadRegion(new_region as usize))
+                && self.state.get()
+                    != State::Init(InitState::AppendKeyReadRegion(new_region as usize))
             {
-                Ok(()) => {}
-                Err(e) => {
-                    self.read_buffer.replace(Some(region_data));
-                    if let ErrorCode::ReadNotReady(reg) = e {
-                        self.state.set(State::AppendKey(KeyState::ReadRegion(reg)));
+                match self
+                    .controller
+                    .read_region(new_region as usize, 0, &mut region_data)
+                {
+                    Ok(()) => {}
+                    Err(e) => {
+                        self.read_buffer.replace(Some(region_data));
+                        if let ErrorCode::ReadNotReady(reg) = e {
+                            self.state.set(State::AppendKey(KeyState::ReadRegion(reg)));
+                        }
+                        return Err(e);
                     }
-                    return Err(e);
-                }
-            };
+                };
+            }
 
             if self.find_key_offset(hash, region_data).is_ok() {
                 // Check to make sure we don't already have this key
@@ -574,19 +576,23 @@ impl<'a, C: FlashController<S>, H: Hasher, const S: usize> TickFS<'a, C, H, S> {
 
             // Get the data from that region
             let mut region_data = self.read_buffer.take().unwrap();
-            match self
-                .controller
-                .read_region(new_region as usize, 0, &mut region_data)
+            if self.state.get() != State::GetKey(KeyState::ReadRegion(new_region as usize))
+                && self.state.get() != State::Init(InitState::GetKeyReadRegion(new_region as usize))
             {
-                Ok(()) => {}
-                Err(e) => {
-                    self.read_buffer.replace(Some(region_data));
-                    if let ErrorCode::ReadNotReady(reg) = e {
-                        self.state.set(State::GetKey(KeyState::ReadRegion(reg)));
+                match self
+                    .controller
+                    .read_region(new_region as usize, 0, &mut region_data)
+                {
+                    Ok(()) => {}
+                    Err(e) => {
+                        self.read_buffer.replace(Some(region_data));
+                        if let ErrorCode::ReadNotReady(reg) = e {
+                            self.state.set(State::GetKey(KeyState::ReadRegion(reg)));
+                        }
+                        return Err(e);
                     }
-                    return Err(e);
-                }
-            };
+                };
+            }
 
             match self.find_key_offset(hash, region_data) {
                 Ok((offset, total_length)) => {
@@ -684,20 +690,22 @@ impl<'a, C: FlashController<S>, H: Hasher, const S: usize> TickFS<'a, C, H, S> {
 
             // Get the data from that region
             let mut region_data = self.read_buffer.take().unwrap();
-            match self
-                .controller
-                .read_region(new_region as usize, 0, &mut region_data)
-            {
-                Ok(()) => {}
-                Err(e) => {
-                    self.read_buffer.replace(Some(region_data));
-                    if let ErrorCode::ReadNotReady(reg) = e {
-                        self.state
-                            .set(State::InvalidateKey(KeyState::ReadRegion(reg)));
+            if self.state.get() != State::InvalidateKey(KeyState::ReadRegion(new_region as usize)) {
+                match self
+                    .controller
+                    .read_region(new_region as usize, 0, &mut region_data)
+                {
+                    Ok(()) => {}
+                    Err(e) => {
+                        self.read_buffer.replace(Some(region_data));
+                        if let ErrorCode::ReadNotReady(reg) = e {
+                            self.state
+                                .set(State::InvalidateKey(KeyState::ReadRegion(reg)));
+                        }
+                        return Err(e);
                     }
-                    return Err(e);
-                }
-            };
+                };
+            }
 
             match self.find_key_offset(hash, region_data) {
                 Ok((offset, _data_len)) => {
@@ -741,17 +749,19 @@ impl<'a, C: FlashController<S>, H: Hasher, const S: usize> TickFS<'a, C, H, S> {
     fn garbage_collect_region(&self, region: usize) -> Result<usize, ErrorCode> {
         // Get the data from that region
         let mut region_data = self.read_buffer.take().unwrap();
-        match self.controller.read_region(region, 0, &mut region_data) {
-            Ok(()) => {}
-            Err(e) => {
-                self.read_buffer.replace(Some(region_data));
-                if let ErrorCode::ReadNotReady(reg) = e {
-                    self.state
-                        .set(State::GarbageCollect(RubbishState::ReadRegion(reg)));
+        if self.state.get() != State::GarbageCollect(RubbishState::ReadRegion(region)) {
+            match self.controller.read_region(region, 0, &mut region_data) {
+                Ok(()) => {}
+                Err(e) => {
+                    self.read_buffer.replace(Some(region_data));
+                    if let ErrorCode::ReadNotReady(reg) = e {
+                        self.state
+                            .set(State::GarbageCollect(RubbishState::ReadRegion(reg)));
+                    }
+                    return Err(e);
                 }
-                return Err(e);
-            }
-        };
+            };
+        }
 
         let mut entry_found = false;
         let mut offset: usize = 0;
