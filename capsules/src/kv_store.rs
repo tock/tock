@@ -10,17 +10,9 @@ use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::flash::{self, Client, Flash};
 use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
 use tickfs;
-use tickfs::TickFS;
+use tickfs::AsyncTickFS;
 
-#[derive(Clone, Copy)]
-enum State {
-    None,
-    ReadComplete(isize),
-    WriteComplete,
-    EraseComplete(usize),
-}
-
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq)]
 enum Operation {
     None,
     Init,
@@ -29,81 +21,47 @@ enum Operation {
 
 pub struct TickFSFlastCtrl<'a, F: Flash + 'static> {
     flash: &'a F,
-    data_buffer: TakeCell<'static, F::Page>,
-    state: Cell<State>,
+    flash_read_buffer: TakeCell<'static, F::Page>,
     region_offset: usize,
 }
 
 impl<'a, F: Flash> TickFSFlastCtrl<'a, F> {
     pub fn new(
         flash: &'a F,
-        data_buffer: &'static mut F::Page,
+        flash_read_buffer: &'static mut F::Page,
         region_offset: usize,
     ) -> TickFSFlastCtrl<'a, F> {
         Self {
             flash,
-            data_buffer: TakeCell::new(data_buffer),
-            state: Cell::new(State::None),
+            flash_read_buffer: TakeCell::new(flash_read_buffer),
             region_offset,
         }
     }
 }
 
-impl<'a, F: Flash> tickfs::flash_controller::FlashController for TickFSFlastCtrl<'a, F> {
+impl<'a, F: Flash> tickfs::flash_controller::FlashController<512> for TickFSFlastCtrl<'a, F> {
     fn read_region(
         &self,
         region_number: usize,
         _offset: usize,
-        buf: &mut [u8],
+        _buf: &mut [u8; 512],
     ) -> Result<(), tickfs::error_codes::ErrorCode> {
-        match self.state.get() {
-            State::ReadComplete(reg) => {
-                if reg as usize == region_number {
-                    // We already have read the data.
-                    let data_buf = self.data_buffer.take().unwrap();
-                    for (i, d) in data_buf.as_mut().iter().enumerate() {
-                        buf[i] = *d;
-                    }
-                    self.data_buffer.replace(data_buf);
-                    self.state.set(State::None);
-
-                    return Ok(());
-                }
-
-                if self
-                    .flash
-                    .read_page(
-                        self.region_offset + region_number,
-                        self.data_buffer.take().unwrap(),
-                    )
-                    .is_err()
-                {
-                    return Err(tickfs::error_codes::ErrorCode::ReadFail);
-                }
-            }
-            _ => {
-                if self
-                    .flash
-                    .read_page(
-                        self.region_offset + region_number,
-                        self.data_buffer.take().unwrap(),
-                    )
-                    .is_err()
-                {
-                    return Err(tickfs::error_codes::ErrorCode::ReadFail);
-                }
-            }
+        if self
+            .flash
+            .read_page(
+                self.region_offset + region_number,
+                self.flash_read_buffer.take().unwrap(),
+            )
+            .is_err()
+        {
+            Err(tickfs::error_codes::ErrorCode::ReadFail)
+        } else {
+            Err(tickfs::error_codes::ErrorCode::ReadNotReady(region_number))
         }
-
-        Err(tickfs::error_codes::ErrorCode::ReadNotReady(region_number))
     }
 
-    fn write_region(
-        &self,
-        address: usize,
-        buf: &[u8],
-    ) -> Result<(), tickfs::error_codes::ErrorCode> {
-        let data_buf = self.data_buffer.take().unwrap();
+    fn write(&self, address: usize, buf: &[u8]) -> Result<(), tickfs::error_codes::ErrorCode> {
+        let data_buf = self.flash_read_buffer.take().unwrap();
 
         for (i, d) in buf.iter().enumerate() {
             data_buf.as_mut()[i] = *d;
@@ -111,7 +69,7 @@ impl<'a, F: Flash> tickfs::flash_controller::FlashController for TickFSFlastCtrl
 
         if self
             .flash
-            .write_page((0x20040000 + address) / 1024, data_buf)
+            .write_page((0x20040000 + address) / 512, data_buf)
             .is_err()
         {
             return Err(tickfs::error_codes::ErrorCode::WriteFail);
@@ -128,26 +86,28 @@ impl<'a, F: Flash> tickfs::flash_controller::FlashController for TickFSFlastCtrl
 }
 
 pub struct KVStoreDriver<'a, F: Flash + 'static> {
-    tickfs: TickFS<'a, TickFSFlastCtrl<'a, F>, SipHasher>,
+    tickfs: AsyncTickFS<'a, TickFSFlastCtrl<'a, F>, SipHasher, 512>,
     apps: Grant<App>,
     appid: OptionalCell<AppId>,
     operation: Cell<Operation>,
+    static_key_buf: TakeCell<'static, [u8]>,
+    static_value_buf: TakeCell<'static, [u8]>,
 }
 
 impl<'a, F: Flash> KVStoreDriver<'a, F> {
     pub fn new(
         flash: &'a F,
         grant: Grant<App>,
-        read_buf: &'static mut [u8],
-        region_size: usize,
-        data_buffer: &'static mut F::Page,
+        tickfs_read_buf: &'static mut [u8; 512],
+        flash_read_buffer: &'static mut F::Page,
         region_offset: usize,
+        static_key_buf: &'static mut [u8; 64],
+        static_value_buf: &'static mut [u8; 64],
     ) -> KVStoreDriver<'a, F> {
-        let tickfs = TickFS::<TickFSFlastCtrl<F>, SipHasher>::new(
-            TickFSFlastCtrl::new(flash, data_buffer, region_offset),
-            read_buf,
-            region_size,
-            read_buf.len(),
+        let tickfs = AsyncTickFS::<TickFSFlastCtrl<F>, SipHasher, 512>::new(
+            TickFSFlastCtrl::new(flash, flash_read_buffer, region_offset),
+            tickfs_read_buf,
+            tickfs_read_buf.len(),
         );
 
         Self {
@@ -155,75 +115,33 @@ impl<'a, F: Flash> KVStoreDriver<'a, F> {
             apps: grant,
             appid: OptionalCell::empty(),
             operation: Cell::new(Operation::None),
+            static_key_buf: TakeCell::new(static_key_buf),
+            static_value_buf: TakeCell::new(static_value_buf),
         }
     }
 
     pub fn initalise(&self) {
-        let ret = self
+        let _ret = self
             .tickfs
             .initalise((&mut SipHasher::new(), &mut SipHasher::new()));
-
-        let state = match ret {
-            Err(tickfs::error_codes::ErrorCode::ReadNotReady(reg)) => {
-                // Read isn't ready, save the state
-                State::ReadComplete(reg as isize)
-            }
-            Err(tickfs::error_codes::ErrorCode::EraseNotReady(reg)) => {
-                // Erase isn't ready, save the state
-                State::EraseComplete(reg)
-            }
-            Ok(tickfs::success_codes::SuccessCode::Queued) => {
-                // Write isn't ready, save the state
-                State::WriteComplete
-            }
-            Ok(_) => State::None,
-            _ => unreachable!(),
-        };
-
-        self.tickfs.controller.state.set(state);
         self.operation.set(Operation::Init);
-    }
-
-    fn update_state(
-        &self,
-        ret: Result<tickfs::success_codes::SuccessCode, tickfs::error_codes::ErrorCode>,
-    ) {
-        let state = match ret {
-            Err(tickfs::error_codes::ErrorCode::ReadNotReady(reg)) => {
-                // Read isn't ready, save the state
-                State::ReadComplete(reg as isize)
-            }
-            Err(tickfs::error_codes::ErrorCode::EraseNotReady(reg)) => {
-                // Erase isn't ready, save the state
-                State::EraseComplete(reg)
-            }
-            Ok(tickfs::success_codes::SuccessCode::Queued) => {
-                // Write isn't ready, save the state
-                State::WriteComplete
-            }
-            Ok(_) => {
-                self.operation.set(Operation::None);
-                State::None
-            }
-            Err(e) => panic!("Error: {:?}", e),
-        };
-
-        self.tickfs.controller.state.set(state);
     }
 }
 
 impl<'a, F: Flash> Client<F> for KVStoreDriver<'a, F> {
     fn read_complete(&self, pagebuffer: &'static mut F::Page, _error: flash::Error) {
-        self.tickfs.controller.data_buffer.replace(pagebuffer);
+        self.tickfs.set_read_buffer(pagebuffer.as_mut());
+        self.tickfs
+            .tickfs
+            .controller
+            .flash_read_buffer
+            .replace(pagebuffer);
+        let (ret, _buf_buffer) = self
+            .tickfs
+            .continue_operation((&mut SipHasher::new(), &mut SipHasher::new()));
 
         match self.operation.get() {
             Operation::Init => {
-                let ret = self
-                    .tickfs
-                    .continue_initalise((&mut SipHasher::new(), &mut SipHasher::new()));
-
-                self.update_state(ret);
-
                 match ret {
                     Ok(tickfs::success_codes::SuccessCode::Complete)
                     | Ok(tickfs::success_codes::SuccessCode::Written) => {
@@ -233,74 +151,42 @@ impl<'a, F: Flash> Client<F> for KVStoreDriver<'a, F> {
                 }
             }
             Operation::GetKey => {
-                let data_buf = self.tickfs.controller.data_buffer.take().unwrap();
-                self.tickfs.controller.data_buffer.replace(data_buf);
+                if ret.is_ok() {
+                    self.appid.map(|id| {
+                        self.apps
+                            .enter(*id, |app, _| {
+                                app.callback.map(|cb| {
+                                    cb.schedule(0, 0, 0);
+                                });
+                            })
+                            .unwrap();
+                    });
 
-                self.appid.map(|id| {
-                    self.apps
-                        .enter(*id, |app, _| {
-                            if let Some(key) = app.key.take() {
-                                if let Some(mut value) = app.value.take() {
-                                    let key_len = app.key_len.take().unwrap();
-
-                                    let ret = self.tickfs.continue_operation(
-                                        Some(&mut SipHasher::new()),
-                                        Some(&key.as_ref()[0..key_len]),
-                                        None,
-                                        Some(&mut value.as_mut()),
-                                    );
-
-                                    self.update_state(ret);
-
-                                    if ret.is_ok() {
-                                        self.appid.map(|id| {
-                                            self.apps
-                                                .enter(*id, |app, _| {
-                                                    app.callback.map(|cb| {
-                                                        cb.schedule(0, 0, 0);
-                                                    });
-                                                })
-                                                .unwrap();
-                                        });
-
-                                        self.operation.set(Operation::None);
-                                    }
-                                    app.key_len.set(key_len);
-                                    app.value.replace(value);
-                                    app.key.replace(key);
-                                }
-                            }
-                        })
-                        .unwrap();
-                });
+                    self.operation.set(Operation::None);
+                }
             }
             _ => unreachable!(),
         }
     }
 
     fn write_complete(&self, pagebuffer: &'static mut F::Page, _error: flash::Error) {
-        self.tickfs.controller.data_buffer.replace(pagebuffer);
-        self.tickfs.controller.state.set(State::None);
+        self.tickfs
+            .tickfs
+            .controller
+            .flash_read_buffer
+            .replace(pagebuffer);
 
-        match self.operation.get() {
-            Operation::Init => {}
-            _ => unreachable!(),
-        }
-
-        self.operation.set(Operation::None);
-    }
-
-    fn erase_complete(&self, _error: flash::Error) {
         match self.operation.get() {
             Operation::Init => {
-                let ret = self
-                    .tickfs
-                    .continue_initalise((&mut SipHasher::new(), &mut SipHasher::new()));
-
-                self.update_state(ret);
+                self.operation.set(Operation::None);
             }
             _ => unreachable!(),
         }
+    }
+
+    fn erase_complete(&self, _error: flash::Error) {
+        self.tickfs
+            .continue_operation((&mut SipHasher::new(), &mut SipHasher::new()));
     }
 }
 
@@ -385,18 +271,24 @@ impl<'a, F: Flash> Driver for KVStoreDriver<'a, F> {
                 .apps
                 .enter(appid, |app, _| {
                     if let Some(key) = app.key.take() {
-                        if let Some(mut value) = app.value.take() {
+                        if let Some(value) = app.value.take() {
                             self.appid.set(appid);
+                            if self.operation.get() != Operation::None {
+                                panic!("Not ready");
+                            }
                             self.operation.set(Operation::GetKey);
                             app.key_len.set(key_len);
 
-                            let ret = self.tickfs.get_key(
-                                &mut SipHasher::new(),
-                                &key.as_ref()[0..key_len],
-                                value.as_mut(),
-                            );
+                            let key_buf = self.static_key_buf.take().unwrap();
+                            key_buf[0..key_len].copy_from_slice(&key.as_ref()[0..key_len]);
 
-                            self.update_state(ret);
+                            let value_buf = self.static_value_buf.take().unwrap();
+
+                            let _ret = self.tickfs.get_key(
+                                &mut SipHasher::new(),
+                                &key_buf[0..key_len],
+                                value_buf,
+                            );
 
                             app.value.replace(value);
                             app.key.replace(key);

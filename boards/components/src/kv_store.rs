@@ -81,9 +81,10 @@ pub struct KVStoreComponent<F: 'static + hil::flash::Flash> {
     board_kernel: &'static kernel::Kernel,
     mux_flash: &'static MuxFlash<'static, F>,
     region_offset: usize,
-    length: usize,
-    read_buf: &'static mut [u8],
-    page_buffer: &'static mut F::Page,
+    tickfs_read_buf: &'static mut [u8; 512],
+    flash_read_buffer: &'static mut F::Page,
+    static_key_buf: &'static mut [u8; 64],
+    static_value_buf: &'static mut [u8; 64],
 }
 
 impl<F: 'static + hil::flash::Flash> KVStoreComponent<F> {
@@ -91,17 +92,19 @@ impl<F: 'static + hil::flash::Flash> KVStoreComponent<F> {
         board_kernel: &'static kernel::Kernel,
         mux_flash: &'static MuxFlash<'static, F>,
         region_offset: usize,
-        length: usize,
-        read_buf: &'static mut [u8],
-        page_buffer: &'static mut F::Page,
+        tickfs_read_buf: &'static mut [u8; 512],
+        flash_read_buffer: &'static mut F::Page,
+        static_key_buf: &'static mut [u8; 64],
+        static_value_buf: &'static mut [u8; 64],
     ) -> Self {
         Self {
             board_kernel,
             mux_flash,
             region_offset,
-            length,
-            read_buf,
-            page_buffer,
+            tickfs_read_buf,
+            flash_read_buffer,
+            static_key_buf,
+            static_value_buf,
         }
     }
 }
@@ -128,10 +131,11 @@ impl<F: 'static + hil::flash::Flash> Component for KVStoreComponent<F> {
             KVStoreDriver::new(
                 virtual_flash,
                 self.board_kernel.create_grant(&grant_cap),
-                self.read_buf,
-                self.length,
-                self.page_buffer,
+                self.tickfs_read_buf,
+                self.flash_read_buffer,
                 self.region_offset,
+                self.static_key_buf,
+                self.static_value_buf,
             )
         );
         virtual_flash.set_client(driver);

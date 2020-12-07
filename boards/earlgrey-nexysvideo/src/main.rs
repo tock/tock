@@ -286,6 +286,8 @@ pub unsafe fn reset_handler() {
         lowrisc::flash_ctrl::LowRiscPage,
         lowrisc::flash_ctrl::LowRiscPage::default()
     );
+    let static_key_buf = static_init!([u8; 64], [0; 64]);
+    let static_value_buf = static_init!([u8; 64], [0; 64]);
 
     let mux_flash = components::kv_store::FlashMuxComponent::new(&peripherals.flash_ctrl).finalize(
         components::flash_user_component_helper!(lowrisc::flash_ctrl::FlashCtrl),
@@ -295,9 +297,10 @@ pub unsafe fn reset_handler() {
         board_kernel,
         &mux_flash,
         0x20040000 / lowrisc::flash_ctrl::PAGE_SIZE,
-        0x10000, // Length of region
         flash_ctrl_read_buf,
         page_buffer,
+        static_key_buf,
+        static_value_buf,
     )
     .finalize(components::kv_store_component_helper!(
         lowrisc::flash_ctrl::FlashCtrl
