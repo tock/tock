@@ -10,6 +10,9 @@
 #![deny(missing_docs)]
 
 use capsules::virtual_aes_ccm::MuxAES128CCM;
+use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+
+use kernel::hil::time::Alarm;
 use kernel::capabilities;
 use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::component::Component;
@@ -127,6 +130,8 @@ pub struct Platform {
         'static,
         capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52840::rtc::Rtc<'static>>,
     >,
+    temperature: &'static capsules::temperature::TemperatureSensor<'static>,
+    humidity: &'static capsules::humidity::HumiditySensor<'static>,
 }
 
 impl kernel::Platform for Platform {
@@ -147,6 +152,8 @@ impl kernel::Platform for Platform {
             capsules::ieee802154::DRIVER_NUM => f(Some(self.ieee802154_radio)),
             capsules::buzzer_driver::DRIVER_NUM => f(Some(self.buzzer)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
+            capsules::temperature::DRIVER_NUM => f(Some(self.temperature)),
+            capsules::humidity::DRIVER_NUM => f(Some(self.humidity)),
             _ => f(None),
         }
     }
@@ -399,6 +406,45 @@ pub unsafe fn reset_handler() {
 
     kernel::hil::sensors::ProximityDriver::set_client(apds9960, proximity);
 
+    let sht3x_alarm = static_init!(
+        VirtualMuxAlarm<'static, nrf52::rtc::Rtc<'static>>,
+        VirtualMuxAlarm::new(mux_alarm)
+    );
+
+
+
+    let sht3x_i2c = static_init!(
+        capsules::virtual_i2c::I2CDevice,
+        capsules::virtual_i2c::I2CDevice::new(sensors_i2c_bus, 0x44 << 1)
+    );
+
+    let sht3x = static_init!(
+        capsules::sht3x::SHT3x<'static, capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc<'static>>>,
+        capsules::sht3x::SHT3x::new(
+            sht3x_i2c,
+            &mut capsules::sht3x::BUFFER,
+            sht3x_alarm
+        )
+    );
+    sht3x_i2c.set_client(sht3x);
+    sht3x_alarm.set_alarm_client(sht3x);
+
+    sht3x.reset();
+
+    let temperature = static_init!(
+        capsules::temperature::TemperatureSensor<'static>,
+        capsules::temperature::TemperatureSensor::new(sht3x, board_kernel.create_grant(&grant_cap))
+    );
+
+    kernel::hil::sensors::TemperatureDriver::set_client(sht3x, temperature);
+
+    let humidity = static_init!(
+        capsules::humidity::HumiditySensor<'static>,
+        capsules::humidity::HumiditySensor::new(sht3x, board_kernel.create_grant(&grant_cap))
+    );
+
+    kernel::hil::sensors::HumidityDriver::set_client(sht3x, humidity);
+
     //--------------------------------------------------------------------------
     // TFT
     //--------------------------------------------------------------------------
@@ -506,6 +552,8 @@ pub unsafe fn reset_handler() {
         buzzer: buzzer,
         alarm: alarm,
         ipc: kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability),
+        temperature: temperature,
+        humidity: humidity
     };
 
     let chip = static_init!(

@@ -34,6 +34,7 @@ pub mod rng;
 pub mod sched;
 pub mod screen;
 pub mod segger_rtt;
+pub mod sht3x;
 pub mod si7021;
 pub mod spi;
 pub mod st77xx;
