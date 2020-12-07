@@ -9,6 +9,17 @@ gives code examples.
 
 <!-- toc -->
 
+- [Overview](#overview)
+- [Tock 2.0 System Call API](#tock-20-system-call-api)
+  * [`LegacyDriver`](#legacydriver)
+  * [`Driver`](#driver)
+- [Porting Capsules and Example Code](#porting-capsules-and-example-code)
+  * [Examples of command and `CommandResult`](#examples-of-command-and-commandresult)
+    + [ReturnCode versus ErrorCode](#returncode-versus-errorcode)
+  * [Examples of `allow_readwrite` and `allow_readonly`](#examples-of-allow_readwrite-and-allow_readonly)
+  * [Example of `subscribe`](#example-of-subscribe)
+  * [Using `ReadOnlyAppSlice` and `ReadWriteAppSlice`](#using-readonlyappslice-and-readwriteappslice)
+
 <!-- tocstop -->
 
 Overview
