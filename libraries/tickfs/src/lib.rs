@@ -224,6 +224,8 @@ pub mod tickfs;
 
 // Use this to generate nicer docs
 #[doc(inline)]
+pub use crate::async_ops::AsyncTickFS;
+#[doc(inline)]
 pub use crate::error_codes::ErrorCode;
 #[doc(inline)]
 pub use crate::flash_controller::FlashController;

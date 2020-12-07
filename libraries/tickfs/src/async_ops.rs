@@ -10,7 +10,7 @@
 //! // and hence is not a good fit.
 //! use std::collections::hash_map::DefaultHasher;
 //! use std::cell::{Cell, RefCell};
-//! use tickfs::TickFS;
+//! use tickfs::AsyncTickFS;
 //! use tickfs::error_codes::ErrorCode;
 //! use tickfs::flash_controller::FlashController;
 //!
@@ -74,7 +74,7 @@
 //! // callbacks/interrupts and make this async.
 //!
 //! let mut read_buf: [u8; 1024] = [0; 1024];
-//! let tickfs = TickFS::<FlashCtrl, DefaultHasher, 1024>::new(FlashCtrl::new(),
+//! let tickfs = AsyncTickFS::<FlashCtrl, DefaultHasher, 1024>::new(FlashCtrl::new(),
 //!                   &mut read_buf, 0x1000);
 //!
 //! let mut ret = tickfs.initalise((&mut DefaultHasher::new(), &mut DefaultHasher::new()));
@@ -112,12 +112,209 @@
 //! error types can still be used.
 //!
 
+use crate::error_codes::ErrorCode;
+use crate::flash_controller::FlashController;
+use crate::success_codes::SuccessCode;
+use crate::tickfs::{State, TickFS};
+use core::hash::Hasher;
+
+/// The struct storing all of the TickFS information for the async implementation.
+pub struct AsyncTickFS<'a, C: FlashController<S>, H: Hasher, const S: usize> {
+    /// The main tickFS struct
+    pub tickfs: TickFS<'a, C, H, S>,
+}
+
+impl<'a, C: FlashController<S>, H: Hasher, const S: usize> AsyncTickFS<'a, C, H, S> {
+    /// Create a new struct
+    ///
+    /// `C`: An implementation of the `FlashController` trait
+    ///
+    /// `controller`: An new struct implementing `FlashController`
+    /// `flash_size`: The total size of the flash used for TickFS
+    pub fn new(controller: C, read_buffer: &'a mut [u8; S], flash_size: usize) -> Self {
+        Self {
+            tickfs: TickFS::<C, H, S>::new(controller, read_buffer, flash_size),
+        }
+    }
+
+    /// This function setups the flash region to be used as a key-value store.
+    /// If the region is already initalised this won't make any changes.
+    ///
+    /// `H`: An implementation of a `core::hash::Hasher` trait. This MUST
+    ///      always return the same hash for the same input. That is the
+    ///      implementation can NOT change over time.
+    ///
+    /// If the specified region has not already been setup for TickFS
+    /// the entire region will be erased.
+    ///
+    /// On success nothing will be returned.
+    /// On error a `ErrorCode` will be returned.
+    pub fn initalise(&self, hash_function: (&mut H, &mut H)) -> Result<SuccessCode, ErrorCode> {
+        self.tickfs.initalise(hash_function)
+    }
+
+    /// Appends the key/value pair to flash storage.
+    ///
+    /// `hash_function`: Hash function with no previous state. This is
+    ///                  usually a newly created hash.
+    /// `key`: A unhashed key. This will be hashed internally. This key
+    ///        will be used in future to retrieve or remove the `value`.
+    /// `value`: A buffer containing the data to be stored to flash.
+    ///
+    /// On success nothing will be returned.
+    /// On error a `ErrorCode` will be returned.
+    pub fn append_key(
+        &self,
+        hash_function: &mut H,
+        key: &[u8],
+        value: &[u8],
+    ) -> Result<SuccessCode, ErrorCode> {
+        self.tickfs.append_key(hash_function, key, value)
+    }
+
+    /// Retrieves the value from flash storage.
+    ///
+    /// `hash_function`: Hash function with no previous state. This is
+    ///                  usually a newly created hash.
+    /// `key`: A unhashed key. This will be hashed internally.
+    /// `buf`: A buffer to store the value to.
+    ///
+    /// On success nothing will be returned.
+    /// On error a `ErrorCode` will be returned.
+    ///
+    /// If a power loss occurs before success is returned the data is
+    /// assumed to be lost.
+    pub fn get_key(
+        &self,
+        hash_function: &mut H,
+        key: &[u8],
+        buf: &mut [u8],
+    ) -> Result<SuccessCode, ErrorCode> {
+        self.tickfs.get_key(hash_function, key, buf)
+    }
+
+    /// Invalidates the key in flash storage
+    ///
+    /// `hash_function`: Hash function with no previous state. This is
+    ///                  usually a newly created hash.
+    /// `key`: A unhashed key. This will be hashed internally.
+    ///
+    /// On success nothing will be returned.
+    /// On error a `ErrorCode` will be returned.
+    ///
+    /// If a power loss occurs before success is returned the data is
+    /// assumed to be lost.
+    pub fn invalidate_key(
+        &self,
+        hash_function: &mut H,
+        key: &[u8],
+    ) -> Result<SuccessCode, ErrorCode> {
+        self.tickfs.invalidate_key(hash_function, key)
+    }
+
+    /// Perform a garbage collection on TickFS
+    ///
+    /// On success the number of bytes freed will be returned.
+    /// On error a `ErrorCode` will be returned.
+    pub fn garbage_collect(&self) -> Result<usize, ErrorCode> {
+        self.tickfs.garbage_collect()
+    }
+
+    /// Continue the initalise process after an async access.
+    ///
+    /// `H`: An implementation of a `core::hash::Hasher` trait. This MUST
+    ///      always return the same hash for the same input. That is the
+    ///      implementation can NOT change over time.
+    ///
+    /// On success nothing will be returned.
+    /// On error a `ErrorCode` will be returned.
+    pub fn continue_initalise(
+        &self,
+        hash_function: (&mut H, &mut H),
+    ) -> Result<SuccessCode, ErrorCode> {
+        let ret = self.tickfs.initalise(hash_function);
+
+        match ret {
+            Ok(_) => self.tickfs.state.set(State::None),
+            Err(e) => match e {
+                ErrorCode::ReadNotReady(_) | ErrorCode::EraseNotReady(_) => {}
+                _ => self.tickfs.state.set(State::None),
+            },
+        }
+
+        ret
+    }
+
+    /// Continue a previous key operation after an async access.
+    ///
+    /// `hash_function`: Hash function with no previous state. This is
+    ///                  usually a newly created hash.
+    /// `key`: A unhashed key. This will be hashed internally. This key
+    ///        will be used in future to retrieve or remove the `value`.
+    /// `value`: A buffer containing the data to be stored to flash.
+    /// `buf`: A buffer to store the value to.
+    ///
+    /// On success nothing will be returned.
+    /// On error a `ErrorCode` will be returned.
+    pub fn continue_operation(
+        &self,
+        hash_function: Option<&mut H>,
+        key: Option<&[u8]>,
+        value: Option<&[u8]>,
+        buf: Option<&mut [u8]>,
+    ) -> Result<SuccessCode, ErrorCode> {
+        let ret = match self.tickfs.state.get() {
+            State::AppendKey(_) => {
+                self.tickfs
+                    .append_key(hash_function.unwrap(), key.unwrap(), value.unwrap())
+            }
+            State::GetKey(_) => {
+                self.tickfs
+                    .get_key(hash_function.unwrap(), key.unwrap(), buf.unwrap())
+            }
+            State::InvalidateKey(_) => self
+                .tickfs
+                .invalidate_key(hash_function.unwrap(), key.unwrap()),
+            _ => unreachable!(),
+        };
+
+        match ret {
+            Ok(_) => self.tickfs.state.set(State::None),
+            Err(e) => match e {
+                ErrorCode::ReadNotReady(_) | ErrorCode::EraseNotReady(_) => {}
+                _ => self.tickfs.state.set(State::None),
+            },
+        }
+
+        ret
+    }
+
+    /// Continue the garbage collection process after an async access.
+    ///
+    /// On success the number of bytes freed will be returned.
+    /// On error a `ErrorCode` will be returned.
+    pub fn continue_garbage_collection(&self) -> Result<usize, ErrorCode> {
+        let ret = self.tickfs.garbage_collect();
+
+        match ret {
+            Ok(_) => self.tickfs.state.set(State::None),
+            Err(e) => match e {
+                ErrorCode::ReadNotReady(_) | ErrorCode::EraseNotReady(_) => {}
+                _ => self.tickfs.state.set(State::None),
+            },
+        }
+
+        ret
+    }
+}
+
 /// Tests using a flash controller that can store data
 #[cfg(test)]
 mod store_flast_ctrl {
+    use crate::async_ops::AsyncTickFS;
     use crate::error_codes::ErrorCode;
     use crate::flash_controller::FlashController;
-    use crate::tickfs::{TickFS, HASH_OFFSET, LEN_OFFSET, VERSION, VERSION_OFFSET};
+    use crate::tickfs::{HASH_OFFSET, LEN_OFFSET, VERSION, VERSION_OFFSET};
     use std::cell::Cell;
     use std::cell::RefCell;
     use std::collections::hash_map::DefaultHasher;
@@ -315,8 +512,11 @@ mod store_flast_ctrl {
     #[test]
     fn test_simple_append() {
         let mut read_buf: [u8; 1024] = [0; 1024];
-        let tickfs =
-            TickFS::<FlashCtrl, DefaultHasher, 1024>::new(FlashCtrl::new(), &mut read_buf, 0x1000);
+        let tickfs = AsyncTickFS::<FlashCtrl, DefaultHasher, 1024>::new(
+            FlashCtrl::new(),
+            &mut read_buf,
+            0x1000,
+        );
 
         let mut ret = tickfs.initalise((&mut DefaultHasher::new(), &mut DefaultHasher::new()));
         while ret.is_err() {
@@ -364,8 +564,11 @@ mod store_flast_ctrl {
     #[test]
     fn test_double_append() {
         let mut read_buf: [u8; 1024] = [0; 1024];
-        let tickfs =
-            TickFS::<FlashCtrl, DefaultHasher, 1024>::new(FlashCtrl::new(), &mut read_buf, 0x10000);
+        let tickfs = AsyncTickFS::<FlashCtrl, DefaultHasher, 1024>::new(
+            FlashCtrl::new(),
+            &mut read_buf,
+            0x10000,
+        );
 
         let mut ret = tickfs.initalise((&mut DefaultHasher::new(), &mut DefaultHasher::new()));
         while ret.is_err() {
@@ -518,8 +721,11 @@ mod store_flast_ctrl {
     #[test]
     fn test_append_and_delete() {
         let mut read_buf: [u8; 1024] = [0; 1024];
-        let tickfs =
-            TickFS::<FlashCtrl, DefaultHasher, 1024>::new(FlashCtrl::new(), &mut read_buf, 0x10000);
+        let tickfs = AsyncTickFS::<FlashCtrl, DefaultHasher, 1024>::new(
+            FlashCtrl::new(),
+            &mut read_buf,
+            0x10000,
+        );
 
         let mut ret = tickfs.initalise((&mut DefaultHasher::new(), &mut DefaultHasher::new()));
         while ret.is_err() {
@@ -574,8 +780,11 @@ mod store_flast_ctrl {
     #[test]
     fn test_garbage_collect() {
         let mut read_buf: [u8; 1024] = [0; 1024];
-        let tickfs =
-            TickFS::<FlashCtrl, DefaultHasher, 1024>::new(FlashCtrl::new(), &mut read_buf, 0x10000);
+        let tickfs = AsyncTickFS::<FlashCtrl, DefaultHasher, 1024>::new(
+            FlashCtrl::new(),
+            &mut read_buf,
+            0x10000,
+        );
 
         let mut ret = tickfs.initalise((&mut DefaultHasher::new(), &mut DefaultHasher::new()));
         while ret.is_err() {

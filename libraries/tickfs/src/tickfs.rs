@@ -11,7 +11,7 @@ use core::marker::PhantomData;
 pub const VERSION: u8 = 0;
 
 #[derive(Clone, Copy, PartialEq)]
-enum InitState {
+pub(crate) enum InitState {
     /// Trying to read the key from a region
     GetKeyReadRegion(usize),
     /// Trying to erase a region
@@ -25,13 +25,13 @@ enum InitState {
 }
 
 #[derive(Clone, Copy, PartialEq)]
-enum KeyState {
+pub(crate) enum KeyState {
     /// Trying to read the key from a region
     ReadRegion(usize),
 }
 
 #[derive(Clone, Copy, PartialEq)]
-enum RubbishState {
+pub(crate) enum RubbishState {
     ReadRegion(usize),
     EraseRegion(usize),
 }
@@ -39,7 +39,7 @@ enum RubbishState {
 #[derive(Clone, Copy, PartialEq)]
 /// The current state machine when trying to complete a previous operation.
 /// This is used when returning from a complete async `FlashController` call.
-enum State {
+pub(crate) enum State {
     /// No previous state
     None,
     /// Init Operation
@@ -61,7 +61,7 @@ pub struct TickFS<'a, C: FlashController<S>, H: Hasher, const S: usize> {
     flash_size: usize,
     read_buffer: Cell<Option<&'a mut [u8; S]>>,
     phantom_hasher: PhantomData<H>,
-    state: Cell<State>,
+    pub(crate) state: Cell<State>,
 }
 
 /// This is the current object header used for TickFS objects
@@ -204,31 +204,6 @@ impl<'a, C: FlashController<S>, H: Hasher, const S: usize> TickFS<'a, C, H, S> {
         }
     }
 
-    /// Continue the initalise process after an async access.
-    ///
-    /// `H`: An implementation of a `core::hash::Hasher` trait. This MUST
-    ///      always return the same hash for the same input. That is the
-    ///      implementation can NOT change over time.
-    ///
-    /// On success nothing will be returned.
-    /// On error a `ErrorCode` will be returned.
-    pub fn continue_initalise(
-        &self,
-        hash_function: (&mut H, &mut H),
-    ) -> Result<SuccessCode, ErrorCode> {
-        let ret = self.initalise(hash_function);
-
-        match ret {
-            Ok(_) => self.state.set(State::None),
-            Err(e) => match e {
-                ErrorCode::ReadNotReady(_) | ErrorCode::EraseNotReady(_) => {}
-                _ => self.state.set(State::None),
-            },
-        }
-
-        ret
-    }
-
     /// Generate the hash and region number from a key
     fn get_hash_and_region(&self, hash_function: &mut H, key: &[u8]) -> (u64, usize) {
         // Generate a hash of the key
@@ -352,44 +327,6 @@ impl<'a, C: FlashController<S>, H: Hasher, const S: usize> TickFS<'a, C, H, S> {
                 return Err((!empty, ErrorCode::KeyNotFound));
             }
         }
-    }
-
-    /// Continue a previous key operation after an async access.
-    ///
-    /// `hash_function`: Hash function with no previous state. This is
-    ///                  usually a newly created hash.
-    /// `key`: A unhashed key. This will be hashed internally. This key
-    ///        will be used in future to retrieve or remove the `value`.
-    /// `value`: A buffer containing the data to be stored to flash.
-    /// `buf`: A buffer to store the value to.
-    ///
-    /// On success nothing will be returned.
-    /// On error a `ErrorCode` will be returned.
-    pub fn continue_operation(
-        &self,
-        hash_function: Option<&mut H>,
-        key: Option<&[u8]>,
-        value: Option<&[u8]>,
-        buf: Option<&mut [u8]>,
-    ) -> Result<SuccessCode, ErrorCode> {
-        let ret = match self.state.get() {
-            State::AppendKey(_) => {
-                self.append_key(hash_function.unwrap(), key.unwrap(), value.unwrap())
-            }
-            State::GetKey(_) => self.get_key(hash_function.unwrap(), key.unwrap(), buf.unwrap()),
-            State::InvalidateKey(_) => self.invalidate_key(hash_function.unwrap(), key.unwrap()),
-            _ => unreachable!(),
-        };
-
-        match ret {
-            Ok(_) => self.state.set(State::None),
-            Err(e) => match e {
-                ErrorCode::ReadNotReady(_) | ErrorCode::EraseNotReady(_) => {}
-                _ => self.state.set(State::None),
-            },
-        }
-
-        ret
     }
 
     /// Appends the key/value pair to flash storage.
@@ -908,23 +845,5 @@ impl<'a, C: FlashController<S>, H: Hasher, const S: usize> TickFS<'a, C, H, S> {
         }
 
         Ok(flash_freed)
-    }
-
-    /// Continue the garbage collection process after an async access.
-    ///
-    /// On success the number of bytes freed will be returned.
-    /// On error a `ErrorCode` will be returned.
-    pub fn continue_garbage_collection(&self) -> Result<usize, ErrorCode> {
-        let ret = self.garbage_collect();
-
-        match ret {
-            Ok(_) => self.state.set(State::None),
-            Err(e) => match e {
-                ErrorCode::ReadNotReady(_) | ErrorCode::EraseNotReady(_) => {}
-                _ => self.state.set(State::None),
-            },
-        }
-
-        ret
     }
 }
