@@ -11,14 +11,14 @@ use kernel::ReturnCode;
 const NUM_REQUESTS: usize = 2;
 
 // Use this test to test an Rng
-pub struct TestRng<'a, R: Rng<'a> + ?Sized> {
+pub struct TestRng<'a> {
     device_id: usize,
-    device: &'a VirtualRngMasterDevice<'a, R>,
+    device: &'a VirtualRngMasterDevice<'a>,
     num_requests: Cell<usize>,
 }
 
-impl<'a, R: Rng<'a> + ?Sized> TestRng<'a, R> {
-    pub fn new(device_id: usize, device: &'a VirtualRngMasterDevice<'a, R>) -> TestRng<'a, R> {
+impl<'a> TestRng<'a> {
+    pub fn new(device_id: usize, device: &'a VirtualRngMasterDevice<'a>) -> TestRng<'a> {
         TestRng {
             device_id: device_id,
             device: device,
@@ -34,7 +34,7 @@ impl<'a, R: Rng<'a> + ?Sized> TestRng<'a, R> {
     }
 }
 
-impl<'a, R: Rng<'a> + ?Sized> Client for TestRng<'a, R> {
+impl<'a> Client for TestRng<'a> {
     fn randomness_available(
         &self,
         randomness: &mut dyn Iterator<Item = u32>,

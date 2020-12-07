@@ -18,46 +18,37 @@ pub unsafe fn run() {
 
     // Create virtual rng mux device
     let mux = static_init!(
-        capsules::virtual_rng::MuxRngMaster<'static, dyn kernel::hil::rng::Rng<'static>>,
+        capsules::virtual_rng::MuxRngMaster<'static>,
         capsules::virtual_rng::MuxRngMaster::new(rng_obj)
     );
 
     // Create all devices for the virtual rng
     let device1 = static_init!(
-        capsules::virtual_rng::VirtualRngMasterDevice<'static, dyn kernel::hil::rng::Rng<'static>>,
+        capsules::virtual_rng::VirtualRngMasterDevice<'static>,
         capsules::virtual_rng::VirtualRngMasterDevice::new(mux)
     );
     let device2 = static_init!(
-        capsules::virtual_rng::VirtualRngMasterDevice<'static, dyn kernel::hil::rng::Rng<'static>>,
+        capsules::virtual_rng::VirtualRngMasterDevice<'static>,
         capsules::virtual_rng::VirtualRngMasterDevice::new(mux)
     );
     let device3 = static_init!(
-        capsules::virtual_rng::VirtualRngMasterDevice<'static, dyn kernel::hil::rng::Rng<'static>>,
+        capsules::virtual_rng::VirtualRngMasterDevice<'static>,
         capsules::virtual_rng::VirtualRngMasterDevice::new(mux)
     );
 
     // Create independent tests for each device
-    let test_device_1 = static_init!(
-        TestRng<'static, dyn kernel::hil::rng::Rng<'static>>,
-        TestRng::new(1, device1)
-    );
+    let test_device_1 = static_init!(TestRng<'static>, TestRng::new(1, device1));
 
-    let test_device_2 = static_init!(
-        TestRng<'static, dyn kernel::hil::rng::Rng<'static>>,
-        TestRng::new(2, device2)
-    );
+    let test_device_2 = static_init!(TestRng<'static>, TestRng::new(2, device2));
 
-    let test_device_3 = static_init!(
-        TestRng<'static, dyn kernel::hil::rng::Rng<'static>>,
-        TestRng::new(3, device3)
-    );
+    let test_device_3 = static_init!(TestRng<'static>, TestRng::new(3, device3));
 
     // Set clients for each device
     device1.set_client(test_device_1);
     device2.set_client(test_device_2);
     device3.set_client(test_device_3);
 
-    // Get set number of random values for each device and interleave requests
+    // // Get set number of random values for each device and interleave requests
     test_device_1.get_random_nums();
     test_device_2.get_random_nums();
     test_device_3.get_random_nums();

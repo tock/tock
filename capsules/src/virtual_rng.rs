@@ -10,17 +10,16 @@ enum Op {
     Idle,
     Get,
 }
-// TODO: REMOVE SIZED
 
 // Struct to manage multiple rng requests
-pub struct MuxRngMaster<'a, R: Rng<'a> + ?Sized> {
+pub struct MuxRngMaster<'a> {
     rng: &'a dyn Rng<'a>,
-    devices: List<'a, VirtualRngMasterDevice<'a, R>>,
-    inflight: OptionalCell<&'a VirtualRngMasterDevice<'a, R>>,
+    devices: List<'a, VirtualRngMasterDevice<'a>>,
+    inflight: OptionalCell<&'a VirtualRngMasterDevice<'a>>,
 }
 
-impl<'a, R: Rng<'a> + ?Sized> MuxRngMaster<'a, R> {
-    pub const fn new(rng: &'a dyn Rng<'a>) -> MuxRngMaster<'a, R> {
+impl<'a> MuxRngMaster<'a> {
+    pub const fn new(rng: &'a dyn Rng<'a>) -> MuxRngMaster<'a> {
         MuxRngMaster {
             rng: rng,
             devices: List::new(),
@@ -69,7 +68,7 @@ impl<'a, R: Rng<'a> + ?Sized> MuxRngMaster<'a, R> {
     }
 }
 
-impl<'a, R: Rng<'a> + ?Sized> Client for MuxRngMaster<'a, R> {
+impl<'a> Client for MuxRngMaster<'a> {
     fn randomness_available(
         &self,
         _randomness: &mut dyn Iterator<Item = u32>,
@@ -91,27 +90,25 @@ impl<'a, R: Rng<'a> + ?Sized> Client for MuxRngMaster<'a, R> {
 }
 
 // Struct for a single rng device
-pub struct VirtualRngMasterDevice<'a, R: Rng<'a> + ?Sized> {
+pub struct VirtualRngMasterDevice<'a> {
     //reference to the mux
-    mux: &'a MuxRngMaster<'a, R>,
+    mux: &'a MuxRngMaster<'a>,
 
     // Pointer to next element in the list of devices
-    next: ListLink<'a, VirtualRngMasterDevice<'a, R>>,
+    next: ListLink<'a, VirtualRngMasterDevice<'a>>,
     client: OptionalCell<&'a dyn Client>,
     operation: Cell<Op>,
 }
 
 // Implement ListNode trait for virtual rng device
-impl<'a, R: Rng<'a> + ?Sized> ListNode<'a, VirtualRngMasterDevice<'a, R>>
-    for VirtualRngMasterDevice<'a, R>
-{
-    fn next(&self) -> &'a ListLink<VirtualRngMasterDevice<'a, R>> {
+impl<'a> ListNode<'a, VirtualRngMasterDevice<'a>> for VirtualRngMasterDevice<'a> {
+    fn next(&self) -> &'a ListLink<VirtualRngMasterDevice<'a>> {
         &self.next
     }
 }
 
-impl<'a, R: Rng<'a> + ?Sized> VirtualRngMasterDevice<'a, R> {
-    pub const fn new(mux: &'a MuxRngMaster<'a, R>) -> VirtualRngMasterDevice<'a, R> {
+impl<'a> VirtualRngMasterDevice<'a> {
+    pub const fn new(mux: &'a MuxRngMaster<'a>) -> VirtualRngMasterDevice<'a> {
         VirtualRngMasterDevice {
             mux: mux,
             next: ListLink::empty(),
@@ -121,17 +118,14 @@ impl<'a, R: Rng<'a> + ?Sized> VirtualRngMasterDevice<'a, R> {
     }
 }
 
-impl<'a, R: Rng<'a> + ?Sized> PartialEq<VirtualRngMasterDevice<'a, R>>
-    for VirtualRngMasterDevice<'a, R>
-{
-    fn eq(&self, other: &VirtualRngMasterDevice<'a, R>) -> bool {
+impl<'a> PartialEq<VirtualRngMasterDevice<'a>> for VirtualRngMasterDevice<'a> {
+    fn eq(&self, other: &VirtualRngMasterDevice<'a>) -> bool {
         // Check whether two rng devices point to the same device
-        self as *const VirtualRngMasterDevice<'a, R>
-            == other as *const VirtualRngMasterDevice<'a, R>
+        self as *const VirtualRngMasterDevice<'a> == other as *const VirtualRngMasterDevice<'a>
     }
 }
 
-impl<'a, R: Rng<'a> + ?Sized> Rng<'a> for VirtualRngMasterDevice<'a, R> {
+impl<'a> Rng<'a> for VirtualRngMasterDevice<'a> {
     fn get(&self) -> ReturnCode {
         self.operation.set(Op::Get);
         self.mux.do_next_op()
@@ -162,7 +156,7 @@ impl<'a, R: Rng<'a> + ?Sized> Rng<'a> for VirtualRngMasterDevice<'a, R> {
     }
 }
 
-impl<'a, R: Rng<'a> + ?Sized> Client for VirtualRngMasterDevice<'a, R> {
+impl<'a> Client for VirtualRngMasterDevice<'a> {
     fn randomness_available(
         &self,
         randomness: &mut dyn Iterator<Item = u32>,
