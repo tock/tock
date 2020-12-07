@@ -35,7 +35,7 @@ use kernel::static_init_half;
 macro_rules! sht3x_component_helper {
     ($A:ty) => {{
         use capsules::sht3x;
-        $crate::sht3x_component_helper!($A, sht3x::BASE_ADDR);
+        $crate::sht3x_component_helper!($A, sht3x::BASE_ADDR)
     }};
 
     // used for specifically stating the i2c address

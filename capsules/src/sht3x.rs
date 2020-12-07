@@ -1,3 +1,9 @@
+//! Driver for SHT3x Temperature and Himidity Sensor
+//!
+//! Author: Cosmin Daniel Radu <cosmindanielradu19@gmail.com>
+//!
+//!
+
 use core::cell::Cell;
 use enum_primitive::cast::FromPrimitive;
 use enum_primitive::enum_from_primitive;
@@ -269,9 +275,11 @@ impl<'a, A: Alarm<'a>> i2c::I2CClient for SHT3x<'a, A> {
                 self.buffer.replace(buffer);
                 self.i2c.disable();
                 if self.read_temp.get() == true {
+                    self.read_temp.set(false);
                     self.temperature_client.map(|cb| cb.callback(usize::MAX));
                 }
                 if self.read_hum.get() == true {
+                    self.read_hum.set(false);
                     self.humidity_client.map(|cb| cb.callback(usize::MAX));
                 }
             }
