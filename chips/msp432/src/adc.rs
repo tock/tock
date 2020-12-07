@@ -852,7 +852,7 @@ impl hil::adc::Adc for Adc<'_> {
         self.stop();
         if mode == AdcMode::Highspeed {
             self.dma.map(|dma| {
-                let (_tx1, rx1, _tx2, rx2) = dma.stop();
+                let (_nr_bytes, _tx1, rx1, _tx2, rx2) = dma.stop();
 
                 if let Some(buffer) = rx1 {
                     let buf = unsafe { buf_u8_to_buf_u16(buffer) };

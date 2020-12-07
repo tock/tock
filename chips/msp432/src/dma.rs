@@ -1019,6 +1019,7 @@ impl<'a> DmaChannel<'a> {
         self.enable_dma_channel();
     }
 
+    /// Start a ping-pong transfer from a peripheral to a certain location in memory
     pub fn transfer_periph_to_mem_pingpong(
         &self,
         src_reg: *const (),
@@ -1055,6 +1056,7 @@ impl<'a> DmaChannel<'a> {
         self.enable_dma_channel();
     }
 
+    /// Provide a new buffer for a ping-pong transfer
     pub fn provide_new_buffer(&self, buf: &'static mut [u8], len: usize) {
         let buf_end_ptr = (&buf[0] as *const u8 as u32) + ((len as u32) - 1);
 
@@ -1077,9 +1079,18 @@ impl<'a> DmaChannel<'a> {
         }
     }
 
+    /// Stop any ongoing DMA transfer
+    ///
+    /// Returnvalues:
+    /// usize:                      Number of transferred bytes until the transfer was stopped
+    /// Option<&'static mut [u8]>:  Option to the primary TX buffer
+    /// Option<&'static mut [u8]>:  Option to the primary RX buffer
+    /// Option<&'static mut [u8]>:  Option to the alternate TX buffer
+    /// Option<&'static mut [u8]>:  Option to the alternate RX buffer
     pub fn stop(
         &self,
     ) -> (
+        usize,
         Option<&'static mut [u8]>,
         Option<&'static mut [u8]>,
         Option<&'static mut [u8]>,
@@ -1091,7 +1102,17 @@ impl<'a> DmaChannel<'a> {
         DMA_CONFIG.0[self.chan_nr]
             .ctrl
             .modify(DMA_CTRL::CYCLE_CTRL::Stop);
+
+        // Calculate the already transferred bytes
+        let n_minus_1 = DMA_CONFIG.0[self.chan_nr].ctrl.read(DMA_CTRL::N_MINUS_1) as usize;
+        let transferred_bytes = if self.active_buf.get() == ActiveBuffer::Primary {
+            self.bytes_to_transmit_prim.get() - n_minus_1 + 1
+        } else {
+            self.bytes_to_transmit_alt.get() - n_minus_1 + 1
+        };
+
         (
+            transferred_bytes,
             self.tx_buf_prim.take(),
             self.rx_buf_prim.take(),
             self.tx_buf_alt.take(),
