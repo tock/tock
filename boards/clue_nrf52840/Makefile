@@ -10,7 +10,7 @@ ifdef PORT
   FLAGS += -p $(PORT)
 endif
 
-APP=../../../libtock-c/examples/screen/build/cortex-m4/cortex-m4.tbf
+APP=../../../libtock-c/examples/sensors/build/cortex-m4/cortex-m4.tbf
 KERNEL=$(TOCK_ROOT_DIRECTORY)target/$(TARGET)/debug/$(PLATFORM).elf
 KERNEL_WITH_APP=$(TOCK_ROOT_DIRECTORY)/target/$(TARGET)/debug/$(PLATFORM)-app.elf
 

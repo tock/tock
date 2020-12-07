@@ -12,7 +12,6 @@
 use capsules::virtual_aes_ccm::MuxAES128CCM;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 
-use kernel::hil::time::Alarm;
 use kernel::capabilities;
 use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::component::Component;
@@ -406,29 +405,12 @@ pub unsafe fn reset_handler() {
 
     kernel::hil::sensors::ProximityDriver::set_client(apds9960, proximity);
 
-    let sht3x_alarm = static_init!(
-        VirtualMuxAlarm<'static, nrf52::rtc::Rtc<'static>>,
-        VirtualMuxAlarm::new(mux_alarm)
+    let sht3x = components::sht3x::SHT3xComponent::new(sensors_i2c_bus, mux_alarm).finalize(
+        components::sht3x_component_helper!(
+            nrf52::rtc::Rtc<'static>,
+            capsules::sht3x::BASE_ADDR << 1
+        ),
     );
-
-
-
-    let sht3x_i2c = static_init!(
-        capsules::virtual_i2c::I2CDevice,
-        capsules::virtual_i2c::I2CDevice::new(sensors_i2c_bus, 0x44 << 1)
-    );
-
-    let sht3x = static_init!(
-        capsules::sht3x::SHT3x<'static, capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc<'static>>>,
-        capsules::sht3x::SHT3x::new(
-            sht3x_i2c,
-            &mut capsules::sht3x::BUFFER,
-            sht3x_alarm
-        )
-    );
-    sht3x_i2c.set_client(sht3x);
-    sht3x_alarm.set_alarm_client(sht3x);
-
     sht3x.reset();
 
     let temperature = static_init!(
@@ -553,7 +535,7 @@ pub unsafe fn reset_handler() {
         alarm: alarm,
         ipc: kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability),
         temperature: temperature,
-        humidity: humidity
+        humidity: humidity,
     };
 
     let chip = static_init!(

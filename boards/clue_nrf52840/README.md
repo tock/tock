@@ -90,6 +90,16 @@ and the physical elements on the CLUE nRF52480 board.
 | LED[0]            | Red LED Red         |
 | LED[1]            | White LEDs          |
 
+### Sensors
+
+The following sensors are working so far
+
+| Sensorr | Physical Element    |
+|-------------------|---------------------|
+| Proximity           | APDS9960              |
+| Temperature & Humidity | SHT31 |
+
+
 ## Debugging
 
 The CLUE nRF2840 board uses a virtual serial console over USB to send debugging info

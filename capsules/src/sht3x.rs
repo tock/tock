@@ -1,41 +1,41 @@
 use core::cell::Cell;
+use enum_primitive::cast::FromPrimitive;
+use enum_primitive::enum_from_primitive;
 use kernel::common::cells::{OptionalCell, TakeCell};
-use kernel::hil::gpio;
 use kernel::hil::i2c;
 use kernel::hil::time::{self, Alarm};
 use kernel::ReturnCode;
-use kernel::{AppId, Callback, Driver, Grant};
-
-pub static mut BUFFER: [u8; 16] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 175];
 
 pub static BASE_ADDR: u8 = 0x44;
 
 #[repr(u16)]
-enum Registers {
-    /// Measurement High Repeatability with Clock Stretch Enabled
-    MEASHIGHREPSTRETCH = 0x2C06,
-    /// Measurement Medium Repeatability with Clock Stretch Enabled
-    MEASMEDREPSTRETCH = 0x2C0D,
-    /// Measurement Low Repeatability with Clock Stretch Enabled
-    MEASLOWREPSTRETCH = 0x2C10,
-    /// Measurement High Repeatability with Clock Stretch Disabled
-    MEASHIGHREP = 0x2400,
-    /// Measurement Medium Repeatability with Clock Stretch Disabled
-    MEASMEDREP = 0x240B,
-    /// Measurement Low Repeatability with Clock Stretch Disabled
-    MEASLOWREP = 0x2416,
-    /// Read Out of Status Register
-    READSTATUS = 0xF32D,
-    /// Clear Status
-    CLEARSTATUS = 0x3041,
-    /// Soft Reset
-    SOFTRESET = 0x30A2,
-    /// Heater Enable
-    HEATEREN = 0x306D,
-    /// Heater Disable
-    HEATERDIS = 0x3066,
-    /// Status Register Heater Bit
-    REGHEATERBIT = 0x0d,
+enum_from_primitive! {
+    enum Registers {
+        /// Measurement High Repeatability with Clock Stretch Enabled
+        MEASHIGHREPSTRETCH = 0x2C06,
+        /// Measurement Medium Repeatability with Clock Stretch Enabled
+        MEASMEDREPSTRETCH = 0x2C0D,
+        /// Measurement Low Repeatability with Clock Stretch Enabled
+        MEASLOWREPSTRETCH = 0x2C10,
+        /// Measurement High Repeatability with Clock Stretch Disabled
+        MEASHIGHREP = 0x2400,
+        /// Measurement Medium Repeatability with Clock Stretch Disabled
+        MEASMEDREP = 0x240B,
+        /// Measurement Low Repeatability with Clock Stretch Disabled
+        MEASLOWREP = 0x2416,
+        /// Read Out of Status Register
+        READSTATUS = 0xF32D,
+        /// Clear Status
+        CLEARSTATUS = 0x3041,
+        /// Soft Reset
+        SOFTRESET = 0x30A2,
+        /// Heater Enable
+        HEATEREN = 0x306D,
+        /// Heater Disable
+        HEATERDIS = 0x3066,
+        /// Status Register Heater Bit
+        REGHEATERBIT = 0x0d,
+    }
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -44,15 +44,24 @@ enum State {
     ReadStatus,
     Read,
     ReadData,
-    Waiting,
-    Done,
     Reset,
 }
 
-#[derive(Clone, Copy, PartialEq)]
-enum Command {
-    ReadTemperature,
-    ReadHumidity,
+fn crc8(data: &[u8]) -> u8 {
+    let polynomial = 0x31;
+    let mut crc = 0xff;
+
+    for x in 0..data.len() {
+        crc ^= data[x as usize] as u8;
+        for _i in 0..8 {
+            if (crc & 0x80) != 0 {
+                crc = crc << 1 ^ polynomial;
+            } else {
+                crc = crc << 1;
+            }
+        }
+    }
+    crc
 }
 
 pub struct SHT3x<'a, A: Alarm<'a>> {
@@ -80,7 +89,7 @@ impl<'a, A: Alarm<'a>> SHT3x<'a, A> {
             buffer: TakeCell::new(buffer),
             read_temp: Cell::new(false),
             read_hum: Cell::new(false),
-            alarm: alarm
+            alarm: alarm,
         }
     }
 
@@ -113,7 +122,7 @@ impl<'a, A: Alarm<'a>> SHT3x<'a, A> {
 
             buffer[0] = ((Registers::SOFTRESET as u16) >> 8) as u8;
             buffer[1] = Registers::SOFTRESET as u8;
-            let res = self.i2c.write_read(buffer, 2, 2);
+            self.i2c.write_read(buffer, 2, 2);
             self.state.set(State::Reset);
         });
     }
@@ -168,26 +177,9 @@ impl<'a, A: Alarm<'a>> SHT3x<'a, A> {
         }
     }
 
-    fn crc8(&self, data: &[u8], len: u8) -> u8 {
-        let polynomial = 0x31;
-        let mut crc = 0xff;
-
-        for x in 0..len {
-            crc ^= data[x as usize] as u8;
-            for _i in 0..8 {
-                if (crc & 0x80) != 0 {
-                    crc = crc << 1 ^ polynomial;
-                } else {
-                    crc = crc << 1;
-                }
-            }
-        }
-        crc
-    }
-
     pub fn read_temp_hum(&self) -> ReturnCode {
         self.buffer.take().map_or(ReturnCode::ENOMEM, |buffer| {
-            self.state.set(State::Waiting);
+            self.state.set(State::Read);
             self.i2c.enable();
 
             buffer[0] = ((Registers::MEASHIGHREP as u16) >> 8) as u8;
@@ -204,11 +196,14 @@ impl<'a, A: Alarm<'a>> time::AlarmClient for SHT3x<'a, A> {
     fn alarm(&self) {
         let state = self.state.get();
         match state {
-            State::Waiting => {
-                self.state.set(State::Read);
-                self.buffer.take().map_or_else(|| panic!("SHT31 No buffer available!"), |buffer| {
-                    let _res = self.i2c.read(buffer, 6);
-                });
+            State::Read => {
+                self.state.set(State::ReadData);
+                self.buffer.take().map_or_else(
+                    || panic!("SHT31 No buffer available!"),
+                    |buffer| {
+                        let _res = self.i2c.read(buffer, 6);
+                    },
+                );
             }
             _ => {
                 // This should never happen
@@ -225,28 +220,40 @@ impl<'a, A: Alarm<'a>> i2c::I2CClient for SHT3x<'a, A> {
                 let state = self.state.get();
 
                 match state {
-                    State::Read => {
+                    State::ReadStatus => {
+                        // TODO do soemthing useful with the status
+                        self.state.set(State::Idle);
+                    }
+                    State::ReadData => {
                         if self.read_temp.get() == true {
                             self.read_temp.set(false);
-                            let mut stemp = buffer[0] as u32;
-                            stemp = stemp << 8;
-                            stemp = stemp | buffer[1] as u32;
-                            stemp = ((4375 * stemp) >> 14) - 4500;
-                            self.temperature_client
-                                .map(|cb| cb.callback(stemp as usize));
+                            if crc8(&buffer[0..2]) == buffer[2] {
+                                let mut stemp = buffer[0] as u32;
+                                stemp = stemp << 8;
+                                stemp = stemp | buffer[1] as u32;
+                                stemp = ((4375 * stemp) >> 14) - 4500;
+                                self.temperature_client
+                                    .map(|cb| cb.callback(stemp as usize));
+                            } else {
+                                self.temperature_client.map(|cb| cb.callback(usize::MAX));
+                            }
                         }
                         if self.read_hum.get() == true {
                             self.read_hum.set(false);
-                            let mut shum = buffer[3] as u32;
-                            shum = shum << 8;
-                            shum = shum | buffer[4] as u32;
-                            shum = (625 * shum) >> 12;
-                            self.humidity_client.map(|cb| cb.callback(shum as usize));
+                            if crc8(&buffer[3..5]) == buffer[5] {
+                                let mut shum = buffer[3] as u32;
+                                shum = shum << 8;
+                                shum = shum | buffer[4] as u32;
+                                shum = (625 * shum) >> 12;
+                                self.humidity_client.map(|cb| cb.callback(shum as usize));
+                            } else {
+                                self.humidity_client.map(|cb| cb.callback(usize::MAX));
+                            }
                         }
                         self.buffer.replace(buffer);
                         self.state.set(State::Idle);
                     }
-                    State::Waiting => {
+                    State::Read => {
                         self.buffer.replace(buffer);
                         let interval = A::ticks_from_ms(20);
                         self.alarm.set_alarm(self.alarm.now(), interval);
