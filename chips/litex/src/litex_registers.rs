@@ -7,9 +7,8 @@
 //!
 //! Essentially, the bus data width (default 32 bit), the CSR data
 //! width, the CSR byte ordering and naturally the desired register
-//! width can change. This module defines generic traits and uses a
-//! procedural macro to generate combinations of these settings, to
-//! then be used in register structs.
+//! width can change. This module defines generic traits for accessing
+//! registers and register abstraction structs.
 //!
 //! The different register types of a specific SoC configuration are
 //! combined using a
@@ -36,9 +35,11 @@ use tock_registers::registers::{
     ReadWrite as TRReadWrite, RegisterLongName, TryFromValue, WriteOnly as TRWriteOnly,
 };
 
-/// Extend the `tock_registers` `IntLike` trait to also provide the
-/// `1` and maximum (all bits set) values of the respective integer
-/// type
+/// Extension of the `tock_registers` `IntLike` trait.
+///
+/// This extends the `IntLike` trait of `tock_registers` to also
+/// provide the `1` and maximum (all bits set) values of the
+/// respective integer type
 ///
 /// This allows for peripherals to be written generic over the
 /// underlying CSR width (as in the case of event managers, LEDs,
@@ -68,6 +69,11 @@ impl IntLike for u32 {
     }
 }
 impl IntLike for u64 {
+    fn one() -> Self {
+        1
+    }
+}
+impl IntLike for u128 {
     fn one() -> Self {
         1
     }
@@ -182,6 +188,9 @@ pub trait ReadWrite<T: IntLike>: Read<T> + Write<T> {
     );
 }
 
+// Implement the [`Read`] trait (providing high-level methods to read
+// specific fields of a register) for every type implementing the
+// [`BaseReadableRegister`] trait.
 impl<R, T: IntLike> Read<T> for R
 where
     R: BaseReadableRegister<T>,
@@ -228,6 +237,9 @@ where
     }
 }
 
+// Implement the [`Write`] trait (providing high-level methods to set
+// specific fields of a register) for every type implementing the
+// [`BaseWritableRegister`] trait.
 impl<R, T: IntLike> Write<T> for R
 where
     R: BaseWriteableRegister<T>,
@@ -246,6 +258,9 @@ where
     }
 }
 
+// Implement the [`ReadWrite`] trait (providing high-level methods to
+// update specific fields of a register) for every type implementing
+// both the [`Read`] and [`Write`] trait.
 impl<R, T: IntLike> ReadWrite<T> for R
 where
     R: Read<T> + Write<T>,
@@ -268,6 +283,66 @@ where
 }
 
 // ---------- COLLECTION OF REGISTER TYPES FOR A SPECIFIC LITEX CONFIGURATION ----------
+
+/// Register abstraction types collection
+///
+/// This trait defines a collection of types for a certain set of
+/// LiteX configuration options. It provides types with all
+/// accessibility constraints ([`Read`], [`Write`], [`ReadWrite`]) for
+/// every defined register width.
+///
+/// All types must be over a common register layout configuration, having identical
+///
+/// - base integer width
+/// - CSR data width
+/// - endianness
+///
+/// ## Generic Register Type Arguments
+///
+/// Usually registers are generic over a [`RegisterLongName`] type
+/// arguments, such that the [`Field`] and [`FieldValue`] arguments of
+/// the various methods make sense.
+///
+/// Unfortunately, those generic type arguments cannot be passed
+/// through associated types in traits until [generic associated
+/// types](https://github.com/rust-lang/rust/issues/44265) stabilize.
+///
+/// In the meantime, the types [`ReadRegWrapper`], [`WriteRegWrapper`]
+/// and [`ReadWriteRegWrapper`] can be used to access fields in a
+/// register as commonly done in tock-registers:
+///
+/// ```rust
+/// # // This is a dummy setup to make the doctests pass
+/// # use tock_registers::register_bitfields;
+/// # use kernel::common::StaticRef;
+/// # use litex::litex_registers::{
+/// #   LiteXSoCRegisterConfiguration,
+/// #   LiteXSoCRegistersC8B32,
+/// #   Read,
+/// #   ReadRegWrapper,
+/// # };
+/// #
+/// pub struct LiteXUartRegisters<R: LiteXSoCRegisterConfiguration> {
+///   txfull: R::ReadOnly8,
+/// }
+///
+/// register_bitfields![u8,
+///   txfull [
+///     full OFFSET(0) NUMBITS(1) []
+///   ],
+/// ];
+///
+/// # static mut testregs: u32 = 0;
+/// #
+/// # fn main() {
+/// #   let regs = unsafe {
+/// #     StaticRef::new(&mut testregs as *mut u32 as *mut LiteXUartRegisters<LiteXSoCRegistersC8B32>)
+/// #   };
+/// #   let _ =
+/// ReadRegWrapper::wrap(&regs.txfull).is_set(txfull::full)
+/// #   ;
+/// # }
+/// ```
 pub trait LiteXSoCRegisterConfiguration {
     type ReadOnly8: BaseReadableRegister<u8, Reg = ()>;
     type WriteOnly8: BaseWriteableRegister<u8, Reg = ()>;
@@ -286,6 +361,16 @@ pub trait LiteXSoCRegisterConfiguration {
     type ReadWrite64: BaseReadableRegister<u64, Reg = ()> + BaseWriteableRegister<u64, Reg = ()>;
 }
 
+/// Collection of LiteX register abstraction types
+///
+/// This collection of LiteX registers has the following configuration:
+///
+/// - base integer width: 32 bit
+/// - csr data width: 8 bit
+/// - endianness: big
+///
+/// For documentation on the usage of these types, refer to the
+/// [`LiteXSoCRegisterConfiguration`] trait documentation.
 pub enum LiteXSoCRegistersC8B32 {}
 impl LiteXSoCRegisterConfiguration for LiteXSoCRegistersC8B32 {
     type ReadOnly8 = ReadOnly8C8B32;
@@ -305,6 +390,16 @@ impl LiteXSoCRegisterConfiguration for LiteXSoCRegistersC8B32 {
     type ReadWrite64 = ReadWrite64C8B32;
 }
 
+/// Collection of LiteX register abstraction types
+///
+/// This collection of LiteX registers has the following configuration:
+///
+/// - base integer width: 32 bit
+/// - csr data width: 32 bit
+/// - endianness: big
+///
+/// For documentation on the usage of these types, refer to the
+/// [`LiteXSoCRegisterConfiguration`] trait documentation.
 pub enum LiteXSoCRegistersC32B32 {}
 impl LiteXSoCRegisterConfiguration for LiteXSoCRegistersC32B32 {
     type ReadOnly8 = ReadOnly8C32B32;
@@ -325,6 +420,13 @@ impl LiteXSoCRegisterConfiguration for LiteXSoCRegistersC32B32 {
 }
 
 // ---------- WRAPPERS AROUND READ,WRITE,READWRITE TRAITS WITH GENERIC REGISTER NAMES ----------
+/// Workaround-wrapper for readable LiteX registers
+///
+/// This workaround-wrapper is required to make an associated type of
+/// [`LiteXSoCRegisterConfiguration`] generic over the
+/// [`RegisterLongName`] until generic associated types stabilize in
+/// Rust. Please see the [`LiteXSoCRegisterConfiguration`]
+/// documentation for more information.
 pub struct ReadRegWrapper<'a, T: IntLike, N: RegisterLongName, R: BaseReadableRegister<T>>(
     &'a R,
     PhantomData<T>,
@@ -349,6 +451,13 @@ impl<T: IntLike, N: RegisterLongName, R: BaseReadableRegister<T>> BaseReadableRe
     }
 }
 
+/// Workaround-wrapper for writable LiteX registers
+///
+/// This workaround-wrapper is required to make an associated type of
+/// [`LiteXSoCRegisterConfiguration`] generic over the
+/// [`RegisterLongName`] until generic associated types stabilize in
+/// Rust. Please see the [`LiteXSoCRegisterConfiguration`]
+/// documentation for more information.
 pub struct WriteRegWrapper<'a, T: IntLike, N: RegisterLongName, R: BaseWriteableRegister<T>>(
     &'a R,
     PhantomData<T>,
@@ -375,6 +484,13 @@ impl<T: IntLike, N: RegisterLongName, R: BaseWriteableRegister<T>> BaseWriteable
     }
 }
 
+/// Workaround-wrapper for read- and writable LiteX registers
+///
+/// This workaround-wrapper is required to make an associated type of
+/// [`LiteXSoCRegisterConfiguration`] generic over the
+/// [`RegisterLongName`] until generic associated types stabilize in
+/// Rust. Please see the [`LiteXSoCRegisterConfiguration`]
+/// documentation for more information.
 pub struct ReadWriteRegWrapper<
     'a,
     T: IntLike,
@@ -430,7 +546,7 @@ impl<T: IntLike, N: RegisterLongName, R: BaseReadableRegister<T> + BaseWriteable
 //     value_width: 8,
 //     wishbone_data_width: 8,
 //     base_width: 32,
-//     endianess: "big",
+//     endianness: "big",
 // });
 //
 // litex_register_abstraction!(WriteOnly8C8B32 {
@@ -438,7 +554,7 @@ impl<T: IntLike, N: RegisterLongName, R: BaseReadableRegister<T> + BaseWriteable
 //     value_width: 8,
 //     wishbone_data_width: 8,
 //     base_width: 32,
-//     endianess: "big",
+//     endianness: "big",
 // });
 //
 // litex_register_abstraction!(ReadWrite8C8B32 {
@@ -446,7 +562,7 @@ impl<T: IntLike, N: RegisterLongName, R: BaseReadableRegister<T> + BaseWriteable
 //     value_width: 8,
 //     wishbone_data_width: 8,
 //     base_width: 32,
-//     endianess: "big",
+//     endianness: "big",
 // });
 //
 // litex_register_abstraction!(ReadOnly16C8B32 {
@@ -454,7 +570,7 @@ impl<T: IntLike, N: RegisterLongName, R: BaseReadableRegister<T> + BaseWriteable
 //     value_width: 16,
 //     wishbone_data_width: 8,
 //     base_width: 32,
-//     endianess: "big",
+//     endianness: "big",
 // });
 //
 // litex_register_abstraction!(WriteOnly16C8B32 {
@@ -462,7 +578,7 @@ impl<T: IntLike, N: RegisterLongName, R: BaseReadableRegister<T> + BaseWriteable
 //     value_width: 16,
 //     wishbone_data_width: 8,
 //     base_width: 32,
-//     endianess: "big",
+//     endianness: "big",
 // });
 //
 // litex_register_abstraction!(ReadWrite16C8B32 {
@@ -470,7 +586,7 @@ impl<T: IntLike, N: RegisterLongName, R: BaseReadableRegister<T> + BaseWriteable
 //     value_width: 16,
 //     wishbone_data_width: 8,
 //     base_width: 32,
-//     endianess: "big",
+//     endianness: "big",
 // });
 //
 // litex_register_abstraction!(ReadOnly32C8B32 {
@@ -478,7 +594,7 @@ impl<T: IntLike, N: RegisterLongName, R: BaseReadableRegister<T> + BaseWriteable
 //     value_width: 32,
 //     wishbone_data_width: 8,
 //     base_width: 32,
-//     endianess: "big",
+//     endianness: "big",
 // });
 //
 // litex_register_abstraction!(WriteOnly32C8B32 {
@@ -486,7 +602,7 @@ impl<T: IntLike, N: RegisterLongName, R: BaseReadableRegister<T> + BaseWriteable
 //     value_width: 32,
 //     wishbone_data_width: 8,
 //     base_width: 32,
-//     endianess: "big",
+//     endianness: "big",
 // });
 //
 // litex_register_abstraction!(ReadWrite32C8B32 {
@@ -494,7 +610,7 @@ impl<T: IntLike, N: RegisterLongName, R: BaseReadableRegister<T> + BaseWriteable
 //     value_width: 32,
 //     wishbone_data_width: 8,
 //     base_width: 32,
-//     endianess: "big",
+//     endianness: "big",
 // });
 //
 // litex_register_abstraction!(ReadOnly64C8B32 {
@@ -502,7 +618,7 @@ impl<T: IntLike, N: RegisterLongName, R: BaseReadableRegister<T> + BaseWriteable
 //     value_width: 64,
 //     wishbone_data_width: 8,
 //     base_width: 32,
-//     endianess: "big",
+//     endianness: "big",
 // });
 //
 // litex_register_abstraction!(WriteOnly64C8B32 {
@@ -510,7 +626,7 @@ impl<T: IntLike, N: RegisterLongName, R: BaseReadableRegister<T> + BaseWriteable
 //     value_width: 64,
 //     wishbone_data_width: 8,
 //     base_width: 32,
-//     endianess: "big",
+//     endianness: "big",
 // });
 //
 // litex_register_abstraction!(ReadWrite64C8B32 {
@@ -518,7 +634,7 @@ impl<T: IntLike, N: RegisterLongName, R: BaseReadableRegister<T> + BaseWriteable
 //     value_width: 64,
 //     wishbone_data_width: 8,
 //     base_width: 32,
-//     endianess: "big",
+//     endianness: "big",
 // });
 //
 //
@@ -527,7 +643,7 @@ impl<T: IntLike, N: RegisterLongName, R: BaseReadableRegister<T> + BaseWriteable
 //     value_width: 8,
 //     wishbone_data_width: 32,
 //     base_width: 32,
-//     endianess: "big",
+//     endianness: "big",
 // });
 //
 // litex_register_abstraction!(WriteOnly8C32B32 {
@@ -535,7 +651,7 @@ impl<T: IntLike, N: RegisterLongName, R: BaseReadableRegister<T> + BaseWriteable
 //     value_width: 8,
 //     wishbone_data_width: 32,
 //     base_width: 32,
-//     endianess: "big",
+//     endianness: "big",
 // });
 //
 // litex_register_abstraction!(ReadWrite8C32B32 {
@@ -543,7 +659,7 @@ impl<T: IntLike, N: RegisterLongName, R: BaseReadableRegister<T> + BaseWriteable
 //     value_width: 8,
 //     wishbone_data_width: 32,
 //     base_width: 32,
-//     endianess: "big",
+//     endianness: "big",
 // });
 //
 // litex_register_abstraction!(ReadOnly16C32B32 {
@@ -551,7 +667,7 @@ impl<T: IntLike, N: RegisterLongName, R: BaseReadableRegister<T> + BaseWriteable
 //     value_width: 16,
 //     wishbone_data_width: 32,
 //     base_width: 32,
-//     endianess: "big",
+//     endianness: "big",
 // });
 //
 // litex_register_abstraction!(WriteOnly16C32B32 {
@@ -559,7 +675,7 @@ impl<T: IntLike, N: RegisterLongName, R: BaseReadableRegister<T> + BaseWriteable
 //     value_width: 16,
 //     wishbone_data_width: 32,
 //     base_width: 32,
-//     endianess: "big",
+//     endianness: "big",
 // });
 //
 // litex_register_abstraction!(ReadWrite16C32B32 {
@@ -567,7 +683,7 @@ impl<T: IntLike, N: RegisterLongName, R: BaseReadableRegister<T> + BaseWriteable
 //     value_width: 16,
 //     wishbone_data_width: 32,
 //     base_width: 32,
-//     endianess: "big",
+//     endianness: "big",
 // });
 //
 // litex_register_abstraction!(ReadOnly32C32B32 {
@@ -575,7 +691,7 @@ impl<T: IntLike, N: RegisterLongName, R: BaseReadableRegister<T> + BaseWriteable
 //     value_width: 32,
 //     wishbone_data_width: 32,
 //     base_width: 32,
-//     endianess: "big",
+//     endianness: "big",
 // });
 //
 // litex_register_abstraction!(WriteOnly32C32B32 {
@@ -583,7 +699,7 @@ impl<T: IntLike, N: RegisterLongName, R: BaseReadableRegister<T> + BaseWriteable
 //     value_width: 32,
 //     wishbone_data_width: 32,
 //     base_width: 32,
-//     endianess: "big",
+//     endianness: "big",
 // });
 //
 // litex_register_abstraction!(ReadWrite32C32B32 {
@@ -591,7 +707,7 @@ impl<T: IntLike, N: RegisterLongName, R: BaseReadableRegister<T> + BaseWriteable
 //     value_width: 32,
 //     wishbone_data_width: 32,
 //     base_width: 32,
-//     endianess: "big",
+//     endianness: "big",
 // });
 //
 // litex_register_abstraction!(ReadOnly64C32B32 {
@@ -599,7 +715,7 @@ impl<T: IntLike, N: RegisterLongName, R: BaseReadableRegister<T> + BaseWriteable
 //     value_width: 64,
 //     wishbone_data_width: 32,
 //     base_width: 32,
-//     endianess: "big",
+//     endianness: "big",
 // });
 //
 // litex_register_abstraction!(WriteOnly64C32B32 {
@@ -607,7 +723,7 @@ impl<T: IntLike, N: RegisterLongName, R: BaseReadableRegister<T> + BaseWriteable
 //     value_width: 64,
 //     wishbone_data_width: 32,
 //     base_width: 32,
-//     endianess: "big",
+//     endianness: "big",
 // });
 //
 // litex_register_abstraction!(ReadWrite64C32B32 {
@@ -615,7 +731,7 @@ impl<T: IntLike, N: RegisterLongName, R: BaseReadableRegister<T> + BaseWriteable
 //     value_width: 64,
 //     wishbone_data_width: 32,
 //     base_width: 32,
-//     endianess: "big",
+//     endianness: "big",
 // });
 
 #[repr(C)]
