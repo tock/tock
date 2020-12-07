@@ -37,14 +37,14 @@
 //! the driver. Successive writes must call `allow` each time a buffer is to be
 //! written.
 
-use core::{cmp, mem};
 use core::convert::TryFrom;
+use core::{cmp, mem};
 
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::uart;
 use kernel::{AppId, Callback, ErrorCode, Grant};
-use kernel::{ReadOnlyAppSlice, ReadWriteAppSlice, Read, ReadWrite};
-use kernel::{Driver, ReturnCode, CommandResult};
+use kernel::{CommandResult, Driver, ReturnCode};
+use kernel::{Read, ReadOnlyAppSlice, ReadWrite, ReadWriteAppSlice};
 
 /// Syscall driver number.
 use crate::driver;
@@ -232,27 +232,28 @@ impl Driver for Console<'_> {
     /// - `1`: Write buffer completed callback
     fn subscribe(
         &self,
-        subscribe_num: usize, 
+        subscribe_num: usize,
         mut callback: Callback,
         app_id: AppId,
     ) -> Result<Callback, (Callback, ErrorCode)> {
         let res = match subscribe_num {
-            1 => { // putstr/write done
-                self
-                .apps
-                .enter(app_id, |app, _| {
-                    mem::swap(&mut app.write_callback, &mut callback);
-                })
-               .map_err(ErrorCode::from)
-            },
-            2 => { // getnstr/read done
-                self
-                .apps
-                .enter(app_id, |app, _| {
-                     mem::swap(&mut app.read_callback, &mut callback);
-                }).map_err(ErrorCode::from)
-            },
-            _ => Err(ErrorCode::NOSUPPORT)
+            1 => {
+                // putstr/write done
+                self.apps
+                    .enter(app_id, |app, _| {
+                        mem::swap(&mut app.write_callback, &mut callback);
+                    })
+                    .map_err(ErrorCode::from)
+            }
+            2 => {
+                // getnstr/read done
+                self.apps
+                    .enter(app_id, |app, _| {
+                        mem::swap(&mut app.read_callback, &mut callback);
+                    })
+                    .map_err(ErrorCode::from)
+            }
+            _ => Err(ErrorCode::NOSUPPORT),
         };
 
         if let Err(e) = res {
@@ -273,39 +274,41 @@ impl Driver for Console<'_> {
     ///        passed in `arg1`
     /// - `3`: Cancel any in progress receives and return (via callback)
     ///        what has been received so far.
-    fn command(&self, cmd_num: usize, arg1: usize, _: usize, appid: AppId) -> CommandResult{
+    fn command(&self, cmd_num: usize, arg1: usize, _: usize, appid: AppId) -> CommandResult {
         let res = match cmd_num {
             0 => Ok(ReturnCode::SUCCESS),
-            1 => { // putstr
+            1 => {
+                // putstr
                 let len = arg1;
-                self.apps.enter(appid, |app, _| {
-                    self.send_new(appid, app, len)
-                }).map_err(ErrorCode::from)
-            },
-            2 => { // getnstr
+                self.apps
+                    .enter(appid, |app, _| self.send_new(appid, app, len))
+                    .map_err(ErrorCode::from)
+            }
+            2 => {
+                // getnstr
                 let len = arg1;
-                self.apps.enter(appid, |app, _| {
-                    self.receive_new(appid, app, len)
-                }).map_err(ErrorCode::from)
-            },
-            3 => { // Abort RX
+                self.apps
+                    .enter(appid, |app, _| self.receive_new(appid, app, len))
+                    .map_err(ErrorCode::from)
+            }
+            3 => {
+                // Abort RX
                 self.uart.receive_abort();
                 Ok(ReturnCode::SUCCESS)
             }
-            _ => Err(ErrorCode::NOSUPPORT)
+            _ => Err(ErrorCode::NOSUPPORT),
         };
         match res {
             Ok(r) => {
                 let res = ErrorCode::try_from(r);
                 match res {
-                    Err(_) =>  CommandResult::success(),
-                    Ok(e) => CommandResult::failure(e)
+                    Err(_) => CommandResult::success(),
+                    Ok(e) => CommandResult::failure(e),
                 }
-            },
-            Err(e) => CommandResult::failure(e)
+            }
+            Err(e) => CommandResult::failure(e),
         }
     }
-
 }
 
 impl uart::TransmitClient for Console<'_> {
@@ -394,8 +397,7 @@ impl uart::ReceiveClient for Console<'_> {
                                     }
                                     c
                                 });
-                                
-                                
+
                                 // Make sure we report the same number
                                 // of bytes that we actually copied into
                                 // the app's buffer. This is defensive:
@@ -428,12 +430,14 @@ impl uart::ReceiveClient for Console<'_> {
                                     // case.
                                     (rcode, rx_len)
                                 };
-                                
-                                app.read_callback.schedule(From::from(ret), received_length, 0);
+
+                                app.read_callback
+                                    .schedule(From::from(ret), received_length, 0);
                             }
                             _ => {
                                 // Some UART error occurred
-                                app.read_callback.schedule(From::from(ReturnCode::FAIL), 0, 0);
+                                app.read_callback
+                                    .schedule(From::from(ReturnCode::FAIL), 0, 0);
                             }
                         }
                     })

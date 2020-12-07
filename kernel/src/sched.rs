@@ -812,26 +812,31 @@ impl Kernel {
                 process.remove_pending_callbacks(callback_id);
 
                 let ptr = NonNull::new(callback_ptr);
-                let callback = ptr.map_or(Callback::default(), 
-                                          |ptr| Callback::new(process.appid(), callback_id, appdata, ptr.cast()));
+                let callback = ptr.map_or(Callback::default(), |ptr| {
+                    Callback::new(process.appid(), callback_id, appdata, ptr.cast())
+                });
                 let rval = platform.with_driver(driver_number, |driver| match driver {
                     Some(Ok(d)) => {
                         let res = d.subscribe(subdriver_number, callback, process.appid());
                         match res {
-                            Ok(newcb) => {
-                                newcb.into_subscribe_success()
-                            }
-                            Err((newcb, err)) => { 
-                                newcb.into_subscribe_failure(err)
-                            }
+                            Ok(newcb) => newcb.into_subscribe_success(),
+                            Err((newcb, err)) => newcb.into_subscribe_failure(err),
                         }
                     }
                     Some(Err(d)) => {
                         // Legacy Tock 1.x driver handling
                         if ptr.is_some() {
-                            GenericSyscallReturnValue::Legacy(d.subscribe(subdriver_number, Some(callback), process.appid()))
+                            GenericSyscallReturnValue::Legacy(d.subscribe(
+                                subdriver_number,
+                                Some(callback),
+                                process.appid(),
+                            ))
                         } else {
-                            GenericSyscallReturnValue::Legacy(d.subscribe(subdriver_number, None, process.appid()))
+                            GenericSyscallReturnValue::Legacy(d.subscribe(
+                                subdriver_number,
+                                None,
+                                process.appid(),
+                            ))
                         }
                     }
                     None => GenericSyscallReturnValue::Legacy(ReturnCode::ENOSUPPORT),
