@@ -117,18 +117,19 @@ impl<'a> Console<'a> {
         if self.tx_in_progress.is_none() {
             self.tx_in_progress.set(app_id);
             self.tx_buffer.take().map(|buffer| {
-                let transaction_len = app.write_buffer.map_or(0, |data| {
+                let len = app.write_buffer.map_or(0, |data| data.len());
+                if app.write_remaining > len {
                     // A slice has changed under us and is now smaller than
                     // what we need to write -- just write what we can.
-                    if app.write_remaining > data.len() {
-                        app.write_remaining = data.len();
-                    }
+                    app.write_remaining = len;
+                }
+                let transaction_len = app.write_buffer.map_or(0, |data| {
                     for (i, c) in data[data.len() - app.write_remaining..data.len()]
                         .iter()
                         .enumerate()
                     {
                         if buffer.len() <= i {
-                            return i;
+                            return i; // Short circuit on partial send
                         }
                         buffer[i] = *c;
                     }
