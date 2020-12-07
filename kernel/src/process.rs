@@ -1212,6 +1212,7 @@ impl<C: Chip> ProcessType for Process<'_, C> {
         }
     }
 
+    #[allow(clippy::not_unsafe_ptr_arg_deref)]
     fn allow_readwrite(
         &self,
         buf_start_addr: *mut u8,
@@ -1234,6 +1235,18 @@ impl<C: Chip> ProcessType for Process<'_, C> {
         // length is 0, as to revoke kernel access to a memory region
         // without granting access to another one
         let new_slice = if size == 0 {
+            // Clippy complains that we're deferencing a pointer in a
+            // public and safe function here. While we are not
+            // deferencing the pointer here, we pass it along to an
+            // unsafe function, which is as dangerous (as it is likely
+            // to be deferenced down the line).
+            //
+            // Relevant discussion:
+            // https://github.com/rust-lang/rust-clippy/issues/3045
+            //
+            // It should be fine to ignore the lint here, as a slice
+            // of length 0 will never allow dereferencing any memory
+            // in a safe manner.
             unsafe { ReadWriteAppSlice::new(buf_start_addr, 0, self.appid()) }
         } else if self.in_app_owned_memory(buf_start_addr, size) {
             // TODO: Check for buffer aliasing here
@@ -1244,6 +1257,20 @@ impl<C: Chip> ProcessType for Process<'_, C> {
             let new_water_mark = max(self.allow_high_water_mark.get(), buf_end_addr);
             self.allow_high_water_mark.set(new_water_mark);
 
+            // Clippy complains that we're deferencing a pointer in a
+            // public and safe function here. While we are not
+            // deferencing the pointer here, we pass it along to an
+            // unsafe function, which is as dangerous (as it is likely
+            // to be deferenced down the line).
+            //
+            // Relevant discussion:
+            // https://github.com/rust-lang/rust-clippy/issues/3045
+            //
+            // It should be fine to ignore the lint here, as long as
+            // we make sure that we're pointing towards userspace
+            // memory (verified using `in_app_owned_memory`) and
+            // respect alignment and other constraints of the Rust
+            // references created by ReadWriteAppSlice.
             unsafe { ReadWriteAppSlice::new(buf_start_addr, size, self.appid()) }
         } else {
             return GenericSyscallReturnValue::AllowReadWriteFailure(
@@ -1271,6 +1298,7 @@ impl<C: Chip> ProcessType for Process<'_, C> {
         }
     }
 
+    #[allow(clippy::not_unsafe_ptr_arg_deref)]
     fn allow_readonly(
         &self,
         buf_start_addr: *const u8,
@@ -1293,6 +1321,18 @@ impl<C: Chip> ProcessType for Process<'_, C> {
         // length is 0, as to revoke kernel access to a memory region
         // without granting access to another one
         let new_slice = if size == 0 {
+            // Clippy complains that we're deferencing a pointer in a
+            // public and safe function here. While we are not
+            // deferencing the pointer here, we pass it along to an
+            // unsafe function, which is as dangerous (as it is likely
+            // to be deferenced down the line).
+            //
+            // Relevant discussion:
+            // https://github.com/rust-lang/rust-clippy/issues/3045
+            //
+            // It should be fine to ignore the lint here, as a slice
+            // of length 0 will never allow dereferencing any memory
+            // in a safe manner.
             unsafe { ReadOnlyAppSlice::new(buf_start_addr, 0, self.appid()) }
         } else if self.in_app_owned_memory(buf_start_addr, size)
             || self.in_app_ro_memory(buf_start_addr, size)
@@ -1305,6 +1345,21 @@ impl<C: Chip> ProcessType for Process<'_, C> {
             let new_water_mark = max(self.allow_high_water_mark.get(), buf_end_addr);
             self.allow_high_water_mark.set(new_water_mark);
 
+            // Clippy complains that we're deferencing a pointer in a
+            // public and safe function here. While we are not
+            // deferencing the pointer here, we pass it along to an
+            // unsafe function, which is as dangerous (as it is likely
+            // to be deferenced down the line).
+            //
+            // Relevant discussion:
+            // https://github.com/rust-lang/rust-clippy/issues/3045
+            //
+            // It should be fine to ignore the lint here, as long as
+            // we make sure that we're pointing towards userspace
+            // memory (verified using `in_app_owned_memory` or
+            // `in_app_ro_memory`) and respect alignment and other
+            // constraints of the Rust references created by
+            // ReadWriteAppSlice.
             unsafe { ReadOnlyAppSlice::new(buf_start_addr, size, self.appid()) }
         } else {
             return GenericSyscallReturnValue::AllowReadOnlyFailure(
