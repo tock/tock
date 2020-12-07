@@ -472,11 +472,15 @@ macro_rules! pin_implementation {
             }
 
             fn make_output(&self) -> gpio::Configuration {
+                use gpio::Output;
                 self.enable_module_function(ModuleFunction::Gpio);
 
                 let mut val = self.registers.dir[self.reg_idx].get();
                 val |= 1 << self.pin;
                 self.registers.dir[self.reg_idx].set(val);
+
+                // Clear the output since the state of an output is undefined after a reset
+                self.clear();
                 gpio::Configuration::Output
             }
 

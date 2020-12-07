@@ -267,7 +267,21 @@ impl<'a> hil::uart::Transmit<'a> for Uart<'a> {
     }
 
     fn transmit_abort(&self) -> ReturnCode {
-        ReturnCode::FAIL
+        if !self.tx_busy.get() {
+            return ReturnCode::SUCCESS;
+        }
+
+        self.tx_dma.map(|dma| {
+            let (nr_bytes, tx1, _rx1, _tx2, _rx2) = dma.stop();
+
+            self.tx_client.map(move |cl| {
+                if tx1.is_some() {
+                    cl.transmitted_buffer(tx1.unwrap(), nr_bytes, ReturnCode::ECANCEL);
+                }
+            });
+        });
+
+        ReturnCode::EBUSY
     }
 }
 
@@ -301,6 +315,25 @@ impl<'a> hil::uart::Receive<'a> for Uart<'a> {
     }
 
     fn receive_abort(&self) -> ReturnCode {
-        ReturnCode::FAIL
+        if !self.rx_busy.get() {
+            return ReturnCode::SUCCESS;
+        }
+
+        self.rx_dma.map(|dma| {
+            let (nr_bytes, _tx1, rx1, _tx2, _rx2) = dma.stop();
+
+            self.rx_client.map(move |cl| {
+                if rx1.is_some() {
+                    cl.received_buffer(
+                        rx1.unwrap(),
+                        nr_bytes,
+                        ReturnCode::ECANCEL,
+                        hil::uart::Error::Aborted,
+                    );
+                }
+            });
+        });
+
+        ReturnCode::EBUSY
     }
 }
