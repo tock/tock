@@ -13,6 +13,7 @@ use kernel::capabilities;
 use kernel::common::dynamic_deferred_call::DynamicDeferredCall;
 use kernel::common::dynamic_deferred_call::DynamicDeferredCallClientState;
 use kernel::component::Component;
+use kernel::hil::gpio::Configure;
 use kernel::Platform;
 use kernel::{create_capability, debug, static_init};
 
@@ -167,10 +168,17 @@ pub unsafe fn reset_handler() {
     // Setup the clocks: MCLK: 48MHz, HSMCLK: 12MHz, SMCLK: 1.5MHz, ACLK: 32.768kHz
     peripherals.cs.setup_clocks();
 
+    // Setup the debug GPIOs
+    let dbg_gpio0 = &peripherals.gpio.int_pins[msp432::gpio::IntPinNr::P01_0 as usize];
+    let dbg_gpio1 = &peripherals.gpio.int_pins[msp432::gpio::IntPinNr::P03_5 as usize];
+    let dbg_gpio2 = &peripherals.gpio.int_pins[msp432::gpio::IntPinNr::P03_7 as usize];
+    dbg_gpio0.make_output();
+    dbg_gpio1.make_output();
+    dbg_gpio2.make_output();
     debug::assign_gpios(
-        Some(&peripherals.gpio.int_pins[msp432::gpio::IntPinNr::P01_0 as usize]), // Red LED
-        Some(&peripherals.gpio.int_pins[msp432::gpio::IntPinNr::P03_5 as usize]),
-        Some(&peripherals.gpio.int_pins[msp432::gpio::IntPinNr::P03_7 as usize]),
+        Some(dbg_gpio0), // Red LED
+        Some(dbg_gpio1),
+        Some(dbg_gpio2),
     );
 
     // Setup pins for UART0
