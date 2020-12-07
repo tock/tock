@@ -49,9 +49,11 @@
 //! ```
 
 use core::cell::Cell;
+use core::convert::TryFrom;
+use core::mem;
+
 use kernel::hil;
-use kernel::ReturnCode;
-use kernel::{AppId, Callback, Grant, LegacyDriver};
+use kernel::{AppId, Callback, CommandResult, Driver, ErrorCode, Grant};
 
 /// Syscall driver number.
 use crate::driver;
@@ -65,7 +67,7 @@ pub enum HumidityCommand {
 
 #[derive(Default)]
 pub struct App {
-    callback: Option<Callback>,
+    callback: Callback,
     subscribed: bool,
 }
 
@@ -87,7 +89,7 @@ impl<'a> HumiditySensor<'a> {
         }
     }
 
-    fn enqueue_command(&self, command: HumidityCommand, arg1: usize, appid: AppId) -> ReturnCode {
+    fn enqueue_command(&self, command: HumidityCommand, arg1: usize, appid: AppId) -> CommandResult {
         self.apps
             .enter(appid, |app, _| {
                 if !self.busy.get() {
@@ -95,26 +97,41 @@ impl<'a> HumiditySensor<'a> {
                     self.busy.set(true);
                     self.call_driver(command, arg1)
                 } else {
-                    ReturnCode::EBUSY
+                    CommandResult::failure(ErrorCode::BUSY)
                 }
             })
-            .unwrap_or_else(|err| err.into())
+            .unwrap_or_else(|err| CommandResult::failure(err.into()))
     }
+            
+            
+            
 
-    fn call_driver(&self, command: HumidityCommand, _: usize) -> ReturnCode {
+    fn call_driver(&self, command: HumidityCommand, _: usize) -> CommandResult {
         match command {
-            HumidityCommand::ReadHumidity => self.driver.read_humidity(),
-            _ => ReturnCode::ENOSUPPORT,
+            HumidityCommand::ReadHumidity => {
+                let rcode = self.driver.read_humidity();
+                let eres = ErrorCode::try_from(rcode);
+                match eres {
+                    Ok(ecode) => CommandResult::failure(ecode),
+                    _ => CommandResult::success(),
+                }
+            },
+            _ => CommandResult::failure(ErrorCode::NOSUPPORT),
         }
     }
 
-    fn configure_callback(&self, callback: Option<Callback>, app_id: AppId) -> ReturnCode {
-        self.apps
-            .enter(app_id, |app, _| {
-                app.callback = callback;
-                ReturnCode::SUCCESS
-            })
-            .unwrap_or_else(|err| err.into())
+    fn configure_callback(&self, mut callback: Callback, app_id: AppId) -> Result<Callback, (Callback, ErrorCode)> {
+        let res = self.apps
+        .enter(app_id, |app, _| {
+            mem::swap(&mut app.callback, &mut callback);
+        })
+        .map_err(ErrorCode::from);
+      
+        if let Err(e) = res {
+            Err((callback, e))
+        } else {
+            Ok(callback)
+        }
     }
 }
 
@@ -125,36 +142,38 @@ impl hil::sensors::HumidityClient for HumiditySensor<'_> {
                 if app.subscribed {
                     self.busy.set(false);
                     app.subscribed = false;
-                    app.callback.map(|mut cb| cb.schedule(tmp_val, 0, 0));
+                    app.callback.schedule(tmp_val, 0, 0);
                 }
             });
         }
     }
 }
 
-impl LegacyDriver for HumiditySensor<'_> {
+impl Driver for HumiditySensor<'_> {
     fn subscribe(
         &self,
         subscribe_num: usize,
-        callback: Option<Callback>,
+        callback: Callback,
         app_id: AppId,
-    ) -> ReturnCode {
+    ) ->  Result<Callback, (Callback, ErrorCode)> {
         match subscribe_num {
             // subscribe to temperature reading with callback
-            0 => self.configure_callback(callback, app_id),
-            _ => ReturnCode::ENOSUPPORT,
+            0 => {
+                self.configure_callback(callback, app_id)
+            }
+            _ => Err((callback, ErrorCode::NOSUPPORT)),
         }
     }
 
-    fn command(&self, command_num: usize, arg1: usize, _: usize, appid: AppId) -> ReturnCode {
+    fn command(&self, command_num: usize, arg1: usize, _: usize, appid: AppId) -> CommandResult {
         match command_num {
             // check whether the driver exist!!
-            0 => ReturnCode::SUCCESS,
+            0 => CommandResult::success(),
 
             // single humidity measurement
             1 => self.enqueue_command(HumidityCommand::ReadHumidity, arg1, appid),
 
-            _ => ReturnCode::ENOSUPPORT,
+            _ => CommandResult::failure(ErrorCode::NOSUPPORT),
         }
     }
 }
