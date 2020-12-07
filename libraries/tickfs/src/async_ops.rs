@@ -37,15 +37,9 @@
 //!         offset: usize,
 //!         buf: &mut [u8; 1024],
 //!     ) -> Result<(), ErrorCode> {
-//!         if self.async_read_region.get() != region_number {
-//!             // We aren't ready yet, launch the async operation
-//!             self.async_read_region.set(region_number);
-//!             return Err(ErrorCode::ReadNotReady(region_number));
-//!         }
-//!
-//!         for (i, b) in buf.iter_mut().enumerate() {
-//!             *b = self.buf.borrow()[region_number][offset + i]
-//!         }
+//!          // We aren't ready yet, launch the async operation
+//!          self.async_read_region.set(region_number);
+//!          return Err(ErrorCode::ReadNotReady(region_number));
 //!
 //!         Ok(())
 //!     }
@@ -80,28 +74,37 @@
 //! let mut ret = tickfs.initalise((&mut DefaultHasher::new(), &mut DefaultHasher::new()));
 //! while ret.is_err() {
 //!     // There is no actual delay here, in a real implementation wait on some event
-//!     ret = tickfs.continue_initalise(
-//!         (&mut DefaultHasher::new(), &mut DefaultHasher::new()),
-//!     );
+//!     ret = tickfs.continue_operation(
+//!         (&mut DefaultHasher::new(), &mut DefaultHasher::new()));
+//!
+//!     match ret {
+//!         Err(ErrorCode::ReadNotReady(reg)) => {
+//!             tickfs.set_read_buffer(&tickfs.tickfs.controller.buf.borrow()[reg]);
+//!         }
+//!         Ok(_) => break,
+//!         Err(ErrorCode::WriteNotReady(reg)) => break,
+//!         Err(ErrorCode::EraseNotReady(reg)) => {}
+//!         _ => unreachable!(),
+//!     }
 //! }
 //!
 //! // Then when calling the TickFS function check for the error. For example
 //! // when appending a key:
 //!
 //! // Add a key
-//! let value: [u8; 32] = [0x23; 32];
-//! let ret = tickfs.append_key(&mut DefaultHasher::new(), b"ONE", &value);
+//! static VALUE: [u8; 32] = [0x23; 32];
+//! let ret = unsafe { tickfs.append_key(&mut DefaultHasher::new(), b"ONE", &VALUE) };
 //!
 //! match ret {
 //!     Err(ErrorCode::ReadNotReady(reg)) => {
-//!         // Then once the read operation is ready call the `continue_operation()`
-//!         // function.
-//!
-//!         let ret = tickfs.
-//!                       continue_operation(Some(&mut DefaultHasher::new()), Some(b"ONE"), Some(&value), None);
+//!         // There is no actual delay in the test, just continue now
+//!         tickfs.set_read_buffer(&tickfs.tickfs.controller.buf.borrow()[reg]);
+//!         tickfs
+//!             .continue_operation((&mut DefaultHasher::new(), &mut DefaultHasher::new()))
+//!             .unwrap();
 //!     }
-//!     Ok(_) => {},
-//!     _ => panic!("Other error"),
+//!     Ok(_) => {}
+//!     _ => unreachable!(),
 //! }
 //!
 //! ```
@@ -116,12 +119,16 @@ use crate::error_codes::ErrorCode;
 use crate::flash_controller::FlashController;
 use crate::success_codes::SuccessCode;
 use crate::tickfs::{State, TickFS};
+use core::cell::Cell;
 use core::hash::Hasher;
 
 /// The struct storing all of the TickFS information for the async implementation.
 pub struct AsyncTickFS<'a, C: FlashController<S>, H: Hasher, const S: usize> {
     /// The main tickFS struct
     pub tickfs: TickFS<'a, C, H, S>,
+    key: Cell<Option<&'static [u8]>>,
+    value: Cell<Option<&'static [u8]>>,
+    buf: Cell<Option<&'static mut [u8]>>,
 }
 
 impl<'a, C: FlashController<S>, H: Hasher, const S: usize> AsyncTickFS<'a, C, H, S> {
@@ -134,6 +141,9 @@ impl<'a, C: FlashController<S>, H: Hasher, const S: usize> AsyncTickFS<'a, C, H,
     pub fn new(controller: C, read_buffer: &'a mut [u8; S], flash_size: usize) -> Self {
         Self {
             tickfs: TickFS::<C, H, S>::new(controller, read_buffer, flash_size),
+            key: Cell::new(None),
+            value: Cell::new(None),
+            buf: Cell::new(None),
         }
     }
 
@@ -147,7 +157,7 @@ impl<'a, C: FlashController<S>, H: Hasher, const S: usize> AsyncTickFS<'a, C, H,
     /// If the specified region has not already been setup for TickFS
     /// the entire region will be erased.
     ///
-    /// On success nothing will be returned.
+    /// On success a `SuccessCode` will be returned.
     /// On error a `ErrorCode` will be returned.
     pub fn initalise(&self, hash_function: (&mut H, &mut H)) -> Result<SuccessCode, ErrorCode> {
         self.tickfs.initalise(hash_function)
@@ -166,10 +176,17 @@ impl<'a, C: FlashController<S>, H: Hasher, const S: usize> AsyncTickFS<'a, C, H,
     pub fn append_key(
         &self,
         hash_function: &mut H,
-        key: &[u8],
-        value: &[u8],
+        key: &'static [u8],
+        value: &'static [u8],
     ) -> Result<SuccessCode, ErrorCode> {
-        self.tickfs.append_key(hash_function, key, value)
+        match self.tickfs.append_key(hash_function, key, value) {
+            Ok(code) => Ok(code),
+            Err(e) => {
+                self.key.replace(Some(key));
+                self.value.replace(Some(value));
+                Err(e)
+            }
+        }
     }
 
     /// Retrieves the value from flash storage.
@@ -179,7 +196,7 @@ impl<'a, C: FlashController<S>, H: Hasher, const S: usize> AsyncTickFS<'a, C, H,
     /// `key`: A unhashed key. This will be hashed internally.
     /// `buf`: A buffer to store the value to.
     ///
-    /// On success nothing will be returned.
+    /// On success a `SuccessCode` will be returned.
     /// On error a `ErrorCode` will be returned.
     ///
     /// If a power loss occurs before success is returned the data is
@@ -187,10 +204,17 @@ impl<'a, C: FlashController<S>, H: Hasher, const S: usize> AsyncTickFS<'a, C, H,
     pub fn get_key(
         &self,
         hash_function: &mut H,
-        key: &[u8],
-        buf: &mut [u8],
+        key: &'static [u8],
+        buf: &'static mut [u8],
     ) -> Result<SuccessCode, ErrorCode> {
-        self.tickfs.get_key(hash_function, key, buf)
+        match self.tickfs.get_key(hash_function, key, buf) {
+            Ok(code) => Ok(code),
+            Err(e) => {
+                self.key.replace(Some(key));
+                self.buf.replace(Some(buf));
+                Err(e)
+            }
+        }
     }
 
     /// Invalidates the key in flash storage
@@ -199,7 +223,7 @@ impl<'a, C: FlashController<S>, H: Hasher, const S: usize> AsyncTickFS<'a, C, H,
     ///                  usually a newly created hash.
     /// `key`: A unhashed key. This will be hashed internally.
     ///
-    /// On success nothing will be returned.
+    /// On success a `SuccessCode` will be returned.
     /// On error a `ErrorCode` will be returned.
     ///
     /// If a power loss occurs before success is returned the data is
@@ -207,9 +231,15 @@ impl<'a, C: FlashController<S>, H: Hasher, const S: usize> AsyncTickFS<'a, C, H,
     pub fn invalidate_key(
         &self,
         hash_function: &mut H,
-        key: &[u8],
+        key: &'static [u8],
     ) -> Result<SuccessCode, ErrorCode> {
-        self.tickfs.invalidate_key(hash_function, key)
+        match self.tickfs.invalidate_key(hash_function, key) {
+            Ok(code) => Ok(code),
+            Err(e) => {
+                self.key.replace(Some(key));
+                Err(e)
+            }
+        }
     }
 
     /// Perform a garbage collection on TickFS
@@ -220,81 +250,52 @@ impl<'a, C: FlashController<S>, H: Hasher, const S: usize> AsyncTickFS<'a, C, H,
         self.tickfs.garbage_collect()
     }
 
-    /// Continue the initalise process after an async access.
-    ///
-    /// `H`: An implementation of a `core::hash::Hasher` trait. This MUST
-    ///      always return the same hash for the same input. That is the
-    ///      implementation can NOT change over time.
-    ///
-    /// On success nothing will be returned.
-    /// On error a `ErrorCode` will be returned.
-    pub fn continue_initalise(
-        &self,
-        hash_function: (&mut H, &mut H),
-    ) -> Result<SuccessCode, ErrorCode> {
-        let ret = self.tickfs.initalise(hash_function);
-
-        match ret {
-            Ok(_) => self.tickfs.state.set(State::None),
-            Err(e) => match e {
-                ErrorCode::ReadNotReady(_) | ErrorCode::EraseNotReady(_) => {}
-                _ => self.tickfs.state.set(State::None),
-            },
-        }
-
-        ret
+    /// Copy data from `read_buffer` argument to the internal read_buffer.
+    /// This should be used to copy the data that the implementation wanted
+    /// to read when calling `read_region` after the async operation has
+    /// completed.
+    pub fn set_read_buffer(&self, read_buffer: &[u8]) {
+        let buf = self.tickfs.read_buffer.take().unwrap();
+        buf.copy_from_slice(read_buffer);
+        self.tickfs.read_buffer.replace(Some(buf));
     }
 
-    /// Continue a previous key operation after an async access.
+    /// Continue the last operation after the async operation has completed.
+    /// This should be called from a read/erase complete callback.
+    /// NOTE: If called from a read callback, `set_read_buffer` should be
+    /// called first to update the data.
     ///
     /// `hash_function`: Hash function with no previous state. This is
     ///                  usually a newly created hash.
-    /// `key`: A unhashed key. This will be hashed internally. This key
-    ///        will be used in future to retrieve or remove the `value`.
-    /// `value`: A buffer containing the data to be stored to flash.
-    /// `buf`: A buffer to store the value to.
     ///
-    /// On success nothing will be returned.
+    /// On success a `SuccessCode` will be returned.
     /// On error a `ErrorCode` will be returned.
     pub fn continue_operation(
         &self,
-        hash_function: Option<&mut H>,
-        key: Option<&[u8]>,
-        value: Option<&[u8]>,
-        buf: Option<&mut [u8]>,
+        hash_function: (&mut H, &mut H),
     ) -> Result<SuccessCode, ErrorCode> {
         let ret = match self.tickfs.state.get() {
-            State::AppendKey(_) => {
-                self.tickfs
-                    .append_key(hash_function.unwrap(), key.unwrap(), value.unwrap())
-            }
-            State::GetKey(_) => {
-                self.tickfs
-                    .get_key(hash_function.unwrap(), key.unwrap(), buf.unwrap())
-            }
+            State::Init(_) => self.tickfs.initalise(hash_function),
+            State::AppendKey(_) => self.tickfs.append_key(
+                hash_function.0,
+                self.key.take().unwrap(),
+                self.value.take().unwrap(),
+            ),
+            State::GetKey(_) => self.tickfs.get_key(
+                hash_function.0,
+                self.key.take().unwrap(),
+                self.buf.take().unwrap(),
+            ),
+
             State::InvalidateKey(_) => self
                 .tickfs
-                .invalidate_key(hash_function.unwrap(), key.unwrap()),
+                .invalidate_key(hash_function.0, self.key.take().unwrap()),
+            State::GarbageCollect(_) => match self.tickfs.garbage_collect() {
+                Ok(_) => Ok(SuccessCode::Complete),
+                Err(e) => Err(e),
+            },
             _ => unreachable!(),
         };
-
-        match ret {
-            Ok(_) => self.tickfs.state.set(State::None),
-            Err(e) => match e {
-                ErrorCode::ReadNotReady(_) | ErrorCode::EraseNotReady(_) => {}
-                _ => self.tickfs.state.set(State::None),
-            },
-        }
-
-        ret
-    }
-
-    /// Continue the garbage collection process after an async access.
-    ///
-    /// On success the number of bytes freed will be returned.
-    /// On error a `ErrorCode` will be returned.
-    pub fn continue_garbage_collection(&self) -> Result<usize, ErrorCode> {
-        let ret = self.tickfs.garbage_collect();
 
         match ret {
             Ok(_) => self.tickfs.state.set(State::None),
@@ -521,39 +522,31 @@ mod store_flast_ctrl {
         let mut ret = tickfs.initalise((&mut DefaultHasher::new(), &mut DefaultHasher::new()));
         while ret.is_err() {
             // There is no actual delay in the test, just continue now
-            ret = tickfs.continue_initalise((&mut DefaultHasher::new(), &mut DefaultHasher::new()));
+            ret = tickfs.continue_operation((&mut DefaultHasher::new(), &mut DefaultHasher::new()));
         }
 
-        let value: [u8; 32] = [0x23; 32];
+        static VALUE: [u8; 32] = [0x23; 32];
 
-        let ret = tickfs.append_key(&mut DefaultHasher::new(), b"ONE", &value);
+        let ret = tickfs.append_key(&mut DefaultHasher::new(), b"ONE", &VALUE);
         match ret {
-            Err(ErrorCode::ReadNotReady(_reg)) => {
+            Err(ErrorCode::ReadNotReady(reg)) => {
                 // There is no actual delay in the test, just continue now
+                tickfs.set_read_buffer(&tickfs.tickfs.controller.buf.borrow()[reg]);
                 tickfs
-                    .continue_operation(
-                        Some(&mut DefaultHasher::new()),
-                        Some(b"ONE"),
-                        Some(&value),
-                        None,
-                    )
+                    .continue_operation((&mut DefaultHasher::new(), &mut DefaultHasher::new()))
                     .unwrap();
             }
             Ok(_) => {}
             _ => unreachable!(),
         }
 
-        let ret = tickfs.append_key(&mut DefaultHasher::new(), b"TWO", &value);
+        let ret = tickfs.append_key(&mut DefaultHasher::new(), b"TWO", &VALUE);
         match ret {
-            Err(ErrorCode::ReadNotReady(_reg)) => {
+            Err(ErrorCode::ReadNotReady(reg)) => {
                 // There is no actual delay in the test, just continue now
+                tickfs.set_read_buffer(&tickfs.tickfs.controller.buf.borrow()[reg]);
                 tickfs
-                    .continue_operation(
-                        Some(&mut DefaultHasher::new()),
-                        Some(b"TWO"),
-                        Some(&value),
-                        None,
-                    )
+                    .continue_operation((&mut DefaultHasher::new(), &mut DefaultHasher::new()))
                     .unwrap();
             }
             Ok(_) => {}
@@ -573,24 +566,20 @@ mod store_flast_ctrl {
         let mut ret = tickfs.initalise((&mut DefaultHasher::new(), &mut DefaultHasher::new()));
         while ret.is_err() {
             // There is no actual delay in the test, just continue now
-            ret = tickfs.continue_initalise((&mut DefaultHasher::new(), &mut DefaultHasher::new()));
+            ret = tickfs.continue_operation((&mut DefaultHasher::new(), &mut DefaultHasher::new()));
         }
 
-        let value: [u8; 32] = [0x23; 32];
-        let mut buf: [u8; 32] = [0; 32];
+        static VALUE: [u8; 32] = [0x23; 32];
+        static mut BUF: [u8; 32] = [0; 32];
 
         println!("Add key ONE");
-        let ret = tickfs.append_key(&mut DefaultHasher::new(), b"ONE", &value);
+        let ret = tickfs.append_key(&mut DefaultHasher::new(), b"ONE", &VALUE);
         match ret {
-            Err(ErrorCode::ReadNotReady(_reg)) => {
+            Err(ErrorCode::ReadNotReady(reg)) => {
                 // There is no actual delay in the test, just continue now
+                tickfs.set_read_buffer(&tickfs.tickfs.controller.buf.borrow()[reg]);
                 tickfs
-                    .continue_operation(
-                        Some(&mut DefaultHasher::new()),
-                        Some(b"ONE"),
-                        Some(&value),
-                        None,
-                    )
+                    .continue_operation((&mut DefaultHasher::new(), &mut DefaultHasher::new()))
                     .unwrap();
             }
             Ok(_) => {}
@@ -598,22 +587,21 @@ mod store_flast_ctrl {
         }
 
         println!("Get key ONE");
-        tickfs
-            .get_key(&mut DefaultHasher::new(), b"ONE", &mut buf)
-            .unwrap();
+        unsafe {
+            tickfs
+                .get_key(&mut DefaultHasher::new(), b"ONE", &mut BUF)
+                .unwrap();
+        }
 
         println!("Get non-existant key TWO");
-        let ret = tickfs.get_key(&mut DefaultHasher::new(), b"TWO", &mut buf);
+        let ret = unsafe { tickfs.get_key(&mut DefaultHasher::new(), b"TWO", &mut BUF) };
         match ret {
-            Err(ErrorCode::ReadNotReady(_reg)) => {
+            Err(ErrorCode::ReadNotReady(reg)) => {
                 // There is no actual delay in the test, just continue now
+                tickfs.set_read_buffer(&tickfs.tickfs.controller.buf.borrow()[reg]);
                 assert_eq!(
-                    tickfs.continue_operation(
-                        Some(&mut DefaultHasher::new()),
-                        Some(b"ONE"),
-                        None,
-                        Some(&mut buf),
-                    ),
+                    tickfs
+                        .continue_operation((&mut DefaultHasher::new(), &mut DefaultHasher::new())),
                     Err(ErrorCode::KeyNotFound)
                 );
             }
@@ -622,17 +610,14 @@ mod store_flast_ctrl {
         }
 
         println!("Add key ONE again");
-        let ret = tickfs.append_key(&mut DefaultHasher::new(), b"ONE", &value);
+        let ret = tickfs.append_key(&mut DefaultHasher::new(), b"ONE", &VALUE);
         match ret {
-            Err(ErrorCode::ReadNotReady(_reg)) => {
+            Err(ErrorCode::ReadNotReady(reg)) => {
                 // There is no actual delay in the test, just continue now
+                tickfs.set_read_buffer(&tickfs.tickfs.controller.buf.borrow()[reg]);
                 assert_eq!(
-                    tickfs.continue_operation(
-                        Some(&mut DefaultHasher::new()),
-                        Some(b"ONE"),
-                        Some(&value),
-                        None,
-                    ),
+                    tickfs
+                        .continue_operation((&mut DefaultHasher::new(), &mut DefaultHasher::new())),
                     Err(ErrorCode::KeyAlreadyExists)
                 );
             }
@@ -641,17 +626,13 @@ mod store_flast_ctrl {
         }
 
         println!("Add key TWO");
-        let ret = tickfs.append_key(&mut DefaultHasher::new(), b"TWO", &value);
+        let ret = tickfs.append_key(&mut DefaultHasher::new(), b"TWO", &VALUE);
         match ret {
-            Err(ErrorCode::ReadNotReady(_reg)) => {
+            Err(ErrorCode::ReadNotReady(reg)) => {
                 // There is no actual delay in the test, just continue now
+                tickfs.set_read_buffer(&tickfs.tickfs.controller.buf.borrow()[reg]);
                 tickfs
-                    .continue_operation(
-                        Some(&mut DefaultHasher::new()),
-                        Some(b"TWO"),
-                        Some(&value),
-                        None,
-                    )
+                    .continue_operation((&mut DefaultHasher::new(), &mut DefaultHasher::new()))
                     .unwrap();
             }
             Ok(_) => {}
@@ -659,17 +640,13 @@ mod store_flast_ctrl {
         }
 
         println!("Get key ONE");
-        let ret = tickfs.get_key(&mut DefaultHasher::new(), b"ONE", &mut buf);
+        let ret = unsafe { tickfs.get_key(&mut DefaultHasher::new(), b"ONE", &mut BUF) };
         match ret {
-            Err(ErrorCode::ReadNotReady(_reg)) => {
+            Err(ErrorCode::ReadNotReady(reg)) => {
                 // There is no actual delay in the test, just continue now
+                tickfs.set_read_buffer(&tickfs.tickfs.controller.buf.borrow()[reg]);
                 tickfs
-                    .continue_operation(
-                        Some(&mut DefaultHasher::new()),
-                        Some(b"ONE"),
-                        None,
-                        Some(&mut buf),
-                    )
+                    .continue_operation((&mut DefaultHasher::new(), &mut DefaultHasher::new()))
                     .unwrap();
             }
             Ok(_) => {}
@@ -677,17 +654,13 @@ mod store_flast_ctrl {
         }
 
         println!("Get key TWO");
-        let ret = tickfs.get_key(&mut DefaultHasher::new(), b"TWO", &mut buf);
+        let ret = unsafe { tickfs.get_key(&mut DefaultHasher::new(), b"TWO", &mut BUF) };
         match ret {
-            Err(ErrorCode::ReadNotReady(_reg)) => {
+            Err(ErrorCode::ReadNotReady(reg)) => {
                 // There is no actual delay in the test, just continue now
+                tickfs.set_read_buffer(&tickfs.tickfs.controller.buf.borrow()[reg]);
                 tickfs
-                    .continue_operation(
-                        Some(&mut DefaultHasher::new()),
-                        Some(b"TWO"),
-                        None,
-                        Some(&mut buf),
-                    )
+                    .continue_operation((&mut DefaultHasher::new(), &mut DefaultHasher::new()))
                     .unwrap();
             }
             Ok(_) => {}
@@ -695,17 +668,14 @@ mod store_flast_ctrl {
         }
 
         println!("Get non-existant key THREE");
-        let ret = tickfs.get_key(&mut DefaultHasher::new(), b"THREE", &mut buf);
+        let ret = unsafe { tickfs.get_key(&mut DefaultHasher::new(), b"THREE", &mut BUF) };
         match ret {
-            Err(ErrorCode::ReadNotReady(_reg)) => {
+            Err(ErrorCode::ReadNotReady(reg)) => {
                 // There is no actual delay in the test, just continue now
+                tickfs.set_read_buffer(&tickfs.tickfs.controller.buf.borrow()[reg]);
                 assert_eq!(
-                    tickfs.continue_operation(
-                        Some(&mut DefaultHasher::new()),
-                        Some(b"TWO"),
-                        None,
-                        Some(&mut buf),
-                    ),
+                    tickfs
+                        .continue_operation((&mut DefaultHasher::new(), &mut DefaultHasher::new())),
                     Err(ErrorCode::KeyNotFound)
                 );
             }
@@ -713,7 +683,7 @@ mod store_flast_ctrl {
         }
 
         assert_eq!(
-            tickfs.get_key(&mut DefaultHasher::new(), b"THREE", &mut buf),
+            unsafe { tickfs.get_key(&mut DefaultHasher::new(), b"THREE", &mut BUF) },
             Err(ErrorCode::KeyNotFound)
         );
     }
@@ -730,24 +700,20 @@ mod store_flast_ctrl {
         let mut ret = tickfs.initalise((&mut DefaultHasher::new(), &mut DefaultHasher::new()));
         while ret.is_err() {
             // There is no actual delay in the test, just continue now
-            ret = tickfs.continue_initalise((&mut DefaultHasher::new(), &mut DefaultHasher::new()));
+            ret = tickfs.continue_operation((&mut DefaultHasher::new(), &mut DefaultHasher::new()));
         }
 
-        let value: [u8; 32] = [0x23; 32];
-        let mut buf: [u8; 32] = [0; 32];
+        static VALUE: [u8; 32] = [0x23; 32];
+        static mut BUF: [u8; 32] = [0; 32];
 
         println!("Add key ONE");
-        let ret = tickfs.append_key(&mut DefaultHasher::new(), b"ONE", &value);
+        let ret = tickfs.append_key(&mut DefaultHasher::new(), b"ONE", &VALUE);
         match ret {
-            Err(ErrorCode::ReadNotReady(_reg)) => {
+            Err(ErrorCode::ReadNotReady(reg)) => {
                 // There is no actual delay in the test, just continue now
+                tickfs.set_read_buffer(&tickfs.tickfs.controller.buf.borrow()[reg]);
                 tickfs
-                    .continue_operation(
-                        Some(&mut DefaultHasher::new()),
-                        Some(b"ONE"),
-                        Some(&value),
-                        None,
-                    )
+                    .continue_operation((&mut DefaultHasher::new(), &mut DefaultHasher::new()))
                     .unwrap();
             }
             Ok(_) => {}
@@ -755,9 +721,11 @@ mod store_flast_ctrl {
         }
 
         println!("Get key ONE");
-        tickfs
-            .get_key(&mut DefaultHasher::new(), b"ONE", &mut buf)
-            .unwrap();
+        unsafe {
+            tickfs
+                .get_key(&mut DefaultHasher::new(), b"ONE", &mut BUF)
+                .unwrap();
+        }
 
         println!("Delete Key ONE");
         tickfs
@@ -766,7 +734,7 @@ mod store_flast_ctrl {
 
         println!("Get non-existant key ONE");
         assert_eq!(
-            tickfs.get_key(&mut DefaultHasher::new(), b"ONE", &mut buf),
+            unsafe { tickfs.get_key(&mut DefaultHasher::new(), b"ONE", &mut BUF) },
             Err(ErrorCode::KeyNotFound)
         );
 
@@ -789,31 +757,32 @@ mod store_flast_ctrl {
         let mut ret = tickfs.initalise((&mut DefaultHasher::new(), &mut DefaultHasher::new()));
         while ret.is_err() {
             // There is no actual delay in the test, just continue now
-            ret = tickfs.continue_initalise((&mut DefaultHasher::new(), &mut DefaultHasher::new()));
+            ret = tickfs.continue_operation((&mut DefaultHasher::new(), &mut DefaultHasher::new()));
         }
 
-        let value: [u8; 32] = [0x23; 32];
-        let mut buf: [u8; 32] = [0; 32];
+        static VALUE: [u8; 32] = [0x23; 32];
+        static mut BUF: [u8; 32] = [0; 32];
 
         println!("Garbage collect empty flash");
         let mut ret = tickfs.garbage_collect();
         while ret.is_err() {
             // There is no actual delay in the test, just continue now
-            ret = tickfs.continue_garbage_collection();
+            ret = match tickfs
+                .continue_operation((&mut DefaultHasher::new(), &mut DefaultHasher::new()))
+            {
+                Ok(_) => Ok(0),
+                Err(e) => Err(e),
+            };
         }
 
         println!("Add key ONE");
-        let ret = tickfs.append_key(&mut DefaultHasher::new(), b"ONE", &value);
+        let ret = tickfs.append_key(&mut DefaultHasher::new(), b"ONE", &VALUE);
         match ret {
-            Err(ErrorCode::ReadNotReady(_reg)) => {
+            Err(ErrorCode::ReadNotReady(reg)) => {
                 // There is no actual delay in the test, just continue now
+                tickfs.set_read_buffer(&tickfs.tickfs.controller.buf.borrow()[reg]);
                 tickfs
-                    .continue_operation(
-                        Some(&mut DefaultHasher::new()),
-                        Some(b"ONE"),
-                        Some(&value),
-                        None,
-                    )
+                    .continue_operation((&mut DefaultHasher::new(), &mut DefaultHasher::new()))
                     .unwrap();
             }
             Ok(_) => {}
@@ -824,9 +793,15 @@ mod store_flast_ctrl {
         let mut ret = tickfs.garbage_collect();
         while ret.is_err() {
             match ret {
-                Err(ErrorCode::ReadNotReady(_reg)) => {
+                Err(ErrorCode::ReadNotReady(reg)) => {
                     // There is no actual delay in the test, just continue now
-                    ret = tickfs.continue_garbage_collection();
+                    tickfs.set_read_buffer(&tickfs.tickfs.controller.buf.borrow()[reg]);
+                    ret = match tickfs
+                        .continue_operation((&mut DefaultHasher::new(), &mut DefaultHasher::new()))
+                    {
+                        Ok(_) => Ok(0),
+                        Err(e) => Err(e),
+                    };
                 }
                 Ok(num) => {
                     assert_eq!(num, 0);
@@ -838,10 +813,11 @@ mod store_flast_ctrl {
         println!("Delete Key ONE");
         let ret = tickfs.invalidate_key(&mut DefaultHasher::new(), b"ONE");
         match ret {
-            Err(ErrorCode::ReadNotReady(_reg)) => {
+            Err(ErrorCode::ReadNotReady(reg)) => {
                 // There is no actual delay in the test, just continue now
+                tickfs.set_read_buffer(&tickfs.tickfs.controller.buf.borrow()[reg]);
                 tickfs
-                    .continue_operation(Some(&mut DefaultHasher::new()), Some(b"ONE"), None, None)
+                    .continue_operation((&mut DefaultHasher::new(), &mut DefaultHasher::new()))
                     .unwrap();
             }
             Ok(_) => {}
@@ -852,13 +828,24 @@ mod store_flast_ctrl {
         let mut ret = tickfs.garbage_collect();
         while ret.is_err() {
             match ret {
-                Err(ErrorCode::ReadNotReady(_reg)) => {
+                Err(ErrorCode::ReadNotReady(reg)) => {
                     // There is no actual delay in the test, just continue now
-                    ret = tickfs.continue_garbage_collection();
+                    tickfs.set_read_buffer(&tickfs.tickfs.controller.buf.borrow()[reg]);
+                    ret = match tickfs
+                        .continue_operation((&mut DefaultHasher::new(), &mut DefaultHasher::new()))
+                    {
+                        Ok(_) => Ok(0),
+                        Err(e) => Err(e),
+                    };
                 }
                 Err(ErrorCode::EraseNotReady(_reg)) => {
                     // There is no actual delay in the test, just continue now
-                    ret = tickfs.continue_garbage_collection();
+                    ret = match tickfs
+                        .continue_operation((&mut DefaultHasher::new(), &mut DefaultHasher::new()))
+                    {
+                        Ok(_) => Ok(0),
+                        Err(e) => Err(e),
+                    };
                 }
                 Ok(num) => {
                     assert_eq!(num, 1024);
@@ -868,17 +855,14 @@ mod store_flast_ctrl {
         }
 
         println!("Get non-existant key ONE");
-        let ret = tickfs.get_key(&mut DefaultHasher::new(), b"ONE", &mut buf);
+        let ret = unsafe { tickfs.get_key(&mut DefaultHasher::new(), b"ONE", &mut BUF) };
         match ret {
-            Err(ErrorCode::ReadNotReady(_reg)) => {
+            Err(ErrorCode::ReadNotReady(reg)) => {
                 // There is no actual delay in the test, just continue now
+                tickfs.set_read_buffer(&tickfs.tickfs.controller.buf.borrow()[reg]);
                 assert_eq!(
-                    tickfs.continue_operation(
-                        Some(&mut DefaultHasher::new()),
-                        Some(b"ONE"),
-                        None,
-                        Some(&mut buf),
-                    ),
+                    tickfs
+                        .continue_operation((&mut DefaultHasher::new(), &mut DefaultHasher::new())),
                     Err(ErrorCode::KeyNotFound)
                 );
             }
@@ -888,7 +872,7 @@ mod store_flast_ctrl {
 
         println!("Add Key ONE");
         tickfs
-            .append_key(&mut DefaultHasher::new(), b"ONE", &value)
+            .append_key(&mut DefaultHasher::new(), b"ONE", &VALUE)
             .unwrap();
     }
 }
