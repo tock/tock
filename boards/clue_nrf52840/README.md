@@ -94,7 +94,7 @@ and the physical elements on the CLUE nRF52480 board.
 
 The following sensors are working so far
 
-| Sensorr | Physical Element    |
+| Sensor | Physical Element    |
 |-------------------|---------------------|
 | Proximity           | APDS9960              |
 | Temperature & Humidity | SHT31 |
