@@ -39,7 +39,7 @@ pub const DRIVER_NUM: usize = driver::NUM::AnalogComparator as usize;
 
 use core::cell::Cell;
 use kernel::hil;
-use kernel::{AppId, Callback, LegacyDriver, ReturnCode};
+use kernel::{AppId, Callback, CommandResult, Driver, ErrorCode, ReturnCode};
 
 pub struct AnalogComparator<'a, A: hil::analog_comparator::AnalogComparator<'a> + 'a> {
     // Analog Comparator driver
@@ -47,7 +47,7 @@ pub struct AnalogComparator<'a, A: hil::analog_comparator::AnalogComparator<'a> 
     channels: &'a [&'a <A as hil::analog_comparator::AnalogComparator<'a>>::Channel],
 
     // App state
-    callback: Cell<Option<Callback>>,
+    callback: Cell<Callback>,
 }
 
 impl<'a, A: hil::analog_comparator::AnalogComparator<'a>> AnalogComparator<'a, A> {
@@ -61,7 +61,7 @@ impl<'a, A: hil::analog_comparator::AnalogComparator<'a>> AnalogComparator<'a, A
             channels,
 
             // App state
-            callback: Cell::new(None),
+            callback: Cell::new(Callback::default()),
         }
     }
 
@@ -104,7 +104,7 @@ impl<'a, A: hil::analog_comparator::AnalogComparator<'a>> AnalogComparator<'a, A
     }
 }
 
-impl<'a, A: hil::analog_comparator::AnalogComparator<'a>> LegacyDriver for AnalogComparator<'a, A> {
+impl<'a, A: hil::analog_comparator::AnalogComparator<'a>> Driver for AnalogComparator<'a, A> {
     /// Control the analog comparator.
     ///
     /// ### `command_num`
@@ -119,8 +119,8 @@ impl<'a, A: hil::analog_comparator::AnalogComparator<'a>> LegacyDriver for Analo
     /// - `3`: Stop interrupt-based comparisons.
     ///        Input x chooses the desired comparator ACx (e.g. 0 or 1 for
     ///        hail, 0-3 for imix)
-    fn command(&self, command_num: usize, channel: usize, _: usize, _: AppId) -> ReturnCode {
-        match command_num {
+    fn command(&self, command_num: usize, channel: usize, _: usize, _: AppId) -> CommandResult {
+        let retcode = match command_num {
             0 => ReturnCode::SuccessWithValue {
                 value: self.channels.len() as usize,
             },
@@ -132,24 +132,25 @@ impl<'a, A: hil::analog_comparator::AnalogComparator<'a>> LegacyDriver for Analo
             3 => self.stop_comparing(channel),
 
             _ => ReturnCode::ENOSUPPORT,
-        }
+        };
+        retcode.into()
     }
 
     /// Provides a callback which can be used to signal the application
     fn subscribe(
         &self,
         subscribe_num: usize,
-        callback: Option<Callback>,
+        mut callback: Callback,
         _app_id: AppId,
-    ) -> ReturnCode {
+    ) -> Result<Callback, (Callback, ErrorCode)> {
         match subscribe_num {
             // Subscribe to all interrupts
             0 => {
-                self.callback.set(callback);
-                ReturnCode::SUCCESS
+                self.callback.swap(Cell::from_mut(&mut callback));
+                Ok(callback)
             }
             // Default
-            _ => ReturnCode::ENOSUPPORT,
+            _ => Err((callback, ErrorCode::NOSUPPORT)),
         }
     }
 }
@@ -159,8 +160,6 @@ impl<'a, A: hil::analog_comparator::AnalogComparator<'a>> hil::analog_comparator
 {
     /// Callback to userland, signaling the application
     fn fired(&self, channel: usize) {
-        self.callback
-            .get()
-            .map_or_else(|| false, |mut cb| cb.schedule(channel, 0, 0));
+        self.callback.get().schedule(channel, 0, 0);
     }
 }
