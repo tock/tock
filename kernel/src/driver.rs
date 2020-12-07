@@ -75,7 +75,6 @@ use crate::mem::legacy::{AppSlice, SharedReadWrite};
 use crate::mem::{ReadOnlyAppSlice, ReadWriteAppSlice};
 use crate::returncode::ReturnCode;
 use crate::syscall::GenericSyscallReturnValue;
-use core::convert::TryFrom;
 
 /// Possible return values of a `command` driver method
 ///
@@ -159,16 +158,6 @@ impl From<ReturnCode> for CommandResult {
                 panic!("SuccessWithValue is deprecated");
             } //TODO: delete before Tock 2.0
             _ => CommandResult::failure(ErrorCode::try_from(rc).unwrap()),
-        }
-    }
-}
-
-impl From<ReturnCode> for CommandResult {
-    fn from(rc: ReturnCode) -> Self {
-        match rc {
-            ReturnCode::SuccessWithValue { value } => Self::success_u32(value as u32),
-            ReturnCode::SUCCESS => Self::success(),
-            _ => Self::failure(ErrorCode::try_from(rc).unwrap()),
         }
     }
 }
