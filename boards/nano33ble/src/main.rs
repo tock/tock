@@ -102,6 +102,10 @@ pub struct Platform {
     >,
     ieee802154_radio: &'static capsules::ieee802154::RadioDriver<'static>,
     console: &'static capsules::console::Console<'static>,
+    pconsole: &'static capsules::process_console::ProcessConsole<
+        'static,
+        components::process_console::Capability,
+    >,
     proximity: &'static capsules::proximity::ProximitySensor<'static>,
     gpio: &'static capsules::gpio::GPIO<'static, nrf52::gpio::GPIOPin<'static>>,
     led: &'static capsules::led::LedDriver<'static, LedLow<'static, nrf52::gpio::GPIOPin<'static>>>,
@@ -274,6 +278,10 @@ pub unsafe fn reset_handler() {
     let uart_mux = components::console::UartMuxComponent::new(cdc, 115200, dynamic_deferred_caller)
         .finalize(());
 
+    let pconsole =
+        components::process_console::ProcessConsoleComponent::new(board_kernel, uart_mux)
+            .finalize(());
+
     // Setup the console.
     let console = components::console::ConsoleComponent::new(board_kernel, uart_mux).finalize(());
     // Create the debugger object that handles calls to `debug!()`.
@@ -369,14 +377,15 @@ pub unsafe fn reset_handler() {
     nrf52_components::NrfClockComponent::new().finalize(());
 
     let platform = Platform {
-        ble_radio: ble_radio,
-        ieee802154_radio: ieee802154_radio,
-        console: console,
-        proximity: proximity,
-        led: led,
-        gpio: gpio,
-        rng: rng,
-        alarm: alarm,
+        ble_radio,
+        ieee802154_radio,
+        console,
+        pconsole,
+        proximity,
+        led,
+        gpio,
+        rng,
+        alarm,
         ipc: kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability),
     };
 
@@ -408,6 +417,7 @@ pub unsafe fn reset_handler() {
     // );
 
     debug!("Initialization complete. Entering main loop.");
+    platform.pconsole.start();
 
     //--------------------------------------------------------------------------
     // PROCESSES AND MAIN LOOP
