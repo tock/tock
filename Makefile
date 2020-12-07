@@ -198,8 +198,8 @@ ci-nosetup:
 .PHONY: prepush
 prepush:\
 	format\
-	ci-job-syntax\
-	ci-job-clippy
+	ci-job-clippy\
+	ci-job-syntax
 	$(call banner,Pre-Push checks all passed!)
 	# Note: Tock runs additional and more intense CI checks on all PRs.
 	# If one of these error, you can run `make ci-job-NAME` to test locally.
