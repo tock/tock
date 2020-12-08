@@ -413,19 +413,10 @@ pub unsafe fn reset_handler() {
     );
     sht3x.reset();
 
-    let temperature = static_init!(
-        capsules::temperature::TemperatureSensor<'static>,
-        capsules::temperature::TemperatureSensor::new(sht3x, board_kernel.create_grant(&grant_cap))
-    );
+    let temperature =
+        components::temperature::TemperatureComponent::new(board_kernel, sht3x).finalize(());
 
-    kernel::hil::sensors::TemperatureDriver::set_client(sht3x, temperature);
-
-    let humidity = static_init!(
-        capsules::humidity::HumiditySensor<'static>,
-        capsules::humidity::HumiditySensor::new(sht3x, board_kernel.create_grant(&grant_cap))
-    );
-
-    kernel::hil::sensors::HumidityDriver::set_client(sht3x, humidity);
+    let humidity = components::humidity::HumidityComponent::new(board_kernel, sht3x).finalize(());
 
     //--------------------------------------------------------------------------
     // TFT
