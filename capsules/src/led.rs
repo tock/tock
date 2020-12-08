@@ -105,7 +105,7 @@ impl<L: led::Led> Driver for LedDriver<'_, L> {
                             leds[data].on();
                             CommandResult::success()
                         }
-                    },
+                    }
 
                     // off
                     2 => {
@@ -115,7 +115,7 @@ impl<L: led::Led> Driver for LedDriver<'_, L> {
                             leds[data].off();
                             CommandResult::success()
                         }
-                    },
+                    }
 
                     // toggle
                     3 => {
@@ -125,7 +125,7 @@ impl<L: led::Led> Driver for LedDriver<'_, L> {
                             leds[data].toggle();
                             CommandResult::success()
                         }
-                    },
+                    }
 
                     // default
                     _ => CommandResult::failure(ErrorCode::NOSUPPORT),

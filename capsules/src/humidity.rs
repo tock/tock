@@ -89,7 +89,12 @@ impl<'a> HumiditySensor<'a> {
         }
     }
 
-    fn enqueue_command(&self, command: HumidityCommand, arg1: usize, appid: AppId) -> CommandResult {
+    fn enqueue_command(
+        &self,
+        command: HumidityCommand,
+        arg1: usize,
+        appid: AppId,
+    ) -> CommandResult {
         self.apps
             .enter(appid, |app, _| {
                 if !self.busy.get() {
@@ -102,9 +107,6 @@ impl<'a> HumiditySensor<'a> {
             })
             .unwrap_or_else(|err| CommandResult::failure(err.into()))
     }
-            
-            
-            
 
     fn call_driver(&self, command: HumidityCommand, _: usize) -> CommandResult {
         match command {
@@ -115,18 +117,23 @@ impl<'a> HumiditySensor<'a> {
                     Ok(ecode) => CommandResult::failure(ecode),
                     _ => CommandResult::success(),
                 }
-            },
+            }
             _ => CommandResult::failure(ErrorCode::NOSUPPORT),
         }
     }
 
-    fn configure_callback(&self, mut callback: Callback, app_id: AppId) -> Result<Callback, (Callback, ErrorCode)> {
-        let res = self.apps
-        .enter(app_id, |app, _| {
-            mem::swap(&mut app.callback, &mut callback);
-        })
-        .map_err(ErrorCode::from);
-      
+    fn configure_callback(
+        &self,
+        mut callback: Callback,
+        app_id: AppId,
+    ) -> Result<Callback, (Callback, ErrorCode)> {
+        let res = self
+            .apps
+            .enter(app_id, |app, _| {
+                mem::swap(&mut app.callback, &mut callback);
+            })
+            .map_err(ErrorCode::from);
+
         if let Err(e) = res {
             Err((callback, e))
         } else {
@@ -155,12 +162,10 @@ impl Driver for HumiditySensor<'_> {
         subscribe_num: usize,
         callback: Callback,
         app_id: AppId,
-    ) ->  Result<Callback, (Callback, ErrorCode)> {
+    ) -> Result<Callback, (Callback, ErrorCode)> {
         match subscribe_num {
             // subscribe to temperature reading with callback
-            0 => {
-                self.configure_callback(callback, app_id)
-            }
+            0 => self.configure_callback(callback, app_id),
             _ => Err((callback, ErrorCode::NOSUPPORT)),
         }
     }
