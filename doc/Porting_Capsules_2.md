@@ -330,6 +330,26 @@ as a `Callback` where the `Option` is `None`. This is then encapsulated
 within the call to `Callback::schedule`, where the Null Callback does
 nothing.
 
+In cases where a `Callback` is stored in a `Cell`, one does not need to
+use `mem::swap`. Instead, one can use `Cell::replace`. For example:
+
+```rust
+ fn subscribe(
+        &self,
+        subscribe_num: usize,
+        callback: Callback,
+        _app_id: AppId,
+    ) -> Result<Callback, (Callback, ErrorCode)> {
+        match subscribe_num {
+            0 => Ok(self.callback.replace(callback)),
+            _ => Err((callback, ErrorCode::NOSUPPORT)),
+        }
+    }
+}
+```
+
+
+
 ### Using `ReadOnlyAppSlice` and `ReadWriteAppSlice`
 
 One key change in the Tock 2.0 API is explicitly acknowledging that
