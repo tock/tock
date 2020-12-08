@@ -38,6 +38,7 @@ use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::AnalogComparator as usize;
 
 use core::cell::Cell;
+use core::convert::TryFrom;
 use kernel::hil;
 use kernel::{AppId, Callback, CommandResult, Driver, ErrorCode, ReturnCode};
 
@@ -120,35 +121,38 @@ impl<'a, A: hil::analog_comparator::AnalogComparator<'a>> Driver for AnalogCompa
     ///        Input x chooses the desired comparator ACx (e.g. 0 or 1 for
     ///        hail, 0-3 for imix)
     fn command(&self, command_num: usize, channel: usize, _: usize, _: AppId) -> CommandResult {
-        let retcode = match command_num {
-            0 => ReturnCode::SuccessWithValue {
-                value: self.channels.len() as usize,
+        match command_num {
+            0 => CommandResult::success_u32(self.channels.len() as u32),
+
+            1 => match ErrorCode::try_from(self.comparison(channel)) {
+                Err(_) => CommandResult::success(),
+                Ok(e) => CommandResult::failure(e),
             },
 
-            1 => self.comparison(channel),
+            2 => match ErrorCode::try_from(self.start_comparing(channel)) {
+                Err(_) => CommandResult::success(),
+                Ok(e) => CommandResult::failure(e),
+            },
 
-            2 => self.start_comparing(channel),
+            3 => match ErrorCode::try_from(self.stop_comparing(channel)) {
+                Err(_) => CommandResult::success(),
+                Ok(e) => CommandResult::failure(e),
+            },
 
-            3 => self.stop_comparing(channel),
-
-            _ => ReturnCode::ENOSUPPORT,
-        };
-        retcode.into()
+            _ => CommandResult::failure(ErrorCode::NOSUPPORT),
+        }
     }
 
     /// Provides a callback which can be used to signal the application
     fn subscribe(
         &self,
         subscribe_num: usize,
-        mut callback: Callback,
+        callback: Callback,
         _app_id: AppId,
     ) -> Result<Callback, (Callback, ErrorCode)> {
         match subscribe_num {
             // Subscribe to all interrupts
-            0 => {
-                self.callback.swap(Cell::from_mut(&mut callback));
-                Ok(callback)
-            }
+            0 => Ok(self.callback.replace(callback)),
             // Default
             _ => Err((callback, ErrorCode::NOSUPPORT)),
         }
