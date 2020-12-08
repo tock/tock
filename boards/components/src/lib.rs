@@ -16,6 +16,7 @@ pub mod fxos8700;
 pub mod gpio;
 pub mod hd44780;
 pub mod hmac;
+pub mod humidity;
 pub mod i2c;
 pub mod ieee802154;
 pub mod isl29035;
