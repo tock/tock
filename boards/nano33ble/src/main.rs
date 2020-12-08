@@ -61,6 +61,7 @@ const APDS9960_PIN: Pin = Pin::P0_19;
 /// UART Writer for panic!()s.
 pub mod io;
 
+#[allow(dead_code)]
 mod test;
 
 // State for loading and holding applications.
