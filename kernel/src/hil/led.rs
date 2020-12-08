@@ -16,22 +16,22 @@ pub trait Led {
 
 /// For LEDs in which on is when GPIO is high.
 pub struct LedHigh<'a, P: gpio::Pin> {
-    pub pin: &'a mut P,
+    pub pin: &'a P,
 }
 
 /// For LEDs in which on is when GPIO is low.
 pub struct LedLow<'a, P: gpio::Pin> {
-    pub pin: &'a mut P,
+    pub pin: &'a P,
 }
 
 impl<'a, P: gpio::Pin> LedHigh<'a, P> {
-    pub fn new(p: &'a mut P) -> Self {
+    pub fn new(p: &'a P) -> Self {
         Self { pin: p }
     }
 }
 
 impl<'a, P: gpio::Pin> LedLow<'a, P> {
-    pub fn new(p: &'a mut P) -> Self {
+    pub fn new(p: &'a P) -> Self {
         Self { pin: p }
     }
 }

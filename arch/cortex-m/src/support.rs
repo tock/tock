@@ -22,12 +22,12 @@ where
     F: FnOnce() -> R,
 {
     // Set PRIMASK
-    llvm_asm!("cpsid i" :::: "volatile");
+    asm!("cpsid i", options(nomem, nostack));
 
     let res = f();
 
     // Unset PRIMASK
-    llvm_asm!("cpsie i" :::: "volatile");
+    asm!("cpsie i", options(nomem, nostack));
     return res;
 }
 

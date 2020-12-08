@@ -105,9 +105,9 @@ impl Wdt {
 
 impl kernel::watchdog::WatchDog for Wdt {
     fn setup(&self) {
-        // The clock-source of the watchdog is the SMCLK which runs at 750kHz. We configure a
-        // prescaler of 2^15 which results in a watchdog interval of approximately 44ms ->
-        // 2^15 / 750_000Hz = 32768 / 750_000 = 0.04369s
+        // The clock-source of the watchdog is the SMCLK which runs at 1.5MHz. We configure a
+        // prescaler of 2^15 which results in a watchdog interval of approximately 22ms ->
+        // 2^15 / 1_500_000Hz = 32768 / 1_500_000 = 0.02184s
 
         // According to the datasheet p. 759 section 17.2.3 it's necessary to disable the watchdog
         // before setting it up and it's also necessary to set the WDTCNTCL bit within the same

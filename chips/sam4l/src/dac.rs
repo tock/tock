@@ -121,18 +121,16 @@ pub struct Dac {
     enabled: Cell<bool>,
 }
 
-pub static mut DAC: Dac = Dac::new(DAC_BASE);
-
 impl Dac {
-    const fn new(base_address: StaticRef<DacRegisters>) -> Dac {
-        Dac {
-            registers: base_address,
+    pub const fn new() -> Self {
+        Self {
+            registers: DAC_BASE,
             enabled: Cell::new(false),
         }
     }
 
     // Not currently using interrupt.
-    pub fn handle_interrupt(&mut self) {}
+    pub fn handle_interrupt(&self) {}
 }
 
 impl hil::dac::DacChannel for Dac {

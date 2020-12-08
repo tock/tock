@@ -38,13 +38,6 @@ use kernel::hil;
 use kernel::ReturnCode;
 use nrf5x::pinmux::Pinmux;
 
-/// SPI master instance 0.
-pub static mut SPIM0: SPIM = SPIM::new(0);
-/// SPI master instance 1.
-pub static mut SPIM1: SPIM = SPIM::new(1);
-/// SPI master instance 2.
-pub static mut SPIM2: SPIM = SPIM::new(2);
-
 const INSTANCES: [StaticRef<SpimRegisters>; 3] = unsafe {
     [
         StaticRef::new(0x40003000 as *const SpimRegisters),
@@ -251,7 +244,7 @@ pub struct SPIM {
 }
 
 impl SPIM {
-    const fn new(instance: usize) -> SPIM {
+    pub const fn new(instance: usize) -> SPIM {
         SPIM {
             registers: INSTANCES[instance],
             client: OptionalCell::empty(),
@@ -277,14 +270,14 @@ impl SPIM {
             self.chip_select.map(|cs| cs.set());
             self.registers.events_end.write(EVENT::EVENT::CLEAR);
 
+            self.busy.set(false);
+
             self.client.map(|client| match self.tx_buf.take() {
                 None => (),
                 Some(tx_buf) => {
                     client.read_write_done(tx_buf, self.rx_buf.take(), self.transfer_len.take())
                 }
             });
-
-            self.busy.set(false);
         }
 
         // Although we only configured the chip interrupt on the

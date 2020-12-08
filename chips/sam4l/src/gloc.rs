@@ -53,9 +53,13 @@ pub struct Gloc {
     lut_regs: [StaticRef<GlocRegisters>; 2],
 }
 
-pub static mut GLOC: Gloc = Gloc {
-    lut_regs: [get_lut_reg(Lut::Lut0), get_lut_reg(Lut::Lut1)],
-};
+impl Gloc {
+    pub const fn new() -> Self {
+        Self {
+            lut_regs: [get_lut_reg(Lut::Lut0), get_lut_reg(Lut::Lut1)],
+        }
+    }
+}
 
 /// Gets the memory location of the memory-mapped registers of a LUT.
 const fn get_lut_reg(lut: Lut) -> StaticRef<GlocRegisters> {

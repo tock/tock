@@ -31,7 +31,7 @@ use kernel::{static_init, static_init_half};
 // Setup static space for the objects.
 #[macro_export]
 macro_rules! nv_storage_component_helper {
-    ($F:ty) => {{
+    ($F:ty $(,)?) => {{
         use capsules::nonvolatile_to_pages::NonvolatileToPages;
         use core::mem::MaybeUninit;
         use kernel::hil;

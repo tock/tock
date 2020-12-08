@@ -54,7 +54,7 @@ doc/rustdoc
 Cargo.lock
 
 # The QEMU build directory
-tools/qemu-build
+tools/qemu/build
 
 # Python scripts
 __pycache__

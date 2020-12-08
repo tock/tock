@@ -8,7 +8,7 @@ use kernel::static_init_half;
 
 #[macro_export]
 macro_rules! multi_alarm_test_component_buf {
-    ($A:ty) => {{
+    ($A:ty $(,)?) => {{
         use capsules::test::random_alarm::TestRandomAlarm;
         use capsules::virtual_alarm::VirtualMuxAlarm;
         use core::mem::MaybeUninit;

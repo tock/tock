@@ -204,10 +204,6 @@ pub enum BitmodeValue {
     Size32Bits = 3,
 }
 
-pub static mut TIMER0: TimerAlarm = TimerAlarm::new(0);
-pub static mut ALARM1: TimerAlarm = TimerAlarm::new(1);
-pub static mut TIMER2: Timer = Timer::new(2);
-
 pub trait CompareClient {
     /// Passes a bitmask of which of the 4 compares/captures fired (0x0-0xf).
     fn compare(&self, bitmask: u8);
@@ -271,7 +267,7 @@ const CC_CAPTURE: usize = 0;
 const CC_COMPARE: usize = 1;
 
 impl<'a> TimerAlarm<'a> {
-    const fn new(instance: usize) -> TimerAlarm<'a> {
+    pub const fn new(instance: usize) -> TimerAlarm<'a> {
         TimerAlarm {
             registers: INSTANCES[instance],
             client: OptionalCell::empty(),

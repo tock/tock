@@ -8,13 +8,6 @@ use kernel::common::StaticRef;
 use kernel::hil;
 use kernel::hil::i2c;
 
-pub static mut IOM0: Iom = Iom::new(IOM0_BASE);
-pub static mut IOM1: Iom = Iom::new(IOM1_BASE);
-pub static mut IOM2: Iom = Iom::new(IOM2_BASE);
-pub static mut IOM3: Iom = Iom::new(IOM3_BASE);
-pub static mut IOM4: Iom = Iom::new(IOM4_BASE);
-pub static mut IOM5: Iom = Iom::new(IOM5_BASE);
-
 const IOM0_BASE: StaticRef<IomRegisters> =
     unsafe { StaticRef::new(0x5000_4000 as *const IomRegisters) };
 const IOM1_BASE: StaticRef<IomRegisters> =
@@ -281,9 +274,69 @@ pub struct Iom<'a> {
 }
 
 impl<'a> Iom<'_> {
-    pub const fn new(base: StaticRef<IomRegisters>) -> Iom<'a> {
+    pub const fn new0() -> Iom<'a> {
         Iom {
-            registers: base,
+            registers: IOM0_BASE,
+            master_client: OptionalCell::empty(),
+            buffer: TakeCell::empty(),
+            write_len: Cell::new(0),
+            write_index: Cell::new(0),
+            read_len: Cell::new(0),
+            read_index: Cell::new(0),
+            smbus: Cell::new(false),
+        }
+    }
+    pub const fn new1() -> Iom<'a> {
+        Iom {
+            registers: IOM1_BASE,
+            master_client: OptionalCell::empty(),
+            buffer: TakeCell::empty(),
+            write_len: Cell::new(0),
+            write_index: Cell::new(0),
+            read_len: Cell::new(0),
+            read_index: Cell::new(0),
+            smbus: Cell::new(false),
+        }
+    }
+    pub const fn new2() -> Iom<'a> {
+        Iom {
+            registers: IOM2_BASE,
+            master_client: OptionalCell::empty(),
+            buffer: TakeCell::empty(),
+            write_len: Cell::new(0),
+            write_index: Cell::new(0),
+            read_len: Cell::new(0),
+            read_index: Cell::new(0),
+            smbus: Cell::new(false),
+        }
+    }
+    pub const fn new3() -> Iom<'a> {
+        Iom {
+            registers: IOM3_BASE,
+            master_client: OptionalCell::empty(),
+            buffer: TakeCell::empty(),
+            write_len: Cell::new(0),
+            write_index: Cell::new(0),
+            read_len: Cell::new(0),
+            read_index: Cell::new(0),
+            smbus: Cell::new(false),
+        }
+    }
+    pub const fn new4() -> Iom<'a> {
+        Iom {
+            registers: IOM4_BASE,
+            master_client: OptionalCell::empty(),
+            buffer: TakeCell::empty(),
+            write_len: Cell::new(0),
+            write_index: Cell::new(0),
+            read_len: Cell::new(0),
+            read_index: Cell::new(0),
+            smbus: Cell::new(false),
+        }
+    }
+    pub const fn new5() -> Iom<'a> {
+        Iom {
+            registers: IOM5_BASE,
             master_client: OptionalCell::empty(),
             buffer: TakeCell::empty(),
             write_len: Cell::new(0),
@@ -305,6 +358,10 @@ impl<'a> Iom<'_> {
         let regs = self.registers;
         let mut data_pushed = self.write_index.get();
         let len = self.write_len.get();
+
+        if data_pushed == len {
+            return;
+        }
 
         self.buffer.map(|buf| {
             // Push some data to FIFO
@@ -334,14 +391,14 @@ impl<'a> Iom<'_> {
 
                     regs.fifopush.set(d);
                 } else if len % 4 == 2 {
-                    let mut d = (buf[len as usize - 2] as u32) << 8;
-                    d |= (buf[len as usize - 1] as u32) << 0;
+                    let mut d = (buf[len as usize - 1] as u32) << 8;
+                    d |= (buf[len as usize - 2] as u32) << 0;
 
                     regs.fifopush.set(d);
                 } else if len % 4 == 3 {
-                    let mut d = (buf[len as usize - 3] as u32) << 16;
+                    let mut d = (buf[len as usize - 1] as u32) << 16;
                     d |= (buf[len as usize - 2] as u32) << 8;
-                    d |= (buf[len as usize - 1] as u32) << 0;
+                    d |= (buf[len as usize - 3] as u32) << 0;
 
                     regs.fifopush.set(d);
                 }
@@ -355,12 +412,16 @@ impl<'a> Iom<'_> {
         let mut data_popped = self.read_index.get();
         let len = self.read_len.get();
 
+        if data_popped == len {
+            return;
+        }
+
         self.buffer.map(|buf| {
             // Pop some data from the FIFO
             for i in (data_popped / 4)..(len / 4) {
                 let data_idx = i * 4;
 
-                if regs.fifoptr.read(FIFOPTR::FIFO1REM) <= 4 {
+                if regs.fifoptr.read(FIFOPTR::FIFO1SIZ) < 4 {
                     self.read_index.set(data_popped as usize);
                     break;
                 }

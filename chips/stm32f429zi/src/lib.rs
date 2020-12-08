@@ -4,6 +4,7 @@ use cortexm4::generic_isr;
 
 pub use stm32f4xx::{adc, chip, dbg, dma1, exti, gpio, nvic, rcc, spi, syscfg, tim2, usart};
 
+pub mod interrupt_service;
 pub mod stm32f429zi_nvic;
 
 // STM32F42xxx and STM32F43xxx has total of 91 interrupts

@@ -1,5 +1,4 @@
 #![no_std]
-#![feature(const_in_array_repeat_expressions)]
 
 pub mod adc;
 pub mod alarm;
@@ -9,9 +8,11 @@ pub mod button;
 pub mod cdc;
 pub mod console;
 pub mod crc;
+pub mod ctap;
 pub mod debug_queue;
 pub mod debug_writer;
 pub mod ft6x06;
+pub mod fxos8700;
 pub mod gpio;
 pub mod hd44780;
 pub mod hmac;

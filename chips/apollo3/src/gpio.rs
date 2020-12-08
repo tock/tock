@@ -8,11 +8,72 @@ use kernel::common::registers::{register_bitfields, register_structs, ReadWrite}
 use kernel::common::StaticRef;
 use kernel::hil::gpio;
 
+pub const GPIO_BASE_RAW: usize = 0x4001_0000; //safe to export outside crate
+
 const GPIO_BASE: StaticRef<GpioRegisters> =
-    unsafe { StaticRef::new(0x4001_0000 as *const GpioRegisters) };
+    unsafe { StaticRef::new(GPIO_BASE_RAW as *const GpioRegisters) };
 
 pub struct Port<'a> {
     pins: [GpioPin<'a>; 50],
+}
+
+impl<'a> Port<'a> {
+    pub const fn new() -> Self {
+        Self {
+            pins: [
+                GpioPin::new(GPIO_BASE, Pin::Pin00),
+                GpioPin::new(GPIO_BASE, Pin::Pin01),
+                GpioPin::new(GPIO_BASE, Pin::Pin02),
+                GpioPin::new(GPIO_BASE, Pin::Pin03),
+                GpioPin::new(GPIO_BASE, Pin::Pin04),
+                GpioPin::new(GPIO_BASE, Pin::Pin05),
+                GpioPin::new(GPIO_BASE, Pin::Pin06),
+                GpioPin::new(GPIO_BASE, Pin::Pin07),
+                GpioPin::new(GPIO_BASE, Pin::Pin08),
+                GpioPin::new(GPIO_BASE, Pin::Pin09),
+                GpioPin::new(GPIO_BASE, Pin::Pin10),
+                GpioPin::new(GPIO_BASE, Pin::Pin11),
+                GpioPin::new(GPIO_BASE, Pin::Pin12),
+                GpioPin::new(GPIO_BASE, Pin::Pin13),
+                GpioPin::new(GPIO_BASE, Pin::Pin14),
+                GpioPin::new(GPIO_BASE, Pin::Pin15),
+                GpioPin::new(GPIO_BASE, Pin::Pin16),
+                GpioPin::new(GPIO_BASE, Pin::Pin17),
+                GpioPin::new(GPIO_BASE, Pin::Pin18),
+                GpioPin::new(GPIO_BASE, Pin::Pin19),
+                GpioPin::new(GPIO_BASE, Pin::Pin20),
+                GpioPin::new(GPIO_BASE, Pin::Pin21),
+                GpioPin::new(GPIO_BASE, Pin::Pin22),
+                GpioPin::new(GPIO_BASE, Pin::Pin23),
+                GpioPin::new(GPIO_BASE, Pin::Pin24),
+                GpioPin::new(GPIO_BASE, Pin::Pin25),
+                GpioPin::new(GPIO_BASE, Pin::Pin26),
+                GpioPin::new(GPIO_BASE, Pin::Pin27),
+                GpioPin::new(GPIO_BASE, Pin::Pin28),
+                GpioPin::new(GPIO_BASE, Pin::Pin29),
+                GpioPin::new(GPIO_BASE, Pin::Pin30),
+                GpioPin::new(GPIO_BASE, Pin::Pin31),
+                GpioPin::new(GPIO_BASE, Pin::Pin32),
+                GpioPin::new(GPIO_BASE, Pin::Pin33),
+                GpioPin::new(GPIO_BASE, Pin::Pin34),
+                GpioPin::new(GPIO_BASE, Pin::Pin35),
+                GpioPin::new(GPIO_BASE, Pin::Pin36),
+                GpioPin::new(GPIO_BASE, Pin::Pin37),
+                GpioPin::new(GPIO_BASE, Pin::Pin38),
+                GpioPin::new(GPIO_BASE, Pin::Pin39),
+                GpioPin::new(GPIO_BASE, Pin::Pin40),
+                GpioPin::new(GPIO_BASE, Pin::Pin41),
+                GpioPin::new(GPIO_BASE, Pin::Pin42),
+                GpioPin::new(GPIO_BASE, Pin::Pin43),
+                GpioPin::new(GPIO_BASE, Pin::Pin44),
+                GpioPin::new(GPIO_BASE, Pin::Pin45),
+                GpioPin::new(GPIO_BASE, Pin::Pin46),
+                GpioPin::new(GPIO_BASE, Pin::Pin47),
+                GpioPin::new(GPIO_BASE, Pin::Pin48),
+                GpioPin::new(GPIO_BASE, Pin::Pin49),
+            ],
+        }
+    }
 }
 
 impl<'a> Index<usize> for Port<'a> {
@@ -144,61 +205,6 @@ enum_from_primitive! {
         Pin48, Pin49,
     }
 }
-
-pub static mut PORT: Port = Port {
-    pins: [
-        GpioPin::new(GPIO_BASE, Pin::Pin00),
-        GpioPin::new(GPIO_BASE, Pin::Pin01),
-        GpioPin::new(GPIO_BASE, Pin::Pin02),
-        GpioPin::new(GPIO_BASE, Pin::Pin03),
-        GpioPin::new(GPIO_BASE, Pin::Pin04),
-        GpioPin::new(GPIO_BASE, Pin::Pin05),
-        GpioPin::new(GPIO_BASE, Pin::Pin06),
-        GpioPin::new(GPIO_BASE, Pin::Pin07),
-        GpioPin::new(GPIO_BASE, Pin::Pin08),
-        GpioPin::new(GPIO_BASE, Pin::Pin09),
-        GpioPin::new(GPIO_BASE, Pin::Pin10),
-        GpioPin::new(GPIO_BASE, Pin::Pin11),
-        GpioPin::new(GPIO_BASE, Pin::Pin12),
-        GpioPin::new(GPIO_BASE, Pin::Pin13),
-        GpioPin::new(GPIO_BASE, Pin::Pin14),
-        GpioPin::new(GPIO_BASE, Pin::Pin15),
-        GpioPin::new(GPIO_BASE, Pin::Pin16),
-        GpioPin::new(GPIO_BASE, Pin::Pin17),
-        GpioPin::new(GPIO_BASE, Pin::Pin18),
-        GpioPin::new(GPIO_BASE, Pin::Pin19),
-        GpioPin::new(GPIO_BASE, Pin::Pin20),
-        GpioPin::new(GPIO_BASE, Pin::Pin21),
-        GpioPin::new(GPIO_BASE, Pin::Pin22),
-        GpioPin::new(GPIO_BASE, Pin::Pin23),
-        GpioPin::new(GPIO_BASE, Pin::Pin24),
-        GpioPin::new(GPIO_BASE, Pin::Pin25),
-        GpioPin::new(GPIO_BASE, Pin::Pin26),
-        GpioPin::new(GPIO_BASE, Pin::Pin27),
-        GpioPin::new(GPIO_BASE, Pin::Pin28),
-        GpioPin::new(GPIO_BASE, Pin::Pin29),
-        GpioPin::new(GPIO_BASE, Pin::Pin30),
-        GpioPin::new(GPIO_BASE, Pin::Pin31),
-        GpioPin::new(GPIO_BASE, Pin::Pin32),
-        GpioPin::new(GPIO_BASE, Pin::Pin33),
-        GpioPin::new(GPIO_BASE, Pin::Pin34),
-        GpioPin::new(GPIO_BASE, Pin::Pin35),
-        GpioPin::new(GPIO_BASE, Pin::Pin36),
-        GpioPin::new(GPIO_BASE, Pin::Pin37),
-        GpioPin::new(GPIO_BASE, Pin::Pin38),
-        GpioPin::new(GPIO_BASE, Pin::Pin39),
-        GpioPin::new(GPIO_BASE, Pin::Pin40),
-        GpioPin::new(GPIO_BASE, Pin::Pin41),
-        GpioPin::new(GPIO_BASE, Pin::Pin42),
-        GpioPin::new(GPIO_BASE, Pin::Pin43),
-        GpioPin::new(GPIO_BASE, Pin::Pin44),
-        GpioPin::new(GPIO_BASE, Pin::Pin45),
-        GpioPin::new(GPIO_BASE, Pin::Pin46),
-        GpioPin::new(GPIO_BASE, Pin::Pin47),
-        GpioPin::new(GPIO_BASE, Pin::Pin48),
-        GpioPin::new(GPIO_BASE, Pin::Pin49),
-    ],
-};
 
 register_structs! {
     pub GpioRegisters {
@@ -482,7 +488,7 @@ impl<'a> GpioPin<'a> {
     pub const fn new(base: StaticRef<GpioRegisters>, pin: Pin) -> GpioPin<'a> {
         GpioPin {
             registers: base,
-            pin: pin,
+            pin,
             client: OptionalCell::empty(),
         }
     }

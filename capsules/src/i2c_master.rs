@@ -205,6 +205,7 @@ impl<I: i2c::I2CMaster> i2c::I2CHwMasterClient for I2CMasterDriver<I> {
                         for n in 0..read_len {
                             app_buffer.as_mut()[n] = buffer[n];
                         }
+                        app.slice.replace(app_buffer);
                     } else {
                         // app has requested read but we have no buffer
                         // should not arrive here

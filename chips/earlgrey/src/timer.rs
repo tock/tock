@@ -60,9 +60,9 @@ pub struct RvTimer<'a> {
 }
 
 impl<'a> RvTimer<'a> {
-    const fn new(base: StaticRef<TimerRegisters>) -> RvTimer<'a> {
+    pub const fn new() -> RvTimer<'a> {
         RvTimer {
-            registers: base,
+            registers: TIMER_BASE,
             alarm_client: OptionalCell::empty(),
             overflow_client: OptionalCell::empty(),
         }
@@ -194,5 +194,3 @@ impl<'a> time::Alarm<'a> for RvTimer<'a> {
 
 const TIMER_BASE: StaticRef<TimerRegisters> =
     unsafe { StaticRef::new(0x4008_0000 as *const TimerRegisters) };
-
-pub static mut TIMER: RvTimer = RvTimer::new(TIMER_BASE);

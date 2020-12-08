@@ -69,11 +69,11 @@ blink app, first press the button on the board twice in rapid succession to
 enter the bootloader, and then:
 
 ```
-$ bossac -i -e -o 0x20000 -w build/cortex-m4/cortex-m4.tbf -R
+$ bossac -i -e -o 0x40000 -w build/cortex-m4/cortex-m4.tbf -R
 ```
 
 That tells the BOSSA tool to flash the application in the Tock Binary Format to
-the correct offset (the app will end up at address 0x30000). You may also need
+the correct offset (the app will end up at address 0x50000). You may also need
 to pass the `--port` flag.
 
 ### Userspace Resource Mapping

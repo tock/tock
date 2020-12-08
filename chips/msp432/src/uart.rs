@@ -9,8 +9,6 @@ use kernel::common::StaticRef;
 use kernel::hil;
 use kernel::ReturnCode;
 
-pub static mut UART0: Uart<'static> = Uart::new(usci::USCI_A0_BASE, 0, 1, 1, 1);
-
 const DEFAULT_CLOCK_FREQ_HZ: u32 = crate::cs::SMCLK_HZ;
 
 struct BaudFraction {
@@ -77,15 +75,15 @@ pub struct Uart<'a> {
 }
 
 impl<'a> Uart<'a> {
-    pub(crate) const fn new(
-        regs: StaticRef<UsciARegisters>,
+    pub const fn new(
+        registers: StaticRef<UsciARegisters>,
         tx_dma_chan: usize,
         rx_dma_chan: usize,
         tx_dma_src: u8,
         rx_dma_src: u8,
-    ) -> Uart<'static> {
-        Uart {
-            registers: regs,
+    ) -> Self {
+        Self {
+            registers,
             clock_frequency: DEFAULT_CLOCK_FREQ_HZ,
 
             tx_client: OptionalCell::empty(),
@@ -269,7 +267,21 @@ impl<'a> hil::uart::Transmit<'a> for Uart<'a> {
     }
 
     fn transmit_abort(&self) -> ReturnCode {
-        ReturnCode::FAIL
+        if !self.tx_busy.get() {
+            return ReturnCode::SUCCESS;
+        }
+
+        self.tx_dma.map(|dma| {
+            let (nr_bytes, tx1, _rx1, _tx2, _rx2) = dma.stop();
+
+            self.tx_client.map(move |cl| {
+                if tx1.is_some() {
+                    cl.transmitted_buffer(tx1.unwrap(), nr_bytes, ReturnCode::ECANCEL);
+                }
+            });
+        });
+
+        ReturnCode::EBUSY
     }
 }
 
@@ -303,6 +315,25 @@ impl<'a> hil::uart::Receive<'a> for Uart<'a> {
     }
 
     fn receive_abort(&self) -> ReturnCode {
-        ReturnCode::FAIL
+        if !self.rx_busy.get() {
+            return ReturnCode::SUCCESS;
+        }
+
+        self.rx_dma.map(|dma| {
+            let (nr_bytes, _tx1, rx1, _tx2, _rx2) = dma.stop();
+
+            self.rx_client.map(move |cl| {
+                if rx1.is_some() {
+                    cl.received_buffer(
+                        rx1.unwrap(),
+                        nr_bytes,
+                        ReturnCode::ECANCEL,
+                        hil::uart::Error::Aborted,
+                    );
+                }
+            });
+        });
+
+        ReturnCode::EBUSY
     }
 }

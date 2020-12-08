@@ -25,7 +25,7 @@ use kernel::static_init_half;
 // Setup static space for the objects.
 #[macro_export]
 macro_rules! crc_component_helper {
-    ($C:ty) => {{
+    ($C:ty $(,)?) => {{
         use capsules::crc;
         use core::mem::MaybeUninit;
         static mut BUF: MaybeUninit<crc::Crc<'static, $C>> = MaybeUninit::uninit();

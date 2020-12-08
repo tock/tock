@@ -1,25 +1,45 @@
-use crate::gpio;
-use crate::peripheral_interrupts;
-use nrf52::interrupt_service::InterruptService;
+use crate::deferred_call_tasks::DeferredCallTask;
+use nrf52::chip::Nrf52DefaultPeripherals;
 
-pub struct Nrf52840InterruptService {
-    nrf52: nrf52::interrupt_service::Nrf52InterruptService<'static>,
+/// This struct, when initialized, instantiates all peripheral drivers for the nrf52840.
+/// If a board wishes to use only a subset of these peripherals, this
+/// should not be used or imported, and a modified version should be
+/// constructed manually in main.rs.
+//create all base nrf52 peripherals
+pub struct Nrf52840DefaultPeripherals<'a> {
+    pub nrf52: Nrf52DefaultPeripherals<'a>,
+    pub usbd: crate::usbd::Usbd<'a>,
 }
 
-impl Nrf52840InterruptService {
-    pub unsafe fn new() -> Nrf52840InterruptService {
-        Nrf52840InterruptService {
-            nrf52: nrf52::interrupt_service::Nrf52InterruptService::new(&gpio::PORT),
+impl<'a> Nrf52840DefaultPeripherals<'a> {
+    pub unsafe fn new(ppi: &'a crate::ppi::Ppi) -> Self {
+        Self {
+            // Note: The use of the global static mut crate::gpio::PORT
+            // does not fit with the updated model of not using globals
+            // to instantiate peripherals, however it is unergonomic
+            // to transition it to the new model until `min_const_generics`
+            // is made stable, such that there can be a shared Port type
+            // across chips with different numbers of gpio pins.
+            nrf52: Nrf52DefaultPeripherals::new(&crate::gpio::PORT, ppi),
+            usbd: crate::usbd::Usbd::new(),
         }
     }
+    // Necessary for setting up circular dependencies
+    pub fn init(&'a self) {
+        self.nrf52.pwr_clk.set_usb_client(&self.usbd);
+        self.usbd.set_power_ref(&self.nrf52.pwr_clk);
+        self.nrf52.init();
+    }
 }
-
-impl InterruptService for Nrf52840InterruptService {
+impl<'a> kernel::InterruptService<DeferredCallTask> for Nrf52840DefaultPeripherals<'a> {
     unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt {
-            peripheral_interrupts::USBD => nrf52::usbd::USBD.handle_interrupt(),
+            crate::peripheral_interrupts::USBD => self.usbd.handle_interrupt(),
             _ => return self.nrf52.service_interrupt(interrupt),
         }
         true
+    }
+    unsafe fn service_deferred_call(&self, task: DeferredCallTask) -> bool {
+        self.nrf52.service_deferred_call(task)
     }
 }

@@ -136,7 +136,7 @@ const FSMC_BASE: StaticRef<FsmcBankRegisters> =
 
 /// FSMC Bank
 #[repr(C)]
-struct FsmcBank {
+pub struct FsmcBank {
     /// Address
     reg: ReadWrite<u16>,
     /// Data
@@ -151,15 +151,17 @@ pub enum FsmcBanks {
     Bank4 = 3,
 }
 
-const FSMC_BANK1: StaticRef<FsmcBank> = unsafe { StaticRef::new(0x60000000 as *const FsmcBank) };
+pub const FSMC_BANK1: StaticRef<FsmcBank> =
+    unsafe { StaticRef::new(0x60000000 as *const FsmcBank) };
 // const FSMC_BANK2_RESERVED: StaticRef<FsmcBank> = unsafe { StaticRef::new(0x0 as *const FsmcBank) };
-const FSMC_BANK3: StaticRef<FsmcBank> = unsafe { StaticRef::new(0x68000000 as *const FsmcBank) };
+pub const FSMC_BANK3: StaticRef<FsmcBank> =
+    unsafe { StaticRef::new(0x68000000 as *const FsmcBank) };
 // const FSMC_BANK4_RESERVED: StaticRef<FsmcBank> = unsafe { StaticRef::new(0x0 as *const FsmcBank) };
 
-pub struct Fsmc {
+pub struct Fsmc<'a> {
     registers: StaticRef<FsmcBankRegisters>,
     bank: [Option<StaticRef<FsmcBank>>; 4],
-    clock: FsmcClock,
+    clock: FsmcClock<'a>,
 
     client: OptionalCell<&'static dyn Client>,
 
@@ -168,15 +170,15 @@ pub struct Fsmc {
     len: Cell<usize>,
 }
 
-impl Fsmc {
-    const fn new(
-        base_addr: StaticRef<FsmcBankRegisters>,
-        bank_addr: [Option<StaticRef<FsmcBank>>; 4],
-    ) -> Fsmc {
-        Fsmc {
-            registers: base_addr,
+impl<'a> Fsmc<'a> {
+    pub const fn new(bank_addr: [Option<StaticRef<FsmcBank>>; 4], rcc: &'a rcc::Rcc) -> Self {
+        Self {
+            registers: FSMC_BASE,
             bank: bank_addr,
-            clock: FsmcClock(rcc::PeripheralClock::AHB3(rcc::HCLK3::FMC)),
+            clock: FsmcClock(rcc::PeripheralClock::new(
+                rcc::PeripheralClockType::AHB3(rcc::HCLK3::FMC),
+                rcc,
+            )),
             client: OptionalCell::empty(),
 
             buffer: TakeCell::empty(),
@@ -273,9 +275,9 @@ impl Fsmc {
     }
 }
 
-struct FsmcClock(rcc::PeripheralClock);
+struct FsmcClock<'a>(rcc::PeripheralClock<'a>);
 
-impl ClockInterface for FsmcClock {
+impl ClockInterface for FsmcClock<'_> {
     fn is_enabled(&self) -> bool {
         self.0.is_enabled()
     }
@@ -289,7 +291,7 @@ impl ClockInterface for FsmcClock {
     }
 }
 
-impl Bus8080<'static> for Fsmc {
+impl Bus8080<'static> for Fsmc<'_> {
     fn set_addr(&self, addr_width: BusWidth, addr: usize) -> ReturnCode {
         match addr_width {
             BusWidth::Bits8 => {
@@ -357,5 +359,3 @@ impl Bus8080<'static> for Fsmc {
         self.client.replace(client);
     }
 }
-
-pub static mut FSMC: Fsmc = Fsmc::new(FSMC_BASE, [Some(FSMC_BANK1), None, Some(FSMC_BANK3), None]);

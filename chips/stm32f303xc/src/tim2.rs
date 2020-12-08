@@ -311,18 +311,19 @@ const TIM2_BASE: StaticRef<Tim2Registers> =
 
 pub struct Tim2<'a> {
     registers: StaticRef<Tim2Registers>,
-    clock: Tim2Clock,
+    clock: Tim2Clock<'a>,
     client: OptionalCell<&'a dyn AlarmClient>,
     irqn: u32,
 }
 
-pub static mut TIM2: Tim2<'static> = Tim2::new();
-
-impl Tim2<'_> {
-    const fn new() -> Self {
+impl<'a> Tim2<'a> {
+    pub const fn new(rcc: &'a rcc::Rcc) -> Self {
         Self {
             registers: TIM2_BASE,
-            clock: Tim2Clock(rcc::PeripheralClock::APB1(rcc::PCLK1::TIM2)),
+            clock: Tim2Clock(rcc::PeripheralClock::new(
+                rcc::PeripheralClockType::APB1(rcc::PCLK1::TIM2),
+                rcc,
+            )),
             client: OptionalCell::empty(),
             irqn: nvic::TIM2,
         }
@@ -442,9 +443,9 @@ impl<'a> Alarm<'a> for Tim2<'a> {
     }
 }
 
-struct Tim2Clock(rcc::PeripheralClock);
+struct Tim2Clock<'a>(rcc::PeripheralClock<'a>);
 
-impl ClockInterface for Tim2Clock {
+impl ClockInterface for Tim2Clock<'_> {
     fn is_enabled(&self) -> bool {
         self.0.is_enabled()
     }

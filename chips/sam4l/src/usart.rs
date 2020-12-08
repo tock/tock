@@ -393,33 +393,8 @@ pub struct USART<'a> {
     client: OptionalCell<UsartClient<'a>>,
 
     spi_chip_select: OptionalCell<&'a dyn hil::gpio::Pin>,
+    pm: &'a pm::PowerManager,
 }
-
-// USART hardware peripherals on SAM4L
-pub static mut USART0: USART = USART::new(
-    USART_BASE_ADDRS[0],
-    pm::PBAClock::USART0,
-    dma::DMAPeripheral::USART0_RX,
-    dma::DMAPeripheral::USART0_TX,
-);
-pub static mut USART1: USART = USART::new(
-    USART_BASE_ADDRS[1],
-    pm::PBAClock::USART1,
-    dma::DMAPeripheral::USART1_RX,
-    dma::DMAPeripheral::USART1_TX,
-);
-pub static mut USART2: USART = USART::new(
-    USART_BASE_ADDRS[2],
-    pm::PBAClock::USART2,
-    dma::DMAPeripheral::USART2_RX,
-    dma::DMAPeripheral::USART2_TX,
-);
-pub static mut USART3: USART = USART::new(
-    USART_BASE_ADDRS[3],
-    pm::PBAClock::USART3,
-    dma::DMAPeripheral::USART3_RX,
-    dma::DMAPeripheral::USART3_TX,
-);
 
 impl<'a> USART<'a> {
     const fn new(
@@ -427,6 +402,7 @@ impl<'a> USART<'a> {
         clock: pm::PBAClock,
         rx_dma_peripheral: dma::DMAPeripheral,
         tx_dma_peripheral: dma::DMAPeripheral,
+        pm: &'a pm::PowerManager,
     ) -> USART<'a> {
         USART {
             registers: base_addr,
@@ -450,7 +426,48 @@ impl<'a> USART<'a> {
 
             // This is only used if the USART is in SPI mode.
             spi_chip_select: OptionalCell::empty(),
+            pm,
         }
+    }
+
+    pub const fn new_usart0(pm: &'a pm::PowerManager) -> Self {
+        USART::new(
+            USART_BASE_ADDRS[0],
+            pm::PBAClock::USART0,
+            dma::DMAPeripheral::USART0_RX,
+            dma::DMAPeripheral::USART0_TX,
+            pm,
+        )
+    }
+
+    pub const fn new_usart1(pm: &'a pm::PowerManager) -> Self {
+        USART::new(
+            USART_BASE_ADDRS[1],
+            pm::PBAClock::USART1,
+            dma::DMAPeripheral::USART1_RX,
+            dma::DMAPeripheral::USART1_TX,
+            pm,
+        )
+    }
+
+    pub const fn new_usart2(pm: &'a pm::PowerManager) -> Self {
+        USART::new(
+            USART_BASE_ADDRS[2],
+            pm::PBAClock::USART2,
+            dma::DMAPeripheral::USART2_RX,
+            dma::DMAPeripheral::USART2_TX,
+            pm,
+        )
+    }
+
+    pub const fn new_usart3(pm: &'a pm::PowerManager) -> Self {
+        USART::new(
+            USART_BASE_ADDRS[3],
+            pm::PBAClock::USART3,
+            dma::DMAPeripheral::USART3_RX,
+            dma::DMAPeripheral::USART3_TX,
+            pm,
+        )
     }
 
     pub fn set_dma(&self, rx_dma: &'a dma::DMAChannel, tx_dma: &'a dma::DMAChannel) {
@@ -686,7 +703,7 @@ impl<'a> USART<'a> {
     }
 
     fn set_baud_rate(&self, usart: &USARTRegManager, baud_rate: u32) {
-        let system_frequency = pm::get_system_frequency();
+        let system_frequency = self.pm.get_system_frequency();
 
         // The clock divisor is calculated differently in UART and SPI modes.
         match self.usart_mode.get() {
@@ -1144,14 +1161,14 @@ impl spi::SpiMaster for USART<'_> {
         self.set_baud_rate(usart, rate);
 
         // Calculate what rate will actually be
-        let system_frequency = pm::get_system_frequency();
+        let system_frequency = self.pm.get_system_frequency();
         let cd = system_frequency / rate;
         system_frequency / cd
     }
 
     fn get_rate(&self) -> u32 {
         let usart = &USARTRegManager::new(&self);
-        let system_frequency = pm::get_system_frequency();
+        let system_frequency = self.pm.get_system_frequency();
         let cd = usart.registers.brgr.read(BaudRate::CD);
         system_frequency / cd
     }
