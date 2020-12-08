@@ -1,28 +1,28 @@
-# TickFS Technical Details
+# TicKV Technical Details
 
-## How TickFS works
+## How TicKV works
 
-Unlike a regular File System (FS) TickFS is only designed to store Key/Value (KV)
+Unlike a regular File System (FS) TicKV is only designed to store Key/Value (KV)
 pairs in flash. It does not support writing actual files, directories or other
 complex objects. Although a traditional file system layer could be added on top
 to add such features.
 
-TickFS allows writing new key/value pairs (by appending them) and removing
+TicKV allows writing new key/value pairs (by appending them) and removing
 old key/value pairs.
 
-Similar to (Yaffs1)[https://yaffs.net/documents/how-yaffs-works] TickFS uses a
+Similar to (Yaffs1)[https://yaffs.net/documents/how-yaffs-works] TicKV uses a
 log structure and circles over the flash data. This means that the file
 system is inherently wear leveling as we don't regularly write to the same
 flash region.
 
 ## Storage Format
 
-TickFS flash storage is formatted as a sorting of regions with each region
-containing TickFS objects.
+TicKV flash storage is formatted as a sorting of regions with each region
+containing TicKV objects.
 
-### TickFS Regions
+### TicKV Regions
 
-A TickFS region is the smallest set of contiguous flash storage space that can
+A TicKV region is the smallest set of contiguous flash storage space that can
 be erased with a single command.
 
 For example if a flash controller allows erasing lengths of 1024 (0x400) bytes
@@ -31,17 +31,17 @@ then the length of a region will be 1024 (0x400) bytes.
 The number of regions is determined by the capacity of the flash storage and
 the size of regions.
 
-The start and end address of flash used for TickFS must be region aligned.
+The start and end address of flash used for TicKV must be region aligned.
 
-### TickFS Objects
+### TicKV Objects
 
-A TickFS object is the representation of a key/value pair in flash. An object
+A TicKV object is the representation of a key/value pair in flash. An object
 contains the value to be saved as well as useful header data.
 
-TickFS saves and reads objects from flash. TickFS objects contain the value
+TicKV saves and reads objects from flash. TicKV objects contain the value
 the user wanted to store as well as extra header data.
 
-A TickFS object consists of multiple parts:
+A TicKV object consists of multiple parts:
 
 ```
 |||||||||||||||||
@@ -72,7 +72,7 @@ struct ObjectHeader {
 }
 ```
 
-The `version` field is a byte containing the version of TickFS used when the
+The `version` field is a byte containing the version of TicKV used when the
 object was written.
 This allows us to upgrade this library in the future, while still supporting
 old data formats.
@@ -99,12 +99,12 @@ header and check sum. The maximum length of the entire object is
 
 The `hashed_key` field stores the 64-bit (8 byte) output of the key hash.
 
-ObjectHeader is internal to TickFS and users of TickFS do not need to
+ObjectHeader is internal to TicKV and users of TicKV do not need to
 understand it.
 
 #### Object Value
 
-The Value component of the TickFS object is the value that the user wants to
+The Value component of the TicKV object is the value that the user wants to
 store.
 
 The values can be any length as long as they follow both:
@@ -124,20 +124,20 @@ for the checksum.
 
 ### Object overhead
 
-Currently the overhead of an TickFS object is 21 bytes. Most of this is the 8
+Currently the overhead of an TicKV object is 21 bytes. Most of this is the 8
 bytes for the key hash and 8 bytes for a checksum.
 
 ### Location of objects
 
-The region where a TickFS object is stored is dependent on the output of the
+The region where a TicKV object is stored is dependent on the output of the
 key hash and the number of regions.
 
-TickFS determines the region an object will be stored or retrieved from using
+TicKV determines the region an object will be stored or retrieved from using
 region numbers, starting from 0. The region number of an object is equal to the
 last two bytes of an object hashed-key modulo the number of regions.
 
 This will produce a number that is between zero and the total number of
-TickFS regions. This number is the regions number where the data is stored
+TicKV regions. This number is the regions number where the data is stored
 or loaded from.
 
 This allows us to quickly determine which flash region a key is stored in. This
@@ -183,18 +183,18 @@ full `garbage_collect()` will not be called automatically.
 ### Initialisation
 
 When setting up a block of flash for the first time the entire size of flash
-is erased. Then a super key called "tickfs-super-key" is added with no
+is erased. Then a super key called "tickv-super-key" is added with no
 attached data.
 
 On future initialisation the implementation will check for the
-"tickfs-super-key" key. If it exists no erase operations will occur. If it
+"tickv-super-key" key. If it exists no erase operations will occur. If it
 doesn't exist the entire block of flash will be erased.
 
 ## What is looks like in flash
 
 ### Adding a key
 
-This is an example of what `TickFS::new(..., 0xC00, 0x400)` will
+This is an example of what `TicKV::new(..., 0xC00, 0x400)` will
 look like in flash.
 
 ```
@@ -229,7 +229,7 @@ region 1 of 3.
 --------------------------------------------------------------------------
 ```
 
-Where the TickFS object ONE will look like this
+Where the TicKV object ONE will look like this
 
 ```
 0x400                                                                                              0x42C
@@ -405,11 +405,11 @@ flash will be the `valid` flag. The object header for ONE will now look like:
 No changes will happen in flash until key TWO has also been invalidated.
 At which point `garbage_collect()` can erase the region.
 
-## Limitations of TickFS
+## Limitations of TicKV
 
 ### Fragmentation
 
-Although TickFS has a `garbage_collect()` function, it makes no effort to
+Although TicKV has a `garbage_collect()` function, it makes no effort to
 handle fragmentation.
 
 That means that if you have the following objects in a region
@@ -452,7 +452,7 @@ on it breaking the wear levelling requirement.
 
 ### Somewhat high storage overhead
 
-The storage overhead is somewhat high for TickFS. This is mostly due to the
+The storage overhead is somewhat high for TicKV. This is mostly due to the
 two 64-bit hashes that are stored with every object.
 
 The 64-bit value is determined by the output of the standard Rust
@@ -479,17 +479,17 @@ offloading.
 
 ### Memory usage
 
-At a minimum TickFS requires a `PageSize` amount of free memory to store the
+At a minimum TicKV requires a `PageSize` amount of free memory to store the
 buffer obtained when reading flash. This could be reduced by instead performing
 multiple reads of a smaller fixed size.
 
 ### Synchronous and Asynchronous Usage
 
-TickFS supports both an synchronous and asynchronous usage. For developers
+TicKV supports both an synchronous and asynchronous usage. For developers
 used to Tock's callback method the the async usage might seem strange and
 sub-optimal. There are a few reasons that it is done this way.
 
-One of the goals of TickFS is to allow other non Tock users to use it. The
+One of the goals of TicKV is to allow other non Tock users to use it. The
 current method should allow the library to be used to crates.io by other
 developers.
 
@@ -498,13 +498,13 @@ only a single flash bank all flash writes and erases must be done synchronously.
 The synchronous API should allow these type of operations to occur.
 
 On top of that it is much simpler to unit test a synchronous API. This means the
-TickFS implementation can take advantage of a large range of unit tests to
+TicKV implementation can take advantage of a large range of unit tests to
 ensure correctness in the design. This is more difficult and complex to do in
 a async only operation.
 
 The async functions (see the documentation) can be used to implement a fully
 async operation. This is done using a "retry" method, such that special busy
 error codes indicate operations should be retried. This ends up being easier to
-implement as TickFS uses loops to find keys. This could be split out into
+implement as TicKV uses loops to find keys. This could be split out into
 callbacks, but it is expected that the end result will look very similar as the
 callbacks will maintain state and then restart the loop where it last left off.

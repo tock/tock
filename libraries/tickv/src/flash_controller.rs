@@ -10,7 +10,7 @@ use crate::error_codes::ErrorCode;
 ///
 /// The size of the regions (pages) must be the smallest size that can be
 /// erased in a single operation. This is specified as the constant `S`
-/// when implementing `FlashController` and `TickFS` and it must match
+/// when implementing `FlashController` and `TicKV` and it must match
 /// the length of the `read_buffer`.
 ///
 /// The start and end address of the FlashController must be aligned
@@ -23,8 +23,8 @@ use crate::error_codes::ErrorCode;
 /// The boiler plate for an implementation will look something like this
 ///
 /// ```rust
-/// use tickfs::error_codes::ErrorCode;
-/// use tickfs::flash_controller::FlashController;
+/// use tickv::error_codes::ErrorCode;
+/// use tickv::flash_controller::FlashController;
 ///
 /// #[derive(Default)]
 /// struct FlashCtrl {}

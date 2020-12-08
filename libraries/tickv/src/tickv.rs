@@ -1,4 +1,4 @@
-//! The TickFS implementation.
+//! The TicKV implementation.
 
 use crate::error_codes::ErrorCode;
 use crate::flash_controller::FlashController;
@@ -7,7 +7,7 @@ use core::cell::Cell;
 use core::hash::{Hash, Hasher};
 use core::marker::PhantomData;
 
-/// The current version of TickFS
+/// The current version of TicKV
 pub const VERSION: u8 = 0;
 
 #[derive(Clone, Copy, PartialEq)]
@@ -52,8 +52,8 @@ pub(crate) enum State {
     GarbageCollect(RubbishState),
 }
 
-/// The struct storing all of the TickFS information.
-pub struct TickFS<'a, C: FlashController<S>, H: Hasher, const S: usize> {
+/// The struct storing all of the TicKV information.
+pub struct TicKV<'a, C: FlashController<S>, H: Hasher, const S: usize> {
     /// The controller used for flash commands
     pub controller: C,
     flash_size: usize,
@@ -62,7 +62,7 @@ pub struct TickFS<'a, C: FlashController<S>, H: Hasher, const S: usize> {
     pub(crate) state: Cell<State>,
 }
 
-/// This is the current object header used for TickFS objects
+/// This is the current object header used for TicKV objects
 struct ObjectHeader {
     version: u8,
     // In reality this is a u4.
@@ -93,16 +93,16 @@ pub(crate) const HASH_OFFSET: usize = 3;
 pub(crate) const HEADER_LENGTH: usize = HASH_OFFSET + 8;
 pub(crate) const CHECK_SUM_LEN: usize = 8;
 
-const MAIN_KEY: &[u8; 16] = b"tickfs-super-key";
+const MAIN_KEY: &[u8; 15] = b"tickv-super-key";
 
-/// This is the main TickFS struct.
-impl<'a, C: FlashController<S>, H: Hasher, const S: usize> TickFS<'a, C, H, S> {
+/// This is the main TicKV struct.
+impl<'a, C: FlashController<S>, H: Hasher, const S: usize> TicKV<'a, C, H, S> {
     /// Create a new struct
     ///
     /// `C`: An implementation of the `FlashController` trait
     ///
     /// `controller`: An new struct implementing `FlashController`
-    /// `flash_size`: The total size of the flash used for TickFS
+    /// `flash_size`: The total size of the flash used for TicKV
     pub fn new(controller: C, read_buffer: &'a mut [u8; S], flash_size: usize) -> Self {
         Self {
             controller,
@@ -120,7 +120,7 @@ impl<'a, C: FlashController<S>, H: Hasher, const S: usize> TickFS<'a, C, H, S> {
     ///      always return the same hash for the same input. That is the
     ///      implementation can NOT change over time.
     ///
-    /// If the specified region has not already been setup for TickFS
+    /// If the specified region has not already been setup for TicKV
     /// the entire region will be erased.
     ///
     /// On success nothing will be returned.
@@ -830,7 +830,7 @@ impl<'a, C: FlashController<S>, H: Hasher, const S: usize> TickFS<'a, C, H, S> {
         Ok(S)
     }
 
-    /// Perform a garbage collection on TickFS
+    /// Perform a garbage collection on TicKV
     ///
     /// On success the number of bytes freed will be returned.
     /// On error a `ErrorCode` will be returned.

@@ -59,7 +59,7 @@ members = [
     "libraries/tock-cells",
     "libraries/tock-register-interface",
     "libraries/tock-rt0",
-    "libraries/tickfs",
+    "libraries/tickv",
 ]
 exclude = [
     "tools/alert_codes",

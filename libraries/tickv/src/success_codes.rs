@@ -1,4 +1,4 @@
-//! The standard success codes used by TickFS.
+//! The standard success codes used by TicKV.
 
 /// Standard success codes.
 #[derive(Clone, Copy, Debug, PartialEq)]

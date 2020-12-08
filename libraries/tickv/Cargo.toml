@@ -1,5 +1,5 @@
 [package]
-name = "tickfs"
+name = "tickv"
 repository = "https://github.com/tock/tock"
 version = "0.1.0"
 authors = ["Alistair Francis <alistair.francis@wdc.com>"]
