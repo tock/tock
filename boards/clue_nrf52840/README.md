@@ -55,20 +55,15 @@ This previous step will create a TAB (`.tab` file) that normally tockloader
 would use to program on the board. However, tockloader is currently not
 supported.
 
-Modify the `APP` variable in the `Makefile` to point towards the TBF file.
-
-```makefile
-APP=../../../libtock-c/examples/screen/build/cortex-m4/cortex-m4.tbf
-
-```
+Define the `APP` variable in to point towards the TBF file.
 
 At this point you should be able to simply run `make program-apps` in this directory
 to install a fresh kernel with the app(s).
 
-You will need to specify the port like so:
+You will need to specify the port and the app as shown in thhe example:
 
 ```
-$ make program-apps PORT=<serial port path>
+$ make program-apps PORT=<serial port path> APP=<path to TBF>
 ```
 
 ### Userspace Resource Mapping
