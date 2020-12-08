@@ -6,8 +6,8 @@
 
 use capsules::rng;
 use capsules::test::virtual_rng::TestRng;
-use kernel::hil::rng::Rng;
 use kernel::hil::entropy::Entropy32;
+use kernel::hil::rng::Rng;
 use kernel::{debug, static_init};
 
 pub unsafe fn run(trng: &'static dyn Entropy32<'static>) {
