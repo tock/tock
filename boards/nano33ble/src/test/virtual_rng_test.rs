@@ -1,19 +1,20 @@
 //! Test file for the virtual_rng
 //! To run this test, include the code
 //! ```
-//!    test::virtual_rng_test::run();
+//!    test::virtual_rng_test::run(&base_peripherals.trng);
 //! ```
 
 use capsules::rng;
 use capsules::test::virtual_rng::TestRng;
 use kernel::hil::rng::Rng;
+use kernel::hil::entropy::Entropy32;
 use kernel::{debug, static_init};
 
-pub unsafe fn run() {
+pub unsafe fn run(trng: &'static dyn Entropy32<'static>) {
     debug!("Starting virtual_rng get tests:");
     let rng_obj = static_init!(
         rng::Entropy32ToRandom<'static>,
-        rng::Entropy32ToRandom::new(&nrf52::trng::TRNG)
+        rng::Entropy32ToRandom::new(trng)
     );
 
     // Create virtual rng mux device

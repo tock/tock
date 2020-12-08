@@ -69,9 +69,6 @@ const PAN_ID: u16 = 0xABCD;
 /// UART Writer for panic!()s.
 pub mod io;
 
-#[allow(dead_code)]
-mod test;
-
 // State for loading and holding applications.
 // How should the kernel respond when a process faults.
 const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultResponse::Panic;
