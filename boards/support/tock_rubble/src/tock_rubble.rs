@@ -1,55 +1,56 @@
-#![no_std]
 //! Interface crate between Tock and the third party library Rubble.
 //!
-//! This implements the [`kernel::hil::rubble`] interface using the Rubble library.
-use kernel::{
-    common::cells::TakeCell,
-    hil::{
-        ble_advertising::{BleAdvertisementDriver, BleConfig, RadioChannel},
-        rubble::{self as rubble_hil, RubbleCmd, RubbleDataDriver, RubbleImplementation},
-        time::Alarm,
-    },
-    ReturnCode,
-};
+//! This implements the [`kernel::hil::rubble`] interface using the Rubble
+//! library.
+//!
+//! The naming can be confusing in this adapter because the name "rubble" is
+//! used on both sides (in the actual Rubble library and in the kernel
+//! interfaces). To try to keep the Rust types separated, `rubble::` corresponds
+//! to the Rubble library, and `hil::rubble` corresponds to the interfaces in
+//! Tock.
 
 use core::marker::PhantomData;
-use rubble::{
-    bytes::{ByteReader, ByteWriter, FromBytes, ToBytes},
-    config::Config,
-    link::{
-        ad_structure::AdStructure, advertising, data, queue::PacketQueue, AddressKind, Cmd,
-        DeviceAddress, LinkLayer, NextUpdate, RadioCmd, Responder, Transmitter,
-    },
-    time::{Duration, Instant},
-    Error,
-};
-use rubble_hil::{RubbleBleRadio, RubbleLinkLayer, RubblePacketQueue, RubbleResponder};
-use timer::TimerWrapper;
+
+// Include traits so we can call the included functions.
+use rubble::bytes::FromBytes;
+use rubble::bytes::ToBytes;
+use rubble::link::queue::PacketQueue;
+
+use kernel::common::cells::TakeCell;
+use kernel::hil;
+use kernel::hil::ble_advertising;
+use kernel::hil::time;
+use kernel::ReturnCode;
+
+use crate::refcell_packet_queue;
+use crate::timer_wrapper;
 
 /// A packet buffer that can hold header and payload of any advertising or data
 /// channel packet supported by rubble.
-pub type PacketBuffer = [u8; MIN_PDU_BUF];
-
-pub use rubble::link::MIN_PDU_BUF;
-
-mod refcell_packet_queue;
-mod timer;
+pub type PacketBuffer = [u8; rubble::link::MIN_PDU_BUF];
 
 static RX_PACKET_QUEUE: refcell_packet_queue::RefCellQueue =
     refcell_packet_queue::RefCellQueue::new();
 static TX_PACKET_QUEUE: refcell_packet_queue::RefCellQueue =
     refcell_packet_queue::RefCellQueue::new();
 
+/// The main struct that provides the glue between Tock and Rubble.
 #[derive(Default)]
-pub struct Implementation<'a, A, R>(PhantomData<(&'a A, R)>)
+pub struct TockRubble<'a, A, R>(PhantomData<(&'a A, R)>)
 where
-    A: Alarm<'a>,
-    R: RubbleDataDriver<'a> + BleAdvertisementDriver<'a> + BleConfig + 'a;
+    A: time::Alarm<'a>,
+    R: hil::rubble::radio::RubbleData<'a>
+        + ble_advertising::BleAdvertisementDriver<'a>
+        + ble_advertising::BleConfig
+        + 'a;
 
-impl<'a, A, R> RubbleImplementation<'a, A> for Implementation<'a, A, R>
+impl<'a, A, R> hil::rubble::RubbleStack<'a, A> for TockRubble<'a, A, R>
 where
-    A: Alarm<'a>,
-    R: RubbleDataDriver<'a> + BleAdvertisementDriver<'a> + BleConfig + 'a,
+    A: time::Alarm<'a>,
+    R: hil::rubble::radio::RubbleData<'a>
+        + ble_advertising::BleAdvertisementDriver<'a>
+        + ble_advertising::BleConfig
+        + 'a,
 {
     type BleRadio = BleRadioWrapper<'a, R>;
     type LinkLayer = LinkLayerWrapper<'a, A, R>;
@@ -57,7 +58,7 @@ where
     type Cmd = CmdWrapper;
     type PacketQueue = refcell_packet_queue::RefCellQueue;
 
-    fn get_device_address() -> rubble_hil::DeviceAddress {
+    fn get_device_address() -> hil::rubble::types::DeviceAddress {
         R::get_device_address()
     }
 
@@ -72,33 +73,33 @@ where
     fn transmit_event(
         radio: &mut Self::BleRadio,
         _ll: &mut Self::LinkLayer,
-        _rx_end: rubble_hil::Instant,
+        _rx_end: hil::rubble::types::Instant,
         buf: &'static mut [u8],
         _result: ReturnCode,
     ) {
-        assert_eq!(buf.len(), MIN_PDU_BUF);
+        assert_eq!(buf.len(), rubble::link::MIN_PDU_BUF);
         radio.tx_buf.replace(buf);
     }
 
     fn receive_event(
         radio: &mut Self::BleRadio,
         ll: &mut Self::LinkLayer,
-        rx_end: rubble_hil::Instant,
+        rx_end: hil::rubble::types::Instant,
         buf: &'static mut [u8],
         _len: u8,
         _result: ReturnCode,
     ) -> CmdWrapper {
-        let rx_end = Instant::from_raw_micros(rx_end.raw_micros());
+        let rx_end = rubble::time::Instant::from_raw_micros(rx_end.raw_micros());
         let cmd = match radio.currently_receiving {
             CurrentlyReceiving::Advertisement => {
-                let header = advertising::Header::parse(&buf[..2]);
+                let header = rubble::link::advertising::Header::parse(&buf[..2]);
                 // TODO: do we actually check the CRC in the radio
                 // driver? If we do, this should be documented. If we don't,
                 // then this code is incorrect.
                 ll.0.process_adv_packet(rx_end, radio, header, &buf[2..], true)
             }
             CurrentlyReceiving::Data => {
-                let header = data::Header::parse(&buf[..2]);
+                let header = rubble::link::data::Header::parse(&buf[..2]);
                 ll.0.process_data_packet(rx_end, radio, header, &buf[2..], true)
             }
         };
@@ -106,7 +107,7 @@ where
     }
 }
 
-impl RubblePacketQueue for refcell_packet_queue::RefCellQueue {
+impl kernel::hil::rubble::RubblePacketQueue for refcell_packet_queue::RefCellQueue {
     type Producer = refcell_packet_queue::RefCellProducer<'static>;
     type Consumer = refcell_packet_queue::RefCellConsumer<'static>;
 
@@ -124,19 +125,25 @@ impl RubblePacketQueue for refcell_packet_queue::RefCellQueue {
 #[derive(Default)]
 struct RubbleConfig<'a, A, R>
 where
-    A: Alarm<'a>,
-    R: RubbleDataDriver<'a> + BleAdvertisementDriver<'a> + BleConfig + 'a,
+    A: time::Alarm<'a>,
+    R: hil::rubble::radio::RubbleData<'a>
+        + ble_advertising::BleAdvertisementDriver<'a>
+        + ble_advertising::BleConfig
+        + 'a,
 {
     radio: PhantomData<R>,
     alarm: PhantomData<&'a A>,
 }
 
-impl<'a, A, R> Config for RubbleConfig<'a, A, R>
+impl<'a, A, R> rubble::config::Config for RubbleConfig<'a, A, R>
 where
-    A: Alarm<'a>,
-    R: RubbleDataDriver<'a> + BleAdvertisementDriver<'a> + BleConfig + 'a,
+    A: time::Alarm<'a>,
+    R: hil::rubble::radio::RubbleData<'a>
+        + ble_advertising::BleAdvertisementDriver<'a>
+        + ble_advertising::BleConfig
+        + 'a,
 {
-    type Timer = self::timer::TimerWrapper<'a, A>;
+    type Timer = timer_wrapper::TimerWrapper<'a, A>;
     type Transmitter = BleRadioWrapper<'a, R>;
     type ChannelMapper =
         rubble::l2cap::BleChannelMap<rubble::att::NoAttributes, rubble::security::NoSecurity>;
@@ -144,23 +151,23 @@ where
 }
 
 #[derive(Debug)]
-pub struct CmdWrapper(Cmd);
+pub struct CmdWrapper(rubble::link::Cmd);
 
 impl CmdWrapper {
-    fn new(cmd: Cmd) -> Self {
+    fn new(cmd: rubble::link::Cmd) -> Self {
         CmdWrapper(cmd)
     }
 }
 
-impl RubbleCmd for CmdWrapper {
-    type RadioCmd = RadioCmd;
-    fn next_update(&self) -> rubble_hil::NextUpdate {
+impl kernel::hil::rubble::RubbleCmd for CmdWrapper {
+    type RadioCmd = rubble::link::RadioCmd;
+    fn next_update(&self) -> hil::rubble::types::NextUpdate {
         match self.0.next_update {
-            NextUpdate::At(time) => {
-                rubble_hil::NextUpdate::At(rubble_hil::Instant::from_raw_micros(time.raw_micros()))
-            }
-            NextUpdate::Disable => rubble_hil::NextUpdate::Disable,
-            NextUpdate::Keep => rubble_hil::NextUpdate::Keep,
+            rubble::link::NextUpdate::At(time) => hil::rubble::types::NextUpdate::At(
+                hil::rubble::types::Instant::from_raw_micros(time.raw_micros()),
+            ),
+            rubble::link::NextUpdate::Disable => hil::rubble::types::NextUpdate::Disable,
+            rubble::link::NextUpdate::Keep => hil::rubble::types::NextUpdate::Keep,
         }
     }
 
@@ -168,7 +175,7 @@ impl RubbleCmd for CmdWrapper {
         self.0.queued_work
     }
 
-    fn into_radio_cmd(self) -> RadioCmd {
+    fn into_radio_cmd(self) -> rubble::link::RadioCmd {
         self.0.radio
     }
 }
@@ -181,7 +188,10 @@ enum CurrentlyReceiving {
 
 pub struct BleRadioWrapper<'a, R>
 where
-    R: RubbleDataDriver<'a> + BleAdvertisementDriver<'a> + BleConfig + 'a,
+    R: hil::rubble::radio::RubbleData<'a>
+        + ble_advertising::BleAdvertisementDriver<'a>
+        + ble_advertising::BleConfig
+        + 'a,
 {
     radio: &'a R,
     currently_receiving: CurrentlyReceiving,
@@ -191,7 +201,10 @@ where
 
 impl<'a, R> BleRadioWrapper<'a, R>
 where
-    R: RubbleDataDriver<'a> + BleAdvertisementDriver<'a> + BleConfig + 'a,
+    R: hil::rubble::radio::RubbleData<'a>
+        + ble_advertising::BleAdvertisementDriver<'a>
+        + ble_advertising::BleConfig
+        + 'a,
 {
     pub fn new(radio: &'a R, tx_buf: &'static mut PacketBuffer) -> Self {
         BleRadioWrapper {
@@ -203,12 +216,16 @@ where
     }
 }
 
-impl<'a, A, R> RubbleBleRadio<'a, A, Implementation<'a, A, R>> for BleRadioWrapper<'a, R>
+impl<'a, A, R> kernel::hil::rubble::RubbleBleRadio<'a, A, TockRubble<'a, A, R>>
+    for BleRadioWrapper<'a, R>
 where
-    A: Alarm<'a>,
-    R: RubbleDataDriver<'a> + BleAdvertisementDriver<'a> + BleConfig + 'a,
+    A: time::Alarm<'a>,
+    R: hil::rubble::radio::RubbleData<'a>
+        + ble_advertising::BleAdvertisementDriver<'a>
+        + ble_advertising::BleConfig
+        + 'a,
 {
-    fn accept_cmd(&mut self, _cmd: RadioCmd) {
+    fn accept_cmd(&mut self, _cmd: rubble::link::RadioCmd) {
         // TODO: The current NRF52840 ble_radio driver doesn't support
         // simultaneous sending & receiving data in the same way that
         // rubble-nrf5x does. So, until we fix either that or rubble's
@@ -241,9 +258,12 @@ where
     }
 }
 
-impl<'a, R> Transmitter for BleRadioWrapper<'a, R>
+impl<'a, R> rubble::link::Transmitter for BleRadioWrapper<'a, R>
 where
-    R: RubbleDataDriver<'a> + BleAdvertisementDriver<'a> + BleConfig + 'a,
+    R: hil::rubble::radio::RubbleData<'a>
+        + ble_advertising::BleAdvertisementDriver<'a>
+        + ble_advertising::BleConfig
+        + 'a,
 {
     fn tx_payload_buf(&mut self) -> &mut [u8] {
         // TODO: To fully comply with what the rubble stack expects, we would
@@ -266,12 +286,15 @@ where
             .take()
             .expect("transmit_advertising called while transmission ongoing");
         header
-            .to_bytes(&mut ByteWriter::new(&mut tx_buf[..2]))
+            .to_bytes(&mut rubble::bytes::ByteWriter::new(&mut tx_buf[..2]))
             .unwrap();
         let len = usize::from(header.payload_length()) + 2;
         // panic safety: AdvertisingChannel's allowed ints is a subset of
         // allowed ints
-        let channel = RadioChannel::from_channel_index(channel.channel().into()).unwrap();
+        let channel = kernel::hil::ble_advertising::RadioChannel::from_channel_index(
+            channel.channel().into(),
+        )
+        .unwrap();
         self.radio.set_tx_power(0);
         self.radio.transmit_advertisement(tx_buf, len, channel);
     }
@@ -287,32 +310,41 @@ where
             .take()
             .expect("transmit_data called while transmission ongoing");
         header
-            .to_bytes(&mut ByteWriter::new(&mut tx_buf[..2]))
+            .to_bytes(&mut rubble::bytes::ByteWriter::new(&mut tx_buf[..2]))
             .unwrap();
         // panic safety: DataChannel's allowed ints is a subset of
         // allowed ints
-        let channel = RadioChannel::from_channel_index(channel.index().into()).unwrap();
+        let channel =
+            kernel::hil::ble_advertising::RadioChannel::from_channel_index(channel.index().into())
+                .unwrap();
         self.radio
             .transmit_data(tx_buf, access_address, crc_iv, channel)
     }
 }
 
-pub struct ResponderWrapper<'a, A, R>(Responder<RubbleConfig<'a, A, R>>)
+pub struct ResponderWrapper<'a, A, R>(rubble::link::Responder<RubbleConfig<'a, A, R>>)
 where
-    A: Alarm<'a>,
-    R: RubbleDataDriver<'a> + BleAdvertisementDriver<'a> + BleConfig + 'a;
+    A: time::Alarm<'a>,
+    R: hil::rubble::radio::RubbleData<'a>
+        + ble_advertising::BleAdvertisementDriver<'a>
+        + ble_advertising::BleConfig
+        + 'a;
 
-impl<'a, A, R> RubbleResponder<'a, A, Implementation<'a, A, R>> for ResponderWrapper<'a, A, R>
+impl<'a, A, R> kernel::hil::rubble::RubbleResponder<'a, A, TockRubble<'a, A, R>>
+    for ResponderWrapper<'a, A, R>
 where
-    A: Alarm<'a>,
-    R: RubbleDataDriver<'a> + BleAdvertisementDriver<'a> + BleConfig + 'a,
+    A: time::Alarm<'a>,
+    R: hil::rubble::radio::RubbleData<'a>
+        + ble_advertising::BleAdvertisementDriver<'a>
+        + ble_advertising::BleConfig
+        + 'a,
 {
     type Error = rubble::Error;
     fn new(
         tx: refcell_packet_queue::RefCellProducer<'static>,
         rx: refcell_packet_queue::RefCellConsumer<'static>,
     ) -> Self {
-        ResponderWrapper(Responder::new(
+        ResponderWrapper(rubble::link::Responder::new(
             tx,
             rx,
             rubble::l2cap::L2CAPState::new(rubble::l2cap::BleChannelMap::with_attributes(
@@ -329,75 +361,83 @@ where
     }
 }
 
-pub struct LinkLayerWrapper<'a, A, R>(LinkLayer<RubbleConfig<'a, A, R>>)
+pub struct LinkLayerWrapper<'a, A, R>(rubble::link::LinkLayer<RubbleConfig<'a, A, R>>)
 where
-    A: Alarm<'a>,
-    R: RubbleDataDriver<'a> + BleAdvertisementDriver<'a> + BleConfig + 'a;
+    A: time::Alarm<'a>,
+    R: hil::rubble::radio::RubbleData<'a>
+        + ble_advertising::BleAdvertisementDriver<'a>
+        + ble_advertising::BleConfig
+        + 'a;
 
-impl<'a, A, R> RubbleLinkLayer<'a, A, Implementation<'a, A, R>> for LinkLayerWrapper<'a, A, R>
+impl<'a, A, R> kernel::hil::rubble::RubbleLinkLayer<'a, A, TockRubble<'a, A, R>>
+    for LinkLayerWrapper<'a, A, R>
 where
-    A: Alarm<'a>,
-    R: RubbleDataDriver<'a> + BleAdvertisementDriver<'a> + BleConfig + 'a,
+    A: time::Alarm<'a>,
+    R: hil::rubble::radio::RubbleData<'a>
+        + ble_advertising::BleAdvertisementDriver<'a>
+        + ble_advertising::BleConfig
+        + 'a,
 {
     type Error = rubble::Error;
 
-    fn new(device_address: rubble_hil::DeviceAddress, alarm: &'a A) -> Self {
-        LinkLayerWrapper(LinkLayer::new(
-            DeviceAddress::new(
+    fn new(device_address: hil::rubble::types::DeviceAddress, alarm: &'a A) -> Self {
+        LinkLayerWrapper(rubble::link::LinkLayer::new(
+            rubble::link::DeviceAddress::new(
                 device_address.bytes,
                 match device_address.kind {
-                    rubble_hil::AddressKind::Public => AddressKind::Public,
-                    rubble_hil::AddressKind::Random => AddressKind::Random,
+                    hil::rubble::types::AddressKind::Public => rubble::link::AddressKind::Public,
+                    hil::rubble::types::AddressKind::Random => rubble::link::AddressKind::Random,
                 },
             ),
-            TimerWrapper::new(alarm),
+            timer_wrapper::TimerWrapper::new(alarm),
         ))
     }
 
     fn start_advertise(
         &mut self,
-        interval: rubble_hil::Duration,
+        interval: hil::rubble::types::Duration,
         data: &[u8],
         transmitter: &mut BleRadioWrapper<'a, R>,
         tx: refcell_packet_queue::RefCellConsumer<'static>,
         rx: refcell_packet_queue::RefCellProducer<'static>,
-    ) -> Result<rubble_hil::NextUpdate, Self::Error> {
+    ) -> Result<hil::rubble::types::NextUpdate, Self::Error> {
         // This is inefficient, as we're parsing then directly turning back into
         // bytes. However, this is a minimal-effort code to comply with Rubble's
         // interface.
 
         // A more efficient method might be to write a more minimal parser, and
         // just directly create `AdStructure::Unknown` instances.
-        let mut ad_byte_reader = ByteReader::new(data);
+        let mut ad_byte_reader = rubble::bytes::ByteReader::new(data);
 
         // Note: advertising data is at most 31 octets, and each ad must be at
         // least 2 octets, so we have at most 16 adstructures.
         // TODO: allocating this on the stack might not be the most wise.
-        let mut ad_structures = [AdStructure::Unknown { ty: 0, data: &[] }; 16];
+        let mut ad_structures =
+            [rubble::link::ad_structure::AdStructure::Unknown { ty: 0, data: &[] }; 16];
         let mut num_ads = 0;
         while ad_byte_reader.bytes_left() > 0 {
-            let ad = AdStructure::from_bytes(&mut ad_byte_reader)?;
+            let ad = rubble::link::ad_structure::AdStructure::from_bytes(&mut ad_byte_reader)?;
             ad_structures[num_ads] = ad;
             num_ads += 1;
             if num_ads > 16 {
-                return Err(Error::InvalidLength);
+                return Err(rubble::Error::InvalidLength);
             }
         }
         let ad_structures = &ad_structures[..num_ads];
 
         let res = self.0.start_advertise(
-            Duration::from_micros(interval.as_micros()),
+            rubble::time::Duration::from_micros(interval.as_micros()),
             ad_structures,
             transmitter,
             tx,
             rx,
         );
         res.map(|next_update| match next_update {
-            NextUpdate::Keep => rubble_hil::NextUpdate::Keep,
-            NextUpdate::Disable => rubble_hil::NextUpdate::Disable,
-            NextUpdate::At(time) => {
-                rubble_hil::NextUpdate::At(rubble_hil::Instant::from_raw_micros(time.raw_micros()))
-            }
+            rubble::link::NextUpdate::Keep => hil::rubble::types::NextUpdate::Keep,
+            rubble::link::NextUpdate::Disable => hil::rubble::types::NextUpdate::Disable,
+            rubble::link::NextUpdate::At(time) => hil::rubble::types::NextUpdate::At(
+                hil::rubble::types::Instant::from_raw_micros(time.raw_micros()),
+            ),
         })
     }
     fn is_advertising(&self) -> bool {

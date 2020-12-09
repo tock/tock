@@ -7,6 +7,7 @@
 //!     nrf52_rubble::RubbleComponent::new(board_kernel, &base_peripherals.ble_radio, mux_alarm)
 //!        .finalize(());
 //! ```
+
 #![no_std]
 
 use capsules::virtual_alarm::VirtualMuxAlarm;
@@ -23,7 +24,7 @@ use kernel::{create_capability, static_init};
 pub static mut TX_BUF: tock_rubble::PacketBuffer = [0; tock_rubble::MIN_PDU_BUF];
 
 pub type Nrf52RubbleImplementation<'a, A> =
-    tock_rubble::Implementation<'a, A, nrf52::ble_radio::Radio<'a>>;
+    tock_rubble::TockRubble<'a, A, nrf52::ble_radio::Radio<'a>>;
 
 // Save some deep nesting
 type BleCapsule = capsules::rubble::BLE<

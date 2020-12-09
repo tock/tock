@@ -8,4 +8,4 @@ edition = "2018"
 capsules = { path = "../../../capsules" }
 kernel = { path = "../../../kernel" }
 nrf52 = { path = "../../../chips/nrf52" }
-tock_rubble = { path = "../../components/tock_rubble" }
+tock_rubble = { path = "../../support/tock_rubble" }
