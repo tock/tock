@@ -7,6 +7,7 @@
 //! use core::ops::{Index, IndexMut};
 //!
 //! use kernel::hil;
+//! use kernel::hil::flash::Page;
 //! use kernel::ErrorCode;
 //!
 //! // Size in bytes
@@ -28,23 +29,43 @@
 //!     }
 //! }
 //!
-//! impl Index<usize> for NewChipPage {
-//!     type Output = u8;
-//!
-//!     fn index(&self, idx: usize) -> &u8 {
-//!         &self.0[idx]
-//!     }
-//! }
-//!
-//! impl IndexMut<usize> for NewChipPage {
-//!     fn index_mut(&mut self, idx: usize) -> &mut u8 {
-//!         &mut self.0[idx]
-//!     }
-//! }
-//!
 //! impl AsMut<[u8]> for NewChipPage {
 //!     fn as_mut(&mut self) -> &mut [u8] {
 //!         &mut self.0
+//!     }
+//! }
+//!
+//! impl<const W: usize, const E: usize> hil::flash::Flash<W, E> for NewChipStruct {
+//!     fn read(
+//!         &self,
+//!         region: &Page,
+//!         buf: &'static mut [u8],
+//!     ) -> Result<(), (ErrorCode, &'static mut [u8])> {
+//!        unimplemented!()
+//!     }
+//!
+//!     fn get_read_region(&self, address: u64, length: u32) -> Result<Page, ErrorCode> {
+//!        unimplemented!()
+//!     }
+//!
+//!     fn write(
+//!         &self,
+//!         region: &Page,
+//!         buf: &'static mut [u8],
+//!     ) -> Result<(), (ErrorCode, &'static mut [u8])> {
+//!         unimplemented!()
+//!     }
+//!
+//!     fn get_write_region(&self, address: u64, length: u32) -> Result<Page, ErrorCode> {
+//!        unimplemented!()
+//!     }
+//!
+//!     fn erase(&self, region: &Page) -> Result<(), ErrorCode> {
+//!         unimplemented!()
+//!     }
+//!
+//!     fn get_erase_region(&self, address: u64, length: u32) -> Result<Page, ErrorCode> {
+//!        unimplemented!()
 //!     }
 //! }
 //!
@@ -68,14 +89,15 @@
 //! ```rust
 //! use kernel::utilities::cells::TakeCell;
 //! use kernel::hil;
+//! use kernel::ErrorCode;
 //!
-//! pub struct FlashUser<'a, F: hil::flash::LegacyFlash + 'static> {
+//! pub struct FlashUser<'a, F: hil::flash::Flash<W, E> + 'static, const W: usize, const E: usize> {
 //!     driver: &'a F,
-//!     buffer: TakeCell<'static, F::Page>,
+//!     buffer: TakeCell<'static, [u8; W]>,
 //! }
 //!
-//! impl<'a, F: hil::flash::LegacyFlash> FlashUser<'a, F> {
-//!     pub fn new(driver: &'a F, buffer: &'static mut F::Page) -> FlashUser<'a, F> {
+//! impl<'a, F: hil::flash::Flash<W, E>, const W: usize, const E: usize> FlashUser<'a, F, W, E> {
+//!     pub fn new(driver: &'a F, buffer: &'static mut [u8; W]) -> FlashUser<'a, F, W, E> {
 //!         FlashUser {
 //!             driver: driver,
 //!             buffer: TakeCell::new(buffer),
@@ -83,10 +105,10 @@
 //!     }
 //! }
 //!
-//! impl<'a, F: hil::flash::LegacyFlash> hil::flash::LegacyClient<F> for FlashUser<'a, F> {
-//!     fn read_complete(&self, buffer: &'static mut F::Page, error: hil::flash::Error) {}
-//!     fn write_complete(&self, buffer: &'static mut F::Page, error: hil::flash::Error) { }
-//!     fn erase_complete(&self, error: hil::flash::Error) {}
+//! impl<'a, F: hil::flash::Flash<W, E>, const W: usize, const E: usize> hil::flash::Client<W, E> for FlashUser<'a, F, W, E> {
+//!     fn read_complete(&self, read_buffer: &'static mut [u8], ret: Result<(), ErrorCode>) {}
+//!     fn write_complete(&self, write_buffer: &'static mut [u8], ret: Result<(), ErrorCode>) {}
+//!     fn erase_complete(&self, ret: Result<(), ErrorCode>) {}
 //! }
 //! ```
 
@@ -141,4 +163,112 @@ pub trait LegacyClient<F: LegacyFlash> {
 
     /// Flash erase complete.
     fn erase_complete(&self, error: Error);
+}
+
+/// A checked flash region
+pub struct Page {
+    pub address: u64,
+    pub length: u32,
+}
+
+/// A page of writeable persistent flash memory.
+///
+/// `W`: Should be the minimum number of bytes that can be written
+///      in an operation.
+/// `E`: Should be the minimum number of bytes that can be erased
+///      in an operation.
+pub trait Flash<const W: usize, const E: usize> {
+    /// Read data from flash into a buffer.
+    ///
+    /// This function will read data stored in flash at `address` and
+    /// `length` into the buffer `buf`.
+    /// `address` is calculated as an offset from the start of the flash
+    /// region.
+    ///
+    /// On success returns nothing
+    /// On failure returns a `ErrorCode` and the buffer passed in.
+    /// If `ErrorCode::NOSUPPORT` is returned then `read_page()`
+    // should be used instead.
+    fn read(
+        &self,
+        region: &Page,
+        buf: &'static mut [u8],
+    ) -> Result<(), (ErrorCode, &'static mut [u8])>;
+
+    /// Create a `Page` from the provided `address` and `length`.
+    ///
+    /// The `Page->address` and Page->length` will be modified to match
+    /// the flash hardware requirements.
+    fn get_read_region(&self, address: u64, length: u32) -> Result<Page, ErrorCode>;
+
+    /// Write data from a buffer to flash.
+    ///
+    /// This function will write the buffer `buf` to the `address` specified
+    /// in flash.
+    ///
+    /// `address` must be aligned to `W`.
+    /// The length of `buf` must be aligned to `W`.
+    ///
+    /// This function will not erase the page first. The user of this function
+    /// must ensure that a page is erased before writing.
+    /// Writes to flash can only turn a `1` to a `0`. To change a `0` to a `1`
+    /// the region must be erased.
+    ///
+    /// Note that some hardware only allows a limited number of writes before
+    /// an erase. If that is the case the implementation MUST return an error
+    /// `ErrorCode::NOMEM` when this happens, even if the hardware silently
+    /// ignores the write.
+    ///
+    /// On success returns nothing
+    /// On failure returns a `ErrorCode` and the buffer passed in.
+    fn write(
+        &self,
+        region: &Page,
+        buf: &'static mut [u8],
+    ) -> Result<(), (ErrorCode, &'static mut [u8])>;
+
+    /// Create a `Page` from the provided `address` and `length`.
+    ///
+    /// The `Page->address` and Page->length` will be modified to match
+    /// the flash hardware requirements.
+    fn get_write_region(&self, address: u64, length: u32) -> Result<Page, ErrorCode>;
+
+    /// Erase a page/pages of flash, setting every byte to 0xFF.
+    ///
+    /// This will erase all pages starting from `address` for the `length`.
+    /// `address` and `length must allign with `E`.
+    ///
+    /// On success returns nothing
+    /// On failure returns a `ErrorCode`.
+    fn erase(&self, region: &Page) -> Result<(), ErrorCode>;
+
+    /// Create a `Page` from the provided `address` and `length`.
+    ///
+    /// The `Page->address` and Page->length` will be modified to match
+    /// the flash hardware requirements.
+    fn get_erase_region(&self, address: u64, length: u32) -> Result<Page, ErrorCode>;
+}
+
+/// Implement `Client` to receive callbacks from `Flash`.
+pub trait Client<const W: usize, const E: usize> {
+    /// Flash read complete.
+    ///
+    /// This will be called when the read operation is complete.
+    /// On success `ret` will be nothing.
+    /// On error `ret` will contain a `ErrorCode`
+    fn read_complete(&self, read_buffer: &'static mut [u8], ret: Result<(), ErrorCode>);
+
+    /// Flash write complete.
+    ///
+    /// This will be called when the write operation is complete.
+    /// On success `ret` will be nothing.
+    /// On error `ret` will contain a `ErrorCode`
+    fn write_complete(&self, write_buffer: &'static mut [u8], ret: Result<(), ErrorCode>);
+
+    /// Flash erase complete.
+    ///
+    /// This will be called when the erase operation is complete.
+    /// On success `ret` will be nothing.
+    /// On error `ret` will contain a `ErrorCode`
+    fn erase_complete(&self, ret: Result<(), ErrorCode>);
 }
