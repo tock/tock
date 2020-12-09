@@ -27,9 +27,9 @@ use nrf52833::gpio::Pin;
 use nrf52833::interrupt_service::Nrf52832DefaultPeripherals;
 
 // Buttons
-const BUTTON_A: Pin = Pin::P0_13;
-const BUTTON_B: Pin = Pin::P0_22;
-const TOUCH_LOGO: Pin = Pin::P1_03;
+const BUTTON_A: Pin = Pin::P0_14;
+const BUTTON_B: Pin = Pin::P0_23;
+const TOUCH_LOGO: Pin = Pin::P1_04;
 
 const GPIO_D0: Pin = Pin::P0_02;
 const GPIO_D1: Pin = Pin::P0_03;
@@ -40,6 +40,10 @@ const GPIO_D16: Pin = Pin::P1_02;
 
 const UART_TX_PIN: Pin = Pin::P0_06;
 const UART_RX_PIN: Pin = Pin::P1_08;
+
+/// LED matrix
+const COLS: [Pin; 5] = [Pin::P0_28, Pin::P0_11, Pin::P0_31, Pin::P1_05, Pin::P0_30];
+const ROWS: [Pin; 5] = [Pin::P0_21, Pin::P0_22, Pin::P0_15, Pin::P0_24, Pin::P0_19];
 
 /// I2C pins for all of the sensors.
 const I2C_SDA_PIN: Pin = Pin::P1_00;
@@ -136,8 +140,8 @@ pub unsafe fn reset_handler() {
     //--------------------------------------------------------------------------
 
     // Configure kernel debug GPIOs as early as possible. These are used by the
-    // `debug_gpio!(0, toggle)` macro. We configure these early so that the
-    // macro is available during most of the setup code and kernel execution.
+    // `debug_gpio!(0, toggle)` macro. We uconfigure these early so that the
+    // macro is available during most of the setup code and kernel exection.
     // kernel::debug::assign_gpios(
     //     Some(&base_peripherals.gpio_port[LED_KERNEL_PIN]),
     //     None,
@@ -171,17 +175,17 @@ pub unsafe fn reset_handler() {
             nrf52833::gpio::GPIOPin,
             (
                 &base_peripherals.gpio_port[BUTTON_A],
-                kernel::hil::gpio::ActivationMode::ActiveHigh,
-                kernel::hil::gpio::FloatingState::PullUp
+                kernel::hil::gpio::ActivationMode::ActiveLow,
+                kernel::hil::gpio::FloatingState::PullNone
             ), // A
             (
                 &base_peripherals.gpio_port[BUTTON_B],
                 kernel::hil::gpio::ActivationMode::ActiveLow,
-                kernel::hil::gpio::FloatingState::PullUp
+                kernel::hil::gpio::FloatingState::PullNone
             ), // B
             (
                 &base_peripherals.gpio_port[TOUCH_LOGO],
-                kernel::hil::gpio::ActivationMode::ActiveHigh,
+                kernel::hil::gpio::ActivationMode::ActiveLow,
                 kernel::hil::gpio::FloatingState::PullUp
             ), // Touch Logo
         ),
@@ -288,15 +292,31 @@ pub unsafe fn reset_handler() {
     // ));
 
     //--------------------------------------------------------------------------
+    // LED Matrix
+    //--------------------------------------------------------------------------
+    nrf52::pinmux::Pinmux::new(COLS[0] as u32);
+    nrf52::pinmux::Pinmux::new(ROWS[0] as u32);
+
+    use kernel::hil::gpio::Configure;
+    use kernel::hil::gpio::Output;
+
+    let pin1 = &base_peripherals.gpio_port[ROWS[0]];
+    let pin2 = &base_peripherals.gpio_port[COLS[0]];
+
+    // pin1.make_output ();
+    // pin2.make_output ();
+    // pin1.set ();
+    // pin2.clear ();
+
+    //--------------------------------------------------------------------------
     // FINAL SETUP AND BOARD BOOT
     //--------------------------------------------------------------------------
 
     // Start all of the clocks. Low power operation will require a better
     // approach than this.
-    
-    panic!("Initialization complete. Entering main loop.");
 
-    nrf52_components::NrfClockComponent::new().finalize(());
+    // microbit does not seem to have a an external clock source
+    // nrf52_components::NrfClockComponent::new().finalize(());
 
     let platform = Platform {
         ble_radio: ble_radio,
@@ -317,6 +337,8 @@ pub unsafe fn reset_handler() {
 
     // Need to disable the MPU because the bootloader seems to set it up.
     chip.mpu().clear_mpu();
+
+    panic!("Initialization complete. Entering main loop.");
 
     //--------------------------------------------------------------------------
     // PROCESSES AND MAIN LOOP

@@ -5,13 +5,13 @@ use cortexm4;
 use kernel::debug;
 use kernel::debug::IoWrite;
 use kernel::hil::led;
-use kernel::hil::uart::{self};
-use nrf52833::gpio::Pin;
+use kernel::hil::uart;
+use nrf52833::gpio::{self, Pin};
+
+use kernel::hil::gpio::{Configure, Input, Output};
 
 use crate::CHIP;
 use crate::PROCESSES;
-
-use kernel::hil::uart::Configure;
 
 /// Writer is used by kernel::debug to panic message to the serial port.
 pub struct Writer {
@@ -39,6 +39,8 @@ impl IoWrite for Writer {
     fn write(&mut self, buf: &[u8]) {
         let uart = nrf52833::uart::Uarte::new();
 
+        use kernel::hil::uart::Configure;
+
         if !self.initialized {
             self.initialized = true;
             uart.configure(uart::Parameters {
@@ -59,14 +61,24 @@ impl IoWrite for Writer {
     }
 }
 
-struct NoLed;
+struct MatrixLed (&'static gpio::GPIOPin<'static>, &'static gpio::GPIOPin<'static>);
 
-impl led::Led for NoLed {
-    fn init(&mut self) {}
-    fn on(&mut self) {}
-    fn off(&mut self) {}
-    fn toggle(&mut self) {}
-    fn read(&self) -> bool { false }
+impl led::Led for MatrixLed {
+    fn init(&mut self) {
+        self.0.make_output ();
+        self.1.make_output ();
+        self.1.clear ();
+    }
+    fn on(&mut self) {
+        self.1.set ();
+    }
+    fn off(&mut self) {
+        self.1.clear ();
+    }
+    fn toggle(&mut self) {
+        self.1.toggle ();
+    }
+    fn read(&self) -> bool { self.1.read () }
 }
 
 /// Default panic handler for the microbit board.
@@ -76,8 +88,8 @@ impl led::Led for NoLed {
 #[no_mangle]
 #[panic_handler]
 pub unsafe extern "C" fn panic_fmt(pi: &PanicInfo) -> ! {
-    // MicroBit v2 has no LEDs
-    let mut led = NoLed;
+    // MicroBit v2 has an LED matrix, use the upper left LED
+    let mut led = MatrixLed (&gpio::PORT[Pin::P0_28], &gpio::PORT[Pin::P0_21]);
     let writer = &mut WRITER;
     debug::panic(
         &mut [&mut led],
