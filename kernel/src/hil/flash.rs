@@ -71,6 +71,7 @@
 //! }
 //! ```
 
+use crate::common::leasable_buffer::LeasableBuffer;
 use crate::returncode::ReturnCode;
 
 pub trait HasClient<'a, C> {
@@ -84,16 +85,36 @@ pub trait Flash<const S: usize> {
     /// Read a page of flash into the buffer.
     ///
     /// This function will read the flash page specified by `page_number`
-    /// at an offset of `offset` and store it in the buffer `buf`.
+    /// and store it in the buffer `buf`.
     ///
     /// On success returns nothing
     /// On failure returns a `ReturnCode` and the buffer passed in.
     fn read_page(
         &self,
         page_number: usize,
-        offset: usize,
         buf: &'static mut [u8; S],
     ) -> Result<(), (ReturnCode, &'static mut [u8; S])>;
+
+    /// Read an address of flash into the buffer.
+    ///
+    /// This function will read data stored in flash at `address` and
+    /// `length` into the buffer `buf`.
+    ///
+    /// Not all implementations support this, in that case `read_page`
+    /// should be used instead.
+    ///
+    /// On success returns nothing
+    /// On failure returns a `ReturnCode` and the buffer passed in.
+    #[allow(unused_variables)]
+    fn read_slice(
+        &self,
+        address: usize,
+        length: usize,
+        buf: LeasableBuffer<'static, u8>,
+    ) -> Result<(), (ReturnCode, &'static mut [u8])> {
+        /* Default to not supported as not all flash controller allow this */
+        Err((ReturnCode::ENOSUPPORT, buf.take()))
+    }
 
     /// Write a page of flash from the buffer.
     ///
