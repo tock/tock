@@ -106,14 +106,13 @@ impl<'a, A: Alarm<'a>> SHT3x<'a, A> {
 
             let [high, low] = u16::to_be_bytes(Registers::CLEARSTATUS as u16);
 
-
             buffer[0] = high;
             buffer[1] = low;
 
             self.i2c.write(buffer, 2);
 
             self.state.set(State::Reset);
-        
+
             ReturnCode::SUCCESS
         })
     }
@@ -127,7 +126,7 @@ impl<'a, A: Alarm<'a>> SHT3x<'a, A> {
             self.i2c.write_read(buffer, 1, 1);
 
             self.state.set(State::ReadStatus);
-          
+
             ReturnCode::SUCCESS
         })
     }
@@ -143,7 +142,7 @@ impl<'a, A: Alarm<'a>> SHT3x<'a, A> {
 
             self.i2c.write_read(buffer, 2, 2);
             self.state.set(State::Reset);
-            
+
             ReturnCode::SUCCESS
         })
     }
