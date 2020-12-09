@@ -9,15 +9,11 @@
 #![feature(const_in_array_repeat_expressions)]
 #![deny(missing_docs)]
 
-use capsules::virtual_aes_ccm::MuxAES128CCM;
 use kernel::capabilities;
 use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::component::Component;
-use kernel::hil::gpio::Interrupt;
 use kernel::hil::i2c::I2CMaster;
-use kernel::hil::symmetric_encryption::AES128;
 use kernel::hil::time::Counter;
-use kernel::hil::usb::Client;
 use kernel::mpu::MPU;
 use kernel::Chip;
 #[allow(unused_imports)]
@@ -42,12 +38,12 @@ const UART_TX_PIN: Pin = Pin::P0_06;
 const UART_RX_PIN: Pin = Pin::P1_08;
 
 /// LED matrix
-const COLS: [Pin; 5] = [Pin::P0_28, Pin::P0_11, Pin::P0_31, Pin::P1_05, Pin::P0_30];
-const ROWS: [Pin; 5] = [Pin::P0_21, Pin::P0_22, Pin::P0_15, Pin::P0_24, Pin::P0_19];
+const LED_MATRIX_COLS: [Pin; 5] = [Pin::P0_28, Pin::P0_11, Pin::P0_31, Pin::P1_05, Pin::P0_30];
+const LED_MATRIX_ROWS: [Pin; 5] = [Pin::P0_21, Pin::P0_22, Pin::P0_15, Pin::P0_24, Pin::P0_19];
 
 /// I2C pins for all of the sensors.
-const I2C_SDA_PIN: Pin = Pin::P1_00;
-const I2C_SCL_PIN: Pin = Pin::P0_25;
+const I2C_SDA_PIN: Pin = Pin::P0_16;
+const I2C_SCL_PIN: Pin = Pin::P0_08;
 
 /// UART Writer for panic!()s.
 pub mod io;
@@ -78,8 +74,16 @@ pub struct Platform {
     >,
     console: &'static capsules::console::Console<'static>,
     gpio: &'static capsules::gpio::GPIO<'static, nrf52::gpio::GPIOPin<'static>>,
+    led: &'static capsules::led_matrix::LedMatrixDriver<
+        'static,
+        nrf52::gpio::GPIOPin<'static>,
+        capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc<'static>>,
+    >,
     button: &'static capsules::button::Button<'static, nrf52::gpio::GPIOPin<'static>>,
     rng: &'static capsules::rng::RngDriver<'static>,
+    ninedof: &'static capsules::ninedof::NineDof<'static>,
+    lsm303agr: &'static capsules::lsm303agr::Lsm303agrI2C<'static>,
+    temperature: &'static capsules::temperature::TemperatureSensor<'static>,
     ipc: kernel::ipc::IPC,
     alarm: &'static capsules::alarm::AlarmDriver<
         'static,
@@ -97,6 +101,10 @@ impl kernel::Platform for Platform {
             capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
             capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
             capsules::button::DRIVER_NUM => f(Some(self.button)),
+            capsules::led_matrix::DRIVER_NUM => f(Some(self.led)),
+            capsules::ninedof::DRIVER_NUM => f(Some(self.ninedof)),
+            capsules::temperature::DRIVER_NUM => f(Some(self.temperature)),
+            capsules::lsm303agr::DRIVER_NUM => f(Some(self.lsm303agr)),
             capsules::rng::DRIVER_NUM => f(Some(self.rng)),
             capsules::ble_advertising_driver::DRIVER_NUM => f(Some(self.ble_radio)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
@@ -228,8 +236,12 @@ pub unsafe fn reset_handler() {
     );
 
     // Create a shared UART channel for the console and for kernel debug.
-    let uart_mux = components::console::UartMuxComponent::new(&base_peripherals.uarte0, 115200, dynamic_deferred_caller)
-        .finalize(());
+    let uart_mux = components::console::UartMuxComponent::new(
+        &base_peripherals.uarte0,
+        115200,
+        dynamic_deferred_caller,
+    )
+    .finalize(());
 
     // Setup the console.
     let console = components::console::ConsoleComponent::new(board_kernel, uart_mux).finalize(());
@@ -246,15 +258,45 @@ pub unsafe fn reset_handler() {
     // SENSORS
     //--------------------------------------------------------------------------
 
-    // let sensors_i2c_bus = static_init!(
-    //     capsules::virtual_i2c::MuxI2C<'static>,
-    //     capsules::virtual_i2c::MuxI2C::new(&base_peripherals.twim0, None, dynamic_deferred_caller)
-    // );
-    // base_peripherals.twim0.configure(
-    //     nrf52833::pinmux::Pinmux::new(I2C_SCL_PIN as u32),
-    //     nrf52833::pinmux::Pinmux::new(I2C_SDA_PIN as u32),
-    // );
-    // base_peripherals.twim0.set_master_client(sensors_i2c_bus);
+    base_peripherals.twim0.configure(
+        nrf52833::pinmux::Pinmux::new(I2C_SCL_PIN as u32),
+        nrf52833::pinmux::Pinmux::new(I2C_SDA_PIN as u32),
+    );
+
+    // base_peripherals.twim0.enable ();
+
+    let sensors_i2c_bus = static_init!(
+        capsules::virtual_i2c::MuxI2C<'static>,
+        capsules::virtual_i2c::MuxI2C::new(&base_peripherals.twim0, None, dynamic_deferred_caller)
+    );
+
+    base_peripherals.twim0.set_master_client(sensors_i2c_bus);
+
+    // LSM303AGR
+
+    let lsm303agr = components::lsm303agr::Lsm303agrI2CComponent::new().finalize(
+        components::lsm303agr_i2c_component_helper!(
+            sensors_i2c_bus,
+            capsules::lsm303xx::ACCELEROMETER_BASE_ADDRESS << 1,
+            capsules::lsm303xx::MAGNETOMETER_BASE_ADDRESS << 1
+        ),
+    );
+
+    lsm303agr.configure(
+        capsules::lsm303xx::Lsm303AccelDataRate::DataRate25Hz,
+        false,
+        capsules::lsm303xx::Lsm303Scale::Scale2G,
+        false,
+        true,
+        capsules::lsm303xx::Lsm303MagnetoDataRate::DataRate3_0Hz,
+        capsules::lsm303xx::Lsm303Range::Range1_9G,
+    );
+
+    let ninedof = components::ninedof::NineDofComponent::new(board_kernel)
+        .finalize(components::ninedof_component_helper!(lsm303agr));
+
+    let temperature =
+        components::temperature::TemperatureComponent::new(board_kernel, lsm303agr).finalize(());
 
     //--------------------------------------------------------------------------
     // WIRELESS
@@ -264,67 +306,77 @@ pub unsafe fn reset_handler() {
         nrf52_components::BLEComponent::new(board_kernel, &base_peripherals.ble_radio, mux_alarm)
             .finalize(());
 
-    // let aes_mux = static_init!(
-    //     MuxAES128CCM<'static, nrf52833::aes::AesECB>,
-    //     MuxAES128CCM::new(&base_peripherals.ecb, dynamic_deferred_caller)
-    // );
-    // base_peripherals.ecb.set_client(aes_mux);
-    // aes_mux.initialize_callback_handle(
-    //     dynamic_deferred_caller
-    //         .register(aes_mux)
-    //         .expect("no deferred call slot available for ccm mux"),
-    // );
-
-    // let serial_num = nrf52833::ficr::FICR_INSTANCE.address();
-
-    // let serial_num_bottom_16 = u16::from_le_bytes([serial_num[0], serial_num[1]]);
-
-    // let (ieee802154_radio, _mux_mac) = components::ieee802154::Ieee802154Component::new(
-    //     board_kernel,
-    //     &base_peripherals.ieee802154_radio,
-    //     aes_mux,
-    //     PAN_ID,
-    //     serial_num_bottom_16,
-    // )
-    // .finalize(components::ieee802154_component_helper!(
-    //     nrf52833::ieee802154_radio::Radio,
-    //     nrf52833::aes::AesECB<'static>
-    // ));
-
     //--------------------------------------------------------------------------
     // LED Matrix
     //--------------------------------------------------------------------------
-    nrf52::pinmux::Pinmux::new(COLS[0] as u32);
-    nrf52::pinmux::Pinmux::new(ROWS[0] as u32);
 
-    use kernel::hil::gpio::Configure;
-    use kernel::hil::gpio::Output;
+    use capsules::virtual_alarm::VirtualMuxAlarm;
+    use kernel::hil::time::Alarm;
 
-    let pin1 = &base_peripherals.gpio_port[ROWS[0]];
-    let pin2 = &base_peripherals.gpio_port[COLS[0]];
+    let buffer = static_init!([u8; 5], [0; 5]);
 
-    // pin1.make_output ();
-    // pin2.make_output ();
-    // pin1.set ();
-    // pin2.clear ();
+    let led_alarm = static_init!(
+        VirtualMuxAlarm<'static, nrf52::rtc::Rtc>,
+        VirtualMuxAlarm::new(mux_alarm)
+    );
+
+    let cols = static_init!(
+        [&nrf52833::gpio::GPIOPin; 5],
+        [
+            &base_peripherals.gpio_port[LED_MATRIX_COLS[0]],
+            &base_peripherals.gpio_port[LED_MATRIX_COLS[1]],
+            &base_peripherals.gpio_port[LED_MATRIX_COLS[2]],
+            &base_peripherals.gpio_port[LED_MATRIX_COLS[3]],
+            &base_peripherals.gpio_port[LED_MATRIX_COLS[4]]
+        ]
+    );
+
+    let rows = static_init!(
+        [&nrf52833::gpio::GPIOPin; 5],
+        [
+            &base_peripherals.gpio_port[LED_MATRIX_ROWS[0]],
+            &base_peripherals.gpio_port[LED_MATRIX_ROWS[1]],
+            &base_peripherals.gpio_port[LED_MATRIX_ROWS[2]],
+            &base_peripherals.gpio_port[LED_MATRIX_ROWS[3]],
+            &base_peripherals.gpio_port[LED_MATRIX_ROWS[4]]
+        ]
+    );
+
+    let led = static_init!(
+        capsules::led_matrix::LedMatrixDriver<
+            'static,
+            nrf52::gpio::GPIOPin<'static>,
+            capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc<'static>>,
+        >,
+        capsules::led_matrix::LedMatrixDriver::new(cols, rows, buffer, led_alarm)
+    );
+
+    led_alarm.set_alarm_client(led);
+
+    led.init();
 
     //--------------------------------------------------------------------------
     // FINAL SETUP AND BOARD BOOT
     //--------------------------------------------------------------------------
 
-    // Start all of the clocks. Low power operation will require a better
-    // approach than this.
-
-    // microbit does not seem to have a an external clock source
-    // nrf52_components::NrfClockComponent::new().finalize(());
+    // it seems that microbit v2 has no external clock
+    nrf52::clock::CLOCK.low_stop();
+    nrf52::clock::CLOCK.high_stop();
+    nrf52::clock::CLOCK.low_start();
+    nrf52::clock::CLOCK.high_start();
+    while !nrf52::clock::CLOCK.low_started() {}
+    while !nrf52::clock::CLOCK.high_started() {}
 
     let platform = Platform {
         ble_radio: ble_radio,
-        // ieee802154_radio: ieee802154_radio,
         console: console,
         gpio: gpio,
         button: button,
+        led: led,
         rng: rng,
+        temperature: temperature,
+        lsm303agr: lsm303agr,
+        ninedof: ninedof,
         alarm: alarm,
         ipc: kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability),
     };
@@ -338,7 +390,7 @@ pub unsafe fn reset_handler() {
     // Need to disable the MPU because the bootloader seems to set it up.
     chip.mpu().clear_mpu();
 
-    panic!("Initialization complete. Entering main loop.");
+    debug!("Initialization complete. Entering main loop.");
 
     //--------------------------------------------------------------------------
     // PROCESSES AND MAIN LOOP

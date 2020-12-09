@@ -15,7 +15,7 @@
 //! let mux_i2c = components::i2c::I2CMuxComponent::new(&stm32f3xx::i2c::I2C1)
 //!     .finalize(components::i2c_mux_component_helper!());
 //!
-//! let lsm303dlhc = components::lsm303dlhc::Lsm303dlhcI2CComponent::new()
+//! let lsm303dlhc = components::lsm303dlhc::Lsm303agrI2CComponent::new()
 //!    .finalize(components::lsm303dlhc_i2c_component_helper!(mux_i2c));
 //!
 //! lsm303dlhc.configure(
@@ -86,12 +86,11 @@ use kernel::hil::i2c::{self, Error};
 use kernel::hil::sensors;
 use kernel::{AppId, Callback, Driver, ReturnCode};
 
+use crate::driver;
 use crate::lsm303xx::{
     AccelerometerRegisters, Lsm303AccelDataRate, Lsm303MagnetoDataRate, Lsm303Range, Lsm303Scale,
     CTRL_REG1, CTRL_REG4, RANGE_FACTOR_X_Y, RANGE_FACTOR_Z, SCALE_FACTOR,
 };
-
-use crate::driver;
 
 /// Syscall driver number.
 pub const DRIVER_NUM: usize = driver::NUM::Lsm303dlch as usize;
@@ -100,22 +99,24 @@ pub const DRIVER_NUM: usize = driver::NUM::Lsm303dlch as usize;
 const REGISTER_AUTO_INCREMENT: u8 = 0x80;
 
 enum_from_primitive! {
-    enum MagnetometerRegisters {
-        CRA_REG_M = 0x00,
-        CRB_REG_M = 0x01,
-        OUT_X_H_M = 0x03,
-        OUT_X_L_M = 0x04,
-        OUT_Z_H_M = 0x05,
-        OUT_Z_L_M = 0x06,
-        OUT_Y_H_M = 0x07,
-        OUT_Y_L_M = 0x08,
-        TEMP_OUT_H_M = 0x31,
-        TEMP_OUT_L_M = 0x32,
+    pub enum AgrAccelerometerRegisters {
+        TEMP_OUT_H_A = 0x0C,
+        TEMP_OUT_L_A = 0x0D
     }
 }
 
-// Experimental
-const TEMP_OFFSET: i8 = 17;
+enum_from_primitive! {
+    enum MagnetometerRegisters {
+        CRA_REG_M = 0x60,
+        CRB_REG_M = 0x61,
+        OUT_X_H_M = 0x68,
+        OUT_X_L_M = 0x69,
+        OUT_Z_H_M = 0x6A,
+        OUT_Z_L_M = 0x6B,
+        OUT_Y_H_M = 0x6C,
+        OUT_Y_L_M = 0x6D,
+    }
+}
 
 #[derive(Clone, Copy, PartialEq)]
 enum State {
@@ -124,13 +125,14 @@ enum State {
     SetPowerMode,
     SetScaleAndResolution,
     ReadAccelerationXYZ,
-    SetTemperatureDataRate,
+    SetDataRate,
+    // SetTemperature,
     SetRange,
     ReadTemperature,
     ReadMagnetometerXYZ,
 }
 
-pub struct Lsm303dlhcI2C<'a> {
+pub struct Lsm303agrI2C<'a> {
     config_in_progress: Cell<bool>,
     i2c_accelerometer: &'a dyn i2c::I2CDevice,
     i2c_magnetometer: &'a dyn i2c::I2CDevice,
@@ -148,14 +150,14 @@ pub struct Lsm303dlhcI2C<'a> {
     temperature_client: OptionalCell<&'a dyn sensors::TemperatureClient>,
 }
 
-impl<'a> Lsm303dlhcI2C<'a> {
+impl<'a> Lsm303agrI2C<'a> {
     pub fn new(
         i2c_accelerometer: &'a dyn i2c::I2CDevice,
         i2c_magnetometer: &'a dyn i2c::I2CDevice,
         buffer: &'static mut [u8],
-    ) -> Lsm303dlhcI2C<'a> {
+    ) -> Lsm303agrI2C<'a> {
         // setup and return struct
-        Lsm303dlhcI2C {
+        Lsm303agrI2C {
             config_in_progress: Cell::new(false),
             i2c_accelerometer: i2c_accelerometer,
             i2c_magnetometer: i2c_magnetometer,
@@ -235,8 +237,9 @@ impl<'a> Lsm303dlhcI2C<'a> {
             self.buffer.take().map(|buf| {
                 buf[0] = AccelerometerRegisters::CTRL_REG4 as u8;
                 buf[1] = (CTRL_REG4::FS.val(scale as u8)
-                    + CTRL_REG4::HR.val(high_resolution as u8))
-                .value;
+                    + CTRL_REG4::HR.val(high_resolution as u8)
+                    + CTRL_REG4::BDU::SET)
+                    .value;
                 self.i2c_accelerometer.enable();
                 self.i2c_accelerometer.write(buf, 2);
             });
@@ -254,16 +257,12 @@ impl<'a> Lsm303dlhcI2C<'a> {
         }
     }
 
-    fn set_temperature_and_magneto_data_rate(
-        &self,
-        temperature: bool,
-        data_rate: Lsm303MagnetoDataRate,
-    ) {
+    fn set_magneto_data_rate(&self, data_rate: Lsm303MagnetoDataRate) {
         if self.state.get() == State::Idle {
-            self.state.set(State::SetTemperatureDataRate);
+            self.state.set(State::SetDataRate);
             self.buffer.take().map(|buf| {
                 buf[0] = MagnetometerRegisters::CRA_REG_M as u8;
-                buf[1] = ((data_rate as u8) << 2) | if temperature { 1 << 7 } else { 0 };
+                buf[1] = ((data_rate as u8) << 2) | 1 << 7;
                 self.i2c_magnetometer.enable();
                 self.i2c_magnetometer.write(buf, 2);
             });
@@ -289,9 +288,9 @@ impl<'a> Lsm303dlhcI2C<'a> {
         if self.state.get() == State::Idle {
             self.state.set(State::ReadTemperature);
             self.buffer.take().map(|buf| {
-                buf[0] = MagnetometerRegisters::TEMP_OUT_H_M as u8;
-                self.i2c_magnetometer.enable();
-                self.i2c_magnetometer.write_read(buf, 1, 2);
+                buf[0] = AgrAccelerometerRegisters::TEMP_OUT_H_A as u8;
+                self.i2c_accelerometer.enable();
+                self.i2c_accelerometer.write_read(buf, 1, 2);
             });
         }
     }
@@ -308,7 +307,7 @@ impl<'a> Lsm303dlhcI2C<'a> {
     }
 }
 
-impl i2c::I2CClient for Lsm303dlhcI2C<'_> {
+impl i2c::I2CClient for Lsm303agrI2C<'_> {
     fn command_complete(&self, buffer: &'static mut [u8], error: Error) {
         match self.state.get() {
             State::IsPresent => {
@@ -351,10 +350,7 @@ impl i2c::I2CClient for Lsm303dlhcI2C<'_> {
                 self.i2c_accelerometer.disable();
                 self.state.set(State::Idle);
                 if self.config_in_progress.get() {
-                    self.set_temperature_and_magneto_data_rate(
-                        self.temperature.get(),
-                        self.mag_data_rate.get(),
-                    );
+                    self.set_magneto_data_rate(self.mag_data_rate.get());
                 }
             }
             State::ReadAccelerationXYZ => {
@@ -403,19 +399,11 @@ impl i2c::I2CClient for Lsm303dlhcI2C<'_> {
                 self.i2c_accelerometer.disable();
                 self.state.set(State::Idle);
             }
-            State::SetTemperatureDataRate => {
-                let set_temperature_and_magneto_data_rate = error == Error::CommandComplete;
+            State::SetDataRate => {
+                let set_magneto_data_rate = error == Error::CommandComplete;
 
                 self.callback.map(|callback| {
-                    callback.schedule(
-                        if set_temperature_and_magneto_data_rate {
-                            1
-                        } else {
-                            0
-                        },
-                        0,
-                        0,
-                    );
+                    callback.schedule(if set_magneto_data_rate { 1 } else { 0 }, 0, 0);
                 });
                 self.buffer.replace(buffer);
                 self.i2c_magnetometer.disable();
@@ -440,9 +428,9 @@ impl i2c::I2CClient for Lsm303dlhcI2C<'_> {
             State::ReadTemperature => {
                 let mut temp: usize = 0;
                 let values = if error == Error::CommandComplete {
-                    temp = ((buffer[1] as i16 | ((buffer[0] as i16) << 8)) >> 4) as usize;
+                    temp = (buffer[1] as u16 as i16 | ((buffer[0] as i16) << 8)) as usize;
                     self.temperature_client.map(|client| {
-                        client.callback((temp as i16 / 8 + TEMP_OFFSET as i16) as usize);
+                        client.callback((temp as i16 / 8) as usize);
                     });
                     true
                 } else {
@@ -461,7 +449,7 @@ impl i2c::I2CClient for Lsm303dlhcI2C<'_> {
                     });
                 }
                 self.buffer.replace(buffer);
-                self.i2c_magnetometer.disable();
+                self.i2c_accelerometer.disable();
                 self.state.set(State::Idle);
             }
             State::ReadMagnetometerXYZ => {
@@ -513,7 +501,7 @@ impl i2c::I2CClient for Lsm303dlhcI2C<'_> {
     }
 }
 
-impl Driver for Lsm303dlhcI2C<'_> {
+impl Driver for Lsm303agrI2C<'_> {
     fn command(&self, command_num: usize, data1: usize, data2: usize, _: AppId) -> ReturnCode {
         match command_num {
             0 => ReturnCode::SUCCESS,
@@ -556,10 +544,7 @@ impl Driver for Lsm303dlhcI2C<'_> {
             4 => {
                 if self.state.get() == State::Idle {
                     if let Some(data_rate) = Lsm303MagnetoDataRate::from_usize(data1) {
-                        self.set_temperature_and_magneto_data_rate(
-                            if data2 != 0 { true } else { false },
-                            data_rate,
-                        );
+                        self.set_magneto_data_rate(data_rate);
                         ReturnCode::SUCCESS
                     } else {
                         ReturnCode::EINVAL
@@ -630,7 +615,7 @@ impl Driver for Lsm303dlhcI2C<'_> {
     }
 }
 
-impl<'a> sensors::NineDof<'a> for Lsm303dlhcI2C<'a> {
+impl<'a> sensors::NineDof<'a> for Lsm303agrI2C<'a> {
     fn set_client(&self, nine_dof_client: &'a dyn sensors::NineDofClient) {
         self.nine_dof_client.replace(nine_dof_client);
     }
@@ -654,7 +639,7 @@ impl<'a> sensors::NineDof<'a> for Lsm303dlhcI2C<'a> {
     }
 }
 
-impl<'a> sensors::TemperatureDriver<'a> for Lsm303dlhcI2C<'a> {
+impl<'a> sensors::TemperatureDriver<'a> for Lsm303agrI2C<'a> {
     fn set_client(&self, temperature_client: &'a dyn sensors::TemperatureClient) {
         self.temperature_client.replace(temperature_client);
     }

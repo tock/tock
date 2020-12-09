@@ -61,24 +61,29 @@ impl IoWrite for Writer {
     }
 }
 
-struct MatrixLed (&'static gpio::GPIOPin<'static>, &'static gpio::GPIOPin<'static>);
+struct MatrixLed(
+    &'static gpio::GPIOPin<'static>,
+    &'static gpio::GPIOPin<'static>,
+);
 
 impl led::Led for MatrixLed {
     fn init(&mut self) {
-        self.0.make_output ();
-        self.1.make_output ();
-        self.1.clear ();
+        self.0.make_output();
+        self.1.make_output();
+        self.1.clear();
     }
     fn on(&mut self) {
-        self.1.set ();
+        self.1.set();
     }
     fn off(&mut self) {
-        self.1.clear ();
+        self.1.clear();
     }
     fn toggle(&mut self) {
-        self.1.toggle ();
+        self.1.toggle();
     }
-    fn read(&self) -> bool { self.1.read () }
+    fn read(&self) -> bool {
+        self.1.read()
+    }
 }
 
 /// Default panic handler for the microbit board.
@@ -89,7 +94,7 @@ impl led::Led for MatrixLed {
 #[panic_handler]
 pub unsafe extern "C" fn panic_fmt(pi: &PanicInfo) -> ! {
     // MicroBit v2 has an LED matrix, use the upper left LED
-    let mut led = MatrixLed (&gpio::PORT[Pin::P0_28], &gpio::PORT[Pin::P0_21]);
+    let mut led = MatrixLed(&gpio::PORT[Pin::P0_28], &gpio::PORT[Pin::P0_21]);
     let writer = &mut WRITER;
     debug::panic(
         &mut [&mut led],

@@ -8,7 +8,7 @@
 #![cfg_attr(not(doc), no_main)]
 #![deny(missing_docs)]
 
-use capsules::lsm303dlhc;
+use capsules::lsm303xx;
 use capsules::virtual_alarm::VirtualMuxAlarm;
 use components::gpio::GpioComponent;
 use kernel::capabilities;
@@ -615,13 +615,13 @@ pub unsafe fn reset_handler() {
         .finalize(components::lsm303dlhc_i2c_component_helper!(mux_i2c));
 
     lsm303dlhc.configure(
-        lsm303dlhc::Lsm303dlhcAccelDataRate::DataRate25Hz,
+        lsm303xx::Lsm303AccelDataRate::DataRate25Hz,
         false,
-        lsm303dlhc::Lsm303dlhcScale::Scale2G,
+        lsm303xx::Lsm303Scale::Scale2G,
         false,
         true,
-        lsm303dlhc::Lsm303dlhcMagnetoDataRate::DataRate3_0Hz,
-        lsm303dlhc::Lsm303dlhcRange::Range1_9G,
+        lsm303xx::Lsm303MagnetoDataRate::DataRate3_0Hz,
+        lsm303xx::Lsm303Range::Range1_9G,
     );
 
     let ninedof = components::ninedof::NineDofComponent::new(board_kernel)
