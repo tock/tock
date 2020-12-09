@@ -8,6 +8,7 @@
 //! use core::ops::{Index, IndexMut};
 //! use kernel::hil::flash;
 //! use kernel::ReturnCode;
+//! use kernel::common::leasable_buffer::LeasableBuffer;
 //!
 //! // Size in bytes
 //! const PAGE_SIZE: u32 = 1024;
@@ -22,7 +23,6 @@
 //!     fn read_page(
 //!         &self,
 //!         page_number: usize,
-//!         offset: usize,
 //!         buf: &'static mut [u8; S],
 //!     ) -> Result<(), (ReturnCode, &'static mut [u8; S])> {
 //!        unimplemented!()
@@ -31,8 +31,8 @@
 //!     fn write(
 //!         &self,
 //!         address: usize,
-//!         buf: &'static mut [u8; S],
-//!     ) -> Result<(), (ReturnCode, &'static mut [u8; S])> {
+//!         buf: LeasableBuffer<'static, u8>,
+//!     ) -> Result<(), (ReturnCode, &'static mut [u8])> {
 //!         unimplemented!()
 //!     }
 //!
@@ -65,8 +65,8 @@
 //! }
 //!
 //! impl<'a, F: flash::Flash<S>, const S: usize> flash::Client<S> for FlashUser<'a, F, S> {
-//!     fn read_complete(&self, read_buffer: &'static mut [u8; S], ret: Result<(), ReturnCode>) {}
-//!     fn write_complete(&self, write_buffer: &'static mut [u8; S], ret: Result<(), ReturnCode>) { }
+//!     fn read_complete(&self, read_buffer: &'static mut [u8], ret: Result<(), ReturnCode>) {}
+//!     fn write_complete(&self, write_buffer: &'static mut [u8], ret: Result<(), ReturnCode>) { }
 //!     fn erase_complete(&self, ret: Result<(), ReturnCode>) {}
 //! }
 //! ```
@@ -129,8 +129,8 @@ pub trait Flash<const S: usize> {
     fn write(
         &self,
         address: usize,
-        buf: &'static mut [u8; S],
-    ) -> Result<(), (ReturnCode, &'static mut [u8; S])>;
+        buf: LeasableBuffer<'static, u8>,
+    ) -> Result<(), (ReturnCode, &'static mut [u8])>;
 
     /// Erase a page of flash by setting every byte to 0xFF.
     ///
@@ -146,14 +146,14 @@ pub trait Client<const S: usize> {
     /// This will be called when the read operation is complete.
     /// On success `ret` will be nothing.
     /// On error `ret` will contain a `ReturnCode`
-    fn read_complete(&self, read_buffer: &'static mut [u8; S], ret: Result<(), ReturnCode>);
+    fn read_complete(&self, read_buffer: &'static mut [u8], ret: Result<(), ReturnCode>);
 
     /// Flash write complete.
     ///
     /// This will be called when the write operation is complete.
     /// On success `ret` will be nothing.
     /// On error `ret` will contain a `ReturnCode`
-    fn write_complete(&self, write_buffer: &'static mut [u8; S], ret: Result<(), ReturnCode>);
+    fn write_complete(&self, write_buffer: &'static mut [u8], ret: Result<(), ReturnCode>);
 
     /// Flash erase complete.
     ///
