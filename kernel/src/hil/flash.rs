@@ -20,6 +20,10 @@
 //! }
 //!
 //! impl<const S: usize> flash::Flash<S> for NewChipStruct {
+//!     fn set_bank(&self, bank_number: usize, options: flash::BankOptions) -> Result<(), ReturnCode> {
+//!        unimplemented!()
+//!     }
+//!
 //!     fn read_page(
 //!         &self,
 //!         page_number: usize,
@@ -37,6 +41,18 @@
 //!     }
 //!
 //!     fn erase_page(&self, page_number: usize) -> Result<(), ReturnCode> {
+//!         unimplemented!()
+//!     }
+//!
+//!     fn blocking_read_page(&self, page_number: usize, buf: &mut [u8; S]) -> Result<(), ReturnCode> {
+//!         unimplemented!()
+//!     }
+//!
+//!     fn blocking_write(&self, address: usize, buf: &u8) -> Result<(), ReturnCode> {
+//!         unimplemented!()
+//!     }
+//!
+//!     fn blocking_erase_page(&self, page_number: usize) -> Result<(), ReturnCode> {
 //!         unimplemented!()
 //!     }
 //! }
@@ -74,6 +90,14 @@
 use crate::common::leasable_buffer::LeasableBuffer;
 use crate::returncode::ReturnCode;
 
+/// A list of possible rules to access banks
+/// This is used to specify if async accesses are allowed on flash banks
+pub enum BankOptions {
+    AsyncAllowed,
+    AsyncReadOnly,
+    AsyncDisabled,
+}
+
 pub trait HasClient<'a, C> {
     /// Set the client for this flash peripheral. The client will be called
     /// when operations complete.
@@ -82,6 +106,18 @@ pub trait HasClient<'a, C> {
 
 /// A page of writeable persistent flash memory.
 pub trait Flash<const S: usize> {
+    /// Specify the flash bank that the implementation will use.
+    ///
+    /// This should be called by a board setup to specify the flash bank
+    /// to use if there are multiple flash banks.
+    /// As part of this call the caller should also specify if async
+    /// operations are allowed. This will depend on the hardware, the
+    /// bank specified and the bank currently being used.
+    ///
+    /// On success returns nothing
+    /// On failure returns a `ReturnCode`
+    fn set_bank(&self, bank_number: usize, options: BankOptions) -> Result<(), ReturnCode>;
+
     /// Read a page of flash into the buffer.
     ///
     /// This function will read the flash page specified by `page_number`
@@ -135,8 +171,43 @@ pub trait Flash<const S: usize> {
     /// Erase a page of flash by setting every byte to 0xFF.
     ///
     /// On success returns nothing
-    /// On failure returns a `ReturnCode`.
+    /// On failure returns a `ReturnCode`
     fn erase_page(&self, page_number: usize) -> Result<(), ReturnCode>;
+
+    /// Blocking page read
+    ///
+    /// This function will read the flash page specified by `page_number`
+    /// and store it in the buffer `buf`.
+    /// This is a blocking call and should be used when async operations
+    /// aren't allowed by the hardware. This will not call a callback.
+    ///
+    /// On success returns nothing
+    /// On failure returns a `ReturnCode`.
+    fn blocking_read_page(&self, page_number: usize, buf: &mut [u8; S]) -> Result<(), ReturnCode>;
+
+    /// Blocking write
+    ///
+    /// This function will write the buffer `buf` to the `address` specified
+    /// in flash.
+    ///
+    /// This function will not erase the page first. The user of this function
+    /// must ensure that a page is erased before writing.
+    ///
+    /// This is a blocking call and should be used when async operations
+    /// aren't allowed by the hardware. This will not call a callback.
+    ///
+    /// On success returns nothing
+    /// On failure returns a `ReturnCode`.
+    fn blocking_write(&self, address: usize, buf: &u8) -> Result<(), ReturnCode>;
+
+    /// Blocking page erase
+    ///
+    /// This is a blocking call and should be used when async operations
+    /// aren't allowed by the hardware. This will not call a callback.
+    ///
+    /// On success returns nothing
+    /// On failure returns a `ReturnCode`.
+    fn blocking_erase_page(&self, page_number: usize) -> Result<(), ReturnCode>;
 }
 
 /// Implement `Client` to receive callbacks from `Flash`.
