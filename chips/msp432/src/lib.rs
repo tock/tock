@@ -13,6 +13,7 @@ pub mod cs;
 pub mod dma;
 pub mod flctl;
 pub mod gpio;
+pub mod i2c;
 pub mod nvic;
 pub mod pcm;
 pub mod ref_module;

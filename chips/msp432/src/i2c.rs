@@ -17,6 +17,8 @@ pub enum Speed {
 
 #[derive(Copy, Clone, PartialEq)]
 enum OperatingMode {
+    Unconfigured,
+    Disabled,
     Idle,
     Write,
     Read,
@@ -38,30 +40,6 @@ pub struct I2c<'a> {
     rx_dma_src: u8,
 }
 
-type I2cRegisterManager<'a> = PeripheralManager<'a, I2c<'a>, NoClockControl>;
-
-impl<'a> PeripheralManagement<NoClockControl> for I2c<'a> {
-    type RegisterType = UsciBRegisters;
-
-    fn get_registers(&self) -> &Self::RegisterType {
-        &self.registers
-    }
-
-    fn get_clock(&self) -> &NoClockControl {
-        unsafe { &kernel::NO_CLOCK_CONTROL }
-    }
-
-    fn before_peripheral_access(&self, _c: &NoClockControl, r: &Self::RegisterType) {
-        // Set USCI module to reset in order to make a proper configuration possible
-        r.ctlw0.modify(usci::UCBxCTLW0::UCSWRST::SET);
-    }
-
-    fn after_peripheral_access(&self, _c: &NoClockControl, r: &Self::RegisterType) {
-        // Set USCI module to reset in order to make a proper configuration possible
-        r.ctlw0.modify(usci::UCBxCTLW0::UCSWRST::CLEAR);
-    }
-}
-
 impl<'a> I2c<'a> {
     pub const fn new(
         registers: StaticRef<UsciBRegisters>,
@@ -72,7 +50,7 @@ impl<'a> I2c<'a> {
     ) -> Self {
         Self {
             registers: registers,
-            mode: Cell::new(OperatingMode::Idle),
+            mode: Cell::new(OperatingMode::Unconfigured),
             read_len: Cell::new(0),
             master_client: OptionalCell::empty(),
             tx_dma: OptionalCell::empty(),
@@ -82,62 +60,6 @@ impl<'a> I2c<'a> {
             rx_dma_chan: rx_dma_chan,
             rx_dma_src: rx_dma_src,
         }
-    }
-
-    pub fn set_dma(&self, tx_dma: &'a dma::DmaChannel<'a>, rx_dma: &'a dma::DmaChannel<'a>) {
-        self.tx_dma.replace(tx_dma);
-        self.rx_dma.replace(rx_dma);
-    }
-
-    pub fn set_speed(&self, speed: Speed) {
-        // let i2c = I2cRegisterManager::new(self);
-        // SMCLK is running at 1.5MHz
-        // In order to achieve a speed of 100kHz or 375kHz, it's necessary to divide the clock
-        // by either 15 (100kHz) or 4 (375kHz)
-        if speed == Speed::K100 {
-            self.registers.brw.set(15);
-        } else if speed == Speed::K375 {
-            self.registers.brw.set(4);
-        }
-    }
-
-    fn setup(&self) {
-        // let i2c = I2cRegisterManager::new(&self);
-        self.set_module_to_reset();
-
-        self.registers.ctlw0.modify(
-            // Use 7 bit addresses
-            usci::UCBxCTLW0::UCSLA10::AddressSlaveWith7BitAddress
-            // Setup to master mode
-            + usci::UCBxCTLW0::UCMST::MasterMode
-            // Setup to single master environment
-            + usci::UCBxCTLW0::UCMM::SingleMasterEnvironment
-            // Configure USCI module to I2C mode
-            + usci::UCBxCTLW0::UCMODE::I2CMode
-            // Set clock source to SMCLK (1.5MHz)
-            + usci::UCBxCTLW0::UCSSEL::SMCLK,
-        );
-
-        self.registers.ctlw1.modify(
-            // Disable clock low timeout
-            usci::UCBxCTLW1::UCCLTO::CLEAR
-            // Send a NACK before a stop condition
-            + usci::UCBxCTLW1::UCSTPNACK::NackBeforeStop
-            // Generate the ACK bit by hardware
-            + usci::UCBxCTLW1::UCSWACK::HardwareTriggered
-            // Set glitch filtering to 50ns (according to I2C standard)
-            + usci::UCBxCTLW1::UCGLIT::_50ns,
-        );
-
-        // Enable interrupts
-        self.registers.ie.modify(
-            // Enable NACK interrupt
-            usci::UCBxIE::UCNACKIE::SET
-            // Enable 'arbitration lost' interrupt
-            + usci::UCBxIE::UCALIE::SET,
-        );
-
-        self.clear_module_reset();
     }
 
     fn set_module_to_reset(&self) {
@@ -189,6 +111,121 @@ impl<'a> I2c<'a> {
     fn set_byte_counter(&self, val: u8) {
         self.registers.tbcnt.set(val as u16);
     }
+
+    fn setup(&self) {
+        self.set_module_to_reset();
+
+        self.registers.ctlw0.modify(
+            // Use 7 bit addresses
+            usci::UCBxCTLW0::UCSLA10::AddressSlaveWith7BitAddress
+            // Setup to master mode
+            + usci::UCBxCTLW0::UCMST::MasterMode
+            // Setup to single master environment
+            + usci::UCBxCTLW0::UCMM::SingleMasterEnvironment
+            // Configure USCI module to I2C mode
+            + usci::UCBxCTLW0::UCMODE::I2CMode
+            // Set clock source to SMCLK (1.5MHz)
+            + usci::UCBxCTLW0::UCSSEL::SMCLK,
+        );
+
+        self.registers.ctlw1.modify(
+            // Disable clock low timeout
+            usci::UCBxCTLW1::UCCLTO::CLEAR
+            // Send a NACK before a stop condition
+            + usci::UCBxCTLW1::UCSTPNACK::NackBeforeStop
+            // Generate the ACK bit by hardware
+            + usci::UCBxCTLW1::UCSWACK::HardwareTriggered
+            // Set glitch filtering to 50ns (according to I2C standard)
+            + usci::UCBxCTLW1::UCGLIT::_50ns,
+        );
+
+        // Enable interrupts
+        self.registers.ie.modify(
+            // Enable NACK interrupt
+            usci::UCBxIE::UCNACKIE::SET
+            // Enable 'arbitration lost' interrupt
+            + usci::UCBxIE::UCALIE::SET,
+        );
+
+        // Configure the DMA
+        let tx_conf = dma::DmaConfig {
+            src_chan: self.tx_dma_src,
+            mode: dma::DmaMode::Basic,
+            width: dma::DmaDataWidth::Width8Bit,
+            src_incr: dma::DmaPtrIncrement::Incr8Bit,
+            dst_incr: dma::DmaPtrIncrement::NoIncr,
+        };
+
+        let rx_conf = dma::DmaConfig {
+            src_chan: self.rx_dma_src,
+            mode: dma::DmaMode::Basic,
+            width: dma::DmaDataWidth::Width8Bit,
+            src_incr: dma::DmaPtrIncrement::NoIncr,
+            dst_incr: dma::DmaPtrIncrement::Incr8Bit,
+        };
+
+        self.tx_dma.map(|dma| dma.initialize(&tx_conf));
+        self.rx_dma.map(|dma| dma.initialize(&rx_conf));
+
+        self.mode.set(OperatingMode::Disabled);
+        // Do not exit the reset mode here, this is done by the enable function
+    }
+
+    pub fn set_dma(&self, tx_dma: &'a dma::DmaChannel<'a>, rx_dma: &'a dma::DmaChannel<'a>) {
+        self.tx_dma.replace(tx_dma);
+        self.rx_dma.replace(rx_dma);
+    }
+
+    pub fn set_speed(&self, speed: Speed) {
+        self.set_module_to_reset();
+
+        // SMCLK is running at 1.5MHz
+        // In order to achieve a speed of 100kHz or 375kHz, it's necessary to divide the clock
+        // by either 15 (100kHz) or 4 (375kHz)
+        if speed == Speed::K100 {
+            self.registers.brw.set(15);
+        } else if speed == Speed::K375 {
+            self.registers.brw.set(4);
+        }
+
+        self.clear_module_reset();
+    }
+
+    pub fn handle_interrupt(&self) {
+        // Since an error occurred, immediately generate a stop condition
+        self.generate_stop_condition();
+
+        let (_, tx, _, _, _) = self.tx_dma.map(|dma| dma.stop()).unwrap();
+        let (_, _, rx, _, _) = self.rx_dma.map(|dma| dma.stop()).unwrap();
+
+        let buf = if tx.is_some() {
+            tx.unwrap()
+        } else {
+            rx.unwrap()
+        };
+
+        if self.registers.ifg.is_set(usci::UCBxIFG::UCNACKIFG) {
+            // NACK interrupt
+            // TODO: use byte counter to detect address NAK
+
+            // Clear interrupt
+            self.registers.ifg.modify(usci::UCBxIFG::UCNACKIFG::CLEAR);
+            self.master_client
+                .map(move |cl| cl.command_complete(buf, i2c::Error::DataNak));
+        } else if self.registers.ifg.is_set(usci::UCBxIFG::UCALIFG) {
+            // Arbitration lost  interrupt
+
+            // Clear interrupt
+            self.registers.ifg.modify(usci::UCBxIFG::UCALIFG::CLEAR);
+            self.master_client
+                .map(move |cl| cl.command_complete(buf, i2c::Error::ArbitrationLost));
+        } else {
+            panic!(
+                "I2C: unhandled interrupt, ifg: {}",
+                self.registers.ifg.get()
+            );
+        }
+    }
 }
 
 impl<'a> dma::DmaClient for I2c<'a> {
@@ -207,13 +244,13 @@ impl<'a> dma::DmaClient for I2c<'a> {
                 self.master_client.map(move |cl| {
                     tx_buf.map(|buf| cl.command_complete(buf, i2c::Error::CommandComplete));
                 });
-                self.mode.replace(OperatingMode::Idle);
+                self.mode.set(OperatingMode::Idle);
             }
             OperatingMode::Read => {
                 self.master_client.map(move |cl| {
                     rx_buf.map(|buf| cl.command_complete(buf, i2c::Error::CommandComplete));
                 });
-                self.mode.replace(OperatingMode::Idle);
+                self.mode.set(OperatingMode::Idle);
             }
             OperatingMode::WriteRead => {
                 if tx_buf.is_some() {
@@ -257,17 +294,22 @@ impl<'a> i2c::I2CMaster for I2c<'a> {
     }
 
     fn enable(&self) {
-        self.setup();
+        if self.mode.get() == OperatingMode::Unconfigured {
+            self.setup();
+        }
+
+        self.clear_module_reset();
+        self.mode.set(OperatingMode::Idle);
     }
 
     fn disable(&self) {
         self.set_module_to_reset();
-        self.mode.replace(OperatingMode::Idle);
+        self.mode.set(OperatingMode::Disabled);
     }
 
     fn write(&self, addr: u8, data: &'static mut [u8], len: u8) {
         if self.mode.get() != OperatingMode::Idle {
-            // Module is busy
+            // Module is busy or not activated
             return;
         }
 
@@ -289,7 +331,7 @@ impl<'a> i2c::I2CMaster for I2c<'a> {
         self.set_stop_condition_automatically(true);
 
         self.clear_module_reset();
-        self.mode.replace(OperatingMode::Write);
+        self.mode.set(OperatingMode::Write);
 
         // Setup a DMA transfer
         let tx_reg = &self.registers.txbuf as *const ReadWrite<u16> as *const ();
@@ -302,7 +344,7 @@ impl<'a> i2c::I2CMaster for I2c<'a> {
 
     fn read(&self, addr: u8, buffer: &'static mut [u8], len: u8) {
         if self.mode.get() != OperatingMode::Idle {
-            // Module is busy
+            // Module is busy or not activated
             return;
         }
 
@@ -324,7 +366,7 @@ impl<'a> i2c::I2CMaster for I2c<'a> {
         self.set_stop_condition_automatically(true);
 
         self.clear_module_reset();
-        self.mode.replace(OperatingMode::Read);
+        self.mode.set(OperatingMode::Read);
 
         // Setup a DMA transfer
         let rx_reg = &self.registers.rxbuf as *const ReadOnly<u16> as *const ();
@@ -337,7 +379,7 @@ impl<'a> i2c::I2CMaster for I2c<'a> {
 
     fn write_read(&self, addr: u8, data: &'static mut [u8], write_len: u8, read_len: u8) {
         if self.mode.get() != OperatingMode::Idle {
-            // Module is busy
+            // Module is busy or not activated
             return;
         }
 
@@ -355,10 +397,10 @@ impl<'a> i2c::I2CMaster for I2c<'a> {
         self.set_stop_condition_automatically(false);
 
         // Store read_len since it will be used in the DMA callback to setup the read transfer
-        self.read_len.replace(read_len);
+        self.read_len.set(read_len);
 
         self.clear_module_reset();
-        self.mode.replace(OperatingMode::WriteRead);
+        self.mode.set(OperatingMode::WriteRead);
 
         // Setup a DMA transfer
         let tx_reg = &self.registers.txbuf as *const ReadWrite<u16> as *const ();
