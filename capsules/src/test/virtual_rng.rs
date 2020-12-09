@@ -55,6 +55,7 @@ impl<'a> Client for TestRng<'a> {
         if num_requests_remaining == 1 {
             Continue::Done
         } else {
+            self.device.get();
             Continue::More
         }
     }

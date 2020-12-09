@@ -74,8 +74,12 @@ impl<'a> Client for MuxRngMaster<'a> {
     ) -> Continue {
         // Try find if randomness is available, or return done
         self.inflight.take().map_or(Continue::Done, |device| {
-            self.do_next_op();
             let cont_code = device.randomness_available(_randomness, _error);
+
+            if cont_code == Continue::Done {
+                self.do_next_op();
+            }
+
             cont_code
         })
     }
