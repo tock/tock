@@ -51,6 +51,7 @@ enum State {
     Read,
     ReadData,
     Reset,
+    ReadHeater,
 }
 
 fn crc8(data: &[u8]) -> u8 {
@@ -99,63 +100,93 @@ impl<'a, A: Alarm<'a>> SHT3x<'a, A> {
         }
     }
 
-    pub fn clear_status(&self) {
-        self.buffer.take().map(|buffer| {
+    pub fn clear_status(&self) -> ReturnCode {
+        self.buffer.take().map_or(ReturnCode::ENOMEM, |buffer| {
             self.i2c.enable();
 
-            buffer[0] = ((Registers::CLEARSTATUS as u16) >> 8) as u8;
-            buffer[1] = Registers::CLEARSTATUS as u8;
+            let [high, low] = u16::to_be_bytes(Registers::CLEARSTATUS as u16);
+
+
+            buffer[0] = high;
+            buffer[1] = low;
+
             self.i2c.write(buffer, 2);
 
             self.state.set(State::Reset);
-        });
+        
+            ReturnCode::SUCCESS
+        })
     }
 
-    pub fn read_status(&self) {
-        self.buffer.take().map(|buffer| {
+    pub fn read_status(&self) -> ReturnCode {
+        self.buffer.take().map_or(ReturnCode::ENOMEM, |buffer| {
             self.i2c.enable();
 
             buffer[0] = Registers::READSTATUS as u8;
+
             self.i2c.write_read(buffer, 1, 1);
 
             self.state.set(State::ReadStatus);
-        });
+          
+            ReturnCode::SUCCESS
+        })
     }
 
-    pub fn reset(&self) {
-        self.buffer.take().map(|buffer| {
+    pub fn reset(&self) -> ReturnCode {
+        self.buffer.take().map_or(ReturnCode::ENOMEM, |buffer| {
             self.i2c.enable();
 
-            buffer[0] = ((Registers::SOFTRESET as u16) >> 8) as u8;
-            buffer[1] = Registers::SOFTRESET as u8;
+            let [high, low] = u16::to_be_bytes(Registers::SOFTRESET as u16);
+
+            buffer[0] = high;
+            buffer[1] = low;
+
             self.i2c.write_read(buffer, 2, 2);
             self.state.set(State::Reset);
-        });
+            
+            ReturnCode::SUCCESS
+        })
     }
 
-    pub fn heater(&self, h: bool) {
-        self.buffer.take().map(|buffer| {
+    pub fn heater(&self, h: bool) -> ReturnCode {
+        self.buffer.take().map_or(ReturnCode::ENOMEM, |buffer| {
             self.i2c.enable();
 
             if h == true {
-                buffer[0] = ((Registers::HEATEREN as u16) >> 8) as u8;
-                buffer[1] = Registers::HEATEREN as u8;
+                let [high, low] = u16::to_be_bytes(Registers::HEATEREN as u16);
+
+                buffer[0] = high;
+                buffer[1] = low;
             } else {
-                buffer[0] = ((Registers::HEATERDIS as u16) >> 8) as u8;
-                buffer[1] = Registers::HEATERDIS as u8;
+                let [high, low] = u16::to_be_bytes(Registers::HEATERDIS as u16);
+
+                buffer[0] = high;
+                buffer[1] = low;
             }
 
             self.i2c.write(buffer, 2);
 
             self.state.set(State::Reset);
-        });
+
+            ReturnCode::SUCCESS
+        })
     }
 
-    pub fn is_heater_enabled(&self) -> bool {
-        false
+    pub fn is_heater_enabled(&self) -> ReturnCode {
+        self.buffer.take().map_or(ReturnCode::ENOMEM, |buffer| {
+            self.i2c.enable();
+
+            buffer[0] = Registers::REGHEATERBIT as u8;
+
+            self.i2c.write_read(buffer, 1, 1);
+
+            self.state.set(State::ReadHeater);
+
+            ReturnCode::SUCCESS
+        })
     }
 
-    pub fn read_humidity(&self) -> ReturnCode {
+    fn read_humidity(&self) -> ReturnCode {
         if self.read_hum.get() == true {
             ReturnCode::EBUSY
         } else {
@@ -169,7 +200,7 @@ impl<'a, A: Alarm<'a>> SHT3x<'a, A> {
         }
     }
 
-    pub fn read_temperature(&self) -> ReturnCode {
+    fn read_temperature(&self) -> ReturnCode {
         if self.read_temp.get() == true {
             ReturnCode::EBUSY
         } else {
@@ -183,7 +214,7 @@ impl<'a, A: Alarm<'a>> SHT3x<'a, A> {
         }
     }
 
-    pub fn read_temp_hum(&self) -> ReturnCode {
+    fn read_temp_hum(&self) -> ReturnCode {
         self.buffer.take().map_or(ReturnCode::ENOMEM, |buffer| {
             self.state.set(State::Read);
             self.i2c.enable();
@@ -228,6 +259,12 @@ impl<'a, A: Alarm<'a>> i2c::I2CClient for SHT3x<'a, A> {
                 match state {
                     State::ReadStatus => {
                         // TODO do soemthing useful with the status
+                        self.buffer.replace(buffer);
+                        self.state.set(State::Idle);
+                    }
+                    State::ReadHeater => {
+                        // TODO where to return if the heater is enabled or not
+                        self.buffer.replace(buffer);
                         self.state.set(State::Idle);
                     }
                     State::ReadData => {
