@@ -1,7 +1,10 @@
-//! Simple structs which are relatively directly copied from the `rubble`
-//! codebase, but belong in here for interface reasons.
+//! Rubble-specific data structures.
 //!
-//! All of these structures are represented identically to their `rubble`
+//! These are relatively simple structs that are essentially replicated from the
+//! Rubble codebase, but need to be specified here so we do not need to rely on
+//! an external dependency for interface reasons.
+//!
+//! All of these structures are represented identically to their Rubble
 //! counterparts. However, most methods are removed: these structures only have
 //! most basic methods needed to create and access their internal data, and
 //! offer fewer guarantees than their rubble counterparts because of that.

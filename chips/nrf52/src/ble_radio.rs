@@ -812,8 +812,8 @@ impl<'a> ble_advertising::BleAdvertisementDriver<'a> for Radio<'a> {
     }
 }
 
-impl<'a> rubble::RubbleDataDriver<'a> for Radio<'a> {
-    fn get_device_address() -> rubble::DeviceAddress {
+impl<'a> rubble::radio::RubbleData<'a> for Radio<'a> {
+    fn get_device_address() -> rubble::types::DeviceAddress {
         // This is sound as we're only using read-only access, and all other
         // accessors of FICR also only use read-only access.
         let (raw_address, address_type) = unsafe {
@@ -821,11 +821,11 @@ impl<'a> rubble::RubbleDataDriver<'a> for Radio<'a> {
             (ficr.address(), ficr.address_type())
         };
 
-        rubble::DeviceAddress {
+        rubble::types::DeviceAddress {
             bytes: raw_address,
             kind: match address_type {
-                crate::ficr::AddressType::Public => rubble::AddressKind::Public,
-                crate::ficr::AddressType::Random => rubble::AddressKind::Random,
+                crate::ficr::AddressType::Public => rubble::types::AddressKind::Public,
+                crate::ficr::AddressType::Random => rubble::types::AddressKind::Random,
             },
         }
     }

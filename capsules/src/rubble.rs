@@ -34,16 +34,15 @@
 //!   Advertising is currently hardcoded to connectable advertisements, with no
 //!   control for what happens when something does connect.
 
-use core::{cell::RefCell, convert::TryInto, marker::PhantomData};
+use core::cell::RefCell;
+use core::convert::TryInto;
+use core::marker::PhantomData;
 use kernel::debug;
-use kernel::hil::time::Ticks;
-use kernel::hil::{
-    rubble::{
-        Duration, Instant, NextUpdate, RubbleBleRadio, RubbleCmd, RubbleImplementation,
-        RubbleLinkLayer, RubblePacketQueue, RubbleResponder,
-    },
-    time::Alarm,
+use kernel::hil::rubble::{
+    self, RubbleBleRadio, RubbleCmd, RubbleLinkLayer, RubblePacketQueue, RubbleResponder,
+    RubbleStack,
 };
+use kernel::hil::time::{self, Ticks};
 use kernel::{AppId, AppSlice, ReturnCode, Shared};
 
 use crate::driver;
@@ -62,22 +61,22 @@ pub const ALLOW_OUTGOING_AD_BUFFER: usize = 0;
 /// Process specific memory
 pub struct App {
     outgoing_advertisement_data: Option<kernel::AppSlice<kernel::Shared, u8>>,
-    advertisement_interval: Duration,
+    advertisement_interval: rubble::types::Duration,
 }
 
 impl Default for App {
     fn default() -> App {
         App {
             outgoing_advertisement_data: None,
-            advertisement_interval: Duration::from_millis(200),
+            advertisement_interval: rubble::types::Duration::from_millis(200),
         }
     }
 }
 
 struct MutableBleData<'a, A, R>
 where
-    A: Alarm<'a>,
-    R: RubbleImplementation<'a, A>,
+    A: time::Alarm<'a>,
+    R: RubbleStack<'a, A>,
 {
     radio: R::BleRadio,
     ll: R::LinkLayer,
@@ -87,10 +86,10 @@ where
 
 impl<'a, A, R> MutableBleData<'a, A, R>
 where
-    A: Alarm<'a>,
-    R: RubbleImplementation<'a, A>,
+    A: time::Alarm<'a>,
+    R: RubbleStack<'a, A>,
 {
-    pub fn handle_cmd(&mut self, cmd: R::Cmd) -> NextUpdate {
+    pub fn handle_cmd(&mut self, cmd: R::Cmd) -> rubble::types::NextUpdate {
         let queued_work = cmd.queued_work();
         let next_update = cmd.next_update();
         self.radio.accept_cmd(cmd.into_radio_cmd());
@@ -108,8 +107,8 @@ where
 
 pub struct BLE<'a, A, R>
 where
-    A: Alarm<'a>,
-    R: RubbleImplementation<'a, A>,
+    A: time::Alarm<'a>,
+    R: RubbleStack<'a, A>,
 {
     mutable_data: RefCell<MutableBleData<'a, A, R>>,
     app: kernel::Grant<App>,
@@ -118,15 +117,15 @@ where
 
 impl<'a, A, R> BLE<'a, A, R>
 where
-    A: Alarm<'a>,
-    R: RubbleImplementation<'a, A>,
+    A: time::Alarm<'a>,
+    R: RubbleStack<'a, A>,
 {
     pub fn new(container: kernel::Grant<App>, radio: R::BleRadio, alarm: &'a A) -> Self {
         // Determine device address
         let device_address = R::get_device_address();
 
-        let (tx, _tx_cons) = <R as RubbleImplementation<'a, A>>::tx_packet_queue().split();
-        let (_rx_prod, rx) = <R as RubbleImplementation<'a, A>>::rx_packet_queue().split();
+        let (tx, _tx_cons) = <R as RubbleStack<'a, A>>::tx_packet_queue().split();
+        let (_rx_prod, rx) = <R as RubbleStack<'a, A>>::rx_packet_queue().split();
 
         let ll = R::LinkLayer::new(device_address, alarm);
         let responder = R::Responder::new(tx, rx);
@@ -144,8 +143,8 @@ where
 
     pub fn start_advertising(&self, app: &mut App) -> Result<(), ReturnCode> {
         let data = &mut *self.mutable_data.borrow_mut();
-        let (_tx, tx_cons) = <R as RubbleImplementation<'a, A>>::tx_packet_queue().split();
-        let (rx_prod, _rx) = <R as RubbleImplementation<'a, A>>::rx_packet_queue().split();
+        let (_tx, tx_cons) = <R as RubbleStack<'a, A>>::tx_packet_queue().split();
+        let (rx_prod, _rx) = <R as RubbleStack<'a, A>>::rx_packet_queue().split();
 
         // this errors if we provide too much ad data.
 
@@ -172,13 +171,13 @@ where
         Ok(())
     }
 
-    pub fn set_alarm_for(&self, update: NextUpdate) {
+    pub fn set_alarm_for(&self, update: rubble::types::NextUpdate) {
         match update {
-            NextUpdate::Keep => {}
-            NextUpdate::Disable => {
+            rubble::types::NextUpdate::Keep => {}
+            rubble::types::NextUpdate::Disable => {
                 self.alarm.disarm();
             }
-            NextUpdate::At(time) => {
+            rubble::types::NextUpdate::At(time) => {
                 let now = self.alarm.now();
                 self.alarm
                     .set_alarm(now, time.to_alarm_time(self.alarm).into());
@@ -191,12 +190,12 @@ where
 
 impl<'a, A, R> kernel::hil::ble_advertising::RxClient for BLE<'a, A, R>
 where
-    A: Alarm<'a>,
-    R: RubbleImplementation<'a, A>,
+    A: time::Alarm<'a>,
+    R: RubbleStack<'a, A>,
 {
     fn receive_event(&self, buf: &'static mut [u8], len: u8, result: ReturnCode) {
         // TODO: how accurate is this? can we get a more accurate time stamp?
-        let rx_end = Instant::from_alarm_time::<A>(self.alarm.now().into_u32());
+        let rx_end = rubble::types::Instant::from_alarm_time::<A>(self.alarm.now().into_u32());
         let data = &mut *self.mutable_data.borrow_mut();
         let cmd = R::receive_event(&mut data.radio, &mut data.ll, rx_end, buf, len, result);
         let next_update = data.handle_cmd(cmd);
@@ -205,12 +204,12 @@ where
 }
 impl<'a, A, R> kernel::hil::ble_advertising::TxClient for BLE<'a, A, R>
 where
-    A: Alarm<'a>,
-    R: RubbleImplementation<'a, A>,
+    A: time::Alarm<'a>,
+    R: RubbleStack<'a, A>,
 {
     fn transmit_event(&self, buf: &'static mut [u8], result: ReturnCode) {
         // TODO: how accurate is this? can we get a more accurate time stamp?
-        let rx_end = Instant::from_alarm_time::<A>(self.alarm.now().into_u32());
+        let rx_end = rubble::types::Instant::from_alarm_time::<A>(self.alarm.now().into_u32());
         let data = &mut *self.mutable_data.borrow_mut();
         let () = R::transmit_event(&mut data.radio, &mut data.ll, rx_end, buf, result);
     }
@@ -219,8 +218,8 @@ where
 // Timer alarm
 impl<'a, A, R> kernel::hil::time::AlarmClient for BLE<'a, A, R>
 where
-    A: Alarm<'a>,
-    R: RubbleImplementation<'a, A>,
+    A: time::Alarm<'a>,
+    R: RubbleStack<'a, A>,
 {
     fn alarm(&self) {
         let data = &mut *self.mutable_data.borrow_mut();
@@ -234,8 +233,8 @@ where
 // System Call implementation
 impl<'a, A, R> kernel::Driver for BLE<'a, A, R>
 where
-    A: Alarm<'a>,
-    R: RubbleImplementation<'a, A>,
+    A: time::Alarm<'a>,
+    R: RubbleStack<'a, A>,
 {
     fn command(&self, command_num: usize, r2: usize, r3: usize, app_id: AppId) -> ReturnCode {
         match command_num {
@@ -245,7 +244,7 @@ where
 
                 self.app
                     .enter(app_id, |app, _alloc| {
-                        app.advertisement_interval = Duration::from_millis(
+                        app.advertisement_interval = rubble::types::Duration::from_millis(
                             advertisement_interval_ms
                                 .try_into()
                                 .map_err(|_| ReturnCode::EINVAL)?,
