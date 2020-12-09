@@ -96,7 +96,7 @@ impl<'a> TemperatureSensor<'a> {
                     let eres = ErrorCode::try_from(rcode);
                     match eres {
                         Ok(ecode) => CommandResult::failure(ecode),
-                        _ => CommandResult::success()
+                        _ => CommandResult::success(),
                     }
                 } else {
                     CommandResult::failure(ErrorCode::BUSY)
@@ -105,8 +105,13 @@ impl<'a> TemperatureSensor<'a> {
             .unwrap_or_else(|err| CommandResult::failure(err.into()))
     }
 
-    fn configure_callback(&self, mut callback: Callback, app_id: AppId) -> Result<Callback, (Callback, ErrorCode)> {
-        let res = self.apps
+    fn configure_callback(
+        &self,
+        mut callback: Callback,
+        app_id: AppId,
+    ) -> Result<Callback, (Callback, ErrorCode)> {
+        let res = self
+            .apps
             .enter(app_id, |app, _| {
                 mem::swap(&mut app.callback, &mut callback);
             })
