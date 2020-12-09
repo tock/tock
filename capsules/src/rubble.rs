@@ -179,8 +179,8 @@ where
             }
             rubble::types::NextUpdate::At(time) => {
                 let now = self.alarm.now();
-                self.alarm
-                    .set_alarm(now, time.to_alarm_time(self.alarm).into());
+                let future: A::Ticks = time.to_alarm_time(self.alarm).into();
+                self.alarm.set_alarm(now, future.wrapping_sub(now));
             }
         }
     }
