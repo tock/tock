@@ -13,3 +13,4 @@ nrf52 = { path = "../../chips/nrf52" }
 nrf52840 = { path = "../../chips/nrf52840" }
 components = { path = "../components" }
 nrf52_components = { path = "../nordic/nrf52_components" }
+nrf52_rubble = { path = "../nordic/nrf52_rubble" }

@@ -95,10 +95,13 @@ pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 
 /// Supported drivers by the platform
 pub struct Platform {
-    ble_radio: &'static capsules::ble_advertising_driver::BLE<
+    ble_radio: &'static capsules::rubble::BLE<
         'static,
-        nrf52::ble_radio::Radio<'static>,
-        capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc<'static>>,
+        capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52840::rtc::Rtc<'static>>,
+        nrf52_rubble::Nrf52RubbleImplementation<
+            'static,
+            capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52840::rtc::Rtc<'static>>,
+        >,
     >,
     ieee802154_radio: &'static capsules::ieee802154::RadioDriver<'static>,
     console: &'static capsules::console::Console<'static>,
@@ -129,7 +132,7 @@ impl kernel::Platform for Platform {
             capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
             capsules::led::DRIVER_NUM => f(Some(self.led)),
             capsules::rng::DRIVER_NUM => f(Some(self.rng)),
-            capsules::ble_advertising_driver::DRIVER_NUM => f(Some(self.ble_radio)),
+            capsules::rubble::DRIVER_NUM => f(Some(self.ble_radio)),
             capsules::ieee802154::DRIVER_NUM => f(Some(self.ieee802154_radio)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             _ => f(None),
@@ -339,9 +342,14 @@ pub unsafe fn reset_handler() {
     // WIRELESS
     //--------------------------------------------------------------------------
 
+    // -- Rubble BLE Stack -----------------------------------------------------
+
+    // Use the Rubble BLE stack
     let ble_radio =
-        nrf52_components::BLEComponent::new(board_kernel, &base_peripherals.ble_radio, mux_alarm)
+        nrf52_rubble::RubbleComponent::new(board_kernel, &base_peripherals.ble_radio, mux_alarm)
             .finalize(());
+
+    // -- IEEE 802.15.4 --------------------------------------------------------
 
     let aes_mux = static_init!(
         MuxAES128CCM<'static, nrf52840::aes::AesECB>,
