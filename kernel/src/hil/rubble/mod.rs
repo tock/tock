@@ -3,7 +3,7 @@
 //! This module contains the interfaces for the following intended stack using
 //! the external [Rubble library](https://github.com/jonas-schievink/rubble):
 //!
-//! ```
+//! ```ignore
 //! +---------------------------------+
 //! |                                 |
 //! |  Capsules                       |

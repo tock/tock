@@ -19,9 +19,10 @@ use super::types::DeviceAddress;
 /// transmission, and Tock's existing `BleAdvertisementDriver`.
 ///
 /// Event notifications well be sent to the [`RxClient`] and [`TxClient`] set
-/// using [`BleAdvertisementDriver`] methods. This allows radios supporting both
-/// advertisement and data connections to keep track of one set of event clients
-/// rather than two for different transmission types.
+/// using [`ble_advertising::BleAdvertisementDriver`] methods. This allows
+/// radios supporting both advertisement and data connections to keep track
+/// of one set of event clients rather than two for different transmission
+/// types.
 ///
 /// [`RxClient`]: crate::hil::ble_advertising::RxClient
 /// [`TxClient`]: crate::hil::ble_advertising::TxClient
