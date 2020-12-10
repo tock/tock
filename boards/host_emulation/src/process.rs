@@ -169,15 +169,20 @@ impl<'a> UnixProcess<'a> {
         }
         let mut allow_map = self.allow_map.borrow_mut();
         let entry = allow_map.entry(app_slice_addr);
+
         let ret = match entry {
             Entry::Vacant(_) => {
                 self.allow_count.increment();
-                entry.or_insert(AllowSlice::new(buf))
+                let r = entry.or_insert(AllowSlice::new(buf));
+                r.slice.as_mut_ptr()
             }
-            Entry::Occupied(_) => entry.or_insert(AllowSlice::new(buf)),
+            Entry::Occupied(mut o) => {
+                o.insert(AllowSlice::new(buf));
+                o.get_mut().slice.as_mut_ptr()
+            }
         };
 
-        ret.slice.as_mut_ptr()
+        ret
     }
 }
 
