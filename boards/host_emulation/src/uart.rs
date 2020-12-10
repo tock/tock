@@ -55,6 +55,7 @@ impl<'a> UartIO<'a> {
             None => return,
         };
         let _ = stream.write_all(bytes);
+        let _ = stream.flush();
         self.tx_stream.replace(stream);
     }
 }
@@ -94,27 +95,30 @@ impl<'a> Transmit<'a> for UartIO<'a> {
                 return (ReturnCode::FAIL, Some(tx_data));
             }
         };
-
         let (tx_buf, _): (&mut [u8], _) = tx_data.split_at_mut(tx_len);
-        let ret = match stream.write(tx_buf) {
-            Ok(written) => {
-                if written == tx_len {
-                    client.transmitted_buffer(tx_data, tx_len, ReturnCode::SUCCESS);
-                    (ReturnCode::SUCCESS, None)
-                } else if written == 0 {
-                    (ReturnCode::EOFF, Some(tx_data))
-                } else {
-                    client.transmitted_buffer(tx_data, written, ReturnCode::ESIZE);
-                    (ReturnCode::SUCCESS, None)
-                }
+        match stream.write_all(tx_buf) {
+            Ok(()) => {}
+            Err(_) => {
+                self.tx_stream.replace(stream);
+                self.tx_client.replace(client);
+                return (ReturnCode::FAIL, Some(tx_data));
             }
-            Err(_) => (ReturnCode::FAIL, Some(tx_data)),
         };
 
+        match stream.flush() {
+            Ok(()) => {
+                client.transmitted_buffer(tx_data, tx_len, ReturnCode::SUCCESS);
+            }
+            Err(_) => {
+                self.tx_stream.replace(stream);
+                self.tx_client.replace(client);
+                return (ReturnCode::FAIL, Some(tx_data));
+            }
+        }
         self.tx_stream.replace(stream);
         self.tx_client.replace(client);
 
-        ret
+        (ReturnCode::SUCCESS, None)
     }
 
     fn transmit_abort(&self) -> ReturnCode {
