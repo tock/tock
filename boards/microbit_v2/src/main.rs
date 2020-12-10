@@ -310,50 +310,29 @@ pub unsafe fn reset_handler() {
     // LED Matrix
     //--------------------------------------------------------------------------
 
-    use capsules::virtual_alarm::VirtualMuxAlarm;
-    use kernel::hil::time::Alarm;
-
-    let buffer = static_init!([u8; 5], [0; 5]);
-
-    let led_alarm = static_init!(
-        VirtualMuxAlarm<'static, nrf52::rtc::Rtc>,
-        VirtualMuxAlarm::new(mux_alarm)
-    );
-
-    let cols = static_init!(
-        [&nrf52833::gpio::GPIOPin; 5],
-        [
+    let led = components::led_matrix_component_helper!(
+        nrf52833::gpio::GPIOPin,
+        nrf52::rtc::Rtc<'static>,
+        mux_alarm,
+        @fps => 60,
+        @cols => kernel::hil::gpio::ActivationMode::ActiveLow,
             &base_peripherals.gpio_port[LED_MATRIX_COLS[0]],
             &base_peripherals.gpio_port[LED_MATRIX_COLS[1]],
             &base_peripherals.gpio_port[LED_MATRIX_COLS[2]],
             &base_peripherals.gpio_port[LED_MATRIX_COLS[3]],
-            &base_peripherals.gpio_port[LED_MATRIX_COLS[4]]
-        ]
-    );
-
-    let rows = static_init!(
-        [&nrf52833::gpio::GPIOPin; 5],
-        [
+            &base_peripherals.gpio_port[LED_MATRIX_COLS[4]],
+        @rows => kernel::hil::gpio::ActivationMode::ActiveHigh,
             &base_peripherals.gpio_port[LED_MATRIX_ROWS[0]],
             &base_peripherals.gpio_port[LED_MATRIX_ROWS[1]],
             &base_peripherals.gpio_port[LED_MATRIX_ROWS[2]],
             &base_peripherals.gpio_port[LED_MATRIX_ROWS[3]],
             &base_peripherals.gpio_port[LED_MATRIX_ROWS[4]]
-        ]
-    );
 
-    let led = static_init!(
-        capsules::led_matrix::LedMatrixDriver<
-            'static,
-            nrf52::gpio::GPIOPin<'static>,
-            capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc<'static>>,
-        >,
-        capsules::led_matrix::LedMatrixDriver::new(cols, rows, buffer, led_alarm)
-    );
-
-    led_alarm.set_alarm_client(led);
-
-    led.init();
+    )
+    .finalize(components::led_matrix_component_buf!(
+        nrf52833::gpio::GPIOPin,
+        nrf52::rtc::Rtc<'static>
+    ));
 
     //--------------------------------------------------------------------------
     // FINAL SETUP AND BOARD BOOT

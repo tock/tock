@@ -1,21 +1,45 @@
 //! Provides userspace access to LEDs on an LED matrix.
 //!
-//! This allows for much more cross platform controlling of LEDs without having
-//!
 //! Usage
 //! -----
 //!
 //! ```rust
-//! # use kernel::static_init;
+//! let buffer = static_init!([u8; 5], [0; 5]);
 //!
-//! let led_pins = static_init!(
-//!     [(&'static sam4l::gpio::GPIOPin, kernel::hil::gpio::ActivationMode); 3],
-//!     [(&sam4l::gpio::PA[13], kernel::hil::gpio::ActivationMode::ActiveLow),   // Red
-//!      (&sam4l::gpio::PA[15], kernel::hil::gpio::ActivationMode::ActiveLow),   // Green
-//!      (&sam4l::gpio::PA[14], kernel::hil::gpio::ActivationMode::ActiveLow)]); // Blue
+//! let cols = static_init!(
+//!     [&nrf52833::gpio::GPIOPin; 5],
+//!     [
+//!         &base_peripherals.gpio_port[LED_MATRIX_ROWS[0]],
+//!         &base_peripherals.gpio_port[LED_MATRIX_ROWS[1]],
+//!         &base_peripherals.gpio_port[LED_MATRIX_ROWS[2]],
+//!         &base_peripherals.gpio_port[LED_MATRIX_ROWS[3]],
+//!         &base_peripherals.gpio_port[LED_MATRIX_ROWS[4]]
+//!     ]
+//! );
+//!
+//! let rows = static_init!(
+//!     [&nrf52833::gpio::GPIOPin; 5],
+//!     [
+//!         &base_peripherals.gpio_port[LED_MATRIX_ROWS[0]],
+//!         &base_peripherals.gpio_port[LED_MATRIX_ROWS[1]],
+//!         &base_peripherals.gpio_port[LED_MATRIX_ROWS[2]],
+//!         &base_peripherals.gpio_port[LED_MATRIX_ROWS[3]],
+//!         &base_peripherals.gpio_port[LED_MATRIX_ROWS[4]]
+//!     ]
+//! );
+//!
 //! let led = static_init!(
-//!     capsules::gpio::Pin<'static, sam4l::gpio::GPIOPin>,
-//!     capsules::gpio::Pin::new(led_pins));
+//!     capsules::led_matrix::LedMatrixDriver<
+//!         'static,
+//!         nrf52::gpio::GPIOPin<'static>,
+//!         capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc<'static>>,
+//!     >,
+//!     capsules::led_matrix::LedMatrixDriver::new(cols, rows, buffer, led_alarm, kernel::hil::gpio::ActivationMode::ActiveLow, kernel::hil::gpio::ActivationMode::ActiveHigh, 60)
+//! );
+//!
+//! led_alarm.set_alarm_client(led);
+//!
+//! led.init();
 //! ```
 //!
 //! Syscall Interface
@@ -49,6 +73,7 @@ use kernel::{AppId, Driver, ReturnCode};
 use core::cell::Cell;
 use kernel::common::cells::TakeCell;
 
+use kernel::hil::gpio::ActivationMode;
 use kernel::hil::time::{Alarm, AlarmClient};
 
 /// Syscall driver number.
@@ -63,21 +88,22 @@ pub struct LedMatrixDriver<'a, L: gpio::Pin, A: Alarm<'a>> {
     buffer: TakeCell<'a, [u8]>,
     alarm: &'a A,
     current_row: Cell<usize>,
+    timing: u8,
+    row_activation: ActivationMode,
+    col_activation: ActivationMode,
 }
 
 impl<'a, L: gpio::Pin, A: Alarm<'a>> LedMatrixDriver<'a, L, A> {
-    pub fn new(cols: &'a [&'a L], rows: &'a [&'a L], buffer: &'a mut [u8], alarm: &'a A) -> Self {
+    pub fn new(
+        cols: &'a [&'a L],
+        rows: &'a [&'a L],
+        buffer: &'a mut [u8],
+        alarm: &'a A,
+        col_activation: ActivationMode,
+        row_activation: ActivationMode,
+        refresh_rate: usize,
+    ) -> Self {
         // Initialize all LEDs and turn them off
-        for led in cols {
-            led.make_output();
-            led.set();
-        }
-
-        for led in rows {
-            led.make_output();
-            led.clear();
-        }
-
         if (buffer.len() * 8) < cols.len() * rows.len() {
             panic!("Matrix LED Driver: provided buffer is too small");
         }
@@ -87,31 +113,71 @@ impl<'a, L: gpio::Pin, A: Alarm<'a>> LedMatrixDriver<'a, L, A> {
             rows,
             buffer: TakeCell::new(buffer),
             alarm,
+            col_activation: col_activation,
+            row_activation: row_activation,
             current_row: Cell::new(0),
+            timing: (1000 / (refresh_rate * rows.len())) as u8,
         }
     }
 
     pub fn init(&self) {
+        for led in self.cols {
+            led.make_output();
+            self.col_clear(led);
+        }
+
+        for led in self.rows {
+            led.make_output();
+            self.row_clear(led);
+        }
         self.next_row();
     }
 
     fn next_row(&self) {
-        self.rows[self.current_row.get()].clear();
+        self.row_clear(self.rows[self.current_row.get()]);
         self.current_row
             .set((self.current_row.get() + 1) % self.rows.len());
         self.buffer.map(|bits| {
             for led in 0..self.cols.len() {
                 let pos = self.current_row.get() * self.cols.len() + led;
                 if (bits[pos / 8] >> (pos % 8)) & 0x1 == 1 {
-                    self.cols[led].clear();
+                    self.col_set(self.cols[led]);
                 } else {
-                    self.cols[led].set();
+                    self.col_clear(self.cols[led]);
                 }
             }
         });
-        self.rows[self.current_row.get()].set();
-        let interval = A::ticks_from_ms(1);
+        self.row_set(self.rows[self.current_row.get()]);
+        let interval = A::ticks_from_ms(self.timing as u32);
         self.alarm.set_alarm(self.alarm.now(), interval);
+    }
+
+    fn col_set(&self, l: &L) {
+        match self.col_activation {
+            ActivationMode::ActiveHigh => l.set(),
+            ActivationMode::ActiveLow => l.clear(),
+        }
+    }
+
+    fn col_clear(&self, l: &L) {
+        match self.col_activation {
+            ActivationMode::ActiveHigh => l.clear(),
+            ActivationMode::ActiveLow => l.set(),
+        }
+    }
+
+    fn row_set(&self, l: &L) {
+        match self.row_activation {
+            ActivationMode::ActiveHigh => l.set(),
+            ActivationMode::ActiveLow => l.clear(),
+        }
+    }
+
+    fn row_clear(&self, l: &L) {
+        match self.row_activation {
+            ActivationMode::ActiveHigh => l.clear(),
+            ActivationMode::ActiveLow => l.set(),
+        }
     }
 }
 

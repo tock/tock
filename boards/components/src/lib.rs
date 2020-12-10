@@ -21,6 +21,7 @@ pub mod ieee802154;
 pub mod isl29035;
 pub mod l3gd20;
 pub mod led;
+pub mod led_matrix;
 pub mod lldb;
 pub mod lsm303agr;
 pub mod lsm303dlhc;
