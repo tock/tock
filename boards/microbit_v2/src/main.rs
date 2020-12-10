@@ -20,7 +20,7 @@ use kernel::Chip;
 use kernel::{create_capability, debug, debug_gpio, debug_verbose, static_init};
 
 use nrf52833::gpio::Pin;
-use nrf52833::interrupt_service::Nrf52832DefaultPeripherals;
+use nrf52833::interrupt_service::Nrf52833DefaultPeripherals;
 
 // Buttons
 const BUTTON_A: Pin = Pin::P0_14;
@@ -41,6 +41,10 @@ const UART_RX_PIN: Pin = Pin::P1_08;
 const LED_MATRIX_COLS: [Pin; 5] = [Pin::P0_28, Pin::P0_11, Pin::P0_31, Pin::P1_05, Pin::P0_30];
 const LED_MATRIX_ROWS: [Pin; 5] = [Pin::P0_21, Pin::P0_22, Pin::P0_15, Pin::P0_24, Pin::P0_19];
 
+// Speaker
+
+const SPEAKER_PIN: Pin = Pin::P0_00;
+
 /// I2C pins for all of the sensors.
 const I2C_SDA_PIN: Pin = Pin::P0_16;
 const I2C_SCL_PIN: Pin = Pin::P0_08;
@@ -58,7 +62,7 @@ const NUM_PROCS: usize = 4;
 static mut PROCESSES: [Option<&'static dyn kernel::procs::ProcessType>; NUM_PROCS] =
     [None; NUM_PROCS];
 
-static mut CHIP: Option<&'static nrf52833::chip::NRF52<Nrf52832DefaultPeripherals>> = None;
+static mut CHIP: Option<&'static nrf52833::chip::NRF52<Nrf52833DefaultPeripherals>> = None;
 
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
@@ -89,6 +93,10 @@ pub struct Platform {
         'static,
         capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc<'static>>,
     >,
+    buzzer: &'static capsules::buzzer_driver::Buzzer<
+        'static,
+        capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52833::rtc::Rtc<'static>>,
+    >,
 }
 
 impl kernel::Platform for Platform {
@@ -107,6 +115,7 @@ impl kernel::Platform for Platform {
             capsules::lsm303agr::DRIVER_NUM => f(Some(self.lsm303agr)),
             capsules::rng::DRIVER_NUM => f(Some(self.rng)),
             capsules::ble_advertising_driver::DRIVER_NUM => f(Some(self.ble_radio)),
+            capsules::buzzer_driver::DRIVER_NUM => f(Some(self.buzzer)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             _ => f(None),
         }
@@ -120,15 +129,15 @@ pub unsafe fn reset_handler() {
     nrf52833::init();
     let ppi = static_init!(nrf52833::ppi::Ppi, nrf52833::ppi::Ppi::new());
     // Initialize chip peripheral drivers
-    let nrf52832_peripherals = static_init!(
-        Nrf52832DefaultPeripherals,
-        Nrf52832DefaultPeripherals::new(ppi)
+    let nrf52833_peripherals = static_init!(
+        Nrf52833DefaultPeripherals,
+        Nrf52833DefaultPeripherals::new(ppi)
     );
 
     // set up circular peripheral dependencies
-    nrf52832_peripherals.init();
+    nrf52833_peripherals.init();
 
-    let base_peripherals = &nrf52832_peripherals.nrf52;
+    let base_peripherals = &nrf52833_peripherals.nrf52;
 
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
 
@@ -223,6 +232,43 @@ pub unsafe fn reset_handler() {
         .finalize(components::alarm_mux_component_helper!(nrf52::rtc::Rtc));
     let alarm = components::alarm::AlarmDriverComponent::new(board_kernel, mux_alarm)
         .finalize(components::alarm_component_helper!(nrf52::rtc::Rtc));
+
+    //--------------------------------------------------------------------------
+    // PWM & BUZZER
+    //--------------------------------------------------------------------------
+
+    use kernel::hil::time::Alarm;
+
+    let mux_pwm = static_init!(
+        capsules::virtual_pwm::MuxPwm<'static, nrf52833::pwm::Pwm>,
+        capsules::virtual_pwm::MuxPwm::new(&nrf52833::pwm::PWM0)
+    );
+    let virtual_pwm_buzzer = static_init!(
+        capsules::virtual_pwm::PwmPinUser<'static, nrf52833::pwm::Pwm>,
+        capsules::virtual_pwm::PwmPinUser::new(
+            mux_pwm,
+            nrf52833::pinmux::Pinmux::new(SPEAKER_PIN as u32)
+        )
+    );
+    virtual_pwm_buzzer.add_to_mux();
+
+    let virtual_alarm_buzzer = static_init!(
+        capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52833::rtc::Rtc>,
+        capsules::virtual_alarm::VirtualMuxAlarm::new(mux_alarm)
+    );
+    let buzzer = static_init!(
+        capsules::buzzer_driver::Buzzer<
+            'static,
+            capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52833::rtc::Rtc>,
+        >,
+        capsules::buzzer_driver::Buzzer::new(
+            virtual_pwm_buzzer,
+            virtual_alarm_buzzer,
+            capsules::buzzer_driver::DEFAULT_MAX_BUZZ_TIME_MS,
+            board_kernel.create_grant(&memory_allocation_capability)
+        )
+    );
+    virtual_alarm_buzzer.set_alarm_client(buzzer);
 
     //--------------------------------------------------------------------------
     // UART & CONSOLE & DEBUG
@@ -356,13 +402,14 @@ pub unsafe fn reset_handler() {
         temperature: temperature,
         lsm303agr: lsm303agr,
         ninedof: ninedof,
+        buzzer: buzzer,
         alarm: alarm,
         ipc: kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability),
     };
 
     let chip = static_init!(
-        nrf52833::chip::NRF52<Nrf52832DefaultPeripherals>,
-        nrf52833::chip::NRF52::new(nrf52832_peripherals)
+        nrf52833::chip::NRF52<Nrf52833DefaultPeripherals>,
+        nrf52833::chip::NRF52::new(nrf52833_peripherals)
     );
     CHIP = Some(chip);
 

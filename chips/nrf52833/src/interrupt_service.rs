@@ -5,11 +5,11 @@ use nrf52::chip::Nrf52DefaultPeripherals;
 /// If a board wishes to use only a subset of these peripherals, this
 /// should not be used or imported, and a modified version should be
 /// constructed manually in main.rs.
-pub struct Nrf52832DefaultPeripherals<'a> {
+pub struct Nrf52833DefaultPeripherals<'a> {
     pub nrf52: Nrf52DefaultPeripherals<'a>,
     // put additional 52832 specific peripherals here
 }
-impl<'a> Nrf52832DefaultPeripherals<'a> {
+impl<'a> Nrf52833DefaultPeripherals<'a> {
     pub unsafe fn new(ppi: &'a crate::ppi::Ppi) -> Self {
         Self {
             // Note: The use of the global static mut crate::gpio::PORT
@@ -26,7 +26,7 @@ impl<'a> Nrf52832DefaultPeripherals<'a> {
         self.nrf52.init();
     }
 }
-impl<'a> kernel::InterruptService<DeferredCallTask> for Nrf52832DefaultPeripherals<'a> {
+impl<'a> kernel::InterruptService<DeferredCallTask> for Nrf52833DefaultPeripherals<'a> {
     unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
         self.nrf52.service_interrupt(interrupt)
     }
