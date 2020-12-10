@@ -3,6 +3,7 @@ use std::collections::vec_deque::VecDeque;
 use std::collections::{hash_map::Entry, HashMap};
 use std::path::Path;
 use std::process::{self, Stdio};
+use std::ptr;
 
 use tock_cells::map_cell::MapCell;
 
@@ -143,6 +144,10 @@ impl<'a> UnixProcess<'a> {
             }
         }
         let allow_slice: ipc::AllowSliceInfo = transport.recv_msg();
+
+        if allow_slice.address == 0 {
+            return ptr::null_mut() as *mut u8;
+        }
 
         let mut buf: Vec<u8> = Vec::new();
         buf.resize_with(allow_slice.length, Default::default);
