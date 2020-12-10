@@ -1,10 +1,10 @@
-BBC Micro:bit v2 - nRF52832 with Bluetooth LE
+BBC Micro:bit v2 - nRF52833 with Bluetooth LE
 ==================================================
 
 <img src="https://cdn.sanity.io/images/ajwvhvgo/production/a7f49eb570ce06cf107dde7babaa5201411a41a1-660x720.jpg?q=80&fit=max&auto=format" width="35%">
 
-The [BBC Micro:bit v2 - nRF52832 with Bluetooth LE](https://microbit.org/new-microbit/) is a
-board based on the Nordic nRF52832 SoC. It includes the
+The [BBC Micro:bit v2 - nRF52833 with Bluetooth LE](https://microbit.org/new-microbit/) is a
+board based on the Nordic nRF52833 SoC. It includes the
 following sensors:
 
 - 5x5 LED Matrix

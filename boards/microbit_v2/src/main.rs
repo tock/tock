@@ -1,6 +1,6 @@
-//! Tock kernel for the micro:bit v2.
+//! Tock kernel for the Micro:bit v2.
 //!
-//! It is based on nRF52833 SoC (Cortex M4 core with a BLE + IEEE 802.15.4 transceiver).
+//! It is based on nRF52833 SoC (Cortex M4 core with a BLE).
 
 #![no_std]
 // Disable this attribute when documenting, as a workaround for
