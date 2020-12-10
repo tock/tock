@@ -198,7 +198,7 @@ impl<'a, S: SpiMasterDevice> Driver for Spi<'a, S> {
                     let mut mlen = app.app_write.map_or(0, |w| w.len());
                     let rlen = app.app_read.map_or(mlen, |r| r.len());
                     mlen = cmp::min(mlen, rlen);
-                    
+
                     if mlen >= arg1 && arg1 > 0 {
                         app.len = arg1;
                         app.index = 0;
