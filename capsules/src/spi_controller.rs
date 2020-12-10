@@ -8,7 +8,7 @@ use kernel::hil::spi::ClockPhase;
 use kernel::hil::spi::ClockPolarity;
 use kernel::hil::spi::{SpiMasterClient, SpiMasterDevice};
 use kernel::{AppId, Callback, CommandResult, Driver, ErrorCode};
-use kernel::{Read, ReadWrite, ReadOnlyAppSlice, ReadWriteAppSlice};
+use kernel::{Read, ReadOnlyAppSlice, ReadWrite, ReadWriteAppSlice};
 
 /// Syscall driver number.
 use crate::driver;
@@ -30,7 +30,7 @@ pub const DEFAULT_WRITE_BUF_LENGTH: usize = 1024;
 #[derive(Default)]
 struct App {
     callback: Callback,
-    app_read: ReadWriteAppSlice, 
+    app_read: ReadWriteAppSlice,
     app_write: ReadOnlyAppSlice,
     len: usize,
     index: usize,
@@ -126,7 +126,7 @@ impl<'a, S: SpiMasterDevice> Driver for Spi<'a, S> {
             _ => Err((slice, ErrorCode::NOSUPPORT)),
         }
     }
-    
+
     fn subscribe(
         &self,
         subscribe_num: usize,
@@ -140,7 +140,7 @@ impl<'a, S: SpiMasterDevice> Driver for Spi<'a, S> {
                 });
                 Ok(callback)
             }
-            _ => Err((callback, ErrorCode::NOSUPPORT))
+            _ => Err((callback, ErrorCode::NOSUPPORT)),
         }
     }
 
@@ -189,7 +189,6 @@ impl<'a, S: SpiMasterDevice> Driver for Spi<'a, S> {
                 if self.busy.get() {
                     return CommandResult::failure(ErrorCode::BUSY);
                 }
-                
                 self.app.map_or(CommandResult::failure(ErrorCode::FAIL), |app| {
                     // When we do a read/write, the read part is optional.
                     // So there are three cases:
@@ -283,14 +282,14 @@ impl<S: SpiMasterDevice> SpiMasterClient for Spi<'_, S> {
 
                     let dest_area = &mut dest[start..end];
                     let real_len = end - start;
-                    
+
                     for (i, c) in src[0..real_len].iter().enumerate() {
                         dest_area[i] = *c;
                     }
                 });
                 src
             });
-                                       
+
             self.kernel_read.put(rbuf);
             self.kernel_write.replace(writebuf);
 
