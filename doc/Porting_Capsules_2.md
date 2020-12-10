@@ -210,11 +210,7 @@ Here is a slightly more complex implementation of `command`, from the
         };
         match res {
             Ok(r) => {
-                let res = ErrorCode::try_from(r);
-                match res {
-                    Err(_) =>  CommandResult::success(),
-                    Ok(e) => CommandResult::failure(e)
-                }
+                CommandResult::from(r),
             },
             Err(e) => CommandResult::failure(e)
         }
@@ -238,7 +234,23 @@ it checks whether the `ReturnCode` can be turned into an `ErrorCode`.
 If not (`Err`), this means it was a success, and the result was a
 success, so it returns a `CommandResult::Success`. If it can be convered
 into an error code, or if the grant produced an error, it returns a
-`CommandResult::Failure`. 
+`CommandResult::Failure`.
+
+One of the requirements of commands in 2.0 is that each individual
+`command_num` have a single failure return type and a single success
+return size. This means that for a given `command_num`, it is not allowed
+for it to sometimes return `CommandResult::Success` and other times return
+`Command::SuccessWithValue`, as these are different sizes. As part of easing
+this transition, Tock 2.0 is deprecating the `SuccessWithValue` variant of
+`ReturnCode`. Fortunately, as of this writing, all uses of `SuccessWithValue`
+outside of implementations of `LegacyDriver::command()` have been removed,
+so you do not have to worry about the possibility of any `ReturnCode`
+being this variant -- `CommandResult::from(ReturnCode)` relies on this assumption.
+
+If, while porting, you encounter a construction of `ReturnCode::SuccessWithValue{v}`
+in `LegacyDriver::command()`, replace it with a construction of
+`CommandResult::success_u32(v)`, and make sure that it is impossible for that
+command_num to return `CommandResult::Success` in any other scenario.
 
 #### ReturnCode versus ErrorCode 
 
