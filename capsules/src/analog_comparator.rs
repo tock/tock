@@ -67,17 +67,15 @@ impl<'a, A: hil::analog_comparator::AnalogComparator<'a>> AnalogComparator<'a, A
     }
 
     // Do a single comparison on a channel
-    fn comparison(&self, channel: usize) -> ReturnCode {
+    fn comparison(&self, channel: usize) -> Result<bool, ErrorCode> {
         if channel >= self.channels.len() {
-            return ReturnCode::EINVAL;
+            return Err(ErrorCode::INVAL);
         }
         // Convert channel index
         let chan = self.channels[channel];
         let result = self.analog_comparator.comparison(chan);
 
-        ReturnCode::SuccessWithValue {
-            value: result as usize,
-        }
+        Ok(result)
     }
 
     // Start comparing on a channel
@@ -124,9 +122,9 @@ impl<'a, A: hil::analog_comparator::AnalogComparator<'a>> Driver for AnalogCompa
         match command_num {
             0 => CommandResult::success_u32(self.channels.len() as u32),
 
-            1 => match ErrorCode::try_from(self.comparison(channel)) {
-                Err(_) => CommandResult::success(),
-                Ok(e) => CommandResult::failure(e),
+            1 => match self.comparison(channel) {
+                Ok(b) => CommandResult::success_u32(b as u32),
+                Err(e) => CommandResult::failure(e),
             },
 
             2 => match ErrorCode::try_from(self.start_comparing(channel)) {
