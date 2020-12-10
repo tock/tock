@@ -161,7 +161,7 @@ impl kernel::Platform for Imix {
             capsules::console::DRIVER_NUM => f(Some(Ok(self.console))),
             capsules::gpio::DRIVER_NUM => f(Some(Err(self.gpio))),
             capsules::alarm::DRIVER_NUM => f(Some(Err(self.alarm))),
-            capsules::spi_controller::DRIVER_NUM => f(Some(Err(self.spi))),
+            capsules::spi_controller::DRIVER_NUM => f(Some(Ok(self.spi))),
             capsules::adc::DRIVER_NUM => f(Some(Err(self.adc))),
             capsules::led::DRIVER_NUM => f(Some(Ok(self.led))),
             capsules::button::DRIVER_NUM => f(Some(Err(self.button))),
