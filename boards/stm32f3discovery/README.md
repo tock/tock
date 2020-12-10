@@ -7,13 +7,20 @@ website](https://www.st.com/en/evaluation-tools/stm32f3discovery.html).
 ## Flashing the kernel
 
 The kernel can be programmed using OpenOCD. `cd` into `boards/stm32f3discovery`
-directory and run:
+directory and run the following in order to flash the optimized release version
+of the kernel.
 
 ```bash
 $ make flash
+```
 
-(or)
+To flash the unoptimized debug version of the kernel, go into `layout.ld`,
+comment out `chip_layout.ld`, and uncomment `chip_layout_debug.ld`. This
+increases the size of the flash memory partition for the kernel so that
+compilation can succeed (the unoptimized debug binary is much larger than the
+optimized release one). Then, run:
 
+```bash
 $ make flash-debug
 ```
 
