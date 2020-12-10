@@ -500,22 +500,22 @@ to r0-r3 on CortexM and a0-a3 on RISC-V.
 The operation argument specifies which memory operation to perform. There
 are 12:
 
-| Memop Operation | Operation |
-|-----------------|-----------|
-| 0               | Break     |
-| 1               | SBreak    |
-| 2               | Get process RAM start address |
-| 3               | Get address immediately after process RAM allocation |
-| 4               | Get process flash start address |
-| 5               | Get address immediately after process flash region |
-| 6               | Get lowest address (end) of the grant region |
-| 7               | Get number of writeable flash regions in process header |
-| 8               | Get start address of a writeable flash region |
-| 9               | Get end adddress of a writeable flash region |
-| 10              | Set the start of the process stack |
-| 11              | Set the start of the process heap |
+| Memop Operation | Operation                                               | Success          |
+|-----------------|---------------------------------------------------------|------------------|
+| 0               | Break                                                   | Success          |
+| 1               | SBreak                                                  | Success with u32 |
+| 2               | Get process RAM start address                           | Success with u32 |
+| 3               | Get address immediately after process RAM allocation    | Success with u32 |
+| 4               | Get process flash start address                         | Success with u32 |
+| 5               | Get address immediately after process flash region      | Success with u32 |
+| 6               | Get lowest address (end) of the grant region            | Success with u32 |
+| 7               | Get number of writeable flash regions in process header | Success with u32 |
+| 8               | Get start address of a writeable flash region           | Success with u32 |
+| 9               | Get end adddress of a writeable flash region            | Success with u32 |
+| 10              | Set the start of the process stack                      | Success          |
+| 11              | Set the start of the process heap                       | Success          |
 
-The success return type is  Memop class system call specific. All Memop class system calls
+The success return type is Memop class system call specific. All Memop class system calls
 have a Failure failure type.
 
 5 Userspace Library Methods
