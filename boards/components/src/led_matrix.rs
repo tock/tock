@@ -20,7 +20,7 @@
 //!         &base_peripherals.gpio_port[LED_MATRIX_ROWS[2]],
 //!         &base_peripherals.gpio_port[LED_MATRIX_ROWS[3]],
 //!         &base_peripherals.gpio_port[LED_MATRIX_ROWS[4]]
-//! 
+//!
 //! )
 //! .finalize(components::led_matrix_component_buf!(
 //!     nrf52833::gpio::GPIOPin,

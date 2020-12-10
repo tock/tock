@@ -1,17 +1,15 @@
-BBC micro:bit v2 - nRF52832 with Bluetooth LE
+BBC Micro:bit v2 - nRF52832 with Bluetooth LE
 ==================================================
 
 <img src="https://cdn.sanity.io/images/ajwvhvgo/production/a7f49eb570ce06cf107dde7babaa5201411a41a1-660x720.jpg?q=80&fit=max&auto=format" width="35%">
 
-The [BBC micro:bit v2 - nRF52832 with Bluetooth LE](https://microbit.org/new-microbit/) is a
+The [BBC Micro:bit v2 - nRF52832 with Bluetooth LE](https://microbit.org/new-microbit/) is a
 board based on the Nordic nRF52832 SoC. It includes the
 following sensors:
 
 - 5x5 LED Matrix
-- LSM303AGR compass and accelerometer
-- FXOS8700CQ - linear accelerometer and magnetometer
-- MAG3110 3D magnetic sensor
-- BLE and 802.15.4
+- LSM303AGR or FXOS8700CQ compass and accelerometer
+- BLE
 - speaker
 - microphone
 
