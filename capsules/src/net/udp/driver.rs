@@ -309,20 +309,20 @@ impl<'a> UDPDriver<'a> {
     /// On the other hand, if it is some other app, then return any errors via
     /// callbacks.
     #[inline]
-    fn do_next_tx_immediate(&self, new_appid: AppId) -> ReturnCode {
-        self.get_next_tx_if_idle()
-            .map_or(ReturnCode::SUCCESS, |appid| {
-                if appid == new_appid {
-                    let sync_result = self.perform_tx_sync(appid);
-                    if sync_result == ReturnCode::SUCCESS {
-                        return ReturnCode::SuccessWithValue { value: 1 }; //Indicates packet passed to radio
-                    }
-                    sync_result
+    fn do_next_tx_immediate(&self, new_appid: AppId) -> Result<u32, ReturnCode> {
+        self.get_next_tx_if_idle().map_or(Ok(0), |appid| {
+            if appid == new_appid {
+                let sync_result = self.perform_tx_sync(appid);
+                if sync_result == ReturnCode::SUCCESS {
+                    Ok(1) //Indicates packet passed to radio
                 } else {
-                    self.perform_tx_async(appid);
-                    ReturnCode::SUCCESS
+                    Err(sync_result)
                 }
-            })
+            } else {
+                self.perform_tx_async(appid);
+                Ok(0) //indicates async transmission
+            }
+        })
     }
 
     #[inline]
@@ -528,7 +528,10 @@ impl<'a> LegacyDriver for UDPDriver<'a> {
                         return ReturnCode::EINVAL;
                     }
                     app.pending_tx = next_tx;
-                    self.do_next_tx_immediate(appid)
+                    match self.do_next_tx_immediate(appid) {
+                        Ok(v) => ReturnCode::SuccessWithValue { value: v as usize },
+                        Err(e) => e,
+                    }
                 })
             }
             3 => {

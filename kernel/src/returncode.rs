@@ -8,7 +8,7 @@
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum ReturnCode {
     /// Success value must be positive
-    SuccessWithValue { value: usize },
+    SuccessWithValue { value: usize }, //TODO: Remove before Tock 2.0
     /// Operation completed successfully
     SUCCESS,
     /// Generic failure condition
