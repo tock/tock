@@ -113,7 +113,7 @@ impl kernel::Platform for Platform {
             capsules::ble_advertising_driver::DRIVER_NUM => f(Some(Err(self.ble_radio))),
             capsules::ieee802154::DRIVER_NUM => f(Some(Err(self.ieee802154_radio))),
             capsules::temperature::DRIVER_NUM => f(Some(Ok(self.temp))),
-            capsules::analog_comparator::DRIVER_NUM => f(Some(Err(self.analog_comparator))),
+            capsules::analog_comparator::DRIVER_NUM => f(Some(Ok(self.analog_comparator))),
             kernel::ipc::DRIVER_NUM => f(Some(Err(&self.ipc))),
             _ => f(None),
         }
