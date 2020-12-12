@@ -33,6 +33,10 @@ const LED_WHITE_PIN: Pin = Pin::P0_10;
 
 const LED_KERNEL_PIN: Pin = Pin::P1_01;
 
+// Speaker
+
+const SPEAKER_PIN: Pin = Pin::P1_00;
+
 // Buttons
 const BUTTON_LEFT: Pin = Pin::P1_02;
 const BUTTON_RIGHT: Pin = Pin::P1_10;
@@ -119,6 +123,10 @@ pub struct Platform {
         'static,
         capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc<'static>>,
     >,
+    buzzer: &'static capsules::buzzer_driver::Buzzer<
+        'static,
+        capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52840::rtc::Rtc<'static>>,
+    >,
 }
 
 impl kernel::Platform for Platform {
@@ -137,6 +145,7 @@ impl kernel::Platform for Platform {
             capsules::rng::DRIVER_NUM => f(Some(self.rng)),
             capsules::ble_advertising_driver::DRIVER_NUM => f(Some(self.ble_radio)),
             capsules::ieee802154::DRIVER_NUM => f(Some(self.ieee802154_radio)),
+            capsules::buzzer_driver::DRIVER_NUM => f(Some(self.buzzer)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             _ => f(None),
         }
@@ -264,6 +273,43 @@ pub unsafe fn reset_handler() {
         .finalize(components::alarm_mux_component_helper!(nrf52::rtc::Rtc));
     let alarm = components::alarm::AlarmDriverComponent::new(board_kernel, mux_alarm)
         .finalize(components::alarm_component_helper!(nrf52::rtc::Rtc));
+
+    //--------------------------------------------------------------------------
+    // PWM & BUZZER
+    //--------------------------------------------------------------------------
+
+    use kernel::hil::time::Alarm;
+
+    let mux_pwm = static_init!(
+        capsules::virtual_pwm::MuxPwm<'static, nrf52840::pwm::Pwm>,
+        capsules::virtual_pwm::MuxPwm::new(&nrf52840::pwm::PWM0)
+    );
+    let virtual_pwm_buzzer = static_init!(
+        capsules::virtual_pwm::PwmPinUser<'static, nrf52840::pwm::Pwm>,
+        capsules::virtual_pwm::PwmPinUser::new(
+            mux_pwm,
+            nrf52840::pinmux::Pinmux::new(SPEAKER_PIN as u32)
+        )
+    );
+    virtual_pwm_buzzer.add_to_mux();
+
+    let virtual_alarm_buzzer = static_init!(
+        capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52840::rtc::Rtc>,
+        capsules::virtual_alarm::VirtualMuxAlarm::new(mux_alarm)
+    );
+    let buzzer = static_init!(
+        capsules::buzzer_driver::Buzzer<
+            'static,
+            capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52840::rtc::Rtc>,
+        >,
+        capsules::buzzer_driver::Buzzer::new(
+            virtual_pwm_buzzer,
+            virtual_alarm_buzzer,
+            capsules::buzzer_driver::DEFAULT_MAX_BUZZ_TIME_MS,
+            board_kernel.create_grant(&memory_allocation_capability)
+        )
+    );
+    virtual_alarm_buzzer.set_alarm_client(buzzer);
 
     //--------------------------------------------------------------------------
     // UART & CONSOLE & DEBUG
@@ -459,6 +505,7 @@ pub unsafe fn reset_handler() {
         screen: screen,
         button: button,
         rng: rng,
+        buzzer: buzzer,
         alarm: alarm,
         ipc: kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability),
     };
