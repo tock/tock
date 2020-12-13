@@ -62,7 +62,6 @@ pub trait Read {
     /// default value without executing the closure.
     fn map_or<F, R>(&self, default: R, fun: F) -> R
     where
-        R: Copy,
         F: FnOnce(&[u8]) -> R;
 }
 
@@ -97,7 +96,6 @@ pub trait ReadWrite: Read {
     /// default value without executing the closure.
     fn mut_map_or<F, R>(&self, default: R, fun: F) -> R
     where
-        R: Copy,
         F: FnOnce(&mut [u8]) -> R;
 }
 
@@ -156,15 +154,15 @@ impl ReadWrite for ReadWriteAppSlice {
 
     fn mut_map_or<F, R>(&self, default: R, fun: F) -> R
     where
-        R: Copy,
         F: FnOnce(&mut [u8]) -> R,
     {
-        self.process_id.map_or(default, |pid| {
-            pid.kernel.process_map_or(default, pid, |_| {
+        match self.process_id {
+            None => default,
+            Some(pid) => pid.kernel.process_map_or(default, pid, |_| {
                 let slice = unsafe { slice::from_raw_parts_mut(self.ptr, self.len) };
                 fun(slice)
-            })
-        })
+            }),
+        }
     }
 }
 
@@ -184,15 +182,15 @@ impl Read for ReadWriteAppSlice {
 
     fn map_or<F, R>(&self, default: R, fun: F) -> R
     where
-        R: Copy,
         F: FnOnce(&[u8]) -> R,
     {
-        self.process_id.map_or(default, |pid| {
-            pid.kernel.process_map_or(default, pid, |_| {
+        match self.process_id {
+            None => default,
+            Some(pid) => pid.kernel.process_map_or(default, pid, |_| {
                 let slice = unsafe { slice::from_raw_parts(self.ptr, self.len) };
                 fun(slice)
-            })
-        })
+            }),
+        }
     }
 }
 
@@ -256,15 +254,15 @@ impl Read for ReadOnlyAppSlice {
 
     fn map_or<F, R>(&self, default: R, fun: F) -> R
     where
-        R: Copy,
         F: FnOnce(&[u8]) -> R,
     {
-        self.process_id.map_or(default, |pid| {
-            pid.kernel.process_map_or(default, pid, |_| {
+        match self.process_id {
+            None => default,
+            Some(pid) => pid.kernel.process_map_or(default, pid, |_| {
                 let slice = unsafe { slice::from_raw_parts(self.ptr, self.len) };
                 fun(slice)
-            })
-        })
+            }),
+        }
     }
 }
 
