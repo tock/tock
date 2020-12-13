@@ -27,12 +27,15 @@ const BUTTON_A: Pin = Pin::P0_14;
 const BUTTON_B: Pin = Pin::P0_23;
 const TOUCH_LOGO: Pin = Pin::P1_04;
 
-const GPIO_D0: Pin = Pin::P0_02;
-const GPIO_D1: Pin = Pin::P0_03;
-const GPIO_D2: Pin = Pin::P0_04;
-const GPIO_D8: Pin = Pin::P0_10;
-const GPIO_D9: Pin = Pin::P0_09;
-const GPIO_D16: Pin = Pin::P1_02;
+// GPIOs
+
+// P0, P1 and P2 are used as ADC, comment them in the ADC section to use them as GPIO
+const _GPIO_P0: Pin = Pin::P0_02;
+const _GPIO_P1: Pin = Pin::P0_03;
+const _GPIO_P2: Pin = Pin::P0_04;
+const GPIO_P8: Pin = Pin::P0_10;
+const GPIO_P9: Pin = Pin::P0_09;
+const GPIO_P16: Pin = Pin::P1_02;
 
 const UART_TX_PIN: Pin = Pin::P0_06;
 const UART_RX_PIN: Pin = Pin::P1_08;
@@ -89,6 +92,7 @@ pub struct Platform {
     lsm303agr: &'static capsules::lsm303agr::Lsm303agrI2C<'static>,
     temperature: &'static capsules::temperature::TemperatureSensor<'static>,
     ipc: kernel::ipc::IPC,
+    adc: &'static capsules::adc::AdcVirtualized<'static>,
     alarm: &'static capsules::alarm::AlarmDriver<
         'static,
         capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc<'static>>,
@@ -111,6 +115,7 @@ impl kernel::Platform for Platform {
             capsules::button::DRIVER_NUM => f(Some(self.button)),
             capsules::led_matrix::DRIVER_NUM => f(Some(self.led)),
             capsules::ninedof::DRIVER_NUM => f(Some(self.ninedof)),
+            capsules::adc::DRIVER_NUM => f(Some(self.adc)),
             capsules::temperature::DRIVER_NUM => f(Some(self.temperature)),
             capsules::lsm303agr::DRIVER_NUM => f(Some(self.lsm303agr)),
             capsules::rng::DRIVER_NUM => f(Some(self.rng)),
@@ -173,12 +178,13 @@ pub unsafe fn reset_handler() {
         board_kernel,
         components::gpio_component_helper!(
             nrf52833::gpio::GPIOPin,
-            0 => &base_peripherals.gpio_port[GPIO_D0],
-            1 => &base_peripherals.gpio_port[GPIO_D1],
-            2 => &base_peripherals.gpio_port[GPIO_D2],
-            8 => &base_peripherals.gpio_port[GPIO_D8],
-            9 => &base_peripherals.gpio_port[GPIO_D9],
-            16 => &base_peripherals.gpio_port[GPIO_D16],
+            // Used as ADC, comment them out in the ADC section to use them as GPIO
+            // 0 => &base_peripherals.gpio_port[GPIO_P0],
+            // 1 => &base_peripherals.gpio_port[_GPIO_P1],
+            // 2 => &base_peripherals.gpio_port[_GPIO_P2],
+            8 => &base_peripherals.gpio_port[GPIO_P8],
+            9 => &base_peripherals.gpio_port[GPIO_P9],
+            16 => &base_peripherals.gpio_port[GPIO_P16],
         ),
     )
     .finalize(components::gpio_component_buf!(nrf52833::gpio::GPIOPin));
@@ -345,6 +351,29 @@ pub unsafe fn reset_handler() {
         components::temperature::TemperatureComponent::new(board_kernel, lsm303agr).finalize(());
 
     //--------------------------------------------------------------------------
+    // ADC
+    //--------------------------------------------------------------------------
+    base_peripherals.adc.calibrate();
+
+    let adc_mux = components::adc::AdcMuxComponent::new(&base_peripherals.adc)
+        .finalize(components::adc_mux_component_helper!(nrf52833::adc::Adc));
+
+    // Comment out the following to use P0, P1 and P2 as GPIO
+    let adc_syscall = components::adc::AdcVirtualComponent::new(board_kernel).finalize(
+        components::adc_syscall_component_helper!(
+            // ADC Ring 0 (P0)
+            components::adc::AdcComponent::new(&adc_mux, nrf52833::adc::AdcChannel::AnalogInput0)
+                .finalize(components::adc_component_helper!(nrf52833::adc::Adc)),
+            // ADC Ring 1 (P1)
+            components::adc::AdcComponent::new(&adc_mux, nrf52833::adc::AdcChannel::AnalogInput1)
+                .finalize(components::adc_component_helper!(nrf52833::adc::Adc)),
+            // ADC Ring 2 (P2)
+            components::adc::AdcComponent::new(&adc_mux, nrf52833::adc::AdcChannel::AnalogInput2)
+                .finalize(components::adc_component_helper!(nrf52833::adc::Adc))
+        ),
+    );
+
+    //--------------------------------------------------------------------------
     // WIRELESS
     //--------------------------------------------------------------------------
 
@@ -403,6 +432,7 @@ pub unsafe fn reset_handler() {
         lsm303agr: lsm303agr,
         ninedof: ninedof,
         buzzer: buzzer,
+        adc: adc_syscall,
         alarm: alarm,
         ipc: kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability),
     };
