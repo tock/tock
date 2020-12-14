@@ -12,11 +12,13 @@
 
 use core::cell::Cell;
 use core::convert::From;
+use core::mem;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil;
 use kernel::hil::screen::{ScreenPixelFormat, ScreenRotation};
-use kernel::ReturnCode;
-use kernel::{AppId, AppSlice, Callback, Grant, LegacyDriver, SharedReadWrite};
+use kernel::{
+    AppId, Callback, CommandResult, Driver, ErrorCode, Grant, Read, ReadOnlyAppSlice, ReturnCode,
+};
 
 /// Syscall driver number.
 use crate::driver;
@@ -74,9 +76,9 @@ fn pixels_in_bytes(pixels: usize, bits_per_pixel: usize) -> usize {
 }
 
 pub struct App {
-    callback: Option<Callback>,
+    callback: Callback,
     pending_command: bool,
-    shared: Option<AppSlice<SharedReadWrite, u8>>,
+    shared: ReadOnlyAppSlice,
     write_position: usize,
     write_len: usize,
     command: ScreenCommand,
@@ -91,9 +93,9 @@ pub struct App {
 impl Default for App {
     fn default() -> App {
         App {
-            callback: None,
+            callback: Callback::default(),
             pending_command: false,
-            shared: None,
+            shared: ReadOnlyAppSlice::default(),
             command: ScreenCommand::Nop,
             data1: 0,
             data2: 0,
@@ -144,8 +146,9 @@ impl<'a> Screen<'a> {
         data1: usize,
         data2: usize,
         appid: AppId,
-    ) -> ReturnCode {
-        self.apps
+    ) -> CommandResult {
+        let res = self
+            .apps
             .enter(appid, |app, _| {
                 if self.screen_ready.get() && self.current_app.is_none() {
                     self.current_app.set(appid);
@@ -154,21 +157,25 @@ impl<'a> Screen<'a> {
                     if r != ReturnCode::SUCCESS {
                         self.current_app.clear();
                     }
-                    r
+                    CommandResult::from(r)
                 } else {
                     if app.pending_command == true {
-                        ReturnCode::EBUSY
+                        CommandResult::failure(ErrorCode::BUSY)
                     } else {
                         app.pending_command = true;
                         app.command = command;
                         app.write_position = 0;
                         app.data1 = data1;
                         app.data2 = data2;
-                        ReturnCode::SUCCESS
+                        CommandResult::success()
                     }
                 }
             })
-            .unwrap_or_else(|err| err.into())
+            .map_err(ErrorCode::from);
+        match res {
+            Err(e) => CommandResult::failure(e),
+            Ok(r) => r,
+        }
     }
 
     fn call_screen(
@@ -277,43 +284,48 @@ impl<'a> Screen<'a> {
                     ReturnCode::ENOSUPPORT
                 }
             }
-            ScreenCommand::Fill => self
-                .apps
-                .enter(appid, |app, _| {
-                    if app.shared.is_some() {
-                        app.write_position = 0;
-                        app.write_len = pixels_in_bytes(
-                            app.width * app.height,
-                            self.pixel_format.get().get_bits_per_pixel(),
-                        );
+            ScreenCommand::Fill => {
+                let res = self
+                    .apps
+                    .enter(appid, |app, _| {
+                        // if it is larger than 0, we know it fits
+                        // the size has been verified by subscribe
+                        if app.shared.len() > 0 {
+                            app.write_position = 0;
+                            app.write_len = pixels_in_bytes(
+                                app.width * app.height,
+                                self.pixel_format.get().get_bits_per_pixel(),
+                            );
 
-                        self.buffer.take().map_or(ReturnCode::FAIL, |buffer| {
-                            let len = self.fill_next_buffer_for_write(buffer);
+                            self.buffer.take().map_or(ReturnCode::ENOMEM, |buffer| {
+                                let len = self.fill_next_buffer_for_write(buffer);
 
-                            if len > 0 {
-                                self.screen.write(buffer, len)
-                            } else {
-                                self.buffer.replace(buffer);
-                                self.run_next_command(usize::from(ReturnCode::SUCCESS), 0, 0);
-                                ReturnCode::SUCCESS
-                            }
-                        })
-                    } else {
-                        ReturnCode::ENOMEM
-                    }
-                })
-                .unwrap_or_else(|err| err.into()),
+                                if len > 0 {
+                                    self.screen.write(buffer, len)
+                                } else {
+                                    self.buffer.replace(buffer);
+                                    self.run_next_command(usize::from(ReturnCode::SUCCESS), 0, 0);
+                                    ReturnCode::SUCCESS
+                                }
+                            })
+                        } else {
+                            ReturnCode::ENOMEM
+                        }
+                    })
+                    .map_err(|err| err.into());
+
+                match res {
+                    Err(e) => e,
+                    Ok(r) => r,
+                }
+            }
             ScreenCommand::Write => self
                 .apps
                 .enter(appid, |app, _| {
-                    let len = if let Some(ref shared) = app.shared {
-                        if shared.len() < data1 {
-                            shared.len()
-                        } else {
-                            data1
-                        }
+                    let len = if app.shared.len() < data1 {
+                        app.shared.len()
                     } else {
-                        0
+                        data1
                     };
                     if len > 0 {
                         app.write_position = 0;
@@ -357,9 +369,7 @@ impl<'a> Screen<'a> {
             self.current_app.take().map(|appid| {
                 let _ = self.apps.enter(appid, |app, _| {
                     app.pending_command = false;
-                    app.callback.map(|mut cb| {
-                        cb.schedule(data1, data2, data3);
-                    });
+                    app.callback.schedule(data1, data2, data3);
                 });
             });
         }
@@ -396,14 +406,23 @@ impl<'a> Screen<'a> {
                         if position < len {
                             let buffer_size = buffer.len();
                             if app.command == ScreenCommand::Write {
-                                if let Some(ref mut s) = app.shared {
-                                    let mut chunks = s.chunks(buffer_size);
-                                    let chunk_number = position / buffer_size;
-                                    let initial_pos = chunk_number * buffer_size;
+                                let chunk_number = position / buffer_size;
+                                let initial_pos = chunk_number * buffer_size;
 
-                                    let mut pos = initial_pos;
-                                    if let Some(chunk) = chunks.nth(chunk_number) {
-                                        for (i, byte) in chunk.iter().enumerate() {
+                                let mut pos = initial_pos;
+
+                                let mut size = app.shared.len() - initial_pos;
+                                if size > buffer_size {
+                                    size = buffer_size
+                                }
+
+                                app.write_position = pos + size;
+
+                                app.shared.map_or(0, |data| {
+                                    if initial_pos + buffer_size <= data.len() {
+                                        for (i, byte) in
+                                            data[initial_pos..initial_pos + size].iter().enumerate()
+                                        {
                                             if pos < len {
                                                 buffer[i] = *byte;
                                                 pos = pos + 1
@@ -411,16 +430,12 @@ impl<'a> Screen<'a> {
                                                 break;
                                             }
                                         }
-                                        app.write_position = pos;
                                         app.write_len - initial_pos
                                     } else {
                                         // stop writing
                                         0
                                     }
-                                } else {
-                                    // TODO should panic or report an error?
-                                    panic!("screen has no slice to send");
-                                }
+                                })
                             } else if app.command == ScreenCommand::Fill {
                                 // TODO bytes per pixel
                                 len = len - position;
@@ -432,8 +447,10 @@ impl<'a> Screen<'a> {
                                 if write_len > len {
                                     write_len = len
                                 };
-                                if let Some(ref mut s) = app.shared {
-                                    let mut bytes = s.iter();
+                                app.write_position =
+                                    app.write_position + write_len * bytes_per_pixel;
+                                app.shared.map_or(0, |data| {
+                                    let mut bytes = data.iter();
                                     // bytes per pixel
                                     for i in 0..bytes_per_pixel {
                                         if let Some(byte) = bytes.next() {
@@ -446,13 +463,8 @@ impl<'a> Screen<'a> {
                                             buffer[bytes_per_pixel * i + j] = buffer[j]
                                         }
                                     }
-                                } else {
-                                    // TODO should panic or report an error?
-                                    panic!("screen has no slice to send");
-                                }
-                                app.write_position =
-                                    app.write_position + write_len * bytes_per_pixel;
-                                write_len * bytes_per_pixel
+                                    write_len * bytes_per_pixel
+                                })
                             } else {
                                 // unknown command
                                 // stop writing
@@ -495,36 +507,44 @@ impl<'a> hil::screen::ScreenSetupClient for Screen<'a> {
     }
 }
 
-impl<'a> LegacyDriver for Screen<'a> {
+impl<'a> Driver for Screen<'a> {
     fn subscribe(
         &self,
         subscribe_num: usize,
-        callback: Option<Callback>,
+        mut callback: Callback,
         app_id: AppId,
-    ) -> ReturnCode {
-        match subscribe_num {
+    ) -> Result<Callback, (Callback, ErrorCode)> {
+        let res = match subscribe_num {
             0 => self
                 .apps
                 .enter(app_id, |app, _| {
-                    app.callback = callback;
-                    ReturnCode::SUCCESS
+                    mem::swap(&mut app.callback, &mut callback);
                 })
-                .unwrap_or_else(|err| err.into()),
-            _ => ReturnCode::ENOSUPPORT,
+                .map_err(ErrorCode::from),
+            _ => Err(ErrorCode::NOSUPPORT),
+        };
+        if let Err(e) = res {
+            Err((callback, e))
+        } else {
+            Ok(callback)
         }
     }
 
-    fn command(&self, command_num: usize, data1: usize, data2: usize, appid: AppId) -> ReturnCode {
+    fn command(
+        &self,
+        command_num: usize,
+        data1: usize,
+        data2: usize,
+        appid: AppId,
+    ) -> CommandResult {
         match command_num {
             0 =>
             // This driver exists.
             {
-                ReturnCode::SUCCESS
+                CommandResult::success()
             }
             // Does it have the screen setup
-            1 => ReturnCode::SuccessWithValue {
-                value: self.screen_setup.is_some() as usize,
-            },
+            1 => CommandResult::success_u32(self.screen_setup.is_some() as u32),
             // Set Brightness
             3 => self.enqueue_command(ScreenCommand::SetBrightness, data1, 0, appid),
             // Invert On
@@ -564,35 +584,41 @@ impl<'a> LegacyDriver for Screen<'a> {
             // Fill
             300 => self.enqueue_command(ScreenCommand::Fill, data1, data2, appid),
 
-            _ => ReturnCode::ENOSUPPORT,
+            _ => CommandResult::failure(ErrorCode::NOSUPPORT),
         }
     }
 
-    fn allow_readwrite(
+    fn allow_readonly(
         &self,
         appid: AppId,
         allow_num: usize,
-        slice: Option<AppSlice<SharedReadWrite, u8>>,
-    ) -> ReturnCode {
+        mut slice: ReadOnlyAppSlice,
+    ) -> Result<ReadOnlyAppSlice, (ReadOnlyAppSlice, ErrorCode)> {
         match allow_num {
             // TODO should refuse allow while writing
-            0 => self
-                .apps
-                .enter(appid, |app, _| {
-                    let depth =
-                        pixels_in_bytes(1, self.screen.get_pixel_format().get_bits_per_pixel());
-                    let len = if let Some(ref s) = slice { s.len() } else { 0 };
-                    // allow only if the slice length is a a multiple of color depth
-                    if len == 0 || (len > 0 && (len % depth == 0)) {
-                        app.shared = slice;
-                        app.write_position = 0;
-                        ReturnCode::SUCCESS
-                    } else {
-                        ReturnCode::EINVAL
-                    }
-                })
-                .unwrap_or_else(|err| err.into()),
-            _ => ReturnCode::ENOSUPPORT,
+            0 => {
+                let res = self
+                    .apps
+                    .enter(appid, |app, _| {
+                        let depth =
+                            pixels_in_bytes(1, self.screen.get_pixel_format().get_bits_per_pixel());
+                        let len = slice.len();
+                        // allow only if the slice length is a a multiple of color depth
+                        if len == 0 || (len > 0 && (len % depth == 0)) {
+                            app.write_position = 0;
+                            mem::swap(&mut app.shared, &mut slice);
+                            Ok(())
+                        } else {
+                            Err(ErrorCode::INVAL)
+                        }
+                    })
+                    .map_err(ErrorCode::from);
+                match res {
+                    Err(e) => Err((slice, e)),
+                    Ok(_) => Ok(slice),
+                }
+            }
+            _ => Err((slice, ErrorCode::NOSUPPORT)),
         }
     }
 }
