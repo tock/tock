@@ -194,8 +194,7 @@ pub unsafe fn reset_handler() {
                         socc::SoCRegisterFmt,
                     >
             ),
-            4,     // 4 LEDs on this board
-            false, // The LEDs are active-high
+            4, // 4 LEDs on this board
         )
     );
     led0.initialize();
