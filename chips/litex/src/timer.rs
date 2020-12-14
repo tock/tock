@@ -2,6 +2,7 @@
 //!
 //! Documentation in `litex/soc/cores/timer.py`.
 
+use core::cell::Cell;
 use core::marker::PhantomData;
 use kernel::common::cells::OptionalCell;
 use kernel::common::StaticRef;
@@ -15,10 +16,7 @@ use crate::litex_registers::{
     register_bitfields, LiteXSoCRegisterConfiguration, Read, ReadRegWrapper, Write, WriteRegWrapper,
 };
 
-// TODO: Make timer generic over the underlying width
-
-// TODO: Don't enable / disable all events, but just the specific one
-//const EVENT_MANAGER_INDEX: usize = 0;
+const EVENT_MANAGER_INDEX: usize = 0;
 
 type LiteXTimerEV<'a, R> = LiteXEventManager<
     'a,
@@ -28,6 +26,7 @@ type LiteXTimerEV<'a, R> = LiteXEventManager<
     <R as LiteXSoCRegisterConfiguration>::ReadWrite8,
 >;
 
+/// [`LiteXTimer`] register layout
 #[repr(C)]
 pub struct LiteXTimerRegisters<R: LiteXSoCRegisterConfiguration> {
     /// Load value when Timer is (re-)enabled. In One-Shot mode, the
@@ -66,7 +65,7 @@ pub struct LiteXTimerRegisters<R: LiteXSoCRegisterConfiguration> {
     uptime_latch: R::ReadWrite8,
     /// Latched uptime since power-up (in `sys_clk` cycles)
     ///
-    ///# Optional register
+    /// # Optional register
     ///
     /// This register is only present if the SoC was configured with
     /// `timer_update = True`. Therefore, it's only indirectly
@@ -93,11 +92,28 @@ register_bitfields![u8,
     ]
 ];
 
+/// LiteX hardware timer core uptime extension
+///
+/// Defined in
+/// [`litex/soc/cores/timer.py`](https://github.com/enjoy-digital/litex/blob/master/litex/soc/cores/timer.py).
+///
+/// This hardware peripheral can optionally feature an uptime
+/// register, which counts the current ticks since power on. This
+/// wrapper can be used to provide users a safe way to access this
+/// register through the [`Time::now`] interface, if it is available
+/// in hardware.
 pub struct LiteXTimerUptime<'t, R: LiteXSoCRegisterConfiguration, F: Frequency> {
     timer: &'t LiteXTimer<'t, R, F>,
 }
 
 impl<'t, R: LiteXSoCRegisterConfiguration, F: Frequency> LiteXTimerUptime<'t, R, F> {
+    /// Contruct a new [`LiteXTimerUptime`] wrapper
+    ///
+    /// The function is marked `unsafe` as it will provide a safe
+    /// method to access the `uptime`-register on the underlying
+    /// [`LiteXTimer`]. If this register is not present (i.e. the
+    /// uptime feature is disabled), this will result in undefined
+    /// behavior.
     pub const unsafe fn new(timer: &'t LiteXTimer<'t, R, F>) -> LiteXTimerUptime<'t, R, F> {
         LiteXTimerUptime { timer }
     }
@@ -107,12 +123,13 @@ impl<R: LiteXSoCRegisterConfiguration, F: Frequency> Time for LiteXTimerUptime<'
     type Frequency = F;
     type Ticks = Ticks64;
 
+    /// Return the current ticks since sytem power on
     fn now(&self) -> Self::Ticks {
         unsafe { self.timer.uptime() }
     }
 }
 
-/// Hardware timer peripheral found on LiteX SoCs
+/// LiteX hardware timer core
 ///
 /// Defined in
 /// [`litex/soc/cores/timer.py`](https://github.com/enjoy-digital/litex/blob/master/litex/soc/cores/timer.py).
@@ -120,85 +137,104 @@ impl<R: LiteXSoCRegisterConfiguration, F: Frequency> Time for LiteXTimerUptime<'
 /// This peripheral supports counting down a certain interval, either
 /// as a oneshot timer or in a repeated fashion.
 ///
-/// # Uptime peripheral
+/// # Uptime extension
 ///
 /// LiteX timers can _optionally_ be extended to feature an uptime
 /// register integrated into the timer peripheral, monotonically
 /// counting the clock ticks and wrapping at the maximum value.
 ///
-/// The uptime register may have a different width as the `Timer`
+/// The uptime register may have a different width as the [`Timer`]
 /// peripheral itself, hence it must be implemented using a separate
-/// type. The type must contain a reference to this `Timer` instance,
-/// since the register is located on this register bank.
+/// type. The type must contain a reference to this [`Timer`]
+/// instance, since the register is located on this register bank.
 ///
 /// Since this extension is not always configured, the Timer features
 /// an _unsafe_ function to read the uptime. It must only be called by
-/// `LiteXTimerUptime` struct and only if the uptime has been
+/// [`LiteXTimerUptime`] struct and only if the uptime has been
 /// configured.
 pub struct LiteXTimer<'a, R: LiteXSoCRegisterConfiguration, F: Frequency> {
     registers: StaticRef<LiteXTimerRegisters<R>>,
     client: OptionalCell<&'a dyn TimerClient>,
+    /// Variable to store whether an interval has been set at least
+    /// once (e.g. the timer has been started once)
+    interval_set: Cell<bool>,
     _frequency: PhantomData<F>,
 }
 
 impl<R: LiteXSoCRegisterConfiguration, F: Frequency> LiteXTimer<'_, R, F> {
-    pub const fn new(base: StaticRef<LiteXTimerRegisters<R>>) -> Self {
+    pub fn new(base: StaticRef<LiteXTimerRegisters<R>>) -> Self {
         LiteXTimer {
             registers: base,
             client: OptionalCell::empty(),
+            interval_set: Cell::new(false),
             _frequency: PhantomData,
         }
     }
 
+    /// Get the uptime register value.
+    ///
+    /// This function is marked as unsafe to avoid clients calling it,
+    /// if the underlying LiteX hardware timer does not feature the
+    /// uptime registers.
+    ///
+    /// Clients should use the [`LiteXTimerUptime`] wrapper instead,
+    /// which exposes this value as part of their
+    /// [`Time::now`](Time::now) implementation.
     unsafe fn uptime(&self) -> Ticks64 {
         WriteRegWrapper::wrap(&self.registers.uptime_latch).write(uptime_latch::latch_value::SET);
         self.registers.uptime.get().into()
     }
 
     pub fn service_interrupt(&self) {
-        if self.registers.reload.get() == 0 {
-            // Timer is a oneshot
+        // Check whether the event is still asserted.
+        //
+        // It could be that an interrupt was fired and the timer was
+        // reset / disabled in the mean time.
+        if self.registers.ev().event_asserted(EVENT_MANAGER_INDEX) {
+            if self.registers.reload.get() == 0 {
+                // Timer is a oneshot
 
-            // If the timer really is a oneshot, the remaining time must be 0
-            WriteRegWrapper::wrap(&self.registers.update_value)
-                .write(update_value::latch_value::SET);
-            assert!(self.registers.value.get() == 0);
+                // If the timer really is a oneshot, the remaining time must be 0
+                WriteRegWrapper::wrap(&self.registers.update_value)
+                    .write(update_value::latch_value::SET);
+                assert!(self.registers.value.get() == 0);
 
-            // Completely disable and make sure it doesn't generate
-            // more interrupts until it is started again
-            self.cancel();
-        } else {
-            // Timer is repeating only acknowledge the current
-            // interrupt
-            self.registers.ev().clear_all();
+                // Completely disable and make sure it doesn't generate
+                // more interrupts until it is started again
+                self.cancel();
+            } else {
+                // Timer is repeating
+                //
+                // Simply only acknowledge the current interrupt
+                self.registers.ev().clear_event(EVENT_MANAGER_INDEX);
+            }
+
+            // In any case, perform a callback to the client
+            self.client.map(|client| {
+                client.timer();
+            });
         }
-
-        self.client.map(|client| {
-            client.timer();
-        });
     }
 
     fn start_timer(&self, tics: u32, repeat_ticks: Option<u32>) {
+        // If the timer is already enabled, cancel it and disable all
+        // interrupts
         if self.is_enabled() {
             self.cancel();
         }
 
-        // Stop the timer if it is currently running to prevent
-        // interrupts from happening while modifying the timer value
-        // non-atomically.
-        WriteRegWrapper::wrap(&self.registers.en).write(en::enable::CLEAR);
-
         if let Some(reload) = repeat_ticks {
             // Reload the timer with `reload_ticks` after it has
-            // expired
+            // expired (reloading mode)
             self.registers.reload.set(reload);
         } else {
-            // Prevent reloading of the timer
+            // Prevent reloading of the timer (oneshot mode)
             self.registers.reload.set(0);
         }
 
-        // Load the countdown in ticks (won't get overwritten, hence a
-        // safe reference to the original tics value)
+        // Load the countdown in ticks (this register won't get
+        // overwritten, hence it is a safe reference to the original
+        // tics value which we don't need to save locally)
         self.registers.load.set(tics);
 
         // Since the timer is disabled, the load register is
@@ -207,12 +243,16 @@ impl<R: LiteXSoCRegisterConfiguration, F: Frequency> LiteXTimer<'_, R, F> {
         //
         // It is important for the internal value to be non-zero prior
         // to enabling the event, as it could otherwise immediately
-        // generate an event again.
+        // generate an event again (which might be desired for a timer
+        // with tics == 0).
         //
         // Clear any pending event of a previous timer, then enable
         // the event.
-        self.registers.ev().clear_all();
-        self.registers.ev().enable_all();
+        self.registers.ev().clear_event(EVENT_MANAGER_INDEX);
+        self.registers.ev().enable_event(EVENT_MANAGER_INDEX);
+
+        // The timer has been started at least once by now
+        self.interval_set.set(true);
 
         // Start the timer
         WriteRegWrapper::wrap(&self.registers.en).write(en::enable::SET);
@@ -245,16 +285,28 @@ impl<'a, R: LiteXSoCRegisterConfiguration, F: Frequency> Timer<'a> for LiteXTime
     }
 
     fn interval(&self) -> Option<Self::Ticks> {
-        // TODO: Check whether it was set at least once
-        Some(self.registers.load.get().into())
+        if self.interval_set.get() {
+            // The timer has been started at least once, so we can
+            // trust that the `load` register will have the interval
+            // of the last requested timer.
+            Some(self.registers.load.get().into())
+        } else {
+            // The timer was never started and so does not have an
+            // interval set.
+            None
+        }
     }
 
     fn is_repeating(&self) -> bool {
-        self.registers.reload.get() != 0
+        // The timer is repeating timer if it has been started at
+        // least once and the reload register is non-zero
+        self.interval_set.get() && self.registers.reload.get() != 0
     }
 
     fn is_oneshot(&self) -> bool {
-        !self.is_repeating()
+        // The timer is a oneshot if it has been started at least once
+        // and the reload register is 0
+        self.interval_set.get() && self.registers.reload.get() == 0
     }
 
     fn time_remaining(&self) -> Option<Self::Ticks> {
@@ -268,26 +320,18 @@ impl<'a, R: LiteXSoCRegisterConfiguration, F: Frequency> Timer<'a> for LiteXTime
     }
 
     fn is_enabled(&self) -> bool {
-        // If the enable register is set, the timer will either fire
-        // in every case:
-        //
-        // - either the countdown is not yet done
-        //
-        // - or the countdown is done, which would set event in the
-        //   event manager, which will be cleared in the respective
-        //   interrupt handler
         ReadRegWrapper::wrap(&self.registers.en).is_set(en::enable)
     }
 
     fn cancel(&self) -> ReturnCode {
         // Prevent the event source from generating new interrupts
-        self.registers.ev().disable_all();
+        self.registers.ev().disable_event(EVENT_MANAGER_INDEX);
 
         // Stop the timer
         WriteRegWrapper::wrap(&self.registers.en).write(en::enable::CLEAR);
 
         // Clear any previous event
-        self.registers.ev().clear_all();
+        self.registers.ev().clear_event(EVENT_MANAGER_INDEX);
 
         ReturnCode::SUCCESS
     }
