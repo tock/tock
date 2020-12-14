@@ -138,7 +138,7 @@ static mut CHIP: Option<&'static nrf52840::chip::NRF52<Nrf52840DefaultPeripheral
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
 #[link_section = ".stack_buffer"]
-pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
+pub static mut STACK_MEMORY: [u8; 0x2000] = [0; 0x2000];
 
 /// Supported drivers by the platform
 pub struct Platform {
@@ -194,7 +194,7 @@ impl kernel::Platform for Platform {
             capsules::nonvolatile_storage_driver::DRIVER_NUM => {
                 f(Some(Err(self.nonvolatile_storage)))
             }
-            capsules::net::udp::DRIVER_NUM => f(Some(Err(self.udp_driver))),
+            capsules::net::udp::DRIVER_NUM => f(Some(Ok(self.udp_driver))),
             capsules::tock2_test::DRIVER_NUM => f(Some(Ok(self.tock2_test_driver))),
             kernel::ipc::DRIVER_NUM => f(Some(Err(&self.ipc))),
             _ => f(None),
