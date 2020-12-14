@@ -17,6 +17,7 @@ use kernel::hil::gpio::Interrupt;
 use kernel::hil::i2c::I2CMaster;
 use kernel::hil::led::LedHigh;
 use kernel::hil::symmetric_encryption::AES128;
+use kernel::hil::time::Alarm;
 use kernel::hil::time::Counter;
 use kernel::hil::usb::Client;
 use kernel::mpu::MPU;
@@ -277,8 +278,6 @@ pub unsafe fn reset_handler() {
     //--------------------------------------------------------------------------
     // PWM & BUZZER
     //--------------------------------------------------------------------------
-
-    use kernel::hil::time::Alarm;
 
     let mux_pwm = static_init!(
         capsules::virtual_pwm::MuxPwm<'static, nrf52840::pwm::Pwm>,
