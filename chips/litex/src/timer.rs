@@ -337,15 +337,18 @@ impl<'a, R: LiteXSoCRegisterConfiguration, F: Frequency> Timer<'a> for LiteXTime
     }
 }
 
-// TODO: This is written under the assumption that the u64-uptime
-// clock does not wrap around
-
-// TODO: The timer must be only used once
-
+/// LiteX alarm implementation, based on [`LiteXTimer`] and
+/// [`LiteXTimerUptime`]
+///
+/// LiteX does not have an [`Alarm`] compatible hardware peripheral,
+/// so an [`Alarm`] is emulated using a repeatedly set [`LiteXTimer`],
+/// comparing the current time against the [`LiteXTimerUptime`] (which
+/// is also exposed as [`Time::now`](Time::now).
 pub struct LiteXAlarm<'t, 'c, R: LiteXSoCRegisterConfiguration, F: Frequency> {
     uptime: &'t LiteXTimerUptime<'t, R, F>,
     timer: &'t LiteXTimer<'t, R, F>,
     alarm_client: OptionalCell<&'c dyn AlarmClient>,
+    reference_time: Cell<<LiteXTimerUptime<'t, R, F> as Time>::Ticks>,
     alarm_time: OptionalCell<<LiteXTimerUptime<'t, R, F> as Time>::Ticks>,
 }
 
@@ -358,20 +361,34 @@ impl<'t, 'c, R: LiteXSoCRegisterConfiguration, F: Frequency> LiteXAlarm<'t, 'c, 
             uptime,
             timer,
             alarm_client: OptionalCell::empty(),
+            reference_time: Cell::new((0 as u32).into()),
             alarm_time: OptionalCell::empty(),
         }
     }
 
+    /// Initialize the [`LiteXAlarm`]
+    ///
+    /// This will register itself as a client for the underlying
+    /// [`LiteXTimer`].
     pub fn initialize(&'t self) {
         self.timer.set_timer_client(self);
     }
 
-    pub fn timer_tick(&self, is_upcall: bool) {
-        // Check if we've already reached the alarm time, otherwise
-        // set the timer to the difference or the max value
+    fn timer_tick(&self, is_upcall: bool) {
+        // Check whether we've already reached the alarm time,
+        // otherwise set the timer to the difference or the max value
         // respectively
 
-        if self.now() >= self.alarm_time.expect("alarm not set") {
+        // This function gets called when initially setting the alarm
+        // and for every fired LiteXTimer oneshot operation. Since we
+        // can't call a client-callback within the same call stack of
+        // the initial `set_alarm` call, we need to wait on the timer
+        // at least once (even if the alarm time has already passed).
+
+        let reference = self.reference_time.get();
+        let alarm_time = self.alarm_time.expect("alarm not set");
+
+        if !self.now().within_range(reference, alarm_time) {
             // It's time, ring the alarm
 
             // Make sure we're in an upcall, otherwise set the timer
@@ -384,7 +401,7 @@ impl<'t, 'c, R: LiteXSoCRegisterConfiguration, F: Frequency> LiteXAlarm<'t, 'c, 
                 // Call the client
                 self.alarm_client.map(|c| c.alarm());
             } else {
-                // Trigger an interrupt almost immediately, which will
+                // Trigger an interrupt one tick from now, which will
                 // call this function again
                 self.timer.oneshot((1 as u32).into());
             }
@@ -392,13 +409,15 @@ impl<'t, 'c, R: LiteXSoCRegisterConfiguration, F: Frequency> LiteXAlarm<'t, 'c, 
             // It's not yet time to call the client, set the timer
             // again
 
-            let remaining = self
-                .alarm_time
-                .expect("alarm not set")
-                .wrapping_sub(self.now());
+            let remaining = alarm_time.wrapping_sub(self.now());
             if remaining < (u32::MAX as u64).into() {
+                // The remaining time fits into a single timer
+                // invocation
                 self.timer.oneshot(remaining.into_u32().into());
             } else {
+                // The remaining time is longer than a single timer
+                // invocation can cover, set the timer to the maximum
+                // value
                 self.timer.oneshot(u32::MAX.into());
             }
         }
@@ -427,14 +446,14 @@ impl<'t, 'c, R: LiteXSoCRegisterConfiguration, F: Frequency> Alarm<'c>
             self.disarm();
         }
 
-        // We assume that the 64-bit counter will never wrap
-        //
-        // TODO: Write alarm that works with a wrapping time
-        assert!(self.uptime.now() >= reference);
-        assert!(reference.wrapping_add(dt) > reference);
-
+        // Store both the reference and alarm time (required for
+        // reliable comparison with wrapping time)
+        self.reference_time.set(reference);
         self.alarm_time.set(reference.wrapping_add(dt));
 
+        // Set the underlying timer at least once (`is_upcall =
+        // false`) to trigger a callback to the client in a different
+        // call stack
         self.timer_tick(false);
     }
 
