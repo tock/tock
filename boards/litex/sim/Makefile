@@ -4,5 +4,5 @@
 TARGET=riscv32i-unknown-none-elf
 PLATFORM=litex_sim
 
-include ../Makefile.common
+include ../../Makefile.common
 
