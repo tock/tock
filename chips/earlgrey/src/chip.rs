@@ -247,7 +247,7 @@ fn handle_exception(exception: mcause::Exception) {
         | mcause::Exception::LoadPageFault
         | mcause::Exception::StorePageFault
         | mcause::Exception::Unknown => {
-            panic!("fatal exception");
+            panic!("fatal exception: {:?}: {:#x}", exception, CSR.mtval.get());
         }
     }
 }
