@@ -193,4 +193,4 @@ impl<'a> time::Alarm<'a> for RvTimer<'a> {
 }
 
 const TIMER_BASE: StaticRef<TimerRegisters> =
-    unsafe { StaticRef::new(0x4008_0000 as *const TimerRegisters) };
+    unsafe { StaticRef::new(0x4010_0000 as *const TimerRegisters) };
