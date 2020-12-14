@@ -1,3 +1,8 @@
+//! LiteX led controller (`LedChaser` core)
+//!
+//! Hardware source and documentation available at
+//! [`litex/soc/cores/led.py`](https://github.com/enjoy-digital/litex/blob/master/litex/soc/cores/led.py).
+
 use core::cell::Cell;
 use kernel::common::StaticRef;
 use kernel::hil;

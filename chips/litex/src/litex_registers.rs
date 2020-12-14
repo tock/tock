@@ -1,3 +1,5 @@
+//! LiteX register abstraction types
+//!
 //! LiteX is able to generate vastly different SoC with different
 //! buswidths, CSR widths and configurations
 //!

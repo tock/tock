@@ -1,4 +1,8 @@
 //! LiteX LiteEth peripheral
+//!
+//! The hardware source and any documentation can be found in the
+//! [LiteEth Git
+//! repository](https://github.com/enjoy-digital/liteeth).
 
 use crate::event_manager::LiteXEventManager;
 use crate::litex_registers::{LiteXSoCRegisterConfiguration, Read, Write};

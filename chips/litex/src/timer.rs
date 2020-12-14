@@ -1,6 +1,7 @@
 //! LiteX timer core
 //!
-//! Documentation in `litex/soc/cores/timer.py`.
+//! Hardware source and documentation available at
+//! [`litex/soc/cores/timer.py`](https://github.com/enjoy-digital/litex/blob/master/litex/soc/cores/timer.py).
 
 use core::cell::Cell;
 use core::marker::PhantomData;

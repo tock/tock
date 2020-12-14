@@ -1,3 +1,8 @@
+//! LiteX UART core
+//!
+//! Hardware source and documentation available at
+//! [`litex/soc/cores/uart.py`](https://github.com/enjoy-digital/litex/blob/master/litex/soc/cores/uart.py).
+
 use core::cell::Cell;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::common::dynamic_deferred_call::{

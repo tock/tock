@@ -2,7 +2,7 @@
 //!
 //! Documentation on the different LiteX event source, which all
 //! behave differently, can be found in the LiteX repository under
-//! `litex/soc/interconnect/csr_eventmanager.py`.
+//! [`litex/soc/interconnect/csr_eventmanager.py`](https://github.com/enjoy-digital/litex/blob/master/litex/soc/interconnect/csr_eventmanager.py).
 
 use crate::litex_registers::{IntLike, Read, ReadWrite};
 use core::marker::PhantomData;
