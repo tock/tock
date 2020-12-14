@@ -426,12 +426,12 @@ pub unsafe fn reset_handler() {
     //--------------------------------------------------------------------------
 
     // it seems that microbit v2 has no external clock
-    nrf52::clock::CLOCK.low_stop();
-    nrf52::clock::CLOCK.high_stop();
-    nrf52::clock::CLOCK.low_start();
-    nrf52::clock::CLOCK.high_start();
-    while !nrf52::clock::CLOCK.low_started() {}
-    while !nrf52::clock::CLOCK.high_started() {}
+    base_peripherals.clock.low_stop();
+    base_peripherals.clock.high_stop();
+    base_peripherals.clock.low_start();
+    base_peripherals.clock.high_start();
+    while !base_peripherals.clock.low_started() {}
+    while !base_peripherals.clock.high_started() {}
 
     let platform = Platform {
         ble_radio: ble_radio,
