@@ -102,6 +102,57 @@ either using `litex_term.py` (available as `lxterm`) via serial, or
 using TFTP via Ethernet. The uploaded image will be placed into the
 `main_ram` section and executed.
 
+### Serial boot
+
+To boot via serial run the LiteX-included `litex_term.py` (sometimes
+available as `lxterm`):
+```
+$ ./litex/litex/tools/litex_term.py \
+    --speed 10000000 \
+	--serial-boot \
+	--kernel $TOCK_BINARY \
+	$SERIAL_PORT
+```
+, where `TOCK_BINARY` points to the board's binary (kernel, optionally
+including optionally applications), and `SERIAL_PORT` is the UART
+console on which the bootloader listens (e.g. `/dev/ttyUSB0`).
+
+Then press RESET to get the SoC into the bootloader stage:
+```
+        __   _ __      _  __
+       / /  (_) /____ | |/_/
+      / /__/ / __/ -_)>  <
+     /____/_/\__/\__/_/|_|
+   Build your hardware, easily!
+
+ (c) Copyright 2012-2020 Enjoy-Digital
+ (c) Copyright 2007-2015 M-Labs
+
+ BIOS built on Jan  1 1970 00:00:01
+ BIOS CRC passed (00000000)
+
+[...]
+
+ --============== Boot ==================--
+Booting from serial...
+Press Q or ESC to abort boot completely.
+sL5DdSMmkekro
+```
+
+The `litex_term.py` script should recognize this string and initiate
+the serial boot afterwards.
+
+If everything works you should be greeted by the Tock kernel:
+```
+[LXTERM] Done.
+Executing booted program at 0x40000000
+
+--============= Liftoff! ===============--
+LiteX+VexRiscv on ArtyA7: initialization complete, entering main loop.
+```
+
+### TFTP Boot
+
 If applications are inserted into the Tock image, it can grow to a
 significant size which makes upload via serial slow. Using TFTP is
 preferable.
