@@ -35,7 +35,6 @@ const LED_WHITE_PIN: Pin = Pin::P0_10;
 const LED_KERNEL_PIN: Pin = Pin::P1_01;
 
 // Speaker
-
 const SPEAKER_PIN: Pin = Pin::P1_00;
 
 // Buttons
