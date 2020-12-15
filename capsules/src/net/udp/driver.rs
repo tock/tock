@@ -17,6 +17,7 @@ use crate::net::udp::udp_send::{UDPSendClient, UDPSender};
 use crate::net::util::host_slice_to_u16;
 use core::cell::Cell;
 use core::convert::TryFrom;
+use core::mem::size_of;
 use core::{cmp, mem};
 use kernel::capabilities::UdpDriverCapability;
 use kernel::common::cells::MapCell;
@@ -48,7 +49,7 @@ impl UDPEndpoint {
     /// This function returns the new offset into the buffer wrapped in an
     /// SResult.
     pub fn encode(&self, buf: &mut [u8], offset: usize) -> SResult<usize> {
-        stream_len_cond!(buf, mem::size_of::<UDPEndpoint>() + offset);
+        stream_len_cond!(buf, size_of::<UDPEndpoint>() + offset);
 
         let mut off = offset;
         for i in 0..16 {
@@ -253,15 +254,15 @@ impl<'a> UDPDriver<'a> {
 
     #[inline]
     fn parse_ip_port_pair(&self, buf: &[u8]) -> Option<UDPEndpoint> {
-        if buf.len() != mem::size_of::<UDPEndpoint>() {
+        if buf.len() != size_of::<UDPEndpoint>() {
             debug!(
                 "[parse] len is {:?}, not {:?} as expected",
                 buf.len(),
-                mem::size_of::<UDPEndpoint>()
+                size_of::<UDPEndpoint>()
             );
             None
         } else {
-            let (a, p) = buf.split_at(mem::size_of::<IPAddr>());
+            let (a, p) = buf.split_at(size_of::<IPAddr>());
             let mut addr = IPAddr::new();
             addr.0.copy_from_slice(a);
 
@@ -280,9 +281,9 @@ impl<'a> Driver for UDPDriver<'a> {
     /// ### `allow_num`
     ///
     /// - `0`: Read buffer. Will contain the received payload.
-    /// - `2`: Config buffer. Used to contain miscellaneous data associated with
+    /// - `1`: Config buffer. Used to contain miscellaneous data associated with
     ///        some commands, namely source/destination addresses and ports.
-    /// - `3`: Rx config buffer. Used to contain source/destination addresses
+    /// - `2`: Rx config buffer. Used to contain source/destination addresses
     ///        and ports for receives (separate from `2` because receives may
     ///        be waiting for an incoming packet asynchronously).
     fn allow_readwrite(
@@ -298,15 +299,15 @@ impl<'a> Driver for UDPDriver<'a> {
                     mem::swap(&mut app.app_read, &mut slice);
                     Ok(())
                 }
-                2 => {
+                1 => {
                     mem::swap(&mut app.app_cfg, &mut slice);
                     Ok(())
                 }
-                3 => {
+                2 => {
                     mem::swap(&mut app.app_rx_cfg, &mut slice);
                     Ok(())
                 }
-                _ => Err(ErrorCode::INVAL),
+                _ => Err(ErrorCode::NOSUPPORT),
             })
             .map_err(ErrorCode::from);
 
@@ -321,7 +322,9 @@ impl<'a> Driver for UDPDriver<'a> {
     ///
     /// ### `allow_num`
     ///
-    /// - `1`: Write buffer. Contains the UDP payload to be transmitted.
+    /// - `0`: Write buffer. Contains the UDP payload to be transmitted.
+    ///        Returns SIZE if the passed buffer is too long, and NOSUPPORT
+    ///        if an invalid `allow_num` is passed.
     fn allow_readonly(
         &self,
         appid: AppId,
@@ -329,11 +332,11 @@ impl<'a> Driver for UDPDriver<'a> {
         mut slice: ReadOnlyAppSlice,
     ) -> Result<ReadOnlyAppSlice, (ReadOnlyAppSlice, ErrorCode)> {
         let res = match allow_num {
-            1 => self
+            0 => self
                 .apps
                 .enter(appid, |app, _| {
                     if slice.len() > self.max_tx_pyld_len {
-                        Err(ErrorCode::INVAL) // passed buffer too long
+                        Err(ErrorCode::SIZE) // passed buffer too long
                     } else {
                         mem::swap(&mut app.app_write, &mut slice);
                         Ok(())
@@ -407,6 +410,7 @@ impl<'a> Driver for UDPDriver<'a> {
     /// - `1`: Get the interface list
     ///        app_cfg (out): 16 * `n` bytes: the list of interface IPv6 addresses, length
     ///                       limited by `app_cfg` length.
+    ///        Returns EINVAL if the cfg buffer is the wrong size, or not available.
     /// - `2`: Transmit payload.
     ///        Returns EBUSY is this process already has a pending tx.
     ///        Returns EINVAL if no valid buffer has been loaded into the write buffer,
@@ -451,28 +455,24 @@ impl<'a> Driver for UDPDriver<'a> {
             //  Writes the requested number of network interface addresses
             // `arg1`: number of interfaces requested that will fit into the buffer
             1 => {
-                let res = self
-                    .apps
+                self.apps
                     .enter(appid, |app, _| {
-                        app.app_cfg.mut_map_or(Err(ErrorCode::INVAL), |cfg| {
-                            if cfg.len() != arg1 * mem::size_of::<IPAddr>() {
-                                return Err(ErrorCode::INVAL);
-                            }
-                            let n_ifaces_to_copy = cmp::min(arg1, self.interface_list.len());
-                            let iface_size = mem::size_of::<IPAddr>();
-                            for i in 0..n_ifaces_to_copy {
-                                cfg[i * iface_size..(i + 1) * iface_size]
-                                    .copy_from_slice(&self.interface_list[i].0);
-                            }
-                            // Returns total number of interfaces
-                            Ok(self.interface_list.len())
-                        })
+                        app.app_cfg
+                            .mut_map_or(CommandResult::failure(ErrorCode::INVAL), |cfg| {
+                                if cfg.len() != arg1 * size_of::<IPAddr>() {
+                                    return CommandResult::failure(ErrorCode::INVAL);
+                                }
+                                let n_ifaces_to_copy = cmp::min(arg1, self.interface_list.len());
+                                let iface_size = size_of::<IPAddr>();
+                                for i in 0..n_ifaces_to_copy {
+                                    cfg[i * iface_size..(i + 1) * iface_size]
+                                        .copy_from_slice(&self.interface_list[i].0);
+                                }
+                                // Returns total number of interfaces
+                                CommandResult::success_u32(self.interface_list.len() as u32)
+                            })
                     })
-                    .unwrap_or_else(|err| Err(err.into()));
-                match res {
-                    Ok(v) => CommandResult::success_u32(v as u32),
-                    Err(e) => CommandResult::failure(e),
-                }
+                    .unwrap_or_else(|err| CommandResult::failure(err.into()))
             }
 
             // Transmits UDP packet stored in tx_buf
@@ -489,17 +489,13 @@ impl<'a> Driver for UDPDriver<'a> {
                             return Err(ErrorCode::RESERVE);
                         }
                         let next_tx = app.app_cfg.map_or(None, |cfg| {
-                            if cfg.len() != 2 * mem::size_of::<UDPEndpoint>() {
+                            if cfg.len() != 2 * size_of::<UDPEndpoint>() {
                                 return None;
                             }
 
                             if let (Some(dst), Some(src)) = (
-                                self.parse_ip_port_pair(
-                                    &cfg.as_ref()[mem::size_of::<UDPEndpoint>()..],
-                                ),
-                                self.parse_ip_port_pair(
-                                    &cfg.as_ref()[..mem::size_of::<UDPEndpoint>()],
-                                ),
+                                self.parse_ip_port_pair(&cfg.as_ref()[size_of::<UDPEndpoint>()..]),
+                                self.parse_ip_port_pair(&cfg.as_ref()[..size_of::<UDPEndpoint>()]),
                             ) {
                                 if Some(src.clone()) == app.bound_port {
                                     Some([src, dst])
@@ -523,15 +519,14 @@ impl<'a> Driver for UDPDriver<'a> {
                 }
             }
             3 => {
-                let res = self
-                    .apps
+                self.apps
                     .enter(appid, |app, _| {
                         // Move UDPEndpoint into udp.rs?
                         let mut requested_addr_opt = app.app_rx_cfg.map_or(None, |cfg| {
-                            if cfg.len() != 2 * mem::size_of::<UDPEndpoint>() {
+                            if cfg.len() != 2 * size_of::<UDPEndpoint>() {
                                 None
-                            } else if let Some(local_iface) = self
-                                .parse_ip_port_pair(&cfg.as_ref()[mem::size_of::<UDPEndpoint>()..])
+                            } else if let Some(local_iface) =
+                                self.parse_ip_port_pair(&cfg.as_ref()[size_of::<UDPEndpoint>()..])
                             {
                                 Some(local_iface)
                             } else {
@@ -539,14 +534,14 @@ impl<'a> Driver for UDPDriver<'a> {
                             }
                         });
                         if requested_addr_opt.is_none() {
-                            return Err(ErrorCode::INVAL);
+                            return CommandResult::failure(ErrorCode::INVAL);
                         }
                         if requested_addr_opt.is_some() {
-                            let requested_addr = requested_addr_opt.expect("missing address.");
+                            let requested_addr = requested_addr_opt.unwrap();
                             // If zero address, close any already bound socket
                             if requested_addr.is_zero() {
                                 app.bound_port = None;
-                                return Ok(());
+                                return CommandResult::success();
                             }
                             // Check that requested addr is a local interface
                             let mut requested_is_local = false;
@@ -556,7 +551,7 @@ impl<'a> Driver for UDPDriver<'a> {
                                 }
                             }
                             if !requested_is_local {
-                                return Err(ErrorCode::INVAL);
+                                return CommandResult::failure(ErrorCode::INVAL);
                             }
                             let mut addr_already_bound = false;
                             // This checks the bound ports in the other grants.
@@ -582,27 +577,23 @@ impl<'a> Driver for UDPDriver<'a> {
                                     addr_already_bound = bound;
                                 }
                                 Err(_) => {
-                                    return Err(ErrorCode::FAIL);
+                                    return CommandResult::failure(ErrorCode::FAIL);
                                 } //error in port table
                             }
                             // Also check the bound port table here.
                             if addr_already_bound {
-                                Err(ErrorCode::BUSY)
+                                CommandResult::failure(ErrorCode::BUSY)
                             } else {
                                 requested_addr_opt = Some(requested_addr);
                                 // If this point is reached, the requested addr is free and valid
                                 app.bound_port = requested_addr_opt;
-                                Ok(())
+                                CommandResult::success()
                             }
                         } else {
-                            Err(ErrorCode::INVAL)
+                            CommandResult::failure(ErrorCode::INVAL)
                         }
                     })
-                    .unwrap_or_else(|err| Err(err.into()));
-                match res {
-                    Ok(()) => CommandResult::success(),
-                    Err(e) => CommandResult::failure(e),
-                }
+                    .unwrap_or_else(|err| CommandResult::failure(err.into()))
             }
             4 => CommandResult::success_u32(self.max_tx_pyld_len as u32),
             _ => CommandResult::failure(ErrorCode::NOSUPPORT),
@@ -659,7 +650,7 @@ impl<'a> UDPRecvClient for UDPDriver<'a> {
                             port: src_port,
                         };
                         app.rx_callback.schedule(len, 0, 0);
-                        let cfg_len = 2 * mem::size_of::<UDPEndpoint>();
+                        let cfg_len = 2 * size_of::<UDPEndpoint>();
                         app.app_rx_cfg.mut_map_or(ReturnCode::EINVAL, |cfg| {
                             if cfg.len() != cfg_len {
                                 return ReturnCode::EINVAL;
