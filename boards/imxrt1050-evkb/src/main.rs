@@ -90,7 +90,7 @@ impl Platform for Imxrt1050EVKB {
             capsules::gpio::DRIVER_NUM => f(Some(Err(self.gpio))),
             kernel::ipc::DRIVER_NUM => f(Some(Err(&self.ipc))),
             capsules::led::DRIVER_NUM => f(Some(Ok(self.led))),
-            capsules::ninedof::DRIVER_NUM => f(Some(Err(self.ninedof))),
+            capsules::ninedof::DRIVER_NUM => f(Some(Ok(self.ninedof))),
             _ => f(None),
         }
     }
