@@ -138,7 +138,7 @@ impl<'a> NineDof<'a> {
     fn configure_callback(
         &self,
         mut callback: Callback,
-        app_id: AppId
+        app_id: AppId,
     ) -> Result<Callback, (Callback, ErrorCode)> {
         let res = self
             .apps
