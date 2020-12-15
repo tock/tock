@@ -58,15 +58,25 @@ Once LiteX is installed, running the simulation:
 
 ```
 $ cd $PATH_TO_LITEX/litex/tools
-$ ./litex_sim.py <configuration options>
+$ ./litex_sim.py <configuration options above>
 ```
 
-This command will build the SoC Verilog files and a ROM-bios.
+This command will build the SoC Verilog files and a LiteX ROM BIOS.
 Afterwards, it will use Verilator to create a C++ simulation program,
 which is compiled and run. The script may ask for an administrator
 password to create a `tap0` network device on the host if built with
-Ethernet support.
+Ethernet support. The Tock kernel is included as the integrated ROM
+(loaded at address `0x0`) by using the `--rom-init
+$PATH_TO_TOCK_BINARY`.
 
+If everything works you should be greeted by the Tock kernel:
+```
+...
+[xgmii_ethernet] loaded (0xa51090)
+[clocker] loaded
+[clocker] sys_clk: freq_hz=1000000, phase_deg=0
+Verilated LiteX+VexRiscv: initialization complete, entering main loop.
+```
 
 Debugging
 ---------
