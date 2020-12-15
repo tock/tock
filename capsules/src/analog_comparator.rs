@@ -38,7 +38,6 @@ use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::AnalogComparator as usize;
 
 use core::cell::Cell;
-use core::convert::TryFrom;
 use kernel::hil;
 use kernel::{AppId, Callback, CommandResult, Driver, ErrorCode, ReturnCode};
 
@@ -127,15 +126,9 @@ impl<'a, A: hil::analog_comparator::AnalogComparator<'a>> Driver for AnalogCompa
                 Err(e) => CommandResult::failure(e),
             },
 
-            2 => match ErrorCode::try_from(self.start_comparing(channel)) {
-                Err(_) => CommandResult::success(),
-                Ok(e) => CommandResult::failure(e),
-            },
+            2 => self.start_comparing(channel).into(),
 
-            3 => match ErrorCode::try_from(self.stop_comparing(channel)) {
-                Err(_) => CommandResult::success(),
-                Ok(e) => CommandResult::failure(e),
-            },
+            3 => self.stop_comparing(channel).into(),
 
             _ => CommandResult::failure(ErrorCode::NOSUPPORT),
         }
