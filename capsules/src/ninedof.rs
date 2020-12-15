@@ -21,8 +21,8 @@
 use core::mem;
 use kernel::common::cells::OptionalCell;
 use kernel::hil;
-use kernel::{AppId, Callback, CommandResult, Driver, ErrorCode, Grant};
 use kernel::ReturnCode;
+use kernel::{AppId, Callback, CommandResult, Driver, ErrorCode, Grant};
 
 /// Syscall driver number.
 use crate::driver;
@@ -135,9 +135,10 @@ impl<'a> NineDof<'a> {
         }
     }
 
-    fn configure_callback(&self,
-                          mut callback: Callback,
-                          app_id: AppId
+    fn configure_callback(
+        &self,
+        mut callback: Callback,
+        app_id: AppId
     ) -> Result<Callback, (Callback, ErrorCode)> {
         let res = self
             .apps
