@@ -209,7 +209,7 @@ pub unsafe fn reset_handler() {
             (
                 &base_peripherals.gpio_port[TOUCH_LOGO],
                 kernel::hil::gpio::ActivationMode::ActiveLow,
-                kernel::hil::gpio::FloatingState::PullUp
+                kernel::hil::gpio::FloatingState::PullNone
             ), // Touch Logo
         ),
     )

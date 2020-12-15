@@ -284,7 +284,8 @@ impl Adc {
 
             let val = unsafe { SAMPLE[0] as i16 };
             self.client.map(|client| {
-                client.sample_ready(if val < 0 { 0 } else { val } as u16);
+                // shift left to meet the ADC HIL requirement
+                client.sample_ready(if val < 0 { 0 } else { val << 4 } as u16);
             });
         }
     }
