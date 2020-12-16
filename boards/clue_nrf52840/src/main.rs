@@ -408,7 +408,7 @@ pub unsafe fn reset_handler() {
     let sht3x = components::sht3x::SHT3xComponent::new(sensors_i2c_bus, mux_alarm).finalize(
         components::sht3x_component_helper!(
             nrf52::rtc::Rtc<'static>,
-            capsules::sht3x::BASE_ADDR << 1
+            capsules::sht3x::BASE_ADDR
         ),
     );
 
