@@ -366,17 +366,17 @@ pub unsafe fn reset_handler() {
 
     let sensors_i2c_bus = static_init!(
         capsules::virtual_i2c::MuxI2C<'static>,
-        capsules::virtual_i2c::MuxI2C::new(&base_peripherals.twim0, None, dynamic_deferred_caller)
+        capsules::virtual_i2c::MuxI2C::new(&base_peripherals.twim1, None, dynamic_deferred_caller)
     );
-    base_peripherals.twim0.configure(
+    base_peripherals.twim1.configure(
         nrf52840::pinmux::Pinmux::new(I2C_SCL_PIN as u32),
         nrf52840::pinmux::Pinmux::new(I2C_SDA_PIN as u32),
     );
-    base_peripherals.twim0.set_master_client(sensors_i2c_bus);
+    base_peripherals.twim1.set_master_client(sensors_i2c_bus);
 
     let apds9960_i2c = static_init!(
         capsules::virtual_i2c::I2CDevice,
-        capsules::virtual_i2c::I2CDevice::new(sensors_i2c_bus, 0x39 << 1)
+        capsules::virtual_i2c::I2CDevice::new(sensors_i2c_bus, 0x39)
     );
 
     let apds9960 = static_init!(

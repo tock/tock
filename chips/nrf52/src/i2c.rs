@@ -144,7 +144,7 @@ impl hil::i2c::I2CMaster for TWIM {
     fn write_read(&self, addr: u8, data: &'static mut [u8], write_len: u8, read_len: u8) {
         self.registers
             .address
-            .write(ADDRESS::ADDRESS.val((addr >> 1) as u32));
+            .write(ADDRESS::ADDRESS.val(addr as u32));
         self.registers.txd_ptr.set(data.as_mut_ptr());
         self.registers
             .txd_maxcnt
@@ -171,7 +171,7 @@ impl hil::i2c::I2CMaster for TWIM {
     fn write(&self, addr: u8, data: &'static mut [u8], len: u8) {
         self.registers
             .address
-            .write(ADDRESS::ADDRESS.val((addr >> 1) as u32));
+            .write(ADDRESS::ADDRESS.val(addr as u32));
         self.registers.txd_ptr.set(data.as_mut_ptr());
         self.registers
             .txd_maxcnt
@@ -192,7 +192,7 @@ impl hil::i2c::I2CMaster for TWIM {
     fn read(&self, addr: u8, buffer: &'static mut [u8], len: u8) {
         self.registers
             .address
-            .write(ADDRESS::ADDRESS.val((addr >> 1) as u32));
+            .write(ADDRESS::ADDRESS.val(addr as u32));
         self.registers.rxd_ptr.set(buffer.as_mut_ptr());
         self.registers
             .rxd_maxcnt
