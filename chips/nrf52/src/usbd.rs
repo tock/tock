@@ -1437,9 +1437,9 @@ impl<'a> Usbd<'a> {
                 // Notify the client about the new packet.
                 let (transfer_type, in_state, out_state) =
                     self.descriptors[endpoint].state.get().bulk_state();
-                // assert_eq!(out_state, Some(BulkOutState::OutDma));
+                assert!(matches!(out_state, Some(BulkOutState::OutDma { .. })));
 
-                let packet_bytes = if let BulkOutState::OutDma { size } = out_state.unwrap() {
+                let packet_bytes = if let Some(BulkOutState::OutDma { size }) = out_state {
                     size
                 } else {
                     0
@@ -1835,10 +1835,10 @@ impl<'a> Usbd<'a> {
         let (transfer_type, in_state, out_state) =
             self.descriptors[endpoint].state.get().bulk_state();
         // Starting the DMA can only happen in the OutData state, i.e. after an EPDATA event.
-        // assert_eq!(out_state, Some(BulkOutState::OutData { ... }));
+        assert!(matches!(out_state, Some(BulkOutState::OutData { .. })));
         self.start_dma_out(endpoint);
 
-        let size = if let BulkOutState::OutData { size } = out_state.unwrap() {
+        let size = if let Some(BulkOutState::OutData { size }) = out_state {
             size
         } else {
             0
