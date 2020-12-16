@@ -411,7 +411,6 @@ pub unsafe fn reset_handler() {
             capsules::sht3x::BASE_ADDR << 1
         ),
     );
-    sht3x.reset();
 
     let temperature =
         components::temperature::TemperatureComponent::new(board_kernel, sht3x).finalize(());
