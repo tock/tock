@@ -55,12 +55,12 @@ This previous step will create a TAB (`.tab` file) that normally tockloader
 would use to program on the board. However, tockloader is currently not
 supported.
 
-Define the `APP` variable in to point towards the TBF file.
+Define the `APP` variable to point towards the TBF file.
 
 At this point you should be able to simply run `make program-apps` in this directory
 to install a fresh kernel with the app(s).
 
-You will need to specify the port and the app as shown in thhe example:
+You will need to specify the port and the app as shown in the example:
 
 ```
 $ make program-apps PORT=<serial port path> APP=<path to TBF>

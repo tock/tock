@@ -126,17 +126,20 @@ impl<'a, A: Alarm<'a>> SHT3x<'a, A> {
     }
 
     fn read_temp_hum(&self) -> ReturnCode {
-        self.buffer.take().map_or(ReturnCode::ENOMEM, |buffer| {
-            self.state.set(State::Read);
-            self.i2c.enable();
+        self.buffer.take().map_or_else(
+            || panic!("SHT3x No buffer available!"),
+            |buffer| {
+                self.state.set(State::Read);
+                self.i2c.enable();
 
-            buffer[0] = ((Registers::MEASHIGHREP as u16) >> 8) as u8;
-            buffer[1] = ((Registers::MEASHIGHREP as u16) & 0xff) as u8;
+                buffer[0] = ((Registers::MEASHIGHREP as u16) >> 8) as u8;
+                buffer[1] = ((Registers::MEASHIGHREP as u16) & 0xff) as u8;
 
-            self.i2c.write(buffer, 2);
+                self.i2c.write(buffer, 2);
 
-            ReturnCode::SUCCESS
-        })
+                ReturnCode::SUCCESS
+            },
+        )
     }
 }
 
@@ -147,7 +150,7 @@ impl<'a, A: Alarm<'a>> time::AlarmClient for SHT3x<'a, A> {
             State::Read => {
                 self.state.set(State::ReadData);
                 self.buffer.take().map_or_else(
-                    || panic!("SHT31 No buffer available!"),
+                    || panic!("SHT3x No buffer available!"),
                     |buffer| {
                         let _res = self.i2c.read(buffer, 6);
                     },
