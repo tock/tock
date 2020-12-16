@@ -172,7 +172,7 @@ impl kernel::Platform for Imix {
             capsules::ninedof::DRIVER_NUM => f(Some(Ok(self.ninedof))),
             capsules::crc::DRIVER_NUM => f(Some(Err(self.crc))),
             capsules::usb::usb_user::DRIVER_NUM => f(Some(Err(self.usb_driver))),
-            capsules::ieee802154::DRIVER_NUM => f(Some(Err(self.radio_driver))),
+            capsules::ieee802154::DRIVER_NUM => f(Some(Ok(self.radio_driver))),
             capsules::net::udp::DRIVER_NUM => f(Some(Err(self.udp_driver))),
             capsules::nrf51822_serialization::DRIVER_NUM => f(Some(Err(self.nrf51822))),
             capsules::nonvolatile_storage_driver::DRIVER_NUM => {
@@ -308,7 +308,7 @@ pub unsafe fn reset_handler() {
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
 
     let dynamic_deferred_call_clients =
-        static_init!([DynamicDeferredCallClientState; 2], Default::default());
+        static_init!([DynamicDeferredCallClientState; 3], Default::default());
     let dynamic_deferred_caller = static_init!(
         DynamicDeferredCall,
         DynamicDeferredCall::new(dynamic_deferred_call_clients)
@@ -457,6 +457,7 @@ pub unsafe fn reset_handler() {
         &peripherals.aes,
         PAN_ID,
         serial_num_bottom_16,
+        dynamic_deferred_caller,
     )
     .finalize(components::ieee802154_component_helper!(
         capsules::rf233::RF233<'static, VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw>>,

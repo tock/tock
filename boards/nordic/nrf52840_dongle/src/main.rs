@@ -111,7 +111,7 @@ impl kernel::Platform for Platform {
             capsules::button::DRIVER_NUM => f(Some(Err(self.button))),
             capsules::rng::DRIVER_NUM => f(Some(Err(self.rng))),
             capsules::ble_advertising_driver::DRIVER_NUM => f(Some(Err(self.ble_radio))),
-            capsules::ieee802154::DRIVER_NUM => f(Some(Err(self.ieee802154_radio))),
+            capsules::ieee802154::DRIVER_NUM => f(Some(Ok(self.ieee802154_radio))),
             capsules::temperature::DRIVER_NUM => f(Some(Ok(self.temp))),
             capsules::analog_comparator::DRIVER_NUM => f(Some(Ok(self.analog_comparator))),
             kernel::ipc::DRIVER_NUM => f(Some(Err(&self.ipc))),
@@ -242,7 +242,7 @@ pub unsafe fn reset_handler() {
     .finalize(());
 
     let dynamic_deferred_call_clients =
-        static_init!([DynamicDeferredCallClientState; 2], Default::default());
+        static_init!([DynamicDeferredCallClientState; 3], Default::default());
     let dynamic_deferred_caller = static_init!(
         DynamicDeferredCall,
         DynamicDeferredCall::new(dynamic_deferred_call_clients)
@@ -273,6 +273,7 @@ pub unsafe fn reset_handler() {
         &base_peripherals.ecb,
         PAN_ID,
         SRC_MAC,
+        dynamic_deferred_caller,
     )
     .finalize(components::ieee802154_component_helper!(
         nrf52840::ieee802154_radio::Radio,
