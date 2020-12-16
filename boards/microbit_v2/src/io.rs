@@ -94,10 +94,15 @@ impl led::Led for MatrixLed {
 #[panic_handler]
 pub unsafe extern "C" fn panic_fmt(pi: &PanicInfo) -> ! {
     // MicroBit v2 has an LED matrix, use the upper left LED
-    let mut led = MatrixLed(&gpio::PORT[Pin::P0_28], &gpio::PORT[Pin::P0_21]);
+    // let mut led = Led (&gpio::PORT[Pin::P0_28], );
+
+    // MicroBit v2 has a microphone LED, use it for panic
+    const LED_KERNEL_PIN: Pin = Pin::P0_20;
+    let led = &mut led::LedLow::new(&nrf52833::gpio::PORT[LED_KERNEL_PIN]);
+    // MatrixLed(&gpio::PORT[Pin::P0_28], &gpio::PORT[Pin::P0_21]);
     let writer = &mut WRITER;
     debug::panic(
-        &mut [&mut led],
+        &mut [led],
         writer,
         pi,
         &cortexm4::support::nop,

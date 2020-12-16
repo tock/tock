@@ -22,6 +22,10 @@ use kernel::{create_capability, debug, debug_gpio, debug_verbose, static_init};
 use nrf52833::gpio::Pin;
 use nrf52833::interrupt_service::Nrf52833DefaultPeripherals;
 
+// Kernel LED (same as microphone LED)
+const LED_KERNEL_PIN: Pin = Pin::P0_20;
+const _LED_MICROPHONE_PIN: Pin = Pin::P0_20;
+
 // Buttons
 const BUTTON_A: Pin = Pin::P0_14;
 const BUTTON_B: Pin = Pin::P0_23;
@@ -164,11 +168,11 @@ pub unsafe fn reset_handler() {
     // Configure kernel debug GPIOs as early as possible. These are used by the
     // `debug_gpio!(0, toggle)` macro. We uconfigure these early so that the
     // macro is available during most of the setup code and kernel exection.
-    // kernel::debug::assign_gpios(
-    //     Some(&base_peripherals.gpio_port[LED_KERNEL_PIN]),
-    //     None,
-    //     None,
-    // );
+    kernel::debug::assign_gpios(
+        Some(&base_peripherals.gpio_port[LED_KERNEL_PIN]),
+        None,
+        None,
+    );
 
     //--------------------------------------------------------------------------
     // GPIO
