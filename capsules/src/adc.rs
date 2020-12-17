@@ -1191,9 +1191,8 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> Driver for AdcDedicated<'_, A> {
             // subscribe to ADC sample done (from all types of sampling)
             0 => {
                 // set callback
-                self.appid.map_or(Err((callback, ErrorCode::FAIL)), |id| {
-                    let res = self
-                        .apps
+                let res = self.appid.map_or(Err(ErrorCode::FAIL), |id| {
+                    self.apps
                         .enter(*id, |app, _| {
                             mem::swap(&mut app.callback, &mut callback);
                         })
@@ -1204,13 +1203,14 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> Driver for AdcDedicated<'_, A> {
                                 self.appid.clear();
                             }
                             ErrorCode::from(err)
-                        });
-                    if let Err(err) = res {
-                        Err((callback, err))
-                    } else {
-                        Ok(callback)
-                    }
-                })
+                        })
+                });
+
+                if let Err(err) = res {
+                    Err((callback, err))
+                } else {
+                    Ok(callback)
+                }
             }
 
             // default

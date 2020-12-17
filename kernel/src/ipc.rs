@@ -41,7 +41,7 @@ struct IPCData<const NUM_PROCS: usize> {
 impl<const NUM_PROCS: usize> Default for IPCData<NUM_PROCS> {
     fn default() -> IPCData<NUM_PROCS> {
         const DEFAULT_RW_APP_SLICE: ReadWriteAppSlice = ReadWriteAppSlice::const_default();
-        const DEFAULT_CALLBACK: Callback = Callback::const_default();
+        const DEFAULT_UPCALL: Upcall = Upcall::const_default();
         IPCData {
             shared_memory: [DEFAULT_RW_APP_SLICE; NUM_PROCS],
             search_slice: ReadOnlyAppSlice::default(),

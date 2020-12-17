@@ -726,16 +726,23 @@ where
     ) -> Result<kernel::Upcall, (kernel::Upcall, ErrorCode)> {
         match subscribe_num {
             // Upcall for scanning
-            0 => self
-                .app
-                .enter(app_id, |app, _| match app.process_status {
-                    Some(BLEState::NotInitialized) | Some(BLEState::Initialized) => {
-                        mem::swap(&mut app.scan_callback, &mut callback);
-                        Ok(callback)
-                    }
-                    _ => Err((callback, ErrorCode::INVAL)),
-                })
-                .unwrap_or_else(|err| Err((callback, err.into()))),
+            0 => {
+                let res = self
+                    .app
+                    .enter(app_id, |app, _| match app.process_status {
+                        Some(BLEState::NotInitialized) | Some(BLEState::Initialized) => {
+                            mem::swap(&mut app.scan_callback, &mut callback);
+                            Ok(())
+                        }
+                        _ => Err(ErrorCode::INVAL),
+                    })
+                    .unwrap_or_else(|err| Err(err.into()));
+
+                match res {
+                    Ok(()) => Ok(callback),
+                    Err(e) => Err((callback, e)),
+                }
+            }
             _ => Err((callback, ErrorCode::NOSUPPORT)),
         }
     }
