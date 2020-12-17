@@ -132,21 +132,21 @@ pub struct Platform {
 impl kernel::Platform for Platform {
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
     where
-        F: FnOnce(Option<&dyn kernel::Driver>) -> R,
+        F: FnOnce(Option<Result<&dyn kernel::Driver, &dyn kernel::LegacyDriver>>) -> R,
     {
         match driver_num {
-            capsules::console::DRIVER_NUM => f(Some(self.console)),
-            capsules::proximity::DRIVER_NUM => f(Some(self.proximity)),
-            capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
-            capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
-            capsules::led::DRIVER_NUM => f(Some(self.led)),
-            capsules::button::DRIVER_NUM => f(Some(self.button)),
-            capsules::screen::DRIVER_NUM => f(Some(self.screen)),
-            capsules::rng::DRIVER_NUM => f(Some(self.rng)),
-            capsules::ble_advertising_driver::DRIVER_NUM => f(Some(self.ble_radio)),
-            capsules::ieee802154::DRIVER_NUM => f(Some(self.ieee802154_radio)),
-            capsules::buzzer_driver::DRIVER_NUM => f(Some(self.buzzer)),
-            kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
+            capsules::console::DRIVER_NUM => f(Some(Ok(self.console))),
+            capsules::proximity::DRIVER_NUM => f(Some(Err(self.proximity))),
+            capsules::gpio::DRIVER_NUM => f(Some(Err(self.gpio))),
+            capsules::alarm::DRIVER_NUM => f(Some(Err(self.alarm))),
+            capsules::led::DRIVER_NUM => f(Some(Ok(self.led))),
+            capsules::button::DRIVER_NUM => f(Some(Err(self.button))),
+            capsules::screen::DRIVER_NUM => f(Some(Ok(self.screen))),
+            capsules::rng::DRIVER_NUM => f(Some(Err(self.rng))),
+            capsules::ble_advertising_driver::DRIVER_NUM => f(Some(Err(self.ble_radio))),
+            capsules::ieee802154::DRIVER_NUM => f(Some(Err(self.ieee802154_radio))),
+            capsules::buzzer_driver::DRIVER_NUM => f(Some(Err(self.buzzer))),
+            kernel::ipc::DRIVER_NUM => f(Some(Err(&self.ipc))),
             _ => f(None),
         }
     }
