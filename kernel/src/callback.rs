@@ -8,8 +8,6 @@ use crate::config;
 use crate::debug;
 use crate::process;
 use crate::sched::Kernel;
-use crate::syscall::GenericSyscallReturnValue;
-use crate::ErrorCode;
 
 /// Userspace app identifier.
 ///
@@ -160,8 +158,8 @@ impl AppId {
 /// This contains the driver number and the subscribe number within the driver.
 #[derive(Copy, Clone, PartialEq, Debug)]
 pub struct CallbackId {
-    pub driver_num: usize,
-    pub subscribe_num: usize,
+    pub driver_num: u32,
+    pub subscribe_num: u32,
 }
 
 /// A callback to userspace
@@ -169,9 +167,12 @@ pub struct CallbackId {
 /// This is essentially a wrapper around a function pointer with
 /// additional data.
 ///
-/// In contrast to the contained [`ProcessCallback`], this type does
+/// In contrast to the contained `ProcessCallback`, this type does
 /// not actually have to point to a userspace process. This is the
-/// case in the [default instances](<Callback as Default>::default).
+/// case in the [default instances](Callback::default).
+///
+/// A default instance will never schedule an actual callback to
+/// userspace.
 pub struct Callback(Option<ProcessCallback>);
 
 impl Callback {
@@ -206,6 +207,14 @@ impl Callback {
         Callback(None)
     }
 
+    /// Get the contained [`ProcessCallback`] struct
+    ///
+    /// If the [`Callback`] refers to a process, this returns the
+    /// contained [`ProcessCallback`] struct.
+    pub(crate) fn into_inner(self) -> Option<ProcessCallback> {
+        self.0
+    }
+
     /// Attempt to trigger the callback.
     ///
     /// If this callback refers to an actual function pointer (not a
@@ -238,57 +247,6 @@ impl Callback {
     pub fn schedule(&mut self, r0: usize, r1: usize, r2: usize) -> bool {
         self.0.as_mut().map_or(true, |cb| cb.schedule(r0, r1, r2))
     }
-
-    pub(crate) fn into_subscribe_success(self) -> GenericSyscallReturnValue {
-        match self.0 {
-            None => {
-                // Default instance of a [`Callback`]
-                GenericSyscallReturnValue::SubscribeSuccess(0 as *mut u8, 0)
-            }
-            Some(cb) => {
-                // Process callback
-                match cb.fn_ptr {
-                    Some(ptr) => {
-                        // Valid callback
-                        GenericSyscallReturnValue::SubscribeSuccess(
-                            ptr.as_ptr() as *const u8,
-                            cb.appdata,
-                        )
-                    }
-                    None => {
-                        // Null callback
-                        GenericSyscallReturnValue::SubscribeSuccess(0 as *mut u8, 0)
-                    }
-                }
-            }
-        }
-    }
-
-    pub(crate) fn into_subscribe_failure(self, err: ErrorCode) -> GenericSyscallReturnValue {
-        match self.0 {
-            None => {
-                // Default instance of a [`Callback`]
-                GenericSyscallReturnValue::SubscribeFailure(err, 0 as *mut u8, 0)
-            }
-            Some(cb) => {
-                // Process callback
-                match cb.fn_ptr {
-                    Some(ptr) => {
-                        // Valid callback
-                        GenericSyscallReturnValue::SubscribeFailure(
-                            err,
-                            ptr.as_ptr() as *const u8,
-                            cb.appdata,
-                        )
-                    }
-                    None => {
-                        // Null callback
-                        GenericSyscallReturnValue::SubscribeFailure(err, 0 as *mut u8, 0)
-                    }
-                }
-            }
-        }
-    }
 }
 
 impl Default for Callback {
@@ -313,11 +271,11 @@ impl Default for Callback {
 /// A [`ProcessCallback`] may be a _null callback_, not pointing to a
 /// valid function. In this case, the callback won't actually be
 /// called in userspace.
-struct ProcessCallback {
-    app_id: AppId,
-    callback_id: CallbackId,
-    appdata: usize,
-    fn_ptr: Option<NonNull<()>>,
+pub(crate) struct ProcessCallback {
+    pub(crate) app_id: AppId,
+    pub(crate) callback_id: CallbackId,
+    pub(crate) appdata: usize,
+    pub(crate) fn_ptr: Option<NonNull<()>>,
 }
 
 impl ProcessCallback {
