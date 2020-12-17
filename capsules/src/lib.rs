@@ -61,6 +61,7 @@ pub mod rng;
 pub mod screen;
 pub mod sdcard;
 pub mod segger_rtt;
+pub mod sht3x;
 pub mod si7021;
 pub mod spi_controller;
 pub mod spi_peripheral;
