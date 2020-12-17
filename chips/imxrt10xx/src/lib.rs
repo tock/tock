@@ -1,10 +1,10 @@
-//! Peripheral implementations for the IMXRT1050 MCU.
+//! Peripheral implementations for the IMXRT1050 and IMXRT1060 MCUs.
 //!
 //! imxrt1050 chip: <https://www.nxp.com/design/development-boards/i-mx-evaluation-and-development-boards/i-mx-rt1050-evaluation-kit:MIMXRT1050-EVK>
 
-#![crate_name = "imxrt1050"]
+#![crate_name = "imxrt10xx"]
 #![crate_type = "rlib"]
-#![feature(llvm_asm, const_fn)]
+#![feature(const_fn)]
 #![no_std]
 
 pub mod chip;
@@ -13,37 +13,15 @@ pub mod nvic;
 // Peripherals
 pub mod ccm;
 pub mod gpio;
-pub mod gpt1;
+pub mod gpt;
 pub mod iomuxc;
 pub mod iomuxc_snvs;
 pub mod lpi2c;
 pub mod lpuart;
 
-use cortexm7::{generic_isr, hard_fault_handler, svc_handler, systick_handler};
-// use cortexm::scb::{set_vector_table_offset};
-
-#[cfg(not(any(target_arch = "arm", target_os = "none")))]
-unsafe extern "C" fn unhandled_interrupt() {
-    unimplemented!()
-}
-
-#[cfg(all(target_arch = "arm", target_os = "none"))]
-unsafe extern "C" fn unhandled_interrupt() {
-    let mut interrupt_number: u32;
-
-    // IPSR[8:0] holds the currently active interrupt
-    llvm_asm!(
-    "mrs    r0, ipsr                    "
-    : "={r0}"(interrupt_number)
-    :
-    : "r0"
-    :
-    );
-
-    interrupt_number = interrupt_number & 0x1ff;
-
-    panic!("Unhandled Interrupt. ISR {} is active.", interrupt_number);
-}
+use cortexm7::{
+    generic_isr, hard_fault_handler, svc_handler, systick_handler, unhandled_interrupt,
+};
 
 extern "C" {
     // _estack is not really a function, but it makes the types work
@@ -261,7 +239,7 @@ pub unsafe fn init() {
     tock_rt0::init_data(&mut _etext, &mut _srelocate, &mut _erelocate);
     tock_rt0::zero_bss(&mut _szero, &mut _ezero);
 
-    cortexm::scb::set_vector_table_offset(
+    cortexm7::scb::set_vector_table_offset(
         &BASE_VECTORS as *const [unsafe extern "C" fn(); 16] as *const (),
     );
 

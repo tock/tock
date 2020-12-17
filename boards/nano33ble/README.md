@@ -69,12 +69,27 @@ blink app, first press the button on the board twice in rapid succession to
 enter the bootloader, and then:
 
 ```
-$ bossac -i -e -o 0x20000 -w build/cortex-m4/cortex-m4.tbf -R
+$ bossac -i -e -o 0x40000 -w build/cortex-m4/cortex-m4.tbf -R
 ```
 
 That tells the BOSSA tool to flash the application in the Tock Binary Format to
-the correct offset (the app will end up at address 0x30000). You may also need
-to pass the `--port` flag.
+the correct offset (the app will actually end up at address 0x50000 because
+offsets are specified with respect to the end of the bootloader at address
+0x10000). You may also need to pass the `--port` flag.
+
+To unload or remove the flashed application from the board, first double-press
+the reset button to enter the bootloader (just like with flashing applications)
+and then run the following:
+
+```
+$ dd if=/dev/zero bs=1 count=104 | tr "\000" "\377" > /tmp/foo
+$ bossac -i -e -o 0x40000 -w /tmp/foo -R
+```
+
+This creates a temporary file `/tmp/foo` with size 104 (the size of a version 2
+TBF header) of all ones and then overwrites the existing TBF header of the
+application with this temporary file. We do this because the native erase option
+does not appear to be working.
 
 ### Userspace Resource Mapping
 

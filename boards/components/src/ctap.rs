@@ -39,7 +39,7 @@ use kernel::static_init_half;
 // Setup static space for the objects.
 #[macro_export]
 macro_rules! usb_ctap_component_helper {
-    ($U:ty) => {{
+    ($U:ty $(,)?) => {{
         use core::mem::MaybeUninit;
         static mut BUF1: MaybeUninit<capsules::usb::ctap::CtapHid<'static, $U>> =
             MaybeUninit::uninit();

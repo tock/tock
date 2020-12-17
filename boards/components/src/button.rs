@@ -33,7 +33,7 @@ use kernel::static_init_half;
 
 #[macro_export]
 macro_rules! button_component_helper {
-    ($Pin:ty, $(($P:expr, $M:expr, $F:expr)),+ ) => {{
+    ($Pin:ty, $(($P:expr, $M:expr, $F:expr)),+ $(,)?) => {{
         use kernel::static_init;
         use kernel::count_expressions;
         use kernel::hil::gpio::InterruptValueWrapper;
@@ -56,7 +56,7 @@ macro_rules! button_component_helper {
 
 #[macro_export]
 macro_rules! button_component_buf {
-    ($Pin:ty) => {{
+    ($Pin:ty $(,)?) => {{
         use capsules::button::Button;
         use core::mem::MaybeUninit;
         static mut BUF: MaybeUninit<Button<'static, $Pin>> = MaybeUninit::uninit();

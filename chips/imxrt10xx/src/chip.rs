@@ -6,20 +6,20 @@ use kernel::debug;
 use kernel::Chip;
 
 use crate::gpio;
-use crate::gpt1;
+use crate::gpt;
 use crate::lpi2c;
 use crate::lpuart;
 use crate::nvic;
 
-pub struct Imxrt1050 {
+pub struct Imxrt10xx {
     mpu: cortexm7::mpu::MPU,
     userspace_kernel_boundary: cortexm7::syscall::SysCall,
     scheduler_timer: cortexm7::systick::SysTick,
 }
 
-impl Imxrt1050 {
-    pub unsafe fn new() -> Imxrt1050 {
-        Imxrt1050 {
+impl Imxrt10xx {
+    pub unsafe fn new() -> Imxrt10xx {
+        Imxrt10xx {
             mpu: cortexm7::mpu::MPU::new(),
             userspace_kernel_boundary: cortexm7::syscall::SysCall::new(),
             scheduler_timer: cortexm7::systick::SysTick::new_with_calibration(792_000_000),
@@ -27,7 +27,7 @@ impl Imxrt1050 {
     }
 }
 
-impl Chip for Imxrt1050 {
+impl Chip for Imxrt10xx {
     type MPU = cortexm7::mpu::MPU;
     type UserspaceKernelBoundary = cortexm7::syscall::SysCall;
     type SchedulerTimer = cortexm7::systick::SysTick;
@@ -39,8 +39,10 @@ impl Chip for Imxrt1050 {
                 if let Some(interrupt) = cortexm7::nvic::next_pending() {
                     match interrupt {
                         nvic::LPUART1 => lpuart::LPUART1.handle_interrupt(),
+                        nvic::LPUART2 => lpuart::LPUART2.handle_interrupt(),
                         nvic::LPI2C1 => lpi2c::LPI2C1.handle_event(),
-                        nvic::GPT1 => gpt1::GPT1.handle_interrupt(),
+                        nvic::GPT1 => gpt::GPT1.handle_interrupt(),
+                        nvic::GPT2 => gpt::GPT2.handle_interrupt(),
                         nvic::GPIO1_1 => gpio::PORT[0].handle_interrupt(gpio::GpioPort::GPIO1),
                         nvic::GPIO1_2 => gpio::PORT[0].handle_interrupt(gpio::GpioPort::GPIO1),
                         nvic::GPIO2_1 => gpio::PORT[1].handle_interrupt(gpio::GpioPort::GPIO2),

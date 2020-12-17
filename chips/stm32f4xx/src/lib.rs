@@ -24,6 +24,7 @@ pub mod rcc;
 pub mod spi;
 pub mod syscfg;
 pub mod tim2;
+pub mod trng;
 pub mod usart;
 
 use cortexm4::{hard_fault_handler, svc_handler, systick_handler, unhandled_interrupt};
