@@ -51,8 +51,8 @@ macro_rules! lsm303agr_i2c_component_helper {
     ($i2c_mux:expr $(,)?) => {{
         $crate::lsm303agr_i2c_component_helper!(
             $i2c_mux,
-            capsules::lsm303agr::ACCELEROMETER_BASE_ADDRESS,
-            capsules::lsm303agr::MAGNETOMETER_BASE_ADDRESS
+            capsules::lsm303xx::ACCELEROMETER_BASE_ADDRESS,
+            capsules::lsm303xx::MAGNETOMETER_BASE_ADDRESS
         )
     }};
 }

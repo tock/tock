@@ -330,13 +330,8 @@ pub unsafe fn reset_handler() {
 
     // LSM303AGR
 
-    let lsm303agr = components::lsm303agr::Lsm303agrI2CComponent::new().finalize(
-        components::lsm303agr_i2c_component_helper!(
-            sensors_i2c_bus,
-            capsules::lsm303xx::ACCELEROMETER_BASE_ADDRESS << 1,
-            capsules::lsm303xx::MAGNETOMETER_BASE_ADDRESS << 1
-        ),
-    );
+    let lsm303agr = components::lsm303agr::Lsm303agrI2CComponent::new()
+        .finalize(components::lsm303agr_i2c_component_helper!(sensors_i2c_bus));
 
     lsm303agr.configure(
         capsules::lsm303xx::Lsm303AccelDataRate::DataRate25Hz,
