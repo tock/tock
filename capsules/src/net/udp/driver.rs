@@ -195,6 +195,9 @@ impl<'a> UDPDriver<'a> {
                 self.kernel_buffer
                     .take()
                     .map_or(ReturnCode::ENOMEM, |mut kernel_buffer| {
+                        if payload.len() > kernel_buffer.len() {
+                            return ReturnCode::ESIZE;
+                        }
                         kernel_buffer[0..payload.len()].copy_from_slice(payload.as_ref());
                         kernel_buffer.slice(0..payload.len());
                         match self.sender.driver_send_to(
