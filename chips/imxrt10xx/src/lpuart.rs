@@ -297,6 +297,8 @@ register_bitfields![u32,
 
 const LPUART1_BASE: StaticRef<LpuartRegisters> =
     unsafe { StaticRef::new(0x40184000 as *const LpuartRegisters) };
+const LPUART2_BASE: StaticRef<LpuartRegisters> =
+    unsafe { StaticRef::new(0x4018_8000 as *const LpuartRegisters) };
 
 #[derive(Copy, Clone, PartialEq)]
 enum LPUARTStateTX {
@@ -333,6 +335,11 @@ pub struct Lpuart<'a> {
 pub static mut LPUART1: Lpuart = Lpuart::new(
     LPUART1_BASE,
     LpuartClock(ccm::PeripheralClock::CCGR5(ccm::HCLK5::LPUART1)),
+);
+
+pub static mut LPUART2: Lpuart = Lpuart::new(
+    LPUART2_BASE,
+    LpuartClock(ccm::PeripheralClock::CCGR0(ccm::HCLK0::LPUART2)),
 );
 
 impl<'a> Lpuart<'a> {

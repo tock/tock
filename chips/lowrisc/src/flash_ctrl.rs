@@ -340,34 +340,45 @@ impl<'a> FlashCtrl<'a> {
         }
 
         if irqs.is_set(INTR::OP_DONE) {
-            let read_buf = self.read_buf.take();
-            if let Some(buf) = read_buf {
-                // We were doing a read
-                if self.read_index.get() >= buf.0.len() {
-                    // We have all of the data, call the client
-                    self.flash_client.map(move |client| {
-                        client.read_complete(buf, hil::flash::Error::CommandComplete);
-                    });
-                } else {
-                    // Still waiting on data, keep waiting
-                    self.read_buf.replace(buf);
-                    self.enable_interrupts();
+            if self.registers.control.matches_all(CONTROL::OP::READ) {
+                let read_buf = self.read_buf.take();
+                if let Some(buf) = read_buf {
+                    // We were doing a read
+                    if self.read_index.get() >= buf.0.len() {
+                        // We have all of the data, call the client
+                        self.flash_client.map(move |client| {
+                            client.read_complete(buf, hil::flash::Error::CommandComplete);
+                        });
+                    } else {
+                        // Still waiting on data, keep waiting
+                        self.read_buf.replace(buf);
+                        self.enable_interrupts();
+                    }
                 }
-            }
+            } else if self.registers.control.matches_all(CONTROL::OP::PROG) {
+                let write_buf = self.write_buf.take();
+                if let Some(buf) = write_buf {
+                    // We were doing a write
+                    if self.write_index.get() >= buf.0.len() {
+                        // We sent all of the data, call the client
+                        self.flash_client.map(move |client| {
+                            client.write_complete(buf, hil::flash::Error::CommandComplete);
+                        });
+                    } else {
+                        // Still writing data, keep trying
+                        self.write_buf.replace(buf);
+                        self.enable_interrupts();
+                    }
+                }
+            } else if self.registers.control.matches_all(CONTROL::OP::ERASE) {
+                // Disable erase
+                self.registers
+                    .mp_bank_cfg
+                    .modify(MP_BANK_CFG::ERASE_EN_0::CLEAR + MP_BANK_CFG::ERASE_EN_1::CLEAR);
 
-            let write_buf = self.write_buf.take();
-            if let Some(buf) = write_buf {
-                // We were doing a write
-                if self.write_index.get() >= buf.0.len() {
-                    // We sent all of the data, call the client
-                    self.flash_client.map(move |client| {
-                        client.write_complete(buf, hil::flash::Error::CommandComplete);
-                    });
-                } else {
-                    // Still writing data, keep trying
-                    self.write_buf.replace(buf);
-                    self.enable_interrupts();
-                }
+                self.flash_client.map(move |client| {
+                    client.erase_complete(hil::flash::Error::CommandComplete);
+                });
             }
         }
     }
@@ -438,9 +449,6 @@ impl hil::flash::Flash for FlashCtrl<'_> {
             self.configure_info_partition(FlashBank::BANK0, self.region_num);
         }
 
-        // Erase the page first
-        self.erase_page(page_number);
-
         // Set the address
         self.registers.addr.write(ADDR::START.val(addr as u32));
 
@@ -501,6 +509,9 @@ impl hil::flash::Flash for FlashCtrl<'_> {
         // Set the address
         self.registers.addr.write(ADDR::START.val(addr as u32));
 
+        // Enable interrupts
+        self.enable_interrupts();
+
         // Start the transaction
         self.registers.control.write(
             CONTROL::OP::ERASE
@@ -508,11 +519,6 @@ impl hil::flash::Flash for FlashCtrl<'_> {
                 + CONTROL::PARTITION_SEL::DATA
                 + CONTROL::START::SET,
         );
-
-        // Disable erase
-        self.registers
-            .mp_bank_cfg
-            .modify(MP_BANK_CFG::ERASE_EN_0::CLEAR + MP_BANK_CFG::ERASE_EN_1::CLEAR);
 
         ReturnCode::SUCCESS
     }

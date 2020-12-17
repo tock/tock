@@ -214,7 +214,7 @@ pub unsafe fn assign_gpios(
 /// In-kernel gpio debugging, accepts any GPIO HIL method
 #[macro_export]
 macro_rules! debug_gpio {
-    ($i:tt, $method:ident) => {{
+    ($i:tt, $method:ident $(,)?) => {{
         #[allow(unused_unsafe)]
         unsafe {
             $crate::debug::DEBUG_GPIOS.$i.map(|g| g.$method());
@@ -300,7 +300,7 @@ macro_rules! debug_enqueue {
     () => ({
         debug_enqueue!("")
     });
-    ($msg:expr) => ({
+    ($msg:expr $(,)?) => ({
         $crate::debug::debug_enqueue_fmt(format_args!($msg))
     });
     ($fmt:expr, $($arg:tt)+) => ({
@@ -519,7 +519,7 @@ macro_rules! debug {
         // Allow an empty debug!() to print the location when hit
         debug!("")
     });
-    ($msg:expr) => ({
+    ($msg:expr $(,)?) => ({
         $crate::debug::begin_debug_fmt(format_args!($msg))
     });
     ($fmt:expr, $($arg:tt)+) => ({
@@ -534,7 +534,7 @@ macro_rules! debug_verbose {
         // Allow an empty debug_verbose!() to print the location when hit
         debug_verbose!("")
     });
-    ($msg:expr) => ({
+    ($msg:expr $(,)?) => ({
         $crate::debug::begin_debug_verbose_fmt(format_args!($msg), {
             // TODO: Maybe make opposite choice of panic!, no `static`, more
             // runtime code for less static data

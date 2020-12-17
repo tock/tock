@@ -19,7 +19,7 @@ pub mod ref_module;
 pub mod sysctl;
 pub mod timer;
 pub mod uart;
-pub(crate) mod usci;
+pub mod usci;
 pub mod wdt;
 
 extern "C" {

@@ -9,7 +9,7 @@ use kernel::static_init_half;
 
 #[macro_export]
 macro_rules! adc_mux_component_helper {
-    ($A:ty) => {{
+    ($A:ty $(,)?) => {{
         use capsules::virtual_adc::MuxAdc;
         use core::mem::MaybeUninit;
         static mut BUF: MaybeUninit<MuxAdc<'static, $A>> = MaybeUninit::uninit();
@@ -19,7 +19,7 @@ macro_rules! adc_mux_component_helper {
 
 #[macro_export]
 macro_rules! adc_component_helper {
-    ($A:ty) => {{
+    ($A:ty $(,)?) => {{
         use capsules::virtual_adc::AdcDevice;
         use core::mem::MaybeUninit;
         static mut BUF: MaybeUninit<AdcDevice<'static, $A>> = MaybeUninit::uninit();
@@ -29,7 +29,7 @@ macro_rules! adc_component_helper {
 
 #[macro_export]
 macro_rules! adc_syscall_component_helper {
-    ($($P:expr),+ ) => {{
+    ($($P:expr),+ $(,)?) => {{
         use capsules::adc::AdcVirtualized;
         use core::mem::MaybeUninit;
         use kernel::hil;

@@ -7,8 +7,6 @@ use kernel::common::registers::{
 use kernel::common::StaticRef;
 use kernel::NoClockControl;
 
-pub static mut CS: ClockSystem = ClockSystem::new();
-
 pub const MCLK_HZ: u32 = 48_000_000;
 pub const HSMCLK_HZ: u32 = 12_000_000;
 pub const SMCLK_HZ: u32 = 1_500_000;
@@ -250,11 +248,13 @@ register_bitfields! [u32,
 
 type CsRegisterManager<'a> = PeripheralManager<'a, ClockSystem, NoClockControl>;
 
-pub struct ClockSystem {}
+pub struct ClockSystem {
+    registers: StaticRef<CsRegisters>,
+}
 
 impl ClockSystem {
-    const fn new() -> ClockSystem {
-        ClockSystem {}
+    pub const fn new() -> ClockSystem {
+        ClockSystem { registers: CS_BASE }
     }
 
     fn set_mclk_48mhz(&self) {
@@ -320,7 +320,7 @@ impl<'a> PeripheralManagement<NoClockControl> for ClockSystem {
     type RegisterType = CsRegisters;
 
     fn get_registers(&self) -> &CsRegisters {
-        &*CS_BASE
+        &self.registers
     }
 
     fn get_clock(&self) -> &NoClockControl {
