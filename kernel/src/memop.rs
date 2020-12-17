@@ -37,7 +37,11 @@ use crate::ErrorCode;
 ///   where the app has put the start of its heap. This is not strictly
 ///   necessary for correct operation, but allows for better debugging if the
 ///   app crashes.
-pub(crate) fn memop(process: &dyn ProcessType, op_type: usize, r1: usize) -> GenericSyscallReturnValue {
+pub(crate) fn memop(
+    process: &dyn ProcessType,
+    op_type: usize,
+    r1: usize,
+) -> GenericSyscallReturnValue {
     match op_type {
         // Op Type 0: BRK
         0 /* BRK */ => {
