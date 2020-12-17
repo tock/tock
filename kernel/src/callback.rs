@@ -172,7 +172,6 @@ pub struct CallbackId {
 /// In contrast to the contained [`ProcessCallback`], this type does
 /// not actually have to point to a userspace process. This is the
 /// case in the [default instances](<Callback as Default>::default).
-#[derive(Clone, Copy)]
 pub struct Callback(Option<ProcessCallback>);
 
 impl Callback {
@@ -228,7 +227,7 @@ impl Callback {
     ///
     /// Otherwise, this function returns `true`.
     pub fn schedule(&mut self, r0: usize, r1: usize, r2: usize) -> bool {
-        self.0.map_or(true, |mut cb| cb.schedule(r0, r1, r2))
+        self.0.as_mut().map_or(true, |cb| cb.schedule(r0, r1, r2))
     }
 
     pub(crate) fn into_subscribe_success(self) -> GenericSyscallReturnValue {
@@ -305,7 +304,6 @@ impl Default for Callback {
 /// A [`ProcessCallback`] may be a _null callback_, not pointing to a
 /// valid function. In this case, the callback won't actually be
 /// called in userspace.
-#[derive(Clone, Copy)]
 struct ProcessCallback {
     app_id: AppId,
     callback_id: CallbackId,

@@ -63,13 +63,16 @@ impl IPC {
         self.data
             .enter(appid, |mydata, _| {
                 let callback = match cb_type {
-                    IPCCallbackType::Service => mydata.callback,
+                    IPCCallbackType::Service => mydata.callback.as_mut(),
                     IPCCallbackType::Client => match otherapp.index() {
-                        Some(i) => *mydata.client_callbacks.get(i).unwrap_or(&None),
+                        Some(i) => mydata
+                            .client_callbacks
+                            .get_mut(i)
+                            .and_then(|opt| opt.as_mut()),
                         None => None,
                     },
                 };
-                callback.map_or((), |mut callback| {
+                callback.map_or((), |callback| {
                     self.data
                         .enter(otherapp, |otherdata, _| {
                             // If the other app shared a buffer with us, make
