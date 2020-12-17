@@ -15,7 +15,7 @@
 //!
 
 use crate::driver;
-use core::cell::Cell;
+use core::cell::{Cell, RefCell};
 use enum_primitive::cast::FromPrimitive;
 use enum_primitive::enum_from_primitive;
 use kernel::common::cells::{OptionalCell, TakeCell};
@@ -58,7 +58,7 @@ enum_from_primitive! {
 
 pub struct Mlx90614SMBus<'a> {
     smbus_temp: &'a dyn i2c::SMBusDevice,
-    callback: Cell<Callback>,
+    callback: RefCell<Callback>,
     temperature_client: OptionalCell<&'a dyn sensors::TemperatureClient>,
     buffer: TakeCell<'static, [u8]>,
     state: Cell<State>,
@@ -71,7 +71,7 @@ impl<'a> Mlx90614SMBus<'_> {
     ) -> Mlx90614SMBus<'a> {
         Mlx90614SMBus {
             smbus_temp,
-            callback: Cell::new(Callback::default()),
+            callback: RefCell::new(Callback::default()),
             temperature_client: OptionalCell::empty(),
             buffer: TakeCell::new(buffer),
             state: Cell::new(State::Idle),
@@ -118,7 +118,7 @@ impl<'a> i2c::I2CClient for Mlx90614SMBus<'a> {
                 };
 
                 self.callback
-                    .get()
+                    .borrow_mut()
                     .schedule(if present { 1 } else { 0 }, 0, 0);
                 self.buffer.replace(buffer);
                 self.state.set(State::Idle);
@@ -140,9 +140,9 @@ impl<'a> i2c::I2CClient for Mlx90614SMBus<'a> {
                     false
                 };
                 if values {
-                    self.callback.get().schedule(temp, 0, 0);
+                    self.callback.borrow_mut().schedule(temp, 0, 0);
                 } else {
-                    self.callback.get().schedule(0, 0, 0);
+                    self.callback.borrow_mut().schedule(0, 0, 0);
                 }
                 self.buffer.replace(buffer);
                 self.state.set(State::Idle);

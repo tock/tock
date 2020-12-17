@@ -102,7 +102,7 @@
 //! Author: Alexandru Radovici <msg4alex@gmail.com>
 //!
 
-use core::cell::Cell;
+use core::cell::{Cell, RefCell};
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::sensors;
 use kernel::hil::spi;
@@ -184,7 +184,7 @@ pub struct L3gd20Spi<'a> {
     hpf_mode: Cell<u8>,
     hpf_divider: Cell<u8>,
     scale: Cell<u8>,
-    callback: Cell<Callback>,
+    callback: RefCell<Callback>,
     nine_dof_client: OptionalCell<&'a dyn sensors::NineDofClient>,
     temperature_client: OptionalCell<&'a dyn sensors::TemperatureClient>,
 }
@@ -205,7 +205,7 @@ impl<'a> L3gd20Spi<'a> {
             hpf_mode: Cell::new(0),
             hpf_divider: Cell::new(0),
             scale: Cell::new(0),
-            callback: Cell::new(Callback::default()),
+            callback: RefCell::new(Callback::default()),
             nine_dof_client: OptionalCell::empty(),
             temperature_client: OptionalCell::empty(),
         }
@@ -383,8 +383,7 @@ impl Driver for L3gd20Spi<'_> {
     ) -> Result<Callback, (Callback, ErrorCode)> {
         match subscribe_num {
             0 /* set the one shot callback */ => {
-                callback = self.callback.replace (callback);
-                Ok (callback)
+              Ok(self.callback.replace(callback))
             },
             // default
             _ => Err((callback, ErrorCode::NOSUPPORT)),
@@ -411,7 +410,7 @@ impl spi::SpiMasterClient for L3gd20Spi<'_> {
                     false
                 };
                 self.callback
-                    .get()
+                    .borrow_mut()
                     .schedule(1, if present { 1 } else { 0 }, 0);
                 L3gd20Status::Idle
             }
@@ -456,9 +455,9 @@ impl spi::SpiMasterClient for L3gd20Spi<'_> {
                     false
                 };
                 if values {
-                    self.callback.get().schedule(x, y, z);
+                    self.callback.borrow_mut().schedule(x, y, z);
                 } else {
-                    self.callback.get().schedule(0, 0, 0);
+                    self.callback.borrow_mut().schedule(0, 0, 0);
                 }
                 L3gd20Status::Idle
             }
@@ -482,15 +481,15 @@ impl spi::SpiMasterClient for L3gd20Spi<'_> {
                     false
                 };
                 if value {
-                    self.callback.get().schedule(temperature, 0, 0);
+                    self.callback.borrow_mut().schedule(temperature, 0, 0);
                 } else {
-                    self.callback.get().schedule(0, 0, 0);
+                    self.callback.borrow_mut().schedule(0, 0, 0);
                 }
                 L3gd20Status::Idle
             }
 
             _ => {
-                self.callback.get().schedule(0, 0, 0);
+                self.callback.borrow_mut().schedule(0, 0, 0);
                 L3gd20Status::Idle
             }
         });

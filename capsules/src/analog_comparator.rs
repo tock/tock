@@ -37,7 +37,7 @@
 use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::AnalogComparator as usize;
 
-use core::cell::Cell;
+use core::cell::RefCell;
 use kernel::hil;
 use kernel::{AppId, Callback, CommandReturn, Driver, ErrorCode, ReturnCode};
 
@@ -47,7 +47,7 @@ pub struct AnalogComparator<'a, A: hil::analog_comparator::AnalogComparator<'a> 
     channels: &'a [&'a <A as hil::analog_comparator::AnalogComparator<'a>>::Channel],
 
     // App state
-    callback: Cell<Callback>,
+    callback: RefCell<Callback>,
 }
 
 impl<'a, A: hil::analog_comparator::AnalogComparator<'a>> AnalogComparator<'a, A> {
@@ -61,7 +61,7 @@ impl<'a, A: hil::analog_comparator::AnalogComparator<'a>> AnalogComparator<'a, A
             channels,
 
             // App state
-            callback: Cell::new(Callback::default()),
+            callback: RefCell::new(Callback::default()),
         }
     }
 
@@ -155,6 +155,6 @@ impl<'a, A: hil::analog_comparator::AnalogComparator<'a>> hil::analog_comparator
 {
     /// Callback to userland, signaling the application
     fn fired(&self, channel: usize) {
-        self.callback.get().schedule(channel, 0, 0);
+        self.callback.borrow_mut().schedule(channel, 0, 0);
     }
 }

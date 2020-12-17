@@ -18,7 +18,7 @@
 //! sam4l::gpio::PA[10].set_client(lps25hb);
 //! ```
 
-use core::cell::Cell;
+use core::cell::{Cell, RefCell};
 use kernel::common::cells::TakeCell;
 use kernel::hil::gpio;
 use kernel::hil::i2c;
@@ -96,7 +96,7 @@ enum State {
 pub struct LPS25HB<'a> {
     i2c: &'a dyn i2c::I2CDevice,
     interrupt_pin: &'a dyn gpio::InterruptPin<'a>,
-    callback: Cell<Callback>,
+    callback: RefCell<Callback>,
     state: Cell<State>,
     buffer: TakeCell<'static, [u8]>,
 }
@@ -111,7 +111,7 @@ impl<'a> LPS25HB<'a> {
         LPS25HB {
             i2c: i2c,
             interrupt_pin: interrupt_pin,
-            callback: Cell::new(Callback::default()),
+            callback: RefCell::new(Callback::default()),
             state: Cell::new(State::Idle),
             buffer: TakeCell::new(buffer),
         }
@@ -188,7 +188,9 @@ impl i2c::I2CClient for LPS25HB<'_> {
                 // Returned as microbars
                 let pressure_ubar = (pressure * 1000) / 4096;
 
-                self.callback.get().schedule(pressure_ubar as usize, 0, 0);
+                self.callback
+                    .borrow_mut()
+                    .schedule(pressure_ubar as usize, 0, 0);
 
                 buffer[0] = Registers::CtrlReg1 as u8;
                 buffer[1] = 0;

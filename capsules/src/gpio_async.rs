@@ -25,7 +25,7 @@
 //! }
 //! ```
 
-use core::cell::Cell;
+use core::cell::RefCell;
 use kernel::hil;
 use kernel::{AppId, Callback, ErrorCode};
 use kernel::{CommandReturn, Driver, ReturnCode};
@@ -36,16 +36,16 @@ pub const DRIVER_NUM: usize = driver::NUM::GpioAsync as usize;
 
 pub struct GPIOAsync<'a, Port: hil::gpio_async::Port> {
     ports: &'a [&'a Port],
-    callback: Cell<Callback>,
-    interrupt_callback: Cell<Callback>,
+    callback: RefCell<Callback>,
+    interrupt_callback: RefCell<Callback>,
 }
 
 impl<'a, Port: hil::gpio_async::Port> GPIOAsync<'a, Port> {
     pub fn new(ports: &'a [&'a Port]) -> GPIOAsync<'a, Port> {
         GPIOAsync {
             ports,
-            callback: Cell::new(Callback::default()),
-            interrupt_callback: Cell::new(Callback::default()),
+            callback: RefCell::new(Callback::default()),
+            interrupt_callback: RefCell::new(Callback::default()),
         }
     }
 
@@ -74,11 +74,13 @@ impl<'a, Port: hil::gpio_async::Port> GPIOAsync<'a, Port> {
 
 impl<Port: hil::gpio_async::Port> hil::gpio_async::Client for GPIOAsync<'_, Port> {
     fn fired(&self, pin: usize, identifier: usize) {
-        self.interrupt_callback.get().schedule(identifier, pin, 0);
+        self.interrupt_callback
+            .borrow_mut()
+            .schedule(identifier, pin, 0);
     }
 
     fn done(&self, value: usize) {
-        self.callback.get().schedule(0, value, 0);
+        self.callback.borrow_mut().schedule(0, value, 0);
     }
 }
 
