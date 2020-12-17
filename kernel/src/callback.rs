@@ -169,10 +169,10 @@ pub struct CallbackId {
 /// This is essentially a wrapper around a function pointer with
 /// associated process data.
 pub struct Callback {
-    app_id: AppId,
-    callback_id: CallbackId,
-    appdata: usize,
-    fn_ptr: Option<NonNull<()>>,
+    pub(crate) app_id: AppId,
+    pub(crate) callback_id: CallbackId,
+    pub(crate) appdata: usize,
+    pub(crate) fn_ptr: Option<NonNull<()>>,
 }
 
 impl Callback {
@@ -233,19 +233,19 @@ impl Callback {
 
     pub(crate) fn into_subscribe_success(self) -> GenericSyscallReturnValue {
         match self.fn_ptr {
-            None => GenericSyscallReturnValue::SubscribeSuccess(0 as *mut u8, self.appdata),
+            None => GenericSyscallReturnValue::SubscribeSuccess(0 as *mut (), self.appdata),
             Some(fp) => {
-                GenericSyscallReturnValue::SubscribeSuccess(fp.as_ptr() as *const u8, self.appdata)
+                GenericSyscallReturnValue::SubscribeSuccess(fp.as_ptr(), self.appdata)
             }
         }
     }
 
     pub(crate) fn into_subscribe_failure(self, err: ErrorCode) -> GenericSyscallReturnValue {
         match self.fn_ptr {
-            None => GenericSyscallReturnValue::SubscribeFailure(err, 0 as *mut u8, self.appdata),
+            None => GenericSyscallReturnValue::SubscribeFailure(err, 0 as *mut (), self.appdata),
             Some(fp) => GenericSyscallReturnValue::SubscribeFailure(
                 err,
-                fp.as_ptr() as *const u8,
+                fp.as_ptr(),
                 self.appdata,
             ),
         }

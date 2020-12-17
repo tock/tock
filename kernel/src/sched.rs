@@ -862,37 +862,23 @@ impl Kernel {
                 callback_ptr,
                 appdata,
             } => {
-                // A callback is identified as a tuple of
-                // the driver number and the subdriver
-                // number.
-                let callback_id = CallbackId {
-                    driver_num: driver_number,
-                    subscribe_num: subdriver_number,
-                };
-                // Only one callback should exist per tuple.
-                // To ensure that there are no pending
-                // callbacks with the same identifier but
-                // with the old function pointer, we clear
-                // them now.
-                process.remove_pending_callbacks(callback_id);
-
-                let ptr = NonNull::new(callback_ptr);
-                let callback = Callback::new(process.appid(), callback_id, appdata, ptr);
-
-                let rval = platform.with_driver(driver_number as usize, |driver| match driver {
+                let res = platform.with_driver(driver_number as usize, |driver| match driver {
                     Some(d) => {
-                        // TODO: Change subscribe to take a u32 as the subdriver_num
-                        let res = d.subscribe(subdriver_number as usize, callback, process.appid());
-                        match res {
-                            // An Ok() returns the previous upcall, while
-                            // Err() returns the one that was just passed
-                            // (because the call was rejected).
-                            Ok(oldcb) => oldcb.into_subscribe_success(),
-                            Err((newcb, err)) => newcb.into_subscribe_failure(err),
-                        }
+                        process.subscribe(
+                            driver_number,
+                            subdriver_number,
+                            callback_ptr,
+                            appdata,
+                            &|callback| d.subscribe(subdriver_number as usize, callback, process.appid()),
+                        )
                     }
-                    None => callback.into_subscribe_failure(ErrorCode::NOSUPPORT),
+                    None => GenericSyscallReturnValue::SubscribeFailure(
+			ErrorCode::NOSUPPORT,
+			callback_ptr,
+			appdata
+		    ),
                 });
+
                 if config::CONFIG.trace_syscalls {
                     debug!(
                         "[{:?}] subscribe({:#x}, {}, @{:#x}, {:#x}) = {:?}",
@@ -901,11 +887,11 @@ impl Kernel {
                         subdriver_number,
                         callback_ptr as usize,
                         appdata,
-                        rval
+                        res
                     );
                 }
 
-                process.set_syscall_return_value(rval);
+                process.set_syscall_return_value(res);
             }
             Syscall::Command {
                 driver_number,
@@ -931,6 +917,7 @@ impl Kernel {
                         res,
                     );
                 }
+
                 process.set_syscall_return_value(res);
             }
             Syscall::ReadWriteAllow {
@@ -961,6 +948,7 @@ impl Kernel {
                         res
                     );
                 }
+
                 process.set_syscall_return_value(res);
             }
             Syscall::ReadOnlyAllow {
