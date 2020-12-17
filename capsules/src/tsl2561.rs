@@ -13,7 +13,7 @@
 //! > microprocessor where illuminance (ambient light level) in lux is derived
 //! > using an empirical formula to approximate the human eye response.
 
-use core::cell::Cell;
+use core::cell::{Cell, RefCell};
 use kernel::common::cells::TakeCell;
 use kernel::hil::gpio;
 use kernel::hil::i2c;
@@ -204,7 +204,7 @@ enum State {
 pub struct TSL2561<'a> {
     i2c: &'a dyn i2c::I2CDevice,
     interrupt_pin: &'a dyn gpio::InterruptPin<'a>,
-    callback: Cell<Callback>,
+    callback: RefCell<Callback>,
     state: Cell<State>,
     buffer: TakeCell<'static, [u8]>,
 }
@@ -219,7 +219,7 @@ impl<'a> TSL2561<'a> {
         TSL2561 {
             i2c: i2c,
             interrupt_pin: interrupt_pin,
-            callback: Cell::new(Callback::default()),
+            callback: RefCell::new(Callback::default()),
             state: Cell::new(State::Idle),
             buffer: TakeCell::new(buffer),
         }
@@ -404,7 +404,7 @@ impl i2c::I2CClient for TSL2561<'_> {
 
                 let lux = self.calculate_lux(chan0, chan1);
 
-                self.callback.get().schedule(0, lux, 0);
+                self.callback.borrow_mut().schedule(0, lux, 0);
 
                 buffer[0] = Registers::Control as u8 | COMMAND_REG;
                 buffer[1] = POWER_OFF;
@@ -444,8 +444,11 @@ impl Driver for TSL2561<'_> {
         _app_id: AppId,
     ) -> Result<Callback, (Callback, ErrorCode)> {
         match subscribe_num {
-            0 => Ok(self.callback.replace(callback)),
-
+            // Set a callback
+            0 => {
+                // Set callback function
+                Ok(self.callback.replace(callback))
+            }
             // default
             _ => Err((callback, ErrorCode::NOSUPPORT)),
         }

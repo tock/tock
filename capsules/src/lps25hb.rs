@@ -19,7 +19,7 @@
 //! ```
 
 use core::cell::Cell;
-use kernel::common::cells::{OptionalCell, TakeCell};
+use kernel::common::cells::{MapCell, TakeCell};
 use kernel::hil::gpio;
 use kernel::hil::i2c;
 use kernel::{AppId, Callback, LegacyDriver, ReturnCode};
@@ -96,7 +96,7 @@ enum State {
 pub struct LPS25HB<'a> {
     i2c: &'a dyn i2c::I2CDevice,
     interrupt_pin: &'a dyn gpio::InterruptPin<'a>,
-    callback: OptionalCell<Callback>,
+    callback: MapCell<Callback>,
     state: Cell<State>,
     buffer: TakeCell<'static, [u8]>,
 }
@@ -111,7 +111,7 @@ impl<'a> LPS25HB<'a> {
         LPS25HB {
             i2c: i2c,
             interrupt_pin: interrupt_pin,
-            callback: OptionalCell::empty(),
+            callback: MapCell::empty(),
             state: Cell::new(State::Idle),
             buffer: TakeCell::new(buffer),
         }
@@ -232,7 +232,11 @@ impl LegacyDriver for LPS25HB<'_> {
             // Set a callback
             0 => {
                 // Set callback function
-                self.callback.insert(callback);
+                if let Some(cb) = callback {
+                    self.callback.replace(cb);
+                } else {
+                    self.callback.take();
+                }
                 ReturnCode::SUCCESS
             }
             // default

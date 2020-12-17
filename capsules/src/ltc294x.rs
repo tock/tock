@@ -45,7 +45,7 @@
 //! ltc294x.set_client(ltc294x_driver);
 //! ```
 
-use core::cell::Cell;
+use core::cell::{Cell, RefCell};
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::gpio;
 use kernel::hil::i2c;
@@ -407,21 +407,21 @@ impl gpio::Client for LTC294X<'_> {
 /// interface for providing access to applications.
 pub struct LTC294XDriver<'a> {
     ltc294x: &'a LTC294X<'a>,
-    callback: Cell<Callback>,
+    callback: RefCell<Callback>,
 }
 
 impl<'a> LTC294XDriver<'a> {
     pub fn new(ltc: &'a LTC294X<'a>) -> LTC294XDriver<'a> {
         LTC294XDriver {
             ltc294x: ltc,
-            callback: Cell::new(Callback::default()),
+            callback: RefCell::new(Callback::default()),
         }
     }
 }
 
 impl LTC294XClient for LTC294XDriver<'_> {
     fn interrupt(&self) {
-        self.callback.get().schedule(0, 0, 0);
+        self.callback.borrow_mut().schedule(0, 0, 0);
     }
 
     fn status(
@@ -438,24 +438,24 @@ impl LTC294XClient for LTC294XDriver<'_> {
             | ((charge_alert_high as usize) << 3)
             | ((accumulated_charge_overflow as usize) << 4);
         self.callback
-            .get()
+            .borrow_mut()
             .schedule(1, ret, self.ltc294x.model.get() as usize);
     }
 
     fn charge(&self, charge: u16) {
-        self.callback.get().schedule(2, charge as usize, 0);
+        self.callback.borrow_mut().schedule(2, charge as usize, 0);
     }
 
     fn done(&self) {
-        self.callback.get().schedule(3, 0, 0);
+        self.callback.borrow_mut().schedule(3, 0, 0);
     }
 
     fn voltage(&self, voltage: u16) {
-        self.callback.get().schedule(4, voltage as usize, 0);
+        self.callback.borrow_mut().schedule(4, voltage as usize, 0);
     }
 
     fn current(&self, current: u16) {
-        self.callback.get().schedule(5, current as usize, 0);
+        self.callback.borrow_mut().schedule(5, current as usize, 0);
     }
 }
 

@@ -79,7 +79,7 @@
 
 #![allow(non_camel_case_types)]
 
-use core::cell::Cell;
+use core::cell::{Cell, RefCell};
 use enum_primitive::cast::FromPrimitive;
 use enum_primitive::enum_from_primitive;
 use kernel::common::cells::{OptionalCell, TakeCell};
@@ -137,7 +137,7 @@ pub struct Lsm303agrI2C<'a> {
     config_in_progress: Cell<bool>,
     i2c_accelerometer: &'a dyn i2c::I2CDevice,
     i2c_magnetometer: &'a dyn i2c::I2CDevice,
-    callback: Cell<Callback>,
+    callback: RefCell<Callback>,
     state: Cell<State>,
     accel_scale: Cell<Lsm303Scale>,
     mag_range: Cell<Lsm303Range>,
@@ -162,7 +162,7 @@ impl<'a> Lsm303agrI2C<'a> {
             config_in_progress: Cell::new(false),
             i2c_accelerometer: i2c_accelerometer,
             i2c_magnetometer: i2c_magnetometer,
-            callback: Cell::new(Callback::default()),
+            callback: RefCell::new(Callback::default()),
             state: Cell::new(State::Idle),
             accel_scale: Cell::new(Lsm303Scale::Scale2G),
             mag_range: Cell::new(Lsm303Range::Range1G),
@@ -319,7 +319,7 @@ impl i2c::I2CClient for Lsm303agrI2C<'_> {
                 };
 
                 self.callback
-                    .get()
+                    .borrow_mut()
                     .schedule(if present { 1 } else { 0 }, 0, 0);
                 self.buffer.replace(buffer);
                 self.i2c_magnetometer.disable();
@@ -329,7 +329,7 @@ impl i2c::I2CClient for Lsm303agrI2C<'_> {
                 let set_power = error == Error::CommandComplete;
 
                 self.callback
-                    .get()
+                    .borrow_mut()
                     .schedule(if set_power { 1 } else { 0 }, 0, 0);
                 self.buffer.replace(buffer);
                 self.i2c_accelerometer.disable();
@@ -344,9 +344,11 @@ impl i2c::I2CClient for Lsm303agrI2C<'_> {
             State::SetScaleAndResolution => {
                 let set_scale_and_resolution = error == Error::CommandComplete;
 
-                self.callback
-                    .get()
-                    .schedule(if set_scale_and_resolution { 1 } else { 0 }, 0, 0);
+                self.callback.borrow_mut().schedule(
+                    if set_scale_and_resolution { 1 } else { 0 },
+                    0,
+                    0,
+                );
                 self.buffer.replace(buffer);
                 self.i2c_accelerometer.disable();
                 self.state.set(State::Idle);
@@ -388,9 +390,9 @@ impl i2c::I2CClient for Lsm303agrI2C<'_> {
                     false
                 };
                 if values {
-                    self.callback.get().schedule(x, y, z);
+                    self.callback.borrow_mut().schedule(x, y, z);
                 } else {
-                    self.callback.get().schedule(0, 0, 0);
+                    self.callback.borrow_mut().schedule(0, 0, 0);
                 }
                 self.buffer.replace(buffer);
                 self.i2c_accelerometer.disable();
@@ -399,9 +401,11 @@ impl i2c::I2CClient for Lsm303agrI2C<'_> {
             State::SetDataRate => {
                 let set_magneto_data_rate = error == Error::CommandComplete;
 
-                self.callback
-                    .get()
-                    .schedule(if set_magneto_data_rate { 1 } else { 0 }, 0, 0);
+                self.callback.borrow_mut().schedule(
+                    if set_magneto_data_rate { 1 } else { 0 },
+                    0,
+                    0,
+                );
                 self.buffer.replace(buffer);
                 self.i2c_magnetometer.disable();
                 self.state.set(State::Idle);
@@ -413,7 +417,7 @@ impl i2c::I2CClient for Lsm303agrI2C<'_> {
                 let set_range = error == Error::CommandComplete;
 
                 self.callback
-                    .get()
+                    .borrow_mut()
                     .schedule(if set_range { 1 } else { 0 }, 0, 0);
                 if self.config_in_progress.get() {
                     self.config_in_progress.set(false);
@@ -437,9 +441,9 @@ impl i2c::I2CClient for Lsm303agrI2C<'_> {
                     false
                 };
                 if values {
-                    self.callback.get().schedule(temp, 0, 0);
+                    self.callback.borrow_mut().schedule(temp, 0, 0);
                 } else {
-                    self.callback.get().schedule(0, 0, 0);
+                    self.callback.borrow_mut().schedule(0, 0, 0);
                 }
                 self.buffer.replace(buffer);
                 self.i2c_accelerometer.disable();
@@ -473,9 +477,9 @@ impl i2c::I2CClient for Lsm303agrI2C<'_> {
                     false
                 };
                 if values {
-                    self.callback.get().schedule(x, y, z);
+                    self.callback.borrow_mut().schedule(x, y, z);
                 } else {
-                    self.callback.get().schedule(0, 0, 0);
+                    self.callback.borrow_mut().schedule(0, 0, 0);
                 }
                 self.buffer.replace(buffer);
                 self.i2c_magnetometer.disable();
@@ -601,7 +605,7 @@ impl Driver for Lsm303agrI2C<'_> {
     ) -> Result<Callback, (Callback, ErrorCode)> {
         match subscribe_num {
             0 /* set the one shot callback */ => {
-                Ok (self.callback.replace (callback))
+                Ok(self.callback.replace(callback))
             },
             // default
             _ => Err ((callback, ErrorCode::NOSUPPORT)),

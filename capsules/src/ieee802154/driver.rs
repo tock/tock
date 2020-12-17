@@ -566,19 +566,25 @@ impl Driver for RadioDriver<'_> {
         mut callback: Callback,
         app_id: AppId,
     ) -> Result<Callback, (Callback, ErrorCode)> {
-        self.apps
+        let res = self
+            .apps
             .enter(app_id, |app, _| match subscribe_num {
                 0 => {
                     mem::swap(&mut app.rx_callback, &mut callback);
-                    Ok(callback)
+                    Ok(())
                 }
                 1 => {
                     mem::swap(&mut app.tx_callback, &mut callback);
-                    Ok(callback)
+                    Ok(())
                 }
-                _ => Err((callback, ErrorCode::NOSUPPORT)),
+                _ => Err(ErrorCode::NOSUPPORT),
             })
-            .unwrap_or_else(|err| Err((callback, err.into())))
+            .unwrap_or_else(|err| Err(err.into()));
+
+        match res {
+            Ok(()) => Ok(callback),
+            Err(e) => Err((callback, e)),
+        }
     }
 
     /// IEEE 802.15.4 MAC device control.
