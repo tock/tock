@@ -11,11 +11,9 @@ pub(crate) mod priority;
 pub(crate) mod round_robin;
 
 use core::cell::Cell;
-use core::ptr::NonNull;
 
 use crate::capabilities;
 use crate::common::cells::NumericCellExt;
-use crate::common::cells::TakeCell;
 use crate::common::dynamic_deferred_call::DynamicDeferredCall;
 use crate::config;
 use crate::debug;
@@ -31,7 +29,7 @@ use crate::platform::{Chip, Platform};
 use crate::process::{self, Task};
 use crate::syscall::{ContextSwitchReason, SyscallReturn};
 use crate::syscall::{Syscall, YieldCall};
-use crate::upcall::{AppId, Upcall, UpcallId};
+use crate::upcall::AppId;
 
 /// Threshold in microseconds to consider a process's timeslice to be exhausted.
 /// That is, Tock will skip re-scheduling a process if its remaining timeslice
@@ -871,37 +869,19 @@ impl Kernel {
                 upcall_ptr,
                 appdata,
             } => {
-                // A upcall is identified as a tuple of
-                // the driver number and the subdriver
-                // number.
-                let upcall_id = UpcallId {
-                    driver_num: driver_number,
-                    subscribe_num: subdriver_number,
-                };
-                // Only one upcall should exist per tuple.
-                // To ensure that there are no pending
-                // upcalls with the same identifier but
-                // with the old function pointer, we clear
-                // them now.
-                process.remove_pending_upcalls(upcall_id);
-
-                let ptr = NonNull::new(upcall_ptr);
-                let upcall = Upcall::new(process.appid(), upcall_id, appdata, ptr);
-
-                let rval = platform.with_driver(driver_number as usize, |driver| match driver {
-                    Some(d) => {
-                        // TODO: Change subscribe to take a u32 as the subdriver_num
-                        let res = d.subscribe(subdriver_number as usize, upcall, process.appid());
-                        match res {
-                            // An Ok() returns the previous upcall, while
-                            // Err() returns the one that was just passed
-                            // (because the call was rejected).
-                            Ok(oldcb) => oldcb.into_subscribe_success(),
-                            Err((newcb, err)) => newcb.into_subscribe_failure(err),
-                        }
+                let res = platform.with_driver(driver_number as usize, |driver| match driver {
+                    Some(d) => process.subscribe(
+                        driver_number,
+                        subdriver_number,
+                        upcall_ptr,
+                        appdata,
+                        &|upcall| d.subscribe(subdriver_number as usize, upcall, process.appid()),
+                    ),
+                    None => {
+                        SyscallReturn::SubscribeFailure(ErrorCode::NOSUPPORT, upcall_ptr, appdata)
                     }
-                    None => upcall.into_subscribe_failure(ErrorCode::NOSUPPORT),
                 });
+
                 if config::CONFIG.trace_syscalls {
                     debug!(
                         "[{:?}] subscribe({:#x}, {}, @{:#x}, {:#x}) = {:?}",
@@ -910,11 +890,11 @@ impl Kernel {
                         subdriver_number,
                         upcall_ptr as usize,
                         appdata,
-                        rval
+                        res
                     );
                 }
 
-                process.set_syscall_return_value(rval);
+                process.set_syscall_return_value(res);
             }
             Syscall::Command {
                 driver_number,
@@ -940,6 +920,7 @@ impl Kernel {
                         res,
                     );
                 }
+
                 process.set_syscall_return_value(res);
             }
             Syscall::ReadWriteAllow {
@@ -1007,6 +988,7 @@ impl Kernel {
                         res
                     );
                 }
+
                 process.set_syscall_return_value(res);
             }
             Syscall::ReadOnlyAllow {

@@ -169,10 +169,10 @@ pub struct UpcallId {
 /// This is essentially a wrapper around a function pointer with
 /// associated process data.
 pub struct Upcall {
-    app_id: AppId,
-    upcall_id: UpcallId,
-    appdata: usize,
-    fn_ptr: Option<NonNull<()>>,
+    pub(crate) app_id: AppId,
+    pub(crate) upcall_id: UpcallId,
+    pub(crate) appdata: usize,
+    pub(crate) fn_ptr: Option<NonNull<()>>,
 }
 
 impl Upcall {
@@ -233,17 +233,15 @@ impl Upcall {
 
     pub(crate) fn into_subscribe_success(self) -> SyscallReturn {
         match self.fn_ptr {
-            None => SyscallReturn::SubscribeSuccess(0 as *mut u8, self.appdata),
-            Some(fp) => SyscallReturn::SubscribeSuccess(fp.as_ptr() as *const u8, self.appdata),
+            None => SyscallReturn::SubscribeSuccess(0 as *mut (), self.appdata),
+            Some(fp) => SyscallReturn::SubscribeSuccess(fp.as_ptr(), self.appdata),
         }
     }
 
     pub(crate) fn into_subscribe_failure(self, err: ErrorCode) -> SyscallReturn {
         match self.fn_ptr {
-            None => SyscallReturn::SubscribeFailure(err, 0 as *mut u8, self.appdata),
-            Some(fp) => {
-                SyscallReturn::SubscribeFailure(err, fp.as_ptr() as *const u8, self.appdata)
-            }
+            None => SyscallReturn::SubscribeFailure(err, 0 as *mut (), self.appdata),
+            Some(fp) => SyscallReturn::SubscribeFailure(err, fp.as_ptr(), self.appdata),
         }
     }
 }
