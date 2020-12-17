@@ -251,9 +251,9 @@ pub enum GenericSyscallReturnValue {
     AllowReadOnlyFailure(ErrorCode, *const u8, usize),
 
     /// Subscribe success case
-    SubscribeSuccess(*const u8, usize),
+    SubscribeSuccess(*mut (), usize),
     /// Subscribe failure case
-    SubscribeFailure(ErrorCode, *const u8, usize),
+    SubscribeFailure(ErrorCode, *mut (), usize),
 
     Legacy(ReturnCode),
 }

@@ -7,7 +7,7 @@ use core::fmt::Write;
 use core::ptr::{write_volatile, NonNull};
 use core::{mem, ptr, slice, str};
 
-use crate::callback::{AppId, CallbackId};
+use crate::callback::{AppId, Callback, CallbackId};
 use crate::capabilities::ProcessManagementCapability;
 use crate::common::cells::{MapCell, NumericCellExt};
 use crate::common::{Queue, RingBuffer};
@@ -395,6 +395,49 @@ pub trait ProcessType {
         buf_start_addr: *const u8,
         size: usize,
     ) -> Result<Option<AppSlice<SharedReadWrite, u8>>, ReturnCode>;
+
+    /// Process a `Subscribe` request for a given process.
+    ///
+    /// This function is called as a result of a `Subscribe`-type
+    /// system call, if a corresponding driver is found.
+    ///
+    /// If the process is not active then this will return an error,
+    /// as it is not valid to "subscribe" a callback for a process
+    /// that will not resume executing. In practice this case should
+    /// not happen as the process will not be executing to call the
+    /// `Subscribe`-type syscall.
+    ///
+    /// This function must construct the high-level [`Callback`] type
+    /// and enforce constraints required by this type. It must clear
+    /// all callbacks on a previous instance, such that only callbacks
+    /// scheduled on the newly constructed type will be called to
+    /// userspace.
+    ///
+    /// It can invoke the driver by executing the passed closure. As a
+    /// result the driver can either
+    ///
+    /// - accept the Subscribe operation (`Ok()` variant):
+    ///
+    ///   In this case, the driver must pass the previous [`Callback`]
+    ///   instance from this driver num and subscribe num back.
+    ///
+    /// - refuse the Subscribe operation (`Err()` variant):
+    ///
+    ///   In this case, the driver must pass the [`Callback`] argument
+    ///   back as its return value, along with an [`ErrorCode`] passed
+    ///   back to the process.
+    ///
+    /// It is this function's responsibility to enforce these
+    /// constraints and check that a driver always returns the correct
+    /// results across system calls.
+    fn subscribe(
+        &self,
+        driver_num: u32,
+        subscribe_num: u32,
+        callback_ptr: *mut (),
+        appdata: usize,
+        driver_invoc_closure: &dyn Fn(Callback) -> Result<Callback, (Callback, ErrorCode)>,
+    ) -> GenericSyscallReturnValue;
 
     fn allow_readwrite(
         &self,
@@ -1207,6 +1250,125 @@ impl<C: Chip> ProcessType for Process<'_, C> {
                     Ok(Some(slice))
                 } else {
                     Err(ReturnCode::EINVAL)
+                }
+            }
+        }
+    }
+
+    fn subscribe(
+        &self,
+        driver_num: u32,
+        subscribe_num: u32,
+        callback_ptr: *mut (),
+        appdata: usize,
+        driver_invoc_closure: &dyn Fn(Callback) -> Result<Callback, (Callback, ErrorCode)>,
+    ) -> GenericSyscallReturnValue {
+        if !self.is_active() {
+            // Do not operate on an inactive process
+            return GenericSyscallReturnValue::SubscribeFailure(
+                ErrorCode::FAIL,
+                callback_ptr,
+                appdata,
+            );
+        }
+
+        // Construct the callback pointer
+        //
+        // The pointer may be NULL, in which case this is a _null
+        // callback_.
+        //
+        // The pointer is not verified to be in bounds of process
+        // accessible memory. If a process passes an invalid pointer
+        // (outside of its memory regions), the MPU must catch this
+        // memory access and fault the process accordingly.
+        let fn_ptr: Option<NonNull<()>> = NonNull::new(callback_ptr);
+
+        // A callback is identified by a tuple of the driver number
+        // and the subscribe number
+        let callback_id = CallbackId {
+            driver_num,
+            subscribe_num,
+        };
+
+        // Only one callback should exist per tuple, to ensure that
+        // there are no pending callbacks with the same identifier but
+        // an old function pointer, clear them now.
+        //
+        // This operates only on the current process, so the passed
+        // pointer does not need to be trusted.
+        self.remove_pending_callbacks(callback_id);
+
+        // Construct the callback struct
+        let callback = Callback::new(self.appid(), callback_id, appdata, fn_ptr);
+
+        // Invoke the capsule
+        let driver_res = driver_invoc_closure(callback);
+
+        match driver_res {
+            Err((returned_callback, err)) => {
+                // The capsule has refused the subscribe operation,
+                // verify that it passed back the new callback
+                if let Some(process_callback) = returned_callback.into_inner() {
+                    if process_callback.app_id != self.appid()
+                        || process_callback.callback_id != callback_id
+                        || process_callback.appdata != appdata
+                        || process_callback.fn_ptr != fn_ptr
+                    {
+                        // The capsule did not return the Callback passed in
+                        // TODO: How to handle this?
+                        panic!(
+                            "Driver {}, subscribe num {}: Callback swapped in error case",
+                            driver_num, subscribe_num
+                        );
+                    } else {
+                        // Capsule returned the correct Callback
+                        GenericSyscallReturnValue::SubscribeFailure(err, callback_ptr, appdata)
+                    }
+                } else {
+                    // The capsule returned a default Callback
+                    // instance in the error-case return value, where
+                    // it should have passed the argument back
+                    panic!(
+                        "Driver {}, subcribe_num {}: Default callback returned in error case",
+                        driver_num, subscribe_num
+                    );
+                }
+            }
+            Ok(returned_callback) => {
+                // The capsule indicated that the subscribe operation succeeded
+                match returned_callback.into_inner() {
+                    None => {
+                        // The capsule returned a default callback, we
+                        // have to believe this to be correct
+                        //
+                        // TODO: Limit the default constructor on
+                        // Callback to require a capability for Grant
+                        // initializations
+                        GenericSyscallReturnValue::SubscribeSuccess(0x0 as *mut (), 0)
+                    }
+                    Some(process_callback) => {
+                        // The capsule returned some other callback,
+                        // ensure that it belongs to the same process,
+                        // driver and subdriver number
+                        if process_callback.app_id != self.appid()
+                            || process_callback.callback_id != callback_id
+                        {
+                            // The capsule returned some other Callback
+                            panic!(
+                                "Driver {}, subscribe num {}: unknown Callback returned",
+                                driver_num, subscribe_num
+                            );
+                        } else {
+                            // The capsule returned a matching
+                            // Callback, return it to userspace
+                            GenericSyscallReturnValue::SubscribeSuccess(
+                                process_callback
+                                    .fn_ptr
+                                    .map_or(0x0 as *mut (), |nonnull| nonnull.as_ptr()),
+                                process_callback.appdata,
+                            )
+                        }
+                    }
                 }
             }
         }
