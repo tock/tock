@@ -2,7 +2,7 @@
 
 DEFAULT_BOARD_CONFIGURATION=fpga_nexysvideo
 TARGET=riscv32imc-unknown-none-elf
-PLATFORM=opentitan
+PLATFORM=earlgrey-nexysvideo
 FLASHID=--dev-id="0403:6010"
 RISC_PREFIX = riscv64-elf
 

@@ -176,9 +176,9 @@ impl<A: 'static + time::Alarm<'static>> SchedulerTimer for VirtualSchedulerTimer
 
             (hertz * us / 1_000_000) as u32
         };
-        let now = self.alarm.now();
-        let fire_at = now.wrapping_add(A::Ticks::from(tics));
-        self.alarm.set_alarm(now, fire_at);
+
+        let reference = self.alarm.now();
+        self.alarm.set_alarm(reference, A::Ticks::from(tics));
     }
 
     fn arm(&self) {

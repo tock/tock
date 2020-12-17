@@ -15,7 +15,7 @@
 /// destructor.
 #[macro_export]
 macro_rules! static_init {
-    ($T:ty, $e:expr) => {{
+    ($T:ty, $e:expr $(,)?) => {{
         let mut buf = $crate::static_buf!($T);
         buf.initialize($e)
     }};
@@ -45,7 +45,7 @@ macro_rules! static_init {
 /// possible.
 #[macro_export]
 macro_rules! static_buf {
-    ($T:ty) => {{
+    ($T:ty $(,)?) => {{
         // Statically allocate a read-write buffer for the value, write our
         // initial value into it (without dropping the initial zeros) and
         // return a reference to it.
@@ -137,7 +137,7 @@ impl<T> StaticUninitializedBuffer<T> {
 /// The static buffer must be passed in.
 #[macro_export]
 macro_rules! static_init_half {
-    ($B:expr, $T:ty, $e:expr) => {
+    ($B:expr, $T:ty, $e:expr $(,)?) => {
         {
             use core::mem::MaybeUninit;
             let buf: &'static mut MaybeUninit<$T> = $B;
@@ -168,7 +168,7 @@ macro_rules! static_init_half {
 /// and the next section is aligned as well.
 #[macro_export]
 macro_rules! storage_volume {
-    ($N:ident, $kB:expr) => {
+    ($N:ident, $kB:expr $(,)?) => {
         #[link_section = ".storage"]
         #[used]
         #[no_mangle]
@@ -190,7 +190,7 @@ macro_rules! storage_volume {
 /// or pass to another module.
 #[macro_export]
 macro_rules! create_capability {
-    ($T:ty) => {{
+    ($T:ty $(,)?) => {{
         struct Cap;
         #[allow(unsafe_code)]
         unsafe impl $T for Cap {}
@@ -210,6 +210,6 @@ macro_rules! create_capability {
 #[macro_export]
 macro_rules! count_expressions {
     () => (0usize);
-    ($head:expr) => (1usize);
-    ($head:expr, $($tail:expr),*) => (1usize + count_expressions!($($tail),*));
+    ($head:expr $(,)?) => (1usize);
+    ($head:expr, $($tail:expr),* $(,)?) => (1usize + count_expressions!($($tail),*));
 }

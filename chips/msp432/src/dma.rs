@@ -7,17 +7,6 @@ use kernel::common::registers::{
 };
 use kernel::common::StaticRef;
 
-pub static mut DMA_CHANNELS: [DmaChannel<'static>; 8] = [
-    DmaChannel::new(0), // Used for UART0 TX
-    DmaChannel::new(1), // Used for UART0 RX
-    DmaChannel::new(2),
-    DmaChannel::new(3),
-    DmaChannel::new(4),
-    DmaChannel::new(5),
-    DmaChannel::new(6),
-    DmaChannel::new(7), // Used for ADC
-];
-
 const DMA_BASE: StaticRef<DmaRegisters> =
     unsafe { StaticRef::new(0x4000_E000 as *const DmaRegisters) };
 
@@ -49,7 +38,7 @@ static DMA_CONFIG: DmaConfigBlock = DmaConfigBlock([
 const MAX_SRC_NR: u8 = 7;
 
 /// The MSP432 chips contain 8 DMA channels
-const AVAILABLE_DMA_CHANNELS: usize = 8;
+pub const AVAILABLE_DMA_CHANNELS: usize = 8;
 
 /// The DMA can perform up to 1024 transfers before it needs to rearbitrate the bus
 const MAX_TRANSFERS_LEN: usize = 1024;
@@ -571,6 +560,57 @@ enum ActiveBuffer {
     Alternative,
 }
 
+pub struct DmaChannels<'a> {
+    pub channels: [DmaChannel<'a>; AVAILABLE_DMA_CHANNELS],
+}
+
+impl DmaChannels<'_> {
+    pub fn new() -> Self {
+        Self {
+            channels: [
+                crate::dma::DmaChannel::new(0), // Used for UART0 TX
+                crate::dma::DmaChannel::new(1), // Used for UART0 RX
+                crate::dma::DmaChannel::new(2),
+                crate::dma::DmaChannel::new(3),
+                crate::dma::DmaChannel::new(4),
+                crate::dma::DmaChannel::new(5),
+                crate::dma::DmaChannel::new(6),
+                crate::dma::DmaChannel::new(7), // Used for ADC
+            ],
+        }
+    }
+
+    pub fn handle_interrupt(&self, int_nr: isize) {
+        if int_nr == 0 {
+            // For now only use the INT0 because I don't know how to prioritize the channels in order
+            // to give them 1 out of 3 'own' interrupts.
+            let int = self.channels[0].registers.int0_srcflg.get();
+
+            for i in 0..AVAILABLE_DMA_CHANNELS {
+                let bit = (1 << i) as u32;
+                if (bit & int) > 0 {
+                    // Clear interrupt-bit
+                    self.channels[i].registers.int0_clrflg.set(bit);
+
+                    self.channels[i].handle_interrupt();
+                }
+            }
+        } else if int_nr < 0 {
+            panic!("DMA: error interrupt");
+        } else {
+            panic!("DMA: unhandled interrupt-nr: {}", int_nr);
+        }
+    }
+}
+
+impl<'a> core::ops::Index<usize> for DmaChannels<'a> {
+    type Output = DmaChannel<'a>;
+
+    fn index(&self, idx: usize) -> &Self::Output {
+        &self.channels[idx]
+    }
+}
+
 pub struct DmaChannel<'a> {
     registers: StaticRef<DmaRegisters>,
     chan_nr: usize,
@@ -613,7 +653,7 @@ impl DmaConfig {
 }
 
 impl<'a> DmaChannel<'a> {
-    const fn new(chan_nr: usize) -> DmaChannel<'a> {
+    pub const fn new(chan_nr: usize) -> DmaChannel<'a> {
         DmaChannel {
             registers: DMA_BASE,
             chan_nr: chan_nr,
@@ -979,6 +1019,7 @@ impl<'a> DmaChannel<'a> {
         self.enable_dma_channel();
     }
 
+    /// Start a ping-pong transfer from a peripheral to a certain location in memory
     pub fn transfer_periph_to_mem_pingpong(
         &self,
         src_reg: *const (),
@@ -1015,6 +1056,7 @@ impl<'a> DmaChannel<'a> {
         self.enable_dma_channel();
     }
 
+    /// Provide a new buffer for a ping-pong transfer
     pub fn provide_new_buffer(&self, buf: &'static mut [u8], len: usize) {
         let buf_end_ptr = (&buf[0] as *const u8 as u32) + ((len as u32) - 1);
 
@@ -1037,9 +1079,18 @@ impl<'a> DmaChannel<'a> {
         }
     }
 
+    /// Stop any ongoing DMA transfer
+    ///
+    /// Returnvalues:
+    /// usize:                      Number of transferred bytes until the transfer was stopped
+    /// Option<&'static mut [u8]>:  Option to the primary TX buffer
+    /// Option<&'static mut [u8]>:  Option to the primary RX buffer
+    /// Option<&'static mut [u8]>:  Option to the alternate TX buffer
+    /// Option<&'static mut [u8]>:  Option to the alternate RX buffer
     pub fn stop(
         &self,
     ) -> (
+        usize,
         Option<&'static mut [u8]>,
         Option<&'static mut [u8]>,
         Option<&'static mut [u8]>,
@@ -1051,36 +1102,21 @@ impl<'a> DmaChannel<'a> {
         DMA_CONFIG.0[self.chan_nr]
             .ctrl
             .modify(DMA_CTRL::CYCLE_CTRL::Stop);
+
+        // Calculate the already transferred bytes
+        let n_minus_1 = DMA_CONFIG.0[self.chan_nr].ctrl.read(DMA_CTRL::N_MINUS_1) as usize;
+        let transferred_bytes = if self.active_buf.get() == ActiveBuffer::Primary {
+            self.bytes_to_transmit_prim.get() - n_minus_1 + 1
+        } else {
+            self.bytes_to_transmit_alt.get() - n_minus_1 + 1
+        };
+
         (
+            transferred_bytes,
             self.tx_buf_prim.take(),
             self.rx_buf_prim.take(),
             self.tx_buf_alt.take(),
             self.rx_buf_alt.take(),
         )
-    }
-}
-
-pub fn handle_interrupt(int_nr: isize) {
-    if int_nr == 0 {
-        // For now only use the INT0 because I don't know how to prioritize the channels in order
-        // to give them 1 out of 3 'own' interrupts.
-        let int = DMA_BASE.int0_srcflg.get();
-
-        for i in 0..AVAILABLE_DMA_CHANNELS {
-            let bit = (1 << i) as u32;
-            if (bit & int) > 0 {
-                // Clear interrupt-bit
-                DMA_BASE.int0_clrflg.set(bit);
-
-                // This access must be unsafe because DMA_CHANNELS is a global mutable variable
-                unsafe {
-                    DMA_CHANNELS[i].handle_interrupt();
-                }
-            }
-        }
-    } else if int_nr < 0 {
-        panic!("DMA: error interrupt");
-    } else {
-        panic!("DMA: unhandled interrupt-nr: {}", int_nr);
     }
 }

@@ -26,6 +26,17 @@ use kernel::hil;
 use kernel::hil::uart;
 use kernel::static_init;
 
+// The sum of the output_buf and internal_buf is set to a multiple of 1024 bytes in order to avoid excessive
+// padding between kernel memory and application memory (which often needs to be aligned to at
+// least a 1 KiB boundary). This is not _semantically_ critical, but helps keep buffers on 1 KiB
+// boundaries in some cases. Of course, these definitions are only advisory, and individual boards
+// can choose to pass in their own buffers with different lengths.
+const DEBUG_BUFFER_KBYTE: usize = 1;
+
+// Bytes [0, DEBUG_BUFFER_SPLIT) are used for output_buf while bytes
+// [DEBUG_BUFFER_SPLIT, DEBUG_BUFFER_KBYTE * 1024) are used for internal_buf.
+const DEBUG_BUFFER_SPLIT: usize = 64;
+
 pub struct DebugWriterComponent {
     uart_mux: &'static MuxUart<'static>,
 }
@@ -44,13 +55,11 @@ impl Component for DebugWriterComponent {
     type Output = ();
 
     unsafe fn finalize(self, _s: Self::StaticInput) -> Self::Output {
-        // The sum of the output_buf and internal_buf is set to 1024 bytes in order to avoid excessive
-        // padding between kernel memory and application memory (which often needs to be aligned to at
-        // least a 1kB boundary). This is not _semantically_ critical, but helps keep buffers on 1kB
-        // boundaries in some cases. Of course, these definitions are only advisory, and individual boards
-        // can choose to pass in their own buffers with different lengths.
-        let buf = static_init!([u8; 1024], [0; 1024]);
-        let (output_buf, internal_buf) = buf.split_at_mut(64);
+        let buf = static_init!(
+            [u8; 1024 * DEBUG_BUFFER_KBYTE],
+            [0; 1024 * DEBUG_BUFFER_KBYTE]
+        );
+        let (output_buf, internal_buf) = buf.split_at_mut(DEBUG_BUFFER_SPLIT);
 
         // Create virtual device for kernel debug.
         let debugger_uart = static_init!(UartDevice, UartDevice::new(self.uart_mux, false));
@@ -87,13 +96,11 @@ impl<U: uart::Uart<'static> + uart::Transmit<'static> + 'static> Component
     type Output = ();
 
     unsafe fn finalize(self, _s: Self::StaticInput) -> Self::Output {
-        // The sum of the output_buf and internal_buf is set to 1024 bytes in order to avoid excessive
-        // padding between kernel memory and application memory (which often needs to be aligned to at
-        // least a 1kB boundary). This is not _semantically_ critical, but helps keep buffers on 1kB
-        // boundaries in some cases. Of course, these definitions are only advisory, and individual boards
-        // can choose to pass in their own buffers with different lengths.
-        let buf = static_init!([u8; 1024], [0; 1024]);
-        let (output_buf, internal_buf) = buf.split_at_mut(64);
+        let buf = static_init!(
+            [u8; 1024 * DEBUG_BUFFER_KBYTE],
+            [0; 1024 * DEBUG_BUFFER_KBYTE]
+        );
+        let (output_buf, internal_buf) = buf.split_at_mut(DEBUG_BUFFER_SPLIT);
 
         // Create virtual device for kernel debug.
         let ring_buffer = static_init!(RingBuffer<'static, u8>, RingBuffer::new(internal_buf));

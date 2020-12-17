@@ -4,7 +4,6 @@
 // Disable this attribute when documenting, as a workaround for
 // https://github.com/rust-lang/rust/issues/62184.
 #![cfg_attr(not(doc), no_main)]
-#![feature(const_in_array_repeat_expressions)]
 #![deny(missing_docs)]
 
 use capsules::virtual_alarm::VirtualMuxAlarm;
@@ -100,7 +99,7 @@ impl kernel::Platform for Platform {
             capsules::ble_advertising_driver::DRIVER_NUM => f(Some(Err(self.ble_radio))),
             capsules::temperature::DRIVER_NUM => f(Some(Ok(self.temp))),
             capsules::gpio_async::DRIVER_NUM => f(Some(Ok(self.gpio_async))),
-            capsules::ambient_light::DRIVER_NUM => f(Some(Err(self.light))),
+            capsules::ambient_light::DRIVER_NUM => f(Some(Ok(self.light))),
             capsules::buzzer_driver::DRIVER_NUM => f(Some(Err(self.buzzer))),
             kernel::ipc::DRIVER_NUM => f(Some(Err(&self.ipc))),
             _ => f(None),
