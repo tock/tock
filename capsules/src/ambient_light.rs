@@ -78,22 +78,22 @@ impl Driver for AmbientLight<'_> {
         match subscribe_num {
             0 => {
                 let rcode = self
-                .apps
-                .enter(app_id, |app, _| {
-                    mem::swap(&mut callback, &mut app.callback);
-                    ReturnCode::SUCCESS
-                })
-                    .unwrap_or_else(|err|  err.into());
+                    .apps
+                    .enter(app_id, |app, _| {
+                        mem::swap(&mut callback, &mut app.callback);
+                        ReturnCode::SUCCESS
+                    })
+                    .unwrap_or_else(|err| err.into());
 
                 let eres = ErrorCode::try_from(rcode);
                 match eres {
                     Ok(ecode) => Err((callback, ecode)),
                     _ => Ok(callback),
-                } 
+                }
             }
-            _ => Err((callback, ErrorCode::NOSUPPORT))
+            _ => Err((callback, ErrorCode::NOSUPPORT)),
         }
-}
+    }
 
     /// Initiate light intensity readings
     ///
