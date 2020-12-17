@@ -172,7 +172,7 @@ struct ProcessCallback {
     app_id: AppId,
     callback_id: CallbackId,
     appdata: usize,
-    fn_ptr: NonNull<*mut ()>,
+    fn_ptr: NonNull<()>,
 }
 
 #[derive(Clone, Copy, Default)]
@@ -185,7 +185,7 @@ impl Callback {
         app_id: AppId,
         callback_id: CallbackId,
         appdata: usize,
-        fn_ptr: NonNull<*mut ()>,
+        fn_ptr: NonNull<()>,
     ) -> Callback {
         Callback {
             cb: Some(ProcessCallback::new(app_id, callback_id, appdata, fn_ptr)),
@@ -223,7 +223,7 @@ impl ProcessCallback {
         app_id: AppId,
         callback_id: CallbackId,
         appdata: usize,
-        fn_ptr: NonNull<*mut ()>,
+        fn_ptr: NonNull<()>,
     ) -> ProcessCallback {
         ProcessCallback {
             app_id,
