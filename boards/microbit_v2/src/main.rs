@@ -14,8 +14,7 @@ use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferred
 use kernel::component::Component;
 use kernel::hil::i2c::I2CMaster;
 use kernel::hil::time::Counter;
-use kernel::mpu::MPU;
-use kernel::Chip;
+
 #[allow(unused_imports)]
 use kernel::{create_capability, debug, debug_gpio, debug_verbose, static_init};
 
@@ -441,9 +440,6 @@ pub unsafe fn reset_handler() {
         nrf52833::chip::NRF52::new(nrf52833_peripherals)
     );
     CHIP = Some(chip);
-
-    // Need to disable the MPU because the bootloader seems to set it up.
-    chip.mpu().clear_mpu();
 
     debug!("Initialization complete. Entering main loop.");
 
