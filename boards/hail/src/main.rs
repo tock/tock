@@ -87,15 +87,15 @@ impl Platform for Hail {
             capsules::gpio::DRIVER_NUM => f(Some(Err(self.gpio))),
 
             capsules::alarm::DRIVER_NUM => f(Some(Err(self.alarm))),
-            capsules::spi_controller::DRIVER_NUM => f(Some(Err(self.spi))),
+            capsules::spi_controller::DRIVER_NUM => f(Some(Ok(self.spi))),
             capsules::nrf51822_serialization::DRIVER_NUM => f(Some(Err(self.nrf51822))),
             capsules::ambient_light::DRIVER_NUM => f(Some(Err(self.ambient_light))),
             capsules::adc::DRIVER_NUM => f(Some(Err(self.adc))),
             capsules::led::DRIVER_NUM => f(Some(Ok(self.led))),
             capsules::button::DRIVER_NUM => f(Some(Err(self.button))),
             capsules::humidity::DRIVER_NUM => f(Some(Ok(self.humidity))),
-            capsules::temperature::DRIVER_NUM => f(Some(Err(self.temp))),
-            capsules::ninedof::DRIVER_NUM => f(Some(Err(self.ninedof))),
+            capsules::temperature::DRIVER_NUM => f(Some(Ok(self.temp))),
+            capsules::ninedof::DRIVER_NUM => f(Some(Ok(self.ninedof))),
 
             capsules::rng::DRIVER_NUM => f(Some(Err(self.rng))),
 

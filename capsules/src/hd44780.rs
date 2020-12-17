@@ -130,7 +130,7 @@
 
 use crate::driver;
 use core::cell::Cell;
-use kernel::common::cells::TakeCell;
+use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::gpio;
 use kernel::hil::time::{self, Alarm};
 use kernel::{AppId, AppSlice, Callback, Grant, LegacyDriver, ReturnCode, SharedReadWrite};
@@ -256,6 +256,7 @@ pub struct HD44780<'a, A: Alarm<'a>> {
     lcd_after_command_status: Cell<LCDStatus>,
     lcd_after_delay_status: Cell<LCDStatus>,
     command_to_finish: Cell<u8>,
+    bytes_written: OptionalCell<usize>, //saves number of bytes written after an allow.
 }
 
 impl<'a, A: Alarm<'a>> HD44780<'a, A> {
@@ -299,6 +300,7 @@ impl<'a, A: Alarm<'a>> HD44780<'a, A> {
             lcd_after_command_status: Cell::new(LCDStatus::Idle),
             lcd_after_delay_status: Cell::new(LCDStatus::Idle),
             command_to_finish: Cell::new(0),
+            bytes_written: OptionalCell::empty(),
         }
     }
 
@@ -686,7 +688,7 @@ impl<'a, A: Alarm<'a>> LegacyDriver for HD44780<'a, A> {
      *  - the allow command number
      *  - pointer to the buffer to be sent
      *
-     * Return: SuccessWithValue - number of bytes written in the buffer
+     * Return: Success - buffer saved. use command 10 to retrieve the number of bytes written
      *         ENOSUPPORT - the allow_num is not 1, so the syscall was mistaken
      *
      * Example:
@@ -715,9 +717,8 @@ impl<'a, A: Alarm<'a>> LegacyDriver for HD44780<'a, A> {
                         match ret {
                             BUFFER_FULL => {
                                 self.handle_commands();
-                                return ReturnCode::SuccessWithValue {
-                                    value: ALLOW_BAD_VALUE,
-                                };
+                                self.bytes_written.set(ALLOW_BAD_VALUE);
+                                return ReturnCode::SUCCESS;
                             }
                             _ => {
                                 if ret != s.len() as i16 {
@@ -746,9 +747,8 @@ impl<'a, A: Alarm<'a>> LegacyDriver for HD44780<'a, A> {
                     };
                     app.text_buffer = slice;
                     self.handle_commands();
-                    ReturnCode::SuccessWithValue {
-                        value: ret as usize,
-                    }
+                    self.bytes_written.set(ret as usize);
+                    ReturnCode::SUCCESS
                 })
                 .unwrap_or_else(|err| err.into()),
             _ => ReturnCode::ENOSUPPORT,
@@ -1005,6 +1005,14 @@ impl<'a, A: Alarm<'a>> LegacyDriver for HD44780<'a, A> {
                 self.handle_commands();
                 ReturnCode::SUCCESS
             }
+
+            /* Get the number of bytes written by the last allow.
+             * Only works once, the value is cleared once read.
+             * */
+            10 => match self.bytes_written.take() {
+                Some(v) => ReturnCode::SuccessWithValue { value: v },
+                None => ReturnCode::EALREADY,
+            },
 
             /* default */
             _ => ReturnCode::ENOSUPPORT,
