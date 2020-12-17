@@ -54,7 +54,7 @@ approving, and merging pull requests for) the following code directories:
 
 - `chips/ibex`
 - `chips/lowrisc`
-- `boards/opentitan`
+- `boards/earlgrey_nexysvideo`
 
 In addition, while it is not the focus of the group, because of the tight
 relationship in early stages of development, the OT working group is also

@@ -44,7 +44,7 @@ static mut DRIVER_BUF: [u8; MAX_PAYLOAD_LEN - UDP_HDR_SIZE] = [0; MAX_PAYLOAD_LE
 // Setup static space for the objects.
 #[macro_export]
 macro_rules! udp_driver_component_helper {
-    ($A:ty) => {{
+    ($A:ty $(,)?) => {{
         use capsules::net::udp::udp_send::UDPSendStruct;
         use core::mem::MaybeUninit;
         static mut BUF0: MaybeUninit<

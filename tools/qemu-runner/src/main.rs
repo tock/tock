@@ -35,13 +35,13 @@ fn hifive1() -> Result<(), Error> {
     Ok(())
 }
 
-fn opentitan() -> Result<(), Error> {
+fn earlgrey_nexysvideo() -> Result<(), Error> {
     // First, build the board if needed
     // n.b. rexpect's `exp_eof` does not actually block main thread, so use
     // the standard Rust process library mechanism instead.
     let mut build = Command::new("make")
         .arg("-C")
-        .arg("../../boards/opentitan")
+        .arg("../../boards/earlgrey-nexysvideo")
         .spawn()
         .expect("failed to spawn build");
     assert!(build.wait().unwrap().success());
@@ -55,7 +55,7 @@ fn opentitan() -> Result<(), Error> {
 
     let mut p = spawn(
         &format!(
-            "make OPENTITAN_BOOT_ROM={} qemu -C ../../boards/opentitan",
+            "make OPENTITAN_BOOT_ROM={} qemu -C ../../boards/earlgrey-nexysvideo",
             rom_path.to_str().unwrap()
         ),
         Some(10_000),
@@ -78,7 +78,7 @@ fn main() {
     hifive1().unwrap_or_else(|e| panic!("hifive1 job failed with {}", e));
     println!("hifive1 SUCCESS.");
     println!("");
-    println!("Running opentitan tests...");
-    opentitan().unwrap_or_else(|e| panic!("opentitan job failed with {}", e));
-    println!("opentitan SUCCESS.");
+    println!("Running earlgrey_nexysvideo tests...");
+    earlgrey_nexysvideo().unwrap_or_else(|e| panic!("earlgrey_nexysvideo job failed with {}", e));
+    println!("earlgrey_nexysvideo SUCCESS.");
 }

@@ -592,4 +592,40 @@ impl Iomuxc {
             .lpi2c1_sda_select_input
             .modify(DAISY_SELECT_INPUT::DAISY::CLEAR);
     }
+
+    // LPUART2_RX_SELECT_INPUT
+    pub fn is_enabled_lpuart2_rx_select_input(&self) -> bool {
+        self.registers
+            .lpuart2_rx_select_input
+            .is_set(DAISY_SELECT_INPUT::DAISY)
+    }
+    pub fn enable_lpuart2_rx_select_input(&self) {
+        self.registers
+            .lpuart2_rx_select_input
+            .modify(DAISY_SELECT_INPUT::DAISY::SET);
+    }
+
+    pub fn disable_lpuart2_rx_select_input(&self) {
+        self.registers
+            .lpuart2_rx_select_input
+            .modify(DAISY_SELECT_INPUT::DAISY::CLEAR);
+    }
+
+    // LPUART2_TX_SELECT_INPUT
+    pub fn is_enabled_lpuart2_tx_select_input(&self) -> bool {
+        self.registers
+            .lpuart2_tx_select_input
+            .is_set(DAISY_SELECT_INPUT::DAISY)
+    }
+    pub fn enable_lpuart2_tx_select_input(&self) {
+        self.registers
+            .lpuart2_tx_select_input
+            .modify(DAISY_SELECT_INPUT::DAISY::SET);
+    }
+
+    pub fn disable_lpuart2_tx_select_input(&self) {
+        self.registers
+            .lpuart2_tx_select_input
+            .modify(DAISY_SELECT_INPUT::DAISY::CLEAR);
+    }
 }

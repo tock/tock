@@ -1,7 +1,7 @@
 use std::env;
 
 pub mod artemis_nano;
-pub mod opentitan;
+pub mod earlgrey_nexysvideo;
 
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -9,11 +9,11 @@ fn main() {
     println!("Tock board-runner starting...");
 
     for arg in args.iter() {
-        if arg == "opentitan" {
+        if arg == "earlgrey_nexysvideo" {
             println!();
-            println!("Running opentitan tests...");
-            opentitan::all_opentitan_tests();
-            println!("opentitan SUCCESS.");
+            println!("Running earlgrey_nexysvideo tests...");
+            earlgrey_nexysvideo::all_earlgrey_nexysvideo_tests();
+            println!("earlgrey_nexysvideo SUCCESS.");
         } else if arg == "artemis_nano" {
             println!();
             println!("Running Redboard tests...");
