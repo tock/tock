@@ -24,6 +24,8 @@ that Tock supports.
 | [SiFive HiFive1 Rev B](hifive1/README.md)                            | RISC-V          | FE310-G002     | openocd    | tockloader     | [Yes (5.1)][qemu] |
 | [Digilent Arty A-7 100T](arty_e21/README.md)                         | RISC-V RV32IMAC | SiFive E21     | openocd    | tockloader     | No                |
 | [Earlgrey on Nexys Video](earlgrey_nexysvideo/README.md)             | RISC-V RV32IMC  | EarlGrey       | custom     | custom         | [Yes (5.1)][qemu] |
+| [LiteX on Digilent Arty A-7](litex/arty/README.md)                   | RISC-V RV32I    | LiteX+VexRiscV | custom     | custom         | No                |
+| [Verilated LiteX Simulation](litex/sim/README.md)                    | RISC-V RV32I    | LiteX+VexRiscv | custom     | custom         | No                |
 
 # Out of Tree Boards
 
