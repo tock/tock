@@ -470,17 +470,35 @@ again to re-allow it with a different size.
 ---------------------------------
 
 The Read-Only Allow class is identical to the Read-Write Allow class
-with two exceptions: the buffer it passes to the kernel is read-only, and the
-process retains read access to the buffer. The kernel cannot write to the
-buffer. Read-Only Allow's semantics and calling conventions are otherwise
-identical to Read-Write Allow.
+with two exceptions: the buffer it passes to the kernel is read-only,
+and the process retains read access to the buffer. The kernel cannot
+write to the buffer. The semantics and calling conventions of
+Read-Only Allow are otherwise identical to Read-Write Allow.
 
-The Read-Only Allow class exists so that userspace can pass references to constant data
-to the kernel. Often, constant data is stored in flash rather than RAM. Constant data
-stored in flash cannot be passed with Allow because it is not within the writeable address
-space of the process, and so the call will fail. If there is no Read-Only allow, userspace
-processes must copy constant data into RAM buffers to pass with Allow, which wastes RAM and
-introduces more complex memory management.
+The Read-Only Allow class exists so that userspace can pass references
+to constant data to the kernel. This is useful, for example, when a
+process prints a constant string to the console; it wants to allow the
+constant string to the kernel as an application slice, then call
+a command that transmits the allowed slice. Constant strings are usually
+stored in flash, rather than RAM, which Tock's memory protection marks
+as read-only memory. Therefore, if a process tries to pass a constant
+string stored in flash through a Read-Write Allow, the allow will fail
+because the kernel detects that the passed slice is not writeable.
+
+Another common use case for Read-Only allow is passing test or
+diagnostic data. A U2F authentication key, for example, will often
+run some [cryptographic tests at boot](https://github.com/google/tock-on-titan/blob/master/userspace/u2f_app/fips_crypto_tests.c) to ensure correct
+operation. These tests store input data, keys, and expected output data
+as constants in flash. An encrypt operation, for example, wants to be
+able to pass a read-only input and read-only key to obtain a
+ciphertext. Without a read-only allow, all of this read-only data
+has to be copied into RAM, and for software engineering reasons
+these RAM buffers may be difficult to reuse.
+
+Having a Read-Only Allow allows a system call driver to clearly
+specify whether data is read-only or read-write and also saves
+processes the RAM overhead of having to copy read-only data into
+RAM so it can be passed with a Read-Write Allow.
 
 4.6 Memop (Class ID: 5)
 ---------------------------------
