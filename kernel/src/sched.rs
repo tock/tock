@@ -854,7 +854,7 @@ impl Kernel {
 
                 let ptr = NonNull::new(callback_ptr);
                 let callback = ptr.map_or(Callback::default(), |ptr| {
-                    Callback::new(process.appid(), callback_id, appdata, ptr.cast())
+                    Callback::new(process.appid(), callback_id, appdata, ptr)
                 });
                 let rval = platform.with_driver(driver_number, |driver| match driver {
                     Some(d) => {
