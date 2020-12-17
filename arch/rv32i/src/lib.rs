@@ -32,12 +32,19 @@ extern "C" {
     static mut _erelocate: u32;
 }
 
+#[cfg(all(target_arch = "riscv32", target_os = "none", chip_dauntless))]
+extern "C" {
+    // This function is provided by ports/dauntless/libs/runtime/start.S
+    // All patches to assembler part should be done to start.S!
+    pub fn _start();
+}
+
 /// Entry point of all programs (`_start`).
 ///
 /// It initializes the stack pointer, the frame pointer (needed for closures to
 /// work in start_rust) and the global pointer. Then it calls `reset_handler()`,
 /// the main entry point for Tock boards.
-#[cfg(all(target_arch = "riscv32", target_os = "none"))]
+#[cfg(all(target_arch = "riscv32", target_os = "none", not(chip_dauntless)))]
 #[link_section = ".riscv.start"]
 #[export_name = "_start"]
 #[naked]
@@ -128,6 +135,13 @@ pub extern "C" fn _start_trap() {
     unimplemented!()
 }
 
+#[cfg(all(target_arch = "riscv32", target_os = "none", chip_dauntless))]
+extern "C" {
+    // This function is provided by ports/dauntless/libs/runtime/start_trap.S
+    pub fn _start_trap();
+// May call to _disable_interrupt_trap_handler() and _start_trap_rust()
+}
+
 /// This is the trap handler function. This code is called on all traps,
 /// including interrupts, exceptions, and system calls from applications.
 ///
@@ -142,7 +156,7 @@ pub extern "C" fn _start_trap() {
 /// need to. If the trap happens while and application was executing, we have to
 /// save the application state and then resume the `switch_to()` function to
 /// correctly return back to the kernel.
-#[cfg(all(target_arch = "riscv32", target_os = "none"))]
+#[cfg(all(target_arch = "riscv32", target_os = "none", not(chip_dauntless)))]
 #[link_section = ".riscv.trap"]
 #[export_name = "_start_trap"]
 #[naked]
@@ -328,8 +342,15 @@ pub extern "C" fn _start_trap() {
     }
 }
 
+#[cfg(all(target_arch = "riscv32", target_os = "none", chip_dauntless))]
+extern "C" {
+    // This function is provided by ports/dauntless/libs/runtime/abort.S
+    // All patches to assembler part should be done to abort.S!
+    pub fn abort();
+}
+
 /// Ensure an abort symbol exists.
-#[cfg(all(target_arch = "riscv32", target_os = "none"))]
+#[cfg(all(target_arch = "riscv32", target_os = "none", not(chip_dauntless)))]
 #[link_section = ".init"]
 #[export_name = "abort"]
 pub extern "C" fn abort() {
