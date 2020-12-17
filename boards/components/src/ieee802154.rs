@@ -33,19 +33,19 @@ use kernel::{create_capability, static_init, static_init_half};
 // Setup static space for the objects.
 #[macro_export]
 macro_rules! ieee802154_component_helper {
-    ($R:ty, $A:ty) => {{
+    ($R:ty, $A:ty $(,)?) => {{
         use capsules::ieee802154::mac::AwakeMac;
         use core::mem::MaybeUninit;
         use kernel::hil::symmetric_encryption::{AES128Ctr, AES128, AES128CBC, AES128CCM};
 
-        static mut BUF1: MaybeUninit<capsules::aes_ccm::AES128CCM<'static, $A>> =
+        static mut BUF1: MaybeUninit<capsules::virtual_aes_ccm::VirtualAES128CCM<'static, $A>> =
             MaybeUninit::uninit();
         static mut BUF2: MaybeUninit<AwakeMac<'static, $R>> = MaybeUninit::uninit();
         static mut BUF3: MaybeUninit<
             capsules::ieee802154::framer::Framer<
                 'static,
                 AwakeMac<'static, $R>,
-                capsules::aes_ccm::AES128CCM<'static, $A>,
+                capsules::virtual_aes_ccm::VirtualAES128CCM<'static, $A>,
             >,
         > = MaybeUninit::uninit();
         (&mut BUF1, &mut BUF2, &mut BUF3)
@@ -58,7 +58,7 @@ pub struct Ieee802154Component<
 > {
     board_kernel: &'static kernel::Kernel,
     radio: &'static R,
-    aes: &'static A,
+    aes_mux: &'static capsules::virtual_aes_ccm::MuxAES128CCM<'static, A>,
     pan_id: capsules::net::ieee802154::PanID,
     short_addr: u16,
 }
@@ -71,14 +71,14 @@ impl<
     pub fn new(
         board_kernel: &'static kernel::Kernel,
         radio: &'static R,
-        aes: &'static A,
+        aes_mux: &'static capsules::virtual_aes_ccm::MuxAES128CCM<'static, A>,
         pan_id: capsules::net::ieee802154::PanID,
         short_addr: u16,
     ) -> Self {
         Self {
             board_kernel,
             radio,
-            aes,
+            aes_mux,
             pan_id,
             short_addr,
         }
@@ -101,13 +101,13 @@ impl<
     > Component for Ieee802154Component<R, A>
 {
     type StaticInput = (
-        &'static mut MaybeUninit<capsules::aes_ccm::AES128CCM<'static, A>>,
+        &'static mut MaybeUninit<capsules::virtual_aes_ccm::VirtualAES128CCM<'static, A>>,
         &'static mut MaybeUninit<capsules::ieee802154::mac::AwakeMac<'static, R>>,
         &'static mut MaybeUninit<
             capsules::ieee802154::framer::Framer<
                 'static,
                 AwakeMac<'static, R>,
-                capsules::aes_ccm::AES128CCM<'static, A>,
+                capsules::virtual_aes_ccm::VirtualAES128CCM<'static, A>,
             >,
         >,
     );
@@ -121,12 +121,12 @@ impl<
 
         let aes_ccm = static_init_half!(
             static_buffer.0,
-            capsules::aes_ccm::AES128CCM<'static, A>,
-            capsules::aes_ccm::AES128CCM::new(self.aes, &mut CRYPT_BUF)
+            capsules::virtual_aes_ccm::VirtualAES128CCM<'static, A>,
+            capsules::virtual_aes_ccm::VirtualAES128CCM::new(self.aes_mux, &mut CRYPT_BUF)
         );
 
-        self.aes.set_client(aes_ccm);
-        self.aes.enable();
+        aes_ccm.setup();
+        self.aes_mux.enable();
 
         // Keeps the radio on permanently; pass-through layer
         let awake_mac = static_init_half!(
@@ -142,7 +142,7 @@ impl<
             capsules::ieee802154::framer::Framer<
                 'static,
                 AwakeMac<'static, R>,
-                capsules::aes_ccm::AES128CCM<'static, A>,
+                capsules::virtual_aes_ccm::VirtualAES128CCM<'static, A>,
             >,
             capsules::ieee802154::framer::Framer::new(awake_mac, aes_ccm)
         );

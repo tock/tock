@@ -51,8 +51,8 @@ use kernel::static_init_half;
 #[macro_export]
 macro_rules! gpio_component_helper_max_pin {
     () => { 0usize };
-    ($a: expr, $b: expr, $($tail:expr,)*) => { $crate::gpio_component_helper_max_pin! (max ($a, $b), $($tail,)*) };
-    ($a: expr,) => { $a };
+    ($a:expr, $b:expr, $($tail:expr),* $(,)?) => { $crate::gpio_component_helper_max_pin! (max ($a, $b), $($tail,)*) };
+    ($a:expr $(,)?) => { $a };
 }
 
 #[macro_export]
@@ -64,7 +64,7 @@ macro_rules! gpio_component_helper_max_pin {
 macro_rules! gpio_component_helper {
     (
         $Pin:ty,
-        $($nr:literal => $pin:expr),*
+        $($nr:literal => $pin:expr),* $(,)?
     ) => {{
         use kernel::count_expressions;
         use kernel::hil::gpio::InterruptValueWrapper;
@@ -91,7 +91,7 @@ macro_rules! gpio_component_helper {
 
 #[macro_export]
 macro_rules! gpio_component_buf {
-    ($Pin:ty) => {{
+    ($Pin:ty $(,)?) => {{
         use capsules::gpio::GPIO;
         use core::mem::MaybeUninit;
         static mut BUF: MaybeUninit<GPIO<'static, $Pin>> = MaybeUninit::uninit();

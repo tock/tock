@@ -3,8 +3,6 @@
 use kernel::common::registers::{register_bitfields, register_structs, ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
 
-pub static mut SYSCTL: SysCtl = SysCtl::new();
-
 const SYSCTL_BASE: StaticRef<SysCtlRegisters> =
     unsafe { StaticRef::new(0xE004_3000 as *const SysCtlRegisters) };
 
@@ -406,7 +404,7 @@ pub struct SysCtl {
 }
 
 impl SysCtl {
-    const fn new() -> SysCtl {
+    pub const fn new() -> SysCtl {
         SysCtl {
             registers: SYSCTL_BASE,
         }

@@ -27,7 +27,7 @@ use kernel::static_init_half;
 
 #[macro_export]
 macro_rules! acomp_component_helper {
-    ($Channel:ty, $($P:expr),+ ) => {{
+    ($Channel:ty, $($P:expr),+ $(,)?) => {{
         use kernel::count_expressions;
         use kernel::static_init;
         const NUM_CHANNELS: usize = count_expressions!($($P),+);
@@ -43,7 +43,7 @@ macro_rules! acomp_component_helper {
 
 #[macro_export]
 macro_rules! acomp_component_buf {
-    ($Comp:ty) => {{
+    ($Comp:ty $(,)?) => {{
         use capsules::analog_comparator::AnalogComparator;
         use core::mem::MaybeUninit;
         static mut BUF: MaybeUninit<AnalogComparator<'static, $Comp>> = MaybeUninit::uninit();

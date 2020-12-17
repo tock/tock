@@ -135,7 +135,7 @@ pub struct Kernel {
 
     /// How many grant regions have been setup. This is incremented on every
     /// call to `create_grant()`. We need to explicitly track this so that when
-    /// processes are created they can allocated pointers for each grant.
+    /// processes are created they can be allocated pointers for each grant.
     grant_counter: Cell<usize>,
 
     /// Flag to mark that grants have been finalized. This means that the kernel
@@ -769,18 +769,17 @@ impl Kernel {
         // Handle each of the syscalls.
         match syscall {
             Syscall::Memop { operand, arg0 } => {
-                let res = memop::memop(process, operand, arg0);
+                let rval = memop::memop(process, operand, arg0);
                 if config::CONFIG.trace_syscalls {
                     debug!(
-                        "[{:?}] memop({}, {:#x}) = {:#x} = {:?}",
+                        "[{:?}] memop({}, {:#x}) = {:?}",
                         process.appid(),
                         operand,
                         arg0,
-                        usize::from(res),
-                        res
+                        rval
                     );
                 }
-                process.set_syscall_return_value(GenericSyscallReturnValue::Legacy(res.into()));
+                process.set_syscall_return_value(rval);
             }
             Syscall::Yield => {
                 if config::CONFIG.trace_syscalls {

@@ -17,7 +17,7 @@ use kernel::static_init_half;
 // Setup static space for the objects.
 #[macro_export]
 macro_rules! ft6x06_i2c_component_helper {
-    ($i2c_mux: expr) => {{
+    ($i2c_mux:expr $(,)?) => {{
         use capsules::ft6x06::Ft6x06;
         use capsules::ft6x06::NO_TOUCH;
         use capsules::virtual_i2c::I2CDevice;
