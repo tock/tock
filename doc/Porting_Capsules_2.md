@@ -1,4 +1,4 @@
-X1Porting Tock Capsules to Tock 2.0
+Porting Tock Capsules to Tock 2.0
 ============
 
 This guide covers how to port Tock capsules from the 1.x system call API
@@ -18,7 +18,8 @@ gives code examples.
     + [ReturnCode versus ErrorCode](#returncode-versus-errorcode)
   * [Examples of `allow_readwrite` and `allow_readonly`](#examples-of-allow_readwrite-and-allow_readonly)
   * [Example of `subscribe`](#example-of-subscribe)
-  * [Using `ReadOnlyAppSlice` and `ReadWriteAppSlice`](#using-readonlyappslice-and-readwriteappslice)
+  * [Using `ReadOnlyAppSlice` and `ReadWriteAppSlice`: `console`](#using-readonlyappslice-and-readwriteappslice-console)
+  * [Using `ReadOnlyAppSlice` and `ReadWriteAppSlice`: `spi_controller`](#using-readonlyappslice-and-readwriteappslice-spi_controller)
 
 <!-- tocstop -->
 
