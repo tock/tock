@@ -870,7 +870,7 @@ impl Kernel {
 
                 let ptr = NonNull::new(upcall_ptr);
                 let upcall = ptr.map_or(Upcall::default(), |ptr| {
-                    Upcall::new(process.appid(), upcall_id, appdata, ptr.cast())
+                    Upcall::new(process.appid(), upcall_id, appdata, ptr)
                 });
                 let rval = platform.with_driver(driver_number, |driver| match driver {
                     Some(d) => {

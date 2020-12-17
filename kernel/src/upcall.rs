@@ -172,7 +172,7 @@ struct ProcessUpcall {
     app_id: AppId,
     upcall_id: UpcallId,
     appdata: usize,
-    fn_ptr: NonNull<*mut ()>,
+    fn_ptr: NonNull<()>,
 }
 
 #[derive(Clone, Copy, Default)]
@@ -185,7 +185,7 @@ impl Upcall {
         app_id: AppId,
         upcall_id: UpcallId,
         appdata: usize,
-        fn_ptr: NonNull<*mut ()>,
+        fn_ptr: NonNull<()>,
     ) -> Upcall {
         Upcall {
             cb: Some(ProcessUpcall::new(app_id, upcall_id, appdata, fn_ptr)),
@@ -223,9 +223,15 @@ impl ProcessUpcall {
         app_id: AppId,
         upcall_id: UpcallId,
         appdata: usize,
+<<<<<<< HEAD:kernel/src/upcall.rs
         fn_ptr: NonNull<*mut ()>,
     ) -> ProcessUpcall {
         ProcessUpcall {
+=======
+        fn_ptr: NonNull<()>,
+    ) -> ProcessCallback {
+        ProcessCallback {
+>>>>>>> a281bc7ec (Callback: remove double (indirect) pointer):kernel/src/callback.rs
             app_id,
             upcall_id,
             appdata,
