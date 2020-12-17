@@ -41,7 +41,7 @@ const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultRespons
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
 #[link_section = ".stack_buffer"]
-pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
+pub static mut STACK_MEMORY: [u8; 0x2000] = [0; 0x2000];
 
 /// A structure representing this platform that holds references to all
 /// capsules for this platform.
@@ -79,8 +79,8 @@ impl Platform for STM32F412GDiscovery {
             capsules::adc::DRIVER_NUM => f(Some(Err(self.adc))),
             capsules::ft6x06::DRIVER_NUM => f(Some(Err(self.ft6x06))),
             capsules::touch::DRIVER_NUM => f(Some(Err(self.touch))),
-            capsules::screen::DRIVER_NUM => f(Some(Err(self.screen))),
-            capsules::temperature::DRIVER_NUM => f(Some(Err(self.temperature))),
+            capsules::screen::DRIVER_NUM => f(Some(Ok(self.screen))),
+            capsules::temperature::DRIVER_NUM => f(Some(Ok(self.temperature))),
             _ => f(None),
         }
     }

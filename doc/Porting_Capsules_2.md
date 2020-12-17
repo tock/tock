@@ -18,7 +18,8 @@ gives code examples.
     + [ReturnCode versus ErrorCode](#returncode-versus-errorcode)
   * [Examples of `allow_readwrite` and `allow_readonly`](#examples-of-allow_readwrite-and-allow_readonly)
   * [Example of `subscribe`](#example-of-subscribe)
-  * [Using `ReadOnlyAppSlice` and `ReadWriteAppSlice`](#using-readonlyappslice-and-readwriteappslice)
+  * [Using `ReadOnlyAppSlice` and `ReadWriteAppSlice`: `console`](#using-readonlyappslice-and-readwriteappslice-console)
+  * [Using `ReadOnlyAppSlice` and `ReadWriteAppSlice`: `spi_controller`](#using-readonlyappslice-and-readwriteappslice-spi_controller)
 
 <!-- tocstop -->
 
@@ -210,11 +211,7 @@ Here is a slightly more complex implementation of `command`, from the
         };
         match res {
             Ok(r) => {
-                let res = ErrorCode::try_from(r);
-                match res {
-                    Err(_) =>  CommandResult::success(),
-                    Ok(e) => CommandResult::failure(e)
-                }
+                CommandResult::from(r),
             },
             Err(e) => CommandResult::failure(e)
         }
@@ -238,7 +235,23 @@ it checks whether the `ReturnCode` can be turned into an `ErrorCode`.
 If not (`Err`), this means it was a success, and the result was a
 success, so it returns a `CommandResult::Success`. If it can be convered
 into an error code, or if the grant produced an error, it returns a
-`CommandResult::Failure`. 
+`CommandResult::Failure`.
+
+One of the requirements of commands in 2.0 is that each individual
+`command_num` have a single failure return type and a single success
+return size. This means that for a given `command_num`, it is not allowed
+for it to sometimes return `CommandResult::Success` and other times return
+`Command::SuccessWithValue`, as these are different sizes. As part of easing
+this transition, Tock 2.0 is deprecating the `SuccessWithValue` variant of
+`ReturnCode`. Fortunately, as of this writing, all uses of `SuccessWithValue`
+outside of implementations of `LegacyDriver::command()` have been removed,
+so you do not have to worry about the possibility of any `ReturnCode`
+being this variant -- `CommandResult::from(ReturnCode)` relies on this assumption.
+
+If, while porting, you encounter a construction of `ReturnCode::SuccessWithValue{v}`
+in `LegacyDriver::command()`, replace it with a construction of
+`CommandResult::success_u32(v)`, and make sure that it is impossible for that
+command_num to return `CommandResult::Success` in any other scenario.
 
 #### ReturnCode versus ErrorCode 
 
@@ -361,7 +374,7 @@ use `mem::swap`. Instead, one can use `Cell::replace`. For example:
 
 
 
-### Using `ReadOnlyAppSlice` and `ReadWriteAppSlice`
+### Using `ReadOnlyAppSlice` and `ReadWriteAppSlice`: `console`
 
 One key change in the Tock 2.0 API is explicitly acknowledging that
 application slices may disappear at any time. For example, if a process
@@ -410,4 +423,90 @@ call the underlying `transmit_buffer`:
 Note that the implementation looks at the length of the slice: it doesn't copy
 it out into grant state. If a slice was suddenly truncated, it checks and
 adjust the amount it has written.
+
+### Using `ReadOnlyAppSlice` and `ReadWriteAppSlice`: `spi_controller`
+
+This is a second example, taken from `spi_controller`. Because SPI transfers
+are bidirectional, there is an RX buffer and a TX buffer. However, a client
+can ignore what it receives, and only pass a TX buffer if it wants: the RX
+buffer can be zero length. As with other bus transfers, the SPI driver
+needs to handle the case when its buffers change in length under it. 
+For example, a client may make the following calls:
+
+  1. `allow_readwrite(rx_buf, 200)`
+  2. `allow_readonly(tx_buf, 200)`
+  3. `command(SPI_TRANSFER, 200)`
+  4. (after some time, while transfer is ongoing) `allow_readonly(tx_buf2, 100)`
+
+Because the underlying SPI tranfer typically uses DMA, the buffer
+passed to the peripheral driver is `static`. The `spi_controller` has
+fixed-size static buffers. It performs a transfer by copying
+application slice data into/from these buffers. A very long
+application transfer may be broken into multiple low-level transfers.
+
+If a transfer is smaller than the static buffer, it is simple:
+`spi_controller` copies the application slice data into its static
+transmit buffer and starts the transfer. If the process rescinds the
+buffer, it doesn't matter, as the capsule has the data. Similarly, the
+presence of a receive application slice only matters when the transfer
+completes, and the capsule decides whether to copy what it received out.
+
+The principal complexity is when the buffers change during a low-level
+transfer and then the capsule needs to figure out whether to continue
+with a subsequent low-level transfer or finish the operation. The code
+needs to be careful to not access past the end of a slice and cause a
+kernel panic.
+
+The code looks like this:
+
+```rust
+    // Assumes checks for busy/etc. already done
+    // Updates app.index to be index + length of op
+    fn do_next_read_write(&self, app: &mut App) {
+        let write_len = self.kernel_write.map_or(0, |kwbuf| {
+            let mut start = app.index;
+            let tmp_len = app.app_write.map_or(0, |src| {
+                let len = cmp::min(app.len - start, self.kernel_len.get());
+                let end = cmp::min(start + len, src.len());
+                start = cmp::min(start, end);
+
+                for (i, c) in src.as_ref()[start..end].iter().enumerate() {
+                    kwbuf[i] = *c;
+                }
+                end - start
+            });
+            app.index = start + tmp_len;
+            tmp_len
+        });
+        self.spi_master.read_write_bytes(
+            self.kernel_write.take().unwrap(),
+            self.kernel_read.take(),
+            write_len,
+        );
+    }
+```
+
+
+The capsule keeps track of its current write position with `app.index`. This
+points to the first byte of untransmitted data. When a transfer starts
+in response to a system call, the capsule checks that the requested length
+of the transfer is not longer than the length of the transmit buffer, and
+also that the receive buffer is either zero or at least as long. The
+total length of a transfer is stored in `app.len`.
+
+But if the transmit buffer is swapped during a transfer, it may be
+shorter than `app.index`. In the above code, the variable `len` stores
+the desired length of the low-level transfer: it's the minimum of data
+remaining in the transfer and the size of the low-level static buffer.
+The variable `end` stores the index of the last byte that can be
+safely transmitted: it is the minimum of the low-level transfer end
+(`start` + `len`) and the length of the application slice
+(`src.len()`). Note that `end` can be smaller than `start` if
+the application slice is shorter than the current write position.
+To handle this case, `start` is set to be the minimum of `start` and
+`end`: the transfer will be of length zero.
+
+
+
+
 
