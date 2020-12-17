@@ -36,10 +36,9 @@ use kernel::component::Component;
 use kernel::hil::time::Alarm;
 use kernel::{create_capability, static_init, static_init_half};
 
-const UDP_HDR_SIZE: usize = 8;
 const MAX_PAYLOAD_LEN: usize = super::udp_mux::MAX_PAYLOAD_LEN;
 
-static mut DRIVER_BUF: [u8; MAX_PAYLOAD_LEN - UDP_HDR_SIZE] = [0; MAX_PAYLOAD_LEN - UDP_HDR_SIZE];
+static mut DRIVER_BUF: [u8; MAX_PAYLOAD_LEN] = [0; MAX_PAYLOAD_LEN];
 
 // Setup static space for the objects.
 #[macro_export]
