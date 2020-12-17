@@ -13,8 +13,10 @@
 //! ```
 
 use core::cell::Cell;
+use core::convert::TryFrom;
+use core::mem;
 use kernel::hil;
-use kernel::{AppId, Callback, Grant, LegacyDriver, ReturnCode};
+use kernel::{AppId, Callback, CommandResult, Driver, ErrorCode, Grant, ReturnCode};
 
 /// Syscall driver number.
 use crate::driver;
@@ -23,7 +25,7 @@ pub const DRIVER_NUM: usize = driver::NUM::AmbientLight as usize;
 /// Per-process metadata
 #[derive(Default)]
 pub struct App {
-    callback: Option<Callback>,
+    callback: Callback,
     pending: bool,
 }
 
@@ -60,7 +62,7 @@ impl<'a> AmbientLight<'a> {
     }
 }
 
-impl LegacyDriver for AmbientLight<'_> {
+impl Driver for AmbientLight<'_> {
     /// Subscribe to light intensity readings
     ///
     /// ### `subscribe`
@@ -70,20 +72,28 @@ impl LegacyDriver for AmbientLight<'_> {
     fn subscribe(
         &self,
         subscribe_num: usize,
-        callback: Option<Callback>,
+        mut callback: Callback,
         app_id: AppId,
-    ) -> ReturnCode {
+    ) -> Result<Callback, (Callback, ErrorCode)> {
         match subscribe_num {
-            0 => self
+            0 => {
+                let rcode = self
                 .apps
                 .enter(app_id, |app, _| {
-                    app.callback = callback;
+                    mem::swap(&mut callback, &mut app.callback);
                     ReturnCode::SUCCESS
                 })
-                .unwrap_or_else(|err| err.into()),
-            _ => ReturnCode::ENOSUPPORT,
+                    .unwrap_or_else(|err|  err.into());
+
+                let eres = ErrorCode::try_from(rcode);
+                match eres {
+                    Ok(ecode) => Err((callback, ecode)),
+                    _ => Ok(callback),
+                } 
+            }
+            _ => Err((callback, ErrorCode::NOSUPPORT))
         }
-    }
+}
 
     /// Initiate light intensity readings
     ///
@@ -96,14 +106,14 @@ impl LegacyDriver for AmbientLight<'_> {
     ///
     /// - `0`: Check driver presence
     /// - `1`: Start a light sensor reading
-    fn command(&self, command_num: usize, _: usize, _: usize, appid: AppId) -> ReturnCode {
+    fn command(&self, command_num: usize, _: usize, _: usize, appid: AppId) -> CommandResult {
         match command_num {
-            0 /* check if present */ => ReturnCode::SUCCESS,
+            0 /* check if present */ => CommandResult::success(),
             1 => {
                 self.enqueue_sensor_reading(appid);
-                ReturnCode::SUCCESS
+                CommandResult::success()
             }
-            _ => ReturnCode::ENOSUPPORT,
+            _ => CommandResult::failure(ErrorCode::NOSUPPORT)
         }
     }
 }
@@ -114,9 +124,7 @@ impl hil::sensors::AmbientLightClient for AmbientLight<'_> {
         self.apps.each(|app| {
             if app.pending {
                 app.pending = false;
-                if let Some(mut callback) = app.callback {
-                    callback.schedule(lux, 0, 0);
-                }
+                app.callback.schedule(lux, 0, 0);
             }
         });
     }
