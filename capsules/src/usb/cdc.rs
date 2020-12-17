@@ -17,7 +17,11 @@ use super::usbc_client_ctrl::ClientCtrl;
 use kernel::common::cells::OptionalCell;
 use kernel::common::cells::TakeCell;
 use kernel::common::cells::VolatileCell;
+use kernel::common::dynamic_deferred_call::{
+    DeferredCallHandle, DynamicDeferredCall, DynamicDeferredCallClient,
+};
 use kernel::hil;
+use kernel::hil::time::{Alarm, AlarmClient};
 use kernel::hil::uart;
 use kernel::hil::usb::TransferType;
 use kernel::ReturnCode;
@@ -38,6 +42,11 @@ pub const MAX_CTRL_PACKET_SIZE_SAM4L: u8 = 8;
 pub const MAX_CTRL_PACKET_SIZE_NRF52840: u8 = 64;
 /// Platform-specific packet length for the `earlgrey` USB hardware.
 pub const MAX_CTRL_PACKET_SIZE_EARLGREY: u8 = 64;
+/// Number of ms to buffer uart transmissions before beginning to drop them.
+/// This is useful in that it allows users time to connect over CDC without losing message,
+/// while still guaranteeing that blocking uart transmissions eventually get a callback even
+/// if a debug output is not connected.
+pub const CDC_BUFFER_TIMEOUT_MS: u32 = 10000;
 
 const N_ENDPOINTS: usize = 3;
 
@@ -93,7 +102,7 @@ impl From<u8> for CDCCntrlMessage {
 
 /// Implementation of the Abstract Control Model (ACM) for the Communications
 /// Class Device (CDC) over USB.
-pub struct CdcAcm<'a, U: 'a> {
+pub struct CdcAcm<'a, U: 'a, A: 'a + Alarm<'a>> {
     /// Helper USB client library for handling many USB operations.
     client_ctrl: ClientCtrl<'a, 'static, U>,
 
@@ -127,15 +136,43 @@ pub struct CdcAcm<'a, U: 'a> {
     rx_offset: Cell<usize>,
     /// The RX client to use when RX data is received.
     rx_client: OptionalCell<&'a dyn uart::ReceiveClient>,
+
+    /// Alarm used to indicate that data should be dropped and callbacks
+    /// returned.
+    timeout_alarm: &'a A,
+    /// Used to track whether we are in the initial boot up period during which
+    /// messages can be queued despite a CDC host not being connected (which is
+    /// useful for ensuring debug messages early in the boot process can be
+    /// delivered over the console).
+    boot_period: Cell<bool>,
+
+    /// Deferred Caller
+    deferred_caller: &'a DynamicDeferredCall,
+    /// Deferred Call Handle
+    handle: OptionalCell<DeferredCallHandle>,
+    /// Flag to mark we are waiting on a deferred call for dropping a TX. This
+    /// can happen if an upper layer told us to transmit a buffer, but there is
+    /// no host connected and therefore we cannot actually transmit. However,
+    /// normal UART semantics are that we can always send (perhaps with a
+    /// delay), even if nothing is actually listening. To keep the upper layers
+    /// happy and to allow this CDC layer to just drop messages, we always
+    /// return SUCCESS for TX, and then use a deferred call to signal the
+    /// transmit done callback.
+    deferred_call_pending_droptx: Cell<bool>,
+    /// Flag to mark we need a deferred call to signal a callback after an RX
+    /// abort occurs.
+    deferred_call_pending_abortrx: Cell<bool>,
 }
 
-impl<'a, U: hil::usb::UsbController<'a>> CdcAcm<'a, U> {
+impl<'a, U: hil::usb::UsbController<'a>, A: 'a + Alarm<'a>> CdcAcm<'a, U, A> {
     pub fn new(
         controller: &'a U,
         max_ctrl_packet_size: u8,
         vendor_id: u16,
         product_id: u16,
         strings: &'static [&'static str; 3],
+        timeout_alarm: &'a A,
+        deferred_caller: &'a DynamicDeferredCall,
     ) -> Self {
         let interfaces: &mut [InterfaceDescriptor] = &mut [
             InterfaceDescriptor {
@@ -227,7 +264,7 @@ impl<'a, U: hil::usb::UsbController<'a>> CdcAcm<'a, U> {
                 Some(cdc_descriptors),
             );
 
-        CdcAcm {
+        Self {
             client_ctrl: ClientCtrl::new(
                 controller,
                 device_descriptor_buffer,
@@ -252,7 +289,17 @@ impl<'a, U: hil::usb::UsbController<'a>> CdcAcm<'a, U> {
             rx_len: Cell::new(0),
             rx_offset: Cell::new(0),
             rx_client: OptionalCell::empty(),
+            timeout_alarm,
+            boot_period: Cell::new(true),
+            deferred_caller,
+            handle: OptionalCell::empty(),
+            deferred_call_pending_droptx: Cell::new(false),
+            deferred_call_pending_abortrx: Cell::new(false),
         }
+    }
+
+    pub fn initialize_callback_handle(&self, handle: DeferredCallHandle) {
+        self.handle.replace(handle);
     }
 
     #[inline]
@@ -264,9 +311,25 @@ impl<'a, U: hil::usb::UsbController<'a>> CdcAcm<'a, U> {
     fn buffer(&'a self, i: usize) -> &'a [VolatileCell<u8>; 64] {
         &self.buffers[i - 1].buf
     }
+
+    /// This is a helper function used to indicate successful uart transmission to
+    /// a higher layer client despite not actually being connected to a host. Allows
+    /// blocking debug interfaces to function in the same way they do when an actual UART
+    /// interface is in use. This should only be called in an upcall.
+    fn indicate_tx_success(&self) {
+        self.tx_len.set(0);
+        self.tx_offset.set(0);
+        self.tx_client.map(|client| {
+            self.tx_buffer.take().map(|buf| {
+                client.transmitted_buffer(buf, 0, ReturnCode::FAIL);
+            });
+        });
+    }
 }
 
-impl<'a, U: hil::usb::UsbController<'a>> hil::usb::Client<'a> for CdcAcm<'a, U> {
+impl<'a, U: hil::usb::UsbController<'a>, A: 'a + Alarm<'a>> hil::usb::Client<'a>
+    for CdcAcm<'a, U, A>
+{
     fn enable(&'a self) {
         // Set up the default control endpoint
         self.client_ctrl.enable();
@@ -283,6 +346,11 @@ impl<'a, U: hil::usb::UsbController<'a>> hil::usb::Client<'a> for CdcAcm<'a, U> 
             .endpoint_out_enable(TransferType::Bulk, ENDPOINT_OUT_NUM);
 
         self.state.set(State::Enabled);
+
+        self.timeout_alarm.set_alarm(
+            self.timeout_alarm.now(),
+            A::ticks_from_ms(CDC_BUFFER_TIMEOUT_MS),
+        );
     }
 
     fn attach(&'a self) {
@@ -521,7 +589,7 @@ impl<'a, U: hil::usb::UsbController<'a>> hil::usb::Client<'a> for CdcAcm<'a, U> 
     }
 }
 
-impl<'a, U: hil::usb::UsbController<'a>> uart::Configure for CdcAcm<'a, U> {
+impl<'a, U: hil::usb::UsbController<'a>, A: 'a + Alarm<'a>> uart::Configure for CdcAcm<'a, U, A> {
     fn configure(&self, _parameters: uart::Parameters) -> ReturnCode {
         // Since this is not a real UART, we don't need to consider these
         // parameters.
@@ -529,7 +597,9 @@ impl<'a, U: hil::usb::UsbController<'a>> uart::Configure for CdcAcm<'a, U> {
     }
 }
 
-impl<'a, U: hil::usb::UsbController<'a>> uart::Transmit<'a> for CdcAcm<'a, U> {
+impl<'a, U: hil::usb::UsbController<'a>, A: 'a + Alarm<'a>> uart::Transmit<'a>
+    for CdcAcm<'a, U, A>
+{
     fn set_transmit_client(&self, client: &'a dyn uart::TransmitClient) {
         self.tx_client.set(client);
     }
@@ -558,8 +628,17 @@ impl<'a, U: hil::usb::UsbController<'a>> uart::Transmit<'a> for CdcAcm<'a, U> {
                 // Then signal to the lower layer that we are ready to do a TX
                 // by putting data in the IN endpoint.
                 self.controller().endpoint_resume_in(ENDPOINT_IN_NUM);
+                (ReturnCode::SUCCESS, None)
+            } else if self.boot_period.get() {
+                // indicate success because we will try to send it once a host connects
+                (ReturnCode::SUCCESS, None)
+            } else {
+                // indicate success, but we will not actually queue this message -- just schedule
+                // a deferred callback to return the buffer immediately.
+                self.deferred_call_pending_droptx.set(true);
+                self.handle.map(|handle| self.deferred_caller.set(*handle));
+                (ReturnCode::SUCCESS, None)
             }
-            (ReturnCode::SUCCESS, None)
         }
     }
 
@@ -572,7 +651,7 @@ impl<'a, U: hil::usb::UsbController<'a>> uart::Transmit<'a> for CdcAcm<'a, U> {
     }
 }
 
-impl<'a, U: hil::usb::UsbController<'a>> uart::Receive<'a> for CdcAcm<'a, U> {
+impl<'a, U: hil::usb::UsbController<'a>, A: 'a + Alarm<'a>> uart::Receive<'a> for CdcAcm<'a, U, A> {
     fn set_receive_client(&self, client: &'a dyn uart::ReceiveClient) {
         self.rx_client.set(client);
     }
@@ -596,7 +675,16 @@ impl<'a, U: hil::usb::UsbController<'a>> uart::Receive<'a> for CdcAcm<'a, U> {
     }
 
     fn receive_abort(&self) -> ReturnCode {
-        ReturnCode::FAIL
+        if self.rx_buffer.is_none() {
+            // If we have nothing pending then aborting is very easy.
+            ReturnCode::SUCCESS
+        } else {
+            // If we do have a receive pending then we need to start a deferred
+            // call to set the callback and return `EBUSY`.
+            self.deferred_call_pending_abortrx.set(true);
+            self.handle.map(|handle| self.deferred_caller.set(*handle));
+            ReturnCode::EBUSY
+        }
     }
 
     fn receive_word(&self) -> ReturnCode {
@@ -604,5 +692,51 @@ impl<'a, U: hil::usb::UsbController<'a>> uart::Receive<'a> for CdcAcm<'a, U> {
     }
 }
 
-impl<'a, U: hil::usb::UsbController<'a>> uart::Uart<'a> for CdcAcm<'a, U> {}
-impl<'a, U: hil::usb::UsbController<'a>> uart::UartData<'a> for CdcAcm<'a, U> {}
+impl<'a, U: hil::usb::UsbController<'a>, A: 'a + Alarm<'a>> AlarmClient for CdcAcm<'a, U, A> {
+    fn alarm(&self) {
+        self.boot_period.set(false);
+        if self.state.get() == State::Connected {
+            // we are already connected, so any queued messages are going to be sent.
+            // do nothing.
+        } else {
+            // no client has connected, but we do not want to block indefinitely, so go ahead
+            // and deliver a callback.
+            self.indicate_tx_success();
+        }
+    }
+}
+
+impl<'a, U: hil::usb::UsbController<'a>, A: 'a + Alarm<'a>> DynamicDeferredCallClient
+    for CdcAcm<'a, U, A>
+{
+    fn call(&self, _handle: DeferredCallHandle) {
+        if self.deferred_call_pending_droptx.replace(false) {
+            self.indicate_tx_success()
+        }
+
+        if self.deferred_call_pending_abortrx.replace(false) {
+            // Signal the RX callback with ECANCEL error.
+            self.rx_buffer.take().map(|rx_buf| {
+                let rx_offset = self.rx_offset.get();
+
+                // The total number of bytes we have received so far.
+                let total_received_bytes = rx_offset;
+
+                self.rx_client.map(move |client| {
+                    client.received_buffer(
+                        rx_buf,
+                        total_received_bytes,
+                        ReturnCode::ECANCEL,
+                        uart::Error::None,
+                    );
+                });
+            });
+        }
+    }
+}
+
+impl<'a, U: hil::usb::UsbController<'a>, A: 'a + Alarm<'a>> uart::Uart<'a> for CdcAcm<'a, U, A> {}
+impl<'a, U: hil::usb::UsbController<'a>, A: 'a + Alarm<'a>> uart::UartData<'a>
+    for CdcAcm<'a, U, A>
+{
+}

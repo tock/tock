@@ -16,14 +16,15 @@ use kernel::{MLFQProcessNode, MLFQSched};
 
 #[macro_export]
 macro_rules! mlfq_component_helper {
-    ($A:ty, $N:expr) => {{
+    ($A:ty, $N:expr $(,)?) => {{
         use core::mem::MaybeUninit;
         use kernel::static_init;
         use kernel::{MLFQProcessNode, MLFQSched};
         static mut BUF1: MaybeUninit<VirtualMuxAlarm<'static, $A>> = MaybeUninit::uninit();
         static mut BUF2: MaybeUninit<MLFQSched<'static, VirtualMuxAlarm<'static, $A>>> =
             MaybeUninit::uninit();
-        static mut BUF3: [MaybeUninit<MLFQProcessNode<'static>>; $N] = [MaybeUninit::uninit(); $N];
+        const UNINIT: MaybeUninit<MLFQProcessNode<'static>> = MaybeUninit::uninit();
+        static mut BUF3: [MaybeUninit<MLFQProcessNode<'static>>; $N] = [UNINIT; $N];
         (&mut BUF1, &mut BUF2, &mut BUF3)
     };};
 }

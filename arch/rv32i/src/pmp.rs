@@ -26,7 +26,7 @@
 /// number of regions we can protect is `$x/2`.
 #[macro_export]
 macro_rules! PMPConfigMacro {
-    ( $x:expr ) => {
+    ( $x:expr $(,)? ) => {
 
 use core::cell::Cell;
 use core::cmp;

@@ -32,7 +32,7 @@ use kernel::static_init;
 
 #[macro_export]
 macro_rules! screen_buffer_size {
-    ($s:literal) => {{
+    ($s:literal $(,)?) => {{
         static mut BUFFER: [u8; $s] = [0; $s];
         (&mut BUFFER)
     }};

@@ -4,8 +4,6 @@ use core::cell::Cell;
 use kernel::common::registers::{register_bitfields, register_structs, ReadWrite};
 use kernel::common::StaticRef;
 
-pub static mut REF: Ref = Ref::new();
-
 register_structs! {
     /// REF
     RefRegisters {
@@ -127,7 +125,7 @@ pub trait AnalogReference {
 }
 
 impl Ref {
-    const fn new() -> Ref {
+    pub const fn new() -> Ref {
         Ref {
             registers: REF_BASE,
             ref_voltage: Cell::new(ReferenceVoltage::Volt1_2),
