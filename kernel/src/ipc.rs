@@ -41,10 +41,11 @@ struct IPCData<const NUM_PROCS: usize> {
 impl<const NUM_PROCS: usize> Default for IPCData<NUM_PROCS> {
     fn default() -> IPCData<NUM_PROCS> {
         const DEFAULT_RW_APP_SLICE: ReadWriteAppSlice = ReadWriteAppSlice::const_default();
+        const DEFAULT_CALLBACK: Callback = Callback::const_default();
         IPCData {
             shared_memory: [DEFAULT_RW_APP_SLICE; NUM_PROCS],
             search_slice: ReadOnlyAppSlice::default(),
-            client_callbacks: [Callback::default(); NUM_PROCS],
+            client_callbacks: [DEFAULT_CALLBACK; NUM_PROCS],
             callback: Callback::default(),
         }
     }
@@ -73,16 +74,19 @@ impl<const NUM_PROCS: usize> IPC<NUM_PROCS> {
     ) -> Result<(), process::Error> {
         self.data
             .enter(schedule_on, |mydata, _| {
-                let mut callback = match cb_type {
-                    IPCCallbackType::Service => mydata.callback,
-                    IPCCallbackType::Client => match called_from.index() {
-                        Some(i) => *mydata
-                            .client_callbacks
-                            .get(i)
-                            .unwrap_or(&Callback::default()),
-                        None => Callback::default(),
-                    },
+                let mut with_callback = |f: &dyn Fn(&mut Callback)| {
+                    match cb_type {
+                        IPCCallbackType::Service => f(&mut mydata.callback),
+                        IPCCallbackType::Client => match called_from.index() {
+                            Some(i) => f(mydata
+                                .client_callbacks
+                                .get_mut(i)
+                                .unwrap_or(&mut Callback::default())),
+                            None => f(&mut Callback::default()),
+                        },
+                    };
                 };
+
                 self.data.enter(called_from, |called_from_data, _| {
                     // If the other app shared a buffer with us, make
                     // sure we have access to that slice and then call
@@ -105,14 +109,19 @@ impl<const NUM_PROCS: usize> IPC<NUM_PROCS> {
                                                 slice.len(),
                                             )
                                         });
-                                    callback.schedule(
-                                        called_from.id() + 1,
-                                        crate::mem::Read::len(slice),
-                                        crate::mem::Read::ptr(slice) as usize,
-                                    );
+
+                                    with_callback(&|cb: &mut Callback| {
+                                        cb.schedule(
+                                            called_from.id() + 1,
+                                            crate::mem::Read::len(slice),
+                                            crate::mem::Read::ptr(slice) as usize,
+                                        );
+                                    });
                                 }
                                 None => {
-                                    callback.schedule(called_from.id() + 1, 0, 0);
+                                    with_callback(&|cb: &mut Callback| {
+                                        cb.schedule(called_from.id() + 1, 0, 0);
+                                    });
                                 }
                             }
                         }
@@ -142,13 +151,19 @@ impl<const NUM_PROCS: usize> Driver for IPC<NUM_PROCS> {
             // application name stored in the TBF header of the application.
             // The callback that is passed to subscribe is called when another
             // process notifies the server process.
-            0 => self
-                .data
-                .enter(app_id, |data, _| {
-                    core::mem::swap(&mut data.callback, &mut callback);
-                    callback
-                })
-                .map_err(|e| (callback, e.into())),
+            0 => {
+                let res = self
+                    .data
+                    .enter(app_id, |data, _| {
+                        core::mem::swap(&mut data.callback, &mut callback);
+                    })
+                    .map_err(Into::into);
+
+                match res {
+                    Ok(()) => Ok(callback),
+                    Err(e) => Err((callback, e)),
+                }
+            }
 
             // subscribe(>=1)
             //
@@ -166,7 +181,7 @@ impl<const NUM_PROCS: usize> Driver for IPC<NUM_PROCS> {
                 let otherapp = self.data.kernel.lookup_app_by_identifier(app_identifier);
 
                 // This type annotation is here for documentation, it's not actually necessary
-                let result: Result<Result<Callback, ErrorCode>, process::Error> =
+                let result: Result<Result<(), ErrorCode>, process::Error> =
                     self.data.enter(app_id, |data, _| {
                         match otherapp.map_or(None, |oa| oa.index()) {
                             Some(i) => {
@@ -174,17 +189,18 @@ impl<const NUM_PROCS: usize> Driver for IPC<NUM_PROCS> {
                                     Err(ErrorCode::INVAL)
                                 } else {
                                     core::mem::swap(&mut data.client_callbacks[i], &mut callback);
-                                    Ok(callback)
+                                    Ok(())
                                 }
                             }
                             None => Err(ErrorCode::INVAL),
                         }
                     });
-                // OK, some type sorcery to transform result into what we want
-                result
-                    .map_err(|e| e.into()) // transform the outer Result's process::Error into an ErrorCode
-                    .and_then(|x| x) // Flatten the Result<Result<T,E>, E> into a Result<T,E>
-                    .map_err(|e| (callback, e)) // Add `callback` to the Error case
+
+                match result {
+                    Ok(Ok(())) => Ok(callback),
+                    Ok(Err(err)) => Err((callback, err)),
+                    Err(process_error) => Err((callback, process_error.into())),
+                }
             }
         }
     }
