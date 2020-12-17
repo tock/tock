@@ -136,16 +136,32 @@ pub struct CdcAcm<'a, U: 'a, A: 'a + Alarm<'a>> {
     rx_offset: Cell<usize>,
     /// The RX client to use when RX data is received.
     rx_client: OptionalCell<&'a dyn uart::ReceiveClient>,
-    /// Alarm used to indicate that data should be dropped and callbacks returned.
+
+    /// Alarm used to indicate that data should be dropped and callbacks
+    /// returned.
     timeout_alarm: &'a A,
-    /// Used to track whether we are in the initial boot up period during which messages
-    /// can be queued despite a CDC host not being connected (which is useful for ensuring debug
-    /// messages early in the boot process can be delivered over the console)
+    /// Used to track whether we are in the initial boot up period during which
+    /// messages can be queued despite a CDC host not being connected (which is
+    /// useful for ensuring debug messages early in the boot process can be
+    /// delivered over the console).
     boot_period: Cell<bool>,
+
     /// Deferred Caller
     deferred_caller: &'a DynamicDeferredCall,
     /// Deferred Call Handle
     handle: OptionalCell<DeferredCallHandle>,
+    /// Flag to mark we are waiting on a deferred call for dropping a TX. This
+    /// can happen if an upper layer told us to transmit a buffer, but there is
+    /// no host connected and therefore we cannot actually transmit. However,
+    /// normal UART semantics are that we can always send (perhaps with a
+    /// delay), even if nothing is actually listening. To keep the upper layers
+    /// happy and to allow this CDC layer to just drop messages, we always
+    /// return SUCCESS for TX, and then use a deferred call to signal the
+    /// transmit done callback.
+    deferred_call_pending_droptx: Cell<bool>,
+    /// Flag to mark we need a deferred call to signal a callback after an RX
+    /// abort occurs.
+    deferred_call_pending_abortrx: Cell<bool>,
 }
 
 impl<'a, U: hil::usb::UsbController<'a>, A: 'a + Alarm<'a>> CdcAcm<'a, U, A> {
@@ -277,6 +293,8 @@ impl<'a, U: hil::usb::UsbController<'a>, A: 'a + Alarm<'a>> CdcAcm<'a, U, A> {
             boot_period: Cell::new(true),
             deferred_caller,
             handle: OptionalCell::empty(),
+            deferred_call_pending_droptx: Cell::new(false),
+            deferred_call_pending_abortrx: Cell::new(false),
         }
     }
 
@@ -617,6 +635,7 @@ impl<'a, U: hil::usb::UsbController<'a>, A: 'a + Alarm<'a>> uart::Transmit<'a>
             } else {
                 // indicate success, but we will not actually queue this message -- just schedule
                 // a deferred callback to return the buffer immediately.
+                self.deferred_call_pending_droptx.set(true);
                 self.handle.map(|handle| self.deferred_caller.set(*handle));
                 (ReturnCode::SUCCESS, None)
             }
@@ -656,7 +675,16 @@ impl<'a, U: hil::usb::UsbController<'a>, A: 'a + Alarm<'a>> uart::Receive<'a> fo
     }
 
     fn receive_abort(&self) -> ReturnCode {
-        ReturnCode::FAIL
+        if self.rx_buffer.is_none() {
+            // If we have nothing pending then aborting is very easy.
+            ReturnCode::SUCCESS
+        } else {
+            // If we do have a receive pending then we need to start a deferred
+            // call to set the callback and return `EBUSY`.
+            self.deferred_call_pending_abortrx.set(true);
+            self.handle.map(|handle| self.deferred_caller.set(*handle));
+            ReturnCode::EBUSY
+        }
     }
 
     fn receive_word(&self) -> ReturnCode {
@@ -682,7 +710,28 @@ impl<'a, U: hil::usb::UsbController<'a>, A: 'a + Alarm<'a>> DynamicDeferredCallC
     for CdcAcm<'a, U, A>
 {
     fn call(&self, _handle: DeferredCallHandle) {
-        self.indicate_tx_success();
+        if self.deferred_call_pending_droptx.replace(false) {
+            self.indicate_tx_success()
+        }
+
+        if self.deferred_call_pending_abortrx.replace(false) {
+            // Signal the RX callback with ECANCEL error.
+            self.rx_buffer.take().map(|rx_buf| {
+                let rx_offset = self.rx_offset.get();
+
+                // The total number of bytes we have received so far.
+                let total_received_bytes = rx_offset;
+
+                self.rx_client.map(move |client| {
+                    client.received_buffer(
+                        rx_buf,
+                        total_received_bytes,
+                        ReturnCode::ECANCEL,
+                        uart::Error::None,
+                    );
+                });
+            });
+        }
     }
 }
 
