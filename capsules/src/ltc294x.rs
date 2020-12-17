@@ -46,7 +46,7 @@
 //! ```
 
 use core::cell::Cell;
-use kernel::common::cells::{OptionalCell, TakeCell};
+use kernel::common::cells::{MapCell, OptionalCell, TakeCell};
 use kernel::hil::gpio;
 use kernel::hil::i2c;
 use kernel::ReturnCode;
@@ -407,14 +407,14 @@ impl gpio::Client for LTC294X<'_> {
 /// interface for providing access to applications.
 pub struct LTC294XDriver<'a> {
     ltc294x: &'a LTC294X<'a>,
-    callback: OptionalCell<Callback>,
+    callback: MapCell<Callback>,
 }
 
 impl<'a> LTC294XDriver<'a> {
     pub fn new(ltc: &'a LTC294X<'a>) -> LTC294XDriver<'a> {
         LTC294XDriver {
             ltc294x: ltc,
-            callback: OptionalCell::empty(),
+            callback: MapCell::empty(),
         }
     }
 }
@@ -491,7 +491,11 @@ impl LegacyDriver for LTC294XDriver<'_> {
     ) -> ReturnCode {
         match subscribe_num {
             0 => {
-                self.callback.insert(callback);
+                if let Some(cb) = callback {
+                    self.callback.replace(cb);
+                } else {
+                    self.callback.take();
+                }
                 ReturnCode::SUCCESS
             }
 

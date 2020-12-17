@@ -415,7 +415,9 @@ impl hil::nonvolatile_storage::NonvolatileStorageClient<'static> for Nonvolatile
                         self.buffer.replace(buffer);
 
                         // And then signal the app.
-                        app.callback_read.map(|mut cb| cb.schedule(length, 0, 0));
+                        app.callback_read
+                            .as_mut()
+                            .map(|cb| cb.schedule(length, 0, 0));
                     });
                 }
             }
@@ -439,7 +441,9 @@ impl hil::nonvolatile_storage::NonvolatileStorageClient<'static> for Nonvolatile
                         self.buffer.replace(buffer);
 
                         // And then signal the app.
-                        app.callback_write.map(|mut cb| cb.schedule(length, 0, 0));
+                        app.callback_write
+                            .as_mut()
+                            .map(|cb| cb.schedule(length, 0, 0));
                     });
                 }
             }

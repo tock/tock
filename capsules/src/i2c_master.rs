@@ -213,7 +213,7 @@ impl<I: i2c::I2CMaster> i2c::I2CHwMasterClient for I2CMasterDriver<I> {
                 }
 
                 // signal to driver that tx complete
-                app.callback.map(|mut cb| {
+                app.callback.as_mut().map(|cb| {
                     cb.schedule(0, 0, 0);
                 });
             })

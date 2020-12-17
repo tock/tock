@@ -1421,7 +1421,7 @@ impl<'a, A: hil::time::Alarm<'a>> SDCardDriver<'a, A> {
 impl<'a, A: hil::time::Alarm<'a>> SDCardClient for SDCardDriver<'a, A> {
     fn card_detection_changed(&self, installed: bool) {
         self.app.map(|app| {
-            app.callback.map(|mut cb| {
+            app.callback.as_mut().map(|cb| {
                 cb.schedule(0, installed as usize, 0);
             });
         });
@@ -1429,7 +1429,7 @@ impl<'a, A: hil::time::Alarm<'a>> SDCardClient for SDCardDriver<'a, A> {
 
     fn init_done(&self, block_size: u32, total_size: u64) {
         self.app.map(|app| {
-            app.callback.map(|mut cb| {
+            app.callback.as_mut().map(|cb| {
                 let size_in_kb = ((total_size >> 10) & 0xFFFFFFFF) as usize;
                 cb.schedule(1, block_size as usize, size_in_kb);
             });
@@ -1457,7 +1457,7 @@ impl<'a, A: hil::time::Alarm<'a>> SDCardClient for SDCardDriver<'a, A> {
             // perform callback
             // Note that we are explicitly performing the callback even if no
             // data was read or if the app's read_buffer doesn't exist
-            app.callback.map(|mut cb| {
+            app.callback.as_mut().map(|cb| {
                 cb.schedule(2, read_len, 0);
             });
         });
@@ -1467,7 +1467,7 @@ impl<'a, A: hil::time::Alarm<'a>> SDCardClient for SDCardDriver<'a, A> {
         self.kernel_buf.replace(buffer);
 
         self.app.map(|app| {
-            app.callback.map(|mut cb| {
+            app.callback.as_mut().map(|cb| {
                 cb.schedule(3, 0, 0);
             });
         });
@@ -1475,7 +1475,7 @@ impl<'a, A: hil::time::Alarm<'a>> SDCardClient for SDCardDriver<'a, A> {
 
     fn error(&self, error: u32) {
         self.app.map(|app| {
-            app.callback.map(|mut cb| {
+            app.callback.as_mut().map(|cb| {
                 cb.schedule(4, error as usize, 0);
             });
         });

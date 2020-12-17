@@ -38,7 +38,7 @@
 //! ```
 
 use core::cell::Cell;
-use kernel::common::cells::{OptionalCell, TakeCell};
+use kernel::common::cells::{MapCell, OptionalCell, TakeCell};
 use kernel::hil::i2c;
 use kernel::{AppId, Callback, LegacyDriver, ReturnCode};
 
@@ -361,14 +361,14 @@ impl i2c::I2CClient for MAX17205<'_> {
 
 pub struct MAX17205Driver<'a> {
     max17205: &'a MAX17205<'a>,
-    callback: OptionalCell<Callback>,
+    callback: MapCell<Callback>,
 }
 
 impl<'a> MAX17205Driver<'a> {
     pub fn new(max: &'a MAX17205) -> MAX17205Driver<'a> {
         MAX17205Driver {
             max17205: max,
-            callback: OptionalCell::empty(),
+            callback: MapCell::empty(),
         }
     }
 }
@@ -424,7 +424,11 @@ impl LegacyDriver for MAX17205Driver<'_> {
     ) -> ReturnCode {
         match subscribe_num {
             0 => {
-                self.callback.insert(callback);
+                if let Some(cb) = callback {
+                    self.callback.replace(cb);
+                } else {
+                    self.callback.take();
+                }
                 ReturnCode::SUCCESS
             }
 

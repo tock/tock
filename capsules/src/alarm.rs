@@ -17,7 +17,6 @@ enum Expiration {
     Enabled { reference: u32, dt: u32 },
 }
 
-#[derive(Copy, Clone)]
 pub struct AlarmData {
     expiration: Expiration,
     callback: Callback,

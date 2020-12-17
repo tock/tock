@@ -76,7 +76,7 @@ where
                             self.usbc_client.attach();
 
                             // Schedule a callback immediately
-                            if let Some(mut callback) = app.callback {
+                            if let Some(ref mut callback) = &mut app.callback {
                                 callback.schedule(From::from(ReturnCode::SUCCESS), 0, 0);
                             }
                             app.awaiting = None;

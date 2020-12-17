@@ -90,7 +90,7 @@ impl hil::i2c::I2CHwMasterClient for I2CMasterSlaveDriver<'_> {
                 self.master_buffer.replace(buffer);
 
                 self.app.map(|app| {
-                    app.callback.map(|mut cb| {
+                    app.callback.as_mut().map(|cb| {
                         cb.schedule(0, err as usize, 0);
                     });
                 });
@@ -109,7 +109,7 @@ impl hil::i2c::I2CHwMasterClient for I2CMasterSlaveDriver<'_> {
                         self.master_buffer.replace(buffer);
                     });
 
-                    app.callback.map(|mut cb| {
+                    app.callback.as_mut().map(|cb| {
                         cb.schedule(1, err as usize, 0);
                     });
                 });
@@ -122,7 +122,7 @@ impl hil::i2c::I2CHwMasterClient for I2CMasterSlaveDriver<'_> {
                         app_buffer.as_mut()[..len].copy_from_slice(&buffer[..len]);
                         self.master_buffer.replace(buffer);
                     });
-                    app.callback.map(|mut cb| {
+                    app.callback.as_mut().map(|cb| {
                         cb.schedule(7, err as usize, 0);
                     });
                 });
@@ -167,7 +167,7 @@ impl hil::i2c::I2CHwSlaveClient for I2CMasterSlaveDriver<'_> {
                         self.slave_buffer1.replace(buffer);
                     });
 
-                    app.callback.map(|mut cb| {
+                    app.callback.as_mut().map(|cb| {
                         cb.schedule(3, length as usize, 0);
                     });
                 });
@@ -178,7 +178,7 @@ impl hil::i2c::I2CHwSlaveClient for I2CMasterSlaveDriver<'_> {
 
                 // Notify the app that the read finished
                 self.app.map(|app| {
-                    app.callback.map(|mut cb| {
+                    app.callback.as_mut().map(|cb| {
                         cb.schedule(4, length as usize, 0);
                     });
                 });
@@ -190,7 +190,7 @@ impl hil::i2c::I2CHwSlaveClient for I2CMasterSlaveDriver<'_> {
         // Pass this up to the client. Not much we can do until the application
         // has setup a buffer to read from.
         self.app.map(|app| {
-            app.callback.map(|mut cb| {
+            app.callback.as_mut().map(|cb| {
                 // Ask the app to setup a read buffer. The app must call
                 // command 3 after it has setup the shared read buffer with
                 // the correct bytes.

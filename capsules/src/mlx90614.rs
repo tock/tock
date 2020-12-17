@@ -18,7 +18,7 @@ use crate::driver;
 use core::cell::Cell;
 use enum_primitive::cast::FromPrimitive;
 use enum_primitive::enum_from_primitive;
-use kernel::common::cells::{OptionalCell, TakeCell};
+use kernel::common::cells::{MapCell, OptionalCell, TakeCell};
 use kernel::common::registers::register_bitfields;
 use kernel::hil::i2c::{self, Error};
 use kernel::hil::sensors;
@@ -58,7 +58,7 @@ enum_from_primitive! {
 
 pub struct Mlx90614SMBus<'a> {
     smbus_temp: &'a dyn i2c::SMBusDevice,
-    callback: OptionalCell<Callback>,
+    callback: MapCell<Callback>,
     temperature_client: OptionalCell<&'a dyn sensors::TemperatureClient>,
     buffer: TakeCell<'static, [u8]>,
     state: Cell<State>,
@@ -71,7 +71,7 @@ impl<'a> Mlx90614SMBus<'_> {
     ) -> Mlx90614SMBus<'a> {
         Mlx90614SMBus {
             smbus_temp,
-            callback: OptionalCell::empty(),
+            callback: MapCell::empty(),
             temperature_client: OptionalCell::empty(),
             buffer: TakeCell::new(buffer),
             state: Cell::new(State::Idle),
@@ -199,9 +199,13 @@ impl<'a> LegacyDriver for Mlx90614SMBus<'a> {
     ) -> ReturnCode {
         match subscribe_num {
             0 /* set the one shot callback */ => {
-				self.callback.insert(callback);
-				ReturnCode::SUCCESS
-			},
+		if let Some(cb) = callback {
+		    self.callback.replace(cb);
+		} else {
+		    self.callback.take();
+		}
+		ReturnCode::SUCCESS
+            },
             // default
             _ => ReturnCode::ENOSUPPORT,
         }

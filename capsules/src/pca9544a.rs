@@ -29,7 +29,7 @@
 //! ```
 
 use core::cell::Cell;
-use kernel::common::cells::{OptionalCell, TakeCell};
+use kernel::common::cells::{MapCell, TakeCell};
 use kernel::hil::i2c;
 use kernel::{AppId, Callback, LegacyDriver, ReturnCode};
 
@@ -59,7 +59,7 @@ pub struct PCA9544A<'a> {
     i2c: &'a dyn i2c::I2CDevice,
     state: Cell<State>,
     buffer: TakeCell<'static, [u8]>,
-    callback: OptionalCell<Callback>,
+    callback: MapCell<Callback>,
 }
 
 impl<'a> PCA9544A<'a> {
@@ -68,7 +68,7 @@ impl<'a> PCA9544A<'a> {
             i2c: i2c,
             state: Cell::new(State::Idle),
             buffer: TakeCell::new(buffer),
-            callback: OptionalCell::empty(),
+            callback: MapCell::empty(),
         }
     }
 
@@ -163,7 +163,11 @@ impl LegacyDriver for PCA9544A<'_> {
     ) -> ReturnCode {
         match subscribe_num {
             0 => {
-                self.callback.insert(callback);
+                if let Some(cb) = callback {
+                    self.callback.replace(cb);
+                } else {
+                    self.callback.take();
+                }
                 ReturnCode::SUCCESS
             }
 

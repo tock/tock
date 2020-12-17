@@ -52,6 +52,7 @@
 //!   of the button.
 
 use core::cell::Cell;
+use core::ops::DerefMut;
 use kernel::hil::gpio;
 use kernel::hil::gpio::{Configure, Input, InterruptWithValue};
 use kernel::{AppId, Callback, Grant, LegacyDriver, ReturnCode};
@@ -190,8 +191,9 @@ impl<'a, P: gpio::InterruptPin<'a>> LegacyDriver for Button<'a, P> {
                     // are any processes waiting for this button?
                     let interrupt_count = Cell::new(0);
                     self.apps.each(|cntr| {
-                        cntr.0.map(|_| {
-                            if cntr.1 & (1 << data) != 0 {
+                        let (callback, subscribe_map) = cntr.deref_mut();
+                        callback.as_mut().map(|_| {
+                            if *subscribe_map & (1 << data) != 0 {
                                 interrupt_count.set(interrupt_count.get() + 1);
                             }
                         });
@@ -232,8 +234,9 @@ impl<'a, P: gpio::InterruptPin<'a>> gpio::ClientWithValue for Button<'a, P> {
 
         // schedule callback with the pin number and value
         self.apps.each(|cntr| {
-            cntr.0.map(|mut callback| {
-                if cntr.1 & (1 << pin_num) != 0 {
+            let (callback, subscribe_map) = cntr.deref_mut();
+            callback.as_mut().map(|callback| {
+                if *subscribe_map & (1 << pin_num) != 0 {
                     interrupt_count.set(interrupt_count.get() + 1);
                     callback.schedule(pin_num as usize, button_state as usize, 0);
                 }

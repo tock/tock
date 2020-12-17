@@ -137,7 +137,9 @@ impl<'a, IP: gpio::InterruptPin<'a>> gpio::ClientWithValue for GPIO<'a, IP> {
 
             // schedule callback with the pin number and value
             self.apps.each(|callback| {
-                callback.map(|mut cb| cb.schedule(pin_num as usize, pin_state as usize, 0));
+                callback
+                    .as_mut()
+                    .map(|cb| cb.schedule(pin_num as usize, pin_state as usize, 0));
             });
         }
     }

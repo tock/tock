@@ -31,7 +31,7 @@
 
 use crate::bus::{self, Bus, BusWidth};
 use core::cell::Cell;
-use kernel::common::cells::{OptionalCell, TakeCell};
+use kernel::common::cells::{MapCell, OptionalCell, TakeCell};
 use kernel::hil::gpio::Pin;
 use kernel::hil::screen::{
     self, ScreenClient, ScreenPixelFormat, ScreenRotation, ScreenSetupClient,
@@ -213,7 +213,7 @@ pub struct ST77XX<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> {
     dc: Option<&'a P>,
     reset: &'a P,
     status: Cell<Status>,
-    callback: OptionalCell<Callback>,
+    callback: MapCell<Callback>,
     width: Cell<usize>,
     height: Cell<usize>,
 
@@ -257,7 +257,7 @@ impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> ST77XX<'a, A, B, P> {
             reset: reset,
             bus: bus,
 
-            callback: OptionalCell::empty(),
+            callback: MapCell::empty(),
 
             status: Cell::new(Status::Idle),
             width: Cell::new(screen.default_width),
@@ -783,7 +783,11 @@ impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> LegacyDriver for ST77XX<'a, A, B, P> 
     ) -> ReturnCode {
         match subscribe_num {
             0 => {
-                self.callback.insert(callback);
+                if let Some(cb) = callback {
+                    self.callback.replace(cb);
+                } else {
+                    self.callback.take();
+                }
                 ReturnCode::SUCCESS
             }
             // default

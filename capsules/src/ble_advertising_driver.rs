@@ -463,7 +463,7 @@ where
                         .is_some();
 
                     if success {
-                        app.scan_callback.map(|mut cb| {
+                        app.scan_callback.as_mut().map(|cb| {
                             cb.schedule(usize::from(result), len as usize, 0);
                         });
                     }

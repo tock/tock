@@ -50,7 +50,7 @@
 
 use core::cell::Cell;
 use core::cmp;
-use kernel::common::cells::{OptionalCell, TakeCell};
+use kernel::common::cells::{MapCell, OptionalCell, TakeCell};
 use kernel::hil;
 use kernel::{AppId, AppSlice, Callback, Grant, LegacyDriver, ReturnCode, SharedReadWrite};
 
@@ -115,7 +115,7 @@ pub struct AppSys {
 pub struct App {
     app_buf1: Option<AppSlice<SharedReadWrite, u8>>,
     app_buf2: Option<AppSlice<SharedReadWrite, u8>>,
-    callback: OptionalCell<Callback>,
+    callback: MapCell<Callback>,
     app_buf_offset: Cell<usize>,
     samples_remaining: Cell<usize>,
     samples_outstanding: Cell<usize>,
@@ -128,7 +128,7 @@ impl Default for App {
         App {
             app_buf1: None,
             app_buf2: None,
-            callback: OptionalCell::empty(),
+            callback: MapCell::empty(),
             app_buf_offset: Cell::new(0),
             samples_remaining: Cell::new(0),
             samples_outstanding: Cell::new(0),
@@ -1188,7 +1188,11 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> LegacyDriver for AdcDedicated<'_
                 self.appid.map_or(ReturnCode::FAIL, |id| {
                     self.apps
                         .enter(*id, |app, _| {
-                            app.callback.insert(callback);
+                            if let Some(cb) = callback {
+                                app.callback.replace(cb);
+                            } else {
+                                app.callback.take();
+                            }
                             ReturnCode::SUCCESS
                         })
                         .map_err(|err| {
@@ -1368,8 +1372,9 @@ impl<'a> hil::adc::Client for AdcVirtualized<'a> {
         self.current_app.take().map(|appid| {
             let _ = self.apps.enter(appid, |app, _| {
                 app.pending_command = false;
-                app.callback.map(|mut cb| {
-                    cb.schedule(AdcMode::SingleSample as usize, app.channel, sample as usize);
+                let channel = app.channel;
+                app.callback.as_mut().map(|cb| {
+                    cb.schedule(AdcMode::SingleSample as usize, channel, sample as usize);
                 });
             });
         });

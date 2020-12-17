@@ -29,7 +29,7 @@
 
 use core::cell::Cell;
 use core::marker::PhantomData;
-use kernel::common::cells::{OptionalCell, TakeCell};
+use kernel::common::cells::{MapCell, OptionalCell, TakeCell};
 use kernel::hil::usb_hid;
 use kernel::{AppId, AppSlice, Callback, Grant, LegacyDriver, ReturnCode, SharedReadWrite};
 
@@ -38,7 +38,7 @@ use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::CtapHid as usize;
 
 pub struct App {
-    callback: OptionalCell<Callback>,
+    callback: MapCell<Callback>,
     recv_buf: Option<AppSlice<SharedReadWrite, u8>>,
     send_buf: Option<AppSlice<SharedReadWrite, u8>>,
     can_receive: Cell<bool>,
@@ -47,7 +47,7 @@ pub struct App {
 impl Default for App {
     fn default() -> App {
         App {
-            callback: OptionalCell::empty(),
+            callback: MapCell::empty(),
             recv_buf: None,
             send_buf: None,
             can_receive: Cell::new(false),
@@ -242,7 +242,11 @@ impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> LegacyDriver for CtapDriver<'a, U> {
                 // set callback
                 self.app
                     .enter(appid, |app, _| {
-                        app.callback.insert(callback);
+                        if let Some(cb) = callback {
+                            app.callback.replace(cb);
+                        } else {
+                            app.callback.take();
+                        }
                         ReturnCode::SUCCESS
                     })
                     .unwrap_or(ReturnCode::FAIL)

@@ -30,11 +30,31 @@ pub const DRIVER_NUM: usize = driver::NUM::Hmac as usize;
 use core::cell::Cell;
 use core::convert::TryInto;
 use core::marker::PhantomData;
-use kernel::common::cells::{OptionalCell, TakeCell};
+use kernel::common::cells::{MapCell, OptionalCell, TakeCell};
 use kernel::common::leasable_buffer::LeasableBuffer;
 use kernel::hil::digest;
 use kernel::hil::digest::DigestType;
 use kernel::{AppId, AppSlice, Callback, Grant, LegacyDriver, ReturnCode, SharedReadWrite};
+
+pub struct App {
+    callback: MapCell<Callback>,
+    pending_run_app: Option<AppId>,
+    key: Option<AppSlice<SharedReadWrite, u8>>,
+    data: Option<AppSlice<SharedReadWrite, u8>>,
+    dest: Option<AppSlice<SharedReadWrite, u8>>,
+}
+
+impl Default for App {
+    fn default() -> App {
+        App {
+            callback: MapCell::empty(),
+            pending_run_app: None,
+            key: None,
+            data: None,
+            dest: None,
+        }
+    }
+}
 
 pub struct HmacDriver<'a, H: digest::Digest<'a, T>, T: 'static + DigestType> {
     hmac: &'a H,
@@ -358,7 +378,11 @@ impl<'a, H: digest::Digest<'a, T> + digest::HMACSha256, T: DigestType> LegacyDri
                 // set callback
                 self.apps
                     .enter(appid, |app, _| {
-                        app.callback.insert(callback);
+                        if let Some(cb) = callback {
+                            app.callback.replace(cb);
+                        } else {
+                            app.callback.take();
+                        }
                         ReturnCode::SUCCESS
                     })
                     .unwrap_or(ReturnCode::FAIL)
@@ -460,26 +484,6 @@ impl<'a, H: digest::Digest<'a, T> + digest::HMACSha256, T: DigestType> LegacyDri
 
             // default
             _ => ReturnCode::ENOSUPPORT,
-        }
-    }
-}
-
-pub struct App {
-    callback: OptionalCell<Callback>,
-    pending_run_app: Option<AppId>,
-    key: Option<AppSlice<SharedReadWrite, u8>>,
-    data: Option<AppSlice<SharedReadWrite, u8>>,
-    dest: Option<AppSlice<SharedReadWrite, u8>>,
-}
-
-impl Default for App {
-    fn default() -> App {
-        App {
-            callback: OptionalCell::empty(),
-            pending_run_app: None,
-            key: None,
-            data: None,
-            dest: None,
         }
     }
 }
