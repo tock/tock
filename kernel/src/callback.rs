@@ -216,10 +216,6 @@ impl Callback {
             ),
         }
     }
-
-    pub fn is_set(&self) -> bool {
-        self.cb.is_some()
-    }
 }
 
 impl ProcessCallback {

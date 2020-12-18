@@ -44,6 +44,8 @@ pub struct App {
     x: u16,
     y: u16,
     status: usize,
+    touch_enable: bool,
+    multi_touch_enable: bool
 }
 
 impl Default for App {
@@ -58,6 +60,8 @@ impl Default for App {
             x: 0,
             y: 0,
             status: touch_status_to_number(&TouchStatus::Unstarted),
+            touch_enable: false,
+            multi_touch_enable: false
         }
     }
 }
@@ -99,7 +103,7 @@ impl<'a> Touch<'a> {
         let mut enabled = false;
         for app in self.apps.iter() {
             if app.enter(|app, _| {
-                if app.touch_callback.is_set() {
+                if app.touch_enable {
                     true
                 } else {
                     false
@@ -122,7 +126,7 @@ impl<'a> Touch<'a> {
         let mut enabled = false;
         for app in self.apps.iter() {
             if app.enter(|app, _| {
-                if app.multi_touch_callback.is_set() {
+                if app.multi_touch_enable {
                     true
                 } else {
                     false
@@ -185,7 +189,7 @@ impl<'a> hil::touch::TouchClient for Touch<'a> {
                     app.x = event.x;
                     app.y = event.y;
                     app.status = event_status;
-                    if app.touch_callback.is_set() {
+                    
                         let pressure_size = match event.pressure {
                             Some(pressure) => (pressure as usize) << 16,
                             None => 0,
@@ -198,7 +202,7 @@ impl<'a> hil::touch::TouchClient for Touch<'a> {
                             (event.x as usize) << 16 | event.y as usize,
                             pressure_size,
                         );
-                    }
+                    
                 }
             });
         }
@@ -217,7 +221,7 @@ impl<'a> hil::touch::MultiTouchClient for Touch<'a> {
             app.enter(|app, _| {
                 if app.ack {
                     app.dropped_events = 0;
-                    if app.multi_touch_callback.is_set() {
+                    
                         let num = app.events_buffer.mut_map_or(0, |buffer| {
                             let num = if buffer.len() / 8 < len {
                                 buffer.len() / 8
@@ -266,8 +270,8 @@ impl<'a> hil::touch::MultiTouchClient for Touch<'a> {
                                 if num < len { len - num } else { 0 },
                             );
                         }
-                    }
-                // app.ack = false;
+                   
+                // app.ack == false;
                 } else {
                     app.dropped_events = app.dropped_events + 1;
                 }
@@ -281,7 +285,6 @@ impl<'a> hil::touch::GestureClient for Touch<'a> {
         // debug!("gesture {:?}", event);
         for app in self.apps.iter() {
             app.enter(|app, _| {
-                if app.gesture_callback.is_set() {
                     let gesture_id = match event {
                         GestureEvent::SwipeUp => 1,
                         GestureEvent::SwipeDown => 2,
@@ -291,7 +294,6 @@ impl<'a> hil::touch::GestureClient for Touch<'a> {
                         GestureEvent::ZoomOut => 6,
                     };
                     app.gesture_callback.schedule(gesture_id, 0, 0);
-                }
             });
         }
     }
@@ -347,17 +349,21 @@ impl<'a> Driver for Touch<'a> {
                         mem::swap(&mut app.touch_callback, &mut callback);
                     })
                     .map_err(ErrorCode::from);
-                self.touch_enable();
+                self.touch_enable ();
                 r
             }
 
             // subscribe to gestures
-            1 => self
+            1 => {
+                let r = self
                 .apps
                 .enter(app_id, |app, _| {
                     mem::swap(&mut app.touch_callback, &mut callback);
                 })
-                .map_err(ErrorCode::from),
+                .map_err(ErrorCode::from);
+                self.touch_enable ();
+                r
+            }
 
             // subscribe to multi touch
             2 => {
@@ -368,7 +374,7 @@ impl<'a> Driver for Touch<'a> {
                             mem::swap(&mut app.touch_callback, &mut callback);
                         })
                         .map_err(ErrorCode::from);
-                    self.multi_touch_enable();
+                        self.multi_touch_enable ();
                     r
                 } else {
                     Err(ErrorCode::NOSUPPORT)
@@ -389,13 +395,57 @@ impl<'a> Driver for Touch<'a> {
         command_num: usize,
         _data1: usize,
         _data2: usize,
-        _appid: AppId,
+        appid: AppId,
     ) -> CommandResult {
         match command_num {
             0 =>
             // This driver exists.
             {
                 CommandResult::success()
+            }
+
+            // touch enable
+            1 => {
+                self
+                    .apps
+                    .enter(appid, |app, _| {
+                        app.touch_enable = true;
+                    }).unwrap_or (());
+                self.touch_enable ();
+                CommandResult::success ()
+            }
+
+            // touch disable
+            2 => {
+                self
+                    .apps
+                    .enter(appid, |app, _| {
+                        app.touch_enable = false;
+                    }).unwrap_or (());
+                self.touch_enable ();
+                CommandResult::success ()
+            }
+
+            // multi touch enable
+            11 => {
+                self
+                    .apps
+                    .enter(appid, |app, _| {
+                        app.multi_touch_enable = true;
+                    }).unwrap_or (());
+                self.multi_touch_enable ();
+                CommandResult::success ()
+            }
+
+            // multi touch disable
+            12 => {
+                self
+                    .apps
+                    .enter(appid, |app, _| {
+                        app.multi_touch_enable = false;
+                    }).unwrap_or (());
+                self.multi_touch_enable ();
+                CommandResult::success ()
             }
 
             // number of touches
