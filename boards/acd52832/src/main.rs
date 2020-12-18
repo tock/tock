@@ -98,7 +98,7 @@ impl kernel::Platform for Platform {
             capsules::rng::DRIVER_NUM => f(Some(Err(self.rng))),
             capsules::ble_advertising_driver::DRIVER_NUM => f(Some(Err(self.ble_radio))),
             capsules::temperature::DRIVER_NUM => f(Some(Ok(self.temp))),
-            capsules::gpio_async::DRIVER_NUM => f(Some(Err(self.gpio_async))),
+            capsules::gpio_async::DRIVER_NUM => f(Some(Ok(self.gpio_async))),
             capsules::ambient_light::DRIVER_NUM => f(Some(Ok(self.light))),
             capsules::buzzer_driver::DRIVER_NUM => f(Some(Err(self.buzzer))),
             kernel::ipc::DRIVER_NUM => f(Some(Err(&self.ipc))),
