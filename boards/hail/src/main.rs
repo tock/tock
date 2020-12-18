@@ -98,7 +98,7 @@ impl Platform for Hail {
 
             capsules::rng::DRIVER_NUM => f(Some(Err(self.rng))),
 
-            capsules::crc::DRIVER_NUM => f(Some(Err(self.crc))),
+            capsules::crc::DRIVER_NUM => f(Some(Ok(self.crc))),
 
             capsules::dac::DRIVER_NUM => f(Some(Err(self.dac))),
 
