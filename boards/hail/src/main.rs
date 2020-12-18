@@ -100,7 +100,7 @@ impl Platform for Hail {
 
             capsules::crc::DRIVER_NUM => f(Some(Ok(self.crc))),
 
-            capsules::dac::DRIVER_NUM => f(Some(Err(self.dac))),
+            capsules::dac::DRIVER_NUM => f(Some(Ok(self.dac))),
 
             kernel::ipc::DRIVER_NUM => f(Some(Err(&self.ipc))),
             _ => f(None),
