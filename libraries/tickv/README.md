@@ -106,6 +106,11 @@ flash can change the values without being detected. An attacked with access
 to flash can also read all of the information. Any privacy, security or
 authentication measures need to be layered on top of TicKV.
 
+### Hardware Requirements
+
+TicKV requires that the flash medium allow at least two writes to a word between
+erase operations.
+
 ## Versions
 
 TicKV stores the version when adding objects to the flash storage.
