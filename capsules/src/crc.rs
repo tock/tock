@@ -71,7 +71,7 @@ use core::mem;
 use kernel::common::cells::OptionalCell;
 use kernel::hil;
 use kernel::hil::crc::CrcAlg;
-use kernel::{AppId, Callback, CommandResult, ErrorCode, Grant, Driver};
+use kernel::{AppId, Callback, CommandResult, Driver, ErrorCode, Grant};
 use kernel::{Read, ReadOnlyAppSlice, ReturnCode};
 
 /// Syscall driver number.
@@ -130,9 +130,9 @@ impl<'a, C: hil::crc::CRC<'a>> Crc<'a, C> {
         for app in self.apps.iter() {
             app.enter(|app, _| {
                 if let Some(alg) = app.waiting {
-                    let rcode = app.buffer.map_or(ReturnCode::ENOMEM, |buf| {
-                        self.crc_unit.compute(buf, alg)
-                    });
+                    let rcode = app
+                        .buffer
+                        .map_or(ReturnCode::ENOMEM, |buf| self.crc_unit.compute(buf, alg));
 
                     if rcode == ReturnCode::SUCCESS {
                         // The unit is now computing a CRC for this app
@@ -173,15 +173,16 @@ impl<'a, C: hil::crc::CRC<'a>> Driver for Crc<'a, C> {
         &self,
         appid: AppId,
         allow_num: usize,
-        mut slice: ReadOnlyAppSlice
-    ) -> Result<ReadOnlyAppSlice, (ReadOnlyAppSlice, ErrorCode)>  {
+        mut slice: ReadOnlyAppSlice,
+    ) -> Result<ReadOnlyAppSlice, (ReadOnlyAppSlice, ErrorCode)> {
         let res = match allow_num {
             // Provide user buffer to compute CRC over
             0 => self
                 .apps
                 .enter(appid, |app, _| {
                     mem::swap(&mut app.buffer, &mut slice);
-                }).map_err(ErrorCode::from),
+                })
+                .map_err(ErrorCode::from),
             _ => Err(ErrorCode::NOSUPPORT),
         };
         if let Err(e) = res {
@@ -222,7 +223,8 @@ impl<'a, C: hil::crc::CRC<'a>> Driver for Crc<'a, C> {
                 .apps
                 .enter(app_id, |app, _| {
                     mem::swap(&mut app.callback, &mut callback);
-                }).map_err(ErrorCode::from),
+                })
+                .map_err(ErrorCode::from),
             _ => Err(ErrorCode::NOSUPPORT),
         };
 
@@ -292,7 +294,13 @@ impl<'a, C: hil::crc::CRC<'a>> Driver for Crc<'a, C> {
     ///   * `4: SAM4L-32C`  This algorithm uses the same polynomial as
     ///   `CRC-32C`, but does no post-processing on the output value.  It
     ///   can be performed purely in hardware on the SAM4L.
-    fn command(&self, command_num: usize, algorithm: usize, _: usize, appid: AppId) -> CommandResult {
+    fn command(
+        &self,
+        command_num: usize,
+        algorithm: usize,
+        _: usize,
+        appid: AppId,
+    ) -> CommandResult {
         match command_num {
             // This driver is present
             0 => CommandResult::success(),
@@ -320,10 +328,10 @@ impl<'a, C: hil::crc::CRC<'a>> Driver for Crc<'a, C> {
                 } else {
                     self.serve_waiting_apps();
                     CommandResult::success()
-                } 
+                }
             }
 
-            _ => CommandResult::failure(ErrorCode::NOSUPPORT)
+            _ => CommandResult::failure(ErrorCode::NOSUPPORT),
         }
     }
 }
@@ -333,7 +341,8 @@ impl<'a, C: hil::crc::CRC<'a>> hil::crc::Client for Crc<'a, C> {
         self.serving_app.take().map(|appid| {
             self.apps
                 .enter(appid, |app, _| {
-                    app.callback.schedule(From::from(ReturnCode::SUCCESS), result as usize, 0);
+                    app.callback
+                        .schedule(From::from(ReturnCode::SUCCESS), result as usize, 0);
                     app.waiting = None;
                     ReturnCode::SUCCESS
                 })
