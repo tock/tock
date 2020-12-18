@@ -171,7 +171,7 @@ impl kernel::Platform for Imix {
             capsules::temperature::DRIVER_NUM => f(Some(Ok(self.temp))),
             capsules::humidity::DRIVER_NUM => f(Some(Ok(self.humidity))),
             capsules::ninedof::DRIVER_NUM => f(Some(Ok(self.ninedof))),
-            capsules::crc::DRIVER_NUM => f(Some(Err(self.crc))),
+            capsules::crc::DRIVER_NUM => f(Some(Ok(self.crc))),
             capsules::usb::usb_user::DRIVER_NUM => f(Some(Err(self.usb_driver))),
             capsules::ieee802154::DRIVER_NUM => f(Some(Err(self.radio_driver))),
             capsules::net::udp::DRIVER_NUM => f(Some(Ok(self.udp_driver))),
