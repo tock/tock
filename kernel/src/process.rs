@@ -1418,7 +1418,7 @@ impl<C: Chip> ProcessType for Process<'_, C> {
             "\
              App: {}   -   [{:?}]\
              \r\n Events Queued: {}   Syscall Count: {}   Dropped Callback Count: {}\
-             \n Restart Count: {}\n",
+             \r\n Restart Count: {}\r\n",
             self.process_name,
             self.state.get(),
             events_queued,
@@ -1428,8 +1428,8 @@ impl<C: Chip> ProcessType for Process<'_, C> {
         ));
 
         let _ = match last_syscall {
-            Some(syscall) => writer.write_fmt(format_args!(" Last Syscall: {:?}", syscall)),
-            None => writer.write_str(" Last Syscall: None"),
+            Some(syscall) => writer.write_fmt(format_args!(" Last Syscall: {:?}\r\n", syscall)),
+            None => writer.write_str(" Last Syscall: None\r\n"),
         };
 
         let _ = writer.write_fmt(format_args!(
