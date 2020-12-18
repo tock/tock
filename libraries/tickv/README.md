@@ -29,24 +29,32 @@ TicKV is also designed with some assumptions
  * Keys will rarely be deleted
  * Key values will rarely need to be modified
 
-## ACID characteristics
+## System Guarantees
 
-TicKV provides some ACID properties. For the purpose of ACID a transaction is
-a key operation, that is finding, adding, invalidating or fully removing
-(garbage collection) a key.
+A successful write or erase is durably committed.
 
-Atomicity: TicKV does not provide atomicity. If a operation fails mid write
-then there will be an invalid key/value stored to flash.
+The design does not support concurrency, such that it imposes a total order
+on all read, write and delete operations. Successful individual operations
+are therefore atomic. Applications that require higher-level atomicity
+(e.g., read/modify/delete/write, multiple writes) need to build this on top
+of these operations.
 
-Consistency: Consistency is maintained similar to atomicity. All operations
-can only take the database from a valid state to another valid state.
+TicKV is not robust to low-level flash failures, power loss, or system
+crashes. However, a failure only affects a single key: a failure to write
+or delete key K will corrupt at most only K. A value to read will have no
+effect.
 
-Isolation: TicKV only allows a single operation at a time. In this way it
-provides isolation. The layer above TicKV is responsible for handling
-concurrent accesses by deferring operations for example.
+Under the constraint that underlying flash operations succeed, TicKV provides
+atomicity. If the underlying flash has an error, the system crashes
+mid-operation, or power is lost mid-operation, an operation may be
+partially committed.
 
-Durability: TicKV ensures durability and once a transaction has completed
-and been committed to flash it will remain there.
+If a write fails with only a partial write to flash the entire length of
+the key will be used in the storage.
+
+TicKV ensures durability and once a transaction has completed
+and been committed to flash it will remain there. TicKV also takes measures
+to apply wear levelling to the flash storage.
 
 ## Using TicKV
 
