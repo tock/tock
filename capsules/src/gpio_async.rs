@@ -25,10 +25,10 @@
 //! }
 //! ```
 
-use kernel::common::cells::OptionalCell;
+use core::cell::Cell;
 use kernel::hil;
-use kernel::ReturnCode;
-use kernel::{AppId, Callback, LegacyDriver};
+use kernel::{AppId, Callback, ErrorCode};
+use kernel::{CommandResult, Driver, ReturnCode};
 
 /// Syscall driver number.
 use crate::driver;
@@ -36,16 +36,16 @@ pub const DRIVER_NUM: usize = driver::NUM::GpioAsync as usize;
 
 pub struct GPIOAsync<'a, Port: hil::gpio_async::Port> {
     ports: &'a [&'a Port],
-    callback: OptionalCell<Callback>,
-    interrupt_callback: OptionalCell<Callback>,
+    callback: Cell<Callback>,
+    interrupt_callback: Cell<Callback>,
 }
 
 impl<'a, Port: hil::gpio_async::Port> GPIOAsync<'a, Port> {
     pub fn new(ports: &'a [&'a Port]) -> GPIOAsync<'a, Port> {
         GPIOAsync {
-            ports: ports,
-            callback: OptionalCell::empty(),
-            interrupt_callback: OptionalCell::empty(),
+            ports,
+            callback: Cell::new(Callback::default()),
+            interrupt_callback: Cell::new(Callback::default()),
         }
     }
 
@@ -74,16 +74,15 @@ impl<'a, Port: hil::gpio_async::Port> GPIOAsync<'a, Port> {
 
 impl<Port: hil::gpio_async::Port> hil::gpio_async::Client for GPIOAsync<'_, Port> {
     fn fired(&self, pin: usize, identifier: usize) {
-        self.interrupt_callback
-            .map(|cb| cb.schedule(identifier, pin, 0));
+        self.interrupt_callback.get().schedule(identifier, pin, 0);
     }
 
     fn done(&self, value: usize) {
-        self.callback.map(|cb| cb.schedule(0, value, 0));
+        self.callback.get().schedule(0, value, 0);
     }
 }
 
-impl<Port: hil::gpio_async::Port> LegacyDriver for GPIOAsync<'_, Port> {
+impl<Port: hil::gpio_async::Port> Driver for GPIOAsync<'_, Port> {
     /// Setup callbacks for gpio_async events.
     ///
     /// ### `subscribe_num`
@@ -101,24 +100,18 @@ impl<Port: hil::gpio_async::Port> LegacyDriver for GPIOAsync<'_, Port> {
     fn subscribe(
         &self,
         subscribe_num: usize,
-        callback: Option<Callback>,
+        callback: Callback,
         _app_id: AppId,
-    ) -> ReturnCode {
+    ) -> Result<Callback, (Callback, ErrorCode)> {
         match subscribe_num {
             // Set callback for `done()` events
-            0 => {
-                self.callback.insert(callback);
-                ReturnCode::SUCCESS
-            }
+            0 => Ok(self.callback.replace(callback)),
 
             // Set callback for pin interrupts
-            1 => {
-                self.interrupt_callback.insert(callback);
-                ReturnCode::SUCCESS
-            }
+            1 => Ok(self.interrupt_callback.replace(callback)),
 
             // default
-            _ => ReturnCode::ENOSUPPORT,
+            _ => Err((callback, ErrorCode::NOSUPPORT)),
         }
     }
 
@@ -146,51 +139,49 @@ impl<Port: hil::gpio_async::Port> LegacyDriver for GPIOAsync<'_, Port> {
     ///   interrupt, and 2 for a falling edge interrupt.
     /// - `8`: Disable an interrupt on a pin.
     /// - `9`: Disable a GPIO pin.
-    fn command(&self, command_num: usize, pin: usize, data: usize, _: AppId) -> ReturnCode {
+    fn command(&self, cmd_num: usize, pin: usize, data: usize, _appid: AppId) -> CommandResult {
         let port = data & 0xFFFF;
         let other = (data >> 16) & 0xFFFF;
         let ports = self.ports.as_ref();
 
         // On any command other than 0, we check for ports length.
-        if command_num != 0 && port >= ports.len() {
-            return ReturnCode::EINVAL;
+        if cmd_num != 0 && port >= ports.len() {
+            return CommandResult::failure(ErrorCode::INVAL);
         }
 
-        match command_num {
+        match cmd_num {
             // How many ports
-            0 => ReturnCode::SuccessWithValue {
-                value: ports.len() as usize,
-            },
+            0 => CommandResult::success_u32(ports.len() as u32),
 
             // enable output
-            1 => ports[port].make_output(pin),
+            1 => ports[port].make_output(pin).into(),
 
             // set pin
-            2 => ports[port].set(pin),
+            2 => ports[port].set(pin).into(),
 
             // clear pin
-            3 => ports[port].clear(pin),
+            3 => ports[port].clear(pin).into(),
 
             // toggle pin
-            4 => ports[port].toggle(pin),
+            4 => ports[port].toggle(pin).into(),
 
             // enable and configure input
-            5 => self.configure_input_pin(port, pin, other & 0xFF),
+            5 => self.configure_input_pin(port, pin, other & 0xFF).into(),
 
             // read input
-            6 => ports[port].read(pin),
+            6 => ports[port].read(pin).into(),
 
             // enable interrupt on pin
-            7 => self.configure_interrupt(port, pin, other & 0xFF),
+            7 => self.configure_interrupt(port, pin, other & 0xFF).into(),
 
             // disable interrupt on pin
-            8 => ports[port].disable_interrupt(pin),
+            8 => ports[port].disable_interrupt(pin).into(),
 
             // disable pin
-            9 => ports[port].disable(pin),
+            9 => ports[port].disable(pin).into(),
 
             // default
-            _ => ReturnCode::ENOSUPPORT,
+            _ => CommandResult::failure(ErrorCode::NOSUPPORT),
         }
     }
 }
