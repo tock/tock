@@ -5,8 +5,8 @@ use enum_primitive::cast::FromPrimitive;
 use enum_primitive::enum_from_primitive;
 use kernel::common::registers::register_bitfields;
 
-pub static ACCELEROMETER_BASE_ADDRESS: u8 = 0x19;
-pub static MAGNETOMETER_BASE_ADDRESS: u8 = 0x1e;
+pub const ACCELEROMETER_BASE_ADDRESS: u8 = 0x19;
+pub const MAGNETOMETER_BASE_ADDRESS: u8 = 0x1e;
 
 // Manual page Table 20, page 25
 enum_from_primitive! {
