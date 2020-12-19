@@ -6,7 +6,6 @@
 // Disable this attribute when documenting, as a workaround for
 // https://github.com/rust-lang/rust/issues/62184.
 #![cfg_attr(not(doc), no_main)]
-#![feature(const_in_array_repeat_expressions)]
 #![deny(missing_docs)]
 
 use kernel::capabilities;
@@ -72,7 +71,7 @@ static mut CHIP: Option<&'static nrf52833::chip::NRF52<Nrf52833DefaultPeripheral
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
 #[link_section = ".stack_buffer"]
-pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
+pub static mut STACK_MEMORY: [u8; 0x2000] = [0; 0x2000];
 
 /// Supported drivers by the platform
 pub struct Platform {
@@ -103,6 +102,7 @@ pub struct Platform {
         'static,
         capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52833::rtc::Rtc<'static>>,
     >,
+    app_flash: &'static capsules::app_flash_driver::AppFlash<'static>,
 }
 
 impl kernel::Platform for Platform {
@@ -123,6 +123,7 @@ impl kernel::Platform for Platform {
             capsules::rng::DRIVER_NUM => f(Some(self.rng)),
             capsules::ble_advertising_driver::DRIVER_NUM => f(Some(self.ble_radio)),
             capsules::buzzer_driver::DRIVER_NUM => f(Some(self.buzzer)),
+            capsules::app_flash_driver::DRIVER_NUM => f(Some(self.app_flash)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             _ => f(None),
         }
@@ -372,6 +373,19 @@ pub unsafe fn reset_handler() {
     );
 
     //--------------------------------------------------------------------------
+    // STORAGE
+    //--------------------------------------------------------------------------
+
+    // App Flash
+
+    let app_flash =
+        components::app_flash_driver::AppFlashComponent::new(board_kernel, &base_peripherals.nvmc)
+            .finalize(components::app_flash_component_helper!(
+                nrf52833::nvmc::Nvmc,
+                512
+            ));
+
+    //--------------------------------------------------------------------------
     // WIRELESS
     //--------------------------------------------------------------------------
 
@@ -432,6 +446,7 @@ pub unsafe fn reset_handler() {
         buzzer: buzzer,
         adc: adc_syscall,
         alarm: alarm,
+        app_flash: app_flash,
         ipc: kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability),
     };
 

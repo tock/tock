@@ -3,6 +3,7 @@
 pub mod adc;
 pub mod alarm;
 pub mod analog_comparator;
+pub mod app_flash_driver;
 pub mod bus;
 pub mod button;
 pub mod cdc;

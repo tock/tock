@@ -7,7 +7,7 @@ use nrf52::chip::Nrf52DefaultPeripherals;
 /// constructed manually in main.rs.
 pub struct Nrf52833DefaultPeripherals<'a> {
     pub nrf52: Nrf52DefaultPeripherals<'a>,
-    // put additional 52832 specific peripherals here
+    // put additional 52833 specific peripherals here
 }
 impl<'a> Nrf52833DefaultPeripherals<'a> {
     pub unsafe fn new(ppi: &'a crate::ppi::Ppi) -> Self {
