@@ -12,7 +12,6 @@
 use kernel::capabilities;
 use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::component::Component;
-use kernel::hil::i2c::I2CMaster;
 use kernel::hil::time::Counter;
 
 #[allow(unused_imports)]
@@ -318,14 +317,12 @@ pub unsafe fn reset_handler() {
         nrf52833::pinmux::Pinmux::new(I2C_SDA_PIN as u32),
     );
 
-    // base_peripherals.twim0.enable ();
-
-    let sensors_i2c_bus = static_init!(
-        capsules::virtual_i2c::MuxI2C<'static>,
-        capsules::virtual_i2c::MuxI2C::new(&base_peripherals.twim0, None, dynamic_deferred_caller)
-    );
-
-    base_peripherals.twim0.set_master_client(sensors_i2c_bus);
+    let sensors_i2c_bus = components::i2c::I2CMuxComponent::new(
+        &base_peripherals.twim0,
+        None,
+        dynamic_deferred_caller,
+    )
+    .finalize(components::i2c_mux_component_helper!());
 
     // LSM303AGR
 
@@ -345,8 +342,11 @@ pub unsafe fn reset_handler() {
     let ninedof = components::ninedof::NineDofComponent::new(board_kernel)
         .finalize(components::ninedof_component_helper!(lsm303agr));
 
+    // Temperature
+
     let temperature =
-        components::temperature::TemperatureComponent::new(board_kernel, lsm303agr).finalize(());
+        components::temperature::TemperatureComponent::new(board_kernel, &base_peripherals.temp)
+            .finalize(());
 
     //--------------------------------------------------------------------------
     // ADC
