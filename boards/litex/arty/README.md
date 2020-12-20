@@ -26,6 +26,14 @@ tested with
   --with-ethernet
   ```
 
+Prebuilt and tested bitstreams can be obtained from the [Tock on LiteX
+companion repository
+releases](https://github.com/lschuermann/tock-litex/releases/). The
+current board definition has been verified to work with [release
+2020122001](https://github.com/lschuermann/tock-litex/releases/tag/2020122001). The
+bitstream for this board is located in `arty_a7-35t.zip` under
+`gateware/arty.bit`.
+
 Many bitstream customizations can be represented in the Tock board by
 simply changing the variables in `src/litex_generated.rs`. To support
 a different set of FPGA cores and perform further modifications, the
