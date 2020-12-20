@@ -19,7 +19,7 @@ tested with
   ```
   --csr-data-width=32
   --integrated-rom-size=1048576
-  --cpu-variant=full
+  --cpu-variant=secure
   --with-ethernet
   --rom-init $PATH_TO_TOCK_BINARY
   ```
@@ -28,23 +28,6 @@ Many bitstream customizations can be represented in the Tock board by
 simply changing the variables in `src/litex_generated.rs`. To support
 a different set of FPGA cores and perform further modifications, the
 `src/main.rs` file will have to be modified.
-
-
-Please note
------------
-
-This board is still in development. The memory protection (PMP)
-mechanism is not yet integrated into the VexRiscv core. Nonetheless,
-the Tock kernel works and can run multiple userspace applications.
-
-The following on-board components and cores are supported:
-- [X] Timer (with uptime support)
-- [X] UART console output
-- [X] Ethernet MAC
-
-The following components and cores require porting:
-- [ ] Memory protection (PMP) support in the VexRiscv CPU ([upstream
-      PR](https://github.com/SpinalHDL/VexRiscv/pull/147))
 
 
 Building the SoC / Programming the FPGA

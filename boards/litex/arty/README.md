@@ -19,7 +19,7 @@ tested with
 
   ```
   --uart-baudrate=1000000
-  --cpu-variant=full
+  --cpu-variant=secure
   --csr-data-width=32
   --timer-uptime
   --integrated-rom-size=0xb000
@@ -43,20 +43,14 @@ a different set of FPGA cores and perform further modifications, the
 Please note
 -----------
 
-This board is still in development. The memory protection (PMP)
-mechanism is not yet integrated into the VexRiscv core and more
-peripherals require drivers. Nonetheless, the Tock kernel works and
-can run multiple userspace applications.
-
-The following on-board components and cores are supported:
+This board is still in development. The following on-board components
+and cores are supported:
 - [X] Timer (with uptime support)
 - [X] UART output via USB-FTDI
 - [X] Green onboard LEDs
 - [X] 100MBit/s Ethernet MAC
 
 The following components and cores require porting:
-- [ ] Memory protection (PMP) support in the VexRiscv CPU ([upstream
-      PR](https://github.com/SpinalHDL/VexRiscv/pull/147))
 - [ ] GPIO Interface
 - [ ] Buttons and Switches
 - [ ] RGB LEDs
