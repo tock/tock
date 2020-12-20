@@ -10,8 +10,8 @@ differ significantly depending on the release and configuration
 options used. This board definition currently targets and has been
 tested with
 - [the LiteX SoC generator, revision
-  444a605dea](https://github.com/enjoy-digital/litex/tree/444a605deae6a561dbe2c49bf3062eae6f3cd887)
-- using the included [lx_sim.py](https://github.com/enjoy-digital/litex/blob/444a605deae6a561dbe2c49bf3062eae6f3cd887/litex/tools/litex_sim.py)
+  444a605dea](https://github.com/enjoy-digital/litex/tree/4092180662ec62cf28b9283a020f1ff7f0892c19)
+- using the included [lx_sim.py](https://github.com/enjoy-digital/litex/blob/4092180662ec62cf28b9283a020f1ff7f0892c19/litex/tools/litex_sim.py)
 - built around a VexRiscv-CPU
 - featuring a TIMER0 with 64-bit wide hardware uptime
 - along with the following configuration options:
