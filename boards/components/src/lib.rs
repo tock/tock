@@ -3,6 +3,7 @@
 pub mod adc;
 pub mod alarm;
 pub mod analog_comparator;
+pub mod app_flash_driver;
 pub mod bus;
 pub mod button;
 pub mod cdc;
@@ -22,7 +23,9 @@ pub mod ieee802154;
 pub mod isl29035;
 pub mod l3gd20;
 pub mod led;
+pub mod led_matrix;
 pub mod lldb;
+pub mod lsm303agr;
 pub mod lsm303dlhc;
 pub mod mlx90614;
 pub mod mx25r6435f;

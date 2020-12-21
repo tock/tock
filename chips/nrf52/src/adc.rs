@@ -255,27 +255,37 @@ impl Adc {
         }
     }
 
+    pub fn calibrate(&self) {
+        // Enable the ADC
+        self.registers.enable.write(ENABLE::ENABLE::SET);
+        self.registers.inten.write(INTEN::CALIBRATEDONE::SET);
+        self.registers.tasks_calibrateoffset.write(TASK::TASK::SET);
+    }
+
     pub fn handle_interrupt(&self) {
-        let regs = &*self.registers;
-
         // Determine what event occurred.
-        if regs.events_started.is_set(EVENT::EVENT) {
-            regs.events_started.write(EVENT::EVENT::CLEAR);
+        if self.registers.events_calibratedone.is_set(EVENT::EVENT) {
+            self.registers
+                .events_calibratedone
+                .write(EVENT::EVENT::CLEAR);
+            self.registers.enable.write(ENABLE::ENABLE::CLEAR);
+        } else if self.registers.events_started.is_set(EVENT::EVENT) {
+            self.registers.events_started.write(EVENT::EVENT::CLEAR);
             // ADC has started, now issue the sample.
-            regs.tasks_sample.write(TASK::TASK::SET);
-        } else if regs.events_end.is_set(EVENT::EVENT) {
-            regs.events_end.write(EVENT::EVENT::CLEAR);
+            self.registers.tasks_sample.write(TASK::TASK::SET);
+        } else if self.registers.events_end.is_set(EVENT::EVENT) {
+            self.registers.events_end.write(EVENT::EVENT::CLEAR);
             // Reading finished. Turn off the ADC.
-            regs.tasks_stop.write(TASK::TASK::SET);
-        } else if regs.events_stopped.is_set(EVENT::EVENT) {
-            regs.events_stopped.write(EVENT::EVENT::CLEAR);
+            self.registers.tasks_stop.write(TASK::TASK::SET);
+        } else if self.registers.events_stopped.is_set(EVENT::EVENT) {
+            self.registers.events_stopped.write(EVENT::EVENT::CLEAR);
             // ADC is stopped. Disable and return value.
-            regs.enable.write(ENABLE::ENABLE::CLEAR);
+            self.registers.enable.write(ENABLE::ENABLE::CLEAR);
 
-            // Left justify to meet HIL requirements.
-            let val = unsafe { SAMPLE[0] } << 2;
+            let val = unsafe { SAMPLE[0] as i16 };
             self.client.map(|client| {
-                client.sample_ready(val);
+                // shift left to meet the ADC HIL requirement
+                client.sample_ready(if val < 0 { 0 } else { val << 4 } as u16);
             });
         }
     }
@@ -286,39 +296,46 @@ impl hil::adc::Adc for Adc {
     type Channel = AdcChannel;
 
     fn sample(&self, channel: &Self::Channel) -> ReturnCode {
-        let regs = &*self.registers;
-
         // Positive goes to the channel passed in, negative not connected.
-        regs.ch[0].pselp.write(PSEL::PSEL.val(*channel as u32));
-        regs.ch[0].pseln.write(PSEL::PSEL::NotConnected);
+        self.registers.ch[0]
+            .pselp
+            .write(PSEL::PSEL.val(*channel as u32));
+        self.registers.ch[0].pseln.write(PSEL::PSEL::NotConnected);
 
         // Configure the ADC for a single read.
-        regs.ch[0]
-            .config
-            .write(CONFIG::GAIN::Gain1_4 + CONFIG::REFSEL::VDD1_4 + CONFIG::TACQ::us10);
+        self.registers.ch[0].config.write(
+            CONFIG::GAIN::Gain1_4
+                + CONFIG::REFSEL::VDD1_4
+                + CONFIG::TACQ::us10
+                + CONFIG::RESN::Pulldown
+                + CONFIG::MODE::SE,
+        );
 
-        // Set max resolution.
-        regs.resolution.write(RESOLUTION::VAL::bit14);
+        // Set max resolution (without oversampling).
+        self.registers.resolution.write(RESOLUTION::VAL::bit12);
 
         // Do one measurement.
-        regs.result_maxcnt.write(RESULT_MAXCNT::MAXCNT.val(1));
+        self.registers
+            .result_maxcnt
+            .write(RESULT_MAXCNT::MAXCNT.val(1));
         // Where to put the reading.
         unsafe {
-            regs.result_ptr.set(SAMPLE.as_ptr());
+            self.registers.result_ptr.set(SAMPLE.as_ptr());
         }
 
         // No automatic sampling, will trigger manually.
-        regs.samplerate.write(SAMPLERATE::MODE::Task);
+        self.registers.samplerate.write(SAMPLERATE::MODE::Task);
 
         // Enable the ADC
-        regs.enable.write(ENABLE::ENABLE::SET);
+        self.registers.enable.write(ENABLE::ENABLE::SET);
 
         // Enable started, sample end, and stopped interrupts.
-        regs.inten
+        self.registers
+            .inten
             .write(INTEN::STARTED::SET + INTEN::END::SET + INTEN::STOPPED::SET);
 
         // Start the SAADC and wait for the started interrupt.
-        regs.tasks_start.write(TASK::TASK::SET);
+        self.registers.tasks_start.write(TASK::TASK::SET);
 
         ReturnCode::SUCCESS
     }
@@ -332,7 +349,7 @@ impl hil::adc::Adc for Adc {
     }
 
     fn get_resolution_bits(&self) -> usize {
-        14
+        12
     }
 
     fn get_voltage_reference_mv(&self) -> Option<usize> {
