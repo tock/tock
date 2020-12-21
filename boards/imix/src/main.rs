@@ -167,14 +167,14 @@ impl kernel::Platform for Imix {
             capsules::led::DRIVER_NUM => f(Some(Ok(self.led))),
             capsules::button::DRIVER_NUM => f(Some(Err(self.button))),
             capsules::analog_comparator::DRIVER_NUM => f(Some(Ok(self.analog_comparator))),
-            capsules::ambient_light::DRIVER_NUM => f(Some(Err(self.ambient_light))),
+            capsules::ambient_light::DRIVER_NUM => f(Some(Ok(self.ambient_light))),
             capsules::temperature::DRIVER_NUM => f(Some(Ok(self.temp))),
             capsules::humidity::DRIVER_NUM => f(Some(Ok(self.humidity))),
             capsules::ninedof::DRIVER_NUM => f(Some(Ok(self.ninedof))),
-            capsules::crc::DRIVER_NUM => f(Some(Err(self.crc))),
+            capsules::crc::DRIVER_NUM => f(Some(Ok(self.crc))),
             capsules::usb::usb_user::DRIVER_NUM => f(Some(Err(self.usb_driver))),
             capsules::ieee802154::DRIVER_NUM => f(Some(Ok(self.radio_driver))),
-            capsules::net::udp::DRIVER_NUM => f(Some(Err(self.udp_driver))),
+            capsules::net::udp::DRIVER_NUM => f(Some(Ok(self.udp_driver))),
             capsules::nrf51822_serialization::DRIVER_NUM => f(Some(Err(self.nrf51822))),
             capsules::nonvolatile_storage_driver::DRIVER_NUM => {
                 f(Some(Err(self.nonvolatile_storage)))
