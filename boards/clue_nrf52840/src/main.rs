@@ -144,7 +144,7 @@ impl kernel::Platform for Platform {
             capsules::screen::DRIVER_NUM => f(Some(Ok(self.screen))),
             capsules::rng::DRIVER_NUM => f(Some(Err(self.rng))),
             capsules::ble_advertising_driver::DRIVER_NUM => f(Some(Err(self.ble_radio))),
-            capsules::ieee802154::DRIVER_NUM => f(Some(Err(self.ieee802154_radio))),
+            capsules::ieee802154::DRIVER_NUM => f(Some(Ok(self.ieee802154_radio))),
             capsules::buzzer_driver::DRIVER_NUM => f(Some(Err(self.buzzer))),
             kernel::ipc::DRIVER_NUM => f(Some(Err(&self.ipc))),
             _ => f(None),
@@ -255,7 +255,7 @@ pub unsafe fn reset_handler() {
     //--------------------------------------------------------------------------
 
     let dynamic_deferred_call_clients =
-        static_init!([DynamicDeferredCallClientState; 3], Default::default());
+        static_init!([DynamicDeferredCallClientState; 4], Default::default());
     let dynamic_deferred_caller = static_init!(
         DynamicDeferredCall,
         DynamicDeferredCall::new(dynamic_deferred_call_clients)
@@ -479,6 +479,7 @@ pub unsafe fn reset_handler() {
         aes_mux,
         PAN_ID,
         serial_num_bottom_16,
+        dynamic_deferred_caller,
     )
     .finalize(components::ieee802154_component_helper!(
         nrf52840::ieee802154_radio::Radio,
