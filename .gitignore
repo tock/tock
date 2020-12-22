@@ -58,3 +58,7 @@ tools/qemu/build
 
 # Python scripts
 __pycache__
+
+# Node.js modules
+node_modules
+package-lock.json

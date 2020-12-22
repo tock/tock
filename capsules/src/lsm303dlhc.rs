@@ -19,13 +19,13 @@
 //!    .finalize(components::lsm303dlhc_i2c_component_helper!(mux_i2c));
 //!
 //! lsm303dlhc.configure(
-//!    lsm303dlhc::Lsm303dlhcAccelDataRate::DataRate25Hz,
+//!    lsm303dlhc::Lsm303AccelDataRate::DataRate25Hz,
 //!    false,
-//!    lsm303dlhc::Lsm303dlhcScale::Scale2G,
+//!    lsm303dlhc::Lsm303Scale::Scale2G,
 //!    false,
 //!    true,
-//!    lsm303dlhc::Lsm303dlhcMagnetoDataRate::DataRate3_0Hz,
-//!    lsm303dlhc::Lsm303dlhcRange::Range4_7G,
+//!    lsm303dlhc::Lsm303MagnetoDataRate::DataRate3_0Hz,
+//!    lsm303dlhc::Lsm303Range::Range4_7G,
 //!);
 //! ```
 //!
@@ -59,13 +59,13 @@
 //! let grant_temp = board_kernel.create_grant(&grant_cap);
 //!
 //! lsm303dlhc.configure(
-//!    lsm303dlhc::Lsm303dlhcAccelDataRate::DataRate25Hz,
+//!    lsm303dlhc::Lsm303AccelDataRate::DataRate25Hz,
 //!    false,
-//!    lsm303dlhc::Lsm303dlhcScale::Scale2G,
+//!    lsm303dlhc::Lsm303Scale::Scale2G,
 //!    false,
 //!    true,
-//!    lsm303dlhc::Lsm303dlhcMagnetoDataRate::DataRate3_0Hz,
-//!    lsm303dlhc::Lsm303dlhcRange::Range4_7G,
+//!    lsm303dlhc::Lsm303MagnetoDataRate::DataRate3_0Hz,
+//!    lsm303dlhc::Lsm303Range::Range4_7G,
 //!);
 //! let temp = static_init!(
 //! capsules::temperature::TemperatureSensor<'static>,
@@ -82,61 +82,22 @@ use core::cell::Cell;
 use enum_primitive::cast::FromPrimitive;
 use enum_primitive::enum_from_primitive;
 use kernel::common::cells::{OptionalCell, TakeCell};
-use kernel::common::registers::register_bitfields;
 use kernel::hil::i2c::{self, Error};
 use kernel::hil::sensors;
 use kernel::{AppId, Callback, LegacyDriver, ReturnCode};
 
-register_bitfields![u8,
-    CTRL_REG1 [
-        /// Output data rate
-        ODR OFFSET(4) NUMBITS(4) [],
-        /// Low Power enable
-        LPEN OFFSET(3) NUMBITS(1) [],
-        /// Z enable
-        ZEN OFFSET(2) NUMBITS(1) [],
-        /// Y enable
-        YEN OFFSET(1) NUMBITS(1) [],
-        /// X enable
-        XEN OFFSET(0) NUMBITS(1) []
-    ],
-    CTRL_REG4 [
-        /// Block Data update
-        BDU OFFSET(7) NUMBITS(2) [],
-        /// Big Little Endian
-        BLE OFFSET(6) NUMBITS(1) [],
-        /// Full Scale selection
-        FS OFFSET(4) NUMBITS(2) [],
-        /// High Resolution
-        HR OFFSET(3) NUMBITS(1) [],
-        /// SPI Serial Interface
-        SIM OFFSET(0) NUMBITS(1) []
-    ]
-];
+use crate::lsm303xx::{
+    AccelerometerRegisters, Lsm303AccelDataRate, Lsm303MagnetoDataRate, Lsm303Range, Lsm303Scale,
+    CTRL_REG1, CTRL_REG4, RANGE_FACTOR_X_Y, RANGE_FACTOR_Z, SCALE_FACTOR,
+};
 
 use crate::driver;
 
 /// Syscall driver number.
 pub const DRIVER_NUM: usize = driver::NUM::Lsm303dlch as usize;
 
-// Buffer to use for I2C messages
-pub static mut BUFFER: [u8; 8] = [0; 8];
-
 /// Register values
 const REGISTER_AUTO_INCREMENT: u8 = 0x80;
-
-enum_from_primitive! {
-    enum AccelerometerRegisters {
-        CTRL_REG1 = 0x20,
-        CTRL_REG4 = 0x23,
-        OUT_X_L_A = 0x28,
-        OUT_X_H_A = 0x29,
-        OUT_Y_L_A = 0x2A,
-        OUT_Y_H_A = 0x2B,
-        OUT_Z_L_A = 0x2C,
-        OUT_Z_H_A = 0x2D,
-    }
-}
 
 enum_from_primitive! {
     enum MagnetometerRegisters {
@@ -155,78 +116,6 @@ enum_from_primitive! {
 
 // Experimental
 const TEMP_OFFSET: i8 = 17;
-
-// Manual page Table 20, page 25
-enum_from_primitive! {
-    #[derive(Clone, Copy, PartialEq)]
-    pub enum Lsm303dlhcAccelDataRate {
-        Off = 0,
-        DataRate1Hz = 1,
-        DataRate10Hz = 2,
-        DataRate25Hz = 3,
-        DataRate50Hz = 4,
-        DataRate100Hz = 5,
-        DataRate200Hz = 6,
-        DataRate400Hz = 7,
-        LowPower1620Hz = 8,
-        Normal1344LowPower5376Hz = 9,
-    }
-}
-
-// Manual table 72, page 25
-enum_from_primitive! {
-    #[derive(Clone, Copy, PartialEq)]
-    pub enum Lsm303dlhcMagnetoDataRate {
-        DataRate0_75Hz = 0,
-        DataRate1_5Hz = 1,
-        DataRate3_0Hz = 2,
-        DataRate7_5Hz = 3,
-        DataRate15_0Hz = 4,
-        DataRate30_0Hz = 5,
-        DataRate75_0Hz = 6,
-        DataRate220_0Hz = 7,
-    }
-}
-
-enum_from_primitive! {
-    #[derive(Clone, Copy, PartialEq)]
-    pub enum Lsm303dlhcScale {
-        Scale2G = 0,
-        Scale4G = 1,
-        Scale8G = 2,
-        Scale16G = 3
-    }
-}
-
-// Manual table 27, page 27
-const SCALE_FACTOR: [u8; 4] = [2, 4, 8, 16];
-
-// Manual table 75, page 38
-enum_from_primitive! {
-    #[derive(Clone, Copy, PartialEq)]
-    pub enum Lsm303dlhcRange {
-        Range1G = 0,
-        Range1_3G = 1,
-        Range1_9G = 2,
-        Range2_5G = 3,
-        Range4_0G = 4,
-        Range4_7G = 5,
-        Range5_6G = 7,
-        Range8_1 = 8,
-    }
-}
-
-// Manual table 75, page 38
-const RANGE_FACTOR_X_Y: [i16; 8] = [
-    1000, // placeholder
-    1100, 855, 670, 450, 400, 330, 230,
-];
-
-// Manual table 75, page 38
-const RANGE_FACTOR_Z: [i16; 8] = [
-    1000, // placeholder
-    980, 760, 600, 400, 355, 295, 205,
-];
 
 #[derive(Clone, Copy, PartialEq)]
 enum State {
@@ -247,11 +136,11 @@ pub struct Lsm303dlhcI2C<'a> {
     i2c_magnetometer: &'a dyn i2c::I2CDevice,
     callback: OptionalCell<Callback>,
     state: Cell<State>,
-    accel_scale: Cell<Lsm303dlhcScale>,
-    mag_range: Cell<Lsm303dlhcRange>,
+    accel_scale: Cell<Lsm303Scale>,
+    mag_range: Cell<Lsm303Range>,
     accel_high_resolution: Cell<bool>,
-    mag_data_rate: Cell<Lsm303dlhcMagnetoDataRate>,
-    accel_data_rate: Cell<Lsm303dlhcAccelDataRate>,
+    mag_data_rate: Cell<Lsm303MagnetoDataRate>,
+    accel_data_rate: Cell<Lsm303AccelDataRate>,
     low_power: Cell<bool>,
     temperature: Cell<bool>,
     buffer: TakeCell<'static, [u8]>,
@@ -272,11 +161,11 @@ impl<'a> Lsm303dlhcI2C<'a> {
             i2c_magnetometer: i2c_magnetometer,
             callback: OptionalCell::empty(),
             state: Cell::new(State::Idle),
-            accel_scale: Cell::new(Lsm303dlhcScale::Scale2G),
-            mag_range: Cell::new(Lsm303dlhcRange::Range1G),
+            accel_scale: Cell::new(Lsm303Scale::Scale2G),
+            mag_range: Cell::new(Lsm303Range::Range1G),
             accel_high_resolution: Cell::new(false),
-            mag_data_rate: Cell::new(Lsm303dlhcMagnetoDataRate::DataRate0_75Hz),
-            accel_data_rate: Cell::new(Lsm303dlhcAccelDataRate::DataRate1Hz),
+            mag_data_rate: Cell::new(Lsm303MagnetoDataRate::DataRate0_75Hz),
+            accel_data_rate: Cell::new(Lsm303AccelDataRate::DataRate1Hz),
             low_power: Cell::new(false),
             temperature: Cell::new(false),
             buffer: TakeCell::new(buffer),
@@ -287,13 +176,13 @@ impl<'a> Lsm303dlhcI2C<'a> {
 
     pub fn configure(
         &self,
-        accel_data_rate: Lsm303dlhcAccelDataRate,
+        accel_data_rate: Lsm303AccelDataRate,
         low_power: bool,
-        accel_scale: Lsm303dlhcScale,
+        accel_scale: Lsm303Scale,
         accel_high_resolution: bool,
         temperature: bool,
-        mag_data_rate: Lsm303dlhcMagnetoDataRate,
-        mag_range: Lsm303dlhcRange,
+        mag_data_rate: Lsm303MagnetoDataRate,
+        mag_range: Lsm303Range,
     ) {
         if self.state.get() == State::Idle {
             self.config_in_progress.set(true);
@@ -315,11 +204,12 @@ impl<'a> Lsm303dlhcI2C<'a> {
         self.buffer.take().map(|buf| {
             // turn on i2c to send commands
             buf[0] = 0x0F;
+            self.i2c_magnetometer.enable();
             self.i2c_magnetometer.write_read(buf, 1, 1);
         });
     }
 
-    fn set_power_mode(&self, data_rate: Lsm303dlhcAccelDataRate, low_power: bool) {
+    fn set_power_mode(&self, data_rate: Lsm303AccelDataRate, low_power: bool) {
         if self.state.get() == State::Idle {
             self.state.set(State::SetPowerMode);
             self.buffer.take().map(|buf| {
@@ -330,12 +220,13 @@ impl<'a> Lsm303dlhcI2C<'a> {
                     + CTRL_REG1::YEN::SET
                     + CTRL_REG1::XEN::SET)
                     .value;
+                self.i2c_accelerometer.enable();
                 self.i2c_accelerometer.write(buf, 2);
             });
         }
     }
 
-    fn set_scale_and_resolution(&self, scale: Lsm303dlhcScale, high_resolution: bool) {
+    fn set_scale_and_resolution(&self, scale: Lsm303Scale, high_resolution: bool) {
         if self.state.get() == State::Idle {
             self.state.set(State::SetScaleAndResolution);
             // TODO move these in completed
@@ -346,6 +237,7 @@ impl<'a> Lsm303dlhcI2C<'a> {
                 buf[1] = (CTRL_REG4::FS.val(scale as u8)
                     + CTRL_REG4::HR.val(high_resolution as u8))
                 .value;
+                self.i2c_accelerometer.enable();
                 self.i2c_accelerometer.write(buf, 2);
             });
         }
@@ -356,6 +248,7 @@ impl<'a> Lsm303dlhcI2C<'a> {
             self.state.set(State::ReadAccelerationXYZ);
             self.buffer.take().map(|buf| {
                 buf[0] = AccelerometerRegisters::OUT_X_L_A as u8 | REGISTER_AUTO_INCREMENT;
+                self.i2c_accelerometer.enable();
                 self.i2c_accelerometer.write_read(buf, 1, 6);
             });
         }
@@ -364,19 +257,20 @@ impl<'a> Lsm303dlhcI2C<'a> {
     fn set_temperature_and_magneto_data_rate(
         &self,
         temperature: bool,
-        data_rate: Lsm303dlhcMagnetoDataRate,
+        data_rate: Lsm303MagnetoDataRate,
     ) {
         if self.state.get() == State::Idle {
             self.state.set(State::SetTemperatureDataRate);
             self.buffer.take().map(|buf| {
                 buf[0] = MagnetometerRegisters::CRA_REG_M as u8;
                 buf[1] = ((data_rate as u8) << 2) | if temperature { 1 << 7 } else { 0 };
+                self.i2c_magnetometer.enable();
                 self.i2c_magnetometer.write(buf, 2);
             });
         }
     }
 
-    fn set_range(&self, range: Lsm303dlhcRange) {
+    fn set_range(&self, range: Lsm303Range) {
         if self.state.get() == State::Idle {
             self.state.set(State::SetRange);
             // TODO move these in completed
@@ -385,6 +279,7 @@ impl<'a> Lsm303dlhcI2C<'a> {
                 buf[0] = MagnetometerRegisters::CRB_REG_M as u8;
                 buf[1] = (range as u8) << 5;
                 buf[2] = 0;
+                self.i2c_magnetometer.enable();
                 self.i2c_magnetometer.write(buf, 3);
             });
         }
@@ -395,6 +290,7 @@ impl<'a> Lsm303dlhcI2C<'a> {
             self.state.set(State::ReadTemperature);
             self.buffer.take().map(|buf| {
                 buf[0] = MagnetometerRegisters::TEMP_OUT_H_M as u8;
+                self.i2c_magnetometer.enable();
                 self.i2c_magnetometer.write_read(buf, 1, 2);
             });
         }
@@ -405,6 +301,7 @@ impl<'a> Lsm303dlhcI2C<'a> {
             self.state.set(State::ReadMagnetometerXYZ);
             self.buffer.take().map(|buf| {
                 buf[0] = MagnetometerRegisters::OUT_X_H_M as u8;
+                self.i2c_magnetometer.enable();
                 self.i2c_magnetometer.write_read(buf, 1, 6);
             });
         }
@@ -425,6 +322,7 @@ impl i2c::I2CClient for Lsm303dlhcI2C<'_> {
                     callback.schedule(if present { 1 } else { 0 }, 0, 0);
                 });
                 self.buffer.replace(buffer);
+                self.i2c_magnetometer.disable();
                 self.state.set(State::Idle);
             }
             State::SetPowerMode => {
@@ -434,6 +332,7 @@ impl i2c::I2CClient for Lsm303dlhcI2C<'_> {
                     callback.schedule(if set_power { 1 } else { 0 }, 0, 0);
                 });
                 self.buffer.replace(buffer);
+                self.i2c_accelerometer.disable();
                 self.state.set(State::Idle);
                 if self.config_in_progress.get() {
                     self.set_scale_and_resolution(
@@ -449,6 +348,7 @@ impl i2c::I2CClient for Lsm303dlhcI2C<'_> {
                     callback.schedule(if set_scale_and_resolution { 1 } else { 0 }, 0, 0);
                 });
                 self.buffer.replace(buffer);
+                self.i2c_accelerometer.disable();
                 self.state.set(State::Idle);
                 if self.config_in_progress.get() {
                     self.set_temperature_and_magneto_data_rate(
@@ -500,6 +400,7 @@ impl i2c::I2CClient for Lsm303dlhcI2C<'_> {
                     });
                 }
                 self.buffer.replace(buffer);
+                self.i2c_accelerometer.disable();
                 self.state.set(State::Idle);
             }
             State::SetTemperatureDataRate => {
@@ -517,6 +418,7 @@ impl i2c::I2CClient for Lsm303dlhcI2C<'_> {
                     );
                 });
                 self.buffer.replace(buffer);
+                self.i2c_magnetometer.disable();
                 self.state.set(State::Idle);
                 if self.config_in_progress.get() {
                     self.set_range(self.mag_range.get());
@@ -532,6 +434,7 @@ impl i2c::I2CClient for Lsm303dlhcI2C<'_> {
                     self.config_in_progress.set(false);
                 }
                 self.buffer.replace(buffer);
+                self.i2c_magnetometer.disable();
                 self.state.set(State::Idle);
             }
             State::ReadTemperature => {
@@ -544,7 +447,7 @@ impl i2c::I2CClient for Lsm303dlhcI2C<'_> {
                     true
                 } else {
                     self.temperature_client.map(|client| {
-                        client.callback(0);
+                        client.callback(usize::MAX);
                     });
                     false
                 };
@@ -558,6 +461,7 @@ impl i2c::I2CClient for Lsm303dlhcI2C<'_> {
                     });
                 }
                 self.buffer.replace(buffer);
+                self.i2c_magnetometer.disable();
                 self.state.set(State::Idle);
             }
             State::ReadMagnetometerXYZ => {
@@ -597,9 +501,12 @@ impl i2c::I2CClient for Lsm303dlhcI2C<'_> {
                     });
                 }
                 self.buffer.replace(buffer);
+                self.i2c_magnetometer.disable();
                 self.state.set(State::Idle);
             }
             _ => {
+                self.i2c_magnetometer.disable();
+                self.i2c_accelerometer.disable();
                 self.buffer.replace(buffer);
             }
         }
@@ -622,7 +529,7 @@ impl LegacyDriver for Lsm303dlhcI2C<'_> {
             // Set Accelerometer Power Mode
             2 => {
                 if self.state.get() == State::Idle {
-                    if let Some(data_rate) = Lsm303dlhcAccelDataRate::from_usize(data1) {
+                    if let Some(data_rate) = Lsm303AccelDataRate::from_usize(data1) {
                         self.set_power_mode(data_rate, if data2 != 0 { true } else { false });
                         ReturnCode::SUCCESS
                     } else {
@@ -635,7 +542,7 @@ impl LegacyDriver for Lsm303dlhcI2C<'_> {
             // Set Accelerometer Scale And Resolution
             3 => {
                 if self.state.get() == State::Idle {
-                    if let Some(scale) = Lsm303dlhcScale::from_usize(data1) {
+                    if let Some(scale) = Lsm303Scale::from_usize(data1) {
                         self.set_scale_and_resolution(scale, if data2 != 0 { true } else { false });
                         ReturnCode::SUCCESS
                     } else {
@@ -648,7 +555,7 @@ impl LegacyDriver for Lsm303dlhcI2C<'_> {
             // Set Magnetometer Temperature Enable and Data Rate
             4 => {
                 if self.state.get() == State::Idle {
-                    if let Some(data_rate) = Lsm303dlhcMagnetoDataRate::from_usize(data1) {
+                    if let Some(data_rate) = Lsm303MagnetoDataRate::from_usize(data1) {
                         self.set_temperature_and_magneto_data_rate(
                             if data2 != 0 { true } else { false },
                             data_rate,
@@ -664,7 +571,7 @@ impl LegacyDriver for Lsm303dlhcI2C<'_> {
             // Set Magnetometer Range
             5 => {
                 if self.state.get() == State::Idle {
-                    if let Some(range) = Lsm303dlhcRange::from_usize(data1) {
+                    if let Some(range) = Lsm303Range::from_usize(data1) {
                         self.set_range(range);
                         ReturnCode::SUCCESS
                     } else {

@@ -10,6 +10,8 @@
 #![deny(missing_docs)]
 
 use capsules::virtual_aes_ccm::MuxAES128CCM;
+use capsules::virtual_alarm::VirtualMuxAlarm;
+
 use kernel::capabilities;
 use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::component::Component;
@@ -127,6 +129,8 @@ pub struct Platform {
         'static,
         capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52840::rtc::Rtc<'static>>,
     >,
+    temperature: &'static capsules::temperature::TemperatureSensor<'static>,
+    humidity: &'static capsules::humidity::HumiditySensor<'static>,
 }
 
 impl kernel::Platform for Platform {
@@ -146,6 +150,8 @@ impl kernel::Platform for Platform {
             capsules::ble_advertising_driver::DRIVER_NUM => f(Some(Err(self.ble_radio))),
             capsules::ieee802154::DRIVER_NUM => f(Some(Err(self.ieee802154_radio))),
             capsules::buzzer_driver::DRIVER_NUM => f(Some(Err(self.buzzer))),
+            capsules::temperature::DRIVER_NUM => f(Some(Ok(self.temperature))),
+            capsules::humidity::DRIVER_NUM => f(Some(Ok(self.humidity))),
             kernel::ipc::DRIVER_NUM => f(Some(Err(&self.ipc))),
             _ => f(None),
         }
@@ -399,6 +405,15 @@ pub unsafe fn reset_handler() {
 
     kernel::hil::sensors::ProximityDriver::set_client(apds9960, proximity);
 
+    let sht3x = components::sht3x::SHT3xComponent::new(sensors_i2c_bus, mux_alarm).finalize(
+        components::sht3x_component_helper!(nrf52::rtc::Rtc<'static>, capsules::sht3x::BASE_ADDR),
+    );
+
+    let temperature =
+        components::temperature::TemperatureComponent::new(board_kernel, sht3x).finalize(());
+
+    let humidity = components::humidity::HumidityComponent::new(board_kernel, sht3x).finalize(());
+
     //--------------------------------------------------------------------------
     // TFT
     //--------------------------------------------------------------------------
@@ -506,6 +521,8 @@ pub unsafe fn reset_handler() {
         buzzer: buzzer,
         alarm: alarm,
         ipc: kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability),
+        temperature: temperature,
+        humidity: humidity,
     };
 
     let chip = static_init!(

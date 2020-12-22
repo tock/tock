@@ -342,4 +342,25 @@ impl<'a> Power<'a> {
     pub fn is_usb_power_ready(&self) -> bool {
         self.registers.usbregstatus.is_set(UsbRegStatus::OUTPUTRDY)
     }
+
+    /// Return the contents of the GPREGRET (general purpose retention register)
+    /// register.
+    ///
+    /// This register is a "retention" register because it preserves eight bits
+    /// of its state across a soft reset.
+    ///
+    /// This is used to set a flag before a reset to instruct the bootloader to
+    /// stay in the bootloader mode.
+    pub fn get_gpregret(&self) -> u8 {
+        self.registers.gpregret.read(Byte::VALUE) as u8
+    }
+
+    /// Set the value of the GPREGRET (general purpose retention register)
+    /// register.
+    ///
+    /// This is used to set a flag before a reset to instruct the bootloader to
+    /// stay in the bootloader mode.
+    pub fn set_gpregret(&self, val: u8) {
+        self.registers.gpregret.write(Byte::VALUE.val(val as u32));
+    }
 }

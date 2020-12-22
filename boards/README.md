@@ -14,6 +14,7 @@ that Tock supports.
 | [ACD52832](acd52832/README.md)                                       | ARM Cortex-M4   | nRF52832       | jLink      | tockloader     | No                |
 | [Nano 33 BLE](nano33ble/README.md)                                   | ARM Cortex-M4   | nRF52840       | BOSSA      | bossac         | No                |
 | [Clue nRF52840](clue_nrf52840/README.md)                             | ARM Cortex-M4   | nRF52840       | nrfutil    | custom         | No                |
+| [BBC Micro:bit v2](microbit_v2/README.md)                            | ARM Cortex-M4   | nRF52833       | openocd    | openocd        | No                |
 | [ST Nucleo F446RE](nucleo_f446re/README.md)                          | ARM Cortex-M4   | STM32F446      | openocd    | custom         | #1827             |
 | [ST Nucleo F429ZI](nucleo_f429zi/README.md)                          | ARM Cortex-M4   | STM32F429      | openocd    | custom         | #1827             |
 | [STM32F3Discovery kit](stm32f3discovery/README.md)                   | ARM Cortex-M4   | STM32F303VCT6  | openocd    | custom         | #1827             |
@@ -24,6 +25,8 @@ that Tock supports.
 | [SiFive HiFive1 Rev B](hifive1/README.md)                            | RISC-V          | FE310-G002     | openocd    | tockloader     | [Yes (5.1)][qemu] |
 | [Digilent Arty A-7 100T](arty_e21/README.md)                         | RISC-V RV32IMAC | SiFive E21     | openocd    | tockloader     | No                |
 | [Earlgrey on Nexys Video](earlgrey_nexysvideo/README.md)             | RISC-V RV32IMC  | EarlGrey       | custom     | custom         | [Yes (5.1)][qemu] |
+| [LiteX on Digilent Arty A-7](litex/arty/README.md)                   | RISC-V RV32I    | LiteX+VexRiscV | custom     | custom         | No                |
+| [Verilated LiteX Simulation](litex/sim/README.md)                    | RISC-V RV32I    | LiteX+VexRiscv | custom     | custom         | No                |
 
 # Out of Tree Boards
 
