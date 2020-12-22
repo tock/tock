@@ -84,7 +84,7 @@ use enum_primitive::enum_from_primitive;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::i2c::{self, Error};
 use kernel::hil::sensors;
-use kernel::{AppId, Callback, Driver, ReturnCode};
+use kernel::{AppId, Callback, LegacyDriver, ReturnCode};
 
 use crate::driver;
 use crate::lsm303xx::{
@@ -501,7 +501,7 @@ impl i2c::I2CClient for Lsm303agrI2C<'_> {
     }
 }
 
-impl Driver for Lsm303agrI2C<'_> {
+impl LegacyDriver for Lsm303agrI2C<'_> {
     fn command(&self, command_num: usize, data1: usize, data2: usize, _: AppId) -> ReturnCode {
         match command_num {
             0 => ReturnCode::SUCCESS,
