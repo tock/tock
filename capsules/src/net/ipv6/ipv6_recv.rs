@@ -1,4 +1,4 @@
-use crate::net::ipv6::ipv6::IP6Header;
+use crate::net::ipv6::IP6Header;
 use crate::net::sixlowpan::sixlowpan_state::SixlowpanRxClient;
 use kernel::common::cells::OptionalCell;
 use kernel::debug;

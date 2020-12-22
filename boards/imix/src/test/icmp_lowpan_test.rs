@@ -11,12 +11,12 @@
 //! ```
 
 use capsules::ieee802154::device::MacDevice;
-use capsules::net::icmpv6::icmpv6::{ICMP6Header, ICMP6Type};
 use capsules::net::icmpv6::icmpv6_send::{ICMP6SendStruct, ICMP6Sender};
+use capsules::net::icmpv6::{ICMP6Header, ICMP6Type};
 use capsules::net::ieee802154::MacAddress;
 use capsules::net::ipv6::ip_utils::IPAddr;
-use capsules::net::ipv6::ipv6::{IP6Packet, IPPayload, TransportHeader};
 use capsules::net::ipv6::ipv6_send::{IP6SendStruct, IP6Sender};
+use capsules::net::ipv6::{IP6Packet, IPPayload, TransportHeader};
 use capsules::net::network_capabilities::{
     AddrRange, IpVisibilityCapability, NetworkCapability, PortRange,
 };

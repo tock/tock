@@ -228,7 +228,7 @@ use crate::ieee802154::device::{MacDevice, RxClient};
 use crate::ieee802154::framer::Frame;
 use crate::net::frag_utils::Bitmap;
 use crate::net::ieee802154::{Header, KeyId, MacAddress, PanID, SecurityLevel};
-use crate::net::ipv6::ipv6::IP6Packet;
+use crate::net::ipv6::IP6Packet;
 use crate::net::sixlowpan::sixlowpan_compression;
 use crate::net::sixlowpan::sixlowpan_compression::{is_lowpan, ContextStore};
 use crate::net::util::{network_slice_to_u16, u16_to_network_slice};
