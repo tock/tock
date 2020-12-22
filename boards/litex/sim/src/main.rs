@@ -134,12 +134,12 @@ struct LiteXSim {
 impl Platform for LiteXSim {
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
     where
-        F: FnOnce(Option<&dyn kernel::Driver>) -> R,
+        F: FnOnce(Option<Result<&dyn kernel::Driver, &dyn kernel::LegacyDriver>>) -> R,
     {
         match driver_num {
-            capsules::console::DRIVER_NUM => f(Some(self.console)),
-            capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
-            capsules::low_level_debug::DRIVER_NUM => f(Some(self.lldb)),
+            capsules::console::DRIVER_NUM => f(Some(Ok(self.console))),
+            capsules::alarm::DRIVER_NUM => f(Some(Err(self.alarm))),
+            capsules::low_level_debug::DRIVER_NUM => f(Some(Err(self.lldb))),
             _ => f(None),
         }
     }
