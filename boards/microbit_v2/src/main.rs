@@ -108,23 +108,23 @@ pub struct Platform {
 impl kernel::Platform for Platform {
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
     where
-        F: FnOnce(Option<&dyn kernel::Driver>) -> R,
+        F: FnOnce(Option<Result<&dyn kernel::Driver, &dyn kernel::LegacyDriver>>) -> R,
     {
         match driver_num {
-            capsules::console::DRIVER_NUM => f(Some(self.console)),
-            capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
-            capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
-            capsules::button::DRIVER_NUM => f(Some(self.button)),
-            capsules::led_matrix::DRIVER_NUM => f(Some(self.led)),
-            capsules::ninedof::DRIVER_NUM => f(Some(self.ninedof)),
-            capsules::adc::DRIVER_NUM => f(Some(self.adc)),
-            capsules::temperature::DRIVER_NUM => f(Some(self.temperature)),
-            capsules::lsm303agr::DRIVER_NUM => f(Some(self.lsm303agr)),
-            capsules::rng::DRIVER_NUM => f(Some(self.rng)),
-            capsules::ble_advertising_driver::DRIVER_NUM => f(Some(self.ble_radio)),
-            capsules::buzzer_driver::DRIVER_NUM => f(Some(self.buzzer)),
-            capsules::app_flash_driver::DRIVER_NUM => f(Some(self.app_flash)),
-            kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
+            capsules::console::DRIVER_NUM => f(Some(Ok(self.console))),
+            capsules::gpio::DRIVER_NUM => f(Some(Err(self.gpio))),
+            capsules::alarm::DRIVER_NUM => f(Some(Err(self.alarm))),
+            capsules::button::DRIVER_NUM => f(Some(Err(self.button))),
+            capsules::led_matrix::DRIVER_NUM => f(Some(Err(self.led))),
+            capsules::ninedof::DRIVER_NUM => f(Some(Ok(self.ninedof))),
+            capsules::adc::DRIVER_NUM => f(Some(Err(self.adc))),
+            capsules::temperature::DRIVER_NUM => f(Some(Ok(self.temperature))),
+            capsules::lsm303agr::DRIVER_NUM => f(Some(Err(self.lsm303agr))),
+            capsules::rng::DRIVER_NUM => f(Some(Err(self.rng))),
+            capsules::ble_advertising_driver::DRIVER_NUM => f(Some(Err(self.ble_radio))),
+            capsules::buzzer_driver::DRIVER_NUM => f(Some(Err(self.buzzer))),
+            capsules::app_flash_driver::DRIVER_NUM => f(Some(Err(self.app_flash))),
+            kernel::ipc::DRIVER_NUM => f(Some(Err(&self.ipc))),
             _ => f(None),
         }
     }
