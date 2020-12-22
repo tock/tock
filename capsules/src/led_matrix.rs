@@ -68,7 +68,7 @@
 //!   - Return: `SUCCESS` if the LED index was valid, `EINVAL` otherwise.
 
 use kernel::hil::gpio;
-use kernel::{AppId, Driver, ReturnCode};
+use kernel::{AppId, LegacyDriver, ReturnCode};
 
 use core::cell::Cell;
 use kernel::common::cells::TakeCell;
@@ -187,7 +187,7 @@ impl<'a, L: gpio::Pin, A: Alarm<'a>> AlarmClient for LedMatrixDriver<'a, L, A> {
     }
 }
 
-impl<'a, L: gpio::Pin, A: Alarm<'a>> Driver for LedMatrixDriver<'a, L, A> {
+impl<'a, L: gpio::Pin, A: Alarm<'a>> LegacyDriver for LedMatrixDriver<'a, L, A> {
     /// Control the LEDs.
     ///
     /// ### `command_num`
