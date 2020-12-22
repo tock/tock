@@ -14,25 +14,36 @@ tested with
   4092180662](https://github.com/enjoy-digital/litex/tree/4092180662ec62cf28b9283a020f1ff7f0892c19)
 - using the included [target
   file](https://github.com/enjoy-digital/litex/blob/4092180662ec62cf28b9283a020f1ff7f0892c19/litex/boards/targets/arty.py)
-- built around a VexRiscv-CPU
+- built around a VexRiscv-CPU with PMP, hardware multiplication and
+  compressed instruction support
 - along with the following configuration options:
 
   ```
   --uart-baudrate=1000000
-  --cpu-variant=secure
+  --cpu-variant=tock+secure+imc
   --csr-data-width=32
   --timer-uptime
   --integrated-rom-size=0xb000
   --with-ethernet
   ```
 
-Prebuilt and tested bitstreams can be obtained from the [Tock on LiteX
-companion repository
+The `tock+secure+imc` is a custom VexRiscv CPU variant, based on the
+build infrastructure in
+[pythondata-cpu-vexriscv](https://github.com/litex-hub/pythondata-cpu-vexriscv),
+using a
+[patch](https://github.com/lschuermann/tock-litex/blob/master/pkgs/pythondata-cpu-vexriscv/0001-Add-TockSecureIMC-cpu-variant.patch)
+to introduce a CPU with physical memory protection, hardware
+multiplication and compressed instruction support (such that it is
+compatible with the `rv32imc` arch).
+
+Prebuilt and tested bitstreams (including the generated VexRiscv CPU
+Verilog files) can be obtained from the [Tock on LiteX companion
+repository
 releases](https://github.com/lschuermann/tock-litex/releases/). The
 current board definition has been verified to work with [release
-2020122001](https://github.com/lschuermann/tock-litex/releases/tag/2020122001). The
+2020122201](https://github.com/lschuermann/tock-litex/releases/tag/2020122201). The
 bitstream for this board is located in `arty_a7-35t.zip` under
-`gateware/arty.bit`.
+`gateware/arty.bin`.
 
 Many bitstream customizations can be represented in the Tock board by
 simply changing the variables in `src/litex_generated.rs`. To support
