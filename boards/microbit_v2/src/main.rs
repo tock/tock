@@ -120,7 +120,7 @@ impl kernel::Platform for Platform {
             capsules::adc::DRIVER_NUM => f(Some(Err(self.adc))),
             capsules::temperature::DRIVER_NUM => f(Some(Ok(self.temperature))),
             capsules::lsm303agr::DRIVER_NUM => f(Some(Err(self.lsm303agr))),
-            capsules::rng::DRIVER_NUM => f(Some(Err(self.rng))),
+            capsules::rng::DRIVER_NUM => f(Some(Ok(self.rng))),
             capsules::ble_advertising_driver::DRIVER_NUM => f(Some(Err(self.ble_radio))),
             capsules::buzzer_driver::DRIVER_NUM => f(Some(Err(self.buzzer))),
             capsules::app_flash_driver::DRIVER_NUM => f(Some(Err(self.app_flash))),
