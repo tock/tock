@@ -497,9 +497,8 @@ pub unsafe fn print_riscv_state(writer: &mut dyn Write) {
     let _ = writer.write_fmt(format_args!("\r\n---| RISC-V Machine State |---\r\n"));
     let _ = writer.write_fmt(format_args!("Last cause (mcause): "));
     print_mcause(mcval, writer);
-    let mval = csr::CSR.mcause.get();
-    let interrupt = (mval & 0x80000000) == 0x80000000;
-    let code = mval & 0x7fffffff;
+    let interrupt = csr::CSR.mcause.read(csr::mcause::mcause::is_interrupt);
+    let code = csr::CSR.mcause.read(csr::mcause::mcause::reason);
     let _ = writer.write_fmt(format_args!(
         " (interrupt={}, exception code={:#010X})",
         interrupt, code
