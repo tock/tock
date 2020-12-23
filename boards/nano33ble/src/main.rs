@@ -124,7 +124,7 @@ impl kernel::Platform for Platform {
     {
         match driver_num {
             capsules::console::DRIVER_NUM => f(Some(Ok(self.console))),
-            capsules::proximity::DRIVER_NUM => f(Some(Err(self.proximity))),
+            capsules::proximity::DRIVER_NUM => f(Some(Ok(self.proximity))),
             capsules::gpio::DRIVER_NUM => f(Some(Err(self.gpio))),
             capsules::alarm::DRIVER_NUM => f(Some(Err(self.alarm))),
             capsules::led::DRIVER_NUM => f(Some(Ok(self.led))),
