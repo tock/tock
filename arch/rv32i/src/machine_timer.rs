@@ -44,7 +44,7 @@ impl MachineTimer<'_> {
         });
     }
 
-    fn disable_machine_timer(&self) {
+    pub fn disable_machine_timer(&self) {
         // Disable by setting the mtimecmp register to its max value, which
         // we will never hit.
         self.registers
