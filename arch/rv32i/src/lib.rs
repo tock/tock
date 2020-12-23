@@ -8,22 +8,15 @@
 use core::fmt::Write;
 
 pub mod clic;
-pub mod csr;
 pub mod machine_timer;
 pub mod pmp;
 pub mod support;
 pub mod syscall;
 extern crate tock_registers;
 
-#[cfg(target_arch = "riscv32")]
-pub const XLEN: usize = 32;
-#[cfg(target_arch = "riscv64")]
-pub const XLEN: usize = 64;
-
-// Default to 32 bit if no architecture is specified of if this is being
-// compiled for testing on a different architecture.
-#[cfg(not(any(target_arch = "riscv32", target_arch = "riscv64", target_os = "none")))]
-pub const XLEN: usize = 32;
+// Re-export the shared CSR library so that dependent crates do not have to have
+// both rv32i and riscv as dependencies.
+pub use riscv::csr;
 
 extern "C" {
     // Where the end of the stack region is (and hence where the stack should
