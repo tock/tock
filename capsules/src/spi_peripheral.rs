@@ -3,6 +3,8 @@
 
 use core::cell::Cell;
 use core::cmp;
+use core::mem;
+
 use kernel::common::cells::{MapCell, TakeCell};
 use kernel::hil::spi::ClockPhase;
 use kernel::hil::spi::ClockPolarity;
@@ -26,7 +28,7 @@ struct PeripheralApp {
     callback: Callback,
     selected_callback: Callback,
     app_read: ReadWriteAppSlice,
-    app_write: ReadOnlyAppSLice,
+    app_write: ReadOnlyAppSlice,
     len: usize,
     index: usize,
 }
@@ -78,7 +80,7 @@ impl<'a, S: SpiSlaveDevice> SpiPeripheral<'a, S> {
             tmp_len
         });
         self.spi_slave.read_write_bytes(
-            self.kernel_write.take().unwrap(),
+            self.kernel_write.take(),
             self.kernel_read.take(),
             write_len,
         );
@@ -94,7 +96,7 @@ impl<S: SpiSlaveDevice> Driver for SpiPeripheral<'_, S> {
         &self,
         _appid: AppId,
         allow_num: usize,
-        slice: ReadWriteAppSlice,
+        mut slice: ReadWriteAppSlice,
     ) -> Result<ReadWriteAppSlice, (ReadWriteAppSlice, ErrorCode)> {
         match allow_num {
             0 => {
@@ -115,7 +117,7 @@ impl<S: SpiSlaveDevice> Driver for SpiPeripheral<'_, S> {
         &self,
         _appid: AppId,
         allow_num: usize,
-        slice: ReadOnlyAppSlice,
+        mut slice: ReadOnlyAppSlice,
     ) -> Result<ReadOnlyAppSlice, (ReadOnlyAppSlice, ErrorCode)> {
         match allow_num {
             0 => {
@@ -141,7 +143,7 @@ impl<S: SpiSlaveDevice> Driver for SpiPeripheral<'_, S> {
     fn subscribe(
         &self,
         subscribe_num: usize,
-        callback: Callback,
+        mut callback: Callback,
         _app_id: AppId,
     ) ->  Result<Callback, (Callback, ErrorCode)> {
         match subscribe_num {
@@ -193,20 +195,16 @@ impl<S: SpiSlaveDevice> Driver for SpiPeripheral<'_, S> {
     ///   - not implemented or currently supported
     fn command(&self, cmd_num: usize, arg1: usize, _: usize, _: AppId) -> CommandResult {
         match cmd_num {
-            0 /* check if present */ => CommandResult::success()
+            0 /* check if present */ => CommandResult::success(),
             1 /* read_write_bytes */ => {
                 if self.busy.get() {
-                    return ReturnCode::EBUSY;
+                    return CommandResult::failure(ErrorCode::BUSY);
                 }
-                self.app.map_or(ReturnCode::FAIL /* XXX app is null? */, |app| {
-                    let mut mlen = 0;
-                    app.app_write.as_mut().map(|w| {
-                        mlen = w.len();
-                    });
-                    app.app_read.as_mut().map(|r| {
-                        mlen = cmp::min(mlen, r.len());
-                    });
-                    if mlen >= arg1 {
+                self.app.map_or(CommandResult::failure(ErrorCode::NOMEM), |app| {
+                    let mut mlen = app.app_write.map_or(0, |w| w.len());
+                    let rlen = app.app_read.map_or(mlen, |r| r.len());
+                    mlen = cmp::min(mlen, rlen);
+                    if mlen >= arg1 && arg1 > 0 {
                         app.len = arg1;
                         app.index = 0;
                         self.busy.set(true);
@@ -282,7 +280,7 @@ impl<S: SpiSlaveDevice> SpiSlaveClient for SpiPeripheral<'_, S> {
                 src
             });
             
-            self.kernel_read.put(readbuf);
+            self.kernel_read.put(rbuf);
             self.kernel_write.put(writebuf);
             
             if app.index == app.len {
@@ -290,7 +288,7 @@ impl<S: SpiSlaveDevice> SpiSlaveClient for SpiPeripheral<'_, S> {
                 let len = app.len;
                 app.len = 0;
                 app.index = 0;
-                app.callback.schedule(app.len, 0, 0);
+                app.callback.schedule(len, 0, 0);
             } else {
                 self.do_next_read_write(app);
             }
