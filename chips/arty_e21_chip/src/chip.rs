@@ -16,6 +16,7 @@ pub struct ArtyExx<'a, I: InterruptService<()> + 'a> {
     pmp: pmp::PMP,
     userspace_kernel_boundary: rv32i::syscall::SysCall,
     clic: rv32i::clic::Clic,
+    machinetimer: &'a rv32i::machine_timer::MachineTimer<'a>,
     interrupt_service: &'a I,
 }
 
@@ -70,7 +71,10 @@ impl<'a> InterruptService<()> for ArtyExxDefaultPeripherals<'a> {
 }
 
 impl<'a, I: InterruptService<()> + 'a> ArtyExx<'a, I> {
-    pub unsafe fn new(interrupt_service: &'a I) -> Self {
+    pub unsafe fn new(
+        machinetimer: &'a rv32i::machine_timer::MachineTimer<'a>,
+        interrupt_service: &'a I,
+    ) -> Self {
         // Make a bit-vector of all interrupt locations that we actually intend
         // to use on this chip.
         // 0001 1111 1111 1111 1111 0000 0000 1000 0000
@@ -80,6 +84,7 @@ impl<'a, I: InterruptService<()> + 'a> ArtyExx<'a, I> {
             pmp: pmp::PMP::new(),
             userspace_kernel_boundary: rv32i::syscall::SysCall::new(),
             clic: rv32i::clic::Clic::new(in_use_interrupts),
+            machinetimer,
             interrupt_service,
         }
     }
@@ -92,27 +97,8 @@ impl<'a, I: InterruptService<()> + 'a> ArtyExx<'a, I> {
     /// prevent that we can make the compare register very large to effectively
     /// stop the interrupt from triggering, and then the machine timer can be
     /// used later as needed.
-    #[cfg(all(target_arch = "riscv32", target_os = "none"))]
     pub unsafe fn disable_machine_timer(&self) {
-        llvm_asm!("
-            // Initialize machine timer mtimecmp to disable the machine timer
-            // interrupt.
-            li   t0, -1       // Set mtimecmp to 0xFFFFFFFF
-            lui  t1, %hi(0x02004000)     // Load the address of mtimecmp to t1
-            addi t1, t1, %lo(0x02004000) // Load the address of mtimecmp to t1
-            sw   t0, 0(t1)    // mtimecmp is 64 bits, set to all ones
-            sw   t0, 4(t1)    // mtimecmp is 64 bits, set to all ones
-        "
-        :
-        :
-        :
-        : "volatile");
-    }
-
-    // Mock implementation for tests on Travis-CI.
-    #[cfg(not(any(target_arch = "riscv32", target_os = "none")))]
-    pub unsafe fn disable_machine_timer(&self) {
-        unimplemented!()
+        self.machinetimer.disable_machine_timer();
     }
 
     /// Setup the function that should run when a trap happens.
@@ -122,7 +108,8 @@ impl<'a, I: InterruptService<()> + 'a> ArtyExx<'a, I> {
     /// valid for platforms with a CLIC.
     #[cfg(all(target_arch = "riscv32", target_os = "none"))]
     pub unsafe fn configure_trap_handler(&self) {
-        llvm_asm!("
+        asm!(
+            "
             // The csrw instruction writes a Control and Status Register (CSR)
             // with a new value.
             //
@@ -134,11 +121,8 @@ impl<'a, I: InterruptService<()> + 'a> ArtyExx<'a, I> {
             addi t0, t0, %lo(_start_trap)
             ori  t0, t0, 0x02 // Set CLIC direct mode
             csrw 0x305, t0    // Write the mtvec CSR.
-        "
-        :
-        :
-        :
-        : "volatile");
+            "
+        );
     }
 
     // Mock implementation for tests on Travis-CI.
@@ -219,36 +203,25 @@ impl<'a, I: InterruptService<()> + 'a> kernel::Chip for ArtyExx<'a, I> {
 /// For the arty-e21 this gets called when an interrupt occurs while the chip is
 /// in kernel mode. All we need to do is check which interrupt occurred and
 /// disable it.
-#[cfg(all(target_arch = "riscv32", target_os = "none"))]
 #[export_name = "_start_trap_rust_from_kernel"]
 pub extern "C" fn start_trap_rust() {
-    let mut mcause: i32;
+    let mcause = rv32i::csr::CSR.mcause.extract();
 
-    unsafe {
-        llvm_asm!("
-            // Read the mcause CSR to determine why we entered the trap handler.
+    match rv32i::csr::mcause::Trap::from(mcause) {
+        rv32i::csr::mcause::Trap::Interrupt(_interrupt) => {
             // Since we are using the CLIC, the hardware includes the interrupt
-            // index in the mcause register.
-            csrr $0, 0x342    // CSR=0x342=mcause
-        "
-        : "=r"(mcause)
-        :
-        :
-        : "volatile");
-    }
-
-    // Check if the trap was from an interrupt or some other exception.
-    if mcause < 0 {
-        // If the most significant bit is set (i.e. mcause is negative) then
-        // this was an interrupt. The interrupt number is then the lowest 8
-        // bits.
-        let interrupt_index = mcause & 0xFF;
-        unsafe {
-            rv32i::clic::disable_interrupt(interrupt_index as u32);
+            // index in the mcause register. The interrupt number is the lowest
+            // 8 bits.
+            let interrupt_index = mcause.read(rv32i::csr::mcause::mcause::reason) & 0xFF;
+            unsafe {
+                rv32i::clic::disable_interrupt(interrupt_index as u32);
+            }
         }
-    } else {
-        // Otherwise, the kernel encountered a fault...so panic!()?
-        panic!("kernel exception");
+
+        rv32i::csr::mcause::Trap::Exception(_exception) => {
+            // Otherwise, the kernel encountered a fault...so panic!()?
+            panic!("kernel exception");
+        }
     }
 }
 

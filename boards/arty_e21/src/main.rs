@@ -92,7 +92,7 @@ pub unsafe fn reset_handler() {
 
     let chip = static_init!(
         arty_e21_chip::chip::ArtyExx<ArtyExxDefaultPeripherals>,
-        arty_e21_chip::chip::ArtyExx::new(peripherals)
+        arty_e21_chip::chip::ArtyExx::new(&peripherals.machinetimer, peripherals)
     );
     CHIP = Some(chip);
     chip.initialize();
