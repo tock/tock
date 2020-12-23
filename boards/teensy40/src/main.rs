@@ -6,7 +6,6 @@
 
 #![no_std]
 #![no_main]
-#![feature(const_in_array_repeat_expressions)]
 
 mod fcb;
 mod io;
