@@ -547,9 +547,7 @@ impl<'a> Adc<'a> {
         // we chose 720 because the frequency is 72MHz and it needs 10 us to become enabled
         for _i in 0..720 {
             unsafe {
-                llvm_asm!(
-                "nop"
-            : : : : "volatile" );
+                asm!("nop");
             }
         }
 

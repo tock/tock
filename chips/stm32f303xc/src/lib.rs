@@ -4,7 +4,7 @@
 
 #![crate_name = "stm32f303xc"]
 #![crate_type = "rlib"]
-#![feature(const_fn, llvm_asm)]
+#![feature(asm, const_fn)]
 #![no_std]
 
 pub mod chip;
