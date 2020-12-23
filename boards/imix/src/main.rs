@@ -173,7 +173,7 @@ impl kernel::Platform for Imix {
             capsules::ninedof::DRIVER_NUM => f(Some(Ok(self.ninedof))),
             capsules::crc::DRIVER_NUM => f(Some(Ok(self.crc))),
             capsules::usb::usb_user::DRIVER_NUM => f(Some(Err(self.usb_driver))),
-            capsules::ieee802154::DRIVER_NUM => f(Some(Err(self.radio_driver))),
+            capsules::ieee802154::DRIVER_NUM => f(Some(Ok(self.radio_driver))),
             capsules::net::udp::DRIVER_NUM => f(Some(Ok(self.udp_driver))),
             capsules::nrf51822_serialization::DRIVER_NUM => f(Some(Err(self.nrf51822))),
             capsules::nonvolatile_storage_driver::DRIVER_NUM => {
@@ -469,6 +469,7 @@ pub unsafe fn reset_handler() {
         aes_mux,
         PAN_ID,
         serial_num_bottom_16,
+        dynamic_deferred_caller,
     )
     .finalize(components::ieee802154_component_helper!(
         capsules::rf233::RF233<'static, VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw>>,
