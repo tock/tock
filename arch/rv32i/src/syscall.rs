@@ -119,7 +119,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         _state: &mut RiscvimacStoredState,
     ) -> (*mut usize, ContextSwitchReason) {
         // Convince lint that 'mcause' and 'R_A4' are used during test build
-        let _cause = mcause::Trap::from(_state.mcause as u32);
+        let _cause = mcause::Trap::from(_state.mcause);
         let _arg4 = _state.regs[R_A4];
         unimplemented!()
     }
@@ -333,7 +333,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
           : "memory"
           : "volatile");
 
-        let ret = match mcause::Trap::from(state.mcause as u32) {
+        let ret = match mcause::Trap::from(state.mcause) {
             mcause::Trap::Interrupt(_intr) => {
                 // An interrupt occurred while the app was running.
                 ContextSwitchReason::Interrupted
@@ -433,7 +433,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
             stack_pointer as usize,
             state.mcause,
         ));
-        crate::print_mcause(mcause::Trap::from(state.mcause as u32), writer);
+        crate::print_mcause(mcause::Trap::from(state.mcause), writer);
         let _ = writer.write_fmt(format_args!(
             ")\
              \r\n mtval:  {:#010X}\
