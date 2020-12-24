@@ -3,10 +3,10 @@
 
 use core::cell::Cell;
 use core::mem;
-use kernel::hil::time::{self, Alarm, Frequency, Ticks, Ticks32};
-use kernel::{AppId, Callback, CommandResult, Driver, ErrorCode, Grant};
-use kernel::{ReturnCode};
 use kernel::debug;
+use kernel::hil::time::{self, Alarm, Frequency, Ticks, Ticks32};
+use kernel::ReturnCode;
+use kernel::{AppId, Callback, CommandResult, Driver, ErrorCode, Grant};
 
 /// Syscall driver number.
 use crate::driver;
@@ -159,14 +159,13 @@ impl<'a, A: Alarm<'a>> Driver for AlarmDriver<'a, A> {
         app_id: AppId,
     ) -> Result<Callback, (Callback, ErrorCode)> {
         let res: Result<(), ErrorCode> = match subscribe_num {
-            0 => {
-                self.app_alarms
-                    .enter(app_id, |td, _allocator| {
-                        mem::swap(&mut callback, &mut td.callback);
-                    })
-                    .map_err(ErrorCode::from)
-            },
-            _ => Err(ErrorCode::NOSUPPORT)
+            0 => self
+                .app_alarms
+                .enter(app_id, |td, _allocator| {
+                    mem::swap(&mut callback, &mut td.callback);
+                })
+                .map_err(ErrorCode::from),
+            _ => Err(ErrorCode::NOSUPPORT),
         };
 
         if let Err(e) = res {
@@ -186,7 +185,13 @@ impl<'a, A: Alarm<'a>> Driver for AlarmDriver<'a, A> {
     /// - `3`: Stop the alarm if it is outstanding
     /// - `4`: Set an alarm to fire at a given clock value `time`.
     /// - `5`: Set an alarm to fire at a given clock value `time` relative to `now` (EXPERIMENTAL).
-    fn command(&self, cmd_type: usize, data: usize, data2: usize, caller_id: AppId) -> CommandResult {
+    fn command(
+        &self,
+        cmd_type: usize,
+        data: usize,
+        data2: usize,
+        caller_id: AppId,
+    ) -> CommandResult {
         // Returns the error code to return to the user and whether we need to
         // reset which is the next active alarm. We _don't_ reset if
         //   - we're disabling the underlying alarm anyway,
