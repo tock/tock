@@ -161,7 +161,7 @@ impl kernel::Platform for Imix {
         match driver_num {
             capsules::console::DRIVER_NUM => f(Some(Ok(self.console))),
             capsules::gpio::DRIVER_NUM => f(Some(Err(self.gpio))),
-            capsules::alarm::DRIVER_NUM => f(Some(Err(self.alarm))),
+            capsules::alarm::DRIVER_NUM => f(Some(Ok(self.alarm))),
             capsules::spi_controller::DRIVER_NUM => f(Some(Ok(self.spi))),
             capsules::adc::DRIVER_NUM => f(Some(Err(self.adc))),
             capsules::led::DRIVER_NUM => f(Some(Ok(self.led))),
@@ -173,9 +173,9 @@ impl kernel::Platform for Imix {
             capsules::ninedof::DRIVER_NUM => f(Some(Ok(self.ninedof))),
             capsules::crc::DRIVER_NUM => f(Some(Ok(self.crc))),
             capsules::usb::usb_user::DRIVER_NUM => f(Some(Err(self.usb_driver))),
-            capsules::ieee802154::DRIVER_NUM => f(Some(Ok(self.radio_driver))),
+//            capsules::ieee802154::DRIVER_NUM => f(Some(Ok(self.radio_driver))),
             capsules::net::udp::DRIVER_NUM => f(Some(Ok(self.udp_driver))),
-            capsules::nrf51822_serialization::DRIVER_NUM => f(Some(Err(self.nrf51822))),
+//            capsules::nrf51822_serialization::DRIVER_NUM => f(Some(Err(self.nrf51822))),
             capsules::nonvolatile_storage_driver::DRIVER_NUM => {
                 f(Some(Err(self.nonvolatile_storage)))
             }
