@@ -146,7 +146,7 @@ impl kernel::Platform for Platform {
             capsules::led::DRIVER_NUM => f(Some(Ok(self.led))),
             capsules::button::DRIVER_NUM => f(Some(Err(self.button))),
             capsules::screen::DRIVER_NUM => f(Some(Ok(self.screen))),
-            capsules::rng::DRIVER_NUM => f(Some(Err(self.rng))),
+            capsules::rng::DRIVER_NUM => f(Some(Ok(self.rng))),
             capsules::ble_advertising_driver::DRIVER_NUM => f(Some(Err(self.ble_radio))),
             capsules::ieee802154::DRIVER_NUM => f(Some(Ok(self.ieee802154_radio))),
             capsules::buzzer_driver::DRIVER_NUM => f(Some(Err(self.buzzer))),
