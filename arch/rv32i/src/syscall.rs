@@ -216,6 +216,29 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
                               // returns to the kernel so we can store its
                               // registers.
 
+          // From here on we can't allow the CPU to take interrupts
+          // anymore, as that might result in the trap handler
+          // believing that a context switch to userspace already
+          // occurred (as mscratch is non-zero). Restore the userspace
+          // state fully prior to enabling interrupts again
+          // (implicitly using mret).
+          //
+          // If this is executed _after_ setting mscratch, this result
+          // in the race condition of [PR
+          // 2308](https://github.com/tock/tock/pull/2308)
+
+          // Therefore, clear the following bits in mstatus first:
+          //   0x00000008 -> bit 3 -> MIE (disabling interrupts here)
+          // + 0x00001800 -> bits 11,12 -> MPP (switch to usermode on mret)
+          li t0, 0x00001808
+          csrrc x0, 0x300, t0
+
+          // Afterwards, set the following bits in mstatus:
+          //   0x00000080 -> bit 7 -> MPIE (enable interrupts on mret)
+          li t0, 0x00000080
+          csrrs x0, 0x300, t0
+
+
           // Store the address to jump back to on the stack so that the trap
           // handler knows where to return to after the app stops executing.
           lui  t0, %hi(_return_to_kernel)
@@ -225,16 +248,6 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
           csrw 0x340, sp      // Save stack pointer in mscratch. This allows
                               // us to find it when the app returns back to
                               // the kernel.
-
-          // Read current mstatus CSR and then modify it so we switch to
-          // user mode when running the app.
-          csrr t0, 0x300      // Read mstatus=0x300 CSR
-          // Set the mode to user mode and set MPIE.
-          li   t1, 0x1808     // t1 = MSTATUS_MPP & MSTATUS_MIE
-          not  t1, t1         // t1 = ~(MSTATUS_MPP & MSTATUS_MIE)
-          and  t0, t0, t1     // t0 = mstatus & ~(MSTATUS_MPP & MSTATUS_MIE)
-          ori  t0, t0, 0x80   // t0 = t0 | MSTATUS_MPIE
-          csrw 0x300, t0      // Set mstatus CSR so that we switch to user mode.
 
           // We have to set the mepc CSR with the PC we want the app to start
           // executing at. This has been saved in RiscvimacStoredState for us
