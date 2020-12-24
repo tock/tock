@@ -2,8 +2,10 @@
 //! a point in time has been reached.
 
 use core::cell::Cell;
+use core::mem;
 use kernel::hil::time::{self, Alarm, Frequency, Ticks, Ticks32};
-use kernel::{AppId, Callback, Grant, LegacyDriver, ReturnCode};
+use kernel::ReturnCode;
+use kernel::{AppId, Callback, CommandResult, Driver, ErrorCode, Grant};
 
 /// Syscall driver number.
 use crate::driver;
@@ -18,14 +20,14 @@ enum Expiration {
 #[derive(Copy, Clone)]
 pub struct AlarmData {
     expiration: Expiration,
-    callback: Option<Callback>,
+    callback: Callback,
 }
 
 impl Default for AlarmData {
     fn default() -> AlarmData {
         AlarmData {
             expiration: Expiration::Disabled,
-            callback: None,
+            callback: Callback::default(),
         }
     }
 }
@@ -143,7 +145,7 @@ impl<'a, A: Alarm<'a>> AlarmDriver<'a, A> {
     }
 }
 
-impl<'a, A: Alarm<'a>> LegacyDriver for AlarmDriver<'a, A> {
+impl<'a, A: Alarm<'a>> Driver for AlarmDriver<'a, A> {
     /// Subscribe to alarm expiration
     ///
     /// ### `_subscribe_num`
@@ -151,16 +153,25 @@ impl<'a, A: Alarm<'a>> LegacyDriver for AlarmDriver<'a, A> {
     /// - `0`: Subscribe to alarm expiration
     fn subscribe(
         &self,
-        _subscribe_num: usize,
-        callback: Option<Callback>,
+        subscribe_num: usize,
+        mut callback: Callback,
         app_id: AppId,
-    ) -> ReturnCode {
-        self.app_alarms
-            .enter(app_id, |td, _allocator| {
-                td.callback = callback;
-                ReturnCode::SUCCESS
-            })
-            .unwrap_or_else(|err| err.into())
+    ) -> Result<Callback, (Callback, ErrorCode)> {
+        let res: Result<(), ErrorCode> = match subscribe_num {
+            0 => self
+                .app_alarms
+                .enter(app_id, |td, _allocator| {
+                    mem::swap(&mut callback, &mut td.callback);
+                })
+                .map_err(ErrorCode::from),
+            _ => Err(ErrorCode::NOSUPPORT),
+        };
+
+        if let Err(e) = res {
+            Err((callback, e))
+        } else {
+            Ok(callback)
+        }
     }
 
     /// Setup and read the alarm.
@@ -173,7 +184,13 @@ impl<'a, A: Alarm<'a>> LegacyDriver for AlarmDriver<'a, A> {
     /// - `3`: Stop the alarm if it is outstanding
     /// - `4`: Set an alarm to fire at a given clock value `time`.
     /// - `5`: Set an alarm to fire at a given clock value `time` relative to `now` (EXPERIMENTAL).
-    fn command(&self, cmd_type: usize, data: usize, data2: usize, caller_id: AppId) -> ReturnCode {
+    fn command(
+        &self,
+        cmd_type: usize,
+        data: usize,
+        data2: usize,
+        caller_id: AppId,
+    ) -> CommandResult {
         // Returns the error code to return to the user and whether we need to
         // reset which is the next active alarm. We _don't_ reset if
         //   - we're disabling the underlying alarm anyway,
@@ -191,34 +208,31 @@ impl<'a, A: Alarm<'a>> LegacyDriver for AlarmDriver<'a, A> {
                         dt: dt as u32,
                     };
                     (
-                        ReturnCode::SuccessWithValue {
-                            value: reference.wrapping_add(dt),
-                        },
+                        CommandResult::success_u32(reference.wrapping_add(dt) as u32),
                         true,
                     )
                 };
                 let now = self.alarm.now();
-                let (return_code, reset) = match cmd_type {
-                    0 /* check if present */ => (ReturnCode::SuccessWithValue { value: 1 }, false),
+                let (result, reset) = match cmd_type {
+                    0 /* check if present */ => (CommandResult::success(), false),
                     1 /* Get clock frequency */ => {
-                        let freq = <A::Frequency>::frequency() as usize;
-                        (ReturnCode::SuccessWithValue { value: freq }, false)
+                        let freq = <A::Frequency>::frequency();
+                        (CommandResult::success_u32(freq), false)
                     },
                     2 /* capture time */ => {
-                        (ReturnCode::SuccessWithValue { value: now.into_u32() as usize },
-                         false)
+                        (CommandResult::success_u32(now.into_u32()), false)
                     },
                     3 /* Stop */ => {
                         match td.expiration {
                             Expiration::Disabled => {
                                 // Request to stop when already stopped
-                                (ReturnCode::EALREADY, false)
+                                (CommandResult::failure(ErrorCode::ALREADY), false)
                             },
                             _ => {
                                 td.expiration = Expiration::Disabled;
                                 let new_num_armed = self.num_armed.get() - 1;
                                 self.num_armed.set(new_num_armed);
-                                (ReturnCode::SUCCESS, true)
+                                (CommandResult::success(), true)
                             }
                         }
                     },
@@ -245,14 +259,17 @@ impl<'a, A: Alarm<'a>> LegacyDriver for AlarmDriver<'a, A> {
                         let dt = data2;
                         rearm(reference, dt)
                     }
-                    _ => (ReturnCode::ENOSUPPORT, false)
+                    _ => (CommandResult::failure(ErrorCode::NOSUPPORT), false)
                 };
                 if reset {
                     self.reset_active_alarm();
                 }
-                return_code
+                result
             })
-            .unwrap_or_else(|err| err.into())
+            .unwrap_or_else(|err| {
+                let rcode: ReturnCode = err.into();
+                CommandResult::from(rcode)
+            })
     }
 }
 
@@ -269,13 +286,11 @@ impl<'a, A: Alarm<'a>> time::AlarmClient for AlarmDriver<'a, A> {
                 ) {
                     alarm.expiration = Expiration::Disabled;
                     self.num_armed.set(self.num_armed.get() - 1);
-                    alarm.callback.map(|mut cb| {
-                        cb.schedule(
-                            now.into_u32() as usize,
-                            reference.wrapping_add(dt) as usize,
-                            0,
-                        )
-                    });
+                    alarm.callback.schedule(
+                        now.into_u32() as usize,
+                        reference.wrapping_add(dt) as usize,
+                        0,
+                    );
                 }
             }
         });
