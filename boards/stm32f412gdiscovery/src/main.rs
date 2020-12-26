@@ -82,7 +82,7 @@ impl Platform for STM32F412GDiscovery {
             capsules::touch::DRIVER_NUM => f(Some(Ok(self.touch))),
             capsules::screen::DRIVER_NUM => f(Some(Ok(self.screen))),
             capsules::temperature::DRIVER_NUM => f(Some(Ok(self.temperature))),
-            capsules::rng::DRIVER_NUM => f(Some(Err(self.rng))),
+            capsules::rng::DRIVER_NUM => f(Some(Ok(self.rng))),
             _ => f(None),
         }
     }
