@@ -158,6 +158,19 @@ pub extern "C" fn _start_trap() {
             //
             // We use the csrrw instruction to save the current stack pointer
             // so we can retrieve it if necessary.
+            //
+            // If we could enter this trap handler twice (for example,
+            // handling an interrupt while an exception is being
+            // handled), storing a non-zero value in mscratch
+            // temporarily could cause a race condition similar to the
+            // one of PR 2308[1].
+            // However, as indicated in section 3.1.6.1 of the RISC-V
+            // Privileged Spec[2], MIE will be set to 0 when taking a
+            // trap into machine mode. Therefore, this can only happen
+            // when causing an exception in the trap handler itself.
+            //
+            // [1] https://github.com/tock/tock/pull/2308
+            // [2] https://github.com/riscv/riscv-isa-manual/releases/download/draft-20201222-42dc13a/riscv-privileged.pdf
             csrrw sp, 0x340, sp // CSR=0x340=mscratch
             bnez  sp, _from_app // If sp != 0 then we must have come from an app.
 
