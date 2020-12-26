@@ -54,7 +54,7 @@ pub trait Read {
     /// to by the AppSlice.
     ///
     /// If the process is no longer alive and the memory has been
-    /// reclaimed, this method must return 0.
+    /// reclaimed, this method must return the default value.
     ///
     /// # Default AppSlice
     ///
@@ -88,7 +88,7 @@ pub trait ReadWrite: Read {
     /// by the AppSlice.
     ///
     /// If the process is no longer alive and the memory has been
-    /// reclaimed, this method must return 0.
+    /// reclaimed, this method must return the default value.
     ///
     /// # Default AppSlice
     ///
