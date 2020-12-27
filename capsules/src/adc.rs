@@ -49,10 +49,14 @@
 //! ```
 
 use core::cell::Cell;
-use core::cmp;
+use core::convert::TryFrom;
+use core::{cmp, mem};
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil;
-use kernel::{AppId, AppSlice, Callback, Grant, LegacyDriver, ReturnCode, SharedReadWrite};
+use kernel::{
+    AppId, AppSlice, Callback, CommandResult, Driver, ErrorCode, Grant, LegacyDriver, ReturnCode,
+    SharedReadWrite,
+};
 
 /// Syscall driver number.
 use crate::driver;
@@ -105,7 +109,7 @@ pub(crate) enum AdcMode {
 
 // Datas passed by the application to us
 pub struct AppSys {
-    callback: Option<Callback>,
+    callback: Callback,
     pending_command: bool,
     command: OptionalCell<Operation>,
     channel: usize,
@@ -141,7 +145,7 @@ impl Default for App {
 impl Default for AppSys {
     fn default() -> AppSys {
         AppSys {
-            callback: None,
+            callback: Callback::default(),
             pending_command: false,
             command: OptionalCell::empty(),
             channel: 0,
@@ -1291,7 +1295,7 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> LegacyDriver for AdcDedicated<'_
 }
 
 /// Implementation of the syscalls for the virtualized ADC.
-impl LegacyDriver for AdcVirtualized<'_> {
+impl Driver for AdcVirtualized<'_> {
     /// Provides a callback which can be used to signal the application.
     ///
     /// - `subscribe_num` - which subscribe call this is
@@ -1300,19 +1304,24 @@ impl LegacyDriver for AdcVirtualized<'_> {
     fn subscribe(
         &self,
         subscribe_num: usize,
-        callback: Option<Callback>,
+        mut callback: Callback,
         app_id: AppId,
-    ) -> ReturnCode {
+    ) -> Result<Callback, (Callback, ErrorCode)> {
         match subscribe_num {
             // subscribe to ADC sample done (from all types of sampling)
-            0 => self
-                .apps
-                .enter(app_id, |app, _| {
-                    app.callback = callback;
-                    ReturnCode::SUCCESS
-                })
-                .unwrap_or_else(|err| err.into()),
-            _ => ReturnCode::ENOSUPPORT,
+            0 => {
+                let res = self
+                    .apps
+                    .enter(app_id, |app, _| {
+                        mem::swap(&mut app.callback, &mut callback);
+                    })
+                    .map_err(ErrorCode::from);
+                match res {
+                    Err(err) => Err((callback, err)),
+                    _ => Ok(callback),
+                }
+            }
+            _ => Err((callback, ErrorCode::NOSUPPORT)),
         }
     }
 
@@ -1322,24 +1331,30 @@ impl LegacyDriver for AdcVirtualized<'_> {
     /// - `channel` - requested channel value
     /// - `_` - value sent by the application, unused
     /// - `appid` - application identifier
-    fn command(&self, command_num: usize, channel: usize, _: usize, appid: AppId) -> ReturnCode {
+    fn command(&self, command_num: usize, channel: usize, _: usize, appid: AppId) -> CommandResult {
         match command_num {
             // This driver exists and return the number of channels
-            0 => ReturnCode::SuccessWithValue {
-                value: self.drivers.len() as usize,
-            },
+            0 => CommandResult::success_u32(self.drivers.len() as u32),
 
             // Single sample.
-            1 => self.enqueue_command(Operation::OneSample, channel, appid),
+            1 => {
+                let res = self.enqueue_command(Operation::OneSample, channel, appid);
+                if res == ReturnCode::SUCCESS {
+                    CommandResult::success()
+                } else {
+                    match ErrorCode::try_from(res) {
+                        Ok(error) => CommandResult::failure(error),
+                        _ => panic!("ADC Syscall: invalid errior from enqueue_command"),
+                    }
+                }
+            }
 
             // Get resolution bits
             101 => {
                 if channel < self.drivers.len() {
-                    ReturnCode::SuccessWithValue {
-                        value: self.drivers[channel].get_resolution_bits() as usize,
-                    }
+                    CommandResult::success_u32(self.drivers[channel].get_resolution_bits() as u32)
                 } else {
-                    ReturnCode::ENODEVICE
+                    CommandResult::failure(ErrorCode::NODEVICE)
                 }
             }
 
@@ -1347,18 +1362,16 @@ impl LegacyDriver for AdcVirtualized<'_> {
             102 => {
                 if channel < self.drivers.len() {
                     if let Some(voltage) = self.drivers[channel].get_voltage_reference_mv() {
-                        ReturnCode::SuccessWithValue {
-                            value: voltage as usize,
-                        }
+                        CommandResult::success_u32(voltage as u32)
                     } else {
-                        ReturnCode::ENOSUPPORT
+                        CommandResult::failure(ErrorCode::NOSUPPORT)
                     }
                 } else {
-                    ReturnCode::ENODEVICE
+                    CommandResult::failure(ErrorCode::NODEVICE)
                 }
             }
 
-            _ => ReturnCode::ENOSUPPORT,
+            _ => CommandResult::failure(ErrorCode::NOSUPPORT),
         }
     }
 }
@@ -1368,9 +1381,9 @@ impl<'a> hil::adc::Client for AdcVirtualized<'a> {
         self.current_app.take().map(|appid| {
             let _ = self.apps.enter(appid, |app, _| {
                 app.pending_command = false;
-                app.callback.map(|mut cb| {
-                    cb.schedule(AdcMode::SingleSample as usize, app.channel, sample as usize);
-                });
+                let channel = app.channel;
+                app.callback
+                    .schedule(AdcMode::SingleSample as usize, channel, sample as usize);
             });
         });
     }
