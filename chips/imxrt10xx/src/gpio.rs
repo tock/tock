@@ -404,20 +404,20 @@ register_bitfields![u32,
     ]
 ];
 
-const GPIO1_BASE: StaticRef<GpioRegisters> =
-    unsafe { StaticRef::new(0x401B8000 as *const GpioRegisters) };
+const GPIO1_ADDRESS: *const GpioRegisters = 0x401B8000 as _;
+const GPIO1_BASE: StaticRef<GpioRegisters> = unsafe { StaticRef::new(GPIO1_ADDRESS) };
 
-const GPIO2_BASE: StaticRef<GpioRegisters> =
-    unsafe { StaticRef::new(0x401BC000 as *const GpioRegisters) };
+const GPIO2_ADDRESS: *const GpioRegisters = 0x401BC000 as _;
+const GPIO2_BASE: StaticRef<GpioRegisters> = unsafe { StaticRef::new(GPIO2_ADDRESS) };
 
-const GPIO3_BASE: StaticRef<GpioRegisters> =
-    unsafe { StaticRef::new(0x401C0000 as *const GpioRegisters) };
+const GPIO3_ADDRESS: *const GpioRegisters = 0x401C0000 as _;
+const GPIO3_BASE: StaticRef<GpioRegisters> = unsafe { StaticRef::new(GPIO3_ADDRESS) };
 
-const GPIO4_BASE: StaticRef<GpioRegisters> =
-    unsafe { StaticRef::new(0x401C4000 as *const GpioRegisters) };
+const GPIO4_ADDRESS: *const GpioRegisters = 0x401C4000 as _;
+const GPIO4_BASE: StaticRef<GpioRegisters> = unsafe { StaticRef::new(GPIO4_ADDRESS) };
 
-const GPIO5_BASE: StaticRef<GpioRegisters> =
-    unsafe { StaticRef::new(0x400C0000 as *const GpioRegisters) };
+const GPIO5_ADDRESS: *const GpioRegisters = 0x400C0000 as _;
+const GPIO5_BASE: StaticRef<GpioRegisters> = unsafe { StaticRef::new(GPIO5_ADDRESS) };
 
 enum_from_primitive! {
     #[repr(u8)]
@@ -635,7 +635,7 @@ impl Port {
         self.clock.disable();
     }
 
-    pub fn handle_interrupt(&self, gpio_port: GpioPort) {
+    pub fn handle_interrupt(&self) {
         let mut isr_val: u32 = 0;
         let mut imr_val: u32 = self.registers.imr.get();
 
@@ -661,8 +661,8 @@ impl Port {
 
                 // depending on the gpio_port and the pin_number in gpio port
                 // we determine the actual pin from the PIN array
-                let pad_num = match gpio_port {
-                    GpioPort::GPIO1 => {
+                let pad_num = match &*self.registers as *const GpioRegisters {
+                    GPIO1_ADDRESS => {
                         if pin_num < 16 {
                             1
                         } else {
@@ -670,7 +670,7 @@ impl Port {
                             2
                         }
                     }
-                    GpioPort::GPIO2 => {
+                    GPIO2_ADDRESS => {
                         if pin_num < 16 {
                             3
                         } else {
@@ -678,7 +678,7 @@ impl Port {
                             4
                         }
                     }
-                    GpioPort::GPIO3 => {
+                    GPIO3_ADDRESS => {
                         if pin_num < 12 {
                             6
                         } else if pin_num < 18 {
@@ -689,8 +689,12 @@ impl Port {
                             0
                         }
                     }
-                    GpioPort::GPIO4 => 0,
-                    GpioPort::GPIO5 => 7,
+                    GPIO4_ADDRESS => 0,
+                    GPIO5_ADDRESS => 7,
+                    unknown_address => panic!(
+                        "Unknown GPIO address {:p} when handling interrupt",
+                        unknown_address
+                    ),
                 };
 
                 unsafe {
