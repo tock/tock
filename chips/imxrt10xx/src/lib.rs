@@ -242,6 +242,4 @@ pub unsafe fn init() {
     cortexm7::scb::set_vector_table_offset(
         &BASE_VECTORS as *const [unsafe extern "C" fn(); 16] as *const (),
     );
-
-    ccm::CCM.set_low_power_mode();
 }

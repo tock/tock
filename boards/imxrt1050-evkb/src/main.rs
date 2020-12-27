@@ -187,10 +187,12 @@ unsafe fn setup_peripherals(peripherals: &imxrt1050::chip::Imxrt10xxDefaultPerip
 #[no_mangle]
 pub unsafe fn reset_handler() {
     imxrt1050::init();
+    let ccm = static_init!(imxrt1050::ccm::Ccm, imxrt1050::ccm::Ccm::new());
     let peripherals = static_init!(
         imxrt1050::chip::Imxrt10xxDefaultPeripherals,
-        imxrt1050::chip::Imxrt10xxDefaultPeripherals::new()
+        imxrt1050::chip::Imxrt10xxDefaultPeripherals::new(ccm)
     );
+    peripherals.ccm.set_low_power_mode();
     peripherals.lpuart1.disable_clock();
     peripherals.lpuart2.disable_clock();
     peripherals

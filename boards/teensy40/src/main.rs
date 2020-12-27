@@ -62,12 +62,12 @@ static mut CHIP: Option<&'static Chip> = None;
 #[no_mangle]
 pub unsafe fn reset_handler() {
     imxrt1060::init();
-
+    let ccm = static_init!(imxrt1060::ccm::Ccm, imxrt1060::ccm::Ccm::new());
     let peripherals = static_init!(
         imxrt1060::chip::Imxrt10xxDefaultPeripherals,
-        imxrt1060::chip::Imxrt10xxDefaultPeripherals::new()
+        imxrt1060::chip::Imxrt10xxDefaultPeripherals::new(ccm)
     );
-
+    peripherals.ccm.set_low_power_mode();
     peripherals.lpuart1.disable_clock();
     peripherals.lpuart2.disable_clock();
     peripherals

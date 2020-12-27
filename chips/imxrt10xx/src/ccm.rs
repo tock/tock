@@ -319,9 +319,6 @@ register_bitfields![u32,
 const CCM_BASE: StaticRef<CcmRegisters> =
     unsafe { StaticRef::new(0x400FC000 as *const CcmRegisters) };
 
-// TODO try to remove this.
-pub(crate) static mut CCM: Ccm = Ccm::new();
-
 pub struct Ccm {
     registers: StaticRef<CcmRegisters>,
 }
@@ -591,13 +588,61 @@ impl Ccm {
     }
 }
 
-pub enum PeripheralClock {
+enum ClockGate {
     CCGR0(HCLK0),
     CCGR1(HCLK1),
     CCGR2(HCLK2),
     CCGR3(HCLK3),
     CCGR4(HCLK4),
     CCGR5(HCLK5),
+}
+
+/// A peripheral clock gate
+///
+/// `PeripheralClock` provides a LPCG API for controlling peripheral
+/// clock gates.
+pub struct PeripheralClock<'a> {
+    ccm: &'a Ccm,
+    clock_gate: ClockGate,
+}
+
+impl<'a> PeripheralClock<'a> {
+    pub const fn ccgr0(ccm: &'a Ccm, gate: HCLK0) -> Self {
+        Self {
+            ccm,
+            clock_gate: ClockGate::CCGR0(gate),
+        }
+    }
+    pub const fn ccgr1(ccm: &'a Ccm, gate: HCLK1) -> Self {
+        Self {
+            ccm,
+            clock_gate: ClockGate::CCGR1(gate),
+        }
+    }
+    pub const fn ccgr2(ccm: &'a Ccm, gate: HCLK2) -> Self {
+        Self {
+            ccm,
+            clock_gate: ClockGate::CCGR2(gate),
+        }
+    }
+    pub const fn ccgr3(ccm: &'a Ccm, gate: HCLK3) -> Self {
+        Self {
+            ccm,
+            clock_gate: ClockGate::CCGR3(gate),
+        }
+    }
+    pub const fn ccgr4(ccm: &'a Ccm, gate: HCLK4) -> Self {
+        Self {
+            ccm,
+            clock_gate: ClockGate::CCGR4(gate),
+        }
+    }
+    pub const fn ccgr5(ccm: &'a Ccm, gate: HCLK5) -> Self {
+        Self {
+            ccm,
+            clock_gate: ClockGate::CCGR5(gate),
+        }
+    }
 }
 
 pub enum HCLK0 {
@@ -641,138 +686,90 @@ pub enum PerclkClockSel {
     Oscillator,
 }
 
-impl ClockInterface for PeripheralClock {
+impl ClockInterface for PeripheralClock<'_> {
     fn is_enabled(&self) -> bool {
-        match self {
-            &PeripheralClock::CCGR0(ref v) => match v {
-                HCLK0::GPIO2 => unsafe { CCM.is_enabled_gpio2_clock() },
-                HCLK0::GPT2 => unsafe { CCM.is_enabled_gpt2_clock() },
-                HCLK0::LPUART2 => unsafe { CCM.is_enabled_lpuart2_clock() },
+        match self.clock_gate {
+            ClockGate::CCGR0(ref v) => match v {
+                HCLK0::GPIO2 => self.ccm.is_enabled_gpio2_clock(),
+                HCLK0::GPT2 => self.ccm.is_enabled_gpt2_clock(),
+                HCLK0::LPUART2 => self.ccm.is_enabled_lpuart2_clock(),
             },
-            &PeripheralClock::CCGR1(ref v) => match v {
-                HCLK1::GPIO1 => unsafe { CCM.is_enabled_gpio1_clock() },
-                HCLK1::GPIO5 => unsafe { CCM.is_enabled_gpio5_clock() },
-                HCLK1::GPT1 => unsafe { CCM.is_enabled_gpt1_clock() },
+            ClockGate::CCGR1(ref v) => match v {
+                HCLK1::GPIO1 => self.ccm.is_enabled_gpio1_clock(),
+                HCLK1::GPIO5 => self.ccm.is_enabled_gpio5_clock(),
+                HCLK1::GPT1 => self.ccm.is_enabled_gpt1_clock(),
             },
-            &PeripheralClock::CCGR2(ref v) => match v {
-                HCLK2::LPI2C1 => unsafe { CCM.is_enabled_lpi2c1_clock() },
-                HCLK2::GPIO3 => unsafe { CCM.is_enabled_gpio3_clock() },
-                HCLK2::IOMUXCSNVS => unsafe { CCM.is_enabled_iomuxc_snvs_clock() },
+            ClockGate::CCGR2(ref v) => match v {
+                HCLK2::LPI2C1 => self.ccm.is_enabled_lpi2c1_clock(),
+                HCLK2::GPIO3 => self.ccm.is_enabled_gpio3_clock(),
+                HCLK2::IOMUXCSNVS => self.ccm.is_enabled_iomuxc_snvs_clock(),
             },
-            &PeripheralClock::CCGR3(ref v) => match v {
-                HCLK3::GPIO4 => unsafe { CCM.is_enabled_gpio4_clock() },
+            ClockGate::CCGR3(ref v) => match v {
+                HCLK3::GPIO4 => self.ccm.is_enabled_gpio4_clock(),
             },
-            &PeripheralClock::CCGR4(ref v) => match v {
-                HCLK4::IOMUXC => unsafe { CCM.is_enabled_iomuxc_clock() },
+            ClockGate::CCGR4(ref v) => match v {
+                HCLK4::IOMUXC => self.ccm.is_enabled_iomuxc_clock(),
             },
-            &PeripheralClock::CCGR5(ref v) => match v {
-                HCLK5::LPUART1 => unsafe { CCM.is_enabled_lpuart1_clock() },
+            ClockGate::CCGR5(ref v) => match v {
+                HCLK5::LPUART1 => self.ccm.is_enabled_lpuart1_clock(),
             },
         }
     }
 
     fn enable(&self) {
-        match self {
-            &PeripheralClock::CCGR0(ref v) => match v {
-                HCLK0::GPIO2 => unsafe {
-                    CCM.enable_gpio2_clock();
-                },
-                HCLK0::GPT2 => unsafe {
-                    CCM.enable_gpt2_clock();
-                },
-                HCLK0::LPUART2 => unsafe {
-                    CCM.enable_lpuart2_clock();
-                },
+        match self.clock_gate {
+            ClockGate::CCGR0(ref v) => match v {
+                HCLK0::GPIO2 => self.ccm.enable_gpio2_clock(),
+                HCLK0::GPT2 => self.ccm.enable_gpt2_clock(),
+                HCLK0::LPUART2 => self.ccm.enable_lpuart2_clock(),
             },
-            &PeripheralClock::CCGR1(ref v) => match v {
-                HCLK1::GPIO1 => unsafe {
-                    CCM.enable_gpio1_clock();
-                },
-                HCLK1::GPIO5 => unsafe {
-                    CCM.enable_gpio5_clock();
-                },
-                HCLK1::GPT1 => unsafe {
-                    CCM.enable_gpt1_clock();
-                },
+            ClockGate::CCGR1(ref v) => match v {
+                HCLK1::GPIO1 => self.ccm.enable_gpio1_clock(),
+                HCLK1::GPIO5 => self.ccm.enable_gpio5_clock(),
+                HCLK1::GPT1 => self.ccm.enable_gpt1_clock(),
             },
-            &PeripheralClock::CCGR2(ref v) => match v {
-                HCLK2::LPI2C1 => unsafe {
-                    CCM.enable_lpi2c1_clock();
-                },
-                HCLK2::GPIO3 => unsafe {
-                    CCM.enable_gpio3_clock();
-                },
-                HCLK2::IOMUXCSNVS => unsafe {
-                    CCM.enable_iomuxc_snvs_clock();
-                },
+            ClockGate::CCGR2(ref v) => match v {
+                HCLK2::LPI2C1 => self.ccm.enable_lpi2c1_clock(),
+                HCLK2::GPIO3 => self.ccm.enable_gpio3_clock(),
+                HCLK2::IOMUXCSNVS => self.ccm.enable_iomuxc_snvs_clock(),
             },
-            &PeripheralClock::CCGR3(ref v) => match v {
-                HCLK3::GPIO4 => unsafe {
-                    CCM.enable_gpio4_clock();
-                },
+            ClockGate::CCGR3(ref v) => match v {
+                HCLK3::GPIO4 => self.ccm.enable_gpio4_clock(),
             },
-            &PeripheralClock::CCGR4(ref v) => match v {
-                HCLK4::IOMUXC => unsafe {
-                    CCM.enable_iomuxc_clock();
-                },
+            ClockGate::CCGR4(ref v) => match v {
+                HCLK4::IOMUXC => self.ccm.enable_iomuxc_clock(),
             },
-            &PeripheralClock::CCGR5(ref v) => match v {
-                HCLK5::LPUART1 => unsafe {
-                    CCM.enable_lpuart1_clock();
-                },
+            ClockGate::CCGR5(ref v) => match v {
+                HCLK5::LPUART1 => self.ccm.enable_lpuart1_clock(),
             },
         }
     }
 
     fn disable(&self) {
-        match self {
-            &PeripheralClock::CCGR0(ref v) => match v {
-                HCLK0::GPIO2 => unsafe {
-                    CCM.disable_gpio2_clock();
-                },
-                HCLK0::GPT2 => unsafe {
-                    CCM.disable_gpt2_clock();
-                },
-                HCLK0::LPUART2 => unsafe {
-                    CCM.disable_lpuart2_clock();
-                },
+        match self.clock_gate {
+            ClockGate::CCGR0(ref v) => match v {
+                HCLK0::GPIO2 => self.ccm.disable_gpio2_clock(),
+                HCLK0::GPT2 => self.ccm.disable_gpt2_clock(),
+                HCLK0::LPUART2 => self.ccm.disable_lpuart2_clock(),
             },
-            &PeripheralClock::CCGR1(ref v) => match v {
-                HCLK1::GPIO1 => unsafe {
-                    CCM.disable_gpio1_clock();
-                },
-                HCLK1::GPIO5 => unsafe {
-                    CCM.disable_gpio5_clock();
-                },
-                HCLK1::GPT1 => unsafe {
-                    CCM.disable_gpt1_clock();
-                },
+            ClockGate::CCGR1(ref v) => match v {
+                HCLK1::GPIO1 => self.ccm.disable_gpio1_clock(),
+                HCLK1::GPIO5 => self.ccm.disable_gpio5_clock(),
+                HCLK1::GPT1 => self.ccm.disable_gpt1_clock(),
             },
-            &PeripheralClock::CCGR2(ref v) => match v {
-                HCLK2::LPI2C1 => unsafe {
-                    CCM.disable_lpi2c1_clock();
-                },
-                HCLK2::GPIO3 => unsafe {
-                    CCM.disable_gpio3_clock();
-                },
-                HCLK2::IOMUXCSNVS => unsafe {
-                    CCM.disable_iomuxc_snvs_clock();
-                },
+            ClockGate::CCGR2(ref v) => match v {
+                HCLK2::LPI2C1 => self.ccm.disable_lpi2c1_clock(),
+                HCLK2::GPIO3 => self.ccm.disable_gpio3_clock(),
+                HCLK2::IOMUXCSNVS => self.ccm.disable_iomuxc_snvs_clock(),
             },
-            &PeripheralClock::CCGR3(ref v) => match v {
-                HCLK3::GPIO4 => unsafe {
-                    CCM.disable_gpio4_clock();
-                },
+            ClockGate::CCGR3(ref v) => match v {
+                HCLK3::GPIO4 => self.ccm.disable_gpio4_clock(),
             },
-            &PeripheralClock::CCGR4(ref v) => match v {
-                HCLK4::IOMUXC => unsafe {
-                    CCM.disable_iomuxc_clock();
-                },
+            ClockGate::CCGR4(ref v) => match v {
+                HCLK4::IOMUXC => self.ccm.disable_iomuxc_clock(),
             },
-            &PeripheralClock::CCGR5(ref v) => match v {
-                HCLK5::LPUART1 => unsafe {
-                    CCM.disable_lpuart1_clock();
-                },
+            ClockGate::CCGR5(ref v) => match v {
+                HCLK5::LPUART1 => self.ccm.disable_lpuart1_clock(),
             },
         }
     }

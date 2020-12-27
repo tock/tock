@@ -161,6 +161,7 @@ pub struct IomuxcSnvs {
     registers: StaticRef<IomuxcSnvsRegisters>,
 }
 
+// TODO try to remove me
 pub(crate) static mut IOMUXC_SNVS: IomuxcSnvs = IomuxcSnvs::new();
 
 impl IomuxcSnvs {

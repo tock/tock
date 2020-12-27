@@ -10,13 +10,13 @@ use crate::imxrt1060::gpio;
 use crate::imxrt1060::lpuart;
 
 struct Writer<'a> {
-    output: &'a mut lpuart::Lpuart<'static>,
+    output: &'a mut lpuart::Lpuart<'a>,
 }
 
 const BAUD_RATE: u32 = 115_200;
 
 impl<'a> Writer<'a> {
-    pub unsafe fn new(output: &'a mut lpuart::Lpuart<'static>) -> Self {
+    pub unsafe fn new(output: &'a mut lpuart::Lpuart<'a>) -> Self {
         output.configure(uart::Parameters {
             baud_rate: BAUD_RATE,
             stop_bits: uart::StopBits::One,
@@ -47,9 +47,10 @@ impl Write for Writer<'_> {
 #[no_mangle]
 #[panic_handler]
 unsafe fn panic_handler(panic_info: &core::panic::PanicInfo) -> ! {
-    let ports = imxrt10xx::gpio::Ports::new();
+    let ccm = crate::imxrt1060::ccm::Ccm::new();
+    let ports = imxrt10xx::gpio::Ports::new(&ccm);
     let led = &mut led::LedHigh::new(ports.pin(gpio::PinId::B0_03));
-    let mut lpuart2 = lpuart::Lpuart::new_lpuart2();
+    let mut lpuart2 = lpuart::Lpuart::new_lpuart2(&ccm);
     let mut writer = Writer::new(&mut lpuart2);
     debug::panic(
         &mut [led],

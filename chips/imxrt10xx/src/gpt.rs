@@ -159,7 +159,7 @@ const GPT2_BASE: StaticRef<GptRegisters> =
 
 pub struct Gpt<'a, S> {
     registers: StaticRef<GptRegisters>,
-    clock: GptClock,
+    clock: GptClock<'a>,
     client: OptionalCell<&'a dyn hil::time::AlarmClient>,
     irqn: u32,
     _selection: core::marker::PhantomData<S>,
@@ -168,22 +168,22 @@ pub struct Gpt<'a, S> {
 pub type Gpt1<'a> = Gpt<'a, _1>;
 pub type Gpt2<'a> = Gpt<'a, _2>;
 
-impl Gpt1<'_> {
-    pub const fn new_gpt1() -> Self {
+impl<'a> Gpt1<'a> {
+    pub const fn new_gpt1(ccm: &'a crate::ccm::Ccm) -> Self {
         Gpt::new(
             GPT1_BASE,
             nvic::GPT1,
-            ccm::PeripheralClock::CCGR1(ccm::HCLK1::GPT1),
+            ccm::PeripheralClock::ccgr1(ccm, ccm::HCLK1::GPT1),
         )
     }
 }
 
-impl Gpt2<'_> {
-    pub const fn new_gpt2() -> Self {
+impl<'a> Gpt2<'a> {
+    pub const fn new_gpt2(ccm: &'a crate::ccm::Ccm) -> Self {
         Gpt::new(
             GPT2_BASE,
             nvic::GPT2,
-            ccm::PeripheralClock::CCGR0(ccm::HCLK0::GPT2),
+            ccm::PeripheralClock::ccgr0(ccm, ccm::HCLK0::GPT2),
         )
     }
 }
@@ -192,7 +192,7 @@ impl<'a, S> Gpt<'a, S> {
     const fn new(
         registers: StaticRef<GptRegisters>,
         irqn: u32,
-        clock_gate: ccm::PeripheralClock,
+        clock_gate: ccm::PeripheralClock<'a>,
     ) -> Self {
         Gpt {
             registers,
@@ -408,9 +408,9 @@ impl<'a, F: hil::time::Frequency> hil::time::Alarm<'a> for Gpt<'a, F> {
     }
 }
 
-struct GptClock(ccm::PeripheralClock);
+struct GptClock<'a>(ccm::PeripheralClock<'a>);
 
-impl ClockInterface for GptClock {
+impl ClockInterface for GptClock<'_> {
     fn is_enabled(&self) -> bool {
         self.0.is_enabled()
     }
