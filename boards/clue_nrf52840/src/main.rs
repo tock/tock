@@ -149,9 +149,9 @@ impl kernel::Platform for Platform {
             capsules::rng::DRIVER_NUM => f(Some(Ok(self.rng))),
             capsules::ble_advertising_driver::DRIVER_NUM => f(Some(Err(self.ble_radio))),
             capsules::ieee802154::DRIVER_NUM => f(Some(Ok(self.ieee802154_radio))),
-            capsules::buzzer_driver::DRIVER_NUM => f(Some(Err(self.buzzer))),
             capsules::temperature::DRIVER_NUM => f(Some(Ok(self.temperature))),
             capsules::humidity::DRIVER_NUM => f(Some(Ok(self.humidity))),
+            capsules::buzzer_driver::DRIVER_NUM => f(Some(Ok(self.buzzer))),
             kernel::ipc::DRIVER_NUM => f(Some(Err(&self.ipc))),
             _ => f(None),
         }
