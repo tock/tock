@@ -618,29 +618,6 @@ pub struct Port<'a> {
     pins: [Pin<'a>; 32],
 }
 
-pub static mut PORTS: Ports<'static> = Ports([
-    Port::new(
-        GPIO1_BASE,
-        PortClock(ccm::PeripheralClock::CCGR1(ccm::HCLK1::GPIO1)),
-    ),
-    Port::new(
-        GPIO2_BASE,
-        PortClock(ccm::PeripheralClock::CCGR1(ccm::HCLK1::GPIO1)),
-    ),
-    Port::new(
-        GPIO3_BASE,
-        PortClock(ccm::PeripheralClock::CCGR1(ccm::HCLK1::GPIO1)),
-    ),
-    Port::new(
-        GPIO4_BASE,
-        PortClock(ccm::PeripheralClock::CCGR1(ccm::HCLK1::GPIO1)),
-    ),
-    Port::new(
-        GPIO5_BASE,
-        PortClock(ccm::PeripheralClock::CCGR1(ccm::HCLK1::GPIO1)),
-    ),
-]);
-
 impl<'a> Port<'a> {
     const fn new(registers: StaticRef<GpioRegisters>, clock: PortClock) -> Self {
         Self {
@@ -725,6 +702,30 @@ impl<'a> Port<'a> {
 pub struct Ports<'a>([Port<'a>; 5]);
 
 impl<'a> Ports<'a> {
+    pub const fn new() -> Self {
+        Ports([
+            Port::new(
+                GPIO1_BASE,
+                PortClock(ccm::PeripheralClock::CCGR1(ccm::HCLK1::GPIO1)),
+            ),
+            Port::new(
+                GPIO2_BASE,
+                PortClock(ccm::PeripheralClock::CCGR1(ccm::HCLK1::GPIO1)),
+            ),
+            Port::new(
+                GPIO3_BASE,
+                PortClock(ccm::PeripheralClock::CCGR1(ccm::HCLK1::GPIO1)),
+            ),
+            Port::new(
+                GPIO4_BASE,
+                PortClock(ccm::PeripheralClock::CCGR1(ccm::HCLK1::GPIO1)),
+            ),
+            Port::new(
+                GPIO5_BASE,
+                PortClock(ccm::PeripheralClock::CCGR1(ccm::HCLK1::GPIO1)),
+            ),
+        ])
+    }
     pub const fn pin(&self, pin: PinId) -> &Pin<'a> {
         &self.0[pin.port()].pins[pin.offset()]
     }

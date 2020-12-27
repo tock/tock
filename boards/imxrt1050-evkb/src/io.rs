@@ -8,7 +8,7 @@ use kernel::hil::uart;
 use kernel::hil::uart::Configure;
 
 use crate::imxrt1050;
-use imxrt1050::gpio::{PinId, PORTS};
+use imxrt1050::gpio::PinId;
 
 use crate::CHIP;
 use crate::PROCESSES;
@@ -37,7 +37,7 @@ impl Write for Writer {
 
 impl IoWrite for Writer {
     fn write(&mut self, buf: &[u8]) {
-        let uart = unsafe { &mut imxrt1050::lpuart::LPUART1 };
+        let uart = imxrt1050::lpuart::Lpuart::new_lpuart1();
 
         if !self.initialized {
             self.initialized = true;
@@ -62,7 +62,8 @@ impl IoWrite for Writer {
 #[panic_handler]
 pub unsafe extern "C" fn panic_fmt(info: &PanicInfo) -> ! {
     // User Led is connected to AdB0_09
-    let led = &mut led::LedLow::new(PORTS.pin(PinId::AdB0_09));
+    let ports = imxrt1050::gpio::Ports::new();
+    let led = &mut led::LedLow::new(ports.pin(PinId::AdB0_09));
     let writer = &mut WRITER;
 
     debug::panic(

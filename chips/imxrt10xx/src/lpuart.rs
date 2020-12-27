@@ -332,17 +332,21 @@ pub struct Lpuart<'a> {
     rx_status: Cell<USARTStateRX>,
 }
 
-pub static mut LPUART1: Lpuart = Lpuart::new(
-    LPUART1_BASE,
-    LpuartClock(ccm::PeripheralClock::CCGR5(ccm::HCLK5::LPUART1)),
-);
-
-pub static mut LPUART2: Lpuart = Lpuart::new(
-    LPUART2_BASE,
-    LpuartClock(ccm::PeripheralClock::CCGR0(ccm::HCLK0::LPUART2)),
-);
-
 impl<'a> Lpuart<'a> {
+    pub const fn new_lpuart1() -> Self {
+        Lpuart::new(
+            LPUART1_BASE,
+            LpuartClock(ccm::PeripheralClock::CCGR5(ccm::HCLK5::LPUART1)),
+        )
+    }
+
+    pub const fn new_lpuart2() -> Self {
+        Lpuart::new(
+            LPUART2_BASE,
+            LpuartClock(ccm::PeripheralClock::CCGR0(ccm::HCLK0::LPUART2)),
+        )
+    }
+
     const fn new(base_addr: StaticRef<LpuartRegisters>, clock: LpuartClock) -> Lpuart<'a> {
         Lpuart {
             registers: base_addr,
@@ -569,6 +573,16 @@ impl<'a> hil::uart::Configure for Lpuart<'a> {
 
         unsafe {
             self.disable_clock();
+            // TODO this isn't a safe way to control the UART
+            // clocks.
+            //
+            // We need to disable _all_ UART clocks at the clock gates
+            // before we change the UART clock root.
+            //
+            // The 'disable' term for the clock mux is misleading. This
+            // call actually transitions the UART to use PLL3, not disable
+            // the clock to the UART. (If the PLL is off, that's not obvious
+            // from this call.)
             ccm::CCM.disable_uart_clock_mux();
             ccm::CCM.disable_uart_clock_podf();
             self.enable_clock();

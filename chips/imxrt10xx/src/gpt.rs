@@ -168,16 +168,25 @@ pub struct Gpt<'a, S> {
 pub type Gpt1<'a> = Gpt<'a, _1>;
 pub type Gpt2<'a> = Gpt<'a, _2>;
 
-pub static mut GPT1: Gpt1<'static> = Gpt::new(
-    GPT1_BASE,
-    nvic::GPT1,
-    ccm::PeripheralClock::CCGR1(ccm::HCLK1::GPT1),
-);
-pub static mut GPT2: Gpt2<'static> = Gpt::new(
-    GPT2_BASE,
-    nvic::GPT2,
-    ccm::PeripheralClock::CCGR0(ccm::HCLK0::GPT2),
-);
+impl Gpt1<'_> {
+    pub const fn new_gpt1() -> Self {
+        Gpt::new(
+            GPT1_BASE,
+            nvic::GPT1,
+            ccm::PeripheralClock::CCGR1(ccm::HCLK1::GPT1),
+        )
+    }
+}
+
+impl Gpt2<'_> {
+    pub const fn new_gpt2() -> Self {
+        Gpt::new(
+            GPT2_BASE,
+            nvic::GPT2,
+            ccm::PeripheralClock::CCGR0(ccm::HCLK0::GPT2),
+        )
+    }
+}
 
 impl<'a, S> Gpt<'a, S> {
     const fn new(
