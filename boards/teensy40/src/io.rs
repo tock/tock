@@ -47,7 +47,7 @@ impl Write for Writer {
 #[no_mangle]
 #[panic_handler]
 unsafe fn panic_handler(panic_info: &core::panic::PanicInfo) -> ! {
-    let led = &mut led::LedHigh::new(gpio::PinId::B0_03.get_pin_mut().as_mut().unwrap());
+    let led = &mut led::LedHigh::new(gpio::PORTS.pin(gpio::PinId::B0_03));
     let mut writer = Writer::new(&mut lpuart::LPUART2);
     debug::panic(
         &mut [led],

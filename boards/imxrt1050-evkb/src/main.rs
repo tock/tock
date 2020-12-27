@@ -104,12 +104,12 @@ impl Platform for Imxrt1050EVKB {
 /// Helper function called during bring-up that configures multiplexed I/O.
 unsafe fn set_pin_primary_functions() {
     use imxrt1050::ccm::CCM;
-    use imxrt1050::gpio::{PinId, PORT};
+    use imxrt1050::gpio::{GpioPort, PinId, PORTS};
 
     CCM.enable_iomuxc_clock();
     CCM.enable_iomuxc_snvs_clock();
 
-    PORT[0].enable_clock();
+    PORTS.port(GpioPort::GPIO1).enable_clock();
 
     // User_LED is connected to GPIO_AD_B0_09.
     // Values set accordingly to the evkbimxrt1050_iled_blinky SDK example
@@ -136,15 +136,12 @@ unsafe fn set_pin_primary_functions() {
     );
 
     // Configuring the GPIO_AD_B0_09 as output
-    PinId::AdB0_09.get_pin().as_ref().map(|pin| {
-        pin.make_output();
-
-        // Configure kernel debug gpios as early as possible
-        kernel::debug::assign_gpios(Some(pin), None, None);
-    });
+    let pin = PORTS.pin(PinId::AdB0_09);
+    pin.make_output();
+    kernel::debug::assign_gpios(Some(pin), None, None);
 
     // User_Button is connected to IOMUXC_SNVS_WAKEUP.
-    PORT[4].enable_clock();
+    PORTS.port(GpioPort::GPIO5).enable_clock();
 
     // We configure the pin in GPIO mode and disable the Software Input
     // on Field, so that the Input Path is determined by functionality.
@@ -156,9 +153,7 @@ unsafe fn set_pin_primary_functions() {
     );
 
     // Configuring the IOMUXC_SNVS_WAKEUP pin as input
-    PinId::Wakeup.get_pin().as_ref().map(|pin| {
-        pin.make_input();
-    });
+    PORTS.pin(PinId::Wakeup).make_input();
 }
 
 /// Helper function for miscellaneous peripheral functions
@@ -278,7 +273,7 @@ pub unsafe fn reset_handler() {
     // Clock to Port A is enabled in `set_pin_primary_functions()
     let led = components::led::LedsComponent::new(components::led_component_helper!(
         LedLow<'static, imxrt1050::gpio::Pin<'static>>,
-        LedLow::new(imxrt1050::gpio::PinId::AdB0_09.get_pin().as_ref().unwrap()),
+        LedLow::new(imxrt1050::gpio::PORTS.pin(imxrt1050::gpio::PinId::AdB0_09)),
     ))
     .finalize(components::led_component_buf!(
         LedLow<'static, imxrt1050::gpio::Pin<'static>>
@@ -290,7 +285,7 @@ pub unsafe fn reset_handler() {
         components::button_component_helper!(
             imxrt1050::gpio::Pin,
             (
-                imxrt1050::gpio::PinId::Wakeup.get_pin().as_ref().unwrap(),
+                imxrt1050::gpio::PORTS.pin(imxrt1050::gpio::PinId::Wakeup),
                 kernel::hil::gpio::ActivationMode::ActiveHigh,
                 kernel::hil::gpio::FloatingState::PullDown
             )
@@ -314,7 +309,7 @@ pub unsafe fn reset_handler() {
         components::gpio_component_helper!(
             imxrt1050::gpio::Pin<'static>,
             // The User Led
-            0 => imxrt1050::gpio::PinId::AdB0_09.get_pin().as_ref().unwrap()
+            0 => imxrt1050::gpio::PORTS.pin(imxrt1050::gpio::PinId::AdB0_09)
         ),
     )
     .finalize(components::gpio_component_buf!(
@@ -383,7 +378,7 @@ pub unsafe fn reset_handler() {
     // Fxos8700 sensor
     let fxos8700 = components::fxos8700::Fxos8700Component::new(
         mux_i2c,
-        PinId::AdB1_00.get_pin().as_ref().unwrap(),
+        imxrt1050::gpio::PORTS.pin(PinId::AdB1_00),
     )
     .finalize(());
 

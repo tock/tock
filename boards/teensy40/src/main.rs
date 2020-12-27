@@ -10,12 +10,13 @@
 mod fcb;
 mod io;
 
+use imxrt1060::gpio::{PinId, PORTS};
 use imxrt1060::iomuxc::{MuxMode, PadId, Sion, IOMUXC};
 use imxrt10xx as imxrt1060;
 use kernel::capabilities;
 use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::component::Component;
-use kernel::hil::led::LedHigh;
+use kernel::hil::{gpio::Configure, led::LedHigh};
 use kernel::{create_capability, static_init};
 
 /// Number of concurrent processes this platform supports
@@ -67,10 +68,7 @@ pub unsafe fn reset_handler() {
     imxrt1060::ccm::CCM.set_perclk_sel(imxrt1060::ccm::PerclkClockSel::Oscillator);
     imxrt1060::ccm::CCM.set_perclk_divider(8);
 
-    imxrt1060::gpio::PinId::B0_03.get_pin().as_ref().map(|pin| {
-        use kernel::hil::gpio::Configure;
-        pin.make_output();
-    });
+    PORTS.pin(PinId::B0_03).make_output();
 
     // Pin 13 is an LED
     IOMUXC.enable_sw_mux_ctl_pad_gpio(PadId::B0, MuxMode::ALT5, Sion::Disabled, 3);
@@ -123,7 +121,7 @@ pub unsafe fn reset_handler() {
     // LED
     let led = components::led::LedsComponent::new(components::led_component_helper!(
         LedHigh<imxrt1060::gpio::Pin>,
-        LedHigh::new(imxrt1060::gpio::PinId::B0_03.get_pin().as_ref().unwrap())
+        LedHigh::new(PORTS.pin(PinId::B0_03))
     ))
     .finalize(components::led_component_buf!(
         LedHigh<'static, imxrt1060::gpio::Pin>

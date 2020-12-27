@@ -8,7 +8,7 @@ use kernel::hil::uart;
 use kernel::hil::uart::Configure;
 
 use crate::imxrt1050;
-use imxrt1050::gpio::PinId;
+use imxrt1050::gpio::{PinId, PORTS};
 
 use crate::CHIP;
 use crate::PROCESSES;
@@ -62,7 +62,7 @@ impl IoWrite for Writer {
 #[panic_handler]
 pub unsafe extern "C" fn panic_fmt(info: &PanicInfo) -> ! {
     // User Led is connected to AdB0_09
-    let led = &mut led::LedLow::new(PinId::AdB0_09.get_pin_mut().as_mut().unwrap());
+    let led = &mut led::LedLow::new(PORTS.pin(PinId::AdB0_09));
     let writer = &mut WRITER;
 
     debug::panic(
