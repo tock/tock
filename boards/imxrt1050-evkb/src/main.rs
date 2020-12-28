@@ -191,6 +191,12 @@ pub unsafe fn reset_handler() {
         imxrt1050::chip::Imxrt10xxDefaultPeripherals,
         imxrt1050::chip::Imxrt10xxDefaultPeripherals::new()
     );
+    peripherals.lpuart1.disable_clock();
+    peripherals.lpuart2.disable_clock();
+    peripherals
+        .ccm
+        .set_uart_clock_sel(imxrt1050::ccm::UartClockSelection::PLL3);
+    peripherals.ccm.set_uart_clock_podf(1);
     peripherals.lpuart1.set_baud();
 
     set_pin_primary_functions(peripherals);

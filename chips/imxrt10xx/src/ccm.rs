@@ -92,7 +92,10 @@ register_bitfields![u32,
         // Divider for usdhc2 clock
         USDHC1_PODF OFFSET(11) NUMBITS(3) [],
         // Selector for the UART clock multiplexor
-        UART_CLK_SEL OFFSET(6) NUMBITS(1) [],
+        UART_CLK_SEL OFFSET(6) NUMBITS(1) [
+            Pll3 = 0,
+            Oscillator = 1
+        ],
         // Divider for uart clock podf
         UART_CLK_PODF OFFSET(0) NUMBITS(6) []
     ],
@@ -323,6 +326,15 @@ pub struct Ccm {
     registers: StaticRef<CcmRegisters>,
 }
 
+/// Describes the UART clock selection
+#[repr(u32)]
+pub enum UartClockSelection {
+    /// PLL3 80M
+    PLL3 = 0,
+    /// osc_clk
+    Oscillator = 1,
+}
+
 impl Ccm {
     pub const fn new() -> Ccm {
         Ccm {
@@ -503,29 +515,41 @@ impl Ccm {
         self.registers.cscdr1.is_set(CSCDR1::UART_CLK_SEL)
     }
 
-    pub fn enable_uart_clock_mux(&self) {
-        self.registers.cscdr1.modify(CSCDR1::UART_CLK_SEL::SET);
-    }
-
-    pub fn disable_uart_clock_mux(&self) {
-        self.registers.cscdr1.modify(CSCDR1::UART_CLK_SEL::CLEAR);
-    }
-
-    // UART_CLK_PODF
-    pub fn is_enabled_uart_clock_podf(&self) -> bool {
-        self.registers.cscdr1.is_set(CSCDR1::UART_CLK_PODF)
-    }
-
-    pub fn enable_uart_clock_podf(&self) {
+    /// Set the UART clock selection
+    ///
+    /// Should only be called when *all* UART clock gates are disabled
+    pub fn set_uart_clock_sel(&self, selection: UartClockSelection) {
         self.registers
             .cscdr1
-            .modify(CSCDR1::UART_CLK_PODF.val(0b111111 as u32));
+            .modify(CSCDR1::UART_CLK_SEL.val(selection as u32));
     }
 
-    pub fn disable_uart_clock_podf(&self) {
-        self.registers.cscdr1.modify(CSCDR1::UART_CLK_PODF::CLEAR);
+    /// Returns the UART clock selection
+    pub fn uart_clock_sel(&self) -> UartClockSelection {
+        use CSCDR1::UART_CLK_SEL::Value;
+        match self.registers.cscdr1.read_as_enum(CSCDR1::UART_CLK_SEL) {
+            Some(Value::Oscillator) => UartClockSelection::Oscillator,
+            Some(Value::Pll3) => UartClockSelection::PLL3,
+            _ => unreachable!("Implemented all UART clock selections"),
+        }
     }
 
+    /// Set the UART clock divider
+    ///
+    /// `divider` is a value bound by [1, 2^6].
+    pub fn set_uart_clock_podf(&self, divider: u32) {
+        let divider = divider.max(1).min(1 << 6) - 1;
+        self.registers
+            .cscdr1
+            .modify(CSCDR1::UART_CLK_PODF.val(divider as u32));
+    }
+
+    /// Returns the UART clock divider
+    ///
+    /// The return is a value bound by [1, 2^6].
+    pub fn uart_clock_podf(&self) -> u32 {
+        (self.registers.cscdr1.read(CSCDR1::UART_CLK_PODF) + 1) as u32
+    }
     //
     // PERCLK
     //

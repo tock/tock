@@ -571,22 +571,7 @@ impl<'a> hil::uart::Configure for Lpuart<'a> {
             );
         }
 
-        unsafe {
-            self.disable_clock();
-            // TODO this isn't a safe way to control the UART
-            // clocks.
-            //
-            // We need to disable _all_ UART clocks at the clock gates
-            // before we change the UART clock root.
-            //
-            // The 'disable' term for the clock mux is misleading. This
-            // call actually transitions the UART to use PLL3, not disable
-            // the clock to the UART. (If the PLL is off, that's not obvious
-            // from this call.)
-            ccm::CCM.disable_uart_clock_mux();
-            ccm::CCM.disable_uart_clock_podf();
-            self.enable_clock();
-        }
+        self.enable_clock();
         // Reset the LPUART using software
         self.registers.global.modify(GLOBAL::RST::SET);
         self.registers.global.modify(GLOBAL::RST::CLEAR);
