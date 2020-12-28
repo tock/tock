@@ -147,8 +147,7 @@ unsafe fn set_pin_primary_functions(
 
     // We configure the pin in GPIO mode and disable the Software Input
     // on Field, so that the Input Path is determined by functionality.
-    peripherals.iomuxc.enable_sw_mux_ctl_pad_gpio(
-        PadId::Snvs,
+    peripherals.iomuxc_snvs.enable_sw_mux_ctl_pad_gpio(
         MuxMode::ALT5, // ALT5 for AdB0_09: GPIO5_IO00 of instance: gpio5
         Sion::Disabled,
         0,
