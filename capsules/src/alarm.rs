@@ -3,7 +3,6 @@
 
 use core::cell::Cell;
 use core::mem;
-use kernel::debug;
 use kernel::hil::time::{self, Alarm, Frequency, Ticks, Ticks32};
 use kernel::ReturnCode;
 use kernel::{AppId, Callback, CommandResult, Driver, ErrorCode, Grant};
