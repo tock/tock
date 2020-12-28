@@ -5,8 +5,7 @@ use cortexm7;
 use kernel::debug;
 use kernel::{Chip, InterruptService};
 
-use crate::gpio;
-use crate::nvic;
+use crate::{gpio, nvic};
 
 pub struct Imxrt10xx<I: InterruptService<()> + 'static> {
     mpu: cortexm7::mpu::MPU,

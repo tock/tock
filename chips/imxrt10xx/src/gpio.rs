@@ -1,4 +1,6 @@
 use cortexm7::support::atomic;
+use enum_primitive::cast::FromPrimitive;
+use enum_primitive::enum_from_primitive;
 use kernel::common::cells::OptionalCell;
 use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
@@ -417,24 +419,25 @@ const GPIO4_BASE: StaticRef<GpioRegisters> =
 const GPIO5_BASE: StaticRef<GpioRegisters> =
     unsafe { StaticRef::new(0x400C0000 as *const GpioRegisters) };
 
-/// Imxrt1050-evkb has 5 GPIO ports labeled from 1-5 [^1]. This is represented
-/// by three bits.
-///
-/// [^1]: 12.5.1 GPIO memory map, page 1009 of the Reference Manual.
-#[repr(u16)]
-#[derive(PartialEq, Eq, Clone, Copy)]
-pub enum GpioPort {
-    GPIO1 = 0b000,
-    GPIO2 = 0b001,
-    GPIO3 = 0b010,
-    GPIO4 = 0b011,
-    GPIO5 = 0b100,
+enum_from_primitive! {
+    /// Imxrt1050-evkb has 5 GPIO ports labeled from 1-5 [^1]. This is represented
+    /// by three bits.
+    ///
+    /// [^1]: 12.5.1 GPIO memory map, page 1009 of the Reference Manual.
+    #[repr(u16)]
+    pub enum GpioPort {
+        GPIO1 = 0b000,
+        GPIO2 = 0b001,
+        GPIO3 = 0b010,
+        GPIO4 = 0b011,
+        GPIO5 = 0b100,
+    }
 }
 
 /// Creates a GPIO ID
 ///
 /// Low 6 bits are the GPIO offset; the '17' in GPIO2[17]
-/// Next 3 bits are the GPIO port; the '2' in GPIO2[17]
+/// Next 3 bits are the GPIO port; the '2' in GPIO2[17] (base 0 index, 2 -> 1)
 const fn gpio_id(port: GpioPort, offset: u16) -> u16 {
     ((port as u16) << 6) | offset & 0x3F
 }
@@ -586,13 +589,9 @@ pub enum PinId {
 }
 
 impl PinId {
-    /// Returns the port number as a base 0 index
-    ///
-    /// GPIO5 -> 4
-    /// GPIO2 -> 1
-    /// GPIO1 -> 0
-    const fn port(self) -> usize {
-        (self as u16 >> 6) as usize
+    /// Returns the port
+    fn port(self) -> GpioPort {
+        GpioPort::from_u16((self as u16) >> 6).unwrap()
     }
     /// Returns the pin offset, half-closed range [0, 32)
     const fn offset(self) -> usize {
@@ -612,18 +611,93 @@ pub enum Mode {
     Output = 0b01,
 }
 
-pub struct Port<'a> {
+struct PortImpl<'a, const N: usize> {
     registers: StaticRef<GpioRegisters>,
     clock: PortClock<'a>,
-    pins: [Pin<'a>; 32],
+    pins: [Pin<'a>; N],
 }
 
-impl<'a> Port<'a> {
-    const fn new(registers: StaticRef<GpioRegisters>, clock: PortClock<'a>) -> Self {
+pub trait Port<'a>: private::Sealed {
+    fn is_enabled_clock(&self) -> bool;
+    fn enable_clock(&self);
+    fn disable_clock(&self);
+    fn handle_interrupt(&self);
+}
+
+mod private {
+    use super::PortImpl;
+    pub trait Sealed {}
+    impl<'a, const N: usize> Sealed for PortImpl<'a, N> {}
+}
+
+impl<'a, const N: usize> PortImpl<'a, N> {
+    const fn new(
+        registers: StaticRef<GpioRegisters>,
+        clock: PortClock<'a>,
+        pins: [Pin<'a>; N],
+    ) -> Self {
         Self {
             registers,
             clock,
-            pins: [
+            pins,
+        }
+    }
+}
+
+impl<'a, const N: usize> Port<'a> for PortImpl<'a, N> {
+    fn is_enabled_clock(&self) -> bool {
+        self.clock.is_enabled()
+    }
+
+    fn enable_clock(&self) {
+        self.clock.enable();
+    }
+
+    fn disable_clock(&self) {
+        self.clock.disable();
+    }
+
+    fn handle_interrupt(&self) {
+        let imr_val: u32 = self.registers.imr.get();
+
+        // Read the `ISR` register and toggle the appropriate bits in
+        // `isr`. Once that is done, write the value of `isr` back. We
+        // can have a situation where memory value of `ISR` could have
+        // changed due to an external interrupt. `ISR` is a read/clear write
+        // 1 register (`rc_w1`). So, we only clear bits whose value has been
+        // transferred to `isr`.
+        let isr_val = unsafe {
+            atomic(|| {
+                let isr_val = self.registers.isr.get();
+                self.registers.isr.set(isr_val);
+                isr_val
+            })
+        };
+
+        BitOffsets(isr_val)
+            // Did we enable this interrupt?
+            .filter(|offset| imr_val & (1 << offset) != 0)
+            // Do we have a pin for that interrupt? (Likely)
+            .filter_map(|offset| self.pins.get(offset as usize))
+            // Call client
+            .for_each(|pin| {
+                pin.client.map(|client| client.fired());
+            });
+    }
+}
+
+type GPIO1<'a> = PortImpl<'a, 32>;
+type GPIO2<'a> = PortImpl<'a, 32>;
+type GPIO3<'a> = PortImpl<'a, 28>;
+type GPIO4<'a> = PortImpl<'a, 32>;
+type GPIO5<'a> = PortImpl<'a, 3>;
+
+impl<'a> PortImpl<'a, 32> {
+    const fn new_32(registers: StaticRef<GpioRegisters>, clock: PortClock<'a>) -> Self {
+        Self::new(
+            registers,
+            clock,
+            [
                 Pin::new(registers, 00),
                 Pin::new(registers, 01),
                 Pin::new(registers, 02),
@@ -657,80 +731,128 @@ impl<'a> Port<'a> {
                 Pin::new(registers, 30),
                 Pin::new(registers, 31),
             ],
-        }
+        )
     }
-
-    pub fn is_enabled_clock(&self) -> bool {
-        self.clock.is_enabled()
+    const fn gpio1(ccm: &'a ccm::Ccm) -> GPIO1<'a> {
+        Self::new_32(
+            GPIO1_BASE,
+            PortClock(ccm::PeripheralClock::ccgr1(ccm, ccm::HCLK1::GPIO1)),
+        )
     }
-
-    pub fn enable_clock(&self) {
-        self.clock.enable();
+    const fn gpio2(ccm: &'a ccm::Ccm) -> GPIO2<'a> {
+        Self::new_32(
+            GPIO2_BASE,
+            PortClock(ccm::PeripheralClock::ccgr0(ccm, ccm::HCLK0::GPIO2)),
+        )
     }
-
-    pub fn disable_clock(&self) {
-        self.clock.disable();
-    }
-
-    pub fn handle_interrupt(&self) {
-        let imr_val: u32 = self.registers.imr.get();
-
-        // Read the `ISR` register and toggle the appropriate bits in
-        // `isr`. Once that is done, write the value of `isr` back. We
-        // can have a situation where memory value of `ISR` could have
-        // changed due to an external interrupt. `ISR` is a read/clear write
-        // 1 register (`rc_w1`). So, we only clear bits whose value has been
-        // transferred to `isr`.
-        let isr_val = unsafe {
-            atomic(|| {
-                let isr_val = self.registers.isr.get();
-                self.registers.isr.set(isr_val);
-                isr_val
-            })
-        };
-
-        BitOffsets(isr_val)
-            .filter(|offset| imr_val & (1 << offset) != 0)
-            .for_each(|offset| {
-                self.pins[offset as usize]
-                    .client
-                    .map(|client| client.fired());
-            });
+    const fn gpio4(ccm: &'a ccm::Ccm) -> GPIO4<'a> {
+        Self::new_32(
+            GPIO4_BASE,
+            PortClock(ccm::PeripheralClock::ccgr3(ccm, ccm::HCLK3::GPIO4)),
+        )
     }
 }
 
-pub struct Ports<'a>([Port<'a>; 5]);
+impl<'a> PortImpl<'a, 28> {
+    const fn new_28(registers: StaticRef<GpioRegisters>, clock: PortClock<'a>) -> Self {
+        Self::new(
+            registers,
+            clock,
+            [
+                Pin::new(registers, 00),
+                Pin::new(registers, 01),
+                Pin::new(registers, 02),
+                Pin::new(registers, 03),
+                Pin::new(registers, 04),
+                Pin::new(registers, 05),
+                Pin::new(registers, 06),
+                Pin::new(registers, 07),
+                Pin::new(registers, 08),
+                Pin::new(registers, 09),
+                Pin::new(registers, 10),
+                Pin::new(registers, 11),
+                Pin::new(registers, 12),
+                Pin::new(registers, 13),
+                Pin::new(registers, 14),
+                Pin::new(registers, 15),
+                Pin::new(registers, 16),
+                Pin::new(registers, 17),
+                Pin::new(registers, 18),
+                Pin::new(registers, 19),
+                Pin::new(registers, 20),
+                Pin::new(registers, 21),
+                Pin::new(registers, 22),
+                Pin::new(registers, 23),
+                Pin::new(registers, 24),
+                Pin::new(registers, 25),
+                Pin::new(registers, 26),
+                Pin::new(registers, 27),
+            ],
+        )
+    }
+    const fn gpio3(ccm: &'a ccm::Ccm) -> GPIO3<'a> {
+        Self::new_28(
+            GPIO3_BASE,
+            PortClock(ccm::PeripheralClock::ccgr2(ccm, ccm::HCLK2::GPIO3)),
+        )
+    }
+}
+
+impl<'a> PortImpl<'a, 3> {
+    const fn new_3(registers: StaticRef<GpioRegisters>, clock: PortClock<'a>) -> Self {
+        Self::new(
+            registers,
+            clock,
+            [
+                Pin::new(registers, 00),
+                Pin::new(registers, 01),
+                Pin::new(registers, 02),
+            ],
+        )
+    }
+    const fn gpio5(ccm: &'a ccm::Ccm) -> GPIO5<'a> {
+        Self::new_3(
+            GPIO5_BASE,
+            PortClock(ccm::PeripheralClock::ccgr1(ccm, ccm::HCLK1::GPIO5)),
+        )
+    }
+}
+
+pub struct Ports<'a> {
+    gpio1: GPIO1<'a>,
+    gpio2: GPIO2<'a>,
+    gpio3: GPIO3<'a>,
+    gpio4: GPIO4<'a>,
+    gpio5: GPIO5<'a>,
+}
 
 impl<'a> Ports<'a> {
     pub const fn new(ccm: &'a ccm::Ccm) -> Self {
-        Ports([
-            Port::new(
-                GPIO1_BASE,
-                PortClock(ccm::PeripheralClock::ccgr1(ccm, ccm::HCLK1::GPIO1)),
-            ),
-            Port::new(
-                GPIO2_BASE,
-                PortClock(ccm::PeripheralClock::ccgr1(ccm, ccm::HCLK1::GPIO1)),
-            ),
-            Port::new(
-                GPIO3_BASE,
-                PortClock(ccm::PeripheralClock::ccgr1(ccm, ccm::HCLK1::GPIO1)),
-            ),
-            Port::new(
-                GPIO4_BASE,
-                PortClock(ccm::PeripheralClock::ccgr1(ccm, ccm::HCLK1::GPIO1)),
-            ),
-            Port::new(
-                GPIO5_BASE,
-                PortClock(ccm::PeripheralClock::ccgr1(ccm, ccm::HCLK1::GPIO1)),
-            ),
-        ])
+        Self {
+            gpio1: GPIO1::gpio1(ccm),
+            gpio2: GPIO2::gpio2(ccm),
+            gpio3: GPIO3::gpio3(ccm),
+            gpio4: GPIO4::gpio4(ccm),
+            gpio5: GPIO5::gpio5(ccm),
+        }
     }
-    pub const fn pin(&self, pin: PinId) -> &Pin<'a> {
-        &self.0[pin.port()].pins[pin.offset()]
+    pub const fn port(&self, gpio: GpioPort) -> &dyn Port<'a> {
+        match gpio {
+            GpioPort::GPIO1 => &self.gpio1,
+            GpioPort::GPIO2 => &self.gpio2,
+            GpioPort::GPIO3 => &self.gpio3,
+            GpioPort::GPIO4 => &self.gpio4,
+            GpioPort::GPIO5 => &self.gpio5,
+        }
     }
-    pub const fn port(&self, port: GpioPort) -> &Port<'a> {
-        &self.0[port as usize]
+    pub fn pin(&self, pin: PinId) -> &Pin<'a> {
+        match pin.port() {
+            GpioPort::GPIO1 => &self.gpio1.pins[pin.offset()],
+            GpioPort::GPIO2 => &self.gpio2.pins[pin.offset()],
+            GpioPort::GPIO3 => &self.gpio3.pins[pin.offset()],
+            GpioPort::GPIO4 => &self.gpio4.pins[pin.offset()],
+            GpioPort::GPIO5 => &self.gpio5.pins[pin.offset()],
+        }
     }
 }
 
