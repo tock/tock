@@ -83,7 +83,7 @@ pub unsafe fn reset_handler() {
         .set_perclk_sel(imxrt1060::ccm::PerclkClockSel::Oscillator);
     peripherals.ccm.set_perclk_divider(8);
 
-    peripherals.gpios.pin(PinId::B0_03).make_output();
+    peripherals.ports.pin(PinId::B0_03).make_output();
 
     // Pin 13 is an LED
     peripherals
@@ -142,7 +142,7 @@ pub unsafe fn reset_handler() {
     // LED
     let led = components::led::LedsComponent::new(components::led_component_helper!(
         LedHigh<imxrt1060::gpio::Pin>,
-        LedHigh::new(peripherals.gpios.pin(PinId::B0_03))
+        LedHigh::new(peripherals.ports.pin(PinId::B0_03))
     ))
     .finalize(components::led_component_buf!(
         LedHigh<'static, imxrt1060::gpio::Pin>

@@ -13,12 +13,12 @@
 //! # Example
 //!
 //! ```
-//! use imxrt10xx::gpio::{Ports, Port, PinId, GpioPort};
+//! use imxrt10xx::gpio::{Ports, Port, PinId};
 //!
 //! # let ccm = imxrt10xx::ccm::Ccm::new();
 //! let ports = Ports::new(&ccm);
 //! let pin_from_id = ports.pin(PinId::Emc25);
-//! let pin_from_port = ports.port(GpioPort::GPIO4).pin(25).unwrap();
+//! let pin_from_port = ports.gpio4.pin(25);
 //! assert_eq!(pin_from_id as *const _, pin_from_port as *const _);
 //! ```
 
@@ -82,7 +82,7 @@ enum_from_primitive! {
     ///
     /// [^1]: 12.5.1 GPIO memory map, page 1009 of the Reference Manual.
     #[repr(u16)]
-    pub enum GpioPort {
+    enum GpioPort {
         GPIO1 = 0b000,
         GPIO2 = 0b001,
         GPIO3 = 0b010,
@@ -273,37 +273,19 @@ pub enum Mode {
     Output = 0b01,
 }
 
-struct PortImpl<'a, const N: usize> {
+/// A GPIO port, like `GPIO3`
+///
+/// `Port`s contain collections of pins. Use `Port`s to access pin by their
+/// GPIO offset. See the module-level docs for an example.
+pub struct Port<'a, const N: usize> {
     registers: StaticRef<GpioRegisters>,
     clock: PortClock<'a>,
     pins: [Pin<'a>; N],
 }
 
-/// A GPIO port, like `GPIO3`
-///
-/// GPIO port sizes might vary. This lets you generalize all Ports
-/// in your code without adopting const generics
-pub trait Port<'a>: private::Sealed {
-    fn is_enabled_clock(&self) -> bool;
-    fn enable_clock(&self);
-    fn disable_clock(&self);
-    fn handle_interrupt(&self);
-    /// Returns `None` if `offset` does not describe a valid pin in
-    /// this GPIO port
-    ///
-    /// For an infallible interface, use [`Ports::pin`].
-    fn pin(&self, offset: usize) -> Option<&Pin<'a>>;
-}
-
-mod private {
-    use super::PortImpl;
-    pub trait Sealed {}
-    impl<'a, const N: usize> Sealed for PortImpl<'a, N> {}
-}
-
 /// Implementation of a port, generic over the number of
 /// pins
-impl<'a, const N: usize> PortImpl<'a, N> {
+impl<'a, const N: usize> Port<'a, N> {
     const fn new(
         registers: StaticRef<GpioRegisters>,
         clock: PortClock<'a>,
@@ -315,26 +297,28 @@ impl<'a, const N: usize> PortImpl<'a, N> {
             pins,
         }
     }
-}
 
-impl<'a, const N: usize> Port<'a> for PortImpl<'a, N> {
-    fn is_enabled_clock(&self) -> bool {
+    pub fn is_enabled_clock(&self) -> bool {
         self.clock.is_enabled()
     }
 
-    fn enable_clock(&self) {
+    pub fn enable_clock(&self) {
         self.clock.enable();
     }
 
-    fn disable_clock(&self) {
+    pub fn disable_clock(&self) {
         self.clock.disable();
     }
 
-    fn pin(&self, offset: usize) -> Option<&Pin<'a>> {
-        self.pins.get(offset)
+    /// Returns the GPIO pin in this port
+    ///
+    /// This is an alterative API to [`Ports::pin`] that maps more closely
+    /// to the GPIO offset.
+    pub const fn pin(&self, offset: usize) -> &Pin<'a> {
+        &self.pins[offset]
     }
 
-    fn handle_interrupt(&self) {
+    pub fn handle_interrupt(&self) {
         let imr_val: u32 = self.registers.imr.get();
 
         // Read the `ISR` register and toggle the appropriate bits in
@@ -363,13 +347,13 @@ impl<'a, const N: usize> Port<'a> for PortImpl<'a, N> {
     }
 }
 
-type GPIO1<'a> = PortImpl<'a, 32>;
-type GPIO2<'a> = PortImpl<'a, 32>;
-type GPIO3<'a> = PortImpl<'a, 28>;
-type GPIO4<'a> = PortImpl<'a, 32>;
-type GPIO5<'a> = PortImpl<'a, 3>;
+type GPIO1<'a> = Port<'a, 32>;
+type GPIO2<'a> = Port<'a, 32>;
+type GPIO3<'a> = Port<'a, 28>;
+type GPIO4<'a> = Port<'a, 32>;
+type GPIO5<'a> = Port<'a, 3>;
 
-impl<'a> PortImpl<'a, 32> {
+impl<'a> Port<'a, 32> {
     const fn new_32(registers: StaticRef<GpioRegisters>, clock: PortClock<'a>) -> Self {
         Self::new(
             registers,
@@ -430,7 +414,7 @@ impl<'a> PortImpl<'a, 32> {
     }
 }
 
-impl<'a> PortImpl<'a, 28> {
+impl<'a> Port<'a, 28> {
     const fn new_28(registers: StaticRef<GpioRegisters>, clock: PortClock<'a>) -> Self {
         Self::new(
             registers,
@@ -475,7 +459,7 @@ impl<'a> PortImpl<'a, 28> {
     }
 }
 
-impl<'a> PortImpl<'a, 3> {
+impl<'a> Port<'a, 3> {
     const fn new_3(registers: StaticRef<GpioRegisters>, clock: PortClock<'a>) -> Self {
         Self::new(
             registers,
@@ -498,13 +482,14 @@ impl<'a> PortImpl<'a, 3> {
 /// All GPIO ports
 ///
 /// Use [`new`](Ports::new) to create all GPIO ports, then use it to access GPIO
-/// pins and individual ports
+/// pins and individual ports. See the public members for the GPIO ports
+#[non_exhaustive] // Fast GPIOs 6 through 9 not implemented
 pub struct Ports<'a> {
-    gpio1: GPIO1<'a>,
-    gpio2: GPIO2<'a>,
-    gpio3: GPIO3<'a>,
-    gpio4: GPIO4<'a>,
-    gpio5: GPIO5<'a>,
+    pub gpio1: GPIO1<'a>,
+    pub gpio2: GPIO2<'a>,
+    pub gpio3: GPIO3<'a>,
+    pub gpio4: GPIO4<'a>,
+    pub gpio5: GPIO5<'a>,
 }
 
 impl<'a> Ports<'a> {
@@ -517,20 +502,11 @@ impl<'a> Ports<'a> {
             gpio5: GPIO5::gpio5(ccm),
         }
     }
-    /// Returns a GPIO port
-    pub const fn port(&self, gpio: GpioPort) -> &dyn Port<'a> {
-        match gpio {
-            GpioPort::GPIO1 => &self.gpio1,
-            GpioPort::GPIO2 => &self.gpio2,
-            GpioPort::GPIO3 => &self.gpio3,
-            GpioPort::GPIO4 => &self.gpio4,
-            GpioPort::GPIO5 => &self.gpio5,
-        }
-    }
+
     /// Returns a GPIO pin
     ///
     /// For an interface that maps more closely to the numbers in
-    /// `GPIO3[17]`, use a combination of [`port`](Ports::port) and [`Port::pin()`].
+    /// `GPIO3[17]`, use a combination of the [`Ports`] members, and [`Port::pin()`].
     /// See the module-level docs for an example.
     pub fn pin(&self, pin: PinId) -> &Pin<'a> {
         match pin.port() {
@@ -563,8 +539,8 @@ impl ClockInterface for PortClock<'_> {
 ///
 /// `Pin` implements the `hil::gpio` traits. To acquire a `Pin`,
 ///
-/// - use [`Ports::pin`]
-/// - use a combination of [`Ports::port`] and [`Port::pin`]
+/// - use [`Ports::pin`] to reference a `Pin` by a [`PinId`], or
+/// - use a combination of the ports on [`Ports`], and [`Port::pin`]
 pub struct Pin<'a> {
     registers: StaticRef<GpioRegisters>,
     offset: usize,
@@ -817,9 +793,9 @@ mod tests {
 
     #[test]
     fn bit_offsets() {
-        fn check(offsets: BitOffsets, expected: impl Iterator<Item = u32> + Clone) {
-            let size = expected.clone().count();
-            assert_eq!(offsets.len(), size);
+        fn check(word: u32, expected: impl ExactSizeIterator<Item = u32>) {
+            let offsets = BitOffsets(word);
+            assert_eq!(offsets.len(), expected.len());
 
             let word = offsets.0;
             let expected: HashSet<_> = expected.collect();
@@ -835,9 +811,11 @@ mod tests {
             );
         }
 
-        assert_eq!(BitOffsets(0).next(), None);
-        check(BitOffsets(u32::max_value()), 0..32);
-        check(BitOffsets(0x5555_5555), (0..32).step_by(2));
-        check(BitOffsets(0xAAAA_AAAA), (0..32).skip(1).step_by(2));
+        check(0, std::iter::empty());
+        check(u32::max_value(), 0..32);
+        check(u32::max_value() >> 1, 0..31);
+        check(u32::max_value() << 1, 1..32);
+        check(0x5555_5555, (0..32).step_by(2));
+        check(0xAAAA_AAAA, (0..32).skip(1).step_by(2));
     }
 }

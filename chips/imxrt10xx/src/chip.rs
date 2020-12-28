@@ -5,7 +5,7 @@ use cortexm7;
 use kernel::debug;
 use kernel::{Chip, InterruptService};
 
-use crate::{gpio, nvic};
+use crate::nvic;
 
 pub struct Imxrt10xx<I: InterruptService<()> + 'static> {
     mpu: cortexm7::mpu::MPU,
@@ -29,7 +29,7 @@ pub struct Imxrt10xxDefaultPeripherals {
     pub iomuxc: crate::iomuxc::Iomuxc,
     pub iomuxc_snvs: crate::iomuxc_snvs::IomuxcSnvs,
     pub ccm: crate::ccm::Ccm,
-    pub gpios: crate::gpio::Ports<'static>,
+    pub ports: crate::gpio::Ports<'static>,
     pub lpi2c1: crate::lpi2c::Lpi2c<'static>,
     pub lpuart1: crate::lpuart::Lpuart<'static>,
     pub lpuart2: crate::lpuart::Lpuart<'static>,
@@ -43,7 +43,7 @@ impl Imxrt10xxDefaultPeripherals {
             iomuxc: crate::iomuxc::Iomuxc::new(),
             iomuxc_snvs: crate::iomuxc_snvs::IomuxcSnvs::new(),
             ccm: crate::ccm::Ccm::new(),
-            gpios: crate::gpio::Ports::new(ccm),
+            ports: crate::gpio::Ports::new(ccm),
             lpi2c1: crate::lpi2c::Lpi2c::new_lpi2c1(ccm),
             lpuart1: crate::lpuart::Lpuart::new_lpuart1(ccm),
             lpuart2: crate::lpuart::Lpuart::new_lpuart2(ccm),
@@ -61,16 +61,16 @@ impl InterruptService<()> for Imxrt10xxDefaultPeripherals {
             nvic::LPI2C1 => self.lpi2c1.handle_event(),
             nvic::GPT1 => self.gpt1.handle_interrupt(),
             nvic::GPT2 => self.gpt2.handle_interrupt(),
-            nvic::GPIO1_1 => self.gpios.port(gpio::GpioPort::GPIO1).handle_interrupt(),
-            nvic::GPIO1_2 => self.gpios.port(gpio::GpioPort::GPIO1).handle_interrupt(),
-            nvic::GPIO2_1 => self.gpios.port(gpio::GpioPort::GPIO2).handle_interrupt(),
-            nvic::GPIO2_2 => self.gpios.port(gpio::GpioPort::GPIO2).handle_interrupt(),
-            nvic::GPIO3_1 => self.gpios.port(gpio::GpioPort::GPIO3).handle_interrupt(),
-            nvic::GPIO3_2 => self.gpios.port(gpio::GpioPort::GPIO3).handle_interrupt(),
-            nvic::GPIO4_1 => self.gpios.port(gpio::GpioPort::GPIO4).handle_interrupt(),
-            nvic::GPIO4_2 => self.gpios.port(gpio::GpioPort::GPIO4).handle_interrupt(),
-            nvic::GPIO5_1 => self.gpios.port(gpio::GpioPort::GPIO5).handle_interrupt(),
-            nvic::GPIO5_2 => self.gpios.port(gpio::GpioPort::GPIO5).handle_interrupt(),
+            nvic::GPIO1_1 => self.ports.gpio1.handle_interrupt(),
+            nvic::GPIO1_2 => self.ports.gpio1.handle_interrupt(),
+            nvic::GPIO2_1 => self.ports.gpio2.handle_interrupt(),
+            nvic::GPIO2_2 => self.ports.gpio2.handle_interrupt(),
+            nvic::GPIO3_1 => self.ports.gpio3.handle_interrupt(),
+            nvic::GPIO3_2 => self.ports.gpio3.handle_interrupt(),
+            nvic::GPIO4_1 => self.ports.gpio4.handle_interrupt(),
+            nvic::GPIO4_2 => self.ports.gpio4.handle_interrupt(),
+            nvic::GPIO5_1 => self.ports.gpio5.handle_interrupt(),
+            nvic::GPIO5_2 => self.ports.gpio5.handle_interrupt(),
             nvic::SNVS_LP_WRAPPER => {
                 debug!("A venit intreruperea de SNVS_LP_WRAPPER");
             }
