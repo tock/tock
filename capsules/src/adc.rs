@@ -54,8 +54,8 @@ use core::{cmp, mem};
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil;
 use kernel::{
-    AppId, AppSlice, Callback, CommandResult, Driver, ErrorCode, Grant, LegacyDriver, ReturnCode,
-    SharedReadWrite,
+    AppId, Callback, CommandResult, Driver, ErrorCode, Grant, Read, ReadWrite, ReadWriteAppSlice,
+    ReturnCode,
 };
 
 /// Syscall driver number.
@@ -117,9 +117,9 @@ pub struct AppSys {
 
 /// Holds buffers that the application has passed us
 pub struct App {
-    app_buf1: Option<AppSlice<SharedReadWrite, u8>>,
-    app_buf2: Option<AppSlice<SharedReadWrite, u8>>,
-    callback: OptionalCell<Callback>,
+    app_buf1: ReadWriteAppSlice,
+    app_buf2: ReadWriteAppSlice,
+    callback: Callback,
     app_buf_offset: Cell<usize>,
     samples_remaining: Cell<usize>,
     samples_outstanding: Cell<usize>,
@@ -130,9 +130,9 @@ pub struct App {
 impl Default for App {
     fn default() -> App {
         App {
-            app_buf1: None,
-            app_buf2: None,
-            callback: OptionalCell::empty(),
+            app_buf1: ReadWriteAppSlice::default(),
+            app_buf2: ReadWriteAppSlice::default(),
+            callback: Callback::default(),
             app_buf_offset: Cell::new(0),
             samples_remaining: Cell::new(0),
             samples_outstanding: Cell::new(0),
@@ -342,8 +342,8 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed> AdcDedicated<'a, A> {
         let exists = self.appid.map_or(false, |id| {
             self.apps
                 .enter(*id, |state, _| {
-                    app_buf_length = state.app_buf1.as_mut().map_or(0, |buf| buf.len());
-                    state.app_buf1.is_some()
+                    app_buf_length = state.app_buf1.len();
+                    state.app_buf1.len() > 0
                 })
                 .map_err(|err| {
                     if err == kernel::procs::Error::NoSuchApp
@@ -462,9 +462,9 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed> AdcDedicated<'a, A> {
         let exists = self.appid.map_or(false, |id| {
             self.apps
                 .enter(*id, |state, _| {
-                    app_buf_length = state.app_buf1.as_mut().map_or(0, |buf| buf.len());
-                    next_app_buf_length = state.app_buf2.as_mut().map_or(0, |buf| buf.len());
-                    state.app_buf1.is_some() && state.app_buf2.is_some()
+                    app_buf_length = state.app_buf1.len();
+                    next_app_buf_length = state.app_buf2.len();
+                    state.app_buf1.len() > 0 && state.app_buf2.len() > 0
                 })
                 .map_err(|err| {
                     if err == kernel::procs::Error::NoSuchApp
@@ -701,14 +701,12 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> hil::adc::Client for AdcDedicate
             self.appid.map(|id| {
                 self.apps
                     .enter(*id, |app, _| {
-                        app.callback.map(|callback| {
-                            calledback = true;
-                            callback.schedule(
-                                AdcMode::SingleSample as usize,
-                                self.channel.get(),
-                                sample as usize,
-                            );
-                        });
+                        calledback = true;
+                        app.callback.schedule(
+                            AdcMode::SingleSample as usize,
+                            self.channel.get(),
+                            sample as usize,
+                        );
                     })
                     .map_err(|err| {
                         if err == kernel::procs::Error::NoSuchApp
@@ -725,14 +723,12 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> hil::adc::Client for AdcDedicate
             self.appid.map(|id| {
                 self.apps
                     .enter(*id, |app, _| {
-                        app.callback.map(|callback| {
-                            calledback = true;
-                            callback.schedule(
-                                AdcMode::ContinuousSample as usize,
-                                self.channel.get(),
-                                sample as usize,
-                            );
-                        });
+                        calledback = true;
+                        app.callback.schedule(
+                            AdcMode::ContinuousSample as usize,
+                            self.channel.get(),
+                            sample as usize,
+                        );
                     })
                     .map_err(|err| {
                         if err == kernel::procs::Error::NoSuchApp
@@ -791,11 +787,11 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> hil::adc::HighSpeedClient for Ad
                         let next_app_buf;
                         let app_buf_ref;
                         if app.using_app_buf1.get() {
-                            app_buf_ref = app.app_buf1.as_ref();
-                            next_app_buf = app.app_buf2.as_ref();
+                            app_buf_ref = &app.app_buf1;
+                            next_app_buf = &app.app_buf2;
                         } else {
-                            app_buf_ref = app.app_buf2.as_ref();
-                            next_app_buf = app.app_buf1.as_ref();
+                            app_buf_ref = &app.app_buf2;
+                            next_app_buf = &app.app_buf1;
                         }
 
                         // update count of outstanding sample requests
@@ -854,9 +850,8 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> hil::adc::HighSpeedClient for Ad
                                         // We'll just make a request and handle the
                                         // state updating on next callback
                                         self.take_and_map_buffer(|adc_buf| {
-                                            let samples_needed = next_next_app_buf
-                                                .as_ref()
-                                                .map_or(0, |buf| buf.len() / 2);
+                                            let samples_needed =
+                                                next_next_app_buf.map_or(0, |buf| buf.len() / 2);
                                             let request_len =
                                                 cmp::min(samples_needed, adc_buf.len());
                                             app.next_samples_outstanding.set(request_len);
@@ -946,12 +941,12 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> hil::adc::HighSpeedClient for Ad
                         let skip_amt = app.app_buf_offset.get() / 2;
                         let app_buf;
                         if use1 {
-                            app_buf = app.app_buf1.as_mut();
+                            app_buf = &app.app_buf1;
                         } else {
-                            app_buf = app.app_buf2.as_mut();
+                            app_buf = &app.app_buf2;
                         }
                         // next we should copy bytes to the app buffer
-                        app_buf.map(move |app_buf| {
+                        app_buf.mut_map_or((), move |app_buf| {
                             // Copy bytes to app buffer by iterating over the
                             // data.
                             buffer_with_samples.map(|adc_buf| {
@@ -967,18 +962,29 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> hil::adc::HighSpeedClient for Ad
                                 //            or sample length
                                 // We then split each sample into its two bytes and copy
                                 // them to the app buffer
-                                for (chunk, &sample) in app_buf
-                                    .chunks_mut(2)
+
+                                let mut position = 0;
+                                for &sample in adc_buf
+                                    .iter()
                                     .skip(skip_amt)
-                                    .zip(adc_buf.iter())
-                                    .take(length)
+                                    .take(cmp::min(length, app_buf.len() / 2))
                                 {
-                                    let mut val = sample;
-                                    for byte in chunk.iter_mut() {
-                                        *byte = (val & 0xFF) as u8;
-                                        val = val >> 8;
-                                    }
+                                    position = position + 1;
+                                    app_buf[2 * position] = (sample & 0xFF) as u8;
+                                    app_buf[2 * position + 1] = ((sample >> 8) as u8) as u8;
                                 }
+                                // for (chunk, &sample) in app_buf
+                                //     .chunks_mut(2)
+                                //     .skip(skip_amt)
+                                //     .zip(adc_buf.iter())
+                                //     .take(length)
+                                // {
+                                //     let mut val = sample;
+                                //     for byte in chunk.iter_mut() {
+                                //         *byte = (val & 0xFF) as u8;
+                                //         val = val >> 8;
+                                //     }
+                                // }
                             });
                         });
                         // update our byte offset based on how many samples we
@@ -986,51 +992,49 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> hil::adc::HighSpeedClient for Ad
                         app.app_buf_offset
                             .set(app.app_buf_offset.get() + length * 2);
 
-                        let in_use_buf;
-                        if use1 {
-                            in_use_buf = app.app_buf1.as_ref();
+                        // let in_use_buf;
+                        let buf_ptr = if use1 {
+                            app.app_buf1.ptr()
                         } else {
-                            in_use_buf = app.app_buf2.as_ref();
-                        }
-                        in_use_buf.map(|app_buf| {
-                            // if the app_buffer is filled, perform callback
-                            if perform_callback {
-                                // actually schedule the callback
-                                app.callback.map(|callback| {
-                                    let len_chan =
-                                        ((app_buf.len() / 2) << 8) | (self.channel.get() & 0xFF);
-                                    callback.schedule(
-                                        self.mode.get() as usize,
-                                        len_chan,
-                                        app_buf.ptr() as usize,
-                                    );
+                            app.app_buf2.ptr()
+                        };
+                        // let buf_ptr = in_use_buf.ptr();
+                        // in_use_buf.map_or((), |app_buf| {
+                        // if the app_buffer is filled, perform callback
+                        if perform_callback {
+                            // actually schedule the callback
+                            let len_chan = ((app_buf.len() / 2) << 8) | (self.channel.get() & 0xFF);
+                            app.callback.schedule(
+                                self.mode.get() as usize,
+                                len_chan,
+                                buf_ptr as usize,
+                            );
+
+                            // if the mode is SingleBuffer, the operation is
+                            // complete. Clean up state
+                            if self.mode.get() == AdcMode::SingleBuffer {
+                                self.active.set(false);
+                                self.mode.set(AdcMode::NoMode);
+                                app.app_buf_offset.set(0);
+
+                                // need to actually stop sampling
+                                self.adc.stop_sampling();
+
+                                // reclaim buffers and store them
+                                let (_, buf1, buf2) = self.adc.retrieve_buffers();
+                                buf1.map(|buf| {
+                                    self.replace_buffer(buf);
                                 });
-
-                                // if the mode is SingleBuffer, the operation is
-                                // complete. Clean up state
-                                if self.mode.get() == AdcMode::SingleBuffer {
-                                    self.active.set(false);
-                                    self.mode.set(AdcMode::NoMode);
-                                    app.app_buf_offset.set(0);
-
-                                    // need to actually stop sampling
-                                    self.adc.stop_sampling();
-
-                                    // reclaim buffers and store them
-                                    let (_, buf1, buf2) = self.adc.retrieve_buffers();
-                                    buf1.map(|buf| {
-                                        self.replace_buffer(buf);
-                                    });
-                                    buf2.map(|buf| {
-                                        self.replace_buffer(buf);
-                                    });
-                                } else {
-                                    // if the mode is ContinuousBuffer, we've just
-                                    // switched app buffers. Reset our offset to zero
-                                    app.app_buf_offset.set(0);
-                                }
+                                buf2.map(|buf| {
+                                    self.replace_buffer(buf);
+                                });
+                            } else {
+                                // if the mode is ContinuousBuffer, we've just
+                                // switched app buffers. Reset our offset to zero
+                                app.app_buf_offset.set(0);
                             }
-                        });
+                        }
+                        // });
                     })
                     .map_err(|err| {
                         if err == kernel::procs::Error::NoSuchApp
@@ -1081,7 +1085,7 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> hil::adc::HighSpeedClient for Ad
 }
 
 /// Implementations of application syscalls
-impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> LegacyDriver for AdcDedicated<'_, A> {
+impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> Driver for AdcDedicated<'_, A> {
     /// Provides access to a buffer from the application to store data in or
     /// read data from.
     ///
@@ -1092,8 +1096,8 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> LegacyDriver for AdcDedicated<'_
         &self,
         appid: AppId,
         allow_num: usize,
-        slice: Option<AppSlice<SharedReadWrite, u8>>,
-    ) -> ReturnCode {
+        mut slice: ReadWriteAppSlice,
+    ) -> Result<ReadWriteAppSlice, (ReadWriteAppSlice, ErrorCode)> {
         // Return true if this app already owns the ADC capsule, if no app owns
         // the ADC capsule, or if the app that is marked as owning the ADC
         // capsule no longer exists.
@@ -1109,17 +1113,16 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> LegacyDriver for AdcDedicated<'_
         if match_or_empty_or_nonexistant {
             self.appid.set(appid);
         } else {
-            return ReturnCode::ENOMEM;
+            return Err((slice, ErrorCode::NOMEM));
         }
         match allow_num {
             // Pass buffer for samples to go into
             0 => {
                 // set first buffer
-                self.appid.map_or(ReturnCode::FAIL, |id| {
+                let res = self.appid.map_or(Err(ErrorCode::FAIL), |id| {
                     self.apps
                         .enter(*id, |app, _| {
-                            app.app_buf1 = slice;
-                            ReturnCode::SUCCESS
+                            mem::swap(&mut app.app_buf1, &mut slice);
                         })
                         .map_err(|err| {
                             if err == kernel::procs::Error::NoSuchApp
@@ -1127,19 +1130,23 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> LegacyDriver for AdcDedicated<'_
                             {
                                 self.appid.clear();
                             }
+                            ErrorCode::from(err)
                         })
-                        .unwrap_or(ReturnCode::FAIL)
-                })
+                });
+                if let Err(err) = res {
+                    Err((slice, err))
+                } else {
+                    Ok(slice)
+                }
             }
 
             // Pass a second buffer to be used for double-buffered continuous sampling
             1 => {
                 // set second buffer
-                self.appid.map_or(ReturnCode::FAIL, |id| {
+                let res = self.appid.map_or(Err(ErrorCode::FAIL), |id| {
                     self.apps
                         .enter(*id, |app, _| {
-                            app.app_buf2 = slice;
-                            ReturnCode::SUCCESS
+                            mem::swap(&mut app.app_buf2, &mut slice);
                         })
                         .map_err(|err| {
                             if err == kernel::procs::Error::NoSuchApp
@@ -1147,13 +1154,18 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> LegacyDriver for AdcDedicated<'_
                             {
                                 self.appid.clear();
                             }
+                            ErrorCode::from(err)
                         })
-                        .unwrap_or(ReturnCode::FAIL)
-                })
+                });
+                if let Err(err) = res {
+                    Err((slice, err))
+                } else {
+                    Ok(slice)
+                }
             }
 
             // default
-            _ => ReturnCode::ENOSUPPORT,
+            _ => Err((slice, ErrorCode::NOSUPPORT)),
         }
     }
 
@@ -1165,9 +1177,9 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> LegacyDriver for AdcDedicated<'_
     fn subscribe(
         &self,
         subscribe_num: usize,
-        callback: Option<Callback>,
+        mut callback: Callback,
         appid: AppId,
-    ) -> ReturnCode {
+    ) -> Result<Callback, (Callback, ErrorCode)> {
         // Return true if this app already owns the ADC capsule, if no app owns
         // the ADC capsule, or if the app that is marked as owning the ADC
         // capsule no longer exists.
@@ -1183,17 +1195,17 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> LegacyDriver for AdcDedicated<'_
         if match_or_empty_or_nonexistant {
             self.appid.set(appid);
         } else {
-            return ReturnCode::ENOMEM;
+            return Err((callback, ErrorCode::NOMEM));
         }
         match subscribe_num {
             // subscribe to ADC sample done (from all types of sampling)
             0 => {
                 // set callback
-                self.appid.map_or(ReturnCode::FAIL, |id| {
-                    self.apps
+                self.appid.map_or(Err((callback, ErrorCode::FAIL)), |id| {
+                    let res = self
+                        .apps
                         .enter(*id, |app, _| {
-                            app.callback.insert(callback);
-                            ReturnCode::SUCCESS
+                            mem::swap(&mut app.callback, &mut callback);
                         })
                         .map_err(|err| {
                             if err == kernel::procs::Error::NoSuchApp
@@ -1201,13 +1213,18 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> LegacyDriver for AdcDedicated<'_
                             {
                                 self.appid.clear();
                             }
-                        })
-                        .unwrap_or(ReturnCode::FAIL)
+                            ErrorCode::from(err)
+                        });
+                    if let Err(err) = res {
+                        Err((callback, err))
+                    } else {
+                        Ok(callback)
+                    }
                 })
             }
 
             // default
-            _ => ReturnCode::ENOSUPPORT,
+            _ => Err((callback, ErrorCode::NOSUPPORT)),
         }
     }
 
@@ -1222,7 +1239,7 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> LegacyDriver for AdcDedicated<'_
         channel: usize,
         frequency: usize,
         appid: AppId,
-    ) -> ReturnCode {
+    ) -> CommandResult {
         // Return true if this app already owns the ADC capsule, if no app owns
         // the ADC capsule, or if the app that is marked as owning the ADC
         // capsule no longer exists.
@@ -1252,44 +1269,80 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> LegacyDriver for AdcDedicated<'_
         if match_or_empty_or_nonexistant {
             self.appid.set(appid);
         } else {
-            return ReturnCode::ENOMEM;
+            return CommandResult::failure(ErrorCode::NOMEM);
         }
         match command_num {
             // check if present
-            0 => ReturnCode::SuccessWithValue {
-                value: self.channels.len() as usize,
-            },
+            0 => CommandResult::success_u32(self.channels.len() as u32),
 
             // Single sample on channel
-            1 => self.sample(channel),
+            1 => match self.sample(channel) {
+                ReturnCode::SUCCESS => CommandResult::success(),
+                ReturnCode::SuccessWithValue { value } => CommandResult::success_u32(value as u32),
+                e => CommandResult::failure(if let Ok(err) = ErrorCode::try_from(e) {
+                    err
+                } else {
+                    panic!("ADC: invalid return code")
+                }),
+            },
 
             // Repeated single samples on a channel
-            2 => self.sample_continuous(channel, frequency as u32),
+            2 => match self.sample_continuous(channel, frequency as u32) {
+                ReturnCode::SUCCESS => CommandResult::success(),
+                ReturnCode::SuccessWithValue { value } => CommandResult::success_u32(value as u32),
+                e => CommandResult::failure(if let Ok(err) = ErrorCode::try_from(e) {
+                    err
+                } else {
+                    panic!("ADC: invalid return code")
+                }),
+            },
 
             // Multiple sample on a channel
-            3 => self.sample_buffer(channel, frequency as u32),
+            3 => match self.sample_buffer(channel, frequency as u32) {
+                ReturnCode::SUCCESS => CommandResult::success(),
+                ReturnCode::SuccessWithValue { value } => CommandResult::success_u32(value as u32),
+                e => CommandResult::failure(if let Ok(err) = ErrorCode::try_from(e) {
+                    err
+                } else {
+                    panic!("ADC: invalid return code")
+                }),
+            },
 
             // Continuous buffered sampling on a channel
-            4 => self.sample_buffer_continuous(channel, frequency as u32),
+            4 => match self.sample_buffer_continuous(channel, frequency as u32) {
+                ReturnCode::SUCCESS => CommandResult::success(),
+                ReturnCode::SuccessWithValue { value } => CommandResult::success_u32(value as u32),
+                e => CommandResult::failure(if let Ok(err) = ErrorCode::try_from(e) {
+                    err
+                } else {
+                    panic!("ADC: invalid return code")
+                }),
+            },
 
             // Stop sampling
-            5 => self.stop_sampling(),
+            5 => match self.stop_sampling() {
+                ReturnCode::SUCCESS => CommandResult::success(),
+                ReturnCode::SuccessWithValue { value } => CommandResult::success_u32(value as u32),
+                e => CommandResult::failure(if let Ok(err) = ErrorCode::try_from(e) {
+                    err
+                } else {
+                    panic!("ADC: invalid return code")
+                }),
+            },
 
             // Get resolution bits
-            101 => ReturnCode::SuccessWithValue {
-                value: self.get_resolution_bits(),
-            },
+            101 => CommandResult::success_u32(self.get_resolution_bits() as u32),
             // Get voltage reference mV
             102 => {
                 if let Some(voltage) = self.get_voltage_reference_mv() {
-                    ReturnCode::SuccessWithValue { value: voltage }
+                    CommandResult::success_u32(voltage as u32)
                 } else {
-                    ReturnCode::ENOSUPPORT
+                    CommandResult::failure(ErrorCode::NOSUPPORT)
                 }
             }
 
             // default
-            _ => ReturnCode::ENOSUPPORT,
+            _ => CommandResult::failure(ErrorCode::NOSUPPORT),
         }
     }
 }
