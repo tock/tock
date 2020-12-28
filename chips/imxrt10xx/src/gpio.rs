@@ -789,29 +789,20 @@ impl ExactSizeIterator for BitOffsets {}
 #[cfg(test)]
 mod tests {
     use super::BitOffsets;
-    use std::collections::HashSet;
 
     #[test]
     fn bit_offsets() {
         fn check(word: u32, expected: impl ExactSizeIterator<Item = u32>) {
             let offsets = BitOffsets(word);
             assert_eq!(offsets.len(), expected.len());
-
-            let word = offsets.0;
-            let expected: HashSet<_> = expected.collect();
-            let actual: HashSet<_> = offsets.collect();
-            let mut ordered_expected: Vec<_> = expected.iter().cloned().collect();
-            ordered_expected.sort_unstable();
-            let mut ordered_actual: Vec<_> = actual.iter().cloned().collect();
-            ordered_actual.sort_unstable();
-            assert_eq!(
-                expected, actual,
-                "\n  Ordered left: {:?}\n Ordered right: {:?}\n Word: {:#b}",
-                ordered_expected, ordered_actual, word
+            assert!(
+                offsets.eq(expected),
+                "Incorrect bit offsets for word {:#b}",
+                word
             );
         }
 
-        check(0, std::iter::empty());
+        check(0, core::iter::empty());
         check(u32::max_value(), 0..32);
         check(u32::max_value() >> 1, 0..31);
         check(u32::max_value() << 1, 1..32);
