@@ -242,7 +242,6 @@ impl<'a, A: Alarm<'a>> Driver for AlarmDriver<'a, A> {
                         let future_time = data;
                         let dt = future_time.wrapping_sub(reference);
                         // if previously unarmed, but now will become armed
-                        debug!("Alarm.rs: setting to {} + {}", reference, dt);
                         rearm(reference, dt)
                     },
                     5 /* Set relative expiration */ => {
