@@ -49,9 +49,10 @@
 //! ```
 
 use core::cell::Cell;
+use core::mem;
 use kernel::hil;
 use kernel::ReturnCode;
-use kernel::{AppId, Callback, Grant, LegacyDriver};
+use kernel::{AppId, Callback, CommandResult, Driver, ErrorCode, Grant};
 
 /// Syscall driver number.
 use crate::driver;
@@ -59,7 +60,7 @@ pub const DRIVER_NUM: usize = driver::NUM::Proximity as usize;
 
 #[derive(Default)]
 pub struct App {
-    callback: Option<Callback>,
+    callback: Callback,
     subscribed: bool,
     enqueued_command_type: ProximityCommand,
     lower_proximity: u8,
@@ -109,14 +110,13 @@ impl<'a> ProximitySensor<'a> {
         arg1: usize,
         arg2: usize,
         appid: AppId,
-    ) -> ReturnCode {
+    ) -> CommandResult {
         // Enqueue command by saving command type, args, appid within app struct in grant region
-        let r: ReturnCode = self
-            .apps
+        self.apps
             .enter(appid, |app, _| {
                 // Return busy if same app attempts to enqueue second command before first one is "callbacked"
                 if app.subscribed {
-                    return ReturnCode::EBUSY;
+                    return CommandResult::failure(ErrorCode::BUSY);
                 }
 
                 if command == ProximityCommand::ReadProximityOnInterrupt {
@@ -127,54 +127,49 @@ impl<'a> ProximitySensor<'a> {
                 app.subscribed = true; // enqueue
                 app.enqueued_command_type = command;
 
-                ReturnCode::SUCCESS
-            })
-            .unwrap_or_else(|err| err.into());
-
-        if r == ReturnCode::EBUSY {
-            return ReturnCode::EBUSY;
-        }
-
-        // If driver is currently processing a ReadProximityOnInterrupt command then we allow the current ReadProximityOnInterrupt command
-        // to interrupt it.  With new thresholds set, we can account for all apps waiting on ReadProximityOnInterrupt with different thresholds set
-        // to all receive a callback when appropriate.
-        // Doing so ensures that the app issuing the current command can have it serviced without having to wait for the previous command to fire.
-        if (self.command_running.get() == ProximityCommand::ReadProximityOnInterrupt)
-            && (command == ProximityCommand::ReadProximityOnInterrupt)
-        {
-            let t: Thresholds = self.find_thresholds();
-            self.driver.read_proximity_on_interrupt(t.lower, t.upper);
-            self.command_running
-                .set(ProximityCommand::ReadProximityOnInterrupt);
-            return ReturnCode::SUCCESS;
-        }
-
-        // If driver is currently processing a ReadProximityOnInterrupt command and current command is a ReadProximity then
-        // then command the driver to interrupt the former and replace with the latter.  The former will still be in the queue as the app region in the
-        // grant will have the `subscribed` boolean field set
-        if (self.command_running.get() == ProximityCommand::ReadProximityOnInterrupt)
-            && (command == ProximityCommand::ReadProximity)
-        {
-            self.driver.read_proximity();
-            self.command_running.set(ProximityCommand::ReadProximity);
-            return ReturnCode::SUCCESS;
-        }
-
-        // Only run command if it is only one in queue otherwise we wait for callback() for last run command to trigger another command to run
-        let mut num_commands: u8 = 0;
-
-        for cntr in self.apps.iter() {
-            cntr.enter(|app, _| {
-                if app.subscribed {
-                    num_commands += 1;
+                // If driver is currently processing a ReadProximityOnInterrupt command then we allow the current ReadProximityOnInterrupt command
+                // to interrupt it.  With new thresholds set, we can account for all apps waiting on ReadProximityOnInterrupt with different thresholds set
+                // to all receive a callback when appropriate.
+                // Doing so ensures that the app issuing the current command can have it serviced without having to wait for the previous command to fire.
+                if (self.command_running.get() == ProximityCommand::ReadProximityOnInterrupt)
+                    && (command == ProximityCommand::ReadProximityOnInterrupt)
+                {
+                    let t: Thresholds = self.find_thresholds();
+                    self.driver.read_proximity_on_interrupt(t.lower, t.upper);
+                    self.command_running
+                        .set(ProximityCommand::ReadProximityOnInterrupt);
+                    return CommandResult::success();
                 }
-            });
-        }
-        if num_commands == 1 {
-            self.run_next_command();
-        }
 
-        ReturnCode::SUCCESS
+                // If driver is currently processing a ReadProximityOnInterrupt command and current command is a ReadProximity then
+                // then command the driver to interrupt the former and replace with the latter.  The former will still be in the queue as the app region in the
+                // grant will have the `subscribed` boolean field set
+                if (self.command_running.get() == ProximityCommand::ReadProximityOnInterrupt)
+                    && (command == ProximityCommand::ReadProximity)
+                {
+                    self.driver.read_proximity();
+                    self.command_running.set(ProximityCommand::ReadProximity);
+                    return CommandResult::success();
+                }
+
+                // Only run command if it is only one in queue otherwise we wait for callback() for last run command to trigger another command to run
+                let mut num_commands: u8 = 0;
+
+                for cntr in self.apps.iter() {
+                    cntr.enter(|app, _| {
+                        if app.subscribed {
+                            num_commands += 1;
+                        }
+                    });
+                }
+
+                if num_commands == 1 {
+                    self.run_next_command();
+                }
+
+                CommandResult::success()
+            })
+            .unwrap_or_else(|err| CommandResult::failure(err.into()))
     }
 
     fn run_next_command(&self) -> ReturnCode {
@@ -242,15 +237,6 @@ impl<'a> ProximitySensor<'a> {
             upper: lowest_upper_proximity,
         }
     }
-
-    fn configure_callback(&self, callback: Option<Callback>, app_id: AppId) -> ReturnCode {
-        self.apps
-            .enter(app_id, |app, _| {
-                app.callback = callback;
-                ReturnCode::SUCCESS
-            })
-            .unwrap_or_else(|err| err.into())
-    }
 }
 
 impl hil::sensors::ProximityClient for ProximitySensor<'_> {
@@ -271,15 +257,13 @@ impl hil::sensors::ProximityClient for ProximitySensor<'_> {
                         if ((temp_val as u8) > app.upper_proximity)
                             || ((temp_val as u8) < app.lower_proximity)
                         {
-                            app.callback
-                                .map(|mut cb| cb.schedule(temp_val as usize, 0, 0));
+                            app.callback.schedule(temp_val as usize, 0, 0);
                             app.subscribed = false; // dequeue
                         }
                     } else {
                         // Case: ReadProximity
                         // Callback to all apps waiting on read_proximity.
-                        app.callback
-                            .map(|mut cb| cb.schedule(temp_val as usize, 0, 0));
+                        app.callback.schedule(temp_val as usize, 0, 0);
                         app.subscribed = false; // dequeue
                     }
                 }
@@ -294,23 +278,31 @@ impl hil::sensors::ProximityClient for ProximitySensor<'_> {
     }
 }
 
-impl LegacyDriver for ProximitySensor<'_> {
+impl Driver for ProximitySensor<'_> {
     fn subscribe(
         &self,
         subscribe_num: usize,
-        callback: Option<Callback>,
+        mut callback: Callback,
         app_id: AppId,
-    ) -> ReturnCode {
-        match subscribe_num {
-            0 => self.configure_callback(callback, app_id),
-            _ => ReturnCode::ENOSUPPORT,
+    ) -> Result<Callback, (Callback, ErrorCode)> {
+        let res = match subscribe_num {
+            0 => self
+                .apps
+                .enter(app_id, |app, _| mem::swap(&mut app.callback, &mut callback))
+                .map_err(ErrorCode::from),
+            _ => Err(ErrorCode::NOSUPPORT),
+        };
+        if let Err(e) = res {
+            Err((callback, e))
+        } else {
+            Ok(callback)
         }
     }
 
-    fn command(&self, command_num: usize, arg1: usize, arg2: usize, appid: AppId) -> ReturnCode {
+    fn command(&self, command_num: usize, arg1: usize, arg2: usize, appid: AppId) -> CommandResult {
         match command_num {
             // check whether the driver exist!!
-            0 => ReturnCode::SUCCESS,
+            0 => CommandResult::success(),
 
             // Instantaneous proximity measurement
             1 => self.enqueue_command(ProximityCommand::ReadProximity, arg1, arg2, appid),
@@ -323,7 +315,7 @@ impl LegacyDriver for ProximitySensor<'_> {
                 appid,
             ),
 
-            _ => ReturnCode::ENOSUPPORT,
+            _ => CommandResult::failure(ErrorCode::NOSUPPORT),
         }
     }
 }

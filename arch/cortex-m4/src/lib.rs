@@ -2,7 +2,7 @@
 
 #![crate_name = "cortexm4"]
 #![crate_type = "rlib"]
-#![feature(llvm_asm, naked_functions)]
+#![feature(naked_functions)]
 #![no_std]
 
 pub mod mpu;

@@ -166,10 +166,10 @@ impl kernel::Platform for Platform {
         match driver_num {
             capsules::console::DRIVER_NUM => f(Some(Ok(self.console))),
             capsules::gpio::DRIVER_NUM => f(Some(Err(self.gpio))),
-            capsules::alarm::DRIVER_NUM => f(Some(Err(self.alarm))),
+            capsules::alarm::DRIVER_NUM => f(Some(Ok(self.alarm))),
             capsules::led::DRIVER_NUM => f(Some(Ok(self.led))),
             capsules::button::DRIVER_NUM => f(Some(Err(self.button))),
-            capsules::rng::DRIVER_NUM => f(Some(Err(self.rng))),
+            capsules::rng::DRIVER_NUM => f(Some(Ok(self.rng))),
             capsules::ble_advertising_driver::DRIVER_NUM => f(Some(Err(self.ble_radio))),
             capsules::temperature::DRIVER_NUM => f(Some(Ok(self.temp))),
             capsules::analog_comparator::DRIVER_NUM => f(Some(Ok(self.analog_comparator))),

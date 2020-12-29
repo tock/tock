@@ -175,11 +175,11 @@ impl Default for PMPConfig {
 
 impl fmt::Display for PMPConfig {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, " PMP regions:")?;
+        write!(f, " PMP regions:\r\n")?;
         for (n, region) in self.regions.iter().enumerate() {
             match region {
-                None => writeln!(f, "  <unset>")?,
-                Some(region) => writeln!(f, "  [{}]: {}", n, region)?,
+                None => write!(f, "  <unset>\r\n")?,
+                Some(region) => write!(f, "  [{}]: {}\r\n", n, region)?,
             }
         }
         Ok(())

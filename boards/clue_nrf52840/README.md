@@ -55,20 +55,15 @@ This previous step will create a TAB (`.tab` file) that normally tockloader
 would use to program on the board. However, tockloader is currently not
 supported.
 
-Modify the `APP` variable in the `Makefile` to point towards the TBF file.
-
-```makefile
-APP=../../../libtock-c/examples/screen/build/cortex-m4/cortex-m4.tbf
-
-```
+Define the `APP` variable to point towards the TBF file.
 
 At this point you should be able to simply run `make program-apps` in this directory
 to install a fresh kernel with the app(s).
 
-You will need to specify the port like so:
+You will need to specify the port and the app as shown in the example:
 
 ```
-$ make program-apps PORT=<serial port path>
+$ make program-apps PORT=<serial port path> APP=<path to TBF>
 ```
 
 ### Userspace Resource Mapping
@@ -89,6 +84,16 @@ and the physical elements on the CLUE nRF52480 board.
 | GPIO[12]          | Pad D12             |
 | LED[0]            | Red LED Red         |
 | LED[1]            | White LEDs          |
+
+### Sensors
+
+The following sensors are working so far
+
+| Sensor | Physical Element    |
+|-------------------|---------------------|
+| Proximity           | APDS9960              |
+| Temperature & Humidity | SHT31 |
+
 
 ## Debugging
 

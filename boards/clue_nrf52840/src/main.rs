@@ -10,6 +10,8 @@
 #![deny(missing_docs)]
 
 use capsules::virtual_aes_ccm::MuxAES128CCM;
+use capsules::virtual_alarm::VirtualMuxAlarm;
+
 use kernel::capabilities;
 use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::component::Component;
@@ -127,6 +129,8 @@ pub struct Platform {
         'static,
         capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52840::rtc::Rtc<'static>>,
     >,
+    temperature: &'static capsules::temperature::TemperatureSensor<'static>,
+    humidity: &'static capsules::humidity::HumiditySensor<'static>,
 }
 
 impl kernel::Platform for Platform {
@@ -136,16 +140,18 @@ impl kernel::Platform for Platform {
     {
         match driver_num {
             capsules::console::DRIVER_NUM => f(Some(Ok(self.console))),
-            capsules::proximity::DRIVER_NUM => f(Some(Err(self.proximity))),
+            capsules::proximity::DRIVER_NUM => f(Some(Ok(self.proximity))),
             capsules::gpio::DRIVER_NUM => f(Some(Err(self.gpio))),
-            capsules::alarm::DRIVER_NUM => f(Some(Err(self.alarm))),
+            capsules::alarm::DRIVER_NUM => f(Some(Ok(self.alarm))),
             capsules::led::DRIVER_NUM => f(Some(Ok(self.led))),
             capsules::button::DRIVER_NUM => f(Some(Err(self.button))),
             capsules::screen::DRIVER_NUM => f(Some(Ok(self.screen))),
-            capsules::rng::DRIVER_NUM => f(Some(Err(self.rng))),
+            capsules::rng::DRIVER_NUM => f(Some(Ok(self.rng))),
             capsules::ble_advertising_driver::DRIVER_NUM => f(Some(Err(self.ble_radio))),
-            capsules::ieee802154::DRIVER_NUM => f(Some(Err(self.ieee802154_radio))),
-            capsules::buzzer_driver::DRIVER_NUM => f(Some(Err(self.buzzer))),
+            capsules::ieee802154::DRIVER_NUM => f(Some(Ok(self.ieee802154_radio))),
+            capsules::temperature::DRIVER_NUM => f(Some(Ok(self.temperature))),
+            capsules::humidity::DRIVER_NUM => f(Some(Ok(self.humidity))),
+            capsules::buzzer_driver::DRIVER_NUM => f(Some(Ok(self.buzzer))),
             kernel::ipc::DRIVER_NUM => f(Some(Err(&self.ipc))),
             _ => f(None),
         }
@@ -255,7 +261,7 @@ pub unsafe fn reset_handler() {
     //--------------------------------------------------------------------------
 
     let dynamic_deferred_call_clients =
-        static_init!([DynamicDeferredCallClientState; 3], Default::default());
+        static_init!([DynamicDeferredCallClientState; 4], Default::default());
     let dynamic_deferred_caller = static_init!(
         DynamicDeferredCall,
         DynamicDeferredCall::new(dynamic_deferred_call_clients)
@@ -399,6 +405,15 @@ pub unsafe fn reset_handler() {
 
     kernel::hil::sensors::ProximityDriver::set_client(apds9960, proximity);
 
+    let sht3x = components::sht3x::SHT3xComponent::new(sensors_i2c_bus, mux_alarm).finalize(
+        components::sht3x_component_helper!(nrf52::rtc::Rtc<'static>, capsules::sht3x::BASE_ADDR),
+    );
+
+    let temperature =
+        components::temperature::TemperatureComponent::new(board_kernel, sht3x).finalize(());
+
+    let humidity = components::humidity::HumidityComponent::new(board_kernel, sht3x).finalize(());
+
     //--------------------------------------------------------------------------
     // TFT
     //--------------------------------------------------------------------------
@@ -479,6 +494,7 @@ pub unsafe fn reset_handler() {
         aes_mux,
         PAN_ID,
         serial_num_bottom_16,
+        dynamic_deferred_caller,
     )
     .finalize(components::ieee802154_component_helper!(
         nrf52840::ieee802154_radio::Radio,
@@ -506,6 +522,8 @@ pub unsafe fn reset_handler() {
         buzzer: buzzer,
         alarm: alarm,
         ipc: kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability),
+        temperature: temperature,
+        humidity: humidity,
     };
 
     let chip = static_init!(

@@ -1,7 +1,7 @@
 use crate::net::ieee802154::MacAddress;
 use crate::net::ipv6::ip_utils::{compute_udp_checksum, ip6_nh, IPAddr};
-use crate::net::ipv6::ipv6::{IP6Header, IP6Packet, TransportHeader};
-use crate::net::udp::udp::UDPHeader;
+use crate::net::ipv6::{IP6Header, IP6Packet, TransportHeader};
+use crate::net::udp::UDPHeader;
 use crate::net::util;
 use crate::net::util::{network_slice_to_u16, u16_to_network_slice};
 /// Implements the 6LoWPAN specification for sending IPv6 datagrams over
