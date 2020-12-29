@@ -1,44 +1,60 @@
-use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite};
+use kernel::common::registers::{register_bitfields, register_structs, ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
 use kernel::ClockInterface;
 
-// Clock Controller Module
-#[repr(C)]
-struct CcmRegisters {
-    // CCM control register
-    ccr: ReadWrite<u32, CCR::Register>,
-    _reserved1: [u8; 4],
-    // CCM status register
-    csr: ReadOnly<u32, CSR::Register>,
-    // CCM Clock Switcher Register
-    ccsr: ReadWrite<u32, CCSR::Register>,
-    // ARM clock root
-    cacrr: ReadWrite<u32 /* Unimplemented */>,
-    // Bus clock divider
-    cbcdr: ReadWrite<u32 /* Unimplemented */>,
-    // Bus clock multiplexer
-    cbcmr: ReadWrite<u32 /* Unimplemented */>,
-    // Serial clock multiplexer 1
-    cscmr1: ReadWrite<u32, CSCMR1::Register>,
-    // Serial clock multiplexer 2
-    cscmr2: ReadWrite<u32 /* Unimplemented */>,
-    cscdr1: ReadWrite<u32, CSCDR1::Register>,
-    _reserved3: [u8; 44],
-    clpcr: ReadWrite<u32, CLPCR::Register>,
-    _reserved4: [u8; 16],
-    // clock gating register 0
-    ccgr0: ReadWrite<u32, CCGR0::Register>,
-    // clock gating register 1
-    ccgr1: ReadWrite<u32, CCGR1::Register>,
-    // clock gating register 2
-    ccgr2: ReadWrite<u32, CCGR2::Register>,
-    // clock gating register 3
-    ccgr3: ReadWrite<u32, CCGR3::Register>,
-    // clock gating register 4
-    ccgr4: ReadWrite<u32, CCGR4::Register>,
-    // clock gating register 5
-    ccgr5: ReadWrite<u32, CCGR5::Register>,
-    _reserved6: [u8; 8],
+register_structs! {
+    /// Clock Controller Module
+    CcmRegisters {
+        /// CCM Control Register
+        (0x000 => ccr: ReadWrite<u32, CCR::Register>),
+        (0x004 => _reserved0),
+        /// CCM Status Register
+        (0x008 => csr: ReadOnly<u32, CSR::Register>),
+        /// CCM Clock Switcher Register
+        (0x00C => ccsr: ReadWrite<u32>),
+        /// CCM Arm Clock Root Register
+        (0x010 => cacrr: ReadWrite<u32>),
+        /// CCM Bus Clock Divider Register
+        (0x014 => cbcdr: ReadWrite<u32>),
+        /// CCM Bus Clock Multiplexer Register
+        (0x018 => cbcmr: ReadWrite<u32>),
+        /// CCM Serial Clock Multiplexer Register 1
+        (0x01C => cscmr1: ReadWrite<u32, CSCMR1::Register>),
+        /// CCM Serial Clock Multiplexer Register 2
+        (0x020 => cscmr2: ReadWrite<u32>),
+        /// CCM Serial Clock Divider Register 1
+        (0x024 => cscdr1: ReadWrite<u32, CSCDR1::Register>),
+        /// CCM Clock Divider Register
+        (0x028 => cs1cdr: ReadWrite<u32>),
+        /// CCM Clock Divider Register
+        (0x02C => cs2cdr: ReadWrite<u32>),
+        /// CCM D1 Clock Divider Register
+        (0x030 => cdcdr: ReadWrite<u32>),
+        (0x034 => _reserved1),
+        /// CCM Serial Clock Divider Register 2
+        (0x038 => cscdr2: ReadWrite<u32>),
+        /// CCM Serial Clock Divider Register 3
+        (0x03C => cscdr3: ReadWrite<u32>),
+        (0x040 => _reserved2),
+        /// CCM Divider Handshake In-Process Register
+        (0x048 => cdhipr: ReadOnly<u32>),
+        (0x04C => _reserved3),
+        /// CCM Low Power Control Register
+        (0x054 => clpcr: ReadWrite<u32, CLPCR::Register>),
+        /// CCM Interrupt Status Register
+        (0x058 => cisr: ReadWrite<u32>),
+        /// CCM Interrupt Mask Register
+        (0x05C => cimr: ReadWrite<u32>),
+        /// CCM Clock Output Source Register
+        (0x060 => ccosr: ReadWrite<u32>),
+        /// CCM General Purpose Register
+        (0x064 => cgpr: ReadWrite<u32>),
+        /// CCM Clock Gating Registers
+        (0x068 => ccgr: [ReadWrite<u32, CCGR::Register>; 8]),
+        /// CCM Module Enable Overide Register
+        (0x088 => cmeor: ReadWrite<u32>),
+        (0x08C => @END),
+    }
 }
 
 register_bitfields![u32,
@@ -105,215 +121,25 @@ register_bitfields![u32,
         LPM OFFSET(0) NUMBITS(2) []
     ],
 
-    CCGR0 [
-        // gpio2_clocks (gpio2_clk_enable)
+    // Supports al clock gate registers
+    CCGR [
         CG15 OFFSET(30) NUMBITS(2) [],
-        // lpuart2 clock (lpuart2_clk_enable)
         CG14 OFFSET(28) NUMBITS(2) [],
-        // gpt2 serial clocks (gpt2_serial_clk_enable)
         CG13 OFFSET(26) NUMBITS(2) [],
-        // gpt2 bus clocks (gpt2_bus_clk_enable)
         CG12 OFFSET(24) NUMBITS(2) [],
-        // trace clock (trace_clk_enable)
         CG11 OFFSET(22) NUMBITS(2) [],
-        // can2_serial clock (can2_serial_clk_enable)
         CG10 OFFSET(20) NUMBITS(2) [],
-        // can2 clock (can2_clk_enable)
         CG9 OFFSET(18) NUMBITS(2) [],
-        // can1_serial clock (can1_serial_clk_enable)
         CG8 OFFSET(16) NUMBITS(2) [],
-        // can1 clock (can1_clk_enable)
         CG7 OFFSET(14) NUMBITS(2) [],
-        // lpuart3 clock (lpuart3_clk_enable)
         CG6 OFFSET(12) NUMBITS(2) [],
-        // dcp clock (dcp_clk_enable)
         CG5 OFFSET(10) NUMBITS(2) [],
-        // sim_m or sim_main register access clock (sim_m_mainclk_r_enable)
         CG4 OFFSET(8) NUMBITS(2) [],
-        // Reserved
         CG3 OFFSET(6) NUMBITS(2) [],
-        // mqs clock ( mqs_hmclk_clock_enable)
         CG2 OFFSET(4) NUMBITS(2) [],
-        // aips_tz2 clocks (aips_tz2_clk_enable)
         CG1 OFFSET(2) NUMBITS(2) [],
-        // aips_tz1 clocks (aips_tz1_clk_enable)
         CG0 OFFSET(0) NUMBITS(2) []
     ],
-
-    CCGR1 [
-        // gpio5 clock (gpio5_clk_enable)
-        CG15 OFFSET(30) NUMBITS(2) [],
-        // csu clock (csu_clk_enable)
-        CG14 OFFSET(28) NUMBITS(2) [],
-        // gpio1 clock (gpio1_clk_enable)
-        CG13 OFFSET(26) NUMBITS(2) [],
-        // lpuart4 clock (lpuart4_clk_enable)
-        CG12 OFFSET(24) NUMBITS(2) [],
-        // gpt1 serial clock (gpt_serial_clk_enable)
-        CG11 OFFSET(22) NUMBITS(2) [],
-        // gpt1 bus clock (gpt_clk_enable)
-        CG10 OFFSET(20) NUMBITS(2) [],
-        // semc_exsc clock (semc_exsc_clk_enable)
-        CG9 OFFSET(18) NUMBITS(2) [],
-        // adc1 clock (adc1_clk_enable)
-        CG8 OFFSET(16) NUMBITS(2) [],
-        // aoi2 clocks (aoi2_clk_enable)
-        CG7 OFFSET(14) NUMBITS(2) [],
-        // pit clocks (pit_clk_enable)
-        CG6 OFFSET(12) NUMBITS(2) [],
-        // enet clock (enet_clk_enable)
-        CG5 OFFSET(10) NUMBITS(2) [],
-        // adc2 clock (adc2_clk_enable)
-        CG4 OFFSET(8) NUMBITS(2) [],
-        // lpspi4 clocks (lpspi4_clk_enable)
-        CG3 OFFSET(6) NUMBITS(2) [],
-        // lpspi3 clocks (lpspi3_clk_enable)
-        CG2 OFFSET(4) NUMBITS(2) [],
-        // lpspi2 clocks (lpspi2_clk_enable)
-        CG1 OFFSET(2) NUMBITS(2) [],
-        // lpspi1 clocks (lpspi1_clk_enable)
-        CG0 OFFSET(0) NUMBITS(2) []
-    ],
-
-    CCGR2 [
-        // pxp clocks (pxp_clk_enable)
-        CG15 OFFSET(30) NUMBITS(2) [],
-        // lcd clocks (lcd_clk_enable)
-        CG14 OFFSET(28) NUMBITS(2) [],
-        // gpio3 clock (gpio3_clk_enable)
-        CG13 OFFSET(26) NUMBITS(2) [],
-        // xbar2 clock (xbar2_clk_enable)
-        CG12 OFFSET(24) NUMBITS(2) [],
-        // xbar1 clock (xbar1_clk_enable)
-        CG11 OFFSET(22) NUMBITS(2) [],
-        // ipmux3 clock (ipmux3_clk_enable)
-        CG10 OFFSET(20) NUMBITS(2) [],
-        // ipmux2 clock (ipmux2_clk_enable)
-        CG9 OFFSET(18) NUMBITS(2) [],
-        // ipmux1 clock (ipmux1_clk_enable)
-        CG8 OFFSET(16) NUMBITS(2) [],
-        // xbar3 clock (xbar3_clk_enable)
-        CG7 OFFSET(14) NUMBITS(2) [],
-        // OCOTP_CTRL clock (iim_clk_enable)
-        CG6 OFFSET(12) NUMBITS(2) [],
-        // lpi2c3 clock (lpi2c3_clk_enable)
-        CG5 OFFSET(10) NUMBITS(2) [],
-        // lpi2c2 clock (lpi2c2_clk_enable)
-        CG4 OFFSET(8) NUMBITS(2) [],
-        // lpi2c1 clock (lpi2c1_clk_enable)
-        CG3 OFFSET(6) NUMBITS(2) [],
-        // iomuxc_snvs clock (iomuxc_snvs_clk_enable)
-        CG2 OFFSET(4) NUMBITS(2) [],
-        // csi clock (csi_clk_enable)
-        CG1 OFFSET(2) NUMBITS(2) [],
-        // ocram_exsc clock (ocram_exsc_clk_enable)
-        CG0 OFFSET(0) NUMBITS(2) []
-    ],
-
-    CCGR3 [
-        // iomuxc_snvs_gpr clock (iomuxc_snvs_gpr_clk_enable)
-        CG15 OFFSET(30) NUMBITS(2) [],
-        // ocram clock(ocram_clk_enable)
-        CG14 OFFSET(28) NUMBITS(2) [],
-        // acmp4 clocks (acmp4_clk_enable)
-        CG13 OFFSET(26) NUMBITS(2) [],
-        // acmp3 clocks (acmp3_clk_enable)
-        CG12 OFFSET(24) NUMBITS(2) [],
-        // acmp2 clocks (acmp2_clk_enable)
-        CG11 OFFSET(22) NUMBITS(2) [],
-        // acmp1 clocks (acmp1_clk_enable)
-        CG10 OFFSET(20) NUMBITS(2) [],
-        // flexram clock (flexram_clk_enable)
-        CG9 OFFSET(18) NUMBITS(2) [],
-        // wdog1 clock (wdog1_clk_enable)
-        CG8 OFFSET(16) NUMBITS(2) [],
-        // ewm clocks (ewm_clk_enable)
-        CG7 OFFSET(14) NUMBITS(2) [],
-        // gpio4 clock (gpio4_clk_enable)
-        CG6 OFFSET(12) NUMBITS(2) [],
-        // lcdif pix clock (lcdif_pix_clk_enable)
-        CG5 OFFSET(10) NUMBITS(2) [],
-        // aoi1 clock (aoi1_clk_enable)
-        CG4 OFFSET(8) NUMBITS(2) [],
-        // lpuart6 clock (lpuart6_clk_enable)
-        CG3 OFFSET(6) NUMBITS(2) [],
-        // semc clocks (semc_clk_enable)
-        CG2 OFFSET(4) NUMBITS(2) [],
-        // lpuart5 clock (lpuart5_clk_enable)
-        CG1 OFFSET(2) NUMBITS(2) [],
-        // flexio2 clocks (flexio2_clk_enable)
-        CG0 OFFSET(0) NUMBITS(2) []
-    ],
-
-    CCGR4 [
-        // enc4 clocks (enc4_clk_enable)
-        CG15 OFFSET(30) NUMBITS(2) [],
-        // enc2 clocks (enc2_clk_enable)
-        CG14 OFFSET(28) NUMBITS(2) [],
-        // enc2 clocks (enc2_clk_enable)
-        CG13 OFFSET(26) NUMBITS(2) [],
-        // enc1 clocks (enc1_clk_enable)
-        CG12 OFFSET(24) NUMBITS(2) [],
-        // pwm4 clocks (pwm4_clk_enable)
-        CG11 OFFSET(22) NUMBITS(2) [],
-        // pwm3 clocks (pwm3_clk_enable)
-        CG10 OFFSET(20) NUMBITS(2) [],
-        // pwm2 clocks (pwm2_clk_enable)
-        CG9 OFFSET(18) NUMBITS(2) [],
-        // pwm1 clocks (pwm1_clk_enable)
-        CG8 OFFSET(16) NUMBITS(2) [],
-        // sim_ems clocks (sim_ems_clk_enable)
-        CG7 OFFSET(14) NUMBITS(2) [],
-        // sim_m clocks (sim_m_clk_enable)
-        CG6 OFFSET(12) NUMBITS(2) [],
-        // tsc_dig clock (tsc_clk_enable)
-        CG5 OFFSET(10) NUMBITS(2) [],
-        // sim_m7 clock (sim_m7_clk_enable)
-        CG4 OFFSET(8) NUMBITS(2) [],
-        // bee clock(bee_clk_enable)
-        CG3 OFFSET(6) NUMBITS(2) [],
-        // iomuxc gpr clock (iomuxc_gpr_clk_enable)
-        CG2 OFFSET(4) NUMBITS(2) [],
-        // iomuxc clock (iomuxc_clk_enable)
-        CG1 OFFSET(2) NUMBITS(2) [],
-        // sim_m7 register access clock (sim_m7_mainclk_r_enable)
-        CG0 OFFSET(0) NUMBITS(2) []
-    ],
-
-    CCGR5 [
-         // snvs_lp clock (snvs_lp_clk_enable)
-        CG15 OFFSET(30) NUMBITS(2) [],
-        // snvs_hp clock (snvs_hp_clk_enable)
-        CG14 OFFSET(28) NUMBITS(2) [],
-        // lpuart7 clock (lpuart7_clk_enable)
-        CG13 OFFSET(26) NUMBITS(2) [],
-        // lpuart1 clock (lpuart1_clk_enable)
-        CG12 OFFSET(24) NUMBITS(2) [],
-        // sai3 clock (sai3_clk_enable)
-        CG11 OFFSET(22) NUMBITS(2) [],
-        // sai2 clock (sai2_clk_enable)
-        CG10 OFFSET(20) NUMBITS(2) [],
-        // sai1 clock (sai1_clk_enable)
-        CG9 OFFSET(18) NUMBITS(2) [],
-        // sim_main clock (sim_main_clk_enable)
-        CG8 OFFSET(16) NUMBITS(2) [],
-        // spdif clock (spdif_clk_enable)
-        CG7 OFFSET(14) NUMBITS(2) [],
-        // aipstz4 clocks (aips_tz4_clk_enable)
-        CG6 OFFSET(12) NUMBITS(2) [],
-        // wdog2 clock (wdog2_clk_enable)
-        CG5 OFFSET(10) NUMBITS(2) [],
-        // kpp clock (kpp_clk_enable)
-        CG4 OFFSET(8) NUMBITS(2) [],
-        // dma clock (dma_clk_enable)
-        CG3 OFFSET(6) NUMBITS(2) [],
-        // wdog3 clock (wdog3_clk_enable)
-        CG2 OFFSET(4) NUMBITS(2) [],
-        // flexio1 clock (flexio1_clk_enable)
-        CG1 OFFSET(2) NUMBITS(2) [],
-        // rom clock (rom_clk_enable)
-        CG0 OFFSET(0) NUMBITS(2) []
-    ]
 ];
 
 const CCM_BASE: StaticRef<CcmRegisters> =
@@ -345,166 +171,166 @@ impl Ccm {
 
     // Iomuxc_snvs clock
     pub fn is_enabled_iomuxc_snvs_clock(&self) -> bool {
-        self.registers.ccgr2.is_set(CCGR2::CG2)
+        self.registers.ccgr[2].is_set(CCGR::CG2)
     }
 
     pub fn enable_iomuxc_snvs_clock(&self) {
-        self.registers.ccgr2.modify(CCGR2::CG2.val(0b01 as u32));
-        self.registers.ccgr3.modify(CCGR3::CG15.val(0b01 as u32));
+        self.registers.ccgr[2].modify(CCGR::CG2.val(0b01 as u32));
+        self.registers.ccgr[3].modify(CCGR::CG15.val(0b01 as u32));
     }
 
     pub fn disable_iomuxc_snvs_clock(&self) {
-        self.registers.ccgr2.modify(CCGR2::CG2::CLEAR);
-        self.registers.ccgr3.modify(CCGR3::CG15::CLEAR);
+        self.registers.ccgr[2].modify(CCGR::CG2::CLEAR);
+        self.registers.ccgr[3].modify(CCGR::CG15::CLEAR);
     }
 
     /// Iomuxc clock
     pub fn is_enabled_iomuxc_clock(&self) -> bool {
-        self.registers.ccgr4.is_set(CCGR4::CG0) && self.registers.ccgr4.is_set(CCGR4::CG1)
+        self.registers.ccgr[4].is_set(CCGR::CG0) && self.registers.ccgr[4].is_set(CCGR::CG1)
     }
 
     pub fn enable_iomuxc_clock(&self) {
-        self.registers.ccgr4.modify(CCGR4::CG0.val(0b01 as u32));
-        self.registers.ccgr4.modify(CCGR4::CG1.val(0b01 as u32));
+        self.registers.ccgr[4].modify(CCGR::CG0.val(0b01 as u32));
+        self.registers.ccgr[4].modify(CCGR::CG1.val(0b01 as u32));
     }
 
     pub fn disable_iomuxc_clock(&self) {
-        self.registers.ccgr4.modify(CCGR4::CG0::CLEAR);
-        self.registers.ccgr4.modify(CCGR4::CG1::CLEAR)
+        self.registers.ccgr[4].modify(CCGR::CG0::CLEAR);
+        self.registers.ccgr[4].modify(CCGR::CG1::CLEAR)
     }
 
     /// GPIO1 clock
     pub fn is_enabled_gpio1_clock(&self) -> bool {
-        self.registers.ccgr1.is_set(CCGR1::CG13)
+        self.registers.ccgr[1].is_set(CCGR::CG13)
     }
 
     pub fn enable_gpio1_clock(&self) {
-        self.registers.ccgr1.modify(CCGR1::CG13.val(0b11 as u32))
+        self.registers.ccgr[1].modify(CCGR::CG13.val(0b11 as u32))
     }
 
     pub fn disable_gpio1_clock(&self) {
-        self.registers.ccgr1.modify(CCGR1::CG13::CLEAR)
+        self.registers.ccgr[1].modify(CCGR::CG13::CLEAR)
     }
 
     /// GPIO2 clock
     pub fn is_enabled_gpio2_clock(&self) -> bool {
-        self.registers.ccgr0.is_set(CCGR0::CG15)
+        self.registers.ccgr[0].is_set(CCGR::CG15)
     }
 
     pub fn enable_gpio2_clock(&self) {
-        self.registers.ccgr0.modify(CCGR0::CG15.val(0b11 as u32))
+        self.registers.ccgr[0].modify(CCGR::CG15.val(0b11 as u32))
     }
 
     pub fn disable_gpio2_clock(&self) {
-        self.registers.ccgr0.modify(CCGR0::CG15::CLEAR)
+        self.registers.ccgr[0].modify(CCGR::CG15::CLEAR)
     }
 
     /// GPIO3 clock
     pub fn is_enabled_gpio3_clock(&self) -> bool {
-        self.registers.ccgr2.is_set(CCGR2::CG13)
+        self.registers.ccgr[2].is_set(CCGR::CG13)
     }
 
     pub fn enable_gpio3_clock(&self) {
-        self.registers.ccgr2.modify(CCGR2::CG13.val(0b11 as u32))
+        self.registers.ccgr[2].modify(CCGR::CG13.val(0b11 as u32))
     }
 
     pub fn disable_gpio3_clock(&self) {
-        self.registers.ccgr2.modify(CCGR2::CG13::CLEAR)
+        self.registers.ccgr[2].modify(CCGR::CG13::CLEAR)
     }
 
     /// GPIO4 clock
     pub fn is_enabled_gpio4_clock(&self) -> bool {
-        self.registers.ccgr3.is_set(CCGR3::CG6)
+        self.registers.ccgr[3].is_set(CCGR::CG6)
     }
 
     pub fn enable_gpio4_clock(&self) {
-        self.registers.ccgr3.modify(CCGR3::CG6.val(0b11 as u32))
+        self.registers.ccgr[3].modify(CCGR::CG6.val(0b11 as u32))
     }
 
     pub fn disable_gpio4_clock(&self) {
-        self.registers.ccgr3.modify(CCGR3::CG6::CLEAR)
+        self.registers.ccgr[3].modify(CCGR::CG6::CLEAR)
     }
 
     /// GPIO5 clock
     pub fn is_enabled_gpio5_clock(&self) -> bool {
-        self.registers.ccgr1.is_set(CCGR1::CG15)
+        self.registers.ccgr[1].is_set(CCGR::CG15)
     }
 
     pub fn enable_gpio5_clock(&self) {
-        self.registers.ccgr1.modify(CCGR1::CG15.val(0b11 as u32))
+        self.registers.ccgr[1].modify(CCGR::CG15.val(0b11 as u32))
     }
 
     pub fn disable_gpio5_clock(&self) {
-        self.registers.ccgr1.modify(CCGR1::CG15::CLEAR)
+        self.registers.ccgr[1].modify(CCGR::CG15::CLEAR)
     }
 
     // GPT1 clock
     pub fn is_enabled_gpt1_clock(&self) -> bool {
-        self.registers.ccgr1.is_set(CCGR1::CG11)
+        self.registers.ccgr[1].is_set(CCGR::CG11)
     }
 
     pub fn enable_gpt1_clock(&self) {
-        self.registers.ccgr1.modify(CCGR1::CG10.val(0b11 as u32));
-        self.registers.ccgr1.modify(CCGR1::CG11.val(0b11 as u32));
+        self.registers.ccgr[1].modify(CCGR::CG10.val(0b11 as u32));
+        self.registers.ccgr[1].modify(CCGR::CG11.val(0b11 as u32));
     }
 
     pub fn disable_gpt1_clock(&self) {
-        self.registers.ccgr1.modify(CCGR1::CG10::CLEAR);
-        self.registers.ccgr1.modify(CCGR1::CG11::CLEAR);
+        self.registers.ccgr[1].modify(CCGR::CG10::CLEAR);
+        self.registers.ccgr[1].modify(CCGR::CG11::CLEAR);
     }
 
     // GPT2 clock
     pub fn is_enabled_gpt2_clock(&self) -> bool {
-        self.registers.ccgr0.is_set(CCGR0::CG13)
+        self.registers.ccgr[0].is_set(CCGR::CG13)
     }
 
     pub fn enable_gpt2_clock(&self) {
-        self.registers.ccgr0.modify(CCGR0::CG12.val(0b11 as u32));
-        self.registers.ccgr0.modify(CCGR0::CG13.val(0b11 as u32));
+        self.registers.ccgr[0].modify(CCGR::CG12.val(0b11 as u32));
+        self.registers.ccgr[0].modify(CCGR::CG13.val(0b11 as u32));
     }
 
     pub fn disable_gpt2_clock(&self) {
-        self.registers.ccgr0.modify(CCGR0::CG12::CLEAR);
-        self.registers.ccgr0.modify(CCGR0::CG13::CLEAR);
+        self.registers.ccgr[0].modify(CCGR::CG12::CLEAR);
+        self.registers.ccgr[0].modify(CCGR::CG13::CLEAR);
     }
 
     // LPI2C1 clock
     pub fn is_enabled_lpi2c1_clock(&self) -> bool {
-        self.registers.ccgr2.is_set(CCGR2::CG3)
+        self.registers.ccgr[2].is_set(CCGR::CG3)
     }
 
     pub fn enable_lpi2c1_clock(&self) {
-        self.registers.ccgr2.modify(CCGR2::CG3.val(0b11 as u32));
+        self.registers.ccgr[2].modify(CCGR::CG3.val(0b11 as u32));
     }
 
     pub fn disable_lpi2c1_clock(&self) {
-        self.registers.ccgr2.modify(CCGR2::CG3::CLEAR);
+        self.registers.ccgr[2].modify(CCGR::CG3::CLEAR);
     }
 
     // LPUART1 clock
     pub fn is_enabled_lpuart1_clock(&self) -> bool {
-        self.registers.ccgr5.is_set(CCGR5::CG12)
+        self.registers.ccgr[5].is_set(CCGR::CG12)
     }
 
     pub fn enable_lpuart1_clock(&self) {
-        self.registers.ccgr5.modify(CCGR5::CG12.val(0b11 as u32));
+        self.registers.ccgr[5].modify(CCGR::CG12.val(0b11 as u32));
     }
 
     pub fn disable_lpuart1_clock(&self) {
-        self.registers.ccgr5.modify(CCGR5::CG12::CLEAR);
+        self.registers.ccgr[5].modify(CCGR::CG12::CLEAR);
     }
 
     // LPUART2 clock
     pub fn is_enabled_lpuart2_clock(&self) -> bool {
-        self.registers.ccgr0.is_set(CCGR0::CG14)
+        self.registers.ccgr[0].is_set(CCGR::CG14)
     }
 
     pub fn enable_lpuart2_clock(&self) {
-        self.registers.ccgr0.modify(CCGR0::CG14.val(0b11 as u32));
+        self.registers.ccgr[0].modify(CCGR::CG14.val(0b11 as u32));
     }
 
     pub fn disable_lpuart2_clock(&self) {
-        self.registers.ccgr0.modify(CCGR0::CG14::CLEAR);
+        self.registers.ccgr[0].modify(CCGR::CG14::CLEAR);
     }
 
     // UART clock multiplexor
