@@ -946,20 +946,33 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> hil::adc::HighSpeedClient for Ad
                             app_buf = &app.app_buf2;
                         }
                         // next we should copy bytes to the app buffer
-                        app_buf.mut_map_or((), move |app_buf| {
+                        app_buf.mut_map_or((), |app_buf| {
                             // Copy bytes to app buffer by iterating over the
                             // data.
                             buffer_with_samples.map(|adc_buf| {
-                                // set the position after the items that
-                                // have already been written to the app_buffer
-                                let mut position = skip_amt;
-                                for &sample in adc_buf
-                                    .iter()
-                                    .take(cmp::min(length, app_buf.len() / 2 - position))
+                                // The `for` commands:
+                                //  * `chunks_mut`: get sets of two bytes from the app
+                                //                  buffer
+                                //  * `skip`: skips the already written bytes from the
+                                //            app buffer
+                                //  * `zip`: ties that iterator to an iterator on the
+                                //           adc buffer, limiting iteration length to
+                                //           the minimum of each of their lengths
+                                //  * `take`: limits us to the minimum of buffer lengths
+                                //            or sample length
+                                // We then split each sample into its two bytes and copy
+                                // them to the app buffer
+                                for (chunk, &sample) in app_buf
+                                    .chunks_mut(2)
+                                    .skip(skip_amt)
+                                    .zip(adc_buf.iter())
+                                    .take(length)
                                 {
-                                    app_buf[position] = (sample & 0xFF) as u8;
-                                    app_buf[position + 1] = ((sample >> 8) as u8) as u8;
-                                    position = position + 2;
+                                    let mut val = sample;
+                                    for byte in chunk.iter_mut() {
+                                        *byte = (val & 0xFF) as u8;
+                                        val = val >> 8;
+                                    }
                                 }
                             });
                         });
