@@ -1251,7 +1251,6 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> Driver for AdcDedicated<'_, A> {
             // Single sample on channel
             1 => match self.sample(channel) {
                 ReturnCode::SUCCESS => CommandResult::success(),
-                ReturnCode::SuccessWithValue { value } => CommandResult::success_u32(value as u32),
                 e => CommandResult::failure(if let Ok(err) = ErrorCode::try_from(e) {
                     err
                 } else {
@@ -1262,7 +1261,6 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> Driver for AdcDedicated<'_, A> {
             // Repeated single samples on a channel
             2 => match self.sample_continuous(channel, frequency as u32) {
                 ReturnCode::SUCCESS => CommandResult::success(),
-                ReturnCode::SuccessWithValue { value } => CommandResult::success_u32(value as u32),
                 e => CommandResult::failure(if let Ok(err) = ErrorCode::try_from(e) {
                     err
                 } else {
@@ -1273,7 +1271,6 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> Driver for AdcDedicated<'_, A> {
             // Multiple sample on a channel
             3 => match self.sample_buffer(channel, frequency as u32) {
                 ReturnCode::SUCCESS => CommandResult::success(),
-                ReturnCode::SuccessWithValue { value } => CommandResult::success_u32(value as u32),
                 e => CommandResult::failure(if let Ok(err) = ErrorCode::try_from(e) {
                     err
                 } else {
@@ -1284,7 +1281,6 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> Driver for AdcDedicated<'_, A> {
             // Continuous buffered sampling on a channel
             4 => match self.sample_buffer_continuous(channel, frequency as u32) {
                 ReturnCode::SUCCESS => CommandResult::success(),
-                ReturnCode::SuccessWithValue { value } => CommandResult::success_u32(value as u32),
                 e => CommandResult::failure(if let Ok(err) = ErrorCode::try_from(e) {
                     err
                 } else {
@@ -1295,7 +1291,6 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> Driver for AdcDedicated<'_, A> {
             // Stop sampling
             5 => match self.stop_sampling() {
                 ReturnCode::SUCCESS => CommandResult::success(),
-                ReturnCode::SuccessWithValue { value } => CommandResult::success_u32(value as u32),
                 e => CommandResult::failure(if let Ok(err) = ErrorCode::try_from(e) {
                     err
                 } else {
