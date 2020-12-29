@@ -2,6 +2,8 @@ use kernel::common::registers::{register_bitfields, register_structs, ReadOnly, 
 use kernel::common::StaticRef;
 use kernel::ClockInterface;
 
+use core::ops::Range;
+
 register_structs! {
     /// Clock Controller Module
     CcmRegisters {
@@ -103,11 +105,20 @@ register_bitfields![u32,
         /// Selector for flexspi2 clock multiplexer
         FLEXSPI2_CLK_SEL OFFSET(8) NUMBITS(2) [],
         /// Selector for peripheral clk2 clock multiplexer
-        PERIPH_CLK2_SEL OFFSET(12) NUMBITS(2) [],
+        PERIPH_CLK2_SEL OFFSET(12) NUMBITS(2) [
+            PLL3Sw = 0,
+            Oscillator = 1,
+            PLL2Bypass = 2
+        ],
         /// Selector for Trace clock multiplexer
         TRACE_CLK_SEL OFFSET(14) NUMBITS(2) [],
         /// Selector for pre_periph clock multiplexer
-        PRE_PERIPH_CLK_SEL OFFSET(18) NUMBITS(2) [],
+        PRE_PERIPH_CLK_SEL OFFSET(18) NUMBITS(2) [
+            PLL2 = 0,
+            PLL2_PFD2 = 1,
+            PLL2_PFD0 = 2,
+            PLL1 = 3
+        ],
         /// Post-divider for LCDIF clock.
         LCDIF_PODF OFFSET(23) NUMBITS(3) [],
         /// Divider for LPSPI. Divider should be updated when output clock is gated.
@@ -391,7 +402,7 @@ impl Ccm {
         match self.registers.cscdr1.read_as_enum(CSCDR1::UART_CLK_SEL) {
             Some(Value::Oscillator) => UartClockSelection::Oscillator,
             Some(Value::Pll3) => UartClockSelection::PLL3,
-            _ => unreachable!("Implemented all UART clock selections"),
+            None => unreachable!("Implemented all UART clock selections"),
         }
     }
 
@@ -421,7 +432,7 @@ impl Ccm {
         match self.registers.cscmr1.read_as_enum(CSCMR1::PERCLK_CLK_SEL) {
             Some(Value::Oscillator) => PerclkClockSel::Oscillator,
             Some(Value::IpgClockRoot) => PerclkClockSel::IPG,
-            _ => unreachable!("Implemented all periodic clock selections"),
+            None => unreachable!("Implemented all periodic clock selections"),
         }
     }
 
@@ -450,7 +461,168 @@ impl Ccm {
     pub fn perclk_divider(&self) -> u8 {
         (self.registers.cscmr1.read(CSCMR1::PERCLK_PODF) as u8) + 1
     }
+
+    /// Blocks until *all* handshakes are complete
+    fn wait_for_handshakes(&self) {
+        while self.registers.cdhipr.get() != 0 {}
+    }
+
+    /// Set the ARM clock root divider
+    ///
+    /// The ARM clock divider is just after the PLL1 output.
+    ///
+    /// Clamps `divider` between [1, 8].
+    pub fn set_arm_divider(&self, divider: u32) {
+        let podf = divider.min(8).max(1) - 1;
+        self.registers.cacrr.set(podf);
+        self.wait_for_handshakes();
+    }
+
+    /// Returns the ARM clock root divider
+    pub fn arm_divider(&self) -> u32 {
+        self.registers.cacrr.get() + 1
+    }
+
+    /// Set the PERIPH_CLK2 divider
+    ///
+    /// Clamps `divider` between [1, 8].
+    pub fn set_peripheral_clock2_divider(&self, divider: u32) {
+        let podf = divider.min(8).max(1) - 1;
+        self.registers
+            .cbcdr
+            .modify(CBCDR::PERIPH_CLK2_PODF.val(podf));
+    }
+
+    /// Returns the PERIPH_CLK2 divider
+    pub fn peripheral_clock2_divider(&self) -> u32 {
+        self.registers.cbcdr.read(CBCDR::PERIPH_CLK2_PODF) + 1
+    }
+
+    /// Set the AHB clock divider
+    ///
+    /// Clamps `divider` between [1, 8].
+    pub fn set_ahb_divider(&self, divider: u32) {
+        let podf = divider.min(8).max(1) - 1;
+        self.registers.cbcdr.modify(CBCDR::AHB_PODF.val(podf));
+        self.wait_for_handshakes();
+    }
+
+    /// Returns the AHB clock divider
+    pub fn ahb_divider(&self) -> u32 {
+        self.registers.cbcdr.read(CBCDR::AHB_PODF) + 1
+    }
+
+    /// Sets the IPG clock divider
+    ///
+    /// Clamps `divider` between [1, 4].
+    pub fn set_ipg_divider(&self, divider: u32) {
+        let podf = divider.min(4).max(1) - 1;
+        self.registers.cbcdr.modify(CBCDR::IPG_PODF.val(podf));
+    }
+
+    /// Set the peripheral clock selection
+    pub fn set_peripheral_clock_selection(&self, selection: PeripheralClockSelection) {
+        let selection = match selection {
+            PeripheralClockSelection::PrePeripheralClock => CBCDR::PERIPH_CLK_SEL::PrePeriphClkSel,
+            PeripheralClockSelection::PeripheralClock2Divided => {
+                CBCDR::PERIPH_CLK_SEL::PeriphClk2Divided
+            }
+        };
+        self.registers.cbcdr.modify(selection);
+        self.wait_for_handshakes();
+    }
+
+    /// Returns the peripheral clock selection
+    pub fn peripheral_clock_selection(&self) -> PeripheralClockSelection {
+        use CBCDR::PERIPH_CLK_SEL::Value;
+        match self.registers.cbcdr.read_as_enum(CBCDR::PERIPH_CLK_SEL) {
+            Some(Value::PrePeriphClkSel) => PeripheralClockSelection::PrePeripheralClock,
+            Some(Value::PeriphClk2Divided) => PeripheralClockSelection::PeripheralClock2Divided,
+            None => unreachable!(),
+        }
+    }
+
+    /// Set the pre-peripheral clock selection
+    pub fn set_pre_peripheral_clock_selection(&self, selection: PrePeripheralClockSelection) {
+        let selection = match selection {
+            PrePeripheralClockSelection::Pll2 => CBCMR::PRE_PERIPH_CLK_SEL::PLL2,
+            PrePeripheralClockSelection::Pll2Pfd2 => CBCMR::PRE_PERIPH_CLK_SEL::PLL2_PFD2,
+            PrePeripheralClockSelection::Pll2Pfd0 => CBCMR::PRE_PERIPH_CLK_SEL::PLL2_PFD0,
+            PrePeripheralClockSelection::Pll1 => CBCMR::PRE_PERIPH_CLK_SEL::PLL1,
+        };
+        self.registers.cbcmr.modify(selection);
+    }
+
+    /// Returns the pre-peripheral clock selection
+    pub fn pre_peripheral_clock_selection(&self) -> PrePeripheralClockSelection {
+        use CBCMR::PRE_PERIPH_CLK_SEL::Value;
+        match self.registers.cbcmr.read_as_enum(CBCMR::PRE_PERIPH_CLK_SEL) {
+            Some(Value::PLL2) => PrePeripheralClockSelection::Pll2,
+            Some(Value::PLL2_PFD0) => PrePeripheralClockSelection::Pll2Pfd0,
+            Some(Value::PLL2_PFD2) => PrePeripheralClockSelection::Pll2Pfd2,
+            Some(Value::PLL1) => PrePeripheralClockSelection::Pll1,
+            None => unreachable!(),
+        }
+    }
+
+    /// Set the peripheral clock 2 selection
+    pub fn set_peripheral_clock2_selection(&self, selection: PeripheralClock2Selection) {
+        let selection = match selection {
+            PeripheralClock2Selection::Pll3 => CBCMR::PERIPH_CLK2_SEL::PLL3Sw,
+            PeripheralClock2Selection::Oscillator => CBCMR::PERIPH_CLK2_SEL::Oscillator,
+            PeripheralClock2Selection::Pll2Bypass => CBCMR::PERIPH_CLK2_SEL::PLL2Bypass,
+        };
+        self.registers.cbcmr.modify(selection);
+        self.wait_for_handshakes();
+    }
+
+    /// Returns the selection for peripheral clock 2
+    pub fn peripheral_clock2_selection(&self) -> PeripheralClock2Selection {
+        use CBCMR::PERIPH_CLK2_SEL::Value;
+        match self.registers.cbcmr.read_as_enum(CBCMR::PERIPH_CLK2_SEL) {
+            Some(Value::PLL3Sw) => PeripheralClock2Selection::Pll3,
+            Some(Value::PLL2Bypass) => PeripheralClock2Selection::Pll2Bypass,
+            Some(Value::Oscillator) => PeripheralClock2Selection::Oscillator,
+            None => unreachable!(),
+        }
+    }
 }
+
+/// Clock selections for the main peripheral
+#[derive(PartialEq, Eq)]
+#[repr(u32)]
+pub enum PeripheralClockSelection {
+    /// Pre peripheral clock
+    PrePeripheralClock,
+    /// Peripheral clock 2, with some division
+    PeripheralClock2Divided,
+}
+
+/// Pre-peripheral clock selections
+#[derive(PartialEq, Eq)]
+#[repr(u32)]
+pub enum PrePeripheralClockSelection {
+    Pll2,
+    Pll2Pfd2,
+    Pll2Pfd0,
+    Pll1,
+}
+
+/// Peripheral clock 2 selection
+#[derive(PartialEq, Eq)]
+#[repr(u32)]
+pub enum PeripheralClock2Selection {
+    Pll3,
+    Oscillator,
+    Pll2Bypass,
+}
+
+/// Valid range for the ARM divider
+pub const ARM_DIVIDER_RANGE: Range<u32> = 1..9;
+/// Valid range for the AHB divider
+pub const AHB_DIVIDER_RANGE: Range<u32> = 1..9;
+/// Valid range for the IPG divider
+pub const IPG_DIVIDER_RANGE: Range<u32> = 1..5;
 
 enum ClockGate {
     CCGR0(HCLK0),
