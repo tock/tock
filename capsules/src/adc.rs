@@ -343,7 +343,7 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed> AdcDedicated<'a, A> {
             self.apps
                 .enter(*id, |state, _| {
                     app_buf_length = state.app_buf1.len();
-                    state.app_buf1.len() > 0
+                    app_buf_length > 0
                 })
                 .map_err(|err| {
                     if err == kernel::procs::Error::NoSuchApp
