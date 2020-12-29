@@ -938,7 +938,7 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> hil::adc::HighSpeedClient for Ad
                             });
                         }
 
-                        let skip_amt = app.app_buf_offset.get() / 2;
+                        let skip_amt = app.app_buf_offset.get();
                         let app_buf;
                         if use1 {
                             app_buf = &app.app_buf1;
@@ -950,41 +950,17 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> hil::adc::HighSpeedClient for Ad
                             // Copy bytes to app buffer by iterating over the
                             // data.
                             buffer_with_samples.map(|adc_buf| {
-                                // The `for` commands:
-                                //  * `chunks_mut`: get sets of two bytes from the app
-                                //                  buffer
-                                //  * `skip`: skips the already written bytes from the
-                                //            app buffer
-                                //  * `zip`: ties that iterator to an iterator on the
-                                //           adc buffer, limiting iteration length to
-                                //           the minimum of each of their lengths
-                                //  * `take`: limits us to the minimum of buffer lengths
-                                //            or sample length
-                                // We then split each sample into its two bytes and copy
-                                // them to the app buffer
-
-                                let mut position = 0;
+                                // set the position after the items that
+                                // have already been written to the app_buffer
+                                let mut position = skip_amt;
                                 for &sample in adc_buf
                                     .iter()
-                                    .skip(skip_amt)
-                                    .take(cmp::min(length, app_buf.len() / 2))
+                                    .take(cmp::min(length, app_buf.len() / 2 - position))
                                 {
-                                    position = position + 1;
-                                    app_buf[2 * position] = (sample & 0xFF) as u8;
-                                    app_buf[2 * position + 1] = ((sample >> 8) as u8) as u8;
+                                    app_buf[position] = (sample & 0xFF) as u8;
+                                    app_buf[position + 1] = ((sample >> 8) as u8) as u8;
+                                    position = position + 2;
                                 }
-                                // for (chunk, &sample) in app_buf
-                                //     .chunks_mut(2)
-                                //     .skip(skip_amt)
-                                //     .zip(adc_buf.iter())
-                                //     .take(length)
-                                // {
-                                //     let mut val = sample;
-                                //     for byte in chunk.iter_mut() {
-                                //         *byte = (val & 0xFF) as u8;
-                                //         val = val >> 8;
-                                //     }
-                                // }
                             });
                         });
                         // update our byte offset based on how many samples we
@@ -998,8 +974,6 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> hil::adc::HighSpeedClient for Ad
                         } else {
                             app.app_buf2.ptr()
                         };
-                        // let buf_ptr = in_use_buf.ptr();
-                        // in_use_buf.map_or((), |app_buf| {
                         // if the app_buffer is filled, perform callback
                         if perform_callback {
                             // actually schedule the callback
@@ -1034,7 +1008,6 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> hil::adc::HighSpeedClient for Ad
                                 app.app_buf_offset.set(0);
                             }
                         }
-                        // });
                     })
                     .map_err(|err| {
                         if err == kernel::procs::Error::NoSuchApp
