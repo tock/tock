@@ -31,12 +31,26 @@ macro_rules! lsm303dlhc_i2c_component_helper {
         use capsules::lsm303dlhc::Lsm303dlhcI2C;
         use capsules::virtual_i2c::I2CDevice;
         use core::mem::MaybeUninit;
-        let accelerometer_i2c = components::i2c::I2CComponent::new($i2c_mux, 0x19)
-            .finalize(components::i2c_component_helper!());
-        let magnetometer_i2c = components::i2c::I2CComponent::new($i2c_mux, 0x1e)
-            .finalize(components::i2c_component_helper!());
+
+        static mut BUFFER: [u8; 8] = [0; 8];
+
+        let accelerometer_i2c = components::i2c::I2CComponent::new(
+            $i2c_mux,
+            capsules::lsm303xx::ACCELEROMETER_BASE_ADDRESS,
+        )
+        .finalize(components::i2c_component_helper!());
+        let magnetometer_i2c = components::i2c::I2CComponent::new(
+            $i2c_mux,
+            capsules::lsm303xx::MAGNETOMETER_BASE_ADDRESS,
+        )
+        .finalize(components::i2c_component_helper!());
         static mut lsm303dlhc: MaybeUninit<Lsm303dlhcI2C<'static>> = MaybeUninit::uninit();
-        (&accelerometer_i2c, &magnetometer_i2c, &mut lsm303dlhc)
+        (
+            &accelerometer_i2c,
+            &magnetometer_i2c,
+            &mut BUFFER,
+            &mut lsm303dlhc,
+        )
     };};
 }
 
@@ -52,19 +66,16 @@ impl Component for Lsm303dlhcI2CComponent {
     type StaticInput = (
         &'static I2CDevice<'static>,
         &'static I2CDevice<'static>,
+        &'static mut [u8],
         &'static mut MaybeUninit<Lsm303dlhcI2C<'static>>,
     );
     type Output = &'static Lsm303dlhcI2C<'static>;
 
     unsafe fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let lsm303dlhc = static_init_half!(
-            static_buffer.2,
+            static_buffer.3,
             Lsm303dlhcI2C<'static>,
-            Lsm303dlhcI2C::new(
-                static_buffer.0,
-                static_buffer.1,
-                &mut capsules::lsm303dlhc::BUFFER
-            )
+            Lsm303dlhcI2C::new(static_buffer.0, static_buffer.1, static_buffer.2)
         );
         static_buffer.0.set_client(lsm303dlhc);
         static_buffer.1.set_client(lsm303dlhc);

@@ -161,7 +161,7 @@ impl kernel::Platform for Imix {
         match driver_num {
             capsules::console::DRIVER_NUM => f(Some(Ok(self.console))),
             capsules::gpio::DRIVER_NUM => f(Some(Err(self.gpio))),
-            capsules::alarm::DRIVER_NUM => f(Some(Err(self.alarm))),
+            capsules::alarm::DRIVER_NUM => f(Some(Ok(self.alarm))),
             capsules::spi_controller::DRIVER_NUM => f(Some(Ok(self.spi))),
             capsules::adc::DRIVER_NUM => f(Some(Err(self.adc))),
             capsules::led::DRIVER_NUM => f(Some(Ok(self.led))),
@@ -173,13 +173,13 @@ impl kernel::Platform for Imix {
             capsules::ninedof::DRIVER_NUM => f(Some(Ok(self.ninedof))),
             capsules::crc::DRIVER_NUM => f(Some(Ok(self.crc))),
             capsules::usb::usb_user::DRIVER_NUM => f(Some(Err(self.usb_driver))),
-            capsules::ieee802154::DRIVER_NUM => f(Some(Err(self.radio_driver))),
+            capsules::ieee802154::DRIVER_NUM => f(Some(Ok(self.radio_driver))),
             capsules::net::udp::DRIVER_NUM => f(Some(Ok(self.udp_driver))),
             capsules::nrf51822_serialization::DRIVER_NUM => f(Some(Err(self.nrf51822))),
             capsules::nonvolatile_storage_driver::DRIVER_NUM => {
                 f(Some(Err(self.nonvolatile_storage)))
             }
-            capsules::rng::DRIVER_NUM => f(Some(Err(self.rng))),
+            capsules::rng::DRIVER_NUM => f(Some(Ok(self.rng))),
             kernel::ipc::DRIVER_NUM => f(Some(Err(&self.ipc))),
             _ => f(None),
         }
@@ -469,6 +469,7 @@ pub unsafe fn reset_handler() {
         aes_mux,
         PAN_ID,
         serial_num_bottom_16,
+        dynamic_deferred_caller,
     )
     .finalize(components::ieee802154_component_helper!(
         capsules::rf233::RF233<'static, VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw>>,

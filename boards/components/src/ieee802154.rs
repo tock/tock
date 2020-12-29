@@ -13,6 +13,7 @@
 //!     &nrf52::aes::AESECB,
 //!     PAN_ID,
 //!     SRC_MAC,
+//!     deferred_caller,
 //! )
 //! .finalize(components::ieee802154_component_helper!(
 //!     nrf52::ieee802154_radio::Radio,
@@ -25,6 +26,7 @@ use capsules::ieee802154::device::MacDevice;
 use capsules::ieee802154::mac::{AwakeMac, Mac};
 use core::mem::MaybeUninit;
 use kernel::capabilities;
+use kernel::common::dynamic_deferred_call::DynamicDeferredCall;
 use kernel::component::Component;
 use kernel::hil::radio;
 use kernel::hil::symmetric_encryption::{self, AES128Ctr, AES128, AES128CBC, AES128CCM};
@@ -61,6 +63,7 @@ pub struct Ieee802154Component<
     aes_mux: &'static capsules::virtual_aes_ccm::MuxAES128CCM<'static, A>,
     pan_id: capsules::net::ieee802154::PanID,
     short_addr: u16,
+    deferred_caller: &'static DynamicDeferredCall,
 }
 
 impl<
@@ -74,6 +77,7 @@ impl<
         aes_mux: &'static capsules::virtual_aes_ccm::MuxAES128CCM<'static, A>,
         pan_id: capsules::net::ieee802154::PanID,
         short_addr: u16,
+        deferred_caller: &'static DynamicDeferredCall,
     ) -> Self {
         Self {
             board_kernel,
@@ -81,6 +85,7 @@ impl<
             aes_mux,
             pan_id,
             short_addr,
+            deferred_caller,
         }
     }
 }
@@ -169,7 +174,8 @@ impl<
             capsules::ieee802154::RadioDriver::new(
                 userspace_mac,
                 self.board_kernel.create_grant(&grant_cap),
-                &mut RADIO_BUF
+                &mut RADIO_BUF,
+                self.deferred_caller,
             )
         );
 
@@ -179,6 +185,11 @@ impl<
         userspace_mac.set_receive_client(radio_driver);
         userspace_mac.set_pan(self.pan_id);
         userspace_mac.set_address(self.short_addr);
+        radio_driver.initialize_callback_handle(
+            self.deferred_caller
+                .register(radio_driver)
+                .expect("no deferred call slot available for ieee802154 driver"),
+        );
 
         (radio_driver, mux_mac)
     }

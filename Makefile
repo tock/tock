@@ -334,20 +334,20 @@ ci-job-clippy:
 
 define ci_setup_markdown_toc
 	$(call banner,CI-Setup: Install markdown-toc)
-	npm install -g markdown-toc
+	npm install markdown-toc
 endef
 
 .PHONY: ci-setup-markdown-toc
 ci-setup-markdown-toc:
 	$(call ci_setup_helper,\
-		command -v markdown-toc,\
-		npm install -g markdown-toc,\
+		PATH="node_modules/.bin:${PATH}" command -v markdown-toc,\
+		npm install markdown-toc,\
 		ci_setup_markdown_toc,\
 		CI_JOB_MARKDOWN)
 
 define ci_job_markdown_toc
 	$(call banner,CI-Job: Markdown Table of Contents Validation)
-	@CI=true tools/toc.sh
+	@CI=true PATH="node_modules/.bin:${PATH}" tools/toc.sh
 endef
 
 .PHONY: ci-job-markdown-toc

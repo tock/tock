@@ -66,13 +66,13 @@
 // a major problem in general, it makes handling encapsulated IPv6 packets
 // (as required by 6LoWPAN) difficult.
 
-use crate::net::icmpv6::icmpv6::ICMP6Header;
+use crate::net::icmpv6::ICMP6Header;
 use crate::net::ipv6::ip_utils::{compute_icmp_checksum, compute_udp_checksum, ip6_nh, IPAddr};
 use crate::net::stream::SResult;
 use crate::net::stream::{decode_bytes, decode_u16, decode_u8};
 use crate::net::stream::{encode_bytes, encode_u16, encode_u8};
 use crate::net::tcp::TCPHeader;
-use crate::net::udp::udp::UDPHeader;
+use crate::net::udp::UDPHeader;
 use kernel::common::leasable_buffer::LeasableBuffer;
 use kernel::ReturnCode;
 
