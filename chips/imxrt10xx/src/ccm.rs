@@ -15,9 +15,9 @@ register_structs! {
         /// CCM Arm Clock Root Register
         (0x010 => cacrr: ReadWrite<u32>),
         /// CCM Bus Clock Divider Register
-        (0x014 => cbcdr: ReadWrite<u32>),
+        (0x014 => cbcdr: ReadWrite<u32, CBCDR::Register>),
         /// CCM Bus Clock Multiplexer Register
-        (0x018 => cbcmr: ReadWrite<u32>),
+        (0x018 => cbcmr: ReadWrite<u32, CBCMR::Register>),
         /// CCM Serial Clock Multiplexer Register 1
         (0x01C => cscmr1: ReadWrite<u32, CSCMR1::Register>),
         /// CCM Serial Clock Multiplexer Register 2
@@ -68,7 +68,6 @@ register_bitfields![u32,
         /// Oscillator ready counter value
         OSCNT OFFSET(0) NUMBITS(8) []
     ],
-
     CSR [
         // Status indication of on board oscillator
         COSC_READY OFFSET(5) NUMBITS(1) [],
@@ -76,6 +75,45 @@ register_bitfields![u32,
         CAMP2_READY OFFSET(3) NUMBITS(1) [],
         // Status of the value of CCM_REF_EN_B output of ccm
         REF_EN_B OFFSET(0) NUMBITS(1) []
+    ],
+
+    CBCDR [
+        /// SEMC clock source select
+        SEMC_CLK_SEL OFFSET(6) NUMBITS(1) [],
+        /// SEMC alternative clock select
+        SEMC_ALT_CLK_SEL OFFSET(7) NUMBITS(1) [],
+        /// Divider for ipg podf.
+        IPG_PODF OFFSET(8) NUMBITS(2) [],
+        /// Divider for AHB PODF
+        AHB_PODF OFFSET(10) NUMBITS(3) [],
+        /// Post divider for SEMC clock
+        SEMC_PODF OFFSET(16) NUMBITS(3) [],
+        /// Selector for peripheral main clock
+        PERIPH_CLK_SEL OFFSET(25) NUMBITS(1) [
+            PrePeriphClkSel = 0,
+            PeriphClk2Divided = 1
+        ],
+        /// Divider for periph_clk2_podf.
+        PERIPH_CLK2_PODF OFFSET(27) NUMBITS(3) []
+    ],
+
+    CBCMR [
+        /// Selector for lpspi clock multiplexer
+        LPSPI_CLK_SEL OFFSET(4) NUMBITS(2) [],
+        /// Selector for flexspi2 clock multiplexer
+        FLEXSPI2_CLK_SEL OFFSET(8) NUMBITS(2) [],
+        /// Selector for peripheral clk2 clock multiplexer
+        PERIPH_CLK2_SEL OFFSET(12) NUMBITS(2) [],
+        /// Selector for Trace clock multiplexer
+        TRACE_CLK_SEL OFFSET(14) NUMBITS(2) [],
+        /// Selector for pre_periph clock multiplexer
+        PRE_PERIPH_CLK_SEL OFFSET(18) NUMBITS(2) [],
+        /// Post-divider for LCDIF clock.
+        LCDIF_PODF OFFSET(23) NUMBITS(3) [],
+        /// Divider for LPSPI. Divider should be updated when output clock is gated.
+        LPSPI_PODF OFFSET(26) NUMBITS(3) [],
+        /// Divider for flexspi2 clock root.
+        FLEXSPI2_PODF OFFSET(29) NUMBITS(3) []
     ],
 
     CCSR [
