@@ -71,9 +71,7 @@ impl InterruptService<()> for Imxrt10xxDefaultPeripherals {
             nvic::GPIO4_2 => self.ports.gpio4.handle_interrupt(),
             nvic::GPIO5_1 => self.ports.gpio5.handle_interrupt(),
             nvic::GPIO5_2 => self.ports.gpio5.handle_interrupt(),
-            nvic::SNVS_LP_WRAPPER => {
-                debug!("A venit intreruperea de SNVS_LP_WRAPPER");
-            }
+            nvic::SNVS_LP_WRAPPER => debug!("Interrupt: SNVS_LP_WRAPPER"),
             _ => {
                 return false;
             }
