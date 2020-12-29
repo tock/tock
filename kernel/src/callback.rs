@@ -354,6 +354,19 @@ impl ProcessCallback {
                 } else {
                     // This is a null callback, behave as if the
                     // callback was scheduled
+                    if config::CONFIG.trace_syscalls {
+                        debug!(
+                            "[{:?}] schedule[{:#x}:{}] @NULL({:#x}, {:#x}, {:#x}, {:#x}) (null-callback not scheduled!)",
+                            self.app_id,
+                            self.callback_id.driver_num,
+                            self.callback_id.subscribe_num,
+                            r0,
+                            r1,
+                            r2,
+                            self.appdata,
+                        );
+                    }
+
                     true
                 }
             })
