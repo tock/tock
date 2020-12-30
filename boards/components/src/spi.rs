@@ -5,7 +5,7 @@
 //! 1. `SpiMuxComponent` provides a virtualization layer for a SPI controller.
 //!
 //! 2. `SpiSyscallComponent` provides a controller system call interface to SPI.
-//! 
+//!
 //! 3. `SpiPSyscallComponent` provides a peripheral system call interface to SPI.
 //!
 //! 4. `SpiComponent` provides a virtualized client to the SPI bus.
@@ -31,7 +31,7 @@ use core::mem::MaybeUninit;
 
 use capsules::spi_controller::{Spi, DEFAULT_READ_BUF_LENGTH, DEFAULT_WRITE_BUF_LENGTH};
 use capsules::spi_peripheral::SpiPeripheral;
-use capsules::virtual_spi::{MuxSpiMaster, VirtualSpiMasterDevice, SpiSlaveDevice};
+use capsules::virtual_spi::{MuxSpiMaster, SpiSlaveDevice, VirtualSpiMasterDevice};
 use kernel::component::Component;
 use kernel::hil::spi;
 use kernel::{static_init, static_init_half};
@@ -181,9 +181,7 @@ impl<S: 'static + spi::SpiMaster> Component for SpiSyscallComponent<S> {
 
 impl<S: 'static + spi::SpiSlave> SpiSyscallPComponent<S> {
     pub fn new(slave: &'static S) -> Self {
-        SpiSyscallPComponent {
-            spi_slave: slave,
-        }
+        SpiSyscallPComponent { spi_slave: slave }
     }
 }
 

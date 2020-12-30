@@ -105,10 +105,10 @@ impl<S: SpiSlaveDevice> Driver for SpiPeripheral<'_, S> {
                 });
                 Ok(slice)
             }
-            _ => Err((slice, ErrorCode::NOSUPPORT))
+            _ => Err((slice, ErrorCode::NOSUPPORT)),
         }
     }
-    
+
     /// Provide read-only buffers to SpiPeripheral
     ///
     /// - allow_num 0: Provides a buffer to transmit
@@ -126,7 +126,7 @@ impl<S: SpiSlaveDevice> Driver for SpiPeripheral<'_, S> {
                 });
                 Ok(slice)
             }
-            _ => Err((slice, ErrorCode::NOSUPPORT))
+            _ => Err((slice, ErrorCode::NOSUPPORT)),
         }
     }
     /// Set callbacks for SpiPeripheral
@@ -145,7 +145,7 @@ impl<S: SpiSlaveDevice> Driver for SpiPeripheral<'_, S> {
         subscribe_num: usize,
         mut callback: Callback,
         _app_id: AppId,
-    ) ->  Result<Callback, (Callback, ErrorCode)> {
+    ) -> Result<Callback, (Callback, ErrorCode)> {
         match subscribe_num {
             0 /* read_write */ => {
                 self.app.map(|app| {
@@ -269,20 +269,20 @@ impl<S: SpiSlaveDevice> SpiSlaveClient for SpiPeripheral<'_, S> {
                     // startpoint, we set the startpoint to be the same;
                     // This results in a zero-length operation. -pal 12/9/20
                     let start = cmp::min(start, end);
-                    
+
                     let dest_area = &mut dest[start..end];
                     let real_len = end - start;
-                    
+
                     for (i, c) in src[0..real_len].iter().enumerate() {
                         dest_area[i] = *c;
                     }
                 });
                 src
             });
-            
+
             self.kernel_read.put(rbuf);
             self.kernel_write.put(writebuf);
-            
+
             if app.index == app.len {
                 self.busy.set(false);
                 let len = app.len;
@@ -294,7 +294,7 @@ impl<S: SpiSlaveDevice> SpiSlaveClient for SpiPeripheral<'_, S> {
             }
         });
     }
-    
+
     // Simple callback for when chip has been selected
     fn chip_selected(&self) {
         self.app.map(move |app| {
