@@ -259,8 +259,6 @@ impl<'a> hil::touch::MultiTouchClient for Touch<'a> {
                             if num < len { len - num } else { 0 },
                         );
                     }
-
-
                 // app.ack == false;
                 } else {
                     app.dropped_events = app.dropped_events + 1;
