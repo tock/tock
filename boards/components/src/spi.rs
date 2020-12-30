@@ -34,7 +34,6 @@ use capsules::spi_peripheral::SpiPeripheral;
 use capsules::virtual_spi::{MuxSpiMaster, VirtualSpiMasterDevice, SpiSlaveDevice};
 use kernel::component::Component;
 use kernel::hil::spi;
-use kernel::hil::spi::{SpiSlave};
 use kernel::{static_init, static_init_half};
 
 // Setup static space for the objects.
