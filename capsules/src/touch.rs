@@ -208,7 +208,6 @@ impl<'a> hil::touch::MultiTouchClient for Touch<'a> {
             app.enter(|app, _| {
                 if app.ack {
                     app.dropped_events = 0;
-                    app.ack = false;
 
                     let num = app.events_buffer.mut_map_or(0, |buffer| {
                         let num = if buffer.len() / 8 < len {
@@ -216,6 +215,7 @@ impl<'a> hil::touch::MultiTouchClient for Touch<'a> {
                         } else {
                             len
                         };
+
                         for event_index in 0..num {
                             let mut event = touch_events[event_index].clone();
                             self.update_rotation(&mut event);
@@ -252,12 +252,14 @@ impl<'a> hil::touch::MultiTouchClient for Touch<'a> {
                     });
                     let dropped_events = app.dropped_events;
                     if num > 0 {
+                        app.ack = false;
                         app.multi_touch_callback.schedule(
                             num,
                             dropped_events,
                             if num < len { len - num } else { 0 },
                         );
                     }
+
 
                 // app.ack == false;
                 } else {
@@ -346,7 +348,7 @@ impl<'a> Driver for Touch<'a> {
                 let r = self
                     .apps
                     .enter(app_id, |app, _| {
-                        mem::swap(&mut app.touch_callback, &mut callback);
+                        mem::swap(&mut app.gesture_callback, &mut callback);
                     })
                     .map_err(ErrorCode::from);
                 self.touch_enable();
@@ -359,7 +361,7 @@ impl<'a> Driver for Touch<'a> {
                     let r = self
                         .apps
                         .enter(app_id, |app, _| {
-                            mem::swap(&mut app.touch_callback, &mut callback);
+                            mem::swap(&mut app.multi_touch_callback, &mut callback);
                         })
                         .map_err(ErrorCode::from);
                     self.multi_touch_enable();
