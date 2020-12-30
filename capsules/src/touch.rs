@@ -208,6 +208,7 @@ impl<'a> hil::touch::MultiTouchClient for Touch<'a> {
             app.enter(|app, _| {
                 if app.ack {
                     app.dropped_events = 0;
+                    app.ack = false;
 
                     let num = app.events_buffer.mut_map_or(0, |buffer| {
                         let num = if buffer.len() / 8 < len {
@@ -410,6 +411,16 @@ impl<'a> Driver for Touch<'a> {
                     })
                     .unwrap_or(());
                 self.touch_enable();
+                CommandResult::success()
+            }
+
+            // multi touch ack
+            10 => {
+                self.apps
+                    .enter(appid, |app, _| {
+                        app.ack = true;
+                    })
+                    .unwrap_or(());
                 CommandResult::success()
             }
 
