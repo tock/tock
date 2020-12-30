@@ -250,7 +250,7 @@ pub unsafe extern "C" fn switch_to_user_arm_v7m(
 
 #[cfg(all(target_arch = "arm", target_os = "none"))]
 #[inline(never)]
-unsafe fn kernel_hardfault_arm_v7m(faulting_stack: *mut u32) {
+unsafe fn kernel_hardfault_arm_v7m(faulting_stack: *mut u32) -> ! {
     let stacked_r0: u32 = *faulting_stack.offset(0);
     let stacked_r1: u32 = *faulting_stack.offset(1);
     let stacked_r2: u32 = *faulting_stack.offset(2);
@@ -392,25 +392,13 @@ unsafe fn kernel_hardfault_arm_v7m(faulting_stack: *mut u32) {
 }
 
 #[cfg(all(target_arch = "arm", target_os = "none"))]
-#[naked]
-pub unsafe extern "C" fn hard_fault_handler_arm_v7m() {
-    let faulting_stack: *mut u32;
-    // Variable `kernel_stack` stores a boolean value.
-    let kernel_stack: u32;
-
-    // First need to determine if this a kernel fault or a userspace fault.
-    asm!(
-        "mov    r1, 0     /* r1 = 0 */",
-        "tst    lr, #4    /* bitwise AND link register to 0b100 */",
-        "itte   eq        /* if lr==4, run next two instructions, else, run 3rd instruction. */",
-        "mrseq  r0, msp   /* r0 = kernel stack pointer */",
-        "addeq  r1, 1     /* r1 = 1, kernel was executing */",
-        "mrsne  r0, psp   /* r0 = userland stack pointer */",
-        out("r0") faulting_stack,
-        out("r1") kernel_stack,
-        options(nomem, nostack)
-    );
-
+unsafe extern "C" fn hard_fault_handler_arm_v7m_non_naked(
+    faulting_stack: *mut u32,
+    kernel_stack: u32,
+) -> ! {
+    if kernel_stack != 0 && kernel_stack != 1 {
+        panic!("hudson u messed up");
+    }
     if kernel_stack != 0 {
         // Need to determine if we had a stack overflow before we push anything
         // on to the stack. We check this by looking at the BusFault Status
@@ -458,8 +446,8 @@ pub unsafe extern "C" fn hard_fault_handler_arm_v7m() {
     } else {
         // Hard fault occurred in an app, not the kernel. The app should be
         // marked as in an error state and handled by the kernel.
-        llvm_asm!(
-        "
+        asm!(
+            "
         /* Read the relevant SCB registers. */
         ldr r0, =SCB_REGISTERS  /* Global variable address */
         ldr r1, =0xE000ED14     /* SCB CCR register address */
@@ -486,9 +474,32 @@ pub unsafe extern "C" fn hard_fault_handler_arm_v7m() {
         isb
 
         movw LR, #0xFFF9
-        movt LR, #0xFFFF"
-        : : : "r1", "r0", "r2", "memory" : "volatile" );
+        movt LR, #0xFFFF",
+            options(noreturn)
+        );
     }
+}
+
+#[cfg(all(target_arch = "arm", target_os = "none"))]
+#[naked]
+pub unsafe extern "C" fn hard_fault_handler_arm_v7m() {
+    // First need to determine if this a kernel fault or a userspace fault, and store
+    // the unmodified stack pointer. Place these values in registers, then call
+    // a non-naked function, to allow for use of rust code alongside inline asm.
+    asm!(
+        "mov    r1, 0     /* r1 = 0 */",
+        "tst    lr, #4    /* bitwise AND link register to 0b100 */",
+        "itte   eq        /* if lr==4, run next two instructions, else, run 3rd instruction. */",
+        "mrseq  r0, msp   /* r0 = kernel stack pointer */",
+        "addeq  r1, 1     /* r1 = 1, kernel was executing */",
+        "mrsne  r0, psp   /* r0 = userland stack pointer */",
+        "b {}", sym hard_fault_handler_arm_v7m_non_naked,
+        // per ARM calling convention, faulting stack is passed in r0, and kernel_stack in r1.
+        // called function never returns, so no need to mark clobbers
+        //out("r0") faulting_stack,
+        //out("r1") kernel_stack,
+        options(noreturn)
+    );
 }
 
 pub unsafe fn print_cortexm_state(writer: &mut dyn Write) {
