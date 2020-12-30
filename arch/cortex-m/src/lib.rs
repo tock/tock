@@ -19,7 +19,7 @@ pub mod systick;
 extern "C" {
     // _estack is not really a function, but it makes the types work
     // You should never actually invoke it!!
-    fn _estack();
+    static _estack: u32;
     static mut _sstack: u32;
     static mut _szero: u32;
     static mut _ezero: u32;
@@ -395,48 +395,10 @@ unsafe fn kernel_hardfault_arm_v7m(faulting_stack: *mut u32) -> ! {
 unsafe extern "C" fn hard_fault_handler_arm_v7m_non_naked(
     faulting_stack: *mut u32,
     kernel_stack: u32,
+    stack_overflow: u32,
 ) -> ! {
-    if kernel_stack != 0 && kernel_stack != 1 {
-        panic!("hudson u messed up");
-    }
     if kernel_stack != 0 {
-        // Need to determine if we had a stack overflow before we push anything
-        // on to the stack. We check this by looking at the BusFault Status
-        // Register's (BFSR) `LSPERR` and `STKERR` bits to see if the hardware
-        // had any trouble stacking important registers to the stack during the
-        // fault. If so, then we cannot use this stack while handling this fault
-        // or we will trigger another fault.
-
-        // Variable `stack_overflow` stores a boolean value.
-        let stack_overflow: u32;
-        asm!(
-            "ldr   r2, =0xE000ED29  /* SCB BFSR register address */",
-            "ldrb  r2, [r2]         /* r2 = BFSR */",
-            "tst   r2, #0x30        /* r2 = BFSR & 0b00110000; LSPERR & STKERR bits */",
-            "ite   ne               /* check if the result of that bitwise AND was not 0 */",
-            "movne r3, #1           /* BFSR & 0b00110000 != 0; r3 = 1 */",
-            "moveq r3, #0           /* BFSR & 0b00110000 == 0; r3 = 0 */",
-            out("r3") stack_overflow,
-            out("r2") _,
-            options(nostack, readonly)
-        );
-
         if stack_overflow != 0 {
-            // The hardware couldn't use the stack, so we have no saved data and
-            // we cannot use the kernel stack as is. We just want to report that
-            // the kernel's stack overflowed, since that is essential for
-            // debugging.
-            //
-            // To make room for a panic!() handler stack, we just re-use the
-            // kernel's original stack. This should in theory leave the bottom
-            // of the stack where the problem occurred untouched should one want
-            // to further debug.
-            asm!(
-                "mov sp, r0   /* Set the stack pointer to _estack */",
-                in("r0") ((_estack as *const ()) as u32),
-                options(nomem, preserves_flags)
-            );
-
             // Panic to show the correct error.
             panic!("kernel stack overflow");
         } else {
@@ -486,6 +448,9 @@ pub unsafe extern "C" fn hard_fault_handler_arm_v7m() {
     // First need to determine if this a kernel fault or a userspace fault, and store
     // the unmodified stack pointer. Place these values in registers, then call
     // a non-naked function, to allow for use of rust code alongside inline asm.
+    // Because calling a function increases the stack pointer, we have to check for a kernel
+    // stack overflow and adjust the stack pointer before we branch
+
     asm!(
         "mov    r1, 0     /* r1 = 0 */",
         "tst    lr, #4    /* bitwise AND link register to 0b100 */",
@@ -493,11 +458,37 @@ pub unsafe extern "C" fn hard_fault_handler_arm_v7m() {
         "mrseq  r0, msp   /* r0 = kernel stack pointer */",
         "addeq  r1, 1     /* r1 = 1, kernel was executing */",
         "mrsne  r0, psp   /* r0 = userland stack pointer */",
-        "b {}", sym hard_fault_handler_arm_v7m_non_naked,
-        // per ARM calling convention, faulting stack is passed in r0, and kernel_stack in r1.
+        // Need to determine if we had a stack overflow before we push anything
+        // on to the stack. We check this by looking at the BusFault Status
+        // Register's (BFSR) `LSPERR` and `STKERR` bits to see if the hardware
+        // had any trouble stacking important registers to the stack during the
+        // fault. If so, then we cannot use this stack while handling this fault
+        // or we will trigger another fault.
+        "ldr   r3, =0xE000ED29  /* SCB BFSR register address */",
+        "ldrb  r3, [r3]         /* r3 = BFSR */",
+        "tst   r3, #0x30        /* r3 = BFSR & 0b00110000; LSPERR & STKERR bits */",
+        "ite   ne               /* check if the result of that bitwise AND was not 0 */",
+        "movne r2, #1           /* BFSR & 0b00110000 != 0; r2 = 1 */",
+        "moveq r2, #0           /* BFSR & 0b00110000 == 0; r2 = 0 */",
+        "and r5, r1, r2 /* bitwise and r2 and r1, store in r5 */ ",
+        "cmp  r5, #1 /*  update condition codes to reflect if r2 == 1 && r1 == 1 */",
+        "itt  eq /* if r5==1 run the next 2 instructions, else skip to branch */",
+        // if true, The hardware couldn't use the stack, so we have no saved data and
+        // we cannot use the kernel stack as is. We just want to report that
+        // the kernel's stack overflowed, since that is essential for
+        // debugging.
+        //
+        // To make room for a panic!() handler stack, we just re-use the
+        // kernel's original stack. This should in theory leave the bottom
+        // of the stack where the problem occurred untouched should one want
+        // to further debug.
+        "ldreq  r4, ={} /* load _estack into r4 */",
+        "moveq  sp, r4   /* Set the stack pointer to _estack */",
+        // finally, branch to non-naked handler, never return
+        // per ARM calling convention, faulting stack is passed in r0, and kernel_stack in r1,
+        // and whether there was a stack overflow in r2
         // called function never returns, so no need to mark clobbers
-        //out("r0") faulting_stack,
-        //out("r1") kernel_stack,
+        "b {}", sym _estack, sym hard_fault_handler_arm_v7m_non_naked,
         options(noreturn)
     );
 }
