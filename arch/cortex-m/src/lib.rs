@@ -37,7 +37,7 @@ extern "C" {
 #[cfg(all(target_arch = "arm", target_os = "none"))]
 #[naked]
 pub unsafe extern "C" fn systick_handler() {
-    llvm_asm!(
+    asm!(
         "
     // Set thread mode to privileged to switch back to kernel mode.
     mov r0, #0
@@ -51,8 +51,9 @@ pub unsafe extern "C" fn systick_handler() {
 
     // This will resume in the switch to user function where application state
     // is saved and the scheduler can choose what to do next.
-    "
-    : : : "r0" : "volatile" );
+    ",
+        options(noreturn)
+    );
 }
 
 /// This is called after a `svc` instruction, both when switching to userspace
@@ -60,7 +61,7 @@ pub unsafe extern "C" fn systick_handler() {
 #[cfg(all(target_arch = "arm", target_os = "none"))]
 #[naked]
 pub unsafe extern "C" fn svc_handler() {
-    llvm_asm!(
+    asm!(
         "
     // First check to see which direction we are going in. If the link register
     // is something other than 0xfffffff9, then we are coming from an app which
@@ -101,8 +102,9 @@ pub unsafe extern "C" fn svc_handler() {
     // This is a special address to return Thread mode with Main stack
     movw LR, #0xFFF9
     movt LR, #0xFFFF
-    bx lr"
-    : : : "r0", "r1", "lr", "cc", "memory" : "volatile" );
+    bx lr",
+        options(noreturn)
+    );
 }
 
 /// All ISRs are caught by this handler. This must ensure the interrupt is
@@ -116,7 +118,7 @@ pub unsafe extern "C" fn svc_handler() {
 #[cfg(all(target_arch = "arm", target_os = "none"))]
 #[naked]
 pub unsafe extern "C" fn generic_isr() {
-    llvm_asm!(
+    asm!(
         "
     // Set thread mode to privileged to ensure we are executing as the kernel.
     // This may be redundant if the interrupt happened while the kernel code
@@ -185,8 +187,10 @@ pub unsafe extern "C" fn generic_isr() {
     // Now we can return from the interrupt context and resume what we were
     // doing. If an app was executing we will switch to the kernel so it can
     // choose whether to service the interrupt.
-    "
-    : : : : "volatile" );
+    bx lr
+    ",
+        options(noreturn)
+    );
 }
 
 #[cfg(all(target_arch = "arm", target_os = "none"))]
