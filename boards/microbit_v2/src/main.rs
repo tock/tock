@@ -117,7 +117,7 @@ impl kernel::Platform for Platform {
             capsules::button::DRIVER_NUM => f(Some(Err(self.button))),
             capsules::led_matrix::DRIVER_NUM => f(Some(Ok(self.led))),
             capsules::ninedof::DRIVER_NUM => f(Some(Ok(self.ninedof))),
-            capsules::adc::DRIVER_NUM => f(Some(Err(self.adc))),
+            capsules::adc::DRIVER_NUM => f(Some(Ok(self.adc))),
             capsules::temperature::DRIVER_NUM => f(Some(Ok(self.temperature))),
             capsules::lsm303agr::DRIVER_NUM => f(Some(Ok(self.lsm303agr))),
             capsules::rng::DRIVER_NUM => f(Some(Ok(self.rng))),
