@@ -77,7 +77,7 @@ impl Platform for STM32F412GDiscovery {
             capsules::alarm::DRIVER_NUM => f(Some(Ok(self.alarm))),
             kernel::ipc::DRIVER_NUM => f(Some(Err(&self.ipc))),
             capsules::gpio::DRIVER_NUM => f(Some(Err(self.gpio))),
-            capsules::adc::DRIVER_NUM => f(Some(Err(self.adc))),
+            capsules::adc::DRIVER_NUM => f(Some(Ok(self.adc))),
             capsules::ft6x06::DRIVER_NUM => f(Some(Ok(self.ft6x06))),
             capsules::touch::DRIVER_NUM => f(Some(Ok(self.touch))),
             capsules::screen::DRIVER_NUM => f(Some(Ok(self.screen))),
