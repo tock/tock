@@ -112,3 +112,26 @@ pub trait NineDofClient {
     /// over the syscall interface to an application.
     fn callback(&self, arg1: usize, arg2: usize, arg3: usize);
 }
+
+/// Basic Interface for Sound Pressure
+pub trait SoundPressure<'a> {
+    /// Read the sound pressure level
+    fn read_sound_pressure(&self) -> ReturnCode;
+
+    /// Enable
+    ///
+    /// As this is usually a microphone, some boards require an explicit enable
+    /// so that they can turn on an LED
+    fn enable(&self) -> ReturnCode;
+
+    /// Disable
+    fn disable(&self) -> ReturnCode;
+
+    /// Set the client
+    fn set_client(&self, client: &'a dyn SoundPressureClient);
+}
+
+pub trait SoundPressureClient {
+    /// Signals the sound pressure in dB
+    fn callback(&self, sound_pressure: u8);
+}
