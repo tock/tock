@@ -332,7 +332,6 @@ impl<'a> Screen<'a> {
                         app.write_len = len;
                         self.buffer.take().map_or(ReturnCode::FAIL, |buffer| {
                             let len = self.fill_next_buffer_for_write(buffer);
-
                             if len > 0 {
                                 self.screen.write(buffer, len)
                             } else {
@@ -405,24 +404,14 @@ impl<'a> Screen<'a> {
                         let mut len = app.write_len;
                         if position < len {
                             let buffer_size = buffer.len();
+                            let chunk_number = position / buffer_size;
+                            let initial_pos = chunk_number * buffer_size;
+                            let mut pos = initial_pos;
                             if app.command == ScreenCommand::Write {
-                                let chunk_number = position / buffer_size;
-                                let initial_pos = chunk_number * buffer_size;
-
-                                let mut pos = initial_pos;
-
-                                let mut size = app.shared.len() - initial_pos;
-                                if size > buffer_size {
-                                    size = buffer_size
-                                }
-
-                                app.write_position = pos + size;
-
-                                app.shared.map_or(0, |data| {
-                                    if initial_pos + buffer_size <= data.len() {
-                                        for (i, byte) in
-                                            data[initial_pos..initial_pos + size].iter().enumerate()
-                                        {
+                                let res = app.shared.map_or(0, |s| {
+                                    let mut chunks = s.chunks(buffer_size);
+                                    if let Some(chunk) = chunks.nth(chunk_number) {
+                                        for (i, byte) in chunk.iter().enumerate() {
                                             if pos < len {
                                                 buffer[i] = *byte;
                                                 pos = pos + 1
@@ -435,7 +424,11 @@ impl<'a> Screen<'a> {
                                         // stop writing
                                         0
                                     }
-                                })
+                                });
+                                if res > 0 {
+                                    app.write_position = pos;
+                                }
+                                res
                             } else if app.command == ScreenCommand::Fill {
                                 // TODO bytes per pixel
                                 len = len - position;
