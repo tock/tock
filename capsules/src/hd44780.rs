@@ -1,5 +1,4 @@
-//! Provides userspace access (through Screen capsule and userspace library)
-//! to LCD connected on the board, but defined in the kernel.
+//! Driver for the HD44780 LCD screen.
 //!
 //! The LCD must be connected as shown here, because the pins of the LCD are
 //! already defined in the kernel, and modifying them means re-compiling the
