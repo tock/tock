@@ -134,6 +134,7 @@ pub struct HD44780<'a, A: Alarm<'a>> {
     command_to_finish: Cell<u8>,
 
     begin_done: Cell<bool>,
+    initialized: Cell<bool>,
 
     text_screen_client: OptionalCell<&'static dyn TextScreenClient>,
 
@@ -182,6 +183,7 @@ impl<'a, A: Alarm<'a>> HD44780<'a, A> {
             lcd_after_delay_status: Cell::new(LCDStatus::Idle),
             command_to_finish: Cell::new(0),
             begin_done: Cell::new(false),
+            initialized: Cell::new(false),
             text_screen_client: OptionalCell::empty(),
             done_printing: Cell::new(false),
             write_buffer: TakeCell::empty(),
@@ -212,7 +214,6 @@ impl<'a, A: Alarm<'a>> HD44780<'a, A> {
 
         self.num_lines.replace(row);
         self.set_rows(0x00, 0x40, 0x00 + col, 0x40 + col);
-        self.set_delay(10, LCDStatus::Begin0);
     }
 
     pub fn screen_command(&self, command: usize, op: usize, value: u8) -> ReturnCode {
@@ -324,7 +325,7 @@ impl<'a, A: Alarm<'a>> HD44780<'a, A> {
                 self.text_screen_client.map(|client| {
                     if self.begin_done.get() {
                         self.begin_done.set(false);
-                        client.text_screen_is_ready()
+                        self.initialized.set(true);
                     } else if self.write_len.get() > 0 {
                         self.write_character();
                     } else if self.done_printing.get() {
@@ -634,7 +635,16 @@ impl<'a, A: Alarm<'a>> TextScreen for HD44780<'a, A> {
     }
 
     fn display_on(&self) -> ReturnCode {
-        self.screen_command(1, 0, LCD_DISPLAYON)
+        if !self.initialized.get() {
+            if self.lcd_status.get() == LCDStatus::Idle {
+                self.set_delay(10, LCDStatus::Begin0);
+                ReturnCode::SUCCESS
+            } else {
+                ReturnCode::EBUSY
+            }
+        } else {
+            self.screen_command(1, 0, LCD_DISPLAYON)
+        }
     }
 
     fn display_off(&self) -> ReturnCode {

@@ -93,7 +93,4 @@ pub trait TextScreenClient {
 
     /// The driver calls this function when a write command finishes executing.
     fn write_complete(&self, buffer: &'static mut [u8], r: ReturnCode);
-
-    /// The driver calls this function when the screen is ready to use after power on.
-    fn text_screen_is_ready(&self);
 }

@@ -130,7 +130,8 @@ impl<'a> TextScreen<'a> {
         match command {
             TextScreenCommand::GetResolution => {
                 let (x, y) = self.text_screen.get_size();
-                self.run_next_command(usize::from(ReturnCode::SUCCESS), x, y);
+                self.schedule_callback(usize::from(ReturnCode::SUCCESS), x, y);
+                self.run_next_command();
                 ReturnCode::SUCCESS
             }
             TextScreenCommand::Display => self.text_screen.display_on(),
@@ -167,18 +168,9 @@ impl<'a> TextScreen<'a> {
         }
     }
 
-    fn run_next_command(&self, data1: usize, data2: usize, data3: usize) {
+    fn run_next_command(&self) {
         if !self.screen_ready.get() {
             self.screen_ready.set(true);
-        } else {
-            self.current_app.take().map(|appid| {
-                let _ = self.apps.enter(appid, |app, _| {
-                    app.pending_command = false;
-                    app.callback.map(|mut cb| {
-                        cb.schedule(data1, data2, data3);
-                    });
-                });
-            });
         }
 
         // Check for pending events.
@@ -200,6 +192,17 @@ impl<'a> TextScreen<'a> {
                 break;
             }
         }
+    }
+
+    fn schedule_callback(&self, data1: usize, data2: usize, data3: usize) {
+        self.current_app.take().map(|appid| {
+            let _ = self.apps.enter(appid, |app, _| {
+                app.pending_command = false;
+                app.callback.map(|mut cb| {
+                    cb.schedule(data1, data2, data3);
+                });
+            });
+        });
     }
 }
 
@@ -276,15 +279,13 @@ impl<'a> Driver for TextScreen<'a> {
 
 impl<'a> hil::text_screen::TextScreenClient for TextScreen<'a> {
     fn command_complete(&self, r: ReturnCode) {
-        self.run_next_command(usize::from(r), 0, 0);
+        self.schedule_callback(usize::from(r), 0, 0);
+        self.run_next_command();
     }
 
     fn write_complete(&self, buffer: &'static mut [u8], r: ReturnCode) {
         self.buffer.replace(buffer);
-        self.run_next_command(usize::from(r), 0, 0);
-    }
-
-    fn text_screen_is_ready(&self) {
-        self.run_next_command(usize::from(ReturnCode::SUCCESS), 0, 0);
+        self.schedule_callback(usize::from(r), 0, 0);
+        self.run_next_command();
     }
 }
