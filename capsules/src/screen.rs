@@ -563,6 +563,7 @@ impl<'a> Driver for Screen<'a> {
             200 => self.enqueue_command(ScreenCommand::Write, data1, data2, appid),
             // Fill
             300 => self.enqueue_command(ScreenCommand::Fill, data1, data2, appid),
+
             _ => ReturnCode::ENOSUPPORT,
         }
     }
