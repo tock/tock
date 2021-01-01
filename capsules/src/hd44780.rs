@@ -130,10 +130,11 @@
 
 use crate::driver;
 use core::cell::Cell;
+use core::mem;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::gpio;
 use kernel::hil::time::{self, Alarm};
-use kernel::{AppId, AppSlice, Callback, Grant, LegacyDriver, ReturnCode, SharedReadWrite};
+use kernel::{AppId, CommandResult, Driver, ErrorCode, Grant, Read, ReadOnlyAppSlice, ReturnCode};
 
 /// Syscall driver number.
 
@@ -203,7 +204,7 @@ pub static mut ROW_OFFSETS: [u8; 4] = [0; 4];
 
 #[derive(Default)]
 pub struct App {
-    text_buffer: Option<AppSlice<SharedReadWrite, u8>>,
+    text_buffer: ReadOnlyAppSlice,
 }
 
 // The states the program can be in.
@@ -678,7 +679,7 @@ impl<'a, A: Alarm<'a>> HD44780<'a, A> {
     }
 }
 
-impl<'a, A: Alarm<'a>> LegacyDriver for HD44780<'a, A> {
+impl<'a, A: Alarm<'a>> Driver for HD44780<'a, A> {
     /* Send a buffer to be displayed on the LCD device. The buffer is fully
      * saved in the command buffer if there are enough empty slots left, or
      * partially saved until the buffer gets full.
@@ -697,31 +698,30 @@ impl<'a, A: Alarm<'a>> LegacyDriver for HD44780<'a, A> {
      * char buffer[128];
      * int ret = allow(DRIVER_LCD_NUM, 1, (void *) buffer, 0);
      */
-    fn allow_readwrite(
+    fn allow_readonly(
         &self,
         appid: AppId,
         allow_num: usize,
-        slice: Option<AppSlice<SharedReadWrite, u8>>,
-    ) -> ReturnCode {
+        mut slice: ReadOnlyAppSlice,
+    ) -> Result<ReadOnlyAppSlice, (ReadOnlyAppSlice, ErrorCode)> {
         let mut ret = 0;
         let mut partial: bool = false;
         match allow_num {
-            0 => self
-                .apps
-                .enter(appid, |app, _| {
-                    if let Some(ref s) = slice {
+            0 => {
+                let res = self
+                    .apps
+                    .enter(appid, |app, _| {
                         /* check to see how many empty slots are and how much
                          * can be written to the buffer
                          */
-                        ret = self.check_buffer(s.len());
+                        ret = self.check_buffer(slice.len());
                         match ret {
                             BUFFER_FULL => {
                                 self.handle_commands();
                                 self.bytes_written.set(ALLOW_BAD_VALUE);
-                                return ReturnCode::SUCCESS;
                             }
                             _ => {
-                                if ret != s.len() as i16 {
+                                if ret != slice.len() as i16 {
                                     partial = true;
                                 }
                             }
@@ -733,25 +733,31 @@ impl<'a, A: Alarm<'a>> LegacyDriver for HD44780<'a, A> {
                          */
                         let mut leng = self.command_len.get() as usize;
                         self.command_buffer.map(|buffer| {
-                            for byte in s.iter() {
-                                if partial == true {
-                                    if leng >= BUFSIZE {
-                                        break;
+                            slice.map_or((), |s| {
+                                for byte in s.iter() {
+                                    if partial == true {
+                                        if leng >= BUFSIZE {
+                                            break;
+                                        }
                                     }
+                                    buffer[leng] = *byte;
+                                    leng += 1;
                                 }
-                                buffer[leng] = *byte;
-                                leng += 1;
-                            }
+                            });
                         });
                         self.command_len.replace(leng as u8);
-                    };
-                    app.text_buffer = slice;
-                    self.handle_commands();
-                    self.bytes_written.set(ret as usize);
-                    ReturnCode::SUCCESS
-                })
-                .unwrap_or_else(|err| err.into()),
-            _ => ReturnCode::ENOSUPPORT,
+                        mem::swap(&mut app.text_buffer, &mut slice);
+                        self.handle_commands();
+                        self.bytes_written.set(ret as usize);
+                    })
+                    .map_err(ErrorCode::from);
+                if let Err(e) = res {
+                    Err((slice, e))
+                } else {
+                    Ok(slice)
+                }
+            }
+            _ => Err((slice, ErrorCode::NOSUPPORT)),
         }
     }
 
@@ -774,7 +780,13 @@ impl<'a, A: Alarm<'a>> LegacyDriver for HD44780<'a, A> {
      * // save a Begin command with 16 and 1 as arguments
      * int ret = command(DRIVER_LCD_NUM, 0, 16, 1);
      */
-    fn command(&self, command_num: usize, data_1: usize, data_2: usize, _: AppId) -> ReturnCode {
+    fn command(
+        &self,
+        command_num: usize,
+        data_1: usize,
+        data_2: usize,
+        _app_id: AppId,
+    ) -> CommandResult {
         /* check to see how many slots we need in the command buffer for the
          * request
          */
@@ -786,7 +798,7 @@ impl<'a, A: Alarm<'a>> LegacyDriver for HD44780<'a, A> {
         /* return EBUSY if there is no space in the buffer */
         if ret == BUFFER_FULL || ret != to_check as i16 {
             self.handle_commands();
-            return ReturnCode::EBUSY;
+            return CommandResult::failure(ErrorCode::BUSY);
         }
         match command_num {
             /* Save a Begin command and the two arguments */
@@ -803,7 +815,7 @@ impl<'a, A: Alarm<'a>> LegacyDriver for HD44780<'a, A> {
                 self.command_len.replace(index as u8);
                 self.handle_commands();
 
-                ReturnCode::SUCCESS
+                CommandResult::success()
             }
 
             /* Save a Set_cursor command and the two arguments */
@@ -820,7 +832,7 @@ impl<'a, A: Alarm<'a>> LegacyDriver for HD44780<'a, A> {
                 });
                 self.command_len.replace(index as u8);
                 self.handle_commands();
-                ReturnCode::SUCCESS
+                CommandResult::success()
             }
 
             /* Save a Home command */
@@ -833,7 +845,7 @@ impl<'a, A: Alarm<'a>> LegacyDriver for HD44780<'a, A> {
                 });
                 self.command_len.replace(index as u8);
                 self.handle_commands();
-                ReturnCode::SUCCESS
+                CommandResult::success()
             }
 
             /* Save a Clear command */
@@ -846,7 +858,7 @@ impl<'a, A: Alarm<'a>> LegacyDriver for HD44780<'a, A> {
                 });
                 self.command_len.replace(index as u8);
                 self.handle_commands();
-                ReturnCode::SUCCESS
+                CommandResult::success()
             }
 
             /* Save a Left_to_right or Right_to_left command */
@@ -873,7 +885,7 @@ impl<'a, A: Alarm<'a>> LegacyDriver for HD44780<'a, A> {
                 }
                 self.command_len.replace(index as u8);
                 self.handle_commands();
-                ReturnCode::SUCCESS
+                CommandResult::success()
             }
 
             /* Save an Autoscroll or a No_autoscroll command */
@@ -899,7 +911,7 @@ impl<'a, A: Alarm<'a>> LegacyDriver for HD44780<'a, A> {
                 }
                 self.command_len.replace(index as u8);
                 self.handle_commands();
-                ReturnCode::SUCCESS
+                CommandResult::success()
             }
 
             /* Save a Cursor or a No_cursor command */
@@ -925,7 +937,7 @@ impl<'a, A: Alarm<'a>> LegacyDriver for HD44780<'a, A> {
                 }
                 self.command_len.replace(index as u8);
                 self.handle_commands();
-                ReturnCode::SUCCESS
+                CommandResult::success()
             }
 
             /* Save a Display or a No_display command */
@@ -951,7 +963,7 @@ impl<'a, A: Alarm<'a>> LegacyDriver for HD44780<'a, A> {
                 }
                 self.command_len.replace(index as u8);
                 self.handle_commands();
-                ReturnCode::SUCCESS
+                CommandResult::success()
             }
 
             /* Save a Blink or a No_blink command */
@@ -977,7 +989,7 @@ impl<'a, A: Alarm<'a>> LegacyDriver for HD44780<'a, A> {
                 }
                 self.command_len.replace(index as u8);
                 self.handle_commands();
-                ReturnCode::SUCCESS
+                CommandResult::success()
             }
 
             /* Save a Scroll_display_left or a Scroll_display_right command */
@@ -1003,33 +1015,20 @@ impl<'a, A: Alarm<'a>> LegacyDriver for HD44780<'a, A> {
                 }
                 self.command_len.replace(index as u8);
                 self.handle_commands();
-                ReturnCode::SUCCESS
+                CommandResult::success()
             }
 
             /* Get the number of bytes written by the last allow.
              * Only works once, the value is cleared once read.
              * */
             10 => match self.bytes_written.take() {
-                Some(v) => ReturnCode::SuccessWithValue { value: v },
-                None => ReturnCode::EALREADY,
+                Some(v) => CommandResult::success_u32(v as u32),
+                None => CommandResult::failure(ErrorCode::ALREADY),
             },
 
             /* default */
-            _ => ReturnCode::ENOSUPPORT,
+            _ => CommandResult::failure(ErrorCode::NOSUPPORT),
         }
-    }
-
-    /* subscribe syscall not implemented
-     *
-     * Returns always ENOSUPORT.
-     */
-    fn subscribe(
-        &self,
-        _subscribe_num: usize,
-        _callback: Option<Callback>,
-        _app_id: AppId,
-    ) -> ReturnCode {
-        ReturnCode::ENOSUPPORT
     }
 }
 
