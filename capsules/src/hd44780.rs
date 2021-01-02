@@ -4,11 +4,11 @@
 //! already defined in the kernel, and modifying them means re-compiling the
 //! kernel with the modifications.
 //!
-//! This capsule takes an alarm, an array of pins and one buffers initialized
+//! This capsule takes an alarm, an array of pins and one buffer initialized
 //! to 0.
 //!
-//! This capsule uses the Screen capsule and implements the Screen and ScreenSetup
-//! traits, through which it can receive commands (specific driver commands or write
+//! This capsule uses the TextScreen capsule and implements the TextScreen trait,
+//! through which it can receive commands (specific driver commands or write
 //! commands) and call specific callbacks (write_complete() or command_complete()).
 //!
 //! According to the HD44780 datasheet, there must be a delay between certain
@@ -17,7 +17,7 @@
 //! remember the state before and after each delay, the program will be a big
 //! state-machine that goes through the possible states defined in the
 //! LCDStatus enum. Also, after every command completed, a callback will be called
-//! to the screen capsule, in order for this capsule to be able to receive new
+//! to the text_screen capsule, in order for this capsule to be able to receive new
 //! commands. If a command is sent while this capsule is busy, it will return a
 //! "EBUSY" code.
 
@@ -28,17 +28,17 @@
 //!     components::hd44780_component_helper!(
 //!         stm32f429zi::tim2::Tim2,
 //!         // rs pin
-//!         stm32f429zi::gpio::PinId::PF13.get_pin().as_ref().unwrap(),
+//!         gpio_ports.pins[5][13].as_ref().unwrap(),
 //!         // en pin
-//!         stm32f429zi::gpio::PinId::PE11.get_pin().as_ref().unwrap(),
+//!         gpio_ports.pins[4][11].as_ref().unwrap(),
 //!         // data 4 pin
-//!         stm32f429zi::gpio::PinId::PF14.get_pin().as_ref().unwrap(),
+//!         gpio_ports.pins[5][14].as_ref().unwrap(),
 //!         // data 5 pin
-//!         stm32f429zi::gpio::PinId::PE13.get_pin().as_ref().unwrap(),
+//!         gpio_ports.pins[4][13].as_ref().unwrap(),
 //!         // data 6 pin
-//!         stm32f429zi::gpio::PinId::PF15.get_pin().as_ref().unwrap(),
+//!         gpio_ports.pins[5][15].as_ref().unwrap(),
 //!         // data 7 pin
-//!         stm32f429zi::gpio::PinId::PG14.get_pin().as_ref().unwrap()
+//!         gpio_ports.pins[6][14].as_ref().unwrap()
 //!     )
 //! );
 //!
@@ -162,7 +162,7 @@ impl<'a, A: Alarm<'a>> HD44780<'a, A> {
         data_5_pin.make_output();
         data_6_pin.make_output();
         data_7_pin.make_output();
-        HD44780 {
+        let hd44780 = HD44780 {
             rs_pin: rs_pin,
             en_pin: en_pin,
             data_4_pin: data_4_pin,
@@ -189,7 +189,10 @@ impl<'a, A: Alarm<'a>> HD44780<'a, A> {
             write_buffer: TakeCell::empty(),
             write_len: Cell::new(0),
             write_offset: Cell::new(0),
-        }
+        };
+        hd44780.init(16, 2);
+
+        hd44780
     }
 
     /// `init()` initializes the functioning parameters and communication
@@ -198,9 +201,8 @@ impl<'a, A: Alarm<'a>> HD44780<'a, A> {
     /// When the init is done, the screen capsule will receive a "screen_is_ready()"
     /// callback, in order to be able to receive other commands.
     ///
-    /// `init()` is called from the target device specific initialization
-    /// file (boards/<board_used>/src/main.rs):
-    /// - lcd.init(16,2);
+    /// `init()` is called after the capsule is instantiated:
+    /// - hd44780.init(16,2);
     ///
     pub fn init(&self, col: u8, row: u8) {
         self.begin_done.set(false);
@@ -326,6 +328,7 @@ impl<'a, A: Alarm<'a>> HD44780<'a, A> {
                     if self.begin_done.get() {
                         self.begin_done.set(false);
                         self.initialized.set(true);
+                        client.command_complete(ReturnCode::SUCCESS);
                     } else if self.write_len.get() > 0 {
                         self.write_character();
                     } else if self.done_printing.get() {
@@ -464,7 +467,7 @@ impl<'a, A: Alarm<'a>> HD44780<'a, A> {
         }
     }
 
-    /// lcd_display will call lcd_command with certain arguments for the display
+    /// `lcd_display()` will call lcd_command with certain arguments for the display
     /// initialization.
     ///
     /// As argument, there is:
@@ -479,7 +482,7 @@ impl<'a, A: Alarm<'a>> HD44780<'a, A> {
         self.lcd_command(LCD_DISPLAYCONTROL | self.display_control.get(), next_state);
     }
 
-    /// lcd_command is the main funcion that communicates with the device, and
+    /// `lcd_command()` is the main funcion that communicates with the device, and
     /// sends certain values received as arguments to the device (through
     /// write_4_bits function). Due to the delays, the funcion is continued in
     /// the fired() function.
@@ -498,7 +501,7 @@ impl<'a, A: Alarm<'a>> HD44780<'a, A> {
         self.write_4_bits(value >> 4, LCDStatus::Command);
     }
 
-    /// lcd_clear clears the lcd and brings the cursor at position (0,0).
+    /// `lcd_clear()` clears the lcd and brings the cursor at position (0,0).
     ///
     /// As argument, there is:
     ///  - the status of the program after clearing the display
@@ -511,7 +514,7 @@ impl<'a, A: Alarm<'a>> HD44780<'a, A> {
         self.lcd_command(LCD_CLEARDISPLAY, LCDStatus::Clear);
     }
 
-    /// set_delay sets an alarm and saved the next state after that.
+    /// `set_delay()` sets an alarm and saved the next state after that.
     ///
     /// As argument, there are:
     ///  - the duration of the alarm:
@@ -531,7 +534,7 @@ impl<'a, A: Alarm<'a>> HD44780<'a, A> {
         );
     }
 
-    /// write_character will send the next character to be written on the
+    /// `write_character()` will send the next character to be written on the
     /// LCD display. The character is saved in the "write_buffer" buffer.
     ///
     /// Example:
@@ -554,7 +557,7 @@ impl<'a, A: Alarm<'a>> HD44780<'a, A> {
         self.write_4_bits(value >> 4, LCDStatus::Printing);
     }
 
-    /// set_cursor sends a command to the LCD display about the position for
+    /// `set_cursor()` sends a command to the LCD display about the position for
     /// the cursor to be set to.
     ///
     /// As argument, there are:
@@ -576,7 +579,7 @@ impl<'a, A: Alarm<'a>> HD44780<'a, A> {
 }
 
 impl<'a, A: Alarm<'a>> time::AlarmClient for HD44780<'a, A> {
-    /// fired() is called after each alarm finished, and depending on the
+    /// `alarm()` is called after each alarm finished, and depending on the
     /// current state of the program, the next step in being decided.
     fn alarm(&self) {
         self.continue_ops();

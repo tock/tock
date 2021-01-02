@@ -11,7 +11,6 @@
 //!         .finalize(components::screen_buffer_size!(64));
 //! ```
 
-use core::cell::Cell;
 use core::convert::From;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil;
@@ -67,7 +66,6 @@ impl Default for App {
 pub struct TextScreen<'a> {
     text_screen: &'a dyn hil::text_screen::TextScreen,
     apps: Grant<App>,
-    screen_ready: Cell<bool>,
     current_app: OptionalCell<AppId>,
     buffer: TakeCell<'static, [u8]>,
 }
@@ -81,7 +79,6 @@ impl<'a> TextScreen<'a> {
         TextScreen {
             text_screen: text_screen,
             apps: grant,
-            screen_ready: Cell::new(false),
             current_app: OptionalCell::empty(),
             buffer: TakeCell::new(buffer),
         }
@@ -96,7 +93,7 @@ impl<'a> TextScreen<'a> {
     ) -> ReturnCode {
         self.apps
             .enter(appid, |app, _| {
-                if self.screen_ready.get() && self.current_app.is_none() {
+                if self.current_app.is_none() {
                     self.current_app.set(appid);
                     app.command = command;
                     let r = self.do_command(command, data1, data2, appid);
@@ -169,10 +166,6 @@ impl<'a> TextScreen<'a> {
     }
 
     fn run_next_command(&self) {
-        if !self.screen_ready.get() {
-            self.screen_ready.set(true);
-        }
-
         // Check for pending events.
         for app in self.apps.iter() {
             let current_command = app.enter(|app, _| {
