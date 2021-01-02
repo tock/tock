@@ -1,71 +1,10 @@
 use core::cell::Cell;
-use core::f32;
 use kernel::common::cells::{OptionalCell, TakeCell};
+use kernel::common::math;
 use kernel::hil::adc;
 use kernel::hil::gpio;
 use kernel::hil::sensors::{SoundPressure, SoundPressureClient};
 use kernel::ReturnCode;
-
-// f32 log10 function adapted from [micromath](https://github.com/NeoBirth/micromath)
-const EXPONENT_MASK: u32 = 0b01111111_10000000_00000000_00000000;
-const EXPONENT_BIAS: u32 = 127;
-
-fn abs(n: f32) -> f32 {
-    f32::from_bits(n.to_bits() & 0x7FFF_FFFF)
-}
-
-fn extract_exponent_bits(x: f32) -> u32 {
-    (x.to_bits() & EXPONENT_MASK).overflowing_shr(23).0
-}
-
-fn extract_exponent_value(x: f32) -> i32 {
-    (extract_exponent_bits(x) as i32) - EXPONENT_BIAS as i32
-}
-
-fn ln_1to2_series_approximation(x: f32) -> f32 {
-    // idea from https://stackoverflow.com/a/44232045/
-    // modified to not be restricted to int range and only values of x above 1.0.
-    // and got rid of most of the slow conversions,
-    // should work for all positive values of x.
-
-    //x may essentially be 1.0 but, as clippy notes, these kinds of
-    //floating point comparisons can fail when the bit pattern is not the sames
-    if abs(x - 1.0_f32) < f32::EPSILON {
-        return 0.0_f32;
-    }
-    let x_less_than_1: bool = x < 1.0;
-    // Note: we could use the fast inverse approximation here found in super::inv::inv_approx, but
-    // the precision of such an approximation is assumed not good enough.
-    let x_working: f32 = if x_less_than_1 { 1.0 / x } else { x };
-    //according to the SO post ln(x) = ln((2^n)*y)= ln(2^n) + ln(y) = ln(2) * n + ln(y)
-    //get exponent value
-    let base2_exponent: u32 = extract_exponent_value(x_working) as u32;
-    let divisor: f32 = f32::from_bits(x_working.to_bits() & EXPONENT_MASK);
-    //supposedly normalizing between 1.0 and 2.0
-    let x_working: f32 = x_working / divisor;
-    //approximate polynomial generated from maple in the post using Remez Algorithm:
-    //https://en.wikipedia.org/wiki/Remez_algorithm
-    let ln_1to2_polynomial: f32 = -1.741_793_9_f32
-        + (2.821_202_6_f32
-            + (-1.469_956_8_f32 + (0.447_179_55_f32 - 0.056_570_851_f32 * x_working) * x_working)
-                * x_working)
-            * x_working;
-    // ln(2) * n + ln(y)
-    let result: f32 = (base2_exponent as f32) * f32::consts::LN_2 + ln_1to2_polynomial;
-    if x_less_than_1 {
-        -result
-    } else {
-        result
-    }
-}
-
-fn log10_ln_approx(x: f32) -> f32 {
-    //using change of base log10(x) = ln(x)/ln(10)
-    let ln10_recip = f32::consts::LOG10_E;
-    let fract_base_ln = ln10_recip;
-    let value_ln = ln_1to2_series_approximation(x);
-    value_ln * fract_base_ln
-}
 
 #[derive(Copy, Clone, PartialEq)]
 enum State {
@@ -107,7 +46,7 @@ impl<'a, P: gpio::Pin> AdcMicrophone<'a, P> {
                 .map(|v| if *v > avg { v - avg } else { 0 })
                 .fold(0, |a, v| if a > v { a } else { v });
             let mut conv = (max as f32) / (((1 << 15) - 1) as f32) * 9 as f32;
-            conv = 20f32 * log10_ln_approx(conv / 0.00002f32);
+            conv = 20f32 * math::log10(conv / 0.00002f32);
             conv as u8
         });
         max
