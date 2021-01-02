@@ -28,7 +28,7 @@ impl<I: InterruptService<()> + 'static> Imxrt10xx<I> {
 pub struct Imxrt10xxDefaultPeripherals {
     pub iomuxc: crate::iomuxc::Iomuxc,
     pub iomuxc_snvs: crate::iomuxc_snvs::IomuxcSnvs,
-    pub ccm: crate::ccm::Ccm,
+    pub ccm: &'static crate::ccm::Ccm,
     pub ports: crate::gpio::Ports<'static>,
     pub lpi2c1: crate::lpi2c::Lpi2c<'static>,
     pub lpuart1: crate::lpuart::Lpuart<'static>,
@@ -42,7 +42,7 @@ impl Imxrt10xxDefaultPeripherals {
         Self {
             iomuxc: crate::iomuxc::Iomuxc::new(),
             iomuxc_snvs: crate::iomuxc_snvs::IomuxcSnvs::new(),
-            ccm: crate::ccm::Ccm::new(),
+            ccm,
             ports: crate::gpio::Ports::new(ccm),
             lpi2c1: crate::lpi2c::Lpi2c::new_lpi2c1(ccm),
             lpuart1: crate::lpuart::Lpuart::new_lpuart1(ccm),
