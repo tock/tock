@@ -17,6 +17,7 @@ use kernel::capabilities;
 use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::component::Component;
 use kernel::hil::{gpio::Configure, led::LedHigh};
+use kernel::ClockInterface;
 use kernel::{create_capability, static_init};
 
 /// Number of concurrent processes this platform supports
@@ -126,6 +127,8 @@ pub unsafe fn main() {
     );
     peripherals.ccm.set_low_power_mode();
 
+    peripherals.dcdc.clock().enable();
+    peripherals.dcdc.set_target_vdd_soc(1250);
     set_arm_clock(&peripherals.ccm, &peripherals.ccm_analog);
     // IPG clock is 600MHz / 4 == 150MHz
     peripherals.ccm.set_ipg_divider(4);
