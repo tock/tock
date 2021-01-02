@@ -2,6 +2,9 @@
 
 use kernel::common::registers::{self, ReadWrite};
 use kernel::common::StaticRef;
+use kernel::ClockInterface;
+
+use crate::ccm;
 
 registers::register_structs! {
     /// DCDC
@@ -112,15 +115,22 @@ const DCDC_BASE: StaticRef<DcdcRegisters> =
     unsafe { StaticRef::new(0x40080000 as *const DcdcRegisters) };
 
 /// DCDC converter
-pub struct Dcdc {
+pub struct Dcdc<'a> {
     registers: StaticRef<DcdcRegisters>,
+    clock_gate: ccm::PeripheralClock<'a>,
 }
 
-impl Dcdc {
-    pub const fn new() -> Self {
+impl<'a> Dcdc<'a> {
+    /// Construct a new DCDC peripheral that can control its own clock
+    pub const fn new(ccm: &'a ccm::Ccm) -> Self {
         Self {
             registers: DCDC_BASE,
+            clock_gate: ccm::PeripheralClock::ccgr6(ccm, ccm::HCLK6::DCDC),
         }
+    }
+    /// Returns the interface that controls the DCDC clock
+    pub fn clock(&self) -> &(impl ClockInterface + '_) {
+        &self.clock_gate
     }
     /// Set the target value of `VDD_SOC`, in milliamps
     ///

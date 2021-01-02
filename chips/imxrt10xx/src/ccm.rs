@@ -586,6 +586,21 @@ impl Ccm {
             None => unreachable!(),
         }
     }
+
+    /// Enable the DCDC clock gate
+    pub fn enable_dcdc_clock(&self) {
+        self.registers.ccgr[6].modify(CCGR::CG3.val(0b11));
+    }
+
+    /// Disable the DCDC clock gate
+    pub fn disable_dcdc_clock(&self) {
+        self.registers.ccgr[6].modify(CCGR::CG3.val(0b00));
+    }
+
+    /// Indicates if the DCDC clock gate is enaled
+    pub fn is_enabled_dcdc_clock(&self) -> bool {
+        self.registers.ccgr[6].read(CCGR::CG3) != 0
+    }
 }
 
 /// Clock selections for the main peripheral
@@ -631,6 +646,7 @@ enum ClockGate {
     CCGR3(HCLK3),
     CCGR4(HCLK4),
     CCGR5(HCLK5),
+    CCGR6(HCLK6),
 }
 
 /// A peripheral clock gate
@@ -679,6 +695,12 @@ impl<'a> PeripheralClock<'a> {
             clock_gate: ClockGate::CCGR5(gate),
         }
     }
+    pub const fn ccgr6(ccm: &'a Ccm, gate: HCLK6) -> Self {
+        Self {
+            ccm,
+            clock_gate: ClockGate::CCGR6(gate),
+        }
+    }
 }
 
 pub enum HCLK0 {
@@ -711,6 +733,10 @@ pub enum HCLK4 {
 pub enum HCLK5 {
     LPUART1,
     // and others ...
+}
+
+pub enum HCLK6 {
+    DCDC,
 }
 
 /// Periodic clock selection for GPTs and PITs
@@ -749,6 +775,9 @@ impl ClockInterface for PeripheralClock<'_> {
             ClockGate::CCGR5(ref v) => match v {
                 HCLK5::LPUART1 => self.ccm.is_enabled_lpuart1_clock(),
             },
+            ClockGate::CCGR6(ref v) => match v {
+                HCLK6::DCDC => self.ccm.is_enabled_dcdc_clock(),
+            },
         }
     }
 
@@ -778,6 +807,9 @@ impl ClockInterface for PeripheralClock<'_> {
             ClockGate::CCGR5(ref v) => match v {
                 HCLK5::LPUART1 => self.ccm.enable_lpuart1_clock(),
             },
+            ClockGate::CCGR6(ref v) => match v {
+                HCLK6::DCDC => self.ccm.enable_dcdc_clock(),
+            },
         }
     }
 
@@ -806,6 +838,9 @@ impl ClockInterface for PeripheralClock<'_> {
             },
             ClockGate::CCGR5(ref v) => match v {
                 HCLK5::LPUART1 => self.ccm.disable_lpuart1_clock(),
+            },
+            ClockGate::CCGR6(ref v) => match v {
+                HCLK6::DCDC => self.ccm.disable_dcdc_clock(),
             },
         }
     }
