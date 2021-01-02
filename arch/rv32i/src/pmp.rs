@@ -18,22 +18,12 @@
 //! avoid this wasted memory we use TOR and each memory region uses two physical
 //! PMP regions.
 
-/// Instantiate a PMP configuration.
-///
-/// `$x` is the number of PMP entries the hardware supports.
-///
-/// Since we use TOR, we will use two PMP entries for each region. So the actual
-/// number of regions we can protect is `$x/2`.
-#[macro_export]
-macro_rules! PMPConfigMacro {
-    ( $x:expr $(,)? ) => {
-
 use core::cell::Cell;
 use core::cmp;
 use core::fmt;
 use kernel::common::cells::OptionalCell;
 
-use rv32i::csr;
+use crate::csr;
 use kernel::common::cells::MapCell;
 use kernel::common::registers;
 use kernel::common::registers::register_bitfields;
@@ -57,16 +47,18 @@ register_bitfields![u8,
 ];
 
 /// Main PMP struct.
-pub struct PMP {
+pub struct PMP<const NUM_REGIONS: usize, const NUM_REGIONS_OVER_TWO: usize> {
     /// The application that the MPU was last configured for. Used (along with
     /// the `is_dirty` flag) to determine if MPU can skip writing the
     /// configuration to hardware.
     last_configured_for: MapCell<AppId>,
 }
 
-impl PMP {
-    pub const unsafe fn new() -> PMP {
-        PMP {
+impl<const NUM_REGIONS: usize, const NUM_REGIONS_OVER_TWO: usize>
+    PMP<NUM_REGIONS, NUM_REGIONS_OVER_TWO>
+{
+    pub const unsafe fn new() -> Self {
+        Self {
             last_configured_for: MapCell::empty(),
         }
     }
@@ -153,9 +145,9 @@ impl PMPRegion {
 }
 
 /// Struct storing region configuration for RISCV PMP.
-pub struct PMPConfig {
+pub struct PMPConfig<const NUM_REGIONS: usize, const NUM_REGIONS_OVER_TWO: usize> {
     /// Array of PMP regions. Each region requires two physical entries.
-    regions: [Option<PMPRegion>; $x / 2],
+    regions: [Option<PMPRegion>; NUM_REGIONS_OVER_TWO],
     /// Indicates if the configuration has changed since the last time it was
     /// written to hardware.
     is_dirty: Cell<bool>,
@@ -163,17 +155,26 @@ pub struct PMPConfig {
     app_memory_region: OptionalCell<usize>,
 }
 
-impl Default for PMPConfig {
+impl<const NUM_REGIONS: usize, const NUM_REGIONS_OVER_TWO: usize> Default
+    for PMPConfig<NUM_REGIONS, NUM_REGIONS_OVER_TWO>
+{
+    /// `NUM_REGIONS` is the number of PMP entries the hardware supports.
+    ///
+    /// Since we use TOR, we will use two PMP entries for each region. So the actual
+    /// number of regions we can protect is `NUM_REGIONS/2`. Limitations of min_const_generics
+    /// require us to pass both of these values as separate generic consts.
     fn default() -> Self {
         PMPConfig {
-            regions: [None; $x / 2],
+            regions: [None; NUM_REGIONS_OVER_TWO],
             is_dirty: Cell::new(true),
             app_memory_region: OptionalCell::empty(),
         }
     }
 }
 
-impl fmt::Display for PMPConfig {
+impl<const NUM_REGIONS: usize, const NUM_REGIONS_OVER_TWO: usize> fmt::Display
+    for PMPConfig<NUM_REGIONS, NUM_REGIONS_OVER_TWO>
+{
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, " PMP regions:\r\n")?;
         for (n, region) in self.regions.iter().enumerate() {
@@ -186,7 +187,9 @@ impl fmt::Display for PMPConfig {
     }
 }
 
-impl PMPConfig {
+impl<const NUM_REGIONS: usize, const NUM_REGIONS_OVER_TWO: usize>
+    PMPConfig<NUM_REGIONS, NUM_REGIONS_OVER_TWO>
+{
     fn unused_region_number(&self) -> Option<usize> {
         for (number, region) in self.regions.iter().enumerate() {
             if self.app_memory_region.contains(&number) {
@@ -241,13 +244,15 @@ impl PMPConfig {
     }
 }
 
-impl kernel::mpu::MPU for PMP {
-    type MpuConfig = PMPConfig;
+impl<const NUM_REGIONS: usize, const NUM_REGIONS_OVER_TWO: usize> kernel::mpu::MPU
+    for PMP<NUM_REGIONS, NUM_REGIONS_OVER_TWO>
+{
+    type MpuConfig = PMPConfig<NUM_REGIONS, NUM_REGIONS_OVER_TWO>;
 
     fn clear_mpu(&self) {
-        // We want to disable all of the hardware entries, so we use `$x` here,
-        // and not `$x / 2`.
-        for x in 0..$x {
+        // We want to disable all of the hardware entries, so we use `NUM_REGIONS` here,
+        // and not `NUM_REGIONS / 2`.
+        for x in 0..NUM_REGIONS {
             match x % 4 {
                 0 => {
                     csr::CSR.pmpcfg[x / 4].modify(
@@ -309,7 +314,7 @@ impl kernel::mpu::MPU for PMP {
     }
 
     fn number_total_regions(&self) -> usize {
-        $x / 2
+        NUM_REGIONS / 2
     }
 
     fn allocate_region(
@@ -418,7 +423,11 @@ impl kernel::mpu::MPU for PMP {
             return None;
         }
 
-        let region = PMPRegion::new(region_start as *const u8, initial_app_memory_size, permissions);
+        let region = PMPRegion::new(
+            region_start as *const u8,
+            initial_app_memory_size,
+            permissions,
+        );
 
         config.regions[region_num] = Some(region);
         config.is_dirty.set(true);
@@ -498,8 +507,7 @@ impl kernel::mpu::MPU for PMP {
                                 // Set access to end address
                                 csr::CSR.pmpcfg[x / 2]
                                     .set(cfg_val << 8 | csr::CSR.pmpcfg[x / 2].get());
-                                csr::CSR.pmpaddr[(x * 2) + 1]
-                                    .set((start + size) >> 2);
+                                csr::CSR.pmpaddr[(x * 2) + 1].set((start + size) >> 2);
                             }
                             1 => {
                                 // Disable access up to the start address
@@ -514,8 +522,7 @@ impl kernel::mpu::MPU for PMP {
                                 // Set access to end address
                                 csr::CSR.pmpcfg[x / 2]
                                     .set(cfg_val << 24 | csr::CSR.pmpcfg[x / 2].get());
-                                csr::CSR.pmpaddr[(x * 2) + 1]
-                                    .set((start + size) >> 2);
+                                csr::CSR.pmpaddr[(x * 2) + 1].set((start + size) >> 2);
                             }
                             _ => break,
                         }
@@ -527,6 +534,4 @@ impl kernel::mpu::MPU for PMP {
             self.last_configured_for.put(*app_id);
         }
     }
-    }
-};
 }
