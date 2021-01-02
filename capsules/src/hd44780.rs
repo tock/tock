@@ -155,6 +155,8 @@ impl<'a, A: Alarm<'a>> HD44780<'a, A> {
         data_7_pin: &'a dyn gpio::Pin,
         row_offsets: &'static mut [u8],
         alarm: &'a A,
+        width: u8,
+        height: u8,
     ) -> HD44780<'a, A> {
         rs_pin.make_output();
         en_pin.make_output();
@@ -169,8 +171,8 @@ impl<'a, A: Alarm<'a>> HD44780<'a, A> {
             data_5_pin: data_5_pin,
             data_6_pin: data_6_pin,
             data_7_pin: data_7_pin,
-            width: Cell::new(0),
-            height: Cell::new(0),
+            width: Cell::new(width),
+            height: Cell::new(height),
             display_function: Cell::new(LCD_4BITMODE | LCD_1LINE | LCD_5X8DOTS),
             display_control: Cell::new(0),
             display_mode: Cell::new(0),
@@ -190,7 +192,7 @@ impl<'a, A: Alarm<'a>> HD44780<'a, A> {
             write_len: Cell::new(0),
             write_offset: Cell::new(0),
         };
-        hd44780.init(16, 2);
+        hd44780.init(width, height);
 
         hd44780
     }
