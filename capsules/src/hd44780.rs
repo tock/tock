@@ -206,7 +206,7 @@ impl<'a, A: Alarm<'a>> HD44780<'a, A> {
     /// `init()` is called after the capsule is instantiated:
     /// - hd44780.init(16,2);
     ///
-    pub fn init(&self, col: u8, row: u8) {
+    fn init(&self, col: u8, row: u8) {
         self.begin_done.set(false);
         self.width.set(col);
         self.height.set(row);
