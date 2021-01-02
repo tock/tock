@@ -548,11 +548,11 @@ impl GPIOPin<'_> {
     }
 }
 
-pub struct Port<'a> {
-    pub pins: &'a mut [GPIOPin<'a>],
+pub struct Port<'a, const N: usize> {
+    pub pins: [GPIOPin<'a>; N],
 }
 
-impl<'a> Index<Pin> for Port<'a> {
+impl<'a, const N: usize> Index<Pin> for Port<'a, N> {
     type Output = GPIOPin<'a>;
 
     fn index(&self, index: Pin) -> &GPIOPin<'a> {
@@ -560,13 +560,17 @@ impl<'a> Index<Pin> for Port<'a> {
     }
 }
 
-impl<'a> IndexMut<Pin> for Port<'a> {
+impl<'a, const N: usize> IndexMut<Pin> for Port<'a, N> {
     fn index_mut(&mut self, index: Pin) -> &mut GPIOPin<'a> {
         &mut self.pins[index as usize]
     }
 }
 
-impl Port<'_> {
+impl<'a, const N: usize> Port<'a, N> {
+    pub fn new(pins: [GPIOPin<'a>; N]) -> Self {
+        Self { pins }
+    }
+
     /// GPIOTE interrupt: check each GPIOTE channel, if any has
     /// fired then trigger its corresponding pin's interrupt handler.
     pub fn handle_interrupt(&self) {

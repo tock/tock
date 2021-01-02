@@ -31,7 +31,6 @@ impl<'a, I: InterruptService<DeferredCallTask> + 'a> NRF52<'a, I> {
 pub struct Nrf52DefaultPeripherals<'a> {
     pub acomp: crate::acomp::Comparator<'a>,
     pub ecb: crate::aes::AesECB<'a>,
-    pub gpio_port: &'static crate::gpio::Port<'static>,
     pub pwr_clk: crate::power::Power<'a>,
     pub ieee802154_radio: crate::ieee802154_radio::Radio<'a>,
     pub ble_radio: crate::ble_radio::Radio<'a>,
@@ -53,11 +52,10 @@ pub struct Nrf52DefaultPeripherals<'a> {
 }
 
 impl<'a> Nrf52DefaultPeripherals<'a> {
-    pub fn new(gpio_port: &'static crate::gpio::Port<'static>, ppi: &'a crate::ppi::Ppi) -> Self {
+    pub fn new(ppi: &'a crate::ppi::Ppi) -> Self {
         Self {
             acomp: crate::acomp::Comparator::new(),
             ecb: crate::aes::AesECB::new(),
-            gpio_port,
             pwr_clk: crate::power::Power::new(),
             ieee802154_radio: crate::ieee802154_radio::Radio::new(ppi),
             ble_radio: crate::ble_radio::Radio::new(),
@@ -88,7 +86,6 @@ impl<'a> kernel::InterruptService<DeferredCallTask> for Nrf52DefaultPeripherals<
         match interrupt {
             crate::peripheral_interrupts::COMP => self.acomp.handle_interrupt(),
             crate::peripheral_interrupts::ECB => self.ecb.handle_interrupt(),
-            crate::peripheral_interrupts::GPIOTE => self.gpio_port.handle_interrupt(),
             crate::peripheral_interrupts::POWER_CLOCK => self.pwr_clk.handle_interrupt(),
             crate::peripheral_interrupts::RADIO => {
                 match (
