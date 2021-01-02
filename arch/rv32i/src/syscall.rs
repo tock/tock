@@ -78,13 +78,29 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         state: &mut Self::StoredState,
         return_value: kernel::syscall::GenericSyscallReturnValue,
     ) {
-        // Just need to put the return value in the a0 register for when the
-        // process resumes executing.
+        // Encode the system call return value into registers,
+        // available for when the process resumes
+
+        // We need to use a buch of split_at_mut's to have multiple
+        // mutable borrows into the same slice at the same time.
+        //
+        // Since the compiler knows the size of this slice, and these
+        // calls will be optimized out, we use one to get to the first
+        // register (A0)
+        let (_, r) = state.regs.split_at_mut(R_A0);
+
+        // This comes with the assumption that the respective
+        // registers are stored at monotonically increasing indicies
+        // in the register slice
+        let (a0slice, r) = r.split_at_mut(R_A1 - R_A0);
+        let (a1slice, r) = r.split_at_mut(R_A2 - R_A1);
+        let (a2slice, a3slice) = r.split_at_mut(R_A3 - R_A2);
+
         return_value.encode_syscall_return(
-            &mut (state.regs[R_A0] as u32),
-            &mut (state.regs[R_A1] as u32),
-            &mut (state.regs[R_A2] as u32),
-            &mut (state.regs[R_A3] as u32),
+            &mut a0slice[0],
+            &mut a1slice[0],
+            &mut a2slice[0],
+            &mut a3slice[0],
         );
     }
 
