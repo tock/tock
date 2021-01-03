@@ -175,9 +175,7 @@ impl Kernel {
         Kernel {
             work: Cell::new(0),
             processes,
-            // Process identifier 0 is reserved for a dummy ProcessId
-            // (used in default AppSlices and Callbacks)
-            process_identifier_max: Cell::new(1),
+            process_identifier_max: Cell::new(0),
             grant_counter: Cell::new(0),
             grants_finalized: Cell::new(false),
         }

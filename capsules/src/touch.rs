@@ -215,6 +215,7 @@ impl<'a> hil::touch::MultiTouchClient for Touch<'a> {
                         } else {
                             len
                         };
+
                         for event_index in 0..num {
                             let mut event = touch_events[event_index].clone();
                             self.update_rotation(&mut event);
@@ -251,6 +252,7 @@ impl<'a> hil::touch::MultiTouchClient for Touch<'a> {
                     });
                     let dropped_events = app.dropped_events;
                     if num > 0 {
+                        app.ack = false;
                         app.multi_touch_callback.schedule(
                             num,
                             dropped_events,
@@ -345,7 +347,7 @@ impl<'a> Driver for Touch<'a> {
                 let r = self
                     .apps
                     .enter(app_id, |app, _| {
-                        mem::swap(&mut app.touch_callback, &mut callback);
+                        mem::swap(&mut app.gesture_callback, &mut callback);
                     })
                     .map_err(ErrorCode::from);
                 self.touch_enable();
@@ -358,7 +360,7 @@ impl<'a> Driver for Touch<'a> {
                     let r = self
                         .apps
                         .enter(app_id, |app, _| {
-                            mem::swap(&mut app.touch_callback, &mut callback);
+                            mem::swap(&mut app.multi_touch_callback, &mut callback);
                         })
                         .map_err(ErrorCode::from);
                     self.multi_touch_enable();
@@ -410,6 +412,16 @@ impl<'a> Driver for Touch<'a> {
                     })
                     .unwrap_or(());
                 self.touch_enable();
+                CommandResult::success()
+            }
+
+            // multi touch ack
+            10 => {
+                self.apps
+                    .enter(appid, |app, _| {
+                        app.ack = true;
+                    })
+                    .unwrap_or(());
                 CommandResult::success()
             }
 
