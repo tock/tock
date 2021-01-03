@@ -64,7 +64,7 @@ pub enum Syscall {
     /// interrupts and callbacks.
     ///
     /// System call class ID 0
-    Yield,
+    Yield { wait: bool },
 
     /// Pass a callback function to the kernel.
     ///
@@ -135,7 +135,10 @@ impl Syscall {
         r3: usize,
     ) -> Option<Self> {
         match SyscallClass::try_from(syscall_number) {
-            Ok(SyscallClass::Yield) => Some(Syscall::Yield),
+            Ok(SyscallClass::Yield) => {
+                let wait = r0 != 0;
+                Some(Syscall::Yield { wait: wait })
+            }
             Ok(SyscallClass::Subscribe) => Some(Syscall::Subscribe {
                 driver_number: r0,
                 subdriver_number: r1,

@@ -757,12 +757,17 @@ impl Kernel {
         // immediately (assuming the process has not already
         // exhausted its timeslice) allowing the process to
         // decide how to handle the error.
-        if syscall != Syscall::Yield {
-            if let Err(response) = platform.filter_syscall(process, &syscall) {
-                process
-                    .set_syscall_return_value(GenericSyscallReturnValue::Legacy(response.into()));
+        match syscall {
+            Syscall::Yield { wait: _ } => {} // Do nothing
+            _ => {
+                // Check all other syscalls for filtering
+                if let Err(response) = platform.filter_syscall(process, &syscall) {
+                    process.set_syscall_return_value(GenericSyscallReturnValue::Legacy(
+                        response.into(),
+                    ));
 
-                return;
+                    return;
+                }
             }
         }
 
@@ -781,14 +786,24 @@ impl Kernel {
                 }
                 process.set_syscall_return_value(rval);
             }
-            Syscall::Yield => {
+            Syscall::Yield { wait } => {
                 if config::CONFIG.trace_syscalls {
-                    debug!("[{:?}] yield", process.appid());
+                    debug!("[{:?}] yield {}", process.appid(), wait);
                 }
-                process.set_yielded_state();
-
-                // There might be already enqueued callbacks, handle
-                // them in the next loop iteration
+                // If this is a yield-no-wait AND there are no pending tasks,
+                // then return immediately. Otherwise, go into the yielded
+                // state and execute tasks now or when they arrive.
+                let return_now = !wait && !process.has_tasks();
+                if return_now {
+                    process.set_syscall_return_value(GenericSyscallReturnValue::Failure(
+                        ErrorCode::FAIL,
+                    ));
+                } else {
+                    // There are already enqueued callbacks to execute or
+                    // we should wait for them: handle in the next loop
+                    // iteration
+                    process.set_yielded_state();
+                }
             }
             Syscall::Subscribe {
                 driver_number,

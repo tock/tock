@@ -277,6 +277,10 @@ pub trait ProcessType {
     /// Returns whether this process is ready to execute.
     fn ready(&self) -> bool;
 
+    /// Return if there are any Tasks (callbacks/IPC requests) enqueued
+    /// for the process.
+    fn has_tasks(&self) -> bool;
+
     /// Remove the scheduled operation from the front of the queue and return it
     /// to be handled by the scheduler.
     ///
@@ -1036,6 +1040,10 @@ impl<C: Chip> ProcessType for Process<'_, C> {
 
     fn get_restart_count(&self) -> usize {
         self.restart_count.get()
+    }
+
+    fn has_tasks(&self) -> bool {
+        self.tasks.map_or(false, |tasks| tasks.has_elements())
     }
 
     fn dequeue_task(&self) -> Option<Task> {
