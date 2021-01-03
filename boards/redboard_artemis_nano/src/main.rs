@@ -72,7 +72,7 @@ impl Platform for RedboardArtemisNano {
         F: FnOnce(Option<Result<&dyn kernel::Driver, &dyn kernel::LegacyDriver>>) -> R,
     {
         match driver_num {
-            capsules::alarm::DRIVER_NUM => f(Some(Err(self.alarm))),
+            capsules::alarm::DRIVER_NUM => f(Some(Ok(self.alarm))),
             capsules::led::DRIVER_NUM => f(Some(Ok(self.led))),
             capsules::gpio::DRIVER_NUM => f(Some(Err(self.gpio))),
             capsules::console::DRIVER_NUM => f(Some(Ok(self.console))),

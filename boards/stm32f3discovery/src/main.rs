@@ -82,14 +82,14 @@ impl Platform for STM32F3Discovery {
             capsules::console::DRIVER_NUM => f(Some(Ok(self.console))),
             capsules::led::DRIVER_NUM => f(Some(Ok(self.led))),
             capsules::button::DRIVER_NUM => f(Some(Err(self.button))),
-            capsules::alarm::DRIVER_NUM => f(Some(Err(self.alarm))),
+            capsules::alarm::DRIVER_NUM => f(Some(Ok(self.alarm))),
             capsules::gpio::DRIVER_NUM => f(Some(Err(self.gpio))),
+            capsules::lsm303dlhc::DRIVER_NUM => f(Some(Ok(self.lsm303dlhc))),
             capsules::l3gd20::DRIVER_NUM => f(Some(Ok(self.l3gd20))),
-            capsules::lsm303dlhc::DRIVER_NUM => f(Some(Err(self.lsm303dlhc))),
             capsules::ninedof::DRIVER_NUM => f(Some(Ok(self.ninedof))),
             capsules::temperature::DRIVER_NUM => f(Some(Ok(self.temp))),
             kernel::ipc::DRIVER_NUM => f(Some(Err(&self.ipc))),
-            capsules::adc::DRIVER_NUM => f(Some(Err(self.adc))),
+            capsules::adc::DRIVER_NUM => f(Some(Ok(self.adc))),
             capsules::nonvolatile_storage_driver::DRIVER_NUM => {
                 f(Some(Err(self.nonvolatile_storage)))
             }

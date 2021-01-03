@@ -71,9 +71,9 @@ impl Platform for MspExp432P401R {
             capsules::console::DRIVER_NUM => f(Some(Ok(self.console))),
             capsules::button::DRIVER_NUM => f(Some(Err(self.button))),
             capsules::gpio::DRIVER_NUM => f(Some(Err(self.gpio))),
-            capsules::alarm::DRIVER_NUM => f(Some(Err(self.alarm))),
+            capsules::alarm::DRIVER_NUM => f(Some(Ok(self.alarm))),
             kernel::ipc::DRIVER_NUM => f(Some(Err(&self.ipc))),
-            capsules::adc::DRIVER_NUM => f(Some(Err(self.adc))),
+            capsules::adc::DRIVER_NUM => f(Some(Ok(self.adc))),
             _ => f(None),
         }
     }

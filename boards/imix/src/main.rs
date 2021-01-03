@@ -161,9 +161,9 @@ impl kernel::Platform for Imix {
         match driver_num {
             capsules::console::DRIVER_NUM => f(Some(Ok(self.console))),
             capsules::gpio::DRIVER_NUM => f(Some(Err(self.gpio))),
-            capsules::alarm::DRIVER_NUM => f(Some(Err(self.alarm))),
+            capsules::alarm::DRIVER_NUM => f(Some(Ok(self.alarm))),
             capsules::spi_controller::DRIVER_NUM => f(Some(Ok(self.spi))),
-            capsules::adc::DRIVER_NUM => f(Some(Err(self.adc))),
+            capsules::adc::DRIVER_NUM => f(Some(Ok(self.adc))),
             capsules::led::DRIVER_NUM => f(Some(Ok(self.led))),
             capsules::button::DRIVER_NUM => f(Some(Err(self.button))),
             capsules::analog_comparator::DRIVER_NUM => f(Some(Ok(self.analog_comparator))),
@@ -358,7 +358,7 @@ pub unsafe fn reset_handler() {
     let mux_spi = components::spi::SpiMuxComponent::new(&peripherals.spi)
         .finalize(components::spi_mux_component_helper!(sam4l::spi::SpiHw));
 
-    let spi_syscalls = SpiSyscallComponent::new(mux_spi, 3)
+    let spi_syscalls = SpiSyscallComponent::new(mux_spi, 2)
         .finalize(components::spi_syscall_component_helper!(sam4l::spi::SpiHw));
     let rf233_spi = SpiComponent::new(mux_spi, 3)
         .finalize(components::spi_component_helper!(sam4l::spi::SpiHw));
