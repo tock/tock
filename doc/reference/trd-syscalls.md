@@ -277,7 +277,26 @@ If no callbacks are pending it returns immediately. The `yield-no-wait` system
 call returns `Success` if a callback executed and `Failure` if no callback
 executed.
 
+The register arguments for Subscribe system calls are as follows. The registers
+r0-r3 correspond to r0-r3 on CortexM and a0-a3 on RISC-V.
+
+| Argument               | Register |
+|------------------------|----------|
+| Yield identifer        | r0       |
+
+The yield identifier specifies whether the call is `yield-wait` or
+`yield-no-wait`:
+
+| System call   | Yield identifier value |
+|---------------|------------------------|
+| yield-no-wait |                      0 |
+| yield-wait    |                      1 |
+
+
+
 The return values for Yield system calls are `Success` and `Failure`. 
+
+
 
 
 4.2 Subscribe (Class ID: 1)
