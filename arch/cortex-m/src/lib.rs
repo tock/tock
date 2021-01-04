@@ -392,7 +392,10 @@ unsafe fn kernel_hardfault_arm_v7m(faulting_stack: *mut u32) -> ! {
 }
 
 #[cfg(all(target_arch = "arm", target_os = "none"))]
-unsafe extern "C" fn hard_fault_handler_arm_v7m_non_naked(
+/// Continue the hardfault handler. This function is not `#[naked]`, meaning we can mix
+/// `asm!()` and Rust. We separate this logic to not have to write the entire fault
+/// handler entirely in assembly.
+unsafe extern "C" fn hard_fault_handler_arm_v7m_continued(
     faulting_stack: *mut u32,
     kernel_stack: u32,
     stack_overflow: u32,
@@ -470,9 +473,9 @@ pub unsafe extern "C" fn hard_fault_handler_arm_v7m() {
         "ite   ne               /* check if the result of that bitwise AND was not 0 */",
         "movne r2, #1           /* BFSR & 0b00110000 != 0; r2 = 1 */",
         "moveq r2, #0           /* BFSR & 0b00110000 == 0; r2 = 0 */",
-        "and r5, r1, r2 /* bitwise and r2 and r1, store in r5 */ ",
-        "cmp  r5, #1 /*  update condition codes to reflect if r2 == 1 && r1 == 1 */",
-        "itt  eq /* if r5==1 run the next 2 instructions, else skip to branch */",
+        "and r5, r1, r2         /* bitwise and r2 and r1, store in r5 */ ",
+        "cmp  r5, #1            /*  update condition codes to reflect if r2 == 1 && r1 == 1 */",
+        "itt  eq                /* if r5==1 run the next 2 instructions, else skip to branch */",
         // if true, The hardware couldn't use the stack, so we have no saved data and
         // we cannot use the kernel stack as is. We just want to report that
         // the kernel's stack overflowed, since that is essential for
@@ -482,13 +485,13 @@ pub unsafe extern "C" fn hard_fault_handler_arm_v7m() {
         // kernel's original stack. This should in theory leave the bottom
         // of the stack where the problem occurred untouched should one want
         // to further debug.
-        "ldreq  r4, ={} /* load _estack into r4 */",
-        "moveq  sp, r4   /* Set the stack pointer to _estack */",
+        "ldreq  r4, ={}       /* load _estack into r4 */",
+        "moveq  sp, r4        /* Set the stack pointer to _estack */",
         // finally, branch to non-naked handler, never return
         // per ARM calling convention, faulting stack is passed in r0, and kernel_stack in r1,
         // and whether there was a stack overflow in r2
         // called function never returns, so no need to mark clobbers
-        "b {}", sym _estack, sym hard_fault_handler_arm_v7m_non_naked,
+        "b {}", sym _estack, sym hard_fault_handler_arm_v7m_continued,
         options(noreturn)
     );
 }
