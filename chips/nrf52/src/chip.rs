@@ -49,6 +49,7 @@ pub struct Nrf52DefaultPeripherals<'a> {
     pub adc: crate::adc::Adc,
     pub nvmc: crate::nvmc::Nvmc,
     pub clock: crate::clock::Clock,
+    pub pwm0: crate::pwm::Pwm,
 }
 
 impl<'a> Nrf52DefaultPeripherals<'a> {
@@ -74,6 +75,7 @@ impl<'a> Nrf52DefaultPeripherals<'a> {
             adc: crate::adc::Adc::new(),
             nvmc: crate::nvmc::Nvmc::new(),
             clock: crate::clock::Clock::new(),
+            pwm0: crate::pwm::Pwm::new(),
         }
     }
     // Necessary for setting up circular dependencies

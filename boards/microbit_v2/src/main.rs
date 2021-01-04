@@ -253,7 +253,7 @@ pub unsafe fn reset_handler() {
 
     let mux_pwm = static_init!(
         capsules::virtual_pwm::MuxPwm<'static, nrf52833::pwm::Pwm>,
-        capsules::virtual_pwm::MuxPwm::new(&nrf52833::pwm::PWM0)
+        capsules::virtual_pwm::MuxPwm::new(&base_peripherals.pwm0)
     );
     let virtual_pwm_buzzer = static_init!(
         capsules::virtual_pwm::PwmPinUser<'static, nrf52833::pwm::Pwm>,
@@ -405,11 +405,11 @@ pub unsafe fn reset_handler() {
             // gpio
             nrf52833::gpio::GPIOPin,
             // optional gpio pin
-            Some(&base_peripherals.gpio_port[LED_MICROPHONE_PIN])
+            Some(&nrf52833_peripherals.gpio_port[LED_MICROPHONE_PIN])
         ),
     );
 
-    &base_peripherals.gpio_port[LED_MICROPHONE_PIN].set_high_drive(true);
+    &nrf52833_peripherals.gpio_port[LED_MICROPHONE_PIN].set_high_drive(true);
 
     let sound_pressure =
         components::sound_pressure::SoundPressureComponent::new(board_kernel, adc_microphone)

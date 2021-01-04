@@ -1,4 +1,4 @@
-#![feature(const_fn, min_const_generics)]
+#![feature(const_fn)]
 #![no_std]
 #![crate_name = "nrf52"]
 #![crate_type = "rlib"]

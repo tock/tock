@@ -285,7 +285,7 @@ pub unsafe fn reset_handler() {
 
     let mux_pwm = static_init!(
         capsules::virtual_pwm::MuxPwm<'static, nrf52840::pwm::Pwm>,
-        capsules::virtual_pwm::MuxPwm::new(&nrf52840::pwm::PWM0)
+        capsules::virtual_pwm::MuxPwm::new(&base_peripherals.pwm0)
     );
     let virtual_pwm_buzzer = static_init!(
         capsules::virtual_pwm::PwmPinUser<'static, nrf52840::pwm::Pwm>,
