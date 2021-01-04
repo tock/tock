@@ -231,7 +231,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
           //   0x00000008 -> bit 3 -> MIE (disabling interrupts here)
           // + 0x00001800 -> bits 11,12 -> MPP (switch to usermode on mret)
           li t0, 0x00001808
-          csrrc x0, 0x300, t0
+          csrrc x0, 0x300, t0      // clear bits in mstatus, don't care about read
 
           // Afterwards, set the following bits in mstatus:
           //   0x00000080 -> bit 7 -> MPIE (enable interrupts on mret)
