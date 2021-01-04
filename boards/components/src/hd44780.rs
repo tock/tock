@@ -3,21 +3,23 @@
 //! Usage
 //! -----
 //! ```rust
-//! let lcd = components::hd44780::HD44780Component::new(mux_alarm).finalize(
+//! let height: u8 = 2;
+//! let width: u8 = 16;
+//! let lcd = components::hd44780::HD44780Component::new(mux_alarm, width, height).finalize(
 //!     components::hd44780_component_helper!(
 //!         stm32f429zi::tim2::Tim2,
 //!         // rs pin
-//!         stm32f429zi::gpio::PinId::PF13.get_pin().as_ref().unwrap(),
+//!         gpio_ports.pins[5][13].as_ref().unwrap(),
 //!         // en pin
-//!         stm32f429zi::gpio::PinId::PE11.get_pin().as_ref().unwrap(),
+//!         gpio_ports.pins[4][11].as_ref().unwrap(),
 //!         // data 4 pin
-//!         stm32f429zi::gpio::PinId::PF14.get_pin().as_ref().unwrap(),
+//!         gpio_ports.pins[5][14].as_ref().unwrap(),
 //!         // data 5 pin
-//!         stm32f429zi::gpio::PinId::PE13.get_pin().as_ref().unwrap(),
+//!         gpio_ports.pins[4][13].as_ref().unwrap(),
 //!         // data 6 pin
-//!         stm32f429zi::gpio::PinId::PF15.get_pin().as_ref().unwrap(),
+//!         gpio_ports.pins[5][15].as_ref().unwrap(),
 //!         // data 7 pin
-//!         stm32f429zi::gpio::PinId::PG14.get_pin().as_ref().unwrap()
+//!         gpio_ports.pins[6][14].as_ref().unwrap(),
 //!     )
 //! );
 //! ```
@@ -53,12 +55,20 @@ macro_rules! hd44780_component_helper {
 
 pub struct HD44780Component<A: 'static + time::Alarm<'static>> {
     alarm_mux: &'static MuxAlarm<'static, A>,
+    width: u8,
+    height: u8,
 }
 
 impl<A: 'static + time::Alarm<'static>> HD44780Component<A> {
-    pub fn new(alarm_mux: &'static MuxAlarm<'static, A>) -> HD44780Component<A> {
+    pub fn new(
+        alarm_mux: &'static MuxAlarm<'static, A>,
+        width: u8,
+        height: u8,
+    ) -> HD44780Component<A> {
         HD44780Component {
             alarm_mux: alarm_mux,
+            width: width,
+            height: height,
         }
     }
 }
@@ -95,6 +105,8 @@ impl<A: 'static + time::Alarm<'static>> Component for HD44780Component<A> {
                 static_buffer.7,
                 &mut capsules::hd44780::ROW_OFFSETS,
                 lcd_alarm,
+                self.width,
+                self.height,
             )
         );
         lcd_alarm.set_alarm_client(hd44780);
