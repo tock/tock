@@ -121,10 +121,15 @@ pub trait SoundPressure<'a> {
     /// Enable
     ///
     /// As this is usually a microphone, some boards require an explicit enable
-    /// so that they can turn on an LED
+    /// so that they can turn on an LED. This function enables that microphone and LED.
+    /// Not calling this function may result in innacurate readings.
     fn enable(&self) -> ReturnCode;
 
     /// Disable
+    ///
+    /// As this is usually a microphone, some boards require an explicit enable
+    /// so that they can turn on an LED. This function turns off that microphone. Readings
+    /// perfomed after this function call might return innacurate.
     fn disable(&self) -> ReturnCode;
 
     /// Set the client
@@ -133,5 +138,5 @@ pub trait SoundPressure<'a> {
 
 pub trait SoundPressureClient {
     /// Signals the sound pressure in dB
-    fn callback(&self, sound_pressure: u8);
+    fn callback(&self, ret: ReturnCode, sound_pressure: u8);
 }

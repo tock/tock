@@ -99,7 +99,8 @@ impl<'a, P: gpio::Pin> adc::Client for AdcMicrophone<'a, P> {
             }) {
                 // self.enable_pin.map (|pin| pin.clear ());
                 let spl = self.compute_spl();
-                self.spl_client.map(|client| client.callback(spl));
+                self.spl_client
+                    .map(|client| client.callback(ReturnCode::SUCCESS, spl));
             }
         }
     }

@@ -127,14 +127,16 @@ impl<'a> SoundPressureSensor<'a> {
 }
 
 impl hil::sensors::SoundPressureClient for SoundPressureSensor<'_> {
-    fn callback(&self, sound_val: u8) {
+    fn callback(&self, ret: ReturnCode, sound_val: u8) {
         for cntr in self.apps.iter() {
             cntr.enter(|app, _| {
                 if app.subscribed {
                     self.busy.set(false);
                     app.subscribed = false;
-                    app.callback
-                        .map(|mut cb| cb.schedule(sound_val.into(), 0, 0));
+                    if ret == ReturnCode::SUCCESS {
+                        app.callback
+                            .map(|mut cb| cb.schedule(sound_val.into(), 0, 0));
+                    }
                 }
             });
         }
