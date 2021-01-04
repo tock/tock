@@ -121,7 +121,8 @@ impl<'a, I: InterruptService<()> + 'a> ArtyExx<'a, I> {
             addi t0, t0, %lo(_start_trap)
             ori  t0, t0, 0x02 // Set CLIC direct mode
             csrw 0x305, t0    // Write the mtvec CSR.
-            "
+            ",
+            out("t0") _
         );
     }
 
