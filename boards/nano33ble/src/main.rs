@@ -374,7 +374,7 @@ pub unsafe fn reset_handler() {
 
     // Start all of the clocks. Low power operation will require a better
     // approach than this.
-    nrf52_components::NrfClockComponent::new().finalize(());
+    nrf52_components::NrfClockComponent::new(&base_peripherals.clock).finalize(());
 
     let platform = Platform {
         ble_radio,

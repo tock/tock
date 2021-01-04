@@ -160,8 +160,6 @@ pub trait ClockClient {
     fn event(&self);
 }
 
-pub static mut CLOCK: Clock = Clock::new();
-
 impl Clock {
     /// Constructor
     pub const fn new() -> Clock {

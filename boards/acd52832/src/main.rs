@@ -142,11 +142,11 @@ pub unsafe fn reset_handler() {
 
     // Make non-volatile memory writable and activate the reset button
     let uicr = nrf52832::uicr::Uicr::new();
-    nrf52832::nvmc::NVMC.erase_uicr();
-    nrf52832::nvmc::NVMC.configure_writeable();
-    while !nrf52832::nvmc::NVMC.is_ready() {}
+    base_peripherals.nvmc.erase_uicr();
+    base_peripherals.nvmc.configure_writeable();
+    while !base_peripherals.nvmc.is_ready() {}
     uicr.set_psel0_reset_pin(BUTTON_RST_PIN);
-    while !nrf52832::nvmc::NVMC.is_ready() {}
+    while !base_peripherals.nvmc.is_ready() {}
     uicr.set_psel1_reset_pin(BUTTON_RST_PIN);
 
     // Configure kernel debug gpios as early as possible
@@ -445,14 +445,16 @@ pub unsafe fn reset_handler() {
 
     // Start all of the clocks. Low power operation will require a better
     // approach than this.
-    nrf52832::clock::CLOCK.low_stop();
-    nrf52832::clock::CLOCK.high_stop();
+    base_peripherals.clock.low_stop();
+    base_peripherals.clock.high_stop();
 
-    nrf52832::clock::CLOCK.low_set_source(nrf52832::clock::LowClockSource::XTAL);
-    nrf52832::clock::CLOCK.low_start();
-    nrf52832::clock::CLOCK.high_start();
-    while !nrf52832::clock::CLOCK.low_started() {}
-    while !nrf52832::clock::CLOCK.high_started() {}
+    base_peripherals
+        .clock
+        .low_set_source(nrf52832::clock::LowClockSource::XTAL);
+    base_peripherals.clock.low_start();
+    base_peripherals.clock.high_start();
+    while !base_peripherals.clock.low_started() {}
+    while !base_peripherals.clock.high_started() {}
 
     let platform = Platform {
         button: button,
