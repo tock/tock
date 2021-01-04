@@ -236,7 +236,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
           // Afterwards, set the following bits in mstatus:
           //   0x00000080 -> bit 7 -> MPIE (enable interrupts on mret)
           li t0, 0x00000080
-          csrrs x0, 0x300, t0
+          csrrs x0, 0x300, t0      // set bits in mstatus, don't care about read
 
 
           // Store the address to jump back to on the stack so that the trap
