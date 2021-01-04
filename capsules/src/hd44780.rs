@@ -136,7 +136,7 @@ pub struct HD44780<'a, A: Alarm<'a>> {
     begin_done: Cell<bool>,
     initialized: Cell<bool>,
 
-    text_screen_client: OptionalCell<&'static dyn TextScreenClient>,
+    text_screen_client: OptionalCell<&'a dyn TextScreenClient>,
 
     done_printing: Cell<bool>,
 
@@ -583,7 +583,7 @@ impl<'a, A: Alarm<'a>> time::AlarmClient for HD44780<'a, A> {
     }
 }
 
-impl<'a, A: Alarm<'a>> TextScreen for HD44780<'a, A> {
+impl<'a, A: Alarm<'a>> TextScreen<'a> for HD44780<'a, A> {
     fn get_size(&self) -> (usize, usize) {
         (16, 2)
     }
@@ -655,7 +655,7 @@ impl<'a, A: Alarm<'a>> TextScreen for HD44780<'a, A> {
         self.screen_command(2, 0, 0)
     }
 
-    fn set_client(&self, client: Option<&'static dyn TextScreenClient>) {
+    fn set_client(&self, client: Option<&'a dyn TextScreenClient>) {
         if let Some(client) = client {
             self.text_screen_client.set(client);
         } else {

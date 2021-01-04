@@ -65,7 +65,7 @@ impl Default for App {
 }
 
 pub struct TextScreen<'a> {
-    text_screen: &'a dyn hil::text_screen::TextScreen,
+    text_screen: &'a dyn hil::text_screen::TextScreen<'static>,
     apps: Grant<App>,
     screen_ready: Cell<bool>,
     current_app: OptionalCell<AppId>,
@@ -74,7 +74,7 @@ pub struct TextScreen<'a> {
 
 impl<'a> TextScreen<'a> {
     pub fn new(
-        text_screen: &'a dyn hil::text_screen::TextScreen,
+        text_screen: &'static dyn hil::text_screen::TextScreen,
         buffer: &'static mut [u8],
         grant: Grant<App>,
     ) -> TextScreen<'a> {

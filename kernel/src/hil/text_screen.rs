@@ -1,8 +1,8 @@
 //! Interface for text screen and displays.
 use crate::returncode::ReturnCode;
 
-pub trait TextScreen {
-    fn set_client(&self, client: Option<&'static dyn TextScreenClient>);
+pub trait TextScreen<'a> {
+    fn set_client(&self, client: Option<&'a dyn TextScreenClient>);
 
     /// Returns a tuple (width, height) with the resolution of the
     /// screen that is being used. This function is synchronous as the
