@@ -8,7 +8,7 @@ use core::ops::FnOnce;
 /// NOP instruction
 pub fn nop() {
     unsafe {
-        asm!("nop", options(nomem, nostack));
+        asm!("nop", options(nomem, nostack, preserves_flags));
     }
 }
 
