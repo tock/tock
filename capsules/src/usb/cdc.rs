@@ -162,6 +162,15 @@ pub struct CdcAcm<'a, U: 'a, A: 'a + Alarm<'a>> {
     /// Flag to mark we need a deferred call to signal a callback after an RX
     /// abort occurs.
     deferred_call_pending_abortrx: Cell<bool>,
+
+    /// Optional host-initiated function. This function (if supplied) is called
+    /// when the host sends a special message to the device. The normal signal
+    /// for calling this function is the host configuring the baud rate to be
+    /// 1200 baud.
+    ///
+    /// This was originally added for the bootloader to allow the host to tell
+    /// the device to enter bootloader mode.
+    host_initiated_function: Option<&'a (dyn Fn() + 'a)>,
 }
 
 impl<'a, U: hil::usb::UsbController<'a>, A: 'a + Alarm<'a>> CdcAcm<'a, U, A> {
@@ -173,6 +182,7 @@ impl<'a, U: hil::usb::UsbController<'a>, A: 'a + Alarm<'a>> CdcAcm<'a, U, A> {
         strings: &'static [&'static str; 3],
         timeout_alarm: &'a A,
         deferred_caller: &'a DynamicDeferredCall,
+        host_initiated_function: Option<&'a (dyn Fn() + 'a)>,
     ) -> Self {
         let interfaces: &mut [InterfaceDescriptor] = &mut [
             InterfaceDescriptor {
@@ -295,6 +305,7 @@ impl<'a, U: hil::usb::UsbController<'a>, A: 'a + Alarm<'a>> CdcAcm<'a, U, A> {
             handle: OptionalCell::empty(),
             deferred_call_pending_droptx: Cell::new(false),
             deferred_call_pending_abortrx: Cell::new(false),
+            host_initiated_function,
         }
     }
 
@@ -416,6 +427,15 @@ impl<'a, U: hil::usb::UsbController<'a>, A: 'a + Alarm<'a>> hil::usb::Client<'a>
                     // configuring the baud rate to what we expect.
                     if self.state.get() == State::Enumerated && line_coding.baud_rate == 115200 {
                         self.state.set(State::Connecting);
+                    }
+
+                    // Check if the baud rate we got matches the special flag
+                    // value (1200 baud). If so, we run an optional function
+                    // provided when the CDC stack was configured.
+                    if line_coding.baud_rate == 1200 {
+                        self.host_initiated_function.map(|f| {
+                            f();
+                        });
                     }
                 },
             );
