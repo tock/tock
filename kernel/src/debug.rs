@@ -92,7 +92,7 @@ pub trait IoWrite {
 ///
 /// **NOTE:** The supplied `writer` must be synchronous.
 pub unsafe fn panic<L: hil::led::Led, W: Write + IoWrite, C: Chip>(
-    leds: &mut [&mut L],
+    leds: &mut [&L],
     writer: &mut W,
     panic_info: &PanicInfo,
     nop: &dyn Fn(),
@@ -171,7 +171,7 @@ pub unsafe fn panic_process_info<W: Write>(
 /// boards may find it appropriate to blink multiple LEDs (e.g.
 /// one on the top and one on the bottom), thus this method
 /// accepts an array, however most will only need one.
-pub fn panic_blink_forever<L: hil::led::Led>(leds: &mut [&mut L]) -> ! {
+pub fn panic_blink_forever<L: hil::led::Led>(leds: &mut [&L]) -> ! {
     leds.iter_mut().for_each(|led| led.init());
     loop {
         for _ in 0..1000000 {

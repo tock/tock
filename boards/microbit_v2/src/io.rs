@@ -67,18 +67,18 @@ struct MatrixLed(
 );
 
 impl led::Led for MatrixLed {
-    fn init(&mut self) {
+    fn init(&self) {
         self.0.make_output();
         self.1.make_output();
         self.1.clear();
     }
-    fn on(&mut self) {
+    fn on(&self) {
         self.1.set();
     }
-    fn off(&mut self) {
+    fn off(&self) {
         self.1.clear();
     }
-    fn toggle(&mut self) {
+    fn toggle(&self) {
         self.1.toggle();
     }
     fn read(&self) -> bool {
