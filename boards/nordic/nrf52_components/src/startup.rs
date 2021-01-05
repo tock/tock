@@ -9,23 +9,30 @@ use kernel::component::Component;
 use nrf52::gpio::Pin;
 use nrf52::uicr::Regulator0Output;
 
-pub struct NrfStartupComponent {
+pub struct NrfStartupComponent<'a> {
     nfc_as_gpios: bool,
     button_rst_pin: Pin,
     reg_vout: Regulator0Output,
+    nvmc: &'a nrf52::nvmc::Nvmc,
 }
 
-impl NrfStartupComponent {
-    pub fn new(nfc_as_gpios: bool, button_rst_pin: Pin, reg_vout: Regulator0Output) -> Self {
+impl<'a> NrfStartupComponent<'a> {
+    pub fn new(
+        nfc_as_gpios: bool,
+        button_rst_pin: Pin,
+        reg_vout: Regulator0Output,
+        nvmc: &'a nrf52::nvmc::Nvmc,
+    ) -> Self {
         Self {
             nfc_as_gpios,
             button_rst_pin,
             reg_vout,
+            nvmc,
         }
     }
 }
 
-impl Component for NrfStartupComponent {
+impl<'a> Component for NrfStartupComponent<'a> {
     type StaticInput = ();
     type Output = ();
     unsafe fn finalize(self, _s: Self::StaticInput) -> Self::Output {
@@ -47,11 +54,11 @@ impl Component for NrfStartupComponent {
         }
 
         if erase_uicr {
-            nrf52::nvmc::NVMC.erase_uicr();
+            self.nvmc.erase_uicr();
         }
 
-        nrf52::nvmc::NVMC.configure_writeable();
-        while !nrf52::nvmc::NVMC.is_ready() {}
+        self.nvmc.configure_writeable();
+        while !self.nvmc.is_ready() {}
 
         let mut needs_soft_reset: bool = false;
 
@@ -61,7 +68,7 @@ impl Component for NrfStartupComponent {
             .map_or(true, |pin| pin != self.button_rst_pin)
         {
             uicr.set_psel0_reset_pin(self.button_rst_pin);
-            while !nrf52::nvmc::NVMC.is_ready() {}
+            while !self.nvmc.is_ready() {}
             needs_soft_reset = true;
         }
         if uicr
@@ -69,21 +76,21 @@ impl Component for NrfStartupComponent {
             .map_or(true, |pin| pin != self.button_rst_pin)
         {
             uicr.set_psel1_reset_pin(self.button_rst_pin);
-            while !nrf52::nvmc::NVMC.is_ready() {}
+            while !self.nvmc.is_ready() {}
             needs_soft_reset = true;
         }
 
         // Configure voltage regulator output
         if uicr.get_vout() != self.reg_vout {
             uicr.set_vout(self.reg_vout);
-            while !nrf52::nvmc::NVMC.is_ready() {}
+            while !self.nvmc.is_ready() {}
             needs_soft_reset = true;
         }
 
         // Check if we need to free the NFC pins for GPIO
         if self.nfc_as_gpios {
             uicr.set_nfc_pins_protection(true);
-            while !nrf52::nvmc::NVMC.is_ready() {}
+            while !self.nvmc.is_ready() {}
             needs_soft_reset = true;
         }
 
@@ -94,28 +101,31 @@ impl Component for NrfStartupComponent {
     }
 }
 
-pub struct NrfClockComponent {}
+pub struct NrfClockComponent<'a> {
+    clock: &'a nrf52::clock::Clock,
+}
 
-impl NrfClockComponent {
-    pub fn new() -> Self {
-        Self {}
+impl<'a> NrfClockComponent<'a> {
+    pub fn new(clock: &'a nrf52::clock::Clock) -> Self {
+        Self { clock }
     }
 }
 
-impl Component for NrfClockComponent {
+impl<'a> Component for NrfClockComponent<'a> {
     type StaticInput = ();
     type Output = ();
     unsafe fn finalize(self, _s: Self::StaticInput) -> Self::Output {
         // Start all of the clocks. Low power operation will require a better
         // approach than this.
-        nrf52::clock::CLOCK.low_stop();
-        nrf52::clock::CLOCK.high_stop();
+        self.clock.low_stop();
+        self.clock.high_stop();
 
-        nrf52::clock::CLOCK.low_set_source(nrf52::clock::LowClockSource::XTAL);
-        nrf52::clock::CLOCK.low_start();
-        nrf52::clock::CLOCK.high_start();
-        while !nrf52::clock::CLOCK.low_started() {}
-        while !nrf52::clock::CLOCK.high_started() {}
+        self.clock
+            .low_set_source(nrf52::clock::LowClockSource::XTAL);
+        self.clock.low_start();
+        self.clock.high_start();
+        while !self.clock.low_started() {}
+        while !self.clock.high_started() {}
     }
 }
 

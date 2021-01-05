@@ -54,6 +54,7 @@ pub struct CdcAcmComponent<
     strings: &'static [&'static str; 3],
     alarm_mux: &'static MuxAlarm<'static, A>,
     deferred_caller: &'static DynamicDeferredCall,
+    host_initiated_function: Option<&'static (dyn Fn() + 'static)>,
 }
 
 impl<U: 'static + hil::usb::UsbController<'static>, A: 'static + Alarm<'static>>
@@ -67,6 +68,7 @@ impl<U: 'static + hil::usb::UsbController<'static>, A: 'static + Alarm<'static>>
         strings: &'static [&'static str; 3],
         alarm_mux: &'static MuxAlarm<'static, A>,
         deferred_caller: &'static DynamicDeferredCall,
+        host_initiated_function: Option<&'static (dyn Fn() + 'static)>,
     ) -> Self {
         Self {
             usb,
@@ -76,6 +78,7 @@ impl<U: 'static + hil::usb::UsbController<'static>, A: 'static + Alarm<'static>>
             strings,
             alarm_mux,
             deferred_caller,
+            host_initiated_function,
         }
     }
 }
@@ -108,6 +111,7 @@ impl<U: 'static + hil::usb::UsbController<'static>, A: 'static + Alarm<'static>>
                 self.strings,
                 cdc_alarm,
                 self.deferred_caller,
+                self.host_initiated_function,
             )
         );
         self.usb.set_client(cdc);

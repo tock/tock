@@ -671,10 +671,12 @@ pub enum BulkOutState {
     // There is a pending OUT packet in this endpoint's buffer, to be read by
     // the client application.
     OutDelay,
-    // There is a pending EPDATA to reply to.
-    OutData,
-    // There is a pending DMA transfer on this OUT endpoint.
-    OutDma,
+    // There is a pending EPDATA to reply to. Store the size right after the
+    // EPDATA event.
+    OutData { size: u32 },
+    // There is a pending DMA transfer on this OUT endpoint. Still need to keep
+    // track of the size of the transfer.
+    OutDma { size: u32 },
 }
 
 pub struct Endpoint<'a> {
@@ -1433,10 +1435,15 @@ impl<'a> Usbd<'a> {
             }
             1..=7 => {
                 // Notify the client about the new packet.
-                let packet_bytes = self.registers.size_epout[endpoint].get();
                 let (transfer_type, in_state, out_state) =
                     self.descriptors[endpoint].state.get().bulk_state();
-                assert_eq!(out_state, Some(BulkOutState::OutDma));
+                assert!(matches!(out_state, Some(BulkOutState::OutDma { .. })));
+
+                let packet_bytes = if let Some(BulkOutState::OutDma { size }) = out_state {
+                    size
+                } else {
+                    0
+                };
 
                 self.debug_out_packet(packet_bytes as usize, endpoint);
 
@@ -1445,8 +1452,10 @@ impl<'a> Usbd<'a> {
                     debug_packets!("packet_out => {:?}", result);
                     let new_out_state = match result {
                         hil::usb::OutResult::Ok => {
-                            // Indicate that the endpoint is ready to receive data again.
-                            self.registers.size_epout[endpoint].set(0);
+                            // We do not need to do anything to tell the USB
+                            // hardware this endpoint is ready to receive again.
+                            // The DMA finishing is enough to signal the
+                            // endpoint is ready.
                             BulkOutState::Init
                         }
 
@@ -1556,6 +1565,15 @@ impl<'a> Usbd<'a> {
                 let (transfer_type, in_state, out_state) =
                     self.descriptors[ep].state.get().bulk_state();
                 assert!(out_state.is_some());
+
+                // We need to read the size at this point in the process (i.e.
+                // immediately after getting the EPDATA event). At this point
+                // the USB hardware has received the data, but we need DMA to
+                // copy the data to memory. Later on the EPOUT.SIZE register can
+                // be overwritten, particularly if the host is sending OUT
+                // transactions quickly.
+                let ep_size = self.registers.size_epout[ep].get();
+
                 match out_state.unwrap() {
                     BulkOutState::Init => {
                         // The endpoint is ready to receive data. Request a transmit_out.
@@ -1564,7 +1582,7 @@ impl<'a> Usbd<'a> {
                     BulkOutState::OutDelay => {
                         // The endpoint will be resumed later by the client application with transmit_out().
                     }
-                    BulkOutState::OutData | BulkOutState::OutDma => {
+                    BulkOutState::OutData { size: _ } | BulkOutState::OutDma { size: _ } => {
                         internal_err!("Unexpected state: {:?}", out_state);
                     }
                 }
@@ -1572,7 +1590,7 @@ impl<'a> Usbd<'a> {
                 self.descriptors[ep].state.set(EndpointState::Bulk(
                     transfer_type,
                     in_state,
-                    Some(BulkOutState::OutData),
+                    Some(BulkOutState::OutData { size: ep_size }),
                 ));
             }
         }
@@ -1817,13 +1835,19 @@ impl<'a> Usbd<'a> {
         let (transfer_type, in_state, out_state) =
             self.descriptors[endpoint].state.get().bulk_state();
         // Starting the DMA can only happen in the OutData state, i.e. after an EPDATA event.
-        assert_eq!(out_state, Some(BulkOutState::OutData));
+        assert!(matches!(out_state, Some(BulkOutState::OutData { .. })));
         self.start_dma_out(endpoint);
+
+        let size = if let Some(BulkOutState::OutData { size }) = out_state {
+            size
+        } else {
+            0
+        };
 
         self.descriptors[endpoint].state.set(EndpointState::Bulk(
             transfer_type,
             in_state,
-            Some(BulkOutState::OutDma),
+            Some(BulkOutState::OutDma { size }),
         ));
     }
 
@@ -2064,7 +2088,7 @@ impl<'a> hil::usb::UsbController<'a> for Usbd<'a> {
                     Some(BulkOutState::Init),
                 ));
             }
-            BulkOutState::OutData => {
+            BulkOutState::OutData { size: _ } => {
                 // Although the client reported a delay before, an EPDATA event has
                 // happened in the meantime. This pending transaction will now
                 // continue in transmit_out().
@@ -2077,7 +2101,7 @@ impl<'a> hil::usb::UsbController<'a> for Usbd<'a> {
                     self.transmit_out(endpoint);
                 }
             }
-            BulkOutState::Init | BulkOutState::OutDma => {
+            BulkOutState::Init | BulkOutState::OutDma { size: _ } => {
                 internal_err!("Unexpected state: {:?}", out_state);
             }
         }
