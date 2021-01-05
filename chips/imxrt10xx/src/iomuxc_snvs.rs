@@ -161,10 +161,8 @@ pub struct IomuxcSnvs {
     registers: StaticRef<IomuxcSnvsRegisters>,
 }
 
-pub static mut IOMUXC_SNVS: IomuxcSnvs = IomuxcSnvs::new();
-
 impl IomuxcSnvs {
-    const fn new() -> IomuxcSnvs {
+    pub const fn new() -> IomuxcSnvs {
         IomuxcSnvs {
             registers: IOMUXC_SNVS_BASE,
         }
