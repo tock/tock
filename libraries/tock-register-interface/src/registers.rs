@@ -94,6 +94,7 @@ IntLike_impl_for!(u16);
 IntLike_impl_for!(u32);
 IntLike_impl_for!(u64);
 IntLike_impl_for!(u128);
+IntLike_impl_for!(usize);
 
 /// Descriptive name for each register.
 pub trait RegisterLongName {}
@@ -439,6 +440,7 @@ From_impl_for!(u16);
 From_impl_for!(u32);
 From_impl_for!(u64);
 From_impl_for!(u128);
+From_impl_for!(usize);
 
 /// In memory volatile register.
 // To successfully alias this structure onto hardware registers in memory, this
@@ -565,6 +567,7 @@ Field_impl_for!(u16);
 Field_impl_for!(u32);
 Field_impl_for!(u64);
 Field_impl_for!(u128);
+Field_impl_for!(usize);
 
 /// Values for the specific register fields.
 ///
@@ -607,6 +610,7 @@ FieldValue_impl_for!(u16);
 FieldValue_impl_for!(u32);
 FieldValue_impl_for!(u64);
 FieldValue_impl_for!(u128);
+FieldValue_impl_for!(usize);
 
 impl<T: IntLike, R: RegisterLongName> FieldValue<T, R> {
     /// Get the raw bitmask represented by this FieldValue.
