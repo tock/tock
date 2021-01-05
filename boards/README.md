@@ -24,7 +24,7 @@ that Tock supports.
 | [Teensy 4.0](teensy40/README.md)                                     | ARM Cortex-M7   | i.MX RT 1062   | custom     | custom         | No                |
 | [SiFive HiFive1 Rev B](hifive1/README.md)                            | RISC-V          | FE310-G002     | openocd    | tockloader     | [Yes (5.1)][qemu] |
 | [Digilent Arty A-7 100T](arty_e21/README.md)                         | RISC-V RV32IMAC | SiFive E21     | openocd    | tockloader     | No                |
-| [Earlgrey on Nexys Video](earlgrey_nexysvideo/README.md)             | RISC-V RV32IMC  | EarlGrey       | custom     | custom         | [Yes (5.1)][qemu] |
+| [Earlgrey on Nexys Video](earlgrey-nexysvideo/README.md)             | RISC-V RV32IMC  | EarlGrey       | custom     | custom         | [Yes (5.1)][qemu] |
 | [LiteX on Digilent Arty A-7](litex/arty/README.md)                   | RISC-V RV32I    | LiteX+VexRiscV | custom     | custom         | No                |
 | [Verilated LiteX Simulation](litex/sim/README.md)                    | RISC-V RV32I    | LiteX+VexRiscv | custom     | custom         | No                |
 
