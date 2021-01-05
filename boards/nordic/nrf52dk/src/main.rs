@@ -269,6 +269,7 @@ pub unsafe fn reset_handler() {
         false,
         BUTTON_RST_PIN,
         nrf52832::uicr::Regulator0Output::DEFAULT,
+        &base_peripherals.nvmc,
     )
     .finalize(());
 
@@ -346,7 +347,7 @@ pub unsafe fn reset_handler() {
         nrf52832::acomp::Comparator
     ));
 
-    nrf52_components::NrfClockComponent::new().finalize(());
+    nrf52_components::NrfClockComponent::new(&base_peripherals.clock).finalize(());
 
     let platform = Platform {
         button,
