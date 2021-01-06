@@ -316,7 +316,7 @@ enum USARTStateRX {
 
 pub struct Lpuart<'a> {
     registers: StaticRef<LpuartRegisters>,
-    clock: LpuartClock,
+    clock: LpuartClock<'a>,
 
     tx_client: OptionalCell<&'a dyn hil::uart::TransmitClient>,
     rx_client: OptionalCell<&'a dyn hil::uart::ReceiveClient>,
@@ -332,18 +332,22 @@ pub struct Lpuart<'a> {
     rx_status: Cell<USARTStateRX>,
 }
 
-pub static mut LPUART1: Lpuart = Lpuart::new(
-    LPUART1_BASE,
-    LpuartClock(ccm::PeripheralClock::CCGR5(ccm::HCLK5::LPUART1)),
-);
-
-pub static mut LPUART2: Lpuart = Lpuart::new(
-    LPUART2_BASE,
-    LpuartClock(ccm::PeripheralClock::CCGR0(ccm::HCLK0::LPUART2)),
-);
-
 impl<'a> Lpuart<'a> {
-    const fn new(base_addr: StaticRef<LpuartRegisters>, clock: LpuartClock) -> Lpuart<'a> {
+    pub const fn new_lpuart1(ccm: &'a ccm::Ccm) -> Self {
+        Lpuart::new(
+            LPUART1_BASE,
+            LpuartClock(ccm::PeripheralClock::ccgr5(ccm, ccm::HCLK5::LPUART1)),
+        )
+    }
+
+    pub const fn new_lpuart2(ccm: &'a ccm::Ccm) -> Self {
+        Lpuart::new(
+            LPUART2_BASE,
+            LpuartClock(ccm::PeripheralClock::ccgr0(ccm, ccm::HCLK0::LPUART2)),
+        )
+    }
+
+    const fn new(base_addr: StaticRef<LpuartRegisters>, clock: LpuartClock<'a>) -> Lpuart<'a> {
         Lpuart {
             registers: base_addr,
             clock: clock,
@@ -567,12 +571,7 @@ impl<'a> hil::uart::Configure for Lpuart<'a> {
             );
         }
 
-        unsafe {
-            self.disable_clock();
-            ccm::CCM.disable_uart_clock_mux();
-            ccm::CCM.disable_uart_clock_podf();
-            self.enable_clock();
-        }
+        self.enable_clock();
         // Reset the LPUART using software
         self.registers.global.modify(GLOBAL::RST::SET);
         self.registers.global.modify(GLOBAL::RST::CLEAR);
@@ -677,9 +676,9 @@ impl<'a> hil::uart::Receive<'a> for Lpuart<'a> {
 
 impl<'a> hil::uart::UartData<'a> for Lpuart<'a> {}
 impl<'a> hil::uart::Uart<'a> for Lpuart<'a> {}
-struct LpuartClock(ccm::PeripheralClock);
+struct LpuartClock<'a>(ccm::PeripheralClock<'a>);
 
-impl ClockInterface for LpuartClock {
+impl ClockInterface for LpuartClock<'_> {
     fn is_enabled(&self) -> bool {
         self.0.is_enabled()
     }

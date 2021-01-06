@@ -1,12 +1,13 @@
-//! Driver for the LSM303DLHC 3D accelerometer and 3D magnetometer sensor.
+//! Driver for the LSM303AGR 3D accelerometer and 3D magnetometer sensor.
 //!
 //! May be used with NineDof and Temperature
 //!
 //! I2C Interface
 //!
-//! <https://www.st.com/en/mems-and-sensors/lsm303dlhc.html>
+//! <https://www.st.com/en/mems-and-sensors/lsm303agr.html>
 //!
-//! The syscall interface is described in [lsm303dlhc.md](https://github.com/tock/tock/tree/master/doc/syscalls/70006_lsm303dlhc.md)
+//! The syscall interface is described in
+//! [lsm303dlhc.md](https://github.com/tock/tock/tree/master/doc/syscalls/70006_lsm303dlhc.md)
 //!
 //! Usage
 //! -----

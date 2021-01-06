@@ -10,12 +10,13 @@
 mod fcb;
 mod io;
 
-use imxrt1060::iomuxc::{MuxMode, PadId, Sion, IOMUXC};
+use imxrt1060::gpio::PinId;
+use imxrt1060::iomuxc::{MuxMode, PadId, Sion};
 use imxrt10xx as imxrt1060;
 use kernel::capabilities;
 use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::component::Component;
-use kernel::hil::led::LedHigh;
+use kernel::hil::{gpio::Configure, led::LedHigh};
 use kernel::{create_capability, static_init};
 
 /// Number of concurrent processes this platform supports
@@ -55,46 +56,64 @@ impl kernel::Platform for Teensy40 {
     }
 }
 
-type Chip = imxrt1060::chip::Imxrt10xx;
+type Chip = imxrt1060::chip::Imxrt10xx<imxrt1060::chip::Imxrt10xxDefaultPeripherals>;
 static mut CHIP: Option<&'static Chip> = None;
 
 #[no_mangle]
 pub unsafe fn reset_handler() {
     imxrt1060::init();
-    imxrt1060::ccm::CCM.enable_iomuxc_clock();
-    imxrt1060::ccm::CCM.enable_iomuxc_snvs_clock();
+    let ccm = static_init!(imxrt1060::ccm::Ccm, imxrt1060::ccm::Ccm::new());
+    let peripherals = static_init!(
+        imxrt1060::chip::Imxrt10xxDefaultPeripherals,
+        imxrt1060::chip::Imxrt10xxDefaultPeripherals::new(ccm)
+    );
+    peripherals.ccm.set_low_power_mode();
+    peripherals.lpuart1.disable_clock();
+    peripherals.lpuart2.disable_clock();
+    peripherals
+        .ccm
+        .set_uart_clock_sel(imxrt1060::ccm::UartClockSelection::PLL3);
+    peripherals.ccm.set_uart_clock_podf(1);
 
-    imxrt1060::ccm::CCM.set_perclk_sel(imxrt1060::ccm::PerclkClockSel::Oscillator);
-    imxrt1060::ccm::CCM.set_perclk_divider(8);
+    peripherals.ccm.enable_iomuxc_clock();
+    peripherals.ccm.enable_iomuxc_snvs_clock();
 
-    imxrt1060::gpio::PinId::B0_03.get_pin().as_ref().map(|pin| {
-        use kernel::hil::gpio::Configure;
-        pin.make_output();
-    });
+    peripherals
+        .ccm
+        .set_perclk_sel(imxrt1060::ccm::PerclkClockSel::Oscillator);
+    peripherals.ccm.set_perclk_divider(8);
+
+    peripherals.ports.pin(PinId::B0_03).make_output();
 
     // Pin 13 is an LED
-    IOMUXC.enable_sw_mux_ctl_pad_gpio(PadId::B0, MuxMode::ALT5, Sion::Disabled, 3);
+    peripherals
+        .iomuxc
+        .enable_sw_mux_ctl_pad_gpio(PadId::B0, MuxMode::ALT5, Sion::Disabled, 3);
 
     // Pins 14 and 15 are UART TX and RX
-    IOMUXC.enable_sw_mux_ctl_pad_gpio(PadId::AdB1, MuxMode::ALT2, Sion::Disabled, 2);
-    IOMUXC.enable_sw_mux_ctl_pad_gpio(PadId::AdB1, MuxMode::ALT2, Sion::Disabled, 3);
+    peripherals
+        .iomuxc
+        .enable_sw_mux_ctl_pad_gpio(PadId::AdB1, MuxMode::ALT2, Sion::Disabled, 2);
+    peripherals
+        .iomuxc
+        .enable_sw_mux_ctl_pad_gpio(PadId::AdB1, MuxMode::ALT2, Sion::Disabled, 3);
 
-    IOMUXC.enable_lpuart2_tx_select_input();
-    IOMUXC.enable_lpuart2_rx_select_input();
+    peripherals.iomuxc.enable_lpuart2_tx_select_input();
+    peripherals.iomuxc.enable_lpuart2_rx_select_input();
 
-    imxrt1060::lpuart::LPUART2.enable_clock();
-    imxrt1060::lpuart::LPUART2.set_baud();
+    peripherals.lpuart2.enable_clock();
+    peripherals.lpuart2.set_baud();
 
-    imxrt1060::gpt::GPT1.enable_clock();
-    imxrt1060::gpt::GPT1.start(
-        imxrt1060::ccm::CCM.perclk_sel(),
-        imxrt1060::ccm::CCM.perclk_divider(),
+    peripherals.gpt1.enable_clock();
+    peripherals.gpt1.start(
+        peripherals.ccm.perclk_sel(),
+        peripherals.ccm.perclk_divider(),
     );
 
     cortexm7::nvic::Nvic::new(imxrt1060::nvic::GPT1).enable();
     cortexm7::nvic::Nvic::new(imxrt1060::nvic::LPUART2).enable();
 
-    let chip = static_init!(Chip, Chip::new());
+    let chip = static_init!(Chip, Chip::new(peripherals));
     CHIP = Some(chip);
 
     // Start loading the kernel
@@ -109,7 +128,7 @@ pub unsafe fn reset_handler() {
     DynamicDeferredCall::set_global_instance(dynamic_deferred_caller);
 
     let uart_mux = components::console::UartMuxComponent::new(
-        &imxrt1060::lpuart::LPUART2,
+        &peripherals.lpuart2,
         115_200,
         dynamic_deferred_caller,
     )
@@ -123,14 +142,14 @@ pub unsafe fn reset_handler() {
     // LED
     let led = components::led::LedsComponent::new(components::led_component_helper!(
         LedHigh<imxrt1060::gpio::Pin>,
-        LedHigh::new(imxrt1060::gpio::PinId::B0_03.get_pin().as_ref().unwrap())
+        LedHigh::new(peripherals.ports.pin(PinId::B0_03))
     ))
     .finalize(components::led_component_buf!(
         LedHigh<'static, imxrt1060::gpio::Pin>
     ));
 
     // Alarm
-    let mux_alarm = components::alarm::AlarmMuxComponent::new(&imxrt1060::gpt::GPT1).finalize(
+    let mux_alarm = components::alarm::AlarmMuxComponent::new(&peripherals.gpt1).finalize(
         components::alarm_mux_component_helper!(imxrt1060::gpt::Gpt1),
     );
     let alarm = components::alarm::AlarmDriverComponent::new(board_kernel, mux_alarm)

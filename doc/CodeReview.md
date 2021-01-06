@@ -2,8 +2,8 @@
 
 ## Abstract
 
-This document describes how the Tock [core working group](../wg/core.md) merges
-pull requests for and makes releases of the main Tock repository.
+This document describes how the Tock [core working group](../wg/core/README.md)
+merges pull requests for and makes releases of the main Tock repository.
 
 <!-- npm i -g markdown-toc; markdown-toc -i Abstract.md -->
 
@@ -233,7 +233,7 @@ Tock has two userland environments that are heavily developed and supported:
     - @Woyten
     - @torfmaster
     - @jrvanwhy
-   
+
    However the Tock core working group reserves the right to make final
    authoritative decisions if need merits.
 
