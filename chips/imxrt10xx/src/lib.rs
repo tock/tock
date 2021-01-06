@@ -5,6 +5,7 @@
 #![crate_name = "imxrt10xx"]
 #![crate_type = "rlib"]
 #![feature(const_fn)]
+#![feature(min_const_generics)] // Stabilized in Rust 1.51 (https://github.com/rust-lang/rust/pull/79135)
 #![no_std]
 
 pub mod chip;
@@ -242,6 +243,4 @@ pub unsafe fn init() {
     cortexm7::scb::set_vector_table_offset(
         &BASE_VECTORS as *const [unsafe extern "C" fn(); 16] as *const (),
     );
-
-    ccm::CCM.set_low_power_mode();
 }

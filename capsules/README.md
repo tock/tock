@@ -29,18 +29,28 @@ The list of Tock capsules and a brief description.
 These implement a driver to setup and read various physical sensors.
 
 - **[Analog Sensors](src/analog_sensor.rs)**: Single ADC pin sensors.
+- **[APDS9960](src/apds9960.rs)**: Proximity sensor.
 - **[FXOS8700CQ](src/fxos8700cq.rs)**: Accelerometer and magnetometer.
 - **[ISL29035](src/isl29035.rs)**: Light sensor.
-- **[L3GD20](src/l3gd20.rs)**: MEMS 3 axys digital gyroscope and temperature sensor.
-- **[LSM303](src/lsm303.rs)**: MEMS 3 axys digital accelerometer, magnetometer and temperature sensor.
+- **[L3GD20](src/l3gd20.rs)**: MEMS 3 axys digital gyroscope and temperature
+  sensor.
+- **[LSM303xx Support](src/lsm303xx.rs)**: Shared files.
+  - **[LSM303AGR](src/lsm303agr.rs)**: 3D accelerometer and 3D magnetometer
+    sensor.
+  - **[LSM303DLHC](src/lsm303dlhc.rs)**: 3D accelerometer and 3D magnetometer
+    sensor.
 - **[LPS25HB](src/lps25hb.rs)**: Pressure sensor.
 - **[MLX90614](src/mlx90614.rs)**: Infrared temperature sensor.
+- **[SHT3x](src/sht3x.rs)**: SHT3x temperature and humidity sensor.
 - **[SI7021](src/si7021.rs)**: Temperature and humidity sensor.
+- **[STM32 Temperature](src/temperature_stm.rs)**: Analog STM32 temperature
+  sensor.
 - **[TSL2561](src/tsl2561.rs)**: Light sensor.
 
 These drivers provide support for various ICs.
 
 - **[FM25CL](src/fm25cl.rs)**: FRAM chip.
+- **[FT6x06](src/ft6x06.rs)**: FT6x06 touch panel.
 - **[HD44780 LCD](src/hd44780.rs)**: HD44780 LCD screen.
 - **[LTC294X](src/ltc294x.rs)**: LTC294X series of coulomb counters.
 - **[MAX17205](src/max17205.rs)**: Battery fuel gauge.
@@ -48,6 +58,7 @@ These drivers provide support for various ICs.
 - **[MX25r6435F](src/mx25r6435f.rs)**: SPI flash chip.
 - **[PCA9544A](src/pca9544a.rs)**: Multiple port I2C selector.
 - **[SD Card](src/sdcard.rs)**: Support for SD cards.
+- **[ST77xx](src/st77xx.rs)**: ST77xx IPS screen.
 
 
 ### Wireless
@@ -65,6 +76,7 @@ Support for wireless radios.
 Protocol stacks and other libraries.
 
 - **[IEEE 802.15.4](src/ieee802154)**: 802.15.4 networking.
+- **[Networking](src/net)**: Networking stack.
 - **[USB](src/usb)**: USB 2.0.
 - **[Segger RTT](src/segger_rtt.rs)**: Segger RTT support. Provides `hil::uart`
   interface.
@@ -81,9 +93,11 @@ These capsules provide a `Driver` interface for common MCU peripherals.
 - **[DAC](src/dac.rs)**: Digital to analog conversion.
 - **[GPIO](src/gpio.rs)**: GPIO configuring and control.
 - **[I2C_MASTER](src/i2c_master.rs)**: I2C master access only.
-- **[I2C_MASTER_SLAVE](src/i2c_master_slave_driver.rs)**: I2C master and slave access.
+- **[I2C_MASTER_SLAVE](src/i2c_master_slave_driver.rs)**: I2C master and slave
+  access.
 - **[RNG](src/rng.rs)**: Random number generation.
-- **[SPI Controller](src/spi_controller.rs)**: SPI controller device (SPI master)
+- **[SPI Controller](src/spi_controller.rs)**: SPI controller device (SPI
+  master)
 - **[SPI Peripheral](src/spi_peripheral.rs)**: SPI peripheral device (SPI slave)
 
 
@@ -97,9 +111,14 @@ These provide common and better abstractions for userspace.
 - **[Button](src/button.rs)**: Detect button presses.
 - **[Buzzer](src/buzzer_driver.rs)**: Simple buzzer.
 - **[Console](src/console.rs)**: UART console support.
+- **[CTAP](src/ctap.rs)**: Client to Authenticator Protocol (CTAP) support.
 - **[Humidity](src/humidity.rs)**: Query humidity sensors.
 - **[LED](src/led.rs)**: Turn on and off LEDs.
+- **[LED Matrix](src/led_matrix.rs)**: Control a 2D array of LEDs.
+- **[Proximity](src/proximity.rs)**: Proximity sensors.
+- **[Screen](src/screen.rs)**: Displays and screens.
 - **[Temperature](src/temperature.rs)**: Query temperature sensors.
+- **[Touch](src/touch.rs)**: User touch panels.
 
 
 ### Virtualized Sensor Capsules for Userspace
@@ -109,22 +128,27 @@ simultaneously) support for generic sensor interfaces.
 
 - **[Asynchronous GPIO](src/gpio_async.rs)**: GPIO pins accessed by split-phase
   calls.
-- **[9DOF](src/ninedof.rs)**: 9DOF sensors (acceleration, magnetometer, gyroscope).
-- **[Nonvolatile Storage](src/nonvolatile_storage_driver.rs)**: Persistent storage for
-  userspace.
+- **[9DOF](src/ninedof.rs)**: 9DOF sensors (acceleration, magnetometer,
+  gyroscope).
+- **[Nonvolatile Storage](src/nonvolatile_storage_driver.rs)**: Persistent
+  storage for userspace.
 
 
 ### Virtualized Hardware Resources
 
 These allow for multiple users of shared hardware resources in the kernel.
 
+- **[Virtual ADC](src/virtual_adc.rs)**: Shared single ADC channel.
+- **[Virtual AES-CCM](src/virtual_aes_ccm.rs)**: Shared AES-CCM engine.
 - **[Virtual Alarm](src/virtual_alarm.rs)**: Shared alarm resource.
 - **[Virtual Digest](src/virtual_digest.rs)**: Shared digest resource.
 - **[Virtual Flash](src/virtual_flash.rs)**: Shared flash resource.
 - **[Virtual HMAC](src/virtual_hmac.rs)**: Shared HMAC resource.
 - **[Virtual I2C](src/virtual_i2c.rs)**: Shared I2C and fixed addresses.
 - **[Virtual PWM](src/virtual_pwm.rs)**: Shared PWM hardware.
+- **[Virtual RNG](src/virtual_rng.rs)**: Shared random number generator.
 - **[Virtual SPI](src/virtual_spi.rs)**: Shared SPI and fixed chip select pins.
+- **[Virtual Timer](src/virtual_timer.rs)**: Shared timer.
 - **[Virtual UART](src/virtual_uart.rs)**: Shared UART bus.
 
 
@@ -134,9 +158,11 @@ Other capsules that implement reusable logic.
 
 - **[Nonvolatile to Pages](src/nonvolatile_to_pages.rs)**: Map arbitrary reads
   and writes to flash pages.
-- **[AES Encryption](src/aes_ccm.rs)**: AES-CCM encryption.
-- **[HMAC](src/hmac.rs)**: Hash-based Message Authentication Code (HMAC) digest engine.
-- **[Log Storage](src/log_storage.rs)**: Log storage abstraction on top of flash devices.
+- **[HMAC](src/hmac.rs)**: Hash-based Message Authentication Code (HMAC) digest
+  engine.
+- **[Log Storage](src/log.rs)**: Log storage abstraction on top of flash
+  devices.
+- **[Bus Adapters](src/bus.rs)**: Generic abstraction for SPI/I2C/8080.
 
 
 ### Debugging Capsules
@@ -148,5 +174,6 @@ various elements of Tock.
   to enter a fault state when a button is pressed.
 - **[Low-Level Debug](src/low_level_debug)**: Provides system calls for
   low-level debugging tasks, such as debugging toolchain and relocation issues.
+- **[Panic Button](src/panic_button.rs)**: Use a button to force a `panic!()`.
 - **[Process Console](src/process_console.rs)**: Provide a UART console to
   inspect the status of process and stop/start them.

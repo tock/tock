@@ -1,6 +1,6 @@
 //! Debug capsule to cause a button press to trigger a kernel panic.
 //!
-//! This can be useful especially when developping or debugging console
+//! This can be useful especially when developing or debugging console
 //! capsules.
 //!
 //! Usage

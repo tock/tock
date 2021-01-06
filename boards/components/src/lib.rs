@@ -45,6 +45,7 @@ pub mod st77xx;
 pub mod temperature;
 pub mod temperature_stm;
 pub mod test;
+pub mod text_screen;
 pub mod touch;
 pub mod udp_driver;
 pub mod udp_mux;

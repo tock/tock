@@ -142,7 +142,7 @@ register_bitfields![u32,
     ]
 ];
 
-const PAGE_SIZE: usize = 1024;
+const PAGE_SIZE: usize = 512;
 
 pub struct LowRiscPage(pub [u8; PAGE_SIZE as usize]);
 
@@ -465,7 +465,7 @@ impl hil::flash::Flash for FlashCtrl<'_> {
 
         // Write the data until we are full or have written all the data
         while !self.registers.status.is_set(STATUS::PROG_FULL)
-            && self.write_index.get() < buf.0.len()
+            && self.write_index.get() < (buf.0.len() - 4)
         {
             let buf_offset = self.write_index.get();
             let data: u32 = buf[buf_offset] as u32

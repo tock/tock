@@ -6,7 +6,7 @@ For more information, visit the
 [Teensy 4.0 Development Board](https://www.pjrc.com/store/teensy40.html)
 product page.
 
-The board may suffice for the [Teensy **4.1** development board](t41), which
+The board may suffice for the [Teensy **4.1** development board][t41], which
 shares common pins and a larger amount of flash memory. However, the board
 will not contain features that are only available on the Teensy 4.1 development
 board, such as extended flash memory and RAM, an on-board SD card, or ethernet.

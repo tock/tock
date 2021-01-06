@@ -9,14 +9,14 @@ use kernel::hil::{
 use crate::imxrt1060::gpio;
 use crate::imxrt1060::lpuart;
 
-struct Writer {
-    output: &'static mut lpuart::Lpuart<'static>,
+struct Writer<'a> {
+    output: &'a mut lpuart::Lpuart<'a>,
 }
 
 const BAUD_RATE: u32 = 115_200;
 
-impl Writer {
-    pub unsafe fn new(output: &'static mut lpuart::Lpuart) -> Self {
+impl<'a> Writer<'a> {
+    pub unsafe fn new(output: &'a mut lpuart::Lpuart<'a>) -> Self {
         output.configure(uart::Parameters {
             baud_rate: BAUD_RATE,
             stop_bits: uart::StopBits::One,
@@ -29,7 +29,7 @@ impl Writer {
     }
 }
 
-impl IoWrite for Writer {
+impl IoWrite for Writer<'_> {
     fn write(&mut self, bytes: &[u8]) {
         for byte in bytes {
             self.output.send_byte(*byte);
@@ -37,7 +37,7 @@ impl IoWrite for Writer {
     }
 }
 
-impl Write for Writer {
+impl Write for Writer<'_> {
     fn write_str(&mut self, s: &str) -> fmt::Result {
         self.write(s.as_bytes());
         Ok(())
@@ -47,8 +47,11 @@ impl Write for Writer {
 #[no_mangle]
 #[panic_handler]
 unsafe fn panic_handler(panic_info: &core::panic::PanicInfo) -> ! {
-    let led = &mut led::LedHigh::new(gpio::PinId::B0_03.get_pin_mut().as_mut().unwrap());
-    let mut writer = Writer::new(&mut lpuart::LPUART2);
+    let ccm = crate::imxrt1060::ccm::Ccm::new();
+    let ports = imxrt10xx::gpio::Ports::new(&ccm);
+    let led = &mut led::LedHigh::new(ports.pin(gpio::PinId::B0_03));
+    let mut lpuart2 = lpuart::Lpuart::new_lpuart2(&ccm);
+    let mut writer = Writer::new(&mut lpuart2);
     debug::panic(
         &mut [led],
         &mut writer,
