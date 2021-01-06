@@ -391,6 +391,8 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
              \r\n R15: {:#010X}    R31: {:#010X}\
              \r\n PC : {:#010X}\
              \r\n SP:  {:#010X}\
+             \r\n\
+             \r\n MCAUSE: {:#010X}\
              \r\n",
             0,
             state.regs[15],
@@ -426,6 +428,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
             state.regs[30],
             state.pc,
             stack_pointer as usize,
+            state.mcause,
         ));
     }
 }
