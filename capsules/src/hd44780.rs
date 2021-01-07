@@ -69,7 +69,7 @@ static LCD_ENTRYSHIFTDECREMENT: u8 = 0x00;
 /// flags for display on/off control
 static LCD_DISPLAYON: u8 = 0x04;
 static LCD_CURSORON: u8 = 0x02;
-static LCD_BLINKON: u8 = 0x04;
+static LCD_BLINKON: u8 = 0x01;
 static LCD_BLINKOFF: u8 = 0x00;
 
 /// flags for function set
