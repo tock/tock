@@ -158,14 +158,8 @@ unsafe fn set_pin_primary_functions(
     });
 
     // Enable clocks for GPIO Ports
-    // Ports A and C are already enabled
+    // Ports A and C enabled above, Port B is the only other board-exposed port
     gpio_ports.get_port_from_port_id(PortId::B).enable_clock();
-    // The ports below are not exposed on the WeAct board, uncomment if needed
-    // gpio_ports.get_port_from_port_id(PortId::D).enable_clock();
-    // gpio_ports.get_port_from_port_id(PortId::E).enable_clock();
-    // gpio_ports.get_port_from_port_id(PortId::F).enable_clock();
-    // gpio_ports.get_port_from_port_id(PortId::G).enable_clock();
-    // gpio_ports.get_port_from_port_id(PortId::H).enable_clock();
 }
 
 /// Helper function for miscellaneous peripheral functions
