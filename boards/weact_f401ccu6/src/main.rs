@@ -252,28 +252,7 @@ pub unsafe fn reset_handler() {
     // Create the debugger object that handles calls to `debug!()`.
     components::debug_writer::DebugWriterComponent::new(uart_mux).finalize(());
 
-    // // Setup the process inspection console
-    // let process_console_uart = static_init!(UartDevice, UartDevice::new(mux_uart, true));
-    // process_console_uart.setup();
-    // pub struct ProcessConsoleCapability;
-    // unsafe impl capabilities::ProcessManagementCapability for ProcessConsoleCapability {}
-    // let process_console = static_init!(
-    //     capsules::process_console::ProcessConsole<'static, ProcessConsoleCapability>,
-    //     capsules::process_console::ProcessConsole::new(
-    //         process_console_uart,
-    //         &mut capsules::process_console::WRITE_BUF,
-    //         &mut capsules::process_console::READ_BUF,
-    //         &mut capsules::process_console::COMMAND_BUF,
-    //         board_kernel,
-    //         ProcessConsoleCapability,
-    //     )
-    // );
-    // hil::uart::Transmit::set_transmit_client(process_console_uart, process_console);
-    // hil::uart::Receive::set_receive_client(process_console_uart, process_console);
-    // process_console.start();
-
     // LEDs
-
     // Clock to Port A, B, C are enabled in `set_pin_primary_functions()`
     let gpio_ports = &base_peripherals.gpio_ports;
 
