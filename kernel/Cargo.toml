@@ -7,3 +7,7 @@ edition = "2018"
 [dependencies]
 tock-registers = { path = "../libraries/tock-register-interface" }
 tock-cells = { path = "../libraries/tock-cells" }
+
+[features]
+trace_syscall = []
+debug_load_processes = []
