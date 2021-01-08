@@ -81,7 +81,7 @@ impl Platform for STM32F3Discovery {
         match driver_num {
             capsules::console::DRIVER_NUM => f(Some(Ok(self.console))),
             capsules::led::DRIVER_NUM => f(Some(Ok(self.led))),
-            capsules::button::DRIVER_NUM => f(Some(Err(self.button))),
+            capsules::button::DRIVER_NUM => f(Some(Ok(self.button))),
             capsules::alarm::DRIVER_NUM => f(Some(Ok(self.alarm))),
             capsules::gpio::DRIVER_NUM => f(Some(Err(self.gpio))),
             capsules::lsm303dlhc::DRIVER_NUM => f(Some(Ok(self.lsm303dlhc))),
