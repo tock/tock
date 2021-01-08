@@ -1,6 +1,6 @@
 //! Client to Authenticator Protocol CTAPv2 over USB HID
 //!
-//! Based on the spec avaliable at: https://fidoalliance.org/specs/fido-v2.0-id-20180227/fido-client-to-authenticator-protocol-v2.0-id-20180227.html
+//! Based on the spec avaliable at: <https://fidoalliance.org/specs/fido-v2.0-id-20180227/fido-client-to-authenticator-protocol-v2.0-id-20180227.html>
 
 use core::cell::Cell;
 use core::cmp;
