@@ -73,6 +73,7 @@ use crate::callback::{AppId, Callback};
 use crate::errorcode::ErrorCode;
 use crate::mem::legacy::{AppSlice, SharedReadWrite};
 use crate::mem::{ReadOnlyAppSlice, ReadWriteAppSlice};
+use crate::process;
 use crate::returncode::ReturnCode;
 use crate::syscall::GenericSyscallReturnValue;
 
@@ -159,6 +160,12 @@ impl From<ReturnCode> for CommandResult {
             } //TODO: delete before Tock 2.0
             _ => CommandResult::failure(ErrorCode::try_from(rc).unwrap()),
         }
+    }
+}
+
+impl From<process::Error> for CommandResult {
+    fn from(perr: process::Error) -> Self {
+        CommandResult::failure(perr.into())
     }
 }
 
