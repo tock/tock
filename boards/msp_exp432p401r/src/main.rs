@@ -69,7 +69,7 @@ impl Platform for MspExp432P401R {
         match driver_num {
             capsules::led::DRIVER_NUM => f(Some(Ok(self.led))),
             capsules::console::DRIVER_NUM => f(Some(Ok(self.console))),
-            capsules::button::DRIVER_NUM => f(Some(Err(self.button))),
+            capsules::button::DRIVER_NUM => f(Some(Ok(self.button))),
             capsules::gpio::DRIVER_NUM => f(Some(Err(self.gpio))),
             capsules::alarm::DRIVER_NUM => f(Some(Ok(self.alarm))),
             kernel::ipc::DRIVER_NUM => f(Some(Err(&self.ipc))),
