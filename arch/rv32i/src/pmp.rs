@@ -480,7 +480,7 @@ impl kernel::mpu::MPU for PMP {
             for (x, region) in config.regions.iter().enumerate() {
                 match region {
                     Some(r) => {
-                        let cfg_val = r.cfg.value as u32;
+                        let cfg_val = r.cfg.value as usize;
                         let start = r.location.0 as usize;
                         let size = r.location.1;
 
@@ -493,13 +493,13 @@ impl kernel::mpu::MPU for PMP {
                                         + csr::pmpconfig::pmpcfg::x0::CLEAR
                                         + csr::pmpconfig::pmpcfg::a0::TOR,
                                 );
-                                csr::CSR.pmpaddr[x * 2].set((start as u32) >> 2);
+                                csr::CSR.pmpaddr[x * 2].set(start >> 2);
 
                                 // Set access to end address
                                 csr::CSR.pmpcfg[x / 2]
                                     .set(cfg_val << 8 | csr::CSR.pmpcfg[x / 2].get());
                                 csr::CSR.pmpaddr[(x * 2) + 1]
-                                    .set((start as u32 + size as u32) >> 2);
+                                    .set((start + size) >> 2);
                             }
                             1 => {
                                 // Disable access up to the start address
@@ -509,13 +509,13 @@ impl kernel::mpu::MPU for PMP {
                                         + csr::pmpconfig::pmpcfg::x2::CLEAR
                                         + csr::pmpconfig::pmpcfg::a2::TOR,
                                 );
-                                csr::CSR.pmpaddr[x * 2].set((start as u32) >> 2);
+                                csr::CSR.pmpaddr[x * 2].set(start >> 2);
 
                                 // Set access to end address
                                 csr::CSR.pmpcfg[x / 2]
                                     .set(cfg_val << 24 | csr::CSR.pmpcfg[x / 2].get());
                                 csr::CSR.pmpaddr[(x * 2) + 1]
-                                    .set((start as u32 + size as u32) >> 2);
+                                    .set((start + size) >> 2);
                             }
                             _ => break,
                         }

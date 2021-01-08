@@ -8,12 +8,15 @@
 use core::fmt::Write;
 
 pub mod clic;
-pub mod csr;
 pub mod machine_timer;
 pub mod pmp;
 pub mod support;
 pub mod syscall;
 extern crate tock_registers;
+
+// Re-export the shared CSR library so that dependent crates do not have to have
+// both rv32i and riscv as dependencies.
+pub use riscv::csr;
 
 extern "C" {
     // Where the end of the stack region is (and hence where the stack should
@@ -105,15 +108,15 @@ pub enum PermissionMode {
 pub unsafe fn configure_trap_handler(mode: PermissionMode) {
     match mode {
         PermissionMode::Machine => csr::CSR.mtvec.write(
-            csr::mtvec::mtvec::trap_addr.val(_start_trap as u32 >> 2)
+            csr::mtvec::mtvec::trap_addr.val(_start_trap as usize >> 2)
                 + csr::mtvec::mtvec::mode::CLEAR,
         ),
         PermissionMode::Supervisor => csr::CSR.stvec.write(
-            csr::stvec::stvec::trap_addr.val(_start_trap as u32 >> 2)
+            csr::stvec::stvec::trap_addr.val(_start_trap as usize >> 2)
                 + csr::stvec::stvec::mode::CLEAR,
         ),
         PermissionMode::User => csr::CSR.utvec.write(
-            csr::utvec::utvec::trap_addr.val(_start_trap as u32 >> 2)
+            csr::utvec::utvec::trap_addr.val(_start_trap as usize >> 2)
                 + csr::utvec::utvec::mode::CLEAR,
         ),
         PermissionMode::Reserved => (
