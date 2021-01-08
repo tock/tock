@@ -53,7 +53,7 @@ impl Region {
 /// Null type for the default type of the `MpuConfig` type in an implementation
 /// of the `MPU` trait. We need this to workaround a bug in the Rust compiler.
 ///
-/// Depending how https://github.com/rust-lang/rust/issues/65774 is resolved we
+/// Depending how <https://github.com/rust-lang/rust/issues/65774> is resolved we
 /// may be able to remove this type, but only if a default `Display` is
 /// provided for the `()` type.
 #[derive(Default)]

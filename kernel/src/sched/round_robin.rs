@@ -2,7 +2,7 @@
 //!
 //! This scheduler is specifically a Round Robin Scheduler with Interrupts.
 //!
-//! See: https://www.eecs.umich.edu/courses/eecs461/lecture/SWArchitecture.pdf
+//! See: <https://www.eecs.umich.edu/courses/eecs461/lecture/SWArchitecture.pdf>
 //! for details.
 //!
 //! When hardware interrupts occur while a userspace process is executing, this
