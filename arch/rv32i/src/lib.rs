@@ -337,10 +337,12 @@ pub extern "C" fn _start_trap() {
             sw   t0, 1*4(s0)  // Save the app sp to the stored state struct
             csrr t0, 0x341    // CSR=0x341=mepc
             sw   t0, 31*4(s0) // Save the PC to the stored state struct
-            csrr t0, 0x342    // CSR=0x342=mcause
-            sw   t0, 32*4(s0) // Save mcause to the stored state struct
             csrr t0, 0x343    // CSR=0x343=mtval
             sw   t0, 33*4(s0) // Save mtval to the stored state struct
+
+            // Save mcause last, as we depend on it being loaded in t0 below
+            csrr t0, 0x342    // CSR=0x342=mcause
+            sw   t0, 32*4(s0) // Save mcause to the stored state struct, leave in t0
 
             // Now we need to check if this was an interrupt, and if it was,
             // then we need to disable the interrupt before returning from this
