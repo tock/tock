@@ -13,6 +13,7 @@ pub mod flash;
 pub mod gpio;
 pub mod gpio_async;
 pub mod i2c;
+pub mod kv_system;
 pub mod led;
 pub mod log;
 pub mod nonvolatile_storage;

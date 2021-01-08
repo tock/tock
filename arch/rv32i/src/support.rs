@@ -8,7 +8,7 @@ use core::ops::FnOnce;
 /// NOP instruction
 pub fn nop() {
     unsafe {
-        llvm_asm!("nop" :::: "volatile");
+        asm!("nop", options(nomem, nostack, preserves_flags));
     }
 }
 
@@ -16,7 +16,7 @@ pub fn nop() {
 #[inline(always)]
 /// WFI instruction
 pub unsafe fn wfi() {
-    llvm_asm!("wfi" :::: "volatile");
+    asm!("wfi", options(nomem, nostack));
 }
 
 pub unsafe fn atomic<F, R>(f: F) -> R
