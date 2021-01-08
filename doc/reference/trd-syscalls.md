@@ -15,7 +15,7 @@ Abstract
 -------------------------------
 
 This document describes the system call application binary interface (ABI)
-between user space applications and the Tock kernel for 32-bit ARM Cortex-M
+between user space processes and the Tock kernel for 32-bit ARM Cortex-M
 and RISC-V RV32I platforms.
 
 1 Introduction
@@ -260,22 +260,24 @@ call to invoke. The kernel invokes callbacks only in response to Yield
 system calls.  This form of very limited preemption allows userspace
 to manage concurrent access to its variables.
 
-There are two Yield system calls:
+There are three Yield system calls:
   - `yield-wait`
   - `yield-no-wait`
+  - `yield-no-return`
 
 The first call, `yield-wait`, blocks until a callback executes. This is the
 only blocking system call in Tock. It is commonly used to provide a blocking
 I/O interface to userspace. A userspace library starts a long-running operation
 that has a callback, then calls `yield-wait` to wait for a callback. When the
 `yield-wait` returns, the process checks if the resuming callback was the one
-it was expecting, and if not calls `yield-wait` again. The `yield-wait` system
-call always returns `Success`.
+it was expecting, and if not calls `yield-wait` again. 
 
-The second call, 'yield-no-wait', executes a single callback if any is pending.
-If no callbacks are pending it returns immediately. The `yield-no-wait` system
-call returns `Success` if a callback executed and `Failure` if no callback
-executed.
+The second call, `yield-no-wait`, executes a single callback if any is pending.
+If no callbacks are pending it returns immediately. 
+
+The third call, `yield-no-return` never returns and executes no callbacks. It
+causes the process to terminate. The kernel can reclaim any resources held by
+a process after it invokes `yield-no-return`.
 
 The register arguments for Subscribe system calls are as follows. The registers
 r0-r3 correspond to r0-r3 on CortexM and a0-a3 on RISC-V.
@@ -283,20 +285,26 @@ r0-r3 correspond to r0-r3 on CortexM and a0-a3 on RISC-V.
 | Argument               | Register |
 |------------------------|----------|
 | Yield identifer        | r0       |
-
-The yield identifier specifies whether the call is `yield-wait` or
-`yield-no-wait`:
-
-| System call   | Yield identifier value |
-|---------------|------------------------|
-| yield-no-wait |                      0 |
-| yield-wait    |                      1 |
+| No wait field          | r1       |
 
 
+The yield identifier specifies which call is invoked.
 
-The return values for Yield system calls are `Success` and `Failure`. 
+| System call     | Yield identifier value |
+|-----------------|------------------------|
+| yield-no-wait   |                      0 |
+| yield-wait      |                      1 |
+| yield-no-return |                      2 |
 
 
+The no wait field is only used by `yield-no-wait`. It contains the
+memory address of an 8-bit word that `yield-no-wait` writes to
+indicate whether a callback was invoked. If invoking `yield-no-wait`
+resulted in a callback executing, `yield-no-wait` writes 1 to the
+field address. If invoking `yield-no-wait` resulted in no callback
+executing, `yield-no-wait` writes 0 to the field address. This field
+allows userspace loops that want to flush the callback queue to
+execute `yield-no-wait` until the queue is empty.
 
 
 4.2 Subscribe (Class ID: 1)
@@ -389,7 +397,7 @@ It is possible that a Tock kernel is configured so its applications
 start at address 0x0. However, even if they do begin at 0x0, the
 Tock Binary Format for application images mean that the first address
 will not be executable code and so 0x0 will not be a valid function.
-In the case that 0x0 is valid application process memory and where the
+In the case that 0x0 is valid application code and where the
 linker places a callback function, the first instruction of the function
 should be a no-op and the address of the second instruction passed 
 instead.
@@ -472,9 +480,12 @@ The buffer identifier specifies which buffer this is. A driver may
 support multiple allowed buffers.
 
 The Tock kernel MUST check that the passed buffer is contained within
-the application's address space. Every byte of the passed buffer must
-be readable and writeable by the process. Zero-length buffers may
-therefore have abitrary addresses.
+the calling process's writeable address space. Every byte of the
+passed buffer must be readable and writeable by the
+process. Zero-length buffers may therefore have abitrary addresses. If
+the passed buffer is not complete within the calling process's
+writeable address space, the kernel MUST return a failure result with
+an error code of INVAL (invalid value).
 
 Because a process relinquishes access to a buffer when it makes a
 Read-Write Allow call with it, the buffer passed on the subsequent
@@ -483,7 +494,6 @@ This is because the application does not have access to that
 memory. If an application needs to extend a buffer, it must first call
 Read-Write Allow to reclaim the buffer, then call Read-Write Allow
 again to re-allow it with a different size.
-
 
 4.5 Read-Only Allow (Class ID: 4)
 ---------------------------------
@@ -518,6 +528,14 @@ Having a Read-Only Allow allows a system call driver to clearly
 specify whether data is read-only or read-write and also saves
 processes the RAM overhead of having to copy read-only data into
 RAM so it can be passed with a Read-Write Allow.
+
+The Tock kernel MUST check that the passed buffer is contained within
+the calling process's readable address space. Every byte of the passed
+buffer must be readable and writeable by the process. Zero-length
+buffers may therefore have abitrary addresses. If the passed buffer is
+not complete within the calling process's readable address space, the
+kernel MUST return a failure result with an error code of INVAL
+(invalid value).
 
 4.6 Memop (Class ID: 5)
 ---------------------------------
