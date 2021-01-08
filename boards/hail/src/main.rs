@@ -91,7 +91,7 @@ impl Platform for Hail {
             capsules::ambient_light::DRIVER_NUM => f(Some(Ok(self.ambient_light))),
             capsules::adc::DRIVER_NUM => f(Some(Ok(self.adc))),
             capsules::led::DRIVER_NUM => f(Some(Ok(self.led))),
-            capsules::button::DRIVER_NUM => f(Some(Err(self.button))),
+            capsules::button::DRIVER_NUM => f(Some(Ok(self.button))),
             capsules::humidity::DRIVER_NUM => f(Some(Ok(self.humidity))),
             capsules::temperature::DRIVER_NUM => f(Some(Ok(self.temp))),
             capsules::ninedof::DRIVER_NUM => f(Some(Ok(self.ninedof))),

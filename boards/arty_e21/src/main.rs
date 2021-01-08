@@ -71,7 +71,7 @@ impl Platform for ArtyE21 {
 
             capsules::alarm::DRIVER_NUM => f(Some(Ok(self.alarm))),
             capsules::led::DRIVER_NUM => f(Some(Ok(self.led))),
-            capsules::button::DRIVER_NUM => f(Some(Err(self.button))),
+            capsules::button::DRIVER_NUM => f(Some(Ok(self.button))),
 
             // kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             _ => f(None),
