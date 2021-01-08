@@ -2,7 +2,7 @@
 
 #![crate_name = "rv32i"]
 #![crate_type = "rlib"]
-#![feature(asm, llvm_asm, const_fn, naked_functions)]
+#![feature(llvm_asm, asm, const_fn, naked_functions)]
 #![no_std]
 
 use core::fmt::Write;
@@ -33,6 +33,9 @@ extern "C" {
     // Boundaries of the .data section.
     static mut _srelocate: usize;
     static mut _erelocate: usize;
+
+    // The global pointer, value set in the linker script
+    static __global_pointer: usize;
 }
 
 /// Entry point of all programs (`_start`).
@@ -46,7 +49,7 @@ extern "C" {
 #[naked]
 pub extern "C" fn _start() {
     unsafe {
-        llvm_asm! ("
+        asm! ("
             // Set the global pointer register using the variable defined in the
             // linker script. This register is only set once. The global pointer
             // is a method for sharing state between the linker and the CPU so
@@ -57,13 +60,13 @@ pub extern "C" fn _start() {
             // https://groups.google.com/a/groups.riscv.org/forum/#!msg/sw-dev/60IdaZj27dY/5MydPLnHAQAJ
             // https://www.sifive.com/blog/2017/08/28/all-aboard-part-3-linker-relaxation-in-riscv-toolchain/
             //
-            lui  gp, %hi(__global_pointer$$)     // Set the global pointer.
-            addi gp, gp, %lo(__global_pointer$$) // Value set in linker script.
+            lui  gp, %hi({0}$)     // Set the global pointer.
+            addi gp, gp, %lo({0}$) // Value set in linker script.
 
             // Initialize the stack pointer register. This comes directly from
             // the linker script.
-            lui  sp, %hi(_estack)     // Set the initial stack pointer.
-            addi sp, sp, %lo(_estack) // Value from the linker script.
+            lui  sp, %hi({1})     // Set the initial stack pointer.
+            addi sp, sp, %lo({1}) // Value from the linker script.
 
             // Set s0 (the frame pointer) to the start of the stack.
             add  s0, sp, zero
@@ -75,11 +78,8 @@ pub extern "C" fn _start() {
             // With that initial setup out of the way, we now branch to the main
             // code, likely defined in a board's main.rs.
             j    reset_handler
-        "
-        :
-        :
-        :
-        : "volatile");
+        ", sym __global_pointer, sym _estack, options(noreturn)
+        );
     }
 }
 
@@ -151,7 +151,8 @@ pub extern "C" fn _start_trap() {
 #[naked]
 pub extern "C" fn _start_trap() {
     unsafe {
-        llvm_asm! ("
+        asm!(
+            "
             // The first thing we have to do is determine if we came from user
             // mode or kernel mode, as we need to save state and proceed
             // differently. We cannot, however, use any registers because we do
@@ -377,11 +378,9 @@ pub extern "C" fn _start_trap() {
             // Use mret to exit the trap handler and return to the context
             // switching code.
             mret
-        "
-        :
-        :
-        :
-        : "volatile");
+        ",
+            options(noreturn)
+        );
     }
 }
 
