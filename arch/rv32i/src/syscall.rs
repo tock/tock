@@ -367,7 +367,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
           : "memory"
           : "volatile");
 
-        let ret = match mcause::Trap::from(state.mcause) {
+        let ret = match mcause::Trap::from(state.mcause as usize) {
             mcause::Trap::Interrupt(_intr) => {
                 // An interrupt occurred while the app was running.
                 ContextSwitchReason::Interrupted
