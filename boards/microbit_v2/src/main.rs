@@ -92,7 +92,7 @@ pub struct Platform {
     ninedof: &'static capsules::ninedof::NineDof<'static>,
     lsm303agr: &'static capsules::lsm303agr::Lsm303agrI2C<'static>,
     temperature: &'static capsules::temperature::TemperatureSensor<'static>,
-    ipc: kernel::ipc::IPC,
+    ipc: kernel::ipc::IPC<NUM_PROCS>,
     adc: &'static capsules::adc::AdcVirtualized<'static>,
     alarm: &'static capsules::alarm::AlarmDriver<
         'static,

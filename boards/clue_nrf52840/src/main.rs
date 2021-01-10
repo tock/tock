@@ -119,7 +119,7 @@ pub struct Platform {
     button: &'static capsules::button::Button<'static, nrf52::gpio::GPIOPin<'static>>,
     screen: &'static capsules::screen::Screen<'static>,
     rng: &'static capsules::rng::RngDriver<'static>,
-    ipc: kernel::ipc::IPC,
+    ipc: kernel::ipc::IPC<NUM_PROCS>,
     alarm: &'static capsules::alarm::AlarmDriver<
         'static,
         capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc<'static>>,
