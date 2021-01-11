@@ -6,8 +6,8 @@ use kernel::debug;
 use kernel::hil::time::Alarm;
 use kernel::InterruptService;
 use rv32i::csr::{mcause, mie::mie, CSR};
+use rv32i::pmp::PMP;
 use rv32i::syscall::SysCall;
-use rv32i::PMPConfigMacro;
 
 use crate::interrupt_controller::VexRiscvInterruptController;
 
@@ -18,13 +18,11 @@ static mut INTERRUPT_CONTROLLER: VexRiscvInterruptController = VexRiscvInterrupt
 // The VexRiscv "Secure" variant of
 // [pythondata-cpu-vexriscv](https://github.com/litex-hub/pythondata-cpu-vexriscv)
 // has 16 PMP slots
-PMPConfigMacro!(16);
-
 pub struct LiteXVexRiscv<A: 'static + Alarm<'static>, I: 'static + InterruptService<()>> {
     soc_identifier: &'static str,
     userspace_kernel_boundary: SysCall,
     interrupt_controller: &'static VexRiscvInterruptController,
-    pmp: PMP,
+    pmp: PMP<16, 8>,
     scheduler_timer: kernel::VirtualSchedulerTimer<A>,
     interrupt_service: &'static I,
 }
@@ -62,7 +60,7 @@ impl<A: 'static + Alarm<'static>, I: 'static + InterruptService<()>> LiteXVexRis
 impl<A: 'static + Alarm<'static>, I: 'static + InterruptService<()>> kernel::Chip
     for LiteXVexRiscv<A, I>
 {
-    type MPU = PMP;
+    type MPU = PMP<16, 8>;
     type UserspaceKernelBoundary = SysCall;
     type SchedulerTimer = kernel::VirtualSchedulerTimer<A>;
     type WatchDog = ();

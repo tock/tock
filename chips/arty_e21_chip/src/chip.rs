@@ -5,15 +5,15 @@ use kernel::InterruptService;
 use rv32i;
 
 use crate::interrupts;
-use crate::pmp;
 use crate::timer;
+use rv32i::pmp::PMP;
 
 extern "C" {
     fn _start_trap();
 }
 
 pub struct ArtyExx<'a, I: InterruptService<()> + 'a> {
-    pmp: pmp::PMP,
+    pmp: PMP<4, 2>,
     userspace_kernel_boundary: rv32i::syscall::SysCall,
     clic: rv32i::clic::Clic,
     machinetimer: &'a rv32i::machine_timer::MachineTimer<'a>,
@@ -81,7 +81,7 @@ impl<'a, I: InterruptService<()> + 'a> ArtyExx<'a, I> {
         let in_use_interrupts: u64 = 0x1FFFF0080;
 
         Self {
-            pmp: pmp::PMP::new(),
+            pmp: PMP::new(),
             userspace_kernel_boundary: rv32i::syscall::SysCall::new(),
             clic: rv32i::clic::Clic::new(in_use_interrupts),
             machinetimer,
@@ -142,7 +142,7 @@ impl<'a, I: InterruptService<()> + 'a> ArtyExx<'a, I> {
 }
 
 impl<'a, I: InterruptService<()> + 'a> kernel::Chip for ArtyExx<'a, I> {
-    type MPU = pmp::PMP;
+    type MPU = PMP<4, 2>;
     type UserspaceKernelBoundary = rv32i::syscall::SysCall;
     type SchedulerTimer = ();
     type WatchDog = ();
