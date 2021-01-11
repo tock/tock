@@ -70,7 +70,7 @@ use crate::ReturnCode;
 /// Also, in our use cases, writes are infaillible, so the write function just doesn't return
 /// anything.
 ///
-/// See also the tracking issue: https://github.com/rust-lang/rfcs/issues/2262
+/// See also the tracking issue: <https://github.com/rust-lang/rfcs/issues/2262>
 pub trait IoWrite {
     fn write(&mut self, buf: &[u8]);
 
