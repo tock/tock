@@ -32,6 +32,6 @@ WG-OpenTitan:
 kernel:
   - any: ['kernel/**/*', '!kernel/src/hil/*']
 
-# add documentation label only if all changes are in doc/, or in md or txt files
+# add documentation label only if all changes are in doc/
 documentation:
-  - all: ['doc/*', './**/*.md', './**/*.txt']
+  - all: ['doc/**/*']
