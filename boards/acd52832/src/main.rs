@@ -389,11 +389,16 @@ pub unsafe fn reset_handler() {
     //
 
     // Setup Analog Light Sensor
+    let analog_light_channel = static_init!(
+        nrf52832::adc::AdcChannelSetup,
+        nrf52832::adc::AdcChannelSetup::new(nrf52832::adc::AdcChannel::AnalogInput5)
+    );
+
     let analog_light_sensor = static_init!(
         capsules::analog_sensor::AnalogLightSensor<'static, nrf52832::adc::Adc>,
         capsules::analog_sensor::AnalogLightSensor::new(
             &base_peripherals.adc,
-            &nrf52832::adc::AdcChannel::AnalogInput5,
+            analog_light_channel,
             capsules::analog_sensor::AnalogLightSensorType::LightDependentResistor,
         )
     );
