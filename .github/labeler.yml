@@ -1,3 +1,10 @@
+# This is a configuration file for the labeler github action.
+# The labeler action runs uses this configuration to automatically
+# label each PR submitted to the Tock repository, by applying labels
+# that match the corresponding glob paths. More details on the rules
+# that apply to this configuration file can be found in the documentation
+# at https://github.com/actions/labeler
+
 stm32:
   - chips/stm*/**/*
 
