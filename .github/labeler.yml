@@ -14,7 +14,7 @@ nrf:
 sam4l:
   - chips/sam4l/**/*
 
-hil:
+HIL:
   - kernel/src/hil/*
 
 risc-v:
