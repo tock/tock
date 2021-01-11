@@ -257,5 +257,11 @@ pub unsafe fn reset_handler() {
 
     let scheduler = components::sched::cooperative::CooperativeComponent::new(&PROCESSES)
         .finalize(components::coop_component_helper!(NUM_PROCS));
-    board_kernel.kernel_loop(&hifive1, chip, None, scheduler, &main_loop_cap);
+    board_kernel.kernel_loop(
+        &hifive1,
+        chip,
+        None::<&kernel::ipc::IPC<NUM_PROCS>>,
+        scheduler,
+        &main_loop_cap,
+    );
 }

@@ -27,27 +27,38 @@ pub enum IPCCallbackType {
 }
 
 /// State that is stored in each process's grant region to support IPC.
-#[derive(Default)]
-struct IPCData {
+struct IPCData<const NUM_PROCS: usize> {
     /// An array of app slices that this application has shared with other
     /// applications.
-    shared_memory: [Option<AppSlice<Shared, u8>>; 8],
+    shared_memory: [Option<AppSlice<Shared, u8>>; NUM_PROCS],
     /// An array of callbacks this process has registered to receive callbacks
     /// from other services.
-    client_callbacks: [Option<Callback>; 8],
+    client_callbacks: [Option<Callback>; NUM_PROCS],
     /// The callback setup by a service. Each process can only be one service.
     callback: Option<Callback>,
 }
 
-/// The IPC mechanism struct.
-pub struct IPC {
-    /// The grant regions for each process that holds the per-process IPC data.
-    data: Grant<IPCData>,
+impl<const NUM_PROCS: usize> Default for IPCData<NUM_PROCS> {
+    fn default() -> IPCData<NUM_PROCS> {
+        // need this until const_in_array_repeat_expressions is stable
+        const NONE_APPSLICE: Option<AppSlice<Shared, u8>> = None;
+        IPCData {
+            shared_memory: [NONE_APPSLICE; NUM_PROCS],
+            client_callbacks: [None; NUM_PROCS],
+            callback: None,
+        }
+    }
 }
 
-impl IPC {
-    pub fn new(kernel: &'static Kernel, capability: &dyn MemoryAllocationCapability) -> IPC {
-        IPC {
+/// The IPC mechanism struct.
+pub struct IPC<const NUM_PROCS: usize> {
+    /// The grant regions for each process that holds the per-process IPC data.
+    data: Grant<IPCData<NUM_PROCS>>,
+}
+
+impl<const NUM_PROCS: usize> IPC<NUM_PROCS> {
+    pub fn new(kernel: &'static Kernel, capability: &dyn MemoryAllocationCapability) -> Self {
+        Self {
             data: kernel.create_grant(capability),
         }
     }
@@ -106,7 +117,7 @@ impl IPC {
     }
 }
 
-impl Driver for IPC {
+impl<const NUM_PROCS: usize> Driver for IPC<NUM_PROCS> {
     /// subscribe enables processes using IPC to register callbacks that fire
     /// when notify() is called.
     fn subscribe(
@@ -151,7 +162,7 @@ impl Driver for IPC {
                     .enter(app_id, |data, _| {
                         match otherapp.map_or(None, |oa| oa.index()) {
                             Some(i) => {
-                                if i > 8 {
+                                if i >= NUM_PROCS {
                                     ReturnCode::EINVAL
                                 } else {
                                     data.client_callbacks[i] = callback;

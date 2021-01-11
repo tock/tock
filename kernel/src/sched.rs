@@ -454,11 +454,11 @@ impl Kernel {
     ///
     /// Most of the behavior of this loop is controlled by the `Scheduler`
     /// implementation in use.
-    pub fn kernel_loop<P: Platform, C: Chip, SC: Scheduler<C>>(
+    pub fn kernel_loop<P: Platform, C: Chip, SC: Scheduler<C>, const NUM_PROCS: usize>(
         &self,
         platform: &P,
         chip: &C,
-        ipc: Option<&ipc::IPC>,
+        ipc: Option<&ipc::IPC<NUM_PROCS>>,
         scheduler: &SC,
         _capability: &dyn capabilities::MainLoopCapability,
     ) -> ! {
@@ -551,13 +551,13 @@ impl Kernel {
     /// cooperatively). Notably, time spent in this function by the kernel,
     /// executing system calls or merely setting up the switch to/from
     /// userspace, is charged to the process.
-    unsafe fn do_process<P: Platform, C: Chip, S: Scheduler<C>>(
+    unsafe fn do_process<P: Platform, C: Chip, S: Scheduler<C>, const NUM_PROCS: usize>(
         &self,
         platform: &P,
         chip: &C,
         scheduler: &S,
         process: &dyn process::ProcessType,
-        ipc: Option<&crate::ipc::IPC>,
+        ipc: Option<&crate::ipc::IPC<NUM_PROCS>>,
         timeslice_us: Option<u32>,
     ) -> (StoppedExecutingReason, Option<u32>) {
         // We must use a dummy scheduler timer if the process should be executed
