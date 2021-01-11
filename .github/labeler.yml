@@ -1,0 +1,30 @@
+stm32:
+  - chips/stm*/**/*
+
+nrf:
+  - chips/nrf5*/**/*
+
+sam4l:
+  - chips/sam4l/**/*
+
+hil:
+  - kernel/src/hil/*
+
+risc-v:
+  - arch/rv32i/**/*
+  - arch/riscv/**/*
+
+tock-libraries:
+  - libraries/**/*
+
+WG-OpenTitan:
+  - boards/earlgrey-nexysvideo/**/*
+  - chips/earlgrey/**/*
+
+# add kernel label unless already covered by hil label
+kernel:
+  - any: ['kernel/**/*', '!kernel/src/hil/*']
+
+# add documentation label only if all changes are in doc/, or in md or txt files
+documentation:
+  - all: ['doc/*', './**/*.md', './**/*.txt']
