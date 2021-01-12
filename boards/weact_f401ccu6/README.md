@@ -11,14 +11,11 @@ directory and run:
 
 ```bash
 $ make flash
-
-(or)
-
-$ make flash-debug
 ```
 
 Expects ST-LINK V2-1, if using V2 you can change lines 4-5 in
 `openocd.cfg` to:
+
 ```bash
 hla_device_desc "ST-LINK/V2"
 hla_vid_pid 0x0483 0x3748

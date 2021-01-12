@@ -48,7 +48,7 @@ pub static mut STACK_MEMORY: [u8; 0x2000] = [0; 0x2000];
 /// capsules for this platform.
 struct WeactF401CC {
     console: &'static capsules::console::Console<'static>,
-    ipc: kernel::ipc::IPC,
+    ipc: kernel::ipc::IPC<NUM_PROCS>,
     led: &'static capsules::led::LedDriver<
         'static,
         LedLow<'static, stm32f401cc::gpio::Pin<'static>>,
@@ -271,14 +271,12 @@ pub unsafe fn reset_handler() {
             stm32f401cc::gpio::Pin,
             (
                 gpio_ports.get_pin(stm32f401cc::gpio::PinId::PA00).unwrap(),
-                kernel::hil::gpio::ActivationMode::ActiveHigh,
-                kernel::hil::gpio::FloatingState::PullNone
+                kernel::hil::gpio::ActivationMode::ActiveLow,
+                kernel::hil::gpio::FloatingState::PullUp
             )
         ),
     )
-    .finalize(components::button_component_buf!(
-        stm32f401cc::gpio::Pin<'static>
-    ));
+    .finalize(components::button_component_buf!(stm32f401cc::gpio::Pin));
 
     // ALARM
 
@@ -295,10 +293,10 @@ pub unsafe fn reset_handler() {
         board_kernel,
         components::gpio_component_helper!(
             stm32f401cc::gpio::Pin,
-            2 => gpio_ports.pins[2][13].as_ref().unwrap(), // C13
+            // 2 => gpio_ports.pins[2][13].as_ref().unwrap(), // C13 (reserved for led)
             3 => gpio_ports.pins[2][14].as_ref().unwrap(), // C14
             4 => gpio_ports.pins[2][15].as_ref().unwrap(), // C15
-            10 => gpio_ports.pins[0][0].as_ref().unwrap(), // A0
+            // 10 => gpio_ports.pins[0][0].as_ref().unwrap(), // A0 (reserved for button)
             11 => gpio_ports.pins[0][1].as_ref().unwrap(), // A1
             12 => gpio_ports.pins[0][2].as_ref().unwrap(), // A2
             13 => gpio_ports.pins[0][3].as_ref().unwrap(), // A3
