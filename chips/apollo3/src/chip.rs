@@ -1,23 +1,23 @@
 //! Chip trait setup.
 
 use core::fmt::Write;
-use cortexm4;
+use cortexm4f;
 use kernel::Chip;
 use kernel::InterruptService;
 
 pub struct Apollo3<I: InterruptService<()> + 'static> {
-    mpu: cortexm4::mpu::MPU,
-    userspace_kernel_boundary: cortexm4::syscall::SysCall,
-    scheduler_timer: cortexm4::systick::SysTick,
+    mpu: cortexm4f::mpu::MPU,
+    userspace_kernel_boundary: cortexm4f::syscall::SysCall,
+    scheduler_timer: cortexm4f::systick::SysTick,
     interrupt_service: &'static I,
 }
 
 impl<I: InterruptService<()> + 'static> Apollo3<I> {
     pub unsafe fn new(interrupt_service: &'static I) -> Self {
         Self {
-            mpu: cortexm4::mpu::MPU::new(),
-            userspace_kernel_boundary: cortexm4::syscall::SysCall::new(),
-            scheduler_timer: cortexm4::systick::SysTick::new_with_calibration(48_000_000),
+            mpu: cortexm4f::mpu::MPU::new(),
+            userspace_kernel_boundary: cortexm4f::syscall::SysCall::new(),
+            scheduler_timer: cortexm4f::systick::SysTick::new_with_calibration(48_000_000),
             interrupt_service,
         }
     }
@@ -84,20 +84,20 @@ impl kernel::InterruptService<()> for Apollo3DefaultPeripherals {
 }
 
 impl<I: InterruptService<()> + 'static> Chip for Apollo3<I> {
-    type MPU = cortexm4::mpu::MPU;
-    type UserspaceKernelBoundary = cortexm4::syscall::SysCall;
-    type SchedulerTimer = cortexm4::systick::SysTick;
+    type MPU = cortexm4f::mpu::MPU;
+    type UserspaceKernelBoundary = cortexm4f::syscall::SysCall;
+    type SchedulerTimer = cortexm4f::systick::SysTick;
     type WatchDog = ();
 
     fn service_pending_interrupts(&self) {
         unsafe {
             loop {
-                if let Some(interrupt) = cortexm4::nvic::next_pending() {
+                if let Some(interrupt) = cortexm4f::nvic::next_pending() {
                     if !self.interrupt_service.service_interrupt(interrupt) {
                         panic!("unhandled interrupt, {}", interrupt);
                     }
 
-                    let n = cortexm4::nvic::Nvic::new(interrupt);
+                    let n = cortexm4f::nvic::Nvic::new(interrupt);
                     n.clear_pending();
                     n.enable();
                 } else {
@@ -108,14 +108,14 @@ impl<I: InterruptService<()> + 'static> Chip for Apollo3<I> {
     }
 
     fn has_pending_interrupts(&self) -> bool {
-        unsafe { cortexm4::nvic::has_pending() }
+        unsafe { cortexm4f::nvic::has_pending() }
     }
 
-    fn mpu(&self) -> &cortexm4::mpu::MPU {
+    fn mpu(&self) -> &cortexm4f::mpu::MPU {
         &self.mpu
     }
 
-    fn scheduler_timer(&self) -> &cortexm4::systick::SysTick {
+    fn scheduler_timer(&self) -> &cortexm4f::systick::SysTick {
         &self.scheduler_timer
     }
 
@@ -123,14 +123,14 @@ impl<I: InterruptService<()> + 'static> Chip for Apollo3<I> {
         &()
     }
 
-    fn userspace_kernel_boundary(&self) -> &cortexm4::syscall::SysCall {
+    fn userspace_kernel_boundary(&self) -> &cortexm4f::syscall::SysCall {
         &self.userspace_kernel_boundary
     }
 
     fn sleep(&self) {
         unsafe {
-            cortexm4::scb::unset_sleepdeep();
-            cortexm4::support::wfi();
+            cortexm4f::scb::unset_sleepdeep();
+            cortexm4f::support::wfi();
         }
     }
 
@@ -138,10 +138,10 @@ impl<I: InterruptService<()> + 'static> Chip for Apollo3<I> {
     where
         F: FnOnce() -> R,
     {
-        cortexm4::support::atomic(f)
+        cortexm4f::support::atomic(f)
     }
 
     unsafe fn print_state(&self, write: &mut dyn Write) {
-        cortexm4::print_cortexm4_state(write);
+        cortexm4f::print_cortexm4f_state(write);
     }
 }

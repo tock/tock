@@ -55,7 +55,7 @@ pub unsafe extern "C" fn panic_fmt(info: &PanicInfo) -> ! {
         &mut [led],
         writer,
         info,
-        &cortexm4::support::nop,
+        &cortexm4f::support::nop,
         &PROCESSES,
         &CHIP,
     )

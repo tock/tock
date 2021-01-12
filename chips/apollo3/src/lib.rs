@@ -18,7 +18,7 @@ pub mod pwrctrl;
 pub mod stimer;
 pub mod uart;
 
-use cortexm4::{
+use cortexm4f::{
     generic_isr, hard_fault_handler, scb, svc_handler, systick_handler, unhandled_interrupt,
 };
 
@@ -106,9 +106,9 @@ pub unsafe fn init() {
     // This ensures the FPU is actually disabled
     llvm_asm!("svc 0xff" : : : "r0","r1","r2","r3","r12" : "volatile" );
 
-    cortexm4::nvic::disable_all();
-    cortexm4::nvic::clear_all_pending();
-    cortexm4::nvic::enable_all();
+    cortexm4f::nvic::disable_all();
+    cortexm4f::nvic::clear_all_pending();
+    cortexm4f::nvic::enable_all();
 }
 
 // Mock implementation for tests
