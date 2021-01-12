@@ -171,7 +171,7 @@ pub unsafe fn reset_handler() {
     // `debug_gpio!(0, toggle)` macro. We uconfigure these early so that the
     // macro is available during most of the setup code and kernel exection.
     kernel::debug::assign_gpios(
-        Some(&base_peripherals.gpio_port[LED_KERNEL_PIN]),
+        Some(&nrf52833_peripherals.gpio_port[LED_KERNEL_PIN]),
         None,
         None,
     );
@@ -185,12 +185,12 @@ pub unsafe fn reset_handler() {
         components::gpio_component_helper!(
             nrf52833::gpio::GPIOPin,
             // Used as ADC, comment them out in the ADC section to use them as GPIO
-            // 0 => &base_peripherals.gpio_port[GPIO_P0],
-            // 1 => &base_peripherals.gpio_port[_GPIO_P1],
-            // 2 => &base_peripherals.gpio_port[_GPIO_P2],
-            8 => &base_peripherals.gpio_port[GPIO_P8],
-            9 => &base_peripherals.gpio_port[GPIO_P9],
-            16 => &base_peripherals.gpio_port[GPIO_P16],
+            // 0 => &nrf52833_peripherals.gpio_port[GPIO_P0],
+            // 1 => &nrf52833_peripherals.gpio_port[_GPIO_P1],
+            // 2 => &nrf52833_peripherals.gpio_port[_GPIO_P2],
+            8 => &nrf52833_peripherals.gpio_port[GPIO_P8],
+            9 => &nrf52833_peripherals.gpio_port[GPIO_P9],
+            16 => &nrf52833_peripherals.gpio_port[GPIO_P16],
         ),
     )
     .finalize(components::gpio_component_buf!(nrf52833::gpio::GPIOPin));
@@ -203,17 +203,17 @@ pub unsafe fn reset_handler() {
         components::button_component_helper!(
             nrf52833::gpio::GPIOPin,
             (
-                &base_peripherals.gpio_port[BUTTON_A],
+                &nrf52833_peripherals.gpio_port[BUTTON_A],
                 kernel::hil::gpio::ActivationMode::ActiveLow,
                 kernel::hil::gpio::FloatingState::PullNone
             ), // A
             (
-                &base_peripherals.gpio_port[BUTTON_B],
+                &nrf52833_peripherals.gpio_port[BUTTON_B],
                 kernel::hil::gpio::ActivationMode::ActiveLow,
                 kernel::hil::gpio::FloatingState::PullNone
             ), // B
             (
-                &base_peripherals.gpio_port[TOUCH_LOGO],
+                &nrf52833_peripherals.gpio_port[TOUCH_LOGO],
                 kernel::hil::gpio::ActivationMode::ActiveLow,
                 kernel::hil::gpio::FloatingState::PullNone
             ), // Touch Logo
@@ -253,7 +253,7 @@ pub unsafe fn reset_handler() {
 
     let mux_pwm = static_init!(
         capsules::virtual_pwm::MuxPwm<'static, nrf52833::pwm::Pwm>,
-        capsules::virtual_pwm::MuxPwm::new(&nrf52833::pwm::PWM0)
+        capsules::virtual_pwm::MuxPwm::new(&base_peripherals.pwm0)
     );
     let virtual_pwm_buzzer = static_init!(
         capsules::virtual_pwm::PwmPinUser<'static, nrf52833::pwm::Pwm>,
@@ -405,11 +405,11 @@ pub unsafe fn reset_handler() {
             // gpio
             nrf52833::gpio::GPIOPin,
             // optional gpio pin
-            Some(&base_peripherals.gpio_port[LED_MICROPHONE_PIN])
+            Some(&nrf52833_peripherals.gpio_port[LED_MICROPHONE_PIN])
         ),
     );
 
-    &base_peripherals.gpio_port[LED_MICROPHONE_PIN].set_high_drive(true);
+    &nrf52833_peripherals.gpio_port[LED_MICROPHONE_PIN].set_high_drive(true);
 
     let sound_pressure =
         components::sound_pressure::SoundPressureComponent::new(board_kernel, adc_microphone)
@@ -446,17 +446,17 @@ pub unsafe fn reset_handler() {
         mux_alarm,
         @fps => 60,
         @cols => kernel::hil::gpio::ActivationMode::ActiveLow,
-            &base_peripherals.gpio_port[LED_MATRIX_COLS[0]],
-            &base_peripherals.gpio_port[LED_MATRIX_COLS[1]],
-            &base_peripherals.gpio_port[LED_MATRIX_COLS[2]],
-            &base_peripherals.gpio_port[LED_MATRIX_COLS[3]],
-            &base_peripherals.gpio_port[LED_MATRIX_COLS[4]],
+            &nrf52833_peripherals.gpio_port[LED_MATRIX_COLS[0]],
+            &nrf52833_peripherals.gpio_port[LED_MATRIX_COLS[1]],
+            &nrf52833_peripherals.gpio_port[LED_MATRIX_COLS[2]],
+            &nrf52833_peripherals.gpio_port[LED_MATRIX_COLS[3]],
+            &nrf52833_peripherals.gpio_port[LED_MATRIX_COLS[4]],
         @rows => kernel::hil::gpio::ActivationMode::ActiveHigh,
-            &base_peripherals.gpio_port[LED_MATRIX_ROWS[0]],
-            &base_peripherals.gpio_port[LED_MATRIX_ROWS[1]],
-            &base_peripherals.gpio_port[LED_MATRIX_ROWS[2]],
-            &base_peripherals.gpio_port[LED_MATRIX_ROWS[3]],
-            &base_peripherals.gpio_port[LED_MATRIX_ROWS[4]]
+            &nrf52833_peripherals.gpio_port[LED_MATRIX_ROWS[0]],
+            &nrf52833_peripherals.gpio_port[LED_MATRIX_ROWS[1]],
+            &nrf52833_peripherals.gpio_port[LED_MATRIX_ROWS[2]],
+            &nrf52833_peripherals.gpio_port[LED_MATRIX_ROWS[3]],
+            &nrf52833_peripherals.gpio_port[LED_MATRIX_ROWS[4]]
 
     )
     .finalize(components::led_matrix_component_buf!(

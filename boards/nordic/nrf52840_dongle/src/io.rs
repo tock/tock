@@ -54,8 +54,8 @@ impl IoWrite for Writer {
 /// Panic handler
 pub unsafe extern "C" fn panic_fmt(pi: &PanicInfo) -> ! {
     // The nRF52840 Dongle LEDs (see back of board)
-    const LED1_PIN: Pin = Pin::P0_06;
-    let led = &mut led::LedLow::new(&nrf52840::gpio::PORT[LED1_PIN]);
+    let led_kernel_pin = &nrf52840::gpio::GPIOPin::new(Pin::P0_06);
+    let led = &mut led::LedLow::new(led_kernel_pin);
     let writer = &mut WRITER;
     debug::panic(
         &mut [led],

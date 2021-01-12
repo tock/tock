@@ -195,7 +195,7 @@ pub unsafe fn reset_handler() {
     // `debug_gpio!(0, toggle)` macro. We configure these early so that the
     // macro is available during most of the setup code and kernel execution.
     kernel::debug::assign_gpios(
-        Some(&base_peripherals.gpio_port[LED_KERNEL_PIN]),
+        Some(&nrf52840_peripherals.gpio_port[LED_KERNEL_PIN]),
         None,
         None,
     );
@@ -208,15 +208,15 @@ pub unsafe fn reset_handler() {
         board_kernel,
         components::gpio_component_helper!(
             nrf52840::gpio::GPIOPin,
-            2 => &base_peripherals.gpio_port[GPIO_D2],
-            3 => &base_peripherals.gpio_port[GPIO_D3],
-            4 => &base_peripherals.gpio_port[GPIO_D4],
-            6 => &base_peripherals.gpio_port[GPIO_D6],
-            7 => &base_peripherals.gpio_port[GPIO_D7],
-            8 => &base_peripherals.gpio_port[GPIO_D8],
-            9 => &base_peripherals.gpio_port[GPIO_D9],
-            10 => &base_peripherals.gpio_port[GPIO_D10],
-            12 => &base_peripherals.gpio_port[GPIO_D12]
+            2 => &nrf52840_peripherals.gpio_port[GPIO_D2],
+            3 => &nrf52840_peripherals.gpio_port[GPIO_D3],
+            4 => &nrf52840_peripherals.gpio_port[GPIO_D4],
+            6 => &nrf52840_peripherals.gpio_port[GPIO_D6],
+            7 => &nrf52840_peripherals.gpio_port[GPIO_D7],
+            8 => &nrf52840_peripherals.gpio_port[GPIO_D8],
+            9 => &nrf52840_peripherals.gpio_port[GPIO_D9],
+            10 => &nrf52840_peripherals.gpio_port[GPIO_D10],
+            12 => &nrf52840_peripherals.gpio_port[GPIO_D12]
         ),
     )
     .finalize(components::gpio_component_buf!(nrf52840::gpio::GPIOPin));
@@ -227,8 +227,8 @@ pub unsafe fn reset_handler() {
 
     let led = components::led::LedsComponent::new(components::led_component_helper!(
         LedHigh<'static, nrf52840::gpio::GPIOPin>,
-        LedHigh::new(&base_peripherals.gpio_port[LED_RED_PIN]),
-        LedHigh::new(&base_peripherals.gpio_port[LED_WHITE_PIN])
+        LedHigh::new(&nrf52840_peripherals.gpio_port[LED_RED_PIN]),
+        LedHigh::new(&nrf52840_peripherals.gpio_port[LED_WHITE_PIN])
     ))
     .finalize(components::led_component_buf!(
         LedHigh<'static, nrf52840::gpio::GPIOPin>
@@ -242,12 +242,12 @@ pub unsafe fn reset_handler() {
         components::button_component_helper!(
             nrf52840::gpio::GPIOPin,
             (
-                &base_peripherals.gpio_port[BUTTON_LEFT],
+                &nrf52840_peripherals.gpio_port[BUTTON_LEFT],
                 kernel::hil::gpio::ActivationMode::ActiveHigh,
                 kernel::hil::gpio::FloatingState::PullUp
             ), // Left
             (
-                &base_peripherals.gpio_port[BUTTON_RIGHT],
+                &nrf52840_peripherals.gpio_port[BUTTON_RIGHT],
                 kernel::hil::gpio::ActivationMode::ActiveLow,
                 kernel::hil::gpio::FloatingState::PullUp
             ) // Right
@@ -285,7 +285,7 @@ pub unsafe fn reset_handler() {
 
     let mux_pwm = static_init!(
         capsules::virtual_pwm::MuxPwm<'static, nrf52840::pwm::Pwm>,
-        capsules::virtual_pwm::MuxPwm::new(&nrf52840::pwm::PWM0)
+        capsules::virtual_pwm::MuxPwm::new(&base_peripherals.pwm0)
     );
     let virtual_pwm_buzzer = static_init!(
         capsules::virtual_pwm::PwmPinUser<'static, nrf52840::pwm::Pwm>,
@@ -389,12 +389,12 @@ pub unsafe fn reset_handler() {
         capsules::apds9960::APDS9960<'static>,
         capsules::apds9960::APDS9960::new(
             apds9960_i2c,
-            &nrf52840::gpio::PORT[APDS9960_PIN],
+            &nrf52840_peripherals.gpio_port[APDS9960_PIN],
             &mut capsules::apds9960::BUFFER
         )
     );
     apds9960_i2c.set_client(apds9960);
-    nrf52840::gpio::PORT[APDS9960_PIN].set_client(apds9960);
+    nrf52840_peripherals.gpio_port[APDS9960_PIN].set_client(apds9960);
 
     let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
@@ -432,7 +432,7 @@ pub unsafe fn reset_handler() {
             // spi type
             nrf52840::spi::SPIM,
             // chip select
-            &nrf52840::gpio::PORT[ST7789H2_CS],
+            &nrf52840_peripherals.gpio_port[ST7789H2_CS],
             // spi mux
             spi_mux
         ),
@@ -454,9 +454,9 @@ pub unsafe fn reset_handler() {
             // pin type
             nrf52::gpio::GPIOPin<'static>,
             // dc
-            Some(&nrf52840::gpio::PORT[ST7789H2_DC]),
+            Some(&nrf52840_peripherals.gpio_port[ST7789H2_DC]),
             // reset
-            &nrf52840::gpio::PORT[ST7789H2_RESET]
+            &nrf52840_peripherals.gpio_port[ST7789H2_RESET]
         ),
     );
 
