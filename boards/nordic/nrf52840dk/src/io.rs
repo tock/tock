@@ -1,6 +1,6 @@
 use core::fmt::Write;
 use core::panic::PanicInfo;
-use cortexm4;
+use cortexm4f;
 use kernel::debug;
 use kernel::debug::IoWrite;
 use kernel::hil::led;
@@ -20,7 +20,7 @@ static mut WRITER: Writer = Writer::WriterUart(false);
 
 fn wait() {
     for _ in 0..100 {
-        cortexm4::support::nop();
+        cortexm4f::support::nop();
     }
 }
 
@@ -99,7 +99,7 @@ pub unsafe extern "C" fn panic_fmt(pi: &PanicInfo) -> ! {
         &mut [led],
         writer,
         pi,
-        &cortexm4::support::nop,
+        &cortexm4f::support::nop,
         &PROCESSES,
         &CHIP,
     )

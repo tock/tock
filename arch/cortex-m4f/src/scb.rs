@@ -3,7 +3,7 @@
 //! <http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.dui0553a/CIHFDJCA.html>
 
 pub use cortexm4::scb;
-pub use cortexm4::scb::{set_vector_table_offset, unset_sleepdeep};
+pub use cortexm4::scb::{reset, set_vector_table_offset, unset_sleepdeep};
 #[allow(unused_imports)]
 use cortexm4::scb::{CoprocessorAccessControl, SCB};
 

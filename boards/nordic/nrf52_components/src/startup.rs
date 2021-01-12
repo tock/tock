@@ -96,7 +96,7 @@ impl<'a> Component for NrfStartupComponent<'a> {
 
         // Any modification of UICR needs a soft reset for the changes to be taken into account.
         if needs_soft_reset {
-            cortexm4::scb::reset();
+            cortexm4f::scb::reset();
         }
     }
 }

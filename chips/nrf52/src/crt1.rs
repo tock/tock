@@ -1,4 +1,4 @@
-use cortexm4::{
+use cortexm4f::{
     generic_isr, hard_fault_handler, nvic, scb, svc_handler, systick_handler, unhandled_interrupt,
 };
 use tock_rt0;

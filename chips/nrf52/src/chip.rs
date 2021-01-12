@@ -1,24 +1,24 @@
 use crate::deferred_call_tasks::DeferredCallTask;
 use core::fmt::Write;
-use cortexm4::{self, nvic};
+use cortexm4f::{self, nvic};
 use kernel::common::deferred_call;
 use kernel::InterruptService;
 
 pub struct NRF52<'a, I: InterruptService<DeferredCallTask> + 'a> {
-    mpu: cortexm4::mpu::MPU,
-    userspace_kernel_boundary: cortexm4::syscall::SysCall,
-    scheduler_timer: cortexm4::systick::SysTick,
+    mpu: cortexm4f::mpu::MPU,
+    userspace_kernel_boundary: cortexm4f::syscall::SysCall,
+    scheduler_timer: cortexm4f::systick::SysTick,
     interrupt_service: &'a I,
 }
 
 impl<'a, I: InterruptService<DeferredCallTask> + 'a> NRF52<'a, I> {
     pub unsafe fn new(interrupt_service: &'a I) -> Self {
         Self {
-            mpu: cortexm4::mpu::MPU::new(),
-            userspace_kernel_boundary: cortexm4::syscall::SysCall::new(),
+            mpu: cortexm4f::mpu::MPU::new(),
+            userspace_kernel_boundary: cortexm4f::syscall::SysCall::new(),
             // The NRF52's systick is uncalibrated, but is clocked from the
             // 64Mhz CPU clock.
-            scheduler_timer: cortexm4::systick::SysTick::new_with_calibration(64000000),
+            scheduler_timer: cortexm4f::systick::SysTick::new_with_calibration(64000000),
             interrupt_service,
         }
     }
@@ -153,9 +153,9 @@ impl<'a> kernel::InterruptService<DeferredCallTask> for Nrf52DefaultPeripherals<
 }
 
 impl<'a, I: InterruptService<DeferredCallTask> + 'a> kernel::Chip for NRF52<'a, I> {
-    type MPU = cortexm4::mpu::MPU;
-    type UserspaceKernelBoundary = cortexm4::syscall::SysCall;
-    type SchedulerTimer = cortexm4::systick::SysTick;
+    type MPU = cortexm4f::mpu::MPU;
+    type UserspaceKernelBoundary = cortexm4f::syscall::SysCall;
+    type SchedulerTimer = cortexm4f::systick::SysTick;
     type WatchDog = ();
 
     fn mpu(&self) -> &Self::MPU {
@@ -201,7 +201,7 @@ impl<'a, I: InterruptService<DeferredCallTask> + 'a> kernel::Chip for NRF52<'a, 
 
     fn sleep(&self) {
         unsafe {
-            cortexm4::support::wfi();
+            cortexm4f::support::wfi();
         }
     }
 
@@ -209,10 +209,10 @@ impl<'a, I: InterruptService<DeferredCallTask> + 'a> kernel::Chip for NRF52<'a, 
     where
         F: FnOnce() -> R,
     {
-        cortexm4::support::atomic(f)
+        cortexm4f::support::atomic(f)
     }
 
     unsafe fn print_state(&self, write: &mut dyn Write) {
-        cortexm4::print_cortexm4_state(write);
+        cortexm4f::print_cortexm4f_state(write);
     }
 }
