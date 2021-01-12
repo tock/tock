@@ -73,7 +73,7 @@ back.
     ```
 
     Now the board should boot into the Tock bootloader. When the Tock bootloader
-    is active it will tun on the "ON" LED. It will not pulse the yellow LED.
+    is active it will turn on the "ON" LED. It will not pulse the yellow LED.
 
     You can test that this step worked by using tockloader. A simple test is to
     run:
@@ -82,7 +82,7 @@ back.
     $ tockloader info
     ```
 
-    You should see various properties of the board and indicates that tockloader
+    You should see various properties of the board. This indicates that tockloader
     is able to communicate with the temporary bootloader.
 
 3. Our last step is to use the temporary Tock bootloader to flash the real one
