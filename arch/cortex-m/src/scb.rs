@@ -8,7 +8,7 @@ use kernel::common::StaticRef;
 register_structs! {
     /// In an ARMv7-M processor, a System Control Block (SCB) in the SCS
     /// provides key status information and control features for the processor.
-    ScbRegisters {
+    pub ScbRegisters {
         /// CPUID Base Register
         (0x00 => cpuid: ReadOnly<u32, CpuId::Register>),
 
@@ -58,7 +58,7 @@ register_structs! {
         (0x80 => _reserved1),
 
         /// Coprocessor Access Control Register
-        (0x88 => cpacr: ReadWrite<u32, CoprocessorAccessControl::Register>),
+        (0x88 => pub cpacr: ReadWrite<u32, CoprocessorAccessControl::Register>),
 
         /// 0xE000ED8C, Reserved.
         (0x8c => _reserved2),
@@ -251,7 +251,7 @@ register_bitfields![u32,
         ADDRESS         OFFSET(0)   NUMBITS(32)
     ],
 
-    CoprocessorAccessControl [
+    pub CoprocessorAccessControl [
         CP11            OFFSET(22)  NUMBITS(2),
         CP10            OFFSET(20)  NUMBITS(2),
         CP7             OFFSET(14)  NUMBITS(2),
@@ -265,7 +265,8 @@ register_bitfields![u32,
     ]
 ];
 
-const SCB: StaticRef<ScbRegisters> = unsafe { StaticRef::new(0xE000ED00 as *const ScbRegisters) };
+pub const SCB: StaticRef<ScbRegisters> =
+    unsafe { StaticRef::new(0xE000ED00 as *const ScbRegisters) };
 
 /// Allow the core to go into deep sleep on WFI.
 ///
