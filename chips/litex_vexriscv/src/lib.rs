@@ -1,6 +1,6 @@
 //! LiteX SoCs based around a VexRiscv CPU
 
-#![feature(asm, const_fn, const_panic)]
+#![feature(asm, const_fn)]
 #![no_std]
 #![crate_name = "litex_vexriscv"]
 #![crate_type = "rlib"]
