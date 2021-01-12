@@ -5,6 +5,7 @@
 #![no_std]
 #![feature(asm)]
 
+pub mod fpu;
 pub mod scb;
 
 // Re-export the base generic cortex-m functions here as they are
