@@ -4,6 +4,7 @@ members = [
     "arch/cortex-m0",
     "arch/cortex-m3",
     "arch/cortex-m4",
+    "arch/cortex-m4f",
     "arch/cortex-m7",
     "arch/riscv",
     "arch/rv32i",
