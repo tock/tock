@@ -71,7 +71,7 @@ impl Platform for ArtyE21 {
 
             capsules::alarm::DRIVER_NUM => f(Some(Ok(self.alarm))),
             capsules::led::DRIVER_NUM => f(Some(Ok(self.led))),
-            capsules::button::DRIVER_NUM => f(Some(Err(self.button))),
+            capsules::button::DRIVER_NUM => f(Some(Ok(self.button))),
 
             // kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             _ => f(None),
@@ -92,7 +92,7 @@ pub unsafe fn reset_handler() {
 
     let chip = static_init!(
         arty_e21_chip::chip::ArtyExx<ArtyExxDefaultPeripherals>,
-        arty_e21_chip::chip::ArtyExx::new(peripherals)
+        arty_e21_chip::chip::ArtyExx::new(&peripherals.machinetimer, peripherals)
     );
     CHIP = Some(chip);
     chip.initialize();

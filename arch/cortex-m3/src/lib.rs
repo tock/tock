@@ -2,7 +2,6 @@
 
 #![crate_name = "cortexm3"]
 #![crate_type = "rlib"]
-#![feature(naked_functions)]
 #![no_std]
 
 pub mod mpu;

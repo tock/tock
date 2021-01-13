@@ -1,6 +1,6 @@
 //! Drivers and support modules for LiteX SoCs
 
-#![feature(asm, llvm_asm, const_fn)]
+#![feature(const_fn)]
 #![no_std]
 #![crate_name = "litex"]
 #![crate_type = "rlib"]

@@ -45,7 +45,8 @@ const NUM_PROCS: usize = 1;
 // Actual memory for holding the active process structures.
 static mut PROCESSES: [Option<&'static dyn kernel::procs::ProcessType>; NUM_PROCS] = [None];
 
-static mut CHIP: Option<&'static imxrt1050::chip::Imxrt10xx> = None;
+type Chip = imxrt1050::chip::Imxrt10xx<imxrt1050::chip::Imxrt10xxDefaultPeripherals>;
+static mut CHIP: Option<&'static Chip> = None;
 
 // How should the kernel respond when a process faults.
 const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultResponse::Panic;
@@ -85,7 +86,7 @@ impl Platform for Imxrt1050EVKB {
     {
         match driver_num {
             capsules::alarm::DRIVER_NUM => f(Some(Ok(self.alarm))),
-            capsules::button::DRIVER_NUM => f(Some(Err(self.button))),
+            capsules::button::DRIVER_NUM => f(Some(Ok(self.button))),
             capsules::console::DRIVER_NUM => f(Some(Ok(self.console))),
             capsules::gpio::DRIVER_NUM => f(Some(Err(self.gpio))),
             kernel::ipc::DRIVER_NUM => f(Some(Err(&self.ipc))),
@@ -102,21 +103,22 @@ impl Platform for Imxrt1050EVKB {
 // }
 
 /// Helper function called during bring-up that configures multiplexed I/O.
-unsafe fn set_pin_primary_functions() {
-    use imxrt1050::ccm::CCM;
-    use imxrt1050::gpio::{PinId, PORT};
+unsafe fn set_pin_primary_functions(
+    peripherals: &'static imxrt1050::chip::Imxrt10xxDefaultPeripherals,
+) {
+    use imxrt1050::gpio::PinId;
 
-    CCM.enable_iomuxc_clock();
-    CCM.enable_iomuxc_snvs_clock();
+    peripherals.ccm.enable_iomuxc_clock();
+    peripherals.ccm.enable_iomuxc_snvs_clock();
 
-    PORT[0].enable_clock();
+    peripherals.ports.gpio1.enable_clock();
 
     // User_LED is connected to GPIO_AD_B0_09.
     // Values set accordingly to the evkbimxrt1050_iled_blinky SDK example
 
     // First we configure the pin in GPIO mode and disable the Software Input
     // on Field, so that the Input Path is determined by functionality.
-    imxrt1050::iomuxc::IOMUXC.enable_sw_mux_ctl_pad_gpio(
+    peripherals.iomuxc.enable_sw_mux_ctl_pad_gpio(
         PadId::AdB0,
         MuxMode::ALT5, // ALT5 for AdB0_09: GPIO1_IO09 of instance: gpio1
         Sion::Disabled,
@@ -125,7 +127,7 @@ unsafe fn set_pin_primary_functions() {
 
     // Configure the pin resistance value, pull up or pull down and other
     // physical aspects.
-    imxrt1050::iomuxc::IOMUXC.configure_sw_pad_ctl_pad_gpio(
+    peripherals.iomuxc.configure_sw_pad_ctl_pad_gpio(
         PadId::AdB0,
         9,
         PullUpDown::Pus0_100kOhmPullDown,   // 100K Ohm Pull Down
@@ -136,42 +138,36 @@ unsafe fn set_pin_primary_functions() {
     );
 
     // Configuring the GPIO_AD_B0_09 as output
-    PinId::AdB0_09.get_pin().as_ref().map(|pin| {
-        pin.make_output();
-
-        // Configure kernel debug gpios as early as possible
-        kernel::debug::assign_gpios(Some(pin), None, None);
-    });
+    let pin = peripherals.ports.pin(PinId::AdB0_09);
+    pin.make_output();
+    kernel::debug::assign_gpios(Some(pin), None, None);
 
     // User_Button is connected to IOMUXC_SNVS_WAKEUP.
-    PORT[4].enable_clock();
+    peripherals.ports.gpio5.enable_clock();
 
     // We configure the pin in GPIO mode and disable the Software Input
     // on Field, so that the Input Path is determined by functionality.
-    imxrt1050::iomuxc::IOMUXC.enable_sw_mux_ctl_pad_gpio(
-        PadId::Snvs,
+    peripherals.iomuxc_snvs.enable_sw_mux_ctl_pad_gpio(
         MuxMode::ALT5, // ALT5 for AdB0_09: GPIO5_IO00 of instance: gpio5
         Sion::Disabled,
         0,
     );
 
     // Configuring the IOMUXC_SNVS_WAKEUP pin as input
-    PinId::Wakeup.get_pin().as_ref().map(|pin| {
-        pin.make_input();
-    });
+    peripherals.ports.pin(PinId::Wakeup).make_input();
 }
 
 /// Helper function for miscellaneous peripheral functions
-unsafe fn setup_peripherals() {
-    use imxrt1050::ccm::CCM;
-    use imxrt1050::gpt::GPT1;
-
+unsafe fn setup_peripherals(peripherals: &imxrt1050::chip::Imxrt10xxDefaultPeripherals) {
     // LPUART1 IRQn is 20
     cortexm7::nvic::Nvic::new(imxrt1050::nvic::LPUART1).enable();
 
     // TIM2 IRQn is 28
-    GPT1.enable_clock();
-    GPT1.start(CCM.perclk_sel(), CCM.perclk_divider());
+    peripherals.gpt1.enable_clock();
+    peripherals.gpt1.start(
+        peripherals.ccm.perclk_sel(),
+        peripherals.ccm.perclk_divider(),
+    );
     cortexm7::nvic::Nvic::new(imxrt1050::nvic::GPT1).enable();
 }
 
@@ -184,12 +180,23 @@ unsafe fn setup_peripherals() {
 #[no_mangle]
 pub unsafe fn reset_handler() {
     imxrt1050::init();
-    imxrt1050::lpuart::LPUART1.set_baud();
+    let ccm = static_init!(imxrt1050::ccm::Ccm, imxrt1050::ccm::Ccm::new());
+    let peripherals = static_init!(
+        imxrt1050::chip::Imxrt10xxDefaultPeripherals,
+        imxrt1050::chip::Imxrt10xxDefaultPeripherals::new(ccm)
+    );
+    peripherals.ccm.set_low_power_mode();
+    peripherals.lpuart1.disable_clock();
+    peripherals.lpuart2.disable_clock();
+    peripherals
+        .ccm
+        .set_uart_clock_sel(imxrt1050::ccm::UartClockSelection::PLL3);
+    peripherals.ccm.set_uart_clock_podf(1);
+    peripherals.lpuart1.set_baud();
 
-    set_pin_primary_functions();
-    // setup_dma();
+    set_pin_primary_functions(peripherals);
 
-    setup_peripherals();
+    setup_peripherals(peripherals);
 
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
 
@@ -201,10 +208,7 @@ pub unsafe fn reset_handler() {
     );
     DynamicDeferredCall::set_global_instance(dynamic_deferred_caller);
 
-    let chip = static_init!(
-        imxrt1050::chip::Imxrt10xx,
-        imxrt1050::chip::Imxrt10xx::new()
-    );
+    let chip = static_init!(Chip, Chip::new(peripherals));
     CHIP = Some(chip);
 
     // LPUART1
@@ -216,13 +220,13 @@ pub unsafe fn reset_handler() {
 
     // First we configure the pin in LPUART mode and disable the Software Input
     // on Field, so that the Input Path is determined by functionality.
-    imxrt1050::iomuxc::IOMUXC.enable_sw_mux_ctl_pad_gpio(
+    peripherals.iomuxc.enable_sw_mux_ctl_pad_gpio(
         PadId::AdB0,
         MuxMode::ALT2, // ALT2: LPUART1_TXD of instance: lpuart1
         Sion::Disabled,
         13,
     );
-    imxrt1050::iomuxc::IOMUXC.enable_sw_mux_ctl_pad_gpio(
+    peripherals.iomuxc.enable_sw_mux_ctl_pad_gpio(
         PadId::AdB0,
         MuxMode::ALT2, // ALT2: LPUART1_RXD of instance: lpuart1
         Sion::Disabled,
@@ -231,7 +235,7 @@ pub unsafe fn reset_handler() {
 
     // Configure the pin resistance value, pull up or pull down and other
     // physical aspects.
-    imxrt1050::iomuxc::IOMUXC.configure_sw_pad_ctl_pad_gpio(
+    peripherals.iomuxc.configure_sw_pad_ctl_pad_gpio(
         PadId::AdB0,
         13,
         PullUpDown::Pus0_100kOhmPullDown,   // 100K Ohm Pull Down
@@ -240,7 +244,7 @@ pub unsafe fn reset_handler() {
         Speed::Medium2,                     // Operating frequency: 100MHz - 150MHz
         DriveStrength::DSE6, // Dual/Single voltage: 43/43 Ohm @ 1.8V, 40/26 Ohm @ 3.3V
     );
-    imxrt1050::iomuxc::IOMUXC.configure_sw_pad_ctl_pad_gpio(
+    peripherals.iomuxc.configure_sw_pad_ctl_pad_gpio(
         PadId::AdB0,
         14,
         PullUpDown::Pus0_100kOhmPullDown,   // 100K Ohm Pull Down
@@ -251,10 +255,10 @@ pub unsafe fn reset_handler() {
     );
 
     // Enable clock
-    imxrt1050::lpuart::LPUART1.enable_clock();
+    peripherals.lpuart1.enable_clock();
 
     let lpuart_mux = components::console::UartMuxComponent::new(
-        &imxrt1050::lpuart::LPUART1,
+        &peripherals.lpuart1,
         115200,
         dynamic_deferred_caller,
     )
@@ -278,7 +282,7 @@ pub unsafe fn reset_handler() {
     // Clock to Port A is enabled in `set_pin_primary_functions()
     let led = components::led::LedsComponent::new(components::led_component_helper!(
         LedLow<'static, imxrt1050::gpio::Pin<'static>>,
-        LedLow::new(imxrt1050::gpio::PinId::AdB0_09.get_pin().as_ref().unwrap()),
+        LedLow::new(peripherals.ports.pin(imxrt1050::gpio::PinId::AdB0_09)),
     ))
     .finalize(components::led_component_buf!(
         LedLow<'static, imxrt1050::gpio::Pin<'static>>
@@ -290,7 +294,7 @@ pub unsafe fn reset_handler() {
         components::button_component_helper!(
             imxrt1050::gpio::Pin,
             (
-                imxrt1050::gpio::PinId::Wakeup.get_pin().as_ref().unwrap(),
+                peripherals.ports.pin(imxrt1050::gpio::PinId::Wakeup),
                 kernel::hil::gpio::ActivationMode::ActiveHigh,
                 kernel::hil::gpio::FloatingState::PullDown
             )
@@ -299,7 +303,7 @@ pub unsafe fn reset_handler() {
     .finalize(components::button_component_buf!(imxrt1050::gpio::Pin));
 
     // ALARM
-    let gpt1 = &imxrt1050::gpt::GPT1;
+    let gpt1 = &peripherals.gpt1;
     let mux_alarm = components::alarm::AlarmMuxComponent::new(gpt1).finalize(
         components::alarm_mux_component_helper!(imxrt1050::gpt::Gpt1),
     );
@@ -314,7 +318,7 @@ pub unsafe fn reset_handler() {
         components::gpio_component_helper!(
             imxrt1050::gpio::Pin<'static>,
             // The User Led
-            0 => imxrt1050::gpio::PinId::AdB0_09.get_pin().as_ref().unwrap()
+            0 => peripherals.ports.pin(imxrt1050::gpio::PinId::AdB0_09)
         ),
     )
     .finalize(components::gpio_component_buf!(
@@ -328,27 +332,27 @@ pub unsafe fn reset_handler() {
 
     // First we configure the pin in LPUART mode and enable the Software Input
     // on Field, so that we force input path of the pad.
-    imxrt1050::iomuxc::IOMUXC.enable_sw_mux_ctl_pad_gpio(
+    peripherals.iomuxc.enable_sw_mux_ctl_pad_gpio(
         PadId::AdB1,
         MuxMode::ALT3, // ALT3:  LPI2C1_SCL of instance: lpi2c1
         Sion::Enabled,
         0,
     );
     // Selecting AD_B1_00 for LPI2C1_SCL in the Daisy Chain.
-    imxrt1050::iomuxc::IOMUXC.enable_lpi2c_scl_select_input();
+    peripherals.iomuxc.enable_lpi2c_scl_select_input();
 
-    imxrt1050::iomuxc::IOMUXC.enable_sw_mux_ctl_pad_gpio(
+    peripherals.iomuxc.enable_sw_mux_ctl_pad_gpio(
         PadId::AdB1,
         MuxMode::ALT3, // ALT3:  LPI2C1_SDA of instance: lpi2c1
         Sion::Enabled,
         1,
     );
     // Selecting AD_B1_01 for LPI2C1_SDA in the Daisy Chain.
-    imxrt1050::iomuxc::IOMUXC.enable_lpi2c_sda_select_input();
+    peripherals.iomuxc.enable_lpi2c_sda_select_input();
 
     // Configure the pin resistance value, pull up or pull down and other
     // physical aspects.
-    imxrt1050::iomuxc::IOMUXC.configure_sw_pad_ctl_pad_gpio(
+    peripherals.iomuxc.configure_sw_pad_ctl_pad_gpio(
         PadId::AdB1,
         0,
         PullUpDown::Pus3_22kOhmPullUp,     // 22K Ohm Pull Up
@@ -358,7 +362,7 @@ pub unsafe fn reset_handler() {
         DriveStrength::DSE6, // Dual/Single voltage: 43/43 Ohm @ 1.8V, 40/26 Ohm @ 3.3V
     );
 
-    imxrt1050::iomuxc::IOMUXC.configure_sw_pad_ctl_pad_gpio(
+    peripherals.iomuxc.configure_sw_pad_ctl_pad_gpio(
         PadId::AdB1,
         1,
         PullUpDown::Pus3_22kOhmPullUp,     // 22K Ohm Pull Up
@@ -369,21 +373,20 @@ pub unsafe fn reset_handler() {
     );
 
     // Enabling the lpi2c1 clock and setting the speed.
-    imxrt1050::lpi2c::LPI2C1.enable_clock();
-    imxrt1050::lpi2c::LPI2C1.set_speed(imxrt1050::lpi2c::Lpi2cSpeed::Speed100k, 8);
+    peripherals.lpi2c1.enable_clock();
+    peripherals
+        .lpi2c1
+        .set_speed(imxrt1050::lpi2c::Lpi2cSpeed::Speed100k, 8);
 
     use imxrt1050::gpio::PinId;
-    let mux_i2c = components::i2c::I2CMuxComponent::new(
-        &imxrt1050::lpi2c::LPI2C1,
-        None,
-        dynamic_deferred_caller,
-    )
-    .finalize(components::i2c_mux_component_helper!());
+    let mux_i2c =
+        components::i2c::I2CMuxComponent::new(&peripherals.lpi2c1, None, dynamic_deferred_caller)
+            .finalize(components::i2c_mux_component_helper!());
 
     // Fxos8700 sensor
     let fxos8700 = components::fxos8700::Fxos8700Component::new(
         mux_i2c,
-        PinId::AdB1_00.get_pin().as_ref().unwrap(),
+        peripherals.ports.pin(PinId::AdB1_00),
     )
     .finalize(());
 
