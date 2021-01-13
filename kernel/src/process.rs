@@ -420,6 +420,14 @@ pub trait ProcessType {
             -> Result<ReadOnlyAppSlice, (ReadOnlyAppSlice, ErrorCode)>,
     ) -> GenericSyscallReturnValue;
 
+    /// If address is a valid writeable address in
+    /// the process, return a reference to it; if not,
+    /// return None. This method allows the Yield system
+    /// call to pass the optional field for `yield-no-wait`
+    /// in which the kernel
+    /// indicates whether a callback was invoked.
+    fn yield_wait_field(&self, addr: *mut u8) -> Option<&mut u8>;
+
     /// Get the first address of process's flash that isn't protected by the
     /// kernel. The protected range of flash contains the TBF header and
     /// potentially other state the kernel is storing on behalf of the process,
@@ -1392,6 +1400,14 @@ impl<C: Chip> ProcessType for Process<'_, C> {
                 let (ptr, len) = new_slice.consume();
                 GenericSyscallReturnValue::AllowReadOnlyFailure(err, ptr, len)
             }
+        }
+    }
+
+    fn yield_wait_field(&self, addr: *mut u8) -> Option<&mut u8> {
+        if self.in_app_owned_memory(addr, 1) {
+            unsafe { Some(&mut *addr) }
+        } else {
+            None
         }
     }
 
