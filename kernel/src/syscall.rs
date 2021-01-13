@@ -66,6 +66,7 @@ pub enum Syscall {
     /// System call class ID 0
     Yield {
         wait: bool,
+        terminate: bool,
         address: *mut u8,
     },
 
@@ -141,6 +142,7 @@ impl Syscall {
             Ok(SyscallClass::Yield) => {
                 Some(Syscall::Yield {
                     wait: r0 != 0,
+                    terminate: r0 == 2,
                     address: r1 as *mut u8,
                 })
             },
