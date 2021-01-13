@@ -64,7 +64,11 @@ pub enum Syscall {
     /// interrupts and callbacks.
     ///
     /// System call class ID 0
-    Yield { wait: bool, address: *mut u8 },
+    Yield {
+        wait: bool,
+        terminate: bool,
+        address: *mut u8,
+    },
 
     /// Pass a callback function to the kernel.
     ///
@@ -137,6 +141,7 @@ impl Syscall {
         match SyscallClass::try_from(syscall_number) {
             Ok(SyscallClass::Yield) => Some(Syscall::Yield {
                 wait: r0 != 0,
+                terminate: r0 == 2,
                 address: r1 as *mut u8,
             }),
             Ok(SyscallClass::Subscribe) => Some(Syscall::Subscribe {
