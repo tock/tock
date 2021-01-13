@@ -66,6 +66,7 @@ pub enum Syscall {
     /// System call class ID 0
     Yield {
         wait: bool,
+        address: *mut u8,
     },
 
     /// Pass a callback function to the kernel.
@@ -138,9 +139,9 @@ impl Syscall {
     ) -> Option<Self> {
         match SyscallClass::try_from(syscall_number) {
             Ok(SyscallClass::Yield) => {
-                let wait = r0 != 0;
                 Some(Syscall::Yield {
-                    wait: wait
+                    wait: r0 != 0,
+                    address: r1 as *mut u8,
                 })
             },
             Ok(SyscallClass::Subscribe) => Some(Syscall::Subscribe {

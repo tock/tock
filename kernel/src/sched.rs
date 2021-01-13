@@ -756,7 +756,7 @@ impl Kernel {
         // exhausted its timeslice) allowing the process to
         // decide how to handle the error.
         match syscall {
-            Syscall::Yield { wait: _ } => {}, // Do nothing
+            Syscall::Yield { wait: _, address: _  } => {}, // Do nothing
             _ => { // Check all other syscalls for filtering
                 if let Err(response) = platform.filter_syscall(process, &syscall) {
                     process
@@ -782,7 +782,7 @@ impl Kernel {
                 }
                 process.set_syscall_return_value(rval);
             }
-            Syscall::Yield { wait } => {
+            Syscall::Yield { wait, address} => {
                 if config::CONFIG.trace_syscalls {
                     debug!("[{:?}] yield {}", process.appid(), wait);
                 }
@@ -790,12 +790,17 @@ impl Kernel {
                 // then return immediately. Otherwise, go into the yielded
                 // state and execute tasks now or when they arrive.
                 let return_now = !wait && !process.has_tasks();
+                let field = process.yield_wait_field(address);
                 if return_now {
-                    process.set_syscall_return_value(GenericSyscallReturnValue::Failure(ErrorCode::FAIL));
+                    // Set the "did I trigger callbacks" flag to be 0,
+                    // return immediately.
+                    field.map( |flag| *flag = 0);
                 } else {
                     // There are already enqueued callbacks to execute or
                     // we should wait for them: handle in the next loop
-                    // iteration
+                    // iteration and set the "did I trigger callbacks" flag
+                    // to be 1.
+                    field.map( |flag| *flag = 1);
                     process.set_yielded_state();
                 }
             }
