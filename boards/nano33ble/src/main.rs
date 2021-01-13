@@ -87,11 +87,21 @@ static mut CDC_REF_FOR_PANIC: Option<
         capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc>,
     >,
 > = None;
+static mut NRF52_POWER: Option<&'static nrf52840::power::Power> = None;
 
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
 #[link_section = ".stack_buffer"]
 pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
+
+// Function for the CDC/USB stack to use to enter the bootloader.
+fn baud_rate_reset_bootloader_enter() {
+    unsafe {
+        // 0x90 is the magic value the bootloader expects
+        NRF52_POWER.unwrap().set_gpregret(0x90);
+        cortexm4::scb::reset();
+    }
+}
 
 /// Supported drivers by the platform
 pub struct Platform {
@@ -152,6 +162,10 @@ pub unsafe fn reset_handler() {
     // set up circular peripheral dependencies
     nrf52840_peripherals.init();
     let base_peripherals = &nrf52840_peripherals.nrf52;
+
+    // Save a reference to the power module for resetting the board into the
+    // bootloader.
+    NRF52_POWER = Some(&base_peripherals.pwr_clk);
 
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
 
@@ -219,7 +233,7 @@ pub unsafe fn reset_handler() {
     //--------------------------------------------------------------------------
 
     let dynamic_deferred_call_clients =
-        static_init!([DynamicDeferredCallClientState; 3], Default::default());
+        static_init!([DynamicDeferredCallClientState; 4], Default::default());
     let dynamic_deferred_caller = static_init!(
         DynamicDeferredCall,
         DynamicDeferredCall::new(dynamic_deferred_call_clients)
@@ -267,7 +281,7 @@ pub unsafe fn reset_handler() {
         strings,
         mux_alarm,
         dynamic_deferred_caller,
-        None,
+        Some(&baud_rate_reset_bootloader_enter),
     )
     .finalize(components::usb_cdc_acm_component_helper!(
         nrf52::usbd::Usbd,
