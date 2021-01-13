@@ -1,6 +1,6 @@
 use kernel::common::registers::register_bitfields;
 
-register_bitfields![u32,
+register_bitfields![usize,
     pub mstatus [
         uie OFFSET(0) NUMBITS(1) [],
         sie OFFSET(1) NUMBITS(1) [],

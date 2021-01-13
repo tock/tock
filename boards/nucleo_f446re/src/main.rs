@@ -71,7 +71,7 @@ impl Platform for NucleoF446RE {
         match driver_num {
             capsules::console::DRIVER_NUM => f(Some(Ok(self.console))),
             capsules::led::DRIVER_NUM => f(Some(Ok(self.led))),
-            capsules::button::DRIVER_NUM => f(Some(Err(self.button))),
+            capsules::button::DRIVER_NUM => f(Some(Ok(self.button))),
             capsules::alarm::DRIVER_NUM => f(Some(Ok(self.alarm))),
             kernel::ipc::DRIVER_NUM => f(Some(Err(&self.ipc))),
             _ => f(None),

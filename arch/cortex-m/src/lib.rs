@@ -19,7 +19,7 @@ pub mod systick;
 extern "C" {
     // _estack is not really a function, but it makes the types work
     // You should never actually invoke it!!
-    fn _estack();
+    static _estack: u32;
     static mut _sstack: u32;
     static mut _szero: u32;
     static mut _ezero: u32;
@@ -37,7 +37,7 @@ extern "C" {
 #[cfg(all(target_arch = "arm", target_os = "none"))]
 #[naked]
 pub unsafe extern "C" fn systick_handler() {
-    llvm_asm!(
+    asm!(
         "
     // Set thread mode to privileged to switch back to kernel mode.
     mov r0, #0
@@ -51,8 +51,9 @@ pub unsafe extern "C" fn systick_handler() {
 
     // This will resume in the switch to user function where application state
     // is saved and the scheduler can choose what to do next.
-    "
-    : : : "r0" : "volatile" );
+    ",
+        options(noreturn)
+    );
 }
 
 /// This is called after a `svc` instruction, both when switching to userspace
@@ -60,7 +61,7 @@ pub unsafe extern "C" fn systick_handler() {
 #[cfg(all(target_arch = "arm", target_os = "none"))]
 #[naked]
 pub unsafe extern "C" fn svc_handler() {
-    llvm_asm!(
+    asm!(
         "
     // First check to see which direction we are going in. If the link register
     // is something other than 0xfffffff9, then we are coming from an app which
@@ -101,8 +102,9 @@ pub unsafe extern "C" fn svc_handler() {
     // This is a special address to return Thread mode with Main stack
     movw LR, #0xFFF9
     movt LR, #0xFFFF
-    bx lr"
-    : : : "r0", "r1", "lr", "cc", "memory" : "volatile" );
+    bx lr",
+        options(noreturn)
+    );
 }
 
 /// All ISRs are caught by this handler. This must ensure the interrupt is
@@ -116,7 +118,7 @@ pub unsafe extern "C" fn svc_handler() {
 #[cfg(all(target_arch = "arm", target_os = "none"))]
 #[naked]
 pub unsafe extern "C" fn generic_isr() {
-    llvm_asm!(
+    asm!(
         "
     // Set thread mode to privileged to ensure we are executing as the kernel.
     // This may be redundant if the interrupt happened while the kernel code
@@ -185,8 +187,10 @@ pub unsafe extern "C" fn generic_isr() {
     // Now we can return from the interrupt context and resume what we were
     // doing. If an app was executing we will switch to the kernel so it can
     // choose whether to service the interrupt.
-    "
-    : : : : "volatile" );
+    bx lr
+    ",
+        options(noreturn)
+    );
 }
 
 #[cfg(all(target_arch = "arm", target_os = "none"))]
@@ -250,7 +254,7 @@ pub unsafe extern "C" fn switch_to_user_arm_v7m(
 
 #[cfg(all(target_arch = "arm", target_os = "none"))]
 #[inline(never)]
-unsafe fn kernel_hardfault_arm_v7m(faulting_stack: *mut u32) {
+unsafe fn kernel_hardfault_arm_v7m(faulting_stack: *mut u32) -> ! {
     let stacked_r0: u32 = *faulting_stack.offset(0);
     let stacked_r1: u32 = *faulting_stack.offset(1);
     let stacked_r2: u32 = *faulting_stack.offset(2);
@@ -392,63 +396,16 @@ unsafe fn kernel_hardfault_arm_v7m(faulting_stack: *mut u32) {
 }
 
 #[cfg(all(target_arch = "arm", target_os = "none"))]
-#[naked]
-pub unsafe extern "C" fn hard_fault_handler_arm_v7m() {
-    let faulting_stack: *mut u32;
-    // Variable `kernel_stack` stores a boolean value.
-    let kernel_stack: u32;
-
-    // First need to determine if this a kernel fault or a userspace fault.
-    asm!(
-        "mov    r1, 0     /* r1 = 0 */",
-        "tst    lr, #4    /* bitwise AND link register to 0b100 */",
-        "itte   eq        /* if lr==4, run next two instructions, else, run 3rd instruction. */",
-        "mrseq  r0, msp   /* r0 = kernel stack pointer */",
-        "addeq  r1, 1     /* r1 = 1, kernel was executing */",
-        "mrsne  r0, psp   /* r0 = userland stack pointer */",
-        out("r0") faulting_stack,
-        out("r1") kernel_stack,
-        options(nomem, nostack)
-    );
-
+/// Continue the hardfault handler. This function is not `#[naked]`, meaning we can mix
+/// `asm!()` and Rust. We separate this logic to not have to write the entire fault
+/// handler entirely in assembly.
+unsafe extern "C" fn hard_fault_handler_arm_v7m_continued(
+    faulting_stack: *mut u32,
+    kernel_stack: u32,
+    stack_overflow: u32,
+) -> ! {
     if kernel_stack != 0 {
-        // Need to determine if we had a stack overflow before we push anything
-        // on to the stack. We check this by looking at the BusFault Status
-        // Register's (BFSR) `LSPERR` and `STKERR` bits to see if the hardware
-        // had any trouble stacking important registers to the stack during the
-        // fault. If so, then we cannot use this stack while handling this fault
-        // or we will trigger another fault.
-
-        // Variable `stack_overflow` stores a boolean value.
-        let stack_overflow: u32;
-        asm!(
-            "ldr   r2, =0xE000ED29  /* SCB BFSR register address */",
-            "ldrb  r2, [r2]         /* r2 = BFSR */",
-            "tst   r2, #0x30        /* r2 = BFSR & 0b00110000; LSPERR & STKERR bits */",
-            "ite   ne               /* check if the result of that bitwise AND was not 0 */",
-            "movne r3, #1           /* BFSR & 0b00110000 != 0; r3 = 1 */",
-            "moveq r3, #0           /* BFSR & 0b00110000 == 0; r3 = 0 */",
-            out("r3") stack_overflow,
-            out("r2") _,
-            options(nostack, readonly)
-        );
-
         if stack_overflow != 0 {
-            // The hardware couldn't use the stack, so we have no saved data and
-            // we cannot use the kernel stack as is. We just want to report that
-            // the kernel's stack overflowed, since that is essential for
-            // debugging.
-            //
-            // To make room for a panic!() handler stack, we just re-use the
-            // kernel's original stack. This should in theory leave the bottom
-            // of the stack where the problem occurred untouched should one want
-            // to further debug.
-            asm!(
-                "mov sp, r0   /* Set the stack pointer to _estack */",
-                in("r0") ((_estack as *const ()) as u32),
-                options(nomem, preserves_flags)
-            );
-
             // Panic to show the correct error.
             panic!("kernel stack overflow");
         } else {
@@ -458,8 +415,8 @@ pub unsafe extern "C" fn hard_fault_handler_arm_v7m() {
     } else {
         // Hard fault occurred in an app, not the kernel. The app should be
         // marked as in an error state and handled by the kernel.
-        llvm_asm!(
-        "
+        asm!(
+            "
         /* Read the relevant SCB registers. */
         ldr r0, =SCB_REGISTERS  /* Global variable address */
         ldr r1, =0xE000ED14     /* SCB CCR register address */
@@ -486,9 +443,61 @@ pub unsafe extern "C" fn hard_fault_handler_arm_v7m() {
         isb
 
         movw LR, #0xFFF9
-        movt LR, #0xFFFF"
-        : : : "r1", "r0", "r2", "memory" : "volatile" );
+        movt LR, #0xFFFF",
+            options(noreturn)
+        );
     }
+}
+
+#[cfg(all(target_arch = "arm", target_os = "none"))]
+#[naked]
+pub unsafe extern "C" fn hard_fault_handler_arm_v7m() {
+    // First need to determine if this a kernel fault or a userspace fault, and store
+    // the unmodified stack pointer. Place these values in registers, then call
+    // a non-naked function, to allow for use of rust code alongside inline asm.
+    // Because calling a function increases the stack pointer, we have to check for a kernel
+    // stack overflow and adjust the stack pointer before we branch
+
+    asm!(
+        "mov    r1, 0     /* r1 = 0 */",
+        "tst    lr, #4    /* bitwise AND link register to 0b100 */",
+        "itte   eq        /* if lr==4, run next two instructions, else, run 3rd instruction. */",
+        "mrseq  r0, msp   /* r0 = kernel stack pointer */",
+        "addeq  r1, 1     /* r1 = 1, kernel was executing */",
+        "mrsne  r0, psp   /* r0 = userland stack pointer */",
+        // Need to determine if we had a stack overflow before we push anything
+        // on to the stack. We check this by looking at the BusFault Status
+        // Register's (BFSR) `LSPERR` and `STKERR` bits to see if the hardware
+        // had any trouble stacking important registers to the stack during the
+        // fault. If so, then we cannot use this stack while handling this fault
+        // or we will trigger another fault.
+        "ldr   r3, =0xE000ED29  /* SCB BFSR register address */",
+        "ldrb  r3, [r3]         /* r3 = BFSR */",
+        "tst   r3, #0x30        /* r3 = BFSR & 0b00110000; LSPERR & STKERR bits */",
+        "ite   ne               /* check if the result of that bitwise AND was not 0 */",
+        "movne r2, #1           /* BFSR & 0b00110000 != 0; r2 = 1 */",
+        "moveq r2, #0           /* BFSR & 0b00110000 == 0; r2 = 0 */",
+        "and r5, r1, r2         /* bitwise and r2 and r1, store in r5 */ ",
+        "cmp  r5, #1            /*  update condition codes to reflect if r2 == 1 && r1 == 1 */",
+        "itt  eq                /* if r5==1 run the next 2 instructions, else skip to branch */",
+        // if true, The hardware couldn't use the stack, so we have no saved data and
+        // we cannot use the kernel stack as is. We just want to report that
+        // the kernel's stack overflowed, since that is essential for
+        // debugging.
+        //
+        // To make room for a panic!() handler stack, we just re-use the
+        // kernel's original stack. This should in theory leave the bottom
+        // of the stack where the problem occurred untouched should one want
+        // to further debug.
+        "ldreq  r4, ={}       /* load _estack into r4 */",
+        "moveq  sp, r4        /* Set the stack pointer to _estack */",
+        // finally, branch to non-naked handler, never return
+        // per ARM calling convention, faulting stack is passed in r0, and kernel_stack in r1,
+        // and whether there was a stack overflow in r2
+        // called function never returns, so no need to mark clobbers
+        "b {}", sym _estack, sym hard_fault_handler_arm_v7m_continued,
+        options(noreturn)
+    );
 }
 
 pub unsafe fn print_cortexm_state(writer: &mut dyn Write) {

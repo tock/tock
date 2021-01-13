@@ -6,7 +6,6 @@
 // Disable this attribute when documenting, as a workaround for
 // https://github.com/rust-lang/rust/issues/62184.
 #![cfg_attr(not(doc), no_main)]
-#![feature(const_in_array_repeat_expressions)]
 #![deny(missing_docs)]
 
 use capsules::virtual_aes_ccm::MuxAES128CCM;
@@ -144,7 +143,7 @@ impl kernel::Platform for Platform {
             capsules::gpio::DRIVER_NUM => f(Some(Err(self.gpio))),
             capsules::alarm::DRIVER_NUM => f(Some(Ok(self.alarm))),
             capsules::led::DRIVER_NUM => f(Some(Ok(self.led))),
-            capsules::button::DRIVER_NUM => f(Some(Err(self.button))),
+            capsules::button::DRIVER_NUM => f(Some(Ok(self.button))),
             capsules::screen::DRIVER_NUM => f(Some(Ok(self.screen))),
             capsules::rng::DRIVER_NUM => f(Some(Ok(self.rng))),
             capsules::ble_advertising_driver::DRIVER_NUM => f(Some(Err(self.ble_radio))),
@@ -344,6 +343,7 @@ pub unsafe fn reset_handler() {
         strings,
         mux_alarm,
         dynamic_deferred_caller,
+        None,
     )
     .finalize(components::usb_cdc_acm_component_helper!(
         nrf52::usbd::Usbd,
@@ -507,7 +507,7 @@ pub unsafe fn reset_handler() {
 
     // Start all of the clocks. Low power operation will require a better
     // approach than this.
-    nrf52_components::NrfClockComponent::new().finalize(());
+    nrf52_components::NrfClockComponent::new(&base_peripherals.clock).finalize(());
 
     let platform = Platform {
         ble_radio: ble_radio,

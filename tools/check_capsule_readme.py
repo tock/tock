@@ -46,8 +46,16 @@ for subdir, dirs, files in os.walk(os.fsencode('capsules/src/')):
 # Calculate what doesn't seem to be documented.
 missing = list(set(implemented_capsules) - set(documented_capsules))
 
+# Calculate what has been removed
+removed = list(set(documented_capsules) - set(implemented_capsules))
+
 
 print('The following capsules do not seem to be documented:')
 for m in sorted(missing):
+	print(' - {}'.format(m))
+
+
+print('The following capsules seem to have been removed:')
+for m in sorted(removed):
 	print(' - {}'.format(m))
 

@@ -114,7 +114,7 @@ impl kernel::Platform for Platform {
             capsules::console::DRIVER_NUM => f(Some(Ok(self.console))),
             capsules::gpio::DRIVER_NUM => f(Some(Err(self.gpio))),
             capsules::alarm::DRIVER_NUM => f(Some(Ok(self.alarm))),
-            capsules::button::DRIVER_NUM => f(Some(Err(self.button))),
+            capsules::button::DRIVER_NUM => f(Some(Ok(self.button))),
             capsules::led_matrix::DRIVER_NUM => f(Some(Ok(self.led))),
             capsules::ninedof::DRIVER_NUM => f(Some(Ok(self.ninedof))),
             capsules::adc::DRIVER_NUM => f(Some(Ok(self.adc))),
@@ -426,12 +426,12 @@ pub unsafe fn reset_handler() {
     //--------------------------------------------------------------------------
 
     // it seems that microbit v2 has no external clock
-    nrf52::clock::CLOCK.low_stop();
-    nrf52::clock::CLOCK.high_stop();
-    nrf52::clock::CLOCK.low_start();
-    nrf52::clock::CLOCK.high_start();
-    while !nrf52::clock::CLOCK.low_started() {}
-    while !nrf52::clock::CLOCK.high_started() {}
+    base_peripherals.clock.low_stop();
+    base_peripherals.clock.high_stop();
+    base_peripherals.clock.low_start();
+    base_peripherals.clock.high_start();
+    while !base_peripherals.clock.low_started() {}
+    while !base_peripherals.clock.high_started() {}
 
     let platform = Platform {
         ble_radio: ble_radio,

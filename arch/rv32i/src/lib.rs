@@ -2,18 +2,21 @@
 
 #![crate_name = "rv32i"]
 #![crate_type = "rlib"]
-#![feature(llvm_asm, const_fn, naked_functions)]
+#![feature(llvm_asm, asm, const_fn, naked_functions)]
 #![no_std]
 
 use core::fmt::Write;
 
 pub mod clic;
-pub mod csr;
 pub mod machine_timer;
 pub mod pmp;
 pub mod support;
 pub mod syscall;
 extern crate tock_registers;
+
+// Re-export the shared CSR library so that dependent crates do not have to have
+// both rv32i and riscv as dependencies.
+pub use riscv::csr;
 
 extern "C" {
     // Where the end of the stack region is (and hence where the stack should
@@ -30,6 +33,9 @@ extern "C" {
     // Boundaries of the .data section.
     static mut _srelocate: usize;
     static mut _erelocate: usize;
+
+    // The global pointer, value set in the linker script
+    static __global_pointer: usize;
 }
 
 /// Entry point of all programs (`_start`).
@@ -43,7 +49,7 @@ extern "C" {
 #[naked]
 pub extern "C" fn _start() {
     unsafe {
-        llvm_asm! ("
+        asm! ("
             // Set the global pointer register using the variable defined in the
             // linker script. This register is only set once. The global pointer
             // is a method for sharing state between the linker and the CPU so
@@ -54,13 +60,13 @@ pub extern "C" fn _start() {
             // https://groups.google.com/a/groups.riscv.org/forum/#!msg/sw-dev/60IdaZj27dY/5MydPLnHAQAJ
             // https://www.sifive.com/blog/2017/08/28/all-aboard-part-3-linker-relaxation-in-riscv-toolchain/
             //
-            lui  gp, %hi(__global_pointer$$)     // Set the global pointer.
-            addi gp, gp, %lo(__global_pointer$$) // Value set in linker script.
+            lui  gp, %hi({0}$)     // Set the global pointer.
+            addi gp, gp, %lo({0}$) // Value set in linker script.
 
             // Initialize the stack pointer register. This comes directly from
             // the linker script.
-            lui  sp, %hi(_estack)     // Set the initial stack pointer.
-            addi sp, sp, %lo(_estack) // Value from the linker script.
+            lui  sp, %hi({1})     // Set the initial stack pointer.
+            addi sp, sp, %lo({1}) // Value from the linker script.
 
             // Set s0 (the frame pointer) to the start of the stack.
             add  s0, sp, zero
@@ -72,11 +78,8 @@ pub extern "C" fn _start() {
             // With that initial setup out of the way, we now branch to the main
             // code, likely defined in a board's main.rs.
             j    reset_handler
-        "
-        :
-        :
-        :
-        : "volatile");
+        ", sym __global_pointer, sym _estack, options(noreturn)
+        );
     }
 }
 
@@ -105,15 +108,15 @@ pub enum PermissionMode {
 pub unsafe fn configure_trap_handler(mode: PermissionMode) {
     match mode {
         PermissionMode::Machine => csr::CSR.mtvec.write(
-            csr::mtvec::mtvec::trap_addr.val(_start_trap as u32 >> 2)
+            csr::mtvec::mtvec::trap_addr.val(_start_trap as usize >> 2)
                 + csr::mtvec::mtvec::mode::CLEAR,
         ),
         PermissionMode::Supervisor => csr::CSR.stvec.write(
-            csr::stvec::stvec::trap_addr.val(_start_trap as u32 >> 2)
+            csr::stvec::stvec::trap_addr.val(_start_trap as usize >> 2)
                 + csr::stvec::stvec::mode::CLEAR,
         ),
         PermissionMode::User => csr::CSR.utvec.write(
-            csr::utvec::utvec::trap_addr.val(_start_trap as u32 >> 2)
+            csr::utvec::utvec::trap_addr.val(_start_trap as usize >> 2)
                 + csr::utvec::utvec::mode::CLEAR,
         ),
         PermissionMode::Reserved => (
@@ -148,7 +151,8 @@ pub extern "C" fn _start_trap() {
 #[naked]
 pub extern "C" fn _start_trap() {
     unsafe {
-        llvm_asm! ("
+        asm!(
+            "
             // The first thing we have to do is determine if we came from user
             // mode or kernel mode, as we need to save state and proceed
             // differently. We cannot, however, use any registers because we do
@@ -158,6 +162,19 @@ pub extern "C" fn _start_trap() {
             //
             // We use the csrrw instruction to save the current stack pointer
             // so we can retrieve it if necessary.
+            //
+            // If we could enter this trap handler twice (for example,
+            // handling an interrupt while an exception is being
+            // handled), storing a non-zero value in mscratch
+            // temporarily could cause a race condition similar to the
+            // one of PR 2308[1].
+            // However, as indicated in section 3.1.6.1 of the RISC-V
+            // Privileged Spec[2], MIE will be set to 0 when taking a
+            // trap into machine mode. Therefore, this can only happen
+            // when causing an exception in the trap handler itself.
+            //
+            // [1] https://github.com/tock/tock/pull/2308
+            // [2] https://github.com/riscv/riscv-isa-manual/releases/download/draft-20201222-42dc13a/riscv-privileged.pdf
             csrrw sp, 0x340, sp // CSR=0x340=mscratch
             bnez  sp, _from_app // If sp != 0 then we must have come from an app.
 
@@ -324,10 +341,12 @@ pub extern "C" fn _start_trap() {
             sw   t0, 1*4(s0)  // Save the app sp to the stored state struct
             csrr t0, 0x341    // CSR=0x341=mepc
             sw   t0, 31*4(s0) // Save the PC to the stored state struct
-            csrr t0, 0x342    // CSR=0x342=mcause
-            sw   t0, 32*4(s0) // Save mcause to the stored state struct
             csrr t0, 0x343    // CSR=0x343=mtval
             sw   t0, 33*4(s0) // Save mtval to the stored state struct
+
+            // Save mcause last, as we depend on it being loaded in t0 below
+            csrr t0, 0x342    // CSR=0x342=mcause
+            sw   t0, 32*4(s0) // Save mcause to the stored state struct, leave in t0
 
             // Now we need to check if this was an interrupt, and if it was,
             // then we need to disable the interrupt before returning from this
@@ -359,11 +378,9 @@ pub extern "C" fn _start_trap() {
             // Use mret to exit the trap handler and return to the context
             // switching code.
             mret
-        "
-        :
-        :
-        :
-        : "volatile");
+        ",
+            options(noreturn)
+        );
     }
 }
 
@@ -476,9 +493,8 @@ pub unsafe fn print_riscv_state(writer: &mut dyn Write) {
     let _ = writer.write_fmt(format_args!("\r\n---| RISC-V Machine State |---\r\n"));
     let _ = writer.write_fmt(format_args!("Last cause (mcause): "));
     print_mcause(mcval, writer);
-    let mval = csr::CSR.mcause.get();
-    let interrupt = (mval & 0x80000000) == 0x80000000;
-    let code = mval & 0x7fffffff;
+    let interrupt = csr::CSR.mcause.read(csr::mcause::mcause::is_interrupt);
+    let code = csr::CSR.mcause.read(csr::mcause::mcause::reason);
     let _ = writer.write_fmt(format_args!(
         " (interrupt={}, exception code={:#010X})",
         interrupt, code

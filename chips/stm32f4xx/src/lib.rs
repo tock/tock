@@ -5,7 +5,7 @@
 #![crate_name = "stm32f4xx"]
 #![crate_type = "rlib"]
 #![feature(const_fn)]
-#![feature(llvm_asm)]
+#![feature(asm)]
 #![no_std]
 
 pub mod chip;
