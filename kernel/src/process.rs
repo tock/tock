@@ -2222,8 +2222,8 @@ impl<C: 'static + Chip> Process<'_, C> {
     }
 
     /// Checks if the buffer represented by the passed in base pointer and size
-    /// are within the memory bounds currently exposed to the processes (i.e.
-    /// ending at `app_break`. If this method returns true, the buffer
+    /// is within the memory bounds currently exposed to the processes (i.e.
+    /// ending at `app_break`). If this method returns `true`, the buffer
     /// is guaranteed to be accessible to the process and to not overlap with
     /// the grant region.
     fn in_app_owned_memory(&self, buf_start_addr: *const u8, size: usize) -> bool {
@@ -2232,6 +2232,19 @@ impl<C: 'static + Chip> Process<'_, C> {
         buf_end_addr >= buf_start_addr
             && buf_start_addr >= self.mem_start()
             && buf_end_addr <= self.app_break.get()
+    }
+
+    /// Checks if the buffer represented by the passed in base pointer and size
+    /// is within the readable region of an application's flash memory. If this
+    /// method returns `true`, the buffer is guaranteed to be readable to the
+    /// process.
+    #[allow(dead_code)] // used in 2.0
+    fn in_app_owned_flash(&self, buf_start_addr: *const u8, size: usize) -> bool {
+        let buf_end_addr = buf_start_addr.wrapping_add(size);
+
+        buf_end_addr >= buf_start_addr
+            && buf_start_addr >= self.flash_non_protected_start()
+            && buf_end_addr <= self.flash_end()
     }
 
     /// Reset all `grant_ptr`s to NULL.
