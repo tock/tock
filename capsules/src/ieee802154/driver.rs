@@ -10,6 +10,9 @@ use crate::net::stream::{decode_bytes, decode_u8, encode_bytes, encode_u8, SResu
 use core::cell::Cell;
 use core::cmp::min;
 use kernel::common::cells::{MapCell, OptionalCell, TakeCell};
+use kernel::common::dynamic_deferred_call::{
+    DeferredCallHandle, DynamicDeferredCall, DynamicDeferredCallClient,
+};
 use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
 
 const MAX_NEIGHBORS: usize = 4;
@@ -144,6 +147,7 @@ impl KeyDescriptor {
     }
 }
 
+#[derive(Default)]
 pub struct App {
     rx_callback: Option<Callback>,
     tx_callback: Option<Callback>,
@@ -151,19 +155,6 @@ pub struct App {
     app_write: Option<AppSlice<Shared, u8>>,
     app_cfg: Option<AppSlice<Shared, u8>>,
     pending_tx: Option<(u16, Option<(SecurityLevel, KeyId)>)>,
-}
-
-impl Default for App {
-    fn default() -> Self {
-        App {
-            rx_callback: None,
-            tx_callback: None,
-            app_read: None,
-            app_write: None,
-            app_cfg: None,
-            pending_tx: None,
-        }
-    }
 }
 
 pub struct RadioDriver<'a> {
@@ -189,6 +180,18 @@ pub struct RadioDriver<'a> {
 
     /// Buffer that stores the IEEE 802.15.4 frame to be transmitted.
     kernel_tx: TakeCell<'static, [u8]>,
+
+    /// Used to ensure callbacks are delivered during upcalls
+    deferred_caller: &'a DynamicDeferredCall,
+
+    /// Also used for deferred calls
+    handle: OptionalCell<DeferredCallHandle>,
+
+    /// Used to deliver callbacks to the correct app during deferred calls
+    saved_appid: OptionalCell<AppId>,
+
+    /// Used to save result for passing a callback from a deferred call.
+    saved_result: OptionalCell<ReturnCode>,
 }
 
 impl<'a> RadioDriver<'a> {
@@ -196,9 +199,10 @@ impl<'a> RadioDriver<'a> {
         mac: &'a dyn device::MacDevice<'a>,
         grant: Grant<App>,
         kernel_tx: &'static mut [u8],
+        deferred_caller: &'a DynamicDeferredCall,
     ) -> RadioDriver<'a> {
         RadioDriver {
-            mac: mac,
+            mac,
             neighbors: MapCell::new(Default::default()),
             num_neighbors: Cell::new(0),
             keys: MapCell::new(Default::default()),
@@ -206,7 +210,15 @@ impl<'a> RadioDriver<'a> {
             apps: grant,
             current_app: OptionalCell::empty(),
             kernel_tx: TakeCell::new(kernel_tx),
+            deferred_caller,
+            saved_appid: OptionalCell::empty(),
+            saved_result: OptionalCell::empty(),
+            handle: OptionalCell::empty(),
         }
+    }
+
+    pub fn initialize_callback_handle(&self, handle: DeferredCallHandle) {
+        self.handle.replace(handle);
     }
 
     // Neighbor management functions
@@ -400,11 +412,9 @@ impl<'a> RadioDriver<'a> {
     fn perform_tx_async(&self, appid: AppId) {
         let result = self.perform_tx_sync(appid);
         if result != ReturnCode::SUCCESS {
-            let _ = self.apps.enter(appid, |app, _| {
-                app.tx_callback
-                    .take()
-                    .map(|mut cb| cb.schedule(result.into(), 0, 0));
-            });
+            self.saved_appid.set(appid);
+            self.saved_result.set(result);
+            self.handle.map(|handle| self.deferred_caller.set(*handle));
         }
     }
 
@@ -443,7 +453,6 @@ impl<'a> RadioDriver<'a> {
                 // Append the payload: there must be one
                 let result = app
                     .app_write
-                    .take()
                     .as_ref()
                     .map_or(ReturnCode::EINVAL, |payload| {
                         frame.append_payload(payload.as_ref())
@@ -490,6 +499,18 @@ impl<'a> RadioDriver<'a> {
                     ReturnCode::SUCCESS
                 }
             })
+    }
+}
+
+impl DynamicDeferredCallClient for RadioDriver<'_> {
+    fn call(&self, _handle: DeferredCallHandle) {
+        let _ = self
+            .apps
+            .enter(self.saved_appid.expect("missing appid"), |app, _| {
+                app.tx_callback.take().map(|mut cb| {
+                    cb.schedule(self.saved_result.expect("missing result").into(), 0, 0)
+                });
+            });
     }
 }
 
