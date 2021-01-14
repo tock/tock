@@ -1,8 +1,5 @@
 //! Tock Binary Format Header definitions and parsing code.
 
-// Parsing the headers does not require any unsafe operations.
-#![forbid(unsafe_code)]
-
 use core::convert::TryInto;
 use core::fmt;
 use core::iter::Iterator;
@@ -17,7 +14,7 @@ macro_rules! align4 {
 
 /// Error when parsing just the beginning of the TBF header. This is only used
 /// when establishing the linked list structure of apps installed in flash.
-pub(crate) enum InitialTbfParseError {
+pub enum InitialTbfParseError {
     /// We were unable to parse the beginning of the header. This either means
     /// we ran out of flash, or the trusted values are invalid meaning this is
     /// just empty flash after the end of the last app. This error is fine, as
@@ -102,7 +99,7 @@ impl fmt::Debug for TbfParseError {
 
 /// TBF fields that must be present in all v2 headers.
 #[derive(Clone, Copy, Debug)]
-pub(crate) struct TbfHeaderV2Base {
+pub struct TbfHeaderV2Base {
     version: u16,
     header_size: u16,
     total_size: u32,
@@ -112,7 +109,7 @@ pub(crate) struct TbfHeaderV2Base {
 
 /// Types in TLV structures for each optional block of the header.
 #[derive(Clone, Copy, Debug)]
-pub(crate) enum TbfHeaderTypes {
+pub enum TbfHeaderTypes {
     TbfHeaderMain = 1,
     TbfHeaderWriteableFlashRegions = 2,
     TbfHeaderPackageName = 3,
@@ -126,7 +123,7 @@ pub(crate) enum TbfHeaderTypes {
 
 /// The TLV header (T and L).
 #[derive(Clone, Copy, Debug)]
-pub(crate) struct TbfHeaderTlv {
+pub struct TbfHeaderTlv {
     tipe: TbfHeaderTypes,
     length: u16,
 }
@@ -136,7 +133,7 @@ pub(crate) struct TbfHeaderTlv {
 /// All apps must have a main section. Without it, the header is considered as
 /// only padding.
 #[derive(Clone, Copy, Debug)]
-pub(crate) struct TbfHeaderV2Main {
+pub struct TbfHeaderV2Main {
     init_fn_offset: u32,
     protected_size: u32,
     minimum_ram_size: u32,
@@ -147,7 +144,7 @@ pub(crate) struct TbfHeaderV2Main {
 /// There can be multiple (or zero) flash regions defined, so this is its own
 /// struct.
 #[derive(Clone, Copy, Debug, Default)]
-pub(crate) struct TbfHeaderV2WriteableFlashRegion {
+pub struct TbfHeaderV2WriteableFlashRegion {
     writeable_flash_region_offset: u32,
     writeable_flash_region_size: u32,
 }
@@ -165,7 +162,7 @@ pub(crate) struct TbfHeaderV2WriteableFlashRegion {
 /// up the process. If a process wants to set one fixed address but not the other, the unused one
 /// can be set to 0xFFFFFFFF.
 #[derive(Clone, Copy, Debug, Default)]
-pub(crate) struct TbfHeaderV2FixedAddresses {
+pub struct TbfHeaderV2FixedAddresses {
     /// The absolute address of the start of RAM that the process expects. For
     /// example, if the process was linked with a RAM region starting at
     /// address `0x00023000`, then this would be set to `0x00023000`.
@@ -314,7 +311,7 @@ impl core::convert::TryFrom<&[u8]> for TbfHeaderV2FixedAddresses {
 /// four since we need to statically know the length of the array to store in
 /// this type.
 #[derive(Clone, Copy, Debug)]
-pub(crate) struct TbfHeaderV2 {
+pub struct TbfHeaderV2 {
     base: TbfHeaderV2Base,
     main: Option<TbfHeaderV2Main>,
     package_name: Option<&'static str>,
@@ -329,14 +326,14 @@ pub(crate) struct TbfHeaderV2 {
 /// The kernel can also use this header to keep persistent state about
 /// the application.
 #[derive(Debug)]
-pub(crate) enum TbfHeader {
+pub enum TbfHeader {
     TbfHeaderV2(TbfHeaderV2),
     Padding(TbfHeaderV2Base),
 }
 
 impl TbfHeader {
     /// Return whether this is an app or just padding between apps.
-    pub(crate) fn is_app(&self) -> bool {
+    pub fn is_app(&self) -> bool {
         match *self {
             TbfHeader::TbfHeaderV2(_) => true,
             TbfHeader::Padding(_) => false,
@@ -345,7 +342,7 @@ impl TbfHeader {
 
     /// Return whether the application is enabled or not.
     /// Disabled applications are not started by the kernel.
-    pub(crate) fn enabled(&self) -> bool {
+    pub fn enabled(&self) -> bool {
         match *self {
             TbfHeader::TbfHeaderV2(hd) => {
                 // Bit 1 of flags is the enable/disable bit.
@@ -358,7 +355,7 @@ impl TbfHeader {
     /// Add up all of the relevant fields in header version 1, or just used the
     /// app provided value in version 2 to get the total amount of RAM that is
     /// needed for this app.
-    pub(crate) fn get_minimum_app_ram_size(&self) -> u32 {
+    pub fn get_minimum_app_ram_size(&self) -> u32 {
         match *self {
             TbfHeader::TbfHeaderV2(hd) => hd.main.map_or(0, |m| m.minimum_ram_size),
             _ => 0,
@@ -367,7 +364,7 @@ impl TbfHeader {
 
     /// Get the number of bytes from the start of the app's region in flash that
     /// is for kernel use only. The app cannot write this region.
-    pub(crate) fn get_protected_size(&self) -> u32 {
+    pub fn get_protected_size(&self) -> u32 {
         match *self {
             TbfHeader::TbfHeaderV2(hd) => {
                 hd.main.map_or(0, |m| m.protected_size) + (hd.base.header_size as u32)
@@ -378,7 +375,7 @@ impl TbfHeader {
 
     /// Get the offset from the beginning of the app's flash region where the
     /// app should start executing.
-    pub(crate) fn get_init_function_offset(&self) -> u32 {
+    pub fn get_init_function_offset(&self) -> u32 {
         match *self {
             TbfHeader::TbfHeaderV2(hd) => {
                 hd.main.map_or(0, |m| m.init_fn_offset) + (hd.base.header_size as u32)
@@ -388,7 +385,7 @@ impl TbfHeader {
     }
 
     /// Get the name of the app.
-    pub(crate) fn get_package_name(&self) -> Option<&'static str> {
+    pub fn get_package_name(&self) -> Option<&'static str> {
         match *self {
             TbfHeader::TbfHeaderV2(hd) => hd.package_name,
             _ => None,
@@ -396,7 +393,7 @@ impl TbfHeader {
     }
 
     /// Get the number of flash regions this app has specified in its header.
-    pub(crate) fn number_writeable_flash_regions(&self) -> usize {
+    pub fn number_writeable_flash_regions(&self) -> usize {
         match *self {
             TbfHeader::TbfHeaderV2(hd) => hd.writeable_regions.map_or(0, |wrs| {
                 wrs.iter()
@@ -407,7 +404,7 @@ impl TbfHeader {
     }
 
     /// Get the offset and size of a given flash region.
-    pub(crate) fn get_writeable_flash_region(&self, index: usize) -> (u32, u32) {
+    pub fn get_writeable_flash_region(&self, index: usize) -> (u32, u32) {
         match *self {
             TbfHeader::TbfHeaderV2(hd) => hd.writeable_regions.map_or((0, 0), |wrs| {
                 wrs.get(index).unwrap_or(&None).map_or((0, 0), |wr| {
@@ -423,7 +420,7 @@ impl TbfHeader {
 
     /// Get the address in RAM this process was specifically compiled for. If
     /// the process is position independent, return `None`.
-    pub(crate) fn get_fixed_address_ram(&self) -> Option<u32> {
+    pub fn get_fixed_address_ram(&self) -> Option<u32> {
         let hd = match self {
             TbfHeader::TbfHeaderV2(hd) => hd,
             _ => return None,
@@ -436,7 +433,7 @@ impl TbfHeader {
 
     /// Get the address in flash this process was specifically compiled for. If
     /// the process is position independent, return `None`.
-    pub(crate) fn get_fixed_address_flash(&self) -> Option<u32> {
+    pub fn get_fixed_address_flash(&self) -> Option<u32> {
         let hd = match self {
             TbfHeader::TbfHeaderV2(hd) => hd,
             _ => return None,
@@ -463,7 +460,7 @@ impl TbfHeader {
 /// Any other error we return an error and the length of the entire app so that
 /// we can skip over it and check for the next app.
 /// - Err(InitialTbfParseError::InvalidHeader(app_length))
-pub(crate) fn parse_tbf_header_lengths(
+pub fn parse_tbf_header_lengths(
     app: &'static [u8; 8],
 ) -> Result<(u16, u16, u32), InitialTbfParseError> {
     // Version is the first 16 bits of the app TBF contents. We need this to
@@ -508,10 +505,7 @@ pub(crate) fn parse_tbf_header_lengths(
 /// The `header` must be a slice that only contains the TBF header. The caller
 /// should use the `parse_tbf_header_lengths()` function to determine this
 /// length to create the correct sized slice.
-pub(crate) fn parse_tbf_header(
-    header: &'static [u8],
-    version: u16,
-) -> Result<TbfHeader, TbfParseError> {
+pub fn parse_tbf_header(header: &'static [u8], version: u16) -> Result<TbfHeader, TbfParseError> {
     match version {
         2 => {
             // Get the required base. This will succeed because we parsed the
