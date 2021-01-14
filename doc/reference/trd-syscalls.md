@@ -22,7 +22,7 @@ and RISC-V RV32I platforms.
 ===============================
 
 The Tock operating system can run multiple independent userspace applications.
-Because these applications are untrusted,  the kernel uses hardware memory 
+Because these applications are untrusted, the kernel uses hardware memory
 protection to isolate them from it. This allows applications written in C
 (or even assembly) to safely run on Tock.
 
@@ -91,11 +91,13 @@ This section describes the ABI for Tock on 32-bit platforms. The ABI for
 
 3.1 Registers
 ---------------------------------
-When userspace invokes a system call, it passes 4 registers to the kernel
-as arguments. It also pass an 8-bit value of which type of system call (see
-Section 4) is being invoked (the Syscall Class ID). When the system call returns, it returns 4 registers
-as return values. When the kernel invokes a callback on userspace, it passes
-4 registers to userspace as arguments and has no return value. 
+
+When userspace invokes a system call, it passes 4 registers to the
+kernel as arguments. It also pass an 8-bit value of which type of
+system call (see Section 4) is being invoked (the Syscall Class
+ID). When the system call returns, it returns 4 registers as return
+values. When the kernel invokes a callback on userspace, it passes 4
+registers to userspace as arguments and has no return value.
 
 |                        | CortexM | RISC-V |
 |------------------------|---------|--------|
@@ -117,7 +119,7 @@ For example, `command` has this signature:
 ```rust
 fn command(&self, minor_num: usize, r2: usize, r3: usize, caller_id: AppId) -> ReturnCode
 ```
- 
+
 This means that the value which will be passed as `r2` to the command
 should be placed in register r2 when userspace invokes the system
 call. That way, the system call handler can just leave register r2
@@ -133,24 +135,25 @@ and replaced with `&self` when the actual system call method is invoked.
 3.2 Return Values
 ----------------------------------
 
-All system calls have the same return value format. A system call can return
-one of nine values, which are shown here. r0-r3 refer to the return value
-registers: for CortexM they are r0-r3 and for RISC-V they are a0-a3.
+All system calls have the same return value format. A system call can
+return one of nine variants, having different associated value types,
+which are shown here. `r0`-`r3` refer to the return value registers:
+for CortexM they are `r0`-`r3` and for RISC-V they are `a0`-`a3`.
 
-|                          | r0  | r1                 | r2                 | r3                 |
-|--------------------------|-----|--------------------|--------------------|--------------------|
-| Failure                  | 0   | Error code         | -                  | -                  |
-| Failure with u32         | 1   | Error code         | Return Value 0     |                    |
-| Failure with 2 u32       | 2   | Error code         | Return Value 0     | Return Value 1     |
-| Failure with u64         | 3   | Error code         | Return Value 0 LSB | Return Value 0 MSB |
-| Success                  | 128 |                    |                    |                    |
-| Success with u32         | 129 | Return Value 0     |                    |                    |
-| Success with 2 u32       | 130 | Return Value 0     | Return Value 1     |                    |
-| Success with u64         | 131 | Return Value 0 LSB | Return Value 0 MSB |                    |
-| Success with 3 u32       | 132 | Return Value 0     | Return Value 1     | Return Value 2     |
-| Success with u32 and u64 | 133 | Return Value 0     | Return Value 1 LSB | Return Value 1 MSB | 
+| System call return variant | `r0` | `r1`               | `r2`               | `r3`               |
+|----------------------------|------|--------------------|--------------------|--------------------|
+| Failure                    | 0    | Error code         | -                  | -                  |
+| Failure with u32           | 1    | Error code         | Return Value 0     |                    |
+| Failure with 2 u32         | 2    | Error code         | Return Value 0     | Return Value 1     |
+| Failure with u64           | 3    | Error code         | Return Value 0 LSB | Return Value 0 MSB |
+| Success                    | 128  |                    |                    |                    |
+| Success with u32           | 129  | Return Value 0     |                    |                    |
+| Success with 2 u32         | 130  | Return Value 0     | Return Value 1     |                    |
+| Success with u64           | 131  | Return Value 0 LSB | Return Value 0 MSB |                    |
+| Success with 3 u32         | 132  | Return Value 0     | Return Value 1     | Return Value 2     |
+| Success with u32 and u64   | 133  | Return Value 0     | Return Value 1 LSB | Return Value 1 MSB |
 
-There are a wide variety of failure and success values because
+There are a wide variety of failure and success variants because
 different system calls need to pass different amounts of data. A
 command that requests a 64-bit timestamp, for example, needs its
 success to return a `u64`, but its failure can return nothing. In
@@ -158,12 +161,13 @@ contrast, a system call that passes a pointer into the kernel may have
 a simple success return value but requires a failure with one 32-bit
 value so the pointer can be passed back.
 
-Every system call MUST return only one failure and only one success type. Different
-system calls may use different failure and success types, but any specific system
-call returns exactly one of each. If an operation might have different success return
-types or failure return types, then it should be split into multiple system calls.
+Every system call MUST return only one failure and only one success
+variant. Different system calls may use different failure and success
+variants, but any specific system call returns exactly one of each. If an
+operation might have different success return variants or failure return
+variants, then it should be split into multiple system calls.
 
-This requirement of a single failure type and a single success type is to simplify
+This requirement of a single failure variant and a single success variant is to simplify
 userspace implementations and preclude them from having to handle many different cases.
 The presence of many difference cases suggests that the operation should be split up --
 there is non-determinism in its execution or its meaning is overloaded. It also fits
@@ -174,33 +178,33 @@ All values not specified for r0 in the above table are reserved.
 3.2 Error Codes
 ---------------------------------
 
-All system call failures return an error code. These error codes are a superset of 
+All system call failures return an error code. These error codes are a superset of
 kernel error codes. They include all kernel error codes so errors from calls
 on kernel HILs can be easily mapped to userspace system calls when suitable. There
 are additional error codes to include errors related to userspace.
 
-| Value | Error Code  | Meaning                                                                                  |
-|-------|-------------|------------------------------------------------------------------------------------------|
-|  1    | FAIL        | General failure condition: no further information available.                             |
-|  2    | BUSY        | The driver or kernel is busy: retry later.                                               |
-|  3    | ALREADY     | This operation is already ongoing can cannot be executed more times in parallel.         |
-|  4    | OFF         | This subsystem is powered off and must be turned on before issuing operations.           |
-|  5    | RESERVE     | Making this call requires some form of prior reservation, which has not been performed.  |
-|  6    | INVALID     | One of the parameters passed to the operation was invalid.                               |
-|  7    | SIZE        | The size specified is too large or too small.                                            |
-|  8    | CANCEL      | The operation was actively cancelled by a call to a cancel() method or function.         |
-|  9    | NOMEM       | The operation required memory that was not available (e.g. a grant region or a buffer).  |
-| 10    | NOSUPPORT   | The operation is not supported/implemented.                                              |
-| 11    | NODEVICE    | The specified device is not implemented by the kernel.                                   |
-| 12    | UNINSTALLED | The resource was removed or uninstalled (e.g., an SD card).                              |
-| 13    | NOACK       | The packet transmission was sent but not acknowledged.                                   |
-| 1024  | BADRVAL     | The type of the return value did not match what the system call should return.           |
+| Value | Error Code  | Meaning                                                                                 |
+|-------|-------------|-----------------------------------------------------------------------------------------|
+| 1     | FAIL        | General failure condition: no further information available.                            |
+| 2     | BUSY        | The driver or kernel is busy: retry later.                                              |
+| 3     | ALREADY     | This operation is already ongoing can cannot be executed more times in parallel.        |
+| 4     | OFF         | This subsystem is powered off and must be turned on before issuing operations.          |
+| 5     | RESERVE     | Making this call requires some form of prior reservation, which has not been performed. |
+| 6     | INVALID     | One of the parameters passed to the operation was invalid.                              |
+| 7     | SIZE        | The size specified is too large or too small.                                           |
+| 8     | CANCEL      | The operation was actively cancelled by a call to a cancel() method or function.        |
+| 9     | NOMEM       | The operation required memory that was not available (e.g. a grant region or a buffer). |
+| 10    | NOSUPPORT   | The operation is not supported/implemented.                                             |
+| 11    | NODEVICE    | The specified device is not implemented by the kernel.                                  |
+| 12    | UNINSTALLED | The resource was removed or uninstalled (e.g., an SD card).                             |
+| 13    | NOACK       | The packet transmission was sent but not acknowledged.                                  |
+| 1024  | BADRVAL     | The variant of the return value did not match what the system call should return.       |
 
-Any value not specified in the above table is reserved. 
+Any value not specified in the above table is reserved.
 
 Values in the range of 1-1023 reflect kernel return value error
 codes. Value 1024 (BADRVAL) is for when a system call returns a
-different failure or success type than the userspace library
+different failure or success variant than the userspace library
 expects. A system call MUST NOT return BADRVAL: it is generated only
 by userspace library code.
 
@@ -222,7 +226,7 @@ The 6 classes are:
 | Subscribe        |        1         |
 | Command          |        2         |
 | Read-Write Allow |        3         |
-| Read-Only Allow  |        4         | 
+| Read-Only Allow  |        4         |
 | Memop            |        5         |
 
 All of the system call classes except Yield are non-blocking. When a userspace
@@ -243,7 +247,7 @@ syscall identifier `0x2` starts receiving console data into a buffer.
 
 If userspace invokes a system call on a peripheral driver that is not installed in
 the kernel, the kernel MUST return the corresponding failure result with an error
-of `NOSUPPORT`. 
+of `NOSUPPORT`.
 
 4.1 Yield (Class ID: 0)
 --------------------------------
@@ -269,15 +273,13 @@ only blocking system call in Tock. It is commonly used to provide a blocking
 I/O interface to userspace. A userspace library starts a long-running operation
 that has a callback, then calls `yield-wait` to wait for a callback. When the
 `yield-wait` returns, the process checks if the resuming callback was the one
-it was expecting, and if not calls `yield-wait` again. The `yield-wait` system
-call always returns `Success`.
+it was expecting, and if not calls `yield-wait` again.
 
-The second call, 'yield-no-wait', executes a single callback if any is pending.
-If no callbacks are pending it returns immediately. The `yield-no-wait` system
-call returns `Success` if a callback executed and `Failure` if no callback
-executed.
+The second call, 'yield-no-wait', executes a single callback if any is
+pending.  If no callbacks are pending it returns immediately.
 
-The return values for Yield system calls are `Success` and `Failure`. 
+The return variants for Yield system calls are `Success` and
+`Failure`.
 
 
 4.2 Subscribe (Class ID: 1)
@@ -302,7 +304,7 @@ r0-r3 correspond to r0-r3 on CortexM and a0-a3 on RISC-V.
 The `callback pointer` is the address of the first instruction of
 the callback function. The `application data` argument is a parameter
 that an application passes in and the kernel passes back in callbacks
-unmodified. 
+unmodified.
 
 If the passed callback is not valid (is outside process executable
 memory and is not the Null Callback described below), the kernel MUST
@@ -314,7 +316,7 @@ with the same syscall and driver identifier. When userspace invokes
 subscribe, the kernel MUST cancel all pending callbacks for that driver
 and subscribe identifier: it MUST NOT invoke the previous callback after
 the call to subscribe, and MUST NOT invoke the new callback for events
-that occurred before the call to subscribe. 
+that occurred before the call to subscribe.
 
 Note that these semantics create a period over which callbacks might
 be lost: any callbacks that were pending when `subscribe` was called
@@ -338,7 +340,7 @@ incorrect.
 If userspace requires that it not lose any callbacks, it should
 not re-subcribe and instead use some form of userspace dispatch.
 
-The return values for Subscribe system calls are `Failure with 2 u32`
+The return variants for Subscribe system calls are `Failure with 2 u32`
 and `Success with 2 u32`. For success, the first `u32` is the callback
 pointer passed in the previous call to Subscribe (the existing
 callback) and the second `u32` is the application data pointer passed
@@ -349,22 +351,22 @@ call to Subscribe for a given callback, the callback pointer and
 application data pointer returned MUST be the Null Callback (describe
 below).
 
-4.2.1 The Null Callback 
+4.2.1 The Null Callback
 ---------------------------------
 
-The Tock kernel defines a callback pointer as the Null Callback. 
+The Tock kernel defines a callback pointer as the Null Callback.
 The Null Callback denotes a callback that the kernel will never invoke.
-The Null Callback is used for two reasons. First, a userspace process 
-passing the Null Callback as the callback pointer for Subscribe 
-indicates that there should be no more callbacks. Second, the first 
-time a userspace process calls Subscribe for a particular callback, 
-the kernel needs to return callback and application pointers indicating 
-the current configuration; in this case, the kernel returns the Null 
+The Null Callback is used for two reasons. First, a userspace process
+passing the Null Callback as the callback pointer for Subscribe
+indicates that there should be no more callbacks. Second, the first
+time a userspace process calls Subscribe for a particular callback,
+the kernel needs to return callback and application pointers indicating
+the current configuration; in this case, the kernel returns the Null
 Callback. The Tock kernel MUST NOT invoke the Null Callback.
 
 The Null Callback MUST be 0x0. This means it is not possible for userspace
 to pass address 0x0 as a valid code entry point. Unlike systems with
-virtual memory, where 0x0 can be reserved a special meaning, in 
+virtual memory, where 0x0 can be reserved a special meaning, in
 microcontrollers with only physical memory 0x0 is a valid memory location.
 It is possible that a Tock kernel is configured so its applications
 start at address 0x0. However, even if they do begin at 0x0, the
@@ -372,7 +374,7 @@ Tock Binary Format for application images mean that the first address
 will not be executable code and so 0x0 will not be a valid function.
 In the case that 0x0 is valid application process memory and where the
 linker places a callback function, the first instruction of the function
-should be a no-op and the address of the second instruction passed 
+should be a no-op and the address of the second instruction passed
 instead.
 
 If a userspace process invokes subscribe on a driver ID that is not
@@ -402,11 +404,12 @@ Argument 0 and argument 1 are unsigned 32-bit integers. Command calls should
 never pass pointers: those are passed with Allow calls, as they can adjust
 memory protection to allow the kernel to access them.
 
-The return types of Command are instance-specific. Each specific
+The return variants of Command are instance-specific. Each specific
 Command instance (combination of major and minor identifier) specifies
-its failure type and success type. If userspace invokes a command on a
-peripheral that is not installed, the kernel returns a failure type of
-`Failure`.
+its failure variant and success variant. If userspace invokes a
+command on a peripheral that is not installed, the kernel returns a
+failure variant of `Failure`, with an associated error code of
+`NOSUPPORT`.
 
 4.3.1 Command Identifier 0
 --------------------------------
@@ -440,10 +443,10 @@ on RISC-V.
 | Address                | r2       |
 | Size                   | r3       |
 
-The return values for Read-Write Allow system calls are `Failure with
-2 u32` and `Success with 2 u32`.  In both cases, `Argument 0` contains
-an address and `Argument 1` contains a length.  In the case of
-failure, the address and length are those that were passed in the
+The return variants for Read-Write Allow system calls are `Failure
+with 2 u32` and `Success with 2 u32`.  In both cases, `Argument 0`
+contains an address and `Argument 1` contains a length.  In the case
+of failure, the address and length are those that were passed in the
 call.  In the case of success, the address and length are those that
 were passed in the previous call. On the first successful invocation
 of a particular Read-Write Allow system call, the kernel returns
@@ -504,7 +507,7 @@ RAM so it can be passed with a Read-Write Allow.
 ---------------------------------
 
 The Memop class is how a userspace process requests and provides
-information about its address space.  The register arguments for 
+information about its address space.  The register arguments for
 Allow system calls are as follows. The registers r0-r3 correspond
 to r0-r3 on CortexM and a0-a3 on RISC-V.
 
@@ -533,8 +536,8 @@ are 12:
 | 10              | Set the start of the process stack                      | Success          |
 | 11              | Set the start of the process heap                       | Success          |
 
-The success return type is Memop class system call specific. All Memop class system calls
-have a Failure failure type.
+The success return variant is Memop class system call specific. All
+Memop class system calls have a _Failure_ failure type.
 
 5 Userspace Library Methods
 =================================
@@ -553,9 +556,9 @@ code by the userspace library.
 6 The Driver Trait
 =================================
 
-The core kernel, in response to userspace system calls, invokes methods on the Driver 
+The core kernel, in response to userspace system calls, invokes methods on the Driver
 trait implemented by system call drivers.  This section describes the Driver trait API
-and how it interacts with the core kernel's system calls. Note that 
+and how it interacts with the core kernel's system calls. Note that
 
 
 6.1 Return Types
