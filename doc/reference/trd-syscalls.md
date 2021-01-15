@@ -263,7 +263,7 @@ to manage concurrent access to its variables.
 There are three Yield system calls:
   - `yield-wait`
   - `yield-no-wait`
-  - `yield-no-return`
+  - `yield-exit`
 
 The first call, `yield-wait`, blocks until a callback executes. This is the
 only blocking system call in Tock. It is commonly used to provide a blocking
@@ -275,9 +275,9 @@ it was expecting, and if not calls `yield-wait` again.
 The second call, `yield-no-wait`, executes a single callback if any is pending.
 If no callbacks are pending it returns immediately. 
 
-The third call, `yield-no-return` never returns and executes no callbacks. It
+The third call, `yield-exit` never returns and executes no callbacks. It
 causes the process to terminate. The kernel can reclaim any resources held by
-a process after it invokes `yield-no-return`.
+a process after it invokes `yield-exit`.
 
 The register arguments for Subscribe system calls are as follows. The registers
 r0-r3 correspond to r0-r3 on CortexM and a0-a3 on RISC-V.
