@@ -6,11 +6,25 @@
 
 use crate::hil::gpio;
 
+/// Simple on/off interface for LED pins.
+///
+/// Since GPIO pins are synchronous in Tock the LED interface is synchronous as
+/// well.
 pub trait Led {
-    fn init(&mut self);
-    fn on(&mut self);
-    fn off(&mut self);
-    fn toggle(&mut self);
+    /// Initialize the LED. Must be called before the LED is used.
+    fn init(&self);
+
+    /// Turn the LED on.
+    fn on(&self);
+
+    /// Turn the LED off.
+    fn off(&self);
+
+    /// Toggle the LED.
+    fn toggle(&self);
+
+    /// Return the on/off state of the LED. `true` if the LED is on, `false` if
+    /// it is off.
     fn read(&self) -> bool;
 }
 
@@ -37,19 +51,19 @@ impl<'a, P: gpio::Pin> LedLow<'a, P> {
 }
 
 impl<P: gpio::Pin> Led for LedHigh<'_, P> {
-    fn init(&mut self) {
+    fn init(&self) {
         self.pin.make_output();
     }
 
-    fn on(&mut self) {
+    fn on(&self) {
         self.pin.set();
     }
 
-    fn off(&mut self) {
+    fn off(&self) {
         self.pin.clear();
     }
 
-    fn toggle(&mut self) {
+    fn toggle(&self) {
         self.pin.toggle();
     }
 
@@ -59,19 +73,19 @@ impl<P: gpio::Pin> Led for LedHigh<'_, P> {
 }
 
 impl<P: gpio::Pin> Led for LedLow<'_, P> {
-    fn init(&mut self) {
+    fn init(&self) {
         self.pin.make_output();
     }
 
-    fn on(&mut self) {
+    fn on(&self) {
         self.pin.clear();
     }
 
-    fn off(&mut self) {
+    fn off(&self) {
         self.pin.set();
     }
 
-    fn toggle(&mut self) {
+    fn toggle(&self) {
         self.pin.toggle();
     }
 

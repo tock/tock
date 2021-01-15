@@ -8,10 +8,10 @@ pub use lowrisc::gpio::{pins, GpioPin};
 use lowrisc::padctrl::PadCtrlRegisters;
 
 pub const PADCTRL_BASE: StaticRef<PadCtrlRegisters> =
-    unsafe { StaticRef::new(0x4016_0000 as *const PadCtrlRegisters) };
+    unsafe { StaticRef::new(0x4047_0000 as *const PadCtrlRegisters) };
 
 pub const GPIO0_BASE: StaticRef<GpioRegisters> =
-    unsafe { StaticRef::new(0x4001_0000 as *const GpioRegisters) };
+    unsafe { StaticRef::new(0x4004_0000 as *const GpioRegisters) };
 
 pub struct Port<'a> {
     pins: [GpioPin<'a>; 32],

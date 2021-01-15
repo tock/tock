@@ -56,7 +56,7 @@ struct ArtyE21 {
         hil::led::LedHigh<'static, arty_e21_chip::gpio::GpioPin<'static>>,
     >,
     button: &'static capsules::button::Button<'static, arty_e21_chip::gpio::GpioPin<'static>>,
-    // ipc: kernel::ipc::IPC,
+    // ipc: kernel::ipc::IPC<NUM_PROCS>,
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
@@ -249,5 +249,11 @@ pub unsafe fn reset_handler() {
 
     let scheduler = components::sched::priority::PriorityComponent::new(board_kernel).finalize(());
 
-    board_kernel.kernel_loop(&artye21, chip, None, scheduler, &main_loop_cap);
+    board_kernel.kernel_loop(
+        &artye21,
+        chip,
+        None::<&kernel::ipc::IPC<NUM_PROCS>>,
+        scheduler,
+        &main_loop_cap,
+    );
 }

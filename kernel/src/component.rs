@@ -20,7 +20,7 @@ pub trait Component {
     /// cannot setup static buffers for types which are chip-dependent, so those
     /// buffers have to be passed in manually, and the `StaticInput` type makes
     /// this possible.
-    type StaticInput = ();
+    type StaticInput;
 
     /// The type (e.g., capsule, peripheral) that this implementation
     /// of Component produces via `finalize()`. This is typically a

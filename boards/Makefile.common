@@ -24,15 +24,21 @@ TARGET_DIRECTORY ?= $(TOCK_ROOT_DIRECTORY)target/
 
 # RUSTC_FLAGS allows boards to define board-specific options.
 # This will hopefully move into Cargo.toml (or Cargo.toml.local) eventually.
-# lld uses the page size to align program sections. It defaults to 4096 and this
-# puts a gap between before the .relocate section. `zmax-page-size=512` tells
-# lld the actual page size so it doesn't have to be conservative.
+#
+# - `-nmagic`: lld by default uses a default page size to align program
+#   sections. Tock expects that program sections are set back-to-back. `-nmagic`
+#   instructs the linker to not page-align sections.
+# - `-icf=all`: Identical Code Folding (ICF) set to all. This tells the linker
+#   to be more aggressive about removing duplicate code. The default is `safe`,
+#   and the downside to `all` is that different functions in the code can end up
+#   with the same address in the binary. However, it can save a fair bit of code
+#   size.
 RUSTC_FLAGS ?= \
   -C link-arg=-Tlayout.ld \
   -C linker=rust-lld \
   -C linker-flavor=ld.lld \
   -C relocation-model=dynamic-no-pic \
-  -C link-arg=-zmax-page-size=512 \
+  -C link-arg=-nmagic \
   -C link-arg=-icf=all \
 
 # RISC-V-specific flags.

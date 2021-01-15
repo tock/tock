@@ -514,7 +514,7 @@ define ci_setup_qemu_opentitan
 	@pwd=$$(pwd) && \
 		temp=$$(mktemp -d) && \
 		cd $$temp && \
-		curl 'https://storage.googleapis.com/artifacts.opentitan.org/opentitan-snapshot-20191101-1-2744-g528004a3.tar.xz' \
+		curl 'https://storage.googleapis.com/artifacts.opentitan.org/opentitan-snapshot-20191101-1-3845-g000a18cb6.tar.xz' \
 			--output opentitan-dist.tar.xz; \
 		tar -xf opentitan-dist.tar.xz; \
 		mv opentitan-snapshot-20191101-*/sw/device/boot_rom/boot_rom_fpga_nexysvideo.elf $$pwd/tools/qemu-runner/opentitan-boot-rom.elf

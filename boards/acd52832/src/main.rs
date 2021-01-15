@@ -70,7 +70,7 @@ pub struct Platform {
     >,
     rng: &'static capsules::rng::RngDriver<'static>,
     temp: &'static capsules::temperature::TemperatureSensor<'static>,
-    ipc: kernel::ipc::IPC,
+    ipc: kernel::ipc::IPC<NUM_PROCS>,
     alarm: &'static capsules::alarm::AlarmDriver<
         'static,
         VirtualMuxAlarm<'static, nrf52832::rtc::Rtc<'static>>,
@@ -151,9 +151,9 @@ pub unsafe fn reset_handler() {
 
     // Configure kernel debug gpios as early as possible
     kernel::debug::assign_gpios(
-        Some(&base_peripherals.gpio_port[LED2_PIN]),
-        Some(&base_peripherals.gpio_port[LED3_PIN]),
-        Some(&base_peripherals.gpio_port[LED4_PIN]),
+        Some(&nrf52832_peripherals.gpio_port[LED2_PIN]),
+        Some(&nrf52832_peripherals.gpio_port[LED3_PIN]),
+        Some(&nrf52832_peripherals.gpio_port[LED4_PIN]),
     );
 
     //
@@ -163,13 +163,13 @@ pub unsafe fn reset_handler() {
         board_kernel,
         components::gpio_component_helper!(
             nrf52832::gpio::GPIOPin,
-            0 => &base_peripherals.gpio_port[Pin::P0_25],
-            1 => &base_peripherals.gpio_port[Pin::P0_26],
-            2 => &base_peripherals.gpio_port[Pin::P0_27],
-            3 => &base_peripherals.gpio_port[Pin::P0_28],
-            4 => &base_peripherals.gpio_port[Pin::P0_29],
-            5 => &base_peripherals.gpio_port[Pin::P0_30],
-            6 => &base_peripherals.gpio_port[Pin::P0_31]
+            0 => &nrf52832_peripherals.gpio_port[Pin::P0_25],
+            1 => &nrf52832_peripherals.gpio_port[Pin::P0_26],
+            2 => &nrf52832_peripherals.gpio_port[Pin::P0_27],
+            3 => &nrf52832_peripherals.gpio_port[Pin::P0_28],
+            4 => &nrf52832_peripherals.gpio_port[Pin::P0_29],
+            5 => &nrf52832_peripherals.gpio_port[Pin::P0_30],
+            6 => &nrf52832_peripherals.gpio_port[Pin::P0_31]
         ),
     )
     .finalize(components::gpio_component_buf!(nrf52832::gpio::GPIOPin));
@@ -179,10 +179,10 @@ pub unsafe fn reset_handler() {
     //
     let led = components::led::LedsComponent::new(components::led_component_helper!(
         LedLow<'static, nrf52832::gpio::GPIOPin>,
-        LedLow::new(&base_peripherals.gpio_port[LED1_PIN]),
-        LedLow::new(&base_peripherals.gpio_port[LED2_PIN]),
-        LedLow::new(&base_peripherals.gpio_port[LED3_PIN]),
-        LedLow::new(&base_peripherals.gpio_port[LED4_PIN]),
+        LedLow::new(&nrf52832_peripherals.gpio_port[LED1_PIN]),
+        LedLow::new(&nrf52832_peripherals.gpio_port[LED2_PIN]),
+        LedLow::new(&nrf52832_peripherals.gpio_port[LED3_PIN]),
+        LedLow::new(&nrf52832_peripherals.gpio_port[LED4_PIN]),
     ))
     .finalize(components::led_component_buf!(
         LedLow<'static, nrf52832::gpio::GPIOPin>
@@ -197,25 +197,25 @@ pub unsafe fn reset_handler() {
             nrf52832::gpio::GPIOPin,
             // 13
             (
-                &base_peripherals.gpio_port[BUTTON1_PIN],
+                &nrf52832_peripherals.gpio_port[BUTTON1_PIN],
                 hil::gpio::ActivationMode::ActiveLow,
                 hil::gpio::FloatingState::PullUp
             ),
             // 14
             (
-                &base_peripherals.gpio_port[BUTTON2_PIN],
+                &nrf52832_peripherals.gpio_port[BUTTON2_PIN],
                 hil::gpio::ActivationMode::ActiveLow,
                 hil::gpio::FloatingState::PullUp
             ),
             // 15
             (
-                &base_peripherals.gpio_port[BUTTON3_PIN],
+                &nrf52832_peripherals.gpio_port[BUTTON3_PIN],
                 hil::gpio::ActivationMode::ActiveLow,
                 hil::gpio::FloatingState::PullUp
             ),
             // 16
             (
-                &base_peripherals.gpio_port[BUTTON4_PIN],
+                &nrf52832_peripherals.gpio_port[BUTTON4_PIN],
                 hil::gpio::ActivationMode::ActiveLow,
                 hil::gpio::FloatingState::PullUp
             )
@@ -297,12 +297,12 @@ pub unsafe fn reset_handler() {
     // Configure the MCP23017. Device address 0x20.
     let mcp_pin0 = static_init!(
         hil::gpio::InterruptValueWrapper<'static, nrf52832::gpio::GPIOPin>,
-        hil::gpio::InterruptValueWrapper::new(&base_peripherals.gpio_port[Pin::P0_11])
+        hil::gpio::InterruptValueWrapper::new(&nrf52832_peripherals.gpio_port[Pin::P0_11])
     )
     .finalize();
     let mcp_pin1 = static_init!(
         hil::gpio::InterruptValueWrapper<'static, nrf52832::gpio::GPIOPin>,
-        hil::gpio::InterruptValueWrapper::new(&base_peripherals.gpio_port[Pin::P0_12])
+        hil::gpio::InterruptValueWrapper::new(&nrf52832_peripherals.gpio_port[Pin::P0_12])
     )
     .finalize();
     let mcp23017_i2c = static_init!(
@@ -389,11 +389,16 @@ pub unsafe fn reset_handler() {
     //
 
     // Setup Analog Light Sensor
+    let analog_light_channel = static_init!(
+        nrf52832::adc::AdcChannelSetup,
+        nrf52832::adc::AdcChannelSetup::new(nrf52832::adc::AdcChannel::AnalogInput5)
+    );
+
     let analog_light_sensor = static_init!(
         capsules::analog_sensor::AnalogLightSensor<'static, nrf52832::adc::Adc>,
         capsules::analog_sensor::AnalogLightSensor::new(
             &base_peripherals.adc,
-            &nrf52832::adc::AdcChannel::AnalogInput5,
+            analog_light_channel,
             capsules::analog_sensor::AnalogLightSensorType::LightDependentResistor,
         )
     );
@@ -414,7 +419,7 @@ pub unsafe fn reset_handler() {
     //
     let mux_pwm = static_init!(
         capsules::virtual_pwm::MuxPwm<'static, nrf52832::pwm::Pwm>,
-        capsules::virtual_pwm::MuxPwm::new(&nrf52832::pwm::PWM0)
+        capsules::virtual_pwm::MuxPwm::new(&base_peripherals.pwm0)
     );
     let virtual_pwm_buzzer = static_init!(
         capsules::virtual_pwm::PwmPinUser<'static, nrf52832::pwm::Pwm>,
@@ -476,8 +481,8 @@ pub unsafe fn reset_handler() {
         nrf52832::chip::NRF52::new(nrf52832_peripherals)
     );
 
-    nrf52832::gpio::PORT[Pin::P0_31].make_output();
-    nrf52832::gpio::PORT[Pin::P0_31].clear();
+    nrf52832_peripherals.gpio_port[Pin::P0_31].make_output();
+    nrf52832_peripherals.gpio_port[Pin::P0_31].clear();
 
     debug!("Initialization complete. Entering main loop\r");
     debug!("{}", &nrf52832::ficr::FICR_INSTANCE);

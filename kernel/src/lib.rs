@@ -85,7 +85,7 @@
 //!    this use case. It is likely we will have to create new interfaces as new
 //!    use cases are discovered.
 
-#![feature(core_intrinsics, const_fn, associated_type_defaults, try_trait)]
+#![feature(core_intrinsics, const_fn, try_trait)]
 #![warn(unreachable_pub)]
 #![no_std]
 
@@ -114,7 +114,7 @@ mod tbfheader;
 pub use crate::callback::{AppId, Callback};
 pub use crate::driver::{CommandResult, Driver, LegacyDriver};
 pub use crate::errorcode::ErrorCode;
-pub use crate::grant::Grant;
+pub use crate::grant::{DynamicGrant, Grant};
 pub use crate::mem::legacy::{AppSlice, SharedReadWrite};
 pub use crate::mem::{Read, ReadOnlyAppSlice, ReadWrite, ReadWriteAppSlice};
 pub use crate::platform::scheduler_timer::{SchedulerTimer, VirtualSchedulerTimer};
