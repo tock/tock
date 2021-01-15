@@ -55,7 +55,7 @@
 use core::cell::Cell;
 use kernel::hil;
 use kernel::ReturnCode;
-use kernel::{AppId, Callback, Driver, Grant};
+use kernel::{AppId, Callback, Grant, LegacyDriver};
 
 /// Syscall driver number.
 use crate::driver;
@@ -143,7 +143,7 @@ impl hil::sensors::SoundPressureClient for SoundPressureSensor<'_> {
     }
 }
 
-impl Driver for SoundPressureSensor<'_> {
+impl LegacyDriver for SoundPressureSensor<'_> {
     fn subscribe(
         &self,
         subscribe_num: usize,
