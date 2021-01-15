@@ -801,17 +801,17 @@ impl Kernel {
                     // tasks, then return immediately. Otherwise, go into the
                     // yielded state and execute tasks now or when they arrive.
                     let return_now = !wait && !process.has_tasks();
-                    let field = process.yield_wait_field(address);
                     if return_now {
                         // Set the "did I trigger callbacks" flag to be 0,
-                        // return immediately.
-                        field.map(|flag| *flag = 0);
+                        // return immediately. If address is invalid does
+                        // nothing.
+                        process.set_byte(address, 0);
                     } else {
                         // There are already enqueued callbacks to execute or
                         // we should wait for them: handle in the next loop
                         // iteration and set the "did I trigger callbacks" flag
-                        // to be 1.
-                        field.map(|flag| *flag = 1);
+                        // to be 1. If address is invalid does nothing.
+                        process.set_byte(address, 1);
                         process.set_yielded_state();
                     }
                 } else {
