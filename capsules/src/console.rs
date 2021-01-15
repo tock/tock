@@ -43,7 +43,7 @@ use core::{cmp, mem};
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::uart;
 use kernel::{AppId, Callback, ErrorCode, Grant};
-use kernel::{CommandResult, Driver, ReturnCode};
+use kernel::{CommandResult, Driver, ProcessCallbackFactory, ReturnCode};
 use kernel::{Read, ReadOnlyAppSlice, ReadWrite, ReadWriteAppSlice};
 
 /// Syscall driver number.
@@ -170,6 +170,16 @@ impl<'a> Console<'a> {
 }
 
 impl Driver for Console<'_> {
+    /// Initialize process-bound callbacks on process initialization
+    fn process_init(&self, appid: AppId, callback_factory: &mut ProcessCallbackFactory) {
+        self.apps
+            .enter(appid, |app, _| {
+                app.write_callback = callback_factory.build_callback(1).unwrap();
+                app.read_callback = callback_factory.build_callback(2).unwrap();
+            })
+            .expect("Process initialization: Grant enter failed");
+    }
+
     /// Setup shared buffers.
     ///
     /// ### `allow_num`

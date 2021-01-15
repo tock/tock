@@ -4,7 +4,7 @@
 use core::cell::Cell;
 use core::mem;
 use kernel::hil::time::{self, Alarm, Frequency, Ticks, Ticks32};
-use kernel::{AppId, Callback, CommandResult, Driver, ErrorCode, Grant};
+use kernel::{AppId, Callback, CommandResult, Driver, ErrorCode, Grant, ProcessCallbackFactory};
 
 /// Syscall driver number.
 use crate::driver;
@@ -144,6 +144,15 @@ impl<'a, A: Alarm<'a>> AlarmDriver<'a, A> {
 }
 
 impl<'a, A: Alarm<'a>> Driver for AlarmDriver<'a, A> {
+    /// Initialize process-bound callbacks on process initialization
+    fn process_init(&self, appid: AppId, callback_factory: &mut ProcessCallbackFactory) {
+        self.app_alarms
+            .enter(appid, |app, _| {
+                app.callback = callback_factory.build_callback(0).unwrap();
+            })
+            .expect("Process initialization: Grant enter failed");
+    }
+
     /// Subscribe to alarm expiration
     ///
     /// ### `_subscribe_num`
