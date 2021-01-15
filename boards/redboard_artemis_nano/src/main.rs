@@ -264,5 +264,11 @@ pub unsafe fn reset_handler() {
     let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
         .finalize(components::rr_component_helper!(NUM_PROCS));
 
-    board_kernel.kernel_loop(artemis_nano, chip, None, scheduler, &main_loop_cap);
+    board_kernel.kernel_loop(
+        artemis_nano,
+        chip,
+        None::<&kernel::ipc::IPC<NUM_PROCS>>,
+        scheduler,
+        &main_loop_cap,
+    );
 }

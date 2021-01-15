@@ -1,6 +1,6 @@
 //! Support for the AES hardware block on OpenTitan
 //!
-//! https://docs.opentitan.org/hw/ip/aes/doc/
+//! <https://docs.opentitan.org/hw/ip/aes/doc/>
 
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::common::registers::{

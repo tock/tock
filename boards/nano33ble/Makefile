@@ -10,7 +10,7 @@ ifdef PORT
   FLAGS += --port $(PORT)
 endif
 
-# Upload the kernel using bossac
+# Upload the kernel using tockloader and the tock bootloader
 .PHONY: program
 program: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).bin
-	bossac $(FLAGS) -U -i -e -w $< -R
+	tockloader $(FLAGS) flash --address 0x10000 $<

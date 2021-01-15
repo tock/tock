@@ -7,18 +7,13 @@ use nrf52::chip::Nrf52DefaultPeripherals;
 /// constructed manually in main.rs.
 pub struct Nrf52833DefaultPeripherals<'a> {
     pub nrf52: Nrf52DefaultPeripherals<'a>,
-    // put additional 52833 specific peripherals here
+    pub gpio_port: crate::gpio::Port<'a, { crate::gpio::NUM_PINS }>,
 }
 impl<'a> Nrf52833DefaultPeripherals<'a> {
     pub unsafe fn new(ppi: &'a crate::ppi::Ppi) -> Self {
         Self {
-            // Note: The use of the global static mut crate::gpio::PORT
-            // does not fit with the updated model of not using globals
-            // to instantiate peripherals, however it is unergonomic
-            // to transition it to the new model until `min_const_generics`
-            // is made stable, such that there can be a shared Port type
-            // across chips with different numbers of gpio pins.
-            nrf52: Nrf52DefaultPeripherals::new(&crate::gpio::PORT, ppi),
+            nrf52: Nrf52DefaultPeripherals::new(ppi),
+            gpio_port: crate::gpio::nrf52833_gpio_create(),
         }
     }
     // Necessary for setting up circular dependencies
@@ -28,7 +23,11 @@ impl<'a> Nrf52833DefaultPeripherals<'a> {
 }
 impl<'a> kernel::InterruptService<DeferredCallTask> for Nrf52833DefaultPeripherals<'a> {
     unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
-        self.nrf52.service_interrupt(interrupt)
+        match interrupt {
+            nrf52::peripheral_interrupts::GPIOTE => self.gpio_port.handle_interrupt(),
+            _ => return self.nrf52.service_interrupt(interrupt),
+        }
+        true
     }
     unsafe fn service_deferred_call(&self, task: DeferredCallTask) -> bool {
         self.nrf52.service_deferred_call(task)

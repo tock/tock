@@ -7,18 +7,16 @@ use kernel::hil::time::Alarm;
 use kernel::Chip;
 use rv32i;
 use rv32i::csr::{mcause, mie::mie, mip::mip, CSR};
-use rv32i::PMPConfigMacro;
+use rv32i::pmp::PMP;
 
 use crate::interrupts;
 use crate::plic::Plic;
 use crate::plic::PLIC;
 use kernel::InterruptService;
 
-PMPConfigMacro!(8);
-
 pub struct E310x<'a, A: 'static + Alarm<'static>, I: InterruptService<()> + 'a> {
     userspace_kernel_boundary: rv32i::syscall::SysCall,
-    pmp: PMP,
+    pmp: PMP<8, 4>,
     plic: &'a Plic,
     scheduler_timer: kernel::VirtualSchedulerTimer<A>,
     timer: &'a rv32i::machine_timer::MachineTimer<'a>,
@@ -107,7 +105,7 @@ impl<'a, A: 'static + Alarm<'static>, I: InterruptService<()> + 'a> E310x<'a, A,
 impl<'a, A: 'static + Alarm<'static>, I: InterruptService<()> + 'a> kernel::Chip
     for E310x<'a, A, I>
 {
-    type MPU = PMP;
+    type MPU = PMP<8, 4>;
     type UserspaceKernelBoundary = rv32i::syscall::SysCall;
     type SchedulerTimer = kernel::VirtualSchedulerTimer<A>;
     type WatchDog = ();

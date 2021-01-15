@@ -1,6 +1,6 @@
 //! ST77xx Screen
 //!
-//! - https://learn.adafruit.com/adafruit-1-3-and-1-54-240-x-240-wide-angle-tft-lcd-displays
+//! - <https://learn.adafruit.com/adafruit-1-3-and-1-54-240-x-240-wide-angle-tft-lcd-displays>
 //!
 //! The screen supports multiple physical busses, and this driver is implemented
 //! on top of the generic `Bus` interface.

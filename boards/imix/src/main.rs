@@ -127,7 +127,7 @@ struct Imix {
         'static,
         VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw>,
     >,
-    ipc: kernel::ipc::IPC,
+    ipc: kernel::ipc::IPC<NUM_PROCS>,
     ninedof: &'static capsules::ninedof::NineDof<'static>,
     radio_driver: &'static capsules::ieee802154::RadioDriver<'static>,
     udp_driver: &'static capsules::net::udp::UDPDriver<'static>,

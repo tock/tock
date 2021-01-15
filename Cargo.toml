@@ -29,6 +29,7 @@ members = [
     "boards/stm32f412gdiscovery",
     "boards/teensy40",
     "boards/nano33ble",
+    "boards/weact_f401ccu6/",
     "capsules",
     "chips/apollo3",
     "chips/arty_e21_chip",
@@ -47,6 +48,7 @@ members = [
     "chips/sam4l",
     "chips/sifive",
     "chips/stm32f303xc",
+    "chips/stm32f401cc",
     "chips/stm32f429zi",
     "chips/stm32f446re",
     "chips/stm32f412g",
@@ -57,6 +59,7 @@ members = [
     "libraries/tock-cells",
     "libraries/tock-register-interface",
     "libraries/tock-rt0",
+    "libraries/tickv",
 ]
 exclude = [
     "tools/alert_codes",
