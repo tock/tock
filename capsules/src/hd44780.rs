@@ -49,7 +49,7 @@
 //! Author: Teona Severin <teona.severin9@gmail.com>
 
 use core::cell::Cell;
-use kernel::common::cells::{OptionalCell, };
+use kernel::common::cells::OptionalCell;
 use kernel::hil::gpio;
 use kernel::hil::text_screen::{TextScreen, TextScreenClient};
 use kernel::hil::time::{self, Alarm, Frequency};
@@ -123,7 +123,7 @@ pub struct HD44780<'a, A: Alarm<'a>> {
     display_control: Cell<u8>,
     display_mode: Cell<u8>,
     num_lines: Cell<u8>,
-    row_offsets: OptionalCell<&'static mut  [u8]>,
+    row_offsets: OptionalCell<&'static mut [u8]>,
 
     alarm: &'a A,
 
@@ -140,7 +140,7 @@ pub struct HD44780<'a, A: Alarm<'a>> {
 
     done_printing: Cell<bool>,
 
-    write_buffer: OptionalCell<&'static mut  [u8]>,
+    write_buffer: OptionalCell<&'static mut [u8]>,
     write_len: Cell<u8>,
     write_offset: Cell<u8>,
 }

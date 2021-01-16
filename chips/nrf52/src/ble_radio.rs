@@ -533,7 +533,7 @@ pub struct Radio<'a> {
     tx_power: Cell<TxPower>,
     rx_client: OptionalCell<&'a dyn ble_advertising::RxClient>,
     tx_client: OptionalCell<&'a dyn ble_advertising::TxClient>,
-    buffer: OptionalCell<&'static mut  [u8]>,
+    buffer: OptionalCell<&'static mut [u8]>,
 }
 
 impl<'a> Radio<'a> {

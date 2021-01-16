@@ -122,8 +122,8 @@ pub struct AesECB<'a> {
     registers: StaticRef<AesEcbRegisters>,
     client: OptionalCell<&'a dyn kernel::hil::symmetric_encryption::Client<'a>>,
     /// Input either plaintext or ciphertext to be encrypted or decrypted.
-    input: OptionalCell<&'a mut  [u8]>,
-    output: OptionalCell<&'a mut  [u8]>,
+    input: OptionalCell<&'a mut [u8]>,
+    output: OptionalCell<&'a mut [u8]>,
     /// Keystream to be XOR'ed with the input.
     keystream: Cell<[u8; MAX_LENGTH]>,
     current_idx: Cell<usize>,

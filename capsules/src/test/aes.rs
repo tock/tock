@@ -12,10 +12,10 @@ use kernel::ReturnCode;
 pub struct TestAes128Ctr<'a, A: 'a> {
     aes: &'a A,
 
-    key: OptionalCell<&'a mut  [u8]>,
-    iv: OptionalCell<&'a mut  [u8]>,
-    source: OptionalCell<&'a mut  [u8]>,
-    data: OptionalCell<&'a mut  [u8]>,
+    key: OptionalCell<&'a mut [u8]>,
+    iv: OptionalCell<&'a mut [u8]>,
+    source: OptionalCell<&'a mut [u8]>,
+    data: OptionalCell<&'a mut [u8]>,
 
     encrypting: Cell<bool>,
     use_source: Cell<bool>,
@@ -24,10 +24,10 @@ pub struct TestAes128Ctr<'a, A: 'a> {
 pub struct TestAes128Cbc<'a, A: 'a> {
     aes: &'a A,
 
-    key: OptionalCell<&'a mut  [u8]>,
-    iv: OptionalCell<&'a mut  [u8]>,
-    source: OptionalCell<&'a mut  [u8]>,
-    data: OptionalCell<&'a mut  [u8]>,
+    key: OptionalCell<&'a mut [u8]>,
+    iv: OptionalCell<&'a mut [u8]>,
+    source: OptionalCell<&'a mut [u8]>,
+    data: OptionalCell<&'a mut [u8]>,
 
     encrypting: Cell<bool>,
     use_source: Cell<bool>,
@@ -36,9 +36,9 @@ pub struct TestAes128Cbc<'a, A: 'a> {
 pub struct TestAes128Ecb<'a, A: 'a> {
     aes: &'a A,
 
-    key: OptionalCell<&'a mut  [u8]>,
-    source: OptionalCell<&'a mut  [u8]>,
-    data: OptionalCell<&'a mut  [u8]>,
+    key: OptionalCell<&'a mut [u8]>,
+    source: OptionalCell<&'a mut [u8]>,
+    data: OptionalCell<&'a mut [u8]>,
 
     encrypting: Cell<bool>,
     use_source: Cell<bool>,

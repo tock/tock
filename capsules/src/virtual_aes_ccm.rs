@@ -83,7 +83,7 @@
 use crate::net::stream::SResult;
 use crate::net::stream::{encode_bytes, encode_u16};
 use core::cell::Cell;
-use kernel::common::cells::{OptionalCell, };
+use kernel::common::cells::OptionalCell;
 use kernel::common::dynamic_deferred_call::{
     DeferredCallHandle, DynamicDeferredCall, DynamicDeferredCallClient,
 };
@@ -249,7 +249,7 @@ pub struct VirtualAES128CCM<'a, A: AES128<'a> + AES128Ctr + AES128CBC> {
     aes: &'a A,
     next: ListLink<'a, VirtualAES128CCM<'a, A>>,
 
-    crypt_buf: OptionalCell<&'a mut  [u8]>,
+    crypt_buf: OptionalCell<&'a mut [u8]>,
     crypt_auth_len: Cell<usize>,
     crypt_enc_len: Cell<usize>,
     crypt_client: OptionalCell<&'a dyn symmetric_encryption::CCMClient>,
@@ -258,7 +258,7 @@ pub struct VirtualAES128CCM<'a, A: AES128<'a> + AES128Ctr + AES128CBC> {
     confidential: Cell<bool>,
     encrypting: Cell<bool>,
 
-    buf: OptionalCell<&'static mut  [u8]>,
+    buf: OptionalCell<&'static mut [u8]>,
     pos: Cell<(usize, usize, usize, usize)>,
     key: Cell<[u8; AES128_KEY_SIZE]>,
     nonce: Cell<[u8; CCM_NONCE_LENGTH]>,

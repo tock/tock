@@ -624,7 +624,7 @@ impl<'a> TxState<'a> {
 /// number of packets that can be reassembled at the same time. Generally,
 /// two `RxState`s are sufficient for normal-case operation.
 pub struct RxState<'a> {
-    packet: OptionalCell<&'static mut  [u8]>,
+    packet: OptionalCell<&'static mut [u8]>,
     bitmap: MapCell<Bitmap>,
     dst_mac_addr: Cell<MacAddress>,
     src_mac_addr: Cell<MacAddress>,

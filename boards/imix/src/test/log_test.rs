@@ -163,7 +163,7 @@ enum TestOp {
 type Log = log::Log<'static, flashcalw::FLASHCALW>;
 struct LogTest<A: Alarm<'static>> {
     log: &'static Log,
-    buffer: OptionalCell<&'static mut  [u8]>,
+    buffer: OptionalCell<&'static mut [u8]>,
     alarm: A,
     state: Cell<TestState>,
     ops: &'static [TestOp],

@@ -42,7 +42,7 @@
 
 use core::cell::Cell;
 use core::cmp;
-use kernel::common::cells::{OptionalCell, };
+use kernel::common::cells::OptionalCell;
 use kernel::hil;
 use kernel::ReturnCode;
 
@@ -92,11 +92,11 @@ pub trait FM25CLClient {
 pub struct FM25CL<'a, S: hil::spi::SpiMasterDevice> {
     spi: &'a S,
     state: Cell<State>,
-    txbuffer: OptionalCell<&'static mut  [u8]>,
-    rxbuffer: OptionalCell<&'static mut  [u8]>,
+    txbuffer: OptionalCell<&'static mut [u8]>,
+    rxbuffer: OptionalCell<&'static mut [u8]>,
     client: OptionalCell<&'static dyn hil::nonvolatile_storage::NonvolatileStorageClient<'static>>,
     client_custom: OptionalCell<&'static dyn FM25CLClient>,
-    client_buffer: OptionalCell<&'static mut  [u8]>, // Store buffer and state for passing back to client
+    client_buffer: OptionalCell<&'static mut [u8]>, // Store buffer and state for passing back to client
     client_write_address: Cell<u16>,
     client_write_len: Cell<u16>,
 }

@@ -23,7 +23,7 @@
 use core::cell::Cell;
 use enum_primitive::cast::FromPrimitive;
 use enum_primitive::enum_from_primitive;
-use kernel::common::cells::{OptionalCell, };
+use kernel::common::cells::OptionalCell;
 use kernel::hil::gpio;
 use kernel::hil::i2c::{self, Error};
 use kernel::hil::touch::{self, GestureEvent, TouchEvent, TouchStatus};
@@ -64,8 +64,8 @@ pub struct Ft6x06<'a> {
     multi_touch_client: OptionalCell<&'a dyn touch::MultiTouchClient>,
     state: Cell<State>,
     num_touches: Cell<usize>,
-    buffer: OptionalCell<&'static mut  [u8]>,
-    events: OptionalCell<&'static mut  [TouchEvent]>,
+    buffer: OptionalCell<&'static mut [u8]>,
+    events: OptionalCell<&'static mut [TouchEvent]>,
 }
 
 impl<'a> Ft6x06<'a> {

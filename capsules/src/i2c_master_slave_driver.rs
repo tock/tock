@@ -46,9 +46,9 @@ pub struct I2CMasterSlaveDriver<'a> {
     i2c: &'a dyn hil::i2c::I2CMasterSlave,
     listening: Cell<bool>,
     master_action: Cell<MasterAction>, // Whether we issued a write or read as master
-    master_buffer: OptionalCell<&'static mut  [u8]>,
-    slave_buffer1: OptionalCell<&'static mut  [u8]>,
-    slave_buffer2: OptionalCell<&'static mut  [u8]>,
+    master_buffer: OptionalCell<&'static mut [u8]>,
+    slave_buffer1: OptionalCell<&'static mut [u8]>,
+    slave_buffer2: OptionalCell<&'static mut [u8]>,
     app: MapCell<App>,
 }
 

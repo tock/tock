@@ -36,7 +36,7 @@
 use core::cell::Cell;
 use core::cmp;
 use kernel::common::cells::NumericCellExt;
-use kernel::common::cells::{OptionalCell, };
+use kernel::common::cells::OptionalCell;
 use kernel::hil;
 use kernel::ReturnCode;
 
@@ -54,11 +54,11 @@ pub struct NonvolatileToPages<'a, F: hil::flash::Flash + 'static> {
     /// Callback to the user of this capsule.
     client: OptionalCell<&'static dyn hil::nonvolatile_storage::NonvolatileStorageClient<'static>>,
     /// Buffer correctly sized for the underlying flash page size.
-    pagebuffer: OptionalCell<&'static mut  F::Page>,
+    pagebuffer: OptionalCell<&'static mut F::Page>,
     /// Current state of this capsule.
     state: Cell<State>,
     /// Temporary holding place for the user's buffer.
-    buffer: OptionalCell<&'static mut  [u8]>,
+    buffer: OptionalCell<&'static mut [u8]>,
     /// Absolute address of where we are reading or writing. This gets updated
     /// as the operation proceeds across pages.
     address: Cell<usize>,

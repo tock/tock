@@ -46,7 +46,7 @@
 //! ```
 
 use core::cell::Cell;
-use kernel::common::cells::{OptionalCell, };
+use kernel::common::cells::OptionalCell;
 use kernel::hil::gpio;
 use kernel::hil::i2c;
 use kernel::ReturnCode;
@@ -134,7 +134,7 @@ pub struct LTC294X<'a> {
     interrupt_pin: Option<&'a dyn gpio::InterruptPin<'a>>,
     model: Cell<ChipModel>,
     state: Cell<State>,
-    buffer: OptionalCell<&'static mut  [u8]>,
+    buffer: OptionalCell<&'static mut [u8]>,
     client: OptionalCell<&'static dyn LTC294XClient>,
 }
 

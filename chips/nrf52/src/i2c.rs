@@ -29,7 +29,7 @@ const INSTANCES: [StaticRef<TwimRegisters>; 2] = unsafe {
 pub struct TWIM {
     registers: StaticRef<TwimRegisters>,
     client: OptionalCell<&'static dyn hil::i2c::I2CHwMasterClient>,
-    buf: OptionalCell<&'static mut  [u8]>,
+    buf: OptionalCell<&'static mut [u8]>,
 }
 
 /// I2C bus speed.

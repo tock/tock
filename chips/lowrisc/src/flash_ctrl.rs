@@ -196,9 +196,9 @@ pub struct FlashCtrl<'a> {
     flash_client: OptionalCell<&'a dyn hil::flash::Client<FlashCtrl<'a>>>,
     data_configured: Cell<bool>,
     info_configured: Cell<bool>,
-    read_buf: OptionalCell<&'static mut  LowRiscPage>,
+    read_buf: OptionalCell<&'static mut LowRiscPage>,
     read_index: Cell<usize>,
-    write_buf: OptionalCell<&'static mut  LowRiscPage>,
+    write_buf: OptionalCell<&'static mut LowRiscPage>,
     write_index: Cell<usize>,
     region_num: FlashRegion,
 }

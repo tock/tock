@@ -4,7 +4,7 @@
 //! users. `I2CDevice` provides access to a specific I2C address.
 
 use core::cell::Cell;
-use kernel::common::cells::{OptionalCell, };
+use kernel::common::cells::OptionalCell;
 use kernel::common::dynamic_deferred_call::{
     DeferredCallHandle, DynamicDeferredCall, DynamicDeferredCallClient,
 };
@@ -190,7 +190,7 @@ pub struct I2CDevice<'a> {
     mux: &'a MuxI2C<'a>,
     addr: u8,
     enabled: Cell<bool>,
-    buffer: OptionalCell<&'static mut  [u8]>,
+    buffer: OptionalCell<&'static mut [u8]>,
     operation: Cell<Op>,
     next: ListLink<'a, I2CDevice<'a>>,
     client: OptionalCell<&'a dyn I2CClient>,
@@ -267,7 +267,7 @@ pub struct SMBusDevice<'a> {
     mux: &'a MuxI2C<'a>,
     addr: u8,
     enabled: Cell<bool>,
-    buffer: OptionalCell<&'static mut  [u8]>,
+    buffer: OptionalCell<&'static mut [u8]>,
     operation: Cell<Op>,
     next: ListLink<'a, SMBusDevice<'a>>,
     client: OptionalCell<&'a dyn I2CClient>,

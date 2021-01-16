@@ -70,7 +70,7 @@ use core::cell::Cell;
 use core::convert::TryFrom;
 use core::mem::size_of;
 use core::unreachable;
-use kernel::common::cells::{OptionalCell, };
+use kernel::common::cells::OptionalCell;
 use kernel::common::dynamic_deferred_call::{
     DeferredCallHandle, DynamicDeferredCall, DynamicDeferredCallClient,
 };
@@ -108,7 +108,7 @@ pub struct Log<'a, F: Flash + 'static> {
     /// Flash interface.
     driver: &'a F,
     /// Buffer for a flash page.
-    pagebuffer: OptionalCell<&'static mut  F::Page>,
+    pagebuffer: OptionalCell<&'static mut F::Page>,
     /// Size of a flash page.
     page_size: usize,
     /// Whether or not the log is circular.
@@ -134,7 +134,7 @@ pub struct Log<'a, F: Flash + 'static> {
 
     // Note: for saving state across stack ripping.
     /// Client-provided buffer to write from.
-    buffer: OptionalCell<&'static mut  [u8]>,
+    buffer: OptionalCell<&'static mut [u8]>,
     /// Length of data within buffer.
     length: Cell<usize>,
     /// Whether or not records were lost in the previous append.

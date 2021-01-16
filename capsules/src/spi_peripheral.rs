@@ -34,8 +34,8 @@ pub struct SpiPeripheral<'a, S: SpiSlaveDevice> {
     spi_slave: &'a S,
     busy: Cell<bool>,
     app: MapCell<PeripheralApp>,
-    kernel_read: OptionalCell<&'static mut  [u8]>,
-    kernel_write: OptionalCell<&'static mut  [u8]>,
+    kernel_read: OptionalCell<&'static mut [u8]>,
+    kernel_write: OptionalCell<&'static mut [u8]>,
     kernel_len: Cell<usize>,
 }
 

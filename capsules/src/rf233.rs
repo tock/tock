@@ -15,7 +15,7 @@ use crate::rf233_const::{
     ExternalState, InteruptFlags, RF233BusCommand, RF233Register, RF233TrxCmd,
 };
 use core::cell::Cell;
-use kernel::common::cells::{OptionalCell, };
+use kernel::common::cells::OptionalCell;
 use kernel::hil::gpio;
 use kernel::hil::radio;
 use kernel::hil::spi;
@@ -202,8 +202,8 @@ pub struct RF233<'a, S: spi::SpiMasterDevice> {
     sleep_pin: &'a dyn gpio::Pin,
     irq_pin: &'a dyn gpio::InterruptPin<'a>,
     state: Cell<InternalState>,
-    tx_buf: OptionalCell<&'static mut  [u8]>,
-    rx_buf: OptionalCell<&'static mut  [u8]>,
+    tx_buf: OptionalCell<&'static mut [u8]>,
+    rx_buf: OptionalCell<&'static mut [u8]>,
     tx_len: Cell<u8>,
     tx_client: OptionalCell<&'static dyn radio::TxClient>,
     rx_client: OptionalCell<&'static dyn radio::RxClient>,
@@ -214,9 +214,9 @@ pub struct RF233<'a, S: spi::SpiMasterDevice> {
     pan: Cell<u16>,
     tx_power: Cell<i8>,
     channel: Cell<u8>,
-    spi_rx: OptionalCell<&'static mut  [u8]>,
-    spi_tx: OptionalCell<&'static mut  [u8]>,
-    spi_buf: OptionalCell<&'static mut  [u8]>,
+    spi_rx: OptionalCell<&'static mut [u8]>,
+    spi_tx: OptionalCell<&'static mut [u8]>,
+    spi_buf: OptionalCell<&'static mut [u8]>,
 }
 
 fn setting_to_power(setting: u8) -> i8 {

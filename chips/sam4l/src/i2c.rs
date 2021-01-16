@@ -12,7 +12,7 @@
 use crate::dma::{DMAChannel, DMAClient, DMAPeripheral};
 use crate::pm;
 use core::cell::Cell;
-use kernel::common::cells::{OptionalCell, };
+use kernel::common::cells::OptionalCell;
 use kernel::common::peripherals::{PeripheralManagement, PeripheralManager};
 use kernel::common::registers::{register_bitfields, FieldValue, ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
@@ -554,10 +554,10 @@ pub struct I2CHw {
 
     slave_enabled: Cell<bool>,
     my_slave_address: Cell<u8>,
-    slave_read_buffer: OptionalCell<&'static mut  [u8]>,
+    slave_read_buffer: OptionalCell<&'static mut [u8]>,
     slave_read_buffer_len: Cell<u8>,
     slave_read_buffer_index: Cell<u8>,
-    slave_write_buffer: OptionalCell<&'static mut  [u8]>,
+    slave_write_buffer: OptionalCell<&'static mut [u8]>,
     slave_write_buffer_len: Cell<u8>,
     slave_write_buffer_index: Cell<u8>,
     pm: &'static pm::PowerManager,

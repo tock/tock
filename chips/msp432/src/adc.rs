@@ -3,7 +3,7 @@
 use crate::{dma, ref_module, timer};
 use core::cell::Cell;
 use core::{mem, slice};
-use kernel::common::cells::{OptionalCell, };
+use kernel::common::cells::OptionalCell;
 use kernel::common::registers::{
     register_bitfields, register_structs, ReadOnly, ReadWrite, WriteOnly,
 };
@@ -500,8 +500,8 @@ pub struct Adc<'a> {
     dma: OptionalCell<&'a dma::DmaChannel<'a>>,
     pub(crate) dma_chan: usize,
     dma_src: u8,
-    buffer1: OptionalCell<&'static mut  [u16]>,
-    buffer2: OptionalCell<&'static mut  [u16]>,
+    buffer1: OptionalCell<&'static mut [u16]>,
+    buffer2: OptionalCell<&'static mut [u16]>,
     client: OptionalCell<&'static dyn EverythingClient>,
 }
 

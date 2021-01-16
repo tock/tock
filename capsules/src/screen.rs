@@ -12,7 +12,7 @@
 
 use core::cell::Cell;
 use core::convert::From;
-use kernel::common::cells::{OptionalCell, };
+use kernel::common::cells::OptionalCell;
 use kernel::hil;
 use kernel::hil::screen::{ScreenPixelFormat, ScreenRotation};
 use kernel::ReturnCode;
@@ -114,7 +114,7 @@ pub struct Screen<'a> {
     screen_ready: Cell<bool>,
     current_app: OptionalCell<AppId>,
     pixel_format: Cell<ScreenPixelFormat>,
-    buffer: OptionalCell<&'static mut  [u8]>,
+    buffer: OptionalCell<&'static mut [u8]>,
 }
 
 impl<'a> Screen<'a> {

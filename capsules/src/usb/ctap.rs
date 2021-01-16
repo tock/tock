@@ -87,11 +87,11 @@ pub struct CtapHid<'a, U: 'a> {
     client: OptionalCell<&'a dyn hil::usb_hid::Client<'a, [u8; 64]>>,
 
     /// A buffer to hold the data we want to send
-    send_buffer: OptionalCell<&'static mut  [u8; 64]>,
+    send_buffer: OptionalCell<&'static mut [u8; 64]>,
 
     /// A holder for the buffer to receive bytes into. We use this as a flag as
     /// well, if we have a buffer then we are actively doing a receive.
-    recv_buffer: OptionalCell<&'static mut  [u8; 64]>,
+    recv_buffer: OptionalCell<&'static mut [u8; 64]>,
     /// How many bytes the client wants us to receive.
     recv_len: Cell<usize>,
     /// How many bytes we have received so far.

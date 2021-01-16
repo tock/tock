@@ -1,5 +1,5 @@
 use core::cell::Cell;
-use kernel::common::cells::{OptionalCell, };
+use kernel::common::cells::OptionalCell;
 use kernel::common::math;
 use kernel::hil::adc;
 use kernel::hil::gpio;
@@ -16,7 +16,7 @@ pub struct AdcMicrophone<'a, P: gpio::Pin> {
     adc: &'a dyn adc::AdcChannel,
     enable_pin: Option<&'a P>,
     spl_client: OptionalCell<&'a dyn SoundPressureClient>,
-    spl_buffer: OptionalCell<&'a mut  [u16]>,
+    spl_buffer: OptionalCell<&'a mut [u16]>,
     spl_pos: Cell<usize>,
     state: Cell<State>,
 }

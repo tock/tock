@@ -81,7 +81,7 @@
 use crate::ieee802154::mac::Mac;
 use crate::net::ieee802154::{FrameType, FrameVersion, Header, MacAddress, PanID};
 use core::cell::Cell;
-use kernel::common::cells::{OptionalCell, };
+use kernel::common::cells::OptionalCell;
 use kernel::hil::radio;
 use kernel::hil::rng::{self, Rng};
 use kernel::hil::time::{self, Alarm, Ticks};
@@ -154,12 +154,12 @@ pub struct XMac<'a, R: radio::Radio, A: Alarm<'a>> {
     delay_sleep: Cell<bool>,
 
     tx_header: Cell<Option<XMacHeaderInfo>>,
-    tx_payload: OptionalCell<&'static mut  [u8]>,
+    tx_payload: OptionalCell<&'static mut [u8]>,
     tx_len: Cell<usize>,
 
     tx_preamble_pending: Cell<bool>,
     tx_preamble_seq_num: Cell<u8>,
-    tx_preamble_buf: OptionalCell<&'static mut  [u8]>,
+    tx_preamble_buf: OptionalCell<&'static mut [u8]>,
 
     rx_pending: Cell<bool>,
 }

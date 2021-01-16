@@ -135,10 +135,10 @@ pub static mut COMMAND_BUF: [u8; 32] = [0; 32];
 pub struct ProcessConsole<'a, C: ProcessManagementCapability> {
     uart: &'a dyn uart::UartData<'a>,
     tx_in_progress: Cell<bool>,
-    tx_buffer: OptionalCell<&'static mut  [u8]>,
+    tx_buffer: OptionalCell<&'static mut [u8]>,
     rx_in_progress: Cell<bool>,
-    rx_buffer: OptionalCell<&'static mut  [u8]>,
-    command_buffer: OptionalCell<&'static mut  [u8]>,
+    rx_buffer: OptionalCell<&'static mut [u8]>,
+    command_buffer: OptionalCell<&'static mut [u8]>,
     command_index: Cell<usize>,
 
     /// Flag to mark that the process console is active and has called receive

@@ -21,7 +21,7 @@ use crate::pm::{self, Clock, PBAClock};
 use crate::scif;
 use core::cell::Cell;
 use core::{cmp, mem, slice};
-use kernel::common::cells::{OptionalCell, };
+use kernel::common::cells::OptionalCell;
 use kernel::common::math;
 use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
@@ -100,9 +100,9 @@ pub struct Adc {
     rx_dma: OptionalCell<&'static dma::DMAChannel>,
     rx_dma_peripheral: dma::DMAPeripheral,
     rx_length: Cell<usize>,
-    next_dma_buffer: OptionalCell<&'static mut  [u16]>,
+    next_dma_buffer: OptionalCell<&'static mut [u16]>,
     next_dma_length: Cell<usize>,
-    stopped_buffer: OptionalCell<&'static mut  [u16]>,
+    stopped_buffer: OptionalCell<&'static mut [u16]>,
 
     // ADC client to send sample complete notifications to
     client: OptionalCell<&'static dyn EverythingClient>,

@@ -18,7 +18,7 @@ use crate::driver;
 use core::cell::Cell;
 use enum_primitive::cast::FromPrimitive;
 use enum_primitive::enum_from_primitive;
-use kernel::common::cells::{OptionalCell, };
+use kernel::common::cells::OptionalCell;
 use kernel::common::registers::register_bitfields;
 use kernel::hil::i2c::{self, Error};
 use kernel::hil::sensors;
@@ -60,7 +60,7 @@ pub struct Mlx90614SMBus<'a> {
     smbus_temp: &'a dyn i2c::SMBusDevice,
     callback: OptionalCell<Callback>,
     temperature_client: OptionalCell<&'a dyn sensors::TemperatureClient>,
-    buffer: OptionalCell<&'static mut  [u8]>,
+    buffer: OptionalCell<&'static mut [u8]>,
     state: Cell<State>,
 }
 

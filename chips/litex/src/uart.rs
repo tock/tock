@@ -4,7 +4,7 @@
 //! [`litex/soc/cores/uart.py`](https://github.com/enjoy-digital/litex/blob/master/litex/soc/cores/uart.py).
 
 use core::cell::Cell;
-use kernel::common::cells::{OptionalCell, };
+use kernel::common::cells::OptionalCell;
 use kernel::common::dynamic_deferred_call::{
     DeferredCallHandle, DynamicDeferredCall, DynamicDeferredCallClient,
 };
@@ -89,12 +89,12 @@ pub struct LiteXUart<'a, R: LiteXSoCRegisterConfiguration> {
     phy: Option<(StaticRef<LiteXUartPhyRegisters<R>>, u32)>,
     tx_client: OptionalCell<&'a dyn uart::TransmitClient>,
     rx_client: OptionalCell<&'a dyn uart::ReceiveClient>,
-    tx_buffer: OptionalCell<&'static mut  [u8]>,
+    tx_buffer: OptionalCell<&'static mut [u8]>,
     tx_len: Cell<usize>,
     tx_progress: Cell<usize>,
     tx_aborted: Cell<bool>,
     tx_deferred_call: Cell<bool>,
-    rx_buffer: OptionalCell<&'static mut  [u8]>,
+    rx_buffer: OptionalCell<&'static mut [u8]>,
     rx_len: Cell<usize>,
     rx_progress: Cell<usize>,
     rx_aborted: Cell<bool>,

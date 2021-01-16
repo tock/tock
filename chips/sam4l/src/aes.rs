@@ -11,7 +11,7 @@
 use crate::pm;
 use crate::scif;
 use core::cell::Cell;
-use kernel::common::cells::{OptionalCell, };
+use kernel::common::cells::OptionalCell;
 use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::debug;
@@ -146,8 +146,8 @@ pub struct Aes<'a> {
     registers: StaticRef<AesRegisters>,
 
     client: OptionalCell<&'a dyn hil::symmetric_encryption::Client<'a>>,
-    source: OptionalCell<&'a mut  [u8]>,
-    dest: OptionalCell<&'a mut  [u8]>,
+    source: OptionalCell<&'a mut [u8]>,
+    dest: OptionalCell<&'a mut [u8]>,
 
     // An index into `source` (or `dest` if that does not exist),
     // marking how much data has been written to the AESA

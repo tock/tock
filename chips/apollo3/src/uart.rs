@@ -163,7 +163,7 @@ pub struct Uart<'a> {
     tx_client: OptionalCell<&'a dyn hil::uart::TransmitClient>,
     rx_client: OptionalCell<&'a dyn hil::uart::ReceiveClient>,
 
-    tx_buffer: OptionalCell<&'static mut  [u8]>,
+    tx_buffer: OptionalCell<&'static mut [u8]>,
     tx_len: Cell<usize>,
     tx_index: Cell<usize>,
 }

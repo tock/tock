@@ -9,7 +9,7 @@ use kernel::ReturnCode;
 
 pub struct TestVirtualUartReceive {
     device: &'static UartDevice<'static>,
-    buffer: OptionalCell<&'static mut  [u8]>,
+    buffer: OptionalCell<&'static mut [u8]>,
 }
 
 impl TestVirtualUartReceive {

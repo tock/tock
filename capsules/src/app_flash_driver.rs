@@ -23,7 +23,7 @@
 //! ```
 
 use core::cmp;
-use kernel::common::cells::{OptionalCell, };
+use kernel::common::cells::OptionalCell;
 use kernel::hil;
 use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
 
@@ -43,7 +43,7 @@ pub struct AppFlash<'a> {
     driver: &'a dyn hil::nonvolatile_storage::NonvolatileStorage<'static>,
     apps: Grant<App>,
     current_app: OptionalCell<AppId>,
-    buffer: OptionalCell<&'static mut  [u8]>,
+    buffer: OptionalCell<&'static mut [u8]>,
 }
 
 impl<'a> AppFlash<'a> {

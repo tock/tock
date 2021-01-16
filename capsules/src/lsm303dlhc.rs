@@ -81,7 +81,7 @@
 use core::cell::Cell;
 use enum_primitive::cast::FromPrimitive;
 use enum_primitive::enum_from_primitive;
-use kernel::common::cells::{OptionalCell, };
+use kernel::common::cells::OptionalCell;
 use kernel::hil::i2c::{self, Error};
 use kernel::hil::sensors;
 use kernel::{AppId, Callback, Driver, ReturnCode};
@@ -143,7 +143,7 @@ pub struct Lsm303dlhcI2C<'a> {
     accel_data_rate: Cell<Lsm303AccelDataRate>,
     low_power: Cell<bool>,
     temperature: Cell<bool>,
-    buffer: OptionalCell<&'static mut  [u8]>,
+    buffer: OptionalCell<&'static mut [u8]>,
     nine_dof_client: OptionalCell<&'a dyn sensors::NineDofClient>,
     temperature_client: OptionalCell<&'a dyn sensors::TemperatureClient>,
 }

@@ -37,7 +37,7 @@
 //! ```
 
 use core::cell::Cell;
-use kernel::common::cells::{OptionalCell, };
+use kernel::common::cells::OptionalCell;
 use kernel::hil::i2c;
 use kernel::hil::time;
 use kernel::ReturnCode;
@@ -101,7 +101,7 @@ pub struct SI7021<'a, A: time::Alarm<'a>> {
     humidity_callback: OptionalCell<&'a dyn kernel::hil::sensors::HumidityClient>,
     state: Cell<State>,
     on_deck: Cell<OnDeck>,
-    buffer: OptionalCell<&'static mut  [u8]>,
+    buffer: OptionalCell<&'static mut [u8]>,
 }
 
 impl<'a, A: time::Alarm<'a>> SI7021<'a, A> {

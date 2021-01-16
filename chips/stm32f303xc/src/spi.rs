@@ -1,7 +1,7 @@
 use core::cell::Cell;
 use core::cmp;
 
-use kernel::common::cells::{OptionalCell, };
+use kernel::common::cells::OptionalCell;
 use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
 use kernel::hil;
@@ -188,10 +188,10 @@ pub struct Spi<'a> {
 
     active_slave: OptionalCell<&'a crate::gpio::Pin<'a>>,
 
-    tx_buffer: OptionalCell<&'static mut  [u8]>,
+    tx_buffer: OptionalCell<&'static mut [u8]>,
     tx_position: Cell<usize>,
 
-    rx_buffer: OptionalCell<&'static mut  [u8]>,
+    rx_buffer: OptionalCell<&'static mut [u8]>,
     rx_position: Cell<usize>,
     len: Cell<usize>,
 

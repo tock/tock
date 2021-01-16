@@ -282,7 +282,7 @@ pub enum FlashState {
 pub struct Flash {
     registers: StaticRef<FlashRegisters>,
     client: OptionalCell<&'static dyn hil::flash::Client<Flash>>,
-    buffer: OptionalCell<&'static mut  StmF303Page>,
+    buffer: OptionalCell<&'static mut StmF303Page>,
     state: Cell<FlashState>,
     write_counter: Cell<usize>,
     page_number: Cell<usize>,

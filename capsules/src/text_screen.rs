@@ -12,7 +12,7 @@
 //! ```
 
 use core::convert::From;
-use kernel::common::cells::{OptionalCell, };
+use kernel::common::cells::OptionalCell;
 use kernel::hil;
 use kernel::ReturnCode;
 use kernel::{AppId, AppSlice, Callback, Driver, Grant, Shared};
@@ -67,7 +67,7 @@ pub struct TextScreen<'a> {
     text_screen: &'a dyn hil::text_screen::TextScreen<'static>,
     apps: Grant<App>,
     current_app: OptionalCell<AppId>,
-    buffer: OptionalCell<&'static mut  [u8]>,
+    buffer: OptionalCell<&'static mut [u8]>,
 }
 
 impl<'a> TextScreen<'a> {

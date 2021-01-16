@@ -64,7 +64,7 @@
 //! `mcp230xx` object is created.
 
 use core::cell::Cell;
-use kernel::common::cells::{OptionalCell, };
+use kernel::common::cells::OptionalCell;
 use kernel::hil;
 use kernel::hil::gpio;
 use kernel::hil::gpio_async;
@@ -132,7 +132,7 @@ pub struct MCP230xx<'a> {
     state: Cell<State>,
     bank_size: u8,       // How many GPIO pins per bank (likely 8)
     number_of_banks: u8, // How many GPIO banks this extender has (likely 1 or 2)
-    buffer: OptionalCell<&'static mut  [u8]>,
+    buffer: OptionalCell<&'static mut [u8]>,
     interrupt_pin_a: Option<&'a dyn gpio::InterruptValuePin<'a>>,
     interrupt_pin_b: Option<&'a dyn gpio::InterruptValuePin<'a>>,
     interrupts_enabled: Cell<u32>, // Whether the pin interrupt is enabled

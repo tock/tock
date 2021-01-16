@@ -1,7 +1,7 @@
 //! Direct Memory Access (DMA)
 
 use core::cell::Cell;
-use kernel::common::cells::{OptionalCell, };
+use kernel::common::cells::OptionalCell;
 use kernel::common::registers::{
     register_bitfields, register_structs, InMemoryRegister, ReadOnly, ReadWrite, WriteOnly,
 };
@@ -618,10 +618,10 @@ pub struct DmaChannel<'a> {
     config: Cell<DmaConfig>,
     transfer_type: Cell<DmaTransferType>,
     active_buf: Cell<ActiveBuffer>,
-    tx_buf_prim: OptionalCell<&'static mut  [u8]>,
-    rx_buf_prim: OptionalCell<&'static mut  [u8]>,
-    tx_buf_alt: OptionalCell<&'static mut  [u8]>,
-    rx_buf_alt: OptionalCell<&'static mut  [u8]>,
+    tx_buf_prim: OptionalCell<&'static mut [u8]>,
+    rx_buf_prim: OptionalCell<&'static mut [u8]>,
+    tx_buf_alt: OptionalCell<&'static mut [u8]>,
+    rx_buf_alt: OptionalCell<&'static mut [u8]>,
     bytes_to_transmit_prim: Cell<usize>,
     bytes_to_transmit_alt: Cell<usize>,
     remaining_words: Cell<usize>,

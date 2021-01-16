@@ -36,7 +36,7 @@
 
 use crate::bus::{self, Bus, BusWidth};
 use core::cell::Cell;
-use kernel::common::cells::{OptionalCell, };
+use kernel::common::cells::OptionalCell;
 use kernel::hil::gpio::Pin;
 use kernel::hil::screen::{
     self, ScreenClient, ScreenPixelFormat, ScreenRotation, ScreenSetupClient,
@@ -226,15 +226,15 @@ pub struct ST77XX<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> {
     setup_client: OptionalCell<&'static dyn screen::ScreenSetupClient>,
     setup_command: Cell<bool>,
 
-    sequence_buffer: OptionalCell<&'static mut  [SendCommand]>,
+    sequence_buffer: OptionalCell<&'static mut [SendCommand]>,
     position_in_sequence: Cell<usize>,
     sequence_len: Cell<usize>,
     command: Cell<&'static Command>,
-    buffer: OptionalCell<&'static mut  [u8]>,
+    buffer: OptionalCell<&'static mut [u8]>,
 
     power_on: Cell<bool>,
 
-    write_buffer: OptionalCell<&'static mut  [u8]>,
+    write_buffer: OptionalCell<&'static mut [u8]>,
 
     current_rotation: Cell<ScreenRotation>,
 

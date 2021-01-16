@@ -50,7 +50,7 @@
 
 use core::cell::Cell;
 use core::cmp;
-use kernel::common::cells::{OptionalCell, };
+use kernel::common::cells::OptionalCell;
 use kernel::hil;
 use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
 
@@ -87,9 +87,9 @@ pub struct AdcDedicated<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed> {
     channel: Cell<usize>,
 
     // ADC buffers
-    adc_buf1: OptionalCell<&'static mut  [u16]>,
-    adc_buf2: OptionalCell<&'static mut  [u16]>,
-    adc_buf3: OptionalCell<&'static mut  [u16]>,
+    adc_buf1: OptionalCell<&'static mut [u16]>,
+    adc_buf2: OptionalCell<&'static mut [u16]>,
+    adc_buf3: OptionalCell<&'static mut [u16]>,
 }
 
 /// ADC modes, used to track internal state and to signify to applications which
@@ -197,7 +197,7 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed> AdcDedicated<'a, A> {
     /// the buffer.
     ///
     /// - `buf` - buffer to be stored
-    fn replace_buffer(&self, buf: &'static mut [u16]) -> &OptionalCell<&'static mut  [u16]> {
+    fn replace_buffer(&self, buf: &'static mut [u16]) -> &OptionalCell<&'static mut [u16]> {
         // We play a little trick here where we always insert replaced buffers
         // in the last position but pull new buffers (in `take_and_map_buffer`)
         // from the beginning. We do this to get around Rust ownership rules

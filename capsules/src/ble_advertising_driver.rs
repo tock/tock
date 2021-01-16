@@ -301,7 +301,7 @@ where
     radio: &'a B,
     busy: Cell<bool>,
     app: kernel::Grant<App>,
-    kernel_tx: kernel::common::cells::OptionalCell<&'static mut  [u8]>,
+    kernel_tx: kernel::common::cells::OptionalCell<&'static mut [u8]>,
     alarm: &'a A,
     sending_app: OptionalCell<kernel::AppId>,
     receiving_app: OptionalCell<kernel::AppId>,

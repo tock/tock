@@ -56,7 +56,7 @@
 
 use core::cell::Cell;
 use core::cmp;
-use kernel::common::cells::{OptionalCell, };
+use kernel::common::cells::OptionalCell;
 use kernel::hil;
 use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
 
@@ -113,7 +113,7 @@ pub struct NonvolatileStorage<'a> {
     apps: Grant<App>,
 
     // Internal buffer for copying appslices into.
-    buffer: OptionalCell<&'static mut  [u8]>,
+    buffer: OptionalCell<&'static mut [u8]>,
     // What issued the currently executing call. This can be an app or the kernel.
     current_user: OptionalCell<NonvolatileUser>,
 
@@ -135,7 +135,7 @@ pub struct NonvolatileStorage<'a> {
     // Whether the kernel wanted a read/write.
     kernel_command: Cell<NonvolatileCommand>,
     // Holder for the buffer passed from the kernel in case we need to wait.
-    kernel_buffer: OptionalCell<&'static mut  [u8]>,
+    kernel_buffer: OptionalCell<&'static mut [u8]>,
     // How many bytes to read/write from the kernel buffer.
     kernel_readwrite_length: Cell<usize>,
     // Where to read/write from the kernel request.

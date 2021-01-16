@@ -1,6 +1,6 @@
 // use core::cell::Cell;
 use core::cell::Cell;
-use kernel::common::cells::{OptionalCell, };
+use kernel::common::cells::OptionalCell;
 use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
 use kernel::hil;
@@ -295,12 +295,12 @@ pub struct Usart<'a> {
     tx_client: OptionalCell<&'a dyn hil::uart::TransmitClient>,
     rx_client: OptionalCell<&'a dyn hil::uart::ReceiveClient>,
 
-    tx_buffer: OptionalCell<&'static mut  [u8]>,
+    tx_buffer: OptionalCell<&'static mut [u8]>,
     tx_position: Cell<usize>,
     tx_len: Cell<usize>,
     tx_status: Cell<USARTStateTX>,
 
-    rx_buffer: OptionalCell<&'static mut  [u8]>,
+    rx_buffer: OptionalCell<&'static mut [u8]>,
     rx_position: Cell<usize>,
     rx_len: Cell<usize>,
     rx_status: Cell<USARTStateRX>,

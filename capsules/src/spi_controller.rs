@@ -39,8 +39,8 @@ pub struct Spi<'a, S: SpiMasterDevice> {
     spi_master: &'a S,
     busy: Cell<bool>,
     app: MapCell<App>,
-    kernel_read: OptionalCell<&'static mut  [u8]>,
-    kernel_write: OptionalCell<&'static mut  [u8]>,
+    kernel_read: OptionalCell<&'static mut [u8]>,
+    kernel_write: OptionalCell<&'static mut [u8]>,
     kernel_len: Cell<usize>,
 }
 

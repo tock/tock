@@ -29,7 +29,7 @@
 //! ```
 
 use core::cell::Cell;
-use kernel::common::cells::{OptionalCell, };
+use kernel::common::cells::OptionalCell;
 use kernel::hil::i2c;
 use kernel::{AppId, Callback, Driver, ReturnCode};
 
@@ -58,7 +58,7 @@ enum ControlField {
 pub struct PCA9544A<'a> {
     i2c: &'a dyn i2c::I2CDevice,
     state: Cell<State>,
-    buffer: OptionalCell<&'static mut  [u8]>,
+    buffer: OptionalCell<&'static mut [u8]>,
     callback: OptionalCell<Callback>,
 }
 

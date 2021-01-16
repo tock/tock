@@ -114,7 +114,7 @@ type Log = log::Log<'static, Nvmc>;
 
 struct LogTest<A: Alarm<'static>> {
     log: &'static Log,
-    buffer: OptionalCell<&'static mut  [u8]>,
+    buffer: OptionalCell<&'static mut [u8]>,
     alarm: A,
     ops: &'static [TestOp],
     op_index: Cell<usize>,

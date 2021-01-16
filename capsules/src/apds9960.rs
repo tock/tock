@@ -41,7 +41,7 @@
 //! ```
 
 use core::cell::Cell;
-use kernel::common::cells::{OptionalCell, };
+use kernel::common::cells::OptionalCell;
 use kernel::hil::gpio;
 use kernel::hil::i2c;
 use kernel::ReturnCode;
@@ -112,7 +112,7 @@ pub struct APDS9960<'a> {
     interrupt_pin: &'a dyn gpio::InterruptPin<'a>,
     prox_callback: OptionalCell<&'a dyn kernel::hil::sensors::ProximityClient>,
     state: Cell<State>,
-    buffer: OptionalCell<&'static mut  [u8]>,
+    buffer: OptionalCell<&'static mut [u8]>,
 }
 
 impl<'a> APDS9960<'a> {

@@ -27,7 +27,7 @@
 //! ```
 
 use core::cell::Cell;
-use kernel::common::cells::{OptionalCell, };
+use kernel::common::cells::OptionalCell;
 use kernel::common::{List, ListLink, ListNode};
 use kernel::hil;
 use kernel::ReturnCode;
@@ -132,7 +132,7 @@ enum Op {
 /// MuxFlash object.
 pub struct FlashUser<'a, F: hil::flash::Flash + 'static> {
     mux: &'a MuxFlash<'a, F>,
-    buffer: OptionalCell<&'static mut  F::Page>,
+    buffer: OptionalCell<&'static mut F::Page>,
     operation: Cell<Op>,
     next: ListLink<'a, FlashUser<'a, F>>,
     client: OptionalCell<&'a dyn hil::flash::Client<FlashUser<'a, F>>>,

@@ -134,7 +134,7 @@ pub struct I2c<'a> {
     // after the write operation. Set to 0 for single read/write operations.
     slave_read_address: Cell<u8>,
 
-    buffer: OptionalCell<&'static mut  [u8]>,
+    buffer: OptionalCell<&'static mut [u8]>,
     write_len: Cell<usize>,
     write_index: Cell<usize>,
 

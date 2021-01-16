@@ -29,7 +29,7 @@
 //! ```
 
 use core::cell::Cell;
-use kernel::common::cells::{OptionalCell, };
+use kernel::common::cells::OptionalCell;
 use kernel::hil::i2c::{Error, I2CClient, I2CDevice};
 use kernel::hil::sensors::{AmbientLight, AmbientLightClient};
 use kernel::hil::time;
@@ -50,7 +50,7 @@ pub struct Isl29035<'a, A: time::Alarm<'a>> {
     i2c: &'a dyn I2CDevice,
     alarm: &'a A,
     state: Cell<State>,
-    buffer: OptionalCell<&'static mut  [u8]>,
+    buffer: OptionalCell<&'static mut [u8]>,
     client: OptionalCell<&'a dyn AmbientLightClient>,
 }
 

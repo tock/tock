@@ -117,7 +117,7 @@ pub struct CdcAcm<'a, U: 'a, A: 'a + Alarm<'a>> {
     ctrl_state: Cell<CtrlState>,
 
     /// A holder reference for the TX buffer we are transmitting from.
-    tx_buffer: OptionalCell<&'static mut  [u8]>,
+    tx_buffer: OptionalCell<&'static mut [u8]>,
     /// The number of bytes the client has asked us to send. We track this so we
     /// can pass it back to the client when the transmission has finished.
     tx_len: Cell<usize>,
@@ -128,7 +128,7 @@ pub struct CdcAcm<'a, U: 'a, A: 'a + Alarm<'a>> {
 
     /// A holder for the buffer to receive bytes into. We use this as a flag as
     /// well, if we have a buffer then we are actively doing a receive.
-    rx_buffer: OptionalCell<&'static mut  [u8]>,
+    rx_buffer: OptionalCell<&'static mut [u8]>,
     /// How many bytes the client wants us to receive.
     rx_len: Cell<usize>,
     /// How many bytes we have received so far.

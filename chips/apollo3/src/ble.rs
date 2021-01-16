@@ -257,7 +257,7 @@ pub struct Ble<'a> {
     rx_client: OptionalCell<&'a dyn ble_advertising::RxClient>,
     tx_client: OptionalCell<&'a dyn ble_advertising::TxClient>,
 
-    buffer: OptionalCell<&'static mut  [u8]>,
+    buffer: OptionalCell<&'static mut [u8]>,
     write_len: Cell<usize>,
 
     read_len: Cell<usize>,

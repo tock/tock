@@ -8,7 +8,7 @@ use crate::event_manager::LiteXEventManager;
 use crate::litex_registers::{LiteXSoCRegisterConfiguration, Read, Write};
 use core::cell::Cell;
 use core::slice;
-use kernel::common::cells::{OptionalCell, };
+use kernel::common::cells::OptionalCell;
 use kernel::common::StaticRef;
 use kernel::debug;
 use kernel::ReturnCode;
@@ -93,8 +93,8 @@ pub struct LiteEth<'a, R: LiteXSoCRegisterConfiguration> {
     rx_slots: usize,
     tx_slots: usize,
     client: OptionalCell<&'a dyn LiteEthClient>,
-    tx_packet: OptionalCell<&'static mut  [u8]>,
-    rx_buffer: OptionalCell<&'static mut  [u8]>,
+    tx_packet: OptionalCell<&'static mut [u8]>,
+    rx_buffer: OptionalCell<&'static mut [u8]>,
     initialized: Cell<bool>,
 }
 

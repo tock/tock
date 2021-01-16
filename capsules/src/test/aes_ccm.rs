@@ -9,7 +9,7 @@ use kernel::ReturnCode;
 pub struct Test<'a, A: AES128CCM<'a>> {
     aes_ccm: &'a A,
 
-    buf: OptionalCell<&'static mut  [u8]>,
+    buf: OptionalCell<&'static mut [u8]>,
     current_test: Cell<usize>,
     encrypting: Cell<bool>,
 

@@ -28,7 +28,7 @@ pub struct MockUDPComponent2 {
     udp_recv_mux: &'static MuxUdpReceiver<'static>,
     bound_port_table: &'static UdpPortManager,
     alarm_mux: &'static MuxAlarm<'static, sam4l::ast::Ast<'static>>,
-    udp_payload: OptionalCell<&'static mut  [u8]>,
+    udp_payload: OptionalCell<&'static mut [u8]>,
     id: u16,
     dst_port: u16,
     net_cap: &'static NetworkCapability,

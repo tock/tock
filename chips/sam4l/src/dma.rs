@@ -4,8 +4,8 @@ use crate::pm;
 use core::cell::Cell;
 use core::cmp;
 use core::sync::atomic;
+use kernel::common::cells::OptionalCell;
 use kernel::common::cells::VolatileCell;
-use kernel::common::cells::{OptionalCell, };
 use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 
@@ -179,7 +179,7 @@ pub struct DMAChannel {
     client: OptionalCell<&'static dyn DMAClient>,
     width: Cell<DMAWidth>,
     enabled: Cell<bool>,
-    buffer: OptionalCell<&'static mut  [u8]>,
+    buffer: OptionalCell<&'static mut [u8]>,
 }
 
 pub trait DMAClient {
