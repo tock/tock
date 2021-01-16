@@ -13,7 +13,7 @@
 
 use core::cell::Cell;
 use core::cmp;
-use kernel::common::cells::{MapCell, TakeCell};
+use kernel::common::cells::{MapCell, OptionalCell};
 use kernel::hil;
 use kernel::ReturnCode;
 use kernel::{AppId, AppSlice, Callback, Driver, Shared};
@@ -46,9 +46,9 @@ pub struct I2CMasterSlaveDriver<'a> {
     i2c: &'a dyn hil::i2c::I2CMasterSlave,
     listening: Cell<bool>,
     master_action: Cell<MasterAction>, // Whether we issued a write or read as master
-    master_buffer: TakeCell<'static, [u8]>,
-    slave_buffer1: TakeCell<'static, [u8]>,
-    slave_buffer2: TakeCell<'static, [u8]>,
+    master_buffer: OptionalCell<&'static mut  [u8]>,
+    slave_buffer1: OptionalCell<&'static mut  [u8]>,
+    slave_buffer2: OptionalCell<&'static mut  [u8]>,
     app: MapCell<App>,
 }
 
@@ -63,9 +63,9 @@ impl<'a> I2CMasterSlaveDriver<'a> {
             i2c: i2c,
             listening: Cell::new(false),
             master_action: Cell::new(MasterAction::Write),
-            master_buffer: TakeCell::new(master_buffer),
-            slave_buffer1: TakeCell::new(slave_buffer1),
-            slave_buffer2: TakeCell::new(slave_buffer2),
+            master_buffer: OptionalCell::new(master_buffer),
+            slave_buffer1: OptionalCell::new(slave_buffer1),
+            slave_buffer2: OptionalCell::new(slave_buffer2),
             app: MapCell::new(App::default()),
         }
     }

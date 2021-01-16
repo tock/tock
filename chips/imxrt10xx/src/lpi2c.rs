@@ -1,6 +1,6 @@
 use core::cell::Cell;
 
-use kernel::common::cells::{OptionalCell, TakeCell};
+use kernel::common::cells::{OptionalCell, };
 use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::debug;
@@ -436,7 +436,7 @@ pub struct Lpi2c<'a> {
     // I2C slave support not yet implemented
     master_client: OptionalCell<&'a dyn hil::i2c::I2CHwMasterClient>,
 
-    buffer: TakeCell<'static, [u8]>,
+    buffer: OptionalCell<&'static mut  [u8]>,
     tx_position: Cell<u8>,
     rx_position: Cell<u8>,
     tx_len: Cell<u8>,
@@ -477,7 +477,7 @@ impl<'a> Lpi2c<'a> {
 
             slave_address: Cell::new(0),
 
-            buffer: TakeCell::empty(),
+            buffer: OptionalCell::empty(),
             tx_position: Cell::new(0),
             rx_position: Cell::new(0),
 

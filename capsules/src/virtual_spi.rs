@@ -1,7 +1,7 @@
 //! Virtualize a SPI master bus to enable multiple users of the SPI bus.
 
 use core::cell::Cell;
-use kernel::common::cells::{OptionalCell, TakeCell};
+use kernel::common::cells::{OptionalCell, };
 use kernel::common::{List, ListLink, ListNode};
 use kernel::hil;
 use kernel::ReturnCode;
@@ -94,8 +94,8 @@ enum Op {
 pub struct VirtualSpiMasterDevice<'a, Spi: hil::spi::SpiMaster> {
     mux: &'a MuxSpiMaster<'a, Spi>,
     chip_select: Cell<Spi::ChipSelect>,
-    txbuffer: TakeCell<'static, [u8]>,
-    rxbuffer: TakeCell<'static, [u8]>,
+    txbuffer: OptionalCell<&'static mut  [u8]>,
+    rxbuffer: OptionalCell<&'static mut  [u8]>,
     operation: Cell<Op>,
     next: ListLink<'a, VirtualSpiMasterDevice<'a, Spi>>,
     client: OptionalCell<&'a dyn hil::spi::SpiMasterClient>,
@@ -109,8 +109,8 @@ impl<'a, Spi: hil::spi::SpiMaster> VirtualSpiMasterDevice<'a, Spi> {
         VirtualSpiMasterDevice {
             mux: mux,
             chip_select: Cell::new(chip_select),
-            txbuffer: TakeCell::empty(),
-            rxbuffer: TakeCell::empty(),
+            txbuffer: OptionalCell::empty(),
+            rxbuffer: OptionalCell::empty(),
             operation: Cell::new(Op::Idle),
             next: ListLink::empty(),
             client: OptionalCell::empty(),

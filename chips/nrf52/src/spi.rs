@@ -31,7 +31,7 @@
 
 use core::cell::Cell;
 use core::{cmp, ptr};
-use kernel::common::cells::{OptionalCell, TakeCell, VolatileCell};
+use kernel::common::cells::{OptionalCell, VolatileCell};
 use kernel::common::registers::{register_bitfields, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil;
@@ -238,8 +238,8 @@ pub struct SPIM {
     chip_select: OptionalCell<&'static dyn hil::gpio::Pin>,
     initialized: Cell<bool>,
     busy: Cell<bool>,
-    tx_buf: TakeCell<'static, [u8]>,
-    rx_buf: TakeCell<'static, [u8]>,
+    tx_buf: OptionalCell<&'static mut [u8]>,
+    rx_buf: OptionalCell<&'static mut [u8]>,
     transfer_len: Cell<usize>,
 }
 
@@ -251,8 +251,8 @@ impl SPIM {
             chip_select: OptionalCell::empty(),
             initialized: Cell::new(false),
             busy: Cell::new(false),
-            tx_buf: TakeCell::empty(),
-            rx_buf: TakeCell::empty(),
+            tx_buf: OptionalCell::empty(),
+            rx_buf: OptionalCell::empty(),
             transfer_len: Cell::new(0),
         }
     }

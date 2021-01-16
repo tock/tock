@@ -2,7 +2,6 @@
 
 use core::cell::Cell;
 use kernel::common::cells::OptionalCell;
-use kernel::common::cells::TakeCell;
 use kernel::common::registers::{register_bitfields, register_structs, ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
 use kernel::hil;
@@ -263,7 +262,7 @@ pub struct Iom<'a> {
 
     master_client: OptionalCell<&'a dyn hil::i2c::I2CHwMasterClient>,
 
-    buffer: TakeCell<'static, [u8]>,
+    buffer: OptionalCell<&'static mut  [u8]>,
     write_len: Cell<usize>,
     write_index: Cell<usize>,
 
@@ -278,7 +277,7 @@ impl<'a> Iom<'_> {
         Iom {
             registers: IOM0_BASE,
             master_client: OptionalCell::empty(),
-            buffer: TakeCell::empty(),
+            buffer: OptionalCell::empty(),
             write_len: Cell::new(0),
             write_index: Cell::new(0),
             read_len: Cell::new(0),
@@ -290,7 +289,7 @@ impl<'a> Iom<'_> {
         Iom {
             registers: IOM1_BASE,
             master_client: OptionalCell::empty(),
-            buffer: TakeCell::empty(),
+            buffer: OptionalCell::empty(),
             write_len: Cell::new(0),
             write_index: Cell::new(0),
             read_len: Cell::new(0),
@@ -302,7 +301,7 @@ impl<'a> Iom<'_> {
         Iom {
             registers: IOM2_BASE,
             master_client: OptionalCell::empty(),
-            buffer: TakeCell::empty(),
+            buffer: OptionalCell::empty(),
             write_len: Cell::new(0),
             write_index: Cell::new(0),
             read_len: Cell::new(0),
@@ -314,7 +313,7 @@ impl<'a> Iom<'_> {
         Iom {
             registers: IOM3_BASE,
             master_client: OptionalCell::empty(),
-            buffer: TakeCell::empty(),
+            buffer: OptionalCell::empty(),
             write_len: Cell::new(0),
             write_index: Cell::new(0),
             read_len: Cell::new(0),
@@ -326,7 +325,7 @@ impl<'a> Iom<'_> {
         Iom {
             registers: IOM4_BASE,
             master_client: OptionalCell::empty(),
-            buffer: TakeCell::empty(),
+            buffer: OptionalCell::empty(),
             write_len: Cell::new(0),
             write_index: Cell::new(0),
             read_len: Cell::new(0),
@@ -338,7 +337,7 @@ impl<'a> Iom<'_> {
         Iom {
             registers: IOM5_BASE,
             master_client: OptionalCell::empty(),
-            buffer: TakeCell::empty(),
+            buffer: OptionalCell::empty(),
             write_len: Cell::new(0),
             write_index: Cell::new(0),
             read_len: Cell::new(0),

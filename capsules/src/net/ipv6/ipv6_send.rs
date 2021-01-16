@@ -23,7 +23,7 @@ use crate::net::ipv6::{IP6Header, IP6Packet, TransportHeader};
 use crate::net::network_capabilities::{IpVisibilityCapability, NetworkCapability};
 use crate::net::sixlowpan::sixlowpan_state::TxState;
 use core::cell::Cell;
-use kernel::common::cells::{OptionalCell, TakeCell};
+use kernel::common::cells::{OptionalCell, };
 use kernel::common::leasable_buffer::LeasableBuffer;
 use kernel::debug;
 use kernel::hil::time;
@@ -91,14 +91,14 @@ pub trait IP6Sender<'a> {
 /// This struct is a specific implementation of the `IP6Sender` trait. This
 /// struct sends the packet using 6LoWPAN over a generic `MacDevice` object.
 pub struct IP6SendStruct<'a, A: time::Alarm<'a>> {
-    // We want the ip6_packet field to be a TakeCell so that it is easy to mutate
-    ip6_packet: TakeCell<'static, IP6Packet<'static>>,
+    // We want the ip6_packet field to be a OptionalCell so that it is easy to mutate
+    ip6_packet: OptionalCell<&'static mut  IP6Packet<'static>>,
     alarm: &'a A, // Alarm so we can introduce a small delay between fragments to ensure
     // successful reception on receivers with slow copies out of the radio buffer
     // (imix)
     src_addr: Cell<IPAddr>,
     gateway: Cell<MacAddress>,
-    tx_buf: TakeCell<'static, [u8]>,
+    tx_buf: OptionalCell<&'static mut  [u8]>,
     sixlowpan: TxState<'a>,
     radio: &'a dyn MacDevice<'a>,
     dst_mac_addr: MacAddress,
@@ -159,11 +159,11 @@ impl<'a, A: time::Alarm<'a>> IP6SendStruct<'a, A> {
         ip_vis: &'static IpVisibilityCapability,
     ) -> IP6SendStruct<'a, A> {
         IP6SendStruct {
-            ip6_packet: TakeCell::new(ip6_packet),
+            ip6_packet: OptionalCell::new(ip6_packet),
             alarm: alarm,
             src_addr: Cell::new(IPAddr::new()),
             gateway: Cell::new(dst_mac_addr),
-            tx_buf: TakeCell::new(tx_buf),
+            tx_buf: OptionalCell::new(tx_buf),
             sixlowpan: sixlowpan,
             radio: radio,
             dst_mac_addr: dst_mac_addr,

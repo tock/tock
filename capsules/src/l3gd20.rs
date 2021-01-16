@@ -103,7 +103,7 @@
 //!
 
 use core::cell::Cell;
-use kernel::common::cells::{OptionalCell, TakeCell};
+use kernel::common::cells::{OptionalCell, };
 use kernel::hil::sensors;
 use kernel::hil::spi;
 use kernel::ReturnCode;
@@ -177,8 +177,8 @@ enum L3gd20Status {
 
 pub struct L3gd20Spi<'a> {
     spi: &'a dyn spi::SpiMasterDevice,
-    txbuffer: TakeCell<'static, [u8]>,
-    rxbuffer: TakeCell<'static, [u8]>,
+    txbuffer: OptionalCell<&'static mut  [u8]>,
+    rxbuffer: OptionalCell<&'static mut  [u8]>,
     status: Cell<L3gd20Status>,
     hpf_enabled: Cell<bool>,
     hpf_mode: Cell<u8>,
@@ -198,8 +198,8 @@ impl<'a> L3gd20Spi<'a> {
         // setup and return struct
         L3gd20Spi {
             spi: spi,
-            txbuffer: TakeCell::new(txbuffer),
-            rxbuffer: TakeCell::new(rxbuffer),
+            txbuffer: OptionalCell::new(txbuffer),
+            rxbuffer: OptionalCell::new(rxbuffer),
             status: Cell::new(L3gd20Status::Idle),
             hpf_enabled: Cell::new(false),
             hpf_mode: Cell::new(0),

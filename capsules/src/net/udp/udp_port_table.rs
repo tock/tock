@@ -35,7 +35,7 @@
 use crate::net::network_capabilities::{NetworkCapability, UdpVisibilityCapability};
 use core::fmt;
 use kernel::capabilities::{CreatePortTableCapability, UdpDriverCapability};
-use kernel::common::cells::{OptionalCell, TakeCell};
+use kernel::common::cells::{OptionalCell, };
 use kernel::ReturnCode;
 
 // Sets the maximum number of UDP ports that can be bound by capsules. Reducing this number
@@ -74,7 +74,7 @@ pub struct UdpSocket {
 /// ports are bound at any given moment, and user_ports, which provides a
 /// handle to userspace port bindings in the UDP driver.
 pub struct UdpPortManager {
-    port_array: TakeCell<'static, [Option<SocketBindingEntry>]>,
+    port_array: OptionalCell<&'static mut  [Option<SocketBindingEntry>]>,
     user_ports: OptionalCell<&'static dyn PortQuery>,
     udp_vis: &'static UdpVisibilityCapability,
 }
@@ -152,7 +152,7 @@ impl UdpPortManager {
         udp_vis: &'static UdpVisibilityCapability,
     ) -> UdpPortManager {
         UdpPortManager {
-            port_array: TakeCell::new(used_kernel_ports),
+            port_array: OptionalCell::new(used_kernel_ports),
             user_ports: OptionalCell::empty(),
             udp_vis: udp_vis,
         }

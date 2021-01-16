@@ -51,7 +51,6 @@
 use core::cell::Cell;
 use core::ops::{Index, IndexMut};
 use kernel::common::cells::OptionalCell;
-use kernel::common::cells::TakeCell;
 use kernel::debug;
 use kernel::hil;
 use kernel::ReturnCode;
@@ -173,10 +172,10 @@ pub struct MX25R6435F<
     state: Cell<State>,
     write_protect_pin: Option<&'a P>,
     hold_pin: Option<&'a P>,
-    txbuffer: TakeCell<'static, [u8]>,
-    rxbuffer: TakeCell<'static, [u8]>,
+    txbuffer: OptionalCell<&'static mut  [u8]>,
+    rxbuffer: OptionalCell<&'static mut  [u8]>,
     client: OptionalCell<&'a dyn hil::flash::Client<MX25R6435F<'a, S, P, A>>>,
-    client_sector: TakeCell<'static, Mx25r6435fSector>,
+    client_sector: OptionalCell<&'static mut  Mx25r6435fSector>,
 }
 
 impl<
@@ -200,10 +199,10 @@ impl<
             state: Cell::new(State::Idle),
             write_protect_pin: write_protect_pin,
             hold_pin: hold_pin,
-            txbuffer: TakeCell::new(txbuffer),
-            rxbuffer: TakeCell::new(rxbuffer),
+            txbuffer: OptionalCell::new(txbuffer),
+            rxbuffer: OptionalCell::new(rxbuffer),
             client: OptionalCell::empty(),
-            client_sector: TakeCell::empty(),
+            client_sector: OptionalCell::empty(),
         }
     }
 

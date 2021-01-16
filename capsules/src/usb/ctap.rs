@@ -19,7 +19,6 @@ use super::descriptors::TransferDirection;
 use super::usbc_client_ctrl::ClientCtrl;
 
 use kernel::common::cells::OptionalCell;
-use kernel::common::cells::TakeCell;
 use kernel::hil;
 use kernel::hil::usb::TransferType;
 use kernel::ReturnCode;
@@ -88,11 +87,11 @@ pub struct CtapHid<'a, U: 'a> {
     client: OptionalCell<&'a dyn hil::usb_hid::Client<'a, [u8; 64]>>,
 
     /// A buffer to hold the data we want to send
-    send_buffer: TakeCell<'static, [u8; 64]>,
+    send_buffer: OptionalCell<&'static mut  [u8; 64]>,
 
     /// A holder for the buffer to receive bytes into. We use this as a flag as
     /// well, if we have a buffer then we are actively doing a receive.
-    recv_buffer: TakeCell<'static, [u8; 64]>,
+    recv_buffer: OptionalCell<&'static mut  [u8; 64]>,
     /// How many bytes the client wants us to receive.
     recv_len: Cell<usize>,
     /// How many bytes we have received so far.
@@ -170,8 +169,8 @@ impl<'a, U: hil::usb::UsbController<'a>> CtapHid<'a, U> {
             ),
             buffers: [Buffer64::default(), Buffer64::default()],
             client: OptionalCell::empty(),
-            send_buffer: TakeCell::empty(),
-            recv_buffer: TakeCell::empty(),
+            send_buffer: OptionalCell::empty(),
+            recv_buffer: OptionalCell::empty(),
             recv_len: Cell::new(0),
             recv_offset: Cell::new(0),
             saved_endpoint: OptionalCell::empty(),

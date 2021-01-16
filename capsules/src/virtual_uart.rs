@@ -44,7 +44,7 @@
 use core::cell::Cell;
 use core::cmp;
 
-use kernel::common::cells::{OptionalCell, TakeCell};
+use kernel::common::cells::{OptionalCell, };
 use kernel::common::dynamic_deferred_call::{
     DeferredCallHandle, DynamicDeferredCall, DynamicDeferredCallClient,
 };
@@ -60,7 +60,7 @@ pub struct MuxUart<'a> {
     speed: u32,
     devices: List<'a, UartDevice<'a>>,
     inflight: OptionalCell<&'a UartDevice<'a>>,
-    buffer: TakeCell<'static, [u8]>,
+    buffer: OptionalCell<&'static mut  [u8]>,
     completing_read: Cell<bool>,
     deferred_caller: &'a DynamicDeferredCall,
     handle: OptionalCell<DeferredCallHandle>,
@@ -196,7 +196,7 @@ impl<'a> MuxUart<'a> {
             speed: speed,
             devices: List::new(),
             inflight: OptionalCell::empty(),
-            buffer: TakeCell::new(buffer),
+            buffer: OptionalCell::new(buffer),
             completing_read: Cell::new(false),
             deferred_caller: deferred_caller,
             handle: OptionalCell::empty(),
@@ -321,9 +321,9 @@ pub struct UartDevice<'a> {
     state: Cell<UartDeviceReceiveState>,
     mux: &'a MuxUart<'a>,
     receiver: bool, // Whether or not to pass this UartDevice incoming messages.
-    tx_buffer: TakeCell<'static, [u8]>,
+    tx_buffer: OptionalCell<&'static mut  [u8]>,
     transmitting: Cell<bool>,
-    rx_buffer: TakeCell<'static, [u8]>,
+    rx_buffer: OptionalCell<&'static mut  [u8]>,
     rx_position: Cell<usize>,
     rx_len: Cell<usize>,
     operation: OptionalCell<Operation>,
@@ -340,9 +340,9 @@ impl<'a> UartDevice<'a> {
             state: Cell::new(UartDeviceReceiveState::Idle),
             mux: mux,
             receiver: receiver,
-            tx_buffer: TakeCell::empty(),
+            tx_buffer: OptionalCell::empty(),
             transmitting: Cell::new(false),
-            rx_buffer: TakeCell::empty(),
+            rx_buffer: OptionalCell::empty(),
             rx_position: Cell::new(0),
             rx_len: Cell::new(0),
             operation: OptionalCell::empty(),

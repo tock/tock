@@ -87,7 +87,7 @@
 
 use core::cell::Cell;
 use core::marker::PhantomData;
-use kernel::common::cells::{OptionalCell, TakeCell, VolatileCell};
+use kernel::common::cells::{OptionalCell, VolatileCell};
 use kernel::hil;
 use kernel::hil::uart;
 use kernel::ReturnCode;
@@ -173,11 +173,11 @@ impl<'a> SeggerRttMemory<'a> {
 
 pub struct SeggerRtt<'a, A: hil::time::Alarm<'a>> {
     alarm: &'a A, // Dummy alarm so we can get a callback.
-    config: TakeCell<'a, SeggerRttMemory<'a>>,
-    up_buffer: TakeCell<'a, [u8]>,
-    _down_buffer: TakeCell<'a, [u8]>,
+    config: OptionalCell<&'a mut SeggerRttMemory<'a>>,
+    up_buffer: OptionalCell<&'a mut [u8]>,
+    _down_buffer: OptionalCell<&'a mut [u8]>,
     client: OptionalCell<&'a dyn uart::TransmitClient>,
-    client_buffer: TakeCell<'static, [u8]>,
+    client_buffer: OptionalCell<&'static mut [u8]>,
     tx_len: Cell<usize>,
 }
 
@@ -190,11 +190,11 @@ impl<'a, A: hil::time::Alarm<'a>> SeggerRtt<'a, A> {
     ) -> SeggerRtt<'a, A> {
         SeggerRtt {
             alarm: alarm,
-            config: TakeCell::new(config),
-            up_buffer: TakeCell::new(up_buffer),
-            _down_buffer: TakeCell::new(down_buffer),
+            config: OptionalCell::new(config),
+            up_buffer: OptionalCell::new(up_buffer),
+            _down_buffer: OptionalCell::new(down_buffer),
             client: OptionalCell::empty(),
-            client_buffer: TakeCell::empty(),
+            client_buffer: OptionalCell::empty(),
             tx_len: Cell::new(0),
         }
     }

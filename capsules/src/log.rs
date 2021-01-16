@@ -70,7 +70,7 @@ use core::cell::Cell;
 use core::convert::TryFrom;
 use core::mem::size_of;
 use core::unreachable;
-use kernel::common::cells::{OptionalCell, TakeCell};
+use kernel::common::cells::{OptionalCell, };
 use kernel::common::dynamic_deferred_call::{
     DeferredCallHandle, DynamicDeferredCall, DynamicDeferredCallClient,
 };
@@ -108,7 +108,7 @@ pub struct Log<'a, F: Flash + 'static> {
     /// Flash interface.
     driver: &'a F,
     /// Buffer for a flash page.
-    pagebuffer: TakeCell<'static, F::Page>,
+    pagebuffer: OptionalCell<&'static mut  F::Page>,
     /// Size of a flash page.
     page_size: usize,
     /// Whether or not the log is circular.
@@ -134,7 +134,7 @@ pub struct Log<'a, F: Flash + 'static> {
 
     // Note: for saving state across stack ripping.
     /// Client-provided buffer to write from.
-    buffer: TakeCell<'static, [u8]>,
+    buffer: OptionalCell<&'static mut  [u8]>,
     /// Length of data within buffer.
     length: Cell<usize>,
     /// Whether or not records were lost in the previous append.
@@ -158,7 +158,7 @@ impl<'a, F: Flash + 'static> Log<'a, F> {
             volume,
             capacity,
             driver,
-            pagebuffer: TakeCell::new(pagebuffer),
+            pagebuffer: OptionalCell::new(pagebuffer),
             page_size,
             circular,
             read_client: OptionalCell::empty(),
@@ -169,7 +169,7 @@ impl<'a, F: Flash + 'static> Log<'a, F> {
             append_entry_id: Cell::new(PAGE_HEADER_SIZE),
             deferred_caller,
             handle: OptionalCell::empty(),
-            buffer: TakeCell::empty(),
+            buffer: OptionalCell::empty(),
             length: Cell::new(0),
             records_lost: Cell::new(false),
             error: Cell::new(ReturnCode::ENODEVICE),

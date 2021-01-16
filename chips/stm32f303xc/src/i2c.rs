@@ -1,6 +1,6 @@
 use core::cell::Cell;
 
-use kernel::common::cells::{OptionalCell, TakeCell};
+use kernel::common::cells::{OptionalCell, };
 use kernel::common::registers::{register_bitfields, ReadWrite};
 use kernel::common::StaticRef;
 use kernel::hil;
@@ -236,7 +236,7 @@ pub struct I2C<'a> {
     // I2C slave support not yet implemented
     master_client: OptionalCell<&'a dyn hil::i2c::I2CHwMasterClient>,
 
-    buffer: TakeCell<'static, [u8]>,
+    buffer: OptionalCell<&'static mut  [u8]>,
     tx_position: Cell<u8>,
     rx_position: Cell<u8>,
     tx_len: Cell<u8>,
@@ -266,7 +266,7 @@ impl<'a> I2C<'a> {
 
             slave_address: Cell::new(0),
 
-            buffer: TakeCell::empty(),
+            buffer: OptionalCell::empty(),
             tx_position: Cell::new(0),
             rx_position: Cell::new(0),
 

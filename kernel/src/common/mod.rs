@@ -34,13 +34,12 @@ pub use self::static_ref::StaticRef;
 
 /// Create a "fake" module inside of `common` for all of the Tock `Cell` types.
 ///
-/// To use `TakeCell`, for example, users should use:
+/// To use `OptionalCell`, for example, users should use:
 ///
-///     use kernel::common::cells::TakeCell;
+///     use kernel::common::cells::OptionalCell;
 pub mod cells {
     pub use tock_cells::map_cell::MapCell;
     pub use tock_cells::numeric_cell_ext::NumericCellExt;
     pub use tock_cells::optional_cell::OptionalCell;
-    pub use tock_cells::take_cell::TakeCell;
     pub use tock_cells::volatile_cell::VolatileCell;
 }

@@ -32,7 +32,6 @@
 
 use core::cell::Cell;
 use kernel::common::cells::OptionalCell;
-use kernel::common::cells::TakeCell;
 use kernel::common::registers::{register_bitfields, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil::symmetric_encryption;
@@ -123,8 +122,8 @@ pub struct AesECB<'a> {
     registers: StaticRef<AesEcbRegisters>,
     client: OptionalCell<&'a dyn kernel::hil::symmetric_encryption::Client<'a>>,
     /// Input either plaintext or ciphertext to be encrypted or decrypted.
-    input: TakeCell<'a, [u8]>,
-    output: TakeCell<'a, [u8]>,
+    input: OptionalCell<&'a mut  [u8]>,
+    output: OptionalCell<&'a mut  [u8]>,
     /// Keystream to be XOR'ed with the input.
     keystream: Cell<[u8; MAX_LENGTH]>,
     current_idx: Cell<usize>,
@@ -137,8 +136,8 @@ impl<'a> AesECB<'a> {
         AesECB {
             registers: AESECB_BASE,
             client: OptionalCell::empty(),
-            input: TakeCell::empty(),
-            output: TakeCell::empty(),
+            input: OptionalCell::empty(),
+            output: OptionalCell::empty(),
             keystream: Cell::new([0; MAX_LENGTH]),
             current_idx: Cell::new(0),
             start_idx: Cell::new(0),

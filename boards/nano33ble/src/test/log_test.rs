@@ -32,7 +32,7 @@
 use capsules::log;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use core::cell::Cell;
-use kernel::common::cells::{NumericCellExt, TakeCell};
+use kernel::common::cells::{NumericCellExt, OptionalCell};
 use kernel::common::dynamic_deferred_call::DynamicDeferredCall;
 use kernel::debug;
 use kernel::hil::flash;
@@ -172,7 +172,7 @@ type Log = log::Log<'static, Nvmc>;
 
 struct LogTest<A: Alarm<'static>> {
     log: &'static Log,
-    buffer: TakeCell<'static, [u8]>,
+    buffer: OptionalCell<&'static mut  [u8]>,
     alarm: A,
     state: Cell<TestState>,
     ops: &'static [TestOp],
@@ -203,7 +203,7 @@ impl<A: Alarm<'static>> LogTest<A> {
 
         LogTest {
             log,
-            buffer: TakeCell::new(buffer),
+            buffer: OptionalCell::new(buffer),
             alarm,
             state: Cell::new(TestState::Operate),
             ops,

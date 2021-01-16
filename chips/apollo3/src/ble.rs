@@ -2,7 +2,6 @@
 
 use core::cell::Cell;
 use kernel::common::cells::OptionalCell;
-use kernel::common::cells::TakeCell;
 use kernel::common::registers::{
     register_bitfields, register_structs, ReadOnly, ReadWrite, WriteOnly,
 };
@@ -258,7 +257,7 @@ pub struct Ble<'a> {
     rx_client: OptionalCell<&'a dyn ble_advertising::RxClient>,
     tx_client: OptionalCell<&'a dyn ble_advertising::TxClient>,
 
-    buffer: TakeCell<'static, [u8]>,
+    buffer: OptionalCell<&'static mut  [u8]>,
     write_len: Cell<usize>,
 
     read_len: Cell<usize>,
@@ -271,7 +270,7 @@ impl<'a> Ble<'a> {
             registers: BLE_BASE,
             rx_client: OptionalCell::empty(),
             tx_client: OptionalCell::empty(),
-            buffer: TakeCell::empty(),
+            buffer: OptionalCell::empty(),
             write_len: Cell::new(0),
             read_len: Cell::new(0),
             read_index: Cell::new(0),

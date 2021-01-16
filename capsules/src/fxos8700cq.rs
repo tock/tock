@@ -22,7 +22,7 @@
 //! ```
 
 use core::cell::Cell;
-use kernel::common::cells::{OptionalCell, TakeCell};
+use kernel::common::cells::{OptionalCell, };
 use kernel::hil;
 use kernel::hil::gpio;
 use kernel::hil::i2c::{Error, I2CClient, I2CDevice};
@@ -180,7 +180,7 @@ pub struct Fxos8700cq<'a> {
     i2c: &'a dyn I2CDevice,
     interrupt_pin1: &'a dyn gpio::InterruptPin<'a>,
     state: Cell<State>,
-    buffer: TakeCell<'static, [u8]>,
+    buffer: OptionalCell<&'static mut  [u8]>,
     callback: OptionalCell<&'a dyn hil::sensors::NineDofClient>,
 }
 
@@ -194,7 +194,7 @@ impl<'a> Fxos8700cq<'a> {
             i2c: i2c,
             interrupt_pin1: interrupt_pin1,
             state: Cell::new(State::Disabled),
-            buffer: TakeCell::new(buffer),
+            buffer: OptionalCell::new(buffer),
             callback: OptionalCell::empty(),
         }
     }

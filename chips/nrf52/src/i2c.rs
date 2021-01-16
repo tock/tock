@@ -8,7 +8,6 @@
 //! - Date: Nov 4, 2017
 
 use kernel::common::cells::OptionalCell;
-use kernel::common::cells::TakeCell;
 use kernel::common::cells::VolatileCell;
 use kernel::common::registers::{register_bitfields, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
@@ -30,7 +29,7 @@ const INSTANCES: [StaticRef<TwimRegisters>; 2] = unsafe {
 pub struct TWIM {
     registers: StaticRef<TwimRegisters>,
     client: OptionalCell<&'static dyn hil::i2c::I2CHwMasterClient>,
-    buf: TakeCell<'static, [u8]>,
+    buf: OptionalCell<&'static mut  [u8]>,
 }
 
 /// I2C bus speed.
@@ -46,7 +45,7 @@ impl TWIM {
         Self {
             registers,
             client: OptionalCell::empty(),
-            buf: TakeCell::empty(),
+            buf: OptionalCell::empty(),
         }
     }
 

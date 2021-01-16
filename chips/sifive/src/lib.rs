@@ -1,6 +1,6 @@
 //! Implementations for generic SiFive MCU peripherals.
 
-#![feature(const_fn)]
+#![feature(const_fn, const_mut_refs)]
 #![no_std]
 #![crate_name = "sifive"]
 #![crate_type = "rlib"]

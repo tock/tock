@@ -5,7 +5,7 @@ use core::cell::Cell;
 use core::cmp;
 use core::sync::atomic;
 use kernel::common::cells::VolatileCell;
-use kernel::common::cells::{OptionalCell, TakeCell};
+use kernel::common::cells::{OptionalCell, };
 use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 
@@ -179,7 +179,7 @@ pub struct DMAChannel {
     client: OptionalCell<&'static dyn DMAClient>,
     width: Cell<DMAWidth>,
     enabled: Cell<bool>,
-    buffer: TakeCell<'static, [u8]>,
+    buffer: OptionalCell<&'static mut  [u8]>,
 }
 
 pub trait DMAClient {
@@ -197,7 +197,7 @@ impl DMAChannel {
             client: OptionalCell::empty(),
             width: Cell::new(DMAWidth::Width8Bit),
             enabled: Cell::new(false),
-            buffer: TakeCell::empty(),
+            buffer: OptionalCell::empty(),
         }
     }
 
@@ -281,7 +281,7 @@ impl DMAChannel {
 
         self.registers.ier.write(Interrupt::TRC::SET);
 
-        // Store the buffer reference in the TakeCell so it can be returned to
+        // Store the buffer reference in the OptionalCell so it can be returned to
         // the caller in `handle_interrupt`
         self.buffer.replace(buf);
     }

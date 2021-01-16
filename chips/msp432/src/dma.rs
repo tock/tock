@@ -1,7 +1,7 @@
 //! Direct Memory Access (DMA)
 
 use core::cell::Cell;
-use kernel::common::cells::{OptionalCell, TakeCell};
+use kernel::common::cells::{OptionalCell, };
 use kernel::common::registers::{
     register_bitfields, register_structs, InMemoryRegister, ReadOnly, ReadWrite, WriteOnly,
 };
@@ -618,10 +618,10 @@ pub struct DmaChannel<'a> {
     config: Cell<DmaConfig>,
     transfer_type: Cell<DmaTransferType>,
     active_buf: Cell<ActiveBuffer>,
-    tx_buf_prim: TakeCell<'static, [u8]>,
-    rx_buf_prim: TakeCell<'static, [u8]>,
-    tx_buf_alt: TakeCell<'static, [u8]>,
-    rx_buf_alt: TakeCell<'static, [u8]>,
+    tx_buf_prim: OptionalCell<&'static mut  [u8]>,
+    rx_buf_prim: OptionalCell<&'static mut  [u8]>,
+    tx_buf_alt: OptionalCell<&'static mut  [u8]>,
+    rx_buf_alt: OptionalCell<&'static mut  [u8]>,
     bytes_to_transmit_prim: Cell<usize>,
     bytes_to_transmit_alt: Cell<usize>,
     remaining_words: Cell<usize>,
@@ -661,10 +661,10 @@ impl<'a> DmaChannel<'a> {
             config: Cell::new(DmaConfig::const_default()),
             transfer_type: Cell::new(DmaTransferType::None),
             active_buf: Cell::new(ActiveBuffer::Primary),
-            tx_buf_prim: TakeCell::empty(),
-            rx_buf_prim: TakeCell::empty(),
-            tx_buf_alt: TakeCell::empty(),
-            rx_buf_alt: TakeCell::empty(),
+            tx_buf_prim: OptionalCell::empty(),
+            rx_buf_prim: OptionalCell::empty(),
+            tx_buf_alt: OptionalCell::empty(),
+            rx_buf_alt: OptionalCell::empty(),
             bytes_to_transmit_prim: Cell::new(0),
             bytes_to_transmit_alt: Cell::new(0),
             remaining_words: Cell::new(0),

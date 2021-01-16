@@ -21,7 +21,7 @@ use crate::pm::{self, Clock, PBAClock};
 use crate::scif;
 use core::cell::Cell;
 use core::{cmp, mem, slice};
-use kernel::common::cells::{OptionalCell, TakeCell};
+use kernel::common::cells::{OptionalCell, };
 use kernel::common::math;
 use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
@@ -100,9 +100,9 @@ pub struct Adc {
     rx_dma: OptionalCell<&'static dma::DMAChannel>,
     rx_dma_peripheral: dma::DMAPeripheral,
     rx_length: Cell<usize>,
-    next_dma_buffer: TakeCell<'static, [u16]>,
+    next_dma_buffer: OptionalCell<&'static mut  [u16]>,
     next_dma_length: Cell<usize>,
-    stopped_buffer: TakeCell<'static, [u16]>,
+    stopped_buffer: OptionalCell<&'static mut  [u16]>,
 
     // ADC client to send sample complete notifications to
     client: OptionalCell<&'static dyn EverythingClient>,
@@ -346,9 +346,9 @@ impl Adc {
             rx_dma: OptionalCell::empty(),
             rx_dma_peripheral: rx_dma_peripheral,
             rx_length: Cell::new(0),
-            next_dma_buffer: TakeCell::empty(),
+            next_dma_buffer: OptionalCell::empty(),
             next_dma_length: Cell::new(0),
-            stopped_buffer: TakeCell::empty(),
+            stopped_buffer: OptionalCell::empty(),
 
             // higher layer to send responses to
             client: OptionalCell::empty(),

@@ -1,7 +1,7 @@
 //! Driver for an I2C Master interface.
 
 use enum_primitive::enum_from_primitive;
-use kernel::common::cells::{MapCell, OptionalCell, TakeCell};
+use kernel::common::cells::{MapCell, OptionalCell, };
 use kernel::hil::i2c;
 use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
 
@@ -27,7 +27,7 @@ struct Transaction {
 
 pub struct I2CMasterDriver<I: 'static + i2c::I2CMaster> {
     i2c: &'static I,
-    buf: TakeCell<'static, [u8]>,
+    buf: OptionalCell<&'static mut  [u8]>,
     tx: MapCell<Transaction>,
     apps: Grant<App>,
 }
@@ -36,7 +36,7 @@ impl<I: 'static + i2c::I2CMaster> I2CMasterDriver<I> {
     pub fn new(i2c: &'static I, buf: &'static mut [u8], apps: Grant<App>) -> I2CMasterDriver<I> {
         I2CMasterDriver {
             i2c,
-            buf: TakeCell::new(buf),
+            buf: OptionalCell::new(buf),
             tx: MapCell::empty(),
             apps,
         }

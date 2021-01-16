@@ -1,4 +1,4 @@
-#![feature(const_fn)]
+#![feature(const_fn, const_mut_refs)]
 #![forbid(unsafe_code)]
 #![no_std]
 

@@ -2,7 +2,6 @@
 
 use core::cell::Cell;
 use kernel::common::cells::OptionalCell;
-use kernel::common::cells::TakeCell;
 use kernel::common::registers::{
     register_bitfields, register_structs, ReadOnly, ReadWrite, WriteOnly,
 };
@@ -135,7 +134,7 @@ pub struct I2c<'a> {
     // after the write operation. Set to 0 for single read/write operations.
     slave_read_address: Cell<u8>,
 
-    buffer: TakeCell<'static, [u8]>,
+    buffer: OptionalCell<&'static mut  [u8]>,
     write_len: Cell<usize>,
     write_index: Cell<usize>,
 
@@ -150,7 +149,7 @@ impl<'a> I2c<'_> {
             clock_period_nanos,
             master_client: OptionalCell::empty(),
             slave_read_address: Cell::new(0),
-            buffer: TakeCell::empty(),
+            buffer: OptionalCell::empty(),
             write_len: Cell::new(0),
             write_index: Cell::new(0),
             read_len: Cell::new(0),

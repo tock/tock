@@ -36,7 +36,7 @@
 
 use crate::bus::{self, Bus, BusWidth};
 use core::cell::Cell;
-use kernel::common::cells::{OptionalCell, TakeCell};
+use kernel::common::cells::{OptionalCell, };
 use kernel::hil::gpio::Pin;
 use kernel::hil::screen::{
     self, ScreenClient, ScreenPixelFormat, ScreenRotation, ScreenSetupClient,
@@ -226,15 +226,15 @@ pub struct ST77XX<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> {
     setup_client: OptionalCell<&'static dyn screen::ScreenSetupClient>,
     setup_command: Cell<bool>,
 
-    sequence_buffer: TakeCell<'static, [SendCommand]>,
+    sequence_buffer: OptionalCell<&'static mut  [SendCommand]>,
     position_in_sequence: Cell<usize>,
     sequence_len: Cell<usize>,
     command: Cell<&'static Command>,
-    buffer: TakeCell<'static, [u8]>,
+    buffer: OptionalCell<&'static mut  [u8]>,
 
     power_on: Cell<bool>,
 
-    write_buffer: TakeCell<'static, [u8]>,
+    write_buffer: OptionalCell<&'static mut  [u8]>,
 
     current_rotation: Cell<ScreenRotation>,
 
@@ -272,15 +272,15 @@ impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> ST77XX<'a, A, B, P> {
             setup_client: OptionalCell::empty(),
             setup_command: Cell::new(false),
 
-            sequence_buffer: TakeCell::new(sequence_buffer),
+            sequence_buffer: OptionalCell::new(sequence_buffer),
             sequence_len: Cell::new(0),
             position_in_sequence: Cell::new(0),
             command: Cell::new(&NOP),
-            buffer: TakeCell::new(buffer),
+            buffer: OptionalCell::new(buffer),
 
             power_on: Cell::new(false),
 
-            write_buffer: TakeCell::empty(),
+            write_buffer: OptionalCell::empty(),
 
             current_rotation: Cell::new(ScreenRotation::Normal),
 

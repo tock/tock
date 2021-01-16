@@ -3,7 +3,7 @@
 
 use core::cell::Cell;
 use core::cmp;
-use kernel::common::cells::{MapCell, TakeCell};
+use kernel::common::cells::{MapCell, OptionalCell};
 use kernel::hil::spi::ClockPhase;
 use kernel::hil::spi::ClockPolarity;
 use kernel::hil::spi::{SpiMasterClient, SpiMasterDevice};
@@ -39,8 +39,8 @@ pub struct Spi<'a, S: SpiMasterDevice> {
     spi_master: &'a S,
     busy: Cell<bool>,
     app: MapCell<App>,
-    kernel_read: TakeCell<'static, [u8]>,
-    kernel_write: TakeCell<'static, [u8]>,
+    kernel_read: OptionalCell<&'static mut  [u8]>,
+    kernel_write: OptionalCell<&'static mut  [u8]>,
     kernel_len: Cell<usize>,
 }
 
@@ -51,8 +51,8 @@ impl<'a, S: SpiMasterDevice> Spi<'a, S> {
             busy: Cell::new(false),
             app: MapCell::new(App::default()),
             kernel_len: Cell::new(0),
-            kernel_read: TakeCell::empty(),
-            kernel_write: TakeCell::empty(),
+            kernel_read: OptionalCell::empty(),
+            kernel_write: OptionalCell::empty(),
         }
     }
 

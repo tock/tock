@@ -1,6 +1,6 @@
 use crate::rcc;
 use core::cell::Cell;
-use kernel::common::cells::{OptionalCell, TakeCell};
+use kernel::common::cells::{OptionalCell, };
 use kernel::common::deferred_call::DeferredCall;
 use kernel::common::registers::{register_bitfields, ReadWrite};
 use kernel::common::StaticRef;
@@ -165,7 +165,7 @@ pub struct Fsmc<'a> {
 
     client: OptionalCell<&'static dyn Client>,
 
-    buffer: TakeCell<'static, [u8]>,
+    buffer: OptionalCell<&'static mut  [u8]>,
     bus_width: Cell<usize>,
     len: Cell<usize>,
 }
@@ -181,7 +181,7 @@ impl<'a> Fsmc<'a> {
             )),
             client: OptionalCell::empty(),
 
-            buffer: TakeCell::empty(),
+            buffer: OptionalCell::empty(),
             bus_width: Cell::new(1),
             len: Cell::new(0),
         }

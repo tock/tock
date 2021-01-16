@@ -1,7 +1,7 @@
 //! Test the AES hardware.
 
 use core::cell::Cell;
-use kernel::common::cells::TakeCell;
+use kernel::common::cells::OptionalCell;
 use kernel::debug;
 use kernel::hil;
 use kernel::hil::symmetric_encryption::{
@@ -12,10 +12,10 @@ use kernel::ReturnCode;
 pub struct TestAes128Ctr<'a, A: 'a> {
     aes: &'a A,
 
-    key: TakeCell<'a, [u8]>,
-    iv: TakeCell<'a, [u8]>,
-    source: TakeCell<'a, [u8]>,
-    data: TakeCell<'a, [u8]>,
+    key: OptionalCell<&'a mut  [u8]>,
+    iv: OptionalCell<&'a mut  [u8]>,
+    source: OptionalCell<&'a mut  [u8]>,
+    data: OptionalCell<&'a mut  [u8]>,
 
     encrypting: Cell<bool>,
     use_source: Cell<bool>,
@@ -24,10 +24,10 @@ pub struct TestAes128Ctr<'a, A: 'a> {
 pub struct TestAes128Cbc<'a, A: 'a> {
     aes: &'a A,
 
-    key: TakeCell<'a, [u8]>,
-    iv: TakeCell<'a, [u8]>,
-    source: TakeCell<'a, [u8]>,
-    data: TakeCell<'a, [u8]>,
+    key: OptionalCell<&'a mut  [u8]>,
+    iv: OptionalCell<&'a mut  [u8]>,
+    source: OptionalCell<&'a mut  [u8]>,
+    data: OptionalCell<&'a mut  [u8]>,
 
     encrypting: Cell<bool>,
     use_source: Cell<bool>,
@@ -36,9 +36,9 @@ pub struct TestAes128Cbc<'a, A: 'a> {
 pub struct TestAes128Ecb<'a, A: 'a> {
     aes: &'a A,
 
-    key: TakeCell<'a, [u8]>,
-    source: TakeCell<'a, [u8]>,
-    data: TakeCell<'a, [u8]>,
+    key: OptionalCell<&'a mut  [u8]>,
+    source: OptionalCell<&'a mut  [u8]>,
+    data: OptionalCell<&'a mut  [u8]>,
 
     encrypting: Cell<bool>,
     use_source: Cell<bool>,
@@ -52,9 +52,9 @@ impl<'a, A: AES128<'a> + AES128ECB> TestAes128Ecb<'a, A> {
         TestAes128Ecb {
             aes: aes,
 
-            key: TakeCell::new(key),
-            source: TakeCell::new(source),
-            data: TakeCell::new(data),
+            key: OptionalCell::new(key),
+            source: OptionalCell::new(source),
+            data: OptionalCell::new(data),
 
             encrypting: Cell::new(true),
             use_source: Cell::new(true),
@@ -141,10 +141,10 @@ impl<'a, A: AES128<'a> + AES128Ctr> TestAes128Ctr<'a, A> {
         TestAes128Ctr {
             aes: aes,
 
-            key: TakeCell::new(key),
-            iv: TakeCell::new(iv),
-            source: TakeCell::new(source),
-            data: TakeCell::new(data),
+            key: OptionalCell::new(key),
+            iv: OptionalCell::new(iv),
+            source: OptionalCell::new(source),
+            data: OptionalCell::new(data),
 
             encrypting: Cell::new(true),
             use_source: Cell::new(true),
@@ -292,10 +292,10 @@ impl<'a, A: AES128<'a> + AES128CBC> TestAes128Cbc<'a, A> {
         TestAes128Cbc {
             aes: aes,
 
-            key: TakeCell::new(key),
-            iv: TakeCell::new(iv),
-            source: TakeCell::new(source),
-            data: TakeCell::new(data),
+            key: OptionalCell::new(key),
+            iv: OptionalCell::new(iv),
+            source: OptionalCell::new(source),
+            data: OptionalCell::new(data),
 
             encrypting: Cell::new(true),
             use_source: Cell::new(true),

@@ -24,7 +24,7 @@ use crate::deferred_call_tasks::Task;
 use crate::pm;
 use core::cell::Cell;
 use core::ops::{Index, IndexMut};
-use kernel::common::cells::{OptionalCell, TakeCell};
+use kernel::common::cells::{OptionalCell, };
 use kernel::common::deferred_call::DeferredCall;
 use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
@@ -415,7 +415,7 @@ pub struct FLASHCALW {
     pb_clock: pm::Clock,
     client: OptionalCell<&'static dyn hil::flash::Client<FLASHCALW>>,
     current_state: Cell<FlashState>,
-    buffer: TakeCell<'static, Sam4lPage>,
+    buffer: OptionalCell<&'static mut  Sam4lPage>,
 }
 
 // Few constants relating to module configuration.
@@ -446,7 +446,7 @@ impl FLASHCALW {
             pb_clock: pm::Clock::PBB(pb_clk),
             client: OptionalCell::empty(),
             current_state: Cell::new(FlashState::Unconfigured),
-            buffer: TakeCell::empty(),
+            buffer: OptionalCell::empty(),
         }
     }
 

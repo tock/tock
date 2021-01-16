@@ -447,7 +447,7 @@ pub unsafe fn reset_handler() {
 
     process_console.start();
 
-    // Uncomment to measure overheads for TakeCell and MapCell:
+    // Uncomment to measure overheads for OptionalCell and MapCell:
     // test_take_map_cell::test_take_map_cell();
 
     debug!("Initialization complete. Entering main loop.");

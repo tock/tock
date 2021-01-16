@@ -115,7 +115,7 @@ use core::cell::Cell;
 use core::cmp;
 use core::str;
 use kernel::capabilities::ProcessManagementCapability;
-use kernel::common::cells::TakeCell;
+use kernel::common::cells::OptionalCell;
 use kernel::debug;
 use kernel::hil::uart;
 use kernel::introspection::KernelInfo;
@@ -135,10 +135,10 @@ pub static mut COMMAND_BUF: [u8; 32] = [0; 32];
 pub struct ProcessConsole<'a, C: ProcessManagementCapability> {
     uart: &'a dyn uart::UartData<'a>,
     tx_in_progress: Cell<bool>,
-    tx_buffer: TakeCell<'static, [u8]>,
+    tx_buffer: OptionalCell<&'static mut  [u8]>,
     rx_in_progress: Cell<bool>,
-    rx_buffer: TakeCell<'static, [u8]>,
-    command_buffer: TakeCell<'static, [u8]>,
+    rx_buffer: OptionalCell<&'static mut  [u8]>,
+    command_buffer: OptionalCell<&'static mut  [u8]>,
     command_index: Cell<usize>,
 
     /// Flag to mark that the process console is active and has called receive
@@ -164,10 +164,10 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
         ProcessConsole {
             uart: uart,
             tx_in_progress: Cell::new(false),
-            tx_buffer: TakeCell::new(tx_buffer),
+            tx_buffer: OptionalCell::new(tx_buffer),
             rx_in_progress: Cell::new(false),
-            rx_buffer: TakeCell::new(rx_buffer),
-            command_buffer: TakeCell::new(cmd_buffer),
+            rx_buffer: OptionalCell::new(rx_buffer),
+            command_buffer: OptionalCell::new(cmd_buffer),
             command_index: Cell::new(0),
             running: Cell::new(false),
             execute: Cell::new(false),

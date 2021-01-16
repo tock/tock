@@ -66,19 +66,19 @@
 //! A user of this flash interface might look like:
 //!
 //! ```rust
-//! use kernel::common::cells::TakeCell;
+//! use kernel::common::cells::OptionalCell;
 //! use kernel::hil;
 //!
 //! pub struct FlashUser<'a, F: hil::flash::Flash + 'static> {
 //!     driver: &'a F,
-//!     buffer: TakeCell<'static, F::Page>,
+//!     buffer: OptionalCell<&'static mut  F::Page>,
 //! }
 //!
 //! impl<'a, F: hil::flash::Flash> FlashUser<'a, F> {
 //!     pub fn new(driver: &'a F, buffer: &'static mut F::Page) -> FlashUser<'a, F> {
 //!         FlashUser {
 //!             driver: driver,
-//!             buffer: TakeCell::new(buffer),
+//!             buffer: OptionalCell::new(buffer),
 //!         }
 //!     }
 //! }

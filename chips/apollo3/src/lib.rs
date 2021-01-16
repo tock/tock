@@ -2,7 +2,7 @@
 
 #![crate_name = "apollo3"]
 #![crate_type = "rlib"]
-#![feature(llvm_asm, const_fn)]
+#![feature(llvm_asm, const_fn, const_mut_refs)]
 #![no_std]
 
 // Peripherals

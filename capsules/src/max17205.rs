@@ -38,7 +38,7 @@
 //! ```
 
 use core::cell::Cell;
-use kernel::common::cells::{OptionalCell, TakeCell};
+use kernel::common::cells::{OptionalCell, };
 use kernel::hil::i2c;
 use kernel::{AppId, Callback, Driver, ReturnCode};
 
@@ -102,7 +102,7 @@ pub struct MAX17205<'a> {
     soc: Cell<u16>,
     soc_mah: Cell<u16>,
     voltage: Cell<u16>,
-    buffer: TakeCell<'static, [u8]>,
+    buffer: OptionalCell<&'static mut  [u8]>,
     client: OptionalCell<&'static dyn MAX17205Client>,
 }
 
@@ -119,7 +119,7 @@ impl<'a> MAX17205<'a> {
             soc: Cell::new(0),
             soc_mah: Cell::new(0),
             voltage: Cell::new(0),
-            buffer: TakeCell::new(buffer),
+            buffer: OptionalCell::new(buffer),
             client: OptionalCell::empty(),
         }
     }

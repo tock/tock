@@ -36,7 +36,6 @@
 use core::cell::Cell;
 use core::convert::TryFrom;
 use kernel::common::cells::OptionalCell;
-use kernel::common::cells::TakeCell;
 use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil::ble_advertising;
@@ -534,7 +533,7 @@ pub struct Radio<'a> {
     tx_power: Cell<TxPower>,
     rx_client: OptionalCell<&'a dyn ble_advertising::RxClient>,
     tx_client: OptionalCell<&'a dyn ble_advertising::TxClient>,
-    buffer: TakeCell<'static, [u8]>,
+    buffer: OptionalCell<&'static mut  [u8]>,
 }
 
 impl<'a> Radio<'a> {
@@ -544,7 +543,7 @@ impl<'a> Radio<'a> {
             tx_power: Cell::new(TxPower::ZerodBm),
             rx_client: OptionalCell::empty(),
             tx_client: OptionalCell::empty(),
-            buffer: TakeCell::empty(),
+            buffer: OptionalCell::empty(),
         }
     }
 

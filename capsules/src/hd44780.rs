@@ -49,7 +49,7 @@
 //! Author: Teona Severin <teona.severin9@gmail.com>
 
 use core::cell::Cell;
-use kernel::common::cells::{OptionalCell, TakeCell};
+use kernel::common::cells::{OptionalCell, };
 use kernel::hil::gpio;
 use kernel::hil::text_screen::{TextScreen, TextScreenClient};
 use kernel::hil::time::{self, Alarm, Frequency};
@@ -123,7 +123,7 @@ pub struct HD44780<'a, A: Alarm<'a>> {
     display_control: Cell<u8>,
     display_mode: Cell<u8>,
     num_lines: Cell<u8>,
-    row_offsets: TakeCell<'static, [u8]>,
+    row_offsets: OptionalCell<&'static mut  [u8]>,
 
     alarm: &'a A,
 
@@ -140,7 +140,7 @@ pub struct HD44780<'a, A: Alarm<'a>> {
 
     done_printing: Cell<bool>,
 
-    write_buffer: TakeCell<'static, [u8]>,
+    write_buffer: OptionalCell<&'static mut  [u8]>,
     write_len: Cell<u8>,
     write_offset: Cell<u8>,
 }
@@ -177,7 +177,7 @@ impl<'a, A: Alarm<'a>> HD44780<'a, A> {
             display_control: Cell::new(0),
             display_mode: Cell::new(0),
             num_lines: Cell::new(0),
-            row_offsets: TakeCell::new(row_offsets),
+            row_offsets: OptionalCell::new(row_offsets),
             alarm: alarm,
             lcd_status: Cell::new(LCDStatus::Idle),
             lcd_after_pulse_status: Cell::new(LCDStatus::Idle),
@@ -188,7 +188,7 @@ impl<'a, A: Alarm<'a>> HD44780<'a, A> {
             initialized: Cell::new(false),
             text_screen_client: OptionalCell::empty(),
             done_printing: Cell::new(false),
-            write_buffer: TakeCell::empty(),
+            write_buffer: OptionalCell::empty(),
             write_len: Cell::new(0),
             write_offset: Cell::new(0),
         };

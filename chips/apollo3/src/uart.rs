@@ -3,7 +3,6 @@
 use core::cell::Cell;
 
 use kernel::common::cells::OptionalCell;
-use kernel::common::cells::TakeCell;
 use kernel::common::registers::{register_bitfields, register_structs, ReadWrite};
 use kernel::common::StaticRef;
 use kernel::hil;
@@ -164,7 +163,7 @@ pub struct Uart<'a> {
     tx_client: OptionalCell<&'a dyn hil::uart::TransmitClient>,
     rx_client: OptionalCell<&'a dyn hil::uart::ReceiveClient>,
 
-    tx_buffer: TakeCell<'static, [u8]>,
+    tx_buffer: OptionalCell<&'static mut  [u8]>,
     tx_len: Cell<usize>,
     tx_index: Cell<usize>,
 }
@@ -182,7 +181,7 @@ impl Uart<'_> {
             clock_frequency: 24_000_000,
             tx_client: OptionalCell::empty(),
             rx_client: OptionalCell::empty(),
-            tx_buffer: TakeCell::empty(),
+            tx_buffer: OptionalCell::empty(),
             tx_len: Cell::new(0),
             tx_index: Cell::new(0),
         }
@@ -195,7 +194,7 @@ impl Uart<'_> {
             clock_frequency: 24_000_000,
             tx_client: OptionalCell::empty(),
             rx_client: OptionalCell::empty(),
-            tx_buffer: TakeCell::empty(),
+            tx_buffer: OptionalCell::empty(),
             tx_len: Cell::new(0),
             tx_index: Cell::new(0),
         }

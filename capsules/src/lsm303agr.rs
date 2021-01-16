@@ -82,7 +82,7 @@
 use core::cell::Cell;
 use enum_primitive::cast::FromPrimitive;
 use enum_primitive::enum_from_primitive;
-use kernel::common::cells::{OptionalCell, TakeCell};
+use kernel::common::cells::{OptionalCell, };
 use kernel::hil::i2c::{self, Error};
 use kernel::hil::sensors;
 use kernel::{AppId, Callback, Driver, ReturnCode};
@@ -146,7 +146,7 @@ pub struct Lsm303agrI2C<'a> {
     accel_data_rate: Cell<Lsm303AccelDataRate>,
     low_power: Cell<bool>,
     temperature: Cell<bool>,
-    buffer: TakeCell<'static, [u8]>,
+    buffer: OptionalCell<&'static mut  [u8]>,
     nine_dof_client: OptionalCell<&'a dyn sensors::NineDofClient>,
     temperature_client: OptionalCell<&'a dyn sensors::TemperatureClient>,
 }
@@ -171,7 +171,7 @@ impl<'a> Lsm303agrI2C<'a> {
             accel_data_rate: Cell::new(Lsm303AccelDataRate::DataRate1Hz),
             low_power: Cell::new(false),
             temperature: Cell::new(false),
-            buffer: TakeCell::new(buffer),
+            buffer: OptionalCell::new(buffer),
             nine_dof_client: OptionalCell::empty(),
             temperature_client: OptionalCell::empty(),
         }

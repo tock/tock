@@ -12,13 +12,13 @@ use capsules::net::udp::udp_send::{MuxUdpSender, UDPSendStruct, UDPSender};
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 
 use capsules::net::udp::udp_port_table::UdpPortManager;
-use kernel::common::cells::TakeCell;
+use kernel::common::cells::OptionalCell;
 use kernel::component::Component;
 use kernel::hil::time::Alarm;
 use kernel::static_init;
 
 pub struct MockUDPComponent {
-    // TODO: consider putting bound_port_table in a TakeCell
+    // TODO: consider putting bound_port_table in a OptionalCell
     udp_send_mux: &'static MuxUdpSender<
         'static,
         IP6SendStruct<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>,
@@ -26,7 +26,7 @@ pub struct MockUDPComponent {
     udp_recv_mux: &'static MuxUdpReceiver<'static>,
     bound_port_table: &'static UdpPortManager,
     alarm_mux: &'static MuxAlarm<'static, sam4l::ast::Ast<'static>>,
-    udp_payload: TakeCell<'static, [u8]>,
+    udp_payload: OptionalCell<&'static mut  [u8]>,
     id: u16,
     dst_port: u16,
     net_cap: &'static NetworkCapability,
@@ -53,7 +53,7 @@ impl MockUDPComponent {
             udp_recv_mux: udp_recv_mux,
             bound_port_table: bound_port_table,
             alarm_mux: alarm,
-            udp_payload: TakeCell::new(udp_payload),
+            udp_payload: OptionalCell::new(udp_payload),
             id: id,
             dst_port: dst_port,
             net_cap: net_cap,

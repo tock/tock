@@ -42,7 +42,7 @@
 
 use core::cell::Cell;
 use core::cmp;
-use kernel::common::cells::{MapCell, OptionalCell, TakeCell};
+use kernel::common::cells::{MapCell, OptionalCell, };
 use kernel::hil;
 use kernel::{AppId, AppSlice, Callback, Driver, ReturnCode, Shared};
 
@@ -73,11 +73,11 @@ pub struct SDCard<'a, A: hil::time::Alarm<'a>> {
 
     detect_pin: Cell<Option<&'a dyn hil::gpio::InterruptPin<'a>>>,
 
-    txbuffer: TakeCell<'static, [u8]>,
-    rxbuffer: TakeCell<'static, [u8]>,
+    txbuffer: OptionalCell<&'static mut  [u8]>,
+    rxbuffer: OptionalCell<&'static mut  [u8]>,
 
     client: OptionalCell<&'static dyn SDCardClient>,
-    client_buffer: TakeCell<'static, [u8]>,
+    client_buffer: OptionalCell<&'static mut  [u8]>,
     client_offset: Cell<usize>,
 }
 
@@ -235,10 +235,10 @@ impl<'a, A: hil::time::Alarm<'a>> SDCard<'a, A> {
             is_initialized: Cell::new(false),
             card_type: Cell::new(SDCardType::Uninitialized),
             detect_pin: Cell::new(pin),
-            txbuffer: TakeCell::new(txbuffer),
-            rxbuffer: TakeCell::new(rxbuffer),
+            txbuffer: OptionalCell::new(txbuffer),
+            rxbuffer: OptionalCell::new(rxbuffer),
             client: OptionalCell::empty(),
-            client_buffer: TakeCell::empty(),
+            client_buffer: OptionalCell::empty(),
             client_offset: Cell::new(0),
         }
     }
@@ -1383,7 +1383,7 @@ impl<'a, A: hil::time::Alarm<'a>> hil::gpio::Client for SDCard<'a, A> {
 pub struct SDCardDriver<'a, A: hil::time::Alarm<'a>> {
     sdcard: &'a SDCard<'a, A>,
     app: MapCell<App>,
-    kernel_buf: TakeCell<'static, [u8]>,
+    kernel_buf: OptionalCell<&'static mut  [u8]>,
 }
 
 /// Holds buffers and whatnot that the application has passed us.
@@ -1412,7 +1412,7 @@ impl<'a, A: hil::time::Alarm<'a>> SDCardDriver<'a, A> {
         SDCardDriver {
             sdcard: sdcard,
             app: MapCell::new(App::default()),
-            kernel_buf: TakeCell::new(kernel_buf),
+            kernel_buf: OptionalCell::new(kernel_buf),
         }
     }
 }

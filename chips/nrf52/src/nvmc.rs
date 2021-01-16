@@ -5,7 +5,6 @@
 use core::cell::Cell;
 use core::ops::{Index, IndexMut};
 use kernel::common::cells::OptionalCell;
-use kernel::common::cells::TakeCell;
 use kernel::common::cells::VolatileCell;
 use kernel::common::deferred_call::DeferredCall;
 use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite};
@@ -203,7 +202,7 @@ pub enum FlashState {
 pub struct Nvmc {
     registers: StaticRef<NvmcRegisters>,
     client: OptionalCell<&'static dyn hil::flash::Client<Nvmc>>,
-    buffer: TakeCell<'static, NrfPage>,
+    buffer: OptionalCell<&'static mut  NrfPage>,
     state: Cell<FlashState>,
 }
 
@@ -212,7 +211,7 @@ impl Nvmc {
         Nvmc {
             registers: NVMC_BASE,
             client: OptionalCell::empty(),
-            buffer: TakeCell::empty(),
+            buffer: OptionalCell::empty(),
             state: Cell::new(FlashState::Ready),
         }
     }

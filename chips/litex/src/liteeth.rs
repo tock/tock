@@ -8,7 +8,7 @@ use crate::event_manager::LiteXEventManager;
 use crate::litex_registers::{LiteXSoCRegisterConfiguration, Read, Write};
 use core::cell::Cell;
 use core::slice;
-use kernel::common::cells::{OptionalCell, TakeCell};
+use kernel::common::cells::{OptionalCell, };
 use kernel::common::StaticRef;
 use kernel::debug;
 use kernel::ReturnCode;
@@ -93,8 +93,8 @@ pub struct LiteEth<'a, R: LiteXSoCRegisterConfiguration> {
     rx_slots: usize,
     tx_slots: usize,
     client: OptionalCell<&'a dyn LiteEthClient>,
-    tx_packet: TakeCell<'static, [u8]>,
-    rx_buffer: TakeCell<'static, [u8]>,
+    tx_packet: OptionalCell<&'static mut  [u8]>,
+    rx_buffer: OptionalCell<&'static mut  [u8]>,
     initialized: Cell<bool>,
 }
 
@@ -116,8 +116,8 @@ impl<'a, R: LiteXSoCRegisterConfiguration> LiteEth<'a, R> {
             rx_slots,
             tx_slots,
             client: OptionalCell::empty(),
-            tx_packet: TakeCell::empty(),
-            rx_buffer: TakeCell::new(rx_buffer),
+            tx_packet: OptionalCell::empty(),
+            rx_buffer: OptionalCell::new(rx_buffer),
             initialized: Cell::new(false),
         }
     }
@@ -259,7 +259,7 @@ impl<'a, R: LiteXSoCRegisterConfiguration> LiteEth<'a, R> {
         slot[..len].copy_from_slice(&packet[..len]);
 
         // Put the currently transmitting packet into the designated
-        // TakeCell
+        // OptionalCell
         self.tx_packet.replace(packet);
 
         // Set the slot and packet length
@@ -290,7 +290,7 @@ impl<'a, R: LiteXSoCRegisterConfiguration> LiteEth<'a, R> {
         let packet = self
             .tx_packet
             .take()
-            .expect("LiteEth: TakeCell empty in tx callback");
+            .expect("LiteEth: OptionalCell empty in tx callback");
         self.client
             .map(move |client| client.tx_done(ReturnCode::SUCCESS, packet));
     }

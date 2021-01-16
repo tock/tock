@@ -30,7 +30,7 @@ pub const DRIVER_NUM: usize = driver::NUM::Hmac as usize;
 use core::cell::Cell;
 use core::convert::TryInto;
 use core::marker::PhantomData;
-use kernel::common::cells::{OptionalCell, TakeCell};
+use kernel::common::cells::{OptionalCell, };
 use kernel::common::leasable_buffer::LeasableBuffer;
 use kernel::hil::digest;
 use kernel::hil::digest::DigestType;
@@ -45,9 +45,9 @@ pub struct HmacDriver<'a, H: digest::Digest<'a, T>, T: 'static + DigestType> {
     appid: OptionalCell<AppId>,
     phantom: PhantomData<&'a T>,
 
-    data_buffer: TakeCell<'static, [u8]>,
+    data_buffer: OptionalCell<&'static mut  [u8]>,
     data_copied: Cell<usize>,
-    dest_buffer: TakeCell<'static, T>,
+    dest_buffer: OptionalCell<&'static mut  T>,
 }
 
 impl<'a, H: digest::Digest<'a, T> + digest::HMACSha256, T: DigestType> HmacDriver<'a, H, T>
@@ -66,9 +66,9 @@ where
             apps: grant,
             appid: OptionalCell::empty(),
             phantom: PhantomData,
-            data_buffer: TakeCell::new(data_buffer),
+            data_buffer: OptionalCell::new(data_buffer),
             data_copied: Cell::new(0),
-            dest_buffer: TakeCell::new(dest_buffer),
+            dest_buffer: OptionalCell::new(dest_buffer),
         }
     }
 

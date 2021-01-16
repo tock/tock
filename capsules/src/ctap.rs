@@ -29,7 +29,7 @@
 
 use core::cell::Cell;
 use core::marker::PhantomData;
-use kernel::common::cells::{OptionalCell, TakeCell};
+use kernel::common::cells::{OptionalCell, };
 use kernel::hil::usb_hid;
 use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
 
@@ -62,8 +62,8 @@ pub struct CtapDriver<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> {
     appid: OptionalCell<AppId>,
     phantom: PhantomData<&'a U>,
 
-    send_buffer: TakeCell<'static, [u8; 64]>,
-    recv_buffer: TakeCell<'static, [u8; 64]>,
+    send_buffer: OptionalCell<&'static mut  [u8; 64]>,
+    recv_buffer: OptionalCell<&'static mut  [u8; 64]>,
 }
 
 impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> CtapDriver<'a, U> {
@@ -78,8 +78,8 @@ impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> CtapDriver<'a, U> {
             app: grant,
             appid: OptionalCell::empty(),
             phantom: PhantomData,
-            send_buffer: TakeCell::new(send_buffer),
-            recv_buffer: TakeCell::new(recv_buffer),
+            send_buffer: OptionalCell::new(send_buffer),
+            recv_buffer: OptionalCell::new(recv_buffer),
         }
     }
 }

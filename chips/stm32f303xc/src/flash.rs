@@ -12,7 +12,6 @@
 use core::cell::Cell;
 use core::ops::{Index, IndexMut};
 use kernel::common::cells::OptionalCell;
-use kernel::common::cells::TakeCell;
 use kernel::common::cells::VolatileCell;
 use kernel::common::deferred_call::DeferredCall;
 use kernel::common::registers::register_bitfields;
@@ -283,7 +282,7 @@ pub enum FlashState {
 pub struct Flash {
     registers: StaticRef<FlashRegisters>,
     client: OptionalCell<&'static dyn hil::flash::Client<Flash>>,
-    buffer: TakeCell<'static, StmF303Page>,
+    buffer: OptionalCell<&'static mut  StmF303Page>,
     state: Cell<FlashState>,
     write_counter: Cell<usize>,
     page_number: Cell<usize>,
@@ -294,7 +293,7 @@ impl Flash {
         Flash {
             registers: FLASH_BASE,
             client: OptionalCell::empty(),
-            buffer: TakeCell::empty(),
+            buffer: OptionalCell::empty(),
             state: Cell::new(FlashState::Ready),
             write_counter: Cell::new(0),
             page_number: Cell::new(0),

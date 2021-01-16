@@ -3,7 +3,7 @@
 use core::cell::Cell;
 use core::convert::TryFrom;
 use kernel;
-use kernel::common::cells::{OptionalCell, TakeCell};
+use kernel::common::cells::{OptionalCell, };
 use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil::radio::{self, PowerClient};
@@ -663,8 +663,8 @@ pub struct Radio<'p> {
     tx_power: Cell<TxPower>,
     rx_client: OptionalCell<&'static dyn radio::RxClient>,
     tx_client: OptionalCell<&'static dyn radio::TxClient>,
-    tx_buf: TakeCell<'static, [u8]>,
-    rx_buf: TakeCell<'static, [u8]>,
+    tx_buf: OptionalCell<&'static mut  [u8]>,
+    rx_buf: OptionalCell<&'static mut  [u8]>,
     addr: Cell<u16>,
     addr_long: Cell<[u8; 8]>,
     pan: Cell<u16>,
@@ -684,8 +684,8 @@ impl<'p> Radio<'p> {
             tx_power: Cell::new(TxPower::ZerodBm),
             rx_client: OptionalCell::empty(),
             tx_client: OptionalCell::empty(),
-            tx_buf: TakeCell::empty(),
-            rx_buf: TakeCell::empty(),
+            tx_buf: OptionalCell::empty(),
+            rx_buf: OptionalCell::empty(),
             addr: Cell::new(0),
             addr_long: Cell::new([0x00; 8]),
             pan: Cell::new(0),

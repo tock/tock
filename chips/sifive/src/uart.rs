@@ -4,7 +4,6 @@ use core::cell::Cell;
 
 use crate::gpio;
 use kernel::common::cells::OptionalCell;
-use kernel::common::cells::TakeCell;
 use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
 use kernel::hil;
@@ -64,7 +63,7 @@ pub struct Uart<'a> {
     tx_client: OptionalCell<&'a dyn hil::uart::TransmitClient>,
     rx_client: OptionalCell<&'a dyn hil::uart::ReceiveClient>,
     stop_bits: Cell<hil::uart::StopBits>,
-    buffer: TakeCell<'static, [u8]>,
+    buffer: OptionalCell<&'static mut  [u8]>,
     len: Cell<usize>,
     index: Cell<usize>,
 }
@@ -82,7 +81,7 @@ impl<'a> Uart<'a> {
             tx_client: OptionalCell::empty(),
             rx_client: OptionalCell::empty(),
             stop_bits: Cell::new(hil::uart::StopBits::One),
-            buffer: TakeCell::empty(),
+            buffer: OptionalCell::empty(),
             len: Cell::new(0),
             index: Cell::new(0),
         }

@@ -1,7 +1,7 @@
 //! Test the AES CCM implementation on top of AES hardware.
 
 use core::cell::Cell;
-use kernel::common::cells::TakeCell;
+use kernel::common::cells::OptionalCell;
 use kernel::debug;
 use kernel::hil::symmetric_encryption::{CCMClient, AES128CCM, AES128_KEY_SIZE, CCM_NONCE_LENGTH};
 use kernel::ReturnCode;
@@ -9,7 +9,7 @@ use kernel::ReturnCode;
 pub struct Test<'a, A: AES128CCM<'a>> {
     aes_ccm: &'a A,
 
-    buf: TakeCell<'static, [u8]>,
+    buf: OptionalCell<&'static mut  [u8]>,
     current_test: Cell<usize>,
     encrypting: Cell<bool>,
 
@@ -28,7 +28,7 @@ impl<'a, A: AES128CCM<'a>> Test<'a, A> {
     pub fn new(aes_ccm: &'a A, buf: &'static mut [u8]) -> Test<'a, A> {
         Test {
             aes_ccm: aes_ccm,
-            buf: TakeCell::new(buf),
+            buf: OptionalCell::new(buf),
             current_test: Cell::new(0),
             encrypting: Cell::new(true),
             tests: [

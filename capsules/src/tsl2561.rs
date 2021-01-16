@@ -14,7 +14,7 @@
 //! > using an empirical formula to approximate the human eye response.
 
 use core::cell::Cell;
-use kernel::common::cells::{OptionalCell, TakeCell};
+use kernel::common::cells::{OptionalCell, };
 use kernel::hil::gpio;
 use kernel::hil::i2c;
 use kernel::{AppId, Callback, Driver, ReturnCode};
@@ -206,7 +206,7 @@ pub struct TSL2561<'a> {
     interrupt_pin: &'a dyn gpio::InterruptPin<'a>,
     callback: OptionalCell<Callback>,
     state: Cell<State>,
-    buffer: TakeCell<'static, [u8]>,
+    buffer: OptionalCell<&'static mut  [u8]>,
 }
 
 impl<'a> TSL2561<'a> {
@@ -221,7 +221,7 @@ impl<'a> TSL2561<'a> {
             interrupt_pin: interrupt_pin,
             callback: OptionalCell::empty(),
             state: Cell::new(State::Idle),
-            buffer: TakeCell::new(buffer),
+            buffer: OptionalCell::new(buffer),
         }
     }
 

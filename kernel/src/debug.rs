@@ -55,7 +55,7 @@ use core::panic::PanicInfo;
 use core::str;
 
 use crate::common::cells::NumericCellExt;
-use crate::common::cells::{MapCell, TakeCell};
+use crate::common::cells::{MapCell, OptionalCell};
 use crate::common::queue::Queue;
 use crate::common::ring_buffer::RingBuffer;
 use crate::hil;
@@ -240,13 +240,13 @@ impl DebugQueueWrapper {
 }
 
 pub struct DebugQueue {
-    ring_buffer: TakeCell<'static, RingBuffer<'static, u8>>,
+    ring_buffer: OptionalCell<&'static mut RingBuffer<'static, u8>>,
 }
 
 impl DebugQueue {
     pub fn new(ring_buffer: &'static mut RingBuffer<'static, u8>) -> Self {
         Self {
-            ring_buffer: TakeCell::new(ring_buffer),
+            ring_buffer: OptionalCell::new(ring_buffer),
         }
     }
 }
@@ -332,9 +332,9 @@ pub struct DebugWriter {
     // What provides the actual writing mechanism.
     uart: &'static dyn hil::uart::Transmit<'static>,
     // The buffer that is passed to the writing mechanism.
-    output_buffer: TakeCell<'static, [u8]>,
+    output_buffer: OptionalCell<&'static mut [u8]>,
     // An internal buffer that is used to hold debug!() calls as they come in.
-    internal_buffer: TakeCell<'static, RingBuffer<'static, u8>>,
+    internal_buffer: OptionalCell<&'static mut RingBuffer<'static, u8>>,
     // Number of debug!() calls.
     count: Cell<usize>,
 }
@@ -372,8 +372,8 @@ impl DebugWriter {
     ) -> DebugWriter {
         DebugWriter {
             uart: uart,
-            output_buffer: TakeCell::new(out_buffer),
-            internal_buffer: TakeCell::new(internal_buffer),
+            output_buffer: OptionalCell::new(out_buffer),
+            internal_buffer: OptionalCell::new(internal_buffer),
             count: Cell::new(0), // how many debug! calls
         }
     }

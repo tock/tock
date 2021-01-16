@@ -1,5 +1,5 @@
 use core::cell::Cell;
-use kernel::common::cells::{OptionalCell, TakeCell};
+use kernel::common::cells::{OptionalCell, };
 use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
 use kernel::hil;
@@ -321,12 +321,12 @@ pub struct Lpuart<'a> {
     tx_client: OptionalCell<&'a dyn hil::uart::TransmitClient>,
     rx_client: OptionalCell<&'a dyn hil::uart::ReceiveClient>,
 
-    tx_buffer: TakeCell<'static, [u8]>,
+    tx_buffer: OptionalCell<&'static mut  [u8]>,
     tx_position: Cell<usize>,
     tx_len: Cell<usize>,
     tx_status: Cell<LPUARTStateTX>, // rx_len: Cell<usize>,
 
-    rx_buffer: TakeCell<'static, [u8]>,
+    rx_buffer: OptionalCell<&'static mut  [u8]>,
     rx_position: Cell<usize>,
     rx_len: Cell<usize>,
     rx_status: Cell<USARTStateRX>,
@@ -355,12 +355,12 @@ impl<'a> Lpuart<'a> {
             tx_client: OptionalCell::empty(),
             rx_client: OptionalCell::empty(),
 
-            tx_buffer: TakeCell::empty(),
+            tx_buffer: OptionalCell::empty(),
             tx_position: Cell::new(0),
             tx_len: Cell::new(0),
             tx_status: Cell::new(LPUARTStateTX::Idle),
 
-            rx_buffer: TakeCell::empty(),
+            rx_buffer: OptionalCell::empty(),
             rx_position: Cell::new(0),
             rx_len: Cell::new(0),
             rx_status: Cell::new(USARTStateRX::Idle),

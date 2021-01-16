@@ -1,4 +1,4 @@
-use kernel::common::cells::{OptionalCell, TakeCell};
+use kernel::common::cells::{OptionalCell, };
 use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
 use kernel::ClockInterface;
@@ -822,7 +822,7 @@ impl From<Dma1Peripheral> for StreamId {
 pub struct Stream<'a> {
     streamid: StreamId,
     client: OptionalCell<&'a dyn StreamClient>,
-    buffer: TakeCell<'static, [u8]>,
+    buffer: OptionalCell<&'static mut  [u8]>,
     peripheral: OptionalCell<Dma1Peripheral>,
     dma1: &'a Dma1<'a>,
 }
@@ -848,7 +848,7 @@ impl<'a> Stream<'a> {
     const fn new(streamid: StreamId, dma1: &'a Dma1<'a>) -> Self {
         Self {
             streamid: streamid,
-            buffer: TakeCell::empty(),
+            buffer: OptionalCell::empty(),
             client: OptionalCell::empty(),
             peripheral: OptionalCell::empty(),
             dma1,

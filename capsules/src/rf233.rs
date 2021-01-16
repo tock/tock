@@ -15,7 +15,7 @@ use crate::rf233_const::{
     ExternalState, InteruptFlags, RF233BusCommand, RF233Register, RF233TrxCmd,
 };
 use core::cell::Cell;
-use kernel::common::cells::{OptionalCell, TakeCell};
+use kernel::common::cells::{OptionalCell, };
 use kernel::hil::gpio;
 use kernel::hil::radio;
 use kernel::hil::spi;
@@ -202,8 +202,8 @@ pub struct RF233<'a, S: spi::SpiMasterDevice> {
     sleep_pin: &'a dyn gpio::Pin,
     irq_pin: &'a dyn gpio::InterruptPin<'a>,
     state: Cell<InternalState>,
-    tx_buf: TakeCell<'static, [u8]>,
-    rx_buf: TakeCell<'static, [u8]>,
+    tx_buf: OptionalCell<&'static mut  [u8]>,
+    rx_buf: OptionalCell<&'static mut  [u8]>,
     tx_len: Cell<u8>,
     tx_client: OptionalCell<&'static dyn radio::TxClient>,
     rx_client: OptionalCell<&'static dyn radio::RxClient>,
@@ -214,9 +214,9 @@ pub struct RF233<'a, S: spi::SpiMasterDevice> {
     pan: Cell<u16>,
     tx_power: Cell<i8>,
     channel: Cell<u8>,
-    spi_rx: TakeCell<'static, [u8]>,
-    spi_tx: TakeCell<'static, [u8]>,
-    spi_buf: TakeCell<'static, [u8]>,
+    spi_rx: OptionalCell<&'static mut  [u8]>,
+    spi_tx: OptionalCell<&'static mut  [u8]>,
+    spi_buf: OptionalCell<&'static mut  [u8]>,
 }
 
 fn setting_to_power(setting: u8) -> i8 {
@@ -1048,8 +1048,8 @@ impl<'a, S: spi::SpiMasterDevice> RF233<'a, S> {
             sleep_pending: Cell::new(false),
             wake_pending: Cell::new(false),
             power_client_pending: Cell::new(false),
-            tx_buf: TakeCell::empty(),
-            rx_buf: TakeCell::empty(),
+            tx_buf: OptionalCell::empty(),
+            rx_buf: OptionalCell::empty(),
             tx_len: Cell::new(0),
             tx_client: OptionalCell::empty(),
             rx_client: OptionalCell::empty(),
@@ -1060,9 +1060,9 @@ impl<'a, S: spi::SpiMasterDevice> RF233<'a, S> {
             pan: Cell::new(0),
             tx_power: Cell::new(setting_to_power(PHY_TX_PWR)),
             channel: Cell::new(channel),
-            spi_rx: TakeCell::empty(),
-            spi_tx: TakeCell::empty(),
-            spi_buf: TakeCell::empty(),
+            spi_rx: OptionalCell::empty(),
+            spi_tx: OptionalCell::empty(),
+            spi_buf: OptionalCell::empty(),
         }
     }
 

@@ -234,7 +234,7 @@ use crate::net::sixlowpan::sixlowpan_compression::{is_lowpan, ContextStore};
 use crate::net::util::{network_slice_to_u16, u16_to_network_slice};
 use core::cell::Cell;
 use core::cmp::min;
-use kernel::common::cells::{MapCell, TakeCell};
+use kernel::common::cells::{MapCell, OptionalCell};
 use kernel::common::list::{List, ListLink, ListNode};
 use kernel::hil::radio;
 use kernel::hil::time;
@@ -624,7 +624,7 @@ impl<'a> TxState<'a> {
 /// number of packets that can be reassembled at the same time. Generally,
 /// two `RxState`s are sufficient for normal-case operation.
 pub struct RxState<'a> {
-    packet: TakeCell<'static, [u8]>,
+    packet: OptionalCell<&'static mut  [u8]>,
     bitmap: MapCell<Bitmap>,
     dst_mac_addr: Cell<MacAddress>,
     src_mac_addr: Cell<MacAddress>,
@@ -654,7 +654,7 @@ impl<'a> RxState<'a> {
     /// assume this to be 1280 bytes long (the minimum IPv6 MTU size).
     pub fn new(packet: &'static mut [u8]) -> RxState<'a> {
         RxState {
-            packet: TakeCell::new(packet),
+            packet: OptionalCell::new(packet),
             bitmap: MapCell::new(Bitmap::new()),
             dst_mac_addr: Cell::new(MacAddress::Short(0)),
             src_mac_addr: Cell::new(MacAddress::Short(0)),

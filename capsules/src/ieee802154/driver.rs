@@ -9,7 +9,7 @@ use crate::net::ieee802154::{AddressMode, Header, KeyId, MacAddress, PanID, Secu
 use crate::net::stream::{decode_bytes, decode_u8, encode_bytes, encode_u8, SResult};
 use core::cell::Cell;
 use core::cmp::min;
-use kernel::common::cells::{MapCell, OptionalCell, TakeCell};
+use kernel::common::cells::{MapCell, OptionalCell, };
 use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
 
 const MAX_NEIGHBORS: usize = 4;
@@ -188,7 +188,7 @@ pub struct RadioDriver<'a> {
     current_app: OptionalCell<AppId>,
 
     /// Buffer that stores the IEEE 802.15.4 frame to be transmitted.
-    kernel_tx: TakeCell<'static, [u8]>,
+    kernel_tx: OptionalCell<&'static mut  [u8]>,
 }
 
 impl<'a> RadioDriver<'a> {
@@ -205,7 +205,7 @@ impl<'a> RadioDriver<'a> {
             num_keys: Cell::new(0),
             apps: grant,
             current_app: OptionalCell::empty(),
-            kernel_tx: TakeCell::new(kernel_tx),
+            kernel_tx: OptionalCell::new(kernel_tx),
         }
     }
 

@@ -7,7 +7,7 @@
 use core::cell::Cell;
 use enum_primitive::cast::FromPrimitive;
 use enum_primitive::enum_from_primitive;
-use kernel::common::cells::{OptionalCell, TakeCell};
+use kernel::common::cells::{OptionalCell, };
 use kernel::hil::i2c;
 use kernel::hil::time::{self, Alarm};
 use kernel::ReturnCode;
@@ -73,7 +73,7 @@ pub struct SHT3x<'a, A: Alarm<'a>> {
     humidity_client: OptionalCell<&'a dyn kernel::hil::sensors::HumidityClient>,
     temperature_client: OptionalCell<&'a dyn kernel::hil::sensors::TemperatureClient>,
     state: Cell<State>,
-    buffer: TakeCell<'static, [u8]>,
+    buffer: OptionalCell<&'static mut  [u8]>,
     read_temp: Cell<bool>,
     read_hum: Cell<bool>,
     alarm: &'a A,
@@ -90,7 +90,7 @@ impl<'a, A: Alarm<'a>> SHT3x<'a, A> {
             humidity_client: OptionalCell::empty(),
             temperature_client: OptionalCell::empty(),
             state: Cell::new(State::Idle),
-            buffer: TakeCell::new(buffer),
+            buffer: OptionalCell::new(buffer),
             read_temp: Cell::new(false),
             read_hum: Cell::new(false),
             alarm: alarm,

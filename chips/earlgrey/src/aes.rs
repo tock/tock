@@ -2,7 +2,7 @@
 //!
 //! <https://docs.opentitan.org/hw/ip/aes/doc/>
 
-use kernel::common::cells::{OptionalCell, TakeCell};
+use kernel::common::cells::{OptionalCell, };
 use kernel::common::registers::{
     register_bitfields, register_structs, ReadOnly, ReadWrite, WriteOnly,
 };
@@ -75,8 +75,8 @@ pub struct Aes<'a> {
     registers: StaticRef<AesRegisters>,
 
     client: OptionalCell<&'a dyn hil::symmetric_encryption::Client<'a>>,
-    source: TakeCell<'a, [u8]>,
-    dest: TakeCell<'a, [u8]>,
+    source: OptionalCell<&'a mut  [u8]>,
+    dest: OptionalCell<&'a mut  [u8]>,
 }
 
 impl<'a> Aes<'a> {
@@ -84,8 +84,8 @@ impl<'a> Aes<'a> {
         Aes {
             registers: AES_BASE,
             client: OptionalCell::empty(),
-            source: TakeCell::empty(),
-            dest: TakeCell::empty(),
+            source: OptionalCell::empty(),
+            dest: OptionalCell::empty(),
         }
     }
 

@@ -38,7 +38,7 @@
 //! written.
 
 use core::cmp;
-use kernel::common::cells::{OptionalCell, TakeCell};
+use kernel::common::cells::{OptionalCell, };
 use kernel::hil::uart;
 use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
 
@@ -66,9 +66,9 @@ pub struct Console<'a> {
     uart: &'a dyn uart::UartData<'a>,
     apps: Grant<App>,
     tx_in_progress: OptionalCell<AppId>,
-    tx_buffer: TakeCell<'static, [u8]>,
+    tx_buffer: OptionalCell<&'static mut  [u8]>,
     rx_in_progress: OptionalCell<AppId>,
-    rx_buffer: TakeCell<'static, [u8]>,
+    rx_buffer: OptionalCell<&'static mut  [u8]>,
 }
 
 impl<'a> Console<'a> {
@@ -82,9 +82,9 @@ impl<'a> Console<'a> {
             uart: uart,
             apps: grant,
             tx_in_progress: OptionalCell::empty(),
-            tx_buffer: TakeCell::new(tx_buffer),
+            tx_buffer: OptionalCell::new(tx_buffer),
             rx_in_progress: OptionalCell::empty(),
-            rx_buffer: TakeCell::new(rx_buffer),
+            rx_buffer: OptionalCell::new(rx_buffer),
         }
     }
 

@@ -83,7 +83,7 @@
 use crate::net::stream::SResult;
 use crate::net::stream::{encode_bytes, encode_u16};
 use core::cell::Cell;
-use kernel::common::cells::{OptionalCell, TakeCell};
+use kernel::common::cells::{OptionalCell, };
 use kernel::common::dynamic_deferred_call::{
     DeferredCallHandle, DynamicDeferredCall, DynamicDeferredCallClient,
 };
@@ -249,7 +249,7 @@ pub struct VirtualAES128CCM<'a, A: AES128<'a> + AES128Ctr + AES128CBC> {
     aes: &'a A,
     next: ListLink<'a, VirtualAES128CCM<'a, A>>,
 
-    crypt_buf: TakeCell<'a, [u8]>,
+    crypt_buf: OptionalCell<&'a mut  [u8]>,
     crypt_auth_len: Cell<usize>,
     crypt_enc_len: Cell<usize>,
     crypt_client: OptionalCell<&'a dyn symmetric_encryption::CCMClient>,
@@ -258,7 +258,7 @@ pub struct VirtualAES128CCM<'a, A: AES128<'a> + AES128Ctr + AES128CBC> {
     confidential: Cell<bool>,
     encrypting: Cell<bool>,
 
-    buf: TakeCell<'static, [u8]>,
+    buf: OptionalCell<&'static mut  [u8]>,
     pos: Cell<(usize, usize, usize, usize)>,
     key: Cell<[u8; AES128_KEY_SIZE]>,
     nonce: Cell<[u8; CCM_NONCE_LENGTH]>,
@@ -275,14 +275,14 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> VirtualAES128CCM<'a, A> {
             mux: mux,
             aes: &mux.aes,
             next: ListLink::empty(),
-            crypt_buf: TakeCell::new(crypt_buf),
+            crypt_buf: OptionalCell::new(crypt_buf),
             crypt_auth_len: Cell::new(0),
             crypt_enc_len: Cell::new(0),
             crypt_client: OptionalCell::empty(),
             state: Cell::new(CCMState::Idle),
             confidential: Cell::new(false),
             encrypting: Cell::new(false),
-            buf: TakeCell::empty(),
+            buf: OptionalCell::empty(),
             pos: Cell::new((0, 0, 0, 0)),
             key: Cell::new(Default::default()),
             nonce: Cell::new(Default::default()),

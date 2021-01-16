@@ -50,7 +50,7 @@
 //!   - `data`: The index of the LED. Starts at 0.
 //!   - Return: `SUCCESS` if the LED index was valid, `EINVAL` otherwise.
 
-use kernel::common::cells::TakeCell;
+use kernel::common::cells::OptionalCell;
 use kernel::hil::led;
 use kernel::{AppId, Driver, ReturnCode};
 
@@ -61,7 +61,7 @@ pub const DRIVER_NUM: usize = driver::NUM::Led as usize;
 /// Holds the array of LEDs and implements a `Driver` interface to
 /// control them.
 pub struct LedDriver<'a, L: led::Led> {
-    leds: TakeCell<'a, [&'a L]>,
+    leds: OptionalCell<&'a mut  [&'a L]>,
 }
 
 impl<'a, L: led::Led> LedDriver<'a, L> {
@@ -73,7 +73,7 @@ impl<'a, L: led::Led> LedDriver<'a, L> {
         }
 
         Self {
-            leds: TakeCell::new(leds),
+            leds: OptionalCell::new(leds),
         }
     }
 }
