@@ -35,6 +35,12 @@ impl<T> OptionalCell<T> {
         self.value.set(opt);
     }
 
+    /// Insert the value of the supplied `Option`, or `None` if the supplied
+    /// `Option` is `None`.
+    pub fn put(&self, opt: Option<T>) {
+        self.value.set(opt);
+    }
+
     /// Replace the contents with the supplied value.
     /// If the cell was not empty, the previous value is returned, otherwise
     /// `None` is returned.
@@ -145,6 +151,81 @@ impl<T> OptionalCell<T> {
     {
         self.value.into_inner().unwrap_or_default()
     }
+
+    /// Call a closure on the value if the value exists.
+    pub fn map<F, R>(&self, closure: F) -> Option<R>
+    where
+        F: FnOnce(&mut T) -> R,
+    {
+        let maybe_val = self.value.take();
+        maybe_val.map(|mut val| {
+            let res = closure(&mut val);
+            self.replace(val);
+            res
+        })
+    }
+
+    /// Call a closure on the value if the value exists, or return the
+    /// default if the value is `None`.
+    pub fn map_or<F, R>(&self, default: R, closure: F) -> R
+    where
+        F: FnOnce(&mut T) -> R,
+    {
+        let maybe_val = self.take();
+        maybe_val.map_or(default, |mut val| {
+            let res = closure(&mut val);
+            self.replace(val);
+            res
+        })
+    }
+
+    /// If the cell contains a value, call a closure supplied with the
+    /// value of the cell. If the cell contains `None`, call the other
+    /// closure to return a default value.
+    pub fn map_or_else<U, D, F>(&self, default: D, closure: F) -> U
+    where
+        D: FnOnce() -> U,
+        F: FnOnce(&mut T) -> U,
+    {
+        let maybe_val = self.take();
+        maybe_val.map_or_else(
+            || default(),
+            |mut val| {
+                let res = closure(&mut val);
+                self.replace(val);
+                res
+            },
+        )
+    }
+
+    /// If the cell is empty, return `None`. Otherwise, call a closure
+    /// with the value of the cell and return the result.
+    pub fn and_then<U, F: FnOnce(&mut T) -> Option<U>>(&self, f: F) -> Option<U> {
+        let maybe_val = self.take();
+        maybe_val.and_then(|mut val| {
+            let res = f(&mut val);
+            self.replace(val);
+            res
+        })
+    }
+
+    /// Uses the first closure (`modify`) to modify the value in the `OptionalCell`
+    /// if it is present, otherwise, fills the `OptionalCell` with the result of
+    /// `mkval`.
+    pub fn modify_or_replace<F, G>(&self, modify: F, mkval: G)
+    where
+        F: FnOnce(&mut T),
+        G: FnOnce() -> T,
+    {
+        let val = match self.take() {
+            Some(mut val) => {
+                modify(&mut val);
+                val
+            }
+            None => mkval(),
+        };
+        self.replace(val);
+    }
 }
 
 impl<T: Copy> OptionalCell<T> {
@@ -167,43 +248,5 @@ impl<T: Copy> OptionalCell<T> {
         F: FnOnce() -> T,
     {
         self.value.get().unwrap_or_else(default)
-    }
-
-    /// Call a closure on the value if the value exists.
-    pub fn map<F, R>(&self, closure: F) -> Option<R>
-    where
-        F: FnOnce(&mut T) -> R,
-    {
-        self.value.get().map(|mut val| closure(&mut val))
-    }
-
-    /// Call a closure on the value if the value exists, or return the
-    /// default if the value is `None`.
-    pub fn map_or<F, R>(&self, default: R, closure: F) -> R
-    where
-        F: FnOnce(&mut T) -> R,
-    {
-        self.value
-            .get()
-            .map_or(default, |mut val| closure(&mut val))
-    }
-
-    /// If the cell contains a value, call a closure supplied with the
-    /// value of the cell. If the cell contains `None`, call the other
-    /// closure to return a default value.
-    pub fn map_or_else<U, D, F>(&self, default: D, closure: F) -> U
-    where
-        D: FnOnce() -> U,
-        F: FnOnce(&mut T) -> U,
-    {
-        self.value
-            .get()
-            .map_or_else(default, |mut val| closure(&mut val))
-    }
-
-    /// If the cell is empty, return `None`. Otherwise, call a closure
-    /// with the value of the cell and return the result.
-    pub fn and_then<U, F: FnOnce(T) -> Option<U>>(&self, f: F) -> Option<U> {
-        self.value.get().and_then(f)
     }
 }

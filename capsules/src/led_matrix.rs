@@ -71,7 +71,7 @@ use kernel::hil::gpio;
 use kernel::{AppId, Driver, ReturnCode};
 
 use core::cell::Cell;
-use kernel::common::cells::TakeCell;
+use kernel::common::cells::OptionalCell;
 
 use kernel::hil::gpio::ActivationMode;
 use kernel::hil::time::{Alarm, AlarmClient};
@@ -85,7 +85,7 @@ pub const DRIVER_NUM: usize = driver::NUM::Led as usize;
 pub struct LedMatrixDriver<'a, L: gpio::Pin, A: Alarm<'a>> {
     cols: &'a [&'a L],
     rows: &'a [&'a L],
-    buffer: TakeCell<'a, [u8]>,
+    buffer: OptionalCell<&'a mut [u8]>,
     alarm: &'a A,
     current_row: Cell<usize>,
     timing: u8,
@@ -111,7 +111,7 @@ impl<'a, L: gpio::Pin, A: Alarm<'a>> LedMatrixDriver<'a, L, A> {
         Self {
             cols,
             rows,
-            buffer: TakeCell::new(buffer),
+            buffer: OptionalCell::new(buffer),
             alarm,
             col_activation: col_activation,
             row_activation: row_activation,

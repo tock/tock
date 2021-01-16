@@ -77,7 +77,7 @@ pub struct Hmac<'a> {
 }
 
 impl Hmac<'_> {
-    pub const fn new(base: StaticRef<HmacRegisters>) -> Self {
+    pub fn new(base: StaticRef<HmacRegisters>) -> Self {
         Hmac {
             registers: base,
             client: OptionalCell::empty(),
