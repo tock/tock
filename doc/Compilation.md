@@ -30,7 +30,7 @@ The kernel is divided into five Rust crates (i.e. packages):
 
   * A core kernel crate containing key kernel operations such as handling
     interrupts and scheduling processes, shared kernel libraries such as
-    `TakeCell`, and the Hardware Interface Layer (HIL) definitions. This is
+    `MapCell`, and the Hardware Interface Layer (HIL) definitions. This is
     located in the `kernel/` folder.
 
   * An architecture (e.g. _ARM Cortex M4_) crate that implements context

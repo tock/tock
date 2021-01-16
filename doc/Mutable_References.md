@@ -27,10 +27,6 @@ of which is tailored to a specific use common in kernel code.
 - [Brief Overview of Borrowing in Rust](#brief-overview-of-borrowing-in-rust)
 - [Issues with Borrowing in Event-Driven code](#issues-with-borrowing-in-event-driven-code)
 - [`Cell`s in Tock](#cells-in-tock)
-- [The `TakeCell` abstraction](#the-takecell-abstraction)
-  * [Example use of `take` and `replace`](#example-use-of-take-and-replace)
-  * [Example use of `map`](#example-use-of-map)
-    + [`map` variants](#map-variants)
 - [`MapCell`](#mapcell)
 - [`OptionalCell`](#optionalcell)
 - [`VolatileCell`](#volatilecell)
@@ -119,192 +115,16 @@ table summarizes the various types, and more detail is included below.
 | Cell Type      | Best Used For        | Example                                                                                                                                                   | Common Uses                                                                            |
 |----------------|----------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------|
 | `Cell`         | Primitive types      | `Cell<bool>`, [`sched/mod.rs`](../kernel/src/sched.rs)                                                                                                        | State variables (holding an `enum`), true/false flags, integer parameters like length. |
-| `TakeCell`     | Small static buffers | `TakeCell<'static, [u8]>`, [`spi.rs`](../capsules/src/spi_peripheral.rs)                                                                                             | Holding static buffers that will receive or send data.                                 |
 | `MapCell`      | Large static buffers | `MapCell<App>`, [`spi.rs`](../capsules/src/spi.rs)                                                                                                        | Delegating reference to large buffers (e.g. application buffers).                      |
-| `OptionalCell` | Optional parameters  | `client: OptionalCell<&'static hil::nonvolatile_storage::NonvolatileStorageClient>`, [`nonvolatile_to_pages.rs`](../capsules/src/nonvolatile_to_pages.rs) | Keeping state that can be uninitialized, like a Client before one is set.              |
+| `OptionalCell` | Optional parameters, small static buffers  | `client: OptionalCell<&'static hil::nonvolatile_storage::NonvolatileStorageClient>`, [`nonvolatile_to_pages.rs`](../capsules/src/nonvolatile_to_pages.rs) | Keeping state that can be uninitialized, like a Client before one is set.              |
 | `VolatileCell` | Registers            | `VolatileCell<u32>`                                                                                                                                       | Accessing MMIO registers, used by `tock_registers` crate.                              |
-
-## The `TakeCell` abstraction
-
-While the different memory containers each have specialized uses, most of their
-operations are common across the different types. We therefore explain the basic
-use of memory containers in the context of TakeCell, and the additional/specialized
-functionality of each other type in its own section.
-From `tock/libraries/tock-cells/src/take_cell.rs`:
-
-> A `TakeCell` is a potential reference to mutable memory. Borrow rules are
-> enforced by forcing clients to either move the memory out of the cell or
-> operate on a borrow within a closure.
-
-A TakeCell can be full or empty: it is like a safe pointer that can be
-null. If code wants to operate on the data contained in the TakeCell,
-it must either move the data out of the TakeCell (making it empty), or
-it must do so within a closure with a `map` call. Using `map` passes a
-block of code for the TakeCell to execute.  Using a closure allows
-code to modify the contents of the TakeCell inline, without any danger
-of a control path accidentally not replacing the value. However,
-because it is a closure, a reference to the contents of the TakeCell
-cannot escape.
-
-TakeCell allows code to modify its contents when it has a normal
-(non-mutable) reference. This in turn means that if a structure
-stores its state in TakeCells, then code which has a regular
-(non-mutable) reference to the structure can change the contents
-of the TakeCell and therefore modify the structure. Therefore,
-it is possible for multiple callbacks to have references to
-the structure and modify its state.
-
-### Example use of `take` and `replace`
-
-When `TakeCell.take()` is called, ownership of a location in memory
-moves out of the cell. It can then be freely used by whoever took it
-(as they own it) and then put back with `TakeCell.put()` or
-`TakeCell.replace()`.
-
-For example, this piece of code from `chips/nrf51/src/clock.rs`
-sets the callback client for a hardware clock:
-
-```rust
-pub fn set_client(&self, client: &'static ClockClient) {
-    self.client.replace(client);
-}
-```
-
-If there is a current client, it's replaced with `client`. If
-`self.client` is empty, then it's filled with `client`.
-
-This piece of code from `chips/sam4l/src/dma.rs` cancels a
-current direct memory access (DMA) operation, removing the
-buffer in the current transaction from the TakeCell with a
-call to `take`:
-
-```rust
-pub fn abort_transfer(&self) -> Option<&'static mut [u8]> {
-    self.registers
-        .idr
-        .write(Interrupt::TERR::SET + Interrupt::TRC::SET + Interrupt::RCZ::SET);
-
-    // Reset counter
-    self.registers.tcr.write(TransferCounter::TCV.val(0));
-
-    self.buffer.take()
-}
-```
-
-
-### Example use of `map`
-
-Although the contents of a TakeCell can be directly accessed through
-a combination of `take` and `replace`, Tock code typically uses
-`TakeCell.map()`, which wraps the provided closure between a
-`TakeCell.take()` and `TakeCell.replace()`. This approach has the
-advantage that a bug in control flow that doesn't correctly `replace`
-won't accidentally leave the TakeCell empty.
-
-Here is a simple use of `map`, taken from `chips/sam4l/src/dma.rs`:
-
-```rust
-pub fn disable(&self) {
-    let registers: &SpiRegisters = unsafe { &*self.registers };
-
-    self.dma_read.map(|read| read.disable());
-    self.dma_write.map(|write| write.disable());
-    registers.cr.set(0b10);
-}
-```
-
-Both `dma_read` and `dma_write` are of type `TakeCell<&'static mut DMAChannel>`,
-that is, a TakeCell for a mutable reference to a DMA channel. By calling `map`,
-the function can access the reference and call the `disable` function. If
-the TakeCell has no reference (it is empty), then `map` does nothing.
-
-Here is a more complex example use of `map`, taken from `chips/sam4l/src/spi.rs`:
-
-```rust
-self.client.map(|cb| {
-    txbuf.map(|txbuf| {
-        cb.read_write_done(txbuf, rxbuf, len);
-    });
-});
-```
-
-In this example, `client` is a `TakeCell<&'static SpiMasterClient>`.
-The closure passed to `map` has a single argument, the value which the
-TakeCell contains. So in this case, `cb` is the reference to an
-`SpiMasterClient`. Note that the closure passed to `client.map` then
-itself contains a closure, which uses `cb` to invoke a callback passing
-`txbuf`.
-
-
-#### `map` variants
-
-`TakeCell.map()` provides a convenient method for interacting with a
-`TakeCell`'s stored contents, but it also hides the case when the `TakeCell` is
-empty by simply not executing the closure. To allow for handling the cases when
-the `TakeCell` is empty, rust (and by extension Tock) provides additional
-functions.
-
-The first is `.map_or()`. This is useful for returning a value both when the
-`TakeCell` is empty and when it has a contained value. For example, rather than:
-
-```rust
-let return = if txbuf.is_some() {
-    txbuf.map(|txbuf| {
-        write_done(txbuf);
-    });
-    ReturnCode::SUCCESS
-} else {
-    ReturnCode::ERESERVE
-};
-```
-
-`.map_or()` allows us to do this instead:
-
-```rust
-let return = txbuf.map_or(ReturnCode::ERESERVE, |txbuf| {
-    write_done(txbuf);
-    ReturnCode::SUCCESS
-});
-```
-
-If the `TakeCell` is empty, the first argument (the error code) is returned,
-otherwise the closure is executed and `SUCCESS` is returned.
-
-Sometimes we may want to execute different code based on whether the `TakeCell`
-is empty or not. Again, we could do this:
-
-```rust
-if txbuf.is_some() {
-    txbuf.map(|txbuf| {
-        write_done(txbuf);
-    });
-} else {
-    write_done_failure();
-};
-```
-
-Instead, however, we can use the `.map_or_else()` function. This allows us to
-pass in two closures, one for if the `TakeCell` is empty, and one for if it has
-contents:
-
-```rust
-txbuf.map_or_else(|| {
-    write_done_failure();
-}, |txbuf| {
-    write_done(txbuf);
-});
-```
-
-Note, in both the `.map_or()` and `.map_or_else()` cases, the first argument
-corresponds to when the `TakeCell` is empty.
-
 
 ## `MapCell`
 
-A `MapCell` is very similar to a `TakeCell` in its purpose and interface.
-What differs is the underlying implementation. In a `TakeCell`, when
+A `MapCell` is very similar to a `OptionalCell` in its purpose and interface.
+What differs is the underlying implementation. In a `OptionalCell`, when
 something `take()`s the contents of the cell, the memory inside is actually
-moved. This is a performance problem if the data in a `TakeCell` is
+moved. This is a performance problem if the data in a `OptionalCell` is
 large, but saves both cycles and memory if the data is small (like a
 pointer or slice) because the internal `Option` can be optimized in many cases
 and the code operates on registers as opposed to memory. On the flip side,
@@ -322,8 +142,7 @@ Generally speaking, medium to large sized buffers should prefer `MapCell`s.
 
 [`OptionalCell`](https://github.com/tock/tock/blob/master/libraries/tock-cells/src/optional_cell.rs)
 is effectively a wrapper for a `Cell` that contains an `Option`, like:
-`Cell<Option<T>>`. This to an extent mirrors the `TakeCell` interface, where the
-`Option` is hidden from the user. So instead of `my_optional_cell.get().map(||
+`Cell<Option<T>>`. So instead of `my_optional_cell.get().map(||
 {})`, the code can be: `my_optional_cell.map(|| {})`.
 
 `OptionalCell` can hold the same values that `Cell` can, but can also be just
