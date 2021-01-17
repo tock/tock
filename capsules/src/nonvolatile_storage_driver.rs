@@ -58,6 +58,7 @@ use core::cell::Cell;
 use core::cmp;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil;
+use kernel::ErrorCode;
 use kernel::{AppId, AppSlice, Callback, Grant, LegacyDriver, ReturnCode, SharedReadWrite};
 
 /// Syscall driver number.
@@ -179,7 +180,7 @@ impl<'a> NonvolatileStorage<'a> {
         offset: usize,
         length: usize,
         app_id: Option<AppId>,
-    ) -> ReturnCode {
+    ) -> Result<(), ErrorCode> {
         // Do bounds check.
         match command {
             NonvolatileCommand::UserspaceRead | NonvolatileCommand::UserspaceWrite => {
@@ -189,7 +190,7 @@ impl<'a> NonvolatileStorage<'a> {
                     || length > self.userspace_length
                     || offset + length > self.userspace_length
                 {
-                    return ReturnCode::EINVAL;
+                    return Err(ErrorCode::INVAL);
                 }
             }
             NonvolatileCommand::KernelRead | NonvolatileCommand::KernelWrite => {
@@ -200,7 +201,7 @@ impl<'a> NonvolatileStorage<'a> {
                     || length > self.kernel_length
                     || offset + length > self.kernel_start_address + self.kernel_length
                 {
-                    return ReturnCode::EINVAL;
+                    return Err(ErrorCode::INVAL);
                 }
             }
         }
@@ -209,7 +210,7 @@ impl<'a> NonvolatileStorage<'a> {
         // or from the kernel.
         match command {
             NonvolatileCommand::UserspaceRead | NonvolatileCommand::UserspaceWrite => {
-                app_id.map_or(ReturnCode::FAIL, |appid| {
+                app_id.map_or(Err(ErrorCode::FAIL), |appid| {
                     self.apps
                         .enter(appid, |app, _| {
                             // Get the length of the correct allowed buffer.
@@ -225,7 +226,7 @@ impl<'a> NonvolatileStorage<'a> {
 
                             // Check that it exists.
                             if allow_buf_len == 0 || self.buffer.is_none() {
-                                return ReturnCode::ERESERVE;
+                                return Err(ErrorCode::RESERVE);
                             }
 
                             // Shorten the length if the application gave us nowhere to
@@ -265,24 +266,24 @@ impl<'a> NonvolatileStorage<'a> {
                                 if app.pending_command == true {
                                     // No more room in the queue, nowhere to store this
                                     // request.
-                                    ReturnCode::ENOMEM
+                                    Err(ErrorCode::NOMEM)
                                 } else {
                                     // We can store this, so lets do it.
                                     app.pending_command = true;
                                     app.command = command;
                                     app.offset = offset;
                                     app.length = active_len;
-                                    ReturnCode::SUCCESS
+                                    Ok(())
                                 }
                             }
                         })
-                        .unwrap_or_else(|err| err.into())
+                        .unwrap_or_else(|err| Err(err.into()))
                 })
             }
             NonvolatileCommand::KernelRead | NonvolatileCommand::KernelWrite => {
                 self.kernel_buffer
                     .take()
-                    .map_or(ReturnCode::ENOMEM, |kernel_buffer| {
+                    .map_or(Err(ErrorCode::NOMEM), |kernel_buffer| {
                         let active_len = cmp::min(length, kernel_buffer.len());
 
                         // Check if there is something going on.
@@ -297,18 +298,18 @@ impl<'a> NonvolatileStorage<'a> {
                                 NonvolatileCommand::KernelWrite => {
                                     self.driver.write(kernel_buffer, offset, active_len)
                                 }
-                                _ => ReturnCode::FAIL,
+                                _ => Err(ErrorCode::FAIL),
                             }
                         } else {
                             if self.kernel_pending_command.get() == true {
-                                ReturnCode::ENOMEM
+                                Err(ErrorCode::NOMEM)
                             } else {
                                 self.kernel_pending_command.set(true);
                                 self.kernel_command.set(command);
                                 self.kernel_readwrite_length.set(active_len);
                                 self.kernel_readwrite_address.set(offset);
                                 self.kernel_buffer.replace(kernel_buffer);
-                                ReturnCode::SUCCESS
+                                Ok(())
                             }
                         }
                     })
@@ -321,27 +322,29 @@ impl<'a> NonvolatileStorage<'a> {
         command: NonvolatileCommand,
         offset: usize,
         length: usize,
-    ) -> ReturnCode {
+    ) -> Result<(), ErrorCode> {
         // Calculate where we want to actually read from in the physical
         // storage.
         let physical_address = offset + self.userspace_start_address;
 
-        self.buffer.take().map_or(ReturnCode::ERESERVE, |buffer| {
-            // Check that the internal buffer and the buffer that was
-            // allowed are long enough.
-            let active_len = cmp::min(length, buffer.len());
+        self.buffer
+            .take()
+            .map_or(Err(ErrorCode::RESERVE), |buffer| {
+                // Check that the internal buffer and the buffer that was
+                // allowed are long enough.
+                let active_len = cmp::min(length, buffer.len());
 
-            // self.current_app.set(Some(appid));
-            match command {
-                NonvolatileCommand::UserspaceRead => {
-                    self.driver.read(buffer, physical_address, active_len)
+                // self.current_app.set(Some(appid));
+                match command {
+                    NonvolatileCommand::UserspaceRead => {
+                        self.driver.read(buffer, physical_address, active_len)
+                    }
+                    NonvolatileCommand::UserspaceWrite => {
+                        self.driver.write(buffer, physical_address, active_len)
+                    }
+                    _ => Err(ErrorCode::FAIL),
                 }
-                NonvolatileCommand::UserspaceWrite => {
-                    self.driver.write(buffer, physical_address, active_len)
-                }
-                _ => ReturnCode::FAIL,
-            }
-        })
+            })
     }
 
     fn check_queue(&self) {
@@ -362,7 +365,7 @@ impl<'a> NonvolatileStorage<'a> {
                         self.kernel_readwrite_address.get(),
                         self.kernel_readwrite_length.get(),
                     ),
-                    _ => ReturnCode::FAIL,
+                    _ => Err(ErrorCode::FAIL),
                 }
             });
         } else {
@@ -374,8 +377,13 @@ impl<'a> NonvolatileStorage<'a> {
                         self.current_user.set(NonvolatileUser::App {
                             app_id: app.appid(),
                         });
-                        self.userspace_call_driver(app.command, app.offset, app.length)
-                            == ReturnCode::SUCCESS
+                        if let Ok(()) =
+                            self.userspace_call_driver(app.command, app.offset, app.length)
+                        {
+                            true
+                        } else {
+                            false
+                        }
                     } else {
                         false
                     }
@@ -455,12 +463,22 @@ impl hil::nonvolatile_storage::NonvolatileStorage<'static> for NonvolatileStorag
         self.kernel_client.set(client);
     }
 
-    fn read(&self, buffer: &'static mut [u8], address: usize, length: usize) -> ReturnCode {
+    fn read(
+        &self,
+        buffer: &'static mut [u8],
+        address: usize,
+        length: usize,
+    ) -> Result<(), ErrorCode> {
         self.kernel_buffer.replace(buffer);
         self.enqueue_command(NonvolatileCommand::KernelRead, address, length, None)
     }
 
-    fn write(&self, buffer: &'static mut [u8], address: usize, length: usize) -> ReturnCode {
+    fn write(
+        &self,
+        buffer: &'static mut [u8],
+        address: usize,
+        length: usize,
+    ) -> Result<(), ErrorCode> {
         self.kernel_buffer.replace(buffer);
         self.enqueue_command(NonvolatileCommand::KernelWrite, address, length, None)
     }
@@ -545,26 +563,39 @@ impl LegacyDriver for NonvolatileStorage<'_> {
             2 => {
                 let length = (arg0 >> 8) & 0xFFFFFF;
                 let offset = arg1;
-                self.enqueue_command(
+
+                let res = self.enqueue_command(
                     NonvolatileCommand::UserspaceRead,
                     offset,
                     length,
                     Some(appid),
-                )
+                );
+
+                match res {
+                    Ok(()) => ReturnCode::SUCCESS,
+                    Err(e) => e.into(),
+                }
             }
 
             // Issue a write
             3 => {
                 let length = (arg0 >> 8) & 0xFFFFFF;
                 let offset = arg1;
-                self.enqueue_command(
+
+                let res = self.enqueue_command(
                     NonvolatileCommand::UserspaceWrite,
                     offset,
                     length,
                     Some(appid),
-                )
+                );
+
+                match res {
+                    Ok(()) => ReturnCode::SUCCESS,
+                    Err(e) => e.into(),
+                }
             }
 
+            // Unknown command num
             _ => ReturnCode::ENOSUPPORT,
         }
     }
