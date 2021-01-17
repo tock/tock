@@ -1,6 +1,6 @@
 //! Generic interface for nonvolatile memory.
 
-use crate::returncode::ReturnCode;
+use crate::errorcode::ErrorCode;
 
 /// Simple interface for reading and writing nonvolatile memory. It is expected
 /// that drivers for nonvolatile memory would implement this trait.
@@ -10,12 +10,12 @@ pub trait NonvolatileStorage<'a> {
     /// Read `length` bytes starting at address `address` in to the provided
     /// buffer. The buffer must be at least `length` bytes long. The address
     /// must be in the address space of the physical storage.
-    fn read(&self, buffer: &'a mut [u8], address: usize, length: usize) -> ReturnCode;
+    fn read(&self, buffer: &'a mut [u8], address: usize, length: usize) -> Result<(), ErrorCode>;
 
     /// Write `length` bytes starting at address `address` from the provided
     /// buffer. The buffer must be at least `length` bytes long. This address
     /// must be in the address space of the physical storage.
-    fn write(&self, buffer: &'a mut [u8], address: usize, length: usize) -> ReturnCode;
+    fn write(&self, buffer: &'a mut [u8], address: usize, length: usize) -> Result<(), ErrorCode>;
 }
 
 /// Client interface for nonvolatile storage.
