@@ -25,6 +25,7 @@
 use core::cmp;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil;
+use kernel::ErrorCode;
 use kernel::{AppId, AppSlice, Callback, Grant, LegacyDriver, ReturnCode, SharedReadWrite};
 
 /// Syscall driver number.
@@ -63,7 +64,7 @@ impl<'a> AppFlash<'a> {
     // Check to see if we are doing something. If not, go ahead and do this
     // command. If so, this is queued and will be run when the pending command
     // completes.
-    fn enqueue_write(&self, flash_address: usize, appid: AppId) -> ReturnCode {
+    fn enqueue_write(&self, flash_address: usize, appid: AppId) -> Result<(), ErrorCode> {
         self.apps
             .enter(appid, |app, _| {
                 // Check that this is a valid range in the app's flash.
@@ -73,7 +74,7 @@ impl<'a> AppFlash<'a> {
                     || flash_address >= app_flash_end
                     || flash_address + flash_length >= app_flash_end
                 {
-                    return ReturnCode::EINVAL;
+                    return Err(ErrorCode::INVAL);
                 }
 
                 if self.current_app.is_none() {
@@ -81,30 +82,33 @@ impl<'a> AppFlash<'a> {
 
                     app.buffer
                         .as_mut()
-                        .map_or(ReturnCode::ERESERVE, |app_buffer| {
+                        .map_or(Err(ErrorCode::RESERVE), |app_buffer| {
                             // Copy contents to internal buffer and write it.
-                            self.buffer.take().map_or(ReturnCode::ERESERVE, |buffer| {
-                                let length = cmp::min(buffer.len(), app_buffer.len());
-                                let d = &mut app_buffer.as_mut()[0..length];
-                                for (i, c) in buffer.as_mut()[0..length].iter_mut().enumerate() {
-                                    *c = d[i];
-                                }
+                            self.buffer
+                                .take()
+                                .map_or(Err(ErrorCode::RESERVE), |buffer| {
+                                    let length = cmp::min(buffer.len(), app_buffer.len());
+                                    let d = &mut app_buffer.as_mut()[0..length];
+                                    for (i, c) in buffer.as_mut()[0..length].iter_mut().enumerate()
+                                    {
+                                        *c = d[i];
+                                    }
 
-                                self.driver.write(buffer, flash_address, length)
-                            })
+                                    self.driver.write(buffer, flash_address, length)
+                                })
                         })
                 } else {
                     // Queue this request for later.
                     if app.pending_command == true {
-                        ReturnCode::ENOMEM
+                        Err(ErrorCode::NOMEM)
                     } else {
                         app.pending_command = true;
                         app.flash_address = flash_address;
-                        ReturnCode::SUCCESS
+                        Ok(())
                     }
                 }
             })
-            .unwrap_or_else(|err| err.into())
+            .unwrap_or_else(|err| Err(err.into()))
     }
 }
 
@@ -144,8 +148,11 @@ impl hil::nonvolatile_storage::NonvolatileStorageClient<'static> for AppFlash<'_
                                     *c = d[i];
                                 }
 
-                                self.driver.write(buffer, flash_address, length)
-                                    == ReturnCode::SUCCESS
+                                if let Ok(()) = self.driver.write(buffer, flash_address, length) {
+                                    true
+                                } else {
+                                    false
+                                }
                             }
                         })
                     })
@@ -224,7 +231,11 @@ impl LegacyDriver for AppFlash<'_> {
             // Write to flash from the allowed buffer.
             1 => {
                 let flash_address = arg1;
-                self.enqueue_write(flash_address, appid)
+                let res = self.enqueue_write(flash_address, appid);
+                match res {
+                    Ok(()) => ReturnCode::SUCCESS,
+                    Err(e) => e.into(),
+                }
             }
 
             _ => ReturnCode::ENOSUPPORT,
