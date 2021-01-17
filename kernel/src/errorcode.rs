@@ -70,3 +70,23 @@ impl TryFrom<ReturnCode> for ErrorCode {
         }
     }
 }
+
+impl From<ErrorCode> for ReturnCode {
+    fn from(ec: ErrorCode) -> Self {
+        match ec {
+            ErrorCode::FAIL => ReturnCode::FAIL,
+            ErrorCode::BUSY => ReturnCode::EBUSY,
+            ErrorCode::ALREADY => ReturnCode::EALREADY,
+            ErrorCode::OFF => ReturnCode::EOFF,
+            ErrorCode::RESERVE => ReturnCode::ERESERVE,
+            ErrorCode::INVAL => ReturnCode::EINVAL,
+            ErrorCode::SIZE => ReturnCode::ESIZE,
+            ErrorCode::CANCEL => ReturnCode::ECANCEL,
+            ErrorCode::NOMEM => ReturnCode::ENOMEM,
+            ErrorCode::NOSUPPORT => ReturnCode::ENOSUPPORT,
+            ErrorCode::NODEVICE => ReturnCode::ENODEVICE,
+            ErrorCode::UNINSTALLED => ReturnCode::EUNINSTALLED,
+            ErrorCode::NOACK => ReturnCode::ENOACK,
+        }
+    }
+}
