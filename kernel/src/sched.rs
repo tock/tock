@@ -756,12 +756,18 @@ impl Kernel {
         // exhausted its timeslice) allowing the process to
         // decide how to handle the error.
         match syscall {
-            Syscall::Yield { wait: _, terminate: _, address: _  } => {}, // Do nothing
-            _ => { // Check all other syscalls for filtering
+            Syscall::Yield {
+                wait: _,
+                terminate: _,
+                address: _,
+            } => {} // Do nothing
+            _ => {
+                // Check all other syscalls for filtering
                 if let Err(response) = platform.filter_syscall(process, &syscall) {
-                    process
-                        .set_syscall_return_value(GenericSyscallReturnValue::Legacy(response.into()));
-                    
+                    process.set_syscall_return_value(GenericSyscallReturnValue::Legacy(
+                        response.into(),
+                    ));
+
                     return;
                 }
             }
@@ -782,7 +788,11 @@ impl Kernel {
                 }
                 process.set_syscall_return_value(rval);
             }
-            Syscall::Yield { wait, terminate, address} => {
+            Syscall::Yield {
+                wait,
+                terminate,
+                address,
+            } => {
                 if config::CONFIG.trace_syscalls {
                     debug!("[{:?}] yield. wait: {}", process.appid(), wait);
                 }

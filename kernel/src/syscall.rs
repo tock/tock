@@ -139,13 +139,11 @@ impl Syscall {
         r3: usize,
     ) -> Option<Self> {
         match SyscallClass::try_from(syscall_number) {
-            Ok(SyscallClass::Yield) => {
-                Some(Syscall::Yield {
-                    wait: r0 != 0,
-                    terminate: r0 == 2,
-                    address: r1 as *mut u8,
-                })
-            },
+            Ok(SyscallClass::Yield) => Some(Syscall::Yield {
+                wait: r0 != 0,
+                terminate: r0 == 2,
+                address: r1 as *mut u8,
+            }),
             Ok(SyscallClass::Subscribe) => Some(Syscall::Subscribe {
                 driver_number: r0,
                 subdriver_number: r1,
