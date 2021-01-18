@@ -7,7 +7,7 @@ use kernel::common::StaticRef;
 //use kernel::debug;
 
 pub const PLIC_BASE: StaticRef<PlicRegisters> =
-    unsafe { StaticRef::new(0x4009_0000 as *const PlicRegisters) };
+    unsafe { StaticRef::new(0x4101_0000 as *const PlicRegisters) };
 
 pub static mut PLIC: Plic = Plic::new(PLIC_BASE);
 

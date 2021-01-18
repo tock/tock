@@ -11,8 +11,11 @@ set -e
 set -u
 set -x
 
-curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain nightly-2020-10-25
+# Install rust stuff that we need
+curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain nightly-2021-01-07
 
+# And fixup path for the newly installed rust stuff
 export PATH="$PATH:$HOME/.cargo/bin"
 
+# Do the actual work
 make ci-runner-netlify

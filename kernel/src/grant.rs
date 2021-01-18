@@ -1,13 +1,12 @@
 //! Data structure to store a list of userspace applications.
 
+use crate::callback::AppId;
+use crate::process::{Error, ProcessType};
+use crate::sched::Kernel;
 use core::marker::PhantomData;
 use core::mem::{align_of, size_of};
 use core::ops::{Deref, DerefMut};
 use core::ptr::{slice_from_raw_parts_mut, write, NonNull};
-
-use crate::callback::AppId;
-use crate::process::{Error, ProcessType};
-use crate::sched::Kernel;
 
 /// Region of process memory reserved for the kernel.
 pub struct Grant<T: Default> {
@@ -31,6 +30,45 @@ impl<T> AppliedGrant<T> {
         let mut allocator = Allocator { appid: self.appid };
         let mut root = Owned::new(self.grant, self.appid);
         fun(&mut root, &mut allocator)
+    }
+}
+
+/// Grant which was dynamically allocated in a particular app's memory.
+pub struct DynamicGrant<T: ?Sized> {
+    data: NonNull<T>,
+    appid: AppId,
+}
+
+impl<T: ?Sized> DynamicGrant<T> {
+    /// Creates a new `DynamicGrant`.
+    ///
+    /// # Safety
+    ///
+    /// `data` must point to a valid, initialized `T`.
+    unsafe fn new(data: NonNull<T>, appid: AppId) -> Self {
+        DynamicGrant { data, appid }
+    }
+
+    pub fn appid(&self) -> AppId {
+        self.appid
+    }
+
+    /// Gives access to inner data within the given closure.
+    ///
+    /// If the app has since been restarted or crashed, or the memory is otherwise no longer
+    /// present, then this function will not call the given closure, and will
+    /// instead directly return `Err(Error::NoSuchApp)`.
+    pub fn enter<F, R>(&mut self, fun: F) -> Result<R, Error>
+    where
+        F: FnOnce(Borrowed<'_, T>) -> R,
+    {
+        self.appid
+            .kernel
+            .process_map_or(Err(Error::NoSuchApp), self.appid, |_| {
+                let data = unsafe { self.data.as_mut() };
+                let borrowed = Borrowed::new(data, self.appid);
+                Ok(fun(borrowed))
+            })
     }
 }
 
@@ -82,7 +120,7 @@ impl Allocator {
     /// # Panic Safety
     ///
     /// If `init` panics, the freshly allocated memory may leak.
-    pub fn alloc_with<T, F>(&mut self, init: F) -> Result<Owned<T>, Error>
+    pub fn alloc_with<T, F>(&mut self, init: F) -> Result<DynamicGrant<T>, Error>
     where
         F: FnOnce() -> T,
     {
@@ -93,7 +131,7 @@ impl Allocator {
             // case `T` implements the `Drop` trait.
             write(ptr.as_ptr(), init());
 
-            Ok(Owned::new(ptr, self.appid))
+            Ok(DynamicGrant::new(ptr, self.appid))
         }
     }
 
@@ -111,7 +149,7 @@ impl Allocator {
         &mut self,
         num_items: usize,
         mut val_func: F,
-    ) -> Result<Owned<[T]>, Error>
+    ) -> Result<DynamicGrant<[T]>, Error>
     where
         F: FnMut(usize) -> T,
     {
@@ -128,7 +166,7 @@ impl Allocator {
             let slice_ptr =
                 NonNull::new(slice_from_raw_parts_mut(ptr.as_ptr(), num_items)).unwrap();
 
-            Ok(Owned::new(slice_ptr, self.appid))
+            Ok(DynamicGrant::new(slice_ptr, self.appid))
         }
     }
 

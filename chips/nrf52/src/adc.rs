@@ -242,6 +242,83 @@ const SAADC_BASE: StaticRef<AdcRegisters> =
 // Buffer to save completed sample to.
 static mut SAMPLE: [u16; 1] = [0; 1];
 
+#[repr(u8)]
+#[derive(Copy, Clone, Debug)]
+pub enum AdcChannelGain {
+    Gain1_6 = 0,
+    Gain1_5 = 1,
+    Gain1_4 = 2,
+    Gain1_3 = 3,
+    Gain1_2 = 4,
+    Gain1 = 5,
+    Gain2 = 6,
+    Gain4 = 7,
+}
+
+#[repr(u8)]
+#[derive(Copy, Clone, Debug)]
+pub enum AdcChannelResistor {
+    Bypass = 0,
+    Pulldown = 1,
+    Pullup = 2,
+    VDD1_2 = 3,
+}
+
+#[allow(non_camel_case_types)]
+#[repr(u8)]
+#[derive(Clone, Copy, Debug)]
+pub enum AdcChannelSamplingTime {
+    us3 = 0,
+    us5 = 1,
+    us10 = 2,
+    us15 = 3,
+    us20 = 4,
+    us40 = 5,
+}
+
+#[derive(Copy, Clone, Debug)]
+pub struct AdcChannelSetup {
+    channel: AdcChannel,
+    gain: AdcChannelGain,
+    resp: AdcChannelResistor,
+    resn: AdcChannelResistor,
+    sampling_time: AdcChannelSamplingTime,
+}
+
+impl PartialEq for AdcChannelSetup {
+    fn eq(&self, other: &Self) -> bool {
+        self.channel == other.channel
+    }
+}
+
+impl AdcChannelSetup {
+    pub fn new(channel: AdcChannel) -> AdcChannelSetup {
+        AdcChannelSetup {
+            channel,
+            gain: AdcChannelGain::Gain1_4,
+            resp: AdcChannelResistor::Bypass,
+            resn: AdcChannelResistor::Pulldown,
+            sampling_time: AdcChannelSamplingTime::us10,
+        }
+    }
+
+    pub fn setup(
+        channel: AdcChannel,
+        gain: AdcChannelGain,
+        resp: AdcChannelResistor,
+        resn: AdcChannelResistor,
+        sampling_time: AdcChannelSamplingTime,
+    ) -> AdcChannelSetup {
+        AdcChannelSetup {
+            channel,
+            gain,
+            resp,
+            resn,
+            sampling_time,
+        }
+    }
+}
+
 pub struct Adc {
     registers: StaticRef<AdcRegisters>,
     client: OptionalCell<&'static dyn hil::adc::Client>,
@@ -293,25 +370,26 @@ impl Adc {
 
 /// Implements an ADC capable reading ADC samples on any channel.
 impl hil::adc::Adc for Adc {
-    type Channel = AdcChannel;
+    type Channel = AdcChannelSetup;
 
     fn sample(&self, channel: &Self::Channel) -> ReturnCode {
         // Positive goes to the channel passed in, negative not connected.
         self.registers.ch[0]
             .pselp
-            .write(PSEL::PSEL.val(*channel as u32));
+            .write(PSEL::PSEL.val(channel.channel as u32));
         self.registers.ch[0].pseln.write(PSEL::PSEL::NotConnected);
 
         // Configure the ADC for a single read.
         self.registers.ch[0].config.write(
-            CONFIG::GAIN::Gain1_4
+            CONFIG::GAIN.val(channel.gain as u32)
                 + CONFIG::REFSEL::VDD1_4
-                + CONFIG::TACQ::us10
-                + CONFIG::RESN::Pulldown
+                + CONFIG::TACQ.val(channel.sampling_time as u32)
+                + CONFIG::RESP.val(channel.resp as u32)
+                + CONFIG::RESN.val(channel.resn as u32)
                 + CONFIG::MODE::SE,
         );
 
-        // Set max resolution (without oversampling).
+        // Set max resolution (with oversampling).
         self.registers.resolution.write(RESOLUTION::VAL::bit12);
 
         // Do one measurement.
