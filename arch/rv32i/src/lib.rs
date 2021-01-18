@@ -384,23 +384,6 @@ pub extern "C" fn _start_trap() {
     }
 }
 
-/// Ensure an abort symbol exists.
-#[cfg(all(target_arch = "riscv32", target_os = "none"))]
-#[link_section = ".init"]
-#[export_name = "abort"]
-pub extern "C" fn abort() {
-    unsafe {
-        llvm_asm! ("
-            // Simply go back to the start as if we had just booted.
-            j    _start
-        "
-        :
-        :
-        :
-        : "volatile");
-    }
-}
-
 /// Print a readable string for an mcause reason.
 pub unsafe fn print_mcause(mcval: csr::mcause::Trap, writer: &mut dyn Write) {
     match mcval {
