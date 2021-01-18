@@ -159,221 +159,222 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         _app_brk: *const u8,
         state: &mut Riscv32iStoredState,
     ) -> (ContextSwitchReason, Option<*const u8>) {
-        llvm_asm! ("
-          // Before switching to the app we need to save the kernel registers to
-          // the kernel stack. We then save the stack pointer in the mscratch
-          // CSR (0x340) so we can retrieve it after returning to the kernel
-          // from the app.
-          //
-          // A few values get saved to the kernel stack, including an app
-          // register temporarily after entering the trap handler. Here is a
-          // memory map to make it easier to keep track:
-          //
-          // ```
-          // 34*4(sp):          <- original stack pointer
-          // 33*4(sp):
-          // 32*4(sp): x31
-          // 31*4(sp): x30
-          // 30*4(sp): x29
-          // 29*4(sp): x28
-          // 28*4(sp): x27
-          // 27*4(sp): x26
-          // 26*4(sp): x25
-          // 25*4(sp): x24
-          // 24*4(sp): x23
-          // 23*4(sp): x22
-          // 22*4(sp): x21
-          // 21*4(sp): x20
-          // 20*4(sp): x19
-          // 19*4(sp): x18
-          // 18*4(sp): x17
-          // 17*4(sp): x16
-          // 16*4(sp): x15
-          // 15*4(sp): x14
-          // 14*4(sp): x13
-          // 13*4(sp): x12
-          // 12*4(sp): x11
-          // 11*4(sp): x10
-          // 10*4(sp): x9
-          //  9*4(sp): x8
-          //  8*4(sp): x7
-          //  7*4(sp): x6
-          //  6*4(sp): x5
-          //  5*4(sp): x4
-          //  4*4(sp): x3
-          //  3*4(sp): x1
-          //  2*4(sp): _return_to_kernel (address to resume after trap)
-          //  1*4(sp): *state   (Per-process StoredState struct)
-          //  0*4(sp): app s0   <- new stack pointer
-          // ```
+        asm!(
+            // Before switching to the app we need to save the kernel registers to
+            // the kernel stack. We then save the stack pointer in the mscratch
+            // CSR (0x340) so we can retrieve it after returning to the kernel
+            // from the app.
+            //
+            // A few values get saved to the kernel stack, including an app
+            // register temporarily after entering the trap handler. Here is a
+            // memory map to make it easier to keep track:
+            //
+            // ```
+            // 34*4(sp):          <- original stack pointer
+            // 33*4(sp):
+            // 32*4(sp): x31
+            // 31*4(sp): x30
+            // 30*4(sp): x29
+            // 29*4(sp): x28
+            // 28*4(sp): x27
+            // 27*4(sp): x26
+            // 26*4(sp): x25
+            // 25*4(sp): x24
+            // 24*4(sp): x23
+            // 23*4(sp): x22
+            // 22*4(sp): x21
+            // 21*4(sp): x20
+            // 20*4(sp): x19
+            // 19*4(sp): x18
+            // 18*4(sp): x17
+            // 17*4(sp): x16
+            // 16*4(sp): x15
+            // 15*4(sp): x14
+            // 14*4(sp): x13
+            // 13*4(sp): x12
+            // 12*4(sp): x11
+            // 11*4(sp): x10
+            // 10*4(sp): x9
+            //  9*4(sp): x8
+            //  8*4(sp): x7
+            //  7*4(sp): x6
+            //  6*4(sp): x5
+            //  5*4(sp): x4
+            //  4*4(sp): x3
+            //  3*4(sp): x1
+            //  2*4(sp): _return_to_kernel (address to resume after trap)
+            //  1*4(sp): *state   (Per-process StoredState struct)
+            //  0*4(sp): app s0   <- new stack pointer
+            // ```
 
-          addi sp, sp, -34*4  // Move the stack pointer down to make room.
+            // Move the stack pointer down to make room.
+            "addi sp, sp, -34*4",
 
-          sw   x1,  3*4(sp)    // Save all of the registers on the kernel stack.
-          sw   x3,  4*4(sp)
-          sw   x4,  5*4(sp)
-          sw   x5,  6*4(sp)
-          sw   x6,  7*4(sp)
-          sw   x7,  8*4(sp)
-          sw   x8,  9*4(sp)
-          sw   x9,  10*4(sp)
-          sw   x10, 11*4(sp)
-          sw   x11, 12*4(sp)
-          sw   x12, 13*4(sp)
-          sw   x13, 14*4(sp)
-          sw   x14, 15*4(sp)
-          sw   x15, 16*4(sp)
-          sw   x16, 17*4(sp)
-          sw   x17, 18*4(sp)
-          sw   x18, 19*4(sp)
-          sw   x19, 20*4(sp)
-          sw   x20, 21*4(sp)
-          sw   x21, 22*4(sp)
-          sw   x22, 23*4(sp)
-          sw   x23, 24*4(sp)
-          sw   x24, 25*4(sp)
-          sw   x25, 26*4(sp)
-          sw   x26, 27*4(sp)
-          sw   x27, 28*4(sp)
-          sw   x28, 29*4(sp)
-          sw   x29, 30*4(sp)
-          sw   x30, 31*4(sp)
-          sw   x31, 32*4(sp)
+            // Save all of the registers on the kernel stack.
+            "sw   x1,  3*4(sp)",
+            "sw   x3,  4*4(sp)",
+            "sw   x4,  5*4(sp)",
+            "sw   x5,  6*4(sp)",
+            "sw   x6,  7*4(sp)",
+            "sw   x7,  8*4(sp)",
+            "sw   x8,  9*4(sp)",
+            "sw   x9,  10*4(sp)",
+            "sw   x10, 11*4(sp)",
+            "sw   x11, 12*4(sp)",
+            "sw   x12, 13*4(sp)",
+            "sw   x13, 14*4(sp)",
+            "sw   x14, 15*4(sp)",
+            "sw   x15, 16*4(sp)",
+            "sw   x16, 17*4(sp)",
+            "sw   x17, 18*4(sp)",
+            "sw   x18, 19*4(sp)",
+            "sw   x19, 20*4(sp)",
+            "sw   x20, 21*4(sp)",
+            "sw   x21, 22*4(sp)",
+            "sw   x22, 23*4(sp)",
+            "sw   x23, 24*4(sp)",
+            "sw   x24, 25*4(sp)",
+            "sw   x25, 26*4(sp)",
+            "sw   x26, 27*4(sp)",
+            "sw   x27, 28*4(sp)",
+            "sw   x28, 29*4(sp)",
+            "sw   x29, 30*4(sp)",
+            "sw   x30, 31*4(sp)",
+            "sw   x31, 32*4(sp)",
 
-          sw   $0, 1*4(sp)    // Store process state pointer on stack as well.
-                              // We need to have the available for after the app
-                              // returns to the kernel so we can store its
-                              // registers.
+            // Store process state pointer on stack as well. We need
+            // to have this available for after the app returns to the
+            // kernel so we can store its registers.
+            "sw   {state_struct}, 1*4(sp)",
 
-          // From here on we can't allow the CPU to take interrupts
-          // anymore, as that might result in the trap handler
-          // believing that a context switch to userspace already
-          // occurred (as mscratch is non-zero). Restore the userspace
-          // state fully prior to enabling interrupts again
-          // (implicitly using mret).
-          //
-          // If this is executed _after_ setting mscratch, this result
-          // in the race condition of [PR
-          // 2308](https://github.com/tock/tock/pull/2308)
+            // From here on we can't allow the CPU to take interrupts
+            // anymore, as that might result in the trap handler
+            // believing that a context switch to userspace already
+            // occurred (as mscratch is non-zero). Restore the userspace
+            // state fully prior to enabling interrupts again
+            // (implicitly using mret).
+            //
+            // If this is executed _after_ setting mscratch, this result
+            // in the race condition of [PR
+            // 2308](https://github.com/tock/tock/pull/2308)
 
-          // Therefore, clear the following bits in mstatus first:
-          //   0x00000008 -> bit 3 -> MIE (disabling interrupts here)
-          // + 0x00001800 -> bits 11,12 -> MPP (switch to usermode on mret)
-          li t0, 0x00001808
-          csrrc x0, 0x300, t0      // clear bits in mstatus, don't care about read
+            // Therefore, clear the following bits in mstatus first:
+            //   0x00000008 -> bit 3 -> MIE (disabling interrupts here)
+            // + 0x00001800 -> bits 11,12 -> MPP (switch to usermode on mret)
+            "li    t0, 0x00001808",
+            "csrrc x0, 0x300, t0", // clear bits in mstatus, don't care about read
 
-          // Afterwards, set the following bits in mstatus:
-          //   0x00000080 -> bit 7 -> MPIE (enable interrupts on mret)
-          li t0, 0x00000080
-          csrrs x0, 0x300, t0      // set bits in mstatus, don't care about read
-
-
-          // Store the address to jump back to on the stack so that the trap
-          // handler knows where to return to after the app stops executing.
-          lui  t0, %hi(_return_to_kernel)
-          addi t0, t0, %lo(_return_to_kernel)
-          sw   t0, 2*4(sp)
-
-          csrw 0x340, sp      // Save stack pointer in mscratch. This allows
-                              // us to find it when the app returns back to
-                              // the kernel.
-
-          // We have to set the mepc CSR with the PC we want the app to start
-          // executing at. This has been saved in Riscv32iStoredState for us
-          // (either when the app returned back to the kernel or in the
-          // `set_process_function()` function).
-          lw   t0, 31*4($0)   // Retrieve the PC from Riscv32iStoredState
-          csrw 0x341, t0      // Set mepc CSR. This is the PC we want to go to.
-
-          // Restore all of the app registers from what we saved. If this is the
-          // first time running the app then most of these values are
-          // irrelevant, However we do need to set the four arguments to the
-          // `_start_ function in the app. If the app has been executing then this
-          // allows the app to correctly resume.
-          mv   t0,  $0       // Save the state pointer to a specific register.
-          lw   x1,  0*4(t0)  // ra
-          lw   x2,  1*4(t0)  // sp
-          lw   x3,  2*4(t0)  // gp
-          lw   x4,  3*4(t0)  // tp
-          lw   x6,  5*4(t0)  // t1
-          lw   x7,  6*4(t0)  // t2
-          lw   x8,  7*4(t0)  // s0,fp
-          lw   x9,  8*4(t0)  // s1
-          lw   x10, 9*4(t0)  // a0
-          lw   x11, 10*4(t0) // a1
-          lw   x12, 11*4(t0) // a2
-          lw   x13, 12*4(t0) // a3
-          lw   x14, 13*4(t0) // a4
-          lw   x15, 14*4(t0) // a5
-          lw   x16, 15*4(t0) // a6
-          lw   x17, 16*4(t0) // a7
-          lw   x18, 17*4(t0) // s2
-          lw   x19, 18*4(t0) // s3
-          lw   x20, 19*4(t0) // s4
-          lw   x21, 20*4(t0) // s5
-          lw   x22, 21*4(t0) // s6
-          lw   x23, 22*4(t0) // s7
-          lw   x24, 23*4(t0) // s8
-          lw   x25, 24*4(t0) // s9
-          lw   x26, 25*4(t0) // s10
-          lw   x27, 26*4(t0) // s11
-          lw   x28, 27*4(t0) // t3
-          lw   x29, 28*4(t0) // t4
-          lw   x30, 29*4(t0) // t5
-          lw   x31, 30*4(t0) // t6
-          lw   x5,  4*4(t0)  // t0. Do last since we overwrite our pointer.
-
-          // Call mret to jump to where mepc points, switch to user mode, and
-          // start running the app.
-          mret
+            // Afterwards, set the following bits in mstatus:
+            //   0x00000080 -> bit 7 -> MPIE (enable interrupts on mret)
+            "li    t0, 0x00000080",
+            "csrrs x0, 0x300, t0", // set bits in mstatus, don't care about read
 
 
+            // Store the address to jump back to on the stack so that the trap
+            // handler knows where to return to after the app stops executing.
+            //
+            // In asm!() we can't use the shorthand `li` pseudo-instruction,
+            // as it complains about _return_to_kernel not being a constant in
+            // the required range.
+            "lui   t0, %hi(_return_to_kernel)",
+            "addi  t0, t0, %lo(_return_to_kernel)",
+            "sw    t0, 2*4(sp)",
+
+            // Save stack pointer in mscratch. This allows us to find
+            // it when the app returns back to the kernel.
+            "csrw  0x340, sp",
+
+            // We have to set the mepc CSR with the PC we want the app to start
+            // executing at. This has been saved in Riscv32iStoredState for us
+            // (either when the app returned back to the kernel or in the
+            // `set_process_function()` function).
+            "lw    t0, 31*4({state_struct})", // Retrieve the PC from Riscv32iStoredState
+            "csrw  0x341, t0",                // Set mepc CSR. This is the PC we want to go to.
+
+            // Restore all of the app registers from what we saved. If this is the
+            // first time running the app then most of these values are
+            // irrelevant, However we do need to set the four arguments to the
+            // `_start_ function in the app. If the app has been executing then this
+            // allows the app to correctly resume.
+            "mv    t0,  {state_struct}", // Save the state pointer to a specific register.
+            "lw    x1,  0*4(t0)",        // ra
+            "lw    x2,  1*4(t0)",        // sp
+            "lw    x3,  2*4(t0)",        // gp
+            "lw    x4,  3*4(t0)",        // tp
+            "lw    x6,  5*4(t0)",        // t1
+            "lw    x7,  6*4(t0)",        // t2
+            "lw    x8,  7*4(t0)",        // s0,fp
+            "lw    x9,  8*4(t0)",        // s1
+            "lw    x10, 9*4(t0)",        // a0
+            "lw    x11, 10*4(t0)",       // a1
+            "lw    x12, 11*4(t0)",       // a2
+            "lw    x13, 12*4(t0)",       // a3
+            "lw    x14, 13*4(t0)",       // a4
+            "lw    x15, 14*4(t0)",       // a5
+            "lw    x16, 15*4(t0)",       // a6
+            "lw    x17, 16*4(t0)",       // a7
+            "lw    x18, 17*4(t0)",       // s2
+            "lw    x19, 18*4(t0)",       // s3
+            "lw    x20, 19*4(t0)",       // s4
+            "lw    x21, 20*4(t0)",       // s5
+            "lw    x22, 21*4(t0)",       // s6
+            "lw    x23, 22*4(t0)",       // s7
+            "lw    x24, 23*4(t0)",       // s8
+            "lw    x25, 24*4(t0)",       // s9
+            "lw    x26, 25*4(t0)",       // s10
+            "lw    x27, 26*4(t0)",       // s11
+            "lw    x28, 27*4(t0)",       // t3
+            "lw    x29, 28*4(t0)",       // t4
+            "lw    x30, 29*4(t0)",       // t5
+            "lw    x31, 30*4(t0)",       // t6
+            "lw    x5,  4*4(t0)",        // t0. Do last since we overwrite our pointer.
+
+            // Call mret to jump to where mepc points, switch to user mode, and
+            // start running the app.
+            "mret",
 
 
-          // This is where the trap handler jumps back to after the app stops
-          // executing.
-        _return_to_kernel:
+            // This is where the trap handler jumps back to after the app stops
+            // executing.
+          "_return_to_kernel:",
 
-          // We have already stored the app registers in the trap handler. We
-          // can restore the kernel registers before resuming kernel code.
-          lw   x1,  3*4(sp)
-          lw   x3,  4*4(sp)
-          lw   x4,  5*4(sp)
-          lw   x5,  6*4(sp)
-          lw   x6,  7*4(sp)
-          lw   x7,  8*4(sp)
-          lw   x8,  9*4(sp)
-          lw   x9,  10*4(sp)
-          lw   x10, 11*4(sp)
-          lw   x11, 12*4(sp)
-          lw   x12, 13*4(sp)
-          lw   x13, 14*4(sp)
-          lw   x14, 15*4(sp)
-          lw   x15, 16*4(sp)
-          lw   x16, 17*4(sp)
-          lw   x17, 18*4(sp)
-          lw   x18, 19*4(sp)
-          lw   x19, 20*4(sp)
-          lw   x20, 21*4(sp)
-          lw   x21, 22*4(sp)
-          lw   x22, 23*4(sp)
-          lw   x23, 24*4(sp)
-          lw   x24, 25*4(sp)
-          lw   x25, 26*4(sp)
-          lw   x26, 27*4(sp)
-          lw   x27, 28*4(sp)
-          lw   x28, 29*4(sp)
-          lw   x29, 30*4(sp)
-          lw   x30, 31*4(sp)
-          lw   x31, 32*4(sp)
+            // We have already stored the app registers in the trap handler. We
+            // can restore the kernel registers before resuming kernel code.
+            "lw   x1,  3*4(sp)",
+            "lw   x3,  4*4(sp)",
+            "lw   x4,  5*4(sp)",
+            "lw   x5,  6*4(sp)",
+            "lw   x6,  7*4(sp)",
+            "lw   x7,  8*4(sp)",
+            "lw   x8,  9*4(sp)",
+            "lw   x9,  10*4(sp)",
+            "lw   x10, 11*4(sp)",
+            "lw   x11, 12*4(sp)",
+            "lw   x12, 13*4(sp)",
+            "lw   x13, 14*4(sp)",
+            "lw   x14, 15*4(sp)",
+            "lw   x15, 16*4(sp)",
+            "lw   x16, 17*4(sp)",
+            "lw   x17, 18*4(sp)",
+            "lw   x18, 19*4(sp)",
+            "lw   x19, 20*4(sp)",
+            "lw   x20, 21*4(sp)",
+            "lw   x21, 22*4(sp)",
+            "lw   x22, 23*4(sp)",
+            "lw   x23, 24*4(sp)",
+            "lw   x24, 25*4(sp)",
+            "lw   x25, 26*4(sp)",
+            "lw   x26, 27*4(sp)",
+            "lw   x27, 28*4(sp)",
+            "lw   x28, 29*4(sp)",
+            "lw   x29, 30*4(sp)",
+            "lw   x30, 31*4(sp)",
+            "lw   x31, 32*4(sp)",
 
-          addi sp, sp, 34*4   // Reset kernel stack pointer
-          "
+            "addi sp, sp, 34*4",   // Reset kernel stack pointer
 
-          :
-          : "r"(state as *mut Riscv32iStoredState)
-          : "memory"
-          : "volatile");
+            state_struct = in(reg) state as *mut Riscv32iStoredState,
+        );
 
         let ret = match mcause::Trap::from(state.mcause) {
             mcause::Trap::Interrupt(_intr) => {
