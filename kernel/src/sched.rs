@@ -784,7 +784,7 @@ impl Kernel {
             }
             Syscall::Yield { wait, terminate, address} => {
                 if config::CONFIG.trace_syscalls {
-                    debug!("[{:?}] yield {}", process.appid(), wait);
+                    debug!("[{:?}] yield. wait: {}", process.appid(), wait);
                 }
                 if !terminate {
                     // If this is a yield-no-wait AND there are no pending
