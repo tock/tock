@@ -21,6 +21,7 @@ provided syscalls, and the driver specific interfaces (using `allow`,
   * [Sensors](#sensors)
   * [Sensor ICs](#sensor-ics)
   * [Other ICs](#other-ics)
+  * [Miscellaneous](#miscellaneous)
 
 <!-- tocstop -->
 
