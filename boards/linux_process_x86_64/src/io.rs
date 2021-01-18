@@ -35,10 +35,10 @@ impl IoWrite for Writer {
 struct NoLed;
 
 impl kernel::hil::led::Led for NoLed {
-    fn init(&mut self) {}
-    fn on(&mut self) {}
-    fn off(&mut self) {}
-    fn toggle(&mut self) {}
+    fn init(&self) {}
+    fn on(&self) {}
+    fn off(&self) {}
+    fn toggle(&self) {}
     fn read(&self) -> bool {
         false
     }

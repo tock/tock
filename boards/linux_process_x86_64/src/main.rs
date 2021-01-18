@@ -39,7 +39,7 @@ static mut APP_RAM: [u8; 256 * 1024] = [0; 256 * 1024];
 
 struct LinuxProcess {
     console: &'static capsules::console::Console<'static>,
-    ipc: kernel::ipc::IPC,
+    ipc: kernel::ipc::IPC<NUM_PROCS>,
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
