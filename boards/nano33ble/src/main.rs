@@ -87,11 +87,21 @@ static mut CDC_REF_FOR_PANIC: Option<
         capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc>,
     >,
 > = None;
+static mut NRF52_POWER: Option<&'static nrf52840::power::Power> = None;
 
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
 #[link_section = ".stack_buffer"]
 pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
+
+// Function for the CDC/USB stack to use to enter the bootloader.
+fn baud_rate_reset_bootloader_enter() {
+    unsafe {
+        // 0x90 is the magic value the bootloader expects
+        NRF52_POWER.unwrap().set_gpregret(0x90);
+        cortexm4::scb::reset();
+    }
+}
 
 /// Supported drivers by the platform
 pub struct Platform {
@@ -110,7 +120,7 @@ pub struct Platform {
     gpio: &'static capsules::gpio::GPIO<'static, nrf52::gpio::GPIOPin<'static>>,
     led: &'static capsules::led::LedDriver<'static, LedLow<'static, nrf52::gpio::GPIOPin<'static>>>,
     rng: &'static capsules::rng::RngDriver<'static>,
-    ipc: kernel::ipc::IPC,
+    ipc: kernel::ipc::IPC<NUM_PROCS>,
     alarm: &'static capsules::alarm::AlarmDriver<
         'static,
         capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc<'static>>,
@@ -153,6 +163,10 @@ pub unsafe fn reset_handler() {
     nrf52840_peripherals.init();
     let base_peripherals = &nrf52840_peripherals.nrf52;
 
+    // Save a reference to the power module for resetting the board into the
+    // bootloader.
+    NRF52_POWER = Some(&base_peripherals.pwr_clk);
+
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
 
     //--------------------------------------------------------------------------
@@ -174,7 +188,7 @@ pub unsafe fn reset_handler() {
     // `debug_gpio!(0, toggle)` macro. We configure these early so that the
     // macro is available during most of the setup code and kernel execution.
     kernel::debug::assign_gpios(
-        Some(&base_peripherals.gpio_port[LED_KERNEL_PIN]),
+        Some(&nrf52840_peripherals.gpio_port[LED_KERNEL_PIN]),
         None,
         None,
     );
@@ -187,15 +201,15 @@ pub unsafe fn reset_handler() {
         board_kernel,
         components::gpio_component_helper!(
             nrf52840::gpio::GPIOPin,
-            2 => &base_peripherals.gpio_port[GPIO_D2],
-            3 => &base_peripherals.gpio_port[GPIO_D3],
-            4 => &base_peripherals.gpio_port[GPIO_D4],
-            5 => &base_peripherals.gpio_port[GPIO_D5],
-            6 => &base_peripherals.gpio_port[GPIO_D6],
-            7 => &base_peripherals.gpio_port[GPIO_D7],
-            8 => &base_peripherals.gpio_port[GPIO_D8],
-            9 => &base_peripherals.gpio_port[GPIO_D9],
-            10 => &base_peripherals.gpio_port[GPIO_D10]
+            2 => &nrf52840_peripherals.gpio_port[GPIO_D2],
+            3 => &nrf52840_peripherals.gpio_port[GPIO_D3],
+            4 => &nrf52840_peripherals.gpio_port[GPIO_D4],
+            5 => &nrf52840_peripherals.gpio_port[GPIO_D5],
+            6 => &nrf52840_peripherals.gpio_port[GPIO_D6],
+            7 => &nrf52840_peripherals.gpio_port[GPIO_D7],
+            8 => &nrf52840_peripherals.gpio_port[GPIO_D8],
+            9 => &nrf52840_peripherals.gpio_port[GPIO_D9],
+            10 => &nrf52840_peripherals.gpio_port[GPIO_D10]
         ),
     )
     .finalize(components::gpio_component_buf!(nrf52840::gpio::GPIOPin));
@@ -206,9 +220,9 @@ pub unsafe fn reset_handler() {
 
     let led = components::led::LedsComponent::new(components::led_component_helper!(
         LedLow<'static, nrf52840::gpio::GPIOPin>,
-        LedLow::new(&base_peripherals.gpio_port[LED_RED_PIN]),
-        LedLow::new(&base_peripherals.gpio_port[LED_GREEN_PIN]),
-        LedLow::new(&base_peripherals.gpio_port[LED_BLUE_PIN]),
+        LedLow::new(&nrf52840_peripherals.gpio_port[LED_RED_PIN]),
+        LedLow::new(&nrf52840_peripherals.gpio_port[LED_GREEN_PIN]),
+        LedLow::new(&nrf52840_peripherals.gpio_port[LED_BLUE_PIN]),
     ))
     .finalize(components::led_component_buf!(
         LedLow<'static, nrf52840::gpio::GPIOPin>
@@ -267,7 +281,7 @@ pub unsafe fn reset_handler() {
         strings,
         mux_alarm,
         dynamic_deferred_caller,
-        None,
+        Some(&baud_rate_reset_bootloader_enter),
     )
     .finalize(components::usb_cdc_acm_component_helper!(
         nrf52::usbd::Usbd,
@@ -308,8 +322,8 @@ pub unsafe fn reset_handler() {
     );
     base_peripherals.twim0.set_master_client(sensors_i2c_bus);
 
-    &nrf52840::gpio::PORT[I2C_PULLUP_PIN].make_output();
-    &nrf52840::gpio::PORT[I2C_PULLUP_PIN].set();
+    &nrf52840_peripherals.gpio_port[I2C_PULLUP_PIN].make_output();
+    &nrf52840_peripherals.gpio_port[I2C_PULLUP_PIN].set();
 
     let apds9960_i2c = static_init!(
         capsules::virtual_i2c::I2CDevice,
@@ -320,12 +334,12 @@ pub unsafe fn reset_handler() {
         capsules::apds9960::APDS9960<'static>,
         capsules::apds9960::APDS9960::new(
             apds9960_i2c,
-            &nrf52840::gpio::PORT[APDS9960_PIN],
+            &nrf52840_peripherals.gpio_port[APDS9960_PIN],
             &mut capsules::apds9960::BUFFER
         )
     );
     apds9960_i2c.set_client(apds9960);
-    nrf52840::gpio::PORT[APDS9960_PIN].set_client(apds9960);
+    nrf52840_peripherals.gpio_port[APDS9960_PIN].set_client(apds9960);
 
     let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
 

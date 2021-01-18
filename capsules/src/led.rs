@@ -61,11 +61,11 @@ pub const DRIVER_NUM: usize = driver::NUM::Led as usize;
 /// Holds the array of LEDs and implements a `Driver` interface to
 /// control them.
 pub struct LedDriver<'a, L: led::Led> {
-    leds: TakeCell<'a, [&'a mut L]>,
+    leds: TakeCell<'a, [&'a L]>,
 }
 
 impl<'a, L: led::Led> LedDriver<'a, L> {
-    pub fn new(leds: &'a mut [&'a mut L]) -> Self {
+    pub fn new(leds: &'a mut [&'a L]) -> Self {
         // Initialize all LEDs and turn them off
         for led in leds.iter_mut() {
             led.init();

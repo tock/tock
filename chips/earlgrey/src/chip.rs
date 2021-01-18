@@ -6,19 +6,17 @@ use kernel::debug;
 use kernel::hil::time::Alarm;
 use kernel::{Chip, InterruptService};
 use rv32i::csr::{mcause, mie::mie, mip::mip, mtvec::mtvec, CSR};
+use rv32i::pmp::PMP;
 use rv32i::syscall::SysCall;
-use rv32i::PMPConfigMacro;
 
 use crate::chip_config::CONFIG;
 use crate::interrupts;
 use crate::plic::Plic;
 use crate::plic::PLIC;
 
-PMPConfigMacro!(4);
-
 pub struct EarlGrey<'a, A: 'static + Alarm<'static>, I: InterruptService<()> + 'a> {
     userspace_kernel_boundary: SysCall,
-    pmp: PMP,
+    pmp: PMP<4, 2>,
     plic: &'a Plic,
     scheduler_timer: kernel::VirtualSchedulerTimer<A>,
     timer: &'static crate::timer::RvTimer<'static>,
@@ -156,7 +154,7 @@ impl<'a, A: 'static + Alarm<'static>, I: InterruptService<()> + 'a> EarlGrey<'a,
 impl<'a, A: 'static + Alarm<'static>, I: InterruptService<()> + 'a> kernel::Chip
     for EarlGrey<'a, A, I>
 {
-    type MPU = PMP;
+    type MPU = PMP<4, 2>;
     type UserspaceKernelBoundary = SysCall;
     type SchedulerTimer = kernel::VirtualSchedulerTimer<A>;
     type WatchDog = ();
@@ -247,7 +245,7 @@ fn handle_exception(exception: mcause::Exception) {
         | mcause::Exception::LoadPageFault
         | mcause::Exception::StorePageFault
         | mcause::Exception::Unknown => {
-            panic!("fatal exception");
+            panic!("fatal exception: {:?}: {:#x}", exception, CSR.mtval.get());
         }
     }
 }

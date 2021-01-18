@@ -15,19 +15,17 @@ pub struct MuxAdc<'a, A: hil::adc::Adc> {
 
 impl<'a, A: hil::adc::Adc> hil::adc::Client for MuxAdc<'a, A> {
     fn sample_ready(&self, sample: u16) {
-        for node in self.devices.iter() {
-            self.inflight.map(|inflight| {
+        self.inflight.take().map(|inflight| {
+            for node in self.devices.iter() {
                 if node.channel == inflight.channel {
-                    node.operation.map(|operation| match operation {
+                    node.operation.take().map(|operation| match operation {
                         Operation::OneSample => {
-                            node.operation.clear();
-                            node.client.map(|client| client.sample_ready(sample));
+                            node.client.map(|client| client.sample_ready(sample))
                         }
                     });
                 }
-            });
-        }
-        self.inflight.clear();
+            }
+        });
         self.do_next_op();
     }
 }
@@ -56,17 +54,6 @@ impl<'a, A: hil::adc::Adc> MuxAdc<'a, A> {
                 } else {
                     self.do_next_op();
                 }
-            });
-        } else {
-            self.inflight.map(|node| {
-                node.operation.take().map(|operation| {
-                    match operation {
-                        Operation::OneSample => {
-                            self.adc.sample(&node.channel);
-                        }
-                    }
-                    self.do_next_op();
-                });
             });
         }
     }

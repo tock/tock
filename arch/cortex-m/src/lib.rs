@@ -403,7 +403,7 @@ unsafe extern "C" fn hard_fault_handler_arm_v7m_continued(
     faulting_stack: *mut u32,
     kernel_stack: u32,
     stack_overflow: u32,
-) -> ! {
+) {
     if kernel_stack != 0 {
         if stack_overflow != 0 {
             // Panic to show the correct error.
@@ -444,7 +444,10 @@ unsafe extern "C" fn hard_fault_handler_arm_v7m_continued(
 
         movw LR, #0xFFF9
         movt LR, #0xFFFF",
-            options(noreturn)
+            out("r1") _,
+            out("r0") _,
+            out("r2") _,
+            options(nostack),
         );
     }
 }
@@ -491,12 +494,13 @@ pub unsafe extern "C" fn hard_fault_handler_arm_v7m() {
         // to further debug.
         "ldreq  r4, ={}       /* load _estack into r4 */",
         "moveq  sp, r4        /* Set the stack pointer to _estack */",
-        // finally, branch to non-naked handler, never return
-        // per ARM calling convention, faulting stack is passed in r0, and kernel_stack in r1,
+        // finally, branch to non-naked handler
+        // per ARM calling convention, faulting stack is passed in r0, kernel_stack in r1,
         // and whether there was a stack overflow in r2
-        // called function never returns, so no need to mark clobbers
-        "b {}", sym _estack, sym hard_fault_handler_arm_v7m_continued,
-        options(noreturn)
+        "b {}", // branch to function
+        "bx lr", // if continued function returns, we need to manually branch to link register
+        sym _estack, sym hard_fault_handler_arm_v7m_continued,
+        options(noreturn), // asm block never returns, so no need to mark clobbers
     );
 }
 

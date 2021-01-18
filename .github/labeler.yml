@@ -1,0 +1,37 @@
+# This is a configuration file for the labeler github action.
+# The labeler action runs uses this configuration to automatically
+# label each PR submitted to the Tock repository, by applying labels
+# that match the corresponding glob paths. More details on the rules
+# that apply to this configuration file can be found in the documentation
+# at https://github.com/actions/labeler
+
+stm32:
+  - chips/stm*/**/*
+
+nrf:
+  - chips/nrf5*/**/*
+
+sam4l:
+  - chips/sam4l/**/*
+
+HIL:
+  - kernel/src/hil/*
+
+risc-v:
+  - arch/rv32i/**/*
+  - arch/riscv/**/*
+
+tock-libraries:
+  - libraries/**/*
+
+WG-OpenTitan:
+  - boards/earlgrey-nexysvideo/**/*
+  - chips/earlgrey/**/*
+
+# add kernel label unless already covered by hil label
+kernel:
+  - any: ['kernel/**/*', '!kernel/src/hil/*']
+
+# add documentation label only if all changes are in doc/
+documentation:
+  - all: ['doc/**/*']

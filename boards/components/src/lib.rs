@@ -1,6 +1,7 @@
 #![no_std]
 
 pub mod adc;
+pub mod adc_microphone;
 pub mod alarm;
 pub mod analog_comparator;
 pub mod app_flash_driver;
@@ -40,6 +41,7 @@ pub mod screen;
 pub mod segger_rtt;
 pub mod sht3x;
 pub mod si7021;
+pub mod sound_pressure;
 pub mod spi;
 pub mod st77xx;
 pub mod temperature;
