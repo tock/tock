@@ -192,7 +192,7 @@ impl kernel::Platform for Platform {
             capsules::temperature::DRIVER_NUM => f(Some(Ok(self.temp))),
             capsules::analog_comparator::DRIVER_NUM => f(Some(Ok(self.analog_comparator))),
             capsules::nonvolatile_storage_driver::DRIVER_NUM => {
-                f(Some(Err(self.nonvolatile_storage)))
+                f(Some(Ok(self.nonvolatile_storage)))
             }
             capsules::net::udp::DRIVER_NUM => f(Some(Ok(self.udp_driver))),
             kernel::ipc::DRIVER_NUM => f(Some(Err(&self.ipc))),

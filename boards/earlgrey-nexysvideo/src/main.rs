@@ -94,7 +94,7 @@ impl Platform for EarlGreyNexysVideo {
             capsules::low_level_debug::DRIVER_NUM => f(Some(Err(self.lldb))),
             capsules::i2c_master::DRIVER_NUM => f(Some(Ok(self.i2c_master))),
             capsules::nonvolatile_storage_driver::DRIVER_NUM => {
-                f(Some(Err(self.nonvolatile_storage)))
+                f(Some(Ok(self.nonvolatile_storage)))
             }
             _ => f(None),
         }

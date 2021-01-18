@@ -91,7 +91,7 @@ impl Platform for STM32F3Discovery {
             kernel::ipc::DRIVER_NUM => f(Some(Err(&self.ipc))),
             capsules::adc::DRIVER_NUM => f(Some(Ok(self.adc))),
             capsules::nonvolatile_storage_driver::DRIVER_NUM => {
-                f(Some(Err(self.nonvolatile_storage)))
+                f(Some(Ok(self.nonvolatile_storage)))
             }
             _ => f(None),
         }
