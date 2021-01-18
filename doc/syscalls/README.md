@@ -21,6 +21,7 @@ provided syscalls, and the driver specific interfaces (using `allow`,
   * [Sensors](#sensors)
   * [Sensor ICs](#sensor-ics)
   * [Other ICs](#other-ics)
+  * [Miscellaneous](#miscellaneous)
 
 <!-- tocstop -->
 
@@ -126,4 +127,12 @@ _Note:_ GPIO is slated for re-numbering in Tock 2.0.
 |   | 0x80002       | PCA9544A         | I2C address multiplexing                   |
 |   | 0x80003       | GPIO Async       | Asynchronous GPIO pins                     |
 |   | 0x80004       | nRF51822         | nRF serialization link to nRF51822 BLE SoC |
-|   | 0x80005       | [HD44780](80005_hd44780.md)          | LCD HD44780 capsule                        |
+
+### Miscellaneous
+
+|2.0| Driver Number | Driver                                  | Description                                |
+|---|---------------|-----------------------------------------|--------------------------------------------|
+|   | 0x90000       | Buzzer                                  | Buzzer                                     |
+|   | 0x90001       | [Screen](90001_screen.md)               | Graphic Screen                             |
+|   | 0x90002       | [Touch](90002_touch.md)                 | Multi Touch Panel                          |
+|   | 0x90003       | [Text Screen](90003_text_screen.md)     | Text Screen                                |
