@@ -294,7 +294,7 @@ The yield identifier specifies which call is invoked.
 |-----------------|------------------------|
 | yield-no-wait   |                      0 |
 | yield-wait      |                      1 |
-| yield-no-return |                      2 |
+| yield-exit      |                      2 |
 
 
 The no wait field is only used by `yield-no-wait`. It contains the
