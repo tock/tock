@@ -245,7 +245,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
             // Store process state pointer on stack as well. We need
             // to have this available for after the app returns to the
             // kernel so we can store its registers.
-            "sw   {state_struct}, 1*4(sp)",
+            "sw   a0, 1*4(sp)",
 
             // From here on we can't allow the CPU to take interrupts
             // anymore, as that might result in the trap handler
@@ -288,46 +288,46 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
             // executing at. This has been saved in Riscv32iStoredState for us
             // (either when the app returned back to the kernel or in the
             // `set_process_function()` function).
-            "lw    t0, 31*4({state_struct})", // Retrieve the PC from Riscv32iStoredState
-            "csrw  0x341, t0",                // Set mepc CSR. This is the PC we want to go to.
+            "lw    t0, 31*4(a0)", // Retrieve the PC from Riscv32iStoredState
+            "csrw  0x341, t0",    // Set mepc CSR. This is the PC we want to go to.
 
             // Restore all of the app registers from what we saved. If this is the
             // first time running the app then most of these values are
             // irrelevant, However we do need to set the four arguments to the
             // `_start_ function in the app. If the app has been executing then this
             // allows the app to correctly resume.
-            "mv    t0,  {state_struct}", // Save the state pointer to a specific register.
-            "lw    x1,  0*4(t0)",        // ra
-            "lw    x2,  1*4(t0)",        // sp
-            "lw    x3,  2*4(t0)",        // gp
-            "lw    x4,  3*4(t0)",        // tp
-            "lw    x6,  5*4(t0)",        // t1
-            "lw    x7,  6*4(t0)",        // t2
-            "lw    x8,  7*4(t0)",        // s0,fp
-            "lw    x9,  8*4(t0)",        // s1
-            "lw    x10, 9*4(t0)",        // a0
-            "lw    x11, 10*4(t0)",       // a1
-            "lw    x12, 11*4(t0)",       // a2
-            "lw    x13, 12*4(t0)",       // a3
-            "lw    x14, 13*4(t0)",       // a4
-            "lw    x15, 14*4(t0)",       // a5
-            "lw    x16, 15*4(t0)",       // a6
-            "lw    x17, 16*4(t0)",       // a7
-            "lw    x18, 17*4(t0)",       // s2
-            "lw    x19, 18*4(t0)",       // s3
-            "lw    x20, 19*4(t0)",       // s4
-            "lw    x21, 20*4(t0)",       // s5
-            "lw    x22, 21*4(t0)",       // s6
-            "lw    x23, 22*4(t0)",       // s7
-            "lw    x24, 23*4(t0)",       // s8
-            "lw    x25, 24*4(t0)",       // s9
-            "lw    x26, 25*4(t0)",       // s10
-            "lw    x27, 26*4(t0)",       // s11
-            "lw    x28, 27*4(t0)",       // t3
-            "lw    x29, 28*4(t0)",       // t4
-            "lw    x30, 29*4(t0)",       // t5
-            "lw    x31, 30*4(t0)",       // t6
-            "lw    x5,  4*4(t0)",        // t0. Do last since we overwrite our pointer.
+            "mv    t0,  a0",        // Save the state pointer to a specific register.
+            "lw    x1,  0*4(t0)",   // ra
+            "lw    x2,  1*4(t0)",   // sp
+            "lw    x3,  2*4(t0)",   // gp
+            "lw    x4,  3*4(t0)",   // tp
+            "lw    x6,  5*4(t0)",   // t1
+            "lw    x7,  6*4(t0)",   // t2
+            "lw    x8,  7*4(t0)",   // s0,fp
+            "lw    x9,  8*4(t0)",   // s1
+            "lw    x10, 9*4(t0)",   // a0
+            "lw    x11, 10*4(t0)",  // a1
+            "lw    x12, 11*4(t0)",  // a2
+            "lw    x13, 12*4(t0)",  // a3
+            "lw    x14, 13*4(t0)",  // a4
+            "lw    x15, 14*4(t0)",  // a5
+            "lw    x16, 15*4(t0)",  // a6
+            "lw    x17, 16*4(t0)",  // a7
+            "lw    x18, 17*4(t0)",  // s2
+            "lw    x19, 18*4(t0)",  // s3
+            "lw    x20, 19*4(t0)",  // s4
+            "lw    x21, 20*4(t0)",  // s5
+            "lw    x22, 21*4(t0)",  // s6
+            "lw    x23, 22*4(t0)",  // s7
+            "lw    x24, 23*4(t0)",  // s8
+            "lw    x25, 24*4(t0)",  // s9
+            "lw    x26, 25*4(t0)",  // s10
+            "lw    x27, 26*4(t0)",  // s11
+            "lw    x28, 27*4(t0)",  // t3
+            "lw    x29, 28*4(t0)",  // t4
+            "lw    x30, 29*4(t0)",  // t5
+            "lw    x31, 30*4(t0)",  // t6
+            "lw    x5,  4*4(t0)",   // t0. Do last since we overwrite our pointer.
 
             // Call mret to jump to where mepc points, switch to user mode, and
             // start running the app.
@@ -373,7 +373,11 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
 
             "addi sp, sp, 34*4",   // Reset kernel stack pointer
 
-            state_struct = in(reg) state as *mut Riscv32iStoredState,
+            // The register to put the state struct pointer in is not
+            // particularly relevant, however we must avoid using t0
+            // as that is overwritten prior to being accessed
+            // (although stored and later restored) in the assembly
+            in("a0") state as *mut Riscv32iStoredState,
         );
 
         let ret = match mcause::Trap::from(state.mcause) {
