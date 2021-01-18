@@ -24,7 +24,7 @@ const NUM_PROCS: usize = 4;
 static mut PROCESSES: [Option<&'static dyn kernel::procs::ProcessType>; NUM_PROCS] =
     [None, None, None, None];
 
-static mut CHIP: Option<&'static linux::chip::Linux> = None;
+static mut CHIP: Option<&'static linux_x86_64::chip::Linux> = None;
 
 // How should the kernel respond when a process faults.
 const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultResponse::Panic;
@@ -57,7 +57,7 @@ impl Platform for LinuxProcess {
 }
 
 unsafe fn reset_handler() {
-    linux::init();
+    linux_x86_64::init();
 
     let flash = posix_x86_64::initialize_flash(&APP_FLASH);
 
@@ -75,7 +75,7 @@ unsafe fn reset_handler() {
     );
     DynamicDeferredCall::set_global_instance(dynamic_deferred_caller);
 
-    let chip = static_init!(linux::chip::Linux, linux::chip::Linux::new());
+    let chip = static_init!(linux_x86_64::chip::Linux, linux_x86_64::chip::Linux::new());
     CHIP = Some(chip);
 
     let memory_allocation_capability = create_capability!(capabilities::MemoryAllocationCapability);
@@ -84,7 +84,7 @@ unsafe fn reset_handler() {
         create_capability!(capabilities::ProcessManagementCapability);
 
     let uart_mux = components::console::UartMuxComponent::new(
-        &linux::console::CONSOLE,
+        &linux_x86_64::console::CONSOLE,
         115200,
         dynamic_deferred_caller,
     )

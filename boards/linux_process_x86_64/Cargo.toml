@@ -1,5 +1,5 @@
 [package]
-name = "linux_process"
+name = "linux_process_x86_64"
 version = "0.1.0"
 authors = ["Tock Project Developers <tock-dev@googlegroups.com>"]
 build = "build.rs"
@@ -10,4 +10,4 @@ components = { path = "../components" }
 posix_x86_64 = { path = "../../arch/posix_x86_64" }
 capsules = { path = "../../capsules" }
 kernel = { path = "../../kernel" }
-linux = { path = "../../chips/linux" }
+linux_x86_64 = { path = "../../chips/linux_x86_64" }

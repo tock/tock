@@ -24,7 +24,7 @@ impl Write for Writer {
 
 impl IoWrite for Writer {
     fn write(&mut self, buf: &[u8]) {
-        let uart = unsafe { &mut linux::console::CONSOLE };
+        let uart = unsafe { &mut linux_x86_64::console::CONSOLE };
 
         for &c in buf {
             uart.send_byte(c);

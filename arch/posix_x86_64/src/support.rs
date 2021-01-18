@@ -15,11 +15,9 @@ pub fn wfi() {
     )
     .unwrap();
 
-    // println! ("pause");
     unsafe {
         pause();
     }
-    // println! ("resume");
 
     signal::sigprocmask(SigmaskHow::SIG_SETMASK, Some(&current_signals), None).unwrap();
 }
@@ -38,7 +36,6 @@ where
         Some(&mut current_signals),
     )
     .unwrap();
-    // println! ("{:?}", current_signals);
     let res = f();
 
     // Unmask Signals

@@ -1,4 +1,8 @@
-//! Generic support for POSIX platforms.
+//! Generic support for POSIX x64 platforms (used for testing).
+//!
+//! This is used only for testing and running Tock as POSIX user space process.
+//! Due to the fact that this crate is used only for testing,
+//! it does depend on std.
 
 #![crate_name = "posix_x86_64"]
 #![crate_type = "rlib"]

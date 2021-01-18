@@ -5,7 +5,7 @@
 CPU=x86_64
 
 TARGET=$(CPU)-unknown-linux-gnu
-PLATFORM=linux_process
+PLATFORM=linux_process_x86_64
 
 RUSTC_FLAGS=
 
