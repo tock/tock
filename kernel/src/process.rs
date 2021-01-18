@@ -280,7 +280,7 @@ pub trait ProcessType {
     /// Return if there are any Tasks (callbacks/IPC requests) enqueued
     /// for the process.
     fn has_tasks(&self) -> bool;
-    
+
     /// Remove the scheduled operation from the front of the queue and return it
     /// to be handled by the scheduler.
     ///
@@ -424,7 +424,7 @@ pub trait ProcessType {
     /// `addr` to `value`. Return true if `addr` is a valid
     /// address and the value was written, false otherwise.
     unsafe fn set_byte(&self, addr: *mut u8, value: u8) -> bool;
-    
+
     /// Get the first address of process's flash that isn't protected by the
     /// kernel. The protected range of flash contains the TBF header and
     /// potentially other state the kernel is storing on behalf of the process,
@@ -1048,11 +1048,9 @@ impl<C: Chip> ProcessType for Process<'_, C> {
     }
 
     fn has_tasks(&self) -> bool {
-        self.tasks.map_or(false, |tasks| {
-            tasks.has_elements()
-        })
+        self.tasks.map_or(false, |tasks| tasks.has_elements())
     }
-    
+
     fn dequeue_task(&self) -> Option<Task> {
         self.tasks.map_or(None, |tasks| {
             tasks.dequeue().map(|cb| {
@@ -1410,7 +1408,7 @@ impl<C: Chip> ProcessType for Process<'_, C> {
             false
         }
     }
-    
+
     fn alloc(&self, size: usize, align: usize) -> Option<NonNull<u8>> {
         // Do not modify an inactive process.
         if !self.is_active() {
