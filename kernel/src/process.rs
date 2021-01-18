@@ -423,7 +423,7 @@ pub trait ProcessType {
     /// Set a single byte within the process address space at
     /// `addr` to `value`. Return true if `addr` is a valid
     /// address and the value was written, false otherwise.
-    fn set_byte(&self, addr: *mut u8, value: u8) -> bool;
+    unsafe fn set_byte(&self, addr: *mut u8, value: u8) -> bool;
 
     /// Get the first address of process's flash that isn't protected by the
     /// kernel. The protected range of flash contains the TBF header and
@@ -1400,11 +1400,9 @@ impl<C: Chip> ProcessType for Process<'_, C> {
         }
     }
 
-    fn set_byte(&self, addr: *mut u8, value: u8) -> bool {
+    unsafe fn set_byte(&self, addr: *mut u8, value: u8) -> bool {
         if self.in_app_owned_memory(addr, 1) {
-            unsafe {
-                *addr = value;
-            }
+            *addr = value;
             true
         } else {
             false
