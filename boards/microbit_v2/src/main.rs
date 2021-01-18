@@ -125,7 +125,7 @@ impl kernel::Platform for Platform {
             capsules::ble_advertising_driver::DRIVER_NUM => f(Some(Err(self.ble_radio))),
             capsules::buzzer_driver::DRIVER_NUM => f(Some(Ok(self.buzzer))),
             capsules::app_flash_driver::DRIVER_NUM => f(Some(Err(self.app_flash))),
-            capsules::sound_pressure::DRIVER_NUM => f(Some(Err(self.sound_pressure))),
+            capsules::sound_pressure::DRIVER_NUM => f(Some(Ok(self.sound_pressure))),
             kernel::ipc::DRIVER_NUM => f(Some(Err(&self.ipc))),
             _ => f(None),
         }
