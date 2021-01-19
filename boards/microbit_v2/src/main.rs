@@ -71,7 +71,7 @@ static mut CHIP: Option<&'static nrf52833::chip::NRF52<Nrf52833DefaultPeripheral
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
 #[link_section = ".stack_buffer"]
-pub static mut STACK_MEMORY: [u8; 0x1500] = [0; 0x1500];
+pub static mut STACK_MEMORY: [u8; 0x2000] = [0; 0x2000];
 
 /// Supported drivers by the platform
 pub struct Platform {
@@ -125,7 +125,7 @@ impl kernel::Platform for Platform {
             capsules::ble_advertising_driver::DRIVER_NUM => f(Some(Err(self.ble_radio))),
             capsules::buzzer_driver::DRIVER_NUM => f(Some(Ok(self.buzzer))),
             capsules::app_flash_driver::DRIVER_NUM => f(Some(Ok(self.app_flash))),
-            capsules::sound_pressure::DRIVER_NUM => f(Some(Err(self.sound_pressure))),
+            capsules::sound_pressure::DRIVER_NUM => f(Some(Ok(self.sound_pressure))),
             kernel::ipc::DRIVER_NUM => f(Some(Err(&self.ipc))),
             _ => f(None),
         }
