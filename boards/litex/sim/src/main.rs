@@ -138,7 +138,7 @@ impl Platform for LiteXSim {
         match driver_num {
             capsules::console::DRIVER_NUM => f(Some(Ok(self.console))),
             capsules::alarm::DRIVER_NUM => f(Some(Ok(self.alarm))),
-            capsules::low_level_debug::DRIVER_NUM => f(Some(Err(self.lldb))),
+            capsules::low_level_debug::DRIVER_NUM => f(Some(Ok(self.lldb))),
             _ => f(None),
         }
     }
