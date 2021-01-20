@@ -45,8 +45,6 @@ pub enum YieldCall {
     Wait = 1,
 }
 
-
-
 // Required as long as no solution to
 // https://github.com/rust-lang/rfcs/issues/2783 is integrated into
 // the standard library
@@ -73,10 +71,7 @@ pub enum Syscall {
     /// interrupts and callbacks.
     ///
     /// System call class ID 0
-    Yield {
-        which: usize,
-        address: *mut u8,
-    },
+    Yield { which: usize, address: *mut u8 },
 
     /// Pass a callback function to the kernel.
     ///

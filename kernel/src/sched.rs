@@ -788,20 +788,18 @@ impl Kernel {
                 }
                 process.set_syscall_return_value(rval);
             }
-            Syscall::Yield {
-                which,
-                address,
-            } => {
+            Syscall::Yield { which, address } => {
                 if config::CONFIG.trace_syscalls {
                     debug!("[{:?}] yield. which: {}", process.appid(), which);
                 }
-                if which > (YieldCall::Wait as usize) { // Only 0 and 1 are valid
+                if which > (YieldCall::Wait as usize) {
+                    // Only 0 and 1 are valid
                     return;
                 }
                 let wait = which == (YieldCall::Wait as usize);
                 // If this is a yield-no-wait AND there are no pending
                 // tasks, then return immediately. Otherwise, go into the
-                    // yielded state and execute tasks now or when they arrive.
+                // yielded state and execute tasks now or when they arrive.
                 let return_now = !wait && !process.has_tasks();
                 if return_now {
                     // Set the "did I trigger callbacks" flag to be 0,
