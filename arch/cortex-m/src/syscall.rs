@@ -58,16 +58,13 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
     fn initial_process_layout(
         &self,
         process_memory_start: *const u8,
-    ) -> kernel::syscall::InitialProcessLayout {
+    ) -> (*const u8, *const u8) {
         // ARM uses the userspace stack to store register values when an
         // interrupt executes, so we need to give the process an initial usable
         // stack. We set the initial break at the top of the stack -- processes
         // must move the break upwards in their runtime implementation.
         let original_stack_pointer = process_memory_start.wrapping_add(0x20);
-        kernel::syscall::InitialProcessLayout {
-            original_break: original_stack_pointer,
-            original_stack_pointer,
-        }
+        (original_stack_pointer, original_stack_pointer)
     }
 
     unsafe fn initialize_process(

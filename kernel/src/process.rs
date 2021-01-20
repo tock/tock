@@ -2042,7 +2042,7 @@ impl<C: 'static + Chip> Process<'_, C> {
         // entirely to the process. However, on some architectures
         // context-switching requires using the process's stack, so on those
         // architectures we must have at least a minimal stack setup.
-        let initial_layout = chip
+        let (original_stack_pointer, original_break) = chip
             .userspace_kernel_boundary()
             .initial_process_layout(app_memory.as_ptr());
 
@@ -2094,7 +2094,7 @@ impl<C: 'static + Chip> Process<'_, C> {
         // Verify the initial process memory region does not overlap the kernel
         // memory region. This can happen if the app requests a too-small amount
         // of memory (e.g. 0).
-        if initial_layout.original_break > kernel_memory_break {
+        if original_break > kernel_memory_break {
             return Err(ProcessLoadError::MinRamSizeTooSmall);
         }
 
@@ -2130,10 +2130,10 @@ impl<C: 'static + Chip> Process<'_, C> {
         process.header = tbf_header;
         process.kernel_memory_break = Cell::new(kernel_memory_break);
         process.original_kernel_memory_break = kernel_memory_break;
-        process.app_break = Cell::new(initial_layout.original_break);
-        process.original_app_break = initial_layout.original_break;
-        process.current_stack_pointer = Cell::new(initial_layout.original_stack_pointer);
-        process.original_stack_pointer = initial_layout.original_stack_pointer;
+        process.app_break = Cell::new(original_break);
+        process.original_app_break = original_break;
+        process.current_stack_pointer = Cell::new(original_stack_pointer);
+        process.original_stack_pointer = original_stack_pointer;
 
         process.flash = app_flash;
 
@@ -2160,7 +2160,7 @@ impl<C: 'static + Chip> Process<'_, C> {
             fixed_address_ram: fixed_address_ram,
             app_heap_start_pointer: app_heap_start_pointer,
             app_stack_start_pointer: app_stack_start_pointer,
-            min_stack_pointer: initial_layout.original_stack_pointer,
+            min_stack_pointer: original_stack_pointer,
             syscall_count: 0,
             last_syscall: None,
             dropped_callback_count: 0,
