@@ -376,6 +376,12 @@ pub enum ContextSwitchReason {
     Interrupted,
 }
 
+/// Return type for UserspaceKernelBoundary::initial_process_shape
+pub struct InitialProcessLayout {
+    pub original_break: *const u8,
+    pub original_stack_pointer: *const u8,
+}
+
 /// This trait must be implemented by the architecture of the chip Tock is
 /// running on. It allows the kernel to manage switching to and from processes
 /// in an architecture-agnostic manner.
@@ -388,6 +394,11 @@ pub trait UserspaceKernelBoundary {
     /// or derived) for any initialization of a process's stored state. The
     /// initialization must happen in the `initialize_process()` function.
     type StoredState: Default;
+
+    /// Called by the kernel during process creation. Allows for
+    /// architecture-specific process layout decisions, such as stack pointer
+    /// initialization.
+    fn initial_process_layout(&self, process_memory_start: *const u8) -> InitialProcessLayout;
 
     /// Called by the kernel after it has memory allocated to it but before it
     /// is allowed to begin executing. Allows for architecture-specific process

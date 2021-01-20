@@ -1805,8 +1805,6 @@ fn exceeded_check(size: usize, allocated: usize) -> &'static str {
 }
 
 impl<C: 'static + Chip> Process<'_, C> {
-    const INITIAL_APP_MEMORY_SIZE: usize = 3 * 1024;
-
     // Memory offset for callback ring buffer (10 element length).
     const CALLBACK_LEN: usize = 10;
     const CALLBACKS_OFFSET: usize = mem::size_of::<Task>() * Self::CALLBACK_LEN;
@@ -1877,7 +1875,7 @@ impl<C: 'static + Chip> Process<'_, C> {
         }
 
         // Otherwise, actually load the app.
-        let mut min_app_ram_size = tbf_header.get_minimum_app_ram_size() as usize;
+        let min_app_ram_size = tbf_header.get_minimum_app_ram_size() as usize;
         let init_fn = app_flash
             .as_ptr()
             .offset(tbf_header.get_init_function_offset() as isize) as usize;
@@ -1922,10 +1920,6 @@ impl<C: 'static + Chip> Process<'_, C> {
         // memory.
         let initial_kernel_memory_size =
             grant_ptrs_offset + Self::CALLBACKS_OFFSET + Self::PROCESS_STRUCT_OFFSET;
-
-        if min_app_ram_size < Self::INITIAL_APP_MEMORY_SIZE {
-            min_app_ram_size = Self::INITIAL_APP_MEMORY_SIZE;
-        }
 
         // Minimum memory size for the process.
         let min_total_memory_size = min_app_ram_size + initial_kernel_memory_size;
@@ -1981,7 +1975,6 @@ impl<C: 'static + Chip> Process<'_, C> {
             remaining_memory.as_ptr() as *const u8,
             remaining_memory.len(),
             min_total_memory_size,
-            Self::INITIAL_APP_MEMORY_SIZE,
             initial_kernel_memory_size,
             mpu::Permissions::ReadWriteOnly,
             &mut mpu_config,
@@ -2034,8 +2027,9 @@ impl<C: 'static + Chip> Process<'_, C> {
         }
 
         // Set the initial process stack and memory to 3072 bytes.
-        let initial_stack_pointer = app_memory.as_ptr().add(Self::INITIAL_APP_MEMORY_SIZE);
-        let initial_sbrk_pointer = app_memory.as_ptr().add(Self::INITIAL_APP_MEMORY_SIZE);
+        let initial_layout = chip
+            .userspace_kernel_boundary()
+            .initial_process_layout(app_memory.as_ptr());
 
         // Set up initial grant region.
         let mut kernel_memory_break = app_memory.as_mut_ptr().add(app_memory.len());
@@ -2114,10 +2108,10 @@ impl<C: 'static + Chip> Process<'_, C> {
         process.header = tbf_header;
         process.kernel_memory_break = Cell::new(kernel_memory_break);
         process.original_kernel_memory_break = kernel_memory_break;
-        process.app_break = Cell::new(initial_sbrk_pointer);
-        process.original_app_break = initial_sbrk_pointer;
-        process.current_stack_pointer = Cell::new(initial_stack_pointer);
-        process.original_stack_pointer = initial_stack_pointer;
+        process.app_break = Cell::new(initial_layout.original_break);
+        process.original_app_break = initial_layout.original_break;
+        process.current_stack_pointer = Cell::new(initial_layout.original_stack_pointer);
+        process.original_stack_pointer = initial_layout.original_stack_pointer;
 
         process.flash = app_flash;
 
@@ -2144,7 +2138,7 @@ impl<C: 'static + Chip> Process<'_, C> {
             fixed_address_ram: fixed_address_ram,
             app_heap_start_pointer: app_heap_start_pointer,
             app_stack_start_pointer: app_stack_start_pointer,
-            min_stack_pointer: initial_stack_pointer,
+            min_stack_pointer: initial_layout.original_stack_pointer,
             syscall_count: 0,
             last_syscall: None,
             dropped_callback_count: 0,
@@ -2318,7 +2312,6 @@ impl<C: 'static + Chip> Process<'_, C> {
                 self.memory.as_ptr() as *const u8,
                 self.memory.len(),
                 self.memory.len(), //we want exactly as much as we had before restart
-                Self::INITIAL_APP_MEMORY_SIZE,
                 initial_kernel_memory_size,
                 mpu::Permissions::ReadWriteOnly,
                 &mut mpu_config,

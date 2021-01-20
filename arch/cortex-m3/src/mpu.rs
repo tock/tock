@@ -2,7 +2,6 @@
 //! Cortex-M4.
 
 use core::cell::Cell;
-use core::cmp;
 use core::fmt;
 use kernel;
 use kernel::common::cells::OptionalCell;
@@ -519,7 +518,6 @@ impl kernel::mpu::MPU for MPU {
         unallocated_memory_start: *const u8,
         unallocated_memory_size: usize,
         min_memory_size: usize,
-        initial_app_memory_size: usize,
         initial_kernel_memory_size: usize,
         permissions: mpu::Permissions,
         config: &mut Self::MpuConfig,
@@ -531,14 +529,8 @@ impl kernel::mpu::MPU for MPU {
             }
         }
 
-        // Make sure there is enough memory for app memory and kernel memory.
-        let memory_size = cmp::max(
-            min_memory_size,
-            initial_app_memory_size + initial_kernel_memory_size,
-        );
-
         // Size must be a power of two, so: https://www.youtube.com/watch?v=ovo6zwv6DX4
-        let mut region_size = math::closest_power_of_two(memory_size as u32) as usize;
+        let mut region_size = math::closest_power_of_two(min_memory_size as u32) as usize;
         let exponent = math::log_base_two(region_size as u32);
 
         if exponent < 8 {
@@ -569,7 +561,7 @@ impl kernel::mpu::MPU for MPU {
             if initial_kernel_memory_size == 0 {
                 8
             } else {
-                initial_app_memory_size * 8 / region_size + 1
+                min_memory_size * 8 / region_size + 1
             }
         };
 
@@ -593,7 +585,7 @@ impl kernel::mpu::MPU for MPU {
                 if initial_kernel_memory_size == 0 {
                     8
                 } else {
-                    initial_app_memory_size * 8 / region_size + 1
+                    min_memory_size * 8 / region_size + 1
                 }
             };
         }

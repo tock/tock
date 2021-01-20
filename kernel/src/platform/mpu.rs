@@ -1,7 +1,6 @@
 //! Interface for configuring the Memory Protection Unit.
 
 use crate::callback::AppId;
-use core::cmp;
 use core::fmt::{self, Display};
 
 /// User mode access permissions.
@@ -202,19 +201,14 @@ pub trait MPU {
         unallocated_memory_start: *const u8,
         unallocated_memory_size: usize,
         min_memory_size: usize,
-        initial_app_memory_size: usize,
         initial_kernel_memory_size: usize,
         permissions: Permissions,
         config: &mut Self::MpuConfig,
     ) -> Option<(*const u8, usize)> {
-        let memory_size = cmp::max(
-            min_memory_size,
-            initial_app_memory_size + initial_kernel_memory_size,
-        );
-        if memory_size > unallocated_memory_size {
+        if min_memory_size > unallocated_memory_size {
             None
         } else {
-            Some((unallocated_memory_start, memory_size))
+            Some((unallocated_memory_start, min_memory_size))
         }
     }
 

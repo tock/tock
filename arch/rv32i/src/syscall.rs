@@ -52,6 +52,20 @@ impl SysCall {
 impl kernel::syscall::UserspaceKernelBoundary for SysCall {
     type StoredState = Riscv32iStoredState;
 
+    fn initial_process_layout(
+        &self,
+        process_memory_start: *const u8,
+    ) -> kernel::syscall::InitialProcessLayout {
+        // RISC-V processes do not need to start with memory access. Processes
+        // must set their break during runtime setup before using memory.
+        // Processes must not rely on this original stack pointer value; it may
+        // change in future kernel versions.
+        kernel::syscall::InitialProcessLayout {
+            original_break: process_memory_start,
+            original_stack_pointer: 0 as *const u8,
+        }
+    }
+
     unsafe fn initialize_process(
         &self,
         stack_pointer: *const usize,

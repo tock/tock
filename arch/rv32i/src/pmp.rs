@@ -372,7 +372,6 @@ impl<const NUM_REGIONS: usize, const NUM_REGIONS_OVER_TWO: usize> kernel::mpu::M
         unallocated_memory_start: *const u8,
         unallocated_memory_size: usize,
         min_memory_size: usize,
-        initial_app_memory_size: usize,
         initial_kernel_memory_size: usize,
         permissions: mpu::Permissions,
         config: &mut Self::MpuConfig,
@@ -397,7 +396,7 @@ impl<const NUM_REGIONS: usize, const NUM_REGIONS_OVER_TWO: usize> kernel::mpu::M
 
         // App memory size is what we actual set the region to. So this region
         // has to be aligned to 4 bytes.
-        let mut initial_app_memory_size: usize = initial_app_memory_size;
+        let mut initial_app_memory_size: usize = min_memory_size;
         if initial_app_memory_size % 4 != 0 {
             initial_app_memory_size += 4 - (initial_app_memory_size % 4);
         }
