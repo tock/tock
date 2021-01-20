@@ -63,9 +63,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         // interrupt executes, so we need to give the process an initial usable
         // stack. We set the initial break at the top of the stack -- processes
         // must move the break upwards in their runtime implementation.
-        // TODO: 56 is a placeholder -- how large a space do we need to allocate
-        // here?
-        let original_stack_pointer = process_memory_start.wrapping_add(56);
+        let original_stack_pointer = process_memory_start.wrapping_add(0x20);
         kernel::syscall::InitialProcessLayout {
             original_break: original_stack_pointer,
             original_stack_pointer,

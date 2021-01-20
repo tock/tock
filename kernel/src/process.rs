@@ -38,6 +38,12 @@ pub enum ProcessLoadError {
     /// size of the region your board reserves for process memory.
     NotEnoughMemory,
 
+    /// The `min_ram_size` specified in the TBF headers is insufficient to
+    /// launch the process. This likely means that `min_ram_size` is specified
+    /// incorrectly, as the minimum RAM size necessary to launch a process is
+    /// extremely small.
+    MinRamSizeTooSmall,
+
     /// A process was loaded with a length in flash that the MPU does not
     /// support. The fix is probably to correct the process size, but this could
     /// also be caused by a bad MPU implementation.
@@ -87,6 +93,10 @@ impl fmt::Debug for ProcessLoadError {
 
             ProcessLoadError::NotEnoughMemory => {
                 write!(f, "Not able to meet memory requirements requested by apps")
+            }
+
+            ProcessLoadError::MinRamSizeTooSmall => {
+                write!(f, "min_ram_size too small to launch process")
             }
 
             ProcessLoadError::MpuInvalidFlashLength => {
@@ -2026,7 +2036,12 @@ impl<C: 'static + Chip> Process<'_, C> {
             }
         }
 
-        // Set the initial process stack and memory to 3072 bytes.
+        // Get the architecture-specific initial process-accessible memory size.
+        // Ideally, the kernel intends to not make any assumptions about process
+        // memory layout, and leave the setup of the stack, heap, and other data
+        // entirely to the process. However, on some architectures
+        // context-switching requires using the process's stack, so on those
+        // architectures we must have at least a minimal stack setup.
         let initial_layout = chip
             .userspace_kernel_boundary()
             .initial_process_layout(app_memory.as_ptr());
@@ -2075,6 +2090,13 @@ impl<C: 'static + Chip> Process<'_, C> {
         // Last thing in the kernel region of process RAM is the process struct.
         kernel_memory_break = kernel_memory_break.offset(-(Self::PROCESS_STRUCT_OFFSET as isize));
         let process_struct_memory_location = kernel_memory_break;
+
+        // Verify the initial process memory region does not overlap the kernel
+        // memory region. This can happen if the app requests a too-small amount
+        // of memory (e.g. 0).
+        if initial_layout.original_break > kernel_memory_break {
+            return Err(ProcessLoadError::MinRamSizeTooSmall);
+        }
 
         // Determine the debug information to the best of our understanding.
         // Since processes have to do their own setup (allocating a stack and

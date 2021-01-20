@@ -398,6 +398,10 @@ pub trait UserspaceKernelBoundary {
     /// Called by the kernel during process creation. Allows for
     /// architecture-specific process layout decisions, such as stack pointer
     /// initialization.
+    ///
+    /// Returns two pointers. First, the address where the kernel should set the
+    /// start of the process's stack, and second the address where the kernel
+    /// should set the app_brk.
     fn initial_process_layout(&self, process_memory_start: *const u8) -> InitialProcessLayout;
 
     /// Called by the kernel after it has memory allocated to it but before it
