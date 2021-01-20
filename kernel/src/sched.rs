@@ -28,7 +28,8 @@ use crate::platform::watchdog::WatchDog;
 use crate::platform::{Chip, Platform};
 use crate::process::{self, Task};
 use crate::returncode::ReturnCode;
-use crate::syscall::{ContextSwitchReason, GenericSyscallReturnValue, Syscall};
+use crate::syscall::{ContextSwitchReason, GenericSyscallReturnValue};
+use crate::syscall::{Syscall, YieldCall};
 
 /// Threshold in microseconds to consider a process's timeslice to be exhausted.
 /// That is, Tock will skip re-scheduling a process if its remaining timeslice
@@ -757,8 +758,7 @@ impl Kernel {
         // decide how to handle the error.
         match syscall {
             Syscall::Yield {
-                wait: _,
-                terminate: _,
+                which: _,
                 address: _,
             } => {} // Do nothing
             _ => {
@@ -789,33 +789,32 @@ impl Kernel {
                 process.set_syscall_return_value(rval);
             }
             Syscall::Yield {
-                wait,
-                terminate,
+                which,
                 address,
             } => {
                 if config::CONFIG.trace_syscalls {
-                    debug!("[{:?}] yield. wait: {}", process.appid(), wait);
+                    debug!("[{:?}] yield. which: {}", process.appid(), which);
                 }
-                if !terminate {
-                    // If this is a yield-no-wait AND there are no pending
-                    // tasks, then return immediately. Otherwise, go into the
+                if which > (YieldCall::Wait as usize) { // Only 0 and 1 are valid
+                    return;
+                }
+                let wait = which == (YieldCall::Wait as usize);
+                // If this is a yield-no-wait AND there are no pending
+                // tasks, then return immediately. Otherwise, go into the
                     // yielded state and execute tasks now or when they arrive.
-                    let return_now = !wait && !process.has_tasks();
-                    if return_now {
-                        // Set the "did I trigger callbacks" flag to be 0,
-                        // return immediately. If address is invalid does
-                        // nothing.
-                        process.set_byte(address, 0);
-                    } else {
-                        // There are already enqueued callbacks to execute or
-                        // we should wait for them: handle in the next loop
-                        // iteration and set the "did I trigger callbacks" flag
-                        // to be 1. If address is invalid does nothing.
-                        process.set_byte(address, 1);
-                        process.set_yielded_state();
-                    }
+                let return_now = !wait && !process.has_tasks();
+                if return_now {
+                    // Set the "did I trigger callbacks" flag to be 0,
+                    // return immediately. If address is invalid does
+                    // nothing.
+                    process.set_byte(address, 0);
                 } else {
-                    // Terminate process
+                    // There are already enqueued callbacks to execute or
+                    // we should wait for them: handle in the next loop
+                    // iteration and set the "did I trigger callbacks" flag
+                    // to be 1. If address is invalid does nothing.
+                    process.set_byte(address, 1);
+                    process.set_yielded_state();
                 }
             }
             Syscall::Subscribe {

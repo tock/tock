@@ -38,6 +38,15 @@ pub enum SyscallClass {
     Memop = 5,
 }
 
+#[repr(u8)]
+#[derive(Copy, Clone, Debug)]
+pub enum YieldCall {
+    NoWait = 0,
+    Wait = 1,
+}
+
+
+
 // Required as long as no solution to
 // https://github.com/rust-lang/rfcs/issues/2783 is integrated into
 // the standard library
@@ -65,8 +74,7 @@ pub enum Syscall {
     ///
     /// System call class ID 0
     Yield {
-        wait: bool,
-        terminate: bool,
+        which: usize,
         address: *mut u8,
     },
 
@@ -140,8 +148,7 @@ impl Syscall {
     ) -> Option<Self> {
         match SyscallClass::try_from(syscall_number) {
             Ok(SyscallClass::Yield) => Some(Syscall::Yield {
-                wait: r0 != 0,
-                terminate: r0 == 2,
+                which: r0,
                 address: r1 as *mut u8,
             }),
             Ok(SyscallClass::Subscribe) => Some(Syscall::Subscribe {
