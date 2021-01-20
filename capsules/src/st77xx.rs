@@ -43,7 +43,6 @@ use kernel::hil::screen::{
 };
 use kernel::hil::time::{self, Alarm};
 use kernel::ReturnCode;
-use kernel::{AppId, Callback, Driver};
 
 pub const BUFFER_SIZE: usize = 24;
 
@@ -176,12 +175,6 @@ macro_rules! default_parameters_sequence {
     }
 }
 
-static WRITE_PIXEL: [SendCommand; 3] = [
-    SendCommand::Position(&CASET, 0, 4),
-    SendCommand::Position(&RASET, 4, 4),
-    SendCommand::Position(&WRITE_RAM, 8, 2),
-];
-
 pub const SEQUENCE_BUFFER_SIZE: usize = 24;
 
 #[derive(Copy, Clone, PartialEq)]
@@ -218,7 +211,6 @@ pub struct ST77XX<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> {
     dc: Option<&'a P>,
     reset: &'a P,
     status: Cell<Status>,
-    callback: OptionalCell<Callback>,
     width: Cell<usize>,
     height: Cell<usize>,
 
@@ -261,8 +253,6 @@ impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> ST77XX<'a, A, B, P> {
             dc: dc,
             reset: reset,
             bus: bus,
-
-            callback: OptionalCell::empty(),
 
             status: Cell::new(Status::Idle),
             width: Cell::new(screen.default_width),
@@ -397,38 +387,6 @@ impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> ST77XX<'a, A, B, P> {
         );
     }
 
-    fn fill(&self, color: usize) -> ReturnCode {
-        if self.status.get() == Status::Idle {
-            // TODO check if buffer is available
-            self.sequence_buffer.map_or_else(
-                || panic!("st77xx: fill has no sequence buffer"),
-                |sequence| {
-                    // TODO no default
-                    sequence[0] = SendCommand::Default(&CASET);
-                    sequence[1] = SendCommand::Default(&RASET);
-                    self.buffer.map_or_else(
-                        || panic!("st77xx: fill has no buffer"),
-                        |buffer| {
-                            let bytes = self.width.get() * self.height.get() * 2;
-                            let buffer_space = (buffer.len() - 9) / 2 * 2;
-                            let repeat = (bytes / buffer_space) + 1;
-                            sequence[2] = SendCommand::Repeat(&WRITE_RAM, 9, buffer_space, repeat);
-                            for index in 0..(buffer_space / 2) {
-                                buffer[9 + 2 * index] = ((color >> 8) & 0xFF) as u8;
-                                buffer[9 + (2 * index + 1)] = color as u8;
-                            }
-                        },
-                    );
-                    self.sequence_len.set(3);
-                },
-            );
-            self.send_sequence_buffer();
-            ReturnCode::SUCCESS
-        } else {
-            ReturnCode::EBUSY
-        }
-    }
-
     fn rotation(&self, rotation: ScreenRotation) -> ReturnCode {
         if self.status.get() == Status::Idle {
             let rotation_bits = match rotation {
@@ -561,9 +519,6 @@ impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> ST77XX<'a, A, B, P> {
                     );
                 } else {
                     self.status.set(Status::Idle);
-                    self.callback.map(|callback| {
-                        callback.schedule(0, 0, 0);
-                    });
                     if !self.power_on.get() {
                         self.client.map(|client| {
                             self.power_on.set(true);
@@ -695,51 +650,6 @@ impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> ST77XX<'a, A, B, P> {
         }
     }
 
-    // fn write_data(&self, data: &'static [u8], len: usize) -> ReturnCode {
-    //     if self.status.get() == Status::Idle {
-    //         self.buffer.map(|buffer| {
-    //             // TODO verify length
-    //             for position in 0..len {
-    //                 buffer[position + 1] = data[position];
-    //             }
-    //         });
-    //         self.send_command(&RAMWR, 1, len, 1);
-    //         ReturnCode::SUCCESS
-    //     } else {
-    //         ReturnCode::EBUSY
-    //     }
-    // }
-
-    fn write_pixel(&self, x: usize, y: usize, color: usize) -> ReturnCode {
-        if x < self.width.get() && y < self.height.get() {
-            if self.status.get() == Status::Idle {
-                self.buffer.map_or_else(
-                    || panic!("st77xx: write pixel has no buffer"),
-                    |buffer| {
-                        // CASET
-                        buffer[1] = 0;
-                        buffer[2] = x as u8;
-                        buffer[3] = 0;
-                        buffer[4] = (x + 1) as u8;
-                        // RASET
-                        buffer[5] = 0;
-                        buffer[6] = y as u8;
-                        buffer[7] = 0;
-                        buffer[8] = (y + 1) as u8;
-                        // WRITE_RAM
-                        buffer[9] = ((color >> 8) & 0xFF) as u8;
-                        buffer[10] = (color & 0xFF) as u8
-                    },
-                );
-                self.send_sequence(&WRITE_PIXEL)
-            } else {
-                ReturnCode::EBUSY
-            }
-        } else {
-            ReturnCode::EINVAL
-        }
-    }
-
     pub fn init(&self) -> ReturnCode {
         if self.status.get() == Status::Idle {
             self.status.set(Status::Reset1);
@@ -762,38 +672,6 @@ impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> ST77XX<'a, A, B, P> {
         self.status.set(next_status);
         let interval = A::ticks_from_ms(timer);
         self.alarm.set_alarm(self.alarm.now(), interval);
-    }
-}
-
-impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> Driver for ST77XX<'a, A, B, P> {
-    fn command(&self, command_num: usize, data1: usize, data2: usize, _: AppId) -> ReturnCode {
-        match command_num {
-            0 => ReturnCode::SUCCESS,
-            // reset
-            1 => self.init(),
-            // fill with color (data1)
-            2 => self.fill(data1),
-            // write pixel (x:data1[15:8], y:data1[7:0], color:data2)
-            3 => self.write_pixel((data1 >> 8) & 0xFF, data1 & 0xFF, data2),
-            // default
-            _ => ReturnCode::ENOSUPPORT,
-        }
-    }
-
-    fn subscribe(
-        &self,
-        subscribe_num: usize,
-        callback: Option<Callback>,
-        _app_id: AppId,
-    ) -> ReturnCode {
-        match subscribe_num {
-            0 => {
-                self.callback.insert(callback);
-                ReturnCode::SUCCESS
-            }
-            // default
-            _ => ReturnCode::ENOSUPPORT,
-        }
     }
 }
 
