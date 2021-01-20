@@ -35,10 +35,11 @@
 
 use core::cell::Cell;
 use core::cmp;
+use core::convert::TryInto;
 use kernel::common::cells::NumericCellExt;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil;
-use kernel::ReturnCode;
+use kernel::ErrorCode;
 
 /// This module is either waiting to do something, or handling a read/write.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -94,14 +95,19 @@ impl<'a, F: hil::flash::Flash> hil::nonvolatile_storage::NonvolatileStorage<'sta
         self.client.set(client);
     }
 
-    fn read(&self, buffer: &'static mut [u8], address: usize, length: usize) -> ReturnCode {
+    fn read(
+        &self,
+        buffer: &'static mut [u8],
+        address: usize,
+        length: usize,
+    ) -> Result<(), ErrorCode> {
         if self.state.get() != State::Idle {
-            return ReturnCode::EBUSY;
+            return Err(ErrorCode::BUSY);
         }
 
         self.pagebuffer
             .take()
-            .map_or(ReturnCode::ERESERVE, move |pagebuffer| {
+            .map_or(Err(ErrorCode::RESERVE), move |pagebuffer| {
                 let page_size = pagebuffer.as_mut().len();
 
                 // Just start reading. We'll worry about how much of the page we
@@ -114,23 +120,30 @@ impl<'a, F: hil::flash::Flash> hil::nonvolatile_storage::NonvolatileStorage<'sta
                 self.buffer_index.set(0);
 
                 match self.driver.read_page(address / page_size, pagebuffer) {
-                    Ok(()) => ReturnCode::SUCCESS,
+                    Ok(()) => Ok(()),
                     Err((return_code, pagebuffer)) => {
                         self.pagebuffer.replace(pagebuffer);
-                        return_code
+                        Err(return_code
+                            .try_into()
+                            .expect("ReturnCode success variant in error case"))
                     }
                 }
             })
     }
 
-    fn write(&self, buffer: &'static mut [u8], address: usize, length: usize) -> ReturnCode {
+    fn write(
+        &self,
+        buffer: &'static mut [u8],
+        address: usize,
+        length: usize,
+    ) -> Result<(), ErrorCode> {
         if self.state.get() != State::Idle {
-            return ReturnCode::EBUSY;
+            return Err(ErrorCode::BUSY);
         }
 
         self.pagebuffer
             .take()
-            .map_or(ReturnCode::ERESERVE, move |pagebuffer| {
+            .map_or(Err(ErrorCode::RESERVE), move |pagebuffer| {
                 let page_size = pagebuffer.as_mut().len();
 
                 self.state.set(State::Write);
@@ -151,10 +164,12 @@ impl<'a, F: hil::flash::Flash> hil::nonvolatile_storage::NonvolatileStorage<'sta
                     self.buffer_index.set(page_size);
 
                     match self.driver.write_page(address / page_size, pagebuffer) {
-                        Ok(()) => ReturnCode::SUCCESS,
+                        Ok(()) => Ok(()),
                         Err((return_code, pagebuffer)) => {
                             self.pagebuffer.replace(pagebuffer);
-                            return_code
+                            Err(return_code
+                                .try_into()
+                                .expect("ReturnCode success variant in error case"))
                         }
                     }
                 } else {
@@ -165,10 +180,12 @@ impl<'a, F: hil::flash::Flash> hil::nonvolatile_storage::NonvolatileStorage<'sta
                     self.buffer_index.set(0);
 
                     match self.driver.read_page(address / page_size, pagebuffer) {
-                        Ok(()) => ReturnCode::SUCCESS,
+                        Ok(()) => Ok(()),
                         Err((return_code, pagebuffer)) => {
                             self.pagebuffer.replace(pagebuffer);
-                            return_code
+                            Err(return_code
+                                .try_into()
+                                .expect("ReturnCode success variant in error case"))
                         }
                     }
                 }

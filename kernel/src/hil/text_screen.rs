@@ -18,7 +18,11 @@ pub trait TextScreen<'a> {
     /// Return values:
     /// - `SUCCESS`: The write command is valid and will be sent to the driver.
     /// - `EBUSY`: The driver is busy with another command.
-    fn print(&self, buffer: &'static mut [u8], len: usize) -> ReturnCode;
+    fn print(
+        &self,
+        buffer: &'static mut [u8],
+        len: usize,
+    ) -> Result<(), (ReturnCode, &'static mut [u8])>;
 
     /// Sends to the driver a command to set the cursor at a given position
     /// (x_position, y_position). When finished, the driver will call the
@@ -92,5 +96,5 @@ pub trait TextScreenClient {
     fn command_complete(&self, r: ReturnCode);
 
     /// The driver calls this function when a write command finishes executing.
-    fn write_complete(&self, buffer: &'static mut [u8], r: ReturnCode);
+    fn write_complete(&self, buffer: &'static mut [u8], len: usize, r: ReturnCode);
 }
