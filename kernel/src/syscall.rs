@@ -63,6 +63,13 @@ pub enum ContextSwitchReason {
 /// This trait must be implemented by the architecture of the chip Tock is
 /// running on. It allows the kernel to manage switching to and from processes
 /// in an architecture-agnostic manner.
+///
+/// Since exactly how callbacks and return values are passed between kernelspace
+/// and userspace is implementation specific, and may use process memory to
+/// store state when switching, functions in this trait are passed the bounds of
+/// process-accessible memory so that the implementation can verify it is
+/// reading and writing memory that the process has valid access to. These
+/// bounds are passed through `memory_start` and `app_brk` pointers.
 pub trait UserspaceKernelBoundary {
     /// Some architecture-specific struct containing per-process state that must
     /// be kept while the process is not running. For example, for keeping CPU
@@ -73,36 +80,63 @@ pub trait UserspaceKernelBoundary {
     /// initialization must happen in the `initialize_process()` function.
     type StoredState: Default;
 
+    /// Called by the kernel during process creation to inform the kernel of the
+    /// minimum amount of process-accessible RAM needed by a new process. This
+    /// allows for architecture-specific process layout decisions, such as stack
+    /// pointer initialization.
+    ///
+    /// This returns the minimum number of bytes of process-accessible memory
+    /// the kernel must allocate to a process so that a successful context
+    /// switch is possible.
+    ///
+    /// Some architectures may not need any allocated memory, and this should
+    /// return 0. In general, implementations should try to pre-allocate the
+    /// minimal amount of process-accessible memory (i.e. return as close to 0
+    /// as possible) to provide the most flexibility to the process. However,
+    /// the return value will be nonzero for architectures where values are
+    /// passed in memory between kernelspace and userspace during syscalls or a
+    /// stack needs to be setup.
+    fn initial_process_app_brk_size(&self) -> usize;
+
     /// Called by the kernel after it has memory allocated to it but before it
     /// is allowed to begin executing. Allows for architecture-specific process
     /// setup, e.g. allocating a syscall stack frame.
     ///
     /// This function must also initialize the stored state (if needed).
     ///
+    /// The kernel calls this function with the start of memory allocated to the
+    /// process by providing `memory_start`. It also provides the app_brk pointer which
+    /// marks the end of process-accessible memory.
+    ///
+    /// If successful, this function returns `Ok()`. If the process syscall
+    /// state cannot be initialized with the available amount of memory, or for
+    /// any other reason, it should return `Err()`.
+    ///
     /// This function may be called multiple times on the same process. For
     /// example, if a process crashes and is to be restarted, this must be
     /// called. Or if the process is moved this may need to be called.
     unsafe fn initialize_process(
         &self,
-        stack_pointer: *const usize,
-        stack_size: usize,
+        memory_start: *const u8,
+        app_brk: *const u8,
         state: &mut Self::StoredState,
-    ) -> Result<*const usize, ()>;
+    ) -> Result<(), ()>;
 
     /// Set the return value the process should see when it begins executing
     /// again after the syscall. This will only be called after a process has
     /// called a syscall.
     ///
-    /// To help implementations, both the current stack pointer of the process
-    /// and the saved state for the process are provided. The `return_value` is
-    /// the value that should be passed to the process so that when it resumes
-    /// executing it knows the return value of the syscall it called.
+    /// The process to set the return value for is specified by the `state`
+    /// value. The `return_value` is the value that should be passed to the
+    /// process so that when it resumes executing it knows the return value of
+    /// the syscall it called.
     unsafe fn set_syscall_return_value(
         &self,
-        stack_pointer: *const usize,
+        memory_start: *const u8,
+        app_brk: *const u8,
         state: &mut Self::StoredState,
         return_value: isize,
-    );
+    ) -> Result<(), ()>;
 
     /// Set the function that the process should execute when it is resumed.
     /// This has two major uses: 1) sets up the initial function call to
@@ -115,46 +149,47 @@ pub trait UserspaceKernelBoundary {
     ///
     /// ### Arguments
     ///
-    /// - `stack_pointer` is the address of the stack pointer for the current
-    ///   app.
-    /// - `remaining_stack_memory` is the number of bytes below the
-    ///   `stack_pointer` that is allocated for the process. This value is
-    ///   checked by the implementer to ensure that there is room for this stack
-    ///   frame without overflowing the stack.
+    /// - `memory_start` is the address of the start of the memory region
+    ///   allocated to this process.
+    /// - `app_brk` is the address of the current process break. This marks the
+    ///   end of the memory region the process has access to. Note, this is not
+    ///   the end of the entire memory region allocated to the process. Some
+    ///   memory above this address is still allocated for the process, but if
+    ///   the process tries to access it an MPU fault will occur.
     /// - `state` is the stored state for this process.
     /// - `callback` is the function that should be executed when the process
     ///   resumes.
     ///
     /// ### Return
     ///
-    /// Returns `Ok` or `Err` with the current address of the stack pointer for
-    /// the process. One reason for returning `Err` is that adding the function
-    /// call requires adding to the stack, and there is insufficient room on the
-    /// stack to add the function call.
+    /// Returns `Ok(())` if the function was successfully enqueued for the
+    /// process. Returns `Err(())` if the function was not, likely because there
+    /// is insufficient memory available to do so.
     unsafe fn set_process_function(
         &self,
-        stack_pointer: *const usize,
-        remaining_stack_memory: usize,
+        memory_start: *const u8,
+        app_brk: *const u8,
         state: &mut Self::StoredState,
         callback: process::FunctionCall,
-    ) -> Result<*mut usize, *mut usize>;
+    ) -> Result<(), ()>;
 
     /// Context switch to a specific process.
     ///
-    /// This returns a tuple:
-    /// - The new stack pointer address of the process.
-    /// - Why the process stopped executing and switched back to the kernel.
+    /// This returns why the process stopped executing and switched back to the
+    /// kernel.
     unsafe fn switch_to_process(
         &self,
-        stack_pointer: *const usize,
+        memory_start: *const u8,
+        app_brk: *const u8,
         state: &mut Self::StoredState,
-    ) -> (*mut usize, ContextSwitchReason);
+    ) -> ContextSwitchReason;
 
     /// Display architecture specific (e.g. CPU registers or status flags) data
-    /// for a process identified by its stack pointer.
+    /// for a process identified by the stored state for that process.
     unsafe fn print_context(
         &self,
-        stack_pointer: *const usize,
+        memory_start: *const u8,
+        app_brk: *const u8,
         state: &Self::StoredState,
         writer: &mut dyn Write,
     );
