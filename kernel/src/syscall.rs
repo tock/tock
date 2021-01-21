@@ -175,14 +175,20 @@ pub trait UserspaceKernelBoundary {
 
     /// Context switch to a specific process.
     ///
-    /// This returns why the process stopped executing and switched back to the
-    /// kernel.
+    /// This returns two values in a tuple.
+    ///
+    /// 1. A `ContextSwitchReason` indicating why the process stopped executing
+    ///    and switched back to the kernel.
+    /// 2. Optionally, the current stack pointer used by the process. This is
+    ///    optional because it is only for debugging in process.rs. By sharing
+    ///    the process's stack pointer with process.rs users can inspect the
+    ///    state and see the stack depth, which might be useful for debugging.
     unsafe fn switch_to_process(
         &self,
         memory_start: *const u8,
         app_brk: *const u8,
         state: &mut Self::StoredState,
-    ) -> ContextSwitchReason;
+    ) -> (ContextSwitchReason, Option<*const u8>);
 
     /// Display architecture specific (e.g. CPU registers or status flags) data
     /// for a process identified by the stored state for that process.

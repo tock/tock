@@ -169,7 +169,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         memory_start: *const u8,
         app_brk: *const u8,
         state: &mut CortexMStoredState,
-    ) -> kernel::syscall::ContextSwitchReason {
+    ) -> (kernel::syscall::ContextSwitchReason, Option<*const u8>) {
         let new_stack_pointer = switch_to_user(state.psp as *const usize, &mut state.regs);
 
         // We need to keep track of the current stack pointer.
@@ -202,7 +202,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         write_volatile(&mut SYSCALL_FIRED, 0);
 
         // Now decide the reason based on which flags were set.
-        if app_fault == 1 || invalid_stack_pointer {
+        let switch_reason = if app_fault == 1 || invalid_stack_pointer {
             // APP_HARD_FAULT takes priority. This means we hit the hardfault
             // handler and this process faulted.
             kernel::syscall::ContextSwitchReason::Fault
@@ -239,7 +239,9 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
             // If none of the above cases are true its because the process was interrupted by an
             // ISR for a hardware event
             kernel::syscall::ContextSwitchReason::Interrupted
-        }
+        };
+
+        (switch_reason, Some(new_stack_pointer as *const u8))
     }
 
     unsafe fn print_context(

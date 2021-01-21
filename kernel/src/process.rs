@@ -1342,13 +1342,29 @@ impl<C: Chip> ProcessType for Process<'_, C> {
             return None;
         }
 
-        let switch_reason = self.stored_state.map(|stored_state| {
-            let switch_reason = self.chip.userspace_kernel_boundary().switch_to_process(
-                self.memory.as_ptr(),
-                self.app_break.get(),
-                stored_state,
-            );
-            switch_reason
+        let (switch_reason, stack_pointer) =
+            self.stored_state.map_or((None, None), |stored_state| {
+                let (switch_reason, optional_stack_pointer) = self
+                    .chip
+                    .userspace_kernel_boundary()
+                    .switch_to_process(self.memory.as_ptr(), self.app_break.get(), stored_state);
+                (Some(switch_reason), optional_stack_pointer)
+            });
+
+        // If the UKB implementation passed us a stack pointer, update our
+        // debugging state. This is completely optional.
+        stack_pointer.map(|sp| {
+            self.debug.map(|debug| {
+                match debug.app_stack_min_pointer {
+                    None => debug.app_stack_min_pointer = Some(sp),
+                    Some(asmp) => {
+                        // Update max stack depth if needed.
+                        if sp < asmp {
+                            debug.app_stack_min_pointer = Some(sp);
+                        }
+                    }
+                }
+            });
         });
 
         switch_reason

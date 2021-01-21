@@ -145,7 +145,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         _memory_start: *const u8,
         _app_brk: *const u8,
         _state: &mut Riscv32iStoredState,
-    ) -> ContextSwitchReason {
+    ) -> (ContextSwitchReason, Option<*const u8>) {
         // Convince lint that 'mcause' and 'R_A4' are used during test build
         let _cause = mcause::Trap::from(_state.mcause);
         let _arg4 = _state.regs[R_A4];
@@ -158,7 +158,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         _memory_start: *const u8,
         _app_brk: *const u8,
         state: &mut Riscv32iStoredState,
-    ) -> ContextSwitchReason {
+    ) -> (ContextSwitchReason, Option<*const u8>) {
         llvm_asm! ("
           // Before switching to the app we need to save the kernel registers to
           // the kernel stack. We then save the stack pointer in the mscratch
@@ -375,7 +375,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
           : "memory"
           : "volatile");
 
-        match mcause::Trap::from(state.mcause) {
+        let ret = match mcause::Trap::from(state.mcause) {
             mcause::Trap::Interrupt(_intr) => {
                 // An interrupt occurred while the app was running.
                 ContextSwitchReason::Interrupted
@@ -407,7 +407,9 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
                     }
                 }
             }
-        }
+        };
+        let new_stack_pointer = state.regs[R_SP];
+        (ret, Some(new_stack_pointer as *const u8))
     }
 
     unsafe fn print_context(
