@@ -17,6 +17,7 @@ Organizations that have contributed code to Tock include:
   * University of California, Berkeley
   * University of California, San Diego
   * University of Michigan
+  * University of Stuttgart
   * University of Virginia
   * Western Digital
 
