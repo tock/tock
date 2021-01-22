@@ -1,0 +1,12 @@
+tock-kernel: 96fceb1a669b7c780b3edf9853882c02e4fcdefb
+tock-bootloader: 885883c08e1099374c532d03c621e3a5a8e2fe29
+sha256: 47ab03a60a9265943d276bfedb7bc5d0da7da10780f8b5b4cd024413ec3e26ae
+
+toolchain:
+    rustc 1.51.0-nightly (c2de47a9a 2021-01-06)
+    binary: rustc
+    commit-hash: c2de47a9aa4c9812884f341f1852e9c9610f5f7a
+    commit-date: 2021-01-06
+    host: x86_64-unknown-linux-gnu
+    release: 1.51.0-nightly
+    
