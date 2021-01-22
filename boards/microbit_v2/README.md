@@ -62,6 +62,24 @@ To manage applications, please read the [Tockloader documentation](https://githu
 
 
 ## Flashing without bootloader
+
+### Memory layout
+
+The kernel memory layout is different if there is no bootloader. Change the `layout.ld` file to:
+
+```
+MEMORY
+{
+  # with bootloader
+  # rom (rx)  : ORIGIN = 0x00010000, LENGTH = 192K
+  # without bootloader
+  rom (rx)  : ORIGIN = 0x00000000, LENGTH = 256K
+  prog (rx) : ORIGIN = 0x00040000, LENGTH = 256K
+  ram (rwx) : ORIGIN = 0x20000000, LENGTH = 128K
+}
+```
+
+Not using a bootloader has the advantage of having an extra 64 KB of flash.
 ### Flashing the kernel
 
 The kernel can be programmed using OpenOCD. `cd` into `boards/microbit_v2`
