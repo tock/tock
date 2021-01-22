@@ -17,7 +17,45 @@ following sensors:
 
 First, follow the [Tock Getting Started guide](../../../doc/Getting_Started.md)
 
-## Flashing the kernel
+## Bootloader
+
+Tock uses [Tock Bootloader](https://github.com/tock/tock-bootloader) to program devices.
+
+As MicroBit v2 has an on board debugger that provides several ways of programming it, is shipped without an actual bootloader.
+
+Use the `make flash-bootloader` command to flash [Tock Bootloader](https://github.com/tock/tock-bootloader) to the board.
+
+```bash
+$ make flash-bootloader
+```
+
+## Uploading the kernal
+
+Make sure you have flashed [Tock Bootloader](https://github.com/tock/tock-bootloader) to the board.
+
+Make sure you have [Tockloader](https://github.com/tock/tockloader) installed.
+
+To upload the kernel, you must first enter in bootloader mode. Press and hold Button A while pressing the Reset button on the back of the board.
+The board will reset and enter bootloader mode. This is signaled by turning on the Microphone LED.
+
+In bootloader mode, run the `make program` command.
+
+```bash
+$ make program
+```
+
+Programming the kernal might take some time.
+
+## Manage applications
+
+Make sure you have flashed [Tock Bootloader](https://github.com/tock/tock-bootloader) to the board.
+
+Make sure you have [Tockloader](https://github.com/tock/tockloader) installed.
+
+To manage applications, please read the [Tockloader documentation](https://github.com/tock/tockloader/blob/master/docs/index.md).
+
+## Flashing without bootloader
+### Flashing the kernel
 
 The kernel can be programmed using OpenOCD. `cd` into `boards/microbit_v2`
 directory and run:
@@ -30,12 +68,7 @@ $ make flash
 $ make flash-debug
 ```
 
-> **Note:** Unlike other Tock platforms, the default kernel image for this
-> board will clear flashed apps when the kernel is loaded. This is to support
-> the non-tockloader based app flash procedure below. To preserve loaded apps,
-> comment out the `APP_HACK` variable in `src/main.rs`.
-
-## Flashing app
+### Flashing app
 
 Apps are built out-of-tree. Once an app is built, you can use
 `arm-none-eabi-objcopy` with `--update-section` to create an ELF image with the
@@ -55,7 +88,7 @@ APP=../../../libtock-c/examples/c_hello/build/cortex-m4/cortex-m4.tbf
 KERNEL=$(TOCK_ROOT_DIRECTORY)/target/$(TARGET)/debug/$(PLATFORM).elf
 KERNEL_WITH_APP=$(TOCK_ROOT_DIRECTORY)/target/$(TARGET)/debug/$(PLATFORM)-app.elf
 
-.PHONY: program
+.PHONY: flash-app
 program: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/debug/$(PLATFORM).elf
     arm-none-eabi-objcopy --update-section .apps=$(APP) $(KERNEL) $(KERNEL_WITH_APP)
 	$(OPENOCD) $(OPENOCD_OPTIONS) -c "program $(KERNEL_WITH_APP); verify_image $(KERNEL_WITH_APP); reset; shutdown;"
@@ -65,7 +98,7 @@ After setting `APP`, `KERNEL`, `KERNEL_WITH_APP`, and `program` target
 dependency, you can do
 
 ```bash
-$ make program
+$ make flash-app
 ```
 
 to flash the image.
