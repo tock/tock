@@ -54,6 +54,13 @@ Make sure you have [Tockloader](https://github.com/tock/tockloader) installed.
 
 To manage applications, please read the [Tockloader documentation](https://github.com/tock/tockloader/blob/master/docs/index.md).
 
+> **_NOTE:_**  If you are using an older version of Tockloader, add `--page-size 512` at the end of the command line.
+>
+> ```bash
+> $ tockloader ... --page-size 512
+> ```
+
+
 ## Flashing without bootloader
 ### Flashing the kernel
 
