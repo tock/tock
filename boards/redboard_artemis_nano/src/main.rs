@@ -74,7 +74,7 @@ impl Platform for RedboardArtemisNano {
         match driver_num {
             capsules::alarm::DRIVER_NUM => f(Some(Ok(self.alarm))),
             capsules::led::DRIVER_NUM => f(Some(Ok(self.led))),
-            capsules::gpio::DRIVER_NUM => f(Some(Err(self.gpio))),
+            capsules::gpio::DRIVER_NUM => f(Some(Ok(self.gpio))),
             capsules::console::DRIVER_NUM => f(Some(Ok(self.console))),
             capsules::i2c_master::DRIVER_NUM => f(Some(Ok(self.i2c_master))),
             capsules::ble_advertising_driver::DRIVER_NUM => f(Some(Err(self.ble_radio))),

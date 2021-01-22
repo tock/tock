@@ -75,7 +75,7 @@ impl Platform for WeactF401CC {
             capsules::adc::DRIVER_NUM => f(Some(Ok(self.adc))),
             capsules::alarm::DRIVER_NUM => f(Some(Ok(self.alarm))),
             kernel::ipc::DRIVER_NUM => f(Some(Err(&self.ipc))),
-            capsules::gpio::DRIVER_NUM => f(Some(Err(self.gpio))),
+            capsules::gpio::DRIVER_NUM => f(Some(Ok(self.gpio))),
             _ => f(None),
         }
     }
