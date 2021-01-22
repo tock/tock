@@ -9,6 +9,8 @@ include ../Makefile.common
 OPENOCD=openocd
 OPENOCD_OPTIONS=-f openocd.cfg
 
+TOCKLOADER=tockloader
+
 APP=../../../libtock-c/examples/sensors/build/cortex-m4/cortex-m4.tbf
 KERNEL=$(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf
 KERNEL_WITH_APP=$(TOCK_ROOT_DIRECTORY)/target/$(TARGET)/release/$(PLATFORM)-app.elf
@@ -25,8 +27,16 @@ flash-debug: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/debug/$(PLATFORM).elf
 flash: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf
 	$(OPENOCD) $(OPENOCD_OPTIONS) -c "program $<; verify_image $<; reset; shutdown;"
 
-.PHONY: program
-program: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).bin
+.PHONY: flash-app
+flash-app: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).bin
 	arm-none-eabi-objcopy --update-section .apps=$(APP) $(KERNEL) $(KERNEL_WITH_APP)
 	$(OPENOCD) $(OPENOCD_OPTIONS) -c "program $(KERNEL_WITH_APP); verify_image $(KERNEL_WITH_APP); reset; shutdown;"
+
+.PHONY: program
+program: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/debug/$(PLATFORM).bin
+	$(TOCKLOADER) flash $< --page-size 512
+
+.PHONY: flash-bootloader
+flash-bootloader: bootloader/tock-bootloader.microbit_v2.v1.1.0.bin
+	$(OPENOCD) $(OPENOCD_OPTIONS) -c "program $<; verify_image $<; reset; shutdown;"
 
