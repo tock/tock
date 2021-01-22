@@ -23,6 +23,19 @@ Tock uses [Tock Bootloader](https://github.com/tock/tock-bootloader) to program 
 
 As MicroBit v2 has an on board debugger that provides several ways of programming it, is shipped without an actual bootloader.
 
+There are two ways for flashing the bootloader:
+ 1. Using the MicroBit USB drive
+ 2. Using openocd
+
+### Using the MicroBit USB Drive
+
+Connect then MicroBit to the computer. A USB drive labeled `MICROBIT` should show up. 
+
+Drag and drop the `bootloader/tock-bootloader.microbit_v2.v1.1.0.bin` to the `MICROBIT` drive and wait for a few seconds.
+
+The board will reset and the bootloader should be running on it. To check whether it's working, press and hold the Button A while pressing the reset button. The Microphone LED should light up.
+
+### Using openocd 
 Use the `make flash-bootloader` command to flash [Tock Bootloader](https://github.com/tock/tock-bootloader) to the board.
 
 ```bash
