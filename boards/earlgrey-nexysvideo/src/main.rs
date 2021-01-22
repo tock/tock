@@ -87,7 +87,7 @@ impl Platform for EarlGreyNexysVideo {
     {
         match driver_num {
             capsules::led::DRIVER_NUM => f(Some(Ok(self.led))),
-            capsules::hmac::DRIVER_NUM => f(Some(Err(self.hmac))),
+            capsules::hmac::DRIVER_NUM => f(Some(Ok(self.hmac))),
             capsules::gpio::DRIVER_NUM => f(Some(Err(self.gpio))),
             capsules::console::DRIVER_NUM => f(Some(Ok(self.console))),
             capsules::alarm::DRIVER_NUM => f(Some(Ok(self.alarm))),
