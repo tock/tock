@@ -54,7 +54,7 @@ pub const DRIVER_NUM: usize = driver::NUM::Gpio as usize;
 use core::mem;
 use kernel::hil::gpio;
 use kernel::hil::gpio::{Configure, Input, InterruptWithValue, Output};
-use kernel::{AppId, Callback, CommandResult, Grant, Driver, ErrorCode};
+use kernel::{AppId, Callback, CommandResult, Driver, ErrorCode, Grant};
 
 pub struct GPIO<'a, IP: gpio::InterruptPin<'a>> {
     pins: &'a [Option<&'a gpio::InterruptValueWrapper<'a, IP>>],
@@ -94,7 +94,7 @@ impl<'a, IP: gpio::InterruptPin<'a>> GPIO<'a, IP> {
                     pin.set_floating_state(gpio::FloatingState::PullDown);
                     CommandResult::success()
                 }
-                _ => CommandResult::failure(ErrorCode::NOSUPPORT)
+                _ => CommandResult::failure(ErrorCode::NOSUPPORT),
             }
         } else {
             CommandResult::failure(ErrorCode::NODEVICE)
@@ -167,7 +167,7 @@ impl<'a, IP: gpio::InterruptPin<'a>> Driver for GPIO<'a, IP> {
                 })
                 .map_err(ErrorCode::from),
             // default
-            _ => Err(ErrorCode::NOSUPPORT)
+            _ => Err(ErrorCode::NOSUPPORT),
         };
         if let Err(e) = res {
             Err((callback, e))
@@ -211,9 +211,7 @@ impl<'a, IP: gpio::InterruptPin<'a>> Driver for GPIO<'a, IP> {
         let pin_index = data1;
         match command_num {
             // number of pins
-            0 => {
-                CommandResult::success_u32(pins.len() as u32)
-            },
+            0 => CommandResult::success_u32(pins.len() as u32),
 
             // enable output
             1 => {
