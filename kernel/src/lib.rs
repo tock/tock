@@ -85,7 +85,7 @@
 //!    this use case. It is likely we will have to create new interfaces as new
 //!    use cases are discovered.
 
-#![feature(core_intrinsics, const_fn, try_trait)]
+#![feature(core_intrinsics, const_fn)]
 #![warn(unreachable_pub)]
 #![no_std]
 
@@ -108,7 +108,6 @@ mod platform;
 mod process;
 mod returncode;
 mod sched;
-mod tbfheader;
 
 pub use crate::callback::{AppId, Callback};
 pub use crate::driver::Driver;

@@ -20,13 +20,13 @@ use crate::platform::Chip;
 use crate::returncode::ReturnCode;
 use crate::sched::Kernel;
 use crate::syscall::{self, Syscall, UserspaceKernelBoundary};
-use crate::tbfheader;
+
 use core::cmp::max;
 
 /// Errors that can occur when trying to load and create processes.
 pub enum ProcessLoadError {
     /// The TBF header for the process could not be successfully parsed.
-    TbfHeaderParseFailure(tbfheader::TbfParseError),
+    TbfHeaderParseFailure(tock_tbf::types::TbfParseError),
 
     /// Not enough flash remaining to parse a process and its header.
     NotEnoughFlash,
@@ -61,12 +61,12 @@ pub enum ProcessLoadError {
     InternalError,
 }
 
-impl From<tbfheader::TbfParseError> for ProcessLoadError {
+impl From<tock_tbf::types::TbfParseError> for ProcessLoadError {
     /// Convert between a TBF Header parse error and a process load error.
     ///
     /// We note that the process load error is because a TBF header failed to
     /// parse, and just pass through the parse error.
-    fn from(error: tbfheader::TbfParseError) -> Self {
+    fn from(error: tock_tbf::types::TbfParseError) -> Self {
         ProcessLoadError::TbfHeaderParseFailure(error)
     }
 }
@@ -171,18 +171,18 @@ pub fn load_processes<C: Chip>(
         // Pass the first eight bytes to tbfheader to parse out the length of
         // the tbf header and app. We then use those values to see if we have
         // enough flash remaining to parse the remainder of the header.
-        let (version, header_length, entry_length) = match tbfheader::parse_tbf_header_lengths(
+        let (version, header_length, entry_length) = match tock_tbf::parse::parse_tbf_header_lengths(
             test_header_slice
                 .try_into()
                 .or(Err(ProcessLoadError::InternalError))?,
         ) {
             Ok((v, hl, el)) => (v, hl, el),
-            Err(tbfheader::InitialTbfParseError::InvalidHeader(entry_length)) => {
+            Err(tock_tbf::types::InitialTbfParseError::InvalidHeader(entry_length)) => {
                 // If we could not parse the header, then we want to skip over
                 // this app and look for the next one.
                 (0, 0, entry_length)
             }
-            Err(tbfheader::InitialTbfParseError::UnableToParse) => {
+            Err(tock_tbf::types::InitialTbfParseError::UnableToParse) => {
                 // Since Tock apps use a linked list, it is very possible the
                 // header we started to parse is intentionally invalid to signal
                 // the end of apps. This is ok and just means we have finished
@@ -845,7 +845,7 @@ pub struct Process<'a, C: 'static + Chip> {
     flash: &'static [u8],
 
     /// Collection of pointers to the TBF header in flash.
-    header: tbfheader::TbfHeader,
+    header: tock_tbf::types::TbfHeader,
 
     /// State saved on behalf of the process each time the app switches to the
     /// kernel.
@@ -1621,7 +1621,7 @@ impl<C: 'static + Chip> Process<'_, C> {
 
         // Parse the full TBF header to see if this is a valid app. If the
         // header can't parse, we will error right here.
-        let tbf_header = tbfheader::parse_tbf_header(header_flash, app_version)?;
+        let tbf_header = tock_tbf::parse::parse_tbf_header(header_flash, app_version)?;
 
         // First thing: check that the process is at the correct location in
         // flash if the TBF header specified a fixed address. If there is a
