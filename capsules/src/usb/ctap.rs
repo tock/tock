@@ -22,7 +22,7 @@ use kernel::common::cells::OptionalCell;
 use kernel::common::cells::TakeCell;
 use kernel::hil;
 use kernel::hil::usb::TransferType;
-use kernel::ReturnCode;
+use kernel::ErrorCode;
 
 /// Use 1 Interrupt transfer IN/OUT endpoint
 const ENDPOINT_NUM: usize = 1;
@@ -198,7 +198,7 @@ impl<'a, U: hil::usb::UsbController<'a>> hil::usb_hid::UsbHid<'a, [u8; 64]> for 
     fn send_buffer(
         &'a self,
         send: &'static mut [u8; 64],
-    ) -> Result<usize, (ReturnCode, &'static mut [u8; 64])> {
+    ) -> Result<usize, (ErrorCode, &'static mut [u8; 64])> {
         let len = send.len();
 
         self.send_buffer.replace(send);
@@ -207,17 +207,17 @@ impl<'a, U: hil::usb::UsbController<'a>> hil::usb_hid::UsbHid<'a, [u8; 64]> for 
         Ok(len)
     }
 
-    fn send_cancel(&'a self) -> Result<&'static mut [u8; 64], ReturnCode> {
+    fn send_cancel(&'a self) -> Result<&'static mut [u8; 64], ErrorCode> {
         match self.send_buffer.take() {
             Some(buf) => Ok(buf),
-            None => Err(ReturnCode::EBUSY),
+            None => Err(ErrorCode::BUSY),
         }
     }
 
     fn receive_buffer(
         &'a self,
         recv: &'static mut [u8; 64],
-    ) -> Result<(), (ReturnCode, &'static mut [u8; 64])> {
+    ) -> Result<(), (ErrorCode, &'static mut [u8; 64])> {
         self.recv_buffer.replace(recv);
 
         if self.saved_endpoint.is_some() {
@@ -225,11 +225,7 @@ impl<'a, U: hil::usb::UsbController<'a>> hil::usb_hid::UsbHid<'a, [u8; 64]> for 
             if self.can_receive() {
                 self.recv_buffer.take().map(|buf| {
                     self.client.map(move |client| {
-                        client.packet_received(
-                            ReturnCode::SUCCESS,
-                            buf,
-                            self.saved_endpoint.take().unwrap(),
-                        );
+                        client.packet_received(Ok(()), buf, self.saved_endpoint.take().unwrap());
                     });
                 });
                 // Reset the offset
@@ -243,11 +239,11 @@ impl<'a, U: hil::usb::UsbController<'a>> hil::usb_hid::UsbHid<'a, [u8; 64]> for 
         Ok(())
     }
 
-    fn receive_cancel(&'a self) -> Result<&'static mut [u8; 64], ReturnCode> {
+    fn receive_cancel(&'a self) -> Result<&'static mut [u8; 64], ErrorCode> {
         self.saved_endpoint.take();
         match self.recv_buffer.take() {
             Some(buf) => Ok(buf),
-            None => Err(ReturnCode::EBUSY),
+            None => Err(ErrorCode::BUSY),
         }
     }
 }
@@ -373,7 +369,7 @@ impl<'a, U: hil::usb::UsbController<'a>> hil::usb::Client<'a> for CtapHid<'a, U>
                         if total_received_bytes >= self.recv_len.get() {
                             if self.can_receive() {
                                 self.client.map(move |client| {
-                                    client.packet_received(ReturnCode::SUCCESS, buf, endpoint);
+                                    client.packet_received(Ok(()), buf, endpoint);
                                 });
                                 // Reset the offset
                                 self.recv_offset.set(0);
@@ -403,7 +399,7 @@ impl<'a, U: hil::usb::UsbController<'a>> hil::usb::Client<'a> for CtapHid<'a, U>
     fn packet_transmitted(&'a self, endpoint: usize) {
         self.send_buffer.take().map(|buf| {
             self.client.map(move |client| {
-                client.packet_transmitted(ReturnCode::SUCCESS, buf, endpoint);
+                client.packet_transmitted(Ok(()), buf, endpoint);
             });
         });
     }
