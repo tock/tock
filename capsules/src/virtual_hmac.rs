@@ -8,7 +8,7 @@ use kernel::common::leasable_buffer::LeasableBuffer;
 use kernel::common::{ListLink, ListNode};
 use kernel::hil::digest;
 use kernel::hil::digest::DigestType;
-use kernel::ReturnCode;
+use kernel::ErrorCode;
 
 pub struct VirtualMuxHmac<'a, A: digest::Digest<'a, T>, T: DigestType> {
     mux: &'a MuxHmac<'a, A, T>,
@@ -54,7 +54,7 @@ impl<'a, A: digest::Digest<'a, T>, T: DigestType> digest::Digest<'a, T>
     fn add_data(
         &self,
         data: LeasableBuffer<'static, u8>,
-    ) -> Result<usize, (ReturnCode, &'static mut [u8])> {
+    ) -> Result<usize, (ErrorCode, &'static mut [u8])> {
         // Check if any mux is enabled. If it isn't we enable it for us.
         if self.mux.running.get() == false {
             self.mux.running.set(true);
@@ -63,14 +63,14 @@ impl<'a, A: digest::Digest<'a, T>, T: DigestType> digest::Digest<'a, T>
         } else if self.mux.running_id.get() == self.id {
             self.mux.hmac.add_data(data)
         } else {
-            Err((ReturnCode::EBUSY, data.take()))
+            Err((ErrorCode::BUSY, data.take()))
         }
     }
 
     /// Request the hardware block to generate a HMAC
     /// This doesn't return anything, instead the client needs to have
     /// set a `hash_done` handler.
-    fn run(&'a self, digest: &'static mut T) -> Result<(), (ReturnCode, &'static mut T)> {
+    fn run(&'a self, digest: &'static mut T) -> Result<(), (ErrorCode, &'static mut T)> {
         // Check if any mux is enabled. If it isn't we enable it for us.
         if self.mux.running.get() == false {
             self.mux.running.set(true);
@@ -79,7 +79,7 @@ impl<'a, A: digest::Digest<'a, T>, T: DigestType> digest::Digest<'a, T>
         } else if self.mux.running_id.get() == self.id {
             self.mux.hmac.run(digest)
         } else {
-            Err((ReturnCode::EBUSY, digest))
+            Err((ErrorCode::BUSY, digest))
         }
     }
 
@@ -96,12 +96,12 @@ impl<'a, A: digest::Digest<'a, T>, T: DigestType> digest::Digest<'a, T>
 impl<'a, A: digest::Digest<'a, T>, T: DigestType> digest::Client<'a, T>
     for VirtualMuxHmac<'a, A, T>
 {
-    fn add_data_done(&'a self, result: Result<(), ReturnCode>, data: &'static mut [u8]) {
+    fn add_data_done(&'a self, result: Result<(), ErrorCode>, data: &'static mut [u8]) {
         self.client
             .map(move |client| client.add_data_done(result, data));
     }
 
-    fn hash_done(&'a self, result: Result<(), ReturnCode>, digest: &'static mut T) {
+    fn hash_done(&'a self, result: Result<(), ErrorCode>, digest: &'static mut T) {
         self.client
             .map(move |client| client.hash_done(result, digest));
     }
@@ -110,7 +110,7 @@ impl<'a, A: digest::Digest<'a, T>, T: DigestType> digest::Client<'a, T>
 impl<'a, A: digest::Digest<'a, T> + digest::HMACSha256, T: DigestType> digest::HMACSha256
     for VirtualMuxHmac<'a, A, T>
 {
-    fn set_mode_hmacsha256(&self, key: &[u8; 32]) -> Result<(), ReturnCode> {
+    fn set_mode_hmacsha256(&self, key: &[u8; 32]) -> Result<(), ErrorCode> {
         // Check if any mux is enabled. If it isn't we enable it for us.
         if self.mux.running.get() == false {
             self.mux.running.set(true);
@@ -119,7 +119,7 @@ impl<'a, A: digest::Digest<'a, T> + digest::HMACSha256, T: DigestType> digest::H
         } else if self.mux.running_id.get() == self.id {
             self.mux.hmac.set_mode_hmacsha256(key)
         } else {
-            Err(ReturnCode::EBUSY)
+            Err(ErrorCode::BUSY)
         }
     }
 }

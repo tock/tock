@@ -9,7 +9,7 @@ use kernel::common::registers::{
 use kernel::common::StaticRef;
 use kernel::hil;
 use kernel::hil::digest;
-use kernel::ReturnCode;
+use kernel::ErrorCode;
 
 register_structs! {
     pub HmacRegisters {
@@ -181,7 +181,7 @@ impl Hmac<'_> {
             regs.intr_state.modify(INTR_STATE::HMAC_ERR::SET);
 
             self.client.map(|client| {
-                client.hash_done(Err(ReturnCode::FAIL), self.digest.take().unwrap());
+                client.hash_done(Err(ErrorCode::FAIL), self.digest.take().unwrap());
             });
         }
     }
@@ -195,7 +195,7 @@ impl<'a> hil::digest::Digest<'a, [u8; 32]> for Hmac<'a> {
     fn add_data(
         &self,
         data: LeasableBuffer<'static, u8>,
-    ) -> Result<usize, (ReturnCode, &'static mut [u8])> {
+    ) -> Result<usize, (ErrorCode, &'static mut [u8])> {
         let regs = self.registers;
 
         // Ensure the HMAC is setup
@@ -221,7 +221,7 @@ impl<'a> hil::digest::Digest<'a, [u8; 32]> for Hmac<'a> {
     fn run(
         &'a self,
         digest: &'static mut [u8; 32],
-    ) -> Result<(), (ReturnCode, &'static mut [u8; 32])> {
+    ) -> Result<(), (ErrorCode, &'static mut [u8; 32])> {
         let regs = self.registers;
 
         // Enable interrrupts
@@ -245,7 +245,7 @@ impl<'a> hil::digest::Digest<'a, [u8; 32]> for Hmac<'a> {
 }
 
 impl hil::digest::HMACSha256 for Hmac<'_> {
-    fn set_mode_hmacsha256(&self, key: &[u8; 32]) -> Result<(), ReturnCode> {
+    fn set_mode_hmacsha256(&self, key: &[u8; 32]) -> Result<(), ErrorCode> {
         let regs = self.registers;
 
         // Ensure the HMAC is setup
