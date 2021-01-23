@@ -421,8 +421,9 @@ pub trait ProcessType {
     ) -> GenericSyscallReturnValue;
 
     /// Set a single byte within the process address space at
-    /// `addr` to `value`. Return true if `addr` is a valid
-    /// address and the value was written, false otherwise.
+    /// `addr` to `value`. Return true if `addr` is within the RAM
+    /// bounds currently exposed to the process (thereby writable
+    /// by the process itself) and the value was set, false otherwise.
     unsafe fn set_byte(&self, addr: *mut u8, value: u8) -> bool;
 
     /// Get the first address of process's flash that isn't protected by the
