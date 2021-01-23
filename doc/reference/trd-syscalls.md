@@ -15,7 +15,7 @@ Abstract
 -------------------------------
 
 This document describes the system call application binary interface (ABI)
-between user space applications and the Tock kernel for 32-bit ARM Cortex-M
+between user space processes and the Tock kernel for 32-bit ARM Cortex-M
 and RISC-V RV32I platforms.
 
 1 Introduction
@@ -200,19 +200,20 @@ are additional error codes to include errors related to userspace.
 | 13    | NOACK       | The packet transmission was sent but not acknowledged.                                  |
 | 1024  | BADRVAL     | The variant of the return value did not match what the system call should return.       |
 
-Any value not specified in the above table is reserved.
+Any value not specified in the above table is reserved and it
+MUST NOT be used.
 
 Values in the range of 1-1023 reflect kernel return value error
 codes. Value 1024 (BADRVAL) is for when a system call returns a
 different failure or success variant than the userspace library
-expects. A system call MUST NOT return BADRVAL: it is generated only
-by userspace library code.
+expects. A kernel implementation of a system call MUST NOT return 
+BADRVAL: it is generated only by userspace library code.
 
 
 4 System Call API
 =================================
 
-Tock has 6 classes or types of system calls. When a system call is invoked, the
+Tock has 7 classes or types of system calls. When a system call is invoked, the
 class is encoded as the Syscall Class ID. Some system call classes are implemented
 by the core kernel and so always have the same operations. Others are implemented
 by peripheral syscall drivers and so the set of valid operations depends on what peripherals
@@ -228,11 +229,12 @@ The 6 classes are:
 | Read-Write Allow |        3         |
 | Read-Only Allow  |        4         |
 | Memop            |        5         |
+| Exit             |        6         |
 
-All of the system call classes except Yield are non-blocking. When a userspace
+All of the system call classes except Yield and Exit are non-blocking. When a userspace
 process calls a Subscribe, Command, Allow, Read-Only Allow, or Memop syscall,
 the kernel will not put it on a wait queue. Instead, it will return immediately
-upon completion. The kernel scheduler may decide to suspect the process due to
+upon completion. The kernel scheduler may decide to suspend the process due to
 a timeslice expiration or the kernel thread being runnable, but the system calls
 themselves do not block. If an operation is long-running (e.g., I/O), its completion
 is signaled by a callback (see the Subscribe call in 4.2).
@@ -255,7 +257,7 @@ of `NOSUPPORT`.
 The Yield system call class is how a userspace process handles
 callbacks, relinquishes the processor to other processes, or waits for
 one of its long-running calls to complete.  The Yield system call
-class implements the only blocking system call in Tock.
+class implements the only blocking system call in Tock, `yield-wait`.
 
 When a process calls a Yield system call, the kernel schedules one
 pending callback (if any) to execute on the userspace stack.  If there
@@ -273,17 +275,51 @@ only blocking system call in Tock. It is commonly used to provide a blocking
 I/O interface to userspace. A userspace library starts a long-running operation
 that has a callback, then calls `yield-wait` to wait for a callback. When the
 `yield-wait` returns, the process checks if the resuming callback was the one
-it was expecting, and if not calls `yield-wait` again. The `yield-wait` system
-call always returns the `Success` variant.
+it was expecting, and if not calls `yield-wait` again. 
 
-The second call, 'yield-no-wait', executes a single callback if any is
-pending.  If no callbacks are pending it returns immediately. The
-`yield-no-wait` system call returns the `Success` variant if a
-callback executed and `Failure` variant if no callback executed.
+The second call, `yield-no-wait`, executes a single callback if any is pending.
+If no callbacks are pending it returns immediately. 
 
-The return variants for Yield system calls are `Success` and
-`Failure`.
+The register arguments for Yield system calls are as follows. The registers
+r0-r3 correspond to r0-r3 on CortexM and a0-a3 on RISC-V.
 
+| Argument               | Register |
+|------------------------|----------|
+| Yield identifer        | r0       |
+| No wait field          | r1       |
+| unused                 | r2       |
+| unused                 | r3       |
+
+
+The yield identifier specifies which call is invoked.
+
+| System call     | Yield identifier value |
+|-----------------|------------------------|
+| yield-no-wait   |                      0 |
+| yield-wait      |                      1 |
+
+
+All other yield identifier values are reserved. If an invalid
+yield indentifier is passed the kernel returns immediately.
+
+The no wait field is only used by `yield-no-wait`. It contains the
+memory address of an 8-bit word that `yield-no-wait` writes to
+indicate whether a callback was invoked. If invoking `yield-no-wait`
+resulted in a callback executing, `yield-no-wait` writes 1 to the
+field address. If invoking `yield-no-wait` resulted in no callback
+executing, `yield-no-wait` writes 0 to the field address. This field
+allows userspace loops that want to flush the callback queue to
+execute `yield-no-wait` until the queue is empty.
+
+The Yield system call class has no return value. This is because
+invoking a callback pushes that function call onto the stack, such
+that the return value of a call to yield system call may be the
+return value of the callback. This is why the no wait field exists,
+so that `yield-no-wait` can return a result to the caller. Allowing
+the kernel to pass a return value in register back to userspace
+would require either re-entering the kernel or expensive
+execution architectures (e.g., additonal stacks or additional
+stack frames) for callbacks.
 
 4.2 Subscribe (Class ID: 1)
 --------------------------------
@@ -375,7 +411,7 @@ It is possible that a Tock kernel is configured so its applications
 start at address 0x0. However, even if they do begin at 0x0, the
 Tock Binary Format for application images mean that the first address
 will not be executable code and so 0x0 will not be a valid function.
-In the case that 0x0 is valid application process memory and where the
+In the case that 0x0 is valid application code and where the
 linker places a callback function, the first instruction of the function
 should be a no-op and the address of the second instruction passed
 instead.
@@ -459,9 +495,12 @@ The buffer identifier specifies which buffer this is. A driver may
 support multiple allowed buffers.
 
 The Tock kernel MUST check that the passed buffer is contained within
-the application's address space. Every byte of the passed buffer must
-be readable and writeable by the process. Zero-length buffers may
-therefore have abitrary addresses.
+the calling process's writeable address space. Every byte of the
+passed buffer must be readable and writeable by the
+process. Zero-length buffers may therefore have abitrary addresses. If
+the passed buffer is not complete within the calling process's
+writeable address space, the kernel MUST return a failure result with
+an error code of INVAL (invalid value).
 
 Because a process relinquishes access to a buffer when it makes a
 Read-Write Allow call with it, the buffer passed on the subsequent
@@ -470,7 +509,6 @@ This is because the application does not have access to that
 memory. If an application needs to extend a buffer, it must first call
 Read-Write Allow to reclaim the buffer, then call Read-Write Allow
 again to re-allow it with a different size.
-
 
 4.5 Read-Only Allow (Class ID: 4)
 ---------------------------------
@@ -506,6 +544,14 @@ specify whether data is read-only or read-write and also saves
 processes the RAM overhead of having to copy read-only data into
 RAM so it can be passed with a Read-Write Allow.
 
+The Tock kernel MUST check that the passed buffer is contained within
+the calling process's readable address space. Every byte of the passed
+buffer must be readable and writeable by the process. Zero-length
+buffers may therefore have abitrary addresses. If the passed buffer is
+not complete within the calling process's readable address space, the
+kernel MUST return a failure result with an error code of INVAL
+(invalid value).
+
 4.6 Memop (Class ID: 5)
 ---------------------------------
 
@@ -539,8 +585,45 @@ are 12:
 | 10              | Set the start of the process stack                      | Success          |
 | 11              | Set the start of the process heap                       | Success          |
 
-The success return variant is Memop class system call specific. All
-Memop class system calls have a _Failure_ failure type.
+The success return variant is Memop class system call specific and
+specified in the table above. All Memop class system calls have a
+_Failure_ failure type.
+
+4.7 Exit (Class ID: 6)
+--------------------------------
+
+The Exit system call class is how a userspace process terminates
+gracefully. Exit system calls do not return.
+
+There are two Exit system calls:
+  - `exit-terminate`
+  - `exit-restart`
+
+The first call, `exit-terminate`, terminates the process and tells the
+kernel that it may reclaim and reallocate the process as well as all of its
+resources. Usually this indicates that the process has completed
+its work. 
+
+The second call, `exit-restart`, terminates the process and tells the kernel
+that the application would like to restart if possible. If the kernel 
+restarts the application, it MUST assign it a new process identifier. The
+kernel MAY reuse existing process resources (e.g., RAM regions) or MAY
+allocate new ones.
+
+The register arguments for Exit system calls are as follows. The registers
+r0-r3 correspond to r0-r3 on CortexM and a0-a3 on RISC-V.
+
+| Argument          | Register |
+|-------------------|----------|
+| Exit identifer    | r0       |
+
+The exit identifier specifies which call is invoked.
+
+| System call     | Exit identifier value |
+|-----------------|-----------------------|
+| exit-terminate  |                     0 |
+| exit-restart    |                     1 |
+
 
 5 Userspace Library Methods
 =================================
