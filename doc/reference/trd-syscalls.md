@@ -239,6 +239,8 @@ a timeslice expiration or the kernel thread being runnable, but the system calls
 themselves do not block. If an operation is long-running (e.g., I/O), its completion
 is signaled by a callback (see the Subscribe call in 4.2).
 
+Successful calls to Exit system calls do not return (the process exits).
+
 Peripheral driver-specific system calls (Subscribe, Command, Allow, Read-Only Allow)
 all include two arguments, a driver identifier and a syscall identifier. The driver identifier
 specifies which peripheral system call driver to invoke. The syscall identifier (which
@@ -592,8 +594,8 @@ _Failure_ failure type.
 4.7 Exit (Class ID: 6)
 --------------------------------
 
-The Exit system call class is how a userspace process terminates
-gracefully. Exit system calls do not return.
+The Exit system call class is how a userspace process terminates. 
+Successful calls to Exit system calls do not return.
 
 There are two Exit system calls:
   - `exit-terminate`
@@ -616,6 +618,7 @@ r0-r3 correspond to r0-r3 on CortexM and a0-a3 on RISC-V.
 | Argument          | Register |
 |-------------------|----------|
 | Exit identifer    | r0       |
+| Completion code   | r1       |
 
 The exit identifier specifies which call is invoked.
 
@@ -624,6 +627,20 @@ The exit identifier specifies which call is invoked.
 | exit-terminate  |                     0 |
 | exit-restart    |                     1 |
 
+The difference between `exit-terminate` and `exit-restart` is what behavior
+the application asks from the kernel. With `exit-terminate`, the application
+tells the kernel that it considers itself completed and does not need to run
+again. With `exit-restart`, it tells the kernel that it would like to be
+rebooted and run again. For example, `exit-terminate` might be used by a 
+process that stores some one-time data on flash, while `exit-restart` might
+be used if the process runs out of memory.
+
+The completion code is an unsigned 32-bit number which indicates status. This
+information can be stored in the kernel and used in management or policy decisions.
+The definition of these status codes is outside the scope of this document.
+
+If an exit syscall is successful, it does not return. Therefore, the return
+value of an exit syscall is always _Failure_.
 
 5 Userspace Library Methods
 =================================
@@ -661,15 +678,6 @@ in encodings desribed in Section 3.2.
 
 6.1.2 Yield Return Type
 ---------------------------------
-
-The Yield return type is called `YieldResult`:
-
-```
-pub enum YieldResult {
-    Success,
-	Failure(ErrorCode)
-}
-```
 
 6.1.3 Subscribe Return Type
 ---------------------------------
