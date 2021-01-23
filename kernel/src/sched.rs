@@ -1031,16 +1031,16 @@ impl Kernel {
                 }
 
                 process.set_syscall_return_value(res);
-            },
+            }
             Syscall::Exit {
                 which,
-                completion_code
-            } => {
-                match which {
-                    0 => process.terminate(completion_code as u32),
-                    1 => process.try_restart(completion_code as u32),
-                    _ => process.set_syscall_return_value(GenericSyscallReturnValue::Failure(ErrorCode::NOSUPPORT)),
-                }
+                completion_code,
+            } => match which {
+                0 => process.terminate(completion_code as u32),
+                1 => process.try_restart(completion_code as u32),
+                _ => process.set_syscall_return_value(GenericSyscallReturnValue::Failure(
+                    ErrorCode::NOSUPPORT,
+                )),
             },
         }
     }

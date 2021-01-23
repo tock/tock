@@ -190,7 +190,7 @@ impl Syscall {
             }),
             Ok(SyscallClass::Exit) => Some(Syscall::Exit {
                 which: r0,
-                completion_code: r1
+                completion_code: r1,
             }),
             Err(_) => None,
         }

@@ -329,7 +329,7 @@ pub trait ProcessType {
 
     /// Terminate the process so it doesn't run, cleaning up its state.
     fn terminate(&self, completion_code: u32);
-    
+
     /// Terminate the process and try to restart it, applying kernel
     /// policies on whether to do so.
     fn try_restart(&self, completion_code: u32);
@@ -338,7 +338,7 @@ pub trait ProcessType {
     /// it could not allocate/configure memory or ErrorCode::RESERVE to
     /// indicate some other hardware resource could not be reserved.
     fn restart(&self) -> Result<(), ErrorCode>;
-    
+
     // memop operations
 
     /// Change the location of the program break and reallocate the MPU region
@@ -680,7 +680,7 @@ pub enum State {
     /// The process exited with the `exit-terminate` system call and
     /// cannot be run.
     Terminated,
-    
+
     /// The process has never actually been executed. This of course happens
     /// when the board first boots and the kernel has not switched to any
     /// processes yet. It can also happen if an process is terminated and all
@@ -1097,7 +1097,6 @@ impl<C: Chip> ProcessType for Process<'_, C> {
 
         // Decide what to do with res later. E.g., if we can't restart
         // want to reclaim the process resources.
-        
     }
 
     /// Restart the process, resetting all of its state re-initializing
