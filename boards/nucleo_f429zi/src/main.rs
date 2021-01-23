@@ -77,7 +77,7 @@ impl Platform for NucleoF429ZI {
             capsules::alarm::DRIVER_NUM => f(Some(Ok(self.alarm))),
             capsules::temperature::DRIVER_NUM => f(Some(Ok(self.temperature))),
             kernel::ipc::DRIVER_NUM => f(Some(Err(&self.ipc))),
-            capsules::gpio::DRIVER_NUM => f(Some(Err(self.gpio))),
+            capsules::gpio::DRIVER_NUM => f(Some(Ok(self.gpio))),
             _ => f(None),
         }
     }

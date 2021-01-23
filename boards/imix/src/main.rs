@@ -160,7 +160,7 @@ impl kernel::Platform for Imix {
     {
         match driver_num {
             capsules::console::DRIVER_NUM => f(Some(Ok(self.console))),
-            capsules::gpio::DRIVER_NUM => f(Some(Err(self.gpio))),
+            capsules::gpio::DRIVER_NUM => f(Some(Ok(self.gpio))),
             capsules::alarm::DRIVER_NUM => f(Some(Ok(self.alarm))),
             capsules::spi_controller::DRIVER_NUM => f(Some(Ok(self.spi))),
             capsules::adc::DRIVER_NUM => f(Some(Ok(self.adc))),
