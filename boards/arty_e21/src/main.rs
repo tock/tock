@@ -67,7 +67,7 @@ impl Platform for ArtyE21 {
     {
         match driver_num {
             capsules::console::DRIVER_NUM => f(Some(Ok(self.console))),
-            capsules::gpio::DRIVER_NUM => f(Some(Err(self.gpio))),
+            capsules::gpio::DRIVER_NUM => f(Some(Ok(self.gpio))),
 
             capsules::alarm::DRIVER_NUM => f(Some(Ok(self.alarm))),
             capsules::led::DRIVER_NUM => f(Some(Ok(self.led))),

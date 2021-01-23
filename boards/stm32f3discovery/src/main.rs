@@ -83,7 +83,7 @@ impl Platform for STM32F3Discovery {
             capsules::led::DRIVER_NUM => f(Some(Ok(self.led))),
             capsules::button::DRIVER_NUM => f(Some(Ok(self.button))),
             capsules::alarm::DRIVER_NUM => f(Some(Ok(self.alarm))),
-            capsules::gpio::DRIVER_NUM => f(Some(Err(self.gpio))),
+            capsules::gpio::DRIVER_NUM => f(Some(Ok(self.gpio))),
             capsules::lsm303dlhc::DRIVER_NUM => f(Some(Ok(self.lsm303dlhc))),
             capsules::l3gd20::DRIVER_NUM => f(Some(Ok(self.l3gd20))),
             capsules::ninedof::DRIVER_NUM => f(Some(Ok(self.ninedof))),
