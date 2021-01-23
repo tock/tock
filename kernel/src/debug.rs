@@ -516,6 +516,13 @@ pub fn begin_debug_fmt(args: Arguments) {
     writer.publish_bytes();
 }
 
+pub fn begin_debug_fmt_no_eol(args: Arguments) {
+    let writer = unsafe { get_debug_writer() };
+
+    let _ = write(writer, args);
+    writer.publish_bytes();
+}
+
 pub fn begin_debug_verbose_fmt(args: Arguments, file_line: &(&'static str, u32)) {
     let writer = unsafe { get_debug_writer() };
 
