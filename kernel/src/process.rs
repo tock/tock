@@ -277,6 +277,10 @@ pub trait ProcessType {
     /// Returns whether this process is ready to execute.
     fn ready(&self) -> bool;
 
+    /// Return if there are any Tasks (callbacks/IPC requests) enqueued
+    /// for the process.
+    fn has_tasks(&self) -> bool;
+
     /// Remove the scheduled operation from the front of the queue and return it
     /// to be handled by the scheduler.
     ///
@@ -415,6 +419,12 @@ pub trait ProcessType {
         )
             -> Result<ReadOnlyAppSlice, (ReadOnlyAppSlice, ErrorCode)>,
     ) -> GenericSyscallReturnValue;
+
+    /// Set a single byte within the process address space at
+    /// `addr` to `value`. Return true if `addr` is within the RAM
+    /// bounds currently exposed to the process (thereby writable
+    /// by the process itself) and the value was set, false otherwise.
+    unsafe fn set_byte(&self, addr: *mut u8, value: u8) -> bool;
 
     /// Get the first address of process's flash that isn't protected by the
     /// kernel. The protected range of flash contains the TBF header and
@@ -1038,6 +1048,10 @@ impl<C: Chip> ProcessType for Process<'_, C> {
         self.restart_count.get()
     }
 
+    fn has_tasks(&self) -> bool {
+        self.tasks.map_or(false, |tasks| tasks.has_elements())
+    }
+
     fn dequeue_task(&self) -> Option<Task> {
         self.tasks.map_or(None, |tasks| {
             tasks.dequeue().map(|cb| {
@@ -1384,6 +1398,15 @@ impl<C: Chip> ProcessType for Process<'_, C> {
                 let (ptr, len) = new_slice.consume();
                 GenericSyscallReturnValue::AllowReadOnlyFailure(err, ptr, len)
             }
+        }
+    }
+
+    unsafe fn set_byte(&self, addr: *mut u8, value: u8) -> bool {
+        if self.in_app_owned_memory(addr, 1) {
+            *addr = value;
+            true
+        } else {
+            false
         }
     }
 
