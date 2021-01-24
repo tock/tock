@@ -29,12 +29,13 @@ There are two ways for flashing the bootloader:
 
 ### Using the MicroBit USB Drive
 
+> **NOTE** Uploading the bootloader will not change any ability to upload software to the MicroBit. The microbit board has another bootloader in the debug chip that provides normal software upload capabilites and that will not be overwritten. All other software will work as expected.
+
 Connect then MicroBit to the computer. A USB drive labeled `MICROBIT` should show up. 
 
 Drag and drop the `bootloader/tock-bootloader.microbit_v2.v1.1.0.bin` to the `MICROBIT` drive and wait for a few seconds.
 
 The board will reset and the bootloader should be running on it. To check whether it's working, press and hold the Button A while pressing the reset button. The Microphone LED should light up.
-
 ### Using openocd 
 Use the `make flash-bootloader` command to flash [Tock Bootloader](https://github.com/tock/tock-bootloader) to the board.
 
