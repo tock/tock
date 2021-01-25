@@ -192,6 +192,10 @@ pub trait Process {
     /// `None`.
     fn dequeue_task(&self) -> Option<Task>;
 
+    /// Returns the number of pending takes. If 0 then `dequeue_task()` will
+    /// return `None` when called.
+    fn pending_tasks(&self) -> usize;
+
     /// Remove all scheduled upcalls for a given upcall id from the task
     /// queue.
     fn remove_pending_upcalls(&self, upcall_id: UpcallId);
