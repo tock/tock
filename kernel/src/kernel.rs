@@ -14,6 +14,7 @@ use crate::debug;
 use crate::dynamic_deferred_call::DynamicDeferredCall;
 use crate::errorcode::ErrorCode;
 use crate::grant::Grant;
+use crate::hil::time::Time;
 use crate::ipc;
 use crate::memop;
 use crate::platform::chip::Chip;
@@ -419,6 +420,7 @@ impl Kernel {
     pub fn kernel_loop_operation<
         KR: KernelResources<C>,
         C: Chip,
+        T: Time,
         const NUM_PROCS: usize,
         const NUM_UPCALLS_IPC: usize,
     >(
@@ -426,7 +428,7 @@ impl Kernel {
         resources: &KR,
         chip: &C,
         ipc: Option<&ipc::IPC<NUM_PROCS, NUM_UPCALLS_IPC>>,
-        ros: Option<&crate::ros::ROSDriver>,
+        ros: Option<&crate::ros::ROSDriver<T>>,
         no_sleep: bool,
         _capability: &dyn capabilities::MainLoopCapability,
     ) {
@@ -500,6 +502,7 @@ impl Kernel {
     pub fn kernel_loop<
         KR: KernelResources<C>,
         C: Chip,
+        T: Time,
         const NUM_PROCS: usize,
         const NUM_UPCALLS_IPC: usize,
     >(
@@ -507,7 +510,7 @@ impl Kernel {
         resources: &KR,
         chip: &C,
         ipc: Option<&ipc::IPC<NUM_PROCS, NUM_UPCALLS_IPC>>,
-        ros: Option<&crate::ros::ROSDriver>,
+        ros: Option<&crate::ros::ROSDriver<T>>,
         capability: &dyn capabilities::MainLoopCapability,
     ) -> ! {
         resources.watchdog().setup();
@@ -550,6 +553,7 @@ impl Kernel {
     fn do_process<
         KR: KernelResources<C>,
         C: Chip,
+        T: Time,
         const NUM_PROCS: usize,
         const NUM_UPCALLS_IPC: usize,
     >(
@@ -558,7 +562,7 @@ impl Kernel {
         chip: &C,
         process: &dyn process::Process,
         ipc: Option<&crate::ipc::IPC<NUM_PROCS, NUM_UPCALLS_IPC>>,
-        ros: Option<&crate::ros::ROSDriver>,
+        ros: Option<&crate::ros::ROSDriver<T>>,
         timeslice_us: Option<u32>,
     ) -> (StoppedExecutingReason, Option<u32>) {
         // We must use a dummy scheduler timer if the process should be executed
@@ -626,7 +630,7 @@ impl Kernel {
                     // generate an interrupt when the timeslice has expired. The
                     // underlying timer is not affected.
                     ros.map(|r| {
-                        r.update_values(process.processid());
+                        r.update_values(process.processid(), process.pending_tasks());
                     });
                     process.setup_mpu();
                     chip.mpu().enable_app_mpu();

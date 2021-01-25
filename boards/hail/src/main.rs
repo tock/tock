@@ -573,5 +573,11 @@ pub unsafe fn main() {
         debug!("{:?}", err);
     });
 
-    board_kernel.kernel_loop(&hail, chip, Some(&hail.ipc), None, &main_loop_capability);
+    board_kernel.kernel_loop(
+        &hail,
+        chip,
+        Some(&hail.ipc),
+        None::<&kernel::ros::ROSDriver<sam4l::ast::Ast>>,
+        &main_loop_capability,
+    );
 }

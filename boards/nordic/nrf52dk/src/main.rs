@@ -481,7 +481,7 @@ pub unsafe fn main() {
         &platform,
         chip,
         Some(&platform.ipc),
-        None,
+        None::<&kernel::ros::ROSDriver<nrf52832::rtc::Rtc>>,
         &main_loop_capability,
     );
 }

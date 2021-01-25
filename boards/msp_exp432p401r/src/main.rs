@@ -476,7 +476,7 @@ pub unsafe fn main() {
         &msp_exp432p4014,
         chip,
         Some(&msp_exp432p4014.ipc),
-        None,
+        None::<&kernel::ros::ROSDriver<msp432::timer::TimerA>>,
         &main_loop_capability,
     );
 }

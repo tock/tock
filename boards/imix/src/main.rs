@@ -729,5 +729,11 @@ pub unsafe fn main() {
         debug!("{:?}", err);
     });
 
-    board_kernel.kernel_loop(&imix, chip, Some(&imix.ipc), None, &main_cap);
+    board_kernel.kernel_loop(
+        &imix,
+        chip,
+        Some(&imix.ipc),
+        None::<&kernel::ros::ROSDriver<sam4l::ast::Ast>>,
+        &main_cap,
+    );
 }

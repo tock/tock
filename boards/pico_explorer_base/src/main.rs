@@ -570,7 +570,7 @@ pub unsafe fn main() {
         &pico_explorer_base,
         chip,
         Some(&pico_explorer_base.ipc),
-        None,
+        None::<&kernel::ros::ROSDriver<rp2040::timer::RPTimer>>,
         &main_loop_capability,
     );
 }

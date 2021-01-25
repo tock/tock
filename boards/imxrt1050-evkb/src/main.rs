@@ -524,7 +524,7 @@ pub unsafe fn main() {
         &imxrt1050,
         chip,
         Some(&imxrt1050.ipc),
-        None,
+        None::<&kernel::ros::ROSDriver<imxrt1050::gpt::Gpt1>>,
         &main_loop_capability,
     );
 }

@@ -490,7 +490,7 @@ pub unsafe fn main() {
         &nano_rp2040_connect,
         chip,
         Some(&nano_rp2040_connect.ipc),
-        None,
+        None::<&kernel::ros::ROSDriver<rp2040::timer::RPTimer>>,
         &main_loop_capability,
     );
 }

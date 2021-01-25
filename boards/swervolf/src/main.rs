@@ -245,7 +245,7 @@ pub unsafe fn main() {
         &swervolf,
         chip,
         None::<&kernel::ipc::IPC<NUM_PROCS, NUM_UPCALLS_IPC>>,
-        None,
+        None::<&kernel::ros::ROSDriver<swervolf_eh1::syscon::SysCon>>,
         &main_loop_cap,
     );
 }

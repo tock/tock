@@ -15,30 +15,66 @@
 //!
 //! Versions are backwards compatible, that is new versions will only add
 //! fields, not remove existing ones or change the order.
+//!
+//! Version 1:
+//!   |-------------------------|
+//!   |    Switch Count (u32)   |
+//!   |-------------------------|
+//!   |   Pending Tasks (u32)   |
+//!   |-------------------------|
+//!   |                         |
+//!   |     Time Ticks (u64)    |
+//!   |-------------------------|
+//!
 
 use crate::grant::Grant;
+use crate::hil::time::{Ticks, Time};
 use crate::process::ProcessId;
-use crate::processbuffer::UserspaceReadableProcessBuffer;
+use crate::processbuffer::{UserspaceReadableProcessBuffer, WriteableProcessBuffer};
 use crate::syscall_driver::{CommandReturn, SyscallDriver};
 use crate::ErrorCode;
+use core::cell::Cell;
 
 /// Syscall driver number.
 pub const DRIVER_NUM: usize = 0x10001;
 const VERSION: u32 = 1;
 
-pub struct ROSDriver {
+pub struct ROSDriver<'a, T: Time> {
+    timer: &'a T,
+
     apps: Grant<App, 0>,
 }
 
-impl ROSDriver {
-    pub fn new(grant: Grant<App, 0>) -> Self {
-        ROSDriver { apps: grant }
+impl<'a, T: Time> ROSDriver<'a, T> {
+    pub fn new(timer: &'a T, grant: Grant<App, 0>) -> ROSDriver<'a, T> {
+        ROSDriver { timer, apps: grant }
     }
 
-    pub fn update_values(&self, _appid: ProcessId) {}
+    pub fn update_values(&self, appid: ProcessId, pending_tasks: usize) {
+        self.apps
+            .enter(appid, |app, _| {
+                let count = app.count.get();
+
+                let _ = app.mem_region.mut_enter(|buf| {
+                    if buf.len() >= 4 {
+                        buf[0..4].copy_from_slice(&count.to_le_bytes());
+                    }
+                    if buf.len() >= 8 {
+                        buf[4..8].copy_from_slice(&(pending_tasks as u32).to_le_bytes());
+                    }
+                    if buf.len() >= 16 {
+                        let now = self.timer.now().into_usize() as u64;
+                        buf[8..16].copy_from_slice(&now.to_le_bytes());
+                    }
+                });
+
+                app.count.set(count.wrapping_add(1));
+            })
+            .unwrap();
+    }
 }
 
-impl SyscallDriver for ROSDriver {
+impl<'a, T: Time> SyscallDriver for ROSDriver<'a, T> {
     /// Specify memory regions to be used.
     ///
     /// ### `allow_num`
@@ -93,4 +129,5 @@ impl SyscallDriver for ROSDriver {
 #[derive(Default)]
 pub struct App {
     mem_region: UserspaceReadableProcessBuffer,
+    count: Cell<u32>,
 }

@@ -314,7 +314,7 @@ pub unsafe fn main() {
         artemis_nano,
         chip,
         None::<&kernel::ipc::IPC<NUM_PROCS, NUM_UPCALLS_IPC>>,
-        None,
+        None::<&kernel::ros::ROSDriver<apollo3::stimer::STimer>>,
         &main_loop_cap,
     );
 }

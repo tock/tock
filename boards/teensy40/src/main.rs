@@ -357,7 +357,7 @@ pub unsafe fn main() {
         &teensy40,
         chip,
         Some(&teensy40.ipc),
-        None,
+        None::<&kernel::ros::ROSDriver<imxrt1060::gpt::Gpt1>>,
         &main_loop_capability,
     );
 }
