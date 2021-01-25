@@ -353,7 +353,13 @@ pub unsafe fn main() {
     )
     .unwrap();
 
-    board_kernel.kernel_loop(&teensy40, chip, Some(&teensy40.ipc), &main_loop_capability);
+    board_kernel.kernel_loop(
+        &teensy40,
+        chip,
+        Some(&teensy40.ipc),
+        None,
+        &main_loop_capability,
+    );
 }
 
 /// Space for the stack buffer

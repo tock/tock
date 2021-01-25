@@ -107,6 +107,7 @@ pub mod ipc;
 pub mod platform;
 pub mod process;
 pub mod processbuffer;
+pub mod ros;
 pub mod scheduler;
 pub mod syscall;
 pub mod upcall;

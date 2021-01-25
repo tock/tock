@@ -531,6 +531,7 @@ pub unsafe fn main() {
         &raspberry_pi_pico,
         chip,
         Some(&raspberry_pi_pico.ipc),
+        None,
         &main_loop_capability,
     );
 }

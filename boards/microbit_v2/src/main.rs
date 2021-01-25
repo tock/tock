@@ -648,5 +648,11 @@ pub unsafe fn main() {
         debug!("{:?}", err);
     });
 
-    board_kernel.kernel_loop(&microbit, chip, Some(&microbit.ipc), &main_loop_capability);
+    board_kernel.kernel_loop(
+        &microbit,
+        chip,
+        Some(&microbit.ipc),
+        None,
+        &main_loop_capability,
+    );
 }

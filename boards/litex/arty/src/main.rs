@@ -526,6 +526,7 @@ pub unsafe fn main() {
         &litex_arty,
         chip,
         None::<&kernel::ipc::IPC<NUM_PROCS, NUM_UPCALLS_IPC>>,
+        None,
         &main_loop_cap,
     );
 }

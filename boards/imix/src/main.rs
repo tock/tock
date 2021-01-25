@@ -729,5 +729,5 @@ pub unsafe fn main() {
         debug!("{:?}", err);
     });
 
-    board_kernel.kernel_loop(&imix, chip, Some(&imix.ipc), &main_cap);
+    board_kernel.kernel_loop(&imix, chip, Some(&imix.ipc), None, &main_cap);
 }

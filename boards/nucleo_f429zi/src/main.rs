@@ -620,6 +620,7 @@ pub unsafe fn main() {
         &nucleo_f429zi,
         chip,
         Some(&nucleo_f429zi.ipc),
+        None,
         &main_loop_capability,
     );
 }

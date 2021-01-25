@@ -524,6 +524,7 @@ pub unsafe fn main() {
         &imxrt1050,
         chip,
         Some(&imxrt1050.ipc),
+        None,
         &main_loop_capability,
     );
 }

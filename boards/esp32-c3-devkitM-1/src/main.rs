@@ -308,6 +308,7 @@ pub unsafe fn main() {
             esp32_c3_board,
             chip,
             None::<&kernel::ipc::IPC<NUM_PROCS, NUM_UPCALLS_IPC>>,
+            None,
             &main_loop_cap,
         );
     }

@@ -476,6 +476,7 @@ pub unsafe fn main() {
         &msp_exp432p4014,
         chip,
         Some(&msp_exp432p4014.ipc),
+        None,
         &main_loop_capability,
     );
 }

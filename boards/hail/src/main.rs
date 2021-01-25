@@ -573,5 +573,5 @@ pub unsafe fn main() {
         debug!("{:?}", err);
     });
 
-    board_kernel.kernel_loop(&hail, chip, Some(&hail.ipc), &main_loop_capability);
+    board_kernel.kernel_loop(&hail, chip, Some(&hail.ipc), None, &main_loop_capability);
 }

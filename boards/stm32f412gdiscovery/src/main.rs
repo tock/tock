@@ -818,6 +818,7 @@ pub unsafe fn main() {
         &stm32f412g,
         chip,
         Some(&stm32f412g.ipc),
+        None,
         &main_loop_capability,
     );
 }

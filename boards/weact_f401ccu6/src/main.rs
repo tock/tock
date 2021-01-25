@@ -487,6 +487,7 @@ pub unsafe fn main() {
         &weact_f401cc,
         chip,
         Some(&weact_f401cc.ipc),
+        None,
         &main_loop_capability,
     );
 }

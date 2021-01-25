@@ -600,5 +600,11 @@ pub unsafe fn main() {
         debug!("{:?}", err);
     });
 
-    board_kernel.kernel_loop(&platform, chip, Some(&platform.ipc), &main_loop_capability);
+    board_kernel.kernel_loop(
+        &platform,
+        chip,
+        Some(&platform.ipc),
+        None,
+        &main_loop_capability,
+    );
 }

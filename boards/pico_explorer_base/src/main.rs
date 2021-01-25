@@ -570,6 +570,7 @@ pub unsafe fn main() {
         &pico_explorer_base,
         chip,
         Some(&pico_explorer_base.ipc),
+        None,
         &main_loop_capability,
     );
 }

@@ -835,6 +835,7 @@ pub unsafe fn main() {
         &stm32f3discovery,
         chip,
         Some(&stm32f3discovery.ipc),
+        None,
         &main_loop_capability,
     );
 }

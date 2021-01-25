@@ -404,6 +404,7 @@ pub unsafe fn main() {
         &nucleo_f446re,
         chip,
         Some(&nucleo_f446re.ipc),
+        None,
         &main_loop_capability,
     );
 }

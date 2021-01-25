@@ -490,6 +490,7 @@ pub unsafe fn main() {
         &nano_rp2040_connect,
         chip,
         Some(&nano_rp2040_connect.ipc),
+        None,
         &main_loop_capability,
     );
 }
