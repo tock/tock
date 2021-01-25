@@ -531,7 +531,7 @@ pub unsafe fn main() {
         &hail,
         chip,
         Some(&hail.ipc),
-        None,
+        None::<&kernel::ros::ROSDriver<sam4l::ast::Ast>>,
         scheduler,
         &main_loop_capability,
     );

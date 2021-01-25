@@ -834,7 +834,7 @@ pub unsafe fn main() {
         &stm32f412g,
         chip,
         Some(&stm32f412g.ipc),
-        None,
+        None::<&kernel::ros::ROSDriver<stm32f412g::tim2::Tim2>>,
         scheduler,
         &main_loop_capability,
     );

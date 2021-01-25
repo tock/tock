@@ -804,7 +804,7 @@ pub unsafe fn main() {
         &stm32f3discovery,
         chip,
         Some(&stm32f3discovery.ipc),
-        None,
+        None::<&kernel::ros::ROSDriver<stm32f303xc::tim2::Tim2>>,
         scheduler,
         &main_loop_capability,
     );

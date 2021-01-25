@@ -452,7 +452,7 @@ pub unsafe fn main() {
         &weact_f401cc,
         chip,
         Some(&weact_f401cc.ipc),
-        None,
+        None::<&kernel::ros::ROSDriver<stm32f401cc::tim2::Tim2>>,
         scheduler,
         &main_loop_capability,
     );
