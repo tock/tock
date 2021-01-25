@@ -484,6 +484,7 @@ impl Kernel {
         platform: &P,
         chip: &C,
         ipc: Option<&ipc::IPC<NUM_PROCS, NUM_UPCALLS_IPC>>,
+        ros: Option<&crate::ros::ROSDriver>,
         scheduler: &SC,
         no_sleep: bool,
         _capability: &dyn capabilities::MainLoopCapability,
@@ -511,6 +512,7 @@ impl Kernel {
                                     scheduler,
                                     process,
                                     ipc,
+                                    ros,
                                     timeslice_us,
                                 );
                                 scheduler.result(reason, time_executed);
@@ -564,12 +566,13 @@ impl Kernel {
         platform: &P,
         chip: &C,
         ipc: Option<&ipc::IPC<NUM_PROCS, NUM_UPCALLS_IPC>>,
+        ros: Option<&crate::ros::ROSDriver>,
         scheduler: &SC,
         capability: &dyn capabilities::MainLoopCapability,
     ) -> ! {
         chip.watchdog().setup();
         loop {
-            self.kernel_loop_operation(platform, chip, ipc, scheduler, false, capability);
+            self.kernel_loop_operation(platform, chip, ipc, ros, scheduler, false, capability);
         }
     }
 
@@ -617,6 +620,7 @@ impl Kernel {
         scheduler: &S,
         process: &dyn process::Process,
         ipc: Option<&crate::ipc::IPC<NUM_PROCS, NUM_UPCALLS_IPC>>,
+        ros: Option<&crate::ros::ROSDriver>,
         timeslice_us: Option<u32>,
     ) -> (StoppedExecutingReason, Option<u32>) {
         // We must use a dummy scheduler timer if the process should be executed
@@ -679,8 +683,10 @@ impl Kernel {
                     // process. Arming the scheduler timer instructs it to
                     // generate an interrupt when the timeslice has expired. The
                     // underlying timer is not affected.
+                    ros.map(|r| {
+                        r.update_values(process.processid());
+                    });
                     process.setup_mpu();
-
                     chip.mpu().enable_app_mpu();
                     scheduler_timer.arm();
                     let context_switch_reason = process.switch_to();

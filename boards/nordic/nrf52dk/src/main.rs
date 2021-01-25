@@ -444,6 +444,7 @@ pub unsafe fn main() {
         &platform,
         chip,
         Some(&platform.ipc),
+        None,
         scheduler,
         &main_loop_capability,
     );

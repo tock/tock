@@ -385,6 +385,7 @@ pub unsafe fn main() {
         &nucleo_f446re,
         chip,
         Some(&nucleo_f446re.ipc),
+        None,
         scheduler,
         &main_loop_capability,
     );

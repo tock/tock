@@ -96,6 +96,7 @@ pub mod debug;
 pub mod hil;
 pub mod introspection;
 pub mod ipc;
+pub mod ros;
 pub mod syscall;
 
 mod config;

@@ -598,6 +598,7 @@ pub unsafe fn main() {
         &nucleo_f429zi,
         chip,
         Some(&nucleo_f429zi.ipc),
+        None,
         scheduler,
         &main_loop_capability,
     );

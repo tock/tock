@@ -205,6 +205,7 @@ pub unsafe fn main() {
         &swervolf,
         chip,
         None::<&kernel::ipc::IPC<NUM_PROCS, NUM_UPCALLS_IPC>>,
+        None,
         scheduler,
         &main_loop_cap,
     );

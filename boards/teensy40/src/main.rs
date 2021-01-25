@@ -317,6 +317,7 @@ pub unsafe fn main() {
         &teensy40,
         chip,
         Some(&teensy40.ipc),
+        None,
         scheduler,
         &main_loop_capability,
     );
