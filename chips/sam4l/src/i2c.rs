@@ -665,7 +665,10 @@ impl I2CHw {
         I2CHw::new(
             I2C_BASE_ADDRS[0],
             Some(I2C_SLAVE_BASE_ADDRS[0]),
-            create_twims_clocks(pm::Clock::PBA(pm::PBAClock::TWIM0), None),
+            create_twims_clocks(
+                pm::Clock::PBA(pm::PBAClock::TWIM0),
+                Some(pm::Clock::PBA(pm::PBAClock::TWIS0)),
+            ),
             DMAPeripheral::TWIM0_RX,
             DMAPeripheral::TWIM0_TX,
             pm,
@@ -676,7 +679,10 @@ impl I2CHw {
         I2CHw::new(
             I2C_BASE_ADDRS[1],
             Some(I2C_SLAVE_BASE_ADDRS[1]),
-            create_twims_clocks(pm::Clock::PBA(pm::PBAClock::TWIM1), None),
+            create_twims_clocks(
+                pm::Clock::PBA(pm::PBAClock::TWIM1),
+                Some(pm::Clock::PBA(pm::PBAClock::TWIS1)),
+            ),
             DMAPeripheral::TWIM1_RX,
             DMAPeripheral::TWIM1_TX,
             pm,
