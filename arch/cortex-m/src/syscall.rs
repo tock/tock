@@ -89,7 +89,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         state.psp = app_brk as usize; // Set to top of process-accessible memory.
 
         // Make sure there's enough room on the stack for the initial SVC frame.
-        if (app_brk.offset_from(memory_start) as usize) < SVC_FRAME_SIZE {
+        if (app_brk as usize - memory_start as usize) < SVC_FRAME_SIZE {
             // Not enough room on the stack to add a frame.
             return Err(());
         }
