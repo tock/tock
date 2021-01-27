@@ -467,6 +467,14 @@ pub unsafe fn reset_handler() {
     ));
 
     //--------------------------------------------------------------------------
+    // Process Console
+    //--------------------------------------------------------------------------
+    let process_console =
+        components::process_console::ProcessConsoleComponent::new(board_kernel, uart_mux)
+            .finalize(());
+    process_console.start();
+
+    //--------------------------------------------------------------------------
     // FINAL SETUP AND BOARD BOOT
     //--------------------------------------------------------------------------
 
