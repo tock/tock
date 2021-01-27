@@ -4,7 +4,7 @@
 //!       BLE Capsule
 //!
 //! +-------------------+  +--------------------+
-//! |   BleGattDevice   |  |   BLEGattClient    |
+//! |   BleGattServer   |  |   BLEGattClient    |
 //! +-------------------+  +--------------------+
 //!
 //!
@@ -18,23 +18,37 @@
 
 use crate::ReturnCode;
 
-pub enum BleGattService<'a> {
-    Bit16(u16, &'a [BleGattCharacteristics]),
-    Bit128(u128, &'a [BleGattCharacteristics]),
+pub enum BleGattAccessType {
+    None,
+    ReadOnly,
+    WriteOnly,
+    NotifyOnly,
+    ReadWrite,
+    ReadNotify,
+    WriteNotify,
+    ReadWriteNotify
 }
 
-pub enum BleGattCharacteristics {}
+pub enum BleGattService<'a> {
+    Bit16(u16, &'a [BleGattCharacteristic]),
+    Bit128(u128, &'a [BleGattCharacteristic]),
+}
+
+pub enum BleGattCharacteristic {
+    Bit16(u16, BleGattAccessType),
+    Bit128(u128, BleGattAccessType),
+}
 
 pub enum BleGattError {
     Timeout,
 }
 
-pub trait BleGattDevice<'a> {
+pub trait BleGattServer<'a> {
     /// Configure the GATT Server
     ///
     /// name - device name
     /// services - a list of services
-    /// connect_interval_ms - interval (ms) to request the GATT Client to reconnect
+    /// connect_interval_ms - interval (ms) to request the GATT Central to reconnect
     fn configure(
         &self,
         name: &'a [u8],
@@ -42,7 +56,7 @@ pub trait BleGattDevice<'a> {
         connect_interval_ms: u32,
     ) -> ReturnCode;
 
-    // Disconnect GATT Client
+    // Disconnect GATT Central
     fn disconnect(&self) -> ReturnCode;
 
     // Start GAP Advertisement
@@ -51,7 +65,19 @@ pub trait BleGattDevice<'a> {
     // Start GAP Advertisement
     fn stop_advertisement(&self) -> ReturnCode;
 
-    fn set_client(&self, client: &'a dyn BleGattDeviceClient);
+    fn set_chara
+
+    fn set_client(&self, client: &'a dyn BleGattServerClient);
+}
+
+pub trait BleGattServerClient<'a> {
+    fn connected(&self);
+    fn disconnected(&self);
+
+    fn read_characteristic(&self, service: BleGattService, characteristic: BleGattCharacteristic, &'a mut [u8]) -> Result<(), (&'a mut [u8], ReturnCode)>;
+    fn write_characteristic(&self, service: BleGattService, characteristic: BleGattCharacteristic, &'a mut [u8]) -> Result<(), (&'a mut [u8], ReturnCode)>;
+
+    fn error(&self, error: BleGattError);
 }
 
 pub trait BleConfig {
@@ -73,12 +99,6 @@ pub trait BleRadio<'a> {
 
     fn set_receive_client(&self, client: &'a dyn BleRxClient);
     fn set_transmit_client(&self, client: &'a dyn BleTxClient);
-}
-
-pub trait BleGattDeviceClient<'a> {
-    fn connected(&self);
-    fn disconnected(&self);
-    fn error(&self, error: BleGattError);
 }
 
 pub trait BleRxClient<'a> {
