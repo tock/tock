@@ -1633,10 +1633,27 @@ impl<C: 'static + Chip> Process<'_, C> {
         // Minimum memory size for the process.
         let min_total_memory_size = min_app_ram_size + initial_kernel_memory_size;
 
+        let mut app_memory = remaining_app_memory;
+        let mut max_app_memory_size = remaining_app_memory_size;
+        // Check if application expects specific memory region.  If a process
+        // included a fixed address for the start of RAM in its TBF header
+        // then we try to provide the same address when we allocated it RAM.
+        // memory_start may change in chip.mpu().allocate_app_memory_region()
+        // so we will have to check again later if we succeeded.
+        if let Some(expected_address) = tbf_header.get_fixed_address_ram() {
+            let actual_address = app_memory as usize as u32;
+            // if we want address higher than current, we can try to accomodate this
+            if expected_address > actual_address {
+                let shift_address = expected_address as usize - actual_address as usize;
+                app_memory = app_memory.add(shift_address);
+                max_app_memory_size -= shift_address;
+            }
+        }
+
         // Determine where process memory will go and allocate MPU region for app-owned memory.
         let (memory_start, memory_size) = match chip.mpu().allocate_app_memory_region(
-            remaining_app_memory as *const u8,
-            remaining_app_memory_size,
+            app_memory as *const u8,
+            max_app_memory_size,
             min_total_memory_size,
             initial_app_memory_size,
             initial_kernel_memory_size,
