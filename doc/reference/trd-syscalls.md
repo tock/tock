@@ -640,7 +640,8 @@ information can be stored in the kernel and used in management or policy decisio
 The definition of these status codes is outside the scope of this document.
 
 If an exit syscall is successful, it does not return. Therefore, the return
-value of an exit syscall is always _Failure_.
+value of an exit syscall is always _Failure_. `exit-restart` and 
+`exit-terminate` MUST always succeed and so never return. 
 
 5 Userspace Library Methods
 =================================
