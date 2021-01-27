@@ -35,7 +35,11 @@ pub struct I2CMasterDriver<'a> {
 }
 
 impl<'a> I2CMasterDriver<'a> {
-    pub fn new(i2c: &'a dyn i2c::I2CMaster, buf: &'static mut [u8], apps: Grant<App>) -> I2CMasterDriver<'a> {
+    pub fn new(
+        i2c: &'a dyn i2c::I2CMaster,
+        buf: &'static mut [u8],
+        apps: Grant<App>,
+    ) -> I2CMasterDriver<'a> {
         I2CMasterDriver {
             i2c,
             buf: TakeCell::new(buf),
