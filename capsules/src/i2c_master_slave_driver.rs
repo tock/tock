@@ -30,8 +30,8 @@ pub const DRIVER_NUM: usize = driver::NUM::I2cMasterSlave as usize;
 pub struct App {
     callback: Callback,
     master_tx_buffer: ReadWriteAppSlice,
-    master_rx_buffer: ReadWriteAppSlice, 
-    slave_tx_buffer: ReadWriteAppSlice, 
+    master_rx_buffer: ReadWriteAppSlice,
+    slave_tx_buffer: ReadWriteAppSlice,
     slave_rx_buffer: ReadWriteAppSlice,
 }
 
@@ -203,7 +203,7 @@ impl Driver for I2CMasterSlaveDriver<'_> {
         &self,
         _appid: AppId,
         allow_num: usize,
-        mut slice: ReadWriteAppSlice, 
+        mut slice: ReadWriteAppSlice,
     ) -> Result<ReadWriteAppSlice, (ReadWriteAppSlice, ErrorCode)> {
         match allow_num {
             // Pass in a buffer for transmitting a `write` to another
@@ -235,7 +235,7 @@ impl Driver for I2CMasterSlaveDriver<'_> {
                 });
                 Ok(slice)
             }
-            _ => Err((slice, ErrorCode::NOSUPPORT))
+            _ => Err((slice, ErrorCode::NOSUPPORT)),
         }
     }
 
@@ -251,10 +251,10 @@ impl Driver for I2CMasterSlaveDriver<'_> {
                     core::mem::swap(&mut app.callback, &mut callback);
                 });
                 Ok(callback)
-            },
+            }
 
             // default
-            _ => Err((callback, ErrorCode::NOSUPPORT))
+            _ => Err((callback, ErrorCode::NOSUPPORT)),
         }
     }
 
