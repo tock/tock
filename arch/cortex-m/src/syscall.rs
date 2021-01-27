@@ -71,7 +71,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         //
         // Cortex-M hardware use 8 words on the stack to implement context switches.
         // So we need at least 32 bytes.
-        //32
+        //SVC_FRAME_SIZE
     }
 
     unsafe fn initialize_process(
