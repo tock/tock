@@ -94,11 +94,13 @@ impl fmt::Debug for ProcessLoadError {
             ProcessLoadError::MemoryAddressMismatch {
                 actual_address,
                 expected_address,
-            } => write!(
+            } => {
+                write!(
                 f,
-                "App memory does not match requested address Actual:{:#x}, Expected:{:#x}",
-                actual_address, expected_address
-            ),
+                "App memory does not match. Actual:{:#x}, Expected:{:#x}. Increase GRANT_SIZE by {}",
+                actual_address, expected_address, (actual_address - expected_address) as i32
+            )
+            }
 
             ProcessLoadError::IncorrectFlashAddress {
                 actual_address,
