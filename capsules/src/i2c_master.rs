@@ -27,15 +27,19 @@ struct Transaction {
     read_len: OptionalCell<usize>,
 }
 
-pub struct I2CMasterDriver<I: 'static + i2c::I2CMaster> {
-    i2c: &'static I,
+pub struct I2CMasterDriver<'a> {
+    i2c: &'a dyn i2c::I2CMaster,
     buf: TakeCell<'static, [u8]>,
     tx: MapCell<Transaction>,
     apps: Grant<App>,
 }
 
-impl<I: 'static + i2c::I2CMaster> I2CMasterDriver<I> {
-    pub fn new(i2c: &'static I, buf: &'static mut [u8], apps: Grant<App>) -> I2CMasterDriver<I> {
+impl<'a> I2CMasterDriver<'a> {
+    pub fn new(
+        i2c: &'a dyn i2c::I2CMaster,
+        buf: &'static mut [u8],
+        apps: Grant<App>,
+    ) -> I2CMasterDriver<'a> {
         I2CMasterDriver {
             i2c,
             buf: TakeCell::new(buf),
@@ -91,7 +95,7 @@ pub enum Cmd {
 }
 }
 
-impl<I: i2c::I2CMaster> Driver for I2CMasterDriver<I> {
+impl<'a> Driver for I2CMasterDriver<'a> {
     /// Setup shared buffers.
     ///
     /// ### `allow_num`
@@ -193,7 +197,7 @@ impl<I: i2c::I2CMaster> Driver for I2CMasterDriver<I> {
     }
 }
 
-impl<I: i2c::I2CMaster> i2c::I2CHwMasterClient for I2CMasterDriver<I> {
+impl<'a> i2c::I2CHwMasterClient for I2CMasterDriver<'a> {
     fn command_complete(&self, buffer: &'static mut [u8], _error: i2c::Error) {
         self.tx.take().map(|tx| {
             self.apps.enter(tx.app_id, |app, _| {
