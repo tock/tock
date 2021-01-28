@@ -10,6 +10,7 @@
 mod fcb;
 mod io;
 
+use components::platform_helper;
 use imxrt1060::gpio::PinId;
 use imxrt1060::iomuxc::{MuxMode, PadId, Sion};
 use imxrt10xx as imxrt1060;
@@ -29,32 +30,24 @@ static mut PROCESSES: [Option<&'static dyn kernel::procs::ProcessType>; NUM_PROC
 /// What should we do if a process faults?
 const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultResponse::Panic;
 
-/// Teensy 4 platform
-struct Teensy40 {
-    led:
+platform_helper!(
+    Teensy40,
+    drivers: {
+    led: capsules::led::DRIVER_NUM =>
         &'static capsules::led::LedDriver<'static, LedHigh<'static, imxrt1060::gpio::Pin<'static>>>,
-    console: &'static capsules::console::Console<'static>,
-    ipc: kernel::ipc::IPC<NUM_PROCS>,
-    alarm: &'static capsules::alarm::AlarmDriver<
-        'static,
-        capsules::virtual_alarm::VirtualMuxAlarm<'static, imxrt1060::gpt::Gpt1<'static>>,
-    >,
-}
-
-impl kernel::Platform for Teensy40 {
-    fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
-    where
-        F: FnOnce(Option<Result<&dyn kernel::Driver, &dyn kernel::LegacyDriver>>) -> R,
-    {
-        match driver_num {
-            capsules::led::DRIVER_NUM => f(Some(Ok(self.led))),
-            capsules::console::DRIVER_NUM => f(Some(Ok(self.console))),
-            kernel::ipc::DRIVER_NUM => f(Some(Err(&self.ipc))),
-            capsules::alarm::DRIVER_NUM => f(Some(Ok(self.alarm))),
-            _ => f(None),
-        }
+    console: capsules::console::DRIVER_NUM =>
+        &'static capsules::console::Console<'static>,
+    alarm: capsules::alarm::DRIVER_NUM =>
+        &'static capsules::alarm::AlarmDriver<
+            'static,
+            capsules::virtual_alarm::VirtualMuxAlarm<'static, imxrt1060::gpt::Gpt1<'static>>,
+        >,
+    },
+    legacy_drivers: {
+    ipc: kernel::ipc::DRIVER_NUM =>
+        kernel::ipc::IPC<NUM_PROCS>,
     }
-}
+);
 
 type Chip = imxrt1060::chip::Imxrt10xx<imxrt1060::chip::Imxrt10xxDefaultPeripherals>;
 static mut CHIP: Option<&'static Chip> = None;
