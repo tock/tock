@@ -9,6 +9,7 @@
 #![deny(missing_docs)]
 use capsules::virtual_alarm::VirtualMuxAlarm;
 use components::gpio::GpioComponent;
+use components::platform_helper;
 use components::rng::RngComponent;
 use kernel::capabilities;
 use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
@@ -16,7 +17,6 @@ use kernel::component::Component;
 use kernel::hil::gpio;
 use kernel::hil::led::LedLow;
 use kernel::hil::screen::ScreenRotation;
-use kernel::Platform;
 use kernel::{create_capability, debug, static_init};
 use stm32f412g::interrupt_service::Stm32f412gDefaultPeripherals;
 
@@ -43,50 +43,39 @@ const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultRespons
 #[link_section = ".stack_buffer"]
 pub static mut STACK_MEMORY: [u8; 0x2000] = [0; 0x2000];
 
-/// A structure representing this platform that holds references to all
-/// capsules for this platform.
-struct STM32F412GDiscovery {
-    console: &'static capsules::console::Console<'static>,
-    ipc: kernel::ipc::IPC<NUM_PROCS>,
-    led:
+platform_helper!(
+    STM32F412GDiscovery,
+    drivers: {
+    console: capsules::console::DRIVER_NUM => &'static capsules::console::Console<'static>,
+    led: capsules::led::DRIVER_NUM =>
         &'static capsules::led::LedDriver<'static, LedLow<'static, stm32f412g::gpio::Pin<'static>>>,
-    button: &'static capsules::button::Button<'static, stm32f412g::gpio::Pin<'static>>,
-    alarm: &'static capsules::alarm::AlarmDriver<
-        'static,
-        VirtualMuxAlarm<'static, stm32f412g::tim2::Tim2<'static>>,
-    >,
-    gpio: &'static capsules::gpio::GPIO<'static, stm32f412g::gpio::Pin<'static>>,
-    adc: &'static capsules::adc::AdcVirtualized<'static>,
-    ft6x06: &'static capsules::ft6x06::Ft6x06<'static>,
-    touch: &'static capsules::touch::Touch<'static>,
-    screen: &'static capsules::screen::Screen<'static>,
-    temperature: &'static capsules::temperature::TemperatureSensor<'static>,
-    rng: &'static capsules::rng::RngDriver<'static>,
-}
-
-/// Mapping of integer syscalls to objects that implement syscalls.
-impl Platform for STM32F412GDiscovery {
-    fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
-    where
-        F: FnOnce(Option<Result<&dyn kernel::Driver, &dyn kernel::LegacyDriver>>) -> R,
-    {
-        match driver_num {
-            capsules::console::DRIVER_NUM => f(Some(Ok(self.console))),
-            capsules::led::DRIVER_NUM => f(Some(Ok(self.led))),
-            capsules::button::DRIVER_NUM => f(Some(Ok(self.button))),
-            capsules::alarm::DRIVER_NUM => f(Some(Ok(self.alarm))),
-            kernel::ipc::DRIVER_NUM => f(Some(Err(&self.ipc))),
-            capsules::gpio::DRIVER_NUM => f(Some(Ok(self.gpio))),
-            capsules::adc::DRIVER_NUM => f(Some(Ok(self.adc))),
-            capsules::ft6x06::DRIVER_NUM => f(Some(Ok(self.ft6x06))),
-            capsules::touch::DRIVER_NUM => f(Some(Ok(self.touch))),
-            capsules::screen::DRIVER_NUM => f(Some(Ok(self.screen))),
-            capsules::temperature::DRIVER_NUM => f(Some(Ok(self.temperature))),
-            capsules::rng::DRIVER_NUM => f(Some(Ok(self.rng))),
-            _ => f(None),
-        }
+    button: capsules::button::DRIVER_NUM =>
+        &'static capsules::button::Button<'static, stm32f412g::gpio::Pin<'static>>,
+    alarm: capsules::alarm::DRIVER_NUM =>
+        &'static capsules::alarm::AlarmDriver<
+           'static,
+           VirtualMuxAlarm<'static, stm32f412g::tim2::Tim2<'static>>,
+       >,
+    gpio: capsules::gpio::DRIVER_NUM =>
+        &'static capsules::gpio::GPIO<'static, stm32f412g::gpio::Pin<'static>>,
+    adc: capsules::adc::DRIVER_NUM =>
+        &'static capsules::adc::AdcVirtualized<'static>,
+    ft6x06: capsules::ft6x06::DRIVER_NUM =>
+        &'static capsules::ft6x06::Ft6x06<'static>,
+    touch: capsules::touch::DRIVER_NUM =>
+        &'static capsules::touch::Touch<'static>,
+    screen: capsules::screen::DRIVER_NUM =>
+        &'static capsules::screen::Screen<'static>,
+    temperature: capsules::temperature::DRIVER_NUM =>
+        &'static capsules::temperature::TemperatureSensor<'static>,
+    rng: capsules::rng::DRIVER_NUM =>
+        &'static capsules::rng::RngDriver<'static>,
+    },
+    legacy_drivers: {
+    ipc: kernel::ipc::DRIVER_NUM =>
+        kernel::ipc::IPC<NUM_PROCS>,
     }
-}
+);
 
 /// Helper function called during bring-up that configures DMA.
 unsafe fn setup_dma(
