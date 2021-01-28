@@ -27,6 +27,7 @@ use kernel::hil::radio;
 use kernel::hil::radio::{RadioConfig, RadioData};
 use kernel::hil::symmetric_encryption::AES128;
 //use kernel::hil::time::Alarm;
+use components::platform_helper;
 use kernel::hil::led::LedHigh;
 use kernel::hil::Controller;
 #[allow(unused_imports)]
@@ -103,42 +104,68 @@ static mut CHIP: Option<&'static sam4l::chip::Sam4l<Sam4lDefaultPeripherals>> = 
 #[link_section = ".stack_buffer"]
 pub static mut STACK_MEMORY: [u8; 0x2000] = [0; 0x2000];
 
-struct Imix {
+platform_helper!(
+    Imix,
+    drivers: {
+    console: capsules::console::DRIVER_NUM =>
+        &'static capsules::console::Console<'static>,
+    gpio: capsules::gpio::DRIVER_NUM =>
+        &'static capsules::gpio::GPIO<'static, sam4l::gpio::GPIOPin<'static>>,
+    alarm: capsules::alarm::DRIVER_NUM =>
+        &'static AlarmDriver<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>,
+    temp: capsules::temperature::DRIVER_NUM =>
+        &'static capsules::temperature::TemperatureSensor<'static>,
+    humidity: capsules::humidity::DRIVER_NUM =>
+        &'static capsules::humidity::HumiditySensor<'static>,
+    ambient_light: capsules::ambient_light::DRIVER_NUM =>
+        &'static capsules::ambient_light::AmbientLight<'static>,
+    adc: capsules::adc::DRIVER_NUM =>
+        &'static capsules::adc::AdcDedicated<'static, sam4l::adc::Adc>,
+    led: capsules::led::DRIVER_NUM =>
+        &'static capsules::led::LedDriver<'static, LedHigh<'static, sam4l::gpio::GPIOPin<'static>>>,
+    button: capsules::button::DRIVER_NUM =>
+        &'static capsules::button::Button<'static, sam4l::gpio::GPIOPin<'static>>,
+    rng: capsules::rng::DRIVER_NUM =>
+        &'static capsules::rng::RngDriver<'static>,
+    analog_comparator: capsules::analog_comparator::DRIVER_NUM =>
+        &'static capsules::analog_comparator::AnalogComparator<
+            'static,
+            sam4l::acifc::Acifc<'static>,
+        >,
+    spi: capsules::spi_controller::DRIVER_NUM =>
+        &'static capsules::spi_controller::Spi<
+            'static,
+            VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw>,
+        >,
+    ninedof: capsules::ninedof::DRIVER_NUM =>
+        &'static capsules::ninedof::NineDof<'static>,
+    radio_driver: capsules::ieee802154::DRIVER_NUM =>
+        &'static capsules::ieee802154::RadioDriver<'static>,
+    udp_driver: capsules::net::udp::DRIVER_NUM =>
+        &'static capsules::net::udp::UDPDriver<'static>,
+    crc: capsules::crc::DRIVER_NUM =>
+        &'static capsules::crc::Crc<'static, sam4l::crccu::Crccu<'static>>,
+    usb_driver: capsules::usb::usb_user::DRIVER_NUM =>
+        &'static capsules::usb::usb_user::UsbSyscallDriver<
+            'static,
+            capsules::usb::usbc_client::Client<'static, sam4l::usbc::Usbc<'static>>,
+        >,
+    nonvolatile_storage: capsules::nonvolatile_storage_driver::DRIVER_NUM =>
+        &'static capsules::nonvolatile_storage_driver::NonvolatileStorage<'static>,
+    },
+    additional_fields: {
     pconsole: &'static capsules::process_console::ProcessConsole<
         'static,
         components::process_console::Capability,
     >,
-    console: &'static capsules::console::Console<'static>,
-    gpio: &'static capsules::gpio::GPIO<'static, sam4l::gpio::GPIOPin<'static>>,
-    alarm: &'static AlarmDriver<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>,
-    temp: &'static capsules::temperature::TemperatureSensor<'static>,
-    humidity: &'static capsules::humidity::HumiditySensor<'static>,
-    ambient_light: &'static capsules::ambient_light::AmbientLight<'static>,
-    adc: &'static capsules::adc::AdcDedicated<'static, sam4l::adc::Adc>,
-    led:
-        &'static capsules::led::LedDriver<'static, LedHigh<'static, sam4l::gpio::GPIOPin<'static>>>,
-    button: &'static capsules::button::Button<'static, sam4l::gpio::GPIOPin<'static>>,
-    rng: &'static capsules::rng::RngDriver<'static>,
-    analog_comparator: &'static capsules::analog_comparator::AnalogComparator<
-        'static,
-        sam4l::acifc::Acifc<'static>,
-    >,
-    spi: &'static capsules::spi_controller::Spi<
-        'static,
-        VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw>,
-    >,
-    ipc: kernel::ipc::IPC<NUM_PROCS>,
-    ninedof: &'static capsules::ninedof::NineDof<'static>,
-    radio_driver: &'static capsules::ieee802154::RadioDriver<'static>,
-    udp_driver: &'static capsules::net::udp::UDPDriver<'static>,
-    crc: &'static capsules::crc::Crc<'static, sam4l::crccu::Crccu<'static>>,
-    usb_driver: &'static capsules::usb::usb_user::UsbSyscallDriver<
-        'static,
-        capsules::usb::usbc_client::Client<'static, sam4l::usbc::Usbc<'static>>,
-    >,
-    nrf51822: &'static capsules::nrf51822_serialization::Nrf51822Serialization<'static>,
-    nonvolatile_storage: &'static capsules::nonvolatile_storage_driver::NonvolatileStorage<'static>,
-}
+    },
+    legacy_drivers: {
+    nrf51822: capsules::nrf51822_serialization::DRIVER_NUM =>
+        &'static capsules::nrf51822_serialization::Nrf51822Serialization<'static>,
+    ipc: kernel::ipc::DRIVER_NUM =>
+        kernel::ipc::IPC<NUM_PROCS>,
+    },
+);
 
 // The RF233 radio stack requires our buffers for its SPI operations:
 //
@@ -152,39 +179,6 @@ struct Imix {
 static mut RF233_BUF: [u8; radio::MAX_BUF_SIZE] = [0x00; radio::MAX_BUF_SIZE];
 static mut RF233_REG_WRITE: [u8; 2] = [0x00; 2];
 static mut RF233_REG_READ: [u8; 2] = [0x00; 2];
-
-impl kernel::Platform for Imix {
-    fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
-    where
-        F: FnOnce(Option<Result<&dyn kernel::Driver, &dyn kernel::LegacyDriver>>) -> R,
-    {
-        match driver_num {
-            capsules::console::DRIVER_NUM => f(Some(Ok(self.console))),
-            capsules::gpio::DRIVER_NUM => f(Some(Ok(self.gpio))),
-            capsules::alarm::DRIVER_NUM => f(Some(Ok(self.alarm))),
-            capsules::spi_controller::DRIVER_NUM => f(Some(Ok(self.spi))),
-            capsules::adc::DRIVER_NUM => f(Some(Ok(self.adc))),
-            capsules::led::DRIVER_NUM => f(Some(Ok(self.led))),
-            capsules::button::DRIVER_NUM => f(Some(Ok(self.button))),
-            capsules::analog_comparator::DRIVER_NUM => f(Some(Ok(self.analog_comparator))),
-            capsules::ambient_light::DRIVER_NUM => f(Some(Ok(self.ambient_light))),
-            capsules::temperature::DRIVER_NUM => f(Some(Ok(self.temp))),
-            capsules::humidity::DRIVER_NUM => f(Some(Ok(self.humidity))),
-            capsules::ninedof::DRIVER_NUM => f(Some(Ok(self.ninedof))),
-            capsules::crc::DRIVER_NUM => f(Some(Ok(self.crc))),
-            capsules::usb::usb_user::DRIVER_NUM => f(Some(Ok(self.usb_driver))),
-            capsules::ieee802154::DRIVER_NUM => f(Some(Ok(self.radio_driver))),
-            capsules::net::udp::DRIVER_NUM => f(Some(Ok(self.udp_driver))),
-            capsules::nrf51822_serialization::DRIVER_NUM => f(Some(Err(self.nrf51822))),
-            capsules::nonvolatile_storage_driver::DRIVER_NUM => {
-                f(Some(Ok(self.nonvolatile_storage)))
-            }
-            capsules::rng::DRIVER_NUM => f(Some(Ok(self.rng))),
-            kernel::ipc::DRIVER_NUM => f(Some(Err(&self.ipc))),
-            _ => f(None),
-        }
-    }
-}
 
 unsafe fn set_pin_primary_functions(peripherals: &Sam4lDefaultPeripherals) {
     use sam4l::gpio::PeripheralFunction::{A, B, C, E};
