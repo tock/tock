@@ -1212,7 +1212,6 @@ impl<C: Chip> ProcessType for Process<'_, C> {
         Ok(())
     }
 
-    
     /// Terminates and attempts to restart the process. The process
     /// always terminates, but may or not restart based on kernel
     /// policy and process state. It applies the restart policy
@@ -1247,7 +1246,7 @@ impl<C: Chip> ProcessType for Process<'_, C> {
         // Decide what to do with res later. E.g., if we can't restart
         // want to reclaim the process resources.
     }
-    
+
     /// Stop and clear a process's state, putting it into the .
     ///
     /// This will end the process, but does not reset it such that it could be
