@@ -69,7 +69,7 @@ pub enum ContextSwitchReason {
 /// store state when switching, functions in this trait are passed the bounds of
 /// process-accessible memory so that the implementation can verify it is
 /// reading and writing memory that the process has valid access to. These
-/// bounds are passed through `memory_start` and `app_brk` pointers.
+/// bounds are passed through `accessible_memory_start` and `app_brk` pointers.
 pub trait UserspaceKernelBoundary {
     /// Some architecture-specific struct containing per-process state that must
     /// be kept while the process is not running. For example, for keeping CPU
@@ -105,8 +105,9 @@ pub trait UserspaceKernelBoundary {
     /// This function must also initialize the stored state (if needed).
     ///
     /// The kernel calls this function with the start of memory allocated to the
-    /// process by providing `memory_start`. It also provides the app_brk pointer which
-    /// marks the end of process-accessible memory.
+    /// process by providing `accessible_memory_start`. It also provides the
+    /// `app_brk` pointer which marks the end of process-accessible memory. The
+    /// kernel guarantees that `accessible_memory_start` will be word-aligned.
     ///
     /// If successful, this function returns `Ok()`. If the process syscall
     /// state cannot be initialized with the available amount of memory, or for
@@ -117,7 +118,7 @@ pub trait UserspaceKernelBoundary {
     /// called. Or if the process is moved this may need to be called.
     unsafe fn initialize_process(
         &self,
-        memory_start: *const u8,
+        accessible_memory_start: *const u8,
         app_brk: *const u8,
         state: &mut Self::StoredState,
     ) -> Result<(), ()>;
@@ -132,7 +133,7 @@ pub trait UserspaceKernelBoundary {
     /// the syscall it called.
     unsafe fn set_syscall_return_value(
         &self,
-        memory_start: *const u8,
+        accessible_memory_start: *const u8,
         app_brk: *const u8,
         state: &mut Self::StoredState,
         return_value: isize,
@@ -149,8 +150,8 @@ pub trait UserspaceKernelBoundary {
     ///
     /// ### Arguments
     ///
-    /// - `memory_start` is the address of the start of the memory region
-    ///   allocated to this process.
+    /// - `accessible_memory_start` is the address of the start of the
+    ///   process-accessible memory region for this process.
     /// - `app_brk` is the address of the current process break. This marks the
     ///   end of the memory region the process has access to. Note, this is not
     ///   the end of the entire memory region allocated to the process. Some
@@ -167,7 +168,7 @@ pub trait UserspaceKernelBoundary {
     /// is insufficient memory available to do so.
     unsafe fn set_process_function(
         &self,
-        memory_start: *const u8,
+        accessible_memory_start: *const u8,
         app_brk: *const u8,
         state: &mut Self::StoredState,
         callback: process::FunctionCall,
@@ -185,7 +186,7 @@ pub trait UserspaceKernelBoundary {
     ///    state and see the stack depth, which might be useful for debugging.
     unsafe fn switch_to_process(
         &self,
-        memory_start: *const u8,
+        accessible_memory_start: *const u8,
         app_brk: *const u8,
         state: &mut Self::StoredState,
     ) -> (ContextSwitchReason, Option<*const u8>);
@@ -194,7 +195,7 @@ pub trait UserspaceKernelBoundary {
     /// for a process identified by the stored state for that process.
     unsafe fn print_context(
         &self,
-        memory_start: *const u8,
+        accessible_memory_start: *const u8,
         app_brk: *const u8,
         state: &Self::StoredState,
         writer: &mut dyn Write,

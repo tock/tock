@@ -76,7 +76,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
 
     unsafe fn initialize_process(
         &self,
-        memory_start: *const u8,
+        accessible_memory_start: *const u8,
         app_brk: *const u8,
         state: &mut Self::StoredState,
     ) -> Result<(), ()> {
@@ -89,7 +89,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         state.psp = app_brk as usize; // Set to top of process-accessible memory.
 
         // Make sure there's enough room on the stack for the initial SVC frame.
-        if (app_brk as usize - memory_start as usize) < SVC_FRAME_SIZE {
+        if (app_brk as usize - accessible_memory_start as usize) < SVC_FRAME_SIZE {
             // Not enough room on the stack to add a frame.
             return Err(());
         }
@@ -101,7 +101,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
 
     unsafe fn set_syscall_return_value(
         &self,
-        memory_start: *const u8,
+        accessible_memory_start: *const u8,
         app_brk: *const u8,
         state: &mut Self::StoredState,
         return_value: isize,
@@ -111,7 +111,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
 
         // First, we need to validate that this location is inside of the
         // process's accessible memory.
-        if state.psp < memory_start as usize
+        if state.psp < accessible_memory_start as usize
             || (state.psp + mem::size_of::<isize>()) > app_brk as usize
         {
             return Err(());
@@ -138,14 +138,16 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
     /// In effect, this converts `svc` into `bl callback`.
     unsafe fn set_process_function(
         &self,
-        memory_start: *const u8,
+        accessible_memory_start: *const u8,
         app_brk: *const u8,
         state: &mut CortexMStoredState,
         callback: kernel::procs::FunctionCall,
     ) -> Result<(), ()> {
         // Ensure that [`state.psp`, `state.psp + SVC_FRAME_SIZE`] is
         // within process-accessible memory.
-        if state.psp < memory_start as usize || (state.psp + SVC_FRAME_SIZE) > app_brk as usize {
+        if state.psp < accessible_memory_start as usize
+            || (state.psp + SVC_FRAME_SIZE) > app_brk as usize
+        {
             return Err(());
         }
 
@@ -166,7 +168,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
 
     unsafe fn switch_to_process(
         &self,
-        memory_start: *const u8,
+        accessible_memory_start: *const u8,
         app_brk: *const u8,
         state: &mut CortexMStoredState,
     ) -> (kernel::syscall::ContextSwitchReason, Option<*const u8>) {
@@ -177,7 +179,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
 
         // We need to validate that the stack pointer and the SVC frame are
         // within process accessible memory.
-        let invalid_stack_pointer = if state.psp < memory_start as usize
+        let invalid_stack_pointer = if state.psp < accessible_memory_start as usize
             || (state.psp + SVC_FRAME_SIZE) > app_brk as usize
         {
             // Process corrupted its stack pointer, we can't continue and must
@@ -246,13 +248,15 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
 
     unsafe fn print_context(
         &self,
-        memory_start: *const u8,
+        accessible_memory_start: *const u8,
         app_brk: *const u8,
         state: &CortexMStoredState,
         writer: &mut dyn Write,
     ) {
         // Validate the stored stack pointer is valid.
-        if state.psp < memory_start as usize || (state.psp + SVC_FRAME_SIZE) > app_brk as usize {
+        if state.psp < accessible_memory_start as usize
+            || (state.psp + SVC_FRAME_SIZE) > app_brk as usize
+        {
             return;
         }
 

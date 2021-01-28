@@ -1861,7 +1861,7 @@ impl<C: 'static + Chip> Process<'_, C> {
 
         // Set the initial process-accessible memory to the amount specified by
         // the context switch implementation.
-        let initial_sbrk_pointer = app_memory.as_ptr().add(min_process_memory_size);
+        let initial_app_brk = app_memory.as_ptr().add(min_process_memory_size);
 
         // Set the initial allow high water mark to the start of process memory
         // since no `allow` calls have been made yet.
@@ -1934,7 +1934,7 @@ impl<C: 'static + Chip> Process<'_, C> {
         process.memory = app_memory;
         process.header = tbf_header;
         process.kernel_memory_break = Cell::new(kernel_memory_break);
-        process.app_break = Cell::new(initial_sbrk_pointer);
+        process.app_break = Cell::new(initial_app_brk);
 
         process.flash = app_flash;
 
@@ -1982,11 +1982,18 @@ impl<C: 'static + Chip> Process<'_, C> {
             }));
         });
 
-        // Handle any architecture-specific requirements for a new process
+        // Handle any architecture-specific requirements for a new process.
+        //
+        // NOTE! We have to ensure that the start of process-accessible memory
+        // (`app_memory_start`) is word-aligned. Since we currently start
+        // process-accessible memory at the beginning of the allocated memory
+        // region, we trust the MPU to give us a word-aligned starting address.
+        //
+        // TODO: https://github.com/tock/tock/issues/1739
         match process.stored_state.map(|stored_state| {
             chip.userspace_kernel_boundary().initialize_process(
                 app_memory_start,
-                initial_sbrk_pointer,
+                initial_app_brk,
                 stored_state,
             )
         }) {

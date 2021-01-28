@@ -71,7 +71,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
 
     unsafe fn initialize_process(
         &self,
-        memory_start: *const u8,
+        accessible_memory_start: *const u8,
         _app_brk: *const u8,
         state: &mut Self::StoredState,
     ) -> Result<(), ()> {
@@ -84,12 +84,12 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         // pointer in the sp register.
         //
         // TOCK 1.X
-        state.regs[R_SP] = memory_start.add(3 * 1024) as usize;
+        state.regs[R_SP] = accessible_memory_start.add(3 * 1024) as usize;
         //
         // TOCK 2.0
         //
         // We do not pre-allocate any stack for RV32I processes.
-        // state.regs[R_SP] = memory_start as usize;
+        // state.regs[R_SP] = accessible_memory_start as usize;
 
         // We do not use memory for UKB, so just return ok.
         Ok(())
@@ -97,7 +97,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
 
     unsafe fn set_syscall_return_value(
         &self,
-        _memory_start: *const u8,
+        _accessible_memory_start: *const u8,
         _app_brk: *const u8,
         state: &mut Self::StoredState,
         return_value: isize,
@@ -112,7 +112,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
 
     unsafe fn set_process_function(
         &self,
-        _memory_start: *const u8,
+        _accessible_memory_start: *const u8,
         _app_brk: *const u8,
         state: &mut Riscv32iStoredState,
         callback: kernel::procs::FunctionCall,
@@ -142,7 +142,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
     #[cfg(not(any(target_arch = "riscv32", target_os = "none")))]
     unsafe fn switch_to_process(
         &self,
-        _memory_start: *const u8,
+        _accessible_memory_start: *const u8,
         _app_brk: *const u8,
         _state: &mut Riscv32iStoredState,
     ) -> (ContextSwitchReason, Option<*const u8>) {
@@ -155,7 +155,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
     #[cfg(all(target_arch = "riscv32", target_os = "none"))]
     unsafe fn switch_to_process(
         &self,
-        _memory_start: *const u8,
+        _accessible_memory_start: *const u8,
         _app_brk: *const u8,
         state: &mut Riscv32iStoredState,
     ) -> (ContextSwitchReason, Option<*const u8>) {
@@ -414,7 +414,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
 
     unsafe fn print_context(
         &self,
-        _memory_start: *const u8,
+        _accessible_memory_start: *const u8,
         _app_brk: *const u8,
         state: &Riscv32iStoredState,
         writer: &mut dyn Write,
