@@ -9,12 +9,12 @@
 #![deny(missing_docs)]
 
 use capsules::virtual_alarm::VirtualMuxAlarm;
+use components::platform_helper;
 use kernel::capabilities;
 use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::component::Component;
 use kernel::hil::gpio::Configure;
 use kernel::hil::led::LedHigh;
-use kernel::Platform;
 use kernel::{create_capability, debug, static_init};
 use stm32f446re::interrupt_service::Stm32f446reDefaultPeripherals;
 
@@ -46,38 +46,29 @@ const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultRespons
 #[link_section = ".stack_buffer"]
 pub static mut STACK_MEMORY: [u8; 0x2000] = [0; 0x2000];
 
-/// A structure representing this platform that holds references to all
-/// capsules for this platform.
-struct NucleoF446RE {
-    console: &'static capsules::console::Console<'static>,
-    ipc: kernel::ipc::IPC<NUM_PROCS>,
-    led: &'static capsules::led::LedDriver<
-        'static,
-        LedHigh<'static, stm32f446re::gpio::Pin<'static>>,
-    >,
-    button: &'static capsules::button::Button<'static, stm32f446re::gpio::Pin<'static>>,
-    alarm: &'static capsules::alarm::AlarmDriver<
-        'static,
-        VirtualMuxAlarm<'static, stm32f446re::tim2::Tim2<'static>>,
-    >,
-}
-
-/// Mapping of integer syscalls to objects that implement syscalls.
-impl Platform for NucleoF446RE {
-    fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
-    where
-        F: FnOnce(Option<Result<&dyn kernel::Driver, &dyn kernel::LegacyDriver>>) -> R,
-    {
-        match driver_num {
-            capsules::console::DRIVER_NUM => f(Some(Ok(self.console))),
-            capsules::led::DRIVER_NUM => f(Some(Ok(self.led))),
-            capsules::button::DRIVER_NUM => f(Some(Ok(self.button))),
-            capsules::alarm::DRIVER_NUM => f(Some(Ok(self.alarm))),
-            kernel::ipc::DRIVER_NUM => f(Some(Err(&self.ipc))),
-            _ => f(None),
-        }
-    }
-}
+platform_helper!(
+    NucleoF446RE,
+    drivers: {
+    console: capsules::console::DRIVER_NUM =>
+        &'static capsules::console::Console<'static>,
+    led: capsules::led::DRIVER_NUM =>
+        &'static capsules::led::LedDriver<
+            'static,
+            LedHigh<'static, stm32f446re::gpio::Pin<'static>>,
+        >,
+    button: capsules::button::DRIVER_NUM =>
+        &'static capsules::button::Button<'static, stm32f446re::gpio::Pin<'static>>,
+    alarm: capsules::alarm::DRIVER_NUM =>
+        &'static capsules::alarm::AlarmDriver<
+            'static,
+            VirtualMuxAlarm<'static, stm32f446re::tim2::Tim2<'static>>,
+        >,
+    },
+    legacy_drivers: {
+    ipc: kernel::ipc::DRIVER_NUM =>
+        kernel::ipc::IPC<NUM_PROCS>,
+    },
+);
 
 /// Helper function called during bring-up that configures DMA.
 unsafe fn setup_dma(
