@@ -10,11 +10,11 @@
 
 use capsules::virtual_alarm::VirtualMuxAlarm;
 use components::gpio::GpioComponent;
+use components::platform_helper;
 use kernel::capabilities;
 use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::component::Component;
 use kernel::hil::led::LedLow;
-use kernel::Platform;
 use kernel::{create_capability, debug, static_init};
 
 use stm32f401cc::interrupt_service::Stm32f401ccDefaultPeripherals;
@@ -44,42 +44,34 @@ const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultRespons
 #[link_section = ".stack_buffer"]
 pub static mut STACK_MEMORY: [u8; 0x2000] = [0; 0x2000];
 
-/// A structure representing this platform that holds references to all
-/// capsules for this platform.
-struct WeactF401CC {
-    console: &'static capsules::console::Console<'static>,
-    ipc: kernel::ipc::IPC<NUM_PROCS>,
-    led: &'static capsules::led::LedDriver<
-        'static,
-        LedLow<'static, stm32f401cc::gpio::Pin<'static>>,
-    >,
-    button: &'static capsules::button::Button<'static, stm32f401cc::gpio::Pin<'static>>,
-    adc: &'static capsules::adc::AdcVirtualized<'static>,
-    alarm: &'static capsules::alarm::AlarmDriver<
-        'static,
-        VirtualMuxAlarm<'static, stm32f401cc::tim2::Tim2<'static>>,
-    >,
-    gpio: &'static capsules::gpio::GPIO<'static, stm32f401cc::gpio::Pin<'static>>,
-}
+platform_helper!(
+    WeactF401CC,
+    drivers: {
+    console: capsules::console::DRIVER_NUM =>
+        &'static capsules::console::Console<'static>,
 
-/// Mapping of integer syscalls to objects that implement syscalls.
-impl Platform for WeactF401CC {
-    fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
-    where
-        F: FnOnce(Option<Result<&dyn kernel::Driver, &dyn kernel::LegacyDriver>>) -> R,
-    {
-        match driver_num {
-            capsules::console::DRIVER_NUM => f(Some(Ok(self.console))),
-            capsules::led::DRIVER_NUM => f(Some(Ok(self.led))),
-            capsules::button::DRIVER_NUM => f(Some(Ok(self.button))),
-            capsules::adc::DRIVER_NUM => f(Some(Ok(self.adc))),
-            capsules::alarm::DRIVER_NUM => f(Some(Ok(self.alarm))),
-            kernel::ipc::DRIVER_NUM => f(Some(Err(&self.ipc))),
-            capsules::gpio::DRIVER_NUM => f(Some(Ok(self.gpio))),
-            _ => f(None),
-        }
-    }
-}
+    led: capsules::led::DRIVER_NUM =>
+        &'static capsules::led::LedDriver<
+                'static,
+                LedLow<'static, stm32f401cc::gpio::Pin<'static>>,
+            >,
+    button: capsules::button::DRIVER_NUM =>
+        &'static capsules::button::Button<'static, stm32f401cc::gpio::Pin<'static>>,
+        adc: capsules::adc::DRIVER_NUM =>
+        &'static capsules::adc::AdcVirtualized<'static>,
+        alarm: capsules::alarm::DRIVER_NUM =>
+        &'static capsules::alarm::AlarmDriver<
+                'static,
+                VirtualMuxAlarm<'static, stm32f401cc::tim2::Tim2<'static>>,
+            >,
+        gpio: capsules::gpio::DRIVER_NUM =>
+        &'static capsules::gpio::GPIO<'static, stm32f401cc::gpio::Pin<'static>>,
+    },
+    legacy_drivers: {
+    ipc: kernel::ipc::DRIVER_NUM =>
+        kernel::ipc::IPC<NUM_PROCS>,
+    },
+);
 
 /// Helper function called during bring-up that configures DMA.
 unsafe fn setup_dma(
