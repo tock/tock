@@ -1064,41 +1064,6 @@ impl<C: Chip> ProcessType for Process<'_, C> {
         }
     }
 
-    /// Terminates and attempts to restart the process. The process
-    /// always terminates, but may or not restart based on kernel
-    /// policy and process state. It applies the restart policy
-    /// to the process.
-    ///
-    /// This function can be called when the process is in any state and
-    /// attempts to reset all of its state and re-initialize it so that it can
-    /// start running again.
-    ///
-    /// Restarting can fail for general reasons:
-    ///
-    /// 1. The kernel chooses not to restart the process based on the policy the
-    ///    kernel is using for restarting a specific process. For example, if a
-    ///    process has restarted a number of times in a row the kernel may
-    ///    decide to stop executing it.
-    ///
-    /// 2. Some state can no long be configured for the process. For example,
-    ///    the syscall state for the process fails to initialize.
-    ///
-    /// After `restart()` runs the process will either be queued to run its
-    /// `_start` function, or it will be terminated and unrunnable.
-    fn try_restart(&self, completion_code: u32) {
-        debug!("Trying to restart process {}", self.get_process_name());
-        // Terminate the process, freeing its state and removing any
-        // pending tasks from the scheduler's queue.
-        self.terminate(completion_code);
-
-        // If there is a kernel policy that controls restarts, it should be
-        // implemented here. For now, always restart.
-        let _res = self.restart();
-
-        // Decide what to do with res later. E.g., if we can't restart
-        // want to reclaim the process resources.
-    }
-
     /// Restart the process, resetting all of its state re-initializing
     /// it to start running.  Assumes the process is not running and
     /// cleaned up. This implements the mechanism of restart.
@@ -1247,6 +1212,42 @@ impl<C: Chip> ProcessType for Process<'_, C> {
         Ok(())
     }
 
+    
+    /// Terminates and attempts to restart the process. The process
+    /// always terminates, but may or not restart based on kernel
+    /// policy and process state. It applies the restart policy
+    /// to the process.
+    ///
+    /// This function can be called when the process is in any state and
+    /// attempts to reset all of its state and re-initialize it so that it can
+    /// start running again.
+    ///
+    /// Restarting can fail for general reasons:
+    ///
+    /// 1. The kernel chooses not to restart the process based on the policy the
+    ///    kernel is using for restarting a specific process. For example, if a
+    ///    process has restarted a number of times in a row the kernel may
+    ///    decide to stop executing it.
+    ///
+    /// 2. Some state can no long be configured for the process. For example,
+    ///    the syscall state for the process fails to initialize.
+    ///
+    /// After `restart()` runs the process will either be queued to run its
+    /// `_start` function, or it will be terminated and unrunnable.
+    fn try_restart(&self, completion_code: u32) {
+        debug!("Trying to restart process {}", self.get_process_name());
+        // Terminate the process, freeing its state and removing any
+        // pending tasks from the scheduler's queue.
+        self.terminate(completion_code);
+
+        // If there is a kernel policy that controls restarts, it should be
+        // implemented here. For now, always restart.
+        let _res = self.restart();
+
+        // Decide what to do with res later. E.g., if we can't restart
+        // want to reclaim the process resources.
+    }
+    
     /// Stop and clear a process's state, putting it into the .
     ///
     /// This will end the process, but does not reset it such that it could be
