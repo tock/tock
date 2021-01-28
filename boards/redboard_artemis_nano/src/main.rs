@@ -10,6 +10,7 @@
 
 use apollo3::chip::Apollo3DefaultPeripherals;
 use capsules::virtual_alarm::VirtualMuxAlarm;
+use components::platform_helper;
 use kernel::capabilities;
 use kernel::common::dynamic_deferred_call::DynamicDeferredCall;
 use kernel::common::dynamic_deferred_call::DynamicDeferredCallClientState;
@@ -17,7 +18,6 @@ use kernel::component::Component;
 use kernel::hil::i2c::I2CMaster;
 use kernel::hil::led::LedHigh;
 use kernel::hil::time::Counter;
-use kernel::Platform;
 use kernel::{create_capability, debug, static_init};
 
 pub mod ble;
@@ -44,44 +44,35 @@ const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultRespons
 #[link_section = ".stack_buffer"]
 pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 
-/// A structure representing this platform that holds references to all
-/// capsules for this platform.
-struct RedboardArtemisNano {
-    alarm: &'static capsules::alarm::AlarmDriver<
-        'static,
-        VirtualMuxAlarm<'static, apollo3::stimer::STimer<'static>>,
-    >,
-    led: &'static capsules::led::LedDriver<
-        'static,
-        LedHigh<'static, apollo3::gpio::GpioPin<'static>>,
-    >,
-    gpio: &'static capsules::gpio::GPIO<'static, apollo3::gpio::GpioPin<'static>>,
-    console: &'static capsules::console::Console<'static>,
-    i2c_master: &'static capsules::i2c_master::I2CMasterDriver<apollo3::iom::Iom<'static>>,
-    ble_radio: &'static capsules::ble_advertising_driver::BLE<
-        'static,
-        apollo3::ble::Ble<'static>,
-        VirtualMuxAlarm<'static, apollo3::stimer::STimer<'static>>,
-    >,
-}
-
-/// Mapping of integer syscalls to objects that implement syscalls.
-impl Platform for RedboardArtemisNano {
-    fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
-    where
-        F: FnOnce(Option<Result<&dyn kernel::Driver, &dyn kernel::LegacyDriver>>) -> R,
-    {
-        match driver_num {
-            capsules::alarm::DRIVER_NUM => f(Some(Ok(self.alarm))),
-            capsules::led::DRIVER_NUM => f(Some(Ok(self.led))),
-            capsules::gpio::DRIVER_NUM => f(Some(Ok(self.gpio))),
-            capsules::console::DRIVER_NUM => f(Some(Ok(self.console))),
-            capsules::i2c_master::DRIVER_NUM => f(Some(Ok(self.i2c_master))),
-            capsules::ble_advertising_driver::DRIVER_NUM => f(Some(Err(self.ble_radio))),
-            _ => f(None),
-        }
-    }
-}
+platform_helper!(
+    RedboardArtemisNano,
+    drivers: {
+    alarm: capsules::alarm::DRIVER_NUM =>
+        &'static capsules::alarm::AlarmDriver<
+            'static,
+            VirtualMuxAlarm<'static, apollo3::stimer::STimer<'static>>,
+        >,
+    led: capsules::led::DRIVER_NUM =>
+        &'static capsules::led::LedDriver<
+            'static,
+            LedHigh<'static, apollo3::gpio::GpioPin<'static>>,
+        >,
+    gpio: capsules::gpio::DRIVER_NUM =>
+        &'static capsules::gpio::GPIO<'static, apollo3::gpio::GpioPin<'static>>,
+    console: capsules::console::DRIVER_NUM =>
+        &'static capsules::console::Console<'static>,
+    i2c_master: capsules::i2c_master::DRIVER_NUM =>
+        &'static capsules::i2c_master::I2CMasterDriver<apollo3::iom::Iom<'static>>,
+    },
+    legacy_drivers: {
+    ble_radio: capsules::ble_advertising_driver::DRIVER_NUM =>
+        &'static capsules::ble_advertising_driver::BLE<
+            'static,
+            apollo3::ble::Ble<'static>,
+            VirtualMuxAlarm<'static, apollo3::stimer::STimer<'static>>,
+        >,
+    },
+);
 
 /// Reset Handler.
 ///
