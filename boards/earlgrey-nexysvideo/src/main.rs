@@ -9,6 +9,7 @@
 
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules::virtual_hmac::VirtualMuxHmac;
+use components::platform_helper;
 use earlgrey::chip::EarlGreyDefaultPeripherals;
 use kernel::capabilities;
 use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
@@ -18,7 +19,6 @@ use kernel::hil::i2c::I2CMaster;
 use kernel::hil::led::LedHigh;
 use kernel::hil::time::Alarm;
 use kernel::Chip;
-use kernel::Platform;
 use kernel::{create_capability, debug, static_init};
 use rv32i::csr;
 
@@ -53,53 +53,40 @@ const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultRespons
 #[link_section = ".stack_buffer"]
 pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 
-/// A structure representing this platform that holds references to all
-/// capsules for this platform. We've included an alarm and console.
-struct EarlGreyNexysVideo {
-    led: &'static capsules::led::LedDriver<
-        'static,
-        LedHigh<'static, earlgrey::gpio::GpioPin<'static>>,
-    >,
-    gpio: &'static capsules::gpio::GPIO<'static, earlgrey::gpio::GpioPin<'static>>,
-    console: &'static capsules::console::Console<'static>,
-    alarm: &'static capsules::alarm::AlarmDriver<
-        'static,
-        VirtualMuxAlarm<'static, earlgrey::timer::RvTimer<'static>>,
-    >,
-    hmac: &'static capsules::hmac::HmacDriver<
-        'static,
-        VirtualMuxHmac<'static, lowrisc::hmac::Hmac<'static>, [u8; 32]>,
-        [u8; 32],
-    >,
-    lldb: &'static capsules::low_level_debug::LowLevelDebug<
-        'static,
-        capsules::virtual_uart::UartDevice<'static>,
-    >,
-    i2c_master: &'static capsules::i2c_master::I2CMasterDriver<lowrisc::i2c::I2c<'static>>,
-    nonvolatile_storage: &'static capsules::nonvolatile_storage_driver::NonvolatileStorage<'static>,
-}
-
-/// Mapping of integer syscalls to objects that implement syscalls.
-impl Platform for EarlGreyNexysVideo {
-    fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
-    where
-        F: FnOnce(Option<Result<&dyn kernel::Driver, &dyn kernel::LegacyDriver>>) -> R,
-    {
-        match driver_num {
-            capsules::led::DRIVER_NUM => f(Some(Ok(self.led))),
-            capsules::hmac::DRIVER_NUM => f(Some(Ok(self.hmac))),
-            capsules::gpio::DRIVER_NUM => f(Some(Ok(self.gpio))),
-            capsules::console::DRIVER_NUM => f(Some(Ok(self.console))),
-            capsules::alarm::DRIVER_NUM => f(Some(Ok(self.alarm))),
-            capsules::low_level_debug::DRIVER_NUM => f(Some(Ok(self.lldb))),
-            capsules::i2c_master::DRIVER_NUM => f(Some(Ok(self.i2c_master))),
-            capsules::nonvolatile_storage_driver::DRIVER_NUM => {
-                f(Some(Ok(self.nonvolatile_storage)))
-            }
-            _ => f(None),
-        }
-    }
-}
+platform_helper!(
+    EarlGreyNexysVideo,
+    drivers: {
+    led: capsules::led::DRIVER_NUM =>
+        &'static capsules::led::LedDriver<
+            'static,
+            LedHigh<'static, earlgrey::gpio::GpioPin<'static>>,
+        >,
+    gpio: capsules::gpio::DRIVER_NUM =>
+        &'static capsules::gpio::GPIO<'static, earlgrey::gpio::GpioPin<'static>>,
+    console: capsules::console::DRIVER_NUM =>
+        &'static capsules::console::Console<'static>,
+    alarm: capsules::alarm::DRIVER_NUM =>
+        &'static capsules::alarm::AlarmDriver<
+            'static,
+            VirtualMuxAlarm<'static, earlgrey::timer::RvTimer<'static>>,
+        >,
+    hmac: capsules::hmac::DRIVER_NUM =>
+        &'static capsules::hmac::HmacDriver<
+            'static,
+            VirtualMuxHmac<'static, lowrisc::hmac::Hmac<'static>, [u8; 32]>,
+            [u8; 32],
+        >,
+    lldb: capsules::low_level_debug::DRIVER_NUM =>
+        &'static capsules::low_level_debug::LowLevelDebug<
+            'static,
+            capsules::virtual_uart::UartDevice<'static>,
+        >,
+    i2c_master: capsules::i2c_master::DRIVER_NUM =>
+        &'static capsules::i2c_master::I2CMasterDriver<lowrisc::i2c::I2c<'static>>,
+    nonvolatile_storage: capsules::nonvolatile_storage_driver::DRIVER_NUM =>
+        &'static capsules::nonvolatile_storage_driver::NonvolatileStorage<'static>,
+    },
+);
 
 /// Reset Handler.
 ///
