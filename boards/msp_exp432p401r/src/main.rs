@@ -9,12 +9,12 @@
 #![deny(missing_docs)]
 
 use components::gpio::GpioComponent;
+use components::platform_helper;
 use kernel::capabilities;
 use kernel::common::dynamic_deferred_call::DynamicDeferredCall;
 use kernel::common::dynamic_deferred_call::DynamicDeferredCallClientState;
 use kernel::component::Component;
 use kernel::hil::gpio::Configure;
-use kernel::Platform;
 use kernel::{create_capability, debug, static_init};
 
 /// Support routines for debugging I/O.
@@ -42,42 +42,33 @@ const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultRespons
 #[link_section = ".stack_buffer"]
 pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 
-/// A structure representing this platform that holds references to all
-/// capsules for this platform.
-struct MspExp432P401R {
-    led: &'static capsules::led::LedDriver<
-        'static,
-        kernel::hil::led::LedHigh<'static, msp432::gpio::IntPin<'static>>,
-    >,
-    console: &'static capsules::console::Console<'static>,
-    button: &'static capsules::button::Button<'static, msp432::gpio::IntPin<'static>>,
-    gpio: &'static capsules::gpio::GPIO<'static, msp432::gpio::IntPin<'static>>,
-    alarm: &'static capsules::alarm::AlarmDriver<
-        'static,
-        capsules::virtual_alarm::VirtualMuxAlarm<'static, msp432::timer::TimerA<'static>>,
-    >,
-    ipc: kernel::ipc::IPC<NUM_PROCS>,
-    adc: &'static capsules::adc::AdcDedicated<'static, msp432::adc::Adc<'static>>,
-}
-
-/// Mapping of integer syscalls to objects that implement syscalls.
-impl Platform for MspExp432P401R {
-    fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
-    where
-        F: FnOnce(Option<Result<&dyn kernel::Driver, &dyn kernel::LegacyDriver>>) -> R,
-    {
-        match driver_num {
-            capsules::led::DRIVER_NUM => f(Some(Ok(self.led))),
-            capsules::console::DRIVER_NUM => f(Some(Ok(self.console))),
-            capsules::button::DRIVER_NUM => f(Some(Ok(self.button))),
-            capsules::gpio::DRIVER_NUM => f(Some(Ok(self.gpio))),
-            capsules::alarm::DRIVER_NUM => f(Some(Ok(self.alarm))),
-            kernel::ipc::DRIVER_NUM => f(Some(Err(&self.ipc))),
-            capsules::adc::DRIVER_NUM => f(Some(Ok(self.adc))),
-            _ => f(None),
-        }
-    }
-}
+platform_helper!(
+    MspExp432P401R,
+    drivers: {
+    led: capsules::led::DRIVER_NUM =>
+        &'static capsules::led::LedDriver<
+            'static,
+            kernel::hil::led::LedHigh<'static, msp432::gpio::IntPin<'static>>,
+        >,
+    console: capsules::console::DRIVER_NUM =>
+        &'static capsules::console::Console<'static>,
+    button: capsules::button::DRIVER_NUM =>
+        &'static capsules::button::Button<'static, msp432::gpio::IntPin<'static>>,
+    gpio: capsules::gpio::DRIVER_NUM =>
+        &'static capsules::gpio::GPIO<'static, msp432::gpio::IntPin<'static>>,
+    alarm: capsules::alarm::DRIVER_NUM =>
+        &'static capsules::alarm::AlarmDriver<
+            'static,
+            capsules::virtual_alarm::VirtualMuxAlarm<'static, msp432::timer::TimerA<'static>>,
+        >,
+    adc: capsules::adc::DRIVER_NUM =>
+        &'static capsules::adc::AdcDedicated<'static, msp432::adc::Adc<'static>>,
+    },
+    legacy_drivers: {
+    ipc: kernel::ipc::DRIVER_NUM =>
+        kernel::ipc::IPC<NUM_PROCS>,
+    },
+);
 
 /// Startup initialisation
 ///
