@@ -49,6 +49,55 @@ pub enum Syscall {
     MEMOP { operand: usize, arg0: usize },
 }
 
+impl Syscall {
+    /// Helper function for converting raw values passed back from an application
+    /// into a `Syscall` type in Tock.
+    ///
+    /// Different architectures may have different mechanisms for passing
+    /// information about what syscall an app called, but they will have have to
+    /// convert the series of raw values into a more useful Rust type. While
+    /// implementations are free to do this themselves, this provides a generic
+    /// helper function which should help reduce duplicated code.
+    ///
+    /// The mappings between raw `syscall_number` values and the associated syscall
+    /// type are specified and fixed by Tock. After that, this function only
+    /// converts raw values to more meaningful types based on the syscall.
+    pub fn from_register_arguments(
+        syscall_number: u8,
+        r0: usize,
+        r1: usize,
+        r2: usize,
+        r3: usize,
+    ) -> Option<Syscall> {
+        match syscall_number {
+            0 => Some(Syscall::YIELD),
+            1 => Some(Syscall::SUBSCRIBE {
+                driver_number: r0,
+                subdriver_number: r1,
+                callback_ptr: r2 as *mut (),
+                appdata: r3,
+            }),
+            2 => Some(Syscall::COMMAND {
+                driver_number: r0,
+                subdriver_number: r1,
+                arg0: r2,
+                arg1: r3,
+            }),
+            3 => Some(Syscall::ALLOW {
+                driver_number: r0,
+                subdriver_number: r1,
+                allow_address: r2 as *mut u8,
+                allow_size: r3,
+            }),
+            4 => Some(Syscall::MEMOP {
+                operand: r0,
+                arg0: r1,
+            }),
+            _ => None,
+        }
+    }
+}
+
 /// Why the process stopped executing and execution returned to the kernel.
 #[derive(PartialEq, Copy, Clone)]
 pub enum ContextSwitchReason {
@@ -158,51 +207,4 @@ pub trait UserspaceKernelBoundary {
         state: &Self::StoredState,
         writer: &mut dyn Write,
     );
-}
-
-/// Helper function for converting raw values passed back from an application
-/// into a `Syscall` type in Tock.
-///
-/// Different architectures may have different mechanisms for passing
-/// information about what syscall an app called, but they will have have to
-/// convert the series of raw values into a more useful Rust type. While
-/// implementations are free to do this themselves, this provides a generic
-/// helper function which should help reduce duplicated code.
-///
-/// The mappings between raw `syscall_number` values and the associated syscall
-/// type are specified and fixed by Tock. After that, this function only
-/// converts raw values to more meaningful types based on the syscall.
-pub fn arguments_to_syscall(
-    syscall_number: u8,
-    r0: usize,
-    r1: usize,
-    r2: usize,
-    r3: usize,
-) -> Option<Syscall> {
-    match syscall_number {
-        0 => Some(Syscall::YIELD),
-        1 => Some(Syscall::SUBSCRIBE {
-            driver_number: r0,
-            subdriver_number: r1,
-            callback_ptr: r2 as *mut (),
-            appdata: r3,
-        }),
-        2 => Some(Syscall::COMMAND {
-            driver_number: r0,
-            subdriver_number: r1,
-            arg0: r2,
-            arg1: r3,
-        }),
-        3 => Some(Syscall::ALLOW {
-            driver_number: r0,
-            subdriver_number: r1,
-            allow_address: r2 as *mut u8,
-            allow_size: r3,
-        }),
-        4 => Some(Syscall::MEMOP {
-            operand: r0,
-            arg0: r1,
-        }),
-        _ => None,
-    }
 }

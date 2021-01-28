@@ -360,7 +360,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
                         // instruction. The hardware does not do this for us.
                         state.pc += 4;
 
-                        let syscall = kernel::syscall::arguments_to_syscall(
+                        let syscall = kernel::syscall::Syscall::from_register_arguments(
                             state.regs[R_A0] as u8,
                             state.regs[R_A1],
                             state.regs[R_A2],
