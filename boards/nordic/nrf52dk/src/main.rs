@@ -67,6 +67,7 @@
 #![deny(missing_docs)]
 
 use capsules::virtual_alarm::VirtualMuxAlarm;
+use components::platform_helper;
 use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::component::Component;
 use kernel::hil::led::LedLow;
@@ -127,57 +128,52 @@ static mut CHIP: Option<&'static nrf52832::chip::NRF52<Nrf52832DefaultPeripheral
 #[link_section = ".stack_buffer"]
 pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 
-/// Supported drivers by the platform
-pub struct Platform {
-    ble_radio: &'static capsules::ble_advertising_driver::BLE<
-        'static,
-        nrf52832::ble_radio::Radio<'static>,
-        VirtualMuxAlarm<'static, Rtc<'static>>,
+platform_helper!(
+    Platform,
+    drivers: {
+    button: capsules::button::DRIVER_NUM =>
+        &'static capsules::button::Button<'static, nrf52832::gpio::GPIOPin<'static>>,
+    console: capsules::console::DRIVER_NUM =>
+        &'static capsules::console::Console<'static>,
+    gpio: capsules::gpio::DRIVER_NUM =>
+        &'static capsules::gpio::GPIO<'static, nrf52832::gpio::GPIOPin<'static>>,
+    led: capsules::led::DRIVER_NUM =>
+        &'static capsules::led::LedDriver<
+             'static,
+             LedLow<'static, nrf52832::gpio::GPIOPin<'static>>,
     >,
-    button: &'static capsules::button::Button<'static, nrf52832::gpio::GPIOPin<'static>>,
-    pconsole: &'static capsules::process_console::ProcessConsole<
-        'static,
-        components::process_console::Capability,
-    >,
-    console: &'static capsules::console::Console<'static>,
-    gpio: &'static capsules::gpio::GPIO<'static, nrf52832::gpio::GPIOPin<'static>>,
-    led: &'static capsules::led::LedDriver<
-        'static,
-        LedLow<'static, nrf52832::gpio::GPIOPin<'static>>,
-    >,
-    rng: &'static capsules::rng::RngDriver<'static>,
-    temp: &'static capsules::temperature::TemperatureSensor<'static>,
-    ipc: kernel::ipc::IPC<NUM_PROCS>,
-    analog_comparator: &'static capsules::analog_comparator::AnalogComparator<
-        'static,
-        nrf52832::acomp::Comparator<'static>,
-    >,
-    alarm: &'static capsules::alarm::AlarmDriver<
-        'static,
-        capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52832::rtc::Rtc<'static>>,
-    >,
-}
-
-impl kernel::Platform for Platform {
-    fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
-    where
-        F: FnOnce(Option<Result<&dyn kernel::Driver, &dyn kernel::LegacyDriver>>) -> R,
-    {
-        match driver_num {
-            capsules::console::DRIVER_NUM => f(Some(Ok(self.console))),
-            capsules::gpio::DRIVER_NUM => f(Some(Ok(self.gpio))),
-            capsules::alarm::DRIVER_NUM => f(Some(Ok(self.alarm))),
-            capsules::led::DRIVER_NUM => f(Some(Ok(self.led))),
-            capsules::button::DRIVER_NUM => f(Some(Ok(self.button))),
-            capsules::rng::DRIVER_NUM => f(Some(Ok(self.rng))),
-            capsules::ble_advertising_driver::DRIVER_NUM => f(Some(Err(self.ble_radio))),
-            capsules::temperature::DRIVER_NUM => f(Some(Ok(self.temp))),
-            capsules::analog_comparator::DRIVER_NUM => f(Some(Ok(self.analog_comparator))),
-            kernel::ipc::DRIVER_NUM => f(Some(Err(&self.ipc))),
-            _ => f(None),
-        }
-    }
-}
+    rng: capsules::rng::DRIVER_NUM =>
+        &'static capsules::rng::RngDriver<'static>,
+    temp: capsules::temperature::DRIVER_NUM =>
+        &'static capsules::temperature::TemperatureSensor<'static>,
+    analog_comparator: capsules::analog_comparator::DRIVER_NUM =>
+        &'static capsules::analog_comparator::AnalogComparator<
+            'static,
+            nrf52832::acomp::Comparator<'static>,
+        >,
+    alarm: capsules::alarm::DRIVER_NUM =>
+        &'static capsules::alarm::AlarmDriver<
+            'static,
+            capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52832::rtc::Rtc<'static>>,
+        >,
+   },
+   legacy_drivers: {
+   ble_radio: capsules::ble_advertising_driver::DRIVER_NUM =>
+       &'static capsules::ble_advertising_driver::BLE<
+           'static,
+           nrf52832::ble_radio::Radio<'static>,
+           VirtualMuxAlarm<'static, Rtc<'static>>,
+        >,
+    ipc: kernel::ipc::DRIVER_NUM =>
+        kernel::ipc::IPC<NUM_PROCS>,
+   },
+   additional_fields: {
+   pconsole: &'static capsules::process_console::ProcessConsole<
+       'static,
+       components::process_console::Capability,
+   >,
+   },
+);
 
 /// Entry point in the vector table called on hard reset.
 #[no_mangle]
