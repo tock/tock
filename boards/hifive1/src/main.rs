@@ -10,6 +10,7 @@
 #![cfg_attr(not(doc), no_main)]
 
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+use components::platform_helper;
 use e310x::chip::E310xDefaultPeripherals;
 use kernel::capabilities;
 use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
@@ -18,7 +19,6 @@ use kernel::hil;
 use kernel::hil::led::LedLow;
 use kernel::hil::time::Alarm;
 use kernel::Chip;
-use kernel::Platform;
 use kernel::{create_capability, debug, static_init};
 use rv32i::csr;
 
@@ -50,37 +50,25 @@ const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultRespons
 #[link_section = ".stack_buffer"]
 pub static mut STACK_MEMORY: [u8; 0x900] = [0; 0x900];
 
-/// A structure representing this platform that holds references to all
-/// capsules for this platform. We've included an alarm and console.
-struct HiFive1 {
-    led:
+platform_helper!(
+    HiFive1,
+    drivers: {
+    led: capsules::led::DRIVER_NUM =>
         &'static capsules::led::LedDriver<'static, LedLow<'static, sifive::gpio::GpioPin<'static>>>,
-    console: &'static capsules::console::Console<'static>,
-    lldb: &'static capsules::low_level_debug::LowLevelDebug<
-        'static,
-        capsules::virtual_uart::UartDevice<'static>,
-    >,
-    alarm: &'static capsules::alarm::AlarmDriver<
-        'static,
-        VirtualMuxAlarm<'static, rv32i::machine_timer::MachineTimer<'static>>,
-    >,
-}
-
-/// Mapping of integer syscalls to objects that implement syscalls.
-impl Platform for HiFive1 {
-    fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
-    where
-        F: FnOnce(Option<Result<&dyn kernel::Driver, &dyn kernel::LegacyDriver>>) -> R,
-    {
-        match driver_num {
-            capsules::led::DRIVER_NUM => f(Some(Ok(self.led))),
-            capsules::console::DRIVER_NUM => f(Some(Ok(self.console))),
-            capsules::alarm::DRIVER_NUM => f(Some(Ok(self.alarm))),
-            capsules::low_level_debug::DRIVER_NUM => f(Some(Ok(self.lldb))),
-            _ => f(None),
-        }
-    }
-}
+    console: capsules::console::DRIVER_NUM =>
+        &'static capsules::console::Console<'static>,
+    lldb: capsules::low_level_debug::DRIVER_NUM =>
+        &'static capsules::low_level_debug::LowLevelDebug<
+            'static,
+            capsules::virtual_uart::UartDevice<'static>,
+        >,
+    alarm: capsules::alarm::DRIVER_NUM =>
+        &'static capsules::alarm::AlarmDriver<
+            'static,
+            VirtualMuxAlarm<'static, rv32i::machine_timer::MachineTimer<'static>>,
+        >,
+    },
+);
 
 /// Reset Handler.
 ///
