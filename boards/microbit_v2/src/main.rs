@@ -8,6 +8,7 @@
 #![cfg_attr(not(doc), no_main)]
 #![deny(missing_docs)]
 
+use components::platform_helper;
 use kernel::capabilities;
 use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::component::Component;
@@ -73,64 +74,56 @@ static mut CHIP: Option<&'static nrf52833::chip::NRF52<Nrf52833DefaultPeripheral
 #[link_section = ".stack_buffer"]
 pub static mut STACK_MEMORY: [u8; 0x2000] = [0; 0x2000];
 
-/// Supported drivers by the platform
-pub struct Platform {
-    ble_radio: &'static capsules::ble_advertising_driver::BLE<
-        'static,
-        nrf52::ble_radio::Radio<'static>,
-        capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc<'static>>,
-    >,
-    console: &'static capsules::console::Console<'static>,
-    gpio: &'static capsules::gpio::GPIO<'static, nrf52::gpio::GPIOPin<'static>>,
-    led: &'static capsules::led_matrix::LedMatrixDriver<
-        'static,
-        nrf52::gpio::GPIOPin<'static>,
-        capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc<'static>>,
-    >,
-    button: &'static capsules::button::Button<'static, nrf52::gpio::GPIOPin<'static>>,
-    rng: &'static capsules::rng::RngDriver<'static>,
-    ninedof: &'static capsules::ninedof::NineDof<'static>,
-    lsm303agr: &'static capsules::lsm303agr::Lsm303agrI2C<'static>,
-    temperature: &'static capsules::temperature::TemperatureSensor<'static>,
-    ipc: kernel::ipc::IPC<NUM_PROCS>,
-    adc: &'static capsules::adc::AdcVirtualized<'static>,
-    alarm: &'static capsules::alarm::AlarmDriver<
-        'static,
-        capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc<'static>>,
-    >,
-    buzzer: &'static capsules::buzzer_driver::Buzzer<
-        'static,
-        capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52833::rtc::Rtc<'static>>,
-    >,
-    app_flash: &'static capsules::app_flash_driver::AppFlash<'static>,
-    sound_pressure: &'static capsules::sound_pressure::SoundPressureSensor<'static>,
-}
-
-impl kernel::Platform for Platform {
-    fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
-    where
-        F: FnOnce(Option<Result<&dyn kernel::Driver, &dyn kernel::LegacyDriver>>) -> R,
-    {
-        match driver_num {
-            capsules::console::DRIVER_NUM => f(Some(Ok(self.console))),
-            capsules::gpio::DRIVER_NUM => f(Some(Ok(self.gpio))),
-            capsules::alarm::DRIVER_NUM => f(Some(Ok(self.alarm))),
-            capsules::button::DRIVER_NUM => f(Some(Ok(self.button))),
-            capsules::led_matrix::DRIVER_NUM => f(Some(Ok(self.led))),
-            capsules::ninedof::DRIVER_NUM => f(Some(Ok(self.ninedof))),
-            capsules::adc::DRIVER_NUM => f(Some(Ok(self.adc))),
-            capsules::temperature::DRIVER_NUM => f(Some(Ok(self.temperature))),
-            capsules::lsm303agr::DRIVER_NUM => f(Some(Ok(self.lsm303agr))),
-            capsules::rng::DRIVER_NUM => f(Some(Ok(self.rng))),
-            capsules::ble_advertising_driver::DRIVER_NUM => f(Some(Err(self.ble_radio))),
-            capsules::buzzer_driver::DRIVER_NUM => f(Some(Ok(self.buzzer))),
-            capsules::app_flash_driver::DRIVER_NUM => f(Some(Ok(self.app_flash))),
-            capsules::sound_pressure::DRIVER_NUM => f(Some(Ok(self.sound_pressure))),
-            kernel::ipc::DRIVER_NUM => f(Some(Err(&self.ipc))),
-            _ => f(None),
-        }
-    }
-}
+platform_helper!(
+    Platform,
+    drivers: {
+    console: capsules::console::DRIVER_NUM =>
+        &'static capsules::console::Console<'static>,
+    gpio: capsules::gpio::DRIVER_NUM =>
+        &'static capsules::gpio::GPIO<'static, nrf52::gpio::GPIOPin<'static>>,
+    led: capsules::led::DRIVER_NUM =>
+        &'static capsules::led_matrix::LedMatrixDriver<
+            'static,
+            nrf52::gpio::GPIOPin<'static>,
+            capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc<'static>>,
+        >,
+    button: capsules::button::DRIVER_NUM =>
+        &'static capsules::button::Button<'static, nrf52::gpio::GPIOPin<'static>>,
+    rng: capsules::rng::DRIVER_NUM =>
+        &'static capsules::rng::RngDriver<'static>,
+    ninedof: capsules::ninedof::DRIVER_NUM =>
+        &'static capsules::ninedof::NineDof<'static>,
+    lsm303agr: capsules::lsm303agr::DRIVER_NUM =>
+        &'static capsules::lsm303agr::Lsm303agrI2C<'static>,
+    temperature: capsules::temperature::DRIVER_NUM =>
+        &'static capsules::temperature::TemperatureSensor<'static>,
+    adc: capsules::adc::DRIVER_NUM =>
+        &'static capsules::adc::AdcVirtualized<'static>,
+    alarm: capsules::alarm::DRIVER_NUM =>
+        &'static capsules::alarm::AlarmDriver<
+            'static,
+            capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc<'static>>,
+        >,
+    buzzer: capsules::buzzer_driver::DRIVER_NUM =>
+        &'static capsules::buzzer_driver::Buzzer<
+            'static,
+            capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52833::rtc::Rtc<'static>>,
+        >,
+    app_flash: capsules::app_flash_driver::DRIVER_NUM =>
+        &'static capsules::app_flash_driver::AppFlash<'static>,
+    sound_pressure: capsules::sound_pressure::DRIVER_NUM =>
+        &'static capsules::sound_pressure::SoundPressureSensor<'static>,
+    },
+    legacy_drivers: {
+    ble_radio: capsules::ble_advertising_driver::DRIVER_NUM =>
+        &'static capsules::ble_advertising_driver::BLE<
+            'static,
+            nrf52::ble_radio::Radio<'static>,
+            capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc<'static>>,
+        >,
+    ipc: kernel::ipc::DRIVER_NUM => kernel::ipc::IPC<NUM_PROCS>,
+    },
+);
 
 /// Entry point in the vector table called on hard reset.
 #[no_mangle]
