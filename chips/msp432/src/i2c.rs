@@ -1,13 +1,8 @@
-use crate::dma;
 use crate::usci::{self, UsciBRegisters};
 use core::cell::Cell;
-use kernel::common::cells::OptionalCell;
-use kernel::common::peripherals::{PeripheralManagement, PeripheralManager};
-use kernel::common::registers::{ReadOnly, ReadWrite};
+use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::common::StaticRef;
 use kernel::hil::i2c;
-use kernel::NoClockControl;
-use kernel::ReturnCode;
 
 #[derive(Copy, Clone, PartialEq)]
 pub enum Speed {
@@ -22,54 +17,44 @@ enum OperatingMode {
     Idle,
     Write,
     Read,
-    WriteRead,
+    WriteReadWrite,
+    WriteReadRead,
 }
 
 pub struct I2c<'a> {
     registers: StaticRef<UsciBRegisters>,
     mode: Cell<OperatingMode>,
     read_len: Cell<u8>,
+    write_len: Cell<u8>,
+    buf_idx: Cell<u8>,
+    buffer: TakeCell<'static, [u8]>,
     master_client: OptionalCell<&'a dyn i2c::I2CHwMasterClient>,
-
-    tx_dma: OptionalCell<&'a dma::DmaChannel<'a>>,
-    pub(crate) tx_dma_chan: usize,
-    tx_dma_src: u8,
-
-    rx_dma: OptionalCell<&'a dma::DmaChannel<'a>>,
-    pub(crate) rx_dma_chan: usize,
-    rx_dma_src: u8,
 }
 
 impl<'a> I2c<'a> {
-    pub const fn new(
-        registers: StaticRef<UsciBRegisters>,
-        tx_dma_chan: usize,
-        rx_dma_chan: usize,
-        tx_dma_src: u8,
-        rx_dma_src: u8,
-    ) -> Self {
+    pub const fn new(registers: StaticRef<UsciBRegisters>) -> Self {
         Self {
             registers: registers,
             mode: Cell::new(OperatingMode::Unconfigured),
             read_len: Cell::new(0),
+            write_len: Cell::new(0),
+            buf_idx: Cell::new(0),
+            buffer: TakeCell::empty(),
             master_client: OptionalCell::empty(),
-            tx_dma: OptionalCell::empty(),
-            tx_dma_chan: tx_dma_chan,
-            tx_dma_src: tx_dma_src,
-            rx_dma: OptionalCell::empty(),
-            rx_dma_chan: rx_dma_chan,
-            rx_dma_src: rx_dma_src,
         }
     }
 
     fn set_module_to_reset(&self) {
-        // Set USCI module to reset in order to make a proper configuration possible
+        // Set USCI module to reset in order to make a certain configurations possible
         self.registers.ctlw0.modify(usci::UCBxCTLW0::UCSWRST::SET);
     }
 
     fn clear_module_reset(&self) {
-        // Set USCI module to reset in order to make a proper configuration possible
+        // Set USCI module to reset in order to make a certain configurations possible
         self.registers.ctlw0.modify(usci::UCBxCTLW0::UCSWRST::CLEAR);
+
+        // Setting the module to reset clears the enabled interrupts -> enable them again
+        self.enable_interrupts();
     }
 
     fn set_slave_address(&self, addr: u8) {
@@ -98,6 +83,24 @@ impl<'a> I2c<'a> {
         }
     }
 
+    fn enable_interrupts(&self) {
+        // Enable interrupts
+        self.registers.ie.modify(
+            // Enable NACK interrupt
+            usci::UCBxIE::UCNACKIE::SET
+            // Enable TX interrupt
+            // + usci::UCBxIE::UCTXIE0::SET
+            // Enable RX interrupt
+            + usci::UCBxIE::UCRXIE0::SET
+            // Enable Stop condition interrupt
+            + usci::UCBxIE::UCSTPIE::SET
+            // Enable Start condition interrupt
+            + usci::UCBxIE::UCSTTIE::SET
+            // Enable 'arbitration lost' interrupt
+            + usci::UCBxIE::UCALIE::SET,
+        );
+    }
+
     fn enable_transmit_mode(&self) {
         self.registers
             .ctlw0
@@ -108,8 +111,27 @@ impl<'a> I2c<'a> {
         self.registers.ctlw0.modify(usci::UCBxCTLW0::UCTR::Receiver);
     }
 
+    fn enable_transmit_interrupt(&self) {
+        self.registers.ie.modify(usci::UCBxIE::UCTXIE0::SET);
+    }
+
+    fn disable_transmit_interrupt(&self) {
+        self.registers.ie.modify(usci::UCBxIE::UCTXIE0::CLEAR);
+    }
+
     fn set_byte_counter(&self, val: u8) {
         self.registers.tbcnt.set(val as u16);
+    }
+
+    fn invoke_callback(&self, err: i2c::Error) {
+        // Reset buffer index and set mode to Idle in order to start a new transfer properly
+        self.buf_idx.set(0);
+        self.mode.set(OperatingMode::Idle);
+
+        self.buffer.take().map(|buf| {
+            self.master_client
+                .map(move |cl| cl.command_complete(buf, err))
+        });
     }
 
     fn setup(&self) {
@@ -124,6 +146,8 @@ impl<'a> I2c<'a> {
             + usci::UCBxCTLW0::UCMM::SingleMasterEnvironment
             // Configure USCI module to I2C mode
             + usci::UCBxCTLW0::UCMODE::I2CMode
+            // Enable Synchronous mode
+            + usci::UCBxCTLW0::UCSYNC::SynchronousMode
             // Set clock source to SMCLK (1.5MHz)
             + usci::UCBxCTLW0::UCSSEL::SMCLK,
         );
@@ -139,41 +163,8 @@ impl<'a> I2c<'a> {
             + usci::UCBxCTLW1::UCGLIT::_50ns,
         );
 
-        // Enable interrupts
-        self.registers.ie.modify(
-            // Enable NACK interrupt
-            usci::UCBxIE::UCNACKIE::SET
-            // Enable 'arbitration lost' interrupt
-            + usci::UCBxIE::UCALIE::SET,
-        );
-
-        // Configure the DMA
-        let tx_conf = dma::DmaConfig {
-            src_chan: self.tx_dma_src,
-            mode: dma::DmaMode::Basic,
-            width: dma::DmaDataWidth::Width8Bit,
-            src_incr: dma::DmaPtrIncrement::Incr8Bit,
-            dst_incr: dma::DmaPtrIncrement::NoIncr,
-        };
-
-        let rx_conf = dma::DmaConfig {
-            src_chan: self.rx_dma_src,
-            mode: dma::DmaMode::Basic,
-            width: dma::DmaDataWidth::Width8Bit,
-            src_incr: dma::DmaPtrIncrement::NoIncr,
-            dst_incr: dma::DmaPtrIncrement::Incr8Bit,
-        };
-
-        self.tx_dma.map(|dma| dma.initialize(&tx_conf));
-        self.rx_dma.map(|dma| dma.initialize(&rx_conf));
-
+        // Don't clear the module reset here since we set the state to Disabled
         self.mode.set(OperatingMode::Disabled);
-        // Do not exit the reset mode here, this is done by the enable function
-    }
-
-    pub fn set_dma(&self, tx_dma: &'a dma::DmaChannel<'a>, rx_dma: &'a dma::DmaChannel<'a>) {
-        self.tx_dma.replace(tx_dma);
-        self.rx_dma.replace(rx_dma);
     }
 
     pub fn set_speed(&self, speed: Speed) {
@@ -192,98 +183,85 @@ impl<'a> I2c<'a> {
     }
 
     pub fn handle_interrupt(&self) {
-        // Since an error occurred, immediately generate a stop condition
-        self.generate_stop_condition();
+        let ifg = self.registers.ifg.get();
+        let mode = self.mode.get();
+        let idx = self.buf_idx.get();
 
-        let (_, tx, _, _, _) = self.tx_dma.map(|dma| dma.stop()).unwrap();
-        let (_, _, rx, _, _) = self.rx_dma.map(|dma| dma.stop()).unwrap();
+        // clear all interrupts
+        self.registers.ifg.set(0);
 
-        let buf = if tx.is_some() {
-            tx.unwrap()
-        } else {
-            rx.unwrap()
-        };
+        if (ifg & (1 << usci::UCBxIFG::UCTXIFG0.shift)) > 0 {
+            // TX interrupt
+            if idx < self.write_len.get() {
+                // Transmit another byte
+                self.buffer
+                    .map(|buf| self.registers.txbuf.set(buf[idx as usize] as u16));
+                self.buf_idx.set(idx + 1);
+            } else {
+                self.disable_transmit_interrupt();
+                if mode == OperatingMode::WriteReadWrite {
+                    // Finished write part -> switch to reading
+                    self.mode.set(OperatingMode::WriteReadRead);
+                    self.buf_idx.set(0);
 
-        if self.registers.ifg.is_set(usci::UCBxIFG::UCNACKIFG) {
+                    // Switch to receiving and send a restart condition
+                    self.enable_receive_mode();
+                    self.generate_start_condition();
+                    if self.read_len.get() == 1 {
+                        // In this mode the stop condition is set automatically and has to be
+                        // requested 1 byte before the last byte was received. If only one byte will
+                        // be received request the stop condition immediately after the start.
+                        self.generate_stop_condition();
+                    }
+                }
+            }
+        } else if (ifg & (1 << usci::UCBxIFG::UCRXIFG0.shift)) > 0 {
+            // RX interrupt
+            if idx < self.read_len.get() {
+                if idx == (self.read_len.get() - 1) && mode == OperatingMode::WriteReadRead {
+                    // In this mode we don't use the byte counter to generate an automatic stop
+                    // condition, further, the stop condition has to be set before the last byte was
+                    // received
+                    self.generate_stop_condition();
+                }
+                // Store received byte in buffer
+                self.buffer
+                    .map(|buf| buf[idx as usize] = self.registers.rxbuf.get() as u8);
+                self.buf_idx.set(idx + 1);
+            } else if mode == OperatingMode::WriteReadRead {
+                // For some reason generating a stop condition manually in receive mode doesn't
+                // trigger a stop condition interrupt -> invoke the callback here when all bytes
+                // were received
+                self.invoke_callback(i2c::Error::CommandComplete);
+            }
+        } else if (ifg & (1 << usci::UCBxIFG::UCSTTIFG.shift)) > 0 {
+            // Start condition interrupt
+            if mode == OperatingMode::Write || mode == OperatingMode::WriteReadWrite {
+                self.buffer
+                    .map(|buf| self.registers.txbuf.set(buf[idx as usize] as u16));
+                self.buf_idx.set(idx + 1);
+            }
+        } else if (ifg & (1 << usci::UCBxIFG::UCSTPIFG.shift)) > 0 {
+            // Stop condition interrupt
+
+            // This interrupt is the default indicator that a transaction finished, thus raise the
+            // callback here and prepare for another transfer
+            self.invoke_callback(i2c::Error::CommandComplete);
+        } else if (ifg & (1 << usci::UCBxIFG::UCNACKIFG.shift)) > 0 {
             // NACK interrupt
             // TODO: use byte counter to detect address NAK
 
-            // Clear interrupt
-            self.registers.ifg.modify(usci::UCBxIFG::UCNACKIFG::CLEAR);
-            self.master_client
-                .map(move |cl| cl.command_complete(buf, i2c::Error::DataNak));
-        } else if self.registers.ifg.is_set(usci::UCBxIFG::UCALIFG) {
+            // Cancel i2c transfer
+            self.generate_stop_condition();
+            self.invoke_callback(i2c::Error::DataNak);
+        } else if (ifg & (1 << usci::UCBxIFG::UCALIFG.shift)) > 0 {
             // Arbitration lost  interrupt
 
-            // Clear interrupt
-            self.registers.ifg.modify(usci::UCBxIFG::UCALIFG::CLEAR);
-            self.master_client
-                .map(move |cl| cl.command_complete(buf, i2c::Error::ArbitrationLost));
+            // Cancel i2c transfer
+            self.generate_stop_condition();
+            self.invoke_callback(i2c::Error::ArbitrationLost);
         } else {
-            panic!(
-                "I2C: unhandled interrupt, ifg: {}",
-                self.registers.ifg.get()
-            );
-        }
-    }
-}
-
-impl<'a> dma::DmaClient for I2c<'a> {
-    fn transfer_done(
-        &self,
-        tx_buf: Option<&'static mut [u8]>,
-        rx_buf: Option<&'static mut [u8]>,
-        _transmitted_bytes: usize,
-    ) {
-        // If this function is entered, an I2C transaction finished without any error.
-        // If an error occurs, the interrupt-handler of the I2C module will handle it and invoke the
-        // callback with the appropriate error
-
-        match self.mode.get() {
-            OperatingMode::Write => {
-                self.master_client.map(move |cl| {
-                    tx_buf.map(|buf| cl.command_complete(buf, i2c::Error::CommandComplete));
-                });
-                self.mode.set(OperatingMode::Idle);
-            }
-            OperatingMode::Read => {
-                self.master_client.map(move |cl| {
-                    rx_buf.map(|buf| cl.command_complete(buf, i2c::Error::CommandComplete));
-                });
-                self.mode.set(OperatingMode::Idle);
-            }
-            OperatingMode::WriteRead => {
-                if tx_buf.is_some() {
-                    // Write part finished
-
-                    // Configure module to receive mode
-                    self.enable_receive_mode();
-
-                    // Setup DMA transfer
-                    let rx_reg = &self.registers.rxbuf as *const ReadOnly<u16> as *const ();
-                    self.rx_dma.map(move |dma| {
-                        dma.transfer_periph_to_mem(
-                            rx_reg,
-                            tx_buf.unwrap(),
-                            self.read_len.get() as usize,
-                        )
-                    });
-
-                    // Generate repeated start condition
-                    self.generate_start_condition();
-                } else if rx_buf.is_some() {
-                    // Read part finished
-
-                    // Generate stop condition to finish the I2c transaction
-                    self.generate_stop_condition();
-
-                    // Invoke client callback
-                    self.master_client.map(|cl| {
-                        cl.command_complete(rx_buf.unwrap(), i2c::Error::CommandComplete)
-                    });
-                }
-            }
-            _ => {}
+            panic!("I2C: unhandled interrupt, ifg: {}", ifg);
         }
     }
 }
@@ -313,14 +291,11 @@ impl<'a> i2c::I2CMaster for I2c<'a> {
             return;
         }
 
+        self.buffer.replace(data);
+        self.write_len.set(len);
+
         // Set module to reset since some of the registers cannot be modified in running state
         self.set_module_to_reset();
-
-        // Setup the slave address
-        self.set_slave_address(addr);
-
-        // Setup the I2C module to transmit mode
-        self.enable_transmit_mode();
 
         // Setup the byte counter in order to automatically generate a stop condition after the
         // desired number of bytes were transmitted
@@ -329,14 +304,13 @@ impl<'a> i2c::I2CMaster for I2c<'a> {
         // Create stop condition automatically after the number of bytes in the byte counter
         // register were transmitted
         self.set_stop_condition_automatically(true);
-
         self.clear_module_reset();
-        self.mode.set(OperatingMode::Write);
 
-        // Setup a DMA transfer
-        let tx_reg = &self.registers.txbuf as *const ReadWrite<u16> as *const ();
-        self.tx_dma
-            .map(move |dma| dma.transfer_mem_to_periph(tx_reg, data, len as usize));
+        self.set_slave_address(addr);
+        self.enable_transmit_mode();
+        self.enable_transmit_interrupt();
+
+        self.mode.set(OperatingMode::Write);
 
         // Start transfer
         self.generate_start_condition();
@@ -348,14 +322,11 @@ impl<'a> i2c::I2CMaster for I2c<'a> {
             return;
         }
 
+        self.buffer.replace(buffer);
+        self.read_len.set(len);
+
         // Set module to reset since some of the registers cannot be modified in running state
         self.set_module_to_reset();
-
-        // Setup the slave address
-        self.set_slave_address(addr);
-
-        // Setup the I2C module to receive mode
-        self.enable_receive_mode();
 
         // Setup the byte counter in order to automatically generate a stop condition after the
         // desired number of bytes were transmitted
@@ -364,14 +335,11 @@ impl<'a> i2c::I2CMaster for I2c<'a> {
         // Generate a stop condition automatically after the number of bytes in the byte counter
         // register were transmitted
         self.set_stop_condition_automatically(true);
-
         self.clear_module_reset();
-        self.mode.set(OperatingMode::Read);
 
-        // Setup a DMA transfer
-        let rx_reg = &self.registers.rxbuf as *const ReadOnly<u16> as *const ();
-        self.rx_dma
-            .map(move |dma| dma.transfer_periph_to_mem(rx_reg, buffer, len as usize));
+        self.set_slave_address(addr);
+        self.enable_receive_mode();
+        self.mode.set(OperatingMode::Read);
 
         // Start transfer
         self.generate_start_condition();
@@ -383,29 +351,22 @@ impl<'a> i2c::I2CMaster for I2c<'a> {
             return;
         }
 
+        self.buffer.replace(data);
+        self.write_len.set(write_len);
+        self.read_len.set(read_len);
+
         // Set module to reset since some of the registers cannot be modified in running state
         self.set_module_to_reset();
-
-        // Setup the slave address
-        self.set_slave_address(addr);
-
-        // Setup the I2C module to transmit mode
-        self.enable_transmit_mode();
 
         // Disable generating a stop condition automatically since after the write, a repeated
         // start condition will be generated in order to continue reading from the slave
         self.set_stop_condition_automatically(false);
-
-        // Store read_len since it will be used in the DMA callback to setup the read transfer
-        self.read_len.set(read_len);
-
         self.clear_module_reset();
-        self.mode.set(OperatingMode::WriteRead);
 
-        // Setup a DMA transfer
-        let tx_reg = &self.registers.txbuf as *const ReadWrite<u16> as *const ();
-        self.tx_dma
-            .map(move |dma| dma.transfer_mem_to_periph(tx_reg, data, write_len as usize));
+        self.set_slave_address(addr);
+        self.enable_transmit_mode();
+        self.enable_transmit_interrupt();
+        self.mode.set(OperatingMode::WriteReadWrite);
 
         // Start transfer
         self.generate_start_condition();

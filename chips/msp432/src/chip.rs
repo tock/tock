@@ -41,7 +41,7 @@ impl<'a> Msp432DefaultPeripherals<'a> {
             timer_a2: crate::timer::TimerA::new(crate::timer::TIMER_A2_BASE),
             timer_a3: crate::timer::TimerA::new(crate::timer::TIMER_A3_BASE),
             gpio: crate::gpio::GpioManager::new(),
-            i2c0: crate::i2c::I2c::new(crate::usci::USCI_B1_BASE, 2, 3, 2, 2),
+            i2c0: crate::i2c::I2c::new(crate::usci::USCI_B0_BASE),
         }
     }
 
@@ -61,14 +61,6 @@ impl<'a> Msp432DefaultPeripherals<'a> {
             &self.dma_channels[self.adc.dma_chan],
         );
         self.dma_channels[self.adc.dma_chan].set_client(&self.adc);
-
-        // Setup DMA channels for the I2C
-        self.i2c0.set_dma(
-            &self.dma_channels[self.i2c0.tx_dma_chan],
-            &self.dma_channels[self.i2c0.rx_dma_chan],
-        );
-        self.dma_channels[self.i2c0.tx_dma_chan].set_client(&self.i2c0);
-        self.dma_channels[self.i2c0.rx_dma_chan].set_client(&self.i2c0);
     }
 }
 
@@ -92,7 +84,6 @@ impl<'a> kernel::InterruptService<()> for Msp432DefaultPeripherals<'a> {
             nvic::TIMER_A2_0 | nvic::TIMER_A2_1 => self.timer_a2.handle_interrupt(),
             nvic::TIMER_A3_0 | nvic::TIMER_A3_1 => self.timer_a3.handle_interrupt(),
             nvic::USCI_B0 => self.i2c0.handle_interrupt(),
-
             _ => return false,
         }
         true
