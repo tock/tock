@@ -8,13 +8,13 @@
 
 use capsules::virtual_alarm::VirtualMuxAlarm;
 use components::gpio::GpioComponent;
+use components::platform_helper;
 use kernel::capabilities;
 use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::component::Component;
 use kernel::debug;
 use kernel::hil::gpio::Configure;
 use kernel::hil::led::LedLow;
-use kernel::Platform;
 use kernel::{create_capability, static_init};
 
 // use components::fxos8700::Fxos8700Component;
@@ -63,39 +63,30 @@ pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 
 // const NUM_LEDS: usize = 1;
 
-/// A structure representing this platform that holds references to all
-/// capsules for this platform.
-struct Imxrt1050EVKB {
-    alarm: &'static capsules::alarm::AlarmDriver<
+platform_helper!(
+    Imxrt1050EVKB,
+    drivers: {
+    alarm: capsules::alarm::DRIVER_NUM =>
+        &'static capsules::alarm::AlarmDriver<
         'static,
         VirtualMuxAlarm<'static, imxrt1050::gpt::Gpt1<'static>>,
     >,
-    button: &'static capsules::button::Button<'static, imxrt1050::gpio::Pin<'static>>,
-    console: &'static capsules::console::Console<'static>,
-    gpio: &'static capsules::gpio::GPIO<'static, imxrt1050::gpio::Pin<'static>>,
-    ipc: kernel::ipc::IPC<NUM_PROCS>,
-    led: &'static capsules::led::LedDriver<'static, LedLow<'static, imxrt1050::gpio::Pin<'static>>>,
-    ninedof: &'static capsules::ninedof::NineDof<'static>,
-}
-
-/// Mapping of integer syscalls to objects that implement syscalls.
-impl Platform for Imxrt1050EVKB {
-    fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
-    where
-        F: FnOnce(Option<Result<&dyn kernel::Driver, &dyn kernel::LegacyDriver>>) -> R,
-    {
-        match driver_num {
-            capsules::alarm::DRIVER_NUM => f(Some(Ok(self.alarm))),
-            capsules::button::DRIVER_NUM => f(Some(Ok(self.button))),
-            capsules::console::DRIVER_NUM => f(Some(Ok(self.console))),
-            capsules::gpio::DRIVER_NUM => f(Some(Ok(self.gpio))),
-            kernel::ipc::DRIVER_NUM => f(Some(Err(&self.ipc))),
-            capsules::led::DRIVER_NUM => f(Some(Ok(self.led))),
-            capsules::ninedof::DRIVER_NUM => f(Some(Ok(self.ninedof))),
-            _ => f(None),
-        }
-    }
-}
+    button: capsules::button::DRIVER_NUM =>
+        &'static capsules::button::Button<'static, imxrt1050::gpio::Pin<'static>>,
+    console: capsules::console::DRIVER_NUM =>
+        &'static capsules::console::Console<'static>,
+    gpio: capsules::gpio::DRIVER_NUM =>
+        &'static capsules::gpio::GPIO<'static, imxrt1050::gpio::Pin<'static>>,
+    led: capsules::led::DRIVER_NUM =>
+        &'static capsules::led::LedDriver<'static, LedLow<'static, imxrt1050::gpio::Pin<'static>>>,
+    ninedof: capsules::ninedof::DRIVER_NUM =>
+        &'static capsules::ninedof::NineDof<'static>,
+    },
+    legacy_drivers: {
+    ipc: kernel::ipc::DRIVER_NUM =>
+        kernel::ipc::IPC<NUM_PROCS>,
+    },
+);
 
 /// Helper function called during bring-up that configures DMA.
 /// DMA for imxrt1050-evkb is not implemented yet.
