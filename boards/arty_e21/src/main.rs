@@ -8,11 +8,11 @@
 
 use arty_e21_chip::chip::ArtyExxDefaultPeripherals;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+use components::platform_helper;
 use kernel::capabilities;
 use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::component::Component;
 use kernel::hil;
-use kernel::Platform;
 use kernel::{create_capability, debug, static_init};
 
 #[allow(dead_code)]
@@ -42,42 +42,30 @@ static mut CHIP: Option<&'static arty_e21_chip::chip::ArtyExx<ArtyExxDefaultPeri
 #[link_section = ".stack_buffer"]
 pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 
-/// A structure representing this platform that holds references to all
-/// capsules for this platform.
-struct ArtyE21 {
-    console: &'static capsules::console::Console<'static>,
-    gpio: &'static capsules::gpio::GPIO<'static, arty_e21_chip::gpio::GpioPin<'static>>,
-    alarm: &'static capsules::alarm::AlarmDriver<
-        'static,
-        VirtualMuxAlarm<'static, rv32i::machine_timer::MachineTimer<'static>>,
-    >,
-    led: &'static capsules::led::LedDriver<
-        'static,
-        hil::led::LedHigh<'static, arty_e21_chip::gpio::GpioPin<'static>>,
-    >,
-    button: &'static capsules::button::Button<'static, arty_e21_chip::gpio::GpioPin<'static>>,
-    // ipc: kernel::ipc::IPC<NUM_PROCS>,
-}
-
-/// Mapping of integer syscalls to objects that implement syscalls.
-impl Platform for ArtyE21 {
-    fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
-    where
-        F: FnOnce(Option<Result<&dyn kernel::Driver, &dyn kernel::LegacyDriver>>) -> R,
-    {
-        match driver_num {
-            capsules::console::DRIVER_NUM => f(Some(Ok(self.console))),
-            capsules::gpio::DRIVER_NUM => f(Some(Ok(self.gpio))),
-
-            capsules::alarm::DRIVER_NUM => f(Some(Ok(self.alarm))),
-            capsules::led::DRIVER_NUM => f(Some(Ok(self.led))),
-            capsules::button::DRIVER_NUM => f(Some(Ok(self.button))),
-
-            // kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
-            _ => f(None),
-        }
-    }
-}
+platform_helper!(
+    ArtyE21,
+    drivers: {
+    console: capsules::console::DRIVER_NUM =>
+        &'static capsules::console::Console<'static>,
+    gpio: capsules::gpio::DRIVER_NUM =>
+        &'static capsules::gpio::GPIO<'static, arty_e21_chip::gpio::GpioPin<'static>>,
+    alarm: capsules::alarm::DRIVER_NUM =>
+        &'static capsules::alarm::AlarmDriver<
+            'static,
+            VirtualMuxAlarm<'static, rv32i::machine_timer::MachineTimer<'static>>,
+        >,
+    led: capsules::led::DRIVER_NUM =>
+        &'static capsules::led::LedDriver<
+            'static,
+            hil::led::LedHigh<'static, arty_e21_chip::gpio::GpioPin<'static>>,
+        >,
+    button: capsules::button::DRIVER_NUM =>
+        &'static capsules::button::Button<'static, arty_e21_chip::gpio::GpioPin<'static>>,
+    },
+    legacy_drivers: {
+    // ipc: kernel::ipc::DRIVER_NUM => kernel::ipc::IPC<NUM_PROCS>,
+    },
+);
 
 /// Reset Handler.
 ///
