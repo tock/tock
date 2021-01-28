@@ -11,6 +11,7 @@
 use capsules::virtual_aes_ccm::MuxAES128CCM;
 use capsules::virtual_alarm::VirtualMuxAlarm;
 
+use components::platform_helper;
 use kernel::capabilities;
 use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::component::Component;
@@ -103,59 +104,52 @@ static mut CDC_REF_FOR_PANIC: Option<
 #[link_section = ".stack_buffer"]
 pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 
-/// Supported drivers by the platform
-pub struct Platform {
-    ble_radio: &'static capsules::ble_advertising_driver::BLE<
-        'static,
-        nrf52::ble_radio::Radio<'static>,
-        capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc<'static>>,
-    >,
-    ieee802154_radio: &'static capsules::ieee802154::RadioDriver<'static>,
-    console: &'static capsules::console::Console<'static>,
-    proximity: &'static capsules::proximity::ProximitySensor<'static>,
-    gpio: &'static capsules::gpio::GPIO<'static, nrf52::gpio::GPIOPin<'static>>,
-    led:
+platform_helper!(
+    Platform,
+    drivers: {
+    ieee802154_radio: capsules::ieee802154::DRIVER_NUM =>
+        &'static capsules::ieee802154::RadioDriver<'static>,
+    console: capsules::console::DRIVER_NUM =>
+        &'static capsules::console::Console<'static>,
+    proximity: capsules::proximity::DRIVER_NUM =>
+        &'static capsules::proximity::ProximitySensor<'static>,
+    gpio: capsules::gpio::DRIVER_NUM =>
+        &'static capsules::gpio::GPIO<'static, nrf52::gpio::GPIOPin<'static>>,
+    led: capsules::led::DRIVER_NUM =>
         &'static capsules::led::LedDriver<'static, LedHigh<'static, nrf52::gpio::GPIOPin<'static>>>,
-    button: &'static capsules::button::Button<'static, nrf52::gpio::GPIOPin<'static>>,
-    screen: &'static capsules::screen::Screen<'static>,
-    rng: &'static capsules::rng::RngDriver<'static>,
-    ipc: kernel::ipc::IPC<NUM_PROCS>,
-    alarm: &'static capsules::alarm::AlarmDriver<
-        'static,
-        capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc<'static>>,
-    >,
-    buzzer: &'static capsules::buzzer_driver::Buzzer<
-        'static,
-        capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52840::rtc::Rtc<'static>>,
-    >,
-    temperature: &'static capsules::temperature::TemperatureSensor<'static>,
-    humidity: &'static capsules::humidity::HumiditySensor<'static>,
-}
+    button: capsules::button::DRIVER_NUM =>
+        &'static capsules::button::Button<'static, nrf52::gpio::GPIOPin<'static>>,
+    screen: capsules::screen::DRIVER_NUM =>
+        &'static capsules::screen::Screen<'static>,
+    rng: capsules::rng::DRIVER_NUM =>
+        &'static capsules::rng::RngDriver<'static>,
 
-impl kernel::Platform for Platform {
-    fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
-    where
-        F: FnOnce(Option<Result<&dyn kernel::Driver, &dyn kernel::LegacyDriver>>) -> R,
-    {
-        match driver_num {
-            capsules::console::DRIVER_NUM => f(Some(Ok(self.console))),
-            capsules::proximity::DRIVER_NUM => f(Some(Ok(self.proximity))),
-            capsules::gpio::DRIVER_NUM => f(Some(Ok(self.gpio))),
-            capsules::alarm::DRIVER_NUM => f(Some(Ok(self.alarm))),
-            capsules::led::DRIVER_NUM => f(Some(Ok(self.led))),
-            capsules::button::DRIVER_NUM => f(Some(Ok(self.button))),
-            capsules::screen::DRIVER_NUM => f(Some(Ok(self.screen))),
-            capsules::rng::DRIVER_NUM => f(Some(Ok(self.rng))),
-            capsules::ble_advertising_driver::DRIVER_NUM => f(Some(Err(self.ble_radio))),
-            capsules::ieee802154::DRIVER_NUM => f(Some(Ok(self.ieee802154_radio))),
-            capsules::temperature::DRIVER_NUM => f(Some(Ok(self.temperature))),
-            capsules::humidity::DRIVER_NUM => f(Some(Ok(self.humidity))),
-            capsules::buzzer_driver::DRIVER_NUM => f(Some(Ok(self.buzzer))),
-            kernel::ipc::DRIVER_NUM => f(Some(Err(&self.ipc))),
-            _ => f(None),
-        }
-    }
-}
+    alarm: capsules::alarm::DRIVER_NUM =>
+        &'static capsules::alarm::AlarmDriver<
+            'static,
+            capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc<'static>>,
+        >,
+    buzzer: capsules::buzzer_driver::DRIVER_NUM =>
+        &'static capsules::buzzer_driver::Buzzer<
+            'static,
+            capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52840::rtc::Rtc<'static>>,
+        >,
+    temperature: capsules::temperature::DRIVER_NUM =>
+        &'static capsules::temperature::TemperatureSensor<'static>,
+    humidity: capsules::humidity::DRIVER_NUM =>
+        &'static capsules::humidity::HumiditySensor<'static>,
+    },
+    legacy_drivers: {
+    ble_radio: capsules::ble_advertising_driver::DRIVER_NUM =>
+        &'static capsules::ble_advertising_driver::BLE<
+            'static,
+            nrf52::ble_radio::Radio<'static>,
+            capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc<'static>>,
+        >,
+    ipc: kernel::ipc::DRIVER_NUM =>
+        kernel::ipc::IPC<NUM_PROCS>,
+    },
+);
 
 /// Entry point in the vector table called on hard reset.
 #[no_mangle]
