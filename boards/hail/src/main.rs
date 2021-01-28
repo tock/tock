@@ -12,6 +12,7 @@
 use capsules::virtual_alarm::VirtualMuxAlarm;
 use capsules::virtual_i2c::{I2CDevice, MuxI2C};
 use capsules::virtual_spi::VirtualSpiMasterDevice;
+use components::platform_helper;
 use kernel::capabilities;
 use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::component::Component;
@@ -19,7 +20,6 @@ use kernel::hil;
 use kernel::hil::i2c::I2CMaster;
 use kernel::hil::led::LedLow;
 use kernel::hil::Controller;
-use kernel::Platform;
 #[allow(unused_imports)]
 use kernel::{create_capability, debug, debug_gpio, static_init};
 use sam4l::adc::Channel;
@@ -48,65 +48,50 @@ static mut CHIP: Option<&'static sam4l::chip::Sam4l<Sam4lDefaultPeripherals>> = 
 #[link_section = ".stack_buffer"]
 pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 
-/// A structure representing this platform that holds references to all
-/// capsules for this platform.
-struct Hail {
-    console: &'static capsules::console::Console<'static>,
-    gpio: &'static capsules::gpio::GPIO<'static, sam4l::gpio::GPIOPin<'static>>,
-    alarm: &'static capsules::alarm::AlarmDriver<
-        'static,
-        VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>,
-    >,
-    ambient_light: &'static capsules::ambient_light::AmbientLight<'static>,
-    temp: &'static capsules::temperature::TemperatureSensor<'static>,
-    ninedof: &'static capsules::ninedof::NineDof<'static>,
-    humidity: &'static capsules::humidity::HumiditySensor<'static>,
-    spi: &'static capsules::spi_controller::Spi<
-        'static,
-        VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw>,
-    >,
-    nrf51822: &'static capsules::nrf51822_serialization::Nrf51822Serialization<'static>,
-    adc: &'static capsules::adc::AdcDedicated<'static, sam4l::adc::Adc>,
-    led: &'static capsules::led::LedDriver<'static, LedLow<'static, sam4l::gpio::GPIOPin<'static>>>,
-    button: &'static capsules::button::Button<'static, sam4l::gpio::GPIOPin<'static>>,
-    rng: &'static capsules::rng::RngDriver<'static>,
-    ipc: kernel::ipc::IPC<NUM_PROCS>,
-    crc: &'static capsules::crc::Crc<'static, sam4l::crccu::Crccu<'static>>,
-    dac: &'static capsules::dac::Dac<'static>,
-}
-
-/// Mapping of integer syscalls to objects that implement syscalls.
-impl Platform for Hail {
-    fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
-    where
-        F: FnOnce(Option<Result<&dyn kernel::Driver, &dyn kernel::LegacyDriver>>) -> R,
-    {
-        match driver_num {
-            capsules::console::DRIVER_NUM => f(Some(Ok(self.console))),
-            capsules::gpio::DRIVER_NUM => f(Some(Ok(self.gpio))),
-
-            capsules::alarm::DRIVER_NUM => f(Some(Ok(self.alarm))),
-            capsules::spi_controller::DRIVER_NUM => f(Some(Ok(self.spi))),
-            capsules::nrf51822_serialization::DRIVER_NUM => f(Some(Err(self.nrf51822))),
-            capsules::ambient_light::DRIVER_NUM => f(Some(Ok(self.ambient_light))),
-            capsules::adc::DRIVER_NUM => f(Some(Ok(self.adc))),
-            capsules::led::DRIVER_NUM => f(Some(Ok(self.led))),
-            capsules::button::DRIVER_NUM => f(Some(Ok(self.button))),
-            capsules::humidity::DRIVER_NUM => f(Some(Ok(self.humidity))),
-            capsules::temperature::DRIVER_NUM => f(Some(Ok(self.temp))),
-            capsules::ninedof::DRIVER_NUM => f(Some(Ok(self.ninedof))),
-
-            capsules::rng::DRIVER_NUM => f(Some(Ok(self.rng))),
-
-            capsules::crc::DRIVER_NUM => f(Some(Ok(self.crc))),
-
-            capsules::dac::DRIVER_NUM => f(Some(Ok(self.dac))),
-
-            kernel::ipc::DRIVER_NUM => f(Some(Err(&self.ipc))),
-            _ => f(None),
-        }
-    }
-}
+platform_helper!(
+    Hail,
+    drivers: {
+    console: capsules::console::DRIVER_NUM =>
+        &'static capsules::console::Console<'static>,
+    gpio: capsules::gpio::DRIVER_NUM =>
+        &'static capsules::gpio::GPIO<'static, sam4l::gpio::GPIOPin<'static>>,
+    alarm: capsules::alarm::DRIVER_NUM =>
+        &'static capsules::alarm::AlarmDriver<
+                'static, VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>,
+        >,
+    ambient_light: capsules::ambient_light::DRIVER_NUM =>
+        &'static capsules::ambient_light::AmbientLight<'static>,
+    temp: capsules::temperature::DRIVER_NUM =>
+        &'static capsules::temperature::TemperatureSensor<'static>,
+    ninedof: capsules::ninedof::DRIVER_NUM =>
+        &'static capsules::ninedof::NineDof<'static>,
+    humidity: capsules::humidity::DRIVER_NUM =>
+        &'static capsules::humidity::HumiditySensor<'static>,
+    spi: capsules::spi_controller::DRIVER_NUM =>
+        &'static capsules::spi_controller::Spi<
+                'static,
+                VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw>,
+        >,
+    adc: capsules::adc::DRIVER_NUM =>
+        &'static capsules::adc::AdcDedicated<'static, sam4l::adc::Adc>,
+    led: capsules::led::DRIVER_NUM =>
+        &'static capsules::led::LedDriver<'static, LedLow<'static, sam4l::gpio::GPIOPin<'static>>>,
+    button: capsules::button::DRIVER_NUM =>
+        &'static capsules::button::Button<'static, sam4l::gpio::GPIOPin<'static>>,
+    rng: capsules::rng::DRIVER_NUM =>
+        &'static capsules::rng::RngDriver<'static>,
+    crc: capsules::crc::DRIVER_NUM =>
+        &'static capsules::crc::Crc<'static, sam4l::crccu::Crccu<'static>>,
+    dac: capsules::dac::DRIVER_NUM =>
+        &'static capsules::dac::Dac<'static>,
+    },
+    legacy_drivers: {
+    nrf51822: capsules::nrf51822_serialization::DRIVER_NUM =>
+        &'static capsules::nrf51822_serialization::Nrf51822Serialization<'static>,
+    ipc: kernel::ipc::DRIVER_NUM =>
+        kernel::ipc::IPC<NUM_PROCS>,
+    },
+);
 
 /// Helper function called during bring-up that configures multiplexed I/O.
 unsafe fn set_pin_primary_functions(peripherals: &Sam4lDefaultPeripherals) {
