@@ -9,6 +9,7 @@
 #![deny(missing_docs)]
 
 use capsules::virtual_aes_ccm::MuxAES128CCM;
+use components::platform_helper;
 use kernel::capabilities;
 use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::component::Component;
@@ -103,49 +104,44 @@ fn baud_rate_reset_bootloader_enter() {
     }
 }
 
-/// Supported drivers by the platform
-pub struct Platform {
-    ble_radio: &'static capsules::ble_advertising_driver::BLE<
-        'static,
-        nrf52::ble_radio::Radio<'static>,
-        capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc<'static>>,
-    >,
-    ieee802154_radio: &'static capsules::ieee802154::RadioDriver<'static>,
-    console: &'static capsules::console::Console<'static>,
+platform_helper!(
+    Platform,
+    drivers: {
+    ieee802154_radio: capsules::ieee802154::DRIVER_NUM =>
+        &'static capsules::ieee802154::RadioDriver<'static>,
+    console: capsules::console::DRIVER_NUM =>
+        &'static capsules::console::Console<'static>,
+    proximity: capsules::proximity::DRIVER_NUM =>
+        &'static capsules::proximity::ProximitySensor<'static>,
+    gpio: capsules::gpio::DRIVER_NUM =>
+        &'static capsules::gpio::GPIO<'static, nrf52::gpio::GPIOPin<'static>>,
+    led: capsules::led::DRIVER_NUM =>
+        &'static capsules::led::LedDriver<'static, LedLow<'static, nrf52::gpio::GPIOPin<'static>>>,
+    rng: capsules::rng::DRIVER_NUM =>
+        &'static capsules::rng::RngDriver<'static>,
+    alarm: capsules::alarm::DRIVER_NUM =>
+        &'static capsules::alarm::AlarmDriver<
+            'static,
+            capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc<'static>>,
+        >,
+    },
+    legacy_drivers: {
+    ble_radio: capsules::ble_advertising_driver::DRIVER_NUM =>
+        &'static capsules::ble_advertising_driver::BLE<
+            'static,
+            nrf52::ble_radio::Radio<'static>,
+            capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc<'static>>,
+        >,
+    ipc: kernel::ipc::DRIVER_NUM =>
+        kernel::ipc::IPC<NUM_PROCS>,
+    },
+    additional_fields: {
     pconsole: &'static capsules::process_console::ProcessConsole<
         'static,
         components::process_console::Capability,
     >,
-    proximity: &'static capsules::proximity::ProximitySensor<'static>,
-    gpio: &'static capsules::gpio::GPIO<'static, nrf52::gpio::GPIOPin<'static>>,
-    led: &'static capsules::led::LedDriver<'static, LedLow<'static, nrf52::gpio::GPIOPin<'static>>>,
-    rng: &'static capsules::rng::RngDriver<'static>,
-    ipc: kernel::ipc::IPC<NUM_PROCS>,
-    alarm: &'static capsules::alarm::AlarmDriver<
-        'static,
-        capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc<'static>>,
-    >,
-}
-
-impl kernel::Platform for Platform {
-    fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
-    where
-        F: FnOnce(Option<Result<&dyn kernel::Driver, &dyn kernel::LegacyDriver>>) -> R,
-    {
-        match driver_num {
-            capsules::console::DRIVER_NUM => f(Some(Ok(self.console))),
-            capsules::proximity::DRIVER_NUM => f(Some(Ok(self.proximity))),
-            capsules::gpio::DRIVER_NUM => f(Some(Ok(self.gpio))),
-            capsules::alarm::DRIVER_NUM => f(Some(Ok(self.alarm))),
-            capsules::led::DRIVER_NUM => f(Some(Ok(self.led))),
-            capsules::rng::DRIVER_NUM => f(Some(Ok(self.rng))),
-            capsules::ble_advertising_driver::DRIVER_NUM => f(Some(Err(self.ble_radio))),
-            capsules::ieee802154::DRIVER_NUM => f(Some(Ok(self.ieee802154_radio))),
-            kernel::ipc::DRIVER_NUM => f(Some(Err(&self.ipc))),
-            _ => f(None),
-        }
-    }
-}
+    },
+);
 
 /// Entry point in the vector table called on hard reset.
 #[no_mangle]
