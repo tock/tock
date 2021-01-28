@@ -11,6 +11,7 @@
 use capsules::lsm303xx;
 use capsules::virtual_alarm::VirtualMuxAlarm;
 use components::gpio::GpioComponent;
+use components::platform_helper;
 use kernel::capabilities;
 use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::component::Component;
@@ -18,7 +19,6 @@ use kernel::hil::gpio::Configure;
 use kernel::hil::gpio::Output;
 use kernel::hil::led::LedHigh;
 use kernel::hil::time::Counter;
-use kernel::Platform;
 use kernel::{create_capability, debug, static_init};
 use stm32f303xc::chip::Stm32f3xxDefaultPeripherals;
 
@@ -49,54 +49,43 @@ const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultRespons
 #[link_section = ".stack_buffer"]
 pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 
-/// A structure representing this platform that holds references to all
-/// capsules for this platform.
-struct STM32F3Discovery {
-    console: &'static capsules::console::Console<'static>,
-    ipc: kernel::ipc::IPC<NUM_PROCS>,
-    gpio: &'static capsules::gpio::GPIO<'static, stm32f303xc::gpio::Pin<'static>>,
-    led: &'static capsules::led::LedDriver<
-        'static,
-        LedHigh<'static, stm32f303xc::gpio::Pin<'static>>,
-    >,
-    button: &'static capsules::button::Button<'static, stm32f303xc::gpio::Pin<'static>>,
-    ninedof: &'static capsules::ninedof::NineDof<'static>,
-    l3gd20: &'static capsules::l3gd20::L3gd20Spi<'static>,
-    lsm303dlhc: &'static capsules::lsm303dlhc::Lsm303dlhcI2C<'static>,
-    temp: &'static capsules::temperature::TemperatureSensor<'static>,
-    alarm: &'static capsules::alarm::AlarmDriver<
-        'static,
-        VirtualMuxAlarm<'static, stm32f303xc::tim2::Tim2<'static>>,
-    >,
-    adc: &'static capsules::adc::AdcVirtualized<'static>,
-    nonvolatile_storage: &'static capsules::nonvolatile_storage_driver::NonvolatileStorage<'static>,
-}
-
-/// Mapping of integer syscalls to objects that implement syscalls.
-impl Platform for STM32F3Discovery {
-    fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
-    where
-        F: FnOnce(Option<Result<&dyn kernel::Driver, &dyn kernel::LegacyDriver>>) -> R,
-    {
-        match driver_num {
-            capsules::console::DRIVER_NUM => f(Some(Ok(self.console))),
-            capsules::led::DRIVER_NUM => f(Some(Ok(self.led))),
-            capsules::button::DRIVER_NUM => f(Some(Ok(self.button))),
-            capsules::alarm::DRIVER_NUM => f(Some(Ok(self.alarm))),
-            capsules::gpio::DRIVER_NUM => f(Some(Ok(self.gpio))),
-            capsules::lsm303dlhc::DRIVER_NUM => f(Some(Ok(self.lsm303dlhc))),
-            capsules::l3gd20::DRIVER_NUM => f(Some(Ok(self.l3gd20))),
-            capsules::ninedof::DRIVER_NUM => f(Some(Ok(self.ninedof))),
-            capsules::temperature::DRIVER_NUM => f(Some(Ok(self.temp))),
-            kernel::ipc::DRIVER_NUM => f(Some(Err(&self.ipc))),
-            capsules::adc::DRIVER_NUM => f(Some(Ok(self.adc))),
-            capsules::nonvolatile_storage_driver::DRIVER_NUM => {
-                f(Some(Ok(self.nonvolatile_storage)))
-            }
-            _ => f(None),
-        }
-    }
-}
+platform_helper!(
+    STM32F3Discovery,
+    drivers: {
+    console: capsules::console::DRIVER_NUM =>
+        &'static capsules::console::Console<'static>,
+    gpio: capsules::gpio::DRIVER_NUM =>
+        &'static capsules::gpio::GPIO<'static, stm32f303xc::gpio::Pin<'static>>,
+    led: capsules::led::DRIVER_NUM =>
+        &'static capsules::led::LedDriver<
+            'static,
+            LedHigh<'static, stm32f303xc::gpio::Pin<'static>>,
+        >,
+    button: capsules::button::DRIVER_NUM =>
+        &'static capsules::button::Button<'static, stm32f303xc::gpio::Pin<'static>>,
+    ninedof: capsules::ninedof::DRIVER_NUM =>
+        &'static capsules::ninedof::NineDof<'static>,
+    l3gd20: capsules::l3gd20::DRIVER_NUM =>
+        &'static capsules::l3gd20::L3gd20Spi<'static>,
+    lsm303dlhc: capsules::lsm303dlhc::DRIVER_NUM =>
+        &'static capsules::lsm303dlhc::Lsm303dlhcI2C<'static>,
+    temp: capsules::temperature::DRIVER_NUM =>
+        &'static capsules::temperature::TemperatureSensor<'static>,
+    alarm: capsules::alarm::DRIVER_NUM =>
+        &'static capsules::alarm::AlarmDriver<
+            'static,
+            VirtualMuxAlarm<'static, stm32f303xc::tim2::Tim2<'static>>,
+        >,
+    adc: capsules::adc::DRIVER_NUM =>
+        &'static capsules::adc::AdcVirtualized<'static>,
+    nonvolatile_storage: capsules::nonvolatile_storage_driver::DRIVER_NUM =>
+        &'static capsules::nonvolatile_storage_driver::NonvolatileStorage<'static>,
+    },
+    legacy_drivers: {
+    ipc: kernel::ipc::DRIVER_NUM =>
+        kernel::ipc::IPC<NUM_PROCS>,
+    },
+);
 
 /// Helper function called during bring-up that configures multiplexed I/O.
 unsafe fn set_pin_primary_functions(
