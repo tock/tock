@@ -11,7 +11,7 @@ fn check_region_main(buf: &[u8]) {
 
     // Check the length
     assert_eq!(buf[LEN_OFFSET], 0x80);
-    assert_eq!(buf[LEN_OFFSET + 1], 19);
+    assert_eq!(buf[LEN_OFFSET + 1], 15);
 
     // Check the hash
     assert_eq!(buf[HASH_OFFSET + 0], 0x7b);
@@ -24,14 +24,10 @@ fn check_region_main(buf: &[u8]) {
     assert_eq!(buf[HASH_OFFSET + 7], 0x44);
 
     // Check the check hash
-    assert_eq!(buf[HASH_OFFSET + 8], 0x39);
-    assert_eq!(buf[HASH_OFFSET + 9], 0x20);
-    assert_eq!(buf[HASH_OFFSET + 10], 0x9f);
-    assert_eq!(buf[HASH_OFFSET + 11], 0xfc);
-    assert_eq!(buf[HASH_OFFSET + 12], 0x5e);
-    assert_eq!(buf[HASH_OFFSET + 13], 0x64);
-    assert_eq!(buf[HASH_OFFSET + 14], 0xf3);
-    assert_eq!(buf[HASH_OFFSET + 15], 0x7e);
+    assert_eq!(buf[HASH_OFFSET + 8], 0x55);
+    assert_eq!(buf[HASH_OFFSET + 9], 0xb5);
+    assert_eq!(buf[HASH_OFFSET + 10], 0xd8);
+    assert_eq!(buf[HASH_OFFSET + 11], 0xe4);
 }
 
 fn check_region_one(buf: &[u8]) {
@@ -40,7 +36,7 @@ fn check_region_one(buf: &[u8]) {
 
     // Check the length
     assert_eq!(buf[LEN_OFFSET], 0x80);
-    assert_eq!(buf[LEN_OFFSET + 1], 51);
+    assert_eq!(buf[LEN_OFFSET + 1], 47);
 
     // Check the hash
     assert_eq!(buf[HASH_OFFSET + 0], 0x81);
@@ -58,14 +54,10 @@ fn check_region_one(buf: &[u8]) {
     assert_eq!(buf[42], 0x23);
 
     // Check the check hash
-    assert_eq!(buf[43], 0x08);
-    assert_eq!(buf[44], 0x05);
-    assert_eq!(buf[45], 0x89);
-    assert_eq!(buf[46], 0xef);
-    assert_eq!(buf[47], 0x5d);
-    assert_eq!(buf[48], 0x42);
-    assert_eq!(buf[49], 0x42);
-    assert_eq!(buf[50], 0xdc);
+    assert_eq!(buf[43], 0xf7);
+    assert_eq!(buf[44], 0x1d);
+    assert_eq!(buf[45], 0xb3);
+    assert_eq!(buf[46], 0xe9);
 }
 
 fn check_region_two(buf: &[u8]) {
@@ -74,7 +66,7 @@ fn check_region_two(buf: &[u8]) {
 
     // Check the length
     assert_eq!(buf[LEN_OFFSET], 0x80);
-    assert_eq!(buf[LEN_OFFSET + 1], 51);
+    assert_eq!(buf[LEN_OFFSET + 1], 47);
 
     // Check the hash
     assert_eq!(buf[HASH_OFFSET + 0], 0x9d);
@@ -92,14 +84,10 @@ fn check_region_two(buf: &[u8]) {
     assert_eq!(buf[42], 0x23);
 
     // Check the check hash
-    assert_eq!(buf[43], 0xdb);
-    assert_eq!(buf[44], 0x1d);
-    assert_eq!(buf[45], 0xd4);
-    assert_eq!(buf[46], 0x8a);
-    assert_eq!(buf[47], 0x7b);
-    assert_eq!(buf[48], 0x39);
-    assert_eq!(buf[49], 0x53);
-    assert_eq!(buf[50], 0x8f);
+    assert_eq!(buf[43], 0x11);
+    assert_eq!(buf[44], 0x6a);
+    assert_eq!(buf[45], 0xba);
+    assert_eq!(buf[46], 0xba);
 }
 
 /// Tests using a NOP flash controller
@@ -538,8 +526,13 @@ mod no_check_store_flast_ctrl {
             .unwrap();
 
         println!("Add Key SIX");
+        tickv
+            .append_key(&mut DefaultHasher::new(), b"SIX", &value)
+            .unwrap();
+
+        println!("Add Key SEVEN");
         assert_eq!(
-            tickv.append_key(&mut DefaultHasher::new(), b"SIX", &value),
+            tickv.append_key(&mut DefaultHasher::new(), b"SEVEN", &value),
             Err(ErrorCode::FlashFull)
         );
 
@@ -569,8 +562,13 @@ mod no_check_store_flast_ctrl {
             .unwrap();
 
         println!("Get key SIX");
+        tickv
+            .get_key(&mut DefaultHasher::new(), b"SIX", &mut buf)
+            .unwrap();
+
+        println!("Get key SEVEN");
         assert_eq!(
-            tickv.get_key(&mut DefaultHasher::new(), b"SIX", &mut buf),
+            tickv.get_key(&mut DefaultHasher::new(), b"SEVEN", &mut buf),
             Err(ErrorCode::KeyNotFound)
         );
 
@@ -600,8 +598,13 @@ mod no_check_store_flast_ctrl {
             .unwrap();
 
         println!("Delete Key SIX");
+        tickv
+            .invalidate_key(&mut DefaultHasher::new(), b"SIX")
+            .unwrap();
+
+        println!("Delete Key SEVEN");
         assert_eq!(
-            tickv.invalidate_key(&mut DefaultHasher::new(), b"SIX"),
+            tickv.invalidate_key(&mut DefaultHasher::new(), b"SEVEN"),
             Err(ErrorCode::KeyNotFound)
         );
     }

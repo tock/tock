@@ -217,6 +217,7 @@
 #![deny(missing_docs)]
 
 pub mod async_ops;
+mod crc32;
 pub mod error_codes;
 pub mod flash_controller;
 pub mod success_codes;
