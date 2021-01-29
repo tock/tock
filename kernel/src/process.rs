@@ -334,11 +334,6 @@ pub trait ProcessType {
     /// policies on whether to do so.
     fn try_restart(&self, completion_code: u32);
 
-    /// Restart a terminated process. May return ErrorCode::NOMEM to indicate
-    /// it could not allocate/configure memory or ErrorCode::RESERVE to
-    /// indicate some other hardware resource could not be reserved.
-    fn restart(&self) -> Result<(), ErrorCode>;
-
     // memop operations
 
     /// Change the location of the program break and reallocate the MPU region
@@ -1062,154 +1057,6 @@ impl<C: Chip> ProcessType for Process<'_, C> {
                 self.state.update(State::Faulted);
             }
         }
-    }
-
-    /// Restart the process, resetting all of its state re-initializing
-    /// it to start running.  Assumes the process is not running and
-    /// cleaned up. This implements the mechanism of restart.
-    fn restart(&self) -> Result<(), ErrorCode> {
-        debug!("Restarting process {}", self.get_process_name());
-        // We need a new process identifier for this process since the restarted
-        // version is in effect a new process. This is also necessary to
-        // invalidate any stored `AppId`s that point to the old version of the
-        // process. However, the process has not moved locations in the
-        // processes array, so we copy the existing index.
-        let old_index = self.app_id.get().index;
-        let new_identifier = self.kernel.create_process_identifier();
-        self.app_id
-            .set(AppId::new(self.kernel, new_identifier, old_index));
-
-        // Reset debug information that is per-execution and not per-process.
-        self.debug.map(|debug| {
-            debug.syscall_count = 0;
-            debug.last_syscall = None;
-            debug.dropped_callback_count = 0;
-            debug.timeslice_expiration_count = 0;
-        });
-
-        // We are going to start this process over again, so need the init_fn
-        // location.
-        let app_flash_address = self.flash_start();
-        let init_fn = unsafe {
-            app_flash_address.offset(self.header.get_init_function_offset() as isize) as usize
-        };
-
-        // Reset memory pointers back to how they were when first calculated by
-        // the process create function. Since these are based on properties in
-        // the TBF header, and processes can't change the TBF header, it is fine
-        // to use saved values.
-        self.kernel_memory_break
-            .set(self.original_kernel_memory_break);
-        self.app_break.set(self.original_app_break);
-        self.current_stack_pointer.set(self.original_stack_pointer);
-        self.allow_high_water_mark
-            .set(self.original_allow_high_water_mark);
-
-        // Reset MPU region configuration.
-        // TODO: ideally, this would be moved into a helper function used by both
-        // create() and reset(), but process load debugging complicates this.
-        // We just want to create new config with only flash and memory regions.
-        let mut mpu_config: <<C as Chip>::MPU as MPU>::MpuConfig = Default::default();
-        // Allocate MPU region for flash.
-        let app_mpu_flash_success = self
-            .chip
-            .mpu()
-            .allocate_region(
-                self.flash.as_ptr(),
-                self.flash.len(),
-                self.flash.len(),
-                mpu::Permissions::ReadExecuteOnly,
-                &mut mpu_config,
-            )
-            .is_some();
-
-        // Recalculate initial_kernel_memory_size as was done in create()
-        let grant_ptr_size = mem::size_of::<*const usize>();
-        let grant_ptrs_num = self.kernel.get_grant_count_and_finalize();
-        let grant_ptrs_offset = grant_ptrs_num * grant_ptr_size;
-
-        let initial_kernel_memory_size =
-            grant_ptrs_offset + Self::CALLBACKS_OFFSET + Self::PROCESS_STRUCT_OFFSET;
-
-        let app_mpu_mem_success = self
-            .chip
-            .mpu()
-            .allocate_app_memory_region(
-                self.memory.as_ptr() as *const u8,
-                self.memory.len(),
-                self.memory.len(), //we want exactly as much as we had before restart
-                Self::INITIAL_APP_MEMORY_SIZE,
-                initial_kernel_memory_size,
-                mpu::Permissions::ReadWriteOnly,
-                &mut mpu_config,
-            )
-            .is_some();
-
-        // Drop the old config and use the clean one
-        self.mpu_config.replace(mpu_config);
-
-        match (app_mpu_flash_success, app_mpu_mem_success) {
-            (true, true) => {}
-            _ => {
-                // We couldn't configure the MPU for the process. This shouldn't
-                // happen since we were able to start the process before, but at
-                // this point it is better to leave the app faulted and not
-                // schedule it.
-                return Err(ErrorCode::NOMEM);
-            }
-        }
-
-        // Handle any architecture-specific requirements for a process when it
-        // first starts (as it would when it is new).
-        let new_stack_pointer_res = self.stored_state.map_or(Err(()), |stored_state| unsafe {
-            self.chip.userspace_kernel_boundary().initialize_process(
-                self.sp(),
-                self.sp() as usize - self.memory.as_ptr() as usize,
-                stored_state,
-            )
-        });
-        match new_stack_pointer_res {
-            Ok(new_stack_pointer) => {
-                self.current_stack_pointer.set(new_stack_pointer as *mut u8);
-                self.debug_set_max_stack_depth();
-            }
-            Err(_) => {
-                // We couldn't initialize the architecture-specific
-                // state for this process. This shouldn't happen since
-                // the app was able to be started before, but at this
-                // point the app is no longer valid. The best thing we
-                // can do now is leave the app as still faulted and not
-                // schedule it.
-                return Err(ErrorCode::RESERVE);
-            }
-        };
-
-        // And queue up this app to be restarted.
-        let flash_protected_size = self.header.get_protected_size() as usize;
-        let flash_app_start = app_flash_address as usize + flash_protected_size;
-
-        // Mark the state as `Unstarted` for the scheduler.
-        self.state.update(State::Unstarted);
-
-        // Mark that we restarted this process.
-        self.restart_count.increment();
-
-        // Enqueue the initial function.
-        self.tasks.map(|tasks| {
-            tasks.enqueue(Task::FunctionCall(FunctionCall {
-                source: FunctionCallSource::Kernel,
-                pc: init_fn,
-                argument0: flash_app_start,
-                argument1: self.memory.as_ptr() as usize,
-                argument2: self.memory.len() as usize,
-                argument3: self.app_break.get() as usize,
-            }));
-        });
-
-        // Mark that the process is ready to run.
-        self.kernel.increment_work();
-
-        Ok(())
     }
 
     /// Terminates and attempts to restart the process. The process
@@ -2453,6 +2300,154 @@ impl<C: 'static + Chip> Process<'_, C> {
         Ok((Some(process), unused_memory))
     }
 
+    /// Restart the process, resetting all of its state re-initializing
+    /// it to start running.  Assumes the process is not running and
+    /// cleaned up. This implements the mechanism of restart.
+    fn restart(&self) -> Result<(), ErrorCode> {
+        debug!("Restarting process {}", self.get_process_name());
+        // We need a new process identifier for this process since the restarted
+        // version is in effect a new process. This is also necessary to
+        // invalidate any stored `AppId`s that point to the old version of the
+        // process. However, the process has not moved locations in the
+        // processes array, so we copy the existing index.
+        let old_index = self.app_id.get().index;
+        let new_identifier = self.kernel.create_process_identifier();
+        self.app_id
+            .set(AppId::new(self.kernel, new_identifier, old_index));
+
+        // Reset debug information that is per-execution and not per-process.
+        self.debug.map(|debug| {
+            debug.syscall_count = 0;
+            debug.last_syscall = None;
+            debug.dropped_callback_count = 0;
+            debug.timeslice_expiration_count = 0;
+        });
+
+        // We are going to start this process over again, so need the init_fn
+        // location.
+        let app_flash_address = self.flash_start();
+        let init_fn = unsafe {
+            app_flash_address.offset(self.header.get_init_function_offset() as isize) as usize
+        };
+
+        // Reset memory pointers back to how they were when first calculated by
+        // the process create function. Since these are based on properties in
+        // the TBF header, and processes can't change the TBF header, it is fine
+        // to use saved values.
+        self.kernel_memory_break
+            .set(self.original_kernel_memory_break);
+        self.app_break.set(self.original_app_break);
+        self.current_stack_pointer.set(self.original_stack_pointer);
+        self.allow_high_water_mark
+            .set(self.original_allow_high_water_mark);
+
+        // Reset MPU region configuration.
+        // TODO: ideally, this would be moved into a helper function used by both
+        // create() and reset(), but process load debugging complicates this.
+        // We just want to create new config with only flash and memory regions.
+        let mut mpu_config: <<C as Chip>::MPU as MPU>::MpuConfig = Default::default();
+        // Allocate MPU region for flash.
+        let app_mpu_flash_success = self
+            .chip
+            .mpu()
+            .allocate_region(
+                self.flash.as_ptr(),
+                self.flash.len(),
+                self.flash.len(),
+                mpu::Permissions::ReadExecuteOnly,
+                &mut mpu_config,
+            )
+            .is_some();
+
+        // Recalculate initial_kernel_memory_size as was done in create()
+        let grant_ptr_size = mem::size_of::<*const usize>();
+        let grant_ptrs_num = self.kernel.get_grant_count_and_finalize();
+        let grant_ptrs_offset = grant_ptrs_num * grant_ptr_size;
+
+        let initial_kernel_memory_size =
+            grant_ptrs_offset + Self::CALLBACKS_OFFSET + Self::PROCESS_STRUCT_OFFSET;
+
+        let app_mpu_mem_success = self
+            .chip
+            .mpu()
+            .allocate_app_memory_region(
+                self.memory.as_ptr() as *const u8,
+                self.memory.len(),
+                self.memory.len(), //we want exactly as much as we had before restart
+                Self::INITIAL_APP_MEMORY_SIZE,
+                initial_kernel_memory_size,
+                mpu::Permissions::ReadWriteOnly,
+                &mut mpu_config,
+            )
+            .is_some();
+
+        // Drop the old config and use the clean one
+        self.mpu_config.replace(mpu_config);
+
+        match (app_mpu_flash_success, app_mpu_mem_success) {
+            (true, true) => {}
+            _ => {
+                // We couldn't configure the MPU for the process. This shouldn't
+                // happen since we were able to start the process before, but at
+                // this point it is better to leave the app faulted and not
+                // schedule it.
+                return Err(ErrorCode::NOMEM);
+            }
+        }
+
+        // Handle any architecture-specific requirements for a process when it
+        // first starts (as it would when it is new).
+        let new_stack_pointer_res = self.stored_state.map_or(Err(()), |stored_state| unsafe {
+            self.chip.userspace_kernel_boundary().initialize_process(
+                self.sp(),
+                self.sp() as usize - self.memory.as_ptr() as usize,
+                stored_state,
+            )
+        });
+        match new_stack_pointer_res {
+            Ok(new_stack_pointer) => {
+                self.current_stack_pointer.set(new_stack_pointer as *mut u8);
+                self.debug_set_max_stack_depth();
+            }
+            Err(_) => {
+                // We couldn't initialize the architecture-specific
+                // state for this process. This shouldn't happen since
+                // the app was able to be started before, but at this
+                // point the app is no longer valid. The best thing we
+                // can do now is leave the app as still faulted and not
+                // schedule it.
+                return Err(ErrorCode::RESERVE);
+            }
+        };
+
+        // And queue up this app to be restarted.
+        let flash_protected_size = self.header.get_protected_size() as usize;
+        let flash_app_start = app_flash_address as usize + flash_protected_size;
+
+        // Mark the state as `Unstarted` for the scheduler.
+        self.state.update(State::Unstarted);
+
+        // Mark that we restarted this process.
+        self.restart_count.increment();
+
+        // Enqueue the initial function.
+        self.tasks.map(|tasks| {
+            tasks.enqueue(Task::FunctionCall(FunctionCall {
+                source: FunctionCallSource::Kernel,
+                pc: init_fn,
+                argument0: flash_app_start,
+                argument1: self.memory.as_ptr() as usize,
+                argument2: self.memory.len() as usize,
+                argument3: self.app_break.get() as usize,
+            }));
+        });
+
+        // Mark that the process is ready to run.
+        self.kernel.increment_work();
+
+        Ok(())
+    }
+    
     /// Get the current stack pointer as a pointer.
     // This is currently safe as the the userspace/kernel boundary
     // implementations of both Risc-V and ARM would fault on context switch if
