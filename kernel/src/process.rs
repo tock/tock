@@ -2447,7 +2447,7 @@ impl<C: 'static + Chip> Process<'_, C> {
 
         Ok(())
     }
-    
+
     /// Get the current stack pointer as a pointer.
     // This is currently safe as the the userspace/kernel boundary
     // implementations of both Risc-V and ARM would fault on context switch if
