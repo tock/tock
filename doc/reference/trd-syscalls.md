@@ -303,7 +303,7 @@ All other yield identifier values are reserved. If an invalid
 yield indentifier is passed the kernel returns immediately.
 
 The no wait field is only used by `yield-no-wait`. It contains the
-memory address of an 8-bit word that `yield-no-wait` writes to
+memory address of an 8-bit byte that `yield-no-wait` writes to
 indicate whether a callback was invoked. If invoking `yield-no-wait`
 resulted in a callback executing, `yield-no-wait` writes 1 to the
 field address. If invoking `yield-no-wait` resulted in no callback
