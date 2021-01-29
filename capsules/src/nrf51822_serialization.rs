@@ -25,7 +25,10 @@ use core::cmp;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil;
 use kernel::hil::uart;
-use kernel::{AppId, AppSlice, Callback, Grant, LegacyDriver, ReturnCode, SharedReadWrite};
+use kernel::{
+    AppId, Callback, CommandResult, Driver, ErrorCode, Grant, Read, ReadOnlyAppSlice, ReadWrite,
+    ReadWriteAppSlice, ReturnCode,
+};
 
 /// Syscall driver number.
 use crate::driver;
@@ -33,9 +36,9 @@ pub const DRIVER_NUM: usize = driver::NUM::Nrf51822Serialization as usize;
 
 #[derive(Default)]
 pub struct App {
-    callback: Option<Callback>,
-    tx_buffer: Option<AppSlice<SharedReadWrite, u8>>,
-    rx_buffer: Option<AppSlice<SharedReadWrite, u8>>,
+    callback: Callback,
+    tx_buffer: ReadOnlyAppSlice,
+    rx_buffer: ReadWriteAppSlice,
     rx_recv_so_far: usize, // How many RX bytes we have currently received.
     rx_recv_total: usize,  // The total number of bytes we expect to receive.
 }
@@ -95,7 +98,7 @@ impl<'a> Nrf51822Serialization<'a> {
     }
 }
 
-impl LegacyDriver for Nrf51822Serialization<'_> {
+impl Driver for Nrf51822Serialization<'_> {
     /// Pass application space memory to this driver.
     ///
     /// This also sets which app is currently using this driver. Only one app
@@ -104,38 +107,67 @@ impl LegacyDriver for Nrf51822Serialization<'_> {
     /// ### `allow_num`
     ///
     /// - `0`: Provide a RX buffer.
-    /// - `1`: Provide a TX buffer.
     fn allow_readwrite(
         &self,
         appid: AppId,
         allow_type: usize,
-        slice: Option<AppSlice<SharedReadWrite, u8>>,
-    ) -> ReturnCode {
-        match allow_type {
+        mut slice: ReadWriteAppSlice,
+    ) -> Result<ReadWriteAppSlice, (ReadWriteAppSlice, ErrorCode)> {
+        let res = match allow_type {
             // Provide an RX buffer.
             0 => {
                 self.active_app.set(appid);
                 self.apps
                     .enter(appid, |app, _| {
-                        app.rx_buffer = slice;
                         app.rx_recv_so_far = 0;
                         app.rx_recv_total = 0;
-                        ReturnCode::SUCCESS
+                        core::mem::swap(&mut app.rx_buffer, &mut slice);
                     })
-                    .unwrap_or(ReturnCode::FAIL)
+                    .map_err(ErrorCode::from)
             }
 
+            _ => Err(ErrorCode::NOSUPPORT),
+        };
+
+        if let Err(e) = res {
+            Err((slice, e))
+        } else {
+            Ok(slice)
+        }
+    }
+
+    /// Pass application space memory to this driver.
+    ///
+    /// This also sets which app is currently using this driver. Only one app
+    /// can control the nRF51 serialization driver.
+    ///
+    /// ### `allow_num`
+    ///
+    /// - `1`: Provide a TX buffer.
+    fn allow_readonly(
+        &self,
+        appid: AppId,
+        allow_type: usize,
+        mut slice: ReadOnlyAppSlice,
+    ) -> Result<ReadOnlyAppSlice, (ReadOnlyAppSlice, ErrorCode)> {
+        let res = match allow_type {
             // Provide a TX buffer.
             1 => {
                 self.active_app.set(appid);
                 self.apps
                     .enter(appid, |app, _| {
-                        app.tx_buffer = slice;
-                        ReturnCode::SUCCESS
+                        core::mem::swap(&mut app.tx_buffer, &mut slice)
                     })
-                    .unwrap_or(ReturnCode::FAIL)
+                    .map_err(ErrorCode::from)
             }
-            _ => ReturnCode::ENOSUPPORT,
+
+            _ => Err(ErrorCode::NOSUPPORT),
+        };
+
+        if let Err(e) = res {
+            Err((slice, e))
+        } else {
+            Ok(slice)
         }
     }
 
@@ -150,16 +182,20 @@ impl LegacyDriver for Nrf51822Serialization<'_> {
     fn subscribe(
         &self,
         subscribe_type: usize,
-        callback: Option<Callback>,
+        callback: Callback,
         appid: AppId,
-    ) -> ReturnCode {
+    ) -> Result<Callback, (Callback, ErrorCode)> {
         match subscribe_type {
             // Add a callback
             0 => {
                 // Save the callback for the app.
-                let _ = self.apps.enter(appid, |app, _| {
-                    app.callback = callback;
-                });
+                let old_callback = self
+                    .apps
+                    .enter(appid, |app, _| {
+                        core::mem::replace(&mut app.callback, callback)
+                    })
+                    .map_err(ErrorCode::from)
+                    .map_err(|e| (callback, e))?;
 
                 // Start the receive now that we have a callback. If there is no
                 // buffer then the receive has already been started.
@@ -168,9 +204,9 @@ impl LegacyDriver for Nrf51822Serialization<'_> {
                     self.uart.receive_automatic(buffer, len, 250);
                 });
 
-                ReturnCode::SUCCESS
+                Ok(old_callback)
             }
-            _ => ReturnCode::ENOSUPPORT,
+            _ => Err((callback, ErrorCode::NOSUPPORT)),
         }
     }
 
@@ -181,33 +217,33 @@ impl LegacyDriver for Nrf51822Serialization<'_> {
     /// - `0`: Driver check.
     /// - `1`: Send the allowed buffer to the nRF.
     /// - `2`: Reset the nRF51822.
-    fn command(&self, command_type: usize, _: usize, _: usize, appid: AppId) -> ReturnCode {
+    fn command(&self, command_type: usize, _: usize, _: usize, appid: AppId) -> CommandResult {
         match command_type {
-            0 /* check if present */ => ReturnCode::SUCCESS,
+            0 /* check if present */ => CommandResult::success(),
 
             // Send a buffer to the nRF51822 over UART.
             1 => {
                 self.apps.enter(appid, |app, _| {
-                    app.tx_buffer.take().map_or(ReturnCode::FAIL, |slice| {
+                    app.tx_buffer.map_or(CommandResult::failure(ErrorCode::FAIL), |slice| {
                         let write_len = slice.len();
-                        self.tx_buffer.take().map_or(ReturnCode::FAIL, |buffer| {
+                        self.tx_buffer.take().map_or(CommandResult::failure(ErrorCode::FAIL), |buffer| {
                             for (i, c) in slice.as_ref().iter().enumerate() {
                                 buffer[i] = *c;
                             }
                             let (_err, _opt) = self.uart.transmit_buffer(buffer, write_len);
-                            ReturnCode::SUCCESS
+                            CommandResult::success()
                         })
                     })
-                }).unwrap_or(ReturnCode::FAIL)
+                }).unwrap_or(CommandResult::failure(ErrorCode::FAIL))
             }
 
             // Initialize the nRF51822 by resetting it.
             2 => {
                 self.reset();
-                ReturnCode::SUCCESS
+                CommandResult::success()
             }
 
-            _ => ReturnCode::ENOSUPPORT,
+            _ => CommandResult::failure(ErrorCode::NOSUPPORT),
         }
     }
 }
@@ -221,9 +257,7 @@ impl uart::TransmitClient for Nrf51822Serialization<'_> {
         self.active_app.map(|appid| {
             let _ = self.apps.enter(*appid, |app, _| {
                 // Call the callback after TX has finished
-                app.callback.as_mut().map(|cb| {
-                    cb.schedule(1, 0, 0);
-                });
+                app.callback.schedule(1, 0, 0);
             });
         });
     }
@@ -244,7 +278,7 @@ impl uart::ReceiveClient for Nrf51822Serialization<'_> {
 
         self.active_app.map(|appid| {
             let _ = self.apps.enter(*appid, |app, _| {
-                app.rx_buffer = app.rx_buffer.take().map(|mut rb| {
+                app.rx_buffer.mut_map(|rb| {
                     // Figure out length to copy.
                     let max_len = cmp::min(rx_len, rb.len());
 
@@ -254,14 +288,15 @@ impl uart::ReceiveClient for Nrf51822Serialization<'_> {
                             rb.as_mut()[idx] = buffer[idx];
                         }
                     });
-                    app.callback.as_mut().map(|cb| {
-                        // Notify the serialization library in userspace about the
-                        // received buffer.
-                        cb.schedule(4, rx_len, 0);
-                    });
-
-                    rb
                 });
+
+                // Notify the serialization library in userspace about the
+                // received buffer.
+                //
+                // Note: This indicates how many bytes were received by
+                // hardware, regardless of how much space (if any) was
+                // available in the buffer provided by the app.
+                app.callback.schedule(4, rx_len, 0);
             });
         });
 
