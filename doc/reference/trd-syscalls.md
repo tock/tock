@@ -387,7 +387,7 @@ in the previous call to Subscribe (the existing application data). For
 failure, the first `u32` is the passed callback pointer and the second
 `u32` is the passed application data pointer. For the first successful
 call to Subscribe for a given callback, the callback pointer and
-application data pointer returned MUST be the Null Callback (describe
+application data pointer returned MUST be the Null Callback (described
 below).
 
 4.2.1 The Null Callback
