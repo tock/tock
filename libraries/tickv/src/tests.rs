@@ -1,6 +1,7 @@
 use crate::error_codes::ErrorCode;
 use crate::flash_controller::FlashController;
-use crate::tickv::{TicKV, HASH_OFFSET, LEN_OFFSET, VERSION, VERSION_OFFSET};
+use crate::tickv::{TicKV, HASH_OFFSET, LEN_OFFSET, MAIN_KEY, VERSION, VERSION_OFFSET};
+use core::hash::{Hash, Hasher};
 use std::cell::Cell;
 use std::cell::RefCell;
 use std::collections::hash_map::DefaultHasher;
@@ -90,6 +91,12 @@ fn check_region_two(buf: &[u8]) {
     assert_eq!(buf[46], 0xba);
 }
 
+fn get_hashed_key(unhashed_key: &[u8]) -> u64 {
+    let mut hash_function = DefaultHasher::new();
+    unhashed_key.hash(&mut hash_function);
+    hash_function.finish()
+}
+
 /// Tests using a NOP flash controller
 mod simple_flash_ctrl {
     use super::*;
@@ -130,11 +137,12 @@ mod simple_flash_ctrl {
     #[test]
     fn test_init() {
         let mut read_buf: [u8; 2048] = [0; 2048];
-        let tickv =
-            TicKV::<FlashCtrl, DefaultHasher, 2048>::new(FlashCtrl::new(), &mut read_buf, 0x20000);
-        tickv
-            .initalise((&mut DefaultHasher::new(), &mut DefaultHasher::new()))
-            .unwrap();
+        let mut hash_function = DefaultHasher::new();
+        MAIN_KEY.hash(&mut hash_function);
+        let hash = hash_function.finish();
+
+        let tickv = TicKV::<FlashCtrl, 2048>::new(FlashCtrl::new(), &mut read_buf, 0x20000);
+        tickv.initalise(hash).unwrap();
     }
 }
 
@@ -184,18 +192,16 @@ mod single_erase_flash_ctrl {
     #[test]
     fn test_double_init() {
         let mut read_buf1: [u8; 2048] = [0; 2048];
-        let tickv1 =
-            TicKV::<FlashCtrl, DefaultHasher, 2048>::new(FlashCtrl::new(), &mut read_buf1, 0x20000);
-        tickv1
-            .initalise((&mut DefaultHasher::new(), &mut DefaultHasher::new()))
-            .unwrap();
+        let mut hash_function = DefaultHasher::new();
+        MAIN_KEY.hash(&mut hash_function);
+        let hash = hash_function.finish();
+
+        let tickv1 = TicKV::<FlashCtrl, 2048>::new(FlashCtrl::new(), &mut read_buf1, 0x20000);
+        tickv1.initalise(hash).unwrap();
 
         let mut read_buf2: [u8; 2048] = [0; 2048];
-        let tickv2 =
-            TicKV::<FlashCtrl, DefaultHasher, 2048>::new(FlashCtrl::new(), &mut read_buf2, 0x20000);
-        tickv2
-            .initalise((&mut DefaultHasher::new(), &mut DefaultHasher::new()))
-            .unwrap();
+        let tickv2 = TicKV::<FlashCtrl, 2048>::new(FlashCtrl::new(), &mut read_buf2, 0x20000);
+        tickv2.initalise(hash).unwrap();
     }
 }
 
@@ -278,72 +284,60 @@ mod store_flast_ctrl {
     #[test]
     fn test_simple_append() {
         let mut read_buf: [u8; 1024] = [0; 1024];
-        let tickv =
-            TicKV::<FlashCtrl, DefaultHasher, 1024>::new(FlashCtrl::new(), &mut read_buf, 0x10000);
-        tickv
-            .initalise((&mut DefaultHasher::new(), &mut DefaultHasher::new()))
-            .unwrap();
+        let mut hash_function = DefaultHasher::new();
+        MAIN_KEY.hash(&mut hash_function);
+        let hash = hash_function.finish();
+
+        let tickv = TicKV::<FlashCtrl, 1024>::new(FlashCtrl::new(), &mut read_buf, 0x10000);
+        tickv.initalise(hash).unwrap();
 
         let value: [u8; 32] = [0x23; 32];
 
-        tickv
-            .append_key(&mut DefaultHasher::new(), b"ONE", &value)
-            .unwrap();
-        tickv
-            .append_key(&mut DefaultHasher::new(), b"TWO", &value)
-            .unwrap();
+        tickv.append_key(get_hashed_key(b"ONE"), &value).unwrap();
+        tickv.append_key(get_hashed_key(b"TWO"), &value).unwrap();
     }
 
     #[test]
     fn test_double_append() {
         let mut read_buf: [u8; 1024] = [0; 1024];
-        let tickv =
-            TicKV::<FlashCtrl, DefaultHasher, 1024>::new(FlashCtrl::new(), &mut read_buf, 0x10000);
-        tickv
-            .initalise((&mut DefaultHasher::new(), &mut DefaultHasher::new()))
-            .unwrap();
+        let mut hash_function = DefaultHasher::new();
+        MAIN_KEY.hash(&mut hash_function);
+        let hash = hash_function.finish();
+
+        let tickv = TicKV::<FlashCtrl, 1024>::new(FlashCtrl::new(), &mut read_buf, 0x10000);
+        tickv.initalise(hash).unwrap();
 
         let value: [u8; 32] = [0x23; 32];
         let mut buf: [u8; 32] = [0; 32];
 
         println!("Add key ONE");
-        tickv
-            .append_key(&mut DefaultHasher::new(), b"ONE", &value)
-            .unwrap();
+        tickv.append_key(get_hashed_key(b"ONE"), &value).unwrap();
 
         println!("Get key ONE");
-        tickv
-            .get_key(&mut DefaultHasher::new(), b"ONE", &mut buf)
-            .unwrap();
+        tickv.get_key(get_hashed_key(b"ONE"), &mut buf).unwrap();
 
         println!("Get non-existant key TWO");
         assert_eq!(
-            tickv.get_key(&mut DefaultHasher::new(), b"TWO", &mut buf),
+            tickv.get_key(get_hashed_key(b"TWO"), &mut buf),
             Err(ErrorCode::KeyNotFound)
         );
 
         println!("Add key ONE again");
         assert_eq!(
-            tickv.append_key(&mut DefaultHasher::new(), b"ONE", &value),
+            tickv.append_key(get_hashed_key(b"ONE"), &value),
             Err(ErrorCode::KeyAlreadyExists)
         );
 
         println!("Add key TWO");
-        tickv
-            .append_key(&mut DefaultHasher::new(), b"TWO", &value)
-            .unwrap();
+        tickv.append_key(get_hashed_key(b"TWO"), &value).unwrap();
         println!("Get key ONE");
-        tickv
-            .get_key(&mut DefaultHasher::new(), b"ONE", &mut buf)
-            .unwrap();
+        tickv.get_key(get_hashed_key(b"ONE"), &mut buf).unwrap();
         println!("Get key TWO");
-        tickv
-            .get_key(&mut DefaultHasher::new(), b"TWO", &mut buf)
-            .unwrap();
+        tickv.get_key(get_hashed_key(b"TWO"), &mut buf).unwrap();
 
         println!("Get non-existant key THREE");
         assert_eq!(
-            tickv.get_key(&mut DefaultHasher::new(), b"THREE", &mut buf),
+            tickv.get_key(get_hashed_key(b"THREE"), &mut buf),
             Err(ErrorCode::KeyNotFound)
         );
     }
@@ -351,39 +345,34 @@ mod store_flast_ctrl {
     #[test]
     fn test_append_and_delete() {
         let mut read_buf: [u8; 1024] = [0; 1024];
-        let tickv =
-            TicKV::<FlashCtrl, DefaultHasher, 1024>::new(FlashCtrl::new(), &mut read_buf, 0x10000);
-        tickv
-            .initalise((&mut DefaultHasher::new(), &mut DefaultHasher::new()))
-            .unwrap();
+        let mut hash_function = DefaultHasher::new();
+        MAIN_KEY.hash(&mut hash_function);
+        let hash = hash_function.finish();
+
+        let tickv = TicKV::<FlashCtrl, 1024>::new(FlashCtrl::new(), &mut read_buf, 0x10000);
+        tickv.initalise(hash).unwrap();
 
         let value: [u8; 32] = [0x23; 32];
         let mut buf: [u8; 32] = [0; 32];
 
         println!("Add Key ONE");
-        tickv
-            .append_key(&mut DefaultHasher::new(), b"ONE", &value)
-            .unwrap();
+        tickv.append_key(get_hashed_key(b"ONE"), &value).unwrap();
 
         println!("Get key ONE");
-        tickv
-            .get_key(&mut DefaultHasher::new(), b"ONE", &mut buf)
-            .unwrap();
+        tickv.get_key(get_hashed_key(b"ONE"), &mut buf).unwrap();
 
         println!("Delete Key ONE");
-        tickv
-            .invalidate_key(&mut DefaultHasher::new(), b"ONE")
-            .unwrap();
+        tickv.invalidate_key(get_hashed_key(b"ONE")).unwrap();
 
         println!("Get non-existant key ONE");
         assert_eq!(
-            tickv.get_key(&mut DefaultHasher::new(), b"ONE", &mut buf),
+            tickv.get_key(get_hashed_key(b"ONE"), &mut buf),
             Err(ErrorCode::KeyNotFound)
         );
 
         println!("Try to delete Key ONE Again");
         assert_eq!(
-            tickv.invalidate_key(&mut DefaultHasher::new(), b"ONE"),
+            tickv.invalidate_key(get_hashed_key(b"ONE")),
             Err(ErrorCode::KeyNotFound)
         );
     }
@@ -391,11 +380,12 @@ mod store_flast_ctrl {
     #[test]
     fn test_garbage_collect() {
         let mut read_buf: [u8; 1024] = [0; 1024];
-        let tickv =
-            TicKV::<FlashCtrl, DefaultHasher, 1024>::new(FlashCtrl::new(), &mut read_buf, 0x10000);
-        tickv
-            .initalise((&mut DefaultHasher::new(), &mut DefaultHasher::new()))
-            .unwrap();
+        let mut hash_function = DefaultHasher::new();
+        MAIN_KEY.hash(&mut hash_function);
+        let hash = hash_function.finish();
+
+        let tickv = TicKV::<FlashCtrl, 1024>::new(FlashCtrl::new(), &mut read_buf, 0x10000);
+        tickv.initalise(hash).unwrap();
 
         let value: [u8; 32] = [0x23; 32];
         let mut buf: [u8; 32] = [0; 32];
@@ -404,31 +394,25 @@ mod store_flast_ctrl {
         assert_eq!(tickv.garbage_collect(), Ok(0));
 
         println!("Add Key ONE");
-        tickv
-            .append_key(&mut DefaultHasher::new(), b"ONE", &value)
-            .unwrap();
+        tickv.append_key(get_hashed_key(b"ONE"), &value).unwrap();
 
         println!("Garbage collect flash with valid key");
         assert_eq!(tickv.garbage_collect(), Ok(0));
 
         println!("Delete Key ONE");
-        tickv
-            .invalidate_key(&mut DefaultHasher::new(), b"ONE")
-            .unwrap();
+        tickv.invalidate_key(get_hashed_key(b"ONE")).unwrap();
 
         println!("Garbage collect flash with deleted key");
         assert_eq!(tickv.garbage_collect(), Ok(1024));
 
         println!("Get non-existant key ONE");
         assert_eq!(
-            tickv.get_key(&mut DefaultHasher::new(), b"ONE", &mut buf),
+            tickv.get_key(get_hashed_key(b"ONE"), &mut buf),
             Err(ErrorCode::KeyNotFound)
         );
 
         println!("Add Key ONE");
-        tickv
-            .append_key(&mut DefaultHasher::new(), b"ONE", &value)
-            .unwrap();
+        tickv.append_key(get_hashed_key(b"ONE"), &value).unwrap();
     }
 }
 
@@ -491,120 +475,85 @@ mod no_check_store_flast_ctrl {
     #[test]
     fn test_region_full() {
         let mut read_buf: [u8; 256] = [0; 256];
-        let tickv =
-            TicKV::<FlashCtrl, DefaultHasher, 256>::new(FlashCtrl::new(), &mut read_buf, 0x200);
-        tickv
-            .initalise((&mut DefaultHasher::new(), &mut DefaultHasher::new()))
-            .unwrap();
+        let mut hash_function = DefaultHasher::new();
+        MAIN_KEY.hash(&mut hash_function);
+        let hash = hash_function.finish();
+
+        let tickv = TicKV::<FlashCtrl, 256>::new(FlashCtrl::new(), &mut read_buf, 0x200);
+        tickv.initalise(hash).unwrap();
 
         let value: [u8; 64] = [0x23; 64];
         let mut buf: [u8; 64] = [0; 64];
 
         println!("Add Key ONE");
-        tickv
-            .append_key(&mut DefaultHasher::new(), b"ONE", &value)
-            .unwrap();
+        tickv.append_key(get_hashed_key(b"ONE"), &value).unwrap();
 
         println!("Add Key TWO");
-        tickv
-            .append_key(&mut DefaultHasher::new(), b"TWO", &value)
-            .unwrap();
+        tickv.append_key(get_hashed_key(b"TWO"), &value).unwrap();
 
         println!("Add Key THREE");
-        tickv
-            .append_key(&mut DefaultHasher::new(), b"THREE", &value)
-            .unwrap();
+        tickv.append_key(get_hashed_key(b"THREE"), &value).unwrap();
 
         println!("Add Key FOUR");
-        tickv
-            .append_key(&mut DefaultHasher::new(), b"FOUR", &value)
-            .unwrap();
+        tickv.append_key(get_hashed_key(b"FOUR"), &value).unwrap();
 
         println!("Add Key FIVE");
-        tickv
-            .append_key(&mut DefaultHasher::new(), b"FIVE", &value)
-            .unwrap();
+        tickv.append_key(get_hashed_key(b"FIVE"), &value).unwrap();
 
         println!("Add Key SIX");
-        tickv
-            .append_key(&mut DefaultHasher::new(), b"SIX", &value)
-            .unwrap();
+        tickv.append_key(get_hashed_key(b"SIX"), &value).unwrap();
 
         println!("Add Key SEVEN");
         assert_eq!(
-            tickv.append_key(&mut DefaultHasher::new(), b"SEVEN", &value),
+            tickv.append_key(get_hashed_key(b"SEVEN"), &value),
             Err(ErrorCode::FlashFull)
         );
 
         println!("Get key ONE");
-        tickv
-            .get_key(&mut DefaultHasher::new(), b"ONE", &mut buf)
-            .unwrap();
+        tickv.get_key(get_hashed_key(b"ONE"), &mut buf).unwrap();
 
         println!("Get key TWO");
-        tickv
-            .get_key(&mut DefaultHasher::new(), b"TWO", &mut buf)
-            .unwrap();
+        tickv.get_key(get_hashed_key(b"TWO"), &mut buf).unwrap();
 
         println!("Get key THREE");
-        tickv
-            .get_key(&mut DefaultHasher::new(), b"THREE", &mut buf)
-            .unwrap();
+        tickv.get_key(get_hashed_key(b"THREE"), &mut buf).unwrap();
 
         println!("Get key FOUR");
-        tickv
-            .get_key(&mut DefaultHasher::new(), b"FOUR", &mut buf)
-            .unwrap();
+        tickv.get_key(get_hashed_key(b"FOUR"), &mut buf).unwrap();
 
         println!("Get key FIVE");
-        tickv
-            .get_key(&mut DefaultHasher::new(), b"FIVE", &mut buf)
-            .unwrap();
+        tickv.get_key(get_hashed_key(b"FIVE"), &mut buf).unwrap();
 
         println!("Get key SIX");
-        tickv
-            .get_key(&mut DefaultHasher::new(), b"SIX", &mut buf)
-            .unwrap();
+        tickv.get_key(get_hashed_key(b"SIX"), &mut buf).unwrap();
 
         println!("Get key SEVEN");
         assert_eq!(
-            tickv.get_key(&mut DefaultHasher::new(), b"SEVEN", &mut buf),
+            tickv.get_key(get_hashed_key(b"SEVEN"), &mut buf),
             Err(ErrorCode::KeyNotFound)
         );
 
         println!("Delete Key ONE");
-        tickv
-            .invalidate_key(&mut DefaultHasher::new(), b"ONE")
-            .unwrap();
+        tickv.invalidate_key(get_hashed_key(b"ONE")).unwrap();
 
         println!("Delete Key TWO");
-        tickv
-            .invalidate_key(&mut DefaultHasher::new(), b"TWO")
-            .unwrap();
+        tickv.invalidate_key(get_hashed_key(b"TWO")).unwrap();
 
         println!("Delete Key THREE");
-        tickv
-            .invalidate_key(&mut DefaultHasher::new(), b"THREE")
-            .unwrap();
+        tickv.invalidate_key(get_hashed_key(b"THREE")).unwrap();
 
         println!("Delete Key FOUR");
-        tickv
-            .invalidate_key(&mut DefaultHasher::new(), b"FOUR")
-            .unwrap();
+        tickv.invalidate_key(get_hashed_key(b"FOUR")).unwrap();
 
         println!("Delete Key FIVE");
-        tickv
-            .invalidate_key(&mut DefaultHasher::new(), b"FIVE")
-            .unwrap();
+        tickv.invalidate_key(get_hashed_key(b"FIVE")).unwrap();
 
         println!("Delete Key SIX");
-        tickv
-            .invalidate_key(&mut DefaultHasher::new(), b"SIX")
-            .unwrap();
+        tickv.invalidate_key(get_hashed_key(b"SIX")).unwrap();
 
         println!("Delete Key SEVEN");
         assert_eq!(
-            tickv.invalidate_key(&mut DefaultHasher::new(), b"SEVEN"),
+            tickv.invalidate_key(get_hashed_key(b"SEVEN")),
             Err(ErrorCode::KeyNotFound)
         );
     }
