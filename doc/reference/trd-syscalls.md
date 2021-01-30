@@ -175,7 +175,7 @@ well with Rust's `Result` type.
 
 All values not specified for r0 in the above table are reserved.
 
-3.2 Error Codes
+3.3 Error Codes
 ---------------------------------
 
 All system call failures return an error code. These error codes are a superset of
@@ -245,7 +245,8 @@ Peripheral driver-specific system calls (Subscribe, Command, Allow, Read-Only Al
 all include two arguments, a driver identifier and a syscall identifier. The driver identifier
 specifies which peripheral system call driver to invoke. The syscall identifier (which
 is different than the Syscall Class ID in the table above)
-specifies which instance of that system call on that driver to invoke. For example, the
+specifies which instance of that system call on that driver to invoke. Both
+arguments are unsigned 32-bit integers. For example, the
 Console driver has driver identifier `0x1` and a Command to the console driver with
 syscall identifier `0x2` starts receiving console data into a buffer.
 
