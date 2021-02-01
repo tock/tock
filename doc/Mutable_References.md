@@ -336,7 +336,7 @@ is effectively a wrapper for a `Cell` that contains an `Option`, like:
 `TakeCell` and `OptionalCell` are quite similar, but the key differentiator is
 the `Copy` bound required for items to use some of the methods defined on `OptionalCell`, such as `map()`.
 The `Copy` bound enables safe "reentrant" access to the stored value, because multiple accesses will be operating
-on a copy of the stored item. The semantic difference
+on different copies of the same stored item. The semantic difference
 is the name: a `TakeCell` is designed for something that must literally be
 taken, e.g. commonly a buffer that is given to a different subsystem in a way
 not easily captured by the Rust borrow mechansims (commonly when a buffer is
