@@ -340,7 +340,7 @@ taken, e.g. commonly a buffer that is given to a different subsystem in a way
 not easily captured by the Rust borrow mechansims (commonly when a buffer is
 passed into, borrowed, "by" a hardware peripheral, and returned when hardware
 event has filled the buffer). [#2360](https://github.com/tock/tock/pull/2360)
-has some examples where trying to convert a `TakeCell` into and `OptionalCell`
+has some examples where trying to convert a `TakeCell` into an `OptionalCell`
 does not work.
 
 ## `VolatileCell`
