@@ -114,18 +114,13 @@ The values can be any length as long as they follow both:
 
 #### Checksum
 
-The checksum is a hash of the entire object (not including the checksum).
-The checksum is calculated using the same hash algorithm used for the keys.
-
-A simple CRC isn't used to avoid depending on external crates and to
-re-use the already implemented Hash. This will potentially allow
-hardware accelerated implementation of `core::hash::Hasher` to be used
-for the checksum.
+The checksum is a CRC-32 (polynomial 0x04c11db7) of the entire object (not including
+the checksum).
 
 ### Object overhead
 
-Currently the overhead of an TicKV object is 21 bytes. Most of this is the 8
-bytes for the key hash and 8 bytes for a checksum.
+Currently the overhead of an TicKV object is 17 bytes. Most of this is the 8
+bytes for the key hash and 4 bytes for a checksum.
 
 ### Location of objects
 
@@ -250,12 +245,12 @@ Where the TicKV object ONE will look like this
 ```
 
 ```
-0x52C                                                                   0x54C
------------------------------------------------------------------------------
-|||||                                checksum                               |
-|||||        |        |        |        |        |        |        |        |
-|||||    0xe5|    0x5d|    0x99|    0x22|    0x0a|    0x3c|    0xe1|    0x17|
-----------------------------------------------------------------------------|
+0x52C                                   0x53C
+-----------------------------------------
+|||||              checksum             |
+|||||        |        |        |        |
+|||||    0x0a|    0x3c|    0xe1|    0x17|
+----------------------------------------|
 ```
 
 In this case the header information takes up 19 bytes of a total of 51 bytes,
@@ -279,7 +274,7 @@ flash might look like this:
 ```
 
 Where TWO will have the same structure as ONE, except with a different hash
-value, different checksum and starts at address 0x54C. Note that depending
+value, different checksum and starts at address 0x53C. Note that depending
 on the hash of TWO it could be added to any region.
 
 ### Adding a third key
@@ -465,17 +460,6 @@ hopefully make that occurrence very unlikely. Also by following the standard
 Rust `core::hash::Hasher` trait the user is free to implement any standard
 Hasher of their choosing. Some systems will even be able to offload the
 hash to hardware.
-
-As for the check-sum. It was seriously considered to change this to a
-32-bit or even 16-bit CRC. This would reduce the overhead for each object
-by 4 or 6 bytes. Although a CRC is relatively easy to implement, it can still
-be time consuming. For this reason lots of embedded hardware will include a
-CRC offload engine to offload the calculation. By implementing a CRC in this
-library I would remove the option of allowing a offload engine. As there
-doesn't seem to be a generic CRC Rust trait to take advantage of the decision
-was made to reuse the `core::hash::Hasher` trait for the checksum. This costs
-space, but hopefully reduces implementation burden and allows for more hardware
-offloading.
 
 ### Memory usage
 
