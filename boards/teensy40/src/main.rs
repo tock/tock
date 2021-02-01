@@ -227,7 +227,7 @@ pub unsafe fn reset_handler() {
 #[no_mangle]
 #[link_section = ".stack_buffer"]
 #[used]
-static mut STACK_BUFFER: [u8; 0x1000] = [0; 0x1000];
+static mut STACK_BUFFER: [u8; 0x2000] = [0; 0x2000];
 
 const FCB_SIZE: usize = core::mem::size_of::<fcb::FCB>();
 
