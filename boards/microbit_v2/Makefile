@@ -33,8 +33,8 @@ flash-app: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).bin
 	$(OPENOCD) $(OPENOCD_OPTIONS) -c "program $(KERNEL_WITH_APP); verify_image $(KERNEL_WITH_APP); reset; shutdown;"
 
 .PHONY: program
-program: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/debug/$(PLATFORM).bin
-	$(TOCKLOADER) flash $< --page-size 512
+program: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).bin
+	$(TOCKLOADER) flash $< --address 0x8000 --page-size 512
 
 .PHONY: flash-bootloader
 flash-bootloader: bootloader/tock-bootloader.microbit_v2.v1.1.0.bin

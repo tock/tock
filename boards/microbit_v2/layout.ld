@@ -1,7 +1,7 @@
 MEMORY
 {
   # with bootloader
-  rom (rx)  : ORIGIN = 0x00010000, LENGTH = 192K
+  rom (rx)  : ORIGIN = 0x00008000, LENGTH = 224K
   # without bootloader
   # rom (rx)  : ORIGIN = 0x00000000, LENGTH = 256K
   prog (rx) : ORIGIN = 0x00040000, LENGTH = 256K
