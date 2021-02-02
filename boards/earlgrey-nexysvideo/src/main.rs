@@ -24,9 +24,10 @@ use rv32i::csr;
 
 #[allow(dead_code)]
 mod aes_test;
-
 #[allow(dead_code)]
 mod multi_alarm_test;
+#[allow(dead_code)]
+mod tickv_test;
 
 pub mod io;
 pub mod usb;
