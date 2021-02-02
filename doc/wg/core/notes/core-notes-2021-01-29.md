@@ -22,7 +22,7 @@
  - Brad: For Tockloader, I just pushed a commit to automatically reconnect Tockloader to a board if the board goes away for a small amount 
  of time (ex: reset).
   
-## https://github.com/tock/libtock-rs/pull/269 (implications for 64-bit platforms for syscalls)
+## https://github.com/tock/libtock-rs/pull/269 (implications of 64-bit platforms for syscalls)
  - Johnathan: PR references the implementation of a trait I already merged into libtock-rs which represents system calls.  Trait designed for
  current 2.0 ABI with no support for 64-bit platforms.  Can we resolve comments conerning this in PR (related to design issues of 32-bit vs 64-bit)?
  - Amit: What is the delta between supporting 64-bit and 32-bit? Is it just a matter of "usize" vs "u32"?
