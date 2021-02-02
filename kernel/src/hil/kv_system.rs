@@ -86,7 +86,7 @@ pub trait Client<K: KeyType> {
         &self,
         result: Result<(), ReturnCode>,
         key: &'static mut K,
-        value: &'static mut [u8],
+        value: &'static [u8],
     );
 
     /// This callback is called when the get_value operation completes
@@ -113,12 +113,12 @@ pub trait Client<K: KeyType> {
     fn garbage_collect_complete(&self, result: Result<(), ReturnCode>);
 }
 
-pub trait KVSystem {
+pub trait KVSystem<'a> {
     /// The type of the hashed key. For example '[u8; 64]'.
     type K: KeyType;
 
     /// Set the client
-    fn set_client(&self, client: &dyn Client<Self::K>);
+    fn set_client(&self, client: &'a dyn Client<Self::K>);
 
     /// Generate key
     ///
@@ -129,9 +129,9 @@ pub trait KVSystem {
     /// On error the unhashed_key, key_buf and `ReturnCode` will be returned.
     fn generate_key(
         &self,
-        unhashed_key: &'static [u8],
-        key_buf: &'static Self::K,
-    ) -> Result<(), (&'static [u8], &'static Self::K, ReturnCode)>;
+        unhashed_key: &'static mut [u8],
+        key_buf: &'static mut Self::K,
+    ) -> Result<(), (&'static mut [u8], &'static mut Self::K, ReturnCode)>;
 
     /// Appends the key/value pair.
     ///
@@ -150,9 +150,9 @@ pub trait KVSystem {
     ///    `ENOMEM`: The key could not be added due to no more space.
     fn append_key(
         &self,
-        key: &'static Self::K,
+        key: &'static mut Self::K,
         value: &'static [u8],
-    ) -> Result<(), (&'static Self::K, &'static [u8], ReturnCode)>;
+    ) -> Result<(), (&'static mut Self::K, &'static [u8], ReturnCode)>;
 
     /// Retrieves the value from a specified key.
     ///
@@ -169,9 +169,9 @@ pub trait KVSystem {
     ///    `ENOSUPPORT`: The key could not be found.
     fn get_value(
         &self,
-        key: &'static Self::K,
+        key: &'static mut Self::K,
         ret_buf: &'static mut [u8],
-    ) -> Result<(), (&'static Self::K, &'static [u8], ReturnCode)>;
+    ) -> Result<(), (&'static mut Self::K, &'static mut [u8], ReturnCode)>;
 
     /// Invalidates the key in flash storage
     ///
@@ -185,7 +185,10 @@ pub trait KVSystem {
     ///    `EINVAL`: An invalid parameter was passed
     ///    `ENODEVICE`: No KV store was setup
     ///    `ENOSUPPORT`: The key could not be found.
-    fn invalidate_key(&self, key: &'static Self::K) -> Result<(), (&'static Self::K, ReturnCode)>;
+    fn invalidate_key(
+        &self,
+        key: &'static mut Self::K,
+    ) -> Result<(), (&'static mut Self::K, ReturnCode)>;
 
     /// Perform a garbage collection on the KV Store
     ///
