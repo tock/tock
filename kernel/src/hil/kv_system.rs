@@ -110,7 +110,7 @@ pub trait Client<K: KeyType> {
     /// This callback is called when the garbage_collect operation completes
     ///
     /// `result`: Nothing on success, 'ReturnCode' on error
-    fn garbage_collect_complete(&self, result: Result<(), ReturnCode>, key: &'static mut K);
+    fn garbage_collect_complete(&self, result: Result<(), ReturnCode>);
 }
 
 pub trait KVSystem {
