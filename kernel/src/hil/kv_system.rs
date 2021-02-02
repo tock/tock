@@ -63,6 +63,8 @@ use crate::returncode::ReturnCode;
 /// operations.
 pub trait KeyType: Eq + Copy + Clone + Sized + AsRef<[u8]> + AsMut<[u8]> {}
 
+impl KeyType for [u8; 8] {}
+
 /// Implement this trait and use `set_client()` in order to receive callbacks.
 pub trait Client<K: KeyType> {
     /// This callback is called when the append_key operation completes
@@ -114,7 +116,7 @@ pub trait Client<K: KeyType> {
 }
 
 pub trait KVSystem<'a> {
-    /// The type of the hashed key. For example '[u8; 64]'.
+    /// The type of the hashed key. For example '[u8; 8]'.
     type K: KeyType;
 
     /// Set the client
