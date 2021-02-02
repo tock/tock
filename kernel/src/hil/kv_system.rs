@@ -64,14 +64,14 @@ use crate::returncode::ReturnCode;
 pub trait KeyType: Eq + Copy + Clone + Sized + AsRef<[u8]> + AsMut<[u8]> {}
 
 /// Implement this trait and use `set_client()` in order to receive callbacks.
-pub trait Client<'a, K: KeyType> {
+pub trait Client<K: KeyType> {
     /// This callback is called when the append_key operation completes
     ///
     /// `result`: Nothing on success, 'ReturnCode' on error
     /// `unhashed_key`: The unhashed_key buffer
     /// `key_buf`: The key_buf buffer
     fn generate_key_complete(
-        &'a self,
+        &self,
         result: Result<(), ReturnCode>,
         unhashed_key: &'static [u8],
         key_buf: &'static K,
@@ -83,7 +83,7 @@ pub trait Client<'a, K: KeyType> {
     /// `key`: The key buffer
     /// `value`: The value buffer
     fn append_key_complete(
-        &'a self,
+        &self,
         result: Result<(), ReturnCode>,
         key: &'static mut K,
         value: &'static mut [u8],
@@ -95,7 +95,7 @@ pub trait Client<'a, K: KeyType> {
     /// `key`: The key buffer
     /// `ret_buf`: The ret_buf buffer
     fn get_value_complete(
-        &'a self,
+        &self,
         result: Result<(), ReturnCode>,
         key: &'static mut K,
         ret_buf: &'static mut [u8],
@@ -105,12 +105,12 @@ pub trait Client<'a, K: KeyType> {
     ///
     /// `result`: Nothing on success, 'ReturnCode' on error
     /// `key`: The key buffer
-    fn invalidate_key_complete(&'a self, result: Result<(), ReturnCode>, key: &'static mut K);
+    fn invalidate_key_complete(&self, result: Result<(), ReturnCode>, key: &'static mut K);
 
     /// This callback is called when the garbage_collect operation completes
     ///
     /// `result`: Nothing on success, 'ReturnCode' on error
-    fn garbage_collect_complete(&'a self, result: Result<(), ReturnCode>, key: &'static mut K);
+    fn garbage_collect_complete(&self, result: Result<(), ReturnCode>, key: &'static mut K);
 }
 
 pub trait KVSystem {
