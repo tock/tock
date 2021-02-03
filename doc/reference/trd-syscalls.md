@@ -136,7 +136,7 @@ and replaced with `&self` when the actual system call method is invoked.
 ----------------------------------
 
 All system calls have the same return value format. A system call can
-return one of nine variants, having different associated value types,
+return one of several variants, having different associated value types,
 which are shown here. `r0`-`r3` refer to the return value registers:
 for CortexM they are `r0`-`r3` and for RISC-V they are `a0`-`a3`.
 
@@ -173,7 +173,8 @@ The presence of many difference cases suggests that the operation should be spli
 there is non-determinism in its execution or its meaning is overloaded. It also fits
 well with Rust's `Result` type.
 
-All values not specified for r0 in the above table are reserved.
+All 32-bit values not specified for `r0` in the above table are reserved and may
+be used in future Tock versions.
 
 3.3 Error Codes
 ---------------------------------
