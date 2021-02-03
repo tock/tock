@@ -37,6 +37,6 @@ program: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).bin
 	$(TOCKLOADER) flash $< --address 0x8000 --page-size 512
 
 .PHONY: flash-bootloader
-flash-bootloader: bootloader/tock-bootloader.microbit_v2.v1.1.0.bin
+flash-bootloader: bootloader/tock-bootloader.microbit_v2.v1.1.1.bin
 	$(OPENOCD) $(OPENOCD_OPTIONS) -c "program $<; verify_image $<; reset; shutdown;"
 
