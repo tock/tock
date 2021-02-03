@@ -8,7 +8,7 @@ board based on the Nordic nRF52833 SoC. It includes the
 following sensors:
 
 - 5x5 LED Matrix
-- LSM303AGR or FXOS8700CQ compass and accelerometer
+- LSM303AGR compass and accelerometer
 - BLE
 - speaker
 - microphone
