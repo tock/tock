@@ -2,7 +2,7 @@
 
 #![crate_name = "apollo3"]
 #![crate_type = "rlib"]
-#![feature(llvm_asm, const_fn)]
+#![feature(asm, const_fn)]
 #![no_std]
 
 // Peripherals
@@ -104,7 +104,7 @@ pub unsafe fn init() {
     scb::disable_fpca();
 
     // This ensures the FPU is actually disabled
-    llvm_asm!("svc 0xff" : : : "r0","r1","r2","r3","r12" : "volatile" );
+    asm!("svc 0xff", out("r0") _, out("r1") _, out("r2") _, out("r3") _, out("r12") _);
 
     cortexm4::nvic::disable_all();
     cortexm4::nvic::clear_all_pending();

@@ -71,7 +71,9 @@ static mut CHIP: Option<&'static nrf52833::chip::NRF52<Nrf52833DefaultPeripheral
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
 #[link_section = ".stack_buffer"]
-pub static mut STACK_MEMORY: [u8; 0x2000] = [0; 0x2000];
+pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
+// debug mode requires more stack space
+// pub static mut STACK_MEMORY: [u8; 0x2000] = [0; 0x2000];
 
 /// Supported drivers by the platform
 pub struct Platform {
@@ -463,6 +465,14 @@ pub unsafe fn reset_handler() {
         nrf52833::gpio::GPIOPin,
         nrf52::rtc::Rtc<'static>
     ));
+
+    //--------------------------------------------------------------------------
+    // Process Console
+    //--------------------------------------------------------------------------
+    let process_console =
+        components::process_console::ProcessConsoleComponent::new(board_kernel, uart_mux)
+            .finalize(());
+    process_console.start();
 
     //--------------------------------------------------------------------------
     // FINAL SETUP AND BOARD BOOT

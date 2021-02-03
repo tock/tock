@@ -37,7 +37,7 @@ $ make qemu
 QEMU can be started with Tock and a userspace app using the following arguments (in Tock's top-level directory):
 
 ```
-qemu-system-riscv32 -M sifive_e,revb=true -kernel $TOCK_ROOT/target/riscv32imac-unknown-none-elf/release/hifive1.elf -device loader,file=./examples/hello.tbf,addr=0x20430000 -nographic
+qemu-system-riscv32 -M sifive_e,revb=true -kernel $TOCK_ROOT/target/riscv32imac-unknown-none-elf/release/hifive1.elf -device loader,file=./examples/hello.tbf,addr=0x20040000 -nographic
 ```
 Or with the `qemu-app` make target:
 

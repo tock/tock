@@ -382,11 +382,11 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
                         state.pc += 4;
 
                         let syscall = kernel::syscall::Syscall::from_register_arguments(
-                            state.regs[R_A4] as u8,
-                            state.regs[R_A0] as usize,
-                            state.regs[R_A1] as usize,
-                            state.regs[R_A2] as usize,
-                            state.regs[R_A3] as usize,
+                            state.regs[R_A0] as u8,
+                            state.regs[R_A1],
+                            state.regs[R_A2],
+                            state.regs[R_A3],
+                            state.regs[R_A4],
                         );
 
                         match syscall {
