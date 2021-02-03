@@ -781,7 +781,7 @@ impl<'a, C: FlashController<S>, const S: usize> TicKV<'a, C, S> {
         // If we got down here, the region is ready to be erased.
 
         if let Err(e) = self.controller.erase_region(region) {
-            if let ErrorCode::ReadNotReady(reg) = e {
+            if let ErrorCode::EraseNotReady(reg) = e {
                 self.state
                     .set(State::GarbageCollect(RubbishState::EraseRegion(reg)));
             }
