@@ -586,10 +586,8 @@ impl<'a, C: FlashController<S>, const S: usize> TicKV<'a, C, S> {
                     // Copy in the value
                     for i in 0..(total_length as usize - HEADER_LENGTH - CHECK_SUM_LEN) {
                         buf[i] = region_data[offset + HEADER_LENGTH + i];
+                        check_sum.update(&[buf[i]])
                     }
-
-                    // Include the value in the hash
-                    check_sum.update(buf);
 
                     // Check the hash
                     let check_sum = check_sum.finalise();
