@@ -173,8 +173,10 @@ The presence of many difference cases suggests that the operation should be spli
 there is non-determinism in its execution or its meaning is overloaded. It also fits
 well with Rust's `Result` type.
 
-All 32-bit values not specified for `r0` in the above table are reserved and may
-be used in future Tock versions.
+All 32-bit values not specified for `r0` in the above table are reserved.
+Reserved `r0` values MAY be used by a future TRD and MUST NOT be returned by the
+kernel unless specified in a TRD. Therefore, for future compatibility, userspace
+code MUST tolerate `r0` values that it does not recognize.
 
 3.3 Error Codes
 ---------------------------------
