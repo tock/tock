@@ -200,10 +200,11 @@ are additional error codes to include errors related to userspace.
 | 13    | NOACK       | The packet transmission was sent but not acknowledged.                                  |
 | 1024  | BADRVAL     | The variant of the return value did not match what the system call should return.       |
 
-Values in the range of 1-1023 reflect kernel return value error codes. Future
-Tock versions MAY define additional kernel error codes in this range. The kernel
-MUST NOT return an error code greater than 1023; processes MAY rely on kernels
-never returning greater error codes.
+Values in the range 1-1023 reflect kernel return value error codes. Kernel error
+codes not specified above are currently reserved. TRDs MAY specify reserved
+kernel error codes, but MUST NOT specify kernel error codes greater than 1023.
+The Tock kernel MUST NOT return an error code unless the error code is specified
+in a TRD.
 
 Values greater than 1023 are reserved for userspace library use. Value 1024
 (BADRVAL) is for when a system call returns a different failure or success
