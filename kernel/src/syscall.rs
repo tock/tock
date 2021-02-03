@@ -154,7 +154,7 @@ impl Syscall {
         r1: usize,
         r2: usize,
         r3: usize,
-    ) -> Option<Self> {
+    ) -> Option<Syscall> {
         match SyscallClass::try_from(syscall_number) {
             Ok(SyscallClass::Yield) => Some(Syscall::Yield {
                 which: r0,
