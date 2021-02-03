@@ -213,8 +213,8 @@ pub enum SyscallReturnVariant {
     Success = 128,
     SuccessU32 = 129,
     SuccessU32U32 = 130,
-    SuccessU32U32U32 = 131,
-    SuccessU64 = 132,
+    SuccessU64 = 131,
+    SuccessU32U32U32 = 132,
     SuccessU64U32 = 133,
 }
 
