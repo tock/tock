@@ -27,6 +27,11 @@ There are two ways for flashing the bootloader:
  1. Using the MicroBit USB drive
  2. Using openocd
 
+### Building the bootloader
+
+This step is optional, as a prebuilt bootloader is provided `bootloader/tock-bootloader.microbit_v2.v1.1.1.bin`.
+
+To build the bootloader yourself, please follow the instructions in the Tock Bootloader's [documentation](https://github.com/tock/tock-bootloader/tree/master/boards/microbit_v2-bootloader) for Micro:bit v2.
 ### Using the MicroBit USB Drive
 
 > **NOTE** Uploading the bootloader will not change any ability to upload software to the MicroBit. The microbit board has another bootloader in the debug chip that provides normal software upload capabilites and that will not be overwritten. All other software will work as expected.
