@@ -1457,12 +1457,17 @@ impl<C: Chip> ProcessType for Process<'_, C> {
                 // The capsule indicated that the subscribe operation succeeded
                 match returned_callback.into_inner() {
                     None => {
-                        // The capsule returned a default callback, we
-                        // have to believe this to be correct
-                        //
-                        // TODO: Limit the default constructor on
-                        // Callback to require a capability for Grant
-                        // initializations
+                        // The capsule returned a default
+                        // callback. This is incorrect, it should've
+                        // returned a process bound callback (either a
+                        // previously subscribed one, or one retrieved
+                        // using the ProcessCallbackFactory)
+
+                        // TODO: How to handle this?
+                        debug!("Driver {}, subscribe_num {}: Default callback returned, this will become an error!",
+                               driver_num,
+                               subscribe_num,
+                        );
                         GenericSyscallReturnValue::SubscribeSuccess(0x0 as *mut (), 0)
                     }
                     Some(process_callback) => {
@@ -1480,6 +1485,11 @@ impl<C: Chip> ProcessType for Process<'_, C> {
                         } else {
                             // The capsule returned a matching
                             // Callback, return it to userspace
+
+                            // TODO: We still don't know whether the
+                            // capsule has simply returned the passed
+                            // in callback again, only using Ok(_)
+                            // instead of Err(_).
                             GenericSyscallReturnValue::SubscribeSuccess(
                                 process_callback
                                     .fn_ptr
