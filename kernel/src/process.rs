@@ -23,6 +23,7 @@ use crate::platform::Chip;
 use crate::returncode::ReturnCode;
 use crate::sched::Kernel;
 use crate::syscall::{self, GenericSyscallReturnValue, Syscall, UserspaceKernelBoundary};
+use crate::Platform;
 use core::cmp::max;
 
 // The completion code for a process if it faulted.
@@ -137,9 +138,10 @@ impl fmt::Debug for ProcessLoadError {
 /// Returns `Ok(())` if process discovery went as expected. Returns a
 /// `ProcessLoadError` if something goes wrong during TBF parsing or process
 /// creation.
-pub fn load_processes<C: Chip>(
+pub fn load_processes<'a, C: Chip, P: Platform>(
     kernel: &'static Kernel,
     chip: &'static C,
+    platform: &'a P,
     app_flash: &'static [u8],
     app_memory: &'static mut [u8],
     procs: &'static mut [Option<&'static dyn ProcessType>],
@@ -248,6 +250,24 @@ pub fn load_processes<C: Chip>(
 
                 // Save the reference to this process in the processes array.
                 procs[i] = Some(process);
+
+                // Now that the process is created and stored in the
+                // process array (accessing Grants etc. will work), we
+                // can tell the loaded drivers to initialize their
+                // process-specific data
+                platform.iter_drivers(|driver_num, driver| {
+                    // Create a Callback-factory bound to this process
+                    // & driver, which allows to create at most one
+                    // Callback instance per (process, driver,
+                    // subscribe_num) combination.
+                    let mut callback_factory = crate::ProcessCallbackFactory::new(
+                        process.appid(),
+                        driver_num as u32,
+                    );
+
+                    // Tell the capsule that the process is initialized
+                    driver.process_init(process.appid(), &mut callback_factory);
+                });
             });
             unused_memory
         } else {

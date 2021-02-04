@@ -171,6 +171,10 @@ impl From<process::Error> for CommandResult {
 
 #[allow(unused_variables)]
 pub trait Driver {
+    fn process_init(&self, process: AppId, callback_factory: &mut crate::ProcessCallbackFactory) {
+        // Empty default implementation
+    }
+
     fn subscribe(
         &self,
         which: usize,
