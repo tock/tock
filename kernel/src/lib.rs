@@ -110,7 +110,7 @@ mod process;
 mod returncode;
 mod sched;
 
-pub use crate::callback::{AppId, Callback};
+pub use crate::callback::{AppId, Callback, ProcessCallbackFactory};
 pub use crate::driver::{CommandReturn, Driver};
 pub use crate::errorcode::ErrorCode;
 pub use crate::grant::{DynamicGrant, Grant};

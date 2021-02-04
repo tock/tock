@@ -295,3 +295,57 @@ impl ProcessCallback {
         res
     }
 }
+
+/// Factory for creating process-bound null-[`Callback`] instances
+///
+/// Passing an instance of this struct to a capsule after process
+/// initialization allows the capsule to exchange the default
+/// [`Callback`] instances (for example in it's
+/// [`Grant`](crate::Grant) regions) for process-bound instances,
+/// which are legal to be returned as part of a call to
+/// [`subscribe`](crate::Driver::subscribe).
+///
+/// This struct can guarantee that per process and driver, at most one
+/// [`Callback`] for each `subscribe_num` (`subdriver_num`)
+/// exists. This has the implication of requiring the requested
+/// `subscribe_num` Callbacks to be strictly increasing.
+pub struct ProcessCallbackFactory {
+    process: AppId,
+    driver_num: u32,
+    next_subscribe_num: u32,
+}
+
+impl ProcessCallbackFactory {
+    pub(crate) fn new(process: AppId, driver_num: u32) -> Self {
+        ProcessCallbackFactory {
+            process,
+            driver_num,
+            next_subscribe_num: 0,
+        }
+    }
+
+    pub fn build_callback(&mut self, subscribe_num: u32) -> Option<Callback> {
+        if subscribe_num >= self.next_subscribe_num {
+            self.next_subscribe_num = subscribe_num + 1;
+
+            let callback_id = CallbackId {
+                driver_num: self.driver_num,
+                subscribe_num,
+            };
+
+            // TODO: We can't currently create a callback which is
+            // bound to a subdriver_num AND has as null pointer.  This
+            // gets introduced in a later commit.
+            //
+            // Some(Callback::new(
+            //     self.process,
+            //     callback_id,
+            //     0,    // Default appdata value
+            //     None, // No fnptr, this is a null-callback
+            // ))
+            Some(Callback::default())
+        } else {
+            None
+        }
+    }
+}
