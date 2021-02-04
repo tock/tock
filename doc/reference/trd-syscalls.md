@@ -136,7 +136,7 @@ and replaced with `&self` when the actual system call method is invoked.
 ----------------------------------
 
 All system calls have the same return value format. A system call can
-return one of nine variants, having different associated value types,
+return one of several variants, having different associated value types,
 which are shown here. `r0`-`r3` refer to the return value registers:
 for CortexM they are `r0`-`r3` and for RISC-V they are `a0`-`a3`.
 
@@ -173,7 +173,10 @@ The presence of many difference cases suggests that the operation should be spli
 there is non-determinism in its execution or its meaning is overloaded. It also fits
 well with Rust's `Result` type.
 
-All values not specified for r0 in the above table are reserved.
+All 32-bit values not specified for `r0` in the above table are reserved.
+Reserved `r0` values MAY be used by a future TRD and MUST NOT be returned by the
+kernel unless specified in a TRD. Therefore, for future compatibility, userspace
+code MUST tolerate `r0` values that it does not recognize.
 
 3.3 Error Codes
 ---------------------------------
