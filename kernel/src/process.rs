@@ -1409,14 +1409,6 @@ impl<C: Chip> ProcessType for Process<'_, C> {
             subscribe_num,
         };
 
-        // Only one callback should exist per tuple, to ensure that
-        // there are no pending callbacks with the same identifier but
-        // an old function pointer, clear them now.
-        //
-        // This operates only on the current process, so the passed
-        // pointer does not need to be trusted.
-        self.remove_pending_callbacks(callback_id);
-
         // Construct the callback struct
         let callback = Callback::new(self.appid(), callback_id, appdata, fn_ptr);
 
@@ -1490,6 +1482,25 @@ impl<C: Chip> ProcessType for Process<'_, C> {
                             // capsule has simply returned the passed
                             // in callback again, only using Ok(_)
                             // instead of Err(_).
+
+                            // As per the Tock Syscalls TRD, on a
+                            // successful subscribe operation, all
+                            // previously pending callbacks must be
+                            // cleared.
+                            //
+                            // This operates only on the current
+                            // process, so the passed pointer does not
+                            // need to be trusted.
+                            //
+                            // TODO: This will clear any pending
+                            // callbacks on BOTH the old AND the new
+                            // callback. Switch to using the full
+                            // 4-tuple to ensure only old pending
+                            // callbacks are cleared (the capsule
+                            // might have scheduled a new one in
+                            // subscribe()).
+                            self.remove_pending_callbacks(callback_id);
+
                             GenericSyscallReturnValue::SubscribeSuccess(
                                 process_callback
                                     .fn_ptr
