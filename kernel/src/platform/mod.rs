@@ -47,6 +47,15 @@ pub trait Platform {
     where
         F: FnOnce(Option<Result<&dyn Driver, &dyn LegacyDriver>>) -> R;
 
+    /// Invoke the passed closure for every object that implements the
+    /// Driver method on this platform.
+    ///
+    /// This is used to signal all installed drivers generic events,
+    /// such as a process initialization or cleanup.
+    fn iter_drivers<F>(&self, _f: F)
+    where
+        F: Fn(usize, &dyn Driver);
+
     /// Check the platform-provided system call filter for all non-yield system
     /// calls. If the system call is allowed for the provided process then
     /// return `Ok(())`. Otherwise, return `Err()` with an `ErrorCode` that will

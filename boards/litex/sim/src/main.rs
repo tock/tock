@@ -142,6 +142,14 @@ impl Platform for LiteXSim {
             _ => f(None),
         }
     }
+
+    fn iter_drivers<F>(&self, f: F)
+    where
+        F: Fn(usize, &dyn kernel::Driver),
+    {
+        f(capsules::console::DRIVER_NUM, self.console);
+        f(capsules::alarm::DRIVER_NUM, self.alarm);
+    }
 }
 
 /// Reset Handler.

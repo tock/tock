@@ -106,6 +106,28 @@ impl Platform for Hail {
             _ => f(None),
         }
     }
+
+    fn iter_drivers<F>(&self, f: F)
+    where
+        F: Fn(usize, &dyn kernel::Driver),
+    {
+        f(capsules::console::DRIVER_NUM, self.console);
+        f(capsules::gpio::DRIVER_NUM, self.gpio);
+        f(capsules::alarm::DRIVER_NUM, self.alarm);
+        f(capsules::spi_controller::DRIVER_NUM, self.spi);
+        // TODO: nrf51822_serialization
+        f(capsules::ambient_light::DRIVER_NUM, self.ambient_light);
+        f(capsules::adc::DRIVER_NUM, self.adc);
+        f(capsules::led::DRIVER_NUM, self.led);
+        f(capsules::button::DRIVER_NUM, self.button);
+        f(capsules::humidity::DRIVER_NUM, self.humidity);
+        f(capsules::temperature::DRIVER_NUM, self.temp);
+        f(capsules::ninedof::DRIVER_NUM, self.ninedof);
+        f(capsules::rng::DRIVER_NUM, self.rng);
+        f(capsules::crc::DRIVER_NUM, self.crc);
+        f(capsules::dac::DRIVER_NUM, self.dac);
+        // TODO: ipc
+    }
 }
 
 /// Helper function called during bring-up that configures multiplexed I/O.
