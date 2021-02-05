@@ -74,6 +74,7 @@ pub mod st77xx;
 pub mod temperature;
 pub mod temperature_stm;
 pub mod text_screen;
+pub mod tickv;
 pub mod touch;
 pub mod tsl2561;
 pub mod usb;

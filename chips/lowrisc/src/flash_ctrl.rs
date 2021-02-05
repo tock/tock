@@ -142,7 +142,7 @@ register_bitfields![u32,
     ]
 ];
 
-const PAGE_SIZE: usize = 512;
+pub const PAGE_SIZE: usize = 512;
 
 pub struct LowRiscPage(pub [u8; PAGE_SIZE as usize]);
 
@@ -304,7 +304,9 @@ impl<'a> FlashCtrl<'a> {
 
         if irqs.is_set(INTR::RD_LVL) {
             self.read_buf.map(|buf| {
-                while !self.registers.status.is_set(STATUS::RD_EMPTY) {
+                while !self.registers.status.is_set(STATUS::RD_EMPTY)
+                    && self.read_index.get() < PAGE_SIZE
+                {
                     let data = self.registers.rd_fifo.get().to_ne_bytes();
                     let buf_offset = self.read_index.get();
 

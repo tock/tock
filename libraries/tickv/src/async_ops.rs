@@ -206,14 +206,23 @@ impl<'a, C: FlashController<S>, const S: usize> AsyncTicKV<'a, C, S> {
     ///
     /// If a power loss occurs before success is returned the data is
     /// assumed to be lost.
-    pub fn get_key(&self, hash: u64, buf: &'static mut [u8]) -> Result<SuccessCode, ErrorCode> {
+    pub fn get_key(
+        &self,
+        hash: u64,
+        buf: &'static mut [u8],
+    ) -> Result<SuccessCode, (Option<&'static mut [u8]>, ErrorCode)> {
         match self.tickv.get_key(hash, buf) {
             Ok(code) => Ok(code),
-            Err(e) => {
-                self.key.replace(Some(hash));
-                self.buf.replace(Some(buf));
-                Err(e)
-            }
+            Err(e) => match e {
+                ErrorCode::ReadNotReady(_)
+                | ErrorCode::EraseNotReady(_)
+                | ErrorCode::WriteNotReady(_) => {
+                    self.key.replace(Some(hash));
+                    self.buf.replace(Some(buf));
+                    Err((None, e))
+                }
+                _ => Err((Some(buf), e)),
+            },
         }
     }
 
@@ -253,6 +262,18 @@ impl<'a, C: FlashController<S>, const S: usize> AsyncTicKV<'a, C, S> {
         let buf = self.tickv.read_buffer.take().unwrap();
         buf.copy_from_slice(read_buffer);
         self.tickv.read_buffer.replace(Some(buf));
+    }
+
+    /// Get the `value` buffer that was passed in by previous
+    /// commands.
+    pub fn get_stored_value_buffer(&self) -> Option<&'static [u8]> {
+        self.value.take()
+    }
+
+    /// Get the `buf` buffer that was passed in by previous
+    /// commands.
+    pub fn get_stored_buffer(&self) -> Option<&'static mut [u8]> {
+        self.buf.take()
     }
 
     /// Continue the last operation after the async operation has completed.
@@ -586,12 +607,12 @@ mod store_flast_ctrl {
         #[allow(unsafe_code)]
         let ret = unsafe { tickv.get_key(get_hashed_key(b"TWO"), &mut BUF) };
         match ret {
-            Err(ErrorCode::ReadNotReady(reg)) => {
+            Err((_, ErrorCode::ReadNotReady(reg))) => {
                 // There is no actual delay in the test, just continue now
                 tickv.set_read_buffer(&tickv.tickv.controller.buf.borrow()[reg]);
                 assert_eq!(tickv.continue_operation().0, Err(ErrorCode::KeyNotFound));
             }
-            Err(ErrorCode::KeyNotFound) => {}
+            Err((_, ErrorCode::KeyNotFound)) => {}
             _ => unreachable!(),
         }
 
@@ -626,7 +647,7 @@ mod store_flast_ctrl {
         #[allow(unsafe_code)]
         let ret = unsafe { tickv.get_key(get_hashed_key(b"ONE"), &mut BUF) };
         match ret {
-            Err(ErrorCode::ReadNotReady(reg)) => {
+            Err((_, ErrorCode::ReadNotReady(reg))) => {
                 // There is no actual delay in the test, just continue now
                 tickv.set_read_buffer(&tickv.tickv.controller.buf.borrow()[reg]);
                 tickv.continue_operation().0.unwrap();
@@ -639,7 +660,7 @@ mod store_flast_ctrl {
         #[allow(unsafe_code)]
         let ret = unsafe { tickv.get_key(get_hashed_key(b"TWO"), &mut BUF) };
         match ret {
-            Err(ErrorCode::ReadNotReady(reg)) => {
+            Err((_, ErrorCode::ReadNotReady(reg))) => {
                 // There is no actual delay in the test, just continue now
                 tickv.set_read_buffer(&tickv.tickv.controller.buf.borrow()[reg]);
                 tickv.continue_operation().0.unwrap();
@@ -652,7 +673,7 @@ mod store_flast_ctrl {
         #[allow(unsafe_code)]
         let ret = unsafe { tickv.get_key(get_hashed_key(b"THREE"), &mut BUF) };
         match ret {
-            Err(ErrorCode::ReadNotReady(reg)) => {
+            Err((_, ErrorCode::ReadNotReady(reg))) => {
                 // There is no actual delay in the test, just continue now
                 tickv.set_read_buffer(&tickv.tickv.controller.buf.borrow()[reg]);
                 assert_eq!(tickv.continue_operation().0, Err(ErrorCode::KeyNotFound));
@@ -662,10 +683,12 @@ mod store_flast_ctrl {
 
         #[allow(unsafe_code)]
         unsafe {
-            assert_eq!(
-                tickv.get_key(get_hashed_key(b"THREE"), &mut BUF),
-                Err(ErrorCode::KeyNotFound)
-            );
+            match tickv.get_key(get_hashed_key(b"THREE"), &mut BUF) {
+                Err((_, ErrorCode::KeyNotFound)) => {}
+                _ => {
+                    panic!("Expected ErrorCode::KeyNotFound");
+                }
+            }
         }
     }
 
@@ -711,10 +734,12 @@ mod store_flast_ctrl {
         println!("Get non-existant key ONE");
         #[allow(unsafe_code)]
         unsafe {
-            assert_eq!(
-                tickv.get_key(get_hashed_key(b"ONE"), &mut BUF),
-                Err(ErrorCode::KeyNotFound)
-            );
+            match tickv.get_key(get_hashed_key(b"ONE"), &mut BUF) {
+                Err((_, ErrorCode::KeyNotFound)) => {}
+                _ => {
+                    panic!("Expected ErrorCode::KeyNotFound");
+                }
+            }
         }
 
         println!("Try to delete Key ONE Again");
@@ -825,12 +850,12 @@ mod store_flast_ctrl {
         #[allow(unsafe_code)]
         let ret = unsafe { tickv.get_key(get_hashed_key(b"ONE"), &mut BUF) };
         match ret {
-            Err(ErrorCode::ReadNotReady(reg)) => {
+            Err((_, ErrorCode::ReadNotReady(reg))) => {
                 // There is no actual delay in the test, just continue now
                 tickv.set_read_buffer(&tickv.tickv.controller.buf.borrow()[reg]);
                 assert_eq!(tickv.continue_operation().0, Err(ErrorCode::KeyNotFound));
             }
-            Err(ErrorCode::KeyNotFound) => {}
+            Err((_, ErrorCode::KeyNotFound)) => {}
             _ => unreachable!("ret: {:?}", ret),
         }
 
