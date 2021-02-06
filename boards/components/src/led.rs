@@ -25,17 +25,17 @@ macro_rules! led_component_helper {
         use kernel::static_init;
         const NUM_LEDS: usize = count_expressions!($($L),+);
 
-	static_init!(
-	    [&'static $Led; NUM_LEDS],
-	    [
-		$(
-		    static_init!(
-			$Led,
-			$L
-		    )
-		),+
-	    ]
-	)
+        static_init!(
+            [&'static $Led; NUM_LEDS],
+            [
+                $(
+                    static_init!(
+                        $Led,
+                        $L
+                    )
+                ),+
+            ]
+        )
     };};
 }
 

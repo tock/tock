@@ -227,7 +227,7 @@ const I2C1_BASE: StaticRef<I2CRegisters> =
     unsafe { StaticRef::new(0x4000_5400 as *const I2CRegisters) };
 
 // const I2C2_BASE: StaticRef<I2CRegisters> =
-// 	unsafe { StaticRef::new(0x4000_5800 as *const I2CRegisters) };
+//     unsafe { StaticRef::new(0x4000_5800 as *const I2CRegisters) };
 
 pub struct I2C<'a> {
     registers: StaticRef<I2CRegisters>,

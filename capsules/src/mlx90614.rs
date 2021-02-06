@@ -199,9 +199,9 @@ impl<'a> Driver for Mlx90614SMBus<'a> {
     ) -> ReturnCode {
         match subscribe_num {
             0 /* set the one shot callback */ => {
-				self.callback.insert(callback);
-				ReturnCode::SUCCESS
-			},
+                self.callback.insert(callback);
+                ReturnCode::SUCCESS
+            },
             // default
             _ => ReturnCode::ENOSUPPORT,
         }

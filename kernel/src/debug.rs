@@ -570,7 +570,7 @@ pub unsafe fn flush<W: Write + IoWrite>(writer: &mut W) {
             if ring_buffer.has_elements() {
                 let _ = writer.write_str(
                     "\r\n---| Debug buffer not empty. Flushing. May repeat some of last message(s):\r\n",
-		);
+                );
 
                 writer.write_ring_buffer(ring_buffer);
             }
@@ -580,7 +580,7 @@ pub unsafe fn flush<W: Write + IoWrite>(writer: &mut W) {
             None => {
                 let _ = writer.write_str(
                     "\r\n---| No debug queue found. You can set it with the DebugQueue component.\r\n",
-		);
+                );
             }
             Some(buffer) => {
                 let _ = writer.write_str("\r\n---| Flushing debug queue:\r\n");
