@@ -86,6 +86,15 @@ done
 rm xx00
 printf "\rFormatting complete. %-$((39))s\n" ""
 
+# Check for tab characters in Rust source files that haven't been
+# removed by rustfmt
+RUST_FILES_WITH_TABS="$(git grep --files-with-matches $'\t' -- '*.rs' || grep -lr --include '*.rs' $'\t' . || true)"
+if [ "$RUST_FILES_WITH_TABS" != "" ]; then
+        echo "ERROR: The following files contain tab characters, please use spaces instead:"
+        echo "$RUST_FILES_WITH_TABS" | sed 's/^/    -> /'
+        let FAIL=FAIL+1
+fi
+
 if [[ $FAIL -ne 0 ]]; then
 	echo
 	echo "$(tput bold)Formatting errors.$(tput sgr0)"
