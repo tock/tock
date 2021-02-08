@@ -35,11 +35,7 @@ pub struct I2CMasterDriver<'a, I: 'a + i2c::I2CMaster> {
 }
 
 impl<'a, I: 'a + i2c::I2CMaster> I2CMasterDriver<'a, I> {
-    pub fn new(
-        i2c: &'a I,
-        buf: &'static mut [u8],
-        apps: Grant<App>,
-    ) -> I2CMasterDriver<'a, I> {
+    pub fn new(i2c: &'a I, buf: &'static mut [u8], apps: Grant<App>) -> I2CMasterDriver<'a, I> {
         I2CMasterDriver {
             i2c,
             buf: TakeCell::new(buf),
@@ -197,7 +193,7 @@ impl<'a, I: 'a + i2c::I2CMaster> Driver for I2CMasterDriver<'a, I> {
     }
 }
 
-impl<'a, I: 'a+ i2c::I2CMaster> i2c::I2CHwMasterClient for I2CMasterDriver<'a, I> {
+impl<'a, I: 'a + i2c::I2CMaster> i2c::I2CHwMasterClient for I2CMasterDriver<'a, I> {
     fn command_complete(&self, buffer: &'static mut [u8], _error: i2c::Error) {
         self.tx.take().map(|tx| {
             self.apps.enter(tx.app_id, |app, _| {
