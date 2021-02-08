@@ -13,32 +13,36 @@ use crate::ReturnCode;
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[repr(usize)]
 pub enum ErrorCode {
+    // Reserved value, for when "no error" / "success" should be
+    // encoded in the same numeric representation as ErrorCode
+    //
+    // SUCCESS = 0,
     /// Generic failure condition
-    FAIL = 0,
+    FAIL = 1,
     /// Underlying system is busy; retry
-    BUSY = 1,
+    BUSY = 2,
     /// The state requested is already set
-    ALREADY = 2,
+    ALREADY = 3,
     /// The component is powered down
-    OFF = 3,
+    OFF = 4,
     /// Reservation required before use
-    RESERVE = 4,
+    RESERVE = 5,
     /// An invalid parameter was passed
-    INVAL = 5,
+    INVAL = 6,
     /// Parameter passed was too large
-    SIZE = 6,
+    SIZE = 7,
     /// Operation canceled by a call
-    CANCEL = 7,
+    CANCEL = 8,
     /// Memory required not available
-    NOMEM = 8,
+    NOMEM = 9,
     /// Operation or command is unsupported
-    NOSUPPORT = 9,
+    NOSUPPORT = 10,
     /// Device does not exist
-    NODEVICE = 10,
+    NODEVICE = 11,
     /// Device is not physically installed
-    UNINSTALLED = 11,
+    UNINSTALLED = 12,
     /// Packet transmission not acknowledged
-    NOACK = 12,
+    NOACK = 13,
 }
 
 impl From<ErrorCode> for usize {
