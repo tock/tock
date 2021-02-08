@@ -85,7 +85,7 @@ back.
     You should see various properties of the board. This indicates that tockloader
     is able to communicate with the temporary bootloader.
 
-3. Our last step is to use the temporary Tock bootloader to flash the real one
+3. Now we use the temporary Tock bootloader to flash the real one
    at address 0x0. When the board boots it should run the Tock bootloader
    flashed at address 0x10000. To then flash the correct bootloader, run:
 
@@ -93,7 +93,22 @@ back.
     $ tockloader flash bootloaders/tock-bootloader.nano33ble.v1.1.0.0x00000.bin --address 0
     ```
 
-4. That's it! You now have the Tock bootloader. All `tockloader` commands should
+4. At this point we have two copies of the Tock bootloader installed: the intended
+   one at address 0x10000 and the temporary one at address 0x0. By default, the first bootloader
+   will jump to the second, and the second will continue running if no kernel is installed.
+   To reduce confusion, we can remove the second bootloader. To do this, we will overwrite
+   the start of the bootloader with zeros.
+   
+   First, double tap the reset button. This will cause the first bootloader to stay
+   active. You should see the "ON" LED on.
+   
+   Then, overwrite the second bootloader:
+   
+    ```shell
+    $ tockloader write 0x10000 512 0
+    ```
+
+5. That's it! You now have the Tock bootloader. All `tockloader` commands should
    now work.
 
     You can test Tockloader by running:
