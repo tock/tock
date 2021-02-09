@@ -135,7 +135,7 @@ the kernel returns to the app.
 - Leon: I like the idea of arch specific. But if we have an arch which does not
   need these things setup I would say we should make the least promises to
   userspace as is reasonable.
-- Johnathan: The trick is that making a system call on risc-v saves stuff to
+- Johnathan: The trick is that if making a system call on risc-v saves stuff to
   the stack, we might fall into the situation with ARM where we need the heap
   break high enough.
 - Leon: I thought we stored the stored state on the kernel stack
