@@ -59,7 +59,7 @@ static BOOT_HDR: [u8; 8192] = boot_header::BOOT_HDR;
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
 #[link_section = ".stack_buffer"]
-pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
+pub static mut STACK_MEMORY: [u8; 0x2000] = [0; 0x2000];
 
 // const NUM_LEDS: usize = 1;
 

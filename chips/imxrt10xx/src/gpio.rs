@@ -569,6 +569,19 @@ impl U32Ext for u32 {
 }
 
 impl<'a> Pin<'a> {
+    /// Fabricate a new `Pin` from a `PinId`
+    pub fn from_pin_id(pin_id: PinId) -> Self {
+        Self::new(
+            match pin_id.port() {
+                GpioPort::GPIO1 => GPIO1_BASE,
+                GpioPort::GPIO2 => GPIO2_BASE,
+                GpioPort::GPIO3 => GPIO3_BASE,
+                GpioPort::GPIO4 => GPIO4_BASE,
+                GpioPort::GPIO5 => GPIO5_BASE,
+            },
+            pin_id.offset(),
+        )
+    }
     const fn new(registers: StaticRef<GpioRegisters>, offset: usize) -> Self {
         Pin {
             registers,
