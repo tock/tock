@@ -759,9 +759,7 @@ impl Kernel {
             _ => {
                 // Check all other syscalls for filtering
                 if let Err(response) = platform.filter_syscall(process, &syscall) {
-                    process.set_syscall_return_value(GenericSyscallReturnValue::Legacy(
-                        response.into(),
-                    ));
+                    process.set_syscall_return_value(GenericSyscallReturnValue::Failure(response));
 
                     return;
                 }
