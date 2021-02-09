@@ -1205,24 +1205,26 @@ impl<'a, A: hil::time::Alarm<'a>> SDCard<'a, A> {
         });
     }
 
-    pub fn initialize(&self) -> Result<(), ErrorCode>{
+    pub fn initialize(&self) -> Result<(), ErrorCode> {
         // if not already, set card to uninitialized again
         self.is_initialized.set(false);
 
         // no point in initializing if the card is not installed
         if self.is_installed() {
             // reset the SD card in order to start initializing it
-            self.txbuffer.take().map_or(Err(ErrorCode::NOMEM), |txbuffer| {
-                self.rxbuffer
-                    .take()
-                    .map_or(Err(ErrorCode::NOMEM), move |rxbuffer| {
-                        self.state.set(SpiState::InitReset);
-                        self.send_command(SDCmd::CMD0_Reset, 0x0, txbuffer, rxbuffer, 10);
+            self.txbuffer
+                .take()
+                .map_or(Err(ErrorCode::NOMEM), |txbuffer| {
+                    self.rxbuffer
+                        .take()
+                        .map_or(Err(ErrorCode::NOMEM), move |rxbuffer| {
+                            self.state.set(SpiState::InitReset);
+                            self.send_command(SDCmd::CMD0_Reset, 0x0, txbuffer, rxbuffer, 10);
 
-                        // command started successfully
-                        Ok(())
-                    })
-            })
+                            // command started successfully
+                            Ok(())
+                        })
+                })
         } else {
             // no sd card installed
             Err(ErrorCode::UNINSTALLED)
@@ -1492,8 +1494,8 @@ impl<'a, A: hil::time::Alarm<'a>> Driver for SDCardDriver<'a, A> {
                     mem::swap(&mut app.read_buffer, &mut slice);
                 });
                 Ok(slice)
-            },
-            _ => Err((slice, ErrorCode::NOSUPPORT))
+            }
+            _ => Err((slice, ErrorCode::NOSUPPORT)),
         }
     }
 
@@ -1510,8 +1512,8 @@ impl<'a, A: hil::time::Alarm<'a>> Driver for SDCardDriver<'a, A> {
                     mem::swap(&mut app.write_buffer, &mut slice);
                 });
                 Ok(slice)
-            },
-            _ => Err((slice, ErrorCode::NOSUPPORT))
+            }
+            _ => Err((slice, ErrorCode::NOSUPPORT)),
         }
     }
 
@@ -1529,7 +1531,7 @@ impl<'a, A: hil::time::Alarm<'a>> Driver for SDCardDriver<'a, A> {
                 });
                 Ok(callback)
             }
-            _ => Err((callback, ErrorCode::NOSUPPORT))
+            _ => Err((callback, ErrorCode::NOSUPPORT)),
         }
     }
 
@@ -1542,48 +1544,47 @@ impl<'a, A: hil::time::Alarm<'a>> Driver for SDCardDriver<'a, A> {
             1 => {
                 let value = self.sdcard.is_installed() as u32;
                 CommandResult::success_u32(value)
-            },
-            
+            }
+
             // initialize
             2 => match self.sdcard.initialize() {
                 Ok(()) => CommandResult::success(),
-                Err(e) => CommandResult::failure(e)
+                Err(e) => CommandResult::failure(e),
             },
 
             // read_block
-            3 => self
-                .kernel_buf
-                .take()
-                .map_or(CommandResult::failure(ErrorCode::BUSY), |kernel_buf| {
+            3 => self.kernel_buf.take().map_or(
+                CommandResult::failure(ErrorCode::BUSY),
+                |kernel_buf| {
                     CommandResult::from(self.sdcard.read_blocks(kernel_buf, data as u32, 1))
-                }),
+                },
+            ),
 
             // write_block
             4 => {
                 let result: ReturnCode = self.app.map_or(ReturnCode::ENOMEM, |app| {
-                    app.write_buffer
-                        .map_or(ReturnCode::ENOMEM, |write_buffer| {
-                            self.kernel_buf
-                                .take()
-                                .map_or(ReturnCode::EBUSY, |kernel_buf| {
-                                    // copy over write data from application
-                                    // Limit to minimum length between kernel_buf,
-                                    // write_buffer, and 512 (block size)
-                                    for (kernel_byte, &write_byte) in
-                                        kernel_buf.iter_mut().zip(write_buffer.iter()).take(512)
-                                    {
-                                        *kernel_byte = write_byte;
-                                    }
+                    app.write_buffer.map_or(ReturnCode::ENOMEM, |write_buffer| {
+                        self.kernel_buf
+                            .take()
+                            .map_or(ReturnCode::EBUSY, |kernel_buf| {
+                                // copy over write data from application
+                                // Limit to minimum length between kernel_buf,
+                                // write_buffer, and 512 (block size)
+                                for (kernel_byte, &write_byte) in
+                                    kernel_buf.iter_mut().zip(write_buffer.iter()).take(512)
+                                {
+                                    *kernel_byte = write_byte;
+                                }
 
-                                    // begin writing
-                                    self.sdcard.write_blocks(kernel_buf, data as u32, 1)
-                                })
-                        })
+                                // begin writing
+                                self.sdcard.write_blocks(kernel_buf, data as u32, 1)
+                            })
+                    })
                 });
                 CommandResult::from(result)
-            },
+            }
 
-            _ => CommandResult::failure(ErrorCode::NOSUPPORT)
+            _ => CommandResult::failure(ErrorCode::NOSUPPORT),
         }
     }
 }
