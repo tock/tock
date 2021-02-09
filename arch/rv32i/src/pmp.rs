@@ -255,47 +255,6 @@ impl<const NUM_REGIONS_OVER_TWO: usize> PMPConfig<NUM_REGIONS_OVER_TWO> {
         }
         None
     }
-
-    fn sort_regions(&mut self) {
-        // Get the app region address
-        let app_addres = if self.app_memory_region.is_some() {
-            Some(
-                self.regions[self.app_memory_region.unwrap_or(0)]
-                    .unwrap()
-                    .location
-                    .0,
-            )
-        } else {
-            None
-        };
-
-        // Sort the regions
-        self.regions.sort_unstable_by(|a, b| {
-            let (a_start, _a_size) = match a {
-                Some(region) => (region.location().0 as usize, region.location().1),
-                None => (0xFFFF_FFFF, 0xFFFF_FFFF),
-            };
-            let (b_start, _b_size) = match b {
-                Some(region) => (region.location().0 as usize, region.location().1),
-                None => (0xFFFF_FFFF, 0xFFFF_FFFF),
-            };
-            a_start.cmp(&b_start)
-        });
-
-        // Update the app region after the sort
-        if app_addres.is_some() {
-            for (i, region) in self.regions.iter().enumerate() {
-                match region {
-                    Some(reg) => {
-                        if reg.location.0 == app_addres.unwrap() {
-                            self.app_memory_region.set(i);
-                        }
-                    }
-                    None => {}
-                }
-            }
-        }
-    }
 }
 
 impl<const NUM_REGIONS_OVER_TWO: usize> kernel::mpu::MPU for PMP<NUM_REGIONS_OVER_TWO> {
@@ -414,8 +373,6 @@ impl<const NUM_REGIONS_OVER_TWO: usize> kernel::mpu::MPU for PMP<NUM_REGIONS_OVE
         config.regions[region_num] = Some(region);
         config.is_dirty.set(true);
 
-        config.sort_regions();
-
         Some(mpu::Region::new(start as *const u8, size))
     }
 
@@ -486,8 +443,6 @@ impl<const NUM_REGIONS_OVER_TWO: usize> kernel::mpu::MPU for PMP<NUM_REGIONS_OVE
 
         config.app_memory_region.set(region_num);
 
-        config.sort_regions();
-
         Some((region_start as *const u8, region_size))
     }
 
@@ -524,8 +479,6 @@ impl<const NUM_REGIONS_OVER_TWO: usize> kernel::mpu::MPU for PMP<NUM_REGIONS_OVE
         config.regions[region_num] = Some(region);
         config.is_dirty.set(true);
 
-        config.sort_regions();
-
         Ok(())
     }
 
@@ -552,7 +505,7 @@ impl<const NUM_REGIONS_OVER_TWO: usize> kernel::mpu::MPU for PMP<NUM_REGIONS_OVE
                                     csr::pmpconfig::pmpcfg::r0::CLEAR
                                         + csr::pmpconfig::pmpcfg::w0::CLEAR
                                         + csr::pmpconfig::pmpcfg::x0::CLEAR
-                                        + csr::pmpconfig::pmpcfg::a0::TOR,
+                                        + csr::pmpconfig::pmpcfg::a0::OFF,
                                 );
                                 csr::CSR.pmpaddr[x * 2].set(start >> 2);
 
@@ -567,7 +520,7 @@ impl<const NUM_REGIONS_OVER_TWO: usize> kernel::mpu::MPU for PMP<NUM_REGIONS_OVE
                                     csr::pmpconfig::pmpcfg::r2::CLEAR
                                         + csr::pmpconfig::pmpcfg::w2::CLEAR
                                         + csr::pmpconfig::pmpcfg::x2::CLEAR
-                                        + csr::pmpconfig::pmpcfg::a2::TOR,
+                                        + csr::pmpconfig::pmpcfg::a2::OFF,
                                 );
                                 csr::CSR.pmpaddr[x * 2].set(start >> 2);
 
