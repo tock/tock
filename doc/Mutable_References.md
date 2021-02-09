@@ -33,6 +33,7 @@ of which is tailored to a specific use common in kernel code.
     + [`map` variants](#map-variants)
 - [`MapCell`](#mapcell)
 - [`OptionalCell`](#optionalcell)
+  * [Comparison to `TakeCell`](#comparison-to-takecell)
 - [`VolatileCell`](#volatilecell)
 - [Cell Extensions](#cell-extensions)
   * [`NumericCellExt`](#numericcellext)
@@ -329,6 +330,20 @@ is effectively a wrapper for a `Cell` that contains an `Option`, like:
 `OptionalCell` can hold the same values that `Cell` can, but can also be just
 `None` if the value is effectively unset. Using an `OptionalCell` (like a
 `NumCell`) makes the code clearer and hides extra tedious function calls.
+
+### Comparison to `TakeCell`
+
+`TakeCell` and `OptionalCell` are quite similar, but the key differentiator is
+the `Copy` bound required for items to use some of the methods defined on `OptionalCell`, such as `map()`.
+The `Copy` bound enables safe "reentrant" access to the stored value, because multiple accesses will be operating
+on different copies of the same stored item. The semantic difference
+is the name: a `TakeCell` is designed for something that must literally be
+taken, e.g. commonly a buffer that is given to a different subsystem in a way
+not easily captured by the Rust borrow mechansims (commonly when a buffer is
+passed into, borrowed, "by" a hardware peripheral, and returned when hardware
+event has filled the buffer). [#2360](https://github.com/tock/tock/pull/2360)
+has some examples where trying to convert a `TakeCell` into an `OptionalCell`
+does not work.
 
 ## `VolatileCell`
 

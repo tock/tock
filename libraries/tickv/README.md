@@ -100,10 +100,10 @@ that data is lost.
 
 ### Security
 
-TicKV uses checksums to check data integrity. TicKV does not have any measures
-to prevent malicious manipulation or privacy. An attacker with access to the
-flash can change the values without being detected. An attacked with access
-to flash can also read all of the information. Any privacy, security or
+TicKV uses CRC-32 checksums to check data integrity. TicKV does not have any
+measures to prevent malicious manipulation or privacy. An attacker with access
+to the flash can change the values without being detected. An attacked with
+access to flash can also read all of the information. Any privacy, security or
 authentication measures need to be layered on top of TicKV.
 
 ### Hardware Requirements

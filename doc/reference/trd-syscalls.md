@@ -136,7 +136,7 @@ and replaced with `&self` when the actual system call method is invoked.
 ----------------------------------
 
 All system calls have the same return value format. A system call can
-return one of nine variants, having different associated value types,
+return one of several variants, having different associated value types,
 which are shown here. `r0`-`r3` refer to the return value registers:
 for CortexM they are `r0`-`r3` and for RISC-V they are `a0`-`a3`.
 
@@ -173,9 +173,12 @@ The presence of many difference cases suggests that the operation should be spli
 there is non-determinism in its execution or its meaning is overloaded. It also fits
 well with Rust's `Result` type.
 
-All values not specified for r0 in the above table are reserved.
+All 32-bit values not specified for `r0` in the above table are reserved.
+Reserved `r0` values MAY be used by a future TRD and MUST NOT be returned by the
+kernel unless specified in a TRD. Therefore, for future compatibility, userspace
+code MUST tolerate `r0` values that it does not recognize.
 
-3.2 Error Codes
+3.3 Error Codes
 ---------------------------------
 
 All system call failures return an error code. These error codes are a superset of
@@ -200,14 +203,15 @@ are additional error codes to include errors related to userspace.
 | 13    | NOACK       | The packet transmission was sent but not acknowledged.                                  |
 | 1024  | BADRVAL     | The variant of the return value did not match what the system call should return.       |
 
-Any value not specified in the above table is reserved and it
-MUST NOT be used.
+Values in the range 1-1023 reflect kernel return value error codes. Kernel error
+codes not specified above are currently reserved. TRDs MAY specify reserved
+kernel error codes, but MUST NOT specify kernel error codes greater than 1023.
+The Tock kernel MUST NOT return an error code unless the error code is specified
+in a TRD.
 
-Values in the range of 1-1023 reflect kernel return value error
-codes. Value 1024 (BADRVAL) is for when a system call returns a
-different failure or success variant than the userspace library
-expects. A kernel implementation of a system call MUST NOT return 
-BADRVAL: it is generated only by userspace library code.
+Values greater than 1023 are reserved for userspace library use. Value 1024
+(BADRVAL) is for when a system call returns a different failure or success
+variant than the userspace library expects.
 
 
 4 System Call API
@@ -239,11 +243,14 @@ a timeslice expiration or the kernel thread being runnable, but the system calls
 themselves do not block. If an operation is long-running (e.g., I/O), its completion
 is signaled by a callback (see the Subscribe call in 4.2).
 
+Successful calls to Exit system calls do not return (the process exits).
+
 Peripheral driver-specific system calls (Subscribe, Command, Allow, Read-Only Allow)
 all include two arguments, a driver identifier and a syscall identifier. The driver identifier
 specifies which peripheral system call driver to invoke. The syscall identifier (which
 is different than the Syscall Class ID in the table above)
-specifies which instance of that system call on that driver to invoke. For example, the
+specifies which instance of that system call on that driver to invoke. Both
+arguments are unsigned 32-bit integers. For example, the
 Console driver has driver identifier `0x1` and a Command to the console driver with
 syscall identifier `0x2` starts receiving console data into a buffer.
 
@@ -303,7 +310,7 @@ All other yield identifier values are reserved. If an invalid
 yield indentifier is passed the kernel returns immediately.
 
 The no wait field is only used by `yield-no-wait`. It contains the
-memory address of an 8-bit word that `yield-no-wait` writes to
+memory address of an 8-bit byte that `yield-no-wait` writes to
 indicate whether a callback was invoked. If invoking `yield-no-wait`
 resulted in a callback executing, `yield-no-wait` writes 1 to the
 field address. If invoking `yield-no-wait` resulted in no callback
@@ -387,7 +394,7 @@ in the previous call to Subscribe (the existing application data). For
 failure, the first `u32` is the passed callback pointer and the second
 `u32` is the passed application data pointer. For the first successful
 call to Subscribe for a given callback, the callback pointer and
-application data pointer returned MUST be the Null Callback (describe
+application data pointer returned MUST be the Null Callback (described
 below).
 
 4.2.1 The Null Callback
@@ -592,8 +599,8 @@ _Failure_ failure type.
 4.7 Exit (Class ID: 6)
 --------------------------------
 
-The Exit system call class is how a userspace process terminates
-gracefully. Exit system calls do not return.
+The Exit system call class is how a userspace process terminates. 
+Successful calls to Exit system calls do not return.
 
 There are two Exit system calls:
   - `exit-terminate`
@@ -616,6 +623,7 @@ r0-r3 correspond to r0-r3 on CortexM and a0-a3 on RISC-V.
 | Argument          | Register |
 |-------------------|----------|
 | Exit identifer    | r0       |
+| Completion code   | r1       |
 
 The exit identifier specifies which call is invoked.
 
@@ -624,6 +632,21 @@ The exit identifier specifies which call is invoked.
 | exit-terminate  |                     0 |
 | exit-restart    |                     1 |
 
+The difference between `exit-terminate` and `exit-restart` is what behavior
+the application asks from the kernel. With `exit-terminate`, the application
+tells the kernel that it considers itself completed and does not need to run
+again. With `exit-restart`, it tells the kernel that it would like to be
+rebooted and run again. For example, `exit-terminate` might be used by a 
+process that stores some one-time data on flash, while `exit-restart` might
+be used if the process runs out of memory.
+
+The completion code is an unsigned 32-bit number which indicates status. This
+information can be stored in the kernel and used in management or policy decisions.
+The definition of these status codes is outside the scope of this document.
+
+If an exit syscall is successful, it does not return. Therefore, the return
+value of an exit syscall is always _Failure_. `exit-restart` and 
+`exit-terminate` MUST always succeed and so never return. 
 
 5 Userspace Library Methods
 =================================
@@ -661,15 +684,6 @@ in encodings desribed in Section 3.2.
 
 6.1.2 Yield Return Type
 ---------------------------------
-
-The Yield return type is called `YieldResult`:
-
-```
-pub enum YieldResult {
-    Success,
-	Failure(ErrorCode)
-}
-```
 
 6.1.3 Subscribe Return Type
 ---------------------------------

@@ -13,12 +13,15 @@ Organizations that have contributed code to Tock include:
   * MIT
   * MIT Lincoln Laboratory
   * Princeton University
+  * ROSEdu Summer of Code
   * Stanford University
   * University of California, Berkeley
   * University of California, San Diego
   * University of Michigan
+  * University of Stuttgart
   * University of Virginia
   * Western Digital
+  * Wyliodrin
 
 _Note: the above list may be incomplete. If your organization has supported you in
 contributing to Tock, and wish to be acknowledged, please update this list accordingly._
