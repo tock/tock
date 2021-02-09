@@ -383,14 +383,14 @@ After a system call is made, the call is handled and routed by the Tock kernel
 in [`sched.rs`](../kernel/src/sched.rs) through a series of steps.
 
 1. The kernel calls a platform-provided syscall filter function to determine if
-   it should process the syscall or not. This does not apply to `yield`. The
+   it should handle the syscall or not. This does not apply to `yield`. The
    filter function takes the syscall and which process issued the syscall to
-   return a `Result((), ReturnCode)` to signal if the syscall should be handled
+   return a `Result((), ErrorCode)` to signal if the syscall should be handled
    or if an error should be returned to the process.
 
-   If the filter function disallows the syscall it returns `Err(ReturnCode)` and
-   the `ReturnCode` is provided to the app as the return code for the syscall.
-   Otherwise, the syscall proceeds.
+   If the filter function disallows the syscall it returns `Err(ErrorCode)` and
+   the `ErrorCode` is provided to the process as the return code for the
+   syscall. Otherwise, the syscall proceeds.
 
    _The filter interface is currently considered unstable and subject to change._
 
