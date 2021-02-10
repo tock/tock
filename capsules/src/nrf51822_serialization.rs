@@ -152,7 +152,7 @@ impl Driver for Nrf51822Serialization<'_> {
     ) -> Result<ReadOnlyAppSlice, (ReadOnlyAppSlice, ErrorCode)> {
         let res = match allow_type {
             // Provide a TX buffer.
-            1 => {
+            0 => {
                 self.active_app.set(appid);
                 self.apps
                     .enter(appid, |app, _| {
@@ -182,30 +182,22 @@ impl Driver for Nrf51822Serialization<'_> {
     fn subscribe(
         &self,
         subscribe_type: usize,
-        callback: Callback,
+        mut callback: Callback,
         appid: AppId,
     ) -> Result<Callback, (Callback, ErrorCode)> {
         match subscribe_type {
             // Add a callback
             0 => {
                 // Save the callback for the app.
-                let old_callback = self
-                    .apps
-                    .enter(appid, |app, _| {
-                        core::mem::replace(&mut app.callback, callback)
-                    })
-                    .map_err(ErrorCode::from)
-                    .map_err(|e| (callback, e))?;
-
-                // Start the receive now that we have a callback. If there is no
-                // buffer then the receive has already been started.
-                self.rx_buffer.take().map(|buffer| {
-                    let len = buffer.len();
-                    self.uart.receive_automatic(buffer, len, 250);
-                });
-
-                Ok(old_callback)
-            }
+                let result = self.apps.enter(appid, |app, _| {
+                    core::mem::swap(&mut app.callback, &mut callback);
+                })
+                    .map_err(ErrorCode::from);
+                match result {
+                    Ok(()) => Ok(callback),
+                    Err(e) => Err((callback, e))
+                }
+            },
             _ => Err((callback, ErrorCode::NOSUPPORT)),
         }
     }
@@ -217,7 +209,7 @@ impl Driver for Nrf51822Serialization<'_> {
     /// - `0`: Driver check.
     /// - `1`: Send the allowed buffer to the nRF.
     /// - `2`: Reset the nRF51822.
-    fn command(&self, command_type: usize, _: usize, _: usize, appid: AppId) -> CommandResult {
+    fn command(&self, command_type: usize, arg1: usize, _: usize, appid: AppId) -> CommandResult {
         match command_type {
             0 /* check if present */ => CommandResult::success(),
 
@@ -236,9 +228,21 @@ impl Driver for Nrf51822Serialization<'_> {
                     })
                 }).unwrap_or(CommandResult::failure(ErrorCode::FAIL))
             }
+            // Receive from the nRF51822
+            2 => { // arg1 is receive length, must be <= buffer length
+                self.rx_buffer.take().map_or(CommandResult::failure(ErrorCode::RESERVE), |buffer| {
+                    let len = arg1;
+                    if len > buffer.len() {
+                        CommandResult::failure(ErrorCode::SIZE)
+                    } else {
+                        self.uart.receive_automatic(buffer, len, 250);
+                        CommandResult::success_u32(len as u32)
+                    }
+                })
+            }
 
             // Initialize the nRF51822 by resetting it.
-            2 => {
+            3 => {
                 self.reset();
                 CommandResult::success()
             }
@@ -278,16 +282,17 @@ impl uart::ReceiveClient for Nrf51822Serialization<'_> {
 
         self.active_app.map(|appid| {
             let _ = self.apps.enter(*appid, |app, _| {
-                app.rx_buffer.mut_map(|rb| {
+                let len = app.rx_buffer.mut_map_or(0, |rb| {
                     // Figure out length to copy.
                     let max_len = cmp::min(rx_len, rb.len());
 
                     // Copy over data to app buffer.
-                    self.rx_buffer.map(|buffer| {
+                    self.rx_buffer.map_or(0, |buffer| {
                         for idx in 0..max_len {
                             rb.as_mut()[idx] = buffer[idx];
                         }
-                    });
+                        max_len
+                    })
                 });
 
                 // Notify the serialization library in userspace about the
@@ -296,7 +301,7 @@ impl uart::ReceiveClient for Nrf51822Serialization<'_> {
                 // Note: This indicates how many bytes were received by
                 // hardware, regardless of how much space (if any) was
                 // available in the buffer provided by the app.
-                app.callback.schedule(4, rx_len, 0);
+                app.callback.schedule(4, len, 0);
             });
         });
 
