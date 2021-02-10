@@ -42,7 +42,7 @@ register_bitfields![u8,
 /// Tock will ignore locked PMP regions. Note that Tock will not make any
 /// attempt to avoid access faults from locked regions.
 ///
-/// `NUM_REGIONS_OVER_TWO`: The number of PMP regions divided by 2.
+/// `MAX_AVAILABLE_REGIONS_OVER_TWO`: The number of PMP regions divided by 2.
 ///  The RISC-V spec mandates that there must be either 0, 16 or 64 PMP
 ///  regions implemented. If you are using this PMP struct we are assuming
 ///  there are more than 0 implemented. So this value should be either 8 or 32.
@@ -54,7 +54,7 @@ register_bitfields![u8,
 ///  Note: that this does not mean all PMP regions are connected.
 ///  Some of the regions can be WARL (Write Any Read Legal). All this means
 ///  is that accessing `NUM_REGIONS` won't cause a fault.
-pub struct PMP<const NUM_REGIONS_OVER_TWO: usize> {
+pub struct PMP<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> {
     /// The application that the MPU was last configured for. Used (along with
     /// the `is_dirty` flag) to determine if MPU can skip writing the
     /// configuration to hardware.
@@ -64,12 +64,12 @@ pub struct PMP<const NUM_REGIONS_OVER_TWO: usize> {
     /// and cannot be used by Tock.
     locked_region_mask: u64,
     /// This is the total number of avaliable regions.
-    /// This will be between 0 and NUM_REGIONS_OVER_TWO * 2 depending
+    /// This will be between 0 and MAX_AVAILABLE_REGIONS_OVER_TWO * 2 depending
     /// on the hardware and previous boot stages.
     num_regions: usize,
 }
 
-impl<const NUM_REGIONS_OVER_TWO: usize> PMP<NUM_REGIONS_OVER_TWO> {
+impl<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> PMP<MAX_AVAILABLE_REGIONS_OVER_TWO> {
     pub unsafe fn new() -> Self {
         // RISC-V PMP can support from 0 to 64 PMP regions
         // Let's figure out how many are supported.
@@ -77,7 +77,7 @@ impl<const NUM_REGIONS_OVER_TWO: usize> PMP<NUM_REGIONS_OVER_TWO> {
         let mut num_regions = 0;
         let mut locked_region_mask = 0;
 
-        for i in 0..(NUM_REGIONS_OVER_TWO * 2) {
+        for i in 0..(MAX_AVAILABLE_REGIONS_OVER_TWO * 2) {
             // Read the current value
             let pmpcfg_og = csr::CSR.pmpcfg[i / 4].get();
 
@@ -201,9 +201,9 @@ impl PMPRegion {
 }
 
 /// Struct storing region configuration for RISCV PMP.
-pub struct PMPConfig<const NUM_REGIONS_OVER_TWO: usize> {
+pub struct PMPConfig<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> {
     /// Array of PMP regions. Each region requires two physical entries.
-    regions: [Option<PMPRegion>; NUM_REGIONS_OVER_TWO],
+    regions: [Option<PMPRegion>; MAX_AVAILABLE_REGIONS_OVER_TWO],
     /// Indicates if the configuration has changed since the last time it was
     /// written to hardware.
     is_dirty: Cell<bool>,
@@ -211,7 +211,9 @@ pub struct PMPConfig<const NUM_REGIONS_OVER_TWO: usize> {
     app_memory_region: OptionalCell<usize>,
 }
 
-impl<const NUM_REGIONS_OVER_TWO: usize> Default for PMPConfig<NUM_REGIONS_OVER_TWO> {
+impl<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> Default
+    for PMPConfig<MAX_AVAILABLE_REGIONS_OVER_TWO>
+{
     /// `NUM_REGIONS` is the number of PMP entries the hardware supports.
     ///
     /// Since we use TOR, we will use two PMP entries for each region. So the actual
@@ -219,14 +221,16 @@ impl<const NUM_REGIONS_OVER_TWO: usize> Default for PMPConfig<NUM_REGIONS_OVER_T
     /// require us to pass both of these values as separate generic consts.
     fn default() -> Self {
         PMPConfig {
-            regions: [None; NUM_REGIONS_OVER_TWO],
+            regions: [None; MAX_AVAILABLE_REGIONS_OVER_TWO],
             is_dirty: Cell::new(true),
             app_memory_region: OptionalCell::empty(),
         }
     }
 }
 
-impl<const NUM_REGIONS_OVER_TWO: usize> fmt::Display for PMPConfig<NUM_REGIONS_OVER_TWO> {
+impl<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> fmt::Display
+    for PMPConfig<MAX_AVAILABLE_REGIONS_OVER_TWO>
+{
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, " PMP regions:\r\n")?;
         for (n, region) in self.regions.iter().enumerate() {
@@ -239,7 +243,7 @@ impl<const NUM_REGIONS_OVER_TWO: usize> fmt::Display for PMPConfig<NUM_REGIONS_O
     }
 }
 
-impl<const NUM_REGIONS_OVER_TWO: usize> PMPConfig<NUM_REGIONS_OVER_TWO> {
+impl<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> PMPConfig<MAX_AVAILABLE_REGIONS_OVER_TWO> {
     fn unused_region_number(&self, locked_region_mask: u64) -> Option<usize> {
         for (number, region) in self.regions.iter().enumerate() {
             if self.app_memory_region.contains(&number) {
@@ -257,13 +261,15 @@ impl<const NUM_REGIONS_OVER_TWO: usize> PMPConfig<NUM_REGIONS_OVER_TWO> {
     }
 }
 
-impl<const NUM_REGIONS_OVER_TWO: usize> kernel::mpu::MPU for PMP<NUM_REGIONS_OVER_TWO> {
-    type MpuConfig = PMPConfig<NUM_REGIONS_OVER_TWO>;
+impl<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> kernel::mpu::MPU
+    for PMP<MAX_AVAILABLE_REGIONS_OVER_TWO>
+{
+    type MpuConfig = PMPConfig<MAX_AVAILABLE_REGIONS_OVER_TWO>;
 
     fn clear_mpu(&self) {
         // We want to disable all of the hardware entries, so we use `NUM_REGIONS` here,
         // and not `NUM_REGIONS / 2`.
-        for x in 0..(NUM_REGIONS_OVER_TWO * 2) {
+        for x in 0..(MAX_AVAILABLE_REGIONS_OVER_TWO * 2) {
             match x % 4 {
                 0 => {
                     csr::CSR.pmpcfg[x / 4].modify(
