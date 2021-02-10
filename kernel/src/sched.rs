@@ -627,8 +627,12 @@ impl Kernel {
                     // why and handle the process as appropriate.
                     match context_switch_reason {
                         Some(ContextSwitchReason::Fault) => {
-                            // Let process deal with it as appropriate.
-                            process.set_fault_state();
+                            // The app faulted, check if the chip wants to
+                            // handle the fault.
+                            if platform.process_fault_hook(process).is_err() {
+                                // Let process deal with it as appropriate.
+                                process.set_fault_state();
+                            }
                         }
                         Some(ContextSwitchReason::SyscallFired { syscall }) => {
                             self.handle_syscall(platform, process, syscall);
