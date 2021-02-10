@@ -170,7 +170,7 @@ impl kernel::Platform for Platform {
             capsules::led::DRIVER_NUM => f(Some(Ok(self.led))),
             capsules::button::DRIVER_NUM => f(Some(Ok(self.button))),
             capsules::rng::DRIVER_NUM => f(Some(Ok(self.rng))),
-            capsules::ble_advertising_driver::DRIVER_NUM => f(Some(Err(self.ble_radio))),
+            capsules::ble_advertising_driver::DRIVER_NUM => f(Some(Ok(self.ble_radio))),
             capsules::temperature::DRIVER_NUM => f(Some(Ok(self.temp))),
             capsules::analog_comparator::DRIVER_NUM => f(Some(Ok(self.analog_comparator))),
             kernel::ipc::DRIVER_NUM => f(Some(Err(&self.ipc))),
