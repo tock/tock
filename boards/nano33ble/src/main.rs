@@ -139,7 +139,7 @@ impl kernel::Platform for Platform {
             capsules::alarm::DRIVER_NUM => f(Some(Ok(self.alarm))),
             capsules::led::DRIVER_NUM => f(Some(Ok(self.led))),
             capsules::rng::DRIVER_NUM => f(Some(Ok(self.rng))),
-            capsules::ble_advertising_driver::DRIVER_NUM => f(Some(Err(self.ble_radio))),
+            capsules::ble_advertising_driver::DRIVER_NUM => f(Some(Ok(self.ble_radio))),
             capsules::ieee802154::DRIVER_NUM => f(Some(Ok(self.ieee802154_radio))),
             kernel::ipc::DRIVER_NUM => f(Some(Err(&self.ipc))),
             _ => f(None),
