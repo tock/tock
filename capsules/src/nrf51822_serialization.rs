@@ -189,15 +189,17 @@ impl Driver for Nrf51822Serialization<'_> {
             // Add a callback
             0 => {
                 // Save the callback for the app.
-                let result = self.apps.enter(appid, |app, _| {
-                    core::mem::swap(&mut app.callback, &mut callback);
-                })
+                let result = self
+                    .apps
+                    .enter(appid, |app, _| {
+                        core::mem::swap(&mut app.callback, &mut callback);
+                    })
                     .map_err(ErrorCode::from);
                 match result {
                     Ok(()) => Ok(callback),
-                    Err(e) => Err((callback, e))
+                    Err(e) => Err((callback, e)),
                 }
-            },
+            }
             _ => Err((callback, ErrorCode::NOSUPPORT)),
         }
     }
