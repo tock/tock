@@ -340,50 +340,49 @@ pub unsafe fn main() {
         i2c_master,
     };
 
-    // This is PMP support for kernel regions
-    // PMP does not allow a deny by default option, so all regions not marked
-    // with the below commands will have full access.
-    // This is still a useful implementation as it can be used to limit the
-    // kernels access, for example removing execute permission from regions
-    // we don't need to execute from and removing write permissions from
-    // executable reions.
-    let mut mpu_config = rv32i::pmp::PMPConfig::default();
+    let mut mpu_config = rv32i::epmp::PMPConfig::default();
     // The kernel stack
-    chip.pmp
-        .allocate_kernel_region(
-            &_sstack as *const u8,
-            &_estack as *const u8 as usize - &_sstack as *const u8 as usize,
-            mpu::Permissions::ReadWriteOnly,
-            &mut mpu_config,
-        )
-        .unwrap();
+    chip.pmp.allocate_kernel_region(
+        &_sstack as *const u8,
+        &_estack as *const u8 as usize - &_sstack as *const u8 as usize,
+        mpu::Permissions::ReadWriteOnly,
+        &mut mpu_config,
+    );
     // The kernel text
-    chip.pmp
-        .allocate_kernel_region(
-            &_stext as *const u8,
-            &_etext as *const u8 as usize - &_stext as *const u8 as usize,
-            mpu::Permissions::ReadExecuteOnly,
-            &mut mpu_config,
-        )
-        .unwrap();
+    chip.pmp.allocate_kernel_region(
+        &_stext as *const u8,
+        &_etext as *const u8 as usize - &_stext as *const u8 as usize,
+        mpu::Permissions::ReadExecuteOnly,
+        &mut mpu_config,
+    );
     // The kernel relocate data
-    chip.pmp
-        .allocate_kernel_region(
-            &_srelocate as *const u8,
-            &_erelocate as *const u8 as usize - &_srelocate as *const u8 as usize,
-            mpu::Permissions::ReadWriteOnly,
-            &mut mpu_config,
-        )
-        .unwrap();
+    chip.pmp.allocate_kernel_region(
+        &_srelocate as *const u8,
+        &_erelocate as *const u8 as usize - &_srelocate as *const u8 as usize,
+        mpu::Permissions::ReadWriteOnly,
+        &mut mpu_config,
+    );
     // The kernel BSS
-    chip.pmp
-        .allocate_kernel_region(
-            &_szero as *const u8,
-            &_ezero as *const u8 as usize - &_szero as *const u8 as usize,
-            mpu::Permissions::ReadWriteOnly,
-            &mut mpu_config,
-        )
-        .unwrap();
+    chip.pmp.allocate_kernel_region(
+        &_szero as *const u8,
+        &_ezero as *const u8 as usize - &_szero as *const u8 as usize,
+        mpu::Permissions::ReadWriteOnly,
+        &mut mpu_config,
+    );
+    // The app locations
+    chip.pmp.allocate_kernel_region(
+        &_sapps as *const u8,
+        &_eapps as *const u8 as usize - &_sapps as *const u8 as usize,
+        mpu::Permissions::ReadWriteOnly,
+        &mut mpu_config,
+    );
+    // The app memory locations
+    chip.pmp.allocate_kernel_region(
+        &_sappmem as *const u8,
+        &_eappmem as *const u8 as usize - &_sappmem as *const u8 as usize,
+        mpu::Permissions::ReadWriteOnly,
+        &mut mpu_config,
+    );
 
     chip.pmp.enable_kernel_mpu(&mut mpu_config);
 

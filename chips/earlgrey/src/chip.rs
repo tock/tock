@@ -6,7 +6,7 @@ use kernel::common::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::hil::time::Alarm;
 use kernel::{Chip, InterruptService};
 use rv32i::csr::{mcause, mie::mie, mip::mip, mtvec::mtvec, CSR};
-use rv32i::pmp::PMP;
+use rv32i::epmp::PMP;
 use rv32i::syscall::SysCall;
 
 use crate::chip_config::CONFIG;
