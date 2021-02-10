@@ -621,9 +621,9 @@ impl Driver for Lsm303dlhcI2C<'_> {
     ) -> ReturnCode {
         match subscribe_num {
             0 /* set the one shot callback */ => {
-				self.callback.insert (callback);
-				ReturnCode::SUCCESS
-			},
+                self.callback.insert (callback);
+                ReturnCode::SUCCESS
+            },
             // default
             _ => ReturnCode::ENOSUPPORT,
         }
