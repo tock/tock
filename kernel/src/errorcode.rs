@@ -56,7 +56,6 @@ impl TryFrom<ReturnCode> for ErrorCode {
 
     fn try_from(rc: ReturnCode) -> Result<Self, Self::Error> {
         match rc {
-            ReturnCode::SuccessWithValue { .. } => Err(()),
             ReturnCode::SUCCESS => Err(()),
             ReturnCode::FAIL => Ok(ErrorCode::FAIL),
             ReturnCode::EBUSY => Ok(ErrorCode::BUSY),

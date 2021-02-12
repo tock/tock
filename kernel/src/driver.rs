@@ -155,9 +155,6 @@ impl From<ReturnCode> for CommandResult {
     fn from(rc: ReturnCode) -> Self {
         match rc {
             ReturnCode::SUCCESS => CommandResult::success(),
-            ReturnCode::SuccessWithValue { .. } => {
-                panic!("SuccessWithValue is deprecated");
-            } //TODO: delete before Tock 2.0
             _ => CommandResult::failure(ErrorCode::try_from(rc).unwrap()),
         }
     }

@@ -107,7 +107,6 @@ in C from the `tock.h` header (prepended with `TOCK_`):
 
 ```rust
 pub enum ReturnCode {
-    SuccessWithValue { value: usize }, // Success value must be >= 0
     SUCCESS,
     FAIL, //.......... Generic failure condition
     EBUSY, //......... Underlying system is busy; retry
