@@ -211,7 +211,7 @@ impl Driver for Nrf51822Serialization<'_> {
     /// - `0`: Driver check.
     /// - `1`: Send the allowed buffer to the nRF.
     /// - `2`: Reset the nRF51822.
-    fn command(&self, command_type: usize, arg1: usize, _: usize, appid: AppId) -> CommandResult {
+    fn command(&self, command_type: usize, _arg1: usize, _: usize, appid: AppId) -> CommandResult {
         match command_type {
             0 /* check if present */ => CommandResult::success(),
 
@@ -231,15 +231,12 @@ impl Driver for Nrf51822Serialization<'_> {
                 }).unwrap_or(CommandResult::failure(ErrorCode::FAIL))
             }
             // Receive from the nRF51822
-            2 => { // arg1 is receive length, must be <= buffer length
+            2 => {
                 self.rx_buffer.take().map_or(CommandResult::failure(ErrorCode::RESERVE), |buffer| {
-                    let len = arg1;
-                    if len > buffer.len() {
-                        CommandResult::failure(ErrorCode::SIZE)
-                    } else {
-                        self.uart.receive_automatic(buffer, len, 250);
-                        CommandResult::success_u32(len as u32)
-                    }
+                    let len = buffer.len();
+                    self.uart.receive_automatic(buffer, len, 250);
+                    CommandResult::success_u32(len as u32)
+
                 })
             }
 
