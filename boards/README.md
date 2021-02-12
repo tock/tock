@@ -4,30 +4,30 @@ Platforms Supported by Tock
 The `/boards` directory contains the physical hardware platforms
 that Tock supports.
 
-| Board                                                                | Architecture    | MCU            | Interface  | App deployment | QEMU Support?     |
-|----------------------------------------------------------------------|-----------------|----------------|------------|----------------|-------------------|
-| [Hail](hail/README.md)                                               | ARM Cortex-M4   | SAM4LC8BA      | Bootloader | tockloader     | No                |
-| [Imix](imix/README.md)                                               | ARM Cortex-M4   | SAM4LC8CA      | Bootloader | tockloader     | No                |
-| [Nordic nRF52-DK](nordic/nrf52dk/README.md)                          | ARM Cortex-M4   | nRF52832       | jLink      | tockloader     | No                |
-| [Nordic nRF52840-DK](nordic/nrf52840dk/README.md)                    | ARM Cortex-M4   | nRF52840       | jLink      | tockloader     | No                |
-| [Nordic nRF52840-Dongle](nordic/nrf52840_dongle/README.md)           | ARM Cortex-M4   | nRF52840       | jLink      | tockloader     | No                |
-| [ACD52832](acd52832/README.md)                                       | ARM Cortex-M4   | nRF52832       | jLink      | tockloader     | No                |
-| [Nano 33 BLE](nano33ble/README.md)                                   | ARM Cortex-M4   | nRF52840       | BOSSA      | bossac         | No                |
-| [Clue nRF52840](clue_nrf52840/README.md)                             | ARM Cortex-M4   | nRF52840       | nrfutil    | custom         | No                |
-| [BBC Micro:bit v2](microbit_v2/README.md)                            | ARM Cortex-M4   | nRF52833       | openocd    | openocd        | No                |
-| [ST Nucleo F446RE](nucleo_f446re/README.md)                          | ARM Cortex-M4   | STM32F446      | openocd    | custom         | #1827             |
-| [ST Nucleo F429ZI](nucleo_f429zi/README.md)                          | ARM Cortex-M4   | STM32F429      | openocd    | custom         | #1827             |
-| [STM32F3Discovery kit](stm32f3discovery/README.md)                   | ARM Cortex-M4   | STM32F303VCT6  | openocd    | custom         | #1827             |
-| [STM32F412G Discovery kit](stm32f412gdiscovery/README.md)            | ARM Cortex-M4   | STM32F412G     | openocd    | custom         | #1827             |
-| [WeAct F401CCU6 Core Board](weact_f401ccu6/README.md)                | ARM Cortex-M4   | STM32F401CCU6  | openocd    | custom         | No                |
-| [SparkFun RedBoard Artemis Nano](redboard_artemis_nano/README.md)    | ARM Cortex-M4   | Apollo3        | custom     | custom         | No                |
-| [i.MX RT 1052 Evaluation Kit](imxrt1050-evkb/README.md)              | ARM Cortex-M7   | i.MX RT 1052   | custom     | custom         | No                |
-| [Teensy 4.0](teensy40/README.md)                                     | ARM Cortex-M7   | i.MX RT 1062   | custom     | custom         | No                |
-| [SiFive HiFive1 Rev B](hifive1/README.md)                            | RISC-V          | FE310-G002     | openocd    | tockloader     | [Yes (5.1)][qemu] |
-| [Digilent Arty A-7 100T](arty_e21/README.md)                         | RISC-V RV32IMAC | SiFive E21     | openocd    | tockloader     | No                |
-| [Earlgrey on Nexys Video](earlgrey-nexysvideo/README.md)             | RISC-V RV32IMC  | EarlGrey       | custom     | custom         | [Yes (5.1)][qemu] |
-| [LiteX on Digilent Arty A-7](litex/arty/README.md)                   | RISC-V RV32I    | LiteX+VexRiscV | custom     | custom         | No                |
-| [Verilated LiteX Simulation](litex/sim/README.md)                    | RISC-V RV32I    | LiteX+VexRiscv | custom     | custom         | No                |
+| Board                                                                | Architecture    | MCU            | Interface  | App deployment | QEMU Support? |
+|----------------------------------------------------------------------|-----------------|----------------|------------|----------------|---------------|
+| [Hail](hail/README.md)                                               | ARM Cortex-M4   | SAM4LC8BA      | Bootloader | tockloader     | No            |
+| [Imix](imix/README.md)                                               | ARM Cortex-M4   | SAM4LC8CA      | Bootloader | tockloader     | No            |
+| [Nordic nRF52-DK](nordic/nrf52dk/README.md)                          | ARM Cortex-M4   | nRF52832       | jLink      | tockloader     | No            |
+| [Nordic nRF52840-DK](nordic/nrf52840dk/README.md)                    | ARM Cortex-M4   | nRF52840       | jLink      | tockloader     | No            |
+| [Nordic nRF52840-Dongle](nordic/nrf52840_dongle/README.md)           | ARM Cortex-M4   | nRF52840       | jLink      | tockloader     | No            |
+| [ACD52832](acd52832/README.md)                                       | ARM Cortex-M4   | nRF52832       | jLink      | tockloader     | No            |
+| [Nano 33 BLE](nano33ble/README.md)                                   | ARM Cortex-M4   | nRF52840       | Bootloader | tockloader     | No            |
+| [Clue nRF52840](clue_nrf52840/README.md)                             | ARM Cortex-M4   | nRF52840       | nrfutil    | custom         | No            |
+| [BBC Micro:bit v2](microbit_v2/README.md)                            | ARM Cortex-M4   | nRF52833       | openocd    | openocd        | No            |
+| [ST Nucleo F446RE](nucleo_f446re/README.md)                          | ARM Cortex-M4   | STM32F446      | openocd    | custom         | #1827         |
+| [ST Nucleo F429ZI](nucleo_f429zi/README.md)                          | ARM Cortex-M4   | STM32F429      | openocd    | custom         | #1827         |
+| [STM32F3Discovery kit](stm32f3discovery/README.md)                   | ARM Cortex-M4   | STM32F303VCT6  | openocd    | custom         | #1827         |
+| [STM32F412G Discovery kit](stm32f412gdiscovery/README.md)            | ARM Cortex-M4   | STM32F412G     | openocd    | custom         | #1827         |
+| [WeAct F401CCU6 Core Board](weact_f401ccu6/README.md)                | ARM Cortex-M4   | STM32F401CCU6  | openocd    | custom         | No            |
+| [SparkFun RedBoard Artemis Nano](redboard_artemis_nano/README.md)    | ARM Cortex-M4   | Apollo3        | custom     | custom         | No            |
+| [i.MX RT 1052 Evaluation Kit](imxrt1050-evkb/README.md)              | ARM Cortex-M7   | i.MX RT 1052   | custom     | custom         | No            |
+| [Teensy 4.0](teensy40/README.md)                                     | ARM Cortex-M7   | i.MX RT 1062   | custom     | custom         | No            |
+| [SiFive HiFive1 Rev B](hifive1/README.md)                            | RISC-V          | FE310-G002     | openocd    | tockloader     | Yes (5.1)     |
+| [Digilent Arty A-7 100T](arty_e21/README.md)                         | RISC-V RV32IMAC | SiFive E21     | openocd    | tockloader     | No            |
+| [Earlgrey on Nexys Video](earlgrey-nexysvideo/README.md)             | RISC-V RV32IMC  | EarlGrey       | custom     | custom         | Yes (5.1)     |
+| [LiteX on Digilent Arty A-7](litex/arty/README.md)                   | RISC-V RV32I    | LiteX+VexRiscV | custom     | custom         | No            |
+| [Verilated LiteX Simulation](litex/sim/README.md)                    | RISC-V RV32I    | LiteX+VexRiscv | custom     | custom         | No            |
 
 # Out of Tree Boards
 
