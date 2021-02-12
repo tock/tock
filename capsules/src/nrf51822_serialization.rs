@@ -143,7 +143,7 @@ impl Driver for Nrf51822Serialization<'_> {
     ///
     /// ### `allow_num`
     ///
-    /// - `1`: Provide a TX buffer.
+    /// - `0`: Provide a TX buffer.
     fn allow_readonly(
         &self,
         appid: AppId,
