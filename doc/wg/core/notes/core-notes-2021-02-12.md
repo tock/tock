@@ -111,7 +111,7 @@
  - leon: I think this could also be solved by an absract interface: if I request to write to something outside of valid bounds then the wrapper can reject the request; it can then pass friendly types to the internal impelmentation
  - amit: what about an additional type parameter with a default
  - leon: then you still expose this difference to the user; could make issues for use in hardware independent manner
- - hudson: if the user is requesting reads and writes from a given address, then they probably need t know the offset, not sure how you would hide that
+ - hudson: if the user is requesting reads and writes from a given address, then they probably need to know the offset, not sure how you would hide that
  - leon: if the user is just the kernel driver, it will need to pass through the requested addresses
  - hudson: if you're not going to propogate the raw address through, how would an app write to >4GB in external flash
  - amit: allowing 64 bits up to userspace feels not that bad
@@ -178,7 +178,7 @@
  - alistair: we should be able to make decisions for this based on how much overhead there really is, right?
  - johnathan: per syscall or total? e.g. adding to command will add thousands to the applicaiton
  - alistair: right, thinking total; agree with the memop example
- - hudson: I suspect it might be challenging to have a general policy on this; can we trust the kernel to return valid error codes, yes, but are ther _other_ issues, e.g. alignment, that I as a reviewer will need to think about?
+ - hudson: I suspect it might be challenging to have a general policy on this; can we trust the kernel to return valid error codes, yes, but are there _other_ issues, e.g. alignment, that I as a reviewer will need to think about?
  - johnthan: I can definitely comment these better; plus in the future these will all be unit tested under MIRI
  - leon: part of why might help these questions is the boundaries, i.e. the raw_syscalls which close?
  - johnathan: actually raw_syscalls is the *farthest* of all of the crates under discussion here; if you're comfortable with those, comfortable with all
