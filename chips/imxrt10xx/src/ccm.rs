@@ -2,8 +2,6 @@ use kernel::common::registers::{register_bitfields, register_structs, ReadOnly, 
 use kernel::common::StaticRef;
 use kernel::ClockInterface;
 
-use core::ops::Range;
-
 register_structs! {
     /// Clock Controller Module
     CcmRegisters {
@@ -631,13 +629,6 @@ pub enum PeripheralClock2Selection {
     Oscillator,
     Pll2Bypass,
 }
-
-/// Valid range for the ARM divider
-pub const ARM_DIVIDER_RANGE: Range<u32> = 1..9;
-/// Valid range for the AHB divider
-pub const AHB_DIVIDER_RANGE: Range<u32> = 1..9;
-/// Valid range for the IPG divider
-pub const IPG_DIVIDER_RANGE: Range<u32> = 1..5;
 
 enum ClockGate {
     CCGR0(HCLK0),

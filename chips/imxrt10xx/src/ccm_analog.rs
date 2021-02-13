@@ -7,7 +7,6 @@
 //    a Groups struct.
 // 3. Remove unused
 
-use core::ops::Range;
 use kernel::common::registers::{
     register_bitfields, register_structs, ReadWrite, RegisterLongName,
 };
@@ -603,7 +602,7 @@ impl CcmAnalog {
     ///
     /// Clamps `div_sel` to [54, 108].
     pub fn restart_pll1(&self, div_sel: u32) {
-        let div_sel = clamp(div_sel, PLL1_DIV_SEL_RANGE);
+        let div_sel = div_sel.min(108).max(54);
 
         // Clear all bits except powerdown
         self.registers.pll_arm.reg.write(PLL_ARM::POWERDOWN::SET);
@@ -616,39 +615,5 @@ impl CcmAnalog {
         self.registers.pll_arm.set.write(PLL_ARM::ENABLE::SET);
         // Wait for lock
         while self.registers.pll_arm.reg.read(PLL_ARM::LOCK) == 0 {}
-    }
-}
-
-/// Valid range of PLL1 `DIV_SEL` values
-pub const PLL1_DIV_SEL_RANGE: Range<u32> = 54..109;
-
-/// Clamp `value` within `range`
-fn clamp(value: u32, range: Range<u32>) -> u32 {
-    value.min(range.end - 1).max(range.start)
-}
-
-/// Computes the PLL1 output frequency for a given `DIV_SEL` value
-///
-/// Clamps `div_sel` to the valid range; see [`PLL1_DIV_SEL_RANGE`] for valid
-/// ranges.
-///
-/// Upper frequency might exceed the the maximum supported frequency. Check
-/// the datasheet for more information.
-pub fn pll1_hz(div_sel: u32) -> u32 {
-    // PLL output frequency = Fref * DIV_SEL/2
-    //
-    // where
-    //  Fref is the 24MHz oscillator
-    12_000_000 * clamp(div_sel, PLL1_DIV_SEL_RANGE)
-}
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn pll1_hz() {
-        assert_eq!(super::pll1_hz(54), 648_000_000);
-        assert_eq!(super::pll1_hz(108), 1_296_000_000);
-        assert_eq!(super::pll1_hz(53), super::pll1_hz(54));
-        assert_eq!(super::pll1_hz(109), super::pll1_hz(108));
     }
 }

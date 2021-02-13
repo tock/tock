@@ -60,30 +60,13 @@ impl kernel::Platform for Teensy40 {
 type Chip = imxrt1060::chip::Imxrt10xx<imxrt1060::chip::Imxrt10xxDefaultPeripherals>;
 static mut CHIP: Option<&'static Chip> = None;
 
-/// Assert that a given predicate is true at compile time
-///
-/// Failure manifests as a compile error about an incorrect
-/// array size.
-macro_rules! static_assert {
-    ($predicate:expr) => {
-        const _: [(); 1] = [(); {
-            const PREDICATE: bool = ($predicate);
-            PREDICATE
-        } as usize];
-    };
-}
-
 /// Set the ARM clock frequency to 600MHz
 ///
 /// You should use this early in program initialization, before there's a chance
 /// for preemption.
 fn set_arm_clock(ccm: &imxrt1060::ccm::Ccm, ccm_analog: &imxrt1060::ccm_analog::CcmAnalog) {
-    use imxrt1060::{
-        ccm::{
-            PeripheralClock2Selection, PeripheralClockSelection, PrePeripheralClockSelection,
-            AHB_DIVIDER_RANGE, ARM_DIVIDER_RANGE,
-        },
-        ccm_analog::PLL1_DIV_SEL_RANGE,
+    use imxrt1060::ccm::{
+        PeripheralClock2Selection, PeripheralClockSelection, PrePeripheralClockSelection,
     };
 
     // Switch AHB clock root to 24MHz oscillator
@@ -97,20 +80,14 @@ fn set_arm_clock(ccm: &imxrt1060::ccm::Ccm, ccm_analog: &imxrt1060::ccm_analog::
     //
     // 24MHz is from crystal oscillator.
     // PLL1 output == 120MHz
-    const DIV_SEL: u32 = 100;
-    static_assert!(PLL1_DIV_SEL_RANGE.start <= DIV_SEL && DIV_SEL < PLL1_DIV_SEL_RANGE.end);
-    ccm_analog.restart_pll1(DIV_SEL);
+    ccm_analog.restart_pll1(100);
 
     // ARM divider is right after the PLL1 output,
     // bringing down the clock to 600MHz
-    const ARM_DIVIDER: u32 = 2;
-    static_assert!(ARM_DIVIDER_RANGE.start <= ARM_DIVIDER && ARM_DIVIDER < ARM_DIVIDER_RANGE.end);
-    ccm.set_arm_divider(ARM_DIVIDER);
+    ccm.set_arm_divider(2);
 
     // Divider just before the AHB clock root
-    const AHB_DIVIDER: u32 = 1;
-    static_assert!(AHB_DIVIDER_RANGE.start <= AHB_DIVIDER && AHB_DIVIDER < AHB_DIVIDER_RANGE.end);
-    ccm.set_ahb_divider(AHB_DIVIDER);
+    ccm.set_ahb_divider(1);
 
     // Switch AHB clock (back) to PLL1
     ccm.set_pre_peripheral_clock_selection(PrePeripheralClockSelection::Pll1);
