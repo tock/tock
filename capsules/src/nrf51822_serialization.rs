@@ -30,6 +30,8 @@ use kernel::{
     ReadWriteAppSlice, ReturnCode,
 };
 
+use kernel::debug;
+
 /// Syscall driver number.
 use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::Nrf51822Serialization as usize;
@@ -113,6 +115,7 @@ impl Driver for Nrf51822Serialization<'_> {
         allow_type: usize,
         mut slice: ReadWriteAppSlice,
     ) -> Result<ReadWriteAppSlice, (ReadWriteAppSlice, ErrorCode)> {
+        debug!("nRF51 capsule: allow_readwrite");
         let res = match allow_type {
             // Provide an RX buffer.
             0 => {
@@ -212,6 +215,7 @@ impl Driver for Nrf51822Serialization<'_> {
     /// - `1`: Send the allowed buffer to the nRF.
     /// - `2`: Reset the nRF51822.
     fn command(&self, command_type: usize, arg1: usize, _: usize, appid: AppId) -> CommandResult {
+        debug!("nRF51 capsule command: {}", command_type);
         match command_type {
             0 /* check if present */ => CommandResult::success(),
 
@@ -237,6 +241,7 @@ impl Driver for Nrf51822Serialization<'_> {
                     if len > buffer.len() {
                         CommandResult::failure(ErrorCode::SIZE)
                     } else {
+                        debug!("nRF51 capsule: calling receive_automatic");
                         self.uart.receive_automatic(buffer, len, 250);
                         CommandResult::success_u32(len as u32)
                     }
