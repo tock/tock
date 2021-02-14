@@ -30,8 +30,6 @@ use kernel::{
     ReadWriteAppSlice, ReturnCode,
 };
 
-use kernel::debug;
-
 /// Syscall driver number.
 use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::Nrf51822Serialization as usize;
@@ -107,7 +105,7 @@ impl Driver for Nrf51822Serialization<'_> {
     /// can control the nRF51 serialization driver.
     ///
     /// ### `allow_num`
-    ///
+    ///6
     /// - `0`: Provide a RX buffer.
     fn allow_readwrite(
         &self,
@@ -115,7 +113,6 @@ impl Driver for Nrf51822Serialization<'_> {
         allow_type: usize,
         mut slice: ReadWriteAppSlice,
     ) -> Result<ReadWriteAppSlice, (ReadWriteAppSlice, ErrorCode)> {
-        debug!("nRF51 capsule: allow_readwrite");
         let res = match allow_type {
             // Provide an RX buffer.
             0 => {
@@ -146,7 +143,7 @@ impl Driver for Nrf51822Serialization<'_> {
     ///
     /// ### `allow_num`
     ///
-    /// - `1`: Provide a TX buffer.
+    /// - `0`: Provide a TX buffer.
     fn allow_readonly(
         &self,
         appid: AppId,
@@ -213,9 +210,9 @@ impl Driver for Nrf51822Serialization<'_> {
     ///
     /// - `0`: Driver check.
     /// - `1`: Send the allowed buffer to the nRF.
-    /// - `2`: Reset the nRF51822.
+    /// - `2`: Received from the nRF into the allowed buffer.
+    /// - `3`: Reset the nRF51822.
     fn command(&self, command_type: usize, arg1: usize, _: usize, appid: AppId) -> CommandResult {
-        debug!("nRF51 capsule command: {}", command_type);
         match command_type {
             0 /* check if present */ => CommandResult::success(),
 
@@ -235,13 +232,12 @@ impl Driver for Nrf51822Serialization<'_> {
                 }).unwrap_or(CommandResult::failure(ErrorCode::FAIL))
             }
             // Receive from the nRF51822
-            2 => { // arg1 is receive length, must be <= buffer length
+            2 => {
                 self.rx_buffer.take().map_or(CommandResult::failure(ErrorCode::RESERVE), |buffer| {
                     let len = arg1;
                     if len > buffer.len() {
                         CommandResult::failure(ErrorCode::SIZE)
                     } else {
-                        debug!("nRF51 capsule: calling receive_automatic");
                         self.uart.receive_automatic(buffer, len, 250);
                         CommandResult::success_u32(len as u32)
                     }
@@ -308,7 +304,7 @@ impl uart::ReceiveClient for Nrf51822Serialization<'_> {
                 // Note: This indicates how many bytes were received by
                 // hardware, regardless of how much space (if any) was
                 // available in the buffer provided by the app.
-                app.callback.schedule(4, len, 0);
+                app.callback.schedule(4, rx_len, len);
             });
         });
 
