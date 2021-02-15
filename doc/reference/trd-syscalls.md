@@ -355,14 +355,18 @@ unmodified.
 If the passed callback is not valid (is outside process executable
 memory and is not the Null Callback described below), the kernel MUST
 NOT invoke the requested driver and MUST immediately return a failure
-with a return code of EINVAL.
+with a return code of EINVAL. The currently registered callback
+remains registered and the kernel does not cancel any pending invocations
+of the existing callback.
 
-A passed callback MUST be valid until the next invocation of `subscribe`
-with the same syscall and driver identifier. When userspace invokes
-subscribe, the kernel MUST cancel all pending callbacks for that driver
-and subscribe identifier: it MUST NOT invoke the previous callback after
-the call to subscribe, and MUST NOT invoke the new callback for events
-that occurred before the call to subscribe.
+Any callback passed from a process MUST remain valid until the next successful invocation of
+`subscribe` by that process with the same syscall and driver identifier. When
+a process makes a successful subscribe system call (one which results
+in the `Success with 2 u32` return variant), the kernel MUST cancel
+all pending callbacks on that process for that driver and subscribe identifier: it
+MUST NOT invoke the previous callback after the call to `subscribe`, and
+MUST NOT invoke the new callback for events that the kernel handled before the
+call to `subscribe`.
 
 Note that these semantics create a period over which callbacks might
 be lost: any callbacks that were pending when `subscribe` was called
