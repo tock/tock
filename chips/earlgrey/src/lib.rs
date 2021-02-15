@@ -1,6 +1,6 @@
 //! Drivers and chip support for EarlGrey.
 
-#![feature(llvm_asm, asm, const_fn, naked_functions)]
+#![feature(asm, const_fn, naked_functions)]
 #![no_std]
 #![crate_name = "earlgrey"]
 #![crate_type = "rlib"]
