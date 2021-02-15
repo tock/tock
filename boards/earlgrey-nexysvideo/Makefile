@@ -17,6 +17,10 @@ else
 	CARGO_FLAGS += --features=$(DEFAULT_BOARD_CONFIGURATION)
 endif
 
+# Default target for installing the kernel.
+.PHONY: install
+install: flash
+
 qemu: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf
 	$(call check_defined, OPENTITAN_BOOT_ROM)
 	qemu-system-riscv32 -M opentitan -kernel $^ -bios $(OPENTITAN_BOOT_ROM) -nographic -serial mon:stdio

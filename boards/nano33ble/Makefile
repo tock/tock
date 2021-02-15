@@ -10,6 +10,10 @@ ifdef PORT
   FLAGS += --port $(PORT)
 endif
 
+# Default target for installing the kernel.
+.PHONY: install
+install: program
+
 # Upload the kernel using tockloader and the tock bootloader
 .PHONY: program
 program: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).bin

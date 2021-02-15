@@ -5,6 +5,10 @@ PLATFORM=teensy40
 
 include ../Makefile.common
 
+# Default target for installing the kernel.
+.PHONY: install
+install: program
+
 %.hex: %.elf
 	$(Q)$(OBJCOPY) -O ihex $< $@
 

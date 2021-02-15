@@ -9,6 +9,10 @@ include ../Makefile.common
 OPENOCD=openocd
 OPENOCD_OPTIONS=-f openocd.cfg
 
+# Default target for installing the kernel.
+.PHONY: flash
+install: program
+
 flash: $(KERNEL)
 	$(OPENOCD) $(OPENOCD_OPTIONS) -c "init; reset halt; flash write_image erase $<; verify_image $<; reset; shutdown"
 
