@@ -838,27 +838,11 @@ impl Kernel {
                     Callback::new(process.appid(), callback_id, appdata, ptr.cast())
                 });
                 let rval = platform.with_driver(driver_number, |driver| match driver {
-                    Some(Ok(d)) => {
+                    Some(d) => {
                         let res = d.subscribe(subdriver_number, callback, process.appid());
                         match res {
                             Ok(newcb) => newcb.into_subscribe_success(),
                             Err((newcb, err)) => newcb.into_subscribe_failure(err),
-                        }
-                    }
-                    Some(Err(d)) => {
-                        // Legacy Tock 1.x driver handling
-                        if ptr.is_some() {
-                            GenericSyscallReturnValue::Legacy(d.subscribe(
-                                subdriver_number,
-                                Some(callback),
-                                process.appid(),
-                            ))
-                        } else {
-                            GenericSyscallReturnValue::Legacy(d.subscribe(
-                                subdriver_number,
-                                None,
-                                process.appid(),
-                            ))
                         }
                     }
                     None => GenericSyscallReturnValue::Legacy(ReturnCode::ENOSUPPORT),
@@ -884,24 +868,12 @@ impl Kernel {
                 arg1,
             } => {
                 let res = platform.with_driver(driver_number, |driver| match driver {
-                    Some(Ok(d)) => {
-                        // Tock 2.0 driver handling
-                        GenericSyscallReturnValue::from_command_result(d.command(
-                            subdriver_number,
-                            arg0,
-                            arg1,
-                            process.appid(),
-                        ))
-                    }
-                    Some(Err(ld)) => {
-                        // Legacy Tock 1.x driver handling
-                        GenericSyscallReturnValue::Legacy(ld.command(
-                            subdriver_number,
-                            arg0,
-                            arg1,
-                            process.appid(),
-                        ))
-                    }
+                    Some(d) => GenericSyscallReturnValue::from_command_result(d.command(
+                        subdriver_number,
+                        arg0,
+                        arg1,
+                        process.appid(),
+                    )),
                     None => {
                         // System call transition note: This does not
                         // match the expected error code for the Tock
@@ -935,23 +907,10 @@ impl Kernel {
             } => {
                 let res = platform.with_driver(driver_number, |driver| {
                     match driver {
-                        Some(Ok(d)) => {
-                            // Tock 2.0 driver
+                        Some(d) => {
                             process.allow_readwrite(allow_address, allow_size, &|appslice| {
                                 d.allow_readwrite(process.appid(), subdriver_number, appslice)
                             })
-                        }
-                        Some(Err(ld)) => {
-                            // Legacy Tock 1.x driver handling
-                            let rc = match process.legacy_allow_readwrite(allow_address, allow_size)
-                            {
-                                Ok(oslice) => {
-                                    ld.allow_readwrite(process.appid(), subdriver_number, oslice)
-                                }
-                                Err(err) => err, /* memory not valid */
-                            };
-
-                            GenericSyscallReturnValue::Legacy(rc)
                         }
                         None => {
                             // System call transition note: This does
@@ -992,20 +951,9 @@ impl Kernel {
                 // case of a Tock 1.x driver
                 let res = platform.with_driver(driver_number, |driver| {
                     match driver {
-                        Some(Err(_ld)) => {
-                            // Tock 1.x legacy driver
-                            GenericSyscallReturnValue::AllowReadOnlyFailure(
-                                ErrorCode::NOSUPPORT,
-                                allow_address,
-                                allow_size,
-                            )
-                        }
-                        Some(Ok(d)) => {
-                            // Tock 2.0 driver
-                            process.allow_readonly(allow_address, allow_size, &|appslice| {
-                                d.allow_readonly(process.appid(), subdriver_number, appslice)
-                            })
-                        }
+                        Some(d) => process.allow_readonly(allow_address, allow_size, &|appslice| {
+                            d.allow_readonly(process.appid(), subdriver_number, appslice)
+                        }),
                         None => {
                             // System call transition note: This does
                             // not match the expected error code for

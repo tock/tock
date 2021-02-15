@@ -129,7 +129,6 @@ struct Imix {
     >,
     ipc: kernel::ipc::IPC<NUM_PROCS>,
     ninedof: &'static capsules::ninedof::NineDof<'static>,
-    radio_driver: &'static capsules::ieee802154::RadioDriver<'static>,
     udp_driver: &'static capsules::net::udp::UDPDriver<'static>,
     crc: &'static capsules::crc::Crc<'static, sam4l::crccu::Crccu<'static>>,
     usb_driver: &'static capsules::usb::usb_user::UsbSyscallDriver<
@@ -156,31 +155,28 @@ static mut RF233_REG_READ: [u8; 2] = [0x00; 2];
 impl kernel::Platform for Imix {
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
     where
-        F: FnOnce(Option<Result<&dyn kernel::Driver, &dyn kernel::LegacyDriver>>) -> R,
+        F: FnOnce(Option<&dyn kernel::Driver>) -> R,
     {
         match driver_num {
-            capsules::console::DRIVER_NUM => f(Some(Ok(self.console))),
-            capsules::gpio::DRIVER_NUM => f(Some(Ok(self.gpio))),
-            capsules::alarm::DRIVER_NUM => f(Some(Ok(self.alarm))),
-            capsules::spi_controller::DRIVER_NUM => f(Some(Ok(self.spi))),
-            capsules::adc::DRIVER_NUM => f(Some(Ok(self.adc))),
-            capsules::led::DRIVER_NUM => f(Some(Ok(self.led))),
-            capsules::button::DRIVER_NUM => f(Some(Ok(self.button))),
-            capsules::analog_comparator::DRIVER_NUM => f(Some(Ok(self.analog_comparator))),
-            capsules::ambient_light::DRIVER_NUM => f(Some(Ok(self.ambient_light))),
-            capsules::temperature::DRIVER_NUM => f(Some(Ok(self.temp))),
-            capsules::humidity::DRIVER_NUM => f(Some(Ok(self.humidity))),
-            capsules::ninedof::DRIVER_NUM => f(Some(Ok(self.ninedof))),
-            capsules::crc::DRIVER_NUM => f(Some(Ok(self.crc))),
-            capsules::usb::usb_user::DRIVER_NUM => f(Some(Ok(self.usb_driver))),
-            capsules::ieee802154::DRIVER_NUM => f(Some(Ok(self.radio_driver))),
-            capsules::net::udp::DRIVER_NUM => f(Some(Ok(self.udp_driver))),
-            capsules::nrf51822_serialization::DRIVER_NUM => f(Some(Ok(self.nrf51822))),
-            capsules::nonvolatile_storage_driver::DRIVER_NUM => {
-                f(Some(Ok(self.nonvolatile_storage)))
-            }
-            capsules::rng::DRIVER_NUM => f(Some(Ok(self.rng))),
-            kernel::ipc::DRIVER_NUM => f(Some(Ok(&self.ipc))),
+            capsules::console::DRIVER_NUM => f(Some(self.console)),
+            capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
+            capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
+            capsules::spi_controller::DRIVER_NUM => f(Some(self.spi)),
+            capsules::adc::DRIVER_NUM => f(Some(self.adc)),
+            capsules::led::DRIVER_NUM => f(Some(self.led)),
+            capsules::button::DRIVER_NUM => f(Some(self.button)),
+            capsules::analog_comparator::DRIVER_NUM => f(Some(self.analog_comparator)),
+            capsules::ambient_light::DRIVER_NUM => f(Some(self.ambient_light)),
+            capsules::temperature::DRIVER_NUM => f(Some(self.temp)),
+            capsules::humidity::DRIVER_NUM => f(Some(self.humidity)),
+            capsules::ninedof::DRIVER_NUM => f(Some(self.ninedof)),
+            capsules::crc::DRIVER_NUM => f(Some(self.crc)),
+            capsules::usb::usb_user::DRIVER_NUM => f(Some(self.usb_driver)),
+            capsules::net::udp::DRIVER_NUM => f(Some(self.udp_driver)),
+            capsules::nrf51822_serialization::DRIVER_NUM => f(Some(self.nrf51822)),
+            capsules::nonvolatile_storage_driver::DRIVER_NUM => f(Some(self.nonvolatile_storage)),
+            capsules::rng::DRIVER_NUM => f(Some(self.rng)),
+            kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             _ => f(None),
         }
     }
@@ -463,7 +459,7 @@ pub unsafe fn reset_handler() {
 
     // Can this initialize be pushed earlier, or into component? -pal
     rf233.initialize(&mut RF233_BUF, &mut RF233_REG_WRITE, &mut RF233_REG_READ);
-    let (radio_driver, mux_mac) = components::ieee802154::Ieee802154Component::new(
+    let (_, mux_mac) = components::ieee802154::Ieee802154Component::new(
         board_kernel,
         rf233,
         aes_mux,
@@ -552,7 +548,6 @@ pub unsafe fn reset_handler() {
         spi: spi_syscalls,
         ipc: kernel::ipc::IPC::new(board_kernel, &grant_cap),
         ninedof,
-        radio_driver,
         udp_driver,
         usb_driver,
         nrf51822: nrf_serialization,
