@@ -102,7 +102,7 @@ impl LegacyDriver for Nrf51822Serialization<'_> {
     /// can control the nRF51 serialization driver.
     ///
     /// ### `allow_num`
-    ///
+    ///6
     /// - `0`: Provide a RX buffer.
     /// - `1`: Provide a TX buffer.
     fn allow_readwrite(
