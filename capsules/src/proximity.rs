@@ -180,6 +180,8 @@ impl<'a> ProximitySensor<'a> {
     fn run_next_command(&self) -> ReturnCode {
         let mut break_flag: bool = false;
 
+        // Find thresholds before entering any grant regions
+        let t: Thresholds = self.find_thresholds();
         // Find and run another command
         for cntr in self.apps.iter() {
             cntr.enter(|app, _| {
@@ -191,7 +193,6 @@ impl<'a> ProximitySensor<'a> {
                             self.command_running.set(ProximityCommand::ReadProximity);
                         }
                         ProximityCommand::ReadProximityOnInterrupt => {
-                            let t: Thresholds = self.find_thresholds();
                             self.driver.read_proximity_on_interrupt(t.lower, t.upper);
                             self.command_running
                                 .set(ProximityCommand::ReadProximityOnInterrupt);

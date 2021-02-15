@@ -556,28 +556,34 @@ where
     ) -> ReturnCode {
         match command_num {
             // Start periodic advertisements
-            0 => self
-                .app
-                .enter(appid, |app, _| {
-                    if let Some(BLEState::Initialized) = app.process_status {
-                        let pdu_type = data as AdvPduType;
-                        match pdu_type {
-                            ADV_IND | ADV_NONCONN_IND | ADV_SCAN_IND => {
-                                app.pdu_type = pdu_type;
-                                app.process_status = Some(BLEState::AdvertisingIdle);
-                                app.random_nonce = self.alarm.now().into_u32();
-                                app.advertisement_interval_ms = cmp::max(20, interval as u32);
-                                app.set_next_alarm::<A::Frequency>(self.alarm.now().into_u32());
-                                self.reset_active_alarm();
-                                ReturnCode::SUCCESS
+            0 => {
+                let ret = self
+                    .app
+                    .enter(appid, |app, _| {
+                        if let Some(BLEState::Initialized) = app.process_status {
+                            let pdu_type = data as AdvPduType;
+                            match pdu_type {
+                                ADV_IND | ADV_NONCONN_IND | ADV_SCAN_IND => {
+                                    app.pdu_type = pdu_type;
+                                    app.process_status = Some(BLEState::AdvertisingIdle);
+                                    app.random_nonce = self.alarm.now().into_u32();
+                                    app.advertisement_interval_ms = cmp::max(20, interval as u32);
+                                    app.set_next_alarm::<A::Frequency>(self.alarm.now().into_u32());
+                                    ReturnCode::SUCCESS
+                                }
+                                _ => ReturnCode::EINVAL,
                             }
-                            _ => ReturnCode::EINVAL,
+                        } else {
+                            ReturnCode::EBUSY
                         }
-                    } else {
-                        ReturnCode::EBUSY
-                    }
-                })
-                .unwrap_or_else(|err| err.into()),
+                    })
+                    .unwrap_or_else(|err| err.into());
+                if ret == ReturnCode::SUCCESS {
+                    // must be called outside closure passed to grant region!
+                    self.reset_active_alarm();
+                }
+                ret
+            }
 
             // Stop periodic advertisements or passive scanning
             1 => self
@@ -623,19 +629,25 @@ where
             }
 
             // Passive scanning mode
-            5 => self
-                .app
-                .enter(appid, |app, _| {
-                    if let Some(BLEState::Initialized) = app.process_status {
-                        app.process_status = Some(BLEState::ScanningIdle);
-                        app.set_next_alarm::<A::Frequency>(self.alarm.now().into_u32());
-                        self.reset_active_alarm();
-                        ReturnCode::SUCCESS
-                    } else {
-                        ReturnCode::EBUSY
-                    }
-                })
-                .unwrap_or_else(|err| err.into()),
+            5 => {
+                let ret = self
+                    .app
+                    .enter(appid, |app, _| {
+                        if let Some(BLEState::Initialized) = app.process_status {
+                            app.process_status = Some(BLEState::ScanningIdle);
+                            app.set_next_alarm::<A::Frequency>(self.alarm.now().into_u32());
+                            ReturnCode::SUCCESS
+                        } else {
+                            ReturnCode::EBUSY
+                        }
+                    })
+                    .unwrap_or_else(|err| err.into());
+                if ret == ReturnCode::SUCCESS {
+                    // must be called outside closure passed to grant region!
+                    self.reset_active_alarm();
+                }
+                ret
+            }
 
             _ => ReturnCode::ENOSUPPORT,
         }

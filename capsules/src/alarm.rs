@@ -180,7 +180,7 @@ impl<'a, A: Alarm<'a>> Driver for AlarmDriver<'a, A> {
         //   - the underlying alarm is currently disabled and we're enabling the first alarm, or
         //   - on an error (i.e. no change to the alarms).
         self.app_alarms
-            .enter(caller_id, |td, _alloc| {
+            .enter(caller_id, |td, _| {
                 // helper function to rearm alarm
                 let mut rearm = |reference: usize, dt: usize| {
                     if let Expiration::Disabled = td.expiration {
@@ -198,7 +198,7 @@ impl<'a, A: Alarm<'a>> Driver for AlarmDriver<'a, A> {
                     )
                 };
                 let now = self.alarm.now();
-                let (return_code, reset) = match cmd_type {
+                match cmd_type {
                     0 /* check if present */ => (ReturnCode::SuccessWithValue { value: 1 }, false),
                     1 /* Get clock frequency */ => {
                         let freq = <A::Frequency>::frequency() as usize;
@@ -246,13 +246,17 @@ impl<'a, A: Alarm<'a>> Driver for AlarmDriver<'a, A> {
                         rearm(reference, dt)
                     }
                     _ => (ReturnCode::ENOSUPPORT, false)
-                };
-                if reset {
-                    self.reset_active_alarm();
                 }
-                return_code
             })
-            .unwrap_or_else(|err| err.into())
+            .map_or_else(
+                |err| err.into(),
+                |(return_code, reset)| {
+                    if reset {
+                        self.reset_active_alarm();
+                    }
+                    return_code
+                },
+            )
     }
 }
 
