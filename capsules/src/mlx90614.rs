@@ -22,7 +22,7 @@ use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::common::registers::register_bitfields;
 use kernel::hil::i2c::{self, Error};
 use kernel::hil::sensors;
-use kernel::{AppId, Callback, CommandResult, Driver, ErrorCode, ReturnCode};
+use kernel::{AppId, Callback, LegacyDriver, ReturnCode};
 
 /// Syscall driver number.
 pub const DRIVER_NUM: usize = driver::NUM::Mlx90614 as usize;
@@ -58,7 +58,7 @@ enum_from_primitive! {
 
 pub struct Mlx90614SMBus<'a> {
     smbus_temp: &'a dyn i2c::SMBusDevice,
-    callback: Cell<Callback>,
+    callback: OptionalCell<Callback>,
     temperature_client: OptionalCell<&'a dyn sensors::TemperatureClient>,
     buffer: TakeCell<'static, [u8]>,
     state: Cell<State>,
@@ -71,7 +71,7 @@ impl<'a> Mlx90614SMBus<'_> {
     ) -> Mlx90614SMBus<'a> {
         Mlx90614SMBus {
             smbus_temp,
-            callback: Cell::new(Callback::default()),
+            callback: OptionalCell::empty(),
             temperature_client: OptionalCell::empty(),
             buffer: TakeCell::new(buffer),
             state: Cell::new(State::Idle),
@@ -117,9 +117,9 @@ impl<'a> i2c::I2CClient for Mlx90614SMBus<'a> {
                     false
                 };
 
-                self.callback
-                    .get()
-                    .schedule(if present { 1 } else { 0 }, 0, 0);
+                self.callback.map(|callback| {
+                    callback.schedule(if present { 1 } else { 0 }, 0, 0);
+                });
                 self.buffer.replace(buffer);
                 self.state.set(State::Idle);
             }
@@ -140,9 +140,13 @@ impl<'a> i2c::I2CClient for Mlx90614SMBus<'a> {
                     false
                 };
                 if values {
-                    self.callback.get().schedule(temp, 0, 0);
+                    self.callback.map(|callback| {
+                        callback.schedule(temp, 0, 0);
+                    });
                 } else {
-                    self.callback.get().schedule(0, 0, 0);
+                    self.callback.map(|callback| {
+                        callback.schedule(0, 0, 0);
+                    });
                 }
                 self.buffer.replace(buffer);
                 self.state.set(State::Idle);
@@ -151,54 +155,55 @@ impl<'a> i2c::I2CClient for Mlx90614SMBus<'a> {
     }
 }
 
-impl<'a> Driver for Mlx90614SMBus<'a> {
-    fn command(&self, command_num: usize, _data1: usize, _data2: usize, _: AppId) -> CommandResult {
+impl<'a> LegacyDriver for Mlx90614SMBus<'a> {
+    fn command(&self, command_num: usize, _data1: usize, _data2: usize, _: AppId) -> ReturnCode {
         match command_num {
-            0 => CommandResult::success(),
+            0 => ReturnCode::SUCCESS,
             // Check is sensor is correctly connected
             1 => {
                 if self.state.get() == State::Idle {
                     self.is_present();
-                    CommandResult::success()
+                    ReturnCode::SUCCESS
                 } else {
-                    CommandResult::failure(ErrorCode::BUSY)
+                    ReturnCode::EBUSY
                 }
             }
             // Read Ambient Temperature
             2 => {
                 if self.state.get() == State::Idle {
                     self.read_ambient_temperature();
-                    CommandResult::success()
+                    ReturnCode::SUCCESS
                 } else {
-                    CommandResult::failure(ErrorCode::BUSY)
+                    ReturnCode::EBUSY
                 }
             }
             // Read Object Temperature
             3 => {
                 if self.state.get() == State::Idle {
                     self.read_object_temperature();
-                    CommandResult::success()
+                    ReturnCode::SUCCESS
                 } else {
-                    CommandResult::failure(ErrorCode::BUSY)
+                    ReturnCode::EBUSY
                 }
             }
             // default
-            _ => CommandResult::failure(ErrorCode::NOSUPPORT),
+            _ => ReturnCode::ENOSUPPORT,
         }
     }
 
     fn subscribe(
         &self,
         subscribe_num: usize,
-        callback: Callback,
+        callback: Option<Callback>,
         _app_id: AppId,
-    ) -> Result<Callback, (Callback, ErrorCode)> {
+    ) -> ReturnCode {
         match subscribe_num {
             0 /* set the one shot callback */ => {
-                Ok(self.callback.replace(callback))
+				self.callback.insert(callback);
+				ReturnCode::SUCCESS
 			},
             // default
-            _ => Err((callback, ErrorCode::NOSUPPORT)),
+            _ => ReturnCode::ENOSUPPORT,
         }
     }
 }

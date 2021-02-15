@@ -175,7 +175,7 @@ impl kernel::Platform for Imix {
             capsules::usb::usb_user::DRIVER_NUM => f(Some(Ok(self.usb_driver))),
             capsules::ieee802154::DRIVER_NUM => f(Some(Ok(self.radio_driver))),
             capsules::net::udp::DRIVER_NUM => f(Some(Ok(self.udp_driver))),
-            capsules::nrf51822_serialization::DRIVER_NUM => f(Some(Ok(self.nrf51822))),
+            capsules::nrf51822_serialization::DRIVER_NUM => f(Some(Err(self.nrf51822))),
             capsules::nonvolatile_storage_driver::DRIVER_NUM => {
                 f(Some(Ok(self.nonvolatile_storage)))
             }

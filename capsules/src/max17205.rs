@@ -38,9 +38,9 @@
 //! ```
 
 use core::cell::Cell;
-use kernel::common::cells::{MapCell, OptionalCell, TakeCell};
+use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::i2c;
-use kernel::{AppId, Callback, CommandResult, Driver, ErrorCode, ReturnCode};
+use kernel::{AppId, Callback, LegacyDriver, ReturnCode};
 
 /// Syscall driver number.
 use crate::driver;
@@ -361,14 +361,14 @@ impl i2c::I2CClient for MAX17205<'_> {
 
 pub struct MAX17205Driver<'a> {
     max17205: &'a MAX17205<'a>,
-    callback: MapCell<Callback>,
+    callback: OptionalCell<Callback>,
 }
 
 impl<'a> MAX17205Driver<'a> {
     pub fn new(max: &'a MAX17205) -> MAX17205Driver<'a> {
         MAX17205Driver {
             max17205: max,
-            callback: MapCell::new(Callback::default()),
+            callback: OptionalCell::empty(),
         }
     }
 }
@@ -410,7 +410,7 @@ impl MAX17205Client for MAX17205Driver<'_> {
     }
 }
 
-impl Driver for MAX17205Driver<'_> {
+impl LegacyDriver for MAX17205Driver<'_> {
     /// Setup callback.
     ///
     /// ### `subscribe_num`
@@ -419,23 +419,17 @@ impl Driver for MAX17205Driver<'_> {
     fn subscribe(
         &self,
         subscribe_num: usize,
-        callback: Callback,
+        callback: Option<Callback>,
         _app_id: AppId,
-    ) -> Result<Callback, (Callback, ErrorCode)> {
+    ) -> ReturnCode {
         match subscribe_num {
             0 => {
-                if let Some(prev) = self.callback.replace(callback) {
-                    Ok(prev)
-                } else {
-                    // TODO(alevy): This should never happen because we start with a full MapCell
-                    // and only ever replace it. This is just defensive until this module becomes
-                    // multi-user, which will preclude the need for a MapCell in the first place.
-                    Ok(Callback::default())
-                }
+                self.callback.insert(callback);
+                ReturnCode::SUCCESS
             }
 
             // default
-            _ => Err((callback, ErrorCode::NOSUPPORT)),
+            _ => ReturnCode::ENOSUPPORT,
         }
     }
 
@@ -449,27 +443,27 @@ impl Driver for MAX17205Driver<'_> {
     /// - `3`: Read the current voltage and current draw.
     /// - `4`: Read the raw coulomb count.
     /// - `5`: Read the unique 64 bit RomID.
-    fn command(&self, command_num: usize, _data: usize, _: usize, _: AppId) -> CommandResult {
+    fn command(&self, command_num: usize, _data: usize, _: usize, _: AppId) -> ReturnCode {
         match command_num {
-            0 => CommandResult::success(),
+            0 => ReturnCode::SUCCESS,
 
             // read status
-            1 => self.max17205.setup_read_status().into(),
+            1 => self.max17205.setup_read_status(),
 
             // get soc
-            2 => self.max17205.setup_read_soc().into(),
+            2 => self.max17205.setup_read_soc(),
 
             // get voltage & current
-            3 => self.max17205.setup_read_curvolt().into(),
+            3 => self.max17205.setup_read_curvolt(),
 
             // get raw coulombs
-            4 => self.max17205.setup_read_coulomb().into(),
+            4 => self.max17205.setup_read_coulomb(),
 
             //
-            5 => self.max17205.setup_read_romid().into(),
+            5 => self.max17205.setup_read_romid(),
 
             // default
-            _ => CommandResult::failure(ErrorCode::NOSUPPORT),
+            _ => ReturnCode::ENOSUPPORT,
         }
     }
 }

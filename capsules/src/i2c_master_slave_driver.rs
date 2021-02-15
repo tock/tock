@@ -15,8 +15,8 @@ use core::cell::Cell;
 use core::cmp;
 use kernel::common::cells::{MapCell, TakeCell};
 use kernel::hil;
-use kernel::{AppId, Callback, CommandResult};
-use kernel::{Driver, ErrorCode, Read, ReadWrite, ReadWriteAppSlice};
+use kernel::ReturnCode;
+use kernel::{AppId, AppSlice, Callback, LegacyDriver, SharedReadWrite};
 
 pub static mut BUFFER1: [u8; 256] = [0; 256];
 pub static mut BUFFER2: [u8; 256] = [0; 256];
@@ -28,11 +28,11 @@ pub const DRIVER_NUM: usize = driver::NUM::I2cMasterSlave as usize;
 
 #[derive(Default)]
 pub struct App {
-    callback: Callback,
-    master_tx_buffer: ReadWriteAppSlice,
-    master_rx_buffer: ReadWriteAppSlice,
-    slave_tx_buffer: ReadWriteAppSlice,
-    slave_rx_buffer: ReadWriteAppSlice,
+    callback: Option<Callback>,
+    master_tx_buffer: Option<AppSlice<SharedReadWrite, u8>>,
+    master_rx_buffer: Option<AppSlice<SharedReadWrite, u8>>,
+    slave_tx_buffer: Option<AppSlice<SharedReadWrite, u8>>,
+    slave_rx_buffer: Option<AppSlice<SharedReadWrite, u8>>,
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -90,36 +90,41 @@ impl hil::i2c::I2CHwMasterClient for I2CMasterSlaveDriver<'_> {
                 self.master_buffer.replace(buffer);
 
                 self.app.map(|app| {
-                    app.callback.schedule(0, err as usize, 0);
+                    app.callback.map(|mut cb| {
+                        cb.schedule(0, err as usize, 0);
+                    });
                 });
             }
 
             MasterAction::Read(read_len) => {
                 self.app.map(|app| {
-                    app.master_rx_buffer.mut_map_or(0, move |app_buffer| {
+                    app.master_rx_buffer.as_mut().map(move |app_buffer| {
                         let len = cmp::min(app_buffer.len(), read_len as usize);
 
+                        let d = &mut app_buffer.as_mut()[0..(len as usize)];
                         for (i, c) in buffer[0..len].iter().enumerate() {
-                            app_buffer[i] = *c;
+                            d[i] = *c;
                         }
 
                         self.master_buffer.replace(buffer);
-                        0
                     });
 
-                    app.callback.schedule(1, err as usize, 0);
+                    app.callback.map(|mut cb| {
+                        cb.schedule(1, err as usize, 0);
+                    });
                 });
             }
 
             MasterAction::WriteRead(read_len) => {
                 self.app.map(|app| {
-                    app.master_tx_buffer.mut_map_or(0, move |app_buffer| {
+                    app.master_tx_buffer.as_mut().map(move |app_buffer| {
                         let len = cmp::min(app_buffer.len(), read_len as usize);
                         app_buffer.as_mut()[..len].copy_from_slice(&buffer[..len]);
                         self.master_buffer.replace(buffer);
-                        0
                     });
-                    app.callback.schedule(7, err as usize, 0);
+                    app.callback.map(|mut cb| {
+                        cb.schedule(7, err as usize, 0);
+                    });
                 });
             }
         }
@@ -145,23 +150,26 @@ impl hil::i2c::I2CHwSlaveClient for I2CMasterSlaveDriver<'_> {
         //     then pass buffer back to hw driver
         //   - on read, just signal upper layer and replace the read buffer
         //     in this driver
+
         match transmission_type {
             hil::i2c::SlaveTransmissionType::Write => {
                 self.app.map(|app| {
-                    app.slave_rx_buffer.mut_map_or(0, move |app_rx| {
+                    app.slave_rx_buffer.as_mut().map(move |app_rx| {
                         // Check bounds for write length
                         let buf_len = cmp::min(app_rx.len(), buffer.len());
                         let read_len = cmp::min(buf_len, length as usize);
 
+                        let d = &mut app_rx.as_mut()[0..read_len];
                         for (i, c) in buffer[0..read_len].iter_mut().enumerate() {
-                            app_rx[i] = *c;
+                            d[i] = *c;
                         }
 
                         self.slave_buffer1.replace(buffer);
-                        0
                     });
 
-                    app.callback.schedule(3, length as usize, 0);
+                    app.callback.map(|mut cb| {
+                        cb.schedule(3, length as usize, 0);
+                    });
                 });
             }
 
@@ -170,7 +178,9 @@ impl hil::i2c::I2CHwSlaveClient for I2CMasterSlaveDriver<'_> {
 
                 // Notify the app that the read finished
                 self.app.map(|app| {
-                    app.callback.schedule(4, length as usize, 0);
+                    app.callback.map(|mut cb| {
+                        cb.schedule(4, length as usize, 0);
+                    });
                 });
             }
         }
@@ -180,10 +190,12 @@ impl hil::i2c::I2CHwSlaveClient for I2CMasterSlaveDriver<'_> {
         // Pass this up to the client. Not much we can do until the application
         // has setup a buffer to read from.
         self.app.map(|app| {
-            // Ask the app to setup a read buffer. The app must call
-            // command 3 after it has setup the shared read buffer with
-            // the correct bytes.
-            app.callback.schedule(2, 0, 0);
+            app.callback.map(|mut cb| {
+                // Ask the app to setup a read buffer. The app must call
+                // command 3 after it has setup the shared read buffer with
+                // the correct bytes.
+                cb.schedule(2, 0, 0);
+            });
         });
     }
 
@@ -198,69 +210,69 @@ impl hil::i2c::I2CHwSlaveClient for I2CMasterSlaveDriver<'_> {
     }
 }
 
-impl Driver for I2CMasterSlaveDriver<'_> {
+impl LegacyDriver for I2CMasterSlaveDriver<'_> {
     fn allow_readwrite(
         &self,
         _appid: AppId,
         allow_num: usize,
-        mut slice: ReadWriteAppSlice,
-    ) -> Result<ReadWriteAppSlice, (ReadWriteAppSlice, ErrorCode)> {
+        slice: Option<AppSlice<SharedReadWrite, u8>>,
+    ) -> ReturnCode {
         match allow_num {
             // Pass in a buffer for transmitting a `write` to another
             // I2C device.
             0 => {
                 self.app.map(|app| {
-                    core::mem::swap(&mut app.master_tx_buffer, &mut slice);
+                    app.master_tx_buffer = slice;
                 });
-                Ok(slice)
+                ReturnCode::SUCCESS
             }
             // Pass in a buffer for doing a read from another I2C device.
             1 => {
                 self.app.map(|app| {
-                    core::mem::swap(&mut app.master_rx_buffer, &mut slice);
+                    app.master_rx_buffer = slice;
                 });
-                Ok(slice)
+                ReturnCode::SUCCESS
             }
             // Pass in a buffer for handling a read issued by another I2C master.
             2 => {
                 self.app.map(|app| {
-                    core::mem::swap(&mut app.slave_tx_buffer, &mut slice);
+                    app.slave_tx_buffer = slice;
                 });
-                Ok(slice)
+                ReturnCode::SUCCESS
             }
             // Pass in a buffer for handling a write issued by another I2C master.
             3 => {
                 self.app.map(|app| {
-                    core::mem::swap(&mut app.slave_rx_buffer, &mut slice);
+                    app.slave_rx_buffer = slice;
                 });
-                Ok(slice)
+                ReturnCode::SUCCESS
             }
-            _ => Err((slice, ErrorCode::NOSUPPORT)),
+            _ => ReturnCode::ENOSUPPORT,
         }
     }
 
     fn subscribe(
         &self,
         subscribe_num: usize,
-        mut callback: Callback,
+        callback: Option<Callback>,
         _app_id: AppId,
-    ) -> Result<Callback, (Callback, ErrorCode)> {
+    ) -> ReturnCode {
         match subscribe_num {
             0 => {
                 self.app.map(|app| {
-                    core::mem::swap(&mut app.callback, &mut callback);
+                    app.callback = callback;
                 });
-                Ok(callback)
+                ReturnCode::SUCCESS
             }
 
             // default
-            _ => Err((callback, ErrorCode::NOSUPPORT)),
+            _ => ReturnCode::ENOSUPPORT,
         }
     }
 
-    fn command(&self, command_num: usize, data: usize, _: usize, _: AppId) -> CommandResult {
+    fn command(&self, command_num: usize, data: usize, _: usize, _: AppId) -> ReturnCode {
         match command_num {
-            0 /* check if present */ => CommandResult::success(),
+            0 /* check if present */ => ReturnCode::SUCCESS,
 
             // Do a write to another I2C device
             1 => {
@@ -268,14 +280,15 @@ impl Driver for I2CMasterSlaveDriver<'_> {
                 let len = (data >> 16) & 0xFFFF;
 
                 self.app.map(|app| {
-                    app.master_tx_buffer.mut_map_or(0, |app_tx| {
+                    app.master_tx_buffer.as_mut().map(|app_tx| {
                         self.master_buffer.take().map(|kernel_tx| {
                             // Check bounds for write length
                             let buf_len = cmp::min(app_tx.len(), kernel_tx.len());
                             let write_len = cmp::min(buf_len, len);
 
+                            let d = &mut app_tx.as_mut()[0..write_len];
                             for (i, c) in kernel_tx[0..write_len].iter_mut().enumerate() {
-                                *c = app_tx[i];
+                                *c = d[i];
                             }
 
                             self.master_action.set(MasterAction::Write);
@@ -286,11 +299,10 @@ impl Driver for I2CMasterSlaveDriver<'_> {
                                                        kernel_tx,
                                                        write_len as u8);
                         });
-                        0
                     });
                 });
 
-                CommandResult::success()
+                ReturnCode::SUCCESS
             }
 
             // Do a read to another I2C device
@@ -299,14 +311,15 @@ impl Driver for I2CMasterSlaveDriver<'_> {
                 let len = (data >> 16) & 0xFFFF;
 
                 self.app.map(|app| {
-                    app.master_rx_buffer.map_or(0, |app_rx| {
+                    app.master_rx_buffer.as_mut().map(|app_rx| {
                         self.master_buffer.take().map(|kernel_tx| {
                             // Check bounds for write length
                             let buf_len = cmp::min(app_rx.len(), kernel_tx.len());
                             let read_len = cmp::min(buf_len, len);
 
+                            let d = &mut app_rx.as_mut()[0..read_len];
                             for (i, c) in kernel_tx[0..read_len].iter_mut().enumerate() {
-                                *c = app_rx[i];
+                                *c = d[i];
                             }
 
                             self.master_action.set(MasterAction::Read(read_len as u8));
@@ -314,11 +327,10 @@ impl Driver for I2CMasterSlaveDriver<'_> {
                             hil::i2c::I2CMaster::enable(self.i2c);
                             hil::i2c::I2CMaster::read(self.i2c, address, kernel_tx, read_len as u8);
                         });
-                        0
                     });
                 });
 
-                CommandResult::success()
+                ReturnCode::SUCCESS
             }
 
             // Listen for messages to this device as a slave.
@@ -336,31 +348,31 @@ impl Driver for I2CMasterSlaveDriver<'_> {
                 // Note that we have enabled listening, so that if we switch
                 // to Master mode to send a message we can go back to listening.
                 self.listening.set(true);
-                CommandResult::success()
+                ReturnCode::SUCCESS
             }
 
             // Prepare for a read from another Master by passing what's
             // in the shared slice to the lower level I2C hardware driver.
             4 => {
                 self.app.map(|app| {
-                    app.slave_tx_buffer.map_or(0, |app_tx| {
+                    app.slave_tx_buffer.as_mut().map(|app_tx| {
                         self.slave_buffer2.take().map(|kernel_tx| {
                             // Check bounds for write length
                             let len = data;
                             let buf_len = cmp::min(app_tx.len(), kernel_tx.len());
                             let read_len = cmp::min(buf_len, len);
 
+                            let d = &mut app_tx.as_mut()[0..read_len];
                             for (i, c) in kernel_tx[0..read_len].iter_mut().enumerate() {
-                                *c = app_tx[i];
+                                *c = d[i];
                             }
 
                             hil::i2c::I2CSlave::read_send(self.i2c, kernel_tx, read_len as u8);
                         });
-                        0
                     });
                 });
 
-                CommandResult::success()
+                ReturnCode::SUCCESS
             }
 
             // Stop listening for messages as an I2C slave
@@ -370,7 +382,7 @@ impl Driver for I2CMasterSlaveDriver<'_> {
                 // We are no longer listening for I2C messages from a different
                 // master device.
                 self.listening.set(false);
-                CommandResult::success()
+                ReturnCode::SUCCESS
             }
 
             // Setup this device's slave address.
@@ -379,10 +391,10 @@ impl Driver for I2CMasterSlaveDriver<'_> {
                 // We do not count the R/W bit as part of the address, so the
                 // valid range is 0x00-0x7f
                 if address > 0x7f {
-                    return CommandResult::failure(ErrorCode::INVAL);
+                    return ReturnCode::EINVAL;
                 }
                 hil::i2c::I2CSlave::set_address(self.i2c, address);
-                CommandResult::success()
+                ReturnCode::SUCCESS
             }
 
             // Perform write-to then read-from a slave device.
@@ -392,13 +404,13 @@ impl Driver for I2CMasterSlaveDriver<'_> {
                 let read_len = (data >> 8) & 0xFF;
                 let write_len = (data >> 16) & 0xFF;
                 self.app.map(|app| {
-                    app.master_tx_buffer.mut_map_or(0, |app_tx| {
+                    app.master_tx_buffer.as_mut().map(|app_tx| {
                         self.master_buffer.take().map(|kernel_tx| {
                             // Check bounds for write length
                             let buf_len = cmp::min(app_tx.len(), kernel_tx.len());
                             let write_len = cmp::min(buf_len, write_len);
                             let read_len = cmp::min(buf_len, read_len);
-                            kernel_tx[..write_len].copy_from_slice(&app_tx[..write_len]);
+                            kernel_tx[..write_len].copy_from_slice(&app_tx.as_ref()[..write_len]);
                             self.master_action.set(MasterAction::WriteRead(read_len as u8));
                             hil::i2c::I2CMaster::enable(self.i2c);
                             hil::i2c::I2CMaster::write_read(self.i2c,
@@ -407,14 +419,13 @@ impl Driver for I2CMasterSlaveDriver<'_> {
                                                             write_len as u8,
                                                             read_len as u8);
                         });
-                        0
                     });
                 });
-                CommandResult::success()
+                ReturnCode::SUCCESS
             }
 
             // default
-            _ => CommandResult::failure(ErrorCode::NOSUPPORT)
+            _ => ReturnCode::ENOSUPPORT,
         }
     }
 }

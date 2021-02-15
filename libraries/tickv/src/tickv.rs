@@ -1,10 +1,11 @@
 //! The TicKV implementation.
 
-use crate::crc32;
 use crate::error_codes::ErrorCode;
 use crate::flash_controller::FlashController;
 use crate::success_codes::SuccessCode;
 use core::cell::Cell;
+use core::hash::{Hash, Hasher};
+use core::marker::PhantomData;
 
 /// The current version of TicKV
 pub const VERSION: u8 = 0;
@@ -52,11 +53,12 @@ pub(crate) enum State {
 }
 
 /// The struct storing all of the TicKV information.
-pub struct TicKV<'a, C: FlashController<S>, const S: usize> {
+pub struct TicKV<'a, C: FlashController<S>, H: Hasher, const S: usize> {
     /// The controller used for flash commands
     pub controller: C,
     flash_size: usize,
     pub(crate) read_buffer: Cell<Option<&'a mut [u8; S]>>,
+    phantom_hasher: PhantomData<H>,
     pub(crate) state: Cell<State>,
 }
 
@@ -89,14 +91,12 @@ pub(crate) const VERSION_OFFSET: usize = 0;
 pub(crate) const LEN_OFFSET: usize = 1;
 pub(crate) const HASH_OFFSET: usize = 3;
 pub(crate) const HEADER_LENGTH: usize = HASH_OFFSET + 8;
-pub(crate) const CHECK_SUM_LEN: usize = 4;
+pub(crate) const CHECK_SUM_LEN: usize = 8;
 
-/// The main key. A hashed version of this should be passed to
-/// `initalise()`.
-pub const MAIN_KEY: &[u8; 15] = b"tickv-super-key";
+const MAIN_KEY: &[u8; 15] = b"tickv-super-key";
 
 /// This is the main TicKV struct.
-impl<'a, C: FlashController<S>, const S: usize> TicKV<'a, C, S> {
+impl<'a, C: FlashController<S>, H: Hasher, const S: usize> TicKV<'a, C, H, S> {
     /// Create a new struct
     ///
     /// `C`: An implementation of the `FlashController` trait
@@ -108,6 +108,7 @@ impl<'a, C: FlashController<S>, const S: usize> TicKV<'a, C, S> {
             controller,
             flash_size,
             read_buffer: Cell::new(Some(read_buffer)),
+            phantom_hasher: PhantomData,
             state: Cell::new(State::None),
         }
     }
@@ -115,20 +116,22 @@ impl<'a, C: FlashController<S>, const S: usize> TicKV<'a, C, S> {
     /// This function setups the flash region to be used as a key-value store.
     /// If the region is already initalised this won't make any changes.
     ///
-    /// `hashed_main_key`: The u64 hash of the const string `MAIN_KEY`.
+    /// `H`: An implementation of a `core::hash::Hasher` trait. This MUST
+    ///      always return the same hash for the same input. That is the
+    ///      implementation can NOT change over time.
     ///
     /// If the specified region has not already been setup for TicKV
     /// the entire region will be erased.
     ///
     /// On success nothing will be returned.
     /// On error a `ErrorCode` will be returned.
-    pub fn initalise(&self, hashed_main_key: u64) -> Result<SuccessCode, ErrorCode> {
+    pub fn initalise(&self, hash_function: (&mut H, &mut H)) -> Result<SuccessCode, ErrorCode> {
         let mut buf: [u8; 0] = [0; 0];
 
         let key_ret = match self.state.get() {
-            State::None => self.get_key(hashed_main_key, &mut buf),
+            State::None => self.get_key(hash_function.0, MAIN_KEY, &mut buf),
             State::Init(state) => match state {
-                InitState::GetKeyReadRegion(_) => self.get_key(hashed_main_key, &mut buf),
+                InitState::GetKeyReadRegion(_) => self.get_key(hash_function.0, MAIN_KEY, &mut buf),
                 _ => Err(ErrorCode::EraseNotReady(0)),
             },
             _ => unreachable!(),
@@ -174,7 +177,7 @@ impl<'a, C: FlashController<S>, const S: usize> TicKV<'a, C, S> {
                         }
 
                         // Save the main key
-                        match self.append_key(hashed_main_key, &buf) {
+                        match self.append_key(hash_function.1, MAIN_KEY, &buf) {
                             Ok(ret) => {
                                 self.state.set(State::None);
                                 Ok(ret)
@@ -198,8 +201,12 @@ impl<'a, C: FlashController<S>, const S: usize> TicKV<'a, C, S> {
         }
     }
 
-    /// Get region number from a hashed key
-    fn get_region(&self, hash: u64) -> usize {
+    /// Generate the hash and region number from a key
+    fn get_hash_and_region(&self, hash_function: &mut H, key: &[u8]) -> (u64, usize) {
+        // Generate a hash of the key
+        key.hash(hash_function);
+        let hash = hash_function.finish();
+
         assert_ne!(hash, 0xFFFF_FFFF_FFFF_FFFF);
         assert_ne!(hash, 0);
 
@@ -207,7 +214,9 @@ impl<'a, C: FlashController<S>, const S: usize> TicKV<'a, C, S> {
         let num_region = self.flash_size / S;
 
         // Determine the block where the data should be
-        (hash as usize & 0xFFFF) % num_region
+        let region = (hash as usize & 0xFFFF) % num_region;
+
+        (hash, region)
     }
 
     // Determine the new region offset to try.
@@ -319,16 +328,21 @@ impl<'a, C: FlashController<S>, const S: usize> TicKV<'a, C, S> {
 
     /// Appends the key/value pair to flash storage.
     ///
-    /// `hash`: A hashed key. This key will be used in future to retrieve
-    ///         or remove the `value`.
+    /// `hash_function`: Hash function with no previous state. This is
+    ///                  usually a newly created hash.
+    /// `key`: A unhashed key. This will be hashed internally. This key
+    ///        will be used in future to retrieve or remove the `value`.
     /// `value`: A buffer containing the data to be stored to flash.
     ///
     /// On success nothing will be returned.
     /// On error a `ErrorCode` will be returned.
-    pub fn append_key(&self, hash: u64, value: &[u8]) -> Result<SuccessCode, ErrorCode> {
-        let region = self.get_region(hash);
-        let crc = crc32::Crc::new();
-        let mut check_sum = crc.digest();
+    pub fn append_key(
+        &self,
+        hash_function: &mut H,
+        key: &[u8],
+        value: &[u8],
+    ) -> Result<SuccessCode, ErrorCode> {
+        let (hash, region) = self.get_hash_and_region(hash_function, key);
 
         // Length not including check sum
         let package_length = HEADER_LENGTH + value.len();
@@ -358,7 +372,10 @@ impl<'a, C: FlashController<S>, const S: usize> TicKV<'a, C, S> {
                 State::AppendKey(key_state) => match key_state {
                     KeyState::ReadRegion(reg) => reg as isize,
                 },
-                State::GarbageCollect(RubbishState::ReadRegion(reg)) => reg as isize,
+                State::GarbageCollect(state) => match state {
+                    RubbishState::ReadRegion(reg) => reg as isize,
+                    _ => unreachable!(),
+                },
                 _ => unreachable!(),
             };
 
@@ -482,17 +499,19 @@ impl<'a, C: FlashController<S>, const S: usize> TicKV<'a, C, S> {
                 region_data[offset + HASH_OFFSET + 7] = (header.hashed_key) as u8;
 
                 // Hash the new header data
-                check_sum.update(&region_data[offset + VERSION_OFFSET..=offset + HASH_OFFSET + 7]);
+                for d in &region_data[offset + VERSION_OFFSET..=offset + HASH_OFFSET + 7] {
+                    hash_function.write_u8(*d);
+                }
 
                 // Copy the value
                 let slice = &mut region_data[(offset + HEADER_LENGTH)..(offset + package_length)];
                 slice.copy_from_slice(value);
 
                 // Include the value in the hash
-                check_sum.update(value);
+                value.hash(hash_function);
 
                 // Append a Check Hash
-                let check_sum = check_sum.finalise();
+                let check_sum = hash_function.finish();
                 let slice = &mut region_data
                     [(offset + package_length)..(offset + package_length + CHECK_SUM_LEN)];
                 slice.copy_from_slice(&check_sum.to_ne_bytes());
@@ -517,7 +536,9 @@ impl<'a, C: FlashController<S>, const S: usize> TicKV<'a, C, S> {
 
     /// Retrieves the value from flash storage.
     ///
-    /// `hash`: A hashed key.
+    /// `hash_function`: Hash function with no previous state. This is
+    ///                  usually a newly created hash.
+    /// `key`: A unhashed key. This will be hashed internally.
     /// `buf`: A buffer to store the value to.
     ///
     /// On success nothing will be returned.
@@ -525,14 +546,17 @@ impl<'a, C: FlashController<S>, const S: usize> TicKV<'a, C, S> {
     ///
     /// If a power loss occurs before success is returned the data is
     /// assumed to be lost.
-    pub fn get_key(&self, hash: u64, buf: &mut [u8]) -> Result<SuccessCode, ErrorCode> {
-        let region = self.get_region(hash);
+    pub fn get_key(
+        &self,
+        hash_function: &mut H,
+        key: &[u8],
+        buf: &mut [u8],
+    ) -> Result<SuccessCode, ErrorCode> {
+        let (hash, region) = self.get_hash_and_region(hash_function, key);
 
         let mut region_offset: isize = 0;
 
         loop {
-            let crc = crc32::Crc::new();
-            let mut check_sum = crc.digest();
             let new_region = match self.state.get() {
                 State::None => region as isize + region_offset,
                 State::Init(state) => {
@@ -573,7 +597,9 @@ impl<'a, C: FlashController<S>, const S: usize> TicKV<'a, C, S> {
             match self.find_key_offset(hash, region_data) {
                 Ok((offset, total_length)) => {
                     // Add the header data to the check hash
-                    check_sum.update(&region_data[offset..(HEADER_LENGTH + offset)]);
+                    for i in 0..HEADER_LENGTH {
+                        hash_function.write_u8(region_data[offset + i]);
+                    }
 
                     // Make sure if will fit in the buffer
                     if buf.len() < (total_length as usize - HEADER_LENGTH - CHECK_SUM_LEN) {
@@ -589,16 +615,21 @@ impl<'a, C: FlashController<S>, const S: usize> TicKV<'a, C, S> {
                     }
 
                     // Include the value in the hash
-                    check_sum.update(buf);
+                    buf.hash(hash_function);
 
                     // Check the hash
-                    let check_sum = check_sum.finalise();
+                    let check_sum = hash_function.finish();
+
                     let check_sum = check_sum.to_ne_bytes();
 
-                    if check_sum[3] != region_data[offset + total_length as usize - 1]
-                        || check_sum[2] != region_data[offset + total_length as usize - 2]
-                        || check_sum[1] != region_data[offset + total_length as usize - 3]
-                        || check_sum[0] != region_data[offset + total_length as usize - 4]
+                    if check_sum[7] != region_data[offset + total_length as usize - 1]
+                        || check_sum[6] != region_data[offset + total_length as usize - 2]
+                        || check_sum[5] != region_data[offset + total_length as usize - 3]
+                        || check_sum[4] != region_data[offset + total_length as usize - 4]
+                        || check_sum[3] != region_data[offset + total_length as usize - 5]
+                        || check_sum[2] != region_data[offset + total_length as usize - 6]
+                        || check_sum[1] != region_data[offset + total_length as usize - 7]
+                        || check_sum[0] != region_data[offset + total_length as usize - 8]
                     {
                         self.read_buffer.replace(Some(region_data));
                         return Err(ErrorCode::InvalidCheckSum);
@@ -629,15 +660,21 @@ impl<'a, C: FlashController<S>, const S: usize> TicKV<'a, C, S> {
 
     /// Invalidates the key in flash storage
     ///
-    /// `hash`: A hashed key.
+    /// `hash_function`: Hash function with no previous state. This is
+    ///                  usually a newly created hash.
+    /// `key`: A unhashed key. This will be hashed internally.
     ///
     /// On success nothing will be returned.
     /// On error a `ErrorCode` will be returned.
     ///
     /// If a power loss occurs before success is returned the data is
     /// assumed to be lost.
-    pub fn invalidate_key(&self, hash: u64) -> Result<SuccessCode, ErrorCode> {
-        let region = self.get_region(hash);
+    pub fn invalidate_key(
+        &self,
+        hash_function: &mut H,
+        key: &[u8],
+    ) -> Result<SuccessCode, ErrorCode> {
+        let (hash, region) = self.get_hash_and_region(hash_function, key);
 
         let mut region_offset: isize = 0;
 

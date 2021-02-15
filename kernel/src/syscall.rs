@@ -36,7 +36,6 @@ pub enum SyscallClass {
     ReadWriteAllow = 3,
     ReadOnlyAllow = 4,
     Memop = 5,
-    Exit = 6,
 }
 
 #[repr(u8)]
@@ -44,13 +43,6 @@ pub enum SyscallClass {
 pub enum YieldCall {
     NoWait = 0,
     Wait = 1,
-}
-
-#[repr(u8)]
-#[derive(Copy, Clone, Debug)]
-pub enum ExitCall {
-    Terminate = 0,
-    Restart = 1,
 }
 
 // Required as long as no solution to
@@ -67,7 +59,6 @@ impl TryFrom<u8> for SyscallClass {
             3 => Ok(SyscallClass::ReadWriteAllow),
             4 => Ok(SyscallClass::ReadOnlyAllow),
             5 => Ok(SyscallClass::Memop),
-            6 => Ok(SyscallClass::Exit),
             i => Err(i),
         }
     }
@@ -128,11 +119,6 @@ pub enum Syscall {
     ///
     /// System call class ID 5
     Memop { operand: usize, arg0: usize },
-
-    Exit {
-        which: usize,
-        completion_code: usize,
-    },
 }
 
 impl Syscall {
@@ -154,7 +140,7 @@ impl Syscall {
         r1: usize,
         r2: usize,
         r3: usize,
-    ) -> Option<Syscall> {
+    ) -> Option<Self> {
         match SyscallClass::try_from(syscall_number) {
             Ok(SyscallClass::Yield) => Some(Syscall::Yield {
                 which: r0,
@@ -188,10 +174,6 @@ impl Syscall {
                 operand: r0,
                 arg0: r1,
             }),
-            Ok(SyscallClass::Exit) => Some(Syscall::Exit {
-                which: r0,
-                completion_code: r1,
-            }),
             Err(_) => None,
         }
     }
@@ -213,8 +195,8 @@ pub enum SyscallReturnVariant {
     Success = 128,
     SuccessU32 = 129,
     SuccessU32U32 = 130,
-    SuccessU64 = 131,
-    SuccessU32U32U32 = 132,
+    SuccessU32U32U32 = 131,
+    SuccessU64 = 132,
     SuccessU64U32 = 133,
 }
 

@@ -51,7 +51,6 @@ pub unsafe extern "C" fn systick_handler() {
 
     // This will resume in the switch to user function where application state
     // is saved and the scheduler can choose what to do next.
-    bx   LR
     ",
         options(noreturn)
     );

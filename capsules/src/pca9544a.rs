@@ -29,9 +29,9 @@
 //! ```
 
 use core::cell::Cell;
-use kernel::common::cells::{MapCell, TakeCell};
+use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::i2c;
-use kernel::{AppId, Callback, CommandResult, Driver, ErrorCode};
+use kernel::{AppId, Callback, LegacyDriver, ReturnCode};
 
 /// Syscall driver number.
 use crate::driver;
@@ -59,7 +59,7 @@ pub struct PCA9544A<'a> {
     i2c: &'a dyn i2c::I2CDevice,
     state: Cell<State>,
     buffer: TakeCell<'static, [u8]>,
-    callback: MapCell<Callback>,
+    callback: OptionalCell<Callback>,
 }
 
 impl<'a> PCA9544A<'a> {
@@ -68,59 +68,55 @@ impl<'a> PCA9544A<'a> {
             i2c: i2c,
             state: Cell::new(State::Idle),
             buffer: TakeCell::new(buffer),
-            callback: MapCell::new(Callback::default()),
+            callback: OptionalCell::empty(),
         }
     }
 
     /// Choose which channel(s) are active. Channels are encoded with a bitwise
     /// mask (0x01 means enable channel 0, 0x0F means enable all channels).
     /// Send 0 to disable all channels.
-    fn select_channels(&self, channel_bitmask: u8) -> CommandResult {
-        self.buffer
-            .take()
-            .map_or(CommandResult::failure(ErrorCode::NOMEM), |buffer| {
-                self.i2c.enable();
+    fn select_channels(&self, channel_bitmask: u8) -> ReturnCode {
+        self.buffer.take().map_or(ReturnCode::ENOMEM, |buffer| {
+            self.i2c.enable();
 
-                // Always clear the settings so we get to a known state
-                buffer[0] = 0;
+            // Always clear the settings so we get to a known state
+            buffer[0] = 0;
 
-                // Iterate the bit array to send the correct channel enables
-                let mut index = 1;
-                for i in 0..4 {
-                    if channel_bitmask & (0x01 << i) != 0 {
-                        // B2 B1 B0 are set starting at 0x04
-                        buffer[index] = i + 4;
-                        index += 1;
-                    }
+            // Iterate the bit array to send the correct channel enables
+            let mut index = 1;
+            for i in 0..4 {
+                if channel_bitmask & (0x01 << i) != 0 {
+                    // B2 B1 B0 are set starting at 0x04
+                    buffer[index] = i + 4;
+                    index += 1;
                 }
+            }
 
-                self.i2c.write(buffer, index as u8);
-                self.state.set(State::Done);
+            self.i2c.write(buffer, index as u8);
+            self.state.set(State::Done);
 
-                CommandResult::success()
-            })
+            ReturnCode::SUCCESS
+        })
     }
 
-    fn read_interrupts(&self) -> CommandResult {
+    fn read_interrupts(&self) -> ReturnCode {
         self.read_control(ControlField::InterruptMask)
     }
 
-    fn read_selected_channels(&self) -> CommandResult {
+    fn read_selected_channels(&self) -> ReturnCode {
         self.read_control(ControlField::SelectedChannels)
     }
 
-    fn read_control(&self, field: ControlField) -> CommandResult {
-        self.buffer
-            .take()
-            .map_or(CommandResult::failure(ErrorCode::NOMEM), |buffer| {
-                self.i2c.enable();
+    fn read_control(&self, field: ControlField) -> ReturnCode {
+        self.buffer.take().map_or(ReturnCode::ENOMEM, |buffer| {
+            self.i2c.enable();
 
-                // Just issuing a read to the selector reads its control register.
-                self.i2c.read(buffer, 1);
-                self.state.set(State::ReadControl(field));
+            // Just issuing a read to the selector reads its control register.
+            self.i2c.read(buffer, 1);
+            self.state.set(State::ReadControl(field));
 
-                CommandResult::success()
-            })
+            ReturnCode::SUCCESS
+        })
     }
 }
 
@@ -152,7 +148,7 @@ impl i2c::I2CClient for PCA9544A<'_> {
     }
 }
 
-impl Driver for PCA9544A<'_> {
+impl LegacyDriver for PCA9544A<'_> {
     /// Setup callback for event done.
     ///
     /// ### `subscribe_num`
@@ -162,20 +158,17 @@ impl Driver for PCA9544A<'_> {
     fn subscribe(
         &self,
         subscribe_num: usize,
-        callback: Callback,
+        callback: Option<Callback>,
         _app_id: AppId,
-    ) -> Result<Callback, (Callback, ErrorCode)> {
+    ) -> ReturnCode {
         match subscribe_num {
             0 => {
-                if let Some(prev) = self.callback.replace(callback) {
-                    Ok(prev)
-                } else {
-                    Ok(Callback::default())
-                }
+                self.callback.insert(callback);
+                ReturnCode::SUCCESS
             }
 
             // default
-            _ => Err((callback, ErrorCode::NOSUPPORT)),
+            _ => ReturnCode::ENOSUPPORT,
         }
     }
 
@@ -188,25 +181,25 @@ impl Driver for PCA9544A<'_> {
     /// - `2`: Disable all channels.
     /// - `3`: Read the list of fired interrupts.
     /// - `4`: Read which channels are selected.
-    fn command(&self, command_num: usize, data: usize, _: usize, _: AppId) -> CommandResult {
+    fn command(&self, command_num: usize, data: usize, _: usize, _: AppId) -> ReturnCode {
         match command_num {
             // Check if present.
-            0 => CommandResult::success(),
+            0 => ReturnCode::SUCCESS,
 
             // Select channels.
-            1 => self.select_channels(data as u8).into(),
+            1 => self.select_channels(data as u8),
 
             // Disable all channels.
-            2 => self.select_channels(0).into(),
+            2 => self.select_channels(0),
 
             // Read the current interrupt fired mask.
-            3 => self.read_interrupts().into(),
+            3 => self.read_interrupts(),
 
             // Read the current selected channels.
-            4 => self.read_selected_channels().into(),
+            4 => self.read_selected_channels(),
 
             // default
-            _ => CommandResult::failure(ErrorCode::NOSUPPORT),
+            _ => ReturnCode::ENOSUPPORT,
         }
     }
 }

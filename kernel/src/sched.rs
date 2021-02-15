@@ -690,7 +690,7 @@ impl Kernel {
                         },
                     }
                 }
-                process::State::Faulted | process::State::Terminated => {
+                process::State::Fault => {
                     // We should never be scheduling a process in fault.
                     panic!("Attempted to schedule a faulty process");
                 }
@@ -700,6 +700,10 @@ impl Kernel {
                 }
                 process::State::StoppedYielded => {
                     return_reason = StoppedExecutingReason::Stopped;
+                    break;
+                }
+                process::State::StoppedFaulted => {
+                    return_reason = StoppedExecutingReason::StoppedFaulted;
                     break;
                 }
             }
@@ -737,6 +741,7 @@ impl Kernel {
         syscall: Syscall,
     ) {
         process.debug_syscall_called(syscall);
+
         // Enforce platform-specific syscall filtering here.
         //
         // Before continuing to handle non-yield syscalls
@@ -1032,16 +1037,6 @@ impl Kernel {
 
                 process.set_syscall_return_value(res);
             }
-            Syscall::Exit {
-                which,
-                completion_code,
-            } => match which {
-                0 => process.terminate(completion_code as u32),
-                1 => process.try_restart(completion_code as u32),
-                _ => process.set_syscall_return_value(GenericSyscallReturnValue::Failure(
-                    ErrorCode::NOSUPPORT,
-                )),
-            },
         }
     }
 }

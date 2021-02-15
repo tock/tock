@@ -27,7 +27,12 @@ use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::gpio;
 use kernel::hil::i2c::{self, Error};
 use kernel::hil::touch::{self, GestureEvent, TouchEvent, TouchStatus};
-use kernel::ReturnCode;
+use kernel::{AppId, CommandResult, Driver, ErrorCode, ReturnCode};
+
+use crate::driver;
+
+/// Syscall driver number.
+pub const DRIVER_NUM: usize = driver::NUM::Ft6x06 as usize;
 
 pub static NO_TOUCH: TouchEvent = TouchEvent {
     id: 0,
@@ -243,5 +248,17 @@ impl<'a> touch::MultiTouch<'a> for Ft6x06<'a> {
 
     fn set_client(&self, client: &'a dyn touch::MultiTouchClient) {
         self.multi_touch_client.replace(client);
+    }
+}
+
+impl Driver for Ft6x06<'_> {
+    fn command(&self, command_num: usize, _: usize, _: usize, _: AppId) -> CommandResult {
+        match command_num {
+            // is driver present
+            0 => CommandResult::success(),
+
+            // default
+            _ => CommandResult::failure(ErrorCode::NOSUPPORT),
+        }
     }
 }
