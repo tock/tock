@@ -58,19 +58,6 @@ pub trait Read {
     ///
     /// # Default AppSlice
     ///
-    /// A default instance of an AppSlice must not execute the closure.
-    fn map<F>(&self, fun: F)
-    where
-        F: FnOnce(&[u8]);
-
-    /// Applies a function to the (read only) slice reference pointed
-    /// to by the AppSlice.
-    ///
-    /// If the process is no longer alive and the memory has been
-    /// reclaimed, this method must return the default value.
-    ///
-    /// # Default AppSlice
-    ///
     /// A default instance of an AppSlice must return the passed
     /// default value without executing the closure.
     fn map_or<F, R>(&self, default: R, fun: F) -> R
@@ -96,16 +83,6 @@ pub trait ReadWrite: Read {
     /// space. These _dummy addresses_ should not be leaked to outside
     /// code.
     fn mut_ptr(&self) -> *mut u8;
-
-    /// Applies a function to the mutable slice reference pointed to
-    /// by the AppSlice.
-    ///
-    /// # Default AppSlice
-    ///
-    /// A default instance of an AppSlice must not execute the closure.
-    fn mut_map<F>(&self, fun: F)
-    where
-        F: FnOnce(&mut [u8]);
 
     /// Applies a function to the mutable slice reference pointed to
     /// by the AppSlice.
@@ -175,19 +152,6 @@ impl ReadWrite for ReadWriteAppSlice {
         }
     }
 
-    fn mut_map<F>(&self, fun: F)
-    where
-        F: FnOnce(&mut [u8]),
-    {
-        match self.process_id {
-            None => (),
-            Some(pid) => pid.kernel.process_map_or((), pid, |_| {
-                let slice = unsafe { slice::from_raw_parts_mut(self.ptr, self.len) };
-                fun(slice)
-            }),
-        }
-    }
-
     fn mut_map_or<F, R>(&self, default: R, fun: F) -> R
     where
         F: FnOnce(&mut [u8]) -> R,
@@ -213,19 +177,6 @@ impl Read for ReadWriteAppSlice {
             0x0 as *const u8
         } else {
             self.ptr
-        }
-    }
-
-    fn map<F>(&self, fun: F)
-    where
-        F: FnOnce(&[u8]),
-    {
-        match self.process_id {
-            None => (),
-            Some(pid) => pid.kernel.process_map_or((), pid, |_| {
-                let slice = unsafe { slice::from_raw_parts(self.ptr, self.len) };
-                fun(slice)
-            }),
         }
     }
 
@@ -298,19 +249,6 @@ impl Read for ReadOnlyAppSlice {
             0x0 as *const u8
         } else {
             self.ptr
-        }
-    }
-
-    fn map<F>(&self, fun: F)
-    where
-        F: FnOnce(&[u8]),
-    {
-        match self.process_id {
-            None => (),
-            Some(pid) => pid.kernel.process_map_or((), pid, |_| {
-                let slice = unsafe { slice::from_raw_parts(self.ptr, self.len) };
-                fun(slice)
-            }),
         }
     }
 
