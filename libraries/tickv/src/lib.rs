@@ -93,10 +93,17 @@
 //! // EXAMPLE ONLY: The `DefaultHasher` is subject to change
 //! // and hence is not a good fit.
 //! use std::collections::hash_map::DefaultHasher;
+//! use std::hash::{Hash, Hasher};
 //! use std::cell::RefCell;
-//! use tickv::TicKV;
+//! use tickv::{TicKV, MAIN_KEY};
 //! use tickv::error_codes::ErrorCode;
 //! use tickv::flash_controller::FlashController;
+//!
+//! fn get_hashed_key(unhashed_key: &[u8]) -> u64 {
+//!     let mut hash_function = DefaultHasher::new();
+//!     unhashed_key.hash(&mut hash_function);
+//!     hash_function.finish()
+//! }
 //!
 //! struct FlashCtrl {
 //!     buf: RefCell<[[u8; 1024]; 64]>,
@@ -134,19 +141,23 @@
 //! }
 //!
 //! let mut read_buf: [u8; 1024] = [0; 1024];
-//! let tickv = TicKV::<FlashCtrl, DefaultHasher, 1024>::new(FlashCtrl::new(),
+//!
+//! let mut hash_function = DefaultHasher::new();
+//! MAIN_KEY.hash(&mut hash_function);
+//!
+//! let tickv = TicKV::<FlashCtrl, 1024>::new(FlashCtrl::new(),
 //!                   &mut read_buf, 0x1000);
 //! tickv
-//!    .initalise((&mut DefaultHasher::new(), &mut DefaultHasher::new()))
+//!    .initalise(hash_function.finish())
 //!    .unwrap();
 //!
 //! // Add a key
 //! let value: [u8; 32] = [0x23; 32];
-//! tickv.append_key(&mut DefaultHasher::new(), b"ONE", &value).unwrap();
+//! tickv.append_key(get_hashed_key(b"ONE"), &value).unwrap();
 //!
 //! // Get the same key back
 //! let mut buf: [u8; 32] = [0; 32];
-//! tickv.get_key(&mut DefaultHasher::new(), b"ONE", &mut buf).unwrap();
+//! tickv.get_key(get_hashed_key(b"ONE"), &mut buf).unwrap();
 //! ```
 //!
 //! You can then use the `get_key()` function to get the key back from flash.
@@ -180,26 +191,6 @@
 //! to flash can also read all of the information. Any privacy, security or
 //! authentication measures need to be layered on top of TicKV.
 //!
-//! # Hash Function
-//!
-//! Any hash function that implements Rust's `core::hash::Hasher` trait can be used.
-//!
-//! The hash function ideally should generate uniform hashes and must not change during
-//! the lifetime of the filesystem.
-//!
-//! The Rust `core::hash::Hasher` implementation is a little strange. When the
-//! hash is calculated with the `finish()` function the internal state of the
-//! `Hasher` is not reset. This means that the check sum is generated with the
-//! following code and the key input becomes part of the check sum.
-//!
-//! ```rust,ignore
-//!         key.hash(hash_function);
-//!         let hash = hash_function.finish();
-//!
-//!         buf.hash(hash_function);
-//!         value.hash(hash_function);
-//!         let check_sum = hash_function.finish();
-//! ```
 //! ## Versions
 //!
 //! TicKV stores the version when adding objects to the flash storage.
@@ -213,10 +204,11 @@
 //!
 
 #![no_std]
-#![forbid(unsafe_code)]
+#![deny(unsafe_code)]
 #![deny(missing_docs)]
 
 pub mod async_ops;
+mod crc32;
 pub mod error_codes;
 pub mod flash_controller;
 pub mod success_codes;
@@ -231,6 +223,7 @@ pub use crate::error_codes::ErrorCode;
 pub use crate::flash_controller::FlashController;
 #[doc(inline)]
 pub use crate::tickv::TicKV;
+pub use crate::tickv::MAIN_KEY;
 
 // This is used to run the tests on a host
 #[cfg(test)]

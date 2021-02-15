@@ -22,13 +22,15 @@ use crate::platform::Chip;
 use crate::returncode::ReturnCode;
 use crate::sched::Kernel;
 use crate::syscall::{self, GenericSyscallReturnValue, Syscall, UserspaceKernelBoundary};
-use crate::tbfheader;
 use core::cmp::max;
+
+// The completion code for a process if it faulted.
+const COMPLETION_FAULT: u32 = 0xffffffff;
 
 /// Errors that can occur when trying to load and create processes.
 pub enum ProcessLoadError {
     /// The TBF header for the process could not be successfully parsed.
-    TbfHeaderParseFailure(tbfheader::TbfParseError),
+    TbfHeaderParseFailure(tock_tbf::types::TbfParseError),
 
     /// Not enough flash remaining to parse a process and its header.
     NotEnoughFlash,
@@ -63,12 +65,12 @@ pub enum ProcessLoadError {
     InternalError,
 }
 
-impl From<tbfheader::TbfParseError> for ProcessLoadError {
+impl From<tock_tbf::types::TbfParseError> for ProcessLoadError {
     /// Convert between a TBF Header parse error and a process load error.
     ///
     /// We note that the process load error is because a TBF header failed to
     /// parse, and just pass through the parse error.
-    fn from(error: tbfheader::TbfParseError) -> Self {
+    fn from(error: tock_tbf::types::TbfParseError) -> Self {
         ProcessLoadError::TbfHeaderParseFailure(error)
     }
 }
@@ -173,18 +175,18 @@ pub fn load_processes<C: Chip>(
         // Pass the first eight bytes to tbfheader to parse out the length of
         // the tbf header and app. We then use those values to see if we have
         // enough flash remaining to parse the remainder of the header.
-        let (version, header_length, entry_length) = match tbfheader::parse_tbf_header_lengths(
+        let (version, header_length, entry_length) = match tock_tbf::parse::parse_tbf_header_lengths(
             test_header_slice
                 .try_into()
                 .or(Err(ProcessLoadError::InternalError))?,
         ) {
             Ok((v, hl, el)) => (v, hl, el),
-            Err(tbfheader::InitialTbfParseError::InvalidHeader(entry_length)) => {
+            Err(tock_tbf::types::InitialTbfParseError::InvalidHeader(entry_length)) => {
                 // If we could not parse the header, then we want to skip over
                 // this app and look for the next one.
                 (0, 0, entry_length)
             }
-            Err(tbfheader::InitialTbfParseError::UnableToParse) => {
+            Err(tock_tbf::types::InitialTbfParseError::UnableToParse) => {
                 // Since Tock apps use a linked list, it is very possible the
                 // header we started to parse is intentionally invalid to signal
                 // the end of apps. This is ok and just means we have finished
@@ -323,6 +325,13 @@ pub trait ProcessType {
 
     /// Get the name of the process. Used for IPC.
     fn get_process_name(&self) -> &'static str;
+
+    /// Terminate the process so it doesn't run, cleaning up its state.
+    fn terminate(&self, completion_code: u32);
+
+    /// Terminate the process and try to restart it, applying kernel
+    /// policies on whether to do so.
+    fn try_restart(&self, completion_code: u32);
 
     // memop operations
 
@@ -660,14 +669,12 @@ pub enum State {
     /// process needs to be resumed it should be put back in the `Yield` state.
     StoppedYielded,
 
-    /// The process is stopped, and it was stopped after it faulted. This
-    /// basically means the app crashed, and the kernel decided to just stop it
-    /// and continue executing other things. The process cannot be restarted
-    /// without being reset first.
-    StoppedFaulted,
+    /// The process faulted and cannot be run.
+    Faulted,
 
-    /// The process has caused a fault.
-    Fault,
+    /// The process exited with the `exit-terminate` system call and
+    /// cannot be run.
+    Terminated,
 
     /// The process has never actually been executed. This of course happens
     /// when the board first boots and the kernel has not switched to any
@@ -889,7 +896,7 @@ pub struct Process<'a, C: 'static + Chip> {
     flash: &'static [u8],
 
     /// Collection of pointers to the TBF header in flash.
-    header: tbfheader::TbfHeader,
+    header: tock_tbf::types::TbfHeader,
 
     /// State saved on behalf of the process each time the app switches to the
     /// kernel.
@@ -1023,25 +1030,97 @@ impl<C: Chip> ProcessType for Process<'_, C> {
     }
 
     fn set_fault_state(&self) {
-        self.state.update(State::Fault);
-
         match self.fault_response {
             FaultResponse::Panic => {
                 // process faulted. Panic and print status
+                self.state.update(State::Faulted);
                 panic!("Process {} had a fault", self.process_name);
             }
-            FaultResponse::Restart(_) => {
-                self.restart(State::StoppedFaulted);
+            FaultResponse::Restart(restart_policy) => {
+                // Apply the process policy for whether to restart
+                // on a fault. We sometimes don't want to (e.g., too
+                // many faults).
+                if restart_policy.should_restart(self) {
+                    self.try_restart(COMPLETION_FAULT);
+                } else {
+                    self.terminate(COMPLETION_FAULT);
+                    self.state.update(State::Faulted);
+                }
             }
             FaultResponse::Stop => {
                 // This looks a lot like restart, except we just leave the app
-                // how it faulted and mark it as `StoppedFaulted`. By clearing
+                // how it faulted and mark it as `Faulted`. By clearing
                 // all of the app's todo work it will not be scheduled, and
                 // clearing all of the grant regions will cause capsules to drop
                 // this app as well.
-                self.terminate();
+                self.terminate(COMPLETION_FAULT);
+                self.state.update(State::Faulted);
             }
         }
+    }
+
+    /// Terminates and attempts to restart the process. The process
+    /// always terminates, but may or not restart based on kernel
+    /// policy and process state. It applies the restart policy
+    /// to the process.
+    ///
+    /// This function can be called when the process is in any state and
+    /// attempts to reset all of its state and re-initialize it so that it can
+    /// start running again.
+    ///
+    /// Restarting can fail for general reasons:
+    ///
+    /// 1. The kernel chooses not to restart the process based on the policy the
+    ///    kernel is using for restarting a specific process. For example, if a
+    ///    process has restarted a number of times in a row the kernel may
+    ///    decide to stop executing it.
+    ///
+    /// 2. Some state can no long be configured for the process. For example,
+    ///    the syscall state for the process fails to initialize.
+    ///
+    /// After `restart()` runs the process will either be queued to run its
+    /// `_start` function, or it will be terminated and unrunnable.
+    fn try_restart(&self, completion_code: u32) {
+        debug!("Trying to restart process {}", self.get_process_name());
+        // Terminate the process, freeing its state and removing any
+        // pending tasks from the scheduler's queue.
+        self.terminate(completion_code);
+
+        // If there is a kernel policy that controls restarts, it should be
+        // implemented here. For now, always restart.
+        let _res = self.restart();
+
+        // Decide what to do with res later. E.g., if we can't restart
+        // want to reclaim the process resources.
+    }
+
+    /// Stop and clear a process's state, putting it into the .
+    ///
+    /// This will end the process, but does not reset it such that it could be
+    /// restarted and run again. This function instead frees grants and any
+    /// queued tasks for this process, but leaves the debug information about
+    /// the process and other state intact.
+    fn terminate(&self, _completion_code: u32) {
+        debug!("Terminating process {}", self.get_process_name());
+        // Remove the tasks that were scheduled for the app from the
+        // amount of work queue.
+        let tasks_len = self.tasks.map_or(0, |tasks| tasks.len());
+        for _ in 0..tasks_len {
+            self.kernel.decrement_work();
+        }
+
+        // And remove those tasks
+        self.tasks.map(|tasks| {
+            tasks.empty();
+        });
+
+        // Clear any grant regions this app has setup with any capsules.
+        unsafe {
+            self.grant_ptrs_reset();
+        }
+
+        // Mark the app as stopped so the scheduler won't try to run it.
+        self.state.update(State::Terminated);
     }
 
     fn get_restart_count(&self) -> usize {
@@ -1854,7 +1933,7 @@ impl<C: 'static + Chip> Process<'_, C> {
 
         // Parse the full TBF header to see if this is a valid app. If the
         // header can't parse, we will error right here.
-        let tbf_header = tbfheader::parse_tbf_header(header_flash, app_version)?;
+        let tbf_header = tock_tbf::parse::parse_tbf_header(header_flash, app_version)?;
 
         // First thing: check that the process is at the correct location in
         // flash if the TBF header specified a fixed address. If there is a
@@ -2221,57 +2300,11 @@ impl<C: 'static + Chip> Process<'_, C> {
         Ok((Some(process), unused_memory))
     }
 
-    /// Attempt to restart the process.
-    ///
-    /// This function can be called when the process is in any state and
-    /// attempts to reset all of its state and re-initialize it so that it can
-    /// start running again.
-    ///
-    /// Restarting can fail for two general reasons:
-    ///
-    /// 1. The kernel chooses not to restart the process based on the policy the
-    ///    kernel is using for restarting a specific process. For example, if a
-    ///    process has restarted a number of times in a row the kernel may
-    ///    decide to stop executing it.
-    ///
-    /// 2. Some state can no long be configured for the process. For example,
-    ///    the syscall state for the process fails to initialize.
-    ///
-    /// After `restart()` runs the process will either be queued to run its
-    /// `_start` function, or it will be left in `failure_state`.
-    fn restart(&self, failure_state: State) {
-        // Start with the generic terminate operations. This frees state for
-        // this process and removes any pending tasks from the scheduler's
-        // queue.
-        self.terminate();
-
-        // Set the state the process will be in if it cannot be restarted.
-        self.state.update(failure_state);
-
-        // Check if the restart policy for this app allows us to continue with
-        // the restart.
-        match self.fault_response {
-            FaultResponse::Restart(restart_policy) => {
-                // Decide what to do with this process. Should it be restarted?
-                // Or should we leave it in a stopped & faulted state? If the
-                // process is faulting too often we might not want to restart.
-                // If we are not going to restart the process then we can just
-                // leave it in the stopped faulted state by returning
-                // immediately. This has the same effect as using the
-                // `FaultResponse::Stop` policy.
-                if !restart_policy.should_restart(self) {
-                    return;
-                }
-            }
-
-            _ => {
-                // In all other cases the kernel has chosen not to restart the
-                // process if it fails or exits for any reason. We can just
-                // leave the process in the `failure_state` and return.
-                return;
-            }
-        }
-
+    /// Restart the process, resetting all of its state re-initializing
+    /// it to start running.  Assumes the process is not running and
+    /// cleaned up. This implements the mechanism of restart.
+    fn restart(&self) -> Result<(), ErrorCode> {
+        debug!("Restarting process {}", self.get_process_name());
         // We need a new process identifier for this process since the restarted
         // version is in effect a new process. This is also necessary to
         // invalidate any stored `AppId`s that point to the old version of the
@@ -2358,7 +2391,7 @@ impl<C: 'static + Chip> Process<'_, C> {
                 // happen since we were able to start the process before, but at
                 // this point it is better to leave the app faulted and not
                 // schedule it.
-                return;
+                return Err(ErrorCode::NOMEM);
             }
         }
 
@@ -2383,7 +2416,7 @@ impl<C: 'static + Chip> Process<'_, C> {
                 // point the app is no longer valid. The best thing we
                 // can do now is leave the app as still faulted and not
                 // schedule it.
-                return;
+                return Err(ErrorCode::RESERVE);
             }
         };
 
@@ -2411,34 +2444,8 @@ impl<C: 'static + Chip> Process<'_, C> {
 
         // Mark that the process is ready to run.
         self.kernel.increment_work();
-    }
 
-    /// Stop and clear a process's state.
-    ///
-    /// This will end the process, but does not reset it such that it could be
-    /// restarted and run again. This function instead frees grants and any
-    /// queued tasks for this process, but leaves the debug information about
-    /// the process and other state intact.
-    fn terminate(&self) {
-        // Remove the tasks that were scheduled for the app from the
-        // amount of work queue.
-        let tasks_len = self.tasks.map_or(0, |tasks| tasks.len());
-        for _ in 0..tasks_len {
-            self.kernel.decrement_work();
-        }
-
-        // And remove those tasks
-        self.tasks.map(|tasks| {
-            tasks.empty();
-        });
-
-        // Clear any grant regions this app has setup with any capsules.
-        unsafe {
-            self.grant_ptrs_reset();
-        }
-
-        // Mark the app as stopped so the scheduler won't try to run it.
-        self.state.update(State::StoppedFaulted);
+        Ok(())
     }
 
     /// Get the current stack pointer as a pointer.
@@ -2515,6 +2522,6 @@ impl<C: 'static + Chip> Process<'_, C> {
     /// explicitly exits.
     fn is_active(&self) -> bool {
         let current_state = self.state.get();
-        current_state != State::StoppedFaulted && current_state != State::Fault
+        current_state != State::Terminated && current_state != State::Faulted
     }
 }
