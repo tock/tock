@@ -105,7 +105,7 @@ impl Driver for Nrf51822Serialization<'_> {
     /// can control the nRF51 serialization driver.
     ///
     /// ### `allow_num`
-    ///6
+    ///
     /// - `0`: Provide a RX buffer.
     fn allow_readwrite(
         &self,
