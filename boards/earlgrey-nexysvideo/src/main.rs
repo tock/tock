@@ -83,16 +83,16 @@ struct EarlGreyNexysVideo {
 impl Platform for EarlGreyNexysVideo {
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
     where
-        F: FnOnce(Option<Result<&dyn kernel::Driver, &dyn kernel::LegacyDriver>>) -> R,
+        F: FnOnce(Option<&dyn kernel::Driver>) -> R,
     {
         match driver_num {
-            capsules::led::DRIVER_NUM => f(Some(Ok(self.led))),
-            capsules::hmac::DRIVER_NUM => f(Some(Ok(self.hmac))),
-            capsules::gpio::DRIVER_NUM => f(Some(Ok(self.gpio))),
-            capsules::console::DRIVER_NUM => f(Some(Ok(self.console))),
-            capsules::alarm::DRIVER_NUM => f(Some(Ok(self.alarm))),
-            capsules::low_level_debug::DRIVER_NUM => f(Some(Ok(self.lldb))),
-            capsules::i2c_master::DRIVER_NUM => f(Some(Ok(self.i2c_master))),
+            capsules::led::DRIVER_NUM => f(Some(self.led)),
+            capsules::hmac::DRIVER_NUM => f(Some(self.hmac)),
+            capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
+            capsules::console::DRIVER_NUM => f(Some(self.console)),
+            capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
+            capsules::low_level_debug::DRIVER_NUM => f(Some(self.lldb)),
+            capsules::i2c_master::DRIVER_NUM => f(Some(self.i2c_master)),
             _ => f(None),
         }
     }
