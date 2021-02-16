@@ -640,19 +640,29 @@ impl<const NUM_REGIONS: usize> kernel::mpu::MPU for MPU<NUM_REGIONS> {
             return Err(());
         }
 
+        // Number of bytes the process wants access to.
         let app_memory_size = app_memory_break - region_start;
+        // Number of bytes the kernel has reserved.
         let kernel_memory_size = region_start + region_size - kernel_memory_break;
+
+        // There are eight subregions for every region in the Cortex-M3/4 MPU.
+        let subregion_size = region_size / 8;
 
         // Determine the number of subregions to enable.
         let num_subregions_used = {
             if kernel_memory_size == 0 {
+                // We can give all of the memory to the app, i.e. enable
+                // all eight subregions.
                 8
             } else {
-                app_memory_size * 8 / region_size + 1
+                // Calculate the minimum number of subregions needed to cover
+                // the `app_memory_size`.
+                //
+                // Want `round_up(app_memory_size / (region_size / 8))`.
+                ((app_memory_size + subregion_size - 1) * 8) / region_size
             }
         };
 
-        let subregion_size = region_size / 8;
         let subregions_end = region_start + subregion_size * num_subregions_used;
 
         // If we can no longer cover app memory with an MPU region without overlapping kernel
