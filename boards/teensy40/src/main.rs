@@ -49,7 +49,7 @@ impl kernel::Platform for Teensy40 {
         match driver_num {
             capsules::led::DRIVER_NUM => f(Some(Ok(self.led))),
             capsules::console::DRIVER_NUM => f(Some(Ok(self.console))),
-            kernel::ipc::DRIVER_NUM => f(Some(Err(&self.ipc))),
+            kernel::ipc::DRIVER_NUM => f(Some(Ok(&self.ipc))),
             capsules::alarm::DRIVER_NUM => f(Some(Ok(self.alarm))),
             _ => f(None),
         }

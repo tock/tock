@@ -180,7 +180,7 @@ impl kernel::Platform for Imix {
                 f(Some(Ok(self.nonvolatile_storage)))
             }
             capsules::rng::DRIVER_NUM => f(Some(Ok(self.rng))),
-            kernel::ipc::DRIVER_NUM => f(Some(Err(&self.ipc))),
+            kernel::ipc::DRIVER_NUM => f(Some(Ok(&self.ipc))),
             _ => f(None),
         }
     }

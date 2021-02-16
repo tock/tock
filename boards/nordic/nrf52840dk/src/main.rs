@@ -195,7 +195,7 @@ impl kernel::Platform for Platform {
                 f(Some(Ok(self.nonvolatile_storage)))
             }
             capsules::net::udp::DRIVER_NUM => f(Some(Ok(self.udp_driver))),
-            kernel::ipc::DRIVER_NUM => f(Some(Err(&self.ipc))),
+            kernel::ipc::DRIVER_NUM => f(Some(Ok(&self.ipc))),
             _ => f(None),
         }
     }

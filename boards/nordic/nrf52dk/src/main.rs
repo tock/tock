@@ -173,7 +173,7 @@ impl kernel::Platform for Platform {
             capsules::ble_advertising_driver::DRIVER_NUM => f(Some(Ok(self.ble_radio))),
             capsules::temperature::DRIVER_NUM => f(Some(Ok(self.temp))),
             capsules::analog_comparator::DRIVER_NUM => f(Some(Ok(self.analog_comparator))),
-            kernel::ipc::DRIVER_NUM => f(Some(Err(&self.ipc))),
+            kernel::ipc::DRIVER_NUM => f(Some(Ok(&self.ipc))),
             _ => f(None),
         }
     }

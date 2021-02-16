@@ -151,7 +151,7 @@ impl kernel::Platform for Platform {
             capsules::temperature::DRIVER_NUM => f(Some(Ok(self.temperature))),
             capsules::humidity::DRIVER_NUM => f(Some(Ok(self.humidity))),
             capsules::buzzer_driver::DRIVER_NUM => f(Some(Ok(self.buzzer))),
-            kernel::ipc::DRIVER_NUM => f(Some(Err(&self.ipc))),
+            kernel::ipc::DRIVER_NUM => f(Some(Ok(&self.ipc))),
             _ => f(None),
         }
     }
