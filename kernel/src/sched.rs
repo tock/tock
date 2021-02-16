@@ -322,26 +322,25 @@ impl Kernel {
         }
     }
 
-    /// Run a closure on every process, but only continue if the closure returns
-    /// `FAIL`. That is, if the closure returns any other return code than
-    /// `FAIL`, that value will be returned from this function and the iteration
-    /// of the array of processes will stop.
-    pub(crate) fn process_until<F>(&self, closure: F) -> ReturnCode
+    /// Run a closure on every process, but only continue if the closure returns `None`. That is,
+    /// if the closure returns any non-`None` value, iteration stops and the value is returned from
+    /// this function to the called.
+    pub(crate) fn process_until<T, F>(&self, closure: F) -> Option<T>
     where
-        F: Fn(&dyn process::ProcessType) -> ReturnCode,
+        F: Fn(&dyn process::ProcessType) -> Option<T>,
     {
         for process in self.processes.iter() {
             match process {
                 Some(p) => {
                     let ret = closure(*p);
-                    if ret != ReturnCode::FAIL {
+                    if ret.is_some() {
                         return ret;
                     }
                 }
                 None => {}
             }
         }
-        ReturnCode::FAIL
+        None
     }
 
     /// Retrieve the `AppId` of the given app based on its identifier. This is
@@ -683,7 +682,13 @@ impl Kernel {
                                         );
                                     },
                                     |ipc| {
-                                        ipc.schedule_callback(process.appid(), otherapp, ipc_type);
+                                        // TODO(alevy): this could error for a variety of reasons.
+                                        // Should we communicate the error somehow?
+                                        let _ = ipc.schedule_callback(
+                                            process.appid(),
+                                            otherapp,
+                                            ipc_type,
+                                        );
                                     },
                                 );
                             }
