@@ -131,15 +131,29 @@ impl ReadWriteAppSlice {
     pub(crate) fn consume(self) -> (*mut u8, usize) {
         (self.ptr, self.len)
     }
-}
 
-impl Default for ReadWriteAppSlice {
-    fn default() -> Self {
-        ReadWriteAppSlice {
+    /// This is a `const` version of `Default::default` with the same semantics.
+    ///
+    /// Having a const initializer allows initializing a fixed-size array with default values
+    /// without the struct being marked `Copy` as such:
+    ///
+    /// ```
+    /// use kernel::ReadWriteAppSlice;
+    /// const DEFAULT_RWAPPSLICE_VAL: ReadWriteAppSlice = ReadWriteAppSlice::const_default();
+    /// let my_array = [DEFAULT_RWAPPSLICE_VAL; 12];
+    /// ```
+    pub const fn const_default() -> Self {
+        Self {
             ptr: 0x0 as *mut u8,
             len: 0,
             process_id: None,
         }
+    }
+}
+
+impl Default for ReadWriteAppSlice {
+    fn default() -> Self {
+        Self::const_default()
     }
 }
 
@@ -355,23 +369,6 @@ pub(crate) mod legacy {
         /// app's memory region.
         pub fn ptr(&self) -> *const T {
             self.ptr.ptr.as_ptr()
-        }
-
-        /// Provide access to one app's AppSlice to another app. This is used for
-        /// IPC.
-        pub(crate) unsafe fn expose_to(&self, appid: AppId) -> bool {
-            if appid != self.ptr.process {
-                self.ptr
-                    .process
-                    .kernel
-                    .process_map_or(false, appid, |process| {
-                        process
-                            .add_mpu_region(self.ptr() as *const u8, self.len(), self.len())
-                            .is_some()
-                    })
-            } else {
-                false
-            }
         }
 
         /// Returns an iterator over the slice
