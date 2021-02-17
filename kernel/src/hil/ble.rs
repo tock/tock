@@ -1,14 +1,14 @@
 //! BLE Upper and Lower level HILs
 //!
 //!
-//!       BLE Capsule
+//!       BLE Syscall Capsule
 //!
 //! +-------------------+  +--------------------+
 //! |   BleGattServer   |  |   BLEGattClient    |
 //! +-------------------+  +--------------------+
 //!
 //!
-//!        BLE Stack (eq: Rubble)
+//!        BLE Stack (eg: Rubble)
 //!
 //!
 //! +-------------------------------------------+
@@ -17,6 +17,52 @@
 //!
 
 use crate::ReturnCode;
+
+// *************************************************************************
+//   High Level HIL
+// *************************************************************************
+
+pub enum AttributeType {
+    Uuid16 (u16),
+    Uuid128 (u128)
+}
+
+pub const PRIMARY_SERVICE:AttributeType = AttributeType::Uuid16 (0x2800);
+pub const SECINDARY_SERVICE:AttributeType = AttributeType::Uuid16 (0x2801);
+pub const INCLUDE:AttributeType = AttributeType::Uuid16 (0x2802);
+pub const CHARACTERISTIC:AttributeType = AttributeType::Uuid16 (0x2802);
+
+/// Attribute format types from https://www.bluetooth.com/specifications/assigned-numbers/format-types/
+#[repr(u16)]
+pub enum AttributeFormatType {
+    Boolean = 0x01,
+    Bit2 = 0x02,
+    Nibble = 0x03,
+    Uint8 = 0x04,
+    Uint12 = 0x05,
+    Uint16 = 0x06,
+    Uint24 = 0x07,
+    Uint32 = 0x08,
+    Uint48 = 0x09,
+    Uint64 = 0x0a,
+    Uint128 = 0x0b,
+    Sint8 = 0x0c,
+    Sint12 = 0x0d,
+    Sint16 = 0x0e,
+    Sint24 = 0x0f,
+    Sint32 = 0x10,
+    Sint48 = 0x11,
+    Sint64 = 0x12,
+    Sint128 = 0x13,
+    Float32 = 0x14,
+    Float64 = 0x15,
+    SFloat = 0x16,
+    Float = 0x17,
+    DUint16 = 0x18,
+    UTF8s = 0x19,
+    UTF16S = 0x1a,
+    Struct = 0x1b
+}
 
 pub enum BleGattAccessType {
     None,
@@ -29,14 +75,17 @@ pub enum BleGattAccessType {
     ReadWriteNotify
 }
 
-pub enum BleGattService<'a> {
-    Bit16(u16, &'a [BleGattCharacteristic]),
-    Bit128(u128, &'a [BleGattCharacteristic]),
+pub trait BleGattService<'a> {
+    type Characteristic: BleGattCharacteristic;
+
+    fn get_uuid (&self) -> AttributeType;
+    fn get_characteristics(&self) -> &'a [Self::Characteristic];
 }
 
-pub enum BleGattCharacteristic {
-    Bit16(u16, BleGattAccessType),
-    Bit128(u128, BleGattAccessType),
+pub trait BleGattCharacteristic {
+    fn get_uuid () -> AttributeType;
+    fn get_format_type () -> AttributeFormatType;
+    fn get_access () -> BleGattAccessType;
 }
 
 pub enum BleGattError {
@@ -44,6 +93,7 @@ pub enum BleGattError {
 }
 
 pub trait BleGattServer<'a> {
+    type Service: BleGattService<'a>;
     /// Configure the GATT Server
     ///
     /// name - device name
@@ -52,7 +102,7 @@ pub trait BleGattServer<'a> {
     fn configure(
         &self,
         name: &'a [u8],
-        services: &'a [BleGattService],
+        services: &'a [Self::Service],
         connect_interval_ms: u32,
     ) -> ReturnCode;
 
@@ -65,37 +115,32 @@ pub trait BleGattServer<'a> {
     // Start GAP Advertisement
     fn stop_advertisement(&self) -> ReturnCode;
 
-    fn set_chara
-
     fn set_client(&self, client: &'a dyn BleGattServerClient);
 }
 
 pub trait BleGattServerClient<'a> {
     fn connected(&self);
     fn disconnected(&self);
-
-    fn read_characteristic(&self, service: BleGattService, characteristic: BleGattCharacteristic, &'a mut [u8]) -> Result<(), (&'a mut [u8], ReturnCode)>;
-    fn write_characteristic(&self, service: BleGattService, characteristic: BleGattCharacteristic, &'a mut [u8]) -> Result<(), (&'a mut [u8], ReturnCode)>;
-
-    fn error(&self, error: BleGattError);
 }
+
+// *************************************************************************
+//   Low Level HIL
+// *************************************************************************
 
 pub trait BleConfig {
     fn set_tx_power(&self, power: u8) -> ReturnCode;
 }
 
 pub trait BleRadio<'a> {
-    fn transmit_advertisement(
-        &self,
-        buf: &'a mut [u8],
-        len: usize,
-        channel: RadioChannel,
-    ) -> Result<(), (&'a mut [u8], ReturnCode)>;
-    fn receive_advertisement(&self, channel: RadioChannel);
-
-    // Not sure about these two yet
+    /// Send a packet 
+    /// 
+    /// The packet data an opaque buffer
     fn transmit_packet(&self, buf: &'a mut [u8], len: usize, channel: RadioChannel);
-    fn receive_packet(&self, channel: RadioChannel);
+
+    /// Ask to receive a packet 
+    /// 
+    /// The packet data an opaque buffer
+    fn receive_packet(&self, buf: &'a mut [u8], len: usize, channel: RadioChannel);
 
     fn set_receive_client(&self, client: &'a dyn BleRxClient);
     fn set_transmit_client(&self, client: &'a dyn BleTxClient);
