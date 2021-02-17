@@ -101,7 +101,7 @@ impl kernel::Platform for Platform {
             capsules::gpio_async::DRIVER_NUM => f(Some(Ok(self.gpio_async))),
             capsules::ambient_light::DRIVER_NUM => f(Some(Ok(self.light))),
             capsules::buzzer_driver::DRIVER_NUM => f(Some(Ok(self.buzzer))),
-            kernel::ipc::DRIVER_NUM => f(Some(Err(&self.ipc))),
+            kernel::ipc::DRIVER_NUM => f(Some(Ok(&self.ipc))),
             _ => f(None),
         }
     }
