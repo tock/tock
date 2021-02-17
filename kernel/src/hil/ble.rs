@@ -153,7 +153,7 @@ pub trait BleRxClient<'a> {
 }
 
 pub trait BleTxClient<'a> {
-    fn transmit_event(&self, buf: &'a mut [u8], result: ReturnCode);
+    fn transmit_complete(&self, buf: &'a mut [u8], result: ReturnCode);
 }
 
 // Bluetooth Core Specification:Vol. 6. Part B, section 1.4.1 Advertising and Data Channel Indices
