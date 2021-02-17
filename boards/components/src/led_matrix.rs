@@ -55,17 +55,17 @@ macro_rules! led_line_component_helper {
         use kernel::static_init;
         const NUM_LEDS: usize = count_expressions!($($L),+);
 
-	static_init!(
-	    [&'static $Pin; NUM_LEDS],
-	    [
-		$(
-		    static_init!(
-			&'static $Pin,
-			$L
-		    )
-		),+
-	    ]
-	)
+        static_init!(
+            [&'static $Pin; NUM_LEDS],
+            [
+                $(
+                    static_init!(
+                        &'static $Pin,
+                        $L
+                    )
+                ),+
+            ]
+        )
     };};
 }
 

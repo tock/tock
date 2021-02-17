@@ -599,38 +599,38 @@ impl Driver for NonvolatileStorage<'_> {
             }
 
             1 /* How many bytes are accessible from userspace */ => {
-		// TODO: Would break on 64-bit platforms
-		CommandResult::success_u32(self.userspace_length as u32)
+                // TODO: Would break on 64-bit platforms
+                CommandResult::success_u32(self.userspace_length as u32)
             },
 
             2 /* Issue a read command */ => {
                 let res =
-		    self.enqueue_command(
-			NonvolatileCommand::UserspaceRead,
-			offset,
-			length,
-			Some(appid),
+                    self.enqueue_command(
+                        NonvolatileCommand::UserspaceRead,
+                        offset,
+                        length,
+                        Some(appid),
                     );
 
-		match res {
-		    Ok(()) => CommandResult::success(),
-		    Err(e) => CommandResult::failure(e),
-		}
+                match res {
+                    Ok(()) => CommandResult::success(),
+                    Err(e) => CommandResult::failure(e),
+                }
             }
 
             3 /* Issue a write command */ => {
                 let res =
-		    self.enqueue_command(
-			NonvolatileCommand::UserspaceWrite,
-			offset,
-			length,
-			Some(appid),
+                    self.enqueue_command(
+                        NonvolatileCommand::UserspaceWrite,
+                        offset,
+                        length,
+                        Some(appid),
                     );
 
-		match res {
-		    Ok(()) => CommandResult::success(),
-		    Err(e) => CommandResult::failure(e),
-		}
+                match res {
+                    Ok(()) => CommandResult::success(),
+                    Err(e) => CommandResult::failure(e),
+                }
             }
 
             _ => CommandResult::failure(ErrorCode::NOSUPPORT),

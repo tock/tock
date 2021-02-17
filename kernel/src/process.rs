@@ -629,6 +629,8 @@ pub enum Error {
     /// This likely indicates a bug in the kernel and that some state is
     /// inconsistent in the kernel.
     KernelError,
+    /// Indicates some process data, such as a Grant, is already borrowed.
+    AlreadyInUse,
 }
 
 impl From<Error> for ReturnCode {
@@ -639,6 +641,7 @@ impl From<Error> for ReturnCode {
             Error::NoSuchApp => ReturnCode::EINVAL,
             Error::InactiveApp => ReturnCode::FAIL,
             Error::KernelError => ReturnCode::FAIL,
+            Error::AlreadyInUse => ReturnCode::FAIL,
         }
     }
 }
@@ -651,6 +654,7 @@ impl From<Error> for ErrorCode {
             Error::NoSuchApp => ErrorCode::INVAL,
             Error::InactiveApp => ErrorCode::FAIL,
             Error::KernelError => ErrorCode::FAIL,
+            Error::AlreadyInUse => ErrorCode::FAIL,
         }
     }
 }

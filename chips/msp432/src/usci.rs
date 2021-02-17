@@ -6,25 +6,25 @@ use kernel::common::StaticRef;
 pub const USCI_A0_BASE: StaticRef<UsciARegisters> =
     unsafe { StaticRef::new(0x4000_1000 as *const UsciARegisters) };
 #[allow(dead_code)]
-pub(crate) const USCI_A1_BASE: StaticRef<UsciARegisters> =
+pub const USCI_A1_BASE: StaticRef<UsciARegisters> =
     unsafe { StaticRef::new(0x4000_1400 as *const UsciARegisters) };
 #[allow(dead_code)]
-pub(crate) const USCI_A2_BASE: StaticRef<UsciARegisters> =
+pub const USCI_A2_BASE: StaticRef<UsciARegisters> =
     unsafe { StaticRef::new(0x4000_1800 as *const UsciARegisters) };
 #[allow(dead_code)]
-pub(crate) const USCI_A3_BASE: StaticRef<UsciARegisters> =
+pub const USCI_A3_BASE: StaticRef<UsciARegisters> =
     unsafe { StaticRef::new(0x4000_1C00 as *const UsciARegisters) };
 #[allow(dead_code)]
-pub(crate) const USCI_B0_BASE: StaticRef<UsciBRegisters> =
+pub const USCI_B0_BASE: StaticRef<UsciBRegisters> =
     unsafe { StaticRef::new(0x4000_2000 as *const UsciBRegisters) };
 #[allow(dead_code)]
-pub(crate) const USCI_B1_BASE: StaticRef<UsciBRegisters> =
+pub const USCI_B1_BASE: StaticRef<UsciBRegisters> =
     unsafe { StaticRef::new(0x4000_2400 as *const UsciBRegisters) };
 #[allow(dead_code)]
-pub(crate) const USCI_B2_BASE: StaticRef<UsciBRegisters> =
+pub const USCI_B2_BASE: StaticRef<UsciBRegisters> =
     unsafe { StaticRef::new(0x4000_2800 as *const UsciBRegisters) };
 #[allow(dead_code)]
-pub(crate) const USCI_B3_BASE: StaticRef<UsciBRegisters> =
+pub const USCI_B3_BASE: StaticRef<UsciBRegisters> =
     unsafe { StaticRef::new(0x4000_2C00 as *const UsciBRegisters) };
 
 register_structs! {
@@ -59,7 +59,7 @@ register_structs! {
         (0x20 => @END),
     },
     /// EUSCI_Bx
-    pub(crate) UsciBRegisters {
+    pub UsciBRegisters {
         /// eUSCI_Bx Control Word Register 0
         (0x00 => pub(crate) ctlw0: ReadWrite<u16, UCBxCTLW0::Register>),
         /// eUSCI_Bx Control Word Register 1
@@ -508,7 +508,7 @@ register_bitfields![u16,
         /// Multi-master environment select
         UCMM OFFSET(13) NUMBITS(1) [
             /// Single master environment. There is no other master in the system. The address c
-            UCMM_0 = 0,
+            SingleMasterEnvironment = 0,
             /// Multi-master environment
             MultiMasterEnvironment = 1
         ],
@@ -531,36 +531,36 @@ register_bitfields![u16,
         /// Deglitch time
         UCGLIT OFFSET(0) NUMBITS(2) [
             /// 50 ns
-            _50Ns = 0,
+            _50ns = 0,
             /// 25 ns
-            _25Ns = 1,
+            _25ns = 1,
             /// 12.5 ns
-            _125Ns = 2,
+            _125ns = 2,
             /// 6.25 ns
-            _625Ns = 3
+            _625ns = 3
         ],
         /// Automatic STOP condition generation
         UCASTP OFFSET(2) NUMBITS(2) [
             /// No automatic STOP generation. The STOP condition is generated after the user set
-            UCASTP_0 = 0,
+            Manual = 0,
             /// UCBCNTIFG is set with the byte counter reaches the threshold defined in UCBxTBCN
-            UCBCNTIFGIsSetWithTheByteCounterReachesTheThresholdDefinedInUCBxTBCNT = 1,
+            ByteCounterInterrupt = 1,
             /// A STOP condition is generated automatically after the byte counter value reached
-            UCASTP_2 = 2
+            ByteCounterStopCondition = 2
         ],
         /// SW or HW ACK control
         UCSWACK OFFSET(4) NUMBITS(1) [
             /// The address acknowledge of the slave is controlled by the eUSCI_B module
-            TheAddressAcknowledgeOfTheSlaveIsControlledByTheEUSCI_BModule = 0,
+            HardwareTriggered = 0,
             /// The user needs to trigger the sending of the address ACK by issuing UCTXACK
-            TheUserNeedsToTriggerTheSendingOfTheAddressACKByIssuingUCTXACK = 1
+            SoftwareTriggered = 1
         ],
         /// ACK all master bytes
         UCSTPNACK OFFSET(5) NUMBITS(1) [
             /// Send a non-acknowledge before the STOP condition as a master receiver (conform t
-            SendANonAcknowledgeBeforeTheSTOPConditionAsAMasterReceiverConformToI2CStandard = 0,
+            NackBeforeStop = 0,
             /// All bytes are acknowledged by the eUSCI_B when configured as master receiver
-            AllBytesAreAcknowledgedByTheEUSCI_BWhenConfiguredAsMasterReceiver = 1
+            AckBeforeStop = 1
         ],
         /// Clock low timeout select
         UCCLTO OFFSET(6) NUMBITS(2) [

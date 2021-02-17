@@ -48,8 +48,8 @@ impl Write for Writer<'_> {
 #[panic_handler]
 unsafe fn panic_handler(panic_info: &core::panic::PanicInfo) -> ! {
     let ccm = crate::imxrt1060::ccm::Ccm::new();
-    let ports = imxrt10xx::gpio::Ports::new(&ccm);
-    let led = &mut led::LedHigh::new(ports.pin(gpio::PinId::B0_03));
+    let pin = crate::imxrt1060::gpio::Pin::from_pin_id(gpio::PinId::B0_03);
+    let led = &mut led::LedHigh::new(&pin);
     let mut lpuart2 = lpuart::Lpuart::new_lpuart2(&ccm);
     let mut writer = Writer::new(&mut lpuart2);
     debug::panic(

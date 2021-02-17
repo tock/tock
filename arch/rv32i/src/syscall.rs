@@ -180,7 +180,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         _app_brk: *const u8,
         state: &mut Riscv32iStoredState,
     ) -> (ContextSwitchReason, Option<*const u8>) {
-        llvm_asm! ("
+        asm!("
           // Before switching to the app we need to save the kernel registers to
           // the kernel stack. We then save the stack pointer in the mscratch
           // CSR (0x340) so we can retrieve it after returning to the kernel
@@ -261,8 +261,8 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
           sw   x30, 31*4(sp)
           sw   x31, 32*4(sp)
 
-          sw   $0, 1*4(sp)    // Store process state pointer on stack as well.
-                              // We need to have the available for after the app
+          sw   a0, 1*4(sp)    // Store process state pointer on stack as well.
+                              // We need to have this available for after the app
                               // returns to the kernel so we can store its
                               // registers.
 
@@ -291,6 +291,10 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
 
           // Store the address to jump back to on the stack so that the trap
           // handler knows where to return to after the app stops executing.
+          //
+          // In asm!() we can't use the shorthand `li` pseudo-instruction,
+          // as it complains about _return_to_kernel not being a constant in
+          // the required range.
           lui  t0, %hi(_return_to_kernel)
           addi t0, t0, %lo(_return_to_kernel)
           sw   t0, 2*4(sp)
@@ -303,7 +307,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
           // executing at. This has been saved in Riscv32iStoredState for us
           // (either when the app returned back to the kernel or in the
           // `set_process_function()` function).
-          lw   t0, 31*4($0)   // Retrieve the PC from Riscv32iStoredState
+          lw   t0, 31*4(a0)   // Retrieve the PC from Riscv32iStoredState
           csrw 0x341, t0      // Set mepc CSR. This is the PC we want to go to.
 
           // Restore all of the app registers from what we saved. If this is the
@@ -311,7 +315,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
           // irrelevant, However we do need to set the four arguments to the
           // `_start_ function in the app. If the app has been executing then this
           // allows the app to correctly resume.
-          mv   t0,  $0       // Save the state pointer to a specific register.
+          mv   t0,  a0       // Save the state pointer to a specific register.
           lw   x1,  0*4(t0)  // ra
           lw   x2,  1*4(t0)  // sp
           lw   x3,  2*4(t0)  // gp
@@ -389,12 +393,14 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
           lw   x31, 32*4(sp)
 
           addi sp, sp, 34*4   // Reset kernel stack pointer
-          "
+          ",
 
-          :
-          : "r"(state as *mut Riscv32iStoredState)
-          : "memory"
-          : "volatile");
+          // The register to put the state struct pointer in is not
+          // particularly relevant, however we must avoid using t0
+          // as that is overwritten prior to being accessed
+          // (although stored and later restored) in the assembly
+          in("a0") state as *mut Riscv32iStoredState,
+        );
 
         let ret = match mcause::Trap::from(state.mcause as usize) {
             mcause::Trap::Interrupt(_intr) => {

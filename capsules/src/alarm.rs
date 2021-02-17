@@ -4,7 +4,6 @@
 use core::cell::Cell;
 use core::mem;
 use kernel::hil::time::{self, Alarm, Frequency, Ticks, Ticks32};
-use kernel::ReturnCode;
 use kernel::{AppId, Callback, CommandResult, Driver, ErrorCode, Grant};
 
 /// Syscall driver number.
@@ -213,7 +212,7 @@ impl<'a, A: Alarm<'a>> Driver for AlarmDriver<'a, A> {
                     )
                 };
                 let now = self.alarm.now();
-                let (result, reset) = match cmd_type {
+                match cmd_type {
                     0 /* check if present */ => (CommandResult::success(), false),
                     1 /* Get clock frequency */ => {
                         let freq = <A::Frequency>::frequency();
@@ -260,16 +259,17 @@ impl<'a, A: Alarm<'a>> Driver for AlarmDriver<'a, A> {
                         rearm(reference, dt)
                     }
                     _ => (CommandResult::failure(ErrorCode::NOSUPPORT), false)
-                };
-                if reset {
-                    self.reset_active_alarm();
                 }
-                result
             })
-            .unwrap_or_else(|err| {
-                let rcode: ReturnCode = err.into();
-                CommandResult::from(rcode)
-            })
+            .map_or_else(
+                |err| CommandResult::failure(err.into()),
+                |(result, reset)| {
+                    if reset {
+                        self.reset_active_alarm();
+                    }
+                    result
+                },
+            )
     }
 }
 
