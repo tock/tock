@@ -89,7 +89,7 @@ impl Platform for Imxrt1050EVKB {
             capsules::button::DRIVER_NUM => f(Some(Ok(self.button))),
             capsules::console::DRIVER_NUM => f(Some(Ok(self.console))),
             capsules::gpio::DRIVER_NUM => f(Some(Ok(self.gpio))),
-            kernel::ipc::DRIVER_NUM => f(Some(Err(&self.ipc))),
+            kernel::ipc::DRIVER_NUM => f(Some(Ok(&self.ipc))),
             capsules::led::DRIVER_NUM => f(Some(Ok(self.led))),
             capsules::ninedof::DRIVER_NUM => f(Some(Ok(self.ninedof))),
             _ => f(None),
