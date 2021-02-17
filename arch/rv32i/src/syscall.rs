@@ -52,12 +52,29 @@ impl SysCall {
 impl kernel::syscall::UserspaceKernelBoundary for SysCall {
     type StoredState = Riscv32iStoredState;
 
+    fn initial_process_app_brk_size(&self) -> usize {
+        // TOCK 1.X
+        //
+        // We do not need any memory to start with, but the 1.x Tock kernel
+        // allocates at least 3 kB to processes, and we need to ensure that
+        // happens as userspace may expect it.
+        3 * 1024
+
+        // TOCK 2.0
+        //
+        // The RV32I UKB implementation does not use process memory for any
+        // context switch state. Therefore, we do not need any process-accessible
+        // memory to start with to successfully context switch to the process the
+        // first time.
+        //0
+    }
+
     unsafe fn initialize_process(
         &self,
-        stack_pointer: *const usize,
-        _stack_size: usize,
+        accessible_memory_start: *const u8,
+        _app_brk: *const u8,
         state: &mut Self::StoredState,
-    ) -> Result<*const usize, ()> {
+    ) -> Result<(), ()> {
         // Need to clear the stored state when initializing.
         state.regs.iter_mut().for_each(|x| *x = 0);
         state.pc = 0;
@@ -65,19 +82,26 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
 
         // The first time the process runs we need to set the initial stack
         // pointer in the sp register.
-        state.regs[R_SP] = stack_pointer as u32;
+        //
+        // TOCK 1.X
+        state.regs[R_SP] = accessible_memory_start.add(3 * 1024) as u32;
+        //
+        // TOCK 2.0
+        //
+        // We do not pre-allocate any stack for RV32I processes.
+        // state.regs[R_SP] = accessible_memory_start as usize;
 
-        // Just return the stack pointer. For the RISC-V arch we do not need
-        // to make a stack frame to start the process.
-        Ok(stack_pointer as *mut usize)
+        // We do not use memory for UKB, so just return ok.
+        Ok(())
     }
 
     unsafe fn set_syscall_return_value(
         &self,
-        _stack_pointer: *const usize,
+        _accessible_memory_start: *const u8,
+        _app_brk: *const u8,
         state: &mut Self::StoredState,
         return_value: kernel::syscall::GenericSyscallReturnValue,
-    ) {
+    ) -> Result<(), ()> {
         // Encode the system call return value into registers,
         // available for when the process resumes
 
@@ -102,15 +126,18 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
             &mut a2slice[0],
             &mut a3slice[0],
         );
+
+        // We do not use process memory, so this cannot fail.
+        Ok(())
     }
 
     unsafe fn set_process_function(
         &self,
-        stack_pointer: *const usize,
-        _remaining_stack_memory: usize,
+        _accessible_memory_start: *const u8,
+        _app_brk: *const u8,
         state: &mut Riscv32iStoredState,
         callback: kernel::procs::FunctionCall,
-    ) -> Result<*mut usize, *mut usize> {
+    ) -> Result<(), ()> {
         // Set the register state for the application when it starts
         // executing. These are the argument registers.
         state.regs[R_A0] = callback.argument0 as u32;
@@ -129,16 +156,17 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         // Save the PC we expect to execute.
         state.pc = callback.pc as u32;
 
-        Ok(stack_pointer as *mut usize)
+        Ok(())
     }
 
     // Mock implementation for tests on Travis-CI.
     #[cfg(not(any(target_arch = "riscv32", target_os = "none")))]
     unsafe fn switch_to_process(
         &self,
-        _stack_pointer: *const usize,
+        _accessible_memory_start: *const u8,
+        _app_brk: *const u8,
         _state: &mut Riscv32iStoredState,
-    ) -> (*mut usize, ContextSwitchReason) {
+    ) -> (ContextSwitchReason, Option<*const u8>) {
         // Convince lint that 'mcause' and 'R_A4' are used during test build
         let _cause = mcause::Trap::from(_state.mcause as usize);
         let _arg4 = _state.regs[R_A4];
@@ -148,9 +176,10 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
     #[cfg(all(target_arch = "riscv32", target_os = "none"))]
     unsafe fn switch_to_process(
         &self,
-        _stack_pointer: *const usize,
+        _accessible_memory_start: *const u8,
+        _app_brk: *const u8,
         state: &mut Riscv32iStoredState,
-    ) -> (*mut usize, ContextSwitchReason) {
+    ) -> (ContextSwitchReason, Option<*const u8>) {
         llvm_asm! ("
           // Before switching to the app we need to save the kernel registers to
           // the kernel stack. We then save the stack pointer in the mscratch
@@ -382,11 +411,11 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
                         state.pc += 4;
 
                         let syscall = kernel::syscall::Syscall::from_register_arguments(
-                            state.regs[R_A0] as u8,
-                            state.regs[R_A1],
-                            state.regs[R_A2],
-                            state.regs[R_A3],
-                            state.regs[R_A4],
+                            state.regs[R_A4] as u8,
+                            state.regs[R_A0] as usize,
+                            state.regs[R_A1] as usize,
+                            state.regs[R_A2] as usize,
+                            state.regs[R_A3] as usize,
                         );
 
                         match syscall {
@@ -402,12 +431,13 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
             }
         };
         let new_stack_pointer = state.regs[R_SP];
-        (new_stack_pointer as *mut usize, ret)
+        (ret, Some(new_stack_pointer as *const u8))
     }
 
     unsafe fn print_context(
         &self,
-        stack_pointer: *const usize,
+        _accessible_memory_start: *const u8,
+        _app_brk: *const u8,
         state: &Riscv32iStoredState,
         writer: &mut dyn Write,
     ) {
@@ -429,7 +459,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
              \r\n R13: {:#010X}    R29: {:#010X}\
              \r\n R14: {:#010X}    R30: {:#010X}\
              \r\n R15: {:#010X}    R31: {:#010X}\
-             \r\n PC : {:#010X}    SP : {:#010X}\
+             \r\n PC : {:#010X}\
              \r\n\
              \r\n mcause: {:#010X} (",
             0,
@@ -465,7 +495,6 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
             state.regs[14],
             state.regs[30],
             state.pc,
-            stack_pointer as usize,
             state.mcause,
         ));
         crate::print_mcause(mcause::Trap::from(state.mcause as usize), writer);
