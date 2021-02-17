@@ -63,9 +63,8 @@ impl IoWrite for Writer {
 #[panic_handler]
 pub unsafe extern "C" fn panic_fmt(info: &PanicInfo) -> ! {
     // User Led is connected to AdB0_09
-    let ccm = crate::imxrt1050::ccm::Ccm::new();
-    let ports = imxrt1050::gpio::Ports::new(&ccm);
-    let led = &mut led::LedLow::new(ports.pin(PinId::AdB0_09));
+    let pin = imxrt1050::gpio::Pin::from_pin_id(PinId::AdB0_09);
+    let led = &mut led::LedLow::new(&pin);
     let writer = &mut WRITER;
 
     debug::panic(

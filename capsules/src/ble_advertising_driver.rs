@@ -554,28 +554,38 @@ where
     ) -> CommandResult {
         match command_num {
             // Start periodic advertisements
-            0 => self
-                .app
-                .enter(appid, |app, _| {
-                    if let Some(BLEState::Initialized) = app.process_status {
-                        let pdu_type = data as AdvPduType;
-                        match pdu_type {
-                            ADV_IND | ADV_NONCONN_IND | ADV_SCAN_IND => {
-                                app.pdu_type = pdu_type;
-                                app.process_status = Some(BLEState::AdvertisingIdle);
-                                app.random_nonce = self.alarm.now().into_u32();
-                                app.advertisement_interval_ms = cmp::max(20, interval as u32);
-                                app.set_next_alarm::<A::Frequency>(self.alarm.now().into_u32());
+            0 => {
+                self.app
+                    .enter(appid, |app, _| {
+                        if let Some(BLEState::Initialized) = app.process_status {
+                            let pdu_type = data as AdvPduType;
+                            match pdu_type {
+                                ADV_IND | ADV_NONCONN_IND | ADV_SCAN_IND => {
+                                    app.pdu_type = pdu_type;
+                                    app.process_status = Some(BLEState::AdvertisingIdle);
+                                    app.random_nonce = self.alarm.now().into_u32();
+                                    app.advertisement_interval_ms = cmp::max(20, interval as u32);
+                                    app.set_next_alarm::<A::Frequency>(self.alarm.now().into_u32());
+                                    Ok(())
+                                }
+                                _ => Err(ErrorCode::INVAL),
+                            }
+                        } else {
+                            Err(ErrorCode::BUSY)
+                        }
+                    })
+                    .map_or_else(
+                        |err| CommandResult::failure(err.into()),
+                        |res| match res {
+                            Ok(_) => {
+                                // must be called outside closure passed to grant region!
                                 self.reset_active_alarm();
                                 CommandResult::success()
                             }
-                            _ => CommandResult::failure(ErrorCode::INVAL),
-                        }
-                    } else {
-                        CommandResult::failure(ErrorCode::BUSY)
-                    }
-                })
-                .unwrap_or_else(|err| CommandResult::failure(err.into())),
+                            Err(e) => CommandResult::failure(e.into()),
+                        },
+                    )
+            }
 
             // Stop periodic advertisements or passive scanning
             1 => self
@@ -621,19 +631,29 @@ where
             }
 
             // Passive scanning mode
-            5 => self
-                .app
-                .enter(appid, |app, _| {
-                    if let Some(BLEState::Initialized) = app.process_status {
-                        app.process_status = Some(BLEState::ScanningIdle);
-                        app.set_next_alarm::<A::Frequency>(self.alarm.now().into_u32());
-                        self.reset_active_alarm();
-                        CommandResult::success()
-                    } else {
-                        CommandResult::failure(ErrorCode::BUSY)
-                    }
-                })
-                .unwrap_or_else(|err| err.into()),
+            5 => {
+                self.app
+                    .enter(appid, |app, _| {
+                        if let Some(BLEState::Initialized) = app.process_status {
+                            app.process_status = Some(BLEState::ScanningIdle);
+                            app.set_next_alarm::<A::Frequency>(self.alarm.now().into_u32());
+                            Ok(())
+                        } else {
+                            Err(ErrorCode::BUSY)
+                        }
+                    })
+                    .map_or_else(
+                        |err| err.into(),
+                        |res| match res {
+                            Ok(_) => {
+                                // must be called outside closure passed to grant region!
+                                self.reset_active_alarm();
+                                CommandResult::success()
+                            }
+                            Err(e) => CommandResult::failure(e.into()),
+                        },
+                    )
+            }
 
             _ => CommandResult::failure(ErrorCode::NOSUPPORT),
         }

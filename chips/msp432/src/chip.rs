@@ -25,6 +25,7 @@ pub struct Msp432DefaultPeripherals<'a> {
     pub timer_a2: crate::timer::TimerA<'a>,
     pub timer_a3: crate::timer::TimerA<'a>,
     pub gpio: crate::gpio::GpioManager<'a>,
+    pub i2c0: crate::i2c::I2c<'a>,
 }
 
 impl<'a> Msp432DefaultPeripherals<'a> {
@@ -40,11 +41,12 @@ impl<'a> Msp432DefaultPeripherals<'a> {
             timer_a2: crate::timer::TimerA::new(crate::timer::TIMER_A2_BASE),
             timer_a3: crate::timer::TimerA::new(crate::timer::TIMER_A3_BASE),
             gpio: crate::gpio::GpioManager::new(),
+            i2c0: crate::i2c::I2c::new(crate::usci::USCI_B0_BASE),
         }
     }
 
     pub unsafe fn init(&'a self) {
-        // Setup DMA channels
+        // Setup DMA channels for the UART
         self.uart0.set_dma(
             &self.dma_channels[self.uart0.tx_dma_chan],
             &self.dma_channels[self.uart0.rx_dma_chan],
@@ -81,7 +83,7 @@ impl<'a> kernel::InterruptService<()> for Msp432DefaultPeripherals<'a> {
             nvic::TIMER_A1_0 | nvic::TIMER_A1_1 => self.timer_a1.handle_interrupt(),
             nvic::TIMER_A2_0 | nvic::TIMER_A2_1 => self.timer_a2.handle_interrupt(),
             nvic::TIMER_A3_0 | nvic::TIMER_A3_1 => self.timer_a3.handle_interrupt(),
-
+            nvic::USCI_B0 => self.i2c0.handle_interrupt(),
             _ => return false,
         }
         true

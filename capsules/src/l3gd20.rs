@@ -383,9 +383,9 @@ impl Driver for L3gd20Spi<'_> {
     ) -> Result<Callback, (Callback, ErrorCode)> {
         match subscribe_num {
             0 /* set the one shot callback */ => {
-				callback = self.callback.replace (callback);
-				Ok (callback)
-			},
+                callback = self.callback.replace (callback);
+                Ok (callback)
+            },
             // default
             _ => Err((callback, ErrorCode::NOSUPPORT)),
         }

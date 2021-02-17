@@ -78,8 +78,9 @@ define ci_setup_helper
 	$(eval explanation := $(strip $(2)))
 	$(eval build_function := $(strip $(3)))
 	$(eval guard_variable := $(strip $(4)))
+	$(eval already_installed := $(shell $(1)))
 	@# First, if the dependency is installed, we can bail early
-	$(if $(shell '$(1)'),$(eval $(guard_variable) := true),
+	$(if $(already_installed),$(eval $(guard_variable) := true),
 	@# If running in CI context always yes
 	$(if $(CI),$(eval do_install := yes_CI),
 	@# If running nosetup always no
@@ -494,12 +495,13 @@ ci-job-miri: ci-setup-miri
 
 ### ci-runner-github-qemu jobs:
 
+QEMU_COMMIT_HASH=a05f8ecd88f15273d033b6f044b850a8af84a5b8
 define ci_setup_qemu_riscv
 	$(call banner,CI-Setup: Build QEMU)
 	@# Use the latest QEMU as it has OpenTitan support
 	@printf "Building QEMU, this could take a few minutes\n\n"
-	@git submodule sync; git submodule update --init
-	@cd tools/qemu; ../qemu/configure --target-list=riscv32-softmmu --disable-linux-io-uring --disable-libdaxctl;
+	@git clone https://github.com/qemu/qemu ./tools/qemu 2>/dev/null || echo "qemu already cloned, checking out"
+	@cd tools/qemu; git checkout ${QEMU_COMMIT_HASH}; ../qemu/configure --target-list=riscv32-softmmu --disable-linux-io-uring --disable-libdaxctl;
 	@# Build qemu
 	@$(MAKE) -C "tools/qemu/build" || (echo "You might need to install some missing packages" || exit 127)
 endef
@@ -523,8 +525,7 @@ endef
 .PHONY: ci-setup-qemu
 ci-setup-qemu:
 	$(call ci_setup_helper,\
-		status=$$(git submodule status -- tools/qemu); \
-		[[ "$${status:0:1}" != "" ]] && \
+		[[ $$(git -C ./tools/qemu rev-parse HEAD 2>/dev/null || echo 0) == "${QEMU_COMMIT_HASH}" ]] && \
 			cd tools/qemu/build && make -q riscv32-softmmu && echo yes,\
 		Clone QEMU and run its build scripts,\
 		ci_setup_qemu_riscv,\
