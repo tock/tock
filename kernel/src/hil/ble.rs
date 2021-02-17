@@ -149,7 +149,7 @@ pub trait BleRadio<'a> {
 }
 
 pub trait BleRxClient<'a> {
-    fn receive_event(&self, buf: &'a mut [u8], len: u8, result: ReturnCode);
+    fn receive_complete(&self, buf: &'a mut [u8], len: u8, result: ReturnCode);
 }
 
 pub trait BleTxClient<'a> {
