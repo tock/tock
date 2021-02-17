@@ -23,14 +23,14 @@ use crate::ReturnCode;
 // *************************************************************************
 
 pub enum AttributeType {
-    Uuid16 (u16),
-    Uuid128 (u128)
+    Uuid16(u16),
+    Uuid128(u128),
 }
 
-pub const PRIMARY_SERVICE:AttributeType = AttributeType::Uuid16 (0x2800);
-pub const SECINDARY_SERVICE:AttributeType = AttributeType::Uuid16 (0x2801);
-pub const INCLUDE:AttributeType = AttributeType::Uuid16 (0x2802);
-pub const CHARACTERISTIC:AttributeType = AttributeType::Uuid16 (0x2802);
+pub const PRIMARY_SERVICE: AttributeType = AttributeType::Uuid16(0x2800);
+pub const SECINDARY_SERVICE: AttributeType = AttributeType::Uuid16(0x2801);
+pub const INCLUDE: AttributeType = AttributeType::Uuid16(0x2802);
+pub const CHARACTERISTIC: AttributeType = AttributeType::Uuid16(0x2802);
 
 /// Attribute format types from https://www.bluetooth.com/specifications/assigned-numbers/format-types/
 #[repr(u16)]
@@ -61,7 +61,7 @@ pub enum AttributeFormatType {
     DUint16 = 0x18,
     UTF8s = 0x19,
     UTF16S = 0x1a,
-    Struct = 0x1b
+    Struct = 0x1b,
 }
 
 pub enum BleGattAccessType {
@@ -72,20 +72,20 @@ pub enum BleGattAccessType {
     ReadWrite,
     ReadNotify,
     WriteNotify,
-    ReadWriteNotify
+    ReadWriteNotify,
 }
 
 pub trait BleGattService<'a> {
     type Characteristic: BleGattCharacteristic;
 
-    fn get_uuid (&self) -> AttributeType;
+    fn get_uuid(&self) -> AttributeType;
     fn get_characteristics(&self) -> &'a [Self::Characteristic];
 }
 
 pub trait BleGattCharacteristic {
-    fn get_uuid () -> AttributeType;
-    fn get_format_type () -> AttributeFormatType;
-    fn get_access () -> BleGattAccessType;
+    fn get_uuid() -> AttributeType;
+    fn get_format_type() -> AttributeFormatType;
+    fn get_access() -> BleGattAccessType;
 }
 
 pub enum BleGattError {
@@ -132,13 +132,13 @@ pub trait BleConfig {
 }
 
 pub trait BleRadio<'a> {
-    /// Send a packet 
-    /// 
+    /// Send a packet
+    ///
     /// The packet data an opaque buffer
     fn transmit_packet(&self, buf: &'a mut [u8], len: usize, channel: RadioChannel);
 
-    /// Ask to receive a packet 
-    /// 
+    /// Ask to receive a packet
+    ///
     /// The packet data an opaque buffer
     fn receive_packet(&self, buf: &'a mut [u8], len: usize, channel: RadioChannel);
 
