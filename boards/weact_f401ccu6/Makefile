@@ -10,8 +10,8 @@ OPENOCD=openocd
 OPENOCD_OPTIONS=-f openocd.cfg
 
 # Default target for installing the kernel.
-.PHONY: flash
-install: program
+.PHONY: install
+install: flash
 
 flash: $(KERNEL)
 	$(OPENOCD) $(OPENOCD_OPTIONS) -c "init; reset halt; flash write_image erase $<; verify_image $<; reset; shutdown"
