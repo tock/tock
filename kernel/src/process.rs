@@ -1,6 +1,7 @@
 //! Support for creating and running userspace applications.
 
 use core::cell::Cell;
+use core::cmp;
 use core::convert::TryInto;
 use core::fmt;
 use core::fmt::Write;
@@ -495,6 +496,18 @@ pub trait ProcessType {
     ///
     /// It is not valid to call this function when the process is inactive (i.e.
     /// the process will not run again).
+    ///
+    /// This can fail, if the UKB implementation cannot correctly set the return value. An
+    /// example of how this might occur:
+    ///
+    /// 1. The UKB implementation uses the process's stack to transfer values
+    ///    between kernelspace and userspace.
+    /// 2. The process calls memop.brk and reduces its accessible memory region
+    ///    below its current stack.
+    /// 3. The UKB implementation can no longer set the return value on the
+    ///    stack since the process no longer has access to its stack.
+    ///
+    /// If it fails, the process will be put into the faulted state.
     unsafe fn set_syscall_return_value(&self, return_value: GenericSyscallReturnValue);
 
     /// Set the function that is to be executed when the process is resumed.
@@ -807,7 +820,7 @@ struct ProcessDebug {
     app_stack_start_pointer: Option<*const u8>,
 
     /// How low have we ever seen the stack pointer.
-    min_stack_pointer: *const u8,
+    app_stack_min_pointer: Option<*const u8>,
 
     /// How many syscalls have occurred since the process started.
     syscall_count: usize,
@@ -874,22 +887,11 @@ pub struct Process<'a, C: 'static + Chip> {
     /// Pointer to the end of the allocated (and MPU protected) grant region.
     kernel_memory_break: Cell<*const u8>,
 
-    /// Copy of where the kernel memory break is when the app is first started.
-    /// This is handy if the app is restarted so we know where to reset
-    /// the kernel_memory break to without having to recalculate it.
-    original_kernel_memory_break: *const u8,
-
     /// Pointer to the end of process RAM that has been sbrk'd to the process.
     app_break: Cell<*const u8>,
-    original_app_break: *const u8,
 
     /// Pointer to high water mark for process buffers shared through `allow`
     allow_high_water_mark: Cell<*const u8>,
-    original_allow_high_water_mark: *const u8,
-
-    /// Saved when the app switches to the kernel.
-    current_stack_pointer: Cell<*const u8>,
-    original_stack_pointer: *const u8,
 
     /// Process flash segment. This is the region of nonvolatile flash that
     /// the process occupies.
@@ -1179,7 +1181,7 @@ impl<C: Chip> ProcessType for Process<'_, C> {
 
                 // We also reset the minimum stack pointer because whatever value
                 // we had could be entirely wrong by now.
-                debug.min_stack_pointer = stack_pointer;
+                debug.app_stack_min_pointer = Some(stack_pointer);
             });
         }
     }
@@ -1288,7 +1290,7 @@ impl<C: Chip> ProcessType for Process<'_, C> {
                     // Valid slice, we need to adjust the app's watermark
                     // note: in_app_owned_memory ensures this offset does not wrap
                     let buf_end_addr = buf_start_addr.wrapping_add(size);
-                    let new_water_mark = max(self.allow_high_water_mark.get(), buf_end_addr);
+                    let new_water_mark = cmp::max(self.allow_high_water_mark.get(), buf_end_addr);
                     self.allow_high_water_mark.set(new_water_mark);
 
                     // The `unsafe` promise we should be making here is that this
@@ -1578,64 +1580,71 @@ impl<C: Chip> ProcessType for Process<'_, C> {
     }
 
     unsafe fn set_syscall_return_value(&self, return_value: GenericSyscallReturnValue) {
-        self.stored_state.map(|stored_state| {
+        match self.stored_state.map(|stored_state| {
             self.chip
                 .userspace_kernel_boundary()
-                .set_syscall_return_value(self.sp(), stored_state, return_value);
-        });
-    }
-
-    unsafe fn set_process_function(&self, callback: FunctionCall) {
-        // First we need to get how much memory is available for this app's
-        // stack. Since the stack is at the bottom of the process's memory
-        // region, this is straightforward.
-        let remaining_stack_bytes = self.sp() as usize - self.memory.as_ptr() as usize;
-
-        // Next we should see if we can actually add the frame to the process's
-        // stack. Architecture-specific code handles actually doing the push
-        // since we don't know the details of exactly what the stack frames look
-        // like.
-        match self.stored_state.map(|stored_state| {
-            self.chip.userspace_kernel_boundary().set_process_function(
-                self.sp(),
-                remaining_stack_bytes,
-                stored_state,
-                callback,
-            )
+                .set_syscall_return_value(
+                    self.memory.as_ptr(),
+                    self.app_break.get(),
+                    stored_state,
+                    return_value,
+                )
         }) {
-            Some(Ok(stack_bottom)) => {
-                // If we got an `Ok` with the new stack pointer we are all
-                // set and should mark that this process is ready to be
-                // scheduled.
-
-                // Move this process to the "running" state so the scheduler
-                // will schedule it.
-                self.state.update(State::Running);
-
-                // Update helpful debugging metadata.
-                self.current_stack_pointer.set(stack_bottom as *mut u8);
-                self.debug_set_max_stack_depth();
+            Some(Ok(())) => {
+                // If we get an `Ok` we are all set.
             }
 
-            Some(Err(bad_stack_bottom)) => {
-                // If we got an Error, then there was not enough room on the
-                // stack to allow the process to execute this function given the
-                // details of the particular architecture this is running on.
-                // This process has essentially faulted, so we mark it as such.
-                // We also update the debugging metadata so that if the process
-                // fault message prints then it should be easier to debug that
-                // the process exceeded its stack.
-                self.debug.map(|debug| {
-                    let bad_stack_bottom = bad_stack_bottom as *const u8;
-                    if bad_stack_bottom < debug.min_stack_pointer {
-                        debug.min_stack_pointer = bad_stack_bottom;
-                    }
-                });
+            Some(Err(())) => {
+                // If we get an `Err`, then the UKB implementation could not set
+                // the return value, likely because the process's stack is no
+                // longer accessible to it. All we can do is fault.
                 self.set_fault_state();
             }
 
             None => {
-                // We should never be here since `stored_state` should always be occupied.
+                // We should never be here since `stored_state` should always be
+                // occupied.
+                self.set_fault_state();
+            }
+        }
+    }
+
+    unsafe fn set_process_function(&self, callback: FunctionCall) {
+        // See if we can actually enqueue this function for this process.
+        // Architecture-specific code handles actually doing this since the
+        // exact method is both architecture- and implementation-specific.
+        //
+        // This can fail, for example if the process does not have enough memory
+        // remaining.
+        match self.stored_state.map(|stored_state| {
+            self.chip.userspace_kernel_boundary().set_process_function(
+                self.memory.as_ptr(),
+                self.app_break.get(),
+                stored_state,
+                callback,
+            )
+        }) {
+            Some(Ok(())) => {
+                // If we got an `Ok` we are all set and should mark that this
+                // process is ready to be scheduled.
+
+                // Move this process to the "running" state so the scheduler
+                // will schedule it.
+                self.state.update(State::Running);
+            }
+
+            Some(Err(())) => {
+                // If we got an Error, then there was likely not enough room on
+                // the stack to allow the process to execute this function given
+                // the details of the particular architecture this is running
+                // on. This process has essentially faulted, so we mark it as
+                // such.
+                self.set_fault_state();
+            }
+
+            None => {
+                // We should never be here since `stored_state` should always be
+                // occupied.
                 self.set_fault_state();
             }
         }
@@ -1647,21 +1656,29 @@ impl<C: Chip> ProcessType for Process<'_, C> {
             return None;
         }
 
-        let switch_reason = self.stored_state.map(|stored_state| {
-            let (stack_pointer, switch_reason) = self
-                .chip
-                .userspace_kernel_boundary()
-                .switch_to_process(self.sp(), stored_state);
-            self.current_stack_pointer.set(stack_pointer as *const u8);
-            switch_reason
-        });
+        let (switch_reason, stack_pointer) =
+            self.stored_state.map_or((None, None), |stored_state| {
+                let (switch_reason, optional_stack_pointer) = self
+                    .chip
+                    .userspace_kernel_boundary()
+                    .switch_to_process(self.memory.as_ptr(), self.app_break.get(), stored_state);
+                (Some(switch_reason), optional_stack_pointer)
+            });
 
-        // Update debug state as needed after running this process.
-        self.debug.map(|debug| {
-            // Update max stack depth if needed.
-            if self.current_stack_pointer.get() < debug.min_stack_pointer {
-                debug.min_stack_pointer = self.current_stack_pointer.get();
-            }
+        // If the UKB implementation passed us a stack pointer, update our
+        // debugging state. This is completely optional.
+        stack_pointer.map(|sp| {
+            self.debug.map(|debug| {
+                match debug.app_stack_min_pointer {
+                    None => debug.app_stack_min_pointer = Some(sp),
+                    Some(asmp) => {
+                        // Update max stack depth if needed.
+                        if sp < asmp {
+                            debug.app_stack_min_pointer = Some(sp);
+                        }
+                    }
+                }
+            });
         });
 
         switch_reason
@@ -1710,9 +1727,9 @@ impl<C: Chip> ProcessType for Process<'_, C> {
         let sram_stack_start: Option<usize> = self.debug.map_or(None, |debug| {
             debug.app_stack_start_pointer.map(|p| p as usize)
         });
-        let sram_stack_bottom =
-            self.debug
-                .map_or(ptr::null(), |debug| debug.min_stack_pointer) as usize;
+        let sram_stack_bottom: Option<usize> = self.debug.map_or(None, |debug| {
+            debug.app_stack_min_pointer.map(|p| p as usize)
+        });
         let sram_start = self.memory.as_ptr() as usize;
 
         // SRAM sizes
@@ -1805,8 +1822,8 @@ impl<C: Chip> ProcessType for Process<'_, C> {
             }
         }
 
-        match sram_stack_start {
-            Some(sram_stack_start) => {
+        match (sram_stack_start, sram_stack_bottom) {
+            (Some(sram_stack_start), Some(sram_stack_bottom)) => {
                 let sram_stack_size = sram_stack_start - sram_stack_bottom;
                 let sram_stack_allocated = sram_stack_start - sram_start;
 
@@ -1820,7 +1837,7 @@ impl<C: Chip> ProcessType for Process<'_, C> {
                     exceeded_check(sram_stack_size, sram_stack_allocated),
                 ));
             }
-            None => {
+            _ => {
                 let _ = writer.write_str(
                     "\
                      \r\n  ?????????? ┼─────────────────────────────────────────── M\
@@ -1841,7 +1858,7 @@ impl<C: Chip> ProcessType for Process<'_, C> {
              \r\n             │ Protected    {:6}                        S\
              \r\n  {:#010X} ┴─────────────────────────────────────────── H\
              \r\n",
-            sram_stack_bottom,
+            sram_stack_bottom.unwrap_or(0),
             sram_start,
             flash_end,
             flash_app_size,
@@ -1855,9 +1872,12 @@ impl<C: Chip> ProcessType for Process<'_, C> {
         self.print_memory_map(writer);
 
         self.stored_state.map(|stored_state| {
-            self.chip
-                .userspace_kernel_boundary()
-                .print_context(self.sp(), stored_state, writer);
+            self.chip.userspace_kernel_boundary().print_context(
+                self.memory.as_ptr(),
+                self.app_break.get(),
+                stored_state,
+                writer,
+            );
         });
 
         // Display the current state of the MPU for this process.
@@ -1907,8 +1927,6 @@ fn exceeded_check(size: usize, allocated: usize) -> &'static str {
 }
 
 impl<C: 'static + Chip> Process<'_, C> {
-    const INITIAL_APP_MEMORY_SIZE: usize = 3 * 1024;
-
     // Memory offset for callback ring buffer (10 element length).
     const CALLBACK_LEN: usize = 10;
     const CALLBACKS_OFFSET: usize = mem::size_of::<Task>() * Self::CALLBACK_LEN;
@@ -1979,7 +1997,7 @@ impl<C: 'static + Chip> Process<'_, C> {
         }
 
         // Otherwise, actually load the app.
-        let mut min_app_ram_size = tbf_header.get_minimum_app_ram_size() as usize;
+        let process_ram_requested_size = tbf_header.get_minimum_app_ram_size() as usize;
         let init_fn = app_flash
             .as_ptr()
             .offset(tbf_header.get_init_function_offset() as isize) as usize;
@@ -2019,18 +2037,38 @@ impl<C: 'static + Chip> Process<'_, C> {
         let grant_ptrs_num = kernel.get_grant_count_and_finalize();
         let grant_ptrs_offset = grant_ptrs_num * grant_ptr_size;
 
-        // Initial sizes of the app-owned and kernel-owned parts of process
-        // memory. Provide the app with plenty of initial process accessible
-        // memory.
+        // Initial size of the kernel-owned part of process memory can be
+        // calculated directly based on the initial size of all kernel-owned
+        // data structures.
         let initial_kernel_memory_size =
             grant_ptrs_offset + Self::CALLBACKS_OFFSET + Self::PROCESS_STRUCT_OFFSET;
 
-        if min_app_ram_size < Self::INITIAL_APP_MEMORY_SIZE {
-            min_app_ram_size = Self::INITIAL_APP_MEMORY_SIZE;
-        }
+        // By default we start with the initial size of process-accessible
+        // memory set to 0. This maximizes the flexibility that processes have
+        // to allocate their memory as they see fit. If a process needs more
+        // accessible memory it must use the `brk` memop syscalls to request more
+        // memory.
+        //
+        // We must take into account any process-accessible memory required by
+        // the context switching implementation and allocate at least that much
+        // memory so that we can successfully switch to the process. This is
+        // architecture and implementation specific, so we query that now.
+        let min_process_memory_size = chip
+            .userspace_kernel_boundary()
+            .initial_process_app_brk_size();
+
+        // We have to ensure that we at least ask the MPU for
+        // `min_process_memory_size` so that we can be sure that `app_brk` is
+        // not set inside the kernel-owned memory region. Now, in practice,
+        // processes should not request 0 (or very few) bytes of memory in their
+        // TBF header (i.e. `process_ram_requested_size` will almost always be
+        // much larger than `min_process_memory_size`), as they are unlikely to
+        // work with essentially no available memory. But, we still must protect
+        // for that case.
+        let min_process_ram_size = cmp::max(process_ram_requested_size, min_process_memory_size);
 
         // Minimum memory size for the process.
-        let min_total_memory_size = min_app_ram_size + initial_kernel_memory_size;
+        let min_total_memory_size = min_process_ram_size + initial_kernel_memory_size;
 
         // Check if this process requires a fixed memory start address. If so,
         // try to adjust the memory region to work for this process.
@@ -2083,7 +2121,7 @@ impl<C: 'static + Chip> Process<'_, C> {
             remaining_memory.as_ptr() as *const u8,
             remaining_memory.len(),
             min_total_memory_size,
-            Self::INITIAL_APP_MEMORY_SIZE,
+            min_process_memory_size,
             initial_kernel_memory_size,
             mpu::Permissions::ReadWriteOnly,
             &mut mpu_config,
@@ -2135,9 +2173,13 @@ impl<C: 'static + Chip> Process<'_, C> {
             }
         }
 
-        // Set the initial process stack and memory to 3072 bytes.
-        let initial_stack_pointer = app_memory.as_ptr().add(Self::INITIAL_APP_MEMORY_SIZE);
-        let initial_sbrk_pointer = app_memory.as_ptr().add(Self::INITIAL_APP_MEMORY_SIZE);
+        // Set the initial process-accessible memory to the amount specified by
+        // the context switch implementation.
+        let initial_app_brk = app_memory.as_ptr().add(min_process_memory_size);
+
+        // Set the initial allow high water mark to the start of process memory
+        // since no `allow` calls have been made yet.
+        let initial_allow_high_water_mark = app_memory.as_ptr();
 
         // Set up initial grant region.
         let mut kernel_memory_break = app_memory.as_mut_ptr().add(app_memory.len());
@@ -2184,14 +2226,6 @@ impl<C: 'static + Chip> Process<'_, C> {
         kernel_memory_break = kernel_memory_break.offset(-(Self::PROCESS_STRUCT_OFFSET as isize));
         let process_struct_memory_location = kernel_memory_break;
 
-        // Determine the debug information to the best of our understanding.
-        // Since processes have to do their own setup (allocating a stack and
-        // heap), we don't know much when the process is first created.
-        // Processes should use memop syscalls to inform the kernel of what
-        // these values are to help with debugging.
-        let app_heap_start_pointer = None;
-        let app_stack_start_pointer = None;
-
         // Create the Process struct in the app grant region.
         let mut process: &mut Process<C> =
             &mut *(process_struct_memory_location as *mut Process<'static, C>);
@@ -2210,16 +2244,11 @@ impl<C: 'static + Chip> Process<'_, C> {
             .set(AppId::new(kernel, unique_identifier, index));
         process.kernel = kernel;
         process.chip = chip;
-        process.allow_high_water_mark = Cell::new(app_memory.as_ptr());
-        process.original_allow_high_water_mark = app_memory.as_ptr();
+        process.allow_high_water_mark = Cell::new(initial_allow_high_water_mark);
         process.memory = app_memory;
         process.header = tbf_header;
         process.kernel_memory_break = Cell::new(kernel_memory_break);
-        process.original_kernel_memory_break = kernel_memory_break;
-        process.app_break = Cell::new(initial_sbrk_pointer);
-        process.original_app_break = initial_sbrk_pointer;
-        process.current_stack_pointer = Cell::new(initial_stack_pointer);
-        process.original_stack_pointer = initial_stack_pointer;
+        process.app_break = Cell::new(initial_app_brk);
 
         process.flash = app_flash;
 
@@ -2244,9 +2273,9 @@ impl<C: 'static + Chip> Process<'_, C> {
         process.debug = MapCell::new(ProcessDebug {
             fixed_address_flash: fixed_address_flash,
             fixed_address_ram: fixed_address_ram,
-            app_heap_start_pointer: app_heap_start_pointer,
-            app_stack_start_pointer: app_stack_start_pointer,
-            min_stack_pointer: initial_stack_pointer,
+            app_heap_start_pointer: None,
+            app_stack_start_pointer: None,
+            app_stack_min_pointer: None,
             syscall_count: 0,
             last_syscall: None,
             dropped_callback_count: 0,
@@ -2267,20 +2296,22 @@ impl<C: 'static + Chip> Process<'_, C> {
             }));
         });
 
-        // Handle any architecture-specific requirements for a new process
+        // Handle any architecture-specific requirements for a new process.
+        //
+        // NOTE! We have to ensure that the start of process-accessible memory
+        // (`app_memory_start`) is word-aligned. Since we currently start
+        // process-accessible memory at the beginning of the allocated memory
+        // region, we trust the MPU to give us a word-aligned starting address.
+        //
+        // TODO: https://github.com/tock/tock/issues/1739
         match process.stored_state.map(|stored_state| {
             chip.userspace_kernel_boundary().initialize_process(
-                process.sp(),
-                process.sp() as usize - process.memory.as_ptr() as usize,
+                app_memory_start,
+                initial_app_brk,
                 stored_state,
             )
         }) {
-            Some(Ok(new_stack_pointer)) => {
-                process
-                    .current_stack_pointer
-                    .set(new_stack_pointer as *mut u8);
-                process.debug_set_max_stack_depth();
-            }
+            Some(Ok(())) => {}
             _ => {
                 if config::CONFIG.debug_load_processes {
                     debug!(
@@ -2323,6 +2354,8 @@ impl<C: 'static + Chip> Process<'_, C> {
             debug.timeslice_expiration_count = 0;
         });
 
+        // FLASH
+
         // We are going to start this process over again, so need the init_fn
         // location.
         let app_flash_address = self.flash_start();
@@ -2330,34 +2363,35 @@ impl<C: 'static + Chip> Process<'_, C> {
             app_flash_address.offset(self.header.get_init_function_offset() as isize) as usize
         };
 
-        // Reset memory pointers back to how they were when first calculated by
-        // the process create function. Since these are based on properties in
-        // the TBF header, and processes can't change the TBF header, it is fine
-        // to use saved values.
-        self.kernel_memory_break
-            .set(self.original_kernel_memory_break);
-        self.app_break.set(self.original_app_break);
-        self.current_stack_pointer.set(self.original_stack_pointer);
-        self.allow_high_water_mark
-            .set(self.original_allow_high_water_mark);
-
         // Reset MPU region configuration.
         // TODO: ideally, this would be moved into a helper function used by both
         // create() and reset(), but process load debugging complicates this.
         // We just want to create new config with only flash and memory regions.
         let mut mpu_config: <<C as Chip>::MPU as MPU>::MpuConfig = Default::default();
         // Allocate MPU region for flash.
-        let app_mpu_flash_success = self
+        let app_mpu_flash = self.chip.mpu().allocate_region(
+            self.flash.as_ptr(),
+            self.flash.len(),
+            self.flash.len(),
+            mpu::Permissions::ReadExecuteOnly,
+            &mut mpu_config,
+        );
+        if app_mpu_flash.is_none() {
+            // We were unable to allocate an MPU region for flash. This is very
+            // unexpected since we previously ran this process. However, we
+            // return now and leave the process faulted and it will not be
+            // scheduled.
+            return Err(ErrorCode::FAIL);
+        }
+
+        // RAM
+
+        // Re-determine the minimum amount of RAM the kernel must allocate to the process
+        // based on the specific requirements of the syscall implementation.
+        let min_process_memory_size = self
             .chip
-            .mpu()
-            .allocate_region(
-                self.flash.as_ptr(),
-                self.flash.len(),
-                self.flash.len(),
-                mpu::Permissions::ReadExecuteOnly,
-                &mut mpu_config,
-            )
-            .is_some();
+            .userspace_kernel_boundary()
+            .initial_process_app_brk_size();
 
         // Recalculate initial_kernel_memory_size as was done in create()
         let grant_ptr_size = mem::size_of::<*const usize>();
@@ -2367,48 +2401,57 @@ impl<C: 'static + Chip> Process<'_, C> {
         let initial_kernel_memory_size =
             grant_ptrs_offset + Self::CALLBACKS_OFFSET + Self::PROCESS_STRUCT_OFFSET;
 
-        let app_mpu_mem_success = self
-            .chip
-            .mpu()
-            .allocate_app_memory_region(
-                self.memory.as_ptr() as *const u8,
-                self.memory.len(),
-                self.memory.len(), //we want exactly as much as we had before restart
-                Self::INITIAL_APP_MEMORY_SIZE,
-                initial_kernel_memory_size,
-                mpu::Permissions::ReadWriteOnly,
-                &mut mpu_config,
-            )
-            .is_some();
-
-        // Drop the old config and use the clean one
-        self.mpu_config.replace(mpu_config);
-
-        match (app_mpu_flash_success, app_mpu_mem_success) {
-            (true, true) => {}
-            _ => {
+        let app_mpu_mem = self.chip.mpu().allocate_app_memory_region(
+            self.memory.as_ptr() as *const u8,
+            self.memory.len(),
+            self.memory.len(), //we want exactly as much as we had before restart
+            min_process_memory_size,
+            initial_kernel_memory_size,
+            mpu::Permissions::ReadWriteOnly,
+            &mut mpu_config,
+        );
+        let (app_mpu_mem_start, app_mpu_mem_len) = match app_mpu_mem {
+            Some((start, len)) => (start, len),
+            None => {
                 // We couldn't configure the MPU for the process. This shouldn't
                 // happen since we were able to start the process before, but at
                 // this point it is better to leave the app faulted and not
                 // schedule it.
                 return Err(ErrorCode::NOMEM);
             }
-        }
+        };
+
+        // Reset memory pointers now that we know the layout of the process
+        // memory and know that we can configure the MPU.
+
+        // app_brk is set based on minimum syscall size above the start of
+        // memory.
+        let app_brk = app_mpu_mem_start.wrapping_add(min_process_memory_size);
+        self.app_break.set(app_brk);
+        // kernel_brk is calculated backwards from the end of memory the size of
+        // the initial kernel data structures.
+        let kernel_brk = app_mpu_mem_start
+            .wrapping_add(app_mpu_mem_len)
+            .wrapping_sub(initial_kernel_memory_size);
+        self.kernel_memory_break.set(kernel_brk);
+        // High water mark for `allow`ed memory is reset to the start of the
+        // process's memory region.
+        self.allow_high_water_mark.set(app_mpu_mem_start);
+
+        // Drop the old config and use the clean one
+        self.mpu_config.replace(mpu_config);
 
         // Handle any architecture-specific requirements for a process when it
         // first starts (as it would when it is new).
-        let new_stack_pointer_res = self.stored_state.map_or(Err(()), |stored_state| unsafe {
+        let ukb_init_process = self.stored_state.map_or(Err(()), |stored_state| unsafe {
             self.chip.userspace_kernel_boundary().initialize_process(
-                self.sp(),
-                self.sp() as usize - self.memory.as_ptr() as usize,
+                app_mpu_mem_start,
+                app_brk,
                 stored_state,
             )
         });
-        match new_stack_pointer_res {
-            Ok(new_stack_pointer) => {
-                self.current_stack_pointer.set(new_stack_pointer as *mut u8);
-                self.debug_set_max_stack_depth();
-            }
+        match ukb_init_process {
+            Ok(()) => {}
             Err(_) => {
                 // We couldn't initialize the architecture-specific
                 // state for this process. This shouldn't happen since
@@ -2446,19 +2489,6 @@ impl<C: 'static + Chip> Process<'_, C> {
         self.kernel.increment_work();
 
         Ok(())
-    }
-
-    /// Get the current stack pointer as a pointer.
-    // This is currently safe as the the userspace/kernel boundary
-    // implementations of both Risc-V and ARM would fault on context switch if
-    // the stack pointer were misaligned.
-    //
-    // This is a bit of an undocumented assumption, but not sure there is
-    // likely to be an architecture in the near future where this is
-    // realistically a risk.
-    #[allow(clippy::cast_ptr_alignment)]
-    fn sp(&self) -> *const usize {
-        self.current_stack_pointer.get() as *const usize
     }
 
     /// Checks if the buffer represented by the passed in base pointer and size
@@ -2500,14 +2530,6 @@ impl<C: 'static + Chip> Process<'_, C> {
             let ctr_ptr = (self.mem_end() as *mut *mut usize).offset(-(grant_num + 1));
             write_volatile(ctr_ptr, ptr::null_mut());
         }
-    }
-
-    fn debug_set_max_stack_depth(&self) {
-        self.debug.map(|debug| {
-            if self.current_stack_pointer.get() < debug.min_stack_pointer {
-                debug.min_stack_pointer = self.current_stack_pointer.get();
-            }
-        });
     }
 
     /// Check if the process is active.

@@ -2,6 +2,7 @@
 //! system call interface.
 
 use core::fmt::Write;
+use core::mem;
 use core::ptr::{read_volatile, write_volatile};
 
 /// This is used in the syscall handler. When set to 1 this means the
@@ -33,6 +34,9 @@ extern "C" {
     pub fn switch_to_user(user_stack: *const usize, process_regs: &mut [usize; 8]) -> *const usize;
 }
 
+// Space for 8 u32s: r0-r3, r12, lr, pc, and xPSR
+const SVC_FRAME_SIZE: usize = 32;
+
 /// This holds all of the state that the kernel must keep for the process when
 /// the process is not executing.
 #[derive(Default)]
@@ -40,6 +44,7 @@ pub struct CortexMStoredState {
     regs: [usize; 8],
     yield_pc: usize,
     psr: usize,
+    psp: usize,
 }
 
 /// Implementation of the `UserspaceKernelBoundary` for the Cortex-M non-floating point
@@ -55,48 +60,68 @@ impl SysCall {
 impl kernel::syscall::UserspaceKernelBoundary for SysCall {
     type StoredState = CortexMStoredState;
 
+    fn initial_process_app_brk_size(&self) -> usize {
+        // TOCK 1.X
+        //
+        // The 1.x Tock kernel allocates at least 3 kB to processes, and we need
+        // to ensure that happens as userspace may expect it.
+        3 * 1024
+
+        // TOCK 2.0
+        //
+        // Cortex-M hardware use 8 words on the stack to implement context switches.
+        // So we need at least 32 bytes.
+        //SVC_FRAME_SIZE
+    }
+
     unsafe fn initialize_process(
         &self,
-        stack_pointer: *const usize,
-        stack_size: usize,
+        accessible_memory_start: *const u8,
+        app_brk: *const u8,
         state: &mut Self::StoredState,
-    ) -> Result<*const usize, ()> {
+    ) -> Result<(), ()> {
         // We need to initialize the stored state for the process here. This
         // initialization can be called multiple times for a process, for
         // example if the process is restarted.
         state.regs.iter_mut().for_each(|x| *x = 0);
         state.yield_pc = 0;
         state.psr = 0x01000000; // Set the Thumb bit and clear everything else.
+        state.psp = app_brk as usize; // Set to top of process-accessible memory.
 
-        // The first time a process runs it has no stack and we have to create
-        // a new stack frame for the svc handler to have "returned from".
-
-        // Space for 8 u32s: r0-r3, r12, lr, pc, and xPSR
-        let svc_frame_size = 32;
-
-        // Make sure there's enough room on the stack for the initial kernel frame
-        if stack_size < svc_frame_size {
+        // Make sure there's enough room on the stack for the initial SVC frame.
+        if (app_brk as usize - accessible_memory_start as usize) < SVC_FRAME_SIZE {
             // Not enough room on the stack to add a frame.
             return Err(());
         }
 
         // Allocate the kernel frame
-        Ok((stack_pointer as *mut usize).offset(-8))
+        state.psp -= SVC_FRAME_SIZE;
+        Ok(())
     }
 
     unsafe fn set_syscall_return_value(
         &self,
-        stack_pointer: *const usize,
-        _state: &mut Self::StoredState,
+        accessible_memory_start: *const u8,
+        app_brk: *const u8,
+        state: &mut Self::StoredState,
         return_value: kernel::syscall::GenericSyscallReturnValue,
-    ) {
+    ) -> Result<(), ()> {
         // For the Cortex-M arch, write the return values in the same
-        // place that they were originally passed in
+        // place that they were originally passed in (i.e. at the
+        // bottom the SVC structure on the stack)
 
         // TODO: Maybe use a static assertion (as a sanity check) that
         // the width of usize == 32-bit?
 
-        let sp = (stack_pointer as *const u32) as *mut u32;
+        // First, we need to validate that this location is inside of the
+        // process's accessible memory.
+        if state.psp < accessible_memory_start as usize
+            || (state.psp + (mem::size_of::<u32>() * 4)) > app_brk as usize
+        {
+            return Err(());
+        }
+
+        let sp = state.psp as *mut u32;
         let (r0, r1, r2, r3) = (sp.offset(0), sp.offset(1), sp.offset(2), sp.offset(3));
 
         // TODO: Are these guarantees _always_ satisfied? E.g. must
@@ -116,31 +141,41 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         // Refer to
         // https://doc.rust-lang.org/std/primitive.pointer.html#safety-13
         return_value.encode_syscall_return(&mut *r0, &mut *r1, &mut *r2, &mut *r3);
+
+        Ok(())
     }
 
     /// When the process calls `svc` to enter the kernel, the hardware
-    /// automatically pushes a stack frame that will be unstacked when the
-    /// kernel returns to the process. In the special case of process startup,
-    /// `initialize_new_process` sets up an empty stack frame and stored state
-    /// as if an `svc` had been called.
+    /// automatically pushes an SVC frame that will be unstacked when the kernel
+    /// returns to the process. In the special case of process startup,
+    /// `initialize_new_process` sets up an empty SVC frame as if an `svc` had
+    /// been called.
     ///
     /// Here, we modify this stack frame such that the process resumes at the
     /// beginning of the callback function that we want the process to run. We
-    /// place the originally intended return addess in the link register so
+    /// place the originally intended return address in the link register so
     /// that when the function completes execution continues.
     ///
     /// In effect, this converts `svc` into `bl callback`.
     unsafe fn set_process_function(
         &self,
-        stack_pointer: *const usize,
-        _remaining_stack_memory: usize,
+        accessible_memory_start: *const u8,
+        app_brk: *const u8,
         state: &mut CortexMStoredState,
         callback: kernel::procs::FunctionCall,
-    ) -> Result<*mut usize, *mut usize> {
+    ) -> Result<(), ()> {
+        // Ensure that [`state.psp`, `state.psp + SVC_FRAME_SIZE`] is
+        // within process-accessible memory.
+        if state.psp < accessible_memory_start as usize
+            || (state.psp + SVC_FRAME_SIZE) > app_brk as usize
+        {
+            return Err(());
+        }
+
         // Notes:
         //  - Instruction addresses require `|1` to indicate thumb code
         //  - Stack offset 4 is R12, which the syscall interface ignores
-        let stack_bottom = stack_pointer as *mut usize;
+        let stack_bottom = state.psp as *mut usize;
         write_volatile(stack_bottom.offset(7), state.psr); //......... -> APSR
         write_volatile(stack_bottom.offset(6), callback.pc | 1); //... -> PC
         write_volatile(stack_bottom.offset(5), state.yield_pc | 1); // -> LR
@@ -149,15 +184,32 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         write_volatile(stack_bottom.offset(1), callback.argument1); // -> R1
         write_volatile(stack_bottom.offset(0), callback.argument0); // -> R0
 
-        Ok(stack_bottom)
+        Ok(())
     }
 
     unsafe fn switch_to_process(
         &self,
-        stack_pointer: *const usize,
+        accessible_memory_start: *const u8,
+        app_brk: *const u8,
         state: &mut CortexMStoredState,
-    ) -> (*mut usize, kernel::syscall::ContextSwitchReason) {
-        let new_stack_pointer = switch_to_user(stack_pointer, &mut state.regs);
+    ) -> (kernel::syscall::ContextSwitchReason, Option<*const u8>) {
+        let new_stack_pointer = switch_to_user(state.psp as *const usize, &mut state.regs);
+
+        // We need to keep track of the current stack pointer.
+        state.psp = new_stack_pointer as usize;
+
+        // We need to validate that the stack pointer and the SVC frame are
+        // within process accessible memory.
+        let invalid_stack_pointer = if state.psp < accessible_memory_start as usize
+            || (state.psp + SVC_FRAME_SIZE) > app_brk as usize
+        {
+            // Process corrupted its stack pointer, we can't continue and must
+            // fault.
+            true
+        } else {
+            // Everything looks good.
+            false
+        };
 
         // Determine why this returned and the process switched back to the
         // kernel.
@@ -173,7 +225,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         write_volatile(&mut SYSCALL_FIRED, 0);
 
         // Now decide the reason based on which flags were set.
-        let switch_reason = if app_fault == 1 {
+        let switch_reason = if app_fault == 1 || invalid_stack_pointer {
             // APP_HARD_FAULT takes priority. This means we hit the hardfault
             // handler and this process faulted.
             kernel::syscall::ContextSwitchReason::Fault
@@ -213,15 +265,24 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
             kernel::syscall::ContextSwitchReason::Interrupted
         };
 
-        (new_stack_pointer as *mut usize, switch_reason)
+        (switch_reason, Some(new_stack_pointer as *const u8))
     }
 
     unsafe fn print_context(
         &self,
-        stack_pointer: *const usize,
+        accessible_memory_start: *const u8,
+        app_brk: *const u8,
         state: &CortexMStoredState,
         writer: &mut dyn Write,
     ) {
+        // Validate the stored stack pointer is valid.
+        if state.psp < accessible_memory_start as usize
+            || (state.psp + SVC_FRAME_SIZE) > app_brk as usize
+        {
+            return;
+        }
+
+        let stack_pointer = state.psp as *const usize;
         let r0 = read_volatile(stack_pointer.offset(0));
         let r1 = read_volatile(stack_pointer.offset(1));
         let r2 = read_volatile(stack_pointer.offset(2));
