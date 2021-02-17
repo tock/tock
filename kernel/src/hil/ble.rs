@@ -75,6 +75,7 @@ pub enum BleGattAccessType {
     ReadWriteNotify,
 }
 
+// ****** I am not sure if these should be traits of structs with public members *******
 pub trait BleGattService<'a> {
     type Characteristic: BleGattCharacteristic;
 
@@ -87,6 +88,7 @@ pub trait BleGattCharacteristic {
     fn get_format_type() -> AttributeFormatType;
     fn get_access() -> BleGattAccessType;
 }
+// *************************************************************************************
 
 pub enum BleGattError {
     Timeout,
