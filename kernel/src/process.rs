@@ -1434,7 +1434,7 @@ impl<C: Chip> ProcessType for Process<'_, C> {
 
         let _ = writer.write_fmt(format_args!(
             "\
-             App: {}   -   [{:?}]\
+             𝐀𝐩𝐩: {}   -   [{:?}]\
              \r\n Events Queued: {}   Syscall Count: {}   Dropped Callback Count: {}\
              \r\n Restart Count: {}\r\n",
             self.process_name,
