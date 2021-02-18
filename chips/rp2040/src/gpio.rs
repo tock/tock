@@ -74,7 +74,7 @@ register_structs! {
         (0x010 => gpio_out: ReadWrite<u32, GPIO_OUT::Register>),
 
         /// Not used
-        (0x014 => _reserved0),
+        (0x014 => _reserved1),
 
         /// GPIO output enable
         (0x020 => gpio_oe: ReadWrite<u32, GPIO_OE::Register>),
@@ -394,14 +394,12 @@ impl<'a> RPGpioPin<'a> {
     fn get_mode(&self) -> hil::gpio::Configuration {
         //TODO - read alternate function
         let pad_output_disable = self.gpio_pad_registers.gpio_pad[self.pin].read(GPIO_PAD::OD);
-        let pad_input_enable = self.gpio_pad_registers.gpio_pad[self.pin].read(GPIO_PAD::IE);
-        let base: i32 = 2;
-        let pin_mask = base.pow(self.pin);
-        let output_enable = self.sio_registers.read(GPIO_OE::OE) & pin_mask;
+        let pin_mask = 1 << self.pin;
+        let sio_output_enable = (self.sio_registers.gpio_oe.read(GPIO_OE::OE) & pin_mask) != 0;
 
-        match (pad_output_disable, pad_input_enable) {
-            (0, 0) => hil::gpio::Configuration::Output,
-            (0, 1) => hil::gpio::Configuration::Input,
+        match (pad_output_disable, sio_output_enable) {
+            (0, true) => hil::gpio::Configuration::Output,
+            (0, false) => hil::gpio::Configuration::Input,
             (1, _) => hil::gpio::Configuration::LowPower,
             _ => panic!("Invalid GPIO state mode"),
         }
@@ -440,28 +438,28 @@ impl hil::gpio::Configure for RPGpioPin<'_> {
     /// Set output mode
     fn make_output(&self) -> hil::gpio::Configuration {
         self.set_function(GpioFunction::SIO);
-        self.gpio_pad_registers.gpio_pad[self.pin]
-            .modify(GPIO_PAD::OD::CLEAR + GPIO_PAD::IE::CLEAR);
+        self.activate_pads();
+        let result = (1 << self.pin) | self.sio_registers.gpio_oe.get();
+        self.sio_registers.gpio_oe.set(result);
         self.get_mode()
     }
     /// Disable output mode
     fn disable_output(&self) -> hil::gpio::Configuration {
         self.set_function(GpioFunction::SIO);
-        self.gpio_pad_registers.gpio_pad[self.pin].modify(GPIO_PAD::OD::CLEAR + GPIO_PAD::IE::SET);
+        self.gpio_pad_registers.gpio_pad[self.pin].modify(GPIO_PAD::OD::SET);
         self.get_mode()
     }
-    /// Input mode
+    /// Set input mode
     fn make_input(&self) -> hil::gpio::Configuration {
         self.set_function(GpioFunction::SIO);
-        self.gpio_pad_registers.gpio_pad[self.pin].modify(GPIO_PAD::OD::CLEAR + GPIO_PAD::IE::SET);
+        self.activate_pads();
+        let result = !(1 << self.pin) & self.sio_registers.gpio_oe.get();
+        self.sio_registers.gpio_oe.set(result);
         self.get_mode()
     }
-    /// Disable input mode
+    /// Disable input mode, will set pin to output mode
     fn disable_input(&self) -> hil::gpio::Configuration {
-        self.set_function(GpioFunction::SIO);
-        self.gpio_pad_registers.gpio_pad[self.pin]
-            .modify(GPIO_PAD::OD::CLEAR + GPIO_PAD::IE::CLEAR);
-        self.get_mode()
+        self.make_output()
     }
     fn deactivate_to_low_power(&self) {
         self.set_function(GpioFunction::SIO);
