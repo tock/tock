@@ -129,7 +129,6 @@ struct Imix {
     >,
     ipc: kernel::ipc::IPC<NUM_PROCS>,
     ninedof: &'static capsules::ninedof::NineDof<'static>,
-    radio_driver: &'static capsules::ieee802154::RadioDriver<'static>,
     udp_driver: &'static capsules::net::udp::UDPDriver<'static>,
     crc: &'static capsules::crc::Crc<'static, sam4l::crccu::Crccu<'static>>,
     usb_driver: &'static capsules::usb::usb_user::UsbSyscallDriver<
@@ -173,7 +172,6 @@ impl kernel::Platform for Imix {
             capsules::ninedof::DRIVER_NUM => f(Some(self.ninedof)),
             capsules::crc::DRIVER_NUM => f(Some(self.crc)),
             capsules::usb::usb_user::DRIVER_NUM => f(Some(self.usb_driver)),
-            capsules::ieee802154::DRIVER_NUM => f(Some(self.radio_driver)),
             capsules::net::udp::DRIVER_NUM => f(Some(self.udp_driver)),
             capsules::nrf51822_serialization::DRIVER_NUM => f(Some(self.nrf51822)),
             capsules::nonvolatile_storage_driver::DRIVER_NUM => f(Some(self.nonvolatile_storage)),
@@ -461,7 +459,7 @@ pub unsafe fn reset_handler() {
 
     // Can this initialize be pushed earlier, or into component? -pal
     rf233.initialize(&mut RF233_BUF, &mut RF233_REG_WRITE, &mut RF233_REG_READ);
-    let (radio_driver, mux_mac) = components::ieee802154::Ieee802154Component::new(
+    let (_, mux_mac) = components::ieee802154::Ieee802154Component::new(
         board_kernel,
         rf233,
         aes_mux,
@@ -550,7 +548,6 @@ pub unsafe fn reset_handler() {
         spi: spi_syscalls,
         ipc: kernel::ipc::IPC::new(board_kernel, &grant_cap),
         ninedof,
-        radio_driver,
         udp_driver,
         usb_driver,
         nrf51822: nrf_serialization,
