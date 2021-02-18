@@ -10,10 +10,15 @@ use std::path::Path;
 
 const SLEEP_DURATION_US: u128 = 1;
 
+pub trait Callback {
+    fn execute(&self) -> ();
+}
+
 /// An generic `Chip` implementation
 pub struct HostChip {
     systick: SysTick,
     syscall: SysCall,
+    service_interrupts_callback: Option<&'static dyn Callback>,
 }
 
 impl HostChip {
@@ -37,6 +42,7 @@ impl HostChip {
         HostChip {
             systick: SysTick::new(),
             syscall: syscall,
+            service_interrupts_callback: None,
         }
     }
 
@@ -48,6 +54,10 @@ impl HostChip {
         // let cmd_info = unsafe { HOST_CONFIG.unwrap() };
         let cmd_info = Config::get();
         cmd_info.apps()[0].bin_path()
+    }
+
+    pub fn set_service_interrupts_callback(&mut self, callback: &'static dyn Callback) {
+        self.service_interrupts_callback = Some(callback);
     }
 }
 
@@ -68,7 +78,11 @@ impl kernel::Chip for HostChip {
         &self.syscall
     }
 
-    fn service_pending_interrupts(&self) {}
+    fn service_pending_interrupts(&self) {
+        if let Some(callback) = &self.service_interrupts_callback {
+            callback.execute();
+        }
+    }
 
     fn has_pending_interrupts(&self) -> bool {
         false
