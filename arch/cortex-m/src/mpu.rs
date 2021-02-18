@@ -1,5 +1,5 @@
-//! Implementation of the memory protection unit for the Cortex-M3 and
-//! Cortex-M4.
+//! Implementation of the memory protection unit for the Cortex-M3,
+//! Cortex-M4, and Cortex-M7
 
 use core::cell::Cell;
 use core::cmp;
@@ -12,7 +12,7 @@ use kernel::common::StaticRef;
 use kernel::mpu;
 use kernel::AppId;
 
-/// MPU Registers for the Cortex-M3 and Cortex-M4 families
+/// MPU Registers for the Cortex-M3, Cortex-M4 and Cortex-M7 families
 /// Described in section 4.5 of
 /// <http://infocenter.arm.com/help/topic/com.arm.doc.dui0553a/DUI0553A_cortex_m4_dgug.pdf>
 #[repr(C)]
@@ -127,7 +127,7 @@ const MPU_BASE_ADDRESS: StaticRef<MpuRegisters> =
 ///
 /// There should only be one instantiation of this object as it represents
 /// real hardware.
-pub struct MPU {
+pub struct MPU<const NUM_REGIONS: usize> {
     /// MMIO reference to MPU registers.
     registers: StaticRef<MpuRegisters>,
     /// Optimization logic. This is used to indicate which application the MPU
@@ -136,9 +136,9 @@ pub struct MPU {
     hardware_is_configured_for: OptionalCell<AppId>,
 }
 
-impl MPU {
-    pub const unsafe fn new() -> MPU {
-        MPU {
+impl<const NUM_REGIONS: usize> MPU<NUM_REGIONS> {
+    pub const unsafe fn new() -> Self {
+        Self {
             registers: MPU_BASE_ADDRESS,
             hardware_is_configured_for: OptionalCell::empty(),
         }
@@ -150,9 +150,9 @@ impl MPU {
 /// The cortex-m MPU has eight regions, all of which must be configured (though
 /// unused regions may be configured as disabled). This struct caches the result
 /// of region configuration calculation
-pub struct CortexMConfig {
+pub struct CortexMConfig<const NUM_REGIONS: usize> {
     /// The computed region configuration for this process.
-    regions: [CortexMRegion; 8],
+    regions: [CortexMRegion; NUM_REGIONS],
     /// Has the configuration changed since the last time the this process
     /// configuration was written to hardware?
     is_dirty: Cell<bool>,
@@ -160,25 +160,21 @@ pub struct CortexMConfig {
 
 const APP_MEMORY_REGION_NUM: usize = 0;
 
-impl Default for CortexMConfig {
-    fn default() -> CortexMConfig {
-        CortexMConfig {
-            regions: [
-                CortexMRegion::empty(0),
-                CortexMRegion::empty(1),
-                CortexMRegion::empty(2),
-                CortexMRegion::empty(3),
-                CortexMRegion::empty(4),
-                CortexMRegion::empty(5),
-                CortexMRegion::empty(6),
-                CortexMRegion::empty(7),
-            ],
+impl<const NUM_REGIONS: usize> Default for CortexMConfig<NUM_REGIONS> {
+    fn default() -> Self {
+        // a bit of a hack to initialize array without unsafe
+        let mut ret = Self {
+            regions: [CortexMRegion::empty(0); NUM_REGIONS],
             is_dirty: Cell::new(true),
+        };
+        for i in 0..NUM_REGIONS {
+            ret.regions[i] = CortexMRegion::empty(i);
         }
+        ret
     }
 }
 
-impl fmt::Display for CortexMConfig {
+impl<const NUM_REGIONS: usize> fmt::Display for CortexMConfig<NUM_REGIONS> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "\r\n Cortex-M MPU")?;
         for (i, region) in self.regions.iter().enumerate() {
@@ -232,7 +228,7 @@ impl fmt::Display for CortexMConfig {
     }
 }
 
-impl CortexMConfig {
+impl<const NUM_REGIONS: usize> CortexMConfig<NUM_REGIONS> {
     fn unused_region_number(&self) -> Option<usize> {
         for (number, region) in self.regions.iter().enumerate() {
             if number == APP_MEMORY_REGION_NUM {
@@ -362,8 +358,8 @@ impl CortexMRegion {
     }
 }
 
-impl kernel::mpu::MPU for MPU {
-    type MpuConfig = CortexMConfig;
+impl<const NUM_REGIONS: usize> kernel::mpu::MPU for MPU<NUM_REGIONS> {
+    type MpuConfig = CortexMConfig<NUM_REGIONS>;
 
     fn clear_mpu(&self) {
         self.registers.ctrl.write(Control::ENABLE::CLEAR);
