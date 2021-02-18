@@ -73,14 +73,26 @@ register_structs! {
         /// GPIO output value
         (0x010 => gpio_out: ReadWrite<u32, GPIO_OUT::Register>),
 
-        /// Not used
-        (0x014 => _reserved1),
+        /// GPIO output value set
+        (0x014 => gpio_out_set: ReadWrite<u32, GPIO_OUT_SET::Register>),
+
+        /// GPIO output value clear
+        (0x018 => gpio_out_clr: ReadWrite<u32, GPIO_OUT_CLR::Register>),
+
+        /// GPIO output value XOR
+        (0x01c => gpio_out_xor: ReadWrite<u32, GPIO_OUT_XOR::Register>),
 
         /// GPIO output enable
         (0x020 => gpio_oe: ReadWrite<u32, GPIO_OE::Register>),
 
+        /// GPIO output enable set
+        (0x024 => gpio_oe_set: ReadWrite<u32, GPIO_OE_SET::Register>),
+
+        /// GPIO output enable clear
+        (0x028 => gpio_oe_clr: ReadWrite<u32, GPIO_OE_CLR::Register>),
+
         /// End
-        (0x024 => @END),
+        (0x02c => @END),
     }
 }
 
@@ -321,13 +333,33 @@ register_bitfields![u32,
         IN OFFSET(0) NUMBITS(30) []
     ],
     GPIO_OUT [
-        ///Set output level 1/0 (high/low) for GPIO0..29
+        ///Set output level (1/0 → high/low) for GPIO0...29.
+        OUT OFFSET(0) NUMBITS(30) []
+    ],
+    GPIO_OUT_SET [
+        ///Perform an atomic bit-set on GPIO_OUT
+        OUT OFFSET(0) NUMBITS(30) []
+    ],
+    GPIO_OUT_CLR [
+        ///Perform an atomic bit-clear on GPIO_OUT
+        OUT OFFSET(0) NUMBITS(30) []
+    ],
+    GPIO_OUT_XOR [
+        ///Perform an atomic bitwise XOR on GPIO_OUT
         OUT OFFSET(0) NUMBITS(30) []
     ],
     GPIO_OE [
-        ///Set output enable 1/0 (output/input) for GPIO0..29
+        ///Set output enable (1/0 → output/input) for GPIO0...29
         OE OFFSET(0) NUMBITS(30) []
-    ]
+    ],
+    GPIO_OE_SET [
+        ///Perform an atomic bit-set on GPIO_OE
+        OE OFFSET(0) NUMBITS(30) []
+    ],
+    GPIO_OE_CLR [
+        ///Perform an atomic bit-clear on GPIO_OE
+        OE OFFSET(0) NUMBITS(30) []
+    ],
 ];
 
 const GPIO_BASE_ADDRESS: usize = 0x40014000;
@@ -405,6 +437,16 @@ impl<'a> RPGpioPin<'a> {
         }
     }
 
+    fn read_pin(&self) -> bool {
+        //TODO - read alternate function
+        let value = self.sio_registers.gpio_out.read(GPIO_OUT::OUT) & (1 << self.pin);
+        if value == 0 {
+            false
+        } else {
+            true
+        }
+    }
+
     fn set_function(&self, f: GpioFunction) {
         self.gpio_registers.pin[self.pin]
             .ctrl
@@ -439,11 +481,10 @@ impl hil::gpio::Configure for RPGpioPin<'_> {
     fn make_output(&self) -> hil::gpio::Configuration {
         self.set_function(GpioFunction::SIO);
         self.activate_pads();
-        let result = (1 << self.pin) | self.sio_registers.gpio_oe.get();
-        self.sio_registers.gpio_oe.set(result);
+        self.sio_registers.gpio_oe_set.set(1 << self.pin);
         self.get_mode()
     }
-    /// Disable output mode
+    /// Disable pad output
     fn disable_output(&self) -> hil::gpio::Configuration {
         self.set_function(GpioFunction::SIO);
         self.gpio_pad_registers.gpio_pad[self.pin].modify(GPIO_PAD::OD::SET);
@@ -453,8 +494,7 @@ impl hil::gpio::Configure for RPGpioPin<'_> {
     fn make_input(&self) -> hil::gpio::Configuration {
         self.set_function(GpioFunction::SIO);
         self.activate_pads();
-        let result = !(1 << self.pin) & self.sio_registers.gpio_oe.get();
-        self.sio_registers.gpio_oe.set(result);
+        self.sio_registers.gpio_oe_clr.set(1 << self.pin);
         self.get_mode()
     }
     /// Disable input mode, will set pin to output mode
@@ -501,19 +541,45 @@ impl hil::gpio::Configure for RPGpioPin<'_> {
 }
 
 impl hil::gpio::Output for RPGpioPin<'_> {
-    fn set(&self) {}
+    fn set(&self) {
+        // For performance this match might be skipped
+        match self.get_mode() {
+            hil::gpio::Configuration::Output | hil::gpio::Configuration::InputOutput => {
+                self.sio_registers.gpio_out_set.set(1 << self.pin);
+            }
+            _ => {}
+        }
+    }
 
     fn clear(&self) {
-        self.set_output_low();
+        // For performance this match might be skipped
+        match self.get_mode() {
+            hil::gpio::Configuration::Output | hil::gpio::Configuration::InputOutput => {
+                self.sio_registers.gpio_out_clr.set(1 << self.pin);
+            }
+            _ => {}
+        }
     }
 
     fn toggle(&self) -> bool {
-        self.toggle_output()
+        // For performance this match might be skipped
+        match self.get_mode() {
+            hil::gpio::Configuration::Output | hil::gpio::Configuration::InputOutput => {
+                self.sio_registers.gpio_out_xor.set(1 << self.pin);
+            }
+            _ => {}
+        }
+        self.read_pin()
     }
 }
 
 impl hil::gpio::Input for RPGpioPin<'_> {
     fn read(&self) -> bool {
-        self.read_input()
+        let value = self.sio_registers.gpio_in.read(GPIO_IN::IN) & (1 << self.pin);
+        if value == 0 {
+            false
+        } else {
+            true
+        }
     }
 }
