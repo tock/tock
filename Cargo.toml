@@ -47,6 +47,7 @@ members = [
     "chips/nrf52833",
     "chips/nrf52840",
     "chips/nrf5x",
+    "chips/rp2040",
     "chips/sam4l",
     "chips/sifive",
     "chips/stm32f303xc",
