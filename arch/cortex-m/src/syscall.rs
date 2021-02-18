@@ -61,17 +61,9 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
     type StoredState = CortexMStoredState;
 
     fn initial_process_app_brk_size(&self) -> usize {
-        // TOCK 1.X
-        //
-        // The 1.x Tock kernel allocates at least 3 kB to processes, and we need
-        // to ensure that happens as userspace may expect it.
-        3 * 1024
-
-        // TOCK 2.0
-        //
-        // Cortex-M hardware use 8 words on the stack to implement context switches.
-        // So we need at least 32 bytes.
-        //SVC_FRAME_SIZE
+        // Cortex-M hardware uses 8 words on the stack to implement context
+        // switches. So we need at least 32 bytes.
+        SVC_FRAME_SIZE
     }
 
     unsafe fn initialize_process(

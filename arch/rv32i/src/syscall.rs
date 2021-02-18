@@ -53,20 +53,11 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
     type StoredState = Riscv32iStoredState;
 
     fn initial_process_app_brk_size(&self) -> usize {
-        // TOCK 1.X
-        //
-        // We do not need any memory to start with, but the 1.x Tock kernel
-        // allocates at least 3 kB to processes, and we need to ensure that
-        // happens as userspace may expect it.
-        3 * 1024
-
-        // TOCK 2.0
-        //
         // The RV32I UKB implementation does not use process memory for any
         // context switch state. Therefore, we do not need any process-accessible
         // memory to start with to successfully context switch to the process the
         // first time.
-        //0
+        0
     }
 
     unsafe fn initialize_process(
