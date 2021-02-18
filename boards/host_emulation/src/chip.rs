@@ -8,6 +8,8 @@ use crate::systick::SysTick;
 use crate::emulation_config::Config;
 use std::path::Path;
 
+const SLEEP_DURATION_US: u128 = 1;
+
 /// An generic `Chip` implementation
 pub struct HostChip {
     systick: SysTick,
@@ -73,9 +75,12 @@ impl kernel::Chip for HostChip {
     }
 
     fn sleep(&self) {
-        let wait_until = self.systick.get_systick_left().unwrap();
-        let wait_until = time::Duration::from_micros(wait_until as u64);
-        thread::sleep(wait_until);
+        // A temporary solution to wake kernel up periodically.
+        // The proper solution would be to wait for an external event,
+        // pending host emulation support of relevant peripherals.
+        thread::sleep(time::Duration::from_micros(
+            self.systick.get_systick_left().unwrap_or(SLEEP_DURATION_US) as u64,
+        ));
     }
 
     unsafe fn atomic<F, R>(&self, f: F) -> R
