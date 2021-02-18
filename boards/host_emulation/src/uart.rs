@@ -1,15 +1,21 @@
 use std::io::{self, Read, Write};
+use std::ops::DerefMut;
+use std::os::unix::net::UnixListener;
+use std::path::Path;
+use std::sync::{Arc, Mutex};
+use std::thread;
 
 use kernel::common::cells::OptionalCell;
-use kernel::common::cells::TakeCell;
-use kernel::common::dynamic_deferred_call::DynamicDeferredCall;
 use kernel::hil::uart;
 use kernel::hil::uart::{Configure, Receive, Transmit, Uart, UartData};
 use kernel::{static_init, ReturnCode};
 
+type WriteMutex = Mutex<Option<Box<(dyn Write + Send + Sync)>>>;
+type ReadMutex = Mutex<Option<Box<(dyn Read + Send + Sync)>>>;
+
 pub struct UartIO<'a> {
-    tx_stream: TakeCell<'a, dyn Write>,
-    rx_stream: TakeCell<'a, dyn Read>,
+    tx_stream: Option<Arc<WriteMutex>>,
+    rx_stream: Option<Arc<ReadMutex>>,
     tx_client: OptionalCell<&'a dyn uart::TransmitClient>,
     rx_client: OptionalCell<&'a dyn uart::ReceiveClient>,
 }
@@ -17,46 +23,63 @@ pub struct UartIO<'a> {
 impl<'a> UartIO<'a> {
     pub const fn create() -> UartIO<'a> {
         UartIO {
-            tx_stream: TakeCell::empty(),
-            rx_stream: TakeCell::empty(),
+            tx_stream: None,
+            rx_stream: None,
             tx_client: OptionalCell::empty(),
             rx_client: OptionalCell::empty(),
         }
     }
 
-    pub fn initialize(&self) {
+    pub fn initialize(&mut self) {
         unsafe {
             let stdin = static_init!(io::Stdin, io::stdin());
             let stdout = static_init!(io::Stdout, io::stdout());
+            let socket_path = Path::new("/tmp/he_uart"); //TODO add UART idx
 
-            self.tx_stream.replace(stdout);
-            self.rx_stream.replace(stdin);
-        }
-    }
+            if socket_path.exists() {
+                std::fs::remove_file(&socket_path).unwrap();
+            }
 
-    #[allow(dead_code)]
-    pub fn new(
-        rx_stream: &'a mut dyn Read,
-        tx_stream: &'a mut dyn Write,
-        _dynamic_caller: &'static DynamicDeferredCall,
-    ) -> UartIO<'a> {
-        UartIO {
-            tx_stream: TakeCell::new(tx_stream),
-            rx_stream: TakeCell::new(rx_stream),
-            tx_client: OptionalCell::empty(),
-            rx_client: OptionalCell::empty(),
+            let listener = match UnixListener::bind(socket_path) {
+                Ok(listener) => listener,
+                Err(e) => {
+                    panic!("Couldn't bind: {:?}", e);
+                }
+            };
+            let listener = static_init!(UnixListener, listener);
+
+            let tx_stream = Arc::new(WriteMutex::new(Some(Box::new(stdout))));
+            let tx_stream_clone = tx_stream.clone();
+            let rx_stream = Arc::new(ReadMutex::new(Some(Box::new(stdin))));
+            let rx_stream_clone = rx_stream.clone();
+
+            thread::spawn(move || {
+                for client in listener.incoming() {
+                    let stream = match client {
+                        Ok(stream) => stream,
+                        Err(e) => {
+                            panic!("Couldn't connect: {:?}", e);
+                        }
+                    };
+
+                    *tx_stream_clone.lock().unwrap() = Some(Box::new(stream.try_clone().unwrap()));
+                    *rx_stream_clone.lock().unwrap() = Some(Box::new(stream));
+                }
+            });
+
+            self.tx_stream = Some(tx_stream);
+            self.rx_stream = Some(rx_stream);
         }
     }
 
     #[allow(dead_code)]
     pub fn transmit_sync(&self, bytes: &[u8]) {
-        let stream = match self.tx_stream.take() {
-            Some(stream) => stream,
-            None => return,
-        };
-        let _ = stream.write_all(bytes);
-        let _ = stream.flush();
-        self.tx_stream.replace(stream);
+        let stream_mutex = self.tx_stream.as_ref().unwrap().clone();
+        let mut stream_guard = stream_mutex.lock().unwrap();
+        if let Some(stream) = stream_guard.deref_mut() {
+            let _ = stream.write_all(bytes);
+            let _ = stream.flush();
+        }
     }
 }
 
@@ -83,40 +106,35 @@ impl<'a> Transmit<'a> for UartIO<'a> {
             return (ReturnCode::ESIZE, Some(tx_data));
         }
 
-        let stream = match self.tx_stream.take() {
-            Some(stream) => stream,
-            None => return (ReturnCode::EOFF, Some(tx_data)),
-        };
+        let stream_mutex = self.tx_stream.as_ref().unwrap().clone();
+        let mut stream_guard = stream_mutex.lock().unwrap();
+        if let Some(stream) = stream_guard.deref_mut() {
+            let client = match self.tx_client.take() {
+                Some(client) => client,
+                None => {
+                    return (ReturnCode::FAIL, Some(tx_data));
+                }
+            };
+            let (tx_buf, _): (&mut [u8], _) = tx_data.split_at_mut(tx_len);
+            match stream.write_all(tx_buf) {
+                Ok(()) => {}
+                Err(_) => {
+                    self.tx_client.replace(client);
+                    return (ReturnCode::FAIL, Some(tx_data));
+                }
+            };
 
-        let client = match self.tx_client.take() {
-            Some(client) => client,
-            None => {
-                self.tx_stream.replace(stream);
-                return (ReturnCode::FAIL, Some(tx_data));
+            match stream.flush() {
+                Ok(()) => {
+                    client.transmitted_buffer(tx_data, tx_len, ReturnCode::SUCCESS);
+                }
+                Err(_) => {
+                    self.tx_client.replace(client);
+                    return (ReturnCode::FAIL, Some(tx_data));
+                }
             }
-        };
-        let (tx_buf, _): (&mut [u8], _) = tx_data.split_at_mut(tx_len);
-        match stream.write_all(tx_buf) {
-            Ok(()) => {}
-            Err(_) => {
-                self.tx_stream.replace(stream);
-                self.tx_client.replace(client);
-                return (ReturnCode::FAIL, Some(tx_data));
-            }
-        };
-
-        match stream.flush() {
-            Ok(()) => {
-                client.transmitted_buffer(tx_data, tx_len, ReturnCode::SUCCESS);
-            }
-            Err(_) => {
-                self.tx_stream.replace(stream);
-                self.tx_client.replace(client);
-                return (ReturnCode::FAIL, Some(tx_data));
-            }
+            self.tx_client.replace(client);
         }
-        self.tx_stream.replace(stream);
-        self.tx_client.replace(client);
 
         (ReturnCode::SUCCESS, None)
     }
@@ -144,38 +162,46 @@ impl<'a> Receive<'a> for UartIO<'a> {
             return (ReturnCode::ESIZE, Some(rx_data));
         }
 
-        let stream = match self.rx_stream.take() {
-            Some(stream) => stream,
-            None => return (ReturnCode::EOFF, Some(rx_data)),
-        };
-
         let client = match self.rx_client.take() {
             Some(client) => client,
             None => {
-                self.rx_stream.replace(stream);
                 return (ReturnCode::FAIL, Some(rx_data));
             }
         };
 
-        let ret = match stream.read(rx_data) {
-            Ok(read) => {
-                if read == rx_len {
-                    client.received_buffer(rx_data, rx_len, ReturnCode::SUCCESS, uart::Error::None);
-                    (ReturnCode::SUCCESS, None)
-                } else if read == 0 {
-                    (ReturnCode::EOFF, Some(rx_data))
-                } else {
-                    client.received_buffer(rx_data, read, ReturnCode::ESIZE, uart::Error::None);
-                    (ReturnCode::SUCCESS, None)
+        let stream_mutex = self.rx_stream.as_ref().unwrap().clone();
+        let mut stream_guard = stream_mutex.lock().unwrap(); //handle unwraps with busy error
+        let mut read_result = None;
+        if let Some(stream) = stream_guard.deref_mut() {
+            read_result = Some(stream.read(rx_data));
+        }
+
+        if let Some(result) = read_result {
+            let ret = match result {
+                Ok(read) => {
+                    if read == rx_len {
+                        client.received_buffer(
+                            rx_data,
+                            rx_len,
+                            ReturnCode::SUCCESS,
+                            uart::Error::None,
+                        );
+                        (ReturnCode::SUCCESS, None)
+                    } else if read == 0 {
+                        (ReturnCode::EOFF, Some(rx_data))
+                    } else {
+                        client.received_buffer(rx_data, read, ReturnCode::ESIZE, uart::Error::None);
+                        (ReturnCode::SUCCESS, None)
+                    }
                 }
-            }
-            Err(_) => (ReturnCode::FAIL, Some(rx_data)),
+                Err(_) => (ReturnCode::FAIL, Some(rx_data)),
+            };
+
+            self.rx_client.replace(client);
+            return ret;
         };
 
-        self.rx_stream.replace(stream);
-        self.rx_client.replace(client);
-
-        ret
+        (ReturnCode::EUNINSTALLED, None)
     }
 
     fn receive_word(&self) -> ReturnCode {
