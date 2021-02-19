@@ -64,16 +64,16 @@ struct MspExp432P401R {
 impl Platform for MspExp432P401R {
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
     where
-        F: FnOnce(Option<Result<&dyn kernel::Driver, &dyn kernel::LegacyDriver>>) -> R,
+        F: FnOnce(Option<&dyn kernel::Driver>) -> R,
     {
         match driver_num {
-            capsules::led::DRIVER_NUM => f(Some(Ok(self.led))),
-            capsules::console::DRIVER_NUM => f(Some(Ok(self.console))),
-            capsules::button::DRIVER_NUM => f(Some(Ok(self.button))),
-            capsules::gpio::DRIVER_NUM => f(Some(Ok(self.gpio))),
-            capsules::alarm::DRIVER_NUM => f(Some(Ok(self.alarm))),
-            kernel::ipc::DRIVER_NUM => f(Some(Ok(&self.ipc))),
-            capsules::adc::DRIVER_NUM => f(Some(Ok(self.adc))),
+            capsules::led::DRIVER_NUM => f(Some(self.led)),
+            capsules::console::DRIVER_NUM => f(Some(self.console)),
+            capsules::button::DRIVER_NUM => f(Some(self.button)),
+            capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
+            capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
+            kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
+            capsules::adc::DRIVER_NUM => f(Some(self.adc)),
             _ => f(None),
         }
     }

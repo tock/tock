@@ -135,23 +135,23 @@ pub struct Platform {
 impl kernel::Platform for Platform {
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
     where
-        F: FnOnce(Option<Result<&dyn kernel::Driver, &dyn kernel::LegacyDriver>>) -> R,
+        F: FnOnce(Option<&dyn kernel::Driver>) -> R,
     {
         match driver_num {
-            capsules::console::DRIVER_NUM => f(Some(Ok(self.console))),
-            capsules::proximity::DRIVER_NUM => f(Some(Ok(self.proximity))),
-            capsules::gpio::DRIVER_NUM => f(Some(Ok(self.gpio))),
-            capsules::alarm::DRIVER_NUM => f(Some(Ok(self.alarm))),
-            capsules::led::DRIVER_NUM => f(Some(Ok(self.led))),
-            capsules::button::DRIVER_NUM => f(Some(Ok(self.button))),
-            capsules::screen::DRIVER_NUM => f(Some(Ok(self.screen))),
-            capsules::rng::DRIVER_NUM => f(Some(Ok(self.rng))),
-            capsules::ble_advertising_driver::DRIVER_NUM => f(Some(Ok(self.ble_radio))),
-            capsules::ieee802154::DRIVER_NUM => f(Some(Ok(self.ieee802154_radio))),
-            capsules::temperature::DRIVER_NUM => f(Some(Ok(self.temperature))),
-            capsules::humidity::DRIVER_NUM => f(Some(Ok(self.humidity))),
-            capsules::buzzer_driver::DRIVER_NUM => f(Some(Ok(self.buzzer))),
-            kernel::ipc::DRIVER_NUM => f(Some(Ok(&self.ipc))),
+            capsules::console::DRIVER_NUM => f(Some(self.console)),
+            capsules::proximity::DRIVER_NUM => f(Some(self.proximity)),
+            capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
+            capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
+            capsules::led::DRIVER_NUM => f(Some(self.led)),
+            capsules::button::DRIVER_NUM => f(Some(self.button)),
+            capsules::screen::DRIVER_NUM => f(Some(self.screen)),
+            capsules::rng::DRIVER_NUM => f(Some(self.rng)),
+            capsules::ble_advertising_driver::DRIVER_NUM => f(Some(self.ble_radio)),
+            capsules::ieee802154::DRIVER_NUM => f(Some(self.ieee802154_radio)),
+            capsules::temperature::DRIVER_NUM => f(Some(self.temperature)),
+            capsules::humidity::DRIVER_NUM => f(Some(self.humidity)),
+            capsules::buzzer_driver::DRIVER_NUM => f(Some(self.buzzer)),
+            kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             _ => f(None),
         }
     }
