@@ -9,6 +9,7 @@
 // valid on cortex-m0.
 pub use cortexm::support;
 
+pub use cortexm::kernel_hardfault_arm_v7m;
 pub use cortexm::nvic;
 pub use cortexm::print_cortexm_state as print_cortexm0_state;
 pub use cortexm::syscall;
@@ -25,32 +26,135 @@ extern "C" {
     static mut _erelocate: u32;
 }
 
-// Mock implementation for tests on Travis-CI.
-#[cfg(not(any(target_arch = "arm", target_os = "none")))]
-pub unsafe extern "C" fn generic_isr() {
-    unimplemented!()
+/// The `systick_handler_armv6` is called when the systick interrupt occurs, signaling
+/// that an application executed for longer than its timeslice. This interrupt
+/// handler is no longer responsible for signaling to the kernel thread that an
+/// interrupt has occurred, but is slightly more efficient than the
+/// `generic_isr` handler on account of not needing to mark the interrupt as
+/// pending.
+#[cfg(all(target_arch = "arm", target_os = "none"))]
+#[naked]
+pub unsafe extern "C" fn systick_handler() {
+    asm!(
+        "
+    // Set thread mode to privileged to switch back to kernel mode.
+    movs r0, #0
+    msr CONTROL, r0
+    /* CONTROL writes must be followed by ISB */
+    /* http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.dai0321a/BIHFJCAC.html */
+    isb
+
+    ldr r0, SYSTICK_MEXC_RETURN_MSP
+
+    // This will resume in the switch to user function where application state
+    // is saved and the scheduler can choose what to do next.
+    bx   r0
+    .align 4
+    SYSTICK_MEXC_RETURN_MSP:
+    .word 0xFFFFFFF9
+    ",
+        options(noreturn)
+    );
 }
 
+/// This is called after a `svc` instruction, both when switching to userspace
+/// and when userspace makes a system call.
 #[cfg(all(target_arch = "arm", target_os = "none"))]
 #[naked]
 /// All ISRs are caught by this handler which disables the NVIC and switches to the kernel.
 pub unsafe extern "C" fn generic_isr() {
     asm!(
         "
-    /* Skip saving process state if not coming from user-space */
-    ldr r0, MEXC_RETURN_PSP
+    // First check to see which direction we are going in. If the link register
+    // is something other than 0xfffffff9, then we are coming from an app which
+    // has called a syscall.
+    ldr r0, SVC_MEXC_RETURN_PSP
     cmp lr, r0
-    bne _ggeneric_isr_no_stacking
+    bne to_kernel
 
-    /* We need the most recent kernel's version of r1, which points */
-    /* to the Process struct's stored registers field. The kernel's r1 */
-    /* lives in the second word of the hardware stacked registers on MSP */
-    mov r1, sp
-    ldr r1, [r1, #4]
-    str r4, [r1, #16]
-    str r5, [r1, #20]
-    str r6, [r1, #24]
-    str r7, [r1, #28]
+    // If we get here, then this is a context switch from the kernel to the
+    // application. Set thread mode to unprivileged to run the application.
+    movs r0, #1
+    msr CONTROL, r0
+    /* CONTROL writes must be followed by ISB */
+    /* http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.dai0321a/BIHFJCAC.html */
+    isb
+
+    // This is a special address to return Thread mode with Process stack
+    ldr r0, SVC_MEXC_RETURN_PSP
+    // Switch to the app.
+    bx r0
+
+  to_kernel:
+    // An application called a syscall. We mark this in the global variable
+    // `SYSCALL_FIRED` which is stored in the syscall file.
+    // `UserspaceKernelBoundary` will use this variable to decide why the app
+    // stopped executing.
+    ldr r0, =SYSCALL_FIRED
+    movs r1, #1
+    str r1, [r0, #0]
+
+    // Set thread mode to privileged as we switch back to the kernel.
+    movs r0, #0
+    msr CONTROL, r0
+    /* CONTROL writes must be followed by ISB */
+    /* http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.dai0321a/BIHFJCAC.html */
+    isb
+
+    // This is a special address to return Thread mode with Main stack
+    ldr r0, SVC_MEXC_RETURN_MSP
+    bx r0
+    .align 4
+    SVC_MEXC_RETURN_MSP:
+    .word 0xFFFFFFF9
+    SVC_MEXC_RETURN_PSP:
+    .word 0xFFFFFFFD",
+        options(noreturn)
+    );
+}
+
+/// All ISRs are caught by this handler. This must ensure the interrupt is
+/// disabled (per Tock's interrupt model) and then as quickly as possible resume
+/// the main thread (i.e. leave the interrupt context). The interrupt will be
+/// marked as pending and handled when the scheduler checks if there are any
+/// pending interrupts.
+///
+/// If the ISR is called while an app is running, this will switch control to
+/// the kernel.
+#[cfg(all(target_arch = "arm", target_os = "none"))]
+#[naked]
+pub unsafe extern "C" fn generic_isr() {
+    asm!(
+        "
+    // Set thread mode to privileged to ensure we are executing as the kernel.
+    // This may be redundant if the interrupt happened while the kernel code
+    // was executing.
+    movs r0, #0
+    msr CONTROL, r0
+    /* CONTROL writes must be followed by ISB */
+    /* http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.dai0321a/BIHFJCAC.html */
+    isb
+
+    // Now need to disable the interrupt that fired in the NVIC to ensure it
+    // does not trigger again before the scheduler has a chance to handle it. We
+    // do this here in assembly for performance.
+    //
+    // The general idea is:
+    // 1. Get the index of the interrupt that occurred.
+    // 2. Set the disable bit for that interrupt in the NVIC.
+
+    // Find the ISR number (`index`) by looking at the low byte of the IPSR
+    // registers.
+    mrs r0, IPSR       // r0 = Interrupt Program Status Register (IPSR)
+    and r0, #0xff      // r0 = r0 & 0xFF
+    sub r0, #16        // ISRs start at 16, so subtract 16 to get zero-indexed.
+
+    // Now disable that interrupt in the NVIC.
+    // High level:
+    //    r0 = index
+    //    NVIC.ICER[r0 / 32] = 1 << (r0 & 31)
+    //
+    lsrs r2, r0, #5    // r2 = r0 / 32
 
     push {{r4-r7}}
     mov  r4, r8
@@ -63,33 +167,19 @@ pub unsafe extern "C" fn generic_isr() {
     str r7, [r1, #12]
     pop {{r4-r7}}
 
-    ldr r0, MEXC_RETURN_MSP
-_ggeneric_isr_no_stacking:
-    /* Find the ISR number by looking at the low byte of the IPSR registers */
-    mrs r0, IPSR
-    movs r1, #0xff
-    ands r0, r1
-    /* ISRs start at 16, so substract 16 to get zero-indexed */
-    subs r0, r0, #16
+    // Load the ICER register address.
+    ldr r3, NVICICER
 
-    /*
-     * High level:
-     *    NVIC.ICER[r0 / 32] = 1 << (r0 & 31)
-     * */
-    /* r3 = &NVIC.ICER[r0 / 32] */
-    ldr r2, NVICICER     /* r2 = &NVIC.ICER */
-    lsrs r3, r0, #5   /* r3 = r0 / 32 */
-    lsls r3, r3, #2   /* ICER is word-sized, so multiply offset by 4 */
-    adds r3, r3, r2   /* r3 = r2 + r3 */
-
-    /* r2 = 1 << (r0 & 31) */
-    movs r2, #31      /* r2 = 31 */
-    ands r0, r2       /* r0 = r0 & r2 */
-    subs r2, r2, #30  /* r2 = r2 - 30 i.e. r2 = 1 */
-    lsls r2, r2, r0   /* r2 = 1 << r0 */
-
-    /* *r3 = r2 */
-    str r2, [r3]
+    // Here:
+    // - `r2` is index / 32
+    // - `r3` is &NVIC.ICER
+    // - `r0` is 1 << (index & 31)
+    //
+    // So we just do:
+    //
+    //  `*(r3 + r2 * 4) = r0`
+    //
+    str r0, [r3, r2, lsl #2]
 
     /* The pending bit in ISPR might be reset by hardware for pulse interrupts
      * at this point. So set it here again so the interrupt does not get lost
@@ -158,6 +248,9 @@ pub unsafe extern "C" fn svc_handler() {
     unimplemented!()
 }
 
+/// Assembly function called from `UserspaceKernelBoundary` to switch to an
+/// an application. This handles storing and restoring application state before
+/// and after the switch.
 #[cfg(all(target_arch = "arm", target_os = "none"))]
 #[naked]
 pub unsafe extern "C" fn svc_handler() {
@@ -186,14 +279,8 @@ EXC_RETURN_PSP:
     );
 }
 
-// Mock implementation for tests on Travis-CI.
-#[cfg(not(any(target_arch = "arm", target_os = "none")))]
-pub unsafe extern "C" fn switch_to_user(
-    _user_stack: *const u8,
-    _process_regs: &mut [usize; 8],
-) -> *mut u8 {
-    unimplemented!()
-}
+    // Load bottom of stack into Process Stack Pointer.
+    msr psp, $0
 
 #[cfg(all(target_arch = "arm", target_os = "none"))]
 #[no_mangle]
@@ -220,8 +307,8 @@ pub unsafe extern "C" fn switch_to_user(
     /* Load bottom of stack into Process Stack Pointer */
     msr psp, r0
 
-    /* SWITCH */
-    svc 0xff /* It doesn't matter which SVC number we use here */
+    // When execution returns here we have switched back to the kernel from the
+    // application.
 
     /* Store non-hardware-stacked registers in process_regs */
     /* r1 still points to process_regs because we are clobbering all */
@@ -257,15 +344,63 @@ pub unsafe extern "C" fn switch_to_user(
 }
 
 #[cfg(all(target_arch = "arm", target_os = "none"))]
-struct HardFaultStackedRegisters {
-    r0: u32,
-    r1: u32,
-    r2: u32,
-    r3: u32,
-    r12: u32,
-    lr: u32,
-    pc: u32,
-    xpsr: u32,
+/// Continue the hardfault handler. This function is not `#[naked]`, meaning we can mix
+/// `asm!()` and Rust. We separate this logic to not have to write the entire fault
+/// handler entirely in assembly.
+unsafe extern "C" fn hard_fault_handler_continued(
+    faulting_stack: *mut u32,
+    kernel_stack: u32,
+    stack_overflow: u32,
+) {
+    if kernel_stack != 0 {
+        if stack_overflow != 0 {
+            // Panic to show the correct error.
+            panic!("kernel stack overflow");
+        } else {
+            // Show the normal kernel hardfault message.
+            kernel_hardfault_arm_v7m(faulting_stack);
+        }
+    } else {
+        // Hard fault occurred in an app, not the kernel. The app should be
+        // marked as in an error state and handled by the kernel.
+        asm!(
+            "
+        /* Read the relevant SCB registers. */
+        ldr r0, =SCB_REGISTERS  /* Global variable address */
+        ldr r1, =0xE000ED14     /* SCB CCR register address */
+        ldr r2, [r1, #0]        /* CCR */
+        str r2, [r0, #0]
+        ldr r2, [r1, #20]       /* CFSR */
+        str r2, [r0, #4]
+        ldr r2, [r1, #24]       /* HFSR */
+        str r2, [r0, #8]
+        ldr r2, [r1, #32]       /* MMFAR */
+        str r2, [r0, #12]
+        ldr r2, [r1, #36]       /* BFAR */
+        str r2, [r0, #16]
+
+        ldr r0, =APP_HARD_FAULT /* Global variable address */
+        movs r1, #1              /* r1 = 1 */
+        str r1, [r0, #0]        /* APP_HARD_FAULT = 1 */
+
+        /* Set thread mode to privileged */
+        movs r0, #0
+        msr CONTROL, r0
+        /* CONTROL writes must be followed by ISB */
+        /* http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.dai0321a/BIHFJCAC.html */
+        isb
+
+        ldr r0, HARD_FAULT_MEXC_RETURN_MSP
+        mov lr, r0
+        .align 4
+        HARD_FAULT_MEXC_RETURN_MSP:
+        .word 0xFFFFFFF9",
+            out("r1") _,
+            out("r0") _,
+            out("r2") _,
+            options(nostack),
+        );
+    }
 }
 
 #[cfg(all(target_arch = "arm", target_os = "none"))]
@@ -298,7 +433,7 @@ unsafe fn kernel_hardfault(faulting_stack: *mut u32) {
 
 // Mock implementation for tests on Travis-CI.
 #[cfg(not(any(target_arch = "arm", target_os = "none")))]
-pub unsafe extern "C" fn hard_fault_handler() {
+pub unsafe extern "C" fn generic_isr() {
     unimplemented!()
 }
 
@@ -397,3 +532,100 @@ _hardfault_exit:
     sym hard_fault_handler_continued,
     options(noreturn));
 }
+
+#[cfg(not(any(target_arch = "arm", target_os = "none")))]
+pub unsafe extern "C" fn systick_handler() {
+    unimplemented!()
+}
+
+// #[cfg(all(target_arch = "arm", target_os = "none"))]
+// #[naked]
+// pub unsafe extern "C" fn hard_fault_handler() {
+//     let faulting_stack: *mut u32;
+//     let kernel_stack: bool;
+
+//     // If `kernel_stack` is non-zero, then hard-fault occurred in
+//     // kernel, otherwise the hard-fault occurrend in user.
+//     llvm_asm!("
+//     /*
+//      * Will be incremented to 1 when we determine that it was a fault
+//      * in the kernel
+//      */
+//     movs r1, #0
+//     /*
+//      * r2 is used for testing and r3 is used to store lr
+//      */
+//     mov r3, lr
+
+//     movs r2, #4
+//     tst r3, r2
+//     beq _hardfault_msp
+
+// _hardfault_psp:
+//     mrs r0, psp
+//     b _hardfault_exit
+
+// _hardfault_msp:
+//     mrs r0, msp
+//     adds r1, #1
+
+// _hardfault_exit:
+//     "
+//     : "={r0}"(faulting_stack), "={r1}"(kernel_stack)
+//     :
+//     : "r0", "r1", "r2", "r3"
+//     : "volatile"
+//     );
+
+//     if kernel_stack {
+//         kernel_hardfault(faulting_stack);
+//     } else {
+//         // hard fault occurred in an app, not the kernel. The app should be
+//         // marked as in an error state and handled by the kernel
+//         llvm_asm!("
+//              ldr r0, =APP_HARD_FAULT
+//              movs r1, #1 /* Fault */
+//              str r1, [r0, #0]
+
+//              /*
+//               * NOTE:
+//               * -----
+//               *
+//               * Even though ARMv6-M SCB and Control registers
+//               * are different from ARMv7-M, they are still compatible
+//               * with each other. So, we can keep the same code as
+//               * ARMv7-M.
+//               *
+//               * ARMv6-M however has no _privileged_ mode.
+//               */
+//              /* Read the SCB registers. */
+//              ldr r0, =SCB_REGISTERS
+//              ldr r1, =0xE000ED14
+//              ldr r2, [r1, #0] /* CCR */
+//              str r2, [r0, #0]
+//              ldr r2, [r1, #20] /* CFSR */
+//              str r2, [r0, #4]
+//              ldr r2, [r1, #24] /* HFSR */
+//              str r2, [r0, #8]
+//              ldr r2, [r1, #32] /* MMFAR */
+//              str r2, [r0, #12]
+//              ldr r2, [r1, #36] /* BFAR */
+//              str r2, [r0, #16]
+
+//              /* Set thread mode to privileged */
+//              movs r0, #0
+//              msr CONTROL, r0
+//              /* No ISB required on M0 */
+//              /* http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.dai0321a/BIHFJCAC.html */
+//              ldr r0, FEXC_RETURN_MSP
+//              bx r0
+// .align 4
+// FEXC_RETURN_MSP:
+//   .word 0xFFFFFFF9
+//              "
+//              :
+//              :
+//              :
+//              : "volatile");
+//     }
+// }

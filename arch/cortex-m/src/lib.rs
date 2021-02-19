@@ -360,7 +360,7 @@ pub unsafe extern "C" fn switch_to_user_arm_v7m(
     target_os = "none"
 ))]
 #[inline(never)]
-unsafe fn kernel_hardfault_arm_v7m(faulting_stack: *mut u32) -> ! {
+pub unsafe fn kernel_hardfault_arm_v7m(faulting_stack: *mut u32) -> ! {
     let stacked_r0: u32 = *faulting_stack.offset(0);
     let stacked_r1: u32 = *faulting_stack.offset(1);
     let stacked_r2: u32 = *faulting_stack.offset(2);
@@ -862,5 +862,10 @@ pub unsafe extern "C" fn switch_to_user_arm_v7m(
 
 #[cfg(not(any(target_arch = "arm", target_os = "none")))]
 pub unsafe extern "C" fn hard_fault_handler_arm_v7m() {
+    unimplemented!()
+}
+
+#[cfg(not(any(target_arch = "arm", target_os = "none")))]
+pub unsafe fn kernel_hardfault_arm_v7m(_faulting_stack: *mut u32) -> ! {
     unimplemented!()
 }
