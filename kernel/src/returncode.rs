@@ -6,9 +6,8 @@
 
 /// Standard return errors in Tock.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[repr(isize)] // Code size optimization compared to #[repr(rust)]
 pub enum ReturnCode {
-    /// Success value must be positive
-    SuccessWithValue { value: usize }, //TODO: Remove before Tock 2.0
     /// Operation completed successfully
     SUCCESS,
     /// Generic failure condition
@@ -42,7 +41,6 @@ pub enum ReturnCode {
 impl From<ReturnCode> for isize {
     fn from(original: ReturnCode) -> isize {
         match original {
-            ReturnCode::SuccessWithValue { value } => value as isize,
             ReturnCode::SUCCESS => 0,
             ReturnCode::FAIL => -1,
             ReturnCode::EBUSY => -2,
