@@ -424,7 +424,7 @@ impl<'a> Driver for UDPDriver<'a> {
     ///        transmit can produce two different success values. If success is returned,
     ///        this simply means that the packet was queued. In this case, the app still
     ///        still needs to wait for a callback to check if any errors occurred before
-    ///        the packet was passed to the radio. However, if SuccessWithValue
+    ///        the packet was passed to the radio. However, if Success_U32
     ///        is returned with value 1, this means the the packet was successfully passed
     ///        the radio without any errors, which tells the userland application that it does
     ///        not need to wait for a callback to check if any errors occured while the packet
