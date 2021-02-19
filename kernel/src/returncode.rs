@@ -6,6 +6,7 @@
 
 /// Standard return errors in Tock.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[repr(isize)] // Code size optimization compared to #[repr(rust)]
 pub enum ReturnCode {
     /// Operation completed successfully
     SUCCESS,
