@@ -66,16 +66,16 @@ struct WeactF401CC {
 impl Platform for WeactF401CC {
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
     where
-        F: FnOnce(Option<Result<&dyn kernel::Driver, &dyn kernel::LegacyDriver>>) -> R,
+        F: FnOnce(Option<&dyn kernel::Driver>) -> R,
     {
         match driver_num {
-            capsules::console::DRIVER_NUM => f(Some(Ok(self.console))),
-            capsules::led::DRIVER_NUM => f(Some(Ok(self.led))),
-            capsules::button::DRIVER_NUM => f(Some(Ok(self.button))),
-            capsules::adc::DRIVER_NUM => f(Some(Ok(self.adc))),
-            capsules::alarm::DRIVER_NUM => f(Some(Ok(self.alarm))),
-            kernel::ipc::DRIVER_NUM => f(Some(Ok(&self.ipc))),
-            capsules::gpio::DRIVER_NUM => f(Some(Ok(self.gpio))),
+            capsules::console::DRIVER_NUM => f(Some(self.console)),
+            capsules::led::DRIVER_NUM => f(Some(self.led)),
+            capsules::button::DRIVER_NUM => f(Some(self.button)),
+            capsules::adc::DRIVER_NUM => f(Some(self.adc)),
+            capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
+            kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
+            capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
             _ => f(None),
         }
     }

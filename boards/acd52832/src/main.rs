@@ -87,21 +87,21 @@ pub struct Platform {
 impl kernel::Platform for Platform {
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
     where
-        F: FnOnce(Option<Result<&dyn kernel::Driver, &dyn kernel::LegacyDriver>>) -> R,
+        F: FnOnce(Option<&dyn kernel::Driver>) -> R,
     {
         match driver_num {
-            capsules::console::DRIVER_NUM => f(Some(Ok(self.console))),
-            capsules::gpio::DRIVER_NUM => f(Some(Ok(self.gpio))),
-            capsules::alarm::DRIVER_NUM => f(Some(Ok(self.alarm))),
-            capsules::led::DRIVER_NUM => f(Some(Ok(self.led))),
-            capsules::button::DRIVER_NUM => f(Some(Ok(self.button))),
-            capsules::rng::DRIVER_NUM => f(Some(Ok(self.rng))),
-            capsules::ble_advertising_driver::DRIVER_NUM => f(Some(Ok(self.ble_radio))),
-            capsules::temperature::DRIVER_NUM => f(Some(Ok(self.temp))),
-            capsules::gpio_async::DRIVER_NUM => f(Some(Ok(self.gpio_async))),
-            capsules::ambient_light::DRIVER_NUM => f(Some(Ok(self.light))),
-            capsules::buzzer_driver::DRIVER_NUM => f(Some(Ok(self.buzzer))),
-            kernel::ipc::DRIVER_NUM => f(Some(Ok(&self.ipc))),
+            capsules::console::DRIVER_NUM => f(Some(self.console)),
+            capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
+            capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
+            capsules::led::DRIVER_NUM => f(Some(self.led)),
+            capsules::button::DRIVER_NUM => f(Some(self.button)),
+            capsules::rng::DRIVER_NUM => f(Some(self.rng)),
+            capsules::ble_advertising_driver::DRIVER_NUM => f(Some(self.ble_radio)),
+            capsules::temperature::DRIVER_NUM => f(Some(self.temp)),
+            capsules::gpio_async::DRIVER_NUM => f(Some(self.gpio_async)),
+            capsules::ambient_light::DRIVER_NUM => f(Some(self.light)),
+            capsules::buzzer_driver::DRIVER_NUM => f(Some(self.buzzer)),
+            kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             _ => f(None),
         }
     }

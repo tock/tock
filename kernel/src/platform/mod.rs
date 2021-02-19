@@ -1,6 +1,6 @@
 //! Interface for chips and boards.
 
-use crate::driver::{Driver, LegacyDriver};
+use crate::driver::Driver;
 use crate::errorcode;
 use crate::process;
 use crate::syscall;
@@ -45,7 +45,7 @@ pub trait Platform {
     /// the Driver methods for that syscall.
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
     where
-        F: FnOnce(Option<Result<&dyn Driver, &dyn LegacyDriver>>) -> R;
+        F: FnOnce(Option<&dyn Driver>) -> R;
 
     /// Check the platform-provided system call filter for all non-yield system
     /// calls. If the system call is allowed for the provided process then

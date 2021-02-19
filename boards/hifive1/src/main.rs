@@ -70,13 +70,13 @@ struct HiFive1 {
 impl Platform for HiFive1 {
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
     where
-        F: FnOnce(Option<Result<&dyn kernel::Driver, &dyn kernel::LegacyDriver>>) -> R,
+        F: FnOnce(Option<&dyn kernel::Driver>) -> R,
     {
         match driver_num {
-            capsules::led::DRIVER_NUM => f(Some(Ok(self.led))),
-            capsules::console::DRIVER_NUM => f(Some(Ok(self.console))),
-            capsules::alarm::DRIVER_NUM => f(Some(Ok(self.alarm))),
-            capsules::low_level_debug::DRIVER_NUM => f(Some(Ok(self.lldb))),
+            capsules::led::DRIVER_NUM => f(Some(self.led)),
+            capsules::console::DRIVER_NUM => f(Some(self.console)),
+            capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
+            capsules::low_level_debug::DRIVER_NUM => f(Some(self.lldb)),
             _ => f(None),
         }
     }

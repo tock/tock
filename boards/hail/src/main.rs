@@ -79,30 +79,30 @@ struct Hail {
 impl Platform for Hail {
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
     where
-        F: FnOnce(Option<Result<&dyn kernel::Driver, &dyn kernel::LegacyDriver>>) -> R,
+        F: FnOnce(Option<&dyn kernel::Driver>) -> R,
     {
         match driver_num {
-            capsules::console::DRIVER_NUM => f(Some(Ok(self.console))),
-            capsules::gpio::DRIVER_NUM => f(Some(Ok(self.gpio))),
+            capsules::console::DRIVER_NUM => f(Some(self.console)),
+            capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
 
-            capsules::alarm::DRIVER_NUM => f(Some(Ok(self.alarm))),
-            capsules::spi_controller::DRIVER_NUM => f(Some(Ok(self.spi))),
-            capsules::nrf51822_serialization::DRIVER_NUM => f(Some(Ok(self.nrf51822))),
-            capsules::ambient_light::DRIVER_NUM => f(Some(Ok(self.ambient_light))),
-            capsules::adc::DRIVER_NUM => f(Some(Ok(self.adc))),
-            capsules::led::DRIVER_NUM => f(Some(Ok(self.led))),
-            capsules::button::DRIVER_NUM => f(Some(Ok(self.button))),
-            capsules::humidity::DRIVER_NUM => f(Some(Ok(self.humidity))),
-            capsules::temperature::DRIVER_NUM => f(Some(Ok(self.temp))),
-            capsules::ninedof::DRIVER_NUM => f(Some(Ok(self.ninedof))),
+            capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
+            capsules::spi_controller::DRIVER_NUM => f(Some(self.spi)),
+            capsules::nrf51822_serialization::DRIVER_NUM => f(Some(self.nrf51822)),
+            capsules::ambient_light::DRIVER_NUM => f(Some(self.ambient_light)),
+            capsules::adc::DRIVER_NUM => f(Some(self.adc)),
+            capsules::led::DRIVER_NUM => f(Some(self.led)),
+            capsules::button::DRIVER_NUM => f(Some(self.button)),
+            capsules::humidity::DRIVER_NUM => f(Some(self.humidity)),
+            capsules::temperature::DRIVER_NUM => f(Some(self.temp)),
+            capsules::ninedof::DRIVER_NUM => f(Some(self.ninedof)),
 
-            capsules::rng::DRIVER_NUM => f(Some(Ok(self.rng))),
+            capsules::rng::DRIVER_NUM => f(Some(self.rng)),
 
-            capsules::crc::DRIVER_NUM => f(Some(Ok(self.crc))),
+            capsules::crc::DRIVER_NUM => f(Some(self.crc)),
 
-            capsules::dac::DRIVER_NUM => f(Some(Ok(self.dac))),
+            capsules::dac::DRIVER_NUM => f(Some(self.dac)),
 
-            kernel::ipc::DRIVER_NUM => f(Some(Ok(&self.ipc))),
+            kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             _ => f(None),
         }
     }
