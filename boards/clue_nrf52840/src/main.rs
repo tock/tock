@@ -148,10 +148,10 @@ impl kernel::Platform for Platform {
             capsules::rng::DRIVER_NUM => f(Some(self.rng)),
             capsules::ble_advertising_driver::DRIVER_NUM => f(Some(self.ble_radio)),
             capsules::ieee802154::DRIVER_NUM => f(Some(self.ieee802154_radio)),
-            capsules::temperature::DRIVER_NUM => f(Some(self.temperature)),
-            capsules::humidity::DRIVER_NUM => f(Some(self.humidity)),
             capsules::buzzer_driver::DRIVER_NUM => f(Some(self.buzzer)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
+            capsules::temperature::DRIVER_NUM => f(Some(self.temperature)),
+            capsules::humidity::DRIVER_NUM => f(Some(self.humidity)),
             _ => f(None),
         }
     }
