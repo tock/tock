@@ -27,7 +27,6 @@ use crate::platform::scheduler_timer::SchedulerTimer;
 use crate::platform::watchdog::WatchDog;
 use crate::platform::{Chip, Platform};
 use crate::process::{self, Task};
-use crate::returncode::ReturnCode;
 use crate::syscall::{ContextSwitchReason, GenericSyscallReturnValue};
 use crate::syscall::{Syscall, YieldCall};
 
@@ -845,7 +844,7 @@ impl Kernel {
                             Err((newcb, err)) => newcb.into_subscribe_failure(err),
                         }
                     }
-                    None => GenericSyscallReturnValue::Legacy(ReturnCode::ENOSUPPORT),
+                    None => callback.into_subscribe_failure(ErrorCode::NOSUPPORT),
                 });
                 if config::CONFIG.trace_syscalls {
                     debug!(
@@ -874,16 +873,9 @@ impl Kernel {
                         arg1,
                         process.appid(),
                     )),
-                    None => {
-                        // System call transition note: This does not
-                        // match the expected error code for the Tock
-                        // 1.0 system call API, hence making system
-                        // calls to non-existant drivers from
-                        // userspace will break
-                        GenericSyscallReturnValue::from_command_result(CommandResult::failure(
-                            ErrorCode::NOSUPPORT,
-                        ))
-                    }
+                    None => GenericSyscallReturnValue::from_command_result(CommandResult::failure(
+                        ErrorCode::NOSUPPORT,
+                    )),
                 });
 
                 if config::CONFIG.trace_syscalls {
@@ -905,26 +897,15 @@ impl Kernel {
                 allow_address,
                 allow_size,
             } => {
-                let res = platform.with_driver(driver_number, |driver| {
-                    match driver {
-                        Some(d) => {
-                            process.allow_readwrite(allow_address, allow_size, &|appslice| {
-                                d.allow_readwrite(process.appid(), subdriver_number, appslice)
-                            })
-                        }
-                        None => {
-                            // System call transition note: This does
-                            // not match the expected error code for
-                            // the Tock 1.0 system call API, hence
-                            // making system calls to non-existant
-                            // drivers from userspace will break
-                            GenericSyscallReturnValue::AllowReadWriteFailure(
-                                ErrorCode::NOSUPPORT,
-                                allow_address,
-                                allow_size,
-                            )
-                        }
-                    }
+                let res = platform.with_driver(driver_number, |driver| match driver {
+                    Some(d) => process.allow_readwrite(allow_address, allow_size, &|appslice| {
+                        d.allow_readwrite(process.appid(), subdriver_number, appslice)
+                    }),
+                    None => GenericSyscallReturnValue::AllowReadWriteFailure(
+                        ErrorCode::NOSUPPORT,
+                        allow_address,
+                        allow_size,
+                    ),
                 });
 
                 if config::CONFIG.trace_syscalls {
@@ -946,27 +927,15 @@ impl Kernel {
                 allow_address,
                 allow_size,
             } => {
-                // This system call is not present in the Tock 1.x
-                // legacy system call interface, return NOSUPPORT in
-                // case of a Tock 1.x driver
-                let res = platform.with_driver(driver_number, |driver| {
-                    match driver {
-                        Some(d) => process.allow_readonly(allow_address, allow_size, &|appslice| {
-                            d.allow_readonly(process.appid(), subdriver_number, appslice)
-                        }),
-                        None => {
-                            // System call transition note: This does
-                            // not match the expected error code for
-                            // the Tock 1.0 system call API, hence
-                            // making system calls to non-existant
-                            // drivers from userspace will break
-                            GenericSyscallReturnValue::AllowReadOnlyFailure(
-                                ErrorCode::NOSUPPORT,
-                                allow_address,
-                                allow_size,
-                            )
-                        }
-                    }
+                let res = platform.with_driver(driver_number, |driver| match driver {
+                    Some(d) => process.allow_readonly(allow_address, allow_size, &|appslice| {
+                        d.allow_readonly(process.appid(), subdriver_number, appslice)
+                    }),
+                    None => GenericSyscallReturnValue::AllowReadOnlyFailure(
+                        ErrorCode::NOSUPPORT,
+                        allow_address,
+                        allow_size,
+                    ),
                 });
 
                 if config::CONFIG.trace_syscalls {
