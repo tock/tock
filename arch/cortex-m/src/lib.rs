@@ -2,7 +2,6 @@
 
 #![crate_name = "cortexm"]
 #![crate_type = "rlib"]
-#![feature(llvm_asm)]
 #![feature(asm)]
 #![feature(naked_functions)]
 #![no_std]
@@ -220,18 +219,25 @@ pub unsafe extern "C" fn switch_to_user_arm_v7m(
     mut user_stack: *const usize,
     process_regs: &mut [usize; 8],
 ) -> *const usize {
-    llvm_asm!(
-        "
+    asm!(
+    "
+    // Rust `asm!()` macro (as of Feb 2021) will not let us mark r6 as a
+    // clobber. However, in the process of restoring and saving the process's
+    // registers, we do in fact clobber r6. So, we work around this by doing our
+    // own manual saving of r6 using r3, and then mark r3 as clobbered.
+    mov r3, r6
+
     // The arguments passed in are:
-    // - `r0` is the top of the user stack
+    // - `r0` is the bottom of the user stack
     // - `r1` is a reference to `CortexMStoredState.regs`
 
     // Load bottom of stack into Process Stack Pointer.
-    msr psp, $0
+    msr psp, r0  // PSP = r0
 
     // Load non-hardware-stacked registers from the process stored state. Ensure
-    // that $2 is stored in a callee saved register.
-    ldmia $2, {r4-r11}
+    // that the address register (right now r1) is stored in a callee saved
+    // register.
+    ldmia r1, {{r4-r11}}
 
     // SWITCH
     svc 0xff   // It doesn't matter which SVC number we use here as it has no
@@ -243,14 +249,21 @@ pub unsafe extern "C" fn switch_to_user_arm_v7m(
 
     // Push non-hardware-stacked registers into the saved state for the
     // application.
-    stmia $2, {r4-r11}
+    stmia r1, {{r4-r11}}
 
     // Update the user stack pointer with the current value after the
     // application has executed.
-    mrs $0, PSP   // r0 = PSP"
-    : "={r0}"(user_stack)
-    : "{r0}"(user_stack), "{r1}"(process_regs)
-    : "r4","r5","r6","r8","r9","r10","r11" : "volatile" );
+    mrs r0, PSP   // r0 = PSP
+
+    // Need to restore r6 since we clobbered it when switching to and from the
+    // app.
+    mov r6, r3
+    ",
+    inout("r0") user_stack,
+    in("r1") process_regs,
+    out("r3") _, out("r4") _, out("r5") _, out("r8") _, out("r9") _,
+    out("r10") _, out("r11") _);
+
     user_stack
 }
 
