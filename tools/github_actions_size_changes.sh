@@ -16,7 +16,7 @@ make allboards > /dev/null 2>&1
 for elf in $(find . -maxdepth 8 | grep 'release' | egrep '\.elf$' | grep -v 'riscv'); do
     tmp=${elf#*release/}
     b=${tmp%.elf}
-    ./tools/print_tock_memory_usage.py -s ${elf} > current-benchmark-${b}
+    ./tools/print_tock_memory_usage.py -w ${elf} > current-benchmark-${b}
 done
 
 git remote set-branches "$UPSTREAM_REMOTE_NAME" "$GITHUB_BASE_REF"  > /dev/null 2>&1
@@ -29,7 +29,7 @@ make allboards > /dev/null 2>&1
 for elf in $(find . -maxdepth 8 | grep 'release' | egrep '\.elf$' | grep -v 'riscv'); do
     tmp=${elf#*release/}
     b=${tmp%.elf}
-    ./tools/print_tock_memory_usage.py -s ${elf} > previous-benchmark-${b}
+    ./tools/print_tock_memory_usage.py -w ${elf} > previous-benchmark-${b}
 done
 
 DIFF_DETECTED=0
