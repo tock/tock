@@ -11,6 +11,8 @@ of how platforms program each onto an actual board.
 <!-- toc -->
 
 - [Compiling the kernel](#compiling-the-kernel)
+  * [Tock-Specific `cfg` Key-Value Pairs](#tock-specific-cfg-key-value-pairs)
+    + [`target_arch_specific`](#target_arch_specific)
   * [Life of a Tock compilation](#life-of-a-tock-compilation)
   * [LLVM Binutils](#llvm-binutils)
   * [Special `.apps` section](#special-apps-section)
@@ -66,6 +68,40 @@ The `--release` argument tells Cargo to invoke the Rust compiler with
 optimizations turned on. `--target` points Cargo to the target specification
 which includes the LLVM data-layout definition and architecture definitions for
 the compiler.
+
+### Tock-Specific `cfg` Key-Value Pairs
+
+Tock uses statements like `#[cfg(all(target_arch = "arm", target_os = "none"))]`
+in select places to conditionally compile code for specific hardware components.
+In general, Tock _only_ uses these types of flags for hardware-based
+configurations where this is little or no ambiguity about what the flag will be
+set to. Since the hardware configuration for a platform should be well known, a
+reader of the code should be able to easily understand what the `cfg` key-value
+pairs will be set to when the code is compiled. This is different from more
+general software feature gating, where specific features or code blocks are
+included or not to change the operation of the Tock kernel. Tock tries to avoid
+that type of conditional compilation.
+
+Tock tries to use the built-in Rust `cfg` features, but that is not always
+sufficient. In this section we document the tock-specific `cfg` features we use.
+
+#### `target_arch_specific`
+
+Rust provides `target_arch` based on the compilation target. However, in
+practice `target_arch` only specifies an architecture family, and not a specific
+architecture (for example "arm" vs. "thumbv7em"). Differences between
+architectures in the same family (like what assembly instructions are valid) can
+make just having the family insufficient. Therefore Tock (through the build
+system) includes a `target_arch_specific` key-value pair for every target
+platform. This is configured in `Makefile.common`.
+
+| Rust Target                    | `target_arch_specific` |
+|--------------------------------|------------------------|
+| `thumbv7em-none-eabi`          | `thumbv7em`            |
+| `thumbv6m-none-eabi`           | `thumbv6m`             |
+| `riscv32imac-unknown-none-elf` | `rv32imac`             |
+| `riscv32imc-unknown-none-elf`  | `rv32imc`              |
+| `riscv32i-unknown-none-elf`    | `rv32i`                |
 
 
 ### Life of a Tock compilation

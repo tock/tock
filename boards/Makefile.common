@@ -49,6 +49,38 @@ ifneq ($(findstring riscv32i, $(TARGET)),)
   RUSTC_FLAGS += -C force-frame-pointers=no
 endif
 
+# TARGET_ARCH_SPECIFIC helps extend the `[cfg(all(target_arch = "arm"))]` like
+# flags available when doing conditional compilation in Tock code. In
+# particular, this was added because `target_arch` is insufficiently specific as
+# it only specifies an _architecture family_ (like "arm"), and not a specific
+# architecture (like "thumbv7em").
+#
+# We add our own cfg option called "target_arch_specific" which provides the
+# actual architecture the code is being compiled for. This allows for correct
+# and fine-grained hardware-based conditional compilation.
+#
+# Note! We want to avoid abusing this, as using `cfg`s can get confusing for
+# readers of the code. Specifically, trying to track exactly what cfgs are set
+# to what values at any specific time is very difficult for someone reading and
+# understanding the code. Therefore, we limit these to only values based
+# directly on hardware, where the only valid value is clear based on the target
+# platform. That is, these should not be used to enable/disable certain Tock
+# features, or omit particular code blocks.
+ifneq ($(findstring thumbv7em, $(TARGET)),)
+  TARGET_ARCH_SPECIFIC = thumbv7em
+else ifneq ($(findstring thumbv6m, $(TARGET)),)
+  TARGET_ARCH_SPECIFIC = thumbv6m
+else ifneq ($(findstring riscv32imac, $(TARGET)),)
+  TARGET_ARCH_SPECIFIC = rv32imac
+else ifneq ($(findstring riscv32imc, $(TARGET)),)
+  TARGET_ARCH_SPECIFIC = rv32imc
+else ifneq ($(findstring riscv32i, $(TARGET)),)
+  TARGET_ARCH_SPECIFIC = rv32i
+else
+  # If you get here, please also update `doc/Compilation.md`.
+  $(error "Must add new TARGET_ARCH_SPECIFIC for new target in Makefile.common")
+endif
+
 # RUSTC_FLAGS_TOCK by default extends RUSTC_FLAGS with options
 # that are global to all Tock boards.
 #
@@ -57,6 +89,7 @@ endif
 RUSTC_FLAGS_TOCK ?= \
   $(RUSTC_FLAGS) \
   --remap-path-prefix=$(TOCK_ROOT_DIRECTORY)= \
+  --cfg target_arch_specific=\"$(TARGET_ARCH_SPECIFIC)\" \
 
 # Disallow warnings for continuous integration builds. Disallowing them here
 # ensures that warnings during testing won't prevent compilation from succeeding.
