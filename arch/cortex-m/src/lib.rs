@@ -214,7 +214,12 @@ pub unsafe extern "C" fn unhandled_interrupt() {
 /// Assembly function called from `UserspaceKernelBoundary` to switch to an
 /// an application. This handles storing and restoring application state before
 /// and after the switch.
-#[cfg(all(target_arch = "arm", target_os = "none"))]
+#[cfg(all(
+    target_arch = "arm",
+    target_feature = "v7",
+    target_feature = "thumb-mode",
+    target_os = "none"
+))]
 #[no_mangle]
 pub unsafe extern "C" fn switch_to_user_arm_v7m(
     mut user_stack: *const usize,
@@ -254,7 +259,12 @@ pub unsafe extern "C" fn switch_to_user_arm_v7m(
     user_stack
 }
 
-#[cfg(all(target_arch = "arm", target_os = "none"))]
+#[cfg(all(
+    target_arch = "arm",
+    target_feature = "v7",
+    target_feature = "thumb-mode",
+    target_os = "none"
+))]
 #[inline(never)]
 unsafe fn kernel_hardfault_arm_v7m(faulting_stack: *mut u32) -> ! {
     let stacked_r0: u32 = *faulting_stack.offset(0);
@@ -397,7 +407,12 @@ unsafe fn kernel_hardfault_arm_v7m(faulting_stack: *mut u32) -> ! {
     );
 }
 
-#[cfg(all(target_arch = "arm", target_os = "none"))]
+#[cfg(all(
+    target_arch = "arm",
+    target_feature = "v7",
+    target_feature = "thumb-mode",
+    target_os = "none"
+))]
 /// Continue the hardfault handler. This function is not `#[naked]`, meaning we can mix
 /// `asm!()` and Rust. We separate this logic to not have to write the entire fault
 /// handler entirely in assembly.
@@ -454,7 +469,12 @@ unsafe extern "C" fn hard_fault_handler_arm_v7m_continued(
     }
 }
 
-#[cfg(all(target_arch = "arm", target_os = "none"))]
+#[cfg(all(
+    target_arch = "arm",
+    target_feature = "v7",
+    target_feature = "thumb-mode",
+    target_os = "none"
+))]
 #[naked]
 pub unsafe extern "C" fn hard_fault_handler_arm_v7m() {
     // First need to determine if this a kernel fault or a userspace fault, and store
