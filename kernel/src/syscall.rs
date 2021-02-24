@@ -228,7 +228,7 @@ pub enum SyscallReturnVariant {
 /// method.
 ///
 /// Capsules use higher level Rust types
-/// (e.g. [`AppSlice`](crate::AppSlice) and
+/// (e.g. [`ReadWriteAppSlice`](crate::ReadWriteAppSlice) and
 /// [`Callback`](crate::Callback)) or wrappers around this struct
 /// ([`CommandResult`](crate::CommandResult)) which limit the
 /// available constructors to safely constructable variants.
