@@ -102,9 +102,6 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         // place that they were originally passed in (i.e. at the
         // bottom the SVC structure on the stack)
 
-        // TODO: Maybe use a static assertion (as a sanity check) that
-        // the width of usize == 32-bit?
-
         // First, we need to validate that this location is inside of the
         // process's accessible memory.
         if state.psp < accessible_memory_start as usize
