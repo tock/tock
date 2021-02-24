@@ -16,7 +16,6 @@ use crate::config;
 use crate::debug;
 use crate::errorcode::ErrorCode;
 use crate::ipc;
-use crate::mem::legacy::{AppSlice, SharedReadWrite};
 use crate::mem::{ReadOnlyAppSlice, ReadWriteAppSlice};
 use crate::platform::mpu::{self, MPU};
 use crate::platform::Chip;
@@ -387,11 +386,11 @@ pub trait ProcessType {
 
     // additional memop like functions
 
-    /// Creates a read/write `AppSlice` from the given offset and size
+    /// Creates a `ReadWriteAppSlice` from the given offset and size
     /// in process memory.
     ///
     /// If `buf_start_addr` is NULL this will have no effect and the return
-    /// value will be `None` to signal the capsule to drop the buffer.
+    /// value will be `Failure()` to signal the capsule to drop the buffer.
     ///
     /// If the process is not active then this will return an error as it is not
     /// valid to "allow" a buffer for a process that will not resume executing.
@@ -400,16 +399,11 @@ pub trait ProcessType {
     ///
     /// ## Returns
     ///
-    /// If the buffer is null (a zero-valued offset) this returns `None`,
+    /// If the buffer is null (a zero-valued offset) this returns
+    /// `AllowReadWriteFailure`,
     /// signaling the capsule to delete the entry. If the buffer is within the
     /// process's accessible memory, returns an `AppSlice` wrapping that buffer.
-    /// Otherwise, returns an error `ReturnCode`.
-    fn legacy_allow_readwrite(
-        &self,
-        buf_start_addr: *const u8,
-        size: usize,
-    ) -> Result<Option<AppSlice<SharedReadWrite, u8>>, ReturnCode>;
-
+    /// Otherwise, returns an error via an `ErrorCode`.
     fn allow_readwrite(
         &self,
         buf_start_addr: *mut u8,
@@ -420,6 +414,16 @@ pub trait ProcessType {
             -> Result<ReadWriteAppSlice, (ReadWriteAppSlice, ErrorCode)>,
     ) -> GenericSyscallReturnValue;
 
+    /// Creates a `ReadOnlyAppSlice` from the given offset and size
+    /// in process memory.
+    ///
+    /// If `buf_start_addr` is NULL this will have no effect and the return
+    /// value will be `Failure()` to signal the capsule to drop the buffer.
+    ///
+    /// If the process is not active then this will return an error as it is not
+    /// valid to "allow" a buffer for a process that will not resume executing.
+    /// In practice this case should not happen as the process will not be
+    /// executing to call the allow syscall.
     fn allow_readonly(
         &self,
         buf_start_addr: *const u8,
@@ -1271,44 +1275,6 @@ impl<C: Chip> ProcessType for Process<'_, C> {
                     Ok(old_break)
                 }
             })
-    }
-
-    // TODO: Remove prior to releasing Tock 2.0
-    fn legacy_allow_readwrite(
-        &self,
-        buf_start_addr: *const u8,
-        size: usize,
-    ) -> Result<Option<AppSlice<SharedReadWrite, u8>>, ReturnCode> {
-        if !self.is_active() {
-            // Do not modify an inactive process.
-            return Err(ReturnCode::FAIL);
-        }
-
-        match NonNull::new(buf_start_addr as *mut u8) {
-            None => {
-                // A null buffer means pass in `None` to the capsule
-                Ok(None)
-            }
-            Some(buf_start) => {
-                if self.in_app_owned_memory(buf_start_addr, size) {
-                    // Valid slice, we need to adjust the app's watermark
-                    // note: in_app_owned_memory ensures this offset does not wrap
-                    let buf_end_addr = buf_start_addr.wrapping_add(size);
-                    let new_water_mark = cmp::max(self.allow_high_water_mark.get(), buf_end_addr);
-                    self.allow_high_water_mark.set(new_water_mark);
-
-                    // The `unsafe` promise we should be making here is that this
-                    // buffer is inside of app memory and that it does not create any
-                    // aliases (i.e. the same buffer has not been `allow`ed twice).
-                    //
-                    // TODO: We do not currently satisfy the second promise.
-                    let slice = unsafe { AppSlice::new(buf_start, size, self.appid()) };
-                    Ok(Some(slice))
-                } else {
-                    Err(ReturnCode::EINVAL)
-                }
-            }
-        }
     }
 
     #[allow(clippy::not_unsafe_ptr_arg_deref)]
