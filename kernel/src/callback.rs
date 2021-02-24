@@ -192,6 +192,9 @@ impl Callback {
         }
     }
 
+    /// Tell the scheduler to run this callback for the process.
+    ///
+    /// The three arguments are passed to the callback in userspace.
     pub fn schedule(&mut self, r0: usize, r1: usize, r2: usize) -> bool {
         self.cb.map_or(true, |mut cb| cb.schedule(r0, r1, r2))
     }
