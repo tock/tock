@@ -1,0 +1,192 @@
+# Tock Core Notes 2021
+
+## Attending
+ - Pat Pannuto
+ - Amit Levy
+ - Leon Schuermann
+ - Hudson Ayers
+ - Alistair
+ - Arjun Deopujari
+ - Brad Campbell
+ - Johnathan Van Why
+ - Philip Levis
+ - Vadim Sukhomlinov
+
+## Updates
+
+ - johnathan - libtock-rs: internal deadline, racing ahead in personal branch to go faster; will slow down testing though
+ - phil - 2.0 progress: down to the last 2! nrf serialization and IPC. IPC likely the hardest for many reasons. Serializiation is ported, but userspace library isn't working for reasons.. unknown. Hoping someone more familiar with the serializiation can take a look.
+    - brad: why did the syscall interface change
+    - phil: because it was performing operations on allows
+    - brad: but if we just made an excpetion here, we wouldn't have to do anything...
+    - phil: in theory, but what if it still doesn't work?
+    - brad: don't feel like debugging any more than you do...
+    - phil: should we cut it?
+    - brad: no! it's our only working BLE stack...
+    - [...] (indecision)
+    - amit: porting it without fixing the system calls is simpler, and more like to just work
+    - amit: would be nice to fix the interface in addition, but maybe this makes it more of a stepwise change
+    - amit: I can try to help out with this
+    - amit: think Branden originally wrote the driver, but I have at least some familiarity
+    - amit: still, Brad's suggestion to 'get it working' might be a good start
+    - phil: but then it will never get fixed..
+    - amit: was thinking 'within the same PR'
+    - phil: ah, incremental development makes sense. Get it working with old syscall semantics first
+    - phil: but vehemently opposed to leaving this unchanged for 2.0
+    - phil: okay, I will try the stepwise then; start with preserving operation-on-allow, see if that works at least
+
+## TBF Headers
+ - amit: There are two header permission PRs, both just documentation (specification)
+ - amit: #2172 is a general notion, adding a list of system calls that an app declares what it will need to use
+ - amit: #2177 is a specific set of permissions for flash
+ - amit: Question 1, does this align with the security model
+ - amit: Is it fair to say that in a sense this is similar to Android's manifest permissions?
+ - amit: Declaration vs enforcement are separate questions
+ - alistair: yes that's fair; and systems such as OT can have additional
+ - johnathan: in Android analogy: this PR is the app declaring its permissions in a manifest, but it's not the Settings app giving toggles; which is why allowing apps to control this is not at odds with the threat model
+ - amit: So for OT, part of this will expect that apps (and these manifests) are signed
+ - alistair: Yes, but in the case of OT, the theory is that users will also be able to load apps from an untrusted third party. So there the kernel will have a list of permissions it is willing to give to apps
+ - amit: so this serves two ends, early-detection that an app can't run, and an opportunity for an app to sandbox itself
+ - amit: perm's granted are only the intersection of those allowed and those it needs
+ - alistair: Yes.
+ - amit: This seems sane to me, and there seems to be at least one good use case for it.
+ - amit: The other question is whether this is all-encompassing (does this cover all cases we care about; e.g. the non-OT cases)? If not, does this add additional, unnecessary bloat that could be solved better?
+ - amit: My personal take, so far, is to not see a reason not to do this
+ - alistair: My goal was to make this not OT-specific
+ - amit: Would a reasonable policy, e.g., for a dev board (e.g. hail) that tockloader inspects these permissions and verifies at flash-time that the flasher wants to give these permissions
+ - alistair: Yeah, on a dev board, the permissions are generated, but dev boards just allows them all. For something like OT, there are more likely to be flash time and runtime checks of these
+ - amit: Pat just added some specific Q's to the PR, but are there any high level issues?
+ - phil: No high level issues; some questions on the actual structure, e.g. are we restricting ourselves to just 32 commands given the data structure here? [nvm, not something needed to discuss here; will take offline]
+ - johnathan: the allowed commands feild is a 64-bit structure, which limits to commands up to 64
+ - alistair: I didn't see any drivers that use numbers >64
+ - phil: I think there are some; statement here about commands using a compact space
+ - alistair: yeah, there are some that use big numbers, but they don't have that many actual commands
+ - amit: would it be reaonsable to have an additional offset field, or a header type, that allow for multiple numbers/masks for more commands?
+ - phil: the place where this might break (the 64 bit type), the design that we accepted but didn't implement was something like where userspace would have access to multiple SPI buses, they would use the higher order bits
+ - pat: We just revisited the syscall interface, and decided that commands should have a fairly wide bit width, but here we are implicitly make the opposite decision -- something feels at odds there
+ - amit: does this only restrict commands? the thought being that subscribe/allow doesn't have side effects on its own
+ - alistair: right, you can allow all you want without harming anything
+ - phil: right, and we should probably make explicit in the TRD that you don't have subscribe callbacks to your app if your app didn't issue the command?
+ - alistair: Maybe if that driver number isn't even mentioned, then subscribe/allow not allowed for that driver number?
+ - phil: We did ultimately think somewhat deeply about the choice to have a wide command identifier type, but that was not necessarily at odds with being sparse
+ - alistair: Yeah, it makes sense to me to compact the command space
+ - phil: But will still need to handle the multiple user case
+ - brad: ninedof for example has command number that are not sequential
+ - phil: this is an easy fix: syscall TRD should say that commands should be dense; can point to this for justification
+ - amit: The second one to discuss is flash
+ - amit: anything beyond the comment hudson left yesterday?
+ - [crickets]
+
+## Flash HIL update #2248
+ - amit: This is a PR that looks at addressing issues raised from the OpenSK folks in RFC #1459
+ - amit: This PR does not change the flash HIL to be synchronous, still an async HIL
+ - amit: The main thing is that the interface to writing flash is now absolute addresses rather than pages/regions and uses types to express minimum transaction size
+ - amit: Some other things as well, e.g. making it clear that erase and write have to happen separately
+ - amit: I don't feel super comfortable leading this discussion, as I don't have strong opinions or intuitions about flash
+ - amit: it seems that we have rough consensus that we should have separate interfaces for external and internal flash; does this improve things for at least one of those?
+ - phil: It improves things....
+ - phil: Agree with Pat's comment on the PR where the interface changing between pages and byte ranges is awkward. Maybe expose an erase that takes byte ranges, and internally converts to pages?
+ - alistair: but what if the byte range doesn't line up on page boundaries, throw an error?
+ - phil: yeah.., a few options there; could have an "erase_precise" that requires alignment; could do best effort; could re-write regions that should not have been erased
+ - leon: The issue is perhaps that the alignment is only partially enforced by the type system?
+ - alistair: yeah, the type gives the alignment for writes, which is often more granular than for erase
+ - amit: what does this actually look like?
+ - alistair: right, generally erasing in ~4K and writes are ~word
+ - phil: sometimes things that are messier are you can 'write more than once, but only a few times', etc -- good that the interface doesn't try to capture that
+ - leon: at the risk of increasing complexity, should we add another layer that encapsulates write and erase boundaries?
+ - amit: I kind of agree with that I think. The goal of the HILs should be to abstract differences between hardware specific implementations, but not necessarily to abstract the hardware interface into something that is easier to use. The cost of the latter would be losing capability of the hardware and pushing complexity of adhering to the interface into each of the HW implementations
+ - phil: agree, not worried about the most ergonomic interface, but do want one that doesn't make it easy to make mistakes on
+ - amit: how do you find page number?
+ - alistair: just count
+ - amit: so the client needs to know the base address?
+ - alistair: I think so
+ - leon: this is exactly what I'm talking about, that a wrapper or library can encapsulate these details
+ - amit: Alistair, this is why in write, the address is a usize rather than a pointer, because it's not a pointer, it's an offset from the base address of flash?
+ - alistiar: yes, I should make that clearer
+ - leon: since this is an async HIL, we could pass in larger than usize things, right? Could have >4GB of flash
+ - alistair: I guess.. but you need a buffer for that?
+ - phil: right, but external flash can have an offset; external flash can easiler by larger
+ - alistair: but then we have to deal with 64 bit types everywhere
+ - phil: it gets tricky when offset is platform-dependent though in how much you can address
+ - leon: I think this could also be solved by an absract interface: if I request to write to something outside of valid bounds then the wrapper can reject the request; it can then pass friendly types to the internal impelmentation
+ - amit: what about an additional type parameter with a default
+ - leon: then you still expose this difference to the user; could make issues for use in hardware independent manner
+ - hudson: if the user is requesting reads and writes from a given address, then they probably need to know the offset, not sure how you would hide that
+ - leon: if the user is just the kernel driver, it will need to pass through the requested addresses
+ - hudson: if you're not going to propogate the raw address through, how would an app write to >4GB in external flash
+ - amit: allowing 64 bits up to userspace feels not that bad
+ - amit: is it the case that the API for external flash has a similar hardware interface (erase pages; write smaller)?
+ - phil: usually, but not always
+ - phil: Alistair's use of the `W` parameter covers the odd case already where `W` is block size
+ - amit: the downside is the address isn't necessarily aligned at the type level
+ - phil: I think it is if you look at the comments
+ - phil: I like Leon's suggestion that encapsulates this
+ - phil: Alistair, if I want to do writes larger than `W` then I'll do a series of writes?
+ - Alistair: I guess so
+ - Vadim: What about region-locking, or if one app tries to write data owned by another app?
+ - Alistair: that's a different problem, this is a low-level interface
+ - phil: I think your interface still supports that; this can be a logical (i.e. virtual memory translation-esque) will work here
+ - vadim: this actually allows regions via base+offset then?
+ - jonathan: I don't think so as you'll need some virtualizing at the HIL internally if you want to do isolation here alone, which probably isn't the right place
+ - alistair: we talked last time about an 'advanced' one as well; is that something we still want to do?
+ - leon: I got the impression that that was just for things that are advanced
+ - alistair: that was the hope, but I guess in theory there are some that support only reading/writing pages
+ - amit: but `W` solves that, right?
+ - alistiar: yeah.. I've never seen a flash with something like a read minimum? just making sure this will work
+ - leon: yeah, could work around that easily by just discarding what wasn't asked for
+ - phil: could separate out into read/write/erase traits
+ - alistair: flash always does all of these though
+ - phil: yeah, but UART also transmits and receives, but we split those. Allows structs to only implement what they should have access to
+ - leon: Interesting concept; I don't write write without erase, but read without write makes sense. Perhaps a use case for super traits
+ - phil: there are write without read cases: e.g. a shared log where you can't read others log entries
+ - amit: if it proves necessary, then you could have different write traits for weird edge cases this way, and maybe compatibility layers
+ - leon: one issue with UartAdvanced you either have lots of compatibility layers or higher level things lose out becuase of one small missing piece
+ - leon: maybe then there is benefit to forcing lower layers to implement to avoid fragmentation
+ - leon: otherwise there are many consumers all requiring slightly different flash traits
+ - amit: okay -- as we have a packed agenda, may need to move on, summary thus far
+   - rough interface is good thus far
+   - some Q's still about how to separate the pieces
+   - especially how to handle write, partiuclarly odder impl's with big writes
+   - an implementaiton for an external or other flash might help surface issues or establish validity
+ - amit: it seems that there remain non-obvious tradeoffs that will need an implementation to suss out best option
+ - alistair: I'm away for the next two weeks, so if folks comment on the PR in that time then when I get back I can lean into an implementation to test out the ideas
+ - [consensus yes]
+
+## libtock-rs + Tock 2.0
+ - amit: Q's from johnathan
+   - We normally have a 7 day rule for merging significant PRs
+ - johnathan: the part I want to jump is that if everyone approves, we can merge without waiting out the window for all reviewers -- looking for approval from core to skip this for 2.0
+ - alistair: I'm not sure we should waive the policy just because we're in a rush to get things in
+ - leon: appreciate tagging me, but don't wait for me
+ - alistair: the problem is that sometimes the tagged people review quickly, so things can merge in hours and others don't get a chance to look, but maybe 7 days is too long
+ - amit: no horse in this race..
+ - phil: is there a number between 1 and 7 days that's better?
+ - alistair: 3? we should consider just changing the policy
+ - loen: 3 can be pretty short though..
+ - johnathan: okay; this is a more complex conversation than I'd hoped; let's shelve this one so we can get to the next one
+
+## libtock-rs: Better safe or better fast?
+ - johnathan: Especially down at the syscall boundary, there's a tradeoff between safety and performance
+   - e.g. can shave off two instructions in yeild-no-wait with an unsafe
+   - e.g. can be faster to trust error codes and cast rather than bounds-check
+ - johnathan: currently, anywhere where using unsafe would save code size, I've been doing it, especially if it aligns with the TRD wording, but not all reviewers seem in agreement
+ - amit: two cases, one where the core kernel is making promises about the type (e.g. that it'll be a valid error code) and others where individual capsules will be making that promise
+ - johnathan: I'm only considering the core kernel, otherwise it would be a threat model issue to trust capsules
+ - amit: exactly, so in my mind, it seems fair to trust the core kernel
+ - amit: we already trust the core kernel, e.g. it could do anything to the memory space of a process..
+ - johnathan: we could potentially categorize by how common the call is; e.g. memop is not called often
+ - alistair: we should be able to make decisions for this based on how much overhead there really is, right?
+ - johnathan: per syscall or total? e.g. adding to command will add thousands to the applicaiton
+ - alistair: right, thinking total; agree with the memop example
+ - hudson: I suspect it might be challenging to have a general policy on this; can we trust the kernel to return valid error codes, yes, but are there _other_ issues, e.g. alignment, that I as a reviewer will need to think about?
+ - johnthan: I can definitely comment these better; plus in the future these will all be unit tested under MIRI
+ - leon: part of why might help these questions is the boundaries, i.e. the raw_syscalls which close?
+ - johnathan: actually raw_syscalls is the *farthest* of all of the crates under discussion here; if you're comfortable with those, comfortable with all
+ - amit: agree Hudson, unlikely to be a hard and fast rule; will need case-by-case evaluation
+ - amit: want to avoid unsafe if it's unnecessary -- if it is doing useful things, should be easier to justify
+ - pat: is this something I can offer the team of students doing measurement work to help provide hard numbers for? they are on a 3-4 week to end product timeline
+ - johnathan: my timeline is to be done with implmentation by the end of the weekend, so that doesn't quite line up
+ - amit: still use in measuring; can implement the unsafe version for now, and see how much win it actually gets later
+
+## Quick circle back
+ - amit: proposal, for now, reduce libtock-rs merge window to 3 days for 2.0; can revisit later whether to make this permanent. [passes]
