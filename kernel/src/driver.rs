@@ -13,10 +13,10 @@
 //!
 //!   * `command` tells the driver to do something immediately.
 //!
-//!   * `allow read-write` provides the driver read-write access to an
+//!   * `allow_readwrite` provides the driver read-write access to an
 //!   application buffer.
 //!
-//!   * `allow read-only` provides the driver read-only access to an
+//!   * `allow_readonly` provides the driver read-only access to an
 //!   application buffer.
 //!
 //! ## Mapping system-calls to drivers
@@ -42,7 +42,7 @@
 //! # The `yield` system call class
 //!
 //! While drivers do not handle `yield` system calls, it is important
-//! to understand them and how they interacts with `subscribe`, which
+//! to understand them and how they interact with `subscribe`, which
 //! registers callback functions with the kernel. When a process calls
 //! a `yield` system call, the kernel checks if there are any pending
 //! callbacks for the process. If there are pending callbacks, it

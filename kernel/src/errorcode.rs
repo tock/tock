@@ -1,4 +1,4 @@
-//! Standard error enum for invoking operations
+//! Standard errors in Tock.
 
 use core::convert::TryFrom;
 
