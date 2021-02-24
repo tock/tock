@@ -74,13 +74,8 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         // The first time the process runs we need to set the initial stack
         // pointer in the sp register.
         //
-        // TOCK 1.X
-        state.regs[R_SP] = accessible_memory_start.add(3 * 1024) as u32;
-        //
-        // TOCK 2.0
-        //
         // We do not pre-allocate any stack for RV32I processes.
-        // state.regs[R_SP] = accessible_memory_start as usize;
+        state.regs[R_SP] = accessible_memory_start as u32;
 
         // We do not use memory for UKB, so just return ok.
         Ok(())
