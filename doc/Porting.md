@@ -207,6 +207,8 @@ but Tock does have two targets normally supplied:
     hardware is required, though some of the development kit boards have an
     integrated JTAG on-board, so external hardware is not a hard and fast
     rule.
+  - _install_: This should be an alias to either `program` or `flash`, whichever
+    is the preferred approach for this board.
 
 If you don't support _program_ or _flash_, you should define an empty rule
 that explains how to program the board:
