@@ -216,15 +216,15 @@ impl<'a> Driver for RngDriver<'a> {
                     app.remaining = data;
                     app.idx = 0;
 
-		    // Assume that the process has a callback & slice
-		    // set. It might die or revoke them before the
-		    // result arrives anyways
+                    // Assume that the process has a callback & slice
+                    // set. It might die or revoke them before the
+                    // result arrives anyways
                     if !self.getting_randomness.get() {
                         self.getting_randomness.set(true);
                         self.rng.get();
                     }
 
-		    CommandResult::success()
+                    CommandResult::success()
                 })
                 .unwrap_or_else(|err| CommandResult::failure(err.into())),
             _ => CommandResult::failure(ErrorCode::NOSUPPORT),

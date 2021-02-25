@@ -4,7 +4,9 @@
 #![crate_type = "rlib"]
 #![no_std]
 
-pub mod mpu;
+pub mod mpu {
+    pub type MPU = cortexm::mpu::MPU<8>;
+}
 
 // Re-export the base generic cortex-m functions here as they are
 // valid on cortex-m3.

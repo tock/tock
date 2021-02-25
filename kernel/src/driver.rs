@@ -13,10 +13,10 @@
 //!
 //!   * `command` tells the driver to do something immediately.
 //!
-//!   * `allow read-write` provides the driver read-write access to an
+//!   * `allow_readwrite` provides the driver read-write access to an
 //!   application buffer.
 //!
-//!   * `allow read-only` provides the driver read-only access to an
+//!   * `allow_readonly` provides the driver read-only access to an
 //!   application buffer.
 //!
 //! ## Mapping system-calls to drivers
@@ -42,7 +42,7 @@
 //! # The `yield` system call class
 //!
 //! While drivers do not handle `yield` system calls, it is important
-//! to understand them and how they interacts with `subscribe`, which
+//! to understand them and how they interact with `subscribe`, which
 //! registers callback functions with the kernel. When a process calls
 //! a `yield` system call, the kernel checks if there are any pending
 //! callbacks for the process. If there are pending callbacks, it
@@ -71,7 +71,6 @@
 
 use crate::callback::{AppId, Callback};
 use crate::errorcode::ErrorCode;
-use crate::mem::legacy::{AppSlice, SharedReadWrite};
 use crate::mem::{ReadOnlyAppSlice, ReadWriteAppSlice};
 use crate::process;
 use crate::returncode::ReturnCode;
@@ -155,9 +154,6 @@ impl From<ReturnCode> for CommandResult {
     fn from(rc: ReturnCode) -> Self {
         match rc {
             ReturnCode::SUCCESS => CommandResult::success(),
-            ReturnCode::SuccessWithValue { .. } => {
-                panic!("SuccessWithValue is deprecated");
-            } //TODO: delete before Tock 2.0
             _ => CommandResult::failure(ErrorCode::try_from(rc).unwrap()),
         }
     }
@@ -200,78 +196,5 @@ pub trait Driver {
         slice: ReadOnlyAppSlice,
     ) -> Result<ReadOnlyAppSlice, (ReadOnlyAppSlice, ErrorCode)> {
         Err((slice, ErrorCode::NOSUPPORT))
-    }
-}
-
-/// Tock 1.x "legacy" system call interface
-///
-/// This is included for compatibility with capsules not ported to the
-/// new system call interface. It will be removed prior to a Tock 2.0
-/// release.
-// TODO: Remove prior to Tock 2.0
-pub trait LegacyDriver {
-    /// `subscribe` lets an application pass a callback to the driver to be
-    /// called later. This returns `ENOSUPPORT` if not used.
-    ///
-    /// Calls to subscribe should do minimal synchronous work.  Instead, they
-    /// should defer most work and returns results to the application via the
-    /// callback. For example, a subscribe call might setup a DMA transfer to
-    /// read from a sensor, and asynchronously respond to the application by
-    /// passing the result to the application via the callback.
-    ///
-    /// Drivers should allow each application to register a single callback for
-    /// each minor number subscription. Thus, a second call to subscribe from
-    /// the same application would replace a previous callback.
-    ///
-    /// This pushes most per-application virtualization to the application
-    /// itself. For example, a timer driver exposes only one timer to each
-    /// application, and the application is responsible for virtualizing that
-    /// timer if it needs to.
-    ///
-    /// The driver should signal success or failure through the sign of the
-    /// return value from `subscribe`. A negative return value signifies an
-    /// error, while positive a return values signifies success. In addition,
-    /// the magnitude of the return value of can signify extra information such
-    /// as error type.
-    #[allow(unused_variables)]
-    fn subscribe(&self, minor_num: usize, callback: Option<Callback>, app_id: AppId) -> ReturnCode {
-        ReturnCode::ENOSUPPORT
-    }
-
-    /// `command` instructs a driver to perform some action synchronously. This
-    /// returns `ENOSUPPORT` if not used.
-    ///
-    /// The return value should reflect the result of an action. For example,
-    /// enabling/disabling a peripheral should return a success or error code.
-    /// Reading the current system time should return the time as an integer.
-    ///
-    /// Commands should not execute long running tasks synchronously. However,
-    /// commands might "kick-off" asynchronous tasks in coordination with a
-    /// `subscribe` call.
-    ///
-    /// All drivers must support the command with `minor_num` 0, and return 0
-    /// or greater if the driver is supported. This command should not have any
-    /// side effects. This convention ensures that applications can query the
-    /// kernel for supported drivers on a given platform.
-    #[allow(unused_variables)]
-    fn command(&self, minor_num: usize, r2: usize, r3: usize, caller_id: AppId) -> ReturnCode {
-        ReturnCode::ENOSUPPORT
-    }
-
-    /// `allow_readwrite` lets an application give the driver
-    /// read-write access to a buffer in the application's
-    /// memory. This returns `ENOSUPPORT` if not used.
-    ///
-    /// The buffer is __shared__ between the application and driver, meaning the
-    /// driver should not rely on the contents of the buffer to remain
-    /// unchanged.
-    #[allow(unused_variables)]
-    fn allow_readwrite(
-        &self,
-        app: AppId,
-        minor_num: usize,
-        slice: Option<AppSlice<SharedReadWrite, u8>>,
-    ) -> ReturnCode {
-        ReturnCode::ENOSUPPORT
     }
 }

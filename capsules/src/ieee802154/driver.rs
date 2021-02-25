@@ -823,7 +823,7 @@ impl Driver for RadioDriver<'_> {
                     .enter(appid, |app, _| {
                         if app.pending_tx.is_some() {
                             // Cannot support more than one pending tx per process.
-                            return CommandResult::failure(ErrorCode::BUSY);
+                            return Err(ErrorCode::BUSY);
                         }
                         let next_tx = app.app_cfg.map_or(None, |cfg| {
                             if cfg.len() != 11 {
@@ -849,13 +849,18 @@ impl Driver for RadioDriver<'_> {
                             }
                         });
                         if next_tx.is_none() {
-                            return CommandResult::failure(ErrorCode::INVAL);
+                            return Err(ErrorCode::INVAL);
                         }
                         app.pending_tx = next_tx;
-
-                        self.do_next_tx_sync(appid).into()
+                        Ok(())
                     })
-                    .unwrap_or_else(|err| CommandResult::failure(err.into()))
+                    .map_or_else(
+                        |err| CommandResult::failure(err.into()),
+                        |setup_tx| match setup_tx {
+                            Ok(_) => self.do_next_tx_sync(appid).into(),
+                            Err(e) => CommandResult::failure(e.into()),
+                        },
+                    )
             }
             _ => CommandResult::failure(ErrorCode::NOSUPPORT),
         }

@@ -161,9 +161,7 @@ impl<'a, S: hil::spi::SpiMasterDevice> FM25CL<'a, S> {
                 let res = self.spi.read_write_bytes(txbuffer, None, 1);
                 match res {
                     ReturnCode::SUCCESS => Ok(()),
-                    rc => Err(rc
-                        .try_into()
-                        .expect("SPI read_write_bytes: unexpected SuccessWithValue")),
+                    rc => Err(rc.try_into().unwrap()),
                 }
             })
     }
@@ -192,9 +190,7 @@ impl<'a, S: hil::spi::SpiMasterDevice> FM25CL<'a, S> {
                             .read_write_bytes(txbuffer, Some(rxbuffer), read_len + 3);
                         match res {
                             ReturnCode::SUCCESS => Ok(()),
-                            rc => Err(rc
-                                .try_into()
-                                .expect("SPI read_write_bytes: unexpected SuccessWithValue")),
+                            rc => Err(rc.try_into().unwrap()),
                         }
                     })
             })

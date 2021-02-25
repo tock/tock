@@ -59,7 +59,7 @@ static BOOT_HDR: [u8; 8192] = boot_header::BOOT_HDR;
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
 #[link_section = ".stack_buffer"]
-pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
+pub static mut STACK_MEMORY: [u8; 0x2000] = [0; 0x2000];
 
 // const NUM_LEDS: usize = 1;
 
@@ -82,16 +82,16 @@ struct Imxrt1050EVKB {
 impl Platform for Imxrt1050EVKB {
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
     where
-        F: FnOnce(Option<Result<&dyn kernel::Driver, &dyn kernel::LegacyDriver>>) -> R,
+        F: FnOnce(Option<&dyn kernel::Driver>) -> R,
     {
         match driver_num {
-            capsules::alarm::DRIVER_NUM => f(Some(Ok(self.alarm))),
-            capsules::button::DRIVER_NUM => f(Some(Ok(self.button))),
-            capsules::console::DRIVER_NUM => f(Some(Ok(self.console))),
-            capsules::gpio::DRIVER_NUM => f(Some(Ok(self.gpio))),
-            kernel::ipc::DRIVER_NUM => f(Some(Ok(&self.ipc))),
-            capsules::led::DRIVER_NUM => f(Some(Ok(self.led))),
-            capsules::ninedof::DRIVER_NUM => f(Some(Ok(self.ninedof))),
+            capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
+            capsules::button::DRIVER_NUM => f(Some(self.button)),
+            capsules::console::DRIVER_NUM => f(Some(self.console)),
+            capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
+            kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
+            capsules::led::DRIVER_NUM => f(Some(self.led)),
+            capsules::ninedof::DRIVER_NUM => f(Some(self.ninedof)),
             _ => f(None),
         }
     }

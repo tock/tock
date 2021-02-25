@@ -24,9 +24,10 @@ use rv32i::csr;
 
 #[allow(dead_code)]
 mod aes_test;
-
 #[allow(dead_code)]
 mod multi_alarm_test;
+#[allow(dead_code)]
+mod tickv_test;
 
 pub mod io;
 pub mod usb;
@@ -76,26 +77,22 @@ struct EarlGreyNexysVideo {
         capsules::virtual_uart::UartDevice<'static>,
     >,
     i2c_master: &'static capsules::i2c_master::I2CMasterDriver<'static, lowrisc::i2c::I2c<'static>>,
-    nonvolatile_storage: &'static capsules::nonvolatile_storage_driver::NonvolatileStorage<'static>,
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
 impl Platform for EarlGreyNexysVideo {
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
     where
-        F: FnOnce(Option<Result<&dyn kernel::Driver, &dyn kernel::LegacyDriver>>) -> R,
+        F: FnOnce(Option<&dyn kernel::Driver>) -> R,
     {
         match driver_num {
-            capsules::led::DRIVER_NUM => f(Some(Ok(self.led))),
-            capsules::hmac::DRIVER_NUM => f(Some(Ok(self.hmac))),
-            capsules::gpio::DRIVER_NUM => f(Some(Ok(self.gpio))),
-            capsules::console::DRIVER_NUM => f(Some(Ok(self.console))),
-            capsules::alarm::DRIVER_NUM => f(Some(Ok(self.alarm))),
-            capsules::low_level_debug::DRIVER_NUM => f(Some(Ok(self.lldb))),
-            capsules::i2c_master::DRIVER_NUM => f(Some(Ok(self.i2c_master))),
-            capsules::nonvolatile_storage_driver::DRIVER_NUM => {
-                f(Some(Ok(self.nonvolatile_storage)))
-            }
+            capsules::led::DRIVER_NUM => f(Some(self.led)),
+            capsules::hmac::DRIVER_NUM => f(Some(self.hmac)),
+            capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
+            capsules::console::DRIVER_NUM => f(Some(self.console)),
+            capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
+            capsules::low_level_debug::DRIVER_NUM => f(Some(self.lldb)),
+            capsules::i2c_master::DRIVER_NUM => f(Some(self.i2c_master)),
             _ => f(None),
         }
     }
@@ -277,17 +274,31 @@ pub unsafe fn reset_handler() {
     }
 
     // Flash
-    let nonvolatile_storage = components::nonvolatile_storage::NonvolatileStorageComponent::new(
-        board_kernel,
-        &peripherals.flash_ctrl,
-        0x20000000,                       // Start address for userspace accessible region
-        0x8000,                           // Length of userspace accessible region
-        &_sstorage as *const u8 as usize, // Start address of kernel region
-        &_estorage as *const u8 as usize - &_sstorage as *const u8 as usize, // Length of kernel region
+    let flash_ctrl_read_buf = static_init!(
+        [u8; lowrisc::flash_ctrl::PAGE_SIZE],
+        [0; lowrisc::flash_ctrl::PAGE_SIZE]
+    );
+    let page_buffer = static_init!(
+        lowrisc::flash_ctrl::LowRiscPage,
+        lowrisc::flash_ctrl::LowRiscPage::default()
+    );
+
+    let mux_flash = components::tickv::FlashMuxComponent::new(&peripherals.flash_ctrl).finalize(
+        components::flash_user_component_helper!(lowrisc::flash_ctrl::FlashCtrl),
+    );
+
+    // TicKV
+    let _tickv = components::tickv::TicKVComponent::new(
+        &mux_flash,                                  // Flash controller
+        0x20040000 / lowrisc::flash_ctrl::PAGE_SIZE, // Region offset (size / page_size)
+        0x40000,                                     // Region size
+        flash_ctrl_read_buf,                         // Buffer used internally in TicKV
+        page_buffer,                                 // Buffer used with the flash controller
     )
-    .finalize(components::nv_storage_component_helper!(
+    .finalize(components::tickv_component_helper!(
         lowrisc::flash_ctrl::FlashCtrl
     ));
+    hil::flash::HasClient::set_client(&peripherals.flash_ctrl, mux_flash);
 
     /// These symbols are defined in the linker script.
     extern "C" {
@@ -309,7 +320,6 @@ pub unsafe fn reset_handler() {
         hmac,
         lldb: lldb,
         i2c_master,
-        nonvolatile_storage,
     };
 
     kernel::procs::load_processes(
