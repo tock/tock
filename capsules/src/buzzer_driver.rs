@@ -40,7 +40,6 @@
 
 use core::cmp;
 
-use core::convert::TryFrom;
 use core::mem;
 use kernel::common::cells::OptionalCell;
 use kernel::hil;
@@ -235,21 +234,14 @@ impl<'a, A: hil::time::Alarm<'a>> Driver for Buzzer<'a, A> {
             1 => {
                 let frequency_hz = data1;
                 let duration_ms = cmp::min(data2, self.max_duration_ms);
-                let res = self.enqueue_command(
+                self.enqueue_command(
                     BuzzerCommand::Buzz {
                         frequency_hz,
                         duration_ms,
                     },
                     appid,
-                );
-                match res {
-                    ReturnCode::SUCCESS => CommandResult::success(),
-                    ReturnCode::SuccessWithValue { value } => {
-                        CommandResult::success_u32(value as u32)
-                    }
-                    // unwrap may be used as res cannot be SUCCESS or SuccessWithValue
-                    _ => CommandResult::failure(ErrorCode::try_from(res).unwrap()),
-                }
+                )
+                .into()
             }
 
             _ => CommandResult::failure(ErrorCode::NOSUPPORT),

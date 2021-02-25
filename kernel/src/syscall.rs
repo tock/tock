@@ -6,7 +6,6 @@ use core::fmt::Write;
 use crate::driver::CommandResult;
 use crate::errorcode::ErrorCode;
 use crate::process;
-use crate::returncode::ReturnCode;
 
 /// Helper function to split a u64 into a higher and lower u32
 ///
@@ -229,7 +228,7 @@ pub enum SyscallReturnVariant {
 /// method.
 ///
 /// Capsules use higher level Rust types
-/// (e.g. [`AppSlice`](crate::AppSlice) and
+/// (e.g. [`ReadWriteAppSlice`](crate::ReadWriteAppSlice) and
 /// [`Callback`](crate::Callback)) or wrappers around this struct
 /// ([`CommandResult`](crate::CommandResult)) which limit the
 /// available constructors to safely constructable variants.
@@ -282,8 +281,6 @@ pub enum GenericSyscallReturnValue {
     SubscribeSuccess(*const u8, usize),
     /// Subscribe failure case
     SubscribeFailure(ErrorCode, *const u8, usize),
-
-    Legacy(ReturnCode),
 }
 
 impl GenericSyscallReturnValue {
@@ -383,9 +380,6 @@ impl GenericSyscallReturnValue {
                 *a1 = usize::from(err) as u32;
                 *a2 = ptr as u32;
                 *a3 = data as u32;
-            }
-            &GenericSyscallReturnValue::Legacy(rcode) => {
-                *a0 = usize::from(rcode) as u32;
             }
         }
     }

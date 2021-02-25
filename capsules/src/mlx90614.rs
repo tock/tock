@@ -196,7 +196,7 @@ impl<'a> Driver for Mlx90614SMBus<'a> {
         match subscribe_num {
             0 /* set the one shot callback */ => {
                 Ok(self.callback.replace(callback))
-			},
+            },
             // default
             _ => Err((callback, ErrorCode::NOSUPPORT)),
         }

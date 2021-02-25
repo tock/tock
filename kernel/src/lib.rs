@@ -111,10 +111,9 @@ mod returncode;
 mod sched;
 
 pub use crate::callback::{AppId, Callback};
-pub use crate::driver::{CommandResult, Driver, LegacyDriver};
+pub use crate::driver::{CommandResult, Driver};
 pub use crate::errorcode::ErrorCode;
 pub use crate::grant::{DynamicGrant, Grant};
-pub use crate::mem::legacy::{AppSlice, SharedReadWrite};
 pub use crate::mem::{Read, ReadOnlyAppSlice, ReadWrite, ReadWriteAppSlice};
 pub use crate::platform::scheduler_timer::{SchedulerTimer, VirtualSchedulerTimer};
 pub use crate::platform::watchdog;

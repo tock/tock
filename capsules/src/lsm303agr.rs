@@ -601,8 +601,8 @@ impl Driver for Lsm303agrI2C<'_> {
     ) -> Result<Callback, (Callback, ErrorCode)> {
         match subscribe_num {
             0 /* set the one shot callback */ => {
-				Ok (self.callback.replace (callback))
-			},
+                Ok (self.callback.replace (callback))
+            },
             // default
             _ => Err ((callback, ErrorCode::NOSUPPORT)),
         }

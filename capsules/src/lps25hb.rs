@@ -19,10 +19,10 @@
 //! ```
 
 use core::cell::Cell;
-use kernel::common::cells::{OptionalCell, TakeCell};
+use kernel::common::cells::TakeCell;
 use kernel::hil::gpio;
 use kernel::hil::i2c;
-use kernel::{AppId, Callback, LegacyDriver, ReturnCode};
+use kernel::{AppId, Callback, CommandResult, Driver, ErrorCode};
 
 /// Syscall driver number.
 use crate::driver;
@@ -96,7 +96,7 @@ enum State {
 pub struct LPS25HB<'a> {
     i2c: &'a dyn i2c::I2CDevice,
     interrupt_pin: &'a dyn gpio::InterruptPin<'a>,
-    callback: OptionalCell<Callback>,
+    callback: Cell<Callback>,
     state: Cell<State>,
     buffer: TakeCell<'static, [u8]>,
 }
@@ -111,7 +111,7 @@ impl<'a> LPS25HB<'a> {
         LPS25HB {
             i2c: i2c,
             interrupt_pin: interrupt_pin,
-            callback: OptionalCell::empty(),
+            callback: Cell::new(Callback::default()),
             state: Cell::new(State::Idle),
             buffer: TakeCell::new(buffer),
         }
@@ -188,8 +188,7 @@ impl i2c::I2CClient for LPS25HB<'_> {
                 // Returned as microbars
                 let pressure_ubar = (pressure * 1000) / 4096;
 
-                self.callback
-                    .map(|cb| cb.schedule(pressure_ubar as usize, 0, 0));
+                self.callback.get().schedule(pressure_ubar as usize, 0, 0);
 
                 buffer[0] = Registers::CtrlReg1 as u8;
                 buffer[1] = 0;
@@ -221,35 +220,32 @@ impl gpio::Client for LPS25HB<'_> {
     }
 }
 
-impl LegacyDriver for LPS25HB<'_> {
+impl Driver for LPS25HB<'_> {
     fn subscribe(
         &self,
         subscribe_num: usize,
-        callback: Option<Callback>,
+        callback: Callback,
         _app_id: AppId,
-    ) -> ReturnCode {
+    ) -> Result<Callback, (Callback, ErrorCode)> {
         match subscribe_num {
             // Set a callback
-            0 => {
-                // Set callback function
-                self.callback.insert(callback);
-                ReturnCode::SUCCESS
-            }
+            0 => Ok(self.callback.replace(callback)),
+
             // default
-            _ => ReturnCode::ENOSUPPORT,
+            _ => Err((callback, ErrorCode::NOSUPPORT)),
         }
     }
 
-    fn command(&self, command_num: usize, _: usize, _: usize, _: AppId) -> ReturnCode {
+    fn command(&self, command_num: usize, _: usize, _: usize, _: AppId) -> CommandResult {
         match command_num {
-            0 /* check if present */ => ReturnCode::SUCCESS,
+            0 /* check if present */ => CommandResult::success(),
             // Take a pressure measurement
             1 => {
                 self.take_measurement();
-                ReturnCode::SUCCESS
+                CommandResult::success()
             }
             // default
-            _ => ReturnCode::ENOSUPPORT,
+            _ => CommandResult::failure(ErrorCode::NOSUPPORT),
         }
     }
 }

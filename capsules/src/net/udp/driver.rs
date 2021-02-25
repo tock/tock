@@ -17,6 +17,7 @@ use crate::net::udp::udp_send::{UDPSendClient, UDPSender};
 use crate::net::util::host_slice_to_u16;
 use core::cell::Cell;
 use core::convert::TryFrom;
+use core::convert::TryInto;
 use core::mem::size_of;
 use core::{cmp, mem};
 use kernel::capabilities::UdpDriverCapability;
@@ -30,7 +31,7 @@ use kernel::{
 use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::Udp as usize;
 
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub struct UDPEndpoint {
     addr: IPAddr,
     port: u16,
@@ -423,7 +424,7 @@ impl<'a> Driver for UDPDriver<'a> {
     ///        transmit can produce two different success values. If success is returned,
     ///        this simply means that the packet was queued. In this case, the app still
     ///        still needs to wait for a callback to check if any errors occurred before
-    ///        the packet was passed to the radio. However, if SuccessWithValue
+    ///        the packet was passed to the radio. However, if Success_U32
     ///        is returned with value 1, this means the the packet was successfully passed
     ///        the radio without any errors, which tells the userland application that it does
     ///        not need to wait for a callback to check if any errors occured while the packet
@@ -513,38 +514,38 @@ impl<'a> Driver for UDPDriver<'a> {
                             return Err(ErrorCode::INVAL);
                         }
                         app.pending_tx = next_tx;
-                        self.do_next_tx_immediate(appid)
+                        Ok(())
                     })
                     .unwrap_or_else(|err| Err(err.into()));
                 match res {
-                    Ok(v) => CommandResult::success_u32(v),
+                    Ok(_) => self.do_next_tx_immediate(appid).map_or_else(
+                        |err| CommandResult::failure(err.into()),
+                        |v| CommandResult::success_u32(v),
+                    ),
                     Err(e) => CommandResult::failure(e),
                 }
             }
             3 => {
-                self.apps
+                let err = self
+                    .apps
                     .enter(appid, |app, _| {
                         // Move UDPEndpoint into udp.rs?
-                        let mut requested_addr_opt = app.app_rx_cfg.map_or(None, |cfg| {
-                            if cfg.len() != 2 * size_of::<UDPEndpoint>() {
+                        let requested_addr_opt = app.app_rx_cfg.map_or(None, |cfg| {
+                            if cfg.len() != 2 * mem::size_of::<UDPEndpoint>() {
                                 None
-                            } else if let Some(local_iface) =
-                                self.parse_ip_port_pair(&cfg.as_ref()[size_of::<UDPEndpoint>()..])
+                            } else if let Some(local_iface) = self
+                                .parse_ip_port_pair(&cfg.as_ref()[mem::size_of::<UDPEndpoint>()..])
                             {
                                 Some(local_iface)
                             } else {
                                 None
                             }
                         });
-                        if requested_addr_opt.is_none() {
-                            return CommandResult::failure(ErrorCode::INVAL);
-                        }
-                        if requested_addr_opt.is_some() {
-                            let requested_addr = requested_addr_opt.unwrap();
+                        requested_addr_opt.map_or(Err(ReturnCode::EINVAL), |requested_addr| {
                             // If zero address, close any already bound socket
                             if requested_addr.is_zero() {
                                 app.bound_port = None;
-                                return CommandResult::success();
+                                return Ok(None);
                             }
                             // Check that requested addr is a local interface
                             let mut requested_is_local = false;
@@ -554,49 +555,38 @@ impl<'a> Driver for UDPDriver<'a> {
                                 }
                             }
                             if !requested_is_local {
-                                return CommandResult::failure(ErrorCode::INVAL);
+                                return Err(ReturnCode::EINVAL);
                             }
-                            let mut addr_already_bound = false;
-                            // This checks the bound ports in the other grants.
-                            // This code needs to be replicated in the bound port
-                            // table when checking the userspace apps.
-                            for app in self.apps.iter() {
-                                app.enter(|other_app, _| {
-                                    if other_app.bound_port.is_some() {
-                                        let other_addr_opt = other_app.bound_port.clone();
-                                        let other_addr =
-                                            other_addr_opt.expect("Missing other address.");
-                                        if other_addr.port == requested_addr.port {
-                                            if other_addr.addr == requested_addr.addr {
-                                                addr_already_bound = true;
-                                            }
-                                        }
-                                    }
-                                });
-                            }
+                            Ok(Some(requested_addr))
+                        })
+                    })
+                    .unwrap_or_else(|err| Err(err.into()));
+                match err {
+                    Ok(requested_addr_opt) => {
+                        requested_addr_opt.map_or(CommandResult::success(), |requested_addr| {
                             // Check bound ports in the kernel.
                             match self.port_table.is_bound(requested_addr.port) {
                                 Ok(bound) => {
-                                    addr_already_bound = bound;
+                                    if bound {
+                                        CommandResult::failure(ErrorCode::BUSY)
+                                    } else {
+                                        self.apps
+                                            .enter(appid, |app, _| {
+                                                // The requested addr is free and valid
+                                                app.bound_port = Some(requested_addr);
+                                                CommandResult::success()
+                                            })
+                                            .unwrap_or_else(|err| {
+                                                CommandResult::failure(err.into())
+                                            })
+                                    }
                                 }
-                                Err(_) => {
-                                    return CommandResult::failure(ErrorCode::FAIL);
-                                } //error in port table
+                                Err(_) => CommandResult::failure(ErrorCode::FAIL), //error in port table
                             }
-                            // Also check the bound port table here.
-                            if addr_already_bound {
-                                CommandResult::failure(ErrorCode::BUSY)
-                            } else {
-                                requested_addr_opt = Some(requested_addr);
-                                // If this point is reached, the requested addr is free and valid
-                                app.bound_port = requested_addr_opt;
-                                CommandResult::success()
-                            }
-                        } else {
-                            CommandResult::failure(ErrorCode::INVAL)
-                        }
-                    })
-                    .unwrap_or_else(|err| CommandResult::failure(err.into()))
+                        })
+                    }
+                    Err(retcode) => CommandResult::failure(retcode.try_into().unwrap()),
+                }
             }
             4 => CommandResult::success_u32(self.max_tx_pyld_len as u32),
             _ => CommandResult::failure(ErrorCode::NOSUPPORT),

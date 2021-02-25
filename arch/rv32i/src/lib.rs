@@ -2,7 +2,7 @@
 
 #![crate_name = "rv32i"]
 #![crate_type = "rlib"]
-#![feature(llvm_asm, asm, const_fn, naked_functions)]
+#![feature(asm, const_fn, naked_functions)]
 #![no_std]
 
 use core::fmt::Write;
@@ -381,23 +381,6 @@ pub extern "C" fn _start_trap() {
         ",
             options(noreturn)
         );
-    }
-}
-
-/// Ensure an abort symbol exists.
-#[cfg(all(target_arch = "riscv32", target_os = "none"))]
-#[link_section = ".init"]
-#[export_name = "abort"]
-pub extern "C" fn abort() {
-    unsafe {
-        llvm_asm! ("
-            // Simply go back to the start as if we had just booted.
-            j    _start
-        "
-        :
-        :
-        :
-        : "volatile");
     }
 }
 

@@ -63,15 +63,17 @@ use crate::returncode::ReturnCode;
 /// operations.
 pub trait KeyType: Eq + Copy + Clone + Sized + AsRef<[u8]> + AsMut<[u8]> {}
 
+impl KeyType for [u8; 8] {}
+
 /// Implement this trait and use `set_client()` in order to receive callbacks.
-pub trait Client<'a, K: KeyType> {
+pub trait Client<K: KeyType> {
     /// This callback is called when the append_key operation completes
     ///
     /// `result`: Nothing on success, 'ReturnCode' on error
     /// `unhashed_key`: The unhashed_key buffer
     /// `key_buf`: The key_buf buffer
     fn generate_key_complete(
-        &'a self,
+        &self,
         result: Result<(), ReturnCode>,
         unhashed_key: &'static [u8],
         key_buf: &'static K,
@@ -83,10 +85,10 @@ pub trait Client<'a, K: KeyType> {
     /// `key`: The key buffer
     /// `value`: The value buffer
     fn append_key_complete(
-        &'a self,
+        &self,
         result: Result<(), ReturnCode>,
         key: &'static mut K,
-        value: &'static mut [u8],
+        value: &'static [u8],
     );
 
     /// This callback is called when the get_value operation completes
@@ -95,7 +97,7 @@ pub trait Client<'a, K: KeyType> {
     /// `key`: The key buffer
     /// `ret_buf`: The ret_buf buffer
     fn get_value_complete(
-        &'a self,
+        &self,
         result: Result<(), ReturnCode>,
         key: &'static mut K,
         ret_buf: &'static mut [u8],
@@ -105,20 +107,20 @@ pub trait Client<'a, K: KeyType> {
     ///
     /// `result`: Nothing on success, 'ReturnCode' on error
     /// `key`: The key buffer
-    fn invalidate_key_complete(&'a self, result: Result<(), ReturnCode>, key: &'static mut K);
+    fn invalidate_key_complete(&self, result: Result<(), ReturnCode>, key: &'static mut K);
 
     /// This callback is called when the garbage_collect operation completes
     ///
     /// `result`: Nothing on success, 'ReturnCode' on error
-    fn garbage_collect_complete(&'a self, result: Result<(), ReturnCode>, key: &'static mut K);
+    fn garbage_collect_complete(&self, result: Result<(), ReturnCode>);
 }
 
-pub trait KVSystem {
-    /// The type of the hashed key. For example '[u8; 64]'.
+pub trait KVSystem<'a> {
+    /// The type of the hashed key. For example '[u8; 8]'.
     type K: KeyType;
 
     /// Set the client
-    fn set_client(&self, client: &dyn Client<Self::K>);
+    fn set_client(&self, client: &'a dyn Client<Self::K>);
 
     /// Generate key
     ///
@@ -129,9 +131,9 @@ pub trait KVSystem {
     /// On error the unhashed_key, key_buf and `ReturnCode` will be returned.
     fn generate_key(
         &self,
-        unhashed_key: &'static [u8],
-        key_buf: &'static Self::K,
-    ) -> Result<(), (&'static [u8], &'static Self::K, ReturnCode)>;
+        unhashed_key: &'static mut [u8],
+        key_buf: &'static mut Self::K,
+    ) -> Result<(), (&'static mut [u8], &'static mut Self::K, ReturnCode)>;
 
     /// Appends the key/value pair.
     ///
@@ -150,9 +152,9 @@ pub trait KVSystem {
     ///    `ENOMEM`: The key could not be added due to no more space.
     fn append_key(
         &self,
-        key: &'static Self::K,
+        key: &'static mut Self::K,
         value: &'static [u8],
-    ) -> Result<(), (&'static Self::K, &'static [u8], ReturnCode)>;
+    ) -> Result<(), (&'static mut Self::K, &'static [u8], ReturnCode)>;
 
     /// Retrieves the value from a specified key.
     ///
@@ -169,9 +171,9 @@ pub trait KVSystem {
     ///    `ENOSUPPORT`: The key could not be found.
     fn get_value(
         &self,
-        key: &'static Self::K,
+        key: &'static mut Self::K,
         ret_buf: &'static mut [u8],
-    ) -> Result<(), (&'static Self::K, &'static [u8], ReturnCode)>;
+    ) -> Result<(), (&'static mut Self::K, &'static mut [u8], ReturnCode)>;
 
     /// Invalidates the key in flash storage
     ///
@@ -185,7 +187,10 @@ pub trait KVSystem {
     ///    `EINVAL`: An invalid parameter was passed
     ///    `ENODEVICE`: No KV store was setup
     ///    `ENOSUPPORT`: The key could not be found.
-    fn invalidate_key(&self, key: &'static Self::K) -> Result<(), (&'static Self::K, ReturnCode)>;
+    fn invalidate_key(
+        &self,
+        key: &'static mut Self::K,
+    ) -> Result<(), (&'static mut Self::K, ReturnCode)>;
 
     /// Perform a garbage collection on the KV Store
     ///
