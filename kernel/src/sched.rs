@@ -852,7 +852,10 @@ impl Kernel {
                     Some(d) => {
                         let res = d.subscribe(subdriver_number, callback, process.appid());
                         match res {
-                            Ok(newcb) => newcb.into_subscribe_success(),
+                            // An Ok() returns the previous upcall, while
+                            // Err() returns the one that was just passed
+                            // (because the call was rejected).
+                            Ok(oldcb) => oldcb.into_subscribe_success(),
                             Err((newcb, err)) => newcb.into_subscribe_failure(err),
                         }
                     }
