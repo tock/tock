@@ -843,7 +843,7 @@ impl Kernel {
                 // with the old function pointer, we clear
                 // them now.
                 process.remove_pending_callbacks(callback_id);
-                
+
                 let ptr = NonNull::new(callback_ptr);
                 let callback = ptr.map_or(Callback::default(), |ptr| {
                     Callback::new(process.appid(), callback_id, appdata, ptr.cast())
