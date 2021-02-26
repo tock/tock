@@ -83,12 +83,12 @@ pub enum Syscall {
 
     /// Structure representing an invocation of the Subscribe system call
     /// class. `driver_number` is the driver identifier, `subdriver_number`
-    /// is the subscribe identifier, `callback_ptr` is callback pointer,
+    /// is the subscribe identifier, `upcall_ptr` is upcall pointer,
     /// and `appdata` is the application data.
     Subscribe {
         driver_number: usize,
         subdriver_number: usize,
-        callback_ptr: *mut (),
+        upcall_ptr: *mut (),
         appdata: usize,
     },
 
@@ -163,7 +163,7 @@ impl Syscall {
             Ok(SyscallClass::Subscribe) => Some(Syscall::Subscribe {
                 driver_number: r0,
                 subdriver_number: r1,
-                callback_ptr: r2 as *mut (),
+                upcall_ptr: r2 as *mut (),
                 appdata: r3,
             }),
             Ok(SyscallClass::Command) => Some(Syscall::Command {
@@ -231,7 +231,7 @@ pub enum SyscallReturnVariant {
 ///
 /// Capsules do not use this struct. Capsules use higher level Rust types
 /// (e.g. [`ReadWriteAppSlice`](crate::ReadWriteAppSlice) and
-/// [`Callback`](crate::Callback)) or wrappers around this struct
+/// [`Upcall`](crate::Upcall)) or wrappers around this struct
 /// ([`CommandReturn`](crate::CommandReturn)) which limit the
 /// available constructors to safely constructable variants.
 #[derive(Copy, Clone, Debug)]
@@ -261,13 +261,13 @@ pub enum GenericSyscallReturnValue {
     // These following types are used by the scheduler so that it can
     // return values to userspace in an architecture (pointer-width)
     // independent way. The kernel passes these types (rather than
-    // AppSlice or Callback) for two reasons. First, since the
+    // AppSlice or Upcall) for two reasons. First, since the
     // kernel/scheduler makes promises about the lifetime and safety
     // of these types (e.g., an accepted allow does not overlap with
     // an existing accepted AppSlice), it does not want to leak them
     // to other code. Second, if subscribe or allow calls pass invalid
     // values (pointers out of valid memory), the kernel cannot
-    // construct an AppSlice or Callback type but needs to be able to
+    // construct an AppSlice or Upcall type but needs to be able to
     // return a failure. -pal 11/24/20
     /// Read/Write allow success case, returns the previous allowed
     /// buffer and size to the process.
@@ -418,7 +418,7 @@ pub enum ContextSwitchReason {
 /// trait allows the kernel to switch to and from processes
 /// in an architecture-independent manner.
 ///
-/// Exactly how callbacks and return values are passed between
+/// Exactly how upcalls and return values are passed between
 /// kernelspace and userspace is architecture specific. The
 /// architecture may use process memory to store state when
 /// switching. Therefore, functions in this trait are passed the
@@ -498,7 +498,7 @@ pub trait UserspaceKernelBoundary {
     /// Set the function that the process should execute when it is resumed.
     /// This has two major uses: 1) sets up the initial function call to
     /// `_start` when the process is started for the very first time; 2) tells
-    /// the process to execute a callback function after calling `yield()`.
+    /// the process to execute a upcall function after calling `yield()`.
     ///
     /// **Note:** This method cannot be called in conjunction with
     /// `set_syscall_return_value`, as the injected function will clobber the
@@ -514,7 +514,7 @@ pub trait UserspaceKernelBoundary {
     ///   memory above this address is still allocated for the process, but if
     ///   the process tries to access it an MPU fault will occur.
     /// - `state` is the stored state for this process.
-    /// - `callback` is the function that should be executed when the process
+    /// - `upcall` is the function that should be executed when the process
     ///   resumes.
     ///
     /// ### Return
@@ -527,7 +527,7 @@ pub trait UserspaceKernelBoundary {
         accessible_memory_start: *const u8,
         app_brk: *const u8,
         state: &mut Self::StoredState,
-        callback: process::FunctionCall,
+        upcall: process::FunctionCall,
     ) -> Result<(), ()>;
 
     /// Context switch to a specific process.

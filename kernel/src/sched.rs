@@ -13,7 +13,6 @@ pub(crate) mod round_robin;
 use core::cell::Cell;
 use core::ptr::NonNull;
 
-use crate::callback::{AppId, Callback, CallbackId};
 use crate::capabilities;
 use crate::common::cells::NumericCellExt;
 use crate::common::dynamic_deferred_call::DynamicDeferredCall;
@@ -31,6 +30,7 @@ use crate::platform::{Chip, Platform};
 use crate::process::{self, Task};
 use crate::syscall::{ContextSwitchReason, GenericSyscallReturnValue};
 use crate::syscall::{Syscall, YieldCall};
+use crate::upcall::{AppId, Upcall, UpcallId};
 
 /// Threshold in microseconds to consider a process's timeslice to be exhausted.
 /// That is, Tock will skip re-scheduling a process if its remaining timeslice
@@ -125,7 +125,7 @@ pub enum SchedulingDecision {
 /// Main object for the kernel. Each board will need to create one.
 pub struct Kernel {
     /// How many "to-do" items exist at any given time. These include
-    /// outstanding callbacks and processes in the Running state.
+    /// outstanding upcalls and processes in the Running state.
     work: Cell<usize>,
 
     /// This holds a pointer to the static array of Process pointers.
@@ -532,7 +532,7 @@ impl Kernel {
     /// running after calling a syscall. However, the scheduler is given an out,
     /// as `do_process()` will check with the scheduler before re-executing the
     /// process to allow it to return from the syscall. If a process yields with
-    /// no callbacks pending, exits, exceeds its timeslice, or is interrupted,
+    /// no upcalls pending, exits, exceeds its timeslice, or is interrupted,
     /// then `do_process()` will return.
     ///
     /// Depending on the particular scheduler in use, this function may act in a
@@ -655,7 +655,7 @@ impl Kernel {
                 }
                 process::State::Yielded | process::State::Unstarted => {
                     // If the process is yielded or hasn't been started it is
-                    // waiting for a callback. If there is a task scheduled for
+                    // waiting for a upcall. If there is a task scheduled for
                     // this process go ahead and set the process to execute it.
                     match process.dequeue_task() {
                         None => break,
@@ -686,7 +686,7 @@ impl Kernel {
                                         // TODO(alevy): this could error for a variety of reasons.
                                         // Should we communicate the error somehow?
                                         // https://github.com/tock/tock/issues/1993
-                                        let _ = ipc.schedule_callback(
+                                        let _ = ipc.schedule_upcall(
                                             process.appid(),
                                             otherapp,
                                             ipc_type,
@@ -811,14 +811,14 @@ impl Kernel {
                 // yielded state and execute tasks now or when they arrive.
                 let return_now = !wait && !process.has_tasks();
                 if return_now {
-                    // Set the "did I trigger callbacks" flag to be 0,
+                    // Set the "did I trigger upcalls" flag to be 0,
                     // return immediately. If address is invalid does
                     // nothing.
                     process.set_byte(address, 0);
                 } else {
-                    // There are already enqueued callbacks to execute or
+                    // There are already enqueued upcalls to execute or
                     // we should wait for them: handle in the next loop
-                    // iteration and set the "did I trigger callbacks" flag
+                    // iteration and set the "did I trigger upcalls" flag
                     // to be 1. If address is invalid does nothing.
                     process.set_byte(address, 1);
                     process.set_yielded_state();
@@ -827,30 +827,30 @@ impl Kernel {
             Syscall::Subscribe {
                 driver_number,
                 subdriver_number,
-                callback_ptr,
+                upcall_ptr,
                 appdata,
             } => {
-                // A callback is identified as a tuple of
+                // A upcall is identified as a tuple of
                 // the driver number and the subdriver
                 // number.
-                let callback_id = CallbackId {
+                let upcall_id = UpcallId {
                     driver_num: driver_number,
                     subscribe_num: subdriver_number,
                 };
-                // Only one callback should exist per tuple.
+                // Only one upcall should exist per tuple.
                 // To ensure that there are no pending
-                // callbacks with the same identifier but
+                // upcalls with the same identifier but
                 // with the old function pointer, we clear
                 // them now.
-                process.remove_pending_callbacks(callback_id);
+                process.remove_pending_upcalls(upcall_id);
 
-                let ptr = NonNull::new(callback_ptr);
-                let callback = ptr.map_or(Callback::default(), |ptr| {
-                    Callback::new(process.appid(), callback_id, appdata, ptr.cast())
+                let ptr = NonNull::new(upcall_ptr);
+                let upcall = ptr.map_or(Upcall::default(), |ptr| {
+                    Upcall::new(process.appid(), upcall_id, appdata, ptr.cast())
                 });
                 let rval = platform.with_driver(driver_number, |driver| match driver {
                     Some(d) => {
-                        let res = d.subscribe(subdriver_number, callback, process.appid());
+                        let res = d.subscribe(subdriver_number, upcall, process.appid());
                         match res {
                             // An Ok() returns the previous upcall, while
                             // Err() returns the one that was just passed
@@ -859,7 +859,7 @@ impl Kernel {
                             Err((newcb, err)) => newcb.into_subscribe_failure(err),
                         }
                     }
-                    None => callback.into_subscribe_failure(ErrorCode::NOSUPPORT),
+                    None => upcall.into_subscribe_failure(ErrorCode::NOSUPPORT),
                 });
                 if config::CONFIG.trace_syscalls {
                     debug!(
@@ -867,7 +867,7 @@ impl Kernel {
                         process.appid(),
                         driver_number,
                         subdriver_number,
-                        callback_ptr as usize,
+                        upcall_ptr as usize,
                         appdata,
                         rval
                     );

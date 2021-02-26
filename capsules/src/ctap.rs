@@ -33,7 +33,7 @@ use core::mem;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::usb_hid;
 use kernel::{
-    AppId, Callback, CommandReturn, Driver, ErrorCode, Grant, Read, ReadWrite, ReadWriteAppSlice,
+    AppId, CommandReturn, Driver, ErrorCode, Grant, Read, ReadWrite, ReadWriteAppSlice, Upcall,
 };
 
 /// Syscall driver number.
@@ -41,7 +41,7 @@ use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::CtapHid as usize;
 
 pub struct App {
-    callback: Callback,
+    callback: Upcall,
     recv_buf: ReadWriteAppSlice,
     send_buf: ReadWriteAppSlice,
     can_receive: Cell<bool>,
@@ -50,7 +50,7 @@ pub struct App {
 impl Default for App {
     fn default() -> App {
         App {
-            callback: Callback::default(),
+            callback: Upcall::default(),
             recv_buf: ReadWriteAppSlice::default(),
             send_buf: ReadWriteAppSlice::default(),
             can_receive: Cell::new(false),
@@ -234,9 +234,9 @@ impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> Driver for CtapDriver<'a, U> {
     fn subscribe(
         &self,
         subscribe_num: usize,
-        mut callback: Callback,
+        mut callback: Upcall,
         appid: AppId,
-    ) -> Result<Callback, (Callback, ErrorCode)> {
+    ) -> Result<Upcall, (Upcall, ErrorCode)> {
         let res = match subscribe_num {
             0 => {
                 // set callback

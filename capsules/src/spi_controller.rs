@@ -7,7 +7,7 @@ use kernel::common::cells::{MapCell, TakeCell};
 use kernel::hil::spi::ClockPhase;
 use kernel::hil::spi::ClockPolarity;
 use kernel::hil::spi::{SpiMasterClient, SpiMasterDevice};
-use kernel::{AppId, Callback, CommandReturn, Driver, ErrorCode};
+use kernel::{AppId, CommandReturn, Driver, ErrorCode, Upcall};
 use kernel::{Read, ReadOnlyAppSlice, ReadWrite, ReadWriteAppSlice};
 
 /// Syscall driver number.
@@ -29,7 +29,7 @@ pub const DEFAULT_WRITE_BUF_LENGTH: usize = 1024;
 
 #[derive(Default)]
 struct App {
-    callback: Callback,
+    callback: Upcall,
     app_read: ReadWriteAppSlice,
     app_write: ReadOnlyAppSlice,
     len: usize,
@@ -130,9 +130,9 @@ impl<'a, S: SpiMasterDevice> Driver for Spi<'a, S> {
     fn subscribe(
         &self,
         subscribe_num: usize,
-        mut callback: Callback,
+        mut callback: Upcall,
         _app_id: AppId,
-    ) -> Result<Callback, (Callback, ErrorCode)> {
+    ) -> Result<Upcall, (Upcall, ErrorCode)> {
         match subscribe_num {
             0 => {
                 self.app.map(|app| {

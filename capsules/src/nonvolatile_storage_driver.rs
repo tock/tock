@@ -61,8 +61,8 @@ use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil;
 use kernel::ErrorCode;
 use kernel::{
-    AppId, Callback, CommandReturn, Driver, Grant, Read, ReadOnlyAppSlice, ReadWrite,
-    ReadWriteAppSlice,
+    AppId, CommandReturn, Driver, Grant, Read, ReadOnlyAppSlice, ReadWrite, ReadWriteAppSlice,
+    Upcall,
 };
 
 /// Syscall driver number.
@@ -86,8 +86,8 @@ pub enum NonvolatileUser {
 }
 
 pub struct App {
-    callback_read: Callback,
-    callback_write: Callback,
+    callback_read: Upcall,
+    callback_write: Upcall,
     pending_command: bool,
     command: NonvolatileCommand,
     offset: usize,
@@ -99,8 +99,8 @@ pub struct App {
 impl Default for App {
     fn default() -> App {
         App {
-            callback_read: Callback::default(),
-            callback_write: Callback::default(),
+            callback_read: Upcall::default(),
+            callback_write: Upcall::default(),
             pending_command: false,
             command: NonvolatileCommand::UserspaceRead,
             offset: 0,
@@ -552,9 +552,9 @@ impl Driver for NonvolatileStorage<'_> {
     fn subscribe(
         &self,
         subscribe_num: usize,
-        mut callback: Callback,
+        mut callback: Upcall,
         app_id: AppId,
-    ) -> Result<Callback, (Callback, ErrorCode)> {
+    ) -> Result<Upcall, (Upcall, ErrorCode)> {
         let res = self
             .apps
             .enter(app_id, |app, _| match subscribe_num {

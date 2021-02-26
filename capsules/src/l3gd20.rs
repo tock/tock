@@ -107,7 +107,7 @@ use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::sensors;
 use kernel::hil::spi;
 use kernel::ReturnCode;
-use kernel::{AppId, Callback, CommandReturn, Driver, ErrorCode};
+use kernel::{AppId, CommandReturn, Driver, ErrorCode, Upcall};
 
 use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::L3gd20 as usize;
@@ -184,7 +184,7 @@ pub struct L3gd20Spi<'a> {
     hpf_mode: Cell<u8>,
     hpf_divider: Cell<u8>,
     scale: Cell<u8>,
-    callback: Cell<Callback>,
+    callback: Cell<Upcall>,
     nine_dof_client: OptionalCell<&'a dyn sensors::NineDofClient>,
     temperature_client: OptionalCell<&'a dyn sensors::TemperatureClient>,
 }
@@ -205,7 +205,7 @@ impl<'a> L3gd20Spi<'a> {
             hpf_mode: Cell::new(0),
             hpf_divider: Cell::new(0),
             scale: Cell::new(0),
-            callback: Cell::new(Callback::default()),
+            callback: Cell::new(Upcall::default()),
             nine_dof_client: OptionalCell::empty(),
             temperature_client: OptionalCell::empty(),
         }
@@ -378,9 +378,9 @@ impl Driver for L3gd20Spi<'_> {
     fn subscribe(
         &self,
         subscribe_num: usize,
-        mut callback: Callback,
+        mut callback: Upcall,
         _appid: AppId,
-    ) -> Result<Callback, (Callback, ErrorCode)> {
+    ) -> Result<Upcall, (Upcall, ErrorCode)> {
         match subscribe_num {
             0 /* set the one shot callback */ => {
                 callback = self.callback.replace (callback);

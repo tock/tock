@@ -18,7 +18,7 @@ use kernel::hil::screen::ScreenRotation;
 use kernel::hil::touch::{GestureEvent, TouchEvent, TouchStatus};
 use kernel::ReturnCode;
 use kernel::{
-    AppId, Callback, CommandReturn, Driver, ErrorCode, Grant, ReadWrite, ReadWriteAppSlice,
+    AppId, CommandReturn, Driver, ErrorCode, Grant, ReadWrite, ReadWriteAppSlice, Upcall,
 };
 
 /// Syscall driver number.
@@ -35,9 +35,9 @@ fn touch_status_to_number(status: &TouchStatus) -> usize {
 }
 
 pub struct App {
-    touch_callback: Callback,
-    gesture_callback: Callback,
-    multi_touch_callback: Callback,
+    touch_callback: Upcall,
+    gesture_callback: Upcall,
+    multi_touch_callback: Upcall,
     events_buffer: ReadWriteAppSlice,
     ack: bool,
     dropped_events: usize,
@@ -51,9 +51,9 @@ pub struct App {
 impl Default for App {
     fn default() -> App {
         App {
-            touch_callback: Callback::default(),
-            gesture_callback: Callback::default(),
-            multi_touch_callback: Callback::default(),
+            touch_callback: Upcall::default(),
+            gesture_callback: Upcall::default(),
+            multi_touch_callback: Upcall::default(),
             events_buffer: ReadWriteAppSlice::default(),
             ack: true,
             dropped_events: 0,
@@ -326,9 +326,9 @@ impl<'a> Driver for Touch<'a> {
     fn subscribe(
         &self,
         subscribe_num: usize,
-        mut callback: Callback,
+        mut callback: Upcall,
         app_id: AppId,
-    ) -> Result<Callback, (Callback, ErrorCode)> {
+    ) -> Result<Upcall, (Upcall, ErrorCode)> {
         let res = match subscribe_num {
             // subscribe to touch
             0 => {

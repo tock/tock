@@ -8,7 +8,6 @@ use core::fmt::Write;
 use core::ptr::{write_volatile, NonNull};
 use core::{mem, ptr, slice, str};
 
-use crate::callback::{AppId, CallbackId};
 use crate::capabilities::ProcessManagementCapability;
 use crate::common::cells::{MapCell, NumericCellExt};
 use crate::common::{Queue, RingBuffer};
@@ -22,6 +21,7 @@ use crate::platform::Chip;
 use crate::returncode::ReturnCode;
 use crate::sched::Kernel;
 use crate::syscall::{self, GenericSyscallReturnValue, Syscall, UserspaceKernelBoundary};
+use crate::upcall::{AppId, UpcallId};
 use core::cmp::max;
 
 // The completion code for a process if it faulted.
@@ -266,7 +266,7 @@ pub trait ProcessType {
 
     /// Queue a `Task` for the process. This will be added to a per-process
     /// buffer and executed by the scheduler. `Task`s are some function the app
-    /// should run, for example a callback or an IPC call.
+    /// should run, for example a upcall or an IPC call.
     ///
     /// This function returns `true` if the `Task` was successfully enqueued,
     /// and `false` otherwise. This is represented as a simple `bool` because
@@ -279,7 +279,7 @@ pub trait ProcessType {
     /// Returns whether this process is ready to execute.
     fn ready(&self) -> bool;
 
-    /// Return if there are any Tasks (callbacks/IPC requests) enqueued
+    /// Return if there are any Tasks (upcalls/IPC requests) enqueued
     /// for the process.
     fn has_tasks(&self) -> bool;
 
@@ -290,9 +290,9 @@ pub trait ProcessType {
     /// `None`.
     fn dequeue_task(&self) -> Option<Task>;
 
-    /// Remove all scheduled callbacks for a given callback id from the task
+    /// Remove all scheduled upcalls for a given upcall id from the task
     /// queue.
-    fn remove_pending_callbacks(&self, callback_id: CallbackId);
+    fn remove_pending_upcalls(&self, upcall_id: UpcallId);
 
     /// Returns the current state the process is in. Common states are "running"
     /// or "yielded".
@@ -532,7 +532,7 @@ pub trait ProcessType {
     ///
     /// It is not valid to call this function when the process is inactive (i.e.
     /// the process will not run again).
-    unsafe fn set_process_function(&self, callback: FunctionCall);
+    unsafe fn set_process_function(&self, upcall: FunctionCall);
 
     /// Context switch to a specific process.
     ///
@@ -553,8 +553,8 @@ pub trait ProcessType {
     /// Returns how many syscalls this app has called.
     fn debug_syscall_count(&self) -> usize;
 
-    /// Returns how many callbacks for this process have been dropped.
-    fn debug_dropped_callback_count(&self) -> usize;
+    /// Returns how many upcalls for this process have been dropped.
+    fn debug_dropped_upcall_count(&self) -> usize;
 
     /// Returns how many times this process has exceeded its timeslice.
     fn debug_timeslice_expiration_count(&self) -> usize;
@@ -779,15 +779,15 @@ pub enum FaultResponse {
 /// This is public for external implementations of `ProcessType`.
 #[derive(Copy, Clone)]
 pub enum Task {
-    /// Function pointer in the process to execute. Generally this is a callback
+    /// Function pointer in the process to execute. Generally this is a upcall
     /// from a capsule.
     FunctionCall(FunctionCall),
     /// An IPC operation that needs additional setup to configure memory access.
-    IPC((AppId, ipc::IPCCallbackType)),
+    IPC((AppId, ipc::IPCUpcallType)),
 }
 
 /// Enumeration to identify whether a function call for a process comes directly
-/// from the kernel or from a callback subscribed through a `Driver`
+/// from the kernel or from a upcall subscribed through a `Driver`
 /// implementation.
 ///
 /// An example of a kernel function is the application entry point.
@@ -796,18 +796,18 @@ pub enum FunctionCallSource {
     /// For functions coming directly from the kernel, such as `init_fn`.
     Kernel,
     /// For functions coming from capsules or any implementation of `Driver`.
-    Driver(CallbackId),
+    Driver(UpcallId),
 }
 
-/// Struct that defines a callback that can be passed to a process. The callback
-/// takes four arguments that are `Driver` and callback specific, so they are
+/// Struct that defines a upcall that can be passed to a process. The upcall
+/// takes four arguments that are `Driver` and upcall specific, so they are
 /// represented generically here.
 ///
 /// Likely these four arguments will get passed as the first four register
 /// values, but this is architecture-dependent.
 ///
-/// A `FunctionCall` also identifies the callback that scheduled it, if any, so
-/// that it can be unscheduled when the process unsubscribes from this callback.
+/// A `FunctionCall` also identifies the upcall that scheduled it, if any, so
+/// that it can be unscheduled when the process unsubscribes from this upcall.
 #[derive(Copy, Clone, Debug)]
 pub struct FunctionCall {
     pub source: FunctionCallSource,
@@ -850,9 +850,9 @@ struct ProcessDebug {
     /// What was the most recent syscall.
     last_syscall: Option<Syscall>,
 
-    /// How many callbacks were dropped because the queue was insufficiently
+    /// How many upcalls were dropped because the queue was insufficiently
     /// long.
-    dropped_callback_count: usize,
+    dropped_upcall_count: usize,
 
     /// How many times this process has been paused because it exceeded its
     /// timeslice.
@@ -947,7 +947,7 @@ pub struct Process<'a, C: 'static + Chip> {
     /// MPU regions are saved as a pointer-size pair.
     mpu_regions: [Cell<Option<mpu::Region>>; 6],
 
-    /// Essentially a list of callbacks that want to call functions in the
+    /// Essentially a list of upcalls that want to call functions in the
     /// process.
     tasks: MapCell<RingBuffer<'a, Task>>,
 
@@ -977,11 +977,11 @@ impl<C: Chip> ProcessType for Process<'_, C> {
 
         let ret = self.tasks.map_or(false, |tasks| tasks.enqueue(task));
 
-        // Make a note that we lost this callback if the enqueue function
+        // Make a note that we lost this upcall if the enqueue function
         // fails.
         if ret == false {
             self.debug.map(|debug| {
-                debug.dropped_callback_count += 1;
+                debug.dropped_upcall_count += 1;
             });
         } else {
             self.kernel.increment_work();
@@ -995,16 +995,16 @@ impl<C: Chip> ProcessType for Process<'_, C> {
             || self.state.get() == State::Running
     }
 
-    fn remove_pending_callbacks(&self, callback_id: CallbackId) {
+    fn remove_pending_upcalls(&self, upcall_id: UpcallId) {
         self.tasks.map(|tasks| {
             let count_before = tasks.len();
             tasks.retain(|task| match task {
                 // Remove only tasks that are function calls with an id equal
-                // to `callback_id`.
+                // to `upcall_id`.
                 Task::FunctionCall(function_call) => match function_call.source {
                     FunctionCallSource::Kernel => true,
                     FunctionCallSource::Driver(id) => {
-                        if id != callback_id {
+                        if id != upcall_id {
                             true
                         } else {
                             self.kernel.decrement_work();
@@ -1017,10 +1017,10 @@ impl<C: Chip> ProcessType for Process<'_, C> {
             if config::CONFIG.trace_syscalls {
                 let count_after = tasks.len();
                 debug!(
-                    "[{:?}] remove_pending_callbacks[{:#x}:{}] = {} callback(s) removed",
+                    "[{:?}] remove_pending_upcalls[{:#x}:{}] = {} upcall(s) removed",
                     self.appid(),
-                    callback_id.driver_num,
-                    callback_id.subscribe_num,
+                    upcall_id.driver_num,
+                    upcall_id.subscribe_num,
                     count_before - count_after,
                 );
             }
@@ -1593,7 +1593,7 @@ impl<C: Chip> ProcessType for Process<'_, C> {
         }
     }
 
-    unsafe fn set_process_function(&self, callback: FunctionCall) {
+    unsafe fn set_process_function(&self, upcall: FunctionCall) {
         // See if we can actually enqueue this function for this process.
         // Architecture-specific code handles actually doing this since the
         // exact method is both architecture- and implementation-specific.
@@ -1605,7 +1605,7 @@ impl<C: Chip> ProcessType for Process<'_, C> {
                 self.memory.as_ptr(),
                 self.app_break.get(),
                 stored_state,
-                callback,
+                upcall,
             )
         }) {
             Some(Ok(())) => {
@@ -1672,8 +1672,8 @@ impl<C: Chip> ProcessType for Process<'_, C> {
         self.debug.map_or(0, |debug| debug.syscall_count)
     }
 
-    fn debug_dropped_callback_count(&self) -> usize {
-        self.debug.map_or(0, |debug| debug.dropped_callback_count)
+    fn debug_dropped_upcall_count(&self) -> usize {
+        self.debug.map_or(0, |debug| debug.dropped_upcall_count)
     }
 
     fn debug_timeslice_expiration_count(&self) -> usize {
@@ -1724,19 +1724,19 @@ impl<C: Chip> ProcessType for Process<'_, C> {
         let events_queued = self.tasks.map_or(0, |tasks| tasks.len());
         let syscall_count = self.debug.map_or(0, |debug| debug.syscall_count);
         let last_syscall = self.debug.map(|debug| debug.last_syscall);
-        let dropped_callback_count = self.debug.map_or(0, |debug| debug.dropped_callback_count);
+        let dropped_upcall_count = self.debug.map_or(0, |debug| debug.dropped_upcall_count);
         let restart_count = self.restart_count.get();
 
         let _ = writer.write_fmt(format_args!(
             "\
              App: {}   -   [{:?}]\
-             \r\n Events Queued: {}   Syscall Count: {}   Dropped Callback Count: {}\
+             \r\n Events Queued: {}   Syscall Count: {}   Dropped Upcall Count: {}\
              \r\n Restart Count: {}\r\n",
             self.process_name,
             self.state.get(),
             events_queued,
             syscall_count,
-            dropped_callback_count,
+            dropped_upcall_count,
             restart_count,
         ));
 
@@ -1911,7 +1911,7 @@ fn exceeded_check(size: usize, allocated: usize) -> &'static str {
 }
 
 impl<C: 'static + Chip> Process<'_, C> {
-    // Memory offset for callback ring buffer (10 element length).
+    // Memory offset for upcall ring buffer (10 element length).
     const CALLBACK_LEN: usize = 10;
     const CALLBACKS_OFFSET: usize = mem::size_of::<Task>() * Self::CALLBACK_LEN;
 
@@ -2189,7 +2189,7 @@ impl<C: 'static + Chip> Process<'_, C> {
         }
 
         // Now that we know we have the space we can setup the memory for the
-        // callbacks.
+        // upcalls.
         kernel_memory_break = kernel_memory_break.offset(-(Self::CALLBACKS_OFFSET as isize));
 
         // This is safe today, as MPU constraints ensure that `memory_start`
@@ -2201,10 +2201,10 @@ impl<C: 'static + Chip> Process<'_, C> {
         //
         // TODO: https://github.com/tock/tock/issues/1739
         #[allow(clippy::cast_ptr_alignment)]
-        // Set up ring buffer for callbacks to the process.
-        let callback_buf =
+        // Set up ring buffer for upcalls to the process.
+        let upcall_buf =
             slice::from_raw_parts_mut(kernel_memory_break as *mut Task, Self::CALLBACK_LEN);
-        let tasks = RingBuffer::new(callback_buf);
+        let tasks = RingBuffer::new(upcall_buf);
 
         // Last thing in the kernel region of process RAM is the process struct.
         kernel_memory_break = kernel_memory_break.offset(-(Self::PROCESS_STRUCT_OFFSET as isize));
@@ -2262,7 +2262,7 @@ impl<C: 'static + Chip> Process<'_, C> {
             app_stack_min_pointer: None,
             syscall_count: 0,
             last_syscall: None,
-            dropped_callback_count: 0,
+            dropped_upcall_count: 0,
             timeslice_expiration_count: 0,
         });
 
@@ -2334,7 +2334,7 @@ impl<C: 'static + Chip> Process<'_, C> {
         self.debug.map(|debug| {
             debug.syscall_count = 0;
             debug.last_syscall = None;
-            debug.dropped_callback_count = 0;
+            debug.dropped_upcall_count = 0;
             debug.timeslice_expiration_count = 0;
         });
 

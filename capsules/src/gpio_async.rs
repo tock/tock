@@ -27,7 +27,7 @@
 
 use core::cell::Cell;
 use kernel::hil;
-use kernel::{AppId, Callback, ErrorCode};
+use kernel::{AppId, ErrorCode, Upcall};
 use kernel::{CommandReturn, Driver, ReturnCode};
 
 /// Syscall driver number.
@@ -36,16 +36,16 @@ pub const DRIVER_NUM: usize = driver::NUM::GpioAsync as usize;
 
 pub struct GPIOAsync<'a, Port: hil::gpio_async::Port> {
     ports: &'a [&'a Port],
-    callback: Cell<Callback>,
-    interrupt_callback: Cell<Callback>,
+    callback: Cell<Upcall>,
+    interrupt_callback: Cell<Upcall>,
 }
 
 impl<'a, Port: hil::gpio_async::Port> GPIOAsync<'a, Port> {
     pub fn new(ports: &'a [&'a Port]) -> GPIOAsync<'a, Port> {
         GPIOAsync {
             ports,
-            callback: Cell::new(Callback::default()),
-            interrupt_callback: Cell::new(Callback::default()),
+            callback: Cell::new(Upcall::default()),
+            interrupt_callback: Cell::new(Upcall::default()),
         }
     }
 
@@ -100,9 +100,9 @@ impl<Port: hil::gpio_async::Port> Driver for GPIOAsync<'_, Port> {
     fn subscribe(
         &self,
         subscribe_num: usize,
-        callback: Callback,
+        callback: Upcall,
         _app_id: AppId,
-    ) -> Result<Callback, (Callback, ErrorCode)> {
+    ) -> Result<Upcall, (Upcall, ErrorCode)> {
         match subscribe_num {
             // Set callback for `done()` events
             0 => Ok(self.callback.replace(callback)),

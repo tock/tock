@@ -17,7 +17,7 @@ use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil;
 use kernel::hil::screen::{ScreenPixelFormat, ScreenRotation};
 use kernel::{
-    AppId, Callback, CommandReturn, Driver, ErrorCode, Grant, Read, ReadOnlyAppSlice, ReturnCode,
+    AppId, CommandReturn, Driver, ErrorCode, Grant, Read, ReadOnlyAppSlice, ReturnCode, Upcall,
 };
 
 /// Syscall driver number.
@@ -76,7 +76,7 @@ fn pixels_in_bytes(pixels: usize, bits_per_pixel: usize) -> usize {
 }
 
 pub struct App {
-    callback: Callback,
+    callback: Upcall,
     pending_command: bool,
     shared: ReadOnlyAppSlice,
     write_position: usize,
@@ -93,7 +93,7 @@ pub struct App {
 impl Default for App {
     fn default() -> App {
         App {
-            callback: Callback::default(),
+            callback: Upcall::default(),
             pending_command: false,
             shared: ReadOnlyAppSlice::default(),
             command: ScreenCommand::Nop,
@@ -504,9 +504,9 @@ impl<'a> Driver for Screen<'a> {
     fn subscribe(
         &self,
         subscribe_num: usize,
-        mut callback: Callback,
+        mut callback: Upcall,
         app_id: AppId,
-    ) -> Result<Callback, (Callback, ErrorCode)> {
+    ) -> Result<Upcall, (Upcall, ErrorCode)> {
         let res = match subscribe_num {
             0 => self
                 .apps

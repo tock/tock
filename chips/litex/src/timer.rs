@@ -375,7 +375,7 @@ impl<'t, 'c, R: LiteXSoCRegisterConfiguration, F: Frequency> LiteXAlarm<'t, 'c, 
         self.timer.set_timer_client(self);
     }
 
-    fn timer_tick(&self, is_upcall: bool) {
+    fn timer_tick(&self, is_callback: bool) {
         // Check whether we've already reached the alarm time,
         // otherwise set the timer to the difference or the max value
         // respectively
@@ -392,10 +392,10 @@ impl<'t, 'c, R: LiteXSoCRegisterConfiguration, F: Frequency> LiteXAlarm<'t, 'c, 
         if !self.now().within_range(reference, alarm_time) {
             // It's time, ring the alarm
 
-            // Make sure we're in an upcall, otherwise set the timer
+            // Make sure we're in an callback, otherwise set the timer
             // to a very small value to trigger a Timer interrupt
             // immediately
-            if is_upcall {
+            if is_callback {
                 // Reset the alarm to 0
                 self.alarm_time.clear();
 
@@ -452,7 +452,7 @@ impl<'t, 'c, R: LiteXSoCRegisterConfiguration, F: Frequency> Alarm<'c>
         self.reference_time.set(reference);
         self.alarm_time.set(reference.wrapping_add(dt));
 
-        // Set the underlying timer at least once (`is_upcall =
+        // Set the underlying timer at least once (`is_callback =
         // false`) to trigger a callback to the client in a different
         // call stack
         self.timer_tick(false);

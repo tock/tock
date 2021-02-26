@@ -52,7 +52,7 @@ use core::cell::Cell;
 use core::mem;
 use kernel::hil;
 use kernel::ReturnCode;
-use kernel::{AppId, Callback, CommandReturn, Driver, ErrorCode, Grant};
+use kernel::{AppId, CommandReturn, Driver, ErrorCode, Grant, Upcall};
 
 /// Syscall driver number.
 use crate::driver;
@@ -60,7 +60,7 @@ pub const DRIVER_NUM: usize = driver::NUM::Proximity as usize;
 
 #[derive(Default)]
 pub struct App {
-    callback: Callback,
+    callback: Upcall,
     subscribed: bool,
     enqueued_command_type: ProximityCommand,
     lower_proximity: u8,
@@ -263,7 +263,7 @@ impl hil::sensors::ProximityClient for ProximitySensor<'_> {
                         }
                     } else {
                         // Case: ReadProximity
-                        // Callback to all apps waiting on read_proximity.
+                        // Upcall to all apps waiting on read_proximity.
                         app.callback.schedule(temp_val as usize, 0, 0);
                         app.subscribed = false; // dequeue
                     }
@@ -283,9 +283,9 @@ impl Driver for ProximitySensor<'_> {
     fn subscribe(
         &self,
         subscribe_num: usize,
-        mut callback: Callback,
+        mut callback: Upcall,
         app_id: AppId,
-    ) -> Result<Callback, (Callback, ErrorCode)> {
+    ) -> Result<Upcall, (Upcall, ErrorCode)> {
         let res = match subscribe_num {
             0 => self
                 .apps
@@ -308,7 +308,7 @@ impl Driver for ProximitySensor<'_> {
             // Instantaneous proximity measurement
             1 => self.enqueue_command(ProximityCommand::ReadProximity, arg1, arg2, appid),
 
-            // Callback occurs only after interrupt is fired
+            // Upcall occurs only after interrupt is fired
             2 => self.enqueue_command(
                 ProximityCommand::ReadProximityOnInterrupt,
                 arg1,

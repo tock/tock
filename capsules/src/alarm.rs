@@ -4,7 +4,7 @@
 use core::cell::Cell;
 use core::mem;
 use kernel::hil::time::{self, Alarm, Frequency, Ticks, Ticks32};
-use kernel::{AppId, Callback, CommandReturn, Driver, ErrorCode, Grant};
+use kernel::{AppId, CommandReturn, Driver, ErrorCode, Grant, Upcall};
 
 /// Syscall driver number.
 use crate::driver;
@@ -19,14 +19,14 @@ enum Expiration {
 #[derive(Copy, Clone)]
 pub struct AlarmData {
     expiration: Expiration,
-    callback: Callback,
+    callback: Upcall,
 }
 
 impl Default for AlarmData {
     fn default() -> AlarmData {
         AlarmData {
             expiration: Expiration::Disabled,
-            callback: Callback::default(),
+            callback: Upcall::default(),
         }
     }
 }
@@ -153,9 +153,9 @@ impl<'a, A: Alarm<'a>> Driver for AlarmDriver<'a, A> {
     fn subscribe(
         &self,
         subscribe_num: usize,
-        mut callback: Callback,
+        mut callback: Upcall,
         app_id: AppId,
-    ) -> Result<Callback, (Callback, ErrorCode)> {
+    ) -> Result<Upcall, (Upcall, ErrorCode)> {
         let res: Result<(), ErrorCode> = match subscribe_num {
             0 => self
                 .app_alarms

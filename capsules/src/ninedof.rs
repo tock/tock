@@ -22,7 +22,7 @@ use core::mem;
 use kernel::common::cells::OptionalCell;
 use kernel::hil;
 use kernel::ReturnCode;
-use kernel::{AppId, Callback, CommandReturn, Driver, ErrorCode, Grant};
+use kernel::{AppId, CommandReturn, Driver, ErrorCode, Grant, Upcall};
 
 /// Syscall driver number.
 use crate::driver;
@@ -37,7 +37,7 @@ pub enum NineDofCommand {
 }
 
 pub struct App {
-    callback: Callback,
+    callback: Upcall,
     pending_command: bool,
     command: NineDofCommand,
     arg1: usize,
@@ -46,7 +46,7 @@ pub struct App {
 impl Default for App {
     fn default() -> App {
         App {
-            callback: Callback::default(),
+            callback: Upcall::default(),
             pending_command: false,
             command: NineDofCommand::Exists,
             arg1: 0,
@@ -137,9 +137,9 @@ impl<'a> NineDof<'a> {
 
     fn configure_callback(
         &self,
-        mut callback: Callback,
+        mut callback: Upcall,
         app_id: AppId,
-    ) -> Result<Callback, (Callback, ErrorCode)> {
+    ) -> Result<Upcall, (Upcall, ErrorCode)> {
         let res = self
             .apps
             .enter(app_id, |app, _| {
@@ -202,9 +202,9 @@ impl Driver for NineDof<'_> {
     fn subscribe(
         &self,
         subscribe_num: usize,
-        callback: Callback,
+        callback: Upcall,
         app_id: AppId,
-    ) -> Result<Callback, (Callback, ErrorCode)> {
+    ) -> Result<Upcall, (Upcall, ErrorCode)> {
         match subscribe_num {
             0 => self.configure_callback(callback, app_id),
             _ => Err((callback, ErrorCode::NOSUPPORT)),

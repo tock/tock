@@ -40,7 +40,7 @@
 use core::cell::Cell;
 use kernel::common::cells::{MapCell, OptionalCell, TakeCell};
 use kernel::hil::i2c;
-use kernel::{AppId, Callback, CommandReturn, Driver, ErrorCode, ReturnCode};
+use kernel::{AppId, CommandReturn, Driver, ErrorCode, ReturnCode, Upcall};
 
 /// Syscall driver number.
 use crate::driver;
@@ -361,14 +361,14 @@ impl i2c::I2CClient for MAX17205<'_> {
 
 pub struct MAX17205Driver<'a> {
     max17205: &'a MAX17205<'a>,
-    callback: MapCell<Callback>,
+    callback: MapCell<Upcall>,
 }
 
 impl<'a> MAX17205Driver<'a> {
     pub fn new(max: &'a MAX17205) -> MAX17205Driver<'a> {
         MAX17205Driver {
             max17205: max,
-            callback: MapCell::new(Callback::default()),
+            callback: MapCell::new(Upcall::default()),
         }
     }
 }
@@ -419,9 +419,9 @@ impl Driver for MAX17205Driver<'_> {
     fn subscribe(
         &self,
         subscribe_num: usize,
-        callback: Callback,
+        callback: Upcall,
         _app_id: AppId,
-    ) -> Result<Callback, (Callback, ErrorCode)> {
+    ) -> Result<Upcall, (Upcall, ErrorCode)> {
         match subscribe_num {
             0 => {
                 if let Some(prev) = self.callback.replace(callback) {
@@ -430,7 +430,7 @@ impl Driver for MAX17205Driver<'_> {
                     // TODO(alevy): This should never happen because we start with a full MapCell
                     // and only ever replace it. This is just defensive until this module becomes
                     // multi-user, which will preclude the need for a MapCell in the first place.
-                    Ok(Callback::default())
+                    Ok(Upcall::default())
                 }
             }
 

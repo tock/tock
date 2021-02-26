@@ -53,7 +53,7 @@ use core::convert::TryFrom;
 use core::mem;
 
 use kernel::hil;
-use kernel::{AppId, Callback, CommandReturn, Driver, ErrorCode, Grant};
+use kernel::{AppId, CommandReturn, Driver, ErrorCode, Grant, Upcall};
 
 /// Syscall driver number.
 use crate::driver;
@@ -67,7 +67,7 @@ pub enum HumidityCommand {
 
 #[derive(Default)]
 pub struct App {
-    callback: Callback,
+    callback: Upcall,
     subscribed: bool,
 }
 
@@ -124,9 +124,9 @@ impl<'a> HumiditySensor<'a> {
 
     fn configure_callback(
         &self,
-        mut callback: Callback,
+        mut callback: Upcall,
         app_id: AppId,
-    ) -> Result<Callback, (Callback, ErrorCode)> {
+    ) -> Result<Upcall, (Upcall, ErrorCode)> {
         let res = self
             .apps
             .enter(app_id, |app, _| {
@@ -160,9 +160,9 @@ impl Driver for HumiditySensor<'_> {
     fn subscribe(
         &self,
         subscribe_num: usize,
-        callback: Callback,
+        callback: Upcall,
         app_id: AppId,
-    ) -> Result<Callback, (Callback, ErrorCode)> {
+    ) -> Result<Upcall, (Upcall, ErrorCode)> {
         match subscribe_num {
             // subscribe to temperature reading with callback
             0 => self.configure_callback(callback, app_id),

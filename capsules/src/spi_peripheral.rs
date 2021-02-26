@@ -9,7 +9,7 @@ use kernel::common::cells::{MapCell, TakeCell};
 use kernel::hil::spi::ClockPhase;
 use kernel::hil::spi::ClockPolarity;
 use kernel::hil::spi::{SpiSlaveClient, SpiSlaveDevice};
-use kernel::{AppId, Callback, CommandReturn, Driver, ErrorCode};
+use kernel::{AppId, CommandReturn, Driver, ErrorCode, Upcall};
 use kernel::{Read, ReadOnlyAppSlice, ReadWrite, ReadWriteAppSlice};
 
 /// Syscall driver number.
@@ -25,8 +25,8 @@ pub const DEFAULT_WRITE_BUF_LENGTH: usize = 1024;
 // that includes this new callback field.
 #[derive(Default)]
 struct PeripheralApp {
-    callback: Callback,
-    selected_callback: Callback,
+    callback: Upcall,
+    selected_callback: Upcall,
     app_read: ReadWriteAppSlice,
     app_write: ReadOnlyAppSlice,
     len: usize,
@@ -143,9 +143,9 @@ impl<S: SpiSlaveDevice> Driver for SpiPeripheral<'_, S> {
     fn subscribe(
         &self,
         subscribe_num: usize,
-        mut callback: Callback,
+        mut callback: Upcall,
         _app_id: AppId,
-    ) -> Result<Callback, (Callback, ErrorCode)> {
+    ) -> Result<Upcall, (Upcall, ErrorCode)> {
         match subscribe_num {
             0 /* read_write */ => {
                 self.app.map(|app| {

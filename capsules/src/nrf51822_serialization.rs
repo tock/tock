@@ -26,8 +26,8 @@ use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil;
 use kernel::hil::uart;
 use kernel::{
-    AppId, Callback, CommandReturn, Driver, ErrorCode, Grant, Read, ReadOnlyAppSlice, ReadWrite,
-    ReadWriteAppSlice, ReturnCode,
+    AppId, CommandReturn, Driver, ErrorCode, Grant, Read, ReadOnlyAppSlice, ReadWrite,
+    ReadWriteAppSlice, ReturnCode, Upcall,
 };
 
 /// Syscall driver number.
@@ -36,7 +36,7 @@ pub const DRIVER_NUM: usize = driver::NUM::Nrf51822Serialization as usize;
 
 #[derive(Default)]
 pub struct App {
-    callback: Callback,
+    callback: Upcall,
     tx_buffer: ReadOnlyAppSlice,
     rx_buffer: ReadWriteAppSlice,
     rx_recv_so_far: usize, // How many RX bytes we have currently received.
@@ -182,9 +182,9 @@ impl Driver for Nrf51822Serialization<'_> {
     fn subscribe(
         &self,
         subscribe_type: usize,
-        mut callback: Callback,
+        mut callback: Upcall,
         appid: AppId,
-    ) -> Result<Callback, (Callback, ErrorCode)> {
+    ) -> Result<Upcall, (Upcall, ErrorCode)> {
         match subscribe_type {
             // Add a callback
             0 => {

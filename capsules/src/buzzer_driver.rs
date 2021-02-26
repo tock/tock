@@ -44,7 +44,7 @@ use core::mem;
 use kernel::common::cells::OptionalCell;
 use kernel::hil;
 use kernel::hil::time::Frequency;
-use kernel::{AppId, Callback, CommandReturn, Driver, ErrorCode, Grant, ReturnCode};
+use kernel::{AppId, CommandReturn, Driver, ErrorCode, Grant, ReturnCode, Upcall};
 
 /// Syscall driver number.
 use crate::driver;
@@ -63,7 +63,7 @@ pub enum BuzzerCommand {
 
 #[derive(Default)]
 pub struct App {
-    callback: Callback, // Optional callback to signal when the buzzer event is over.
+    callback: Upcall, // Optional callback to signal when the buzzer event is over.
     pending_command: Option<BuzzerCommand>, // What command to run when the buzzer is free.
 }
 
@@ -192,9 +192,9 @@ impl<'a, A: hil::time::Alarm<'a>> Driver for Buzzer<'a, A> {
     fn subscribe(
         &self,
         subscribe_num: usize,
-        mut callback: Callback,
+        mut callback: Upcall,
         app_id: AppId,
-    ) -> Result<Callback, (Callback, ErrorCode)> {
+    ) -> Result<Upcall, (Upcall, ErrorCode)> {
         let res = match subscribe_num {
             0 => self
                 .apps

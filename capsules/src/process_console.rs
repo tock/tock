@@ -21,7 +21,7 @@
 //! - `Quanta`: How many times this process has exceeded its alloted time
 //!   quanta.
 //! - `Syscalls`: The number of system calls the process has made to the kernel.
-//! - `Dropped Callbacks`: How many callbacks were dropped for this process
+//! - `Dropped Upcalls`: How many callbacks were dropped for this process
 //!   because the queue was full.
 //! - `Restarts`: How many times this process has crashed and been restarted by
 //!   the kernel.
@@ -90,7 +90,7 @@
 //! Initialization complete. Entering main loop
 //! Hello World!
 //! list
-//! PID    Name    Quanta  Syscalls  Dropped Callbacks  Restarts    State  Grants
+//! PID    Name    Quanta  Syscalls  Dropped Upcalls  Restarts    State  Grants
 //! 00     blink        0       113                  0         0  Yielded    1/12
 //! 01     c_hello      0         8                  0         0  Yielded    3/12
 //! ```
@@ -254,7 +254,7 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                                 );
                             });
                         } else if clean_str.starts_with("list") {
-                            debug!(" PID    Name                Quanta  Syscalls  Dropped Callbacks  Restarts    State  Grants");
+                            debug!(" PID    Name                Quanta  Syscalls  Dropped Upcalls  Restarts    State  Grants");
                             self.kernel
                                 .process_each_capability(&self.capability, |proc| {
                                     let info: KernelInfo = KernelInfo::new(self.kernel);
@@ -269,7 +269,7 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                                         pname,
                                         proc.debug_timeslice_expiration_count(),
                                         proc.debug_syscall_count(),
-                                        proc.debug_dropped_callback_count(),
+                                        proc.debug_dropped_upcall_count(),
                                         proc.get_restart_count(),
                                         proc.get_state(),
                                         grants_used,

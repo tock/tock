@@ -17,7 +17,7 @@ use core::cell::Cell;
 use kernel::common::cells::TakeCell;
 use kernel::hil::gpio;
 use kernel::hil::i2c;
-use kernel::{AppId, Callback, CommandReturn, Driver, ErrorCode};
+use kernel::{AppId, CommandReturn, Driver, ErrorCode, Upcall};
 
 /// Syscall driver number.
 use crate::driver;
@@ -204,7 +204,7 @@ enum State {
 pub struct TSL2561<'a> {
     i2c: &'a dyn i2c::I2CDevice,
     interrupt_pin: &'a dyn gpio::InterruptPin<'a>,
-    callback: Cell<Callback>,
+    callback: Cell<Upcall>,
     state: Cell<State>,
     buffer: TakeCell<'static, [u8]>,
 }
@@ -219,7 +219,7 @@ impl<'a> TSL2561<'a> {
         TSL2561 {
             i2c: i2c,
             interrupt_pin: interrupt_pin,
-            callback: Cell::new(Callback::default()),
+            callback: Cell::new(Upcall::default()),
             state: Cell::new(State::Idle),
             buffer: TakeCell::new(buffer),
         }
@@ -440,9 +440,9 @@ impl Driver for TSL2561<'_> {
     fn subscribe(
         &self,
         subscribe_num: usize,
-        callback: Callback,
+        callback: Upcall,
         _app_id: AppId,
-    ) -> Result<Callback, (Callback, ErrorCode)> {
+    ) -> Result<Upcall, (Upcall, ErrorCode)> {
         match subscribe_num {
             0 => Ok(self.callback.replace(callback)),
 
