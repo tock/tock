@@ -387,23 +387,26 @@ pub trait ProcessType {
     // additional memop like functions
 
     /// Creates a `ReadWriteAppSlice` from the given offset and size
-    /// in process memory.
+    /// in process memory and invokes `allow_readwrite` on a `Driver`
+    /// implementation to invoke its system call.
     ///
-    /// If `buf_start_addr` is NULL this will have no effect and the return
-    /// value will be `Failure()` to signal the capsule to drop the buffer.
+    /// If `buf_start_addr` and `size` are not a valid read-write buffer
+    /// (any byte in the range is not read/write accessible to the process),
+    /// the method returns a failure result.
     ///
-    /// If the process is not active then this will return an error as it is not
-    /// valid to "allow" a buffer for a process that will not resume executing.
+    /// If the process is not active the method returns a failure result.
     /// In practice this case should not happen as the process will not be
     /// executing to call the allow syscall.
     ///
+    /// The method takes a closure so it can invoke `allow_readwrite` on
+    /// a `Driver` after it produces a `ReadWriteAppSlice`.
+    ///
     /// ## Returns
     ///
-    /// If the buffer is null (a zero-valued offset) this returns
-    /// `AllowReadWriteFailure`,
-    /// signaling the capsule to delete the entry. If the buffer is within the
-    /// process's accessible memory, returns an `AppSlice` wrapping that buffer.
-    /// Otherwise, returns an error via an `ErrorCode`.
+    /// Whether or not the call to `allow_readwrite` succeeded, or failed,
+    /// either because the kernel or the capsule rejected it. A success (`Ok`)
+    /// result must swap the `ReadWriteAppSlice` with the previously held
+    /// one, while a failure (`Err`) must return the passed one.
     fn allow_readwrite(
         &self,
         buf_start_addr: *mut u8,
@@ -415,15 +418,26 @@ pub trait ProcessType {
     ) -> GenericSyscallReturnValue;
 
     /// Creates a `ReadOnlyAppSlice` from the given offset and size
-    /// in process memory.
+    /// in process memory and invokes `allow_readonly` on a `Driver`
+    /// implementation to invoke its system call.
     ///
-    /// If `buf_start_addr` is NULL this will have no effect and the return
-    /// value will be `Failure()` to signal the capsule to drop the buffer.
+    /// If `buf_start_addr` and `size` are not a valid read only buffer
+    /// (any byte in the range is not readable by the process),
+    /// the method returns a failure result.
     ///
-    /// If the process is not active then this will return an error as it is not
-    /// valid to "allow" a buffer for a process that will not resume executing.
+    /// If the process is not active the method returns a failure result.
     /// In practice this case should not happen as the process will not be
     /// executing to call the allow syscall.
+    ///
+    /// The method takes a closure so it can invoke `allow_readonly` on
+    /// a `Driver` after it produces a `ReadOnlyAppSlice`.
+    ///
+    /// ## Returns
+    ///
+    /// Whether or not the call to `allow_readonly` succeeded, or failed,
+    /// either because the kernel or the capsule rejected it. A success (`Ok`)
+    /// result must swap the `ReadOnlyAppSlice` with the previously held
+    /// one, while a failure (`Err`) must return the passed one.
     fn allow_readonly(
         &self,
         buf_start_addr: *const u8,
