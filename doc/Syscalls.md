@@ -3,31 +3,17 @@ Syscalls
 
 This document explains how [system
 calls](https://en.wikipedia.org/wiki/System_call) work in Tock with regards
-to both the kernel and applications. This is a description of the design
-considerations behind the current implementation of syscalls, rather than a
-tutorial on how to use them in drivers or applications.
+to both the kernel and applications. [TRD104](reference/trd-syscalls.md) contains 
+the more formal specification
+of the system call API and ABI for 32-bit systems. 
+This document describes the considerations behind the system call design.
 
 <!-- toc -->
 
 - [Overview of System Calls in Tock](#overview-of-system-calls-in-tock)
 - [Process State](#process-state)
 - [Startup](#startup)
-- [The System Calls](#the-system-calls)
-  * [0: Yield](#0-yield)
-    + [Arguments](#arguments)
-    + [Return](#return)
-  * [1: Subscribe](#1-subscribe)
-    + [Arguments](#arguments-1)
-    + [Return](#return-1)
-  * [2: Command](#2-command)
-    + [Arguments](#arguments-2)
-    + [Return](#return-2)
-  * [3: Allow](#3-allow)
-    + [Arguments](#arguments-3)
-    + [Return](#return-3)
-  * [4: Memop](#4-memop)
-    + [Arguments](#arguments-4)
-    + [Return](#return-4)
+- [System Call Invocation](#system-call-invocation)
 - [The Context Switch](#the-context-switch)
   * [Context Switch Interface](#context-switch-interface)
   * [Cortex-M Architecture Details](#cortex-m-architecture-details)
@@ -53,9 +39,13 @@ Protection Unit (MPU), after the service call the kernel switches to privileged
 mode where it has full control of system resources (more detail on ARM
 [processor
 modes](http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.dui0553a/CHDIGFCA.html)).
+
+
 Second, context switching to the kernel allows it to do other resource handling
 before returning to the application. This could include running other
-applications, servicing queued callbacks, or many other activities. Finally,
+applications, servicing queued callbacks, or many other activities. 
+
+Finally,
 and most importantly, using system calls allows applications to be built
 independently from the kernel. The entire codebase of the kernel could change,
 but as long as the system call interface remains identical, applications do not
@@ -66,7 +56,7 @@ version uploaded, all without modifying the kernel running on a platform.
 
 ## Process State
 
-In Tock, a process can be in one of three states:
+In Tock, a process can be in one of seven states:
 
  - **Running**: Normal operation. A Running process is eligible to be scheduled
  for execution, although is subject to being paused by Tock to allow interrupt
@@ -81,6 +71,17 @@ In Tock, a process can be in one of three states:
  - **Fault**: Erroneous operation. A Fault-ed process will not be scheduled by
  Tock. Processes enter the Fault state by performing an illegal operation, such
  as accessing memory outside of their address space.
+ - **Terminated** The process ended itself by calling the `Exit` system call and
+ the kernel has not restarted it.
+ - **Unstarted** The process has not yet started; this state is typically very 
+ short-lived, between process loading and it started. However, in cases when
+ processes might be loaded for a long time without running, this state might
+ be long-lived.
+ - **StoppedRunning**, **StoppedYielded** These states correspond to a process
+ that was in either the Running or Yielded state but was then explicitly stopped
+ by the kernel (e.g., by the process console). A process in these states will not
+ be made runnable until it is restarted, at which point it will continue execution
+ where it was stopped.
 
 ## Startup
 
@@ -94,198 +95,18 @@ arguments in registers `r0` - `r3`:
   * r2: the total amount of memory in its region
   * r3: the current process memory break
 
-## The System Calls
+## System Call Invocation
 
-All system calls except Yield (which cannot fail) return an integer return code
-value to userspace. Negative return codes indicate an error. Values greater
-than or equal to zero indicate success. Sometimes syscall return values encode
-useful data, for example in the `gpio` driver, the command for reading the
-value of a pin returns 0 or 1 based on the status of the pin.
-
-Currently, the following return codes are defined, also available as `#defines`
-in C from the `tock.h` header (prepended with `TOCK_`):
-
-```rust
-pub enum ReturnCode {
-    SUCCESS,
-    FAIL, //.......... Generic failure condition
-    EBUSY, //......... Underlying system is busy; retry
-    EALREADY, //...... The state requested is already set
-    EOFF, //.......... The component is powered down
-    ERESERVE, //...... Reservation required before use
-    EINVAL, //........ An invalid parameter was passed
-    ESIZE, //......... Parameter passed was too large
-    ECANCEL, //....... Operation cancelled by a call
-    ENOMEM, //........ Memory required not available
-    ENOSUPPORT, //.... Operation or command is unsupported
-    ENODEVICE, //..... Device does not exist
-    EUNINSTALLED, //.. Device is not physically installed
-    ENOACK, //........ Packet transmission not acknowledged
-}
-```
-
-### 0: Yield
-
-Yield transitions the current process from the Running to the Yielded state, and
-the process will not execute again until another callback re-schedules the
-process.
-
-If a process has enqueued callbacks waiting to execute when Yield is called, the
-process immediately re-enters the Running state and the first callback runs, unless
-the scheduler chooses to prioritize some other operation first.
-
-```rust
-yield()
-```
-
-#### Arguments
-
-None.
-
-#### Return
-
-None.
-
-
-### 1: Subscribe
-
-Subscribe assigns callback functions to be executed in response to various
-events.
-
-A callback function is uniquely identified by the pair (`driver`,
-`subscribe_number`), a.k.a. *callback ID*. When calling `subscribe`, if there
-are any pending callbacks for this callback ID, they are removed from the queue
-before the new callback function is bound to the callback ID.
-
-A process can pass a null pointer as the callback argument to request the driver
-disable a previously set callback (besides flushing pending callbacks for this
-callback ID).
-
-```rust
-subscribe(driver: u32, subscribe_number: u32, callback: u32, userdata: u32) -> ReturnCode as u32
-```
-
-#### Arguments
-
- - `driver`: An integer specifying which driver to call.
- - `subscribe_number`: An integer index for which function is being subscribed.
- - `callback`: A pointer to a callback function to be executed when this event
- occurs. All callbacks conform to the C-style function signature:
- `void callback(int arg1, int arg2, int arg3, void* data)`.
- - `userdata`: A pointer to a value of any type that will be passed back by the
-   kernel as the last argument to `callback`.
-
-Individual drivers define a mapping for `subscribe_number` to the events that
-may generate that callback as well as the meaning for each of the `callback`
-arguments.
-
-#### Return
-
- - `ENODEVICE` if `driver` does not refer to a valid kernel driver.
- - `ENOSUPPORT` if the driver exists but doesn't support the `subscribe_number`.
- - Other return codes based on the specific driver.
-
-
-### 2: Command
-
-Command instructs the driver to perform a specific action.
-
-```rust
-command(driver: u32, command_number: u32, argument1: u32, argument2: u32) -> ReturnCode as u32
-```
-
-#### Arguments
-
- - `driver`: An integer specifying which driver to call.
- - `command_number`: An integer specifying the requested command.
- - `argument1`: A command-specific argument.
- - `argument2`: A command-specific argument.
-
-The `command_number` tells the driver which command was called from
-userspace, and the `argument`s are specific to the driver and command number.
-One example of the argument being used is in the `led` driver, where the
-command to turn on an LED uses the argument to specify which LED.
-
-One Tock convention with the Command syscall is that command number 0 will
-always return a value of 0 or greater if the driver is supported by the running
-kernel. This means that any application can call command number 0 on any driver
-number to determine if the driver is present and the related functionality is
-supported. In most cases this command number will return 0, indicating that the
-driver is present. In other cases, however, the return value can have an
-additional meaning such as the number of devices present, as is the case in the
-`led` driver to indicate how many LEDs are present on the board.
-
-#### Return
-
- - `ENODEVICE` if `driver` does not refer to a valid kernel driver.
- - `ENOSUPPORT` if the driver exists but doesn't support the `command_number`.
- - Other return codes based on the specific driver.
-
-
-### 3: Allow
-
-Allow marks a region of memory as shared between the kernel and application.
-Passing a null pointer requests the corresponding driver to stop accessing the
-shared memory region.
-
-```rust
-allow(driver: u32, allow_number: u32, pointer: usize, size: u32) -> ReturnCode as u32
-```
-
-#### Arguments
-
- - `driver`: An integer specifying which driver should be granted access.
- - `allow_number`: A driver-specific integer specifying the purpose of this
-   buffer.
- - `pointer`: A pointer to the start of the buffer in the process memory space.
- - `size`: An integer number of bytes specifying the length of the buffer.
-
-Many driver commands require that buffers are Allow-ed before they can execute.
-A buffer that has been Allow-ed does not need to be Allow-ed to be used again.
-
-As of this writing, most Tock drivers do not provide multiple virtual devices to
-each application. If one application needs multiple users of a driver (i.e. two
-libraries on top of I2C), each library will need to re-Allow its buffers before
-beginning operations.
-
-#### Return
-
- - `ENODEVICE` if `driver` does not refer to a valid kernel driver.
- - `ENOSUPPORT` if the driver exists but doesn't support the `allow_number`.
- - `EINVAL` the buffer referred to by `pointer` and `size` lies completely or
-partially outside of the processes addressable RAM.
- - Other return codes based on the specific driver.
-
-
-### 4: Memop
-
-Memop expands the memory segment available to the process, allows the process to
-retrieve pointers to its allocated memory space, provides a mechanism for
-the process to tell the kernel where its stack and heap start, and other
-operations involving process memory.
-
-```rust
-memop(op_type: u32, argument: u32) -> [[ VARIES ]] as u32
-```
-
-#### Arguments
-
- - `op_type`: An integer indicating whether this is a `brk` (0), a `sbrk` (1),
-   or another memop call.
- - `argument`: The argument to `brk`, `sbrk`, or other call.
-
-Each memop operation is specific and details of each call can be found in
-the [memop syscall documentation](syscalls/memop.md).
-
-#### Return
-
-- Dependent on the particular memop call.
-
+A process invokes a system call by triggering a software interrupt that
+transitions the microcontroller to supervisor/kernel mode. The exact
+mechanism for this is architecture-specific. [TRD104](reference/trd-syscalls.md)
+specifies how userspace and the kernel pass values to each other for
+CortexM and RISCV32I platforms.
 
 ## The Context Switch
 
-Handling a context switch is one of the few pieces of Tock code that is
-actually architecture dependent and not just chip-specific. The code is located
+Handling a context switch is one of the few pieces of architecture-specific
+Tock code. The code is located
 in `lib.rs` within the `arch/` folder under the appropriate architecture. As
 this code deals with low-level functionality in the processor it is written in
 assembly wrapped as Rust function calls.
@@ -381,31 +202,37 @@ well as the return address (`ra`) register.
 After a system call is made, the call is handled and routed by the Tock kernel
 in [`sched.rs`](../kernel/src/sched.rs) through a series of steps.
 
-1. The kernel calls a platform-provided syscall filter function to determine if
-   it should handle the syscall or not. This does not apply to `yield`. The
-   filter function takes the syscall and which process issued the syscall to
-   return a `Result((), ErrorCode)` to signal if the syscall should be handled
-   or if an error should be returned to the process.
+1. For Command, Subscribe, Allow Read-Write and Allow Read-Only system
+call classes, the kernel calls a platform-defined syscall filter
+function. This function deterimes if the kernel should handle the
+syscall or not. Yield, Exit, and Memop system calls are not
+filtered. This filter function allows the kernel to impose security
+policies that limit which system calls a process might invoke. The
+filter function takes the syscall and which process issued the syscall
+to return a `Result((), ErrorCode)` to signal if the syscall should be
+handled or if an error should be returned to the process. If the
+filter function disallows the syscall it returns `Err(ErrorCode)` and
+the `ErrorCode` is provided to the process as the return code for the
+syscall. Otherwise, the syscall proceeds. _The filter interface is
+unstable and may be changed in the future._
 
-   If the filter function disallows the syscall it returns `Err(ErrorCode)` and
-   the `ErrorCode` is provided to the process as the return code for the
-   syscall. Otherwise, the syscall proceeds.
+2. The kernel scheduler loop handles the Exit and Yield system call classes.
 
-   _The filter interface is currently considered unstable and subject to change._
+3. To handle Memop system calls, the scheduler loop invokes the `memop` module,
+which implements the Memop class.
 
-2. The number of the syscall is matched against the valid syscall types. `yield`
-   and `memop` have special functionality that is handled by the kernel.
-   `command`, `subscribe`, and `allow` are routed to drivers for handling.
+4. Allow Read-Write, Allow Read-Only, Subscribe, and Command follow a
+more complex execution path because are implemented by drivers.  To
+route these system calls, the scheduler loop calls a struct that
+implements the `Platform` trait. This trait has a `with_driver()`
+function that the driver number as an argument and returns either a
+reference to the corresponding driver or `None` if it is not
+installed. The kernel uses the returned reference to call the
+appropriate system call function on that driver with the remaining
+syscall arguments.
 
-3. To route the `command`, `subscribe`, and `allow` syscalls, each board creates
-   a struct that implements the `Platform` trait. Implementing that trait only
-   requires implementing a `with_driver()` function that takes one argument, the
-   driver number, and returns a reference to the correct driver if it is
-   supported or `None` otherwise. The kernel then calls the appropriate syscall
-   function on that driver with the remaining syscall arguments.
-
-   An example board that implements the `Platform` trait looks something like
-   this:
+An example board that implements the `Platform` trait looks something like
+this:
 
    ```rust
    struct TestBoard {
@@ -425,10 +252,10 @@ in [`sched.rs`](../kernel/src/sched.rs) through a series of steps.
    }
    ```
 
-   `TestBoard` then supports one driver, the UART console, and maps it to driver
-   number 0. Any `command`, `subscribe`, and `allow` sycalls to driver number 0
-   will get routed to the console, and all other driver numbers will return
-   `ReturnCode::ENODEVICE`.
+`TestBoard` then supports one driver, the UART console, and maps it to driver
+number 0. Any `command`, `subscribe`, and `allow` sycalls to driver number 0
+will get routed to the console, and all other driver numbers will return
+`ReturnCode::ENODEVICE`.
 
 
 
